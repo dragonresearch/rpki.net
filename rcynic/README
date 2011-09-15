@@ -13,10 +13,8 @@ done a POSIX reference manual lookup for every function call.  Please
 report any portability problems.
 
 All certificates and CRLs are in DER format, with filenames derived
-from the RPKI rsync URIs at which the data are published.  At some
-point I'll probably write a companion program to convert a tree of DER
-into the hashed directory of PEM format that most OpenSSL applications
-expect.
+from the RPKI rsync URIs at which the data are published.  See
+../utils/ and ../rtr-origin/ for tools that use rcynic's output.
 
 All configuration is via an OpenSSL-style configuration file, except
 for selection of the name of the configuration file itself.  A few of
@@ -38,19 +36,54 @@ The one thing you MUST specify in the config file in order for the
 program to do anything useful is file name of one or more trust
 anchors.  Trust anchors for this program are represented as
 DER-formated X509 objects that look just like certificates, except
-that they're trust anchors.  To date I have only tested this code with
-self-signed trust anchors; in theory, this is not required, in
-practice the code may require tweaks to support other trust anchors.
+that they're trust anchors.
+
+Strictly speaking, trust anchors do not need to be self-signed, but
+many programs (including OpenSSL ) assume that trust anchors will be
+self-signed.  See the allow-non-self-signed-trust-anchor configuration
+option if you need to use a non-self-signed trust anchor, but be
+warned that the results, while technically correct, may not be useful.
+
+There are two ways of specifying trust anchors:
+
+- Via the "trust-anchor" directive, to name a local file containing
+  the DER-encoded trust anchor.
+
+- Via the "trust-anchor-locator" directive, to name a local file
+  containing a "trust anchor locator" (TAL).  See draft-ietf-sidr-ta
+  for details [update this once RFC has been issued].
+
+In most cases, except perhaps for testing, you will want to use trust
+anchor locators, since they allow the trust anchor itself to be
+updated without requiring reconfiguration of rcynic.
+
+See the make-tal.sh script in this directory if you need to generate
+your own TAL file for a trust anchor.
+
+As of when I write this documentation, there still is no global trust
+anchor for the RPKI system, so you have to specify separate trust
+anchors for each RIR that's publishing data:
 
 Example of a minimal config file:
 
     [rcynic]
 
-    trust-anchor.0 = trust-anchors/apnic-trust-anchor.cer
-    trust-anchor.1 = trust-anchors/ripe-ripe-trust-anchor.cer
-    trust-anchor.2 = trust-anchors/ripe-arin-trust-anchor.cer
+    trust-anchor-locator.0 = trust-anchors/apnic.tal
+    trust-anchor-locator.1 = trust-anchors/ripe.tal
+    trust-anchor-locator.2 = trust-anchors/afrinic.tal
+    trust-anchor-locator.3 = trust-anchors/lacnic.tal
+    
+Eventually, this should all be collapsed into a single trust anchor,
+so that relying parties (people running tools like rcynic) don't need
+to sort out this sort of issue, at which point the above
+configuration can become something like:
 
-By default, rcynic uses three writable directory trees:
+    [rcynic]
+
+    trust-anchor-locator = trust-anchors/iana.tal
+
+
+By default, rcynic uses two writable directory trees:
 
 - unauthenticated	Raw data fetched via rsync.  In order to take
 			full advantage of rsync's optimized transfers,
@@ -61,25 +94,33 @@ By default, rcynic uses three writable directory trees:
 - authenticated		Data that rcynic has checked.  This is the
 			real output of the process.
 
-- old_authenticated	Saved results from immediately previous rcynic
-			run, used when attempting to recover from
-			certain kinds of errors.
+authenticated is really a symbolic link to a directory with a name of
+the form authenticated.<timestamp>, where <timestamp> is an ISO 8601
+timestamp like 2001-04-01T01:23:45Z.  rcynic creates a new timestamped
+directory every time it runs, and moves the symbolic link as an atomic
+operation when the validation process completes.  The intent is that
+authenticated always points to the most recent usable validation
+results, so that programs which use rcynic's output don't need to
+worry about whether an rcynic run is in progress.
 
-rcynic renames the authenticated tree to become the old_authenticated
-tree when it starts up, then builds a new authenticated tree.
+rynic stores trust anchors specified via the trust-anchor-locator
+directive in the unauthenticated tree just like any other fetched
+object, and copies into the authenticated trees just like any other
+object once they pass rcynic's checks.
 
-rcynic copies the trust anchors themselves into the top level
-directory of the authenticated tree xxxxxxxx.n.cer, where xxxxxxxx and
-n are the OpenSSL object name hash and index within the resulting
-virtual hash bucket (the same as the c_hash Perl script that comes
-with OpenSSL would produce), and ".cer" is the literal string ".cer".
-The reason for this is that trust anchors, by definition, are not
-fetched automatically, and thus do not really have publication URIs in
-the sense that every other object in these trees do.  So rcynic uses a
-naming scheme which insures (a) that each trust anchor has a unique
-name within the output tree and (b) that trust anchors cannot be
-confusd with certificates: trust anchors always go in the top level of
-the tree, data fetched via rsync always go in subdirectories.
+rcynic copies trust anchors specified via the "trust-anchor" directive
+into the top level directory of the authenticated tree xxxxxxxx.n.cer,
+where xxxxxxxx and n are the OpenSSL object name hash and index within
+the resulting virtual hash bucket (the same as the c_hash Perl script
+that comes with OpenSSL would produce), and ".cer" is the literal
+string ".cer".  The reason for this is that these trust anchors, by
+definition, are not fetched automatically, and thus do not really have
+publication URIs in the sense that every other object in these trees
+do.  So rcynic uses a naming scheme which insures (a) that each trust
+anchor has a unique name within the output tree and (b) that trust
+anchors cannot be confusd with certificates: trust anchors always go
+in the top level of the tree, data fetched via rsync always go in
+subdirectories.
 
 As currently implemented, rcynic does not attempt to maintain an
 in-memory cache of objects it might need again later.  It does keep an
@@ -90,7 +131,7 @@ freed immediately after use and read from disk again as needed.  From
 a database design standpoint, this is not very efficient, but as the
 rcynic's main bottlenecks are expected to be crypto and network
 operations, it seemed best to keep the design as simple as possible,
-at least until execution profiling demonstrates a real issue.
+at least until execution profiling demonstrates a real issue here.
 
 Usage and configuration:
 
@@ -109,7 +150,7 @@ uses but customized to the specific task rcynic performs.  Levels:
 Command line options:
 
  -c configfile	Path to configuration file (default: rcynic.conf)
- -l loglevel	Logging level (default: log_telemetry)
+ -l loglevel	Logging level (default: log_data_err)
  -s		Log via syslog
  -e		Log via stderr when also using syslog
  -j		Start-up jitter interval (see below; default: 600)
@@ -128,15 +169,8 @@ Configuration variables:
 
 authenticated		Path to output directory (where rcynic should
 			place objects it has been able to validate).
-			Default: rcynic-data/authenticated
 
-old-authenticated	Path to which rcynic should rename the output
-			directory (if any) from the previous rcynic
-			run.  rcynic preserves the previous run's
-			output directory both as a backup data source
-			for the current run and also so that you don't
-			lose all your state if rcynic chokes and
-			dies.  Default: rcynic-data/authenticated.old
+			Default: rcynic-data/authenticated
 
 
 unauthenticated		Path to directory where rcynic should store
@@ -145,7 +179,10 @@ unauthenticated		Path to directory where rcynic should store
 			rcynic to preserve and reuse this directory
 			across runs to minimize the network traffic
 			necessary to bring your repository mirror up
-			to date.  Default: rcynic-data/unauthenticated
+			to date.
+
+			Default: rcynic-data/unauthenticated
+
 
 rsync-timeout		How long (in seconds) to let rsync run before
 			terminating the rsync process, or zero for no
@@ -154,35 +191,83 @@ rsync-timeout		How long (in seconds) to let rsync run before
 			prematurely.  It's present to let you defend
 			against evil rsync server operators who try to
 			tarpit your connection as a form of denial of
-			service attack on rcynic.  Default: no timeout
-			(but this may change, best set it explictly).
+			service attack on rcynic.
+
+			Default: 300 seconds.
 
 
-rsync-program		Path to the rsync program.  Default: rsync,
-			but you should probably set this variable
-			rather than just trusting the PATH environment
-			variable to be set correctly.
+max-parallel-fetches	Upper limit on the number of copies of rsync
+			that rcynic is allowed to run at once.  Used
+			properly, this can speed up synchronization
+			considerably when fetching from repositories
+			built with sub-optimal tree layouts or when
+			dealing with unreachable repositories.  Used
+			improperly, this option can generate excessive
+			load on repositories, cause synchronization to
+			be interrupted by firewalls, and generally
+			creates create a public nuisance.  Use with
+			caution.
+
+			As of this writing, values in the range 2-4
+			are reasonably safe.  At least one RIR
+			currently refuses service at settings above 4,
+			and another RIR appears to be running some
+			kind of firewall that silently blocks
+			connections when it thinks decides that the
+			connection rate is excessive.
+
+			rcynic can't really detect all of the possible
+			problems created by excessive values of this
+			parameter, but if rcynic's report shows that
+			both successful retrivial and skipped
+			retrieval from the same repository host,
+			that's a pretty good hint that something is
+			wrong, and an excessive value here is a good
+			first guess as to the cause.
+
+			Default: 1
+
+
+rsync-program		Path to the rsync program.
+
+			Default: rsync, but you should probably set
+			this variable rather than just trusting the
+			PATH environment variable to be set correctly.
+
 
 log-level		Same as -l option on command line.  Command
 			line setting overrides config file setting.
-			Default: log_telemetry
+
+			Default: log_log_err
+
 
 use-syslog		Same as -s option on command line.  Command
 			line setting overrides config file setting.
-			Values: true or false.  Default: false
+
+			Values: true or false.
+
+			Default: false
+
 
 use-stderr		Same as -e option on command line.  Command
 			line setting overrides config file setting.
-			Values: true or false.  Default: false, but
-			if neither use-syslog nor use-stderr is set,
-			log output will go to stderr.
 
-syslog-facility		Syslog facility to use.  Default: local0
+			Values: true or false.
+
+			Default: false, but if neither use-syslog nor
+			use-stderr is set, log output goes to stderr.
+
+
+syslog-facility		Syslog facility to use.
+
+			Default: local0
+
 
 
 syslog-priority-xyz	(where xyz is an rcynic logging level, above)
 			Override the syslog priority value to use when
 			logging messages at this rcynic level.
+
 			Defaults:
 
 			syslog-priority-log_sys_err:	err
@@ -191,6 +276,7 @@ syslog-priority-xyz	(where xyz is an rcynic logging level, above)
 			syslog-priority-log_telemetry:	info
 			syslog-priority-log_verbose:	info
 			syslog-priority-log_debug:	debug
+
 
 jitter			Startup jitter interval, same as -j option on
 			command line.  Jitter interval, specified in
@@ -202,12 +288,15 @@ jitter			Startup jitter interval, same as -j option on
 			running under cron with synchronized clocks,
 			in particular to avoid hammering the RPKI
 			rsync servers into the ground at midnight UTC.
+
 			Default: 600
+
 
 lockfile		Name of lockfile, or empty for no lock.  If
 			you run rcynic under cron, you should use this
 			parameter to set a lockfile so that successive
 			instances of rcynic don't stomp on each other.
+
 			Default: no lock
 
 xml-summary		Enable output of a per-host summary at the
@@ -216,13 +305,20 @@ xml-summary		Enable output of a per-host summary at the
 			of logging, or just want it in addition to
 			logging.  Value: filename to which XML summary
 			should be written; "-" will send XML summary
-			to stdout.  Default: no XML summary
+			to stdout.
+
+			Default: no XML summary
+
 
 allow-stale-crl		Allow use of CRLs which are past their
 			nextUpdate timestamp.  This is probably
 			harmless, but since it may be an early warning
 			of problems, it's configurable.
-			Values: true or false.  Default: true
+
+			Values: true or false.
+
+			Default: true
+
 
 prune			Clean up old files corresponding to URIs that
 			rcynic did not see at all during this run.
@@ -232,39 +328,90 @@ prune			Clean up old files corresponding to URIs that
 			rcynic never visits the old collection again,
 			old files will remain in the local mirror
 			indefinitely unless you enable this option.
-			Values: true or false.  Default: true
+
+			Values: true or false.
+
+			Default: true
+
 
 allow-stale-manifest	Allow use of manifests which are past their
 			nextUpdate timestamp.  This is probably
 			harmless, but since it may be an early warning
 			of problems, it's configurable.
-			Values: true or false.  Default: true
+
+			Values: true or false.
+
+			Default: true
+
 
 require-crl-in-manifest	Reject manifests which don't list the CRL
 			covering the manifest EE certificate.
-			Values: true or false.  Default: false
+
+			Values: true or false.
+
+			Default: false
+
 
 allow-non-self-signed-trust-anchor
 			Experimental.  Attempts to work around OpenSSL's
 			strong preference for self-signed trust
 			anchors.  Do not use this unless you really know
 			what you are doing.
-			Values: true or false.  Default: false
+
+			Values: true or false.
+
+			Default: false
+
+
+run-rsync
+
+			Whether to run rsync to fetch data.  You don't
+			want to change this except when building
+			complex topologies where rcynic running on one
+			set of machines acts as aggregators for
+			another set of validators.  A large ISP might
+			want to build such a topology so that they
+			could have a local validation cache in each
+			POP while minimizing load on the global
+			repository system and maintaining some degree
+			of internal consistancy between POPs.  In such
+			cases, one might want the rcynic instances in
+			the POPs to validate data fetched from the
+			aggregators via an external process, without
+			the POP rcynic instances attempting to fetch
+			anything themselves.
+
+			Don't touch this unless you really know what
+			you're doing.
+
+			Values: true or false.
+
+			Default: true
+
+
+use-links		Whether to use hard links rather than copying
+			valid objects from the unauthenticated to
+			authenticated tree.  Using links is slightly
+			more fragile (anything that stomps on the
+			unauthenticated file also stomps on the
+			authenticated file) but is a bit faster and
+			reduces the number of inodes consumed by a
+			large data collection.  At the moment, copying
+			is the default behavior, but this may change
+			in the future.
+
+			Values: true or false.
+
+			Default: false
+
 
 trust-anchor		Specify one RPKI trust anchor, represented as
 			a local file containing an X.509 certificate
 			in DER format.  Value of this option is the
-			pathname of the file.  No default.
+			pathname of the file.
 
-trust-anchor-uri-with-key
-			Specify one RPKI trust anchor, represented as
-			an rsync URI and a local file containing the
-			RSA public key of the X.509 object specified
-			by the URI.  The RSA public key should be in
-			DER format.  Value for this option consists of
-			the URI and the filename of the public key, in
-			that order, separated by whitespace.  No
-			default.
+			No default.
+
 
 trust-anchor-locator
 			Specify one RPKI trust anchor, represented as
@@ -273,17 +420,10 @@ trust-anchor-locator
 			by the URI.  First line of the file is the
 			URI, remainder is the public key in Base64
 			encoded DER format.  Value of this option
-			is the pathname of the file.  No default.
+			is the pathname of the file.
 
-indirect-trust-anchor
-			An old name for trust-anchor-locator, kept for
-			backwards compatability.  See description of
-			trust-anchor-locator.   The name was changed
-			to keep members of the IETF SIDR WG happy.
+			No default.
 
-trust-anchor-uri-with-key and indirect-trust-anchor are semantically
-identical, the difference is just how the URI and public key are
-stored.
 
 There's a companion XSLT template in rcynic.xsl, which translates what
 the xml-summary option writes into HTML.
@@ -292,11 +432,17 @@ the xml-summary option writes into HTML.
 
 Running rcynic chrooted
 
-[This is only a sketch, needs details and finicky proofreading]
+This is an attempt to describe the process of setting up rcynic in a
+chrooted environment.  The installation scripts that ship with rcynic
+attempt to do this automatically for the platforms we support, but the
+process is somewhat finicky, so some explanation seems in order.  If
+you're running on one of the supported platforms, the following steps
+may be handled for you by the Makefiles, but you may still want to
+understand what all this is trying to do.
 
-rcynic does not include any direct support for running chrooted, but
-is designed to be (relatively) easy to run in a chroot jail.  Here's
-how.
+rcynic itself does not include any direct support for running
+chrooted, but is designed to be (relatively) easy to run in a chroot
+jail.  Here's how.
 
 You'll either need staticly linked copies of rcynic and rsync, or
 you'll need to figure out which shared libraries these programs need
@@ -345,7 +491,8 @@ writable by the rcynic userid.  In particular, rcynic and rsync should
 -not- be allowed to modify: their own binary images, any of the
 configuration files, or your trust anchors.  It's simplest just to
 have root own all the files and directories that rcynic and rsync are
-not allowed to modify.
+not allowed to modify, and make sure that the permissions for all of
+those directories and files make them writable only by root.
 
 Sample jail tree, assuming that we're putting all of this under
 /var/rcynic:
@@ -381,14 +528,13 @@ rcynic.conf to match this configuration:
 
   [rcynic]
 
-  trust-anchor.1	= /etc/trust-anchors/ta-1.cer
-  trust-anchor.2	= /etc/trust-anchors/ta-2.cer
-  trust-anchor.3	= /etc/trust-anchors/ta-3.cer
+  trust-anchor-locator.1	= /etc/trust-anchors/ta-1.tal
+  trust-anchor-locator.2	= /etc/trust-anchors/ta-2.tal
+  trust-anchor-locator.3	= /etc/trust-anchors/ta-3.tal
 
-  rsync-program		= /bin/rsync
-  authenticated		= /data/authenticated
-  old-authenticated	= /data/authenticated.old
-  unauthenticated	= /data/unauthenticated
+  rsync-program			= /bin/rsync
+  authenticated			= /data/authenticated
+  unauthenticated		= /data/unauthenticated
 
 Once you've got all this set up, you're ready to try running rcynic in
 the jail.  Try it from the command line first, then if that works, you
@@ -414,14 +560,16 @@ On FreeBSD, building a staticly linked rsync is easy: just set the
 environment variable LDFLAGS='-static' before building the rsync port
 and the right thing will happen.  Since this is really just GNU
 configure picking up the environment variable, the same trick should
-work on other platforms.
+work on other platforms...except that some compilers don't support
+-static, and some platforms are missing some or all of the non-shared
+libraries you'd need to link the resulting binary.
 
 For simplicity, I've taken the same approach with rcynic, so 
 
   $ make LDFLAGS='-static'
 
 should work.  Except that you don't even have to do that: static
-linking is the default, because I run it jailed.
+linking is the default where supported, because I run it jailed.
 
 syslog:
 
@@ -432,21 +580,3 @@ is to add the following lines to /etc/rc.conf:
     altlog_proglist="named rcynic"
     rcynic_chrootdir="/var/rcynic"
     rcynic_enable="YES"
-
-
-
-If you're using the experimental trust-anchor-uri-with-key trust
-anchor format, you'll need a copy of the public key in DER format.
-One can extract this from an X.509 format trust anchor using the
-OpenSSL command line tool, but the path is poorly documented.  Try
-something like this:
-
-  $ openssl x509 -inform DER -in foo.cer -pubkey -noout | openssl rsa -outform DER -pubin -out foo.key
-
-The important bits here are:
-
-a) You're asking the x509 command to extract the public key and send
-   it (in PEM format) to stdout without the rest of the certificate
-
-b) You're asking the rsa command to read a public key (in PEM format)
-   on stdin, convert it to DER format and write it out.

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
- - Copyright (C) 2010  Internet Systems Consortium, Inc. ("ISC")
+ - Copyright (C) 2010-2011  Internet Systems Consortium, Inc. ("ISC")
  -
  - Permission to use, copy, modify, and/or distribute this software for any
  - purpose with or without fee is hereby granted, provided that the above
@@ -17,33 +17,37 @@
 
 <!-- $Id$ -->
 
-<!--
-  - XSL stylesheet to render rcynic's xml-summary output as tab-delimited text.
- -->
-
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
 
   <xsl:output method="text" encoding="US-ASCII"/>
 
+  <!-- Translate rcynic XML into tab-delimited flat text -->
   <xsl:template match="/">
+
+    <!-- Write labels as two columns: <label> <tab> <text> -->
     <xsl:for-each select="rcynic-summary/labels/*">
-      <xsl:if test="position() != 1">
-	<xsl:text>&#9;</xsl:text>
-      </xsl:if>
-      <xsl:apply-templates/>
-    </xsl:for-each>
-    <xsl:text>&#10;</xsl:text>
-    <xsl:for-each select="rcynic-summary/host">
-      <xsl:sort order="descending" data-type="number" select="sum(*[not(self::hostname)])"/>
-      <xsl:sort order="ascending" data-type="text" select="hostname"/>
-      <xsl:for-each select="*">
-	<xsl:if test="position() != 1">
-	  <xsl:text>&#9;</xsl:text>
-	</xsl:if>
-	<xsl:apply-templates/>
-      </xsl:for-each>
+      <xsl:value-of select="name()"/>
+      <xsl:text>&#9;</xsl:text>
+      <xsl:value-of select="."/>
       <xsl:text>&#10;</xsl:text>
     </xsl:for-each>
+
+    <!-- Blank line between sections -->
+    <xsl:text>&#10;</xsl:text>
+
+    <!-- Write status as three colums: <timestamp> <tab> <status> <tab> <uri> -->
+    <xsl:for-each select="rcynic-summary/validation_status">
+      <xsl:sort order="ascending" data-type="text" select="."/>
+      <xsl:value-of select="@timestamp"/>
+      <xsl:text>&#9;</xsl:text>
+      <xsl:value-of select="@status"/>
+      <xsl:text>&#9;</xsl:text>
+      <xsl:value-of select="."/>
+      <xsl:text>&#9;</xsl:text>
+      <xsl:value-of select="@generation"/>
+      <xsl:text>&#10;</xsl:text>
+    </xsl:for-each>
+
   </xsl:template>
 
 </xsl:stylesheet>

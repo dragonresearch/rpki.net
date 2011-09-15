@@ -4266,7 +4266,7 @@ test $build_django = yes && RPKID_SUBDIRS="$RPKID_SUBDIRS portal-gui"
 
 
 
-ac_config_files="$ac_config_files Makefile rcynic/Makefile rcynic/static-rsync/Makefile rcynic-ng/Makefile rcynic-ng/static-rsync/Makefile utils/Makefile utils/find_roa/Makefile utils/hashdir/Makefile utils/print_rpki_manifest/Makefile utils/print_roa/Makefile utils/scan_roas/Makefile utils/uri/Makefile"
+ac_config_files="$ac_config_files Makefile rcynic/Makefile rcynic/static-rsync/Makefile utils/Makefile utils/find_roa/Makefile utils/hashdir/Makefile utils/print_rpki_manifest/Makefile utils/print_roa/Makefile utils/scan_roas/Makefile utils/uri/Makefile"
 
 
 case $host_os in
@@ -5135,8 +5135,6 @@ do
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "rcynic/Makefile") CONFIG_FILES="$CONFIG_FILES rcynic/Makefile" ;;
     "rcynic/static-rsync/Makefile") CONFIG_FILES="$CONFIG_FILES rcynic/static-rsync/Makefile" ;;
-    "rcynic-ng/Makefile") CONFIG_FILES="$CONFIG_FILES rcynic-ng/Makefile" ;;
-    "rcynic-ng/static-rsync/Makefile") CONFIG_FILES="$CONFIG_FILES rcynic-ng/static-rsync/Makefile" ;;
     "utils/Makefile") CONFIG_FILES="$CONFIG_FILES utils/Makefile" ;;
     "utils/find_roa/Makefile") CONFIG_FILES="$CONFIG_FILES utils/find_roa/Makefile" ;;
     "utils/hashdir/Makefile") CONFIG_FILES="$CONFIG_FILES utils/hashdir/Makefile" ;;

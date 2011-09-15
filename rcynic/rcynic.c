@@ -218,6 +218,7 @@ static const struct {
   QB(malformed_crldp,			"Malformed CRDLP extension")	    \
   QB(malformed_roa_addressfamily,       "Malformed ROA addressFamily")	    \
   QB(malformed_sia,			"Malformed SIA extension")	    \
+  QB(malformed_tal_uri,			"Malformed TAL URI")		    \
   QB(manifest_bad_econtenttype,		"Bad manifest eContentType")	    \
   QB(manifest_decode_error,		"Manifest decode error")	    \
   QB(manifest_invalid_cms,		"Manifest validation failure")	    \
@@ -2308,12 +2309,6 @@ static void rsync_init(const rcynic_ctx_t *rc,
     logmsg(rc, log_debug, "New rsync context %s is feeling conflicted", ctx->uri.s);
     ctx->state = rsync_state_conflict_wait;
   }
-
-
-#if 0
-  if (rsync_runable(rc, ctx) && rsync_count_running(rc) < rc->max_parallel_fetches);
-    rsync_run(rc, ctx);
-#endif
 }
 
 /**
@@ -4467,6 +4462,12 @@ int main(int argc, char *argv[])
 	  !uri_to_filename(&rc, &uri, &path2, &rc.new_authenticated) ||
 	  !uri_to_filename(&rc, &uri, &path3, &rc.old_authenticated)) {
 	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
+	BIO_free_all(bio);
+	bio = NULL;
+	continue;
+      }
+      if (endswith(uri.s, "/")) {
+	log_validation_status(&rc, &uri, malformed_tal_uri, object_generation_null);
 	BIO_free_all(bio);
 	bio = NULL;
 	continue;

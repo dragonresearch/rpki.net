@@ -352,6 +352,32 @@ require-crl-in-manifest	Reject manifests which don't list the CRL
 			Default: false
 
 
+allow-object-not-in-manifest
+			Allow use of otherwise valid objects which are
+			not listed in the manifest.  This is not
+			supposed to happen, but is probably harmless.
+
+			Values: true or false
+
+			Default: false, but may change in near future
+
+
+allow-crl-digest-mismatch
+			Allow use of a manifest which lists a
+			different digest value for the CRL than the
+			digest of the CRL we have in hand.
+
+			Setting this parameter to false while leaving
+			allow-object-not-in-manifest set to true is
+			probably not useful.  Setting both to false
+			will reject objects in a publication point for
+			which rcynic detects a CRL digest mismatch.
+
+			Values: true or false
+
+			Default: false, but may change in near future
+
+
 allow-non-self-signed-trust-anchor
 			Experimental.  Attempts to work around OpenSSL's
 			strong preference for self-signed trust

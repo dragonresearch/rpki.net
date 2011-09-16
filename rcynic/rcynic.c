@@ -462,6 +462,7 @@ struct rcynic_ctx {
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
   int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
+  int allow_crl_digest_mismatch;
   log_level_t log_level;
   X509_STORE *x509_store;
 };
@@ -3130,20 +3131,19 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 				  path_t *path,
 				  const path_t *prefix,
 				  STACK_OF(X509) *certs,
+				  const certinfo_t *issuer_certinfo,
 				  const object_generation_t generation)
 {
-  CMS_ContentInfo *cms = NULL;
+  Manifest *manifest = NULL, *result = NULL;
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(X509) *signers = NULL;
-  STACK_OF(X509_CRL) *crls = NULL;
-  X509_CRL *crl = NULL;
-  Manifest *manifest = NULL, *result = NULL;
-  BIO *bio = NULL;
-  rcynic_x509_store_ctx_t rctx;
-  certinfo_t certinfo;
-  int i, initialized_store_ctx = 0;
+  CMS_ContentInfo *cms = NULL;
   FileAndHash *fah = NULL;
+  X509_CRL *crl = NULL;
+  certinfo_t certinfo;
+  BIO *bio = NULL;
   char *crl_tail;
+  int i;
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
@@ -3174,8 +3174,11 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri, generation);
 
-  if (!certinfo.crldp.s[0]) {
-    log_validation_status(rc, uri, crldp_uri_missing, generation);
+  if (!check_x509(rc, certs, sk_X509_value(signers, 0), &certinfo, issuer_certinfo)) {
+    /*
+     * Redundant error message?
+     */
+    log_validation_status(rc, uri, invalid_cms_ee_certificate, generation);
     goto done;
   }
 
@@ -3214,63 +3217,28 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     if (!strcmp((char *) fah->file->data, crl_tail))
       break;
 
-  if (fah) {
-    crl = check_crl(rc, &certinfo.crldp,
-		    sk_X509_value(certs, sk_X509_num(certs) - 1),
-		    fah->hash->data, fah->hash->length);
-  } else {
+  if (!fah) {
     log_validation_status(rc, uri, crl_not_in_manifest, generation);
     if (rc->require_crl_in_manifest)
       goto done;
-    crl = check_crl(rc, &certinfo.crldp,
-		    sk_X509_value(certs, sk_X509_num(certs) - 1),
-		    NULL, 0);
   }
-
-  if (!crl)
-    goto done;
-
-  if ((crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(crls, crl))
-    goto done;
-  crl = NULL;
-
-  if (!(initialized_store_ctx = X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL)))
-    goto done;
   
-  rctx.rc = rc;
-  rctx.subject = &certinfo;
-
-  X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
-  X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
-  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
-
-  X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
-			      X509_V_FLAG_CRL_CHECK |
-			      X509_V_FLAG_POLICY_CHECK |
-			      X509_V_FLAG_EXPLICIT_POLICY |
-			      X509_V_FLAG_X509_STRICT);
-
-  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
-
-  if (X509_verify_cert(&rctx.ctx) <= 0) {
-    /*
-     * Redundant error message?
-     */
-    log_validation_status(rc, uri, invalid_cms_ee_certificate, generation);
+  if (fah &&
+      (crl = check_crl(rc, &certinfo.crldp,
+		       sk_X509_value(certs, sk_X509_num(certs) - 1),
+		       fah->hash->data, fah->hash->length)) == NULL &&
+      !rc->allow_crl_digest_mismatch)
     goto done;
-  }
 
   result = manifest;
   manifest = NULL;
 
  done:
-  if (initialized_store_ctx)
-    X509_STORE_CTX_cleanup(&rctx.ctx);
   BIO_free(bio);
   Manifest_free(manifest);
   CMS_ContentInfo_free(cms);
   sk_X509_free(signers);
-  sk_X509_CRL_pop_free(crls, X509_CRL_free);
+  X509_CRL_free(crl);
 
   return result;
 }
@@ -3316,7 +3284,8 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   if (manifest == NULL) {
     if ((manifest = check_manifest_1(rc, uri, &path,
-				     &rc->unauthenticated, certs, object_generation_current)) != NULL)
+				     &rc->unauthenticated, certs, &w->certinfo,
+				     object_generation_current)) != NULL)
       install_object(rc, uri, &path, object_accepted, object_generation_current);
     else if (!access(path.s, F_OK))
       log_validation_status(rc, uri, object_rejected, object_generation_current);
@@ -3324,7 +3293,8 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   if (manifest == NULL) {
     if ((manifest = check_manifest_1(rc, uri, &path,
-				     &rc->old_authenticated, certs, object_generation_backup)) != NULL)
+				     &rc->old_authenticated, certs, &w->certinfo,
+				     object_generation_backup)) != NULL)
       install_object(rc, uri, &path, object_accepted, object_generation_backup);
     else if (!access(path.s, F_OK))
       log_validation_status(rc, uri, object_rejected, object_generation_backup);
@@ -3382,21 +3352,19 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 		       STACK_OF(X509) *certs,
 		       const unsigned char *hash,
 		       const size_t hashlen,
+		       const certinfo_t *issuer_certinfo,
 		       const object_generation_t generation)
 {
   unsigned char addrbuf[ADDR_RAW_BUF_LEN];
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(IPAddressFamily) *roa_resources = NULL, *ee_resources = NULL;
-  STACK_OF(X509_CRL) *crls = NULL;
   STACK_OF(X509) *signers = NULL;
   CMS_ContentInfo *cms = NULL;
-  X509_CRL *crl = NULL;
   hashbuf_t hashbuf;
   ROA *roa = NULL;
   BIO *bio = NULL;
-  rcynic_x509_store_ctx_t rctx;
   certinfo_t certinfo;
-  int i, j, initialized_store_ctx = 0, result = 0;
+  int i, j, result = 0;
   unsigned afi, *safi = NULL, safi_, prefixlen;
   ROAIPAddressFamily *rf;
   ROAIPAddress *ra;
@@ -3547,34 +3515,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
   }
 
-  if (!(crl = check_crl(rc, &certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
-    log_validation_status(rc, uri, bad_crl, generation);
-    goto error;
-  }
-
-  if (!(crls = sk_X509_CRL_new_null()) || !sk_X509_CRL_push(crls, crl))
-    goto error;
-  crl = NULL;
-
-  if (!(initialized_store_ctx = X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL)))
-    goto error;
-  
-  rctx.rc = rc;
-  rctx.subject = &certinfo;
-
-  X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
-  X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
-  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
-
-  X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
-			      X509_V_FLAG_CRL_CHECK |
-			      X509_V_FLAG_POLICY_CHECK |
-			      X509_V_FLAG_EXPLICIT_POLICY |
-			      X509_V_FLAG_X509_STRICT);
-
-  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
-
-  if (X509_verify_cert(&rctx.ctx) <= 0) {
+  if (!check_x509(rc, certs, sk_X509_value(signers, 0), &certinfo, issuer_certinfo)) {
     /*
      * Redundant error message?
      */
@@ -3585,13 +3526,10 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   result = 1;
 
  error:
-  if (initialized_store_ctx)
-    X509_STORE_CTX_cleanup(&rctx.ctx);
   BIO_free(bio);
   ROA_free(roa);
   CMS_ContentInfo_free(cms);
   sk_X509_free(signers);
-  sk_X509_CRL_pop_free(crls, X509_CRL_free);
   sk_IPAddressFamily_pop_free(roa_resources, IPAddressFamily_free);
   sk_IPAddressFamily_pop_free(ee_resources, IPAddressFamily_free);
 
@@ -3608,10 +3546,11 @@ static void check_roa(const rcynic_ctx_t *rc,
 		      const unsigned char *hash,
 		      const size_t hashlen)
 {
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
   STACK_OF(X509) *certs = NULL;
   path_t path;
 
-  assert(rc && uri && wsk);
+  assert(rc && uri && wsk && w);
 
   if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
       !access(path.s, F_OK))
@@ -3623,7 +3562,8 @@ static void check_roa(const rcynic_ctx_t *rc,
     return;
 
   if (check_roa_1(rc, uri, &path, &rc->unauthenticated,
-		  certs, hash, hashlen, object_generation_current)) {
+		  certs, hash, hashlen, &w->certinfo,
+		  object_generation_current)) {
     install_object(rc, uri, &path, object_accepted, object_generation_current);
     goto done;
   } else if (!access(path.s, F_OK)) {
@@ -3631,7 +3571,8 @@ static void check_roa(const rcynic_ctx_t *rc,
   }
 
   if (check_roa_1(rc, uri, &path, &rc->old_authenticated,
-		  certs, hash, hashlen, object_generation_backup)) {
+		  certs, hash, hashlen,  &w->certinfo,
+		  object_generation_backup)) {
     install_object(rc, uri, &path, object_accepted, object_generation_backup);
     goto done;
   } else if (!access(path.s, F_OK)) {
@@ -3654,18 +3595,16 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
 			       STACK_OF(X509) *certs,
 			       const unsigned char *hash,
 			       const size_t hashlen,
+			       const certinfo_t *issuer_certinfo,
 			       const object_generation_t generation)
 {
   const ASN1_OBJECT *eContentType = NULL;
-  STACK_OF(X509_CRL) *crls = NULL;
   STACK_OF(X509) *signers = NULL;
   CMS_ContentInfo *cms = NULL;
-  X509_CRL *crl = NULL;
   hashbuf_t hashbuf;
   BIO *bio = NULL;
-  rcynic_x509_store_ctx_t rctx;
   certinfo_t certinfo;
-  int initialized_store_ctx = 0, result = 0;
+  int result = 0;
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
@@ -3727,34 +3666,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
    */
 #endif
 
-  if (!(crl = check_crl(rc, &certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
-    log_validation_status(rc, uri, bad_crl, generation);
-    goto error;
-  }
-
-  if (!(crls = sk_X509_CRL_new_null()) || !sk_X509_CRL_push(crls, crl))
-    goto error;
-  crl = NULL;
-
-  if (!(initialized_store_ctx = X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL)))
-    goto error;
-  
-  rctx.rc = rc;
-  rctx.subject = &certinfo;
-
-  X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
-  X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
-  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
-
-  X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
-			      X509_V_FLAG_CRL_CHECK |
-			      X509_V_FLAG_POLICY_CHECK |
-			      X509_V_FLAG_EXPLICIT_POLICY |
-			      X509_V_FLAG_X509_STRICT);
-
-  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
-
-  if (X509_verify_cert(&rctx.ctx) <= 0) {
+  if (!check_x509(rc, certs, sk_X509_value(signers, 0), &certinfo, issuer_certinfo)) {
     /*
      * Redundant error message?
      */
@@ -3765,12 +3677,9 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
   result = 1;
 
  error:
-  if (initialized_store_ctx)
-    X509_STORE_CTX_cleanup(&rctx.ctx);
   BIO_free(bio);
   CMS_ContentInfo_free(cms);
   sk_X509_free(signers);
-  sk_X509_CRL_pop_free(crls, X509_CRL_free);
 
   return result;
 }
@@ -3785,10 +3694,11 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 			      const unsigned char *hash,
 			      const size_t hashlen)
 {
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
   STACK_OF(X509) *certs = NULL;
   path_t path;
 
-  assert(rc && uri && wsk);
+  assert(rc && uri && wsk && w);
 
   if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
       !access(path.s, F_OK))
@@ -3800,7 +3710,8 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
     return;
 
   if (check_ghostbuster_1(rc, uri, &path, &rc->unauthenticated,
-			  certs, hash, hashlen, object_generation_current)) {
+			  certs, hash, hashlen, &w->certinfo,
+			  object_generation_current)) {
     install_object(rc, uri, &path, object_accepted, object_generation_current);
     goto done;
   } else if (!access(path.s, F_OK)) {
@@ -3808,7 +3719,8 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
   }
 
   if (check_ghostbuster_1(rc, uri, &path, &rc->old_authenticated,
-			  certs, hash, hashlen, object_generation_backup)) {
+			  certs, hash, hashlen, &w->certinfo,
+			  object_generation_backup)) {
     install_object(rc, uri, &path, object_accepted, object_generation_backup);
     goto done;
   } else if (!access(path.s, F_OK)) {
@@ -4088,6 +4000,10 @@ int main(int argc, char *argv[])
   rc.log_level = log_data_err;
   rc.allow_stale_crl = 1;
   rc.allow_stale_manifest = 1;
+#if 0
+  rc.allow_crl_digest_mismatch = 1;
+  rc.allow_object_not_in_manifest = 1;
+#endif
   rc.max_parallel_fetches = 1;
   rc.max_retries = 3;
   rc.retry_wait_min = 30;
@@ -4234,6 +4150,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "allow-object-not-in-manifest") &&
 	     !configure_boolean(&rc, &rc.allow_object_not_in_manifest, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-crl-digest-mismatch") &&
+	     !configure_boolean(&rc, &rc.allow_crl_digest_mismatch, val->value))
       goto done;
 
     else if (!name_cmp(val->name, "use-links") &&

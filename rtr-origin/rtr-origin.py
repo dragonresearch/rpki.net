@@ -1717,9 +1717,6 @@ def bgpdump_server_main(argv):
     sys.exit(0)
 
 
-os.environ["TZ"] = "UTC"
-time.tzset()
-
 scan_roas = os.path.normpath(os.path.join(sys.path[0], "..", "utils",
                                           "scan_roas", "scan_roas"))
 if not os.path.exists(scan_roas):
@@ -1727,11 +1724,8 @@ if not os.path.exists(scan_roas):
 
 force_zero_nonce = False
 
-mode = None
-
 kickme_dir  = "sockets"
 kickme_base = os.path.join(kickme_dir, "kickme")
-
 
 main_dispatch = {
   "cronjob"             : cronjob_main,
@@ -1742,45 +1736,63 @@ main_dispatch = {
   "bgpdump_select"      : bgpdump_select_main,
   "bgpdump_server"      : bgpdump_server_main }
 
-def usage():
-  print "Usage: %s --mode [arguments]" % sys.argv[0]
-  print
-  print "where --mode is one of:"
-  print
+def usage(f):
+  f.write("Usage: %s --mode [arguments]\n" % sys.argv[0])
+  f.write("\n")
+  f.write("where --mode is one of:")
+  f.write("\n")
   for name, func in main_dispatch.iteritems():
-    print "--%s:" % name
-    print func.__doc__
-  sys.exit(0)
+    f.write("--%s:\n" % name)
+    f.write(func.__doc__)
+    f.write("\n")
 
-opts, argv = getopt.getopt(sys.argv[1:], "hz?", ["help", "zero-nonce"] + main_dispatch.keys())
-for o, a in opts:
-  if o in ("-h", "--help", "-?"):
-    usage()
-  elif o in ("-z", "--zero-nonce"):
-    force_zero_nonce = True
-  elif len(o) > 2 and o[2:] in main_dispatch:
-    if mode is not None:
-      sys.exit("Conflicting modes specified")
-    mode = o[2:]
+if __name__ == "__main__":
 
-if mode is None:
-  sys.exit("No mode specified")
+  os.environ["TZ"] = "UTC"
+  time.tzset()
 
-log_tag = "rtr-origin/" + mode
+  mode = None
 
-if mode in ("server", "bgpdump_server"):
-  log_tag += hostport_tag()
+  opts, argv = getopt.getopt(sys.argv[1:], "hz?", ["help", "zero-nonce"] + main_dispatch.keys())
+  for o, a in opts:
+    if o in ("-h", "--help", "-?"):
+      usage(sys.stdout)
+      sys.exit(0)
+    elif o in ("-z", "--zero-nonce"):
+      force_zero_nonce = True
+    elif len(o) > 2 and o[2:] in main_dispatch:
+      if mode is not None:
+        sys.exit("Conflicting modes specified")
+      mode = o[2:]
 
-if mode in ("cronjob", "server" , "bgpdump_server"):
-  syslog.openlog(log_tag, syslog.LOG_PID, syslog.LOG_DAEMON)
-  def log(msg):
-    return syslog.syslog(syslog.LOG_WARNING, str(msg))
-  def blather(msg):
-    return syslog.syslog(syslog.LOG_INFO, str(msg))
+  if mode is None:
+    usage(sys.stderr)
+    sys.exit("No mode specified")
 
-else:
-  def log(msg):
-    sys.stderr.write("%s %s[%d]: %s\n" % (time.strftime("%F %T"), log_tag, os.getpid(), msg))
-  blather = log
+  log_tag = "rtr-origin/" + mode
 
-main_dispatch[mode](argv)
+  if mode in ("server", "bgpdump_server"):
+    log_tag += hostport_tag()
+
+  if mode in ("cronjob", "server" , "bgpdump_server"):
+    syslog.openlog(log_tag, syslog.LOG_PID, syslog.LOG_DAEMON)
+    def log(msg):
+      return syslog.syslog(syslog.LOG_WARNING, str(msg))
+    def blather(msg):
+      return syslog.syslog(syslog.LOG_INFO, str(msg))
+
+  elif mode == "show":
+    def log(msg):
+      try:
+        os.write(sys.stdout.fileno(), "%s\n" % msg)
+      except OSError, e:
+        if e.errno != errno.EPIPE:
+          raise
+    blather = log
+
+  else:
+    def log(msg):
+      sys.stderr.write("%s %s[%d]: %s\n" % (time.strftime("%F %T"), log_tag, os.getpid(), msg))
+    blather = log
+
+  main_dispatch[mode](argv)

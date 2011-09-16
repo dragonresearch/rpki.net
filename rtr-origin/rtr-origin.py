@@ -593,25 +593,29 @@ class error_report(pdu):
   header_struct = struct.Struct("!BBHL")
   string_struct = struct.Struct("!L")
 
-  msgs = {
+  errors = {
+    2 : "No Data Available" }
+
+  fatal = {
     0 : "Corrupt Data",
     1 : "Internal Error",
-    2 : "No Data Available",
     3 : "Invalid Request",
     4 : "Unsupported Protocol Version",
     5 : "Unsupported PDU Type",
     6 : "Withdrawal of Unknown Record",
     7 : "Duplicate Announcement Received" }
 
-  fatal = (0, 1, 3, 4, 5, 6, 7)
+  assert set(errors).isdisjoint(set(fatal))
 
-  codes = dict((v, k) for k, v in msgs.items())
+  errors.update(fatal)
+
+  codes = dict((v, k) for k, v in errors.items())
 
   def __init__(self, errno = None, errpdu = None, errmsg = None):
-    assert errno is None or errno in self.msgs
+    assert errno is None or errno in self.errors
     self.errno = errno
     self.errpdu = errpdu
-    self.errmsg = errmsg if errmsg is not None or errno is None else self.msgs[errno]
+    self.errmsg = errmsg if errmsg is not None or errno is None else self.errors[errno]
 
   def __str__(self):
     return "[%s, error #%s: %r]" % (self.__class__.__name__, self.errno, self.errmsg)

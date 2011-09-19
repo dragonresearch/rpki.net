@@ -198,6 +198,9 @@ static const struct {
   MIB_COUNTERS_FROM_OPENSSL						    \
   QB(aia_doesnt_match_issuer,		"AIA doesn't match issuer")	    \
   QB(aia_uri_missing,			"AIA URI missing")		    \
+  QB(aki_extension_issuer_mismatch,	"AKI extension issuer mismatch")    \
+  QB(aki_extension_missing,		"AKI extension missing")	    \
+  QB(aki_extension_wrong_format,	"AKI extension is wrong format")    \
   QB(bad_cms_econtenttype,		"Bad CMS eContentType")		    \
   QB(bad_crl,				"Bad CRL")			    \
   QB(certificate_bad_signature,		"Bad certificate signature")	    \
@@ -207,11 +210,11 @@ static const struct {
   QB(cms_validation_failure,		"CMS validation failure")	    \
   QB(crl_not_in_manifest,               "CRL not listed in manifest")	    \
   QB(crl_not_yet_valid,			"CRL not yet valid")		    \
+  QB(crl_number_extension_missing,	"CRL number extension missing")	    \
   QB(crldp_doesnt_match_issuer_sia,	"CRLDP doesn't match issuer's SIA") \
   QB(crldp_uri_missing,			"CRLDP URI missing")		    \
   QB(digest_mismatch,			"Digest mismatch")		    \
   QB(disallowed_x509v3_extension,	"Disallowed X.509v3 extension")     \
-  QB(hash_value_too_long,		"Hash value is too long")	    \
   QB(invalid_cms_ee_certificate,	"Invalid CMS EE certificate")	    \
   QB(malformed_cadirectory_uri,		"Malformed caDirectory URI")	    \
   QB(malformed_crldp_extension,		"Malformed CRDLP extension")	    \
@@ -220,21 +223,21 @@ static const struct {
   QB(malformed_tal_uri,			"Malformed TAL URI")		    \
   QB(manifest_carepository_mismatch,	"Manifest caRepository mismatch")   \
   QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
-  QB(manifest_wrong_version,            "Wrong manifest version")	    \
   QB(object_rejected,			"Object rejected")		    \
   QB(roa_contains_bad_afi_value,	"ROA contains bad AFI value")	    \
   QB(roa_resource_not_in_ee,		"ROA resource not in EE")	    \
   QB(roa_resources_malformed,		"ROA resources malformed")	    \
-  QB(roa_wrong_version,			"Wrong ROA version")		    \
   QB(rsync_transfer_failed,		"rsync transfer failed")	    \
   QB(rsync_transfer_timed_out,		"rsync transfer timed out")	    \
   QB(sia_cadirectory_uri_missing,	"SIA caDirectory URI missing")	    \
   QB(sia_manifest_uri_missing,		"SIA manifest URI missing")	    \
+  QB(ski_extension_missing,		"SKI extension missing")	    \
   QB(trust_anchor_key_mismatch,		"Trust anchor key mismatch")	    \
   QB(trust_anchor_with_crldp,		"Trust anchor can't have CRLDP")    \
   QB(unknown_openssl_verify_error,	"Unknown OpenSSL verify error")	    \
   QB(unreadable_trust_anchor,		"Unreadable trust anchor")	    \
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
+  QB(wrong_object_version,		"Wrong object version")		    \
   QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
   QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
   QW(rsync_transfer_skipped,		"rsync transfer skipped")	    \
@@ -2594,6 +2597,37 @@ static void parse_cert(const rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const uri
 
 
 /**
+ * Check to see whether an AKI extension is present, is of the right
+ * form, and matches the issuer.
+ */
+static int check_aki(const rcynic_ctx_t *rc,
+		     const uri_t *uri,
+		     const X509 *issuer,
+		     const AUTHORITY_KEYID *aki,
+		     const object_generation_t generation)
+{
+  assert(rc && uri && issuer && issuer->skid);
+
+  if (aki == NULL) {
+    log_validation_status(rc, uri, aki_extension_missing, generation);
+    return 0;
+  }
+
+  if (!aki->keyid || aki->serial || aki->issuer) {
+    log_validation_status(rc, uri, aki_extension_wrong_format, generation);
+    return 0;
+  }
+
+  if (ASN1_OCTET_STRING_cmp(aki->keyid, issuer->skid)) {
+    log_validation_status(rc, uri, aki_extension_issuer_mismatch, generation);
+  }
+
+  return 1;
+}
+
+
+
+/**
  * Attempt to read and check one CRL from disk.
  */
 
@@ -2602,35 +2636,21 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
 			     path_t *path,
 			     const path_t *prefix,
 			     X509 *issuer,
-			     const unsigned char *hash,
-			     const size_t hashlen,
 			     const object_generation_t generation)
 {
-  hashbuf_t hashbuf;
+  STACK_OF(X509_REVOKED) *revoked;
   X509_CRL *crl = NULL;
   EVP_PKEY *pkey;
-  int ret;
+  int i, ret;
 
   assert(uri && path && issuer);
 
-  if (!uri_to_filename(rc, uri, path, prefix))
+  if (!uri_to_filename(rc, uri, path, prefix) ||
+      (crl = read_crl(path, NULL)) == NULL)
     goto punt;
 
-  if (hashlen > sizeof(hashbuf.h)) {
-    log_validation_status(rc, uri, hash_value_too_long, generation);
-    goto punt;
-  }
-
-  if (hash)
-    crl = read_crl(path, &hashbuf);
-  else
-    crl = read_crl(path, NULL);
-
-  if (!crl)
-    goto punt;
-
-  if (hash && memcmp(hashbuf.h, hash, hashlen)) {
-    log_validation_status(rc, uri, digest_mismatch, generation);
+  if (X509_CRL_get_version(crl) != 1) {
+    log_validation_status(rc, uri, wrong_object_version, generation);
     goto punt;
   }
 
@@ -2644,6 +2664,43 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
     if (!rc->allow_stale_crl)
       goto punt;
   }
+
+  if (!check_aki(rc, uri, issuer, crl->akid, generation))
+    goto punt;
+
+  if (crl->crl_number == NULL) {
+    log_validation_status(rc, uri, crl_number_extension_missing, generation);
+    goto punt;
+  }
+
+  if (X509_CRL_get_ext_count(crl) != 2) {
+    log_validation_status(rc, uri, disallowed_x509v3_extension, generation);
+    goto punt;
+  }
+
+  if ((revoked = X509_CRL_get_REVOKED(crl)) != NULL) {
+    for (i = sk_X509_REVOKED_num(revoked) - 1; i >= 0; --i) {
+      if (X509_REVOKED_get_ext_count(sk_X509_REVOKED_value(revoked, i)) > 0) {
+	log_validation_status(rc, uri, disallowed_x509v3_extension, generation);
+	goto punt;
+      }
+    }
+  }
+
+#if 0
+  /*
+   * Might need to generalize this to check cert AKI as well.  Haven't
+   * handled cert SKI check yet either.  Do we want to call
+   * X509_check_akid() here or just compare the OCTET STRINGs
+   * directly?  99% of X509_check_akid() is irrelevant to our profile.
+   */
+  if (!crl->akid ||
+      !crl->akid->keyid ||
+      crl->akid->serial ||
+      crl->akid->issuer ||
+      X509_check_akid(issuer, crl->akid) != X509_V_OK)
+    bad_crl_akid;
+#endif
 
   if ((pkey = X509_get_pubkey(issuer)) == NULL)
     goto punt;
@@ -2661,39 +2718,84 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
 /**
  * Check whether we already have a particular CRL, attempt to fetch it
  * and check issuer's signature if we don't.
+ *
+ * General plan here is to do basic checks on both current and backup
+ * generation CRLs, then, if both generations pass all of our other
+ * tests, pick the generation with the highest CRL number, to protect
+ * against replay attacks.
  */
 static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 			   const uri_t *uri,
-			   X509 *issuer,
-			   const unsigned char *hash,
-			   const size_t hashlen)
+			   X509 *issuer)
 {
-  path_t path;
-  X509_CRL *crl;
+  X509_CRL *old_crl, *new_crl, *result = NULL;
+  path_t old_path, new_path;
 
-  if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
-      (crl = read_crl(&path, NULL)) != NULL)
-    return crl;
+  if (uri_to_filename(rc, uri, &new_path, &rc->new_authenticated) &&
+      (new_crl = read_crl(&new_path, NULL)) != NULL)
+    return new_crl;
 
   logmsg(rc, log_telemetry, "Checking CRL %s", uri->s);
 
-  if ((crl = check_crl_1(rc, uri, &path, &rc->unauthenticated,
-			 issuer, hash, hashlen, object_generation_current))) {
-    install_object(rc, uri, &path, object_accepted, object_generation_current);
-    return crl;
-  } else if (!access(path.s, F_OK)) {
+  new_crl = check_crl_1(rc, uri, &new_path, &rc->unauthenticated,
+			issuer, object_generation_current);
+
+  old_crl = check_crl_1(rc, uri, &old_path, &rc->old_authenticated,
+			issuer, object_generation_backup);
+
+  if (!new_crl)
+    result = old_crl;
+  else if (!old_crl)
+    result = new_crl;
+  else if (ASN1_INTEGER_cmp(new_crl->crl_number, old_crl->crl_number) < 0)
+    result = old_crl;
+  else
+    result = new_crl;
+
+  if (result && result == new_crl)
+    install_object(rc, uri, &new_path, object_accepted, object_generation_current);
+  else if (!access(new_path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_current);
-  }
 
-  if ((crl = check_crl_1(rc, uri, &path, &rc->old_authenticated,
-			 issuer, hash, hashlen, object_generation_backup))) {
-    install_object(rc, uri, &path, object_accepted, object_generation_backup);
-    return crl;
-  } else if (!access(path.s, F_OK)) {
+  if (result && result == old_crl)
+    install_object(rc, uri, &old_path, object_accepted, object_generation_backup);
+  else if (!result && !access(old_path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_backup);
-  }
 
-  return NULL;
+  if (result != new_crl)
+    X509_CRL_free(new_crl);
+    
+  if (result != old_crl)
+    X509_CRL_free(old_crl);
+
+  return result;
+}
+
+
+/**
+ * Check digest of a CRL we've already accepted.
+ */
+static int check_crl_digest(const rcynic_ctx_t *rc,
+			    const uri_t *uri,
+			    const unsigned char *hash,
+			    const size_t hashlen)
+{
+  X509_CRL *crl = NULL;
+  hashbuf_t hashbuf;
+  path_t path;
+  int result;
+
+  assert(rc && uri && hash);
+
+  if (!uri_to_filename(rc, uri, &path, &rc->new_authenticated) ||
+      (crl = read_crl(&path, &hashbuf)) == NULL)
+    return 0;
+
+  result = hashlen <= sizeof(hashbuf.h) && !memcmp(hashbuf.h, hash, hashlen);
+
+  X509_CRL_free(crl);
+
+  return result;
 }
 
 
@@ -2887,6 +2989,11 @@ static int check_x509(const rcynic_ctx_t *rc,
   issuer = sk_X509_value(certs, sk_X509_num(certs) - 1);
   assert(issuer != NULL);
 
+  if (X509_get_version(x) != 2) {
+    log_validation_status(rc, &subject->uri, wrong_object_version, subject->generation);
+    goto done;
+  }
+
   if (subject->sia.s[0] && subject->sia.s[strlen(subject->sia.s) - 1] != '/') {
     log_validation_status(rc, &subject->uri, malformed_cadirectory_uri, subject->generation);
     goto done;
@@ -2917,6 +3024,11 @@ static int check_x509(const rcynic_ctx_t *rc,
     goto done;
   }
 
+  if (!x->skid) {
+    log_validation_status(rc, &subject->uri, ski_extension_missing, subject->generation);
+    goto done;
+  }
+
   if (!check_allowed_extensions(x, !subject->ca)) {
     log_validation_status(rc, &subject->uri, disallowed_x509v3_extension, subject->generation);
     goto done;
@@ -2937,6 +3049,9 @@ static int check_x509(const rcynic_ctx_t *rc,
 
   } else {
 
+    if (!check_aki(rc, &subject->uri, issuer, x->akid, subject->generation))
+      goto done;
+
     if (!subject->crldp.s[0]) {
       log_validation_status(rc, &subject->uri, crldp_uri_missing, subject->generation);
       goto done;
@@ -2954,7 +3069,7 @@ static int check_x509(const rcynic_ctx_t *rc,
       goto done;
     }
 
-    if ((crl = check_crl(rc, &subject->crldp, issuer, NULL, 0)) == NULL) {
+    if ((crl = check_crl(rc, &subject->crldp, issuer)) == NULL) {
       log_validation_status(rc, &subject->uri, bad_crl, subject->generation);
       goto done;
     }
@@ -3019,11 +3134,6 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   if (access(path->s, R_OK))
     return NULL;
 
-  if (hashlen > sizeof(hashbuf.h)) {
-    log_validation_status(rc, uri, hash_value_too_long, generation);
-    goto punt;
-  }
-
   if (hash)
     x = read_cert(path, &hashbuf);
   else
@@ -3034,7 +3144,8 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     goto punt;
   }
 
-  if (hash && memcmp(hashbuf.h, hash, hashlen)) {
+  if (hash && (hashlen > sizeof(hashbuf.h) ||
+	       memcmp(hashbuf.h, hash, hashlen))) {
     log_validation_status(rc, uri, digest_mismatch, generation);
     goto punt;
   }
@@ -3194,7 +3305,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   }
 
   if (manifest->version) {
-    log_validation_status(rc, uri, manifest_wrong_version, generation);
+    log_validation_status(rc, uri, wrong_object_version, generation);
     goto done;
   }
 
@@ -3223,12 +3334,11 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
       goto done;
   }
   
-  if (fah &&
-      (crl = check_crl(rc, &certinfo.crldp,
-		       sk_X509_value(certs, sk_X509_num(certs) - 1),
-		       fah->hash->data, fah->hash->length)) == NULL &&
-      !rc->allow_crl_digest_mismatch)
-    goto done;
+  if (fah && !check_crl_digest(rc, &certinfo.crldp, fah->hash->data, fah->hash->length)) {
+    log_validation_status(rc, uri, digest_mismatch, generation);
+    if (!rc->allow_crl_digest_mismatch)
+      goto done;
+  }
 
   result = manifest;
   manifest = NULL;
@@ -3374,11 +3484,6 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   if (!uri_to_filename(rc, uri, path, prefix))
     goto error;
 
-  if (hashlen > sizeof(hashbuf.h)) {
-    log_validation_status(rc, uri, hash_value_too_long, generation);
-    goto error;
-  }
-
   if (hash)
     cms = read_cms(path, &hashbuf);
   else
@@ -3387,7 +3492,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   if (!cms)
     goto error;
 
-  if (hash && memcmp(hashbuf.h, hash, hashlen)) {
+  if (hash && (hashlen > sizeof(hashbuf.h) ||
+	       memcmp(hashbuf.h, hash, hashlen))) {
     log_validation_status(rc, uri, digest_mismatch, generation);
     goto error;
   }
@@ -3422,7 +3528,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   }
 
   if (roa->version) {
-    log_validation_status(rc, uri, roa_wrong_version, generation);
+    log_validation_status(rc, uri, wrong_object_version, generation);
     goto error;
   }
 
@@ -3611,11 +3717,6 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
   if (!uri_to_filename(rc, uri, path, prefix))
     goto error;
 
-  if (hashlen > sizeof(hashbuf.h)) {
-    log_validation_status(rc, uri, hash_value_too_long, generation);
-    goto error;
-  }
-
   if (hash)
     cms = read_cms(path, &hashbuf);
   else
@@ -3624,7 +3725,8 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
   if (!cms)
     goto error;
 
-  if (hash && memcmp(hashbuf.h, hash, hashlen)) {
+  if (hash && (hashlen > sizeof(hashbuf.h) ||
+	       memcmp(hashbuf.h, hash, hashlen))) {
     log_validation_status(rc, uri, digest_mismatch, generation);
     goto error;
   }

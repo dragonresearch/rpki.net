@@ -215,7 +215,6 @@ static const struct {
   QB(crldp_uri_missing,			"CRLDP URI missing")		    \
   QB(digest_mismatch,			"Digest mismatch")		    \
   QB(disallowed_x509v3_extension,	"Disallowed X.509v3 extension")     \
-  QB(invalid_cms_ee_certificate,	"Invalid CMS EE certificate")	    \
   QB(malformed_cadirectory_uri,		"Malformed caDirectory URI")	    \
   QB(malformed_crldp_extension,		"Malformed CRDLP extension")	    \
   QB(malformed_crldp_uri,		"Malformed CRDLP URI")		    \
@@ -3243,18 +3242,14 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 				  const path_t *prefix,
 				  STACK_OF(X509) *certs,
 				  const certinfo_t *issuer_certinfo,
+				  certinfo_t *certinfo,
 				  const object_generation_t generation)
 {
   Manifest *manifest = NULL, *result = NULL;
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(X509) *signers = NULL;
   CMS_ContentInfo *cms = NULL;
-  FileAndHash *fah = NULL;
-  X509_CRL *crl = NULL;
-  certinfo_t certinfo;
   BIO *bio = NULL;
-  char *crl_tail;
-  int i;
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
@@ -3283,21 +3278,10 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done;
   }
 
-  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri, generation);
+  parse_cert(rc, sk_X509_value(signers, 0), certinfo, uri, generation);
 
-  if (!check_x509(rc, certs, sk_X509_value(signers, 0), &certinfo, issuer_certinfo)) {
-    /*
-     * Redundant error message?
-     */
-    log_validation_status(rc, uri, invalid_cms_ee_certificate, generation);
+  if (!check_x509(rc, certs, sk_X509_value(signers, 0), certinfo, issuer_certinfo))
     goto done;
-  }
-
-  if ((crl_tail = strrchr(certinfo.crldp.s, '/')) == NULL) {
-    log_validation_status(rc, uri, malformed_crldp_uri, generation);
-    goto done;
-  }
-  crl_tail++;
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
     log_validation_status(rc, uri, cms_econtent_decode_error, generation);
@@ -3324,22 +3308,6 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
       oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256)))
     goto done;
 
-  for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++)
-    if (!strcmp((char *) fah->file->data, crl_tail))
-      break;
-
-  if (!fah) {
-    log_validation_status(rc, uri, crl_not_in_manifest, generation);
-    if (rc->require_crl_in_manifest)
-      goto done;
-  }
-  
-  if (fah && !check_crl_digest(rc, &certinfo.crldp, fah->hash->data, fah->hash->length)) {
-    log_validation_status(rc, uri, digest_mismatch, generation);
-    if (!rc->allow_crl_digest_mismatch)
-      goto done;
-  }
-
   result = manifest;
   manifest = NULL;
 
@@ -3348,7 +3316,6 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   Manifest_free(manifest);
   CMS_ContentInfo_free(cms);
   sk_X509_free(signers);
-  X509_CRL_free(crl);
 
   return result;
 }
@@ -3356,64 +3323,106 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 /**
  * Check whether we already have a particular manifest, attempt to fetch it
  * and check issuer's signature if we don't.
+ *
+ * General plan here is to do basic checks on both current and backup
+ * generation manifests, then, if both generations pass all of our
+ * other tests, pick the generation with the highest manifest number,
+ * to protect against replay attacks.
+ *
+ * Once we've picked the manifest we're going to use, we need to check
+ * it against the CRL we've chosen.  Not much we can do if they don't
+ * match besides whine about it, but we do need to whine in this case.
  */
 static Manifest *check_manifest(const rcynic_ctx_t *rc,
 				STACK_OF(walk_ctx_t) *wsk)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
-  CMS_ContentInfo *cms = NULL;
-  Manifest *manifest = NULL;
+  Manifest *old_manifest, *new_manifest, *result = NULL;
   STACK_OF(X509) *certs = NULL;
-  BIO *bio = NULL;
-  path_t path;
-  uri_t *uri;
+  certinfo_t old_certinfo, new_certinfo;
+  const uri_t *uri, *crldp = NULL;
+  object_generation_t generation;
+  path_t old_path, new_path;
+  FileAndHash *fah = NULL;
+  const char *crl_tail;
+  int i;
 
   assert(rc && wsk && w);
 
   uri = &w->certinfo.manifest;
-
-  if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
-      (cms = read_cms(&path, NULL)) != NULL &&
-      (bio = BIO_new(BIO_s_mem()))!= NULL &&
-      CMS_verify(cms, NULL, NULL, NULL, bio,
-		 CMS_NO_SIGNER_CERT_VERIFY |
-		 CMS_NO_ATTR_VERIFY |
-		 CMS_NO_CONTENT_VERIFY) > 0)
-    manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL);
-
-  CMS_ContentInfo_free(cms);
-  BIO_free(bio);
-
-  if (manifest != NULL)
-    return manifest;
 
   logmsg(rc, log_telemetry, "Checking manifest %s", uri->s);
 
   if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
     return NULL;
 
-  if (manifest == NULL) {
-    if ((manifest = check_manifest_1(rc, uri, &path,
-				     &rc->unauthenticated, certs, &w->certinfo,
-				     object_generation_current)) != NULL)
-      install_object(rc, uri, &path, object_accepted, object_generation_current);
-    else if (!access(path.s, F_OK))
-      log_validation_status(rc, uri, object_rejected, object_generation_current);
+  new_manifest = check_manifest_1(rc, uri, &new_path,
+				  &rc->unauthenticated, certs, &w->certinfo,
+				  &new_certinfo, object_generation_current);
+
+  old_manifest = check_manifest_1(rc, uri, &old_path,
+				  &rc->old_authenticated, certs, &w->certinfo,
+				  &old_certinfo, object_generation_backup);
+
+  if (!new_manifest)
+    result = old_manifest;
+  else if (!old_manifest)
+    result = new_manifest;
+  else if (ASN1_INTEGER_cmp(new_manifest->manifestNumber, old_manifest->manifestNumber) < 0)
+    result = old_manifest;
+  else
+    result = new_manifest;
+
+  if (result && result == new_manifest) {
+    generation = object_generation_current;
+    install_object(rc, uri, &new_path, object_accepted, generation);
+    crldp = &new_certinfo.crldp;
   }
 
-  if (manifest == NULL) {
-    if ((manifest = check_manifest_1(rc, uri, &path,
-				     &rc->old_authenticated, certs, &w->certinfo,
-				     object_generation_backup)) != NULL)
-      install_object(rc, uri, &path, object_accepted, object_generation_backup);
-    else if (!access(path.s, F_OK))
-      log_validation_status(rc, uri, object_rejected, object_generation_backup);
+  if (result && result == old_manifest) {
+    generation = object_generation_backup;
+    install_object(rc, uri, &old_path, object_accepted, generation);
+    crldp = &old_certinfo.crldp;
   }
+
+  if (result) {
+    crl_tail = strrchr(crldp->s, '/');
+    assert(crl_tail != NULL);
+    crl_tail++;
+
+    for (i = 0; (fah = sk_FileAndHash_value(result->fileList, i)) != NULL; i++)
+      if (!strcmp((char *) fah->file->data, crl_tail))
+	break;
+
+    if (!fah) {
+      log_validation_status(rc, uri, crl_not_in_manifest, generation);
+      if (rc->require_crl_in_manifest)
+	result = NULL;
+    }
+
+    else if (!check_crl_digest(rc, crldp, fah->hash->data, fah->hash->length)) {
+      log_validation_status(rc, uri, digest_mismatch, generation);
+      if (!rc->allow_crl_digest_mismatch)
+	result = NULL;
+    }
+  }
+
+  if ((!result || result != new_manifest) && !access(new_path.s, F_OK))
+    log_validation_status(rc, uri, object_rejected, object_generation_current);
+  
+  if (!result && !access(old_path.s, F_OK))
+    log_validation_status(rc, uri, object_rejected, object_generation_backup);
+
+  if (result != new_manifest)
+    Manifest_free(new_manifest);
+
+  if (result != old_manifest)
+    Manifest_free(old_manifest);
 
   sk_X509_free(certs);
   certs = NULL;
 
-  return manifest;
+  return result;
 }
 
 
@@ -3621,13 +3630,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
   }
 
-  if (!check_x509(rc, certs, sk_X509_value(signers, 0), &certinfo, issuer_certinfo)) {
-    /*
-     * Redundant error message?
-     */
-    log_validation_status(rc, uri, invalid_cms_ee_certificate, generation);
+  if (!check_x509(rc, certs, sk_X509_value(signers, 0), &certinfo, issuer_certinfo))
     goto error;
-  }
 
   result = 1;
 
@@ -3768,13 +3772,8 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
    */
 #endif
 
-  if (!check_x509(rc, certs, sk_X509_value(signers, 0), &certinfo, issuer_certinfo)) {
-    /*
-     * Redundant error message?
-     */
-    log_validation_status(rc, uri, invalid_cms_ee_certificate, generation);
+  if (!check_x509(rc, certs, sk_X509_value(signers, 0), &certinfo, issuer_certinfo))
     goto error;
-  }
 
   result = 1;
 

@@ -142,7 +142,7 @@ def configure_resources(log, handle):
 
     children = []
     for child in handle.children.all():
-        asns = rpki.resource_set.resource_set_as([a.as_resource_range() for a in child.address_range.all()])
+        asns = rpki.resource_set.resource_set_as([a.as_resource_range() for a in child.asn.all()])
 
         v4 = rpki.resource_set.resource_set_ipv4()
         v6 = rpki.resource_set.resource_set_ipv6()

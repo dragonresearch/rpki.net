@@ -344,8 +344,9 @@ allow-stale-manifest	Allow use of manifests which are past their
 			Default: true
 
 
-require-crl-in-manifest	Reject manifests which don't list the CRL
-			covering the manifest EE certificate.
+require-crl-in-manifest	Reject publication point if manifest doesn't
+			list the CRL that covers the manifest EE
+			certificate.
 
 			Values: true or false.
 
@@ -359,23 +360,18 @@ allow-object-not-in-manifest
 
 			Values: true or false
 
-			Default: false, but may change in near future
+			Default: true
 
 
 allow-crl-digest-mismatch
-			Allow use of a manifest which lists a
-			different digest value for the CRL than the
-			digest of the CRL we have in hand.
-
-			Setting this parameter to false while leaving
-			allow-object-not-in-manifest set to true is
-			probably not useful.  Setting both to false
-			will reject objects in a publication point for
-			which rcynic detects a CRL digest mismatch.
+			Allow processing to continue on a publication
+			point whose manifest lists a different digest
+			value for the CRL than the digest of the CRL
+			we have in hand.
 
 			Values: true or false
 
-			Default: false, but may change in near future
+			Default: true
 
 
 allow-non-self-signed-trust-anchor

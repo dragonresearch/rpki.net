@@ -3367,7 +3367,7 @@ static int check_manifest(const rcynic_ctx_t *rc,
   Manifest *old_manifest, *new_manifest, *result = NULL;
   certinfo_t old_certinfo, new_certinfo;
   const uri_t *uri, *crldp = NULL;
-  object_generation_t generation;
+  object_generation_t generation = object_generation_null;
   path_t old_path, new_path;
   FileAndHash *fah = NULL;
   const char *crl_tail;

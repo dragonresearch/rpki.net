@@ -237,7 +237,8 @@ static const struct {
   QB(unreadable_trust_anchor,		"Unreadable trust anchor")	    \
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
   QB(wrong_object_version,		"Wrong object version")		    \
-  QW(crldp_doesnt_match_manifest_crldp, "CRLDP doesn't match manifest's")   \
+  QW(crldp_names_newer_crl,		"CRLDP names newer CRL")	    \
+  QW(issuer_uses_multiple_crldp_values,	"Issuer uses multiple CRLDP values")\
   QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
   QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
   QW(rsync_transfer_skipped,		"rsync transfer skipped")	    \
@@ -383,6 +384,8 @@ typedef struct walk_ctx {
   int manifest_iteration, filename_iteration, stale_manifest;
   walk_state_t state;
   uri_t crldp;
+  STACK_OF(X509) *certs;
+  STACK_OF(X509_CRL) *crls;
 } walk_ctx_t;
 
 DECLARE_STACK_OF(walk_ctx_t)
@@ -1402,6 +1405,8 @@ static void walk_ctx_detach(walk_ctx_t *w)
     assert(w->refcount == 0);
     X509_free(w->cert);
     Manifest_free(w->manifest);
+    sk_X509_free(w->certs);
+    sk_X509_CRL_pop_free(w->crls, X509_CRL_free);
     sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
     free(w);
   }
@@ -1613,9 +1618,10 @@ static STACK_OF(walk_ctx_t) *walk_ctx_stack_clone(STACK_OF(walk_ctx_t) *old_wsk)
 
 /**
  * Extract certificate stack from walk context stack.  Returns a newly
- * created STACK_OF(X509) pointing to the existing cert objects (ie,
- * this is a shallow copy, so only free the STACK_OF(X509), not the
- * certificates themselves).
+ * created STACK_OF(X509) pointing to the existing cert objects.
+ *
+ * NB: This is a shallow copy, so use sk_X509_free() to free it, not 
+ * sk_X509_pop_free().
  */
 static STACK_OF(X509) *walk_ctx_stack_certs(const rcynic_ctx_t *rc,
 					    STACK_OF(walk_ctx_t) *wsk)
@@ -2979,130 +2985,145 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
  * validation, and conformance to the RPKI certificate profile.
  */
 static int check_x509(const rcynic_ctx_t *rc,
-		      STACK_OF(X509) *certs,
+		      STACK_OF(walk_ctx_t) *wsk,
 		      X509 *x,
-		      const certinfo_t *subject,
-		      const certinfo_t *issuer_certinfo,
-		      const uri_t *crldp)
+		      const certinfo_t *certinfo)
 {
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
   rcynic_x509_store_ctx_t rctx;
-  STACK_OF(X509_CRL) *crls = NULL;
   EVP_PKEY *pkey = NULL;
-  X509_CRL *crl = NULL;
   unsigned long flags = (X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY | X509_V_FLAG_X509_STRICT);
-  X509 *issuer;
   int ret = 0;
 
-  assert(rc && certs && x && subject);
+  assert(rc && wsk && w && w->cert && x && certinfo);
 
   if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, x, NULL))
     return 0;
   rctx.rc = rc;
-  rctx.subject = subject;
+  rctx.subject = certinfo;
 
-  issuer = sk_X509_value(certs, sk_X509_num(certs) - 1);
-  assert(issuer != NULL);
+  if (w->certs == NULL && (w->certs = walk_ctx_stack_certs(rc, wsk)) == NULL)
+    goto done;
 
   if (X509_get_version(x) != 2) {
-    log_validation_status(rc, &subject->uri, wrong_object_version, subject->generation);
+    log_validation_status(rc, &certinfo->uri, wrong_object_version, certinfo->generation);
     goto done;
   }
 
-  if (subject->sia.s[0] && subject->sia.s[strlen(subject->sia.s) - 1] != '/') {
-    log_validation_status(rc, &subject->uri, malformed_cadirectory_uri, subject->generation);
+  if (certinfo->sia.s[0] && certinfo->sia.s[strlen(certinfo->sia.s) - 1] != '/') {
+    log_validation_status(rc, &certinfo->uri, malformed_cadirectory_uri, certinfo->generation);
     goto done;
   }
 
-  if (!subject->ta && !subject->aia.s[0]) {
-    log_validation_status(rc, &subject->uri, aia_uri_missing, subject->generation);
+  if (!certinfo->ta && !certinfo->aia.s[0]) {
+    log_validation_status(rc, &certinfo->uri, aia_uri_missing, certinfo->generation);
     goto done;
   }
 
-  if (!issuer_certinfo->ta && strcmp(issuer_certinfo->uri.s, subject->aia.s)) {
-    log_validation_status(rc, &subject->uri, aia_doesnt_match_issuer, subject->generation);
+  if (!w->certinfo.ta && strcmp(w->certinfo.uri.s, certinfo->aia.s)) {
+    log_validation_status(rc, &certinfo->uri, aia_doesnt_match_issuer, certinfo->generation);
     goto done;
   }
 
-  if (subject->ca && !subject->sia.s[0]) {
-    log_validation_status(rc, &subject->uri, sia_cadirectory_uri_missing, subject->generation);
+  if (certinfo->ca && !certinfo->sia.s[0]) {
+    log_validation_status(rc, &certinfo->uri, sia_cadirectory_uri_missing, certinfo->generation);
     goto done;
   }
 
-  if (subject->ca && !subject->manifest.s[0]) {
-    log_validation_status(rc, &subject->uri, sia_manifest_uri_missing, subject->generation);
+  if (certinfo->ca && !certinfo->manifest.s[0]) {
+    log_validation_status(rc, &certinfo->uri, sia_manifest_uri_missing, certinfo->generation);
     goto done;
   }
 
-  if (subject->ca && !startswith(subject->manifest.s, subject->sia.s)) {
-    log_validation_status(rc, &subject->uri, manifest_carepository_mismatch, subject->generation);
+  if (certinfo->ca && !startswith(certinfo->manifest.s, certinfo->sia.s)) {
+    log_validation_status(rc, &certinfo->uri, manifest_carepository_mismatch, certinfo->generation);
     goto done;
   }
 
   if (!x->skid) {
-    log_validation_status(rc, &subject->uri, ski_extension_missing, subject->generation);
+    log_validation_status(rc, &certinfo->uri, ski_extension_missing, certinfo->generation);
     goto done;
   }
 
-  if (!check_allowed_extensions(x, !subject->ca)) {
-    log_validation_status(rc, &subject->uri, disallowed_x509v3_extension, subject->generation);
+  if (!check_allowed_extensions(x, !certinfo->ca)) {
+    log_validation_status(rc, &certinfo->uri, disallowed_x509v3_extension, certinfo->generation);
     goto done;
   }
 
   if (!check_allowed_dn(X509_get_subject_name(x)))
-    log_validation_status(rc, &subject->uri, nonconformant_subject_name, subject->generation);
+    log_validation_status(rc, &certinfo->uri, nonconformant_subject_name, certinfo->generation);
 
   if (!check_allowed_dn(X509_get_issuer_name(x)))
-    log_validation_status(rc, &subject->uri, nonconformant_issuer_name, subject->generation);
+    log_validation_status(rc, &certinfo->uri, nonconformant_issuer_name, certinfo->generation);
 
-  if (subject->ta) {
+  if (certinfo->ta) {
 
-    if (subject->crldp.s[0]) {
-      log_validation_status(rc, &subject->uri, trust_anchor_with_crldp, subject->generation);
+    if (certinfo->crldp.s[0]) {
+      log_validation_status(rc, &certinfo->uri, trust_anchor_with_crldp, certinfo->generation);
       goto done;
     }
 
   } else {
 
-    if (!check_aki(rc, &subject->uri, issuer, x->akid, subject->generation))
+    if (!check_aki(rc, &certinfo->uri, w->cert, x->akid, certinfo->generation))
       goto done;
 
-    if (!subject->crldp.s[0]) {
-      log_validation_status(rc, &subject->uri, crldp_uri_missing, subject->generation);
+    if (!certinfo->crldp.s[0]) {
+      log_validation_status(rc, &certinfo->uri, crldp_uri_missing, certinfo->generation);
       goto done;
     }
 
-    if (!subject->ca && !startswith(subject->crldp.s, issuer_certinfo->sia.s)) {
-      log_validation_status(rc, &subject->uri, crldp_doesnt_match_issuer_sia, subject->generation);
+    if (!certinfo->ca && !startswith(certinfo->crldp.s, w->certinfo.sia.s)) {
+      log_validation_status(rc, &certinfo->uri, crldp_doesnt_match_issuer_sia, certinfo->generation);
       goto done;
     }
  
-    if (crldp && crldp->s[0] && strcmp(crldp->s, subject->crldp.s))
-      log_validation_status(rc, &subject->uri, crldp_doesnt_match_manifest_crldp, subject->generation);
+    if ((pkey = X509_get_pubkey(w->cert)) == NULL || X509_verify(x, pkey) <= 0) {
+      log_validation_status(rc, &certinfo->uri, certificate_bad_signature, certinfo->generation);
+      goto done;
+    }
 
+    if (w->crls == NULL && ((w->crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(w->crls, NULL))) {
+      logmsg(rc, log_sys_err, "Internal allocation error setting up CRL for validation");
+      goto done;
+    }
+
+    assert(sk_X509_CRL_num(w->crls) == 1);
+    assert((w->crldp.s[0] == '\0') == (sk_X509_CRL_value(w->crls, 0) == NULL));
+
+    if (strcmp(w->crldp.s, certinfo->crldp.s)) {
+      X509_CRL *old_crl = sk_X509_CRL_value(w->crls, 0);
+      X509_CRL *new_crl = check_crl(rc, &certinfo->crldp, w->cert);
+
+      if (w->crldp.s[0])
+	log_validation_status(rc, &certinfo->uri, issuer_uses_multiple_crldp_values, certinfo->generation);
+
+      if (new_crl == NULL) {
+	log_validation_status(rc, &certinfo->uri, bad_crl, certinfo->generation);
+	goto done;
+      }
+
+      if (old_crl && new_crl && ASN1_INTEGER_cmp(old_crl->crl_number, new_crl->crl_number) < 0) {
+	log_validation_status(rc, &certinfo->uri, crldp_names_newer_crl, certinfo->generation);
+	X509_CRL_free(old_crl);
+	old_crl = NULL;
+      }
+
+      if (old_crl == NULL) {
+	sk_X509_CRL_set(w->crls, 0, new_crl);
+	w->crldp = certinfo->crldp;
+      } else {
+	X509_CRL_free(new_crl);
+      }
+    }
+
+    assert(sk_X509_CRL_value(w->crls, 0));
     flags |= X509_V_FLAG_CRL_CHECK;
-
-    if ((pkey = X509_get_pubkey(issuer)) == NULL || X509_verify(x, pkey) <= 0) {
-      log_validation_status(rc, &subject->uri, certificate_bad_signature, subject->generation);
-      goto done;
-    }
-
-    if ((crl = check_crl(rc, &subject->crldp, issuer)) == NULL) {
-      log_validation_status(rc, &subject->uri, bad_crl, subject->generation);
-      goto done;
-    }
-
-    if ((crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(crls, crl)) {
-      logmsg(rc, log_sys_err,
-	     "Internal allocation error setting up CRL for validation");
-      goto done;
-    }
-    crl = NULL;
-
-    X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
-
+    X509_STORE_CTX_set0_crls(&rctx.ctx, w->crls);
   }
 
-  X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
+  assert(w->certs != NULL);
+  X509_STORE_CTX_trusted_stack(&rctx.ctx, w->certs);
   X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
 
   X509_VERIFY_PARAM_set_flags(rctx.ctx.param, flags);
@@ -3110,17 +3131,15 @@ static int check_x509(const rcynic_ctx_t *rc,
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
-    log_validation_status(rc, &subject->uri, certificate_failed_validation, subject->generation);
+    log_validation_status(rc, &certinfo->uri, certificate_failed_validation, certinfo->generation);
     goto done;
   }
 
   ret = 1;
 
  done:
-  sk_X509_CRL_pop_free(crls, X509_CRL_free);
   X509_STORE_CTX_cleanup(&rctx.ctx);
   EVP_PKEY_free(pkey);
-  X509_CRL_free(crl);
 
   return ret;
 }
@@ -3130,21 +3149,19 @@ static int check_x509(const rcynic_ctx_t *rc,
  * the check_x509() tests.
  */
 static X509 *check_cert_1(const rcynic_ctx_t *rc,
+			  STACK_OF(walk_ctx_t) *wsk,
 			  const uri_t *uri,
 			  path_t *path,
 			  const path_t *prefix,
-			  STACK_OF(X509) *certs,
-			  const certinfo_t *issuer,
-			  certinfo_t *subject,
+			  certinfo_t *certinfo,
 			  const unsigned char *hash,
 			  const size_t hashlen,
-			  const uri_t *crldp,
 			  object_generation_t generation)
 {
   hashbuf_t hashbuf;
   X509 *x = NULL;
 
-  assert(uri && path && certs && issuer && subject);
+  assert(uri && path && wsk && certinfo);
 
   if (!uri_to_filename(rc, uri, path, prefix))
     return NULL;
@@ -3168,9 +3185,9 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     goto punt;
   }
 
-  parse_cert(rc, x, subject, uri, generation);
+  parse_cert(rc, x, certinfo, uri, generation);
 
-  if (check_x509(rc, certs, x, subject, issuer, crldp))
+  if (check_x509(rc, wsk, x, certinfo))
     return x;
 
  punt:
@@ -3183,23 +3200,19 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
  * backup data from a previous run of this program.
  */
 static X509 *check_cert(rcynic_ctx_t *rc,
-			uri_t *uri,
 			STACK_OF(walk_ctx_t) *wsk,
-			certinfo_t *subject,
+			uri_t *uri,
+			certinfo_t *certinfo,
 			const unsigned char *hash,
 			const size_t hashlen)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
   object_generation_t generation;
-  const certinfo_t *issuer = NULL;
-  STACK_OF(X509) *certs = NULL;
   const path_t *prefix = NULL;
   path_t path;
   X509 *x;
 
-  assert(rc && uri && wsk && w && subject);
-
-  issuer = &w->certinfo;
+  assert(rc && uri && wsk && w && certinfo);
 
   switch (w->state) {
   case walk_state_current:
@@ -3230,10 +3243,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     logmsg(rc, log_telemetry, "Checking %s", uri->s);
   }
 
-  if ((certs = walk_ctx_stack_certs(rc, wsk)) == NULL)
-    return NULL;
-
-  if ((x = check_cert_1(rc, uri, &path, prefix, certs, issuer, subject, hash, hashlen, &w->crldp, generation)) != NULL) {
+  if ((x = check_cert_1(rc, wsk, uri, &path, prefix, certinfo, hash, hashlen, generation)) != NULL) {
     install_object(rc, uri, &path, object_accepted, generation);
     if (w->state == walk_state_current)
       sk_OPENSSL_STRING_remove(rc->backup_cache, uri->s);
@@ -3244,9 +3254,6 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     log_validation_status(rc, uri, object_rejected, generation);
   }
 
-  sk_X509_free(certs);
-  certs = NULL;
-
   return x;
 }
 
@@ -3256,11 +3263,10 @@ static X509 *check_cert(rcynic_ctx_t *rc,
  * Read and check one manifest from disk.
  */
 static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
+				  STACK_OF(walk_ctx_t) *wsk,
 				  const uri_t *uri,
 				  path_t *path,
 				  const path_t *prefix,
-				  STACK_OF(X509) *certs,
-				  const certinfo_t *issuer_certinfo,
 				  certinfo_t *certinfo,
 				  const object_generation_t generation)
 {
@@ -3271,7 +3277,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   BIO *bio = NULL;
   X509 *ee;
 
-  assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
+  assert(rc && wsk && uri && path && prefix);
 
   if (!uri_to_filename(rc, uri, path, prefix) ||
       (cms = read_cms(path, NULL)) == NULL)
@@ -3301,7 +3307,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   parse_cert(rc, ee, certinfo, uri, generation);
 
-  if (!check_x509(rc, certs, ee, certinfo, issuer_certinfo, NULL))
+  if (!check_x509(rc, wsk, ee, certinfo))
     goto done;
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
@@ -3359,7 +3365,6 @@ static int check_manifest(const rcynic_ctx_t *rc,
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
   Manifest *old_manifest, *new_manifest, *result = NULL;
-  STACK_OF(X509) *certs = NULL;
   certinfo_t old_certinfo, new_certinfo;
   const uri_t *uri, *crldp = NULL;
   object_generation_t generation;
@@ -3374,16 +3379,13 @@ static int check_manifest(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking manifest %s", uri->s);
 
-  if ((certs = walk_ctx_stack_certs(rc, wsk)) == NULL)
-    return 0;
+  new_manifest = check_manifest_1(rc, wsk, uri, &new_path,
+				  &rc->unauthenticated, &new_certinfo,
+				  object_generation_current);
 
-  new_manifest = check_manifest_1(rc, uri, &new_path,
-				  &rc->unauthenticated, certs, &w->certinfo,
-				  &new_certinfo, object_generation_current);
-
-  old_manifest = check_manifest_1(rc, uri, &old_path,
-				  &rc->old_authenticated, certs, &w->certinfo,
-				  &old_certinfo, object_generation_backup);
+  old_manifest = check_manifest_1(rc, wsk, uri, &old_path,
+				  &rc->old_authenticated, &old_certinfo,
+				  object_generation_backup);
 
   if (!new_manifest)
     result = old_manifest;
@@ -3440,9 +3442,6 @@ static int check_manifest(const rcynic_ctx_t *rc,
   if (result != old_manifest)
     Manifest_free(old_manifest);
 
-  sk_X509_free(certs);
-  certs = NULL;
-
   w->manifest = result;
   if (crldp)
     w->crldp = *crldp;
@@ -3490,14 +3489,12 @@ static int extract_roa_prefix(unsigned char *addr,
  * Read and check one ROA from disk.
  */
 static int check_roa_1(const rcynic_ctx_t *rc,
+		       STACK_OF(walk_ctx_t) *wsk,
 		       const uri_t *uri,
 		       path_t *path,
 		       const path_t *prefix,
-		       STACK_OF(X509) *certs,
 		       const unsigned char *hash,
 		       const size_t hashlen,
-		       const certinfo_t *issuer_certinfo,
-		       const uri_t *crldp,
 		       const object_generation_t generation)
 {
   unsigned char addrbuf[ADDR_RAW_BUF_LEN];
@@ -3514,7 +3511,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   ROAIPAddressFamily *rf;
   ROAIPAddress *ra;
 
-  assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
+  assert(rc && wsk && uri && path && prefix);
 
   if (!uri_to_filename(rc, uri, path, prefix))
     goto error;
@@ -3656,7 +3653,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
   }
 
-  if (!check_x509(rc, certs, sk_X509_value(signers, 0), &certinfo, issuer_certinfo, crldp))
+  if (!check_x509(rc, wsk, sk_X509_value(signers, 0), &certinfo))
     goto error;
 
   result = 1;
@@ -3677,16 +3674,14 @@ static int check_roa_1(const rcynic_ctx_t *rc,
  * and check issuer's signature if we don't.
  */
 static void check_roa(const rcynic_ctx_t *rc,
-		      const uri_t *uri,
 		      STACK_OF(walk_ctx_t) *wsk,
+		      const uri_t *uri,
 		      const unsigned char *hash,
 		      const size_t hashlen)
 {
-  walk_ctx_t *w = walk_ctx_stack_head(wsk);
-  STACK_OF(X509) *certs = NULL;
   path_t path;
 
-  assert(rc && uri && wsk && w);
+  assert(rc && uri && wsk);
 
   if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
       !access(path.s, F_OK))
@@ -3694,29 +3689,23 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking ROA %s", uri->s);
 
-  if ((certs = walk_ctx_stack_certs(rc, wsk)) == NULL)
-    return;
-
-  if (check_roa_1(rc, uri, &path, &rc->unauthenticated,
-		  certs, hash, hashlen, &w->certinfo, &w->crldp,
-		  object_generation_current)) {
+  if (check_roa_1(rc, wsk, uri, &path, &rc->unauthenticated,
+		  hash, hashlen, object_generation_current)) {
     install_object(rc, uri, &path, object_accepted, object_generation_current);
-    goto done;
-  } else if (!access(path.s, F_OK)) {
+    return;
+  }
+
+  if (!access(path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_current);
-  }
 
-  if (check_roa_1(rc, uri, &path, &rc->old_authenticated,
-		  certs, hash, hashlen,  &w->certinfo, &w->crldp,
-		  object_generation_backup)) {
+  if (check_roa_1(rc, wsk, uri, &path, &rc->old_authenticated,
+		  hash, hashlen, object_generation_backup)) {
     install_object(rc, uri, &path, object_accepted, object_generation_backup);
-    goto done;
-  } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, object_rejected, object_generation_backup);
+    return;
   }
 
- done:
-  sk_X509_free(certs);
+  if (!access(path.s, F_OK))
+    log_validation_status(rc, uri, object_rejected, object_generation_backup);
 }
 
 
@@ -3725,14 +3714,12 @@ static void check_roa(const rcynic_ctx_t *rc,
  * Read and check one Ghostbuster record from disk.
  */
 static int check_ghostbuster_1(const rcynic_ctx_t *rc,
+			       STACK_OF(walk_ctx_t) *wsk,
 			       const uri_t *uri,
 			       path_t *path,
 			       const path_t *prefix,
-			       STACK_OF(X509) *certs,
 			       const unsigned char *hash,
 			       const size_t hashlen,
-			       const certinfo_t *issuer_certinfo,
-			       const uri_t *crldp,
 			       const object_generation_t generation)
 {
   const ASN1_OBJECT *eContentType = NULL;
@@ -3743,7 +3730,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
   certinfo_t certinfo;
   int result = 0;
 
-  assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
+  assert(rc && wsk && uri && path && prefix);
 
   if (!uri_to_filename(rc, uri, path, prefix))
     goto error;
@@ -3799,7 +3786,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
    */
 #endif
 
-  if (!check_x509(rc, certs, sk_X509_value(signers, 0), &certinfo, issuer_certinfo, crldp))
+  if (!check_x509(rc, wsk, sk_X509_value(signers, 0), &certinfo))
     goto error;
 
   result = 1;
@@ -3817,16 +3804,14 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
  * attempt to fetch it and check issuer's signature if we don't.
  */
 static void check_ghostbuster(const rcynic_ctx_t *rc,
-			      const uri_t *uri,
 			      STACK_OF(walk_ctx_t) *wsk,
+			      const uri_t *uri,
 			      const unsigned char *hash,
 			      const size_t hashlen)
 {
-  walk_ctx_t *w = walk_ctx_stack_head(wsk);
-  STACK_OF(X509) *certs = NULL;
   path_t path;
 
-  assert(rc && uri && wsk && w);
+  assert(rc && wsk && uri);
 
   if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
       !access(path.s, F_OK))
@@ -3834,29 +3819,23 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking Ghostbuster record %s", uri->s);
 
-  if ((certs = walk_ctx_stack_certs(rc, wsk)) == NULL)
-    return;
-
-  if (check_ghostbuster_1(rc, uri, &path, &rc->unauthenticated,
-			  certs, hash, hashlen, &w->certinfo, &w->crldp,
-			  object_generation_current)) {
+  if (check_ghostbuster_1(rc, wsk, uri, &path, &rc->unauthenticated,
+			  hash, hashlen, object_generation_current)) {
     install_object(rc, uri, &path, object_accepted, object_generation_current);
-    goto done;
-  } else if (!access(path.s, F_OK)) {
+    return;
+  }
+
+  if (!access(path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_current);
-  }
 
-  if (check_ghostbuster_1(rc, uri, &path, &rc->old_authenticated,
-			  certs, hash, hashlen, &w->certinfo, &w->crldp,
-			  object_generation_backup)) {
+  if (check_ghostbuster_1(rc, wsk, uri, &path, &rc->old_authenticated,
+			  hash, hashlen, object_generation_backup)) {
     install_object(rc, uri, &path, object_accepted, object_generation_backup);
-    goto done;
-  } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, object_rejected, object_generation_backup);
+    return;
   }
 
- done:
-  sk_X509_free(certs);
+  if (!access(path.s, F_OK))
+    log_validation_status(rc, uri, object_rejected, object_generation_backup);
 }
 
 
@@ -4002,21 +3981,21 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
       }
 
       if (endswith(uri.s, ".roa")) {
-	check_roa(rc, &uri, wsk, hash, hashlen);
+	check_roa(rc, wsk, &uri, hash, hashlen);
 	walk_ctx_loop_next(rc, wsk);
 	continue;
       }
 
       if (endswith(uri.s, ".gbr")) {
-	check_ghostbuster(rc, &uri, wsk, hash, hashlen);
+	check_ghostbuster(rc, wsk, &uri, hash, hashlen);
 	walk_ctx_loop_next(rc, wsk);
 	continue;
       }
 
       if (endswith(uri.s, ".cer")) {
-	certinfo_t subject;
-	X509 *x = check_cert(rc, &uri, wsk, &subject, hash, hashlen);
-	if (!walk_ctx_stack_push(wsk, x, &subject))
+	certinfo_t certinfo;
+	X509 *x = check_cert(rc, wsk, &uri, &certinfo, hash, hashlen);
+	if (!walk_ctx_stack_push(wsk, x, &certinfo))
 	  walk_ctx_loop_next(rc, wsk);
 	continue;
       }
@@ -4044,16 +4023,11 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
  */
 static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
-  STACK_OF(X509) *certs = walk_ctx_stack_certs(rc, wsk);
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
-  int ok = 0;
 
-  if (certs != NULL && w != NULL)
-    ok = check_x509(rc, certs, w->cert, &w->certinfo, &w->certinfo, NULL);
+  assert(rc && wsk && w);
 
-  sk_X509_free(certs);
-
-  if (!ok)
+  if (!check_x509(rc, wsk, w->cert, &w->certinfo))
     return;
 
   task_add(rc, walk_cert, wsk);

@@ -369,6 +369,8 @@ allow-crl-digest-mismatch
 			value for the CRL than the digest of the CRL
 			we have in hand.
 
+			You probably don't want to touch this.
+
 			Values: true or false
 
 			Default: true

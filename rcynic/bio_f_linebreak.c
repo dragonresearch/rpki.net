@@ -6,7 +6,7 @@
  * does one rather silly thing: on read, it inserts line break into
  * the input stream at regular intervals.
  *
- * You might reasonaly ask why anyone would want such a thing.  The
+ * You might reasonably ask why anyone would want such a thing.  The
  * answer is that OpenSSL's Base64 filter BIO has two input modes,
  * neither of which is really useful for reading generalized Base64
  * input.  In one mode, it requires line breaks at most every 79
@@ -161,7 +161,6 @@ static int linebreak_read(BIO *b, char *out, int outl)
     if (ret == 0)
       ret = n;
     break;
-
   }
 
   return ret;
@@ -206,20 +205,20 @@ static long linebreak_ctrl(BIO *b, int cmd, long num, void *ptr)
   }
 }
 
-static long linebreak_callback_ctrl(BIO *b, int cmd, bio_info_cb *fp)
+static long linebreak_callback_ctrl(BIO *b, int cmd, bio_info_cb *cb)
 {
   if (b->next_bio == NULL)
     return 0;
   else
-    return BIO_callback_ctrl(b->next_bio, cmd, fp);
+    return BIO_callback_ctrl(b->next_bio, cmd, cb);
 }
 
-static int linebreak_puts(BIO *bp, const char *str)
+static int linebreak_puts(BIO *b, const char *str)
 {
-  if (bp->next_bio == NULL)
+  if (b->next_bio == NULL)
     return 0;
   else
-    return BIO_puts(bp->next_bio, str);
+    return BIO_puts(b->next_bio, str);
 }
 
 static BIO_METHOD methods_linebreak = {
@@ -256,6 +255,7 @@ int main (int argc, char *argv[])
 
   BIO_push(fch, ich);
   ich = fch;
+  fch = NULL;
 
   while ((n = BIO_read(ich, buffer, sizeof(buffer))) > 0)
     BIO_write(och, buffer, n);

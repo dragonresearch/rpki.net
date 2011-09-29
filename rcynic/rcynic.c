@@ -402,19 +402,34 @@ typedef enum {
 } rsync_status_t;
 
 /**
+ * States for asynchronous rsync.
+ * "initial" must be first.
+ */
+
+#define RSYNC_STATES	\
+  QQ(initial)		\
+  QQ(running)		\
+  QQ(conflict_wait)	\
+  QQ(retry_wait)	\
+  QQ(closed)		\
+  QQ(terminating)
+
+#define QQ(x)	rsync_state_##x,
+typedef enum { RSYNC_STATES RSYNC_STATE_T_MAX } rsync_state_t;
+#undef	QQ
+
+#define QQ(x)	#x ,
+static const char * const rsync_state_label[] = { RSYNC_STATES NULL };
+#undef	QQ
+
+/**
  * Context for asyncronous rsync.
  */
 typedef struct rsync_ctx {
   uri_t uri;
   void (*handler)(const rcynic_ctx_t *, const struct rsync_ctx *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *);
   STACK_OF(walk_ctx_t) *wsk;
-  enum {
-    rsync_state_initial,	/* Must be first */
-    rsync_state_running,
-    rsync_state_conflict_wait,
-    rsync_state_retry_wait,
-    rsync_state_terminating
-  } state;
+  rsync_state_t state;
   enum {
     rsync_problem_none,		/* Must be first */
     rsync_problem_timed_out,
@@ -469,6 +484,7 @@ struct rcynic_ctx {
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
   int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
   int allow_crl_digest_mismatch;
+  unsigned max_select_time;
   log_level_t log_level;
   X509_STORE *x509_store;
 };
@@ -725,6 +741,29 @@ static int configure_integer(const rcynic_ctx_t *rc,
   
   if (*val != '\0' && *p == '\0') {
     *result = (int) res;
+    return 1;
+  } else {
+    logmsg(rc, log_usage_err, "Bad integer value %s", val);
+    return 0;
+  }
+}
+
+/**
+ * Configure unsigned integer variable.
+ */
+static int configure_unsigned_integer(const rcynic_ctx_t *rc,
+				      unsigned *result,
+				      const char *val)
+{
+  unsigned long res;
+  char *p;
+
+  assert(rc && result && val);
+
+  res = strtoul(val, &p, 10);
+  
+  if (*val != '\0' && *p == '\0') {
+    *result = (unsigned) res;
     return 1;
   } else {
     logmsg(rc, log_usage_err, "Bad integer value %s", val);
@@ -1759,6 +1798,7 @@ static int rsync_count_running(const rcynic_ctx_t *rc)
   for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
     switch (ctx->state) {
     case rsync_state_running:
+    case rsync_state_closed:
     case rsync_state_terminating:
       n++;
     default:
@@ -1808,11 +1848,15 @@ static int rsync_runable(const rcynic_ctx_t *rc,
   case rsync_state_retry_wait:
     return ctx->deadline <= time(0);
 
+  case rsync_state_closed:
   case rsync_state_terminating:
     return 0;
 
   case rsync_state_conflict_wait:
     return !rsync_conflicts(rc, ctx);
+
+  default:
+    break;
   }
 
   return 0;
@@ -1948,6 +1992,8 @@ static void rsync_run(const rcynic_ctx_t *rc,
     pipe_fds[1] = -1;
     ctx->state = rsync_state_running;
     ctx->problem = rsync_problem_none;
+    if (!ctx->started)
+      ctx->started = time(0);
     if (rc->rsync_timeout)
       ctx->deadline = time(0) + rc->rsync_timeout;
     logmsg(rc, log_debug, "Subprocess %u started, queued %d, runable %d, running %d, max %d, URI %s",
@@ -2009,19 +2055,25 @@ static int rsync_construct_select(const rcynic_ctx_t *rc,
   time_t when = 0;
   int i, n = 0;
 
-  assert(rc && rc->rsync_queue && rfds && tv);
+  assert(rc && rc->rsync_queue && rfds && tv && rc->max_select_time >= 0);
 
   FD_ZERO(rfds);
 
   for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
+
+#if 0
+    logmsg(rc, log_debug, "+++ ctx[%d] pid %d fd %d state %s started %lu deadline %lu",
+	   i, ctx->pid, ctx->fd, rsync_state_label[ctx->state],
+	   (unsigned long) ctx->started, (unsigned long) ctx->deadline);
+#endif
+
     switch (ctx->state) {
 
     case rsync_state_running:
-      if (ctx->fd >= 0) {
-	FD_SET(ctx->fd, rfds);
-	if (ctx->fd > n)
-	  n = ctx->fd;
-      }
+      assert(ctx->fd >= 0);
+      FD_SET(ctx->fd, rfds);
+      if (ctx->fd > n)
+	n = ctx->fd;
       if (!rc->rsync_timeout)
 	continue;
       /* Fall through */
@@ -2036,7 +2088,10 @@ static int rsync_construct_select(const rcynic_ctx_t *rc,
     }
   }
 
-  tv->tv_sec = when ? when - now : 0;
+  if (when && when < now + rc->max_select_time)
+    tv->tv_sec = when - now;
+  else
+    tv->tv_sec = rc->max_select_time;
   tv->tv_usec = 0;
   return n;
 }
@@ -2188,8 +2243,12 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
   n = rsync_construct_select(rc, now, &rfds, &tv);
 
-  if (n > 0 || tv.tv_sec)
-    n = select(n + 1, &rfds, NULL, NULL, tv.tv_sec ? &tv : NULL);
+  if (n > 0) {
+#if 0
+    logmsg(rc, log_debug, "++ select(%d, %u)", n, tv.tv_sec);
+#endif
+    n = select(n + 1, &rfds, NULL, NULL, &tv);
+  }
 
   if (n > 0) {
 
@@ -2225,6 +2284,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       if (n == 0) {
 	(void) close(ctx->fd);
 	ctx->fd = -1;
+	ctx->state = rsync_state_closed;
       }
     }
   }
@@ -4109,6 +4169,7 @@ int main(int argc, char *argv[])
   rc.retry_wait_min = 30;
   rc.run_rsync = 1;
   rc.rsync_timeout = 300;
+  rc.max_select_time = 30;
 
 #define QQ(x,y)   rc.priority[x] = y;
   LOG_LEVELS;
@@ -4196,6 +4257,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "max-parallel-fetches") &&
 	     !configure_integer(&rc, &rc.max_parallel_fetches, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "max-select-time") &&
+	     !configure_unsigned_integer(&rc, &rc.max_select_time, val->value))
       goto done;
 
     else if (!name_cmp(val->name, "rsync-program"))

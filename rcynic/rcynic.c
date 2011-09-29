@@ -3921,8 +3921,6 @@ static void rsync_sia_callback(const rcynic_ctx_t *rc,
     if (rsync_count_runable(rc) >= rc->max_parallel_fetches)
       return;
 
-    assert(rsync_count_running(rc) < rc->max_parallel_fetches);
-
     if ((wsk = walk_ctx_stack_clone(wsk)) == NULL) {
       logmsg(rc, log_sys_err, "walk_ctx_stack_clone() failed, probably memory exhaustion, blundering onwards without forking stack");
       return;

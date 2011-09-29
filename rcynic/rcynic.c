@@ -1937,7 +1937,7 @@ static void rsync_run(const rcynic_ctx_t *rc,
   }
 
   for (i = 0; i < argc; i++)
-    logmsg(rc, log_verbose, "rsync argv[%d]: %s", i, argv[i]);
+    logmsg(rc, log_debug, "rsync argv[%d]: %s", i, argv[i]);
 
   if (pipe(pipe_fds) < 0) {
     logmsg(rc, log_sys_err, "pipe() failed: %s", strerror(errno));
@@ -1996,7 +1996,7 @@ static void rsync_run(const rcynic_ctx_t *rc,
       ctx->started = time(0);
     if (rc->rsync_timeout)
       ctx->deadline = time(0) + rc->rsync_timeout;
-    logmsg(rc, log_debug, "Subprocess %u started, queued %d, runable %d, running %d, max %d, URI %s",
+    logmsg(rc, log_verbose, "Subprocess %u started, queued %d, runable %d, running %d, max %d, URI %s",
 	   (unsigned) ctx->pid, sk_rsync_ctx_t_num(rc->rsync_queue), rsync_count_runable(rc), rsync_count_running(rc), rc->max_parallel_fetches, ctx->uri.s);
     if (ctx->handler)
       ctx->handler(rc, ctx, rsync_status_pending, &ctx->uri, ctx->wsk);
@@ -2039,7 +2039,7 @@ static void do_one_rsync_log_line(const rcynic_ctx_t *rc,
   if ((s = strstr(ctx->buffer, "@ERROR: max connections")) != NULL) {
     ctx->problem = rsync_problem_refused;
     if (sscanf(s, "@ERROR: max connections (%u) reached -- try again later", &u) == 1)
-      logmsg(rc, log_debug, "Subprocess %u reported limit of %u for %s", ctx->pid, u, ctx->uri.s);
+      logmsg(rc, log_verbose, "Subprocess %u reported limit of %u for %s", ctx->pid, u, ctx->uri.s);
   }
 }
 
@@ -2132,7 +2132,8 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
      * Child exited, handle it.
      */
 
-    logmsg(rc, log_debug, "Subprocess %d exited with status %d", pid, WEXITSTATUS(pid_status));
+    logmsg(rc, log_verbose, "Subprocess %u exited with status %d",
+	   (unsigned) pid, WEXITSTATUS(pid_status));
 
     for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
       if (ctx->pid == pid)
@@ -2307,9 +2308,9 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 	logmsg(rc, log_telemetry, "Subprocess %u is taking too long fetching %s, whacking it", (unsigned) ctx->pid, ctx->uri.s);
 	dead_host_add(rc, &ctx->uri);
       } else if (sig == SIGTERM) {
-	logmsg(rc, log_telemetry, "Whacking subprocess %u again", (unsigned) ctx->pid);
+	logmsg(rc, log_verbose, "Whacking subprocess %u again", (unsigned) ctx->pid);
       } else {
-	logmsg(rc, log_telemetry, "Whacking subprocess %u with big hammer", (unsigned) ctx->pid);
+	logmsg(rc, log_verbose, "Whacking subprocess %u with big hammer", (unsigned) ctx->pid);
       }
       (void) kill(ctx->pid, sig);
       ctx->deadline = now + 1;

@@ -20,8 +20,6 @@
 #
 # DO NOT EDIT!  This script is automatically generated from adduser.py
 
-from __future__ import with_statement
-
 import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 
@@ -89,27 +87,5 @@ if __name__ == '__main__':
 	print 'creating ', myrpki_dir
 	os.mkdir(myrpki_dir)
     os.chown(myrpki_dir, web_uid, -1)
-
-    # create enought of rpki.conf enough to fool portal-gui
-    myrpki_conf = myrpki_dir + '/rpki.conf'
-    if not os.path.exists(myrpki_conf):
-	print 'creating ', myrpki_conf
-	with open(myrpki_conf, 'w') as f:
-	    print >>f, """[myrpki]
-run_rpkidemo=true
-run_rpkid=false
-asn_csv=%(path)s/asns.csv
-roa_csv=%(path)s/roas.csv
-prefix_csv=%(path)s/prefixes.csv""" % { 'path': myrpki_dir }
-
-    # create empty csv files so portal-gui doesn't barf
-    for base in ['roas', 'asns', 'prefixes']:
-        fname = '%s/%s.csv' % (myrpki_dir, base)
-        if not os.path.exists(fname):
-            print 'creating ', fname
-            with open(fname, 'w') as f:
-                # just create an empty file
-                pass
-        os.chown(fname, web_uid, -1)
 
 # vim:sw=4 ts=8

@@ -213,7 +213,6 @@ static const struct {
   QB(crl_number_extension_missing,	"CRL number extension missing")	    \
   QB(crldp_doesnt_match_issuer_sia,	"CRLDP doesn't match issuer's SIA") \
   QB(crldp_uri_missing,			"CRLDP URI missing")		    \
-  QB(digest_mismatch,			"Digest mismatch")		    \
   QB(disallowed_x509v3_extension,	"Disallowed X.509v3 extension")     \
   QB(malformed_cadirectory_uri,		"Malformed caDirectory URI")	    \
   QB(malformed_crldp_extension,		"Malformed CRDLP extension")	    \
@@ -221,6 +220,7 @@ static const struct {
   QB(malformed_roa_addressfamily,       "Malformed ROA addressFamily")	    \
   QB(malformed_tal_uri,			"Malformed TAL URI")		    \
   QB(manifest_carepository_mismatch,	"Manifest caRepository mismatch")   \
+  QB(manifest_lists_missing_object,	"Manifest lists missing object")    \
   QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
   QB(object_rejected,			"Object rejected")		    \
   QB(roa_contains_bad_afi_value,	"ROA contains bad AFI value")	    \
@@ -238,6 +238,7 @@ static const struct {
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
   QB(wrong_object_version,		"Wrong object version")		    \
   QW(crldp_names_newer_crl,		"CRLDP names newer CRL")	    \
+  QW(digest_mismatch,			"Digest mismatch")		    \
   QW(issuer_uses_multiple_crldp_values,	"Issuer uses multiple CRLDP values")\
   QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
   QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
@@ -483,7 +484,7 @@ struct rcynic_ctx {
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
   int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
-  int allow_crl_digest_mismatch;
+  int allow_digest_mismatch, allow_crl_digest_mismatch;
   unsigned max_select_time;
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -3243,7 +3244,8 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   if (hash && (hashlen > sizeof(hashbuf.h) ||
 	       memcmp(hashbuf.h, hash, hashlen))) {
     log_validation_status(rc, uri, digest_mismatch, generation);
-    goto punt;
+    if (!rc->allow_digest_mismatch)
+      goto punt;
   }
 
   parse_cert(rc, x, certinfo, uri, generation);
@@ -3310,9 +3312,10 @@ static X509 *check_cert(rcynic_ctx_t *rc,
       sk_OPENSSL_STRING_remove(rc->backup_cache, uri->s);
     else if (!sk_OPENSSL_STRING_push_strdup(rc->backup_cache, uri->s))
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri->s);
-      
   } else if (!access(path.s, F_OK)) {
     log_validation_status(rc, uri, object_rejected, generation);
+  } else if (hash) {
+    log_validation_status(rc, uri, manifest_lists_missing_object, generation);
   }
 
   return x;
@@ -3588,7 +3591,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   if (hash && (hashlen > sizeof(hashbuf.h) ||
 	       memcmp(hashbuf.h, hash, hashlen))) {
     log_validation_status(rc, uri, digest_mismatch, generation);
-    goto error;
+    if (!rc->allow_digest_mismatch)
+      goto error;
   }
 
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
@@ -3758,6 +3762,8 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   if (!access(path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_current);
+  else if (hash)
+    log_validation_status(rc, uri, manifest_lists_missing_object, object_generation_current);
 
   if (check_roa_1(rc, wsk, uri, &path, &rc->old_authenticated,
 		  hash, hashlen, object_generation_backup)) {
@@ -3767,6 +3773,8 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   if (!access(path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_backup);
+  else if (hash)
+    log_validation_status(rc, uri, manifest_lists_missing_object, object_generation_backup);
 }
 
 
@@ -3807,7 +3815,8 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
   if (hash && (hashlen > sizeof(hashbuf.h) ||
 	       memcmp(hashbuf.h, hash, hashlen))) {
     log_validation_status(rc, uri, digest_mismatch, generation);
-    goto error;
+    if (!rc->allow_digest_mismatch)
+      goto error;
   }
 
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
@@ -3888,6 +3897,8 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   if (!access(path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_current);
+  else if (hash)
+    log_validation_status(rc, uri, manifest_lists_missing_object, object_generation_current);
 
   if (check_ghostbuster_1(rc, wsk, uri, &path, &rc->old_authenticated,
 			  hash, hashlen, object_generation_backup)) {
@@ -3897,6 +3908,8 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   if (!access(path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_backup);
+  else if (hash)
+    log_validation_status(rc, uri, manifest_lists_missing_object, object_generation_backup);
 }
 
 
@@ -4161,6 +4174,7 @@ int main(int argc, char *argv[])
   rc.log_level = log_data_err;
   rc.allow_stale_crl = 1;
   rc.allow_stale_manifest = 1;
+  rc.allow_digest_mismatch = 1;
   rc.allow_crl_digest_mismatch = 1;
   rc.allow_object_not_in_manifest = 1;
   rc.max_parallel_fetches = 1;
@@ -4314,6 +4328,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "allow-object-not-in-manifest") &&
 	     !configure_boolean(&rc, &rc.allow_object_not_in_manifest, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-digest-mismatch") &&
+	     !configure_boolean(&rc, &rc.allow_digest_mismatch, val->value))
       goto done;
 
     else if (!name_cmp(val->name, "allow-crl-digest-mismatch") &&

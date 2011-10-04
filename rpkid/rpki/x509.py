@@ -959,7 +959,10 @@ class CMS_object(DER_object):
           dbg = self.dumpasn1()
         else:
           dbg = cms.pprint()
-        sys.stderr.write("CMS verification failed, dumping ASN.1 (%d octets):\n%s\n" % (len(self.get_DER()), dbg))
+        try:
+          sys.stderr.write("CMS verification failed, dumping ASN.1 (%d octets):\n%s\n" % (len(self.get_DER()), dbg))
+        except IOError:
+          pass
       raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
     self.decode(content)

@@ -836,6 +836,13 @@ class CMS_object(DER_object):
 
   debug_cms_certs = False
 
+  ## @var dump_using_dumpasn1
+  # Set this to use external dumpasn1 program, which is prettier and
+  # more informative than OpenSSL's CMS text dump, but which won't
+  # work if the dumpasn1 program isn't installed.
+
+  dump_using_dumpasn1 = False
+
   ## @var require_crls
   # Set this to False to make CMS CRLs optional in the cases where we
   # would otherwise require them.  Some day this option should go away
@@ -955,14 +962,13 @@ class CMS_object(DER_object):
       raise
     except:
       if self.dump_on_verify_failure:
-        if True:
+        if self.dump_using_dumpasn1:
           dbg = self.dumpasn1()
         else:
           dbg = cms.pprint()
-        try:
-          sys.stderr.write("CMS verification failed, dumping ASN.1 (%d octets):\n%s\n" % (len(self.get_DER()), dbg))
-        except IOError:
-          pass
+        rpki.log.warn("CMS verification failed, dumping ASN.1 (%d octets):" % len(self.get_DER()))
+        for line in dbg.splitlines():
+          rpki.log.warn(line)
       raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
     self.decode(content)

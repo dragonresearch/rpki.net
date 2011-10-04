@@ -167,14 +167,14 @@ class main(object):
             raise
 
           except Exception, data:
-            rpki.log.traceback()
+            #rpki.log.traceback()
             r_msg.append(rpki.left_right.report_error_elt.from_exception(data, q_pdu.self_handle, q_pdu.tag))
 
       except (rpki.async.ExitNow, SystemExit):
         raise
 
       except Exception, data:
-        rpki.log.traceback()
+        #rpki.log.traceback()
         r_msg.append(rpki.left_right.report_error_elt.from_exception(data))
 
       cb(200, body = rpki.left_right.cms_msg().wrap(r_msg, self.irdbd_key, self.irdbd_cert))

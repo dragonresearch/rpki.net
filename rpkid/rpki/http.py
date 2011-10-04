@@ -908,19 +908,30 @@ class http_queue(object):
       self.log("No caller.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result, rpki.log.warn)
       return
 
-    try:
-      if isinstance(result, http_response):
+    assert isinstance(result, http_response) or isinstance(result, Exception)
+
+    if isinstance(result, http_response):
+      try:
         self.log("Returning result %r to caller" % result)
         req.callback(result.body)
-      else:
-        assert isinstance(result, Exception)
+      except (rpki.async.ExitNow, SystemExit):
+        raise
+      except Exception, e:
+        result = e
+
+    if isinstance(result, Exception):
+      try:
         self.log("Returning exception %r to caller: %s" % (result, result), rpki.log.warn)
         req.errback(result)
-    except (rpki.async.ExitNow, SystemExit):
-      raise
-    except:
-      self.log("Unhandled exception from callback")
-      rpki.log.traceback()
+      except (rpki.async.ExitNow, SystemExit):
+        raise
+      except:
+        #
+        # If we get here, we may have lost the event chain.  Not
+        # obvious what we can do about it at this point.
+        #
+        self.log("Exception in exception callback", rpki.log.warn)
+        rpki.log.traceback()
 
     self.log("Queue: %r" % self.queue)
 

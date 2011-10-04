@@ -326,3 +326,8 @@ class CommandParseFailure(RPKI_Exception):
   """
   Failed to parse command line.
   """
+
+class CMSCertHasExpired(RPKI_Exception):
+  """
+  CMS certificate has expired.
+  """

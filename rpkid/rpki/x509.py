@@ -956,6 +956,11 @@ class CMS_object(DER_object):
       if len(crls) > 1:
         raise rpki.exceptions.UnexpectedCMSCRLs # , crls
 
+    now = rpki.sundial.now()
+    for x in certs:
+      if x.getNotAfter() < now:
+        raise rpki.exceptions.CMSCertHasExpired # , x
+
     try:
       content = cms.verify(store)
     except (rpki.async.ExitNow, SystemExit):

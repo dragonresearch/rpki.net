@@ -926,13 +926,18 @@ class CMS_object(DER_object):
 
     store = rpki.POW.X509Store()
 
+    now = rpki.sundial.now()
+
     trusted_ee = None
 
     for x in X509.normalize_chain(ta):
       if self.debug_cms_certs:
         rpki.log.debug("CMS trusted cert issuer %s subject %s SKI %s" % (x.getIssuer(), x.getSubject(), x.hSKI()))
+      if x.getNotAfter() < now:
+        raise rpki.exceptions.TrustedCMSCertHasExpired
       if not x.is_CA():
-        assert trusted_ee is None, "Can't have two EE certs in the same validation chain"
+        if trusted_ee is not None:
+          raise rpki.exceptions.MultipleCMSEECert
         trusted_ee = x
       store.addTrust(x.get_POW())
 
@@ -956,7 +961,6 @@ class CMS_object(DER_object):
       if len(crls) > 1:
         raise rpki.exceptions.UnexpectedCMSCRLs # , crls
 
-    now = rpki.sundial.now()
     for x in certs:
       if x.getNotAfter() < now:
         raise rpki.exceptions.CMSCertHasExpired # , x

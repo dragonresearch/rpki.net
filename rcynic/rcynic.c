@@ -381,6 +381,7 @@ typedef struct walk_ctx {
   certinfo_t certinfo;
   X509 *cert;
   Manifest *manifest;
+  object_generation_t manifest_generation;
   STACK_OF(OPENSSL_STRING) *filenames;
   int manifest_iteration, filename_iteration, stale_manifest;
   walk_state_t state;
@@ -3509,6 +3510,7 @@ static int check_manifest(const rcynic_ctx_t *rc,
   w->manifest = result;
   if (crldp)
     w->crldp = *crldp;
+  w->manifest_generation = generation;
 
   return ok;
 }

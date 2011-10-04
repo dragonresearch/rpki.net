@@ -331,3 +331,13 @@ class CMSCertHasExpired(RPKI_Exception):
   """
   CMS certificate has expired.
   """
+
+class TrustedCMSCertHasExpired(RPKI_Exception):
+  """
+  Trusted CMS certificate has expired.
+  """
+
+class MultipleCMSEECert(RPKI_Exception):
+  """
+  Can't have more than one CMS EE certificate in validation chain.
+  """

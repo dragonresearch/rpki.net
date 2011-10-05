@@ -7,7 +7,7 @@ Usage: python pubd.py [ { -c | --config } configfile ]
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -132,9 +132,9 @@ class main(object):
       self.handler_common(query, None, done, (self.bpki_ta, self.irbe_cert))
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except Exception, data:
+    except Exception, e:
       rpki.log.traceback()
-      cb(500, reason = "Unhandled exception %s" % data)
+      cb(500, reason = "Unhandled exception %s" % e)
 
   client_url_regexp = re.compile("/client/([-A-Z0-9_/]+)$", re.I)
 
@@ -162,6 +162,6 @@ class main(object):
       self.handler_common(query, client, done, (self.bpki_ta, client.bpki_cert, client.bpki_glue), config.bpki_crl)
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except Exception, data:
+    except Exception, e:
       rpki.log.traceback()
-      cb(500, reason = "Could not process PDU: %s" % data)
+      cb(500, reason = "Could not process PDU: %s" % e)

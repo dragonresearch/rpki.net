@@ -82,7 +82,7 @@ if yaml_script is None:
   yaml_script  = cfg.get("yaml_script", "smoketest.yaml")
 try:
   yaml_script = [y for y in yaml.safe_load_all(open(yaml_script))]
-except:
+except Exception:
   print __doc__
   raise
 
@@ -704,7 +704,7 @@ class allocation(object):
     for sql in rpki_sql:
       try:
         cur.execute(sql)
-      except:
+      except Exception:
         if not sql.upper().startswith("DROP TABLE"):
           raise
     db.close()
@@ -714,7 +714,7 @@ class allocation(object):
     for sql in irdb_sql:
       try:
         cur.execute(sql)
-      except:
+      except Exception:
         if not sql.upper().startswith("DROP TABLE"):
           raise
     for s in [self] + self.hosts:
@@ -1170,7 +1170,7 @@ def setup_publication(pubd_sql):
   for sql in pubd_sql:
     try:
       cur.execute(sql)
-    except:
+    except Exception:
       if not sql.upper().startswith("DROP TABLE"):
         raise
   db.close()

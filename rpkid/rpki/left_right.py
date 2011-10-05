@@ -393,7 +393,7 @@ class self_elt(data_elt):
         rpki.async.iterator(r_msg.payload.classes, class_loop, class_done)
 
       def list_failed(e):
-        #rpki.log.traceback()
+        rpki.log.traceback()
         rpki.log.warn("Couldn't get resource class list from parent %r, skipping: %s" % (parent, e))
         parent_iterator()
 
@@ -589,7 +589,7 @@ class self_elt(data_elt):
         self.gctx.sql.sweep()
 
         def publication_failed(e):
-          #rpki.log.traceback()
+          rpki.log.traceback()
           rpki.log.warn("Couldn't publish Ghostbuster updates for %s, skipping: %s" % (self.self_handle, e))
           self.gctx.checkpoint()
           cb()
@@ -687,7 +687,7 @@ class self_elt(data_elt):
       self.gctx.sql.sweep()
 
       def publication_failed(e):
-        #rpki.log.traceback()
+        rpki.log.traceback()
         rpki.log.warn("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
         self.gctx.checkpoint()
         cb()
@@ -1133,9 +1133,9 @@ class child_elt(data_elt):
       raise
     except rpki.exceptions.NoActiveCA, data:
       done(q_msg.serve_error(data))
-    except Exception, data:
+    except Exception, e:
       rpki.log.traceback()
-      done(q_msg.serve_error(data))
+      done(q_msg.serve_error(e))
 
 class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """

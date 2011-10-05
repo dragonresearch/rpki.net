@@ -51,7 +51,7 @@ def sql_setup(name):
   cur = rootdb.cursor()
   try:
     cur.execute("DROP DATABASE IF EXISTS %s" %  database)
-  except:
+  except Exception:
     pass
   cur.execute("CREATE DATABASE %s" % database)
   cur.execute("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY %%s" % (database, username), (password,))

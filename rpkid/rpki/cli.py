@@ -3,7 +3,7 @@ Utilities for writing command line tools.
 
 $Id$
 
-Copyright (C) 2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2010--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -55,7 +55,7 @@ class Cmd(cmd.Cmd):
       return cmd.Cmd.onecmd(self, line)
     except SystemExit:
       raise
-    except:
+    except Exception:
       traceback.print_exc()
 
   def do_EOF(self, arg):

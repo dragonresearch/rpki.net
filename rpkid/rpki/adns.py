@@ -4,7 +4,7 @@ dnspython package.
 
 $Id$
 
-Copyright (C) 2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2010--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -65,12 +65,12 @@ for ns in resolver.nameservers:
   try:
     nameservers.append((socket.AF_INET, dns.ipv4.inet_aton(ns)))
     continue          
-  except:
+  except Exception:
     pass
   try:
     nameservers.append((socket.AF_INET6, dns.ipv6.inet_aton(ns)))
     continue
-  except:
+  except Exception:
     pass
   rpki.log.error("Couldn't parse nameserver address %r" % ns)
 

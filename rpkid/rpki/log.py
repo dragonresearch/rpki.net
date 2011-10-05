@@ -3,7 +3,7 @@ Logging facilities for RPKI libraries.
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -49,6 +49,12 @@ use_syslog = True
 # Whether __repr__() methods should show Python id numbers
 
 show_python_ids = False
+
+## @var enable_tracebacks
+# Whether tracebacks are enabled globally.  Individual classes and
+# modules may choose to override this.
+
+enable_tracebacks = False
 
 tag = ""
 pid = 0
@@ -102,18 +108,26 @@ def trace():
     bt = tb.extract_stack(limit = 3)
     return debug("[%s() at %s:%d from %s:%d]" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
 
-def traceback():
+def traceback(do_it = None):
   """
-  Consolidated backtrace facility with a bit of extra info.
+  Consolidated backtrace facility with a bit of extra info.  Argument
+  specifies whether or not to log the traceback (some modules and
+  classes have their own controls for this, this lets us provide a
+  unified interface).  If no argument is specified, we use the global
+  default value rpki.log.enable_tracebacks.
   """
 
-  assert sys.exc_info() != (None, None, None), "rpki.log.traceback() called without valid trace on stack, this is a programming error"
-  bt = tb.extract_stack(limit = 3)
-  error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
-  bt = tb.format_exc()
-  assert bt is not None, "Apparently I'm still not using the right test for null backtrace"
-  for line in bt.splitlines():
-    warn(line)
+  if do_it is None:
+    do_it = enable_tracebacks
+
+  if do_it:
+    assert sys.exc_info() != (None, None, None), "rpki.log.traceback() called without valid trace on stack, this is a programming error"
+    bt = tb.extract_stack(limit = 3)
+    error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
+    bt = tb.format_exc()
+    assert bt is not None, "Apparently I'm still not using the right test for null backtrace"
+    for line in bt.splitlines():
+      warn(line)
 
 def log_repr(obj, *tokens):
   """

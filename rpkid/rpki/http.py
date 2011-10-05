@@ -453,9 +453,7 @@ class http_stream(asynchat.async_chat):
     etype = sys.exc_info()[0]
     if etype in (SystemExit, rpki.async.ExitNow):
       raise
-    if self.show_tracebacks:
-      self.log("Error in HTTP stream handler", rpki.log.warn)
-      rpki.log.traceback()
+    rpki.log.traceback(self.show_tracebacks)
     if etype is not rpki.exceptions.HTTPClientAborted:
       self.log("Closing due to error", rpki.log.warn)
       self.close()
@@ -536,8 +534,7 @@ class http_server(http_stream):
       except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception, e:
-        if self.show_tracebacks:
-          rpki.log.traceback()
+        rpki.log.traceback(self.show_tracebacks)
         self.send_error(500, "Unhandled exception %s" % e)
     else:
       self.send_error(code = error[0], reason = error[1])
@@ -606,10 +603,9 @@ class http_listener(asyncore.dispatcher):
         self.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
       self.bind(sockaddr)
       self.listen(5)
-    except:
-      self.log("Couldn't set up HTTP listener", rpki.log.warn)
-      if self.show_tracebacks:
-        rpki.log.traceback()
+    except Exception, e:
+      self.log("Couldn't set up HTTP listener: %s" % e, rpki.log.warn)
+      rpki.log.traceback(self.show_tracebacks)
       self.close()
     for h in handlers:
       self.log("Handling %s" % h[0])
@@ -625,8 +621,8 @@ class http_listener(asyncore.dispatcher):
       http_server(sock = s, handlers = self.handlers)
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except:
-      self.log("Unable to accept connection")
+    except Exception, e:
+      self.log("Unable to accept connection: %s" % e)
       self.handle_error()
 
   def handle_error(self):
@@ -636,8 +632,7 @@ class http_listener(asyncore.dispatcher):
     if sys.exc_info()[0] in (SystemExit, rpki.async.ExitNow):
       raise
     self.log("Error in HTTP listener", rpki.log.warn)
-    if self.show_tracebacks:
-      rpki.log.traceback()
+    rpki.log.traceback(self.show_tracebacks)
 
 class http_client(http_stream):
   """
@@ -702,7 +697,7 @@ class http_client(http_stream):
       self.update_timeout()
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except:
+    except Exception:
       self.handle_error()
 
   def handle_connect(self):
@@ -925,13 +920,15 @@ class http_queue(object):
         req.errback(result)
       except (rpki.async.ExitNow, SystemExit):
         raise
-      except:
+      except Exception:
         #
         # If we get here, we may have lost the event chain.  Not
-        # obvious what we can do about it at this point.
+        # obvious what we can do about it at this point, but force a
+        # traceback so that it will be somewhat obvious that something
+        # really bad happened.
         #
         self.log("Exception in exception callback", rpki.log.warn)
-        rpki.log.traceback()
+        rpki.log.traceback(True)
 
     self.log("Queue: %r" % self.queue)
 

@@ -3,7 +3,7 @@ Utilities for event-driven programming.
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -51,7 +51,7 @@ class iterator(object):
       self.iterator = iter(iterable)
     except (ExitNow, SystemExit):
       raise
-    except:
+    except Exception:
       rpki.log.debug("Problem constructing iterator for %r" % (iterable,))
       raise
     self.doit()

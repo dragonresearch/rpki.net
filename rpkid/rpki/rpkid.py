@@ -7,7 +7,7 @@ Usage: python rpkid.py [ { -c | --config } configfile ]
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -240,9 +240,9 @@ class main(object):
       q_msg.serve_top_level(self, done)
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except Exception, data:
+    except Exception, e:
       rpki.log.traceback()
-      cb(500, reason = "Unhandled exception %s" % data)
+      cb(500, reason = "Unhandled exception %s" % e)
 
   up_down_url_regexp = re.compile("/up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
 

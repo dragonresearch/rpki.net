@@ -907,7 +907,7 @@ class CMS_object(DER_object):
       cms = self.get_POW()
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except:
+    except Exception:
       if self.print_on_der_error:
         rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %r" % self.get_DER())
       raise rpki.exceptions.UnparsableCMSDER
@@ -969,7 +969,7 @@ class CMS_object(DER_object):
       content = cms.verify(store)
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except:
+    except Exception:
       if self.dump_on_verify_failure:
         if self.dump_using_dumpasn1:
           dbg = self.dumpasn1()
@@ -1000,7 +1000,7 @@ class CMS_object(DER_object):
       cms = self.get_POW()
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except:
+    except Exception:
       raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:

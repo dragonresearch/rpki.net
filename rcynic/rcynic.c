@@ -3315,7 +3315,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri->s);
   } else if (!access(path.s, F_OK)) {
     log_validation_status(rc, uri, object_rejected, generation);
-  } else if (hash) {
+  } else if (hash && generation == w->manifest_generation) {
     log_validation_status(rc, uri, manifest_lists_missing_object, generation);
   }
 
@@ -3746,9 +3746,10 @@ static void check_roa(const rcynic_ctx_t *rc,
 		      const unsigned char *hash,
 		      const size_t hashlen)
 {
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
   path_t path;
 
-  assert(rc && uri && wsk);
+  assert(rc && wsk && w && uri);
 
   if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
       !access(path.s, F_OK))
@@ -3775,7 +3776,7 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   if (!access(path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_backup);
-  else if (hash)
+  else if (hash && w->manifest_generation == object_generation_backup)
     log_validation_status(rc, uri, manifest_lists_missing_object, object_generation_backup);
 }
 
@@ -3881,9 +3882,10 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 			      const unsigned char *hash,
 			      const size_t hashlen)
 {
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
   path_t path;
 
-  assert(rc && wsk && uri);
+  assert(rc && wsk && w && uri);
 
   if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
       !access(path.s, F_OK))
@@ -3910,7 +3912,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   if (!access(path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_backup);
-  else if (hash)
+  else if (hash && w->manifest_generation == object_generation_backup)
     log_validation_status(rc, uri, manifest_lists_missing_object, object_generation_backup);
 }
 

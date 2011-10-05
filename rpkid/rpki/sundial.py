@@ -53,6 +53,11 @@ def now():
   """
   return datetime.utcnow()
 
+class ParseFailure(Exception):
+  """
+  Parse failure constructing timedelta.
+  """
+
 class datetime(pydatetime.datetime):
   """
   RPKI extensions to standard datetime.datetime class.  All work here
@@ -258,7 +263,7 @@ class timedelta(pydatetime.timedelta):
         d["seconds"] += d.pop("years") * cls.years_to_seconds
         return cls(**d)
       else:
-        raise RuntimeError, "Couldn't parse timedelta %r" % (arg,)
+        raise ParseFailure, "Couldn't parse timedelta %r" % (arg,)
 
   def convert_to_seconds(self):
     """

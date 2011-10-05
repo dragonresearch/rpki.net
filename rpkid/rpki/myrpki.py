@@ -81,6 +81,41 @@ allow_incomplete = False
 
 whine = True
 
+class BadCommandSyntax(Exception):
+  """
+  Bad command line syntax.
+  """
+
+class BadPrefixSyntax(Exception):
+  """
+  Bad prefix syntax.
+  """
+
+class CouldntTalkToDaemon(Exception):
+  """
+  Couldn't talk to daemon.
+  """
+
+class BadCSVSyntax(Exception):
+  """
+  Bad CSV syntax.
+  """
+
+class BadXMLMessage(Exception):
+  """
+  Bad XML message.
+  """
+
+class PastExpiration(Exception):
+  """
+  Expiration date has already passed.
+  """
+
+class CantRunRootd(Exception):
+  """
+  Can't run rootd.
+  """
+
 class comma_set(set):
   """
   Minor customization of set(), to provide a print syntax.
@@ -138,7 +173,7 @@ class roa_request(object):
     elif self.v6re.match(prefix):
       self.v6.add(prefix)
     else:
-      raise RuntimeError, "Bad prefix syntax: %r" % (prefix,)
+      raise BadPrefixSyntax, "Bad prefix syntax: %r" % (prefix,)
 
   def xml(self, e):
     """
@@ -223,7 +258,7 @@ class child(object):
       elif self.v6re.match(prefix):
         self.v6.add(prefix)
       else:
-        raise RuntimeError, "Bad prefix syntax: %r" % (prefix,)
+        raise BadPrefixSyntax, "Bad prefix syntax: %r" % (prefix,)
     if asn is not None:
       self.asns.add(asn)
     if validity is not None:
@@ -505,9 +540,9 @@ class csv_reader(object):
         continue
       fields = line.split()
       if self.min_columns is not None and len(fields) < self.min_columns:
-        raise RuntimeError, "%s:%d: Not enough columns in line %r" % (self.filename, line_number, line)
+        raise BadCSVSyntax, "%s:%d: Not enough columns in line %r" % (self.filename, line_number, line)
       if self.columns is not None and len(fields) > self.columns:
-        raise RuntimeError, "%s:%d: Too many  columns in line %r" % (self.filename, line_number, line)
+        raise BadCSVSyntax, "%s:%d: Too many  columns in line %r" % (self.filename, line_number, line)
       if self.columns is not None and len(fields) < self.columns:
         fields += tuple(None for i in xrange(self.columns - len(fields)))
       yield fields
@@ -875,7 +910,7 @@ def etree_post_read(e, validate = True):
     if i.tag.startswith(namespaceQName):
       i.tag = i.tag[len(namespaceQName):]
     else:
-      raise RuntimeError, "XML tag %r is not in namespace %r" % (i.tag, namespace)
+      raise BadXMLMessage, "XML tag %r is not in namespace %r" % (i.tag, namespace)
   return e
 
 def b64_equal(thing1, thing2):
@@ -1061,7 +1096,7 @@ class main(rpki.cli.Cmd):
     self.entitydb  = EntityDB(self.cfg)
 
     if self.run_rootd and (not self.run_pubd or not self.run_rpkid):
-      raise RuntimeError, "Can't run rootd unless also running rpkid and pubd"
+      raise CantRunRootd, "Can't run rootd unless also running rpkid and pubd"
 
     self.bpki_resources = CA(self.cfg.filename, self.cfg.get("bpki_resources_directory"))
     if self.run_rpkid or self.run_pubd or self.run_rootd:
@@ -1085,7 +1120,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise RuntimeError, "This command takes no arguments"
+      raise BadCommandSyntax, "This command takes no arguments"
 
     self.bpki_resources.setup(self.cfg.get("bpki_resources_ta_dn",
                                            "/CN=%s BPKI Resource Trust Anchor" % self.handle))
@@ -1217,7 +1252,7 @@ class main(rpki.cli.Cmd):
         child_handle = a
     
     if len(argv) != 1:
-      raise RuntimeError, "Need to specify filename for child.xml"
+      raise BadCommandSyntax, "Need to specify filename for child.xml"
 
     c = etree_read(argv[0])
 
@@ -1319,7 +1354,7 @@ class main(rpki.cli.Cmd):
         parent_handle = a
 
     if len(argv) != 1:
-      raise RuntimeError, "Need to specify filename for parent.xml on command line"
+      raise BadCommandSyntax, "Need to specify filename for parent.xml on command line"
 
     p = etree_read(argv[0])
 
@@ -1379,7 +1414,7 @@ class main(rpki.cli.Cmd):
         sia_base = a
     
     if len(argv) != 1:
-      raise RuntimeError, "Need to specify filename for client.xml"
+      raise BadCommandSyntax, "Need to specify filename for client.xml"
 
     client = etree_read(argv[0])
 
@@ -1392,12 +1427,12 @@ class main(rpki.cli.Cmd):
       try:
         auth = client.find("authorization")
         if auth is None:
-          raise RuntimeError, "Malformed referral, couldn't find <auth/> element"
+          raise BadXMLMessage, "Malformed referral, couldn't find <auth/> element"
         referrer = etree_read(self.entitydb("pubclients", auth.get("referrer").replace("/",".")))
         referrer = self.bpki_servers.fxcert(referrer.findtext("bpki_client_ta"))
         referral = self.bpki_servers.cms_xml_verify(auth.text, referrer)
         if not b64_equal(referral.text, client.findtext("bpki_client_ta")):
-          raise RuntimeError, "Referral trust anchor does not match"
+          raise BadXMLMessage, "Referral trust anchor does not match"
         sia_base = referral.get("authorized_sia_base")
       except IOError:
         print "We have no record of client (%s) alleged to have made this referral" % auth.get("referrer")
@@ -1406,7 +1441,7 @@ class main(rpki.cli.Cmd):
       print "This looks like an offer, client claims to be our child, checking"
       client_ta = client.findtext("bpki_client_ta")
       if not client_ta:
-        raise RuntimeError, "Malformed offer, couldn't find <bpki_client_ta/> element"
+        raise BadXMLMessage, "Malformed offer, couldn't find <bpki_client_ta/> element"
       for child in self.entitydb.iterate("children"):
         c = etree_read(child)
         if b64_equal(c.findtext("bpki_child_ta"), client_ta):
@@ -1422,7 +1457,7 @@ class main(rpki.cli.Cmd):
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client.get("handle"))
       
     if not sia_base.startswith("rsync://"):
-      raise RuntimeError, "Malformed sia_base parameter %r, should start with 'rsync://'" % sia_base
+      raise BadXMLMessage, "Malformed sia_base parameter %r, should start with 'rsync://'" % sia_base
 
     client_handle = "/".join(sia_base.rstrip("/").split("/")[4:])
 
@@ -1483,7 +1518,7 @@ class main(rpki.cli.Cmd):
         parent_handle = a
 
     if len(argv) != 1:
-      raise RuntimeError, "Need to specify filename for repository.xml on command line"
+      raise BadCommandSyntax, "Need to specify filename for repository.xml on command line"
 
     r = etree_read(argv[0])
 
@@ -1527,11 +1562,11 @@ class main(rpki.cli.Cmd):
 
     if plural:
       if len(argv) != 0:
-        raise RuntimeError, "Unexpected arguments"
+        raise BadCommandSyntax, "Unexpected arguments"
       children = "*"
     else:
       if len(argv) != 1:
-        raise RuntimeError, "Need to specify child handle"
+        raise BadCommandSyntax, "Need to specify child handle"
       children = argv[0]
 
     if valid_until is None:
@@ -1539,7 +1574,7 @@ class main(rpki.cli.Cmd):
     else:
       valid_until = rpki.sundial.fromXMLtime(valid_until)
       if valid_until < rpki.sundial.now():
-        raise RuntimeError, "Specified new expiration time %s has passed" % valid_until
+        raise PastExpiration, "Specified new expiration time %s has passed" % valid_until
 
     print "New validity date", valid_until
 
@@ -1629,7 +1664,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise RuntimeError, "Unexpected argument %r" % arg
+      raise BadCommandSyntax, "Unexpected argument %r" % arg
     self.configure_resources_main(msg = "Send this file to the rpkid operator who is hosting you")
 
 
@@ -1978,7 +2013,7 @@ class main(rpki.cli.Cmd):
               print r.error_text
 
       if failed:
-        raise RuntimeError
+        raise CouldntTalkToDaemon
 
       if pubd_query:
         assert self.run_pubd
@@ -1991,7 +2026,7 @@ class main(rpki.cli.Cmd):
               print r.error_text
             
       if failed:
-        raise RuntimeError
+        raise CouldntTalkToDaemon
 
       # Rewrite XML.
 

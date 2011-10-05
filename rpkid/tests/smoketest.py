@@ -146,6 +146,16 @@ pubd_irbe_key  = None
 pubd_irbe_cert = None
 pubd_pubd_cert = None
 
+class CantRekeyYAMLLeaf(Exception):
+  """
+  Can't rekey YAML leaf.
+  """
+
+class CouldntIssueBSCEECertificate(Exception):
+  """
+  Couldn't issue BSC EE certificate
+  """
+
 def main():
   """
   Main program.
@@ -580,7 +590,7 @@ class allocation(object):
       cb()
 
     if self.is_leaf:
-      raise RuntimeError, "Can't rekey YAML leaf %s, sorry" % self.name
+      raise CantRekeyYAMLLeaf, "Can't rekey YAML leaf %s, sorry" % self.name
     elif target is None:
       rpki.log.info("Rekeying <self/> %s" % self.name)
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(action = "set", self_handle = self.name, rekey = "yes")], cb = done)
@@ -983,7 +993,7 @@ class allocation(object):
         signed = signer.communicate(input = b.pkcs10_request.get_PEM())
         if not signed[0]:
           rpki.log.warn(signed[1])
-          raise RuntimeError, "Couldn't issue BSC EE certificate"
+          raise CouldntIssueBSCEECertificate, "Couldn't issue BSC EE certificate"
         s.bsc_ee = rpki.x509.X509(PEM = signed[0])
         s.bsc_crl = rpki.x509.CRL(PEM_file = s.name + "-SELF.crl")
         rpki.log.info("BSC EE cert for %s SKI %s" % (s.name, s.bsc_ee.hSKI()))

@@ -44,9 +44,14 @@ if len(sys.argv) < 4:
 
     sys.exit(0)
 
+class InvalidResponseType(Exception):
+    """
+    Invalid response type.
+    """
+
 request_type = sys.argv[2]
 if not request_type in ('parent', 'repository'):
-    raise RuntimeError, 'invalid response type: %s' % request_type
+    raise InvalidResponseType, 'invalid response type: %s' % request_type
 
 # make sure apache process can manipulate the outbox!
 os.setuid(pwd.getpwnam(settings.WEB_USER)[2])

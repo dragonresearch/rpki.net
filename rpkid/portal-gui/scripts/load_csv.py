@@ -44,6 +44,11 @@ print 'processing csv files for resource handle', handle
 
 conf = models.Conf.objects.get(handle=handle)
 
+class RangeError(Exception):
+    """
+    Problem with ASN range or address range.
+    """
+
 # every parent has a favorite
 def best_child(address_range, parent, parent_range):
     '''Return the child address range that is the closest match, or
@@ -56,7 +61,7 @@ def best_child(address_range, parent, parent_range):
             return best_child(address_range, q, t)
         # check for overlap
         if t.min <= address_range.min <= t.max or t.min <= address_range.max <= t.max:
-            raise RuntimeError, \
+            raise RangeError, \
                     'can not handle overlapping ranges: %s and %s' % (address_range, t)
     return parent, parent_range
 
@@ -79,7 +84,7 @@ def get_or_create_prefix(address_range):
             # there should only ever be a single matching prefix
             break
     else:
-        raise RuntimeError, '%s does not match any received address range.' % (
+        raise RangeError, '%s does not match any received address range.' % (
                 address_range,)
 
     # find the best match among the children + grandchildren
@@ -97,7 +102,7 @@ def get_or_create_asn(asn):
     asn_set = models.Asn.objects.filter(lo__lte=asn.min, hi__gte=asn.max,
             from_cert__parent__in=conf.parents.all())
     if not asn_set:
-        raise RuntimeError, '%s does not match any received AS range' % (asn,)
+        raise RangeError, '%s does not match any received AS range' % (asn,)
     best = best_child(asn, asn_set[0], asn_set[0].as_resource_range())[0]
     print 'best match for %s is %s' % (asn, best)
     if best.lo != asn.min or best.hi != asn.max:

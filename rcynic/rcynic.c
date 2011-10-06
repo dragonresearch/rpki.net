@@ -2234,13 +2234,24 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
   assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
 
   /*
-   * Look for rsync contexts that have become runable.
+   * Look for rsync contexts that have become runable.  Odd loop
+   * structure is because rsync_run() might decide to remove the
+   * specified rsync task from the queue instead of running it.
    */
-  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
+  i = 0;
+  n = sk_rsync_ctx_t_num(rc->rsync_queue);
+  while (i < n) {
+    ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i);
+    assert(ctx != NULL);
     if (ctx->state != rsync_state_running &&
 	rsync_runable(rc, ctx) &&
 	rsync_count_running(rc) < rc->max_parallel_fetches)
       rsync_run(rc, ctx);
+    if (n < sk_rsync_ctx_t_num(rc->rsync_queue))
+      n--;
+    else
+      i++;
+  }
 
   assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
 

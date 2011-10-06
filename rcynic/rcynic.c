@@ -1945,19 +1945,6 @@ static void rsync_run(const rcynic_ctx_t *rc,
     logmsg(rc, log_sys_err, "pipe() failed: %s", strerror(errno));
     goto lose;
   }
-  ctx->fd = pipe_fds[0];
-
-  if ((flags = fcntl(ctx->fd, F_GETFL, 0)) == -1) {
-    logmsg(rc, log_sys_err, "fcntl(F_GETFL) failed: %s",
-	   strerror(errno));
-    goto lose;
-  }
-  flags |= O_NONBLOCK;
-  if (fcntl(ctx->fd, F_SETFL, flags) == -1) {
-    logmsg(rc, log_sys_err, "fcntl(F_SETFL) failed: %s",
-	   strerror(errno));
-    goto lose;
-  }
 
   switch ((ctx->pid = vfork())) {
 
@@ -1990,8 +1977,14 @@ static void rsync_run(const rcynic_ctx_t *rc,
     /*
      * Parent
      */
+    ctx->fd = pipe_fds[0];
+    if ((flags = fcntl(ctx->fd, F_GETFL, 0)) == -1 ||
+	fcntl(ctx->fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+      logmsg(rc, log_sys_err, "fcntl(ctx->fd, F_[GS]ETFL, O_NONBLOCK) failed: %s",
+	     strerror(errno));
+      goto lose;
+    }
     (void) close(pipe_fds[1]);
-    pipe_fds[1] = -1;
     ctx->state = rsync_state_running;
     ctx->problem = rsync_problem_none;
     if (!ctx->started)
@@ -2015,8 +2008,10 @@ static void rsync_run(const rcynic_ctx_t *rc,
     (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
   if (ctx && ctx->handler)
     ctx->handler(rc, ctx, rsync_status_failed, &ctx->uri, ctx->wsk);
-  if (ctx)
-    free(ctx);
+  if (ctx->pid > 0) {
+    (void) kill(ctx->pid, SIGKILL);
+    ctx->pid = 0;
+  }
 }
 
 /**

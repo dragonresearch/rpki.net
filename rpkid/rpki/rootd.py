@@ -287,11 +287,11 @@ class main(object):
 
     self.cfg.set_global_flags()
 
-    self.bpki_ta                 = rpki.x509.X509(Auto_file = self.cfg.get("bpki-ta"))
-    self.rootd_bpki_key          = rpki.x509.RSA( Auto_file = self.cfg.get("rootd-bpki-key"))
-    self.rootd_bpki_cert         = rpki.x509.X509(Auto_file = self.cfg.get("rootd-bpki-cert"))
-    self.rootd_bpki_crl          = rpki.x509.CRL( Auto_file = self.cfg.get("rootd-bpki-crl"))
-    self.child_bpki_cert         = rpki.x509.X509(Auto_file = self.cfg.get("child-bpki-cert"))
+    self.bpki_ta                 = rpki.x509.X509(Auto_update = self.cfg.get("bpki-ta"))
+    self.rootd_bpki_key          = rpki.x509.RSA( Auto_update = self.cfg.get("rootd-bpki-key"))
+    self.rootd_bpki_cert         = rpki.x509.X509(Auto_update = self.cfg.get("rootd-bpki-cert"))
+    self.rootd_bpki_crl          = rpki.x509.CRL( Auto_update = self.cfg.get("rootd-bpki-crl"))
+    self.child_bpki_cert         = rpki.x509.X509(Auto_update = self.cfg.get("child-bpki-cert"))
 
     self.http_server_host        = self.cfg.get("server-host", "")
     self.http_server_port        = int(self.cfg.get("server-port"))

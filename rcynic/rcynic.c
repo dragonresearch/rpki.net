@@ -1902,6 +1902,15 @@ static void rsync_run(const rcynic_ctx_t *rc,
 
   assert(rc && ctx && ctx->pid == 0 && ctx->state != rsync_state_running && rsync_runable(rc, ctx));
 
+  if (rsync_cached_uri(rc, &ctx->uri)) {
+    logmsg(rc, log_verbose, "Late rsync cache hit for %s", ctx->uri.s);
+    if (ctx->handler)
+      ctx->handler(rc, ctx, rsync_status_done, &ctx->uri, ctx->wsk);
+    (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
+    free(ctx);
+    return;
+  }
+
   assert(rsync_count_running(rc) < rc->max_parallel_fetches);
 
   logmsg(rc, log_telemetry, "Fetching %s", ctx->uri.s);

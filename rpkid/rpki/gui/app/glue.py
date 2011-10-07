@@ -48,21 +48,21 @@ read_identity = lambda h: read_file_from_handle(h, 'entitydb/identity.xml')[0]
 def output_asns(path, handle):
     '''Write out csv file containing asns delegated to my children.'''
     qs = models.Asn.objects.filter(lo=F('hi'), allocated__in=handle.children.all())
-    w = csv_writer(path)
+    w = rpki.myrpki.csv_writer(path)
     w.writerows([asn.allocated.handle, asn.lo] for asn in qs)
     w.close()
 
 def output_prefixes(path, handle):
     '''Write out csv file containing prefixes delegated to my children.'''
     qs = models.AddressRange.objects.filter(allocated__in=handle.children.all())
-    w = csv_writer(path)
+    w = rpki.myrpki.csv_writer(path)
     w.writerows([p.allocated.handle, p.as_resource_range()] for p in qs)
     w.close()
 
 def output_roas(path, handle):
     '''Write out csv file containing my roas.'''
     qs = models.RoaRequest.objects.filter(roa__in=handle.roas.all())
-    w = csv_writer(path)
+    w = rpki.myrpki.csv_writer(path)
     w.writerows([req.as_roa_prefix(), req.roa.asn,
                 '%s-group-%d' % (handle.handle, req.roa.pk)] for req in qs)
     w.close()

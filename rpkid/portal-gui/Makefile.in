@@ -59,6 +59,7 @@ install-apache:
 install-data: $(BUILD) install-apache
 	mkdir -p `dirname $(DATABASE_PATH)`
 	$(DJANGO_ADMIN) syncdb --settings rpki.gui.settings
+	if [ ! -f $(INSTDIR)/rpki.conf.template ]; then ${INSTALL} -m 644 ../examples/rpki.conf $(INSTDIR)/rpki.conf.template; fi
 
 install: install-data install-perms
 

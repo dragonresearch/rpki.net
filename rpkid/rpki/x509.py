@@ -659,36 +659,34 @@ class PKCS10(DER_object):
     if rpki.oids.oid2name.get(self.get_POWpkix().signatureAlgorithm.algorithm.get()) != "sha256WithRSAEncryption":
       raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % self.get_POWpkix().signatureAlgorithm
 
-    exts = self.get_POWpkix().getExtensions()
-    for oid, critical, value in exts:
-      if rpki.oids.oid2name.get(oid) not in ("basicConstraints", "keyUsage", "subjectInfoAccess"):
-        raise rpki.exceptions.BadExtension, "Forbidden extension %s" % oid
-    req_exts = dict((rpki.oids.oid2name[oid], value) for (oid, critical, value) in exts)
+    exts = dict((rpki.oids.oid2name.get(oid, oid), value)
+                for (oid, critical, value) in self.get_POWpkix().getExtensions())
 
-    if "basicConstraints" not in req_exts or not req_exts["basicConstraints"][0]:
-      raise rpki.exceptions.BadPKCS10, "request for EE cert not allowed here"
+    if any(oid not in ("basicConstraints", "keyUsage", "subjectInfoAccess") for oid in exts):
+      raise rpki.exceptions.BadExtension, "Forbidden extension(s) in certificate request"
 
-    if req_exts["basicConstraints"][1] is not None:
+    if "basicConstraints" not in exts or not exts["basicConstraints"][0]:
+      raise rpki.exceptions.BadPKCS10, "Request for EE certificate not allowed here"
+
+    if exts["basicConstraints"][1] is not None:
       raise rpki.exceptions.BadPKCS10, "basicConstraints must not specify Path Length"
 
-    if "keyUsage" in req_exts and (not req_exts["keyUsage"][5] or not req_exts["keyUsage"][6]):
+    if "keyUsage" in exts and (not exts["keyUsage"][5] or not exts["keyUsage"][6]):
       raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
 
-    sias = dict((method, location[1])
-                for method, location in req_exts.get("subjectInfoAccess", ())
-                if location[0] == "uri" and location[1].startswith("rsync://"))
+    sias = dict((rpki.oids.oid2name.get(oid, oid), value[1])
+                for oid, value in exts.get("subjectInfoAccess", ())
+                if value[0] == "uri" and value[1].startswith("rsync://"))
 
-    if "id-ad-caRepository" not in sias:
-      raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA id-ad-caRepository"
+    for oid in ("id-ad-caRepository", "id-ad-rpkiManifest"):
+      if oid not in sias:
+        raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA %s" % oid
 
     if not sias["id-ad-caRepository"].endswith("/"):
-      raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %r" % sias["id-ad-caRepository"]
-
-    if "id-ad-rpkiManifest" not in sias:
-      raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA id-ad-rpkiManifest"
+      raise rpki.exceptions.BadPKCS10, "Certificate request id-ad-caRepository does not end with slash: %r" % sias["id-ad-caRepository"]
 
     if sias["id-ad-rpkiManifest"].endswith("/"):
-      raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %r" % sias["id-ad-rpkiManifest"]
+      raise rpki.exceptions.BadPKCS10, "Certificate request id-ad-rpkiManifest ends with slash: %r" % sias["id-ad-rpkiManifest"]
 
   @classmethod
   def create_ca(cls, keypair, sia = None):

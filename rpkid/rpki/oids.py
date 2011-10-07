@@ -65,6 +65,7 @@ oid2name = {
   (2, 5, 29, 31)                        : "cRLDistributionPoints",
   (2, 5, 29, 32)                        : "certificatePolicies",
   (2, 5, 29, 35)                        : "authorityKeyIdentifier",
+  (2, 5, 29, 37)                        : "extendedKeyUsage",
   (2, 5, 4, 3)                          : "commonName",
 }
 

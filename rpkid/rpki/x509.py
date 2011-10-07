@@ -643,6 +643,10 @@ class PKCS10(DER_object):
 
     Throws an exception if the request isn't valid, so if this method
     returns at all, the request is ok.
+
+    At the moment, this only allows requests for CA certificates; as a
+    direct consequence, it also rejects ExtendedKeyUsage, because the
+    RPKI profile only allows EKU for EE certificates.
     """
 
     if not self.get_POWpkix().verify():
@@ -652,8 +656,7 @@ class PKCS10(DER_object):
       raise rpki.exceptions.BadPKCS10, \
             "Bad version number %s" % self.get_POWpkix().certificationRequestInfo.version
 
-    if rpki.oids.oid2name.get(self.get_POWpkix().signatureAlgorithm.algorithm.get()) \
-         not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
+    if rpki.oids.oid2name.get(self.get_POWpkix().signatureAlgorithm.algorithm.get()) != "sha256WithRSAEncryption":
       raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % self.get_POWpkix().signatureAlgorithm
 
     exts = self.get_POWpkix().getExtensions()
@@ -671,14 +674,21 @@ class PKCS10(DER_object):
     if "keyUsage" in req_exts and (not req_exts["keyUsage"][5] or not req_exts["keyUsage"][6]):
       raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
 
-    for method, location in req_exts.get("subjectInfoAccess", ()):
-      if rpki.oids.oid2name.get(method) == "id-ad-caRepository" and \
-           (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
-        raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %r" % location
+    sias = dict((method, location[1])
+                for method, location in req_exts.get("subjectInfoAccess", ())
+                if location[0] == "uri" and location[1].startswith("rsync://"))
 
-    # This one is an implementation restriction.  I don't yet
-    # understand what the spec is telling me to do in this case.
-    assert "subjectInfoAccess" in req_exts, "Can't (yet) handle PKCS #10 without an SIA extension"
+    if "id-ad-caRepository" not in sias:
+      raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA id-ad-caRepository"
+
+    if not sias["id-ad-caRepository"].endswith("/"):
+      raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %r" % sias["id-ad-caRepository"]
+
+    if "id-ad-rpkiManifest" not in sias:
+      raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA id-ad-rpkiManifest"
+
+    if sias["id-ad-rpkiManifest"].endswith("/"):
+      raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %r" % sias["id-ad-rpkiManifest"]
 
   @classmethod
   def create_ca(cls, keypair, sia = None):

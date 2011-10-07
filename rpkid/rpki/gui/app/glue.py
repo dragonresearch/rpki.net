@@ -15,8 +15,6 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-# $Id$
-
 from __future__ import with_statement
 
 import os, os.path, csv, stat, sys
@@ -24,8 +22,7 @@ from datetime import datetime, timedelta
 
 from django.db.models import F
 
-import rpki, rpki.async, rpki.http, rpki.x509, rpki.left_right
-from rpki.myrpki import CA, IRDB, csv_writer
+import rpki, rpki.async, rpki.http, rpki.x509, rpki.left_right, rpki.myrpki
 from rpki.gui.app import models, settings
 
 def confpath(*handle):
@@ -84,7 +81,7 @@ def build_rpkid_caller(cfg, verbose=False):
     if not bpki_servers_dir.startswith('/'):
         bpki_servers_dir = confpath(cfg.get('handle'), bpki_servers_dir)
 
-    bpki_servers = CA(cfg.filename, bpki_servers_dir)
+    bpki_servers = rpki.myrpki.CA(cfg.filename, bpki_servers_dir)
     rpkid_base = "http://%s:%s/" % (cfg.get("rpkid_server_host"), cfg.get("rpkid_server_port"))
 
     return rpki.async.sync_wrapper(rpki.http.caller(
@@ -123,6 +120,12 @@ def ghostbuster_to_vcard(gbr):
         if v:
             vcard.add(vtype).value = transform(v) if transform else v
     return vcard.serialize()
+
+def qualify_path(pfx, fname):
+    """
+    Ensure 'path' is an absolute filename.
+    """
+    return fname if fname.startswith('/') else os.path.join(pfx, fname)
 
 def configure_resources(log, handle):
     """
@@ -185,7 +188,7 @@ def configure_resources(log, handle):
     if handle.host:
         cfg = rpki.config.parser(confpath(handle.host.handle, 'rpki.conf'), 'myrpki')
 
-    irdb = IRDB(cfg)
+    irdb = rpki.myrpki.IRDB(cfg)
     irdb.update(handle, roa_requests, children, ghostbusters)
     irdb.close()
 
@@ -273,5 +276,139 @@ def list_received_resources(log, conf):
 
             add_missing_address(rpki.resource_set.resource_set_ipv4(pdu.ipv4))
             add_missing_address(rpki.resource_set.resource_set_ipv6(pdu.ipv6))
+
+def config_from_template(dest, a):
+    """
+    Create a new rpki.conf file from a generic template.  Go line by
+    line through the template and substitute directives from the
+    dictionary 'a'.
+    """
+    with open(dest, 'w') as f:
+        for r in open(settings.RPKI_CONF_TEMPLATE):
+            words = r.split()
+            if words:
+                word = words[0].strip()
+                if word in a:
+                    print >>f, "%s\t\t\t\t= %s\n" % (word, a[word])
+                else:
+                    print >>f, r,
+            else:
+                print >>f, r,
+
+class Myrpki(rpki.myrpki.main):
+    """
+    wrapper around rpki.myrpki.main to force the config file to what i want.
+    """
+    def __init__(self, cfg_file):
+        self.cfg_file = cfg_file
+
+        # quack, quack (act like rpki.myrpki.main object)
+        rpki.myrpki.main.read_config(self)
+
+def configure_daemons(log, conf, m):
+    if conf.host:
+        m.configure_resources_main()
+
+        h = Myrpki(confpath(host.handle, 'rpki.conf'))
+        m.do_configure_daemons(m.cfg.get('xml_filename'))
+    else:
+        m.do_configure_daemons('')
+
+def initialize_handle(log, handle, host, owner=None, commit=True):
+    """
+    Create a new Conf object for this user.
+    """
+    print >>log, "initializing new resource handle %s" % handle
+
+    qs = models.Conf.objects.filter(handle=handle)
+    if not qs:
+        conf = models.Conf(handle=handle, host=host)
+        conf.save()
+        if owner:
+            conf.owner.add(owner)
+    else:
+        conf = qs[0]
+
+    # create the config directory if it doesn't already exist
+    top = confpath(conf.handle)
+    if not os.path.exists(top):
+        os.makedirs(top)
+
+    cfg_file = confpath(conf.handle, 'rpki.conf')
+
+    # create rpki.conf file if it doesn't exist
+    if not os.path.exists(cfg_file):
+        print >>log, "generating rpki.conf for %s" % conf.handle
+        config_from_template(cfg_file, { 'handle': conf.handle,
+            'configuration_directory': top, 'run_rpkid': 'false'})
+
+    # create stub csv files
+    for f in ('asns', 'prefixes', 'roas'):
+        p = confpath(conf.handle, f + '.csv')
+        if not os.path.exists(p):
+            f = open(p, 'w')
+            f.close()
+
+    # load configuration for self
+    m = Myrpki(cfg_file)
+    m.do_initialize('')
+
+    if commit:
+        # run twice the first time to get bsc cert issued
+        configure_daemons(log, conf, m)
+        configure_daemons(log, conf, m)
+
+    return conf
+
+def import_child(log, conf, child_handle, xml_file, commit=True):
+    """
+    Import a child's identity.xml.
+    """
+    cfg_file = confpath(conf.handle, 'rpki.conf')
+    m = Myrpki(cfg_file)
+    m.do_configure_child(xml_file)
+
+    if commit:
+        configure_daemons(log, conf, m)
+
+def import_parent(log, conf, parent_handle, xml_file, commit=True):
+    cfg_file = confpath(conf.handle, 'rpki.conf')
+    m = Myrpki(cfg_file)
+    m.do_configure_parent(xml_file)
+
+    if commit:
+        configure_daemons(log, conf, m)
+
+def import_pubclient(log, conf, xml_file, commit=True):
+    cfg_file = confpath(conf.handle, 'rpki.conf')
+    m = Myrpki(cfg_file)
+    m.do_configure_publication_client(xml_file)
+
+    if commit:
+        configure_daemons(log, conf, m)
+
+def import_repository(log, conf, xml_file, commit=True):
+    cfg_file = confpath(conf.handle, 'rpki.conf')
+    m = Myrpki(cfg_file)
+    m.do_configure_repository(xml_file)
+
+    if commit:
+        configure_daemons(log, conf, m)
+
+def create_child(log, parent_conf, child_handle):
+    """
+    implements the child create wizard to create a new locally hosted child
+    """
+    parent_handle = parent_conf.handle
+    child_conf = initialize_handle(log, handle=child_handle, host=parent_conf, commit=False)
+    import_child(log, parent_conf, child_handle, confpath(child_handle, 'entitydb', 'identity.xml'), commit=False)
+    import_parent(log, child_conf, parent_handle, confpath(parent_handle, 'entitydb', 'children', child_handle + '.xml'), commit=False)
+    # XXX for now we assume the child is hosted by parent's pubd
+    import_pubclient(log, parent_conf, confpath(child_handle, 'entitydb', 'repositories', parent_handle + '.xml'), commit=False)
+    import_repository(log, child_conf, confpath(parent_handle, 'entitydb', 'pubclients', '%s.%s.xml' % (parent_handle, child_handle)), commit=False)
+
+    # run twice the first time to get bsc cert issued
+    configure_daemons(log, child_conf)
+    configure_daemons(log, child_conf)
 
 # vim:sw=4 ts=8 expandtab

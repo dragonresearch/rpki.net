@@ -301,7 +301,6 @@ class http_stream(asynchat.async_chat):
   """
 
   log = log_method
-  show_tracebacks = False
 
   def __repr__(self):
     status = ["connected"] if self.connected else []
@@ -453,7 +452,7 @@ class http_stream(asynchat.async_chat):
     etype = sys.exc_info()[0]
     if etype in (SystemExit, rpki.async.ExitNow):
       raise
-    rpki.log.traceback(self.show_tracebacks)
+    rpki.log.traceback()
     if etype is not rpki.exceptions.HTTPClientAborted:
       self.log("Closing due to error", rpki.log.warn)
       self.close()
@@ -534,7 +533,7 @@ class http_server(http_stream):
       except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception, e:
-        rpki.log.traceback(self.show_tracebacks)
+        rpki.log.traceback()
         self.send_error(500, "Unhandled exception %s" % e)
     else:
       self.send_error(code = error[0], reason = error[1])
@@ -579,7 +578,6 @@ class http_listener(asyncore.dispatcher):
   """
 
   log = log_method
-  show_tracebacks = False
 
   def __repr__(self):
     try:
@@ -605,7 +603,7 @@ class http_listener(asyncore.dispatcher):
       self.listen(5)
     except Exception, e:
       self.log("Couldn't set up HTTP listener: %s" % e, rpki.log.warn)
-      rpki.log.traceback(self.show_tracebacks)
+      rpki.log.traceback()
       self.close()
     for h in handlers:
       self.log("Handling %s" % h[0])
@@ -632,7 +630,7 @@ class http_listener(asyncore.dispatcher):
     if sys.exc_info()[0] in (SystemExit, rpki.async.ExitNow):
       raise
     self.log("Error in HTTP listener", rpki.log.warn)
-    rpki.log.traceback(self.show_tracebacks)
+    rpki.log.traceback()
 
 class http_client(http_stream):
   """

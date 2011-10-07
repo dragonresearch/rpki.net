@@ -22,6 +22,14 @@ h2 { text-align:center; background-color:#dddddd }
 </ul>
 
 <ul class='compact'>
+  <li><a href="{% url rpki.gui.app.views.import_child %}">import child</a></li>
+  <li><a href="{% url rpki.gui.app.views.import_parent %}">import parent</a></li>
+  <li><a href="{% url rpki.gui.app.views.import_repository %}">import repository</a></li>
+  <li><a href="{% url rpki.gui.app.views.import_pubclient %}">import pubclient</a></li>
+  <li><a href="{% url rpki.gui.app.views.child_wizard %}">create child wizard</a></li>
+</ul>
+
+<ul class='compact'>
     <li><a href="{% url rpki.gui.app.views.refresh %}">refresh</a></li>
 </ul>
 {% endblock %}

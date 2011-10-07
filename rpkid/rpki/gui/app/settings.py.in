@@ -7,8 +7,6 @@
 
 from django.conf import settings
 
-MYRPKI = settings.MYRPKI if hasattr(settings, 'MYRPKI') else '%(AC_MYRPKI)s'
-
 # directory containing the resource handles served by the rpki portal gui
 CONFDIR = settings.MYRPKI if hasattr(settings, 'CONFDIR') else '%(AC_LOCALSTATEDIR)s/rpki/conf'
 
@@ -20,3 +18,5 @@ OUTBOX = settings.MYRPKI if hasattr(settings, 'OUTBOX') else '%(AC_LOCALSTATEDIR
 
 # uid the web server runs as
 WEB_USER = settings.MYRPKI if hasattr(settings, 'WEB_USER') else '%(AC_WEBUSER)s'
+
+RPKI_CONF_TEMPLATE = settings.RPKI_CONF_TEMPLATE = settings.RPKI_CONF_TEMPLATE if hasattr(settings, 'RPKI_CONF_TEMPLATE') else '%(AC_DATAROOTDIR)s/rpki/gui/rpki.conf.template'

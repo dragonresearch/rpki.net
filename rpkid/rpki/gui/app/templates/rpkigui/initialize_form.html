@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<p>Your account has not been initialized.  Please click on the button to initialize.</P>
+
+<form method="post" action="{{ request.get_full_path }}">
+    {% csrf_token %}
+    <input type=submit value='Intialize'>
+</form>
+
+{% endblock %}
+

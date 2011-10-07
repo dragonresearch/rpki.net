@@ -46,8 +46,8 @@ class AddConfForm(forms.Form):
 
 class ImportForm(forms.Form):
     '''Form used for uploading parent/child identity xml files'''
-    handle = forms.CharField()
-    xml = forms.FileField()
+    handle = forms.CharField(max_length=30, help_text='your name for this entity')
+    xml = forms.FileField(help_text='xml filename')
 
 def PrefixSplitForm(parent, *args, **kwargs):
     class _wrapper(forms.Form):
@@ -206,5 +206,71 @@ class ChildForm(forms.ModelForm):
     class Meta:
         model = models.Child
         exclude = [ 'conf', 'handle' ]
+
+def ImportChildForm(parent_conf, *args, **kwargs):
+    class wrapped(forms.Form):
+        handle = forms.CharField(max_length=30, help_text="Child's RPKI handle")
+
+        child = forms.ModelChoiceField(queryset=models.Conf.objects.all(), required=False,
+                help_text="import locally hosted child")
+        xml = forms.FileField(help_text="Child's identity.xml files", required=False)
+
+        def clean_handle(self):
+            if parent_conf.children.filter(handle=self.cleaned_data['handle']):
+                raise forms.ValidationError, "a child with that handle already exists"
+            return self.cleaned_data['handle']
+
+        def clean(self):
+            if ((self.cleaned_data.get('child') and self.cleaned_data.get('xml')) or
+                    not (self.cleaned_data.get('child') or self.cleaned_data.get('xml'))):
+                raise forms.ValidationError, "specify either a locally hosted resource handle OR identity.xml file"
+            return self.cleaned_data
+
+    return wrapped(*args, **kwargs)
+
+def ImportParentForm(conf, *args, **kwargs):
+    class wrapped(forms.Form):
+        handle = forms.CharField(max_length=30, help_text="Parent's RPKI handle")
+
+        parent = forms.ModelChoiceField(queryset=models.Conf.objects.all(), required=False,
+                help_text="import locally hosted parent")
+        xml = forms.FileField(help_text="Parent's identity.xml files", required=False)
+
+        def clean_handle(self):
+            if conf.parents.filter(handle=self.cleaned_data['handle']):
+                raise forms.ValidationError, "a parent with that handle already exists"
+            return self.cleaned_data['handle']
+
+        def clean(self):
+            if ((self.cleaned_data.get('parent') and self.cleaned_data.get('xml')) or
+                    not (self.cleaned_data.get('parent') or self.cleaned_data.get('xml'))):
+                raise forms.ValidationError, "specify either a locally hosted resource handle OR xml file"
+            return self.cleaned_data
+
+    return wrapped(*args, **kwargs)
+
+class ImportRepositoryForm(forms.Form):
+    parent_handle = forms.CharField(max_length=30, required=False, help_text='(optional)')
+    xml = forms.FileField(help_text='xml file from repository operator')
+
+class ImportPubClientForm(forms.Form):
+    xml = forms.FileField(help_text='xml file from publication client')
+
+class InitializeForm(forms.Form):
+    """
+    Stub form for initialize new resource handles.
+    """
+    pass
+
+def ChildWizardForm(parent, *args, **kwargs):
+    class wrapped(forms.Form):
+        handle = forms.CharField(max_length=30, help_text='handle for new child')
+
+        def clean_handle(self):
+            if parent.children.filter(handle=self.cleaned_data['handle']):
+                raise forms.ValidationError, 'a child with that handle already exists'
+            return self.cleaned_data['handle']
+
+    return wrapped(*args, **kwargs)
 
 # vim:sw=4 ts=8 expandtab

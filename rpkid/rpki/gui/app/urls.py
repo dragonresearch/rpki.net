@@ -49,6 +49,12 @@ urlpatterns = patterns('',
     (r'^demo/myrpki-xml/(?P<self_handle>[^/]+)$', views.myrpki_xml),
     (r'^demo/parent-request/(?P<self_handle>[^/]+)$', views.parent_request),
     (r'^demo/repository-request/(?P<self_handle>[^/]+)$', views.repository_request),
+    (r'^import_child$', views.import_child),
+    (r'^import_parent$', views.import_parent),
+    (r'^import_pubclient$', views.import_pubclient),
+    (r'^import_repository$', views.import_repository),
+#    (r'^initialize$', views.initialize),
+    (r'^child_wizard$', views.child_wizard),
 )
 
 # vim:sw=4 ts=8 expandtab

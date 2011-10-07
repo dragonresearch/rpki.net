@@ -643,4 +643,150 @@ def refresh(request):
     glue.list_received_resources(request.META['wsgi.errors'], request.session['handle'])
     return http.HttpResponseRedirect(reverse(dashboard))
 
+@handle_required
+def import_parent(request):
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+
+    if request.method == 'POST':
+        form = forms.ImportParentForm(conf, request.POST, request.FILES)
+        if form.is_valid():
+            tmpf = None
+
+            # determine if we are importing a locally hosted parent or an identity.xml file
+            if form.get('parent'):
+                # locally hosted
+                f = confdir(form['parent'].handle, 'entitydb', 'children', conf.handle + '.xml')
+            else:
+                # uploaded xml file
+                tmpf = NamedTemporaryFile(prefix='parent', suffix='xml', delete=False)
+                f = tmpf.name
+                tmpf.write(f.read())
+                tmpf.close()
+         
+            obj = glue.import_parent(log, conf, form.get('handle'), f)
+
+            if tmpf:
+                os.remove(tmpf.name)
+
+            return http.HttpResponseRedirect(obj.get_absolute_url())
+    else:
+        form = forms.ImportParentForm(conf)
+
+    return render('rpkigui/import_parent_form.html', { 'form': form }, request)
+
+@handle_required
+def import_repository(request):
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+
+    if request.method == 'POST':
+        form = forms.ImportRepositoryForm(request.POST, request.FILES)
+        if form.is_valid():
+            # uploaded xml file
+            tmpf = NamedTemporaryFile(prefix='repository', suffix='xml', delete=False)
+            f = tmpf.name
+            tmpf.write(f.read())
+            tmpf.close()
+         
+            obj = glue.import_repository(log, conf, f)
+
+            os.remove(tmpf.name)
+
+            return http.HttpResponseRedirect(obj.get_absolute_url())
+    else:
+        form = forms.ImportRepositoryForm()
+
+    return render('rpkigui/import_repository_form.html', { 'form': form }, request)
+
+@handle_required
+def import_pubclient(request):
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+
+    if request.method == 'POST':
+        form = forms.ImportPubClientForm(request.POST, request.FILES)
+        if form.is_valid():
+            # uploaded xml file
+            tmpf = NamedTemporaryFile(prefix='pubclient', suffix='xml', delete=False)
+            f = tmpf.name
+            tmpf.write(f.read())
+            tmpf.close()
+         
+            obj = glue.import_repository(log, conf, f)
+
+            os.remove(tmpf.name)
+
+            return http.HttpResponseRedirect(obj.get_absolute_url())
+    else:
+        form = forms.ImportPubClientForm()
+
+    return render('rpkigui/import_pubclient_form.html', { 'form': form }, request)
+
+@handle_required
+def import_child(request):
+    """
+    Import a repository response.
+    """
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+    tmpf = None
+
+    if request.method == 'POST':
+        form = forms.ImportChildForm(conf, request.POST, request.FILES)
+        if form.is_valid():
+            # determine if we are importing a locally hosted child or an identity.xml file
+            if form.get('child'):
+                # locally hosted
+                f = confdir(child.handle, 'entitydb', 'identity.xml')
+            else:
+                # identity.xml
+                tmpf = NamedTemporaryFile(prefix='identity', suffix='xml', delete=False)
+                f = tmpf.name
+                tmpf.write(f.read())
+                tmpf.close()
+         
+            obj = glue.import_child(log, conf, form.cleaned_data['handle'], f)
+
+            if tmpf:
+                os.remove(tmpf.name)
+
+            return http.HttpResponseRedirect(obj.get_absolute_url())
+    else:
+        form = forms.ImportChildForm(conf)
+
+    return render('rpkigui/import_child_form.html', { 'form': form }, request)
+
+@login_required
+def initialize(request):
+    """
+    Initialize a new user account.
+    """
+    if request.method == 'POST':
+        form = forms.InitializeForm(request.POST)
+        if form.is_valid():
+            glue.initialize_handle(request.META['wsgi.errors'], handle=request.user.username, owner=request.user)
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.InitializeForm()
+
+    return render('rpkigui/initialize_form.html', { 'form': form }, request)
+
+@handle_required
+def child_wizard(request):
+    """
+    Wizard mode to create a new locally hosted child.
+    """
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+    if request.method == 'POST':
+        form = forms.ChildWizardForm(conf, request.POST)
+        if form.is_valid():
+            glue.create_child(log, conf, form.cleaned_data['handle'])
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.ChildWizardForm(conf)
+
+    return render('rpkigui/child_wizard_form.html', { 'form': form }, request)
+
 # vim:sw=4 ts=8 expandtab

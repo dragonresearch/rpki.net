@@ -193,6 +193,7 @@ COMPILE_SETTINGS = \
 	AC_LOCALSTATEDIR='${DESTDIR}${localstatedir}' \
 	AC_WEBUSER='${WEBUSER}' \
 	AC_TEMPLATE_DIR='${DESTDIR}${datarootdir}/rpki/gui/templates' \
+	AC_DATAROOTDIR='${DESTDIR}${datarootdir}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@
 
 rpki-sql-backup: rpki-sql-backup.py

@@ -1244,6 +1244,8 @@ def set_pubd_crl(cb):
   call_pubd([rpki.publication.config_elt.make_pdu(action = "set", bpki_crl = rpki.x509.CRL(Auto_file = pubd_name + "-TA.crl"))],
             cb = lambda ignored: cb())
 
+last_rcynic_run = None
+
 def run_rcynic():
   """
   Run rcynic to see whether what was published makes sense.
@@ -1251,8 +1253,12 @@ def run_rcynic():
   rpki.log.info("Running rcynic")
   env = os.environ.copy()
   env["TZ"] = ""
+  global last_rcynic_run
+  if int(time.time()) == last_rcynic_run:
+    time.sleep(1)
   subprocess.check_call((prog_rcynic, "-c", rcynic_name + ".conf"), env = env)
   subprocess.call(rcynic_stats, shell = True, env = env)
+  last_rcynic_run = int(time.time())
 
 def mangle_sql(filename):
   """

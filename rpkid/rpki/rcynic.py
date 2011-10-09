@@ -232,11 +232,12 @@ class rcynic_xml_iterator(object):
       timestamp = validation_status.get("timestamp")
       status = validation_status.get("status")
       uri = validation_status.text.strip()
-      ok = status == "validation_ok"
+      generation = validation_status.get("generation")
+      ok = status == "object_accepted"
       filename = os.path.join(self.authenticated_subdir if ok else self.unauthenticated_subdir, self.uri_to_filename(uri))
       ext = os.path.splitext(filename)[1]
       if ext in file_name_classes:
-        yield file_name_classes[ext](filename = filename, uri = uri, ok = ok, status = status, timestamp = timestamp)
+        yield file_name_classes[ext](filename = filename, uri = uri, ok = ok, status = status, timestamp = timestamp, generation = generation)
 
 def label_iterator(xml_file):
     """

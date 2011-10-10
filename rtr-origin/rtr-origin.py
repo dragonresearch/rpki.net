@@ -1739,7 +1739,8 @@ main_dispatch = {
   "bgpdump_select"      : bgpdump_select_main,
   "bgpdump_server"      : bgpdump_server_main }
 
-def usage(f):
+def usage(msg = None):
+  f = sys.stderr if msg else sys.stdout
   f.write("Usage: %s [options] --mode [arguments]\n" % sys.argv[0])
   f.write("\n")
   f.write("where options are zero or more of:\n")
@@ -1754,6 +1755,7 @@ def usage(f):
     f.write("--%s:\n" % name)
     f.write(func.__doc__)
     f.write("\n")
+  sys.exit(msg)
 
 if __name__ == "__main__":
 
@@ -1767,8 +1769,7 @@ if __name__ == "__main__":
   opts, argv = getopt.getopt(sys.argv[1:], "hs:z?", ["help", "syslog=", "zero-nonce"] + main_dispatch.keys())
   for o, a in opts:
     if o in ("-h", "--help", "-?"):
-      usage(sys.stdout)
-      sys.exit(0)
+      usage()
     elif o in ("-z", "--zero-nonce"):
       force_zero_nonce = True
     elif o in ("-s", "--syslog"):
@@ -1777,17 +1778,17 @@ if __name__ == "__main__":
         if len(a) == 2:
           a.append(a[1])
         syslog_facility, syslog_warning, syslog_info = a
+        if syslog_facility < 8 or syslog_warning >= 8 or syslog_info >= 8:
+          raise ValueError
       except:
-        usage(sys.stderr)
-        sys.exit("Bad value specified for --syslog option")
+        usage("Bad value specified for --syslog option")
     elif len(o) > 2 and o[2:] in main_dispatch:
       if mode is not None:
         sys.exit("Conflicting modes specified")
       mode = o[2:]
 
   if mode is None:
-    usage(sys.stderr)
-    sys.exit("No mode specified")
+    usage("No mode specified")
 
   log_tag = "rtr-origin/" + mode
 

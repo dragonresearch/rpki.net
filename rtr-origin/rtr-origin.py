@@ -219,7 +219,7 @@ class pdu(object):
     Handle results in test client.  Default behavior is just to print
     out the PDU.
     """
-    log(self)
+    blather(self)
 
   def send_file(self, server, filename):
     """
@@ -343,13 +343,13 @@ class serial_notify(pdu_with_serial):
     Respond to a serial_notify message with either a serial_query or
     reset_query, depending on what we already know.
     """
-    log(self)
+    blather(self)
     if client.current_serial is None or client.current_nonce != self.nonce:
       client.push_pdu(reset_query())
     elif self.serial != client.current_serial:
       client.push_pdu(serial_query(serial = client.current_serial, nonce = client.current_nonce))
     else:
-      log("[Notify did not change serial number, ignoring]")
+      blather("[Notify did not change serial number, ignoring]")
 
 class serial_query(pdu_with_serial):
   """
@@ -364,14 +364,14 @@ class serial_query(pdu_with_serial):
     If client is already up to date, just send an empty incremental
     transfer.
     """
-    log(self)
+    blather(self)
     if server.get_serial() is None:
       self.send_nodata(server)
     elif server.current_nonce != self.nonce:
       log("[Client requested wrong nonce, resetting client]")
       server.push_pdu(cache_reset())
     elif server.current_serial == self.serial:
-      log("[Client is already current, sending empty IXFR]")
+      blather("[Client is already current, sending empty IXFR]")
       server.push_pdu(cache_response(nonce = server.current_nonce))
       server.push_pdu(end_of_data(serial = server.current_serial, nonce = server.current_nonce))
     elif disable_incrementals:
@@ -393,7 +393,7 @@ class reset_query(pdu_empty):
     """
     Received a reset query, send full current state in response.
     """
-    log(self)
+    blather(self)
     if server.get_serial() is None:
       self.send_nodata(server)
     else:
@@ -421,7 +421,7 @@ class end_of_data(pdu_with_serial):
     """
     Handle end_of_data response.
     """
-    log(self)
+    blather(self)
     client.current_serial = self.serial
     client.current_nonce  = self.nonce
 
@@ -436,7 +436,7 @@ class cache_reset(pdu_empty):
     """
     Handle cache_reset response, by issuing a reset_query.
     """
-    log(self)
+    blather(self)
     client.push_pdu(reset_query())
 
 class prefix(pdu):
@@ -798,7 +798,7 @@ class axfr_set(prefix_set):
     """
     old_serial, nonce = read_current()
     if old_serial is None or self.seq_ge(old_serial, self.serial):
-      log("Creating new nonce and deleting stale data")
+      blather("Creating new nonce and deleting stale data")
       nonce = new_nonce()
       self.destroy_old_data()
     write_current(self.serial, nonce)
@@ -1180,8 +1180,11 @@ class client_channel(pdu_channel):
     """
     s = socket.socketpair()
     blather("[Using direct subprocess kludge for testing]")
+    argv = [sys.executable, sys.argv[0], "--server"]
+    if "--syslog" in sys.argv:
+      argv.extend(("--syslog", sys.argv[sys.argv.index("--syslog") + 1]))
     return cls(sock = s[1],
-               proc = subprocess.Popen((sys.executable, sys.argv[0], "--server"), stdin = s[0], stdout = s[0], close_fds = True),
+               proc = subprocess.Popen(argv, stdin = s[0], stdout = s[0], close_fds = True),
                killsig = signal.SIGINT)
 
   def deliver_pdu(self, pdu):
@@ -1352,7 +1355,7 @@ def kick_all(serial):
   sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
   for name in glob.iglob("%s.*" % kickme_base):
     try:
-      log("# Kicking %s" % name)
+      blather("# Kicking %s" % name)
       sock.sendto(msg, name)
     except:
       log("# Failed to kick %s" % name)
@@ -1467,7 +1470,7 @@ def server_main(argv):
   channel classes.
   """
 
-  log("[Starting]")
+  blather("[Starting]")
   if len(argv) > 1:
     sys.exit("Unexpected arguments: %r" % (argv,))
   if argv:
@@ -1686,7 +1689,7 @@ def bgpdump_server_main(argv):
   You have been warned.
   """
 
-  log("[Starting]")
+  blather("[Starting]")
   if len(argv) > 1:
     sys.exit("Unexpected arguments: %r" % (argv,))
   if argv:
@@ -1737,9 +1740,15 @@ main_dispatch = {
   "bgpdump_server"      : bgpdump_server_main }
 
 def usage(f):
-  f.write("Usage: %s --mode [arguments]\n" % sys.argv[0])
+  f.write("Usage: %s [options] --mode [arguments]\n" % sys.argv[0])
   f.write("\n")
-  f.write("where --mode is one of:")
+  f.write("where options are zero or more of:\n")
+  f.write("\n")
+  f.write("--syslog facility.warning_priority[.info_priority]\n")
+  f.write("\n")
+  f.write("--zero-nonce\n")
+  f.write("\n")
+  f.write("and --mode is one of:\n")
   f.write("\n")
   for name, func in main_dispatch.iteritems():
     f.write("--%s:\n" % name)
@@ -1753,13 +1762,24 @@ if __name__ == "__main__":
 
   mode = None
 
-  opts, argv = getopt.getopt(sys.argv[1:], "hz?", ["help", "zero-nonce"] + main_dispatch.keys())
+  syslog_facility, syslog_warning, syslog_info = syslog.LOG_DAEMON, syslog.LOG_WARNING, syslog.LOG_INFO
+
+  opts, argv = getopt.getopt(sys.argv[1:], "hs:z?", ["help", "syslog=", "zero-nonce"] + main_dispatch.keys())
   for o, a in opts:
     if o in ("-h", "--help", "-?"):
       usage(sys.stdout)
       sys.exit(0)
     elif o in ("-z", "--zero-nonce"):
       force_zero_nonce = True
+    elif o in ("-s", "--syslog"):
+      try:
+        a = [getattr(syslog, "LOG_" + i.upper()) for i in a.split(".")]
+        if len(a) == 2:
+          a.append(a[1])
+        syslog_facility, syslog_warning, syslog_info = a
+      except:
+        usage(sys.stderr)
+        sys.exit("Bad value specified for --syslog option")
     elif len(o) > 2 and o[2:] in main_dispatch:
       if mode is not None:
         sys.exit("Conflicting modes specified")
@@ -1775,11 +1795,11 @@ if __name__ == "__main__":
     log_tag += hostport_tag()
 
   if mode in ("cronjob", "server" , "bgpdump_server"):
-    syslog.openlog(log_tag, syslog.LOG_PID, syslog.LOG_DAEMON)
+    syslog.openlog(log_tag, syslog.LOG_PID, syslog_facility)
     def log(msg):
-      return syslog.syslog(syslog.LOG_WARNING, str(msg))
+      return syslog.syslog(syslog_warning, str(msg))
     def blather(msg):
-      return syslog.syslog(syslog.LOG_INFO, str(msg))
+      return syslog.syslog(syslog_info, str(msg))
 
   elif mode == "show":
     def log(msg):

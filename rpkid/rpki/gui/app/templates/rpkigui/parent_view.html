@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 
+{% block sidebar %}
+<ul class='compact'>
+    <li><a href="{{ parent.get_absolute_url }}/delete">delete</a></li>
+</ul>
+{% endblock %}
+
 {% block content %}
 <p id='breadcrumb'>
 <a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> &gt; Parent View &gt; {{ parent.handle }}
@@ -26,5 +32,7 @@
 {% endfor %}
 {% endfor %}
 </ul>
+
+{% block form %}{% endblock %}
 
 {% endblock %}

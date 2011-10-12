@@ -17,16 +17,23 @@ h2 { text-align:center; background-color:#dddddd }
 </ul>
 
 <ul class='compact'>
-  <li><a href="{% url rpki.gui.app.views.conf_export %}">export identity</a></li>
-  <li><a href="{% url rpki.gui.app.views.conf_list %}">select identity</a></li>
+  <li><a href="{% url rpki.gui.app.views.conf_export %}" title="download XML identity to send to parent">export identity</a></li>
+  <li><a href="{% url rpki.gui.app.views.update_bpki %}" title="renew all BPKI certificates">update bpki</a></li>
+  <li><a href="{% url rpki.gui.app.views.conf_list %}" title="select a different resource handle to manage">select identity</a></li>
 </ul>
 
 <ul class='compact'>
-  <li><a href="{% url rpki.gui.app.views.import_child %}">import child</a></li>
-  <li><a href="{% url rpki.gui.app.views.import_parent %}">import parent</a></li>
-  <li><a href="{% url rpki.gui.app.views.import_repository %}">import repository</a></li>
-  <li><a href="{% url rpki.gui.app.views.import_pubclient %}">import pubclient</a></li>
-  <li><a href="{% url rpki.gui.app.views.child_wizard %}">create child wizard</a></li>
+  <li><a href="{% url rpki.gui.app.views.child_wizard %}" title="create a new locally hosted resource handle">create child wizard</a></li>
+</ul>
+
+<ul class='compact'>
+  <li><a href="{% url rpki.gui.app.views.import_parent %}" title="upload XML response from remote parent">import parent</a></li>
+  <li><a href="{% url rpki.gui.app.views.import_repository %}" title="upload XML response from remote repository">import repository</a></li>
+</ul>
+  
+<ul class='compact'>
+  <li><a href="{% url rpki.gui.app.views.import_child %}" title="import a new child's identity.xml file">import child</a></li>
+  <li><a href="{% url rpki.gui.app.views.import_pubclient %}" title="import XML request from a publication client">import pubclient</a></li>
 </ul>
 
 <ul class='compact'>

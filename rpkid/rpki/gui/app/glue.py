@@ -17,12 +17,13 @@ PERFORMANCE OF THIS SOFTWARE.
 
 from __future__ import with_statement
 
-import os, os.path, csv, stat, sys
+import os, os.path, csv, shutil, stat, sys
 from datetime import datetime, timedelta
 
 from django.db.models import F
 
 import rpki, rpki.async, rpki.http, rpki.x509, rpki.left_right, rpki.myrpki
+import rpki.publication
 from rpki.gui.app import models, settings
 
 def confpath(*handle):
@@ -92,6 +93,22 @@ def build_rpkid_caller(cfg, verbose=False):
         server_cert = rpki.x509.X509(PEM_file = bpki_servers.dir + "/rpkid.cer"),
         url         = rpkid_base + "left-right",
         debug       = verbose))
+
+def build_pubd_caller(cfg):
+    bpki_servers_dir = cfg.get("bpki_servers_directory")
+    if not bpki_servers_dir.startswith('/'):
+        bpki_servers_dir = confpath(cfg.get('handle'), bpki_servers_dir)
+
+    bpki_servers = rpki.myrpki.CA(cfg.filename, bpki_servers_dir)
+    pubd_base         = "http://%s:%s/" % (cfg.get("pubd_server_host"), cfg.get("pubd_server_port"))
+
+    return rpki.async.sync_wrapper(rpki.http.caller(
+        proto       = rpki.publication,
+        client_key  = rpki.x509.RSA( PEM_file = bpki_servers.dir + "/irbe.key"),
+        client_cert = rpki.x509.X509(PEM_file = bpki_servers.dir + "/irbe.cer"),
+        server_ta   = rpki.x509.X509(PEM_file = bpki_servers.cer),
+        server_cert = rpki.x509.X509(PEM_file = bpki_servers.dir + "/pubd.cer"),
+        url         = pubd_base + "control"))
 
 def ghostbuster_to_vcard(gbr):
     """
@@ -204,7 +221,8 @@ def list_received_resources(log, conf):
     cfg = rpki.config.parser(confpath(rpki_conf.handle, 'rpki.conf'), 'myrpki')
     call_rpkid = build_rpkid_caller(cfg)
     pdus = call_rpkid(rpki.left_right.list_received_resources_elt.make_pdu(self_handle=conf.handle),
-                      rpki.left_right.child_elt.make_pdu(action="list", self_handle=conf.handle))
+                      rpki.left_right.child_elt.make_pdu(action="list", self_handle=conf.handle),
+                      rpki.left_right.parent_elt.make_pdu(action="list", self_handle=conf.handle))
 
     for pdu in pdus:
         if isinstance(pdu, rpki.left_right.child_elt):
@@ -217,6 +235,13 @@ def list_received_resources(log, conf):
                 child = models.Child(conf=conf, handle=pdu.child_handle,
                                      valid_until=valid_until)
                 child.save()
+
+        elif isinstance(pdu, rpki.left_right.parent_elt):
+            # have we seen this parent before?
+            parent_set = conf.parents.filter(handle=pdu.parent_handle)
+            if not parent_set:
+                parent = models.Parent(conf=conf, handle=pdu.parent_handle)
+                parent.save()
 
         elif isinstance(pdu, rpki.left_right.list_received_resources_elt):
 
@@ -297,20 +322,19 @@ def config_from_template(dest, a):
 
 class Myrpki(rpki.myrpki.main):
     """
-    wrapper around rpki.myrpki.main to force the config file to what i want.
+    wrapper around rpki.myrpki.main to force the config file to what i want,
+    and avoid cli arg parsing.
     """
-    def __init__(self, cfg_file):
-        self.cfg_file = cfg_file
-
-        # quack, quack (act like rpki.myrpki.main object)
-        rpki.myrpki.main.read_config(self)
+    def __init__(self, handle):
+        self.cfg_file = confpath(handle, 'rpki.conf')
+        self.read_config()
 
 def configure_daemons(log, conf, m):
     if conf.host:
         m.configure_resources_main()
 
-        h = Myrpki(confpath(host.handle, 'rpki.conf'))
-        m.do_configure_daemons(m.cfg.get('xml_filename'))
+        host = Myrpki(conf.host.handle)
+        host.do_configure_daemons(m.cfg.get('xml_filename'))
     else:
         m.do_configure_daemons('')
 
@@ -350,7 +374,7 @@ def initialize_handle(log, handle, host, owner=None, commit=True):
             f.close()
 
     # load configuration for self
-    m = Myrpki(cfg_file)
+    m = Myrpki(conf.handle)
     m.do_initialize('')
 
     if commit:
@@ -358,57 +382,119 @@ def initialize_handle(log, handle, host, owner=None, commit=True):
         configure_daemons(log, conf, m)
         configure_daemons(log, conf, m)
 
-    return conf
+    return conf, m
 
-def import_child(log, conf, child_handle, xml_file, commit=True):
+def import_child(log, conf, child_handle, xml_file):
     """
     Import a child's identity.xml.
     """
-    cfg_file = confpath(conf.handle, 'rpki.conf')
-    m = Myrpki(cfg_file)
+    m = Myrpki(conf.handle)
     m.do_configure_child(xml_file)
+    configure_daemons(log, conf, m)
 
-    if commit:
-        configure_daemons(log, conf, m)
-
-def import_parent(log, conf, parent_handle, xml_file, commit=True):
-    cfg_file = confpath(conf.handle, 'rpki.conf')
-    m = Myrpki(cfg_file)
+def import_parent(log, conf, parent_handle, xml_file):
+    m = Myrpki(conf.handle)
     m.do_configure_parent(xml_file)
+    configure_daemons(log, conf, m)
 
-    if commit:
-        configure_daemons(log, conf, m)
-
-def import_pubclient(log, conf, xml_file, commit=True):
-    cfg_file = confpath(conf.handle, 'rpki.conf')
-    m = Myrpki(cfg_file)
+def import_pubclient(log, conf, xml_file):
+    m = Myrpki(conf.handle)
     m.do_configure_publication_client(xml_file)
+    configure_daemons(log, conf, m)
 
-    if commit:
-        configure_daemons(log, conf, m)
-
-def import_repository(log, conf, xml_file, commit=True):
-    cfg_file = confpath(conf.handle, 'rpki.conf')
-    m = Myrpki(cfg_file)
+def import_repository(log, conf, xml_file):
+    m = Myrpki(conf.handle)
     m.do_configure_repository(xml_file)
-
-    if commit:
-        configure_daemons(log, conf, m)
+    configure_daemons(log, conf, m)
 
 def create_child(log, parent_conf, child_handle):
     """
     implements the child create wizard to create a new locally hosted child
     """
+    child_conf, child = initialize_handle(log, handle=child_handle, host=parent_conf, commit=False)
+
     parent_handle = parent_conf.handle
-    child_conf = initialize_handle(log, handle=child_handle, host=parent_conf, commit=False)
-    import_child(log, parent_conf, child_handle, confpath(child_handle, 'entitydb', 'identity.xml'), commit=False)
-    import_parent(log, child_conf, parent_handle, confpath(parent_handle, 'entitydb', 'children', child_handle + '.xml'), commit=False)
+    parent = Myrpki(parent_handle)
+
+    child_identity_xml = os.path.join(child.cfg.get("entitydb_dir"), 'identity.xml')
+    parent_response_xml = os.path.join(parent.cfg.get("entitydb_dir"), 'children', child_handle + '.xml')
+    repo_req_xml = os.path.join(child.cfg.get('entitydb_dir'), 'repositories', parent_handle + '.xml')
     # XXX for now we assume the child is hosted by parent's pubd
-    import_pubclient(log, parent_conf, confpath(child_handle, 'entitydb', 'repositories', parent_handle + '.xml'), commit=False)
-    import_repository(log, child_conf, confpath(parent_handle, 'entitydb', 'pubclients', '%s.%s.xml' % (parent_handle, child_handle)), commit=False)
+    repo_resp_xml = os.path.join(parent.cfg.get('entitydb_dir'), 'pubclients', '%s.%s.xml' % (parent_handle, child_handle))
+
+    parent.do_configure_child(child_identity_xml)
+
+    child.do_configure_parent(parent_response_xml)
+
+    parent.do_configure_publication_client(repo_req_xml)
+
+    child.do_configure_repository(repo_resp_xml)
 
     # run twice the first time to get bsc cert issued
-    configure_daemons(log, child_conf)
-    configure_daemons(log, child_conf)
+    sys.stdout = sys.stderr
+    configure_daemons(log, child_conf, child)
+    configure_daemons(log, child_conf, child)
+
+def destroy_handle(log, handle):
+    conf = models.Conf.objects.get(handle=handle)
+
+    cfg = rpki.config.parser(confpath(conf.host.handle, 'rpki.conf'), 'myrpki')
+    call_rpkid = build_rpkid_caller(cfg)
+    call_pubd = build_pubd_caller(cfg)
+
+    # destroy the <self/> object and the <child/> object from the host/parent.
+    rpkid_reply = call_rpkid(
+            rpki.left_right.self_elt.make_pdu(action="destroy", self_handle=handle),
+            rpki.left_right.child_elt.make_pdu(action="destroy", self_handle=conf.host.handle, child_handle=handle))
+    if isinstance(rpkid_reply[0], rpki.left_right.report_error_elt):
+        print >>log, "Error while calling pubd to delete client %s:" % handle
+        print >>log, rpkid_reply[0]
+
+    pubd_reply = call_pubd(rpki.publication.client_elt.make_pdu(action="destroy", client_handle=handle))
+    if isinstance(pubd_reply[0], rpki.publication.report_error_elt):
+        print >>log, "Error while calling pubd to delete client %s:" % handle
+        print >>log, pubd_reply[0]
+
+    conf.delete()
+
+    shutil.remove(confpath(handle))
+
+def read_child_response(log, conf, child_handle):
+    m = Myrpki(conf.handle)
+    bname = child_handle + '.xml'
+    return open(os.path.join(m.cfg.get('entitydb_dir'), 'children', bname)).read()
+
+def read_child_repo_response(log, conf, child_handle):
+    """
+    Return the XML file for the configure_publication_client response to the
+    child.
+
+    Note: the current model assumes the publication client is a child of this
+    handle.
+    """
+
+    m = Myrpki(conf.handle)
+    return open(os.path.join(m.cfg.get('entitydb_dir'), 'pubclients', '%s.%s.xml' % (conf.handle, child_handle))).read()
+
+def update_bpki(log, conf):
+    m = Myrpki(conf.handle)
+
+    # automatically runs configure_daemons when self-hosted
+    # otherwise runs configure_resources
+    m.do_update_bpki('')
+
+    # when hosted, ship off to rpkid host
+    if conf.host:
+        configure_daemons(log, conf, m)
+
+def delete_child(log, conf, child_handle):
+    m = Myrpki(conf.handle)
+    m.do_delete_child(child_handle)
+    configure_daemons(log, conf, m)
+
+def delete_parent(log, conf, parent_handle):
+    m = Myrpki(conf.handle)
+    m.do_delete_parent(parent_handle)
+    configure_daemons(log, conf, m)
 
 # vim:sw=4 ts=8 expandtab

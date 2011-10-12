@@ -3,6 +3,10 @@
 {% block sidebar %}
 <ul class='compact'>
     <li><a href="{{ child.get_absolute_url }}/edit">edit</a></li>
+    <li><a href="{{ child.get_absolute_url }}/export" title="download XML response file to return to child">export child response</a></li>
+    <li><a href="{{ child.get_absolute_url }}/export_repo" title="download XML response to publication client request">export repo response</a></li>
+    <li><a href="{{ child.get_absolute_url }}/delete" title="remove this handle as a RPKI child">delete</a></li>
+    <li><a href="{{ child.get_absolute_url }}/destroy" title="completely remove a locally hosted resource handle and gui account">destroy</a></li>
 </ul>
 {% endblock %}
 

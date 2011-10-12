@@ -4,17 +4,17 @@
 
 <p id='breadcrumb'>
 <a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> &gt;
-<a href="{{ child.get_absolute_url }}">{{ child.handle }}</a> &gt; Edit
+<a href="{{ object.get_absolute_url }}">{{ object.handle }}</a> &gt; Delete
 </p>
 
-<h1>Edit Child</h1>
+<h1>Delete Child</h1>
 
-<p><span style='font-weight:bold'>Child:</span> {{ child.handle }}</p>
+<p><span style='font-weight:bold'>Child:</span> {{ object.handle }}</p>
 
 <form method='POST' action='{{ request.get_full_path }}'>
     {% csrf_token %}
     {{ form.as_p }}
-    <input type='submit'/ value='Save'>
+    <input type='submit'/ value='Delete'>
 </form>
 
 {% endblock %}

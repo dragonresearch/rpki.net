@@ -1,3 +1,4 @@
+
 # $Id$
 """
 Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
@@ -19,7 +20,7 @@ from __future__ import with_statement
 
 import email.message, email.utils, mailbox
 import os, os.path
-import sys
+import sys, tempfile
 
 from django.contrib.auth.decorators import login_required
 from django.contrib import auth
@@ -651,25 +652,16 @@ def import_parent(request):
     if request.method == 'POST':
         form = forms.ImportParentForm(conf, request.POST, request.FILES)
         if form.is_valid():
-            tmpf = None
-
-            # determine if we are importing a locally hosted parent or an identity.xml file
-            if form.get('parent'):
-                # locally hosted
-                f = confdir(form['parent'].handle, 'entitydb', 'children', conf.handle + '.xml')
-            else:
-                # uploaded xml file
-                tmpf = NamedTemporaryFile(prefix='parent', suffix='xml', delete=False)
-                f = tmpf.name
-                tmpf.write(f.read())
-                tmpf.close()
+            tmpf = tempfile.NamedTemporaryFile(prefix='parent', suffix='.xml', delete=False)
+            f = tmpf.name
+            tmpf.write(form.cleaned_data['xml'].read())
+            tmpf.close()
          
-            obj = glue.import_parent(log, conf, form.get('handle'), f)
+            glue.import_parent(log, conf, form.cleaned_data['handle'], f)
 
-            if tmpf:
-                os.remove(tmpf.name)
+            os.remove(tmpf.name)
 
-            return http.HttpResponseRedirect(obj.get_absolute_url())
+            return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.ImportParentForm(conf)
 
@@ -683,17 +675,16 @@ def import_repository(request):
     if request.method == 'POST':
         form = forms.ImportRepositoryForm(request.POST, request.FILES)
         if form.is_valid():
-            # uploaded xml file
-            tmpf = NamedTemporaryFile(prefix='repository', suffix='xml', delete=False)
+            tmpf = tempfile.NamedTemporaryFile(prefix='repository', suffix='.xml', delete=False)
             f = tmpf.name
-            tmpf.write(f.read())
+            tmpf.write(form.cleaned_data['xml'].read())
             tmpf.close()
          
-            obj = glue.import_repository(log, conf, f)
+            glue.import_repository(log, conf, f)
 
             os.remove(tmpf.name)
 
-            return http.HttpResponseRedirect(obj.get_absolute_url())
+            return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.ImportRepositoryForm()
 
@@ -707,17 +698,16 @@ def import_pubclient(request):
     if request.method == 'POST':
         form = forms.ImportPubClientForm(request.POST, request.FILES)
         if form.is_valid():
-            # uploaded xml file
-            tmpf = NamedTemporaryFile(prefix='pubclient', suffix='xml', delete=False)
+            tmpf = tempfile.NamedTemporaryFile(prefix='pubclient', suffix='.xml', delete=False)
             f = tmpf.name
-            tmpf.write(f.read())
+            tmpf.write(form.cleaned_data['xml'].read())
             tmpf.close()
          
-            obj = glue.import_repository(log, conf, f)
+            glue.import_pubclient(log, conf, f)
 
             os.remove(tmpf.name)
 
-            return http.HttpResponseRedirect(obj.get_absolute_url())
+            return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.ImportPubClientForm()
 
@@ -730,28 +720,20 @@ def import_child(request):
     """
     conf = request.session['handle']
     log = request.META['wsgi.errors']
-    tmpf = None
 
     if request.method == 'POST':
         form = forms.ImportChildForm(conf, request.POST, request.FILES)
         if form.is_valid():
-            # determine if we are importing a locally hosted child or an identity.xml file
-            if form.get('child'):
-                # locally hosted
-                f = confdir(child.handle, 'entitydb', 'identity.xml')
-            else:
-                # identity.xml
-                tmpf = NamedTemporaryFile(prefix='identity', suffix='xml', delete=False)
-                f = tmpf.name
-                tmpf.write(f.read())
-                tmpf.close()
+            tmpf = tempfile.NamedTemporaryFile(prefix='identity', suffix='.xml', delete=False)
+            f = tmpf.name
+            tmpf.write(form.cleaned_data['xml'].read())
+            tmpf.close()
          
-            obj = glue.import_child(log, conf, form.cleaned_data['handle'], f)
+            glue.import_child(log, conf, form.cleaned_data['handle'], f)
 
-            if tmpf:
-                os.remove(tmpf.name)
+            os.remove(tmpf.name)
 
-            return http.HttpResponseRedirect(obj.get_absolute_url())
+            return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.ImportChildForm(conf)
 
@@ -763,12 +745,12 @@ def initialize(request):
     Initialize a new user account.
     """
     if request.method == 'POST':
-        form = forms.InitializeForm(request.POST)
+        form = forms.GenericConfirmationForm(request.POST)
         if form.is_valid():
             glue.initialize_handle(request.META['wsgi.errors'], handle=request.user.username, owner=request.user)
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
-        form = forms.InitializeForm()
+        form = forms.GenericConfirmationForm()
 
     return render('rpkigui/initialize_form.html', { 'form': form }, request)
 
@@ -779,6 +761,9 @@ def child_wizard(request):
     """
     conf = request.session['handle']
     log = request.META['wsgi.errors']
+    if not request.user.is_superuser:
+        return http.HttpResponseForbidden()
+
     if request.method == 'POST':
         form = forms.ChildWizardForm(conf, request.POST)
         if form.is_valid():
@@ -788,5 +773,101 @@ def child_wizard(request):
         form = forms.ChildWizardForm(conf)
 
     return render('rpkigui/child_wizard_form.html', { 'form': form }, request)
+
+@handle_required
+def export_child_response(request, child_handle):
+    """
+    Export the XML file containing the output of the configure_child
+    to send back to the client.
+    """
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+    return serve_xml(glue.read_child_response(log, conf, child_handle), child_handle)
+
+@handle_required
+def export_child_repo_response(request, child_handle):
+    """
+    Export the XML file containing the output of the configure_child
+    to send back to the client.
+    """
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+    return serve_xml(glue.read_child_repo_response(log, conf, child_handle), child_handle)
+
+@handle_required
+def update_bpki(request):
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+
+    if request.method == 'POST':
+        form = forms.GenericConfirmationForm(request.POST, request.FILES)
+        if form.is_valid():
+            glue.update_bpki(log, conf)
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.GenericConfirmationForm()
+
+    return render('rpkigui/update_bpki_form.html', { 'form': form }, request)
+
+@handle_required
+def child_delete(request, child_handle):
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+    child = get_object_or_404(conf.children, handle__exact=child_handle)
+
+    if request.method == 'POST':
+        form = forms.GenericConfirmationForm(request.POST, request.FILES)
+        if form.is_valid():
+            glue.delete_child(log, conf, child_handle)
+            child.delete()
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.GenericConfirmationForm()
+
+    return render('rpkigui/child_delete_form.html', { 'form': form , 'object': child }, request)
+
+@handle_required
+def parent_delete(request, parent_handle):
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+    parent = get_object_or_404(conf.parents, handle__exact=parent_handle)
+
+    if request.method == 'POST':
+        form = forms.GenericConfirmationForm(request.POST, request.FILES)
+        if form.is_valid():
+            glue.delete_parent(log, conf, parent_handle)
+            parent.delete()
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.GenericConfirmationForm()
+
+    return render('rpkigui/parent_form.html', { 'form': form ,
+        'parent': parent, 'submit_label': 'Delete' }, request)
+
+@login_required
+def destroy_handle(request, handle):
+    """
+    Completely remove a hosted resource handle.
+    """
+
+    log = request.META['wsgi.errors']
+
+    if not request.user.is_superuser:
+        return http.HttpResponseForbidden()
+
+    conf = get_object_or_404(models.Conf, handle=handle)
+
+    if request.method == 'POST':
+        form = forms.GenericConfirmationForm(request.POST, request.FILES)
+        if form.is_valid():
+            glue.destroy_handle(log, handle)
+            return render('rpkigui/generic_result.html',
+                    { 'operation': 'Destroy ' + handle,
+                      'result': 'Succeeded' }, request)
+    else:
+        form = forms.GenericConfirmationForm()
+
+    return render('rpkigui/destroy_handle_form.html', { 'form': form ,
+        'handle': handle }, request)
 
 # vim:sw=4 ts=8 expandtab

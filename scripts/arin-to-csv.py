@@ -71,14 +71,16 @@ def do_net(node):
   handle = find(node, tag_orgHandle)
   for netblock in node.iter(tag_netBlock):
     tag = find(netblock, tag_type)
+    startAddress = find(netblock, tag_startAddress)
+    endAddress = find(netblock, tag_endAddress)
+    if not startAddress.endswith(".000") and not startAddress.endswith(":0000"):
+      continue
+    if not endAddress.endswith(".255") and not endAddress.endswith(":FFFF"):
+      continue
     if tag in ("DS", "DA", "IU"):
-      prefixes.writerow((handle,
-                    "%s-%s" % (find(netblock, tag_startAddress),
-                               find(netblock, tag_endAddress))))
+      prefixes.writerow((handle, "%s-%s" % (startAddress, endAddress)))
     elif tag in erx_table:
-      erx.writerow((erx_table[tag],
-                    "%s-%s" % (find(netblock, tag_startAddress),
-                               find(netblock, tag_endAddress))))
+      erx.writerow((erx_table[tag], "%s-%s" % (startAddress, endAddress)))
 
 dispatch = { tag_asn : do_asn, tag_net : do_net }
 

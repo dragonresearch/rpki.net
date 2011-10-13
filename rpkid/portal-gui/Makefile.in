@@ -17,13 +17,15 @@ libexecdir=@libexecdir@
 
 WEBUSER=@WEBUSER@
 DJANGO_ADMIN=@DJANGO_ADMIN@
+PYTHON=@PYTHON@
+DJANGO_DIR=@DJANGO_DIR@
 
 INSTALL = @INSTALL@
 
 CONFDIR=${DESTDIR}$(localstatedir)/rpki/conf
 DATABASE_PATH=${DESTDIR}$(localstatedir)/rpki/gui.db
 INSTDIR=${DESTDIR}$(datarootdir)/rpki/gui
-TEMPLATEDIR=$(INSTDIR)/templates
+STATIC_DIR=${INSTDIR}/static
 
 # automatically built sources
 BUILD=apache/rpki.conf
@@ -38,7 +40,9 @@ distclean: clean
 	rm -f Makefile
 
 edit = sed \
-	     -e 's|@INSTDIR[@]|$(INSTDIR)|g'
+	-e 's|@DJANGO_DIR[@]|$(DJANGO_DIR)|g' \
+	     -e 's|@INSTDIR[@]|$(INSTDIR)|g' \
+	     -e 's|@STATIC_DIR[@]|$(STATIC_DIR)|g'
 
 apache/rpki.conf: $(srcdir)/apache/rpki.conf.in Makefile
 	$(edit) $@.in > $@
@@ -59,6 +63,7 @@ install-apache:
 install-data: $(BUILD) install-apache
 	mkdir -p `dirname $(DATABASE_PATH)`
 	$(DJANGO_ADMIN) syncdb --settings rpki.gui.settings
+	$(DJANGO_ADMIN) collectstatic --settings rpki.gui.settings --noinput
 	if [ ! -f $(INSTDIR)/rpki.conf.template ]; then ${INSTALL} -m 644 ../examples/rpki.conf $(INSTDIR)/rpki.conf.template; fi
 
 install: install-data install-perms

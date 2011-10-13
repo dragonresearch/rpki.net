@@ -33,10 +33,6 @@ TEMPLATE_LOADERS = (
     'django.template.loaders.eggs.Loader'
 )
 
-TEMPLATE_DIRS = (
-    '%(AC_TEMPLATE_DIR)s',
-)
-
 MIDDLEWARE_CLASSES = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -58,6 +54,7 @@ INSTALLED_APPS = (
     'django.contrib.admindocs',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
+    'django.contrib.staticfiles',
     'rpki.gui.app',
     'rpki.gui.cacheview'
 )
@@ -70,3 +67,8 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.contrib.messages.context_processors.messages",
     "django.core.context_processors.request"
 )
+
+STATIC_URL = '/static/'
+STATIC_ROOT = '%(AC_DATAROOTDIR)s/rpki/gui/static'
+STATICFILES_DIRS = (("admin", "%(AC_DJANGO_DIR)s/contrib/admin/media"),)
+STATICFILES_FINDERS = ("django.contrib.staticfiles.finders.FileSystemFinder",)

@@ -400,6 +400,8 @@ then
         # source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
         AC_SUBST(SECRET_KEY, `$PYTHON -c 'import random; print "".join([random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50)])'`)
 
+	AC_SUBST(DJANGO_DIR, [`$PYTHON -c 'import os,sys; print [[os.path.join(p, "django") for p in sys.path if os.path.exists(os.path.join(p, "django"))]][[0]]'`])
+
         # there is no standard name for this tool, so check for it
         AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
 

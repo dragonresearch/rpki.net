@@ -5,6 +5,7 @@ PYTHON = @PYTHON@
 
 SECRET_KEY = @SECRET_KEY@
 WEBUSER = @WEBUSER@
+DJANGO_DIR = @DJANGO_DIR@
 
 CFLAGS	= @CFLAGS@
 LDFLAGS = @LDFLAGS@ @POW_LDFLAGS@
@@ -192,8 +193,8 @@ COMPILE_SETTINGS = \
 	AC_MYRPKI='${DESTDIR}${sbindir}/myrpki' \
 	AC_LOCALSTATEDIR='${DESTDIR}${localstatedir}' \
 	AC_WEBUSER='${WEBUSER}' \
-	AC_TEMPLATE_DIR='${DESTDIR}${datarootdir}/rpki/gui/templates' \
 	AC_DATAROOTDIR='${DESTDIR}${datarootdir}' \
+	AC_DJANGO_DIR='${DJANGO_DIR}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@
 
 rpki-sql-backup: rpki-sql-backup.py

@@ -19,9 +19,8 @@ Order deny,allow
 Allow from all
 </Directory>
 
-# media for the /admin/ site
-Alias /media/ /usr/lib/python2.6/site-packages/django/contrib/admin/media/
-<Directory /usr/lib/python2.6/site-packages/django/contrib/admin/media>
+Alias /static/ @STATIC_DIR@/
+<Directory @STATIC_DIR@>
 Order allow,deny
 Allow from all
 </Directory>

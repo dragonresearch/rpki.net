@@ -343,6 +343,7 @@ typedef struct validation_status {
   uri_t uri;
   object_generation_t generation;
   time_t timestamp;
+  unsigned creation_order;
   unsigned char events[(MIB_COUNTER_T_MAX + 7) / 8];
 } validation_status_t;
 
@@ -429,7 +430,7 @@ static const char * const rsync_state_label[] = { RSYNC_STATES NULL };
  */
 typedef struct rsync_ctx {
   uri_t uri;
-  void (*handler)(const rcynic_ctx_t *, const struct rsync_ctx *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *);
+  void (*handler)(rcynic_ctx_t *, const struct rsync_ctx *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *);
   STACK_OF(walk_ctx_t) *wsk;
   rsync_state_t state;
   enum {
@@ -467,7 +468,7 @@ DECLARE_STACK_OF(task_t)
  */
 typedef struct rcynic_x509_store_ctx {
   X509_STORE_CTX ctx;		/* Must be first */
-  const rcynic_ctx_t *rc;
+  rcynic_ctx_t *rc;
   const certinfo_t *subject;
 } rcynic_x509_store_ctx_t;
 
@@ -486,7 +487,7 @@ struct rcynic_ctx {
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
   int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
   int allow_digest_mismatch, allow_crl_digest_mismatch;
-  unsigned max_select_time;
+  unsigned max_select_time, validation_status_creation_order;
   log_level_t log_level;
   X509_STORE *x509_store;
 };
@@ -938,7 +939,7 @@ static void validation_status_set_code(validation_status_t *v,
 /**
  * Add a validation status entry to internal log.
  */
-static void log_validation_status(const rcynic_ctx_t *rc,
+static void log_validation_status(rcynic_ctx_t *rc,
 				  const uri_t *uri,
 				  const mib_counter_t code,
 				  const object_generation_t generation)
@@ -962,6 +963,8 @@ static void log_validation_status(const rcynic_ctx_t *rc,
       return;
     }
     *v = v_;
+    v->creation_order = rc->validation_status_creation_order++;
+    assert(rc->validation_status_creation_order != 0);
     if (!sk_validation_status_t_push(rc->validation_status, v)) {
       logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri->s);
       free(v);
@@ -985,9 +988,10 @@ static void log_validation_status(const rcynic_ctx_t *rc,
 }
 
 /**
- * Validation status object comparision.
+ * Validation status object comparision.  While building up the
+ * database, we want to do lookups based on URI and generation number.
  */
-static int validation_status_cmp(const validation_status_t * const *a, const validation_status_t * const *b)
+static int validation_status_cmp_uri(const validation_status_t * const *a, const validation_status_t * const *b)
 {
   int cmp = strcmp((*a)->uri.s, (*b)->uri.s);
   if (cmp)
@@ -996,6 +1000,20 @@ static int validation_status_cmp(const validation_status_t * const *a, const val
   if (cmp)
     return cmp;
   return 0;
+}
+
+/**
+ * Validation status object comparision.  When writing out the
+ * database, one of our primary consumers has respectfully requested
+ * that we write in something approximating the order we traversed, so
+ * we regenerate that order using the "order" field added for just
+ * that purpose when creating these objects.
+ */
+static int validation_status_cmp_creation_order(const validation_status_t * const *a, const validation_status_t * const *b)
+{
+  int cmp = (*a)->creation_order - (*b)->creation_order;
+  assert(cmp != 0 || a == b);
+  return cmp;
 }
 
 /**
@@ -1056,7 +1074,7 @@ static int cp_ln(const rcynic_ctx_t *rc, const path_t *source, const path_t *tar
 /**
  * Install an object.
  */
-static int install_object(const rcynic_ctx_t *rc,
+static int install_object(rcynic_ctx_t *rc,
 			  const uri_t *uri,
 			  const path_t *source,
 			  const mib_counter_t code,
@@ -1507,13 +1525,13 @@ static int walk_ctx_loop_done(STACK_OF(walk_ctx_t) *wsk)
   return wsk == NULL || w == NULL || w->state >= walk_state_done;
 }
 
-static int check_manifest(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk);
+static int check_manifest(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk);
 
 /**
  * Loop initializer for walk context.  Think of this as the thing you
  * call in the first clause of a conceptual "for" loop.
  */
-static void walk_ctx_loop_init(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
+static void walk_ctx_loop_init(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
 
@@ -1884,7 +1902,7 @@ static int rsync_count_runable(const rcynic_ctx_t *rc)
 /**
  * Run an rsync process.
  */
-static void rsync_run(const rcynic_ctx_t *rc,
+static void rsync_run(rcynic_ctx_t *rc,
 		      rsync_ctx_t *ctx)
 {
   static const char * const rsync_cmd[] = {
@@ -2116,7 +2134,7 @@ static int rsync_construct_select(const rcynic_ctx_t *rc,
  * children, but we only do it when we know there's nothing else
  * useful that we could be doing while we wait.
  */
-static void rsync_mgr(const rcynic_ctx_t *rc)
+static void rsync_mgr(rcynic_ctx_t *rc)
 {
   time_t now = time(0);
   int i, n, pid_status = -1;
@@ -2338,10 +2356,10 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 /**
  * Set up rsync context and attempt to start it.
  */
-static void rsync_init(const rcynic_ctx_t *rc,
+static void rsync_init(rcynic_ctx_t *rc,
 		       const uri_t *uri,
 		       STACK_OF(walk_ctx_t) *wsk,
-		       void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
+		       void (*handler)(rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
 {
   rsync_ctx_t *ctx = NULL;
 
@@ -2400,7 +2418,7 @@ static void rsync_init(const rcynic_ctx_t *rc,
 /**
  * rsync a single file (trust anchor, CRL, manifest, ROA, whatever).
  */
-static void rsync_file(const rcynic_ctx_t *rc,
+static void rsync_file(rcynic_ctx_t *rc,
 		       const uri_t *uri)
 {
   assert(!endswith(uri->s, "/"));
@@ -2410,10 +2428,10 @@ static void rsync_file(const rcynic_ctx_t *rc,
 /**
  * rsync an entire subtree, generally rooted at a SIA collection.
  */
-static void rsync_tree(const rcynic_ctx_t *rc,
+static void rsync_tree(rcynic_ctx_t *rc,
 		       const uri_t *uri,
 		       STACK_OF(walk_ctx_t) *wsk,
-		       void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
+		       void (*handler)(rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
 {
   assert(endswith(uri->s, "/"));
   rsync_init(rc, uri, wsk, handler);
@@ -2578,7 +2596,7 @@ static CMS_ContentInfo *read_cms(const path_t *filename, hashbuf_t *hash)
  * Extract CRLDP data from a certificate.  Stops looking after finding
  * the first rsync URI.
  */
-static void extract_crldp_uri(const rcynic_ctx_t *rc,
+static void extract_crldp_uri(rcynic_ctx_t *rc,
 			      const uri_t *uri,
 			      const object_generation_t generation,
 			      const STACK_OF(DIST_POINT) *crldp,
@@ -2625,7 +2643,7 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
 /**
  * Extract SIA or AIA data from a certificate.
  */
-static void extract_access_uri(const rcynic_ctx_t *rc,
+static void extract_access_uri(rcynic_ctx_t *rc,
 			       const uri_t *uri,
 			       const object_generation_t generation,
 			       const AUTHORITY_INFO_ACCESS *xia,
@@ -2662,7 +2680,7 @@ static void extract_access_uri(const rcynic_ctx_t *rc,
 /**
  * Parse interesting stuff from a certificate.
  */
-static void parse_cert(const rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const uri_t *uri, const object_generation_t generation)
+static void parse_cert(rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const uri_t *uri, const object_generation_t generation)
 {
   STACK_OF(DIST_POINT) *crldp;
   AUTHORITY_INFO_ACCESS *xia;
@@ -2697,7 +2715,7 @@ static void parse_cert(const rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const uri
  * Check to see whether an AKI extension is present, is of the right
  * form, and matches the issuer.
  */
-static int check_aki(const rcynic_ctx_t *rc,
+static int check_aki(rcynic_ctx_t *rc,
 		     const uri_t *uri,
 		     const X509 *issuer,
 		     const AUTHORITY_KEYID *aki,
@@ -2728,7 +2746,7 @@ static int check_aki(const rcynic_ctx_t *rc,
  * Attempt to read and check one CRL from disk.
  */
 
-static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
+static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
 			     const uri_t *uri,
 			     path_t *path,
 			     const path_t *prefix,
@@ -2821,7 +2839,7 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
  * tests, pick the generation with the highest CRL number, to protect
  * against replay attacks.
  */
-static X509_CRL *check_crl(const rcynic_ctx_t *rc,
+static X509_CRL *check_crl(rcynic_ctx_t *rc,
 			   const uri_t *uri,
 			   X509 *issuer)
 {
@@ -3062,7 +3080,7 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
  * Check crypto aspects of a certificate, policy OID, RFC 3779 path
  * validation, and conformance to the RPKI certificate profile.
  */
-static int check_x509(const rcynic_ctx_t *rc,
+static int check_x509(rcynic_ctx_t *rc,
 		      STACK_OF(walk_ctx_t) *wsk,
 		      X509 *x,
 		      const certinfo_t *certinfo)
@@ -3226,7 +3244,7 @@ static int check_x509(const rcynic_ctx_t *rc,
  * Load certificate, check against manifest, then run it through all
  * the check_x509() tests.
  */
-static X509 *check_cert_1(const rcynic_ctx_t *rc,
+static X509 *check_cert_1(rcynic_ctx_t *rc,
 			  STACK_OF(walk_ctx_t) *wsk,
 			  const uri_t *uri,
 			  path_t *path,
@@ -3342,7 +3360,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 /**
  * Read and check one manifest from disk.
  */
-static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
+static Manifest *check_manifest_1(rcynic_ctx_t *rc,
 				  STACK_OF(walk_ctx_t) *wsk,
 				  const uri_t *uri,
 				  path_t *path,
@@ -3440,7 +3458,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
  * it against the CRL we've chosen.  Not much we can do if they don't
  * match besides whine about it, but we do need to whine in this case.
  */
-static int check_manifest(const rcynic_ctx_t *rc,
+static int check_manifest(rcynic_ctx_t *rc,
 			  STACK_OF(walk_ctx_t) *wsk)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
@@ -3569,7 +3587,7 @@ static int extract_roa_prefix(unsigned char *addr,
 /**
  * Read and check one ROA from disk.
  */
-static int check_roa_1(const rcynic_ctx_t *rc,
+static int check_roa_1(rcynic_ctx_t *rc,
 		       STACK_OF(walk_ctx_t) *wsk,
 		       const uri_t *uri,
 		       path_t *path,
@@ -3755,7 +3773,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
  * Check whether we already have a particular ROA, attempt to fetch it
  * and check issuer's signature if we don't.
  */
-static void check_roa(const rcynic_ctx_t *rc,
+static void check_roa(rcynic_ctx_t *rc,
 		      STACK_OF(walk_ctx_t) *wsk,
 		      const uri_t *uri,
 		      const unsigned char *hash,
@@ -3800,7 +3818,7 @@ static void check_roa(const rcynic_ctx_t *rc,
 /**
  * Read and check one Ghostbuster record from disk.
  */
-static int check_ghostbuster_1(const rcynic_ctx_t *rc,
+static int check_ghostbuster_1(rcynic_ctx_t *rc,
 			       STACK_OF(walk_ctx_t) *wsk,
 			       const uri_t *uri,
 			       path_t *path,
@@ -3891,7 +3909,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
  * Check whether we already have a particular Ghostbuster record,
  * attempt to fetch it and check issuer's signature if we don't.
  */
-static void check_ghostbuster(const rcynic_ctx_t *rc,
+static void check_ghostbuster(rcynic_ctx_t *rc,
 			      STACK_OF(walk_ctx_t) *wsk,
 			      const uri_t *uri,
 			      const unsigned char *hash,
@@ -3938,7 +3956,7 @@ static void walk_cert(rcynic_ctx_t *, STACK_OF(walk_ctx_t) *);
 /**
  * rsync callback for fetching SIA tree.
  */
-static void rsync_sia_callback(const rcynic_ctx_t *rc,
+static void rsync_sia_callback(rcynic_ctx_t *rc,
 			       const rsync_ctx_t *ctx,
 			       const rsync_status_t status,
 			       const uri_t *uri,
@@ -4136,7 +4154,7 @@ static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
  * NB: EVP_PKEY_cmp() returns 1 for match, not 0 like every other
  * xyz_cmp() function in the entire OpenSSL library.  Go figure.
  */
-static X509 *read_ta(const rcynic_ctx_t *rc, const uri_t *uri, const path_t *path, const EVP_PKEY *pkey, object_generation_t generation)
+static X509 *read_ta(rcynic_ctx_t *rc, const uri_t *uri, const path_t *path, const EVP_PKEY *pkey, object_generation_t generation)
 
 {
   EVP_PKEY *xpkey = NULL;
@@ -4401,7 +4419,7 @@ int main(int argc, char *argv[])
   }
 
   if (xmlfile != NULL) {
-    if ((rc.validation_status = sk_validation_status_t_new(validation_status_cmp)) == NULL) {
+    if ((rc.validation_status = sk_validation_status_t_new(validation_status_cmp_uri)) == NULL) {
       logmsg(&rc, log_sys_err, "Couldn't allocate validation_status stack");
       goto done;
     }
@@ -4685,6 +4703,9 @@ int main(int argc, char *argv[])
 
     if (ok)
       ok &= fprintf(f, "  </labels>\n") != EOF;
+
+    (void) sk_validation_status_t_set_cmp_func(rc.validation_status, validation_status_cmp_creation_order);
+    sk_validation_status_t_sort(rc.validation_status);
 
     for (i = 0; ok && i < sk_validation_status_t_num(rc.validation_status); i++) {
       validation_status_t *v = sk_validation_status_t_value(rc.validation_status, i);

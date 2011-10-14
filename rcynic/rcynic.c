@@ -1274,9 +1274,8 @@ static int construct_directory_names(rcynic_ctx_t *rc)
  */
 static int finalize_directories(const rcynic_ctx_t *rc)
 {
-  path_t path, sym, real_old, real_new;
+  path_t path, real_old, real_new;
   const char *dir;
-  size_t n;
   glob_t g;
   int i;
 
@@ -1284,36 +1283,49 @@ static int finalize_directories(const rcynic_ctx_t *rc)
     real_old.s[0] = '\0';
 
   if (!realpath(rc->new_authenticated.s, real_new.s))
-    real_old.s[0] = '\0';
+    real_new.s[0] = '\0';
 
-  path = rc->new_authenticated;
+  assert(real_new.s[0] && real_new.s[strlen(real_new.s) - 1] != '/');
 
-  n = strlen(path.s);
-  assert(n > 1 && path.s[n - 1] == '/');
-  path.s[n - 1] = '\0';
-
-  if ((dir = strrchr(path.s, '/')) == NULL)
-    dir = path.s;
+  if ((dir = strrchr(real_new.s, '/')) == NULL)
+    dir = real_new.s;
   else
     dir++;
 
-  sym = rc->authenticated;
+  path = rc->authenticated;
 
-  assert(strlen(sym.s) + sizeof(authenticated_symlink_suffix) < sizeof(sym.s));
-  strcat(sym.s, authenticated_symlink_suffix);
+  if (strlen(path.s) + sizeof(authenticated_symlink_suffix) >= sizeof(path.s))
+    return 0;
+  strcat(path.s, authenticated_symlink_suffix);
 
-  (void) unlink(sym.s);
+  (void) unlink(path.s);
 
-  if (symlink(dir, sym.s) < 0) {
+  if (symlink(dir, path.s) < 0) {
     logmsg(rc, log_sys_err, "Couldn't link %s to %s: %s",
-	   sym.s, dir, strerror(errno));
+	   path.s, dir, strerror(errno));
     return 0;
   }
 
-  if (rename(sym.s, rc->authenticated.s) < 0) {
+  if (rename(path.s, rc->authenticated.s) < 0) {
     logmsg(rc, log_sys_err, "Couldn't rename %s to %s: %s",
-	   sym.s, rc->authenticated.s, strerror(errno));
+	   path.s, rc->authenticated.s, strerror(errno));
     return 0;
+  }
+
+  if (real_old.s[0] && strlen(rc->authenticated.s) + sizeof(".old") < sizeof(path.s)) {
+    assert(real_old.s[strlen(real_old.s) - 1] != '/');
+
+    path = rc->authenticated;
+    strcat(path.s, ".old");
+
+    (void) unlink(path.s);
+
+    if ((dir = strrchr(real_old.s, '/')) == NULL)
+      dir = real_old.s;
+    else
+      dir++;
+    
+    (void) symlink(dir, path.s);
   }
 
   path = rc->authenticated;

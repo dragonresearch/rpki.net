@@ -4151,6 +4151,8 @@ static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
   if (!check_x509(rc, wsk, w->cert, &w->certinfo))
     return;
 
+  log_validation_status(rc, &w->certinfo.uri, object_accepted, w->certinfo.generation);
+
   task_add(rc, walk_cert, wsk);
 
   while (sk_task_t_num(rc->task_queue) > 0 || sk_rsync_ctx_t_num(rc->rsync_queue) > 0) {

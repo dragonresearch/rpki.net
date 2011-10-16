@@ -252,7 +252,7 @@ static const struct {
   QW(uri_too_long,			"URI too long")			    \
   QG(current_cert_recheck,		"Certificate rechecked")	    \
   QG(object_accepted,			"Object accepted")		    \
-  QG(rsync_succeeded,			"rsync transfer succeeded")	    \
+  QG(rsync_transfer_succeeded,		"rsync transfer succeeded")	    \
   QG(validation_ok,			"OK")
 
 #define QV(x) QB(mib_openssl_##x, 0)
@@ -2196,7 +2196,7 @@ static void rsync_mgr(rcynic_ctx_t *rc)
       log_validation_status(rc, &ctx->uri, 
 			    (ctx->problem == rsync_problem_timed_out
 			     ? rsync_transfer_timed_out
-			     : rsync_succeeded),
+			     : rsync_transfer_succeeded),
 			    object_generation_null);
       break;
 

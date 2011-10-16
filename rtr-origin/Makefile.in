@@ -35,6 +35,7 @@ deinstall uninstall:
 	rm -f ${DESTDIR}${bindir}/${BIN}
 
 distclean: clean
+	rm -rf current sockets *.ax *.ix.*
 	rm -f Makefile
 
 ${BIN} : ${SRC}

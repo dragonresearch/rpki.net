@@ -50,4 +50,5 @@ deinstall uninstall:
 	rm -f ${DESTDIR}${bindir}/${BIN}
 
 distclean: clean
+	rm -rf hashed-pem-dir
 	rm -f Makefile

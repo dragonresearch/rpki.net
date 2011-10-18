@@ -1,5 +1,6 @@
 """
-Python translation of rcynic.xsl, which has gotten too slow and complex.
+Render rcynic's XML output to very basic (X)HTML.  This is a Python
+reimplementation of rcynic.xsl, which had gotten too slow and complex.
 
 $Id$
 
@@ -18,17 +19,49 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, urlparse, os
+import sys, urlparse, os, getopt
 
 from xml.etree.ElementTree import (ElementTree, Element, SubElement, Comment)
 
-refresh = 1800
-suppress_zero_columns = True
-show_total = True
-use_colors = True
-show_detailed_status = True
-show_problems = False
-show_summary = True
+opt = {
+  "refresh"               : 1800,
+  "suppress_zero_columns" : True,
+  "use_colors"            : True,
+  "show_detailed_status"  : True,
+  "show_problems"         : False,
+  "show_summary"          : True }
+
+def usage(msg = 0):
+  f = sys.stderr if msg else sys.stdout
+  f.write("Usage: %s %s [options] [input_file [output_file]]\n" % (sys.executable, sys.argv[0]))
+  f.write("Options:\n")
+  for i in sorted(opt):
+    f.write("   --%s <value>   (default %s)\n" % (i, opt[i]))
+  sys.exit(msg)
+
+bool_map = {
+  "yes" : True,  "y" : True,  "true"  : True,  "on"   : True,  "1" : True,
+  "no"  : False, "n" : False, "false" : False, "off"  : False, "0" : False }
+
+opts, argv = getopt.getopt(sys.argv[1:], "h?", ["help"] + ["%s=" % s for s in opt])
+for o, a in opts:
+  try:
+    if o in ("-?", "-h", "--help"):
+      usage(0)
+    elif o == "--refresh":
+      opt["refresh"] = int(a)
+    else:
+      opt[o[2:]] = bool_map[a.lower()]
+  except KeyError:
+    usage("Bad boolean value given to %s switch: %s" % (o, a))
+  except ValueError, e:
+    usage(str(e))
+
+input_file  = argv[0] if len(argv) > 0 else None
+output_file = argv[1] if len(argv) > 1 else None
+
+if len(argv) > 2:
+  usage("Unexpected arguments")
 
 class Label(object):
 
@@ -57,12 +90,12 @@ class Validation_Status(object):
   def mood(self):
     return self.label.mood
 
-input = ElementTree(file = sys.stdin)
+input = ElementTree(file = sys.stdin if input_file is None else input_file)
 labels = [Label(elt) for elt in input.find("labels")]
 label_map = dict((l.code, l) for l in labels)
 validation_status = [Validation_Status(elt, label_map) for elt in input.findall("validation_status")]
 del label_map
-if suppress_zero_columns:
+if opt["suppress_zero_columns"]:
   labels = [l for l in labels if l.sum > 0]
 
 html = Element("html")
@@ -77,8 +110,8 @@ SubElement(head, "title").text = title
 SubElement(body, "h1").text = title
 del title
 
-if refresh:
-  SubElement(head, "meta", { "http-equiv" : "Refresh", "content" : str(refresh) })
+if opt["refresh"]:
+  SubElement(head, "meta", { "http-equiv" : "Refresh", "content" : str(opt["refresh"]) })
 
 SubElement(head, "style", type = "text/css").text = '''
   th, td          { text-align: center; padding: 4px }
@@ -90,23 +123,52 @@ SubElement(head, "style", type = "text/css").text = '''
 table_css = { "rules" : "all", "border" : "1"}
 uri_css   = { "class" : "uri" }
 
-if use_colors:
+if opt["use_colors"]:
   SubElement(head, "style", type = "text/css").text = '''
   .good           { background-color: #77ff77 }
   .warn           { background-color: yellow }
   .bad            { background-color: #ff5500 }
 '''
 
-if show_summary:
+if opt["show_summary"]:
 
   unique_hostnames   = sorted(set(v.hostname   for v in validation_status))
   unique_fn2s        = sorted(set(v.fn2        for v in validation_status))
   unique_generations = sorted(set(v.generation for v in validation_status))
 
-  if show_summary:
 
+  SubElement(body, "br")
+  SubElement(body, "h2").text = "Grand Totals"
+  table = SubElement(body, "table", table_css)
+  thead = SubElement(table, "thead")
+  tfoot = SubElement(table, "tfoot")
+  tbody = SubElement(table, "tbody")
+  tr = SubElement(thead, "tr")
+  SubElement(tr, "th")
+  for l in labels:
+    SubElement(tr, "th").text = l.text
+  for fn2 in unique_fn2s:
+    for generation in unique_generations:
+      if any(v.fn2 == fn2 and v.generation == generation for v in validation_status):
+        tr = SubElement(tbody, "tr")
+        SubElement(tr, "td").text = ((generation or "") + " " + (fn2 or "")).strip()
+        for l in labels:
+          value = sum(int(v.fn2 == fn2 and v.generation == generation and v.code == l.code) for v in validation_status)
+          td = SubElement(tr, "td")
+          if value > 0:
+            td.set("class", l.mood)
+            td.text = str(value)
+
+  tr = SubElement(tfoot, "tr")
+  SubElement(tr, "td").text = "Total"
+  for l in labels:
+    SubElement(tr, "td", { "class" : l.mood }).text = str(l.sum)
+
+  SubElement(body, "br")
+  SubElement(body, "h2").text = "Summaries by Repository Host"
+  for hostname in unique_hostnames:
     SubElement(body, "br")
-    SubElement(body, "h2").text = "Grand Totals"
+    SubElement(body, "h3").text = hostname
     table = SubElement(body, "table", table_css)
     thead = SubElement(table, "thead")
     tfoot = SubElement(table, "tfoot")
@@ -117,11 +179,11 @@ if show_summary:
       SubElement(tr, "th").text = l.text
     for fn2 in unique_fn2s:
       for generation in unique_generations:
-        if any(v.fn2 == fn2 and v.generation == generation for v in validation_status):
+        if any(v.hostname == hostname and v.fn2 == fn2 and v.generation == generation for v in validation_status):
           tr = SubElement(tbody, "tr")
           SubElement(tr, "td").text = ((generation or "") + " " + (fn2 or "")).strip()
           for l in labels:
-            value = sum(int(v.fn2 == fn2 and v.generation == generation and v.code == l.code) for v in validation_status)
+            value = sum(int(v.hostname == hostname and v.fn2 == fn2 and v.generation == generation and v.code == l.code) for v in validation_status)
             td = SubElement(tr, "td")
             if value > 0:
               td.set("class", l.mood)
@@ -130,75 +192,45 @@ if show_summary:
     tr = SubElement(tfoot, "tr")
     SubElement(tr, "td").text = "Total"
     for l in labels:
-      SubElement(tr, "td", { "class" : l.mood }).text = str(l.sum)
-    
-    SubElement(body, "br")
-    SubElement(body, "h2").text = "Summaries by Repository Host"
-    for hostname in unique_hostnames:
-      SubElement(body, "br")
-      SubElement(body, "h3").text = hostname
-      table = SubElement(body, "table", table_css)
-      thead = SubElement(table, "thead")
-      tfoot = SubElement(table, "tfoot")
-      tbody = SubElement(table, "tbody")
-      tr = SubElement(thead, "tr")
-      SubElement(tr, "th")
-      for l in labels:
-        SubElement(tr, "th").text = l.text
-      for fn2 in unique_fn2s:
-        for generation in unique_generations:
-          if any(v.hostname == hostname and v.fn2 == fn2 and v.generation == generation for v in validation_status):
-            tr = SubElement(tbody, "tr")
-            SubElement(tr, "td").text = ((generation or "") + " " + (fn2 or "")).strip()
-            for l in labels:
-              value = sum(int(v.hostname == hostname and v.fn2 == fn2 and v.generation == generation and v.code == l.code) for v in validation_status)
-              td = SubElement(tr, "td")
-              if value > 0:
-                td.set("class", l.mood)
-                td.text = str(value)
+      value = sum(int(v.hostname == hostname and v.code == l.code) for v in validation_status)
+      td = SubElement(tr, "td")
+      if value > 0:
+        td.set("class", l.mood)
+        td.text = str(value)
 
-      tr = SubElement(tfoot, "tr")
-      SubElement(tr, "td").text = "Total"
-      for l in labels:
-        value = sum(int(v.hostname == hostname and v.code == l.code) for v in validation_status)
-        td = SubElement(tr, "td")
-        if value > 0:
-          td.set("class", l.mood)
-          td.text = str(value)
+if opt["show_problems"]:
 
-  if show_problems:
-
-    SubElement(body, "br")
-    SubElement(body, "h2").text = "Problems"
-    table = SubElement(body, "table", table_css)
-    thead = SubElement(table, "thead")
-    tbody = SubElement(table, "tbody")
-    tr = SubElement(thead, "tr")
-    SubElement(tr, "th").text = "Status"
-    SubElement(tr, "th").text = "URI"
-    for v in validation_status:
-      if v.mood != "good":
-        tr = SubElement(tbody, "tr", { "class" : v.mood })
-        SubElement(tr, "td").text = v.label.text
-        SubElement(tr, "td", uri_css).text = v.uri
-  
-  if show_detailed_status:
-
-    SubElement(body, "br")
-    SubElement(body, "h2").text = "Validation Status"
-    table = SubElement(body, "table", table_css)
-    thead = SubElement(table, "thead")
-    tbody = SubElement(table, "tbody")
-    tr = SubElement(thead, "tr")
-    SubElement(tr, "th").text = "Timestamp"
-    SubElement(tr, "th").text = "Generation"
-    SubElement(tr, "th").text = "Status"
-    SubElement(tr, "th").text = "URI"
-    for v in validation_status:
+  SubElement(body, "br")
+  SubElement(body, "h2").text = "Problems"
+  table = SubElement(body, "table", table_css)
+  thead = SubElement(table, "thead")
+  tbody = SubElement(table, "tbody")
+  tr = SubElement(thead, "tr")
+  SubElement(tr, "th").text = "Status"
+  SubElement(tr, "th").text = "URI"
+  for v in validation_status:
+    if v.mood != "good":
       tr = SubElement(tbody, "tr", { "class" : v.mood })
-      SubElement(tr, "td").text = v.timestamp
-      SubElement(tr, "td").text = v.generation
       SubElement(tr, "td").text = v.label.text
       SubElement(tr, "td", uri_css).text = v.uri
 
-ElementTree(element = html).write(sys.stdout)
+if opt["show_detailed_status"]:
+
+  SubElement(body, "br")
+  SubElement(body, "h2").text = "Validation Status"
+  table = SubElement(body, "table", table_css)
+  thead = SubElement(table, "thead")
+  tbody = SubElement(table, "tbody")
+  tr = SubElement(thead, "tr")
+  SubElement(tr, "th").text = "Timestamp"
+  SubElement(tr, "th").text = "Generation"
+  SubElement(tr, "th").text = "Status"
+  SubElement(tr, "th").text = "URI"
+  for v in validation_status:
+    tr = SubElement(tbody, "tr", { "class" : v.mood })
+    SubElement(tr, "td").text = v.timestamp
+    SubElement(tr, "td").text = v.generation
+    SubElement(tr, "td").text = v.label.text
+    SubElement(tr, "td", uri_css).text = v.uri
+
+ElementTree(element = html).write(sys.stdout if output_file is None else output_file)

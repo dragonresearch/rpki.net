@@ -24,129 +24,142 @@ from rpki.gui.cacheview import models
 from rpki.rcynic import rcynic_xml_iterator, label_iterator
 from rpki.sundial import datetime
 from django.db import transaction
+import django.db.models
 
 debug = False
+fam_map = { 'roa_prefix_set_ipv6': 6, 'roa_prefix_set_ipv4': 4 }
 
-class TransactionManager(object):
-    """
-    Context manager wrapper around the Django transaction API.
-    """
-    def __enter__(self):
-        transaction.enter_transaction_management()
-        transaction.managed()
-        return self
+class rcynic_object(object):
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is None:
-            transaction.commit()
-        else:
-            transaction.set_clean()
-        transaction.leave_transaction_management()
-        return False
+    def __call__(self, vs):
+        """
+        do initial processing on a rcynic_object instance.
 
-def process_object(obj, model_class):
-    """
-    do initial processing on a rcynic_object instance.
-
-    return value is a tuple: first element is a boolean value indicating whether
-    the object is changed/new since the last time we processed it.  second
-    element is the db instance.
-    """
-    if debug:
-        print 'processing %s at %s' % (obj.__class__.__name__, obj.uri)
-
-    q = model_class.objects.filter(uri=obj.uri)
-    if not q:
+        return value is a tuple: first element is a boolean value indicating whether
+        the object is changed/new since the last time we processed it.  second
+        element is the db instance.
+        """
         if debug:
-            print 'creating new db instance'
-        inst = model_class(uri=obj.uri)
-    else:
-        inst = q[0]
+            print 'processing %s at %s' % (vs.file_class.__name__, vs.uri)
 
-    # metadata that is updated on every run, regardless of whether the object
-    # has changed
-    inst.ok = obj.ok
-    inst.status = models.ValidationStatus.objects.get(label=obj.status)
-    inst.timestamp = datetime.fromXMLtime(obj.timestamp).to_sql()
-
-    # determine if the object is changed/new
-    mtime = os.stat(obj.filename)[8]
-    if mtime != inst.mtime:
-        inst.mtime = mtime
-        inst.not_before = obj.notBefore.to_sql()
-        inst.not_after = obj.notAfter.to_sql()
-        if debug:
-            sys.stderr.write('name=%s ski=%s\n' % (obj.subject, obj.ski))
-        inst.name = obj.subject
-        inst.keyid = obj.ski
-
-        # look up signing cert
-        if obj.issuer == obj.subject:
-            # self-signed cert (TA)
-            inst.cert = inst
-        else:
-            q = models.Cert.objects.filter(keyid=obj.aki)
-            if q:
-                inst.issuer = q[0]
+        # rcynic will generation <validation_status/> elements for objects
+        # listed in the manifest but not found on disk
+        if os.path.exists(vs.filename):
+            q = self.model_class.objects.filter(uri=vs.uri)
+            if not q:
+                if debug:
+                    print 'creating new db instance'
+                inst = self.model_class(uri=vs.uri)
             else:
-                sys.stderr.write('warning: unable to find signing cert with ski=%s (%s)\n' % (obj.aki, obj.issuer))
+                inst = q[0]
 
-        return True, inst
-    elif debug:
-        print 'object is unchanged'
+            # determine if the object is changed/new
+            mtime = os.stat(vs.filename)[8]
+            if mtime != inst.mtime:
+                inst.mtime = mtime
+                obj = vs.obj # causes object to be lazily loaded
+                inst.not_before = obj.notBefore.to_sql()
+                inst.not_after = obj.notAfter.to_sql()
+                if debug:
+                    sys.stderr.write('name=%s ski=%s\n' % (obj.subject, obj.ski))
+                inst.name = obj.subject
+                inst.keyid = obj.ski
 
-    # metadata has changed, so a save is required
-    inst.save()
+                # look up signing cert
+                if obj.issuer == obj.subject:
+                    # self-signed cert (TA)
+                    inst.cert = inst
+                else:
+                    q = models.Cert.objects.filter(keyid=obj.aki)
+                    if q:
+                        inst.issuer = q[0]
+                    else:
+                        sys.stderr.write('warning: unable to find signing cert with ski=%s (%s)\n' % (obj.aki, obj.issuer))
+                        return None
 
-    return False, inst
+                self.callback(obj, inst)
+            else:
+                if debug:
+                    print 'object is unchanged'
 
-def process_rescert(cert):
-    """
-    Process a RPKI resource certificate.
-    """
+            # save required to create new ValidationStatus object refering to it
+            inst.save()
+            inst.statuses.create(generation=models.generations_dict[vs.generation] if vs.generation else None,
+                    timestamp=datetime.fromXMLtime(vs.timestamp).to_sql(),
+                    status=models.ValidationLabel.objects.get(label=vs.status))
 
-    refresh, obj = process_object(cert, models.Cert)
+            return inst
+        else:
+            if debug:
+                print 'ERROR - file is missing: %s' % vs.filename
 
-    if refresh:
+        return True
+
+class rcynic_cert(rcynic_object):
+    model_class = models.Cert
+
+    def callback(self, cert, obj):
+        """
+        Process a RPKI resource certificate.
+        """
+
+        obj.sia = cert.sia_directory_uri
         obj.save()
 
         # resources can change when a cert is updated
         obj.asns.clear()
         obj.addresses.clear()
 
-        with TransactionManager():
-            for asr in cert.resources.asn:
+        for asr in cert.resources.asn:
+            if debug:
+                sys.stderr.write('processing %s\n' % asr)
+
+            attrs = { 'min': asr.min, 'max': asr.max }
+            q = models.ASRange.objects.filter(**attrs)
+            if not q:
+                obj.asns.create(**attrs)
+            else:
+                obj.asns.add(q[0])
+
+        for family, addrset in (4, cert.resources.v4), (6, cert.resources.v6):
+            for rng in addrset:
                 if debug:
-                    sys.stderr.write('processing %s\n' % asr)
+                    sys.stderr.write('processing %s\n' % rng)
 
-                attrs = { 'min': asr.min, 'max': asr.max }
-                q = models.ASRange.objects.filter(**attrs)
+                attrs = { 'family': family, 'min': str(rng.min), 'max': str(rng.max) }
+                q = models.AddressRange.objects.filter(**attrs)
                 if not q:
-                    obj.asns.create(**attrs)
+                    obj.addresses.create(**attrs)
                 else:
-                    obj.asns.add(q[0])
+                    obj.addresses.add(q[0])
 
-            for family, addrset in (4, cert.resources.v4), (6, cert.resources.v6):
-                for rng in addrset:
-                    if debug:
-                        sys.stderr.write('processing %s\n' % rng)
+        if debug:
+            print 'finished processing rescert at %s' % cert.uri
 
-                    attrs = { 'family': family, 'min': str(rng.min), 'max': str(rng.max) }
-                    q = models.AddressRange.objects.filter(**attrs)
-                    if not q:
-                        obj.addresses.create(**attrs)
-                    else:
-                        obj.addresses.add(q[0])
+class rcynic_roa(rcynic_object):
+    model_class = models.ROA
 
-    if debug:
-        print 'finished processing rescert at %s' % cert.uri
+    def callback(self, roa, obj):
+        obj.asid = roa.asID
+        obj.save()
+        obj.prefixes.clear()
+        for pfxset in roa.prefix_sets:
+            family = fam_map[pfxset.__class__.__name__]
+            for pfx in pfxset:
+                attrs = { 'family' : family,
+                          'prefix': str(pfx.prefix),
+                          'bits' : pfx.prefixlen,
+                          'max_length': pfx.max_prefixlen }
+                q = models.ROAPrefix.objects.filter(**attrs)
+                if not q:
+                    obj.prefixes.create(**attrs)
+                else:
+                    obj.prefixes.add(q[0])
 
-    return obj
+class rcynic_gbr(rcynic_object):
+    model_class = models.Ghostbuster
 
-def process_ghostbuster(gbr):
-    refresh, obj = process_object(gbr, models.Ghostbuster)
-
-    if refresh:
+    def callback(self, gbr, obj):
         vcard = vobject.readOne(gbr.vcard)
         if debug:
             vcard.prettyPrint()
@@ -154,91 +167,51 @@ def process_ghostbuster(gbr):
         obj.email_address = vcard.email.value if hasattr(vcard, 'email') else None
         obj.telephone = vcard.tel.value if hasattr(vcard, 'tel') else None
         obj.organization = vcard.org.value[0] if hasattr(vcard, 'org') else None
-        obj.save()
-
-fam_map = { 'roa_prefix_set_ipv6': 6, 'roa_prefix_set_ipv4': 4 }
-
-def process_roa(roa):
-    refresh, obj = process_object(roa, models.ROA)
-
-    if refresh:
-        obj.asid = roa.asID
-        obj.save()
-        with TransactionManager():
-            obj.prefixes.clear()
-            for pfxset in roa.prefix_sets:
-                family = fam_map[pfxset.__class__.__name__]
-                for pfx in pfxset:
-                    attrs = { 'family' : family,
-                              'prefix': str(pfx.prefix),
-                              'bits' : pfx.prefixlen,
-                              'max_length': pfx.max_prefixlen }
-                    q = models.ROAPrefix.objects.filter(**attrs)
-                    if not q:
-                        obj.prefixes.create(**attrs)
-                    else:
-                        obj.prefixes.add(q[0])
-
-    return obj
-
-def trydelete(seq):
-    """
-    iterate over a sequence and attempt to delete each item.  safely
-    ignore IntegrityError since the object may be referenced elsewhere.
-    """
-    for o in seq:
-        try:
-            o.delete()
-        except IntegrityError:
-            pass
-
-def garbage_collect(ts):
-    """
-    rcynic's XML output file tells us what is currently in the cache,
-    but not what has been removed.  we save the timestamp from the first
-    entry in the XML file, and remove all objects which are older.
-    """
-    if debug:
-        print 'doing garbage collection'
-
-    for roa in models.ROA.objects.filter(timestamp__lt=ts):
-        if debug:
-            sys.stderr.write('removing %s\n' % roa.uri)
-        trydelete(roa.prefixes.all())
-        roa.delete()
-
-    for cert in models.Cert.objects.filter(timestamp__lt=ts):
-        if debug:
-            sys.stderr.write('removing %s\n' % cert.uri)
-        trydelete(cert.asns.all())
-        trydelete(cert.addresses.all())
-        cert.delete()
-
-    for gbr in models.Ghostbuster.objects.filter(timestamp__lt=ts):
-        if debug:
-            sys.stderr.write('removing %s\n' % gbr.uri)
-        gbr.delete()
 
 def process_cache(root, xml_file):
     start = time.time()
 
-    # the timestamp from the first element in the rcynic xml file is saved
-    # to perform garbage collection of stale db entries
-    ts = 0
-
     dispatch = {
-      'rcynic_certificate': process_rescert,
-      'rcynic_roa'        : process_roa,
-      'rcynic_ghostbuster': process_ghostbuster
+      'rcynic_certificate': rcynic_cert(),
+      'rcynic_roa'        : rcynic_roa(),
+      'rcynic_ghostbuster': rcynic_gbr()
     }
+
+    # remove all existing ValidationStatus_* entries
+    models.ValidationStatus_Cert.objects.all().delete()
+    models.ValidationStatus_ROA.objects.all().delete()
+    models.ValidationStatus_Ghostbuster.objects.all().delete()
 
     # loop over all rcynic objects and dispatch based on the returned
     # rcynic_object subclass
-    for obj in rcynic_xml_iterator(root, xml_file):
-        r = dispatch[obj.__class__.__name__](obj)
-        if not ts:
-            ts = r.timestamp
-    garbage_collect(ts)
+    n = 1
+    defer = rcynic_xml_iterator(root, xml_file)
+    while defer:
+        if debug:
+            print 'starting iteration %d for deferred objects' % n
+            n = n + 1
+
+        elts = defer
+        defer = []
+        for vs in elts:
+            # need to defer processing this object, most likely because
+            # the <validation_status/> element for the signing cert hasn't
+            # been seen yet
+            if not dispatch[vs.file_class.__name__](vs):
+                defer.append(vs)
+
+    # garbage collection
+    # remove all objects which have no ValidationStatus references, which
+    # means they did not appear in the last XML output
+    if debug:
+        print 'performing garbage collection'
+
+    # trying to .delete() the querysets directly results in a "too many sql variables" exception
+    for qs in (models.Cert.objects.annotate(num_statuses=django.db.models.Count('statuses')).filter(num_statuses=0),
+            models.Ghostbuster.objects.annotate(num_statuses=django.db.models.Count('statuses')).filter(num_statuses=0),
+            models.ROA.objects.annotate(num_statuses=django.db.models.Count('statuses')).filter(num_statuses=0)):
+        for e in qs:
+            e.delete()
 
     if debug:
         stop = time.time()
@@ -248,21 +221,19 @@ def process_labels(xml_file):
     if debug:
         sys.stderr.write('updating labels...\n')
 
-    with TransactionManager():
-        kinds = { 'good': 0, 'warn': 1, 'bad': 2 }
-        for label, kind, desc in label_iterator(xml_file):
-            if debug:
-                sys.stderr.write('label=%s kind=%s desc=%s\n' % (label, kind, desc))
-            if kind:
-                q = models.ValidationStatus.objects.filter(label=label)
-                if not q:
-                    obj = models.ValidationStatus(label=label)
-                else:
-                    obj = q[0]
+    for label, kind, desc in label_iterator(xml_file):
+        if debug:
+            sys.stderr.write('label=%s kind=%s desc=%s\n' % (label, kind, desc))
+        if kind:
+            q = models.ValidationLabel.objects.filter(label=label)
+            if not q:
+                obj = models.ValidationLabel(label=label)
+            else:
+                obj = q[0]
 
-                obj.kind = kinds[kind]
-                obj.status = desc
-                obj.save()
+            obj.kind = models.kinds_dict[kind]
+            obj.status = desc
+            obj.save()
 
 if __name__ == '__main__':
     import optparse
@@ -280,7 +251,8 @@ if __name__ == '__main__':
     if options.debug:
         debug = True
 
-    process_labels(options.logfile)
-    process_cache(options.root, options.logfile)
+    with transaction.commit_on_success():
+        process_labels(options.logfile)
+        process_cache(options.root, options.logfile)
 
 # vim:sw=4 ts=8

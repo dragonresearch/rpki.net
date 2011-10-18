@@ -73,9 +73,10 @@ class ASRange(models.Model):
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.asrange_detail', [str(self.pk)])
 
-kinds = ( (0, 'good'), (1, 'warn'), (2, 'bad') )
+kinds = list(enumerate(('good', 'warn', 'bad')))
+kinds_dict = dict((v,k) for k,v in kinds)
 
-class ValidationStatus(models.Model):
+class ValidationLabel(models.Model):
     """
     Represents a specific error condition defined in the rcynic XML
     output file.
@@ -87,11 +88,19 @@ class ValidationStatus(models.Model):
     def __unicode__(self):
         return self.label
 
-    def kind_as_str(self):
-        return kinds[self.kind][1]
+    class Meta:
+        verbose_name_plural = 'ValidationLabels'
+
+generations = list(enumerate(('current', 'backup')))
+generations_dict = dict((val, key) for (key, val) in generations)
+
+class ValidationStatus(models.Model):
+    timestamp  = models.DateTimeField()
+    generation = models.PositiveSmallIntegerField(choices=generations, null=True)
+    status     = models.ForeignKey('ValidationLabel')
 
     class Meta:
-        verbose_name_plural = 'ValidationStatuses'
+        abstract = True
 
 class SignedObject(models.Model):
     """
@@ -101,10 +110,8 @@ class SignedObject(models.Model):
     """
     # attributes from rcynic's output XML file
     uri        = models.URLField(unique=True, db_index=True)
-    timestamp  = models.DateTimeField()
-    ok         = models.BooleanField()
-    status     = models.ForeignKey('ValidationStatus')
 
+    # on-disk file modification time
     mtime      = models.PositiveIntegerField(default=0)
 
     # SubjectName
@@ -126,6 +133,24 @@ class SignedObject(models.Model):
         """
         return datetime.utcfromtimestamp(self.mtime + time.timezone)
 
+    def is_valid(self):
+        """
+        Returns a boolean value indicating whether this object has passed
+        validation checks.
+        """
+        return bool(self.statuses.filter(status=ValidationLabel.objects.get(label="object_accepted")))
+
+    def status_id(self):
+        """
+        Returns a HTML class selector for the current object based on its validation status.
+        The selector is chosen based on the current generation only.  If there is any bad status,
+        return bad, else if there are any warn status, return warn, else return good.
+        """
+        for x in reversed(kinds):
+            if self.statuses.filter(generation=generations_dict['current'], status__kind=x[0]):
+                return x[1]
+        return None # should not happen
+
     def __unicode__(self):
         return u'%s' % self.name
 
@@ -136,10 +161,14 @@ class Cert(SignedObject):
     addresses = models.ManyToManyField(AddressRange, related_name='certs')
     asns      = models.ManyToManyField(ASRange, related_name='certs')
     issuer    = models.ForeignKey('Cert', related_name='children', null=True, blank=True)
+    sia       = models.CharField(max_length=255)
 
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.cert_detail', [str(self.pk)])
+
+class ValidationStatus_Cert(ValidationStatus):
+    cert = models.ForeignKey('Cert', related_name='statuses')
 
 class ROAPrefix(models.Model):
     family     = models.PositiveIntegerField()
@@ -175,6 +204,9 @@ class ROA(SignedObject):
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.roa_detail', [str(self.pk)])
 
+class ValidationStatus_ROA(ValidationStatus):
+    roa = models.ForeignKey('ROA', related_name='statuses')
+
 class Ghostbuster(SignedObject):
     full_name     = models.CharField(max_length=40)
     email_address = models.EmailField(blank=True, null=True)
@@ -194,5 +226,8 @@ class Ghostbuster(SignedObject):
         if self.email_address:
             return self.email_address
         return self.telephone
+
+class ValidationStatus_Ghostbuster(ValidationStatus):
+    gbr = models.ForeignKey('Ghostbuster', related_name='statuses')
 
 # vim:sw=4 ts=8 expandtab

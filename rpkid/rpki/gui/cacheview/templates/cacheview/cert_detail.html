@@ -32,6 +32,7 @@ Resource Certificate Detail
 <h2>Issued Objects</h2>
 <ul>
 
+{% if object.ghostbusters.all %}
     <li>
 <h3>Ghostbusters</h3>
 
@@ -39,26 +40,27 @@ Resource Certificate Detail
     <tr><th>Name</th><th>Valid</th><th>Until</th></tr>
 
 {% for g in object.ghostbusters.all %}
-    <tr class='{{ g.status.kind_as_str }}'>
+    <tr class='{{ g.status_id }}'>
         <td><a href="{{ g.get_absolute_url }}">{{ g }}</a></td>
-        <td>{{ g.ok }}</td>
+        <td>{{ g.is_valid }}</td>
         <td>{{ g.not_after }}</td>
     </tr>
 {% endfor %}
 
 </table>
+{% endif %}
 
+{% if object.roas.all %}
         <li>
 <h3>ROAs</h3>
-{% if object.roas.all %}
 <table>
     <tr><th>Prefix</th><th>AS</th><th>Valid</th><th>Until</th></tr>
     {% for roa in object.roas.all %}
     {% for pfx in roa.prefixes.all %}
-    <tr class='{{ roa.status.kind_as_str }}'>
+    <tr class='{{ roa.status_id }}'>
         <td>{{ pfx }}</td>
         <td>{{ roa.asid }}</td>
-        <td><a href="{{ roa.get_absolute_url }}">{{ roa.ok }}</a></td>
+        <td><a href="{{ roa.get_absolute_url }}">{{ roa.is_valid }}</a></td>
         <td>{{ roa.not_after }}</td>
     </tr>
     {% endfor %}
@@ -66,21 +68,24 @@ Resource Certificate Detail
 </table>
 {% endif %}
 
+{% if object.children.all %}
 <li>
-
 <h3>Children</h3>
 <table>
-    <tr><th>Name</th><th>Valid</th><th>Until</th></tr>
+    <tr><th>Name</th><th>SIA</th><th>Valid</th><th>Until</th><th>Ghostbuster</th></tr>
 
     {% for child in object.children.all %}
-    <tr class='{{ child.status.kind_as_str }}'>
+    <tr class='{{ child.status_id }}'>
         <td><a href="{{ child.get_absolute_url }}">{{ child.name }}</a></td>
-        <td>{{ child.ok }}</td>
+        <td>{{ child.sia }}</td>
+        <td>{{ child.is_valid }}</td>
         <td>{{ child.not_after }}</td>
+        <td><a href="{{ child.ghostbusters.all.0.get_absolute_url }}">{{ child.ghostbusters.all.0 }}</a></td>
     </tr>
     {% endfor %}
 
 </table>
+{% endif %}
 
 </ul>
 

@@ -187,12 +187,25 @@ class rcynic_file_iterator(object):
         if ext in file_name_classes:
           yield file_name_classes[ext](filename)
 
+class validation_status_element(object):
+    def __init__(self, *args, **kwargs):
+        for k,v in kwargs.iteritems():
+            setattr(self, k, v)
+        self._obj = None
+
+    def get_obj(self):
+        if not self._obj:
+            self._obj = self.file_class(filename=self.filename, uri=self.uri)
+        return self._obj
+
+    obj = property(get_obj)
+
 class rcynic_xml_iterator(object):
   """
   Iterate over validation_status entries in the XML output from an
   rcynic run.  Yields a tuple for each entry:
 
-    URI, OK, status, timestamp, object
+    timestamp, generation, status, object
 
   where URI, status, and timestamp are the corresponding values from
   the XML element, OK is a boolean indicating whether validation was
@@ -209,12 +222,10 @@ class rcynic_xml_iterator(object):
   """
 
   def __init__(self, rcynic_root, xml_file,
-               authenticated_subdir = "authenticated",
                authenticated_old_subdir = "authenticated.old",
                unauthenticated_subdir = "unauthenticated"):
     self.rcynic_root = rcynic_root
     self.xml_file = xml_file
-    self.authenticated_subdir = os.path.join(rcynic_root, authenticated_subdir)
     self.authenticated_old_subdir = os.path.join(rcynic_root, authenticated_old_subdir)
     self.unauthenticated_subdir = os.path.join(rcynic_root, unauthenticated_subdir)
 
@@ -227,17 +238,20 @@ class rcynic_xml_iterator(object):
       raise NotRsyncURI, "Not an rsync URI %r" % uri
 
   def __iter__(self):
-
-    for validation_status in ElementTree(file = self.xml_file).getroot().getiterator("validation_status"):
+    for validation_status in ElementTree(file=self.xml_file).getroot().getiterator("validation_status"):
       timestamp = validation_status.get("timestamp")
       status = validation_status.get("status")
       uri = validation_status.text.strip()
       generation = validation_status.get("generation")
-      ok = status == "object_accepted"
-      filename = os.path.join(self.authenticated_subdir if ok else self.unauthenticated_subdir, self.uri_to_filename(uri))
+
+      # determine the path to this object
+      filename = os.path.join(self.authenticated_old_subdir if generation == 'backup' else self.unauthenticated_subdir,
+              self.uri_to_filename(uri))
+
       ext = os.path.splitext(filename)[1]
       if ext in file_name_classes:
-        yield file_name_classes[ext](filename = filename, uri = uri, ok = ok, status = status, timestamp = timestamp, generation = generation)
+          yield validation_status_element(timestamp=timestamp, generation=generation, uri=uri,
+                  status=status, filename=filename, file_class=file_name_classes[ext])
 
 def label_iterator(xml_file):
     """
@@ -248,22 +262,3 @@ def label_iterator(xml_file):
 
     for label in ElementTree(file=xml_file).find("labels"):
         yield label.tag, label.get("kind"), label.text.strip()
-
-
-if __name__ == "__main__":
-  rcynic_dir = os.path.normpath(os.path.join(sys.path[0], "..", "rcynic"))
-  if False:
-    try:
-      for i in rcynic_file_iterator(os.path.join(rcynic_dir, "rcynic-data")):
-        print i
-    except IOError:
-      pass
-  if True:
-    try:
-      for i in rcynic_xml_iterator(os.path.join(rcynic_dir, "rcynic-data"),
-                                   os.path.join(rcynic_dir, "rcynic.xml")):
-        #print i
-        i.show()
-        print
-    except IOError:
-      pass

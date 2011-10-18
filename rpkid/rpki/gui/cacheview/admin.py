@@ -37,8 +37,13 @@ class ROAAdmin(admin.ModelAdmin):
 class GhostbusterAdmin(admin.ModelAdmin):
     pass
 
-class ValidationStatusAdmin(admin.ModelAdmin):
-    pass
+class ValidationLabelAdmin(admin.ModelAdmin): pass
+
+class ValidationStatus_CertAdmin(admin.ModelAdmin): pass
+
+class ValidationStatus_ROAAdmin(admin.ModelAdmin): pass
+
+class ValidationStatus_GhostbusterAdmin(admin.ModelAdmin): pass
 
 admin.site.register(models.AddressRange, AddressRangeAdmin)
 admin.site.register(models.ASRange, AddressRangeAdmin)
@@ -46,6 +51,9 @@ admin.site.register(models.Cert, CertAdmin)
 admin.site.register(models.Ghostbuster, GhostbusterAdmin)
 admin.site.register(models.ROA, ROAAdmin)
 admin.site.register(models.ROAPrefix, ROAPrefixAdmin)
-admin.site.register(models.ValidationStatus, ValidationStatusAdmin)
+admin.site.register(models.ValidationLabel, ValidationLabelAdmin)
+admin.site.register(models.ValidationStatus_Cert, ValidationStatus_CertAdmin)
+admin.site.register(models.ValidationStatus_ROA, ValidationStatus_ROAAdmin)
+admin.site.register(models.ValidationStatus_Ghostbuster, ValidationStatus_GhostbusterAdmin)
 
 # vim:sw=4 ts=8

@@ -8,22 +8,29 @@
 <table>
     <tr><td>URI</td><td>{{ object.uri }}</td></tr>
     <tr><td>Last Modified</td><td>{{ object.mtime_as_datetime|date:"DATETIME_FORMAT" }}</td></tr>
-    <tr><td>Timestamp</td><td>{{ object.timestamp }}</td></tr>
-    <tr><td>Valid</td><td>{{ object.ok }}</td></tr>
-    <tr><td>Status</td><td class='{{ object.status.kind_as_str }}'>{{ object.status.status }}</td></tr>
+</table>
+
+<h3>Validation Status</h3>
+<table>
+    <tr><th>Timestamp</th><th>Generation</th><th>Status</th></tr>
+    {% for status in object.statuses.all %}
+    <tr class="{{ status.status.get_kind_display }}"><td>{{ status.timestamp }}</td><td>{{ status.get_generation_display }}</td><td>{{ status.status.status }}</td></tr>
+    {% endfor %}
 </table>
 
 <h2>X.509 Certificate Chain</h2>
 
 <table>
-    <tr><th>Depth</th><th>Name</th><th>Valid</th><th>Until</th></tr>
+    <tr><th>Depth</th><th>Name</th><th>SIA</th><th>Valid</th><th>Until</th><th>Ghostbuster</th></tr>
 
 {% for cert in chain %}
-<tr class='{{ cert.1.status.kind_as_str }}'>
+<tr class='{{ cert.1.status_id }}'>
     <td>{{ cert.0 }}</td>
     <td><a href="{{ cert.1.get_absolute_url }}">{{ cert.1.name }}</a></td>
-    <td>{{ cert.1.ok }}</td>
+    <td>{{ cert.1.sia }}</td>
+    <td>{{ cert.1.is_valid }}</td>
     <td>{{ cert.1.not_after }}</td>
+    <td><a href="{{ cert.1.ghostbusters.all.0.get_absolute_url }}">{{ cert.1.ghostbusters.all.0 }}</a></td>
 </tr>
 {% endfor %}
 

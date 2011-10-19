@@ -21,21 +21,19 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import os, getopt, sys, rpki.config, getpass, warnings
 
+import rpki.sql_schemas
+
 from rpki.mysql_import import MySQLdb
 
-schema_dir = os.path.normpath(sys.path[0])
-
-def read_schema(filename):
+def read_schema(name):
   """
   Convert an SQL file into a list of SQL statements.
   """
   lines = []
-  f = open(filename)
-  for line in f:
+  for line in getattr(rpki.sql_schemas, name).splitlines():
     line = " ".join(line.split())
     if line and not line.startswith("--"):
       lines.append(line)
-  f.close()
   return [statement.strip() for statement in " ".join(lines).rstrip(";").split(";")]
 
 def sql_setup(name):
@@ -45,7 +43,7 @@ def sql_setup(name):
   database = cfg.get("sql-database", section = name)
   username = cfg.get("sql-username", section = name)
   password = cfg.get("sql-password", section = name)
-  schema = read_schema(os.path.join(schema_dir, "%s.sql" % name))
+  schema = read_schema(name)
 
   print "Creating database", database
   cur = rootdb.cursor()

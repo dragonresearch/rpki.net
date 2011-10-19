@@ -49,7 +49,7 @@ AUX_SCRIPTS =
 
 SETTINGS = rpki/gui/settings.py rpki/gui/app/settings.py
 
-all:: ${POW_SO} rpki/relaxng.py myrpki.rng ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS}
+all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS}
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace
@@ -63,8 +63,8 @@ rpm deb:: all
 deb::
 	cd dist; for i in *.rpm; do case $$i in *.src.rpm) :;; *) (set -x; fakeroot alien -v $$i);; esac; done
 
-rpki/relaxng.py: ../scripts/make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
-	${PYTHON} ../scripts/make-relaxng.py >$@.tmp
+rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
 left-right-schema.rng: left-right-schema.rnc
@@ -78,6 +78,10 @@ publication-schema.rng: publication-schema.rnc
 
 myrpki.rng: myrpki.rnc
 	trang myrpki.rnc myrpki.rng
+
+rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql irdbd.sql pubd.sql
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
+	mv $@.tmp $@
 
 clean::
 	find . -type f -name '*.py[co]' -delete
@@ -113,21 +117,21 @@ test all-tests parse-test profile yamltest:: all
 	cd tests; $(MAKE) $@
 
 tags: Makefile
-	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name __doc__.py | etags -
+	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name sql_schemas.py ! -name __doc__.py | etags -
 
 lint:
-	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py *d.py rpki-*.py myrpki.py irbe_cli.py tests/*.py
+	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc rpki/[a-z]*.py *d.py rpki-*.py myrpki.py irbe_cli.py tests/*.py
 
 # Documentation
 
 doc/irdbd.dot: irdbd.sql
-	sh ../scripts/graphviz-sql.sh $? >$@
+	sh ${abs_top_srcdir}/buildtools/graphviz-sql.sh $? >$@
 
 doc/pubd.dot: pubd.sql
-	sh ../scripts/graphviz-sql.sh $? >$@
+	sh ${abs_top_srcdir}/buildtools/graphviz-sql.sh $? >$@
 
 doc/rpkid.dot: rpkid.sql
-	sh ../scripts/graphviz-sql.sh $? >$@
+	sh ${abs_top_srcdir}/buildtools/graphviz-sql.sh $? >$@
 
 .SUFFIXES: .dot .png .pdf .eps
 

@@ -16,7 +16,7 @@ abs_top_builddir = @abs_top_builddir@
 all: ${BIN}
 
 clean:
-	rm -f ${BIN} ${OBJ}
+	rm -rf ${BIN} ${OBJ} ${BIN}.dSYM
 
 ${BIN}: ${SRC}
 	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} ${LIBS}

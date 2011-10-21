@@ -334,6 +334,11 @@ typedef struct { char s[FILENAME_MAX]; } path_t;
 typedef struct { unsigned char h[EVP_MAX_MD_SIZE]; } hashbuf_t;
 
 /**
+ * Type-safe wrapper for timestamp strings.
+ */
+typedef struct { char s[sizeof("2001-01-01T00:00:00Z") + 1]; } timestamp_t;
+
+/**
  * Per-URI validation status object.
  * uri must be first element.
  */
@@ -628,6 +633,27 @@ static int rsync_history_cmp(const rsync_history_t * const *a, const rsync_histo
 
 
 
+/**
+ * Convert a time_t to a printable string in UTC format.
+ */
+static const char *time_to_string(timestamp_t *ts, const time_t *t)
+{
+  time_t now;
+  size_t n;
+
+  assert(ts != NULL);
+
+  if (t == NULL) {
+    now = time(0);
+    t = &now;
+  }
+
+  n = strftime(ts->s, sizeof(ts->s), "%Y-%m-%dT%H:%M:%SZ", gmtime(t));
+  assert(n > 0);
+
+  return ts->s;
+}
+
 /*
  * GCC attributes to help catch format string errors.
  */
@@ -648,9 +674,6 @@ static void vlogmsg(const rcynic_ctx_t *rc,
 		    const char *fmt,
 		    va_list ap)
 {
-  char tad[sizeof("00:00:00")+1];
-  time_t tad_time;
-
   assert(rc && fmt);
 
   if (rc->log_level < level)
@@ -659,9 +682,10 @@ static void vlogmsg(const rcynic_ctx_t *rc,
   if (rc->use_syslog) {
     vsyslog(rc->priority[level], fmt, ap);
   } else {
-    time(&tad_time);
-    strftime(tad, sizeof(tad), "%H:%M:%S", localtime(&tad_time));
-    fprintf(stderr, "%s: ", tad);
+    char ts[sizeof("00:00:00")+1];
+    time_t t = time(0);
+    strftime(ts, sizeof(ts), "%H:%M:%S", localtime(&t));
+    fprintf(stderr, "%s: ", ts);
     if (rc->jane)
       fprintf(stderr, "%s: ", rc->jane);
     vfprintf(stderr, fmt, ap);
@@ -4747,15 +4771,11 @@ int main(int argc, char *argv[])
 
   if (xmlfile != NULL) {
 
-    char tad[sizeof("2006-10-13T11:22:33Z") + 1];
-    time_t tad_time = time(0);
-    struct tm *tad_tm = gmtime(&tad_time);
     int ok = 1, use_stdout = !strcmp(xmlfile, "-");
     char hostname[HOSTNAME_MAX];
     mib_counter_t code;
+    timestamp_t ts;
     FILE *f = NULL;
-
-    strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
 
     ok &= gethostname(hostname, sizeof(hostname)) == 0;
 
@@ -4773,7 +4793,8 @@ int main(int argc, char *argv[])
 		    "<rcynic-summary date=\"%s\" rcynic-version=\"%s\""
 		    " summary-version=\"%d\" reporting-hostname=\"%s\">\n"
 		    "  <labels>\n",
-		    tad, svn_id, XML_SUMMARY_VERSION, hostname) != EOF;
+		    time_to_string(&ts, NULL),
+		    svn_id, XML_SUMMARY_VERSION, hostname) != EOF;
 
     for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
       if (ok)
@@ -4794,15 +4815,13 @@ int main(int argc, char *argv[])
       validation_status_t *v = sk_validation_status_t_value(rc.validation_status, i);
       assert(v);
 
-      tad_tm = gmtime(&v->timestamp);
-      if (strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm) == 0)
-	tad[0] = '\0';
+      (void) time_to_string(&ts, &v->timestamp);
 
       for (code = (mib_counter_t) 0; ok && code < MIB_COUNTER_T_MAX; code++) {
 	if (validation_status_get_code(v, code)) {
 	  if (ok)
 	    ok &= fprintf(f, "  <validation_status timestamp=\"%s\" status=\"%s\"",
-			  tad, mib_counter_label[code]) != EOF;
+			  ts.s, mib_counter_label[code]) != EOF;
 	  if (ok && (v->generation == object_generation_current ||
 		     v->generation == object_generation_backup))
 	    ok &= fprintf(f, " generation=\"%s\"",
@@ -4819,25 +4838,14 @@ int main(int argc, char *argv[])
 
       if (ok)
 	ok &= fprintf(f, "  <rsync_history") != EOF;
-
-      if (ok && h->started &&
-	  strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", gmtime(&h->started)))
-	ok &= fprintf(f, " started=\"%s\"", tad) != EOF;
-
-      if (ok && h->finished &&
-	  strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", gmtime(&h->finished)))
-	ok &= fprintf(f, " finished=\"%s\"", tad) != EOF;
-
+      if (ok && h->started)
+	ok &= fprintf(f, " started=\"%s\"",
+		      time_to_string(&ts, &h->started)) != EOF;
+      if (ok && h->finished)
+	ok &= fprintf(f, " finished=\"%s\"",
+		      time_to_string(&ts, &h->finished)) != EOF;
       if (ok && h->status != rsync_status_done)
 	ok &= fprintf(f, " error=\"%u\"", (unsigned) h->status) != EOF;
-
-#if 0
-      if (ok)
-	ok &= fprintf(f, " hostname=\"%.*s\"",
-		     strcspn(h->uri.s + SIZEOF_RSYNC, "/"),
-		     h->uri.s + SIZEOF_RSYNC) != EOF;
-#endif
-
       if (ok)
 	ok &= fprintf(f, ">%s%s</rsync_history>\n",
 		      h->uri.s, (h->final_slash ? "/" : "")) != EOF;

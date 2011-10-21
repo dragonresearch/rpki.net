@@ -453,6 +453,7 @@ typedef struct rsync_history {
   uri_t uri;
   time_t started, finished;
   rsync_status_t status;
+  int final_slash;
 } rsync_history_t;
 
 DECLARE_STACK_OF(rsync_history_t)
@@ -1863,6 +1864,7 @@ static void rsync_history_add(const rcynic_ctx_t *rc,
 			      const rsync_ctx_t *ctx,
 			      const rsync_status_t status)
 {
+  int final_slash = 0;
   rsync_history_t *h;
   uri_t uri;
   size_t n;
@@ -1872,14 +1874,17 @@ static void rsync_history_add(const rcynic_ctx_t *rc,
 
   uri = ctx->uri;
 
-  while ((s = strrchr(uri.s, '/')) != NULL && s[1] == '\0')
+  while ((s = strrchr(uri.s, '/')) != NULL && s[1] == '\0') {
+    final_slash = 1;
     *s = '\0';
+  }
 
   if (status != rsync_status_done) {
 
     n = SIZEOF_RSYNC + strcspn(uri.s + SIZEOF_RSYNC, "/");
     assert(n < sizeof(uri.s));
     uri.s[n] = '\0';
+    final_slash = 1;
 
     if ((h = rsync_history_uri(rc, &uri)) != NULL) {
       assert(h->status != rsync_status_done);
@@ -1892,6 +1897,7 @@ static void rsync_history_add(const rcynic_ctx_t *rc,
     h->status = status;
     h->started = ctx->started;
     h->finished = time(0);
+    h->final_slash = final_slash;
   }
 
   if (h == NULL || !sk_rsync_history_t_push(rc->rsync_history, h)) {
@@ -4789,7 +4795,8 @@ int main(int argc, char *argv[])
       assert(v);
 
       tad_tm = gmtime(&v->timestamp);
-      strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
+      if (strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm) == 0)
+	tad[0] = '\0';
 
       for (code = (mib_counter_t) 0; ok && code < MIB_COUNTER_T_MAX; code++) {
 	if (validation_status_get_code(v, code)) {
@@ -4804,6 +4811,36 @@ int main(int argc, char *argv[])
 	    ok &= fprintf(f, ">%s</validation_status>\n", v->uri.s) != EOF;
 	}
       }
+    }
+
+    for (i = 0; ok && i < sk_rsync_history_t_num(rc.rsync_history); i++) {
+      rsync_history_t *h = sk_rsync_history_t_value(rc.rsync_history, i);
+      assert(h);
+
+      if (ok)
+	ok &= fprintf(f, "  <rsync_history") != EOF;
+
+      if (ok && h->started &&
+	  strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", gmtime(&h->started)))
+	ok &= fprintf(f, " started=\"%s\"", tad) != EOF;
+
+      if (ok && h->finished &&
+	  strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", gmtime(&h->finished)))
+	ok &= fprintf(f, " finished=\"%s\"", tad) != EOF;
+
+      if (ok && h->status != rsync_status_done)
+	ok &= fprintf(f, " error=\"%u\"", (unsigned) h->status) != EOF;
+
+#if 0
+      if (ok)
+	ok &= fprintf(f, " hostname=\"%.*s\"",
+		     strcspn(h->uri.s + SIZEOF_RSYNC, "/"),
+		     h->uri.s + SIZEOF_RSYNC) != EOF;
+#endif
+
+      if (ok)
+	ok &= fprintf(f, ">%s%s</rsync_history>\n",
+		      h->uri.s, (h->final_slash ? "/" : "")) != EOF;
     }
 
     if (ok)

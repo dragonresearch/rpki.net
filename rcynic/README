@@ -329,6 +329,11 @@ prune			Clean up old files corresponding to URIs that
 			old files will remain in the local mirror
 			indefinitely unless you enable this option.
 
+			Note: Pruning only happens when run-rsync is
+			true.  When the run-rsync option is false,
+			pruning is not done regardless of the setting
+			of the prune option option.
+
 			Values: true or false.
 
 			Default: true

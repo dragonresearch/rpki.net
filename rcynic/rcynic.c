@@ -92,19 +92,22 @@
 #define	SIZEOF_RSYNC	(sizeof(SCHEME_RSYNC) - 1)
 
 /**
+ * Maximum length of a hostname.
+ */
+#ifndef	HOSTNAME_MAX
+#define	HOSTNAME_MAX	256
+#endif
+
+/**
  * Maximum length of an URI.
  */
-#define	URI_MAX		(FILENAME_MAX + SIZEOF_RSYNC)
+#define	URI_MAX		(SIZEOF_RSYNC + HOSTNAME_MAX + 1 + FILENAME_MAX)
 
 /**
  * Maximum number of times we try to kill an inferior process before
  * giving up.
  */
 #define	KILL_MAX	10
-
-#ifndef	HOSTNAME_MAX
-#define	HOSTNAME_MAX	256
-#endif
 
 /**
  * Version number of XML summary output.
@@ -326,11 +329,6 @@ typedef struct { char s[URI_MAX]; } uri_t;
 typedef struct { char s[FILENAME_MAX]; } path_t;
 
 /**
- * Type-safe string wrapper for hostnames.
- */
-typedef struct { char s[HOSTNAME_MAX]; } hostname_t;
-
-/**
  * Type-safe wrapper for hash buffers.
  */
 typedef struct { unsigned char h[EVP_MAX_MD_SIZE]; } hashbuf_t;
@@ -449,6 +447,17 @@ typedef struct rsync_ctx {
 DECLARE_STACK_OF(rsync_ctx_t)
 
 /**
+ * Record of rsync attempts.
+ */
+typedef struct rsync_history {
+  uri_t uri;
+  time_t started, finished;
+  rsync_status_t status;
+} rsync_history_t;
+
+DECLARE_STACK_OF(rsync_history_t)
+
+/**
  * Deferred task.
  */
 typedef struct task {
@@ -478,8 +487,8 @@ typedef struct rcynic_x509_store_ctx {
 struct rcynic_ctx {
   path_t authenticated, old_authenticated, new_authenticated, unauthenticated;
   char *jane, *rsync_program;
-  STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache, *dead_host_cache;
   STACK_OF(validation_status_t) *validation_status;
+  STACK_OF(rsync_history_t) *rsync_history;
   STACK_OF(rsync_ctx_t) *rsync_queue;
   STACK_OF(task_t) *task_queue;
   int use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
@@ -584,6 +593,36 @@ static void validation_status_t_free(validation_status_t *v)
 {
   if (v)
     free(v);
+}
+
+
+
+/**
+ * Allocate a new rsync_history_t object.
+ */
+static rsync_history_t *rsync_history_t_new(void)
+{
+  rsync_history_t *h = malloc(sizeof(*h));
+  if (h)
+    memset(h, 0, sizeof(*h));
+  return h;
+}
+
+/**
+ * Type-safe wrapper around free() to keep safestack macros happy.
+ */
+static void rsync_history_t_free(rsync_history_t *h)
+{
+  if (h)
+    free(h);
+}
+
+/**
+ * Compare two rsync_history_t objects.
+ */
+static int rsync_history_cmp(const rsync_history_t * const *a, const rsync_history_t * const *b)
+{
+  return strcmp((*a)->uri.s, (*b)->uri.s);
 }
 
 
@@ -884,23 +923,6 @@ static int uri_to_filename(const rcynic_ctx_t *rc,
 }
 
 /**
- * Extract a hostname from a URI.
- */
-static int uri_to_hostname(const uri_t *uri,
-			   hostname_t *hostname)
-{
-  size_t n;
-
-  if (!uri || !hostname || !is_rsync(uri->s) ||
-      (n = strcspn(uri->s + SIZEOF_RSYNC, "/")) >= sizeof(hostname->s))
-    return 0;
-
-  strncpy(hostname->s, uri->s + SIZEOF_RSYNC, n);
-  hostname->s[n] = '\0';
-  return 1;
-}
-
-/**
  * OID comparison.
  */
 static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_t oidlen)
@@ -1077,7 +1099,6 @@ static int cp_ln(const rcynic_ctx_t *rc, const path_t *source, const path_t *tar
 static int install_object(rcynic_ctx_t *rc,
 			  const uri_t *uri,
 			  const path_t *source,
-			  const mib_counter_t code,
 			  const object_generation_t generation)
 {
   path_t target;
@@ -1094,9 +1115,59 @@ static int install_object(rcynic_ctx_t *rc,
 
   if (!cp_ln(rc, source, &target))
     return 0;
-  log_validation_status(rc, uri, code, generation);
+  log_validation_status(rc, uri, object_accepted, generation);
   return 1;
 }
+
+/**
+ * Figure out whether we already have a good copy of an object.  This
+ * is a little more complicated than it sounds, because we might have
+ * failed the current generation and accepted the backup due to having
+ * followed the old CA certificate chain first during a key rollover.
+ * So if this check is of the current object and we have not already
+ * accepted the current object for this URI, we need to recheck.
+ *
+ * We also handle logging when we decide that we do need to check, so
+ * that the caller doesn't need to concern itself with why we thought
+ * the check was necessary.
+ */
+static int skip_checking_this_object(rcynic_ctx_t *rc, 
+				     const uri_t *uri,
+				     const object_generation_t generation)
+{
+  validation_status_t v_, *v = NULL;
+  path_t path;
+  int i;
+
+  assert(rc && uri);
+
+  if (!uri_to_filename(rc, uri, &path, &rc->new_authenticated))
+    return 1;
+
+  if (access(path.s, R_OK)) {
+    logmsg(rc, log_telemetry, "Checking %s", uri->s);
+    return 0;
+  }
+  
+  if (generation != object_generation_current)
+    return 1;
+
+  memset(&v_, 0, sizeof(v_));
+  v_.uri = *uri;
+  v_.generation = generation;
+
+  i = sk_validation_status_t_find(rc->validation_status, &v_);
+  v = sk_validation_status_t_value(rc->validation_status, i);
+
+  if (v != NULL && validation_status_get_code(v, object_accepted))
+    return 1;
+
+  log_validation_status(rc, uri, current_cert_recheck, generation);
+  logmsg(rc, log_telemetry, "Rechecking %s", uri->s);
+  return 0;
+}
+
+
 
 /**
  * Check str for a suffix.
@@ -1342,40 +1413,6 @@ static int finalize_directories(const rcynic_ctx_t *rc)
 	rm_rf(&path);
 
   return 1;
-}
-
-
-
-/**
- * Check to see whether a hostname is in the dead host cache.
- */
-static int dead_host_check(const rcynic_ctx_t *rc, const uri_t *uri)
-{
-  hostname_t hostname;
-
-  assert(rc && uri && rc->dead_host_cache);
-
-  return (uri_to_hostname(uri, &hostname) &&
-	  sk_OPENSSL_STRING_find(rc->dead_host_cache, hostname.s) >= 0);
-}
-
-
-/**
- * Add an entry to the dead host cache.
- */
-static void dead_host_add(const rcynic_ctx_t *rc, const uri_t *uri)
-{
-  hostname_t hostname;
-
-  assert(rc && uri && rc->dead_host_cache);
-
-  if (dead_host_check(rc, uri))
-    return;
-
-  if (!uri_to_hostname(uri, &hostname))
-    return;
-
-  (void) sk_OPENSSL_STRING_push_strdup(rc->dead_host_cache, hostname.s);
 }
 
 
@@ -1771,51 +1808,100 @@ static void task_run_q(rcynic_ctx_t *rc)
 
 
 /**
- * Record that we've already synced a particular rsync URI.
+ * Check cache of whether we've already fetched a particular URI.
  */
-
-static void rsync_cache_add(const rcynic_ctx_t *rc, const uri_t *uri)
+static rsync_history_t *rsync_history_uri(const rcynic_ctx_t *rc,
+					  const uri_t *uri)
 {
-  uri_t uribuf;
+  rsync_history_t h;
   char *s;
+  int i;
 
-  assert(rc && uri && rc->rsync_cache);
-  uribuf = *uri;
-  while ((s = strrchr(uribuf.s, '/')) != NULL && s[1] == '\0')
+  assert(rc && uri && rc->rsync_history);
+
+  if (!is_rsync(uri->s))
+    return NULL;
+
+  h.uri = *uri;
+
+  while ((s = strrchr(h.uri.s, '/')) != NULL && s[1] == '\0')
     *s = '\0';
-  assert(strlen(uribuf.s) > SIZEOF_RSYNC);
-  if (!sk_OPENSSL_STRING_push_strdup(rc->rsync_cache, uribuf.s  + SIZEOF_RSYNC))
-    logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri->s);
-}
 
-/**
- * Maintain a cache of URIs we've already fetched.
- */
-static int rsync_cached_string(const rcynic_ctx_t *rc,
-			       const char *string)
-{
-  char *s, buffer[URI_MAX];
-
-  assert(rc && rc->rsync_cache && strlen(string) < sizeof(buffer));
-  strcpy(buffer, string);
-  if ((s = strrchr(buffer, '/')) != NULL && s[1] == '\0')
-    *s = '\0';
-  while (sk_OPENSSL_STRING_find(rc->rsync_cache, buffer) < 0) {
-    if ((s = strrchr(buffer, '/')) == NULL)
-      return 0;
+  while ((i = sk_rsync_history_t_find(rc->rsync_history, &h)) < 0) {
+    if ((s = strrchr(h.uri.s, '/')) == NULL ||
+	(s - h.uri.s) < SIZEOF_RSYNC)
+      return NULL;
     *s = '\0';
   }
-  return 1;
+
+  return sk_rsync_history_t_value(rc->rsync_history, i);
 }
 
 /**
- * Check whether a particular URI has been cached.
+ * Check whether the local filename representation of a particular URI
+ * has been cached.
  */
-static int rsync_cached_uri(const rcynic_ctx_t *rc,
-			    const uri_t *uri)
+static int rsync_history_uri_filename(const rcynic_ctx_t *rc,
+				      const char *filename)
 {
-  return is_rsync(uri->s) && rsync_cached_string(rc, uri->s + SIZEOF_RSYNC);
+  uri_t uri;
+
+  if (strlen(filename) + SIZEOF_RSYNC >= sizeof(uri.s))
+    return 0;
+
+  strcpy(uri.s, SCHEME_RSYNC);
+  strcat(uri.s, filename);
+
+  return rsync_history_uri(rc, &uri) != NULL;
 }
+
+/**
+ * Record that we've already attempted to synchronize a particular
+ * rsync URI.
+ */
+static void rsync_history_add(const rcynic_ctx_t *rc,
+			      const rsync_ctx_t *ctx,
+			      const rsync_status_t status)
+{
+  rsync_history_t *h;
+  uri_t uri;
+  size_t n;
+  char *s;
+
+  assert(rc && ctx && rc->rsync_history && is_rsync(ctx->uri.s));
+
+  uri = ctx->uri;
+
+  while ((s = strrchr(uri.s, '/')) != NULL && s[1] == '\0')
+    *s = '\0';
+
+  if (status != rsync_status_done) {
+
+    n = SIZEOF_RSYNC + strcspn(uri.s + SIZEOF_RSYNC, "/");
+    assert(n < sizeof(uri.s));
+    uri.s[n] = '\0';
+
+    if ((h = rsync_history_uri(rc, &uri)) != NULL) {
+      assert(h->status != rsync_status_done);
+      return;
+    }
+  }
+
+  if ((h = rsync_history_t_new()) != NULL) {
+    h->uri = uri;
+    h->status = status;
+    h->started = ctx->started;
+    h->finished = time(0);
+  }
+
+  if (h == NULL || !sk_rsync_history_t_push(rc->rsync_history, h)) {
+    rsync_history_t_free(h);
+    logmsg(rc, log_sys_err,
+	   "Couldn't add %s to rsync_history, blundering onwards", uri.s);
+  }
+}
+
+
 
 /**
  * Return count of how many rsync contexts are in running.
@@ -1932,7 +2018,7 @@ static void rsync_run(rcynic_ctx_t *rc,
 
   assert(rc && ctx && ctx->pid == 0 && ctx->state != rsync_state_running && rsync_runable(rc, ctx));
 
-  if (rsync_cached_uri(rc, &ctx->uri)) {
+  if (rsync_history_uri(rc, &ctx->uri)) {
     logmsg(rc, log_verbose, "Late rsync cache hit for %s", ctx->uri.s);
     if (ctx->handler)
       ctx->handler(rc, ctx, rsync_status_done, &ctx->uri, ctx->wsk);
@@ -2133,6 +2219,32 @@ static int rsync_construct_select(const rcynic_ctx_t *rc,
 }
 
 /**
+ * Convert rsync_status_t to mib_counter_t.
+ *
+ * Maybe some day this will go away and we won't be carrying
+ * essentially the same information in two different databases, but
+ * for now I'll settle for cleaning up the duplicate code logic.
+ */
+static mib_counter_t rsync_status_to_mib_counter(rsync_status_t status)
+{
+  switch (status) {
+  case rsync_status_done:	return rsync_transfer_succeeded;
+  case rsync_status_timed_out:	return rsync_transfer_timed_out;
+  case rsync_status_failed:	return rsync_transfer_failed;
+  case rsync_status_skipped:	return rsync_transfer_skipped;
+  default:
+    /*
+     * Keep GCC from whining about untested cases.
+     */
+    assert(status == rsync_status_done ||
+	   status == rsync_status_timed_out ||
+	   status == rsync_status_failed ||
+	   status == rsync_status_skipped);
+    return rsync_transfer_failed;
+  }
+}
+
+/**
  * Manager for queue of rsync tasks in progress.
  *
  * General plan here is to process one completed child, or output
@@ -2148,9 +2260,10 @@ static int rsync_construct_select(const rcynic_ctx_t *rc,
  */
 static void rsync_mgr(rcynic_ctx_t *rc)
 {
-  time_t now = time(0);
+  rsync_status_t rsync_status;
   int i, n, pid_status = -1;
   rsync_ctx_t *ctx = NULL;
+  time_t now = time(0);
   struct timeval tv;
   fd_set rfds;
   pid_t pid;
@@ -2193,11 +2306,7 @@ static void rsync_mgr(rcynic_ctx_t *rc)
     switch (WEXITSTATUS(pid_status)) {
 
     case 0:
-      log_validation_status(rc, &ctx->uri, 
-			    (ctx->problem == rsync_problem_timed_out
-			     ? rsync_transfer_timed_out
-			     : rsync_transfer_succeeded),
-			    object_generation_null);
+      rsync_status = rsync_status_done;
       break;
 
     case 5:			/* "Error starting client-server protocol" */
@@ -2229,30 +2338,24 @@ static void rsync_mgr(rcynic_ctx_t *rc)
     case 21:		      	/* "Some error returned by waitpid()" */
     case 30:			/* "Timeout in data send/receive" */
     case 35:		 	/* "Timeout waiting for daemon connection" */
-      logmsg(rc, log_telemetry, "Adding %s to dead host cache", ctx->uri.s);
-      dead_host_add(rc, &ctx->uri);
 
       /* Fall through */
 
     default:
+      rsync_status = rsync_status_failed;
       logmsg(rc, log_data_err, "rsync %u exited with status %d fetching %s",
 	     (unsigned) pid, WEXITSTATUS(pid_status), ctx->uri.s);
-      log_validation_status(rc, &ctx->uri,
-			    (rc->rsync_timeout && now >= ctx->deadline
-			     ? rsync_transfer_timed_out
-			     : rsync_transfer_failed),
-			    object_generation_null);
       break;
     }
 
-    rsync_cache_add(rc, &ctx->uri);
+    if (rc->rsync_timeout && now >= ctx->deadline)
+      rsync_status = rsync_status_timed_out;
+    log_validation_status(rc, &ctx->uri,
+			  rsync_status_to_mib_counter(rsync_status),
+			  object_generation_null);
+    rsync_history_add(rc, ctx, rsync_status);
     if (ctx->handler)
-      ctx->handler(rc, ctx, (ctx->problem == rsync_problem_timed_out
-			     ? rsync_status_timed_out
-			     : WEXITSTATUS(pid_status) != 0
-			     ? rsync_status_failed
-			     : rsync_status_done),
-		   &ctx->uri, ctx->wsk);
+      ctx->handler(rc, ctx, rsync_status, &ctx->uri, ctx->wsk);
     (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
     free(ctx);
     ctx = NULL;
@@ -2268,19 +2371,14 @@ static void rsync_mgr(rcynic_ctx_t *rc)
    * structure is because rsync_run() might decide to remove the
    * specified rsync task from the queue instead of running it.
    */
-  i = 0;
-  n = sk_rsync_ctx_t_num(rc->rsync_queue);
-  while (i < n) {
-    ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i);
-    assert(ctx != NULL);
+  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; i++) {
+    n = sk_rsync_ctx_t_num(rc->rsync_queue);
     if (ctx->state != rsync_state_running &&
 	rsync_runable(rc, ctx) &&
 	rsync_count_running(rc) < rc->max_parallel_fetches)
       rsync_run(rc, ctx);
-    if (n < sk_rsync_ctx_t_num(rc->rsync_queue))
-      n--;
-    else
-      i++;
+    if (n > sk_rsync_ctx_t_num(rc->rsync_queue))
+      i--;
   }
 
   assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
@@ -2353,7 +2451,7 @@ static void rsync_mgr(rcynic_ctx_t *rc)
 	ctx->state = rsync_state_terminating;
 	ctx->tries = 0;
 	logmsg(rc, log_telemetry, "Subprocess %u is taking too long fetching %s, whacking it", (unsigned) ctx->pid, ctx->uri.s);
-	dead_host_add(rc, &ctx->uri);
+	rsync_history_add(rc, ctx, rsync_status_timed_out);
       } else if (sig == SIGTERM) {
 	logmsg(rc, log_verbose, "Whacking subprocess %u again", (unsigned) ctx->pid);
       } else {
@@ -2379,24 +2477,15 @@ static void rsync_init(rcynic_ctx_t *rc,
 
   if (!rc->run_rsync) {
     logmsg(rc, log_verbose, "rsync disabled, skipping %s", uri->s);
-    rsync_cache_add(rc, uri);
     if (handler)
       handler(rc, NULL, rsync_status_skipped, uri, wsk);
     return;
   }
 
-  if (rsync_cached_uri(rc, uri)) {
+  if (rsync_history_uri(rc, uri)) {
     logmsg(rc, log_verbose, "rsync cache hit for %s", uri->s);
     if (handler)
       handler(rc, NULL, rsync_status_done, uri, wsk);
-    return;
-  }
-
-  if (dead_host_check(rc, uri)) {
-    logmsg(rc, log_verbose, "Dead host cache hit for %s", uri->s);
-    rsync_cache_add(rc, uri);
-    if (handler)
-      handler(rc, NULL, rsync_status_skipped, uri, wsk);
     return;
   }
 
@@ -2470,7 +2559,7 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
   assert(len >= baselen && len < sizeof(path.s));
   need_slash = name->s[len - 1] != '/';
 
-  if (rsync_cached_string(rc, name->s + baselen)) {
+  if (rsync_history_uri_filename(rc, name->s + baselen)) {
     logmsg(rc, log_debug, "prune: cache hit for %s, not cleaning", name->s);
     return 1;
   }
@@ -2511,7 +2600,7 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
 	goto done;
       continue;
     default:
-      if (rsync_cached_string(rc, path.s + baselen)) {
+      if (rsync_history_uri_filename(rc, path.s + baselen)) {
 	logmsg(rc, log_debug, "prune: cache hit %s", path.s);
 	continue;
       }
@@ -2880,12 +2969,12 @@ static X509_CRL *check_crl(rcynic_ctx_t *rc,
     result = new_crl;
 
   if (result && result == new_crl)
-    install_object(rc, uri, &new_path, object_accepted, object_generation_current);
+    install_object(rc, uri, &new_path, object_generation_current);
   else if (!access(new_path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_current);
 
   if (result && result == old_crl)
-    install_object(rc, uri, &old_path, object_accepted, object_generation_backup);
+    install_object(rc, uri, &old_path, object_generation_backup);
   else if (!result && !access(old_path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_backup);
 
@@ -3336,33 +3425,16 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     return NULL;
   }
 
-  /*
-   * If target file already exists and we're not here to recheck with
-   * better data, just get out now.
-   */
+  if (skip_checking_this_object(rc, uri, generation))
+    return NULL;
 
-  if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) && 
-      !access(path.s, R_OK)) {
-    if (w->state == walk_state_backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri->s) < 0)
-      return NULL;
-    assert(generation == object_generation_current);
-    log_validation_status(rc, uri, current_cert_recheck, generation);
-    logmsg(rc, log_telemetry, "Rechecking %s", uri->s);
-  } else {
-    logmsg(rc, log_telemetry, "Checking %s", uri->s);
-  }
-
-  if ((x = check_cert_1(rc, wsk, uri, &path, prefix, certinfo, hash, hashlen, generation)) != NULL) {
-    install_object(rc, uri, &path, object_accepted, generation);
-    if (w->state == walk_state_current)
-      sk_OPENSSL_STRING_remove(rc->backup_cache, uri->s);
-    else if (!sk_OPENSSL_STRING_push_strdup(rc->backup_cache, uri->s))
-      logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri->s);
-  } else if (!access(path.s, F_OK)) {
+  if ((x = check_cert_1(rc, wsk, uri, &path, prefix, certinfo,
+			hash, hashlen, generation)) != NULL)
+    install_object(rc, uri, &path, generation);
+  else if (!access(path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, generation);
-  } else if (hash && generation == w->manifest_generation) {
+  else if (hash && generation == w->manifest_generation)
     log_validation_status(rc, uri, manifest_lists_missing_object, generation);
-  }
 
   return x;
 }
@@ -3508,13 +3580,13 @@ static int check_manifest(rcynic_ctx_t *rc,
 
   if (result && result == new_manifest) {
     generation = object_generation_current;
-    install_object(rc, uri, &new_path, object_accepted, generation);
+    install_object(rc, uri, &new_path, generation);
     crldp = &new_certinfo.crldp;
   }
 
   if (result && result == old_manifest) {
     generation = object_generation_backup;
-    install_object(rc, uri, &old_path, object_accepted, generation);
+    install_object(rc, uri, &old_path, generation);
     crldp = &old_certinfo.crldp;
   }
 
@@ -3804,7 +3876,7 @@ static void check_roa(rcynic_ctx_t *rc,
 
   if (check_roa_1(rc, wsk, uri, &path, &rc->unauthenticated,
 		  hash, hashlen, object_generation_current)) {
-    install_object(rc, uri, &path, object_accepted, object_generation_current);
+    install_object(rc, uri, &path, object_generation_current);
     return;
   }
 
@@ -3815,7 +3887,7 @@ static void check_roa(rcynic_ctx_t *rc,
 
   if (check_roa_1(rc, wsk, uri, &path, &rc->old_authenticated,
 		  hash, hashlen, object_generation_backup)) {
-    install_object(rc, uri, &path, object_accepted, object_generation_backup);
+    install_object(rc, uri, &path, object_generation_backup);
     return;
   }
 
@@ -3940,7 +4012,7 @@ static void check_ghostbuster(rcynic_ctx_t *rc,
 
   if (check_ghostbuster_1(rc, wsk, uri, &path, &rc->unauthenticated,
 			  hash, hashlen, object_generation_current)) {
-    install_object(rc, uri, &path, object_accepted, object_generation_current);
+    install_object(rc, uri, &path, object_generation_current);
     return;
   }
 
@@ -3951,7 +4023,7 @@ static void check_ghostbuster(rcynic_ctx_t *rc,
 
   if (check_ghostbuster_1(rc, wsk, uri, &path, &rc->old_authenticated,
 			  hash, hashlen, object_generation_backup)) {
-    install_object(rc, uri, &path, object_accepted, object_generation_backup);
+    install_object(rc, uri, &path, object_generation_backup);
     return;
   }
 
@@ -4417,18 +4489,8 @@ int main(int argc, char *argv[])
 
   }
 
-  if ((rc.rsync_cache = sk_OPENSSL_STRING_new(uri_cmp)) == NULL) {
-    logmsg(&rc, log_sys_err, "Couldn't allocate rsync_cache stack");
-    goto done;
-  }
-
-  if ((rc.backup_cache = sk_OPENSSL_STRING_new(uri_cmp)) == NULL) {
-    logmsg(&rc, log_sys_err, "Couldn't allocate backup_cache stack");
-    goto done;
-  }
-
-  if ((rc.dead_host_cache = sk_OPENSSL_STRING_new(uri_cmp)) == NULL) {
-    logmsg(&rc, log_sys_err, "Couldn't allocate dead_host_cache stack");
+  if ((rc.rsync_history = sk_rsync_history_t_new(rsync_history_cmp)) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't allocate rsync_history stack");
     goto done;
   }
 
@@ -4665,8 +4727,9 @@ int main(int argc, char *argv[])
   if (!finalize_directories(&rc))
     goto done;
 
-  if (prune && !prune_unauthenticated(&rc, &rc.unauthenticated,
-				      strlen(rc.unauthenticated.s))) {
+  if (prune && rc.run_rsync &&
+      !prune_unauthenticated(&rc, &rc.unauthenticated,
+			     strlen(rc.unauthenticated.s))) {
     logmsg(&rc, log_sys_err, "Trouble pruning old unauthenticated data");
     goto done;
   }
@@ -4682,13 +4745,13 @@ int main(int argc, char *argv[])
     time_t tad_time = time(0);
     struct tm *tad_tm = gmtime(&tad_time);
     int ok = 1, use_stdout = !strcmp(xmlfile, "-");
-    hostname_t hostname;
+    char hostname[HOSTNAME_MAX];
     mib_counter_t code;
     FILE *f = NULL;
 
     strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
 
-    ok &= gethostname(hostname.s, sizeof(hostname.s)) == 0;
+    ok &= gethostname(hostname, sizeof(hostname)) == 0;
 
     if (use_stdout)
       f = stdout;
@@ -4704,7 +4767,7 @@ int main(int argc, char *argv[])
 		    "<rcynic-summary date=\"%s\" rcynic-version=\"%s\""
 		    " summary-version=\"%d\" reporting-hostname=\"%s\">\n"
 		    "  <labels>\n",
-		    tad, svn_id, XML_SUMMARY_VERSION, hostname.s) != EOF;
+		    tad, svn_id, XML_SUMMARY_VERSION, hostname) != EOF;
 
     for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
       if (ok)
@@ -4758,10 +4821,8 @@ int main(int argc, char *argv[])
   /*
    * Do NOT free cfg_section, NCONF_free() takes care of that
    */
-  sk_OPENSSL_STRING_pop_free(rc.rsync_cache, OPENSSL_STRING_free);
-  sk_OPENSSL_STRING_pop_free(rc.backup_cache, OPENSSL_STRING_free);
-  sk_OPENSSL_STRING_pop_free(rc.dead_host_cache, OPENSSL_STRING_free);
   sk_validation_status_t_pop_free(rc.validation_status, validation_status_t_free);
+  sk_rsync_history_t_pop_free(rc.rsync_history, rsync_history_t_free);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);
   CONF_modules_free();

@@ -20,10 +20,8 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 show_summary   = True
-show_sessions  = False
+show_sessions  = True
 show_plot      = True
-plot_to_pdf    = True
-plot_to_file   = not plot_to_pdf
 plot_all_hosts = False
 
 import mailbox, sys, urlparse, os, getopt, datetime, subprocess
@@ -57,13 +55,13 @@ class Host(object):
       self.session_ids.append(session_id)
     self.elapsed = datetime.timedelta(0)
     self.connection_count = 0
-    self.live_connections = 0
+    self.dead_connections = 0
     self.uris = set()
 
   def __add__(self, other):
     assert self.hostname == other.hostname
     result = self.__class__(self.hostname)
-    for a in ("elapsed", "connection_count", "live_connections", "session_ids"):
+    for a in ("elapsed", "connection_count", "dead_connections", "session_ids"):
       setattr(result, a, getattr(self, a) + getattr(other, a))
     result.uris = self.uris | other.uris
     return result
@@ -71,7 +69,7 @@ class Host(object):
   def add_rsync_history(self, h):
     self.connection_count += 1
     self.elapsed += h.elapsed
-    self.live_connections += int(h.error is None)
+    self.dead_connections += int(h.error is not None)
 
   def add_uri(self, u):
     self.uris.add(u)
@@ -90,8 +88,8 @@ class Host(object):
     return len(self.uris)
 
   @property
-  def success_rate_percentage(self):
-    return int((float(self.live_connections) / float(self.connection_count)) * 100)
+  def failure_rate_percentage(self):
+    return float(self.dead_connections * 100) / float(self.connection_count)
 
   @property
   def seconds_per_object(self):
@@ -129,7 +127,7 @@ class Host(object):
             Format("object_count",            "Objects",            "d"),
             Format("objects_per_connection",  "Objects/Connection", ".3f"),
             Format("seconds_per_object",      "Seconds/Object",     ".3f"),
-            Format("success_rate_percentage", "Success Rate",       "d%%"),
+            Format("failure_rate_percentage", "Failure Rate",       ".3f%%"),
             Format("hostname",                "Hostname",           "s"))
 
   separator = " " * 2
@@ -215,50 +213,43 @@ if show_sessions:
   for i, session in enumerate(sessions, 1):
     session.dump("Session #%d (%s)" % (i, session.session_id))
 
-def plotter(plot, hostnames, field):
+def plotter(f, hostnames, field, logscale = False):
   plotlines = sorted(session.get_plot_row(field, hostnames) for session in sessions)
   title = Host.format_dict[field].title
   n = len(hostnames) + 1
   assert all(n == len(plotline) for plotline in plotlines)
-  if plot_to_pdf:
-    plot.write("""
-               set terminal pdf
-               set output '%s.pdf'
-               """ % field)
   if "%%" in Host.format_dict[field].fmt:
-    plot.write("""
-               set format y "%.0f%%"
-               """)
-  plot.write("""
-             set xdata time
-             set timefmt '%Y-%m-%dT%H:%M:%SZ'
-             #set format x '%H:%M:%S'
-             #set format x '%m-%d'
-             set format x '%a%H'
-             set title '""" + title + """'
-             plot""" + ",".join(" '-' using 1:2 with lines title '%s'" % h for h in hostnames) + "\n")
+    f.write('set format y "%.0f%%"\n')
+  if logscale:
+    f.write("set logscale y\n")
+  else:
+    f.write("unset logscale y\n")
+  f.write("""
+          set xdata time
+          set timefmt '%Y-%m-%dT%H:%M:%SZ'
+          #set format x '%H:%M:%S'
+          #set format x '%m-%d'
+          #set format x '%a%H'
+          set format x '%H:%M'
+          set title '""" + title + """'
+          plot""" + ",".join(" '-' using 1:2 with lines title '%s'" % h for h in hostnames) + "\n")
   for i in xrange(1, n):
     for plotline in plotlines:
-      plot.write("%s %s\n" % (plotline[0], plotline[i].rstrip("%")))
-    plot.write("e\n")
-  if not plot_to_pdf:
-    plot.write("pause -1\n")
+      f.write("%s %s\n" % (plotline[0], plotline[i].rstrip("%")))
+    f.write("e\n")
 
 if show_plot:
   if plot_all_hosts:
     hostnames = tuple(sorted(summary.hostnames))
   else:
-    hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net",
+    hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net", "rpki.afrinic.net",
                  "arin.rpki.net", "rgnet.rpki.net",
                  "rpki.surfnet.nl", "rpki.antd.nist.gov")
-  if plot_to_file:
-    plot = open("foo.plot", "w")
-  else:
-    gnuplot = subprocess.Popen(("gnuplot",), stdin = subprocess.PIPE)
-    plot = gnuplot.stdin
-  for f in Host.format:
-    if f.attr not in ("scaled_elapsed", "hostname"):
-      plotter(plot, hostnames, f.attr)
-  plot.close()
-  if not plot_to_file:
-    gnuplot.wait()
+  gnuplot = subprocess.Popen(("gnuplot",), stdin = subprocess.PIPE)
+  gnuplot.stdin.write("set terminal pdf; set output 'analyze-rcynic-history.pdf'\n")
+  for fmt in Host.format:
+    if fmt.attr not in ("scaled_elapsed", "hostname"):
+      plotter(gnuplot.stdin, hostnames, fmt.attr, logscale = False)
+      plotter(gnuplot.stdin, hostnames, fmt.attr, logscale = True)
+  gnuplot.stdin.close()
+  gnuplot.wait()

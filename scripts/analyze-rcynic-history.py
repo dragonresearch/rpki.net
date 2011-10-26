@@ -23,6 +23,8 @@ show_summary   = True
 show_sessions  = True
 show_plot      = True
 plot_all_hosts = False
+plot_to_one    = True
+plot_to_many   = True
 
 import mailbox, sys, urlparse, os, getopt, datetime, subprocess
 
@@ -243,18 +245,36 @@ def plotter(f, hostnames, field, logscale = False):
       f.write("%s %s\n" % (plotline[0], plotline[i].rstrip("%")))
     f.write("e\n")
 
+def plot_many(hostnames, fields):
+  for field in fields:
+    for logscale in (False, True):
+      gnuplot = subprocess.Popen(("gnuplot",), stdin = subprocess.PIPE)
+      gnuplot.stdin.write("set terminal pdf\n")
+      gnuplot.stdin.write("set output '%s-%s.pdf'\n" % (field, "log" if logscale else "linear"))
+      plotter(gnuplot.stdin, hostnames, field, logscale = logscale)
+      gnuplot.stdin.close()
+      gnuplot.wait()
+
+def plot_one(hostnames, fields):
+  gnuplot = subprocess.Popen(("gnuplot",), stdin = subprocess.PIPE)
+  gnuplot.stdin.write("set terminal pdf\n")
+  gnuplot.stdin.write("set output 'analyze-rcynic-history.pdf'\n")
+  for field  in fields:
+    if field not in ("scaled_elapsed", "hostname"):
+      plotter(gnuplot.stdin, hostnames, field, logscale = False)
+      plotter(gnuplot.stdin, hostnames, field, logscale = True)
+  gnuplot.stdin.close()
+  gnuplot.wait()
+
 if show_plot:
   if plot_all_hosts:
-    hostnames = tuple(sorted(summary.hostnames))
+    hostnames = sorted(summary.hostnames)
   else:
     hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net", "rpki.afrinic.net",
                  "arin.rpki.net", "rgnet.rpki.net",
                  "rpki.surfnet.nl", "rpki.antd.nist.gov")
-  gnuplot = subprocess.Popen(("gnuplot",), stdin = subprocess.PIPE)
-  gnuplot.stdin.write("set terminal pdf; set output 'analyze-rcynic-history.pdf'\n")
-  for fmt in Host.format:
-    if fmt.attr not in ("scaled_elapsed", "hostname"):
-      plotter(gnuplot.stdin, hostnames, fmt.attr, logscale = False)
-      plotter(gnuplot.stdin, hostnames, fmt.attr, logscale = True)
-  gnuplot.stdin.close()
-  gnuplot.wait()
+  fields = [fmt.attr for fmt in Host.format if fmt.attr not in ("scaled_elapsed", "hostname")]
+  if plot_to_one:
+    plot_one(hostnames, fields)
+  if plot_to_many:
+    plot_many(hostnames, fields)

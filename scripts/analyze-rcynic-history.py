@@ -93,11 +93,14 @@ class Host(object):
 
   @property
   def seconds_per_object(self):
-    return self.elapsed.total_seconds() / float(self.object_count * self.session_count)
+    return (float((self.elapsed.days * 24 * 3600 + self.elapsed.seconds) * 10**6 +
+                  self.elapsed.microseconds) /
+            float(self.object_count * self.session_count * 10**6))
 
   @property
   def objects_per_connection(self):
-    return float(self.object_count * self.session_count) / float(self.connection_count)
+    return (float(self.object_count * self.session_count) /
+            float(self.connection_count))
 
   @property
   def scaled_connections(self):
@@ -230,7 +233,9 @@ def plotter(f, hostnames, field, logscale = False):
           #set format x '%H:%M:%S'
           #set format x '%m-%d'
           #set format x '%a%H'
-          set format x '%H:%M'
+          #set format x '%H:%M'
+          #set format x '%a%H:%M'
+          set format x "%a\\n%H:%M"
           set title '""" + title + """'
           plot""" + ",".join(" '-' using 1:2 with lines title '%s'" % h for h in hostnames) + "\n")
   for i in xrange(1, n):

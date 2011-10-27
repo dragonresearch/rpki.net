@@ -4525,11 +4525,9 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  if (xmlfile != NULL) {
-    if ((rc.validation_status = sk_validation_status_t_new(validation_status_cmp_uri)) == NULL) {
-      logmsg(&rc, log_sys_err, "Couldn't allocate validation_status stack");
-      goto done;
-    }
+  if ((rc.validation_status = sk_validation_status_t_new(validation_status_cmp_uri)) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't allocate validation_status stack");
+    goto done;
   }
 
   if ((rc.x509_store = X509_STORE_new()) == NULL) {

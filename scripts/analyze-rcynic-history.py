@@ -59,11 +59,12 @@ class Host(object):
     self.connection_count = 0
     self.dead_connections = 0
     self.uris = set()
+    self.connections = []
 
   def __add__(self, other):
     assert self.hostname == other.hostname
     result = self.__class__(self.hostname)
-    for a in ("elapsed", "connection_count", "dead_connections", "session_ids"):
+    for a in ("elapsed", "connection_count", "dead_connections", "session_ids", "connections"):
       setattr(result, a, getattr(self, a) + getattr(other, a))
     result.uris = self.uris | other.uris
     return result
@@ -72,6 +73,7 @@ class Host(object):
     self.connection_count += 1
     self.elapsed += h.elapsed
     self.dead_connections += int(h.error is not None)
+    self.connections.append(h)
 
   def add_uri(self, u):
     self.uris.add(u)
@@ -112,6 +114,10 @@ class Host(object):
   def scaled_elapsed(self):
     return self.elapsed / self.session_count
 
+  @property
+  def average_connection_time(self):
+    return float(sum(c.elapsed.total_seconds() for c in self.connections)) / float(self.connection_count)
+
   class Format(object):
 
     def __init__(self, attr, title, fmt):
@@ -133,6 +139,7 @@ class Host(object):
             Format("objects_per_connection",  "Objects/Connection", ".3f"),
             Format("seconds_per_object",      "Seconds/Object",     ".3f"),
             Format("failure_rate_percentage", "Failure Rate",       ".3f%%"),
+            Format("average_connection_time", "Average Connection", ".3f"),
             Format("hostname",                "Hostname",           "s"))
 
   separator = " " * 2
@@ -225,6 +232,8 @@ def plotter(f, hostnames, field, logscale = False):
   assert all(n == len(plotline) for plotline in plotlines)
   if "%%" in Host.format_dict[field].fmt:
     f.write('set format y "%.0f%%"\n')
+  else:
+    f.write('set format y\n')
   if logscale:
     f.write("set logscale y\n")
   else:

@@ -1184,7 +1184,8 @@ static int skip_checking_this_object(rcynic_ctx_t *rc,
   i = sk_validation_status_t_find(rc->validation_status, &v_);
   v = sk_validation_status_t_value(rc->validation_status, i);
 
-  if (v != NULL && validation_status_get_code(v, object_accepted))
+  if (v != NULL && (validation_status_get_code(v, object_accepted) ||
+		    validation_status_get_code(v, current_cert_recheck)))
     return 1;
 
   log_validation_status(rc, uri, current_cert_recheck, generation);

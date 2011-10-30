@@ -29,7 +29,8 @@ opt = {
   "use_colors"            : True,
   "show_detailed_status"  : True,
   "show_problems"         : False,
-  "show_summary"          : True }
+  "show_summary"          : True,
+  "one_file_per_section"  : False }
 
 def usage(msg = 0):
   f = sys.stderr if msg else sys.stdout
@@ -37,31 +38,36 @@ def usage(msg = 0):
   f.write("Options:\n")
   for i in sorted(opt):
     f.write("   --%s <value>   (default %s)\n" % (i, opt[i]))
+  if msg:
+    f.write("\n")
   sys.exit(msg)
 
 bool_map = {
   "yes" : True,  "y" : True,  "true"  : True,  "on"   : True,  "1" : True,
   "no"  : False, "n" : False, "false" : False, "off"  : False, "0" : False }
 
-opts, argv = getopt.getopt(sys.argv[1:], "h?", ["help"] + ["%s=" % s for s in opt])
-for o, a in opts:
-  try:
+try:
+  opts, argv = getopt.getopt(sys.argv[1:], "h?", ["help"] + ["%s=" % s for s in opt])
+  for o, a in opts:
     if o in ("-?", "-h", "--help"):
       usage(0)
     elif o == "--refresh":
       opt["refresh"] = int(a)
     else:
       opt[o[2:]] = bool_map[a.lower()]
-  except KeyError:
-    usage("Bad boolean value given to %s switch: %s" % (o, a))
-  except ValueError, e:
-    usage(str(e))
+except KeyError:
+  usage("Bad boolean value given to %s switch: %s" % (o, a))
+except (ValueError, getopt.GetoptError), e:
+  usage(str(e))
 
 input_file  = argv[0] if len(argv) > 0 else None
 output_file = argv[1] if len(argv) > 1 else None
 
 if len(argv) > 2:
   usage("Unexpected arguments")
+
+if opt["one_file_per_section"] and (output_file is None or "%s" not in output_file):
+  usage('--one_file_per_section" requires specifying an output file name containing %s')
 
 class Label(object):
 
@@ -90,6 +96,58 @@ class Validation_Status(object):
   def mood(self):
     return self.label.mood
 
+html = None
+body = None
+
+table_css = { "rules" : "all", "border" : "1"}
+uri_css   = { "class" : "uri" }
+
+def start_html(title):
+
+  global html
+  global body
+
+  html = Element("html")
+  html.append(Comment(" Generators:\n" +
+                      "  " + input.getroot().get("rcynic-version") + "\n" +
+                      "  $Id$\n"))
+  head = SubElement(html, "head")
+  body = SubElement(html, "body")
+
+  title += " " + input.getroot().get("date")
+  SubElement(head, "title").text = title
+  SubElement(body, "h1").text = title
+
+  if opt["refresh"]:
+    SubElement(head, "meta", { "http-equiv" : "Refresh", "content" : str(opt["refresh"]) })
+
+  SubElement(head, "style", type = "text/css").text = '''
+    th, td          { text-align: center; padding: 4px }
+    td.uri          { text-align: left }
+    thead tr th,
+    tfoot tr td     { font-weight: bold }
+'''
+
+  if opt["use_colors"]:
+    SubElement(head, "style", type = "text/css").text = '''
+    .good           { background-color: #77ff77 }
+    .warn           { background-color: yellow }
+    .bad            { background-color: #ff5500 }
+'''
+
+def finish_html(name = None):
+  global html
+  global body
+  if output_file is None:
+    output = sys.stdout
+  elif name is None:
+    output = output_file
+  else:
+    output = output_file % name
+  ElementTree(element = html).write(output)
+  html = None
+  body = None
+
 input = ElementTree(file = sys.stdin if input_file is None else input_file)
 labels = [Label(elt) for elt in input.find("labels")]
 label_map = dict((l.code, l) for l in labels)
@@ -98,37 +156,8 @@ del label_map
 if opt["suppress_zero_columns"]:
   labels = [l for l in labels if l.sum > 0]
 
-html = Element("html")
-html.append(Comment(" Generators:\n" +
-                    "  " + input.getroot().get("rcynic-version") + "\n" +
-                    "  $Id$\n"))
-head = SubElement(html, "head")
-body = SubElement(html, "body")
-
-title = "rcynic summary %s" % input.getroot().get("date")
-SubElement(head, "title").text = title
-SubElement(body, "h1").text = title
-del title
-
-if opt["refresh"]:
-  SubElement(head, "meta", { "http-equiv" : "Refresh", "content" : str(opt["refresh"]) })
-
-SubElement(head, "style", type = "text/css").text = '''
-  th, td          { text-align: center; padding: 4px }
-  td.uri          { text-align: left }
-  thead tr th,
-  tfoot tr td     { font-weight: bold }
-'''
-
-table_css = { "rules" : "all", "border" : "1"}
-uri_css   = { "class" : "uri" }
-
-if opt["use_colors"]:
-  SubElement(head, "style", type = "text/css").text = '''
-  .good           { background-color: #77ff77 }
-  .warn           { background-color: yellow }
-  .bad            { background-color: #ff5500 }
-'''
+if not opt["one_file_per_section"]:
+  start_html("rcynic summary")
 
 if opt["show_summary"]:
 
@@ -136,9 +165,12 @@ if opt["show_summary"]:
   unique_fn2s        = sorted(set(v.fn2        for v in validation_status))
   unique_generations = sorted(set(v.generation for v in validation_status))
 
+  if opt["one_file_per_section"]:
+    start_html("Grand Totals")
+  else:
+    SubElement(body, "br")
+    SubElement(body, "h2").text = "Grand Totals"
 
-  SubElement(body, "br")
-  SubElement(body, "h2").text = "Grand Totals"
   table = SubElement(body, "table", table_css)
   thead = SubElement(table, "thead")
   tfoot = SubElement(table, "tfoot")
@@ -158,17 +190,23 @@ if opt["show_summary"]:
           if value > 0:
             td.set("class", l.mood)
             td.text = str(value)
-
   tr = SubElement(tfoot, "tr")
   SubElement(tr, "td").text = "Total"
   for l in labels:
     SubElement(tr, "td", { "class" : l.mood }).text = str(l.sum)
 
-  SubElement(body, "br")
-  SubElement(body, "h2").text = "Summaries by Repository Host"
-  for hostname in unique_hostnames:
+  if opt["one_file_per_section"]:
+    finish_html("grand_totals")
+  else:
     SubElement(body, "br")
-    SubElement(body, "h3").text = hostname
+    SubElement(body, "h2").text = "Summaries by Repository Host"
+
+  for hostname in unique_hostnames:
+    if opt["one_file_per_section"]:
+      start_html("Summary for %s" % hostname)
+    else:
+      SubElement(body, "br")
+      SubElement(body, "h3").text = hostname
     table = SubElement(body, "table", table_css)
     thead = SubElement(table, "thead")
     tfoot = SubElement(table, "tfoot")
@@ -188,7 +226,6 @@ if opt["show_summary"]:
             if value > 0:
               td.set("class", l.mood)
               td.text = str(value)
-
     tr = SubElement(tfoot, "tr")
     SubElement(tr, "td").text = "Total"
     for l in labels:
@@ -197,11 +234,16 @@ if opt["show_summary"]:
       if value > 0:
         td.set("class", l.mood)
         td.text = str(value)
+    if opt["one_file_per_section"]:
+      finish_html("%s_summary" % hostname)
 
 if opt["show_problems"]:
 
-  SubElement(body, "br")
-  SubElement(body, "h2").text = "Problems"
+  if opt["one_file_per_section"]:
+    start_html("Problems")
+  else:
+    SubElement(body, "br")
+    SubElement(body, "h2").text = "Problems"
   table = SubElement(body, "table", table_css)
   thead = SubElement(table, "thead")
   tbody = SubElement(table, "tbody")
@@ -213,11 +255,16 @@ if opt["show_problems"]:
       tr = SubElement(tbody, "tr", { "class" : v.mood })
       SubElement(tr, "td").text = v.label.text
       SubElement(tr, "td", uri_css).text = v.uri
+  if opt["one_file_per_section"]:
+    finish_html("problems")
 
 if opt["show_detailed_status"]:
 
-  SubElement(body, "br")
-  SubElement(body, "h2").text = "Validation Status"
+  if opt["one_file_per_section"]:
+    start_html("Validation Status")
+  else:
+    SubElement(body, "br")
+    SubElement(body, "h2").text = "Validation Status"
   table = SubElement(body, "table", table_css)
   thead = SubElement(table, "thead")
   tbody = SubElement(table, "tbody")
@@ -232,5 +279,8 @@ if opt["show_detailed_status"]:
     SubElement(tr, "td").text = v.generation
     SubElement(tr, "td").text = v.label.text
     SubElement(tr, "td", uri_css).text = v.uri
+  if opt["one_file_per_section"]:
+    finish_html("validation_status")
 
-ElementTree(element = html).write(sys.stdout if output_file is None else output_file)
+if not opt["one_file_per_section"]:
+  finish_html()

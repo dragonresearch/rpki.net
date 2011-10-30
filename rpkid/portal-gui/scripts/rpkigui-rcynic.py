@@ -70,7 +70,7 @@ class rcynic_object(object):
                     # self-signed cert (TA)
                     inst.cert = inst
                 else:
-                    q = models.Cert.objects.filter(keyid=obj.aki)
+                    q = models.Cert.objects.filter(keyid=obj.aki, name=obj.issuer)
                     if q:
                         inst.issuer = q[0]
                     else:

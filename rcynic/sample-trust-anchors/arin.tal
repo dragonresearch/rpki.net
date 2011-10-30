@@ -1,4 +1,5 @@
-rsync://rpki-pilot.arin.net:10873/certrepo//e8/29afd2-319c-428f-b6b0-3528a7d24dcd/1/4789Xt9H2ltHuAXdrQ6GWXWH2Ao.cer
+rsync://rpki-pilot.arin.net:10873/certrepo/e8/29afd2-319c-428f-b6b0-3528a7d24dcd/1/4789Xt9H2ltHuAXdrQ6GWXWH2Ao.cer
+
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAgx/qMyRxeuWrnyHvrwZm
 X5GtTLGTkWEf3MojT1dgeOQ/iMZ4F/vWYClUJXYrNoiJnjWyjpkMwjlJmyL/1eGd
 Qjw+U0T9fJN3+QNOxZTMX0Kg6Ch5O/y+7z/qTQTMoSlrofYt/8YT/bhyBzKeih8G

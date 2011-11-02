@@ -1357,8 +1357,14 @@ def kick_all(serial):
     try:
       blather("# Kicking %s" % name)
       sock.sendto(msg, name)
-    except:
-      log("# Failed to kick %s" % name)
+    except socket.error:
+      try:
+        blather("# Failed to kick %s, probably dead socket, attempting cleanup" % name)
+        os.unlink(name)
+      except Exception, e:
+        blather("# Couldn't unlink suspected dead socket %s: %s" % (name, e))
+    except Exception, e:
+      log("# Failed to kick %s and don't understand why: %s" % (name, e))
   sock.close()
 
 def cronjob_main(argv):

@@ -20,15 +20,10 @@
 #
 # DO NOT EDIT!  This script is automatically generated from adduser.py
 
-import os
-os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
-
 from django.contrib.auth.models import User
 from rpki.gui.app import settings
 from rpki.gui.app.models import Conf
 
-import os
-import sys
 import getpass
 import pwd
 

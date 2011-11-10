@@ -17,9 +17,7 @@
 default_logfile = '/var/rcynic/data/summary.xml'
 default_root = '/var/rcynic/data'
 
-import os, sys, time, vobject
-os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
-
+import time, vobject
 from rpki.gui.cacheview import models
 from rpki.rcynic import rcynic_xml_iterator, label_iterator
 from rpki.sundial import datetime

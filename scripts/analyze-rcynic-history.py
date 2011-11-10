@@ -116,7 +116,9 @@ class Host(object):
 
   @property
   def average_connection_time(self):
-    return float(sum(c.elapsed.total_seconds() for c in self.connections)) / float(self.connection_count)
+    return (float(sum(((c.elapsed.days * 24 * 3600 + c.elapsed.seconds) * 10**6 + c.elapsed.microseconds)
+                      for c in self.connections)) /
+            float(self.connection_count * 10**6))
 
   class Format(object):
 
@@ -246,8 +248,10 @@ def plotter(f, hostnames, field, logscale = False):
           #set format x '%a%H'
           #set format x '%H:%M'
           #set format x '%a%H:%M'
-          set format x "%a\\n%H:%M"
-          set title '""" + title + """'
+          #set format x "%a\\n%H:%M"
+          #set format x "%m-%d\\n%H:%M"
+          set format x '%m/%d'
+          #set title '""" + title + """'
           plot""" + ",".join(" '-' using 1:2 with lines title '%s'" % h for h in hostnames) + "\n")
   for i in xrange(1, n):
     for plotline in plotlines:
@@ -280,8 +284,7 @@ if show_plot:
     hostnames = sorted(summary.hostnames)
   else:
     hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net", "rpki.afrinic.net",
-                 "arin.rpki.net", "rgnet.rpki.net",
-                 "rpki.surfnet.nl", "rpki.antd.nist.gov")
+                 "arin.rpki.net", "rgnet.rpki.net", "rpki.antd.nist.gov")
   fields = [fmt.attr for fmt in Host.format if fmt.attr not in ("scaled_elapsed", "hostname")]
   if plot_to_one:
     plot_one(hostnames, fields)

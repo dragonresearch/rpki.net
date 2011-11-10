@@ -1554,6 +1554,17 @@ static walk_ctx_t *walk_ctx_stack_head(STACK_OF(walk_ctx_t) *wsk)
 }
 
 /**
+ * Whether we're done iterating over a walk context.  Think of this as
+ * the thing you call (negated) in the second clause of a conceptual
+ * "for" loop.
+ */
+static int walk_ctx_loop_done(STACK_OF(walk_ctx_t) *wsk)
+{
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  return wsk == NULL || w == NULL || w->state >= walk_state_done;
+}
+
+/**
  * Walk context iterator.  Think of this as the thing you call in the
  * third clause of a conceptual "for" loop: this reinitializes as
  * necessary for the next pass through the loop.
@@ -1579,24 +1590,15 @@ static void walk_ctx_loop_next(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk
     return;
   }
 
-  if (w->state < walk_state_done) {
+  while (!walk_ctx_loop_done(wsk)) {
     w->state++;
     w->manifest_iteration = 0;
     w->filename_iteration = 0;
     sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
     w->filenames = directory_filenames(rc, w->state, &w->certinfo.sia);
+    if (w->manifest != NULL || w->filenames != NULL)
+      return;
   }
-}
-
-/**
- * Whether we're done iterating over a walk context.  Think of this as
- * the thing you call (negated) in the second clause of a conceptual
- * "for" loop.
- */
-static int walk_ctx_loop_done(STACK_OF(walk_ctx_t) *wsk)
-{
-  walk_ctx_t *w = walk_ctx_stack_head(wsk);
-  return wsk == NULL || w == NULL || w->state >= walk_state_done;
 }
 
 static int check_manifest(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk);

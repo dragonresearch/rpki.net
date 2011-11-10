@@ -1626,16 +1626,15 @@ static void walk_ctx_loop_init(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
   if (!w->manifest)
     logmsg(rc, log_telemetry, "Couldn't get manifest %s, blundering onward", w->certinfo.manifest.s);
 
+  w->manifest_iteration = 0;
+  w->filename_iteration = 0;
+  w->state++;
+  assert(w->state == walk_state_current);
+
   assert(w->filenames == NULL);
   w->filenames = directory_filenames(rc, w->state, &w->certinfo.sia);
 
   w->stale_manifest = w->manifest != NULL && X509_cmp_current_time(w->manifest->nextUpdate) < 0;
-
-  w->manifest_iteration = 0;
-  w->filename_iteration = 0;
-  w->state++;
-
-  assert(w->state == walk_state_current);
 
   while (!walk_ctx_loop_done(wsk) &&
 	 (w->manifest == NULL  || w->manifest_iteration >= sk_FileAndHash_num(w->manifest->fileList)) &&

@@ -243,14 +243,8 @@ def plotter(f, hostnames, field, logscale = False):
   f.write("""
           set xdata time
           set timefmt '%Y-%m-%dT%H:%M:%SZ'
-          #set format x '%H:%M:%S'
-          #set format x '%m-%d'
-          #set format x '%a%H'
-          #set format x '%H:%M'
-          #set format x '%a%H:%M'
-          #set format x "%a\\n%H:%M"
-          #set format x "%m-%d\\n%H:%M"
-          set format x '%m/%d'
+          #set format x '%m/%d'
+          set format x '%b%d'
           #set title '""" + title + """'
           plot""" + ",".join(" '-' using 1:2 with lines title '%s'" % h for h in hostnames) + "\n")
   for i in xrange(1, n):

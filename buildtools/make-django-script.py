@@ -1,7 +1,5 @@
 """
-Convert a Python script into an executable Python script.  Mostly this
-means constructing a header based on a few parameters supplied by
-autoconf.
+Prepend boilerplate required for scripts which make use of Django's ORM.
 
 $Id$
 
@@ -27,7 +25,9 @@ sys.stdout.write('''\
 # Automatically constructed script header
 
 import sys, os
-sys.path.append('%(AC_PYTHONPATH)s')
+# sys.path[0] is the cwd of the script being executed, so we add the
+# path to the settings.py file after it
+sys.path.insert(1, '%(AC_PYTHONPATH)s')
 os.environ['DJANGO_SETTINGS_MODULE'] = 'settings'
 
 # Original script starts here

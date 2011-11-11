@@ -28,8 +28,8 @@ fi
 
 AC_ARG_WITH([system_openssl], [AS_HELP_STRING([--with-system-openssl], [Link against system copy of OpenSSL])],       [], [with_system_openssl=auto])
 AC_ARG_ENABLE([openssl_asm],  [AS_HELP_STRING([--disable-openssl-asm], [Don't let OpenSSL build assembler code])],    [], [enable_openssl_asm=auto])
-AC_ARG_ENABLE([python],       [AS_HELP_STRING([--disable-python],      [Don't build any of the Python-based tools])], [], [enable_python=auto])
-AC_ARG_ENABLE([django],	      [AS_HELP_STRING([--disable-django],      [Don't build Django GUI])],		      [], [enable_django=auto])
+AC_ARG_ENABLE([python],       [AS_HELP_STRING([--disable-python],      [Don't build any of the Python-based tools])], [], [enable_python=yes])
+AC_ARG_ENABLE([django],	      [AS_HELP_STRING([--disable-django],      [Don't build Django GUI])],		      [], [enable_django=yes])
 
 AC_PROG_CC
 AC_PROG_INSTALL
@@ -252,6 +252,13 @@ else
 		have_django="no"
 	fi
 	AC_MSG_RESULT([$have_django])
+
+	if test $have_django = yes
+	then
+		AC_MSG_CHECKING([for Django 1.3 or higher])
+		django_recent=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3) else 'yes'"`
+		AC_MSG_RESULT([$django_recent])
+	fi
 fi
 
 # Hmm, perhaps --enable-python should have been --with-python,
@@ -279,7 +286,11 @@ case $enable_django in
      yes)	build_django=yes
 		if test $have_django = no
 		then
-			AC_MSG_WARN([You don't appear to have Django installed (but I'll try to build the Django-based GUI anyway)])
+			AC_MSG_ERROR([You don't appear to have Django installed])
+		fi
+		if test $django_recent = no
+		then
+			AC_MSG_ERROR([The portal gui requires Django 1.3 or higher])
 		fi
 		;;
      no)	build_django=no

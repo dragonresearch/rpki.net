@@ -66,8 +66,11 @@ install-data: $(BUILD) install-apache
 	mkdir -p `dirname $(DATABASE_PATH)`
 	mkdir -p ${PYTHONPATH}
 	# FIXME should eventually try to merge new settings?
-	if [ ! -f ${PYTHONPATH}/settings.py ]; then \
+	@if [ ! -f ${PYTHONPATH}/settings.py ]; then \
 	    ${INSTALL} -m 644 settings.py ${PYTHONPATH}; \
+	else \
+	    echo "${PYTHONPATH}/settings.py already exists, installing settings.py as ${PYTHONPATH}/settings.py.new"; \
+	    ${INSTALL} -m 644 settings.py ${PYTHONPATH}/settings.py.new; \
 	fi
 	$(DJANGO_ADMIN) syncdb --pythonpath ${PYTHONPATH} --settings settings
 	$(DJANGO_ADMIN) collectstatic --noinput --pythonpath ${PYTHONPATH} --settings settings

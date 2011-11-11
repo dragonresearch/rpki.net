@@ -21,6 +21,7 @@ sysconfdir	= @sysconfdir@
 bindir		= @bindir@
 sbindir		= @sbindir@
 libexecdir	= @libexecdir@
+sysconfdir	= @sysconfdir@
 
 abs_builddir	= @abs_builddir@
 abs_top_srcdir	= @abs_top_srcdir@
@@ -47,7 +48,7 @@ SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpk
 
 AUX_SCRIPTS =
 
-SETTINGS = rpki/gui/settings.py rpki/gui/app/settings.py
+SETTINGS = portal-gui/settings.py rpki/gui/app/settings.py portal-gui/apache/rpki.wsgi
 
 all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS}
 
@@ -190,15 +191,22 @@ COMPILE_PYTHON = \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; \
 	chmod 555 $@
 
+COMPILE_DJANGO = \
+	rm -f $@; \
+	AC_PYTHON_INTERPRETER='${PYTHON}' \
+	AC_PYTHONPATH='${DESTDIR}${sysconfdir}/rpki' \
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-django-script.py <$? >$@; \
+	chmod 555 $@
+
 COMPILE_SETTINGS = \
 	rm -f $@; \
 	AC_DATABASE_PATH='${DESTDIR}${localstatedir}/rpki/gui.db' \
 	AC_SECRET_KEY='${SECRET_KEY}' \
-	AC_MYRPKI='${DESTDIR}${sbindir}/myrpki' \
 	AC_LOCALSTATEDIR='${DESTDIR}${localstatedir}' \
 	AC_WEBUSER='${WEBUSER}' \
 	AC_DATAROOTDIR='${DESTDIR}${datarootdir}' \
 	AC_DJANGO_DIR='${DJANGO_DIR}' \
+	AC_SYSCONFDIR='${DESTDIR}${sysconfdir}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@
 
 rpki-sql-backup: rpki-sql-backup.py
@@ -229,18 +237,21 @@ rpkid: rpkid.py
 	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-load-csv: portal-gui/scripts/load_csv.py
-	${COMPILE_PYTHON}
+	${COMPILE_DJANGO}
 
 portal-gui/scripts/rpkigui-add-user: portal-gui/scripts/adduser.py
-	${COMPILE_PYTHON}
+	${COMPILE_DJANGO}
 
 portal-gui/scripts/rpkigui-rcynic: portal-gui/scripts/rpkigui-rcynic.py
-	${COMPILE_PYTHON}
+	${COMPILE_DJANGO}
 
 portal-gui/scripts/rpkigui-response: portal-gui/scripts/rpkigui-response.py
-	${COMPILE_PYTHON}
+	${COMPILE_DJANGO}
 
-rpki/gui/settings.py: ${srcdir}/rpki/gui/settings.py.in
+portal-gui/apache/rpki.wsgi: ${srcdir}/portal-gui/apache/rpki.wsgi.in
+	${COMPILE_DJANGO}
+
+portal-gui/settings.py: ${srcdir}/portal-gui/settings.py.in
 	${COMPILE_SETTINGS}
 
 rpki/gui/app/settings.py: ${srcdir}/rpki/gui/app/settings.py.in

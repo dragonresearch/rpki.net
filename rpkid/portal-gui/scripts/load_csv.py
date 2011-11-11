@@ -23,9 +23,6 @@
 # for the handle you are loading data
 #
 
-import os
-os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
-
 import csv
 import socket # for socket.error
 

@@ -94,16 +94,10 @@ def PrefixRoaForm(prefix, *args, **kwargs):
     class _wrapper(forms.Form):
         asns = forms.CharField(max_length=200, required=False,
                 help_text='Comma-separated list of ASNs')
-        max_length = forms.IntegerField(required=False,
-                min_value=prefix_range.prefixlen(),
+        max_length = forms.IntegerField(min_value=prefix_range.prefixlen(),
                 max_value=prefix_range.datum_type.bits,
-                help_text='optional, defaults to /%d' % prefix_range.prefixlen())
-
-        def clean_max_length(self):
-            v = self.cleaned_data.get('max_length')
-            if not v:
-                v = prefix_range.prefixlen()
-            return v
+                initial=prefix_range.prefixlen(),
+                help_text='must be in range %d-%d' % (prefix_range.prefixlen(), prefix_range.datum_type.bits))
 
         def clean_asns(self):
             try:

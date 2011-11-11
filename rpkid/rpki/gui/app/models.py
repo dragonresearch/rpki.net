@@ -50,6 +50,23 @@ class Conf(models.Model):
     def __unicode__(self):
 	return self.handle
 
+class Child(models.Model):
+    conf = models.ForeignKey(Conf, related_name='children')
+    handle = HandleField() # parent's name for child
+    valid_until = models.DateTimeField(help_text='date and time when authorization to use delegated resources ends')
+
+    def __unicode__(self):
+	return u"%s's child %s" % (self.conf, self.handle)
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.child_view', [self.handle])
+
+    class Meta:
+	verbose_name_plural = "children"
+        # children of a specific configuration should be unique
+        unique_together = ('conf', 'handle')
+
 class AddressRange(models.Model):
     '''An address range/prefix.'''
     lo = IPAddressField(blank=False)
@@ -97,29 +114,6 @@ class AddressRange(models.Model):
             return False
         return True
 
-class RoaRequest(models.Model):
-    roa = models.ForeignKey('Roa', related_name='from_roa_request')
-    max_length = models.IntegerField()
-    prefix = models.ForeignKey('AddressRange', related_name='roa_requests')
-
-    def __unicode__(self):
-        return u'roa request for asn %d on %s-%d' % (self.roa.asn, self.prefix,
-                self.max_length)
-
-    def as_roa_prefix(self):
-        '''Convert to a rpki.resouce_set.roa_prefix subclass.'''
-        r = self.prefix.as_resource_range()
-        if isinstance(r, rpki.resource_set.resource_range_ipv4):
-            return rpki.resource_set.roa_prefix_ipv4(r.min, r.prefixlen(),
-                    self.max_length)
-        else:
-            return rpki.resource_set.roa_prefix_ipv6(r.min, r.prefixlen(),
-                    self.max_length)
-
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.app.views.roa_request_view', [str(self.pk)])
-
 class Asn(models.Model):
     '''An ASN or range thereof.'''
     lo = models.IntegerField(blank=False)
@@ -128,7 +122,7 @@ class Asn(models.Model):
     parent = models.ForeignKey('Asn', related_name='children',
             blank=True, null=True)
     # child to which this resource is delegated
-    allocated = models.ForeignKey('Child', related_name='asn',
+    allocated = models.ForeignKey(Child, related_name='asn',
             blank=True, null=True)
 
     class Meta:
@@ -151,23 +145,6 @@ class Asn(models.Model):
         # the type of both arguments to be identical, and models.IntegerField
         # will be a long when the value is large
         return rpki.resource_set.resource_range_as(long(self.lo), long(self.hi))
-
-class Child(models.Model):
-    conf = models.ForeignKey(Conf, related_name='children')
-    handle = HandleField() # parent's name for child
-    valid_until = models.DateTimeField(help_text='date and time when authorization to use delegated resources ends')
-
-    def __unicode__(self):
-	return u"%s's child %s" % (self.conf, self.handle)
-
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.app.views.child_view', [self.handle])
-
-    class Meta:
-	verbose_name_plural = "children"
-        # children of a specific configuration should be unique
-        unique_together = ('conf', 'handle')
 
 class Parent(models.Model):
     conf = models.ForeignKey(Conf, related_name='parents')
@@ -225,6 +202,29 @@ class Roa(models.Model):
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.app.views.roa_view', [str(self.pk)])
+
+class RoaRequest(models.Model):
+    roa = models.ForeignKey(Roa, related_name='from_roa_request')
+    max_length = models.IntegerField()
+    prefix = models.ForeignKey(AddressRange, related_name='roa_requests')
+
+    def __unicode__(self):
+        return u'roa request for asn %d on %s-%d' % (self.roa.asn, self.prefix,
+                self.max_length)
+
+    def as_roa_prefix(self):
+        '''Convert to a rpki.resouce_set.roa_prefix subclass.'''
+        r = self.prefix.as_resource_range()
+        if isinstance(r, rpki.resource_set.resource_range_ipv4):
+            return rpki.resource_set.roa_prefix_ipv4(r.min, r.prefixlen(),
+                    self.max_length)
+        else:
+            return rpki.resource_set.roa_prefix_ipv6(r.min, r.prefixlen(),
+                    self.max_length)
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.roa_request_view', [str(self.pk)])
 
 class Ghostbuster(models.Model):
     """

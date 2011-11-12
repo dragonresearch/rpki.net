@@ -114,8 +114,8 @@ h2 { text-align:center; background-color:#dddddd }
 {% endif %}
 
 <p>
-Export (csv): <a href="{% url rpki.gui.app.views.download_asns request.session.handle %}">asns</a> |
-<a href="{% url rpki.gui.app.views.download_prefixes request.session.handle %}">prefixes</a>
+Export resources delegated to children (csv): <a href="{% url rpki.gui.app.views.download_asns request.session.handle %}" title="ASs delegated to children">asns</a> |
+<a href="{% url rpki.gui.app.views.download_prefixes request.session.handle %}" title="prefixes delegated to children">prefixes</a>
 
 </div>
 

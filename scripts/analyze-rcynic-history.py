@@ -277,8 +277,7 @@ if show_plot:
   if plot_all_hosts:
     hostnames = sorted(summary.hostnames)
   else:
-    hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net", "rpki.afrinic.net",
-                 "arin.rpki.net", "rgnet.rpki.net", "rpki.antd.nist.gov")
+    hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net", "rpki.afrinic.net", "arin.rpki.net", "rgnet.rpki.net")
   fields = [fmt.attr for fmt in Host.format if fmt.attr not in ("scaled_elapsed", "hostname")]
   if plot_to_one:
     plot_one(hostnames, fields)

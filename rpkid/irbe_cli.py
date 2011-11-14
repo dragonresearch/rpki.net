@@ -331,7 +331,7 @@ if q_msg_publication:
     client_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-irbe-cert")),
     server_ta   = rpki.x509.X509(Auto_file = cfg.get("pubd-bpki-ta")),
     server_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-cert")),
-    url         = cfg.get("pubd-url")),
-    debug       = verbose)
+    url         = cfg.get("pubd-url"),
+    debug       = verbose))
 
   call_pubd(*q_msg_publication)

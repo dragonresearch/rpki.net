@@ -286,11 +286,11 @@ case $enable_django in
      yes)	build_django=yes
 		if test $have_django = no
 		then
-			AC_MSG_ERROR([You don't appear to have Django installed])
+			AC_MSG_ERROR([You don't appear to have Django installed.  Django is required for the RPKI portal gui.  If you do not wish to install the gui, please specify --disable-django as an argument to this configure script.])
 		fi
 		if test $django_recent = no
 		then
-			AC_MSG_ERROR([The portal gui requires Django 1.3 or higher])
+			AC_MSG_ERROR([The portal gui requires Django 1.2 or higher])
 		fi
 		;;
      no)	build_django=no

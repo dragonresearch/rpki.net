@@ -73,7 +73,7 @@ install-data: $(BUILD) install-apache
 	    ${INSTALL} -m 644 settings.py ${PYTHONPATH}/settings.py.new; \
 	fi
 	$(DJANGO_ADMIN) syncdb --pythonpath ${PYTHONPATH} --settings settings
-	$(DJANGO_ADMIN) collectstatic --noinput --pythonpath ${PYTHONPATH} --settings settings
+	#$(DJANGO_ADMIN) collectstatic --noinput --pythonpath ${PYTHONPATH} --settings settings
 	if [ ! -f $(INSTDIR)/rpki.conf.template ]; then ${INSTALL} -m 644 ../examples/rpki.conf $(INSTDIR)/rpki.conf.template; fi
 
 install: install-data install-perms

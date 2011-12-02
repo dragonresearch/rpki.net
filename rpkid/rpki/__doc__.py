@@ -42,7 +42,7 @@
 #
 # The RPKI Engine is an implementation of the production-side tools
 # for generating certificates, CRLs, and ROAs.  The
-# <a href="http://subvert-rpki.hactrn.net/rcynic/">relying party tools</a>
+# <a href="http://subvert-rpki.hactrn.net/trunk/rcynic/">relying party tools</a>
 # are a separate (and much simpler) package.
 #
 # The Subversion repository for the entire project is available for
@@ -50,7 +50,7 @@
 #
 # The documentation you're reading is generated automatically by
 # Doxygen from comments and documentation in
-# <a href="http://subvert-rpki.hactrn.net/rpkid/rpki/">the code</a>.
+# <a href="http://subvert-rpki.hactrn.net/trunk/rpkid/rpki/">the code</a>.
 #
 # Besides the automatically-generated code documentation, this manual
 # also includes documentation of the overall package:
@@ -319,7 +319,7 @@
 # If you're interested in this package you might also be interested
 # in:
 #
-# @li <a href="http://subvert-rpki.hactrn.net/rcynic/">The rcynic validation tool</a>
+# @li <a href="http://subvert-rpki.hactrn.net/trunk/rcynic/">The rcynic validation tool</a>
 #
 # @li <a href="http://www.hactrn.net/opaque/rcynic.html">A live sample of rcynic's summary output</a>
 #

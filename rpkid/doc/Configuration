@@ -1,4 +1,4 @@
-RPKI EngineÂ 1.0
+RPKI Engine Â 1.0
 
 * MainÂ_Page
 * RelatedÂ_Pages
@@ -9,7 +9,7 @@ RPKI EngineÂ 1.0
 
 * RPKI_Engine_Reference_Manual
 
-****** Configuration Guide ******
+Configuration Guide
 
 This section describes the configuration file syntax and settings.
 
@@ -53,15 +53,24 @@ globally unique, but should be chosen with an eye towards debugging operational
 problems: it's best if you use a handle that your parents and children will
 recognize as being you.
 
+  # Directory where we look for various files.  Default is the current
+  # directory, you might want to change this.
+
+  configuration_directory         = .
+
   # Names of various files and directories.  Don't change these without
   # a good reason.
 
-  roa_csv                         = roas.csv
-  prefix_csv                      = prefixes.csv
-  asn_csv                         = asns.csv
-  xml_filename                    = myrpki.xml
-  bpki_resources_directory        = bpki/resources
-  bpki_servers_directory          = bpki/servers
+  roa_csv                         = ${myrpki::configuration_directory}/roas.csv
+  prefix_csv                      = ${myrpki::configuration_directory}/
+  prefixes.csv
+  asn_csv                         = ${myrpki::configuration_directory}/asns.csv
+  xml_filename                    = ${myrpki::configuration_directory}/
+  myrpki.xml
+  bpki_resources_directory        = ${myrpki::configuration_directory}/bpki/
+  resources
+  bpki_servers_directory          = ${myrpki::configuration_directory}/bpki/
+  servers
 
 The myrpki tool requires filenames for several input data files, the "business
 PKI" databases used to secure CMS and TLS communications, and the XML

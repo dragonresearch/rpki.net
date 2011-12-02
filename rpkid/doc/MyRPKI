@@ -1,4 +1,4 @@
-RPKI EngineÂ 1.0
+RPKI Engine Â 1.0
 
 * MainÂ_Page
 * RelatedÂ_Pages
@@ -7,7 +7,7 @@ RPKI EngineÂ 1.0
 * Files
 *  [Search              ]
 
-****** The myrpki tool ******
+The myrpki tool
 
 The design of rpkid and friends assumes that certain tasks can be thrown over
 the wall to the registry's back end operation.

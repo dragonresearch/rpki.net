@@ -37,5 +37,6 @@ SOURCE="$1" perl -0777 -pe '
   s/\|\\}/}/g;
   s/{\n/{\n\tedge [arrowtail=none, arrowhead=crow];\n/;
   s/\[arrowhead=normal\]/[arrowtail=none, arrowhead=crow]/g;
+  s/\[arrowhead=empty\]/[arrowtail=none, arrowhead=oinv]/g;
   s=^=// Automatically generated from $ENV{SOURCE}\n\n=;
 '

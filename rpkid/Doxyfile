@@ -609,6 +609,15 @@ WARN_LOGFILE           =
 # with spaces.
 
 INPUT                  = rpki \
+                         rpki/gui \
+                         rpki/gui/app \
+                         rpki/gui/app/templates \
+                         rpki/gui/app/templates/registration \
+                         rpki/gui/app/templates/rpkigui \
+                         rpki/gui/cacheview \
+                         rpki/gui/cacheview/templates \
+                         rpki/gui/cacheview/templates/cacheview \
+                         rpki/gui/templates \
                          rpkid.py \
                          pubd.py \
                          irdbd.py \

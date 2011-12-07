@@ -69,15 +69,22 @@ for table in tables:
 
 from django.conf import settings
 
-settings.configure(DATABASES = { "default" : {
-  "ENGINE"   : "django.db.backends.mysql",
-  "NAME"     : sql_database,
-  "USER"     : sql_username,
-  "PASSWORD" : sql_password,
-  "HOST"     : "",
-  "PORT"     : "" }})
+settings.configure(
+  DATABASES = { "default" : {
+    "ENGINE"   : "django.db.backends.mysql",
+    "NAME"     : sql_database,
+    "USER"     : sql_username,
+    "PASSWORD" : sql_password,
+    "HOST"     : "",
+    "PORT"     : "" }},
+  INSTALLED_APPS = ("rpki.irdb",),
+)
 
 import rpki.irdb
+
+import django.core.management
+
+django.core.management.call_command("syncdb", verbosity = 4)
 
 def ns(tag):
   return "{http://www.hactrn.net/uris/rpki/myrpki/}" + tag

@@ -5,6 +5,8 @@ This is the back-end code's interface to the database.  It's intended
 to be usable by command line programs and other scripts, not just
 Django GUI code, so be careful.
 
+$Id$
+
 Copyright (C) 2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any

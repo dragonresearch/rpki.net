@@ -4,6 +4,8 @@ Merge XML entitydb and OpenSSL command-line BPKI into SQL IRDB.
 This is a work in progress, don't use it unless you really know what
 you're doing.
 
+$Id$
+
 Copyright (C) 2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any

@@ -50,6 +50,8 @@ sql_database = cfg.get("sql-database")
 sql_username = cfg.get("sql-username")
 sql_password = cfg.get("sql-password")
 
+# Rename the old SQL tables, if they exist
+
 db = MySQLdb.connect(user = sql_username, db = sql_database, passwd = sql_password)
 cur = db.cursor()
 
@@ -67,6 +69,8 @@ for table in tables:
     print "Renaming %s to old_%s" % (table, table)
     cur.execute("ALTER TABLE %s RENAME TO old_%s" % (table, table))
 
+# Configure the Django model system
+
 from django.conf import settings
 
 settings.configure(
@@ -82,21 +86,71 @@ settings.configure(
 
 import rpki.irdb
 
+# Create the model-based tables if they don't already exist
+
 import django.core.management
 
-django.core.management.call_command("syncdb", verbosity = 4)
+django.core.management.call_command("syncdb", verbosity = 4, load_initial_data = False)
 
-def ns(tag):
-  return "{http://www.hactrn.net/uris/rpki/myrpki/}" + tag
+# From here down will be an awful lot of messing about with XML and
+# X.509 data, extracting stuff from the old database and whacking it
+# into the new.  Still working out these bits.
+
+xmlns = "{http://www.hactrn.net/uris/rpki/myrpki/}"
+
+tag_authorization    = xmlns + "authorization"
+tag_bpki_child_ta    = xmlns + "bpki_child_ta"
+tag_bpki_client_ta   = xmlns + "bpki_client_ta"
+tag_bpki_resource_ta = xmlns + "bpki_resource_ta"
+tag_bpki_server_ta   = xmlns + "bpki_server_ta"
+tag_bpki_ta          = xmlns + "bpki_ta"
+tag_contact_info     = xmlns + "contact_info"
+tag_identity         = xmlns + "identity"
+tag_parent           = xmlns + "parent"
+tag_repository       = xmlns + "repository"
 
 e = ElementTree(file = os.path.join(entitydb, "identity.xml")).getroot()
+assert e.tag == tag_identity
 
-t = ns("identity")
+handle = e.get("handle")
 
-if e.tag == t:
-  print "Found", t, "handle", e.get("handle")
-else:
-  print "Didn't find", t, "found", e.tag, "instead, oops"
+# Check handle against what's in rpki.conf?
+
+# Create identity if we haven't already
+
+identity = rpki.irdb.Identity.objects.get_or_create(handle = handle)[0]
+
+# Copy over any ROA requests
+
+cur.execute("""
+            SELECT roa_request_id, asn FROM old_roa_request
+            WHERE roa_request_handle = %s
+            """, (handle,))
+for roa_request_id, asn in cur.fetchall():
+  roa_request = rpki.irdb.ROARequest.objects.get_or_create(identity = identity, asn = asn)[0]
+  cur.execute("""
+              SELECT prefix, prefixlen, max_prefixlen, version FROM old_roa_request_prefix
+              WHERE roa_request_id = %s
+              """, (roa_request_id,))
+  for prefix, prefixlen, max_prefixlen, version in cur.fetchall():
+    rpki.irdb.ROARequestPrefix.objects.get_or_create(
+      roa_request = roa_request,
+      version = version,
+      prefix = prefix,
+      prefixlen = prefixlen,
+      max_prefixlen = max_prefixlen)
+
+# Copy over any Ghostbuster requests.  This doesn't handle
+# Ghostbusters bound to specific parents yet, because I haven't yet
+# written the code to copy parent objects from entitydb.
+
+cur.execute("""
+            SELECT vcard FROM old_ghostbuster_request
+            WHERE self_handle = %s AND parent_handle IS NULL
+            """, (handle,))
+for row in cur.fetchall():
+  rpki.irdb.GhostbusterRequest.objects.get_or_create(identity = identity, vcard = row[0],
+                                                     defaults = { "parent" : None })
 
 cur.close()
 db.close()

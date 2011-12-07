@@ -64,10 +64,17 @@ class BinaryField(django.db.models.Field):
     else:
       return "BLOB"
 
-## @var IP_VERSION_MAP
-# Choice map for IP version enumerations.
+## @var ip_version_map
+# Custom choice map for IP version enumerations, so we can use the
+# obvious numeric values in the database, which is a bit easier on
+# anybody reading the raw SQL.
+#
+ip_version_map = { "IPv4" : 4, "IPv6" : 6 }
 
-IP_VERSION_MAP = ChoiceMap("IPv4", "IPv6")
+## @var ip_version_choices
+# Choice argument for fields implementing IP version numbers.
+#
+ip_version_choices = [(y, x) for (x, y) in ip_version_map.iteritems()]
 
 ###
 
@@ -113,8 +120,8 @@ class ChildNet(django.db.models.Model):
   child_net_id = django.db.models.BigIntegerField(unique = True)
   start_ip = django.db.models.CharField(max_length = 40)
   end_ip   = django.db.models.CharField(max_length = 40)
-  version_map = IP_VERSION_MAP
-  version = django.db.models.PositiveSmallIntegerField(choices = version_map.choices)
+  version_map = ip_version_map
+  version = django.db.models.PositiveSmallIntegerField(choices = ip_version_choices)
   child = django.db.models.ForeignKey(Child, related_name = "address_ranges")
 
 class Parent(BPKICertificate):
@@ -129,13 +136,12 @@ class Parent(BPKICertificate):
 
 class ROARequest(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity, related_name = "roa_requests")
-  handle = HandleField()
   asn = django.db.models.BigIntegerField()
 
 class ROARequestPrefix(django.db.models.Model):
   roa_request = django.db.models.ForeignKey(ROARequest, related_name = "prefixes")
-  version_map = IP_VERSION_MAP
-  version = django.db.models.PositiveSmallIntegerField(choices = version_map.choices)
+  version_map = ip_version_map
+  version = django.db.models.PositiveSmallIntegerField(choices = ip_version_choices)
   prefix = django.db.models.CharField(max_length = 40)
   prefixlen = django.db.models.PositiveSmallIntegerField()
   max_prefixlen = django.db.models.PositiveSmallIntegerField()

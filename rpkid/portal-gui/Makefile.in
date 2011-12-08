@@ -17,16 +17,11 @@ libexecdir=@libexecdir@
 sysconfdir=@sysconfdir@
 
 WEBUSER=@WEBUSER@
-DJANGO_ADMIN=@DJANGO_ADMIN@
-PYTHON=@PYTHON@
-DJANGO_DIR=@DJANGO_DIR@
 
 INSTALL = @INSTALL@
 
 CONFDIR=${DESTDIR}$(localstatedir)/rpki/conf
-DATABASE_PATH=${DESTDIR}$(localstatedir)/rpki/gui.db
 INSTDIR=${DESTDIR}$(datarootdir)/rpki/gui
-STATIC_DIR=${INSTDIR}/static
 PYTHONPATH=${DESTDIR}${sysconfdir}/rpki
 
 # automatically built sources
@@ -42,9 +37,7 @@ distclean: clean
 	rm -f Makefile
 
 edit = sed \
-	-e 's|@DJANGO_DIR[@]|$(DJANGO_DIR)|g' \
-	     -e 's|@INSTDIR[@]|$(INSTDIR)|g' \
-	     -e 's|@STATIC_DIR[@]|$(STATIC_DIR)|g'
+	     -e 's|@INSTDIR[@]|$(INSTDIR)|g'
 
 apache/rpki.conf: $(srcdir)/apache/rpki.conf.in Makefile
 	$(edit) $@.in > $@
@@ -52,8 +45,6 @@ apache/rpki.conf: $(srcdir)/apache/rpki.conf.in Makefile
 .PHONY: install-perms install-data install
 
 install-perms:
-	chown $(WEBUSER) `dirname $(DATABASE_PATH)`
-	chown $(WEBUSER) $(DATABASE_PATH)
 	mkdir -p $(CONFDIR)
 	chown -R $(WEBUSER) $(CONFDIR)
 
@@ -63,7 +54,6 @@ install-apache:
 	${INSTALL} -m 644 apache/rpki.wsgi $(INSTDIR)/apache
 
 install-data: $(BUILD) install-apache
-	mkdir -p `dirname $(DATABASE_PATH)`
 	mkdir -p ${PYTHONPATH}
 	# FIXME should eventually try to merge new settings?
 	@if [ ! -f ${PYTHONPATH}/settings.py ]; then \
@@ -72,8 +62,6 @@ install-data: $(BUILD) install-apache
 	    echo "${PYTHONPATH}/settings.py already exists, installing settings.py as ${PYTHONPATH}/settings.py.new"; \
 	    ${INSTALL} -m 644 settings.py ${PYTHONPATH}/settings.py.new; \
 	fi
-	$(DJANGO_ADMIN) syncdb --pythonpath ${PYTHONPATH} --settings settings
-	#$(DJANGO_ADMIN) collectstatic --noinput --pythonpath ${PYTHONPATH} --settings settings
 	if [ ! -f $(INSTDIR)/rpki.conf.template ]; then ${INSTALL} -m 644 ../examples/rpki.conf $(INSTDIR)/rpki.conf.template; fi
 
 install: install-data install-perms

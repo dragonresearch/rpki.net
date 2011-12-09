@@ -38,7 +38,7 @@ class ChoiceMap(dict):
 
   @property
   def choices(self):
-    return [(y, x) for (x, y) in self.iteritems()]
+    return tuple((y, x) for (x, y) in self.iteritems())
 
 class HandleField(django.db.models.CharField):
   """
@@ -74,42 +74,47 @@ ip_version_map = { "IPv4" : 4, "IPv6" : 6 }
 ## @var ip_version_choices
 # Choice argument for fields implementing IP version numbers.
 #
-ip_version_choices = [(y, x) for (x, y) in ip_version_map.iteritems()]
+ip_version_choices = tuple((y, x) for (x, y) in ip_version_map.iteritems())
 
 ###
 
 class Identity(django.db.models.Model):
   handle = HandleField()
 
-class BPKICertificate(django.db.models.Model):
-  certificate = BinaryField()
+class CA(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity, related_name = "bpki_certificates")
-
-class BPKIKey(BPKICertificate):
-  purpose_map = ChoiceMap("resource_ta", "server_ta", "rpkid", "pubd", "irdbd", "irbe")
+  purpose_map = ChoiceMap("resources", "servers")
   purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
+  certificate = BinaryField()
   private_key = BinaryField()
+  next_serial = django.db.models.BigIntegerField(default = 1)
+  next_crl_number = django.db.models.BigIntegerField(default = 1)
+  last_crl_update = django.db.models.DateTimeField()
+  next_crl_update = django.db.models.DateTimeField()
 
-class BSC(BPKICertificate):
-  pkcs10 = BinaryField()
+class Certificate(django.db.models.Model):
+  issuer = django.db.models.ForeignKey(CA, related_name = "certificates")
+  certificate = BinaryField()
 
-class BPKICRL(django.db.models.Model):
-  serial = django.db.models.BigIntegerField()
-  thisupdate = django.db.models.DateTimeField()
-  nextupdate = django.db.models.DateTimeField()
-  issuer = django.db.models.OneToOneField(BPKICertificate, related_name = "crl")
-
-class BPKIRevocation(django.db.models.Model):
+class Revocation(django.db.models.Model):
+  issuer = django.db.models.ForeignKey(CA, related_name = "revocations")
   serial = django.db.models.BigIntegerField()
   revoked = django.db.models.DateTimeField()
   expires = django.db.models.DateTimeField()
-  crl = django.db.models.ForeignKey(BPKICRL, related_name = "revocations")
 
-class Child(BPKICertificate):
+class EECertificate(Certificate):
+  purpose_map = ChoiceMap("rpkid", "pubd", "irdbd", "irbe", "rootd")
+  purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
+  private_key = BinaryField()
+
+class BSC(Certificate):
+  pkcs10 = BinaryField()
+
+class Child(Certificate):
   handle = HandleField()
-  name = django.db.models.TextField(blank = True)
+  name = django.db.models.TextField(null = True, blank = True)
   valid_until = django.db.models.DateTimeField()
-  bpki_ta = BinaryField()
+  ta = BinaryField()
 
 class ChildASN(django.db.models.Model):
   start_as = django.db.models.BigIntegerField()
@@ -124,11 +129,11 @@ class ChildNet(django.db.models.Model):
   version = django.db.models.PositiveSmallIntegerField(choices = ip_version_choices)
   child = django.db.models.ForeignKey(Child, related_name = "address_ranges")
 
-class Parent(BPKICertificate):
+class Parent(Certificate):
   handle = HandleField()
   parent_handle = HandleField()
   child_handle  = HandleField()
-  bpki_ta = BinaryField()
+  ta = BinaryField()
   service_uri = django.db.models.CharField(max_length = 255)
   repository_type_map = ChoiceMap("none", "offer", "referral")
   repository_type = django.db.models.PositiveSmallIntegerField(choices = repository_type_map.choices)
@@ -151,7 +156,7 @@ class GhostbusterRequest(django.db.models.Model):
   parent = django.db.models.ForeignKey(Parent,     related_name = "ghostbuster_requests", null = True)
   vcard = django.db.models.TextField()
 
-class Repository(BPKICertificate):
+class Repository(Certificate):
   handle = HandleField()
   client_handle = HandleField()
   bpki_ta = BinaryField()
@@ -159,6 +164,6 @@ class Repository(BPKICertificate):
   sia_base = django.db.models.TextField()
   parent = django.db.models.OneToOneField(Parent, related_name = "repository")
 
-class Client(BPKICertificate):
+class Client(Certificate):
   handle = HandleField()
   bpki_ta = BinaryField()

@@ -64,8 +64,10 @@ rpm deb:: all
 deb::
 	cd dist; for i in *.rpm; do case $$i in *.src.rpm) :;; *) (set -x; fakeroot alien -v $$i);; esac; done
 
-rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
-	${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py >$@.tmp
+RNGS = left-right-schema.rng up-down-schema.rng publication-schema.rng myrpki.rng
+
+rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS}
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS} >$@.tmp
 	mv $@.tmp $@
 
 left-right-schema.rng: left-right-schema.rnc

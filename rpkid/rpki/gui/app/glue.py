@@ -28,17 +28,22 @@ from rpki.gui.app import models, settings
 
 def confpath(*handle):
     """
-    Return the absolute pathname to the configuration directory for
-    the given resource handle.  If additional arguments are given, they
-    are taken to mean files/subdirectories.
+    Return the absolute pathname to the configuration directory for the
+    given resource handle.  If additional arguments are given, they are
+    taken to mean files/subdirectories relative to the configuration
+    directory.
+
     """
     argv = [ settings.CONFDIR ]
     argv.extend(handle)
     return os.path.join(*argv)
 
 def read_file_from_handle(handle, fname):
-    """read a filename relative to the directory for the given resource handle.  returns
-    a tuple of (content, mtime)"""
+    """
+    read a filename relative to the directory for the given resource
+    handle.  returns a tuple of (content, mtime)
+
+    """
     with open(confpath(handle, fname), 'r') as fp:
         data = fp.read()
         mtime = os.fstat(fp.fileno())[stat.ST_MTIME]
@@ -47,21 +52,21 @@ def read_file_from_handle(handle, fname):
 read_identity = lambda h: read_file_from_handle(h, 'entitydb/identity.xml')[0]
 
 def output_asns(path, handle):
-    '''Write out csv file containing asns delegated to my children.'''
+    """Write out csv file containing asns delegated to my children."""
     qs = models.Asn.objects.filter(lo=F('hi'), allocated__in=handle.children.all())
     w = rpki.myrpki.csv_writer(path)
     w.writerows([asn.allocated.handle, asn.lo] for asn in qs)
     w.close()
 
 def output_prefixes(path, handle):
-    '''Write out csv file containing prefixes delegated to my children.'''
+    """Write out csv file containing prefixes delegated to my children."""
     qs = models.AddressRange.objects.filter(allocated__in=handle.children.all())
     w = rpki.myrpki.csv_writer(path)
     w.writerows([p.allocated.handle, p.as_resource_range()] for p in qs)
     w.close()
 
 def output_roas(path, handle):
-    '''Write out csv file containing my roas.'''
+    """Write out csv file containing my roas."""
     qs = models.RoaRequest.objects.filter(roa__in=handle.roas.all())
     w = rpki.myrpki.csv_writer(path)
     w.writerows([req.as_roa_prefix(), req.roa.asn,
@@ -77,6 +82,7 @@ def build_rpkid_caller(cfg, verbose=False):
     Returns a function suitable for calling rpkid using the
     configuration information specified in the rpki.config.parser
     object.
+
     """
     bpki_servers_dir = cfg.get("bpki_servers_directory")
     if not bpki_servers_dir.startswith('/'):
@@ -111,9 +117,7 @@ def build_pubd_caller(cfg):
         url         = pubd_base + "control"))
 
 def ghostbuster_to_vcard(gbr):
-    """
-    Convert a Ghostbuster object into a vCard object.
-    """
+    """Convert a Ghostbuster object into a vCard object."""
     import vobject
 
     vcard = vobject.vCard()
@@ -139,12 +143,11 @@ def ghostbuster_to_vcard(gbr):
     return vcard.serialize()
 
 def qualify_path(pfx, fname):
-    """
-    Ensure 'path' is an absolute filename.
-    """
+    """Ensure 'path' is an absolute filename."""
     return fname if fname.startswith('/') else os.path.join(pfx, fname)
 
 def get_system_config():
+    """Returns an rpki.config.parser object for the system rpki.conf."""
     return rpki.config.parser(section='myrpki')
 
 def configure_resources(log, handle):
@@ -156,14 +159,15 @@ def configure_resources(log, handle):
 
     For backwards compatability (and backups), it also writes the csv
     files for use with the myrpki.py command line script.
-    """
 
+    """
     path = confpath(handle.handle)
 
+    # Read rpki.conf to determine the paths for the csv files.
     if handle.host:
         cfg = rpki.config.parser(os.path.join(path, 'rpki.conf'), section='myrpki')
     else:
-        # use the system rpki.conf for the self-hosted handle
+        # Use the system rpki.conf for the self-hosted handle.
         cfg = get_system_config()
 
     output_asns(qualify_path(path, cfg.get('asn_csv')), handle)
@@ -195,7 +199,7 @@ def configure_resources(log, handle):
             else:
                 v6.append(rng)
             
-        # convert from datetime.datetime to rpki.sundial.datetime
+        # Convert from datetime.datetime to rpki.sundial.datetime
         valid_until = rpki.sundial.datetime.fromdatetime(child.valid_until)
         children.append((child.handle, asns, v4, v6, valid_until))
 
@@ -209,7 +213,8 @@ def configure_resources(log, handle):
         else:
             ghostbusters.append((None, vcard))
 
-    # for hosted handles, get the config for the irdbd/rpkid host
+    # For hosted handles, get the config for the irdbd/rpkid host, which
+    # contains the information needed to talk to the daemons.
     if handle.host:
         cfg = get_system_config()
 
@@ -217,13 +222,12 @@ def configure_resources(log, handle):
     irdb.update(handle, roa_requests, children, ghostbusters)
     irdb.close()
 
-    # contact rpkid to request immediate update
+    # Contact rpkid to request immediate update.
     call_rpkid = build_rpkid_caller(cfg)
     call_rpkid(rpki.left_right.self_elt.make_pdu(action='set', self_handle=handle.handle, run_now=True))
 
 def list_received_resources(log, conf):
-    "Query rpkid for this resource handle's children and received resources."
-
+    """Query rpkid for this resource handle's children and received resources."""
     # always use the system rpki.conf for talking to the daemons
     cfg = get_system_config()
     call_rpkid = build_rpkid_caller(cfg)
@@ -314,6 +318,7 @@ def config_from_template(dest, a):
     Create a new rpki.conf file from a generic template.  Go line by
     line through the template and substitute directives from the
     dictionary 'a'.
+
     """
     with open(dest, 'w') as f:
         for r in open(settings.RPKI_CONF_TEMPLATE):
@@ -329,8 +334,9 @@ def config_from_template(dest, a):
 
 class Myrpki(rpki.myrpki.main):
     """
-    wrapper around rpki.myrpki.main to force the config file to what i want,
+    Wrapper around rpki.myrpki.main to force the config file to what I want,
     and avoid cli arg parsing.
+
     """
     def __init__(self, handle):
         self.cfg_file = confpath(handle, 'rpki.conf')
@@ -343,6 +349,7 @@ def get_myrpki(conf):
     hosted conf.  When refering to a hosted conf, we use the wrapper
     subclass to force use of the stub rpki.conf located in the conf
     directory.  For the rpkid host, we use the system rpki.conf.
+
     """
     return Myrpki(conf.handle) if conf.host else rpki.myrpki.main()
 
@@ -356,9 +363,7 @@ def configure_daemons(log, conf, m):
         m.do_configure_daemons('')
 
 def initialize_handle(log, handle, host, owner=None, commit=True):
-    """
-    Create a new Conf object for this user.
-    """
+    """Create a new Conf object for this user."""
     print >>log, "initializing new resource handle %s" % handle
 
     qs = models.Conf.objects.filter(handle=handle)
@@ -370,14 +375,14 @@ def initialize_handle(log, handle, host, owner=None, commit=True):
     else:
         conf = qs[0]
 
-    # create the config directory if it doesn't already exist
+    # Create the config directory if it doesn't already exist
     top = confpath(conf.handle)
     if not os.path.exists(top):
         os.makedirs(top)
 
     cfg_file = confpath(conf.handle, 'rpki.conf')
 
-    # create rpki.conf file if it doesn't exist
+    # Create rpki.conf file if it doesn't exist
     if not os.path.exists(cfg_file):
         print >>log, "generating rpki.conf for %s" % conf.handle
         config_from_template(cfg_file,
@@ -387,9 +392,10 @@ def initialize_handle(log, handle, host, owner=None, commit=True):
                     'run_rpkid'              : 'false',
                     'run_pubd'               : 'false',
                     'run_rootd'              : 'false'
+                    'openssl'                : get_system_config().get('openssl')
                 })
 
-    # create stub csv files
+    # Create stub csv files
     for f in ('asns', 'prefixes', 'roas'):
         p = confpath(conf.handle, f + '.csv')
         if not os.path.exists(p):
@@ -408,9 +414,7 @@ def initialize_handle(log, handle, host, owner=None, commit=True):
     return conf, m
 
 def import_child(log, conf, child_handle, xml_file):
-    """
-    Import a child's identity.xml.
-    """
+    """Import a child's identity.xml."""
     m = get_myrpki(conf)
     m.do_configure_child(xml_file)
     configure_daemons(log, conf, m)
@@ -432,7 +436,8 @@ def import_repository(log, conf, xml_file):
 
 def create_child(log, parent_conf, child_handle):
     """
-    implements the child create wizard to create a new locally hosted child
+    Implements the child create wizard to create a new locally hosted child
+
     """
     child_conf, child = initialize_handle(log, handle=child_handle, host=parent_conf, commit=False)
 
@@ -494,16 +499,16 @@ def read_child_repo_response(log, conf, child_handle):
 
     Note: the current model assumes the publication client is a child of this
     handle.
-    """
 
+    """
     m = get_myrpki(conf)
     return open(os.path.join(m.cfg.get('entitydb_dir'), 'pubclients', '%s.%s.xml' % (conf.handle, child_handle))).read()
 
 def update_bpki(log, conf):
     m = get_myrpki(conf)
 
-    # automatically runs configure_daemons when self-hosted
-    # otherwise runs configure_resources
+    # Automatically runs configure_daemons when self-hosted otherwise runs
+    # configure_resources.
     m.do_update_bpki('')
 
     # when hosted, ship off to rpkid host
@@ -520,4 +525,4 @@ def delete_parent(log, conf, parent_handle):
     m.do_delete_parent(parent_handle)
     configure_daemons(log, conf, m)
 
-# vim:sw=4 ts=8 expandtab
+# vim:sw=4 ts=8 expandtab tw=79

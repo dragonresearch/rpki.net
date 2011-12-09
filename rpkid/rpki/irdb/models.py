@@ -122,7 +122,6 @@ class ChildASN(django.db.models.Model):
   child = django.db.models.ForeignKey(Child, related_name = "asns")
 
 class ChildNet(django.db.models.Model):
-  child_net_id = django.db.models.BigIntegerField(unique = True)
   start_ip = django.db.models.CharField(max_length = 40)
   end_ip   = django.db.models.CharField(max_length = 40)
   version_map = ip_version_map
@@ -137,6 +136,7 @@ class Parent(Certificate):
   service_uri = django.db.models.CharField(max_length = 255)
   repository_type_map = ChoiceMap("none", "offer", "referral")
   repository_type = django.db.models.PositiveSmallIntegerField(choices = repository_type_map.choices)
+  referrer = HandleField(null = True, blank = True)
   referral_authorization = BinaryField(null = True, blank = True)
 
 class ROARequest(django.db.models.Model):
@@ -159,11 +159,11 @@ class GhostbusterRequest(django.db.models.Model):
 class Repository(Certificate):
   handle = HandleField()
   client_handle = HandleField()
-  bpki_ta = BinaryField()
+  ta = BinaryField()
   service_uri = django.db.models.CharField(max_length = 255)
   sia_base = django.db.models.TextField()
   parent = django.db.models.OneToOneField(Parent, related_name = "repository")
 
 class Client(Certificate):
   handle = HandleField()
-  bpki_ta = BinaryField()
+  ta = BinaryField()

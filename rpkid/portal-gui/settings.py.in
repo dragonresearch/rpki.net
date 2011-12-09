@@ -11,19 +11,25 @@ import rpki.config
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
 
-RPKI_CONFIG = '/usr/local/var/rpki/conf/SPARTA/rpki.conf'
+# needs to be set prior to the call to rpki.config.parser so it knows
+# where to find the system rpki.conf
+rpki.config.default_dirname = '%(AC_SYSCONFDIR)s'
 
-rpki_config = rpki.config.parser(filename=RPKI_CONFIG, section='web_portal')
+# load the sql authentication bits from the system rpki.conf
+rpki_config = rpki.config.parser(section='web_portal')
 
 DATABASES = {
   'default' : {
-     'ENGINE': 'django.db.backends.mysql',
-     'NAME'  : rpki_config.get('sql-database'),
-     'USER'  : rpki_config.get('sql-username'),
+     'ENGINE'  : 'django.db.backends.mysql',
+     'NAME'    : rpki_config.get('sql-database'),
+     'USER'    : rpki_config.get('sql-username'),
      'PASSWORD': rpki_config.get('sql-password'),
-     # ensure the default storage engine is InnoDB since we need foreign key support
-     # django documentation suggests removing this after the syncdb is performed
-     # as an optimization, but there isn't an easy way to do this automatically.
+
+     # Ensure the default storage engine is InnoDB since we need
+     # foreign key support.  The Django documentation suggests
+     # removing this after the syncdb is performed as an optimization,
+     # but there isn't an easy way to do this automatically.
+
      'OPTIONS' : {
         'init_command': 'SET storage_engine=INNODB'
      }

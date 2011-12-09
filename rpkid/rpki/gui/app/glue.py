@@ -144,6 +144,9 @@ def qualify_path(pfx, fname):
     """
     return fname if fname.startswith('/') else os.path.join(pfx, fname)
 
+def get_system_config():
+    return rpki.config.parser(section='myrpki')
+
 def configure_resources(log, handle):
     """
     This function should be called when resources for this resource
@@ -156,7 +159,12 @@ def configure_resources(log, handle):
     """
 
     path = confpath(handle.handle)
-    cfg = rpki.config.parser(os.path.join(path, 'rpki.conf'), 'myrpki')
+
+    if handle.host:
+        cfg = rpki.config.parser(os.path.join(path, 'rpki.conf'), section='myrpki')
+    else:
+        # use the system rpki.conf for the self-hosted handle
+        cfg = get_system_config()
 
     output_asns(qualify_path(path, cfg.get('asn_csv')), handle)
     output_prefixes(qualify_path(path, cfg.get('prefix_csv')), handle)
@@ -203,7 +211,7 @@ def configure_resources(log, handle):
 
     # for hosted handles, get the config for the irdbd/rpkid host
     if handle.host:
-        cfg = rpki.config.parser(confpath(handle.host.handle, 'rpki.conf'), 'myrpki')
+        cfg = get_system_config()
 
     irdb = rpki.myrpki.IRDB(cfg)
     irdb.update(handle, roa_requests, children, ghostbusters)
@@ -216,9 +224,8 @@ def configure_resources(log, handle):
 def list_received_resources(log, conf):
     "Query rpkid for this resource handle's children and received resources."
 
-    # if this handle is hosted, get the cfg for the host
-    rpki_conf = conf.host if conf.host else conf
-    cfg = rpki.config.parser(confpath(rpki_conf.handle, 'rpki.conf'), 'myrpki')
+    # always use the system rpki.conf for talking to the daemons
+    cfg = get_system_config()
     call_rpkid = build_rpkid_caller(cfg)
     pdus = call_rpkid(rpki.left_right.list_received_resources_elt.make_pdu(self_handle=conf.handle),
                       rpki.left_right.child_elt.make_pdu(action="list", self_handle=conf.handle),
@@ -329,11 +336,21 @@ class Myrpki(rpki.myrpki.main):
         self.cfg_file = confpath(handle, 'rpki.conf')
         self.read_config()
 
+def get_myrpki(conf):
+    """
+    Return a rpki.myrpki.main() or subclass thereof depending on
+    whether the 'conf' argument refers to the rpki host, or to a
+    hosted conf.  When refering to a hosted conf, we use the wrapper
+    subclass to force use of the stub rpki.conf located in the conf
+    directory.  For the rpkid host, we use the system rpki.conf.
+    """
+    return Myrpki(conf.handle) if conf.host else rpki.myrpki.main()
+
 def configure_daemons(log, conf, m):
     if conf.host:
         m.configure_resources_main()
 
-        host = Myrpki(conf.host.handle)
+        host = get_myrpki(conf.host)
         host.do_configure_daemons(m.cfg.get('xml_filename'))
     else:
         m.do_configure_daemons('')
@@ -363,8 +380,14 @@ def initialize_handle(log, handle, host, owner=None, commit=True):
     # create rpki.conf file if it doesn't exist
     if not os.path.exists(cfg_file):
         print >>log, "generating rpki.conf for %s" % conf.handle
-        config_from_template(cfg_file, { 'handle': conf.handle,
-            'configuration_directory': top, 'run_rpkid': 'false'})
+        config_from_template(cfg_file,
+                {
+                    'handle'                 : conf.handle,
+                    'configuration_directory': top,
+                    'run_rpkid'              : 'false',
+                    'run_pubd'               : 'false',
+                    'run_rootd'              : 'false'
+                })
 
     # create stub csv files
     for f in ('asns', 'prefixes', 'roas'):
@@ -373,8 +396,8 @@ def initialize_handle(log, handle, host, owner=None, commit=True):
             f = open(p, 'w')
             f.close()
 
-    # load configuration for self
-    m = Myrpki(conf.handle)
+    # Load configuration for self
+    m = get_myrpki(conf)
     m.do_initialize('')
 
     if commit:
@@ -388,22 +411,22 @@ def import_child(log, conf, child_handle, xml_file):
     """
     Import a child's identity.xml.
     """
-    m = Myrpki(conf.handle)
+    m = get_myrpki(conf)
     m.do_configure_child(xml_file)
     configure_daemons(log, conf, m)
 
 def import_parent(log, conf, parent_handle, xml_file):
-    m = Myrpki(conf.handle)
+    m = get_myrpki(conf)
     m.do_configure_parent(xml_file)
     configure_daemons(log, conf, m)
 
 def import_pubclient(log, conf, xml_file):
-    m = Myrpki(conf.handle)
+    m = get_myrpki(conf)
     m.do_configure_publication_client(xml_file)
     configure_daemons(log, conf, m)
 
 def import_repository(log, conf, xml_file):
-    m = Myrpki(conf.handle)
+    m = get_myrpki(conf)
     m.do_configure_repository(xml_file)
     configure_daemons(log, conf, m)
 
@@ -414,7 +437,7 @@ def create_child(log, parent_conf, child_handle):
     child_conf, child = initialize_handle(log, handle=child_handle, host=parent_conf, commit=False)
 
     parent_handle = parent_conf.handle
-    parent = Myrpki(parent_handle)
+    parent = get_myrpki(parent_conf)
 
     child_identity_xml = os.path.join(child.cfg.get("entitydb_dir"), 'identity.xml')
     parent_response_xml = os.path.join(parent.cfg.get("entitydb_dir"), 'children', child_handle + '.xml')
@@ -460,7 +483,7 @@ def destroy_handle(log, handle):
     shutil.remove(confpath(handle))
 
 def read_child_response(log, conf, child_handle):
-    m = Myrpki(conf.handle)
+    m = get_myrpki(conf)
     bname = child_handle + '.xml'
     return open(os.path.join(m.cfg.get('entitydb_dir'), 'children', bname)).read()
 
@@ -473,11 +496,11 @@ def read_child_repo_response(log, conf, child_handle):
     handle.
     """
 
-    m = Myrpki(conf.handle)
+    m = get_myrpki(conf)
     return open(os.path.join(m.cfg.get('entitydb_dir'), 'pubclients', '%s.%s.xml' % (conf.handle, child_handle))).read()
 
 def update_bpki(log, conf):
-    m = Myrpki(conf.handle)
+    m = get_myrpki(conf)
 
     # automatically runs configure_daemons when self-hosted
     # otherwise runs configure_resources
@@ -488,12 +511,12 @@ def update_bpki(log, conf):
         configure_daemons(log, conf, m)
 
 def delete_child(log, conf, child_handle):
-    m = Myrpki(conf.handle)
+    m = get_myrpki(conf)
     m.do_delete_child(child_handle)
     configure_daemons(log, conf, m)
 
 def delete_parent(log, conf, parent_handle):
-    m = Myrpki(conf.handle)
+    m = get_myrpki(conf)
     m.do_delete_parent(parent_handle)
     configure_daemons(log, conf, m)
 

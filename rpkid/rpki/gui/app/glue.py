@@ -391,7 +391,7 @@ def initialize_handle(log, handle, host, owner=None, commit=True):
                     'configuration_directory': top,
                     'run_rpkid'              : 'false',
                     'run_pubd'               : 'false',
-                    'run_rootd'              : 'false'
+                    'run_rootd'              : 'false',
                     'openssl'                : get_system_config().get('openssl')
                 })
 

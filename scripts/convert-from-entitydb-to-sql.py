@@ -49,24 +49,8 @@ sql_database = cfg.get("sql-database", section = "irdbd")
 sql_username = cfg.get("sql-username", section = "irdbd")
 sql_password = cfg.get("sql-password", section = "irdbd")
 
-# Rename the old SQL tables, if they exist
-
 db = MySQLdb.connect(user = sql_username, db = sql_database, passwd = sql_password)
 cur = db.cursor()
-
-cur.execute("SHOW TABLES")
-
-tables = [r[0] for r in cur.fetchall()]
-
-for table in tables:
-  if "old_" + table not in tables and table in ("registrant",
-                                                "registrant_asn",
-                                                "registrant_net",
-                                                "roa_request",
-                                                "roa_request_prefix",
-                                                "ghostbuster_request"):
-    print "Renaming %s to old_%s" % (table, table)
-    cur.execute("ALTER TABLE %s RENAME TO old_%s" % (table, table))
 
 # Configure the Django model system
 
@@ -249,7 +233,7 @@ for filename in glob.iglob(os.path.join(entitydb, "children", "*.xml")):
   xcert = rpki.x509.X509(Auto_file = xcfn)
 
   cur.execute("""
-              SELECT registrant_id, valid_until FROM old_registrant
+              SELECT registrant_id, valid_until FROM registrant
               WHERE registry_handle = %s AND registrant_handle = %s
               """, (self_handle, child_handle))
   assert cur.rowcount == 1
@@ -266,7 +250,7 @@ for filename in glob.iglob(os.path.join(entitydb, "children", "*.xml")):
     issuer = resource_ca)[0]
 
   cur.execute("""
-              SELECT start_as, end_as FROM old_registrant_asn WHERE registrant_id = %s
+              SELECT start_as, end_as FROM registrant_asn WHERE registrant_id = %s
               """, (registrant_id,))
   for start_as, end_as in cur.fetchall():
     rpki.irdb.ChildASN.objects.get_or_create(
@@ -275,7 +259,7 @@ for filename in glob.iglob(os.path.join(entitydb, "children", "*.xml")):
       child = child)
 
   cur.execute("""
-              SELECT start_ip, end_ip, version FROM old_registrant_net WHERE registrant_id = %s
+              SELECT start_ip, end_ip, version FROM registrant_net WHERE registrant_id = %s
               """, (registrant_id,))
   for start_ip, end_ip, version in cur.fetchall():
     rpki.irdb.ChildNet.objects.get_or_create(
@@ -323,7 +307,7 @@ for filename in glob.iglob(os.path.join(entitydb, "parents", "*.xml")):
   # entries specific to this parent.
 
   cur.execute("""
-              SELECT vcard FROM old_ghostbuster_request
+              SELECT vcard FROM ghostbuster_request
               WHERE self_handle = %s AND parent_handle = %s
               """, (self_handle, parent_handle))
   for row in cur.fetchall():
@@ -386,13 +370,13 @@ for filename in glob.iglob(os.path.join(entitydb, "pubclients", "*.xml")):
 # Copy over any ROA requests
 
 cur.execute("""
-            SELECT roa_request_id, asn FROM old_roa_request
+            SELECT roa_request_id, asn FROM roa_request
             WHERE roa_request_handle = %s
             """, (self_handle,))
 for roa_request_id, asn in cur.fetchall():
   roa_request = rpki.irdb.ROARequest.objects.get_or_create(identity = identity, asn = asn)[0]
   cur.execute("""
-              SELECT prefix, prefixlen, max_prefixlen, version FROM old_roa_request_prefix
+              SELECT prefix, prefixlen, max_prefixlen, version FROM roa_request_prefix
               WHERE roa_request_id = %s
               """, (roa_request_id,))
   for prefix, prefixlen, max_prefixlen, version in cur.fetchall():
@@ -406,7 +390,7 @@ for roa_request_id, asn in cur.fetchall():
 # Copy over any non-parent-specific Ghostbuster requests.
 
 cur.execute("""
-            SELECT vcard FROM old_ghostbuster_request
+            SELECT vcard FROM ghostbuster_request
             WHERE self_handle = %s AND parent_handle IS NULL
             """, (self_handle,))
 for row in cur.fetchall():

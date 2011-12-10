@@ -79,7 +79,7 @@ ip_version_choices = tuple((y, x) for (x, y) in ip_version_map.iteritems())
 ###
 
 class Identity(django.db.models.Model):
-  handle = HandleField()
+  handle = HandleField(unique = True)
 
 class CA(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity, related_name = "bpki_certificates")
@@ -92,9 +92,25 @@ class CA(django.db.models.Model):
   last_crl_update = django.db.models.DateTimeField()
   next_crl_update = django.db.models.DateTimeField()
 
+  class Meta:
+    unique_together = ("identity", "purpose")
+
 class Certificate(django.db.models.Model):
-  issuer = django.db.models.ForeignKey(CA, related_name = "certificates")
+  issuer = django.db.models.ForeignKey(CA)
   certificate = BinaryField()
+
+  # We used to use multi-table inheritance here, but that turns out
+  # not to work so well once we started applying uniqueness
+  # constraints.  So now we use an abstract base class.
+  #
+  # This is probably the right approach for data fields, so that we
+  # can share custom model methods for things like certificate
+  # issuance, but is a bit tricky for foreign keys due to the
+  # "related_name" reverse link.  See:
+  # https://docs.djangoproject.com/en/dev/topics/db/models/#model-inheritance
+
+  class Meta:
+    abstract = True
 
 class Revocation(django.db.models.Model):
   issuer = django.db.models.ForeignKey(CA, related_name = "revocations")
@@ -102,13 +118,23 @@ class Revocation(django.db.models.Model):
   revoked = django.db.models.DateTimeField()
   expires = django.db.models.DateTimeField()
 
+  class Meta:
+    unique_together = ("issuer", "serial")
+
 class EECertificate(Certificate):
   purpose_map = ChoiceMap("rpkid", "pubd", "irdbd", "irbe", "rootd")
   purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
   private_key = BinaryField()
 
+  class Meta:
+    unique_together = ("issuer", "purpose")
+
 class BSC(Certificate):
+  handle = HandleField()
   pkcs10 = BinaryField()
+
+  class Meta:
+    unique_together = ("issuer", "handle")
 
 class Child(Certificate):
   handle = HandleField()
@@ -116,17 +142,26 @@ class Child(Certificate):
   valid_until = django.db.models.DateTimeField()
   ta = BinaryField()
 
+  class Meta:
+    unique_together = ("issuer", "handle")
+
 class ChildASN(django.db.models.Model):
+  child = django.db.models.ForeignKey(Child, related_name = "asns")
   start_as = django.db.models.BigIntegerField()
   end_as = django.db.models.BigIntegerField()
-  child = django.db.models.ForeignKey(Child, related_name = "asns")
+
+  class Meta:
+    unique_together = ("child", "start_as", "end_as")
 
 class ChildNet(django.db.models.Model):
+  child = django.db.models.ForeignKey(Child, related_name = "address_ranges")
   start_ip = django.db.models.CharField(max_length = 40)
   end_ip   = django.db.models.CharField(max_length = 40)
   version_map = ip_version_map
   version = django.db.models.PositiveSmallIntegerField(choices = ip_version_choices)
-  child = django.db.models.ForeignKey(Child, related_name = "address_ranges")
+
+  class Meta:
+    unique_together = ("child", "start_ip", "end_ip", "version")
 
 class Parent(Certificate):
   handle = HandleField()
@@ -139,6 +174,9 @@ class Parent(Certificate):
   referrer = HandleField(null = True, blank = True)
   referral_authorization = BinaryField(null = True, blank = True)
 
+  class Meta:
+    unique_together = ("issuer", "handle")
+
 class ROARequest(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity, related_name = "roa_requests")
   asn = django.db.models.BigIntegerField()
@@ -150,6 +188,9 @@ class ROARequestPrefix(django.db.models.Model):
   prefix = django.db.models.CharField(max_length = 40)
   prefixlen = django.db.models.PositiveSmallIntegerField()
   max_prefixlen = django.db.models.PositiveSmallIntegerField()
+
+  class Meta:
+    unique_together = ("roa_request", "version", "prefix", "prefixlen", "max_prefixlen")
 
 class GhostbusterRequest(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity, related_name = "ghostbuster_requests")
@@ -164,6 +205,12 @@ class Repository(Certificate):
   sia_base = django.db.models.TextField()
   parent = django.db.models.OneToOneField(Parent, related_name = "repository")
 
+  class Meta:
+    unique_together = ("issuer", "handle")
+
 class Client(Certificate):
   handle = HandleField()
   ta = BinaryField()
+
+  class Meta:
+    unique_together = ("issuer", "handle")

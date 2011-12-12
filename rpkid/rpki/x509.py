@@ -327,6 +327,8 @@ class DER_object(object):
       return -1
     elif other is None:
       return 1
+    elif isinstance(other, str):
+      return cmp(self.get_DER(), other)
     else:
       return cmp(self.get_DER(), other.get_DER())
 
@@ -623,39 +625,88 @@ class X509(DER_object):
 
     return X509(POWpkix = cert)
 
-  def cross_certify(self, keypair, source_cert, serial, notAfter, now = None, pathLenConstraint = 0):
+  def bpki_cross_certify(self, keypair, source_cert, serial, notAfter,
+                         now = None, pathLenConstraint = 0):
     """
-    Issue a certificate with values taking from an existing certificate.
-    This is used to construct some kinds oF BPKI certificates.
+    Issue a BPKI certificate with values taking from an existing certificate.
     """
-    return self.bpki_certify(keypair, source_cert.getSubject(), source_cert.getPublicKey(),
-                             serial, notAfter, now, pathLenConstraint, ca = True)
+    return self.bpki_certify(
+      keypair = keypair,
+      subject_name = source_cert.getSubject(),
+      subject_key = source_cert.getPublicKey(),
+      serial = serial,
+      notAfter = notAfter,
+      now = now,
+      pathLenConstraint = pathLenConstraint,
+      is_ca = True)
 
-  def bpki_certify(self, keypair, subject_name, subject_key, serial, notAfter,
-                   now = None, pathLenConstraint = None, ca = False):
+  @classmethod
+  def bpki_self_certify(cls, keypair, subject_name, serial, notAfter,
+                        now = None, pathLenConstraint = None):
     """
-    Issue a BPKI certificate.
+    Issue a self-signed BPKI CA certificate.
+    """
+    return cls._bpki_certify(
+      keypair = keypair,
+      issuer_name = subject_name,
+      subject_name = subject_name,
+      subject_key = keypair.get_RSApublic(),
+      serial = serial,
+      now = now,
+      notAfter = notAfter,
+      pathLenConstraint = pathLenConstraint,
+      is_ca = True)
+
+  def bpki_certify(self, keypair, subject_name, subject_key, serial, notAfter, is_ca,
+                   now = None, pathLenConstraint = None):
+    """
+    Issue a normal BPKI certificate.
+    """
+    assert keypair.get_RSApublic() == self.getPublicKey()
+    return self._bpki_certify(
+      keypair = keypair,
+      issuer_name = self.getSubject(),
+      subject_name = subject_name,
+      subject_key = subject_key,
+      serial = serial,
+      now = now,
+      notAfter = notAfter,
+      pathLenConstraint = pathLenConstraint,
+      is_ca = is_ca)
+
+  @classmethod
+  def _bpki_certify(cls, keypair, issuer_name, subject_name, subject_key,
+                    serial, now, notAfter, pathLenConstraint, is_ca):
+    """
+    Issue a BPKI certificate.  This internal method does the real
+    work, after one of the wrapper methods has extracted the relevant
+    fields.
     """
 
     if now is None:
       now = rpki.sundial.now()
 
+    issuer_key = keypair.get_RSApublic()
+
+    assert (issuer_key == subject_key) == (issuer_name == subject_name)
+    assert is_ca or issuer_name != subject_name
+    assert is_ca or pathLenConstraint is None
     assert pathLenConstraint is None or (isinstance(pathLenConstraint, (int, long)) and
                                          pathLenConstraint >= 0)
 
     extensions = [
       (rpki.oids.name2oid["subjectKeyIdentifier"    ], False, subject_key.get_SKI())]
-    if not ca or self.getSubject() != subject_name or self.getPublicKey() != subject_key:
+    if issuer_key != subject_key:
       extensions.append(
-        (rpki.oids.name2oid["authorityKeyIdentifier"], False, (self.get_SKI(), (), None)))
-    if ca:
+        (rpki.oids.name2oid["authorityKeyIdentifier"], False, (issuer_key.get_SKI(), (), None)))
+    if is_ca:
       extensions.append(
         (rpki.oids.name2oid["basicConstraints"      ], True,  (1, pathLenConstraint)))
 
     cert = rpki.POW.pkix.Certificate()
     cert.setVersion(2)
     cert.setSerial(serial)
-    cert.setIssuer(self.get_POWpkix().getSubject())
+    cert.setIssuer(issuer_name.get_POWpkix())
     cert.setSubject(subject_name.get_POWpkix())
     cert.setNotBefore(now.toASN1tuple())
     cert.setNotAfter(notAfter.toASN1tuple())
@@ -663,7 +714,7 @@ class X509(DER_object):
     cert.setExtensions(extensions)
     cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
 
-    return X509(POWpkix = cert)
+    return cls(POWpkix = cert)
 
   @classmethod
   def normalize_chain(cls, chain):

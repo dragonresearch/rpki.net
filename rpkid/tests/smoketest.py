@@ -868,7 +868,12 @@ class allocation(object):
     except IOError:
       serial = 1
 
-    x = parent.cross_certify(keypair, child, serial, notAfter, now)
+    x = parent.bpki_cross_certify(
+      keypair = keypair,
+      source_cert = child,
+      serial = serial,
+      notAfter = notAfter,
+      now = now)
 
     f = open(serial_file, "w")
     f.write("%02x\n" % (serial + 1))

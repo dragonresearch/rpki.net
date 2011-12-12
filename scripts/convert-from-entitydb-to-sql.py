@@ -130,8 +130,8 @@ def get_or_create_KeyedCertificate(issuer, purpose):
   rpki.irdb.KeyedCertificate.objects.get_or_create(
     issuer      = issuer,
     purpose     = rpki.irdb.KeyedCertificate.purpose_map[purpose],
-    certificate = cer.get_DER(),
-    private_key = key.get_DER())
+    certificate = cer,
+    private_key = key)
 
 # Load BPKI CA data
 
@@ -157,16 +157,15 @@ if any(run_flags.itervalues()):
 else:
   server_ca = None
 
-# Load BSC certificates and requests
+# Load BSC certificates and requests.  Yes, this currently wires in
+# exactly one BSC handle, "bsc".  So does the old myrpki code.  Ick.
 
 for fn in glob.iglob(os.path.join(bpki, "resources", "bsc.*.cer")):
-  cer = rpki.x509.X509(Auto_file = fn)
-  req = rpki.x509.X509(Auto_file = fn[:-4] + ".req")
   rpki.irdb.BSC.objects.get_or_create(
     issuer      = resource_ca,
-    certificate = cer.get_DER(),
-    pkcs10      = req.get_DER())
-
+    handle      = "bsc",
+    certificate = rpki.x509.X509(Auto_file = fn),
+    pkcs10      = rpki.x509.PKCS10(Auto_file = fn[:-4] + ".req"))
 
 def xcert_hash(cert):
   """
@@ -243,8 +242,8 @@ for filename in glob.iglob(os.path.join(entitydb, "children", "*.xml")):
   child = rpki.irdb.Child.objects.get_or_create(
     handle = child_handle,
     valid_until = valid_until.to_sql(),
-    ta = ta.get_DER(),
-    certificate = xcert.get_DER(),
+    ta = ta,
+    certificate = xcert,
     issuer = resource_ca)[0]
 
   cur.execute("""
@@ -294,8 +293,8 @@ for filename in glob.iglob(os.path.join(entitydb, "parents", "*.xml")):
     handle = parent_handle,
     parent_handle = e.get("parent_handle"),
     child_handle = e.get("child_handle"),
-    ta = ta.get_DER(),
-    certificate = xcert.get_DER(),
+    ta = ta,
+    certificate = xcert,
     repository_type = rpki.irdb.Parent.repository_type_map[repository_type],
     referrer = referrer,
     referral_authorization = referral_authorization,
@@ -336,8 +335,8 @@ for filename in glob.iglob(os.path.join(entitydb, "repositories", "*.xml")):
   rpki.irdb.Repository.objects.get_or_create(
     handle = repository_handle,
     client_handle = e.get("client_handle"),
-    ta = ta.get_DER(),
-    certificate = xcert.get_DER(),
+    ta = ta,
+    certificate = xcert,
     service_uri = e.get("service_uri"),
     sia_base = e.get("sia_base"),
     parent = parent,
@@ -361,8 +360,8 @@ for filename in glob.iglob(os.path.join(entitydb, "pubclients", "*.xml")):
 
   rpki.irdb.Repository.objects.get_or_create(
     handle = client_handle,
-    ta = ta.get_DER(),
-    certificate = xcert.get_DER(),
+    ta = ta,
+    certificate = xcert,
     issuer = server_ca)
 
 # Copy over any ROA requests

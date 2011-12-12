@@ -23,6 +23,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import django.db.models
+import rpki.x509
 
 ###
 
@@ -49,14 +50,73 @@ class HandleField(django.db.models.CharField):
     kwargs["max_length"] = 120
     django.db.models.CharField.__init__(self, *args, **kwargs)
 
-class BinaryField(django.db.models.Field):
+class DERField(django.db.models.Field):
   """
-  A raw binary field type for Django models.  Yes, I know this is
-  wrong, but breaking out all the ASN.1 isn't practical, and encoding
-  binary data as Base64 text doesn't seem much of an improvement.
+  A field type for DER objects.
+
+  This is an abstract class, subclasses need to define rpki_type.
   """
 
-  description = "Raw binary data"
+  description = "DER object"
+
+  __metaclass__ = django.db.models.SubfieldBase
+
+  def __init__(self, *args, **kwargs):
+    kwargs["serialize"] = False
+    kwargs["blank"] = True
+    django.db.models.Field.__init__(self, *args, **kwargs)
+
+  def db_type(self, connection):
+    if connection.settings_dict['ENGINE'] == "django.db.backends.posgresql":
+      return "bytea"
+    else:
+      return "BLOB"
+
+  def to_python(self, value):
+    if isinstance(value, self.rpki_type):
+      return value
+    else:
+      assert isinstance(value, str)
+      return self.rpki_type(DER = value)
+
+  def get_prep_value(self, value):
+    if isinstance(value, self.rpki_type):
+      return value.get_DER()
+    elif isinstance(value, str):
+      return value
+    else:
+      import sys
+      sys.stderr.write(
+        "get_prep_value got %r, expected string or %r\n" % (type(value), self.rpki_type))
+      assert isinstance(value, (self.rpki_type, str))
+
+class CertificateField(DERField):
+  description = "X.509 certificate"
+  rpki_type = rpki.x509.X509
+
+class RSAKeyField(DERField):
+  description = "RSA keypair"
+  rpki_type = rpki.x509.RSA
+
+class PKCS10Field(DERField):
+  description = "PKCS #10 certificate request"
+  rpki_type = rpki.x509.PKCS10
+
+class SignedReferralField(django.db.models.Field):
+  description = "CMS signed object containing XML"
+
+  # This should be another subclass of DERField, but we don't have a
+  # suitable subclass of XML_CMS_object yet, in part because the XML
+  # schema we'd need to validate is really just a fragment of another
+  # schema.  Maybe.  Anyway, subclassing DERField here doesn't work
+  # properly yet, so for the moment this is opaque binary data.
+  #
+  # Fix later.
+
+  def __init__(self, *args, **kwargs):
+    kwargs["serialize"] = False
+    kwargs["blank"] = True
+    django.db.models.Field.__init__(self, *args, **kwargs)
 
   def db_type(self, connection):
     if connection.settings_dict['ENGINE'] == "django.db.backends.posgresql":
@@ -94,13 +154,11 @@ class CA(django.db.models.Model):
     unique_together = ("identity", "purpose")
 
 class Certificate(django.db.models.Model):
-  certificate = BinaryField()
+
+  certificate = CertificateField()
 
   class Meta:
     abstract = True
-
-  def get_cert(self):
-    return rpki.x509.X509(DER = self.certificate)
 
   def generate_certificate(self):
 
@@ -115,21 +173,30 @@ class Certificate(django.db.models.Model):
     # to issue the certificate.  Seems about right.  Not awake enough
     # to write it now.
 
+    # This doesn't handle self-certification yet either.
+    # Self-certification may be different enough that we want to move
+    # the certificate and keypair back to the CA object, since we have
+    # to special-case it no matter what we do.
+
     cacert = self.issuer.keyed_certificates.filter(purpose = KeyedCertificate.purpose_map["ca"])
     subject_name, subject_key = self.get_certificate_subject()
-    cer = cacert.get_cert()
-    key = cacert.get_key()
+    cer = cacert.certificate
+    key = cacert.private_key
     
-    result = cer.bpki_certify(key, subject_name, subject_key, ca.next_serial,
+    result = cer.bpki_certify(
+      keypair = key,
+      subject_name = subject_name,
+      subject_key = subject_key,
+      serial = ca.next_serial,
+      
+      # This needs to be configurable
+      notAfter = rpki.sundial.now() + rpki.sundial.timedelta(days = 60),
 
-                              # This needs to be configurable
-                              rpki.sundial.now() + rpki.sundial.timedelta(days = 60),
+      # This is (at least) per-class, not universal
+      pathLenConstraint = 0,
 
-                              # This is (at least) per-class, not universal
-                              pathLenConstraint = 0,
-
-                              # This is per-class too
-                              ca = True)
+      # This is per-class too
+      is_ca = True)
 
     self.ca.next_serial += 1
 
@@ -139,15 +206,14 @@ class Certificate(django.db.models.Model):
 
 class CrossCertification(Certificate):
   handle = HandleField()
-  ta = BinaryField()
+  ta = CertificateField()
 
   class Meta:
     abstract = True
     unique_together = ("issuer", "handle")
 
   def get_certificate_subject(self):
-    ta = rpki.x509.X509(DER = self.ta)
-    return ta.getSubject(), ta.getPublicKey()
+    return self.certificate.getSubject(), self.certificate.getPublicKey()
 
 class Revocation(django.db.models.Model):
   issuer = django.db.models.ForeignKey(CA, related_name = "revocations")
@@ -162,18 +228,15 @@ class KeyedCertificate(Certificate):
   issuer = django.db.models.ForeignKey(CA, related_name = "keyed_certificates")
   purpose_map = ChoiceMap("ca", "rpkid", "pubd", "irdbd", "irbe", "rootd")
   purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
-  private_key = BinaryField()
+  private_key = RSAKeyField()
 
   class Meta:
     unique_together = ("issuer", "purpose")
 
-  def get_key(self):
-    return rpki.x509.RSA(DER = self.private_key)
-
 class BSC(Certificate):
   issuer = django.db.models.ForeignKey(CA, related_name = "bscs")
   handle = HandleField()
-  pkcs10 = BinaryField()
+  pkcs10 = PKCS10Field()
 
   class Meta:
     unique_together = ("issuer", "handle")
@@ -209,7 +272,7 @@ class Parent(CrossCertification):
   repository_type_map = ChoiceMap("none", "offer", "referral")
   repository_type = django.db.models.PositiveSmallIntegerField(choices = repository_type_map.choices)
   referrer = HandleField(null = True, blank = True)
-  referral_authorization = BinaryField(null = True, blank = True)
+  referral_authorization = SignedReferralField(null = True, blank = True)
 
 class ROARequest(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity, related_name = "roa_requests")

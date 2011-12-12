@@ -113,33 +113,30 @@ def read_openssl_serial(filename):
   return int(text.strip(), 16)
 
 def get_or_create_CA(purpose):
-  cer = rpki.x509.X509(Auto_file = os.path.join(bpki, purpose, "ca.cer"))
-  key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, purpose, "ca.key"))
   crl = rpki.x509.CRL(Auto_file  = os.path.join(bpki, purpose, "ca.crl"))
   serial     = read_openssl_serial(os.path.join(bpki, purpose, "serial"))
   crl_number = read_openssl_serial(os.path.join(bpki, purpose, "crl_number"))
 
   return rpki.irdb.CA.objects.get_or_create(identity = identity,
                                             purpose = rpki.irdb.CA.purpose_map[purpose],
-                                            certificate = cer.get_DER(),
-                                            private_key = key.get_DER(),
                                             next_serial = serial,
                                             next_crl_number = crl_number,
                                             last_crl_update = crl.getThisUpdate().to_sql(),
                                             next_crl_update = crl.getNextUpdate().to_sql())[0]
 
-def get_or_create_EECertificate(issuer, purpose):
+def get_or_create_KeyedCertificate(issuer, purpose):
   cer = rpki.x509.X509(Auto_file = os.path.join(bpki, "servers", purpose + ".cer"))
   key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, "servers", purpose + ".key"))
-  rpki.irdb.EECertificate.objects.get_or_create(
+  rpki.irdb.KeyedCertificate.objects.get_or_create(
     issuer      = issuer,
-    purpose     = rpki.irdb.EECertificate.purpose_map[purpose],
+    purpose     = rpki.irdb.KeyedCertificate.purpose_map[purpose],
     certificate = cer.get_DER(),
     private_key = key.get_DER())
 
 # Load BPKI CA data
 
 resource_ca = get_or_create_CA("resources")
+get_or_create_KeyedCertificate(resource_ca, "ca")
 
 # Load BPKI server EE certificates and keys
 
@@ -148,14 +145,15 @@ run_flags = dict((i, cfg.getboolean(i, section = "myrpki"))
 
 if any(run_flags.itervalues()):
   server_ca = get_or_create_CA("servers")
-  get_or_create_EECertificate(server_ca, "irbe")
+  get_or_create_KeyedCertificate(server_ca, "ca")
+  get_or_create_KeyedCertificate(server_ca, "irbe")
   if run_flags["run_rpkid"]:
-    get_or_create_EECertificate(server_ca, "rpkid")
-    get_or_create_EECertificate(server_ca, "irdbd")
+    get_or_create_KeyedCertificate(server_ca, "rpkid")
+    get_or_create_KeyedCertificate(server_ca, "irdbd")
   if run_flags["run_pubd"]:
-    get_or_create_EECertificate(server_ca, "pubd")
+    get_or_create_KeyedCertificate(server_ca, "pubd")
   if run_flags["run_rootd"]:
-    get_or_create_EECertificate(server_ca, "rootd")
+    get_or_create_KeyedCertificate(server_ca, "rootd")
 else:
   server_ca = None
 

@@ -120,6 +120,74 @@ def _find_xia_uri(extension, name):
         return location[1]
   return None
 
+class X501DN(object):
+  """
+  Class to hold an X.501 Distinguished Name.
+
+  This is nothing like a complete implementation, just enough for our
+  purposes.  POW has one interface to this, POW.pkix has another.  In
+  terms of completeness in the Python representation, the POW.pkix
+  representation is much closer to right, but the whole thing is a
+  horrible mess.
+
+  See RFC 5280 4.1.2.4 for the ASN.1 details.  In brief:
+
+    - A DN is a SEQUENCE of RDNs.
+
+    - A RDN is a set of AttributeAndValues; in practice, multi-value
+      RDNs are rare, so an RDN is almost always a set with a single
+      element.
+
+    - An AttributeAndValue is an OID and a value, where a whole bunch
+      of things including both syntax and semantics of the value are
+      determined by the OID.
+
+    - The value is some kind of ASN.1 string; there are far too many
+      encoding options options, most of which are either strongly
+      discouraged or outright forbidden by the PKIX profile, but which
+      persist for historical reasons.  The only ones PKIX actually
+      likes are PrintableString and UTF8String, but there are nuances
+      and special cases where some of the others are required.
+
+  The RPKI profile further restricts DNs to a single mandatory
+  CommonName attribute with a single optional SerialNumber attribute
+  (not to be confused with the certificate serial number).
+
+  BPKI certificates should (we hope) follow the general PKIX guideline
+  but the ones we construct ourselves are likely to be relatively
+  simple.
+
+  The main purpose of this class is to hide as much as possible of
+  this mess from code that has to work with these wretched things.
+  """
+
+  def __init__(self, ini = None, **kwargs):
+    assert ini is None or not kwargs
+    if len(kwargs) == 1 and "CN" in kwargs:
+      ini = kwargs.pop("CN")
+    if isinstance(ini, str):
+      self.dn = (((rpki.oids.name2oid["commonName"], ("printableString", cn)),),)
+    elif isinstance(ini, tuple):
+      self.dn = ini
+    elif kwargs:
+      raise NotImplementedError #("Sorry, I haven't implemented keyword arguments yet")
+    elif ini is not None:
+      raise TypeError #("Don't know how to interpret %r as an X.501 DN" % (ini,), ini)
+
+  def __str__(self):
+    return "".join("/" + "+".join("%s=%s" % (rpki.oids.oid2name[a[0]], a[1][1])
+                                  for a in rdn)
+                   for rdn in self.dn)
+
+  def __cmp__(self, other):
+    return cmp(self.dn, other.dn)
+
+  def get_POWpkix(self):
+    return self.dn
+
+  def get_POW(self):
+    raise NotImplementedError #("Sorry, I haven't written the conversion to POW format yet")
+
 class DER_object(object):
   """
   Virtual class to hold a generic DER object.
@@ -456,13 +524,13 @@ class X509(DER_object):
     """
     Get the issuer of this certificate.
     """
-    return "".join("/%s=%s" % rdn for rdn in self.get_POW().getIssuer())
+    return X501DN(self.get_POWpkix().getIssuer())
 
   def getSubject(self):
     """
     Get the subject of this certificate.
     """
-    return "".join("/%s=%s" % rdn for rdn in self.get_POW().getSubject())
+    return X501DN(self.get_POWpkix().getSubject())
 
   def getNotBefore(self):
     """
@@ -560,25 +628,39 @@ class X509(DER_object):
     Issue a certificate with values taking from an existing certificate.
     This is used to construct some kinds oF BPKI certificates.
     """
+    return self.bpki_certify(keypair, source_cert.getSubject(), source_cert.getPublicKey(),
+                             serial, notAfter, now, pathLenConstraint, ca = True)
+
+  def bpki_certify(self, keypair, subject_name, subject_key, serial, notAfter,
+                   now = None, pathLenConstraint = None, ca = False):
+    """
+    Issue a BPKI certificate.
+    """
 
     if now is None:
       now = rpki.sundial.now()
 
-    assert isinstance(pathLenConstraint, int) and pathLenConstraint >= 0
+    assert pathLenConstraint is None or (isinstance(pathLenConstraint, (int, long)) and
+                                         pathLenConstraint >= 0)
+
+    extensions = [
+      (rpki.oids.name2oid["subjectKeyIdentifier"    ], False, subject_key.get_SKI())]
+    if not ca or self.getSubject() != subject_name or self.getPublicKey() != subject_key:
+      extensions.append(
+        (rpki.oids.name2oid["authorityKeyIdentifier"], False, (self.get_SKI(), (), None)))
+    if ca:
+      extensions.append(
+        (rpki.oids.name2oid["basicConstraints"      ], True,  (1, pathLenConstraint)))
 
     cert = rpki.POW.pkix.Certificate()
     cert.setVersion(2)
     cert.setSerial(serial)
     cert.setIssuer(self.get_POWpkix().getSubject())
-    cert.setSubject(source_cert.get_POWpkix().getSubject())
+    cert.setSubject(subject_name.get_POWpkix())
     cert.setNotBefore(now.toASN1tuple())
     cert.setNotAfter(notAfter.toASN1tuple())
-    cert.tbs.subjectPublicKeyInfo.set(
-      source_cert.get_POWpkix().tbs.subjectPublicKeyInfo.get())
-    cert.setExtensions((
-      (rpki.oids.name2oid["subjectKeyIdentifier"  ], False, source_cert.get_SKI()),
-      (rpki.oids.name2oid["authorityKeyIdentifier"], False, (self.get_SKI(), (), None)),
-      (rpki.oids.name2oid["basicConstraints"      ], True,  (1, 0))))
+    cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
+    cert.setExtensions(extensions)
     cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
 
     return X509(POWpkix = cert)
@@ -1357,7 +1439,7 @@ class CRL(DER_object):
     """
     Get issuer value of this CRL.
     """
-    return "".join("/%s=%s" % rdn for rdn in self.get_POW().getIssuer())
+    return X501DN(self.get_POWpkix().getIssuer())
 
   @classmethod
   def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):

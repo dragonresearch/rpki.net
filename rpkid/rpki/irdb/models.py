@@ -85,8 +85,6 @@ class CA(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity, related_name = "bpki_certificates")
   purpose_map = ChoiceMap("resources", "servers")
   purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
-  certificate = BinaryField()
-  private_key = BinaryField()
   next_serial = django.db.models.BigIntegerField(default = 1)
   next_crl_number = django.db.models.BigIntegerField(default = 1)
   last_crl_update = django.db.models.DateTimeField()
@@ -96,21 +94,60 @@ class CA(django.db.models.Model):
     unique_together = ("identity", "purpose")
 
 class Certificate(django.db.models.Model):
-  issuer = django.db.models.ForeignKey(CA)
   certificate = BinaryField()
-
-  # We used to use multi-table inheritance here, but that turns out
-  # not to work so well once we started applying uniqueness
-  # constraints.  So now we use an abstract base class.
-  #
-  # This is probably the right approach for data fields, so that we
-  # can share custom model methods for things like certificate
-  # issuance, but is a bit tricky for foreign keys due to the
-  # "related_name" reverse link.  See:
-  # https://docs.djangoproject.com/en/dev/topics/db/models/#model-inheritance
 
   class Meta:
     abstract = True
+
+  def get_cert(self):
+    return rpki.x509.X509(DER = self.certificate)
+
+  def generate_certificate(self):
+
+    # This is sort of vaguely the right idea, but most of it probably
+    # ought to be a method of the CA, not the object being certified,
+    # and the rest doesn't yet cover all the different kinds of
+    # certificates we need to support.
+
+    # Perhaps something where each specialized class has its own
+    # generate_certificate() method which is mostly just a wrapper for
+    # a call to the CA object with the right parameters to get the CA
+    # to issue the certificate.  Seems about right.  Not awake enough
+    # to write it now.
+
+    cacert = self.issuer.keyed_certificates.filter(purpose = KeyedCertificate.purpose_map["ca"])
+    subject_name, subject_key = self.get_certificate_subject()
+    cer = cacert.get_cert()
+    key = cacert.get_key()
+    
+    result = cer.bpki_certify(key, subject_name, subject_key, ca.next_serial,
+
+                              # This needs to be configurable
+                              rpki.sundial.now() + rpki.sundial.timedelta(days = 60),
+
+                              # This is (at least) per-class, not universal
+                              pathLenConstraint = 0,
+
+                              # This is per-class too
+                              ca = True)
+
+    self.ca.next_serial += 1
+
+    self.certificate = result
+
+
+
+class CrossCertification(Certificate):
+  handle = HandleField()
+  ta = BinaryField()
+
+  class Meta:
+    abstract = True
+    unique_together = ("issuer", "handle")
+
+  def get_certificate_subject(self):
+    ta = rpki.x509.X509(DER = self.ta)
+    return ta.getSubject(), ta.getPublicKey()
 
 class Revocation(django.db.models.Model):
   issuer = django.db.models.ForeignKey(CA, related_name = "revocations")
@@ -121,29 +158,30 @@ class Revocation(django.db.models.Model):
   class Meta:
     unique_together = ("issuer", "serial")
 
-class EECertificate(Certificate):
-  purpose_map = ChoiceMap("rpkid", "pubd", "irdbd", "irbe", "rootd")
+class KeyedCertificate(Certificate):
+  issuer = django.db.models.ForeignKey(CA, related_name = "keyed_certificates")
+  purpose_map = ChoiceMap("ca", "rpkid", "pubd", "irdbd", "irbe", "rootd")
   purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
   private_key = BinaryField()
 
   class Meta:
     unique_together = ("issuer", "purpose")
 
+  def get_key(self):
+    return rpki.x509.RSA(DER = self.private_key)
+
 class BSC(Certificate):
+  issuer = django.db.models.ForeignKey(CA, related_name = "bscs")
   handle = HandleField()
   pkcs10 = BinaryField()
 
   class Meta:
     unique_together = ("issuer", "handle")
 
-class Child(Certificate):
-  handle = HandleField()
+class Child(CrossCertification):
+  issuer = django.db.models.ForeignKey(CA, related_name = "children")
   name = django.db.models.TextField(null = True, blank = True)
   valid_until = django.db.models.DateTimeField()
-  ta = BinaryField()
-
-  class Meta:
-    unique_together = ("issuer", "handle")
 
 class ChildASN(django.db.models.Model):
   child = django.db.models.ForeignKey(Child, related_name = "asns")
@@ -163,19 +201,15 @@ class ChildNet(django.db.models.Model):
   class Meta:
     unique_together = ("child", "start_ip", "end_ip", "version")
 
-class Parent(Certificate):
-  handle = HandleField()
+class Parent(CrossCertification):
+  issuer = django.db.models.ForeignKey(CA, related_name = "parents")
   parent_handle = HandleField()
   child_handle  = HandleField()
-  ta = BinaryField()
   service_uri = django.db.models.CharField(max_length = 255)
   repository_type_map = ChoiceMap("none", "offer", "referral")
   repository_type = django.db.models.PositiveSmallIntegerField(choices = repository_type_map.choices)
   referrer = HandleField(null = True, blank = True)
   referral_authorization = BinaryField(null = True, blank = True)
-
-  class Meta:
-    unique_together = ("issuer", "handle")
 
 class ROARequest(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity, related_name = "roa_requests")
@@ -197,20 +231,12 @@ class GhostbusterRequest(django.db.models.Model):
   parent = django.db.models.ForeignKey(Parent,     related_name = "ghostbuster_requests", null = True)
   vcard = django.db.models.TextField()
 
-class Repository(Certificate):
-  handle = HandleField()
+class Repository(CrossCertification):
+  issuer = django.db.models.ForeignKey(CA, related_name = "repositories")
   client_handle = HandleField()
-  ta = BinaryField()
   service_uri = django.db.models.CharField(max_length = 255)
   sia_base = django.db.models.TextField()
   parent = django.db.models.OneToOneField(Parent, related_name = "repository")
 
-  class Meta:
-    unique_together = ("issuer", "handle")
-
-class Client(Certificate):
-  handle = HandleField()
-  ta = BinaryField()
-
-  class Meta:
-    unique_together = ("issuer", "handle")
+class Client(CrossCertification):
+  issuer = django.db.models.ForeignKey(CA, related_name = "clients")

@@ -51,6 +51,17 @@ class HandleField(django.db.models.CharField):
     kwargs["max_length"] = 120
     django.db.models.CharField.__init__(self, *args, **kwargs)
 
+
+class SundialField(django.db.models.DateTimeField):
+  """
+  A field type for our customized datetime objects.
+  """
+
+  def to_python(self, value):
+    return rpki.sundial.datetime.fromdatetime(
+      django.db.models.DateTimeField.to_python(self, value))
+
+
 class DERField(django.db.models.Field):
   """
   A field type for DER objects.
@@ -74,7 +85,7 @@ class DERField(django.db.models.Field):
       return "BLOB"
 
   def to_python(self, value):
-    if isinstance(value, self.rpki_type):
+    if value is None or isinstance(value, self.rpki_type):
       return value
     else:
       assert isinstance(value, str)
@@ -83,7 +94,7 @@ class DERField(django.db.models.Field):
   def get_prep_value(self, value):
     if isinstance(value, self.rpki_type):
       return value.get_DER()
-    elif isinstance(value, str):
+    elif value is None or isinstance(value, str):
       return value
     else:
       import sys
@@ -107,27 +118,25 @@ class PKCS10Field(DERField):
   description = "PKCS #10 certificate request"
   rpki_type = rpki.x509.PKCS10
 
-class SignedReferralField(django.db.models.Field):
-  description = "CMS signed object containing XML"
+class SignedReferral(rpki.x509.XML_CMS_object):
+  encoding = "us-ascii"
 
-  # This should be another subclass of DERField, but we don't have a
-  # suitable subclass of XML_CMS_object yet, in part because the XML
-  # schema we'd need to validate is really just a fragment of another
-  # schema.  Maybe.  Anyway, subclassing DERField here doesn't work
-  # properly yet, so for the moment this is opaque binary data.
+  # We don't really want all of the myrpki schema, just the
+  # authorization token.  Will probably end up needing to write
+  # another schema.
   #
-  # Fix later.
+  schema = rpki.relaxng.myrpki
 
-  def __init__(self, *args, **kwargs):
-    kwargs["serialize"] = False
-    kwargs["blank"] = True
-    django.db.models.Field.__init__(self, *args, **kwargs)
+  # Um, we're not using SAX here.  We probably just want to return an
+  # etree.  SAX is really a misnomer here anyway, all the method
+  # really means is "decode this puppy and return the decoded object,
+  # whatever that might be".
+  #
+  #saxify = None
 
-  def db_type(self, connection):
-    if connection.settings_dict['ENGINE'] == "django.db.backends.posgresql":
-      return "bytea"
-    else:
-      return "BLOB"
+class SignedReferralField(DERField):
+  description = "CMS signed object containing XML"
+  rpki_type = SignedReferral
 
 ## @var ip_version_map
 # Custom choice map for IP version enumerations, so we can use the

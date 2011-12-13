@@ -120,19 +120,8 @@ class PKCS10Field(DERField):
 
 class SignedReferral(rpki.x509.XML_CMS_object):
   encoding = "us-ascii"
-
-  # We don't really want all of the myrpki schema, just the
-  # authorization token.  Will probably end up needing to write
-  # another schema.
-  #
   schema = rpki.relaxng.myrpki
-
-  # Um, we're not using SAX here.  We probably just want to return an
-  # etree.  SAX is really a misnomer here anyway, all the method
-  # really means is "decode this puppy and return the decoded object,
-  # whatever that might be".
-  #
-  #saxify = None
+  saxify = staticmethod(lambda x: x)
 
 class SignedReferralField(DERField):
   description = "CMS signed object containing XML"

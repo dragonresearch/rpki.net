@@ -761,6 +761,12 @@ class PKCS10(DER_object):
       self.POWpkix = req
     return self.POWpkix
 
+  def getSubject(self):
+    """
+    Extract the subject name from this certification request.
+    """
+    return X501DN(self.get_POWpkix().certificationRequestInfo.subject.get())
+
   def getPublicKey(self):
     """
     Extract the public key from this certification request.

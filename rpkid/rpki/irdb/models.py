@@ -24,6 +24,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import django.db.models
 import rpki.x509
+import rpki.sundial
 
 ###
 
@@ -98,6 +99,10 @@ class RSAKeyField(DERField):
   description = "RSA keypair"
   rpki_type = rpki.x509.RSA
 
+class CRLField(DERField):
+  description = "Certificate Revocation List"
+  rpki_type = rpki.x509.CRL
+
 class PKCS10Field(DERField):
   description = "PKCS #10 certificate request"
   rpki_type = rpki.x509.PKCS10
@@ -145,6 +150,14 @@ class CA(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity, related_name = "bpki_certificates")
   purpose_map = ChoiceMap("resources", "servers")
   purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
+  certificate = CertificateField()
+  private_key = RSAKeyField()
+  latest_crl = CRLField()
+
+  # Might want to bring these into line with what rpkid does.  Current
+  # variables here were chosen to map easily to what OpenSSL command
+  # line tool was keeping on disk.
+
   next_serial = django.db.models.BigIntegerField(default = 1)
   next_crl_number = django.db.models.BigIntegerField(default = 1)
   last_crl_update = django.db.models.DateTimeField()
@@ -153,55 +166,71 @@ class CA(django.db.models.Model):
   class Meta:
     unique_together = ("identity", "purpose")
 
-class Certificate(django.db.models.Model):
+  # These should come from somewhere, but I don't yet know where
+  ca_certificate_lifetime = rpki.sundial.timedelta(days = 3652)
+  crl_interval = rpki.sundial.timedelta(days = 1)
 
+  def self_certify(self):
+    subject_name = rpki.x509.X501DN("%s BPKI %s CA" % (
+      self.identity.handle, self.get_purpose_display()))
+    now = rpki.sundial.now()
+    notAfter = now + self.ca_certificate_lifetime
+    self.certificate = rpki.x509.X509.bpki_self_certify(
+      keypair = self.private_key,
+      subject_name = subject_name,
+      serial = self.next_serial,
+      now = now,
+      notAfter = notAfter)
+    self.serial += 1
+    return self.certificate
+
+  def certify(self, subject_name, subject_key, validity_interval, is_ca, pathLenConstraint = None):
+    now = rpki.sundial.now()
+    notAfter = now + validity_interval
+    result = self.certificate.bpki_certify(
+      keypair = self.private_key,
+      subject_name = subject_name,
+      subject_key = subject_key,
+      serial = self.next_serial,
+      now = now,
+      notAfter = notAfter,
+      is_ca = is_ca,
+      pathLenConstraint = pathLenConstraint)
+    self.serial += 1
+    return result
+
+  def revoke(self, cert):
+    Revocations.objects.create(
+      issuer  = self,
+      revoked = rpki.sundial.now(),
+      serial  = cert.certificate.getSerial(),
+      expires = cert.certificate.getNotAfter() + self.crl_interval)
+    cert.delete()
+    self.generate_crl()
+
+  def generate_crl(self):
+    now = rpki.sundial.now()
+    self.revocations.filter(expires__lt = now).delete()
+    revoked_certificates = [(r.serial, rpki.sundial.datetime.fromdatetime(r.revoked).toASN1tuple(), ())
+                            for r in self.revocations]
+    self.latest_crl = rpki.x509.CRL.generate(
+      keypair = self.private_key,
+      issuer  = self.certificate.getSubject(),
+      thisUpdate = now,
+      nextUpdate = now + self.crl_interval,
+      revoked_certificates = revoked_certificates)
+
+
+class Certificate(django.db.models.Model):
   certificate = CertificateField()
+
+  default_interval = rpki.sundial.timedelta(days = 60)
 
   class Meta:
     abstract = True
 
-  def generate_certificate(self):
-
-    # This is sort of vaguely the right idea, but most of it probably
-    # ought to be a method of the CA, not the object being certified,
-    # and the rest doesn't yet cover all the different kinds of
-    # certificates we need to support.
-
-    # Perhaps something where each specialized class has its own
-    # generate_certificate() method which is mostly just a wrapper for
-    # a call to the CA object with the right parameters to get the CA
-    # to issue the certificate.  Seems about right.  Not awake enough
-    # to write it now.
-
-    # This doesn't handle self-certification yet either.
-    # Self-certification may be different enough that we want to move
-    # the certificate and keypair back to the CA object, since we have
-    # to special-case it no matter what we do.
-
-    cacert = self.issuer.keyed_certificates.filter(purpose = KeyedCertificate.purpose_map["ca"])
-    subject_name, subject_key = self.get_certificate_subject()
-    cer = cacert.certificate
-    key = cacert.private_key
-    
-    result = cer.bpki_certify(
-      keypair = key,
-      subject_name = subject_name,
-      subject_key = subject_key,
-      serial = ca.next_serial,
-      
-      # This needs to be configurable
-      notAfter = rpki.sundial.now() + rpki.sundial.timedelta(days = 60),
-
-      # This is (at least) per-class, not universal
-      pathLenConstraint = 0,
-
-      # This is per-class too
-      is_ca = True)
-
-    self.ca.next_serial += 1
-
-    self.certificate = result
-
+  def revoke(self):
+    self.ca.revoke(self)
 
 
 class CrossCertification(Certificate):
@@ -212,8 +241,14 @@ class CrossCertification(Certificate):
     abstract = True
     unique_together = ("issuer", "handle")
 
-  def get_certificate_subject(self):
-    return self.certificate.getSubject(), self.certificate.getPublicKey()
+  def generate_certificate(self):
+    self.certificate = self.issuer.certify(
+      subject_name = self.ta.getSubject(),
+      subject_key  = self.ta.getPublicKey(),
+      interval     = self.default_interval,
+      is_ca        = True,
+      pathLenConstraint = 0)
+
 
 class Revocation(django.db.models.Model):
   issuer = django.db.models.ForeignKey(CA, related_name = "revocations")
@@ -224,14 +259,23 @@ class Revocation(django.db.models.Model):
   class Meta:
     unique_together = ("issuer", "serial")
 
-class KeyedCertificate(Certificate):
-  issuer = django.db.models.ForeignKey(CA, related_name = "keyed_certificates")
-  purpose_map = ChoiceMap("ca", "rpkid", "pubd", "irdbd", "irbe", "rootd")
+class EECertificate(Certificate):
+  issuer = django.db.models.ForeignKey(CA, related_name = "ee_certificates")
+  purpose_map = ChoiceMap("rpkid", "pubd", "irdbd", "irbe", "rootd")
   purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
   private_key = RSAKeyField()
 
   class Meta:
     unique_together = ("issuer", "purpose")
+
+  def generate_certificate(self):
+    subject_name = rpki.x509.X501DN("%s BPKI %s EE" % (
+      self.issuer.identity.handle, self.get_purpose_display()))
+    self.certificate = self.issuer.certify(
+      subject_name = subject_name,
+      subject_key  = self.private_key.getPublicKey(),
+      interval     = self.default_interval,
+      is_ca        = False)
 
 class BSC(Certificate):
   issuer = django.db.models.ForeignKey(CA, related_name = "bscs")
@@ -240,6 +284,13 @@ class BSC(Certificate):
 
   class Meta:
     unique_together = ("issuer", "handle")
+
+  def generate_certificate(self):
+    self.certificate = self.issuer.certify(
+      subject_name = self.pkcs10.getSubject(),
+      subject_key  = self.pkcs10.getPublicKey(),
+      interval     = self.default_interval,
+      is_ca        = False)
 
 class Child(CrossCertification):
   issuer = django.db.models.ForeignKey(CA, related_name = "children")

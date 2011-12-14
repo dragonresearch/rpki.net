@@ -1402,6 +1402,13 @@ class XML_CMS_object(CMS_object):
     self.schema_check()
     return self.saxify(self.get_content())
 
+  ## @var saxify
+  # SAX handler hook.  Subclasses can set this to a SAX handler, in
+  # which case .unwrap() will call it and return the result.
+  # Otherwise, .unwrap() just returns a verified element tree.
+
+  saxify = staticmethod(lambda x: x)
+
 class Ghostbuster(CMS_object):
   """
   Class to hold Ghostbusters record (CMS-wrapped VCard).  This is

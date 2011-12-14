@@ -121,7 +121,6 @@ class PKCS10Field(DERField):
 class SignedReferral(rpki.x509.XML_CMS_object):
   encoding = "us-ascii"
   schema = rpki.relaxng.myrpki
-  saxify = staticmethod(lambda x: x)
 
 class SignedReferralField(DERField):
   description = "CMS signed object containing XML"

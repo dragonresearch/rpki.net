@@ -404,7 +404,8 @@ for row in cur.fetchall():
 
 for filename in sorted(xcert_filenames):
   cer = rpki.x509.X509(Auto_file = filename)
-  print "Unused cross-certificate:", filename, cer.getSubject()
+  #print "Unused cross-certificate:", filename, cer.getSubject()
+  print "Unused cross-certificate:", filename, cer.get_POW().pprint()
 
 # Done!
 

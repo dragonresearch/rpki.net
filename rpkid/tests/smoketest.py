@@ -1269,16 +1269,12 @@ def mangle_sql(filename):
   """
   Mangle an SQL file into a sequence of SQL statements.
   """
-  
-  # There is no pretty way to do this.  Just shut your eyes, it'll be
-  # over soon.
-  
+  words = []
   f = open(filename)
-  statements = " ".join(" ".join(word for word in line.expandtabs().split(" ") if word)
-                        for line in [line.strip(" \t\n") for line in f.readlines()]
-                        if line and not line.startswith("--")).rstrip(";").split(";")
+  for line in f:
+    words.extend(line.partition("--")[0].split())
   f.close()
-  return [stmt.strip() for stmt in statements]
+  return " ".join(words).strip(";").split(";")
 
 bpki_cert_fmt_1 = '''\
 [ req ]

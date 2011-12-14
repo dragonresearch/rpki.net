@@ -1,6 +1,6 @@
 """
 Test framework, using the same YAML test description format as
-smoketest.py, but using the myrpki.py tool to do all the back-end
+smoketest.py, but using the rpkic.py tool to do all the back-end
 work.  Reads YAML file, generates .csv and .conf files, runs daemons
 and waits for one of them to exit.
 
@@ -10,7 +10,7 @@ Still to do:
 
 - Implement smoketest.py-style delta actions, that is, modify the
   allocation database under control of the YAML file, dump out new
-  .csv files, and run myrpki.py again to feed resulting changes into
+  .csv files, and run rpkic.py again to feed resulting changes into
   running daemons.
 
 $Id$
@@ -46,7 +46,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import subprocess, re, os, getopt, sys, yaml, signal, time
-import rpki.resource_set, rpki.sundial, rpki.config, rpki.log, rpki.myrpki
+import rpki.resource_set, rpki.sundial, rpki.config, rpki.log, rpki.rpkic
 
 # Nasty regular expressions for parsing config files.  Sadly, while
 # the Python ConfigParser supports writing config files, it does so in
@@ -67,7 +67,7 @@ this_dir  = os.getcwd()
 test_dir  = cleanpath(this_dir, "yamltest.dir")
 rpkid_dir = cleanpath(this_dir, "..")
 
-prog_myrpki  = cleanpath(rpkid_dir, "myrpki.py")
+prog_rpkic   = cleanpath(rpkid_dir, "rpkic.py")
 prog_rpkid   = cleanpath(rpkid_dir, "rpkid.py")
 prog_irdbd   = cleanpath(rpkid_dir, "irdbd.py")
 prog_pubd    = cleanpath(rpkid_dir, "pubd.py")
@@ -154,7 +154,7 @@ class allocation_db(list):
 class allocation(object):
   """
   One entity in our allocation database.  Every entity in the database
-  is assumed to hold resources, so needs at least myrpki services.
+  is assumed to hold resources, so needs at least rpkic services.
   Entities that don't have the hosted_by property run their own copies
   of rpkid, irdbd, and pubd, so they also need myirbe services.
   """
@@ -290,12 +290,12 @@ class allocation(object):
   def csvout(self, fn):
     """
     Open and log a CSV output file.  We use delimiter and dialect
-    settings imported from the myrpki module, so that we automatically
+    settings imported from the rpkic module, so that we automatically
     write CSV files in the right format.
     """
     path = self.path(fn)
     print "Writing", path
-    return rpki.myrpki.csv_writer(path)
+    return rpki.rpkic.csv_writer(path)
 
   def up_down_url(self):
     """
@@ -465,20 +465,20 @@ class allocation(object):
       print "%s is hosted, skipping configure_daemons" % self.name
     else:
       files = [h.path("myrpki.xml") for h in self.hosts]
-      self.run_myrpki("configure_daemons", *[f for f in files if os.path.exists(f)])
+      self.run_rpkic("configure_daemons", *[f for f in files if os.path.exists(f)])
 
   def run_configure_resources(self):
     """
     Run configure_resources for this entity.
     """
-    self.run_myrpki("configure_resources")
+    self.run_rpkic("configure_resources")
 
-  def run_myrpki(self, *args):
+  def run_rpkic(self, *args):
     """
-    Run myrpki.py for this entity.
+    Run rpkic.py for this entity.
     """
-    print 'Running "%s" for %s' % (" ".join(("myrpki",) + args), self.name)
-    subprocess.check_call((sys.executable, prog_myrpki) + args, cwd = self.path())
+    print 'Running "%s" for %s' % (" ".join(("rpkic",) + args), self.name)
+    subprocess.check_call((sys.executable, prog_rpkic) + args, cwd = self.path())
 
   def run_python_daemon(self, prog):
     """
@@ -623,7 +623,7 @@ try:
   # Initialize BPKI and generate self-descriptor for each entity.
 
   for d in db:
-    d.run_myrpki("initialize")
+    d.run_rpkic("initialize")
 
   # Create publication directories.
 
@@ -660,19 +660,19 @@ try:
       print "Configuring", d.name
       print
       if  d.is_root():
-        d.run_myrpki("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.name))
+        d.run_rpkic("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.name))
         print
-        d.run_myrpki("configure_repository", d.path("entitydb", "pubclients", "%s.xml" % d.name))
+        d.run_rpkic("configure_repository", d.path("entitydb", "pubclients", "%s.xml" % d.name))
         print
       else:
-        d.parent.run_myrpki("configure_child", d.path("entitydb", "identity.xml"))
+        d.parent.run_rpkic("configure_child", d.path("entitydb", "identity.xml"))
         print
-        d.run_myrpki("configure_parent", d.parent.path("entitydb", "children", "%s.xml" % d.name))
+        d.run_rpkic("configure_parent", d.parent.path("entitydb", "children", "%s.xml" % d.name))
         print
         publisher, path = d.find_pubd()
-        publisher.run_myrpki("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
+        publisher.run_rpkic("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
         print
-        d.run_myrpki("configure_repository", publisher.path("entitydb", "pubclients", "%s.xml" % path))
+        d.run_rpkic("configure_repository", publisher.path("entitydb", "pubclients", "%s.xml" % path))
         print
         parent_host = d.parent.find_host()
         if d.parent is not parent_host:

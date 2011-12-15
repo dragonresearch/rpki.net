@@ -1385,7 +1385,10 @@ class XML_CMS_object(CMS_object):
     Wrap an XML PDU in CMS and return its DER encoding.
     """
     rpki.log.trace()
-    self.set_content(msg.toXML())
+    if self.saxify is None:
+      self.set_content(msg)
+    else:
+      self.set_content(msg.toXML())
     self.schema_check()
     self.sign(keypair, certs, crls)
     if self.dump_outbound_cms:
@@ -1400,14 +1403,17 @@ class XML_CMS_object(CMS_object):
       self.dump_inbound_cms.dump(self)
     self.verify(ta)
     self.schema_check()
-    return self.saxify(self.get_content())
+    if self.saxify is None:
+      return self.get_content()
+    else:
+      return self.saxify(self.get_content())
 
   ## @var saxify
   # SAX handler hook.  Subclasses can set this to a SAX handler, in
   # which case .unwrap() will call it and return the result.
   # Otherwise, .unwrap() just returns a verified element tree.
 
-  saxify = staticmethod(lambda x: x)
+  saxify = None
 
 class Ghostbuster(CMS_object):
   """

@@ -76,6 +76,7 @@ class DERField(django.db.models.Field):
   def __init__(self, *args, **kwargs):
     kwargs["serialize"] = False
     kwargs["blank"] = True
+    kwargs["default"] = None
     django.db.models.Field.__init__(self, *args, **kwargs)
 
   def db_type(self, connection):
@@ -85,22 +86,18 @@ class DERField(django.db.models.Field):
       return "BLOB"
 
   def to_python(self, value):
-    if value is None or isinstance(value, self.rpki_type):
-      return value
-    else:
-      assert isinstance(value, str)
+    assert value is None or isinstance(value, (self.rpki_type, str))
+    if isinstance(value, str):
       return self.rpki_type(DER = value)
+    else:
+      return value
 
   def get_prep_value(self, value):
+    assert value is None or isinstance(value, (self.rpki_type, str))
     if isinstance(value, self.rpki_type):
       return value.get_DER()
-    elif value is None or isinstance(value, str):
-      return value
     else:
-      import sys
-      sys.stderr.write(
-        "get_prep_value got %r, expected string or %r\n" % (type(value), self.rpki_type))
-      assert isinstance(value, (self.rpki_type, str))
+      return value
 
 class CertificateField(DERField):
   description = "X.509 certificate"
@@ -117,6 +114,10 @@ class CRLField(DERField):
 class PKCS10Field(DERField):
   description = "PKCS #10 certificate request"
   rpki_type = rpki.x509.PKCS10
+
+## @todo
+# SignedReferral doesn't belong in rpki.irdb, but I haven't yet
+# figured out where it does belong.
 
 class SignedReferral(rpki.x509.XML_CMS_object):
   encoding = "us-ascii"
@@ -137,6 +138,40 @@ ip_version_map = { "IPv4" : 4, "IPv6" : 6 }
 # Choice argument for fields implementing IP version numbers.
 #
 ip_version_choices = tuple((y, x) for (x, y) in ip_version_map.iteritems())
+
+class CertificateManager(django.db.models.Manager):
+
+  def get_or_certify(self, **kwargs):
+    """
+    Sort of like .get_or_create(), but for models containing
+    certificates which need to be generated based on other fields.
+
+    Takes keyword arguments like .get(), checks for existing object.
+    If none, creates a new one; if found an existing object but some
+    of the non-key fields don't match, updates the existing object.
+    Runs certification method for new or updated objects.  Returns a
+    tuple consisting of the object and a boolean indicating whether
+    anything has changed.
+
+    This is a somewhat weird use of .Meta.unique_together, but fits
+    with the way this application use unique indices and foreign keys.
+    """
+
+    try:
+      obj = self.get(**dict((k, kwargs[k]) for k in self.model.Meta.unique_together))
+
+    except self.model.DoesNotExist:
+      obj = self.model(**kwargs)
+
+    else:
+      if all(getattr(obj, k) == kwargs[k] for k in kwargs):
+        return obj, False
+      for k in kwargs:
+        setattr(obj, k, kwargs[k])
+
+    obj.avow()
+    obj.save()
+    return obj, True
 
 ###
 
@@ -160,6 +195,8 @@ class CA(django.db.models.Model):
   last_crl_update = django.db.models.DateTimeField()
   next_crl_update = django.db.models.DateTimeField()
 
+  objects = CertificateManager()
+
   class Meta:
     unique_together = ("identity", "purpose")
 
@@ -167,7 +204,9 @@ class CA(django.db.models.Model):
   ca_certificate_lifetime = rpki.sundial.timedelta(days = 3652)
   crl_interval = rpki.sundial.timedelta(days = 1)
 
-  def self_certify(self):
+  def avow(self):
+    if self.private_key is None:
+      self.private_key = rpki.x509.RSA.generate()
     subject_name = rpki.x509.X501DN("%s BPKI %s CA" % (
       self.identity.handle, self.get_purpose_display()))
     now = rpki.sundial.now()
@@ -179,6 +218,7 @@ class CA(django.db.models.Model):
       now = now,
       notAfter = notAfter)
     self.serial += 1
+    self.generate_crl()
     return self.certificate
 
   def certify(self, subject_name, subject_key, validity_interval, is_ca, pathLenConstraint = None):
@@ -208,18 +248,22 @@ class CA(django.db.models.Model):
   def generate_crl(self):
     now = rpki.sundial.now()
     self.revocations.filter(expires__lt = now).delete()
-    revoked_certificates = [(r.serial, rpki.sundial.datetime.fromdatetime(r.revoked).toASN1tuple(), ())
-                            for r in self.revocations]
+    revoked = [(r.serial, rpki.sundial.datetime.fromdatetime(r.revoked).toASN1tuple(), ())
+               for r in self.revocations]
     self.latest_crl = rpki.x509.CRL.generate(
       keypair = self.private_key,
       issuer  = self.certificate.getSubject(),
+      serial  = self.next_crl_number,
       thisUpdate = now,
       nextUpdate = now + self.crl_interval,
-      revoked_certificates = revoked_certificates)
-
+      revoked_certificates = revoked)
+    self.last_crl_update = now
+    self.next_crl_update = now + self.crl_interval
+    self.next_crl_number += 1
 
 class Certificate(django.db.models.Model):
   certificate = CertificateField()
+  objects = CertificateManager()
 
   default_interval = rpki.sundial.timedelta(days = 60)
 
@@ -238,7 +282,7 @@ class CrossCertification(Certificate):
     abstract = True
     unique_together = ("issuer", "handle")
 
-  def generate_certificate(self):
+  def avow(self):
     self.certificate = self.issuer.certify(
       subject_name = self.ta.getSubject(),
       subject_key  = self.ta.getPublicKey(),
@@ -258,14 +302,16 @@ class Revocation(django.db.models.Model):
 
 class EECertificate(Certificate):
   issuer = django.db.models.ForeignKey(CA, related_name = "ee_certificates")
-  purpose_map = ChoiceMap("rpkid", "pubd", "irdbd", "irbe", "rootd")
+  purpose_map = ChoiceMap("rpkid", "pubd", "irdbd", "irbe", "rootd", "referral")
   purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
   private_key = RSAKeyField()
 
   class Meta:
     unique_together = ("issuer", "purpose")
 
-  def generate_certificate(self):
+  def avow(self):
+    if self.private_key is None:
+      self.private_key = rpki.x509.RSA.generate()
     subject_name = rpki.x509.X501DN("%s BPKI %s EE" % (
       self.issuer.identity.handle, self.get_purpose_display()))
     self.certificate = self.issuer.certify(
@@ -282,7 +328,7 @@ class BSC(Certificate):
   class Meta:
     unique_together = ("issuer", "handle")
 
-  def generate_certificate(self):
+  def avow(self):
     self.certificate = self.issuer.certify(
       subject_name = self.pkcs10.getSubject(),
       subject_key  = self.pkcs10.getPublicKey(),

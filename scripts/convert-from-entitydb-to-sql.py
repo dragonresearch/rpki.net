@@ -130,18 +130,20 @@ def get_or_create_CA(purpose):
     last_crl_update = crl.getThisUpdate().to_sql(),
     next_crl_update = crl.getNextUpdate().to_sql())[0]
 
-def get_or_create_EECertificate(issuer, purpose):
-  cer = rpki.x509.X509(Auto_file = os.path.join(bpki, "servers", purpose + ".cer"))
-  key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, "servers", purpose + ".key"))
+def get_or_create_EECertificate(issuer, capurpose, eepurpose):
+  cer = rpki.x509.X509(Auto_file = os.path.join(bpki, capurpose, eepurpose + ".cer"))
+  key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, capurpose, eepurpose + ".key"))
   rpki.irdb.EECertificate.objects.get_or_create(
     issuer      = issuer,
-    purpose     = rpki.irdb.EECertificate.purpose_map[purpose],
+    purpose     = rpki.irdb.EECertificate.purpose_map[eepurpose],
     certificate = cer,
     private_key = key)
 
 # Load BPKI CA data
 
 resource_ca = get_or_create_CA("resources")
+if os.path.exists(os.path.join(bpki, "resources", "referral.cer")):
+  get_or_create_EECertificate(resource_ca, "resources", "referral")
 
 # Load BPKI server EE certificates and keys
 
@@ -150,14 +152,14 @@ run_flags = dict((i, cfg.getboolean(i, section = "myrpki"))
 
 if any(run_flags.itervalues()):
   server_ca = get_or_create_CA("servers")
-  get_or_create_EECertificate(server_ca, "irbe")
+  get_or_create_EECertificate(server_ca, "servers", "irbe")
   if run_flags["run_rpkid"]:
-    get_or_create_EECertificate(server_ca, "rpkid")
-    get_or_create_EECertificate(server_ca, "irdbd")
+    get_or_create_EECertificate(server_ca, "servers", "rpkid")
+    get_or_create_EECertificate(server_ca, "servers", "irdbd")
   if run_flags["run_pubd"]:
-    get_or_create_EECertificate(server_ca, "pubd")
+    get_or_create_EECertificate(server_ca, "servers", "pubd")
   if run_flags["run_rootd"]:
-    get_or_create_EECertificate(server_ca, "rootd")
+    get_or_create_EECertificate(server_ca, "servers", "rootd")
 else:
   server_ca = None
 

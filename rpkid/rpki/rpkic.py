@@ -72,13 +72,17 @@ namespace      = "http://www.hactrn.net/uris/rpki/myrpki/"
 version        = "2"
 namespaceQName = "{" + namespace + "}"
 
+## @var allow_incomplete
 # Whether to include incomplete entries when rendering to XML.
 
 allow_incomplete = False
 
+## @var whine
 # Whether to whine about incomplete entries while rendering to XML.
 
 whine = True
+
+# A whole lot of exceptions
 
 class BadCommandSyntax(Exception):
   """
@@ -109,428 +113,9 @@ class CantRunRootd(Exception):
   """
   Can't run rootd.
   """
-
-class comma_set(set):
-  """
-  Minor customization of set(), to provide a print syntax.
-  """
-
-  def __str__(self):
-    return ",".join(self)
-
-class EntityDB(object):
-  """
-  Wrapper for entitydb path lookups and iterations.
-  """
-
-  def __init__(self, cfg):
-    self.dir = cfg.get("entitydb_dir", "entitydb")
-    self.identity = os.path.join(self.dir, "identity.xml")
-
-  def __call__(self, dirname, filebase = None):
-    if filebase is None:
-      return os.path.join(self.dir, dirname)
-    else:
-      return os.path.join(self.dir, dirname, filebase + ".xml")
-
-  def iterate(self, dir, base = "*"):
-    return glob.iglob(os.path.join(self.dir, dir, base + ".xml"))
-
 
 
-# Not certain, but I //think// everything on this page is used only by
-# main.configure_resources_main().
-
-class roa_request(object):
-  """
-  Representation of a ROA request.
-  """
-
-  v4re = re.compile("^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+(-[0-9]+)?$", re.I)
-  v6re = re.compile("^([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4}/[0-9]+(-[0-9]+)?$", re.I)
-
-  def __init__(self, asn, group):
-    self.asn = asn
-    self.group = group
-    self.v4 = comma_set()
-    self.v6 = comma_set()
-
-  def __repr__(self):
-    s = "<%s asn %s group %s" % (self.__class__.__name__, self.asn, self.group)
-    if self.v4:
-      s += " v4 %s" % self.v4
-    if self.v6:
-      s += " v6 %s" % self.v6
-    return s + ">"
-
-  def add(self, prefix):
-    """
-    Add one prefix to this ROA request.
-    """
-
-    if self.v4re.match(prefix):
-      self.v4.add(prefix)
-    elif self.v6re.match(prefix):
-      self.v6.add(prefix)
-    else:
-      raise BadPrefixSyntax, "Bad prefix syntax: %r" % (prefix,)
-
-  def xml(self, e):
-    """
-    Generate XML element represeting representing this ROA request.
-    """
-
-    e = SubElement(e, "roa_request",
-                   asn = self.asn,
-                   v4 = str(self.v4),
-                   v6 = str(self.v6))
-    e.tail = "\n"
-
-class roa_requests(dict):
-  """
-  Database of ROA requests.
-  """
-
-  def add(self, asn, group, prefix):
-    """
-    Add one <ASN, group, prefix> set to ROA request database.
-    """
-
-    key = (asn, group)
-    if key not in self:
-      self[key] = roa_request(asn, group)
-    self[key].add(prefix)
-
-  def xml(self, e):
-    """
-    Render ROA requests as XML elements.
-    """
-
-    for r in self.itervalues():
-      r.xml(e)
-
-  @classmethod
-  def from_csv(cls, roa_csv_file):
-    """
-    Parse ROA requests from CSV file.
-    """
-
-    self = cls()
-    # format:  p/n-m asn group
-    for pnm, asn, group in csv_reader(roa_csv_file, columns = 3):
-      self.add(asn = asn, group = group, prefix = pnm)
-    return self
-
-class child(object):
-  """
-  Representation of one child entity.
-  """
-
-  v4re = re.compile("^(([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+)|(([0-9]{1,3}\.){3}[0-9]{1,3}-([0-9]{1,3}\.){3}[0-9]{1,3})$", re.I)
-  v6re = re.compile("^(([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4}/[0-9]+)|(([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4}-([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4})$", re.I)
-
-  def __init__(self, handle):
-    self.handle = handle
-    self.asns = comma_set()
-    self.v4 = comma_set()
-    self.v6 = comma_set()
-    self.validity = None
-    self.bpki_certificate = None
-
-  def __repr__(self):
-    s = "<%s %s" % (self.__class__.__name__, self.handle)
-    if self.asns:
-      s += " asn %s" % self.asns
-    if self.v4:
-      s += " v4 %s" % self.v4
-    if self.v6:
-      s += " v6 %s" % self.v6
-    if self.validity:
-      s += " valid %s" % self.validity
-    if self.bpki_certificate:
-      s += " cert %s" % self.bpki_certificate
-    return s + ">"
-
-  def add(self, prefix = None, asn = None, validity = None, bpki_certificate = None):
-    """
-    Add prefix, autonomous system number, validity date, or BPKI
-    certificate for this child.
-    """
-
-    if prefix is not None:
-      if self.v4re.match(prefix):
-        self.v4.add(prefix)
-      elif self.v6re.match(prefix):
-        self.v6.add(prefix)
-      else:
-        raise BadPrefixSyntax, "Bad prefix syntax: %r" % (prefix,)
-    if asn is not None:
-      self.asns.add(asn)
-    if validity is not None:
-      self.validity = validity
-    if bpki_certificate is not None:
-      self.bpki_certificate = bpki_certificate
-
-  def xml(self, e):
-    """
-    Render this child as an XML element.
-    """
-
-    complete = self.bpki_certificate and self.validity
-    if whine and not complete:
-      print "Incomplete child entry %s" % self
-    if complete or allow_incomplete:
-      e = SubElement(e, "child",
-                     handle = self.handle,
-                     valid_until = self.validity,
-                     asns = str(self.asns),
-                     v4 = str(self.v4),
-                     v6 = str(self.v6))
-      e.tail = "\n"
-      if self.bpki_certificate:
-        PEMElement(e, "bpki_certificate", self.bpki_certificate)
-
-class children(dict):
-  """
-  Database of children.
-  """
-
-  def add(self, handle, prefix = None, asn = None, validity = None, bpki_certificate = None):
-    """
-    Add resources to a child, creating the child object if necessary.
-    """
-
-    if handle not in self:
-      self[handle] = child(handle)
-    self[handle].add(prefix = prefix, asn = asn, validity = validity, bpki_certificate = bpki_certificate)
-
-  def xml(self, e):
-    """
-    Render children database to XML.
-    """
-
-    for c in self.itervalues():
-      c.xml(e)
-
-  @classmethod
-  def from_entitydb(cls, prefix_csv_file, asn_csv_file, fxcert, entitydb):
-    """
-    Parse child data from entitydb.
-    """
-
-    self = cls()
-    for f in entitydb.iterate("children"):
-      c = etree_read(f)
-      self.add(handle = os.path.splitext(os.path.split(f)[-1])[0],
-               validity = c.get("valid_until"),
-               bpki_certificate = fxcert(b64 = c.findtext("bpki_child_ta"),
-                                         handle = handle,
-                                         bpki_type = rpki.irdb.Child))
-    # childname p/n
-    for handle, pn in csv_reader(prefix_csv_file, columns = 2):
-      self.add(handle = handle, prefix = pn)
-    # childname asn
-    for handle, asn in csv_reader(asn_csv_file, columns = 2):
-      self.add(handle = handle, asn = asn)
-    return self
-
-class parent(object):
-  """
-  Representation of one parent entity.
-  """
-
-  def __init__(self, handle):
-    self.handle = handle
-    self.service_uri = None
-    self.bpki_cms_certificate = None
-    self.myhandle = None
-    self.sia_base = None
-
-  def __repr__(self):
-    s = "<%s %s" % (self.__class__.__name__, self.handle)
-    if self.myhandle:
-      s += " myhandle %s" % self.myhandle
-    if self.service_uri:
-      s += " uri %s" % self.service_uri
-    if self.sia_base:
-      s += " sia %s" % self.sia_base
-    if self.bpki_cms_certificate:
-      s += " cms %s" % self.bpki_cms_certificate
-    return s + ">"
-
-  def add(self, service_uri = None,
-          bpki_cms_certificate = None,
-          myhandle = None,
-          sia_base = None):
-    """
-    Add service URI or BPKI certificates to this parent object.
-    """
-
-    if service_uri is not None:
-      self.service_uri = service_uri
-    if bpki_cms_certificate is not None:
-      self.bpki_cms_certificate = bpki_cms_certificate
-    if myhandle is not None:
-      self.myhandle = myhandle
-    if sia_base is not None:
-      self.sia_base = sia_base
-
-  def xml(self, e):
-    """
-    Render this parent object to XML.
-    """
-
-    complete = self.bpki_cms_certificate and self.myhandle and self.service_uri and self.sia_base
-    if whine and not complete:
-      print "Incomplete parent entry %s" % self
-    if complete or allow_incomplete:
-      e = SubElement(e, "parent",
-                     handle = self.handle,
-                     myhandle = self.myhandle,
-                     service_uri = self.service_uri,
-                     sia_base = self.sia_base)
-      e.tail = "\n"
-      if self.bpki_cms_certificate:
-        PEMElement(e, "bpki_cms_certificate", self.bpki_cms_certificate)
-
-class parents(dict):
-  """
-  Database of parent objects.
-  """
-
-  def add(self, handle,
-          service_uri = None,
-          bpki_cms_certificate = None,
-          myhandle = None,
-          sia_base = None):
-    """
-    Add service URI or certificates to parent object, creating it if necessary.
-    """
-
-    if handle not in self:
-      self[handle] = parent(handle)
-    self[handle].add(service_uri = service_uri,
-                     bpki_cms_certificate = bpki_cms_certificate,
-                     myhandle = myhandle,
-                     sia_base = sia_base)
-
-  def xml(self, e):
-    for c in self.itervalues():
-      c.xml(e)
-
-  @classmethod
-  def from_entitydb(cls, fxcert, entitydb):
-    """
-    Parse parent data from entitydb.
-    """
-
-    self = cls()
-    for f in entitydb.iterate("parents"):
-      h = os.path.splitext(os.path.split(f)[-1])[0]
-      p = etree_read(f)
-      r = etree_read(f.replace(os.path.sep + "parents"      + os.path.sep,
-                               os.path.sep + "repositories" + os.path.sep))
-      if r.get("type") == "confirmed":
-        self.add(handle = h,
-                 service_uri = p.get("service_uri"),
-                 bpki_cms_certificate = fxcert(b64 = p.findtext("bpki_resource_ta"),
-                                               handle = h,
-                                               bpki_type = rpki.irdb.Parent),
-                 myhandle = p.get("child_handle"),
-                 sia_base = r.get("sia_base"))
-      elif whine:
-        print "Parent %s's repository entry in state %s, skipping this parent" % (h, r.get("type"))
-    return self
-
-class repository(object):
-  """
-  Representation of one repository entity.
-  """
-
-  def __init__(self, handle):
-    self.handle = handle
-    self.service_uri = None
-    self.bpki_certificate = None
-
-  def __repr__(self):
-    s = "<%s %s" % (self.__class__.__name__, self.handle)
-    if self.service_uri:
-      s += " uri %s" % self.service_uri
-    if self.bpki_certificate:
-      s += " cert %s" % self.bpki_certificate
-    return s + ">"
-
-  def add(self, service_uri = None, bpki_certificate = None):
-    """
-    Add service URI or BPKI certificates to this repository object.
-    """
-
-    if service_uri is not None:
-      self.service_uri = service_uri
-    if bpki_certificate is not None:
-      self.bpki_certificate = bpki_certificate
-
-  def xml(self, e):
-    """
-    Render this repository object to XML.
-    """
-
-    complete = self.bpki_certificate and self.service_uri
-    if whine and not complete:
-      print "Incomplete repository entry %s" % self
-    if complete or allow_incomplete:
-      e = SubElement(e, "repository",
-                     handle = self.handle,
-                     service_uri = self.service_uri)
-      e.tail = "\n"
-      if self.bpki_certificate:
-        PEMElement(e, "bpki_certificate", self.bpki_certificate)
-
-class repositories(dict):
-  """
-  Database of repository objects.
-  """
-
-  def add(self, handle,
-          service_uri = None,
-          bpki_certificate = None):
-    """
-    Add service URI or certificate to repository object, creating it if necessary.
-    """
-
-    if handle not in self:
-      self[handle] = repository(handle)
-    self[handle].add(service_uri = service_uri,
-                     bpki_certificate = bpki_certificate)
-
-  def xml(self, e):
-    for c in self.itervalues():
-      c.xml(e)
-
-  @classmethod
-  def from_entitydb(cls, fxcert, entitydb):
-    """
-    Parse repository data from entitydb.
-    """
-
-    self = cls()
-    for f in entitydb.iterate("repositories"):
-      h = os.path.splitext(os.path.split(f)[-1])[0]
-      r = etree_read(f)
-      if r.get("type") == "confirmed":
-        self.add(handle = h,
-                 service_uri = r.get("service_uri"),
-                 bpki_certificate = fxcert(b64 = r.findtext("bpki_server_ta"),
-                                           handle = h,
-                                           bpki_type = rpki.irdb.Repository))
-      elif whine:
-        print "Repository %s in state %s, skipping this repository" % (h, r.get("type"))
-
-    return self
-
-
-
-def PEMElement(e, tag, obj, **kwargs):
+def B64Element(e, tag, obj, **kwargs):
   """
   Create an XML element containing Base64 encoded data taken from a
   DER object.
@@ -601,7 +186,7 @@ class CA(object):
     """
 
     ee = self.ee("referral")
-    return rpki.irdb.SignedReferral().wrap(
+    return rpki.x509.SignedReferral().wrap(
       msg = elt,
       keypair = ee.private_key,
       certs = ee.certificate,
@@ -618,7 +203,7 @@ class CA(object):
     trust anchor.
     """
 
-    return rpki.irdb.SignedReferral(Base64 = b64).unwrap(
+    return rpki.x509.SignedReferral(Base64 = b64).unwrap(
       ta = (ca, self.ca.certificate))
 
   def bsc(self, handle, pkcs10):
@@ -637,43 +222,6 @@ class CA(object):
       handle = handle,
       pkcs10 = rpki.x509.PKCS10(Base64 = pkcs10))[0]
 
-  def fxcert(self, b64, handle, bpki_type, path_restriction = 0):
-    """
-    Write PEM certificate to file, then cross-certify.
-
-    This is the interface that almost everything uses for
-    cross-certification.
-    """
-
-    fn = os.path.join(self.dir, "temp.%s.cer" % os.getpid())
-
-    try:
-      self.run_openssl("x509", "-inform", "DER", "-out", fn, stdin = base64.b64decode(b64))
-      return self.xcert(fn, handle, path_restriction)
-
-    finally:
-      if os.path.exists(fn):
-        os.unlink(fn)
-
-  def xcert(self, cert, handle, path_restriction = 0):
-    """
-    Cross-certify a certificate represented as a PEM file, if we
-    haven't already.  This only works for self-signed certs, due to
-    limitations of the OpenSSL command line tool, but that suffices
-    for our purposes.
-
-    Only .fxcert() and a few bits of the rootd setup use this
-    directly, everthing else calls .fxcert().
-    """
-
-    xcert = "%s/xcert.%s.cer" % (self.dir, self.run_dgst(self.run_openssl(
-      "x509", "-noout", "-pubkey", "-subject", "-in", cert)).strip())
-
-    if not os.path.exists(xcert):
-      self.run_ca("-ss_cert", cert, "-out", xcert, "-extensions",
-                  self.path_restriction[path_restriction])
-    return xcert
-
 
 
 def etree_write(e, filename, verbose = False, msg = None):
@@ -686,22 +234,11 @@ def etree_write(e, filename, verbose = False, msg = None):
   filename = os.path.realpath(filename)
   tempname = filename
   if not filename.startswith("/dev/"):
-    tempname += ".tmp"
+    tempname += ".%s.tmp" % os.getpid()
   if verbose or msg:
     print "Writing", filename
   if msg:
     print msg
-  e = etree_pre_write(e)
-  ElementTree(e).write(tempname)
-  if tempname != filename:
-    os.rename(tempname, filename)
-
-def etree_pre_write(e):
-  """
-  Do the namespace frobbing needed on write; broken out of
-  etree_write() because also needed with ElementToString().
-  """
-
   e = copy.deepcopy(e)
   e.set("version", version)
   for i in e.getiterator():
@@ -709,7 +246,9 @@ def etree_pre_write(e):
       i.tag = namespaceQName + i.tag
     assert i.tag.startswith(namespaceQName)
   rpki.relaxng.myrpki.assertValid(e)
-  return e
+  ElementTree(e).write(tempname)
+  if tempname != filename:
+    os.rename(tempname, filename)
 
 def etree_read(filename, verbose = False):
   """
@@ -720,14 +259,6 @@ def etree_read(filename, verbose = False):
   if verbose:
     print "Reading", filename
   e = ElementTree(file = filename).getroot()
-  return etree_post_read(e)
-
-def etree_post_read(e):
-  """
-  Do the namespace frobbing needed on read; broken out of etree_read()
-  beause also needed by ElementFromString().
-  """
-
   rpki.relaxng.myrpki.assertValid(e)
   for i in e.getiterator():
     if i.tag.startswith(namespaceQName):
@@ -736,120 +267,6 @@ def etree_post_read(e):
       raise BadXMLMessage, "XML tag %r is not in namespace %r" % (i.tag, namespace)
   return e
 
-
-
-class IRDB(object):
-  """
-  Front-end to the IRDB.  This is broken out from class main so
-  that other applications (namely, the portal-gui) can reuse it.
-  """
-
-  def __init__(self, cfg):
-    """
-    Opens a new connection to the IRDB, using the configuration
-    information from a rpki.config.parser object.
-    """
-
-    from rpki.mysql_import import MySQLdb
-
-    irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf", cfg.filename), "irdbd")
-
-    self.db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
-                              db     = irdbd_cfg.get("sql-database"),
-                              passwd = irdbd_cfg.get("sql-password"))
-
-  def update(self, handle, roa_requests, children, ghostbusters=None):
-    """
-    Update the IRDB for a given resource handle.  Removes all
-    existing data and replaces it with that specified in the
-    argument list.
-
-    The "roa_requests" argument is a sequence of tuples of the form
-    (asID, v4_addresses, v6_addresses), where "v*_addresses" are
-    instances of rpki.resource_set.roa_prefix_set_ipv*.
-
-    The "children" argument is a sequence of tuples of the form
-    (child_handle, asns, v4addrs, v6addrs, valid_until),
-    where "asns" is an instance of rpki.resource_set.resource_set_asn,
-    "v*addrs" are instances of rpki.resource_set.resource_set_ipv*,
-    and "valid_until" is an instance of rpki.sundial.datetime.
-
-    The "ghostbusters" argument is a sequence of tuples of the form
-    (parent_handle, vcard_string).  "parent_handle" may be value None,
-    in which case the specified vcard object will be used for all
-    parents.
-    """
-
-    cur = self.db.cursor()
-
-    cur.execute(
-      """
-      DELETE
-      FROM  roa_request_prefix
-      USING roa_request, roa_request_prefix
-      WHERE roa_request.roa_request_id = roa_request_prefix.roa_request_id AND roa_request.roa_request_handle = %s
-      """, (handle,))
-
-    cur.execute("DELETE FROM roa_request WHERE roa_request.roa_request_handle = %s", (handle,))
-
-    for asID, v4addrs, v6addrs in roa_requests:
-      assert isinstance(v4addrs, rpki.resource_set.roa_prefix_set_ipv4)
-      assert isinstance(v6addrs, rpki.resource_set.roa_prefix_set_ipv6)
-      cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (handle, asID))
-      roa_request_id = cur.lastrowid
-      for version, prefix_set in ((4, v4addrs), (6, v6addrs)):
-        if prefix_set:
-          cur.executemany("INSERT roa_request_prefix (roa_request_id, prefix, prefixlen, max_prefixlen, version) VALUES (%s, %s, %s, %s, %s)",
-                          ((roa_request_id, p.prefix, p.prefixlen, p.max_prefixlen, version) for p in prefix_set))
-
-    cur.execute(
-      """
-      DELETE
-      FROM   registrant_asn
-      USING registrant, registrant_asn
-      WHERE registrant.registrant_id = registrant_asn.registrant_id AND registrant.registry_handle = %s
-      """ , (handle,))
-
-    cur.execute(
-      """
-      DELETE FROM registrant_net USING registrant, registrant_net
-      WHERE registrant.registrant_id = registrant_net.registrant_id AND registrant.registry_handle = %s
-      """ , (handle,))
-
-    cur.execute("DELETE FROM registrant WHERE registrant.registry_handle = %s" , (handle,))
-
-    for child_handle, asns, ipv4, ipv6, valid_until in children:
-      cur.execute("INSERT registrant (registrant_handle, registry_handle, registrant_name, valid_until) VALUES (%s, %s, %s, %s)",
-                  (child_handle, handle, child_handle, valid_until.to_sql()))
-      child_id = cur.lastrowid
-      if asns:
-        cur.executemany("INSERT registrant_asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)",
-                        ((a.min, a.max, child_id) for a in asns))
-      if ipv4:
-        cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)",
-                        ((a.min, a.max, child_id) for a in ipv4))
-      if ipv6:
-        cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)",
-                        ((a.min, a.max, child_id) for a in ipv6))
-
-    # don't munge the ghostbuster_request table when the arg is None.
-    # this allows the cli to safely run configure_resources without
-    # stomping on GBRs created by the portal gui.
-    if ghostbusters is not None:
-      cur.execute("DELETE FROM ghostbuster_request WHERE self_handle = %s", (handle,))
-      if ghostbusters:
-        cur.executemany("INSERT INTO ghostbuster_request (self_handle, parent_handle, vcard) VALUES (%s, %s, %s)",
-                        ((handle, parent_handle, vcard) for parent_handle, vcard in ghostbusters))
-
-    self.db.commit()
-
-  def close(self):
-    """
-    Close the connection to the IRDB.
-    """
-
-    self.db.close()
-    
 
 
 class main(rpki.cli.Cmd):
@@ -893,17 +310,8 @@ class main(rpki.cli.Cmd):
       self.stdout.write(" " * 4 + line)
     self.stdout.write("\n")
 
-  def entitydb_complete(self, prefix, text, line, begidx, endidx):
-    """
-    Completion helper for entitydb filenames.
-    """
-
-    names = []
-    for name in self.entitydb.iterate(prefix):
-      name = os.path.splitext(os.path.basename(name))[0]
-      if name.startswith(text):
-        names.append(name)
-    return names
+  def irdb_handle_complete(self, klass, text, line, begidx, endidx):
+    return [obj.handle for obj in klass.objects.all() if obj.handle.startswith(text)]
 
   def read_config(self):
 
@@ -938,22 +346,29 @@ class main(rpki.cli.Cmd):
 
     import rpki.irdb
 
-    self.entitydb  = EntityDB(self.cfg)
-
     if self.run_rootd and (not self.run_pubd or not self.run_rpkid):
       raise CantRunRootd, "Can't run rootd unless also running rpkid and pubd"
-
-    self.bpki_resources = CA(self.cfg.get("bpki_resources_directory", "resources"))
-    if self.run_rpkid or self.run_pubd or self.run_rootd:
-      self.bpki_servers = CA(self.cfg.get("bpki_servers_directory", "servers"))
-    else:
-      self.bpki_servers = None
 
     self.default_repository = self.cfg.get("default_repository", "")
     self.pubd_contact_info = self.cfg.get("pubd_contact_info", "")
 
     self.rsync_module = self.cfg.get("publication_rsync_module")
     self.rsync_server = self.cfg.get("publication_rsync_server")
+
+    try:
+      self.identity = rpki.irdb.Identity.objects.get(handle = self.handle)
+    except rpki.irdb.Identity.DoesNotExist:
+      self.identity = None
+    else:
+      try:
+        self.resource_ca = self.identity.ca_set.get(purpose = "resources")
+      except rpki.irdb.CA.DoesNotExist:
+        self.resource_ca = None
+      if self.run_rpkid or self.run_pubd or self.run_rootd:
+        try:
+          self.server_ca = self.identity.ca_set(purpose = "servers")
+        except rpki.irdb.CA.DoesNotExist:
+          self.server_ca = None
 
 
   def do_initialize(self, arg):
@@ -967,37 +382,48 @@ class main(rpki.cli.Cmd):
     if arg:
       raise BadCommandSyntax, "This command takes no arguments"
 
-    self.bpki_resources.setup(self.cfg.get("bpki_resources_ta_dn",
-                                           "/CN=%s BPKI Resource Trust Anchor" % self.handle))
-    if self.run_rpkid or self.run_pubd or self.run_rootd:
-      self.bpki_servers.setup(self.cfg.get("bpki_servers_ta_dn",
-                                           "/CN=%s BPKI Server Trust Anchor" % self.handle))
+    self.identity, created = rpki.irdb.Identity.objects.get_or_create(handle = self.handle)
+    if created:
+      print 'Created new identity for "%s"' % self.handle
 
-    # Create entitydb directories.
+    self.resource_ca, created = rpki.irdb.CA.objects.get_or_certify(identity = self.identity, purpose = "resources")
+    if created:
+      print "Created new BPKI resource CA"
 
-    for i in ("parents", "children", "repositories", "pubclients"):
-      d = self.entitydb(i)
-      if not os.path.exists(d):
-        os.makedirs(d)
-
-    if self.run_rpkid or self.run_pubd or self.run_rootd:
+    if not self.run_rpkid and not self.run_pubd and not self.run_rootd:
+      self.server_ca = None
+    else:
+      self.server_ca, created = rpki.irdb.CA.objects.get_or_certify(identity = self.identity, purpose = "servers")
+      if created:
+        print "Created new BPKI server CA"
 
       if self.run_rpkid:
-        self.bpki_servers.ee("rpkid")
-        self.bpki_servers.ee("irdbd")
+        self.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rpkid")
+        self.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irdbd")
       if self.run_pubd:
-        self.bpki_servers.ee("pubd")
+        self.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "pubd")
       if self.run_rpkid or self.run_pubd:
-        self.bpki_servers.ee("irbe")
+        self.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irbe")
+
+      ## @todo
+      # Why do we issue root's EE certificate under our server CA?
+      # We've "always" done this, but does it make sense now?  rootd
+      # only speaks up-down, so it's really just another resource
+      # holder.  If we just issued it under our resource CA, we
+      # wouldn't have to cross certify anything to talk to it.  Which
+      # might in itself break something, as it'd be the only parent we
+      # -didn't- have to cross-certify.  Leave alone for now, but
+      # think about this later.
+
       if self.run_rootd:
-        self.bpki_servers.ee("rootd")
+        self.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rootd")
 
     # Build the identity.xml file.  Need to check for existing file so we don't
     # overwrite?  Worry about that later.
 
     e = Element("identity", handle = self.handle)
-    PEMElement(e, "bpki_ta", self.bpki_resources.cer)
-    etree_write(e, self.entitydb.identity,
+    B64Element(e, "bpki_ta", self.resource_ca.certificate)
+    etree_write(e, "identity.xml",
                 msg = None if self.run_rootd else 'This is the "identity" file you will need to send to your parent')
 
     # If we're running rootd, construct a fake parent to go with it,
@@ -1005,31 +431,28 @@ class main(rpki.cli.Cmd):
 
     if self.run_rootd:
 
-      e = Element("parent", parent_handle = self.handle, child_handle = self.handle,
-                  service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port"),
-                  valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
-      PEMElement(e, "bpki_resource_ta", self.bpki_servers.cer)
-      PEMElement(e, "bpki_child_ta", self.bpki_resources.cer)
-      SubElement(e, "repository", type = "offer")
-      etree_write(e, self.entitydb("parents", self.handle))
-
-      self.bpki_resources.xcert(self.bpki_servers.cer)
-
-      rootd_child_fn = self.cfg.get("child-bpki-cert", None, "rootd")
-      if not os.path.exists(rootd_child_fn):
-        os.link(self.bpki_servers.xcert(self.bpki_resources.cer), rootd_child_fn)
-
-      repo_file_name = self.entitydb("repositories", self.handle)
+      rpki.irdb.Parent.objects.get_or_certify(
+        issuer = self.resource_ca, 
+        handle = self.handle,
+        parent_handle = self.handle,
+        child_handle = self.handle,
+        ta = self.server_ca.certificate,
+        service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port"),
+        repository_type = "offer")
+      
+      rpki.irdb.Child.objects.get_or_certify(
+        issuer = self.server_ca,
+        handle = self.handle,
+        ta = self.resource_ca.certificate,
+        valid_until = self.resource_ca.certificate.getNotAfter())
 
       try:
-        want_offer = etree_read(repo_file_name).get("type") != "confirmed"
-      except IOError:
-        want_offer = True
+        self.resource_ca.repositories.get(handle = self.handle)
 
-      if want_offer:
+      except rpki.irdb.Repository.DoesNotExist:
         e = Element("repository", type = "offer", handle = self.handle, parent_handle = self.handle)
-        PEMElement(e, "bpki_client_ta", self.bpki_resources.cer)
-        etree_write(e, repo_file_name,
+        B64Element(e, "bpki_client_ta", self.resource_ca.certificate)
+        etree_write(e, "rootd_repository_offer.xml",
                     msg = 'This is the "repository offer" file for you to use if you want to publish in your own repository')
 
 
@@ -1041,38 +464,25 @@ class main(rpki.cli.Cmd):
     now.  In the long run we might want to be more clever about only
     touching ones that need maintenance, but this will do for a start.
 
+    We also reissue CRLs for all CAs.
+
     Most likely this should be run under cron.
     """
 
-    if self.bpki_servers:
-      bpkis = (self.bpki_resources, self.bpki_servers)
-    else:
-      bpkis = (self.bpki_resources,)
+    for model in (rpki.irdb.CA,
+                  rpki.irdb.EECertificate,
+                  rpki.irdb.BSC,
+                  rpki.irdb.Child,
+                  rpki.irdb.Parent,
+                  rpki.irdb.Client,
+                  rpki.irdb.Repository):
+      for obj in model.all():
+        print "Regenerating certificate", obj.certificate.getSubject()
+        obj.avow()
 
-    for bpki in bpkis:
-      for cer in glob.iglob("%s/*.cer" % bpki.dir):
-        key = cer[0:-4] + ".key"
-        req = cer[0:-4] + ".req"
-        if os.path.exists(key):
-          print "Regenerating BPKI PKCS #10", req
-          bpki.run_openssl("x509", "-x509toreq", "-in", cer, "-out", req, "-signkey", key)
-        print "Clearing BPKI certificate", cer
-        os.unlink(cer)
-        if cer == bpki.cer:
-          assert req == bpki.req
-          print "Regenerating certificate", cer
-          bpki.run_ca("-selfsign", "-extensions", "ca_x509_ext_ca", "-in", req, "-out", cer)
-
-    print "Regenerating CRLs"
-    for bpki in bpkis:
-      bpki.run_ca("-gencrl", "-out", bpki.crl)
-
-    self.do_initialize(None)
-    if self.run_rpkid or self.run_pubd or self.run_rootd:
-      self.do_configure_daemons(arg)
-    else:
-      self.do_configure_resources(None)
-
+    for ca in rpki.irdb.CA.all():
+      print "Regenerating CRL for", ca.identity.handle, ca.purpose
+      ca.generate_crl()
 
   def do_configure_child(self, arg):
     """
@@ -1099,44 +509,32 @@ class main(rpki.cli.Cmd):
     if child_handle is None:
       child_handle = c.get("handle")
 
-    try:
-      e = etree_read(self.cfg.get("xml_filename"))
-      service_uri_base = e.get("service_uri")
+    service_uri = "http://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
+                                                  self.cfg.get("rpkid_server_port"),
+                                                  self.handle, child_handle)
 
-    except IOError:
-      if self.run_rpkid:
-        service_uri_base = "http://%s:%s/up-down/%s" % (self.cfg.get("rpkid_server_host"),
-                                                        self.cfg.get("rpkid_server_port"),
-                                                        self.handle)
-      else:
-        service_uri_base = None      
-
-    if not service_uri_base:
-      print "Sorry, you can't set up children of a hosted config that itself has not yet been set up"
-      return
+    valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
 
     print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)
 
-    if self.run_rpkid or self.run_pubd or self.run_rootd:
-      self.bpki_servers.fxcert(b64 = c.findtext("bpki_ta"),
-                               handle = child_handle,
-                               bpki_type = rpki.irdb.Child)
+    rpki.irdb.Child.objects.get_or_certify(
+      issuer = self.resource_ca,
+      handle = child_handle,
+      ta = rpki.x509.X509(Base64 = c.findtext("bpki_ta")),
+      valid_until = valid_until.toXMLtime())
 
     e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
-                service_uri = "%s/%s" % (service_uri_base, child_handle),
-                valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
-
-    PEMElement(e, "bpki_resource_ta", self.bpki_resources.cer)
+                service_uri = service_uri, valid_until = valid_until)
+    B64Element(e, "bpki_resource_ta", self.resource_ca.certificate)
     SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
 
-    repo = None
-    for f in self.entitydb.iterate("repositories"):
-      r = etree_read(f)
-      if r.get("type") == "confirmed":
-        h = os.path.splitext(os.path.split(f)[-1])[0]
-        if repo is None or h == self.default_repository:
-          repo_handle = h
-          repo = r
+    try:
+      repo = self.resource_ca.repositories.get(handle = self.default_repository)
+    except rpki.irdb.Repository.DoesNotExist:
+      try:
+        repo = self.resource_ca.repositories[0]
+      except rpki.irdb.Repository.DoesNotExist:
+        repo = None
 
     if repo is None:
       print "Couldn't find any usable repositories, not giving referral"
@@ -1154,25 +552,22 @@ class main(rpki.cli.Cmd):
       SubElement(r, "authorization", referrer = repo.get("client_handle")).text = auth
       SubElement(r, "contact_info").text = repo.findtext("contact_info")
 
-    etree_write(e, self.entitydb("children", child_handle),
+    etree_write(e, "parent-response-to-%s.xml" % child_handle,
                 msg = "Send this file back to the child you just configured")
 
 
   def do_delete_child(self, arg):
     """
     Delete a child of this RPKI entity.
-
-    This should check that the XML file it's deleting really is a
-    child, but doesn't, yet.
     """
 
     try:
-      os.unlink(self.entitydb("children", arg))
-    except OSError:
+      self.resource_ca.children.get(handle = arg).delete()
+    except rpki.irdb.Child.DoesNotExist:
       print "No such child \"%s\"" % arg
 
   def complete_delete_child(self, *args):
-    return self.entitydb_complete("children", *args)
+    return self.irdb_handle_complete(rpki.irdb.Child, *args)
 
 
   def do_configure_parent(self, arg):
@@ -1202,42 +597,55 @@ class main(rpki.cli.Cmd):
     if parent_handle is None:
       parent_handle = p.get("parent_handle")
 
+    r = p.find("repository")
+
+    repository_type = "none"
+    referrer = None
+    referral_authorization = None
+
+    if r is not None:
+      repository_type = r.get("type")
+
+    if repository_type == "referral":
+      a = r.find("authorization")
+      referrer = a.get("referrer")
+      referral_authorization = rpki.x509.SignedReferral(Base64 = a.text)
+
     print "Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle)
     print "Parent calls us %r" % p.get("child_handle")
 
-    self.bpki_resources.fxcert(b64 = p.findtext("bpki_resource_ta"),
-                               handle = parent_handle,
-                               bpki_type = rpki.irdb.Parent)
+    rpki.irdb.Parent.get_or_certify(
+      issuer = self.resource_ca,
+      handle = parent_handle,
+      child_handle = p.get("child_handle"),
+      parent_handle = p.get("parent_handle"),
+      service_uri = p.get("service_uri"),
+      ta = rpki.x509.X509(Base64 = p.findtext("bpki_resource_ta")),
+      repository_type = rpki.irdb.Parent.repository_type_map[repository_type],
+      referrer = referrer,
+      referral_authorization = referral_authorization)[0]
 
-    etree_write(p, self.entitydb("parents", parent_handle))
-
-    r = p.find("repository")
-
-    if r is None or r.get("type") not in ("offer", "referral"):
+    if repository_type == "none":
       r = Element("repository", type = "none")
-
     r.set("handle", self.handle)
     r.set("parent_handle", parent_handle)
-    PEMElement(r, "bpki_client_ta", self.bpki_resources.cer)
-    etree_write(r, self.entitydb("repositories", parent_handle),
+    B64Element(r, "bpki_client_ta", self.resource_ca.certificate)
+    etree_write(r, "repository-request-for-%s.xml" % parent_handle,
                 msg = "This is the file to send to the repository operator")
 
 
   def do_delete_parent(self, arg):
     """
     Delete a parent of this RPKI entity.
-
-    This should check that the XML file it's deleting really is a
-    parent, but doesn't, yet.
     """
 
     try:
-      os.unlink(self.entitydb("parents", arg))
-    except OSError:
+      self.resource_ca.parents.get(handle = arg).delete()
+    except rpki.irdb.Parent.DoesNotExist:
       print "No such parent \"%s\"" % arg
 
   def complete_delete_parent(self, *args):
-    return self.entitydb_complete("parents", *args)
+    return self.irdb_handle_complete(rpki.irdb.Parent, *args)
 
 
   def do_configure_publication_client(self, arg):
@@ -1261,19 +669,9 @@ class main(rpki.cli.Cmd):
 
     client = etree_read(argv[0])
 
-    # client_handle is a problem here in the new scheme.  This code
-    # can't even figure out what client_handle is supposed to be until
-    # long after it's gone off checking for cross-certification and so
-    # forth.  In the new scheme, we need to know client_handle in
-    # order to look up the cross-certification.  Chicken, meet egg.
-    #
-    # With luck, these convolutions are just a side effect of the
-    # bizzare way we did this in the old code, but will need
-    # attention.  If you're reading this because the reference to
-    # client_handle in the .fxcert() call below threw an exception, I
-    # haven't sorted this mess out yet.
+    client_ta = rpki.x509.X509(Base64 = client.findtext("bpki_client_ta"))
 
-    if sia_base is None and client.get("handle") == self.handle and self.bpki_resources.ca.certificate == rpki.x509.X509(Base64 = client.findtext("bpki_client_ta")):
+    if sia_base is None and client.get("handle") == self.handle and self.bpki_resources.ca.certificate == client_ta:
       print "This looks like self-hosted publication"
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, self.handle)
 
@@ -1281,28 +679,24 @@ class main(rpki.cli.Cmd):
       print "This looks like a referral, checking"
       try:
         auth = client.find("authorization")
-        if auth is None:
-          raise BadXMLMessage, "Malformed referral, couldn't find <auth/> element"
-        referrer = etree_read(self.entitydb("pubclients", auth.get("referrer").replace("/",".")))
-        referrer = self.bpki_servers.fxcert(b64 = referrer.findtext("bpki_client_ta"))
-        referral = self.bpki_servers.cms_xml_verify(auth.text, referrer)
-        if rpki.x509.X509(Base64 = referral.text) != rpki.x509.X509(Base64 = client.findtext("bpki_client_ta")):
+        referrer = self.resource_ca.clients.get(handle = auth.get("referrer"))
+        referral_cms = rpki.x509.SignedReferral(Base64 = auth.text)
+        referral_xml = referral_cms.unwrap(ta = (referrer.certificate, self.server_ca.certificate))
+        if rpki.x509.X509(Base64 = referral_xml.text) != client_ta:
           raise BadXMLMessage, "Referral trust anchor does not match"
         sia_base = referral.get("authorized_sia_base")
-      except IOError:
-        print "We have no record of client (%s) alleged to have made this referral" % auth.get("referrer")
+      except rpki.irdb.Client.DoesNotExist:
+        print "We have no record of the client (%s) alleged to have made this referral" % auth.get("referrer")
 
     if sia_base is None and client.get("type") == "offer" and client.get("parent_handle") == self.handle:
       print "This looks like an offer, client claims to be our child, checking"
-      client_ta = client.findtext("bpki_client_ta")
-      if not client_ta:
-        raise BadXMLMessage, "Malformed offer, couldn't find <bpki_client_ta/> element"
-      for child in self.entitydb.iterate("children"):
-        c = etree_read(child)
-        if rpki.x509.X509(Base64 = c.findtext("bpki_child_ta")) == rpki.x509.X509(Base64 = client_ta):
-          sia_base = "rsync://%s/%s/%s/%s/" % (self.rsync_server, self.rsync_module,
-                                               self.handle, client.get("handle"))
-          break
+      try:
+        child = self.resource_ca.children.get(ta = client_ta)
+      except rpki.irdb.Child.DoesNotExist:
+        print "Can't find a child matching this client"
+      else:
+        sia_base = "rsync://%s/%s/%s/%s/" % (self.rsync_server, self.rsync_module,
+                                             self.handle, client.get("handle"))
 
     # If we still haven't figured out what to do with this client, it
     # gets a top-level tree of its own, no attempt at nesting.
@@ -1321,9 +715,10 @@ class main(rpki.cli.Cmd):
     print "Client calls itself %r, we call it %r" % (client.get("handle"), client_handle)
     print "Client says its parent handle is %r" % parent_handle
 
-    self.bpki_servers.fxcert(b64 = client.findtext("bpki_client_ta"),
-                             handle = client_handle,
-                             bpki_type = bpki.irdb.Client)
+    rpki.irdb.Client.get_or_certify(
+      issuer = self.server_ca,
+      handle = client_handle,
+      ta = client_ta)
 
     e = Element("repository", type = "confirmed",
                 client_handle = client_handle,
@@ -1333,28 +728,25 @@ class main(rpki.cli.Cmd):
                                                           self.cfg.get("pubd_server_port"),
                                                           client_handle))
 
-    PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
-    SubElement(e, "bpki_client_ta").text = client.findtext("bpki_client_ta")
+    B64Element(e, "bpki_server_ta", self.server_ca.certificate)
+    B64Element(e, "bpki_client_ta", client_ta)
     SubElement(e, "contact_info").text = self.pubd_contact_info
-    etree_write(e, self.entitydb("pubclients", client_handle.replace("/", ".")),
+    etree_write(e, "repository-response-to-%s.xml" % client_handle.replace("/", "."),
                 msg = "Send this file back to the publication client you just configured")
 
 
   def do_delete_publication_client(self, arg):
     """
     Delete a publication client of this RPKI entity.
-
-    This should check that the XML file it's deleting really is a
-    client, but doesn't, yet.
     """
 
     try:
-      os.unlink(self.entitydb("pubclients", arg))
-    except OSError:
+      self.resource_ca.clients.get(handle = arg).delete()
+    except rpki.irdb.Client.DoesNotExist:
       print "No such client \"%s\"" % arg
 
   def complete_delete_publication_client(self, *args):
-    return self.entitydb_complete("pubclients", *args)
+    return self.irdb_handle_complete(rpki.irdb.Client, *args)
 
 
   def do_configure_repository(self, arg):
@@ -1385,8 +777,21 @@ class main(rpki.cli.Cmd):
     print "Repository calls us %r" % (r.get("client_handle"))
     print "Repository response associated with parent_handle %r" % parent_handle
 
-    etree_write(r, self.entitydb("repositories", parent_handle))
+    try:
+      parent = self.resource_ca.parents.get(handle = parent_handle)
 
+    except rpki.irdb.Parent.DoesNotExist:
+      print "Could not find parent %r in our database" % parent_handle
+
+    else:
+      rpki.irdb.Repository.get_or_certify(
+        issuer = self.resource_ca,
+        handle = parent_handle,
+        client_handle = r.get("client_handle"),
+        service_uri = r.get("service_uri"),
+        sia_base = r.get("sia_base"),
+        ta = rpki.x509.X509(Base64 = r.findtext("bpki_server_ta")),
+        parent = parent)
 
   def do_delete_repository(self, arg):
     """
@@ -1397,12 +802,12 @@ class main(rpki.cli.Cmd):
     """
 
     try:
-      os.unlink(self.entitydb("repositories", arg))
-    except OSError:
+      self.resource_ca.repositories.get(handle = arg).delete()
+    except rpki.irdb.Repository.DoesNotExist:
       print "No such repository \"%s\"" % arg
 
   def complete_delete_repository(self, *args):
-    return self.entitydb_complete("repositories", *args)
+    return self.irdb_handle_complete(rpki.irdb.Repository, *args)
 
 
   def renew_children_common(self, arg, plural):
@@ -1420,11 +825,11 @@ class main(rpki.cli.Cmd):
     if plural:
       if len(argv) != 0:
         raise BadCommandSyntax, "Unexpected arguments"
-      children = "*"
+      children = self.resource_ca.children
     else:
       if len(argv) != 1:
         raise BadCommandSyntax, "Need to specify child handle"
-      children = argv[0]
+      children = self.resource_ca.children.filter(handle = argv[0])
 
     if valid_until is None:
       valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
@@ -1435,10 +840,9 @@ class main(rpki.cli.Cmd):
 
     print "New validity date", valid_until
 
-    for f in self.entitydb.iterate("children", children):
-      c = etree_read(f)
-      c.set("valid_until", str(valid_until))
-      etree_write(c, f)
+    for child in children:
+      child.valid_until = valid_until
+      child.save()
 
   def do_renew_child(self, arg):
     """
@@ -1448,7 +852,7 @@ class main(rpki.cli.Cmd):
     return self.renew_children_common(arg, False)
 
   def complete_renew_child(self, *args):
-    return self.entitydb_complete("children", *args)
+    return self.irdb_handle_complete(rpki.irdb.Child, *args)
 
   def do_renew_all_children(self, arg):
     """
@@ -1503,12 +907,12 @@ class main(rpki.cli.Cmd):
       fxcert = self.bpki_resources.fxcert,
       entitydb = self.entitydb).xml(e)
 
-    PEMElement(e, "bpki_ca_certificate", self.bpki_resources.cer)
-    PEMElement(e, "bpki_crl",            self.bpki_resources.crl)
+    B64Element(e, "bpki_ca_certificate", self.bpki_resources.cer)
+    B64Element(e, "bpki_crl",            self.bpki_resources.crl)
 
     if bsc is not None:
-      PEMElement(e, "bpki_bsc_certificate", bsc.certificate)
-      PEMElement(e, "bpki_bsc_pkcs10",      bsc.pkcs10)
+      B64Element(e, "bpki_bsc_certificate", bsc.certificate)
+      B64Element(e, "bpki_bsc_pkcs10",      bsc.pkcs10)
 
     etree_write(e, xml_filename, msg = msg)
 

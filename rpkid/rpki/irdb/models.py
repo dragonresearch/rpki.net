@@ -61,7 +61,6 @@ class SundialField(django.db.models.DateTimeField):
     return rpki.sundial.datetime.fromdatetime(
       django.db.models.DateTimeField.to_python(self, value))
 
-
 class DERField(django.db.models.Field):
   """
   A field type for DER objects.
@@ -115,17 +114,9 @@ class PKCS10Field(DERField):
   description = "PKCS #10 certificate request"
   rpki_type = rpki.x509.PKCS10
 
-## @todo
-# SignedReferral doesn't belong in rpki.irdb, but I haven't yet
-# figured out where it does belong.
-
-class SignedReferral(rpki.x509.XML_CMS_object):
-  encoding = "us-ascii"
-  schema = rpki.relaxng.myrpki
-
 class SignedReferralField(DERField):
   description = "CMS signed object containing XML"
-  rpki_type = SignedReferral
+  rpki_type = rpki.x509.SignedReferral
 
 ## @var ip_version_map
 # Custom choice map for IP version enumerations, so we can use the
@@ -179,7 +170,7 @@ class Identity(django.db.models.Model):
   handle = HandleField(unique = True)
 
 class CA(django.db.models.Model):
-  identity = django.db.models.ForeignKey(Identity, related_name = "bpki_certificates")
+  identity = django.db.models.ForeignKey(Identity)
   purpose_map = ChoiceMap("resources", "servers")
   purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
   certificate = CertificateField()

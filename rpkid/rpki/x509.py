@@ -47,6 +47,7 @@ import rpki.POW, rpki.POW.pkix, base64, lxml.etree, os, subprocess, sys
 import email.mime.application, email.utils, mailbox, time
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
 import rpki.manifest, rpki.roa, rpki.log, rpki.async, rpki.ghostbuster
+import rpki.relaxng
 
 def base64_with_linebreaks(der):
   """
@@ -1413,6 +1414,11 @@ class XML_CMS_object(CMS_object):
   # which case .unwrap() will call it and return the result.
   # Otherwise, .unwrap() just returns a verified element tree.
 
+  saxify = None
+
+class SignedReferral(XML_CMS_object):
+  encoding = "us-ascii"
+  schema = rpki.relaxng.myrpki
   saxify = None
 
 class Ghostbuster(CMS_object):

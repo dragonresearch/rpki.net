@@ -179,6 +179,9 @@ class CertificateManager(django.db.models.Manager):
 class Identity(django.db.models.Model):
   handle = HandleField(unique = True)
 
+  def __unicode__(self):
+    return self.handle
+
 class CA(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity)
   purpose = EnumField(choices = ("resources", "servers"))
@@ -290,6 +293,8 @@ class CrossCertification(Certificate):
       is_ca        = True,
       pathLenConstraint = 0)
 
+  def __unicode__(self):
+    return self.handle
 
 class Revocation(django.db.models.Model):
   issuer = django.db.models.ForeignKey(CA, related_name = "revocations")
@@ -333,6 +338,9 @@ class BSC(Certificate):
       subject_key  = self.pkcs10.getPublicKey(),
       interval     = self.default_interval,
       is_ca        = False)
+
+  def __unicode__(self):
+    return self.handle
 
 class Child(CrossCertification):
   issuer = django.db.models.ForeignKey(CA, related_name = "children")

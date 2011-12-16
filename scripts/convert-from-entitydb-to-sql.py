@@ -29,9 +29,10 @@ from lxml.etree import ElementTree
 if os.getlogin() != "sra":
   sys.exit("I //said// this was a work in progress")
 
-cfg_file = "rpki.conf"
-entitydb = "entitydb"
-bpki     = "bpki"
+cfg_file        = "rpki.conf"
+entitydb        = "entitydb"
+bpki            = "bpki"
+copy_csv_data   = True
 
 opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
 for o, a in opts:
@@ -252,24 +253,26 @@ for filename in glob.iglob(os.path.join(entitydb, "children", "*.xml")):
     certificate = xcert,
     issuer = resource_ca)[0]
 
-  cur.execute("""
-              SELECT start_as, end_as FROM registrant_asn WHERE registrant_id = %s
-              """, (registrant_id,))
-  for start_as, end_as in cur.fetchall():
-    rpki.irdb.ChildASN.objects.get_or_create(
-      start_as = start_as,
-      end_as = end_as,
-      child = child)
+  if copy_csv_data:
 
-  cur.execute("""
-              SELECT start_ip, end_ip, version FROM registrant_net WHERE registrant_id = %s
-              """, (registrant_id,))
-  for start_ip, end_ip, version in cur.fetchall():
-    rpki.irdb.ChildNet.objects.get_or_create(
-      start_ip = start_ip,
-      end_ip = end_ip,
-      version = version,
-      child = child)
+    cur.execute("""
+                SELECT start_as, end_as FROM registrant_asn WHERE registrant_id = %s
+                """, (registrant_id,))
+    for start_as, end_as in cur.fetchall():
+      rpki.irdb.ChildASN.objects.get_or_create(
+        start_as = start_as,
+        end_as = end_as,
+        child = child)
+
+    cur.execute("""
+                SELECT start_ip, end_ip, version FROM registrant_net WHERE registrant_id = %s
+                """, (registrant_id,))
+    for start_ip, end_ip, version in cur.fetchall():
+      rpki.irdb.ChildNet.objects.get_or_create(
+        start_ip = start_ip,
+        end_ip = end_ip,
+        version = version,
+        child = child)
 
 # Scrape parent data out of the entitydb.
 
@@ -309,15 +312,16 @@ for filename in glob.iglob(os.path.join(entitydb, "parents", "*.xml")):
   # While we have the parent object in hand, load any Ghostbuster
   # entries specific to this parent.
 
-  cur.execute("""
-              SELECT vcard FROM ghostbuster_request
-              WHERE self_handle = %s AND parent_handle = %s
-              """, (self_handle, parent_handle))
-  for row in cur.fetchall():
-    rpki.irdb.GhostbusterRequest.objects.get_or_create(
-      identity = identity,
-      parent = parent,
-      vcard = row[0])
+  if copy_csv_data:
+    cur.execute("""
+                SELECT vcard FROM ghostbuster_request
+                WHERE self_handle = %s AND parent_handle = %s
+                """, (self_handle, parent_handle))
+    for row in cur.fetchall():
+      rpki.irdb.GhostbusterRequest.objects.get_or_create(
+        identity = identity,
+        parent = parent,
+        vcard = row[0])
 
 # Scrape repository data out of the entitydb.
 
@@ -370,37 +374,39 @@ for filename in glob.iglob(os.path.join(entitydb, "pubclients", "*.xml")):
     certificate = xcert,
     issuer = server_ca)
 
-# Copy over any ROA requests
+if copy_csv_data:
 
-cur.execute("""
-            SELECT roa_request_id, asn FROM roa_request
-            WHERE roa_request_handle = %s
-            """, (self_handle,))
-for roa_request_id, asn in cur.fetchall():
-  roa_request = rpki.irdb.ROARequest.objects.get_or_create(identity = identity, asn = asn)[0]
+  # Copy over any ROA requests
+
   cur.execute("""
-              SELECT prefix, prefixlen, max_prefixlen, version FROM roa_request_prefix
-              WHERE roa_request_id = %s
-              """, (roa_request_id,))
-  for prefix, prefixlen, max_prefixlen, version in cur.fetchall():
-    rpki.irdb.ROARequestPrefix.objects.get_or_create(
-      roa_request = roa_request,
-      version = version,
-      prefix = prefix,
-      prefixlen = prefixlen,
-      max_prefixlen = max_prefixlen)
+              SELECT roa_request_id, asn FROM roa_request
+              WHERE roa_request_handle = %s
+              """, (self_handle,))
+  for roa_request_id, asn in cur.fetchall():
+    roa_request = rpki.irdb.ROARequest.objects.get_or_create(identity = identity, asn = asn)[0]
+    cur.execute("""
+                SELECT prefix, prefixlen, max_prefixlen, version FROM roa_request_prefix
+                WHERE roa_request_id = %s
+                """, (roa_request_id,))
+    for prefix, prefixlen, max_prefixlen, version in cur.fetchall():
+      rpki.irdb.ROARequestPrefix.objects.get_or_create(
+        roa_request = roa_request,
+        version = version,
+        prefix = prefix,
+        prefixlen = prefixlen,
+        max_prefixlen = max_prefixlen)
 
-# Copy over any non-parent-specific Ghostbuster requests.
+  # Copy over any non-parent-specific Ghostbuster requests.
 
-cur.execute("""
-            SELECT vcard FROM ghostbuster_request
-            WHERE self_handle = %s AND parent_handle IS NULL
-            """, (self_handle,))
-for row in cur.fetchall():
-  rpki.irdb.GhostbusterRequest.objects.get_or_create(
-    identity = identity,
-    parent = None,
-    vcard = row[0])
+  cur.execute("""
+              SELECT vcard FROM ghostbuster_request
+              WHERE self_handle = %s AND parent_handle IS NULL
+              """, (self_handle,))
+  for row in cur.fetchall():
+    rpki.irdb.GhostbusterRequest.objects.get_or_create(
+      identity = identity,
+      parent = None,
+      vcard = row[0])
 
 # List cross certifications we didn't use.
 

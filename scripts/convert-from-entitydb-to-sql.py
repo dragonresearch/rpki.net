@@ -121,7 +121,7 @@ def get_or_create_CA(purpose):
 
   return rpki.irdb.CA.objects.get_or_create(
     identity = identity,
-    purpose = rpki.irdb.CA.purpose_map[purpose],
+    purpose = purpose,
     certificate = cer,
     private_key = key,
     latest_crl = crl,
@@ -135,7 +135,7 @@ def get_or_create_EECertificate(issuer, capurpose, eepurpose):
   key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, capurpose, eepurpose + ".key"))
   rpki.irdb.EECertificate.objects.get_or_create(
     issuer      = issuer,
-    purpose     = rpki.irdb.EECertificate.purpose_map[eepurpose],
+    purpose     = eepurpose,
     certificate = cer,
     private_key = key)
 
@@ -301,7 +301,7 @@ for filename in glob.iglob(os.path.join(entitydb, "parents", "*.xml")):
     child_handle = e.get("child_handle"),
     ta = ta,
     certificate = xcert,
-    repository_type = rpki.irdb.Parent.repository_type_map[repository_type],
+    repository_type = repository_type,
     referrer = referrer,
     referral_authorization = referral_authorization,
     issuer = resource_ca)[0]

@@ -359,17 +359,17 @@ class main(rpki.cli.Cmd):
       self.identity = rpki.irdb.Identity.objects.get(handle = self.handle)
     except rpki.irdb.Identity.DoesNotExist:
       self.identity = None
+      self.resource_ca = None
+      self.server_ca = None
     else:
       try:
         self.resource_ca = self.identity.ca_set.get(purpose = "resources")
       except rpki.irdb.CA.DoesNotExist:
         self.resource_ca = None
-      if self.run_rpkid or self.run_pubd or self.run_rootd:
-        try:
-          self.server_ca = self.identity.ca_set(purpose = "servers")
-        except rpki.irdb.CA.DoesNotExist:
-          self.server_ca = None
-
+      try:
+        self.server_ca = self.identity.ca_set.get(purpose = "servers")
+      except rpki.irdb.CA.DoesNotExist:
+        self.server_ca = None
 
   def do_initialize(self, arg):
     """
@@ -386,24 +386,26 @@ class main(rpki.cli.Cmd):
     if created:
       print 'Created new identity for "%s"' % self.handle
 
-    self.resource_ca, created = rpki.irdb.CA.objects.get_or_certify(identity = self.identity, purpose = "resources")
+    self.resource_ca, created = rpki.irdb.CA.objects.get_or_certify(
+      identity = self.identity, purpose = "resources")
     if created:
       print "Created new BPKI resource CA"
 
     if not self.run_rpkid and not self.run_pubd and not self.run_rootd:
       self.server_ca = None
     else:
-      self.server_ca, created = rpki.irdb.CA.objects.get_or_certify(identity = self.identity, purpose = "servers")
+      self.server_ca, created = rpki.irdb.CA.objects.get_or_certify(
+        identity = self.identity, purpose = "servers")
       if created:
         print "Created new BPKI server CA"
 
       if self.run_rpkid:
-        self.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rpkid")
-        self.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irdbd")
+        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rpkid")
+        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irdbd")
       if self.run_pubd:
-        self.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "pubd")
+        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "pubd")
       if self.run_rpkid or self.run_pubd:
-        self.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irbe")
+        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irbe")
 
       ## @todo
       # Why do we issue root's EE certificate under our server CA?
@@ -416,7 +418,7 @@ class main(rpki.cli.Cmd):
       # think about this later.
 
       if self.run_rootd:
-        self.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rootd")
+        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rootd")
 
     # Build the identity.xml file.  Need to check for existing file so we don't
     # overwrite?  Worry about that later.
@@ -621,7 +623,7 @@ class main(rpki.cli.Cmd):
       parent_handle = p.get("parent_handle"),
       service_uri = p.get("service_uri"),
       ta = rpki.x509.X509(Base64 = p.findtext("bpki_resource_ta")),
-      repository_type = rpki.irdb.Parent.repository_type_map[repository_type],
+      repository_type = repository_type,
       referrer = referrer,
       referral_authorization = referral_authorization)[0]
 

@@ -166,14 +166,14 @@ class X501DN(object):
     assert ini is None or not kwargs
     if len(kwargs) == 1 and "CN" in kwargs:
       ini = kwargs.pop("CN")
-    if isinstance(ini, str):
-      self.dn = (((rpki.oids.name2oid["commonName"], ("printableString", cn)),),)
+    if isinstance(ini, (str, unicode)):
+      self.dn = (((rpki.oids.name2oid["commonName"], ("printableString", ini)),),)
     elif isinstance(ini, tuple):
       self.dn = ini
     elif kwargs:
-      raise NotImplementedError #("Sorry, I haven't implemented keyword arguments yet")
+      raise NotImplementedError("Sorry, I haven't implemented keyword arguments yet")
     elif ini is not None:
-      raise TypeError #("Don't know how to interpret %r as an X.501 DN" % (ini,), ini)
+      raise TypeError("Don't know how to interpret %r as an X.501 DN" % (ini,), ini)
 
   def __str__(self):
     return "".join("/" + "+".join("%s=%s" % (rpki.oids.oid2name[a[0]], a[1][1])
@@ -187,7 +187,7 @@ class X501DN(object):
     return self.dn
 
   def get_POW(self):
-    raise NotImplementedError #("Sorry, I haven't written the conversion to POW format yet")
+    raise NotImplementedError("Sorry, I haven't written the conversion to POW format yet")
 
 class DER_object(object):
   """

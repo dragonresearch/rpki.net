@@ -28,20 +28,6 @@ import rpki.sundial
 
 ###
 
-class ChoiceMap(dict):
-  """
-  Map construct to simplify enumerated types in Django models.
-  """
-
-  def __init__(self, *tags):
-    dict.__init__(self)
-    for i, tag in enumerate(tags, 1):
-      self[tag] = i 
-
-  @property
-  def choices(self):
-    return tuple((y, x) for (x, y) in self.iteritems())
-
 class HandleField(django.db.models.CharField):
   """
   A handle field type.
@@ -51,6 +37,26 @@ class HandleField(django.db.models.CharField):
     kwargs["max_length"] = 120
     django.db.models.CharField.__init__(self, *args, **kwargs)
 
+class EnumField(django.db.models.PositiveSmallIntegerField):
+  """
+  An enumeration type that uses strings in Python and small integers
+  in SQL.
+  """
+
+  __metaclass__ = django.db.models.SubfieldBase
+
+  def __init__(self, *args, **kwargs):
+    if isinstance(kwargs["choices"], (tuple, list)) and isinstance(kwargs["choices"][0], str):
+      kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
+    django.db.models.PositiveSmallIntegerField.__init__(self, *args, **kwargs)
+    self.enum_i2s = dict(self.flatchoices)
+    self.enum_s2i = dict((v, k) for k, v in self.flatchoices)
+
+  def to_python(self, value):
+    return self.enum_i2s.get(value, value)
+
+  def get_prep_value(self, value):
+    return self.enum_s2i.get(value, value)
 
 class SundialField(django.db.models.DateTimeField):
   """
@@ -60,6 +66,12 @@ class SundialField(django.db.models.DateTimeField):
   def to_python(self, value):
     return rpki.sundial.datetime.fromdatetime(
       django.db.models.DateTimeField.to_python(self, value))
+
+  def get_prep_value(self, value):
+    if isinstance(value, rpki.sundial.datetime):
+      return value.to_sql()
+    else:
+      return value
 
 class DERField(django.db.models.Field):
   """
@@ -118,17 +130,10 @@ class SignedReferralField(DERField):
   description = "CMS signed object containing XML"
   rpki_type = rpki.x509.SignedReferral
 
-## @var ip_version_map
-# Custom choice map for IP version enumerations, so we can use the
-# obvious numeric values in the database, which is a bit easier on
-# anybody reading the raw SQL.
-#
-ip_version_map = { "IPv4" : 4, "IPv6" : 6 }
-
 ## @var ip_version_choices
 # Choice argument for fields implementing IP version numbers.
-#
-ip_version_choices = tuple((y, x) for (x, y) in ip_version_map.iteritems())
+
+ip_version_choices = ((4, "IPv4"), (6, "IPv6"))
 
 class CertificateManager(django.db.models.Manager):
 
@@ -144,25 +149,30 @@ class CertificateManager(django.db.models.Manager):
     tuple consisting of the object and a boolean indicating whether
     anything has changed.
 
-    This is a somewhat weird use of .Meta.unique_together, but fits
+    This is a somewhat weird use of ._meta.unique_together, but fits
     with the way this application use unique indices and foreign keys.
     """
 
+    changed = False
+
     try:
-      obj = self.get(**dict((k, kwargs[k]) for k in self.model.Meta.unique_together))
+      obj = self.get(**dict((k, kwargs[k]) for k in self.model._meta.unique_together[0]))
 
     except self.model.DoesNotExist:
       obj = self.model(**kwargs)
+      changed = True
 
     else:
-      if all(getattr(obj, k) == kwargs[k] for k in kwargs):
-        return obj, False
       for k in kwargs:
-        setattr(obj, k, kwargs[k])
+        if getattr(obj, k) != kwargs[k]:
+          setattr(obj, k, kwargs[k])
+          changed = True
 
-    obj.avow()
-    obj.save()
-    return obj, True
+    if changed:
+      obj.avow()
+      obj.save()
+
+    return obj, changed
 
 ###
 
@@ -171,8 +181,7 @@ class Identity(django.db.models.Model):
 
 class CA(django.db.models.Model):
   identity = django.db.models.ForeignKey(Identity)
-  purpose_map = ChoiceMap("resources", "servers")
-  purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
+  purpose = EnumField(choices = ("resources", "servers"))
   certificate = CertificateField()
   private_key = RSAKeyField()
   latest_crl = CRLField()
@@ -183,8 +192,8 @@ class CA(django.db.models.Model):
 
   next_serial = django.db.models.BigIntegerField(default = 1)
   next_crl_number = django.db.models.BigIntegerField(default = 1)
-  last_crl_update = django.db.models.DateTimeField()
-  next_crl_update = django.db.models.DateTimeField()
+  last_crl_update = SundialField()
+  next_crl_update = SundialField()
 
   objects = CertificateManager()
 
@@ -208,7 +217,7 @@ class CA(django.db.models.Model):
       serial = self.next_serial,
       now = now,
       notAfter = notAfter)
-    self.serial += 1
+    self.next_serial += 1
     self.generate_crl()
     return self.certificate
 
@@ -224,7 +233,7 @@ class CA(django.db.models.Model):
       notAfter = notAfter,
       is_ca = is_ca,
       pathLenConstraint = pathLenConstraint)
-    self.serial += 1
+    self.next_serial += 1
     return result
 
   def revoke(self, cert):
@@ -240,14 +249,14 @@ class CA(django.db.models.Model):
     now = rpki.sundial.now()
     self.revocations.filter(expires__lt = now).delete()
     revoked = [(r.serial, rpki.sundial.datetime.fromdatetime(r.revoked).toASN1tuple(), ())
-               for r in self.revocations]
+               for r in self.revocations.all()]
     self.latest_crl = rpki.x509.CRL.generate(
       keypair = self.private_key,
-      issuer  = self.certificate.getSubject(),
+      issuer  = self.certificate,
       serial  = self.next_crl_number,
       thisUpdate = now,
       nextUpdate = now + self.crl_interval,
-      revoked_certificates = revoked)
+      revokedCertificates = revoked)
     self.last_crl_update = now
     self.next_crl_update = now + self.crl_interval
     self.next_crl_number += 1
@@ -285,16 +294,15 @@ class CrossCertification(Certificate):
 class Revocation(django.db.models.Model):
   issuer = django.db.models.ForeignKey(CA, related_name = "revocations")
   serial = django.db.models.BigIntegerField()
-  revoked = django.db.models.DateTimeField()
-  expires = django.db.models.DateTimeField()
+  revoked = SundialField()
+  expires = SundialField()
 
   class Meta:
     unique_together = ("issuer", "serial")
 
 class EECertificate(Certificate):
   issuer = django.db.models.ForeignKey(CA, related_name = "ee_certificates")
-  purpose_map = ChoiceMap("rpkid", "pubd", "irdbd", "irbe", "rootd", "referral")
-  purpose = django.db.models.PositiveSmallIntegerField(choices = purpose_map.choices)
+  purpose = EnumField(choices = ("rpkid", "pubd", "irdbd", "irbe", "rootd", "referral"))
   private_key = RSAKeyField()
 
   class Meta:
@@ -306,10 +314,10 @@ class EECertificate(Certificate):
     subject_name = rpki.x509.X501DN("%s BPKI %s EE" % (
       self.issuer.identity.handle, self.get_purpose_display()))
     self.certificate = self.issuer.certify(
-      subject_name = subject_name,
-      subject_key  = self.private_key.getPublicKey(),
-      interval     = self.default_interval,
-      is_ca        = False)
+      subject_name      = subject_name,
+      subject_key       = self.private_key.get_RSApublic(),
+      validity_interval = self.default_interval,
+      is_ca             = False)
 
 class BSC(Certificate):
   issuer = django.db.models.ForeignKey(CA, related_name = "bscs")
@@ -329,7 +337,7 @@ class BSC(Certificate):
 class Child(CrossCertification):
   issuer = django.db.models.ForeignKey(CA, related_name = "children")
   name = django.db.models.TextField(null = True, blank = True)
-  valid_until = django.db.models.DateTimeField()
+  valid_until = SundialField()
 
 class ChildASN(django.db.models.Model):
   child = django.db.models.ForeignKey(Child, related_name = "asns")
@@ -343,8 +351,7 @@ class ChildNet(django.db.models.Model):
   child = django.db.models.ForeignKey(Child, related_name = "address_ranges")
   start_ip = django.db.models.CharField(max_length = 40)
   end_ip   = django.db.models.CharField(max_length = 40)
-  version_map = ip_version_map
-  version = django.db.models.PositiveSmallIntegerField(choices = ip_version_choices)
+  version = EnumField(choices = ip_version_choices)
 
   class Meta:
     unique_together = ("child", "start_ip", "end_ip", "version")
@@ -354,8 +361,7 @@ class Parent(CrossCertification):
   parent_handle = HandleField()
   child_handle  = HandleField()
   service_uri = django.db.models.CharField(max_length = 255)
-  repository_type_map = ChoiceMap("none", "offer", "referral")
-  repository_type = django.db.models.PositiveSmallIntegerField(choices = repository_type_map.choices)
+  repository_type = EnumField(choices = ("none", "offer", "referral"))
   referrer = HandleField(null = True, blank = True)
   referral_authorization = SignedReferralField(null = True, blank = True)
 
@@ -365,8 +371,7 @@ class ROARequest(django.db.models.Model):
 
 class ROARequestPrefix(django.db.models.Model):
   roa_request = django.db.models.ForeignKey(ROARequest, related_name = "prefixes")
-  version_map = ip_version_map
-  version = django.db.models.PositiveSmallIntegerField(choices = ip_version_choices)
+  version = EnumField(choices = ip_version_choices)
   prefix = django.db.models.CharField(max_length = 40)
   prefixlen = django.db.models.PositiveSmallIntegerField()
   max_prefixlen = django.db.models.PositiveSmallIntegerField()

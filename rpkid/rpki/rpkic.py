@@ -151,34 +151,22 @@ class main(rpki.cli.Cmd):
     rpki.log.use_syslog = False
 
     self.cfg_file = None
+    self.handle = None
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+    opts, argv = getopt.getopt(sys.argv[1:], "c:hi:?", ["config=", "help", "identity="])
     for o, a in opts:
       if o in ("-c", "--config"):
         self.cfg_file = a
       elif o in ("-h", "--help", "-?"):
         argv = ["help"]
+      elif o in ("-i", "--identity"):
+        self.handle = a
 
     if not argv or argv[0] != "help":
       rpki.log.init("rpkic")
       self.read_config()
 
     rpki.cli.Cmd.__init__(self, argv)
-
-
-  def help_overview(self):
-    """
-    Show program __doc__ string.  Perhaps there's some clever way to
-    do this using the textwrap module, but for now something simple
-    and crude will suffice.
-    """
-
-    for line in __doc__.splitlines(True):
-      self.stdout.write(" " * 4 + line)
-    self.stdout.write("\n")
-
-  def irdb_handle_complete(self, klass, text, line, begidx, endidx):
-    return [obj.handle for obj in klass.objects.all() if obj.handle.startswith(text)]
 
   def read_config(self):
 
@@ -190,8 +178,10 @@ class main(rpki.cli.Cmd):
     
     self.cfg = rpki.config.parser(self.cfg_file, "myrpki")
 
+    if self.handle is None:
+      self.handle  = self.cfg.get("handle")
+
     self.histfile  = self.cfg.get("history_file", ".rpkic_history")
-    self.handle    = self.cfg.get("handle")
     self.run_rpkid = self.cfg.getboolean("run_rpkid")
     self.run_pubd  = self.cfg.getboolean("run_pubd")
     self.run_rootd = self.cfg.getboolean("run_rootd")
@@ -222,6 +212,9 @@ class main(rpki.cli.Cmd):
     self.rsync_module = self.cfg.get("publication_rsync_module")
     self.rsync_server = self.cfg.get("publication_rsync_server")
 
+    self.reset_identity()
+
+  def reset_identity(self):
     try:
       self.identity = rpki.irdb.Identity.objects.get(handle = self.handle)
     except rpki.irdb.Identity.DoesNotExist:
@@ -237,6 +230,35 @@ class main(rpki.cli.Cmd):
         self.server_ca = self.identity.ca_set.get(purpose = "servers")
       except rpki.irdb.CA.DoesNotExist:
         self.server_ca = None
+
+  def help_overview(self):
+    """
+    Show program __doc__ string.  Perhaps there's some clever way to
+    do this using the textwrap module, but for now something simple
+    and crude will suffice.
+    """
+
+    for line in __doc__.splitlines(True):
+      self.stdout.write(" " * 4 + line)
+    self.stdout.write("\n")
+
+  def irdb_handle_complete(self, klass, text, line, begidx, endidx):
+    return [obj.handle for obj in klass.objects.all() if obj.handle.startswith(text)]
+
+  def do_select_identity(self, arg):
+    """
+    Select an identity handle for use with later commands.
+    """
+
+    argv = arg.split()
+    if len(argv) != 1:
+      raise BadCommandSyntax("This command expexcts one argument, not %r" % arg)
+    self.handle = argv[0]
+    self.reset_identity()
+
+  def complete_select_identity(self, *args):
+    return self.irdb_handle_complete(rpki.irdb.Identity, *args)
+
 
   def do_initialize(self, arg):
     """
@@ -810,42 +832,13 @@ class main(rpki.cli.Cmd):
       q = q.exclude(pk__in = primary_keys)
       q.delete()
 
-
 
-  def do_configure_daemons(self, arg):
+  def synchronize(self):
     """
     Configure RPKI daemons with the data built up by the other
-    commands in this program.
-
-    The basic model here is that each entity with resources to certify
-    runs the rpkic tool, but not all of them necessarily run their
-    own RPKI engines.  The entities that do run RPKI engines get data
-    from the entities they host via the XML files output by the
-    configure_resources command.  Those XML files are the input to
-    this command, which uses them to do all the work of configuring
-    daemons, populating SQL databases, and so forth.  A few operations
-    (eg, BSC construction) generate data which has to be shipped back
-    to the resource holder, which we do by updating the same XML file.
-
-    In essence, the XML files are a sneakernet (or email, or carrier
-    pigeon) communication channel between the resource holders and the
-    RPKI engine operators.
-
-    As a convenience, for the normal case where the RPKI engine
-    operator is itself a resource holder, this command in effect runs
-    the configure_resources command automatically to process the RPKI
-    engine operator's own resources.
-
-    Note that, due to the back and forth nature of some of these
-    operations, it may take several cycles for data structures to stablize
-    and everything to reach a steady state.  This is normal.
+    commands in this program.  Most commands which modify the IRDB
+    should call this when they're done.
     """
-
-    argv = arg.split()
-
-    def findbase64(tree, name, b64type = rpki.x509.X509):
-      x = tree.findtext(name)
-      return b64type(Base64 = x) if x else None
 
     # We can use a single BSC for everything -- except BSC key
     # rollovers.  Drive off that bridge when we get to it.
@@ -864,12 +857,14 @@ class main(rpki.cli.Cmd):
 
     # Wrappers to simplify calling rpkid and pubd.
 
+    irbe = self.server_ca.ee_certificates.get(purpose = "irbe")
+
     call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
       proto       = rpki.left_right,
-      client_key  = rpki.x509.RSA( PEM_file = self.bpki_servers.dir + "/irbe.key"),
-      client_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/irbe.cer"),
-      server_ta   = rpki.x509.X509(PEM_file = self.bpki_servers.cer),
-      server_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/rpkid.cer"),
+      client_key  = irbe.private_key,
+      client_cert = irbe.certificate,
+      server_ta   = self.server_ca.certificate,
+      server_cert = self.server_ca.ee_certificates.get(purpose = "rpkid").certificate,
       url         = rpkid_base + "left-right",
       debug       = self.show_xml))
 
@@ -877,10 +872,10 @@ class main(rpki.cli.Cmd):
 
       call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
         proto       = rpki.publication,
-        client_key  = rpki.x509.RSA( PEM_file = self.bpki_servers.dir + "/irbe.key"),
-        client_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/irbe.cer"),
-        server_ta   = rpki.x509.X509(PEM_file = self.bpki_servers.cer),
-        server_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/pubd.cer"),
+        client_key  = irbe.private_key,
+        client_cert = irbe.certificate,
+        server_ta   = self.server_ca.certificate,
+        server_cert = self.server_ca.ee_certificates.get(purpose = "pubd").certificate,
         url         = pubd_base + "control",
         debug       = self.show_xml))
 
@@ -888,53 +883,11 @@ class main(rpki.cli.Cmd):
 
       call_pubd(rpki.publication.config_elt.make_pdu(
         action = "set",
-        bpki_crl = rpki.x509.CRL(PEM_file = self.bpki_servers.crl)))
+        bpki_crl = self.server_ca.latest_crl))
 
-    irdb = IRDB(self.cfg)
-
-    xmlfiles = []
-
-    # If [myrpki] section includes an "xml_filename" setting, run
-    # myrpki.py internally, as a convenience, and include its output at
-    # the head of our list of XML files to process.
-
-    my_xmlfile = self.cfg.get("xml_filename", "")
-    if my_xmlfile:
-      self.configure_resources_main()
-      xmlfiles.append(my_xmlfile)
-    else:
-      my_xmlfile = None
-
-    # Add any other XML files specified on the command line
-
-    xmlfiles.extend(argv)
 
     for xmlfile in xmlfiles:
 
-      # Parse XML file and validate it against our scheme
-
-      tree = etree_read(xmlfile)
-
-      handle = tree.get("handle")
-
-      # Update IRDB with parsed resource and roa-request data.
-
-      roa_requests = [
-        (x.get('asn'),
-         rpki.resource_set.roa_prefix_set_ipv4(x.get("v4")),
-         rpki.resource_set.roa_prefix_set_ipv6(x.get("v6")))
-        for x in tree.getiterator("roa_request") ]
-
-      children = [
-        (x.get("handle"),
-         rpki.resource_set.resource_set_as(x.get("asns")),
-         rpki.resource_set.resource_set_ipv4(x.get("v4")),
-         rpki.resource_set.resource_set_ipv6(x.get("v6")),
-         rpki.sundial.datetime.fromXMLtime(x.get("valid_until")))
-        for x in tree.getiterator("child") ]
-
-      # ghostbusters are ignored for now
-      irdb.update(handle, roa_requests, children)
 
       # Check for certificates before attempting anything else
 
@@ -1182,7 +1135,3 @@ class main(rpki.cli.Cmd):
                   msg = None if xmlfile is my_xmlfile else 'Send this file back to the hosted entity ("%s")' % handle)
 
     irdb.close()
-
-    # We used to run event loop again to give TLS connections a chance to shut down cleanly.
-    # Seems not to be needed (and sometimes hangs forever, which is odd) with TLS out of the picture.
-    #rpki.async.event_loop()

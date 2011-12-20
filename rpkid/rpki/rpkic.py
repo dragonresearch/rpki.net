@@ -216,20 +216,13 @@ class main(rpki.cli.Cmd):
 
   def reset_identity(self):
     try:
-      self.identity = rpki.irdb.Identity.objects.get(handle = self.handle)
-    except rpki.irdb.Identity.DoesNotExist:
-      self.identity = None
+      self.resource_ca = rpki.irdb.CA.objects.get(handle = self.handle)
+    except rpki.irdb.CA.DoesNotExist:
       self.resource_ca = None
+    try:
+      self.server_ca = rpki.irdb.CA.objects.get(handle = "")
+    except rpki.irdb.CA.DoesNotExist:
       self.server_ca = None
-    else:
-      try:
-        self.resource_ca = self.identity.ca_set.get(purpose = "resources")
-      except rpki.irdb.CA.DoesNotExist:
-        self.resource_ca = None
-      try:
-        self.server_ca = self.identity.ca_set.get(purpose = "servers")
-      except rpki.irdb.CA.DoesNotExist:
-        self.server_ca = None
 
   def help_overview(self):
     """
@@ -243,7 +236,7 @@ class main(rpki.cli.Cmd):
     self.stdout.write("\n")
 
   def irdb_handle_complete(self, klass, text, line, begidx, endidx):
-    return [obj.handle for obj in klass.objects.all() if obj.handle.startswith(text)]
+    return [obj.handle for obj in klass.objects.all() if obj.handle and obj.handle.startswith(text)]
 
   def do_select_identity(self, arg):
     """
@@ -257,7 +250,7 @@ class main(rpki.cli.Cmd):
     self.reset_identity()
 
   def complete_select_identity(self, *args):
-    return self.irdb_handle_complete(rpki.irdb.Identity, *args)
+    return self.irdb_handle_complete(rpki.irdb.CA, *args)
 
 
   def do_initialize(self, arg):
@@ -271,23 +264,14 @@ class main(rpki.cli.Cmd):
     if arg:
       raise BadCommandSyntax, "This command takes no arguments"
 
-    self.identity, created = rpki.irdb.Identity.objects.get_or_create(handle = self.handle)
+    self.resource_ca, created = rpki.irdb.CA.objects.get_or_certify(handle = self.handle)
     if created:
-      print 'Created new identity for "%s"' % self.handle
+      print "Created new BPKI resource CA for identity %s" % self.handle
 
-    self.resource_ca, created = rpki.irdb.CA.objects.get_or_certify(
-      identity = self.identity, purpose = "resources")
-    if created:
-      print "Created new BPKI resource CA"
-
-    if not self.run_rpkid and not self.run_pubd and not self.run_rootd:
-      self.server_ca = None
-    else:
-      self.server_ca, created = rpki.irdb.CA.objects.get_or_certify(
-        identity = self.identity, purpose = "servers")
+    if self.run_rpkid or self.run_pubd or self.run_rootd:
+      self.server_ca, created = rpki.irdb.CA.objects.get_or_certify(handle = "")
       if created:
         print "Created new BPKI server CA"
-
       if self.run_rpkid:
         rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rpkid")
         rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irdbd")
@@ -295,6 +279,8 @@ class main(rpki.cli.Cmd):
         rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "pubd")
       if self.run_rpkid or self.run_pubd:
         rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irbe")
+      if self.run_rootd:
+        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rootd")
 
       ## @todo
       # Why do we issue root's EE certificate under our server CA?
@@ -305,9 +291,6 @@ class main(rpki.cli.Cmd):
       # might in itself break something, as it'd be the only parent we
       # -didn't- have to cross-certify.  Leave alone for now, but
       # think about this later.
-
-      if self.run_rootd:
-        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rootd")
 
     # Build the identity.xml file.  Need to check for existing file so we don't
     # overwrite?  Worry about that later.
@@ -372,7 +355,7 @@ class main(rpki.cli.Cmd):
         obj.avow()
 
     for ca in rpki.irdb.CA.all():
-      print "Regenerating CRL for", ca.identity.handle, ca.purpose
+      print "Regenerating CRL for", ca.handle if ca.handle else "[servers]"
       ca.generate_crl()
 
   def do_configure_child(self, arg):
@@ -885,16 +868,16 @@ class main(rpki.cli.Cmd):
         action = "set",
         bpki_crl = self.server_ca.latest_crl))
 
+    for ca in rpki.irdb.CA.objects.exclude(handle = ""):
 
-    for xmlfile in xmlfiles:
-
-
-      # Check for certificates before attempting anything else
-
-      hosted_cacert = findbase64(tree, "bpki_ca_certificate")
-      if not hosted_cacert:
-        print "Nothing else I can do without a trust anchor for the entity I'm hosting."
-        continue
+      # rpkid_xcert is the server CA cross-certifying this resource CA
+      # so that stuff trusted by this resource CA will validate for
+      # rpkid.  The resource cross-certifies parents and children with
+      # PathLen 0 so that parent and child EE certs can be rolled;
+      # this cross-certification therefore needs to be PathLen 1.
+      #
+      # HostedCA class in models is an attempt to represent this.
+      # Not yet hacked into other code.
 
       rpkid_xcert = rpki.x509.X509(PEM_file = self.bpki_servers.fxcert(
         b64 = hosted_cacert.get_Base64(),

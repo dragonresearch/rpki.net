@@ -101,10 +101,6 @@ assert e.tag == tag_identity
 self_handle = e.get("handle")
 assert self_handle == cfg.get("handle", section = "myrpki")
 
-# Create identity if we haven't already
-
-identity = rpki.irdb.Identity.objects.get_or_create(handle = self_handle)[0]
-
 # Some BPKI utillity routines
 
 def read_openssl_serial(filename):
@@ -121,8 +117,7 @@ def get_or_create_CA(purpose):
   crl_number = read_openssl_serial(os.path.join(bpki, purpose, "crl_number"))
 
   return rpki.irdb.CA.objects.get_or_create(
-    identity = identity,
-    purpose = purpose,
+    handle = self_handle if purpose == "resources" else "",
     certificate = cer,
     private_key = key,
     latest_crl = crl,
@@ -319,7 +314,7 @@ for filename in glob.iglob(os.path.join(entitydb, "parents", "*.xml")):
                 """, (self_handle, parent_handle))
     for row in cur.fetchall():
       rpki.irdb.GhostbusterRequest.objects.get_or_create(
-        identity = identity,
+        issuer = resource_ca,
         parent = parent,
         vcard = row[0])
 
@@ -383,7 +378,7 @@ if copy_csv_data:
               WHERE roa_request_handle = %s
               """, (self_handle,))
   for roa_request_id, asn in cur.fetchall():
-    roa_request = rpki.irdb.ROARequest.objects.get_or_create(identity = identity, asn = asn)[0]
+    roa_request = rpki.irdb.ROARequest.objects.get_or_create(issuer = resource_ca, asn = asn)[0]
     cur.execute("""
                 SELECT prefix, prefixlen, max_prefixlen, version FROM roa_request_prefix
                 WHERE roa_request_id = %s
@@ -404,7 +399,7 @@ if copy_csv_data:
               """, (self_handle,))
   for row in cur.fetchall():
     rpki.irdb.GhostbusterRequest.objects.get_or_create(
-      identity = identity,
+      issuer = resource_ca,
       parent = None,
       vcard = row[0])
 

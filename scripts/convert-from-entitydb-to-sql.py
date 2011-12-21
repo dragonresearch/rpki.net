@@ -363,11 +363,12 @@ for filename in glob.iglob(os.path.join(entitydb, "pubclients", "*.xml")):
   xcert_filenames.discard(xcfn)
   xcert = rpki.x509.X509(Auto_file = xcfn)
 
-  rpki.irdb.Repository.objects.get_or_create(
+  rpki.irdb.Client.objects.get_or_create(
     handle = client_handle,
     ta = ta,
     certificate = xcert,
-    issuer = server_ca)
+    issuer = server_ca,
+    sia_base = e.get("sia_base"))
 
 if copy_csv_data:
 

@@ -296,7 +296,8 @@ class CrossCertification(Certificate):
     return self.handle
 
 class HostedCA(Certificate):
-  hosted_ca = OneToOneField(CA, related_name = "hosting_ca")
+  issuer = django.db.models.ForeignKey(CA)
+  hosted = django.db.models.OneToOneField(CA, related_name = "hosted_by")
 
   def avow(self):
     self.certificate = self.issuer.certify(
@@ -305,6 +306,9 @@ class HostedCA(Certificate):
       interval     = self.default_interval,
       is_ca        = True,
       pathLenConstraint = 1)
+
+  class Meta:
+    unique_together = ("issuer", "hosted")
 
   def __unicode__(self):
     return self.hosted_ca.handle
@@ -412,3 +416,5 @@ class Repository(CrossCertification):
 
 class Client(CrossCertification):
   issuer = django.db.models.ForeignKey(CA, related_name = "clients")
+  sia_base = django.db.models.TextField()
+

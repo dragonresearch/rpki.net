@@ -109,15 +109,54 @@ def read_openssl_serial(filename):
   f.close()
   return int(text.strip(), 16)
 
-def get_or_create_CA(purpose):
-  cer = rpki.x509.X509(Auto_file = os.path.join(bpki, purpose, "ca.cer"))
-  key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, purpose, "ca.key"))
-  crl = rpki.x509.CRL(Auto_file  = os.path.join(bpki, purpose, "ca.crl"))
-  serial     = read_openssl_serial(os.path.join(bpki, purpose, "serial"))
-  crl_number = read_openssl_serial(os.path.join(bpki, purpose, "crl_number"))
+def get_or_create_ServerCertificate(issuer, purpose):
+  cer = rpki.x509.X509(Auto_file = os.path.join(bpki, "servers", purpose + ".cer"))
+  key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, "servers", purpose + ".key"))
+  rpki.irdb.ServerCertificate.objects.get_or_create(
+    issuer      = issuer,
+    purpose     = purpose,
+    certificate = cer,
+    private_key = key)
 
-  return rpki.irdb.CA.objects.get_or_create(
-    handle = self_handle if purpose == "resources" else "*",
+# Load BPKI CA data
+
+cer = rpki.x509.X509(Auto_file = os.path.join(bpki, "resources", "ca.cer"))
+key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, "resources", "ca.key"))
+crl = rpki.x509.CRL(Auto_file  = os.path.join(bpki, "resources", "ca.crl"))
+serial     = read_openssl_serial(os.path.join(bpki, "resources", "serial"))
+crl_number = read_openssl_serial(os.path.join(bpki, "resources", "crl_number"))
+
+resource_ca = rpki.irdb.ResourceHolderCA.objects.get_or_create(
+  handle = self_handle,
+  certificate = cer,
+  private_key = key,
+  latest_crl = crl,
+  next_serial = serial,
+  next_crl_number = crl_number,
+  last_crl_update = crl.getThisUpdate().to_sql(),
+  next_crl_update = crl.getNextUpdate().to_sql())[0]
+
+if os.path.exists(os.path.join(bpki, "resources", "referral.cer")):
+  cer = rpki.x509.X509(Auto_file = os.path.join(bpki, "resources", "referral.cer"))
+  key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, "resources", "referral.key"))
+  rpki.irdb.ReferralCertificate.objects.get_or_create(
+    issuer      = resource_ca,
+    certificate = cer,
+    private_key = key)
+
+# Load BPKI server EE certificates and keys
+
+run_flags = dict((i, cfg.getboolean(i, section = "myrpki"))
+                 for i in ("run_rpkid", "run_pubd", "run_rootd"))
+
+if any(run_flags.itervalues()):
+  cer = rpki.x509.X509(Auto_file = os.path.join(bpki, "servers", "ca.cer"))
+  key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, "servers", "ca.key"))
+  crl = rpki.x509.CRL(Auto_file  = os.path.join(bpki, "servers", "ca.crl"))
+  serial     = read_openssl_serial(os.path.join(bpki, "servers", "serial"))
+  crl_number = read_openssl_serial(os.path.join(bpki, "servers", "crl_number"))
+
+  server_ca = rpki.irdb.ServerCA.objects.get_or_create(
     certificate = cer,
     private_key = key,
     latest_crl = crl,
@@ -126,36 +165,14 @@ def get_or_create_CA(purpose):
     last_crl_update = crl.getThisUpdate().to_sql(),
     next_crl_update = crl.getNextUpdate().to_sql())[0]
 
-def get_or_create_EECertificate(issuer, capurpose, eepurpose):
-  cer = rpki.x509.X509(Auto_file = os.path.join(bpki, capurpose, eepurpose + ".cer"))
-  key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, capurpose, eepurpose + ".key"))
-  rpki.irdb.EECertificate.objects.get_or_create(
-    issuer      = issuer,
-    purpose     = eepurpose,
-    certificate = cer,
-    private_key = key)
-
-# Load BPKI CA data
-
-resource_ca = get_or_create_CA("resources")
-if os.path.exists(os.path.join(bpki, "resources", "referral.cer")):
-  get_or_create_EECertificate(resource_ca, "resources", "referral")
-
-# Load BPKI server EE certificates and keys
-
-run_flags = dict((i, cfg.getboolean(i, section = "myrpki"))
-                 for i in ("run_rpkid", "run_pubd", "run_rootd"))
-
-if any(run_flags.itervalues()):
-  server_ca = get_or_create_CA("servers")
-  get_or_create_EECertificate(server_ca, "servers", "irbe")
+  get_or_create_ServerCertificate(server_ca, "irbe")
   if run_flags["run_rpkid"]:
-    get_or_create_EECertificate(server_ca, "servers", "rpkid")
-    get_or_create_EECertificate(server_ca, "servers", "irdbd")
+    get_or_create_ServerCertificate(server_ca, "rpkid")
+    get_or_create_ServerCertificate(server_ca, "irdbd")
   if run_flags["run_pubd"]:
-    get_or_create_EECertificate(server_ca, "servers", "pubd")
+    get_or_create_ServerCertificate(server_ca, "pubd")
   if run_flags["run_rootd"]:
-    get_or_create_EECertificate(server_ca, "servers", "rootd")
+    get_or_create_ServerCertificate(server_ca, "rootd")
 else:
   server_ca = None
 
@@ -193,24 +210,6 @@ def xcert_hash(cert):
   if hash.startswith("(stdin)="):
     hash =  hash[len("(stdin)="):]
   return hash
-
-# OK, all this wretched cross-certification looks complicated, but
-# that's partly because of the way we've been doing it on disk.  The
-# new SQL/object based approach should make it much clearer:
-#
-#   Child cross certifies parent's resource TA in child's resource CA.
-#
-#   Parent cross certifies child's resource TA in parent's resource
-#   CA.
-#
-#   Repository cross certifies client's resource TA in repository's
-#   server CA.
-#
-#   Client cross certifies repository's server TA in client's resource
-#   CA.
-#
-# The remaining xcert files look to be TLS relics which no longer
-# serve any real purpose; in theory, those can just go away.
 
 # Let's try keeping track of all the xcert filenames we use, so we can
 # list the ones we didn't.

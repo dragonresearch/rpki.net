@@ -154,13 +154,7 @@ class CertificateManager(django.db.models.Manager):
     changed = False
 
     try:
-      # Seriously icky, but does what we need.  Rewrite using some
-      # kind of method routine that returns the key names.
-      try:
-        keys = self.model._meta.unique_together[0] or ("handle",)
-      except (AttributeError, IndexError):
-        keys = ("handle",)
-      obj = self.get(**dict((k, kwargs[k]) for k in keys))
+      obj = self.get(**self._get_or_certify_keys(kwargs))
 
     except self.model.DoesNotExist:
       obj = self.model(**kwargs)
@@ -178,10 +172,24 @@ class CertificateManager(django.db.models.Manager):
 
     return obj, changed
 
+  def _get_or_certify_keys(self, kwargs):
+    return dict((k, kwargs[k]) for k in self.model._meta.unique_together[0])
+
+class ResourceHolderCAManager(CertificateManager):
+  def _get_or_certify_keys(self, kwargs):
+    return { "handle" : kwargs["handle"] }
+
+class ServerCAManager(CertificateManager):
+  def _get_or_certify_keys(self, kwargs):
+    return { "pk" : 1 }
+
+class ReferralCertificateManager(CertificateManager):
+  def _get_or_certify_keys(self, kwargs):
+    return { "issuer" : kwargs["issuer"] }
+
 ###
 
 class CA(django.db.models.Model):
-  handle = HandleField(unique = True)
   certificate = CertificateField()
   private_key = RSAKeyField()
   latest_crl = CRLField()
@@ -195,27 +203,21 @@ class CA(django.db.models.Model):
   last_crl_update = SundialField()
   next_crl_update = SundialField()
 
-  objects = CertificateManager()
-
   # These should come from somewhere, but I don't yet know where
   ca_certificate_lifetime = rpki.sundial.timedelta(days = 3652)
   crl_interval = rpki.sundial.timedelta(days = 1)
 
-  def __unicode__(self):
-    return self.handle
+  class Meta:
+    abstract = True
 
   def avow(self):
     if self.private_key is None:
       self.private_key = rpki.x509.RSA.generate()
-    if self.handle:
-      subject_name = rpki.x509.X501DN("%s BPKI resource CA" % self.handle)
-    else:
-      subject_name = rpki.x509.X501DN("%s BPKI server CA" % socket.gethostname())
     now = rpki.sundial.now()
     notAfter = now + self.ca_certificate_lifetime
     self.certificate = rpki.x509.X509.bpki_self_certify(
       keypair = self.private_key,
-      subject_name = subject_name,
+      subject_name = self.subject_name,
       serial = self.next_serial,
       now = now,
       notAfter = notAfter)
@@ -263,6 +265,27 @@ class CA(django.db.models.Model):
     self.next_crl_update = now + self.crl_interval
     self.next_crl_number += 1
 
+class ServerCA(CA):
+  objects = ServerCAManager()
+
+  def __unicode__(self):
+    return ""
+
+  @property
+  def subject_name(self):
+    return rpki.x509.X501DN("%s BPKI server CA" % socket.gethostname())
+
+class ResourceHolderCA(CA):
+  handle = HandleField(unique = True)
+  objects = ResourceHolderCAManager()
+
+  def __unicode__(self):
+    return self.handle
+
+  @property
+  def subject_name(self):
+    return rpki.x509.X501DN("%s BPKI resource CA" % self.handle)
+
 class Certificate(django.db.models.Model):
 
   certificate = CertificateField()
@@ -286,25 +309,25 @@ class CrossCertification(Certificate):
 
   def avow(self):
     self.certificate = self.issuer.certify(
-      subject_name = self.ta.getSubject(),
-      subject_key  = self.ta.getPublicKey(),
-      interval     = self.default_interval,
-      is_ca        = True,
+      subject_name      = self.ta.getSubject(),
+      subject_key       = self.ta.getPublicKey(),
+      validity_interval = self.default_interval,
+      is_ca             = True,
       pathLenConstraint = 0)
 
   def __unicode__(self):
     return self.handle
 
 class HostedCA(Certificate):
-  issuer = django.db.models.ForeignKey(CA)
-  hosted = django.db.models.OneToOneField(CA, related_name = "hosted_by")
+  issuer = django.db.models.ForeignKey(ServerCA)
+  hosted = django.db.models.OneToOneField(ResourceHolderCA, related_name = "hosted_by")
 
   def avow(self):
     self.certificate = self.issuer.certify(
-      subject_name = self.hosted_ca.getSubject(),
-      subject_key  = self.hosted_ca.getPublicKey(),
-      interval     = self.default_interval,
-      is_ca        = True,
+      subject_name      = self.hosted_ca.getSubject(),
+      subject_key       = self.hosted_ca.getPublicKey(),
+      validity_interval = self.default_interval,
+      is_ca             = True,
       pathLenConstraint = 1)
 
   class Meta:
@@ -314,51 +337,72 @@ class HostedCA(Certificate):
     return self.hosted_ca.handle
 
 class Revocation(django.db.models.Model):
-  issuer = django.db.models.ForeignKey(CA, related_name = "revocations")
   serial = django.db.models.BigIntegerField()
   revoked = SundialField()
   expires = SundialField()
 
   class Meta:
+    abstract = True
     unique_together = ("issuer", "serial")
 
+class ServerRevocation(Revocation):
+  issuer = django.db.models.ForeignKey(ServerCA, related_name = "revocations")
+
+class ResourceHolderRevocation(Revocation):
+  issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "revocations")
+  
 class EECertificate(Certificate):
-  issuer = django.db.models.ForeignKey(CA, related_name = "ee_certificates")
-  purpose = EnumField(choices = ("rpkid", "pubd", "irdbd", "irbe", "rootd", "referral"))
   private_key = RSAKeyField()
 
   class Meta:
-    unique_together = ("issuer", "purpose")
+    abstract = True
 
   def avow(self):
     if self.private_key is None:
       self.private_key = rpki.x509.RSA.generate()
-    subject_name = rpki.x509.X501DN("%s BPKI %s EE" % (
-      self.issuer.handle if self.issuer.handle else socket.gethostname(),
-      self.get_purpose_display()))
     self.certificate = self.issuer.certify(
-      subject_name      = subject_name,
+      subject_name      = self.subject_name,
       subject_key       = self.private_key.get_RSApublic(),
       validity_interval = self.default_interval,
       is_ca             = False)
 
+class ServerCertificate(EECertificate):
+  issuer = django.db.models.ForeignKey(ServerCA, related_name = "ee_certificates")
+  purpose = EnumField(choices = ("rpkid", "pubd", "irdbd", "irbe", "rootd"))
+
+  class Meta:
+    unique_together = ("issuer", "purpose")
+
+  @property
+  def subject_name(self):
+    return rpki.x509.X501DN("%s BPKI %s EE" % (socket.gethostname(), self.get_purpose_display()))
+
+class ReferralCertificate(EECertificate):
+  issuer = django.db.models.OneToOneField(ResourceHolderCA, related_name = "referral_certificate")
+  objects = ReferralCertificateManager()
+
+  @property
+  def subject_name(self):
+    return rpki.x509.X501DN("%s BPKI Referral EE" % self.issuer.handle)
+
+
 class BSC(Certificate):
-  issuer = django.db.models.ForeignKey(CA, related_name = "bscs")
+  issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "bscs")
   handle = HandleField()
   pkcs10 = PKCS10Field()
 
   def avow(self):
     self.certificate = self.issuer.certify(
-      subject_name = self.pkcs10.getSubject(),
-      subject_key  = self.pkcs10.getPublicKey(),
-      interval     = self.default_interval,
-      is_ca        = False)
+      subject_name      = self.pkcs10.getSubject(),
+      subject_key       = self.pkcs10.getPublicKey(),
+      validity_interval = self.default_interval,
+      is_ca             = False)
 
   def __unicode__(self):
     return self.handle
 
 class Child(CrossCertification):
-  issuer = django.db.models.ForeignKey(CA, related_name = "children")
+  issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "children")
   name = django.db.models.TextField(null = True, blank = True)
   valid_until = SundialField()
 
@@ -380,7 +424,7 @@ class ChildNet(django.db.models.Model):
     unique_together = ("child", "start_ip", "end_ip", "version")
 
 class Parent(CrossCertification):
-  issuer = django.db.models.ForeignKey(CA, related_name = "parents")
+  issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "parents")
   parent_handle = HandleField()
   child_handle  = HandleField()
   service_uri = django.db.models.CharField(max_length = 255)
@@ -389,7 +433,7 @@ class Parent(CrossCertification):
   referral_authorization = SignedReferralField(null = True, blank = True)
 
 class ROARequest(django.db.models.Model):
-  issuer = django.db.models.ForeignKey(CA, related_name = "roa_requests")
+  issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "roa_requests")
   asn = django.db.models.BigIntegerField()
 
 class ROARequestPrefix(django.db.models.Model):
@@ -403,18 +447,18 @@ class ROARequestPrefix(django.db.models.Model):
     unique_together = ("roa_request", "version", "prefix", "prefixlen", "max_prefixlen")
 
 class GhostbusterRequest(django.db.models.Model):
-  issuer = django.db.models.ForeignKey(CA,     related_name = "ghostbuster_requests")
+  issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "ghostbuster_requests")
   parent = django.db.models.ForeignKey(Parent, related_name = "ghostbuster_requests", null = True)
   vcard = django.db.models.TextField()
 
 class Repository(CrossCertification):
-  issuer = django.db.models.ForeignKey(CA, related_name = "repositories")
+  issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "repositories")
   client_handle = HandleField()
   service_uri = django.db.models.CharField(max_length = 255)
   sia_base = django.db.models.TextField()
   parent = django.db.models.OneToOneField(Parent, related_name = "repository")
 
 class Client(CrossCertification):
-  issuer = django.db.models.ForeignKey(CA, related_name = "clients")
+  issuer = django.db.models.ForeignKey(ServerCA, related_name = "clients")
   sia_base = django.db.models.TextField()
 

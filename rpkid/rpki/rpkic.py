@@ -218,12 +218,12 @@ class main(rpki.cli.Cmd):
 
   def reset_identity(self):
     try:
-      self.resource_ca = rpki.irdb.CA.objects.get(handle = self.handle)
-    except rpki.irdb.CA.DoesNotExist:
+      self.resource_ca = rpki.irdb.ResourceHolderCA.objects.get(handle = self.handle)
+    except rpki.irdb.ResourceHolderCA.DoesNotExist:
       self.resource_ca = None
     try:
-      self.server_ca = rpki.irdb.CA.objects.get(handle = "*")
-    except rpki.irdb.CA.DoesNotExist:
+      self.server_ca = rpki.irdb.ServerCA.objects.get()
+    except rpki.irdb.ServerCA.DoesNotExist:
       self.server_ca = None
 
   def help_overview(self):
@@ -252,7 +252,7 @@ class main(rpki.cli.Cmd):
     self.reset_identity()
 
   def complete_select_identity(self, *args):
-    return self.irdb_handle_complete(rpki.irdb.CA, *args)
+    return self.irdb_handle_complete(rpki.irdb.ResourceHolderCA, *args)
 
 
   def do_initialize(self, arg):
@@ -266,23 +266,23 @@ class main(rpki.cli.Cmd):
     if arg:
       raise BadCommandSyntax, "This command takes no arguments"
 
-    self.resource_ca, created = rpki.irdb.CA.objects.get_or_certify(handle = self.handle)
+    self.resource_ca, created = rpki.irdb.ResourceHolderCA.objects.get_or_certify(handle = self.handle)
     if created:
       print "Created new BPKI resource CA for identity %s" % self.handle
 
     if self.run_rpkid or self.run_pubd or self.run_rootd:
-      self.server_ca, created = rpki.irdb.CA.objects.get_or_certify(handle = "*")
+      self.server_ca, created = rpki.irdb.ServerCA.objects.get_or_certify()
       if created:
         print "Created new BPKI server CA"
       if self.run_rpkid:
-        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rpkid")
-        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irdbd")
+        rpki.irdb.ServerCertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rpkid")
+        rpki.irdb.ServerCertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irdbd")
       if self.run_pubd:
-        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "pubd")
+        rpki.irdb.ServerCertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "pubd")
       if self.run_rpkid or self.run_pubd:
-        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irbe")
+        rpki.irdb.ServerCertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irbe")
       if self.run_rootd:
-        rpki.irdb.EECertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rootd")
+        rpki.irdb.ServerCertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rootd")
 
       ## @todo
       # Why do we issue root's EE certificate under our server CA?
@@ -345,19 +345,25 @@ class main(rpki.cli.Cmd):
     Most likely this should be run under cron.
     """
 
-    for model in (rpki.irdb.CA,
-                  rpki.irdb.EECertificate,
+    for model in (rpki.irdb.ServerCA,
+                  rpki.irdb.ResourceHolderCA,
+                  rpki.irdb.ServerCertificate,
+                  rpki.irdb.HostedCA,
+                  rpki.irdb.ReferralCertificate,
                   rpki.irdb.BSC,
                   rpki.irdb.Child,
                   rpki.irdb.Parent,
                   rpki.irdb.Client,
                   rpki.irdb.Repository):
-      for obj in model.all():
+      for obj in model.objects.all():
         print "Regenerating certificate", obj.certificate.getSubject()
         obj.avow()
 
-    for ca in rpki.irdb.CA.all():
-      print "Regenerating CRL for", ca.handle if ca.handle else "[servers]"
+    print "Regenerating Server CRL"
+    self.server_ca.generate_crl()
+    
+    for ca in rpki.irdb.ResourceHolderCA.objects.all():
+      print "Regenerating CRL for", ca.handle
       ca.generate_crl()
 
   def do_configure_child(self, arg):
@@ -547,7 +553,7 @@ class main(rpki.cli.Cmd):
 
     client_ta = rpki.x509.X509(Base64 = client.findtext("bpki_client_ta"))
 
-    if sia_base is None and client.get("handle") == self.handle and self.bpki_resources.ca.certificate == client_ta:
+    if sia_base is None and client.get("handle") == self.handle and self.resource_ca.certificate == client_ta:
       print "This looks like self-hosted publication"
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, self.handle)
 
@@ -869,7 +875,7 @@ class main(rpki.cli.Cmd):
         action = "set",
         bpki_crl = self.server_ca.latest_crl))
 
-    for ca in rpki.irdb.CA.objects.exclude(handle = "*"):
+    for ca in rpki.irdb.ResourceHolderCA.objects.all():
 
       # See what rpkid and pubd already have on file for this entity.
 

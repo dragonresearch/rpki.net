@@ -222,7 +222,7 @@ class main(rpki.cli.Cmd):
     except rpki.irdb.CA.DoesNotExist:
       self.resource_ca = None
     try:
-      self.server_ca = rpki.irdb.CA.objects.get(handle = "")
+      self.server_ca = rpki.irdb.CA.objects.get(handle = "*")
     except rpki.irdb.CA.DoesNotExist:
       self.server_ca = None
 
@@ -271,7 +271,7 @@ class main(rpki.cli.Cmd):
       print "Created new BPKI resource CA for identity %s" % self.handle
 
     if self.run_rpkid or self.run_pubd or self.run_rootd:
-      self.server_ca, created = rpki.irdb.CA.objects.get_or_certify(handle = "")
+      self.server_ca, created = rpki.irdb.CA.objects.get_or_certify(handle = "*")
       if created:
         print "Created new BPKI server CA"
       if self.run_rpkid:
@@ -869,7 +869,7 @@ class main(rpki.cli.Cmd):
         action = "set",
         bpki_crl = self.server_ca.latest_crl))
 
-    for ca in rpki.irdb.CA.objects.exclude(handle = ""):
+    for ca in rpki.irdb.CA.objects.exclude(handle = "*"):
 
       # See what rpkid and pubd already have on file for this entity.
 

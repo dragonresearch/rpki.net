@@ -117,7 +117,7 @@ def get_or_create_CA(purpose):
   crl_number = read_openssl_serial(os.path.join(bpki, purpose, "crl_number"))
 
   return rpki.irdb.CA.objects.get_or_create(
-    handle = self_handle if purpose == "resources" else "",
+    handle = self_handle if purpose == "resources" else "*",
     certificate = cer,
     private_key = key,
     latest_crl = crl,

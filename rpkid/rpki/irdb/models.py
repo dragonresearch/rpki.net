@@ -154,12 +154,12 @@ class CertificateManager(django.db.models.Manager):
     changed = False
 
     try:
-      # Icky, but does what we need.
+      # Seriously icky, but does what we need.  Rewrite using some
+      # kind of method routine that returns the key names.
       try:
-        keys = self.model._meta.unique_together
-      except AttributeError:
+        keys = self.model._meta.unique_together[0] or ("handle",)
+      except (AttributeError, IndexError):
         keys = ("handle",)
-      print "++ Keys:", repr(keys)
       obj = self.get(**dict((k, kwargs[k]) for k in keys))
 
     except self.model.DoesNotExist:

@@ -27,12 +27,21 @@ import rpki.x509
 import rpki.sundial
 import socket
 
+## @var ip_version_choices
+# Choice argument for fields implementing IP version numbers.
+
+ip_version_choices = ((4, "IPv4"), (6, "IPv6"))
+
 ###
+
+# Field types
 
 class HandleField(django.db.models.CharField):
   """
   A handle field type.
   """
+
+  description = 'A "handle" in one of the RPKI protocols'
 
   def __init__(self, *args, **kwargs):
     kwargs["max_length"] = 120
@@ -43,6 +52,8 @@ class EnumField(django.db.models.PositiveSmallIntegerField):
   An enumeration type that uses strings in Python and small integers
   in SQL.
   """
+
+  description = "An enumeration type"
 
   __metaclass__ = django.db.models.SubfieldBase
 
@@ -64,6 +75,8 @@ class SundialField(django.db.models.DateTimeField):
   A field type for our customized datetime objects.
   """
 
+  description = "A datetime type using our customized datetime objects"
+
   def to_python(self, value):
     return rpki.sundial.datetime.fromdatetime(
       django.db.models.DateTimeField.to_python(self, value))
@@ -76,7 +89,7 @@ class SundialField(django.db.models.DateTimeField):
 
 class DERField(django.db.models.Field):
   """
-  A field type for DER objects.
+  A field type to represent ASN.1 DER objects as SQL BLOBs.
 
   This is an abstract class, subclasses need to define rpki_type.
   """
@@ -131,10 +144,9 @@ class SignedReferralField(DERField):
   description = "CMS signed object containing XML"
   rpki_type = rpki.x509.SignedReferral
 
-## @var ip_version_choices
-# Choice argument for fields implementing IP version numbers.
+###
 
-ip_version_choices = ((4, "IPv4"), (6, "IPv6"))
+# Custom managers
 
 class CertificateManager(django.db.models.Manager):
 
@@ -183,7 +195,7 @@ class ServerCAManager(CertificateManager):
   def _get_or_certify_keys(self, kwargs):
     return { "pk" : 1 }
 
-class ReferralCertificateManager(CertificateManager):
+class ResourceHolderEEManager(CertificateManager):
   def _get_or_certify_keys(self, kwargs):
     return { "issuer" : kwargs["issuer"] }
 
@@ -366,9 +378,9 @@ class EECertificate(Certificate):
       validity_interval = self.default_interval,
       is_ca             = False)
 
-class ServerCertificate(EECertificate):
+class ServerEE(EECertificate):
   issuer = django.db.models.ForeignKey(ServerCA, related_name = "ee_certificates")
-  purpose = EnumField(choices = ("rpkid", "pubd", "irdbd", "irbe", "rootd"))
+  purpose = EnumField(choices = ("rpkid", "pubd", "irdbd", "irbe"))
 
   class Meta:
     unique_together = ("issuer", "purpose")
@@ -377,14 +389,24 @@ class ServerCertificate(EECertificate):
   def subject_name(self):
     return rpki.x509.X501DN("%s BPKI %s EE" % (socket.gethostname(), self.get_purpose_display()))
 
-class ReferralCertificate(EECertificate):
+class Referral(EECertificate):
   issuer = django.db.models.OneToOneField(ResourceHolderCA, related_name = "referral_certificate")
-  objects = ReferralCertificateManager()
+  objects = ResourceHolderEEManager()
 
   @property
   def subject_name(self):
     return rpki.x509.X501DN("%s BPKI Referral EE" % self.issuer.handle)
 
+class Turtle(django.db.models.Model):
+  service_uri = django.db.models.CharField(max_length = 255)
+
+class Rootd(EECertificate, Turtle):
+  issuer = django.db.models.OneToOneField(ResourceHolderCA, related_name = "rootd")
+  objects = ResourceHolderEEManager()
+
+  @property
+  def subject_name(self):
+    return rpki.x509.X501DN("%s BPKI rootd EE" % self.issuer.handle)
 
 class BSC(Certificate):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "bscs")
@@ -423,11 +445,10 @@ class ChildNet(django.db.models.Model):
   class Meta:
     unique_together = ("child", "start_ip", "end_ip", "version")
 
-class Parent(CrossCertification):
+class Parent(CrossCertification, Turtle):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "parents")
   parent_handle = HandleField()
   child_handle  = HandleField()
-  service_uri = django.db.models.CharField(max_length = 255)
   repository_type = EnumField(choices = ("none", "offer", "referral"))
   referrer = HandleField(null = True, blank = True)
   referral_authorization = SignedReferralField(null = True, blank = True)
@@ -456,7 +477,7 @@ class Repository(CrossCertification):
   client_handle = HandleField()
   service_uri = django.db.models.CharField(max_length = 255)
   sia_base = django.db.models.TextField()
-  parent = django.db.models.OneToOneField(Parent, related_name = "repository")
+  turtle = django.db.models.OneToOneField(Turtle, related_name = "repository")
 
 class Client(CrossCertification):
   issuer = django.db.models.ForeignKey(ServerCA, related_name = "clients")

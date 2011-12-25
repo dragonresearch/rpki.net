@@ -109,16 +109,16 @@ def read_openssl_serial(filename):
   f.close()
   return int(text.strip(), 16)
 
-def get_or_create_ServerCertificate(issuer, purpose):
+def get_or_create_ServerEE(issuer, purpose):
   cer = rpki.x509.X509(Auto_file = os.path.join(bpki, "servers", purpose + ".cer"))
   key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, "servers", purpose + ".key"))
-  rpki.irdb.ServerCertificate.objects.get_or_create(
+  rpki.irdb.ServerEE.objects.get_or_create(
     issuer      = issuer,
     purpose     = purpose,
     certificate = cer,
     private_key = key)
 
-# Load BPKI CA data
+# Load BPKI CAs and directly certified EEs
 
 cer = rpki.x509.X509(Auto_file = os.path.join(bpki, "resources", "ca.cer"))
 key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, "resources", "ca.key"))
@@ -139,23 +139,21 @@ resource_ca = rpki.irdb.ResourceHolderCA.objects.get_or_create(
 if os.path.exists(os.path.join(bpki, "resources", "referral.cer")):
   cer = rpki.x509.X509(Auto_file = os.path.join(bpki, "resources", "referral.cer"))
   key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, "resources", "referral.key"))
-  rpki.irdb.ReferralCertificate.objects.get_or_create(
+  rpki.irdb.Referral.objects.get_or_create(
     issuer      = resource_ca,
     certificate = cer,
     private_key = key)
 
-# Load BPKI server EE certificates and keys
+run_rpkid = cfg.getboolean("run_rpkid", section = "myrpki")
+run_pubd  = cfg.getboolean("run_pubd",  section = "myrpki")
+run_rootd = cfg.getboolean("run_rootd", section = "myrpki")
 
-run_flags = dict((i, cfg.getboolean(i, section = "myrpki"))
-                 for i in ("run_rpkid", "run_pubd", "run_rootd"))
-
-if any(run_flags.itervalues()):
+if run_rpkid or run_pubd:
   cer = rpki.x509.X509(Auto_file = os.path.join(bpki, "servers", "ca.cer"))
   key = rpki.x509.RSA(Auto_file  = os.path.join(bpki, "servers", "ca.key"))
   crl = rpki.x509.CRL(Auto_file  = os.path.join(bpki, "servers", "ca.crl"))
   serial     = read_openssl_serial(os.path.join(bpki, "servers", "serial"))
   crl_number = read_openssl_serial(os.path.join(bpki, "servers", "crl_number"))
-
   server_ca = rpki.irdb.ServerCA.objects.get_or_create(
     certificate = cer,
     private_key = key,
@@ -164,17 +162,28 @@ if any(run_flags.itervalues()):
     next_crl_number = crl_number,
     last_crl_update = crl.getThisUpdate().to_sql(),
     next_crl_update = crl.getNextUpdate().to_sql())[0]
+  get_or_create_ServerEE(server_ca, "irbe")
 
-  get_or_create_ServerCertificate(server_ca, "irbe")
-  if run_flags["run_rpkid"]:
-    get_or_create_ServerCertificate(server_ca, "rpkid")
-    get_or_create_ServerCertificate(server_ca, "irdbd")
-  if run_flags["run_pubd"]:
-    get_or_create_ServerCertificate(server_ca, "pubd")
-  if run_flags["run_rootd"]:
-    get_or_create_ServerCertificate(server_ca, "rootd")
 else:
   server_ca = None
+
+if run_rpkid:
+  get_or_create_ServerEE(server_ca, "rpkid")
+  get_or_create_ServerEE(server_ca, "irdbd")
+
+if run_pubd:
+  get_or_create_ServerEE(server_ca, "pubd")
+
+# Certification model  for rootd  has changed.  We  can reuse  the old
+# key, but we have to  recertify under a different CA than previously.
+# Yes, we're pulling  a key from the servers  BPKI tree and certifying
+# it under the resource holder CA, that's part of the change.
+
+if run_rootd:
+  rpki.irdb.Rootd.objects.get_or_certify(
+    issuer = resource_ca,
+    service_uri = "http://localhost:%s/" % cfg.get("rootd_server_port", section = "myrpki"),
+    private_key = rpki.x509.RSA(Auto_file = os.path.join(bpki, "servers", "rootd.key")))
 
 # Load BSC certificates and requests.  Yes, this currently wires in
 # exactly one BSC handle, "bsc".  So does the old myrpki code.  Ick.
@@ -277,6 +286,11 @@ for filename in glob.iglob(os.path.join(entitydb, "parents", "*.xml")):
   rpki.relaxng.myrpki.assertValid(e)
   assert e.tag == tag_parent
 
+  if parent_handle == self_handle:
+    assert run_rootd
+    assert e.get("service_uri") == "http://localhost:%s/" % cfg.get("rootd_server_port", section = "myrpki")
+    continue
+
   ta = rpki.x509.X509(Base64 = e.findtext(tag_bpki_resource_ta))
   xcfn = os.path.join(bpki, "resources", "xcert.%s.cer" % xcert_hash(ta))
   xcert_filenames.discard(xcfn)
@@ -298,6 +312,7 @@ for filename in glob.iglob(os.path.join(entitydb, "parents", "*.xml")):
     child_handle = e.get("child_handle"),
     ta = ta,
     certificate = xcert,
+    service_uri = e.get("service_uri"),
     repository_type = repository_type,
     referrer = referrer,
     referral_authorization = referral_authorization,
@@ -334,7 +349,11 @@ for filename in glob.iglob(os.path.join(entitydb, "repositories", "*.xml")):
   xcert_filenames.discard(xcfn)
   xcert = rpki.x509.X509(Auto_file = xcfn)
 
-  parent = rpki.irdb.Parent.objects.get(handle = e.get("parent_handle"))
+  parent_handle = e.get("parent_handle")
+  if parent_handle == self_handle:
+    turtle = resource_ca.rootd
+  else:
+    turtle = rpki.irdb.Parent.objects.get(handle = parent_handle)
 
   rpki.irdb.Repository.objects.get_or_create(
     handle = repository_handle,
@@ -343,7 +362,7 @@ for filename in glob.iglob(os.path.join(entitydb, "repositories", "*.xml")):
     certificate = xcert,
     service_uri = e.get("service_uri"),
     sia_base = e.get("sia_base"),
-    parent = parent,
+    turtle = turtle,
     issuer = resource_ca)
 
 # Scrape client data out of the entitydb.

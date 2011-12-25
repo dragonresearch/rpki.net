@@ -270,29 +270,18 @@ class main(rpki.cli.Cmd):
     if created:
       print "Created new BPKI resource CA for identity %s" % self.handle
 
-    if self.run_rpkid or self.run_pubd or self.run_rootd:
+    if self.run_rpkid or self.run_pubd:
       self.server_ca, created = rpki.irdb.ServerCA.objects.get_or_certify()
       if created:
         print "Created new BPKI server CA"
-      if self.run_rpkid:
-        rpki.irdb.ServerCertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rpkid")
-        rpki.irdb.ServerCertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irdbd")
-      if self.run_pubd:
-        rpki.irdb.ServerCertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "pubd")
-      if self.run_rpkid or self.run_pubd:
-        rpki.irdb.ServerCertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "irbe")
-      if self.run_rootd:
-        rpki.irdb.ServerCertificate.objects.get_or_certify(issuer = self.server_ca, purpose = "rootd")
+      rpki.irdb.ServerEE.objects.get_or_certify(issuer = self.server_ca, purpose = "irbe")
 
-      ## @todo
-      # Why do we issue root's EE certificate under our server CA?
-      # We've "always" done this, but does it make sense now?  rootd
-      # only speaks up-down, so it's really just another resource
-      # holder.  If we just issued it under our resource CA, we
-      # wouldn't have to cross certify anything to talk to it.  Which
-      # might in itself break something, as it'd be the only parent we
-      # -didn't- have to cross-certify.  Leave alone for now, but
-      # think about this later.
+    if self.run_rpkid:
+      rpki.irdb.ServerEE.objects.get_or_certify(issuer = self.server_ca, purpose = "rpkid")
+      rpki.irdb.ServerEE.objects.get_or_certify(issuer = self.server_ca, purpose = "irdbd")
+
+    if self.run_pubd:
+      rpki.irdb.ServerEE.objects.get_or_certify(issuer = self.server_ca, purpose = "pubd")
 
     # Build the identity.xml file.  Need to check for existing file so we don't
     # overwrite?  Worry about that later.
@@ -302,25 +291,16 @@ class main(rpki.cli.Cmd):
     etree_write(e, "identity.xml",
                 msg = None if self.run_rootd else 'This is the "identity" file you will need to send to your parent')
 
-    # If we're running rootd, construct a fake parent to go with it,
-    # and cross-certify in both directions so we can talk to rootd.
-
     if self.run_rootd:
+      assert self.run_rpkid and self.run_pubd
 
-      rpki.irdb.Parent.objects.get_or_certify(
-        issuer = self.resource_ca, 
-        handle = self.handle,
-        parent_handle = self.handle,
-        child_handle = self.handle,
-        ta = self.server_ca.certificate,
-        service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port"),
-        repository_type = "offer")
-      
-      rpki.irdb.Child.objects.get_or_certify(
-        issuer = self.server_ca,
-        handle = self.handle,
-        ta = self.resource_ca.certificate,
-        valid_until = self.resource_ca.certificate.getNotAfter())
+      rpki.irdb.Rootd.objects.get_or_certify(
+        issuer = self.resource_ca,
+        service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port"))
+
+      # The following assumes we'll set up the respository manually.
+      # Not sure this is a reasonable assumption, particularly if we
+      # ever fix rootd to use the publication protocol.
 
       try:
         self.resource_ca.repositories.get(handle = self.handle)
@@ -347,9 +327,10 @@ class main(rpki.cli.Cmd):
 
     for model in (rpki.irdb.ServerCA,
                   rpki.irdb.ResourceHolderCA,
-                  rpki.irdb.ServerCertificate,
+                  rpki.irdb.ServerEE,
+                  rpki.irdb.Referral,
+                  rpki.irdb.Rootd,
                   rpki.irdb.HostedCA,
-                  rpki.irdb.ReferralCertificate,
                   rpki.irdb.BSC,
                   rpki.irdb.Child,
                   rpki.irdb.Parent,
@@ -661,9 +642,12 @@ class main(rpki.cli.Cmd):
     print "Repository response associated with parent_handle %r" % parent_handle
 
     try:
-      parent = self.resource_ca.parents.get(handle = parent_handle)
+      if parent_handle == self.handle:
+        turtle = self.resource_ca.rootd
+      else:
+        turtle = self.resource_ca.parents.get(handle = parent_handle)
 
-    except rpki.irdb.Parent.DoesNotExist:
+    except (rpki.irdb.Parent.DoesNotExist, rpki.irdb.Rootd.DoesNotExist):
       print "Could not find parent %r in our database" % parent_handle
 
     else:
@@ -674,7 +658,7 @@ class main(rpki.cli.Cmd):
         service_uri = r.get("service_uri"),
         sia_base = r.get("sia_base"),
         ta = rpki.x509.X509(Base64 = r.findtext("bpki_server_ta")),
-        parent = parent)
+        turtle = turtle)
 
   def do_delete_repository(self, arg):
     """
@@ -1031,6 +1015,31 @@ class main(rpki.cli.Cmd):
             sender_name = parent.child_handle,
             recipient_name = parent.parent_handle,
             bpki_cms_cert = parent.certificate))
+
+      if ca.rootd:
+
+        parent_pdu = parent_pdus.pop(ca.handle, None)
+
+        if (parent_pdu is None or
+            parent_pdu.bsc_handle != bsc_handle or
+            parent_pdu.repository_handle != ca.handle or
+            parent_pdu.peer_contact_uri != ca.rootd.service_uri or
+            parent_pdu.sia_base != ca.rootd.repository.sia_base or
+            parent_pdu.sender_name != ca.handle or
+            parent_pdu.recipient_name != ca.handle or
+            parent_pdu.bpki_cms_cert != ca.rootd.certificate):
+          rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
+            action = "create" if parent_pdu is None else "set",
+            tag = ca.handle,
+            self_handle = ca.handle,
+            parent_handle = ca.handle,
+            bsc_handle = bsc_handle,
+            repository_handle = ca.handle,
+            peer_contact_uri = ca.rootd.service_uri,
+            sia_base = ca.rootd.repository.sia_base,
+            sender_name = ca.handle,
+            recipient_name = ca.handle,
+            bpki_cms_cert = ca.rootd.certificate))
 
       rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
         action = "destroy", self_handle = ca.handle, parent_handle = p) for p in parent_pdus)

@@ -336,8 +336,8 @@ class HostedCA(Certificate):
 
   def avow(self):
     self.certificate = self.issuer.certify(
-      subject_name      = self.hosted_ca.getSubject(),
-      subject_key       = self.hosted_ca.getPublicKey(),
+      subject_name      = self.hosted.certificate.getSubject(),
+      subject_key       = self.hosted.certificate.getPublicKey(),
       validity_interval = self.default_interval,
       is_ca             = True,
       pathLenConstraint = 1)

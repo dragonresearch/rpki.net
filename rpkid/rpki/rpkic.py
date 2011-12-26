@@ -809,6 +809,18 @@ class main(rpki.cli.Cmd):
       q.delete()
 
 
+  def do_synchronize(self, arg):
+    """
+    Temporary testing hack (probably) to let me run .synchronize()
+    manually.
+    """
+
+    if arg:
+      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+
+    self.synchronize()
+
+
   def synchronize(self):
     """
     Configure RPKI daemons with the data built up by the other
@@ -897,7 +909,7 @@ class main(rpki.cli.Cmd):
           action = "create" if isinstance(self_pdu, rpki.left_right.report_error_elt) else "set",
           tag = "self",
           self_handle = ca.handle,
-          bpki_cert = self.cert.certificate,
+          bpki_cert = ca.certificate,
           crl_interval = self_crl_interval,
           regen_margin = self_regen_margin))
 
@@ -931,8 +943,11 @@ class main(rpki.cli.Cmd):
       # can finish setting up the BSC before anything tries to use it.
 
       if rpkid_query:
+        rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(action = "list", tag = "bsc", self_handle = ca.handle))
         rpkid_reply = call_rpkid(*rpkid_query)
-        bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
+        bsc_pdus = dict((x.bsc_handle, x)
+                        for x in rpkid_reply
+                        if isinstance(x, rpki.left_right.bsc_elt) and x.action == "list")
         bsc_pdu = bsc_pdus.pop(bsc_handle, None)
         for r in rpkid_reply:
           if isinstance(r, rpki.left_right.report_error_elt):
@@ -946,7 +961,7 @@ class main(rpki.cli.Cmd):
 
       assert bsc_pdu.pkcs10_request is not None
 
-      bsc = rpki.irdb.BSC.get_or_certify(
+      bsc = rpki.irdb.BSC.objects.get_or_certify(
         issuer = ca,
         handle = bsc_handle,
         pkcs10 = bsc_pdu.pkcs10_request)[0]
@@ -966,7 +981,7 @@ class main(rpki.cli.Cmd):
       # trees, but for the moment the easiest way forward is just to
       # enforce a 1:1 mapping between <parent/> and <repository/> objects
 
-      for repository in ca.repositories:
+      for repository in ca.repositories.all():
 
         repository_pdu = repository_pdus.pop(repository.handle, None)
 
@@ -991,7 +1006,7 @@ class main(rpki.cli.Cmd):
       # for an associated pair are the identical (that is:
       # parent.repository_handle == parent.parent_handle).
 
-      for parent in ca.parents:
+      for parent in ca.parents.all():
 
         parent_pdu = parent_pdus.pop(parent.handle, None)
 
@@ -1016,7 +1031,7 @@ class main(rpki.cli.Cmd):
             recipient_name = parent.parent_handle,
             bpki_cms_cert = parent.certificate))
 
-      if ca.rootd:
+      try:
 
         parent_pdu = parent_pdus.pop(ca.handle, None)
 
@@ -1041,6 +1056,9 @@ class main(rpki.cli.Cmd):
             recipient_name = ca.handle,
             bpki_cms_cert = ca.rootd.certificate))
 
+      except rpki.irdb.Rootd.DoesNotExist:
+        pass
+
       rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
         action = "destroy", self_handle = ca.handle, parent_handle = p) for p in parent_pdus)
 
@@ -1048,7 +1066,7 @@ class main(rpki.cli.Cmd):
       # to construct and figuring out what certificate to use is their
       # problem, not ours.
 
-      for child in ca.children:
+      for child in ca.children.all():
 
         child_pdu = child_pdus.pop(child.handle, None)
 
@@ -1072,7 +1090,7 @@ class main(rpki.cli.Cmd):
 
       if self.run_pubd:
 
-        for client in self.server_ca.clients:
+        for client in self.server_ca.clients.all():
 
           client_pdu = client_pdus.pop(client.handle, None)
 

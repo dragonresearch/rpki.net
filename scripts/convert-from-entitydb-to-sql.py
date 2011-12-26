@@ -368,7 +368,7 @@ for filename in glob.iglob(os.path.join(entitydb, "repositories", "*.xml")):
 # Scrape client data out of the entitydb.
 
 for filename in glob.iglob(os.path.join(entitydb, "pubclients", "*.xml")):
-  client_handle = os.path.splitext(os.path.split(filename)[1])[0]
+  client_handle = os.path.splitext(os.path.split(filename)[1])[0].replace(".", "/")
 
   e = ElementTree(file = filename).getroot()
   rpki.relaxng.myrpki.assertValid(e)
@@ -424,10 +424,11 @@ if copy_csv_data:
 
 # List cross certifications we didn't use.
 
-for filename in sorted(xcert_filenames):
-  cer = rpki.x509.X509(Auto_file = filename)
-  #print "Unused cross-certificate:", filename, cer.getSubject()
-  print "Unused cross-certificate:", filename, cer.get_POW().pprint()
+if False:
+  for filename in sorted(xcert_filenames):
+    cer = rpki.x509.X509(Auto_file = filename)
+    #print "Unused cross-certificate:", filename, cer.getSubject()
+    print "Unused cross-certificate:", filename, cer.get_POW().pprint()
 
 # Done!
 

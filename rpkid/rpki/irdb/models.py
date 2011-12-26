@@ -131,51 +131,42 @@ def DERField_get_prep_value(self, value):
   else:
     return value
 
+def DERField(cls):
+  cls.__init__       = DERField_init
+  cls.db_type        = DERField_db_type
+  cls.to_python      = DERField_to_python
+  cls.get_prep_value = DERField_get_prep_value
+  return cls
+
+@DERField
 class CertificateField(django.db.models.Field):
-  description    = "X.509 certificate"
-  rpki_type      = rpki.x509.X509
-  __metaclass__  = django.db.models.SubfieldBase
-  __init__       = DERField_init
-  db_type        = DERField_db_type
-  to_python      = DERField_to_python
-  get_prep_value = DERField_get_prep_value
+  __metaclass__ = django.db.models.SubfieldBase
+  description   = "X.509 certificate"
+  rpki_type     = rpki.x509.X509
 
+@DERField
 class RSAKeyField(django.db.models.Field):
-  description    = "RSA keypair"
-  rpki_type      = rpki.x509.RSA
-  __metaclass__  = django.db.models.SubfieldBase
-  __init__       = DERField_init
-  db_type        = DERField_db_type
-  to_python      = DERField_to_python
-  get_prep_value = DERField_get_prep_value
+  __metaclass__ = django.db.models.SubfieldBase
+  description   = "RSA keypair"
+  rpki_type     = rpki.x509.RSA
 
+@DERField
 class CRLField(django.db.models.Field):
-  description    = "Certificate Revocation List"
-  rpki_type      = rpki.x509.CRL
-  __metaclass__  = django.db.models.SubfieldBase
-  __init__       = DERField_init
-  db_type        = DERField_db_type
-  to_python      = DERField_to_python
-  get_prep_value = DERField_get_prep_value
+  __metaclass__ = django.db.models.SubfieldBase
+  description   = "Certificate Revocation List"
+  rpki_type     = rpki.x509.CRL
 
+@DERField
 class PKCS10Field(django.db.models.Field):
-  description    = "PKCS #10 certificate request"
-  rpki_type      = rpki.x509.PKCS10
-  __metaclass__  = django.db.models.SubfieldBase
-  __init__       = DERField_init
-  db_type        = DERField_db_type
-  to_python      = DERField_to_python
-  get_prep_value = DERField_get_prep_value
+  __metaclass__ = django.db.models.SubfieldBase
+  description   = "PKCS #10 certificate request"
+  rpki_type     = rpki.x509.PKCS10
 
+@DERField
 class SignedReferralField(django.db.models.Field):
-  description    = "CMS signed object containing XML"
-  rpki_type      = rpki.x509.SignedReferral
-  __metaclass__  = django.db.models.SubfieldBase
-  __init__       = DERField_init
-  db_type        = DERField_db_type
-  to_python      = DERField_to_python
-  get_prep_value = DERField_get_prep_value
-
+  __metaclass__ = django.db.models.SubfieldBase
+  description   = "CMS signed object containing XML"
+  rpki_type     = rpki.x509.SignedReferral
 
 ###
 

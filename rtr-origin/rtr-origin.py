@@ -651,7 +651,7 @@ class error_report(pdu):
     6 : "Withdrawal of Unknown Record",
     7 : "Duplicate Announcement Received" }
 
-  assert set(errors).isdisjoint(set(fatal))
+  assert set(errors) & set(fatal) == set()
 
   errors.update(fatal)
 

@@ -1240,6 +1240,25 @@ class client_channel(pdu_channel):
                proc = subprocess.Popen(argv, stdin = s[0], stdout = s[0], close_fds = True),
                killsig = signal.SIGINT)
 
+  @classmethod
+  def tls(cls, host, port):
+    """
+    Set up TLS connection and start listening for first PDU.
+
+    NB: This uses OpenSSL's "s_client" command, which does not
+    check server certificates properly, so this is not suitable for
+    production use.  Fixing this would be a trivial change, it just
+    requires using a client program which does check certificates
+    properly (eg, gnutls-cli, or stunnel's client mode if that works
+    for such purposes this week).
+    """
+    args = ("openssl", "s_client", "-tls1", "-quiet", "-connect", "%s:%s" % (host, port))
+    blather("[Running: %s]" % " ".join(args))
+    s = socket.socketpair()
+    return cls(sock = s[1],
+               proc = subprocess.Popen(args, stdin = s[0], stdout = s[0], close_fds = True),
+               killsig = signal.SIGKILL)
+
   def deliver_pdu(self, pdu):
     """
     Handle received PDU.
@@ -1572,6 +1591,10 @@ def client_main(argv):
   direct (and completely insecure!) TCP connection to the server.
   The remaining arguments should be a hostname (or IP address) and
   a TCP port number.
+
+  If the first argument is "tls", the client will attempt to open a TLS connection to the server.  The
+  remaining arguments should be a hostname (or IP address) and a TCP
+  port number.
   """
 
   blather("[Startup]")
@@ -1583,6 +1606,8 @@ def client_main(argv):
       client = client_channel.ssh(*argv[1:])
     elif argv[0] == "tcp" and len(argv) == 3:
       client = client_channel.tcp(*argv[1:])
+    elif argv[0] == "tls" and len(argv) == 3:
+      client = client_channel.tls(*argv[1:])
     else:
       sys.exit("Unexpected arguments: %r" % (argv,))
     while True:

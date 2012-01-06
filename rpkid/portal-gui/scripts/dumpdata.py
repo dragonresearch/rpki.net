@@ -32,9 +32,10 @@ from django.core import serializers
 import django.db.models
 
 from rpki.gui.app import models
+from django.contrib.auth import models as auth_models
 
 data = []
-for v in (models.Conf, models.Parent, models.Child, models.AddressRange, models.Asn, models.ResourceCert, models.Roa, models.RoaRequest, models.Ghostbuster):
+for v in (auth_models.User, models.Conf, models.Parent, models.Child, models.AddressRange, models.Asn, models.ResourceCert, models.Roa, models.RoaRequest, models.Ghostbuster):
     data.extend(list(v.objects.all().order_by('id')))
 
 print serializers.serialize('json', data, use_natural_keys=True)

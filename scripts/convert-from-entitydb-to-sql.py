@@ -247,7 +247,11 @@ for filename in glob.iglob(os.path.join(entitydb, "children", "*.xml")):
   registrant_id, valid_until = cur.fetchone()
 
   valid_until = rpki.sundial.datetime.fromdatetime(valid_until)
-  assert valid_until == rpki.sundial.datetime.fromXMLtime(e.get("valid_until"))
+  if valid_until != rpki.sundial.datetime.fromXMLtime(e.get("valid_until")):
+    print "WARNING: valid_until dates in XML and SQL do not match for child", child_handle
+    print "    SQL:", str(valid_until)
+    print "    XML:", str(rpki.sundial.datetime.fromXMLtime(e.get("valid_until")))
+    print "Blundering onwards"
 
   child = rpki.irdb.Child.objects.get_or_create(
     handle = child_handle,

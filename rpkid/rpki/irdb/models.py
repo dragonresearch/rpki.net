@@ -209,6 +209,7 @@ class CertificateManager(django.db.models.Manager):
     return obj, changed
 
   def _get_or_certify_keys(self, kwargs):
+    assert len(self.model._meta.unique_together) == 1
     return dict((k, kwargs[k]) for k in self.model._meta.unique_together[0])
 
 class ResourceHolderCAManager(CertificateManager):
@@ -452,6 +453,10 @@ class Child(CrossCertification):
   name = django.db.models.TextField(null = True, blank = True)
   valid_until = SundialField()
 
+  # This shouldn't be necessary
+  class Meta:
+    unique_together = ("issuer", "handle")
+
 class ChildASN(django.db.models.Model):
   child = django.db.models.ForeignKey(Child, related_name = "asns")
   start_as = django.db.models.BigIntegerField()
@@ -476,6 +481,10 @@ class Parent(CrossCertification, Turtle):
   repository_type = EnumField(choices = ("none", "offer", "referral"))
   referrer = HandleField(null = True, blank = True)
   referral_authorization = SignedReferralField(null = True, blank = True)
+
+  # This shouldn't be necessary
+  class Meta:
+    unique_together = ("issuer", "handle")
 
 class ROARequest(django.db.models.Model):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "roa_requests")
@@ -503,7 +512,14 @@ class Repository(CrossCertification):
   sia_base = django.db.models.TextField()
   turtle = django.db.models.OneToOneField(Turtle, related_name = "repository")
 
+  # This shouldn't be necessary
+  class Meta:
+    unique_together = ("issuer", "handle")
+
 class Client(CrossCertification):
   issuer = django.db.models.ForeignKey(ServerCA, related_name = "clients")
   sia_base = django.db.models.TextField()
 
+  # This shouldn't be necessary
+  class Meta:
+    unique_together = ("issuer", "handle")

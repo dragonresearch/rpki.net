@@ -29,10 +29,10 @@ for name in ("rpkid", "irdbd", "pubd"):
   password = cfg.get("%s_sql_password" % name, "fnord")
   
   schema = []
-  for line in getattr(rpki.sql_schemas, name).splitlines():
+  for line in getattr(rpki.sql_schemas, name, "").splitlines():
     schema.extend(line.partition("--")[0].split())
   schema = " ".join(schema).strip(";").split(";")
-  schema = [statement.strip() for statement in schema if "DROP TABLE" not in statement]
+  schema = [statement.strip() for statement in schema if statement and "DROP TABLE" not in statement]
 
   for i in xrange(12):
 

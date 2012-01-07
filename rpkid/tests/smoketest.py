@@ -124,8 +124,8 @@ pubd_name      = cfg.get("pubd_name",      "pubd")
 
 prog_python    = cfg.get("prog_python",    sys.executable)
 prog_rpkid     = cfg.get("prog_rpkid",     "../../rpkid.py")
-prog_irdbd     = cfg.get("prog_irdbd",     "../../irdbd.py")
-prog_poke      = cfg.get("prog_poke",      "../../testpoke.py")
+prog_irdbd     = cfg.get("prog_irdbd",     "../old_irdbd.py")
+prog_poke      = cfg.get("prog_poke",      "../testpoke.py")
 prog_rootd     = cfg.get("prog_rootd",     "../../rootd.py")
 prog_pubd      = cfg.get("prog_pubd",      "../../pubd.py")
 prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
@@ -135,7 +135,7 @@ prog_openssl   = cfg.get("prog_openssl",   "../../../openssl/openssl/apps/openss
 rcynic_stats   = cfg.get("rcynic_stats",   "echo ; ../../../rcynic/show.sh %s.xml ; echo" % rcynic_name)
 
 rpki_sql_file  = cfg.get("rpki_sql_file",  "../rpkid.sql")
-irdb_sql_file  = cfg.get("irdb_sql_file",  "../irdbd.sql")
+irdb_sql_file  = cfg.get("irdb_sql_file",  "old_irdbd.sql")
 pub_sql_file   = cfg.get("pub_sql_file",   "../pubd.sql")
 
 startup_delay  = int(cfg.get("startup_delay", "10"))

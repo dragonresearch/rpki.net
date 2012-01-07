@@ -46,7 +46,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import subprocess, re, os, getopt, sys, yaml, signal, time
-import rpki.resource_set, rpki.sundial, rpki.config, rpki.log, rpki.rpkic
+import rpki.resource_set, rpki.sundial, rpki.config, rpki.log, rpki.csv_utils
 
 # Nasty regular expressions for parsing config files.  Sadly, while
 # the Python ConfigParser supports writing config files, it does so in
@@ -67,11 +67,11 @@ this_dir  = os.getcwd()
 test_dir  = cleanpath(this_dir, "yamltest.dir")
 rpkid_dir = cleanpath(this_dir, "..")
 
-prog_rpkic   = cleanpath(rpkid_dir, "rpkic.py")
-prog_rpkid   = cleanpath(rpkid_dir, "rpkid.py")
-prog_irdbd   = cleanpath(rpkid_dir, "irdbd.py")
-prog_pubd    = cleanpath(rpkid_dir, "pubd.py")
-prog_rootd   = cleanpath(rpkid_dir, "rootd.py")
+prog_rpkic   = cleanpath(rpkid_dir, "rpkic")
+prog_rpkid   = cleanpath(rpkid_dir, "rpkid")
+prog_irdbd   = cleanpath(rpkid_dir, "irdbd")
+prog_pubd    = cleanpath(rpkid_dir, "pubd")
+prog_rootd   = cleanpath(rpkid_dir, "rootd")
 
 prog_openssl = cleanpath(this_dir, "../../openssl/openssl/apps/openssl")
 if not os.path.exists(prog_openssl):
@@ -116,14 +116,14 @@ class allocation_db(list):
   def __init__(self, yaml):
     list.__init__(self)
     self.root = allocation(yaml, self)
-    assert self.root.is_root()
+    assert self.root.is_root
     if self.root.crl_interval is None:
       self.root.crl_interval = 24 * 60 * 60
     if self.root.regen_margin is None:
       self.root.regen_margin = 24 * 60 * 60
     for a in self:
       if a.sia_base is None:
-        if a.runs_pubd():
+        if a.runs_pubd:
           base = "rsync://localhost:%d/rpki/" % a.rsync_port
         else:
           base = a.parent.sia_base
@@ -134,14 +134,13 @@ class allocation_db(list):
         a.crl_interval = a.parent.crl_interval
       if a.regen_margin is None:
         a.regen_margin = a.parent.regen_margin
-      a.client_handle = "/".join(a.sia_base.rstrip("/").split("/")[3:])
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     for a in self:
-      if a.is_hosted():
+      if a.is_hosted:
         a.hosted_by = self.map[a.hosted_by]
         a.hosted_by.hosts.append(a)
-        assert not a.is_root() and not a.hosted_by.is_hosted()
+        assert not a.is_root and not a.hosted_by.is_hosted
 
   def dump(self):
     """
@@ -218,14 +217,14 @@ class allocation(object):
         self.base.v6 = self.base.v6.union(r.v6.to_resource_set())
     self.hosted_by = yaml.get("hosted_by")
     self.hosts = []
-    if not self.is_hosted():
+    if not self.is_hosted:
       self.engine = self.allocate_engine()
       self.rpkid_port = self.allocate_port()
       self.irdbd_port = self.allocate_port()
-    if self.runs_pubd():
+    if self.runs_pubd:
       self.pubd_port  = self.allocate_port()
       self.rsync_port = self.allocate_port()
-    if self.is_root():
+    if self.is_root:
       self.rootd_port = self.allocate_port()
 
   def closure(self):
@@ -253,55 +252,56 @@ class allocation(object):
     if self.kids:               s += "  Kids: %s\n" % ", ".join(k.name for k in self.kids)
     if self.parent:             s += "    Up: %s\n" % self.parent.name
     if self.sia_base:           s += "   SIA: %s\n" % self.sia_base
-    if self.is_hosted():        s += "  Host: %s\n" % self.hosted_by.name
+    if self.is_hosted:          s += "  Host: %s\n" % self.hosted_by.name
     if self.hosts:              s += " Hosts: %s\n" % ", ".join(h.name for h in self.hosts)
     for r in self.roa_requests: s += "   ROA: %s\n" % r
-    if not self.is_hosted():    s += " IPort: %s\n" % self.irdbd_port
-    if self.runs_pubd():        s += " PPort: %s\n" % self.pubd_port
-    if not self.is_hosted():    s += " RPort: %s\n" % self.rpkid_port
-    if self.runs_pubd():        s += " SPort: %s\n" % self.rsync_port
-    if self.is_root():          s += " TPort: %s\n" % self.rootd_port
+    if not self.is_hosted:      s += " IPort: %s\n" % self.irdbd_port
+    if self.runs_pubd:          s += " PPort: %s\n" % self.pubd_port
+    if not self.is_hosted:      s += " RPort: %s\n" % self.rpkid_port
+    if self.runs_pubd:          s += " SPort: %s\n" % self.rsync_port
+    if self.is_root:            s += " TPort: %s\n" % self.rootd_port
     return s + " Until: %s\n" % self.resources.valid_until
 
+  @property
   def is_root(self):
     """
     Is this the root node?
     """
     return self.parent is None
 
+  @property
   def is_hosted(self):
     """
     Is this entity hosted?
     """
     return self.hosted_by is not None
 
+  @property
   def runs_pubd(self):
     """
     Does this entity run a pubd?
     """
-    return self.is_root() or not (self.is_hosted() or only_one_pubd)
+    return self.is_root or not (self.is_hosted or only_one_pubd)
 
   def path(self, *names):
     """
     Construct pathnames in this entity's test directory.
     """
-    return cleanpath(test_dir, self.name, *names)
+    return cleanpath(test_dir, self.host.name, *names)
 
   def csvout(self, fn):
     """
-    Open and log a CSV output file.  We use delimiter and dialect
-    settings imported from the rpkic module, so that we automatically
-    write CSV files in the right format.
+    Open and log a CSV output file.
     """
     path = self.path(fn)
     print "Writing", path
-    return rpki.rpkic.csv_writer(path)
+    return rpki.csv_utils.csv_writer(path)
 
   def up_down_url(self):
     """
     Construct service URL for this node's parent.
     """
-    parent_port = self.parent.hosted_by.rpkid_port if self.parent.is_hosted() else self.parent.rpkid_port
+    parent_port = self.parent.hosted_by.rpkid_port if self.parent.is_hosted else self.parent.rpkid_port
     return "http://localhost:%d/up-down/%s/%s" % (parent_port, self.parent.name, self.name)
 
   def dump_asns(self, fn):
@@ -312,37 +312,7 @@ class allocation(object):
     for k in self.kids:    
       f.writerows((k.name, a) for a in k.resources.asn)
     f.close()
-
-  def dump_children(self, fn):
-    """
-    Write children CSV file.
-    """
-    f = self.csvout(fn)
-    f.writerows((k.name, k.resources.valid_until, k.path("bpki/resources/ca.cer"))
-                for k in self.kids)
-    f.close()
-
-  def dump_parents(self, fn):
-    """
-    Write parents CSV file.
-    """
-    f = self.csvout(fn)
-    if self.is_root():
-      f.writerow(("rootd",
-                  "http://localhost:%d/" % self.rootd_port,
-                  self.path("bpki/servers/ca.cer"),
-                  self.path("bpki/servers/ca.cer"),
-                  self.name,
-                  self.sia_base))
-    else:
-      parent_host = self.parent.hosted_by if self.parent.is_hosted() else self.parent
-      f.writerow((self.parent.name,
-                  self.up_down_url(),
-                  self.parent.path("bpki/resources/ca.cer"),
-                  parent_host.path("bpki/servers/ca.cer"),
-                  self.name,
-                  self.sia_base))
-    f.close()
+    self.run_rpkic("synchronize_asns", fn)
 
   def dump_prefixes(self, fn):
     """
@@ -352,43 +322,45 @@ class allocation(object):
     for k in self.kids:
       f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
     f.close()
+    self.run_rpkic("synchronize_prefixes", fn)
 
   def dump_roas(self, fn):
     """
     Write ROA CSV file.
     """
-    group = self.name if self.is_root() else self.parent.name
+    group = self.name if self.is_root else self.parent.name
     f = self.csvout(fn)
     for r in self.roa_requests:
       f.writerows((p, r.asn, group)
                   for p in (r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ()))
     f.close()
+    self.run_rpkic("synchronize_roa_requests", fn)
 
-  def dump_clients(self, fn, db):
-    """
-    Write pubclients CSV file.
-    """
-    if self.runs_pubd():
-      f = self.csvout(fn)
-      f.writerows((s.client_handle, s.path("bpki/resources/ca.cer"), s.sia_base)
-                  for s in (db if only_one_pubd else [self] + self.kids))
-      f.close()
-
-  def find_pubd(self):
+  @property
+  def pubd(self):
     """
     Walk up tree until we find somebody who runs pubd.
     """
     s = self
-    path = [s]
-    while not s.runs_pubd():
+    while not s.runs_pubd:
       s = s.parent
-      path.append(s)
-    return s, ".".join(i.name for i in reversed(path))
+    return s
 
-  def find_host(self):
+  @property
+  def client_handle(self):
     """
-    Figure out who hosts this entity.
+    Work out what pubd configure_publication_client will call us.
     """
+    path = []
+    s = self
+    while not s.runs_pubd:
+      path.append(s)
+      s = s.parent
+    path.append(s)
+    return ".".join(i.name for i in reversed(path))
+
+  @property
+  def host(self):
     return self.hosted_by or self
 
   def dump_conf(self, fn):
@@ -396,12 +368,10 @@ class allocation(object):
     Write configuration file for OpenSSL and RPKI tools.
     """
 
-    s, ignored = self.find_pubd()
-
     r = { "handle"              : self.name,
-          "run_rpkid"           : str(not self.is_hosted()),
-          "run_pubd"            : str(self.runs_pubd()),
-          "run_rootd"           : str(self.is_root()),
+          "run_rpkid"           : str(not self.is_hosted),
+          "run_pubd"            : str(self.runs_pubd),
+          "run_rootd"           : str(self.is_root),
           "openssl"             : prog_openssl,
           "irdbd_sql_database"  : "irdb%d" % self.engine,
           "irdbd_sql_username"  : "irdb",
@@ -415,8 +385,8 @@ class allocation(object):
           "pubd_sql_database"   : "pubd%d" % self.engine,
           "pubd_sql_username"   : "pubd",
           "pubd_server_host"    : "localhost",
-          "pubd_server_port"    : str(s.pubd_port),
-          "publication_rsync_server" : "localhost:%s" % s.rsync_port }
+          "pubd_server_port"    : str(self.pubd.pubd_port),
+          "publication_rsync_server" : "localhost:%s" % self.pubd.rsync_port }
 
     r.update(config_overrides)
 
@@ -442,7 +412,7 @@ class allocation(object):
     Write rsyncd configuration file.
     """
 
-    if self.runs_pubd():
+    if self.runs_pubd:
       f = open(self.path(fn), "w")
       print "Writing", f.name
       f.writelines(s + "\n" for s in
@@ -457,40 +427,26 @@ class allocation(object):
                     "comment      = RPKI test"))
       f.close()
 
-  def run_configure_daemons(self):
-    """
-    Run configure_daemons if this entity is not hosted by another engine.
-    """
-    if self.is_hosted():
-      print "%s is hosted, skipping configure_daemons" % self.name
-    else:
-      files = [h.path("myrpki.xml") for h in self.hosts]
-      self.run_rpkic("configure_daemons", *[f for f in files if os.path.exists(f)])
-
-  def run_configure_resources(self):
-    """
-    Run configure_resources for this entity.
-    """
-    self.run_rpkic("configure_resources")
-
   def run_rpkic(self, *args):
     """
-    Run rpkic.py for this entity.
+    Run rpkic for this entity.
     """
-    print 'Running "%s" for %s' % (" ".join(("rpkic",) + args), self.name)
-    subprocess.check_call((sys.executable, prog_rpkic) + args, cwd = self.path())
+    cmd = (prog_rpkic, "-i", self.name, "-c", self.path("rpki.conf")) + args
+    print 'Running "%s"' % " ".join(cmd)
+    subprocess.check_call(cmd, cwd = self.host.path())
 
   def run_python_daemon(self, prog):
     """
     Start a Python daemon and return a subprocess.Popen object
     representing the running daemon.
     """
-    basename = os.path.basename(prog)
-    p = subprocess.Popen((sys.executable, prog, "-d", "-c", self.path("rpki.conf")),
+    cmd = (prog, "-d", "-c", self.path("rpki.conf"))
+    log = os.path.splitext(os.path.basename(prog))[0] + ".log"
+    p = subprocess.Popen(cmd,
                          cwd = self.path(),
-                         stdout = open(self.path(os.path.splitext(basename)[0] + ".log"), "w"),
+                         stdout = open(self.path(log), "w"),
                          stderr = subprocess.STDOUT)
-    print "Running %s for %s: pid %d process %r" % (basename, self.name, p.pid, p)
+    print 'Running %s for %s: pid %d process %r' % (" ".join(cmd), self.name, p.pid, p)
     return p
   
   def run_rpkid(self):
@@ -604,21 +560,18 @@ try:
 
   # Show what we loaded
 
-  db.dump()
+  #db.dump()
 
   # Set up each entity in our test
 
   for d in db:
-    os.makedirs(d.path())
-    d.dump_asns("asns.csv")
-    d.dump_prefixes("prefixes.csv")
-    d.dump_roas("roas.csv")
-    d.dump_conf("rpki.conf")
-    d.dump_rsyncd("rsyncd.conf")
-    if False:
-      d.dump_children("children.csv")
-      d.dump_parents("parents.csv")
-      d.dump_clients("pubclients.csv", db)
+    if not d.is_hosted:
+      os.makedirs(d.path())
+      os.makedirs(d.path("bpki/resources"))
+      os.makedirs(d.path("bpki/servers"))
+      d.dump_conf("rpki.conf")
+    if d.runs_pubd:
+      d.dump_rsyncd("rsyncd.conf")
 
   # Initialize BPKI and generate self-descriptor for each entity.
 
@@ -628,7 +581,7 @@ try:
   # Create publication directories.
 
   for d in db:
-    if d.is_root() or d.runs_pubd():
+    if d.is_root or d.runs_pubd:
       os.makedirs(d.path("publication"))
 
   # Create RPKI root certificate.
@@ -636,11 +589,11 @@ try:
   print "Creating rootd RPKI root certificate"
 
   # Should use req -subj here to set subject name.  Later.
-  db.root.run_openssl("x509", "-req", "-sha256", "-outform", "DER",
-                      "-signkey", "bpki/servers/ca.key",
-                      "-in",      "bpki/servers/ca.req",
-                      "-out",     "publication/root.cer",
-                      "-extfile", "rpki.conf",
+  db.root.run_openssl("req", "-x509", "-sha256", "-outform", "DER",
+                      "-newkey", "rsa:2048",
+                      "-keyout", "bpki/servers/root.key",
+                      "-out",    "publication/root.cer",
+                      "-config", "rpki.conf",
                       "-extensions", "rootd_x509_extensions")
 
 
@@ -659,62 +612,62 @@ try:
       print
       print "Configuring", d.name
       print
-      if  d.is_root():
-        d.run_rpkic("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.name))
+      if  d.is_root:
+        assert not d.is_hosted
+        d.run_rpkic("configure_publication_client",
+                    d.path("%s.%s.repository-request.xml" % (d.name, d.name)))
         print
-        d.run_rpkic("configure_repository", d.path("entitydb", "pubclients", "%s.xml" % d.name))
+        d.run_rpkic("configure_repository",
+                    d.path("%s.repository-response.xml" % d.client_handle))
         print
       else:
-        d.parent.run_rpkic("configure_child", d.path("entitydb", "identity.xml"))
+        d.parent.run_rpkic("configure_child", d.path("%s.identity.xml" % d.name))
         print
-        d.run_rpkic("configure_parent", d.parent.path("entitydb", "children", "%s.xml" % d.name))
+        d.run_rpkic("configure_parent",
+                    d.parent.path("%s.%s.parent-response.xml" % (d.parent.name, d.name)))
         print
-        publisher, path = d.find_pubd()
-        publisher.run_rpkic("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
+        d.pubd.run_rpkic("configure_publication_client",
+                         d.path("%s.%s.repository-request.xml" % (d.name, d.parent.name)))
         print
-        d.run_rpkic("configure_repository", publisher.path("entitydb", "pubclients", "%s.xml" % path))
+        d.run_rpkic("configure_repository",
+                    d.pubd.path("%s.repository-response.xml" % d.client_handle))
         print
-        parent_host = d.parent.find_host()
-        if d.parent is not parent_host:
-          d.parent.run_configure_resources()
-          print
-        parent_host.run_configure_daemons()
+        d.parent.run_rpkic("synchronize")
         print
-        if publisher is not parent_host:
-          publisher.run_configure_daemons()
+        if d.pubd is not d.parent.host:
+          d.pubd.run_rpkic("synchronize")
           print
 
       print "Running daemons for", d.name
-      if d.is_root():
+      if d.is_root:
         progs.append(d.run_rootd())
-      if not d.is_hosted():
+      if not d.is_hosted:
         progs.append(d.run_irdbd())
         progs.append(d.run_rpkid())
-      if d.runs_pubd():
+      if d.runs_pubd:
         progs.append(d.run_pubd())
         progs.append(d.run_rsyncd())
-      if d.is_root() or not d.is_hosted() or d.runs_pubd():
+      if d.is_root or not d.is_hosted or d.runs_pubd:
         print "Giving", d.name, "daemons time to start up"
         time.sleep(20)
         print
       assert all(p.poll() is None for p in progs)
 
-      # Run configure_daemons to set up IRDB and RPKI objects.  Need to
-      # run a second time to push BSC certs out to rpkid.  Nothing
-      # should happen on the third pass.  Oops, when hosting we need to
-      # run configure_resources between passes, since only the hosted
-      # entity can issue the BSC, etc.
+      # In theory we now only need to synchronize the new entity once.
+      d.run_rpkic("synchronize")
 
+    # Run through list again, to be sure we catch hosted cases.
+    # In theory this is no longer necessary.
+    if False:
       for i in xrange(3):
-        d.run_configure_resources()
-        d.find_host().run_configure_daemons()
+        for d in db:
+          d.run_rpkic("synchronize")
 
-    # Run through list again, to be sure we catch hosted cases
-
-    for i in xrange(3):
-      for d in db:
-        d.run_configure_resources()
-        d.run_configure_daemons()
+    # Load all the CSV files
+    for d in db:
+      d.dump_asns("%s.asns.csv" % d.name)
+      d.dump_prefixes("%s.prefixes.csv" % d.name)
+      d.dump_roas("%s.roas.csv" % d.name)
 
     print "Done initializing daemons"
 

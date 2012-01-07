@@ -82,12 +82,42 @@ def B64Element(e, tag, obj, **kwargs):
   DER object.
   """
 
-  if e.text is None:
+  if e is None:
+    se = Element(tag, **kwargs)
+  else:
+    se = SubElement(e, tag, **kwargs)
+  if e is not None and e.text is None:
     e.text = "\n"
-  se = SubElement(e, tag, **kwargs)
   se.text = "\n" + obj.get_Base64()
   se.tail = "\n"
   return se
+
+class PEM_writer(object):
+  """
+  Write PEM files to disk, keeping track of which ones we've already
+  written and setting the file mode appropriately.
+  """
+
+  def __init__(self, verbose = False):
+    self.wrote = set()
+    self.verbose = verbose
+
+  def __call__(self, filename, obj):
+    filename = os.path.realpath(filename)
+    if filename in self.wrote:
+      return
+    tempname = filename
+    if not filename.startswith("/dev/"):
+      tempname += ".%s.tmp" % os.getpid()
+    mode = 0400 if filename.endswith(".key") else 0444
+    if self.verbose:
+      print "Writing", filename
+    f = os.fdopen(os.open(tempname, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode), "w")
+    f.write(obj.get_PEM())
+    f.close()
+    if tempname != filename:
+      os.rename(tempname, filename)
+    self.wrote.add(filename)
 
 
 
@@ -199,11 +229,15 @@ class main(rpki.cli.Cmd):
         "USER"     : self.cfg.get("sql-username", section = irdbd_section),
         "PASSWORD" : self.cfg.get("sql-password", section = irdbd_section),
         "HOST"     : "",
-        "PORT"     : "" }},
+        "PORT"     : "",
+        "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
       INSTALLED_APPS = ("rpki.irdb",),
     )
 
     import rpki.irdb
+
+    import django.core.management
+    django.core.management.call_command("syncdb", verbosity = 0, load_initial_data = False)
 
     if self.run_rootd and (not self.run_pubd or not self.run_rpkid):
       raise CantRunRootd, "Can't run rootd unless also running rpkid and pubd"
@@ -286,12 +320,14 @@ class main(rpki.cli.Cmd):
     # Build the identity.xml file.  Need to check for existing file so we don't
     # overwrite?  Worry about that later.
 
+    run_rootd = self.run_rootd and self.handle == self.cfg.get("handle")
+
     e = Element("identity", handle = self.handle)
     B64Element(e, "bpki_ta", self.resource_ca.certificate)
-    etree_write(e, "identity.xml",
-                msg = None if self.run_rootd else 'This is the "identity" file you will need to send to your parent')
+    etree_write(e, "%s.identity.xml" % self.handle,
+                msg = None if run_rootd else 'This is the "identity" file you will need to send to your parent')
 
-    if self.run_rootd:
+    if run_rootd:
       assert self.run_rpkid and self.run_pubd
 
       rpki.irdb.Rootd.objects.get_or_certify(
@@ -308,8 +344,46 @@ class main(rpki.cli.Cmd):
       except rpki.irdb.Repository.DoesNotExist:
         e = Element("repository", type = "offer", handle = self.handle, parent_handle = self.handle)
         B64Element(e, "bpki_client_ta", self.resource_ca.certificate)
-        etree_write(e, "rootd_repository_offer.xml",
+        etree_write(e, "%s.%s.repository-request.xml" % (self.handle, self.handle),
                     msg = 'This is the "repository offer" file for you to use if you want to publish in your own repository')
+
+    # Not (yet) sure whether we should be calling this here, try it for now
+    self.write_bpki_files()
+
+
+  def write_bpki_files(self):
+    """
+    Write out BPKI certificate, key, and CRL files for daemons that
+    need them.
+    """
+
+    writer = PEM_writer()
+
+    if self.run_rpkid:
+      rpkid = self.server_ca.ee_certificates.get(purpose = "rpkid")
+      writer(self.cfg.get("bpki-ta",    section = "rpkid"), self.server_ca.certificate)
+      writer(self.cfg.get("rpkid-key",  section = "rpkid"), rpkid.private_key)
+      writer(self.cfg.get("rpkid-cert", section = "rpkid"), rpkid.certificate)
+      writer(self.cfg.get("irdb-cert",  section = "rpkid"),
+             self.server_ca.ee_certificates.get(purpose = "irdbd").certificate)
+      writer(self.cfg.get("irbe-cert",  section = "rpkid"),
+             self.server_ca.ee_certificates.get(purpose = "irbe").certificate)
+
+    if self.run_pubd:
+      pubd = self.server_ca.ee_certificates.get(purpose = "pubd")
+      writer(self.cfg.get("bpki-ta",   section = "pubd"), self.server_ca.certificate)
+      writer(self.cfg.get("pubd-key",  section = "pubd"), pubd.private_key)
+      writer(self.cfg.get("pubd-cert", section = "pubd"), pubd.certificate)
+      writer(self.cfg.get("irbe-cert", section = "pubd"),
+             self.server_ca.ee_certificates.get(purpose = "irbe").certificate)
+
+    if self.run_rootd:
+      rootd = rpki.irdb.ResourceHolderCA.objects.get(handle = self.cfg.get("handle", section = "myrpki")).rootd
+      writer(self.cfg.get("bpki-ta",         section = "rootd"), self.server_ca.certificate)
+      writer(self.cfg.get("rootd-bpki-crl",  section = "rootd"), self.server_ca.latest_crl)
+      writer(self.cfg.get("rootd-bpki-key",  section = "rootd"), rootd.private_key)
+      writer(self.cfg.get("rootd-bpki-cert", section = "rootd"), rootd.certificate)
+      writer(self.cfg.get("child-bpki-cert", section = "rootd"), rootd.issuer.certificate)
 
 
   def do_update_bpki(self, arg):
@@ -347,6 +421,9 @@ class main(rpki.cli.Cmd):
       print "Regenerating CRL for", ca.handle
       ca.generate_crl()
 
+    self.write_bpki_files()
+
+
   def do_configure_child(self, arg):
     """
     Configure a new child of this RPKI entity, given the child's XML
@@ -380,42 +457,46 @@ class main(rpki.cli.Cmd):
 
     print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)
 
-    rpki.irdb.Child.objects.get_or_certify(
+    child, created = rpki.irdb.Child.objects.get_or_certify(
       issuer = self.resource_ca,
       handle = child_handle,
       ta = rpki.x509.X509(Base64 = c.findtext("bpki_ta")),
-      valid_until = valid_until.toXMLtime())
+      valid_until = valid_until)
 
     e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
-                service_uri = service_uri, valid_until = valid_until)
+                service_uri = service_uri, valid_until = str(valid_until))
     B64Element(e, "bpki_resource_ta", self.resource_ca.certificate)
-    SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
+    B64Element(e, "bpki_child_ta", child.ta)
 
     try:
-      repo = self.resource_ca.repositories.get(handle = self.default_repository)
+      if self.default_repository:
+        repo = self.resource_ca.repositories.get(handle = self.default_repository)
+      else:
+        repo = self.resource_ca.repositories.get()
     except rpki.irdb.Repository.DoesNotExist:
-      try:
-        repo = self.resource_ca.repositories[0]
-      except rpki.irdb.Repository.DoesNotExist:
-        repo = None
+      repo = None
 
     if repo is None:
       print "Couldn't find any usable repositories, not giving referral"
 
-    elif repo_handle == self.handle:
+    elif repo.handle == self.handle:
       SubElement(e, "repository", type = "offer")
 
     else:
-      proposed_sia_base = repo.get("sia_base") + child_handle + "/"
-      r = Element("referral", authorized_sia_base = proposed_sia_base)
-      r.text = c.findtext("bpki_ta")
-      auth = self.bpki_resources.cms_xml_sign(r)
+      proposed_sia_base = repo.sia_base + child_handle + "/"
+      referral_cert, created = rpki.irdb.Referral.objects.get_or_certify(issuer = self.resource_ca)
+      auth = rpki.x509.SignedReferral()
+      auth.set_content(B64Element(None, namespaceQName + "referral", child.ta,
+                                  version = version,
+                                  authorized_sia_base = proposed_sia_base))
+      auth.schema_check()
+      auth.sign(referral_cert.private_key, referral_cert.certificate, self.resource_ca.latest_crl)
 
       r = SubElement(e, "repository", type = "referral")
-      SubElement(r, "authorization", referrer = repo.get("client_handle")).text = auth
-      SubElement(r, "contact_info").text = repo.findtext("contact_info")
+      B64Element(r, "authorization", auth, referrer = repo.client_handle)
+      SubElement(r, "contact_info")
 
-    etree_write(e, "parent-response-to-%s.xml" % child_handle,
+    etree_write(e, "%s.%s.parent-response.xml" % (self.handle, child_handle),
                 msg = "Send this file back to the child you just configured")
 
 
@@ -477,7 +558,7 @@ class main(rpki.cli.Cmd):
     print "Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle)
     print "Parent calls us %r" % p.get("child_handle")
 
-    rpki.irdb.Parent.get_or_certify(
+    rpki.irdb.Parent.objects.get_or_certify(
       issuer = self.resource_ca,
       handle = parent_handle,
       child_handle = p.get("child_handle"),
@@ -493,7 +574,7 @@ class main(rpki.cli.Cmd):
     r.set("handle", self.handle)
     r.set("parent_handle", parent_handle)
     B64Element(r, "bpki_client_ta", self.resource_ca.certificate)
-    etree_write(r, "repository-request-for-%s.xml" % parent_handle,
+    etree_write(r, "%s.%s.repository-request.xml" % (self.handle, parent_handle),
                 msg = "This is the file to send to the repository operator")
 
 
@@ -542,12 +623,12 @@ class main(rpki.cli.Cmd):
       print "This looks like a referral, checking"
       try:
         auth = client.find("authorization")
-        referrer = self.resource_ca.clients.get(handle = auth.get("referrer"))
+        referrer = self.server_ca.clients.get(handle = auth.get("referrer"))
         referral_cms = rpki.x509.SignedReferral(Base64 = auth.text)
         referral_xml = referral_cms.unwrap(ta = (referrer.certificate, self.server_ca.certificate))
         if rpki.x509.X509(Base64 = referral_xml.text) != client_ta:
           raise BadXMLMessage, "Referral trust anchor does not match"
-        sia_base = referral.get("authorized_sia_base")
+        sia_base = referral_xml.get("authorized_sia_base")
       except rpki.irdb.Client.DoesNotExist:
         print "We have no record of the client (%s) alleged to have made this referral" % auth.get("referrer")
 
@@ -578,7 +659,7 @@ class main(rpki.cli.Cmd):
     print "Client calls itself %r, we call it %r" % (client.get("handle"), client_handle)
     print "Client says its parent handle is %r" % parent_handle
 
-    rpki.irdb.Client.get_or_certify(
+    rpki.irdb.Client.objects.get_or_certify(
       issuer = self.server_ca,
       handle = client_handle,
       ta = client_ta,
@@ -595,7 +676,7 @@ class main(rpki.cli.Cmd):
     B64Element(e, "bpki_server_ta", self.server_ca.certificate)
     B64Element(e, "bpki_client_ta", client_ta)
     SubElement(e, "contact_info").text = self.pubd_contact_info
-    etree_write(e, "repository-response-to-%s.xml" % client_handle.replace("/", "."),
+    etree_write(e, "%s.repository-response.xml" % client_handle.replace("/", "."),
                 msg = "Send this file back to the publication client you just configured")
 
 
@@ -651,7 +732,7 @@ class main(rpki.cli.Cmd):
       print "Could not find parent %r in our database" % parent_handle
 
     else:
-      rpki.irdb.Repository.get_or_certify(
+      rpki.irdb.Repository.objects.get_or_certify(
         issuer = self.resource_ca,
         handle = parent_handle,
         client_handle = r.get("client_handle"),
@@ -807,6 +888,58 @@ class main(rpki.cli.Cmd):
       q = q.filter(child__issuer__exact = self.resource_ca)
       q = q.exclude(pk__in = primary_keys)
       q.delete()
+
+
+  def do_synchronize_roa_requests(self, arg):
+    """
+    Synchronize IRDB against roa.csv.
+    """
+
+    argv = arg.split()
+
+    if len(argv) != 1:
+      raise BadCommandSyntax("Need to specify roa.csv filename")
+
+    grouped = {}
+
+    # format:  p/n-m asn group
+    for pnm, asn, group in csv_reader(argv[0], columns = 3):
+      key = (asn, group)
+      if key not in grouped:
+        grouped[key] = []
+      grouped[key].append(pnm)
+
+    import django.db.transaction
+
+    with django.db.transaction.commit_on_success():
+
+      # Deleting and recreating all the ROA requests is inefficient,
+      # but rpkid's current representation of ROA requests is wrong
+      # (see #32), so it's not worth a lot of effort here as we're
+      # just going to have to rewrite this soon anyway.
+
+      self.resource_ca.roa_requests.all().delete()
+
+      for key, pnms in grouped.iteritems():
+        asn, group = key
+
+        roa_request = rpki.irdb.ROARequest.objects.create(
+          issuer = self.resource_ca,
+          asn = asn)
+
+        for pnm in pnms:
+          if ":" in pnm:
+            p = rpki.resource_set.roa_prefix_ipv6.parse_str(pnm)
+            v = 6
+          else:
+            p = rpki.resource_set.roa_prefix_ipv4.parse_str(pnm)
+            v = 4
+          rpki.irdb.ROARequestPrefix.objects.create(
+            roa_request   = roa_request,
+            version       = v,
+            prefix        = str(p.prefix),
+            prefixlen     = int(p.prefixlen),
+            max_prefixlen = int(p.max_prefixlen))
 
 
   def do_synchronize(self, arg):

@@ -82,7 +82,7 @@ publication-schema.rng: publication-schema.rnc
 myrpki.rng: myrpki.rnc
 	trang myrpki.rnc myrpki.rng
 
-rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql irdbd.sql pubd.sql
+rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql pubd.sql
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
 	mv $@.tmp $@
 

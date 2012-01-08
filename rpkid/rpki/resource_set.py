@@ -996,7 +996,7 @@ class roa_prefix_set(list):
                 for (x, y, z) in sql.fetchall()])
 
   @classmethod
-  def from_sql(cls, iterable):
+  def from_django(cls, iterable):
     """
     Create ROA prefix set from a Django query.
 

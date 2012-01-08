@@ -568,11 +568,60 @@ class X509(DER_object):
   def issue(self, keypair, subject_key, serial, sia, aia, crldp, notAfter,
             cn = None, resources = None, is_ca = True):
     """
-    Issue a certificate.
+    Issue an RPKI certificate.
+    """
+
+    assert aia is not None and crldp is not None
+
+    return self._issue(
+      keypair     = keypair,
+      subject_key = subject_key,
+      serial      = serial,
+      sia         = sia,
+      aia         = aia,
+      crldp       = crldp,
+      notAfter    = notAfter,
+      cn          = cn,
+      resources   = resources,
+      is_ca       = is_ca,
+      aki         = self.get_SKI(),
+      issuer_name = self.get_POWpkix().getSubject())
+
+
+  @classmethod
+  def self_certify(cls, keypair, subject_key, serial, sia, notAfter,
+                   cn = None, resources = None):
+    """
+    Generate a self-certified RPKI certificate.
+    """
+
+    ski = subject_key.get_SKI()
+    if cn is None:
+      cn = "".join(("%02X" % ord(i) for i in ski))
+
+    return cls._issue(
+      keypair     = keypair,
+      subject_key = subject_key,
+      serial      = serial,
+      sia         = sia,
+      aia         = None,
+      crldp       = None,
+      notAfter    = notAfter,
+      cn          = cn,
+      resources   = resources,
+      is_ca       = True,
+      aki         = ski,
+      issuer_name = (((rpki.oids.name2oid["commonName"], ("printableString", cn)),),))
+
+
+  @staticmethod
+  def _issue(keypair, subject_key, serial, sia, aia, crldp, notAfter,
+             cn, resources, is_ca, aki, issuer_name):
+    """
+    Common code to issue an RPKI certificate.
     """
 
     now = rpki.sundial.now()
-    aki = self.get_SKI()
     ski = subject_key.get_SKI()
 
     if cn is None:
@@ -583,7 +632,7 @@ class X509(DER_object):
     cert = rpki.POW.pkix.Certificate()
     cert.setVersion(2)
     cert.setSerial(serial)
-    cert.setIssuer(self.get_POWpkix().getSubject())
+    cert.setIssuer(issuer_name)
     cert.setSubject((((rpki.oids.name2oid["commonName"], ("printableString", cn)),),))
     cert.setNotBefore(now.toASN1tuple())
     cert.setNotAfter(notAfter.toASN1tuple())
@@ -591,9 +640,14 @@ class X509(DER_object):
 
     exts = [ ["subjectKeyIdentifier",   False, ski],
              ["authorityKeyIdentifier", False, (aki, (), None)],
-             ["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)],
-             ["authorityInfoAccess",    False, ((rpki.oids.name2oid["id-ad-caIssuers"], ("uri", aia)),)],
              ["certificatePolicies",    True,  ((rpki.oids.name2oid["id-cp-ipAddr-asNumber"], ()),)] ]
+
+
+    if crldp is not None:
+      exts.append(["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)])
+
+    if aia is not None:
+      exts.append(["authorityInfoAccess",    False, ((rpki.oids.name2oid["id-ad-caIssuers"], ("uri", aia)),)])
 
     if is_ca:
       exts.append(["basicConstraints",  True,  (1, None)])
@@ -1095,7 +1149,7 @@ class CMS_object(DER_object):
       if certs and (len(certs) > 1 or certs[0].getSubject() != trusted_ee.getSubject() or certs[0].getPublicKey() != trusted_ee.getPublicKey()):
         raise rpki.exceptions.UnexpectedCMSCerts # , certs
       if crls:
-        raise rpki.exceptions.UnexpectedCMSCRLs # , crls
+        rpki.log.warn("Ignoring unexpected CMS CRL%s from trusted peer" % ("" if len(crls) == 1 else "s"))
     else:
       if not certs:
         raise rpki.exceptions.MissingCMSEEcert # , certs

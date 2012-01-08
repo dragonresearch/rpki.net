@@ -46,7 +46,8 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import subprocess, re, os, getopt, sys, yaml, signal, time
-import rpki.resource_set, rpki.sundial, rpki.config, rpki.log, rpki.csv_utils
+import rpki.resource_set, rpki.sundial, rpki.config, rpki.log
+import rpki.csv_utils, rpki.x509
 
 # Nasty regular expressions for parsing config files.  Sadly, while
 # the Python ConfigParser supports writing config files, it does so in
@@ -588,14 +589,33 @@ try:
 
   print "Creating rootd RPKI root certificate"
 
-  # Should use req -subj here to set subject name.  Later.
-  db.root.run_openssl("req", "-x509", "-sha256", "-outform", "DER",
-                      "-newkey", "rsa:2048",
-                      "-keyout", "bpki/servers/root.key",
-                      "-out",    "publication/root.cer",
-                      "-config", "rpki.conf",
-                      "-extensions", "rootd_x509_extensions")
+  root_resources = rpki.resource_set.resource_bag(
+    asn = rpki.resource_set.resource_set_as("0-4294967295"),
+    v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
+    v6  = rpki.resource_set.resource_set_ipv6("::/0"))
 
+  root_key = rpki.x509.RSA.generate()
+
+  root_uri = "rsync://localhost:%d/rpki/" % db.root.pubd.rsync_port
+
+  root_sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", root_uri)),
+              (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", root_uri + "root.mnf")))
+
+  root_cert = rpki.x509.X509.self_certify(
+    keypair     = root_key,
+    subject_key = root_key.get_RSApublic(),
+    serial      = 1,
+    sia         = root_sia,
+    notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
+    resources   = root_resources)
+
+  f = open(db.root.path("publication/root.cer"), "wb")
+  f.write(root_cert.get_DER())
+  f.close()
+
+  f = open(db.root.path("bpki/servers/root.key"), "wb")
+  f.write(root_key.get_DER())
+  f.close()
 
   # From here on we need to pay attention to initialization order.  We
   # used to do all the pre-configure_daemons stuff before running any

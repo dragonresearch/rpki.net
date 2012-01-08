@@ -567,7 +567,7 @@ class main(rpki.cli.Cmd):
       ta = rpki.x509.X509(Base64 = p.findtext("bpki_resource_ta")),
       repository_type = repository_type,
       referrer = referrer,
-      referral_authorization = referral_authorization)[0]
+      referral_authorization = referral_authorization)
 
     if repository_type == "none":
       r = Element("repository", type = "none")
@@ -840,17 +840,44 @@ class main(rpki.cli.Cmd):
         for handle, prefixes in grouped.iteritems():
           child = self.resource_ca.children.get(handle = handle)
           for prefix in rset(",".join(prefixes)):
-            obj = rpki.irdb.ChildNet.objects.get_or_create(
+            obj, created = rpki.irdb.ChildNet.objects.get_or_create(
               child    = child,
               start_ip = str(prefix.min),
               end_ip   = str(prefix.max),
-              version  = version)[0]
+              version  = version)
             primary_keys.append(obj.pk)
 
       q = rpki.irdb.ChildNet.objects
       q = q.filter(child__issuer__exact = self.resource_ca)
       q = q.exclude(pk__in = primary_keys)
       q.delete()
+
+
+  def do_show_child_resources(self, arg):
+    """
+    Show resources assigned to children.
+    """
+
+    if arg.strip():
+      raise BadCommandSyntax("This command takes no arguments")
+
+    for child in self.resource_ca.children.all():
+
+      asn = rpki.resource_set.resource_set_as.from_django(
+        (a.start_as, a.end_as) for a in child.asns.all())
+      ipv4 = rpki.resource_set.resource_set_ipv4.from_django(
+        (a.start_ip, a.end_ip) for a in child.address_ranges.filter(version = 4))
+      ipv6 = rpki.resource_set.resource_set_ipv6.from_django(
+        (a.start_ip, a.end_ip) for a in child.address_ranges.filter(version = 6))
+
+      print "Child:", child.handle
+      if asn:
+        print "  ASN:", asn
+      if ipv4:
+        print " IPv4:", ipv4
+      if ipv6:
+        print " IPv6:", ipv6
+
 
   def do_synchronize_asns(self, arg):
     """
@@ -878,10 +905,10 @@ class main(rpki.cli.Cmd):
       for handle, asns in grouped.iteritems():
         child = self.resource_ca.children.get(handle = handle)
         for asn in rpki.resource_set.resource_set_as(",".join(asns)):
-          obj = rpki.irdb.ChildASN.objects.get_or_create(
+          obj, created = rpki.irdb.ChildASN.objects.get_or_create(
             child    = child,
             start_as = str(asn.min),
-            end_as   = str(asn.max))[0]
+            end_as   = str(asn.max))
           primary_keys.append(obj.pk)
 
       q = rpki.irdb.ChildASN.objects
@@ -923,9 +950,7 @@ class main(rpki.cli.Cmd):
       for key, pnms in grouped.iteritems():
         asn, group = key
 
-        roa_request = rpki.irdb.ROARequest.objects.create(
-          issuer = self.resource_ca,
-          asn = asn)
+        roa_request = self.resource_ca.roa_requests.create(asn = asn)
 
         for pnm in pnms:
           if ":" in pnm:
@@ -934,8 +959,7 @@ class main(rpki.cli.Cmd):
           else:
             p = rpki.resource_set.roa_prefix_ipv4.parse_str(pnm)
             v = 4
-          rpki.irdb.ROARequestPrefix.objects.create(
-            roa_request   = roa_request,
+          roa_request.prefixes.create(
             version       = v,
             prefix        = str(p.prefix),
             prefixlen     = int(p.prefixlen),
@@ -1028,9 +1052,9 @@ class main(rpki.cli.Cmd):
       pubd_query = []
       rpkid_query = []
 
-      self_cert = rpki.irdb.HostedCA.objects.get_or_certify(
+      self_cert, created = rpki.irdb.HostedCA.objects.get_or_certify(
         issuer = self.server_ca,
-        hosted = ca)[0]
+        hosted = ca)
 
       # There should be exactly one <self/> object per hosted entity, by definition
 
@@ -1094,10 +1118,10 @@ class main(rpki.cli.Cmd):
 
       assert bsc_pdu.pkcs10_request is not None
 
-      bsc = rpki.irdb.BSC.objects.get_or_certify(
+      bsc, created = rpki.irdb.BSC.objects.get_or_certify(
         issuer = ca,
         handle = bsc_handle,
-        pkcs10 = bsc_pdu.pkcs10_request)[0]
+        pkcs10 = bsc_pdu.pkcs10_request)
 
       if bsc_pdu.signing_cert != bsc.certificate or bsc_pdu.signing_cert_crl != ca.latest_crl:
         rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(

@@ -34,8 +34,6 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-from __future__ import with_statement
-
 import sys, os, time, getopt, urlparse, warnings
 import rpki.http, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
@@ -85,17 +83,11 @@ class main(object):
       r_pdu.vcard = ghostbuster.vcard
       r_msg.append(r_pdu)
 
-  def voodoo(self):
-    # http://stackoverflow.com/questions/3346124/how-do-i-force-django-to-ignore-any-caches-and-reload-data
-    import django.db.transaction
-    with django.db.transaction.commit_manually():
-      django.db.transaction.commit()
-
   def handler(self, query, path, cb):
     try:
       q_pdu = None
       r_msg = rpki.left_right.msg.reply()
-      self.voodoo()
+      self.start_new_transaction()
       serverCA = rpki.irdb.ServerCA.objects.get()
       rpkid = serverCA.ee_certificates.get(purpose = "rpkid")
       try:
@@ -162,16 +154,39 @@ class main(object):
 
     settings.configure(
       DEBUG = True,
-      DATABASES = { "default" : {
-        "ENGINE"   : "django.db.backends.mysql",
-        "NAME"     : cfg.get("sql-database"),
-        "USER"     : cfg.get("sql-username"),
-        "PASSWORD" : cfg.get("sql-password"),
-        "HOST"     : "",
-        "PORT"     : ""}},
+      DATABASES = {
+        "default" : {
+          "ENGINE"   : "django.db.backends.mysql",
+          "NAME"     : cfg.get("sql-database"),
+          "USER"     : cfg.get("sql-username"),
+          "PASSWORD" : cfg.get("sql-password"),
+          "HOST"     : "",
+          "PORT"     : "" }},
       INSTALLED_APPS = ("rpki.irdb",),)
 
     import rpki.irdb
+
+    # Entirely too much fun with read-only access to transactional databases.
+    # 
+    # http://stackoverflow.com/questions/3346124/how-do-i-force-django-to-ignore-any-caches-and-reload-data
+    # http://devblog.resolversystems.com/?p=439
+    # http://groups.google.com/group/django-users/browse_thread/thread/e25cec400598c06d
+    # http://stackoverflow.com/questions/1028671/python-mysqldb-update-query-fails
+    # http://dev.mysql.com/doc/refman/5.0/en/set-transaction.html
+    #
+    # It turns out that MySQL is doing us a favor with this weird
+    # transactional behavior on read, because without it there's a
+    # race condition if multiple updates are committed to the IRDB
+    # while we're in the middle of processing a query.  Note that
+    # proper transaction management by the committers doesn't protect
+    # us, this is a transactional problem on read.  So we need to use
+    # explicit transaction management.  Since irdbd is a read-only
+    # consumer of IRDB data, this means we need to commit an empty
+    # transaction at the beginning of processing each query, to reset
+    # the transaction isolation snapshot.
+
+    import django.db.transaction
+    self.start_new_transaction = django.db.transaction.commit_manually(django.db.transaction.commit)
 
     self.dispatch_vector = {
       rpki.left_right.list_resources_elt            : self.handle_list_resources,

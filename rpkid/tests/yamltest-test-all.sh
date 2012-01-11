@@ -1,7 +1,7 @@
 #!/bin/sh -
 # $Id$
 
-# Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -17,18 +17,18 @@
  
 set -x
 
-export TZ=UTC MYRPKI_RNG=$(pwd)/myrpki.rng
+export TZ=UTC
 
 test -z "$STY" && exec screen -L sh $0
 
 screen -X split
 screen -X focus
 
-runtime=$((30 * 60))
+: ${runtime=900}
 
 for yaml in smoketest.*.yaml
 do
-  rm -rf test
+  rm -rf test rcynic-data
   python sql-cleaner.py 
   screen python yamltest.py -p yamltest.pid $yaml
   now=$(date +%s)
@@ -42,9 +42,13 @@ do
     date
     ../../rcynic/rcynic
     ../../rcynic/show.sh
+    ../../utils/scan_roas/scan_roas rcynic-data/authenticated
     date
   done
-  test -r yamltest.pid && kill -INT $(cat yamltest.pid)
-  sleep 30
+  if test -r yamltest.pid
+  then
+    kill -INT $(cat yamltest.pid)
+    sleep 30
+  fi
   make backup
 done

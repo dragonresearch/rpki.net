@@ -1,6 +1,6 @@
 """
 Django really wants its models packaged as a models module within a
-Python package.  Humor it.
+Python package, so humor it.
 
 $Id$
 
@@ -20,3 +20,4 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 from rpki.irdb.models import *
+from rpki.irdb.zookeeper import Zookeeper

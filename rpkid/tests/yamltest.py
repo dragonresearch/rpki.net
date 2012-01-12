@@ -313,7 +313,7 @@ class allocation(object):
     for k in self.kids:    
       f.writerows((k.name, a) for a in k.resources.asn)
     f.close()
-    self.run_rpkic("synchronize_asns", fn)
+    self.run_rpkic("load_asns", fn)
 
   def dump_prefixes(self, fn):
     """
@@ -323,7 +323,7 @@ class allocation(object):
     for k in self.kids:
       f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
     f.close()
-    self.run_rpkic("synchronize_prefixes", fn)
+    self.run_rpkic("load_prefixes", fn)
 
   def dump_roas(self, fn):
     """
@@ -335,7 +335,7 @@ class allocation(object):
       f.writerows((p, r.asn, group)
                   for p in (r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ()))
     f.close()
-    self.run_rpkic("synchronize_roa_requests", fn)
+    self.run_rpkic("load_roa_requests", fn)
 
   @property
   def pubd(self):

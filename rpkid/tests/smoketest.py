@@ -124,8 +124,8 @@ pubd_name      = cfg.get("pubd_name",      "pubd")
 
 prog_python    = cfg.get("prog_python",    sys.executable)
 prog_rpkid     = cfg.get("prog_rpkid",     "../../rpkid.py")
-prog_irdbd     = cfg.get("prog_irdbd",     "../../irdbd.py")
-prog_poke      = cfg.get("prog_poke",      "../../testpoke.py")
+prog_irdbd     = cfg.get("prog_irdbd",     "../old_irdbd.py")
+prog_poke      = cfg.get("prog_poke",      "../testpoke.py")
 prog_rootd     = cfg.get("prog_rootd",     "../../rootd.py")
 prog_pubd      = cfg.get("prog_pubd",      "../../pubd.py")
 prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
@@ -135,7 +135,7 @@ prog_openssl   = cfg.get("prog_openssl",   "../../../openssl/openssl/apps/openss
 rcynic_stats   = cfg.get("rcynic_stats",   "echo ; ../../../rcynic/show.sh %s.xml ; echo" % rcynic_name)
 
 rpki_sql_file  = cfg.get("rpki_sql_file",  "../rpkid.sql")
-irdb_sql_file  = cfg.get("irdb_sql_file",  "../irdbd.sql")
+irdb_sql_file  = cfg.get("irdb_sql_file",  "old_irdbd.sql")
 pub_sql_file   = cfg.get("pub_sql_file",   "../pubd.sql")
 
 startup_delay  = int(cfg.get("startup_delay", "10"))
@@ -868,7 +868,12 @@ class allocation(object):
     except IOError:
       serial = 1
 
-    x = parent.cross_certify(keypair, child, serial, notAfter, now)
+    x = parent.bpki_cross_certify(
+      keypair = keypair,
+      source_cert = child,
+      serial = serial,
+      notAfter = notAfter,
+      now = now)
 
     f = open(serial_file, "w")
     f.write("%02x\n" % (serial + 1))
@@ -1264,16 +1269,12 @@ def mangle_sql(filename):
   """
   Mangle an SQL file into a sequence of SQL statements.
   """
-  
-  # There is no pretty way to do this.  Just shut your eyes, it'll be
-  # over soon.
-  
+  words = []
   f = open(filename)
-  statements = " ".join(" ".join(word for word in line.expandtabs().split(" ") if word)
-                        for line in [line.strip(" \t\n") for line in f.readlines()]
-                        if line and not line.startswith("--")).rstrip(";").split(";")
+  for line in f:
+    words.extend(line.partition("--")[0].split())
   f.close()
-  return [stmt.strip() for stmt in statements]
+  return " ".join(words).strip(";").split(";")
 
 bpki_cert_fmt_1 = '''\
 [ req ]

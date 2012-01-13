@@ -3,7 +3,7 @@ Script to generate rpki/relaxng.py.
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -32,7 +32,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-schemas = ("left_right", "up_down", "publication")
+import sys
 
 format_1 = """\
 # Automatically generated, do not edit.
@@ -46,9 +46,15 @@ format_2 = """\
 %(name)s = lxml.etree.RelaxNG(lxml.etree.fromstring('''%(rng)s'''))
 """
 
+def filename_to_symbol(s):
+  for suffix in (".rng", "-schema"):
+    if s.endswith(suffix):
+      s = s[:-len(suffix)]
+  return s.replace("-", "_")
+
 print format_1
 
-for name in schemas:
+for filename in sys.argv[1:]:
   print format_2 % {
-    "name" : name,
-    "rng"  : open(name.replace("_", "-") + "-schema.rng").read() }
+    "name" : filename_to_symbol(filename),
+    "rng"  : open(filename).read() }

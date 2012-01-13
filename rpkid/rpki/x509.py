@@ -47,6 +47,7 @@ import rpki.POW, rpki.POW.pkix, base64, lxml.etree, os, subprocess, sys
 import email.mime.application, email.utils, mailbox, time
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
 import rpki.manifest, rpki.roa, rpki.log, rpki.async, rpki.ghostbuster
+import rpki.relaxng
 
 def base64_with_linebreaks(der):
   """
@@ -119,6 +120,74 @@ def _find_xia_uri(extension, name):
       if method == oid and location[0] == "uri" and location[1].startswith("rsync://"):
         return location[1]
   return None
+
+class X501DN(object):
+  """
+  Class to hold an X.501 Distinguished Name.
+
+  This is nothing like a complete implementation, just enough for our
+  purposes.  POW has one interface to this, POW.pkix has another.  In
+  terms of completeness in the Python representation, the POW.pkix
+  representation is much closer to right, but the whole thing is a
+  horrible mess.
+
+  See RFC 5280 4.1.2.4 for the ASN.1 details.  In brief:
+
+    - A DN is a SEQUENCE of RDNs.
+
+    - A RDN is a set of AttributeAndValues; in practice, multi-value
+      RDNs are rare, so an RDN is almost always a set with a single
+      element.
+
+    - An AttributeAndValue is an OID and a value, where a whole bunch
+      of things including both syntax and semantics of the value are
+      determined by the OID.
+
+    - The value is some kind of ASN.1 string; there are far too many
+      encoding options options, most of which are either strongly
+      discouraged or outright forbidden by the PKIX profile, but which
+      persist for historical reasons.  The only ones PKIX actually
+      likes are PrintableString and UTF8String, but there are nuances
+      and special cases where some of the others are required.
+
+  The RPKI profile further restricts DNs to a single mandatory
+  CommonName attribute with a single optional SerialNumber attribute
+  (not to be confused with the certificate serial number).
+
+  BPKI certificates should (we hope) follow the general PKIX guideline
+  but the ones we construct ourselves are likely to be relatively
+  simple.
+
+  The main purpose of this class is to hide as much as possible of
+  this mess from code that has to work with these wretched things.
+  """
+
+  def __init__(self, ini = None, **kwargs):
+    assert ini is None or not kwargs
+    if len(kwargs) == 1 and "CN" in kwargs:
+      ini = kwargs.pop("CN")
+    if isinstance(ini, (str, unicode)):
+      self.dn = (((rpki.oids.name2oid["commonName"], ("printableString", ini)),),)
+    elif isinstance(ini, tuple):
+      self.dn = ini
+    elif kwargs:
+      raise NotImplementedError("Sorry, I haven't implemented keyword arguments yet")
+    elif ini is not None:
+      raise TypeError("Don't know how to interpret %r as an X.501 DN" % (ini,), ini)
+
+  def __str__(self):
+    return "".join("/" + "+".join("%s=%s" % (rpki.oids.oid2name[a[0]], a[1][1])
+                                  for a in rdn)
+                   for rdn in self.dn)
+
+  def __cmp__(self, other):
+    return cmp(self.dn, other.dn)
+
+  def get_POWpkix(self):
+    return self.dn
+
+  def get_POW(self):
+    raise NotImplementedError("Sorry, I haven't written the conversion to POW format yet")
 
 class DER_object(object):
   """
@@ -259,6 +328,8 @@ class DER_object(object):
       return -1
     elif other is None:
       return 1
+    elif isinstance(other, str):
+      return cmp(self.get_DER(), other)
     else:
       return cmp(self.get_DER(), other.get_DER())
 
@@ -456,13 +527,13 @@ class X509(DER_object):
     """
     Get the issuer of this certificate.
     """
-    return "".join("/%s=%s" % rdn for rdn in self.get_POW().getIssuer())
+    return X501DN(self.get_POWpkix().getIssuer())
 
   def getSubject(self):
     """
     Get the subject of this certificate.
     """
-    return "".join("/%s=%s" % rdn for rdn in self.get_POW().getSubject())
+    return X501DN(self.get_POWpkix().getSubject())
 
   def getNotBefore(self):
     """
@@ -497,11 +568,60 @@ class X509(DER_object):
   def issue(self, keypair, subject_key, serial, sia, aia, crldp, notAfter,
             cn = None, resources = None, is_ca = True):
     """
-    Issue a certificate.
+    Issue an RPKI certificate.
+    """
+
+    assert aia is not None and crldp is not None
+
+    return self._issue(
+      keypair     = keypair,
+      subject_key = subject_key,
+      serial      = serial,
+      sia         = sia,
+      aia         = aia,
+      crldp       = crldp,
+      notAfter    = notAfter,
+      cn          = cn,
+      resources   = resources,
+      is_ca       = is_ca,
+      aki         = self.get_SKI(),
+      issuer_name = self.get_POWpkix().getSubject())
+
+
+  @classmethod
+  def self_certify(cls, keypair, subject_key, serial, sia, notAfter,
+                   cn = None, resources = None):
+    """
+    Generate a self-certified RPKI certificate.
+    """
+
+    ski = subject_key.get_SKI()
+    if cn is None:
+      cn = "".join(("%02X" % ord(i) for i in ski))
+
+    return cls._issue(
+      keypair     = keypair,
+      subject_key = subject_key,
+      serial      = serial,
+      sia         = sia,
+      aia         = None,
+      crldp       = None,
+      notAfter    = notAfter,
+      cn          = cn,
+      resources   = resources,
+      is_ca       = True,
+      aki         = ski,
+      issuer_name = (((rpki.oids.name2oid["commonName"], ("printableString", cn)),),))
+
+
+  @staticmethod
+  def _issue(keypair, subject_key, serial, sia, aia, crldp, notAfter,
+             cn, resources, is_ca, aki, issuer_name):
+    """
+    Common code to issue an RPKI certificate.
     """
 
     now = rpki.sundial.now()
-    aki = self.get_SKI()
     ski = subject_key.get_SKI()
 
     if cn is None:
@@ -512,7 +632,7 @@ class X509(DER_object):
     cert = rpki.POW.pkix.Certificate()
     cert.setVersion(2)
     cert.setSerial(serial)
-    cert.setIssuer(self.get_POWpkix().getSubject())
+    cert.setIssuer(issuer_name)
     cert.setSubject((((rpki.oids.name2oid["commonName"], ("printableString", cn)),),))
     cert.setNotBefore(now.toASN1tuple())
     cert.setNotAfter(notAfter.toASN1tuple())
@@ -520,9 +640,14 @@ class X509(DER_object):
 
     exts = [ ["subjectKeyIdentifier",   False, ski],
              ["authorityKeyIdentifier", False, (aki, (), None)],
-             ["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)],
-             ["authorityInfoAccess",    False, ((rpki.oids.name2oid["id-ad-caIssuers"], ("uri", aia)),)],
              ["certificatePolicies",    True,  ((rpki.oids.name2oid["id-cp-ipAddr-asNumber"], ()),)] ]
+
+
+    if crldp is not None:
+      exts.append(["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)])
+
+    if aia is not None:
+      exts.append(["authorityInfoAccess",    False, ((rpki.oids.name2oid["id-ad-caIssuers"], ("uri", aia)),)])
 
     if is_ca:
       exts.append(["basicConstraints",  True,  (1, None)])
@@ -555,33 +680,96 @@ class X509(DER_object):
 
     return X509(POWpkix = cert)
 
-  def cross_certify(self, keypair, source_cert, serial, notAfter, now = None, pathLenConstraint = 0):
+  def bpki_cross_certify(self, keypair, source_cert, serial, notAfter,
+                         now = None, pathLenConstraint = 0):
     """
-    Issue a certificate with values taking from an existing certificate.
-    This is used to construct some kinds oF BPKI certificates.
+    Issue a BPKI certificate with values taking from an existing certificate.
+    """
+    return self.bpki_certify(
+      keypair = keypair,
+      subject_name = source_cert.getSubject(),
+      subject_key = source_cert.getPublicKey(),
+      serial = serial,
+      notAfter = notAfter,
+      now = now,
+      pathLenConstraint = pathLenConstraint,
+      is_ca = True)
+
+  @classmethod
+  def bpki_self_certify(cls, keypair, subject_name, serial, notAfter,
+                        now = None, pathLenConstraint = None):
+    """
+    Issue a self-signed BPKI CA certificate.
+    """
+    return cls._bpki_certify(
+      keypair = keypair,
+      issuer_name = subject_name,
+      subject_name = subject_name,
+      subject_key = keypair.get_RSApublic(),
+      serial = serial,
+      now = now,
+      notAfter = notAfter,
+      pathLenConstraint = pathLenConstraint,
+      is_ca = True)
+
+  def bpki_certify(self, keypair, subject_name, subject_key, serial, notAfter, is_ca,
+                   now = None, pathLenConstraint = None):
+    """
+    Issue a normal BPKI certificate.
+    """
+    assert keypair.get_RSApublic() == self.getPublicKey()
+    return self._bpki_certify(
+      keypair = keypair,
+      issuer_name = self.getSubject(),
+      subject_name = subject_name,
+      subject_key = subject_key,
+      serial = serial,
+      now = now,
+      notAfter = notAfter,
+      pathLenConstraint = pathLenConstraint,
+      is_ca = is_ca)
+
+  @classmethod
+  def _bpki_certify(cls, keypair, issuer_name, subject_name, subject_key,
+                    serial, now, notAfter, pathLenConstraint, is_ca):
+    """
+    Issue a BPKI certificate.  This internal method does the real
+    work, after one of the wrapper methods has extracted the relevant
+    fields.
     """
 
     if now is None:
       now = rpki.sundial.now()
 
-    assert isinstance(pathLenConstraint, int) and pathLenConstraint >= 0
+    issuer_key = keypair.get_RSApublic()
+
+    assert (issuer_key == subject_key) == (issuer_name == subject_name)
+    assert is_ca or issuer_name != subject_name
+    assert is_ca or pathLenConstraint is None
+    assert pathLenConstraint is None or (isinstance(pathLenConstraint, (int, long)) and
+                                         pathLenConstraint >= 0)
+
+    extensions = [
+      (rpki.oids.name2oid["subjectKeyIdentifier"    ], False, subject_key.get_SKI())]
+    if issuer_key != subject_key:
+      extensions.append(
+        (rpki.oids.name2oid["authorityKeyIdentifier"], False, (issuer_key.get_SKI(), (), None)))
+    if is_ca:
+      extensions.append(
+        (rpki.oids.name2oid["basicConstraints"      ], True,  (1, pathLenConstraint)))
 
     cert = rpki.POW.pkix.Certificate()
     cert.setVersion(2)
     cert.setSerial(serial)
-    cert.setIssuer(self.get_POWpkix().getSubject())
-    cert.setSubject(source_cert.get_POWpkix().getSubject())
+    cert.setIssuer(issuer_name.get_POWpkix())
+    cert.setSubject(subject_name.get_POWpkix())
     cert.setNotBefore(now.toASN1tuple())
     cert.setNotAfter(notAfter.toASN1tuple())
-    cert.tbs.subjectPublicKeyInfo.set(
-      source_cert.get_POWpkix().tbs.subjectPublicKeyInfo.get())
-    cert.setExtensions((
-      (rpki.oids.name2oid["subjectKeyIdentifier"  ], False, source_cert.get_SKI()),
-      (rpki.oids.name2oid["authorityKeyIdentifier"], False, (self.get_SKI(), (), None)),
-      (rpki.oids.name2oid["basicConstraints"      ], True,  (1, 0))))
+    cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
+    cert.setExtensions(extensions)
     cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
 
-    return X509(POWpkix = cert)
+    return cls(POWpkix = cert)
 
   @classmethod
   def normalize_chain(cls, chain):
@@ -627,6 +815,12 @@ class PKCS10(DER_object):
       req.fromString(self.get_DER())
       self.POWpkix = req
     return self.POWpkix
+
+  def getSubject(self):
+    """
+    Extract the subject name from this certification request.
+    """
+    return X501DN(self.get_POWpkix().certificationRequestInfo.subject.get())
 
   def getPublicKey(self):
     """
@@ -955,7 +1149,7 @@ class CMS_object(DER_object):
       if certs and (len(certs) > 1 or certs[0].getSubject() != trusted_ee.getSubject() or certs[0].getPublicKey() != trusted_ee.getPublicKey()):
         raise rpki.exceptions.UnexpectedCMSCerts # , certs
       if crls:
-        raise rpki.exceptions.UnexpectedCMSCRLs # , crls
+        rpki.log.warn("Ignoring unexpected CMS CRL%s from trusted peer" % ("" if len(crls) == 1 else "s"))
     else:
       if not certs:
         raise rpki.exceptions.MissingCMSEEcert # , certs
@@ -1246,7 +1440,10 @@ class XML_CMS_object(CMS_object):
     Wrap an XML PDU in CMS and return its DER encoding.
     """
     rpki.log.trace()
-    self.set_content(msg.toXML())
+    if self.saxify is None:
+      self.set_content(msg)
+    else:
+      self.set_content(msg.toXML())
     self.schema_check()
     self.sign(keypair, certs, crls)
     if self.dump_outbound_cms:
@@ -1261,7 +1458,22 @@ class XML_CMS_object(CMS_object):
       self.dump_inbound_cms.dump(self)
     self.verify(ta)
     self.schema_check()
-    return self.saxify(self.get_content())
+    if self.saxify is None:
+      return self.get_content()
+    else:
+      return self.saxify(self.get_content())
+
+  ## @var saxify
+  # SAX handler hook.  Subclasses can set this to a SAX handler, in
+  # which case .unwrap() will call it and return the result.
+  # Otherwise, .unwrap() just returns a verified element tree.
+
+  saxify = None
+
+class SignedReferral(XML_CMS_object):
+  encoding = "us-ascii"
+  schema = rpki.relaxng.myrpki
+  saxify = None
 
 class Ghostbuster(CMS_object):
   """
@@ -1357,7 +1569,7 @@ class CRL(DER_object):
     """
     Get issuer value of this CRL.
     """
-    return "".join("/%s=%s" % rdn for rdn in self.get_POW().getIssuer())
+    return X501DN(self.get_POWpkix().getIssuer())
 
   @classmethod
   def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):

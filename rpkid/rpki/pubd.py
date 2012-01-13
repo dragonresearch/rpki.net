@@ -134,7 +134,7 @@ class main(object):
       raise
     except Exception, e:
       rpki.log.traceback()
-      cb(500, reason = "Unhandled exception %s" % e)
+      cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
   client_url_regexp = re.compile("/client/([-A-Z0-9_/]+)$", re.I)
 

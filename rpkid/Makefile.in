@@ -42,7 +42,7 @@ SETUP_PY = \
 POW_SO	= rpki/POW/_POW.so
 
 SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki \
-	  pubd rootd rpkid portal-gui/scripts/rpkigui-load-csv \
+	  pubd rootd rpkic rpkid portal-gui/scripts/rpkigui-load-csv \
 	  portal-gui/scripts/rpkigui-add-user portal-gui/scripts/rpkigui-response \
 	  portal-gui/scripts/rpkigui-rcynic
 
@@ -64,8 +64,10 @@ rpm deb:: all
 deb::
 	cd dist; for i in *.rpm; do case $$i in *.src.rpm) :;; *) (set -x; fakeroot alien -v $$i);; esac; done
 
-rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
-	${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py >$@.tmp
+RNGS = left-right-schema.rng up-down-schema.rng publication-schema.rng myrpki.rng
+
+rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS}
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS} >$@.tmp
 	mv $@.tmp $@
 
 left-right-schema.rng: left-right-schema.rnc
@@ -80,7 +82,7 @@ publication-schema.rng: publication-schema.rnc
 myrpki.rng: myrpki.rnc
 	trang myrpki.rnc myrpki.rng
 
-rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql irdbd.sql pubd.sql
+rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql pubd.sql
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
 	mv $@.tmp $@
 
@@ -121,7 +123,7 @@ tags: Makefile
 	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name sql_schemas.py ! -name __doc__.py | etags -
 
 lint:
-	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc rpki/[a-z]*.py *d.py rpki-*.py myrpki.py irbe_cli.py tests/*.py
+	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc rpki/[a-z]*.py *d.py rpki-*.py myrpki.py rpkic.py irbe_cli.py tests/*.py
 
 # Documentation
 
@@ -230,6 +232,9 @@ pubd: pubd.py
 	${COMPILE_PYTHON}
 
 rootd: rootd.py
+	${COMPILE_PYTHON}
+
+rpkic: rpkic.py
 	${COMPILE_PYTHON}
 
 rpkid: rpkid.py

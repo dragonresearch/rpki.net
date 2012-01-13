@@ -500,6 +500,18 @@ class resource_set(list):
                       for (b, e) in sql.fetchall()])
 
   @classmethod
+  def from_django(cls, iterable):
+    """
+    Create resource set from a Django query.
+
+    iterable is something which returns (min, max) pairs.
+    """
+
+    return cls(ini = [cls.range_type(cls.range_type.datum_type(b),
+                                     cls.range_type.datum_type(e))
+                      for (b, e) in iterable])
+
+  @classmethod
   def parse_str(cls, s):
     """
     Parse resource set from text string (eg, XML attributes).  This is
@@ -982,6 +994,19 @@ class roa_prefix_set(list):
     sql.execute(query, args)
     return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
                 for (x, y, z) in sql.fetchall()])
+
+  @classmethod
+  def from_django(cls, iterable):
+    """
+    Create ROA prefix set from a Django query.
+
+    iterable is something which returns (prefix, prefixlen,
+    max_prefixlen) triples.
+    """
+
+    return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
+                for (x, y, z) in iterable])
+
 
   def to_roa_tuple(self):
     """

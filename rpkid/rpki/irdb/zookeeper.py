@@ -46,8 +46,6 @@ irdbd_section  = "irdbd"
 # A whole lot of exceptions
 
 class MissingHandle(Exception):         "Missing handle"
-class BadCommandSyntax(Exception):      "Bad command line syntax."
-class BadPrefixSyntax(Exception):       "Bad prefix syntax."
 class CouldntTalkToDaemon(Exception):   "Couldn't talk to daemon."
 class BadXMLMessage(Exception):         "Bad XML message."
 class PastExpiration(Exception):        "Expiration date has already passed."
@@ -194,14 +192,31 @@ class Zookeeper(object):
     if handle is None:
       raise MissingHandle
     self.handle= handle
+
+
+  @property
+  def resource_ca(self):
+    """
+    Get ResourceHolderCA object associated with current handle.
+    """
+
+    assert self.handle is not None
     try:
-      self.resource_ca = rpki.irdb.ResourceHolderCA.objects.get(handle = handle)
+      return rpki.irdb.ResourceHolderCA.objects.get(handle = self.handle)
     except rpki.irdb.ResourceHolderCA.DoesNotExist:
-      self.resource_ca = None
+      return None
+
+
+  @property
+  def server_ca(self):
+    """
+    Get ServerCA object.
+    """
+
     try:
-      self.server_ca = rpki.irdb.ServerCA.objects.get()
+      return rpki.irdb.ServerCA.objects.get()
     except rpki.irdb.ServerCA.DoesNotExist:
-      self.server_ca = None
+      return None
 
 
   @django.db.transaction.commit_on_success
@@ -213,25 +228,21 @@ class Zookeeper(object):
     resource-holding aspect of this RPKI installation.
     """
 
-    self.resource_ca, created = rpki.irdb.ResourceHolderCA.objects.get_or_certify(handle = self.handle)
-    if created:
-      print "Created new BPKI resource CA for identity %s" % self.handle
+    resource_ca, created = rpki.irdb.ResourceHolderCA.objects.get_or_certify(handle = self.handle)
 
     if self.run_rpkid or self.run_pubd:
-      self.server_ca, created = rpki.irdb.ServerCA.objects.get_or_certify()
-      if created:
-        print "Created new BPKI server CA"
-      rpki.irdb.ServerEE.objects.get_or_certify(issuer = self.server_ca, purpose = "irbe")
+      server_ca, created = rpki.irdb.ServerCA.objects.get_or_certify()
+      rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "irbe")
 
     if self.run_rpkid:
-      rpki.irdb.ServerEE.objects.get_or_certify(issuer = self.server_ca, purpose = "rpkid")
-      rpki.irdb.ServerEE.objects.get_or_certify(issuer = self.server_ca, purpose = "irdbd")
+      rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "rpkid")
+      rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "irdbd")
 
     if self.run_pubd:
-      rpki.irdb.ServerEE.objects.get_or_certify(issuer = self.server_ca, purpose = "pubd")
+      rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "pubd")
 
     e = Element("identity", handle = self.handle)
-    B64Element(e, "bpki_ta", self.resource_ca.certificate)
+    B64Element(e, "bpki_ta", resource_ca.certificate)
     return etree_wrapper(e, msg = 'This is the "identity" file you will need to send to your parent')
 
   @django.db.transaction.commit_on_success
@@ -750,12 +761,71 @@ class Zookeeper(object):
           max_prefixlen = int(p.max_prefixlen))
 
 
+  def call_rpkid(self, *pdus):
+    """
+    Issue a call to rpkid, return result.
+
+    Implementation is a little silly, constructs a wrapper object,
+    invokes it once, then throws it away.  Hard to do better without
+    rewriting a bit of the HTTP code, as we want to be sure we're
+    using the current BPKI certificate and key objects.
+    """
+
+    url = "http://%s:%s/left-right" % (
+      self.cfg.get("rpkid_server_host"), self.cfg.get("rpkid_server_port"))
+
+    rpkid = self.server_ca.ee_certificates.get(purpose = "rpkid")
+    irbe  = self.server_ca.ee_certificates.get(purpose = "irbe")
+
+    call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
+      proto       = rpki.left_right,
+      client_key  = irbe.private_key,
+      client_cert = irbe.certificate,
+      server_ta   = self.server_ca.certificate,
+      server_cert = rpkid.certificate,
+      url         = url,
+      debug       = self.show_xml))
+
+    return call_rpkid(*pdus)
+
+
+  def call_pubd(self, *pdus):
+    """
+    Issue a call to pubd, return result.
+
+    Implementation is a little silly, constructs a wrapper object,
+    invokes it once, then throws it away.  Hard to do better without
+    rewriting a bit of the HTTP code, as we want to be sure we're
+    using the current BPKI certificate and key objects.
+    """
+
+    url = "http://%s:%s/control" % (
+      self.cfg.get("pubd_server_host"), self.cfg.get("pubd_server_port"))
+
+    pubd = self.server_ca.ee_certificates.get(purpose = "pubd")
+    irbe = self.server_ca.ee_certificates.get(purpose = "irbe")
+
+    call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
+      proto       = rpki.publication,
+      client_key  = irbe.private_key,
+      client_cert = irbe.certificate,
+      server_ta   = self.server_ca.certificate,
+      server_cert = pubd.certificate,
+      url         = url,
+      debug       = self.show_xml))
+
+    return call_pubd(*pdus)
+
+
   @django.db.transaction.commit_on_success
-  def synchronize(self):
+  def synchronize(self, *handles_to_poke):
     """
     Configure RPKI daemons with the data built up by the other
     commands in this program.  Most commands which modify the IRDB
     should call this when they're done.
+
+    Any arguments given are handles to be sent to rpkid at the end of
+    the synchronization run with a <self run_now="yes"/> operation.
     """
 
     # We can use a single BSC for everything -- except BSC key
@@ -768,36 +838,11 @@ class Zookeeper(object):
 
     self_crl_interval = self.cfg.getint("self_crl_interval", 2 * 60 * 60)
     self_regen_margin = self.cfg.getint("self_regen_margin", self_crl_interval / 4)
-    pubd_base         = "http://%s:%s/" % (self.cfg.get("pubd_server_host"), self.cfg.get("pubd_server_port"))
-    rpkid_base        = "http://%s:%s/" % (self.cfg.get("rpkid_server_host"), self.cfg.get("rpkid_server_port"))
 
-    # Wrappers to simplify calling rpkid and pubd.
-
-    irbe = self.server_ca.ee_certificates.get(purpose = "irbe")
-
-    call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
-      proto       = rpki.left_right,
-      client_key  = irbe.private_key,
-      client_cert = irbe.certificate,
-      server_ta   = self.server_ca.certificate,
-      server_cert = self.server_ca.ee_certificates.get(purpose = "rpkid").certificate,
-      url         = rpkid_base + "left-right",
-      debug       = self.show_xml))
+    # Make sure that pubd's BPKI CRL is up to date.
 
     if self.run_pubd:
-
-      call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
-        proto       = rpki.publication,
-        client_key  = irbe.private_key,
-        client_cert = irbe.certificate,
-        server_ta   = self.server_ca.certificate,
-        server_cert = self.server_ca.ee_certificates.get(purpose = "pubd").certificate,
-        url         = pubd_base + "control",
-        debug       = self.show_xml))
-
-      # Make sure that pubd's BPKI CRL is up to date.
-
-      call_pubd(rpki.publication.config_elt.make_pdu(
+      self.call_pubd(rpki.publication.config_elt.make_pdu(
         action = "set",
         bpki_crl = self.server_ca.latest_crl))
 
@@ -806,10 +851,10 @@ class Zookeeper(object):
       # See what rpkid and pubd already have on file for this entity.
 
       if self.run_pubd:
-        pubd_reply = call_pubd(rpki.publication.client_elt.make_pdu(action = "list"))
+        pubd_reply = self.call_pubd(rpki.publication.client_elt.make_pdu(action = "list"))
         client_pdus = dict((x.client_handle, x) for x in pubd_reply if isinstance(x, rpki.publication.client_elt))
 
-      rpkid_reply = call_rpkid(
+      rpkid_reply = self.call_rpkid(
         rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = ca.handle),
         rpki.left_right.bsc_elt.make_pdu(       action = "list", tag = "bsc",        self_handle = ca.handle),
         rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = ca.handle),
@@ -874,7 +919,7 @@ class Zookeeper(object):
 
       if rpkid_query:
         rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(action = "list", tag = "bsc", self_handle = ca.handle))
-        rpkid_reply = call_rpkid(*rpkid_query)
+        rpkid_reply = self.call_rpkid(*rpkid_query)
         bsc_pdus = dict((x.bsc_handle, x)
                         for x in rpkid_reply
                         if isinstance(x, rpki.left_right.bsc_elt) and x.action == "list")
@@ -1036,10 +1081,15 @@ class Zookeeper(object):
         pubd_query.extend(rpki.publication.client_elt.make_pdu(
             action = "destroy", client_handle = p) for p in client_pdus)
 
+      # Poke rpkid to run immediately for any requested handles.
+
+      rpkid_query.extend(rpki.left_right.self_elt.make_pdu(
+        action = "set", self_handle = h, run_now = "yes") for h in handles_to_poke)
+
       # If we changed anything, ship updates off to daemons
 
       if rpkid_query:
-        rpkid_reply = call_rpkid(*rpkid_query)
+        rpkid_reply = self.call_rpkid(*rpkid_query)
         bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
         if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
           bsc_req = bsc_pdus[bsc_handle].pkcs10_request
@@ -1053,7 +1103,7 @@ class Zookeeper(object):
 
       if pubd_query:
         assert self.run_pubd
-        pubd_reply = call_pubd(*pubd_query)
+        pubd_reply = self.call_pubd(*pubd_query)
         for r in pubd_reply:
           if isinstance(r, rpki.publication.report_error_elt):
             print "pubd reported failure:", r.error_code

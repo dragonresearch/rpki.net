@@ -1,6 +1,7 @@
 # $Id$
 """
 Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
+Copyright (C) 2012  SPARTA, Inc. a Parsons Company
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -24,10 +25,7 @@ from rpki.gui.app.misc import str_to_range
 
 import rpki.resource_set
 import rpki.exceptions
-
-class HandleField(models.CharField):
-    def __init__(self, **kwargs):
-        models.CharField.__init__(self, max_length=255, **kwargs)
+import rpki.irdb.models
 
 class IPAddressField(models.CharField):
     def __init__( self, **kwargs ):
@@ -37,35 +35,25 @@ class TelephoneField(models.CharField):
     def __init__( self, **kwargs ):
         models.CharField.__init__(self, max_length=40, **kwargs)
 
-class Conf(models.Model):
+class Conf(rpki.irdb.models.ResourceHolderCA):
     '''This is the center of the universe, also known as a place to
     have a handle on a resource-holding entity.  It's the <self>
     in the rpkid schema.'''
-    handle = HandleField(unique=True, db_index=True)
-    owner = models.ManyToManyField(User)
 
-    # NULL if self-hosted, otherwise the conf that is hosting us
-    host = models.ForeignKey('Conf', related_name='hosting', null=True, blank=True)
+    owner = models.ManyToManyField(User)
 
     def __unicode__(self):
 	return self.handle
 
-class Child(models.Model):
-    conf = models.ForeignKey(Conf, related_name='children')
-    handle = HandleField() # parent's name for child
-    valid_until = models.DateTimeField(help_text='date and time when authorization to use delegated resources ends')
+class Child(rpki.irdb.models.Child):
+    irdb_child = models.OneToOneField('rpki.irdb.models.Child', parent_link=True, null=False, related_name='app_child')
 
     def __unicode__(self):
-	return u"%s's child %s" % (self.conf, self.handle)
+	return u"%s's child %s" % (self.issuer.handle, self.handle)
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.app.views.child_view', [self.handle])
-
-    class Meta:
-	verbose_name_plural = "children"
-        # children of a specific configuration should be unique
-        unique_together = ('conf', 'handle')
+        return ('rpki.gui.app.views.child_view', [str(self.pk)])
 
 class AddressRange(models.Model):
     '''An address range/prefix.'''
@@ -75,11 +63,11 @@ class AddressRange(models.Model):
     parent = models.ForeignKey('AddressRange', related_name='children',
             blank=True, null=True)
     # child to which this resource is delegated
-    allocated = models.ForeignKey('Child', related_name='address_range',
+    allocated = models.ForeignKey(Child, related_name='address_range',
             blank=True, null=True)
 
     class Meta:
-        ordering = ['lo', 'hi']
+        ordering = ('lo', 'hi')
 
     def __unicode__(self):
         if self.lo == self.hi:
@@ -94,8 +82,6 @@ class AddressRange(models.Model):
         except AssertionError, err:
             print err
         return u'%s - %s' % (self.lo, self.hi)
-
-    #__unicode__.admin_order_field = 'lo'
 
     @models.permalink
     def get_absolute_url(self):
@@ -126,7 +112,7 @@ class Asn(models.Model):
             blank=True, null=True)
 
     class Meta:
-        ordering = ['lo', 'hi']
+        ordering = ('lo', 'hi')
 
     def __unicode__(self):
 	if self.lo == self.hi:
@@ -146,20 +132,21 @@ class Asn(models.Model):
         # will be a long when the value is large
         return rpki.resource_set.resource_range_as(long(self.lo), long(self.hi))
 
-class Parent(models.Model):
-    conf = models.ForeignKey(Conf, related_name='parents')
-    handle = HandleField() # my name for this parent
+class Parent(rpki.irdb.models.Parent):
+    """Represents a RPKI parent.
+
+    This model uses multi-table inheritance from rpki.irdb.Parent
+    such that information can be used.  This model exists solely as
+    an adapter for purposes of the web portal."""
+
+    irdb_parent = models.OneToOneField('rpki.irdb.models.Parent', parent_link=True, null=False, related_name='app_parent')
 
     def __unicode__(self):
-	return u"%s's parent %s" % (self.conf, self.handle)
+	return u"%s's parent %s" % (self.issuer.handle, self.handle)
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.app.views.parent_view', [self.handle])
-
-    class Meta:
-        # parents of a specific configuration should be unique
-        unique_together = ('conf', 'handle')
+        return ('rpki.gui.app.views.parent_view', [str(self.pk)])
 
 class ResourceCert(models.Model):
     parent = models.ForeignKey(Parent, related_name='resources')
@@ -266,6 +253,6 @@ class Ghostbuster(models.Model):
         return ('rpki.gui.app.views.ghostbuster_view', [str(self.pk)])
 
     class Meta:
-        ordering = [ 'family_name', 'given_name' ]
+        ordering = ( 'family_name', 'given_name' )
 
 # vim:sw=4 ts=8 expandtab

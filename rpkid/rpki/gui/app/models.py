@@ -35,18 +35,21 @@ class TelephoneField(models.CharField):
     def __init__( self, **kwargs ):
         models.CharField.__init__(self, max_length=40, **kwargs)
 
-class Conf(rpki.irdb.models.ResourceHolderCA):
-    '''This is the center of the universe, also known as a place to
-    have a handle on a resource-holding entity.  It's the <self>
-    in the rpkid schema.'''
-
-    owner = models.ManyToManyField(User)
+class Parent(rpki.irdb.models.Parent):
+    """proxy model for irdb Parent"""
 
     def __unicode__(self):
-	return self.handle
+	return u"%s's parent %s" % (self.issuer.handle, self.handle)
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.parent_view', [str(self.pk)])
+
+    class Meta:
+        proxy = True
 
 class Child(rpki.irdb.models.Child):
-    irdb_child = models.OneToOneField('rpki.irdb.models.Child', parent_link=True, null=False, related_name='app_child')
+    """proxy model for irdb Child"""
 
     def __unicode__(self):
 	return u"%s's child %s" % (self.issuer.handle, self.handle)
@@ -54,6 +57,17 @@ class Child(rpki.irdb.models.Child):
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.app.views.child_view', [str(self.pk)])
+
+    class Meta:
+        proxy = True
+
+class Conf(rpki.irdb.models.ResourceHolderCA):
+    '''This is the center of the universe, also known as a place to
+    have a handle on a resource-holding entity.  It's the <self>
+    in the rpkid schema.'''
+
+    class Meta:
+        proxy = True
 
 class AddressRange(models.Model):
     '''An address range/prefix.'''
@@ -120,8 +134,6 @@ class Asn(models.Model):
 	else:
 	    return u"ASNs %d - %d" % (self.lo, self.hi)
 
-    #__unicode__.admin_order_field = 'lo'
-
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.app.views.asn_view', [str(self.pk)])
@@ -131,22 +143,6 @@ class Asn(models.Model):
         # the type of both arguments to be identical, and models.IntegerField
         # will be a long when the value is large
         return rpki.resource_set.resource_range_as(long(self.lo), long(self.hi))
-
-class Parent(rpki.irdb.models.Parent):
-    """Represents a RPKI parent.
-
-    This model uses multi-table inheritance from rpki.irdb.Parent
-    such that information can be used.  This model exists solely as
-    an adapter for purposes of the web portal."""
-
-    irdb_parent = models.OneToOneField('rpki.irdb.models.Parent', parent_link=True, null=False, related_name='app_parent')
-
-    def __unicode__(self):
-	return u"%s's parent %s" % (self.issuer.handle, self.handle)
-
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.app.views.parent_view', [str(self.pk)])
 
 class ResourceCert(models.Model):
     parent = models.ForeignKey(Parent, related_name='resources')

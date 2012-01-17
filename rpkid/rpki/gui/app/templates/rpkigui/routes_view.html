@@ -3,21 +3,23 @@
 {% block content %}
 
 <div class='page-header'>
-	</h1>Route Views</h1>
+	<h1>Route Views</h1>
 </div>
 
 <p>
 This view shows currently advertised routes for the prefixes listed in resource certs received from RPKI parents.
 
-<table class='zebra-striped'>
+<table class='zebra-striped condensed-table'>
   <tr>
     <th>Prefix</th>
     <th>AS</th>
+    <th>Validation Status</th>
   </tr>
   {% for r in routes %}
   <tr>
     <td>{{ r.get_prefix_display }}</td>
     <td>{{ r.asn }}</td>
+    <td><span class='label {{ r.status_label }}'>{{ r.status }}</span></td>
   </tr>
   {% endfor %}
 </table>

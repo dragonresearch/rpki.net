@@ -88,10 +88,10 @@ class ResourceCert(models.Model):
     def __unicode__(self):
         return u"%s's resource cert from parent %s" % (self.parent.issuer.handle, self.parent.handle)
 
-class ResourceRangeAddressV4(rpki.models.PrefixV4):
+class ResourceRangeAddressV4(rpki.gui.models.PrefixV4):
     cert = models.ForeignKey(ResourceCert, related_name='address_ranges')
 
-class ResourceRangeAddressV6(rpki.models.PrefixV6):
+class ResourceRangeAddressV6(rpki.gui.models.PrefixV6):
     cert = models.ForeignKey(ResourceCert, related_name='address_ranges_v6')
 
 class ResourceRangeAS(models.Model):

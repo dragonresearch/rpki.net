@@ -54,11 +54,16 @@ class Prefix(models.Model):
 
     def prefixlen(self):
         "Returns the prefix length for the prefix in this object."
-        return self.as_range().prefixlen()
+        return self.as_resource_range().prefixlen()
 
     def get_prefix_display(self):
-        "Returns a string version of the prefix in this object."
+        "Return a string representatation of this IP prefix."
         return str(self.as_resource_range())
+
+    def __unicode__(self):
+        """This method may be overridden by subclasses.  The default
+        implementation calls get_prefix_display(). """
+        return self.get_prefix_display()
 
     class Meta:
         abstract = True
@@ -74,7 +79,7 @@ class PrefixV4(Prefix):
     prefix_min = IPv4AddressField(db_index=True, null=False)
     prefix_max = IPv4AddressField(db_index=True, null=False)
 
-    class Meta:
+    class Meta(Prefix.Meta):
         abstract = True
 
 class PrefixV6(Prefix):
@@ -85,7 +90,7 @@ class PrefixV6(Prefix):
     prefix_min = IPv6AddressField(db_index=True, null=False)
     prefix_max = IPv6AddressField(db_index=True, null=False)
 
-    class Meta:
+    class Meta(Prefix.Meta):
         abstract = True
 
 # vim:sw=4 ts=8 expandtab

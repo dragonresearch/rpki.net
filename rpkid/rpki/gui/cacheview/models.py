@@ -21,48 +21,24 @@ from django.db import models
 
 import rpki.ipaddrs
 import rpki.resource_set
+import rpki.gui.models
 
 class TelephoneField(models.CharField):
     def __init__(self, *args, **kwargs):
         kwargs['max_length'] = 255
         models.CharField.__init__(self, *args, **kwargs)
 
-class AddressRange(models.Model):
-    """Represents an IP address range.
-
-    The db backend doesn't support unsigned 64-bit integer, so store
-    the /63 in the database, and have the display function regenerate
-    the full value.  since nothing larger than a /48 should be
-    announced globally, it should be ok to pad the lower 65 bits of
-    `max` with 1s.  """
-
-    family = models.PositiveSmallIntegerField(null=False)
-    min = models.BigIntegerField(null=False)
-    max = models.BigIntegerField(null=False)
-
-    def get_min_display(self):
-        "Return the min address value as an rpki.ipaddr object."
-        return rpki.ipaddrs.v4addr(self.min) if self.family == 4 else rpki.ipaddrs.v6addr(self.min << 65)
-
-    def get_max_display(self):
-        "Return the max address value as an rpki.ipaddr object."
-        # FIXME this may fail for an IPv6 /64 single block, since we
-        # don't store the lower 65 bits in the database
-        return rpki.ipaddrs.v4addr(self.max) if self.family == 4 else rpki.ipaddrs.v6addr((self.max << 65) | 0x1ffffffffffffffffL)
-
-    class Meta:
-        ordering = ('family', 'min', 'max')
+class AddressRange(rpki.gui.models.PrefixV4):
 
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.addressrange_detail', [str(self.pk)])
 
-    def as_resource_range(self):
-        cls = rpki.resource_set.resource_range_ipv4 if self.family == 4 else rpki.resource_set.resource_range_ipv6
-        return cls(self.get_min_display(), self.get_max_display())
+class AddressRangeV6(rpki.gui.models.PrefixV6):
 
-    def __unicode__(self):
-        return u'%s' % self.as_resource_range()
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.cacheview.views.addressrange_detail_v6', [str(self.pk)])
 
 class ASRange(models.Model):
     min = models.PositiveIntegerField(null=False)
@@ -89,15 +65,12 @@ class ValidationLabel(models.Model):
     Represents a specific error condition defined in the rcynic XML
     output file.
     """
-    label = models.CharField(max_length=79, db_index=True, unique=True)
+    label = models.CharField(max_length=79, db_index=True, unique=True, null=False)
     status = models.CharField(max_length=255, null=False)
     kind = models.PositiveSmallIntegerField(choices=kinds, null=False)
 
     def __unicode__(self):
         return self.label
-
-    class Meta:
-        verbose_name_plural = 'ValidationLabels'
 
 generations = list(enumerate(('current', 'backup')))
 generations_dict = dict((val, key) for (key, val) in generations)
@@ -167,6 +140,7 @@ class Cert(SignedObject):
     Object representing a resource certificate.
     """
     addresses = models.ManyToManyField(AddressRange, related_name='certs')
+    addresses_v6 = models.ManyToManyField(AddressRangeV6, related_name='certs')
     asns      = models.ManyToManyField(ASRange, related_name='certs')
     issuer    = models.ForeignKey('Cert', related_name='children', null=True, blank=True)
     sia       = models.CharField(max_length=255, null=False)
@@ -180,61 +154,46 @@ class ValidationStatus_Cert(ValidationStatus):
             null=False)
 
 class ROAPrefix(models.Model):
-    """One prefix in a ROA.
+    "Abstract base class for ROA mixin."
 
-    See comment above in AddressRange about how IPv6 addresses are
-    stored.
-
-    The prefix is broken out into min and max values rather than min/bits in
-    order to allow for searches using sql.  """
-
-    family     = models.PositiveSmallIntegerField(null=False)
-    prefix_min = models.BigIntegerField(null=False, db_index=True)
-    prefix_max = models.BigIntegerField(null=False, db_index=True)
     max_length = models.PositiveSmallIntegerField(null=False)
 
     class Meta:
-        ordering = ('prefix_min', 'prefix_max', 'max_length')
-        verbose_name_plural = 'ROAPrefixes'
-
-    def min(self):
-        "Return the min prefix value as an rpki.ipaddrs.v?addr object."
-        if self.family == 4:
-            return rpki.ipaddrs.v4addr(self.prefix_min)
-        return rpki.ipaddrs.v6addr(self.prefix_min << 65)
-
-    def max(self):
-        "Return the max prefix value as an rpki.ipaddrs.v?addr object."
-        if self.family == 4:
-            return rpki.ipaddrs.v4addr(self.prefix_max)
-        return rpki.ipaddrs.v6addr((self.prefix_max << 65) | 0x1ffffffffffffffffL)
-
-    def get_prefix_min_display(self):
-        return str(self.min())
-
-    def get_prefix_max_display(self):
-        return str(self.max())
-
-    def as_resource_range(self):
-        "Return the prefix as a rpki.resource_set.resource_range_ip object."
-        if self.family == 4:
-            return rpki.resource_set.resource_range_ipv4(self.min(), self.max())
-        else:
-            return rpki.resource_set.resource_range_ipv6((self.min() << 65),
-                    (self.max() << 65) | 0x1ffffffffffffffffL)
+        abstract = True
 
     def as_roa_prefix(self):
         "Return value as a rpki.resource_set.roa_prefix_ip object."
         rng = self.as_resource_range()
-        cls = rpki.resource_set.roa_prefix_ipv4 if self.family == 4 else rpki.resource_set.roa_prefix_ipv6
-        return cls(rng.min, rng.prefixlen(), self.max_length)
+        return self.roa_cls(rng.prefix_min, rng.prefixlen(), self.max_length)
 
     def __unicode__(self):
-        return u'%s' % str(self.as_roa_prefix())
+        p = self.as_resource_range()
+        if p.prefixlen() == self.max_length:
+            return str(p)
+        return '%s-%s' % (str(p), self.max_length)
+
+# ROAPrefix is declared first, so subclass picks up __unicode__ from it.
+class ROAPrefixV4(ROAPrefix, rpki.gui.models.PrefixV4):
+    "One v4 prefix in a ROA."
+
+    roa_cls = rpki.resource_set.roa_prefix_ipv4
+
+    class Meta:
+        ordering = ('prefix_min',)
+
+# ROAPrefix is declared first, so subclass picks up __unicode__ from it.
+class ROAPrefixV6(ROAPrefix, rpki.gui.models.PrefixV6):
+    "One v6 prefix in a ROA."
+
+    roa_cls = rpki.resource_set.roa_prefix_ipv6
+
+    class Meta:
+        ordering = ('prefix_min',)
 
 class ROA(SignedObject):
     asid     = models.PositiveIntegerField(null=False)
-    prefixes = models.ManyToManyField(ROAPrefix, related_name='roas')
+    prefixes = models.ManyToManyField(ROAPrefixV4, related_name='roas')
+    prefixes_v6 = models.ManyToManyField(ROAPrefixV6, related_name='roas')
     issuer   = models.ForeignKey('Cert', related_name='roas', null=False)
 
     @models.permalink

@@ -927,9 +927,8 @@ def route_view(request):
             # see draft-sidr-roa-validation-10
 
             # 1. fetch all covering ROAs
-            # FIXME: need to munge IPv6 address prior to this query!
-            roas = rpki.gui.cacheview.models.ROAPrefix.objects.filter(prefix_min__lte=obj.prefix_min,
-                    prefix_max__gte=obj.prefix_max, family=obj.family)
+            roas = rpki.gui.cacheview.models.ROAPrefixV4.objects.filter(prefix_min__lte=obj.prefix_min,
+                    prefix_max__gte=obj.prefix_max)
             # 2. if there are candidate set is empty, end with invalid
             if not roas.exists():
                 obj.status = 'unknown'

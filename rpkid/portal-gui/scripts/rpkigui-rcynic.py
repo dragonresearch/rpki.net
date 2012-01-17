@@ -18,15 +18,16 @@ default_logfile = '/var/rcynic/data/summary.xml'
 default_root = '/var/rcynic/data'
 
 import time, vobject
-from rpki.gui.cacheview import models
-from rpki.rcynic import rcynic_xml_iterator, label_iterator
-from rpki.sundial import datetime
-import rpki
+
 from django.db import transaction
 import django.db.models
 
+from rpki.rcynic import rcynic_xml_iterator, label_iterator
+from rpki.sundial import datetime
+import rpki
+from rpki.gui.cacheview import models
+
 debug = False
-fam_map = { 'roa_prefix_set_ipv6': 6, 'roa_prefix_set_ipv4': 4 }
 
 class rcynic_object(object):
 
@@ -99,10 +100,6 @@ class rcynic_object(object):
 
         return True
 
-# munge IPv6 addresses
-def munge(family, value):
-    return value if family == 4 else (value >> 65) & 0x7fffffffffffffffL
-
 class rcynic_cert(rcynic_object):
     model_class = models.Cert
 
@@ -129,18 +126,17 @@ class rcynic_cert(rcynic_object):
             else:
                 obj.asns.add(q[0])
 
-        for family, addrset in (4, cert.resources.v4), (6, cert.resources.v6):
+        for cls, addr_obj, addrset in (models.AddressRange, obj.addresses, cert.resources.v4), (models.AddressRangeV6, obj.addresses_v6, cert.resources.v6):
             for rng in addrset:
                 if debug:
                     sys.stderr.write('processing %s\n' % rng)
 
-                attrs = { 'family': family, 'min': munge(family, rng.min),
-                        'max': munge(family, rng.max) }
-                q = models.AddressRange.objects.filter(**attrs)
+                attrs = { 'prefix_min': rng.min, 'prefix_max': rng.max }
+                q = cls.objects.filter(**attrs)
                 if not q:
-                    obj.addresses.create(**attrs)
+                    addr_obj.create(**attrs)
                 else:
-                    obj.addresses.add(q[0])
+                    addr_obj.add(q[0])
 
         if debug:
             print 'finished processing rescert at %s' % cert.uri
@@ -153,17 +149,22 @@ class rcynic_roa(rcynic_object):
         obj.save()
         obj.prefixes.clear()
         for pfxset in roa.prefix_sets:
-            family = fam_map[pfxset.__class__.__name__]
+            if pfxset.__class__.__name__ == 'roa_prefix_set_ipv6':
+                roa_cls = models.ROAPrefixV6
+                prefix_obj = obj.prefixes_v6
+            else:
+                roa_cls = models.ROAPrefixV4
+                prefix_obj = obj.prefixes
+
             for pfx in pfxset:
-                attrs = { 'family' : family,
-                          'prefix_min': munge(family, pfx.min()),
-                          'prefix_max': munge(family, pfx.max()),
+                attrs = { 'prefix_min': pfx.min(),
+                          'prefix_max': pfx.max(),
                           'max_length': pfx.max_prefixlen }
-                q = models.ROAPrefix.objects.filter(**attrs)
+                q = roa_cls.objects.filter(**attrs)
                 if not q:
-                    obj.prefixes.create(**attrs)
+                    prefix_obj.create(**attrs)
                 else:
-                    obj.prefixes.add(q[0])
+                    prefix_obj.add(q[0])
 
 class rcynic_gbr(rcynic_object):
     model_class = models.Ghostbuster

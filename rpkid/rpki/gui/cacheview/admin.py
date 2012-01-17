@@ -25,10 +25,16 @@ class ASRangeAdmin(admin.ModelAdmin):
 class AddressRangeAdmin(admin.ModelAdmin):
     pass
 
+class AddressRangeV6Admin(admin.ModelAdmin):
+    pass
+
 class CertAdmin(admin.ModelAdmin):
     pass
 
-class ROAPrefixAdmin(admin.ModelAdmin):
+class ROAPrefixV4Admin(admin.ModelAdmin):
+    pass
+
+class ROAPrefixV6Admin(admin.ModelAdmin):
     pass
 
 class ROAAdmin(admin.ModelAdmin):
@@ -46,11 +52,13 @@ class ValidationStatus_ROAAdmin(admin.ModelAdmin): pass
 class ValidationStatus_GhostbusterAdmin(admin.ModelAdmin): pass
 
 admin.site.register(models.AddressRange, AddressRangeAdmin)
+admin.site.register(models.AddressRangeV6, AddressRangeV6Admin)
 admin.site.register(models.ASRange, AddressRangeAdmin)
 admin.site.register(models.Cert, CertAdmin)
 admin.site.register(models.Ghostbuster, GhostbusterAdmin)
 admin.site.register(models.ROA, ROAAdmin)
-admin.site.register(models.ROAPrefix, ROAPrefixAdmin)
+admin.site.register(models.ROAPrefixV4, ROAPrefixV4Admin)
+admin.site.register(models.ROAPrefixV6, ROAPrefixV6Admin)
 admin.site.register(models.ValidationLabel, ValidationLabelAdmin)
 admin.site.register(models.ValidationStatus_Cert, ValidationStatus_CertAdmin)
 admin.site.register(models.ValidationStatus_ROA, ValidationStatus_ROAAdmin)

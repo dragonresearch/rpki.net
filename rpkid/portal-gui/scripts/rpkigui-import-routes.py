@@ -1,3 +1,19 @@
+# $Id$
+# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+#
+
 import sys, itertools, re
 import struct
 import _mysql_exceptions
@@ -5,7 +21,7 @@ import _mysql_exceptions
 from django.db import transaction, connection
 
 from rpki.resource_set import resource_range_ipv4, resource_range_ipv6
-from rpki.gui.app.models import Timestamp
+import rpki.gui.app.timestamp
 
 f = open(sys.argv[1])
 
@@ -112,7 +128,6 @@ def commit():
 commit()
 
 print 'Updating timestamp metadata...'
-ts, created = Timestamp.objects.get_or_create(name='bgp_v4_import')
-if not created: ts.save()
+rpki.gui.app.timestamp.update('bgp_v4_import')
 
 sys.exit(0)

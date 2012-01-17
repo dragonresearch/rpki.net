@@ -22,10 +22,11 @@ import time, vobject
 from django.db import transaction
 import django.db.models
 
+import rpki
+import rpki.gui.app.timestamp
+from rpki.gui.cacheview import models
 from rpki.rcynic import rcynic_xml_iterator, label_iterator
 from rpki.sundial import datetime
-import rpki
-from rpki.gui.cacheview import models
 
 debug = False
 
@@ -266,5 +267,7 @@ if __name__ == '__main__':
 
     process_labels(options.logfile)
     process_cache(options.root, options.logfile)
+
+    rpki.gui.app.timestamp.update('rcynic_import')
 
 # vim:sw=4 ts=8

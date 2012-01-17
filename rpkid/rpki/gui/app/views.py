@@ -920,6 +920,7 @@ def destroy_handle(request, handle):
         'handle': handle }, request)
 
 def roa_match(rng):
+    "Return a list of tuples of matching routes and roas."
     object_accepted = rpki.gui.cacheview.models.ValidationLabel.objects.get(label='object_accepted')
 
     if isinstance(rng, rpki.resource_set.resource_range_ipv6):
@@ -943,7 +944,9 @@ def roa_match(rng):
     return rv
 
 def validate_route(route, roas):
+    """Annotate the route object with its validation status.
 
+    `roas` is a queryset containing ROAs which cover `route`.  """
     pfx = 'prefixes' if isinstance(route, rpki.gui.routeview.models.RouteOrigin) else 'prefixes_v6'
     args = { 'asid': route.asn,
              '%s__prefix_min__lte' % pfx: route.prefix_min,
@@ -965,6 +968,8 @@ def validate_route(route, roas):
         route.status_label = 'important'
         route.status = 'invalid'
 
+    return route
+
 @handle_required
 def route_view(request):
     """
@@ -982,50 +987,7 @@ def route_view(request):
     for p in models.AddressRange.objects.filter(from_cert__parent__in=handle.parents.all()):
         r = p.as_resource_range()
         print >>log, 'querying for routes matching %s' % r
-
-        if isinstance(r, rpki.resource_set.resource_range_ipv6):
-            route_manager = rpki.gui.routeview.models.RouteOriginV6.objects
-            roa_manager = rpki.gui.cacheview.models.ROAPrefixV6.objects
-        else:
-            # v4
-            route_manager = rpki.gui.routeview.models.RouteOrigin.objects
-            roa_manager = rpki.gui.cacheview.models.ROAPrefixV4.objects
-
-        qs = route_manager.filter(prefix_min__gte=r.min, prefix_max__lte=r.max)
-        for obj in qs:
-            # determine the validation status of each route
-            # see draft-sidr-roa-validation-10
-
-            # 1. fetch all covering ROAs
-            #
-            # Cacheview also stores ROAs which did not validate (e.g. expired),
-            # so only select valid ones for this purpose (label is
-            # 'object_accepted').  This is what a router using the rpki-rtr
-            # would see, since the invalid ROAs are filtered.
-            #
-            # AS0 is not filtered at this step because we want the .exists()
-            # test to work properly.
-            #
-            roas = roa_manager.filter(
-                    prefix_min__lte=obj.prefix_min,
-                    prefix_max__gte=obj.prefix_max,
-                    roas__statuses__status=object_accepted)
-            # 2. if the candidate ROA set is empty, end with unknown
-            if not roas.exists():
-                obj.status = 'unknown'
-                obj.status_label = 'warning'
-            # 3. if any candidate roa matches the origin AS and max_length, end with valid
-            #
-            # AS0 is always invalid.
-            elif obj.asn != 0 and roas.filter(roas__asid=obj.asn, max_length__gte=obj.prefixlen()).exists():
-                obj.status_label = 'success'
-                obj.status = 'valid'
-            # 4. otherwise the route is invalid
-            else:
-                obj.status_label = 'important'
-                obj.status = 'invalid'
-
-            routes.append(obj)
+        routes.extend([validate_route(*x) for x in roa_match(r)])
 
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
     return render('rpkigui/routes_view.html', { 'routes': routes, 'timestamp': ts }, request)

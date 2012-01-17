@@ -49,8 +49,9 @@ install-perms:
 	chown -R $(WEBUSER) $(CONFDIR)
 
 install-apache:
-	${INSTALL} -d -m 755 $(INSTDIR)/media
 	${INSTALL} -m 644 apache.conf $(INSTDIR)
+	${INSTALL} -d -m 755 $(INSTDIR)/media/css
+	${INSTALL} -m 644 media/css/bootstrap.min.css $(INSTDIR)/media/css
 	${INSTALL} -d -m 755 $(INSTDIR)/wsgi
 	${INSTALL} -m 644 rpki.wsgi $(INSTDIR)/wsgi
 

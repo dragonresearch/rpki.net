@@ -7,13 +7,4 @@
 
 from django.conf import settings
 
-# directory containing the resource handles served by the rpki portal gui
-CONFDIR = settings.MYRPKI if hasattr(settings, 'CONFDIR') else '%(AC_LOCALSTATEDIR)s/rpki/conf'
-
-# maildir-style mailbox where uploaded requests are saved
-INBOX = settings.MYRPKI if hasattr(settings, 'INBOX') else '%(AC_LOCALSTATEDIR)s/rpki/inbox'
-
-# maildir-style mailbox where responses to client requests are stored
-OUTBOX = settings.MYRPKI if hasattr(settings, 'OUTBOX') else '%(AC_LOCALSTATEDIR)s/rpki/outbox'
-
-RPKI_CONF_TEMPLATE = settings.RPKI_CONF_TEMPLATE = settings.RPKI_CONF_TEMPLATE if hasattr(settings, 'RPKI_CONF_TEMPLATE') else '%(AC_DATAROOTDIR)s/rpki/gui/rpki.conf.template'
+RPKI_CONF_TEMPLATE = settings.RPKI_CONF_TEMPLATE = settings.RPKI_CONF_TEMPLATE if hasattr(settings, 'RPKI_CONF_TEMPLATE') else '%(AC_DATAROOTDIR)s/rpki/rpki.conf.template'

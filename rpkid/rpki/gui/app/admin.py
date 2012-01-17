@@ -49,6 +49,9 @@ class RoaRequestAdmin(admin.ModelAdmin):
 class GhostbusterAdmin(admin.ModelAdmin):
     pass
 
+class TimestampAdmin(admin.ModelAdmin):
+    pass
+
 admin.site.register(models.AddressRange, AddressRangeAdmin)
 admin.site.register(models.Child, ChildAdmin)
 admin.site.register(models.Conf, ConfAdmin)
@@ -58,5 +61,6 @@ admin.site.register(models.Parent, ParentAdmin)
 admin.site.register(models.ResourceCert, ResourceCertAdmin)
 admin.site.register(models.Roa, RoaAdmin)
 admin.site.register(models.RoaRequest, RoaRequestAdmin)
+admin.site.register(models.Timestamp, TimestampAdmin)
 
 # vim:sw=4 ts=8

@@ -261,4 +261,7 @@ class Timestamp(models.Model):
     name = models.CharField(max_length=30, primary_key=True)
     ts = models.DateTimeField(null=False, auto_now=True)
 
+    def __unicode__(self):
+        return self.name
+
 # vim:sw=4 ts=8 expandtab

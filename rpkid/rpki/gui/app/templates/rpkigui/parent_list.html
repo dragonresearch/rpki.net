@@ -1,0 +1,13 @@
+{% extends "rpkigui/object_list.html" %}
+
+{% block object_detail %}
+<li><a href="{{ object.get_absolute_url }}">{{ object.handle }}</a></li>
+{% endblock object_detail %}
+
+{% block actions %}
+<div class='actions'>
+  <a class='btn' href="{% url rpki.gui.app.views.import_parent %}" title="upload XML response from remote parent">Import</a>
+</div>
+{% endblock actions %}
+
+<!-- vim: set sw=2: -->

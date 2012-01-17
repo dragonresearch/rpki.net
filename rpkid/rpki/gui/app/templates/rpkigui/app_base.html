@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{# This template defines the common structure for the rpki.gui.app application. #}
+
+{% block sidebar %}
+
+<p><strong>{{ request.session.handle }}</strong>
+
+{# common navigation #}
+
+<ul class='unstyled'>
+  <li><a href="{% url rpki.gui.app.views.dashboard %}">dashboard</a></li>
+  <li><a href="{% url rpki.gui.app.views.parent_list %}">parents</a></li>
+  <li><a href="{% url rpki.gui.app.views.child_list %}">children</a></li>
+  <li><a href="{% url rpki.gui.app.views.roa_request_list %}">roas</a></li>
+  <li><a href="{% url rpki.gui.app.views.ghostbusters_list %}">ghostbusters</a></li>
+</ul>
+
+{% endblock sidebar %}

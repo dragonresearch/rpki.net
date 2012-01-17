@@ -1,26 +1,36 @@
-{% extends "base.html" %}
+{% extends "rpkigui/app_base.html" %}
 
 {% block content %}
-
-<ul class='breadcrumb'>
-  <li><a href="{% url rpki.gui.app.views.dashboard %}">{{request.session.handle}}</a> <span class='divider'>/</span></li>
-  <li><a href="{{ object.prefix.get_absolute_url }}">{{ object.prefix }}</a> <span class='divider'>/</span></li>
-  <li class='active'>Delete ROA Request</li>
-</ul>
 
 <div class='page-header'>
 <h1>Delete ROA Request</h1>
 </div>
 
-<p>Please confirm that you would like to delete the following ROA request:</p>
+<p>Please confirm that you would like to delete the following ROA request:
 
-<table>
-    <tr><td>AS</td>        <td>{{ object.roa.asn }}</td></tr>
-    <tr><td>Prefix</td>    <td><a href="{{ object.prefix.get_absolute_url }}">{{ object.prefix }}</a></td></tr>
-    <tr><td>Max Length</td><td>{{ object.max_length }}</td></tr>
+<table style='condensed-table'>
+  <tr><th>AS</th>        <td>{{ object.roa.asn }}</td></tr>
+  <tr><th>Prefix</th>    <td><a href="{{ object.prefix.get_absolute_url }}">{{ object.prefix }}</a></td></tr>
+  <tr><th>Max Length</th><td>{{ object.max_length }}</td></tr>
 </table>
 
-<p></p><!--add some space-->
+<p>The following table shows what the validation status for the routing entries
+that are covered by this ROA will be if this ROA request is deleted:
+
+<table style='zebra-striped condensed-table'>
+  <tr>
+    <th>Prefix</th>
+    <th>Origin AS</th>
+    <th>Validation Status</th>
+  </tr>
+  {% for r in routes %}
+  <tr>
+    <td>{{ r.get_prefix_display }}</td>
+    <td>{{ r.asn }}</td>
+    <td><span class='label {{ r.status_label }}'>{{ r.status }}</span>
+  </tr>
+  {% endfor %}
+</table>
 
 <form method='POST' action='{{ request.get_full_path }}'>
   {% csrf_token %}
@@ -31,3 +41,5 @@
 </form>
 
 {% endblock %}
+
+<!-- vim:set sw=2: -->

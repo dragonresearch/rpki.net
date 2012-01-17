@@ -149,6 +149,7 @@ class rcynic_roa(rcynic_object):
         obj.asid = roa.asID
         obj.save()
         obj.prefixes.clear()
+        obj.prefixes_v6.clear()
         for pfxset in roa.prefix_sets:
             if pfxset.__class__.__name__ == 'roa_prefix_set_ipv6':
                 roa_cls = models.ROAPrefixV6

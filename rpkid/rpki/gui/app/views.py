@@ -392,9 +392,7 @@ def prefix_delete_view(request, pk):
 
 @handle_required
 def roa_request_delete_view(request, pk):
-    """
-    Remove a ROA request from a particular prefix.
-    """
+    "Remove a ROA request from a particular prefix."
 
     log = request.META['wsgi.errors']
     handle = request.session['handle']
@@ -411,7 +409,24 @@ def roa_request_delete_view(request, pk):
         glue.configure_resources(log, handle)
         return http.HttpResponseRedirect(prefix.get_absolute_url())
 
-    return render('rpkigui/roa_request_confirm_delete.html', { 'object': obj }, request)
+    match = roa_match(prefix.as_resource_range())
+
+    roa_pfx = obj.as_roa_prefix()
+
+    pfx = 'prefixes' if isinstance(roa_pfx, rpki.resource_set.roa_prefix_ipv4) else 'prefixes_v6'
+    args = { '%s__prefix_min' % pfx : roa_pfx.min(),
+             '%s__prefix_max' % pfx : roa_pfx.max(),
+             '%s__max_length' % pfx : roa_pfx.max_prefixlen }
+
+    # exclude ROAs which seem to match this request and display the result
+    routes = []
+    for route, roas in match:
+        qs = roas.exclude(asid=obj.roa.asn, **args)
+        validate_route(route, qs)
+        routes.append(route)
+
+    return render('rpkigui/roa_request_confirm_delete.html', { 'object': obj,
+        'routes': routes }, request)
 
 @handle_required
 def asn_allocate_view(request, pk):
@@ -903,6 +918,52 @@ def destroy_handle(request, handle):
 
     return render('rpkigui/destroy_handle_form.html', { 'form': form ,
         'handle': handle }, request)
+
+def roa_match(rng):
+    object_accepted = rpki.gui.cacheview.models.ValidationLabel.objects.get(label='object_accepted')
+
+    if isinstance(rng, rpki.resource_set.resource_range_ipv6):
+        route_manager = rpki.gui.routeview.models.RouteOriginV6.objects
+        pfx = 'prefixes_v6'
+    else:
+        route_manager = rpki.gui.routeview.models.RouteOrigin.objects
+        pfx = 'prefixes'
+
+    rv = []
+    for obj in route_manager.filter(prefix_min__gte=rng.min, prefix_max__lte=rng.max):
+        # This is a bit of a gross hack, since the foreign keys for v4 and v6
+        # prefixes have different names.
+        args = { '%s__prefix_min__lte' % pfx: obj.prefix_min,
+                 '%s__prefix_max__gte' % pfx: obj.prefix_max }
+        roas = rpki.gui.cacheview.models.ROA.objects.filter(
+                statuses__status=object_accepted,
+                **args)
+        rv.append((obj, roas))
+
+    return rv
+
+def validate_route(route, roas):
+
+    pfx = 'prefixes' if isinstance(route, rpki.gui.routeview.models.RouteOrigin) else 'prefixes_v6'
+    args = { 'asid': route.asn,
+             '%s__prefix_min__lte' % pfx: route.prefix_min,
+             '%s__prefix_max__gte' % pfx: route.prefix_max,
+             '%s__max_length__gte' % pfx: route.prefixlen() }
+
+    # 2. if the candidate ROA set is empty, end with unknown
+    if not roas.exists():
+        route.status = 'unknown'
+        route.status_label = 'warning'
+    # 3. if any candidate roa matches the origin AS and max_length, end with valid
+    #
+    # AS0 is always invalid.
+    elif route.asn != 0 and roas.filter(**args).exists():
+        route.status_label = 'success'
+        route.status = 'valid'
+    # 4. otherwise the route is invalid
+    else:
+        route.status_label = 'important'
+        route.status = 'invalid'
 
 @handle_required
 def route_view(request):

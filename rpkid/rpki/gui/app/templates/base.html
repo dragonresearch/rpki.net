@@ -1,36 +1,50 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+   "http://www.w3.org/TR/html4/strict.dtd">
 <html>
-<head>
-  <title>{% block title %}RPKI{% endblock %}</title>
-  {% block head %}{% endblock %}
-  <style type="text/css">
-    #header { background-color: #00ccff; border-style: solid; border-width: thin; padding-left:2em }
-    #sidebar { background-color: #dddddd; border-style: none solid solid; border-width: thin; float:left; min-width:9em }
-    #content { float:left; margin-left:1em }
-    ul.compact {list-style:none inside; margin-left:1em; padding-left:0}
-    table { border: solid 1px; border-collapse: collapse }
-    th { border: solid 1px; padding: 1em }
-    td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
-    {% block css %}{% endblock %}
-  </style>
-</head>
-<body>
-  <div id="header">
-    {% if user.is_authenticated %}
-    <span style="float: right; font-size: 80%;">Logged in as {{ user }} | 
-      {% if user.is_staff %}<a href="/admin/">admin</a> |{% endif %}
-      <a href="{% url django.contrib.auth.views.logout %}">Log Out</a></span>
-    {% else %}
-    <span style="float: right; font-size: 80%;"><a href="{% url django.contrib.auth.views.login %}">Log In</a></span>
-    {% endif %}
-    <h1>RPKI Portal GUI</h1>
-  </div>
+  <head>
+    <meta name='Content-Type' content='text/html; charset=UTF-8'>
+    <title>{% block title %}RPKI{% endblock %}</title>
+    {% block head %}{% endblock %}
+    <link rel="stylesheet" href="/site_media/css/bootstrap.min.css">
+    <style type="text/css">
+      body { padding-top: 50px; }
+      {% block css %}{% endblock %}
+    </style>
+  </head>
+  <body>
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <div class="topbar-inner">
+	<div class="container">
+	  <a class="brand" href="#">rpki.net</a>
 
-  <div id='sidebar'>
-    {% block sidebar %}{% endblock %}
-  </div>
+	  <ul class='nav'>
+	    {% if user.is_staff %}
+	    <li><a href="/admin/">Admin</a></li>
+	    {% endif %}
+	  </ul>
 
-  <div id="content">
-    {% block content %}{% endblock %}
-  </div>
-</body>
+	  {% if user.is_authenticated %}
+	  <ul class='nav secondary-nav'>
+	    <li><p>Logged in as {{ user }}</li>
+	    <li><a href="{% url django.contrib.auth.views.logout %}">Log Out</a></li>
+	  </ul>
+	  {% endif %}
+
+	</div>
+      </div>
+    </div><!-- topbar -->
+
+    <!-- MAIN CONTENT -->
+    <div class="container-fluid">
+      <div class='content'>
+	{% block content %}{% endblock %}
+      </div><!-- /content -->
+
+      <div class="sidebar">
+	{% block sidebar %}{% endblock %}
+      </div><!-- /sidebar -->
+    </div><!-- /container-fluid -->
+
+  </body>
 </html>

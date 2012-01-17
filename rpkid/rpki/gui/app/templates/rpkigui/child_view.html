@@ -1,21 +1,17 @@
-{% extends "base.html" %}
-
-{% block sidebar %}
-<ul class='compact'>
-    <li><a href="{{ child.get_absolute_url }}/edit">edit</a></li>
-    <li><a href="{{ child.get_absolute_url }}/export" title="download XML response file to return to child">export child response</a></li>
-    <li><a href="{{ child.get_absolute_url }}/export_repo" title="download XML response to publication client request">export repo response</a></li>
-    <li><a href="{{ child.get_absolute_url }}/delete" title="remove this handle as a RPKI child">delete</a></li>
-    <li><a href="{{ child.get_absolute_url }}/destroy" title="completely remove a locally hosted resource handle and gui account">destroy</a></li>
-</ul>
-{% endblock %}
+{% extends "rpkigui/app_base.html" %}
 
 {% block content %}
-<p id='breadcrumb'>
-<a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> &gt; {{ child.handle }}
-</p>
+<!--
+<ul class='breadcrumb'>
+  <li><a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> <span class='divider'>/</span></li>
+  <li>Children <span class='divider'>/</span></li>
+  <li class='active'>{{ child.handle }}</li>
+</ul>
+-->
 
-<h1>Child View</h1>
+<div class='page-header'>
+  <h1>Child View</h1>
+</div>
 
 <table>
     <tr>
@@ -50,11 +46,23 @@
 <p style='font-style:italic'>none</p>
 {% endif %}
 
+<hr>
+
 {% if form %}
 <form method='POST' action='{{ request.get_full_path }}'>
     {% csrf_token %}
     <input type='submit'/>
 </form>
+{% else %}
+
+<div class='actions'>
+  <a class='btn' href="{{ child.get_absolute_url }}/edit">Edit</a>
+  <a class='btn' href="{{ child.get_absolute_url }}/export" title="download XML response file to return to child">Export child response</a></li>
+  <a class='btn' href="{{ child.get_absolute_url }}/export_repo" title="download XML response to publication client request">Export repo response</a></li>
+  <a class='btn danger' href="{{ child.get_absolute_url }}/delete" title="remove this handle as a RPKI child">Delete</a></li>
+  <a class='btn danger' href="{{ child.get_absolute_url }}/destroy" title="completely remove a locally hosted resource handle and gui account">Destroy</a></li>
+</div>
+
 {% endif %}
 
 {% endblock %}

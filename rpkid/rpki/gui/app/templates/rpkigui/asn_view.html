@@ -1,47 +1,69 @@
-{% extends "base.html" %}
-
-{% block css %}
-table { border-collapse: collapse }
-th { border: solid 1px; padding: 1em }
-td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
-{% endblock %}
-
-{% block sidebar %}
-<ul class='compact'>
-    <li> <a href="{{asn.get_absolute_url}}/allocate">give to child</a></li>
-</ul>
-{% endblock %}
+{% extends "rpkigui/app_base.html" %}
 
 {% block content %}
 
-<p id='breadcrumb'>
-<a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a> &gt; AS View &gt; {{ asn }}
-</p>
+<!--
+<ul class='breadcrumb'>
+  <li><a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a> <span class='divider'>/</span></li>
+  <li>AS <span class='divider'>/</span></li>
+  <li class='active'> {{ asn }}</li>
+</ul>
+-->
 
-<h1>AS View</h1>
+<div class='page-header'>
+  <h1>AS View</h1>
+</div>
 
-<table>
-    <tr> <td>ASN:</td><td>{{ asn }}</td> </tr>
-    {% if asn.parent %}
-    <tr>
-        <td>Suballocated from:</td>
-        <td><a href="{{ asn.parent.get_absolute_url }}">{{ asn.parent }}</a></td>
-    </tr>
-    {% endif %}
-    <tr>
-        <td>Received from:</td>
-        <td>
+<div class='row'>
+  <div class='span2'>
+    ASN
+  </div>
+  <div class='span11 offset2'>
+    {{ asn }}
+  </div>
+</div>
+
+{% if asn.parent %}
+<div class='row'>
+  <div class='span2'>
+    Suballocated from
+  </div>
+  <div class='span11 offset2'>
+    <a href="{{ asn.parent.get_absolute_url }}">{{ asn.parent }}</a>
+  </div>
+</div>
+{% endif %}
+
+<div class='row'>
+  <div class='span2'>
+    Received from
+  </div>
+  <div class='span11 offset2'>
             {% for p in parent %}
             <a href="{{ p.get_absolute_url }}">{{ p.handle }}</a>
             {% endfor %}
-        </td>
-    </tr>
-    <tr><td>Validity:</td><td>{{ asn.from_cert.all.0.not_before }} - {{ asn.from_cert.all.0.not_after }} </td></tr>
+  </div>
+</div>
 
-    {% if asn.allocated %}
-    <tr><td>Allocated:</td><td><a href="{{asn.allocated.get_absolute_url}}">{{asn.allocated.handle}}</a></td></tr>
-    {% endif %}
-</table>
+<div class='row'>
+  <div class='span2'>
+    Validity
+  </div>
+  <div class='span11 offset2'>
+    {{ asn.from_cert.all.0.not_before }} - {{ asn.from_cert.all.0.not_after }}
+  </div>
+</div>
+
+{% if asn.allocated %}
+<div class='row'>
+  <div class='span2'>
+    Allocated
+  </div>
+  <div class='span11 offset2'>
+    <a href="{{asn.allocated.get_absolute_url}}">{{asn.allocated.handle}}</a>
+  </div>
+</div>
+{% endif %}
 
 {% if asn.children.count %}
 <h2>Suballocations</h2>
@@ -84,10 +106,21 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 
 {% if form %}
 <h2>Edit</h2>
-<form method="POST" action="{{ request.get_full_path }}">{% csrf_token %}
-    {{ form.as_p }}
-    <input type="submit">
+<form method="POST" action="{{ request.get_full_path }}">
+  {% csrf_token %}
+  {% include "rpkigui/bootstrap_form.html" %}
+  <div class='actions'>
+    <input class='btn primary' value='Save' type="submit">
+    <a class='btn' href='{{ asn.get_absolute_url }}'>Cancel</a>
+  </div>
 </form>
+{% else %}
+
+<div class='actions'>
+  <a class='btn' href="{{asn.get_absolute_url}}/allocate" title="give this ASN to a child">Allocate</a>
+</div>
 {% endif %}
 
 {% endblock %}
+
+<!-- vim: set sw=2: -->

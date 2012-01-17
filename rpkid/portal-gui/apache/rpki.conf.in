@@ -28,5 +28,6 @@ Allow from all
 
 # for use with Django 1.2
 #Alias /media/ /var/www/html/media/
+#Alias /site_media/ /var/www/html/media/
 
 # vim:ft=apache

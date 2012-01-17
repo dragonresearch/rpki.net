@@ -88,24 +88,17 @@ def render(template, context, request):
 def dashboard(request, template_name='rpkigui/dashboard.html'):
     '''The user's dashboard.'''
     handle = request.session[ 'handle' ]
-    # ... pick out data for the dashboard and return it
-    # my parents
-    # the resources that my parents have given me
-    # the resources that I have accepted from my parents
-    # my children
-    # the resources that I have given my children
-    # my roas
 
-    # get list of ASNs used in my ROAs
-    roa_asns = [r.asn for r in handle.roas.all()]
     asns=[]
-    for a in models.Asn.objects.filter(from_cert__parent__in=handle.parents.all()):
+    asn_list = models.Asn.objects.filter(from_cert__parent__in=handle.parents.all())
+    for a in asn_list:
         f = AllocationTree.AllocationTreeAS(a)
         if f.unallocated():
             asns.append(f)
 
     prefixes = []
-    for p in models.AddressRange.objects.filter(from_cert__parent__in=handle.parents.all()):
+    address_list = models.AddressRange.objects.filter(from_cert__parent__in=handle.parents.all())
+    for p in address_list:
         f = AllocationTree.AllocationTreeIP.from_prefix(p)
         if f.unallocated():
             prefixes.append(f)
@@ -113,7 +106,12 @@ def dashboard(request, template_name='rpkigui/dashboard.html'):
     asns.sort(key=lambda x: x.range.min)
     prefixes.sort(key=lambda x: x.range.min)
 
-    return render(template_name, { 'conf': handle, 'asns': asns, 'ars': prefixes }, request)
+    return render(template_name, {
+        'conf': handle,
+        'asns': asns,
+        'ars': prefixes,
+        'asn_list': asn_list,
+        'address_list': address_list }, request)
 
 @login_required
 def conf_list(request):
@@ -160,10 +158,28 @@ def conf_export(request):
     return serve_xml(glue.read_identity(handle.handle), 'identity')
 
 @handle_required
+def parent_list(request):
+    """List view for parent objects."""
+    conf = request.session['handle']
+
+    return object_list(request, queryset=conf.parents.all(), template_name='rpkigui/parent_list.html',
+            extra_context = { 'page_title': 'Parents' })
+
+@handle_required
+def child_list(request):
+    """List view for child objects."""
+    conf = request.session['handle']
+
+    return object_list(request, queryset=conf.children.all(),
+            template_name = 'rpkigui/child_list.html',
+            extra_context = { 'page_title': 'Children' })
+
+@handle_required
 def parent_view(request, parent_handle):
     """Detail view for a particular parent."""
     handle = request.session['handle']
     parent = get_object_or_404(handle.parents, handle__exact=parent_handle)
+
     return render('rpkigui/parent_view.html', { 'parent': parent }, request)
 
 def get_parents_or_404(handle, obj):
@@ -219,6 +235,7 @@ class PrefixView(object):
 
     form = None
     form_title = None
+    submit_value = 'Submit'
 
     def __init__(self, request, pk, form_class=None):
         self.handle = request.session['handle']
@@ -243,7 +260,8 @@ class PrefixView(object):
         return render('rpkigui/prefix_view.html',
                 { 'addr': self.obj, 'parent': self.parent_set, 'unallocated': u,
                   'form': self.form,
-                  'form_title': self.form_title if self.form_title else 'Edit' },
+                  'form_title': self.form_title if self.form_title else 'Edit',
+                  'submit_value': self.submit_value },
                 self.request)
 
     def handle_get(self):
@@ -277,6 +295,7 @@ class PrefixSplitView(PrefixView):
     '''Class for handling the prefix split form.'''
 
     form_title = 'Split'
+    submit_value = 'Split'
 
     def form_valid(self):
         r = misc.parse_resource_range(self.form.cleaned_data['prefix'])
@@ -292,6 +311,7 @@ class PrefixAllocateView(PrefixView):
     '''Class to handle the allocation to child form.'''
 
     form_title = 'Give to Child'
+    submit_label = 'Allocate'
 
     def handle_get(self):
         self.form = forms.PrefixAllocateForm(
@@ -344,6 +364,7 @@ class PrefixRoaView(PrefixView):
     '''Class for handling the ROA creation form.'''
 
     form_title = 'Issue ROA'
+    submit_value = 'Create'
 
     def form_valid(self):
         asns = asnset(self.form.cleaned_data['asns'])
@@ -572,13 +593,23 @@ def roa_view(request, pk):
     return
 
 @handle_required
+def roa_request_list(request):
+    conf = request.session['handle']
+
+    return object_list(request, queryset=models.RoaRequest.objects.filter(roa__in=conf.roas.all()),
+        template_name='rpkigui/roa_request_list.html',
+        extra_context = { 'page_title': 'ROA Requests' })
+
+@handle_required
 def ghostbusters_list(request):
     """
     Display a list of all ghostbuster requests for the current Conf.
     """
     conf = request.session['handle']
 
-    return object_list(request, queryset=conf.ghostbusters.all(), template_name='rpkigui/ghostbuster_list.html')
+    return object_list(request, queryset=conf.ghostbusters.all(),
+            template_name='rpkigui/ghostbuster_list.html',
+            extra_context = { 'page_title': 'Ghostbusters' })
 
 @handle_required
 def ghostbuster_view(request, pk):
@@ -623,7 +654,7 @@ def _ghostbuster_edit(request, obj=None):
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
         form = form_class(instance=obj)
-    return render('rpkigui/ghostbuster_form.html', { 'form': form }, request)
+    return render('rpkigui/ghostbuster_form.html', { 'form': form, 'object': obj }, request)
 
 @handle_required
 def ghostbuster_edit(request, pk):
@@ -841,7 +872,7 @@ def parent_delete(request, parent_handle):
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('rpkigui/parent_form.html', { 'form': form ,
+    return render('rpkigui/parent_view.html', { 'form': form ,
         'parent': parent, 'submit_label': 'Delete' }, request)
 
 @login_required

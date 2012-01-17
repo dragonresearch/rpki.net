@@ -1,38 +1,68 @@
-{% extends "base.html" %}
-
-{% block sidebar %}
-<ul class='compact'>
-    <li><a href="{{ parent.get_absolute_url }}/delete">delete</a></li>
-</ul>
-{% endblock %}
+{% extends "rpkigui/app_base.html" %}
 
 {% block content %}
-<p id='breadcrumb'>
-<a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> &gt; Parent View &gt; {{ parent.handle }}
-</p>
 
-<h1>Parent View</h1>
-
-<p>Parent: {{ parent.handle }}
-
-<h2>Delegated Addresses</h2>
-<ul>
-{% for c in parent.resources.all %}
-{% for a in c.address_range.all %}
-<li><a href="{{ a.get_absolute_url }}">{{ a }}</a>
-{% endfor %}
-{% endfor %}
+<!--
+<ul class='breadcrumb'>
+  <li><a href='{% url rpki.gui.app.views.dashboard %}'>{{ request.session.handle }}</a><span class='divider'>/</span></li>
+  <li>Parents <span class='divider'>/</span></li>
+  <li class='active'>{{ parent.handle }}</li>
 </ul>
+-->
 
-<h2>Delegated ASNs</h2>
-<ul>
-{% for c in parent.resources.all %}
-{% for a in c.asn.all %}
-<li><a href="{{ a.get_absolute_url }}">{{ a }}</a>
-{% endfor %}
-{% endfor %}
-</ul>
+<div class='page-header'>
+  <h1>Parent: {{ parent.handle }}</h1>
+</div>
 
-{% block form %}{% endblock %}
+<div class='row'>
+
+  <div class='span8'>
+    <h2>Delegated Addresses</h2>
+    <ul>
+      {% for c in parent.resources.all %}
+      {% for a in c.address_range.all %}
+      <li><a href="{{ a.get_absolute_url }}">{{ a }}</a></li>
+      {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class='span8'>
+    <h2>Delegated ASNs</h2>
+    <ul>
+      {% for c in parent.resources.all %}
+      {% for a in c.asn.all %}
+      <li><a href="{{ a.get_absolute_url }}">{{ a }}</a></li>
+      {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+
+</div><!-- /row -->
+
+{% if form %}
+
+<div class='alert-message warning'>
+  <P>Please confirm the following action.
+</div>
+
+<form method="POST" action="{{ request.get_full_path }}">
+  {% csrf_token %}
+  {% include "rpkigui/bootstrap_form.html" %}
+  <div class='actions'>
+    <input class='btn danger' type="submit" value="{{ submit_label }}">
+    <a class='btn' href="{{ parent.get_absolute_url}}">Cancel</a>
+  </div>
+</form>
+
+{% else %}
+
+<div class='actions'>
+  <a class='btn danger' href="{{ parent.get_absolute_url }}/delete" title="Delete this parent">Delete</a>
+</div>
+
+{% endif %}
 
 {% endblock %}
+
+<!-- vim: set sw=2: -->

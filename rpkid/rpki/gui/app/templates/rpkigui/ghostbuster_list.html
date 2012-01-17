@@ -1,23 +1,13 @@
-{% extends "base.html" %}
+{% extends "rpkigui/object_list.html" %}
 
-{% block sidebar %}
-<ul class='compact'>
-  <li><a href='{% url rpki.gui.app.views.ghostbuster_create %}'>add</a></li>
-</ul>
-{% endblock %}
+{% block object_detail %}
+<li><a href="{{ object.get_absolute_url }}">{{ object.full_name }}</a></li>
+{% endblock object_detail %}
 
-{% block content %}
-<p id='breadcrumb'><a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a> &gt; Ghostbusters</p>
+{% block actions %}
+<div class='actions'>
+  <a class='btn' href='{% url rpki.gui.app.views.ghostbuster_create %}' title='Create a new Ghostbuster Request'>Create</a>
+</div>
+{% endblock actions %}
 
-<h1>Ghostbuster Requests</h1>
-
-{% if object_list %}
-<ul>
-  {% for obj in object_list %}
-  <li><a href="{{ obj.get_absolute_url }}">{{ obj.full_name }}</a> | <a href="{{obj.get_absolute_url}}/edit">edit</a> | <a href="{{obj.get_absolute_url}}/delete">delete</a></li>
-  {% endfor %}
-</ul>
-{% else %}
-<p style='font-style:italic'>none</p>
-{% endif %}
-{% endblock %}
+<!-- vim: set sw=2: -->

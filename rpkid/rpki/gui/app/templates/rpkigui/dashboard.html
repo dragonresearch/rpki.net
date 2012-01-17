@@ -1,193 +1,108 @@
 {% extends "base.html" %}
 
-{% block css %}
-table { border-collapse: collapse }
-th { border: solid 1px; padding: 1em }
-td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
-h2 { text-align:center; background-color:#dddddd }
-{% endblock %}
-
 {% block sidebar %}
-<ul class='compact'>
-  <li><a href="#parents">parents</a></li>
-  <li><a href="#children">children</a></li>
-  <li><a href="#roas">roas</a></li>
-  <li><a href="#ghostbusters">ghostbusters</a></li>
-  <li><a href="#unallocated">unallocated</a></li>
+<p><strong>{{ request.session.handle }}</strong>
+
+<ul class='unstyled'>
+  <li><a href="#">dashboard</a></li>
+  <li><a href="{% url rpki.gui.app.views.parent_list %}">parents</a></li>
+  <li><a href="{% url rpki.gui.app.views.child_list %}">children</a></li>
+  <li><a href="{% url rpki.gui.app.views.roa_request_list %}">roas</a></li>
+  <li><a href="{% url rpki.gui.app.views.ghostbusters_list %}">ghostbusters</a></li>
 </ul>
 
-<ul class='compact'>
+<ul class='unstyled'>
   <li><a href="{% url rpki.gui.app.views.conf_export %}" title="download XML identity to send to parent">export identity</a></li>
   <li><a href="{% url rpki.gui.app.views.update_bpki %}" title="renew all BPKI certificates">update bpki</a></li>
   <li><a href="{% url rpki.gui.app.views.conf_list %}" title="select a different resource handle to manage">select identity</a></li>
 </ul>
 
-<ul class='compact'>
+{% if user.is_staff %}
+<ul class='unstyled'>
   <li><a href="{% url rpki.gui.app.views.child_wizard %}" title="create a new locally hosted resource handle">create child wizard</a></li>
 </ul>
+{% endif %}
 
-<ul class='compact'>
-  <li><a href="{% url rpki.gui.app.views.import_parent %}" title="upload XML response from remote parent">import parent</a></li>
+<ul class='unstyled'>
   <li><a href="{% url rpki.gui.app.views.import_repository %}" title="upload XML response from remote repository">import repository</a></li>
-</ul>
-  
-<ul class='compact'>
-  <li><a href="{% url rpki.gui.app.views.import_child %}" title="import a new child's identity.xml file">import child</a></li>
   <li><a href="{% url rpki.gui.app.views.import_pubclient %}" title="import XML request from a publication client">import pubclient</a></li>
 </ul>
 
-<ul class='compact'>
+<ul class='unstyled'>
     <li><a href="{% url rpki.gui.app.views.refresh %}">refresh</a></li>
 </ul>
 {% endblock %}
 
 {% block content %}
 
-<p id='breadcrumb'>{{ request.session.handle }} &gt; Dashboard</p>
-
-<h1>Dashboard</h1>
-
-<div class='separator'>
-<a name='parents'><h2>Parents</h2></a>
-
-{% if request.session.handle.parents.all %}
-<ul>
-{% for parent in request.session.handle.parents.all %}
-<li><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a>
-<p>
-<table>
-<tr><th>Accepted Resource</th><th>Not Before</th><th>Not After</th></tr>
-{% for cert in parent.resources.all %}
-
-{% for asn in cert.asn.all %}
-<tr><td style='text-align:left'><a href="{{ asn.get_absolute_url }}">{{ asn }}</a></td>
-<td>{{cert.not_before}}</td>
-<td>{{cert.not_after}}</td>
-</tr>
-{% endfor %}
-
-{% for address in cert.address_range.all %}
-<tr>
-    <td style='text-align: left'><a href="{{ address.get_absolute_url }}">{{ address }}</a></td>
-    <td>{{cert.not_before}}</td>
-    <td>{{cert.not_after}}</td>
-</tr>
-{% endfor %}
-
-{% endfor %} <!--certs-->
-</table>
-
-{% endfor %}
-</ul>
-{% else %}
-<p style='font-style:italic'>none</p>
-{% endif %}
-
-</div><!--parents-->
-
-<div class='separator'>
-  <a name='children'><h2>Children</h2></a>
-
-{% if request.session.handle.children.all %}
-<ul>
-{% for child in request.session.handle.children.all %}
-<li><a href="{% url rpki.gui.app.views.child_view child.handle %}">{{ child.handle }}</a>, valid until {{ child.valid_until }}
-{% if child.address_range.count or child.asn.count %}
-<p>Delegated resources:
-<ul>
-{% for asn in child.asn.all %}
-<li><a href="{{ asn.get_absolute_url }}">{{ asn }}</a></li>
-{% endfor %}
-{% for address in child.address_range.all %}
-<li><a href="{{ address.get_absolute_url}}">{{ address }}</a></li>
-{% endfor %}
-</ul>
-{% endif %}
-</li>
-{% endfor %}
-</ul>
 <!--
-<a href="/myrpki/import/child">[add]</a>
+<ul class='breadcrumb'>
+  <li><a href='{% url rpki.gui.app.views.dashboard %}'>{{ request.session.handle }}</a><span class="divider">/</span></li>
+  <li class='active'>Dashboard</li>
+</ul>
 -->
-{% else %}
-<p style='font-style:italic'>none</p>
-{% endif %}
 
-<p>
-Export resources delegated to children (csv): <a href="{% url rpki.gui.app.views.download_asns request.session.handle %}" title="ASs delegated to children">asns</a> |
-<a href="{% url rpki.gui.app.views.download_prefixes request.session.handle %}" title="prefixes delegated to children">prefixes</a>
-
+<div class='page-header'>
+  <h1>Dashboard</h1>
 </div>
 
-<div class='separator'> <!-- ROAs -->
-  <a name='roas'><h2>ROA Requests</h2></a>
+<!-- OVERVIEW ############################################################## -->
 
-  {% if request.session.handle.roas.all %}
-  <table>
-    <tr> <th>Prefix</th> <th>ASN</th> </tr>
+<h2>Resources</h2>
 
-    {% for roa in request.session.handle.roas.all %}
-    <tr>
-      <td style='text-align: left'>
-        <ul style='list-style-position: outside'>
-          {% for req in roa.from_roa_request.all %}
-          <li><a href="{{ req.prefix.get_absolute_url }}">{{ req.as_roa_prefix }}</a>
-          {% endfor %}
-        </ul>
-      </td>
-      <td>{{ roa.asn }}</td>
-    </tr>
-    {% endfor %}
-  </table>
+<table class='condensed-table zebra-striped'>
+  <tr>
+    <th>Resource</th>
+    <th>Valid Until</th>
+    <th>Parent</th>
+  </tr>
+
+  {% for object in asn_list %}
+  <tr>
+    <td><a href="{{ object.get_absolute_url }}">{{ object }}</a></td>
+    <td>{{ object.from_cert.all.0.not_after }}</td>
+    <td><a href="{{ object.from_cert.all.0.parent.get_absolute_url }}">{{ object.from_cert.all.0.parent.handle }}</a></th>
+  </tr>
+  {% endfor %}
+
+  {% for object in address_list %}
+  <tr>
+    <td><a href="{{ object.get_absolute_url }}">{{ object }}</a></td>
+    <td>{{ object.from_cert.all.0.not_after }}</td>
+    <td><a href="{{ object.from_cert.all.0.parent.get_absolute_url }}">{{ object.from_cert.all.0.parent.handle }}</a></th>
+  </tr>
+  {% endfor %}
+</table>
+
+<!-- UNALLOCATED ##############################################################-->
+<div>
+  <h2>Unallocated Resources</h2>
+  <p>The following resources have not been allocated to a child, or appear in a ROA.
+
+  {% if asns or ars %}
+
+  {% if asns %}
+  <ul>
+    {% for asn in asns %}
+    <li>{{ asn.as_ul|safe }}
+    {% endfor %} <!-- ASNs -->
+  </ul>
+  {% endif %}
+
+  {% if ars %}
+  <ul>
+    {% for addr in ars %}
+    <li>{{ addr.as_ul|safe }}
+    {% endfor %} <!-- addrs -->
+  </ul>
+  {% endif %}
+
   {% else %}
   <p style='font-style:italic'>none</p>
   {% endif %}
 
-  <p><a href="{% url rpki.gui.app.views.download_roas request.session.handle %}">export (csv)</a>
-</div><!-- roas -->
-
-<div class='separator'><!-- ghostbusters -->
-<a name='ghostbusters'><h2>Ghostbuster Requests</h2></a>
-    {% if request.session.handle.ghostbusters.all %}
-    <ul>
-    {% for gbr in request.session.handle.ghostbusters.all %}
-    <li><a href="{{ gbr.get_absolute_url }}">{{ gbr.full_name }}</a> |
-    <a href="{{ gbr.get_absolute_url }}/edit">edit</a> |
-    <a href="{{ gbr.get_absolute_url }}/delete">delete</a>
-    </li>
-    {% endfor %}
-    {% else %}
-<p style='font-style:italic'>none</p>
-    {% endif %}
-</ul>
-<p><a href='{% url rpki.gui.app.views.ghostbuster_create %}'>add</a></p>
-</div>
-
-<div class='separator'>
-<a name='unallocated'><h2>Unallocated Resources</h2></a>
-	{% if asns or ars %}
-
-	{% if asns %}
-	<ul>
-	    {% for asn in asns %}
-	    <li>{{ asn.as_ul|safe }}
-	    {% endfor %} <!-- ASNs -->
-        </ul>
-	{% endif %}
-
-	{% if ars %}
-	<ul>
-	    {% for addr in ars %}
-	    <li>{{ addr.as_ul|safe }}
-	    {% endfor %} <!-- addrs -->
-	</ul>
-	{% endif %}
-
-	{% else %}
-<p style='font-style:italic'>none</p>
-	{% endif %}
-
-	</ul>
 </div>
 
 {% endblock %}
+
+<!-- vim: set sw=2: -->

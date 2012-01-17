@@ -2,9 +2,15 @@
 
 {% block content %}
 
-<p id='breadcrumb'><a href="{% url rpki.gui.app.views.dashboard %}">{{request.session.handle}}</a> &gt; <a href="{{ object.prefix.get_absolute_url }}">{{ object.prefix }}</a> &gt; Delete ROA Request</p>
+<ul class='breadcrumb'>
+  <li><a href="{% url rpki.gui.app.views.dashboard %}">{{request.session.handle}}</a> <span class='divider'>/</span></li>
+  <li><a href="{{ object.prefix.get_absolute_url }}">{{ object.prefix }}</a> <span class='divider'>/</span></li>
+  <li class='active'>Delete ROA Request</li>
+</ul>
 
+<div class='page-header'>
 <h1>Delete ROA Request</h1>
+</div>
 
 <p>Please confirm that you would like to delete the following ROA request:</p>
 
@@ -17,8 +23,11 @@
 <p></p><!--add some space-->
 
 <form method='POST' action='{{ request.get_full_path }}'>
-{% csrf_token %}
-<input type='submit' value='Delete'/>
+  {% csrf_token %}
+  <div class='actions'>
+    <input class='btn danger' type='submit' value='Delete'/>
+    <a class='btn' href="{{ object.prefix.get_absolute_url }}">Cancel</a>
+  </div>
 </form>
 
 {% endblock %}

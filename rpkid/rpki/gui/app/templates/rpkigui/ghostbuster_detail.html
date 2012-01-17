@@ -1,69 +1,73 @@
-{% extends "base.html" %}
-
-{% block css %}
-td { padding-right: 1em }
-td.label { font-weight:bold }
-{% endblock %}
-
-{% block sidebar %}
-<ul class='compact'>
-  <li><a href='{{ object.get_absolute_url }}/edit'>edit</a></li>
-  <li><a href='{{ object.get_absolute_url }}/delete'>delete</a></li>
-</ul>
-{% endblock %}
+{% extends "rpkigui/app_base.html" %}
 
 {% block content %}
-<p id='breadcrumb'><a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a> &gt; <a href="{% url rpki.gui.app.views.ghostbusters_list %}">Ghostbuster Request</a> &gt; {{ object.full_name }}</p>
+<!--
+<ul class='breadcrumb'>
+  <li><a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a> <span class='divider'>/</span></li>
+  <li><a href="{% url rpki.gui.app.views.ghostbusters_list %}">Ghostbusters</a> <span class='divider'>/</span> </li>
+  <li class='active'>{{ object.full_name }}</li>
+</ul>
+-->
 
-<h1>Ghostbuster View</h1>
+<div class='page-header'>
+  <h1>Ghostbuster View</h1>
+</div>
 
-<table>
-    <tr><td class='label'>Full Name</td><td>{{ object.full_name }}</td></tr>
+<table class='zebra-striped'>
+    <tr><td >Full Name</td><td>{{ object.full_name }}</td></tr>
 
     {% if object.honorific_prefix %}
-    <tr><td class='label'>Honorific Prefix</td><td>{{ object.honorific_prefix }}</td></tr>
+    <tr><td >Honorific Prefix</td><td>{{ object.honorific_prefix }}</td></tr>
     {% endif %}
 
     {% if object.organization %}
-    <tr><td class='label'>Organization</td><td>{{ object.organization }}</td></tr>
+    <tr><td >Organization</td><td>{{ object.organization }}</td></tr>
     {% endif %}
 
     {% if object.telephone %}
-    <tr><td class='label'>Telephone</td><td>{{ object.telephone }}</td></tr>
+    <tr><td >Telephone</td><td>{{ object.telephone }}</td></tr>
     {% endif %}
 
     {% if object.email_address %}
-    <tr><td class='label'>Email</td><td>{{ object.email_address }}</td></tr>
+    <tr><td >Email</td><td>{{ object.email_address }}</td></tr>
     {% endif %}
 
     {% if object.box %}
-    <tr><td class='label'>P.O. Box</td><td>{{ object.box }}</td></tr>
+    <tr><td >P.O. Box</td><td>{{ object.box }}</td></tr>
     {% endif %}
 
     {% if object.extended %}
-    <tr><td class='label'>Extended Address</td><td>{{ object.extended }}</td></tr>
+    <tr><td >Extended Address</td><td>{{ object.extended }}</td></tr>
     {% endif %}
 
     {% if object.street %}
-    <tr><td class='label'>Street Address</td><td>{{ object.street }}</td></tr>
+    <tr><td >Street Address</td><td>{{ object.street }}</td></tr>
     {% endif %}
 
     {% if object.city %}
-    <tr><td class='label'>City</td><td>{{ object.city }}</td></tr>
+    <tr><td >City</td><td>{{ object.city }}</td></tr>
     {% endif %}
 
     {% if object.region %}
-    <tr><td class='label'>Region</td><td>{{ object.region }}</td></tr>
+    <tr><td >Region</td><td>{{ object.region }}</td></tr>
     {% endif %}
 
     {% if object.code %}
-    <tr><td class='label'>Postal Code</td><td>{{ object.code }}</td></tr>
+    <tr><td >Postal Code</td><td>{{ object.code }}</td></tr>
     {% endif %}
 
     {% if object.country %}
-    <tr><td class='label'>Country</td><td>{{ object.country }}</td></tr>
+    <tr><td >Country</td><td>{{ object.country }}</td></tr>
     {% endif %}
 
 </table>
+
+<div class='actions'>
+  <a class='btn' href='{{ object.get_absolute_url }}/edit'>Edit</a>
+  <a class='btn danger' href='{{ object.get_absolute_url }}/delete'>Delete</a>
+</div>
+
 {% block extra %}{% endblock %}
 {% endblock %}
+
+<!-- vim: set sw=2: -->

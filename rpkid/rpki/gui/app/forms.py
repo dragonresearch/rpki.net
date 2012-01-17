@@ -215,8 +215,9 @@ def ImportChildForm(parent_conf, *args, **kwargs):
 
 def ImportParentForm(conf, *args, **kwargs):
     class wrapped(forms.Form):
-        handle = forms.CharField(max_length=30, help_text="Parent's RPKI handle")
-        xml = forms.FileField(help_text="XML response from parent", required=False)
+        handle = forms.CharField(max_length=30, help_text="Parent's RPKI handle", required=True)
+        xml = forms.FileField(help_text="XML response from parent", required=True,
+                widget=forms.FileInput(attrs={'class': 'xlarge'}))
 
         def clean_handle(self):
             if conf.parents.filter(handle=self.cleaned_data['handle']):

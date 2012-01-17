@@ -2,17 +2,26 @@
 
 {% block content %}
 
-<p id='breadcrumb'><a href="{% url rpki.gui.app.views.dashboard %}">{{request.session.handle}}</a> &gt; <a href="{% url rpki.gui.app.views.ghostbusters_list %}">Ghostbusters</a> &gt; Edit</p>
+<ul class='breadcrumb'>
+  <li><a href="{% url rpki.gui.app.views.dashboard %}">{{request.session.handle}}</a> <span class='divider'>/</span></li>
+  <li> <a href="{% url rpki.gui.app.views.ghostbusters_list %}">Ghostbusters</a> <span class='divider'>/</span></li>
+  <li class='active'>Edit</li>
+</ul>
 
-<h1>Edit Ghostbuster Request</h1>
+<div class='page-header'>
+  <h1>Edit Ghostbuster Request</h1>
+</div>
 
 <form action='{{ request.get_full_path }}' method='POST'>
-    {% csrf_token %}
-    <table>
-{{ form.as_table }}
+  {% csrf_token %}
 
-</table>
-<p></p><!-- add vertical space -->
-    <input type='submit' value='Save' />
+  {# include code to render form using Twitter Bootstrap CSS Framework #}
+  {% include "rpkigui/bootstrap_form.html" %}
+
+  <div class='actions'>
+    <input class='btn primary' type='submit' value='Save'>
+    <a class='btn' href="{{ object.get_absolute_url }}">Cancel</a>
+  </div>
+
 </form>
 {% endblock %}

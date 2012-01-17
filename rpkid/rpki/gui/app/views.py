@@ -328,6 +328,12 @@ def roa_list(request):
         extra_context = { 'page_title': 'ROA Requests' })
 
 @handle_required
+def roa_detail(request, pk):
+    """Not implemented.  This is a placeholder so that models.RoaRequestPrefix.get_absolute_url
+    works.  The only reason it exist is so that the /delete URL works."""
+    pass
+
+@handle_required
 def roa_delete(request, pk):
     """Handles deletion of a single RoaRequestPrefix object.
 

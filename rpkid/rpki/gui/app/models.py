@@ -129,6 +129,10 @@ class RoaRequestPrefix(rpki.irdb.models.RoaRequestPrefix):
             r = resource_set.resource_range_ipv6.make_prefix(ipaddrs.v6addr(self.prefix), self.prefixlen)
         return r
 
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.roa_detail', [str(self.pk)])
+
 class Ghostbuster(models.Model):
     """
     Stores the information require to fill out a vCard entry to populate

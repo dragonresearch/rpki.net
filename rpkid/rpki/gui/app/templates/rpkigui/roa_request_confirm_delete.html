@@ -3,14 +3,14 @@
 {% block content %}
 
 <div class='page-header'>
-<h1>Delete ROA Request</h1>
+<h1>Delete ROA Prefix</h1>
 </div>
 
-<p>Please confirm that you would like to delete the following ROA request:
+<p>Please confirm that you would like to delete the following ROA prefix:
 
 <table style='condensed-table'>
-  <tr><th>AS</th>        <td>{{ object.roa.asn }}</td></tr>
-  <tr><th>Prefix</th>    <td><a href="{{ object.prefix.get_absolute_url }}">{{ object.prefix }}</a></td></tr>
+  <tr><th>AS</th>        <td>{{ object.roa_request.asn }}</td></tr>
+  <tr><th>Prefix</th>    <td>{{ object.as_roa_prefix }}</td></tr>
   <tr><th>Max Length</th><td>{{ object.max_length }}</td></tr>
 </table>
 
@@ -36,7 +36,7 @@ that are covered by this ROA will be if this ROA request is deleted:
   {% csrf_token %}
   <div class='actions'>
     <input class='btn danger' type='submit' value='Delete'/>
-    <a class='btn' href="{{ object.prefix.get_absolute_url }}">Cancel</a>
+    <a class='btn' href="{% url rpki.gui.app.views.roa_list %}">Cancel</a>
   </div>
 </form>
 

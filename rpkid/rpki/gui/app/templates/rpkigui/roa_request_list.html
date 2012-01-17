@@ -6,13 +6,13 @@
 </div>
 
 {% if object_list %}
-<table class='zebra-striped'>
-  <tr><th>Prefix</th><th>Max Length</th><th>ASN</th></tr>
+<table class='zebra-striped condensed-table'>
+  <tr><th>Prefix</th><th>Max Length</th><th>ASN</th><th>Action</th></tr>
   {% for object in object_list %}
   <tr>
-    <td><a href="{{ object.prefix.get_absolute_url }}">{{ object.prefix }}</a></td>
+    <td>{{ object.as_roa_prefix }}</a></td>
     <td>{{ object.max_length }}</td>
-    <td>{{ object.roa.asn }}</td>
+    <td>{{ object.roa_request.asn }}</td>
     <td><a class='btn danger' href="{{ object.get_absolute_url }}/delete">Delete</a></td>
   </tr>
   {% endfor %}

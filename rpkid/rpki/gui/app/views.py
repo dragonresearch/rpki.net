@@ -944,7 +944,7 @@ def route_view(request):
 
             routes.append(obj)
 
-    ts = dict(models.Timestamp.objects.values())
+    ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
     return render('rpkigui/routes_view.html', { 'routes': routes, 'timestamp': ts }, request)
 
 # vim:sw=4 ts=8 expandtab

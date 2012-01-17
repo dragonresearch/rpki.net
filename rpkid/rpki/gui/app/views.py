@@ -918,7 +918,10 @@ def route_view(request):
     for p in models.AddressRange.objects.filter(from_cert__parent__in=handle.parents.all()):
         r = p.as_resource_range()
         print >>log, 'querying for routes matching %s' % r
-        qs = rpki.gui.routeview.models.RouteOrigin.objects.filter(family=4, prefix_min__gte=r.min, prefix_max__lte=r.max)
+        if isinstance(r, rpki.resource_set.resource_range_ipv6):
+            print >>log, 'skipping ipv6 address: %s' % r
+            continue
+        qs = rpki.gui.routeview.models.RouteOrigin.objects.filter(prefix_min__gte=r.min, prefix_max__lte=r.max)
         for obj in qs:
             # determine the validation status of each route
             obj.status_label = 'warning'

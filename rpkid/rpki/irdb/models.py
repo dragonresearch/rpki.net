@@ -25,6 +25,8 @@ PERFORMANCE OF THIS SOFTWARE.
 import django.db.models
 import rpki.x509
 import rpki.sundial
+import rpki.resource_set
+import rpki.ipaddrs
 import socket
 
 ## @var ip_version_choices
@@ -453,6 +455,19 @@ class Child(CrossCertification):
   name = django.db.models.TextField(null = True, blank = True)
   valid_until = SundialField()
 
+  @property
+  def resource_bag(self):
+    asns = rpki.resource_set.resource_set_as.from_django(
+      (a.start_as, a.end_as) for a in self.asns.all())
+    ipv4 = rpki.resource_set.resource_set_ipv4.from_django(
+      (a.start_ip, a.end_ip) for a in self.address_ranges.filter(version = 4))
+    ipv6 = rpki.resource_set.resource_set_ipv6.from_django(
+      (a.start_ip, a.end_ip) for a in self.address_ranges.filter(version = 6))
+    return rpki.resource_set.resource_bag(
+      valid_until = self.valid_until, asn = asns, v4 = ipv4, v6 = ipv6)
+
+  # Writing of .setter method deferred until something needs it.
+
   # This shouldn't be necessary
   class Meta:
     unique_together = ("issuer", "handle")
@@ -462,6 +477,9 @@ class ChildASN(django.db.models.Model):
   start_as = django.db.models.BigIntegerField()
   end_as = django.db.models.BigIntegerField()
 
+  def as_resource_range(self):
+    return rpki.resource_set.resource_range_as.from_strings(self.start_as, self.end_as)
+
   class Meta:
     unique_together = ("child", "start_as", "end_as")
 
@@ -470,6 +488,9 @@ class ChildNet(django.db.models.Model):
   start_ip = django.db.models.CharField(max_length = 40)
   end_ip   = django.db.models.CharField(max_length = 40)
   version = EnumField(choices = ip_version_choices)
+
+  def as_resource_range(self):
+    return rpki.resource_set.resource_range_ip.from_strings(self.start_ip, self.end_ip)
 
   class Meta:
     unique_together = ("child", "start_ip", "end_ip", "version")
@@ -490,12 +511,31 @@ class ROARequest(django.db.models.Model):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "roa_requests")
   asn = django.db.models.BigIntegerField()
 
+  @property
+  def roa_prefix_bag(self):
+    v4 = rpki.resource_set.roa_prefix_set_ipv4.from_django(
+      (p.prefix, p.prefixlen, p.max_prefixlen) for p in self.prefixes.filter(version = 4))
+    v6 = rpki.resource_set.roa_prefix_set_ipv6.from_django(
+      (p.prefix, p.prefixlen, p.max_prefixlen) for p in self.prefixes.filter(version = 6))
+    return rpki.resource_set.roa_prefix_bag(v4 = v4, v6 = v6)
+
+  # Writing of .setter method deferred until something needs it.
+
 class ROARequestPrefix(django.db.models.Model):
   roa_request = django.db.models.ForeignKey(ROARequest, related_name = "prefixes")
   version = EnumField(choices = ip_version_choices)
   prefix = django.db.models.CharField(max_length = 40)
   prefixlen = django.db.models.PositiveSmallIntegerField()
   max_prefixlen = django.db.models.PositiveSmallIntegerField()
+
+  def as_roa_prefix(self):
+    if self.version == 4:
+      return resource_set.roa_prefix_ipv4(ipaddrs.v4addr(self.prefix), self.prefixlen, self.max_prefixlen)
+    else:
+      return resource_set.roa_prefix_ipv6(ipaddrs.v6addr(self.prefix), self.prefixlen, self.max_prefixlen)
+
+  def as_resource_range(self):
+    return self.as_roa_prefix().to_resource_range()
 
   class Meta:
     unique_together = ("roa_request", "version", "prefix", "prefixlen", "max_prefixlen")

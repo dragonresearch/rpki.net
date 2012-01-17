@@ -1054,6 +1054,29 @@ class roa_prefix_set_ipv6(roa_prefix_set):
 # Fix back link from resource_set to roa_prefix
 resource_set_ipv6.roa_prefix_set_type = roa_prefix_set_ipv6
 
+class roa_prefix_bag(object):
+  """
+  Container to simplify passing around the combination of an IPv4 ROA
+  prefix set and an IPv6 ROA prefix set.
+  """
+
+  ## @var v4
+  # Set of IPv4 prefixes.
+
+  ## @var v6
+  # Set of IPv6 prefixes.
+
+  def __init__(self, v4 = None, v6 = None):
+    self.v4 = v4 or roa_prefix_set_ipv4()
+    self.v6 = v6 or roa_prefix_set_ipv6()
+
+  def __eq__(self, other):
+    return self.v4 == other.v4 and self.v6 == other.v6
+
+  def __ne__(self, other):
+    return not (self == other)
+
+
 # Test suite for set operations.
 
 if __name__ == "__main__":

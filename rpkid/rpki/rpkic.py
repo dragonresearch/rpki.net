@@ -395,22 +395,16 @@ class main(rpki.cli.Cmd):
     if arg.strip():
       raise BadCommandSyntax("This command takes no arguments")
 
-    for child in self.resource_ca.children.all():
-
-      asn = rpki.resource_set.resource_set_as.from_django(
-        (a.start_as, a.end_as) for a in child.asns.all())
-      ipv4 = rpki.resource_set.resource_set_ipv4.from_django(
-        (a.start_ip, a.end_ip) for a in child.address_ranges.filter(version = 4))
-      ipv6 = rpki.resource_set.resource_set_ipv6.from_django(
-        (a.start_ip, a.end_ip) for a in child.address_ranges.filter(version = 6))
+    for child in self.zoo.resource_ca.children.all():
+      resources = child.resource_bag
 
       print "Child:", child.handle
-      if asn:
-        print "  ASN:", asn
-      if ipv4:
-        print " IPv4:", ipv4
-      if ipv6:
-        print " IPv6:", ipv6
+      if resources.asn:
+        print "  ASN:", resources.asn
+      if resources.v4:
+        print " IPv4:", resources.v4
+      if resources.v6:
+        print " IPv6:", resources.v6
 
 
   def do_load_asns(self, arg):

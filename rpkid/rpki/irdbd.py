@@ -41,30 +41,28 @@ import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
 class main(object):
 
   def handle_list_resources(self, q_pdu, r_msg):
-    child  = rpki.irdb.Child.objects.get(issuer__handle__exact = q_pdu.self_handle, handle = q_pdu.child_handle)
+    child  = rpki.irdb.Child.objects.get(issuer__handle__exact = q_pdu.self_handle,
+                                         handle = q_pdu.child_handle)
+    resources = child.resource_bag
     r_pdu = rpki.left_right.list_resources_elt()
     r_pdu.tag = q_pdu.tag
     r_pdu.self_handle = q_pdu.self_handle
     r_pdu.child_handle = q_pdu.child_handle
     r_pdu.valid_until = child.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
-    r_pdu.asn = rpki.resource_set.resource_set_as.from_django(
-      (a.start_as, a.end_as) for a in child.asns.all())
-    r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_django(
-      (a.start_ip, a.end_ip) for a in child.address_ranges.filter(version = 4))
-    r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_django(
-      (a.start_ip, a.end_ip) for a in child.address_ranges.filter(version = 6))
+    r_pdu.asn = resources.asn
+    r_pdu.ipv4 = resources.v4
+    r_pdu.ipv6 = resources.v6
     r_msg.append(r_pdu)
 
   def handle_list_roa_requests(self, q_pdu, r_msg):
     for request in rpki.irdb.ROARequest.objects.filter(issuer__handle__exact = q_pdu.self_handle):
+      prefix_bag = request.roa_prefix_bag
       r_pdu = rpki.left_right.list_roa_requests_elt()
       r_pdu.tag = q_pdu.tag
       r_pdu.self_handle = q_pdu.self_handle
       r_pdu.asn = request.asn
-      r_pdu.ipv4 = rpki.resource_set.roa_prefix_set_ipv4.from_django(
-        (p.prefix, p.prefixlen, p.max_prefixlen) for p in request.prefixes.filter(version = 4))
-      r_pdu.ipv6 = rpki.resource_set.roa_prefix_set_ipv6.from_django(
-        (p.prefix, p.prefixlen, p.max_prefixlen) for p in request.prefixes.filter(version = 6))
+      r_pdu.ipv4 = prefix_bag.v4
+      r_pdu.ipv6 = prefix_bag.v6
       r_msg.append(r_pdu)
 
   def handle_list_ghostbuster_requests(self, q_pdu, r_msg):

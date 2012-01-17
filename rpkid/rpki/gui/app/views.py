@@ -217,7 +217,7 @@ def add_asn_callback(child, form):
     child.asns.create(min=r.min, max=r.max)
 
 def child_add_asn(request, pk):
-    return child_add_resource(request, pk, form_class=forms.AddASNForm, add_asn_callback)
+    return child_add_resource(request, pk, form_class=forms.AddASNForm, callback=add_asn_callback)
 
 def add_address_callback(child, form):
     try:
@@ -229,7 +229,7 @@ def add_address_callback(child, form):
     child.address_ranges.create(min=str(r.min), max=str(r.max), family=family)
 
 def child_add_address(request, pk):
-    return child_add_resource(request, pk, form_class=forms.AddAddressForm, add_address_callback)
+    return child_add_resource(request, pk, form_class=forms.AddAddressForm, callback=add_address_callback)
 
 @handle_required
 def parent_view(request, pk):

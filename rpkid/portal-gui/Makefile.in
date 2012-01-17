@@ -16,11 +16,8 @@ sbindir=@sbindir@
 libexecdir=@libexecdir@
 sysconfdir=@sysconfdir@
 
-WEBUSER=@WEBUSER@
-
 INSTALL = @INSTALL@
 
-CONFDIR=${DESTDIR}$(localstatedir)/rpki/conf
 INSTDIR=${DESTDIR}$(datarootdir)/rpki
 PYTHONPATH=${DESTDIR}${sysconfdir}/rpki
 
@@ -45,8 +42,6 @@ apache.conf: $(srcdir)/apache.conf.in Makefile
 .PHONY: install-perms install-data install
 
 install-perms:
-	mkdir -p $(CONFDIR)
-	chown -R $(WEBUSER) $(CONFDIR)
 
 install-apache:
 	${INSTALL} -m 644 apache.conf $(INSTDIR)

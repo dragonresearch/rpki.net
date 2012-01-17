@@ -640,7 +640,6 @@ LIBOBJS
 DJANGO_ADMIN
 DJANGO_DIR
 SECRET_KEY
-WEBUSER
 OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 RPKID_SUBDIRS
@@ -4929,22 +4928,6 @@ fi
 
 if test $build_django = yes
 then
-	# the user that the apache process is running as
-	if test "x$WEBUSER" = "x"; then
-		for u in apache www-data www; do
-			if $GREP $u /etc/passwd >/dev/null 2>&1; then
-				WEBUSER=$u
-				break
-			fi
-		done
-		if test "x$WEBUSER" = "x"; then
-			{ { $as_echo "$as_me:$LINENO: error: Could not determine which user the apache process runs as.  Please specify WEBUSER=<USERNAME>." >&5
-$as_echo "$as_me: error: Could not determine which user the apache process runs as.  Please specify WEBUSER=<USERNAME>." >&2;}
-   { (exit 1); exit 1; }; }
-		fi
-	fi
-
-
         # source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
         SECRET_KEY=`$PYTHON -c 'import random; print "".join(random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50))'`
 

@@ -262,6 +262,6 @@ class Timestamp(models.Model):
     ts = models.DateTimeField(null=False, auto_now=True)
 
     def __unicode__(self):
-        return self.name
+        return '%s: %s' % (self.name, self.ts)
 
 # vim:sw=4 ts=8 expandtab

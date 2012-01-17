@@ -50,6 +50,7 @@ class GhostbusterAdmin(admin.ModelAdmin):
     pass
 
 class TimestampAdmin(admin.ModelAdmin):
+    list_display = ('name', 'ts')
     pass
 
 admin.site.register(models.AddressRange, AddressRangeAdmin)

@@ -42,6 +42,9 @@ myrpki_namespaceQName = "{" + myrpki_namespace + "}"
 
 myrpki_section = "myrpki"
 irdbd_section  = "irdbd"
+rpkid_section  = "rpkid"
+pubd_section   = "pubd"
+rootd_section  = "rootd"
 
 # A whole lot of exceptions
 
@@ -252,7 +255,7 @@ class Zookeeper(object):
 
     rpki.irdb.Rootd.objects.get_or_certify(
       issuer = self.resource_ca,
-      service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port"))
+      service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port", section = myrpki_section))
 
     # The following assumes we'll set up the respository manually.
     # Not sure this is a reasonable assumption, particularly if we
@@ -278,29 +281,29 @@ class Zookeeper(object):
 
     if self.run_rpkid:
       rpkid = self.server_ca.ee_certificates.get(purpose = "rpkid")
-      writer(self.cfg.get("bpki-ta",    section = "rpkid"), self.server_ca.certificate)
-      writer(self.cfg.get("rpkid-key",  section = "rpkid"), rpkid.private_key)
-      writer(self.cfg.get("rpkid-cert", section = "rpkid"), rpkid.certificate)
-      writer(self.cfg.get("irdb-cert",  section = "rpkid"),
+      writer(self.cfg.get("bpki-ta",    section = rpkid_section), self.server_ca.certificate)
+      writer(self.cfg.get("rpkid-key",  section = rpkid_section), rpkid.private_key)
+      writer(self.cfg.get("rpkid-cert", section = rpkid_section), rpkid.certificate)
+      writer(self.cfg.get("irdb-cert",  section = rpkid_section),
              self.server_ca.ee_certificates.get(purpose = "irdbd").certificate)
-      writer(self.cfg.get("irbe-cert",  section = "rpkid"),
+      writer(self.cfg.get("irbe-cert",  section = rpkid_section),
              self.server_ca.ee_certificates.get(purpose = "irbe").certificate)
 
     if self.run_pubd:
       pubd = self.server_ca.ee_certificates.get(purpose = "pubd")
-      writer(self.cfg.get("bpki-ta",   section = "pubd"), self.server_ca.certificate)
-      writer(self.cfg.get("pubd-key",  section = "pubd"), pubd.private_key)
-      writer(self.cfg.get("pubd-cert", section = "pubd"), pubd.certificate)
-      writer(self.cfg.get("irbe-cert", section = "pubd"),
+      writer(self.cfg.get("bpki-ta",   section = pubd_section), self.server_ca.certificate)
+      writer(self.cfg.get("pubd-key",  section = pubd_section), pubd.private_key)
+      writer(self.cfg.get("pubd-cert", section = pubd_section), pubd.certificate)
+      writer(self.cfg.get("irbe-cert", section = pubd_section),
              self.server_ca.ee_certificates.get(purpose = "irbe").certificate)
 
     if self.run_rootd:
-      rootd = rpki.irdb.ResourceHolderCA.objects.get(handle = self.cfg.get("handle", section = "myrpki")).rootd
-      writer(self.cfg.get("bpki-ta",         section = "rootd"), self.server_ca.certificate)
-      writer(self.cfg.get("rootd-bpki-crl",  section = "rootd"), self.server_ca.latest_crl)
-      writer(self.cfg.get("rootd-bpki-key",  section = "rootd"), rootd.private_key)
-      writer(self.cfg.get("rootd-bpki-cert", section = "rootd"), rootd.certificate)
-      writer(self.cfg.get("child-bpki-cert", section = "rootd"), rootd.issuer.certificate)
+      rootd = rpki.irdb.ResourceHolderCA.objects.get(handle = self.cfg.get("handle", section = myrpki_section)).rootd
+      writer(self.cfg.get("bpki-ta",         section = rootd_section), self.server_ca.certificate)
+      writer(self.cfg.get("rootd-bpki-crl",  section = rootd_section), self.server_ca.latest_crl)
+      writer(self.cfg.get("rootd-bpki-key",  section = rootd_section), rootd.private_key)
+      writer(self.cfg.get("rootd-bpki-cert", section = rootd_section), rootd.certificate)
+      writer(self.cfg.get("child-bpki-cert", section = rootd_section), rootd.issuer.certificate)
 
 
   @django.db.transaction.commit_on_success
@@ -356,9 +359,10 @@ class Zookeeper(object):
     if child_handle is None:
       child_handle = c.get("handle")
 
-    service_uri = "http://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
-                                                  self.cfg.get("rpkid_server_port"),
-                                                  self.handle, child_handle)
+    service_uri = "http://%s:%s/up-down/%s/%s" % (
+      self.cfg.get("rpkid_server_host", section = myrpki_section),
+      self.cfg.get("rpkid_server_port", section = myrpki_section),
+      self.handle, child_handle)
 
     valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
 
@@ -550,13 +554,16 @@ class Zookeeper(object):
       ta = client_ta,
       sia_base = sia_base)
 
+    service_uri = "http://%s:%s/client/%s" % (
+      self.cfg.get("pubd_server_host", section = myrpki_section),
+      self.cfg.get("pubd_server_port", section = myrpki_section),
+      client_handle)
+
     e = Element("repository", type = "confirmed",
                 client_handle = client_handle,
                 parent_handle = parent_handle,
                 sia_base = sia_base,
-                service_uri = "http://%s:%s/client/%s" % (self.cfg.get("pubd_server_host"),
-                                                          self.cfg.get("pubd_server_port"),
-                                                          client_handle))
+                service_uri = service_uri)
 
     B64Element(e, "bpki_server_ta", self.server_ca.certificate)
     B64Element(e, "bpki_client_ta", client_ta)
@@ -772,7 +779,8 @@ class Zookeeper(object):
     """
 
     url = "http://%s:%s/left-right" % (
-      self.cfg.get("rpkid_server_host"), self.cfg.get("rpkid_server_port"))
+      self.cfg.get("rpkid_server_host", section = myrpki_section),
+      self.cfg.get("rpkid_server_port", section = myrpki_section))
 
     rpkid = self.server_ca.ee_certificates.get(purpose = "rpkid")
     irbe  = self.server_ca.ee_certificates.get(purpose = "irbe")
@@ -800,7 +808,8 @@ class Zookeeper(object):
     """
 
     url = "http://%s:%s/control" % (
-      self.cfg.get("pubd_server_host"), self.cfg.get("pubd_server_port"))
+      self.cfg.get("pubd_server_host", section = myrpki_section),
+      self.cfg.get("pubd_server_port", section = myrpki_section))
 
     pubd = self.server_ca.ee_certificates.get(purpose = "pubd")
     irbe = self.server_ca.ee_certificates.get(purpose = "irbe")
@@ -836,8 +845,10 @@ class Zookeeper(object):
     # Default values for CRL parameters are low, for testing.  Not
     # quite as low as they once were, too much expired CRL whining.
 
-    self_crl_interval = self.cfg.getint("self_crl_interval", 2 * 60 * 60)
-    self_regen_margin = self.cfg.getint("self_regen_margin", self_crl_interval / 4)
+    self_crl_interval = self.cfg.getint("self_crl_interval", 2 * 60 * 60,
+                                        section = myrpki_section)
+    self_regen_margin = self.cfg.getint("self_regen_margin", self_crl_interval / 4,
+                                        section = myrpki_section)
 
     # Make sure that pubd's BPKI CRL is up to date.
 

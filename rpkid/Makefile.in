@@ -48,7 +48,7 @@ SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpk
 
 AUX_SCRIPTS =
 
-SETTINGS = portal-gui/settings.py rpki/gui/app/settings.py portal-gui/apache/rpki.wsgi
+SETTINGS = portal-gui/settings.py rpki/gui/app/settings.py portal-gui/rpki.wsgi
 
 all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS}
 
@@ -255,7 +255,7 @@ portal-gui/scripts/rpkigui-response: portal-gui/scripts/rpkigui-response.py
 portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-routes.py
 	${COMPILE_DJANGO}
 
-portal-gui/apache/rpki.wsgi: ${srcdir}/portal-gui/apache/rpki.wsgi.in
+portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in
 	${COMPILE_DJANGO}
 
 portal-gui/settings.py: ${srcdir}/portal-gui/settings.py.in

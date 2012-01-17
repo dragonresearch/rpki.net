@@ -13,21 +13,14 @@
 #
 # Defines the URL to the portal-gui
 #
-WSGIScriptAlias / @INSTDIR@/apache/rpki.wsgi
-<Directory @INSTDIR@/rpkigui>
+WSGIScriptAlias / @INSTDIR@/wsgi/rpki.wsgi
+
+<Directory @INSTDIR@/media>
 Order deny,allow
 Allow from all
 </Directory>
 
-# for use with Django 1.3+
-#Alias /static/ @STATIC_DIR@/
-#<Directory @STATIC_DIR@>
-#Order allow,deny
-#Allow from all
-#</Directory>
-
-# for use with Django 1.2
-#Alias /media/ /var/www/html/media/
-#Alias /site_media/ /var/www/html/media/
+Alias /media/ @INSTDIR@/media/
+Alias /site_media/ @INSTDIR@/media/
 
 # vim:ft=apache

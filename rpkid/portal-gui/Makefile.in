@@ -21,7 +21,7 @@ WEBUSER=@WEBUSER@
 INSTALL = @INSTALL@
 
 CONFDIR=${DESTDIR}$(localstatedir)/rpki/conf
-INSTDIR=${DESTDIR}$(datarootdir)/rpki/gui
+INSTDIR=${DESTDIR}$(datarootdir)/rpki
 PYTHONPATH=${DESTDIR}${sysconfdir}/rpki
 
 # automatically built sources
@@ -39,7 +39,7 @@ distclean: clean
 edit = sed \
 	     -e 's|@INSTDIR[@]|$(INSTDIR)|g'
 
-apache/rpki.conf: $(srcdir)/apache/rpki.conf.in Makefile
+apache.conf: $(srcdir)/apache.conf.in Makefile
 	$(edit) $@.in > $@
 
 .PHONY: install-perms install-data install
@@ -49,9 +49,10 @@ install-perms:
 	chown -R $(WEBUSER) $(CONFDIR)
 
 install-apache:
-	${INSTALL} -d -m 755 $(INSTDIR)/apache
-	${INSTALL} -m 644 apache/rpki.conf $(INSTDIR)/apache
-	${INSTALL} -m 644 apache/rpki.wsgi $(INSTDIR)/apache
+	${INSTALL} -d -m 755 $(INSTDIR)/media
+	${INSTALL} -m 644 apache.conf $(INSTDIR)
+	${INSTALL} -d -m 755 $(INSTDIR)/wsgi
+	${INSTALL} -m 644 rpki.wsgi $(INSTDIR)/wsgi
 
 install-data: $(BUILD) install-apache
 	mkdir -p ${PYTHONPATH}

@@ -924,18 +924,26 @@ def route_view(request):
         qs = rpki.gui.routeview.models.RouteOrigin.objects.filter(prefix_min__gte=r.min, prefix_max__lte=r.max)
         for obj in qs:
             # determine the validation status of each route
-            obj.status_label = 'warning'
-            obj.status = 'Unknown'
+            # see draft-sidr-roa-validation-10
+
+            # 1. fetch all covering ROAs
+            # FIXME: need to munge IPv6 address prior to this query!
+            roas = rpki.gui.cacheview.models.ROAPrefix.objects.filter(prefix_min__lte=obj.prefix_min,
+                    prefix_max__gte=obj.prefix_max, family=obj.family)
+            # 2. if there are candidate set is empty, end with invalid
+            if not roas.exists():
+                obj.status = 'unknown'
+                obj.status_label = 'warning'
+            # 3. if any candidate roa matches the origin AS and max_length, end with valid
+            elif roas.filter(roas__asid=obj.asn, max_length__gte=obj.prefixlen()).exists():
+                obj.status_label = 'success'
+                obj.status = 'valid'
+            # 4. otherwise the route is invalid
+            else:
+                obj.status_label = 'important'
+                obj.status = 'invalid'
 
             routes.append(obj)
-
-#            status = 'Not Found'
-#            status_id = 'notfound'
-#
-#            roas = rpki.gui.cacheview.models.ROAPrefix.objects.filter()
-#
-#            obj.status = status
-#            obj.status_id = status_id
 
     return render('rpkigui/routes_view.html', { 'routes': routes }, request)
 

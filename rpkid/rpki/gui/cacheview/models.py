@@ -19,8 +19,8 @@ import time
 
 from django.db import models
 
-from rpki.resource_set import resource_range_ipv4, resource_range_ipv6
-from rpki.exceptions import MustBePrefix
+import rpki.ipaddrs
+import rpki.resource_set
 
 class TelephoneField(models.CharField):
     def __init__(self, *args, **kwargs):
@@ -28,40 +28,48 @@ class TelephoneField(models.CharField):
         models.CharField.__init__(self, *args, **kwargs)
 
 class AddressRange(models.Model):
-    family = models.IntegerField()
-    min = models.IPAddressField(db_index=True)
-    max = models.IPAddressField(db_index=True)
+    """Represents an IP address range.
+
+    The db backend doesn't support unsigned 64-bit integer, so store
+    the /63 in the database, and have the display function regenerate
+    the full value.  since nothing larger than a /48 should be
+    announced globally, it should be ok to pad the lower 65 bits of
+    `max` with 1s.  """
+
+    family = models.PositiveSmallIntegerField(null=False)
+    min = models.BigIntegerField(null=False)
+    max = models.BigIntegerField(null=False)
+
+    def get_min_display(self):
+        "Return the min address value as an rpki.ipaddr object."
+        return rpki.ipaddrs.v4addr(self.min) if self.family == 4 else rpki.ipaddrs.v6addr(self.min << 65)
+
+    def get_max_display(self):
+        "Return the max address value as an rpki.ipaddr object."
+        # FIXME this may fail for an IPv6 /64 single block, since we
+        # don't store the lower 65 bits in the database
+        return rpki.ipaddrs.v4addr(self.max) if self.family == 4 else rpki.ipaddrs.v6addr((self.max << 65) | 0x1ffffffffffffffffL)
 
     class Meta:
         ordering = ('family', 'min', 'max')
-        unique_together = ('family', 'min', 'max')
 
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.addressrange_detail', [str(self.pk)])
 
+    def as_resource_range(self):
+        cls = rpki.resource_set.resource_range_ipv4 if self.family == 4 else rpki.resource_set.resource_range_ipv6
+        return cls(self.get_min_display(), self.get_max_display())
+
     def __unicode__(self):
-        if self.min == self.max:
-            return u'%s' % self.min
-
-        if self.family == 4:
-            r = resource_range_ipv4.from_strings(self.min, self.max)
-        elif self.family == 6:
-            r = resource_range_ipv6.from_strings(self.min, self.max)
-
-        try:
-            prefixlen = r.prefixlen()
-        except MustBePrefix:
-            return u'%s-%s' % (self.min, self.max)
-        return u'%s/%d' % (self.min, prefixlen)
+        return u'%s' % self.as_resource_range()
 
 class ASRange(models.Model):
-    min = models.PositiveIntegerField(db_index=True)
-    max = models.PositiveIntegerField(db_index=True)
+    min = models.PositiveIntegerField(null=False)
+    max = models.PositiveIntegerField(null=False)
 
     class Meta:
         ordering = ('min', 'max')
-        #unique_together = ('min', 'max')
 
     def __unicode__(self):
         if self.min == self.max:
@@ -81,9 +89,9 @@ class ValidationLabel(models.Model):
     Represents a specific error condition defined in the rcynic XML
     output file.
     """
-    label = models.CharField(max_length=30, db_index=True, unique=True)
-    status = models.CharField(max_length=255)
-    kind = models.PositiveSmallIntegerField(choices=kinds)
+    label = models.CharField(max_length=79, db_index=True, unique=True)
+    status = models.CharField(max_length=255, null=False)
+    kind = models.PositiveSmallIntegerField(choices=kinds, null=False)
 
     def __unicode__(self):
         return self.label
@@ -95,9 +103,9 @@ generations = list(enumerate(('current', 'backup')))
 generations_dict = dict((val, key) for (key, val) in generations)
 
 class ValidationStatus(models.Model):
-    timestamp  = models.DateTimeField()
+    timestamp  = models.DateTimeField(null=False)
     generation = models.PositiveSmallIntegerField(choices=generations, null=True)
-    status     = models.ForeignKey('ValidationLabel')
+    status     = models.ForeignKey('ValidationLabel', null=False)
 
     class Meta:
         abstract = True
@@ -109,20 +117,20 @@ class SignedObject(models.Model):
     value for the 'related_name' attribute.
     """
     # attributes from rcynic's output XML file
-    uri        = models.URLField(unique=True, db_index=True)
+    uri        = models.URLField(unique=True, db_index=True, null=False)
 
     # on-disk file modification time
-    mtime      = models.PositiveIntegerField(default=0)
+    mtime      = models.PositiveIntegerField(default=0, null=False)
 
     # SubjectName
-    name  = models.CharField(max_length=255)
+    name  = models.CharField(max_length=255, null=False)
 
     # value from the SKI extension
-    keyid = models.CharField(max_length=50, db_index=True)
+    keyid = models.CharField(max_length=60, db_index=True, null=False)
 
     # validity period from EE cert which signed object
-    not_before = models.DateTimeField()
-    not_after  = models.DateTimeField()
+    not_before = models.DateTimeField(null=False)
+    not_after  = models.DateTimeField(null=False)
 
     class Meta:
         abstract = True
@@ -161,41 +169,80 @@ class Cert(SignedObject):
     addresses = models.ManyToManyField(AddressRange, related_name='certs')
     asns      = models.ManyToManyField(ASRange, related_name='certs')
     issuer    = models.ForeignKey('Cert', related_name='children', null=True, blank=True)
-    sia       = models.CharField(max_length=255)
+    sia       = models.CharField(max_length=255, null=False)
 
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.cert_detail', [str(self.pk)])
 
 class ValidationStatus_Cert(ValidationStatus):
-    cert = models.ForeignKey('Cert', related_name='statuses')
+    cert = models.ForeignKey('Cert', related_name='statuses',
+            null=False)
 
 class ROAPrefix(models.Model):
-    family     = models.PositiveIntegerField()
-    prefix     = models.IPAddressField()
-    bits       = models.PositiveIntegerField()
-    max_length = models.PositiveIntegerField()
+    """One prefix in a ROA.
+
+    See comment above in AddressRange about how IPv6 addresses are
+    stored.
+
+    The prefix is broken out into min and max values rather than min/bits in
+    order to allow for searches using sql.  """
+
+    family     = models.PositiveSmallIntegerField(null=False)
+    prefix_min = models.BigIntegerField(null=False, db_index=True)
+    prefix_max = models.BigIntegerField(null=False, db_index=True)
+    max_length = models.PositiveSmallIntegerField(null=False)
 
     class Meta:
-        ordering = ['family', 'prefix', 'bits', 'max_length']
+        ordering = ('prefix_min', 'prefix_max', 'max_length')
+        verbose_name_plural = 'ROAPrefixes'
+
+    def min(self):
+        "Return the min prefix value as an rpki.ipaddrs.v?addr object."
+        if self.family == 4:
+            return rpki.ipaddrs.v4addr(self.prefix_min)
+        return rpki.ipaddrs.v6addr(self.prefix_min << 65)
+
+    def max(self):
+        "Return the max prefix value as an rpki.ipaddrs.v?addr object."
+        if self.family == 4:
+            return rpki.ipaddrs.v4addr(self.prefix_max)
+        return rpki.ipaddrs.v6addr((self.prefix_max << 65) | 0x1ffffffffffffffffL)
+
+    def get_prefix_min_display(self):
+        return str(self.min())
+
+    def get_prefix_max_display(self):
+        return str(self.max())
+
+    def as_resource_range(self):
+        "Return the prefix as a rpki.resource_set.resource_range_ip object."
+        if self.family == 4:
+            return rpki.resource_set.resource_range_ipv4(self.min(), self.max())
+        else:
+            return rpki.resource_set.resource_range_ipv6((self.min() << 65),
+                    (self.max() << 65) | 0x1ffffffffffffffffL)
+
+    def as_roa_prefix(self):
+        "Return value as a rpki.resource_set.roa_prefix_ip object."
+        rng = self.as_resource_range()
+        cls = rpki.resource_set.roa_prefix_ipv4 if self.family == 4 else rpki.resource_set.roa_prefix_ipv6
+        return cls(rng.min, rng.prefixlen(), self.max_length)
 
     def __unicode__(self):
-        if self.bits == self.max_length:
-            return u'%s/%d' % (self.prefix, self.bits)
-        else:
-            return u'%s/%d-%d' % (self.prefix, self.bits, self.max_length)
+        return u'%s' % str(self.as_roa_prefix())
 
 class ROA(SignedObject):
-    asid     = models.PositiveIntegerField()
+    asid     = models.PositiveIntegerField(null=False)
     prefixes = models.ManyToManyField(ROAPrefix, related_name='roas')
-    issuer   = models.ForeignKey('Cert', related_name='roas')
+    issuer   = models.ForeignKey('Cert', related_name='roas', null=False)
 
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.roa_detail', [str(self.pk)])
 
     class Meta:
-        ordering = ['asid']
+        ordering = ('asid',)
 
     def __unicode__(self):
         return u'ROA for AS%d' % self.asid
@@ -205,14 +252,14 @@ class ROA(SignedObject):
         return ('rpki.gui.cacheview.views.roa_detail', [str(self.pk)])
 
 class ValidationStatus_ROA(ValidationStatus):
-    roa = models.ForeignKey('ROA', related_name='statuses')
+    roa = models.ForeignKey('ROA', related_name='statuses', null=False)
 
 class Ghostbuster(SignedObject):
-    full_name     = models.CharField(max_length=40)
+    full_name = models.CharField(max_length=40)
     email_address = models.EmailField(blank=True, null=True)
-    organization  = models.CharField(blank=True, null=True, max_length=255)
-    telephone     = TelephoneField(blank=True, null=True)
-    issuer        = models.ForeignKey('Cert', related_name='ghostbusters')
+    organization = models.CharField(blank=True, null=True, max_length=255)
+    telephone = TelephoneField(blank=True, null=True)
+    issuer = models.ForeignKey('Cert', related_name='ghostbusters', null=False)
 
     @models.permalink
     def get_absolute_url(self):
@@ -228,6 +275,6 @@ class Ghostbuster(SignedObject):
         return self.telephone
 
 class ValidationStatus_Ghostbuster(ValidationStatus):
-    gbr = models.ForeignKey('Ghostbuster', related_name='statuses')
+    gbr = models.ForeignKey('Ghostbuster', related_name='statuses', null=False)
 
 # vim:sw=4 ts=8 expandtab

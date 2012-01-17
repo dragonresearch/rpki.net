@@ -21,6 +21,7 @@ import time, vobject
 from rpki.gui.cacheview import models
 from rpki.rcynic import rcynic_xml_iterator, label_iterator
 from rpki.sundial import datetime
+import rpki
 from django.db import transaction
 import django.db.models
 
@@ -55,7 +56,12 @@ class rcynic_object(object):
             mtime = os.stat(vs.filename)[8]
             if mtime != inst.mtime:
                 inst.mtime = mtime
-                obj = vs.obj # causes object to be lazily loaded
+                try:
+                    obj = vs.obj # causes object to be lazily loaded
+                except rpki.POW._der.DerError, e:
+                    print >>sys.stderr, '[error] Caught %s while processing %s: %s' % (type(e), vs.filename, e)
+                    return True
+
                 inst.not_before = obj.notBefore.to_sql()
                 inst.not_after = obj.notAfter.to_sql()
                 if debug:
@@ -93,6 +99,10 @@ class rcynic_object(object):
 
         return True
 
+# munge IPv6 addresses
+def munge(family, value):
+    return value if family == 4 else (value >> 65) & 0x7fffffffffffffffL
+
 class rcynic_cert(rcynic_object):
     model_class = models.Cert
 
@@ -124,7 +134,8 @@ class rcynic_cert(rcynic_object):
                 if debug:
                     sys.stderr.write('processing %s\n' % rng)
 
-                attrs = { 'family': family, 'min': str(rng.min), 'max': str(rng.max) }
+                attrs = { 'family': family, 'min': munge(family, rng.min),
+                        'max': munge(family, rng.max) }
                 q = models.AddressRange.objects.filter(**attrs)
                 if not q:
                     obj.addresses.create(**attrs)
@@ -145,8 +156,8 @@ class rcynic_roa(rcynic_object):
             family = fam_map[pfxset.__class__.__name__]
             for pfx in pfxset:
                 attrs = { 'family' : family,
-                          'prefix': str(pfx.prefix),
-                          'bits' : pfx.prefixlen,
+                          'prefix_min': munge(family, pfx.min()),
+                          'prefix_max': munge(family, pfx.max()),
                           'max_length': pfx.max_prefixlen }
                 q = models.ROAPrefix.objects.filter(**attrs)
                 if not q:
@@ -195,8 +206,10 @@ def process_cache(root, xml_file):
             # need to defer processing this object, most likely because
             # the <validation_status/> element for the signing cert hasn't
             # been seen yet
-            if not dispatch[vs.file_class.__name__](vs):
-                defer.append(vs)
+            with transaction.commit_on_success():
+                dispatch[vs.file_class.__name__](vs)
+                #if not dispatch[vs.file_class.__name__](vs):
+                #    defer.append(vs)
 
     # garbage collection
     # remove all objects which have no ValidationStatus references, which
@@ -215,6 +228,7 @@ def process_cache(root, xml_file):
         stop = time.time()
         sys.stdout.write('elapsed time %d seconds.\n' % (stop - start))
 
+@transaction.commit_on_success
 def process_labels(xml_file):
     if debug:
         sys.stderr.write('updating labels...\n')
@@ -249,8 +263,7 @@ if __name__ == '__main__':
     if options.debug:
         debug = True
 
-    with transaction.commit_on_success():
-        process_labels(options.logfile)
-        process_cache(options.root, options.logfile)
+    process_labels(options.logfile)
+    process_cache(options.root, options.logfile)
 
 # vim:sw=4 ts=8

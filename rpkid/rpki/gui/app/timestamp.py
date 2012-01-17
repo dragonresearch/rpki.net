@@ -19,6 +19,7 @@ from datetime import datetime
 
 def update(name):
     "Set the timestamp value for the given name to the current time."
-    obj, created = models.Timestamp.objects.get_or_create(name=name)
+    q = models.Timestamp.objects.filter(name=name)
+    obj = q[0] if q else models.Timestamp(name=name)
     obj.ts = datetime.utcnow()
     obj.save()

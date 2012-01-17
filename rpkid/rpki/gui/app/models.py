@@ -261,7 +261,7 @@ class Timestamp(models.Model):
     set timestamps rather than updating this model directly."""
 
     name = models.CharField(max_length=30, primary_key=True)
-    ts = models.DateTimeField(null=False, default=0)
+    ts = models.DateTimeField(null=False)
 
     def __unicode__(self):
         return '%s: %s' % (self.name, self.ts)

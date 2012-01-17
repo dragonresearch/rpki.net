@@ -1,15 +1,6 @@
-{% extends "base.html" %}
+{% extends "rpkigui/app_base.html" %}
 
-{% block sidebar %}
-<p><strong>{{ request.session.handle }}</strong>
-
-<ul class='unstyled'>
-  <li><a href="#">dashboard</a></li>
-  <li><a href="{% url rpki.gui.app.views.parent_list %}">parents</a></li>
-  <li><a href="{% url rpki.gui.app.views.child_list %}">children</a></li>
-  <li><a href="{% url rpki.gui.app.views.roa_request_list %}">roas</a></li>
-  <li><a href="{% url rpki.gui.app.views.ghostbusters_list %}">ghostbusters</a></li>
-</ul>
+{% block sidebar_extra %}
 
 <ul class='unstyled'>
   <li><a href="{% url rpki.gui.app.views.conf_export %}" title="download XML identity to send to parent">export identity</a></li>
@@ -31,7 +22,7 @@
 <ul class='unstyled'>
     <li><a href="{% url rpki.gui.app.views.refresh %}">refresh</a></li>
 </ul>
-{% endblock %}
+{% endblock sidebar_extra %}
 
 {% block content %}
 

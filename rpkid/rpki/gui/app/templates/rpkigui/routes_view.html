@@ -1,28 +1,24 @@
 {% extends "rpkigui/app_base.html" %}
 
+{% block sidebar_extra %}
+<p>
+BGP data updated<br>
+IPv4: {{ timestamp.bgp_v4_import.isoformat }}<br>
+IPv6: {{ timestamp.bgp_v6_import.isoformat }}
+<p>
+rcynic cache updated<br>
+{{ timestamp.rcynic_import.isoformat }}
+
+{% endblock sidebar_extra %}
+
 {% block content %}
 
 <div class='page-header'>
-	<h1>Route View</h1>
+  <h1>Route View</h1>
 </div>
 
 <p>
 This view shows currently advertised routes for the prefixes listed in resource certs received from RPKI parents.
-
-<table class='condensed-table'>
-  <tr>
-    <th>Source</th>
-    <td>BGP IPv4</td>
-    <td>BGP IPv6</td>
-    <td>rcynic</td>
-  </tr>
-  <tr>
-    <th>Last Update</th>
-    <td>{{ timestamp.bgp_v4_import }}</td>
-    <td>{{ timestamp.bgp_v6_import }}</td>
-    <td>{{ timestamp.rcynic_import }}</td>
-  </tr>
-</table>
 
 <table class='zebra-striped condensed-table'>
   <tr>

@@ -15,8 +15,10 @@
 #
 
 import models
+from datetime import datetime
 
 def update(name):
     "Set the timestamp value for the given name to the current time."
     obj, created = models.Timestamp.objects.get_or_create(name=name)
-    if not created: obj.save() # force update for existing objects
+    obj.ts = datetime.utcnow()
+    obj.save()

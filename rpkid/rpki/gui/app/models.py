@@ -255,11 +255,13 @@ class Timestamp(models.Model):
     """Model to hold metadata about the collection of external data.
     
     This model is a hash table mapping a timestamp name to the
-    timestamp value.  The timestamp value has `auto_now=True` so it
-    merely needs to be saved to be updated."""
+    timestamp value.  All timestamps values are in UTC.
+    
+    The utility function rpki.gui.app.timestmap.update(name) should be used to
+    set timestamps rather than updating this model directly."""
 
     name = models.CharField(max_length=30, primary_key=True)
-    ts = models.DateTimeField(null=False, auto_now=True)
+    ts = models.DateTimeField(null=False, default=0)
 
     def __unicode__(self):
         return '%s: %s' % (self.name, self.ts)

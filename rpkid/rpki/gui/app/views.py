@@ -917,6 +917,7 @@ def route_view(request):
     routes = []
     for p in models.AddressRange.objects.filter(from_cert__parent__in=handle.parents.all()):
         r = p.as_resource_range()
+        print >>log, 'querying for routes matching %s' % r
         qs = rpki.gui.routeview.models.RouteOrigin.objects.filter(family=4, prefix_min__gte=r.min, prefix_max__lte=r.max)
         for obj in qs:
             # determine the validation status of each route

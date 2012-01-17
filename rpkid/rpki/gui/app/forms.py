@@ -20,7 +20,7 @@ from django import forms
 
 import rpki.ipaddrs
 
-from rpki.gui.app import models, misc
+from rpki.gui.app import models
 
 class AddConfForm(forms.Form):
     handle = forms.CharField(required=True,

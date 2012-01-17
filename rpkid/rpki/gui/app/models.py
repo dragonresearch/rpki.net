@@ -21,8 +21,6 @@ import socket
 from django.db import models
 from django.contrib.auth.models import User
 
-from rpki.gui.app.misc import str_to_range
-
 import rpki.resource_set
 import rpki.exceptions
 import rpki.irdb.models

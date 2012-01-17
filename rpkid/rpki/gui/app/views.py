@@ -33,7 +33,7 @@ from django.views.generic.list_detail import object_list, object_detail
 from django.views.generic.create_update import delete_object, update_object, create_object
 from django.core.urlresolvers import reverse
 
-from rpki.gui.app import models, forms, glue, misc, settings
+from rpki.gui.app import models, forms, glue, settings
 from rpki import resource_set
 import rpki.irdb
 import rpki.exceptions

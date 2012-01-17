@@ -25,7 +25,7 @@ INSTDIR=${DESTDIR}$(datarootdir)/rpki
 PYTHONPATH=${DESTDIR}${sysconfdir}/rpki
 
 # automatically built sources
-BUILD=apache/rpki.conf
+BUILD=apache.conf
 
 all: $(BUILD)
 

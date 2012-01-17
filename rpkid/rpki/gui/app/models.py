@@ -104,7 +104,7 @@ class RoaRequest(rpki.irdb.models.RoaRequest):
         proxy = True
 
     def __unicode__(self):
-        return u'roa request for asn %d' % self.asn
+        return u"%s's roa request for AS%d" % (self.issuer.handle, self.asn)
 
 class RoaRequestPrefix(rpki.irdb.models.RoaRequestPrefix):
     class Meta:

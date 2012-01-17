@@ -1,6 +1,6 @@
 import sys, itertools, re
 
-from django.db import transaction
+from django.db import transaction, connection
 
 from rpki.gui.routeview import models
 from rpki.resource_set import resource_range_ipv4, resource_range_ipv6
@@ -45,18 +45,36 @@ for row in itertools.islice(f, 5, None):
 
 f.close()
 
-@transaction.commit_on_success
 def commit():
-    print 'Deleting rows from table...'
-    models.RouteOrigin.objects.all().delete()
+    cursor = connection.cursor()
 
+    # an OperationalError exception is thrown when the index doesn't exist
+    try:
+        print 'Removing existing index...'
+        cursor.execute('DROP INDEX routeview_routeorigin_idx ON routeview_routeorigin')
+    except Exception, e:
+        print type(e)
+        print e
+    cursor.execute('BEGIN')
+
+    print 'Deleting rows from table...'
+    cursor.execute('DELETE FROM routeview_routeorigin')
+
+    print 'Adding rows to table...'
     for prefix, asns in prefixes.iteritems():
         family = 6 if ':' in prefix else 4
         cls = resource_range_ipv6 if family == 6 else resource_range_ipv4
         rng = cls.parse_str(prefix)
 
-        for asn in asns:
-            print 'Creating row for prefix=%s asn=%d' % (prefix, asn)
-            models.RouteOrigin.objects.create(prefix_min=rng.min, prefix_max=rng.max, family=family, asn=asn)
+        cursor.executemany("INSERT INTO routeview_routeorigin SET family=%s, asn=%s, prefix_min=X%s, prefix_max=X%s",
+                    [(family, asn, '%032x' % rng.min, '%032x' % rng.max) for asn in asns])
+
+    print 'Committing...'
+    cursor.execute('COMMIT')
+
+    print 'Creating index on table...'
+    cursor.execute('CREATE INDEX routeview_routeorigin_idx ON routeview_routeorigin (family, prefix_min, prefix_max)')
+
+    transaction.commit_unless_managed()
 
 commit()

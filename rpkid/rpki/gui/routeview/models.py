@@ -29,12 +29,12 @@ class PositiveHugeIntegerField(models.Field):
 
 class RouteOrigin(models.Model):
 
-    asn = models.PositiveIntegerField(help_text='origin AS', db_index=True)
+    asn = models.PositiveIntegerField(help_text='origin AS')
     family = models.PositiveSmallIntegerField(help_text='IP version')
 
     # address stored as unsigned integer to faciliate lookups
-    prefix_min = PositiveHugeIntegerField(db_index=True)
-    prefix_max = PositiveHugeIntegerField(db_index=True)
+    prefix_min = PositiveHugeIntegerField()
+    prefix_max = PositiveHugeIntegerField()
 
     def as_range(self):
         """
@@ -61,8 +61,8 @@ class RouteOrigin(models.Model):
 
     class Meta:
         # sort order reflects what "sh ip bgp" outputs
-        ordering = ( 'prefix_min', 'prefix_max', 'asn' )
+        ordering = ( 'family', 'prefix_min', 'prefix_max', 'asn' )
 
-        unique_together = ('asn', 'prefix_min', 'prefix_max')
+        unique_together = ('family', 'asn', 'prefix_min', 'prefix_max')
 
 # vim:sw=4 ts=8 expandtab

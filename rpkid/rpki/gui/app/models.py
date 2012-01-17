@@ -101,14 +101,14 @@ class ResourceRangeAS(models.Model):
 
 class RoaRequest(rpki.irdb.models.RoaRequest):
     class Meta:
-        prefix = True
+        proxy = True
 
     def __unicode__(self):
         return u'roa request for asn %d' % self.asn
 
 class RoaRequestPrefix(rpki.irdb.models.RoaRequestPrefix):
     class Meta:
-        prefix = True
+        proxy = True
 
     def __unicode__(self):
         return u'roa request prefix %s/%d-%d for asn %d' % (self.prefix, self.prefixlen, self.max_prefixlen, self.roa_request.asn)

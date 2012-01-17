@@ -113,20 +113,6 @@ class RoaRequestPrefix(rpki.irdb.models.RoaRequestPrefix):
     def __unicode__(self):
         return u'roa request prefix %s/%d-%d for asn %d' % (self.prefix, self.prefixlen, self.max_prefixlen, self.roa_request.asn)
 
-    def as_roa_prefix(self):
-        if self.family == 4:
-            r = resource_set.roa_prefix_ipv4(ipaddrs.v4addr(self.prefix), self.prefixlen, self.max_prefixlen)
-        else:
-            r = resource_set.roa_prefix_ipv6(ipaddrs.v6addr(self.prefix), self.prefixlen, self.max_prefixlen)
-        return r
-
-    def as_resource_range(self):
-        if self.family == 4:
-            r = resource_set.resource_range_ipv4.make_prefix(ipaddrs.v4addr(self.prefix), self.prefixlen)
-        else:
-            r = resource_set.resource_range_ipv6.make_prefix(ipaddrs.v6addr(self.prefix), self.prefixlen)
-        return r
-
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.app.views.roa_detail', [str(self.pk)])

@@ -34,7 +34,6 @@ from django.views.generic.create_update import delete_object, update_object, cre
 from django.core.urlresolvers import reverse
 
 from rpki.gui.app import models, forms, glue, misc, AllocationTree, settings
-from rpki.gui.app.asnset import asnset
 from rpki import resource_set
 import rpki.irdb
 import rpki.exceptions

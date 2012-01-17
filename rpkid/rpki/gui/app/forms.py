@@ -21,7 +21,6 @@ from django import forms
 import rpki.ipaddrs
 
 from rpki.gui.app import models, misc
-from rpki.gui.app.asnset import asnset
 
 class AddConfForm(forms.Form):
     handle = forms.CharField(required=True,
@@ -49,93 +48,6 @@ class ImportForm(forms.Form):
     '''Form used for uploading parent/child identity xml files'''
     handle = forms.CharField(max_length=30, help_text='your name for this entity')
     xml = forms.FileField(help_text='xml filename')
-
-def PrefixSplitForm(parent, *args, **kwargs):
-    class _wrapper(forms.Form):
-        prefix = forms.CharField(max_length=200, help_text='CIDR or range')
-
-        def clean(self):
-            p = self.cleaned_data.get('prefix')
-            try:
-                r = misc.parse_resource_range(p)
-            except ValueError, err:
-                print err
-                raise forms.ValidationError, 'invalid prefix or range'
-            # we get AssertionError is the range is misordered (hi before lo)
-            except AssertionError, err:
-                print err
-                raise forms.ValidationError, 'invalid prefix or range'
-            pr = parent.as_resource_range()
-            if r.min < pr.min or r.max > pr.max:
-                raise forms.ValidationError, \
-                        'range is outside parent range'
-            if r.min == pr.min and r.max == pr.max:
-                raise forms.ValidationError, \
-                        'range is equal to parent'
-            if parent.allocated:
-                raise forms.ValidationError, 'prefix is assigned to child'
-            for p in parent.children.all():
-                c = p.as_resource_range()
-                if c.min <= r.min <= c.max or c.min <= r.max <= c.max:
-                    raise forms.ValidationError, \
-                            'overlap with another child prefix: %s' % (c,)
-
-            return self.cleaned_data
-    return _wrapper(*args, **kwargs)
-
-def PrefixAllocateForm(iv, child_set, *args, **kwargs):
-    class _wrapper(forms.Form):
-        child = forms.ModelChoiceField(initial=iv, queryset=child_set,
-                required=False, empty_label='(Unallocated)')
-    return _wrapper(*args, **kwargs)
-
-def PrefixRoaForm(prefix, *args, **kwargs):
-    prefix_range = prefix.as_resource_range()
-
-    class _wrapper(forms.Form):
-        asns = forms.CharField(max_length=200, required=False,
-                help_text='Comma-separated list of ASNs')
-        max_length = forms.IntegerField(min_value=prefix_range.prefixlen(),
-                max_value=prefix_range.datum_type.bits,
-                initial=prefix_range.prefixlen(),
-                help_text='must be in range %d-%d' % (prefix_range.prefixlen(), prefix_range.datum_type.bits))
-
-        def clean_asns(self):
-            try:
-                v = asnset(self.cleaned_data.get('asns'))
-                return ','.join(str(x) for x in sorted(v))
-            except ValueError:
-                raise forms.ValidationError, \
-                        'Must be a list of integers separated by commas.'
-            return self.cleaned_data['asns']
-
-        def clean(self):
-            if not prefix.is_prefix():
-                raise forms.ValidationError, \
-                        '%s can not be represented as a prefix.' % (prefix,)
-            if prefix.allocated:
-                raise forms.ValidationError, \
-                        'Prefix is allocated to a child.'
-            return self.cleaned_data
-
-    return _wrapper(*args, **kwargs)
-
-def PrefixDeleteForm(prefix, *args, **kwargs):
-    class _wrapped(forms.Form):
-
-        def clean(self):
-            if not prefix.parent:
-                raise forms.ValidationError, \
-                        'Can not delete prefix received from parent'
-            if prefix.allocated:
-                raise forms.ValidationError, 'Prefix is allocated to child'
-            if prefix.roa_requests.all():
-                raise forms.ValidationError, 'Prefix is used in your ROAs'
-            if prefix.children.all():
-                raise forms.ValidationError, 'Prefix has been split'
-            return self.cleaned_data
-
-    return _wrapped(*args, **kwargs)
 
 def GhostbusterForm(parent_qs, conf=None):
     """

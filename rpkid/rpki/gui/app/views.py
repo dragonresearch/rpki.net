@@ -35,6 +35,9 @@ from django.core.urlresolvers import reverse
 from rpki.gui.app import models, forms, glue, misc, AllocationTree, settings
 from rpki.gui.app.asnset import asnset
 
+import rpki.gui.cacheview.models
+import rpki.gui.routeview.models
+
 debug = False
 
 def my_login_required(f):
@@ -900,5 +903,33 @@ def destroy_handle(request, handle):
 
     return render('rpkigui/destroy_handle_form.html', { 'form': form ,
         'handle': handle }, request)
+
+@handle_required
+def route_view(request):
+    """
+    Display a list of global routing table entries which match resources listed
+    in received certificates.
+    """
+
+    handle = request.session['handle']
+    log = request.META['wsgi.errors']
+
+    routes = []
+    for p in models.AddressRange.objects.filter(from_cert__parent__in=handle.parents.all()):
+        r = p.as_resource_range()
+        qs = rpki.gui.routeview.models.RouteOrigin.objects.filter(prefix_min__gte=r.min, prefix_max__lte=r.max)
+        for obj in qs:
+            # determine the validation status of each route
+            routes.append(obj)
+
+#            status = 'Not Found'
+#            status_id = 'notfound'
+#
+#            roas = rpki.gui.cacheview.models.ROAPrefix.objects.filter()
+#
+#            obj.status = status
+#            obj.status_id = status_id
+
+    return render('rpkigui/routes_view.html', { 'routes': routes }, request)
 
 # vim:sw=4 ts=8 expandtab

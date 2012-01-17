@@ -176,68 +176,36 @@ def configure_resources(log, handle):
     z.synchronize([handle])
 
 def list_received_resources(log, conf):
-    """Query rpkid for this resource handle's received resources."""
+    """Query rpkid for this resource handle's received resources.
+
+    The semantics are to clear the entire table and populate with the
+    list of certs received.  Other models should not reference the
+    table directly with foreign keys."""
 
     z = Zookeeper(handle=conf.handle)
     pdus = z.call_rpkid(rpki.left_right.list_received_resources_elt.make_pdu(self_handle=conf.handle))
 
+    models.ResourceCert.objects.filter(parent__issuer=conf).delete()
+
     for pdu in pdus:
         if isinstance(pdu, rpki.left_right.list_received_resources_elt):
-            try:
-                # need to convert from irdb.models.Parent to app.models.Parent
-                parent = conf.parents.get(handle=pdu.parent_handle).app_parent
-            except rpki.irdb.models.Parent.DoesNotExist:
-                print >>log, 'error: %s received <list_received_resources/> for unknown parent %s' % (conf.handle, pdu.parent_handle,)
-                continue
+            parent = models.Parent.get(issuer=conf, handle=pdu.parent_handle)
 
             not_before = datetime.strptime(pdu.notBefore, "%Y-%m-%dT%H:%M:%SZ")
             not_after = datetime.strptime(pdu.notAfter, "%Y-%m-%dT%H:%M:%SZ")
 
-            #print >>log, 'uri: %s, not before: %s, not after: %s' % (pdu.uri, not_before, not_after)
-
-            # have we seen this resource cert before?
-            cert_set = parent.resources.filter(uri=pdu.uri)
-            if cert_set.count() == 0:
-                cert = models.ResourceCert(uri=pdu.uri, parent=parent,
-                        not_before=not_before, not_after=not_after)
-            else:
-                cert = cert_set[0]
-                # update timestamps since it could have been modified
-                cert.not_before = not_before
-                cert.not_after = not_after
-            cert.save()
+            cert = models.ResourceCert.objects.create(parent=parent, not_before=not_before, not_after=not_after)
 
             for asn in rpki.resource_set.resource_set_as(pdu.asn):
-                # see if this resource is already part of the cert
-                if cert.asn.filter(lo=asn.min, hi=asn.max).count() == 0:
-                    # ensure this range wasn't seen from another of our parents
-                    for v in models.Asn.objects.filter(lo=asn.min, hi=asn.max):
-                        # determine if resource is delegated from another parent
-                        if v.from_cert.filter(parent__in=conf.parents.all()).count():
-                            cert.asn.add(v)
-                            break
-                    else:
-                        cert.asn.create(lo=asn.min, hi=asn.max)
-                    cert.save()
+                cert.asn_ranges.add(min=asn.min, max=asn.max)
 
-            # IPv4/6 - not separated in the django db
-            def add_missing_address(addr_set):
-               for ip in addr_set:
-                   lo=str(ip.min)
-                   hi=str(ip.max)
-                   if cert.address_range.filter(lo=lo, hi=hi).count() == 0:
-                       # ensure that this range wasn't previously seen from another of our parents
-                       for v in models.AddressRange.objects.filter(lo=lo, hi=hi):
-                           # determine if this resource is delegated from another parent as well
-                           if v.from_cert.filter(parent__in=conf.parents.all()).count():
-                               cert.address_range.add(v)
-                               break
-                       else:
-                           cert.address_range.create(lo=lo, hi=hi)
-                       cert.save()
+            for rng in rpki.resource_set.resource_set_ipv4(pdu.ipv4):
+                cert.address_ranges.add(min=rng.min, max=rng.max)
 
-            add_missing_address(rpki.resource_set.resource_set_ipv4(pdu.ipv4))
-            add_missing_address(rpki.resource_set.resource_set_ipv6(pdu.ipv6))
+            for rng in rpki.resource_set.resource_set_ipv6(pdu.ipv6):
+                cert.address_ranges_v6.add(min=rng.min, max=rng.max)
+        else:
+            print >>log, "error: unexpected pdu from rpkid type=%s" % type(pdu)
 
 def config_from_template(dest, a):
     """

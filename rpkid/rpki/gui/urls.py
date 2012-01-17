@@ -40,5 +40,5 @@ urlpatterns = patterns('',
 
     # !!!REMOVE THIS BEFORE COMMITTING!!!
     (r'^site_media/(?P<path>.*)$', 'django.views.static.serve',
-            {'document_root': '/var/www/media'}),
+            {'document_root': '/var/www/html/media'}),
 )

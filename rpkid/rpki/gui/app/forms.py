@@ -1,6 +1,7 @@
 # $Id$
 """
 Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+Copyright (C) 2012  SPARTA, Inc. a Parsons Company
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -246,6 +247,30 @@ def ChildWizardForm(parent, *args, **kwargs):
             return self.cleaned_data['handle']
 
     return wrapped(*args, **kwargs)
+
+class AddASNForm(forms.Form):
+    as_range = forms.CharField(max_length=30, required=True, help_text='single AS or range')
+
+    def clean_as_range(self):
+        try:
+            r = resource_set.resource_range_as.parse_str(self.cleaned_data['asrange'])
+        except:
+            raise forms.ValidationError, 'invalid AS or range'
+        return str(r)
+
+class AddAddressForm(forms.Form):
+    prefix = forms.CharField(max_length=70, required=True, help_text='single IP address, CIDR or range')
+
+    def clean_prefix(self):
+        v = self.cleaned_data['prefix']
+        try:
+            r = resource_set.resource_range_ipv4.parse_str(v)
+        except rpki.exceptions.BadIPResource:
+            try:
+                r = resource_set.resource_range_ipv6.parse_str(v)
+            except:
+                raise forms.ValidationError, 'bad IP address, CIDR or range'
+       return str(r)
 
 class GenericConfirmationForm(forms.Form):
     """

@@ -2,6 +2,7 @@
 
 """
 Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+Copyright (C) 2012  SPARTA, Inc. a Parsons Company
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -34,6 +35,9 @@ from django.core.urlresolvers import reverse
 
 from rpki.gui.app import models, forms, glue, misc, AllocationTree, settings
 from rpki.gui.app.asnset import asnset
+from rpki import resource_set
+import rpki.irdb
+import rpki.exceptions
 
 import rpki.gui.cacheview.models
 import rpki.gui.routeview.models
@@ -57,6 +61,15 @@ def my_login_required(f):
 
     return wrapped
 
+def superuser_required(f):
+    "Decorator which returns HttpResponseForbidden if the user does not have superuser permissions."
+    @login_required
+    def _wrapped(request, *args, **kwargs):
+        if not request.user.is_superuser:
+            raise http.HttpResponseForbidden()
+        return f(request, *args, **kwargs)
+    return _wrapped
+
 # For each type of object, we have a detail view, a create view and
 # an update view.  We heavily leverage the generic views, only
 # adding our own idea of authorization.
@@ -68,18 +81,17 @@ def handle_required(f):
             if request.user.is_superuser:
                 conf = models.Conf.objects.all()
             else:
-                conf = models.Conf.objects.filter(owner=request.user)
+                conf = models.Conf.objects.filter(handle=request.user.username)
+
             if conf.count() == 1:
-                handle = conf[0]
+                request.session['handle'] = conf[0]
             elif conf.count() == 0:
                 return render('rpkigui/conf_empty.html', {}, request)
-                #return http.HttpResponseRedirect('/myrpki/conf/add')
             else:
                 # Should reverse the view for this instead of hardcoding
                 # the URL.
                 return http.HttpResponseRedirect(
                         reverse(conf_list) + '?next=' + urlquote(request.get_full_path()))
-            request.session[ 'handle' ] = handle
         return f(request, *args, **kwargs)
     return wrapped_fn
 
@@ -89,44 +101,67 @@ def render(template, context, request):
 
 @handle_required
 def dashboard(request, template_name='rpkigui/dashboard.html'):
-    '''The user's dashboard.'''
-    handle = request.session[ 'handle' ]
 
-    asns=[]
-    asn_list = models.Asn.objects.filter(from_cert__parent__in=handle.parents.all())
-    for a in asn_list:
-        f = AllocationTree.AllocationTreeAS(a)
-        if f.unallocated():
-            asns.append(f)
+    conf = request.session['handle']
 
-    prefixes = []
-    address_list = models.AddressRange.objects.filter(from_cert__parent__in=handle.parents.all())
-    for p in address_list:
-        f = AllocationTree.AllocationTreeIP.from_prefix(p)
-        if f.unallocated():
-            prefixes.append(f)
+    used_asns = resource_set.resource_set_as()
 
-    asns.sort(key=lambda x: x.range.min)
-    prefixes.sort(key=lambda x: x.range.min)
+    # asns used in my roas
+    roa_asns = set((obj.asn for obj in models.RoaRequest.objects.filter(issuer=conf)))
+    used_asns.extend((resource_set.resource_range_as(asn, asn) for asn in roa_asns))
+
+    # asns given to my children
+    child_asns = rpki.irdb.models.ChildASN(child__in=conf.children.all())
+    used_asns.extend((resource_set.resource_range_as(obj.start_as, obj.end_as) for obj in child_asns))
+
+    used_asns.canonize()
+
+    # my received asns
+    asn = models.ResourceRangeAS(cert__parent__issuer=conf)
+    my_asns = resource_set.resource_set_as([resource_set.resource_range_as(obj.min, obj.max) for obj in asns])
+
+    unused_asns = my_asns.difference(used_asns)
+
+    used_prefixes = resource_set.resource_set_ipv4()
+    used_prefixes_v6 = resource_set.resource_set_ipv6()
+
+    # prefixes used in my roas
+    used_prefixes.extend((obj.as_resource_range() for obj in models.RoaRequestPrefix.objects.filter(roa_request__issuer=conf, version=4)))
+    used_prefixes_v6.extend((obj.as_resource_range() for obj in models.RoaRequestPrefix.objects.filter(roa_request__issuer=conf, version=6)))
+
+    # prefixes given to my children
+    used_prefixes.extend((obj.as_resource_range() for obj in rpki.irdb.models.ChildNet(child__in=conf.children.all(), version=4)))
+    used_prefixes_v6.extend((obj.as_resource_range() for obj in rpki.irdb.models.ChildNet(child__in=conf.children.all(), version=6)))
+
+    used_prefixes.canonize()
+    used_prefixes_v6.canonize()
+
+    # my received prefixes
+    prefixes = models.ResourceRangeAddressV4.objects.filter(cert__parent__issuer=conf)
+    prefixes_v6 = models.ResourceRangeAddressV6.objects.filter(cert__parent__issuer=conf)
+    my_prefixes = resource_set.resource_set_ipv4([obj.as_resource_range() for obj in prefixes])
+    my_prefixes_v6 = resource_set.resource_set_ipv6([obj.as_resource_range() for obj in prefixes_v6])
+
+    unused_prefixes = my_prefixes.difference(used_prefixes)
+    unused_prefixes_v6 = my_prefixes_v6.difference(used_prefixes_v6)
 
     return render(template_name, {
         'conf': handle,
+        'unused_asns': unused_asns,
+        'unused_prefixes': unused_prefixes,
+        'unused_prefixes_v6': unused_prefixes_v6,
         'asns': asns,
-        'ars': prefixes,
-        'asn_list': asn_list,
-        'address_list': address_list }, request)
+        'prefixes': prefixes,
+        'prefixes_v6': prefixes }, request)
 
-@login_required
+@superuser_required
 def conf_list(request):
     """Allow the user to select a handle."""
-    if request.user.is_superuser:
-        queryset = models.Conf.objects.all()
-    else:
-        queryset = models.Conf.objects.filter(owner=request.user)
+    queryset = models.Conf.objects.all()
     return object_list(request, queryset,
             template_name='rpkigui/conf_list.html', template_object_name='conf', extra_context={ 'select_url' : reverse(conf_select) })
 
-@login_required
+@superuser_required
 def conf_select(request):
     '''Change the handle for the current session.'''
     if not 'handle' in request.GET:
@@ -135,19 +170,8 @@ def conf_select(request):
     next_url = request.GET.get('next', reverse(dashboard))
     if next_url == '':
         next_url = reverse(dashboard)
-
-    if request.user.is_superuser:
-        conf = models.Conf.objects.filter(handle=handle)
-    else:
-        # since the handle is passed in as a parameter, need to verify that
-        # the user is actually in the group
-        conf = models.Conf.objects.filter(handle=handle,
-                owner=request.user)
-    if conf:
-        request.session['handle'] = conf[0]
-        return http.HttpResponseRedirect(next_url)
-
-    return http.HttpResponseRedirect(reverse(conf_list) + '?next=' + next_url)
+    request.session['handle'] = get_object_or_404(models.Conf, handle=handle)
+    return http.HttpResponseRedirect(next_url)
 
 def serve_xml(content, basename):
     resp = http.HttpResponse(content , mimetype='application/xml')
@@ -164,7 +188,6 @@ def conf_export(request):
 def parent_list(request):
     """List view for parent objects."""
     conf = request.session['handle']
-
     return object_list(request, queryset=conf.parents.all(), template_name='rpkigui/parent_list.html',
             extra_context = { 'page_title': 'Parents' })
 
@@ -172,54 +195,62 @@ def parent_list(request):
 def child_list(request):
     """List view for child objects."""
     conf = request.session['handle']
-
     return object_list(request, queryset=conf.children.all(),
             template_name = 'rpkigui/child_list.html',
             extra_context = { 'page_title': 'Children' })
 
 @handle_required
-def parent_view(request, parent_handle):
+def child_add_resource(request, pk, form_class, unused_list, callback, template_name='rpkigui/child_add_resource_form.html'):
+    conf = request.session['handle']
+    child = models.Child.objects.filter(issuer=conf, pk=pk)
+    if request.method == 'POST':
+        form = form_class(request.POST, request.FILES)
+        if form.is_valid():
+            callback(child, form)
+            return http.HttpResponseRedirect(child.get_absolute_url())
+    else:
+        form = form_class()
+
+    return render(template_name, { 'object': child, 'form': form, 'unused': unused_list }, request)
+
+def add_asn_callback(child, form):
+    r = resource_set.resource_range_as.parse_str(form.as_range)
+    child.asns.create(min=r.min, max=r.max)
+
+def child_add_asn(request, pk):
+    return child_add_resource(request, pk, form_class=forms.AddASNForm, add_asn_callback)
+
+def add_address_callback(child, form):
+    try:
+        r = resource_set.resource_range_ipv4.parse_str(form.prefix)
+        family = 4
+    except rpki.exceptions.BadIPResource:
+        r = resource_set.resource_range_ipv6.parse_str(form.prefix)
+        family = 6
+    child.address_ranges.create(min=str(r.min), max=str(r.max), family=family)
+
+def child_add_address(request, pk):
+    return child_add_resource(request, pk, form_class=forms.AddAddressForm, add_address_callback)
+
+@handle_required
+def parent_view(request, pk):
     """Detail view for a particular parent."""
     handle = request.session['handle']
-    parent = get_object_or_404(handle.parents, handle__exact=parent_handle)
-
+    parent = get_object_or_404(handle.parents.all(), pk=pk)
     return render('rpkigui/parent_view.html', { 'parent': parent }, request)
 
-def get_parents_or_404(handle, obj):
-    '''Return the Parent object(s) that the given address range derives
-    from, or raise a 404 error.'''
-    cert_set = misc.top_parent(obj).from_cert.filter(parent__in=handle.parents.all())
-    if cert_set.count() == 0:
-        raise http.Http404, 'Object is not delegated from any parent'
-    return [c.parent for c in cert_set]
-
 @handle_required
-def asn_view(request, pk):
-    '''view/subdivide an asn range.'''
-    handle = request.session['handle']
-    obj = get_object_or_404(models.Asn.objects, pk=pk)
-    # ensure this resource range belongs to a parent of the current conf
-    parent_set = get_parents_or_404(handle, obj)
-    roas = handle.roas.filter(asn=obj.lo) # roas which contain this asn
-    unallocated = AllocationTree.AllocationTreeAS(obj).unallocated()
-    
-    return render('rpkigui/asn_view.html',
-            { 'asn': obj, 'parent': parent_set, 'roas': roas,
-                'unallocated' : unallocated }, request)
-
-@handle_required
-def child_view(request, child_handle):
+def child_view(request, pk):
     '''Detail view of child for the currently selected handle.'''
     handle = request.session['handle']
-    child = get_object_or_404(handle.children, handle__exact=child_handle)
-
+    child = get_object_or_404(handle.children.all(), pk=pk)
     return render('rpkigui/child_view.html', { 'child': child }, request)
 
 @handle_required
-def child_edit(request, child_handle):
+def child_edit(request, pk):
     """Edit the end validity date for a resource handle's child."""
     handle = request.session['handle']
-    child = get_object_or_404(handle.children, handle__exact=child_handle)
+    child = get_object_or_404(handle.children.all(), pk=pk)
 
     if request.method == 'POST':
         form = forms.ChildForm(request.POST, request.FILES, instance=child)
@@ -231,224 +262,6 @@ def child_edit(request, child_handle):
         form = forms.ChildForm(instance=child)
         
     return render('rpkigui/child_form.html', { 'child': child, 'form': form }, request)
-
-class PrefixView(object):
-    '''Extensible view for address ranges/prefixes.  This view can be
-    subclassed to add form handling for editing the prefix.'''
-
-    form = None
-    form_title = None
-    submit_value = 'Submit'
-
-    def __init__(self, request, pk, form_class=None):
-        self.handle = request.session['handle']
-        self.obj = get_object_or_404(models.AddressRange.objects, pk=pk)
-        # ensure this resource range belongs to a parent of the current conf
-        self.parent_set = get_parents_or_404(self.handle, self.obj)
-        self.form_class = form_class
-        self.request = request
- 
-    def __call__(self, *args, **kwargs):
-        if self.request.method == 'POST':
-            resp = self.handle_post()
-        else:
-            resp = self.handle_get()
-
-        # allow get/post handlers to return a custom response
-        if resp:
-            return resp
-        
-        u = AllocationTree.AllocationTreeIP.from_prefix(self.obj).unallocated()
-
-        return render('rpkigui/prefix_view.html',
-                { 'addr': self.obj, 'parent': self.parent_set, 'unallocated': u,
-                  'form': self.form,
-                  'form_title': self.form_title if self.form_title else 'Edit',
-                  'submit_value': self.submit_value },
-                self.request)
-
-    def handle_get(self):
-        '''Virtual method for extending GET handling.  Default action is
-        to call the form class constructor with the prefix object.'''
-        if self.form_class:
-            self.form = self.form_class(self.obj)
-
-    def form_valid(self):
-        '''Virtual method for handling a valid form.  Called by the default
-        implementation of handle_post().'''
-        pass
- 
-    def handle_post(self):
-        '''Virtual method for extending POST handling.  Default implementation
-        creates a form object using the form_class in the constructor and passing
-        the prefix object.  If the form's is_valid() method is True, it then
-        invokes this class's form_valid() method.'''
-        resp = None
-        if self.form_class:
-            self.form = self.form_class(self.obj, self.request.POST)
-            if self.form.is_valid():
-                resp = self.form_valid()
-        return resp
-
-@handle_required
-def address_view(request, pk):
-    return PrefixView(request, pk)()
-
-class PrefixSplitView(PrefixView):
-    '''Class for handling the prefix split form.'''
-
-    form_title = 'Split'
-    submit_value = 'Split'
-
-    def form_valid(self):
-        r = misc.parse_resource_range(self.form.cleaned_data['prefix'])
-        obj = models.AddressRange(lo=str(r.min), hi=str(r.max), parent=self.obj)
-        obj.save()
-        return http.HttpResponseRedirect(obj.get_absolute_url())
-
-@handle_required
-def prefix_split_view(request, pk):
-    return PrefixSplitView(request, pk, form_class=forms.PrefixSplitForm)()
-
-class PrefixAllocateView(PrefixView):
-    '''Class to handle the allocation to child form.'''
-
-    form_title = 'Give to Child'
-    submit_label = 'Allocate'
-
-    def handle_get(self):
-        self.form = forms.PrefixAllocateForm(
-                self.obj.allocated.pk if self.obj.allocated else None,
-                self.handle.children.all())
-
-    def handle_post(self):
-        self.form = forms.PrefixAllocateForm(None, self.handle.children.all(), self.request.POST)
-        if self.form.is_valid():
-            self.obj.allocated = self.form.cleaned_data['child']
-            self.obj.save()
-            glue.configure_resources(self.request.META['wsgi.errors'], self.handle)
-            return http.HttpResponseRedirect(self.obj.get_absolute_url())
-
-@handle_required
-def prefix_allocate_view(request, pk):
-    return PrefixAllocateView(request, pk)()
-
-def add_roa_requests(handle, prefix, asns, max_length):
-    for asid in asns:
-        if debug:
-            print 'searching for a roa for AS %d containing %s-%d' % (asid, prefix, max_length)
-        req_set = prefix.roa_requests.filter(roa__asn=asid, max_length=max_length)
-        if not req_set:
-            if debug:
-                print 'no roa for AS %d containing %s-%d' % (asid, prefix, max_length)
-
-            # find ROAs for prefixes derived from the same resource cert
-            # as this prefix
-            certs = misc.top_parent(prefix).from_cert.all()
-            roa_set = handle.roas.filter(asn=asid, cert__in=certs)
-
-            # FIXME: currently only creates a ROA/request for the first
-            # resource cert, not all of them
-            if roa_set:
-                roa = roa_set[0]
-            else:
-                if debug:
-                    print 'creating new roa for AS %d containg %s-%d' % (asid, prefix, max_length)
-                # no roa is present for this ASN, create a new one
-                roa = models.Roa.objects.create(asn=asid, conf=handle,
-                        active=False, cert=certs[0])
-                roa.save()
-
-            req = models.RoaRequest.objects.create(prefix=prefix, roa=roa,
-                    max_length=max_length)
-            req.save()
-
-class PrefixRoaView(PrefixView):
-    '''Class for handling the ROA creation form.'''
-
-    form_title = 'Issue ROA'
-    submit_value = 'Create'
-
-    def form_valid(self):
-        asns = asnset(self.form.cleaned_data['asns'])
-        add_roa_requests(self.handle, self.obj, asns, self.form.cleaned_data['max_length'])
-        glue.configure_resources(self.request.META['wsgi.errors'], self.handle)
-        return http.HttpResponseRedirect(self.obj.get_absolute_url())
- 
-@handle_required
-def prefix_roa_view(request, pk):
-    return PrefixRoaView(request, pk, form_class=forms.PrefixRoaForm)()
-
-class PrefixDeleteView(PrefixView):
-    form_title = 'Delete'
-
-    def form_valid(self):
-        self.obj.delete()
-        return http.HttpResponseRedirect(reverse(dashboard))
- 
-@handle_required
-def prefix_delete_view(request, pk):
-    return PrefixDeleteView(request, pk, form_class=forms.PrefixDeleteForm)()
-
-@handle_required
-def roa_request_delete_view(request, pk):
-    "Remove a ROA request from a particular prefix."
-
-    log = request.META['wsgi.errors']
-    handle = request.session['handle']
-    obj = get_object_or_404(models.RoaRequest.objects, pk=pk)
-    prefix = obj.prefix
-    # ensure this resource range belongs to a parent of the current conf
-    parent_set = get_parents_or_404(handle, prefix)
-
-    if request.method == 'POST':
-        roa = obj.roa
-        obj.delete()
-        if not roa.from_roa_request.all():
-            roa.delete()
-        glue.configure_resources(log, handle)
-        return http.HttpResponseRedirect(prefix.get_absolute_url())
-
-    match = roa_match(prefix.as_resource_range())
-
-    roa_pfx = obj.as_roa_prefix()
-
-    pfx = 'prefixes' if isinstance(roa_pfx, rpki.resource_set.roa_prefix_ipv4) else 'prefixes_v6'
-    args = { '%s__prefix_min' % pfx : roa_pfx.min(),
-             '%s__prefix_max' % pfx : roa_pfx.max(),
-             '%s__max_length' % pfx : roa_pfx.max_prefixlen }
-
-    # exclude ROAs which seem to match this request and display the result
-    routes = []
-    for route, roas in match:
-        qs = roas.exclude(asid=obj.roa.asn, **args)
-        validate_route(route, qs)
-        routes.append(route)
-
-    return render('rpkigui/roa_request_confirm_delete.html', { 'object': obj,
-        'routes': routes }, request)
-
-@handle_required
-def asn_allocate_view(request, pk):
-    log = request.META['wsgi.errors']
-    handle = request.session['handle']
-    obj = get_object_or_404(models.Asn.objects, pk=pk)
-    # ensure this resource range belongs to a parent of the current conf
-    parent_set = get_parents_or_404(handle, obj)
-
-    if request.method == 'POST':
-        form = forms.PrefixAllocateForm(None, handle.children.all(), request.POST)
-        if form.is_valid():
-            obj.allocated = form.cleaned_data['child']
-            obj.save()
-            glue.configure_resources(log, handle)
-            return http.HttpResponseRedirect(obj.get_absolute_url())
-    else:
-        form = forms.PrefixAllocateForm(obj.allocated.pk if obj.allocated else None,
-                handle.children.all())
-
-    return render('rpkigui/asn_view.html', { 'form': form,
-        'asn': obj, 'form': form, 'parent': parent_set }, request)
 
 # this is similar to handle_required, except that the handle is given in URL
 def handle_or_404(request, handle):
@@ -482,101 +295,6 @@ def download_roas(request, self_handle):
 def download_prefixes(request, self_handle):
     return download_csv(request, self_handle, 'prefixes')
 
-def save_to_inbox(conf, request_type, content):
-    """
-    Save an incoming request from a client to the incoming mailbox
-    for processing by a human.
-    """
-
-    user = conf.owner.all()[0]
-    filename = request_type + '.xml'
-
-    msg = email.message.Message()
-    msg['Date'] = email.utils.formatdate()
-    msg['From'] = '"%s" <%s>' % (conf.handle, user.email)
-    msg['Message-ID'] = email.utils.make_msgid()
-    msg['Subject'] = '%s for %s' % (filename, conf.handle)
-    msg['X-rpki-self-handle'] = conf.handle
-    msg['X-rpki-type'] = request_type
-    msg.add_header('Content-Disposition', 'attachment', filename=filename)
-    msg.set_type('application/x-rpki-setup')
-    msg.set_payload(content)
-
-    box = mailbox.Maildir(settings.INBOX)
-    box.add(msg)
-    box.close()
-
-    return http.HttpResponse()
-
-def get_response(conf, request_type):
-    """
-    If there is cached response for the given request type, simply
-    return it.  Otherwise, look in the outbox mailbox for a response.
-    """
-    filename = glue.confpath(conf.handle) + '/' + request_type + '.xml'
-    if not os.path.exists(filename):
-        box = mailbox.Maildir(settings.OUTBOX, factory=None)
-        for key, msg in box.iteritems():
-            # look for parent responses for this child
-            if msg.get('x-rpki-type') == request_type and msg.get('x-rpki-self-handle') == conf.handle:
-                with open(filename, 'w') as f:
-                    f.write(msg.get_payload())
-                break
-        else:
-            return http.HttpResponse('no response found', status=503)
-
-        box.remove(key) # remove the msg from the outbox
-
-    return serve_file(conf.handle, request_type + '.xml', 'application/xml')
- 
-@my_login_required
-def parent_request(request, self_handle):
-    conf = handle_or_404(request, self_handle)
-
-    if request.method == 'POST':
-        return save_to_inbox(conf, 'identity', request.POST['content'])
-    else:
-        return get_response(conf, 'parent')
-
-@my_login_required
-def repository_request(request, self_handle):
-    conf = handle_or_404(request, self_handle)
-
-    if request.method == 'POST':
-        return save_to_inbox(conf, 'repository', request.POST['content'])
-    else:
-        return get_response(conf, 'repository')
-
-@my_login_required
-def myrpki_xml(request, self_handle):
-    """
-    Handles POST of the myrpki.xml file for a given resource handle.
-    As a special case for resource handles hosted by APNIC, stash a
-    copy of the first xml message in the rpki inbox mailbox as this
-    will be required to complete the parent-child setup.
-    """
-    conf = handle_or_404(request, self_handle)
-    log = request.META['wsgi.errors']
-
-    if request.method == 'POST':
-        fname = glue.confpath(self_handle, '/myrpki.xml')
-
-        if not os.path.exists(fname):
-            print >>log, 'Saving a copy of myrpki.xml for handle %s to inbox' % conf.handle
-            save_to_inbox(conf, 'myrpki', request.POST['content'])
-
-        print >>log, 'writing %s' % fname
-        with open(fname, 'w') as myrpki_xml :
-            myrpki_xml.write(request.POST['content'])
-
-        # FIXME: used to run configure_daemons here, but it takes too
-        # long with many hosted handles.  rpkidemo still needs a way
-        # to do initial bpki setup with rpkid!
-
-        return http.HttpResponse('<p>success</p>')
-    else:
-        return serve_file(self_handle, 'myrpki.xml', 'application/xml')
-
 def login(request):
     """
     A version of django.contrib.auth.views.login that will return an
@@ -601,22 +319,53 @@ def login(request):
         return http.HttpResponse('<p>This should never been seen by a human</p>')
 
 @handle_required
-def roa_request_view(request, pk):
-    """not yet implemented"""
-    return
-
-@handle_required
-def roa_view(request, pk):
-    """not yet implemented"""
-    return
-
-@handle_required
-def roa_request_list(request):
+def roa_list(request):
+    "Displays a list of RoaRequestPrefix objects for the current resource handle."
+    log = request.META['wsgi.errors']
     conf = request.session['handle']
-
-    return object_list(request, queryset=models.RoaRequest.objects.filter(roa__in=conf.roas.all()),
+    return object_list(request, queryset=models.RoaRequestPrefix.objects.filter(roa_request__issuer=conf),
         template_name='rpkigui/roa_request_list.html',
         extra_context = { 'page_title': 'ROA Requests' })
+
+@handle_required
+def roa_delete(request, pk):
+    """Handles deletion of a single RoaRequestPrefix object.
+
+    Uses a form for double confirmation, displaying how the route
+    validation status may change as a result."""
+
+    log = request.META['wsgi.errors']
+    conf = request.session['handle']
+    obj = get_object_or_404(models.RoaRequestPrefix.objects, roa_request__issuer=conf, pk=pk)
+
+    if request.method == 'POST':
+        roa = obj.roa_request
+        obj.delete()
+        # if this was the last prefix on the ROA, delete the ROA request
+        if not roa.prefixes.exists():
+            roa.delete()
+        return http.HttpResponseRedirect(reverse(roa_request_list))
+
+    ### Process GET ###
+
+    match = roa_match(obj.as_resource_range())
+
+    roa_pfx = obj.as_roa_prefix()
+
+    pfx = 'prefixes' if isinstance(roa_pfx, resource_set.roa_prefix_ipv4) else 'prefixes_v6'
+    args = { '%s__prefix_min' % pfx : roa_pfx.min(),
+             '%s__prefix_max' % pfx : roa_pfx.max(),
+             '%s__max_length' % pfx : roa_pfx.max_prefixlen }
+
+    # exclude ROAs which seem to match this request and display the result
+    routes = []
+    for route, roas in match:
+        qs = roas.exclude(asid=obj.roa.asn, **args)
+        validate_route(route, qs)
+        routes.append(route)
+
+    return render('rpkigui/roa_request_confirm_delete.html', { 'object': obj,
+        'routes': routes }, request)
 
 @handle_required
 def ghostbusters_list(request):
@@ -624,8 +373,9 @@ def ghostbusters_list(request):
     Display a list of all ghostbuster requests for the current Conf.
     """
     conf = request.session['handle']
+    qs = models.Ghostbuster.filter(irdb__issuer=conf)
 
-    return object_list(request, queryset=conf.ghostbusters.all(),
+    return object_list(request, queryset=qs,
             template_name='rpkigui/ghostbuster_list.html',
             extra_context = { 'page_title': 'Ghostbusters' })
 
@@ -635,23 +385,23 @@ def ghostbuster_view(request, pk):
     Display an individual ghostbuster request.
     """
     conf = request.session['handle']
+    qs = models.Ghostbuster.filter(irdb__issuer=conf)
 
-    return object_detail(request, queryset=conf.ghostbusters.all(), object_id=pk, template_name='rpkigui/ghostbuster_detail.html')
+    return object_detail(request, queryset=qs, object_id=pk, template_name='rpkigui/ghostbuster_detail.html')
 
 @handle_required
 def ghostbuster_delete(request, pk):
     conf = request.session['handle']
 
     # verify that the object is owned by this conf
-    obj = get_object_or_404(models.Ghostbuster, pk=pk, conf=conf)
+    obj = get_object_or_404(models.Ghostbuster, pk=pk, irdb__issuer=conf)
 
     # modeled loosely on the generic delete_object() view.
     if request.method == 'POST':
-        obj.delete()
-        glue.configure_resources(request.META['wsgi.errors'], conf)
+        obj.irdb.delete() # should cause a cascade delete of 'obj'
         return http.HttpResponseRedirect(reverse(ghostbusters_list))
-    else:
-        return render('rpkigui/ghostbuster_confirm_delete.html', { 'object': obj }, request)
+
+    return render('rpkigui/ghostbuster_confirm_delete.html', { 'object': obj }, request)
 
 def _ghostbuster_edit(request, obj=None):
     """

@@ -1,19 +1,12 @@
 {% extends "rpkigui/app_base.html" %}
 
 {% block content %}
-<!--
-<ul class='breadcrumb'>
-  <li><a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> <span class='divider'>/</span></li>
-  <li>Children <span class='divider'>/</span></li>
-  <li class='active'>{{ child.handle }}</li>
-</ul>
--->
 
 <div class='page-header'>
-  <h1>Child View</h1>
+  <h1>Child Detail</h1>
 </div>
 
-<table>
+<table style='condensed-table'>
     <tr>
         <td>Child</td>
         <td>{{ child.handle }}</td>
@@ -25,10 +18,10 @@
 </table>
 
 <h2>Delegated Addresses</h2>
-{% if child.address_range.all %}
+{% if child.address_ranges.all %}
 <ul>
-{% for a in child.address_range.all %}
-<li><a href="{{ a.get_absolute_url }}">{{ a }}</a></li>
+{% for a in child.address_ranges.all %}
+<li>{{ a.as_resource_range }}</li>
 {% endfor %}
 </ul>
 {% else %}
@@ -36,10 +29,10 @@
 {% endif %}
 
 <h2>Delegated ASNs</h2>
-{% if child.asn.all %}
+{% if child.asns.all %}
 <ul>
-{% for a in child.asn.all %}
-<li><a href="{{ a.get_absolute_url }}">{{ a }}</a></li>
+{% for a in child.asns.all %}
+<li>{{ a.as_resource_range }}</li>
 {% endfor %}
 </ul>
 {% else %}

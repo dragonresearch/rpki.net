@@ -1,15 +1,6 @@
 {% extends "rpkigui/app_base.html" %}
 
-{# generic object list #}
-
 {% block content %}
-<!--
-<ul class='breadcrumb'>
-  <li><a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a> <span class='divider'>/</span></li>
-  <li class='active'>{{ page_title }}</li>
-</ul>
--->
-
 <div class='page-header'>
   <h1>{{ page_title }}</h1>
 </div>
@@ -22,7 +13,7 @@
     <td><a href="{{ object.prefix.get_absolute_url }}">{{ object.prefix }}</a></td>
     <td>{{ object.max_length }}</td>
     <td>{{ object.roa.asn }}</td>
-    <td><a class='btn danger' href="{{ object.get_absolute_url}}/delete">Delete</a></td>
+    <td><a class='btn danger' href="{{ object.get_absolute_url }}/delete">Delete</a></td>
   </tr>
   {% endfor %}
 </table>

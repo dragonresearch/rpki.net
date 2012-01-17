@@ -112,7 +112,7 @@ def commit():
 commit()
 
 print 'Updating timestamp metadata...'
-ts, created = Timestamp.objects.get_or_create(name='bgp-v4-import')
+ts, created = Timestamp.objects.get_or_create(name='bgp_v4_import')
 if not created: ts.save()
 
 sys.exit(0)

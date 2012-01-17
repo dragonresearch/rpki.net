@@ -111,4 +111,22 @@ class PrefixV6(Prefix):
     class Meta(Prefix.Meta):
         abstract = True
 
+class ASN(models.Model):
+    """Represents a range of ASNs.
+
+    This model is abstract, and is intended to be reused by applications."""
+
+    min = models.PositiveIntegerField(null=False)
+    max = models.PositiveIntegerField(null=False)
+
+    class Meta:
+        abstract = True
+        ordering = ('min', 'max')
+
+    def __unicode__(self):
+        if self.min == self.max:
+            return u'AS%d' % self.min
+        else:
+            return u'AS%s-%s' % (self.min, self.max)
+
 # vim:sw=4 ts=8 expandtab

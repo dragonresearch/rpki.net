@@ -94,9 +94,7 @@ class ResourceRangeAddressV4(rpki.gui.models.PrefixV4):
 class ResourceRangeAddressV6(rpki.gui.models.PrefixV6):
     cert = models.ForeignKey(ResourceCert, related_name='address_ranges_v6')
 
-class ResourceRangeAS(models.Model):
-    min = models.PositiveIntegerField()
-    max = models.PositiveIntegerField()
+class ResourceRangeAS(rpki.gui.models.ASN):
     cert = models.ForeignKey(ResourceCert, related_name='asn_ranges')
 
 class RoaRequest(rpki.irdb.models.RoaRequest):

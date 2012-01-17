@@ -1,5 +1,8 @@
 """
+$Id$
+
 Copyright (C) 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+Copyright (C) 2012  SPARTA, Inc. a Parsons Company
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -40,19 +43,7 @@ class AddressRangeV6(rpki.gui.models.PrefixV6):
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.addressrange_detail_v6', [str(self.pk)])
 
-class ASRange(models.Model):
-    min = models.PositiveIntegerField(null=False)
-    max = models.PositiveIntegerField(null=False)
-
-    class Meta:
-        ordering = ('min', 'max')
-
-    def __unicode__(self):
-        if self.min == self.max:
-            return u'AS%d' % self.min
-        else:
-            return u'AS%s-%s' % (self.min, self.max)
-
+class ASRange(rpki.gui.models.ASN):
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.asrange_detail', [str(self.pk)])

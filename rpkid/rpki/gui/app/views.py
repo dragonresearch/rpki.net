@@ -1,5 +1,5 @@
-
 # $Id$
+
 """
 Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 
@@ -914,27 +914,49 @@ def route_view(request):
     handle = request.session['handle']
     log = request.META['wsgi.errors']
 
+    # cache the 'object_accepted' value since it will be the same for all ROAs
+    object_accepted = rpki.gui.cacheview.models.ValidationLabel.objects.get(label='object_accepted')
+
     routes = []
     for p in models.AddressRange.objects.filter(from_cert__parent__in=handle.parents.all()):
         r = p.as_resource_range()
         print >>log, 'querying for routes matching %s' % r
+
         if isinstance(r, rpki.resource_set.resource_range_ipv6):
-            print >>log, 'skipping ipv6 address: %s' % r
-            continue
-        qs = rpki.gui.routeview.models.RouteOrigin.objects.filter(prefix_min__gte=r.min, prefix_max__lte=r.max)
+            route_manager = rpki.gui.routeview.models.RouteOriginV6.objects
+            roa_manager = rpki.gui.cacheview.models.ROAPrefixV6.objects
+        else:
+            # v4
+            route_manager = rpki.gui.routeview.models.RouteOrigin.objects
+            roa_manager = rpki.gui.cacheview.models.ROAPrefixV4.objects
+
+        qs = route_manager.filter(prefix_min__gte=r.min, prefix_max__lte=r.max)
         for obj in qs:
             # determine the validation status of each route
             # see draft-sidr-roa-validation-10
 
             # 1. fetch all covering ROAs
-            roas = rpki.gui.cacheview.models.ROAPrefixV4.objects.filter(prefix_min__lte=obj.prefix_min,
-                    prefix_max__gte=obj.prefix_max)
-            # 2. if there are candidate set is empty, end with invalid
+            #
+            # Cacheview also stores ROAs which did not validate (e.g. expired),
+            # so only select valid ones for this purpose (label is
+            # 'object_accepted').  This is what a router using the rpki-rtr
+            # would see, since the invalid ROAs are filtered.
+            #
+            # AS0 is not filtered at this step because we want the .exists()
+            # test to work properly.
+            #
+            roas = roa_manager.filter(
+                    prefix_min__lte=obj.prefix_min,
+                    prefix_max__gte=obj.prefix_max,
+                    roas__statuses__status=object_accepted)
+            # 2. if the candidate ROA set is empty, end with unknown
             if not roas.exists():
                 obj.status = 'unknown'
                 obj.status_label = 'warning'
             # 3. if any candidate roa matches the origin AS and max_length, end with valid
-            elif roas.filter(roas__asid=obj.asn, max_length__gte=obj.prefixlen()).exists():
+            #
+            # AS0 is always invalid.
+            elif obj.asn != 0 and roas.filter(roas__asid=obj.asn, max_length__gte=obj.prefixlen()).exists():
                 obj.status_label = 'success'
                 obj.status = 'valid'
             # 4. otherwise the route is invalid

@@ -85,7 +85,7 @@ def handle_required(f):
             if conf.count() == 1:
                 request.session['handle'] = conf[0]
             elif conf.count() == 0:
-                return render('rpkigui/conf_empty.html', {}, request)
+                return render('app/conf_empty.html', {}, request)
             else:
                 # Should reverse the view for this instead of hardcoding
                 # the URL.
@@ -99,7 +99,7 @@ def render(template, context, request):
             context_instance=RequestContext(request))
 
 @handle_required
-def dashboard(request, template_name='rpkigui/dashboard.html'):
+def dashboard(request, template_name='app/dashboard.html'):
 
     conf = request.session['handle']
 
@@ -158,7 +158,7 @@ def conf_list(request):
     """Allow the user to select a handle."""
     queryset = models.Conf.objects.all()
     return object_list(request, queryset,
-            template_name='rpkigui/conf_list.html', template_object_name='conf', extra_context={ 'select_url' : reverse(conf_select) })
+            template_name='app/conf_list.html', template_object_name='conf', extra_context={ 'select_url' : reverse(conf_select) })
 
 @superuser_required
 def conf_select(request):
@@ -187,7 +187,7 @@ def conf_export(request):
 def parent_list(request):
     """List view for parent objects."""
     conf = request.session['handle']
-    return object_list(request, queryset=conf.parents.all(), template_name='rpkigui/parent_list.html',
+    return object_list(request, queryset=conf.parents.all(), template_name='app/parent_list.html',
             extra_context = { 'page_title': 'Parents' })
 
 @handle_required
@@ -195,11 +195,11 @@ def child_list(request):
     """List view for child objects."""
     conf = request.session['handle']
     return object_list(request, queryset=conf.children.all(),
-            template_name = 'rpkigui/child_list.html',
+            template_name = 'app/child_list.html',
             extra_context = { 'page_title': 'Children' })
 
 @handle_required
-def child_add_resource(request, pk, form_class, unused_list, callback, template_name='rpkigui/child_add_resource_form.html'):
+def child_add_resource(request, pk, form_class, unused_list, callback, template_name='app/child_add_resource_form.html'):
     conf = request.session['handle']
     child = models.Child.objects.filter(issuer=conf, pk=pk)
     if request.method == 'POST':
@@ -236,14 +236,14 @@ def parent_view(request, pk):
     """Detail view for a particular parent."""
     handle = request.session['handle']
     parent = get_object_or_404(handle.parents.all(), pk=pk)
-    return render('rpkigui/parent_view.html', { 'parent': parent }, request)
+    return render('app/parent_view.html', { 'parent': parent }, request)
 
 @handle_required
 def child_view(request, pk):
     '''Detail view of child for the currently selected handle.'''
     handle = request.session['handle']
     child = get_object_or_404(handle.children.all(), pk=pk)
-    return render('rpkigui/child_view.html', { 'child': child }, request)
+    return render('app/child_view.html', { 'child': child }, request)
 
 @handle_required
 def child_edit(request, pk):
@@ -260,7 +260,7 @@ def child_edit(request, pk):
     else:
         form = forms.ChildForm(instance=child)
         
-    return render('rpkigui/child_form.html', { 'child': child, 'form': form }, request)
+    return render('app/child_form.html', { 'child': child, 'form': form }, request)
 
 # this is similar to handle_required, except that the handle is given in URL
 def handle_or_404(request, handle):
@@ -323,7 +323,7 @@ def roa_list(request):
     log = request.META['wsgi.errors']
     conf = request.session['handle']
     return object_list(request, queryset=models.RoaRequestPrefix.objects.filter(roa_request__issuer=conf),
-        template_name='rpkigui/roa_request_list.html',
+        template_name='app/roa_request_list.html',
         extra_context = { 'page_title': 'ROA Requests' })
 
 @handle_required
@@ -369,7 +369,7 @@ def roa_delete(request, pk):
         validate_route(route, qs)
         routes.append(route)
 
-    return render('rpkigui/roa_request_confirm_delete.html', { 'object': obj,
+    return render('app/roa_request_confirm_delete.html', { 'object': obj,
         'routes': routes }, request)
 
 @handle_required
@@ -381,7 +381,7 @@ def ghostbusters_list(request):
     qs = models.Ghostbuster.filter(irdb__issuer=conf)
 
     return object_list(request, queryset=qs,
-            template_name='rpkigui/ghostbuster_list.html',
+            template_name='app/ghostbuster_list.html',
             extra_context = { 'page_title': 'Ghostbusters' })
 
 @handle_required
@@ -392,7 +392,7 @@ def ghostbuster_view(request, pk):
     conf = request.session['handle']
     qs = models.Ghostbuster.filter(irdb__issuer=conf)
 
-    return object_detail(request, queryset=qs, object_id=pk, template_name='rpkigui/ghostbuster_detail.html')
+    return object_detail(request, queryset=qs, object_id=pk, template_name='app/ghostbuster_detail.html')
 
 @handle_required
 def ghostbuster_delete(request, pk):
@@ -406,7 +406,7 @@ def ghostbuster_delete(request, pk):
         obj.irdb.delete() # should cause a cascade delete of 'obj'
         return http.HttpResponseRedirect(reverse(ghostbusters_list))
 
-    return render('rpkigui/ghostbuster_confirm_delete.html', { 'object': obj }, request)
+    return render('app/ghostbuster_confirm_delete.html', { 'object': obj }, request)
 
 def _ghostbuster_edit(request, obj=None):
     """
@@ -427,7 +427,7 @@ def _ghostbuster_edit(request, obj=None):
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
         form = form_class(instance=obj)
-    return render('rpkigui/ghostbuster_form.html', { 'form': form, 'object': obj }, request)
+    return render('app/ghostbuster_form.html', { 'form': form, 'object': obj }, request)
 
 @handle_required
 def ghostbuster_edit(request, pk):
@@ -469,7 +469,7 @@ def import_parent(request):
     else:
         form = forms.ImportParentForm(conf)
 
-    return render('rpkigui/import_parent_form.html', { 'form': form }, request)
+    return render('app/import_parent_form.html', { 'form': form }, request)
 
 @handle_required
 def import_repository(request):
@@ -492,7 +492,7 @@ def import_repository(request):
     else:
         form = forms.ImportRepositoryForm()
 
-    return render('rpkigui/import_repository_form.html', { 'form': form }, request)
+    return render('app/import_repository_form.html', { 'form': form }, request)
 
 @handle_required
 def import_pubclient(request):
@@ -515,7 +515,7 @@ def import_pubclient(request):
     else:
         form = forms.ImportPubClientForm()
 
-    return render('rpkigui/import_pubclient_form.html', { 'form': form }, request)
+    return render('app/import_pubclient_form.html', { 'form': form }, request)
 
 @handle_required
 def import_child(request):
@@ -541,7 +541,7 @@ def import_child(request):
     else:
         form = forms.ImportChildForm(conf)
 
-    return render('rpkigui/import_child_form.html', { 'form': form }, request)
+    return render('app/import_child_form.html', { 'form': form }, request)
 
 @login_required
 def initialize(request):
@@ -556,7 +556,7 @@ def initialize(request):
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('rpkigui/initialize_form.html', { 'form': form }, request)
+    return render('app/initialize_form.html', { 'form': form }, request)
 
 @handle_required
 def child_wizard(request):
@@ -576,7 +576,7 @@ def child_wizard(request):
     else:
         form = forms.ChildWizardForm(conf)
 
-    return render('rpkigui/child_wizard_form.html', { 'form': form }, request)
+    return render('app/child_wizard_form.html', { 'form': form }, request)
 
 @handle_required
 def export_child_response(request, child_handle):
@@ -611,7 +611,7 @@ def update_bpki(request):
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('rpkigui/update_bpki_form.html', { 'form': form }, request)
+    return render('app/update_bpki_form.html', { 'form': form }, request)
 
 @handle_required
 def child_delete(request, child_handle):
@@ -628,7 +628,7 @@ def child_delete(request, child_handle):
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('rpkigui/child_delete_form.html', { 'form': form , 'object': child }, request)
+    return render('app/child_delete_form.html', { 'form': form , 'object': child }, request)
 
 @handle_required
 def parent_delete(request, parent_handle):
@@ -645,7 +645,7 @@ def parent_delete(request, parent_handle):
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('rpkigui/parent_view.html', { 'form': form ,
+    return render('app/parent_view.html', { 'form': form ,
         'parent': parent, 'submit_label': 'Delete' }, request)
 
 @login_required
@@ -665,13 +665,13 @@ def destroy_handle(request, handle):
         form = forms.GenericConfirmationForm(request.POST, request.FILES)
         if form.is_valid():
             glue.destroy_handle(log, handle)
-            return render('rpkigui/generic_result.html',
+            return render('app/generic_result.html',
                     { 'operation': 'Destroy ' + handle,
                       'result': 'Succeeded' }, request)
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('rpkigui/destroy_handle_form.html', { 'form': form ,
+    return render('app/destroy_handle_form.html', { 'form': form ,
         'handle': handle }, request)
 
 def roa_match(rng):
@@ -745,6 +745,6 @@ def route_view(request):
         routes.extend([validate_route(*x) for x in roa_match(r)])
 
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
-    return render('rpkigui/routes_view.html', { 'routes': routes, 'timestamp': ts }, request)
+    return render('app/routes_view.html', { 'routes': routes, 'timestamp': ts }, request)
 
 # vim:sw=4 ts=8 expandtab

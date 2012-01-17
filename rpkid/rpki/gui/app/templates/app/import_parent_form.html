@@ -1,9 +1,9 @@
-{% extends "rpkigui/app_base.html" %}
+{% extends "app/app_base.html" %}
 
 {% block content %}
 
 <div class='page-header'>
-  <h1>Import Child</h1>
+  <h1>Import Parent</h1>
 </div>
 
 <form enctype="multipart/form-data" method="POST" action="{{ request.get_full_path }}">
@@ -11,10 +11,10 @@
   {% include "rpkigui/bootstrap_form.html" %}
   <div class='actions'>
     <input class='btn primary' type="submit" value="Import">
-    <a class='btn' href="{% url rpki.gui.app.views.child_list %}">Cancel</a>
+    <a class='btn' href="{% url rpki.gui.app.views.parent_list %}">Cancel</a>
   </div>
 </form>
 
-{% endblock %}
+{% endblock content %}
 
 <!-- vim: set sw=2: -->

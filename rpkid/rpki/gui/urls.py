@@ -2,6 +2,7 @@
 
 """
 Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+Copyright (C) 2012  SPARTA, Inc. a Parsons Company
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -26,10 +27,10 @@ urlpatterns = patterns('',
 
     # Uncomment the admin/doc line below and add 'django.contrib.admindocs' 
     # to INSTALLED_APPS to enable admin documentation:
-    (r'^admin/doc/', include('django.contrib.admindocs.urls')),
+    #(r'^admin/doc/', include('django.contrib.admindocs.urls')),
 
     # Uncomment the next line to enable the admin:
-    (r'^admin/', include(admin.site.urls)),
+    #(r'^admin/', include(admin.site.urls)),
 
     (r'^rpki/', include('rpki.gui.app.urls')),
     (r'^cacheview/', include('rpki.gui.cacheview.urls')),
@@ -39,6 +40,7 @@ urlpatterns = patterns('',
         { 'next_page': '/rpki/' }),
 
     # !!!REMOVE THIS BEFORE COMMITTING!!!
+    # for testing with the django test webserver
     (r'^site_media/(?P<path>.*)$', 'django.views.static.serve',
-            {'document_root': '/var/www/html/media'}),
+            {'document_root': '/usr/local/share/rpki/media'}),
 )

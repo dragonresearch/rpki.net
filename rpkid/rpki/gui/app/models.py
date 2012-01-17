@@ -251,4 +251,14 @@ class Ghostbuster(models.Model):
     class Meta:
         ordering = ( 'family_name', 'given_name' )
 
+class Timestamp(models.Model):
+    """Model to hold metadata about the collection of external data.
+    
+    This model is a hash table mapping a timestamp name to the
+    timestamp value.  The timestamp value has `auto_now=True` so it
+    merely needs to be saved to be updated."""
+
+    name = models.CharField(max_length=30, primary_key=True)
+    ts = models.DateTimeField(null=False, auto_now=True)
+
 # vim:sw=4 ts=8 expandtab

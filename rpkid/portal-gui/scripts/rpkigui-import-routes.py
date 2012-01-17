@@ -4,10 +4,8 @@ import _mysql_exceptions
 
 from django.db import transaction, connection
 
-import rpki
-import rpki.gui.models
-from rpki.gui.routeview import models
 from rpki.resource_set import resource_range_ipv4, resource_range_ipv6
+from rpki.gui.app.models import Timestamp
 
 f = open(sys.argv[1])
 
@@ -112,3 +110,9 @@ def commit():
     transaction.commit_unless_managed()
 
 commit()
+
+print 'Updating timestamp metadata...'
+ts, created = Timestamp.objects.get_or_create(name='bgp-v4-import')
+if not created: ts.save()
+
+sys.exit(0)

@@ -110,13 +110,13 @@ def dashboard(request, template_name='app/dashboard.html'):
     used_asns.extend((resource_set.resource_range_as(asn, asn) for asn in roa_asns))
 
     # asns given to my children
-    child_asns = rpki.irdb.models.ChildASN(child__in=conf.children.all())
+    child_asns = rpki.irdb.models.ChildASN.objects.filter(child__in=conf.children.all())
     used_asns.extend((resource_set.resource_range_as(obj.start_as, obj.end_as) for obj in child_asns))
 
     used_asns.canonize()
 
     # my received asns
-    asn = models.ResourceRangeAS(cert__parent__issuer=conf)
+    asns = models.ResourceRangeAS.objects.filter(cert__parent__issuer=conf)
     my_asns = resource_set.resource_set_as([resource_set.resource_range_as(obj.min, obj.max) for obj in asns])
 
     unused_asns = my_asns.difference(used_asns)

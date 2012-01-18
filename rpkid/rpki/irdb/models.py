@@ -460,9 +460,9 @@ class Child(CrossCertification):
     asns = rpki.resource_set.resource_set_as.from_django(
       (a.start_as, a.end_as) for a in self.asns.all())
     ipv4 = rpki.resource_set.resource_set_ipv4.from_django(
-      (a.start_ip, a.end_ip) for a in self.address_ranges.filter(version = 4))
+      (a.start_ip, a.end_ip) for a in self.address_ranges.filter(version = 'IPv4'))
     ipv6 = rpki.resource_set.resource_set_ipv6.from_django(
-      (a.start_ip, a.end_ip) for a in self.address_ranges.filter(version = 6))
+      (a.start_ip, a.end_ip) for a in self.address_ranges.filter(version = 'IPv6'))
     return rpki.resource_set.resource_bag(
       valid_until = self.valid_until, asn = asns, v4 = ipv4, v6 = ipv6)
 
@@ -514,9 +514,9 @@ class ROARequest(django.db.models.Model):
   @property
   def roa_prefix_bag(self):
     v4 = rpki.resource_set.roa_prefix_set_ipv4.from_django(
-      (p.prefix, p.prefixlen, p.max_prefixlen) for p in self.prefixes.filter(version = 4))
+      (p.prefix, p.prefixlen, p.max_prefixlen) for p in self.prefixes.filter(version = 'IPv4'))
     v6 = rpki.resource_set.roa_prefix_set_ipv6.from_django(
-      (p.prefix, p.prefixlen, p.max_prefixlen) for p in self.prefixes.filter(version = 6))
+      (p.prefix, p.prefixlen, p.max_prefixlen) for p in self.prefixes.filter(version = 'IPv6'))
     return rpki.resource_set.roa_prefix_bag(v4 = v4, v6 = v6)
 
   # Writing of .setter method deferred until something needs it.
@@ -529,10 +529,10 @@ class ROARequestPrefix(django.db.models.Model):
   max_prefixlen = django.db.models.PositiveSmallIntegerField()
 
   def as_roa_prefix(self):
-    if self.version == 4:
-      return resource_set.roa_prefix_ipv4(ipaddrs.v4addr(self.prefix), self.prefixlen, self.max_prefixlen)
+    if self.version == 'IPv4':
+      return rpki.resource_set.roa_prefix_ipv4(rpki.ipaddrs.v4addr(self.prefix), self.prefixlen, self.max_prefixlen)
     else:
-      return resource_set.roa_prefix_ipv6(ipaddrs.v6addr(self.prefix), self.prefixlen, self.max_prefixlen)
+      return rpki.resource_set.roa_prefix_ipv6(rpki.ipaddrs.v6addr(self.prefix), self.prefixlen, self.max_prefixlen)
 
   def as_resource_range(self):
     return self.as_roa_prefix().to_resource_range()

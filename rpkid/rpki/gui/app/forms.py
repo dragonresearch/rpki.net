@@ -182,7 +182,7 @@ class AddAddressForm(forms.Form):
                 r = resource_set.resource_range_ipv6.parse_str(v)
             except:
                 raise forms.ValidationError, 'bad IP address, CIDR or range'
-       return str(r)
+        return str(r)
 
 class GenericConfirmationForm(forms.Form):
     """

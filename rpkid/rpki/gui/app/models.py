@@ -24,6 +24,7 @@ from django.contrib.auth.models import User
 import rpki.resource_set
 import rpki.exceptions
 import rpki.irdb.models
+import rpki.gui.models
 
 class TelephoneField(models.CharField):
     def __init__( self, **kwargs ):
@@ -97,25 +98,25 @@ class ResourceRangeAddressV6(rpki.gui.models.PrefixV6):
 class ResourceRangeAS(rpki.gui.models.ASN):
     cert = models.ForeignKey(ResourceCert, related_name='asn_ranges')
 
-class RoaRequest(rpki.irdb.models.RoaRequest):
+class ROARequest(rpki.irdb.models.ROARequest):
     class Meta:
         proxy = True
 
     def __unicode__(self):
-        return u"%s's roa request for AS%d" % (self.issuer.handle, self.asn)
+        return u"%s's ROA request for AS%d" % (self.issuer.handle, self.asn)
 
-class RoaRequestPrefix(rpki.irdb.models.RoaRequestPrefix):
+class ROARequestPrefix(rpki.irdb.models.ROARequestPrefix):
     class Meta:
         proxy = True
 
     def __unicode__(self):
-        return u'roa request prefix %s/%d-%d for asn %d' % (self.prefix, self.prefixlen, self.max_prefixlen, self.roa_request.asn)
+        return u'ROA request prefix %s for asn %d' % (str(self.as_roa_prefix()), self.roa_request.asn)
 
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.app.views.roa_detail', [str(self.pk)])
 
-class Ghostbuster(models.Model):
+class GhostbusterRequest(models.Model):
     """
     Stores the information require to fill out a vCard entry to populate
     a ghostbusters record.
@@ -143,7 +144,7 @@ class Ghostbuster(models.Model):
     country  = models.CharField(blank=True, null=True, max_length=40)
 
     # pointer to the IRDB object matching this ghostbuster request
-    irdb = models.ForeignKey(rpki.irdb.models.Ghostbuster, related_name='app_ghostbuster')
+    irdb = models.ForeignKey(rpki.irdb.models.GhostbusterRequest, related_name='app_ghostbusters')
 
     def __unicode__(self):
         return u"%s's GBR: %s" % (self.issuer.handle, self.full_name)

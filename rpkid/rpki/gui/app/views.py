@@ -106,7 +106,7 @@ def dashboard(request, template_name='app/dashboard.html'):
     used_asns = resource_set.resource_set_as()
 
     # asns used in my roas
-    roa_asns = set((obj.asn for obj in models.RoaRequest.objects.filter(issuer=conf)))
+    roa_asns = set((obj.asn for obj in models.ROARequest.objects.filter(issuer=conf)))
     used_asns.extend((resource_set.resource_range_as(asn, asn) for asn in roa_asns))
 
     # asns given to my children
@@ -125,8 +125,8 @@ def dashboard(request, template_name='app/dashboard.html'):
     used_prefixes_v6 = resource_set.resource_set_ipv6()
 
     # prefixes used in my roas
-    used_prefixes.extend((obj.as_resource_range() for obj in models.RoaRequestPrefix.objects.filter(roa_request__issuer=conf, version=4)))
-    used_prefixes_v6.extend((obj.as_resource_range() for obj in models.RoaRequestPrefix.objects.filter(roa_request__issuer=conf, version=6)))
+    used_prefixes.extend((obj.as_resource_range() for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version=4)))
+    used_prefixes_v6.extend((obj.as_resource_range() for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version=6)))
 
     # prefixes given to my children
     used_prefixes.extend((obj.as_resource_range() for obj in rpki.irdb.models.ChildNet(child__in=conf.children.all(), version=4)))
@@ -319,29 +319,29 @@ def login(request):
 
 @handle_required
 def roa_list(request):
-    "Displays a list of RoaRequestPrefix objects for the current resource handle."
+    "Displays a list of ROARequestPrefix objects for the current resource handle."
     log = request.META['wsgi.errors']
     conf = request.session['handle']
-    return object_list(request, queryset=models.RoaRequestPrefix.objects.filter(roa_request__issuer=conf),
+    return object_list(request, queryset=models.ROARequestPrefix.objects.filter(roa_request__issuer=conf),
         template_name='app/roa_request_list.html',
         extra_context = { 'page_title': 'ROA Requests' })
 
 @handle_required
 def roa_detail(request, pk):
-    """Not implemented.  This is a placeholder so that models.RoaRequestPrefix.get_absolute_url
+    """Not implemented.  This is a placeholder so that models.ROARequestPrefix.get_absolute_url
     works.  The only reason it exist is so that the /delete URL works."""
     pass
 
 @handle_required
 def roa_delete(request, pk):
-    """Handles deletion of a single RoaRequestPrefix object.
+    """Handles deletion of a single ROARequestPrefix object.
 
     Uses a form for double confirmation, displaying how the route
     validation status may change as a result."""
 
     log = request.META['wsgi.errors']
     conf = request.session['handle']
-    obj = get_object_or_404(models.RoaRequestPrefix.objects, roa_request__issuer=conf, pk=pk)
+    obj = get_object_or_404(models.ROARequestPrefix.objects, roa_request__issuer=conf, pk=pk)
 
     if request.method == 'POST':
         roa = obj.roa_request

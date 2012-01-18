@@ -125,12 +125,12 @@ def dashboard(request, template_name='app/dashboard.html'):
     used_prefixes_v6 = resource_set.resource_set_ipv6()
 
     # prefixes used in my roas
-    used_prefixes.extend((obj.as_resource_range() for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version=4)))
-    used_prefixes_v6.extend((obj.as_resource_range() for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version=6)))
+    used_prefixes.extend((obj.as_resource_range() for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version='IPv4')))
+    used_prefixes_v6.extend((obj.as_resource_range() for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version='IPv6')))
 
     # prefixes given to my children
-    used_prefixes.extend((obj.as_resource_range() for obj in rpki.irdb.models.ChildNet(child__in=conf.children.all(), version=4)))
-    used_prefixes_v6.extend((obj.as_resource_range() for obj in rpki.irdb.models.ChildNet(child__in=conf.children.all(), version=6)))
+    used_prefixes.extend((obj.as_resource_range() for obj in rpki.irdb.models.ChildNet.objects.filter(child__in=conf.children.all(), version='IPv4')))
+    used_prefixes_v6.extend((obj.as_resource_range() for obj in rpki.irdb.models.ChildNet.objects.filter(child__in=conf.children.all(), version='IPv6')))
 
     used_prefixes.canonize()
     used_prefixes_v6.canonize()

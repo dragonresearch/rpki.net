@@ -78,9 +78,9 @@ class PEM_writer(object):
   written and setting the file mode appropriately.
   """
 
-  def __init__(self, verbose = False):
+  def __init__(self, logstream = None):
     self.wrote = set()
-    self.verbose = verbose
+    self.logstream = logstream
 
   def __call__(self, filename, obj):
     filename = os.path.realpath(filename)
@@ -90,8 +90,8 @@ class PEM_writer(object):
     if not filename.startswith("/dev/"):
       tempname += ".%s.tmp" % os.getpid()
     mode = 0400 if filename.endswith(".key") else 0444
-    if self.verbose:
-      print "Writing", filename
+    if self.logstream is not None:
+      self.logstream.write("Writing %s\n" % filename)
     f = os.fdopen(os.open(tempname, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode), "w")
     f.write(obj.get_PEM())
     f.close()
@@ -139,7 +139,7 @@ class etree_wrapper(object):
   def __str__(self):
     return ElementToString(self.etree)
 
-  def save(self, filename, blather = False):
+  def save(self, filename, logstream = None):
     filename = os.path.realpath(filename)
     tempname = filename
     if not filename.startswith("/dev/"):
@@ -147,10 +147,10 @@ class etree_wrapper(object):
     ElementTree(self.etree).write(tempname)
     if tempname != filename:
       os.rename(tempname, filename)
-    if blather:
-      print "Wrote", filename
+    if logstream is not None:
+      logstream.write("Wrote %s\n" % filename)
       if self.msg is not None:
-        print self.msg
+        logstream.write(self.msg + "\n")
 
 
 
@@ -161,7 +161,7 @@ class Zookeeper(object):
 
   show_xml = False
 
-  def __init__(self, cfg = None, handle = None):
+  def __init__(self, cfg = None, handle = None, logstream = None):
 
     if cfg is None:
       cfg = rpki.config.parser()
@@ -170,6 +170,8 @@ class Zookeeper(object):
       handle = cfg.get("handle", section = myrpki_section)
 
     self.cfg = cfg
+
+    self.logstream = logstream
 
     self.run_rpkid = cfg.getboolean("run_rpkid", section = myrpki_section)
     self.run_pubd  = cfg.getboolean("run_pubd", section = myrpki_section)
@@ -195,6 +197,25 @@ class Zookeeper(object):
     if handle is None:
       raise MissingHandle
     self.handle= handle
+
+
+  def set_logstream(self, logstream):
+    """
+    Set log stream for this Zookeeper.  The log stream is a file-like
+    object, or None to suppress all logging.
+    """
+
+    self.logstream = logstream
+
+
+  def log(self, msg):
+    """
+    Send some text to this Zookeeper's log stream, if one is set.
+    """
+
+    if self.logstream is not None:
+      self.logstream.write(msg)
+      self.logstream.write("\n")
 
 
   @property
@@ -247,6 +268,26 @@ class Zookeeper(object):
     e = Element("identity", handle = self.handle)
     B64Element(e, "bpki_ta", resource_ca.certificate)
     return etree_wrapper(e, msg = 'This is the "identity" file you will need to send to your parent')
+
+
+  @django.db.transaction.commit_on_success
+  def delete_self(self):
+    """
+    Delete the ResourceHolderCA object corresponding to the current handle.
+    This corresponds to deleting an rpkid <self/> object.
+
+    This code assumes the normal Django cascade-on-delete behavior,
+    that is, we assume that deleting the ResourceHolderCA object
+    deletes all the subordinate objects that refer to it via foreign
+    key relationships.
+    """
+
+    resource_ca = self.resource_ca
+    if resource_ca is not None:
+      resource_ca.delete()
+    else:
+      self.log("No such ResourceHolderCA \"%s\"" % self.handle)
+
 
   @django.db.transaction.commit_on_success
   def configure_rootd(self):
@@ -332,14 +373,14 @@ class Zookeeper(object):
                   rpki.irdb.Client,
                   rpki.irdb.Repository):
       for obj in model.objects.all():
-        print "Regenerating certificate", obj.certificate.getSubject()
+        self.log("Regenerating certificate %s" % obj.certificate.getSubject())
         obj.avow()
 
-    print "Regenerating Server CRL"
+    self.log("Regenerating Server CRL")
     self.server_ca.generate_crl()
     
     for ca in rpki.irdb.ResourceHolderCA.objects.all():
-      print "Regenerating CRL for", ca.handle
+      self.log("Regenerating CRL for %s" % ca.handle)
       ca.generate_crl()
 
 
@@ -366,7 +407,7 @@ class Zookeeper(object):
 
     valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
 
-    print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)
+    self.log("Child calls itself %r, we call it %r" % (c.get("handle"), child_handle))
 
     child, created = rpki.irdb.Child.objects.get_or_certify(
       issuer = self.resource_ca,
@@ -388,7 +429,7 @@ class Zookeeper(object):
       repo = None
 
     if repo is None:
-      print "Couldn't find any usable repositories, not giving referral"
+      self.log("Couldn't find any usable repositories, not giving referral")
 
     elif repo.handle == self.handle:
       SubElement(e, "repository", type = "offer")
@@ -420,7 +461,7 @@ class Zookeeper(object):
     try:
       self.resource_ca.children.get(handle = child_handle).delete()
     except rpki.irdb.Child.DoesNotExist:
-      print "No such child \"%s\"" % arg
+      self.log("No such child \"%s\"" % arg)
 
 
   @django.db.transaction.commit_on_success
@@ -455,8 +496,8 @@ class Zookeeper(object):
       referrer = a.get("referrer")
       referral_authorization = rpki.x509.SignedReferral(Base64 = a.text)
 
-    print "Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle)
-    print "Parent calls us %r" % p.get("child_handle")
+    self.log("Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle))
+    self.log("Parent calls us %r" % p.get("child_handle"))
 
     rpki.irdb.Parent.objects.get_or_certify(
       issuer = self.resource_ca,
@@ -487,7 +528,7 @@ class Zookeeper(object):
     try:
       self.resource_ca.parents.get(handle = parent_handle).delete()
     except rpki.irdb.Parent.DoesNotExist:
-      print "No such parent \"%s\"" % arg
+      self.log("No such parent \"%s\"" % arg)
 
 
   @django.db.transaction.commit_on_success
@@ -505,11 +546,11 @@ class Zookeeper(object):
     client_ta = rpki.x509.X509(Base64 = client.findtext("bpki_client_ta"))
 
     if sia_base is None and client.get("handle") == self.handle and self.resource_ca.certificate == client_ta:
-      print "This looks like self-hosted publication"
+      self.log("This looks like self-hosted publication")
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, self.handle)
 
     if sia_base is None and client.get("type") == "referral":
-      print "This looks like a referral, checking"
+      self.log("This looks like a referral, checking")
       try:
         auth = client.find("authorization")
         referrer = self.server_ca.clients.get(handle = auth.get("referrer"))
@@ -519,14 +560,14 @@ class Zookeeper(object):
           raise BadXMLMessage, "Referral trust anchor does not match"
         sia_base = referral_xml.get("authorized_sia_base")
       except rpki.irdb.Client.DoesNotExist:
-        print "We have no record of the client (%s) alleged to have made this referral" % auth.get("referrer")
+        self.log("We have no record of the client (%s) alleged to have made this referral" % auth.get("referrer"))
 
     if sia_base is None and client.get("type") == "offer" and client.get("parent_handle") == self.handle:
-      print "This looks like an offer, client claims to be our child, checking"
+      self.log("This looks like an offer, client claims to be our child, checking")
       try:
         child = self.resource_ca.children.get(ta = client_ta)
       except rpki.irdb.Child.DoesNotExist:
-        print "Can't find a child matching this client"
+        self.log("Can't find a child matching this client")
       else:
         sia_base = "rsync://%s/%s/%s/%s/" % (self.rsync_server, self.rsync_module,
                                              self.handle, client.get("handle"))
@@ -535,7 +576,7 @@ class Zookeeper(object):
     # gets a top-level tree of its own, no attempt at nesting.
 
     if sia_base is None:
-      print "Don't know where to nest this client, defaulting to top-level"
+      self.log("Don't know where to nest this client, defaulting to top-level")
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client.get("handle"))
       
     if not sia_base.startswith("rsync://"):
@@ -545,8 +586,8 @@ class Zookeeper(object):
 
     parent_handle = client.get("parent_handle")
 
-    print "Client calls itself %r, we call it %r" % (client.get("handle"), client_handle)
-    print "Client says its parent handle is %r" % parent_handle
+    self.log("Client calls itself %r, we call it %r" % (client.get("handle"), client_handle))
+    self.log("Client says its parent handle is %r" % parent_handle)
 
     rpki.irdb.Client.objects.get_or_certify(
       issuer = self.server_ca,
@@ -582,7 +623,7 @@ class Zookeeper(object):
     try:
       self.resource_ca.clients.get(handle = client_handle).delete()
     except rpki.irdb.Client.DoesNotExist:
-      print "No such client \"%s\"" % arg
+      self.log("No such client \"%s\"" % arg)
 
 
   @django.db.transaction.commit_on_success
@@ -600,8 +641,8 @@ class Zookeeper(object):
     if parent_handle is None:
       parent_handle = r.get("parent_handle")
 
-    print "Repository calls us %r" % (r.get("client_handle"))
-    print "Repository response associated with parent_handle %r" % parent_handle
+    self.log("Repository calls us %r" % (r.get("client_handle")))
+    self.log("Repository response associated with parent_handle %r" % parent_handle)
 
     try:
       if parent_handle == self.handle:
@@ -610,7 +651,7 @@ class Zookeeper(object):
         turtle = self.resource_ca.parents.get(handle = parent_handle)
 
     except (rpki.irdb.Parent.DoesNotExist, rpki.irdb.Rootd.DoesNotExist):
-      print "Could not find parent %r in our database" % parent_handle
+      self.log("Could not find parent %r in our database" % parent_handle)
 
     else:
       rpki.irdb.Repository.objects.get_or_certify(
@@ -633,7 +674,7 @@ class Zookeeper(object):
     try:
       self.resource_ca.repositories.get(handle = arg).delete()
     except rpki.irdb.Repository.DoesNotExist:
-      print "No such repository \"%s\"" % arg
+      self.log("No such repository \"%s\"" % arg)
 
 
   @django.db.transaction.commit_on_success
@@ -655,7 +696,7 @@ class Zookeeper(object):
       if valid_until < rpki.sundial.now():
         raise PastExpiration, "Specified new expiration time %s has passed" % valid_until
 
-    print "New validity date", valid_until
+    self.log("New validity date %s" % valid_until)
 
     for child in children:
       child.valid_until = valid_until
@@ -937,9 +978,9 @@ class Zookeeper(object):
         bsc_pdu = bsc_pdus.pop(bsc_handle, None)
         for r in rpkid_reply:
           if isinstance(r, rpki.left_right.report_error_elt):
-            print "rpkid reported failure:", r.error_code
+            self.log("rpkid reported failure: %s" % r.error_code)
             if r.error_text:
-              print r.error_text
+              self.log(r.error_text)
         if any(isinstance(r, rpki.left_right.report_error_elt) for r in rpkid_reply):
           raise CouldntTalkToDaemon
 
@@ -1106,9 +1147,9 @@ class Zookeeper(object):
           bsc_req = bsc_pdus[bsc_handle].pkcs10_request
         for r in rpkid_reply:
           if isinstance(r, rpki.left_right.report_error_elt):
-            print "rpkid reported failure:", r.error_code
+            self.log("rpkid reported failure: %s" % r.error_code)
             if r.error_text:
-              print r.error_text
+              self.log(r.error_text)
         if any(isinstance(r, rpki.left_right.report_error_elt) for r in rpkid_reply):
           raise CouldntTalkToDaemon
 
@@ -1117,8 +1158,8 @@ class Zookeeper(object):
         pubd_reply = self.call_pubd(*pubd_query)
         for r in pubd_reply:
           if isinstance(r, rpki.publication.report_error_elt):
-            print "pubd reported failure:", r.error_code
+            self.log("pubd reported failure: %s" % r.error_code)
             if r.error_text:
-              print r.error_text
+              self.log(r.error_text)
         if any(isinstance(r, rpki.publication.report_error_elt) for r in pubd_reply):
           raise CouldntTalkToDaemon

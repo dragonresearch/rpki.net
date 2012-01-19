@@ -478,7 +478,7 @@ class ChildASN(django.db.models.Model):
   end_as = django.db.models.BigIntegerField()
 
   def as_resource_range(self):
-    return rpki.resource_set.resource_range_as.from_strings(self.start_as, self.end_as)
+    return rpki.resource_set.resource_range_as(self.start_as, self.end_as)
 
   class Meta:
     unique_together = ("child", "start_as", "end_as")

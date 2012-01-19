@@ -113,7 +113,7 @@ class main(rpki.cli.Cmd):
     import django.core.management
     django.core.management.call_command("syncdb", verbosity = 0, load_initial_data = False)
 
-    self.zoo = rpki.irdb.Zookeeper(cfg = cfg, handle = handle)
+    self.zoo = rpki.irdb.Zookeeper(cfg = cfg, handle = handle, logstream = sys.stdout)
 
   def help_overview(self):
     """
@@ -155,12 +155,13 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax, "This command takes no arguments"
 
     r = self.zoo.initialize()
-    r.save("%s.identity.xml" % self.zoo.handle, not self.zoo.run_pubd)
+    r.save("%s.identity.xml" % self.zoo.handle,
+           None if self.zoo.run_pubd else sys.stdout)
 
     if self.zoo.run_rootd and self.zoo.handle == self.zoo.cfg.get("handle"):
       r = self.zoo.configure_rootd()
       if r is not None:
-        r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), True)
+        r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
 
     self.zoo.write_bpki_files()
 
@@ -202,7 +203,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax, "Need to specify filename for child.xml"
 
     r, child_handle = self.zoo.configure_child(argv[0], child_handle)
-    r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), True)
+    r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), sys.stdout)
 
 
   def do_delete_child(self, arg):
@@ -242,7 +243,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax, "Need to specify filename for parent.xml on command line"
 
     r, parent_handle = self.zoo.configure_parent(argv[0], parent_handle)
-    r.save("%s.%s.repository-request.xml" % (self.zoo.handle, parent_handle), True)
+    r.save("%s.%s.repository-request.xml" % (self.zoo.handle, parent_handle), sys.stdout)
 
 
   def do_delete_parent(self, arg):
@@ -279,7 +280,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax, "Need to specify filename for client.xml"
 
     r, client_handle = self.zoo.configure_publication_client(argv[0], sia_base)
-    r.save("%s.repository-response.xml" % client_handle.replace("/", "."), True)
+    r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
 
 
   def do_delete_publication_client(self, arg):

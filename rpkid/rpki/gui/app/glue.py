@@ -189,7 +189,7 @@ def list_received_resources(log, conf):
 
     for pdu in pdus:
         if isinstance(pdu, rpki.left_right.list_received_resources_elt):
-            parent = models.Parent.get(issuer=conf, handle=pdu.parent_handle)
+            parent = models.Parent.objects.get(issuer=conf, handle=pdu.parent_handle)
 
             not_before = datetime.strptime(pdu.notBefore, "%Y-%m-%dT%H:%M:%SZ")
             not_after = datetime.strptime(pdu.notAfter, "%Y-%m-%dT%H:%M:%SZ")
@@ -197,13 +197,14 @@ def list_received_resources(log, conf):
             cert = models.ResourceCert.objects.create(parent=parent, not_before=not_before, not_after=not_after)
 
             for asn in rpki.resource_set.resource_set_as(pdu.asn):
-                cert.asn_ranges.add(min=asn.min, max=asn.max)
+                cert.asn_ranges.create(min=asn.min, max=asn.max)
 
             for rng in rpki.resource_set.resource_set_ipv4(pdu.ipv4):
-                cert.address_ranges.add(min=rng.min, max=rng.max)
+                print >>log, 'adding v4 address range: %s' % rng
+                cert.address_ranges.create(prefix_min=rng.min, prefix_max=rng.max)
 
             for rng in rpki.resource_set.resource_set_ipv6(pdu.ipv6):
-                cert.address_ranges_v6.add(min=rng.min, max=rng.max)
+                cert.address_ranges_v6.create(prefix_min=rng.min, prefix_max=rng.max)
         else:
             print >>log, "error: unexpected pdu from rpkid type=%s" % type(pdu)
 

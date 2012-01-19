@@ -99,8 +99,9 @@ def render(template, context, request):
             context_instance=RequestContext(request))
 
 @handle_required
-def dashboard(request, template_name='app/dashboard.html'):
+def dashboard(request):
 
+    log = request.META['wsgi.errors']
     conf = request.session['handle']
 
     used_asns = range_list.RangeList()
@@ -145,7 +146,7 @@ def dashboard(request, template_name='app/dashboard.html'):
     unused_prefixes = my_prefixes.difference(used_prefixes)
     unused_prefixes_v6 = my_prefixes_v6.difference(used_prefixes_v6)
 
-    return render(template_name, {
+    return render('app/dashboard.html', {
         'conf': conf,
         'unused_asns': unused_asns,
         'unused_prefixes': unused_prefixes,

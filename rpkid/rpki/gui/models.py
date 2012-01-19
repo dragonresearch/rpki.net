@@ -123,10 +123,10 @@ class ASN(models.Model):
         abstract = True
         ordering = ('min', 'max')
 
+    def as_resource_range(self):
+        return rpki.resource_set.resource_range_as(self.min, self.max)
+
     def __unicode__(self):
-        if self.min == self.max:
-            return u'AS%d' % self.min
-        else:
-            return u'AS%s-%s' % (self.min, self.max)
+        return u'AS%s' % self.as_resource_range()
 
 # vim:sw=4 ts=8 expandtab

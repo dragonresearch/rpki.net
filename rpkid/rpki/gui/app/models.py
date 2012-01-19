@@ -172,4 +172,28 @@ class Timestamp(models.Model):
     def __unicode__(self):
         return '%s: %s' % (self.name, self.ts)
 
+class Repository(rpki.irdb.models.Repository):
+    class Meta:
+        proxy = True
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.repository_detail', [str(pk)])
+
+    def __unicode__(self):
+        return "%s's repository %s" % (self.issuer.handle, self.handle)
+
+class Client(rpki.irdb.models.Client):
+    "Proxy model for pubd clients."
+
+    class Meta:
+        proxy = True
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.client_detail', [str(pk)])
+
+    def __unicode__(self):
+        return self.handle
+
 # vim:sw=4 ts=8 expandtab

@@ -1,0 +1,19 @@
+{% extends "app/app_base.html" %}
+
+{% block content %}
+<table style='zebra-striped'>
+  <tr>
+    <th>Name</th>
+    <th>SIA</th>
+    <th>Action</th>
+  </tr>
+  {% for obj in object_list %}
+  <tr>
+    <td>{{ obj.handle }}</td>
+    <td>{{ obj.sia_base }}</td>
+    <td><a class='btn danger' href='{{ obj.get_absolute_url }}/delete'>Delete</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock content %}
+<!-- vim:set sw=2: -->

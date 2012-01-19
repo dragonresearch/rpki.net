@@ -472,52 +472,6 @@ def import_parent(request):
     return render('app/import_parent_form.html', { 'form': form }, request)
 
 @handle_required
-def import_repository(request):
-    conf = request.session['handle']
-    log = request.META['wsgi.errors']
-
-    if request.method == 'POST':
-        form = forms.ImportRepositoryForm(request.POST, request.FILES)
-        if form.is_valid():
-            tmpf = tempfile.NamedTemporaryFile(prefix='repository', suffix='.xml', delete=False)
-            f = tmpf.name
-            tmpf.write(form.cleaned_data['xml'].read())
-            tmpf.close()
-         
-            glue.import_repository(log, conf, f)
-
-            os.remove(tmpf.name)
-
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.ImportRepositoryForm()
-
-    return render('app/import_repository_form.html', { 'form': form }, request)
-
-@handle_required
-def import_pubclient(request):
-    conf = request.session['handle']
-    log = request.META['wsgi.errors']
-
-    if request.method == 'POST':
-        form = forms.ImportPubClientForm(request.POST, request.FILES)
-        if form.is_valid():
-            tmpf = tempfile.NamedTemporaryFile(prefix='pubclient', suffix='.xml', delete=False)
-            f = tmpf.name
-            tmpf.write(form.cleaned_data['xml'].read())
-            tmpf.close()
-         
-            glue.import_pubclient(log, conf, f)
-
-            os.remove(tmpf.name)
-
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.ImportPubClientForm()
-
-    return render('app/import_pubclient_form.html', { 'form': form }, request)
-
-@handle_required
 def import_child(request):
     """
     Import a repository response.
@@ -746,5 +700,83 @@ def route_view(request):
 
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
     return render('app/routes_view.html', { 'routes': routes, 'timestamp': ts }, request)
+
+@handle_required
+def repository_list(request):
+    conf = request.session['handle']
+    qs = models.Repository.objects.filter(issuer=conf)
+    return object_list(request, queryset=qs, template_name='app/repository_list.html',
+            extra_context={ 'page_title': 'Repositories' })
+
+@handle_required
+def repository_detail(request, pk):
+    conf = request.session['handle']
+    qs = models.Repository.objects.filter(issuer=conf)
+    return object_detail(request, queryset=qs, object_id=pk, template_name='app/repository_detail.html')
+
+@handle_required
+def repository_delete(request, pk):
+    conf = request.session['handle']
+    get_object_or_404(models.Repository, issuer=conf, pk=pk)  # permission check
+    return delete_object(request, model=models.Repository, object_id=pk, template_name='app/repository_detail.html')
+
+@handle_required
+def repository_import(request):
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+
+    if request.method == 'POST':
+        form = forms.ImportRepositoryForm(request.POST, request.FILES)
+        if form.is_valid():
+            tmpf = tempfile.NamedTemporaryFile(prefix='repository', suffix='.xml', delete=False)
+            f = tmpf.name
+            tmpf.write(form.cleaned_data['xml'].read())
+            tmpf.close()
+         
+            glue.import_repository(log, conf, f)
+
+            os.remove(tmpf.name)
+
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.ImportRepositoryForm()
+
+    return render('app/import_repository_form.html', { 'form': form }, request)
+
+@superuser_required
+def client_list(request):
+    return object_list(request, queryset=models.Client.objects.all(), template_name='app/client_list.html',
+            extra_context={ 'page_title': 'Publication Clients' })
+
+@superuser_required
+def client_detail(request, pk):
+    return object_detail(request, queryset=models.Client.objects, object_id=pk, template_name='app/client_detail.html')
+
+@superuser_required
+def client_delete(request, pk):
+    return delete_object(request, model=models.Client, object_id=pk, template_name='app/client_detail.html')
+
+@superuser_required
+def client_import(request):
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+
+    if request.method == 'POST':
+        form = forms.ImportPubClientForm(request.POST, request.FILES)
+        if form.is_valid():
+            tmpf = tempfile.NamedTemporaryFile(prefix='pubclient', suffix='.xml', delete=False)
+            f = tmpf.name
+            tmpf.write(form.cleaned_data['xml'].read())
+            tmpf.close()
+         
+            glue.import_pubclient(log, conf, f)
+
+            os.remove(tmpf.name)
+
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.ImportPubClientForm()
+
+    return render('app/import_pubclient_form.html', { 'form': form }, request)
 
 # vim:sw=4 ts=8 expandtab

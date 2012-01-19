@@ -380,8 +380,7 @@ def ghostbusters_list(request):
     Display a list of all ghostbuster requests for the current Conf.
     """
     conf = request.session['handle']
-    qs = models.Ghostbuster.filter(irdb__issuer=conf)
-
+    qs = models.GhostbusterRequest.objects.filter(issuer=conf)
     return object_list(request, queryset=qs,
             template_name='app/ghostbuster_list.html',
             extra_context = { 'page_title': 'Ghostbusters' })
@@ -392,8 +391,7 @@ def ghostbuster_view(request, pk):
     Display an individual ghostbuster request.
     """
     conf = request.session['handle']
-    qs = models.Ghostbuster.filter(irdb__issuer=conf)
-
+    qs = models.GhostbusterRequest.objects.filter(issuer=conf)
     return object_detail(request, queryset=qs, object_id=pk, template_name='app/ghostbuster_detail.html')
 
 @handle_required
@@ -401,11 +399,11 @@ def ghostbuster_delete(request, pk):
     conf = request.session['handle']
 
     # verify that the object is owned by this conf
-    obj = get_object_or_404(models.Ghostbuster, pk=pk, irdb__issuer=conf)
+    obj = get_object_or_404(models.GhostbusterRequest, pk=pk, issuer=conf)
 
     # modeled loosely on the generic delete_object() view.
     if request.method == 'POST':
-        obj.irdb.delete() # should cause a cascade delete of 'obj'
+        obj.delete() # should cause a cascade delete of 'obj'
         return http.HttpResponseRedirect(reverse(ghostbusters_list))
 
     return render('app/ghostbuster_confirm_delete.html', { 'object': obj }, request)
@@ -415,20 +413,20 @@ def _ghostbuster_edit(request, obj=None):
     Common code for create/edit.
     """
     conf = request.session['handle']
-    form_class = forms.GhostbusterForm(conf.parents.all())
+    form_class = forms.GhostbusterRequestForm
     if request.method == 'POST':
-        form = form_class(request.POST, request.FILES, instance=obj)
+        form = form_class(conf, request.POST, request.FILES, instance=obj)
         if form.is_valid():
             # use commit=False for the creation case, otherwise form.save()
             # will fail due to schema constraint violation because conf is
             # NULL
             obj = form.save(commit=False)
-            obj.conf = conf
+            obj.issuer = conf
+            obj.vcard = glue.ghostbuster_to_vcard(obj)
             obj.save()
-            glue.configure_resources(request.META['wsgi.errors'], conf)
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
-        form = form_class(instance=obj)
+        form = form_class(conf, instance=obj)
     return render('app/ghostbuster_form.html', { 'form': form, 'object': obj }, request)
 
 @handle_required
@@ -436,7 +434,7 @@ def ghostbuster_edit(request, pk):
     conf = request.session['handle']
 
     # verify that the object is owned by this conf
-    obj = get_object_or_404(models.Ghostbuster, pk=pk, conf=conf)
+    obj = get_object_or_404(models.GhostbusterRequest, pk=pk, issuer=conf)
 
     return _ghostbuster_edit(request, obj)
 

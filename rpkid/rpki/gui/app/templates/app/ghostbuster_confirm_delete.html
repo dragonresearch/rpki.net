@@ -2,13 +2,19 @@
 
 {% block extra %}
 
-<p>
-Please confirm that you really want to delete this object by clicking Delete.
-</p>
+<div class='alert-message block-message warning'>
+  <p>
+  <strong>Please confirm</strong> that you really want to delete by clicking Delete.
 
-<form method=POST action='{{ request.get_full_path }}'>
-    {% csrf_token %}
-    <input type='submit' value='Delete' />
-</form>
+  <div class='alert-actions'>
+    <form method='POST' action='{{ request.get_full_path }}'>
+      {% csrf_token %}
+      <input class='btn danger' type='submit' value='Delete' />
+      <a class='btn' href='{{ object.get_absolute_url }}'>Cancel</a>
+    </form>
+  </div>
+</div>
 
 {% endblock %}
+
+<!-- vim:set sw=2: -->

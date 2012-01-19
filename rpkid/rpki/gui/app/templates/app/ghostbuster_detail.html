@@ -62,12 +62,13 @@
 
 </table>
 
+{% block extra %}
 <div class='actions'>
   <a class='btn' href='{{ object.get_absolute_url }}/edit'>Edit</a>
   <a class='btn danger' href='{{ object.get_absolute_url }}/delete'>Delete</a>
 </div>
+{% endblock %}
 
-{% block extra %}{% endblock %}
 {% endblock %}
 
 <!-- vim: set sw=2: -->

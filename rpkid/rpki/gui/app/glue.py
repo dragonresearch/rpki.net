@@ -81,7 +81,7 @@ def qualify_path(pfx, fname):
     return fname if fname.startswith('/') else os.path.join(pfx, fname)
 
 def ghostbuster_to_vcard(gbr):
-    """Convert a Ghostbuster object into a vCard object."""
+    """Convert a GhostbusterRequest object into a vCard object."""
     import vobject
 
     vcard = vobject.vCard()

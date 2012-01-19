@@ -116,11 +116,15 @@ class ROARequestPrefix(rpki.irdb.models.ROARequestPrefix):
     def get_absolute_url(self):
         return ('rpki.gui.app.views.roa_detail', [str(self.pk)])
 
-class GhostbusterRequest(models.Model):
+class GhostbusterRequest(rpki.irdb.models.GhostbusterRequest):
     """
-    Stores the information require to fill out a vCard entry to populate
-    a ghostbusters record.
+    Stores the information require to fill out a vCard entry to
+    populate a ghostbusters record.
+
+    This model is inherited from the irdb GhostBusterRequest model so
+    that the broken out fields can be included for ease of editing.
     """
+
     full_name = models.CharField(max_length=40)
 
     # components of the vCard N type
@@ -142,9 +146,6 @@ class GhostbusterRequest(models.Model):
     region   = models.CharField(blank=True, null=True, max_length=40, help_text='state or province')
     code     = models.CharField(verbose_name='Postal Code', blank=True, null=True, max_length=40)
     country  = models.CharField(blank=True, null=True, max_length=40)
-
-    # pointer to the IRDB object matching this ghostbuster request
-    irdb = models.ForeignKey(rpki.irdb.models.GhostbusterRequest, related_name='app_ghostbusters')
 
     def __unicode__(self):
         return u"%s's GBR: %s" % (self.issuer.handle, self.full_name)

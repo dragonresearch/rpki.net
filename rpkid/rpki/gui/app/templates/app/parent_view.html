@@ -11,9 +11,12 @@
   <div class='span8'>
     <h2>Delegated Addresses</h2>
     <ul>
-      {% for c in parent.resources.all %}
-      {% for a in c.address_range.all %}
-      <li><a href="{{ a.get_absolute_url }}">{{ a }}</a></li>
+      {% for c in parent.certs.all %}
+      {% for a in c.address_ranges.all %}
+      <li>{{ a }}</li>
+      {% endfor %}
+      {% for a in c.address_ranges_v6.all %}
+      <li>{{ a }}</li>
       {% endfor %}
       {% endfor %}
     </ul>
@@ -22,9 +25,9 @@
   <div class='span8'>
     <h2>Delegated ASNs</h2>
     <ul>
-      {% for c in parent.resources.all %}
-      {% for a in c.asn.all %}
-      <li><a href="{{ a.get_absolute_url }}">{{ a }}</a></li>
+      {% for c in parent.certs.all %}
+      {% for a in c.asn_ranges.all %}
+      <li>{{ a }}</li>
       {% endfor %}
       {% endfor %}
     </ul>

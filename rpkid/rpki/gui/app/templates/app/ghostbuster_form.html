@@ -1,12 +1,6 @@
-{% extends "base.html" %}
+{% extends "app/app_base.html" %}
 
 {% block content %}
-
-<ul class='breadcrumb'>
-  <li><a href="{% url rpki.gui.app.views.dashboard %}">{{request.session.handle}}</a> <span class='divider'>/</span></li>
-  <li> <a href="{% url rpki.gui.app.views.ghostbusters_list %}">Ghostbusters</a> <span class='divider'>/</span></li>
-  <li class='active'>Edit</li>
-</ul>
 
 <div class='page-header'>
   <h1>Edit Ghostbuster Request</h1>
@@ -16,7 +10,7 @@
   {% csrf_token %}
 
   {# include code to render form using Twitter Bootstrap CSS Framework #}
-  {% include "rpkigui/bootstrap_form.html" %}
+  {% include "app/bootstrap_form.html" %}
 
   <div class='actions'>
     <input class='btn primary' type='submit' value='Save'>

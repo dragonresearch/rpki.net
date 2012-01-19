@@ -2,14 +2,6 @@
 
 {% block content %}
 
-<!--
-<ul class='breadcrumb'>
-  <li><a href='{% url rpki.gui.app.views.dashboard %}'>{{ request.session.handle }}</a><span class='divider'>/</span></li>
-  <li>Parents <span class='divider'>/</span></li>
-  <li class='active'>{{ parent.handle }}</li>
-</ul>
--->
-
 <div class='page-header'>
   <h1>Parent: {{ parent.handle }}</h1>
 </div>
@@ -48,7 +40,7 @@
 
 <form method="POST" action="{{ request.get_full_path }}">
   {% csrf_token %}
-  {% include "rpkigui/bootstrap_form.html" %}
+  {% include "app/bootstrap_form.html" %}
   <div class='actions'>
     <input class='btn danger' type="submit" value="{{ submit_label }}">
     <a class='btn' href="{{ parent.get_absolute_url}}">Cancel</a>

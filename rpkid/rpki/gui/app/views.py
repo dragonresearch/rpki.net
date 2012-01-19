@@ -33,7 +33,7 @@ from django.views.generic.list_detail import object_list, object_detail
 from django.views.generic.create_update import delete_object, update_object, create_object
 from django.core.urlresolvers import reverse
 
-from rpki.gui.app import models, forms, glue, settings
+from rpki.gui.app import models, forms, glue, settings, range_list
 from rpki import resource_set
 import rpki.irdb
 import rpki.exceptions
@@ -103,7 +103,7 @@ def dashboard(request, template_name='app/dashboard.html'):
 
     conf = request.session['handle']
 
-    used_asns = resource_set.resource_set_as()
+    used_asns = range_list.RangeList()
 
     # asns used in my roas
     roa_asns = set((obj.asn for obj in models.ROARequest.objects.filter(issuer=conf)))
@@ -113,39 +113,40 @@ def dashboard(request, template_name='app/dashboard.html'):
     child_asns = rpki.irdb.models.ChildASN.objects.filter(child__in=conf.children.all())
     used_asns.extend((resource_set.resource_range_as(obj.start_as, obj.end_as) for obj in child_asns))
 
-    used_asns.canonize()
-
     # my received asns
     asns = models.ResourceRangeAS.objects.filter(cert__parent__issuer=conf)
-    my_asns = resource_set.resource_set_as([resource_set.resource_range_as(obj.min, obj.max) for obj in asns])
+    my_asns = range_list.RangeList([resource_set.resource_range_as(obj.min, obj.max) for obj in asns])
 
     unused_asns = my_asns.difference(used_asns)
 
-    used_prefixes = resource_set.resource_set_ipv4()
-    used_prefixes_v6 = resource_set.resource_set_ipv6()
+    used_prefixes = range_list.RangeList()
+    used_prefixes_v6 = range_list.RangeList()
 
     # prefixes used in my roas
-    used_prefixes.extend((obj.as_resource_range() for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version='IPv4')))
-    used_prefixes_v6.extend((obj.as_resource_range() for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version='IPv6')))
+    for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version='IPv4'):
+        used_prefixes.append(obj.as_resource_range())
+
+    for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version='IPv6'):
+        used_prefixes_v6.append(obj.as_resource_range())
 
     # prefixes given to my children
-    used_prefixes.extend((obj.as_resource_range() for obj in rpki.irdb.models.ChildNet.objects.filter(child__in=conf.children.all(), version='IPv4')))
-    used_prefixes_v6.extend((obj.as_resource_range() for obj in rpki.irdb.models.ChildNet.objects.filter(child__in=conf.children.all(), version='IPv6')))
+    for obj in rpki.irdb.models.ChildNet.objects.filter(child__in=conf.children.all(), version='IPv4'):
+        used_prefixes.append(obj.as_resource_range())
 
-    used_prefixes.canonize()
-    used_prefixes_v6.canonize()
+    for obj in rpki.irdb.models.ChildNet.objects.filter(child__in=conf.children.all(), version='IPv6'):
+        used_prefixes_v6.append(obj.as_resource_range())
 
     # my received prefixes
     prefixes = models.ResourceRangeAddressV4.objects.filter(cert__parent__issuer=conf)
     prefixes_v6 = models.ResourceRangeAddressV6.objects.filter(cert__parent__issuer=conf)
-    my_prefixes = resource_set.resource_set_ipv4([obj.as_resource_range() for obj in prefixes])
-    my_prefixes_v6 = resource_set.resource_set_ipv6([obj.as_resource_range() for obj in prefixes_v6])
+    my_prefixes = range_list.RangeList([obj.as_resource_range() for obj in prefixes])
+    my_prefixes_v6 = range_list.RangeList([obj.as_resource_range() for obj in prefixes_v6])
 
     unused_prefixes = my_prefixes.difference(used_prefixes)
     unused_prefixes_v6 = my_prefixes_v6.difference(used_prefixes_v6)
 
     return render(template_name, {
-        'conf': handle,
+        'conf': conf,
         'unused_asns': unused_asns,
         'unused_prefixes': unused_prefixes,
         'unused_prefixes_v6': unused_prefixes_v6,

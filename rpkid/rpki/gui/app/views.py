@@ -616,10 +616,10 @@ def update_bpki(request):
     return render('app/update_bpki_form.html', { 'form': form }, request)
 
 @handle_required
-def child_delete(request, child_handle):
+def child_delete(request, pk):
     conf = request.session['handle']
     log = request.META['wsgi.errors']
-    child = get_object_or_404(conf.children, handle__exact=child_handle)
+    child = get_object_or_404(conf.children, pk=pk)
 
     if request.method == 'POST':
         form = forms.GenericConfirmationForm(request.POST, request.FILES)
@@ -633,10 +633,10 @@ def child_delete(request, child_handle):
     return render('app/child_delete_form.html', { 'form': form , 'object': child }, request)
 
 @handle_required
-def parent_delete(request, parent_handle):
+def parent_delete(request, pk):
     conf = request.session['handle']
     log = request.META['wsgi.errors']
-    parent = get_object_or_404(conf.parents, handle__exact=parent_handle)
+    parent = get_object_or_404(conf.parents, pk=pk)
 
     if request.method == 'POST':
         form = forms.GenericConfirmationForm(request.POST, request.FILES)

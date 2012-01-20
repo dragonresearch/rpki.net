@@ -17,7 +17,9 @@
   {% endfor %}
 </ul>
 {% else %}
-None
+<div class='alert-message warning'>
+  <p>There are <strong>no items</strong> in this list.
+</div>
 {% endif %}
 
 {% block actions %}

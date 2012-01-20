@@ -559,6 +559,7 @@ class Repository(CrossCertification):
 class Client(CrossCertification):
   issuer = django.db.models.ForeignKey(ServerCA, related_name = "clients")
   sia_base = django.db.models.TextField()
+  parent_handle = HandleField()
 
   # This shouldn't be necessary
   class Meta:

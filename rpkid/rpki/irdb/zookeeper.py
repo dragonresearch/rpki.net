@@ -125,7 +125,7 @@ class etree_wrapper(object):
 
   """
 
-  def __init__(self, e, msg = None):
+  def __init__(self, e, msg = None, debug = False):
     self.msg = msg
     e = copy.deepcopy(e)
     e.set("version", myrpki_version)
@@ -133,6 +133,8 @@ class etree_wrapper(object):
       if i.tag[0] != "{":
         i.tag = myrpki_namespaceQName + i.tag
       assert i.tag.startswith(myrpki_namespaceQName)
+    if debug:
+      print ElementToString(e)
     rpki.relaxng.myrpki.assertValid(e)
     self.etree = e
 
@@ -307,6 +309,15 @@ class Zookeeper(object):
       issuer = self.resource_ca,
       service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port", section = myrpki_section))
 
+    return self.generate_rootd_repository_offer()
+
+
+  def generate_rootd_repository_offer(self):
+    """
+    Generate repository offer for rootd.  Split out of
+    configure_rootd() because that's easier for the GUI.
+    """
+
     # The following assumes we'll set up the respository manually.
     # Not sure this is a reasonable assumption, particularly if we
     # ever fix rootd to use the publication protocol.
@@ -409,11 +420,6 @@ class Zookeeper(object):
     if child_handle is None:
       child_handle = c.get("handle")
 
-    service_uri = "http://%s:%s/up-down/%s/%s" % (
-      self.cfg.get("rpkid_server_host", section = myrpki_section),
-      self.cfg.get("rpkid_server_port", section = myrpki_section),
-      self.handle, child_handle)
-
     valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
 
     self.log("Child calls itself %r, we call it %r" % (c.get("handle"), child_handle))
@@ -424,8 +430,23 @@ class Zookeeper(object):
       ta = rpki.x509.X509(Base64 = c.findtext("bpki_ta")),
       valid_until = valid_until)
 
-    e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
-                service_uri = service_uri, valid_until = str(valid_until))
+    return self.generate_parental_response(child), child_handle
+
+
+  @django.db.transaction.commit_on_success
+  def generate_parental_response(self, child):
+    """
+    Generate parental response XML.  Broken out of .configure_child()
+    for GUI.
+    """
+
+    service_uri = "http://%s:%s/up-down/%s/%s" % (
+      self.cfg.get("rpkid_server_host", section = myrpki_section),
+      self.cfg.get("rpkid_server_port", section = myrpki_section),
+      self.handle, child.handle)
+
+    e = Element("parent", parent_handle = self.handle, child_handle = child.handle,
+                service_uri = service_uri, valid_until = str(child.valid_until))
     B64Element(e, "bpki_resource_ta", self.resource_ca.certificate)
     B64Element(e, "bpki_child_ta", child.ta)
 
@@ -444,7 +465,7 @@ class Zookeeper(object):
       SubElement(e, "repository", type = "offer")
 
     else:
-      proposed_sia_base = repo.sia_base + child_handle + "/"
+      proposed_sia_base = repo.sia_base + child.handle + "/"
       referral_cert, created = rpki.irdb.Referral.objects.get_or_certify(issuer = self.resource_ca)
       auth = rpki.x509.SignedReferral()
       auth.set_content(B64Element(None, myrpki_namespaceQName + "referral", child.ta,
@@ -457,7 +478,7 @@ class Zookeeper(object):
       B64Element(r, "authorization", auth, referrer = repo.client_handle)
       SubElement(r, "contact_info")
 
-    return etree_wrapper(e, msg = "Send this file back to the child you just configured"), child_handle
+    return etree_wrapper(e, msg = "Send this file back to the child you just configured")
 
 
   @django.db.transaction.commit_on_success
@@ -508,7 +529,7 @@ class Zookeeper(object):
     self.log("Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle))
     self.log("Parent calls us %r" % p.get("child_handle"))
 
-    rpki.irdb.Parent.objects.get_or_certify(
+    parent, created = rpki.irdb.Parent.objects.get_or_certify(
       issuer = self.resource_ca,
       handle = parent_handle,
       child_handle = p.get("child_handle"),
@@ -519,12 +540,21 @@ class Zookeeper(object):
       referrer = referrer,
       referral_authorization = referral_authorization)
 
-    if repository_type == "none":
-      r = Element("repository", type = "none")
-    r.set("handle", self.handle)
-    r.set("parent_handle", parent_handle)
-    B64Element(r, "bpki_client_ta", self.resource_ca.certificate)
-    return etree_wrapper(r, msg = "This is the file to send to the repository operator"), parent_handle
+    return self.generate_repository_request(parent), parent_handle
+
+
+  def generate_repository_request(self, parent):
+    """
+    Generate repository request for a given parent.
+    """
+
+    e = Element("repository", handle = self.handle,
+                parent_handle = parent.handle, type = parent.repository_type)
+    if parent.repository_type == "referral":
+      B64Element(e, "authorization", parent.referral_authorization, referrer = parent.referrer)
+      SubElement(e, "contact_info")
+    B64Element(e, "bpki_client_ta", self.resource_ca.certificate)
+    return etree_wrapper(e, msg = "This is the file to send to the repository operator")
 
 
   @django.db.transaction.commit_on_success
@@ -598,28 +628,36 @@ class Zookeeper(object):
     self.log("Client calls itself %r, we call it %r" % (client.get("handle"), client_handle))
     self.log("Client says its parent handle is %r" % parent_handle)
 
-    rpki.irdb.Client.objects.get_or_certify(
+    client, created = rpki.irdb.Client.objects.get_or_certify(
       issuer = self.server_ca,
       handle = client_handle,
+      parent_handle = parent_handle,
       ta = client_ta,
       sia_base = sia_base)
+
+    return self.generate_repository_response(client), client_handle
+
+
+  def generate_repository_response(self, client):
+    """
+    Generate repository response XML to a given client.
+    """
 
     service_uri = "http://%s:%s/client/%s" % (
       self.cfg.get("pubd_server_host", section = myrpki_section),
       self.cfg.get("pubd_server_port", section = myrpki_section),
-      client_handle)
+      client.handle)
 
     e = Element("repository", type = "confirmed",
-                client_handle = client_handle,
-                parent_handle = parent_handle,
-                sia_base = sia_base,
+                client_handle = client.handle,
+                parent_handle = client.parent_handle,
+                sia_base = client.sia_base,
                 service_uri = service_uri)
 
     B64Element(e, "bpki_server_ta", self.server_ca.certificate)
-    B64Element(e, "bpki_client_ta", client_ta)
+    B64Element(e, "bpki_client_ta", client.ta)
     SubElement(e, "contact_info").text = self.pubd_contact_info
-    return (etree_wrapper(e, msg = "Send this file back to the publication client you just configured"),
-            client_handle)
+    return etree_wrapper(e, msg = "Send this file back to the publication client you just configured")
 
 
   @django.db.transaction.commit_on_success

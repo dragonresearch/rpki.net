@@ -67,6 +67,7 @@ oid2name = {
   (2, 5, 29, 35)                        : "authorityKeyIdentifier",
   (2, 5, 29, 37)                        : "extendedKeyUsage",
   (2, 5, 4, 3)                          : "commonName",
+  (2, 5, 4, 5)                          : "serialNumber",
 }
 
 ## @var name2oid

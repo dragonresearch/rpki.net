@@ -265,8 +265,17 @@ class Zookeeper(object):
     if self.run_pubd:
       rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "pubd")
 
+    return self.generate_identity()
+
+
+  def generate_identity(self):
+    """
+    Generate identity XML.  Broken out of .initialize() because it's
+    easier for the GUI this way.
+    """
+
     e = Element("identity", handle = self.handle)
-    B64Element(e, "bpki_ta", resource_ca.certificate)
+    B64Element(e, "bpki_ta", self.resource_ca.certificate)
     return etree_wrapper(e, msg = 'This is the "identity" file you will need to send to your parent')
 
 

@@ -186,11 +186,63 @@ def conf_export(request):
     return serve_xml(glue.read_identity(handle.handle), 'identity')
 
 @handle_required
+def parent_import(request):
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+
+    if request.method == 'POST':
+        form = forms.ImportParentForm(conf, request.POST, request.FILES)
+        if form.is_valid():
+            tmpf = tempfile.NamedTemporaryFile(prefix='parent', suffix='.xml', delete=False)
+            f = tmpf.name
+            tmpf.write(form.cleaned_data['xml'].read())
+            tmpf.close()
+         
+            glue.import_parent(log, conf, form.cleaned_data['handle'], f)
+
+            os.remove(tmpf.name)
+
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.ImportParentForm(conf)
+
+    return render('app/import_parent_form.html', { 'form': form }, request)
+
+@handle_required
 def parent_list(request):
     """List view for parent objects."""
     conf = request.session['handle']
     return object_list(request, queryset=conf.parents.all(), template_name='app/parent_list.html',
-            extra_context = { 'page_title': 'Parents' })
+            extra_context = {
+                'page_title': 'Parents',
+                'create_url': reverse(parent_import),
+                'create_label': 'Import' })
+
+@handle_required
+def child_import(request):
+    """
+    Import a repository response.
+    """
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+
+    if request.method == 'POST':
+        form = forms.ImportChildForm(conf, request.POST, request.FILES)
+        if form.is_valid():
+            tmpf = tempfile.NamedTemporaryFile(prefix='identity', suffix='.xml', delete=False)
+            f = tmpf.name
+            tmpf.write(form.cleaned_data['xml'].read())
+            tmpf.close()
+         
+            glue.import_child(log, conf, form.cleaned_data['handle'], f)
+
+            os.remove(tmpf.name)
+
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.ImportChildForm(conf)
+
+    return render('app/import_child_form.html', { 'form': form }, request)
 
 @handle_required
 def child_list(request):
@@ -198,7 +250,10 @@ def child_list(request):
     conf = request.session['handle']
     return object_list(request, queryset=conf.children.all(),
             template_name = 'app/child_list.html',
-            extra_context = { 'page_title': 'Children' })
+            extra_context = {
+                'page_title': 'Children',
+                'create_url': reverse(child_import),
+                'create_label': 'Import' })
 
 @handle_required
 def child_add_resource(request, pk, form_class, unused_list, callback, template_name='app/child_add_resource_form.html'):
@@ -448,55 +503,6 @@ def refresh(request):
     glue.list_received_resources(request.META['wsgi.errors'], request.session['handle'])
     return http.HttpResponseRedirect(reverse(dashboard))
 
-@handle_required
-def import_parent(request):
-    conf = request.session['handle']
-    log = request.META['wsgi.errors']
-
-    if request.method == 'POST':
-        form = forms.ImportParentForm(conf, request.POST, request.FILES)
-        if form.is_valid():
-            tmpf = tempfile.NamedTemporaryFile(prefix='parent', suffix='.xml', delete=False)
-            f = tmpf.name
-            tmpf.write(form.cleaned_data['xml'].read())
-            tmpf.close()
-         
-            glue.import_parent(log, conf, form.cleaned_data['handle'], f)
-
-            os.remove(tmpf.name)
-
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.ImportParentForm(conf)
-
-    return render('app/import_parent_form.html', { 'form': form }, request)
-
-@handle_required
-def import_child(request):
-    """
-    Import a repository response.
-    """
-    conf = request.session['handle']
-    log = request.META['wsgi.errors']
-
-    if request.method == 'POST':
-        form = forms.ImportChildForm(conf, request.POST, request.FILES)
-        if form.is_valid():
-            tmpf = tempfile.NamedTemporaryFile(prefix='identity', suffix='.xml', delete=False)
-            f = tmpf.name
-            tmpf.write(form.cleaned_data['xml'].read())
-            tmpf.close()
-         
-            glue.import_child(log, conf, form.cleaned_data['handle'], f)
-
-            os.remove(tmpf.name)
-
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.ImportChildForm(conf)
-
-    return render('app/import_child_form.html', { 'form': form }, request)
-
 @login_required
 def initialize(request):
     """
@@ -706,13 +712,17 @@ def repository_list(request):
     conf = request.session['handle']
     qs = models.Repository.objects.filter(issuer=conf)
     return object_list(request, queryset=qs, template_name='app/repository_list.html',
-            extra_context={ 'page_title': 'Repositories' })
+            extra_context={
+                'page_title': u'Repositories',
+                'create_url': reverse(repository_import),
+                'create_label': u'Import' })
 
 @handle_required
 def repository_detail(request, pk):
     conf = request.session['handle']
     qs = models.Repository.objects.filter(issuer=conf)
-    return object_detail(request, queryset=qs, object_id=pk, template_name='app/repository_detail.html')
+    return object_detail(request, queryset=qs, object_id=pk, template_name='app/repository_detail.html',
+            extra_context={ 'page_title': 'Repository Detail' })
 
 @handle_required
 def repository_delete(request, pk):
@@ -746,11 +756,15 @@ def repository_import(request):
 @superuser_required
 def client_list(request):
     return object_list(request, queryset=models.Client.objects.all(), template_name='app/client_list.html',
-            extra_context={ 'page_title': 'Publication Clients' })
+            extra_context={
+                'page_title': u'Publication Clients',
+                'create_url' : reverse(client_import),
+                'create_label' : u'Import' })
 
 @superuser_required
 def client_detail(request, pk):
-    return object_detail(request, queryset=models.Client.objects, object_id=pk, template_name='app/client_detail.html')
+    return object_detail(request, queryset=models.Client.objects, object_id=pk, template_name='app/client_detail.html',
+            extra_context={ 'page_title': 'Publication Client Detail' })
 
 @superuser_required
 def client_delete(request, pk):

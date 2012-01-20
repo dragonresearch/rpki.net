@@ -1,9 +1,7 @@
 {% extends "app/object_list.html" %}
 
-{% block actions %}
-<div class='actions'>
-  <a class='btn' href="{% url rpki.gui.app.views.import_child %}" title="import a new child's identity.xml file">Import</a>
-</div>
-{% endblock actions %}
+{% block object_detail %}
+<li><a href="{{ object.get_absolute_url }}">{{ object.handle }}</a></li>
+{% endblock object_detail %}
 
 <!-- vim: set sw=2: -->

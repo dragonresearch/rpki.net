@@ -1,0 +1,16 @@
+{% extends "app/object_detail.html" %}
+
+{% block object_detail %}
+<table style='condensed-table'>
+  <tr>
+    <th>Name</th>
+    <td>{{ object.handle }}</td>
+  </tr>
+  <tr>
+    <th>SIA</th>
+    <td>{{ object.sia_base }}</td>
+  </tr>
+</table>
+{% endblock object_detail %}
+
+<!-- vim:set sw=2: -->

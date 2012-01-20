@@ -15,11 +15,6 @@
 {% endif %}
 
 <ul class='unstyled'>
-  <li><a href="{% url rpki.gui.app.views.import_repository %}" title="upload XML response from remote repository">import repository</a></li>
-  <li><a href="{% url rpki.gui.app.views.import_pubclient %}" title="import XML request from a publication client">import pubclient</a></li>
-</ul>
-
-<ul class='unstyled'>
     <li><a href="{% url rpki.gui.app.views.refresh %}">refresh</a></li>
 </ul>
 {% endblock sidebar_extra %}

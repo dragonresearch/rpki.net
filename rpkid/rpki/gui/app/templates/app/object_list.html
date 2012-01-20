@@ -20,7 +20,13 @@
 None
 {% endif %}
 
-{% block actions %}{% endblock %}
+{% block actions %}
+{% if create_url %}
+<div class='actions'>
+  <a class='btn' href='{{ create_url }}'>{{ create_label|default:"Create" }}</a>
+</div>
+{% endif %}
+{% endblock %}
 
 {% endblock %}
 

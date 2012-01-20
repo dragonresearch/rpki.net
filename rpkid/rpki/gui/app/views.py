@@ -19,9 +19,11 @@ PERFORMANCE OF THIS SOFTWARE.
 
 from __future__ import with_statement
 
-import email.message, email.utils, mailbox
-import os, os.path
-import sys, tempfile
+import email.message
+import email.utils
+import os
+import os.path
+import tempfile
 
 from django.contrib.auth.decorators import login_required
 from django.contrib import auth
@@ -30,10 +32,11 @@ from django.utils.http import urlquote
 from django.template import RequestContext
 from django import http
 from django.views.generic.list_detail import object_list, object_detail
-from django.views.generic.create_update import delete_object, update_object, create_object
+from django.views.generic.create_update import (delete_object, update_object,
+        create_object)
 from django.core.urlresolvers import reverse
 
-from rpki.gui.app import models, forms, glue, settings, range_list
+from rpki.gui.app import models, forms, glue, range_list
 from rpki import resource_set
 import rpki.irdb
 import rpki.exceptions
@@ -42,6 +45,7 @@ import rpki.gui.cacheview.models
 import rpki.gui.routeview.models
 
 debug = False
+
 
 def my_login_required(f):
     """
@@ -60,8 +64,11 @@ def my_login_required(f):
 
     return wrapped
 
+
 def superuser_required(f):
-    "Decorator which returns HttpResponseForbidden if the user does not have superuser permissions."
+    """Decorator which returns HttpResponseForbidden if the user does not have
+    superuser permissions."""
+
     @login_required
     def _wrapped(request, *args, **kwargs):
         if not request.user.is_superuser:
@@ -72,6 +79,7 @@ def superuser_required(f):
 # For each type of object, we have a detail view, a create view and
 # an update view.  We heavily leverage the generic views, only
 # adding our own idea of authorization.
+
 
 def handle_required(f):
     @login_required
@@ -89,25 +97,29 @@ def handle_required(f):
             else:
                 # Should reverse the view for this instead of hardcoding
                 # the URL.
-                return http.HttpResponseRedirect(
-                        reverse(conf_list) + '?next=' + urlquote(request.get_full_path()))
+                url = '%s?next=%s' % (reverse(conf_list),
+                        urlquote(request.get_full_path()))
+                return http.HttpResponseRedirect(url)
+
         return f(request, *args, **kwargs)
     return wrapped_fn
+
 
 def render(template, context, request):
     return render_to_response(template, context,
             context_instance=RequestContext(request))
 
+
 @handle_required
 def dashboard(request):
 
-    log = request.META['wsgi.errors']
     conf = request.session['handle']
 
     used_asns = range_list.RangeList()
 
     # asns used in my roas
-    roa_asns = set((obj.asn for obj in models.ROARequest.objects.filter(issuer=conf)))
+    qs = models.ROARequest.objects.filter(issuer=conf)
+    roa_asns = set((obj.asn for obj in qs))
     used_asns.extend((resource_set.resource_range_as(asn, asn) for asn in roa_asns))
 
     # asns given to my children
@@ -153,14 +165,16 @@ def dashboard(request):
         'unused_prefixes_v6': unused_prefixes_v6,
         'asns': asns,
         'prefixes': prefixes,
-        'prefixes_v6': prefixes }, request)
+        'prefixes_v6': prefixes}, request)
+
 
 @superuser_required
 def conf_list(request):
     """Allow the user to select a handle."""
     queryset = models.Conf.objects.all()
     return object_list(request, queryset,
-            template_name='app/conf_list.html', template_object_name='conf', extra_context={ 'select_url' : reverse(conf_select) })
+            template_name='app/conf_list.html', template_object_name='conf', extra_context={'select_url': reverse(conf_select)})
+
 
 @superuser_required
 def conf_select(request):
@@ -174,16 +188,19 @@ def conf_select(request):
     request.session['handle'] = get_object_or_404(models.Conf, handle=handle)
     return http.HttpResponseRedirect(next_url)
 
+
 def serve_xml(content, basename):
-    resp = http.HttpResponse(content , mimetype='application/xml')
+    resp = http.HttpResponse(content, mimetype='application/xml')
     resp['Content-Disposition'] = 'attachment; filename=%s.xml' % (basename, )
     return resp
+
 
 @handle_required
 def conf_export(request):
     """Return the identity.xml for the current handle."""
     handle = request.session['handle']
     return serve_xml(glue.read_identity(handle.handle), 'identity')
+
 
 @handle_required
 def parent_import(request):
@@ -197,7 +214,7 @@ def parent_import(request):
             f = tmpf.name
             tmpf.write(form.cleaned_data['xml'].read())
             tmpf.close()
-         
+
             glue.import_parent(log, conf, form.cleaned_data['handle'], f)
 
             os.remove(tmpf.name)
@@ -206,17 +223,19 @@ def parent_import(request):
     else:
         form = forms.ImportParentForm(conf)
 
-    return render('app/import_parent_form.html', { 'form': form }, request)
+    return render('app/import_parent_form.html', {'form': form}, request)
+
 
 @handle_required
 def parent_list(request):
     """List view for parent objects."""
     conf = request.session['handle']
     return object_list(request, queryset=conf.parents.all(), template_name='app/parent_list.html',
-            extra_context = {
+            extra_context={
                 'page_title': 'Parents',
                 'create_url': reverse(parent_import),
-                'create_label': 'Import' })
+                'create_label': 'Import'})
+
 
 @handle_required
 def child_import(request):
@@ -233,7 +252,7 @@ def child_import(request):
             f = tmpf.name
             tmpf.write(form.cleaned_data['xml'].read())
             tmpf.close()
-         
+
             glue.import_child(log, conf, form.cleaned_data['handle'], f)
 
             os.remove(tmpf.name)
@@ -242,18 +261,20 @@ def child_import(request):
     else:
         form = forms.ImportChildForm(conf)
 
-    return render('app/import_child_form.html', { 'form': form }, request)
+    return render('app/import_child_form.html', {'form': form}, request)
+
 
 @handle_required
 def child_list(request):
     """List view for child objects."""
     conf = request.session['handle']
     return object_list(request, queryset=conf.children.all(),
-            template_name = 'app/child_list.html',
-            extra_context = {
+            template_name='app/child_list.html',
+            extra_context={
                 'page_title': 'Children',
                 'create_url': reverse(child_import),
-                'create_label': 'Import' })
+                'create_label': 'Import'})
+
 
 @handle_required
 def child_add_resource(request, pk, form_class, unused_list, callback, template_name='app/child_add_resource_form.html'):
@@ -267,14 +288,19 @@ def child_add_resource(request, pk, form_class, unused_list, callback, template_
     else:
         form = form_class()
 
-    return render(template_name, { 'object': child, 'form': form, 'unused': unused_list }, request)
+    return render(template_name, {'object': child, 'form': form,
+        'unused': unused_list}, request)
+
 
 def add_asn_callback(child, form):
     r = resource_set.resource_range_as.parse_str(form.as_range)
     child.asns.create(min=r.min, max=r.max)
 
+
 def child_add_asn(request, pk):
-    return child_add_resource(request, pk, form_class=forms.AddASNForm, callback=add_asn_callback)
+    return child_add_resource(request, pk, form_class=forms.AddASNForm,
+            callback=add_asn_callback)
+
 
 def add_address_callback(child, form):
     try:
@@ -285,22 +311,27 @@ def add_address_callback(child, form):
         family = 6
     child.address_ranges.create(min=str(r.min), max=str(r.max), family=family)
 
+
 def child_add_address(request, pk):
-    return child_add_resource(request, pk, form_class=forms.AddAddressForm, callback=add_address_callback)
+    return child_add_resource(request, pk, form_class=forms.AddAddressForm,
+            callback=add_address_callback)
+
 
 @handle_required
 def parent_view(request, pk):
     """Detail view for a particular parent."""
     handle = request.session['handle']
     parent = get_object_or_404(handle.parents.all(), pk=pk)
-    return render('app/parent_view.html', { 'parent': parent }, request)
+    return render('app/parent_view.html', {'parent': parent}, request)
+
 
 @handle_required
 def child_view(request, pk):
     '''Detail view of child for the currently selected handle.'''
     handle = request.session['handle']
     child = get_object_or_404(handle.children.all(), pk=pk)
-    return render('app/child_view.html', { 'child': child }, request)
+    return render('app/child_view.html', {'child': child}, request)
+
 
 @handle_required
 def child_edit(request, pk):
@@ -316,8 +347,9 @@ def child_edit(request, pk):
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = forms.ChildForm(instance=child)
-        
-    return render('app/child_form.html', { 'child': child, 'form': form }, request)
+
+    return render('app/child_form.html', {'child': child, 'form': form}, request)
+
 
 # this is similar to handle_required, except that the handle is given in URL
 def handle_or_404(request, handle):
@@ -330,26 +362,32 @@ def handle_or_404(request, handle):
         raise http.Http404, 'resource handle not found'
     return conf_set[0]
 
+
 def serve_file(handle, fname, content_type, error_code=404):
     content, mtime = glue.read_file_from_handle(handle, fname)
-    resp = http.HttpResponse(content , mimetype=content_type)
+    resp = http.HttpResponse(content, mimetype=content_type)
     resp['Content-Disposition'] = 'attachment; filename=%s' % (os.path.basename(fname), )
     resp['Last-Modified'] = email.utils.formatdate(mtime, usegmt=True)
     return resp
+
 
 @my_login_required
 def download_csv(request, self_handle, fname):
     conf = handle_or_404(request, self_handle)
     return serve_file(conf.handle, fname + '.csv', 'text/csv')
 
+
 def download_asns(request, self_handle):
     return download_csv(request, self_handle, 'asns')
+
 
 def download_roas(request, self_handle):
     return download_csv(request, self_handle, 'roas')
 
+
 def download_prefixes(request, self_handle):
     return download_csv(request, self_handle, 'prefixes')
+
 
 def login(request):
     """
@@ -374,20 +412,22 @@ def login(request):
     else:
         return http.HttpResponse('<p>This should never been seen by a human</p>')
 
+
 @handle_required
 def roa_list(request):
     "Displays a list of ROARequestPrefix objects for the current resource handle."
-    log = request.META['wsgi.errors']
     conf = request.session['handle']
     return object_list(request, queryset=models.ROARequestPrefix.objects.filter(roa_request__issuer=conf),
         template_name='app/roa_request_list.html',
-        extra_context = { 'page_title': 'ROA Requests' })
+        extra_context={'page_title': 'ROA Requests'})
+
 
 @handle_required
 def roa_detail(request, pk):
     """Not implemented.  This is a placeholder so that models.ROARequestPrefix.get_absolute_url
     works.  The only reason it exist is so that the /delete URL works."""
     pass
+
 
 @handle_required
 def roa_delete(request, pk):
@@ -396,7 +436,6 @@ def roa_delete(request, pk):
     Uses a form for double confirmation, displaying how the route
     validation status may change as a result."""
 
-    log = request.META['wsgi.errors']
     conf = request.session['handle']
     obj = get_object_or_404(models.ROARequestPrefix.objects, roa_request__issuer=conf, pk=pk)
 
@@ -406,7 +445,7 @@ def roa_delete(request, pk):
         # if this was the last prefix on the ROA, delete the ROA request
         if not roa.prefixes.exists():
             roa.delete()
-        return http.HttpResponseRedirect(reverse(roa_request_list))
+        return http.HttpResponseRedirect(reverse(roa_list))
 
     ### Process GET ###
 
@@ -415,9 +454,9 @@ def roa_delete(request, pk):
     roa_pfx = obj.as_roa_prefix()
 
     pfx = 'prefixes' if isinstance(roa_pfx, resource_set.roa_prefix_ipv4) else 'prefixes_v6'
-    args = { '%s__prefix_min' % pfx : roa_pfx.min(),
-             '%s__prefix_max' % pfx : roa_pfx.max(),
-             '%s__max_length' % pfx : roa_pfx.max_prefixlen }
+    args = {'%s__prefix_min' % pfx: roa_pfx.min(),
+            '%s__prefix_max' % pfx: roa_pfx.max(),
+            '%s__max_length' % pfx: roa_pfx.max_prefixlen}
 
     # exclude ROAs which seem to match this request and display the result
     routes = []
@@ -426,12 +465,14 @@ def roa_delete(request, pk):
         validate_route(route, qs)
         routes.append(route)
 
-    return render('app/roa_request_confirm_delete.html', { 'object': obj,
-        'routes': routes }, request)
+    return render('app/roa_request_confirm_delete.html', {'object': obj,
+        'routes': routes}, request)
+
 
 @handle_required
 def roa_create(request):
     conf = request.session['handle']
+
 
 @handle_required
 def ghostbusters_list(request):
@@ -442,7 +483,8 @@ def ghostbusters_list(request):
     qs = models.GhostbusterRequest.objects.filter(issuer=conf)
     return object_list(request, queryset=qs,
             template_name='app/ghostbuster_list.html',
-            extra_context = { 'page_title': 'Ghostbusters' })
+            extra_context={'page_title': 'Ghostbusters'})
+
 
 @handle_required
 def ghostbuster_view(request, pk):
@@ -453,6 +495,7 @@ def ghostbuster_view(request, pk):
     qs = models.GhostbusterRequest.objects.filter(issuer=conf)
     return object_detail(request, queryset=qs, object_id=pk, template_name='app/ghostbuster_detail.html')
 
+
 @handle_required
 def ghostbuster_delete(request, pk):
     conf = request.session['handle']
@@ -462,10 +505,11 @@ def ghostbuster_delete(request, pk):
 
     # modeled loosely on the generic delete_object() view.
     if request.method == 'POST':
-        obj.delete() # should cause a cascade delete of 'obj'
+        obj.delete()  # should cause a cascade delete of 'obj'
         return http.HttpResponseRedirect(reverse(ghostbusters_list))
 
-    return render('app/ghostbuster_confirm_delete.html', { 'object': obj }, request)
+    return render('app/ghostbuster_confirm_delete.html', {'object': obj}, request)
+
 
 def _ghostbuster_edit(request, obj=None):
     """
@@ -486,7 +530,8 @@ def _ghostbuster_edit(request, obj=None):
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
         form = form_class(conf, instance=obj)
-    return render('app/ghostbuster_form.html', { 'form': form, 'object': obj }, request)
+    return render('app/ghostbuster_form.html', {'form': form, 'object': obj}, request)
+
 
 @handle_required
 def ghostbuster_edit(request, pk):
@@ -497,15 +542,18 @@ def ghostbuster_edit(request, pk):
 
     return _ghostbuster_edit(request, obj)
 
+
 @handle_required
 def ghostbuster_create(request):
     return _ghostbuster_edit(request)
+
 
 @handle_required
 def refresh(request):
     "Query rpkid, update the db, and redirect back to the dashboard."
     glue.list_received_resources(request.META['wsgi.errors'], request.session['handle'])
     return http.HttpResponseRedirect(reverse(dashboard))
+
 
 @login_required
 def initialize(request):
@@ -520,7 +568,8 @@ def initialize(request):
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('app/initialize_form.html', { 'form': form }, request)
+    return render('app/initialize_form.html', {'form': form}, request)
+
 
 @handle_required
 def child_wizard(request):
@@ -540,7 +589,8 @@ def child_wizard(request):
     else:
         form = forms.ChildWizardForm(conf)
 
-    return render('app/child_wizard_form.html', { 'form': form }, request)
+    return render('app/child_wizard_form.html', {'form': form}, request)
+
 
 @handle_required
 def export_child_response(request, child_handle):
@@ -552,6 +602,7 @@ def export_child_response(request, child_handle):
     log = request.META['wsgi.errors']
     return serve_xml(glue.read_child_response(log, conf, child_handle), child_handle)
 
+
 @handle_required
 def export_child_repo_response(request, child_handle):
     """
@@ -561,6 +612,7 @@ def export_child_repo_response(request, child_handle):
     conf = request.session['handle']
     log = request.META['wsgi.errors']
     return serve_xml(glue.read_child_repo_response(log, conf, child_handle), child_handle)
+
 
 @handle_required
 def update_bpki(request):
@@ -575,42 +627,41 @@ def update_bpki(request):
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('app/update_bpki_form.html', { 'form': form }, request)
+    return render('app/update_bpki_form.html', {'form': form}, request)
+
 
 @handle_required
 def child_delete(request, pk):
     conf = request.session['handle']
-    log = request.META['wsgi.errors']
     child = get_object_or_404(conf.children, pk=pk)
 
     if request.method == 'POST':
         form = forms.GenericConfirmationForm(request.POST, request.FILES)
         if form.is_valid():
-            glue.delete_child(log, conf, child_handle)
             child.delete()
-            return http.HttpResponseRedirect(reverse(dashboard))
+            return http.HttpResponseRedirect(reverse(child_list))
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('app/child_delete_form.html', { 'form': form , 'object': child }, request)
+    return render('app/child_delete_form.html', {'form': form, 'object': child}, request)
+
 
 @handle_required
 def parent_delete(request, pk):
     conf = request.session['handle']
-    log = request.META['wsgi.errors']
     parent = get_object_or_404(conf.parents, pk=pk)
 
     if request.method == 'POST':
         form = forms.GenericConfirmationForm(request.POST, request.FILES)
         if form.is_valid():
-            glue.delete_parent(log, conf, parent_handle)
             parent.delete()
-            return http.HttpResponseRedirect(reverse(dashboard))
+            return http.HttpResponseRedirect(reverse(parent_list))
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('app/parent_view.html', { 'form': form ,
-        'parent': parent, 'submit_label': 'Delete' }, request)
+    return render('app/parent_view.html', {'form': form,
+        'parent': parent, 'submit_label': 'Delete'}, request)
+
 
 @login_required
 def destroy_handle(request, handle):
@@ -630,13 +681,14 @@ def destroy_handle(request, handle):
         if form.is_valid():
             glue.destroy_handle(log, handle)
             return render('app/generic_result.html',
-                    { 'operation': 'Destroy ' + handle,
-                      'result': 'Succeeded' }, request)
+                    {'operation': 'Destroy ' + handle,
+                     'result': 'Succeeded'}, request)
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('app/destroy_handle_form.html', { 'form': form ,
-        'handle': handle }, request)
+    return render('app/destroy_handle_form.html', {'form': form,
+        'handle': handle}, request)
+
 
 def roa_match(rng):
     "Return a list of tuples of matching routes and roas."
@@ -653,8 +705,8 @@ def roa_match(rng):
     for obj in route_manager.filter(prefix_min__gte=rng.min, prefix_max__lte=rng.max):
         # This is a bit of a gross hack, since the foreign keys for v4 and v6
         # prefixes have different names.
-        args = { '%s__prefix_min__lte' % pfx: obj.prefix_min,
-                 '%s__prefix_max__gte' % pfx: obj.prefix_max }
+        args = {'%s__prefix_min__lte' % pfx: obj.prefix_min,
+                '%s__prefix_max__gte' % pfx: obj.prefix_max}
         roas = rpki.gui.cacheview.models.ROA.objects.filter(
                 statuses__status=object_accepted,
                 **args)
@@ -662,15 +714,16 @@ def roa_match(rng):
 
     return rv
 
+
 def validate_route(route, roas):
     """Annotate the route object with its validation status.
 
     `roas` is a queryset containing ROAs which cover `route`.  """
     pfx = 'prefixes' if isinstance(route, rpki.gui.routeview.models.RouteOrigin) else 'prefixes_v6'
-    args = { 'asid': route.asn,
-             '%s__prefix_min__lte' % pfx: route.prefix_min,
-             '%s__prefix_max__gte' % pfx: route.prefix_max,
-             '%s__max_length__gte' % pfx: route.prefixlen() }
+    args = {'asid': route.asn,
+            '%s__prefix_min__lte' % pfx: route.prefix_min,
+            '%s__prefix_max__gte' % pfx: route.prefix_max,
+            '%s__max_length__gte' % pfx: route.prefixlen()}
 
     # 2. if the candidate ROA set is empty, end with unknown
     if not roas.exists():
@@ -688,6 +741,7 @@ def validate_route(route, roas):
         route.status = 'invalid'
 
     return route
+
 
 @handle_required
 def route_view(request):
@@ -710,7 +764,8 @@ def route_view(request):
         routes.extend([validate_route(*x) for x in roa_match(r)])
 
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
-    return render('app/routes_view.html', { 'routes': routes, 'timestamp': ts }, request)
+    return render('app/routes_view.html', {'routes': routes, 'timestamp': ts}, request)
+
 
 @handle_required
 def repository_list(request):
@@ -720,20 +775,23 @@ def repository_list(request):
             extra_context={
                 'page_title': u'Repositories',
                 'create_url': reverse(repository_import),
-                'create_label': u'Import' })
+                'create_label': u'Import'})
+
 
 @handle_required
 def repository_detail(request, pk):
     conf = request.session['handle']
     qs = models.Repository.objects.filter(issuer=conf)
     return object_detail(request, queryset=qs, object_id=pk, template_name='app/repository_detail.html',
-            extra_context={ 'page_title': 'Repository Detail' })
+            extra_context={'page_title': 'Repository Detail'})
+
 
 @handle_required
 def repository_delete(request, pk):
     conf = request.session['handle']
     get_object_or_404(models.Repository, issuer=conf, pk=pk)  # permission check
     return delete_object(request, model=models.Repository, object_id=pk, template_name='app/repository_detail.html')
+
 
 @handle_required
 def repository_import(request):
@@ -747,7 +805,7 @@ def repository_import(request):
             f = tmpf.name
             tmpf.write(form.cleaned_data['xml'].read())
             tmpf.close()
-         
+
             glue.import_repository(log, conf, f)
 
             os.remove(tmpf.name)
@@ -756,24 +814,28 @@ def repository_import(request):
     else:
         form = forms.ImportRepositoryForm()
 
-    return render('app/import_repository_form.html', { 'form': form }, request)
+    return render('app/import_repository_form.html', {'form': form}, request)
+
 
 @superuser_required
 def client_list(request):
     return object_list(request, queryset=models.Client.objects.all(), template_name='app/client_list.html',
             extra_context={
                 'page_title': u'Publication Clients',
-                'create_url' : reverse(client_import),
-                'create_label' : u'Import' })
+                'create_url': reverse(client_import),
+                'create_label': u'Import'})
+
 
 @superuser_required
 def client_detail(request, pk):
     return object_detail(request, queryset=models.Client.objects, object_id=pk, template_name='app/client_detail.html',
-            extra_context={ 'page_title': 'Publication Client Detail' })
+            extra_context={'page_title': 'Publication Client Detail'})
+
 
 @superuser_required
 def client_delete(request, pk):
     return delete_object(request, model=models.Client, object_id=pk, template_name='app/client_detail.html')
+
 
 @superuser_required
 def client_import(request):
@@ -787,7 +849,7 @@ def client_import(request):
             f = tmpf.name
             tmpf.write(form.cleaned_data['xml'].read())
             tmpf.close()
-         
+
             glue.import_pubclient(log, conf, f)
 
             os.remove(tmpf.name)
@@ -796,6 +858,6 @@ def client_import(request):
     else:
         form = forms.ImportPubClientForm()
 
-    return render('app/import_pubclient_form.html', { 'form': form }, request)
+    return render('app/import_pubclient_form.html', {'form': form}, request)
 
 # vim:sw=4 ts=8 expandtab

@@ -700,6 +700,10 @@ def route_view(request):
         r = p.as_resource_range()
         print >>log, 'querying for routes matching %s' % r
         routes.extend([validate_route(*x) for x in roa_match(r)])
+    for p in models.ResourceRangeAddressV6.objects.filter(cert__parent__in=conf.parents.all()):
+        r = p.as_resource_range()
+        print >>log, 'querying for routes matching %s' % r
+        routes.extend([validate_route(*x) for x in roa_match(r)])
 
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
     return render('app/routes_view.html', { 'routes': routes, 'timestamp': ts }, request)

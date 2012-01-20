@@ -692,14 +692,11 @@ def route_view(request):
     in received certificates.
     """
 
-    handle = request.session['handle']
+    conf = request.session['handle']
     log = request.META['wsgi.errors']
 
-    # cache the 'object_accepted' value since it will be the same for all ROAs
-    object_accepted = rpki.gui.cacheview.models.ValidationLabel.objects.get(label='object_accepted')
-
     routes = []
-    for p in models.AddressRange.objects.filter(from_cert__parent__in=handle.parents.all()):
+    for p in models.ResourceRangeAddressV4.objects.filter(cert__parent__in=conf.parents.all()):
         r = p.as_resource_range()
         print >>log, 'querying for routes matching %s' % r
         routes.extend([validate_route(*x) for x in roa_match(r)])

@@ -86,6 +86,10 @@ class ResourceCert(models.Model):
     not_before = models.DateTimeField()
     not_after = models.DateTimeField()
 
+    # Locator for this object.  Used to look up the validation status, expiry
+    # of ancestor certs in cacheview
+    uri = models.CharField(max_length=255)
+
     def __unicode__(self):
         return u"%s's resource cert from parent %s" % (self.parent.issuer.handle, self.parent.handle)
 

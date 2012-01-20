@@ -194,7 +194,9 @@ def list_received_resources(log, conf):
             not_before = datetime.strptime(pdu.notBefore, "%Y-%m-%dT%H:%M:%SZ")
             not_after = datetime.strptime(pdu.notAfter, "%Y-%m-%dT%H:%M:%SZ")
 
-            cert = models.ResourceCert.objects.create(parent=parent, not_before=not_before, not_after=not_after)
+            cert = models.ResourceCert.objects.create(parent=parent,
+                    not_before=not_before, not_after=not_after,
+                    uri=pdu.uri)
 
             for asn in rpki.resource_set.resource_set_as(pdu.asn):
                 cert.asn_ranges.create(min=asn.min, max=asn.max)

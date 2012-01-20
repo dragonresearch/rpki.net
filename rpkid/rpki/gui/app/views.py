@@ -173,7 +173,8 @@ def conf_list(request):
     """Allow the user to select a handle."""
     queryset = models.Conf.objects.all()
     return object_list(request, queryset,
-            template_name='app/conf_list.html', template_object_name='conf', extra_context={'select_url': reverse(conf_select)})
+            template_name='app/conf_list.html', template_object_name='conf',
+            extra_context={'select_url': reverse(conf_select)})
 
 
 @superuser_required
@@ -230,7 +231,8 @@ def parent_import(request):
 def parent_list(request):
     """List view for parent objects."""
     conf = request.session['handle']
-    return object_list(request, queryset=conf.parents.all(), template_name='app/parent_list.html',
+    return object_list(request, queryset=conf.parents.all(),
+            template_name='app/parent_list.html',
             extra_context={
                 'page_title': 'Parents',
                 'create_url': reverse(parent_import),
@@ -417,9 +419,10 @@ def login(request):
 def roa_list(request):
     "Displays a list of ROARequestPrefix objects for the current resource handle."
     conf = request.session['handle']
-    return object_list(request, queryset=models.ROARequestPrefix.objects.filter(roa_request__issuer=conf),
-        template_name='app/roa_request_list.html',
-        extra_context={'page_title': 'ROA Requests'})
+    qs = models.ROARequestPrefix.objects.filter(roa_request__issuer=conf)
+    return object_list(request, queryset=qs,
+            template_name='app/roa_request_list.html',
+            extra_context={'page_title': 'ROA Requests'})
 
 
 @handle_required
@@ -493,7 +496,8 @@ def ghostbuster_view(request, pk):
     """
     conf = request.session['handle']
     qs = models.GhostbusterRequest.objects.filter(issuer=conf)
-    return object_detail(request, queryset=qs, object_id=pk, template_name='app/ghostbuster_detail.html')
+    return object_detail(request, queryset=qs, object_id=pk,
+            template_name='app/ghostbuster_detail.html')
 
 
 @handle_required
@@ -508,7 +512,8 @@ def ghostbuster_delete(request, pk):
         obj.delete()  # should cause a cascade delete of 'obj'
         return http.HttpResponseRedirect(reverse(ghostbusters_list))
 
-    return render('app/ghostbuster_confirm_delete.html', {'object': obj}, request)
+    return render('app/ghostbuster_confirm_delete.html', {'object': obj},
+            request)
 
 
 def _ghostbuster_edit(request, obj=None):
@@ -530,7 +535,8 @@ def _ghostbuster_edit(request, obj=None):
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
         form = form_class(conf, instance=obj)
-    return render('app/ghostbuster_form.html', {'form': form, 'object': obj}, request)
+    return render('app/ghostbuster_form.html', {'form': form, 'object': obj},
+            request)
 
 
 @handle_required
@@ -563,7 +569,8 @@ def initialize(request):
     if request.method == 'POST':
         form = forms.GenericConfirmationForm(request.POST)
         if form.is_valid():
-            glue.initialize_handle(request.META['wsgi.errors'], handle=request.user.username, owner=request.user)
+            glue.initialize_handle(request.META['wsgi.errors'],
+                    handle=request.user.username, owner=request.user)
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.GenericConfirmationForm()
@@ -819,7 +826,8 @@ def repository_import(request):
 
 @superuser_required
 def client_list(request):
-    return object_list(request, queryset=models.Client.objects.all(), template_name='app/client_list.html',
+    return object_list(request, queryset=models.Client.objects.all(),
+            template_name='app/client_list.html',
             extra_context={
                 'page_title': u'Publication Clients',
                 'create_url': reverse(client_import),
@@ -828,13 +836,15 @@ def client_list(request):
 
 @superuser_required
 def client_detail(request, pk):
-    return object_detail(request, queryset=models.Client.objects, object_id=pk, template_name='app/client_detail.html',
+    return object_detail(request, queryset=models.Client.objects, object_id=pk,
+            template_name='app/client_detail.html',
             extra_context={'page_title': 'Publication Client Detail'})
 
 
 @superuser_required
 def client_delete(request, pk):
-    return delete_object(request, model=models.Client, object_id=pk, template_name='app/client_detail.html')
+    return delete_object(request, model=models.Client, object_id=pk,
+            template_name='app/client_detail.html')
 
 
 @superuser_required

@@ -798,7 +798,11 @@ def repository_detail(request, pk):
 def repository_delete(request, pk):
     conf = request.session['handle']
     get_object_or_404(models.Repository, issuer=conf, pk=pk)  # permission check
-    return delete_object(request, model=models.Repository, object_id=pk, template_name='app/repository_detail.html')
+    return delete_object(request, model=models.Repository, object_id=pk,
+            post_delete_redirect=reverse(repository_list),
+            template_name='app/repository_detail.html',
+            extra_context={'confirm_delete': True,
+                'page_title': 'Delete Repository'})
 
 
 @handle_required

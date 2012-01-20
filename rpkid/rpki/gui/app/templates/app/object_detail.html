@@ -10,9 +10,21 @@
 {{ object }}
 {% endblock %}
 
+{% if confirm_delete %}
+<div class='alert-message box-message warning'>
+  <p><strong>Please confirm</strong> that you would like to delete this object.
+  <div class='alert-actions'>
+    <form method='POST' action='{{ request.get_full_path }}'>
+      <input class='btn danger' type='submit' value='Delete'/>
+      <a class='btn' href='{{ object.get_absolute_url }}'>Cancel</a>
+    </form>
+  </div>
+</div>
+{% else %}
 <div class='actions'>
   <a class='btn danger' href='{{ object.get_absolute_url }}/delete'>Delete</a>
 </div>
+{% endif %}
 
 {% endblock %}
 

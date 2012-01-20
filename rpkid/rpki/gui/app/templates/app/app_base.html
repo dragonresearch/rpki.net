@@ -14,7 +14,7 @@
   <li><a href="{% url rpki.gui.app.views.parent_list %}">parents</a></li>
   <li><a href="{% url rpki.gui.app.views.child_list %}">children</a></li>
   <li><a href="{% url rpki.gui.app.views.roa_list %}">roas</a></li>
-  <li><a href="{% url rpki.gui.app.views.ghostbusters_list %}">ghostbusters</a></li>
+  <li><a href="{% url rpki.gui.app.views.ghostbuster_list %}">ghostbusters</a></li>
   <li><a href="{% url rpki.gui.app.views.repository_list %}">repositories</a></li>
 {% if request.user.is_superuser %}
   <li><a href="{% url rpki.gui.app.views.client_list %}">pubclients</a></li>

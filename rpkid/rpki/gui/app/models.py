@@ -55,6 +55,7 @@ class Child(rpki.irdb.models.Child):
 
     class Meta:
         proxy = True
+        verbose_name_plural = 'children'
 
 class Conf(rpki.irdb.models.ResourceHolderCA):
     '''This is the center of the universe, also known as a place to
@@ -112,6 +113,7 @@ class ROARequest(rpki.irdb.models.ROARequest):
 class ROARequestPrefix(rpki.irdb.models.ROARequestPrefix):
     class Meta:
         proxy = True
+        verbose_name = 'roa'
 
     def __unicode__(self):
         return u'ROA request prefix %s for asn %d' % (str(self.as_roa_prefix()), self.roa_request.asn)
@@ -160,6 +162,7 @@ class GhostbusterRequest(rpki.irdb.models.GhostbusterRequest):
 
     class Meta:
         ordering = ('family_name', 'given_name')
+        verbose_name = 'ghostbuster'
 
 class Timestamp(models.Model):
     """Model to hold metadata about the collection of external data.
@@ -179,6 +182,7 @@ class Timestamp(models.Model):
 class Repository(rpki.irdb.models.Repository):
     class Meta:
         proxy = True
+        verbose_name_plural = 'repositories'
 
     @models.permalink
     def get_absolute_url(self):

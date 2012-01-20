@@ -1,0 +1,36 @@
+{% extends "app/object_detail.html" %}
+
+{% block object_detail %}
+
+<h2>{{ object.handle }}</h2>
+
+<div class='row'>
+  <div class='span8'>
+    <h3>Delegated Addresses</h3>
+    <ul>
+      {% for c in object.certs.all %}
+      {% for a in c.address_ranges.all %}
+      <li>{{ a }}</li>
+      {% endfor %}
+      {% for a in c.address_ranges_v6.all %}
+      <li>{{ a }}</li>
+      {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class='span8'>
+    <h3>Delegated ASNs</h3>
+    <ul>
+      {% for c in object.certs.all %}
+      {% for a in c.asn_ranges.all %}
+      <li>{{ a }}</li>
+      {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+</div><!-- /row -->
+
+{% endblock object_detail %}
+
+<!-- vim: set sw=2: -->

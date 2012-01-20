@@ -232,11 +232,27 @@ def parent_list(request):
     """List view for parent objects."""
     conf = request.session['handle']
     return object_list(request, queryset=conf.parents.all(),
-            template_name='app/parent_list.html',
             extra_context={
-                'page_title': 'Parents',
                 'create_url': reverse(parent_import),
                 'create_label': 'Import'})
+
+
+@handle_required
+def parent_view(request, pk):
+    """Detail view for a particular parent."""
+    handle = request.session['handle']
+    qs = handle.parents.all()
+    return object_detail(request, qs, object_id=pk)
+
+
+@handle_required
+def parent_delete(request, pk):
+    conf = request.session['handle']
+    get_object_or_404(conf.parents, pk=pk)  # confirm permission
+    return delete_object(request, model=models.Parent, object_id=pk,
+            post_delete_redirect=reverse(parent_list),
+            template_name='app/parent_detail.html',
+            extra_context={'confirm_delete': True})
 
 
 @handle_required
@@ -273,7 +289,6 @@ def child_list(request):
     return object_list(request, queryset=conf.children.all(),
             template_name='app/child_list.html',
             extra_context={
-                'page_title': 'Children',
                 'create_url': reverse(child_import),
                 'create_label': 'Import'})
 
@@ -317,14 +332,6 @@ def add_address_callback(child, form):
 def child_add_address(request, pk):
     return child_add_resource(request, pk, form_class=forms.AddAddressForm,
             callback=add_address_callback)
-
-
-@handle_required
-def parent_view(request, pk):
-    """Detail view for a particular parent."""
-    handle = request.session['handle']
-    parent = get_object_or_404(handle.parents.all(), pk=pk)
-    return render('app/parent_view.html', {'parent': parent}, request)
 
 
 @handle_required
@@ -427,8 +434,7 @@ def roa_list(request):
     qs = models.ROARequestPrefix.objects.filter(roa_request__issuer=conf)
     return object_list(request, queryset=qs,
             template_name='app/roa_request_list.html',
-            extra_context={'page_title': 'ROA Requests',
-                'create_url': reverse(roa_create)})
+            extra_context={'create_url': reverse(roa_create)})
 
 
 @handle_required
@@ -479,15 +485,13 @@ def roa_delete(request, pk):
 
 
 @handle_required
-def ghostbusters_list(request):
+def ghostbuster_list(request):
     """
     Display a list of all ghostbuster requests for the current Conf.
     """
     conf = request.session['handle']
     qs = models.GhostbusterRequest.objects.filter(issuer=conf)
-    return object_list(request, queryset=qs,
-            template_name='app/ghostbuster_list.html',
-            extra_context={'page_title': 'Ghostbusters'})
+    return object_list(request, queryset=qs)
 
 
 @handle_required
@@ -498,23 +502,17 @@ def ghostbuster_view(request, pk):
     conf = request.session['handle']
     qs = models.GhostbusterRequest.objects.filter(issuer=conf)
     return object_detail(request, queryset=qs, object_id=pk,
-            template_name='app/ghostbuster_detail.html')
+            extra_context={'can_edit': True})
 
 
 @handle_required
 def ghostbuster_delete(request, pk):
     conf = request.session['handle']
-
-    # verify that the object is owned by this conf
-    obj = get_object_or_404(models.GhostbusterRequest, pk=pk, issuer=conf)
-
-    # modeled loosely on the generic delete_object() view.
-    if request.method == 'POST':
-        obj.delete()  # should cause a cascade delete of 'obj'
-        return http.HttpResponseRedirect(reverse(ghostbusters_list))
-
-    return render('app/ghostbuster_confirm_delete.html', {'object': obj},
-            request)
+    get_object_or_404(models.GhostbusterRequest, issuer=conf, pk=pk)  # permission check
+    return delete_object(request, model=models.GhostbusterRequest, object_id=pk,
+            post_delete_redirect=reverse(ghostbuster_list),
+            template_name='app/ghostbusterrequest_detail.html',
+            extra_context={'confirm_delete': True})
 
 
 def _ghostbuster_edit(request, obj=None):
@@ -654,23 +652,6 @@ def child_delete(request, pk):
     return render('app/child_delete_form.html', {'form': form, 'object': child}, request)
 
 
-@handle_required
-def parent_delete(request, pk):
-    conf = request.session['handle']
-    parent = get_object_or_404(conf.parents, pk=pk)
-
-    if request.method == 'POST':
-        form = forms.GenericConfirmationForm(request.POST, request.FILES)
-        if form.is_valid():
-            parent.delete()
-            return http.HttpResponseRedirect(reverse(parent_list))
-    else:
-        form = forms.GenericConfirmationForm()
-
-    return render('app/parent_view.html', {'form': form,
-        'parent': parent, 'submit_label': 'Delete'}, request)
-
-
 @login_required
 def destroy_handle(request, handle):
     """
@@ -781,7 +762,6 @@ def repository_list(request):
     qs = models.Repository.objects.filter(issuer=conf)
     return object_list(request, queryset=qs, template_name='app/repository_list.html',
             extra_context={
-                'page_title': u'Repositories',
                 'create_url': reverse(repository_import),
                 'create_label': u'Import'})
 
@@ -790,8 +770,7 @@ def repository_list(request):
 def repository_detail(request, pk):
     conf = request.session['handle']
     qs = models.Repository.objects.filter(issuer=conf)
-    return object_detail(request, queryset=qs, object_id=pk, template_name='app/repository_detail.html',
-            extra_context={'page_title': 'Repository Detail'})
+    return object_detail(request, queryset=qs, object_id=pk, template_name='app/repository_detail.html')
 
 
 @handle_required
@@ -801,8 +780,7 @@ def repository_delete(request, pk):
     return delete_object(request, model=models.Repository, object_id=pk,
             post_delete_redirect=reverse(repository_list),
             template_name='app/repository_detail.html',
-            extra_context={'confirm_delete': True,
-                'page_title': 'Delete Repository'})
+            extra_context={'confirm_delete': True})
 
 
 @handle_required
@@ -832,18 +810,14 @@ def repository_import(request):
 @superuser_required
 def client_list(request):
     return object_list(request, queryset=models.Client.objects.all(),
-            template_name='app/client_list.html',
             extra_context={
-                'page_title': u'Publication Clients',
                 'create_url': reverse(client_import),
                 'create_label': u'Import'})
 
 
 @superuser_required
 def client_detail(request, pk):
-    return object_detail(request, queryset=models.Client.objects, object_id=pk,
-            template_name='app/client_detail.html',
-            extra_context={'page_title': 'Publication Client Detail'})
+    return object_detail(request, queryset=models.Client.objects, object_id=pk)
 
 
 @superuser_required

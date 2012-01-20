@@ -6,16 +6,37 @@
 <h1>Delete ROA Prefix</h1>
 </div>
 
-<p>Please confirm that you would like to delete the following ROA prefix:
+<div class='row'>
+  <div class='span8'>
+    <div class='alert-message box-message warning'>
+      <p><strong>Please confirm</strong> that you would like to delete the following ROA Request:
 
-<table style='condensed-table'>
-  <tr><th>AS</th>        <td>{{ object.roa_request.asn }}</td></tr>
-  <tr><th>Prefix</th>    <td>{{ object.as_roa_prefix }}</td></tr>
-  <tr><th>Max Length</th><td>{{ object.max_length }}</td></tr>
-</table>
+      <table style='condensed-table'>
+        <tr>
+          <th>Prefix</th>
+          <th>Max Len</th>
+          <th>AS</th>
+        <tr>
+          <td>{{ object.prefix }}/{{ object.prefixlen }}</td>
+          <td>{{ object.max_prefixlen }}</td>
+          <td>{{ object.roa_request.asn }}</td>
+        </tr>
+      </table>
 
-<p>The following table shows what the validation status for the routing entries
-that are covered by this ROA will be if this ROA request is deleted:
+      <form method='POST' action='{{ request.get_full_path }}'>
+        {% csrf_token %}
+        <div class='alert-actions'>
+          <input class='btn danger' type='submit' value='Delete'/>
+          <a class='btn' href="{% url rpki.gui.app.views.roa_list %}">Cancel</a>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+<div class='span8 offset8'>
+<p>This table indicates what the validation status for the routing entries
+that are covered by this ROA request will be if this ROA request is deleted:
 
 <table style='zebra-striped condensed-table'>
   <tr>
@@ -31,14 +52,8 @@ that are covered by this ROA will be if this ROA request is deleted:
   </tr>
   {% endfor %}
 </table>
-
-<form method='POST' action='{{ request.get_full_path }}'>
-  {% csrf_token %}
-  <div class='actions'>
-    <input class='btn danger' type='submit' value='Delete'/>
-    <a class='btn' href="{% url rpki.gui.app.views.roa_list %}">Cancel</a>
-  </div>
-</form>
+</div><!-- /span8 -->
+</div><!-- /row -->
 
 {% endblock %}
 

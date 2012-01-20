@@ -416,13 +416,19 @@ def login(request):
 
 
 @handle_required
+def roa_create(request):
+    conf = request.session['handle']
+
+
+@handle_required
 def roa_list(request):
     "Displays a list of ROARequestPrefix objects for the current resource handle."
     conf = request.session['handle']
     qs = models.ROARequestPrefix.objects.filter(roa_request__issuer=conf)
     return object_list(request, queryset=qs,
             template_name='app/roa_request_list.html',
-            extra_context={'page_title': 'ROA Requests'})
+            extra_context={'page_title': 'ROA Requests',
+                'create_url': reverse(roa_create)})
 
 
 @handle_required
@@ -464,17 +470,12 @@ def roa_delete(request, pk):
     # exclude ROAs which seem to match this request and display the result
     routes = []
     for route, roas in match:
-        qs = roas.exclude(asid=obj.roa.asn, **args)
+        qs = roas.exclude(asid=obj.roa_request.asn, **args)
         validate_route(route, qs)
         routes.append(route)
 
     return render('app/roa_request_confirm_delete.html', {'object': obj,
         'routes': routes}, request)
-
-
-@handle_required
-def roa_create(request):
-    conf = request.session['handle']
 
 
 @handle_required

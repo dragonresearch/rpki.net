@@ -10,17 +10,22 @@
   <tr><th>Prefix</th><th>Max Length</th><th>ASN</th><th>Action</th></tr>
   {% for object in object_list %}
   <tr>
-    <td>{{ object.as_roa_prefix }}</a></td>
-    <td>{{ object.max_length }}</td>
+    <td>{{ object.prefix }}/{{ object.prefixlen }}</a></td>
+    <td>{{ object.max_prefixlen }}</td>
     <td>{{ object.roa_request.asn }}</td>
     <td><a class='btn danger' href="{{ object.get_absolute_url }}/delete">Delete</a></td>
   </tr>
   {% endfor %}
 </table>
 {% else %}
-None
+<div class='alert-message warning'>
+<p>You have not created any ROAs.
+</div>
 {% endif %}
 
+<div class='actions'>
+  <a class='btn' href='{% url rpki.gui.app.views.roa_create %}'>Create</a>
+</div>
 {% endblock %}
 
 <!-- vim: set sw=2: -->

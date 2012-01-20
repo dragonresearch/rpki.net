@@ -430,6 +430,10 @@ def roa_delete(request, pk):
         'routes': routes }, request)
 
 @handle_required
+def roa_create(request):
+    conf = request.session['handle']
+
+@handle_required
 def ghostbusters_list(request):
     """
     Display a list of all ghostbuster requests for the current Conf.

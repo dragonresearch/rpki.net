@@ -151,9 +151,11 @@ class ROARequest(forms.Form):
 
     Handles both IPv4 and IPv6."""
 
-    asn = forms.IntegerField()
+    asn = forms.IntegerField(label='AS')
     prefix = forms.CharField(max_length=50)
-    max_prefixlen = forms.CharField(required=False)
+    max_prefixlen = forms.CharField(required=False,
+            label='Max Prefix Length')
+    confirmed = forms.BooleanField(widget=forms.HiddenInput, required=False)
 
     def _as_resource_range(self):
         prefix = self.cleaned_data.get('prefix')
@@ -192,8 +194,8 @@ class ROARequest(forms.Form):
             max_prefixlen = self.cleaned_data.get('max_prefixlen')
             max_prefixlen = int(max_prefixlen) if max_prefixlen else r.prefixlen()
             if max_prefixlen < r.prefixlen():
-                raise (forms.ValidationError,
-                        'max prefix length must be greater than or equal to the prefix length')
+                raise forms.ValidationError, \
+                        'max prefix length must be greater than or equal to the prefix length'
             if max_prefixlen > r.datum_type.bits:
                 raise forms.ValidationError, \
                         'max prefix length (%d) is out of range for IP version (%d)' % (max_prefixlen, r.datum_type.bits)

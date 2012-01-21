@@ -18,9 +18,10 @@ PERFORMANCE OF THIS SOFTWARE.
 
 from django import forms
 
-import rpki.ipaddrs
-
+from rpki import resource_set
 from rpki.gui.app import models
+from rpki.exceptions import BadIPResource
+
 
 class AddConfForm(forms.Form):
     handle = forms.CharField(required=True,
@@ -44,10 +45,13 @@ class AddConfForm(forms.Form):
             label='Pubd contact',
             help_text='email address for the operator of your pubd instance')
 
+
 class ImportForm(forms.Form):
     '''Form used for uploading parent/child identity xml files'''
-    handle = forms.CharField(max_length=30, help_text='your name for this entity')
+    handle = forms.CharField(max_length=30,
+            help_text='your name for this entity')
     xml = forms.FileField(help_text='xml filename')
+
 
 class GhostbusterRequestForm(forms.ModelForm):
     """
@@ -55,7 +59,8 @@ class GhostbusterRequestForm(forms.ModelForm):
     resource handle.
     """
     # override default form field
-    parent = forms.ModelChoiceField(queryset=None, required=False, help_text='Specify specific parent, or none for all parents')
+    parent = forms.ModelChoiceField(queryset=None, required=False,
+            help_text='Specify specific parent, or none for all parents')
 
     # override full_name.  it is required in the db schema, but we allow the
     # user to skip it and default from family+given name
@@ -89,14 +94,6 @@ class GhostbusterRequestForm(forms.ModelForm):
 
         return self.cleaned_data
 
-class ChildForm(forms.ModelForm):
-    """
-    Subclass for editing rpki.gui.app.models.Child objects.
-    """
-
-    class Meta:
-        model = models.Child
-        exclude = [ 'conf', 'handle' ]
 
 def ImportChildForm(parent_conf, *args, **kwargs):
     class wrapped(forms.Form):
@@ -109,6 +106,7 @@ def ImportChildForm(parent_conf, *args, **kwargs):
             return self.cleaned_data['handle']
 
     return wrapped(*args, **kwargs)
+
 
 def ImportParentForm(conf, *args, **kwargs):
     class wrapped(forms.Form):
@@ -123,12 +121,15 @@ def ImportParentForm(conf, *args, **kwargs):
 
     return wrapped(*args, **kwargs)
 
+
 class ImportRepositoryForm(forms.Form):
     parent_handle = forms.CharField(max_length=30, required=False, help_text='(optional)')
     xml = forms.FileField(help_text='xml file from repository operator')
 
+
 class ImportPubClientForm(forms.Form):
     xml = forms.FileField(help_text='xml file from publication client')
+
 
 def ChildWizardForm(parent, *args, **kwargs):
     class wrapped(forms.Form):
@@ -144,34 +145,60 @@ def ChildWizardForm(parent, *args, **kwargs):
 
     return wrapped(*args, **kwargs)
 
-class AddASNForm(forms.Form):
-    as_range = forms.CharField(max_length=30, required=True, help_text='single AS or range')
 
-    def clean_as_range(self):
+class ROARequest(forms.Form):
+    """Form for entering a ROA request.
+
+    Handles both IPv4 and IPv6."""
+
+    asn = forms.IntegerField()
+    prefix = forms.CharField(max_length=50)
+    max_prefixlen = forms.CharField(required=False)
+
+    def _as_resource_range(self):
+        prefix = self.cleaned_data.get('prefix')
         try:
-            r = resource_set.resource_range_as.parse_str(self.cleaned_data['asrange'])
-        except:
-            raise forms.ValidationError, 'invalid AS or range'
-        return str(r)
+            r = resource_set.resource_range_ipv4.parse_str(prefix)
+        except BadIPResource:
+            r = resource_set.resource_range_ipv6.parse_str(prefix)
+        return r
 
-class AddAddressForm(forms.Form):
-    prefix = forms.CharField(max_length=70, required=True, help_text='single IP address, CIDR or range')
+    def clean_asn(self):
+        value = self.cleaned_data.get('asn')
+        if value < 0:
+            raise forms.ValidationError, 'AS must be a positive value or 0'
+        return value
 
     def clean_prefix(self):
-        v = self.cleaned_data['prefix']
         try:
-            r = resource_set.resource_range_ipv4.parse_str(v)
-        except rpki.exceptions.BadIPResource:
-            try:
-                r = resource_set.resource_range_ipv6.parse_str(v)
-            except:
-                raise forms.ValidationError, 'bad IP address, CIDR or range'
+            r = self._as_resource_range()
+        except:
+            raise forms.ValidationError, 'invalid IP address'
         return str(r)
 
-class GenericConfirmationForm(forms.Form):
-    """
-    stub form used for doing confirmations.
-    """
-    pass
+    def clean_max_prefixlen(self):
+        v = self.cleaned_data.get('max_prefixlen')
+        if v:
+            if v[0] == '/':
+                v = v[1:]  # allow user to specify /24
+            if int(v) < 0:
+                raise forms.ValidationError, \
+                        'max prefix length must be positive or 0'
+        return v
+
+    def clean(self):
+        if 'prefix' in self.cleaned_data:
+            r = self._as_resource_range()
+            max_prefixlen = self.cleaned_data.get('max_prefixlen')
+            max_prefixlen = int(max_prefixlen) if max_prefixlen else r.prefixlen()
+            if max_prefixlen < r.prefixlen():
+                raise (forms.ValidationError,
+                        'max prefix length must be greater than or equal to the prefix length')
+            if max_prefixlen > r.datum_type.bits:
+                raise forms.ValidationError, \
+                        'max prefix length (%d) is out of range for IP version (%d)' % (max_prefixlen, r.datum_type.bits)
+            self.cleaned_data['max_prefixlen'] = str(max_prefixlen)
+
+        return self.cleaned_data
 
 # vim:sw=4 ts=8 expandtab

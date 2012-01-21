@@ -424,7 +424,34 @@ def login(request):
 
 @handle_required
 def roa_create(request):
-    conf = request.session['handle']
+    """Present the user with a form to create a ROA.
+
+    Doesn't use the generic create_object() form because we need to create both
+    the ROARequest and ROARequestPrefix objects."""
+
+    if request.method == 'POST':
+        form = forms.ROARequest(request.POST, request.FILES)
+        if form.is_valid():
+            asn = form.cleaned_data.get('asn')
+            conf = request.session['handle']
+            roarequests = models.ROARequest.objects.filter(issuer=conf, asn=asn)
+            if roarequests:
+                # FIXME need to handle the case where there are multiple ROAs
+                # for the same AS due to prefixes delegated from different
+                # resource certs.
+                roa = roarequests[0]
+            else:
+                roa = models.ROARequest.objects.create(issuer=conf, asn=asn)
+            rng = form._as_resource_range()  # FIXME calling "private" method
+            max_prefixlen = int(form.cleaned_data.get('max_prefixlen'))
+            version = 'IPv4' if isinstance(rng,
+                    resource_set.resource_range_ipv4) else 'IPv6'
+            roa.prefixes.create(version=version, prefix=str(rng.min),
+                    prefixlen=rng.prefixlen(), max_prefixlen=max_prefixlen)
+            return http.HttpResponseRedirect(reverse(roa_list))
+    else:
+        form = forms.ROARequest()
+    return render('app/roarequest_form.html', {'form': form}, request)
 
 
 @handle_required

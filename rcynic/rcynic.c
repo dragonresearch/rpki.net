@@ -225,6 +225,7 @@ static const struct {
   QB(manifest_carepository_mismatch,	"Manifest caRepository mismatch")   \
   QB(manifest_lists_missing_object,	"Manifest lists missing object")    \
   QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
+  QB(nonconformant_asn1_time_value,		"Nonconformant ASN.1 time value")   \
   QB(object_rejected,			"Object rejected")		    \
   QB(roa_contains_bad_afi_value,	"ROA contains bad AFI value")	    \
   QB(roa_resource_not_in_ee,		"ROA resource not in EE")	    \
@@ -2954,6 +2955,24 @@ static int check_allowed_dn(X509_NAME *dn)
   }
 }
 
+/**
+ * Check whether an ASN.1 TIME value conforms to RFC 5280 4.1.2.5.
+ */
+static int check_allowed_time_encoding(ASN1_TIME *t)
+{
+  switch (t->type) {
+
+  case V_ASN1_UTCTIME:
+    return t->length == sizeof("yymmddHHMMSSZ") - 1;
+    
+  case  V_ASN1_GENERALIZEDTIME:
+    return (t->length == sizeof("yyyymmddHHMMSSZ") - 1 &&
+	    strcmp("205", (char *) t->data) <= 0);
+
+  }
+  return 0;
+}
+
 
 
 /**
@@ -2980,6 +2999,12 @@ static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
 
   if (X509_CRL_get_version(crl) != 1) {
     log_validation_status(rc, uri, wrong_object_version, generation);
+    goto punt;
+  }
+
+  if (!check_allowed_time_encoding(X509_CRL_get_lastUpdate(crl)) ||
+      !check_allowed_time_encoding(X509_CRL_get_nextUpdate(crl))) {
+    log_validation_status(rc, uri, nonconformant_asn1_time_value, generation);
     goto punt;
   }
 

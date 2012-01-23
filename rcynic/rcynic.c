@@ -502,6 +502,7 @@ struct rcynic_ctx {
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
   int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
   int allow_digest_mismatch, allow_crl_digest_mismatch;
+  int allow_nonconformant_name;
   unsigned max_select_time, validation_status_creation_order;
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -2875,6 +2876,87 @@ static int check_aki(rcynic_ctx_t *rc,
 
 
 /**
+ * Check whether extensions in a certificate are allowed by profile.
+ * Also returns failure in a few null-pointer cases that can't
+ * possibly conform to profile.
+ */
+static int check_allowed_extensions(const X509 *x, const int allow_eku)
+{
+  int i;
+
+  if (x == NULL || x->cert_info == NULL || x->cert_info->extensions == NULL)
+    return 0;
+
+  for (i = 0; i < sk_X509_EXTENSION_num(x->cert_info->extensions); i++) {
+    switch (OBJ_obj2nid(sk_X509_EXTENSION_value(x->cert_info->extensions,
+						i)->object)) {
+    case NID_basic_constraints:
+    case NID_subject_key_identifier:
+    case NID_authority_key_identifier:
+    case NID_key_usage:
+    case NID_crl_distribution_points:
+    case NID_info_access:
+    case NID_sinfo_access:
+    case NID_certificate_policies:
+    case NID_sbgp_ipAddrBlock:
+    case NID_sbgp_autonomousSysNum:
+      continue;
+    case NID_ext_key_usage:
+      if (allow_eku)
+	continue;
+      else
+	return 0;
+    default:
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+/**
+ * Check whether a Distinguished Name conforms to the rescert profile.
+ * The profile is very restrictive: it only allows one mandatory
+ * CommonName field and one optional SerialNumber field, both of which
+ * must be of type PrintableString.
+ */
+static int check_allowed_dn(X509_NAME *dn)
+{
+  X509_NAME_ENTRY *ne;
+  ASN1_STRING *s;
+  int loc;
+
+  if (dn == NULL)
+    return 0;
+
+  switch (X509_NAME_entry_count(dn)) {
+
+  case 2:
+    if ((loc = X509_NAME_get_index_by_NID(dn, NID_serialNumber, -1)) < 0 ||
+	(ne = X509_NAME_get_entry(dn, loc)) == NULL ||
+	(s = X509_NAME_ENTRY_get_data(ne)) == NULL ||
+	ASN1_STRING_type(s) != V_ASN1_PRINTABLESTRING)
+      return 0;
+
+    /* Fall through */
+
+  case 1:
+    if ((loc = X509_NAME_get_index_by_NID(dn, NID_commonName, -1)) < 0 ||
+	(ne = X509_NAME_get_entry(dn, loc)) == NULL ||
+	(s = X509_NAME_ENTRY_get_data(ne)) == NULL ||
+	ASN1_STRING_type(s) != V_ASN1_PRINTABLESTRING)
+      return 0;
+
+    return 1;
+
+  default:
+    return 0;
+  }
+}
+
+
+
+/**
  * Attempt to read and check one CRL from disk.
  */
 
@@ -2923,6 +3005,12 @@ static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
   if (X509_CRL_get_ext_count(crl) != 2) {
     log_validation_status(rc, uri, disallowed_x509v3_extension, generation);
     goto punt;
+  }
+
+  if (!check_allowed_dn(X509_CRL_get_issuer(crl))) {
+    log_validation_status(rc, uri, nonconformant_issuer_name, generation);
+    if (!rc->allow_nonconformant_name)
+      goto punt;
   }
 
   if ((revoked = X509_CRL_get_REVOKED(crl)) != NULL) {
@@ -3043,87 +3131,6 @@ static int check_crl_digest(const rcynic_ctx_t *rc,
   X509_CRL_free(crl);
 
   return result;
-}
-
-
-
-/**
- * Check whether extensions in a certificate are allowed by profile.
- * Also returns failure in a few null-pointer cases that can't
- * possibly conform to profile.
- */
-static int check_allowed_extensions(const X509 *x, const int allow_eku)
-{
-  int i;
-
-  if (x == NULL || x->cert_info == NULL || x->cert_info->extensions == NULL)
-    return 0;
-
-  for (i = 0; i < sk_X509_EXTENSION_num(x->cert_info->extensions); i++) {
-    switch (OBJ_obj2nid(sk_X509_EXTENSION_value(x->cert_info->extensions,
-						i)->object)) {
-    case NID_basic_constraints:
-    case NID_subject_key_identifier:
-    case NID_authority_key_identifier:
-    case NID_key_usage:
-    case NID_crl_distribution_points:
-    case NID_info_access:
-    case NID_sinfo_access:
-    case NID_certificate_policies:
-    case NID_sbgp_ipAddrBlock:
-    case NID_sbgp_autonomousSysNum:
-      continue;
-    case NID_ext_key_usage:
-      if (allow_eku)
-	continue;
-      else
-	return 0;
-    default:
-      return 0;
-    }
-  }
-
-  return 1;
-}
-
-/**
- * Check whether a Distinguished Name conforms to the rescert profile.
- * The profile is very restrictive: it only allows one mandatory
- * CommonName field and one optional SerialNumber field, both of which
- * must be of type PrintableString.
- */
-static int check_allowed_dn(X509_NAME *dn)
-{
-  X509_NAME_ENTRY *ne;
-  ASN1_STRING *s;
-  int loc;
-
-  if (dn == NULL)
-    return 0;
-
-  switch (X509_NAME_entry_count(dn)) {
-
-  case 2:
-    if ((loc = X509_NAME_get_index_by_NID(dn, NID_serialNumber, -1)) < 0 ||
-	(ne = X509_NAME_get_entry(dn, loc)) == NULL ||
-	(s = X509_NAME_ENTRY_get_data(ne)) == NULL ||
-	ASN1_STRING_type(s) != V_ASN1_PRINTABLESTRING)
-      return 0;
-
-    /* Fall through */
-
-  case 1:
-    if ((loc = X509_NAME_get_index_by_NID(dn, NID_commonName, -1)) < 0 ||
-	(ne = X509_NAME_get_entry(dn, loc)) == NULL ||
-	(s = X509_NAME_ENTRY_get_data(ne)) == NULL ||
-	ASN1_STRING_type(s) != V_ASN1_PRINTABLESTRING)
-      return 0;
-
-    return 1;
-
-  default:
-    return 0;
-  }
 }
 
 
@@ -3278,11 +3285,17 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (!check_allowed_dn(X509_get_subject_name(x)))
+  if (!check_allowed_dn(X509_get_subject_name(x))) {
     log_validation_status(rc, &certinfo->uri, nonconformant_subject_name, certinfo->generation);
+    if (!rc->allow_nonconformant_name)
+      goto done;
+  }
 
-  if (!check_allowed_dn(X509_get_issuer_name(x)))
+  if (!check_allowed_dn(X509_get_issuer_name(x))) {
     log_validation_status(rc, &certinfo->uri, nonconformant_issuer_name, certinfo->generation);
+    if (!rc->allow_nonconformant_name)
+      goto done;
+  }
 
   if (certinfo->ta) {
 
@@ -4331,6 +4344,7 @@ int main(int argc, char *argv[])
   rc.allow_digest_mismatch = 1;
   rc.allow_crl_digest_mismatch = 1;
   rc.allow_object_not_in_manifest = 1;
+  rc.allow_nonconformant_name = 1;
   rc.max_parallel_fetches = 1;
   rc.max_retries = 3;
   rc.retry_wait_min = 30;
@@ -4502,6 +4516,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "run-rsync") &&
 	     !configure_boolean(&rc, &rc.run_rsync, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-nonconformant-name") &&
+	     !configure_boolean(&rc, &rc.allow_nonconformant_name, val->value))
       goto done;
 
     /*

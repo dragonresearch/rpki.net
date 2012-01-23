@@ -225,7 +225,9 @@ static const struct {
   QB(manifest_carepository_mismatch,	"Manifest caRepository mismatch")   \
   QB(manifest_lists_missing_object,	"Manifest lists missing object")    \
   QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
-  QB(nonconformant_asn1_time_value,		"Nonconformant ASN.1 time value")   \
+  QB(nonconformant_asn1_time_value,	"Nonconformant ASN.1 time value")   \
+  QB(nonconformant_public_key_algorithm,"Nonconformant public key algorithm")\
+  QB(nonconformant_signature_algorithm,	"Nonconformant signature algorithm")\
   QB(object_rejected,			"Object rejected")		    \
   QB(roa_contains_bad_afi_value,	"ROA contains bad AFI value")	    \
   QB(roa_resource_not_in_ee,		"ROA resource not in EE")	    \
@@ -3002,6 +3004,12 @@ static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
     goto punt;
   }
 
+  if (!crl->crl || !crl->crl->sig_alg || !crl->crl->sig_alg->algorithm ||
+      OBJ_obj2nid(crl->crl->sig_alg->algorithm) != NID_sha256WithRSAEncryption) {
+    log_validation_status(rc, uri, nonconformant_signature_algorithm, generation);
+    goto punt;
+  }
+
   if (!check_allowed_time_encoding(X509_CRL_get_lastUpdate(crl)) ||
       !check_allowed_time_encoding(X509_CRL_get_nextUpdate(crl))) {
     log_validation_status(rc, uri, nonconformant_asn1_time_value, generation);
@@ -3270,6 +3278,13 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
+  if (!x->cert_info || !x->cert_info->signature || !x->cert_info->signature->algorithm ||
+      OBJ_obj2nid(x->cert_info->signature->algorithm) != NID_sha256WithRSAEncryption) {
+    log_validation_status(rc, &certinfo->uri, nonconformant_signature_algorithm,
+			  certinfo->generation);
+    goto done;
+  }
+
   if (certinfo->sia.s[0] && certinfo->sia.s[strlen(certinfo->sia.s) - 1] != '/') {
     log_validation_status(rc, &certinfo->uri, malformed_cadirectory_uri, certinfo->generation);
     goto done;
@@ -3343,7 +3358,22 @@ static int check_x509(rcynic_ctx_t *rc,
       log_validation_status(rc, &certinfo->uri, crldp_doesnt_match_issuer_sia, certinfo->generation);
       goto done;
     }
- 
+
+    if (x->cert_info && x->cert_info->key && x->cert_info->key->algor) {
+      switch (OBJ_obj2nid(x->cert_info->key->algor ->algorithm)) {
+      case NID_rsaEncryption:
+	break;
+      case NID_X9_62_id_ecPublicKey: /* draft-ietf-sidr-bgpsec-algs */
+	if (!certinfo->ca)
+	  break;
+	/* Fall through */
+      default:
+	log_validation_status(rc, &certinfo->uri, nonconformant_public_key_algorithm,
+			      certinfo->generation);
+	goto done;
+      }
+    }
+
     if ((pkey = X509_get_pubkey(w->cert)) == NULL || X509_verify(x, pkey) <= 0) {
       log_validation_status(rc, &certinfo->uri, certificate_bad_signature, certinfo->generation);
       goto done;

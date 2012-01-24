@@ -3631,7 +3631,7 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
 
   for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++) {
     if (fah->hash->length != HASH_SHA256_LEN ||
-	(fah->hash->flags & ASN1_STRING_FLAG_BITS_LEFT) != 0) {
+	(fah->hash->flags & (ASN1_STRING_FLAG_BITS_LEFT | 7)) > ASN1_STRING_FLAG_BITS_LEFT) {
       log_validation_status(rc, uri, bad_manifest_digest_length, generation);
       goto done;
     }
@@ -4334,16 +4334,43 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
  * still needs to conform to the certificate profile, the
  * self-signature must be correct, etcetera.
  */
-static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
+static int check_ta(rcynic_ctx_t *rc, X509 *x, const uri_t *uri,
+		    const path_t *path1, const path_t *path2,
+		    const object_generation_t generation)
 {
-  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  STACK_OF(walk_ctx_t) *wsk = NULL;
+  walk_ctx_t *w = NULL;
+  certinfo_t certinfo;
 
-  assert(rc && wsk && w);
+  assert(rc && x && uri && path1 && path2);
 
-  if (!check_x509(rc, wsk, w->cert, &w->certinfo))
-    return;
+  if ((wsk = walk_ctx_stack_new()) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't allocate walk context stack");
+    return 0;
+  }
 
-  log_validation_status(rc, &w->certinfo.uri, object_accepted, w->certinfo.generation);
+  parse_cert(rc, x, &certinfo, uri, generation);
+  certinfo.ta = 1;
+
+  if ((w = walk_ctx_stack_push(wsk, x, &certinfo)) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't push walk context stack");
+    walk_ctx_stack_free(wsk);
+    return 0;
+  }
+
+  if (!check_x509(rc, wsk, x, &w->certinfo)) {
+    walk_ctx_stack_free(wsk);
+    return 1;
+  }
+
+  logmsg(rc, log_telemetry, "Copying trust anchor %s to %s", path1->s, path2->s);
+
+  if (!mkdir_maybe(rc, path2) || !cp_ln(rc, path1, path2)) {
+    walk_ctx_stack_free(wsk);
+    return 0;
+  }
+
+  log_validation_status(rc, uri, object_accepted, generation);
 
   task_add(rc, walk_cert, wsk);
 
@@ -4351,6 +4378,8 @@ static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
     task_run_q(rc);
     rsync_mgr(rc);
   }
+
+  return 1;
 }
 
 
@@ -4360,7 +4389,11 @@ static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
  * NB: EVP_PKEY_cmp() returns 1 for match, not 0 like every other
  * xyz_cmp() function in the entire OpenSSL library.  Go figure.
  */
-static X509 *read_ta(rcynic_ctx_t *rc, const uri_t *uri, const path_t *path, const EVP_PKEY *pkey, object_generation_t generation)
+static X509 *read_ta(rcynic_ctx_t *rc,
+		     const uri_t *uri,
+		     const path_t *path,
+		     const EVP_PKEY *pkey,
+		     object_generation_t generation)
 
 {
   EVP_PKEY *xpkey = NULL;
@@ -4397,9 +4430,7 @@ int main(int argc, char *argv[])
   char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
-  STACK_OF(walk_ctx_t) *wsk = NULL;
   CONF *cfg_handle = NULL;
-  walk_ctx_t *w = NULL;
   time_t start = 0, finish;
   unsigned long hash;
   rcynic_ctx_t rc;
@@ -4689,7 +4720,6 @@ int main(int argc, char *argv[])
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
     object_generation_t generation = object_generation_null;
     path_t path1, path2;
-    certinfo_t ta_certinfo;
     uri_t uri;
     X509 *x = NULL;
 
@@ -4825,26 +4855,8 @@ int main(int argc, char *argv[])
     if (!x)
       continue;
 
-    logmsg(&rc, log_telemetry, "Copying trust anchor %s to %s", path1.s, path2.s);
-
-    if (!mkdir_maybe(&rc, &path2) || !cp_ln(&rc, &path1, &path2))
+    if (!check_ta(&rc, x, &uri, &path1, &path2, generation))
       goto done;
-
-    if ((wsk = walk_ctx_stack_new()) == NULL) {
-      logmsg(&rc, log_sys_err, "Couldn't allocate walk context stack");
-      goto done;
-    }
-
-    parse_cert(&rc, x, &ta_certinfo, &uri, generation);
-    ta_certinfo.ta = 1;
-
-    if ((w = walk_ctx_stack_push(wsk, x, &ta_certinfo)) == NULL) {
-      logmsg(&rc, log_sys_err, "Couldn't push walk context stack");
-      goto done;
-    }
-
-    check_ta(&rc, wsk);
-    wsk = NULL;			/* Ownership of wsk passed to check_ta() */
   }
 
   if (!finalize_directories(&rc))

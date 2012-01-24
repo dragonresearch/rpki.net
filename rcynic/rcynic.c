@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+ * Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
  * 
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -120,6 +120,11 @@
 #define ADDR_RAW_BUF_LEN	16
 
 /**
+ * How many bytes is a SHA256 digest?
+ */
+#define	HASH_SHA256_LEN		32
+
+/**
  * Logging levels.  Same general idea as syslog(), but our own
  * catagories based on what makes sense for this program.  Default
  * mappings to syslog() priorities are here because it's the easiest
@@ -206,6 +211,7 @@ static const struct {
   QB(aki_extension_wrong_format,	"AKI extension is wrong format")    \
   QB(bad_cms_econtenttype,		"Bad CMS eContentType")		    \
   QB(bad_crl,				"Bad CRL")			    \
+  QB(bad_manifest_digest_length,	"Bad manifest digest length")	\
   QB(certificate_bad_signature,		"Bad certificate signature")	    \
   QB(certificate_failed_validation,	"Certificate failed validation")    \
   QB(cms_econtent_decode_error,		"CMS eContent decode error")	    \
@@ -228,6 +234,7 @@ static const struct {
   QB(nonconformant_asn1_time_value,	"Nonconformant ASN.1 time value")   \
   QB(nonconformant_public_key_algorithm,"Nonconformant public key algorithm")\
   QB(nonconformant_signature_algorithm,	"Nonconformant signature algorithm")\
+  QB(nonconformant_digest_algorithm,	"Nonconformant digest algorithm") \
   QB(object_rejected,			"Object rejected")		    \
   QB(roa_contains_bad_afi_value,	"ROA contains bad AFI value")	    \
   QB(roa_resource_not_in_ee,		"ROA resource not in EE")	    \
@@ -3555,8 +3562,10 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(X509) *signers = NULL;
   CMS_ContentInfo *cms = NULL;
+  FileAndHash *fah = NULL;
   BIO *bio = NULL;
   X509 *ee;
+  int i;
 
   assert(rc && wsk && uri && path && prefix);
 
@@ -3613,8 +3622,18 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
   }
 
   if (manifest->fileHashAlg == NULL ||
-      oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256)))
+      oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256))) {
+    log_validation_status(rc, uri, nonconformant_digest_algorithm, generation);
     goto done;
+  }
+
+  for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++) {
+    if (fah->hash->length != HASH_SHA256_LEN ||
+	(fah->hash->flags & ASN1_STRING_FLAG_BITS_LEFT) != 0) {
+      log_validation_status(rc, uri, bad_manifest_digest_length, generation);
+      goto done;
+    }
+  }
 
   result = manifest;
   manifest = NULL;

@@ -2888,18 +2888,20 @@ static int check_aki(rcynic_ctx_t *rc,
 /**
  * Check whether extensions in a certificate are allowed by profile.
  * Also returns failure in a few null-pointer cases that can't
- * possibly conform to profile.
+ * possibly conform to profile, and for duplicated extensions.
  */
-static int check_allowed_extensions(const X509 *x, const int allow_eku)
+static int check_allowed_extensions(X509 *x, const int allow_eku)
 {
   int i;
 
-  if (x == NULL || x->cert_info == NULL || x->cert_info->extensions == NULL)
+  if (x == NULL)
     return 0;
 
-  for (i = 0; i < sk_X509_EXTENSION_num(x->cert_info->extensions); i++) {
-    switch (OBJ_obj2nid(sk_X509_EXTENSION_value(x->cert_info->extensions,
-						i)->object)) {
+  for (i = 0; i < X509_get_ext_count(x); i++) {
+    X509_EXTENSION *ex = X509_get_ext(x, i);
+    if (X509_get_ext_by_OBJ(x, ex->object, i + 1) >= 0)
+      return 0;
+    switch (OBJ_obj2nid(ex->object)) {
     case NID_basic_constraints:
     case NID_subject_key_identifier:
     case NID_authority_key_identifier:

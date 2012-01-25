@@ -3217,7 +3217,7 @@ static int check_x509(rcynic_ctx_t *rc,
   BASIC_CONSTRAINTS *bc = NULL;
   ASIdentifiers *asid = NULL;
   IPAddrBlocks *addr = NULL;
-  int crit, ex_count, ret = 0;
+  int ok, crit, ex_count, ret = 0;
 
   assert(rc && wsk && w && uri && x && w->cert);
 
@@ -3390,26 +3390,30 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (x->cert_info && x->cert_info->key && x->cert_info->key->algor) {
-    switch (OBJ_obj2nid(x->cert_info->key->algor->algorithm)) {
+  subject_pkey = X509_get_pubkey(x);
+  ok = subject_pkey != NULL;
+  if (ok) {
+    ASN1_OBJECT *algorithm;
+
+    (void) X509_PUBKEY_get0_param(&algorithm, NULL, NULL, NULL, X509_get_X509_PUBKEY(x));      
+
+    switch (OBJ_obj2nid(algorithm)) {
+
     case NID_rsaEncryption:
+      ok = (EVP_PKEY_type(subject_pkey->type) == EVP_PKEY_RSA &&
+	    BN_num_bits(subject_pkey->pkey.rsa->n) == 2048 &&
+	    BN_get_word(subject_pkey->pkey.rsa->e) == 65537);
       break;
+
     case NID_X9_62_id_ecPublicKey:	/* See draft-ietf-sidr-bgpsec-algs */
-      if (!certinfo->ca)
-	break;
-      /* Fall through */
+      ok = !certinfo->ca;		/* All I know how to test for now */
+      break;
+
     default:
-      log_validation_status(rc, uri, nonconformant_public_key_algorithm, generation);
-      goto done;
+      ok = 0;
     }
   }
-  /*
-   * Perhaps this should be combined with the previous test?  In
-   * theory, we should also be checking for RSA public exponent and
-   * key length here, but I haven't yet found the right API calls.
-   */
-  if (certinfo->ca && ((subject_pkey = X509_get_pubkey(x)) == NULL ||
-		       EVP_PKEY_type(subject_pkey->type) != EVP_PKEY_RSA)) {
+  if (!ok) {
     log_validation_status(rc, uri, bad_public_key, generation);
     goto done;
   }

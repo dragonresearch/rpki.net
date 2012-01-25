@@ -215,6 +215,7 @@ static const struct {
   QB(bad_ipaddrblocks,			"Bad IPAddrBlocks extension")	    \
   QB(bad_key_usage,			"Bad keyUsage")			    \
   QB(bad_manifest_digest_length,	"Bad manifest digest length")	    \
+  QB(bad_public_key,			"Bad public key")		    \
   QB(certificate_bad_signature,		"Bad certificate signature")	    \
   QB(certificate_failed_validation,	"Certificate failed validation")    \
   QB(cms_econtent_decode_error,		"CMS eContent decode error")	    \
@@ -3208,7 +3209,7 @@ static int check_x509(rcynic_ctx_t *rc,
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
   rcynic_x509_store_ctx_t rctx;
-  EVP_PKEY *pkey = NULL;
+  EVP_PKEY *issuer_pkey = NULL, *subject_pkey = NULL;
   unsigned long flags = (X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY | X509_V_FLAG_X509_STRICT);
   STACK_OF(DIST_POINT) *crldp = NULL;
   AUTHORITY_INFO_ACCESS *sia = NULL, *aia = NULL;
@@ -3285,62 +3286,61 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
 
   if (X509_get_version(x) != 2) {
-    log_validation_status(rc, &certinfo->uri, wrong_object_version, certinfo->generation);
+    log_validation_status(rc, uri, wrong_object_version, generation);
     goto done;
   }
 
   if (!x->cert_info || !x->cert_info->signature || !x->cert_info->signature->algorithm ||
       OBJ_obj2nid(x->cert_info->signature->algorithm) != NID_sha256WithRSAEncryption) {
-    log_validation_status(rc, &certinfo->uri, nonconformant_signature_algorithm,
-			  certinfo->generation);
+    log_validation_status(rc, uri, nonconformant_signature_algorithm, generation);
     goto done;
   }
 
   if (certinfo->sia.s[0] && certinfo->sia.s[strlen(certinfo->sia.s) - 1] != '/') {
-    log_validation_status(rc, &certinfo->uri, malformed_cadirectory_uri, certinfo->generation);
+    log_validation_status(rc, uri, malformed_cadirectory_uri, generation);
     goto done;
   }
 
   if (!certinfo->ta && !certinfo->aia.s[0]) {
-    log_validation_status(rc, &certinfo->uri, aia_uri_missing, certinfo->generation);
+    log_validation_status(rc, uri, aia_uri_missing, generation);
     goto done;
   }
 
   if (!w->certinfo.ta && strcmp(w->certinfo.uri.s, certinfo->aia.s)) {
-    log_validation_status(rc, &certinfo->uri, aia_doesnt_match_issuer, certinfo->generation);
+    log_validation_status(rc, uri, aia_doesnt_match_issuer, generation);
     goto done;
   }
 
   if (certinfo->ca && !certinfo->sia.s[0]) {
-    log_validation_status(rc, &certinfo->uri, sia_cadirectory_uri_missing, certinfo->generation);
+    log_validation_status(rc, uri, sia_cadirectory_uri_missing, generation);
     goto done;
   }
 
   if (certinfo->ca && !certinfo->manifest.s[0]) {
-    log_validation_status(rc, &certinfo->uri, sia_manifest_uri_missing, certinfo->generation);
+    log_validation_status(rc, uri, sia_manifest_uri_missing, generation);
     goto done;
   }
 
   if (certinfo->ca && !startswith(certinfo->manifest.s, certinfo->sia.s)) {
-    log_validation_status(rc, &certinfo->uri, manifest_carepository_mismatch, certinfo->generation);
+    log_validation_status(rc, uri, manifest_carepository_mismatch, generation);
     goto done;
   }
 
   if (x->skid) {
     ex_count--;
   } else {
-    log_validation_status(rc, &certinfo->uri, ski_extension_missing, certinfo->generation);
+    log_validation_status(rc, uri, ski_extension_missing, generation);
     goto done;
   }
 
   if (!check_allowed_dn(X509_get_subject_name(x))) {
-    log_validation_status(rc, &certinfo->uri, nonconformant_subject_name, certinfo->generation);
+    log_validation_status(rc, uri, nonconformant_subject_name, generation);
     if (!rc->allow_nonconformant_name)
       goto done;
   }
 
   if (!check_allowed_dn(X509_get_issuer_name(x))) {
-    log_validation_status(rc, &certinfo->uri, nonconformant_issuer_name, certinfo->generation);
+    log_validation_status(rc, uri, nonconformant_issuer_name, generation);
     if (!rc->allow_nonconformant_name)
       goto done;
   }
@@ -3390,51 +3390,61 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
+  if (x->cert_info && x->cert_info->key && x->cert_info->key->algor) {
+    switch (OBJ_obj2nid(x->cert_info->key->algor->algorithm)) {
+    case NID_rsaEncryption:
+      break;
+    case NID_X9_62_id_ecPublicKey:	/* See draft-ietf-sidr-bgpsec-algs */
+      if (!certinfo->ca)
+	break;
+      /* Fall through */
+    default:
+      log_validation_status(rc, uri, nonconformant_public_key_algorithm, generation);
+      goto done;
+    }
+  }
+  /*
+   * Perhaps this should be combined with the previous test?  In
+   * theory, we should also be checking for RSA public exponent and
+   * key length here, but I haven't yet found the right API calls.
+   */
+  if (certinfo->ca && ((subject_pkey = X509_get_pubkey(x)) == NULL ||
+		       EVP_PKEY_type(subject_pkey->type) != EVP_PKEY_RSA)) {
+    log_validation_status(rc, uri, bad_public_key, generation);
+    goto done;
+  }
+
+  if ((issuer_pkey = X509_get_pubkey(w->cert)) == NULL || X509_verify(x, issuer_pkey) <= 0) {
+    log_validation_status(rc, uri, certificate_bad_signature, generation);
+    goto done;
+  }
+
   if (certinfo->ta) {
 
     if (certinfo->crldp.s[0]) {
-      log_validation_status(rc, &certinfo->uri, trust_anchor_with_crldp, certinfo->generation);
+      log_validation_status(rc, uri, trust_anchor_with_crldp, generation);
       goto done;
     }
 
   } else {
 
-    if (check_aki(rc, &certinfo->uri, w->cert, x->akid, certinfo->generation))
+    if (check_aki(rc, uri, w->cert, x->akid, generation))
       ex_count--;
     else
       goto done;
 
     if (!certinfo->crldp.s[0]) {
-      log_validation_status(rc, &certinfo->uri, crldp_uri_missing, certinfo->generation);
+      log_validation_status(rc, uri, crldp_uri_missing, generation);
       goto done;
     }
 
     if (!certinfo->ca && !startswith(certinfo->crldp.s, w->certinfo.sia.s)) {
-      log_validation_status(rc, &certinfo->uri, crldp_doesnt_match_issuer_sia, certinfo->generation);
+      log_validation_status(rc, uri, crldp_doesnt_match_issuer_sia, generation);
       goto done;
     }
 
-    if (x->cert_info && x->cert_info->key && x->cert_info->key->algor) {
-      switch (OBJ_obj2nid(x->cert_info->key->algor ->algorithm)) {
-      case NID_rsaEncryption:
-	break;
-      case NID_X9_62_id_ecPublicKey: /* draft-ietf-sidr-bgpsec-algs */
-	if (!certinfo->ca)
-	  break;
-	/* Fall through */
-      default:
-	log_validation_status(rc, &certinfo->uri, nonconformant_public_key_algorithm,
-			      certinfo->generation);
-	goto done;
-      }
-    }
-
-    if ((pkey = X509_get_pubkey(w->cert)) == NULL || X509_verify(x, pkey) <= 0) {
-      log_validation_status(rc, &certinfo->uri, certificate_bad_signature, certinfo->generation);
-      goto done;
-    }
-
-    if (w->crls == NULL && ((w->crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(w->crls, NULL))) {
+    if (w->crls == NULL && ((w->crls = sk_X509_CRL_new_null()) == NULL ||
+			    !sk_X509_CRL_push(w->crls, NULL))) {
       logmsg(rc, log_sys_err, "Internal allocation error setting up CRL for validation");
       goto done;
     }
@@ -3447,15 +3457,15 @@ static int check_x509(rcynic_ctx_t *rc,
       X509_CRL *new_crl = check_crl(rc, &certinfo->crldp, w->cert);
 
       if (w->crldp.s[0])
-	log_validation_status(rc, &certinfo->uri, issuer_uses_multiple_crldp_values, certinfo->generation);
+	log_validation_status(rc, uri, issuer_uses_multiple_crldp_values, generation);
 
       if (new_crl == NULL) {
-	log_validation_status(rc, &certinfo->uri, bad_crl, certinfo->generation);
+	log_validation_status(rc, uri, bad_crl, generation);
 	goto done;
       }
 
       if (old_crl && new_crl && ASN1_INTEGER_cmp(old_crl->crl_number, new_crl->crl_number) < 0) {
-	log_validation_status(rc, &certinfo->uri, crldp_names_newer_crl, certinfo->generation);
+	log_validation_status(rc, uri, crldp_names_newer_crl, generation);
 	X509_CRL_free(old_crl);
 	old_crl = NULL;
       }
@@ -3474,7 +3484,7 @@ static int check_x509(rcynic_ctx_t *rc,
   }
 
   if (ex_count > 0) {
-    log_validation_status(rc, &certinfo->uri, disallowed_x509v3_extension, certinfo->generation);
+    log_validation_status(rc, uri, disallowed_x509v3_extension, generation);
     goto done;
   }
 
@@ -3487,7 +3497,7 @@ static int check_x509(rcynic_ctx_t *rc,
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
-    log_validation_status(rc, &certinfo->uri, certificate_failed_validation, certinfo->generation);
+    log_validation_status(rc, uri, certificate_failed_validation, generation);
     goto done;
   }
 
@@ -3495,7 +3505,8 @@ static int check_x509(rcynic_ctx_t *rc,
 
  done:
   X509_STORE_CTX_cleanup(&rctx.ctx);
-  EVP_PKEY_free(pkey);
+  EVP_PKEY_free(issuer_pkey);
+  EVP_PKEY_free(subject_pkey);
   BASIC_CONSTRAINTS_free(bc);
   sk_ACCESS_DESCRIPTION_pop_free(sia, ACCESS_DESCRIPTION_free);
   sk_ACCESS_DESCRIPTION_pop_free(aia, ACCESS_DESCRIPTION_free);

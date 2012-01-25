@@ -209,9 +209,12 @@ static const struct {
   QB(aki_extension_issuer_mismatch,	"AKI extension issuer mismatch")    \
   QB(aki_extension_missing,		"AKI extension missing")	    \
   QB(aki_extension_wrong_format,	"AKI extension is wrong format")    \
+  QB(bad_asidentifiers,			"Bad ASIdentifiers extension")	    \
   QB(bad_cms_econtenttype,		"Bad CMS eContentType")		    \
   QB(bad_crl,				"Bad CRL")			    \
-  QB(bad_manifest_digest_length,	"Bad manifest digest length")	\
+  QB(bad_ipaddrblocks,			"Bad IPAddrBlocks extension")	    \
+  QB(bad_key_usage,			"Bad keyUsage")			    \
+  QB(bad_manifest_digest_length,	"Bad manifest digest length")	    \
   QB(certificate_bad_signature,		"Bad certificate signature")	    \
   QB(certificate_failed_validation,	"Certificate failed validation")    \
   QB(cms_econtent_decode_error,		"CMS eContent decode error")	    \
@@ -223,6 +226,10 @@ static const struct {
   QB(crldp_doesnt_match_issuer_sia,	"CRLDP doesn't match issuer's SIA") \
   QB(crldp_uri_missing,			"CRLDP URI missing")		    \
   QB(disallowed_x509v3_extension,	"Disallowed X.509v3 extension")     \
+  QB(inappropriate_eku_extension,	"Inappropriate EKU extension")	\
+  QB(malformed_basic_constraints,	"Malformed basicConstraints")	    \
+  QB(malformed_certificate_policy,	"Malformed certificate policy")	    \
+  QB(malformed_trust_anchor,		"Malformed trust anchor")	    \
   QB(malformed_cadirectory_uri,		"Malformed caDirectory URI")	    \
   QB(malformed_crldp_extension,		"Malformed CRDLP extension")	    \
   QB(malformed_crldp_uri,		"Malformed CRDLP URI")		    \
@@ -231,6 +238,8 @@ static const struct {
   QB(manifest_carepository_mismatch,	"Manifest caRepository mismatch")   \
   QB(manifest_lists_missing_object,	"Manifest lists missing object")    \
   QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
+  QB(missing_resources,			"Missing resources")		    \
+  QB(negative_manifest_number,		"Negative manifestNumber")	    \
   QB(nonconformant_asn1_time_value,	"Nonconformant ASN.1 time value")   \
   QB(nonconformant_public_key_algorithm,"Nonconformant public key algorithm")\
   QB(nonconformant_signature_algorithm,	"Nonconformant signature algorithm")\
@@ -1720,15 +1729,17 @@ static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *wsk,
 {
   walk_ctx_t *w;
 
-  if (x == NULL || certinfo == NULL)
-    return NULL;
-
-  if ((w = malloc(sizeof(*w))) == NULL)
+  if (x == NULL ||
+      (certinfo == NULL) != (sk_walk_ctx_t_num(wsk) == 0) ||
+      (w = malloc(sizeof(*w))) == NULL)
     return NULL;
 
   memset(w, 0, sizeof(*w));
   w->cert = x;
-  w->certinfo = *certinfo;
+  if (certinfo != NULL)
+    w->certinfo = *certinfo;
+  else
+    memset(&w->certinfo, 0, sizeof(w->certinfo));
 
   if (!sk_walk_ctx_t_push(wsk, w)) {
     free(w);
@@ -2820,38 +2831,6 @@ static void extract_access_uri(rcynic_ctx_t *rc,
   }
 }
 
-/**
- * Parse interesting stuff from a certificate.
- */
-static void parse_cert(rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const uri_t *uri, const object_generation_t generation)
-{
-  STACK_OF(DIST_POINT) *crldp;
-  AUTHORITY_INFO_ACCESS *xia;
-
-  assert(x != NULL && c != NULL && uri != NULL);
-  memset(c, 0, sizeof(*c));
-
-  c->ca = X509_check_ca(x) == 1;
-  c->uri = *uri;
-  c->generation = generation;
-
-  if ((xia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
-    extract_access_uri(rc, uri, generation, xia, id_ad_caIssuers, sizeof(id_ad_caIssuers), &c->aia);
-    sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
-  }
-
-  if ((xia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
-    extract_access_uri(rc, uri, generation, xia, id_ad_caRepository, sizeof(id_ad_caRepository), &c->sia);
-    extract_access_uri(rc, uri, generation, xia, id_ad_rpkiManifest, sizeof(id_ad_rpkiManifest), &c->manifest);
-    sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
-  }
-
-  if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL)) != NULL) {
-    extract_crldp_uri(rc, uri, generation, crldp, &c->crldp);
-    sk_DIST_POINT_pop_free(crldp, DIST_POINT_free);
-  }
-}
-
 
 
 /**
@@ -2884,47 +2863,6 @@ static int check_aki(rcynic_ctx_t *rc,
 }
 
 
-
-/**
- * Check whether extensions in a certificate are allowed by profile.
- * Also returns failure in a few null-pointer cases that can't
- * possibly conform to profile, and for duplicated extensions.
- */
-static int check_allowed_extensions(X509 *x, const int allow_eku)
-{
-  int i;
-
-  if (x == NULL)
-    return 0;
-
-  for (i = 0; i < X509_get_ext_count(x); i++) {
-    X509_EXTENSION *ex = X509_get_ext(x, i);
-    if (X509_get_ext_by_OBJ(x, ex->object, i + 1) >= 0)
-      return 0;
-    switch (OBJ_obj2nid(ex->object)) {
-    case NID_basic_constraints:
-    case NID_subject_key_identifier:
-    case NID_authority_key_identifier:
-    case NID_key_usage:
-    case NID_crl_distribution_points:
-    case NID_info_access:
-    case NID_sinfo_access:
-    case NID_certificate_policies:
-    case NID_sbgp_ipAddrBlock:
-    case NID_sbgp_autonomousSysNum:
-      continue;
-    case NID_ext_key_usage:
-      if (allow_eku)
-	continue;
-      else
-	return 0;
-    default:
-      return 0;
-    }
-  }
-
-  return 1;
-}
 
 /**
  * Check whether a Distinguished Name conforms to the rescert profile.
@@ -3263,19 +3201,83 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
  */
 static int check_x509(rcynic_ctx_t *rc,
 		      STACK_OF(walk_ctx_t) *wsk,
+		      const uri_t *uri,
 		      X509 *x,
-		      const certinfo_t *certinfo)
+		      certinfo_t *certinfo,
+		      const object_generation_t generation)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
   rcynic_x509_store_ctx_t rctx;
   EVP_PKEY *pkey = NULL;
   unsigned long flags = (X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY | X509_V_FLAG_X509_STRICT);
-  int ret = 0;
+  STACK_OF(DIST_POINT) *crldp = NULL;
+  AUTHORITY_INFO_ACCESS *sia = NULL, *aia = NULL;
+  STACK_OF(POLICYINFO) *policies = NULL;
+  BASIC_CONSTRAINTS *bc = NULL;
+  ASIdentifiers *asid = NULL;
+  IPAddrBlocks *addr = NULL;
+  int crit, ex_count, ret = 0;
 
-  assert(rc && wsk && w && w->cert && x && certinfo);
+  assert(rc && wsk && w && uri && x && w->cert);
 
   if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, x, NULL))
     return 0;
+
+  if (certinfo == NULL)
+    certinfo = &w->certinfo;
+
+  memset(certinfo, 0, sizeof(*certinfo));
+
+  certinfo->uri = *uri;
+  certinfo->generation = generation;
+
+  ex_count = X509_get_ext_count(x);
+
+  /*
+   * We don't use X509_check_ca() to set certinfo->ca anymore, because
+   * it's not paranoid enough to enforce the RPKI certificate profile,
+   * but we still call it because we need it (or something) to invoke
+   * x509v3_cache_extensions() for us.
+   */
+  (void) X509_check_ca(x);
+
+  if ((bc = X509_get_ext_d2i(x, NID_basic_constraints, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (!crit || bc->ca <= 0 || bc->pathlen != NULL) {
+      log_validation_status(rc, uri, malformed_basic_constraints, generation);
+      goto done;
+    }
+  }
+
+  certinfo->ca = bc != NULL;
+
+  if (certinfo == &w->certinfo) {
+    certinfo->ta = 1;
+    if (!certinfo->ca) {
+      log_validation_status(rc, uri, malformed_trust_anchor, generation);
+      goto done;
+    }
+  }
+
+  if ((aia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
+    ex_count--;
+    extract_access_uri(rc, uri, generation, aia,
+		       id_ad_caIssuers, sizeof(id_ad_caIssuers), &certinfo->aia);
+  }
+
+  if ((sia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
+    ex_count--;
+    extract_access_uri(rc, uri, generation, sia,
+		       id_ad_caRepository, sizeof(id_ad_caRepository), &certinfo->sia);
+    extract_access_uri(rc, uri, generation, sia,
+		       id_ad_rpkiManifest, sizeof(id_ad_rpkiManifest), &certinfo->manifest);
+  }
+
+  if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL)) != NULL) {
+    ex_count--;
+    extract_crldp_uri(rc, uri, generation, crldp, &certinfo->crldp);
+  }
+
   rctx.rc = rc;
   rctx.subject = certinfo;
 
@@ -3324,13 +3326,10 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (!x->skid) {
+  if (x->skid) {
+    ex_count--;
+  } else {
     log_validation_status(rc, &certinfo->uri, ski_extension_missing, certinfo->generation);
-    goto done;
-  }
-
-  if (!check_allowed_extensions(x, !certinfo->ca)) {
-    log_validation_status(rc, &certinfo->uri, disallowed_x509v3_extension, certinfo->generation);
     goto done;
   }
 
@@ -3346,6 +3345,51 @@ static int check_x509(rcynic_ctx_t *rc,
       goto done;
   }
 
+  if ((policies = X509_get_ext_d2i(x, NID_certificate_policies, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (!crit || sk_POLICYINFO_num(policies) != 1) {
+      log_validation_status(rc, uri, malformed_certificate_policy, generation);
+      goto done;
+    }
+  }
+
+  if (!X509_EXTENSION_get_critical(X509_get_ext(x, X509_get_ext_by_NID(x, NID_key_usage, -1))) ||
+      (x->ex_flags & EXFLAG_KUSAGE) == 0 ||
+      x->ex_kusage != (certinfo->ca ? KU_KEY_CERT_SIGN | KU_CRL_SIGN : KU_DIGITAL_SIGNATURE)) {
+    log_validation_status(rc, uri, bad_key_usage, generation);
+    goto done;
+  }
+  ex_count--;
+
+  if (X509_get_ext_by_NID(x, NID_ext_key_usage, -1) >= 0) {
+    ex_count--;
+    if (certinfo->ca) {
+      log_validation_status(rc, uri, inappropriate_eku_extension, generation);
+      goto done;
+    }
+  }
+
+  if ((addr = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (!crit || !v3_addr_is_canonical(addr)) {
+      log_validation_status(rc, uri, bad_ipaddrblocks, generation);
+      goto done;
+    }
+  }
+
+  if ((asid = X509_get_ext_d2i(x, NID_sbgp_autonomousSysNum, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (!crit || !v3_asid_is_canonical(asid)) {
+      log_validation_status(rc, uri, bad_asidentifiers, generation);
+      goto done;
+    }
+  }
+
+  if (!addr && !asid) {
+    log_validation_status(rc, uri, missing_resources, generation);
+    goto done;
+  }
+
   if (certinfo->ta) {
 
     if (certinfo->crldp.s[0]) {
@@ -3355,7 +3399,9 @@ static int check_x509(rcynic_ctx_t *rc,
 
   } else {
 
-    if (!check_aki(rc, &certinfo->uri, w->cert, x->akid, certinfo->generation))
+    if (check_aki(rc, &certinfo->uri, w->cert, x->akid, certinfo->generation))
+      ex_count--;
+    else
       goto done;
 
     if (!certinfo->crldp.s[0]) {
@@ -3427,6 +3473,11 @@ static int check_x509(rcynic_ctx_t *rc,
     X509_STORE_CTX_set0_crls(&rctx.ctx, w->crls);
   }
 
+  if (ex_count > 0) {
+    log_validation_status(rc, &certinfo->uri, disallowed_x509v3_extension, certinfo->generation);
+    goto done;
+  }
+
   assert(w->certs != NULL);
   X509_STORE_CTX_trusted_stack(&rctx.ctx, w->certs);
   X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
@@ -3445,6 +3496,11 @@ static int check_x509(rcynic_ctx_t *rc,
  done:
   X509_STORE_CTX_cleanup(&rctx.ctx);
   EVP_PKEY_free(pkey);
+  BASIC_CONSTRAINTS_free(bc);
+  sk_ACCESS_DESCRIPTION_pop_free(sia, ACCESS_DESCRIPTION_free);
+  sk_ACCESS_DESCRIPTION_pop_free(aia, ACCESS_DESCRIPTION_free);
+  sk_DIST_POINT_pop_free(crldp, DIST_POINT_free);
+  sk_POLICYINFO_pop_free(policies, POLICYINFO_free);
 
   return ret;
 }
@@ -3491,9 +3547,7 @@ static X509 *check_cert_1(rcynic_ctx_t *rc,
       goto punt;
   }
 
-  parse_cert(rc, x, certinfo, uri, generation);
-
-  if (check_x509(rc, wsk, x, certinfo))
+  if (check_x509(rc, wsk, uri, x, certinfo, generation))
     return x;
 
  punt:
@@ -3597,9 +3651,7 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
     goto done;
   }
 
-  parse_cert(rc, ee, certinfo, uri, generation);
-
-  if (!check_x509(rc, wsk, ee, certinfo))
+  if (!check_x509(rc, wsk, uri, ee, certinfo, generation))
     goto done;
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
@@ -3621,6 +3673,11 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
     log_validation_status(rc, uri, stale_crl_or_manifest, generation);
     if (!rc->allow_stale_manifest)
       goto done;
+  }
+
+  if (ASN1_INTEGER_get(manifest->manifestNumber) < 0) {
+    log_validation_status(rc, uri, negative_manifest_number, generation);
+    goto done;
   }
 
   if (manifest->fileHashAlg == NULL ||
@@ -3856,7 +3913,8 @@ static int check_roa_1(rcynic_ctx_t *rc,
     goto error;
   }
 
-  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri, generation);
+  if (!check_x509(rc, wsk, uri, sk_X509_value(signers, 0), &certinfo, generation))
+    goto error;
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
     log_validation_status(rc, uri, cms_econtent_decode_error, generation);
@@ -3956,9 +4014,6 @@ static int check_roa_1(rcynic_ctx_t *rc,
     log_validation_status(rc, uri, roa_resource_not_in_ee, generation);
     goto error;
   }
-
-  if (!check_x509(rc, wsk, sk_X509_value(signers, 0), &certinfo))
-    goto error;
 
   result = 1;
 
@@ -4087,8 +4142,6 @@ static int check_ghostbuster_1(rcynic_ctx_t *rc,
     goto error;
   }
 
-  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri, generation);
-
 #if 0
   /*
    * Here is where we would read the VCard from the bio returned by
@@ -4096,7 +4149,7 @@ static int check_ghostbuster_1(rcynic_ctx_t *rc,
    */
 #endif
 
-  if (!check_x509(rc, wsk, sk_X509_value(signers, 0), &certinfo))
+  if (!check_x509(rc, wsk, uri, sk_X509_value(signers, 0), &certinfo, generation))
     goto error;
 
   result = 1;
@@ -4340,7 +4393,6 @@ static int check_ta(rcynic_ctx_t *rc, X509 *x, const uri_t *uri,
 {
   STACK_OF(walk_ctx_t) *wsk = NULL;
   walk_ctx_t *w = NULL;
-  certinfo_t certinfo;
 
   assert(rc && x && uri && path1 && path2);
 
@@ -4349,16 +4401,13 @@ static int check_ta(rcynic_ctx_t *rc, X509 *x, const uri_t *uri,
     return 0;
   }
 
-  parse_cert(rc, x, &certinfo, uri, generation);
-  certinfo.ta = 1;
-
-  if ((w = walk_ctx_stack_push(wsk, x, &certinfo)) == NULL) {
+  if ((w = walk_ctx_stack_push(wsk, x, NULL)) == NULL) {
     logmsg(rc, log_sys_err, "Couldn't push walk context stack");
     walk_ctx_stack_free(wsk);
     return 0;
   }
 
-  if (!check_x509(rc, wsk, x, &w->certinfo)) {
+  if (!check_x509(rc, wsk, uri, x, NULL, generation)) {
     walk_ctx_stack_free(wsk);
     return 1;
   }

@@ -216,6 +216,7 @@ static const struct {
   QB(bad_key_usage,			"Bad keyUsage")			    \
   QB(bad_manifest_digest_length,	"Bad manifest digest length")	    \
   QB(bad_public_key,			"Bad public key")		    \
+  QB(bad_serial_number,			"Bad serialNumber")		    \
   QB(certificate_bad_signature,		"Bad certificate signature")	    \
   QB(certificate_failed_validation,	"Certificate failed validation")    \
   QB(cms_econtent_decode_error,		"CMS eContent decode error")	    \
@@ -3221,9 +3222,16 @@ static int check_x509(rcynic_ctx_t *rc,
 
   assert(rc && wsk && w && uri && x && w->cert);
 
+  /*
+   * Cleanup logic will explode if rctx.ctx hasn't been initialized,
+   * so we need to do this before running any test that can fail.
+   */
   if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, x, NULL))
     return 0;
 
+  /*
+   * certinfo == NULL means x is a self-signed trust anchor.
+   */
   if (certinfo == NULL)
     certinfo = &w->certinfo;
 
@@ -3232,6 +3240,21 @@ static int check_x509(rcynic_ctx_t *rc,
   certinfo->uri = *uri;
   certinfo->generation = generation;
 
+  if (ASN1_INTEGER_get(X509_get_serialNumber(x)) <= 0) {
+    log_validation_status(rc, uri, bad_serial_number, generation);
+    goto done;
+  }
+
+  if (!check_allowed_time_encoding(X509_get_notBefore(x)) ||
+      !check_allowed_time_encoding(X509_get_notAfter(x))) {
+    log_validation_status(rc, uri, nonconformant_asn1_time_value, generation);
+    goto done;
+  }
+
+  /*
+   * Keep track of allowed extensions we've seen.  Once we've
+   * processed all the ones we expect, anything left is an error.
+   */
   ex_count = X509_get_ext_count(x);
 
   /*

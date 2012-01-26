@@ -213,6 +213,7 @@ static const struct {
   QB(aki_extension_wrong_format,	"AKI extension is wrong format")    \
   QB(bad_asidentifiers,			"Bad ASIdentifiers extension")	    \
   QB(bad_cms_econtenttype,		"Bad CMS eContentType")		    \
+  QB(bad_cms_signer_infos,		"Bad CMS signerInfos")		    \
   QB(bad_crl,				"Bad CRL")			    \
   QB(bad_ipaddrblocks,			"Bad IPAddrBlocks extension")	    \
   QB(bad_key_usage,			"Bad keyUsage")			    \
@@ -223,6 +224,7 @@ static const struct {
   QB(certificate_failed_validation,	"Certificate failed validation")    \
   QB(cms_econtent_decode_error,		"CMS eContent decode error")	    \
   QB(cms_signer_missing,		"CMS signer missing")		    \
+  QB(cms_ski_mismatch,			"CMS SKI mismatch")		    \
   QB(cms_validation_failure,		"CMS validation failure")	    \
   QB(crl_not_in_manifest,               "CRL not listed in manifest")	    \
   QB(crl_not_yet_valid,			"CRL not yet valid")		    \
@@ -529,7 +531,7 @@ struct rcynic_ctx {
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
   int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
   int allow_digest_mismatch, allow_crl_digest_mismatch;
-  int allow_nonconformant_name;
+  int allow_nonconformant_name, allow_ee_without_signedObject;
   unsigned max_select_time, validation_status_creation_order;
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -590,6 +592,13 @@ static const char rpki_policy_oid[] = "1.3.6.1.5.5.7.14.2";
  * wire in something short and obvious.
  */
 static const char authenticated_symlink_suffix[] = ".new";
+
+/**
+ * Constant zero for comparisions.  We can't build this at compile
+ * time, so it can't be const, but treat it as if it were.
+ */
+
+static const ASN1_INTEGER *asn1_zero;
 
 
 
@@ -3240,7 +3249,7 @@ static int check_x509(rcynic_ctx_t *rc,
   certinfo->uri = *uri;
   certinfo->generation = generation;
 
-  if (ASN1_INTEGER_get(X509_get_serialNumber(x)) <= 0) {
+  if (ASN1_INTEGER_cmp(X509_get_serialNumber(x), asn1_zero) <= 0) {
     log_validation_status(rc, uri, bad_serial_number, generation);
     goto done;
   }
@@ -3318,13 +3327,15 @@ static int check_x509(rcynic_ctx_t *rc,
     ok &= sk_ACCESS_DESCRIPTION_num(sia) == got_caDirectory + got_rpkiManifest + got_signedObject;
     if (certinfo->ca)
       ok &=  got_caDirectory &&  got_rpkiManifest && !got_signedObject;
+    else if (rc->allow_ee_without_signedObject)
+      ok &= !got_caDirectory && !got_rpkiManifest;
     else
       ok &= !got_caDirectory && !got_rpkiManifest &&  got_signedObject;
     if (!ok) {
       log_validation_status(rc, uri, malformed_sia_extension, generation);
       goto done;
     }
-  } else {
+  } else if (certinfo->ca || !rc->allow_ee_without_signedObject) {
     log_validation_status(rc, uri, sia_extension_missing, generation);
     goto done;
   }
@@ -3741,7 +3752,7 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
       goto done;
   }
 
-  if (ASN1_INTEGER_get(manifest->manifestNumber) < 0) {
+  if (ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_zero) < 0) {
     log_validation_status(rc, uri, negative_manifest_number, generation);
     goto done;
   }
@@ -3926,11 +3937,17 @@ static int check_roa_1(rcynic_ctx_t *rc,
   unsigned char addrbuf[ADDR_RAW_BUF_LEN];
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(IPAddressFamily) *roa_resources = NULL, *ee_resources = NULL;
+  STACK_OF(CMS_SignerInfo) *signer_infos = NULL;
   STACK_OF(X509) *signers = NULL;
   CMS_ContentInfo *cms = NULL;
+  CMS_SignerInfo *si = NULL;
+  ASN1_OCTET_STRING *sid = NULL;
+  X509_NAME *si_issuer = NULL;
+  ASN1_INTEGER *si_serial = NULL;
   hashbuf_t hashbuf;
   ROA *roa = NULL;
   BIO *bio = NULL;
+  X509 *x = NULL;
   certinfo_t certinfo;
   int i, j, result = 0;
   unsigned afi, *safi = NULL, safi_, prefixlen;
@@ -3974,12 +3991,32 @@ static int check_roa_1(rcynic_ctx_t *rc,
     goto error;
   }
 
-  if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
+  if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1 ||
+      (x = sk_X509_value(signers, 0)) == NULL) {
     log_validation_status(rc, uri, cms_signer_missing, generation);
     goto error;
   }
 
-  if (!check_x509(rc, wsk, uri, sk_X509_value(signers, 0), &certinfo, generation))
+  if (X509_get_ext_by_NID(x, NID_sbgp_autonomousSysNum, -1) >= 0) {
+    log_validation_status(rc, uri, disallowed_x509v3_extension, generation);
+    goto error;
+  }
+
+  if ((signer_infos = CMS_get0_SignerInfos(cms)) == NULL ||
+      sk_CMS_SignerInfo_num(signer_infos) != 1 ||
+      (si = sk_CMS_SignerInfo_value(signer_infos, 0)) == NULL ||
+      !CMS_SignerInfo_get0_signer_id(si, &sid, &si_issuer, &si_serial) ||
+      sid == NULL || si_issuer != NULL || si_serial != NULL) {
+    log_validation_status(rc, uri, bad_cms_signer_infos, generation);
+    goto error;
+  }
+
+  if (CMS_SignerInfo_cert_cmp(si, x)) {
+    log_validation_status(rc, uri, cms_ski_mismatch, generation);
+    goto error;
+  }
+
+  if (!check_x509(rc, wsk, uri, x, &certinfo, generation))
     goto error;
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
@@ -4568,6 +4605,7 @@ int main(int argc, char *argv[])
   rc.allow_crl_digest_mismatch = 1;
   rc.allow_object_not_in_manifest = 1;
   rc.allow_nonconformant_name = 1;
+  rc.allow_ee_without_signedObject = 1;
   rc.max_parallel_fetches = 1;
   rc.max_retries = 3;
   rc.retry_wait_min = 30;
@@ -4617,6 +4655,15 @@ int main(int argc, char *argv[])
 	     rc.jane);
       goto done;
     }
+  }
+
+  {
+    ASN1_INTEGER *zero = ASN1_INTEGER_new();
+    if (zero == NULL || !ASN1_INTEGER_set(zero, 0)) {
+      logmsg(&rc, log_sys_err, "Couldn't initialize ASN.1 constant zero!");
+      goto done;
+    }
+    asn1_zero = zero;
   }
 
   if ((cfg_handle = NCONF_new(NULL)) == NULL) {
@@ -4743,6 +4790,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "allow-nonconformant-name") &&
 	     !configure_boolean(&rc, &rc.allow_nonconformant_name, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-ee-without-signedObject") &&
+	     !configure_boolean(&rc, &rc.allow_ee_without_signedObject, val->value))
       goto done;
 
     /*

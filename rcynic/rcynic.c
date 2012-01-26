@@ -262,6 +262,7 @@ static const struct {
   QB(sia_extension_missing,		"SIA extension missing")	    \
   QB(sia_manifest_uri_missing,		"SIA manifest URI missing")	    \
   QB(ski_extension_missing,		"SKI extension missing")	    \
+  QB(ski_public_key_mismatch,		"SKI public key mismatch")	    \
   QB(trust_anchor_key_mismatch,		"Trust anchor key mismatch")	    \
   QB(trust_anchor_with_crldp,		"Trust anchor can't have CRLDP")    \
   QB(unknown_openssl_verify_error,	"Unknown OpenSSL verify error")	    \
@@ -3221,12 +3222,15 @@ static int check_x509(rcynic_ctx_t *rc,
   rcynic_x509_store_ctx_t rctx;
   EVP_PKEY *issuer_pkey = NULL, *subject_pkey = NULL;
   unsigned long flags = (X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY | X509_V_FLAG_X509_STRICT);
-  STACK_OF(DIST_POINT) *crldp = NULL;
   AUTHORITY_INFO_ACCESS *sia = NULL, *aia = NULL;
   STACK_OF(POLICYINFO) *policies = NULL;
+  ASN1_BIT_STRING *ski_pubkey = NULL;
+  STACK_OF(DIST_POINT) *crldp = NULL;
   BASIC_CONSTRAINTS *bc = NULL;
   ASIdentifiers *asid = NULL;
   IPAddrBlocks *addr = NULL;
+  hashbuf_t ski_hashbuf;
+  unsigned ski_hashlen;
   int ok, crit, ex_count, ret = 0;
 
   assert(rc && wsk && w && uri && x && w->cert);
@@ -3477,6 +3481,17 @@ static int check_x509(rcynic_ctx_t *rc,
   }
   if (!ok) {
     log_validation_status(rc, uri, bad_public_key, generation);
+    goto done;
+  }
+
+  if (x->skid == NULL ||
+      (ski_pubkey = X509_get0_pubkey_bitstr(x)) == NULL ||
+      !EVP_Digest(ski_pubkey->data, ski_pubkey->length,
+		  ski_hashbuf.h, &ski_hashlen, EVP_sha1(), NULL) ||
+      ski_hashlen != 20 ||
+      ski_hashlen != x->skid->length ||
+      memcmp(ski_hashbuf.h, x->skid->data, ski_hashlen)) {
+    log_validation_status(rc, uri, ski_public_key_mismatch, generation);
     goto done;
   }
 

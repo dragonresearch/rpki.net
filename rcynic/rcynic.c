@@ -4012,11 +4012,6 @@ static int check_roa_1(rcynic_ctx_t *rc,
     goto error;
   }
 
-  if (X509_get_ext_by_NID(x, NID_sbgp_autonomousSysNum, -1) >= 0) {
-    log_validation_status(rc, uri, disallowed_x509v3_extension, generation);
-    goto error;
-  }
-
   if ((signer_infos = CMS_get0_SignerInfos(cms)) == NULL ||
       sk_CMS_SignerInfo_num(signer_infos) != 1 ||
       (si = sk_CMS_SignerInfo_value(signer_infos, 0)) == NULL ||

@@ -39,7 +39,7 @@ PERFORMANCE OF THIS SOFTWARE.
 import os, time, getopt, sys
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.http, rpki.config, rpki.exceptions, rpki.relaxng
-import rpki.sundial, rpki.log
+import rpki.sundial, rpki.log, rpki.oids
 
 rootd = None
 
@@ -200,7 +200,8 @@ class main(object):
       keypair     = self.rpki_root_key,
       subject_key = manifest_keypair.get_RSApublic(),
       serial      = serial + 1,
-      sia         = None,
+      sia         = ((rpki.oids.name2oid["id-ad-signedObject"],
+                      ("uri", self.rpki_base_uri + self.rpki_root_manifest)),),
       aia         = self.rpki_root_cert_uri,
       crldp       = crldp,
       resources   = manifest_resources,

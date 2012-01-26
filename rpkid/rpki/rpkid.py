@@ -926,7 +926,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     self.sql_store()
     return self
 
-  def issue_ee(self, ca, resources, subject_key, sia = None):
+  def issue_ee(self, ca, resources, subject_key, sia):
     """
     Issue a new EE certificate.
     """
@@ -949,7 +949,11 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
 
     resources = rpki.resource_set.resource_bag.from_inheritance()
-    self.latest_manifest_cert = self.issue_ee(self.ca, resources, self.manifest_public_key)
+    self.latest_manifest_cert = self.issue_ee(
+      ca          = self.ca,
+      resources   = resources,
+      subject_key = self.manifest_public_key,
+      sia         = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.manifest_uri)),))
 
   def issue(self, ca, child, subject_key, sia, resources, publisher, child_cert = None):
     """

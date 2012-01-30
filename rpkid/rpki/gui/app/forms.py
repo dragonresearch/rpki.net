@@ -1,20 +1,19 @@
-# $Id$
-"""
-Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
-Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-"""
+__version__ = '$Id$'
 
 from django import forms
 
@@ -44,13 +43,6 @@ class AddConfForm(forms.Form):
     pubd_contact_info = forms.CharField(initial='repo-man@rpki.example.org',
             label='Pubd contact',
             help_text='email address for the operator of your pubd instance')
-
-
-class ImportForm(forms.Form):
-    '''Form used for uploading parent/child identity xml files'''
-    handle = forms.CharField(max_length=30,
-            help_text='your name for this entity')
-    xml = forms.FileField(help_text='xml filename')
 
 
 class GhostbusterRequestForm(forms.ModelForm):
@@ -95,40 +87,27 @@ class GhostbusterRequestForm(forms.ModelForm):
         return self.cleaned_data
 
 
-def ImportChildForm(parent_conf, *args, **kwargs):
-    class wrapped(forms.Form):
-        handle = forms.CharField(max_length=30, help_text="Child's RPKI handle")
-        xml = forms.FileField(help_text="Child's identity.xml file")
-
-        def clean_handle(self):
-            if parent_conf.children.filter(handle=self.cleaned_data['handle']):
-                raise forms.ValidationError, "a child with that handle already exists"
-            return self.cleaned_data['handle']
-
-    return wrapped(*args, **kwargs)
-
-
-def ImportParentForm(conf, *args, **kwargs):
-    class wrapped(forms.Form):
-        handle = forms.CharField(max_length=30, help_text="Parent's RPKI handle", required=True)
-        xml = forms.FileField(help_text="XML response from parent", required=True,
-                widget=forms.FileInput(attrs={'class': 'xlarge'}))
-
-        def clean_handle(self):
-            if conf.parents.filter(handle=self.cleaned_data['handle']):
-                raise forms.ValidationError, "a parent with that handle already exists"
-            return self.cleaned_data['handle']
-
-    return wrapped(*args, **kwargs)
+class ImportForm(forms.Form):
+    """Form used for uploading parent/child identity xml files."""
+    handle = forms.CharField(required=False,
+                             widget=forms.TextInput(attrs={'class': 'xlarge'}),
+                             help_text='Optional.  Your name for this entity, or blank to accept name in XML')
+    xml = forms.FileField(label='XML file',
+                          widget=forms.FileInput(attrs={'class': 'input-file'}))
 
 
 class ImportRepositoryForm(forms.Form):
-    parent_handle = forms.CharField(max_length=30, required=False, help_text='(optional)')
-    xml = forms.FileField(help_text='xml file from repository operator')
+    handle = forms.CharField(max_length=30, required=False,
+                             label='Parent Handle',
+                             help_text='Optional.  Must be specified if you use a different name for this parent')
+    xml = forms.FileField(label='XML file',
+                          widget=forms.FileInput(attrs={'class': 'input-file'}))
 
 
-class ImportPubClientForm(forms.Form):
-    xml = forms.FileField(help_text='xml file from publication client')
+class ImportClientForm(forms.Form):
+    """Form used for importing publication client requests."""
+    xml = forms.FileField(label='XML file',
+                          widget=forms.FileInput(attrs={'class': 'input-file'}))
 
 
 def ChildWizardForm(parent, *args, **kwargs):

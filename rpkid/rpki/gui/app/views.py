@@ -1,29 +1,29 @@
-# $Id$
+# Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
 
 """
-Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
-Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+This module contains the view functions implementing the web portal
+interface.
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
 """
 
-from __future__ import with_statement
+__version__ = '$Id$'
 
-import email.message
-import email.utils
 import os
 import os.path
-import tempfile
+from tempfile import NamedTemporaryFile
 
 from django.contrib.auth.decorators import login_required
 from django.contrib import auth
@@ -32,30 +32,29 @@ from django.utils.http import urlquote
 from django.template import RequestContext
 from django import http
 from django.views.generic.list_detail import object_list, object_detail
-from django.views.generic.create_update import (delete_object, update_object,
-        create_object)
+from django.views.generic.create_update import delete_object
 from django.core.urlresolvers import reverse
 
+from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
-from rpki import resource_set
-import rpki.irdb
-import rpki.exceptions
+from rpki.resource_set import (resource_range_as, resource_range_ipv4,
+                               resource_range_ipv6, roa_prefix_ipv4)
+from rpki.exceptions import BadIPResource
 
 import rpki.gui.cacheview.models
 import rpki.gui.routeview.models
 
-debug = False
-
 
 def my_login_required(f):
     """
-    A version of django.contrib.auth.decorators.login_required
-    that will fail instead of redirecting to the login page when
-    the user is not logged in.
+    A version of django.contrib.auth.decorators.login_required that will
+    fail instead of redirecting to the login page when the user is not
+    logged in.
 
     For use with the rpkidemo service URLs where we want to detect
-    failure to log in.  Otherwise django will return code 200 with
-    the login form, and fools rpkidemo.
+    failure to log in.  Otherwise django will return code 200 with the
+    login form, and fools rpkidemo.
+
     """
     def wrapped(request, *args, **kwargs):
         if  not request.user.is_authenticated():
@@ -66,9 +65,10 @@ def my_login_required(f):
 
 
 def superuser_required(f):
-    """Decorator which returns HttpResponseForbidden if the user does not have
-    superuser permissions."""
+    """Decorator which returns HttpResponseForbidden if the user does
+    not have superuser permissions.
 
+    """
     @login_required
     def _wrapped(request, *args, **kwargs):
         if not request.user.is_superuser:
@@ -76,12 +76,23 @@ def superuser_required(f):
         return f(request, *args, **kwargs)
     return _wrapped
 
-# For each type of object, we have a detail view, a create view and
-# an update view.  We heavily leverage the generic views, only
-# adding our own idea of authorization.
+
+# FIXME  This method is included in Django 1.3 and can be removed when Django
+# 1.2 is out of its support window.
+def render(request, template, context):
+    """
+    https://docs.djangoproject.com/en/1.3/topics/http/shortcuts/#render
+
+    """
+    return render_to_response(template, context,
+            context_instance=RequestContext(request))
 
 
 def handle_required(f):
+    """Decorator for view functions which require the user to be logged in and
+    a resource handle selected for the session.
+
+    """
     @login_required
     def wrapped_fn(request, *args, **kwargs):
         if 'handle' not in request.session:
@@ -93,7 +104,7 @@ def handle_required(f):
             if conf.count() == 1:
                 request.session['handle'] = conf[0]
             elif conf.count() == 0:
-                return render('app/conf_empty.html', {}, request)
+                return render(request, 'app/conf_empty.html', {})
             else:
                 # Should reverse the view for this instead of hardcoding
                 # the URL.
@@ -105,9 +116,62 @@ def handle_required(f):
     return wrapped_fn
 
 
-def render(template, context, request):
-    return render_to_response(template, context,
-            context_instance=RequestContext(request))
+@handle_required
+def generic_import(request, queryset, configure, form_class=None,
+                   template_name=None, post_import_redirect=None):
+    """
+    Generic view function for importing XML files used in the setup
+    process.
+
+    queryset
+        queryset containing all objects of the type being imported
+        
+    configure
+        method on Zookeeper to invoke with the imported XML file
+
+    form_class
+        specifies the form to use for import.  If None, uses the generic
+        forms.ImportForm.
+
+    template_name
+        path to the html template to use to render the form.  If None, defaults
+        to "app/<model>_import_form.html", where <model> is introspected from
+        the "queryset" argument.
+
+    post_import_redirect
+        if None (default), the user will be redirected to the detail page for
+        the imported object.  Otherwise, the user will be redirected to the
+        specified URL.
+
+    """
+    conf = request.session['handle']
+    if template_name is None:
+        template_name = 'app/%s_import_form.html' % queryset.model.__name__.lower()
+    if form_class is None:
+        form_class = forms.ImportForm
+    if request.method == 'POST':
+        form = form_class(request.POST, request.FILES)
+        if form.is_valid():
+            tmpf = NamedTemporaryFile(prefix='import', suffix='.xml',
+                                      delete=False)
+            tmpf.write(form.cleaned_data['xml'].read())
+            tmpf.close()
+            z = Zookeeper(handle=conf.handle)
+            # configure_repository returns None, so can't use tuple expansion
+            # here.  Unpack the tuple below if post_import_redirect is None.
+            r = configure(z, tmpf.name, form.cleaned_data.get('handle'))
+            os.remove(tmpf.name)
+            if post_import_redirect:
+                url = post_import_redirect
+            else:
+                _, handle = r
+                url = queryset.get(issuer=conf,
+                                   handle=handle).get_absolute_url()
+            return http.HttpResponseRedirect(url)
+    else:
+        form = form_class()
+
+    return render(request, template_name, {'form': form})
 
 
 @handle_required
@@ -120,15 +184,15 @@ def dashboard(request):
     # asns used in my roas
     qs = models.ROARequest.objects.filter(issuer=conf)
     roa_asns = set((obj.asn for obj in qs))
-    used_asns.extend((resource_set.resource_range_as(asn, asn) for asn in roa_asns))
+    used_asns.extend((resource_range_as(asn, asn) for asn in roa_asns))
 
     # asns given to my children
-    child_asns = rpki.irdb.models.ChildASN.objects.filter(child__in=conf.children.all())
-    used_asns.extend((resource_set.resource_range_as(obj.start_as, obj.end_as) for obj in child_asns))
+    child_asns = ChildASN.objects.filter(child__in=conf.children.all())
+    used_asns.extend((resource_range_as(obj.start_as, obj.end_as) for obj in child_asns))
 
     # my received asns
     asns = models.ResourceRangeAS.objects.filter(cert__parent__issuer=conf)
-    my_asns = range_list.RangeList([resource_set.resource_range_as(obj.min, obj.max) for obj in asns])
+    my_asns = range_list.RangeList([resource_range_as(obj.min, obj.max) for obj in asns])
 
     unused_asns = my_asns.difference(used_asns)
 
@@ -136,17 +200,21 @@ def dashboard(request):
     used_prefixes_v6 = range_list.RangeList()
 
     # prefixes used in my roas
-    for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version='IPv4'):
+    for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf,
+                                                      version='IPv4'):
         used_prefixes.append(obj.as_resource_range())
 
-    for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf, version='IPv6'):
+    for obj in models.ROARequestPrefix.objects.filter(roa_request__issuer=conf,
+                                                      version='IPv6'):
         used_prefixes_v6.append(obj.as_resource_range())
 
     # prefixes given to my children
-    for obj in rpki.irdb.models.ChildNet.objects.filter(child__in=conf.children.all(), version='IPv4'):
+    for obj in ChildNet.objects.filter(child__in=conf.children.all(),
+                                       version='IPv4'):
         used_prefixes.append(obj.as_resource_range())
 
-    for obj in rpki.irdb.models.ChildNet.objects.filter(child__in=conf.children.all(), version='IPv6'):
+    for obj in ChildNet.objects.filter(child__in=conf.children.all(),
+                                       version='IPv6'):
         used_prefixes_v6.append(obj.as_resource_range())
 
     # my received prefixes
@@ -158,19 +226,21 @@ def dashboard(request):
     unused_prefixes = my_prefixes.difference(used_prefixes)
     unused_prefixes_v6 = my_prefixes_v6.difference(used_prefixes_v6)
 
-    return render('app/dashboard.html', {
+    return render(request, 'app/dashboard.html', {
         'conf': conf,
         'unused_asns': unused_asns,
         'unused_prefixes': unused_prefixes,
         'unused_prefixes_v6': unused_prefixes_v6,
         'asns': asns,
         'prefixes': prefixes,
-        'prefixes_v6': prefixes}, request)
+        'prefixes_v6': prefixes})
 
 
 @superuser_required
 def conf_list(request):
-    """Allow the user to select a handle."""
+    """Allow the user to select a handle.
+
+    """
     queryset = models.Conf.objects.all()
     return object_list(request, queryset,
             template_name='app/conf_list.html', template_object_name='conf',
@@ -179,7 +249,9 @@ def conf_list(request):
 
 @superuser_required
 def conf_select(request):
-    '''Change the handle for the current session.'''
+    """Change the handle for the current session.
+
+    """
     if not 'handle' in request.GET:
         return http.HttpResponseRedirect('/myrpki/conf/select')
     handle = request.GET['handle']
@@ -198,7 +270,9 @@ def serve_xml(content, basename):
 
 @handle_required
 def conf_export(request):
-    """Return the identity.xml for the current handle."""
+    """Return the identity.xml for the current handle.
+
+    """
     handle = request.session['handle']
     return serve_xml(glue.read_identity(handle.handle), 'identity')
 
@@ -206,25 +280,8 @@ def conf_export(request):
 @handle_required
 def parent_import(request):
     conf = request.session['handle']
-    log = request.META['wsgi.errors']
-
-    if request.method == 'POST':
-        form = forms.ImportParentForm(conf, request.POST, request.FILES)
-        if form.is_valid():
-            tmpf = tempfile.NamedTemporaryFile(prefix='parent', suffix='.xml', delete=False)
-            f = tmpf.name
-            tmpf.write(form.cleaned_data['xml'].read())
-            tmpf.close()
-
-            glue.import_parent(log, conf, form.cleaned_data['handle'], f)
-
-            os.remove(tmpf.name)
-
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.ImportParentForm(conf)
-
-    return render('app/import_parent_form.html', {'form': form}, request)
+    return generic_import(request, conf.parents,
+                          Zookeeper.configure_parent)
 
 
 @handle_required
@@ -257,29 +314,9 @@ def parent_delete(request, pk):
 
 @handle_required
 def child_import(request):
-    """
-    Import a repository response.
-    """
     conf = request.session['handle']
-    log = request.META['wsgi.errors']
-
-    if request.method == 'POST':
-        form = forms.ImportChildForm(conf, request.POST, request.FILES)
-        if form.is_valid():
-            tmpf = tempfile.NamedTemporaryFile(prefix='identity', suffix='.xml', delete=False)
-            f = tmpf.name
-            tmpf.write(form.cleaned_data['xml'].read())
-            tmpf.close()
-
-            glue.import_child(log, conf, form.cleaned_data['handle'], f)
-
-            os.remove(tmpf.name)
-
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.ImportChildForm(conf)
-
-    return render('app/import_child_form.html', {'form': form}, request)
+    return generic_import(request, conf.children, Zookeeper.configure_child,
+                          post_import_redirect=reverse(child_list))
 
 
 @handle_required
@@ -294,7 +331,8 @@ def child_list(request):
 
 
 @handle_required
-def child_add_resource(request, pk, form_class, unused_list, callback, template_name='app/child_add_resource_form.html'):
+def child_add_resource(request, pk, form_class, unused_list, callback,
+                       template_name='app/child_add_resource_form.html'):
     conf = request.session['handle']
     child = models.Child.objects.filter(issuer=conf, pk=pk)
     if request.method == 'POST':
@@ -305,12 +343,12 @@ def child_add_resource(request, pk, form_class, unused_list, callback, template_
     else:
         form = form_class()
 
-    return render(template_name, {'object': child, 'form': form,
-        'unused': unused_list}, request)
+    return render(request, template_name, {'object': child, 'form': form,
+        'unused': unused_list})
 
 
 def add_asn_callback(child, form):
-    r = resource_set.resource_range_as.parse_str(form.as_range)
+    r = resource_range_as.parse_str(form.as_range)
     child.asns.create(min=r.min, max=r.max)
 
 
@@ -321,10 +359,10 @@ def child_add_asn(request, pk):
 
 def add_address_callback(child, form):
     try:
-        r = resource_set.resource_range_ipv4.parse_str(form.prefix)
+        r = resource_range_ipv4.parse_str(form.prefix)
         family = 4
-    except rpki.exceptions.BadIPResource:
-        r = resource_set.resource_range_ipv6.parse_str(form.prefix)
+    except BadIPResource:
+        r = resource_range_ipv6.parse_str(form.prefix)
         family = 6
     child.address_ranges.create(min=str(r.min), max=str(r.max), family=family)
 
@@ -339,7 +377,7 @@ def child_view(request, pk):
     '''Detail view of child for the currently selected handle.'''
     handle = request.session['handle']
     child = get_object_or_404(handle.children.all(), pk=pk)
-    return render('app/child_view.html', {'child': child}, request)
+    return render(request, 'app/child_view.html', {'child': child})
 
 
 @handle_required
@@ -357,45 +395,8 @@ def child_edit(request, pk):
     else:
         form = forms.ChildForm(instance=child)
 
-    return render('app/child_form.html', {'child': child, 'form': form}, request)
-
-
-# this is similar to handle_required, except that the handle is given in URL
-def handle_or_404(request, handle):
-    "ensure the requested handle is available to this user"
-    if request.user.is_superuser:
-        conf_set = models.Conf.objects.filter(handle=handle)
-    else:
-        conf_set = models.Conf.objects.filter(owner=request.user, handle=handle)
-    if not conf_set:
-        raise http.Http404, 'resource handle not found'
-    return conf_set[0]
-
-
-def serve_file(handle, fname, content_type, error_code=404):
-    content, mtime = glue.read_file_from_handle(handle, fname)
-    resp = http.HttpResponse(content, mimetype=content_type)
-    resp['Content-Disposition'] = 'attachment; filename=%s' % (os.path.basename(fname), )
-    resp['Last-Modified'] = email.utils.formatdate(mtime, usegmt=True)
-    return resp
-
-
-@my_login_required
-def download_csv(request, self_handle, fname):
-    conf = handle_or_404(request, self_handle)
-    return serve_file(conf.handle, fname + '.csv', 'text/csv')
-
-
-def download_asns(request, self_handle):
-    return download_csv(request, self_handle, 'asns')
-
-
-def download_roas(request, self_handle):
-    return download_csv(request, self_handle, 'roas')
-
-
-def download_prefixes(request, self_handle):
-    return download_csv(request, self_handle, 'prefixes')
+    return render(request, 'app/child_form.html',
+                  {'child': child, 'form': form})
 
 
 def login(request):
@@ -405,6 +406,7 @@ def login(request):
     use with rpkidemo to properly detect errors.  The django login
     view will return 200 with the login page when the login fails,
     which is not desirable when using rpkidemo.
+
     """
     log = request.META['wsgi.errors']
 
@@ -426,8 +428,10 @@ def login(request):
 def roa_create(request):
     """Present the user with a form to create a ROA.
 
-    Doesn't use the generic create_object() form because we need to create both
-    the ROARequest and ROARequestPrefix objects."""
+    Doesn't use the generic create_object() form because we need to
+    create both the ROARequest and ROARequestPrefix objects.
+
+    """
 
     routes = []
     if request.method == 'POST':
@@ -439,16 +443,18 @@ def roa_create(request):
             max_prefixlen = int(form.cleaned_data.get('max_prefixlen'))
 
             if form.cleaned_data.get('confirmed'):
-                roarequests = models.ROARequest.objects.filter(issuer=conf, asn=asn)
+                roarequests = models.ROARequest.objects.filter(issuer=conf,
+                                                               asn=asn)
                 if roarequests:
-                    # FIXME need to handle the case where there are multiple ROAs
-                    # for the same AS due to prefixes delegated from different
-                    # resource certs.
+                    # FIXME need to handle the case where there are
+                    # multiple ROAs for the same AS due to prefixes
+                    # delegated from different resource certs.
                     roa = roarequests[0]
                 else:
-                    roa = models.ROARequest.objects.create(issuer=conf, asn=asn)
+                    roa = models.ROARequest.objects.create(issuer=conf,
+                                                           asn=asn)
                 version = 'IPv4' if isinstance(rng,
-                        resource_set.resource_range_ipv4) else 'IPv6'
+                        resource_range_ipv4) else 'IPv6'
                 roa.prefixes.create(version=version, prefix=str(rng.min),
                         prefixlen=rng.prefixlen(), max_prefixlen=max_prefixlen)
                 return http.HttpResponseRedirect(reverse(roa_list))
@@ -467,13 +473,18 @@ def roa_create(request):
     else:
         form = forms.ROARequest()
 
-    return render('app/roarequest_form.html', {'form': form, 'routes': routes},
-            request)
+    return render(request, 'app/roarequest_form.html',
+                  {'form': form, 'routes': routes})
 
 
 @handle_required
 def roa_list(request):
-    "Displays a list of ROARequestPrefix objects for the current resource handle."
+    """
+    Display a list of ROARequestPrefix objects for the current resource
+    handle.
+
+    """
+
     conf = request.session['handle']
     qs = models.ROARequestPrefix.objects.filter(roa_request__issuer=conf)
     return object_list(request, queryset=qs,
@@ -483,8 +494,13 @@ def roa_list(request):
 
 @handle_required
 def roa_detail(request, pk):
-    """Not implemented.  This is a placeholder so that models.ROARequestPrefix.get_absolute_url
-    works.  The only reason it exist is so that the /delete URL works."""
+    """Not implemented.
+
+    This is a placeholder so that
+    models.ROARequestPrefix.get_absolute_url works.  The only reason it
+    exist is so that the /delete URL works.
+
+    """
     pass
 
 
@@ -493,10 +509,13 @@ def roa_delete(request, pk):
     """Handles deletion of a single ROARequestPrefix object.
 
     Uses a form for double confirmation, displaying how the route
-    validation status may change as a result."""
+    validation status may change as a result.
+
+    """
 
     conf = request.session['handle']
-    obj = get_object_or_404(models.ROARequestPrefix.objects, roa_request__issuer=conf, pk=pk)
+    obj = get_object_or_404(models.ROARequestPrefix.objects, roa_request__issuer=conf,
+                            pk=pk)
 
     if request.method == 'POST':
         roa = obj.roa_request
@@ -512,7 +531,7 @@ def roa_delete(request, pk):
 
     roa_pfx = obj.as_roa_prefix()
 
-    pfx = 'prefixes' if isinstance(roa_pfx, resource_set.roa_prefix_ipv4) else 'prefixes_v6'
+    pfx = 'prefixes' if isinstance(roa_pfx, roa_prefix_ipv4) else 'prefixes_v6'
     args = {'%s__prefix_min' % pfx: roa_pfx.min(),
             '%s__prefix_max' % pfx: roa_pfx.max(),
             '%s__max_length' % pfx: roa_pfx.max_prefixlen}
@@ -524,14 +543,15 @@ def roa_delete(request, pk):
         validate_route(route, qs)
         routes.append(route)
 
-    return render('app/roa_request_confirm_delete.html', {'object': obj,
-        'routes': routes}, request)
+    return render(request, 'app/roa_request_confirm_delete.html',
+                  {'object': obj, 'routes': routes})
 
 
 @handle_required
 def ghostbuster_list(request):
     """
     Display a list of all ghostbuster requests for the current Conf.
+
     """
     conf = request.session['handle']
     qs = models.GhostbusterRequest.objects.filter(issuer=conf)
@@ -542,6 +562,7 @@ def ghostbuster_list(request):
 def ghostbuster_view(request, pk):
     """
     Display an individual ghostbuster request.
+
     """
     conf = request.session['handle']
     qs = models.GhostbusterRequest.objects.filter(issuer=conf)
@@ -551,17 +572,26 @@ def ghostbuster_view(request, pk):
 
 @handle_required
 def ghostbuster_delete(request, pk):
+    """
+    Handle deletion of a GhostbusterRequest object.
+
+    """
     conf = request.session['handle']
-    get_object_or_404(models.GhostbusterRequest, issuer=conf, pk=pk)  # permission check
-    return delete_object(request, model=models.GhostbusterRequest, object_id=pk,
-            post_delete_redirect=reverse(ghostbuster_list),
-            template_name='app/ghostbusterrequest_detail.html',
-            extra_context={'confirm_delete': True})
+
+    # Ensure the GhosbusterRequest object belongs to the current user.
+    get_object_or_404(models.GhostbusterRequest, issuer=conf, pk=pk)
+
+    return delete_object(request, model=models.GhostbusterRequest,
+                         object_id=pk,
+                         post_delete_redirect=reverse(ghostbuster_list),
+                         template_name='app/ghostbusterrequest_detail.html',
+                         extra_context={'confirm_delete': True})
 
 
 def _ghostbuster_edit(request, obj=None):
     """
     Common code for create/edit.
+
     """
     conf = request.session['handle']
     form_class = forms.GhostbusterRequestForm
@@ -578,8 +608,8 @@ def _ghostbuster_edit(request, obj=None):
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
         form = form_class(conf, instance=obj)
-    return render('app/ghostbuster_form.html', {'form': form, 'object': obj},
-            request)
+    return render(request, 'app/ghostbuster_form.html',
+                  {'form': form, 'object': obj})
 
 
 @handle_required
@@ -599,8 +629,12 @@ def ghostbuster_create(request):
 
 @handle_required
 def refresh(request):
-    "Query rpkid, update the db, and redirect back to the dashboard."
-    glue.list_received_resources(request.META['wsgi.errors'], request.session['handle'])
+    """
+    Query rpkid, update the db, and redirect back to the dashboard.
+
+    """
+    glue.list_received_resources(request.META['wsgi.errors'],
+                                 request.session['handle'])
     return http.HttpResponseRedirect(reverse(dashboard))
 
 
@@ -608,6 +642,7 @@ def refresh(request):
 def initialize(request):
     """
     Initialize a new user account.
+
     """
     if request.method == 'POST':
         form = forms.GenericConfirmationForm(request.POST)
@@ -618,13 +653,14 @@ def initialize(request):
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('app/initialize_form.html', {'form': form}, request)
+    return render(request, 'app/initialize_form.html', {'form': form})
 
 
 @handle_required
 def child_wizard(request):
     """
     Wizard mode to create a new locally hosted child.
+
     """
     conf = request.session['handle']
     log = request.META['wsgi.errors']
@@ -639,7 +675,7 @@ def child_wizard(request):
     else:
         form = forms.ChildWizardForm(conf)
 
-    return render('app/child_wizard_form.html', {'form': form}, request)
+    return render(request, 'app/child_wizard_form.html', {'form': form})
 
 
 @handle_required
@@ -647,10 +683,12 @@ def export_child_response(request, child_handle):
     """
     Export the XML file containing the output of the configure_child
     to send back to the client.
+
     """
     conf = request.session['handle']
     log = request.META['wsgi.errors']
-    return serve_xml(glue.read_child_response(log, conf, child_handle), child_handle)
+    return serve_xml(glue.read_child_response(log, conf, child_handle),
+                     child_handle)
 
 
 @handle_required
@@ -658,26 +696,27 @@ def export_child_repo_response(request, child_handle):
     """
     Export the XML file containing the output of the configure_child
     to send back to the client.
+
     """
     conf = request.session['handle']
     log = request.META['wsgi.errors']
-    return serve_xml(glue.read_child_repo_response(log, conf, child_handle), child_handle)
+    return serve_xml(glue.read_child_repo_response(log, conf, child_handle),
+                     child_handle)
 
 
 @handle_required
 def update_bpki(request):
     conf = request.session['handle']
-    log = request.META['wsgi.errors']
 
     if request.method == 'POST':
         form = forms.GenericConfirmationForm(request.POST, request.FILES)
         if form.is_valid():
-            glue.update_bpki(log, conf)
+            Zookeeper(handle=conf.handle).update_bpki()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('app/update_bpki_form.html', {'form': form}, request)
+    return render(request, 'app/update_bpki_form.html', {'form': form})
 
 
 @handle_required
@@ -693,41 +732,45 @@ def child_delete(request, pk):
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('app/child_delete_form.html', {'form': form, 'object': child}, request)
+    return render(request, 'app/child_delete_form.html',
+                  {'form': form, 'object': child})
 
 
 @login_required
 def destroy_handle(request, handle):
     """
     Completely remove a hosted resource handle.
-    """
 
+    """
     log = request.META['wsgi.errors']
 
     if not request.user.is_superuser:
         return http.HttpResponseForbidden()
 
-    conf = get_object_or_404(models.Conf, handle=handle)
+    get_object_or_404(models.Conf, handle=handle)
 
     if request.method == 'POST':
         form = forms.GenericConfirmationForm(request.POST, request.FILES)
         if form.is_valid():
             glue.destroy_handle(log, handle)
-            return render('app/generic_result.html',
+            return render(request, 'app/generic_result.html',
                     {'operation': 'Destroy ' + handle,
-                     'result': 'Succeeded'}, request)
+                     'result': 'Succeeded'})
     else:
         form = forms.GenericConfirmationForm()
 
-    return render('app/destroy_handle_form.html', {'form': form,
-        'handle': handle}, request)
+    return render(request, 'app/destroy_handle_form.html',
+                  {'form': form, 'handle': handle})
 
 
 def roa_match(rng):
-    "Return a list of tuples of matching routes and roas."
+    """
+    Return a list of tuples of matching routes and roas.
+
+    """
     object_accepted = rpki.gui.cacheview.models.ValidationLabel.objects.get(label='object_accepted')
 
-    if isinstance(rng, rpki.resource_set.resource_range_ipv6):
+    if isinstance(rng, resource_range_ipv6):
         route_manager = rpki.gui.routeview.models.RouteOriginV6.objects
         pfx = 'prefixes_v6'
     else:
@@ -751,7 +794,9 @@ def roa_match(rng):
 def validate_route(route, roas):
     """Annotate the route object with its validation status.
 
-    `roas` is a queryset containing ROAs which cover `route`.  """
+    `roas` is a queryset containing ROAs which cover `route`.
+
+    """
     pfx = 'prefixes' if isinstance(route, rpki.gui.routeview.models.RouteOrigin) else 'prefixes_v6'
     args = {'asid': route.asn,
             '%s__prefix_min__lte' % pfx: route.prefix_min,
@@ -762,7 +807,8 @@ def validate_route(route, roas):
     if not roas.exists():
         route.status = 'unknown'
         route.status_label = 'warning'
-    # 3. if any candidate roa matches the origin AS and max_length, end with valid
+    # 3. if any candidate roa matches the origin AS and max_length, end with
+    # valid
     #
     # AS0 is always invalid.
     elif route.asn != 0 and roas.filter(**args).exists():
@@ -779,10 +825,10 @@ def validate_route(route, roas):
 @handle_required
 def route_view(request):
     """
-    Display a list of global routing table entries which match resources listed
-    in received certificates.
-    """
+    Display a list of global routing table entries which match resources
+    listed in received certificates.
 
+    """
     conf = request.session['handle']
     log = request.META['wsgi.errors']
 
@@ -797,58 +843,47 @@ def route_view(request):
         routes.extend([validate_route(*x) for x in roa_match(r)])
 
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
-    return render('app/routes_view.html', {'routes': routes, 'timestamp': ts}, request)
+    return render(request, 'app/routes_view.html',
+                  {'routes': routes, 'timestamp': ts})
 
 
 @handle_required
 def repository_list(request):
     conf = request.session['handle']
     qs = models.Repository.objects.filter(issuer=conf)
-    return object_list(request, queryset=qs, template_name='app/repository_list.html',
-            extra_context={
-                'create_url': reverse(repository_import),
-                'create_label': u'Import'})
+    return object_list(request, queryset=qs,
+                       template_name='app/repository_list.html',
+                       extra_context={
+                           'create_url': reverse(repository_import),
+                           'create_label': u'Import'})
 
 
 @handle_required
 def repository_detail(request, pk):
     conf = request.session['handle']
     qs = models.Repository.objects.filter(issuer=conf)
-    return object_detail(request, queryset=qs, object_id=pk, template_name='app/repository_detail.html')
+    return object_detail(request, queryset=qs, object_id=pk,
+                         template_name='app/repository_detail.html')
 
 
 @handle_required
 def repository_delete(request, pk):
     conf = request.session['handle']
-    get_object_or_404(models.Repository, issuer=conf, pk=pk)  # permission check
+    # Ensure the repository being deleted belongs to the current user.
+    get_object_or_404(models.Repository, issuer=conf, pk=pk)
     return delete_object(request, model=models.Repository, object_id=pk,
             post_delete_redirect=reverse(repository_list),
             template_name='app/repository_detail.html',
             extra_context={'confirm_delete': True})
 
 
-@handle_required
+@superuser_required
 def repository_import(request):
-    conf = request.session['handle']
-    log = request.META['wsgi.errors']
-
-    if request.method == 'POST':
-        form = forms.ImportRepositoryForm(request.POST, request.FILES)
-        if form.is_valid():
-            tmpf = tempfile.NamedTemporaryFile(prefix='repository', suffix='.xml', delete=False)
-            f = tmpf.name
-            tmpf.write(form.cleaned_data['xml'].read())
-            tmpf.close()
-
-            glue.import_repository(log, conf, f)
-
-            os.remove(tmpf.name)
-
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.ImportRepositoryForm()
-
-    return render('app/import_repository_form.html', {'form': form}, request)
+    return generic_import(request,
+                          models.Repository.objects,
+                          Zookeeper.configure_repository,
+                          form_class=forms.ImportClientForm,
+                          post_import_redirect=reverse(repository_list))
 
 
 @superuser_required
@@ -872,25 +907,7 @@ def client_delete(request, pk):
 
 @superuser_required
 def client_import(request):
-    conf = request.session['handle']
-    log = request.META['wsgi.errors']
-
-    if request.method == 'POST':
-        form = forms.ImportPubClientForm(request.POST, request.FILES)
-        if form.is_valid():
-            tmpf = tempfile.NamedTemporaryFile(prefix='pubclient', suffix='.xml', delete=False)
-            f = tmpf.name
-            tmpf.write(form.cleaned_data['xml'].read())
-            tmpf.close()
-
-            glue.import_pubclient(log, conf, f)
-
-            os.remove(tmpf.name)
-
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.ImportPubClientForm()
-
-    return render('app/import_pubclient_form.html', {'form': form}, request)
-
-# vim:sw=4 ts=8 expandtab
+    return generic_import(request, models.Client.objects,
+                          Zookeeper.configure_publication_client,
+                          form_class=forms.ImportClientForm,
+                          post_import_redirect=reverse(client_list))

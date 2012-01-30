@@ -11,7 +11,7 @@
 {% else %}
   <div class='clearfix {% if field.errors %}error{% endif %}'>
     {{ field.label_tag }}
-    {% if field.required %}<span class='required-field'>*</span>{% endif %}
+    {% if field.required %}*{% endif %}
     <div class='input'>
       {{ field }}
       {% if field.help_text %}

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+ * Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
  * 
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -120,6 +120,11 @@
 #define ADDR_RAW_BUF_LEN	16
 
 /**
+ * How many bytes is a SHA256 digest?
+ */
+#define	HASH_SHA256_LEN		32
+
+/**
  * Logging levels.  Same general idea as syslog(), but our own
  * catagories based on what makes sense for this program.  Default
  * mappings to syslog() priorities are here because it's the easiest
@@ -200,16 +205,26 @@ static const struct {
 #define MIB_COUNTERS							    \
   MIB_COUNTERS_FROM_OPENSSL						    \
   QB(aia_doesnt_match_issuer,		"AIA doesn't match issuer")	    \
+  QB(aia_extension_missing,		"AIA extension missing")	    \
+  QB(aia_extension_forbidden,		"AIA extension forbidden")	    \
   QB(aia_uri_missing,			"AIA URI missing")		    \
   QB(aki_extension_issuer_mismatch,	"AKI extension issuer mismatch")    \
   QB(aki_extension_missing,		"AKI extension missing")	    \
   QB(aki_extension_wrong_format,	"AKI extension is wrong format")    \
+  QB(bad_asidentifiers,			"Bad ASIdentifiers extension")	    \
   QB(bad_cms_econtenttype,		"Bad CMS eContentType")		    \
+  QB(bad_cms_signer_infos,		"Bad CMS signerInfos")		    \
   QB(bad_crl,				"Bad CRL")			    \
+  QB(bad_ipaddrblocks,			"Bad IPAddrBlocks extension")	    \
+  QB(bad_key_usage,			"Bad keyUsage")			    \
+  QB(bad_manifest_digest_length,	"Bad manifest digest length")	    \
+  QB(bad_public_key,			"Bad public key")		    \
+  QB(bad_serial_number,			"Bad serialNumber")		    \
   QB(certificate_bad_signature,		"Bad certificate signature")	    \
   QB(certificate_failed_validation,	"Certificate failed validation")    \
   QB(cms_econtent_decode_error,		"CMS eContent decode error")	    \
   QB(cms_signer_missing,		"CMS signer missing")		    \
+  QB(cms_ski_mismatch,			"CMS SKI mismatch")		    \
   QB(cms_validation_failure,		"CMS validation failure")	    \
   QB(crl_not_in_manifest,               "CRL not listed in manifest")	    \
   QB(crl_not_yet_valid,			"CRL not yet valid")		    \
@@ -217,6 +232,12 @@ static const struct {
   QB(crldp_doesnt_match_issuer_sia,	"CRLDP doesn't match issuer's SIA") \
   QB(crldp_uri_missing,			"CRLDP URI missing")		    \
   QB(disallowed_x509v3_extension,	"Disallowed X.509v3 extension")     \
+  QB(inappropriate_eku_extension,	"Inappropriate EKU extension")	    \
+  QB(malformed_aia_extension,		"Malformed AIA extension")	    \
+  QB(malformed_sia_extension,		"Malformed SIA extension")	    \
+  QB(malformed_basic_constraints,	"Malformed basicConstraints")	    \
+  QB(malformed_certificate_policy,	"Malformed certificate policy")	    \
+  QB(malformed_trust_anchor,		"Malformed trust anchor")	    \
   QB(malformed_cadirectory_uri,		"Malformed caDirectory URI")	    \
   QB(malformed_crldp_extension,		"Malformed CRDLP extension")	    \
   QB(malformed_crldp_uri,		"Malformed CRDLP URI")		    \
@@ -225,6 +246,12 @@ static const struct {
   QB(manifest_carepository_mismatch,	"Manifest caRepository mismatch")   \
   QB(manifest_lists_missing_object,	"Manifest lists missing object")    \
   QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
+  QB(missing_resources,			"Missing resources")		    \
+  QB(negative_manifest_number,		"Negative manifestNumber")	    \
+  QB(nonconformant_asn1_time_value,	"Nonconformant ASN.1 time value")   \
+  QB(nonconformant_public_key_algorithm,"Nonconformant public key algorithm")\
+  QB(nonconformant_signature_algorithm,	"Nonconformant signature algorithm")\
+  QB(nonconformant_digest_algorithm,	"Nonconformant digest algorithm")   \
   QB(object_rejected,			"Object rejected")		    \
   QB(roa_contains_bad_afi_value,	"ROA contains bad AFI value")	    \
   QB(roa_resource_not_in_ee,		"ROA resource not in EE")	    \
@@ -232,8 +259,10 @@ static const struct {
   QB(rsync_transfer_failed,		"rsync transfer failed")	    \
   QB(rsync_transfer_timed_out,		"rsync transfer timed out")	    \
   QB(sia_cadirectory_uri_missing,	"SIA caDirectory URI missing")	    \
+  QB(sia_extension_missing,		"SIA extension missing")	    \
   QB(sia_manifest_uri_missing,		"SIA manifest URI missing")	    \
   QB(ski_extension_missing,		"SKI extension missing")	    \
+  QB(ski_public_key_mismatch,		"SKI public key mismatch")	    \
   QB(trust_anchor_key_mismatch,		"Trust anchor key mismatch")	    \
   QB(trust_anchor_with_crldp,		"Trust anchor can't have CRLDP")    \
   QB(unknown_openssl_verify_error,	"Unknown OpenSSL verify error")	    \
@@ -254,6 +283,7 @@ static const struct {
   QW(unknown_object_type_skipped,	"Unknown object type skipped")	    \
   QW(uri_too_long,			"URI too long")			    \
   QG(current_cert_recheck,		"Certificate rechecked")	    \
+  QG(non_rsync_uri_in_extension,	"Non-rsync URI in extension")	    \
   QG(object_accepted,			"Object accepted")		    \
   QG(rsync_transfer_succeeded,		"rsync transfer succeeded")	    \
   QG(validation_ok,			"OK")
@@ -358,7 +388,7 @@ DECLARE_STACK_OF(validation_status_t)
 typedef struct certinfo {
   int ca, ta;
   object_generation_t generation;
-  uri_t uri, sia, aia, crldp, manifest;
+  uri_t uri, sia, aia, crldp, manifest, signedobject;
 } certinfo_t;
 
 typedef struct rcynic_ctx rcynic_ctx_t;
@@ -502,6 +532,7 @@ struct rcynic_ctx {
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
   int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
   int allow_digest_mismatch, allow_crl_digest_mismatch;
+  int allow_nonconformant_name, allow_ee_without_signedObject;
   unsigned max_select_time, validation_status_creation_order;
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -528,6 +559,10 @@ static const unsigned char id_ad_caRepository[] =
 /** 1.3.6.1.5.5.7.48.10 */
 static const unsigned char id_ad_rpkiManifest[] =
   {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xa};
+
+/** 1.3.6.1.5.5.7.48.11 */
+static const unsigned char id_ad_signedObject[] =
+  {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xb};
 
 /** 1.2.840.113549.1.9.16.1.24 */
 static const unsigned char id_ct_routeOriginAttestation[] =
@@ -558,6 +593,13 @@ static const char rpki_policy_oid[] = "1.3.6.1.5.5.7.14.2";
  * wire in something short and obvious.
  */
 static const char authenticated_symlink_suffix[] = ".new";
+
+/**
+ * Constant zero for comparisions.  We can't build this at compile
+ * time, so it can't be const, but treat it as if it were.
+ */
+
+static const ASN1_INTEGER *asn1_zero;
 
 
 
@@ -1709,15 +1751,17 @@ static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *wsk,
 {
   walk_ctx_t *w;
 
-  if (x == NULL || certinfo == NULL)
-    return NULL;
-
-  if ((w = malloc(sizeof(*w))) == NULL)
+  if (x == NULL ||
+      (certinfo == NULL) != (sk_walk_ctx_t_num(wsk) == 0) ||
+      (w = malloc(sizeof(*w))) == NULL)
     return NULL;
 
   memset(w, 0, sizeof(*w));
   w->cert = x;
-  w->certinfo = *certinfo;
+  if (certinfo != NULL)
+    w->certinfo = *certinfo;
+  else
+    memset(&w->certinfo, 0, sizeof(w->certinfo));
 
   if (!sk_walk_ctx_t_push(wsk, w)) {
     free(w);
@@ -2728,117 +2772,75 @@ static CMS_ContentInfo *read_cms(const path_t *filename, hashbuf_t *hash)
  * Extract CRLDP data from a certificate.  Stops looking after finding
  * the first rsync URI.
  */
-static void extract_crldp_uri(rcynic_ctx_t *rc,
-			      const uri_t *uri,
-			      const object_generation_t generation,
-			      const STACK_OF(DIST_POINT) *crldp,
-			      uri_t *result)
+static int extract_crldp_uri(rcynic_ctx_t *rc,
+			     const uri_t *uri,
+			     const object_generation_t generation,
+			     const STACK_OF(DIST_POINT) *crldp,
+			     uri_t *result)
 {
   DIST_POINT *d;
   int i;
 
   assert(crldp);
 
-  if (sk_DIST_POINT_num(crldp) != 1) {
-    log_validation_status(rc, uri, malformed_crldp_extension, generation);
-    return;
-  }
+  if (sk_DIST_POINT_num(crldp) != 1)
+    goto bad;
 
   d = sk_DIST_POINT_value(crldp, 0);
 
-  if (d->reasons || d->CRLissuer || !d->distpoint || d->distpoint->type != 0) {
-    log_validation_status(rc, uri, malformed_crldp_extension, generation);
-    return;
-  }
+  if (d->reasons || d->CRLissuer || !d->distpoint || d->distpoint->type != 0)
+    goto bad;
 
   for (i = 0; i < sk_GENERAL_NAME_num(d->distpoint->name.fullname); i++) {
     GENERAL_NAME *n = sk_GENERAL_NAME_value(d->distpoint->name.fullname, i);
-    assert(n != NULL);
-    if (n->type != GEN_URI) {
-      log_validation_status(rc, uri, malformed_crldp_extension, generation);
-      return;
-    }
+    if (n == NULL || n->type != GEN_URI)
+      goto bad;
     if (!is_rsync((char *) n->d.uniformResourceIdentifier->data)) {
-      logmsg(rc, log_verbose, "Skipping non-rsync URI %s for %s",
-	     (char *) n->d.uniformResourceIdentifier->data, uri->s);
-      continue;
-    }
-    if (sizeof(result->s) <= n->d.uniformResourceIdentifier->length) {
+      log_validation_status(rc, uri, non_rsync_uri_in_extension, generation);
+    } else if (sizeof(result->s) <= n->d.uniformResourceIdentifier->length) {
       log_validation_status(rc, uri, uri_too_long, generation);
-      continue;
+    } else {
+      strcpy(result->s, (char *) n->d.uniformResourceIdentifier->data);
+      return 1;
     }
-    strcpy(result->s, (char *) n->d.uniformResourceIdentifier->data);
-    return;
   }
+
+ bad:
+  log_validation_status(rc, uri, malformed_crldp_extension, generation);
+  return 0;
 }
 
 /**
  * Extract SIA or AIA data from a certificate.
  */
-static void extract_access_uri(rcynic_ctx_t *rc,
-			       const uri_t *uri,
-			       const object_generation_t generation,
-			       const AUTHORITY_INFO_ACCESS *xia,
-			       const unsigned char *oid,
-			       const int oidlen,
-			       uri_t *result)
+static int extract_access_uri(rcynic_ctx_t *rc,
+			      const uri_t *uri,
+			      const object_generation_t generation,
+			      const AUTHORITY_INFO_ACCESS *xia,
+			      const unsigned char *oid,
+			      const int oidlen,
+			      uri_t *result)
 {
   int i;
 
-  if (!xia)
-    return;
+  assert(xia);
 
   for (i = 0; i < sk_ACCESS_DESCRIPTION_num(xia); i++) {
     ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(xia, i);
-    assert(a != NULL);
-    if (a->location->type != GEN_URI)
-      return;
+    if (a == NULL || a->location->type != GEN_URI)
+      return 0;
     if (oid_cmp(a->method, oid, oidlen))
       continue;
     if (!is_rsync((char *) a->location->d.uniformResourceIdentifier->data)) {
-      logmsg(rc, log_verbose, "Skipping non-rsync URI %s for %s",
-	     a->location->d.uniformResourceIdentifier->data, uri->s);
-      continue;
-    }
-    if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length) {
+      log_validation_status(rc, uri, non_rsync_uri_in_extension, generation);
+    } else if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length) {
       log_validation_status(rc, uri, uri_too_long, generation);
-      continue;
+    } else {
+      strcpy(result->s, (char *) a->location->d.uniformResourceIdentifier->data);
+      return 1;
     }
-    strcpy(result->s, (char *) a->location->d.uniformResourceIdentifier->data);
-    return;
   }
-}
-
-/**
- * Parse interesting stuff from a certificate.
- */
-static void parse_cert(rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const uri_t *uri, const object_generation_t generation)
-{
-  STACK_OF(DIST_POINT) *crldp;
-  AUTHORITY_INFO_ACCESS *xia;
-
-  assert(x != NULL && c != NULL && uri != NULL);
-  memset(c, 0, sizeof(*c));
-
-  c->ca = X509_check_ca(x) == 1;
-  c->uri = *uri;
-  c->generation = generation;
-
-  if ((xia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
-    extract_access_uri(rc, uri, generation, xia, id_ad_caIssuers, sizeof(id_ad_caIssuers), &c->aia);
-    sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
-  }
-
-  if ((xia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
-    extract_access_uri(rc, uri, generation, xia, id_ad_caRepository, sizeof(id_ad_caRepository), &c->sia);
-    extract_access_uri(rc, uri, generation, xia, id_ad_rpkiManifest, sizeof(id_ad_rpkiManifest), &c->manifest);
-    sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
-  }
-
-  if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL)) != NULL) {
-    extract_crldp_uri(rc, uri, generation, crldp, &c->crldp);
-    sk_DIST_POINT_pop_free(crldp, DIST_POINT_free);
-  }
+  return 1;
 }
 
 
@@ -2875,6 +2877,66 @@ static int check_aki(rcynic_ctx_t *rc,
 
 
 /**
+ * Check whether a Distinguished Name conforms to the rescert profile.
+ * The profile is very restrictive: it only allows one mandatory
+ * CommonName field and one optional SerialNumber field, both of which
+ * must be of type PrintableString.
+ */
+static int check_allowed_dn(X509_NAME *dn)
+{
+  X509_NAME_ENTRY *ne;
+  ASN1_STRING *s;
+  int loc;
+
+  if (dn == NULL)
+    return 0;
+
+  switch (X509_NAME_entry_count(dn)) {
+
+  case 2:
+    if ((loc = X509_NAME_get_index_by_NID(dn, NID_serialNumber, -1)) < 0 ||
+	(ne = X509_NAME_get_entry(dn, loc)) == NULL ||
+	(s = X509_NAME_ENTRY_get_data(ne)) == NULL ||
+	ASN1_STRING_type(s) != V_ASN1_PRINTABLESTRING)
+      return 0;
+
+    /* Fall through */
+
+  case 1:
+    if ((loc = X509_NAME_get_index_by_NID(dn, NID_commonName, -1)) < 0 ||
+	(ne = X509_NAME_get_entry(dn, loc)) == NULL ||
+	(s = X509_NAME_ENTRY_get_data(ne)) == NULL ||
+	ASN1_STRING_type(s) != V_ASN1_PRINTABLESTRING)
+      return 0;
+
+    return 1;
+
+  default:
+    return 0;
+  }
+}
+
+/**
+ * Check whether an ASN.1 TIME value conforms to RFC 5280 4.1.2.5.
+ */
+static int check_allowed_time_encoding(ASN1_TIME *t)
+{
+  switch (t->type) {
+
+  case V_ASN1_UTCTIME:
+    return t->length == sizeof("yymmddHHMMSSZ") - 1;
+    
+  case  V_ASN1_GENERALIZEDTIME:
+    return (t->length == sizeof("yyyymmddHHMMSSZ") - 1 &&
+	    strcmp("205", (char *) t->data) <= 0);
+
+  }
+  return 0;
+}
+
+
+
+/**
  * Attempt to read and check one CRL from disk.
  */
 
@@ -2901,6 +2963,18 @@ static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
     goto punt;
   }
 
+  if (!crl->crl || !crl->crl->sig_alg || !crl->crl->sig_alg->algorithm ||
+      OBJ_obj2nid(crl->crl->sig_alg->algorithm) != NID_sha256WithRSAEncryption) {
+    log_validation_status(rc, uri, nonconformant_signature_algorithm, generation);
+    goto punt;
+  }
+
+  if (!check_allowed_time_encoding(X509_CRL_get_lastUpdate(crl)) ||
+      !check_allowed_time_encoding(X509_CRL_get_nextUpdate(crl))) {
+    log_validation_status(rc, uri, nonconformant_asn1_time_value, generation);
+    goto punt;
+  }
+
   if (X509_cmp_current_time(X509_CRL_get_lastUpdate(crl)) > 0) {
     log_validation_status(rc, uri, crl_not_yet_valid, generation);
     goto punt;
@@ -2923,6 +2997,12 @@ static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
   if (X509_CRL_get_ext_count(crl) != 2) {
     log_validation_status(rc, uri, disallowed_x509v3_extension, generation);
     goto punt;
+  }
+
+  if (!check_allowed_dn(X509_CRL_get_issuer(crl))) {
+    log_validation_status(rc, uri, nonconformant_issuer_name, generation);
+    if (!rc->allow_nonconformant_name)
+      goto punt;
   }
 
   if ((revoked = X509_CRL_get_REVOKED(crl)) != NULL) {
@@ -3048,87 +3128,6 @@ static int check_crl_digest(const rcynic_ctx_t *rc,
 
 
 /**
- * Check whether extensions in a certificate are allowed by profile.
- * Also returns failure in a few null-pointer cases that can't
- * possibly conform to profile.
- */
-static int check_allowed_extensions(const X509 *x, const int allow_eku)
-{
-  int i;
-
-  if (x == NULL || x->cert_info == NULL || x->cert_info->extensions == NULL)
-    return 0;
-
-  for (i = 0; i < sk_X509_EXTENSION_num(x->cert_info->extensions); i++) {
-    switch (OBJ_obj2nid(sk_X509_EXTENSION_value(x->cert_info->extensions,
-						i)->object)) {
-    case NID_basic_constraints:
-    case NID_subject_key_identifier:
-    case NID_authority_key_identifier:
-    case NID_key_usage:
-    case NID_crl_distribution_points:
-    case NID_info_access:
-    case NID_sinfo_access:
-    case NID_certificate_policies:
-    case NID_sbgp_ipAddrBlock:
-    case NID_sbgp_autonomousSysNum:
-      continue;
-    case NID_ext_key_usage:
-      if (allow_eku)
-	continue;
-      else
-	return 0;
-    default:
-      return 0;
-    }
-  }
-
-  return 1;
-}
-
-/**
- * Check whether a Distinguished Name conforms to the rescert profile.
- * The profile is very restrictive: it only allows one mandatory
- * CommonName field and one optional SerialNumber field, both of which
- * must be of type PrintableString.
- */
-static int check_allowed_dn(X509_NAME *dn)
-{
-  X509_NAME_ENTRY *ne;
-  ASN1_STRING *s;
-  int loc;
-
-  if (dn == NULL)
-    return 0;
-
-  switch (X509_NAME_entry_count(dn)) {
-
-  case 2:
-    if ((loc = X509_NAME_get_index_by_NID(dn, NID_serialNumber, -1)) < 0 ||
-	(ne = X509_NAME_get_entry(dn, loc)) == NULL ||
-	(s = X509_NAME_ENTRY_get_data(ne)) == NULL ||
-	ASN1_STRING_type(s) != V_ASN1_PRINTABLESTRING)
-      return 0;
-
-    /* Fall through */
-
-  case 1:
-    if ((loc = X509_NAME_get_index_by_NID(dn, NID_commonName, -1)) < 0 ||
-	(ne = X509_NAME_get_entry(dn, loc)) == NULL ||
-	(s = X509_NAME_ENTRY_get_data(ne)) == NULL ||
-	ASN1_STRING_type(s) != V_ASN1_PRINTABLESTRING)
-      return 0;
-
-    return 1;
-
-  default:
-    return 0;
-  }
-}
-
-
-
-/**
  * Validation callback function for use with x509_verify_cert().
  */
 static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
@@ -3214,19 +3213,143 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
  */
 static int check_x509(rcynic_ctx_t *rc,
 		      STACK_OF(walk_ctx_t) *wsk,
+		      const uri_t *uri,
 		      X509 *x,
-		      const certinfo_t *certinfo)
+		      certinfo_t *certinfo,
+		      const object_generation_t generation)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
   rcynic_x509_store_ctx_t rctx;
-  EVP_PKEY *pkey = NULL;
+  EVP_PKEY *issuer_pkey = NULL, *subject_pkey = NULL;
   unsigned long flags = (X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY | X509_V_FLAG_X509_STRICT);
-  int ret = 0;
+  AUTHORITY_INFO_ACCESS *sia = NULL, *aia = NULL;
+  STACK_OF(POLICYINFO) *policies = NULL;
+  ASN1_BIT_STRING *ski_pubkey = NULL;
+  STACK_OF(DIST_POINT) *crldp = NULL;
+  BASIC_CONSTRAINTS *bc = NULL;
+  ASIdentifiers *asid = NULL;
+  IPAddrBlocks *addr = NULL;
+  hashbuf_t ski_hashbuf;
+  unsigned ski_hashlen;
+  int ok, crit, ex_count, ret = 0;
 
-  assert(rc && wsk && w && w->cert && x && certinfo);
+  assert(rc && wsk && w && uri && x && w->cert);
 
+  /*
+   * Cleanup logic will explode if rctx.ctx hasn't been initialized,
+   * so we need to do this before running any test that can fail.
+   */
   if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, x, NULL))
     return 0;
+
+  /*
+   * certinfo == NULL means x is a self-signed trust anchor.
+   */
+  if (certinfo == NULL)
+    certinfo = &w->certinfo;
+
+  memset(certinfo, 0, sizeof(*certinfo));
+
+  certinfo->uri = *uri;
+  certinfo->generation = generation;
+
+  if (ASN1_INTEGER_cmp(X509_get_serialNumber(x), asn1_zero) <= 0) {
+    log_validation_status(rc, uri, bad_serial_number, generation);
+    goto done;
+  }
+
+  if (!check_allowed_time_encoding(X509_get_notBefore(x)) ||
+      !check_allowed_time_encoding(X509_get_notAfter(x))) {
+    log_validation_status(rc, uri, nonconformant_asn1_time_value, generation);
+    goto done;
+  }
+
+  /*
+   * Keep track of allowed extensions we've seen.  Once we've
+   * processed all the ones we expect, anything left is an error.
+   */
+  ex_count = X509_get_ext_count(x);
+
+  /*
+   * We don't use X509_check_ca() to set certinfo->ca anymore, because
+   * it's not paranoid enough to enforce the RPKI certificate profile,
+   * but we still call it because we need it (or something) to invoke
+   * x509v3_cache_extensions() for us.
+   */
+  (void) X509_check_ca(x);
+
+  if ((bc = X509_get_ext_d2i(x, NID_basic_constraints, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (!crit || bc->ca <= 0 || bc->pathlen != NULL) {
+      log_validation_status(rc, uri, malformed_basic_constraints, generation);
+      goto done;
+    }
+  }
+
+  certinfo->ca = bc != NULL;
+
+  if (certinfo == &w->certinfo) {
+    certinfo->ta = 1;
+    if (!certinfo->ca) {
+      log_validation_status(rc, uri, malformed_trust_anchor, generation);
+      goto done;
+    }
+  }
+
+  if ((aia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
+    ex_count--;
+    if (!extract_access_uri(rc, uri, generation, aia,
+			    id_ad_caIssuers, sizeof(id_ad_caIssuers), &certinfo->aia) ||
+	!certinfo->aia.s[0]) {
+      log_validation_status(rc, uri, malformed_aia_extension, generation);
+      goto done;
+    }
+  }
+
+  if (certinfo->ta && aia) {
+    log_validation_status(rc, uri, aia_extension_forbidden, generation);
+    goto done;
+  }
+
+  if (!certinfo->ta && !aia) {
+    log_validation_status(rc, uri, aia_extension_missing, generation);
+    goto done;
+  }
+
+  if ((sia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
+    int got_caDirectory, got_rpkiManifest, got_signedObject;
+    ex_count--;
+    ok = (extract_access_uri(rc, uri, generation, sia, id_ad_caRepository,
+			     sizeof(id_ad_caRepository), &certinfo->sia) &&
+	  extract_access_uri(rc, uri, generation, sia, id_ad_rpkiManifest,
+			     sizeof(id_ad_rpkiManifest), &certinfo->manifest) &&
+	  extract_access_uri(rc, uri, generation, sia, id_ad_signedObject,
+			     sizeof(id_ad_signedObject), &certinfo->signedobject));
+    got_caDirectory  = certinfo->sia.s[0]          != '\0';
+    got_rpkiManifest = certinfo->manifest.s[0]     != '\0';
+    got_signedObject = certinfo->signedobject.s[0] != '\0';
+    ok &= sk_ACCESS_DESCRIPTION_num(sia) == got_caDirectory + got_rpkiManifest + got_signedObject;
+    if (certinfo->ca)
+      ok &=  got_caDirectory &&  got_rpkiManifest && !got_signedObject;
+    else if (rc->allow_ee_without_signedObject)
+      ok &= !got_caDirectory && !got_rpkiManifest;
+    else
+      ok &= !got_caDirectory && !got_rpkiManifest &&  got_signedObject;
+    if (!ok) {
+      log_validation_status(rc, uri, malformed_sia_extension, generation);
+      goto done;
+    }
+  } else if (certinfo->ca || !rc->allow_ee_without_signedObject) {
+    log_validation_status(rc, uri, sia_extension_missing, generation);
+    goto done;
+  }
+
+  if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL)) != NULL) {
+    ex_count--;
+    if (!extract_crldp_uri(rc, uri, generation, crldp, &certinfo->crldp))
+      goto done;
+  }
+
   rctx.rc = rc;
   rctx.subject = certinfo;
 
@@ -3234,84 +3357,175 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
 
   if (X509_get_version(x) != 2) {
-    log_validation_status(rc, &certinfo->uri, wrong_object_version, certinfo->generation);
+    log_validation_status(rc, uri, wrong_object_version, generation);
+    goto done;
+  }
+
+  if (!x->cert_info || !x->cert_info->signature || !x->cert_info->signature->algorithm ||
+      OBJ_obj2nid(x->cert_info->signature->algorithm) != NID_sha256WithRSAEncryption) {
+    log_validation_status(rc, uri, nonconformant_signature_algorithm, generation);
     goto done;
   }
 
   if (certinfo->sia.s[0] && certinfo->sia.s[strlen(certinfo->sia.s) - 1] != '/') {
-    log_validation_status(rc, &certinfo->uri, malformed_cadirectory_uri, certinfo->generation);
-    goto done;
-  }
-
-  if (!certinfo->ta && !certinfo->aia.s[0]) {
-    log_validation_status(rc, &certinfo->uri, aia_uri_missing, certinfo->generation);
+    log_validation_status(rc, uri, malformed_cadirectory_uri, generation);
     goto done;
   }
 
   if (!w->certinfo.ta && strcmp(w->certinfo.uri.s, certinfo->aia.s)) {
-    log_validation_status(rc, &certinfo->uri, aia_doesnt_match_issuer, certinfo->generation);
+    log_validation_status(rc, uri, aia_doesnt_match_issuer, generation);
     goto done;
   }
 
   if (certinfo->ca && !certinfo->sia.s[0]) {
-    log_validation_status(rc, &certinfo->uri, sia_cadirectory_uri_missing, certinfo->generation);
+    log_validation_status(rc, uri, sia_cadirectory_uri_missing, generation);
     goto done;
   }
 
   if (certinfo->ca && !certinfo->manifest.s[0]) {
-    log_validation_status(rc, &certinfo->uri, sia_manifest_uri_missing, certinfo->generation);
+    log_validation_status(rc, uri, sia_manifest_uri_missing, generation);
     goto done;
   }
 
   if (certinfo->ca && !startswith(certinfo->manifest.s, certinfo->sia.s)) {
-    log_validation_status(rc, &certinfo->uri, manifest_carepository_mismatch, certinfo->generation);
+    log_validation_status(rc, uri, manifest_carepository_mismatch, generation);
     goto done;
   }
 
-  if (!x->skid) {
-    log_validation_status(rc, &certinfo->uri, ski_extension_missing, certinfo->generation);
+  if (x->skid) {
+    ex_count--;
+  } else {
+    log_validation_status(rc, uri, ski_extension_missing, generation);
     goto done;
   }
 
-  if (!check_allowed_extensions(x, !certinfo->ca)) {
-    log_validation_status(rc, &certinfo->uri, disallowed_x509v3_extension, certinfo->generation);
+  if (!check_allowed_dn(X509_get_subject_name(x))) {
+    log_validation_status(rc, uri, nonconformant_subject_name, generation);
+    if (!rc->allow_nonconformant_name)
+      goto done;
+  }
+
+  if (!check_allowed_dn(X509_get_issuer_name(x))) {
+    log_validation_status(rc, uri, nonconformant_issuer_name, generation);
+    if (!rc->allow_nonconformant_name)
+      goto done;
+  }
+
+  if ((policies = X509_get_ext_d2i(x, NID_certificate_policies, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (!crit || sk_POLICYINFO_num(policies) != 1) {
+      log_validation_status(rc, uri, malformed_certificate_policy, generation);
+      goto done;
+    }
+  }
+
+  if (!X509_EXTENSION_get_critical(X509_get_ext(x, X509_get_ext_by_NID(x, NID_key_usage, -1))) ||
+      (x->ex_flags & EXFLAG_KUSAGE) == 0 ||
+      x->ex_kusage != (certinfo->ca ? KU_KEY_CERT_SIGN | KU_CRL_SIGN : KU_DIGITAL_SIGNATURE)) {
+    log_validation_status(rc, uri, bad_key_usage, generation);
+    goto done;
+  }
+  ex_count--;
+
+  if (X509_get_ext_by_NID(x, NID_ext_key_usage, -1) >= 0) {
+    ex_count--;
+    if (certinfo->ca) {
+      log_validation_status(rc, uri, inappropriate_eku_extension, generation);
+      goto done;
+    }
+  }
+
+  if ((addr = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (!crit || !v3_addr_is_canonical(addr)) {
+      log_validation_status(rc, uri, bad_ipaddrblocks, generation);
+      goto done;
+    }
+  }
+
+  if ((asid = X509_get_ext_d2i(x, NID_sbgp_autonomousSysNum, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (!crit || !v3_asid_is_canonical(asid)) {
+      log_validation_status(rc, uri, bad_asidentifiers, generation);
+      goto done;
+    }
+  }
+
+  if (!addr && !asid) {
+    log_validation_status(rc, uri, missing_resources, generation);
     goto done;
   }
 
-  if (!check_allowed_dn(X509_get_subject_name(x)))
-    log_validation_status(rc, &certinfo->uri, nonconformant_subject_name, certinfo->generation);
+  subject_pkey = X509_get_pubkey(x);
+  ok = subject_pkey != NULL;
+  if (ok) {
+    ASN1_OBJECT *algorithm;
 
-  if (!check_allowed_dn(X509_get_issuer_name(x)))
-    log_validation_status(rc, &certinfo->uri, nonconformant_issuer_name, certinfo->generation);
+    (void) X509_PUBKEY_get0_param(&algorithm, NULL, NULL, NULL, X509_get_X509_PUBKEY(x));      
+
+    switch (OBJ_obj2nid(algorithm)) {
+
+    case NID_rsaEncryption:
+      ok = (EVP_PKEY_type(subject_pkey->type) == EVP_PKEY_RSA &&
+	    BN_num_bits(subject_pkey->pkey.rsa->n) == 2048 &&
+	    BN_get_word(subject_pkey->pkey.rsa->e) == 65537);
+      break;
+
+    case NID_X9_62_id_ecPublicKey:	/* See draft-ietf-sidr-bgpsec-algs */
+      ok = !certinfo->ca;		/* All I know how to test for now */
+      break;
+
+    default:
+      ok = 0;
+    }
+  }
+  if (!ok) {
+    log_validation_status(rc, uri, bad_public_key, generation);
+    goto done;
+  }
+
+  if (x->skid == NULL ||
+      (ski_pubkey = X509_get0_pubkey_bitstr(x)) == NULL ||
+      !EVP_Digest(ski_pubkey->data, ski_pubkey->length,
+		  ski_hashbuf.h, &ski_hashlen, EVP_sha1(), NULL) ||
+      ski_hashlen != 20 ||
+      ski_hashlen != x->skid->length ||
+      memcmp(ski_hashbuf.h, x->skid->data, ski_hashlen)) {
+    log_validation_status(rc, uri, ski_public_key_mismatch, generation);
+    goto done;
+  }
+
+  if ((issuer_pkey = X509_get_pubkey(w->cert)) == NULL || X509_verify(x, issuer_pkey) <= 0) {
+    log_validation_status(rc, uri, certificate_bad_signature, generation);
+    goto done;
+  }
 
   if (certinfo->ta) {
 
     if (certinfo->crldp.s[0]) {
-      log_validation_status(rc, &certinfo->uri, trust_anchor_with_crldp, certinfo->generation);
+      log_validation_status(rc, uri, trust_anchor_with_crldp, generation);
       goto done;
     }
 
   } else {
 
-    if (!check_aki(rc, &certinfo->uri, w->cert, x->akid, certinfo->generation))
+    if (check_aki(rc, uri, w->cert, x->akid, generation))
+      ex_count--;
+    else
       goto done;
 
     if (!certinfo->crldp.s[0]) {
-      log_validation_status(rc, &certinfo->uri, crldp_uri_missing, certinfo->generation);
+      log_validation_status(rc, uri, crldp_uri_missing, generation);
       goto done;
     }
 
     if (!certinfo->ca && !startswith(certinfo->crldp.s, w->certinfo.sia.s)) {
-      log_validation_status(rc, &certinfo->uri, crldp_doesnt_match_issuer_sia, certinfo->generation);
-      goto done;
-    }
- 
-    if ((pkey = X509_get_pubkey(w->cert)) == NULL || X509_verify(x, pkey) <= 0) {
-      log_validation_status(rc, &certinfo->uri, certificate_bad_signature, certinfo->generation);
+      log_validation_status(rc, uri, crldp_doesnt_match_issuer_sia, generation);
       goto done;
     }
 
-    if (w->crls == NULL && ((w->crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(w->crls, NULL))) {
+    if (w->crls == NULL && ((w->crls = sk_X509_CRL_new_null()) == NULL ||
+			    !sk_X509_CRL_push(w->crls, NULL))) {
       logmsg(rc, log_sys_err, "Internal allocation error setting up CRL for validation");
       goto done;
     }
@@ -3324,15 +3538,15 @@ static int check_x509(rcynic_ctx_t *rc,
       X509_CRL *new_crl = check_crl(rc, &certinfo->crldp, w->cert);
 
       if (w->crldp.s[0])
-	log_validation_status(rc, &certinfo->uri, issuer_uses_multiple_crldp_values, certinfo->generation);
+	log_validation_status(rc, uri, issuer_uses_multiple_crldp_values, generation);
 
       if (new_crl == NULL) {
-	log_validation_status(rc, &certinfo->uri, bad_crl, certinfo->generation);
+	log_validation_status(rc, uri, bad_crl, generation);
 	goto done;
       }
 
       if (old_crl && new_crl && ASN1_INTEGER_cmp(old_crl->crl_number, new_crl->crl_number) < 0) {
-	log_validation_status(rc, &certinfo->uri, crldp_names_newer_crl, certinfo->generation);
+	log_validation_status(rc, uri, crldp_names_newer_crl, generation);
 	X509_CRL_free(old_crl);
 	old_crl = NULL;
       }
@@ -3350,6 +3564,11 @@ static int check_x509(rcynic_ctx_t *rc,
     X509_STORE_CTX_set0_crls(&rctx.ctx, w->crls);
   }
 
+  if (ex_count > 0) {
+    log_validation_status(rc, uri, disallowed_x509v3_extension, generation);
+    goto done;
+  }
+
   assert(w->certs != NULL);
   X509_STORE_CTX_trusted_stack(&rctx.ctx, w->certs);
   X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
@@ -3359,7 +3578,7 @@ static int check_x509(rcynic_ctx_t *rc,
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
-    log_validation_status(rc, &certinfo->uri, certificate_failed_validation, certinfo->generation);
+    log_validation_status(rc, uri, certificate_failed_validation, generation);
     goto done;
   }
 
@@ -3367,7 +3586,13 @@ static int check_x509(rcynic_ctx_t *rc,
 
  done:
   X509_STORE_CTX_cleanup(&rctx.ctx);
-  EVP_PKEY_free(pkey);
+  EVP_PKEY_free(issuer_pkey);
+  EVP_PKEY_free(subject_pkey);
+  BASIC_CONSTRAINTS_free(bc);
+  sk_ACCESS_DESCRIPTION_pop_free(sia, ACCESS_DESCRIPTION_free);
+  sk_ACCESS_DESCRIPTION_pop_free(aia, ACCESS_DESCRIPTION_free);
+  sk_DIST_POINT_pop_free(crldp, DIST_POINT_free);
+  sk_POLICYINFO_pop_free(policies, POLICYINFO_free);
 
   return ret;
 }
@@ -3414,9 +3639,7 @@ static X509 *check_cert_1(rcynic_ctx_t *rc,
       goto punt;
   }
 
-  parse_cert(rc, x, certinfo, uri, generation);
-
-  if (check_x509(rc, wsk, x, certinfo))
+  if (check_x509(rc, wsk, uri, x, certinfo, generation))
     return x;
 
  punt:
@@ -3487,8 +3710,10 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(X509) *signers = NULL;
   CMS_ContentInfo *cms = NULL;
+  FileAndHash *fah = NULL;
   BIO *bio = NULL;
   X509 *ee;
+  int i;
 
   assert(rc && wsk && uri && path && prefix);
 
@@ -3518,9 +3743,7 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
     goto done;
   }
 
-  parse_cert(rc, ee, certinfo, uri, generation);
-
-  if (!check_x509(rc, wsk, ee, certinfo))
+  if (!check_x509(rc, wsk, uri, ee, certinfo, generation))
     goto done;
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
@@ -3544,9 +3767,24 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
       goto done;
   }
 
-  if (manifest->fileHashAlg == NULL ||
-      oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256)))
+  if (ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_zero) < 0) {
+    log_validation_status(rc, uri, negative_manifest_number, generation);
     goto done;
+  }
+
+  if (manifest->fileHashAlg == NULL ||
+      oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256))) {
+    log_validation_status(rc, uri, nonconformant_digest_algorithm, generation);
+    goto done;
+  }
+
+  for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++) {
+    if (fah->hash->length != HASH_SHA256_LEN ||
+	(fah->hash->flags & (ASN1_STRING_FLAG_BITS_LEFT | 7)) > ASN1_STRING_FLAG_BITS_LEFT) {
+      log_validation_status(rc, uri, bad_manifest_digest_length, generation);
+      goto done;
+    }
+  }
 
   result = manifest;
   manifest = NULL;
@@ -3714,11 +3952,17 @@ static int check_roa_1(rcynic_ctx_t *rc,
   unsigned char addrbuf[ADDR_RAW_BUF_LEN];
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(IPAddressFamily) *roa_resources = NULL, *ee_resources = NULL;
+  STACK_OF(CMS_SignerInfo) *signer_infos = NULL;
   STACK_OF(X509) *signers = NULL;
   CMS_ContentInfo *cms = NULL;
+  CMS_SignerInfo *si = NULL;
+  ASN1_OCTET_STRING *sid = NULL;
+  X509_NAME *si_issuer = NULL;
+  ASN1_INTEGER *si_serial = NULL;
   hashbuf_t hashbuf;
   ROA *roa = NULL;
   BIO *bio = NULL;
+  X509 *x = NULL;
   certinfo_t certinfo;
   int i, j, result = 0;
   unsigned afi, *safi = NULL, safi_, prefixlen;
@@ -3762,12 +4006,28 @@ static int check_roa_1(rcynic_ctx_t *rc,
     goto error;
   }
 
-  if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
+  if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1 ||
+      (x = sk_X509_value(signers, 0)) == NULL) {
     log_validation_status(rc, uri, cms_signer_missing, generation);
     goto error;
   }
 
-  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri, generation);
+  if ((signer_infos = CMS_get0_SignerInfos(cms)) == NULL ||
+      sk_CMS_SignerInfo_num(signer_infos) != 1 ||
+      (si = sk_CMS_SignerInfo_value(signer_infos, 0)) == NULL ||
+      !CMS_SignerInfo_get0_signer_id(si, &sid, &si_issuer, &si_serial) ||
+      sid == NULL || si_issuer != NULL || si_serial != NULL) {
+    log_validation_status(rc, uri, bad_cms_signer_infos, generation);
+    goto error;
+  }
+
+  if (CMS_SignerInfo_cert_cmp(si, x)) {
+    log_validation_status(rc, uri, cms_ski_mismatch, generation);
+    goto error;
+  }
+
+  if (!check_x509(rc, wsk, uri, x, &certinfo, generation))
+    goto error;
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
     log_validation_status(rc, uri, cms_econtent_decode_error, generation);
@@ -3867,9 +4127,6 @@ static int check_roa_1(rcynic_ctx_t *rc,
     log_validation_status(rc, uri, roa_resource_not_in_ee, generation);
     goto error;
   }
-
-  if (!check_x509(rc, wsk, sk_X509_value(signers, 0), &certinfo))
-    goto error;
 
   result = 1;
 
@@ -3998,8 +4255,6 @@ static int check_ghostbuster_1(rcynic_ctx_t *rc,
     goto error;
   }
 
-  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri, generation);
-
 #if 0
   /*
    * Here is where we would read the VCard from the bio returned by
@@ -4007,7 +4262,7 @@ static int check_ghostbuster_1(rcynic_ctx_t *rc,
    */
 #endif
 
-  if (!check_x509(rc, wsk, sk_X509_value(signers, 0), &certinfo))
+  if (!check_x509(rc, wsk, uri, sk_X509_value(signers, 0), &certinfo, generation))
     goto error;
 
   result = 1;
@@ -4245,16 +4500,40 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
  * still needs to conform to the certificate profile, the
  * self-signature must be correct, etcetera.
  */
-static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
+static int check_ta(rcynic_ctx_t *rc, X509 *x, const uri_t *uri,
+		    const path_t *path1, const path_t *path2,
+		    const object_generation_t generation)
 {
-  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  STACK_OF(walk_ctx_t) *wsk = NULL;
+  walk_ctx_t *w = NULL;
 
-  assert(rc && wsk && w);
+  assert(rc && x && uri && path1 && path2);
 
-  if (!check_x509(rc, wsk, w->cert, &w->certinfo))
-    return;
+  if ((wsk = walk_ctx_stack_new()) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't allocate walk context stack");
+    return 0;
+  }
 
-  log_validation_status(rc, &w->certinfo.uri, object_accepted, w->certinfo.generation);
+  if ((w = walk_ctx_stack_push(wsk, x, NULL)) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't push walk context stack");
+    walk_ctx_stack_free(wsk);
+    return 0;
+  }
+
+  if (!check_x509(rc, wsk, uri, x, NULL, generation)) {
+    log_validation_status(rc, uri, object_rejected, generation);
+    walk_ctx_stack_free(wsk);
+    return 1;
+  }
+
+  logmsg(rc, log_telemetry, "Copying trust anchor %s to %s", path1->s, path2->s);
+
+  if (!mkdir_maybe(rc, path2) || !cp_ln(rc, path1, path2)) {
+    walk_ctx_stack_free(wsk);
+    return 0;
+  }
+
+  log_validation_status(rc, uri, object_accepted, generation);
 
   task_add(rc, walk_cert, wsk);
 
@@ -4262,6 +4541,8 @@ static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
     task_run_q(rc);
     rsync_mgr(rc);
   }
+
+  return 1;
 }
 
 
@@ -4271,7 +4552,11 @@ static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
  * NB: EVP_PKEY_cmp() returns 1 for match, not 0 like every other
  * xyz_cmp() function in the entire OpenSSL library.  Go figure.
  */
-static X509 *read_ta(rcynic_ctx_t *rc, const uri_t *uri, const path_t *path, const EVP_PKEY *pkey, object_generation_t generation)
+static X509 *read_ta(rcynic_ctx_t *rc,
+		     const uri_t *uri,
+		     const path_t *path,
+		     const EVP_PKEY *pkey,
+		     object_generation_t generation)
 
 {
   EVP_PKEY *xpkey = NULL;
@@ -4308,9 +4593,7 @@ int main(int argc, char *argv[])
   char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
-  STACK_OF(walk_ctx_t) *wsk = NULL;
   CONF *cfg_handle = NULL;
-  walk_ctx_t *w = NULL;
   time_t start = 0, finish;
   unsigned long hash;
   rcynic_ctx_t rc;
@@ -4331,6 +4614,8 @@ int main(int argc, char *argv[])
   rc.allow_digest_mismatch = 1;
   rc.allow_crl_digest_mismatch = 1;
   rc.allow_object_not_in_manifest = 1;
+  rc.allow_nonconformant_name = 1;
+  rc.allow_ee_without_signedObject = 1;
   rc.max_parallel_fetches = 1;
   rc.max_retries = 3;
   rc.retry_wait_min = 30;
@@ -4380,6 +4665,15 @@ int main(int argc, char *argv[])
 	     rc.jane);
       goto done;
     }
+  }
+
+  {
+    ASN1_INTEGER *zero = ASN1_INTEGER_new();
+    if (zero == NULL || !ASN1_INTEGER_set(zero, 0)) {
+      logmsg(&rc, log_sys_err, "Couldn't initialize ASN.1 constant zero!");
+      goto done;
+    }
+    asn1_zero = zero;
   }
 
   if ((cfg_handle = NCONF_new(NULL)) == NULL) {
@@ -4504,6 +4798,14 @@ int main(int argc, char *argv[])
 	     !configure_boolean(&rc, &rc.run_rsync, val->value))
       goto done;
 
+    else if (!name_cmp(val->name, "allow-nonconformant-name") &&
+	     !configure_boolean(&rc, &rc.allow_nonconformant_name, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-ee-without-signedObject") &&
+	     !configure_boolean(&rc, &rc.allow_ee_without_signedObject, val->value))
+      goto done;
+
     /*
      * Ugly, but the easiest way to handle all these strings.
      */
@@ -4595,7 +4897,6 @@ int main(int argc, char *argv[])
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
     object_generation_t generation = object_generation_null;
     path_t path1, path2;
-    certinfo_t ta_certinfo;
     uri_t uri;
     X509 *x = NULL;
 
@@ -4731,26 +5032,8 @@ int main(int argc, char *argv[])
     if (!x)
       continue;
 
-    logmsg(&rc, log_telemetry, "Copying trust anchor %s to %s", path1.s, path2.s);
-
-    if (!mkdir_maybe(&rc, &path2) || !cp_ln(&rc, &path1, &path2))
+    if (!check_ta(&rc, x, &uri, &path1, &path2, generation))
       goto done;
-
-    if ((wsk = walk_ctx_stack_new()) == NULL) {
-      logmsg(&rc, log_sys_err, "Couldn't allocate walk context stack");
-      goto done;
-    }
-
-    parse_cert(&rc, x, &ta_certinfo, &uri, generation);
-    ta_certinfo.ta = 1;
-
-    if ((w = walk_ctx_stack_push(wsk, x, &ta_certinfo)) == NULL) {
-      logmsg(&rc, log_sys_err, "Couldn't push walk context stack");
-      goto done;
-    }
-
-    check_ta(&rc, wsk);
-    wsk = NULL;			/* Ownership of wsk passed to check_ta() */
   }
 
   if (!finalize_directories(&rc))

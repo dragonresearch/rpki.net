@@ -3500,6 +3500,11 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
+  if (check_aki(rc, uri, w->cert, x->akid, generation))
+    ex_count--;
+  else if (!certinfo->ta || x->akid)
+    goto done;
+
   if (certinfo->ta) {
 
     if (certinfo->crldp.s[0]) {
@@ -3508,11 +3513,6 @@ static int check_x509(rcynic_ctx_t *rc,
     }
 
   } else {
-
-    if (check_aki(rc, uri, w->cert, x->akid, generation))
-      ex_count--;
-    else
-      goto done;
 
     if (!certinfo->crldp.s[0]) {
       log_validation_status(rc, uri, crldp_uri_missing, generation);

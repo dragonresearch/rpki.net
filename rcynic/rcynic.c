@@ -3016,21 +3016,6 @@ static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
     }
   }
 
-#if 0
-  /*
-   * Might need to generalize this to check cert AKI as well.  Haven't
-   * handled cert SKI check yet either.  Do we want to call
-   * X509_check_akid() here or just compare the OCTET STRINGs
-   * directly?  99% of X509_check_akid() is irrelevant to our profile.
-   */
-  if (!crl->akid ||
-      !crl->akid->keyid ||
-      crl->akid->serial ||
-      crl->akid->issuer ||
-      X509_check_akid(issuer, crl->akid) != X509_V_OK)
-    bad_crl_akid;
-#endif
-
   if ((pkey = X509_get_pubkey(issuer)) == NULL)
     goto punt;
   ret = X509_CRL_verify(crl, pkey);
@@ -3505,10 +3490,16 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (check_aki(rc, uri, w->cert, x->akid, generation))
+  if (x->akid) {
     ex_count--;
-  else if (!certinfo->ta || x->akid)
+    if (!check_aki(rc, uri, w->cert, x->akid, generation))
+      goto done;
+  }
+
+  if (!x->akid && !certinfo->ta) {
+    log_validation_status(rc, uri, aki_extension_missing, generation);
     goto done;
+  }
 
   if (certinfo->ta) {
 

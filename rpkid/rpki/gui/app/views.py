@@ -26,7 +26,6 @@ import os.path
 from tempfile import NamedTemporaryFile
 
 from django.contrib.auth.decorators import login_required
-from django.contrib import auth
 from django.shortcuts import get_object_or_404, render_to_response
 from django.utils.http import urlquote
 from django.template import RequestContext
@@ -43,25 +42,6 @@ from rpki.exceptions import BadIPResource
 
 import rpki.gui.cacheview.models
 import rpki.gui.routeview.models
-
-
-def my_login_required(f):
-    """
-    A version of django.contrib.auth.decorators.login_required that will
-    fail instead of redirecting to the login page when the user is not
-    logged in.
-
-    For use with the rpkidemo service URLs where we want to detect
-    failure to log in.  Otherwise django will return code 200 with the
-    login form, and fools rpkidemo.
-
-    """
-    def wrapped(request, *args, **kwargs):
-        if  not request.user.is_authenticated():
-            return http.HttpResponseForbidden()
-        return f(request, *args, **kwargs)
-
-    return wrapped
 
 
 def superuser_required(f):
@@ -125,7 +105,7 @@ def generic_import(request, queryset, configure, form_class=None,
 
     queryset
         queryset containing all objects of the type being imported
-        
+
     configure
         method on Zookeeper to invoke with the imported XML file
 
@@ -397,31 +377,6 @@ def child_edit(request, pk):
 
     return render(request, 'app/child_form.html',
                   {'child': child, 'form': form})
-
-
-def login(request):
-    """
-    A version of django.contrib.auth.views.login that will return an
-    error response when the user/password is bad.  This is needed for
-    use with rpkidemo to properly detect errors.  The django login
-    view will return 200 with the login page when the login fails,
-    which is not desirable when using rpkidemo.
-
-    """
-    log = request.META['wsgi.errors']
-
-    if request.method == 'POST':
-        username = request.POST['username']
-        password = request.POST['password']
-        print >>log, 'login request for user %s' % username
-        user = auth.authenticate(username=username, password=password)
-        if user is not None and user.is_active:
-            auth.login(request, user)
-            return http.HttpResponse('<p>login succeeded</p>')
-        print >>log, 'failed login attempt for user %s\n' % username
-        return http.HttpResponseForbidden('<p>bad username or password</p>')
-    else:
-        return http.HttpResponse('<p>This should never been seen by a human</p>')
 
 
 @handle_required

@@ -33,6 +33,7 @@ from django import http
 from django.views.generic.list_detail import object_list, object_detail
 from django.views.generic.create_update import delete_object
 from django.core.urlresolvers import reverse
+from django.contrib.auth.models import User
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
@@ -314,7 +315,7 @@ def child_list(request):
 def child_add_resource(request, pk, form_class, unused_list, callback,
                        template_name='app/child_add_resource_form.html'):
     conf = request.session['handle']
-    child = models.Child.objects.filter(issuer=conf, pk=pk)
+    child = models.Child.objects.get(issuer=conf, pk=pk)
     if request.method == 'POST':
         form = form_class(request.POST, request.FILES)
         if form.is_valid():
@@ -328,55 +329,73 @@ def child_add_resource(request, pk, form_class, unused_list, callback,
 
 
 def add_asn_callback(child, form):
-    r = resource_range_as.parse_str(form.as_range)
-    child.asns.create(min=r.min, max=r.max)
+    asns = form.cleaned_data.get('asns')
+    r = resource_range_as.parse_str(asns)
+    child.asns.create(start_as=r.min, end_as=r.max)
 
 
 def child_add_asn(request, pk):
-    return child_add_resource(request, pk, form_class=forms.AddASNForm,
-            callback=add_asn_callback)
+    conf = request.session['handle']
+    get_object_or_404(models.Child, issuer=conf, pk=pk)
+    qs = models.ResourceRangeAS.objects.filter(cert__parent__issuer=conf)
+    return child_add_resource(request, pk, forms.AddASNForm(qs), [],
+                              add_asn_callback)
 
 
 def add_address_callback(child, form):
+    address_range = form.cleaned_data.get('address_range')
     try:
-        r = resource_range_ipv4.parse_str(form.prefix)
-        family = 4
+        r = resource_range_ipv4.parse_str(address_range)
+        version = 'IPv4'
     except BadIPResource:
-        r = resource_range_ipv6.parse_str(form.prefix)
-        family = 6
-    child.address_ranges.create(min=str(r.min), max=str(r.max), family=family)
+        r = resource_range_ipv6.parse_str(address_range)
+        version = 'IPv6'
+    child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
+                                version=version)
 
 
 def child_add_address(request, pk):
-    return child_add_resource(request, pk, form_class=forms.AddAddressForm,
-            callback=add_address_callback)
+    conf = request.session['handle']
+    get_object_or_404(models.Child, issuer=conf, pk=pk)
+    qsv4 = models.ResourceRangeAddressV4.objects.filter(cert__parent__issuer=conf)
+    qsv6 = models.ResourceRangeAddressV6.objects.filter(cert__parent__issuer=conf)
+    return child_add_resource(request, pk,
+                              forms.AddNetForm(qsv4, qsv6),
+                              [],
+                              callback=add_address_callback)
 
 
 @handle_required
 def child_view(request, pk):
-    '''Detail view of child for the currently selected handle.'''
-    handle = request.session['handle']
-    child = get_object_or_404(handle.children.all(), pk=pk)
-    return render(request, 'app/child_view.html', {'child': child})
+    """Detail view of child for the currently selected handle."""
+    conf = request.session['handle']
+    child = get_object_or_404(conf.children.all(), pk=pk)
+    return render(request, 'app/child_detail.html',
+                  {'object': child, 'can_edit': True})
 
 
 @handle_required
 def child_edit(request, pk):
     """Edit the end validity date for a resource handle's child."""
-    handle = request.session['handle']
-    child = get_object_or_404(handle.children.all(), pk=pk)
-
+    conf = request.session['handle']
+    child = get_object_or_404(conf.children.all(), pk=pk)
+    form_class = forms.ChildForm(child)
     if request.method == 'POST':
-        form = forms.ChildForm(request.POST, request.FILES, instance=child)
+        form = form_class(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
-            glue.configure_resources(request.META['wsgi.errors'], handle)
+            child.valid_until = form.cleaned_data.get('valid_until')
+            child.save()
+            # remove AS & prefixes that are not selected in the form
+            models.ChildASN.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('as_ranges')).delete()
+            models.ChildNet.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('address_ranges')).delete()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
-        form = forms.ChildForm(instance=child)
+        form = form_class(initial={
+            'as_ranges': child.asns.all(),
+            'address_ranges': child.address_ranges.all()})
 
     return render(request, 'app/child_form.html',
-                  {'child': child, 'form': form})
+                    {'object': child, 'form': form})
 
 
 @handle_required
@@ -593,42 +612,45 @@ def refresh(request):
     return http.HttpResponseRedirect(reverse(dashboard))
 
 
-@login_required
-def initialize(request):
-    """
-    Initialize a new user account.
-
-    """
-    if request.method == 'POST':
-        form = forms.GenericConfirmationForm(request.POST)
-        if form.is_valid():
-            glue.initialize_handle(request.META['wsgi.errors'],
-                    handle=request.user.username, owner=request.user)
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.GenericConfirmationForm()
-
-    return render(request, 'app/initialize_form.html', {'form': form})
-
-
 @handle_required
 def child_wizard(request):
     """
     Wizard mode to create a new locally hosted child.
 
     """
-    conf = request.session['handle']
-    log = request.META['wsgi.errors']
     if not request.user.is_superuser:
         return http.HttpResponseForbidden()
 
     if request.method == 'POST':
-        form = forms.ChildWizardForm(conf, request.POST)
+        form = forms.ChildWizardForm(request.POST, request.FILES)
         if form.is_valid():
-            glue.create_child(log, conf, form.cleaned_data['handle'])
+            handle = form.cleaned_data.get('handle')
+            pw = form.cleaned_data.get('password')
+            email = form.cleaned_data.get('email')
+
+            User.objects.create_user(handle, email, pw)
+
+            # FIXME etree_wrapper should allow us to deal with file objects
+            t = NamedTemporaryFile(delete=False)
+            t.close()
+
+            zk_child = Zookeeper(handle=handle)
+            identity_xml = zk_child.initialize()
+            identity_xml.save(t.name)
+            parent = form.cleaned_data.get('parent')
+            zk_parent = Zookeeper(handle=parent.handle)
+            parent_response, _ = zk_parent.configure_child(t.name)
+            parent_response.save(t.name)
+            repo_req, _ = zk_child.configure_parent(t.name)
+            repo_req.save(t.name)
+            repo_resp, _ = zk_parent.configure_publication_client(t.name)
+            repo_resp.save(t.name)
+            zk_child.configure_repository(t.name)
+            os.remove(t.name)
+
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
-        form = forms.ChildWizardForm(conf)
+        form = forms.ChildWizardForm()
 
     return render(request, 'app/child_wizard_form.html', {'form': form})
 
@@ -677,18 +699,12 @@ def update_bpki(request):
 @handle_required
 def child_delete(request, pk):
     conf = request.session['handle']
-    child = get_object_or_404(conf.children, pk=pk)
-
-    if request.method == 'POST':
-        form = forms.GenericConfirmationForm(request.POST, request.FILES)
-        if form.is_valid():
-            child.delete()
-            return http.HttpResponseRedirect(reverse(child_list))
-    else:
-        form = forms.GenericConfirmationForm()
-
-    return render(request, 'app/child_delete_form.html',
-                  {'form': form, 'object': child})
+    # verify this child belongs to the current user
+    get_object_or_404(conf.children, pk=pk)
+    return delete_object(request, model=models.Child, object_id=pk,
+                         post_delete_redirect=reverse(child_list),
+                         template_name='app/child_detail.html',
+                         extra_context={'confirm_delete': True})
 
 
 @login_required
@@ -857,7 +873,9 @@ def client_detail(request, pk):
 @superuser_required
 def client_delete(request, pk):
     return delete_object(request, model=models.Client, object_id=pk,
-            template_name='app/client_detail.html')
+                         post_delete_redirect=reverse(client_list),
+                         template_name='app/client_detail.html',
+                         extra_context={'confirm_delete': True})
 
 
 @superuser_required

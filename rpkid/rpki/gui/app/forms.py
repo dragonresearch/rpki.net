@@ -1,10 +1,10 @@
 # Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 # Copyright (C) 2012  SPARTA, Inc. a Parsons Company
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -15,11 +15,14 @@
 
 __version__ = '$Id$'
 
-from django import forms
 
-from rpki import resource_set
+from django.contrib.auth.models import User
+from django import forms
+from rpki.resource_set import (resource_range_as, resource_range_ipv4,
+                               resource_range_ipv6)
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
+from rpki.gui.bootstrap.widgets import CheckboxSelectMultiple
 
 
 class AddConfForm(forms.Form):
@@ -110,19 +113,32 @@ class ImportClientForm(forms.Form):
                           widget=forms.FileInput(attrs={'class': 'input-file'}))
 
 
-def ChildWizardForm(parent, *args, **kwargs):
-    class wrapped(forms.Form):
-        handle = forms.CharField(max_length=30, help_text='handle for new child')
-        #create_user = forms.BooleanField(help_text='create a new user account for this handle?')
-        #password = forms.CharField(widget=forms.PasswordInput, help_text='password for new user', required=False)
-        #password2 = forms.CharField(widget=forms.PasswordInput, help_text='repeat password', required=False)
+class ChildWizardForm(forms.Form):
+    handle = forms.CharField(max_length=30, help_text='handle for new child')
+    email = forms.CharField(max_length=30,
+                            help_text='email address for new user')
+    password = forms.CharField(widget=forms.PasswordInput)
+    password2 = forms.CharField(widget=forms.PasswordInput,
+                                label='Confirm Password')
+    parent = forms.ModelChoiceField(queryset=models.Conf.objects.all())
 
-        def clean_handle(self):
-            if parent.children.filter(handle=self.cleaned_data['handle']):
-                raise forms.ValidationError, 'a child with that handle already exists'
-            return self.cleaned_data['handle']
+    def clean_handle(self):
+        handle = self.cleaned_data.get('handle')
+        if (models.Conf.objects.filter(handle=handle).exists() or
+            User.objects.filter(username=handle).exists()):
+            raise forms.ValidationError('user already exists')
+        return handle
 
-    return wrapped(*args, **kwargs)
+    def clean(self):
+        p1 = self.cleaned_data.get('password')
+        p2 = self.cleaned_data.get('password2')
+        if p1 != p2:
+            raise forms.ValidationError('passwords do not match')
+        handle = self.cleaned_data.get('handle')
+        parent = self.cleaned_data.get('parent')
+        if parent.children.filter(handle=handle).exists():
+            raise forms.ValidationError('parent already has a child by that name')
+        return self.cleaned_data
 
 
 class ROARequest(forms.Form):
@@ -139,9 +155,9 @@ class ROARequest(forms.Form):
     def _as_resource_range(self):
         prefix = self.cleaned_data.get('prefix')
         try:
-            r = resource_set.resource_range_ipv4.parse_str(prefix)
+            r = resource_range_ipv4.parse_str(prefix)
         except BadIPResource:
-            r = resource_set.resource_range_ipv6.parse_str(prefix)
+            r = resource_range_ipv6.parse_str(prefix)
         return r
 
     def clean_asn(self):
@@ -182,4 +198,77 @@ class ROARequest(forms.Form):
 
         return self.cleaned_data
 
-# vim:sw=4 ts=8 expandtab
+
+def AddASNForm(qs):
+    """
+    Generate a form class which only allows specification of ASNs contained
+    within the specified queryset.  `qs` should be a QuerySet of
+    irdb.models.ChildASN.
+
+    """
+
+    class _wrapped(forms.Form):
+        asns = forms.CharField(label='ASNs', help_text='single ASN or range')
+
+        def clean_asns(self):
+            try:
+                r = resource_range_as.parse_str(self.cleaned_data.get('asns'))
+            except:
+                raise forms.ValidationError('invalid AS or range')
+            if not qs.filter(min__lte=r.min, max__gte=r.max).exists():
+                raise forms.ValidationError('AS or range is not delegated to you')
+            return str(r)
+
+    return _wrapped
+
+
+def AddNetForm(qsv4, qsv6):
+    """
+    Generate a form class which only allows specification of prefixes contained
+    within the specified queryset.  `qs` should be a QuerySet of
+    irdb.models.ChildNet.
+
+    """
+
+    class _wrapped(forms.Form):
+        address_range = forms.CharField(help_text='CIDR or range')
+
+        def clean_address_range(self):
+            address_range = self.cleaned_data.get('address_range')
+            try:
+                r = resource_range_ipv4.parse_str(address_range)
+                if not qsv4.filter(prefix_min__lte=r.min, prefix_max__gte=r.max).exists():
+                    raise forms.ValidationError('IP address range is not delegated to you')
+            except BadIPResource:
+                try:
+                    r = resource_range_ipv6.parse_str(address_range)
+                    if not qsv6.filter(prefix_min__lte=r.min, prefix_max__gte=r.max).exists():
+                        raise forms.ValidationError('IP address range is not delegated to you')
+                except BadIPResource:
+                    raise forms.ValidationError('invalid IP address range')
+            return str(r)
+
+    return _wrapped
+
+
+def ChildForm(instance):
+    """
+    Form for editing a Child model.
+
+    This is roughly based on the equivalent ModelForm, but uses Form as a base
+    class so that selection boxes for the AS and Prefixes can be edited in a
+    single form.
+
+    """
+
+    class _wrapped(forms.Form):
+        valid_until = forms.DateTimeField(initial=instance.valid_until)
+        as_ranges = forms.ModelMultipleChoiceField(queryset=models.ChildASN.objects.filter(child=instance),
+                                                   required=False,
+                                                   label='AS Ranges',
+                                                   help_text='deselect to remove delegation')
+        address_ranges = forms.ModelMultipleChoiceField(queryset=models.ChildNet.objects.filter(child=instance),
+                                                        required=False,
+                                                        help_text='deselect to remove delegation')
+
+    return _wrapped

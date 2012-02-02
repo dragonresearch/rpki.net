@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class='page-header'>
-  <h1>Edit Child: {{ object.handle }}</h1>
+  <h1>Add Resource: {{ object.handle }}</h1>
 </div>
 
 <form method='POST' action='{{ request.get_full_path }}'>
@@ -10,8 +10,7 @@
   {% include "app/bootstrap_form.html" %}
   <div class='actions'>
     <input class='btn primary' type='submit' value='Save'>
-    <a class='btn' href="{{ object.get_absolute_url }}">Cancel</a>
+    <a class='btn' href='{{ object.get_absolute_url }}'>Cancel</a>
   </div>
 </form>
-
-{% endblock %}
+{% endblock content %}

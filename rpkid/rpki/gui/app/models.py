@@ -57,6 +57,27 @@ class Child(rpki.irdb.models.Child):
         proxy = True
         verbose_name_plural = 'children'
 
+
+class ChildASN(rpki.irdb.models.ChildASN):
+    """Proxy model for irdb ChildASN."""
+
+    class Meta:
+        proxy = True
+
+    def __unicode__(self):
+        return u'AS%s' % self.as_resource_range()
+
+
+class ChildNet(rpki.irdb.models.ChildNet):
+    """Proxy model for irdb ChildNet."""
+
+    class Meta:
+        proxy = True
+
+    def __unicode__(self):
+        return u'%s' % self.as_resource_range()
+
+
 class Conf(rpki.irdb.models.ResourceHolderCA):
     '''This is the center of the universe, also known as a place to
     have a handle on a resource-holding entity.  It's the <self>

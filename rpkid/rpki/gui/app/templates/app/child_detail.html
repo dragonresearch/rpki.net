@@ -1,0 +1,52 @@
+{% extends "app/object_detail.html" %}
+
+{% block object_detail %}
+<div class='row'>
+  <div class='span2'>
+    <p><strong>Child Handle</strong>
+  </div>
+  <div class='span2'>
+    <p>{{ object.handle }}
+  </div>
+</div>
+<div class='row'>
+  <div class='span2'>
+    <p><strong>Valid until</strong>
+  </div>
+  <div class='span4'>
+    <p>{{ object.valid_until }}
+  </div>
+</div>
+
+<div class='row'>
+  <div class='span8'>
+    <strong>Addresses</strong>
+    {% if object.address_ranges.all %}
+    <ul class='unstyled'>
+      {% for a in object.address_ranges.all %}
+      <li>{{ a.as_resource_range }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p style='font-style:italic'>none</p>
+    {% endif %}
+  </div>
+  <div class='span8'>
+    <strong>ASNs</strong>
+    {% if object.asns.all %}
+    <ul class='unstyled'>
+    {% for a in object.asns.all %}
+    <li>{{ a.as_resource_range }}</li>
+    {% endfor %}
+    </ul>
+    {% else %}
+    <p style='font-style:italic'>none</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock object_detail %}
+
+{% block actions %}
+<a class='btn' href="{{ object.get_absolute_url }}/add_asn">Delegate AS</a>
+<a class='btn' href="{{ object.get_absolute_url }}/add_address">Delegate Prefix</a>
+{% endblock actions %}

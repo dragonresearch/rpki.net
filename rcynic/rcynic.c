@@ -248,6 +248,7 @@ static const struct {
   QB(manifest_lists_missing_object,	"Manifest lists missing object")    \
   QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
   QB(missing_resources,			"Missing resources")		    \
+  QB(multiple_rsync_uris_in_extension,  "Multiple rsync URIs in extension") \
   QB(negative_manifest_number,		"Negative manifestNumber")	    \
   QB(nonconformant_asn1_time_value,	"Nonconformant ASN.1 time value")   \
   QB(nonconformant_public_key_algorithm,"Nonconformant public key algorithm")\
@@ -2783,7 +2784,7 @@ static int extract_crldp_uri(rcynic_ctx_t *rc,
   DIST_POINT *d;
   int i;
 
-  assert(crldp);
+  assert(rc && uri && crldp && result);
 
   if (sk_DIST_POINT_num(crldp) != 1)
     goto bad;
@@ -2797,15 +2798,17 @@ static int extract_crldp_uri(rcynic_ctx_t *rc,
     GENERAL_NAME *n = sk_GENERAL_NAME_value(d->distpoint->name.fullname, i);
     if (n == NULL || n->type != GEN_URI)
       goto bad;
-    if (!is_rsync((char *) n->d.uniformResourceIdentifier->data)) {
+    if (!is_rsync((char *) n->d.uniformResourceIdentifier->data))
       log_validation_status(rc, uri, non_rsync_uri_in_extension, generation);
-    } else if (sizeof(result->s) <= n->d.uniformResourceIdentifier->length) {
+    else if (sizeof(result->s) <= n->d.uniformResourceIdentifier->length)
       log_validation_status(rc, uri, uri_too_long, generation);
-    } else {
+    else if (result->s[0])
+      log_validation_status(rc, uri, multiple_rsync_uris_in_extension, generation);
+    else
       strcpy(result->s, (char *) n->d.uniformResourceIdentifier->data);
-      return 1;
-    }
   }
+
+  return result->s[0];
 
  bad:
   log_validation_status(rc, uri, malformed_crldp_extension, generation);
@@ -2821,11 +2824,12 @@ static int extract_access_uri(rcynic_ctx_t *rc,
 			      const AUTHORITY_INFO_ACCESS *xia,
 			      const unsigned char *oid,
 			      const int oidlen,
-			      uri_t *result)
+			      uri_t *result,
+			      int *count)
 {
   int i;
 
-  assert(xia);
+  assert(rc && uri && xia && oid && result && count);
 
   for (i = 0; i < sk_ACCESS_DESCRIPTION_num(xia); i++) {
     ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(xia, i);
@@ -2833,14 +2837,15 @@ static int extract_access_uri(rcynic_ctx_t *rc,
       return 0;
     if (oid_cmp(a->method, oid, oidlen))
       continue;
-    if (!is_rsync((char *) a->location->d.uniformResourceIdentifier->data)) {
+    ++*count;
+    if (!is_rsync((char *) a->location->d.uniformResourceIdentifier->data))
       log_validation_status(rc, uri, non_rsync_uri_in_extension, generation);
-    } else if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length) {
+    else if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length)
       log_validation_status(rc, uri, uri_too_long, generation);
-    } else {
-      strcpy(result->s, (char *) a->location->d.uniformResourceIdentifier->data);
-      return 1;
-    }
+    else if (result->s[0])
+      log_validation_status(rc, uri, multiple_rsync_uris_in_extension, generation);
+    else
+      strcpy(result->s, (char *) a->location->d.uniformResourceIdentifier->data);      
   }
   return 1;
 }
@@ -3282,10 +3287,13 @@ static int check_x509(rcynic_ctx_t *rc,
   }
 
   if ((aia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
+    int n_caIssuers = 0;
     ex_count--;
     if (!extract_access_uri(rc, uri, generation, aia,
-			    id_ad_caIssuers, sizeof(id_ad_caIssuers), &certinfo->aia) ||
-	!certinfo->aia.s[0]) {
+			    id_ad_caIssuers, sizeof(id_ad_caIssuers),
+			    &certinfo->aia, &n_caIssuers) ||
+	!certinfo->aia.s[0] ||
+	sk_ACCESS_DESCRIPTION_num(aia) != n_caIssuers) {
       log_validation_status(rc, uri, malformed_aia_extension, generation);
       goto done;
     }
@@ -3302,18 +3310,19 @@ static int check_x509(rcynic_ctx_t *rc,
   }
 
   if ((sia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
-    int got_caDirectory, got_rpkiManifest, got_signedObject;
+    int got_caDirectory,     got_rpkiManifest,     got_signedObject;
+    int   n_caDirectory = 0,   n_rpkiManifest = 0,   n_signedObject = 0;
     ex_count--;
     ok = (extract_access_uri(rc, uri, generation, sia, id_ad_caRepository,
-			     sizeof(id_ad_caRepository), &certinfo->sia) &&
+			     sizeof(id_ad_caRepository), &certinfo->sia, &n_caDirectory) &&
 	  extract_access_uri(rc, uri, generation, sia, id_ad_rpkiManifest,
-			     sizeof(id_ad_rpkiManifest), &certinfo->manifest) &&
+			     sizeof(id_ad_rpkiManifest), &certinfo->manifest, &n_rpkiManifest) &&
 	  extract_access_uri(rc, uri, generation, sia, id_ad_signedObject,
-			     sizeof(id_ad_signedObject), &certinfo->signedobject));
+			     sizeof(id_ad_signedObject), &certinfo->signedobject, &n_signedObject));
     got_caDirectory  = certinfo->sia.s[0]          != '\0';
     got_rpkiManifest = certinfo->manifest.s[0]     != '\0';
     got_signedObject = certinfo->signedobject.s[0] != '\0';
-    ok &= sk_ACCESS_DESCRIPTION_num(sia) == got_caDirectory + got_rpkiManifest + got_signedObject;
+    ok &= sk_ACCESS_DESCRIPTION_num(sia) == n_caDirectory + n_rpkiManifest + n_signedObject;
     if (certinfo->ca)
       ok &=  got_caDirectory &&  got_rpkiManifest && !got_signedObject;
     else if (rc->allow_ee_without_signedObject)

@@ -124,7 +124,7 @@ class ChildWizardForm(forms.Form):
 
     def clean_handle(self):
         handle = self.cleaned_data.get('handle')
-        if (models.Conf.objects.filter(handle=handle).exists() or
+        if (handle and models.Conf.objects.filter(handle=handle).exists() or
             User.objects.filter(username=handle).exists()):
             raise forms.ValidationError('user already exists')
         return handle
@@ -136,7 +136,7 @@ class ChildWizardForm(forms.Form):
             raise forms.ValidationError('passwords do not match')
         handle = self.cleaned_data.get('handle')
         parent = self.cleaned_data.get('parent')
-        if parent.children.filter(handle=handle).exists():
+        if handle and parent and parent.children.filter(handle=handle).exists():
             raise forms.ValidationError('parent already has a child by that name')
         return self.cleaned_data
 

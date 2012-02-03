@@ -6,7 +6,7 @@ abs_top_builddir = @abs_top_builddir@
 all: protocol-samples
 
 clean:
-	rm -rf smoketest.dir left-right-protocol-samples publication-protocol-samples yamltest.dir
+	rm -rf smoketest.dir left-right-protocol-samples publication-protocol-samples yamltest.dir rcynic.xml rcynic-data
 
 protocol-samples: left-right-protocol-samples/.stamp publication-protocol-samples/.stamp
 

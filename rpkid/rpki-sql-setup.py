@@ -34,7 +34,8 @@ def read_schema(name):
     line = " ".join(line.split())
     if line and not line.startswith("--"):
       lines.append(line)
-  return [statement.strip() for statement in " ".join(lines).rstrip(";").split(";")]
+
+  return [statement.strip() for statement in " ".join(lines).rstrip(";").split(";") if statement.strip()]
 
 def sql_setup(name):
   """

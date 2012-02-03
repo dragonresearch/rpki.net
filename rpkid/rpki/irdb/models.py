@@ -76,6 +76,7 @@ class SundialField(django.db.models.DateTimeField):
   """
   A field type for our customized datetime objects.
   """
+  __metaclass__ = django.db.models.SubfieldBase
 
   description = "A datetime type using our customized datetime objects"
 

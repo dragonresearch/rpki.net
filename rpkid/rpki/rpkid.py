@@ -742,7 +742,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Return publication URI for this ca_detail's manifest.
     """
-    return self.ca.sia_uri + self.public_key.gSKI() + ".mnf"
+    return self.ca.sia_uri + self.public_key.gSKI() + ".mft"
 
   def has_expired(self):
     """

@@ -256,7 +256,7 @@
     <!-- === -->
 
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<manifest action="publish" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mnf">
+	<manifest action="publish" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mft">
 	    MIIHCgYJKoZIhvcNAQcCoIIG+zCCBvcCAQMxDTALBglghkgBZQMEAgEwggEeBgsqhkiG9w0B
 	    CRABGqCCAQ0EggEJMIIBBQIBEhgPMjAwODA1MjIxODA1MTVaGA8yMDA4MDUyMjE4MDYxNVoG
 	    CWCGSAFlAwQCATCB0jBEFh9ZbTVUTzRJYnlDb0pNZ3E2R2o4dG41Mng5U0UuY2VyAyEA4L8Z
@@ -295,15 +295,15 @@
     </msg>
 
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<manifest action="publish" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mnf"/>
+	<manifest action="publish" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mft"/>
     </msg>
 
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<manifest action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mnf"/>
+	<manifest action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mft"/>
     </msg>
 
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<manifest action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mnf"/>
+	<manifest action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mft"/>
     </msg>
 
     <!-- === -->

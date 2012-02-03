@@ -704,3 +704,5 @@ class cms_msg(rpki.x509.XML_CMS_object):
   encoding = "UTF-8"
   schema = rpki.relaxng.up_down
   saxify = sax_handler.saxify
+  allow_extra_certs = True
+  allow_extra_crls = True

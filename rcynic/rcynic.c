@@ -248,7 +248,6 @@ static const struct {
   QB(manifest_lists_missing_object,	"Manifest lists missing object")    \
   QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
   QB(missing_resources,			"Missing resources")		    \
-  QB(multiple_rsync_uris_in_extension,  "Multiple rsync URIs in extension") \
   QB(negative_manifest_number,		"Negative manifestNumber")	    \
   QB(nonconformant_asn1_time_value,	"Nonconformant ASN.1 time value")   \
   QB(nonconformant_public_key_algorithm,"Nonconformant public key algorithm")\
@@ -275,6 +274,7 @@ static const struct {
   QW(crldp_names_newer_crl,		"CRLDP names newer CRL")	    \
   QW(digest_mismatch,			"Digest mismatch")		    \
   QW(issuer_uses_multiple_crldp_values,	"Issuer uses multiple CRLDP values")\
+  QW(multiple_rsync_uris_in_extension,  "Multiple rsync URIs in extension") \
   QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
   QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
   QW(rsync_transfer_skipped,		"rsync transfer skipped")	    \

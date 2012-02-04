@@ -173,7 +173,7 @@ def plotter(f, hostnames, field, logscale = False):
           #set format x '%m/%d'
           set format x '%b%d'
           #set title '""" + title + """'
-          plot""" + ",".join(" '-' using 1:2 with lines title '%s'" % h for h in hostnames) + "\n")
+          plot""" + ",".join(" '-' using 1:2 with linespoints pointinterval 500 title '%s'" % h for h in hostnames) + "\n")
   for i in xrange(1, n):
     for plotline in plotlines:
       f.write("%s %s\n" % (plotline[0], plotline[i].rstrip("%")))

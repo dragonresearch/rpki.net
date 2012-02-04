@@ -3,7 +3,7 @@
 {% block object_detail %}
 <h2>{{ object.handle }}</h2>
 <div class='row'>
-  <div class='span8'>
+  <div class='span4'>
     <h3>Delegated Addresses</h3>
     <ul class='unstyled'>
       {% for c in object.certs.all %}
@@ -16,7 +16,7 @@
       {% endfor %}
     </ul>
   </div>
-  <div class='span8'>
+  <div class='span4'>
     <h3>Delegated ASNs</h3>
     <ul class='unstyled'>
       {% for c in object.certs.all %}
@@ -26,9 +26,9 @@
       {% endfor %}
     </ul>
   </div>
-</div><!-- /row -->
+</div>
 {% endblock object_detail %}
 
 {% block actions %}
-<a class='btn' href='{{ object.get_absolute_url }}/export' title='Export XML repository request'>Export</a>
+<a class='btn' href='{{ object.get_absolute_url }}/export' title='Download XML to send to repository operator'>Export</a>
 {% endblock actions %}

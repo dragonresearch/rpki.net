@@ -19,7 +19,7 @@
 </div>
 
 <div class='row'>
-  <div class='span8'>
+  <div class='span4'>
     <strong>Addresses</strong>
     {% if object.address_ranges.all %}
     <ul class='unstyled'>
@@ -31,7 +31,7 @@
     <p style='font-style:italic'>none</p>
     {% endif %}
   </div>
-  <div class='span8'>
+  <div class='span4'>
     <strong>ASNs</strong>
     {% if object.asns.all %}
     <ul class='unstyled'>
@@ -47,7 +47,7 @@
 {% endblock object_detail %}
 
 {% block actions %}
-<a class='btn' href="{{ object.get_absolute_url }}/add_asn">Delegate AS</a>
-<a class='btn' href="{{ object.get_absolute_url }}/add_address">Delegate Prefix</a>
-<a class='btn' href="{{ object.get_absolute_url }}/export">Export Response</a>
+<a class='btn' href="{{ object.get_absolute_url }}/add_asn" title='Delegate an ASN to this child'>+AS</a>
+<a class='btn' href="{{ object.get_absolute_url }}/add_address" title='Delegate a prefix to this child'>+Prefix</a>
+<a class='btn' href="{{ object.get_absolute_url }}/export" title='Download XML file to send to child'>Export</a>
 {% endblock actions %}

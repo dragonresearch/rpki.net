@@ -1,13 +1,11 @@
 {% extends "app/object_detail.html" %}
 
 {% block object_detail %}
-
 <h2>{{ object.handle }}</h2>
-
 <div class='row'>
   <div class='span8'>
     <h3>Delegated Addresses</h3>
-    <ul>
+    <ul class='unstyled'>
       {% for c in object.certs.all %}
       {% for a in c.address_ranges.all %}
       <li>{{ a }}</li>
@@ -18,10 +16,9 @@
       {% endfor %}
     </ul>
   </div>
-
   <div class='span8'>
     <h3>Delegated ASNs</h3>
-    <ul>
+    <ul class='unstyled'>
       {% for c in object.certs.all %}
       {% for a in c.asn_ranges.all %}
       <li>{{ a }}</li>
@@ -30,7 +27,8 @@
     </ul>
   </div>
 </div><!-- /row -->
-
 {% endblock object_detail %}
 
-<!-- vim: set sw=2: -->
+{% block actions %}
+<a class='btn' href='{{ object.get_absolute_url }}/export' title='Export XML repository request'>Export</a>
+{% endblock actions %}

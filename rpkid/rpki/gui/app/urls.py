@@ -1,20 +1,19 @@
-# $Id$
-"""
-Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
-Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-"""
+__version__ = '$Id$'
 
 from django.conf.urls.defaults import *
 from rpki.gui.app import views
@@ -26,8 +25,9 @@ urlpatterns = patterns('',
     (r'^conf/select$', views.conf_select),
     (r'^parent/$', views.parent_list),
     (r'^parent/import$', views.parent_import),
-    (r'^parent/(?P<pk>\d+)$', views.parent_view),
+    (r'^parent/(?P<pk>\d+)$', views.parent_detail),
     (r'^parent/(?P<pk>\d+)/delete$', views.parent_delete),
+    (r'^parent/(?P<pk>\d+)/export$', views.parent_export),
     (r'^child/$', views.child_list),
     (r'^child/import$', views.child_import),
     (r'^child/(?P<pk>\d+)$', views.child_view),
@@ -35,8 +35,7 @@ urlpatterns = patterns('',
     (r'^child/(?P<pk>\d+)/add_address/$', views.child_add_address),
     (r'^child/(?P<pk>\d+)/delete$', views.child_delete),
     (r'^child/(?P<pk>\d+)/edit$', views.child_edit),
-    (r'^child/(?P<pk>\d+)/export$', views.export_child_response),
-    (r'^child/(?P<pk>\d+)/export_repo$', views.export_child_repo_response),
+    (r'^child/(?P<pk>\d+)/export$', views.child_response),
     (r'^child/(?P<pk>\d+)/destroy$', views.destroy_handle),
     (r'^gbr/$', views.ghostbuster_list),
     (r'^gbr/create$', views.ghostbuster_create),
@@ -48,6 +47,7 @@ urlpatterns = patterns('',
     (r'^client/import$', views.client_import),
     (r'^client/(?P<pk>\d+)$', views.client_detail),
     (r'^client/(?P<pk>\d+)/delete$', views.client_delete),
+    (r'^client/(?P<pk>\d+)/export$', views.client_export),
     (r'^repo/$', views.repository_list),
     (r'^repo/import$', views.repository_import),
     (r'^repo/(?P<pk>\d+)$', views.repository_detail),
@@ -60,5 +60,3 @@ urlpatterns = patterns('',
     (r'^child_wizard$', views.child_wizard),
     (r'^update_bpki', views.update_bpki),
 )
-
-# vim:sw=4 ts=8 expandtab

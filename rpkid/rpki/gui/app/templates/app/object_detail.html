@@ -26,7 +26,7 @@
   {% if can_edit %}
   <a class='btn' href='{{ object.get_absolute_url }}/edit'>Edit</a>
   {% endif %}
-  <a class='btn danger' href='{{ object.get_absolute_url }}/delete'>Delete</a>
+  <a class='btn danger' href='{{ object.get_absolute_url }}/delete' title='permanently delete this object'>Delete</a>
   {% block actions %}{% endblock actions %}
 </div>
 {% endif %}

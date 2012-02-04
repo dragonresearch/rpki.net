@@ -40,6 +40,7 @@ from rpki.gui.app import models, forms, glue, range_list
 from rpki.resource_set import (resource_range_as, resource_range_ipv4,
                                resource_range_ipv6, roa_prefix_ipv4)
 from rpki.exceptions import BadIPResource
+from rpki import sundial
 
 import rpki.gui.cacheview.models
 import rpki.gui.routeview.models
@@ -138,9 +139,15 @@ def generic_import(request, queryset, configure, form_class=None,
             tmpf.write(form.cleaned_data['xml'].read())
             tmpf.close()
             z = Zookeeper(handle=conf.handle)
+            handle = form.cleaned_data.get('handle')
+            # CharField uses an empty string for the empty value, rather than
+            # None.  Convert to none in this case, since configure_child/parent
+            # expects it.
+            if handle == '':
+                handle = None
             # configure_repository returns None, so can't use tuple expansion
             # here.  Unpack the tuple below if post_import_redirect is None.
-            r = configure(z, tmpf.name, form.cleaned_data.get('handle'))
+            r = configure(z, tmpf.name, handle)
             os.remove(tmpf.name)
             if post_import_redirect:
                 url = post_import_redirect
@@ -157,7 +164,6 @@ def generic_import(request, queryset, configure, form_class=None,
 
 @handle_required
 def dashboard(request):
-
     conf = request.session['handle']
 
     used_asns = range_list.RangeList()
@@ -244,6 +250,14 @@ def conf_select(request):
 
 
 def serve_xml(content, basename):
+    """
+    Generate a HttpResponse object with the content type set to XML.
+
+    `content` is a string.
+
+    `basename` is the prefix to specify for the XML filename.
+
+    """
     resp = http.HttpResponse(content, mimetype='application/xml')
     resp['Content-Disposition'] = 'attachment; filename=%s.xml' % (basename, )
     return resp
@@ -251,18 +265,18 @@ def serve_xml(content, basename):
 
 @handle_required
 def conf_export(request):
-    """Return the identity.xml for the current handle.
+    """Return the identity.xml for the current handle."""
 
-    """
-    handle = request.session['handle']
-    return serve_xml(glue.read_identity(handle.handle), 'identity')
+    conf = request.session['handle']
+    z = Zookeeper(handle=conf.handle)
+    xml = z.generate_identity()
+    return serve_xml(str(xml), '%s.identity' % conf.handle)
 
 
 @handle_required
 def parent_import(request):
     conf = request.session['handle']
-    return generic_import(request, conf.parents,
-                          Zookeeper.configure_parent)
+    return generic_import(request, conf.parents, Zookeeper.configure_parent)
 
 
 @handle_required
@@ -270,17 +284,15 @@ def parent_list(request):
     """List view for parent objects."""
     conf = request.session['handle']
     return object_list(request, queryset=conf.parents.all(),
-            extra_context={
-                'create_url': reverse(parent_import),
-                'create_label': 'Import'})
+                       extra_context={'create_url': reverse(parent_import),
+                                      'create_label': 'Import'})
 
 
 @handle_required
-def parent_view(request, pk):
+def parent_detail(request, pk):
     """Detail view for a particular parent."""
-    handle = request.session['handle']
-    qs = handle.parents.all()
-    return object_detail(request, qs, object_id=pk)
+    conf = request.session['handle']
+    return object_detail(request, conf.parents.all(), object_id=pk)
 
 
 @handle_required
@@ -288,21 +300,30 @@ def parent_delete(request, pk):
     conf = request.session['handle']
     get_object_or_404(conf.parents, pk=pk)  # confirm permission
     return delete_object(request, model=models.Parent, object_id=pk,
-            post_delete_redirect=reverse(parent_list),
-            template_name='app/parent_detail.html',
-            extra_context={'confirm_delete': True})
+                         post_delete_redirect=reverse(parent_list),
+                         template_name='app/parent_detail.html',
+                         extra_context={'confirm_delete': True})
+
+
+@handle_required
+def parent_export(request, pk):
+    """Export XML repository request for a given parent."""
+    conf = request.session['handle']
+    parent = get_object_or_404(conf.parents, pk=pk)
+    z = Zookeeper(handle=conf.handle)
+    xml = z.generate_repository_request(parent)
+    return serve_xml(str(xml), '%s.repository' % parent.handle)
 
 
 @handle_required
 def child_import(request):
     conf = request.session['handle']
-    return generic_import(request, conf.children, Zookeeper.configure_child,
-                          post_import_redirect=reverse(child_list))
+    return generic_import(request, conf.children, Zookeeper.configure_child)
 
 
 @handle_required
 def child_list(request):
-    """List view for child objects."""
+    """List of children for current user."""
     conf = request.session['handle']
     return object_list(request, queryset=conf.children.all(),
             template_name='app/child_list.html',
@@ -383,7 +404,7 @@ def child_edit(request, pk):
     if request.method == 'POST':
         form = form_class(request.POST, request.FILES)
         if form.is_valid():
-            child.valid_until = form.cleaned_data.get('valid_until')
+            child.valid_until = sundial.datetime.fromdatetime(form.cleaned_data.get('valid_until'))
             child.save()
             # remove AS & prefixes that are not selected in the form
             models.ChildASN.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('as_ranges')).delete()
@@ -488,8 +509,8 @@ def roa_delete(request, pk):
     """
 
     conf = request.session['handle']
-    obj = get_object_or_404(models.ROARequestPrefix.objects, roa_request__issuer=conf,
-                            pk=pk)
+    obj = get_object_or_404(models.ROARequestPrefix.objects,
+                            roa_request__issuer=conf, pk=pk)
 
     if request.method == 'POST':
         roa = obj.roa_request
@@ -656,29 +677,18 @@ def child_wizard(request):
 
 
 @handle_required
-def export_child_response(request, child_handle):
+def child_response(request, pk):
     """
     Export the XML file containing the output of the configure_child
     to send back to the client.
 
     """
     conf = request.session['handle']
-    log = request.META['wsgi.errors']
-    return serve_xml(glue.read_child_response(log, conf, child_handle),
-                     child_handle)
-
-
-@handle_required
-def export_child_repo_response(request, child_handle):
-    """
-    Export the XML file containing the output of the configure_child
-    to send back to the client.
-
-    """
-    conf = request.session['handle']
-    log = request.META['wsgi.errors']
-    return serve_xml(glue.read_child_repo_response(log, conf, child_handle),
-                     child_handle)
+    child = get_object_or_404(models.Child, issuer=conf, pk=pk)
+    z = Zookeeper(handle=conf.handle)
+    xml = z.generate_parental_response(child)
+    resp = serve_xml(str(xml), child.handle)
+    return resp
 
 
 @handle_required
@@ -816,7 +826,7 @@ def route_view(request):
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
     return render(request, 'app/routes_view.html',
                   {'routes': routes, 'timestamp': ts})
-
+
 
 @handle_required
 def repository_list(request):
@@ -848,14 +858,15 @@ def repository_delete(request, pk):
             extra_context={'confirm_delete': True})
 
 
-@superuser_required
+@handle_required
 def repository_import(request):
+    """Import XML response file from repository operator."""
     return generic_import(request,
                           models.Repository.objects,
                           Zookeeper.configure_repository,
-                          form_class=forms.ImportClientForm,
+                          form_class=forms.ImportRepositoryForm,
                           post_import_redirect=reverse(repository_list))
-
+
 
 @superuser_required
 def client_list(request):
@@ -884,3 +895,15 @@ def client_import(request):
                           Zookeeper.configure_publication_client,
                           form_class=forms.ImportClientForm,
                           post_import_redirect=reverse(client_list))
+
+
+@superuser_required
+def client_export(request, pk):
+    """Return the XML file resulting from a configure_publication_client
+    request.
+
+    """
+    client = get_object_or_404(models.Client, pk=pk)
+    z = Zookeeper()
+    xml = z.generate_repository_response(client)
+    return serve_xml(str(xml), '%s.repo' % z.handle)

@@ -19,10 +19,10 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-show_plot      = True
-plot_all_hosts = False
-plot_to_one    = True
-plot_to_many   = True
+plot_all_hosts   = False
+plot_to_one      = True
+plot_to_many     = True
+write_rcynic_xml = True
 
 import mailbox, sys, urlparse, os, getopt, datetime, subprocess
 
@@ -30,7 +30,7 @@ from xml.etree.cElementTree import (ElementTree as ElementTree,
                                     fromstring  as ElementTreeFromString)
 
 def parse_utc(s):
-  return datetime.datetime.strptime(s,  "%Y-%m-%dT%H:%M:%SZ")
+  return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
 
 class Rsync_History(object):
   """
@@ -48,9 +48,6 @@ class Host(object):
   A host object represents all the data collected for one host.  Note
   that it (usually) contains a list of all the sessions in which this
   host appears.
-
-  This is probably keeping far too much data, and needs to be pruned
-  to keep memory consumption to something sane.
   """
 
   def __init__(self, hostname, session_id):
@@ -130,15 +127,11 @@ class Session(dict):
   """
   A session corresponds to one XML file.  This is a dictionary of Host
   objects, keyed by hostname.
-
-  We might need some kind of .finalize() method which throws away
-  unnecessary data to keep memory consumption down after we've read
-  the whole session.  Most likely this would just be a pass through to
-  a Host.finalize() method which would do the real work.
   """
 
-  def __init__(self, session_id = None):
+  def __init__(self, session_id, msg_key):
     self.session_id = session_id
+    self.msg_key = msg_key
 
   @property
   def hostnames(self):
@@ -160,32 +153,6 @@ class Session(dict):
   def finalize(self):
     for h in self.itervalues():
       h.finalize()
-
-mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
-
-sessions = []
-
-for i, msg in enumerate(mb.itervalues()):
-
-  sys.stderr.write("\r%s %d/%d..." % ("|\\-/"[i & 3], i, len(mb)))
-
-  assert not msg.is_multipart()
-
-  input = ElementTreeFromString(msg.get_payload())
-
-  session = Session(input.get("date"))
-  sessions.append(session)
-
-  for elt in input.findall("rsync_history"):
-    session.add_rsync_history(Rsync_History(elt))
-
-  for elt in input.findall("validation_status"):
-    if elt.get("generation") == "current":
-      session.add_uri(elt.text.strip())
-
-  session.finalize()
-
-sys.stderr.write("\n")
 
 def plotter(f, hostnames, field, logscale = False):
   plotlines = sorted(session.get_plot_row(field, hostnames) for session in sessions)
@@ -233,20 +200,59 @@ def plot_one(hostnames, fields):
   gnuplot.stdin.close()
   gnuplot.wait()
 
-if show_plot:
+mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
 
-  if plot_all_hosts:
-    hostnames = set()
-    for session in sessions:
-      hostnames.update(session.hostnames)
-    hostnames = sorted(hostnames)
+sessions = []
 
-  else:
-    hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net",
-                 "rpki.afrinic.net", "arin.rpki.net", "rgnet.rpki.net")
+latest = None
 
-  fields = [fmt.attr for fmt in Host.format if fmt.attr != "hostname"]
-  if plot_to_one:
-    plot_one(hostnames, fields)
-  if plot_to_many:
-    plot_many(hostnames, fields)
+for i, key in enumerate(mb.iterkeys(), 1):
+
+  sys.stderr.write("\r%s %d/%d..." % ("|\\-/"[i & 3], i, len(mb)))
+
+  assert not mb[key].is_multipart()
+
+  input = ElementTreeFromString(mb[key].get_payload())
+
+  date = input.get("date")
+
+  sys.stderr.write("%s..." % date)
+
+  session = Session(date, key)
+  sessions.append(session)
+
+  if latest is None or session.session_id > latest.session_id:
+    latest = session
+
+  for elt in input.findall("rsync_history"):
+    session.add_rsync_history(Rsync_History(elt))
+
+  for elt in input.findall("validation_status"):
+    if elt.get("generation") == "current":
+      session.add_uri(elt.text.strip())
+
+  session.finalize()
+
+sys.stderr.write("\n")
+
+if plot_all_hosts:
+  hostnames = set()
+  for session in sessions:
+    hostnames.update(session.hostnames)
+  hostnames = sorted(hostnames)
+
+else:
+  hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net",
+               "rpki.afrinic.net", "arin.rpki.net", "rgnet.rpki.net",
+               "rpki-pilot.arin.net")
+
+fields = [fmt.attr for fmt in Host.format if fmt.attr != "hostname"]
+if plot_to_one:
+  plot_one(hostnames, fields)
+if plot_to_many:
+  plot_many(hostnames, fields)
+
+if write_rcynic_xml and latest is not None:
+  f = open("rcynic.xml", "wb")
+  f.write(mb[latest.msg_key].get_payload())
+  f.close()

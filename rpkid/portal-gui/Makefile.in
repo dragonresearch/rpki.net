@@ -44,6 +44,7 @@ apache.conf: $(srcdir)/apache.conf.in Makefile
 install-perms:
 
 install-apache:
+	${INSTALL} -d -m 755 $(INSTDIR)
 	${INSTALL} -m 644 apache.conf $(INSTDIR)
 	${INSTALL} -d -m 755 $(INSTDIR)/media/css
 	${INSTALL} -m 644 media/css/bootstrap.min.css $(INSTDIR)/media/css

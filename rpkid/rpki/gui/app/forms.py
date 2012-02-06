@@ -22,7 +22,6 @@ from rpki.resource_set import (resource_range_as, resource_range_ipv4,
                                resource_range_ipv6)
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
-from rpki.gui.bootstrap.widgets import CheckboxSelectMultiple
 
 
 class AddConfForm(forms.Form):

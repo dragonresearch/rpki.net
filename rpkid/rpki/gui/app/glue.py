@@ -26,7 +26,8 @@ __version__ = '$Id$'
 from datetime import datetime
 
 from rpki.resource_set import (resource_set_as, resource_set_ipv4,
-                               resource_set_ipv6)
+                               resource_set_ipv6, resource_range_ipv4,
+                               resource_range_ipv6)
 from rpki.left_right import list_received_resources_elt
 from rpki.irdb.zookeeper import Zookeeper
 from rpki.gui.app import models, settings
@@ -120,3 +121,10 @@ def config_from_template(dest, a):
                     print >>f, r,
             else:
                 print >>f, r,
+
+def str_to_resource_range(prefix):
+    try:
+        r = resource_range_ipv4.parse_str(prefix)
+    except BadIPResource:
+        r = resource_range_ipv6.parse_str(prefix)
+    return r

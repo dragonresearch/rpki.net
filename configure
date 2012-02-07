@@ -640,6 +640,7 @@ LIBOBJS
 DJANGO_ADMIN
 DJANGO_DIR
 SECRET_KEY
+VIRTUAL_ENV
 OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 RPKID_SUBDIRS
@@ -4928,6 +4929,18 @@ fi
 
 if test $build_django = yes
 then
+	{ $as_echo "$as_me:$LINENO: checking if running under virtualenv" >&5
+$as_echo_n "checking if running under virtualenv... " >&6; }
+	if test x$VIRTUAL_ENV != x; then
+		VIRTUAL_ENV=$VIRTUAL_ENV
+
+		{ $as_echo "$as_me:$LINENO: result: $VIRTUAL_ENV" >&5
+$as_echo "$VIRTUAL_ENV" >&6; }
+	else
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+	fi
+
         # source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
         SECRET_KEY=`$PYTHON -c 'import random; print "".join(random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50))'`
 

@@ -5,6 +5,7 @@ PYTHON = @PYTHON@
 
 SECRET_KEY = @SECRET_KEY@
 DJANGO_DIR = @DJANGO_DIR@
+VIRTUAL_ENV = @VIRTUAL_ENV@
 
 CFLAGS	= @CFLAGS@
 LDFLAGS = @LDFLAGS@ @POW_LDFLAGS@
@@ -244,7 +245,9 @@ portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-rout
 	${COMPILE_DJANGO}
 
 portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in
-	${COMPILE_DJANGO}
+	sed -e "s|@VIRTUAL"_"ENV@|${VIRTUAL_ENV}|" \
+		-e "s|@PYTHON""PATH@|${sysconfdir}/rpki|" \
+		${srcdir}/portal-gui/rpki.wsgi.in > portal-gui/rpki.wsgi
 
 portal-gui/settings.py: ${srcdir}/portal-gui/settings.py.in
 	${COMPILE_SETTINGS}

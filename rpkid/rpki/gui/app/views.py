@@ -464,6 +464,27 @@ def roa_create(request):
                 match = roa_match(rng)
                 for route, roas in match:
                     validate_route(route, roas)
+                    # tweak the validation status due to the presence of the
+                    # new ROA.  Don't need to check the prefix bounds here
+                    # because all the matches routes will be covered by this
+                    # new ROA
+                    if route.status == 'unknown':
+                        # if the route was previously unknown (no covering
+                        # ROAs), then:
+                        # if the AS matches, it is valid, otherwise invalid
+                        if route.asn == asn:
+                            route.status = 'valid'
+                            route.status_label = 'success'
+                        else:
+                            route.status = 'invalid'
+                            route.status_label = 'important'
+                    elif route.status == 'invalid':
+                        # if the route was previously invalid, but this new ROA
+                        # matches the ASN, it is now valid
+                        if route.asn == asn:
+                            route.status = 'valid'
+                            route.status_label = 'success'
+
                     routes.append(route)
     else:
         form = forms.ROARequest()

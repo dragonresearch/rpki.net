@@ -77,10 +77,16 @@ class RangeList(list):
         for x in self:
             xmin = x.min
 
+            def V(v):
+                """convert the integer value to the appropriate type for this
+                range"""
+                return x.__class__.datum_type(v)
+
             try:
                 while xmin <= x.max:
                     if xmin < cur.min:
-                        r.append(x.__class__(min=xmin, max=min(x.max,cur.min-1)))
+                        r.append(x.__class__(min=V(xmin),
+                                             max=V(min(x.max,cur.min-1))))
                         xmin = cur.max+1
                     elif xmin == cur.min:
                         xmin = cur.max+1
@@ -91,7 +97,7 @@ class RangeList(list):
                             cur = it.next()
 
             except StopIteration:
-                r.append(x.__class__(min=xmin, max=x.max))
+                r.append(x.__class__(min=V(xmin), max=x.max))
 
         return r
 

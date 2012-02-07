@@ -343,8 +343,6 @@ def child_add_resource(request, pk, form_class, unused_list, callback,
         form = form_class(request.POST, request.FILES)
         if form.is_valid():
             callback(child, form)
-            # force rpkid run now
-            Zookeeper().synchronize(conf.handle)
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = form_class()
@@ -510,8 +508,6 @@ def roa_create_confirm(request):
             roa.prefixes.create(version=v, prefix=str(rng.min),
                                 prefixlen=rng.prefixlen(),
                                 max_prefixlen=max_prefixlen)
-            # force rpkid run now
-            Zookeeper().synchronize(conf.handle)
             return http.HttpResponseRedirect(reverse(roa_list))
     else:
         return http.HttpResponseRedirect(reverse(roa_create))
@@ -563,8 +559,6 @@ def roa_delete(request, pk):
         # if this was the last prefix on the ROA, delete the ROA request
         if not roa.prefixes.exists():
             roa.delete()
-        # force rpkid run now
-        Zookeeper().synchronize(conf.handle)
         return http.HttpResponseRedirect(reverse(roa_list))
 
     ### Process GET ###

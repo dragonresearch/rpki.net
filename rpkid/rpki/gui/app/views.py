@@ -430,8 +430,9 @@ def roa_create(request):
 
     """
 
+    conf = request.session['handle']
     if request.method == 'POST':
-        form = forms.ROARequest(request.POST, request.FILES)
+        form = forms.ROARequest(request.POST, request.FILES, conf=conf)
         if form.is_valid():
             asn = form.cleaned_data.get('asn')
             rng = form._as_resource_range()  # FIXME calling "private" method

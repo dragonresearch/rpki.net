@@ -170,7 +170,21 @@ class ROARequest(forms.Form):
             label='Max Prefix Length')
     confirmed = forms.BooleanField(widget=forms.HiddenInput, required=False)
 
+    def __init__(self, *args, **kwargs):
+        """Takes an optional `conf` keyword argument specifying the user that
+        is creating the ROAs.  It is used for validating that the prefix the
+        user entered is currently allocated to that user.
+
+        """
+        conf = kwargs.pop('conf', None)
+        super(ROARequest, self).__init__(*args, **kwargs)
+        self.conf = conf
+
     def _as_resource_range(self):
+        """Convert the prefix in the form to a
+        rpki.resource_set.resource_range_ip object.
+
+        """
         prefix = self.cleaned_data.get('prefix')
         return str_to_resource_range(prefix)
 
@@ -185,6 +199,12 @@ class ROARequest(forms.Form):
             r = self._as_resource_range()
         except:
             raise forms.ValidationError('invalid IP address')
+
+        manager = models.ResourceRangeAddressV4 if isinstance(r, resource_range_ipv4) else models.ResourceRangeAddressV6
+        if not manager.objects.filter(cert__parent__issuer=self.conf,
+                                      prefix_min__lte=r.min,
+                                      prefix_max__gte=r.max).exists():
+            raise forms.ValidationError('prefix is not allocated to you')
         return str(r)
 
     def clean_max_prefixlen(self):
@@ -192,8 +212,11 @@ class ROARequest(forms.Form):
         if v:
             if v[0] == '/':
                 v = v[1:]  # allow user to specify /24
-            if int(v) < 0:
-                raise forms.ValidationError('max prefix length must be positive or 0')
+            try:
+                if int(v) < 0:
+                    raise forms.ValidationError('max prefix length must be positive or 0')
+            except ValueError:
+                raise forms.ValidationError('invalid integer value')
         return v
 
     def clean(self):

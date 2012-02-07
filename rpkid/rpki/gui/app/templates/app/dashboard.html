@@ -1,7 +1,6 @@
 {% extends "app/app_base.html" %}
 
 {% block sidebar_extra %}
-
 <ul class='unstyled'>
   <li><a href="{% url rpki.gui.app.views.conf_export %}" title="download XML identity to send to parent">export identity</a></li>
   <li><a href="{% url rpki.gui.app.views.update_bpki %}" title="renew all BPKI certificates">update bpki</a></li>
@@ -14,80 +13,75 @@
 {% endblock sidebar_extra %}
 
 {% block content %}
-
 <div class='page-header'>
   <h1>Dashboard</h1>
 </div>
 
-<!-- OVERVIEW ############################################################## -->
+<div class='row'>
+  <div class='span10'>
+    <h2>Resources</h2>
+    <table class='condensed-table zebra-striped'>
+      <tr>
+	<th>Resource</th>
+	<th>Valid Until</th>
+	<th>Parent</th>
+      </tr>
 
-<h2>Resources</h2>
+      {% for object in asns %}
+      <tr>
+	<td>{{ object }}</td>
+	<td>{{ object.cert.not_after }}</td>
+	<td>{{ object.cert.parent.handle }}</td>
+      </tr>
+      {% endfor %}
 
-<table class='condensed-table zebra-striped'>
-  <tr>
-    <th>Resource</th>
-    <th>Valid Until</th>
-    <th>Parent</th>
-  </tr>
+      {% for object in prefixes %}
+      <tr>
+	<td>{{ object.as_resource_range }}</td>
+	<td>{{ object.cert.not_after }}</td>
+	<td>{{ object.cert.parent.handle }}</td>
+      </tr>
+      {% endfor %}
 
-  {% for object in asns %}
-  <tr>
-    <td>{{ object }}</td>
-    <td>{{ object.cert.not_after }}</td>
-    <td>{{ object.cert.parent.handle }}</td>
-  </tr>
-  {% endfor %}
+      {% if prefixes_v6 %}
+      {% for object in prefixes_v6 %}
+      <tr>
+	<td>{{ object.as_resource_range }}</td>
+	<td>{{ object.cert.not_after }}</td>
+	<td>{{ object.cert.parent.handle }}</td>
+      </tr>
+      {% endfor %}
+      {% endif %}
+    </table>
+  </div>
+  <div class='span6'>
+    <h2>Unallocated Resources</h2>
+    <p>The following resources have not been allocated to a child, nor appear in a ROA.
 
-  {% for object in prefixes %}
-  <tr>
-    <td>{{ object.as_resource_range }}</td>
-    <td>{{ object.cert.not_after }}</td>
-    <td>{{ object.cert.parent.handle }}</td>
-  </tr>
-  {% endfor %}
+    {% if unused_asns %}
+    <ul>
+      {% for asn in unused_asns %}
+      <li>AS{{ asn }}
+      {% endfor %} <!-- ASNs -->
+    </ul>
+    {% endif %}
 
-  {% if prefixes_v6 %}
-  {% for object in prefixes_v6 %}
-  <tr>
-    <td>{{ object.as_resource_range }}</td>
-    <td>{{ object.cert.not_after }}</td>
-    <td>{{ object.cert.parent.handle }}</td>
-  </tr>
-  {% endfor %}
-  {% endif %}
-</table>
+    {% if unused_prefixes %}
+    <ul>
+      {% for addr in unused_prefixes %}
+      <li>{{ addr }}
+      {% endfor %} <!-- addrs -->
+    </ul>
+    {% endif %}
 
-<!-- UNALLOCATED ##############################################################-->
-<div>
-  <h2>Unallocated Resources</h2>
-  <p>The following resources have not been allocated to a child, nor appear in a ROA.
+    {% if unused_prefixes_v6 %}
+    <ul>
+      {% for addr in unused_prefixes_v6 %}
+      <li>{{ addr }}
+      {% endfor %} <!-- addrs -->
+    </ul>
+    {% endif %}
 
-  {% if unused_asns %}
-  <ul>
-    {% for asn in unused_asns %}
-    <li>AS{{ asn }}
-    {% endfor %} <!-- ASNs -->
-  </ul>
-  {% endif %}
-
-  {% if unused_prefixes %}
-  <ul>
-    {% for addr in unused_prefixes %}
-    <li>{{ addr }}
-    {% endfor %} <!-- addrs -->
-  </ul>
-  {% endif %}
-
-  {% if unused_prefixes_v6 %}
-  <ul>
-    {% for addr in unused_prefixes_v6 %}
-    <li>{{ addr }}
-    {% endfor %} <!-- addrs -->
-  </ul>
-  {% endif %}
-
-</div>
-
+  </div><!-- /span -->
+</div><!-- /row -->
 {% endblock %}
-
-<!-- vim: set sw=2: -->

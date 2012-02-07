@@ -1,23 +1,38 @@
-# $Id$
-"""
-Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+# This is an example wsgi application for use with mod_wsgi and apache.
 
-THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
+__version__ = '$Id$'
 
+#prev_sys_path = list(sys.path)
 
-This is an example wsgi application for use with mod_wsgi and apache.
+# When used with virtualenv, specify the location of the python modules to use
+import site
+site.addsitedir('/home/melkins/web_portal/lib/python2.6/site-packages')
 
-"""
+#new_sys_path = []
+#for item in list(sys.path):
+#    if item not in prev_sys_path:
+#        new_sys_path.append(item)
+#        sys.path.remove(item)
+#sys.path[:0] = new_sys_path
+
+#print sys.path
 
 import django.core.handlers.wsgi
 application = django.core.handlers.wsgi.WSGIHandler()
+
+# vim:ft=python

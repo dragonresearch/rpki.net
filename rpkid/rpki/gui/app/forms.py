@@ -143,6 +143,22 @@ class UserCreateForm(forms.Form):
         return self.cleaned_data
 
 
+class UserEditForm(forms.Form):
+    """Form for editing a user."""
+    email = forms.CharField()
+    pw = forms.CharField(widget=forms.PasswordInput, label='Password',
+                         required=False)
+    pw2 = forms.CharField(widget=forms.PasswordInput, label='Confirm password',
+                         required=False)
+
+    def clean(self):
+        p1 = self.cleaned_data.get('pw')
+        p2 = self.cleaned_data.get('pw2')
+        if p1 != p2:
+            raise forms.ValidationError('Passwords do not match')
+        return self.cleaned_data
+
+
 class ROARequest(forms.Form):
     """Form for entering a ROA request.
 

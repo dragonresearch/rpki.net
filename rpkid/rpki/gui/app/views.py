@@ -918,7 +918,27 @@ def user_delete(request, pk):
 
 @superuser_required
 def user_edit(request, pk):
-    pass
+    conf = get_object_or_404(models.Conf, pk=pk)
+    # in the old model, there may be users with a different name, so create a
+    # new user object if it is missing.
+    try:
+        user = User.objects.get(username=conf.handle)
+    except User.DoesNotExist:
+        user = User(username=conf.handle)
+
+    if request.method == 'POST':
+        form = forms.UserEditForm(request.POST)
+        if form.is_valid():
+            pw = form.cleaned_data.get('pw')
+            if pw:
+                user.set_password(pw)
+            user.email = form.cleaned_data.get('email')
+            user.save()
+            return http.HttpResponseRedirect(reverse(user_list))
+    else:
+        form = forms.UserEditForm(initial={'email': user.email})
+    return render(request, 'app/user_edit_form.html',
+                  {'object': user, 'form': form})
 
 
 @handle_required

@@ -19,7 +19,7 @@ sysconfdir=@sysconfdir@
 INSTALL = @INSTALL@
 
 INSTDIR=${DESTDIR}$(datarootdir)/rpki
-PYTHONPATH=${DESTDIR}${sysconfdir}/rpki
+SYSCONFDIR=${DESTDIR}${sysconfdir}/rpki
 
 # automatically built sources
 BUILD=apache.conf
@@ -39,30 +39,17 @@ edit = sed \
 apache.conf: $(srcdir)/apache.conf.in Makefile
 	$(edit) $@.in > $@
 
-.PHONY: install-perms install-data install
-
-install-perms:
-
-install-apache:
-	${INSTALL} -d -m 755 $(INSTDIR)
-	${INSTALL} -m 644 apache.conf $(INSTDIR)
-	${INSTALL} -d -m 755 $(INSTDIR)/media/css
-	${INSTALL} -m 644 media/css/bootstrap.min.css $(INSTDIR)/media/css
-	${INSTALL} -d -m 755 $(INSTDIR)/wsgi
-	${INSTALL} -m 644 rpki.wsgi $(INSTDIR)/wsgi
-
-install-data: $(BUILD) install-apache
-	mkdir -p ${PYTHONPATH}
+install: $(BUILD)
+	${INSTALL} -m 644 -D apache.conf $(SYSCONFDIR)/apache.conf
+	${INSTALL} -m 644 -D $(srcdir)/media/css/bootstrap.min.css $(INSTDIR)/media/css/bootstrap.min.css
+	${INSTALL} -m 644 -D rpki.wsgi $(INSTDIR)/wsgi/rpki.wsgi
 	# FIXME should eventually try to merge new settings?
-	@if [ ! -f ${PYTHONPATH}/settings.py ]; then \
-	    ${INSTALL} -m 644 settings.py ${PYTHONPATH}; \
+	@if [ ! -f ${SYSCONFDIR}/settings.py ]; then \
+	    ${INSTALL} -m 644 settings.py ${SYSCONFDIR}; \
 	else \
-	    echo "${PYTHONPATH}/settings.py already exists, installing settings.py as ${PYTHONPATH}/settings.py.new"; \
-	    ${INSTALL} -m 644 settings.py ${PYTHONPATH}/settings.py.new; \
+	    echo "${SYSCONFDIR}/settings.py already exists, installing settings.py as ${SYSCONFDIR}/settings.py.new"; \
+	    ${INSTALL} -m 644 settings.py ${SYSCONFDIR}/settings.py.new; \
 	fi
-	if [ ! -f $(INSTDIR)/rpki.conf.template ]; then ${INSTALL} -m 644 ../examples/rpki.conf $(INSTDIR)/rpki.conf.template; fi
-
-install: install-data install-perms
 
 deinstall uninstall:
 	rm -rf $(INSTDIR)

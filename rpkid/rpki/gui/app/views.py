@@ -148,6 +148,8 @@ def generic_import(request, queryset, configure, form_class=None,
             # configure_repository returns None, so can't use tuple expansion
             # here.  Unpack the tuple below if post_import_redirect is None.
             r = configure(z, tmpf.name, handle)
+            # force rpkid run now
+            z.synchronize(conf.handle)
             os.remove(tmpf.name)
             if post_import_redirect:
                 url = post_import_redirect
@@ -272,7 +274,7 @@ def conf_export(request):
     xml = z.generate_identity()
     return serve_xml(str(xml), '%s.identity' % conf.handle)
 
-
+
 @handle_required
 def parent_import(request):
     conf = request.session['handle']
@@ -314,7 +316,7 @@ def parent_export(request, pk):
     xml = z.generate_repository_request(parent)
     return serve_xml(str(xml), '%s.repository' % parent.handle)
 
-
+
 @handle_required
 def child_import(request):
     conf = request.session['handle']
@@ -341,6 +343,8 @@ def child_add_resource(request, pk, form_class, unused_list, callback,
         form = form_class(request.POST, request.FILES)
         if form.is_valid():
             callback(child, form)
+            # force rpkid run now
+            Zookeeper().synchronize(conf.handle)
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = form_class()
@@ -418,7 +422,7 @@ def child_edit(request, pk):
     return render(request, 'app/child_form.html',
                     {'object': child, 'form': form})
 
-
+
 @handle_required
 def roa_create(request):
     """Present the user with a form to create a ROA.
@@ -506,9 +510,12 @@ def roa_create_confirm(request):
             roa.prefixes.create(version=v, prefix=str(rng.min),
                                 prefixlen=rng.prefixlen(),
                                 max_prefixlen=max_prefixlen)
+            # force rpkid run now
+            Zookeeper().synchronize(conf.handle)
             return http.HttpResponseRedirect(reverse(roa_list))
     else:
         return http.HttpResponseRedirect(reverse(roa_create))
+
 
 @handle_required
 def roa_list(request):
@@ -556,6 +563,8 @@ def roa_delete(request, pk):
         # if this was the last prefix on the ROA, delete the ROA request
         if not roa.prefixes.exists():
             roa.delete()
+        # force rpkid run now
+        Zookeeper().synchronize(conf.handle)
         return http.HttpResponseRedirect(reverse(roa_list))
 
     ### Process GET ###
@@ -706,6 +715,8 @@ def child_wizard(request):
             repo_resp.save(t.name)
             zk_child.configure_repository(t.name)
             os.remove(t.name)
+            # force rpkid run for both parent and child
+            zk_child.synchronize(parent.handle, handle)
 
             return http.HttpResponseRedirect(reverse(dashboard))
     else:

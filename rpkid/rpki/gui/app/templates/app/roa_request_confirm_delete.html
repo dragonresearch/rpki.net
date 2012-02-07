@@ -1,20 +1,19 @@
 {% extends "app/app_base.html" %}
 
 {% block content %}
-
 <div class='page-header'>
 <h1>Delete ROA Prefix</h1>
 </div>
 
 <div class='row'>
   <div class='span8'>
-    <div class='alert-message box-message warning'>
-      <p><strong>Please confirm</strong> that you would like to delete the following ROA Request:
+    <div class='alert-message block-message warning'>
+      <p><strong>Please confirm</strong> that you would like to delete the following ROA Request.  The table to the right indicates how validation status for matching routes may change.
 
       <table style='condensed-table'>
         <tr>
           <th>Prefix</th>
-          <th>Max Len</th>
+          <th>Max Length</th>
           <th>AS</th>
         <tr>
           <td>{{ object.prefix }}/{{ object.prefixlen }}</td>
@@ -30,31 +29,26 @@
           <a class='btn' href="{% url rpki.gui.app.views.roa_list %}">Cancel</a>
         </div>
       </form>
-
     </div>
   </div>
 
-<div class='span8 offset8'>
-<p>This table indicates what the validation status for the routing entries
-that are covered by this ROA request will be if this ROA request is deleted:
+  <div class='span8'>
+    <h2>Matching Routes</h2>
 
-<table style='zebra-striped condensed-table'>
-  <tr>
-    <th>Prefix</th>
-    <th>Origin AS</th>
-    <th>Validation Status</th>
-  </tr>
-  {% for r in routes %}
-  <tr>
-    <td>{{ r.get_prefix_display }}</td>
-    <td>{{ r.asn }}</td>
-    <td><span class='label {{ r.status_label }}'>{{ r.status }}</span></td>
-  </tr>
-  {% endfor %}
-</table>
-</div><!-- /span8 -->
+    <table style='zebra-striped condensed-table'>
+      <tr>
+	<th>Prefix</th>
+	<th>Origin AS</th>
+	<th>Validation Status</th>
+      </tr>
+      {% for r in routes %}
+      <tr>
+	<td>{{ r.get_prefix_display }}</td>
+	<td>{{ r.asn }}</td>
+	<td><span class='label {{ r.status_label }}'>{{ r.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div><!-- /span8 -->
 </div><!-- /row -->
-
-{% endblock %}
-
-<!-- vim:set sw=2: -->
+{% endblock content %}

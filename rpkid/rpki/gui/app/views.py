@@ -428,7 +428,6 @@ def roa_create(request):
 
     """
 
-    routes = []
     if request.method == 'POST':
         form = forms.ROARequest(request.POST, request.FILES)
         if form.is_valid():
@@ -437,61 +436,79 @@ def roa_create(request):
             rng = form._as_resource_range()  # FIXME calling "private" method
             max_prefixlen = int(form.cleaned_data.get('max_prefixlen'))
 
-            if form.cleaned_data.get('confirmed'):
-                roarequests = models.ROARequest.objects.filter(issuer=conf,
-                                                               asn=asn)
-                if roarequests:
-                    # FIXME need to handle the case where there are
-                    # multiple ROAs for the same AS due to prefixes
-                    # delegated from different resource certs.
-                    roa = roarequests[0]
-                else:
-                    roa = models.ROARequest.objects.create(issuer=conf,
-                                                           asn=asn)
-                version = 'IPv4' if isinstance(rng,
-                        resource_range_ipv4) else 'IPv6'
-                roa.prefixes.create(version=version, prefix=str(rng.min),
-                        prefixlen=rng.prefixlen(), max_prefixlen=max_prefixlen)
-                return http.HttpResponseRedirect(reverse(roa_list))
-            else:
-                form = forms.ROARequest(initial={
-                    'asn': form.cleaned_data.get('asn'),
-                    'prefix': form.cleaned_data.get('prefix'),
-                    'max_prefixlen': form.cleaned_data.get('max_prefixlen'),
-                    'confirmed': True})
+            # find list of matching routes
+            routes = []
+            match = roa_match(rng)
+            for route, roas in match:
+                validate_route(route, roas)
+                # tweak the validation status due to the presence of the
+                # new ROA.  Don't need to check the prefix bounds here
+                # because all the matches routes will be covered by this
+                # new ROA
+                if route.status == 'unknown':
+                    # if the route was previously unknown (no covering
+                    # ROAs), then:
+                    # if the AS matches, it is valid, otherwise invalid
+                    if (route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen):
+                        route.status = 'valid'
+                        route.status_label = 'success'
+                    else:
+                        route.status = 'invalid'
+                        route.status_label = 'important'
+                elif route.status == 'invalid':
+                    # if the route was previously invalid, but this new ROA
+                    # matches the ASN, it is now valid
+                    if route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen:
+                        route.status = 'valid'
+                        route.status_label = 'success'
 
-                # find list of matching routes
-                match = roa_match(rng)
-                for route, roas in match:
-                    validate_route(route, roas)
-                    # tweak the validation status due to the presence of the
-                    # new ROA.  Don't need to check the prefix bounds here
-                    # because all the matches routes will be covered by this
-                    # new ROA
-                    if route.status == 'unknown':
-                        # if the route was previously unknown (no covering
-                        # ROAs), then:
-                        # if the AS matches, it is valid, otherwise invalid
-                        if (route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen):
-                            route.status = 'valid'
-                            route.status_label = 'success'
-                        else:
-                            route.status = 'invalid'
-                            route.status_label = 'important'
-                    elif route.status == 'invalid':
-                        # if the route was previously invalid, but this new ROA
-                        # matches the ASN, it is now valid
-                        if route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen:
-                            route.status = 'valid'
-                            route.status_label = 'success'
+                routes.append(route)
 
-                    routes.append(route)
+            prefix = str(rng)
+            form = forms.ROARequestConfirm(initial={'asn': asn,
+                                                    'prefix': prefix,
+                                                    'max_prefixlen': max_prefixlen})
+            return render(request, 'app/roarequest_confirm_form.html',
+                          {'form': form,
+                           'asn': asn,
+                           'prefix': prefix,
+                           'max_prefixlen': max_prefixlen,
+                           'routes': routes})
     else:
         form = forms.ROARequest()
 
-    return render(request, 'app/roarequest_form.html',
-                  {'form': form, 'routes': routes})
+    return render(request, 'app/roarequest_form.html', {'form': form})
 
+
+@handle_required
+def roa_create_confirm(request):
+    conf = request.session['handle']
+
+    if request.method == 'POST':
+        form = forms.ROARequestConfirm(request.POST, request.FILES)
+        if form.is_valid():
+            asn = form.cleaned_data.get('asn')
+            prefix = form.cleaned_data.get('prefix')
+            rng = glue.str_to_resource_range(prefix)
+            max_prefixlen = form.cleaned_data.get('max_prefixlen')
+
+            roarequests = models.ROARequest.objects.filter(issuer=conf,
+                                                           asn=asn)
+            if roarequests:
+                # FIXME need to handle the case where there are
+                # multiple ROAs for the same AS due to prefixes
+                # delegated from different resource certs.
+                roa = roarequests[0]
+            else:
+                roa = models.ROARequest.objects.create(issuer=conf,
+                                                        asn=asn)
+            v = 'IPv4' if isinstance(rng, resource_range_ipv4) else 'IPv6'
+            roa.prefixes.create(version=v, prefix=str(rng.min),
+                                prefixlen=rng.prefixlen(),
+                                max_prefixlen=max_prefixlen)
+            return http.HttpResponseRedirect(reverse(roa_list))
+    else:
+        return http.HttpResponseRedirect(reverse(roa_create))
 
 @handle_required
 def roa_list(request):

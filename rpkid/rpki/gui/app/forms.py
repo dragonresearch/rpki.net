@@ -22,6 +22,7 @@ from rpki.resource_set import (resource_range_as, resource_range_ipv4,
                                resource_range_ipv6)
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
+from rpki.gui.app.glue import str_to_resource_range
 
 
 class AddConfForm(forms.Form):
@@ -153,23 +154,19 @@ class ROARequest(forms.Form):
 
     def _as_resource_range(self):
         prefix = self.cleaned_data.get('prefix')
-        try:
-            r = resource_range_ipv4.parse_str(prefix)
-        except BadIPResource:
-            r = resource_range_ipv6.parse_str(prefix)
-        return r
+        return str_to_resource_range(prefix)
 
     def clean_asn(self):
         value = self.cleaned_data.get('asn')
         if value < 0:
-            raise forms.ValidationError, 'AS must be a positive value or 0'
+            raise forms.ValidationError('AS must be a positive value or 0')
         return value
 
     def clean_prefix(self):
         try:
             r = self._as_resource_range()
         except:
-            raise forms.ValidationError, 'invalid IP address'
+            raise forms.ValidationError('invalid IP address')
         return str(r)
 
     def clean_max_prefixlen(self):
@@ -178,8 +175,7 @@ class ROARequest(forms.Form):
             if v[0] == '/':
                 v = v[1:]  # allow user to specify /24
             if int(v) < 0:
-                raise forms.ValidationError, \
-                        'max prefix length must be positive or 0'
+                raise forms.ValidationError('max prefix length must be positive or 0')
         return v
 
     def clean(self):
@@ -188,13 +184,40 @@ class ROARequest(forms.Form):
             max_prefixlen = self.cleaned_data.get('max_prefixlen')
             max_prefixlen = int(max_prefixlen) if max_prefixlen else r.prefixlen()
             if max_prefixlen < r.prefixlen():
-                raise forms.ValidationError, \
-                        'max prefix length must be greater than or equal to the prefix length'
+                raise forms.ValidationError('max prefix length must be greater than or equal to the prefix length')
             if max_prefixlen > r.datum_type.bits:
                 raise forms.ValidationError, \
                         'max prefix length (%d) is out of range for IP version (%d)' % (max_prefixlen, r.datum_type.bits)
             self.cleaned_data['max_prefixlen'] = str(max_prefixlen)
 
+        return self.cleaned_data
+
+
+class ROARequestConfirm(forms.Form):
+    asn = forms.IntegerField(widget=forms.HiddenInput)
+    prefix = forms.CharField(widget=forms.HiddenInput)
+    max_prefixlen = forms.IntegerField(widget=forms.HiddenInput)
+
+    def clean_asn(self):
+        value = self.cleaned_data.get('asn')
+        if value < 0:
+            raise forms.ValidationError('AS must be a positive value or 0')
+        return value
+
+    def clean_prefix(self):
+        try:
+            r = str_to_resource_range(self.cleaned_data.get('prefix'))
+        except BadIPResource:
+            raise forms.ValidationError('invalid prefix')
+        return str(r)
+
+    def clean(self):
+        try:
+            r =str_to_resource_range(self.cleaned_data.get('prefix'))
+            if r.prefixlen() > self.cleaned_data.get('max_prefixlen'):
+                raise forms.ValidationError('max length is smaller than mask')
+        except BadIPResource:
+            pass
         return self.cleaned_data
 
 

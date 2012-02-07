@@ -1,0 +1,58 @@
+{% extends "app/app_base.html" %}
+
+{% block content %}
+<div class='page-title'>
+  <h1>Create ROA</h1>
+</div>
+
+<div class='row'>
+  <div class='span8'>
+    <div class='alert-message block-message warning'>
+      <p><strong>Please confirm</strong> that you would like to create the following ROA.
+      The table on the right shows how the validation status may change as a result.
+
+      <table class='condensed-table'>
+	<tr>
+	  <th>AS</th>
+	  <th>Prefix</th>
+	  <th>Max Length</th>
+	</tr>
+	<tr>
+	  <td>{{ asn }}</td>
+	  <td>{{ prefix }}</td>
+	  <td>{{ max_prefixlen }}</td>
+	</tr>
+      </table>
+
+      <form method='POST' action='{% url rpki.gui.app.views.roa_create_confirm %}'>
+	{% csrf_token %}
+	{% include "app/bootstrap_form.html" %}
+	<div class='alert-actions'>
+	  <input class='btn primary' type='submit' value='Create'/>
+	  <a class='btn' href='{% url rpki.gui.app.views.roa_list %}'>Cancel</a>
+	</div>
+      </form>
+    </div><!-- /alert-message -->
+  </div>
+
+  <div class='span8'>
+    <h2>Matched Routes</h2>
+
+    <table style='zebra-striped condensed-table'>
+      <tr>
+        <th>Prefix</th>
+        <th>Origin AS</th>
+        <th>Validation Status</th>
+      </tr>
+      {% for r in routes %}
+      <tr>
+        <td>{{ r.get_prefix_display }}</td>
+        <td>{{ r.asn }}</td>
+        <td><span class='label {{ r.status_label }}'>{{ r.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+</div>
+{% endblock content %}

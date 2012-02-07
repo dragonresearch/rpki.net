@@ -41,8 +41,7 @@ SETUP_PY = \
 POW_SO	= rpki/POW/_POW.so
 
 SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki \
-	  pubd rootd rpkic rpkid portal-gui/scripts/rpkigui-load-csv \
-	  portal-gui/scripts/rpkigui-add-user portal-gui/scripts/rpkigui-response \
+	  pubd rootd rpkic rpkid \
 	  portal-gui/scripts/rpkigui-rcynic portal-gui/scripts/rpkigui-import-routes
 
 AUX_SCRIPTS =
@@ -238,16 +237,7 @@ rpkic: rpkic.py
 rpkid: rpkid.py
 	${COMPILE_PYTHON}
 
-portal-gui/scripts/rpkigui-load-csv: portal-gui/scripts/load_csv.py
-	${COMPILE_DJANGO}
-
-portal-gui/scripts/rpkigui-add-user: portal-gui/scripts/adduser.py
-	${COMPILE_DJANGO}
-
 portal-gui/scripts/rpkigui-rcynic: portal-gui/scripts/rpkigui-rcynic.py
-	${COMPILE_DJANGO}
-
-portal-gui/scripts/rpkigui-response: portal-gui/scripts/rpkigui-response.py
 	${COMPILE_DJANGO}
 
 portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-routes.py

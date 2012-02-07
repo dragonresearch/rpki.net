@@ -675,51 +675,6 @@ def refresh(request):
 
 
 @handle_required
-def child_wizard(request):
-    """
-    Wizard mode to create a new locally hosted child.
-
-    """
-    if not request.user.is_superuser:
-        return http.HttpResponseForbidden()
-
-    if request.method == 'POST':
-        form = forms.ChildWizardForm(request.POST, request.FILES)
-        if form.is_valid():
-            handle = form.cleaned_data.get('handle')
-            pw = form.cleaned_data.get('password')
-            email = form.cleaned_data.get('email')
-
-            User.objects.create_user(handle, email, pw)
-
-            # FIXME etree_wrapper should allow us to deal with file objects
-            t = NamedTemporaryFile(delete=False)
-            t.close()
-
-            zk_child = Zookeeper(handle=handle)
-            identity_xml = zk_child.initialize()
-            identity_xml.save(t.name)
-            parent = form.cleaned_data.get('parent')
-            zk_parent = Zookeeper(handle=parent.handle)
-            parent_response, _ = zk_parent.configure_child(t.name)
-            parent_response.save(t.name)
-            repo_req, _ = zk_child.configure_parent(t.name)
-            repo_req.save(t.name)
-            repo_resp, _ = zk_parent.configure_publication_client(t.name)
-            repo_resp.save(t.name)
-            zk_child.configure_repository(t.name)
-            os.remove(t.name)
-            # force rpkid run for both parent and child
-            zk_child.synchronize(parent.handle, handle)
-
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.ChildWizardForm()
-
-    return render(request, 'app/child_wizard_form.html', {'form': form})
-
-
-@handle_required
 def child_response(request, pk):
     """
     Export the XML file containing the output of the configure_child
@@ -992,3 +947,48 @@ def user_delete(request, pk):
 @superuser_required
 def user_edit(request, pk):
     pass
+
+
+@handle_required
+def user_create(request):
+    """
+    Wizard mode to create a new locally hosted child.
+
+    """
+    if not request.user.is_superuser:
+        return http.HttpResponseForbidden()
+
+    if request.method == 'POST':
+        form = forms.ChildWizardForm(request.POST, request.FILES)
+        if form.is_valid():
+            handle = form.cleaned_data.get('handle')
+            pw = form.cleaned_data.get('password')
+            email = form.cleaned_data.get('email')
+
+            User.objects.create_user(handle, email, pw)
+
+            # FIXME etree_wrapper should allow us to deal with file objects
+            t = NamedTemporaryFile(delete=False)
+            t.close()
+
+            zk_child = Zookeeper(handle=handle)
+            identity_xml = zk_child.initialize()
+            identity_xml.save(t.name)
+            parent = form.cleaned_data.get('parent')
+            zk_parent = Zookeeper(handle=parent.handle)
+            parent_response, _ = zk_parent.configure_child(t.name)
+            parent_response.save(t.name)
+            repo_req, _ = zk_child.configure_parent(t.name)
+            repo_req.save(t.name)
+            repo_resp, _ = zk_parent.configure_publication_client(t.name)
+            repo_resp.save(t.name)
+            zk_child.configure_repository(t.name)
+            os.remove(t.name)
+            # force rpkid run for both parent and child
+            zk_child.synchronize(parent.handle, handle)
+
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.ChildWizardForm()
+
+    return render(request, 'app/child_wizard_form.html', {'form': form})

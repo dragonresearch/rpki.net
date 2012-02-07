@@ -16,10 +16,14 @@
   <li><a href="{% url rpki.gui.app.views.roa_list %}">roas</a></li>
   <li><a href="{% url rpki.gui.app.views.ghostbuster_list %}">ghostbusters</a></li>
   <li><a href="{% url rpki.gui.app.views.repository_list %}">repositories</a></li>
-{% if request.user.is_superuser %}
-  <li><a href="{% url rpki.gui.app.views.client_list %}">pubclients</a></li>
-{% endif %}
 </ul>
+
+{% if request.user.is_superuser %}
+<ul class='unstyled'>
+  <li><a href="{% url rpki.gui.app.views.client_list %}">pubclients</a></li>
+  <li><a href="{% url rpki.gui.app.views.user_list %}" title="manage users">users</a></li>
+</ul>
+{% endif %}
 
 {% block sidebar_extra %}{% endblock %}
 

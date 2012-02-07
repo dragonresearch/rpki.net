@@ -24,4 +24,8 @@
   </tr>
   {% endfor %}
 </table>
+
+<div class='actions'>
+  <a class='btn' href="{% url rpki.gui.app.views.user_create %}" title="create a new locally hosted resource handle">Create</a>
+</div>
 {% endblock content %}

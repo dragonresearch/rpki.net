@@ -11,7 +11,7 @@
 {% endblock object_detail %}
 
 {% if confirm_delete %}
-<div class='alert-message box-message warning'>
+<div class='alert-message block-message warning'>
   <p><strong>Please confirm</strong> that you would like to delete this object.
   <div class='alert-actions'>
     <form method='POST' action='{{ request.get_full_path }}'>

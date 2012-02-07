@@ -113,14 +113,16 @@ class ImportClientForm(forms.Form):
                           widget=forms.FileInput(attrs={'class': 'input-file'}))
 
 
-class ChildWizardForm(forms.Form):
+class UserCreateForm(forms.Form):
     handle = forms.CharField(max_length=30, help_text='handle for new child')
     email = forms.CharField(max_length=30,
                             help_text='email address for new user')
     password = forms.CharField(widget=forms.PasswordInput)
     password2 = forms.CharField(widget=forms.PasswordInput,
                                 label='Confirm Password')
-    parent = forms.ModelChoiceField(queryset=models.Conf.objects.all())
+    parent = forms.ModelChoiceField(required=False,
+                                    queryset=models.Conf.objects.all(),
+                                    help_text='optionally make a child of')
 
     def clean_handle(self):
         handle = self.cleaned_data.get('handle')

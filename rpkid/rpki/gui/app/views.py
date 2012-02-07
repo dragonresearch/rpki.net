@@ -434,7 +434,6 @@ def roa_create(request):
         form = forms.ROARequest(request.POST, request.FILES)
         if form.is_valid():
             asn = form.cleaned_data.get('asn')
-            conf = request.session['handle']
             rng = form._as_resource_range()  # FIXME calling "private" method
             max_prefixlen = int(form.cleaned_data.get('max_prefixlen'))
 
@@ -582,7 +581,7 @@ def roa_delete(request, pk):
     return render(request, 'app/roa_request_confirm_delete.html',
                   {'object': obj, 'routes': routes})
 
-
+
 @handle_required
 def ghostbuster_list(request):
     """
@@ -662,7 +661,7 @@ def ghostbuster_edit(request, pk):
 def ghostbuster_create(request):
     return _ghostbuster_edit(request)
 
-
+
 @handle_required
 def refresh(request):
     """
@@ -714,34 +713,7 @@ def child_delete(request, pk):
                          template_name='app/child_detail.html',
                          extra_context={'confirm_delete': True})
 
-
-@login_required
-def destroy_handle(request, handle):
-    """
-    Completely remove a hosted resource handle.
-
-    """
-    log = request.META['wsgi.errors']
-
-    if not request.user.is_superuser:
-        return http.HttpResponseForbidden()
-
-    get_object_or_404(models.Conf, handle=handle)
-
-    if request.method == 'POST':
-        form = forms.GenericConfirmationForm(request.POST, request.FILES)
-        if form.is_valid():
-            glue.destroy_handle(log, handle)
-            return render(request, 'app/generic_result.html',
-                    {'operation': 'Destroy ' + handle,
-                     'result': 'Succeeded'})
-    else:
-        form = forms.GenericConfirmationForm()
-
-    return render(request, 'app/destroy_handle_form.html',
-                  {'form': form, 'handle': handle})
-
-
+
 def roa_match(rng):
     """
     Return a list of tuples of matching routes and roas.
@@ -959,36 +931,40 @@ def user_create(request):
         return http.HttpResponseForbidden()
 
     if request.method == 'POST':
-        form = forms.ChildWizardForm(request.POST, request.FILES)
+        form = forms.UserCreateForm(request.POST, request.FILES)
         if form.is_valid():
             handle = form.cleaned_data.get('handle')
             pw = form.cleaned_data.get('password')
             email = form.cleaned_data.get('email')
+            parent = form.cleaned_data.get('parent')
 
             User.objects.create_user(handle, email, pw)
 
-            # FIXME etree_wrapper should allow us to deal with file objects
-            t = NamedTemporaryFile(delete=False)
-            t.close()
-
             zk_child = Zookeeper(handle=handle)
             identity_xml = zk_child.initialize()
-            identity_xml.save(t.name)
-            parent = form.cleaned_data.get('parent')
-            zk_parent = Zookeeper(handle=parent.handle)
-            parent_response, _ = zk_parent.configure_child(t.name)
-            parent_response.save(t.name)
-            repo_req, _ = zk_child.configure_parent(t.name)
-            repo_req.save(t.name)
-            repo_resp, _ = zk_parent.configure_publication_client(t.name)
-            repo_resp.save(t.name)
-            zk_child.configure_repository(t.name)
-            os.remove(t.name)
+            handles = [handle]
+            if parent:
+                # FIXME etree_wrapper should allow us to deal with file objects
+                t = NamedTemporaryFile(delete=False)
+                t.close()
+
+                identity_xml.save(t.name)
+                zk_parent = Zookeeper(handle=parent.handle)
+                parent_response, _ = zk_parent.configure_child(t.name)
+                parent_response.save(t.name)
+                repo_req, _ = zk_child.configure_parent(t.name)
+                repo_req.save(t.name)
+                repo_resp, _ = zk_parent.configure_publication_client(t.name)
+                repo_resp.save(t.name)
+                zk_child.configure_repository(t.name)
+                os.remove(t.name)
+                handles.append(parent.handle)
             # force rpkid run for both parent and child
-            zk_child.synchronize(parent.handle, handle)
+            zk_child.synchronize(*handles)
 
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
-        form = forms.ChildWizardForm()
+        conf = request.session['handle']
+        form = forms.UserCreateForm(initial={'parent': conf})
 
-    return render(request, 'app/child_wizard_form.html', {'form': form})
+    return render(request, 'app/user_create_form.html', {'form': form})

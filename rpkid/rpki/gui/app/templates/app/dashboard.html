@@ -8,9 +8,10 @@
   <li><a href="{% url rpki.gui.app.views.conf_list %}" title="select a different resource handle to manage">select identity</a></li>
 </ul>
 
-{% if user.is_staff %}
+{% if user.is_superuser %}
 <ul class='unstyled'>
   <li><a href="{% url rpki.gui.app.views.child_wizard %}" title="create a new locally hosted resource handle">create child wizard</a></li>
+  <li><a href="{% url rpki.gui.app.views.user_list %}" title="manage users">users</a></li>
 </ul>
 {% endif %}
 

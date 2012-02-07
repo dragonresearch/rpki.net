@@ -99,6 +99,10 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
         """
         return Child.objects.filter(issuer=self)
 
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.user_detail', [str(self.pk)])
+
     class Meta:
         proxy = True
 

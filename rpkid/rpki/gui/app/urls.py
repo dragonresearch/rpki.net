@@ -60,4 +60,8 @@ urlpatterns = patterns('',
     (r'^routes/$', views.route_view),
     (r'^child_wizard$', views.child_wizard),
     (r'^update_bpki', views.update_bpki),
+    (r'^user/$', views.user_list),
+    (r'^user/(?P<pk>\d+)$', views.user_detail),
+    (r'^user/(?P<pk>\d+)/delete$', views.user_delete),
+    (r'^user/(?P<pk>\d+)/edit$', views.user_edit),
 )

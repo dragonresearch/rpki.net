@@ -950,3 +950,45 @@ def client_export(request, pk):
     z = Zookeeper()
     xml = z.generate_repository_response(client)
     return serve_xml(str(xml), '%s.repo' % z.handle)
+
+
+@superuser_required
+def user_list(request):
+    """Display a list of all the RPKI handles managed by this server."""
+    # create a list of tuples of (Conf, User)
+    users = []
+    for conf in models.Conf.objects.all():
+        try:
+            u = User.objects.get(username=conf.handle)
+        except User.DoesNotExist:
+            u = None
+        users.append((conf, u))
+    return render(request, 'app/user_list.html', {'users': users})
+
+
+@superuser_required
+def user_detail(request):
+    """Placeholder for Conf.get_absolute_url()."""
+    pass
+
+
+@superuser_required
+def user_delete(request, pk):
+    conf = models.Conf.objects.get(pk=pk)
+    if request.method == 'POST':
+        form = forms.UserDeleteForm(request.POST)
+        if form.is_valid():
+            User.objects.filter(username=conf.handle).delete()
+            z = Zookeeper(handle=conf.handle)
+            z.delete_self()
+            z.synchronize()
+            return http.HttpResponseRedirect(reverse(user_list))
+    else:
+        form = forms.UserDeleteForm()
+    return render(request, 'app/user_confirm_delete.html',
+                  {'object': conf, 'form': form})
+
+
+@superuser_required
+def user_edit(request, pk):
+    pass

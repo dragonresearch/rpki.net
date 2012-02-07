@@ -294,3 +294,8 @@ def ChildForm(instance):
                                                         help_text='deselect to remove delegation')
 
     return _wrapped
+
+
+class UserDeleteForm(forms.Form):
+    """Stub form for deleting users."""
+    pass

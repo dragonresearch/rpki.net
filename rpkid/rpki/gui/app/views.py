@@ -472,7 +472,7 @@ def roa_create(request):
                         # if the route was previously unknown (no covering
                         # ROAs), then:
                         # if the AS matches, it is valid, otherwise invalid
-                        if route.asn == asn:
+                        if (route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen):
                             route.status = 'valid'
                             route.status_label = 'success'
                         else:
@@ -481,7 +481,7 @@ def roa_create(request):
                     elif route.status == 'invalid':
                         # if the route was previously invalid, but this new ROA
                         # matches the ASN, it is now valid
-                        if route.asn == asn:
+                        if route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen:
                             route.status = 'valid'
                             route.status_label = 'success'
 

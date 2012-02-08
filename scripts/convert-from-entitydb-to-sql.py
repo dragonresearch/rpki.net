@@ -357,7 +357,7 @@ for filename in glob.iglob(os.path.join(entitydb, "repositories", "*.xml")):
   if parent_handle == self_handle:
     turtle = resource_ca.rootd
   else:
-    turtle = rpki.irdb.Parent.objects.get(handle = parent_handle)
+    turtle = rpki.irdb.Parent.objects.get(handle = parent_handle, issuer = resource_ca)
 
   rpki.irdb.Repository.objects.get_or_create(
     handle = repository_handle,

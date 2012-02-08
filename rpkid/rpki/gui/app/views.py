@@ -522,7 +522,7 @@ def roa_list(request):
     """
 
     conf = request.session['handle']
-    qs = models.ROARequestPrefix.objects.filter(roa_request__issuer=conf)
+    qs = models.ROARequestPrefix.objects.filter(roa_request__issuer=conf).order_by('prefix')
     return object_list(request, queryset=qs,
             template_name='app/roa_request_list.html',
             extra_context={'create_url': reverse(roa_create)})

@@ -40,9 +40,12 @@ apache.conf: $(srcdir)/apache.conf.in Makefile
 	$(edit) $@.in > $@
 
 install: $(BUILD)
-	${INSTALL} -m 644 -D apache.conf $(SYSCONFDIR)/apache.conf
-	${INSTALL} -m 644 -D $(srcdir)/media/css/bootstrap.min.css $(INSTDIR)/media/css/bootstrap.min.css
-	${INSTALL} -m 644 -D rpki.wsgi $(INSTDIR)/wsgi/rpki.wsgi
+	${INSTALL} -d $(SYSCONFDIR)
+	${INSTALL} -d $(INSTDIR)/media/css
+	${INSTALL} -d $(INSTDIR)/wsgi
+	${INSTALL} -m 644 apache.conf $(SYSCONFDIR)/apache.conf
+	${INSTALL} -m 644 $(srcdir)/media/css/bootstrap.min.css $(INSTDIR)/media/css/bootstrap.min.css
+	${INSTALL} -m 644 rpki.wsgi $(INSTDIR)/wsgi/rpki.wsgi
 	# FIXME should eventually try to merge new settings?
 	@if [ ! -f ${SYSCONFDIR}/settings.py ]; then \
 	    ${INSTALL} -m 644 settings.py ${SYSCONFDIR}; \

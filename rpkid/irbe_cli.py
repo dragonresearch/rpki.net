@@ -227,9 +227,14 @@ class roa_elt(cmd_elt_mixin, rpki.publication.roa_elt):
 class report_error_elt(reply_elt_mixin, rpki.publication.report_error_elt):
   pass
 
+class ghostbuster_elt(cmd_elt_mixin, rpki.publication.ghostbuster_elt):
+  pass
+
 class publication_msg(cmd_msg_mixin, rpki.publication.msg):
   pdus = dict((x.element_name, x)
-              for x in (config_elt, client_elt, certificate_elt, crl_elt, manifest_elt, roa_elt, report_error_elt))
+              for x in (config_elt, client_elt, certificate_elt, crl_elt,
+                        manifest_elt, roa_elt, report_error_elt,
+                        ghostbuster_elt))
 
 class publication_sax_handler(rpki.publication.sax_handler):
   pdu = publication_msg

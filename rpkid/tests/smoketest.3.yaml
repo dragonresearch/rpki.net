@@ -51,10 +51,10 @@ kids:
         ipv4: 10.3.0.0/23
 ---
 #- shell find publication -type f -name '*.roa' -print -exec ../../../utils/print_roa/print_roa {} \;
-#- shell find publication -type f -name '*.mnf' -print -exec ../../../utils/print_manifest/print_manifest {} \;
+#- shell find publication -type f -name '*.mft' -print -exec ../../../utils/print_manifest/print_manifest {} \;
 #---
 #- shell find publication -type f -name '*.roa' -print -exec ../../../utils/print_roa/print_roa {} \;
-#- shell find publication -type f -name '*.mnf' -print -exec ../../../utils/print_manifest/print_manifest {} \;
+#- shell find publication -type f -name '*.mft' -print -exec ../../../utils/print_manifest/print_manifest {} \;
 #---
 - shell set -x; rtr_origin=../../../rtr-origin/rtr-origin; $rtr_origin --cronjob rcynic-data/authenticated && $rtr_origin --show
 ---

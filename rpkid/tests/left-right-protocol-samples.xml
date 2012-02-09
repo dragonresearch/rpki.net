@@ -973,7 +973,7 @@
 		fBk4i7H945v/zs7bLLMJxTs8+ao4iCDuknjbGhjWmi9xrTXDtcCXx607rPDkJQcJE2WnRS/U
 		HIA=
 	</list_published_objects>
-	<list_published_objects self_handle="42" uri="rsync://rpki.example.org/rpki/DEMEtlxZrZes7TNGbe7XwVSMgW0.mnf">
+	<list_published_objects self_handle="42" uri="rsync://rpki.example.org/rpki/DEMEtlxZrZes7TNGbe7XwVSMgW0.mft">
 		MIIHBQYJKoZIhvcNAQcCoIIG9jCCBvICAQMxDTALBglghkgBZQMEAgEwggEfBgsqhkiG9w0B
 		CRABGqCCAQ4EggEKMIIBBgICAWoYDzIwMDkwOTI4MjA1MTQ5WhgPMjAwOTA5MjgyMTUxNDla
 		BglghkgBZQMEAgEwgdIwRBYfREVNRXRseFpyWmVzN1ROR2JlN1h3VlNNZ1cwLmNybAMhAPgd

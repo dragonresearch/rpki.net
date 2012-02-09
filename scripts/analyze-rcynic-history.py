@@ -4,7 +4,7 @@ summaries and run gnuplot to draw some pictures.
 
 $Id$
 
-Copyright (C) 2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -19,77 +19,58 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-show_summary   = True
-show_sessions  = True
-show_plot      = True
-plot_all_hosts = False
-plot_to_one    = True
-plot_to_many   = True
+plot_all_hosts   = False
+plot_to_one      = True
+plot_to_many     = True
+write_rcynic_xml = True
 
 import mailbox, sys, urlparse, os, getopt, datetime, subprocess
 
 from xml.etree.cElementTree import (ElementTree as ElementTree,
                                     fromstring  as ElementTreeFromString)
 
-class Rsync_History(object):
+def parse_utc(s):
+  return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
 
-  timestamp_format = "%Y-%m-%dT%H:%M:%SZ"
+class Rsync_History(object):
+  """
+  An Rsync_History object represents one rsync connection.
+  """
 
   def __init__(self, elt):
-    self.started  = datetime.datetime.strptime(elt.get("started"),  self.timestamp_format)
-    self.finished = datetime.datetime.strptime(elt.get("finished"), self.timestamp_format)
     self.error = elt.get("error")
     self.uri = elt.text.strip()
     self.hostname = urlparse.urlparse(self.uri).hostname or None
-    self.elapsed = self.finished - self.started
-
-  def __cmp__(self, other):
-    return (cmp(self.started,  other.started) or
-            cmp(self.finished, other.finished) or
-            cmp(self.hostname, other.hostname))
+    self.elapsed = parse_utc(elt.get("finished")) - parse_utc(elt.get("started"))
 
 class Host(object):
+  """
+  A host object represents all the data collected for one host.  Note
+  that it (usually) contains a list of all the sessions in which this
+  host appears.
+  """
 
-  def __init__(self, hostname, session_id = None):
+  def __init__(self, hostname, session_id):
     self.hostname = hostname
-    self.session_ids = []
-    if session_id is not None:
-      self.session_ids.append(session_id)
+    self.session_id = session_id
     self.elapsed = datetime.timedelta(0)
     self.connection_count = 0
     self.dead_connections = 0
     self.uris = set()
-    self.connections = []
-
-  def __add__(self, other):
-    assert self.hostname == other.hostname
-    result = self.__class__(self.hostname)
-    for a in ("elapsed", "connection_count", "dead_connections", "session_ids", "connections"):
-      setattr(result, a, getattr(self, a) + getattr(other, a))
-    result.uris = self.uris | other.uris
-    return result
+    self.total_connection_time = datetime.timedelta(0)
 
   def add_rsync_history(self, h):
-    self.connection_count += 1
-    self.elapsed += h.elapsed
-    self.dead_connections += int(h.error is not None)
-    self.connections.append(h)
+    self.connection_count      += 1
+    self.elapsed               += h.elapsed
+    self.dead_connections      += int(h.error is not None)
+    self.total_connection_time += h.elapsed
 
   def add_uri(self, u):
     self.uris.add(u)
 
-  @property
-  def session_id(self):
-    assert len(self.session_ids) == 1
-    return self.session_ids[0]
-
-  @property
-  def session_count(self):
-    return len(self.session_ids)
-
-  @property
-  def object_count(self):
-    return len(self.uris)
+  def finalize(self):
+    self.object_count = len(self.uris)
+    del self.uris
 
   @property
   def failure_rate_percentage(self):
@@ -97,28 +78,15 @@ class Host(object):
 
   @property
   def seconds_per_object(self):
-    return (float((self.elapsed.days * 24 * 3600 + self.elapsed.seconds) * 10**6 +
-                  self.elapsed.microseconds) /
-            float(self.object_count * self.session_count * 10**6))
+    return float(self.elapsed.total_seconds()) / float(self.object_count)
 
   @property
   def objects_per_connection(self):
-    return (float(self.object_count * self.session_count) /
-            float(self.connection_count))
-
-  @property
-  def scaled_connections(self):
-    return float(self.connection_count) / float(self.session_count)
-
-  @property
-  def scaled_elapsed(self):
-    return self.elapsed / self.session_count
+    return float(self.object_count) / float(self.connection_count)
 
   @property
   def average_connection_time(self):
-    return (float(sum(((c.elapsed.days * 24 * 3600 + c.elapsed.seconds) * 10**6 + c.elapsed.microseconds)
-                      for c in self.connections)) /
-            float(self.connection_count * 10**6))
+    return float(self.total_connection_time.total_seconds()) / float(self.connection_count)
 
   class Format(object):
 
@@ -135,8 +103,7 @@ class Host(object):
       except ZeroDivisionError:
         return self.oops
 
-  format = (Format("scaled_elapsed",          "Rsync Time",         ".10s"),
-            Format("scaled_connections",      "Connections",        "d"),
+  format = (Format("connection_count",        "Connections",        "d"),
             Format("object_count",            "Objects",            "d"),
             Format("objects_per_connection",  "Objects/Connection", ".3f"),
             Format("seconds_per_object",      "Seconds/Object",     ".3f"),
@@ -157,9 +124,14 @@ class Host(object):
     return self.format_dict[name](self).strip()
 
 class Session(dict):
+  """
+  A session corresponds to one XML file.  This is a dictionary of Host
+  objects, keyed by hostname.
+  """
 
-  def __init__(self, session_id = None):
+  def __init__(self, session_id, msg_key):
     self.session_id = session_id
+    self.msg_key = msg_key
 
   @property
   def hostnames(self):
@@ -167,17 +139,6 @@ class Session(dict):
 
   def get_plot_row(self, name, hostnames):
     return (self.session_id,) + tuple(self[h].format_field(name) if h in self else "" for h in hostnames)
-
-  def __add__(self, other):
-    result = self.__class__()
-    for h in self.hostnames | other.hostnames:
-      if h in self and h in other:
-        result[h] = self[h] + other[h]
-      elif h in self:
-        result[h] = self[h]
-      else:
-        result[h] = other[h]
-    return result
 
   def add_rsync_history(self, h):
     if h.hostname not in self:
@@ -189,43 +150,9 @@ class Session(dict):
     if h and h in self:
       self[h].add_uri(u)
 
-  def dump(self, title, f = sys.stdout):
-    f.write("\n" + title + "\n" + Host.header + "\n")
-    for h in sorted(self):
-      f.write(str(self[h]) + "\n")
-
-mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
-
-sessions = []
-
-for msg in mb.itervalues():
-
-  sys.stderr.write(".")
-
-  assert not msg.is_multipart()
-
-  input = ElementTreeFromString(msg.get_payload())
-
-  session = Session(input.get("date"))
-  sessions.append(session)
-
-  for elt in input.findall("rsync_history"):
-    session.add_rsync_history(Rsync_History(elt))
-
-  for elt in input.findall("validation_status"):
-    if elt.get("generation") == "current":
-      session.add_uri(elt.text.strip())
-
-sys.stderr.write("\n")
-
-summary = sum(sessions, Session())
-
-if show_summary:
-  summary.dump("Summary (%d sessions)" % len(sessions))
-
-if show_sessions:
-  for i, session in enumerate(sessions, 1):
-    session.dump("Session #%d (%s)" % (i, session.session_id))
+  def finalize(self):
+    for h in self.itervalues():
+      h.finalize()
 
 def plotter(f, hostnames, field, logscale = False):
   plotlines = sorted(session.get_plot_row(field, hostnames) for session in sessions)
@@ -246,7 +173,7 @@ def plotter(f, hostnames, field, logscale = False):
           #set format x '%m/%d'
           set format x '%b%d'
           #set title '""" + title + """'
-          plot""" + ",".join(" '-' using 1:2 with lines title '%s'" % h for h in hostnames) + "\n")
+          plot""" + ",".join(" '-' using 1:2 with linespoints pointinterval 500 title '%s'" % h for h in hostnames) + "\n")
   for i in xrange(1, n):
     for plotline in plotlines:
       f.write("%s %s\n" % (plotline[0], plotline[i].rstrip("%")))
@@ -267,19 +194,65 @@ def plot_one(hostnames, fields):
   gnuplot.stdin.write("set terminal pdf\n")
   gnuplot.stdin.write("set output 'analyze-rcynic-history.pdf'\n")
   for field  in fields:
-    if field not in ("scaled_elapsed", "hostname"):
+    if field != "hostname":
       plotter(gnuplot.stdin, hostnames, field, logscale = False)
       plotter(gnuplot.stdin, hostnames, field, logscale = True)
   gnuplot.stdin.close()
   gnuplot.wait()
 
-if show_plot:
-  if plot_all_hosts:
-    hostnames = sorted(summary.hostnames)
-  else:
-    hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net", "rpki.afrinic.net", "arin.rpki.net", "rgnet.rpki.net")
-  fields = [fmt.attr for fmt in Host.format if fmt.attr not in ("scaled_elapsed", "hostname")]
-  if plot_to_one:
-    plot_one(hostnames, fields)
-  if plot_to_many:
-    plot_many(hostnames, fields)
+mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
+
+sessions = []
+
+latest = None
+
+for i, key in enumerate(mb.iterkeys(), 1):
+
+  sys.stderr.write("\r%s %d/%d..." % ("|\\-/"[i & 3], i, len(mb)))
+
+  assert not mb[key].is_multipart()
+
+  input = ElementTreeFromString(mb[key].get_payload())
+
+  date = input.get("date")
+
+  sys.stderr.write("%s..." % date)
+
+  session = Session(date, key)
+  sessions.append(session)
+
+  if latest is None or session.session_id > latest.session_id:
+    latest = session
+
+  for elt in input.findall("rsync_history"):
+    session.add_rsync_history(Rsync_History(elt))
+
+  for elt in input.findall("validation_status"):
+    if elt.get("generation") == "current":
+      session.add_uri(elt.text.strip())
+
+  session.finalize()
+
+sys.stderr.write("\n")
+
+if plot_all_hosts:
+  hostnames = set()
+  for session in sessions:
+    hostnames.update(session.hostnames)
+  hostnames = sorted(hostnames)
+
+else:
+  hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net",
+               "rpki.afrinic.net", "arin.rpki.net", "rgnet.rpki.net",
+               "rpki-pilot.arin.net")
+
+fields = [fmt.attr for fmt in Host.format if fmt.attr != "hostname"]
+if plot_to_one:
+  plot_one(hostnames, fields)
+if plot_to_many:
+  plot_many(hostnames, fields)
+
+if write_rcynic_xml and latest is not None:
+  f = open("rcynic.xml", "wb")
+  f.write(mb[latest.msg_key].get_payload())
+  f.close()

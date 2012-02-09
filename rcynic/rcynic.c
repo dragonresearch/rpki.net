@@ -219,6 +219,7 @@ static const struct {
   QB(bad_key_usage,			"Bad keyUsage")			    \
   QB(bad_manifest_digest_length,	"Bad manifest digest length")	    \
   QB(bad_public_key,			"Bad public key")		    \
+  QB(bad_roa_asID,			"Bad ROA asID")			    \
   QB(bad_serial_number,			"Bad serialNumber")		    \
   QB(certificate_bad_signature,		"Bad certificate signature")	    \
   QB(certificate_failed_validation,	"Certificate failed validation")    \
@@ -253,6 +254,7 @@ static const struct {
   QB(nonconformant_signature_algorithm,	"Nonconformant signature algorithm")\
   QB(nonconformant_digest_algorithm,	"Nonconformant digest algorithm")   \
   QB(object_rejected,			"Object rejected")		    \
+  QB(rfc3779_inheritance_required,	"RFC 3779 inheritance required")    \
   QB(roa_contains_bad_afi_value,	"ROA contains bad AFI value")	    \
   QB(roa_resource_not_in_ee,		"ROA resource not in EE")	    \
   QB(roa_resources_malformed,		"ROA resources malformed")	    \
@@ -272,6 +274,7 @@ static const struct {
   QW(crldp_names_newer_crl,		"CRLDP names newer CRL")	    \
   QW(digest_mismatch,			"Digest mismatch")		    \
   QW(issuer_uses_multiple_crldp_values,	"Issuer uses multiple CRLDP values")\
+  QW(multiple_rsync_uris_in_extension,  "Multiple rsync URIs in extension") \
   QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
   QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
   QW(rsync_transfer_skipped,		"rsync transfer skipped")	    \
@@ -2781,7 +2784,7 @@ static int extract_crldp_uri(rcynic_ctx_t *rc,
   DIST_POINT *d;
   int i;
 
-  assert(crldp);
+  assert(rc && uri && crldp && result);
 
   if (sk_DIST_POINT_num(crldp) != 1)
     goto bad;
@@ -2795,15 +2798,17 @@ static int extract_crldp_uri(rcynic_ctx_t *rc,
     GENERAL_NAME *n = sk_GENERAL_NAME_value(d->distpoint->name.fullname, i);
     if (n == NULL || n->type != GEN_URI)
       goto bad;
-    if (!is_rsync((char *) n->d.uniformResourceIdentifier->data)) {
+    if (!is_rsync((char *) n->d.uniformResourceIdentifier->data))
       log_validation_status(rc, uri, non_rsync_uri_in_extension, generation);
-    } else if (sizeof(result->s) <= n->d.uniformResourceIdentifier->length) {
+    else if (sizeof(result->s) <= n->d.uniformResourceIdentifier->length)
       log_validation_status(rc, uri, uri_too_long, generation);
-    } else {
+    else if (result->s[0])
+      log_validation_status(rc, uri, multiple_rsync_uris_in_extension, generation);
+    else
       strcpy(result->s, (char *) n->d.uniformResourceIdentifier->data);
-      return 1;
-    }
   }
+
+  return result->s[0];
 
  bad:
   log_validation_status(rc, uri, malformed_crldp_extension, generation);
@@ -2819,11 +2824,12 @@ static int extract_access_uri(rcynic_ctx_t *rc,
 			      const AUTHORITY_INFO_ACCESS *xia,
 			      const unsigned char *oid,
 			      const int oidlen,
-			      uri_t *result)
+			      uri_t *result,
+			      int *count)
 {
   int i;
 
-  assert(xia);
+  assert(rc && uri && xia && oid && result && count);
 
   for (i = 0; i < sk_ACCESS_DESCRIPTION_num(xia); i++) {
     ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(xia, i);
@@ -2831,14 +2837,15 @@ static int extract_access_uri(rcynic_ctx_t *rc,
       return 0;
     if (oid_cmp(a->method, oid, oidlen))
       continue;
-    if (!is_rsync((char *) a->location->d.uniformResourceIdentifier->data)) {
+    ++*count;
+    if (!is_rsync((char *) a->location->d.uniformResourceIdentifier->data))
       log_validation_status(rc, uri, non_rsync_uri_in_extension, generation);
-    } else if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length) {
+    else if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length)
       log_validation_status(rc, uri, uri_too_long, generation);
-    } else {
-      strcpy(result->s, (char *) a->location->d.uniformResourceIdentifier->data);
-      return 1;
-    }
+    else if (result->s[0])
+      log_validation_status(rc, uri, multiple_rsync_uris_in_extension, generation);
+    else
+      strcpy(result->s, (char *) a->location->d.uniformResourceIdentifier->data);      
   }
   return 1;
 }
@@ -3013,21 +3020,6 @@ static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
       }
     }
   }
-
-#if 0
-  /*
-   * Might need to generalize this to check cert AKI as well.  Haven't
-   * handled cert SKI check yet either.  Do we want to call
-   * X509_check_akid() here or just compare the OCTET STRINGs
-   * directly?  99% of X509_check_akid() is irrelevant to our profile.
-   */
-  if (!crl->akid ||
-      !crl->akid->keyid ||
-      crl->akid->serial ||
-      crl->akid->issuer ||
-      X509_check_akid(issuer, crl->akid) != X509_V_OK)
-    bad_crl_akid;
-#endif
 
   if ((pkey = X509_get_pubkey(issuer)) == NULL)
     goto punt;
@@ -3227,11 +3219,9 @@ static int check_x509(rcynic_ctx_t *rc,
   ASN1_BIT_STRING *ski_pubkey = NULL;
   STACK_OF(DIST_POINT) *crldp = NULL;
   BASIC_CONSTRAINTS *bc = NULL;
-  ASIdentifiers *asid = NULL;
-  IPAddrBlocks *addr = NULL;
   hashbuf_t ski_hashbuf;
   unsigned ski_hashlen;
-  int ok, crit, ex_count, ret = 0;
+  int ok, crit, loc, ex_count, ret = 0;
 
   assert(rc && wsk && w && uri && x && w->cert);
 
@@ -3297,10 +3287,13 @@ static int check_x509(rcynic_ctx_t *rc,
   }
 
   if ((aia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
+    int n_caIssuers = 0;
     ex_count--;
     if (!extract_access_uri(rc, uri, generation, aia,
-			    id_ad_caIssuers, sizeof(id_ad_caIssuers), &certinfo->aia) ||
-	!certinfo->aia.s[0]) {
+			    id_ad_caIssuers, sizeof(id_ad_caIssuers),
+			    &certinfo->aia, &n_caIssuers) ||
+	!certinfo->aia.s[0] ||
+	sk_ACCESS_DESCRIPTION_num(aia) != n_caIssuers) {
       log_validation_status(rc, uri, malformed_aia_extension, generation);
       goto done;
     }
@@ -3317,18 +3310,19 @@ static int check_x509(rcynic_ctx_t *rc,
   }
 
   if ((sia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
-    int got_caDirectory, got_rpkiManifest, got_signedObject;
+    int got_caDirectory,     got_rpkiManifest,     got_signedObject;
+    int   n_caDirectory = 0,   n_rpkiManifest = 0,   n_signedObject = 0;
     ex_count--;
     ok = (extract_access_uri(rc, uri, generation, sia, id_ad_caRepository,
-			     sizeof(id_ad_caRepository), &certinfo->sia) &&
+			     sizeof(id_ad_caRepository), &certinfo->sia, &n_caDirectory) &&
 	  extract_access_uri(rc, uri, generation, sia, id_ad_rpkiManifest,
-			     sizeof(id_ad_rpkiManifest), &certinfo->manifest) &&
+			     sizeof(id_ad_rpkiManifest), &certinfo->manifest, &n_rpkiManifest) &&
 	  extract_access_uri(rc, uri, generation, sia, id_ad_signedObject,
-			     sizeof(id_ad_signedObject), &certinfo->signedobject));
+			     sizeof(id_ad_signedObject), &certinfo->signedobject, &n_signedObject));
     got_caDirectory  = certinfo->sia.s[0]          != '\0';
     got_rpkiManifest = certinfo->manifest.s[0]     != '\0';
     got_signedObject = certinfo->signedobject.s[0] != '\0';
-    ok &= sk_ACCESS_DESCRIPTION_num(sia) == got_caDirectory + got_rpkiManifest + got_signedObject;
+    ok &= sk_ACCESS_DESCRIPTION_num(sia) == n_caDirectory + n_rpkiManifest + n_signedObject;
     if (certinfo->ca)
       ok &=  got_caDirectory &&  got_rpkiManifest && !got_signedObject;
     else if (rc->allow_ee_without_signedObject)
@@ -3435,23 +3429,28 @@ static int check_x509(rcynic_ctx_t *rc,
     }
   }
 
-  if ((addr = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, &crit, NULL)) != NULL) {
+  if (x->rfc3779_addr) {
     ex_count--;
-    if (!crit || !v3_addr_is_canonical(addr)) {
+    if ((loc = X509_get_ext_by_NID(x, NID_sbgp_ipAddrBlock, -1)) < 0 ||
+	!X509_EXTENSION_get_critical(X509_get_ext(x, loc)) ||
+	!v3_addr_is_canonical(x->rfc3779_addr)) {
       log_validation_status(rc, uri, bad_ipaddrblocks, generation);
       goto done;
     }
   }
 
-  if ((asid = X509_get_ext_d2i(x, NID_sbgp_autonomousSysNum, &crit, NULL)) != NULL) {
+  if (x->rfc3779_asid) {
     ex_count--;
-    if (!crit || !v3_asid_is_canonical(asid)) {
+    if ((loc = X509_get_ext_by_NID(x, NID_sbgp_autonomousSysNum, -1)) < 0 ||
+	!X509_EXTENSION_get_critical(X509_get_ext(x, loc)) ||
+	!v3_asid_is_canonical(x->rfc3779_asid) ||
+	x->rfc3779_asid->rdi != NULL) {
       log_validation_status(rc, uri, bad_asidentifiers, generation);
       goto done;
     }
   }
 
-  if (!addr && !asid) {
+  if (!x->rfc3779_addr && !x->rfc3779_asid) {
     log_validation_status(rc, uri, missing_resources, generation);
     goto done;
   }
@@ -3500,6 +3499,17 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
+  if (x->akid) {
+    ex_count--;
+    if (!check_aki(rc, uri, w->cert, x->akid, generation))
+      goto done;
+  }
+
+  if (!x->akid && !certinfo->ta) {
+    log_validation_status(rc, uri, aki_extension_missing, generation);
+    goto done;
+  }
+
   if (certinfo->ta) {
 
     if (certinfo->crldp.s[0]) {
@@ -3508,11 +3518,6 @@ static int check_x509(rcynic_ctx_t *rc,
     }
 
   } else {
-
-    if (check_aki(rc, uri, w->cert, x->akid, generation))
-      ex_count--;
-    else
-      goto done;
 
     if (!certinfo->crldp.s[0]) {
       log_validation_status(rc, uri, crldp_uri_missing, generation);
@@ -3596,6 +3601,130 @@ static int check_x509(rcynic_ctx_t *rc,
 
   return ret;
 }
+
+/**
+ * Check a signed CMS object.
+ */
+static int check_cms(rcynic_ctx_t *rc,
+		     STACK_OF(walk_ctx_t) *wsk,
+		     const uri_t *uri,
+		     path_t *path,
+		     const path_t *prefix,
+		     CMS_ContentInfo **pcms,
+		     X509 **px,
+		     certinfo_t *certinfo,
+		     BIO *bio,
+		     const unsigned char *hash,
+		     const size_t hashlen,
+		     const unsigned char *expected_eContentType,
+		     const size_t expected_eContentType_len,
+		     const int require_inheritance,
+		     const object_generation_t generation)
+{
+  const ASN1_OBJECT *eContentType = NULL;
+  STACK_OF(CMS_SignerInfo) *signer_infos = NULL;
+  STACK_OF(X509) *signers = NULL;
+  CMS_ContentInfo *cms = NULL;
+  CMS_SignerInfo *si = NULL;
+  ASN1_OCTET_STRING *sid = NULL;
+  X509_NAME *si_issuer = NULL;
+  ASN1_INTEGER *si_serial = NULL;
+  hashbuf_t hashbuf;
+  X509 *x = NULL;
+  certinfo_t certinfo_;
+  int i, result = 0;
+
+  assert(rc && wsk && uri && path && prefix && expected_eContentType);
+
+  if (!certinfo)
+    certinfo = &certinfo_;
+
+  if (!uri_to_filename(rc, uri, path, prefix))
+    goto error;
+
+  if (hash)
+    cms = read_cms(path, &hashbuf);
+  else
+    cms = read_cms(path, NULL);
+
+  if (!cms)
+    goto error;
+
+  if (hash && (hashlen > sizeof(hashbuf.h) ||
+	       memcmp(hashbuf.h, hash, hashlen))) {
+    log_validation_status(rc, uri, digest_mismatch, generation);
+    if (!rc->allow_digest_mismatch)
+      goto error;
+  }
+
+  if (!(eContentType = CMS_get0_eContentType(cms)) ||
+      oid_cmp(eContentType, expected_eContentType,
+	      expected_eContentType_len)) {
+    log_validation_status(rc, uri, bad_cms_econtenttype, generation);
+    goto error;
+  }
+
+  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
+    log_validation_status(rc, uri, cms_validation_failure, generation);
+    goto error;
+  }
+
+  if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1 ||
+      (x = sk_X509_value(signers, 0)) == NULL) {
+    log_validation_status(rc, uri, cms_signer_missing, generation);
+    goto error;
+  }
+
+  if ((signer_infos = CMS_get0_SignerInfos(cms)) == NULL ||
+      sk_CMS_SignerInfo_num(signer_infos) != 1 ||
+      (si = sk_CMS_SignerInfo_value(signer_infos, 0)) == NULL ||
+      !CMS_SignerInfo_get0_signer_id(si, &sid, &si_issuer, &si_serial) ||
+      sid == NULL || si_issuer != NULL || si_serial != NULL) {
+    log_validation_status(rc, uri, bad_cms_signer_infos, generation);
+    goto error;
+  }
+
+  if (CMS_SignerInfo_cert_cmp(si, x)) {
+    log_validation_status(rc, uri, cms_ski_mismatch, generation);
+    goto error;
+  }
+
+  if (!check_x509(rc, wsk, uri, x, certinfo, generation))
+    goto error;
+
+  if (require_inheritance && x->rfc3779_addr) {
+    for (i = 0; i < sk_IPAddressFamily_num(x->rfc3779_addr); i++) {
+      IPAddressFamily *f = sk_IPAddressFamily_value(x->rfc3779_addr, i);
+      if (f->ipAddressChoice->type != IPAddressChoice_inherit) {
+	log_validation_status(rc, uri, rfc3779_inheritance_required, generation);
+	goto error;
+      }
+    }
+  }
+
+  if (require_inheritance && x->rfc3779_asid && x->rfc3779_asid->asnum &&
+      x->rfc3779_asid->asnum->type != ASIdentifierChoice_inherit) {
+    log_validation_status(rc, uri, rfc3779_inheritance_required, generation);
+    goto error;
+  }
+
+  if (pcms) {
+    *pcms = cms;
+    cms = NULL;
+  }
+
+  if (px)
+    *px = x;
+
+  result = 1;
+
+ error:
+  CMS_ContentInfo_free(cms);
+
+  return result;
+}
+
+
 
 /**
  * Load certificate, check against manifest, then run it through all
@@ -3707,43 +3836,21 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
 				  const object_generation_t generation)
 {
   Manifest *manifest = NULL, *result = NULL;
-  const ASN1_OBJECT *eContentType = NULL;
-  STACK_OF(X509) *signers = NULL;
   CMS_ContentInfo *cms = NULL;
   FileAndHash *fah = NULL;
   BIO *bio = NULL;
-  X509 *ee;
+  X509 *x;
   int i;
 
   assert(rc && wsk && uri && path && prefix);
-
-  if (!uri_to_filename(rc, uri, path, prefix) ||
-      (cms = read_cms(path, NULL)) == NULL)
-    goto done;
-
-  if ((eContentType = CMS_get0_eContentType(cms)) == NULL ||
-      oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest))) {
-    log_validation_status(rc, uri, bad_cms_econtenttype, generation);
-    goto done;
-  }
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL) {
     logmsg(rc, log_sys_err, "Couldn't allocate BIO for manifest %s", uri->s);
     goto done;
   }
 
-  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    log_validation_status(rc, uri, cms_validation_failure, generation);
-    goto done;
-  }
-
-  if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1 ||
-      (ee = sk_X509_value(signers, 0)) == NULL) {
-    log_validation_status(rc, uri, cms_signer_missing, generation);
-    goto done;
-  }
-
-  if (!check_x509(rc, wsk, uri, ee, certinfo, generation))
+  if (!check_cms(rc, wsk, uri, path, prefix, &cms, &x, certinfo, bio, NULL, 0,
+		 id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest), 1, generation))
     goto done;
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
@@ -3793,7 +3900,6 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
   BIO_free(bio);
   Manifest_free(manifest);
   CMS_ContentInfo_free(cms);
-  sk_X509_free(signers);
 
   return result;
 }
@@ -3949,21 +4055,12 @@ static int check_roa_1(rcynic_ctx_t *rc,
 		       const size_t hashlen,
 		       const object_generation_t generation)
 {
-  unsigned char addrbuf[ADDR_RAW_BUF_LEN];
-  const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(IPAddressFamily) *roa_resources = NULL, *ee_resources = NULL;
-  STACK_OF(CMS_SignerInfo) *signer_infos = NULL;
-  STACK_OF(X509) *signers = NULL;
+  unsigned char addrbuf[ADDR_RAW_BUF_LEN];
   CMS_ContentInfo *cms = NULL;
-  CMS_SignerInfo *si = NULL;
-  ASN1_OCTET_STRING *sid = NULL;
-  X509_NAME *si_issuer = NULL;
-  ASN1_INTEGER *si_serial = NULL;
-  hashbuf_t hashbuf;
-  ROA *roa = NULL;
   BIO *bio = NULL;
+  ROA *roa = NULL;
   X509 *x = NULL;
-  certinfo_t certinfo;
   int i, j, result = 0;
   unsigned afi, *safi = NULL, safi_, prefixlen;
   ROAIPAddressFamily *rf;
@@ -3971,62 +4068,14 @@ static int check_roa_1(rcynic_ctx_t *rc,
 
   assert(rc && wsk && uri && path && prefix);
 
-  if (!uri_to_filename(rc, uri, path, prefix))
-    goto error;
-
-  if (hash)
-    cms = read_cms(path, &hashbuf);
-  else
-    cms = read_cms(path, NULL);
-
-  if (!cms)
-    goto error;
-
-  if (hash && (hashlen > sizeof(hashbuf.h) ||
-	       memcmp(hashbuf.h, hash, hashlen))) {
-    log_validation_status(rc, uri, digest_mismatch, generation);
-    if (!rc->allow_digest_mismatch)
-      goto error;
-  }
-
-  if (!(eContentType = CMS_get0_eContentType(cms)) ||
-      oid_cmp(eContentType, id_ct_routeOriginAttestation,
-	      sizeof(id_ct_routeOriginAttestation))) {
-    log_validation_status(rc, uri, bad_cms_econtenttype, generation);
-    goto error;
-  }
-
   if ((bio = BIO_new(BIO_s_mem())) == NULL) {
     logmsg(rc, log_sys_err, "Couldn't allocate BIO for ROA %s", uri->s);
     goto error;
   }
 
-  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    log_validation_status(rc, uri, cms_validation_failure, generation);
-    goto error;
-  }
-
-  if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1 ||
-      (x = sk_X509_value(signers, 0)) == NULL) {
-    log_validation_status(rc, uri, cms_signer_missing, generation);
-    goto error;
-  }
-
-  if ((signer_infos = CMS_get0_SignerInfos(cms)) == NULL ||
-      sk_CMS_SignerInfo_num(signer_infos) != 1 ||
-      (si = sk_CMS_SignerInfo_value(signer_infos, 0)) == NULL ||
-      !CMS_SignerInfo_get0_signer_id(si, &sid, &si_issuer, &si_serial) ||
-      sid == NULL || si_issuer != NULL || si_serial != NULL) {
-    log_validation_status(rc, uri, bad_cms_signer_infos, generation);
-    goto error;
-  }
-
-  if (CMS_SignerInfo_cert_cmp(si, x)) {
-    log_validation_status(rc, uri, cms_ski_mismatch, generation);
-    goto error;
-  }
-
-  if (!check_x509(rc, wsk, uri, x, &certinfo, generation))
+  if (!check_cms(rc, wsk, uri, path, prefix, &cms, &x, NULL, bio, NULL, 0,
+		 id_ct_routeOriginAttestation, sizeof(id_ct_routeOriginAttestation), 
+		 0, generation))
     goto error;
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
@@ -4039,12 +4088,12 @@ static int check_roa_1(rcynic_ctx_t *rc,
     goto error;
   }
 
-  /*
-   * ROA issuer doesn't need rights to the ASN, so we don't need to
-   * check the asID field.
-   */
+  if (ASN1_INTEGER_cmp(roa->asID, asn1_zero) < 0) {
+    log_validation_status(rc, uri, bad_roa_asID, generation);
+    goto error;
+  }
 
-  ee_resources = X509_get_ext_d2i(sk_X509_value(signers, 0), NID_sbgp_ipAddrBlock, NULL, NULL);
+  ee_resources = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, NULL, NULL);
 
   /*
    * Extract prefixes from ROA and convert them into a resource set.
@@ -4134,7 +4183,6 @@ static int check_roa_1(rcynic_ctx_t *rc,
   BIO_free(bio);
   ROA_free(roa);
   CMS_ContentInfo_free(cms);
-  sk_X509_free(signers);
   sk_IPAddressFamily_pop_free(roa_resources, IPAddressFamily_free);
   sk_IPAddressFamily_pop_free(ee_resources, IPAddressFamily_free);
 
@@ -4199,40 +4247,12 @@ static int check_ghostbuster_1(rcynic_ctx_t *rc,
 			       const size_t hashlen,
 			       const object_generation_t generation)
 {
-  const ASN1_OBJECT *eContentType = NULL;
-  STACK_OF(X509) *signers = NULL;
   CMS_ContentInfo *cms = NULL;
-  hashbuf_t hashbuf;
   BIO *bio = NULL;
-  certinfo_t certinfo;
+  X509 *x;
   int result = 0;
 
   assert(rc && wsk && uri && path && prefix);
-
-  if (!uri_to_filename(rc, uri, path, prefix))
-    goto error;
-
-  if (hash)
-    cms = read_cms(path, &hashbuf);
-  else
-    cms = read_cms(path, NULL);
-
-  if (!cms)
-    goto error;
-
-  if (hash && (hashlen > sizeof(hashbuf.h) ||
-	       memcmp(hashbuf.h, hash, hashlen))) {
-    log_validation_status(rc, uri, digest_mismatch, generation);
-    if (!rc->allow_digest_mismatch)
-      goto error;
-  }
-
-  if (!(eContentType = CMS_get0_eContentType(cms)) ||
-      oid_cmp(eContentType, id_ct_rpkiGhostbusters,
-	      sizeof(id_ct_rpkiGhostbusters))) {
-    log_validation_status(rc, uri, bad_cms_econtenttype, generation);
-    goto error;
-  }
 
 #if 0
   /*
@@ -4245,15 +4265,10 @@ static int check_ghostbuster_1(rcynic_ctx_t *rc,
   }
 #endif
 
-  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    log_validation_status(rc, uri, cms_validation_failure, generation);
+  if (!check_cms(rc, wsk, uri, path, prefix, &cms, &x, NULL, bio, NULL, 0,
+		 id_ct_rpkiGhostbusters, sizeof(id_ct_rpkiGhostbusters),
+		 1, generation))
     goto error;
-  }
-
-  if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
-    log_validation_status(rc, uri, cms_signer_missing, generation);
-    goto error;
-  }
 
 #if 0
   /*
@@ -4262,15 +4277,11 @@ static int check_ghostbuster_1(rcynic_ctx_t *rc,
    */
 #endif
 
-  if (!check_x509(rc, wsk, uri, sk_X509_value(signers, 0), &certinfo, generation))
-    goto error;
-
   result = 1;
 
  error:
   BIO_free(bio);
   CMS_ContentInfo_free(cms);
-  sk_X509_free(signers);
 
   return result;
 }

@@ -24,13 +24,14 @@ import sys, urlparse, os, getopt
 from xml.etree.ElementTree import (ElementTree, Element, SubElement, Comment)
 
 opt = {
-  "refresh"               : 1800,
-  "suppress_zero_columns" : True,
-  "use_colors"            : True,
-  "show_detailed_status"  : True,
-  "show_problems"         : False,
-  "show_summary"          : True,
-  "one_file_per_section"  : False }
+  "refresh"                     : 1800,
+  "suppress_zero_columns"       : True,
+  "use_colors"                  : True,
+  "show_detailed_status"        : True,
+  "show_problems"               : False,
+  "show_summary"                : True,
+  "suppress_backup_whining"     : True,
+  "one_file_per_section"        : False }
 
 def usage(msg = 0):
   f = sys.stderr if msg else sys.stdout
@@ -79,13 +80,17 @@ class Label(object):
 
 class Validation_Status(object):
 
-  def __init__(self, elt, map):
+  label_map = None
+
+  def __init__(self, elt):
     self.uri = elt.text.strip()
     self.timestamp = elt.get("timestamp")
     self.generation = elt.get("generation")
     self.hostname = urlparse.urlparse(self.uri).hostname or None
     self.fn2 = os.path.splitext(self.uri)[1] or None if self.generation else None
-    self.label = map[elt.get("status")]
+    self.label = self.label_map[elt.get("status")]
+
+  def stand_up_and_be_counted(self):
     self.label.sum += 1
 
   @property
@@ -96,6 +101,22 @@ class Validation_Status(object):
   def mood(self):
     return self.label.mood
 
+  @property
+  def accepted(self):
+    return self.label.code == "object_accepted"
+
+  @property
+  def rejected(self):
+    return self.label.code == "object_rejected"
+
+  @property
+  def is_current(self):
+    return self.generation == "current"
+
+  @property
+  def is_backup(self):
+    return self.generation == "backup"
+  
 html = None
 body = None
 
@@ -150,9 +171,17 @@ def finish_html(name = None):
 
 input = ElementTree(file = sys.stdin if input_file is None else input_file)
 labels = [Label(elt) for elt in input.find("labels")]
-label_map = dict((l.code, l) for l in labels)
-validation_status = [Validation_Status(elt, label_map) for elt in input.findall("validation_status")]
-del label_map
+Validation_Status.label_map = dict((l.code, l) for l in labels)
+validation_status = [Validation_Status(elt) for elt in input.findall("validation_status")]
+
+if opt["suppress_backup_whining"]:
+
+  accepted_current = set(v.uri for v in validation_status if v.is_current and v.accepted)
+  validation_status = [v for v in validation_status if not v.is_backup or v.uri not in accepted_current]
+
+for v in validation_status:
+  v.stand_up_and_be_counted()
+
 if opt["suppress_zero_columns"]:
   labels = [l for l in labels if l.sum > 0]
 

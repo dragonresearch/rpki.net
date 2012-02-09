@@ -940,11 +940,12 @@ class RSA(DER_object):
     return self.POW
 
   @classmethod
-  def generate(cls, keylength = 2048):
+  def generate(cls, keylength = 2048, quiet = False):
     """
     Generate a new keypair.
     """
-    rpki.log.debug("Generating new %d-bit RSA key" % keylength)
+    if not quiet:
+      rpki.log.debug("Generating new %d-bit RSA key" % keylength)
     return cls(POW = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):
@@ -1052,6 +1053,16 @@ class CMS_object(DER_object):
 
   require_crls = False
   
+  ## @var allow_extra_certs
+  # Set this to True to allow CMS messages to contain CA certificates.
+
+  allow_extra_certs = False
+  
+  ## @var allow_extra_crls
+  # Set this to True to allow CMS messages to contain multiple CRLs.
+
+  allow_extra_crls = False
+  
   ## @var print_on_der_error
   # Set this to True to log alleged DER when we have trouble parsing
   # it, in case it's really a Perl backtrace or something.
@@ -1136,36 +1147,41 @@ class CMS_object(DER_object):
       if self.debug_cms_certs:
         rpki.log.debug("CMS trusted cert issuer %s subject %s SKI %s" % (x.getIssuer(), x.getSubject(), x.hSKI()))
       if x.getNotAfter() < now:
-        raise rpki.exceptions.TrustedCMSCertHasExpired
+        raise rpki.exceptions.TrustedCMSCertHasExpired("Trusted CMS certificate has expired", "%s (%s)" % (x.getSubject(), x.hSKI()))
       if not x.is_CA():
-        if trusted_ee is not None:
-          raise rpki.exceptions.MultipleCMSEECert
-        trusted_ee = x
+        if trusted_ee is None:
+          trusted_ee = x
+        else:
+          raise rpki.exceptions.MultipleCMSEECert("Multiple CMS EE certificates", *("%s (%s)" % (x.getSubject(), x.hSKI()) for x in ta if not x.is_CA()))
       store.addTrust(x.get_POW())
 
     if trusted_ee:
       if self.debug_cms_certs:
         rpki.log.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI()))
-      if certs and (len(certs) > 1 or certs[0].getSubject() != trusted_ee.getSubject() or certs[0].getPublicKey() != trusted_ee.getPublicKey()):
-        raise rpki.exceptions.UnexpectedCMSCerts # , certs
+      if len(certs) > 1 or (len(certs) == 1 and
+                            (certs[0].getSubject() != trusted_ee.getSubject() or
+                             certs[0].getPublicKey() != trusted_ee.getPublicKey())):
+        raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (x.getSubject(), x.hSKI()) for x in certs))
       if crls:
-        rpki.log.warn("Ignoring unexpected CMS CRL%s from trusted peer" % ("" if len(crls) == 1 else "s"))
+        raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (c.getIssuer(), c.hAKI()) for c in crls))
+
     else:
-      if not certs:
-        raise rpki.exceptions.MissingCMSEEcert # , certs
-      if len(certs) > 1 or certs[0].is_CA():
-        raise rpki.exceptions.UnexpectedCMSCerts # , certs
-      if not crls:
+      untrusted_ee = [x for x in certs if not x.is_CA()]
+      if len(untrusted_ee) < 1:
+        raise rpki.exceptions.MissingCMSEEcert
+      if len(untrusted_ee) > 1 or (not self.allow_extra_certs and len(certs) > len(untrusted_ee)):
+        raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (x.getSubject(), x.hSKI()) for x in certs))
+      if len(crls) < 1:
         if self.require_crls:
-          raise rpki.exceptions.MissingCMSCRL # , crls
+          raise rpki.exceptions.MissingCMSCRL
         else:
           rpki.log.warn("MISSING CMS CRL!  Ignoring per self.require_crls setting")
-      if len(crls) > 1:
-        raise rpki.exceptions.UnexpectedCMSCRLs # , crls
+      if len(crls) > 1 and not self.allow_extra_crls:
+        raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (c.getIssuer(), c.hAKI()) for c in crls))
 
     for x in certs:
       if x.getNotAfter() < now:
-        raise rpki.exceptions.CMSCertHasExpired # , x
+        raise rpki.exceptions.CMSCertHasExpired("CMS certificate has expired", "%s (%s)" % (x.getSubject(), x.hSKI()))
 
     try:
       content = cms.verify(store)

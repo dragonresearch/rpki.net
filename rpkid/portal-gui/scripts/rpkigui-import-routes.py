@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 def parse_text(f):
     ip_re = re.compile(r'^[0-9a-fA-F:.]+/\d{1,3}$')
     last_prefix = None
-    last_asn = None
     cursor = connection.cursor()
     range_class = resource_range_ipv4
     table = 'routeview_routeorigin'
@@ -59,42 +58,48 @@ def parse_text(f):
 
     logger.info('Adding rows to table...')
     for row in itertools.islice(f, 5, None):
-        try:
-            cols = row.split()
+        cols = row.split()
 
-            # index -1 is i/e/? for igp/egp
-            origin_as = cols[-2]
-            # FIXME: skip AS_SETs
-            if origin_as[0] == '{':
-                continue
+        # index -1 is i/e/? for igp/egp
+        origin_as = cols[-2]
+        # FIXME: skip AS_SETs
+        if origin_as[0] == '{':
+            continue
 
-            prefix = cols[1]
+        prefix = cols[1]
 
-            # validate the prefix since the "sh ip bgp" output is sometimes
-            # corrupt by no space between the prefix and the next hop IP
-            # address.
-            net, bits = prefix.split('/')
-            if len(bits) > 2:
-                s = ['mask for %s looks fishy...' % prefix]
-                prefix = '%s/%s' % (net, bits[0:2])
-                s.append('assuming it should be %s' % prefix)
-                logger.warning(' '.join(s))
+        # validate the prefix since the "sh ip bgp" output is sometimes
+        # corrupt by no space between the prefix and the next hop IP
+        # address.
+        net, bits = prefix.split('/')
+        if len(bits) > 2:
+            s = ['mask for %s looks fishy...' % prefix]
+            prefix = '%s/%s' % (net, bits[0:2])
+            s.append('assuming it should be %s' % prefix)
+            logger.warning(' '.join(s))
 
-            # the output may contain multiple paths to the same origin.
-            # if this is the same prefix as the last entry, we don't need
-            # to validate it again.
-            if prefix != last_prefix:
-                last_prefix = prefix
-            elif origin_as == last_asn:
-                # we are only interested in origins, so skip alternate paths
-                # to same origin as last entry.
-                continue
-            last_asn = origin_as
+        # the output may contain multiple paths to the same origin.
+        # if this is the same prefix as the last entry, we don't need
+        # to validate it again.
+        #
+        # prefixes are sorted, but the origin_as is not, so we keep a set to
+        # avoid duplicates, and insert into the db once we've seen all the
+        # origin_as values for a given prefix
+        if prefix != last_prefix:
+            # output routes for previous prefix
+            if last_prefix is not None:
+                try:
+                    rng = range_class.parse_str(prefix)
+                    rmin = long(rng.min)
+                    rmax = long(rng.max)
+                    cursor.executemany(sql, [(asn, rmin, rmax) for asn in asns])
+                except BadIPResource:
+                    logger.warning('skipping bad prefix: ' + prefix)
 
-            rng = range_class.parse_str(prefix)
-            cursor.execute(sql, (origin_as, long(rng.min), long(rng.max)))
-        except BadIPResource:
-            logger.warning('skipping bad entry: ' + row)
+            asns = set()
+            last_prefix = prefix
+
+        asns.add(int(origin_as))
 
     logger.info('Committing...')
     cursor.execute('COMMIT')

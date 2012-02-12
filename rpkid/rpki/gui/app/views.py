@@ -805,8 +805,11 @@ def route_detail(request, pk):
 def route_roa_list(request, pk):
     """Show a list of ROAs that match a given route."""
     object = get_object_or_404(models.RouteOrigin, pk=pk)
+    object_accepted = ValidationLabel.objects.get(label='object_accepted')
+    # select accepted ROAs which cover this route
     qs = ROAPrefixV4.objects.filter(prefix_min__lte=object.prefix_min,
-                                    prefix_max__gte=object.prefix_max).select_related()
+                                    prefix_max__gte=object.prefix_max,
+                                    roas__statuses__status=object_accepted).select_related()
     return object_list(request, qs, template_name='app/route_roa_list.html')
 
 

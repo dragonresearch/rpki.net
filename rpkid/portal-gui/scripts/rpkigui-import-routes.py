@@ -89,12 +89,12 @@ def parse_text(f):
             # output routes for previous prefix
             if last_prefix is not None:
                 try:
-                    rng = range_class.parse_str(prefix)
+                    rng = range_class.parse_str(last_prefix)
                     rmin = long(rng.min)
                     rmax = long(rng.max)
                     cursor.executemany(sql, [(asn, rmin, rmax) for asn in asns])
                 except BadIPResource:
-                    logger.warning('skipping bad prefix: ' + prefix)
+                    logger.warning('skipping bad prefix: ' + last_prefix)
 
             asns = set()
             last_prefix = prefix

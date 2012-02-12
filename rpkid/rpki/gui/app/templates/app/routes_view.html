@@ -30,11 +30,12 @@ This view shows currently advertised routes for the prefixes listed in resource 
   <tr>
     <td>{{ r.get_prefix_display }}</td>
     <td>{{ r.asn }}</td>
-    <td><span class='label {{ r.status_label }}'>{{ r.status }}</span></td>
+    <td>
+      <span class='label {{ r.status_label }}'>{{ r.status }}</span>
+      <a href='{{ r.get_absolute_url }}/roa/' help='display ROAs matching this prefix'>roas</a>
+    </td>
   </tr>
   {% endfor %}
 </table>
 
 {% endblock %}
-
-<!-- vim: set sw=2: -->

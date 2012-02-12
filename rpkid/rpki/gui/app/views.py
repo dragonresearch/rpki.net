@@ -42,8 +42,8 @@ from rpki.resource_set import (resource_range_as, resource_range_ipv4,
 from rpki.exceptions import BadIPResource
 from rpki import sundial
 
-import rpki.gui.cacheview.models
-import rpki.gui.routeview.models
+from rpki.gui.cacheview.models import (ROAPrefixV4, ROAPrefixV6,
+                                       ValidationLabel, ROA)
 
 
 def superuser_required(f):
@@ -720,13 +720,13 @@ def roa_match(rng):
     Return a list of tuples of matching routes and roas.
 
     """
-    object_accepted = rpki.gui.cacheview.models.ValidationLabel.objects.get(label='object_accepted')
+    object_accepted = ValidationLabel.objects.get(label='object_accepted')
 
     if isinstance(rng, resource_range_ipv6):
-        route_manager = rpki.gui.routeview.models.RouteOriginV6.objects
+        route_manager = models.RouteOriginV6.objects
         pfx = 'prefixes_v6'
     else:
-        route_manager = rpki.gui.routeview.models.RouteOrigin.objects
+        route_manager = models.RouteOrigin.objects
         pfx = 'prefixes'
 
     rv = []
@@ -735,9 +735,8 @@ def roa_match(rng):
         # prefixes have different names.
         args = {'%s__prefix_min__lte' % pfx: obj.prefix_min,
                 '%s__prefix_max__gte' % pfx: obj.prefix_max}
-        roas = rpki.gui.cacheview.models.ROA.objects.filter(
-                statuses__status=object_accepted,
-                **args)
+        roas = ROA.objects.filter(statuses__status=object_accepted,
+                                  **args)
         rv.append((obj, roas))
 
     return rv
@@ -749,7 +748,7 @@ def validate_route(route, roas):
     `roas` is a queryset containing ROAs which cover `route`.
 
     """
-    pfx = 'prefixes' if isinstance(route, rpki.gui.routeview.models.RouteOrigin) else 'prefixes_v6'
+    pfx = 'prefixes' if isinstance(route, models.RouteOrigin) else 'prefixes_v6'
     args = {'asid': route.asn,
             '%s__prefix_min__lte' % pfx: route.prefix_min,
             '%s__prefix_max__gte' % pfx: route.prefix_max,
@@ -797,6 +796,19 @@ def route_view(request):
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
     return render(request, 'app/routes_view.html',
                   {'routes': routes, 'timestamp': ts})
+
+
+def route_detail(request, pk):
+    pass
+
+
+def route_roa_list(request, pk):
+    """Show a list of ROAs that match a given route."""
+    object = get_object_or_404(models.RouteOrigin, pk=pk)
+    qs = ROAPrefixV4.objects.filter(prefix_min__lte=object.prefix_min,
+                                    prefix_max__gte=object.prefix_max).select_related()
+    return object_list(request, qs, template_name='app/route_roa_list.html')
+
 
 
 @handle_required

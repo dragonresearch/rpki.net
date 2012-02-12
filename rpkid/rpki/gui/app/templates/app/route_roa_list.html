@@ -1,0 +1,17 @@
+{% extends "app/object_table.html" %}
+
+{% block table_header %}
+<th>Prefix</th>
+<th>Max Length</th>
+<th>ASN</th>
+<th>Expires</th>
+<th>URI</th>
+{% endblock %}
+
+{% block object_detail %}
+<td>{{ object.as_resource_range }}</td>
+<td>{{ object.max_length }}</td>
+<td>{{ object.roas.all.0.asid }}</td>
+<td>{{ object.roas.all.0.not_after }}</td>
+<td>{{ object.roas.all.0.uri }}</td>
+{% endblock object_detail %}

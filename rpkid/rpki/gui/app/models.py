@@ -21,6 +21,7 @@ import rpki.resource_set
 import rpki.exceptions
 import rpki.irdb.models
 import rpki.gui.models
+import rpki.gui.routeview.models
 
 
 class TelephoneField(models.CharField):
@@ -250,3 +251,21 @@ class Client(rpki.irdb.models.Client):
 
     def __unicode__(self):
         return self.handle
+
+
+class RouteOrigin(rpki.gui.routeview.models.RouteOrigin):
+    class Meta:
+        proxy = True
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.route_detail', [str(self.pk)])
+
+
+class RouteOriginV6(rpki.gui.routeview.models.RouteOriginV6):
+    class Meta:
+        proxy = True
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.route_detail', [str(self.pk)])

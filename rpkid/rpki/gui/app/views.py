@@ -42,8 +42,7 @@ from rpki.resource_set import (resource_range_as, resource_range_ipv4,
 from rpki.exceptions import BadIPResource
 from rpki import sundial
 
-from rpki.gui.cacheview.models import (ROAPrefixV4, ROAPrefixV6,
-                                       ValidationLabel, ROA)
+from rpki.gui.cacheview.models import ROAPrefixV4, ROAPrefixV6, ROA
 
 
 def superuser_required(f):
@@ -716,12 +715,7 @@ def child_delete(request, pk):
 
 
 def roa_match(rng):
-    """
-    Return a list of tuples of matching routes and roas.
-
-    """
-    object_accepted = ValidationLabel.objects.get(label='object_accepted')
-
+    """Return a list of tuples of matching routes and roas."""
     if isinstance(rng, resource_range_ipv6):
         route_manager = models.RouteOriginV6.objects
         pfx = 'prefixes_v6'
@@ -735,8 +729,7 @@ def roa_match(rng):
         # prefixes have different names.
         args = {'%s__prefix_min__lte' % pfx: obj.prefix_min,
                 '%s__prefix_max__gte' % pfx: obj.prefix_max}
-        roas = ROA.objects.filter(statuses__status=object_accepted,
-                                  **args)
+        roas = ROA.objects.filter(**args)
         rv.append((obj, roas))
 
     return rv
@@ -805,11 +798,9 @@ def route_detail(request, pk):
 def route_roa_list(request, pk):
     """Show a list of ROAs that match a given route."""
     object = get_object_or_404(models.RouteOrigin, pk=pk)
-    object_accepted = ValidationLabel.objects.get(label='object_accepted')
     # select accepted ROAs which cover this route
     qs = ROAPrefixV4.objects.filter(prefix_min__lte=object.prefix_min,
-                                    prefix_max__gte=object.prefix_max,
-                                    roas__statuses__status=object_accepted).select_related()
+                                    prefix_max__gte=object.prefix_max).select_related()
     return object_list(request, qs, template_name='app/route_roa_list.html')
 
 

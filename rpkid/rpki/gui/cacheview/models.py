@@ -50,7 +50,7 @@ class ASRange(rpki.gui.models.ASN):
         return ('rpki.gui.cacheview.views.asrange_detail', [str(self.pk)])
 
 kinds = list(enumerate(('good', 'warn', 'bad')))
-kinds_dict = dict((v, k) for k,v in kinds)
+kinds_dict = dict((v, k) for k, v in kinds)
 
 
 class ValidationLabel(models.Model):
@@ -58,24 +58,29 @@ class ValidationLabel(models.Model):
     Represents a specific error condition defined in the rcynic XML
     output file.
     """
-    label = models.CharField(max_length=79, db_index=True, unique=True, null=False)
-    status = models.CharField(max_length=255, null=False)
-    kind = models.PositiveSmallIntegerField(choices=kinds, null=False)
+    label = models.CharField(max_length=79, db_index=True, unique=True)
+    status = models.CharField(max_length=255)
+    kind = models.PositiveSmallIntegerField(choices=kinds)
 
     def __unicode__(self):
         return self.label
+
+
+class RepositoryObject(models.Model):
+    """
+    Represents a globally unique RPKI repository object, specified by its URI.
+    """
+    uri = models.URLField(unique=True, db_index=True)
 
 generations = list(enumerate(('current', 'backup')))
 generations_dict = dict((val, key) for (key, val) in generations)
 
 
 class ValidationStatus(models.Model):
-    timestamp = models.DateTimeField(null=False)
+    timestamp = models.DateTimeField()
     generation = models.PositiveSmallIntegerField(choices=generations, null=True)
-    status = models.ForeignKey('ValidationLabel', null=False)
-
-    class Meta:
-        abstract = True
+    status = models.ForeignKey(ValidationLabel)
+    repo = models.ForeignKey(RepositoryObject, related_name='statuses')
 
 
 class SignedObject(models.Model):
@@ -84,37 +89,26 @@ class SignedObject(models.Model):
     The signing certificate is ommitted here in order to give a proper
     value for the 'related_name' attribute.
     """
-    # attributes from rcynic's output XML file
-    uri = models.URLField(unique=True, db_index=True, null=False)
+    repo = models.ForeignKey(RepositoryObject, related_name='cert', unique=True)
 
     # on-disk file modification time
-    mtime = models.PositiveIntegerField(default=0, null=False)
+    mtime = models.PositiveIntegerField(default=0)
 
     # SubjectName
-    name = models.CharField(max_length=255, null=False)
+    name = models.CharField(max_length=255)
 
     # value from the SKI extension
-    keyid = models.CharField(max_length=60, db_index=True, null=False)
+    keyid = models.CharField(max_length=60, db_index=True)
 
     # validity period from EE cert which signed object
-    not_before = models.DateTimeField(null=False)
-    not_after = models.DateTimeField(null=False)
-
-    class Meta:
-        abstract = True
+    not_before = models.DateTimeField()
+    not_after = models.DateTimeField()
 
     def mtime_as_datetime(self):
         """
         convert the local timestamp to UTC and convert to a datetime object
         """
         return datetime.utcfromtimestamp(self.mtime + time.timezone)
-
-    def is_valid(self):
-        """
-        Returns a boolean value indicating whether this object has passed
-        validation checks.
-        """
-        return bool(self.statuses.filter(status=ValidationLabel.objects.get(label="object_accepted")))
 
     def status_id(self):
         """
@@ -138,22 +132,18 @@ class Cert(SignedObject):
     addresses = models.ManyToManyField(AddressRange, related_name='certs')
     addresses_v6 = models.ManyToManyField(AddressRangeV6, related_name='certs')
     asns = models.ManyToManyField(ASRange, related_name='certs')
-    issuer = models.ForeignKey('Cert', related_name='children', null=True, blank=True)
-    sia = models.CharField(max_length=255, null=False)
+    issuer = models.ForeignKey('self', related_name='children', null=True)
+    sia = models.CharField(max_length=255)
 
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.cert_detail', [str(self.pk)])
 
 
-class ValidationStatus_Cert(ValidationStatus):
-    cert = models.ForeignKey('Cert', related_name='statuses', null=False)
-
-
 class ROAPrefix(models.Model):
     "Abstract base class for ROA mixin."
 
-    max_length = models.PositiveSmallIntegerField(null=False)
+    max_length = models.PositiveSmallIntegerField()
 
     class Meta:
         abstract = True
@@ -191,10 +181,10 @@ class ROAPrefixV6(ROAPrefix, rpki.gui.models.PrefixV6):
 
 
 class ROA(SignedObject):
-    asid = models.PositiveIntegerField(null=False)
+    asid = models.PositiveIntegerField()
     prefixes = models.ManyToManyField(ROAPrefixV4, related_name='roas')
     prefixes_v6 = models.ManyToManyField(ROAPrefixV6, related_name='roas')
-    issuer = models.ForeignKey('Cert', related_name='roas', null=False)
+    issuer = models.ForeignKey('Cert', related_name='roas')
 
     @models.permalink
     def get_absolute_url(self):
@@ -207,16 +197,12 @@ class ROA(SignedObject):
         return u'ROA for AS%d' % self.asid
 
 
-class ValidationStatus_ROA(ValidationStatus):
-    roa = models.ForeignKey('ROA', related_name='statuses', null=False)
-
-
 class Ghostbuster(SignedObject):
     full_name = models.CharField(max_length=40)
     email_address = models.EmailField(blank=True, null=True)
     organization = models.CharField(blank=True, null=True, max_length=255)
     telephone = TelephoneField(blank=True, null=True)
-    issuer = models.ForeignKey('Cert', related_name='ghostbusters', null=False)
+    issuer = models.ForeignKey('Cert', related_name='ghostbusters')
 
     @models.permalink
     def get_absolute_url(self):
@@ -230,7 +216,3 @@ class Ghostbuster(SignedObject):
         if self.email_address:
             return self.email_address
         return self.telephone
-
-
-class ValidationStatus_Ghostbuster(ValidationStatus):
-    gbr = models.ForeignKey('Ghostbuster', related_name='statuses', null=False)

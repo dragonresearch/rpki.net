@@ -37,7 +37,6 @@ logger = logging.getLogger(__name__)
 
 def rcynic_cert(cert, obj):
     obj.sia = cert.sia_directory_uri
-    logger.debug('issuer=%s' % obj.issuer)
 
     # object must be saved for the related manager methods below to work
     obj.save()
@@ -150,18 +149,11 @@ def process_cache(root, xml_file):
         statuses.append(vs)
 
         if vs.status == 'object_accepted':
-            logger.debug('processing %s at %s' % (vs.filename, vs.uri))
-
-            # rcynic will generation <validation_status/> elements for objects
-            # listed in the manifest but not found on disk
-            if not os.path.exists(vs.filename):
-                logger.warning('file is missing: %s' % vs.filename)
-                continue
+            logger.debug('processing %s' % vs.filename)
 
             cls = model_class[vs.file_class.__name__]
             q = cls.objects.filter(repo__uri=vs.uri)
             if not q:
-                logger.debug('creating new db instance')
                 repo, created = models.RepositoryObject.objects.get_or_create(uri=vs.uri)
                 inst = cls(repo=repo)
             else:
@@ -179,14 +171,12 @@ def process_cache(root, xml_file):
 
                 inst.not_before = obj.notBefore.to_sql()
                 inst.not_after = obj.notAfter.to_sql()
-                logger.debug('name=%s ski=%s' % (obj.subject, obj.ski))
                 inst.name = obj.subject
                 inst.keyid = obj.ski
 
                 # look up signing cert
                 if obj.issuer == obj.subject:
                     # self-signed cert (TA)
-                    logger.debug('processing TA at %s' % vs.uri)
                     assert(isinstance(inst, models.Cert))
                     inst.issuer = inst
                 else:

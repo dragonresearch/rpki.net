@@ -204,7 +204,6 @@ static const struct {
 
 #define MIB_COUNTERS							    \
   MIB_COUNTERS_FROM_OPENSSL						    \
-  QB(aia_doesnt_match_issuer,		"AIA doesn't match issuer")	    \
   QB(aia_extension_missing,		"AIA extension missing")	    \
   QB(aia_extension_forbidden,		"AIA extension forbidden")	    \
   QB(aia_uri_missing,			"AIA URI missing")		    \
@@ -271,6 +270,7 @@ static const struct {
   QB(unreadable_trust_anchor,		"Unreadable trust anchor")	    \
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
   QB(wrong_object_version,		"Wrong object version")		    \
+  QW(aia_doesnt_match_issuer,		"AIA doesn't match issuer")	    \
   QW(crldp_names_newer_crl,		"CRLDP names newer CRL")	    \
   QW(digest_mismatch,			"Digest mismatch")		    \
   QW(ee_certificate_with_1024_bit_key, 	"EE certificate with 1024 bit key") \
@@ -3368,10 +3368,8 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (!w->certinfo.ta && strcmp(w->certinfo.uri.s, certinfo->aia.s)) {
+  if (!w->certinfo.ta && strcmp(w->certinfo.uri.s, certinfo->aia.s))
     log_validation_status(rc, uri, aia_doesnt_match_issuer, generation);
-    goto done;
-  }
 
   if (certinfo->ca && !certinfo->sia.s[0]) {
     log_validation_status(rc, uri, sia_cadirectory_uri_missing, generation);

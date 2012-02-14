@@ -226,6 +226,7 @@ class rcynic_xml_iterator(object):
                unauthenticated_subdir = "unauthenticated"):
     self.rcynic_root = rcynic_root
     self.xml_file = xml_file
+    self.authenticated_subdir = os.path.join(rcynic_root, 'authenticated')
     self.authenticated_old_subdir = os.path.join(rcynic_root, authenticated_old_subdir)
     self.unauthenticated_subdir = os.path.join(rcynic_root, unauthenticated_subdir)
 
@@ -245,8 +246,14 @@ class rcynic_xml_iterator(object):
       generation = validation_status.get("generation")
 
       # determine the path to this object
-      filename = os.path.join(self.authenticated_old_subdir if generation == 'backup' else self.unauthenticated_subdir,
-              self.uri_to_filename(uri))
+      if status == 'object_accepted':
+          d = self.authenticated_subdir
+      elif generation == 'backup':
+          d = self.authenticated_old_subdir
+      else:
+          d = self.unauthenticated_subdir
+
+      filename = os.path.join(d, self.uri_to_filename(uri))
 
       ext = os.path.splitext(filename)[1]
       if ext in file_name_classes:

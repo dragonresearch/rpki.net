@@ -273,6 +273,7 @@ static const struct {
   QB(wrong_object_version,		"Wrong object version")		    \
   QW(crldp_names_newer_crl,		"CRLDP names newer CRL")	    \
   QW(digest_mismatch,			"Digest mismatch")		    \
+  QW(ee_certificate_with_1024_bit_key, 	"EE certificate with 1024 bit key") \
   QW(issuer_uses_multiple_crldp_values,	"Issuer uses multiple CRLDP values")\
   QW(multiple_rsync_uris_in_extension,  "Multiple rsync URIs in extension") \
   QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
@@ -536,6 +537,7 @@ struct rcynic_ctx {
   int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
   int allow_digest_mismatch, allow_crl_digest_mismatch;
   int allow_nonconformant_name, allow_ee_without_signedObject;
+  int allow_1024_bit_ee_key;
   unsigned max_select_time, validation_status_creation_order;
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -3466,8 +3468,14 @@ static int check_x509(rcynic_ctx_t *rc,
 
     case NID_rsaEncryption:
       ok = (EVP_PKEY_type(subject_pkey->type) == EVP_PKEY_RSA &&
-	    BN_num_bits(subject_pkey->pkey.rsa->n) == 2048 &&
 	    BN_get_word(subject_pkey->pkey.rsa->e) == 65537);
+      if (!ok)
+	break;
+      if (!certinfo->ca && rc->allow_1024_bit_ee_key &&
+	  BN_num_bits(subject_pkey->pkey.rsa->n) == 1024)
+	log_validation_status(rc, uri, ee_certificate_with_1024_bit_key, generation);
+      else
+	ok = BN_num_bits(subject_pkey->pkey.rsa->n) == 2048;
       break;
 
     case NID_X9_62_id_ecPublicKey:	/* See draft-ietf-sidr-bgpsec-algs */
@@ -4627,6 +4635,7 @@ int main(int argc, char *argv[])
   rc.allow_object_not_in_manifest = 1;
   rc.allow_nonconformant_name = 1;
   rc.allow_ee_without_signedObject = 1;
+  rc.allow_1024_bit_ee_key = 1;
   rc.max_parallel_fetches = 1;
   rc.max_retries = 3;
   rc.retry_wait_min = 30;
@@ -4815,6 +4824,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "allow-ee-without-signedObject") &&
 	     !configure_boolean(&rc, &rc.allow_ee_without_signedObject, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-1024-bit-ee-key") &&
+	     !configure_boolean(&rc, &rc.allow_1024_bit_ee_key, val->value))
       goto done;
 
     /*

@@ -507,6 +507,7 @@ def roa_create_confirm(request):
             roa.prefixes.create(version=v, prefix=str(rng.min),
                                 prefixlen=rng.prefixlen(),
                                 max_prefixlen=max_prefixlen)
+            Zookeeper(handle=conf.handle).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(roa_list))
     else:
         return http.HttpResponseRedirect(reverse(roa_create))
@@ -558,6 +559,7 @@ def roa_delete(request, pk):
         # if this was the last prefix on the ROA, delete the ROA request
         if not roa.prefixes.exists():
             roa.delete()
+        Zookeeper(handle=conf.handle).run_rpkid_now()
         return http.HttpResponseRedirect(reverse(roa_list))
 
     ### Process GET ###
@@ -640,6 +642,7 @@ def _ghostbuster_edit(request, obj=None):
             obj.issuer = conf
             obj.vcard = glue.ghostbuster_to_vcard(obj)
             obj.save()
+            Zookeeper(handle=conf.handle).run_rpkid_now()
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
         form = form_class(conf, instance=obj)

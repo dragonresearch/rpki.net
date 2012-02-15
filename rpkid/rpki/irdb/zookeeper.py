@@ -885,6 +885,18 @@ class Zookeeper(object):
     return call_rpkid(*pdus)
 
 
+  def run_rpkid_now(self):
+    """Poke rpkid to immediately run the cron job for the current handle.
+
+    This method is used by the gui when a user has changed something in the
+    IRDB (ghostbuster, roa) which does not require a full `synchronize()` call,
+    to force the object to be immediately issued.
+
+    """
+    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
+      action = "set", self_handle = self.handle, run_now = "yes"))
+
+
   def call_pubd(self, *pdus):
     """
     Issue a call to pubd, return result.

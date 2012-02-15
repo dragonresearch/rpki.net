@@ -4598,6 +4598,122 @@ static X509 *read_ta(rcynic_ctx_t *rc,
 
 
 /**
+ * Write detailed log of what we've done as an XML file.
+ */
+static int write_xml_file(const rcynic_ctx_t *rc,
+			  const char *xmlfile)
+{
+  int i, j, use_stdout, ok;
+  char hostname[HOSTNAME_MAX];
+  mib_counter_t code;
+  timestamp_t ts;
+  FILE *f = NULL;
+  path_t xmltemp;
+
+  if (xmlfile == NULL)
+    return 1;
+  
+  use_stdout = !strcmp(xmlfile, "-");
+
+  logmsg(rc, log_telemetry, "Writing XML summary to %s",
+	 (use_stdout ? "standard output" : xmlfile));
+
+  if (use_stdout) {
+    f = stdout;
+    ok = 1;
+  } else if (snprintf(xmltemp.s, sizeof(xmltemp.s), "%s.%u.tmp", xmlfile, (unsigned) getpid()) >= sizeof(xmltemp.s)) {
+    logmsg(rc, log_usage_err, "Filename \"%s\" is too long, not writing XML", xmlfile);
+    return 0;
+  } else {
+    ok = (f = fopen(xmltemp.s, "w")) != NULL;
+  }
+
+  ok &= gethostname(hostname, sizeof(hostname)) == 0;
+
+  if (ok)
+    ok &= fprintf(f, "<?xml version=\"1.0\" ?>\n"
+		  "<rcynic-summary date=\"%s\" rcynic-version=\"%s\""
+		  " summary-version=\"%d\" reporting-hostname=\"%s\">\n"
+		  "  <labels>\n",
+		  time_to_string(&ts, NULL),
+		  svn_id, XML_SUMMARY_VERSION, hostname) != EOF;
+
+  for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
+    ok &= fprintf(f, "    <%s kind=\"%s\">%s</%s>\n",
+		  mib_counter_label[j], mib_counter_kind[j],
+		  (mib_counter_desc[j]
+		   ? mib_counter_desc[j]
+		   : X509_verify_cert_error_string(mib_counter_openssl[j])),
+		  mib_counter_label[j]) != EOF;
+
+  if (ok)
+    ok &= fprintf(f, "  </labels>\n") != EOF;
+
+  (void) sk_validation_status_t_set_cmp_func(rc->validation_status, validation_status_cmp_creation_order);
+  sk_validation_status_t_sort(rc->validation_status);
+
+  for (i = 0; ok && i < sk_validation_status_t_num(rc->validation_status); i++) {
+    validation_status_t *v = sk_validation_status_t_value(rc->validation_status, i);
+    assert(v);
+
+    (void) time_to_string(&ts, &v->timestamp);
+
+    for (code = (mib_counter_t) 0; ok && code < MIB_COUNTER_T_MAX; code++) {
+      if (validation_status_get_code(v, code)) {
+	if (ok)
+	  ok &= fprintf(f, "  <validation_status timestamp=\"%s\" status=\"%s\"",
+			ts.s, mib_counter_label[code]) != EOF;
+	if (ok && (v->generation == object_generation_current ||
+		   v->generation == object_generation_backup))
+	  ok &= fprintf(f, " generation=\"%s\"",
+			object_generation_label[v->generation]) != EOF;
+	if (ok)
+	  ok &= fprintf(f, ">%s</validation_status>\n", v->uri.s) != EOF;
+      }
+    }
+  }
+
+  for (i = 0; ok && i < sk_rsync_history_t_num(rc->rsync_history); i++) {
+    rsync_history_t *h = sk_rsync_history_t_value(rc->rsync_history, i);
+    assert(h);
+
+    if (ok)
+      ok &= fprintf(f, "  <rsync_history") != EOF;
+    if (ok && h->started)
+      ok &= fprintf(f, " started=\"%s\"",
+		    time_to_string(&ts, &h->started)) != EOF;
+    if (ok && h->finished)
+      ok &= fprintf(f, " finished=\"%s\"",
+		    time_to_string(&ts, &h->finished)) != EOF;
+    if (ok && h->status != rsync_status_done)
+      ok &= fprintf(f, " error=\"%u\"", (unsigned) h->status) != EOF;
+    if (ok)
+      ok &= fprintf(f, ">%s%s</rsync_history>\n",
+		    h->uri.s, (h->final_slash ? "/" : "")) != EOF;
+  }
+
+  if (ok)
+    ok &= fprintf(f, "</rcynic-summary>\n") != EOF;
+
+  if (f && !use_stdout)
+    ok &= fclose(f) != EOF;
+
+  if (ok && !use_stdout)
+    ok &= rename(xmltemp.s, xmlfile) == 0;
+
+  if (!ok)
+    logmsg(rc, log_sys_err, "Couldn't write XML summary to %s: %s",
+	   (use_stdout ? "standard output" : xmlfile), strerror(errno));
+
+  if (!ok && !use_stdout)
+    (void) unlink(xmltemp.s);
+
+  return ok;
+}
+
+
+
+/**
  * Main program.  Parse command line, read config file, iterate over
  * trust anchors found via config file and do a tree walk for each
  * trust anchor.
@@ -4981,7 +5097,7 @@ int main(int argc, char *argv[])
       hash = X509_subject_name_hash(x);
       for (j = 0; j < INT_MAX; j++) {
 	if (snprintf(path2.s, sizeof(path2.s), "%s%lx.%d.cer",
-		     rc.new_authenticated.s, hash, j) == sizeof(path2.s)) {
+		     rc.new_authenticated.s, hash, j) >= sizeof(path2.s)) {
 	  logmsg(&rc, log_sys_err,
 		 "Couldn't construct path name for trust anchor %s", path1.s);
 	  goto done;
@@ -5068,104 +5184,13 @@ int main(int argc, char *argv[])
     goto done;
   }
 
+  if (!write_xml_file(&rc, xmlfile))
+    goto done;
+
   ret = 0;
 
  done:
   log_openssl_errors(&rc);
-
-  if (xmlfile != NULL) {
-
-    int ok = 1, use_stdout = !strcmp(xmlfile, "-");
-    char hostname[HOSTNAME_MAX];
-    mib_counter_t code;
-    timestamp_t ts;
-    FILE *f = NULL;
-
-    ok &= gethostname(hostname, sizeof(hostname)) == 0;
-
-    if (use_stdout)
-      f = stdout;
-    else if (ok)
-      ok &= (f = fopen(xmlfile, "w")) != NULL;
-
-    if (ok)
-      logmsg(&rc, log_telemetry, "Writing XML summary to %s",
-	     (use_stdout ? "standard output" : xmlfile));
-
-    if (ok)
-      ok &= fprintf(f, "<?xml version=\"1.0\" ?>\n"
-		    "<rcynic-summary date=\"%s\" rcynic-version=\"%s\""
-		    " summary-version=\"%d\" reporting-hostname=\"%s\">\n"
-		    "  <labels>\n",
-		    time_to_string(&ts, NULL),
-		    svn_id, XML_SUMMARY_VERSION, hostname) != EOF;
-
-    for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
-      if (ok)
-	ok &= fprintf(f, "    <%s kind=\"%s\">%s</%s>\n",
-		      mib_counter_label[j], mib_counter_kind[j],
-		      (mib_counter_desc[j]
-		       ? mib_counter_desc[j]
-		       : X509_verify_cert_error_string(mib_counter_openssl[j])),
-		      mib_counter_label[j]) != EOF;
-
-    if (ok)
-      ok &= fprintf(f, "  </labels>\n") != EOF;
-
-    (void) sk_validation_status_t_set_cmp_func(rc.validation_status, validation_status_cmp_creation_order);
-    sk_validation_status_t_sort(rc.validation_status);
-
-    for (i = 0; ok && i < sk_validation_status_t_num(rc.validation_status); i++) {
-      validation_status_t *v = sk_validation_status_t_value(rc.validation_status, i);
-      assert(v);
-
-      (void) time_to_string(&ts, &v->timestamp);
-
-      for (code = (mib_counter_t) 0; ok && code < MIB_COUNTER_T_MAX; code++) {
-	if (validation_status_get_code(v, code)) {
-	  if (ok)
-	    ok &= fprintf(f, "  <validation_status timestamp=\"%s\" status=\"%s\"",
-			  ts.s, mib_counter_label[code]) != EOF;
-	  if (ok && (v->generation == object_generation_current ||
-		     v->generation == object_generation_backup))
-	    ok &= fprintf(f, " generation=\"%s\"",
-			  object_generation_label[v->generation]) != EOF;
-	  if (ok)
-	    ok &= fprintf(f, ">%s</validation_status>\n", v->uri.s) != EOF;
-	}
-      }
-    }
-
-    for (i = 0; ok && i < sk_rsync_history_t_num(rc.rsync_history); i++) {
-      rsync_history_t *h = sk_rsync_history_t_value(rc.rsync_history, i);
-      assert(h);
-
-      if (ok)
-	ok &= fprintf(f, "  <rsync_history") != EOF;
-      if (ok && h->started)
-	ok &= fprintf(f, " started=\"%s\"",
-		      time_to_string(&ts, &h->started)) != EOF;
-      if (ok && h->finished)
-	ok &= fprintf(f, " finished=\"%s\"",
-		      time_to_string(&ts, &h->finished)) != EOF;
-      if (ok && h->status != rsync_status_done)
-	ok &= fprintf(f, " error=\"%u\"", (unsigned) h->status) != EOF;
-      if (ok)
-	ok &= fprintf(f, ">%s%s</rsync_history>\n",
-		      h->uri.s, (h->final_slash ? "/" : "")) != EOF;
-    }
-
-    if (ok)
-      ok &= fprintf(f, "</rcynic-summary>\n") != EOF;
-
-    if (f && !use_stdout)
-      ok &= fclose(f) != EOF;
-
-    if (!ok)
-      logmsg(&rc, log_sys_err, "Couldn't write XML summary to %s: %s",
-	     xmlfile, strerror(errno));
-
-  }
 
   /*
    * Do NOT free cfg_section, NCONF_free() takes care of that

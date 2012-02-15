@@ -81,8 +81,11 @@ class SundialField(django.db.models.DateTimeField):
   description = "A datetime type using our customized datetime objects"
 
   def to_python(self, value):
-    return rpki.sundial.datetime.fromdatetime(
-      django.db.models.DateTimeField.to_python(self, value))
+    if isinstance(value, rpki.sundial.pydatetime.datetime):
+      return rpki.sundial.datetime.fromdatetime(
+        django.db.models.DateTimeField.to_python(self, value))
+    else:
+      return value
 
   def get_prep_value(self, value):
     if isinstance(value, rpki.sundial.datetime):

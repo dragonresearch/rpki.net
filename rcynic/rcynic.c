@@ -204,7 +204,6 @@ static const struct {
 
 #define MIB_COUNTERS							    \
   MIB_COUNTERS_FROM_OPENSSL						    \
-  QB(aia_doesnt_match_issuer,		"AIA doesn't match issuer")	    \
   QB(aia_extension_missing,		"AIA extension missing")	    \
   QB(aia_extension_forbidden,		"AIA extension forbidden")	    \
   QB(aia_uri_missing,			"AIA URI missing")		    \
@@ -271,8 +270,10 @@ static const struct {
   QB(unreadable_trust_anchor,		"Unreadable trust anchor")	    \
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
   QB(wrong_object_version,		"Wrong object version")		    \
+  QW(aia_doesnt_match_issuer,		"AIA doesn't match issuer")	    \
   QW(crldp_names_newer_crl,		"CRLDP names newer CRL")	    \
   QW(digest_mismatch,			"Digest mismatch")		    \
+  QW(ee_certificate_with_1024_bit_key, 	"EE certificate with 1024 bit key") \
   QW(issuer_uses_multiple_crldp_values,	"Issuer uses multiple CRLDP values")\
   QW(multiple_rsync_uris_in_extension,  "Multiple rsync URIs in extension") \
   QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
@@ -536,6 +537,7 @@ struct rcynic_ctx {
   int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
   int allow_digest_mismatch, allow_crl_digest_mismatch;
   int allow_nonconformant_name, allow_ee_without_signedObject;
+  int allow_1024_bit_ee_key;
   unsigned max_select_time, validation_status_creation_order;
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -3366,10 +3368,8 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (!w->certinfo.ta && strcmp(w->certinfo.uri.s, certinfo->aia.s)) {
+  if (!w->certinfo.ta && strcmp(w->certinfo.uri.s, certinfo->aia.s))
     log_validation_status(rc, uri, aia_doesnt_match_issuer, generation);
-    goto done;
-  }
 
   if (certinfo->ca && !certinfo->sia.s[0]) {
     log_validation_status(rc, uri, sia_cadirectory_uri_missing, generation);
@@ -3466,8 +3466,14 @@ static int check_x509(rcynic_ctx_t *rc,
 
     case NID_rsaEncryption:
       ok = (EVP_PKEY_type(subject_pkey->type) == EVP_PKEY_RSA &&
-	    BN_num_bits(subject_pkey->pkey.rsa->n) == 2048 &&
 	    BN_get_word(subject_pkey->pkey.rsa->e) == 65537);
+      if (!ok)
+	break;
+      if (!certinfo->ca && rc->allow_1024_bit_ee_key &&
+	  BN_num_bits(subject_pkey->pkey.rsa->n) == 1024)
+	log_validation_status(rc, uri, ee_certificate_with_1024_bit_key, generation);
+      else
+	ok = BN_num_bits(subject_pkey->pkey.rsa->n) == 2048;
       break;
 
     case NID_X9_62_id_ecPublicKey:	/* See draft-ietf-sidr-bgpsec-algs */
@@ -4592,6 +4598,122 @@ static X509 *read_ta(rcynic_ctx_t *rc,
 
 
 /**
+ * Write detailed log of what we've done as an XML file.
+ */
+static int write_xml_file(const rcynic_ctx_t *rc,
+			  const char *xmlfile)
+{
+  int i, j, use_stdout, ok;
+  char hostname[HOSTNAME_MAX];
+  mib_counter_t code;
+  timestamp_t ts;
+  FILE *f = NULL;
+  path_t xmltemp;
+
+  if (xmlfile == NULL)
+    return 1;
+  
+  use_stdout = !strcmp(xmlfile, "-");
+
+  logmsg(rc, log_telemetry, "Writing XML summary to %s",
+	 (use_stdout ? "standard output" : xmlfile));
+
+  if (use_stdout) {
+    f = stdout;
+    ok = 1;
+  } else if (snprintf(xmltemp.s, sizeof(xmltemp.s), "%s.%u.tmp", xmlfile, (unsigned) getpid()) >= sizeof(xmltemp.s)) {
+    logmsg(rc, log_usage_err, "Filename \"%s\" is too long, not writing XML", xmlfile);
+    return 0;
+  } else {
+    ok = (f = fopen(xmltemp.s, "w")) != NULL;
+  }
+
+  ok &= gethostname(hostname, sizeof(hostname)) == 0;
+
+  if (ok)
+    ok &= fprintf(f, "<?xml version=\"1.0\" ?>\n"
+		  "<rcynic-summary date=\"%s\" rcynic-version=\"%s\""
+		  " summary-version=\"%d\" reporting-hostname=\"%s\">\n"
+		  "  <labels>\n",
+		  time_to_string(&ts, NULL),
+		  svn_id, XML_SUMMARY_VERSION, hostname) != EOF;
+
+  for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
+    ok &= fprintf(f, "    <%s kind=\"%s\">%s</%s>\n",
+		  mib_counter_label[j], mib_counter_kind[j],
+		  (mib_counter_desc[j]
+		   ? mib_counter_desc[j]
+		   : X509_verify_cert_error_string(mib_counter_openssl[j])),
+		  mib_counter_label[j]) != EOF;
+
+  if (ok)
+    ok &= fprintf(f, "  </labels>\n") != EOF;
+
+  (void) sk_validation_status_t_set_cmp_func(rc->validation_status, validation_status_cmp_creation_order);
+  sk_validation_status_t_sort(rc->validation_status);
+
+  for (i = 0; ok && i < sk_validation_status_t_num(rc->validation_status); i++) {
+    validation_status_t *v = sk_validation_status_t_value(rc->validation_status, i);
+    assert(v);
+
+    (void) time_to_string(&ts, &v->timestamp);
+
+    for (code = (mib_counter_t) 0; ok && code < MIB_COUNTER_T_MAX; code++) {
+      if (validation_status_get_code(v, code)) {
+	if (ok)
+	  ok &= fprintf(f, "  <validation_status timestamp=\"%s\" status=\"%s\"",
+			ts.s, mib_counter_label[code]) != EOF;
+	if (ok && (v->generation == object_generation_current ||
+		   v->generation == object_generation_backup))
+	  ok &= fprintf(f, " generation=\"%s\"",
+			object_generation_label[v->generation]) != EOF;
+	if (ok)
+	  ok &= fprintf(f, ">%s</validation_status>\n", v->uri.s) != EOF;
+      }
+    }
+  }
+
+  for (i = 0; ok && i < sk_rsync_history_t_num(rc->rsync_history); i++) {
+    rsync_history_t *h = sk_rsync_history_t_value(rc->rsync_history, i);
+    assert(h);
+
+    if (ok)
+      ok &= fprintf(f, "  <rsync_history") != EOF;
+    if (ok && h->started)
+      ok &= fprintf(f, " started=\"%s\"",
+		    time_to_string(&ts, &h->started)) != EOF;
+    if (ok && h->finished)
+      ok &= fprintf(f, " finished=\"%s\"",
+		    time_to_string(&ts, &h->finished)) != EOF;
+    if (ok && h->status != rsync_status_done)
+      ok &= fprintf(f, " error=\"%u\"", (unsigned) h->status) != EOF;
+    if (ok)
+      ok &= fprintf(f, ">%s%s</rsync_history>\n",
+		    h->uri.s, (h->final_slash ? "/" : "")) != EOF;
+  }
+
+  if (ok)
+    ok &= fprintf(f, "</rcynic-summary>\n") != EOF;
+
+  if (f && !use_stdout)
+    ok &= fclose(f) != EOF;
+
+  if (ok && !use_stdout)
+    ok &= rename(xmltemp.s, xmlfile) == 0;
+
+  if (!ok)
+    logmsg(rc, log_sys_err, "Couldn't write XML summary to %s: %s",
+	   (use_stdout ? "standard output" : xmlfile), strerror(errno));
+
+  if (!ok && !use_stdout)
+    (void) unlink(xmltemp.s);
+
+  return ok;
+}
+
+
+
+/**
  * Main program.  Parse command line, read config file, iterate over
  * trust anchors found via config file and do a tree walk for each
  * trust anchor.
@@ -4627,6 +4749,7 @@ int main(int argc, char *argv[])
   rc.allow_object_not_in_manifest = 1;
   rc.allow_nonconformant_name = 1;
   rc.allow_ee_without_signedObject = 1;
+  rc.allow_1024_bit_ee_key = 1;
   rc.max_parallel_fetches = 1;
   rc.max_retries = 3;
   rc.retry_wait_min = 30;
@@ -4817,6 +4940,10 @@ int main(int argc, char *argv[])
 	     !configure_boolean(&rc, &rc.allow_ee_without_signedObject, val->value))
       goto done;
 
+    else if (!name_cmp(val->name, "allow-1024-bit-ee-key") &&
+	     !configure_boolean(&rc, &rc.allow_1024_bit_ee_key, val->value))
+      goto done;
+
     /*
      * Ugly, but the easiest way to handle all these strings.
      */
@@ -4970,7 +5097,7 @@ int main(int argc, char *argv[])
       hash = X509_subject_name_hash(x);
       for (j = 0; j < INT_MAX; j++) {
 	if (snprintf(path2.s, sizeof(path2.s), "%s%lx.%d.cer",
-		     rc.new_authenticated.s, hash, j) == sizeof(path2.s)) {
+		     rc.new_authenticated.s, hash, j) >= sizeof(path2.s)) {
 	  logmsg(&rc, log_sys_err,
 		 "Couldn't construct path name for trust anchor %s", path1.s);
 	  goto done;
@@ -5057,104 +5184,13 @@ int main(int argc, char *argv[])
     goto done;
   }
 
+  if (!write_xml_file(&rc, xmlfile))
+    goto done;
+
   ret = 0;
 
  done:
   log_openssl_errors(&rc);
-
-  if (xmlfile != NULL) {
-
-    int ok = 1, use_stdout = !strcmp(xmlfile, "-");
-    char hostname[HOSTNAME_MAX];
-    mib_counter_t code;
-    timestamp_t ts;
-    FILE *f = NULL;
-
-    ok &= gethostname(hostname, sizeof(hostname)) == 0;
-
-    if (use_stdout)
-      f = stdout;
-    else if (ok)
-      ok &= (f = fopen(xmlfile, "w")) != NULL;
-
-    if (ok)
-      logmsg(&rc, log_telemetry, "Writing XML summary to %s",
-	     (use_stdout ? "standard output" : xmlfile));
-
-    if (ok)
-      ok &= fprintf(f, "<?xml version=\"1.0\" ?>\n"
-		    "<rcynic-summary date=\"%s\" rcynic-version=\"%s\""
-		    " summary-version=\"%d\" reporting-hostname=\"%s\">\n"
-		    "  <labels>\n",
-		    time_to_string(&ts, NULL),
-		    svn_id, XML_SUMMARY_VERSION, hostname) != EOF;
-
-    for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
-      if (ok)
-	ok &= fprintf(f, "    <%s kind=\"%s\">%s</%s>\n",
-		      mib_counter_label[j], mib_counter_kind[j],
-		      (mib_counter_desc[j]
-		       ? mib_counter_desc[j]
-		       : X509_verify_cert_error_string(mib_counter_openssl[j])),
-		      mib_counter_label[j]) != EOF;
-
-    if (ok)
-      ok &= fprintf(f, "  </labels>\n") != EOF;
-
-    (void) sk_validation_status_t_set_cmp_func(rc.validation_status, validation_status_cmp_creation_order);
-    sk_validation_status_t_sort(rc.validation_status);
-
-    for (i = 0; ok && i < sk_validation_status_t_num(rc.validation_status); i++) {
-      validation_status_t *v = sk_validation_status_t_value(rc.validation_status, i);
-      assert(v);
-
-      (void) time_to_string(&ts, &v->timestamp);
-
-      for (code = (mib_counter_t) 0; ok && code < MIB_COUNTER_T_MAX; code++) {
-	if (validation_status_get_code(v, code)) {
-	  if (ok)
-	    ok &= fprintf(f, "  <validation_status timestamp=\"%s\" status=\"%s\"",
-			  ts.s, mib_counter_label[code]) != EOF;
-	  if (ok && (v->generation == object_generation_current ||
-		     v->generation == object_generation_backup))
-	    ok &= fprintf(f, " generation=\"%s\"",
-			  object_generation_label[v->generation]) != EOF;
-	  if (ok)
-	    ok &= fprintf(f, ">%s</validation_status>\n", v->uri.s) != EOF;
-	}
-      }
-    }
-
-    for (i = 0; ok && i < sk_rsync_history_t_num(rc.rsync_history); i++) {
-      rsync_history_t *h = sk_rsync_history_t_value(rc.rsync_history, i);
-      assert(h);
-
-      if (ok)
-	ok &= fprintf(f, "  <rsync_history") != EOF;
-      if (ok && h->started)
-	ok &= fprintf(f, " started=\"%s\"",
-		      time_to_string(&ts, &h->started)) != EOF;
-      if (ok && h->finished)
-	ok &= fprintf(f, " finished=\"%s\"",
-		      time_to_string(&ts, &h->finished)) != EOF;
-      if (ok && h->status != rsync_status_done)
-	ok &= fprintf(f, " error=\"%u\"", (unsigned) h->status) != EOF;
-      if (ok)
-	ok &= fprintf(f, ">%s%s</rsync_history>\n",
-		      h->uri.s, (h->final_slash ? "/" : "")) != EOF;
-    }
-
-    if (ok)
-      ok &= fprintf(f, "</rcynic-summary>\n") != EOF;
-
-    if (f && !use_stdout)
-      ok &= fclose(f) != EOF;
-
-    if (!ok)
-      logmsg(&rc, log_sys_err, "Couldn't write XML summary to %s: %s",
-	     xmlfile, strerror(errno));
-
-  }
 
   /*
    * Do NOT free cfg_section, NCONF_free() takes care of that

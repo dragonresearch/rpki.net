@@ -307,18 +307,39 @@ while argv:
   argv = q_pdu.client_getopt(argv[1:])
   q_msg.append(q_pdu)
 
+from django.conf import settings
+
+settings.configure(
+  DATABASES = { "default" : {
+    "ENGINE"   : "django.db.backends.mysql",
+    "NAME"     : cfg.get("sql-database", section = "irdbd"),
+    "USER"     : cfg.get("sql-username", section = "irdbd"),
+    "PASSWORD" : cfg.get("sql-password", section = "irdbd"),
+    "HOST"     : "",
+    "PORT"     : "",
+    "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
+  INSTALLED_APPS = ("rpki.irdb",),
+)
+
+import rpki.irdb
+
+server_ca = rpki.irdb.ServerCA.objects.get()
+irbe = server_ca.ee_certificates.get(purpose = "irbe")
+
 if q_msg_left_right:
 
   class left_right_proto(object):
     cms_msg = left_right_cms_msg
     msg     = left_right_msg
 
+  rpkid = server_ca.ee_certificates.get(purpose = "rpkid")
+
   call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
     proto       = left_right_proto,
-    client_key  = rpki.x509.RSA( Auto_file = cfg.get("rpkid-irbe-key")),
-    client_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-irbe-cert")),
-    server_ta   = rpki.x509.X509(Auto_file = cfg.get("rpkid-bpki-ta")),
-    server_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert")),
+    client_key  = irbe.private_key,
+    client_cert = irbe.certificate,
+    server_ta   = server_ca.certificate,
+    server_cert = rpkid.certificate,
     url         = cfg.get("rpkid-url"),
     debug       = verbose))
 
@@ -330,12 +351,14 @@ if q_msg_publication:
     msg     = publication_msg
     cms_msg = publication_cms_msg
 
+  pubd = server_ca.ee_certificates.get(purpose = "pubd")
+
   call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
     proto       = publication_proto,
-    client_key  = rpki.x509.RSA( Auto_file = cfg.get("pubd-irbe-key")),
-    client_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-irbe-cert")),
-    server_ta   = rpki.x509.X509(Auto_file = cfg.get("pubd-bpki-ta")),
-    server_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-cert")),
+    client_key  = irbe.private_key,
+    client_cert = irbe.certificate,
+    server_ta   = server_ca.certificate,
+    server_cert = pubd.certificate,
     url         = cfg.get("pubd-url"),
     debug       = verbose))
 

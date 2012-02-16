@@ -18,10 +18,30 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, csv, re, os, getopt, sys, base64, time, glob, copy, warnings
-import rpki.config, rpki.cli, rpki.sundial, rpki.log, rpki.oids
-import rpki.http, rpki.resource_set, rpki.relaxng, rpki.exceptions
-import rpki.left_right, rpki.x509, rpki.async, rpki.irdb
+import subprocess
+import csv
+import re
+import os
+import getopt
+import sys
+import base64
+import time
+import glob
+import copy
+import warnings
+import rpki.config
+import rpki.cli
+import rpki.sundial
+import rpki.log
+import rpki.oids
+import rpki.http
+import rpki.resource_set
+import rpki.relaxng
+import rpki.exceptions
+import rpki.left_right
+import rpki.x509
+import rpki.async
+import rpki.irdb
 import django.db.transaction
 
 from lxml.etree import (Element, SubElement, ElementTree,
@@ -886,13 +906,14 @@ class Zookeeper(object):
 
 
   def run_rpkid_now(self):
-    """Poke rpkid to immediately run the cron job for the current handle.
+    """
+    Poke rpkid to immediately run the cron job for the current handle.
 
     This method is used by the gui when a user has changed something in the
-    IRDB (ghostbuster, roa) which does not require a full `synchronize()` call,
+    IRDB (ghostbuster, roa) which does not require a full synchronize() call,
     to force the object to be immediately issued.
-
     """
+
     self.call_rpkid(rpki.left_right.self_elt.make_pdu(
       action = "set", self_handle = self.handle, run_now = "yes"))
 
@@ -924,6 +945,25 @@ class Zookeeper(object):
       debug       = self.show_xml))
 
     return call_pubd(*pdus)
+
+
+  def check_error_report(self, pdus):
+    """
+    Check a response from rpkid or pubd for error_report PDUs, log and
+    throw exceptions as needed.
+    """
+
+    if any(isinstance(pdu, (rpki.left_right.report_error_elt, rpki.publication.report_error_elt)) for pdu in pdus):
+      for pdu in pdus:
+        if isinstance(pdu, rpki.left_right.report_error_elt):
+          self.log("rpkid reported failure: %s" % pdu.error_code)
+        elif isinstance(pdu, rpki.publication.report_error_elt):
+          self.log("pubd reported failure: %s" % pdu.error_code)
+        else:
+          continue
+        if pdu.error_text:
+          self.log(pdu.error_text)
+      raise CouldntTalkToDaemon
 
 
   @django.db.transaction.commit_on_success
@@ -1035,13 +1075,7 @@ class Zookeeper(object):
                         for x in rpkid_reply
                         if isinstance(x, rpki.left_right.bsc_elt) and x.action == "list")
         bsc_pdu = bsc_pdus.pop(bsc_handle, None)
-        for r in rpkid_reply:
-          if isinstance(r, rpki.left_right.report_error_elt):
-            self.log("rpkid reported failure: %s" % r.error_code)
-            if r.error_text:
-              self.log(r.error_text)
-        if any(isinstance(r, rpki.left_right.report_error_elt) for r in rpkid_reply):
-          raise CouldntTalkToDaemon
+        self.check_error_report(rpkid_reply)
 
       rpkid_query = []
 
@@ -1204,21 +1238,24 @@ class Zookeeper(object):
         bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
         if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
           bsc_req = bsc_pdus[bsc_handle].pkcs10_request
-        for r in rpkid_reply:
-          if isinstance(r, rpki.left_right.report_error_elt):
-            self.log("rpkid reported failure: %s" % r.error_code)
-            if r.error_text:
-              self.log(r.error_text)
-        if any(isinstance(r, rpki.left_right.report_error_elt) for r in rpkid_reply):
-          raise CouldntTalkToDaemon
+        self.check_error_report(rpkid_reply)
 
       if pubd_query:
         assert self.run_pubd
         pubd_reply = self.call_pubd(*pubd_query)
-        for r in pubd_reply:
-          if isinstance(r, rpki.publication.report_error_elt):
-            self.log("pubd reported failure: %s" % r.error_code)
-            if r.error_text:
-              self.log(r.error_text)
-        if any(isinstance(r, rpki.publication.report_error_elt) for r in pubd_reply):
-          raise CouldntTalkToDaemon
+        self.check_error_report(pubd_reply)
+
+    # Finally, clean up any <self/> objects rpkid might be holding
+    # that don't match ResourceCA object.
+
+    rpkid_reply = self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "list"))
+    self.check_error_report(rpkid_reply)
+
+    self_handles = set(s.self_handle for s in rpkid_reply)
+    ca_handles   = set(ca.handle for ca in rpki.irdb.ResourceHolderCA.objects.all())
+    assert ca_handles <= self_handles
+
+    rpkid_query = [rpki.left_right.self_elt.make_pdu(action = "destroy", self_handle = handle)
+                   for handle in (self_handles - ca_handles)]
+    rpkid_reply = self.call_rpkid(*rpkid_query)
+    self.check_error_report(rpkid_reply)

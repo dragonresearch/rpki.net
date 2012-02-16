@@ -17,7 +17,7 @@ integration with the Django-based GUI interface.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -39,17 +39,28 @@ PERFORMANCE OF THIS SOFTWARE.
 # modules, or anything that imports Django modules.  Bottom line is
 # that we don't import such modules until we need them.
 
-
-# We need context managers for transactions.  Well, unless we're
-# willing to have this program depend on a Django settings.py file so
-# that we can use decorators, which I'm not, at the moment.
-
-from __future__ import with_statement
-
-import csv, re, os, getopt, sys, base64, time, glob, copy, warnings
-import rpki.config, rpki.cli, rpki.sundial, rpki.log, rpki.oids
-import rpki.http, rpki.resource_set, rpki.relaxng, rpki.exceptions
-import rpki.left_right, rpki.x509, rpki.async
+import csv
+import re
+import os
+import getopt
+import sys
+import base64
+import time
+import glob
+import copy
+import warnings
+import rpki.config
+import rpki.cli
+import rpki.sundial
+import rpki.log
+import rpki.oids
+import rpki.http
+import rpki.resource_set
+import rpki.relaxng
+import rpki.exceptions
+import rpki.left_right
+import rpki.x509
+import rpki.async
 
 class BadCommandSyntax(Exception):      "Bad command line syntax."
 class BadPrefixSyntax(Exception):       "Bad prefix syntax."
@@ -336,6 +347,14 @@ class main(rpki.cli.Cmd):
     return self.irdb_handle_complete(rpki.irdb.Repository, *args)
 
 
+  def do_delete_self(self, arg):
+    """
+    Delete the current RPKI entity (<self/> object).
+    """
+
+    self.zoo.delete_self()
+
+
   def do_renew_child(self, arg):
     """
     Update validity period for one child entity.
@@ -432,8 +451,6 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Need to specify roa.csv filename")
 
     self.zoo.load_roa_requests(argv[0])
-
-
 
 
   def do_synchronize(self, arg):

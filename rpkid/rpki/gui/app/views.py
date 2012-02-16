@@ -165,6 +165,7 @@ def generic_import(request, queryset, configure, form_class=None,
 
 @handle_required
 def dashboard(request):
+    log = request.META['wsgi.errors']
     conf = request.session['handle']
 
     used_asns = range_list.RangeList()
@@ -206,8 +207,8 @@ def dashboard(request):
         used_prefixes_v6.append(obj.as_resource_range())
 
     # my received prefixes
-    prefixes = models.ResourceRangeAddressV4.objects.filter(cert__parent__issuer=conf)
-    prefixes_v6 = models.ResourceRangeAddressV6.objects.filter(cert__parent__issuer=conf)
+    prefixes = models.ResourceRangeAddressV4.objects.filter(cert__parent__issuer=conf).all()
+    prefixes_v6 = models.ResourceRangeAddressV6.objects.filter(cert__parent__issuer=conf).all()
     my_prefixes = range_list.RangeList([obj.as_resource_range() for obj in prefixes])
     my_prefixes_v6 = range_list.RangeList([obj.as_resource_range() for obj in prefixes_v6])
 
@@ -221,25 +222,22 @@ def dashboard(request):
         'unused_prefixes_v6': unused_prefixes_v6,
         'asns': asns,
         'prefixes': prefixes,
-        'prefixes_v6': prefixes})
+        'prefixes_v6': prefixes_v6})
 
 
 @superuser_required
 def conf_list(request):
-    """Allow the user to select a handle.
-
-    """
+    """Allow the user to select a handle."""
     queryset = models.Conf.objects.all()
     return object_list(request, queryset,
-            template_name='app/conf_list.html', template_object_name='conf',
-            extra_context={'select_url': reverse(conf_select)})
+                       template_name='app/conf_list.html',
+                       template_object_name='conf',
+                       extra_context={'select_url': reverse(conf_select)})
 
 
 @superuser_required
 def conf_select(request):
-    """Change the handle for the current session.
-
-    """
+    """Change the handle for the current session."""
     if not 'handle' in request.GET:
         return http.HttpResponseRedirect('/myrpki/conf/select')
     handle = request.GET['handle']
@@ -260,14 +258,13 @@ def serve_xml(content, basename):
 
     """
     resp = http.HttpResponse(content, mimetype='application/xml')
-    resp['Content-Disposition'] = 'attachment; filename=%s.xml' % (basename, )
+    resp['Content-Disposition'] = 'attachment; filename=%s.xml' % (basename,)
     return resp
 
 
 @handle_required
 def conf_export(request):
     """Return the identity.xml for the current handle."""
-
     conf = request.session['handle']
     z = Zookeeper(handle=conf.handle)
     xml = z.generate_identity()
@@ -299,11 +296,20 @@ def parent_detail(request, pk):
 @handle_required
 def parent_delete(request, pk):
     conf = request.session['handle']
-    get_object_or_404(conf.parents, pk=pk)  # confirm permission
-    return delete_object(request, model=models.Parent, object_id=pk,
-                         post_delete_redirect=reverse(parent_list),
-                         template_name='app/parent_detail.html',
-                         extra_context={'confirm_delete': True})
+    obj = get_object_or_404(conf.parents, pk=pk)  # confirm permission
+    log = request.META['wsgi.errors']
+    form_class = forms.UserDeleteForm
+    if request.method == 'POST':
+        form = form_class(request.POST, request.FILES)
+        if form.is_valid():
+            z = Zookeeper(handle=conf.handle, logstream=log)
+            z.delete_parent(obj.handle)
+            z.synchronize()
+            return http.HttpResponseRedirect(reverse(parent_list))
+    else:
+        form = form_class()
+    return render(request, 'app/parent_detail.html',
+                  {'object': obj, 'form': form, 'confirm_delete': True})
 
 
 @handle_required
@@ -338,16 +344,18 @@ def child_add_resource(request, pk, form_class, unused_list, callback,
                        template_name='app/child_add_resource_form.html'):
     conf = request.session['handle']
     child = models.Child.objects.get(issuer=conf, pk=pk)
+    log = request.META['wsgi.errors']
     if request.method == 'POST':
         form = form_class(request.POST, request.FILES)
         if form.is_valid():
             callback(child, form)
+            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = form_class()
 
-    return render(request, template_name, {'object': child, 'form': form,
-        'unused': unused_list})
+    return render(request, template_name,
+                  {'object': child, 'form': form, 'unused': unused_list})
 
 
 def add_asn_callback(child, form):
@@ -399,6 +407,7 @@ def child_view(request, pk):
 @handle_required
 def child_edit(request, pk):
     """Edit the end validity date for a resource handle's child."""
+    log = request.META['wsgi.errors']
     conf = request.session['handle']
     child = get_object_or_404(conf.children.all(), pk=pk)
     form_class = forms.ChildForm(child)
@@ -410,6 +419,7 @@ def child_edit(request, pk):
             # remove AS & prefixes that are not selected in the form
             models.ChildASN.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('as_ranges')).delete()
             models.ChildNet.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('address_ranges')).delete()
+            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = form_class(initial={
@@ -484,6 +494,7 @@ def roa_create(request):
 @handle_required
 def roa_create_confirm(request):
     conf = request.session['handle']
+    log = request.META['wsgi.errors']
 
     if request.method == 'POST':
         form = forms.ROARequestConfirm(request.POST, request.FILES)
@@ -507,7 +518,7 @@ def roa_create_confirm(request):
             roa.prefixes.create(version=v, prefix=str(rng.min),
                                 prefixlen=rng.prefixlen(),
                                 max_prefixlen=max_prefixlen)
-            Zookeeper(handle=conf.handle).run_rpkid_now()
+            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(roa_list))
     else:
         return http.HttpResponseRedirect(reverse(roa_create))
@@ -604,7 +615,7 @@ def ghostbuster_view(request, pk):
     conf = request.session['handle']
     qs = models.GhostbusterRequest.objects.filter(issuer=conf)
     return object_detail(request, queryset=qs, object_id=pk,
-            extra_context={'can_edit': True})
+                         extra_context={'can_edit': True})
 
 
 @handle_required
@@ -614,15 +625,20 @@ def ghostbuster_delete(request, pk):
 
     """
     conf = request.session['handle']
-
+    log = request.META['wsgi.errors']
+    form_class = forms.UserDeleteForm  # FIXME
     # Ensure the GhosbusterRequest object belongs to the current user.
-    get_object_or_404(models.GhostbusterRequest, issuer=conf, pk=pk)
-
-    return delete_object(request, model=models.GhostbusterRequest,
-                         object_id=pk,
-                         post_delete_redirect=reverse(ghostbuster_list),
-                         template_name='app/ghostbusterrequest_detail.html',
-                         extra_context={'confirm_delete': True})
+    obj = get_object_or_404(models.GhostbusterRequest, issuer=conf, pk=pk)
+    if request.method == 'POST':
+        form = form_class(request.POST, request.FILES)
+        if form.is_valid():
+            obj.delete()
+            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
+            return http.HttpResponseRedirect(reverse(ghostbuster_list))
+    else:
+        form = form_class()
+    return render(request, 'app/ghostbusterrequest_detail.html',
+                  {'object': obj, 'form': form, 'confirm_delete': True})
 
 
 def _ghostbuster_edit(request, obj=None):
@@ -710,11 +726,19 @@ def update_bpki(request):
 def child_delete(request, pk):
     conf = request.session['handle']
     # verify this child belongs to the current user
-    get_object_or_404(conf.children, pk=pk)
-    return delete_object(request, model=models.Child, object_id=pk,
-                         post_delete_redirect=reverse(child_list),
-                         template_name='app/child_detail.html',
-                         extra_context={'confirm_delete': True})
+    obj = get_object_or_404(conf.children, pk=pk)
+    form_class = forms.UserDeleteForm  # FIXME
+    if request.method == 'POST':
+        form = form_class(request.POST, request.FILES)
+        if form.is_valid():
+            z = Zookeeper(handle=conf.handle)
+            z.delete_child(obj.handle)
+            z.synchronize()
+            return http.HttpResponseRedirect(reverse(child_list))
+    else:
+        form = form_class()
+    return render(request, 'app/child_detail.html',
+                  {'object': obj, 'form': form, 'confirm_delete': True})
 
 
 def roa_match(rng):
@@ -807,7 +831,6 @@ def route_roa_list(request, pk):
     return object_list(request, qs, template_name='app/route_roa_list.html')
 
 
-
 @handle_required
 def repository_list(request):
     conf = request.session['handle']
@@ -829,13 +852,21 @@ def repository_detail(request, pk):
 
 @handle_required
 def repository_delete(request, pk):
+    log = request.META['wsgi.errors']
     conf = request.session['handle']
     # Ensure the repository being deleted belongs to the current user.
-    get_object_or_404(models.Repository, issuer=conf, pk=pk)
-    return delete_object(request, model=models.Repository, object_id=pk,
-            post_delete_redirect=reverse(repository_list),
-            template_name='app/repository_detail.html',
-            extra_context={'confirm_delete': True})
+    obj = get_object_or_404(models.Repository, issuer=conf, pk=pk)
+    if request.method == 'POST':
+        form = form_class(request.POST, request.FILES)
+        if form.is_valid():
+            z = Zookeeper(handle=conf.handle, logstream=log)
+            z.delete_repository(obj.handle)
+            z.synchronize()
+            return http.HttpResponseRedirect(reverse(repository_list))
+    else:
+        form = form_class()
+    return render(request, 'app/repository_detail.html',
+                  {'object': obj, 'form': form, 'confirm_delete': True})
 
 
 @handle_required
@@ -846,8 +877,8 @@ def repository_import(request):
                           Zookeeper.configure_repository,
                           form_class=forms.ImportRepositoryForm,
                           post_import_redirect=reverse(repository_list))
-
 
+
 @superuser_required
 def client_list(request):
     return object_list(request, queryset=models.Client.objects.all(),
@@ -863,10 +894,20 @@ def client_detail(request, pk):
 
 @superuser_required
 def client_delete(request, pk):
-    return delete_object(request, model=models.Client, object_id=pk,
-                         post_delete_redirect=reverse(client_list),
-                         template_name='app/client_detail.html',
-                         extra_context={'confirm_delete': True})
+    log = request.META['wsgi.errors']
+    obj = get_object_or_404(models.Client, pk=pk)
+    form_class = forms.UserDeleteForm  # FIXME
+    if request.method == 'POST':
+        form = form_class(request.POST, request.FILES)
+        if form.is_valid():
+            z = Zookeeper(logstream=log)
+            z.delete_publication_client(obj.handle)
+            z.synchronize()
+            return http.HttpResponseRedirect(reverse(client_list))
+    else:
+        form = form_class()
+    return render(request, 'app/client_detail.html',
+                  {'object': obj, 'form': form, 'confirm_delete': True})
 
 
 @superuser_required
@@ -912,11 +953,12 @@ def user_detail(request):
 @superuser_required
 def user_delete(request, pk):
     conf = models.Conf.objects.get(pk=pk)
+    log = request.META['wsgi.errors']
     if request.method == 'POST':
         form = forms.UserDeleteForm(request.POST)
         if form.is_valid():
             User.objects.filter(username=conf.handle).delete()
-            z = Zookeeper(handle=conf.handle)
+            z = Zookeeper(handle=conf.handle, logstream=log)
             z.delete_self()
             z.synchronize()
             return http.HttpResponseRedirect(reverse(user_list))
@@ -960,6 +1002,7 @@ def user_create(request):
     if not request.user.is_superuser:
         return http.HttpResponseForbidden()
 
+    log = request.META['wsgi.errors']
     if request.method == 'POST':
         form = forms.UserCreateForm(request.POST, request.FILES)
         if form.is_valid():
@@ -970,16 +1013,15 @@ def user_create(request):
 
             User.objects.create_user(handle, email, pw)
 
-            zk_child = Zookeeper(handle=handle)
+            zk_child = Zookeeper(handle=handle, logstream=log)
             identity_xml = zk_child.initialize()
-            handles = [handle]
             if parent:
                 # FIXME etree_wrapper should allow us to deal with file objects
                 t = NamedTemporaryFile(delete=False)
                 t.close()
 
                 identity_xml.save(t.name)
-                zk_parent = Zookeeper(handle=parent.handle)
+                zk_parent = Zookeeper(handle=parent.handle, logstream=log)
                 parent_response, _ = zk_parent.configure_child(t.name)
                 parent_response.save(t.name)
                 repo_req, _ = zk_child.configure_parent(t.name)
@@ -988,9 +1030,7 @@ def user_create(request):
                 repo_resp.save(t.name)
                 zk_child.configure_repository(t.name)
                 os.remove(t.name)
-                handles.append(parent.handle)
-            # force rpkid run for both parent and child
-            zk_child.synchronize(*handles)
+            zk_child.synchronize()
 
             return http.HttpResponseRedirect(reverse(dashboard))
     else:

@@ -668,7 +668,7 @@ class Zookeeper(object):
 
     assert client_handle is not None
     try:
-      self.resource_ca.clients.get(handle = client_handle).delete()
+      self.server_ca.clients.get(handle = client_handle).delete()
     except rpki.irdb.Client.DoesNotExist:
       self.log("No such client \"%s\"" % arg)
 

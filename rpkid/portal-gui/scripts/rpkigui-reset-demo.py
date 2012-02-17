@@ -12,9 +12,7 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-# normally this would be a module docstring, but since this script is
-# prepending with django boilerplate, that doesn't work
-description = """
+"""
 This script is used to reset all of the labuser* accounts on demo.rpki.net back
 to a state suitable for a new workshop.  It removes all ROAs and Ghostbuster
 issued by the labuser accounts.
@@ -23,14 +21,14 @@ issued by the labuser accounts.
 
 __version__ = '$Id$'
 
-from optparse import OptionParser
-from rpki.irdb.models import ROARequest, GhostbusterRequest
+from rpki.irdb.models import ROARequest, GhostbusterRequest, ResourceHolderCA
+from rpki.gui.app.glue import list_received_resources
 
-if __name__ == '__main__':
-    parser = OptionParser(description=description)
-    (options, args) = parser.parse_args()
-    for n in xrange(1, 33):
-        username = 'labuser%02d' % n
-        print 'removing objects for ' + username
-        for cls in (ROARequest, GhostbusterRequest):
-            cls.objects.filter(issuer__handle=username).delete()
+for n in xrange(1, 33):
+    username = 'labuser%02d' % n
+    print 'removing objects for ' + username
+    for cls in (ROARequest, GhostbusterRequest):
+        cls.objects.filter(issuer__handle=username).delete()
+    print '... updating resource certificate cache'
+    conf = ResourceHolderCA.objects.get(handle=username)
+    list_received_resources(sys.stdout, conf)

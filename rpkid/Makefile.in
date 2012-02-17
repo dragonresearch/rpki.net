@@ -43,13 +43,17 @@ POW_SO	= rpki/POW/_POW.so
 
 SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki \
 	  pubd rootd rpkic rpkid \
-	  portal-gui/scripts/rpkigui-rcynic portal-gui/scripts/rpkigui-import-routes
+	  portal-gui/scripts/rpkigui-rcynic \
+	  portal-gui/scripts/rpkigui-import-routes
+
+# scripts we build, but don't install
+BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo
 
 AUX_SCRIPTS =
 
 SETTINGS = portal-gui/settings.py rpki/gui/app/settings.py portal-gui/rpki.wsgi
 
-all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS}
+all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace
@@ -242,6 +246,9 @@ portal-gui/scripts/rpkigui-rcynic: portal-gui/scripts/rpkigui-rcynic.py
 	${COMPILE_DJANGO}
 
 portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-routes.py
+	${COMPILE_DJANGO}
+
+portal-gui/scripts/rpkigui-reset-demo: portal-gui/scripts/rpkigui-reset-demo.py
 	${COMPILE_DJANGO}
 
 portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in

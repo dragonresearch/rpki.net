@@ -875,7 +875,7 @@
       <ref name="tag"/>
       <ref name="self_handle"/>
       <attribute name="asn">
-        <data type="positiveInteger"/>
+        <data type="nonNegativeInteger"/>
       </attribute>
       <optional>
         <attribute name="ipv4">

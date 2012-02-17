@@ -881,7 +881,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="tag"/>
       <ref name="self_handle"/>
       <attribute name="asn">
-        <data type="positiveInteger"/>
+        <data type="nonNegativeInteger"/>
       </attribute>
       <optional>
         <attribute name="ipv4">

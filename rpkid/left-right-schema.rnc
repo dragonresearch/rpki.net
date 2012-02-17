@@ -247,7 +247,7 @@ list_roa_requests_query = element list_roa_requests {
 
 list_roa_requests_reply = element list_roa_requests {
   tag, self_handle,
-  attribute asn { xsd:positiveInteger },
+  attribute asn { xsd:nonNegativeInteger },
   attribute ipv4 { ipv4_list }?,
   attribute ipv6 { ipv6_list }?
 }

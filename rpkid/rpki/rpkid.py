@@ -1158,7 +1158,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """
     return self.ca_detail.ca.sia_uri + self.uri_tail
 
-  def revoke(self, publisher, generate_crl_and_manifest = False):
+  def revoke(self, publisher, generate_crl_and_manifest = True):
     """
     Revoke a child cert.
     """

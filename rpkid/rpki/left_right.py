@@ -253,18 +253,9 @@ class self_elt(data_elt):
     """
     Extra cleanup actions when destroying a self_elt.
     """
-
+    rpki.log.trace()
     def loop(iterator, parent):
-
-      def revoked_forgotten():
-        parent.delete(iterator)
-
-      def revoke_forgotten_failed(e):
-        rpki.log.warn("Couldn't revoke forgotten certificates, blundering onwards: %s" % e)
-        revoked_forgotten()
-
-      parent.serve_revoke_forgotten(revoked_forgotten, revoke_forgotten_failed)
-
+      parent.delete(iterator)
     rpki.async.iterator(self.parents, loop, cb)
 
 
@@ -952,6 +943,39 @@ class parent_elt(data_elt):
       ca.reissue(cb = iterator, eb = eb)
     rpki.async.iterator(self.cas, loop, cb)
 
+
+  def get_skis(self, cb, eb):
+    """
+    Fetch SKIs that this parent thinks we have.  In theory this should
+    agree with our own database, but in practice stuff can happen, so
+    sometimes we need to know what our parent thinks.
+
+    Result is a dictionary with the resource class name as key and a
+    set of SKIs as value.
+    """
+
+    def done(r_msg):
+      cb(dict((rc.class_name, set(c.cert.gSKI() for c in rc.certs))
+              for rc in r_msg.payload.classes))
+
+    rpki.up_down.list_pdu.query(self, done, eb)
+
+
+  def revoke_skis(self, rc_name, skis_to_revoke, cb, eb):
+    """
+    Revoke a set of SKIs within a particular resource class.
+    """
+
+    def loop(iterator, ski):
+      rpki.log.debug("Asking parent %r to revoke class %r, SKI %s" % (self, rc_name, ski))
+      q_pdu = rpki.up_down.revoke_pdu()
+      q_pdu.class_name = rc_name
+      q_pdu.ski = ski
+      self.query_up_down(q_pdu, lambda r_pdu: iterator(), eb)
+
+    rpki.async.iterator(skis_to_revoke, loop, cb)
+
+
   def serve_revoke_forgotten(self, cb, eb):
     """
     Handle a left-right revoke_forgotten action for this parent.
@@ -966,30 +990,19 @@ class parent_elt(data_elt):
     require an explicit trigger.
     """
 
-    def got_list(r_msg):
+    def got_skis(skis_from_parent):
+
+      def loop(iterator, item):
+        rc_name, skis_to_revoke = item
+        if rc_name in ca_map:
+          for ca_detail in ca_map[rc_name].issue_response_candidate_ca_details:
+            skis_to_revoke.discard(ca_detail.latest_ca_cert.gSKI())
+        self.revoke_skis(rc_name, skis_to_revoke, iterator, eb)
 
       ca_map = dict((ca.parent_resource_class, ca) for ca in self.cas)
+      rpki.async.iterator(skis_from_parent.items(), loop, cb)
 
-      def rc_loop(rc_iterator, rc):
-
-        if rc.class_name in ca_map:
-
-          def ski_loop(ski_iterator, ski):
-            rpki.log.warn("Revoking certificates missing from our database, class %r, SKI %s" % (rc.class_name, ski))
-            rpki.up_down.revoke_pdu.query(ca, ski, lambda x: ski_iterator(), eb)
-
-          ca = ca_map[rc.class_name]
-          skis_parent_knows_about = set(c.cert.gSKI() for c in rc.certs)
-          skis_ca_knows_about = set(ca_detail.latest_ca_cert.gSKI() for ca_detail in ca.issue_response_candidate_ca_details)
-          skis_only_parent_knows_about = skis_parent_knows_about - skis_ca_knows_about
-          rpki.async.iterator(skis_only_parent_knows_about, ski_loop, rc_iterator)
-
-        else:
-          rc_iterator()
-
-      rpki.async.iterator(r_msg.payload.classes, rc_loop, cb)
-
-    rpki.up_down.list_pdu.query(self, got_list, eb)
+    self.get_skis(got_skis, eb)
 
 
   def delete(self, cb, delete_parent = True):
@@ -999,22 +1012,25 @@ class parent_elt(data_elt):
     """
 
     def loop(iterator, ca):
+      self.gctx.checkpoint()
+      ca.delete(self, iterator)
 
-      def revoked():
-        ca.delete(self, iterator)
+    def revoke():
+      self.gctx.checkpoint()
+      self.serve_revoke_forgotten(done, fail)
 
-      def revoke_failed(e):
-        rpki.log.warn("Couldn't revoke CA certificate, blundering onwards: %s" %  e)
-        revoked()
-
-      ca.revoke(revoked, revoke_failed, revoke_all = True)
+    def fail(e):
+      rpki.log.warn("Trouble getting parent to revoke certificates, blundering onwards: %s" % e)
+      done()
 
     def done():
+      self.gctx.checkpoint()
+      self.gctx.sql.sweep()
       if delete_parent:
         self.sql_delete()
       cb()
 
-    rpki.async.iterator(self.cas, loop, done)
+    rpki.async.iterator(self.cas, loop, revoke)
 
 
   def serve_destroy_hook(self, cb, eb):

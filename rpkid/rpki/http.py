@@ -766,7 +766,14 @@ class http_client(http_stream):
       self.update_timeout()
 
     if self.msg.code != 200:
-      raise rpki.exceptions.HTTPRequestFailed, "HTTP request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)
+      errmsg = "HTTP request failed"
+      if self.msg.code is not None:
+        errmsg += " with status %s" % self.msg.code
+      if self.msg.reason:
+        errmsg += ", reason %s" % self.msg.reason
+      if self.msg.body:
+        errmsg += ", response %s" % self.msg.body
+      raise rpki.exceptions.HTTPRequestFailed(errmsg)
     self.queue.return_result(self, self.msg, detach = self.expect_close)
 
   def handle_close(self):

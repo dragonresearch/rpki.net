@@ -58,11 +58,15 @@ class issue_pdu(rpki.up_down.issue_pdu):
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
-    rootd.subject_cert = get_subject_cert()
+    rpki.log.debug("Revocation requested for SKI %s" % self.ski)
+    subject_cert = rootd.get_subject_cert()
     if subject_cert is None or subject_cert.gSKI() != self.ski:
       raise rpki.exceptions.NotInDatabase
+    now = rpki.sundial.now()
+    rootd.revoke_subject_cert(now)
     rootd.del_subject_cert()
     rootd.del_subject_pkcs10()
+    rootd.generate_crl_and_manifest(now)
     r_msg.payload = rpki.up_down.revoke_response_pdu()
     r_msg.payload.class_name = self.class_name
     r_msg.payload.ski = self.ski
@@ -94,8 +98,6 @@ class cms_msg(rpki.up_down.cms_msg):
   saxify = sax_handler.saxify
 
 class main(object):
-
-  rpki_root_cert = None
 
   def get_root_cert(self):
     rpki.log.debug("Read root cert %s" % self.rpki_root_cert_file)
@@ -172,54 +174,65 @@ class main(object):
     rpki.log.info("Generating subject cert with resources " + str(resources))
     req_key = pkcs10.getPublicKey()
     req_sia = pkcs10.get_SIA()
-    crldp = self.rpki_base_uri + self.rpki_root_crl
-    serial = now.totimestamp()
+    self.serial_number += 1
     subject_cert = self.rpki_root_cert.issue(
       keypair     = self.rpki_root_key,
       subject_key = req_key,
-      serial      = serial,
+      serial      = self.serial_number,
       sia         = req_sia,
       aia         = self.rpki_root_cert_uri,
-      crldp       = crldp,
+      crldp       = self.rpki_base_uri + self.rpki_root_crl,
       resources   = resources,
       notAfter    = now + self.rpki_subject_lifetime)
+    self.set_subject_cert(subject_cert)
+    self.generate_crl_and_manifest(now)
+    return subject_cert
+
+  def generate_crl_and_manifest(self, now):
+    subject_cert = self.get_subject_cert()
+    self.serial_number += 1
+    self.crl_number += 1
     crl = rpki.x509.CRL.generate(
       keypair             = self.rpki_root_key,
       issuer              = self.rpki_root_cert,
-      serial              = serial,
+      serial              = self.crl_number,
       thisUpdate          = now,
       nextUpdate          = now + self.rpki_subject_lifetime,
-      revokedCertificates = ())
+      revokedCertificates = self.revoked)
     rpki.log.debug("Writing CRL %s" % (self.rpki_root_dir + self.rpki_root_crl))
     f = open(self.rpki_root_dir + self.rpki_root_crl, "wb")
     f.write(crl.get_DER())
     f.close()
+    manifest_content = [(self.rpki_root_crl, crl)]
+    if subject_cert is not None:
+      manifest_content.append((self.rpki_subject_cert, subject_cert))
     manifest_resources = rpki.resource_set.resource_bag.from_inheritance()
     manifest_keypair = rpki.x509.RSA.generate()
     manifest_cert = self.rpki_root_cert.issue(
       keypair     = self.rpki_root_key,
       subject_key = manifest_keypair.get_RSApublic(),
-      serial      = serial + 1,
+      serial      = self.serial_number,
       sia         = ((rpki.oids.name2oid["id-ad-signedObject"],
                       ("uri", self.rpki_base_uri + self.rpki_root_manifest)),),
       aia         = self.rpki_root_cert_uri,
-      crldp       = crldp,
+      crldp       = self.rpki_base_uri + self.rpki_root_crl,
       resources   = manifest_resources,
       notAfter    = now + self.rpki_subject_lifetime,
       is_ca       = False)
     manifest = rpki.x509.SignedManifest.build(
-      serial         = serial,
+      serial         = self.crl_number,
       thisUpdate     = now,
       nextUpdate     = now + self.rpki_subject_lifetime,
-      names_and_objs = [(self.rpki_subject_cert, subject_cert), (self.rpki_root_crl, crl)],
+      names_and_objs = manifest_content,
       keypair        = manifest_keypair,
       certs          = manifest_cert)
     rpki.log.debug("Writing manifest %s" % (self.rpki_root_dir + self.rpki_root_manifest))
     f = open(self.rpki_root_dir + self.rpki_root_manifest, "wb")
     f.write(manifest.get_DER())
     f.close()
-    self.set_subject_cert(subject_cert)
-    return subject_cert
+
+  def revoke_subject_cert(self, now):
+    self.revoked.append((self.get_subject_cert().getSerial(), now.toASN1tuple(), ()))
 
   def compose_response(self, r_msg, pkcs10 = None):
     subject_cert = self.issue_subject_cert_maybe(pkcs10)
@@ -265,6 +278,11 @@ class main(object):
     global rootd
     rootd = self                        # Gross, but simpler than what we'd have to do otherwise
 
+    self.rpki_root_cert = None
+    self.serial_number = 0
+    self.crl_number = 0
+    self.revoked = []
+
     os.environ["TZ"] = "UTC"
     time.tzset()
 
@@ -285,6 +303,8 @@ class main(object):
     rpki.log.init("rootd")
 
     self.cfg = rpki.config.parser(self.cfg_file, "rootd")
+
+    rpki.log.enable_tracebacks = True
 
     self.cfg.set_global_flags()
 

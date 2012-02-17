@@ -752,7 +752,7 @@ class Zookeeper(object):
     """
 
     if child_handle is None:
-      children = self.resource_ca.children
+      children = self.resource_ca.children.all()
     else:
       children = self.resource_ca.children.filter(handle = child_handle)
 

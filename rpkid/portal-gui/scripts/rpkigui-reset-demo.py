@@ -24,15 +24,13 @@ issued by the labuser accounts.
 __version__ = '$Id$'
 
 from optparse import OptionParser
-import logging
 from rpki.gui.app.models import ROARequest, GhostbusterRequest
 
 if __name__ == '__main__':
     parser = OptionParser(description=description)
     (options, args) = parser.parse_args()
-
-    for n in xrange(1, 32):
+    for n in xrange(1, 33):
         username = 'labuser%02d' % n
-        logging.info('removing objects for ' + username)
+        print 'removing objects for ' + username
         for cls in (ROARequest, GhostbusterRequest):
             cls.objects.filter(issuer__handle=username).delete()

@@ -625,9 +625,10 @@ class ca_obj(rpki.sql.sql_persistent):
 
     rpki.up_down.issue_pdu.query(parent, self, new_detail, done, eb)
 
-  def revoke(self, cb, eb):
+  def revoke(self, cb, eb, revoke_all = False):
     """
-    Revoke deprecated ca_detail objects associated with this ca.
+    Revoke deprecated ca_detail objects associated with this CA, or
+    all ca_details associated with this CA if revoke_all is set.
     """
 
     rpki.log.trace()
@@ -635,7 +636,9 @@ class ca_obj(rpki.sql.sql_persistent):
     def loop(iterator, ca_detail):
       ca_detail.revoke(cb = iterator, eb = eb)
 
-    rpki.async.iterator(self.deprecated_ca_details, loop, cb)
+    ca_details = self.ca_details if revoke_all else self.deprecated_ca_details
+
+    rpki.async.iterator(ca_details, loop, cb)
 
   def reissue(self, cb, eb):
     """

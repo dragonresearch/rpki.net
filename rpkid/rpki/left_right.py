@@ -190,6 +190,7 @@ class self_elt(data_elt):
     """
     return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
+
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Extra server actions for self_elt.
@@ -247,6 +248,25 @@ class self_elt(data_elt):
     def loop(iterator, parent):
       parent.serve_revoke_forgotten(iterator, eb)
     rpki.async.iterator(self.parents, loop, cb)
+
+  def serve_destroy_hook(self, cb, eb):
+    """
+    Extra cleanup actions when destroying a self_elt.
+    """
+
+    def loop(iterator, parent):
+
+      def revoked_forgotten():
+        parent.delete(iterator)
+
+      def revoke_forgotten_failed(e):
+        rpki.log.warn("Couldn't revoke forgotten certificates, blundering onwards: %s" % e)
+        revoked_forgotten()
+
+      parent.serve_revoke_forgotten(revoked_forgotten, revoke_forgotten_failed)
+
+    rpki.async.iterator(self.parents, loop, cb)
+
 
   def serve_publish_world_now(self, cb, eb):
     """
@@ -704,6 +724,7 @@ class self_elt(data_elt):
     self.gctx.sql.sweep()
     self.gctx.irdb_query_roa_requests(self.self_handle, got_roa_requests, roa_requests_failed)
 
+
 class bsc_elt(data_elt):
   """
   <bsc/> (Business Signing Context) element.
@@ -969,6 +990,39 @@ class parent_elt(data_elt):
       rpki.async.iterator(r_msg.payload.classes, rc_loop, cb)
 
     rpki.up_down.list_pdu.query(self, got_list, eb)
+
+
+  def delete(self, cb, delete_parent = True):
+    """
+    Delete all the CA stuff under this parent, and perhaps the parent
+    itself.
+    """
+
+    def loop(iterator, ca):
+
+      def revoked():
+        ca.delete(self, iterator)
+
+      def revoke_failed(e):
+        rpki.log.warn("Couldn't revoke CA certificate, blundering onwards: %s" %  e)
+        revoked()
+
+      ca.revoke(revoked, revoke_failed, revoke_all = True)
+
+    def done():
+      if delete_parent:
+        self.sql_delete()
+      cb()
+
+    rpki.async.iterator(self.cas, loop, done)
+
+
+  def serve_destroy_hook(self, cb, eb):
+    """
+    Extra server actions when destroying a parent_elt.
+    """
+
+    self.delete(cb, delete_parent = False)
 
 
   def query_up_down(self, q_pdu, cb, eb):

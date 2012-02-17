@@ -24,7 +24,7 @@ issued by the labuser accounts.
 __version__ = '$Id$'
 
 from optparse import OptionParser
-from rpki.gui.app.models import ROARequest, GhostbusterRequest
+from rpki.irdb.models import ROARequest, GhostbusterRequest
 
 if __name__ == '__main__':
     parser = OptionParser(description=description)

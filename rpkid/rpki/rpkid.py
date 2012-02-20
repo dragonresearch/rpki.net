@@ -462,8 +462,8 @@ class ca_obj(rpki.sql.sql_persistent):
 
       if rc_cert is None:
 
-        rpki.log.warn("SKI %s in resource class %s is in my database but missing from list_response received from %s, maybe parent certificate went away?"
-                      % (ca_detail.public_key.gSKI(), rc.class_name, parent.parent_handle))
+        rpki.log.warn("SKI %s in resource class %s is in database but missing from list_response to %s from %s, maybe parent certificate went away?"
+                      % (ca_detail.public_key.gSKI(), rc.class_name, parent.self.self_handle, parent.parent_handle))
         publisher = publication_queue()
         ca_detail.delete(ca = ca_detail.ca, publisher = publisher)
         return publisher.call_pubd(iterator, eb)
@@ -495,8 +495,10 @@ class ca_obj(rpki.sql.sql_persistent):
 
     def done():
       if cert_map:
-        rpki.log.warn("Certificate SKIs in resource class %s in list_response from parent %s that are missing from our database: %s"
-                      % (rc.class_name, parent.parent_handle, ", ".join(c.cert.gSKI() for c in cert_map.values())))
+        rpki.log.warn("Unknown certificate SKI%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?"
+                      % ("" if len(cert_map) == 1 else "s",
+                         ", ".join(c.cert.gSKI() for c in cert_map.values()),
+                         rc.class_name, parent.self.self_handle, parent.parent_handle))
       self.gctx.checkpoint()
       cb()
 
@@ -509,19 +511,19 @@ class ca_obj(rpki.sql.sql_persistent):
                         for x in ca_details
                         if x.latest_ca_cert is not None)
       for ski in skis_parent & skis_me:
-        rpki.log.debug("Parent %s and I agree that I have SKI %s in resource class %s"
-                       % (parent.parent_handle, ski, rc.class_name))
+        rpki.log.debug("Parent %s agrees that %s has SKI %s in resource class %s"
+                       % (parent.parent_handle, parent.self.self_handle, ski, rc.class_name))
       for ski in skis_parent - skis_me:
-        rpki.log.debug("Parent %s thinks I have SKI %s in resource class %s but I don't think so"
-                       % (parent.parent_handle, ski, rc.class_name))
+        rpki.log.debug("Parent %s thinks %s has SKI %s in resource class %s but I don't think so"
+                       % (parent.parent_handle, parent.self.self_handle, ski, rc.class_name))
       for ski in skis_me - skis_parent:
-        rpki.log.debug("I think I have SKI %s in resource class %s but parent %s doesn't think so"
-                       % (ski, rc.class_name, parent.parent_handle))
+        rpki.log.debug("I think %s has SKI %s in resource class %s but parent %s doesn't think so"
+                       % (parent.self.self_handle, ski, rc.class_name, parent.parent_handle))
 
     if ca_details:
       rpki.async.iterator(ca_details, loop, done)
     else:
-      rpki.log.warn("Existing resource class %s from parent %s with no certificates, rekeying" % (rc.class_name, parent.parent_handle))
+      rpki.log.warn("Existing resource class %s to %s from %s with no certificates, rekeying" % (rc.class_name, parent.self.self_handle, parent.parent_handle))
       self.gctx.checkpoint()
       self.rekey(cb, eb)
 

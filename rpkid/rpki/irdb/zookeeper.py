@@ -415,13 +415,16 @@ class Zookeeper(object):
       for obj in model.objects.all():
         self.log("Regenerating certificate %s" % obj.certificate.getSubject())
         obj.avow()
+        obj.save()
 
     self.log("Regenerating Server CRL")
     self.server_ca.generate_crl()
+    self.server_ca.save()
     
     for ca in rpki.irdb.ResourceHolderCA.objects.all():
       self.log("Regenerating CRL for %s" % ca.handle)
       ca.generate_crl()
+      ca.save()
 
 
   @django.db.transaction.commit_on_success

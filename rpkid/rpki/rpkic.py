@@ -121,6 +121,24 @@ class main(rpki.cli.Cmd):
 
     import rpki.irdb
 
+    try:
+      rpki.irdb.models.ca_certificate_lifetime = rpki.sundial.timedelta.parse(
+        cfg.get("bpki_ca_certificate_lifetime", section = "rpkic"))
+    except rpki.config.ConfigParser.Error:
+      pass
+
+    try:
+      rpki.irdb.models.ee_certificate_lifetime = rpki.sundial.timedelta.parse(
+        cfg.get("bpki_ee_certificate_lifetime", section = "rpkic"))
+    except rpki.config.ConfigParser.Error:
+      pass
+
+    try:
+      rpki.irdb.models.crl_interval = rpki.sundial.timedelta.parse(
+        cfg.get("bpki_crl_interval", section = "rpkic"))
+    except rpki.config.ConfigParser.Error:
+      pass
+
     import django.core.management
     django.core.management.call_command("syncdb", verbosity = 0, load_initial_data = False)
 
@@ -191,6 +209,7 @@ class main(rpki.cli.Cmd):
     """
 
     self.zoo.update_bpki()
+    self.zoo.write_bpki_files()
 
 
   def do_configure_child(self, arg):

@@ -358,7 +358,7 @@ class Zookeeper(object):
     need them.
     """
 
-    writer = PEM_writer()
+    writer = PEM_writer(self.logstream)
 
     if self.run_rpkid:
       rpkid = self.server_ca.ee_certificates.get(purpose = "rpkid")

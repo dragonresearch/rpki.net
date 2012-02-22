@@ -34,6 +34,21 @@ import socket
 
 ip_version_choices = ((4, "IPv4"), (6, "IPv6"))
 
+## @var ca_certificate_lifetime
+# Lifetime for a BPKI CA certificate.
+
+ca_certificate_lifetime = rpki.sundial.timedelta(days = 3652)
+
+## @var crl_interval
+# Expected interval between BPKI CRL updates
+
+crl_interval = rpki.sundial.timedelta(days = 1)
+
+## @var ee_certificate_lifetime
+# Lifetime for a BPKI EE certificate.
+
+ee_certificate_lifetime = rpki.sundial.timedelta(days = 60)
+
 ###
 
 # Field types
@@ -246,10 +261,6 @@ class CA(django.db.models.Model):
   last_crl_update = SundialField()
   next_crl_update = SundialField()
 
-  # These should come from somewhere, but I don't yet know where
-  ca_certificate_lifetime = rpki.sundial.timedelta(days = 3652)
-  crl_interval = rpki.sundial.timedelta(days = 1)
-
   class Meta:
     abstract = True
 
@@ -257,7 +268,7 @@ class CA(django.db.models.Model):
     if self.private_key is None:
       self.private_key = rpki.x509.RSA.generate()
     now = rpki.sundial.now()
-    notAfter = now + self.ca_certificate_lifetime
+    notAfter = now + ca_certificate_lifetime
     self.certificate = rpki.x509.X509.bpki_self_certify(
       keypair = self.private_key,
       subject_name = self.subject_name,
@@ -288,7 +299,7 @@ class CA(django.db.models.Model):
       issuer  = self,
       revoked = rpki.sundial.now(),
       serial  = cert.certificate.getSerial(),
-      expires = cert.certificate.getNotAfter() + self.crl_interval)
+      expires = cert.certificate.getNotAfter() + crl_interval)
     cert.delete()
     self.generate_crl()
 
@@ -302,10 +313,10 @@ class CA(django.db.models.Model):
       issuer  = self.certificate,
       serial  = self.next_crl_number,
       thisUpdate = now,
-      nextUpdate = now + self.crl_interval,
+      nextUpdate = now + crl_interval,
       revokedCertificates = revoked)
     self.last_crl_update = now
-    self.next_crl_update = now + self.crl_interval
+    self.next_crl_update = now + crl_interval
     self.next_crl_number += 1
 
 class ServerCA(CA):
@@ -334,8 +345,6 @@ class Certificate(django.db.models.Model):
   certificate = CertificateField()
   objects = CertificateManager()
 
-  default_interval = rpki.sundial.timedelta(days = 60)
-
   class Meta:
     abstract = True
     unique_together = ("issuer", "handle")
@@ -354,7 +363,7 @@ class CrossCertification(Certificate):
     self.certificate = self.issuer.certify(
       subject_name      = self.ta.getSubject(),
       subject_key       = self.ta.getPublicKey(),
-      validity_interval = self.default_interval,
+      validity_interval = ee_certificate_lifetime,
       is_ca             = True,
       pathLenConstraint = 0)
 
@@ -369,7 +378,7 @@ class HostedCA(Certificate):
     self.certificate = self.issuer.certify(
       subject_name      = self.hosted.certificate.getSubject(),
       subject_key       = self.hosted.certificate.getPublicKey(),
-      validity_interval = self.default_interval,
+      validity_interval = ee_certificate_lifetime,
       is_ca             = True,
       pathLenConstraint = 1)
 
@@ -406,7 +415,7 @@ class EECertificate(Certificate):
     self.certificate = self.issuer.certify(
       subject_name      = self.subject_name,
       subject_key       = self.private_key.get_RSApublic(),
-      validity_interval = self.default_interval,
+      validity_interval = ee_certificate_lifetime,
       is_ca             = False)
 
 class ServerEE(EECertificate):
@@ -448,7 +457,7 @@ class BSC(Certificate):
     self.certificate = self.issuer.certify(
       subject_name      = self.pkcs10.getSubject(),
       subject_key       = self.pkcs10.getPublicKey(),
-      validity_interval = self.default_interval,
+      validity_interval = ee_certificate_lifetime,
       is_ca             = False)
 
   def __unicode__(self):

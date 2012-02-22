@@ -74,10 +74,6 @@ prog_irdbd   = cleanpath(rpkid_dir, "irdbd")
 prog_pubd    = cleanpath(rpkid_dir, "pubd")
 prog_rootd   = cleanpath(rpkid_dir, "rootd")
 
-prog_openssl = cleanpath(this_dir, "../../openssl/openssl/apps/openssl")
-if not os.path.exists(prog_openssl):
-  prog_openssl = "openssl"
-
 class roa_request(object):
   """
   Representation of a ROA request.
@@ -159,7 +155,7 @@ class allocation(object):
   of rpkid, irdbd, and pubd, so they also need myirbe services.
   """
 
-  base_port     = 4400
+  base_port     = None
   parent        = None
   crl_interval  = None
   regen_margin  = None
@@ -373,7 +369,6 @@ class allocation(object):
           "run_rpkid"           : str(not self.is_hosted),
           "run_pubd"            : str(self.runs_pubd),
           "run_rootd"           : str(self.is_root),
-          "openssl"             : prog_openssl,
           "irdbd_sql_database"  : "irdb%d" % self.engine,
           "irdbd_sql_username"  : "irdb",
           "rpkid_sql_database"  : "rpki%d" % self.engine,
@@ -483,18 +478,6 @@ class allocation(object):
     print "Running rsyncd for %s: pid %d process %r" % (self.name, p.pid, p)
     return p
 
-  def run_openssl(self, *args, **kwargs):
-    """
-    Run OpenSSL
-    """
-    env = { "PATH"           : os.environ["PATH"],
-            "BPKI_DIRECTORY" : self.path("bpki/servers"),
-            "OPENSSL_CONF"   : "/dev/null",
-            "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" }
-    env.update(kwargs)
-    subprocess.check_call((prog_openssl,) + args, cwd = self.path(), env = env)
-
-
 os.environ["TZ"] = "UTC"
 time.tzset()
 
@@ -537,7 +520,7 @@ try:
   cfg = rpki.config.parser(cfg_file, "yamltest", allow_missing = True)
 
   only_one_pubd = cfg.getboolean("only_one_pubd", True)
-  prog_openssl  = cfg.get("openssl", prog_openssl)
+  allocation.base_port = cfg.getint("base_port", 4400)
 
   config_overrides = dict(
     (k, cfg.get(k))

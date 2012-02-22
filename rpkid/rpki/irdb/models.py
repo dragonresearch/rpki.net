@@ -327,7 +327,10 @@ class ServerCA(CA):
 
   @property
   def subject_name(self):
-    return rpki.x509.X501DN("%s BPKI server CA" % socket.gethostname())
+    if self.certificate is not None:
+      return self.certificate.getSubject()
+    else:
+      return rpki.x509.X501DN("%s BPKI server CA" % socket.gethostname())
 
 class ResourceHolderCA(CA):
   handle = HandleField(unique = True)
@@ -338,7 +341,10 @@ class ResourceHolderCA(CA):
 
   @property
   def subject_name(self):
-    return rpki.x509.X501DN("%s BPKI resource CA" % self.handle)
+    if self.certificate is not None:
+      return self.certificate.getSubject()
+    else:
+      return rpki.x509.X501DN("%s BPKI resource CA" % self.handle)
 
 class Certificate(django.db.models.Model):
 

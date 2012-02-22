@@ -708,21 +708,6 @@ def child_response(request, pk):
 
 
 @handle_required
-def update_bpki(request):
-    conf = request.session['handle']
-
-    if request.method == 'POST':
-        form = forms.GenericConfirmationForm(request.POST, request.FILES)
-        if form.is_valid():
-            Zookeeper(handle=conf.handle).update_bpki()
-            return http.HttpResponseRedirect(reverse(dashboard))
-    else:
-        form = forms.GenericConfirmationForm()
-
-    return render(request, 'app/update_bpki_form.html', {'form': form})
-
-
-@handle_required
 def child_delete(request, pk):
     conf = request.session['handle']
     # verify this child belongs to the current user

@@ -41,6 +41,7 @@ class Parent(rpki.irdb.models.Parent):
 
     class Meta:
         proxy = True
+        verbose_name = 'Parent'
 
 
 class Child(rpki.irdb.models.Child):
@@ -55,7 +56,7 @@ class Child(rpki.irdb.models.Child):
 
     class Meta:
         proxy = True
-        verbose_name_plural = 'children'
+        verbose_name_plural = 'Children'
 
 
 class ChildASN(rpki.irdb.models.ChildASN):
@@ -153,7 +154,7 @@ class ROARequest(rpki.irdb.models.ROARequest):
 class ROARequestPrefix(rpki.irdb.models.ROARequestPrefix):
     class Meta:
         proxy = True
-        verbose_name = 'roa'
+        verbose_name = 'ROA'
 
     def __unicode__(self):
         return u'ROA request prefix %s for asn %d' % (str(self.as_roa_prefix()),
@@ -207,7 +208,7 @@ class GhostbusterRequest(rpki.irdb.models.GhostbusterRequest):
 
     class Meta:
         ordering = ('family_name', 'given_name')
-        verbose_name = 'ghostbuster'
+        verbose_name = 'Ghostbuster'
 
 
 class Timestamp(models.Model):
@@ -229,7 +230,7 @@ class Timestamp(models.Model):
 class Repository(rpki.irdb.models.Repository):
     class Meta:
         proxy = True
-        verbose_name_plural = 'repositories'
+        verbose_name_plural = 'Repositories'
 
     @models.permalink
     def get_absolute_url(self):
@@ -244,6 +245,7 @@ class Client(rpki.irdb.models.Client):
 
     class Meta:
         proxy = True
+        verbose_name = 'Client'
 
     @models.permalink
     def get_absolute_url(self):

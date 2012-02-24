@@ -53,7 +53,7 @@ def superuser_required(f):
     @login_required
     def _wrapped(request, *args, **kwargs):
         if not request.user.is_superuser:
-            raise http.HttpResponseForbidden()
+            return http.HttpResponseForbidden()
         return f(request, *args, **kwargs)
     return _wrapped
 

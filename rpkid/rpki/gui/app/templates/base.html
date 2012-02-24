@@ -16,16 +16,10 @@
     <div class="topbar">
       <div class="topbar-inner">
 	<div class="container">
-	  <a class="brand" href="#">rpki.net</a>
-
-	  <ul class='nav'>
-	    {% if user.is_staff %}
-	    <li><a href="/admin/">Admin</a></li>
-	    {% endif %}
-	  </ul>
+	  <h3><a href="#">rpki.net</a></h3>
 
 	  {% if user.is_authenticated %}
-	  <ul class='nav secondary-nav'>
+	  <ul class='nav'>
 	    <li><p>Logged in as {{ user }}</li>
 	    <li><a href="{% url django.contrib.auth.views.logout %}">Log Out</a></li>
 	  </ul>

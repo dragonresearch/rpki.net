@@ -4722,6 +4722,7 @@ int main(int argc, char *argv[])
 {
   int opt_jitter = 0, use_syslog = 0, use_stderr = 0, syslog_facility = 0;
   int opt_syslog = 0, opt_stderr = 0, opt_level = 0, prune = 1;
+  int opt_auth = 0, opt_unauth = 0;
   char *cfg_file = "rcynic.conf";
   char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1;
@@ -4768,8 +4769,13 @@ int main(int argc, char *argv[])
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  while ((c = getopt(argc, argv, "c:l:sej:V")) > 0) {
+  while ((c = getopt(argc, argv, "a:c:l:sej:u:V")) > 0) {
     switch (c) {
+    case 'a':
+      opt_auth = 1;
+      if (!set_directory(&rc, &rc.authenticated, optarg, 0))
+	goto done;
+      break;
     case 'c':
       cfg_file = optarg;
       break;
@@ -4788,6 +4794,11 @@ int main(int argc, char *argv[])
       if (!configure_integer(&rc, &jitter, optarg))
 	goto done;
       opt_jitter = 1;
+      break;
+    case 'u':
+      opt_unauth = 1;
+      if (!set_directory(&rc, &rc.unauthenticated, optarg, 1))
+	goto done;
       break;
     case 'V':
       puts(svn_id);
@@ -4838,11 +4849,13 @@ int main(int argc, char *argv[])
 
     assert(val && val->name && val->value);
 
-    if (!name_cmp(val->name, "authenticated") &&
+    if (!opt_auth &&
+	!name_cmp(val->name, "authenticated") &&
     	!set_directory(&rc, &rc.authenticated, val->value, 0))
       goto done;
 
-    else if (!name_cmp(val->name, "unauthenticated") &&
+    else if (!opt_unauth &&
+	     !name_cmp(val->name, "unauthenticated") &&
 	     !set_directory(&rc, &rc.unauthenticated, val->value, 1))
       goto done;
 

@@ -65,8 +65,13 @@ class TorrentDoesNotMatchManifest(Exception):
 
 
 def main():
-  syslog.openlog("rpki-torrent", syslog.LOG_PID | syslog.LOG_PERROR)
   try:
+    syslog.openlog("rpki-torrent", syslog.LOG_PID | syslog.LOG_PERROR)
+    global cfg
+    cfg = MyConfigParser()
+    cfg.read([os.path.join(dn, fn)
+              for fn in ("rcynic.conf", "rpki.conf")
+              for dn in ("/var/rcynic/etc", "/usr/local/etc", "/etc")])
     if all(v in os.environ for v in tr_env_vars):
       torrent_completion_main()
     elif not any(v in os.environ for v in tr_env_vars):
@@ -80,28 +85,41 @@ def main():
 
 
 def cronjob_main():
-  z = ZipFile(url = zip_url, dir = zip_dir, ta  = zip_ta)
-  client = transmissionrpc.client.Client()
+  for zip_url in cfg.zip_urls:
 
-  if z.fetch():
-    remove_torrents(client, z.torrent_name)
-    syslog.syslog("Adding torrent %s" % z.torrent_name)
-    client.add(z.get_torrent())
+    z = ZipFile(url = zip_url, dir = cfg.zip_dir, ta  = cfg.zip_ta)
+    client = transmissionrpc.client.Client()
 
-  else:
-    run_rcynic(client, z)
+    if z.fetch():
+      remove_torrents(client, z.torrent_name)
+      syslog.syslog("Adding torrent %s" % z.torrent_name)
+      client.add(z.get_torrent())
+
+    else:
+      run_rcynic(client, z)
 
 
 def torrent_completion_main():
-  z = ZipFile(url = zip_url, dir = zip_dir, ta  = zip_ta)
-  client = transmissionrpc.client.Client()
+  torrent_name = os.getenv("TR_TORRENT_NAME")
+  torrent_id = int(os.getenv("TR_TORRENT_ID"))
 
-  torrent = client.info([int(os.getenv("TR_TORRENT_ID"))]).popitem()[1]
-  if torrent.name != os.getenv("TR_TORRENT_NAME") or torrent.name != z.torrent_name:
-    raise InconsistentEnvironment
+  urls = [u for u in cfg.zip_urls
+          if os.path.splitext(os.path.basename(u))[0] == torrent_name]
+  if len(urls) != 1:
+    raise InconsistentEnvironment("Can't find URL matching torrent name %s" % torrent_name)
+
+  z = ZipFile(url = cfg.zip_url, dir = cfg.zip_dir, ta  = cfg.zip_ta)
+  client = transmissionrpc.client.Client()
+  torrent = client.info([torrent_id]).popitem()[1]
+
+  if torrent.name != torrent_name:
+    raise InconsistentEnvironment("Torrent name %s does not match ID %d" % (torrent_name, torrent_id))
+
+  if z.torrent_name != torrent_name:
+    raise InconsistentEnvironment("Torrent name %s does not match torrent name in zip file %s" % (torrent_name, z.torrent_name))
 
   if torrent is None or torrent.progress != 100:
-    raise TorrentNotReady("Torrent %s not ready for checking, how did I get here?" % z.torrent_name)
+    raise TorrentNotReady("Torrent %s not ready for checking, how did I get here?" % torrent_name)
 
   run_rcynic(client, z)
 
@@ -132,8 +150,8 @@ def run_rcynic(client, z):
     os.unlink(os.path.join(download_dir, fn))
 
   syslog.syslog("Running rcynic")
-  subprocess.check_call((rcynic_prog,
-                         "-c", rcynic_conf,
+  subprocess.check_call((cfg.rcynic_prog,
+                         "-c", cfg.rcynic_conf,
                          "-u", os.path.join(client.get_session().download_dir, z.torrent_name)))
 
   # This probably should be configurable
@@ -358,20 +376,45 @@ def remove_torrents(client, name):
     client.remove(ids)
 
 
+class MyConfigParser(ConfigParser.RawConfigParser):
+
+  rpki_torrent_section = "rpki-torrent"
+
+  @property
+  def zip_dir(self):
+    return self.get(self.rpki_torrent_section, "zip_dir")
+
+  @property
+  def zip_ta(self):
+    return self.get(self.rpki_torrent_section, "zip_ta")
+
+  @property
+  def rcynic_prog(self):
+    return self.get(self.rpki_torrent_section, "rcynic_prog")
+
+  @property
+  def rcynic_conf(self):
+    return self.get(self.rpki_torrent_section, "rcynic_conf")
+
+  def multioption_iter(self, name, getter = None):
+    if getter is None:
+      getter = self.get
+    if self.has_option(self.rpki_torrent_section, name):
+      yield getter(self.rpki_torrent_section, name)
+    name += "."
+    names = [i for i in self.options(self.rpki_torrent_section) if i.startswith(name) and i[len(name):].isdigit()]
+    names.sort(key = lambda s: int(s[len(name):]))
+    for name in names:
+      yield getter(self.rpki_torrent_section, name)
+
+  @property
+  def zip_urls(self):
+    return self.multioption_iter("zip_url")
+
+  @property
+  def extra_commands(self):
+    return self.multioption_iter("extra_command")
+
+
 if __name__ == "__main__":
-
-  cfg = ConfigParser.RawConfigParser()
-  cfg.read([os.path.join(dn, fn)
-            for fn in ("rcynic.conf", "rpki.conf")
-            for dn in ("/var/rcynic/etc", "/usr/local/etc", "/etc")])
-
-  section = "rpki-torrent"
-
-  zip_url = cfg.get(section, "zip_url")
-  zip_dir = cfg.get(section, "zip_dir")
-  zip_ta  = cfg.get(section, "zip_ta")
-
-  rcynic_prog = cfg.get(section, "rcynic_prog")
-  rcynic_conf = cfg.get(section, "rcynic_conf")
-
   main()

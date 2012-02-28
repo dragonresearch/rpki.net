@@ -37,19 +37,6 @@ import ConfigParser
 
 import transmissionrpc
 
-cfg = ConfigParser.RawConfigParser()
-cfg.read([os.path.join(dn, fn)
-          for fn in ("rcynic.conf", "rpki.conf")
-          for dn in ("/var/rcynic/etc", "/usr/local/etc", "/etc")])
-
-section = "rpki-torrent"
-
-zip_url = cfg.get(section, "zip_url")
-zip_dir = cfg.get(section, "zip_dir")
-zip_ta  = cfg.get(section, "zip_ta")
-
-rcynic_prog = cfg.get(section, "rcynic_prog")
-rcynic_conf = cfg.get(section, "rcynic_conf")
 
 tr_env_vars = ("TR_APP_VERSION", "TR_TIME_LOCALTIME", "TR_TORRENT_DIR",
                "TR_TORRENT_ID", "TR_TORRENT_HASH", "TR_TORRENT_NAME")
@@ -65,15 +52,20 @@ class WrongMode(Exception):
   "Wrong operation for mode."
 
 class BadFormat(Exception):
-  "ZIP file does not match our expectations."
+  "Zip file does not match our expectations."
 
 class InconsistentEnvironment(Exception):
   "Environment variables received from Transmission aren't consistent."
 
+class TorrentNotReady(Exception):
+  "Torrent is not ready for checking."
+
+class TorrentDoesNotMatchManifest(Exception):
+  "Retrieved torrent does not match manifest."
+
 
 def main():
   syslog.openlog("rpki-torrent", syslog.LOG_PID | syslog.LOG_PERROR)
-  syslog.syslog("main() running")
   try:
     if all(v in os.environ for v in tr_env_vars):
       torrent_completion_main()
@@ -88,24 +80,19 @@ def main():
 
 
 def cronjob_main():
-  syslog.syslog("cronjob_main() running")
-
   z = ZipFile(url = zip_url, dir = zip_dir, ta  = zip_ta)
   client = transmissionrpc.client.Client()
 
   if z.fetch():
     remove_torrents(client, z.torrent_name)
-    syslog.syslog("Adding torrent")
+    syslog.syslog("Adding torrent %s" % z.torrent_name)
     client.add(z.get_torrent())
 
   else:
-    syslog.syslog("ZIP file did not change")
-    run_rcynic(client, z.torrent_name)
+    run_rcynic(client, z)
 
 
 def torrent_completion_main():
-  syslog.syslog("torrent_completion_main() running")
-
   z = ZipFile(url = zip_url, dir = zip_dir, ta  = zip_ta)
   client = transmissionrpc.client.Client()
 
@@ -113,9 +100,16 @@ def torrent_completion_main():
   if torrent.name != os.getenv("TR_TORRENT_NAME") or torrent.name != z.torrent_name:
     raise InconsistentEnvironment
 
-  if torrent is None or torrent.status != "seeding":
-    syslog.syslog("Torrent not ready for checking, how did I get here?")
-    sys.exit(1)
+  if torrent is None or torrent.progress != 100:
+    raise TorrentNotReady("Torrent %s not ready for checking, how did I get here?" % z.torrent_name)
+
+  run_rcynic(client, z)
+
+
+def run_rcynic(client, z):
+  """
+  Run rcynic and any other post-processing we might want (latter NIY).
+  """
 
   syslog.syslog("Checking manifest against disk")
 
@@ -123,33 +117,29 @@ def torrent_completion_main():
 
   manifest_from_disk = create_manifest(download_dir, z.torrent_name)
   manifest_from_zip = z.get_manifest()
-  excess_files = set(manifest_from_disk) - set(manifest_from_zip)
 
+  excess_files = set(manifest_from_disk) - set(manifest_from_zip)
   for fn in excess_files:
     del manifest_from_disk[fn]
 
   if manifest_from_disk != manifest_from_zip:
-    syslog.syslog("Manifest does not match what torrent retrieved")
-    sys.exit(1)
+    raise TorrentDoesNotMatchManifest("Manifest for torrent %s does not match what we got" %
+                                      z.torrent_name)
 
   if excess_files:
     syslog.syslog("Cleaning up excess files")
   for fn in excess_files:
     os.unlink(os.path.join(download_dir, fn))
 
-  run_rcynic(client, z.torrent_name)
-
-
-def run_rcynic(client, torrent_name):
-  """
-  Run rcynic and any other post-processing we might want (latter NIY).
-  """
-  
   syslog.syslog("Running rcynic")
-  subprocess.check_call((rcynic_prog, "-c", rcynic_conf, "-u", os.path.join(client.get_session().download_dir, torrent_name)))
+  subprocess.check_call((rcynic_prog,
+                         "-c", rcynic_conf,
+                         "-u", os.path.join(client.get_session().download_dir, z.torrent_name)))
 
   # This probably should be configurable
-  subprocess.check_call((sys.executable, "/var/rcynic/etc/rcynic.py", "/var/rcynic/data/rcynic.xml", "/var/rcynic/data/rcynic.html"))
+  subprocess.check_call((sys.executable, "/var/rcynic/etc/rcynic.py",
+                         "/var/rcynic/data/rcynic.xml",
+                         "/var/rcynic/data/rcynic.html"))
 
 
 # See http://www.minstrel.org.uk/papers/sftp/ for details on how to
@@ -164,7 +154,7 @@ class ZipFile(object):
   some extra methods and specialized capabilities.
 
   All methods of the standard zipfile.ZipFile class are supported, but
-  the constructor arguments are different, and opening the ZIP file
+  the constructor arguments are different, and opening the zip file
   itself is deferred until a call which requires this, since the file
   may first need to be fetched via HTTPS.
   """
@@ -257,7 +247,7 @@ class ZipFile(object):
 
   def fetch(self):
     """
-    Fetch ZIP file from URL given to constructor.
+    Fetch zip file from URL given to constructor.
     This only works in read mode, makes no sense in write mode.
     """
 
@@ -274,13 +264,13 @@ class ZipFile(object):
     syslog.syslog("Checking %s..." % self.url)
     try:
       r = self.build_opener().open(urllib2.Request(self.url, None, headers))
-      syslog.syslog("File has changed, starting download.")
+      syslog.syslog("%s has changed, starting download" % self.url)
       self.changed = True
     except urllib2.HTTPError, e:
       if e.code != 304:
         raise
       r = None
-      syslog.syslog("No change.")
+      syslog.syslog("%s has not changed" % self.url)
 
     self.check_subjectAltNames()
 
@@ -296,7 +286,7 @@ class ZipFile(object):
 
   def check_format(self):
     """
-    Make sure that format of ZIP file matches our preconceptions: it
+    Make sure that format of zip file matches our preconceptions: it
     should contain two files, one of which is the .torrent file, the
     other is the manifest, with names derived from the torrent name
     inferred from the URL.
@@ -308,7 +298,7 @@ class ZipFile(object):
 
   def get_torrent(self):
     """
-    Extract torrent file from ZIP file, encoded in Base64 because
+    Extract torrent file from zip file, encoded in Base64 because
     that's what the transmisionrpc library says it wants.
     """
 
@@ -318,7 +308,7 @@ class ZipFile(object):
 
   def get_manifest(self):
     """
-    Extract manifest from ZIP file, as a dictionary.
+    Extract manifest from zip file, as a dictionary.
 
     For the moment we're fixing up the internal file names from the
     format that the existing shell-script prototype uses, but this
@@ -358,14 +348,30 @@ def create_manifest(topdir, torrent_name):
 def remove_torrents(client, name):
   """
   Remove any torrents with the given name.  In theory there should
-  never be more than one, but it doesn't cost us much to check.
+  never be more than one, but it doesn't cost much to check.
   """
 
   ids = [i for i, t in client.list().iteritems() if t.name == name]
   if ids:
-    syslog.syslog("Removing torrent(s)")
+    syslog.syslog("Removing torrent%s %s %s" % (
+      "" if len(ids) == 1 else "s", name, ", ".join(str(i) for i in ids)))
     client.remove(ids)
 
 
 if __name__ == "__main__":
+
+  cfg = ConfigParser.RawConfigParser()
+  cfg.read([os.path.join(dn, fn)
+            for fn in ("rcynic.conf", "rpki.conf")
+            for dn in ("/var/rcynic/etc", "/usr/local/etc", "/etc")])
+
+  section = "rpki-torrent"
+
+  zip_url = cfg.get(section, "zip_url")
+  zip_dir = cfg.get(section, "zip_dir")
+  zip_ta  = cfg.get(section, "zip_ta")
+
+  rcynic_prog = cfg.get(section, "rcynic_prog")
+  rcynic_conf = cfg.get(section, "rcynic_conf")
+
   main()

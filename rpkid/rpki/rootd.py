@@ -174,7 +174,7 @@ class main(object):
     rpki.log.info("Generating subject cert with resources " + str(resources))
     req_key = pkcs10.getPublicKey()
     req_sia = pkcs10.get_SIA()
-    self.serial_number += 1
+    self.next_serial_number()
     subject_cert = self.rpki_root_cert.issue(
       keypair     = self.rpki_root_key,
       subject_key = req_key,
@@ -190,8 +190,8 @@ class main(object):
 
   def generate_crl_and_manifest(self, now):
     subject_cert = self.get_subject_cert()
-    self.serial_number += 1
-    self.crl_number += 1
+    self.next_serial_number()
+    self.next_crl_number()
     crl = rpki.x509.CRL.generate(
       keypair             = self.rpki_root_key,
       issuer              = self.rpki_root_cert,
@@ -273,14 +273,37 @@ class main(object):
         rpki.log.traceback()
         cb(500, reason = "Could not process PDU: %s" % e)
 
+
+  def next_crl_number(self):
+    if self.crl_number is None:
+      try:
+        crl = rpki.x509.CRL(DER_file = self.rpki_root_dir + self.rpki_root_crl)
+        self.crl_number = crl.get_POWpkix().getExtension(rpki.oids.name2oid["cRLNumber"])[2]
+      except:
+        self.crl_number = 0
+    self.crl_number += 1
+    return self.crl_number
+
+
+  def next_serial_number(self):
+    if self.serial_number is None:
+      subject_cert = self.get_subject_cert()
+      if subject_cert is not None:
+        self.serial_number = subject_cert.getSerial() + 1
+      else:
+        self.serial_number = 0
+    self.serial_number += 1
+    return self.serial_number
+
+
   def __init__(self):
 
     global rootd
     rootd = self                        # Gross, but simpler than what we'd have to do otherwise
 
     self.rpki_root_cert = None
-    self.serial_number = 0
-    self.crl_number = 0
+    self.serial_number = None
+    self.crl_number = None
     self.revoked = []
 
     os.environ["TZ"] = "UTC"

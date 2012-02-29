@@ -63,6 +63,8 @@ class TorrentNotReady(Exception):
 class TorrentDoesNotMatchManifest(Exception):
   "Retrieved torrent does not match manifest."
 
+class TorrentNameDoesNotMatchURL(Exception):
+  "Torrent name doesn't uniquely match a URL."
 
 def main():
   try:
@@ -95,7 +97,7 @@ def cronjob_main():
       syslog.syslog("Adding torrent %s" % z.torrent_name)
       client.add(z.get_torrent())
 
-    else:
+    elif cfg.run_rcynic_anyway:
       run_rcynic(client, z)
 
 
@@ -103,12 +105,7 @@ def torrent_completion_main():
   torrent_name = os.getenv("TR_TORRENT_NAME")
   torrent_id = int(os.getenv("TR_TORRENT_ID"))
 
-  urls = [u for u in cfg.zip_urls
-          if os.path.splitext(os.path.basename(u))[0] == torrent_name]
-  if len(urls) != 1:
-    raise InconsistentEnvironment("Can't find URL matching torrent name %s" % torrent_name)
-
-  z = ZipFile(url = cfg.zip_url, dir = cfg.zip_dir, ta  = cfg.zip_ta)
+  z = ZipFile(url = cfg.find_url(torrent_name), dir = cfg.zip_dir, ta = cfg.zip_ta)
   client = transmissionrpc.client.Client()
   torrent = client.info([torrent_id]).popitem()[1]
 
@@ -126,7 +123,7 @@ def torrent_completion_main():
 
 def run_rcynic(client, z):
   """
-  Run rcynic and any other post-processing we might want (latter NIY).
+  Run rcynic and any post-processing we might want.
   """
 
   syslog.syslog("Checking manifest against disk")
@@ -154,10 +151,9 @@ def run_rcynic(client, z):
                          "-c", cfg.rcynic_conf,
                          "-u", os.path.join(client.get_session().download_dir, z.torrent_name)))
 
-  # This probably should be configurable
-  subprocess.check_call((sys.executable, "/var/rcynic/etc/rcynic.py",
-                         "/var/rcynic/data/rcynic.xml",
-                         "/var/rcynic/data/rcynic.html"))
+  for cmd in cfg.post_rcynic_commands:
+    syslog.syslog("Running post-rcynic command: %s" % cmd)
+    subprocess.check_call(cmd, shell = True)
 
 
 # See http://www.minstrel.org.uk/papers/sftp/ for details on how to
@@ -371,8 +367,8 @@ def remove_torrents(client, name):
 
   ids = [i for i, t in client.list().iteritems() if t.name == name]
   if ids:
-    syslog.syslog("Removing torrent%s %s %s" % (
-      "" if len(ids) == 1 else "s", name, ", ".join(str(i) for i in ids)))
+    syslog.syslog("Removing torrent%s %s (%s)" % (
+      "" if len(ids) == 1 else "s", name, ", ".join("#%s" % i for i in ids)))
     client.remove(ids)
 
 
@@ -396,6 +392,10 @@ class MyConfigParser(ConfigParser.RawConfigParser):
   def rcynic_conf(self):
     return self.get(self.rpki_torrent_section, "rcynic_conf")
 
+  @property
+  def run_rcynic_anyway(self):
+    return self.getboolean(self.rpki_torrent_section, "run_rcynic_anyway")
+
   def multioption_iter(self, name, getter = None):
     if getter is None:
       getter = self.get
@@ -412,8 +412,15 @@ class MyConfigParser(ConfigParser.RawConfigParser):
     return self.multioption_iter("zip_url")
 
   @property
-  def extra_commands(self):
-    return self.multioption_iter("extra_command")
+  def post_rcynic_commands(self):
+    return self.multioption_iter("post_rcynic_command")
+
+  def find_url(self, torrent_name):
+    urls = [u for u in self.zip_urls
+            if os.path.splitext(os.path.basename(u))[0] == torrent_name]
+    if len(urls) != 1:
+      raise TorrentNameDoesNotMatchURL("Can't find URL matching torrent name %s" % torrent_name)
+    return urls[0]
 
 
 if __name__ == "__main__":

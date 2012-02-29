@@ -68,7 +68,10 @@ class TorrentNameDoesNotMatchURL(Exception):
 
 def main():
   try:
-    syslog.openlog("rpki-torrent", syslog.LOG_PID | syslog.LOG_PERROR)
+    syslog_flags = syslog.LOG_PID;
+    if os.isatty(sys.stderr.fileno()):
+      syslog_flags |= syslog.LOG_PERROR
+    syslog.openlog("rpki-torrent", syslog_flags)
     global cfg
     cfg = MyConfigParser()
     cfg.read([os.path.join(dn, fn)

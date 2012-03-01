@@ -69,7 +69,9 @@ class TorrentDoesNotMatchManifest(Exception):
 class TorrentNameDoesNotMatchURL(Exception):
   "Torrent name doesn't uniquely match a URL."
 
-debug_config = True
+class CouldNotFindTorrents(Exception):
+  "Could not find torrent(s) with given name(s)."
+
 
 def main():
   try:
@@ -77,22 +79,25 @@ def main():
     if os.isatty(sys.stderr.fileno()):
       syslog_flags |= syslog.LOG_PERROR
     syslog.openlog("rpki-torrent", syslog_flags)
+
     global cfg
     cfg = MyConfigParser()
-    if debug_config:
-      cfg.read("rcynic.conf")
-    else:
-      cfg.read([os.path.join(dn, fn)
-                for fn in ("rcynic.conf", "rpki.conf")
-                for dn in ("/var/rcynic/etc", "/usr/local/etc", "/etc")])
+    cfg.read([os.path.join(dn, fn)
+              for fn in ("rcynic.conf", "rpki.conf")
+              for dn in ("/var/rcynic/etc", "/usr/local/etc", "/etc")])
+
     if cfg.act_as_generator:
       generator_main()
+
     elif all(v in os.environ for v in tr_env_vars):
       torrent_completion_main()
+
     elif not any(v in os.environ for v in tr_env_vars):
       cronjob_main()
+
     else:
       raise InconsistentEnvironment
+
   except Exception, e:
     for line in traceback.format_exc().splitlines():
       syslog.syslog(line)
@@ -146,11 +151,16 @@ def generator_main():
   syslog.syslog("Generating manifest")
   manifest = create_manifest(download_dir, z.torrent_name)
 
-  # We might be able to use client.add_url() here instead, check later if we care.
   syslog.syslog("Loading %s" % torrent_file)
   f = open(torrent_file, "rb")
   client.add(base64.b64encode(f.read()))
   f.close()
+
+  try:
+    client.change(client.find_torrents(z.torrent_name),
+                  seedRatioMode = 2)    # 2 = no limit -- see .change()
+  except CouldNotFindTorrents:
+    syslog.syslog("Couldn't tweak seedRatioMode for torrent, blundering onwards")
 
   syslog.syslog("Creating upload connection")
   ssh = paramiko.Transport((cfg.sftp_host, cfg.sftp_port))
@@ -475,14 +485,27 @@ class TransmissionClient(transmissionrpc.client.Client):
   Extension of transmissionrpc.client.Client.
   """
 
-  def remove_torrents(self, name):
+  def find_torrents(self, *name):
     """
-    Remove any torrents with the given name.  In theory there should
-    never be more than one, but it doesn't cost much to check.
+    Find torrents with given name(s), return id(s).
     """
 
-    ids = [i for i, t in self.list().iteritems() if t.name == name]
-    if ids:
+    result = [i for i, t in self.list().itervalues() if t.name in names]
+    if not result:
+      raise CouldNotFindTorrents
+    return result
+
+
+  def remove_torrents(self, *names):
+    """
+    Remove any torrents with the given name(s).
+    """
+
+    try:
+      ids = self.find_torrents(*names)
+    except CouldNotFindTorrents:
+      pass
+    else:
       syslog.syslog("Removing torrent%s %s (%s)" % (
         "" if len(ids) == 1 else "s", name, ", ".join("#%s" % i for i in ids)))
       self.remove(ids)

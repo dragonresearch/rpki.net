@@ -4591,6 +4591,7 @@ static X509 *read_ta(rcynic_ctx_t *rc,
   EVP_PKEY_free(xpkey);
   if (match)
     return x;
+  log_validation_status(rc, uri, object_rejected, generation);
   X509_free(x);
   return NULL;
 }

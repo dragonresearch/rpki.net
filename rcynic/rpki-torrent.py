@@ -102,6 +102,18 @@ def main():
 def generator_main():
   import paramiko
 
+  class SFTPClient(paramiko.SFTPClient):
+    """
+    Subclass paramiko's SFTPClient class to add support for OpenSSH's
+    atomic-rename extension.
+    """
+
+    def atomic_rename(self, oldpath, newpath):
+      oldpath = self._adjust_cwd(oldpath)
+      newpath = self._adjust_cwd(newpath)
+      self._log(paramiko.common.DEBUG, 'atomic_rename(%r, %r)' % (oldpath, newpath))
+      self._request(paramiko.sftp.CMD_EXTENDED, "posix-rename@openssh.com", oldpath, newpath)
+
   z = ZipFile(url = cfg.generate_url, dir = cfg.zip_dir)
   client = TransmissionClient()
 
@@ -146,7 +158,7 @@ def generator_main():
     username = cfg.sftp_user,
     hostkey  = paramiko.util.load_host_keys(cfg.sftp_hostkey_file)[cfg.sftp_host]["ssh-rsa"],
     pkey     = paramiko.RSAKey.from_private_key_file(cfg.sftp_private_key_file))
-  sftp = paramiko.SFTPClient.from_transport(ssh)
+  sftp = SFTPClient.from_transport(ssh)
 
   zip_filename = os.path.join("data", z.filename) 
   zip_tempname = zip_filename + ".new"
@@ -174,26 +186,7 @@ def generator_main():
   syslog.syslog("Closing %s and renaming to %s" % (zip_tempname, zip_filename))
   z.close()
   f.close()
-
-  # Feh, atomic rename isn't part of the non-standard, well, it sort
-  # of is part of the last version of the non-standard before the IETF
-  # SECSH WG abandoned the specification, but paramiko doesn't support
-  # it, and my lame attempts to patch it in didn't work, perhaps
-  # because OpenSSH doesn't really support it either, they have their
-  # own extension instead.
-  #
-  # But we're here to get a job done, so for now just live with a
-  # brief race condition.  Feh.
-
-  zip_oldname = zip_filename + ".old"
-
-  try:
-    sftp.remove(zip_oldname)
-  except IOError:
-    pass
-
-  sftp.rename(zip_filename, zip_oldname)
-  sftp.rename(zip_tempname, zip_filename)
+  sftp.atomic_rename(zip_tempname, zip_filename)
 
   syslog.syslog("Closing upload connection")
   sftp.close()

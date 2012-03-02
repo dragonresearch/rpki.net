@@ -4723,7 +4723,7 @@ int main(int argc, char *argv[])
 {
   int opt_jitter = 0, use_syslog = 0, use_stderr = 0, syslog_facility = 0;
   int opt_syslog = 0, opt_stderr = 0, opt_level = 0, prune = 1;
-  int opt_auth = 0, opt_unauth = 0;
+  int opt_auth = 0, opt_unauth = 0, keep_lockfile = 0;
   char *cfg_file = "rcynic.conf";
   char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1;
@@ -4877,6 +4877,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "lockfile"))
       lockfile = strdup(val->value);
+
+    else if (!name_cmp(val->name, "keep-lockfile") &&
+	     !configure_boolean(&rc, &keep_lockfile, val->value))
+      goto done;
 
     else if (!opt_jitter &&
 	     !name_cmp(val->name, "jitter") &&
@@ -5219,7 +5223,7 @@ int main(int argc, char *argv[])
   ERR_free_strings();
   if (rc.rsync_program)
     free(rc.rsync_program);
-  if (lockfile && lockfd >= 0)
+  if (lockfile && lockfd >= 0 && !keep_lockfile)
     unlink(lockfile);
   if (lockfile)
     free(lockfile);

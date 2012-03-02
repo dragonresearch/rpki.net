@@ -108,11 +108,6 @@ def generator_main():
   import paramiko
 
   class SFTPClient(paramiko.SFTPClient):
-    """
-    Subclass paramiko's SFTPClient class to add support for OpenSSH's
-    atomic-rename extension.
-    """
-
     def atomic_rename(self, oldpath, newpath):
       oldpath = self._adjust_cwd(oldpath)
       newpath = self._adjust_cwd(newpath)
@@ -151,16 +146,11 @@ def generator_main():
   syslog.syslog("Generating manifest")
   manifest = create_manifest(download_dir, z.torrent_name)
 
-  syslog.syslog("Loading %s" % torrent_file)
+  syslog.syslog("Loading %s with unlimited seeding" % torrent_file)
   f = open(torrent_file, "rb")
   client.add(base64.b64encode(f.read()))
   f.close()
-
-  try:
-    client.change(client.find_torrents(z.torrent_name),
-                  seedRatioMode = 2)    # 2 = no limit -- see .change()
-  except CouldNotFindTorrents:
-    syslog.syslog("Couldn't tweak seedRatioMode for torrent, blundering onwards")
+  client.unlimited_seeding(z.torrent_name)
 
   syslog.syslog("Creating upload connection")
   ssh = paramiko.Transport((cfg.sftp_host, cfg.sftp_port))
@@ -170,7 +160,7 @@ def generator_main():
     pkey     = paramiko.RSAKey.from_private_key_file(cfg.sftp_private_key_file))
   sftp = SFTPClient.from_transport(ssh)
 
-  zip_filename = os.path.join("data", z.filename) 
+  zip_filename = os.path.join("data", os.path.basename(z.filename))
   zip_tempname = zip_filename + ".new"
 
   syslog.syslog("Creating %s" % zip_tempname)
@@ -200,6 +190,23 @@ def generator_main():
 
   syslog.syslog("Closing upload connection")
   sftp.close()
+
+  # Now make sure we're mirroring any other torrents.  This might want
+  # to become a separate function, called on a much faster schedule.
+
+  torrent_names = []
+
+  for zip_url in cfg.zip_urls:
+    if zip_url != cfg.generate_url:
+      z = ZipFile(url = zip_url, dir = cfg.zip_dir, ta = cfg.zip_ta)
+      if z.fetch():
+        client.remove_torrents(z.torrent_name)
+        syslog.syslog("Mirroring torrent %s" % z.torrent_name)
+        client.add(z.get_torrent())
+        torrent_names.append(z.torrent_name)
+
+  if torrent_names:
+    client.unlimited_seeding(*torrent_names)
 
 
 def cronjob_main():
@@ -485,12 +492,12 @@ class TransmissionClient(transmissionrpc.client.Client):
   Extension of transmissionrpc.client.Client.
   """
 
-  def find_torrents(self, *name):
+  def find_torrents(self, *names):
     """
     Find torrents with given name(s), return id(s).
     """
 
-    result = [i for i, t in self.list().itervalues() if t.name in names]
+    result = [i for i, t in self.list().iteritems() if t.name in names]
     if not result:
       raise CouldNotFindTorrents
     return result
@@ -507,8 +514,21 @@ class TransmissionClient(transmissionrpc.client.Client):
       pass
     else:
       syslog.syslog("Removing torrent%s %s (%s)" % (
-        "" if len(ids) == 1 else "s", name, ", ".join("#%s" % i for i in ids)))
+        "" if len(ids) == 1 else "s",
+        ", ".join(names),
+        ", ".join("#%s" % i for i in ids)))
       self.remove(ids)
+
+  def unlimited_seeding(self, *names):
+    """
+    Set unlimited seeding for specified torrents.
+    """
+
+    # Apparently seedRatioMode = 2 means "no limit"
+    try:
+      self.change(self.find_torrents(*names), seedRatioMode = 2)
+    except CouldNotFindTorrents:
+      syslog.syslog("Couldn't tweak seedRatioMode, blundering onwards")
 
 
 class MyConfigParser(ConfigParser.RawConfigParser):

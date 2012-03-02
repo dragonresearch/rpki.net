@@ -37,6 +37,7 @@ import ConfigParser
 import stat
 import time
 import errno
+import fcntl
 
 import transmissionrpc
 
@@ -119,15 +120,14 @@ def generator_main():
 
   client.remove_torrents(z.torrent_name)
   
-  unauthenticated_dir = cfg.get("rcynic", "unauthenticated")
   download_dir = client.get_session().download_dir
   torrent_dir = os.path.join(download_dir, z.torrent_name)
   torrent_file = os.path.join(cfg.zip_dir, z.torrent_name + ".torrent")
 
 
-  syslog.syslog("Synchronizing local data from %s to %s" % (unauthenticated_dir, torrent_dir))
+  syslog.syslog("Synchronizing local data from %s to %s" % (cfg.unauthenticated, torrent_dir))
   subprocess.check_call((cfg.rsync_prog, "--archive", "--delete",
-                         os.path.normpath(unauthenticated_dir) + "/",
+                         os.path.normpath(cfg.unauthenticated) + "/",
                          os.path.normpath(torrent_dir) + "/"))
 
   syslog.syslog("Creating %s" % torrent_file)
@@ -249,6 +249,13 @@ def run_rcynic(client, z):
   Run rcynic and any post-processing we might want.
   """
 
+  if cfg.lockfile is not None:
+    syslog.syslog("Acquiring lock %s" % cfg.lockfile)
+    lock = os.open(cfg.lockfile, os.O_WRONLY | os.O_CREAT, 0600)
+    fcntl.flock(lock, fcntl.LOCK_EX)
+  else:
+    lock = None
+
   syslog.syslog("Checking manifest against disk")
 
   download_dir = client.get_session().download_dir
@@ -278,6 +285,9 @@ def run_rcynic(client, z):
     syslog.syslog("Running post-rcynic command: %s" % cmd)
     subprocess.check_call(cmd, shell = True)
 
+  if lock is not None:
+    syslog.syslog("Releasing lock %s" % cfg.lockfile)
+    os.close(lock)
 
 # See http://www.minstrel.org.uk/papers/sftp/ for details on how to
 # set up safe upload-only SFTP directories on the server.  In
@@ -600,6 +610,20 @@ class MyConfigParser(ConfigParser.RawConfigParser):
   @property
   def sftp_private_key_file(self):
     return self.get(self.rpki_torrent_section, "sftp_private_key_file")
+
+  @property
+  def lockfile(self):
+    try:
+      return self.get(self.rpki_torrent_section, "lockfile")
+    except ConfigParser.Error:
+      return None
+
+  @property
+  def unauthenticated(self):
+    try:
+      return self.get(self.rpki_torrent_section, "unauthenticated")
+    except ConfigParser.Error:
+      return self.get("rcynic", "unauthenticated")
 
   def multioption_iter(self, name, getter = None):
     if getter is None:

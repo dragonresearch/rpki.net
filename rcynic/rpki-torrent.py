@@ -502,6 +502,11 @@ class TransmissionClient(transmissionrpc.client.Client):
   Extension of transmissionrpc.client.Client.
   """
 
+  def __init__(self, **kwargs):
+    kwargs.setdefault("address", "127.0.0.1")
+    transmissionrpc.client.Client.__init__(self, **kwargs)
+
+
   def find_torrents(self, *names):
     """
     Find torrents with given name(s), return id(s).

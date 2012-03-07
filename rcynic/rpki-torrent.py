@@ -38,13 +38,11 @@ import stat
 import time
 import errno
 import fcntl
+import getopt
 
 import transmissionrpc
 
-
-tr_env_vars = ("TR_APP_VERSION", "TR_TIME_LOCALTIME", "TR_TORRENT_DIR",
-               "TR_TORRENT_ID", "TR_TORRENT_HASH", "TR_TORRENT_NAME")
-
+tr_env_vars = ("TR_TORRENT_DIR", "TR_TORRENT_ID", "TR_TORRENT_NAME")
 
 class WrongServer(Exception):
   "Hostname not in X.509v3 subjectAltName extension."
@@ -73,6 +71,8 @@ class TorrentNameDoesNotMatchURL(Exception):
 class CouldNotFindTorrents(Exception):
   "Could not find torrent(s) with given name(s)."
 
+class UseTheSourceLuke(Exception):
+  "Use The Source, Luke."
 
 def main():
   try:
@@ -81,23 +81,36 @@ def main():
       syslog_flags |= syslog.LOG_PERROR
     syslog.openlog("rpki-torrent", syslog_flags)
 
+    cfg_file = [os.path.join(dn, fn)
+                for fn in ("rcynic.conf", "rpki.conf")
+                for dn in ("/var/rcynic/etc", "/usr/local/etc", "/etc")]
+
+    opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+    for o, a in opts:
+      if o in ("-h", "--help", "-?"):
+        raise UseTheSourceLuke
+      elif o in ("-c", "--config"):
+        cfg_file = a
+
     global cfg
     cfg = MyConfigParser()
-    cfg.read([os.path.join(dn, fn)
-              for fn in ("rcynic.conf", "rpki.conf")
-              for dn in ("/var/rcynic/etc", "/usr/local/etc", "/etc")])
+    cfg.read(cfg_file)
 
     if cfg.act_as_generator:
-      generator_main()
-
-    elif all(v in os.environ for v in tr_env_vars):
-      torrent_completion_main()
-
-    elif not any(v in os.environ for v in tr_env_vars):
-      cronjob_main()
+      if len(argv) == 1 and argv[0] == "generate":
+        generator_main()
+      elif len(argv) == 1 and argv[0] == "mirror":
+        mirror_main()
+      else:
+        raise UseTheSourceLuke
 
     else:
-      raise InconsistentEnvironment
+      if len(argv) == 0 and all(v in os.environ for v in tr_env_vars):
+        torrent_completion_main()
+      elif len(argv) == 1 and argv[0] == "poll":
+        poll_main()
+      else:
+        raise UseTheSourceLuke
 
   except Exception, e:
     for line in traceback.format_exc().splitlines():
@@ -191,9 +204,8 @@ def generator_main():
   syslog.syslog("Closing upload connection")
   sftp.close()
 
-  # Now make sure we're mirroring any other torrents.  This might want
-  # to become a separate function, called on a much faster schedule.
-
+def mirror_main():
+  client = TransmissionClient()
   torrent_names = []
 
   for zip_url in cfg.zip_urls:
@@ -209,7 +221,7 @@ def generator_main():
     client.unlimited_seeding(*torrent_names)
 
 
-def cronjob_main():
+def poll_main():
   for zip_url in cfg.zip_urls:
 
     z = ZipFile(url = zip_url, dir = cfg.zip_dir, ta = cfg.zip_ta)

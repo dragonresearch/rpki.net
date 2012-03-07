@@ -27,7 +27,6 @@ import zipfile
 import sys
 import os
 import email.utils
-import datetime
 import base64
 import hashlib
 import subprocess
@@ -39,6 +38,8 @@ import time
 import errno
 import fcntl
 import getopt
+import smtplib
+import email.mime.text
 
 import transmissionrpc
 
@@ -253,6 +254,8 @@ def torrent_completion_main():
   if torrent is None or torrent.progress != 100:
     raise TorrentNotReady("Torrent %s not ready for checking, how did I get here?" % torrent_name)
 
+  log_email("Download complete %s" % z.url)
+
   run_rcynic(client, z)
 
 
@@ -289,9 +292,11 @@ def run_rcynic(client, z):
     os.unlink(os.path.join(download_dir, fn))
 
   syslog.syslog("Running rcynic")
+  log_email("Starting rcynic %s" % z.url)
   subprocess.check_call((cfg.rcynic_prog,
                          "-c", cfg.rcynic_conf,
                          "-u", os.path.join(client.get_session().download_dir, z.torrent_name)))
+  log_email("Completed rcynic %s" % z.url)
 
   for cmd in cfg.post_rcynic_commands:
     syslog.syslog("Running post-rcynic command: %s" % cmd)
@@ -430,6 +435,7 @@ class ZipFile(object):
       r = self.build_opener().open(urllib2.Request(self.url, None, headers))
       syslog.syslog("%s has changed, starting download" % self.url)
       self.changed = True
+      log_email("Downloading %s" % self.url)
     except urllib2.HTTPError, e:
       if e.code != 304:
         raise
@@ -507,6 +513,24 @@ def create_manifest(topdir, torrent_name):
       result[os.path.relpath(filename, topdir)] = hashlib.sha256(f.read()).hexdigest()
       f.close()
   return result
+
+
+def log_email(msg, subj = None):
+  try:
+    if not msg.endswith("\n"):
+      msg += "\n"
+    if subj is None:
+      subj = msg.partition("\n")[0]
+    m = email.mime.text.MIMEText(msg)
+    m["Date"]    = time.strftime("%d %b %Y %H:%M:%S +0000", time.gmtime())
+    m["From"]    = cfg.log_email
+    m["To"]      = cfg.log_email
+    m["Subject"] = subj
+    s = smtplib.SMTP("localhost")
+    s.sendmail(cfg.log_email, [cfg.log_email], m.as_string())
+    s.quit()
+  except ConfigParser.Error:
+    pass
 
 
 class TransmissionClient(transmissionrpc.client.Client):
@@ -641,6 +665,10 @@ class MyConfigParser(ConfigParser.RawConfigParser):
       return self.get(self.rpki_torrent_section, "unauthenticated")
     except ConfigParser.Error:
       return self.get("rcynic", "unauthenticated")
+
+  @property
+  def log_email(self):
+    return self.get(self.rpki_torrent_section, "log_email")
 
   def multioption_iter(self, name, getter = None):
     if getter is None:

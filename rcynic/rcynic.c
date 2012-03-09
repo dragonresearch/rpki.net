@@ -2891,6 +2891,7 @@ static int check_aki(rcynic_ctx_t *rc,
 
   if (ASN1_OCTET_STRING_cmp(aki->keyid, issuer->skid)) {
     log_validation_status(rc, uri, aki_extension_issuer_mismatch, generation);
+    return 0;
   }
 
   return 1;
@@ -3513,11 +3514,6 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
-  if ((issuer_pkey = X509_get_pubkey(w->cert)) == NULL || X509_verify(x, issuer_pkey) <= 0) {
-    log_validation_status(rc, uri, certificate_bad_signature, generation);
-    goto done;
-  }
-
   if (x->akid) {
     ex_count--;
     if (!check_aki(rc, uri, w->cert, x->akid, generation))
@@ -3526,6 +3522,11 @@ static int check_x509(rcynic_ctx_t *rc,
 
   if (!x->akid && !certinfo->ta) {
     log_validation_status(rc, uri, aki_extension_missing, generation);
+    goto done;
+  }
+
+  if ((issuer_pkey = X509_get_pubkey(w->cert)) == NULL || X509_verify(x, issuer_pkey) <= 0) {
+    log_validation_status(rc, uri, certificate_bad_signature, generation);
     goto done;
   }
 

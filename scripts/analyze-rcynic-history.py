@@ -24,7 +24,15 @@ plot_to_one      = True
 plot_to_many     = True
 write_rcynic_xml = True
 
-import mailbox, sys, urlparse, os, getopt, datetime, subprocess
+import mailbox
+import sys
+import urlparse
+import os
+import getopt
+import datetime
+import subprocess
+import shelve
+import whichdb
 
 from xml.etree.cElementTree import (ElementTree as ElementTree,
                                     fromstring  as ElementTreeFromString)
@@ -202,38 +210,45 @@ def plot_one(hostnames, fields):
 
 mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
 
+gdbm_file = "rcynic-xml.gdbm"
+
+# Disgusting workaround for dumb bug, see http://bugs.python.org/issue13007
+if whichdb.whichdb(gdbm_file) == "":
+  whichdb.whichdb = lambda filename: "gdbm"
+
+shelf = shelve.open(gdbm_file)
+
 sessions = []
 
 latest = None
 
 for i, key in enumerate(mb.iterkeys(), 1):
-
   sys.stderr.write("\r%s %d/%d..." % ("|\\-/"[i & 3], i, len(mb)))
 
-  assert not mb[key].is_multipart()
+  if key in shelf:
+    session = shelf[key]
 
-  input = ElementTreeFromString(mb[key].get_payload())
+  else:
+    assert not mb[key].is_multipart()
+    input = ElementTreeFromString(mb[key].get_payload())
+    date = input.get("date")
+    sys.stderr.write("%s..." % date)
+    session = Session(date, key)
+    for elt in input.findall("rsync_history"):
+      session.add_rsync_history(Rsync_History(elt))
+    for elt in input.findall("validation_status"):
+      if elt.get("generation") == "current":
+        session.add_uri(elt.text.strip())
+    session.finalize()
+    shelf[key] = session
 
-  date = input.get("date")
-
-  sys.stderr.write("%s..." % date)
-
-  session = Session(date, key)
   sessions.append(session)
-
   if latest is None or session.session_id > latest.session_id:
     latest = session
 
-  for elt in input.findall("rsync_history"):
-    session.add_rsync_history(Rsync_History(elt))
-
-  for elt in input.findall("validation_status"):
-    if elt.get("generation") == "current":
-      session.add_uri(elt.text.strip())
-
-  session.finalize()
-
 sys.stderr.write("\n")
+
+shelf.sync()
 
 if plot_all_hosts:
   hostnames = set()
@@ -256,3 +271,5 @@ if write_rcynic_xml and latest is not None:
   f = open("rcynic.xml", "wb")
   f.write(mb[latest.msg_key].get_payload())
   f.close()
+
+shelf.close()

@@ -1620,22 +1620,35 @@ static int walk_ctx_loop_done(STACK_OF(walk_ctx_t) *wsk)
  * context which collectively define the current pass, product URI,
  * etc, and we want to be able to iterate through this sequence via
  * the event system.  So this function steps to the next state.
+ *
+ * Conceptually, w->manifest->fileList and w->filenames form a single
+ * array with index w->manifest_iteration + w->filename_iteration.
+ * Beware of fencepost errors, I've gotten this wrong once already.
+ * Slightly odd coding here is to make it easier to check this.
  */
 static void walk_ctx_loop_next(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  int n_manifest, n_filenames;
 
   assert(rc && wsk && w);
 
-  if (w->manifest && w->manifest_iteration + 1 < sk_FileAndHash_num(w->manifest->fileList)) {
-    w->manifest_iteration++;
-    return;
+  assert(w->manifest_iteration >= 0 && w->filename_iteration >= 0);
+
+  n_manifest  = w->manifest  ? sk_FileAndHash_num(w->manifest->fileList) : 0;
+  n_filenames = w->filenames ? sk_OPENSSL_STRING_num(w->filenames)       : 0;
+
+  if (w->manifest_iteration + w->filename_iteration < n_manifest + n_filenames) {
+    if (w->manifest_iteration < n_manifest)
+      w->manifest_iteration++;
+    else
+      w->filename_iteration++;
   }
 
-  if (w->filenames && w->filename_iteration + 1 < sk_OPENSSL_STRING_num(w->filenames)) {
-    w->filename_iteration++;
+  assert(w->manifest_iteration <= n_manifest && w->filename_iteration <= n_filenames);
+
+  if (w->manifest_iteration + w->filename_iteration < n_manifest + n_filenames)
     return;
-  }
 
   while (!walk_ctx_loop_done(wsk)) {
     w->state++;

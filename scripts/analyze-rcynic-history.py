@@ -32,7 +32,7 @@ import getopt
 import datetime
 import subprocess
 import shelve
-import whichdb
+import gdbm
 
 from xml.etree.cElementTree import (ElementTree as ElementTree,
                                     fromstring  as ElementTreeFromString)
@@ -210,13 +210,7 @@ def plot_one(hostnames, fields):
 
 mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
 
-gdbm_file = "rcynic-xml.gdbm"
-
-# Disgusting workaround for dumb bug, see http://bugs.python.org/issue13007
-if whichdb.whichdb(gdbm_file) == "":
-  whichdb.whichdb = lambda filename: "gdbm"
-
-shelf = shelve.open(gdbm_file)
+shelf = shelve.Shelf(gdbm.open("rcynic-xml.gdbm", "c"))
 
 sessions = []
 

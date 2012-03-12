@@ -56,7 +56,7 @@ distclean: clean
 
 openssl-${VERSION}/Makefile: openssl-${VERSION}/config
 	cd openssl-${VERSION}; ${OPENSSL_CONFIG_COMMAND} ${OPTIONS}
-	cd openssl-${VERSION}; ${MAKE} depend
+	-cd openssl-${VERSION}; ${MAKE} depend
 
 openssl-${VERSION}/config: openssl-${VERSION}.tar.gz
 	gzip -c -d openssl-${VERSION}.tar.gz | tar -xf -

@@ -32,7 +32,6 @@ import getopt
 import datetime
 import subprocess
 import shelve
-import gdbm
 
 from xml.etree.cElementTree import (ElementTree as ElementTree,
                                     fromstring  as ElementTreeFromString)
@@ -206,7 +205,10 @@ def plot_one(hostnames, fields):
 
 mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
 
-shelf = shelve.Shelf(gdbm.open("rcynic-xml.gdbm", "c"))
+if sys.platform == "darwin":            # Sigh
+  shelf = shelve.open("rcynic-xml", "c")
+else:
+  shelf = shelve.open("rcynic-xml.db", "c")
 
 sessions = []
 

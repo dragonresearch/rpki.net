@@ -1060,11 +1060,12 @@ class pdu_channel(asynchat.async_chat):
     """
     Handle errors caught by asyncore main loop.
     """
-    if backtrace_on_exceptions:
+    c, e = sys.exc_info()[:2]
+    if backtrace_on_exceptions or e == 0:
       for line in traceback.format_exc().splitlines():
         log(line)
     else:
-      log("[Exception: %s]" % sys.exc_info()[1])
+      log("[Exception: %s: %s]" % (c.__name__, e)
     log("[Exiting after unhandled exception]")
     sys.exit(1)
 
@@ -1356,11 +1357,12 @@ class kickme_channel(asyncore.dispatcher):
     """
     Handle errors caught by asyncore main loop.
     """
-    if backtrace_on_exceptions:
+    c, e = sys.exc_info()[:2]
+    if backtrace_on_exceptions or e == 0:
       for line in traceback.format_exc().splitlines():
         log(line)
     else:
-      log("[Exception: %s]" % sys.exc_info()[1])
+      log("[Exception: %s: %s]" % (c.__name__, e)
     log("[Exiting after unhandled exception]")
     sys.exit(1)
 

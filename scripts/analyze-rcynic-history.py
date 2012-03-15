@@ -85,7 +85,9 @@ class Host(object):
 
   @property
   def seconds_per_object(self):
-    return float(self.elapsed.total_seconds()) / float(self.object_count)
+    return float(self.elapsed.days * 24 * 60 * 60 +
+                 self.elapsed.seconds +
+                 self.elapsed.microseconds / 10**6) / float(self.object_count)
 
   @property
   def objects_per_connection(self):
@@ -93,7 +95,9 @@ class Host(object):
 
   @property
   def average_connection_time(self):
-    return float(self.total_connection_time.total_seconds()) / float(self.connection_count)
+    return float(self.total_connection_time.days * 24 * 60 * 60 +
+                 self.total_connection_time.seconds +
+                 self.total_connection_time.microseconds / 10**6) / float(self.connection_count)
 
   class Format(object):
 

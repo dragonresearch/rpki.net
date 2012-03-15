@@ -20,7 +20,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 plot_all_hosts   = False
-plot_to_one      = True
+plot_to_one      = False
 plot_to_many     = True
 write_rcynic_xml = True
 
@@ -98,12 +98,13 @@ class Host(object):
 
   class Format(object):
 
-    def __init__(self, attr, title, fmt):
+    def __init__(self, attr, title, fmt, ylabel = ""):
       self.attr = attr
       self.title = title
       self.width = len(title) - int("%" in fmt)
       self.fmt = "%%%d%s" % (self.width, fmt)
       self.oops = "*" * self.width
+      self.ylabel = ylabel
 
     def __call__(self, obj):
       try:
@@ -111,20 +112,13 @@ class Host(object):
       except ZeroDivisionError:
         return self.oops
 
-  format = (Format("connection_count",        "Connections",        "d"),
-            Format("object_count",            "Objects",            "d"),
-            Format("objects_per_connection",  "Objects/Connection", ".3f"),
-            Format("seconds_per_object",      "Seconds/Object",     ".3f"),
-            Format("failure_rate_percentage", "Failure Rate",       ".3f%%"),
-            Format("average_connection_time", "Average Connection", ".3f"),
+  format = (Format("connection_count",        "Connections",        "d",     "Connections To Repository (Per Session)"),
+            Format("object_count",            "Objects",            "d",     "Objects In Repository (Distinct URIs Per Session)"),
+            Format("objects_per_connection",  "Objects/Connection", ".3f",   "Objects In Repository / Connections To Repository"),
+            Format("seconds_per_object",      "Seconds/Object",     ".3f",   "Seconds To Transfer / Object (Average Per Session)"),
+            Format("failure_rate_percentage", "Failure Rate",       ".3f%%", "Connection Failures / Connections (Per Session)"),
+            Format("average_connection_time", "Average Connection", ".3f",   "Seconds / Connection (Average Per Session)"),
             Format("hostname",                "Hostname",           "s"))
-
-  separator = " " * 2
-
-  header = separator.join(fmt.title for fmt in format)
-
-  def __str__(self):
-    return self.separator.join(fmt(self) for fmt in self.format)
 
   format_dict = dict((fmt.attr, fmt) for fmt in format)
 
@@ -165,6 +159,7 @@ class Session(dict):
 def plotter(f, hostnames, field, logscale = False):
   plotlines = sorted(session.get_plot_row(field, hostnames) for session in sessions)
   title = Host.format_dict[field].title
+  ylabel = Host.format_dict[field].ylabel
   n = len(hostnames) + 1
   assert all(n == len(plotline) for plotline in plotlines)
   if "%%" in Host.format_dict[field].fmt:
@@ -181,6 +176,7 @@ def plotter(f, hostnames, field, logscale = False):
           #set format x '%m/%d'
           set format x '%b%d'
           #set title '""" + title + """'
+          set ylabel '""" + ylabel + """'
           plot""" + ",".join(" '-' using 1:2 with linespoints pointinterval 500 title '%s'" % h for h in hostnames) + "\n")
   for i in xrange(1, n):
     for plotline in plotlines:
@@ -245,15 +241,14 @@ sys.stderr.write("\n")
 shelf.sync()
 
 if plot_all_hosts:
-  hostnames = set()
-  for session in sessions:
-    hostnames.update(session.hostnames)
-  hostnames = sorted(hostnames)
+  hostnames = sorted(reduce(lambda x, y: x | y,
+                            (s.hostnames for s in sessions),
+                            set()))
 
 else:
   hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net",
-               "rpki.afrinic.net", "arin.rpki.net", "rgnet.rpki.net",
-               "rpki-pilot.arin.net")
+               "rpki.afrinic.net", "rpki-pilot.arin.net",
+               "arin.rpki.net", "rgnet.rpki.net")
 
 fields = [fmt.attr for fmt in Host.format if fmt.attr != "hostname"]
 if plot_to_one:

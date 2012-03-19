@@ -19,12 +19,18 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-plot_all_hosts   = False
-plot_to_one      = True
-plot_to_many     = True
-write_rcynic_xml = True
+plot_all_hosts = False
 
-import mailbox, sys, urlparse, os, getopt, datetime, subprocess
+window_hours = 72
+
+import mailbox
+import sys
+import urlparse
+import os
+import getopt
+import datetime
+import subprocess
+import shelve
 
 from xml.etree.cElementTree import (ElementTree as ElementTree,
                                     fromstring  as ElementTreeFromString)
@@ -73,12 +79,14 @@ class Host(object):
     del self.uris
 
   @property
-  def failure_rate_percentage(self):
-    return float(self.dead_connections * 100) / float(self.connection_count)
+  def failed(self):
+    return 1 if self.dead_connections else 0
 
   @property
   def seconds_per_object(self):
-    return float(self.elapsed.total_seconds()) / float(self.object_count)
+    return float(self.elapsed.days * 24 * 60 * 60 +
+                 self.elapsed.seconds +
+                 self.elapsed.microseconds / 10**6) / float(self.object_count)
 
   @property
   def objects_per_connection(self):
@@ -86,16 +94,19 @@ class Host(object):
 
   @property
   def average_connection_time(self):
-    return float(self.total_connection_time.total_seconds()) / float(self.connection_count)
+    return float(self.total_connection_time.days * 24 * 60 * 60 +
+                 self.total_connection_time.seconds +
+                 self.total_connection_time.microseconds / 10**6) / float(self.connection_count)
 
   class Format(object):
 
-    def __init__(self, attr, title, fmt):
+    def __init__(self, attr, title, fmt, ylabel = ""):
       self.attr = attr
       self.title = title
       self.width = len(title) - int("%" in fmt)
       self.fmt = "%%%d%s" % (self.width, fmt)
       self.oops = "*" * self.width
+      self.ylabel = ylabel
 
     def __call__(self, obj):
       try:
@@ -103,20 +114,13 @@ class Host(object):
       except ZeroDivisionError:
         return self.oops
 
-  format = (Format("connection_count",        "Connections",        "d"),
-            Format("object_count",            "Objects",            "d"),
-            Format("objects_per_connection",  "Objects/Connection", ".3f"),
-            Format("seconds_per_object",      "Seconds/Object",     ".3f"),
-            Format("failure_rate_percentage", "Failure Rate",       ".3f%%"),
-            Format("average_connection_time", "Average Connection", ".3f"),
+  format = (Format("connection_count",        "Connections",        "d",     "Connections To Repository (Per Session)"),
+            Format("object_count",            "Objects",            "d",     "Objects In Repository (Distinct URIs Per Session)"),
+            Format("objects_per_connection",  "Objects/Connection", ".3f",   "Objects In Repository / Connections To Repository"),
+            Format("seconds_per_object",      "Seconds/Object",     ".3f",   "Seconds To Transfer / Object (Average Per Session)"),
+            Format("failure_rate_running",    "Failure Rate",       ".3f%%", "Sessions With Failed Connections Within Last %d Hours" % window_hours),
+            Format("average_connection_time", "Average Connection", ".3f",   "Seconds / Connection (Average Per Session)"),
             Format("hostname",                "Hostname",           "s"))
-
-  separator = " " * 2
-
-  header = separator.join(fmt.title for fmt in format)
-
-  def __str__(self):
-    return self.separator.join(fmt(self) for fmt in self.format)
 
   format_dict = dict((fmt.attr, fmt) for fmt in format)
 
@@ -132,6 +136,8 @@ class Session(dict):
   def __init__(self, session_id, msg_key):
     self.session_id = session_id
     self.msg_key = msg_key
+    self.date = parse_utc(session_id)
+    self.calculated_failure_history = False
 
   @property
   def hostnames(self):
@@ -154,9 +160,22 @@ class Session(dict):
     for h in self.itervalues():
       h.finalize()
 
+  def calculate_failure_history(self, sessions):
+    start = self.date - datetime.timedelta(hours = window_hours)
+    sessions = tuple(s for s in sessions if s.date <= self.date and s.date > start)
+    for hostname, h in self.iteritems():
+      i = n = 0
+      for s in sessions:
+        if hostname in s:
+          i += s[hostname].failed
+          n += 1
+      h.failure_rate_running = float(100 * i) / n
+    self.calculated_failure_history = True
+
 def plotter(f, hostnames, field, logscale = False):
   plotlines = sorted(session.get_plot_row(field, hostnames) for session in sessions)
   title = Host.format_dict[field].title
+  ylabel = Host.format_dict[field].ylabel
   n = len(hostnames) + 1
   assert all(n == len(plotline) for plotline in plotlines)
   if "%%" in Host.format_dict[field].fmt:
@@ -171,15 +190,18 @@ def plotter(f, hostnames, field, logscale = False):
           set xdata time
           set timefmt '%Y-%m-%dT%H:%M:%SZ'
           #set format x '%m/%d'
-          set format x '%b%d'
+          #set format x '%b%d'
+          #set format x '%Y-%m-%d'
+          set format x '%Y-%m'
           #set title '""" + title + """'
+          set ylabel '""" + ylabel + """'
           plot""" + ",".join(" '-' using 1:2 with linespoints pointinterval 500 title '%s'" % h for h in hostnames) + "\n")
   for i in xrange(1, n):
     for plotline in plotlines:
       f.write("%s %s\n" % (plotline[0], plotline[i].rstrip("%")))
     f.write("e\n")
 
-def plot_many(hostnames, fields):
+def plot_hosts(hostnames, fields):
   for field in fields:
     for logscale in (False, True):
       gnuplot = subprocess.Popen(("gnuplot",), stdin = subprocess.PIPE)
@@ -189,70 +211,67 @@ def plot_many(hostnames, fields):
       gnuplot.stdin.close()
       gnuplot.wait()
 
-def plot_one(hostnames, fields):
-  gnuplot = subprocess.Popen(("gnuplot",), stdin = subprocess.PIPE)
-  gnuplot.stdin.write("set terminal pdf\n")
-  gnuplot.stdin.write("set output 'analyze-rcynic-history.pdf'\n")
-  for field  in fields:
-    if field != "hostname":
-      plotter(gnuplot.stdin, hostnames, field, logscale = False)
-      plotter(gnuplot.stdin, hostnames, field, logscale = True)
-  gnuplot.stdin.close()
-  gnuplot.wait()
-
 mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
+
+if sys.platform == "darwin":            # Sigh
+  shelf = shelve.open("rcynic-xml", "c")
+else:
+  shelf = shelve.open("rcynic-xml.db", "c")
 
 sessions = []
 
 latest = None
 
 for i, key in enumerate(mb.iterkeys(), 1):
+  sys.stderr.write("\r%s Reading %d/%d..." % ("|\\-/"[i & 3], i, len(mb)))
 
-  sys.stderr.write("\r%s %d/%d..." % ("|\\-/"[i & 3], i, len(mb)))
+  if key in shelf:
+    session = shelf[key]
 
-  assert not mb[key].is_multipart()
+  else:
+    assert not mb[key].is_multipart()
+    input = ElementTreeFromString(mb[key].get_payload())
+    date = input.get("date")
+    sys.stderr.write("%s..." % date)
+    session = Session(date, key)
+    for elt in input.findall("rsync_history"):
+      session.add_rsync_history(Rsync_History(elt))
+    for elt in input.findall("validation_status"):
+      if elt.get("generation") == "current":
+        session.add_uri(elt.text.strip())
+    session.finalize()
+    shelf[key] = session
 
-  input = ElementTreeFromString(mb[key].get_payload())
-
-  date = input.get("date")
-
-  sys.stderr.write("%s..." % date)
-
-  session = Session(date, key)
   sessions.append(session)
-
   if latest is None or session.session_id > latest.session_id:
     latest = session
 
-  for elt in input.findall("rsync_history"):
-    session.add_rsync_history(Rsync_History(elt))
+sys.stderr.write("\n")
 
-  for elt in input.findall("validation_status"):
-    if elt.get("generation") == "current":
-      session.add_uri(elt.text.strip())
+shelf.sync()
 
-  session.finalize()
-
+for i, session in enumerate(sessions, 1):
+  sys.stderr.write("\r%s Failure history %d/%d...%s..." % ("|\\-/"[i & 3], i, len(sessions), session.session_id))
+  if not getattr(session, "calculated_failure_history", False):
+    session.calculate_failure_history(sessions)
+    shelf[session.msg_key] = session
 sys.stderr.write("\n")
 
 if plot_all_hosts:
-  hostnames = set()
-  for session in sessions:
-    hostnames.update(session.hostnames)
-  hostnames = sorted(hostnames)
+  hostnames = sorted(reduce(lambda x, y: x | y,
+                            (s.hostnames for s in sessions),
+                            set()))
 
 else:
   hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net",
-               "rpki.afrinic.net", "arin.rpki.net", "rgnet.rpki.net",
-               "rpki-pilot.arin.net")
+               "rpki.afrinic.net", "rpki-pilot.arin.net",
+               "arin.rpki.net", "rgnet.rpki.net")
 
-fields = [fmt.attr for fmt in Host.format if fmt.attr != "hostname"]
-if plot_to_one:
-  plot_one(hostnames, fields)
-if plot_to_many:
-  plot_many(hostnames, fields)
+plot_hosts(hostnames, [fmt.attr for fmt in Host.format if fmt.attr != "hostname"])
 
-if write_rcynic_xml and latest is not None:
+if latest is not None:
   f = open("rcynic.xml", "wb")
   f.write(mb[latest.msg_key].get_payload())
   f.close()
+
+shelf.close()

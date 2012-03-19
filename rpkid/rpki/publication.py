@@ -219,7 +219,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
 
   def serve_withdraw(self):
     """
-    Withdraw an object.
+    Withdraw an object, then recursively delete empty directories.
     """
     rpki.log.info("Withdrawing %s" % self.uri)
     filename = self.uri_to_filename()
@@ -230,6 +230,15 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
         raise rpki.exceptions.NoObjectAtURI, "No object published at %s" % self.uri
       else:
         raise
+    min_path_len = len(self.gctx.publication_base.rstrip("/"))
+    dirname = os.path.dirname(filename)
+    while len(dirname) > min_path_len:
+      try:
+        os.rmdir(dirname)
+      except OSError:
+        break
+      else:
+        dirname = os.path.dirname(dirname)
 
   def uri_to_filename(self):
     """

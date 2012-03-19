@@ -1264,6 +1264,7 @@ def run_rcynic():
   subprocess.check_call((prog_rcynic, "-c", rcynic_name + ".conf"), env = env)
   subprocess.call(rcynic_stats, shell = True, env = env)
   last_rcynic_run = int(time.time())
+  os.link("%s.xml" % rcynic_name, "%s.%s.xml" % (rcynic_name, last_rcynic_run))
 
 def mangle_sql(filename):
   """

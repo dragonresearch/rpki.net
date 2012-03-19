@@ -1620,22 +1620,35 @@ static int walk_ctx_loop_done(STACK_OF(walk_ctx_t) *wsk)
  * context which collectively define the current pass, product URI,
  * etc, and we want to be able to iterate through this sequence via
  * the event system.  So this function steps to the next state.
+ *
+ * Conceptually, w->manifest->fileList and w->filenames form a single
+ * array with index w->manifest_iteration + w->filename_iteration.
+ * Beware of fencepost errors, I've gotten this wrong once already.
+ * Slightly odd coding here is to make it easier to check this.
  */
 static void walk_ctx_loop_next(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  int n_manifest, n_filenames;
 
   assert(rc && wsk && w);
 
-  if (w->manifest && w->manifest_iteration + 1 < sk_FileAndHash_num(w->manifest->fileList)) {
-    w->manifest_iteration++;
-    return;
+  assert(w->manifest_iteration >= 0 && w->filename_iteration >= 0);
+
+  n_manifest  = w->manifest  ? sk_FileAndHash_num(w->manifest->fileList) : 0;
+  n_filenames = w->filenames ? sk_OPENSSL_STRING_num(w->filenames)       : 0;
+
+  if (w->manifest_iteration + w->filename_iteration < n_manifest + n_filenames) {
+    if (w->manifest_iteration < n_manifest)
+      w->manifest_iteration++;
+    else
+      w->filename_iteration++;
   }
 
-  if (w->filenames && w->filename_iteration + 1 < sk_OPENSSL_STRING_num(w->filenames)) {
-    w->filename_iteration++;
+  assert(w->manifest_iteration <= n_manifest && w->filename_iteration <= n_filenames);
+
+  if (w->manifest_iteration + w->filename_iteration < n_manifest + n_filenames)
     return;
-  }
 
   while (!walk_ctx_loop_done(wsk)) {
     w->state++;
@@ -2878,6 +2891,7 @@ static int check_aki(rcynic_ctx_t *rc,
 
   if (ASN1_OCTET_STRING_cmp(aki->keyid, issuer->skid)) {
     log_validation_status(rc, uri, aki_extension_issuer_mismatch, generation);
+    return 0;
   }
 
   return 1;
@@ -3500,11 +3514,6 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
-  if ((issuer_pkey = X509_get_pubkey(w->cert)) == NULL || X509_verify(x, issuer_pkey) <= 0) {
-    log_validation_status(rc, uri, certificate_bad_signature, generation);
-    goto done;
-  }
-
   if (x->akid) {
     ex_count--;
     if (!check_aki(rc, uri, w->cert, x->akid, generation))
@@ -3513,6 +3522,11 @@ static int check_x509(rcynic_ctx_t *rc,
 
   if (!x->akid && !certinfo->ta) {
     log_validation_status(rc, uri, aki_extension_missing, generation);
+    goto done;
+  }
+
+  if ((issuer_pkey = X509_get_pubkey(w->cert)) == NULL || X509_verify(x, issuer_pkey) <= 0) {
+    log_validation_status(rc, uri, certificate_bad_signature, generation);
     goto done;
   }
 
@@ -4591,6 +4605,7 @@ static X509 *read_ta(rcynic_ctx_t *rc,
   EVP_PKEY_free(xpkey);
   if (match)
     return x;
+  log_validation_status(rc, uri, object_rejected, generation);
   X509_free(x);
   return NULL;
 }
@@ -4722,6 +4737,7 @@ int main(int argc, char *argv[])
 {
   int opt_jitter = 0, use_syslog = 0, use_stderr = 0, syslog_facility = 0;
   int opt_syslog = 0, opt_stderr = 0, opt_level = 0, prune = 1;
+  int opt_auth = 0, opt_unauth = 0, keep_lockfile = 0;
   char *cfg_file = "rcynic.conf";
   char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1;
@@ -4768,8 +4784,13 @@ int main(int argc, char *argv[])
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  while ((c = getopt(argc, argv, "c:l:sej:V")) > 0) {
+  while ((c = getopt(argc, argv, "a:c:l:sej:u:V")) > 0) {
     switch (c) {
+    case 'a':
+      opt_auth = 1;
+      if (!set_directory(&rc, &rc.authenticated, optarg, 0))
+	goto done;
+      break;
     case 'c':
       cfg_file = optarg;
       break;
@@ -4788,6 +4809,11 @@ int main(int argc, char *argv[])
       if (!configure_integer(&rc, &jitter, optarg))
 	goto done;
       opt_jitter = 1;
+      break;
+    case 'u':
+      opt_unauth = 1;
+      if (!set_directory(&rc, &rc.unauthenticated, optarg, 1))
+	goto done;
       break;
     case 'V':
       puts(svn_id);
@@ -4838,11 +4864,13 @@ int main(int argc, char *argv[])
 
     assert(val && val->name && val->value);
 
-    if (!name_cmp(val->name, "authenticated") &&
+    if (!opt_auth &&
+	!name_cmp(val->name, "authenticated") &&
     	!set_directory(&rc, &rc.authenticated, val->value, 0))
       goto done;
 
-    else if (!name_cmp(val->name, "unauthenticated") &&
+    else if (!opt_unauth &&
+	     !name_cmp(val->name, "unauthenticated") &&
 	     !set_directory(&rc, &rc.unauthenticated, val->value, 1))
       goto done;
 
@@ -4863,6 +4891,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "lockfile"))
       lockfile = strdup(val->value);
+
+    else if (!name_cmp(val->name, "keep-lockfile") &&
+	     !configure_boolean(&rc, &keep_lockfile, val->value))
+      goto done;
 
     else if (!opt_jitter &&
 	     !name_cmp(val->name, "jitter") &&
@@ -5205,7 +5237,7 @@ int main(int argc, char *argv[])
   ERR_free_strings();
   if (rc.rsync_program)
     free(rc.rsync_program);
-  if (lockfile && lockfd >= 0)
+  if (lockfile && lockfd >= 0 && !keep_lockfile)
     unlink(lockfile);
   if (lockfile)
     free(lockfile);

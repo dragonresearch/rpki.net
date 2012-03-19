@@ -23,7 +23,7 @@ right.
 
 $Id$
 
-Copyright (C) 2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -38,7 +38,14 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, socket, sys, getopt, errno, time, rpki.x509, rpki.ipaddrs
+import os
+import socket
+import sys
+import getopt
+import errno
+import time
+import rpki.x509
+import rpki.ipaddrs
 
 class route_virtual(object):
   """
@@ -71,14 +78,17 @@ class route_virtual(object):
     return result
 
   def __str__(self):
-    return "".join((
-      ("%-14s%s/%s\n" % (self.label, self.prefix, self.prefixlen)),
-      ("descr:        %s/%s-%s\n" % (self.prefix, self.prefixlen, self.max_prefixlen)),
-      ("origin:       AS%d\n" % self.asn),
-      ("notify:       %s\n" % irr_notify),
-      ("mnt-by:       %s\n" % irr_mnt_by),
-      ("changed:      %s %s\n" % (irr_changed_by, self.date)),
-      ("source:       %s\n" % irr_source)))
+    lines = (
+      "%-14s%s/%s" % (self.label, self.prefix, self.prefixlen),
+      "descr:        %s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen),
+      "origin:       AS%d" % self.asn,
+      "notify:       %s" % irr_notify,
+      "mnt-by:       %s" % irr_mnt_by,
+      "changed:      %s %s" % (irr_changed_by, self.date),
+      "source:       %s" % irr_source,
+      "override:     %s" % password if password is not None else None,
+      "")
+    return "\n".join(line for line in lines if line is not None)
 
   def write(self, output_directory):
     name = "%s-%s-%s-AS%d-%s" % (self.prefix, self.prefixlen, self.max_prefixlen, self.asn, self.date)
@@ -136,8 +146,10 @@ irr_source     = "RPKI"
 irr_from       = whoami
 output         = None
 email          = False
+password       = None
 
-options = ["changed_by=", "email", "from=", "help", "mnt_by=", "notify=", "output=", "source="]
+options = ["changed_by=", "email", "from=", "help", "mnt_by=",
+           "notify=", "output=", "password=", "source="]
 
 def usage(code = 1):
   f = sys.stderr if code else sys.stdout
@@ -147,11 +159,10 @@ def usage(code = 1):
   f.write(__doc__)
   sys.exit(code)
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:ef:hm:n:o:s:?", options)
+opts, argv = getopt.getopt(sys.argv[1:], "c:ef:hm:n:o:p:s:?", options)
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
-    print __doc__
-    sys.exit(0)
+    usage(0)
   elif o in ("-c", "--changed_by"):
     irr_changed_by = a
   elif o in ("-e", "--email"):
@@ -164,6 +175,8 @@ for o, a in opts:
     irr_notify = a
   elif o in ("-o", "--output"):
     output = a
+  elif o in ("-p", "--password"):
+    password = a
   elif o in ("-s", "--source"):
     source = a
   else:

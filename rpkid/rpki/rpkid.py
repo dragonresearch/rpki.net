@@ -462,8 +462,8 @@ class ca_obj(rpki.sql.sql_persistent):
 
       if rc_cert is None:
 
-        rpki.log.warn("SKI %s in resource class %s is in my database but missing from list_response received from %s, maybe parent certificate went away?"
-                      % (ca_detail.public_key.gSKI(), rc.class_name, parent.parent_handle))
+        rpki.log.warn("SKI %s in resource class %s is in database but missing from list_response to %s from %s, maybe parent certificate went away?"
+                      % (ca_detail.public_key.gSKI(), rc.class_name, parent.self.self_handle, parent.parent_handle))
         publisher = publication_queue()
         ca_detail.delete(ca = ca_detail.ca, publisher = publisher)
         return publisher.call_pubd(iterator, eb)
@@ -495,8 +495,10 @@ class ca_obj(rpki.sql.sql_persistent):
 
     def done():
       if cert_map:
-        rpki.log.warn("Certificate SKIs in resource class %s in list_response from parent %s that are missing from our database: %s"
-                      % (rc.class_name, parent.parent_handle, ", ".join(c.cert.gSKI() for c in cert_map.values())))
+        rpki.log.warn("Unknown certificate SKI%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?"
+                      % ("" if len(cert_map) == 1 else "s",
+                         ", ".join(c.cert.gSKI() for c in cert_map.values()),
+                         rc.class_name, parent.self.self_handle, parent.parent_handle))
       self.gctx.checkpoint()
       cb()
 
@@ -509,19 +511,19 @@ class ca_obj(rpki.sql.sql_persistent):
                         for x in ca_details
                         if x.latest_ca_cert is not None)
       for ski in skis_parent & skis_me:
-        rpki.log.debug("Parent %s and I agree that I have SKI %s in resource class %s"
-                       % (parent.parent_handle, ski, rc.class_name))
+        rpki.log.debug("Parent %s agrees that %s has SKI %s in resource class %s"
+                       % (parent.parent_handle, parent.self.self_handle, ski, rc.class_name))
       for ski in skis_parent - skis_me:
-        rpki.log.debug("Parent %s thinks I have SKI %s in resource class %s but I don't think so"
-                       % (parent.parent_handle, ski, rc.class_name))
+        rpki.log.debug("Parent %s thinks %s has SKI %s in resource class %s but I don't think so"
+                       % (parent.parent_handle, parent.self.self_handle, ski, rc.class_name))
       for ski in skis_me - skis_parent:
-        rpki.log.debug("I think I have SKI %s in resource class %s but parent %s doesn't think so"
-                       % (ski, rc.class_name, parent.parent_handle))
+        rpki.log.debug("I think %s has SKI %s in resource class %s but parent %s doesn't think so"
+                       % (parent.self.self_handle, ski, rc.class_name, parent.parent_handle))
 
     if ca_details:
       rpki.async.iterator(ca_details, loop, done)
     else:
-      rpki.log.warn("Existing resource class %s from parent %s with no certificates, rekeying" % (rc.class_name, parent.parent_handle))
+      rpki.log.warn("Existing resource class %s to %s from %s with no certificates, rekeying" % (rc.class_name, parent.self.self_handle, parent.parent_handle))
       self.gctx.checkpoint()
       self.rekey(cb, eb)
 
@@ -625,9 +627,10 @@ class ca_obj(rpki.sql.sql_persistent):
 
     rpki.up_down.issue_pdu.query(parent, self, new_detail, done, eb)
 
-  def revoke(self, cb, eb):
+  def revoke(self, cb, eb, revoke_all = False):
     """
-    Revoke deprecated ca_detail objects associated with this ca.
+    Revoke deprecated ca_detail objects associated with this CA, or
+    all ca_details associated with this CA if revoke_all is set.
     """
 
     rpki.log.trace()
@@ -635,7 +638,9 @@ class ca_obj(rpki.sql.sql_persistent):
     def loop(iterator, ca_detail):
       ca_detail.revoke(cb = iterator, eb = eb)
 
-    rpki.async.iterator(self.deprecated_ca_details, loop, cb)
+    ca_details = self.ca_details if revoke_all else self.deprecated_ca_details
+
+    rpki.async.iterator(ca_details, loop, cb)
 
   def reissue(self, cb, eb):
     """
@@ -763,17 +768,23 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     self.state = "active"
     self.generate_crl(publisher = publisher)
     self.generate_manifest(publisher = publisher)
-    self.sql_mark_dirty()
+    self.sql_store()
 
     if predecessor is not None:
       predecessor.state = "deprecated"
-      predecessor.sql_mark_dirty()
+      predecessor.sql_store()
       for child_cert in predecessor.child_certs:
         child_cert.reissue(ca_detail = self, publisher = publisher)
       for roa in predecessor.roas:
         roa.regenerate(publisher = publisher)
 
       # Need to do something to regenerate ghostbusters here?
+      # Yes, I suspect so, since presumably we want the ghostbuster to
+      # be issued by the new ca_detail at this point.  But check code.
+
+      if predecessor.ghostbusters:
+        rpki.log.warn("Probably should be regenerating Ghostbusters %r here" % ghostbuster)
+
 
     publisher.call_pubd(callback, errback)
 
@@ -842,6 +853,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       if r_msg.payload.ski != self.latest_ca_cert.gSKI():
         raise rpki.exceptions.SKIMismatch
 
+      rpki.log.debug("Parent revoked %s, starting cleanup" % self.latest_ca_cert.gSKI())
+
       crl_interval = rpki.sundial.timedelta(seconds = parent.self.crl_interval)
 
       nextUpdate = rpki.sundial.now()
@@ -881,6 +894,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       self.sql_mark_dirty()
       publisher.call_pubd(cb, eb)
 
+    rpki.log.debug("Asking parent to revoke CA certificate %s" % self.latest_ca_cert.gSKI())
     rpki.up_down.revoke_pdu.query(ca, self.latest_ca_cert.gSKI(), parent_revoked, eb)
 
   def update(self, parent, ca, rc, sia_uri_changed, old_resources, callback, errback):
@@ -963,8 +977,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     containing the newly issued cert.
     """
 
-    assert child_cert is None or (child_cert.child_id == child.child_id and
-                                  child_cert.ca_detail_id == self.ca_detail_id)
+    assert child_cert is None or child_cert.child_id == child.child_id
 
     cert = self.latest_ca_cert.issue(
       keypair     = self.private_key_id,
@@ -985,6 +998,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       rpki.log.debug("Created new child_cert %r" % child_cert)
     else:
       child_cert.cert = cert
+      child_cert.ca_detail_id = self.ca_detail_id
       rpki.log.debug("Reusing existing child_cert %r" % child_cert)
 
     child_cert.ski = cert.get_SKI()
@@ -1155,7 +1169,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """
     return self.ca_detail.ca.sia_uri + self.uri_tail
 
-  def revoke(self, publisher, generate_crl_and_manifest = False):
+  def revoke(self, publisher, generate_crl_and_manifest = True):
     """
     Revoke a child cert.
     """
@@ -1207,17 +1221,12 @@ class child_cert_obj(rpki.sql.sql_persistent):
       needed = True
 
     if ca_detail != old_ca_detail:
-      rpki.log.debug("Issuer changed for %r" % self)
+      rpki.log.debug("Issuer changed for %r %s" % (self, self.uri))
       needed = True
 
     must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until
     if must_revoke:
       rpki.log.debug("Must revoke any existing cert(s) for %r" % self)
-      needed = True
-
-    new_issuer = ca_detail != old_ca_detail
-    if new_issuer:
-      rpki.log.debug("Issuer changed for %r" % self)
       needed = True
 
     if resources.valid_until != old_resources.valid_until:
@@ -1245,7 +1254,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
       subject_key = self.cert.getPublicKey(),
       sia         = sia,
       resources   = resources,
-      child_cert  = None if must_revoke or new_issuer else self,
+      child_cert  = None if must_revoke else self,
       publisher   = publisher)
 
     rpki.log.debug("New child_cert %r uri %s" % (child_cert, child_cert.uri))
@@ -1496,10 +1505,12 @@ class roa_obj(rpki.sql.sql_persistent):
 
     ca_detail = self.ca_detail
     if ca_detail is None or ca_detail.state != "active" or ca_detail.has_expired():
+      rpki.log.debug("Searching for new ca_detail for ROA %r" % self)
       ca_detail = None
       for parent in self.self.parents:
         for ca in parent.cas:
           ca_detail = ca.active_ca_detail
+          assert ca_detail is None or ca_detail.state == "active"
           if ca_detail is not None and not ca_detail.has_expired():
             resources = ca_detail.latest_ca_cert.get_3779resources()
             if v4.issubset(resources.v4) and v6.issubset(resources.v6):
@@ -1507,9 +1518,14 @@ class roa_obj(rpki.sql.sql_persistent):
           ca_detail = None
         if ca_detail is not None:
           break
+    else:
+      rpki.log.debug("Keeping old ca_detail for ROA %r" % self)
 
     if ca_detail is None:
       raise rpki.exceptions.NoCoveringCertForROA, "Could not find a certificate covering %r" % self
+
+    rpki.log.debug("Using new ca_detail %r for ROA %r, ca_detail_state %s" % (
+      ca_detail, self, ca_detail.state))
 
     ca = ca_detail.ca
     resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)
@@ -1529,6 +1545,7 @@ class roa_obj(rpki.sql.sql_persistent):
     publisher.publish(cls = rpki.publication.roa_elt, uri = self.uri, obj = self.roa, repository = ca.parent.repository, handler = self.published_callback)
     if not fast:
       ca_detail.generate_manifest(publisher = publisher)
+
 
   def published_callback(self, pdu):
     """
@@ -1559,8 +1576,8 @@ class roa_obj(rpki.sql.sql_persistent):
     roa = self.roa
     uri = self.uri
 
-    if ca_detail.state != 'active':
-      self.ca_detail_id = None
+    rpki.log.debug("Regenerating ROA %r, ca_detail %r state is %s" % (
+      self, ca_detail, ca_detail.state))
 
     if regenerate:
       self.generate(publisher = publisher, fast = fast)
@@ -1569,7 +1586,10 @@ class roa_obj(rpki.sql.sql_persistent):
     rpki.rpkid.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
     publisher.withdraw(cls = rpki.publication.roa_elt, uri = uri, obj = roa, repository = ca_detail.ca.parent.repository,
                        handler = False if allow_failure else None)
-    self.sql_mark_deleted()
+
+    if not regenerate:
+      self.sql_mark_deleted()
+
     if not fast:
       ca_detail.generate_crl(publisher = publisher)
       ca_detail.generate_manifest(publisher = publisher)

@@ -84,13 +84,19 @@ class Host(object):
 
   @property
   def seconds_per_object(self):
-    return float(self.elapsed.days * 24 * 60 * 60 +
-                 self.elapsed.seconds +
-                 self.elapsed.microseconds / 10**6) / float(self.object_count)
+    if self.failed:
+      return None
+    else:
+      return float(self.elapsed.days * 24 * 60 * 60 +
+                   self.elapsed.seconds +
+                   self.elapsed.microseconds / 10**6) / float(self.object_count)
 
   @property
   def objects_per_connection(self):
-    return float(self.object_count) / float(self.connection_count)
+    if self.failed:
+      return None 
+    else:
+      return float(self.object_count) / float(self.connection_count)
 
   @property
   def average_connection_time(self):
@@ -110,7 +116,8 @@ class Host(object):
 
     def __call__(self, obj):
       try:
-        return self.fmt % getattr(obj, self.attr)
+        value = getattr(obj, self.attr)
+        return None if value is None else self.fmt % value
       except ZeroDivisionError:
         return self.oops
 
@@ -125,7 +132,8 @@ class Host(object):
   format_dict = dict((fmt.attr, fmt) for fmt in format)
 
   def format_field(self, name):
-    return self.format_dict[name](self).strip()
+    result = self.format_dict[name](self)
+    return None if result is None else result.strip()
 
 class Session(dict):
   """
@@ -198,7 +206,8 @@ def plotter(f, hostnames, field, logscale = False):
           plot""" + ",".join(" '-' using 1:2 with linespoints pointinterval 500 title '%s'" % h for h in hostnames) + "\n")
   for i in xrange(1, n):
     for plotline in plotlines:
-      f.write("%s %s\n" % (plotline[0], plotline[i].rstrip("%")))
+      if plotline[i] is not None:
+        f.write("%s %s\n" % (plotline[0], plotline[i].rstrip("%")))
     f.write("e\n")
 
 def plot_hosts(hostnames, fields):
@@ -223,7 +232,7 @@ sessions = []
 latest = None
 
 for i, key in enumerate(mb.iterkeys(), 1):
-  sys.stderr.write("\r%s Reading %d/%d..." % ("|\\-/"[i & 3], i, len(mb)))
+  sys.stderr.write("\r%s %d/%d..." % ("|\\-/"[i & 3], i, len(mb)))
 
   if key in shelf:
     session = shelf[key]
@@ -250,12 +259,10 @@ sys.stderr.write("\n")
 
 shelf.sync()
 
-for i, session in enumerate(sessions, 1):
-  sys.stderr.write("\r%s Failure history %d/%d...%s..." % ("|\\-/"[i & 3], i, len(sessions), session.session_id))
+for session in sessions:
   if not getattr(session, "calculated_failure_history", False):
     session.calculate_failure_history(sessions)
     shelf[session.msg_key] = session
-sys.stderr.write("\n")
 
 if plot_all_hosts:
   hostnames = sorted(reduce(lambda x, y: x | y,

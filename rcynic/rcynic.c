@@ -1046,6 +1046,9 @@ static void log_validation_status(rcynic_ctx_t *rc,
   if (!rc->validation_status)
     return;
 
+  if (code == rsync_transfer_skipped && !rc->run_rsync)
+    return;
+
   memset(&v_, 0, sizeof(v_));
   v_.uri = *uri;
   v_.generation = generation;

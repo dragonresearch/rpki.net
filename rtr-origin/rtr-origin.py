@@ -1065,7 +1065,7 @@ class pdu_channel(asynchat.async_chat):
       for line in traceback.format_exc().splitlines():
         log(line)
     else:
-      log("[Exception: %s: %s]" % (c.__name__, e)
+      log("[Exception: %s: %s]" % (c.__name__, e))
     log("[Exiting after unhandled exception]")
     sys.exit(1)
 
@@ -1362,7 +1362,7 @@ class kickme_channel(asyncore.dispatcher):
       for line in traceback.format_exc().splitlines():
         log(line)
     else:
-      log("[Exception: %s: %s]" % (c.__name__, e)
+      log("[Exception: %s: %s]" % (c.__name__, e))
     log("[Exiting after unhandled exception]")
     sys.exit(1)
 

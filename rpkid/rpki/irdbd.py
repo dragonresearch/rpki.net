@@ -150,8 +150,17 @@ class main(object):
 
     cfg.set_global_flags()
 
+    # Do -not- turn on DEBUG here except for short-lived tests,
+    # otherwise irdbd will eventually run out of memory and crash.
+    #
+    # If you must enable debugging, use django.db.reset_queries() to
+    # clear the query list manually, but it's probably better just to
+    # run with debugging disabled, since that's the expectation for
+    # production code.
+    #
+    # https://docs.djangoproject.com/en/dev/faq/models/#why-is-django-leaking-memory
+
     settings.configure(
-      DEBUG = True,
       DATABASES = {
         "default" : {
           "ENGINE"   : "django.db.backends.mysql",

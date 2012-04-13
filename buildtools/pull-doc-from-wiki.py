@@ -219,6 +219,8 @@ xsl_get_page = lxml.etree.XSLT(lxml.etree.XML('''\
 
     <xsl:template match="//div[contains(@class, 'wiki-toc')]"/>
 
+    <xsl:template match="//span[@class = 'icon' and not(*)]"/>
+
     <xsl:template match="a[contains(@class, 'wiki') and
                            starts-with(@href, '/wiki/')]">
       <xsl:variable name="href">

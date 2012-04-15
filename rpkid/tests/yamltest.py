@@ -382,8 +382,9 @@ class allocation(object):
           "pubd_sql_username"   : "pubd",
           "pubd_server_host"    : "localhost",
           "pubd_server_port"    : str(self.pubd.pubd_port),
-          "publication_rsync_server" : "localhost:%s" % self.pubd.rsync_port }
-
+          "publication_rsync_server" : "localhost:%s" % self.pubd.rsync_port,
+          "bpki_servers_directory" : self.path() }
+    
     r.update(config_overrides)
 
     f = open(self.path(fn), "w")
@@ -551,8 +552,6 @@ try:
   for d in db:
     if not d.is_hosted:
       os.makedirs(d.path())
-      os.makedirs(d.path("bpki/resources"))
-      os.makedirs(d.path("bpki/servers"))
       d.dump_conf("rpki.conf")
     if d.runs_pubd:
       d.dump_rsyncd("rsyncd.conf")
@@ -596,7 +595,7 @@ try:
   f.write(root_cert.get_DER())
   f.close()
 
-  f = open(db.root.path("bpki/servers/root.key"), "wb")
+  f = open(db.root.path("root.key"), "wb")
   f.write(root_key.get_DER())
   f.close()
 

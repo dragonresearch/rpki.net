@@ -41,7 +41,7 @@ SETUP_PY = \
 
 POW_SO	= rpki/POW/_POW.so
 
-SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki \
+SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
 	  pubd rootd rpkic rpkid \
 	  portal-gui/scripts/rpkigui-rcynic \
 	  portal-gui/scripts/rpkigui-import-routes
@@ -126,7 +126,7 @@ tags: Makefile
 	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name sql_schemas.py ! -name __doc__.py | etags -
 
 lint:
-	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc rpki/[a-z]*.py *d.py rpki-*.py myrpki.py rpkic.py irbe_cli.py tests/*.py
+	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc rpki/[a-z]*.py *d.py rpki-*.py rpkic.py irbe_cli.py tests/*.py
 
 # Documentation
 
@@ -225,9 +225,6 @@ irbe_cli: irbe_cli.py
 	${COMPILE_PYTHON}
 
 irdbd: irdbd.py
-	${COMPILE_PYTHON}
-
-myrpki: myrpki.py
 	${COMPILE_PYTHON}
 
 pubd: pubd.py

@@ -715,7 +715,7 @@ class allocation(object):
       try:
         cur.execute(sql)
       except Exception:
-        if not sql.upper().startswith("DROP TABLE"):
+        if "DROP TABLE IF EXISTS" not in sql.upper():
           raise
     db.close()
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
@@ -725,7 +725,7 @@ class allocation(object):
       try:
         cur.execute(sql)
       except Exception:
-        if not sql.upper().startswith("DROP TABLE"):
+        if "DROP TABLE IF EXISTS" not in sql.upper():
           raise
     for s in [self] + self.hosts:
       for kid in s.kids:

@@ -42,7 +42,8 @@ try:
   import dns.inet, dns.exception, dns.query, dns.rcode, dns.ipv4, dns.ipv6
 except ImportError:
   if __name__ == "__main__":
-    sys.exit("DNSPython not available, skipping rpki.adns unit test")
+    sys.stderr.write("DNSPython not available, skipping rpki.adns unit test\n")
+    sys.exit(0)
   else:
     raise
 

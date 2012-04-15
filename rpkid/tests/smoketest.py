@@ -1186,7 +1186,7 @@ def setup_publication(pubd_sql):
     try:
       cur.execute(sql)
     except Exception:
-      if not sql.upper().startswith("DROP TABLE"):
+      if "DROP TABLE IF EXISTS" not in sql.upper():
         raise
   db.close()
   d = { "pubd_name"    : pubd_name,

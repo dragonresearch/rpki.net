@@ -1,0 +1,53 @@
+{% extends "app/object_detail.html" %}
+
+{% block object_detail %}
+<table class='zebra-striped condensed-table'>
+  <tr><td >Full Name</td><td>{{ object.full_name }}</td></tr>
+
+  {% if object.honorific_prefix %}
+  <tr><td >Honorific Prefix</td><td>{{ object.honorific_prefix }}</td></tr>
+  {% endif %}
+
+  {% if object.organization %}
+  <tr><td >Organization</td><td>{{ object.organization }}</td></tr>
+  {% endif %}
+
+  {% if object.telephone %}
+  <tr><td >Telephone</td><td>{{ object.telephone }}</td></tr>
+  {% endif %}
+
+  {% if object.email_address %}
+  <tr><td >Email</td><td>{{ object.email_address }}</td></tr>
+  {% endif %}
+
+  {% if object.box %}
+  <tr><td >P.O. Box</td><td>{{ object.box }}</td></tr>
+  {% endif %}
+
+  {% if object.extended %}
+  <tr><td >Extended Address</td><td>{{ object.extended }}</td></tr>
+  {% endif %}
+
+  {% if object.street %}
+  <tr><td >Street Address</td><td>{{ object.street }}</td></tr>
+  {% endif %}
+
+  {% if object.city %}
+  <tr><td >City</td><td>{{ object.city }}</td></tr>
+  {% endif %}
+
+  {% if object.region %}
+  <tr><td >Region</td><td>{{ object.region }}</td></tr>
+  {% endif %}
+
+  {% if object.code %}
+  <tr><td >Postal Code</td><td>{{ object.code }}</td></tr>
+  {% endif %}
+
+  {% if object.country %}
+  <tr><td >Country</td><td>{{ object.country }}</td></tr>
+  {% endif %}
+
+</table>
+{% endblock object_detail %}
+<!-- vim: set sw=2: -->

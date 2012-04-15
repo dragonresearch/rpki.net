@@ -1,0 +1,21 @@
+{% extends "app/app_base.html" %}
+
+{% block content %}
+
+<div class='page-header'>
+  <h1>Edit Ghostbuster Request</h1>
+</div>
+
+<form action='{{ request.get_full_path }}' method='POST'>
+  {% csrf_token %}
+
+  {# include code to render form using Twitter Bootstrap CSS Framework #}
+  {% include "app/bootstrap_form.html" %}
+
+  <div class='actions'>
+    <input class='btn primary' type='submit' value='Save'>
+    <a class='btn' href="{{ object.get_absolute_url }}">Cancel</a>
+  </div>
+
+</form>
+{% endblock %}

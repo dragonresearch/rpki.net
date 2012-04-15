@@ -1,0 +1,41 @@
+{% extends "app/app_base.html" %}
+
+{% block sidebar_extra %}
+<p>
+BGP data updated<br>
+IPv4: {{ timestamp.bgp_v4_import.isoformat }}<br>
+IPv6: {{ timestamp.bgp_v6_import.isoformat }}
+<p>
+rcynic cache updated<br>
+{{ timestamp.rcynic_import.isoformat }}
+
+{% endblock sidebar_extra %}
+
+{% block content %}
+
+<div class='page-header'>
+  <h1>Route View</h1>
+</div>
+
+<p>
+This view shows currently advertised routes for the prefixes listed in resource certs received from RPKI parents.
+
+<table class='zebra-striped condensed-table'>
+  <tr>
+    <th>Prefix</th>
+    <th>Origin AS</th>
+    <th>Validation Status</th>
+  </tr>
+  {% for r in routes %}
+  <tr>
+    <td>{{ r.get_prefix_display }}</td>
+    <td>{{ r.asn }}</td>
+    <td>
+      <span class='label {{ r.status_label }}'>{{ r.status }}</span>
+      <a href='{{ r.get_absolute_url }}/roa/' help='display ROAs matching this prefix'>roas</a>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+{% endblock %}

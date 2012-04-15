@@ -57,6 +57,8 @@ class v4addr(long):
     """
     Construct a v4addr object.
     """
+    if isinstance(x, unicode):
+      x = x.encode("ascii")
     if isinstance(x, str):
       return cls.from_bytes(socket.inet_pton(socket.AF_INET, ".".join(str(int(i)) for i in x.split("."))))
     else:
@@ -94,6 +96,8 @@ class v6addr(long):
     """
     Construct a v6addr object.
     """
+    if isinstance(x, unicode):
+      x = x.encode("ascii")
     if isinstance(x, str):
       return cls.from_bytes(socket.inet_pton(socket.AF_INET6, x))
     else:

@@ -1,271 +1,273 @@
-# $Id$
-"""
-Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-"""
-
-import socket
+__version__ = '$Id$'
 
 from django.db import models
-from django.contrib.auth.models import User
-
-from rpki.gui.app.misc import str_to_range
 
 import rpki.resource_set
 import rpki.exceptions
+import rpki.irdb.models
+import rpki.gui.models
+import rpki.gui.routeview.models
 
-class HandleField(models.CharField):
-    def __init__(self, **kwargs):
-        models.CharField.__init__(self, max_length=255, **kwargs)
-
-class IPAddressField(models.CharField):
-    def __init__( self, **kwargs ):
-        models.CharField.__init__(self, max_length=40, **kwargs)
 
 class TelephoneField(models.CharField):
-    def __init__( self, **kwargs ):
+    def __init__(self, **kwargs):
         models.CharField.__init__(self, max_length=40, **kwargs)
 
-class Conf(models.Model):
-    '''This is the center of the universe, also known as a place to
+
+class Parent(rpki.irdb.models.Parent):
+    """proxy model for irdb Parent"""
+
+    def __unicode__(self):
+        return u"%s's parent %s" % (self.issuer.handle, self.handle)
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.parent_detail', [str(self.pk)])
+
+    class Meta:
+        proxy = True
+        verbose_name = 'Parent'
+
+
+class Child(rpki.irdb.models.Child):
+    """proxy model for irdb Child"""
+
+    def __unicode__(self):
+        return u"%s's child %s" % (self.issuer.handle, self.handle)
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.child_view', [str(self.pk)])
+
+    class Meta:
+        proxy = True
+        verbose_name_plural = 'Children'
+
+
+class ChildASN(rpki.irdb.models.ChildASN):
+    """Proxy model for irdb ChildASN."""
+
+    class Meta:
+        proxy = True
+
+    def __unicode__(self):
+        return u'AS%s' % self.as_resource_range()
+
+
+class ChildNet(rpki.irdb.models.ChildNet):
+    """Proxy model for irdb ChildNet."""
+
+    class Meta:
+        proxy = True
+
+    def __unicode__(self):
+        return u'%s' % self.as_resource_range()
+
+
+class Conf(rpki.irdb.models.ResourceHolderCA):
+    """This is the center of the universe, also known as a place to
     have a handle on a resource-holding entity.  It's the <self>
-    in the rpkid schema.'''
-    handle = HandleField(unique=True, db_index=True)
-    owner = models.ManyToManyField(User)
+    in the rpkid schema.
 
-    # NULL if self-hosted, otherwise the conf that is hosting us
-    host = models.ForeignKey('Conf', related_name='hosting', null=True, blank=True)
+    """
+    @property
+    def parents(self):
+        """Simulates irdb.models.Parent.objects, but returns app.models.Parent
+        proxy objects.
 
-    def __unicode__(self):
-	return self.handle
+        """
+        return Parent.objects.filter(issuer=self)
 
-class Child(models.Model):
-    conf = models.ForeignKey(Conf, related_name='children')
-    handle = HandleField() # parent's name for child
-    valid_until = models.DateTimeField(help_text='date and time when authorization to use delegated resources ends')
+    @property
+    def children(self):
+        """Simulates irdb.models.Child.objects, but returns app.models.Child
+        proxy objects.
 
-    def __unicode__(self):
-	return u"%s's child %s" % (self.conf, self.handle)
-
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.app.views.child_view', [self.handle])
-
-    class Meta:
-	verbose_name_plural = "children"
-        # children of a specific configuration should be unique
-        unique_together = ('conf', 'handle')
-
-class AddressRange(models.Model):
-    '''An address range/prefix.'''
-    lo = IPAddressField(blank=False)
-    hi = IPAddressField(blank=False)
-    # parent address range
-    parent = models.ForeignKey('AddressRange', related_name='children',
-            blank=True, null=True)
-    # child to which this resource is delegated
-    allocated = models.ForeignKey('Child', related_name='address_range',
-            blank=True, null=True)
-
-    class Meta:
-        ordering = ['lo', 'hi']
-
-    def __unicode__(self):
-        if self.lo == self.hi:
-            return u"%s" % (self.lo,)
-
-        try:
-            # pretty print cidr
-            return unicode(self.as_resource_range())
-        except socket.error, err:
-            print err
-        # work around for bug when hi/lo get reversed
-        except AssertionError, err:
-            print err
-        return u'%s - %s' % (self.lo, self.hi)
-
-    #__unicode__.admin_order_field = 'lo'
+        """
+        return Child.objects.filter(issuer=self)
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.app.views.address_view', [str(self.pk)])
-
-    def as_resource_range(self):
-        '''Convert to rpki.resource_set.resource_range_ip.'''
-        return str_to_range(self.lo, self.hi)
-
-    def is_prefix(self):
-        '''Returns True if this address range can be represented as a
-        prefix.'''
-        try:
-            self.as_resource_range().prefixlen()
-        except rpki.exceptions.MustBePrefix, err:
-            return False
-        return True
-
-class Asn(models.Model):
-    '''An ASN or range thereof.'''
-    lo = models.IntegerField(blank=False)
-    hi = models.IntegerField(blank=False)
-    # parent asn range
-    parent = models.ForeignKey('Asn', related_name='children',
-            blank=True, null=True)
-    # child to which this resource is delegated
-    allocated = models.ForeignKey(Child, related_name='asn',
-            blank=True, null=True)
+        return ('rpki.gui.app.views.user_detail', [str(self.pk)])
 
     class Meta:
-        ordering = ['lo', 'hi']
+        proxy = True
 
-    def __unicode__(self):
-	if self.lo == self.hi:
-	    return u"ASN %d" % (self.lo,)
-	else:
-	    return u"ASNs %d - %d" % (self.lo, self.hi)
-
-    #__unicode__.admin_order_field = 'lo'
-
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.app.views.asn_view', [str(self.pk)])
-
-    def as_resource_range(self):
-        # we force conversion to long() here because resource_range_as() wants
-        # the type of both arguments to be identical, and models.IntegerField
-        # will be a long when the value is large
-        return rpki.resource_set.resource_range_as(long(self.lo), long(self.hi))
-
-class Parent(models.Model):
-    conf = models.ForeignKey(Conf, related_name='parents')
-    handle = HandleField() # my name for this parent
-
-    def __unicode__(self):
-	return u"%s's parent %s" % (self.conf, self.handle)
-
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.app.views.parent_view', [self.handle])
-
-    class Meta:
-        # parents of a specific configuration should be unique
-        unique_together = ('conf', 'handle')
 
 class ResourceCert(models.Model):
-    parent = models.ForeignKey(Parent, related_name='resources')
+    """Represents a resource certificate.
 
-    # resources granted from my parent
-    asn = models.ManyToManyField(Asn, related_name='from_cert', blank=True,
-            null=True)
-    address_range = models.ManyToManyField(AddressRange,
-            related_name='from_cert', blank=True, null=True)
+    This model is used to cache the output of <list_received_resources/>.
 
-    # unique id for this resource certificate
-    # FIXME: URLField(verify_exists=False) doesn't seem to work - the admin
-    # editor won't accept a rsync:// scheme as valid
-    uri = models.CharField(max_length=200)
+    """
+    # pointer to the parent object in the irdb
+    parent = models.ForeignKey(Parent, related_name='certs')
 
     # certificate validity period
     not_before = models.DateTimeField()
     not_after = models.DateTimeField()
 
-    def __unicode__(self):
-        return u"%s's resource cert from parent %s" % (self.parent.conf.handle,
-                self.parent.handle)
-
-class Roa(models.Model):
-    '''Maps an ASN to the set of prefixes it can originate routes for.
-    This differs from a real ROA in that prefixes from multiple
-    parents/resource certs can be selected.  The glue module contains
-    code to split the ROAs into groups by common resource certs.'''
-
-    conf = models.ForeignKey(Conf, related_name='roas')
-    asn = models.IntegerField()
-    active = models.BooleanField()
-
-    # the resource cert from which all prefixes for this roa are derived
-    cert = models.ForeignKey(ResourceCert, related_name='roas')
+    # Locator for this object.  Used to look up the validation status, expiry
+    # of ancestor certs in cacheview
+    uri = models.CharField(max_length=255)
 
     def __unicode__(self):
-	return u"%s's ROA for %d" % (self.conf, self.asn)
+        return u"%s's cert from %s" % (self.parent.issuer.handle,
+                                       self.parent.handle)
+
+
+class ResourceRangeAddressV4(rpki.gui.models.PrefixV4):
+    cert = models.ForeignKey(ResourceCert, related_name='address_ranges')
+
+
+class ResourceRangeAddressV6(rpki.gui.models.PrefixV6):
+    cert = models.ForeignKey(ResourceCert, related_name='address_ranges_v6')
+
+
+class ResourceRangeAS(rpki.gui.models.ASN):
+    cert = models.ForeignKey(ResourceCert, related_name='asn_ranges')
+
+
+class ROARequest(rpki.irdb.models.ROARequest):
+    class Meta:
+        proxy = True
+
+    def __unicode__(self):
+        return u"%s's ROA request for AS%d" % (self.issuer.handle, self.asn)
+
+
+class ROARequestPrefix(rpki.irdb.models.ROARequestPrefix):
+    class Meta:
+        proxy = True
+        verbose_name = 'ROA'
+
+    def __unicode__(self):
+        return u'ROA request prefix %s for asn %d' % (str(self.as_roa_prefix()),
+                                                      self.roa_request.asn)
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.app.views.roa_view', [str(self.pk)])
+        return ('rpki.gui.app.views.roa_detail', [str(self.pk)])
 
-class RoaRequest(models.Model):
-    roa = models.ForeignKey(Roa, related_name='from_roa_request')
-    max_length = models.IntegerField()
-    prefix = models.ForeignKey(AddressRange, related_name='roa_requests')
 
-    def __unicode__(self):
-        return u'roa request for asn %d on %s-%d' % (self.roa.asn, self.prefix,
-                self.max_length)
-
-    def as_roa_prefix(self):
-        '''Convert to a rpki.resouce_set.roa_prefix subclass.'''
-        r = self.prefix.as_resource_range()
-        if isinstance(r, rpki.resource_set.resource_range_ipv4):
-            return rpki.resource_set.roa_prefix_ipv4(r.min, r.prefixlen(),
-                    self.max_length)
-        else:
-            return rpki.resource_set.roa_prefix_ipv6(r.min, r.prefixlen(),
-                    self.max_length)
-
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.app.views.roa_request_view', [str(self.pk)])
-
-class Ghostbuster(models.Model):
+class GhostbusterRequest(rpki.irdb.models.GhostbusterRequest):
     """
-    Stores the information require to fill out a vCard entry to populate
-    a ghostbusters record.
+    Stores the information require to fill out a vCard entry to
+    populate a ghostbusters record.
+
+    This model is inherited from the irdb GhostBusterRequest model so
+    that the broken out fields can be included for ease of editing.
     """
+
     full_name = models.CharField(max_length=40)
 
     # components of the vCard N type
-    family_name      = models.CharField(max_length=20)
-    given_name       = models.CharField(max_length=20)
-    additional_name  = models.CharField(max_length=20, blank=True, null=True)
+    family_name = models.CharField(max_length=20)
+    given_name = models.CharField(max_length=20)
+    additional_name = models.CharField(max_length=20, blank=True, null=True)
     honorific_prefix = models.CharField(max_length=10, blank=True, null=True)
     honorific_suffix = models.CharField(max_length=10, blank=True, null=True)
 
-    email_address  = models.EmailField(blank=True, null=True)
-    organization   = models.CharField(blank=True, null=True, max_length=255)
-    telephone      = TelephoneField(blank=True, null=True)
+    email_address = models.EmailField(blank=True, null=True)
+    organization = models.CharField(blank=True, null=True, max_length=255)
+    telephone = TelephoneField(blank=True, null=True)
 
     # elements of the ADR type
-    box      = models.CharField(verbose_name='P.O. Box', blank=True, null=True, max_length=40)
+    box = models.CharField(verbose_name='P.O. Box', blank=True, null=True,
+                           max_length=40)
     extended = models.CharField(blank=True, null=True, max_length=255)
-    street   = models.CharField(blank=True, null=True, max_length=255)
-    city     = models.CharField(blank=True, null=True, max_length=40)
-    region   = models.CharField(blank=True, null=True, max_length=40, help_text='state or province')
-    code     = models.CharField(verbose_name='Postal Code', blank=True, null=True, max_length=40)
-    country  = models.CharField(blank=True, null=True, max_length=40)
-
-    conf   = models.ForeignKey(Conf, related_name='ghostbusters')
-    # parent can be null when using the same record for all parents
-    parent = models.ManyToManyField(Parent, related_name='ghostbusters',
-            blank=True, null=True, help_text='use this record for a specific parent, or leave blank for all parents')
+    street = models.CharField(blank=True, null=True, max_length=255)
+    city = models.CharField(blank=True, null=True, max_length=40)
+    region = models.CharField(blank=True, null=True, max_length=40,
+                              help_text='state or province')
+    code = models.CharField(verbose_name='Postal Code', blank=True, null=True,
+                            max_length=40)
+    country = models.CharField(blank=True, null=True, max_length=40)
 
     def __unicode__(self):
-        return u"%s's GBR: %s" % (self.conf, self.full_name)
+        return u"%s's GBR: %s" % (self.issuer.handle, self.full_name)
 
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.app.views.ghostbuster_view', [str(self.pk)])
 
     class Meta:
-        ordering = [ 'family_name', 'given_name' ]
+        ordering = ('family_name', 'given_name')
+        verbose_name = 'Ghostbuster'
 
-# vim:sw=4 ts=8 expandtab
+
+class Timestamp(models.Model):
+    """Model to hold metadata about the collection of external data.
+
+    This model is a hash table mapping a timestamp name to the
+    timestamp value.  All timestamps values are in UTC.
+
+    The utility function rpki.gui.app.timestmap.update(name) should be used to
+    set timestamps rather than updating this model directly."""
+
+    name = models.CharField(max_length=30, primary_key=True)
+    ts = models.DateTimeField(null=False)
+
+    def __unicode__(self):
+        return '%s: %s' % (self.name, self.ts)
+
+
+class Repository(rpki.irdb.models.Repository):
+    class Meta:
+        proxy = True
+        verbose_name_plural = 'Repositories'
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.repository_detail', [str(self.pk)])
+
+    def __unicode__(self):
+        return "%s's repository %s" % (self.issuer.handle, self.handle)
+
+
+class Client(rpki.irdb.models.Client):
+    "Proxy model for pubd clients."
+
+    class Meta:
+        proxy = True
+        verbose_name = 'Client'
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.client_detail', [str(self.pk)])
+
+    def __unicode__(self):
+        return self.handle
+
+
+class RouteOrigin(rpki.gui.routeview.models.RouteOrigin):
+    class Meta:
+        proxy = True
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.route_detail', [str(self.pk)])
+
+
+class RouteOriginV6(rpki.gui.routeview.models.RouteOriginV6):
+    class Meta:
+        proxy = True
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.route_detail', [str(self.pk)])

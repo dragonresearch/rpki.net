@@ -30,11 +30,12 @@ def read_schema(name):
   Convert an SQL file into a list of SQL statements.
   """
   lines = []
-  for line in getattr(rpki.sql_schemas, name).splitlines():
+  for line in getattr(rpki.sql_schemas, name, "").splitlines():
     line = " ".join(line.split())
     if line and not line.startswith("--"):
       lines.append(line)
-  return [statement.strip() for statement in " ".join(lines).rstrip(";").split(";")]
+
+  return [statement.strip() for statement in " ".join(lines).rstrip(";").split(";") if statement.strip()]
 
 def sql_setup(name):
   """

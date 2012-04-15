@@ -257,7 +257,7 @@ class main(object):
       return cb(400, reason = "Could not process PDU: %s" % e)
 
     def done(r_msg):
-      cb(200, body = cms_msg().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl))
+      cb(200, body = cms_msg().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert))
 
     try:
       q_msg.serve_top_level(None, done)
@@ -345,7 +345,7 @@ class main(object):
     self.rpki_root_dir           = self.cfg.get("rpki-root-dir")
     self.rpki_base_uri           = self.cfg.get("rpki-base-uri", "rsync://" + self.rpki_class_name + ".invalid/")
 
-    self.rpki_root_key           = rpki.x509.RSA( Auto_file = self.cfg.get("rpki-root-key"))
+    self.rpki_root_key           = rpki.x509.RSA(Auto_update = self.cfg.get("rpki-root-key"))
     self.rpki_root_cert_file     = self.cfg.get("rpki-root-cert")
     self.rpki_root_cert_uri      = self.cfg.get("rpki-root-cert-uri", self.rpki_base_uri + "Root.cer")
 

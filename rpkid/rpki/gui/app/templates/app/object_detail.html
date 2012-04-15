@@ -1,0 +1,33 @@
+{% extends "app/app_base.html" %}
+{% load app_extras %}
+
+{% block content %}
+<div class='page-header'>
+  <h1>{% verbose_name object %}</h1>
+</div>
+
+{% block object_detail %}
+{{ object }}
+{% endblock object_detail %}
+
+{% if confirm_delete %}
+<div class='alert-message block-message warning'>
+  <p><strong>Please confirm</strong> that you would like to delete this object.
+  <div class='alert-actions'>
+    <form method='POST' action='{{ request.get_full_path }}'>
+      {% csrf_token %}
+      <input class='btn danger' type='submit' value='Delete'/>
+      <a class='btn' href='{{ object.get_absolute_url }}'>Cancel</a>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class='actions'>
+  {% if can_edit %}
+  <a class='btn' href='{{ object.get_absolute_url }}/edit'>Edit</a>
+  {% endif %}
+  <a class='btn danger' href='{{ object.get_absolute_url }}/delete' title='Permanently delete this object'>Delete</a>
+  {% block actions %}{% endblock actions %}
+</div>
+{% endif %}
+{% endblock content %}

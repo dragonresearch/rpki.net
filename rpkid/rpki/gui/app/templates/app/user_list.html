@@ -1,0 +1,29 @@
+{% extends "app/app_base.html" %}
+
+{% block content %}
+<div class='page-title'>
+  <h1>Users</h1>
+</div>
+
+<table class='zebra-striped'>
+  <tr>
+    <th>Username</th>
+    <th>Email</th>
+    <th>Action</th>
+  </tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.0.handle }}</td>
+    <td>{{ u.1.email }}</td>
+    <td>
+      <a class='btn small' href='{{ u.0.get_absolute_url }}/edit'>Edit</a>
+      <a class='btn small danger' href='{{ u.0.get_absolute_url }}/delete'>Delete</a>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<div class='actions'>
+  <a class='btn' href="{% url rpki.gui.app.views.user_create %}" title="create a new locally hosted resource handle">Create</a>
+</div>
+{% endblock content %}

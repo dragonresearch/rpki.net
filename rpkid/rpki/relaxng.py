@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 4346 2012-02-17 01:11:06Z sra $
+  $Id: left-right-schema.rnc 4403 2012-03-19 21:14:48Z sra $
   
   RelaxNG Schema for RPKI left-right protocol.
   
@@ -1831,6 +1831,385 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       </optional>
     </element>
   </define>
+</grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  End:
+-->
+'''))
+
+## @var myrpki
+## Parsed RelaxNG myrpki schema
+myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  $Id: myrpki.rnc 3723 2011-03-14 20:43:16Z sra $
+  
+  RelaxNG Schema for MyRPKI XML messages.
+  
+  This message protocol is on its way out, as we're in the process of
+  moving on from the user interface model that produced it, but even
+  after we finish replacing it we'll still need the schema for a while
+  to validate old messages when upgrading.
+  
+  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
+  run the compact syntax through trang to get XML syntax.
+  
+  Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
+  
+  Permission to use, copy, modify, and distribute this software for any
+  purpose with or without fee is hereby granted, provided that the above
+  copyright notice and this permission notice appear in all copies.
+  
+  THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+  AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+  PERFORMANCE OF THIS SOFTWARE.
+-->
+<grammar ns="http://www.hactrn.net/uris/rpki/myrpki/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <define name="version">
+    <value>2</value>
+  </define>
+  <define name="base64">
+    <data type="base64Binary">
+      <param name="maxLength">512000</param>
+    </data>
+  </define>
+  <define name="object_handle">
+    <data type="string">
+      <param name="maxLength">255</param>
+      <param name="pattern">[\-_A-Za-z0-9]*</param>
+    </data>
+  </define>
+  <define name="pubd_handle">
+    <data type="string">
+      <param name="maxLength">255</param>
+      <param name="pattern">[\-_A-Za-z0-9/]*</param>
+    </data>
+  </define>
+  <define name="uri">
+    <data type="anyURI">
+      <param name="maxLength">4096</param>
+    </data>
+  </define>
+  <define name="asn">
+    <data type="positiveInteger"/>
+  </define>
+  <define name="asn_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,0-9]*</param>
+    </data>
+  </define>
+  <define name="ipv4_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,0-9/.]*</param>
+    </data>
+  </define>
+  <define name="ipv6_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,0-9/:a-fA-F]*</param>
+    </data>
+  </define>
+  <define name="timestamp">
+    <data type="dateTime">
+      <param name="pattern">.*Z</param>
+    </data>
+  </define>
+  <!--
+    Message formate used between configure_resources and
+    configure_daemons.
+  -->
+  <start combine="choice">
+    <element name="myrpki">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <optional>
+        <attribute name="service_uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
+      <zeroOrMore>
+        <element name="roa_request">
+          <attribute name="asn">
+            <ref name="asn"/>
+          </attribute>
+          <attribute name="v4">
+            <ref name="ipv4_list"/>
+          </attribute>
+          <attribute name="v6">
+            <ref name="ipv6_list"/>
+          </attribute>
+        </element>
+      </zeroOrMore>
+      <zeroOrMore>
+        <element name="child">
+          <attribute name="handle">
+            <ref name="object_handle"/>
+          </attribute>
+          <attribute name="valid_until">
+            <ref name="timestamp"/>
+          </attribute>
+          <optional>
+            <attribute name="asns">
+              <ref name="asn_list"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="v4">
+              <ref name="ipv4_list"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="v6">
+              <ref name="ipv6_list"/>
+            </attribute>
+          </optional>
+          <optional>
+            <element name="bpki_certificate">
+              <ref name="base64"/>
+            </element>
+          </optional>
+        </element>
+      </zeroOrMore>
+      <zeroOrMore>
+        <element name="parent">
+          <attribute name="handle">
+            <ref name="object_handle"/>
+          </attribute>
+          <optional>
+            <attribute name="service_uri">
+              <ref name="uri"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="myhandle">
+              <ref name="object_handle"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="sia_base">
+              <ref name="uri"/>
+            </attribute>
+          </optional>
+          <optional>
+            <element name="bpki_cms_certificate">
+              <ref name="base64"/>
+            </element>
+          </optional>
+        </element>
+      </zeroOrMore>
+      <zeroOrMore>
+        <element name="repository">
+          <attribute name="handle">
+            <ref name="object_handle"/>
+          </attribute>
+          <optional>
+            <attribute name="service_uri">
+              <ref name="uri"/>
+            </attribute>
+          </optional>
+          <optional>
+            <element name="bpki_certificate">
+              <ref name="base64"/>
+            </element>
+          </optional>
+        </element>
+      </zeroOrMore>
+      <optional>
+        <element name="bpki_ca_certificate">
+          <ref name="base64"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="bpki_crl">
+          <ref name="base64"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="bpki_bsc_certificate">
+          <ref name="base64"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="bpki_bsc_pkcs10">
+          <ref name="base64"/>
+        </element>
+      </optional>
+    </element>
+  </start>
+  <!-- Format of an identity.xml file. -->
+  <start combine="choice">
+    <element name="identity">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <element name="bpki_ta">
+        <ref name="base64"/>
+      </element>
+    </element>
+  </start>
+  <!--
+    Format of <authorization/> element used in referrals.  The Base64
+    text is a <referral/> (q. v.) element signed with CMS.
+  -->
+  <define name="authorization">
+    <element name="authorization">
+      <attribute name="referrer">
+        <ref name="pubd_handle"/>
+      </attribute>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <!-- Format of <contact_info/> element used in referrals. -->
+  <define name="contact_info">
+    <element name="contact_info">
+      <optional>
+        <attribute name="uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
+      <data type="string"/>
+    </element>
+  </define>
+  <!-- Variant payload portion of a <repository/> element. -->
+  <define name="repository_payload">
+    <choice>
+      <attribute name="type">
+        <value>none</value>
+      </attribute>
+      <attribute name="type">
+        <value>offer</value>
+      </attribute>
+      <group>
+        <attribute name="type">
+          <value>referral</value>
+        </attribute>
+        <ref name="authorization"/>
+        <ref name="contact_info"/>
+      </group>
+    </choice>
+  </define>
+  <!-- <parent/> element (response from configure_child). -->
+  <start combine="choice">
+    <element name="parent">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="valid_until">
+        <ref name="timestamp"/>
+      </attribute>
+      <optional>
+        <attribute name="service_uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
+      <attribute name="child_handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <attribute name="parent_handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <element name="bpki_resource_ta">
+        <ref name="base64"/>
+      </element>
+      <element name="bpki_child_ta">
+        <ref name="base64"/>
+      </element>
+      <optional>
+        <element name="repository">
+          <ref name="repository_payload"/>
+        </element>
+      </optional>
+    </element>
+  </start>
+  <!--
+    <repository/> element, types offer and referral
+    (input to configure_publication_client).
+  -->
+  <start combine="choice">
+    <element name="repository">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <attribute name="parent_handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <ref name="repository_payload"/>
+      <element name="bpki_client_ta">
+        <ref name="base64"/>
+      </element>
+    </element>
+  </start>
+  <!--
+    <repository/> element, confirmation type (output of
+    configure_publication_client).
+  -->
+  <start combine="choice">
+    <element name="repository">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="type">
+        <value>confirmed</value>
+      </attribute>
+      <attribute name="parent_handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <attribute name="client_handle">
+        <ref name="pubd_handle"/>
+      </attribute>
+      <attribute name="service_uri">
+        <ref name="uri"/>
+      </attribute>
+      <attribute name="sia_base">
+        <ref name="uri"/>
+      </attribute>
+      <element name="bpki_server_ta">
+        <ref name="base64"/>
+      </element>
+      <element name="bpki_client_ta">
+        <ref name="base64"/>
+      </element>
+      <optional>
+        <ref name="authorization"/>
+      </optional>
+      <optional>
+        <ref name="contact_info"/>
+      </optional>
+    </element>
+  </start>
+  <!--
+    <referral/> element.  This is the entirety of a separate message
+    which is signed with CMS then included ase the Base64 content of an
+    <authorization/> element in the main message.
+  -->
+  <start combine="choice">
+    <element name="referral">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="authorized_sia_base">
+        <ref name="uri"/>
+      </attribute>
+      <ref name="base64"/>
+    </element>
+  </start>
 </grammar>
 <!--
   Local Variables:

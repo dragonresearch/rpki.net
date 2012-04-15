@@ -1,0 +1,54 @@
+# Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+# This is an example wsgi application for use with mod_wsgi and apache.
+
+__version__ = '$Id$'
+
+VIRTUAL_ENV = '@VIRTUAL_ENV@'
+
+import os
+import os.path
+import sys
+
+old_sys_path = list(sys.path)
+
+# When used with virtualenv, specify the location of the python modules to use
+if VIRTUAL_ENV:
+    import site
+    # locate the site-packages directory
+    for (dp, dn, fn) in os.walk(VIRTUAL_ENV + '/lib'):
+        if 'site-packages' in dn:
+            site.addsitedir(os.path.join(dp, 'site-packages'))
+            break
+
+import sys
+os.environ['DJANGO_SETTINGS_MODULE'] = 'settings'
+sys.path.insert(1, '@PYTHONPATH@')
+
+# reorder sys.path to place newly added directories at the head of the path.
+# this is necessary so that the packages in the virtualenv site-packages are
+# used rather than the system site-packages.
+new_sys_path = []
+for elt in list(sys.path):
+    if elt not in old_sys_path:
+        new_sys_path.append(elt)
+        sys.path.remove(elt)
+sys.path[:0] = new_sys_path
+
+import django.core.handlers.wsgi
+application = django.core.handlers.wsgi.WSGIHandler()
+
+# vim:ft=python

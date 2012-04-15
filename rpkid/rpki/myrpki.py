@@ -793,9 +793,17 @@ class CA(object):
     Write PEM certificate to file, then cross-certify.
     """
     fn = os.path.join(self.dir, filename or "temp.%s.cer" % os.getpid())
+    der = base64.b64decode(b64)
+    if True:
+      try:
+        text = self.run_openssl("x509", "-inform", "DER", "-noout",
+                                "-issuer", "-subject", stdin = der)
+      except:
+        text = ""
+      print "fxcert():", self.dir, filename, text
     try:
       self.run_openssl("x509", "-inform", "DER", "-out", fn,
-                       stdin = base64.b64decode(b64))
+                       stdin = der)
       return self.xcert(fn, path_restriction)
     finally:
       if not filename and os.path.exists(fn):

@@ -4,8 +4,8 @@ SUBDIRS = @RPKID_SUBDIRS@
 PYTHON = @PYTHON@
 
 SECRET_KEY = @SECRET_KEY@
-WEBUSER = @WEBUSER@
 DJANGO_DIR = @DJANGO_DIR@
+VIRTUAL_ENV = @VIRTUAL_ENV@
 
 CFLAGS	= @CFLAGS@
 LDFLAGS = @LDFLAGS@ @POW_LDFLAGS@
@@ -42,15 +42,18 @@ SETUP_PY = \
 POW_SO	= rpki/POW/_POW.so
 
 SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki \
-	  pubd rootd rpkid portal-gui/scripts/rpkigui-load-csv \
-	  portal-gui/scripts/rpkigui-add-user portal-gui/scripts/rpkigui-response \
-	  portal-gui/scripts/rpkigui-rcynic
+	  pubd rootd rpkic rpkid \
+	  portal-gui/scripts/rpkigui-rcynic \
+	  portal-gui/scripts/rpkigui-import-routes
+
+# scripts we build, but don't install
+BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo
 
 AUX_SCRIPTS =
 
-SETTINGS = portal-gui/settings.py rpki/gui/app/settings.py portal-gui/apache/rpki.wsgi
+SETTINGS = portal-gui/settings.py rpki/gui/app/settings.py portal-gui/rpki.wsgi
 
-all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS}
+all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace
@@ -64,8 +67,10 @@ rpm deb:: all
 deb::
 	cd dist; for i in *.rpm; do case $$i in *.src.rpm) :;; *) (set -x; fakeroot alien -v $$i);; esac; done
 
-rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
-	${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py >$@.tmp
+RNGS = left-right-schema.rng up-down-schema.rng publication-schema.rng myrpki.rng
+
+rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS}
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS} >$@.tmp
 	mv $@.tmp $@
 
 left-right-schema.rng: left-right-schema.rnc
@@ -80,7 +85,7 @@ publication-schema.rng: publication-schema.rnc
 myrpki.rng: myrpki.rnc
 	trang myrpki.rnc myrpki.rng
 
-rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql irdbd.sql pubd.sql
+rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql pubd.sql
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
 	mv $@.tmp $@
 
@@ -121,7 +126,7 @@ tags: Makefile
 	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name sql_schemas.py ! -name __doc__.py | etags -
 
 lint:
-	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc rpki/[a-z]*.py *d.py rpki-*.py myrpki.py irbe_cli.py tests/*.py
+	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc rpki/[a-z]*.py *d.py rpki-*.py myrpki.py rpkic.py irbe_cli.py tests/*.py
 
 # Documentation
 
@@ -200,10 +205,8 @@ COMPILE_DJANGO = \
 
 COMPILE_SETTINGS = \
 	rm -f $@; \
-	AC_DATABASE_PATH='${DESTDIR}${localstatedir}/rpki/gui.db' \
 	AC_SECRET_KEY='${SECRET_KEY}' \
 	AC_LOCALSTATEDIR='${DESTDIR}${localstatedir}' \
-	AC_WEBUSER='${WEBUSER}' \
 	AC_DATAROOTDIR='${DESTDIR}${datarootdir}' \
 	AC_DJANGO_DIR='${DJANGO_DIR}' \
 	AC_SYSCONFDIR='${DESTDIR}${sysconfdir}' \
@@ -233,23 +236,25 @@ pubd: pubd.py
 rootd: rootd.py
 	${COMPILE_PYTHON}
 
-rpkid: rpkid.py
+rpkic: rpkic.py
 	${COMPILE_PYTHON}
 
-portal-gui/scripts/rpkigui-load-csv: portal-gui/scripts/load_csv.py
-	${COMPILE_DJANGO}
-
-portal-gui/scripts/rpkigui-add-user: portal-gui/scripts/adduser.py
-	${COMPILE_DJANGO}
+rpkid: rpkid.py
+	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-rcynic: portal-gui/scripts/rpkigui-rcynic.py
 	${COMPILE_DJANGO}
 
-portal-gui/scripts/rpkigui-response: portal-gui/scripts/rpkigui-response.py
+portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-routes.py
 	${COMPILE_DJANGO}
 
-portal-gui/apache/rpki.wsgi: ${srcdir}/portal-gui/apache/rpki.wsgi.in
+portal-gui/scripts/rpkigui-reset-demo: portal-gui/scripts/rpkigui-reset-demo.py
 	${COMPILE_DJANGO}
+
+portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in
+	sed -e "s|@VIRTUAL"_"ENV@|${VIRTUAL_ENV}|" \
+		-e "s|@PYTHON""PATH@|${sysconfdir}/rpki|" \
+		${srcdir}/portal-gui/rpki.wsgi.in > portal-gui/rpki.wsgi
 
 portal-gui/settings.py: ${srcdir}/portal-gui/settings.py.in
 	${COMPILE_SETTINGS}

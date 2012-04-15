@@ -242,7 +242,7 @@ class main(object):
       raise
     except Exception, e:
       rpki.log.traceback()
-      cb(500, reason = "Unhandled exception %s" % e)
+      cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
   up_down_url_regexp = re.compile("/up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
 

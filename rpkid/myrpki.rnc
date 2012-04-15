@@ -2,10 +2,15 @@
 #
 # RelaxNG Schema for MyRPKI XML messages.
 #
+# This message protocol is on its way out, as we're in the process of
+# moving on from the user interface model that produced it, but even
+# after we finish replacing it we'll still need the schema for a while
+# to validate old messages when upgrading.
+#
 # libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
 # run the compact syntax through trang to get XML syntax.
 #
-# Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above

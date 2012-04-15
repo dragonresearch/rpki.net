@@ -394,19 +394,13 @@ fi
 
 if test $build_django = yes
 then
-	# the user that the apache process is running as
-	if test "x$WEBUSER" = "x"; then
-		for u in apache www-data www; do
-			if $GREP $u /etc/passwd >/dev/null 2>&1; then
-				WEBUSER=$u
-				break
-			fi
-		done
-		if test "x$WEBUSER" = "x"; then
-			AC_MSG_ERROR([Could not determine which user the apache process runs as.  Please specify WEBUSER=<USERNAME>.])
-		fi
+	AC_MSG_CHECKING([if running under virtualenv])
+	if test x$VIRTUAL_ENV != x; then
+		AC_SUBST(VIRTUAL_ENV, [$VIRTUAL_ENV])
+		AC_MSG_RESULT([$VIRTUAL_ENV])
+	else
+		AC_MSG_RESULT(no)
 	fi
-	AC_SUBST(WEBUSER)
 
         # source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
         AC_SUBST(SECRET_KEY, `$PYTHON -c 'import random; print "".join([random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50)])'`)

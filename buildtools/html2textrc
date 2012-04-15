@@ -1,0 +1,60 @@
+# $Id$
+#
+# html2text configuration settings for postprocessing Trac Wiki HTML.
+#
+A.attributes.external_link = NONE
+A.attributes.internal_link = NONE
+B.attributes = NONE
+BLOCKQUOTE.vspace.after = 1
+BLOCKQUOTE.vspace.before = 1
+CODE.vspace.after = 0
+CODE.vspace.before = 0
+DD.indent = 6
+DIR.indents = 2
+DIR.vspace.before = 1
+DL.vspace.after = 1
+DL.vspace.before = 1
+DT.indent = 2
+DT.vspace.before = 1
+EM.attributes = NONE
+H1.attributes = NONE
+H1.vspace.after = 1
+H1.vspace.before = 0
+H2.attributes = NONE
+H2.vspace.after = 1
+H2.vspace.before = 1
+H3.attributes = NONE
+H3.vspace.after = 1
+H3.vspace.before = 1
+H4.attributes = NONE
+H4.vspace.after = 1
+H4.vspace.before = 1
+H5.attributes = NONE
+H5.vspace.after = 1
+H5.vspace.before = 1
+H6.attributes = NONE
+H6.vspace.after = 1
+H6.vspace.before = 1
+HR.marker = =
+IMG.alt.prefix = \ 
+IMG.alt.suffix = \ 
+IMG.replace.noalt =
+MENU.vspace.after = 1
+MENU.vspace.before = 1
+OL.TYPE = 1
+OL.indents = 5
+OL.vspace.after = 1
+OL.vspace.before = 1
+P.vspace.after = 1
+P.vspace.before = 0
+PRE.indent.left = 2
+PRE.vspace.after = 1
+PRE.vspace.before = 1
+STRIKE.attributes = NONE
+STRONG.attributes = NONE
+TABLE.vspace.after = 1
+TABLE.vspace.before = 1
+U.attributes = NONE
+UL.indents = 2
+UL.vspace.after = 1
+UL.vspace.before = 1

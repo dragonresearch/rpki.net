@@ -1,26 +1,29 @@
-# $Id$
-"""
-Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+__version__ = '$Id$'
 
-THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-"""
 
+from django.contrib.auth.models import User
 from django import forms
+from rpki.resource_set import (resource_range_as, resource_range_ipv4,
+                               resource_range_ipv6)
+from rpki.gui.app import models
+from rpki.exceptions import BadIPResource
+from rpki.gui.app.glue import str_to_resource_range
 
-import rpki.ipaddrs
-
-from rpki.gui.app import models, misc
-from rpki.gui.app.asnset import asnset
 
 class AddConfForm(forms.Form):
     handle = forms.CharField(required=True,
@@ -44,212 +47,296 @@ class AddConfForm(forms.Form):
             label='Pubd contact',
             help_text='email address for the operator of your pubd instance')
 
-class ImportForm(forms.Form):
-    '''Form used for uploading parent/child identity xml files'''
-    handle = forms.CharField(max_length=30, help_text='your name for this entity')
-    xml = forms.FileField(help_text='xml filename')
 
-def PrefixSplitForm(parent, *args, **kwargs):
-    class _wrapper(forms.Form):
-        prefix = forms.CharField(max_length=200, help_text='CIDR or range')
-
-        def clean(self):
-            p = self.cleaned_data.get('prefix')
-            try:
-                r = misc.parse_resource_range(p)
-            except ValueError, err:
-                print err
-                raise forms.ValidationError, 'invalid prefix or range'
-            # we get AssertionError is the range is misordered (hi before lo)
-            except AssertionError, err:
-                print err
-                raise forms.ValidationError, 'invalid prefix or range'
-            pr = parent.as_resource_range()
-            if r.min < pr.min or r.max > pr.max:
-                raise forms.ValidationError, \
-                        'range is outside parent range'
-            if r.min == pr.min and r.max == pr.max:
-                raise forms.ValidationError, \
-                        'range is equal to parent'
-            if parent.allocated:
-                raise forms.ValidationError, 'prefix is assigned to child'
-            for p in parent.children.all():
-                c = p.as_resource_range()
-                if c.min <= r.min <= c.max or c.min <= r.max <= c.max:
-                    raise forms.ValidationError, \
-                            'overlap with another child prefix: %s' % (c,)
-
-            return self.cleaned_data
-    return _wrapper(*args, **kwargs)
-
-def PrefixAllocateForm(iv, child_set, *args, **kwargs):
-    class _wrapper(forms.Form):
-        child = forms.ModelChoiceField(initial=iv, queryset=child_set,
-                required=False, empty_label='(Unallocated)')
-    return _wrapper(*args, **kwargs)
-
-def PrefixRoaForm(prefix, *args, **kwargs):
-    prefix_range = prefix.as_resource_range()
-
-    class _wrapper(forms.Form):
-        asns = forms.CharField(max_length=200, required=False,
-                help_text='Comma-separated list of ASNs')
-        max_length = forms.IntegerField(min_value=prefix_range.prefixlen(),
-                max_value=prefix_range.datum_type.bits,
-                initial=prefix_range.prefixlen(),
-                help_text='must be in range %d-%d' % (prefix_range.prefixlen(), prefix_range.datum_type.bits))
-
-        def clean_asns(self):
-            try:
-                v = asnset(self.cleaned_data.get('asns'))
-                return ','.join(str(x) for x in sorted(v))
-            except ValueError:
-                raise forms.ValidationError, \
-                        'Must be a list of integers separated by commas.'
-            return self.cleaned_data['asns']
-
-        def clean(self):
-            if not prefix.is_prefix():
-                raise forms.ValidationError, \
-                        '%s can not be represented as a prefix.' % (prefix,)
-            if prefix.allocated:
-                raise forms.ValidationError, \
-                        'Prefix is allocated to a child.'
-            return self.cleaned_data
-
-    return _wrapper(*args, **kwargs)
-
-def PrefixDeleteForm(prefix, *args, **kwargs):
-    class _wrapped(forms.Form):
-
-        def clean(self):
-            if not prefix.parent:
-                raise forms.ValidationError, \
-                        'Can not delete prefix received from parent'
-            if prefix.allocated:
-                raise forms.ValidationError, 'Prefix is allocated to child'
-            if prefix.roa_requests.all():
-                raise forms.ValidationError, 'Prefix is used in your ROAs'
-            if prefix.children.all():
-                raise forms.ValidationError, 'Prefix has been split'
-            return self.cleaned_data
-
-    return _wrapped(*args, **kwargs)
-
-def GhostbusterForm(parent_qs, conf=None):
+class GhostbusterRequestForm(forms.ModelForm):
     """
     Generate a ModelForm with the subset of parents for the current
     resource handle.
-
-    The 'conf' argument is required when creating a new object, in
-    order to specify the value of the 'conf' field in the new
-    Ghostbuster object.
     """
-    class wrapped(forms.ModelForm):
-        # override parent
-        parent = forms.ModelMultipleChoiceField(queryset=parent_qs, required=False,
-                help_text='use this record for a specific parent, or leave blank for all parents')
-        # override full_name.  it is required in the db schema, but we allow the
-        # user to skip it and default from family+given name
-        full_name = forms.CharField(max_length=40, required=False,
-                help_text='automatically generated from family and given names if left blank')
+    # override default form field
+    parent = forms.ModelChoiceField(queryset=None, required=False,
+            help_text='Specify specific parent, or none for all parents')
 
-        class Meta:
-            model = models.Ghostbuster
-            exclude = [ 'conf' ]
+    # override full_name.  it is required in the db schema, but we allow the
+    # user to skip it and default from family+given name
+    full_name = forms.CharField(max_length=40, required=False,
+            help_text='automatically generated from family and given names if left blank')
 
-        def clean(self):
-            family_name = self.cleaned_data.get('family_name')
-            given_name = self.cleaned_data.get('given_name')
-            if not all([family_name, given_name]):
-                raise forms.ValidationError, 'Family and Given names must be specified'
-
-            email = self.cleaned_data.get('email_address')
-            postal = self.cleaned_data.get('postal_address')
-            telephone = self.cleaned_data.get('telephone')
-            if not any([email, postal, telephone]):
-                raise forms.ValidationError, 'One of telephone, email or postal address must be specified'
-
-            # if the full name is not specified, default to given+family
-            fn = self.cleaned_data.get('full_name')
-            if not fn:
-                self.cleaned_data['full_name'] = '%s %s' % (given_name, family_name)
-
-            return self.cleaned_data
-
-        def save(self, *args, **kwargs):
-            if conf:
-                # the generic create_object view doesn't allow us to set
-                # the conf field, so wrap the save() method and set it
-                # here
-                kwargs['commit'] = False
-                obj = super(wrapped, self).save(*args, **kwargs)
-                obj.conf = conf
-                obj.save()
-                return obj
-            else:
-                return super(wrapped, self).save(*args, **kwargs)
-
-    return wrapped
-
-class ChildForm(forms.ModelForm):
-    """
-    Subclass for editing rpki.gui.app.models.Child objects.
-    """
+    def __init__(self, issuer, *args, **kwargs):
+        super(GhostbusterRequestForm, self).__init__(*args, **kwargs)
+        self.fields['parent'].queryset = models.Parent.objects.filter(issuer=issuer)
 
     class Meta:
-        model = models.Child
-        exclude = [ 'conf', 'handle' ]
+        model = models.GhostbusterRequest
+        exclude = ('issuer', 'vcard')
 
-def ImportChildForm(parent_conf, *args, **kwargs):
-    class wrapped(forms.Form):
-        handle = forms.CharField(max_length=30, help_text="Child's RPKI handle")
-        xml = forms.FileField(help_text="Child's identity.xml file")
+    def clean(self):
+        family_name = self.cleaned_data.get('family_name')
+        given_name = self.cleaned_data.get('given_name')
+        if not all([family_name, given_name]):
+            raise forms.ValidationError, 'Family and Given names must be specified'
 
-        def clean_handle(self):
-            if parent_conf.children.filter(handle=self.cleaned_data['handle']):
-                raise forms.ValidationError, "a child with that handle already exists"
-            return self.cleaned_data['handle']
+        email = self.cleaned_data.get('email_address')
+        postal = self.cleaned_data.get('postal_address')
+        telephone = self.cleaned_data.get('telephone')
+        if not any([email, postal, telephone]):
+            raise forms.ValidationError, 'One of telephone, email or postal address must be specified'
 
-    return wrapped(*args, **kwargs)
+        # if the full name is not specified, default to given+family
+        fn = self.cleaned_data.get('full_name')
+        if not fn:
+            self.cleaned_data['full_name'] = '%s %s' % (given_name, family_name)
 
-def ImportParentForm(conf, *args, **kwargs):
-    class wrapped(forms.Form):
-        handle = forms.CharField(max_length=30, help_text="Parent's RPKI handle")
-        xml = forms.FileField(help_text="XML response from parent", required=False)
+        return self.cleaned_data
 
-        def clean_handle(self):
-            if conf.parents.filter(handle=self.cleaned_data['handle']):
-                raise forms.ValidationError, "a parent with that handle already exists"
-            return self.cleaned_data['handle']
 
-    return wrapped(*args, **kwargs)
+class ImportForm(forms.Form):
+    """Form used for uploading parent/child identity xml files."""
+    handle = forms.CharField(required=False,
+                             widget=forms.TextInput(attrs={'class': 'xlarge'}),
+                             help_text='Optional.  Your name for this entity, or blank to accept name in XML')
+    xml = forms.FileField(label='XML file',
+                          widget=forms.FileInput(attrs={'class': 'input-file'}))
+
 
 class ImportRepositoryForm(forms.Form):
-    parent_handle = forms.CharField(max_length=30, required=False, help_text='(optional)')
-    xml = forms.FileField(help_text='xml file from repository operator')
+    handle = forms.CharField(max_length=30, required=False,
+                             label='Parent Handle',
+                             help_text='Optional.  Must be specified if you use a different name for this parent')
+    xml = forms.FileField(label='XML file',
+                          widget=forms.FileInput(attrs={'class': 'input-file'}))
 
-class ImportPubClientForm(forms.Form):
-    xml = forms.FileField(help_text='xml file from publication client')
 
-def ChildWizardForm(parent, *args, **kwargs):
-    class wrapped(forms.Form):
-        handle = forms.CharField(max_length=30, help_text='handle for new child')
-        #create_user = forms.BooleanField(help_text='create a new user account for this handle?')
-        #password = forms.CharField(widget=forms.PasswordInput, help_text='password for new user', required=False)
-        #password2 = forms.CharField(widget=forms.PasswordInput, help_text='repeat password', required=False)
+class ImportClientForm(forms.Form):
+    """Form used for importing publication client requests."""
+    xml = forms.FileField(label='XML file',
+                          widget=forms.FileInput(attrs={'class': 'input-file'}))
 
-        def clean_handle(self):
-            if parent.children.filter(handle=self.cleaned_data['handle']):
-                raise forms.ValidationError, 'a child with that handle already exists'
-            return self.cleaned_data['handle']
 
-    return wrapped(*args, **kwargs)
+class UserCreateForm(forms.Form):
+    handle = forms.CharField(max_length=30, help_text='handle for new child')
+    email = forms.CharField(max_length=30,
+                            help_text='email address for new user')
+    password = forms.CharField(widget=forms.PasswordInput)
+    password2 = forms.CharField(widget=forms.PasswordInput,
+                                label='Confirm Password')
+    parent = forms.ModelChoiceField(required=False,
+                                    queryset=models.Conf.objects.all(),
+                                    help_text='optionally make a child of')
 
-class GenericConfirmationForm(forms.Form):
+    def clean_handle(self):
+        handle = self.cleaned_data.get('handle')
+        if (handle and models.Conf.objects.filter(handle=handle).exists() or
+            User.objects.filter(username=handle).exists()):
+            raise forms.ValidationError('user already exists')
+        return handle
+
+    def clean(self):
+        p1 = self.cleaned_data.get('password')
+        p2 = self.cleaned_data.get('password2')
+        if p1 != p2:
+            raise forms.ValidationError('passwords do not match')
+        handle = self.cleaned_data.get('handle')
+        parent = self.cleaned_data.get('parent')
+        if handle and parent and parent.children.filter(handle=handle).exists():
+            raise forms.ValidationError('parent already has a child by that name')
+        return self.cleaned_data
+
+
+class UserEditForm(forms.Form):
+    """Form for editing a user."""
+    email = forms.CharField()
+    pw = forms.CharField(widget=forms.PasswordInput, label='Password',
+                         required=False)
+    pw2 = forms.CharField(widget=forms.PasswordInput, label='Confirm password',
+                         required=False)
+
+    def clean(self):
+        p1 = self.cleaned_data.get('pw')
+        p2 = self.cleaned_data.get('pw2')
+        if p1 != p2:
+            raise forms.ValidationError('Passwords do not match')
+        return self.cleaned_data
+
+
+class ROARequest(forms.Form):
+    """Form for entering a ROA request.
+
+    Handles both IPv4 and IPv6."""
+
+    asn = forms.IntegerField(label='AS')
+    prefix = forms.CharField(max_length=50)
+    max_prefixlen = forms.CharField(required=False,
+            label='Max Prefix Length')
+    confirmed = forms.BooleanField(widget=forms.HiddenInput, required=False)
+
+    def __init__(self, *args, **kwargs):
+        """Takes an optional `conf` keyword argument specifying the user that
+        is creating the ROAs.  It is used for validating that the prefix the
+        user entered is currently allocated to that user.
+
+        """
+        conf = kwargs.pop('conf', None)
+        super(ROARequest, self).__init__(*args, **kwargs)
+        self.conf = conf
+
+    def _as_resource_range(self):
+        """Convert the prefix in the form to a
+        rpki.resource_set.resource_range_ip object.
+
+        """
+        prefix = self.cleaned_data.get('prefix')
+        return str_to_resource_range(prefix)
+
+    def clean_asn(self):
+        value = self.cleaned_data.get('asn')
+        if value < 0:
+            raise forms.ValidationError('AS must be a positive value or 0')
+        return value
+
+    def clean_prefix(self):
+        try:
+            r = self._as_resource_range()
+        except:
+            raise forms.ValidationError('invalid IP address')
+
+        manager = models.ResourceRangeAddressV4 if isinstance(r, resource_range_ipv4) else models.ResourceRangeAddressV6
+        if not manager.objects.filter(cert__parent__issuer=self.conf,
+                                      prefix_min__lte=r.min,
+                                      prefix_max__gte=r.max).exists():
+            raise forms.ValidationError('prefix is not allocated to you')
+        return str(r)
+
+    def clean_max_prefixlen(self):
+        v = self.cleaned_data.get('max_prefixlen')
+        if v:
+            if v[0] == '/':
+                v = v[1:]  # allow user to specify /24
+            try:
+                if int(v) < 0:
+                    raise forms.ValidationError('max prefix length must be positive or 0')
+            except ValueError:
+                raise forms.ValidationError('invalid integer value')
+        return v
+
+    def clean(self):
+        if 'prefix' in self.cleaned_data:
+            r = self._as_resource_range()
+            max_prefixlen = self.cleaned_data.get('max_prefixlen')
+            max_prefixlen = int(max_prefixlen) if max_prefixlen else r.prefixlen()
+            if max_prefixlen < r.prefixlen():
+                raise forms.ValidationError('max prefix length must be greater than or equal to the prefix length')
+            if max_prefixlen > r.datum_type.bits:
+                raise forms.ValidationError, \
+                        'max prefix length (%d) is out of range for IP version (%d)' % (max_prefixlen, r.datum_type.bits)
+            self.cleaned_data['max_prefixlen'] = str(max_prefixlen)
+
+        return self.cleaned_data
+
+
+class ROARequestConfirm(forms.Form):
+    asn = forms.IntegerField(widget=forms.HiddenInput)
+    prefix = forms.CharField(widget=forms.HiddenInput)
+    max_prefixlen = forms.IntegerField(widget=forms.HiddenInput)
+
+    def clean_asn(self):
+        value = self.cleaned_data.get('asn')
+        if value < 0:
+            raise forms.ValidationError('AS must be a positive value or 0')
+        return value
+
+    def clean_prefix(self):
+        try:
+            r = str_to_resource_range(self.cleaned_data.get('prefix'))
+        except BadIPResource:
+            raise forms.ValidationError('invalid prefix')
+        return str(r)
+
+    def clean(self):
+        try:
+            r =str_to_resource_range(self.cleaned_data.get('prefix'))
+            if r.prefixlen() > self.cleaned_data.get('max_prefixlen'):
+                raise forms.ValidationError('max length is smaller than mask')
+        except BadIPResource:
+            pass
+        return self.cleaned_data
+
+
+def AddASNForm(qs):
     """
-    stub form used for doing confirmations.
+    Generate a form class which only allows specification of ASNs contained
+    within the specified queryset.  `qs` should be a QuerySet of
+    irdb.models.ChildASN.
+
     """
+
+    class _wrapped(forms.Form):
+        asns = forms.CharField(label='ASNs', help_text='single ASN or range')
+
+        def clean_asns(self):
+            try:
+                r = resource_range_as.parse_str(self.cleaned_data.get('asns'))
+            except:
+                raise forms.ValidationError('invalid AS or range')
+            if not qs.filter(min__lte=r.min, max__gte=r.max).exists():
+                raise forms.ValidationError('AS or range is not delegated to you')
+            return str(r)
+
+    return _wrapped
+
+
+def AddNetForm(qsv4, qsv6):
+    """
+    Generate a form class which only allows specification of prefixes contained
+    within the specified queryset.  `qs` should be a QuerySet of
+    irdb.models.ChildNet.
+
+    """
+
+    class _wrapped(forms.Form):
+        address_range = forms.CharField(help_text='CIDR or range')
+
+        def clean_address_range(self):
+            address_range = self.cleaned_data.get('address_range')
+            try:
+                r = resource_range_ipv4.parse_str(address_range)
+                if not qsv4.filter(prefix_min__lte=r.min, prefix_max__gte=r.max).exists():
+                    raise forms.ValidationError('IP address range is not delegated to you')
+            except BadIPResource:
+                try:
+                    r = resource_range_ipv6.parse_str(address_range)
+                    if not qsv6.filter(prefix_min__lte=r.min, prefix_max__gte=r.max).exists():
+                        raise forms.ValidationError('IP address range is not delegated to you')
+                except BadIPResource:
+                    raise forms.ValidationError('invalid IP address range')
+            return str(r)
+
+    return _wrapped
+
+
+def ChildForm(instance):
+    """
+    Form for editing a Child model.
+
+    This is roughly based on the equivalent ModelForm, but uses Form as a base
+    class so that selection boxes for the AS and Prefixes can be edited in a
+    single form.
+
+    """
+
+    class _wrapped(forms.Form):
+        valid_until = forms.DateTimeField(initial=instance.valid_until)
+        as_ranges = forms.ModelMultipleChoiceField(queryset=models.ChildASN.objects.filter(child=instance),
+                                                   required=False,
+                                                   label='AS Ranges',
+                                                   help_text='deselect to remove delegation')
+        address_ranges = forms.ModelMultipleChoiceField(queryset=models.ChildNet.objects.filter(child=instance),
+                                                        required=False,
+                                                        help_text='deselect to remove delegation')
+
+    return _wrapped
+
+
+class UserDeleteForm(forms.Form):
+    """Stub form for deleting users."""
     pass
-
-# vim:sw=4 ts=8 expandtab

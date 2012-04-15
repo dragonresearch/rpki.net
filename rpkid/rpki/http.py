@@ -534,7 +534,7 @@ class http_server(http_stream):
         raise
       except Exception, e:
         rpki.log.traceback()
-        self.send_error(500, "Unhandled exception %s" % e)
+        self.send_error(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
     else:
       self.send_error(code = error[0], reason = error[1])
 

@@ -1,0 +1,62 @@
+{% extends "app/object_detail.html" %}
+
+{% block object_detail %}
+<h2>{{ object.handle }}</h2>
+
+<table>
+  <tr>
+    <td>service_uri</td>
+    <td>{{ object.service_uri }}</td>
+  </tr>
+  <tr>
+    <td>parent_handle</td>
+    <td>{{ object.parent_handle }}</td>
+  </tr>
+  <tr>
+    <td>child_handle</td>
+    <td>{{ object.child_handle }}</td>
+  </tr>
+  <tr>
+    <td>repository_type</td>
+    <td>{{ object.repository_type }}</td>
+  </tr>
+  <tr>
+    <td>referrer</td>
+    <td>{{ object.referrer }}</td>
+  </tr>
+  <tr>
+    <td>ta validity period</td>
+    <td>{{ object.ta.getNotBefore }} - {{ object.ta.getNotAfter }}</td>
+  </tr>
+</table>
+
+<div class='row'>
+  <div class='span4'>
+    <h3>Delegated Addresses</h3>
+    <ul class='unstyled'>
+      {% for c in object.certs.all %}
+      {% for a in c.address_ranges.all %}
+      <li>{{ a }}</li>
+      {% endfor %}
+      {% for a in c.address_ranges_v6.all %}
+      <li>{{ a }}</li>
+      {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+  <div class='span4'>
+    <h3>Delegated ASNs</h3>
+    <ul class='unstyled'>
+      {% for c in object.certs.all %}
+      {% for a in c.asn_ranges.all %}
+      <li>{{ a }}</li>
+      {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock object_detail %}
+
+{% block actions %}
+<a class='btn' href='{{ object.get_absolute_url }}/export' title='Download XML to send to repository operator'>Export</a>
+{% endblock actions %}

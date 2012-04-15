@@ -500,6 +500,18 @@ class resource_set(list):
                       for (b, e) in sql.fetchall()])
 
   @classmethod
+  def from_django(cls, iterable):
+    """
+    Create resource set from a Django query.
+
+    iterable is something which returns (min, max) pairs.
+    """
+
+    return cls(ini = [cls.range_type(cls.range_type.datum_type(b),
+                                     cls.range_type.datum_type(e))
+                      for (b, e) in iterable])
+
+  @classmethod
   def parse_str(cls, s):
     """
     Parse resource set from text string (eg, XML attributes).  This is
@@ -983,6 +995,19 @@ class roa_prefix_set(list):
     return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
                 for (x, y, z) in sql.fetchall()])
 
+  @classmethod
+  def from_django(cls, iterable):
+    """
+    Create ROA prefix set from a Django query.
+
+    iterable is something which returns (prefix, prefixlen,
+    max_prefixlen) triples.
+    """
+
+    return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
+                for (x, y, z) in iterable])
+
+
   def to_roa_tuple(self):
     """
     Convert ROA prefix set into tuple format used by ROA ASN.1
@@ -1028,6 +1053,29 @@ class roa_prefix_set_ipv6(roa_prefix_set):
 
 # Fix back link from resource_set to roa_prefix
 resource_set_ipv6.roa_prefix_set_type = roa_prefix_set_ipv6
+
+class roa_prefix_bag(object):
+  """
+  Container to simplify passing around the combination of an IPv4 ROA
+  prefix set and an IPv6 ROA prefix set.
+  """
+
+  ## @var v4
+  # Set of IPv4 prefixes.
+
+  ## @var v6
+  # Set of IPv6 prefixes.
+
+  def __init__(self, v4 = None, v6 = None):
+    self.v4 = v4 or roa_prefix_set_ipv4()
+    self.v6 = v6 or roa_prefix_set_ipv6()
+
+  def __eq__(self, other):
+    return self.v4 == other.v4 and self.v6 == other.v6
+
+  def __ne__(self, other):
+    return not (self == other)
+
 
 # Test suite for set operations.
 

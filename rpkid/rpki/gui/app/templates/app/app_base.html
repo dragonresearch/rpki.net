@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{# This template defines the common structure for the rpki.gui.app application. #}
+
+{% block sidebar %}
+
+<h2>{{ request.session.handle }}</h2>
+
+{# common navigation #}
+
+<ul class='unstyled'>
+  <li><a href="{% url rpki.gui.app.views.dashboard %}">dashboard</a></li>
+  <li><a href="{% url rpki.gui.app.views.route_view %}">routes</a></li>
+  <li><a href="{% url rpki.gui.app.views.parent_list %}">parents</a></li>
+  <li><a href="{% url rpki.gui.app.views.child_list %}">children</a></li>
+  <li><a href="{% url rpki.gui.app.views.roa_list %}">roas</a></li>
+  <li><a href="{% url rpki.gui.app.views.ghostbuster_list %}">ghostbusters</a></li>
+  <li><a href="{% url rpki.gui.app.views.repository_list %}">repositories</a></li>
+</ul>
+
+{% if request.user.is_superuser %}
+<ul class='unstyled'>
+  <li><a href="{% url rpki.gui.app.views.client_list %}">pubclients</a></li>
+  <li><a href="{% url rpki.gui.app.views.conf_list %}" title="select a different resource handle to manage">select identity</a></li>
+  <li><a href="{% url rpki.gui.app.views.user_list %}" title="manage users">users</a></li>
+</ul>
+{% endif %}
+
+{% block sidebar_extra %}{% endblock %}
+
+{% endblock sidebar %}

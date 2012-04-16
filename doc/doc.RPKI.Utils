@@ -1,0 +1,89 @@
+****** RPKI utility programs ******
+
+The distribution contains a few small utility programs. Most of these are
+nominally relying party tools. Some but not all of them are installed by "make
+install".
+
+***** uri *****
+
+uri is a utility program to extract URIs from the SIA, AIA, and CRLDP
+extensions of one or more X.509v3 certificates.
+
+Usage:
+
+  $ uri [-p | -d] cert [cert...]
+
+-d Input is in DER format
+
+-p Input is in PEM format
+
+-s Single output line per input file
+
+-v Verbose mode
+
+The utils/uri directory also includes a few experimental AWK scripts to post-
+process the program's output in various ways.
+
+***** hashdir *****
+
+hashdir copies an authenticated result tree from an rcynic run into the format
+expected by most OpenSSL-based programs: a collection of "PEM" format files
+with names in the form that OpenSSL's -CApath lookup routines expect. This can
+be useful for validating RPKI objects which are not distributed as part of the
+repository system.
+
+Usage:
+
+  $ hashdir input-directory output-directory
+
+***** print_rpki_manifest *****
+
+print_rpki_manifest prettyprints the content of a manifest. It does NOT attempt
+to verify the signature. Usage:
+
+  $ print_manifest manifest [manifest...]
+
+***** print_roa *****
+
+print_roa prettyprints the content of a ROA. It does NOT attempt to verify the
+signature.
+
+Usage:
+
+  $ print_roa [-b] [-s] ROA [ROA...]
+
+-b Brief mode (only show ASN and prefix)
+
+-s Show CMS signingTime
+
+***** find_roa *****
+
+find_roa searches the authenticated result tree from an rcynic run for ROAs
+matching specified prefixes.
+
+Usage:
+
+  $ find_roa authtree prefix [prefix...]
+
+The find_roa directory also includes a script {{{test_roa.sh}, which uses
+hashdir, print_roa, find_roa, and the OpenSSL command line tool. find_roa
+builds a hashed directory, searches for ROAs matching specified prefixes,
+verifies the CMS signature and certificate path of each ROA found, and
+prettyprints each ROA that passes the checks.
+
+Usage:
+
+  $ test_roa.sh authtree prefix [prefix...]
+
+***** scan_roas *****
+
+scan_roas searchs the authenticated result tree from an rcynic run for ROAs,
+and prints out the signing time, ASN, and prefixes for each ROA, one ROA per
+line.
+
+Other programs such as the rpki-rtr client use scan_roas to extract the
+validated ROA payload after an rcynic validation run.
+
+Usage:
+
+  $ scan_roas authtree

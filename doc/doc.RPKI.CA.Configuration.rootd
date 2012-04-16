@@ -1,0 +1,145 @@
+****** rootd.conf ******
+
+***** Caveat *****
+
+rootd is, to be blunt about it, a mess. rootd was originally intended to be a
+very simple program which simplified rpkid enormously by moving one specific
+task (acting as the root CA of an RPKI certificate hierarchy) out of rpkid. As
+the specifications and code (mostly the latter) have evolved, however, this
+task has become more complicated, and rootd would have to become much more
+complicated to keep up. In particular, rootd does not speak the publication
+protocol, and requires far too many configuration parameters to work correctly.
+rootd is still useful as a test tool, where its shortcomings are largely hidden
+by automated generation of its configuration. Don't run rootd unless you're
+sure that you need to do so.
+
+OK, with that out of the way....
+
+***** Configuration *****
+
+rootd's default configuration file is the system rpki.conf file. Start rootd
+with "-c filename" to choose a different configuration file. All options are in
+the section "[rootd]". Certificates and keys may be in either DER or PEM
+format.
+
+Options:
+
+bpki-ta::
+
+     Name of file containing BPKI trust anchor. All BPKI certificate
+     validation in rootd traces back to this trust anchor.
+
+rootd-bpki-cert::
+
+     Name of file containing rootd's own BPKI certificate.
+
+rootd-bpki-key::
+
+     Name of file containing RSA key corresponding to rootd-bpki-cert.
+
+rootd-bpki-crl::
+
+     Name of file containing BPKI CRL that would cover rootd-bpki-cert had
+     it been revoked.
+
+child-bpki-cert::
+
+     Name of file containing BPKI certificate for rootd's one and only
+     child (RPKI engine to which rootd issues an RPKI certificate).
+
+server-host::
+
+     Hostname or IP address on which to listen for HTTP connections.
+     Default is localhost; don't change this unless you really know what
+     you are doing.
+
+server-port::
+
+     TCP port on which to listen for HTTP connections.
+
+rpki-root-key::
+
+     Name of file containing RSA key to use in signing resource
+     certificates.
+
+rpki-root-cert::
+
+     Name of file containing self-signed RPKI certificate corresponding to
+     rpki-root-key.
+
+rpki-root-dir::
+
+     Name of directory where rootd should write RPKI subject certificate,
+     manifest, and CRL. This needs to match pubd's configuration.
+
+rpki-subject-cert::
+
+     Name of file that rootd should use to save the one and only
+     certificate it issues. Default is "Child.cer".
+
+rpki-root-crl::
+
+     Name of file to which rootd should save its RPKI CRL. Default is
+     "Root.crl".
+
+rpki-root-manifest::
+
+     Name of file to which rootd should save its RPKI manifest. Default is
+     "Root.mft".
+
+rpki-subject-pkcs10::
+
+     Name of file that rootd should use when saving a copy of the received
+     PKCS #10 request for a resource certificate. Default is
+     "Child.pkcs10".
+
+***** Creating a root certificate *****
+
+rootd does not create the RPKI root certificate, you have to do that yourself.
+The usual way of doing this is to use the OpenSSL command line tool. The exact
+details will depend on which resources you want in the root certificate, the
+URIs for your publication server, and so forth, but the general form looks
+something like this:
+
+  [req]
+  default_bits            = 2048
+  default_md              = sha256
+  distinguished_name      = req_dn
+  prompt                  = no
+  encrypt_key             = no
+
+  [req_dn]
+  CN                      = Testbed RPKI root certificate
+
+  [x509v3_extensions]
+  basicConstraints        = critical,CA:true
+  subjectKeyIdentifier    = hash
+  keyUsage                = critical,keyCertSign,cRLSign
+  subjectInfoAccess       = @sia
+  certificatePolicies     = critical,1.3.6.1.5.5.7.14.2
+  sbgp-autonomousSysNum   = critical,@rfc3779_asns
+  sbgp-ipAddrBlock        = critical,@rfc3997_addrs
+
+  [sia]
+  1.3.6.1.5.5.7.48.5;URI  = rsync://example.org/rpki/
+  1.3.6.1.5.5.7.48.10;URI = rsync://example.org/rpki/root.mft
+
+  [rfc3779_asns]
+  AS.0 = 64496-64511
+  AS.1 = 65536-65551
+
+  [rfc3997_addrs]
+  IPv4.0 = 192.0.2.0/24
+  IPv4.1 = 198.51.100.0/24
+  IPv4.2 = 203.0.113.0/24
+  IPv6.0 = 2001:0DB8::/32
+
+Assuming you save this configuration in a file "root.conf", you can use it to
+generate a root certificate as follows:
+
+  $ openssl genrsa -out root.key 2048
+  $ openssl req -new -config root.conf -out root.req -key root.key
+  $ openssl x509 -req -sha256             \
+          -signkey root.key -in root.req  \
+          -outform DER -out root.cer      \
+          -extfile root.conf -extensions x509v3_extensions

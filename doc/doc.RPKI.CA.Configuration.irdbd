@@ -1,0 +1,33 @@
+****** irdbd.conf ******
+
+irdbd's default configuration file is the system rpki.conf file. Start irdbd
+with "-c filename" to choose a different configuration file. All options are in
+the section "[irdbd]".
+
+Since irdbd is part of the back-end system, it has direct access to the back-
+end's SQL database, and thus is able to pull its own BPKI configuration
+directly from the database, and thus needs a bit less configuration than the
+other daemons.
+
+Options:
+
+startup-message::
+
+     String to log on startup, useful when debugging a collection of irdbd
+     instances at once.
+
+sql-username::
+
+     Username to hand to MySQL when connecting to irdbd's database.
+
+sql-database::
+
+     MySQL's database name for irdbd's database.
+
+sql-password::
+
+     Password to hand to MySQL when connecting to irdbd's database.
+
+http-url::
+
+     Service URL for irdbd. Must be a http:// URL.

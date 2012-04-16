@@ -1,0 +1,109 @@
+****** RPKI Relying Party Tools ******
+
+This collection of tools implements the "relying party" role of the RPKI
+system, that is, the entity which retrieves RPKI objects from repositories,
+validates them, and uses the result of that validation process as input to
+other processes, such as BGP security.
+
+See the CA tools for programs to help you generate RPKI objects, if you need to
+do that.
+
+***** Overview of the tools *****
+
+Here's a brief summary of the current relying party tools.
+
+**** rcynic ****
+
+rcynic is the primary validation tool. It does the actual work of RPKI
+validation: checking syntax, signatures, expiration times, and conformance to
+the profiles for RPKI objects. The other relying party programs take rcynic's
+output as their input.
+
+See the instructions for setting up and running rcynic.
+
+**** rtr-origin ****
+
+rtr-origin is an implementation of the rpki-rtr protocol, using rcynic's output
+as its data source. rtr-origin includes the rpki-rtr server, a test client, and
+a utiltity for examining the content of the database rtr-origin generates from
+the data supplied by rcynic.
+
+See the instructions for setting up rtr-origin for further details.
+
+**** roa-to-irr ****
+
+roa-to-irr is an experimental program for converting RPKI ROA data into IRR
+data. Some operators have established procedures that depend heavily on IRR, so
+being able to distribute validated RPKI data via IRR is somewhat useful to
+these operators.
+
+Opinions vary regarding exactly what the RPSL corresponding to a particular set
+of ROAs should look like, so roa-to-irr is currently experimental code at best.
+Operators who really care about this may well end up writing their own ROA to
+IRR conversion tools.
+
+roa-to-irr expects its output to be piped to the irr_rpsl_submit program.
+
+roa-to-irr isn't really documented (yet?). If you care, see the code.
+
+**** rpki-torrent ****
+
+rpki-torrent is an experimental program for distributing unvalidated RPKI data
+over the BitTorrent protocol. Such data still needs to be validated by the
+relying party (rpki-torrent does this automatically), BitTorrent is just being
+used as an alternative transport protocol.
+
+rpki-torrent isn't really documented yet.
+
+**** Utilities ****
+
+You may also find some of the RPKI utility programs useful.
+
+***** Running relying party tools under cron *****
+
+rcynic is the primary relying party tool, and it's designed to run under the
+cron daemon. Consequently, most of the other tools are also designed to run
+under the cron daemon, so that they can make use of rcynic's output immediately
+after rcynic finishes a validation run.
+
+Which tools you want to run depends on how you intend to use the relying party
+tools. Here we assume a typical case in which you want to gather and validate
+RPKI data and feed the results to routers using the rpki-rtr protocol. We also
+assume that everything has been installed in the default locations.
+
+The exact sequence for invoking rcynic itself varies depending both on whether
+you're using a chroot jail (the normal case) or not and on the platform on
+which you're running rcynic, as the chroot utilities on different platforms
+behave slightly differently.
+
+It's probably simplest to generate a short shell script which calls the tools
+you want in the correct order, so that's what we show here. At some future date
+we may provide some sort of wrapper script which handles this for you.
+
+Once you've written this script, install it in your crontab, running at some
+appropriate interval: perhaps hourly, or perhaps every six hours, depending on
+your needs. You should run it at least once per day, and probably should not
+run it more frequently than once per hour unless you really know what you are
+doing. Please do NOT just arrange for the script to run on the hour, instead
+pick some random minute value within the hour as the start time for your
+script, to help spread the load on the repository servers.
+
+On FreeBSD or MacOSX, this script might look like this:
+
+  #!/bin/sh -
+  /usr/sbin/chroot -u rcynic -g rcynic /var/rcynic /bin/rcynic -c /etc/
+  rcynic.conf || exit
+  cd /var/rpki-rtr
+  /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
+  data/authenticated'
+
+This assumes that you have created the /var/rpki-rtr directory.
+
+On Linux, the script might look like this:
+
+  #!/bin/sh -
+  /usr/sbin/chroot --userspec rcynic:rcynic /var/rcynic /bin/rcynic -c /etc/
+  rcynic.conf || exit
+  cd /var/rpki-rtr
+  /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
+  data/authenticated'

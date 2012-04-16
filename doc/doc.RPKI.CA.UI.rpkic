@@ -1,0 +1,85 @@
+****** The rpkic tool ******
+
+rpkic is a command line interface to rpkid and pubd. It implements largely the
+same functionality as the web interface. In most cases you will want to use the
+web interface for normal operation, but rpkic is available if you need it.
+
+rpkic can be run either in an interactive mode or by passing a single command
+on the command line when starting the program; the former mode is intended to
+be somewhat human-friendly, the latter mode is useful in scripting, cron jobs,
+and automated testing.
+
+Some rpkic commands write out data files, usually in the current directory.
+
+rpkic uses the same system-wide rpki.conf file as the other CA tools as its
+default configuration file.
+
+rpkic includes a "help" command which provides inline help for its several
+commands.
+
+***** Selecting an identity *****
+
+The handle variable in rpki.conf specifies the handle of the default identity
+for an rpkic command, but this is just the default. rpkid can host an arbitrary
+number of identities, and rpkic has to be able to control all of them.
+
+When running rpkic interactively, use rpkic's "select_identity" command to set
+the current identity handle.
+
+When running rpkic with a single command on the command line, use the "-i" (or
+"--identity") option to set the current identity handle.
+
+***** rpkic in setup phase *****
+
+See the introduction to the user interfaces for an overview of how setup phase
+works. The general structure of the setup phase in rpkic is as described there,
+but here we provide the specific commands involved. The following assumes that
+you have already installed the software and started the servers.
+
+* The rpkic "initialize" command writes out an "identity.xml" file in addition
+  to all of its other tasks.
+
+* A parent who is using rpkic runs the "configure_child" command to configure
+  the child, giving this command the identity.xml file the child supplied as
+  input. configure_child will write out a response XML file, which the parent
+  sends back to the child.
+
+* A child who is running rpkic runs the "configure_parent" command to process
+  the parent's response, giving it the XML file sent back by the parent as
+  input to this command. configure_parent will write out a publication request
+  XML file, which the child sents to the repository operator.
+
+* A repository operator who is using rpkic runs the
+  "configure_publication_client" command to process a client's publication
+  request. configure_publication_client generates a confirmation XML message
+  which the repository operator sends back to the client.
+
+* A publication client who is using rpkic runs the "configure_repository"
+  command to process the repository's response.
+
+***** rpkic in data maintenance phase *****
+
+rpkic uses whitespace-delimited text files (called ".csv files", for historical
+reasons) to control issuance of addresses and autonomous sequence numbers to
+children, and to control issuance of ROAs. See the "load_asns",
+"load_prefixes", and "load_roa_requests" commands.
+
+***** Maintaining child validity data *****
+
+All resources issued to child entities are tagged with a validity date. If not
+updated, these resources will eventually expire. rpkic includes two commands
+for updating these validity dates:
+
+* "renew_child" updates the validity date for a specific child.
+
+* "renew_all_children" updates the validity date for all children.
+
+***** BPKI maintenance *****
+
+Certificates and CRLs in the BPKI have expiration dates and netUpdate dates, so
+they need to be maintained. Failure to maintain these will eventually cause the
+CA software to grind to a halt, as expired certificates will cause CMS
+validation failures.
+
+rpkic's "update_bpki" command takes care of this. Usually one will want to run
+this periodically (perhaps once per month), under cron.

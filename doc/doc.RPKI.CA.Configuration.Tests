@@ -1,0 +1,110 @@
+****** smoketest.yaml ******
+
+smoketest test description file is named smoketest.yaml by default. Run
+smoketest with "-y filename" to change it. The YAML file contains multiple YAML
+"documents". The first document describes the initial test layout and resource
+allocations, subsequent documents describe modifications to the initial
+allocations and other parameters. Resources listed in the initial layout are
+aggregated automatically, so that a node in the resource hierarchy
+automatically receives the resources it needs to issue whatever its children
+are listed as holding. Actions in the subsequent documents are modifications to
+the current resource set, modifications to validity dates or other non-resource
+parameters, or special commands like "sleep".
+
+Here's an example of current usage:
+
+      name:           Alice
+      valid_for:      2d
+      sia_base:       "rsync://alice.example/rpki/"
+      kids:
+        - name: Bob
+       kids:
+         - name: Carol
+           ipv4: 192.0.2.1-192.0.2.33
+           asn:  64533
+      ---
+      - name: Carol
+        valid_add:   10
+      ---
+      - name: Carol
+        add_as: 33
+        valid_add:   2d
+      ---
+      - name: Carol
+        valid_sub:   2d
+      ---
+      - name: Carol
+        valid_for:   10d
+
+This specifies an initial layout consisting of an RPKI engine named "Alice",
+with one child "Bob", which in turn has one child "Carol". Carol has a set of
+assigned resources, and all resources in the system are initially set to be
+valid for two days from the time at which the test is started. The first
+subsequent document adds ten seconds to the validity interval for Carol's
+resources and makes no other modifications. The second subsequent document
+grants Carol additional resources and adds another two days to the validity
+interval for Carol's resources. The next document subtracts two days from the
+validity interval for Carol's resources. The final document sets the validity
+interval for Carol's resources to ten days.
+
+Operators in subsequent (update) documents:
+
+add_as::
+
+     Add ASN resources.
+
+add_v4::
+
+     Add IPv4 resources.
+
+add_v6::
+
+     Add IPv6 resources.
+
+sub_as::
+
+     Subtract ASN resources.
+
+sub_v4::
+
+     Subtract IPv4 resources.
+
+sub_v6::
+
+     Subtract IPv6 resources.
+
+valid_until::
+
+     Set an absolute expiration date.
+
+valid_for::
+
+     Set a relative expiration date.
+
+valid_add::
+
+     Add to validity interval.
+
+valid_sub::
+
+     Subtract from validity interval.
+
+sleep [interval]::
+
+     Sleep for specified interval, or until smoketest receives a SIGALRM
+     signal.
+
+shell cmd...::
+
+     Pass rest of line verbatim to /bin/sh and block until the shell
+     returns.
+
+Absolute timestamps should be in the form shown (UTC timestamp format as used
+in XML).
+
+Intervals (valid_add, valid_sub, valid_for, sleep) are either integers, in
+which case they're interpreted as seconds, or are a string of the form "wD xH
+yM zS" where w, x, y, and z are integers and D, H, M, and S indicate days,
+hours, minutes, and seconds. In the latter case all of the fields are optional,
+but at least one must be specified. For example, "3D4H" means "three days plus
+four hours".

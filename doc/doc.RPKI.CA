@@ -1,0 +1,240 @@
+****** RPKI CA Engine ******
+
+The RPKI CA engine is an implementation of the production-side tools for
+generating certificates, CRLs, ROAs, and other RPKI objects. The CA tools are
+implemented primarily in Python, with an extension module linked against an
+RFC-3779-enabled version of the OpenSSL libraries to handle some of the low-
+level details.
+
+See the relying party tools for tools for retrieving, verifying, and using RPKI
+data.
+
+***** Getting started *****
+
+If you just want to get started with the CA tools and hate reading
+documentation, here's a roadmap on what you do need to read:
+
+  1. Start with the installation instructions
+  2. Then read the configuration instructions
+  3. Then the MySQL setup instructions
+  4. And finally either the command line tool or web interface
+
+***** Overview of the CA engine *****
+
+**** Terminology ****
+
+A few special terms appear often enough in code and documentation that they
+need explaining.
+
+IRBE::
+
+     "Internet Registry Back End."
+
+IRDB::
+
+     "Internet Registry Data Base."
+
+BPKI::
+
+     "Business PKI."
+
+RPKI::
+
+     "Resource PKI."
+
+**** Programs ****
+
+See the installation instructions for how to build and install the code.
+
+The RPKI CA engine includes the following programs:
+
+rpkid::
+
+     The main RPKI engine daemon.
+
+pubd::
+
+     The publication engine daemon.
+
+rootd::
+
+     A separate daemon for handling the root of an RPKI certificate tree.
+     This is essentially a stripped down version of rpkid with no SQL
+     database, no left-right protocol implementation, and only the parent
+     side of the up-down protocol. It's separate because the root is a
+     special case in several ways and it was simpler to keep the special
+     cases out of the main daemon.
+
+irdbd::
+
+     A sample implementation of an IR database daemon. rpkid calls into
+     this to perform lookups via the left-right protocol.
+
+rpkic::
+
+     A command line interface to control rpkid and pubd.
+
+GUI::
+
+     A web-based graphical interface to control rpkid and pubd.
+
+irdbd, rpkic, and the GUI collectively make up the "Internet registry back end"
+(IRBE) component of the system.
+
+These programs take configuration files in a common format similar to that used
+by the OpenSSL command line tool, see the configuration guide for details.
+
+Basic operation consists of creating the appropriate MySQL databases (see MySQL
+setup), starting the daemons, and using rpkic or the web interface to configure
+relationships between parents and children, relationships between publication
+clients and repositories, allocate resources to children, and create ROAs. Once
+setup is complete, rpkid should maintain the requested data automatically,
+including re-querying its parent(s) periodically to check for changes,
+reissuing certificates and other objects as needed, and so forth.
+
+The daemons are all event-driven, and are (in theory) capable of supporting an
+arbitrary number of hosted RPKI engines to run in a single rpkid instance, up
+to the performance limits of the underlying hardware.
+
+***** Starting the servers *****
+
+You need to follow the instructions in the configuration guide before
+attempting to start the servers.
+
+Once you've written the servers' configuration file, the easiest way to run the
+servers is to run the rpki-start-servers script, which examines your rpki.conf
+file and starts the appropriate servers in background.
+
+If you prefer, you can run each server by hand instead of using the script, eg,
+using Bourne shell syntax to run rpkid in background:
+
+  rpkid &
+  echo >rpkid.pid  "$!"
+
+You can also use separate configuration files for each server if necessary, run
+multiple copies of the same server with different configuration files, and so
+forth.
+
+All of the daemons use syslog by default. You can change this by running either
+the servers themselves or the rpki-start-servers script with the "-d" option.
+Used as an argument to a server directly, "-d" causes that server to log to
+stderr instead of to syslog. Used as an argument to rpki-start-servers, "-d"
+starts each of the servers with "-d" while redirecting stderr from each server
+to a separate log file. This is intended primarily for debugging.
+
+Some of the configuration options are common to all daemons: which daemon they
+affect depends only on which sections of the configuration file they are in.
+See Common Options for details.
+
+**** rpkid ****
+
+rpkid is the main RPKI engine daemon. Configuration of rpkid is a two step
+process: a config file to bootstrap rpkid to the point where it can speak using
+the left-right protocol, followed by dynamic configuration via the left-right
+protocol. The latter stage is handled by the command line tool or the web
+interface.
+
+rpkid stores dynamic data in an SQL database, which must have been created for
+it, as explained in in the MySQL setup instructions.
+
+**** pubd ****
+
+pubd is the publication daemon. It implements the server side of the
+publication protocol, and is used by rpkid to publish the certificates and
+other objects that rpkid generates.
+
+pubd is separate from rpkid for two reasons:
+
+* The hosting model allows entities which choose to run their own copies of
+  rpkid to publish their output under a common publication point. In general,
+  encouraging shared publication services where practical is a good thing for
+  relying parties, as it will speed up rcynic synchronization time.
+
+* The publication server has to run on (or at least close to) the publication
+  point itself, which in turn must be on a publically reachable server to be
+  useful. rpkid, on the other hand, need only be reachable by the IRBE and its
+  children in the RPKI tree. rpkid is a much more complex piece of software
+  than pubd, so in some situations it might make sense to wrap tighter firewall
+  constraints around rpkid than would be practical if rpkid and pubd were a
+  single program.
+
+pubd stores dynamic data in an SQL database, which must have been created for
+it, as explained in the MySQL setup instructions. pubd also stores the
+published objects themselves as disk files in a configurable location which
+should correspond to an appropriate module definition in rsync.conf; see the
+configuration guide for details.
+
+**** rootd ****
+
+rootd is a stripped down implmenetation of (only) the server side of the up-
+down protocol. It's a separate program because the root certificate of an RPKI
+certificate tree requires special handling and may also require a special
+handling policy. rootd is a simple implementation intended for test use, it's
+not suitable for use in a production system. All configuration comes via the
+config file; see the configuration guide for details.
+
+**** irdbd ****
+
+irdbd is a sample implemntation of the server side of the IRDB callback subset
+of the left-right protocol. In production use this service is a function of the
+IRBE stub; irdbd may be suitable for production use in simple cases, but an IR
+with a complex IRDB may need to extend or rewrite irdbd.
+
+irdbd is part of the IR back-end system, and shares its SQL database with rpkic
+and the web interface.
+
+The package actually includes a second implementation of irdbd, used only for
+testing: rpkid/tests/old_irdbd is a mininmal implementation, used only by
+smoketest, which itself constitues a fairly complete (if rather strange) IRBE
+implementatation. Ordinarly you won't care about this, but if for some reason
+you need to write your own irdbd implementation, you might find it easier to
+start from the minimal version.
+
+See the configuration guide for details on configuring irdbd.
+
+***** Test programs *****
+
+The package includes two separate test programs, which take similar test
+description files but use them in different ways. The test tools are only
+present in the source tree ("make install" does not install them).
+
+Unlike the configuration files used by the other programs, these test programs
+read test descriptions written in the YAML serialization language (see http://
+www.yaml.org/ for more information on YAML). Each test script describes a
+hierarchy of RPKI entities, including hosting relationships and resource
+assignments, in a relatively compact form. The test programs use these
+descriptions to generate a set of configuration files, populate the back end
+database, and drive the test.
+
+See the test configuration language for details on the content of these YAML
+files.
+
+**** smoketest ****
+
+smoketest is a test harness to set up and run a collection of rpkid and irdbd
+instances under scripted control. The YAML test description defines the test
+configuration for smoketest to run, including initial resource assignments.
+Subsequent YAML "documents" in the same description file define an ordered
+series of changes to be made to the configuration. smoketest runs the rcynic
+RPKI validator between each update cycle, to check the output of the CA
+programs.
+
+smoketest is designed to support running a fairly wide set of test
+configurations as canned scripts, without writing any new control code. The
+intent is to make it possible to write meaningful regression tests.
+
+**** yamltest ****
+
+yamltest is another test harness to set up and run a collection of rpkid and
+irdbd instances under scripted control. It is similar in many ways to, and uses
+the same YAML test description language, but its purpose is different:
+smoketest runs a particular test scenario through a series of changes, then
+shuts it down; yamltest, on the other hand, sets up a test network using the
+same tools that a real user would use (principally the rpkic tool), and leaves
+the test running indefinitely.
+
+At present, this means that yamltest ignores all but the first "document" in a
+test description file. This may change in the future.
+
+Running yamltest will generate a fairly complete set configuration files, which
+may be useful as examples.

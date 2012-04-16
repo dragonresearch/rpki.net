@@ -93,7 +93,7 @@ rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql 
 clean::
 	find . -type f -name '*.py[co]' -delete
 	cd tests; $(MAKE) $@
-	rm -f ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS}
+	rm -f ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
 install::
 	${SETUP_PY} install --record installed
@@ -161,6 +161,8 @@ pdf: doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
 
 docclean:
 	rm -rf doc/html doc/latex doc/xml
+	rm -f  doc/*.eps doc/*.pdf doc/*.png
+	rm -f doc/pubd.dot doc/rpkid.dot
 
 html: dot eps png
 	TZ='' IMAGE_PATH=${abs_builddir}/doc doxygen

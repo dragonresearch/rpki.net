@@ -1,12 +1,11 @@
 $Id$ -*- Text -*-
 
-Python RPKI production tools.
+RPKI CA tools.
 
-Requires Python 2.5, 2.6, or 2.7.
+See:
 
-See doc/Installation for installation instructions and required
-packages.
+- The  primary documentation at http://trac.rpki.net/
 
-The full manual is available in both PDF and HTML formats; the PDF is
-in doc/manual.pdf, the HTML is in a compressed tarball
-doc/manual.tar.gz.
+- The PDF manual in ../doc/manual.pdf, or
+
+- The flat text pages ../doc/doc.RPKI.CA*

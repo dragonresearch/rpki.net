@@ -9,6 +9,15 @@ do:
 
     ./config enable-rfc3779
 
+The normal build process for the RPKI toolkit detects whether it needs
+its own copy of the OpenSSL libraries and builds one from the sources
+here if necessary.  In theory, this is all automatic and you never
+need to do anything about it, at least on platforms where we've tested
+this code.  If you're on a new platform and this doesn't just work,
+please report the problem, but if it's 03:00 and you need this to work
+-now-, start by looking at ../configure.ac, or just try building
+OpenSSL yourself here with the RFC 3779 code enabled.
+
 The next section of this file describes the openssl.conf syntax
 associated with the RFC 3779 extensions; the rest is primarily of
 historical interest at this point.
@@ -215,169 +224,6 @@ Other random notes:
 
 
 
-The June meeting at APNIC came up with a list of desired OpenSSL
-primitives (transcribed by Geoff, thanks!).  Current status, with
-notes and questions at the end.
-
-1. Read a resource certificate and print nominated certificate
-   field(s) (CLI command) or access data structure elements from the
-   certificate (API)
-
-   Status: Done
-
-   CLI: openssl x509 -text
-
-   API: i2r_ASIdentifiers(), i2r_IPAddrBlocks(), but in practice you'd
-   rarely call these directly -- they're hooked into OpenSSL's
-   X509V3_EXT_METHOD dispatch mechanism and cached by
-   x509v3_cache_extensions(), so you'd call X509_get_ext_d2i() or just
-   look for decoded data structures hanging off the X509 structure.
-
-2. Verify a resource certificate (use the existing openssl interface
-   which provides as inputs a) a set of 'trusted' certs and CRLs and
-   b) a set of untrusted certs and CRLs and c) the cert to be
-   verified. output is YES or NO and both a CLI and an API interface
-   is desired
-
-   Status: Done, for some definition of done (CLI program remains a
-   crock, but I don't think I've made it worse than it already was).
-
-   CLI: openssl verify
-
-   API: Pre-existing X509_verify_cert() function now checks RFC 3779
-   path validation, which in turn checks for well formed extensions.
-
-3. 3779_canonicalise - read in a data structure of a resource set and
-   produce as output the 3779 canonical form of the resource set - the
-   CLI interface will print this to stdout and the API interface will
-   pass a ref to a data structure (or fill in a data struct or
-   whatever makes sense!)
-
-   Status: Done.
-
-   CLI: openssl x509, openssl req, ....   Called automatically as part
-   of anything that reads RFC 3779 extensions from openssl.conf.
-
-   API: v3_asid_canonize(), v3_addr_canonize().
-
-4. 3779_cmp reads in 2 x 3779_canonicalised data sets and outputs a
-   comparison = EQUAL is the two are equal, or =SUBSET if data1 is a
-   strict subset of data2, or = NOT in all other cases (CLI or API)
-   (EQUAL, SUBSET, NOT)
-
-   Status: API code written, not fully tested.  No CLI.  API functions
-   test whether an extension uses inheritance, and whether one
-   extension is a (possibly improper) subset of another.  Subset test
-   fails if either extension uses inheritance.
-
-   API: v3_asid_inherits(), v3_addr_inherits(), v3_asid_subset(),
-   v3_addr_subset().
-
-5. is_3379_canonical tests a single data set and returns CANONICAL if
-   the resource is formatted according to 3779 or NOT is otherwise
-
-   Status: Done.
-
-   CLI: openssl verify calls this during path validation.  No separate
-   program to perform just this function, would not be hard to write
-   one if it were needed.
-
-   API: v3_asid_is_canonical(), v3_addr_is_canonical().
-
-6. is_in_cert takes a certificate and a resource set description and
-   checks if the certificate 'covers' the resource set The outpouts
-   are EQUAL if the resource cert precisely matches the resource set,
-   SUBSET if the resource set is a subset of the certificate resource
-   list, or NOT otherwise
-
-   Status: Done.
-
-   API: v3_asid_validate_resource_set(), v3_addr_validate_resource_set().
-   These return true if a certificate chain covers a resource set.
-   "Resource sets" are represented as the C form of the appropriate
-   extension, with the additional constraint that the resource set
-   must not use inheritance; this constraint is enforced by the code
-   (ie, using one of these functions on a resource set that specifies
-   inheritance will always return false regardless of the contents of
-   the chain).
-
-   CLI: resource-set-test.  Use the Source, Luke.
-
-7. generate_resource_certificate generates a resource certificate -
-   I'm not sure I understand what the inputs are to be here - perhaps
-   a data structure of the fields and values, but this should be
-   confirmed. the output is a DER object (or pem, or either
-   selectable?)
-
-   Status: Done, for some definition of done.
-
-   CLI: openssl x509, openssl ca.
-
-   API: Preexisting OpenSSL functions, augmented by method routines
-   allowing OpenSSL to read and write RFC 3779 extensions.
-
-8. generate a certificate request (previous note on which certificate
-   request format to use is on the table)
-
-   Status: Done, for some definition of done, for OpenSSL's native
-   request format (PKCS10 DER, with or without Base64 "PEM" wrapper).
-
-   CLI: openssl x509, openssl req.
-
-   API: Preexisting OpenSSL functions, augmented by method routines
-   allowing OpenSSL to read and write RFC 3779 extensions.
-
-9. process a certificate request and say yes / no on whether the
-   request is well formed.
-
-   Status: Request processing within OpenSSL looks to be a mess, with
-   entirely too much of it happening in applications rather than the
-   library.  Other API functions exist to test whether an extension is
-   in canonical form, etcetera.  Path validation can only be done in
-   context of a particular certificate chain, which is probably out of
-   scope for this primative.
-
-10. process a certificate request and generate a certificate in
-    response.
-
-   Status: OpenSSL code is a mess, see (9).  Generating certificate
-   based on a certificate request is prexisting functionality; new
-   code adds ability to process RFC 3779.  If task here includes path
-   validation with respect to signer's certificate chain, would
-   require nontrivial changes to the OpenSSL CLI programs that sign
-   requests, as none of them currently even look for certificate
-   chains for the signer.
-
-   API: Primitive #6 (above) extended to accept argument indicating
-   whether inheritance is allowed, so that primitive #6 can be used to
-   perform path validation on extensions pulled from a request.
-
-Notes:
-
-- "For some definition of done": opinions vary on whether the existing
-  OpenSSL CLI tools are adaquate for the purposes for which people use
-  them.  For purposes of the above discussion, I'm assuming that they
-  are, and that my task was just to teach the same tools to deal with
-  the RFC 3779 extensions.
-
-- It turns out that the code I've written so far never needs to ask
-  whether two extension data sets are equal, just whether one is a
-  subset (possibly improper) of the other.   Checking for equality is
-  a somewhat different test, so rather than trying to combine the two,
-  I might just provide separate functions that test for equality.
-
-
-
-I've pulled the stuff in trunk/ up to OpenSSL 0.9.8d so that people
-building against this will not be missing the security updates from
-the recent OpenSSL vulnerability firedrills.  In theory nothing in the
-RPKI code was touched by this; the existing RPKI patch against 0.9.8b
-applies without changes against 0.9.8c and 0.9.8d.
-
-Please report any problems.
-
-
-
 The RFC 3997 patches were committed to the OpenSSL Project's CVS
 repository on 27 November 2006, on both HEAD and the
 OpenSSL_0_9_8-stable branch (thanks, Ben!), and shipped with OpenSSL
@@ -386,8 +232,5 @@ easy:
 
   ./config enable-rfc3779
 
-At some point I will remove ("svn rm") all the old OpenSSL stuff from
-this repository, since it's not really needed anymore.  If it's gone
-when you read this and you need it for some reason, it was still
-present as of revision 645 of the subvert-rpki.hactrn.net repository,
-which should be enough information to let you pull it from subversion.
+If for some reason you need the modified OpenSSL source tree that used
+to be in this directory, look at subversion revision 645.

@@ -1,101 +1,15 @@
 $Id$
 
-Files associated with routing PKI project.
+RPKI Toolkit
 
-Quick start for the impatient:
+See:
 
-- To install the relying party tools, see rcynic/README.
+- The primary documentation at http://trac.rpki.net/ (recommended),
 
-- To install the certificate generation system, see
-  rpkid/doc/Installation.
+- The PDF manual in doc/manual.pdf, or
 
-- To install the Django portal GUI, see portal-gui/README.
+- The flat text pages doc/doc.RPKI.RP.rpki-rtr
 
-Required reading:
-
-- RFC 3779
-- Portions of RFCs 5280 and 5652
-- draft-ietf-sidr-*
-- draft-ymbk-rpki-rtr-protocol
-
-Programs:
-
-- openssl: development copy of OpenSSL with RFC 3779 support added.
-  Patches for this have been submitted to the OpenSSL project and were
-  incorporated into release OpenSSL 0.9.8e.
-
-  At present we're using an unmodified copy of the OpenSSL 1.0
-  release, but the RFC 3779 code isn't enabled by default at compile
-  time, so we need to build our own copy with the right configuration
-  options.  So we ship a distribution tarball and a makefile that
-  knows how to unpack, configure, and build it, so that other tools in
-  this package can use the resulting libraries.
-
-- rcynic: "cynical rsync" validator for rsync-based RPKI repositories.
-
-- rpkid: rpkid and friends, a collection of Python programs to handle
-  the publication side of the RPKI project.
-
-- rtr-origin: a Python implementation of the "RPKI/Router" protocol
-  described in draft-ymbk-rpki-rtr-protocol.
-
-- utils and scripts: various little test programs and utilities, not
-  really intended for use by anyone but the author.  If they're
-  useful, cool, enjoy, but if they blow up in your face, set your
-  computer on fire, and turn your cat blue, that's your problem.
-
-Other:
-
-- presentations: miscellaneous presentations and design documents for
-  the project.
-
-Building:
-
-- The code is mostly a mix of C and Python; some of the C code is
-  called by the Python code, so you'll want to build the C code first.
-  In theory, the overall build process is simple:
-
-  $ ./configure
-  $ make
-
-  If this fails, please report the failure, and details about the
-  platform on which it occurred.  If you tried to build the code some
-  other way instead of building it this way, and your attempt failed,
-  please try building it this way before asking for help. :)
-
-  Note that building POW (the interface between OpenSSL and Python)
-  will fail if you don't have the required Python header files
-  installed.  On some platforms those files are installed along with
-  Python itself, on others you might have to install a separate
-  python-dev package.
-
-  See below for more information about documentation, including
-  further build instructions and dependencies.
-
-Documentation:
-
-- At the moment there's no overall documentation for the entire
-  package.  Sorry.  Will get to that eventually.  For now, there's
-  separate documentation for the major components (below).
-
-- rcynic: See rcynic/README.
-
-- rpkid:
-
-  - See rpkid/doc/manual.tar.gz for a gzipped tarball of the entire
-    manual in HTML format.
-
-  - There's also a PDF version of the manual in rpkid/doc/manual.pdf.
-    The documentation on the code internals is uglier than in the HTML
-    version, but the installation and setup documenation should be
-    readable.
-
-  - There are also flat text versions of the most important parts of
-    the installation and setup documentation, in the rpkid/doc
-    directory.
-
-  All of the rpkid documentation is produced by Doxygen from a single
-  set of documentation sources.  The flat text files are html2text
-  dumps of the HTML.
-
-- Others: See READMEs and source code in the individual directories.
+For the impatient: installation instructions are in
+doc/doc.RPKI.Installation, but be warned that you'll have to read more
+of the manual to configure the software after you've installed it.

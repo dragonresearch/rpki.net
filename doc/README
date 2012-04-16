@@ -1,0 +1,18 @@
+$Id$
+
+This directory contains PDF and flat text translations of the
+documentation for the RPKI toolkit.  The primary documentation source
+is the web site http://trac.rpki.net/, the files here are best-effort
+attempts at mechanical translation of that content into other formats.
+
+The doc.* files are flat text translated by html2text.
+
+manual.pdf is a translation by htmldoc.
+
+Neither translation is perfect, something is always lost.  When in
+doubt, consult the web site if you can.
+
+In theory, the contents of this directory are kept up to date with
+respect to the web site by a cron job.  If you happen notice that the
+contents here seem to be lagging the web site by more than a few
+hours, please report it.

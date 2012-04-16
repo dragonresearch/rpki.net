@@ -1,17 +1,16 @@
 $Id$
 
-Documentation for rpkid and friends.
+Internals documentation for the RPKI CA tools.
 
-Most of the files in this directory are automatically generated from
-the source code.  Most of the hand-written documentation for rpkid and
-friends is written using Doxygen markup so that it will all appear in
-the manual.
+Once upon a time this included the hand-written documentation for the
+CA tools, but that is now part of the overall package documentation.
+What's left here is just what Doxygen generates from the source code
+and a few Graphviz diagrams.
 
-The primary tool for generating documentation is Doxygen, which
-produces the HTML and PDF versions of the manual.  Certain pages are
-also dumped from HTML to flat text.
+At the moment the control for the stuff generated here is still
+../Makefile, that may change at some point.
 
-See rpkid/Makefile for details on how all this happens.
-
-The full manual is available in both PDF and HTML formats; the PDF is
-in manual.pdf, the HTML is in a compressed tarball manual.tar.gz.
+We no longer generate the documentation here automatically, as it's
+kind of large and we're not sure anybody else cares about it, so if
+you want this manual you'll have to install Doxygen and build it
+yourself.

@@ -127,15 +127,12 @@ test all-tests parse-test profile yamltest:: all
 	cd tests; $(MAKE) $@
 
 tags: Makefile
-	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name sql_schemas.py ! -name __doc__.py | etags -
+	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name sql_schemas.py | etags -
 
 lint:
 	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc rpki/[a-z]*.py *d.py rpki-*.py rpkic.py irbe_cli.py tests/*.py
 
 # Documentation
-
-doc/irdbd.dot: irdbd.sql
-	sh ${abs_top_srcdir}/buildtools/graphviz-sql.sh $? >$@
 
 doc/pubd.dot: pubd.sql
 	sh ${abs_top_srcdir}/buildtools/graphviz-sql.sh $? >$@
@@ -154,13 +151,13 @@ doc/rpkid.dot: rpkid.sql
 .dot.png:
 	dot -o $@ -Tpng $?
 
-TEXT_DOCS = Installation Configuration Left-Right Publication MySQL-Setup MyRPKI
+dot: doc/pubd.dot doc/rpkid.dot
 
-dot: doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
+eps: doc/pubd.eps doc/rpkid.eps doc/rpkid-bpki.eps doc/pubd-bpki.eps
 
-eps: doc/irdbd.eps doc/pubd.eps doc/rpkid.eps doc/rpkid-bpki.eps doc/pubd-bpki.eps
+png: doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki.png
 
-png: doc/irdbd.png doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki.png
+pdf: doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
 
 docclean:
 	rm -rf doc/html doc/latex doc/xml
@@ -168,23 +165,9 @@ docclean:
 html: dot eps png
 	TZ='' IMAGE_PATH=${abs_builddir}/doc doxygen
 
-tgz: html
-	cd doc && tar -cf - html | gzip -9 >manual.tar.gz
+docs: dot eps png html pdf
 
-text: html
-	for i in ${TEXT_DOCS}; do \
-		xsltproc --html doc/tweak-doc.xsl doc/html/$$i.html | \
-		html2text -rcfile doc/html2textrc -nobs -ascii | \
-		awk -f doc/tweak-doc.awk >doc/$$i; \
-	done 2>&1 | \
-	awk -f doc/suppress-html-parse-errors.awk 1>&2
-
-pdf: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
-
-pdf: html
-	cd doc/latex && TZ='' ${MAKE} && ln -f refman.pdf ../manual.pdf
-
-docs: dot eps png html text tgz pdf
+##
 
 distclean:: clean docclean
 	cd tests; ${MAKE} $@
@@ -192,6 +175,8 @@ distclean:: clean docclean
 
 all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
+
+# Scripts
 
 COMPILE_PYTHON = \
 	rm -f $@; \

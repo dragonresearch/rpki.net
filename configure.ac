@@ -23,13 +23,17 @@ else
 	CFLAGS_or_LDFLAGS_were_set=yes
 fi
 
+# Put the user option stuff up front.
 
-# Put all the user option stuff up front
+AC_ARG_WITH([system_openssl], [AS_HELP_STRING([--with-system-openssl], [Link against system copy of OpenSSL])],    [], [with_system_openssl=auto])
+AC_ARG_ENABLE([openssl_asm],  [AS_HELP_STRING([--disable-openssl-asm], [Don't let OpenSSL build assembler code])], [], [enable_openssl_asm=auto])
+AC_ARG_ENABLE([ca_tools],     [AS_HELP_STRING([--disable-ca-tools],    [Don't build any of the CA tools])],        [], [enable_ca_tools=yes])
+AC_ARG_ENABLE([rpki_rtr],     [AS_HELP_STRING([--disable-rpki-rtr],    [Don't build the rpki-rtr code])],	   [], [enable_rpki_rtr=yes])
 
-AC_ARG_WITH([system_openssl], [AS_HELP_STRING([--with-system-openssl], [Link against system copy of OpenSSL])],       [], [with_system_openssl=auto])
-AC_ARG_ENABLE([openssl_asm],  [AS_HELP_STRING([--disable-openssl-asm], [Don't let OpenSSL build assembler code])],    [], [enable_openssl_asm=auto])
-AC_ARG_ENABLE([python],       [AS_HELP_STRING([--disable-python],      [Don't build any of the Python-based tools])], [], [enable_python=yes])
-AC_ARG_ENABLE([django],	      [AS_HELP_STRING([--disable-django],      [Don't build Django GUI])],		      [], [enable_django=yes])
+# Obsolete options.  If you know of a better way to handle this, tell me.
+
+AC_ARG_ENABLE([python], [AS_HELP_STRING([--disable-python], [(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-python is obsolete.  Please see the --disable-ca-tools option])], [])
+AC_ARG_ENABLE([django], [AS_HELP_STRING([--disable-django], [(Obsolete, do not use)])],	[AC_MSG_ERROR([--disable-django is obsolete.  Please see the --disable-ca-tools option])], [])
 
 AC_PROG_CC
 AC_PROG_INSTALL
@@ -236,6 +240,10 @@ then
 else
 	have_python=yes
 
+	AC_MSG_CHECKING([for Python version 2.6 or higher])
+	python_version_ok=`$PYTHON -c 'import sys; print "yes" if sys.version_info[[0]] == 2 and sys.version_info[[1]] >= 6 else "no"'`
+	AC_MSG_RESULT([$python_version_ok])
+
 	AC_MSG_CHECKING([distutils to find out where Python.h should be])
 	python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
 	AC_MSG_RESULT([$python_h])
@@ -261,65 +269,57 @@ else
 	fi
 fi
 
-# Hmm, perhaps --enable-python should have been --with-python,
-# handling (vaguely) similar to --with-system-openssl?
+if test $enable_ca_tools = yes || test $enable_rpki_rtr = yes
+then
+	if test $have_python = no
+	then
+		AC_MSG_ERROR([I can't find a Python binary, maybe you need to set PATH?])
+	fi
+	if test $python_version_ok = no
+	then
+		AC_MSG_ERROR([The RPKI code requires Python version 2.x, for x = 6 or higher.])
+	fi
+fi
 
-case $enable_python in
-     yes)	build_python=yes
-		if test $have_python = no
+case $enable_ca_tools in
+     yes)	build_ca_tools=yes
+		if test $have_python_h = no
 		then
-			AC_MSG_ERROR([I can't find a Python binary, maybe you need to set PATH?])
+			AC_MSG_ERROR([I can't find Python.h.  Python sources are required to build the CA tools, please install them.
+			              If you do not wish to install the CA tools, please specify --disable-ca-tools as an argument to this configure script.])
 		fi
-		;;
-     no)	build_python=no
-		;;
-     auto)	build_python=$have_python
-		if test $have_python = no
-		then
-			AC_MSG_WARN([I can't find your Python binary, disabling build for all Python-using code])
-		fi
-		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-python: $enable_python]);;
-esac
-
-case $enable_django in
-     yes)	build_django=yes
 		if test $have_django = no
 		then
-			AC_MSG_ERROR([You don't appear to have Django installed.  Django is required for the RPKI portal gui.  If you do not wish to install the gui, please specify --disable-django as an argument to this configure script.])
+			AC_MSG_ERROR([You don't appear to have Django installed.  Django is required by the CA tools, please install Django version 1.2 or higher.
+			              If you do not wish to install the CA tools, please specify --disable-ca-tools as an argument to this configure script.])
 		fi
 		if test $django_recent = no
 		then
-			AC_MSG_ERROR([The portal gui requires Django 1.2 or higher])
+			AC_MSG_ERROR([The CA tools require Django 1.2 or higher.])
 		fi
 		;;
-     no)	build_django=no
+     no)	build_ca_tools=no
 		;;
-     auto)	build_django=$have_django
-		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-django: $enable_django]);;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-ca-tools: $enable_ca_tools]);;
 esac
 
-if test $build_python = yes && test $have_python_h = no
-then
-	AC_MSG_ERROR([Need Python sources to build extension module, either install sources or rerun with --disable-python])
-fi
+case $enable_rpki_rtr in
+     yes)	build_rpki_rtr=yes
+     		;;
+     no)	build_rpki_rtr=no
+     		;;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-rpki-rtr: $enable_rpki_rtr]);;
+esac
 
 # Figure out which parts of this package we have to build.
 
 				TOP_LEVEL_SUBDIRS=""
 test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
 				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
-test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
-test $have_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rtr-origin"
+test $build_ca_tools = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
+test $build_rpki_rtr = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rtr-origin"
 
 AC_SUBST(TOP_LEVEL_SUBDIRS)
-
-# Conditionally build subsets of the rpkid tools
-                            RPKID_SUBDIRS=""
-test $build_django = yes && RPKID_SUBDIRS="$RPKID_SUBDIRS portal-gui"
-
-AC_SUBST(RPKID_SUBDIRS)
 
 AC_CONFIG_FILES([Makefile
 		 rcynic/Makefile
@@ -387,12 +387,7 @@ else
 	LIBS="$LIBS -lssl -lcrypto"
 fi
 
-if test $build_python = yes
-then
-	AC_CONFIG_FILES([rpkid/Makefile rpkid/tests/Makefile])
-fi
-
-if test $build_django = yes
+if test $build_ca_tools = yes
 then
 	AC_MSG_CHECKING([if running under virtualenv])
 	if test x$VIRTUAL_ENV != x; then
@@ -402,18 +397,18 @@ then
 		AC_MSG_RESULT(no)
 	fi
 
-        # source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
+        # Source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
         AC_SUBST(SECRET_KEY, `$PYTHON -c 'import random; print "".join([random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50)])'`)
 
 	AC_SUBST(DJANGO_DIR, [`$PYTHON -c 'import os,sys; print [[os.path.join(p, "django") for p in sys.path if os.path.exists(os.path.join(p, "django"))]][[0]]'`])
 
-        # there is no standard name for this tool, so check for it
+        # There is no standard name for this tool, so check for it.
         AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
 
-        AC_CONFIG_FILES([rpkid/portal-gui/Makefile])
+	AC_CONFIG_FILES([rpkid/Makefile rpkid/tests/Makefile rpkid/portal-gui/Makefile])
 fi
 
-if test $have_python = yes
+if test $build_rpki_rtr = yes
 then
 	AC_CONFIG_FILES([rtr-origin/Makefile])
 fi

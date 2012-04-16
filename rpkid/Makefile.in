@@ -1,6 +1,7 @@
 # $Id$
 
-SUBDIRS = @RPKID_SUBDIRS@
+SUBDIRS = portal-gui
+
 PYTHON = @PYTHON@
 
 SECRET_KEY = @SECRET_KEY@
@@ -96,6 +97,9 @@ clean::
 
 install::
 	${SETUP_PY} install --record installed
+	@echo
+	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
+	@echo
 
 uninstall deinstall::
 	xargs rm -fv <installed

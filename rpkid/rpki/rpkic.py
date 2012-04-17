@@ -234,6 +234,7 @@ class main(rpki.cli.Cmd):
 
     r, child_handle = self.zoo.configure_child(argv[0], child_handle)
     r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), sys.stdout)
+    self.zoo.synchronize()
 
 
   def do_delete_child(self, arg):
@@ -243,6 +244,7 @@ class main(rpki.cli.Cmd):
 
     try:
       self.zoo.delete_child(arg)
+      self.zoo.synchronize()
     except rpki.irdb.Child.DoesNotExist:
       print "No such child \"%s\"" % arg
 
@@ -260,6 +262,12 @@ class main(rpki.cli.Cmd):
     service.  If a publication offer or referral is present, we
     generate a request-for-service message to that repository, in case
     the user wants to avail herself of the referral or offer.
+
+    We do NOT attempt automatic synchronization with rpkid at the
+    completion of this command, because synchronization at this point
+    will usually fail due to the repository not being set up yet.  If
+    you know what you are doing and for some reason really want to
+    synchronize here, run the synchronize command yourself.
     """
 
     parent_handle = None
@@ -283,6 +291,7 @@ class main(rpki.cli.Cmd):
 
     try:
       self.zoo.delete_parent(arg)
+      self.zoo.synchronize()
     except rpki.irdb.Parent.DoesNotExist:
       print "No such parent \"%s\"" % arg
 
@@ -312,6 +321,11 @@ class main(rpki.cli.Cmd):
     r, client_handle = self.zoo.configure_publication_client(argv[0], sia_base)
     r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
 
+    # Don't attempt to synchronize self-publication case, we'll do it
+    # in do_configure_repository() and it'd just confuse us now.
+    if client_handle != self.zoo.handle:
+      self.zoo.synchronize()
+
 
   def do_delete_publication_client(self, arg):
     """
@@ -320,6 +334,7 @@ class main(rpki.cli.Cmd):
 
     try:
       self.zoo.delete_publication_client(arg).delete()
+      self.zoo.synchronize()
     except rpki.irdb.Client.DoesNotExist:
       print "No such client \"%s\"" % arg
 
@@ -348,6 +363,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax, "Need to specify filename for repository.xml on command line"
 
     self.zoo.configure_repository(argv[0], parent_handle)
+    self.zoo.synchronize()
 
   def do_delete_repository(self, arg):
     """
@@ -359,6 +375,7 @@ class main(rpki.cli.Cmd):
 
     try:
       self.zoo.delete_repository(arg)
+      self.zoo.synchronize()
     except rpki.irdb.Repository.DoesNotExist:
       print "No such repository \"%s\"" % arg
 
@@ -372,6 +389,7 @@ class main(rpki.cli.Cmd):
     """
 
     self.zoo.delete_self()
+    self.zoo.synchronize()
 
 
   def do_renew_child(self, arg):
@@ -390,6 +408,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax, "Need to specify child handle"
 
     self.zoo.renew_children(argv[0], valid_until)
+    self.zoo.synchronize(self.zoo.handle)
 
   def complete_renew_child(self, *args):
     return self.irdb_handle_complete(rpki.irdb.Child, *args)
@@ -411,6 +430,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax, "Unexpected arguments"
 
     self.zoo.renew_children(None, valid_until)
+    self.zoo.synchronize(self.zoo.handle)
 
 
   def do_load_prefixes(self, arg):
@@ -424,6 +444,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Need to specify prefixes.csv filename")
 
     self.zoo.load_prefixes(argv[0])
+    self.zoo.synchronize(self.zoo.handle)
 
 
   def do_show_child_resources(self, arg):
@@ -457,6 +478,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Need to specify asns.csv filename")
 
     self.zoo.load_asns(argv[0])
+    self.zoo.synchronize(self.zoo.handle)
 
 
   def do_load_roa_requests(self, arg):
@@ -470,6 +492,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Need to specify roa.csv filename")
 
     self.zoo.load_roa_requests(argv[0])
+    self.zoo.synchronize(self.zoo.handle)
 
 
   def do_synchronize(self, arg):
@@ -483,4 +506,4 @@ class main(rpki.cli.Cmd):
     if arg:
       raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
 
-    self.zoo.synchronize()
+    self.zoo.synchronize(self.zoo.handle)

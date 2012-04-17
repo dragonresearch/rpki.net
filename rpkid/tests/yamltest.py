@@ -485,8 +485,9 @@ time.tzset()
 cfg_file = None
 pidfile  = None
 keep_going = False
+skip_config = False
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:hkp:?", ["config=", "help", "keep_going", "pidfile="])
+opts, argv = getopt.getopt(sys.argv[1:], "c:hkp:s?", ["config=", "help", "keep_going", "pidfile=", "skip_config"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
@@ -497,6 +498,8 @@ for o, a in opts:
     keep_going = True
   elif o in ("-p", "--pidfile"):
     pidfile = a
+  elif o in ("-s", "--skip_config"):
+    skip_config = True
 
 # We can't usefully process more than one YAML file at a time, so
 # whine if there's more than one argument left.
@@ -576,7 +579,7 @@ try:
     v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
     v6  = rpki.resource_set.resource_set_ipv6("::/0"))
 
-  root_key = rpki.x509.RSA.generate()
+  root_key = rpki.x509.RSA.generate(quiet = True)
 
   root_uri = "rsync://localhost:%d/rpki/" % db.root.pubd.rsync_port
 
@@ -612,34 +615,6 @@ try:
     for d in db:
 
       print
-      print "Configuring", d.name
-      print
-      if  d.is_root:
-        assert not d.is_hosted
-        d.run_rpkic("configure_publication_client",
-                    d.path("%s.%s.repository-request.xml" % (d.name, d.name)))
-        print
-        d.run_rpkic("configure_repository",
-                    d.path("%s.repository-response.xml" % d.client_handle))
-        print
-      else:
-        d.parent.run_rpkic("configure_child", d.path("%s.identity.xml" % d.name))
-        print
-        d.run_rpkic("configure_parent",
-                    d.parent.path("%s.%s.parent-response.xml" % (d.parent.name, d.name)))
-        print
-        d.pubd.run_rpkic("configure_publication_client",
-                         d.path("%s.%s.repository-request.xml" % (d.name, d.parent.name)))
-        print
-        d.run_rpkic("configure_repository",
-                    d.pubd.path("%s.repository-response.xml" % d.client_handle))
-        print
-        d.parent.run_rpkic("synchronize")
-        print
-        if d.pubd is not d.parent.host:
-          d.pubd.run_rpkic("synchronize")
-          print
-
       print "Running daemons for", d.name
       if d.is_root:
         progs.append(d.run_rootd())
@@ -649,21 +624,43 @@ try:
       if d.runs_pubd:
         progs.append(d.run_pubd())
         progs.append(d.run_rsyncd())
-      if d.is_root or not d.is_hosted or d.runs_pubd:
-        print "Giving", d.name, "daemons time to start up"
-        time.sleep(20)
+
+    print
+    print "Giving daemons time to start up"
+    time.sleep(20)
+    assert all(p.poll() is None for p in progs)
+
+    if skip_config:
+
+      print "Skipping configure_*, you'll have to do that yourself"
+
+    else:
+
+      for d in db:
+
         print
-      assert all(p.poll() is None for p in progs)
-
-      # In theory we now only need to synchronize the new entity once.
-      d.run_rpkic("synchronize")
-
-    # Run through list again, to be sure we catch hosted cases.
-    # In theory this is no longer necessary.
-    if False:
-      for i in xrange(3):
-        for d in db:
-          d.run_rpkic("synchronize")
+        print "Configuring", d.name
+        print
+        if  d.is_root:
+          assert not d.is_hosted
+          d.run_rpkic("configure_publication_client",
+                      d.path("%s.%s.repository-request.xml" % (d.name, d.name)))
+          print
+          d.run_rpkic("configure_repository",
+                      d.path("%s.repository-response.xml" % d.client_handle))
+          print
+        else:
+          d.parent.run_rpkic("configure_child", d.path("%s.identity.xml" % d.name))
+          print
+          d.run_rpkic("configure_parent",
+                      d.parent.path("%s.%s.parent-response.xml" % (d.parent.name, d.name)))
+          print
+          d.pubd.run_rpkic("configure_publication_client",
+                           d.path("%s.%s.repository-request.xml" % (d.name, d.parent.name)))
+          print
+          d.run_rpkic("configure_repository",
+                      d.pubd.path("%s.repository-response.xml" % d.client_handle))
+          print
 
     # Load all the CSV files
     for d in db:

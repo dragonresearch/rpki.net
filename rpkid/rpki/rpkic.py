@@ -321,10 +321,10 @@ class main(rpki.cli.Cmd):
     r, client_handle = self.zoo.configure_publication_client(argv[0], sia_base)
     r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
 
-    # Don't attempt to synchronize self-publication case, we'll do it
-    # in do_configure_repository() and it'd just confuse us now.
-    if client_handle != self.zoo.handle:
+    try:
       self.zoo.synchronize()
+    except rpki.irdb.Repository.DoesNotExist:
+      pass
 
 
   def do_delete_publication_client(self, arg):

@@ -1843,7 +1843,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
 ## Parsed RelaxNG myrpki schema
 myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 4415 2012-04-15 04:42:40Z sra $
+  $Id: myrpki.rnc 4430 2012-04-17 16:00:14Z sra $
   
   RelaxNG Schema for MyRPKI XML messages.
   

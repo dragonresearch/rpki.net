@@ -266,7 +266,7 @@ class CA(django.db.models.Model):
 
   def avow(self):
     if self.private_key is None:
-      self.private_key = rpki.x509.RSA.generate()
+      self.private_key = rpki.x509.RSA.generate(quiet = True)
     now = rpki.sundial.now()
     notAfter = now + ca_certificate_lifetime
     self.certificate = rpki.x509.X509.bpki_self_certify(
@@ -417,7 +417,7 @@ class EECertificate(Certificate):
 
   def avow(self):
     if self.private_key is None:
-      self.private_key = rpki.x509.RSA.generate()
+      self.private_key = rpki.x509.RSA.generate(quiet = True)
     self.certificate = self.issuer.certify(
       subject_name      = self.subject_name,
       subject_key       = self.private_key.get_RSApublic(),

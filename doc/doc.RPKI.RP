@@ -93,6 +93,8 @@ On FreeBSD or MacOSX, this script might look like this:
   #!/bin/sh -
   /usr/sbin/chroot -u rcynic -g rcynic /var/rcynic /bin/rcynic -c /etc/
   rcynic.conf || exit
+  /usr/local/bin/python /var/rcynic/etc/rcynic.py /var/rcynic/data/rcynic.xml /
+  var/rcynic/data/rcynic.html
   cd /var/rpki-rtr
   /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
   data/authenticated'
@@ -104,6 +106,8 @@ On Linux, the script might look like this:
   #!/bin/sh -
   /usr/sbin/chroot --userspec rcynic:rcynic /var/rcynic /bin/rcynic -c /etc/
   rcynic.conf || exit
+  /usr/local/bin/python /var/rcynic/etc/rcynic.py /var/rcynic/data/rcynic.xml /
+  var/rcynic/data/rcynic.html
   cd /var/rpki-rtr
   /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
   data/authenticated'

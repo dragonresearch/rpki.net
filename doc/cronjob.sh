@@ -2,6 +2,7 @@
 # $Id$
 
 lock=cronjob.lock
+script=$HOME/subvert-rpki.hactrn.net/trunk/buildtools/pull-doc-from-wiki.py
 
 cd `/usr/bin/dirname $0` || exit
 
@@ -12,7 +13,7 @@ locked)
     set -x
     export PATH=/bin:/usr/bin:/usr/local/bin
     /usr/local/bin/svn update
-    /usr/local/bin/python /u/sra/rpki/subvert-rpki.hactrn.net/trunk/buildtools/pull-doc-from-wiki.py
+    /usr/local/bin/python $script
     /usr/local/bin/svn status
     if test -n "$(/usr/local/bin/svn status doc.*)"
     then

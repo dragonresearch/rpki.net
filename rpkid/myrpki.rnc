@@ -111,7 +111,7 @@ repository_payload = (
 
 start |= element parent {
   attribute version { version },
-  attribute valid_until { timestamp },
+  attribute valid_until { timestamp }?,
   attribute service_uri { uri }?,
   attribute child_handle { object_handle },
   attribute parent_handle { object_handle },

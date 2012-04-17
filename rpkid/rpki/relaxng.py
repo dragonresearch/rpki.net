@@ -2108,9 +2108,11 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodin
       <attribute name="version">
         <ref name="version"/>
       </attribute>
-      <attribute name="valid_until">
-        <ref name="timestamp"/>
-      </attribute>
+      <optional>
+        <attribute name="valid_until">
+          <ref name="timestamp"/>
+        </attribute>
+      </optional>
       <optional>
         <attribute name="service_uri">
           <ref name="uri"/>

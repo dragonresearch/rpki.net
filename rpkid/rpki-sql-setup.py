@@ -85,10 +85,13 @@ cfg = rpki.config.parser(cfg_file, "myrpki")
 
 rootdb = MySQLdb.connect(db = "mysql", user = "root", passwd = getpass.getpass("Please enter your MySQL root password: "))
 
-sql_setup("irdbd")
-sql_setup("rpkid")
+if cfg.getboolean("start_irdbd", False):
+  sql_setup("irdbd")
 
-if cfg.getboolean("run_pubd", False):
+if cfg.getboolean("start_rpkid", False):
+  sql_setup("rpkid")
+
+if cfg.getboolean("start_pubd",  False):
   sql_setup("pubd")
 
 rootdb.close()

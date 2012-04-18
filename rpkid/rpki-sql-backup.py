@@ -45,9 +45,11 @@ def dump(section):
      "-p" + cfg.get("sql-password", section = section),
      "-B",  cfg.get("sql-database", section = section)))
 
-if cfg.getboolean("run_rpkid", False):
+if cfg.getboolean("start_rpkid", False):
   dump("irdbd")
+
+if cfg.getboolean("start_irdbd", False):
   dump("rpkid")
 
-if cfg.getboolean("run_pubd", False):
+if cfg.getboolean("start_pubd",  False):
   dump("pubd")

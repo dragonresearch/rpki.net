@@ -4,7 +4,7 @@ which servers the user wants started.
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -72,12 +72,14 @@ def run(name):
   else:
     print "Problem starting %r, pid %s" % (name, proc.pid)
 
-if cfg.getboolean("run_rpkid", False):
+if cfg.getboolean("start_rpkid", False):
   run("irdbd")
+
+if cfg.getboolean("start_irdbd", False):
   run("rpkid")
 
-if cfg.getboolean("run_pubd", False):
+if cfg.getboolean("start_pubd",  False):
   run("pubd")
 
-if cfg.getboolean("run_rootd", False):
+if cfg.getboolean("start_rootd", False):
   run("rootd")

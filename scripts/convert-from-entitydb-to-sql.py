@@ -94,9 +94,14 @@ tag_identity         = xmlns + "identity"
 tag_parent           = xmlns + "parent"
 tag_repository       = xmlns + "repository"
 
-e = ElementTree(file = os.path.join(entitydb, "identity.xml")).getroot()
-rpki.relaxng.myrpki.assertValid(e)
-assert e.tag == tag_identity
+def read_element_tree(filename, tag):
+  print "Reading file %s, tag %s\n" % (filename, tag)
+  e = ElementTree(file = filename).getroot()
+  rpki.relaxng.myrpki.assertValid(e)
+  assert e.tag == tag
+  return e
+
+e = read_element_tree(os.path.join(entitydb, "identity.xml"), tag_identity)
 
 self_handle = e.get("handle")
 assert self_handle == cfg.get("handle", section = "myrpki")
@@ -230,9 +235,7 @@ xcert_filenames = set(glob.iglob(os.path.join(bpki, "*", "xcert.*.cer")))
 for filename in glob.iglob(os.path.join(entitydb, "children", "*.xml")):
   child_handle = os.path.splitext(os.path.split(filename)[1])[0]
 
-  e = ElementTree(file = filename).getroot()
-  rpki.relaxng.myrpki.assertValid(e)
-  assert e.tag == tag_parent
+  e = read_element_tree(filename, tag_parent)
 
   ta = rpki.x509.X509(Base64 = e.findtext(tag_bpki_child_ta))
   xcfn = os.path.join(bpki, "resources", "xcert.%s.cer" % xcert_hash(ta))
@@ -286,9 +289,7 @@ for filename in glob.iglob(os.path.join(entitydb, "children", "*.xml")):
 for filename in glob.iglob(os.path.join(entitydb, "parents", "*.xml")):
   parent_handle = os.path.splitext(os.path.split(filename)[1])[0]
 
-  e = ElementTree(file = filename).getroot()
-  rpki.relaxng.myrpki.assertValid(e)
-  assert e.tag == tag_parent
+  e = read_element_tree(filename, tag_parent)
 
   if parent_handle == self_handle:
     assert run_rootd
@@ -341,9 +342,7 @@ for filename in glob.iglob(os.path.join(entitydb, "parents", "*.xml")):
 for filename in glob.iglob(os.path.join(entitydb, "repositories", "*.xml")):
   repository_handle = os.path.splitext(os.path.split(filename)[1])[0]
 
-  e = ElementTree(file = filename).getroot()
-  rpki.relaxng.myrpki.assertValid(e)
-  assert e.tag == tag_repository
+  e = read_element_tree(filename, tag_repository)
 
   if e.get("type") != "confirmed":
     continue
@@ -374,9 +373,7 @@ for filename in glob.iglob(os.path.join(entitydb, "repositories", "*.xml")):
 for filename in glob.iglob(os.path.join(entitydb, "pubclients", "*.xml")):
   client_handle = os.path.splitext(os.path.split(filename)[1])[0].replace(".", "/")
 
-  e = ElementTree(file = filename).getroot()
-  rpki.relaxng.myrpki.assertValid(e)
-  assert e.tag == tag_repository
+  e = read_element_tree(filename, tag_repository)
 
   assert e.get("type") == "confirmed"
 

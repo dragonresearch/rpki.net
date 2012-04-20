@@ -226,58 +226,87 @@ esac
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If
-# we do have Python, we need to check what antics we need to go
-# through to build the OpenSSL interface extension module, and also
-# whether the Django code is installed for our GUI.
+# we do have Python, we need to check for required packages and
+# versions.
 
 AC_PATH_PROG([PYTHON], [python])
 
-if test "x$PYTHON" = "x"
+have_python=no
+have_acceptable_python=no
+have_python_h=no
+have_django=no
+have_acceptable_django=no
+have_lxml=no
+have_mysqldb=no
+have_pyyaml=no
+
+if test "x$PYTHON" != "x"
 then
-	have_python=no
-	have_python_h=no
-	have_django=no
-else
 	have_python=yes
 
 	AC_MSG_CHECKING([for Python version 2.6 or higher])
-	python_version_ok=`$PYTHON -c 'import sys; print "yes" if sys.version_info[[0]] == 2 and sys.version_info[[1]] >= 6 else "no"'`
-	AC_MSG_RESULT([$python_version_ok])
+	have_acceptable_python=`$PYTHON -c 'import sys; print "yes" if sys.version_info[[0]] == 2 and sys.version_info[[1]] >= 6 else "no"'`
+	AC_MSG_RESULT([$have_acceptable_python])
 
 	AC_MSG_CHECKING([distutils to find out where Python.h should be])
 	python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
 	AC_MSG_RESULT([$python_h])
 
-	AC_CHECK_HEADER([$python_h],
-			[have_python_h=yes],
-			[have_python_h=no])
+	AC_CHECK_HEADER([$python_h], [have_python_h=yes], [have_python_h=no])
+
+	AC_MSG_CHECKING([for lxml.etree])
+	if $PYTHON -c 'import lxml.etree' 2>/dev/null
+	then
+		have_lxml=yes
+	fi
+	AC_MSG_RESULT([$have_lxml])
+
+	AC_MSG_CHECKING([for MySQLdb])
+	if $PYTHON -c 'import MySQLdb' 2>/dev/null
+	then
+		have_mysqldb=yes
+	fi
+	AC_MSG_RESULT([$have_mysqldb])
 
 	AC_MSG_CHECKING([for Django])
 	if $PYTHON -c 'import django' 2>/dev/null
 	then
 		have_django="yes"
-	else
-		have_django="no"
 	fi
 	AC_MSG_RESULT([$have_django])
 
 	if test $have_django = yes
 	then
 		AC_MSG_CHECKING([for Django 1.2 or higher])
-		django_recent=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 2) else 'yes'"`
-		AC_MSG_RESULT([$django_recent])
+		have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 2) else 'yes'"`
+		AC_MSG_RESULT([$have_acceptable_django])
 	fi
+
+	AC_MSG_CHECKING([for PyYAML])
+	if $PYTHON -c 'import YAML' 2>/dev/null
+	then
+		have_pyyaml=yes
+	fi
+	AC_MSG_RESULT([$have_pyyaml])
 fi
+
+ok=yes
 
 if test $enable_ca_tools = yes || test $enable_rpki_rtr = yes
 then
 	if test $have_python = no
 	then
-		AC_MSG_ERROR([I can't find a Python binary, maybe you need to set PATH?])
+		ok=no
+		AC_MSG_WARN([I can't find a Python binary, perhaps you need to set PATH?])
 	fi
-	if test $python_version_ok = no
+	if test $have_acceptable_python = no
 	then
-		AC_MSG_ERROR([The RPKI code requires Python version 2.x, for x = 6 or higher.])
+		ok=no
+		AC_MSG_WARN([The RPKI code requires Python version 2.x, for x = 6 or higher.])
+	fi
+	if test $ok = no
+	then
+		AC_MSG_WARN([If you do not wish to install the rpki-rtr code, please specify --disable-rpki-rtr as an argument to this configure script.])
 	fi
 fi
 
@@ -285,17 +314,17 @@ case $enable_ca_tools in
      yes)	build_ca_tools=yes
 		if test $have_python_h = no
 		then
-			AC_MSG_ERROR([I can't find Python.h.  Python sources are required to build the CA tools, please install them.
-			              If you do not wish to install the CA tools, please specify --disable-ca-tools as an argument to this configure script.])
+			ok=no
+			AC_MSG_WARN([I can't find Python.h.  Python sources are required to build the CA tools.])
 		fi
-		if test $have_django = no
+		if test $have_acceptable_django = no
 		then
-			AC_MSG_ERROR([You don't appear to have Django installed.  Django is required by the CA tools, please install Django version 1.2 or higher.
-			              If you do not wish to install the CA tools, please specify --disable-ca-tools as an argument to this configure script.])
+			ok=no
+			AC_MSG_WARN([The RPKI CA tools require Django 1.2 or higher.])
 		fi
-		if test $django_recent = no
+		if test $ok = no
 		then
-			AC_MSG_ERROR([The CA tools require Django 1.2 or higher.])
+			AC_MSG_WARN([If you do not wish to install the RPKI CA tools, please specify --disable-ca-tools as an argument to this configure script.])
 		fi
 		;;
      no)	build_ca_tools=no
@@ -310,6 +339,22 @@ case $enable_rpki_rtr in
      		;;
      *)		AC_MSG_ERROR([Unrecognized value for --enable-rpki-rtr: $enable_rpki_rtr]);;
 esac
+
+
+if test $build_ca_tools = yes && test $have_pyyaml = no
+then
+	AC_MSG_WARN([PyYAML missing, so "make test" will not work properly.])
+fi
+
+if test "x$XSLTPROC" = "x"
+then
+	AC_MSG_WARN([xsltproc missing, so "make test" will not work properly.])
+fi
+
+if test $ok = no
+then
+	AC_MSG_ERROR([Please correct the problems above then re-run this configuration script.])
+fi
 
 # Figure out which parts of this package we have to build.
 

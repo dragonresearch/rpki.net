@@ -99,7 +99,10 @@ On FreeBSD or MacOSX, this script might look like this:
   /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
   data/authenticated'
 
-This assumes that you have created the /var/rpki-rtr directory.
+This assumes that you have done
+
+  mkdir /var/rpki-rtr
+  chown rcynic /var/rpki-rtr
 
 On Linux, the script might look like this:
 

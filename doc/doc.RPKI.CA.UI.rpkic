@@ -83,3 +83,14 @@ validation failures.
 
 rpkic's "update_bpki" command takes care of this. Usually one will want to run
 this periodically (perhaps once per month), under cron.
+
+***** Forcing synchronization *****
+
+Most rpkic commands synchronize the back end database with the daemons
+automatically, so in general it should not be necessary to synchronize
+manually. However, since these are separate databases, it is theoretically
+possible for them to get out of synch, perhaps because something crashed at
+exactly the wrong time.
+
+rpkic's "synchronize" command runs a synchronization cycle with rpkid (if
+run_rpkic is set) and pubd (if run_pubd is set).

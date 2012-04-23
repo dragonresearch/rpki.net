@@ -205,4 +205,11 @@ configuration would look more like this:
   data/authenticated'
 
 where "unauthenticated" here is an rsync module pointing at /var/rcynic/data/
-unauthenticated on each of the gatherer machines.
+unauthenticated on each of the gatherer machines. Configuration for such a
+module would look like:
+
+  [unauthenticated]
+      read only           = yes
+      transfer logging    = yes
+      path                = /var/rcynic/data/unauthenticated
+      comment             = Unauthenticated RPKI data

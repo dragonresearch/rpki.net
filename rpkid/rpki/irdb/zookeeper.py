@@ -988,7 +988,7 @@ class Zookeeper(object):
     # Default values for CRL parameters are low, for testing.  Not
     # quite as low as they once were, too much expired CRL whining.
 
-    self_crl_interval = self.cfg.getint("self_crl_interval", 2 * 60 * 60,
+    self_crl_interval = self.cfg.getint("self_crl_interval", 6 * 60 * 60,
                                         section = myrpki_section)
     self_regen_margin = self.cfg.getint("self_regen_margin", self_crl_interval / 4,
                                         section = myrpki_section)

@@ -507,3 +507,19 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
 
     self.zoo.synchronize(self.zoo.handle)
+
+
+  def do_force_publication(self, arg):
+    """
+    Whack rpkid to force (re)publication of everything.
+
+    This is not usually necessary, as rpkid automatically publishes
+    changes it makes, but this command can be useful occasionally when
+    a fault or configuration error has left rpkid holding data which
+    it has not been able to publish.
+    """
+
+    if arg:
+      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+
+    self.zoo.publish_world_now()

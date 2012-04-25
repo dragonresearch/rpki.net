@@ -13,7 +13,7 @@ see: http://www.ibm.com/developerworks/xml/library/x-hiperfparse/
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -28,7 +28,9 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, lxml.etree, rpki.myrpki
+import sys, lxml.etree
+
+from rpki.csv_utils import csv_writer
 
 def ns(tag):
   return "{http://www.arin.net/bulkwhois/core/v1}" + tag
@@ -84,9 +86,9 @@ def do_net(node):
 
 dispatch = { tag_asn : do_asn, tag_net : do_net }
 
-asns = rpki.myrpki.csv_writer("asns.csv")
-prefixes = rpki.myrpki.csv_writer("prefixes.csv")
-erx = rpki.myrpki.csv_writer("erx.csv")
+asns     = csv_writer("asns.csv")
+prefixes = csv_writer("prefixes.csv")
+erx      = csv_writer("erx.csv")
 
 root = None
 

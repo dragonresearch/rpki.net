@@ -7,7 +7,7 @@ the fly rather than having to pull the entire database into memory.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -22,7 +22,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import csv, rpki.myrpki, sys
+import sys
+from rpki.csv_utils import csv_reader
 
 if len(sys.argv) not in (2, 4):
   sys.exit("Usage: %s holder [asns.csv prefixes.csv]" % sys.argv[0])
@@ -51,7 +52,7 @@ sbgp-ipAddrBlock                = critical,@rfc3997_addrs
 ''' % { "holder" : sys.argv[1].lower(),
         "HOLDER" : sys.argv[1].upper() }
 
-for i, asn in enumerate(asn for handle, asn in rpki.myrpki.csv_reader(sys.argv[2] if len(sys.argv) > 2 else "asns.csv", columns = 2)):
+for i, asn in enumerate(asn for handle, asn in csv_reader(sys.argv[2] if len(sys.argv) > 2 else "asns.csv", columns = 2)):
   print "AS.%d = %s" % (i, asn)
 
 print '''\
@@ -60,6 +61,6 @@ print '''\
 
 '''
 
-for i, prefix in enumerate(prefix for handle, prefix in rpki.myrpki.csv_reader(sys.argv[3] if len(sys.argv) > 2 else "prefixes.csv", columns = 2)):
+for i, prefix in enumerate(prefix for handle, prefix in csv_reader(sys.argv[3] if len(sys.argv) > 2 else "prefixes.csv", columns = 2)):
   v = 6 if ":" in prefix else 4
   print "IPv%d.%d = %s" % (v, i, prefix)

@@ -16,7 +16,7 @@ rewrites them as needed after performing the translation.
 
 $Id$
 
-Copyright (C) 2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -31,15 +31,17 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, sys, rpki.myrpki
+import os
+import sys
+from rpki.csv_utils import csv_reader, csv_writer
 
-translations = dict((src, dst) for src, dst in rpki.myrpki.csv_reader("translations.csv", columns = 2))
+translations = dict((src, dst) for src, dst in csv_reader("translations.csv", columns = 2))
 
 for filename in sys.argv[1:]:
 
-  f = rpki.myrpki.csv_writer(filename)
+  f = csv_writer(filename)
 
-  for cols in rpki.myrpki.csv_reader(filename):
+  for cols in csv_reader(filename):
     if cols[0] in translations:
       cols[0] = translations[cols[0]]
     f.writerow(cols)

@@ -4,7 +4,7 @@ out (just) the RPKI-relevant fields in myrpki-format CSV syntax.
 
 $Id$
 
-Copyright (C) 2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -19,10 +19,11 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import rpki.myrpki, rpki.ipaddrs
+from rpki.csv_utils import csv_writer
+from rpki.ipaddrs import v4addr
 
-asns     = rpki.myrpki.csv_writer("asns.csv")
-prefixes = rpki.myrpki.csv_writer("prefixes.csv")
+asns     = csv_writer("asns.csv")
+prefixes = csv_writer("prefixes.csv")
 
 for line in open("delegated-apnic-extended-latest"):
 
@@ -45,7 +46,7 @@ for line in open("delegated-apnic-extended-latest"):
     asns.writerow((opaque_id, "%s-%s" % (start, int(start) + int(value) - 1)))
 
   elif rectype == "ipv4":
-    prefixes.writerow((opaque_id, "%s-%s" % (start, rpki.ipaddrs.v4addr(rpki.ipaddrs.v4addr(start) + long(value) - 1))))
+    prefixes.writerow((opaque_id, "%s-%s" % (start, v4addr(v4addr(start) + long(value) - 1))))
 
   elif rectype == "ipv6":
     prefixes.writerow((opaque_id, "%s/%s" % (start, value)))

@@ -13,7 +13,7 @@ any ASNs given, and prefixes.csv for any prefixes given.
 
 $Id$
 
-Copyright (C) 2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -28,11 +28,13 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, rpki.resource_set, rpki.myrpki
+import sys
+from rpki.resource_set import resource_set_as, resource_set_ipv4, resource_set_ipv6
+from rpki.csv_utils import csv_reader
 
-asn  = rpki.resource_set.resource_set_as()
-ipv4 = rpki.resource_set.resource_set_ipv4()
-ipv6 = rpki.resource_set.resource_set_ipv6()
+asn  = resource_set_as()
+ipv4 = resource_set_ipv4()
+ipv6 = resource_set_ipv6()
 
 for datum in sys.argv[1:]:
   if datum.replace("-", "").isdigit():
@@ -57,13 +59,13 @@ def matches(set1, datum):
     return False
 
 if asn:
-  for h, a in rpki.myrpki.csv_reader("asns.csv", columns = 2):
+  for h, a in csv_reader("asns.csv", columns = 2):
     m = matches(asn, a)
     if m:
       print h, m
 
 if ipv4 or ipv6:
-  for h, a in rpki.myrpki.csv_reader("prefixes.csv", columns = 2):
+  for h, a in csv_reader("prefixes.csv", columns = 2):
     t = ipv6 if ":" in a else ipv4
     m = t and matches(t, a)
     if m:

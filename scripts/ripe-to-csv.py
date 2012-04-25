@@ -21,7 +21,7 @@ the terms and conditions referenced by the data file header comments.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -36,7 +36,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import gzip, csv, rpki.myrpki
+import gzip
+from rpki.csv_utils import csv_writer
 
 class Handle(dict):
 
@@ -116,8 +117,8 @@ class main(object):
   filenames = ("ripe.db.aut-num.gz", "ripe.db.inet6num.gz", "ripe.db.inetnum.gz")
 
   def __init__(self):
-    self.asns = rpki.myrpki.csv_writer("asns.csv")
-    self.prefixes = rpki.myrpki.csv_writer("prefixes.csv")
+    self.asns     = csv_writer("asns.csv")
+    self.prefixes = csv_writer("prefixes.csv")
     for fn in self.filenames:
       f = gzip.open(fn)
       self.statement = ""

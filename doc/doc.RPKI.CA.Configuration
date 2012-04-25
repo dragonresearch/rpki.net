@@ -309,7 +309,8 @@ the back end code. We'll call these servers rpkid.example.org,
 pubd.example.org, and backend.example.org.
 
 Most of the configuration is the same as in the normal case, but there are a
-few extra steps.
+few extra steps. The following supplements but does not replace the normal
+instructions.
 
 WARNING: These setup directions have not (yet) been tested extensively.
 
@@ -321,16 +322,8 @@ WARNING: These setup directions have not (yet) been tested extensively.
 * This example assumes that you're running pubd, so make sure that both
   run_rpkid and run_pubd are enabled in rpki.conf.
 
-* Run "rpkic initialize" on the back end host. This will create the BPKI and
-  write out all of the necessary keys and certificates.
-
-* Copy the rpki.conf and bpki directories you just created on the backend host
-  over to the rpkid and pubd hosts, but only copying the private key (.key
-  file) for the service in question. So rpkid.example.org should get a copy of
-  the rpkid.key file but not the pubd.key file, while pubd.example.org should
-  get a copy of the pubd.key file but not the rpkid.key file.
-
-* Edit the rpki.conf files on all three servers to customize their roles:
+* Copy the rpki.conf to the other machines, and customize each copy to that
+  machine's role:
 
   o start_rpkid should be enabled on rpkid.example.org and disabled on the
     others.
@@ -342,6 +335,16 @@ WARNING: These setup directions have not (yet) been tested extensively.
 * Make sure that you set up SQL databases on all three servers; the rpki-sql-
   setup script should do the right thing in each case based on the setting of
   the start_* options.
+
+* Run "rpkic initialize" on the back end host. This will create the BPKI and
+  write out all of the necessary keys and certificates.
+
+* "rpkic initialize" should have created the BPKI files (.cer, .key, and .crl
+  files for the several servers). Copy the .cer and .crl files to the pubd and
+  rpkid hosts, along with the appropriate private key: rpkid.example.org should
+  get a copy of the rpkid.key file but not the pubd.key file, while
+  pubd.example.org should get a copy of the pubd.key file but not the rpkid.key
+  file.
 
 * Run rpki-start-servers on each of the three hosts when it's time to start the
   servers.

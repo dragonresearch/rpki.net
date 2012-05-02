@@ -283,7 +283,7 @@ then
 	fi
 
 	AC_MSG_CHECKING([for PyYAML])
-	if $PYTHON -c 'import YAML' 2>/dev/null
+	if $PYTHON -c 'import yaml' 2>/dev/null
 	then
 		have_pyyaml=yes
 	fi

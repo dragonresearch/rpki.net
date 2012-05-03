@@ -301,7 +301,7 @@ class resource_set(list):
 
   canonical = False
 
-  def __init__(self, ini = None):
+  def __init__(self, ini = None, allow_overlap = False):
     """
     Initialize a resource_set.
     """
@@ -316,24 +316,30 @@ class resource_set(list):
       self.parse_rfc3779_tuple(ini)
     elif isinstance(ini, list):
       self.extend(ini)
-    else:
-      assert ini is None or (isinstance(ini, str) and ini == ""), "Unexpected initializer: %s" % str(ini)
-    self.canonize()
+    elif ini is not None and ini != "":
+      raise ValueError("Unexpected initializer: %s" % str(ini))
+    self.canonize(allow_overlap)
 
-  def canonize(self):
+  def canonize(self, allow_overlap = False):
     """
     Whack this resource_set into canonical form.
     """
     assert not self.inherit or not self
     if not self.canonical:
       self.sort()
-      for i in xrange(len(self) - 2, -1, -1):
-        if self[i].max + 1 == self[i+1].min:
+      i = 0
+      while i + 1 < len(self):
+        if allow_overlap and self[i].max + 1 >= self[i+1].min:
+          self[i] = type(self[i])(self[i].min, max(self[i].max, self[i+1].max))
+          del self[i+1]
+        elif self[i].max + 1 == self[i+1].min:
           self[i] = type(self[i])(self[i].min, self[i+1].max)
-          self.pop(i + 1)
-      if __debug__:
-        for i in xrange(0, len(self) - 1):
-          assert self[i].max < self[i+1].min, "Resource overlap: %s %s" % (self[i], self[i+1])
+          del self[i+1]
+        else:
+          i += 1
+      for i in xrange(0, len(self) - 1):
+        if self[i].max >= self[i+1].min:
+          raise rpki.exceptions.ResourceOverlap("Resource overlap: %s %s" % (self[i], self[i+1]))
       self.canonical = True
 
   def append(self, item):
@@ -754,7 +760,7 @@ class resource_bag(object):
     return self
 
   @classmethod
-  def from_str(cls, text):
+  def from_str(cls, text, allow_overlap = False):
     """
     Parse a comma-separated text string into a resource_bag.  Not
     particularly efficient, fix that if and when it becomes an issue.
@@ -769,9 +775,9 @@ class resource_bag(object):
         v6s.append(word)
       else:
         asns.append(word)
-    return cls(asn = resource_set_as(",".join(asns))  if asns else None,
-               v4  = resource_set_ipv4(",".join(v4s)) if v4s  else None,
-               v6  = resource_set_ipv6(",".join(v6s)) if v6s  else None)
+    return cls(asn = resource_set_as(",".join(asns),  allow_overlap) if asns else None,
+               v4  = resource_set_ipv4(",".join(v4s), allow_overlap) if v4s  else None,
+               v6  = resource_set_ipv6(",".join(v6s), allow_overlap) if v6s  else None)
 
   @classmethod
   def from_rfc3779_tuples(cls, exts):

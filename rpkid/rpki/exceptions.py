@@ -341,3 +341,8 @@ class MultipleCMSEECert(RPKI_Exception):
   """
   Can't have more than one CMS EE certificate in validation chain.
   """
+
+class ResourceOverlap(RPKI_Exception):
+  """
+  Overlapping resources in resource_set.
+  """

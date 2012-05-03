@@ -34,9 +34,10 @@ tag_designation = ns("designation")
 tag_record      = ns("record")
 tag_number      = ns("number")
 tag_prefix      = ns("prefix")
+tag_status      = ns("status")
 
 handles = {}
-rirs = {}
+rirs = { "LEGACY" : resource_bag() }
 
 for rir in ("AfriNIC", "APNIC", "ARIN", "LACNIC", "RIPE NCC"):
   handle = rir.split()[0].upper()
@@ -53,12 +54,12 @@ for record in iterate_xml("as-numbers.xml", tag_record):
     
 for record in iterate_xml("ipv4-address-space.xml", tag_record):
   designation = record.findtext(tag_designation)
-  if designation in handles:
-    prefix = record.findtext(tag_prefix)
-    p, l = prefix.split("/")
-    assert l == "8", "Violated /8 assumption: %r" % prefix
-    rirs[handles[designation]] |= resource_bag.from_str("%d.0.0.0/8" % int(p))
-    
+  if record.findtext(tag_status) != "RESERVED":
+    prefix, prefixlen = [int(i) for i in record.findtext(tag_prefix).split("/")]
+    if prefixlen != 8:
+      raise ValueError("%s violated /8 assumption" % record.findtext(tag_prefix))
+    rirs[handles.get(designation, "LEGACY")] |= resource_bag.from_str("%d.0.0.0/8" % prefix)
+
 for record in iterate_xml("ipv6-unicast-address-assignments.xml", tag_record):
   description = record.findtext(tag_description)
   if record.findtext(tag_description) in handles:
@@ -70,8 +71,9 @@ assert all(r in rirs for r, p in erx)
 erx_overrides = resource_bag.from_str(",".join(p for r, p in erx), allow_overlap = True)
 
 for rir in rirs:
-  rirs[rir] -= erx_overrides
-  rirs[rir] |= resource_bag.from_str(",".join(p for r, p in erx if r == rir), allow_overlap = True)
+  if rir != "LEGACY":
+    rirs[rir] -= erx_overrides
+    rirs[rir] |= resource_bag.from_str(",".join(p for r, p in erx if r == rir), allow_overlap = True)
 
 for rir, bag in rirs.iteritems():
   for p in bag.v4:

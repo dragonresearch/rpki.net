@@ -20,7 +20,8 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import sys
 import lxml.etree
-from rpki.csv_utils import csv_writer
+from rpki.csv_utils import csv_reader, csv_writer
+from rpki.resource_set import resource_bag
 
 def iterate_xml(filename, tag):
   return lxml.etree.parse(filename).getroot().getiterator(tag)
@@ -35,9 +36,12 @@ tag_number      = ns("number")
 tag_prefix      = ns("prefix")
 
 handles = {}
+rirs = {}
 
 for rir in ("AfriNIC", "APNIC", "ARIN", "LACNIC", "RIPE NCC"):
-  handles[rir] = handles["Assigned by %s" % rir] = handles["Administered by %s" % rir] = rir.split()[0].upper()
+  handle = rir.split()[0].upper()
+  handles[rir] = handles["Assigned by %s" % rir] = handles["Administered by %s" % rir] = handle
+  rirs[handle] = resource_bag()
 
 asns     = csv_writer("asns.csv")
 prefixes = csv_writer("prefixes.csv")
@@ -53,12 +57,27 @@ for record in iterate_xml("ipv4-address-space.xml", tag_record):
     prefix = record.findtext(tag_prefix)
     p, l = prefix.split("/")
     assert l == "8", "Violated /8 assumption: %r" % prefix
-    prefixes.writerow((handles[designation], "%d.0.0.0/8" % int(p)))
+    rirs[handles[designation]] |= resource_bag.from_str("%d.0.0.0/8" % int(p))
     
 for record in iterate_xml("ipv6-unicast-address-assignments.xml", tag_record):
   description = record.findtext(tag_description)
   if record.findtext(tag_description) in handles:
-    prefixes.writerow((handles[description], record.findtext(tag_prefix)))
+    rirs[handles[description]] |= resource_bag.from_str(record.findtext(tag_prefix))
+
+erx = list(csv_reader("erx.csv"))
+assert all(r in rirs for r, p in erx)
+
+erx_overrides = resource_bag.from_str(",".join(p for r, p in erx), allow_overlap = True)
+
+for rir in rirs:
+  rirs[rir] -= erx_overrides
+  rirs[rir] |= resource_bag.from_str(",".join(p for r, p in erx if r == rir), allow_overlap = True)
+
+for rir, bag in rirs.iteritems():
+  for p in bag.v4:
+    prefixes.writerow((rir, p))
+  for p in bag.v6:
+    prefixes.writerow((rir, p))
 
 asns.close()
 prefixes.close()

@@ -118,6 +118,8 @@ class allocation_db(list):
       self.root.crl_interval = 24 * 60 * 60
     if self.root.regen_margin is None:
       self.root.regen_margin = 24 * 60 * 60
+    if self.root.base.valid_until is None:
+      self.root.base.valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 2)
     for a in self:
       if a.sia_base is None:
         if a.runs_pubd:

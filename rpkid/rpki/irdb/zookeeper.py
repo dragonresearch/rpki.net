@@ -594,6 +594,18 @@ class Zookeeper(object):
 
 
   @django.db.transaction.commit_on_success
+  def delete_rootd(self):
+    """
+    Delete rootd associated with this RPKI entity.
+    """
+
+    try:
+      self.resource_ca.rootd.delete()
+    except rpki.irdb.Rootd.DoesNotExist:
+      self.log("No associated rootd")
+
+
+  @django.db.transaction.commit_on_success
   def configure_publication_client(self, filename, sia_base = None):
     """
     Configure publication server to know about a new client, given the

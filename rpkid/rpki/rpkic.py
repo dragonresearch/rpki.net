@@ -299,6 +299,18 @@ class main(rpki.cli.Cmd):
     return self.irdb_handle_complete(rpki.irdb.Parent, *args)
 
 
+  def do_delete_rootd(self, arg):
+    """
+    Delete rootd associated with this RPKI entity.
+    """
+
+    try:
+      self.zoo.delete_rootd()
+      self.zoo.synchronize()
+    except rpki.irdb.Rootd.DoesNotExist:
+      print "No associated rootd"
+
+
   def do_configure_publication_client(self, arg):
     """
     Configure publication server to know about a new client, given the

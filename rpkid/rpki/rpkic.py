@@ -155,8 +155,8 @@ class main(rpki.cli.Cmd):
       self.stdout.write(" " * 4 + line)
     self.stdout.write("\n")
 
-  def irdb_handle_complete(self, klass, text, line, begidx, endidx):
-    return [obj.handle for obj in klass.objects.all() if obj.handle and obj.handle.startswith(text)]
+  def irdb_handle_complete(self, manager, text, line, begidx, endidx):
+    return [obj.handle for obj in manager.all() if obj.handle and obj.handle.startswith(text)]
 
   def do_select_identity(self, arg):
     """
@@ -169,7 +169,7 @@ class main(rpki.cli.Cmd):
     self.zoo.reset_identity(argv[0])
 
   def complete_select_identity(self, *args):
-    return self.irdb_handle_complete(rpki.irdb.ResourceHolderCA, *args)
+    return self.irdb_handle_complete(rpki.irdb.ResourceHolderCA.objects, *args)
 
 
   def do_initialize(self, arg):
@@ -249,7 +249,7 @@ class main(rpki.cli.Cmd):
       print "No such child \"%s\"" % arg
 
   def complete_delete_child(self, *args):
-    return self.irdb_handle_complete(rpki.irdb.Child, *args)
+    return self.irdb_handle_complete(self.zoo.resource_ca.children, *args)
 
 
   def do_configure_parent(self, arg):
@@ -296,7 +296,7 @@ class main(rpki.cli.Cmd):
       print "No such parent \"%s\"" % arg
 
   def complete_delete_parent(self, *args):
-    return self.irdb_handle_complete(rpki.irdb.Parent, *args)
+    return self.irdb_handle_complete(self.zoo.resource_ca.parents, *args)
 
 
   def do_delete_rootd(self, arg):
@@ -351,7 +351,7 @@ class main(rpki.cli.Cmd):
       print "No such client \"%s\"" % arg
 
   def complete_delete_publication_client(self, *args):
-    return self.irdb_handle_complete(rpki.irdb.Client, *args)
+    return self.irdb_handle_complete(self.zoo.resource_ca.clients, *args)
 
 
   def do_configure_repository(self, arg):
@@ -392,7 +392,7 @@ class main(rpki.cli.Cmd):
       print "No such repository \"%s\"" % arg
 
   def complete_delete_repository(self, *args):
-    return self.irdb_handle_complete(rpki.irdb.Repository, *args)
+    return self.irdb_handle_complete(self.zoo.resource_ca.repositories, *args)
 
 
   def do_delete_self(self, arg):
@@ -423,7 +423,7 @@ class main(rpki.cli.Cmd):
     self.zoo.synchronize(self.zoo.handle)
 
   def complete_renew_child(self, *args):
-    return self.irdb_handle_complete(rpki.irdb.Child, *args)
+    return self.irdb_handle_complete(self.zoo.resource_ca.children, *args)
 
 
   def do_renew_all_children(self, arg):

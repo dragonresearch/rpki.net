@@ -95,7 +95,7 @@ tag_parent           = xmlns + "parent"
 tag_repository       = xmlns + "repository"
 
 def read_element_tree(filename, tag):
-  print "Reading file %s, tag %s\n" % (filename, tag)
+  print "Reading file %s, tag %s" % (filename, tag)
   e = ElementTree(file = filename).getroot()
   rpki.relaxng.myrpki.assertValid(e)
   assert e.tag == tag

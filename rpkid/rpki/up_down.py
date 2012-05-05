@@ -251,14 +251,18 @@ class list_pdu(base_elt):
 
       r_msg.payload = list_response_pdu()
 
-      if irdb_resources.valid_until > rpki.sundial.now():
+      if irdb_resources.valid_until < rpki.sundial.now():
+        rpki.log.debug("Child %s's resources expired %s" % child.child_handle, irdb_resources.valid_until)
+      else:
         for parent in child.parents:
           for ca in parent.cas:
             ca_detail = ca.active_ca_detail
             if not ca_detail:
+              rpki.log.debug("No active ca_detail, can't issue to %s" % child.child_handle)
               continue
             resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
             if resources.empty():
+              rpki.log.debug("No overlap between received resources and what child %s should get ([%s], [%s])" % (child.child_handle, ca_detail.latest_ca_cert.get_3779resources(), irdb_resources))
               continue
             rc = class_elt()
             rc.class_name = str(ca.ca_id)

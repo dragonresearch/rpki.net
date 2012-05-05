@@ -56,18 +56,18 @@ def do_asn(node):
                             find(node, tag_endAsNumber))))
 
 erx_table = {
-  "AF" : "AFRINIC",
-  "AP" : "APNIC",
-  "AR" : "ARIN",
-  "AV" : "ARIN",
-  "FX" : "AFRINIC",
-  "LN" : "LACNIC",
-  "LX" : "LACNIC",
-  "PV" : "APNIC",
-  "PX" : "APNIC",
-  "RN" : "RIPE",
-  "RV" : "RIPE",
-  "RX" : "RIPE" }
+  "AF" : "afrinic",
+  "AP" : "apnic",
+  "AR" : "arin",
+  "AV" : "arin",
+  "FX" : "afrinic",
+  "LN" : "lacnic",
+  "LX" : "lacnic",
+  "PV" : "apnic",
+  "PX" : "apnic",
+  "RN" : "ripe",
+  "RV" : "ripe",
+  "RX" : "ripe" }
 
 def do_net(node):
   handle = find(node, tag_orgHandle)

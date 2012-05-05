@@ -37,10 +37,10 @@ tag_prefix      = ns("prefix")
 tag_status      = ns("status")
 
 handles = {}
-rirs = { "LEGACY" : resource_bag() }
+rirs = { "legacy" : resource_bag() }
 
 for rir in ("AfriNIC", "APNIC", "ARIN", "LACNIC", "RIPE NCC"):
-  handle = rir.split()[0].upper()
+  handle = rir.split()[0].lower()
   handles[rir] = handles["Assigned by %s" % rir] = handles["Administered by %s" % rir] = handle
   rirs[handle] = resource_bag()
 
@@ -58,7 +58,7 @@ for record in iterate_xml("ipv4-address-space.xml", tag_record):
     prefix, prefixlen = [int(i) for i in record.findtext(tag_prefix).split("/")]
     if prefixlen != 8:
       raise ValueError("%s violated /8 assumption" % record.findtext(tag_prefix))
-    rirs[handles.get(designation, "LEGACY")] |= resource_bag.from_str("%d.0.0.0/8" % prefix)
+    rirs[handles.get(designation, "legacy")] |= resource_bag.from_str("%d.0.0.0/8" % prefix)
 
 for record in iterate_xml("ipv6-unicast-address-assignments.xml", tag_record):
   description = record.findtext(tag_description)
@@ -71,7 +71,7 @@ assert all(r in rirs for r, p in erx)
 erx_overrides = resource_bag.from_str(",".join(p for r, p in erx), allow_overlap = True)
 
 for rir in rirs:
-  if rir != "LEGACY":
+  if rir != "legacy":
     rirs[rir] -= erx_overrides
     rirs[rir] |= resource_bag.from_str(",".join(p for r, p in erx if r == rir), allow_overlap = True)
 

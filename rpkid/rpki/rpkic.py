@@ -455,7 +455,7 @@ class main(rpki.cli.Cmd):
     if len(argv) != 1:
       raise BadCommandSyntax("Need to specify prefixes.csv filename")
 
-    self.zoo.load_prefixes(argv[0])
+    self.zoo.load_prefixes(argv[0], True)
     self.zoo.synchronize(self.zoo.handle)
 
 
@@ -489,7 +489,7 @@ class main(rpki.cli.Cmd):
     if len(argv) != 1:
       raise BadCommandSyntax("Need to specify asns.csv filename")
 
-    self.zoo.load_asns(argv[0])
+    self.zoo.load_asns(argv[0], True)
     self.zoo.synchronize(self.zoo.handle)
 
 

@@ -786,7 +786,7 @@ class Zookeeper(object):
 
 
   @django.db.transaction.commit_on_success
-  def load_prefixes(self, filename):
+  def load_prefixes(self, filename, ignore_missing_children = False):
     """
     Whack IRDB to match prefixes.csv.
     """
@@ -805,14 +805,19 @@ class Zookeeper(object):
     for version, grouped, rset in ((4, grouped4, rpki.resource_set.resource_set_ipv4),
                                    (6, grouped6, rpki.resource_set.resource_set_ipv6)):
       for handle, prefixes in grouped.iteritems():
-        child = self.resource_ca.children.get(handle = handle)
-        for prefix in rset(",".join(prefixes)):
-          obj, created = rpki.irdb.ChildNet.objects.get_or_create(
-            child    = child,
-            start_ip = str(prefix.min),
-            end_ip   = str(prefix.max),
-            version  = version)
-          primary_keys.append(obj.pk)
+        try:
+          child = self.resource_ca.children.get(handle = handle)
+        except rpki.irdb.Child.DoesNotExist:
+          if not ignore_missing_children:
+            raise
+        else:
+          for prefix in rset(",".join(prefixes)):
+            obj, created = rpki.irdb.ChildNet.objects.get_or_create(
+              child    = child,
+              start_ip = str(prefix.min),
+              end_ip   = str(prefix.max),
+              version  = version)
+            primary_keys.append(obj.pk)
 
     q = rpki.irdb.ChildNet.objects
     q = q.filter(child__issuer__exact = self.resource_ca)
@@ -821,7 +826,7 @@ class Zookeeper(object):
 
 
   @django.db.transaction.commit_on_success
-  def load_asns(self, filename):
+  def load_asns(self, filename, ignore_missing_children = False):
     """
     Whack IRDB to match asns.csv.
     """
@@ -836,13 +841,18 @@ class Zookeeper(object):
     primary_keys = []
 
     for handle, asns in grouped.iteritems():
-      child = self.resource_ca.children.get(handle = handle)
-      for asn in rpki.resource_set.resource_set_as(",".join(asns)):
-        obj, created = rpki.irdb.ChildASN.objects.get_or_create(
-          child    = child,
-          start_as = str(asn.min),
-          end_as   = str(asn.max))
-        primary_keys.append(obj.pk)
+      try:
+        child = self.resource_ca.children.get(handle = handle)
+      except rpki.irdb.Child.DoesNotExist:
+        if not ignore_missing_children:
+          raise
+      else:
+        for asn in rpki.resource_set.resource_set_as(",".join(asns)):
+          obj, created = rpki.irdb.ChildASN.objects.get_or_create(
+            child    = child,
+            start_as = str(asn.min),
+            end_as   = str(asn.max))
+          primary_keys.append(obj.pk)
 
     q = rpki.irdb.ChildASN.objects
     q = q.filter(child__issuer__exact = self.resource_ca)

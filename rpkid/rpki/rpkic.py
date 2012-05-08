@@ -104,6 +104,7 @@ class main(rpki.cli.Cmd):
 
     cfg = rpki.config.parser(cfg_file, "myrpki")
     cfg.set_global_flags()
+    self.histfile = cfg.get("history_file", ".rpkic_history")
 
     from django.conf import settings
 

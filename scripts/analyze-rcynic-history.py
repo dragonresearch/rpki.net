@@ -230,9 +230,10 @@ else:
 sessions = []
 
 latest = None
+parsed = 0
 
 for i, key in enumerate(mb.iterkeys(), 1):
-  sys.stderr.write("\r%s %d/%d..." % ("|\\-/"[i & 3], i, len(mb)))
+  sys.stderr.write("\r%s %d/%d/%d..." % ("|\\-/"[i & 3], parsed, i, len(mb)))
 
   if key in shelf:
     session = shelf[key]
@@ -250,6 +251,7 @@ for i, key in enumerate(mb.iterkeys(), 1):
         session.add_uri(elt.text.strip())
     session.finalize()
     shelf[key] = session
+    parsed += 1
 
   sessions.append(session)
   if latest is None or session.session_id > latest.session_id:
@@ -272,7 +274,7 @@ if plot_all_hosts:
 else:
   hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net",
                "rpki.afrinic.net", "rpki-pilot.arin.net",
-               "arin.rpki.net", "rgnet.rpki.net")
+               "arin.rpki.net", "repo0.rpki.net", "rgnet.rpki.net")
 
 plot_hosts(hostnames, [fmt.attr for fmt in Host.format if fmt.attr != "hostname"])
 

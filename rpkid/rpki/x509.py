@@ -1380,19 +1380,27 @@ class DeadDrop(object):
   """
 
   def __init__(self, name):
-    self.maildir = mailbox.Maildir(name, factory = None, create = True)
+    self.name = name
     self.pid = os.getpid()
+    self.maildir = mailbox.Maildir(name, factory = None, create = True)
+    self.warned = False
 
   def dump(self, obj):
-    now = time.time()
-    msg = email.mime.application.MIMEApplication(obj.get_DER(), "x-rpki")
-    msg["Date"] = email.utils.formatdate(now)
-    msg["Subject"] = "Process %s dump of %r" % (self.pid, obj)
-    msg["Message-ID"] = email.utils.make_msgid()
-    msg["X-RPKI-PID"] = str(self.pid)
-    msg["X-RPKI-Object"] = repr(obj)
-    msg["X-RPKI-Timestamp"] = "%f" % now
-    self.maildir.add(msg)
+    try:
+      now = time.time()
+      msg = email.mime.application.MIMEApplication(obj.get_DER(), "x-rpki")
+      msg["Date"] = email.utils.formatdate(now)
+      msg["Subject"] = "Process %s dump of %r" % (self.pid, obj)
+      msg["Message-ID"] = email.utils.make_msgid()
+      msg["X-RPKI-PID"] = str(self.pid)
+      msg["X-RPKI-Object"] = repr(obj)
+      msg["X-RPKI-Timestamp"] = "%f" % now
+      self.maildir.add(msg)
+      self.warned = False
+    except OSError, e:
+      if not self.warned:
+        rpki.log.warn("Could not write to mailbox %s: %e" % (self.name, e))
+        self.warned = True
 
 class XML_CMS_object(CMS_object):
   """

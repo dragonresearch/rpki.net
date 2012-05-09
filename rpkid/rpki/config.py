@@ -249,11 +249,15 @@ class parser(object):
 
     try:
       rpki.x509.XML_CMS_object.dump_outbound_cms = rpki.x509.DeadDrop(self.get("dump_outbound_cms"))
+    except OSError, e:
+      rpki.log.warn("Couldn't initialize mailbox %s: %s" % (self.get("dump_outbound_cms"), e))
     except ConfigParser.NoOptionError:
       pass
 
     try:
       rpki.x509.XML_CMS_object.dump_inbound_cms = rpki.x509.DeadDrop(self.get("dump_inbound_cms"))
+    except OSError, e:
+      rpki.log.warn("Couldn't initialize mailbox %s: %s" % (self.get("dump_inbound_cms"), e))
     except ConfigParser.NoOptionError:
       pass
 

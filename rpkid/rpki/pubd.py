@@ -2,12 +2,14 @@
 RPKI publication engine.
 
 Usage: python pubd.py [ { -c | --config } configfile ]
+                      [ { -d | --debug } ]
+                      [ { -f | --foreground } ]
                       [ { -h | --help } ]
                       [ { -p | --profile } outputfile ]
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -36,10 +38,22 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, time, getopt, sys, re
-import rpki.resource_set, rpki.up_down, rpki.x509, rpki.sql
-import rpki.http, rpki.config, rpki.exceptions, rpki.relaxng
-import rpki.log, rpki.publication
+import os
+import time
+import getopt
+import sys
+import re
+import rpki.resource_set
+import rpki.up_down
+import rpki.x509
+import rpki.sql
+import rpki.http
+import rpki.config
+import rpki.exceptions
+import rpki.relaxng
+import rpki.log
+import rpki.publication
+import rpki.daemonize
 
 class main(object):
   """
@@ -53,8 +67,10 @@ class main(object):
 
     self.cfg_file = None
     self.profile = False
+    self.foreground = False
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:dhp:?", ["config=", "debug", "help"])
+    opts, argv = getopt.getopt(sys.argv[1:], "c:dfhp:?",
+                               ["config=", "debug", "foreground", "help", "profile="])
     for o, a in opts:
       if o in ("-h", "--help", "-?"):
         print __doc__
@@ -63,12 +79,21 @@ class main(object):
         self.cfg_file = a
       elif o in ("-d", "--debug"):
         rpki.log.use_syslog = False
+        self.foreground = True
+      elif o in ("-f", "--foreground"):
+        self.foreground = True
       elif o in ("-p", "--profile"):
         self.profile = a
     if argv:
       raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
 
     rpki.log.init("pubd")
+
+    self.cfg = rpki.config.parser(self.cfg_file, "pubd")
+    self.cfg.set_global_flags()
+
+    if not self.foreground:
+      rpki.daemonize.daemon()
 
     if self.profile:
       import cProfile
@@ -78,12 +103,8 @@ class main(object):
 
   def main(self):
 
-    self.cfg = rpki.config.parser(self.cfg_file, "pubd")
-
     if self.profile:
       rpki.log.info("Running in profile mode with output to %s" % self.profile)
-
-    self.cfg.set_global_flags()
 
     self.sql = rpki.sql.session(self.cfg)
 

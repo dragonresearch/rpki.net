@@ -1,7 +1,10 @@
 """
 IR database daemon.
 
-Usage: python irdbd.py [ { -c | --config } configfile ] [ { -h | --help } ]
+Usage: python irdbd.py [ { -c | --config } configfile ]
+                       [ { -d | --debug } ]
+                       [ { -f | --foreground } ]
+                       [ { -h | --help } ]
 
 $Id$
 
@@ -34,9 +37,21 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, time, getopt, urlparse, warnings
-import rpki.http, rpki.config, rpki.resource_set, rpki.relaxng
-import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
+import sys
+import os
+import time
+import getopt
+import urlparse
+import warnings
+import rpki.http
+import rpki.config
+import rpki.resource_set
+import rpki.relaxng
+import rpki.exceptions
+import rpki.left_right
+import rpki.log
+import rpki.x509
+import rpki.daemonize
 
 class main(object):
 
@@ -127,8 +142,9 @@ class main(object):
     time.tzset()
 
     cfg_file = None
+    foreground = False
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:dh?", ["config=", "debug", "help"])
+    opts, argv = getopt.getopt(sys.argv[1:], "c:dfh?", ["config=", "debug", "foreground", "help"])
     for o, a in opts:
       if o in ("-h", "--help", "-?"):
         print __doc__
@@ -137,18 +153,23 @@ class main(object):
         cfg_file = a
       elif o in ("-d", "--debug"):
         rpki.log.use_syslog = False
+        foreground = True
+      elif o in ("-f", "--foreground"):
+        foreground = True
     if argv:
       raise rpki.exceptions.CommandParseFailure("Unexpected arguments %s" % argv)
 
     rpki.log.init("irdbd")
 
     cfg = rpki.config.parser(cfg_file, "irdbd")
+    cfg.set_global_flags()
+
+    if not foreground:
+      rpki.daemonize.daemon()
 
     startup_msg = cfg.get("startup-message", "")
     if startup_msg:
       rpki.log.info(startup_msg)
-
-    cfg.set_global_flags()
 
     # Do -not- turn on DEBUG here except for short-lived tests,
     # otherwise irdbd will eventually run out of memory and crash.

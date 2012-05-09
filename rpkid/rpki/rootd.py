@@ -3,7 +3,10 @@ Trivial RPKI up-down protocol root server, for testing.  Not suitable
 for production use.  Overrides a bunch of method definitions from the
 rpki.* classes in order to reuse as much code as possible.
 
-Usage: python rootd.py [ { -c | --config } configfile ] [ { -h | --help } ]
+Usage: python rootd.py [ { -c | --config } configfile ]
+                       [ { -d | --debug } ]
+                       [ { -f | --foreground } ]
+                       [ { -h | --help } ]
 
 $Id$
 
@@ -36,10 +39,22 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, time, getopt, sys
-import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
-import rpki.http, rpki.config, rpki.exceptions, rpki.relaxng
-import rpki.sundial, rpki.log, rpki.oids
+import os
+import time
+import getopt
+import sys
+import rpki.resource_set
+import rpki.up_down
+import rpki.left_right
+import rpki.x509
+import rpki.http
+import rpki.config
+import rpki.exceptions
+import rpki.relaxng
+import rpki.sundial
+import rpki.log
+import rpki.oids
+import rpki.daemonize
 
 rootd = None
 
@@ -104,10 +119,10 @@ class main(object):
     self.rpki_root_cert = rpki.x509.X509(Auto_file = self.rpki_root_cert_file)
 
   def root_newer_than_subject(self):
-    return os.stat(self.rpki_root_cert_file).st_mtime > os.stat(self.rpki_root_dir + self.rpki_subject_cert).st_mtime
+    return os.stat(self.rpki_root_cert_file).st_mtime > os.stat(os.path.join(self.rpki_root_dir, self.rpki_subject_cert)).st_mtime
 
   def get_subject_cert(self):
-    filename = self.rpki_root_dir + self.rpki_subject_cert
+    filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
     try:
       x = rpki.x509.X509(Auto_file = filename)
       rpki.log.debug("Read subject cert %s" % filename)
@@ -116,14 +131,14 @@ class main(object):
       return None
 
   def set_subject_cert(self, cert):
-    filename = self.rpki_root_dir + self.rpki_subject_cert
+    filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
     rpki.log.debug("Writing subject cert %s, SKI %s" % (filename, cert.hSKI()))
     f = open(filename, "wb")
     f.write(cert.get_DER())
     f.close()
 
   def del_subject_cert(self):
-    filename = self.rpki_root_dir + self.rpki_subject_cert
+    filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
     rpki.log.debug("Deleting subject cert %s" % filename)
     os.remove(filename)
 
@@ -199,8 +214,8 @@ class main(object):
       thisUpdate          = now,
       nextUpdate          = now + self.rpki_subject_lifetime,
       revokedCertificates = self.revoked)
-    rpki.log.debug("Writing CRL %s" % (self.rpki_root_dir + self.rpki_root_crl))
-    f = open(self.rpki_root_dir + self.rpki_root_crl, "wb")
+    rpki.log.debug("Writing CRL %s" % os.path.join(self.rpki_root_dir, self.rpki_root_crl))
+    f = open(os.path.join(self.rpki_root_dir, self.rpki_root_crl), "wb")
     f.write(crl.get_DER())
     f.close()
     manifest_content = [(self.rpki_root_crl, crl)]
@@ -226,8 +241,8 @@ class main(object):
       names_and_objs = manifest_content,
       keypair        = manifest_keypair,
       certs          = manifest_cert)
-    rpki.log.debug("Writing manifest %s" % (self.rpki_root_dir + self.rpki_root_manifest))
-    f = open(self.rpki_root_dir + self.rpki_root_manifest, "wb")
+    rpki.log.debug("Writing manifest %s" % os.path.join(self.rpki_root_dir, self.rpki_root_manifest))
+    f = open(os.path.join(self.rpki_root_dir, self.rpki_root_manifest), "wb")
     f.write(manifest.get_DER())
     f.close()
 
@@ -277,7 +292,7 @@ class main(object):
   def next_crl_number(self):
     if self.crl_number is None:
       try:
-        crl = rpki.x509.CRL(DER_file = self.rpki_root_dir + self.rpki_root_crl)
+        crl = rpki.x509.CRL(DER_file = os.path.join(self.rpki_root_dir, self.rpki_root_crl))
         self.crl_number = crl.get_POWpkix().getExtension(rpki.oids.name2oid["cRLNumber"])[2]
       except:
         self.crl_number = 0
@@ -305,13 +320,14 @@ class main(object):
     self.serial_number = None
     self.crl_number = None
     self.revoked = []
+    self.foreground = False
 
     os.environ["TZ"] = "UTC"
     time.tzset()
 
     self.cfg_file = None
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:dh?", ["config=", "debug", "help"])
+    opts, argv = getopt.getopt(sys.argv[1:], "c:dfh?", ["config=", "debug", "foreground", "help"])
     for o, a in opts:
       if o in ("-h", "--help", "-?"):
         print __doc__
@@ -320,16 +336,20 @@ class main(object):
         self.cfg_file = a
       elif o in ("-d", "--debug"):
         rpki.log.use_syslog = False
+        self.foreground = True
+      elif o in ("-f", "--foreground"):
+        self.foreground = True
+
     if argv:
       raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
 
     rpki.log.init("rootd")
 
     self.cfg = rpki.config.parser(self.cfg_file, "rootd")
-
-    rpki.log.enable_tracebacks = True
-
     self.cfg.set_global_flags()
+
+    if not self.foreground:
+      rpki.daemonize.daemon()
 
     self.bpki_ta                 = rpki.x509.X509(Auto_update = self.cfg.get("bpki-ta"))
     self.rootd_bpki_key          = rpki.x509.RSA( Auto_update = self.cfg.get("rootd-bpki-key"))

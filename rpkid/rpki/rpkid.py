@@ -2,12 +2,14 @@
 RPKI engine daemon.
 
 Usage: python rpkid.py [ { -c | --config } configfile ]
+                       [ { -d | --debug } ]
+                       [ { -f | --foreground } ]
                        [ { -h | --help } ]
                        [ { -p | --profile } outputfile ]
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -36,9 +38,25 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, time, getopt, sys, lxml.etree, re, random
-import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
-import rpki.http, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log, rpki.async
+import os
+import time
+import getopt
+import sys
+import lxml.etree
+import re
+import random
+import rpki.resource_set
+import rpki.up_down
+import rpki.left_right
+import rpki.x509
+import rpki.sql
+import rpki.http
+import rpki.config
+import rpki.exceptions
+import rpki.relaxng
+import rpki.log
+import rpki.async
+import rpki.daemonize
 
 class main(object):
   """
@@ -52,14 +70,19 @@ class main(object):
 
     self.cfg_file = None
     self.profile = None
+    self.foreground = False
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:dhp:?", ["config=", "debug", "help", "profile="])
+    opts, argv = getopt.getopt(sys.argv[1:], "c:dfhp:?",
+                               ["config=", "debug", "foreground", "help", "profile="])
     for o, a in opts:
       if o in ("-h", "--help", "-?"):
         print __doc__
         sys.exit(0)
       elif o in ("-d", "--debug"):
         rpki.log.use_syslog = False
+        self.foreground = True
+      elif o in ("-f", "--foreground"):
+        self.foreground = True
       elif o in ("-c", "--config"):
         self.cfg_file = a
       elif o in ("-p", "--profile"):
@@ -69,6 +92,12 @@ class main(object):
 
     rpki.log.init("rpkid")
 
+    self.cfg = rpki.config.parser(self.cfg_file, "rpkid")
+    self.cfg.set_global_flags()
+
+    if not self.foreground:
+      rpki.daemonize.daemon()
+
     if self.profile:
       import cProfile
       cProfile.run("self.main()", self.profile)
@@ -77,16 +106,12 @@ class main(object):
 
   def main(self):
 
-    self.cfg = rpki.config.parser(self.cfg_file, "rpkid")
-
     startup_msg = self.cfg.get("startup-message", "")
     if startup_msg:
       rpki.log.info(startup_msg)
 
     if self.profile:
       rpki.log.info("Running in profile mode with output to %s" % self.profile)
-
-    self.cfg.set_global_flags()
 
     self.sql = rpki.sql.session(self.cfg)
 

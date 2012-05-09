@@ -195,7 +195,12 @@ class parser(object):
     its data is less silly than the available alternatives.
     """
 
-    import rpki.http, rpki.x509, rpki.sql, rpki.async, rpki.log
+    import rpki.http
+    import rpki.x509
+    import rpki.sql
+    import rpki.async
+    import rpki.log
+    import rpki.daemonize
 
     try:
       rpki.http.debug_http = self.getboolean("debug_http")
@@ -268,5 +273,15 @@ class parser(object):
 
     try:
       rpki.log.enable_tracebacks = self.getboolean("enable_tracebacks")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
+      rpki.daemonize.default_pid_directory = self.get("pid_directory")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
+      rpki.daemonize.pid_filename = self.get("pid_filename")
     except ConfigParser.NoOptionError:
       pass

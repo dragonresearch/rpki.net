@@ -1397,7 +1397,7 @@ class DeadDrop(object):
       msg["X-RPKI-Timestamp"] = "%f" % now
       self.maildir.add(msg)
       self.warned = False
-    except OSError, e:
+    except Exception, e:
       if not self.warned:
         rpki.log.warn("Could not write to mailbox %s: %e" % (self.name, e))
         self.warned = True

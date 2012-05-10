@@ -1260,11 +1260,6 @@ class Zookeeper(object):
         pubd_query.extend(rpki.publication.client_elt.make_pdu(
             action = "destroy", client_handle = p) for p in client_pdus)
 
-      # Poke rpkid to run immediately for any requested handles.
-
-      rpkid_query.extend(rpki.left_right.self_elt.make_pdu(
-        action = "set", self_handle = h, run_now = "yes") for h in handles_to_poke)
-
       # If we changed anything, ship updates off to daemons
 
       if rpkid_query:
@@ -1279,8 +1274,8 @@ class Zookeeper(object):
         pubd_reply = self.call_pubd(*pubd_query)
         self.check_error_report(pubd_reply)
 
-    # Finally, clean up any <self/> objects rpkid might be holding
-    # that don't match ResourceCA object.
+    # Clean up any <self/> objects rpkid might be holding that don't
+    # match a ResourceCA object.
 
     rpkid_reply = self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "list"))
     self.check_error_report(rpkid_reply)
@@ -1291,5 +1286,12 @@ class Zookeeper(object):
 
     rpkid_query = [rpki.left_right.self_elt.make_pdu(action = "destroy", self_handle = handle)
                    for handle in (self_handles - ca_handles)]
-    rpkid_reply = self.call_rpkid(*rpkid_query)
-    self.check_error_report(rpkid_reply)
+
+    # Poke rpkid to run immediately for any requested handles.
+
+    rpkid_query.extend(rpki.left_right.self_elt.make_pdu(
+      action = "set", self_handle = h, run_now = "yes") for h in handles_to_poke)
+
+    if rpkid_query:
+      rpkid_reply = self.call_rpkid(*rpkid_query)
+      self.check_error_report(rpkid_reply)

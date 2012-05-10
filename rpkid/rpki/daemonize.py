@@ -62,6 +62,7 @@ import sys
 import os
 import atexit
 import signal
+import rpki.log
 
 # Does default_pid_directory need to be autoconf-configurable?
 
@@ -123,7 +124,10 @@ def daemon(nochdir = False, noclose = False, pidfile = None):
       pass
 
   atexit.register(delete_pid_file)
-  
-  f = open(pidfile, "w")
-  f.write("%d\n" % os.getpid())
-  f.close()
+
+  try:
+    f = open(pidfile, "w")
+    f.write("%d\n" % os.getpid())
+    f.close()
+  except IOError, e:
+    rpki.log.warn("Couldn't write PID file %s: %s" % (pidfile, e.strerror))

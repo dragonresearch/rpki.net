@@ -46,22 +46,22 @@ class Host(object):
   A host object represents all the data collected for one host for a given session.
   """
 
-  def __init__(self, hostname, session_timestamp):
+  def __init__(self, hostname, timestamp):
     self.hostname = hostname
-    self.session_timestamp = session_timestamp
+    self.timestamp = timestamp
     self.elapsed = 0
-    self.connection_count = 0
-    self.dead_connections = 0
+    self.conn_count = 0
+    self.dead_conns = 0
     self.uris = set()
-    self.total_connection_time = 0
+    self.total_conn_time = 0
 
   def add_connection(self, elt):
     elapsed = parse_utc(elt.get("finished")) - parse_utc(elt.get("started"))
-    self.connection_count      += 1
-    self.elapsed               += elapsed
-    self.total_connection_time += elapsed
+    self.conn_count += 1
+    self.elapsed += elapsed
+    self.total_conn_time += elapsed
     if elt.get("error") is not None:
-      self.dead_connections    += 1
+      self.dead_conns += 1
 
   def add_object_uri(self, u):
     self.uris.add(u)
@@ -70,8 +70,8 @@ class Host(object):
     self.object_count = len(self.uris)
     del self.uris
 
-  def safe_division(self, numerator, denominator):
-    if self.failed:
+  def safe_division(self, numerator, denominator, ignore_failed = True):
+    if ignore_failed and self.failed:
       return "U"
     try:
       return float(numerator) / float(denominator)
@@ -80,30 +80,40 @@ class Host(object):
 
   @property
   def failed(self):
-    return 1 if self.dead_connections else 0
+    return 1 if self.dead_conns else 0
 
   @property
-  def seconds_per_object(self):
+  def secs_per_obj(self):
     return self.safe_division(self.elapsed, self.object_count)
 
   @property
-  def objects_per_connection(self):
-    return self.safe_division(self.object_count, self.connection_count)
+  def objs_per_conn(self):
+    return self.safe_division(self.object_count, self.conn_count)
 
   @property
-  def average_connection_time(self):
-    return self.safe_division(self.total_connection_time, self.connection_count)
+  def avg_conn_time(self):
+    return self.safe_division(self.total_conn_time, self.conn_count)
+
+  field_table = (("timestamp",          None),
+                 ("conn_count",         "ABSOLUTE"),
+                 ("object_count",       "ABSOLUTE"),
+                 ("objs_per_conn",      "ABSOLUTE"),
+                 ("secs_per_obj",       "ABSOLUTE"),
+                 ("avg_conn_time",      "ABSOLUTE"),
+                 ("failed",             "ABSOLUTE"))
+
+  @property
+  def field_values(self):
+    return tuple(str(getattr(self, field[0])) for field in self.field_table)
+
+  @classmethod
+  def field_ds_specifiers(cls, heartbeat = 24 * 60 * 60, minimum = 0, maximum = "U"):
+    return ["DS:%s:%s:%s:%s:%s" % (field[0], field[1], heartbeat, minimum, maximum)
+            for field in cls.field_table if field[1] is not None]
 
   def save(self, rrdtable):
     self.finalize()
-    rrdtable.add(self.hostname,
-                 (self.session_timestamp,
-                  self.connection_count,
-                  self.object_count,
-                  self.objects_per_connection,
-                  self.seconds_per_object,
-                  self.average_connection_time,
-                  self.failed))
+    rrdtable.add(self.hostname, self.field_values)
 
 class Session(dict):
   """
@@ -111,8 +121,8 @@ class Session(dict):
   objects, keyed by hostname.
   """
 
-  def __init__(self, session_timestamp):
-    self.session_timestamp = session_timestamp
+  def __init__(self, timestamp):
+    self.timestamp = timestamp
 
   @property
   def hostnames(self):
@@ -121,7 +131,7 @@ class Session(dict):
   def add_connection(self, elt):
     hostname = urlparse.urlparse(elt.text.strip()).hostname
     if hostname not in self:
-      self[hostname] = Host(hostname, self.session_timestamp)
+      self[hostname] = Host(hostname, self.timestamp)
     self[hostname].add_connection(elt)
 
   def add_object_uri(self, u):
@@ -150,12 +160,24 @@ class RRDTable(dict):
     for data in self.itervalues():
       data.sort()
 
+  @property
+  def oldest(self):
+    return min(min(datum[0] for datum in data) for data in self.itervalues())
+
+  rras = tuple("RRA:AVERAGE:0.5:%s:9600" % steps for steps in (1, 4, 24))
+
+  def create(self):
+    start = self.oldest
+    ds_list = Host.field_ds_specifiers()
+    ds_list.extend(self.rras)
+    for hostname in self:
+      print "rrdtool create %s.rrd --start %s --step 3600 %s" % (hostname, start, " ".join(ds_list))
+
   def save(self):
     for hostname, data in self.iteritems():
       for datum in data:
         print "rrdtool update %s.rrd %s" % (hostname, ":".join(str(d) for d in datum))
 
-      
 mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
 
 rrdtable = RRDTable()
@@ -184,5 +206,6 @@ sys.stderr.write("\n")
 print
 print
 
+rrdtable.create()
 rrdtable.sort()
 rrdtable.save()

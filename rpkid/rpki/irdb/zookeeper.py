@@ -952,6 +952,33 @@ class Zookeeper(object):
       action = "set", self_handle = self.handle, publish_world_now = "yes"))
 
 
+  def reissue(self):
+    """
+    Poke rpkid to reissue everything for the current handle.
+    """
+
+    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
+      action = "set", self_handle = self.handle, reissue = "yes"))
+
+  def rekey(self):
+    """
+    Poke rpkid to rekey all RPKI certificates received for the current
+    handle.
+    """
+
+    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
+      action = "set", self_handle = self.handle, rekey = "yes"))
+
+
+  def revoke(self):
+    """
+    Poke rpkid to revoke old RPKI keys for the current handle.
+    """
+
+    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
+      action = "set", self_handle = self.handle, revoke = "yes"))
+
+
   def call_pubd(self, *pdus):
     """
     Issue a call to pubd, return result.

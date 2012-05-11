@@ -536,3 +536,50 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
 
     self.zoo.publish_world_now()
+
+
+  def do_force_reissue(self, arg):
+    """
+    Whack rpkid to force reissuance of everything.
+
+    This is not usually necessary, as rpkid reissues automatically
+    objects automatically as needed, but this command can be useful
+    occasionally when a fault or configuration error has prevented
+    rpkid from reissuing when it should have.
+    """
+
+    if arg:
+      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+
+    self.zoo.reissue()
+
+
+  def do_up_down_rekey(self, arg):
+    """
+    Initiate a "rekey" operation: tell rpkid to generate new keys for
+    each certificate issued to it via the up-down protocol.
+
+    This is the first stage of a key rollover operation.  You will
+    need to follow it up later with a "revoke" operation to clean up
+    the old keys
+    """
+
+    if arg:
+      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+
+    self.zoo.rekey()
+
+
+  def do_up_down_revoke(self, arg):
+    """
+    Initiate a "revoke" operation: tell rpkid to clean up old keys
+    formerly used by certificiates issued to it via the up-down
+    protocol.
+
+    This is the cleanup stage of a key rollover operation.
+    """
+
+    if arg:
+      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+
+    self.zoo.revoke()

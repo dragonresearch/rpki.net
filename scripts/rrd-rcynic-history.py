@@ -94,13 +94,13 @@ class Host(object):
   def avg_conn_time(self):
     return self.safe_division(self.total_conn_time, self.conn_count)
 
-  field_table = (("timestamp",          None),
-                 ("conn_count",         "ABSOLUTE"),
-                 ("object_count",       "ABSOLUTE"),
-                 ("objs_per_conn",      "ABSOLUTE"),
-                 ("secs_per_obj",       "ABSOLUTE"),
-                 ("avg_conn_time",      "ABSOLUTE"),
-                 ("failed",             "ABSOLUTE"))
+  field_table = (("timestamp",          None,           None,                   None),
+                 ("conn_count",         "GAUGE",        "Connections",          "FF0000"),
+                 ("object_count",       "GAUGE",        "Objects",              "00FF00"),
+                 ("objs_per_conn",      "GAUGE",        "Objects/Connection",   "0000FF"),
+                 ("secs_per_obj",       "GAUGE",        "Seconds/Object",       "FFFF00"),
+                 ("avg_conn_time",      "GAUGE",        "Connection Time",      "FF00FF"),
+                 ("failed",             "GAUGE",        "Failed",               "00FFFF"))
 
   @property
   def field_values(self):
@@ -110,6 +110,15 @@ class Host(object):
   def field_ds_specifiers(cls, heartbeat = 24 * 60 * 60, minimum = 0, maximum = "U"):
     return ["DS:%s:%s:%s:%s:%s" % (field[0], field[1], heartbeat, minimum, maximum)
             for field in cls.field_table if field[1] is not None]
+
+  @classmethod
+  def field_graph_specifiers(cls, hostname):
+    result = []
+    for field in cls.field_table:
+      if field[1] is not None:
+        result.append("DEF:%s=%s.rrd:%s:AVERAGE" % (field[0], hostname, field[0]))
+        result.append("'LINE1:%s#%s:%s'" % (field[0], field[3], field[2]))
+    return result
 
   def save(self, rrdtable):
     self.finalize()
@@ -173,10 +182,17 @@ class RRDTable(dict):
     for hostname in self:
       print "rrdtool create %s.rrd --start %s --step 3600 %s" % (hostname, start, " ".join(ds_list))
 
-  def save(self):
+  def update(self):
     for hostname, data in self.iteritems():
       for datum in data:
         print "rrdtool update %s.rrd %s" % (hostname, ":".join(str(d) for d in datum))
+
+  def graph(self):
+    #
+    # Yes, I am making this up as I go, thanks for asking
+    #
+    for hostname in self:
+      print "rrdtool graph %s.png --start -1y %s" % (hostname, " ".join(Host.field_graph_specifiers(hostname)))
 
 mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
 
@@ -198,8 +214,7 @@ for i, key in enumerate(mb.iterkeys(), 1):
   session.save(rrdtable)
 
   # XXX
-  if i > 4:
-    break
+  #if i > 4: break
 
 sys.stderr.write("\n")
 
@@ -208,4 +223,5 @@ print
 
 rrdtable.create()
 rrdtable.sort()
-rrdtable.save()
+rrdtable.update()
+rrdtable.graph()

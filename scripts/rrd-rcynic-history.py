@@ -74,7 +74,7 @@ class Host(object):
   field_table = (("timestamp",          None,           None,                   None),
                  ("connections",        "GAUGE",        "Connections",          "FF0000"),
                  ("objects",            "GAUGE",        "Objects",              "00FF00"),
-                 ("elapsed",            "GAGUE",        "Fetch Time",           "0000FF"),
+                 ("elapsed",            "GAUGE",        "Fetch Time",           "0000FF"),
                  ("failed",             "ABSOLUTE",     "Failed",               "00FFFF"))
 
   @property
@@ -105,6 +105,7 @@ class Session(dict):
   """
 
   def __init__(self, timestamp):
+    dict.__init__(self)
     self.timestamp = timestamp
 
   @property
@@ -134,6 +135,10 @@ class RRDTable(dict):
   of the maildir too once we're dealing with current data.  We'll see.
   """
 
+  def __init__(self, rrdtool = sys.stdout):
+    dict.__init__(self)
+    self.rrdtool = rrdtool
+
   def add(self, hostname, data):
     if hostname not in self:
       self[hostname] = []
@@ -154,16 +159,17 @@ class RRDTable(dict):
     ds_list = Host.field_ds_specifiers()
     ds_list.extend(self.rras)
     for hostname in self:
-      print "rrdtool create %s.rrd --start %s --step 3600 %s" % (hostname, start, " ".join(ds_list))
+      if not os.path.exists("%s.rrd" % hostname):
+        self.rrdtool("create %s.rrd --start %s --step 3600 %s\n" % (hostname, start, " ".join(ds_list)))
 
   def update(self):
     for hostname, data in self.iteritems():
       for datum in data:
-        print "rrdtool update %s.rrd %s" % (hostname, ":".join(str(d) for d in datum))
+        self.rrdtool("update %s.rrd %s\n" % (hostname, ":".join(str(d) for d in datum)))
 
   def graph(self):
     for hostname in self:
-      print "rrdtool graph %s.png --start -90d %s" % (hostname, " ".join(Host.field_graph_specifiers(hostname)))
+      self.rrdtool("graph %s.png --start -90d %s\n" % (hostname, " ".join(Host.field_graph_specifiers(hostname))))
 
 mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
 
@@ -188,9 +194,6 @@ for i, key in enumerate(mb.iterkeys(), 1):
   #if i > 4: break
 
 sys.stderr.write("\n")
-
-print
-print
 
 rrdtable.create()
 rrdtable.sort()

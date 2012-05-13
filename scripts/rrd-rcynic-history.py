@@ -50,57 +50,32 @@ class Host(object):
     self.hostname = hostname
     self.timestamp = timestamp
     self.elapsed = 0
-    self.conn_count = 0
-    self.dead_conns = 0
+    self.connections = 0
+    self.failures = 0
     self.uris = set()
-    self.total_conn_time = 0
 
   def add_connection(self, elt):
-    elapsed = parse_utc(elt.get("finished")) - parse_utc(elt.get("started"))
-    self.conn_count += 1
-    self.elapsed += elapsed
-    self.total_conn_time += elapsed
+    self.elapsed += parse_utc(elt.get("finished")) - parse_utc(elt.get("started"))
+    self.connections += 1
     if elt.get("error") is not None:
-      self.dead_conns += 1
+      self.failures += 1
 
   def add_object_uri(self, u):
     self.uris.add(u)
 
-  def finalize(self):
-    self.object_count = len(self.uris)
-    del self.uris
-
-  def safe_division(self, numerator, denominator, ignore_failed = True):
-    if ignore_failed and self.failed:
-      return "U"
-    try:
-      return float(numerator) / float(denominator)
-    except ZeroDivisionError:
-      return "U"
-
   @property
   def failed(self):
-    return 1 if self.dead_conns else 0
+    return 1 if self.failures > 0 else 0
 
   @property
-  def secs_per_obj(self):
-    return self.safe_division(self.elapsed, self.object_count)
-
-  @property
-  def objs_per_conn(self):
-    return self.safe_division(self.object_count, self.conn_count)
-
-  @property
-  def avg_conn_time(self):
-    return self.safe_division(self.total_conn_time, self.conn_count)
+  def objects(self):
+    return len(self.uris)
 
   field_table = (("timestamp",          None,           None,                   None),
-                 ("conn_count",         "GAUGE",        "Connections",          "FF0000"),
-                 ("object_count",       "GAUGE",        "Objects",              "00FF00"),
-                 ("objs_per_conn",      "GAUGE",        "Objects/Connection",   "0000FF"),
-                 ("secs_per_obj",       "GAUGE",        "Seconds/Object",       "FFFF00"),
-                 ("avg_conn_time",      "GAUGE",        "Connection Time",      "FF00FF"),
-                 ("failed",             "GAUGE",        "Failed",               "00FFFF"))
+                 ("connections",        "GAUGE",        "Connections",          "FF0000"),
+                 ("objects",            "GAUGE",        "Objects",              "00FF00"),
+                 ("elapsed",            "GAGUE",        "Fetch Time",           "0000FF"),
+                 ("failed",             "ABSOLUTE",     "Failed",               "00FFFF"))
 
   @property
   def field_values(self):
@@ -121,7 +96,6 @@ class Host(object):
     return result
 
   def save(self, rrdtable):
-    self.finalize()
     rrdtable.add(self.hostname, self.field_values)
 
 class Session(dict):
@@ -188,11 +162,8 @@ class RRDTable(dict):
         print "rrdtool update %s.rrd %s" % (hostname, ":".join(str(d) for d in datum))
 
   def graph(self):
-    #
-    # Yes, I am making this up as I go, thanks for asking
-    #
     for hostname in self:
-      print "rrdtool graph %s.png --start -1y %s" % (hostname, " ".join(Host.field_graph_specifiers(hostname)))
+      print "rrdtool graph %s.png --start -90d %s" % (hostname, " ".join(Host.field_graph_specifiers(hostname)))
 
 mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
 

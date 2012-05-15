@@ -68,7 +68,7 @@ try:
     if o in ("-?", "-h", "--help"):
       usage(0)
     negated = o.startswith("--no-")
-    o = o[6:] if negated else o[2:]
+    o = o[5:] if negated else o[2:]
     if isinstance(opt[o], bool):
       opt[o] = not negated
     elif isinstance(opt[o], int):

@@ -30,38 +30,47 @@ from xml.etree.ElementTree import (ElementTree, Element, SubElement, Comment)
 
 opt = {
   "refresh"                     : 1800,
-  "suppress_zero_columns"       : True,
-  "use_colors"                  : True,
-  "show_detailed_status"        : True,
-  "show_problems"               : False,
-  "show_summary"                : True,
-  "show_graphs"                 : False,
-  "suppress_backup_whining"     : True,
-  "one_file_per_section"        : False,
-  "rrdtool_binary"              : "rrdtool" }
+  "suppress-zero-columns"       : True,
+  "use-colors"                  : True,
+  "show-detailed-status"        : True,
+  "show-problems"               : False,
+  "show-summary"                : True,
+  "show-graphs"                 : False,
+  "suppress-backup-whining"     : True,
+  "one-file-per-section"        : False,
+  "rrdtool-binary"              : "rrdtool" }
 
 def usage(msg = 0):
   f = sys.stderr if msg else sys.stdout
   f.write("Usage: %s %s [options] [input_file [output_file_or_directory]]\n" % (sys.executable, sys.argv[0]))
   f.write("Options:\n")
   for i in sorted(opt):
-    f.write("   --%s <value>   (default %s)\n" % (i, opt[i]))
+    if not isinstance(opt[i], bool):
+      f.write("   --%-30s (default %s)\n" % (i + " <value>", opt[i]))
+  for i in sorted(opt):
+    if isinstance(opt[i], bool):
+      f.write("   --[no-]%-25s (default --%s%s)\n" % (i, "" if opt[i] else "no-", i))
   if msg:
     f.write("\n")
   sys.exit(msg)
 
-bool_map = {
-  "yes" : True,  "y" : True,  "true"  : True,  "on"   : True,  "1" : True,
-  "no"  : False, "n" : False, "false" : False, "off"  : False, "0" : False }
+opts = ["help"]
+for i in opt:
+  if isinstance(opt[i], bool):
+    opts.append(i)
+    opts.append("no-" + i)
+  else:
+    opts.append(i + "=")
 
 try:
-  opts, argv = getopt.getopt(sys.argv[1:], "h?", ["help"] + ["%s=" % s for s in opt])
+  opts, argv = getopt.getopt(sys.argv[1:], "h?", opts)
   for o, a in opts:
     if o in ("-?", "-h", "--help"):
       usage(0)
-    o = o[2:]
+    negated = o.startswith("--no-")
+    o = o[6:] if negated else o[2:]
     if isinstance(opt[o], bool):
-      opt[o] = bool_map[a.lower()]
+      opt[o] = not negated
     elif isinstance(opt[o], int):
       opt[o] = int(a)
     else:
@@ -77,10 +86,10 @@ if len(argv) > 2:
 
 output_directory = output_file = None
 
-if opt["one_file_per_section"] or opt["show_graphs"]:
+if opt["one-file-per-section"] or opt["show-graphs"]:
   output_directory = output_foo
   if output_directory is None:
-    usage("--show_graphs and --one_file_per_section require an output directory")
+    usage("--show-graphs and --one-file-per-section require an output directory")
   if not os.path.isdir(output_directory):
     os.makedirs(output_directory)
 else:
@@ -209,7 +218,7 @@ class RRDSession(dict):
       self[h].add_object_uri(u)
 
   def run(self, *cmd):
-    return subprocess.check_output([str(i) for i in (opt["rrdtool_binary"],) + cmd]).splitlines()
+    return subprocess.check_output([str(i) for i in (opt["rrdtool-binary"],) + cmd]).splitlines()
 
   rras = tuple("RRA:AVERAGE:0.5:%s:9600" % steps for steps in (1, 4, 24))
 
@@ -320,7 +329,7 @@ def start_html(title):
     tfoot tr td     { font-weight: bold }
 '''
 
-  if opt["use_colors"]:
+  if opt["use-colors"]:
     SubElement(head, "style", type = "text/css").text = '''
     .good           { background-color: #77ff77 }
     .warn           { background-color: yellow }
@@ -352,7 +361,7 @@ labels = [Label(elt) for elt in input.find("labels")]
 Validation_Status.label_map = dict((l.code, l) for l in labels)
 validation_status = [Validation_Status(elt) for elt in input.findall("validation_status")]
 
-if opt["show_graphs"]:
+if opt["show-graphs"]:
   rrds = RRDSession(parse_utc(input.getroot().get("date")))
   for elt in input.findall("rsync_history"):
     rrds.add_connection(elt)
@@ -362,7 +371,7 @@ if opt["show_graphs"]:
   rrds.save()
   rrds.graph()
 
-if opt["suppress_backup_whining"]:
+if opt["suppress-backup-whining"]:
 
   accepted_current = set(v.uri for v in validation_status if v.is_current and v.accepted)
   validation_status = [v for v in validation_status if not v.is_backup or v.uri not in accepted_current]
@@ -370,19 +379,19 @@ if opt["suppress_backup_whining"]:
 for v in validation_status:
   v.stand_up_and_be_counted()
 
-if opt["suppress_zero_columns"]:
+if opt["suppress-zero-columns"]:
   labels = [l for l in labels if l.sum > 0]
 
-if not opt["one_file_per_section"]:
+if not opt["one-file-per-section"]:
   start_html("rcynic summary")
 
-if opt["show_summary"]:
+if opt["show-summary"]:
 
   unique_hostnames   = sorted(set(v.hostname   for v in validation_status))
   unique_fn2s        = sorted(set(v.fn2        for v in validation_status))
   unique_generations = sorted(set(v.generation for v in validation_status))
 
-  if opt["one_file_per_section"]:
+  if opt["one-file-per-section"]:
     start_html("Grand Totals")
   else:
     SubElement(body, "br")
@@ -412,14 +421,14 @@ if opt["show_summary"]:
   for l in labels:
     SubElement(tr, "td", { "class" : l.mood }).text = str(l.sum)
 
-  if opt["one_file_per_section"]:
+  if opt["one-file-per-section"]:
     finish_html("grand_totals")
   else:
     SubElement(body, "br")
     SubElement(body, "h2").text = "Summaries by Repository Host"
 
   for hostname in unique_hostnames:
-    if opt["one_file_per_section"]:
+    if opt["one-file-per-section"]:
       start_html("Summary for %s" % hostname)
     else:
       SubElement(body, "br")
@@ -457,15 +466,15 @@ if opt["show_summary"]:
       if value > 0:
         td.set("class", l.mood)
         td.text = str(value)
-    if opt["show_graphs"]:
+    if opt["show-graphs"]:
       SubElement(body, "br")
       SubElement(body, "a", href = "%s_graphs.html" % hostname).append(rrds[hostname].graph)
-    if opt["one_file_per_section"]:
+    if opt["one-file-per-section"]:
       finish_html("%s_summary" % hostname)
 
-if opt["show_problems"]:
+if opt["show-problems"]:
 
-  if opt["one_file_per_section"]:
+  if opt["one-file-per-section"]:
     start_html("Problems")
   else:
     SubElement(body, "br")
@@ -481,12 +490,12 @@ if opt["show_problems"]:
       tr = SubElement(tbody, "tr", { "class" : v.mood })
       SubElement(tr, "td").text = v.label.text
       SubElement(tr, "td", uri_css).text = v.uri
-  if opt["one_file_per_section"]:
+  if opt["one-file-per-section"]:
     finish_html("problems")
 
-if opt["show_detailed_status"]:
+if opt["show-detailed-status"]:
 
-  if opt["one_file_per_section"]:
+  if opt["one-file-per-section"]:
     start_html("Validation Status")
   else:
     SubElement(body, "br")
@@ -505,8 +514,8 @@ if opt["show_detailed_status"]:
     SubElement(tr, "td").text = v.generation
     SubElement(tr, "td").text = v.label.text
     SubElement(tr, "td", uri_css).text = v.uri
-  if opt["one_file_per_section"]:
+  if opt["one-file-per-section"]:
     finish_html("validation_status")
 
-if not opt["one_file_per_section"]:
+if not opt["one-file-per-section"]:
   finish_html()

@@ -19,7 +19,12 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, urlparse, os, getopt
+import sys
+import urlparse
+import os
+import getopt
+import time
+import subprocess
 
 from xml.etree.ElementTree import (ElementTree, Element, SubElement, Comment)
 
@@ -30,12 +35,14 @@ opt = {
   "show_detailed_status"        : True,
   "show_problems"               : False,
   "show_summary"                : True,
+  "show_graphs"                 : False,
   "suppress_backup_whining"     : True,
-  "one_file_per_section"        : False }
+  "one_file_per_section"        : False,
+  "rrdtool_binary"              : "rrdtool" }
 
 def usage(msg = 0):
   f = sys.stderr if msg else sys.stdout
-  f.write("Usage: %s %s [options] [input_file [output_file]]\n" % (sys.executable, sys.argv[0]))
+  f.write("Usage: %s %s [options] [input_file [output_file_or_directory]]\n" % (sys.executable, sys.argv[0]))
   f.write("Options:\n")
   for i in sorted(opt):
     f.write("   --%s <value>   (default %s)\n" % (i, opt[i]))
@@ -52,23 +59,40 @@ try:
   for o, a in opts:
     if o in ("-?", "-h", "--help"):
       usage(0)
-    elif o == "--refresh":
-      opt["refresh"] = int(a)
+    o = o[2:]
+    if isinstance(opt[o], bool):
+      opt[o] = bool_map[a.lower()]
+    elif isinstance(opt[o], int):
+      opt[o] = int(a)
     else:
-      opt[o[2:]] = bool_map[a.lower()]
-except KeyError:
-  usage("Bad boolean value given to %s switch: %s" % (o, a))
-except (ValueError, getopt.GetoptError), e:
-  usage(str(e))
+      opt[o] = a
+except Exception, e:
+  usage("%s: %s" % (e.__class__.__name__, str(e)))
 
 input_file  = argv[0] if len(argv) > 0 else None
-output_file = argv[1] if len(argv) > 1 else None
+output_foo = argv[1] if len(argv) > 1 else None
 
 if len(argv) > 2:
   usage("Unexpected arguments")
 
-if opt["one_file_per_section"] and (output_file is None or "%s" not in output_file):
-  usage('--one_file_per_section" requires specifying an output file name containing %s')
+output_directory = output_file = None
+
+if opt["one_file_per_section"] or opt["show_graphs"]:
+  output_directory = output_foo
+  if output_directory is None:
+    usage("--show_graphs and --one_file_per_section require an output directory")
+  if not os.path.isdir(output_directory):
+    os.makedirs(output_directory)
+else:
+  output_file = output_foo
+
+del output_foo
+
+html = None
+body = None
+
+def parse_utc(s):
+  return int(time.mktime(time.strptime(s, "%Y-%m-%dT%H:%M:%SZ")))
 
 class Label(object):
 
@@ -117,8 +141,155 @@ class Validation_Status(object):
   def is_backup(self):
     return self.generation == "backup"
   
-html = None
-body = None
+
+class RRDHost(object):
+
+  def __init__(self):
+    self.elapsed = 0
+    self.connections = 0
+    self.failures = 0
+    self.uris = set()
+    self.graph = None
+
+  def add_connection(self, elt):
+    self.elapsed += parse_utc(elt.get("finished")) - parse_utc(elt.get("started"))
+    self.connections += 1
+    if elt.get("error") is not None:
+      self.failures += 1
+
+  def add_object_uri(self, u):
+    self.uris.add(u)
+
+  @property
+  def failed(self):
+    return 1 if self.failures > 0 else 0
+
+  @property
+  def objects(self):
+    return len(self.uris)
+
+  field_table = (("connections", "GAUGE"),
+                 ("objects",     "GAUGE"),
+                 ("elapsed",     "GAUGE"),
+                 ("failed",      "ABSOLUTE"))
+
+  @classmethod
+  def field_ds_specifiers(cls, heartbeat = 24 * 60 * 60, minimum = 0, maximum = "U"):
+    return ["DS:%s:%s:%s:%s:%s" % (field[0], field[1], heartbeat, minimum, maximum)
+            for field in cls.field_table]
+
+  @property
+  def field_values(self):
+    return tuple(str(getattr(self, field[0])) for field in self.field_table)
+
+  @classmethod
+  def field_defs(cls, filebase):
+    return ["DEF:%s=%s.rrd:%s:AVERAGE" % (field[0], filebase, field[0])
+            for field in cls.field_table]
+
+  def save_graph_maybe(self, elt):
+    if self.graph is None:
+      self.graph = elt.copy()
+
+class RRDSession(dict):
+
+  def __init__(self, timestamp):
+    dict.__init__(self)
+    self.timestamp = timestamp
+
+  def add_connection(self, elt):
+    hostname = urlparse.urlparse(elt.text.strip()).hostname
+    if hostname not in self:
+      self[hostname] = RRDHost()
+    self[hostname].add_connection(elt)
+
+  def add_object_uri(self, u):
+    h = urlparse.urlparse(u).hostname
+    if h and h in self:
+      self[h].add_object_uri(u)
+
+  def run(self, *cmd):
+    return subprocess.check_output([str(i) for i in (opt["rrdtool_binary"],) + cmd]).splitlines()
+
+  rras = tuple("RRA:AVERAGE:0.5:%s:9600" % steps for steps in (1, 4, 24))
+
+  def save(self):
+    for hostname, h in self.iteritems():
+      filename = os.path.join(output_directory, hostname) + ".rrd"
+      if not os.path.exists(filename):
+        cmd = ["create", filename, "--start", self.timestamp - 1, "--step", "3600"]
+        cmd.extend(RRDHost.field_ds_specifiers())
+        cmd.extend(self.rras)
+        self.run(*cmd)
+      self.run("update", filename,
+               "%s:%s" % (self.timestamp, ":".join(str(v) for v in h.field_values)))
+
+  graph_opts = (
+    "--width", "1200",
+    "--vertical-label", "Objects (count)",
+    "--right-axis-label", "Sync time (seconds)",
+    "--right-axis", "1:0" )
+
+  graph_cmds = (
+
+    # Split elapsed into separate data sets, so we can color
+    # differently to indicate how succesful transfer was.  Intent is
+    # that exactly one of these be defined for every value in elapsed.
+
+    "CDEF:success=failed,UNKN,elapsed,IF",
+    "CDEF:failure=connections,1,EQ,failed,*,elapsed,UNKN,IF",
+    "CDEF:partial=connections,1,NE,failed,*,elapsed,UNKN,IF",
+
+    # Show object count first, as an area, so we can draw on top of
+    # it.  Use an alpha channel (fourth octet of color code) so area
+    # will be semi-transparent, then add opaque border.
+
+    "AREA:objects#00FF0080",
+    "LINE1:objects#00FF00:Objects",
+
+    # Show connection times, color coded for success and failure.
+
+    "LINE1:success#0000FF:Sync time (success)",
+    "LINE1:partial#FFA500:Sync time (partial failure)",
+    "LINE1:failure#FF0000:Sync time (total failure)",
+
+    # Add averages over period to chart legend.
+
+    "VDEF:avg_elapsed=elapsed,AVERAGE",
+    "VDEF:avg_connections=connections,AVERAGE",
+    "VDEF:avg_objects=objects,AVERAGE",
+    "COMMENT:\j",
+    "GPRINT:avg_objects:Average object count\: %5.2lf",
+    "GPRINT:avg_connections:Average connection count\: %5.2lf",
+    "GPRINT:avg_elapsed:Average sync time (seconds)\: %5.2lf" )
+
+  graph_periods = (("week",  "-1w"),
+                   ("month", "-31d"),
+                   ("year",  "-1y"))
+
+  def graph(self):
+    for hostname in self:
+      start_html("Charts for %s" % hostname)
+      filebase = os.path.join(output_directory, hostname)
+      for period, start in self.graph_periods:
+        cmds = [ "graph", "%s_%s.png" % (filebase, period),
+                 "--title", hostname,
+                 "--start", start,
+                 "--imginfo", "@imginfo %s %lu %lu" ]
+        cmds.extend(self.graph_opts)
+        cmds.extend(RRDHost.field_defs(filebase))
+        cmds.extend(self.graph_cmds)
+        imginfo = [i for i in self.run(*cmds) if i.startswith("@imginfo")]
+        assert len(imginfo) == 1
+        filename, width, height = imginfo[0].split()[1:]
+        SubElement(body, "h2").text = "%s over last %s" % (hostname, period)
+        img = SubElement(body, "img", src = os.path.basename(filename), width = width, height = height)
+        self[hostname].save_graph_maybe(img)
+        SubElement(body, "br")
+      SubElement(body, "a", href = "index.html").text = "Back"
+      finish_html("%s_graphs" % hostname)
+
+#
 
 table_css = { "rules" : "all", "border" : "1"}
 uri_css   = { "class" : "uri" }
@@ -156,23 +327,40 @@ def start_html(title):
     .bad            { background-color: #ff5500 }
 '''
 
-def finish_html(name = None):
+def finish_html(name = "index"):
   global html
   global body
-  if output_file is None:
-    output = sys.stdout
-  elif name is None:
+  assert name == "index" or output_directory is not None
+  assert output_file is None or output_directory is None
+  if output_file is not None:
     output = output_file
+  elif output_directory is not None:
+    output = os.path.join(output_directory, name + ".html")
   else:
-    output = output_file % name
+    output = sys.stdout
   ElementTree(element = html).write(output)
   html = None
   body = None
+
+# Main
+
+os.putenv("TZ", "UTC")
+time.tzset()
 
 input = ElementTree(file = sys.stdin if input_file is None else input_file)
 labels = [Label(elt) for elt in input.find("labels")]
 Validation_Status.label_map = dict((l.code, l) for l in labels)
 validation_status = [Validation_Status(elt) for elt in input.findall("validation_status")]
+
+if opt["show_graphs"]:
+  rrds = RRDSession(parse_utc(input.getroot().get("date")))
+  for elt in input.findall("rsync_history"):
+    rrds.add_connection(elt)
+  for elt in input.findall("validation_status"):
+    if elt.get("generation") == "current":
+      rrds.add_object_uri(elt.text.strip())
+  rrds.save()
+  rrds.graph()
 
 if opt["suppress_backup_whining"]:
 
@@ -246,11 +434,16 @@ if opt["show_summary"]:
       SubElement(tr, "th").text = l.text
     for fn2 in unique_fn2s:
       for generation in unique_generations:
-        if any(v.hostname == hostname and v.fn2 == fn2 and v.generation == generation for v in validation_status):
+        if any(v.hostname == hostname and v.fn2 == fn2 and v.generation == generation
+               for v in validation_status):
           tr = SubElement(tbody, "tr")
           SubElement(tr, "td").text = ((generation or "") + " " + (fn2 or "")).strip()
           for l in labels:
-            value = sum(int(v.hostname == hostname and v.fn2 == fn2 and v.generation == generation and v.code == l.code) for v in validation_status)
+            value = sum(int(v.hostname == hostname and
+                            v.fn2 == fn2 and
+                            v.generation == generation and
+                            v.code == l.code)
+                        for v in validation_status)
             td = SubElement(tr, "td")
             if value > 0:
               td.set("class", l.mood)
@@ -258,11 +451,15 @@ if opt["show_summary"]:
     tr = SubElement(tfoot, "tr")
     SubElement(tr, "td").text = "Total"
     for l in labels:
-      value = sum(int(v.hostname == hostname and v.code == l.code) for v in validation_status)
+      value = sum(int(v.hostname == hostname and v.code == l.code)
+                  for v in validation_status)
       td = SubElement(tr, "td")
       if value > 0:
         td.set("class", l.mood)
         td.text = str(value)
+    if opt["show_graphs"]:
+      SubElement(body, "br")
+      SubElement(body, "a", href = "%s_graphs.html" % hostname).append(rrds[hostname].graph)
     if opt["one_file_per_section"]:
       finish_html("%s_summary" % hostname)
 

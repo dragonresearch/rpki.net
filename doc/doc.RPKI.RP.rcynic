@@ -489,6 +489,26 @@ Usage:
 
   $ python rcynic.py rcynic.xml rcynic.html
 
+rcynic.py can also generate a more complicated set of HTML pages including
+graphs showing a history of rsync transfer time and repository object count for
+each repository rcynic found during its tree walk. In this mode, rcynic.py
+needs an output directory (which it will create, if needed) because it has to
+write several graphs and an HTML page for each repository, as well as a master
+HTML file which it will write out as index.html in the specified directory.
+
+This mode requires rrdtool, a specialized database and graphing engine designed
+for this sort of work.
+
+Usage:
+
+  $ python rcynic.py --show-graphs rcynic.xml /web/server/directory/
+
+If rrdtool isn't on rcynic.py's search path and you need to give its location
+explictly, you can do so using the --rrdtool-binary option:
+
+  $ python rcynic.py --show-graphs --rrdtoolbinary /some/where/unusual/rrdtool
+  rcynic.xml /web/server/directory/
+
 **** rcynic.xsl ****
 
 An earlier attempt at the same kind of HTML display as rcynic.py. XSLT was a
@@ -496,7 +516,8 @@ convenient language for our initial attempts at this, but as the processing got
 more and more complex, the speed and flexibility restrictions of XSLT became
 prohibitive. If for some reason XSLT works better in your environment than
 Python, you might find this stylesheet to be a useful starting point, but be
-warned that it is significantly slower than rcynic.py.
+warned that it is significantly slower than rcynic.py, lacks some of
+rcynic.py's features, and is no longer under development.
 
 Usage:
 

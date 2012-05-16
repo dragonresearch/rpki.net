@@ -238,8 +238,9 @@ class RRDSession(dict):
 
   graph_opts = (
     "--width", "1200",
-    "--vertical-label", "Objects (count)",
-    "--right-axis-label", "Sync time (seconds)",
+    "--vertical-label", "Sync time (seconds)",
+    "--right-axis-label", "Objects (count)",
+    "--lower-limit", "0",
     "--right-axis", "1:0" )
 
   graph_cmds = (
@@ -252,18 +253,23 @@ class RRDSession(dict):
     "CDEF:failure=connections,1,EQ,failed,*,elapsed,UNKN,IF",
     "CDEF:partial=connections,1,NE,failed,*,elapsed,UNKN,IF",
 
-    # Show object count first, as an area, so we can draw on top of
-    # it.  Use an alpha channel (fourth octet of color code) so area
-    # will be semi-transparent, then add opaque border.
+    # Show connection timing first, as color-coded semi-transparent
+    # areas with opaque borders.  Intent is to make the colors stand
+    # out, since they're a major health indicator.  Transparency is
+    # handled via an alpha channel (fourth octet of color code).  We
+    # draw this stuff first so that later lines can overwrite it.
 
-    "AREA:objects#00FF0080",
-    "LINE1:objects#00FF00:Objects",
+    "AREA:success#00FF0080:Sync time (success)",
+    "AREA:partial#FFA50080:Sync time (partial failure)",
+    "AREA:failure#FF000080:Sync time (total failure)",
 
-    # Show connection times, color coded for success and failure.
+    "LINE1:success#00FF00",             # Green
+    "LINE1:partial#FFA500",             # Orange
+    "LINE1:failure#FF0000",             # Red
 
-    "LINE1:success#0000FF:Sync time (success)",
-    "LINE1:partial#FFA500:Sync time (partial failure)",
-    "LINE1:failure#FF0000:Sync time (total failure)",
+    # Now show object counts, as a simple black line.
+
+    "LINE1:objects#000000:Objects",     # Black
 
     # Add averages over period to chart legend.
 
@@ -271,9 +277,9 @@ class RRDSession(dict):
     "VDEF:avg_connections=connections,AVERAGE",
     "VDEF:avg_objects=objects,AVERAGE",
     "COMMENT:\j",
-    "GPRINT:avg_objects:Average object count\: %5.2lf",
+    "GPRINT:avg_elapsed:Average sync time (seconds)\: %5.2lf",
     "GPRINT:avg_connections:Average connection count\: %5.2lf",
-    "GPRINT:avg_elapsed:Average sync time (seconds)\: %5.2lf" )
+    "GPRINT:avg_objects:Average object count\: %5.2lf" )
 
   graph_periods = (("week",  "-1w"),
                    ("month", "-31d"),

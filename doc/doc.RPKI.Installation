@@ -86,6 +86,7 @@ Packages you will need:
   interface to the CA tools requires this.
 
   o FreeBSD: /usr/ports/www/py-django
+  o Ubuntu: python-django
 
 * http://pyyaml.org/. Several of the test programs use PyYAML to parse a YAML
   description of a simulated allocation hierarchy to test.
@@ -98,6 +99,14 @@ Packages you will need:
 
   o FreeBSD: /usr/ports/textproc/libxslt
   o Ubuntu: xsltproc
+
+* http://www.rrdtool.org/. The relying party tools use this to generate
+  graphics which you may find useful in monitoring the behavior of your
+  validator. The rest of the software will work fine without rrdtool, you just
+  won't be able to generate those graphics.
+
+  o FreeBSD: /usr/ports/databases/rrdtool
+  o Ubuntu: rrdtool
 
 ***** Configure and build *****
 

@@ -46,10 +46,10 @@ def usage(msg = 0):
   f.write("Options:\n")
   for i in sorted(opt):
     if not isinstance(opt[i], bool):
-      f.write("   --%-30s (default %s)\n" % (i + " <value>", opt[i]))
+      f.write("   --%-30s (%s)\n" % (i + " <value>", opt[i]))
   for i in sorted(opt):
     if isinstance(opt[i], bool):
-      f.write("   --[no-]%-25s (default --%s%s)\n" % (i, "" if opt[i] else "no-", i))
+      f.write("   --[no-]%-25s (--%s%s)\n" % (i, "" if opt[i] else "no-", i))
   if msg:
     f.write("\n")
   sys.exit(msg)
@@ -218,7 +218,10 @@ class RRDSession(dict):
       self[h].add_object_uri(u)
 
   def run(self, *cmd):
-    return subprocess.check_output([str(i) for i in (opt["rrdtool-binary"],) + cmd]).splitlines()
+    try:
+      return subprocess.check_output([str(i) for i in (opt["rrdtool-binary"],) + cmd]).splitlines()
+    except OSError, e:
+      usage("Problem running %s, perhaps you need to set --rrdtool-binary?  (%s)" % (opt["rrdtool-binary"], e))
 
   rras = tuple("RRA:AVERAGE:0.5:%s:9600" % steps for steps in (1, 4, 24))
 

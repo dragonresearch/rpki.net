@@ -4,7 +4,7 @@ reimplementation of rcynic.xsl, which had gotten too slow and complex.
 
 $Id$
 
-Copyright (C) 2010-2011 Internet Systems Consortium, Inc. ("ISC")
+Copyright (C) 2010-2012 Internet Systems Consortium, Inc. ("ISC")
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -25,8 +25,12 @@ import os
 import getopt
 import time
 import subprocess
+import copy
 
-from xml.etree.ElementTree import (ElementTree, Element, SubElement, Comment)
+try:
+  from lxml.etree            import (ElementTree, Element, SubElement, Comment)
+except ImportError:
+  from xml.etree.ElementTree import (ElementTree, Element, SubElement, Comment)
 
 opt = {
   "refresh"                     : 1800,
@@ -105,15 +109,21 @@ def parse_utc(s):
 
 class Label(object):
 
-  def __init__(self, elt):
+  def __init__(self, elt, pos):
     self.code = elt.tag
     self.mood = elt.get("kind")
     self.text = elt.text.strip()
+    self.pos  = pos
     self.sum  = 0
+
+  def __cmp__(self, other):
+    return cmp(self.pos, other.pos)
 
 class Validation_Status(object):
 
-  label_map = None
+  @classmethod
+  def set_label_map(cls, labels):
+    cls.label_map = dict((l.code, l) for l in labels)
 
   def __init__(self, elt):
     self.uri = elt.text.strip()
@@ -151,7 +161,7 @@ class Validation_Status(object):
     return self.generation == "backup"
   
 
-class RRDHost(object):
+class Host(object):
 
   def __init__(self):
     self.elapsed = 0
@@ -159,6 +169,7 @@ class RRDHost(object):
     self.failures = 0
     self.uris = set()
     self.graph = None
+    self.counters = {}
 
   def add_connection(self, elt):
     self.elapsed += parse_utc(elt.get("finished")) - parse_utc(elt.get("started"))
@@ -166,8 +177,17 @@ class RRDHost(object):
     if elt.get("error") is not None:
       self.failures += 1
 
-  def add_object_uri(self, u):
-    self.uris.add(u)
+  def add_validation_status(self, v):
+    if v.generation == "current":
+      self.uris.add(v.uri)
+    self.counters[(v.fn2, v.generation, v.code)] = self.get_counter(v.fn2, v.generation, v.code) + 1
+    self.counters[v.code] = self.get_total(v.code) + 1
+
+  def get_counter(self, fn2, generation, code):
+    return self.counters.get((fn2, generation, code), 0)
+
+  def get_total(self, code):
+    return self.counters.get(code, 0)
 
   @property
   def failed(self):
@@ -198,24 +218,25 @@ class RRDHost(object):
 
   def save_graph_maybe(self, elt):
     if self.graph is None:
-      self.graph = elt.copy()
+      self.graph = copy.copy(elt)
 
-class RRDSession(dict):
+class Session(dict):
 
   def __init__(self, timestamp):
     dict.__init__(self)
     self.timestamp = timestamp
 
+  def maybe_add_host(self, hostname):
+    if hostname not in self:
+      self[hostname] = Host()
+    return self[hostname]
+
   def add_connection(self, elt):
     hostname = urlparse.urlparse(elt.text.strip()).hostname
-    if hostname not in self:
-      self[hostname] = RRDHost()
-    self[hostname].add_connection(elt)
+    self.maybe_add_host(hostname).add_connection(elt)
 
-  def add_object_uri(self, u):
-    h = urlparse.urlparse(u).hostname
-    if h and h in self:
-      self[h].add_object_uri(u)
+  def add_validation_status(self, v):
+    self.maybe_add_host(v.hostname).add_validation_status(v)
 
   def run(self, *cmd):
     try:
@@ -230,7 +251,7 @@ class RRDSession(dict):
       filename = os.path.join(output_directory, hostname) + ".rrd"
       if not os.path.exists(filename):
         cmd = ["create", filename, "--start", self.timestamp - 1, "--step", "3600"]
-        cmd.extend(RRDHost.field_ds_specifiers())
+        cmd.extend(Host.field_ds_specifiers())
         cmd.extend(self.rras)
         self.run(*cmd)
       self.run("update", filename,
@@ -295,7 +316,7 @@ class RRDSession(dict):
                  "--start", start,
                  "--imginfo", "@imginfo %s %lu %lu" ]
         cmds.extend(self.graph_opts)
-        cmds.extend(RRDHost.field_defs(filebase))
+        cmds.extend(Host.field_defs(filebase))
         cmds.extend(self.graph_cmds)
         imginfo = [i for i in self.run(*cmds) if i.startswith("@imginfo")]
         assert len(imginfo) == 1
@@ -366,30 +387,32 @@ os.putenv("TZ", "UTC")
 time.tzset()
 
 input = ElementTree(file = sys.stdin if input_file is None else input_file)
-labels = [Label(elt) for elt in input.find("labels")]
-Validation_Status.label_map = dict((l.code, l) for l in labels)
+
+session = Session(parse_utc(input.getroot().get("date")))
+
+labels = [Label(elt, i) for i, elt in enumerate(input.find("labels"))]
+
+Validation_Status.set_label_map(labels)
 validation_status = [Validation_Status(elt) for elt in input.findall("validation_status")]
 
-if opt["show-graphs"]:
-  rrds = RRDSession(parse_utc(input.getroot().get("date")))
-  for elt in input.findall("rsync_history"):
-    rrds.add_connection(elt)
-  for elt in input.findall("validation_status"):
-    if elt.get("generation") == "current":
-      rrds.add_object_uri(elt.text.strip())
-  rrds.save()
-  rrds.graph()
-
 if opt["suppress-backup-whining"]:
-
   accepted_current = set(v.uri for v in validation_status if v.is_current and v.accepted)
   validation_status = [v for v in validation_status if not v.is_backup or v.uri not in accepted_current]
+  del accepted_current
+
+for elt in input.findall("rsync_history"):
+  session.add_connection(elt)
 
 for v in validation_status:
   v.stand_up_and_be_counted()
+  session.add_validation_status(v)
 
 if opt["suppress-zero-columns"]:
   labels = [l for l in labels if l.sum > 0]
+
+if opt["show-graphs"]:
+  session.save()
+  session.graph()
 
 if not opt["one-file-per-section"]:
   start_html("rcynic summary")
@@ -416,15 +439,15 @@ if opt["show-summary"]:
     SubElement(tr, "th").text = l.text
   for fn2 in unique_fn2s:
     for generation in unique_generations:
-      if any(v.fn2 == fn2 and v.generation == generation for v in validation_status):
+      counters = [sum(h.get_counter(fn2, generation, l.code) for h in session.itervalues()) for l in labels]
+      if sum(counters) > 0:
         tr = SubElement(tbody, "tr")
         SubElement(tr, "td").text = ((generation or "") + " " + (fn2 or "")).strip()
-        for l in labels:
-          value = sum(int(v.fn2 == fn2 and v.generation == generation and v.code == l.code) for v in validation_status)
+        for l, c in zip(labels, counters):
           td = SubElement(tr, "td")
-          if value > 0:
+          if c > 0:
             td.set("class", l.mood)
-            td.text = str(value)
+            td.text = str(c)
   tr = SubElement(tfoot, "tr")
   SubElement(tr, "td").text = "Total"
   for l in labels:
@@ -452,32 +475,26 @@ if opt["show-summary"]:
       SubElement(tr, "th").text = l.text
     for fn2 in unique_fn2s:
       for generation in unique_generations:
-        if any(v.hostname == hostname and v.fn2 == fn2 and v.generation == generation
-               for v in validation_status):
+        counters = [session[hostname].get_counter(fn2, generation, l.code) for l in labels]
+        if sum(counters) > 0:
           tr = SubElement(tbody, "tr")
           SubElement(tr, "td").text = ((generation or "") + " " + (fn2 or "")).strip()
-          for l in labels:
-            value = sum(int(v.hostname == hostname and
-                            v.fn2 == fn2 and
-                            v.generation == generation and
-                            v.code == l.code)
-                        for v in validation_status)
+          for l, c in zip(labels, counters):
             td = SubElement(tr, "td")
-            if value > 0:
+            if c > 0:
               td.set("class", l.mood)
-              td.text = str(value)
+              td.text = str(c)
     tr = SubElement(tfoot, "tr")
     SubElement(tr, "td").text = "Total"
-    for l in labels:
-      value = sum(int(v.hostname == hostname and v.code == l.code)
-                  for v in validation_status)
+    counters = [session[hostname].get_total(l.code) for l in labels]
+    for l, c in zip(labels, counters):
       td = SubElement(tr, "td")
-      if value > 0:
+      if c > 0:
         td.set("class", l.mood)
-        td.text = str(value)
+        td.text = str(c)
     if opt["show-graphs"]:
       SubElement(body, "br")
-      SubElement(body, "a", href = "%s_graphs.html" % hostname).append(rrds[hostname].graph)
+      SubElement(body, "a", href = "%s_graphs.html" % hostname).append(session[hostname].graph)
     if opt["one-file-per-section"]:
       finish_html("%s_summary" % hostname)
 

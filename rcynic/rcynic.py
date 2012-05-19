@@ -446,7 +446,7 @@ class HTML(object):
     tr = SubElement(tfoot, "tr")
     SubElement(tr, "td").text = "Total"
     counters = [total_func(label) for label in session.labels]
-    for lable, count in zip(session.labels, counters):
+    for label, count in zip(session.labels, counters):
       td = SubElement(tr, "td")
       if count > 0:
         td.set("class", label.mood)

@@ -25,7 +25,7 @@ try:
 except ImportError:
   from xml.etree.ElementTree import ElementTree
 
-for filename in sys.argv[1:]:
+for filename in ([sys.stdin] if len(sys.argv) < 2 else sys.argv[1:]):
   for elt in ElementTree(file = filename).findall("validation_status"):
     print "%s %8s %-40s %s" % (
       elt.get("timestamp"),

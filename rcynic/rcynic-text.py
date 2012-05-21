@@ -85,19 +85,23 @@ class Session(object):
     visible = [label for label in self.labels if label.visible]
     hostnames = sorted(self.hosts)
     hostwidth = max(len(hostname) for hostname in hostnames)
-    separator = ("+-" + "-" * hostwidth + "-+-" +
-                 "-+-".join("-" * (label.width) for label in visible) + "-+")
+    separator = "+-%s-+-%s-+" % (
+      "-" * hostwidth, 
+      "-+-".join("-" * label.width for label in visible))
     print separator
     for i in xrange(max(len(label.lines) for label in visible)):
-      print ("|" + " " * (hostwidth + 2) + "|" +
-             "|".join(label.line(i) for label in visible) + "|")
+      print "| %s |%s|" % (
+        ("Hostname" if i == 0 else "").ljust(hostwidth),
+        "|".join(label.line(i) for label in visible))
     print separator
     for hostname in hostnames:
-      print ("| " + hostname.ljust(hostwidth + 1) + "|" +
-             "|".join(self.hosts[hostname].total(label) for label in visible) + "|")
+      print "| %s |%s|" % (
+        hostname.ljust(hostwidth),
+        "|".join(self.hosts[hostname].total(label) for label in visible))
     print separator
-    print ("| " + "Total".ljust(hostwidth) + " |" +
-           "|".join(label.total for label in visible) + "|")
+    print "| %s |%s|" % (
+        "Total".ljust(hostwidth),
+        "|".join(label.total for label in visible))
     print separator
 
 

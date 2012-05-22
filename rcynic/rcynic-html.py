@@ -25,6 +25,7 @@ import getopt
 import time
 import subprocess
 import copy
+import textwrap
 
 try:
   from lxml.etree            import (ElementTree, Element, SubElement, Comment)
@@ -107,6 +108,8 @@ def parse_utc(s):
 
 class Label(object):
 
+  moods = ["bad", "warn", "good"]
+
   def __init__(self, elt):
     self.code = elt.tag
     self.mood = elt.get("kind")
@@ -115,6 +118,13 @@ class Label(object):
 
   def get_count(self):
     return self.count
+
+  @property
+  def sort_key(self):
+    try:
+      return self.moods.index(self.mood)
+    except ValueError:
+      return len(self.moods)
 
 class Validation_Status(object):
 
@@ -125,6 +135,9 @@ class Validation_Status(object):
     self.hostname = urlparse.urlparse(self.uri).hostname or None
     self.fn2 = os.path.splitext(self.uri)[1] or None if self.generation else None
     self.label = label_map[elt.get("status")]
+
+  def sort_key(self):
+    return (self.label.sort_key, self.timestamp, self.hostname, self.fn2, self.generation)
 
   @property
   def code(self):
@@ -162,7 +175,21 @@ class Validation_Status(object):
   def is_object_problem(self):
     return self.label.mood != "good" and not self.label.code.startswith("rsync_transfer_")
 
-class Host(object):
+class Problem_Mixin(object):
+  
+  @property
+  def connection_problems(self):
+    result = [v for v in self.validation_status if v.is_connection_problem]
+    result.sort(key = Validation_Status.sort_key)
+    return result
+
+  @property
+  def object_problems(self):
+    result = [v for v in self.validation_status if v.is_object_problem]
+    result.sort(key = Validation_Status.sort_key)
+    return result
+
+class Host(Problem_Mixin):
 
   def __init__(self, hostname, timestamp):
     self.hostname = hostname
@@ -322,8 +349,8 @@ class Host(object):
       svg_html.body.append(ElementTree(file = "%s_%s.svg" % (filebase, period)).getroot())
       svg_html.close()
 
-
-class Session(object):
+  
+class Session(Problem_Mixin):
 
   def __init__(self):
     self.hosts = {}
@@ -384,7 +411,7 @@ class Session(object):
 css = '''
   /*
    * Cascading style sheet for rcynic-html output.  Much of this
-   * comes, indirectly, at a remove of many years from
+   * comes, indirectly, at a remove of many years, from
    * http://www.htmldog.com/articles/suckerfish/dropdowns/example/
    */
 
@@ -498,11 +525,11 @@ class HTML(object):
   @classmethod
   def write_static_files(cls):
     f = open(os.path.join(opt["output_directory"], cls.css_name), "w")
-    f.write(css)
+    f.write(textwrap.dedent(css))
     f.close()
     if opt["suckerfish-javascript"]:
       f = open(os.path.join(opt["output_directory"], cls.suckerfish_name), "w")
-      f.write(suckerfish)
+      f.write(textwrap.dedent(suckerfish))
       f.close()
 
   def __init__(self, title, filebase):
@@ -616,9 +643,9 @@ def main():
     if opt["show-graphs"]:
       session.hosts[hostname].rrd_graph(html)
     html.BodyElement("h2").text = "Connection Problems"
-    html.detail_table([v for v in session.hosts[hostname].validation_status if v.is_connection_problem])
+    html.detail_table(session.hosts[hostname].connection_problems)
     html.BodyElement("h2").text = "Object Problems"
-    html.detail_table([v for v in session.hosts[hostname].validation_status if v.is_object_problem])
+    html.detail_table(session.hosts[hostname].object_problems)
     html.close()
 
   html = HTML("rcynic Summary", "index")
@@ -637,9 +664,9 @@ def main():
 
   html = HTML("Problems", "problems")
   html.BodyElement("h2").text = "Connection Problems"
-  html.detail_table([v for v in session.validation_status if v.is_connection_problem])
+  html.detail_table(session.connection_problems)
   html.BodyElement("h2").text = "Object Problems"
-  html.detail_table([v for v in session.validation_status if v.is_object_problem])
+  html.detail_table(session.object_problems)
   html.close()
 
   html = HTML("All Details", "details")

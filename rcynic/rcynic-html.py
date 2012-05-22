@@ -429,7 +429,7 @@ css = '''
     margin: 0 0 1em 0;
   }
 
-  #nav a {
+  #nav a, #nav span {
     display: block;
     color: black;
     text-decoration: none;
@@ -530,8 +530,9 @@ class HTML(object):
       SubElement(self.head, "script", src = self.suckerfish_name, type = "text/javascript")
 
     toc = SubElement(self.body, "ul", id = "nav")
+    SubElement(SubElement(toc, "li"), "a", href = "index.html").text = "Overview"
     li = SubElement(toc, "li")
-    SubElement(li, "a", href = "index.html").text = "Repositories"
+    SubElement(li, "span").text = "Repositories"
     hul = SubElement(li, "ul", style = "width: %sem" % hostwidth)
     for hostname in session.hostnames:
       SubElement(SubElement(hul, "li"), "a", href = "%s.html" % hostname).text = hostname

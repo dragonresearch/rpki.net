@@ -309,14 +309,19 @@ class Host(object):
         cmds.extend(self.field_defs(filebase))
         cmds.extend(self.graph_cmds)
         self.rrd_run(cmds)
-      img = Element("img", src = "%s_%s.png" % (filebase, period),
+      img = Element("img", src = "%s_%s.png" % (self.hostname, period),
                     width  = str(opt["png-width"]),
                     height = str(opt["png-height"]))
       if self.graph is None:
         self.graph = copy.copy(img)
       html.BodyElement("h2").text = "%s over last %s" % (self.hostname, period)
-      html.BodyElement("a", href = "%s_%s.svg" % (filebase, period)).append(img)
+      html.BodyElement("a", href = "%s_%s_svg.html" % (self.hostname, period)).append(img)
       html.BodyElement("br")
+      svg_html = HTML("%s over last %s" % (self.hostname, period),
+                      "%s_%s_svg" % (self.hostname, period))
+      svg_html.body.append(ElementTree(file = "%s_%s.svg" % (filebase, period)).getroot())
+      svg_html.close()
+
 
 class Session(object):
 

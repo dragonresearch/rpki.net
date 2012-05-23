@@ -181,6 +181,14 @@ class Validation_Status(object):
   def is_object_problem(self):
     return self.label.mood != "good" and not self.label.code.startswith("rsync_transfer_")
 
+  @property
+  def is_connection_detail(self):
+    return self.label.code.startswith("rsync_transfer_")
+
+  @property
+  def is_object_detail(self):
+    return not self.label.code.startswith("rsync_transfer_")
+
 class Problem_Mixin(object):
   
   @property
@@ -584,11 +592,15 @@ class HTML(object):
     SubElement(SubElement(toc, "li"), "a", href = "index.html").text = "Overview"
     li = SubElement(toc, "li")
     SubElement(li, "span").text = "Repositories"
-    hul = SubElement(li, "ul", style = "width: %sem" % hostwidth)
+    ul = SubElement(li, "ul", style = "width: %sem" % hostwidth)
     for hostname in session.hostnames:
-      SubElement(SubElement(hul, "li"), "a", href = "%s.html" % hostname).text = hostname
+      SubElement(SubElement(ul, "li"), "a", href = "%s.html" % hostname).text = hostname
     SubElement(SubElement(toc, "li"), "a", href = "problems.html").text = "Problems"
-    SubElement(SubElement(toc, "li"), "a", href = "details.html").text = "Per-object details"
+    li = SubElement(toc, "li")
+    SubElement(li, "span").text = "All Details"
+    ul = SubElement(li, "ul", style = "width: 15em")
+    SubElement(SubElement(ul, "li"), "a", href = "connections.html").text = "All Connections"
+    SubElement(SubElement(ul, "li"), "a", href = "objects.html").text = "All Objects"
     SubElement(self.body, "br")
 
   def close(self):
@@ -662,7 +674,7 @@ def main():
   session.rrd_update()
 
   for hostname in session.hostnames:
-    html = HTML("Host Details For %s" % hostname, hostname)
+    html = HTML("Repository details for %s" % hostname, hostname)
     html.counter_table(session.hosts[hostname].get_counter, session.hosts[hostname].get_total)
     if opt["show-graphs"]:
       session.hosts[hostname].rrd_graph(html)
@@ -672,14 +684,14 @@ def main():
     html.detail_table(session.hosts[hostname].object_problems)
     html.close()
 
-  html = HTML("rcynic Summary", "index")
-  html.BodyElement("h2").text = "Grand Totals"
+  html = HTML("rcynic summary", "index")
+  html.BodyElement("h2").text = "Grand totals for all repositories"
   html.counter_table(session.get_sum, Label.get_count)
   for hostname in session.hostnames:
     html.BodyElement("br")
     html.BodyElement("hr")
     html.BodyElement("br")
-    html.BodyElement("h2").text = "Overview For Repository %s" % hostname
+    html.BodyElement("h2").text = "Overview for repository %s" % hostname
     html.counter_table(session.hosts[hostname].get_counter, session.hosts[hostname].get_total)
     if opt["show-graphs"]:
       html.BodyElement("br")
@@ -693,8 +705,12 @@ def main():
   html.detail_table(session.object_problems)
   html.close()
 
-  html = HTML("All Details", "details")
-  html.detail_table(session.validation_status)
+  html = HTML("All connections", "connections")
+  html.detail_table([v for v in session.validation_status if v.is_connection_detail])
+  html.close()
+
+  html = HTML("All objects", "objects")
+  html.detail_table([v for v in session.validation_status if v.is_object_detail])
   html.close()
 
 

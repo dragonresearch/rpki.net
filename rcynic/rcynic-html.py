@@ -352,6 +352,24 @@ class Host(Problem_Mixin):
       html.BodyElement("br")
       svg_html = HTML("%s over last %s" % (self.hostname, period),
                       "%s_%s_svg" % (self.hostname, period))
+      #
+      # In theory, we could edit the SVG here to insert an <a/>
+      # element just inside the <svg/> element, causing the entire SVG
+      # image to be a link to wherever we want it to go.  Don't bother
+      # until we have a use for such a link, but, references:
+      #
+      #   http://www.w3.org/TR/SVG/linking.html#Links
+      #   http://lxml.de/tutorial.html#elements-are-lists
+      #
+      # So code would look something like:
+      #
+      #   svg = ElementTree(...).getroot()
+      #   a = Element("{http://www.w3.org/2000/svg}a",
+      #               { "{http://www.w3.org/1999/xlink}href" : url })
+      #   a.extend(svg[:])
+      #   del svg[:]
+      #   svg.append(a)
+      #
       svg_html.body.append(ElementTree(file = "%s_%s.svg" % (filebase, period)).getroot())
       svg_html.close()
 
@@ -574,7 +592,7 @@ class HTML(object):
     SubElement(self.body, "br")
 
   def close(self):
-    ElementTree(element = self.html).write(self.filename)
+    ElementTree(element = self.html).write(self.filename, pretty_print = True)
 
   def BodyElement(self, tag, **attrib):
     return SubElement(self.body, tag, **attrib)

@@ -504,43 +504,40 @@ binary option:
 
 **** rcynic.py ****
 
-An earlier attempt at what rcynic-html now does. Kept for backwards
-compatability, but will go away soon. Use rcynic-html instead.
+An earlier attempt at what rcynic-html now does. Kept briefly for backwards
+compatability, but no longer maintained and will go away soon. Use rcynic-html
+instead.
 
 **** rcynic.xsl ****
 
-An earlier attempt at the same kind of HTML display as rcynic.py. XSLT was a
+An earlier attempt at the same kind of HTML display as rcynic-html. XSLT was a
 convenient language for our initial attempts at this, but as the processing got
 more and more complex, the speed and flexibility restrictions of XSLT became
 prohibitive. If for some reason XSLT works better in your environment than
 Python, you might find this stylesheet to be a useful starting point, but be
-warned that it is significantly slower than rcynic.py, lacks some of
-rcynic.py's features, and is no longer under development.
+warned that it's significantly slower than rcynic-html, lacks many features,
+and is no longer under development.
 
-Usage:
-
-  $ xsltproc -o rcynic.html rcynic.xsl rcynic.xml
-
-**** show.xsl / show.sh ****
+**** rcynic-text ****
 
 Provides a quick flat text summary of validation results. Useful primarily in
 test scripts (smoketest uses it).
 
 Usage:
 
-  $ sh show.sh rcynic.xml
+  $ rcynic-text rcynic.xml
 
-**** validation_status.xsl / validation_status.awk ****
+**** validation_status.py ****
 
 Provides a flat text translation of the detailed validation results. Useful
 primarily for checking the detailed status of some particular object or set of
-objects, most likely using a program like grep or awk to filter the output.
+objects, most likely using a program like grep to filter the output.
 
 Usage:
 
-  $ awk -f validation_status.awk rcynic.xml
-  $ awk -f validation_status.awk rcynic.xml | fgrep rpki.misbehaving.org
-  $ awk -f validation_status.awk rcynic.xml | fgrep object_rejected
+  $ python validation_status.py rcynic.xml
+  $ python validation_status.py rcynic.xml | fgrep rpki.misbehaving.org
+  $ python validation_status.py rcynic.xml | fgrep object_rejected
 
 ***** Running rcynic chrooted *****
 

@@ -112,6 +112,7 @@ unset old_LDFLAGS
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 AC_PATH_PROG([AWK], [awk])
 AC_PATH_PROG([SORT], [sort])
+AC_PATH_PROG([RRDTOOL], [rrdtool])
 AC_PROG_GREP
 
 if test "x$XSLTPROC" != "x" && test "x$AWK" != "x"
@@ -349,6 +350,11 @@ fi
 if test "x$XSLTPROC" = "x"
 then
 	AC_MSG_WARN([xsltproc missing, so "make test" will not work properly.])
+fi
+
+if test "x$RRDTOOL" = "x"
+then
+	AC_MSG_WARN([rrdtool missing, so rcynic-html won't be able to draw graphs.])
 fi
 
 if test $ok = no

@@ -40,12 +40,18 @@ opt = {
   "show-problems"               : False,
   "show-graphs"                 : True,
   "update-rrds"                 : True,
-  "rrdtool-binary"              : "rrdtool",
   "suckerfish-javascript"       : False,
   "png-height"                  : 190,
   "png-width"                   : 1350,
   "svg-height"                  : 600,
   "svg-width"                   : 1200 }
+
+try:
+  # Set from autoconf
+  opt["rrdtool-binary"] = ac_rrdtool_binary
+except NameError:
+  # Not set at all
+  opt["rrdtool-binary"] = "rrdtool"
 
 def usage(msg = 0):
   f = sys.stderr if msg else sys.stdout

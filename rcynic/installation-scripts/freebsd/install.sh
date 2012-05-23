@@ -90,10 +90,10 @@ else
     exit 1
 fi
 
-if /usr/bin/install -m 444 -o root -g wheel -p ../../rcynic.py "${jaildir}/etc/rcynic.py"; then
-    echo "Installed rcynic.py as \"${jaildir}/etc/rcynic.py\""
+if /usr/bin/install -m 444 -o root -g wheel -p ../../rcynic-html "${jaildir}/bin/rcynic-html"; then
+    echo "Installed rcynic.py as \"${jaildir}/bin/rcynic-html\""
 else
-    echo "Installing rcynic.py failed"
+    echo "Installing rcynic-html failed"
     exit 1
 fi
 

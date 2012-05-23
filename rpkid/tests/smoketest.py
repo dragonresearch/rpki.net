@@ -132,7 +132,7 @@ prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
 prog_rcynic    = cfg.get("prog_rcynic",    "../../../rcynic/rcynic")
 prog_openssl   = cfg.get("prog_openssl",   "../../../openssl/openssl/apps/openssl")
 
-rcynic_stats   = cfg.get("rcynic_stats",   "echo ; ../../../rcynic/show.sh %s.xml ; echo" % rcynic_name)
+rcynic_stats   = cfg.get("rcynic_stats",   "echo ; ../../../rcynic/rcynic-text %s.xml ; echo" % rcynic_name)
 
 rpki_sql_file  = cfg.get("rpki_sql_file",  "../rpkid.sql")
 irdb_sql_file  = cfg.get("irdb_sql_file",  "old_irdbd.sql")

@@ -41,7 +41,7 @@ do
     sleep 30
     date
     ../../rcynic/rcynic
-    ../../rcynic/show.sh
+    ../../rcynic/rcynic-text rcynic.xml
     ../../utils/scan_roas/scan_roas rcynic-data/authenticated
     date
   done

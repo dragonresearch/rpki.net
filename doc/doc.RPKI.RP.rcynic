@@ -476,38 +476,36 @@ The distribution includes several post-processors for the XML output rcynic
 writes describing the actions it has taken and the validation status of the
 objects it has found.
 
+**** rcynic-html ****
+
+Converts rcynic's XML output into a collection of HTML pages summarizing the
+results, noting problems encountered, and showing some history of rsync
+transfer times and repository object counts in graphical form.
+
+Usage:
+
+  $ rcynic-html rcynic.xml /web/server/directory/
+
+rcynic-html will write a collection of HTML and image files to the specified
+output directory, along with a set of RRD databases. rcynic-html will create
+the output directory if necessary.
+
+rcynic-html requires rrdtool, a specialized database and graphing engine
+designed for this sort of work. You can run rcynic-html without rrdtool by
+giving it the --no-show-graphs option, but the result won't be as useful.
+
+rcynic-html gets its idea of where to find the rrdtool program from autoconf,
+which usually works. If for some reason it doesn't work in your environment,
+you will need to tell rcynic-html where to find rrdtool, using the --rrdtool-
+binary option:
+
+  $ rcynic-html --rrdtoolbinary /some/where/rrdtool rcynic.xml /web/server/
+  directory/
+
 **** rcynic.py ****
 
-Converts rcynic's XML output into a pretty (well, we like it) HTML page
-summarizing the results then providing detailed information on each object
-retrieved, with some color coding intended to highlight issues needing
-attention. The intent is that the top of this page provide an at-a-glance
-summary of the state of the world; in practice, the state of the world tends to
-be messy enough that this is less useful than one might hope, but it's a start.
-
-Usage:
-
-  $ python rcynic.py rcynic.xml rcynic.html
-
-rcynic.py can also generate a more complicated set of HTML pages including
-graphs showing a history of rsync transfer time and repository object count for
-each repository rcynic found during its tree walk. In this mode, rcynic.py
-needs an output directory (which it will create, if needed) because it has to
-write several graphs and an HTML page for each repository, as well as a master
-HTML file which it will write out as index.html in the specified directory.
-
-This mode requires rrdtool, a specialized database and graphing engine designed
-for this sort of work.
-
-Usage:
-
-  $ python rcynic.py --show-graphs rcynic.xml /web/server/directory/
-
-If rrdtool isn't on rcynic.py's search path and you need to give its location
-explictly, you can do so using the --rrdtool-binary option:
-
-  $ python rcynic.py --show-graphs --rrdtoolbinary /some/where/unusual/rrdtool
-  rcynic.xml /web/server/directory/
+An earlier attempt at what rcynic-html now does. Kept for backwards
+compatability, but will go away soon. Use rcynic-html instead.
 
 **** rcynic.xsl ****
 

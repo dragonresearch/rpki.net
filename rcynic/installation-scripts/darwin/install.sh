@@ -132,7 +132,7 @@ do
     fi
 done
 
-if /usr/bin/install -m 444 -o root -g wheel -p ../../rcynic-html "${jaildir}/bin/rcynic-html"; then
+if /usr/bin/install -m 555 -o root -g wheel -p ../../rcynic-html "${jaildir}/bin/rcynic-html"; then
     echo "Installed rcynic.py as \"${jaildir}/bin/rcynic-html\""
 else
     echo "Installing rcynic-html failed"

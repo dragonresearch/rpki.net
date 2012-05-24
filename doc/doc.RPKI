@@ -11,12 +11,12 @@ interface more convenient.
 
 ***** Download *****
 
-At the moment, the only way to obtain the code is via subversion. At some point
-we should start producing snapshot tarballs.
-
-To download the code, do:
+The recommended way to obtain the code is via subversion. To download, do:
 
   $ svn checkout http://subvert-rpki.hactrn.net/trunk/
+
+Nightly snapshots of trunk are also available from http://download.rpki.net/ as
+xz-compressed tarballs.
 
 ***** Installation *****
 

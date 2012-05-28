@@ -515,15 +515,15 @@ css = '''
     width: 100%;
   }
 
-  #nav li:hover ul ul, #nav li:hover ul ul ul, #nav li.sfhover ul ul, #nav li.sfhover ul ul ul {
+  #nav li:hover ul ul, #nav li:hover ul ul ul {
     left: -999em;
   }
 
-  #nav li:hover ul, #nav li li:hover ul, #nav li li li:hover ul, #nav li.sfhover ul, #nav li li.sfhover ul, #nav li li li.sfhover ul {
+  #nav li:hover ul, #nav li li:hover ul, #nav li li li:hover ul {
     left: auto;
   }
 
-  #nav li:hover, #nav li.sfhover {
+  #nav li:hover {
     background: white;
   }
 '''

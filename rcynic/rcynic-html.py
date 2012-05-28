@@ -40,7 +40,6 @@ opt = {
   "show-problems"               : False,
   "show-graphs"                 : True,
   "update-rrds"                 : True,
-  "suckerfish-javascript"       : False,
   "png-height"                  : 190,
   "png-width"                   : 1350,
   "svg-height"                  : 600,
@@ -529,40 +528,15 @@ css = '''
   }
 '''
 
-suckerfish = '''
-  // The amazing Suckerfish hack to let Internet Exploder use CSS dropdowns.
-  // See http://www.htmldog.com/articles/suckerfish/dropdowns/
-
-  sfHover = function() {
-    var sfEls = document.getElementById("nav").getElementsByTagName("li");
-    for (var i = 0; i < sfEls.length; i++) {
-      sfEls[i].onmouseover = function() {
-        this.className += " sfhover";
-      }
-      sfEls[i].onmouseout = function() {
-        this.className = this.className.replace(new RegExp(" sfhover\\b"), "");
-      }
-    }
-  }
-
-  if (window.attachEvent)
-    window.attachEvent("onload", sfHover);
-'''
-
 class HTML(object):
 
   css_name = "rcynic-html.css"
-  suckerfish_name = "suckerfish.js"
 
   @classmethod
   def write_static_files(cls):
     f = open(os.path.join(opt["output_directory"], cls.css_name), "w")
     f.write(textwrap.dedent(css))
     f.close()
-    if opt["suckerfish-javascript"]:
-      f = open(os.path.join(opt["output_directory"], cls.suckerfish_name), "w")
-      f.write(textwrap.dedent(suckerfish))
-      f.close()
 
   def __init__(self, title, filebase):
 
@@ -578,15 +552,12 @@ class HTML(object):
     title += " " + session.rcynic_date
     SubElement(self.head, "title").text = title
     SubElement(self.body, "h1").text = title
+    SubElement(self.head, "link", href = self.css_name, rel = "stylesheet", type = "text/css")
 
     if opt["refresh"]:
       SubElement(self.head, "meta", { "http-equiv" : "Refresh", "content" : str(opt["refresh"]) })
 
     hostwidth = max(len(hostname) for hostname in session.hostnames)
-
-    SubElement(self.head, "link", href = self.css_name, rel = "stylesheet", type = "text/css")
-    if opt["suckerfish-javascript"]:
-      SubElement(self.head, "script", src = self.suckerfish_name, type = "text/javascript")
 
     toc = SubElement(self.body, "ul", id = "nav")
     SubElement(SubElement(toc, "li"), "a", href = "index.html").text = "Overview"

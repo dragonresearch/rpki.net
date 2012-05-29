@@ -25,7 +25,6 @@ import getopt
 import time
 import subprocess
 import copy
-import textwrap
 
 try:
   from lxml.etree            import (ElementTree, Element, SubElement, Comment)
@@ -440,103 +439,91 @@ class Session(Problem_Mixin):
         h.rrd_update()
 
 css = '''
-  /*
-   * Cascading style sheet for rcynic-html output.  Much of this
-   * comes, indirectly, at a remove of many years, from
-   * http://www.htmldog.com/articles/suckerfish/dropdowns/example/
-   */
+    th, td {
+      text-align: center; padding: 4px;
+    }
 
-  th, td {
-    text-align: center; padding: 4px;
-  }
+    td.uri {
+      text-align: left;
+    }
 
-  td.uri {
-    text-align: left;
-  }
+    thead tr th, tfoot tr td {
+      font-weight: bold;
+    }
 
-  thead tr th, tfoot tr td {
-    font-weight: bold;
-  }
+    .good {
+      background-color: #77ff77;
+    }
 
-  .good {
-    background-color: #77ff77;
-  }
+    .warn {
+      background-color: yellow;
+    }
 
-  .warn {
-    background-color: yellow;
-  }
+    .bad {
+      background-color: #ff5500;
+    }
 
-  .bad {
-    background-color: #ff5500;
-  }
+    body {
+      font-family: arial, helvetica, serif;
+    }
 
-  body {
-    font-family: arial, helvetica, serif;
-  }
+    /* Make background-color inherit like color does. */
+    #nav {
+      background-color: inherit;
+    }
 
-  #nav, #nav ul {
-    float: left;
-    width: 100%;
-    list-style: none;
-    line-height: 1;
-    background: white;
-    font-weight: normal;
-    padding: 0;
-    border: solid black;
-    border-width: 1px 0;
-    margin: 0 0 1em 0;
-  }
+    #nav, #nav ul {
+      float: left;
+      width: 100%;
+      list-style: none;
+      line-height: 1;
+      font-weight: normal;
+      padding: 0;
+      border-color: black;
+      border-style: solid;
+      border-width: 1px 0;
+      margin: 0 0 1em 0;
+    }
 
-  #nav a, #nav span {
-    display: block;
-    color: black;
-    text-decoration: none;
-    padding: 0.25em 0.75em;
-  }
+    #nav a, #nav span {
+      display: block;
+      background-color: white;
+      color: black;
+      text-decoration: none;
+      padding: 0.25em 0.75em;
+    }
 
-  #nav li {
-    float: left;
-    padding: 0;
-  }
+    #nav li {
+      float: left;
+      padding: 0;
+    }
 
-  /*
-   * There's no useful way to set a width here, we have to set it as a style
-   * attribute in  the <ul/> elements.  CSS2, maybe, someday.
-   */
-  #nav li ul {
-    position: absolute;
-    left: -999em;
-    height: auto;
-    border-width: 1px;
-    margin: 0;
-  }
+    /* Use <ul style="width: ..."> to set submenu width. */
+    #nav li ul {
+      position: absolute;
+      display: none;
+      height: auto;
+      border-width: 1px;
+      margin: 0;
+    }
 
-  #nav li li {
-    width: 100%;
-  }
+    #nav li li {
+      width: 100%;
+    }
 
-  #nav li:hover ul ul, #nav li:hover ul ul ul {
-    left: -999em;
-  }
+    /* Display submenu when hovering. */
+    #nav li:hover ul {
+      display: block;
+    }
 
-  #nav li:hover ul, #nav li li:hover ul, #nav li li li:hover ul {
-    left: auto;
-  }
-
-  #nav li:hover {
-    background: white;
-  }
+    /* Reverse video when hovering. */
+    #nav a:hover, #nav span:hover {
+      color: white;
+      background-color: black;
+    }
 '''
 
 class HTML(object):
-
-  css_name = "rcynic-html.css"
-
-  @classmethod
-  def write_static_files(cls):
-    f = open(os.path.join(opt["output_directory"], cls.css_name), "w")
-    f.write(textwrap.dedent(css))
-    f.close()
 
   def __init__(self, title, filebase):
 
@@ -552,7 +539,7 @@ class HTML(object):
     title += " " + session.rcynic_date
     SubElement(self.head, "title").text = title
     SubElement(self.body, "h1").text = title
-    SubElement(self.head, "link", href = self.css_name, rel = "stylesheet", type = "text/css")
+    SubElement(self.head, "style", type = "text/css").text = css
 
     if opt["refresh"]:
       SubElement(self.head, "meta", { "http-equiv" : "Refresh", "content" : str(opt["refresh"]) })
@@ -639,7 +626,6 @@ def main():
   time.tzset()
 
   parse_options()
-  HTML.write_static_files()
 
   session = Session()
   session.rrd_update()

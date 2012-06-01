@@ -318,7 +318,7 @@ class Host(Problem_Mixin):
     try:
       cmd = [str(i) for i in cmd]
       cmd.insert(0, opt["rrdtool-binary"])
-      return subprocess.check_output(cmd).splitlines()
+      subprocess.check_call(cmd, stdout = open("/dev/null", "w"))
     except OSError, e:
       usage("Problem running %s, perhaps you need to set --rrdtool-binary?  (%s)" % (
         opt["rrdtool-binary"], e))

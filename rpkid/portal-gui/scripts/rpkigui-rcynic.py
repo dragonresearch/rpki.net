@@ -15,7 +15,7 @@
 
 __version__ = '$Id$'
 
-default_logfile = '/var/rcynic/data/summary.xml'
+default_logfile = '/var/rcynic/data/rcynic.xml'
 default_root = '/var/rcynic/data'
 
 import time

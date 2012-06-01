@@ -270,7 +270,6 @@ class Host(Problem_Mixin):
     "--right-axis-label", "Objects (count)",
     "--lower-limit", "0",
     "--right-axis", "1:0",
-    "--dynamic-labels",
     "--full-size-mode" )
 
   graph_cmds = (

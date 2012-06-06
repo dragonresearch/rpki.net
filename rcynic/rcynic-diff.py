@@ -1,5 +1,5 @@
 """
-Diff two rcynic.xml files, sort of.
+Diff a series of rcynic.xml files, sort of.
 
 $Id$
 
@@ -25,6 +25,8 @@ try:
 except ImportError:
   from xml.etree.ElementTree import ElementTree
 
+show_backup_generation = False
+
 class Object(object):
 
   def __init__(self, uri, generation):
@@ -39,7 +41,10 @@ class Object(object):
     return cmp(self.labels, other.labels)
 
   def show(self):
-    print " ", self.uri, self.generation, ",".join(self.labels)
+    if show_backup_generation:
+      print " ", self.uri, self.generation, ",".join(self.labels)
+    else:
+      print " ", self.uri, ",".join(self.labels)
 
 class Session(dict):
 
@@ -49,7 +54,12 @@ class Session(dict):
       generation = elt.get("generation")
       status = elt.get("status")
       uri = elt.text.strip()
-      key = (uri, generation)
+      if show_backup_generation:
+        key = (uri, generation)
+      elif generation == "backup":
+        continue
+      else:
+        key = uri
       if key not in self:
         self[key] = Object(uri, generation)
       self[key].add(status)
@@ -67,6 +77,10 @@ for arg in sys.argv[1:]:
   only_old = set(old_db) - set(new_db)
   only_new = set(new_db) - set(old_db)
   common   = set(old_db) & set(new_db)
+
+  if only_old or common or only_new:
+    print "Comparing", old_db.name, "with", new_db.name
+    print
 
   if only_old:
     print "Only in", old_db.name

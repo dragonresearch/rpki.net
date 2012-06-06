@@ -29,7 +29,8 @@ show_backup_generation = False
 
 class Object(object):
 
-  def __init__(self, uri, generation):
+  def __init__(self, session, uri, generation):
+    self.session = session
     self.uri = uri
     self.generation = generation
     self.labels = []
@@ -40,17 +41,31 @@ class Object(object):
   def __cmp__(self, other):
     return cmp(self.labels, other.labels)
 
-  def show(self):
-    if show_backup_generation:
-      print " ", self.uri, self.generation, ",".join(self.labels)
+  def show(self, other = None):
+    if other is None:
+      labels = " ".join(self.labels)
     else:
-      print " ", self.uri, ",".join(self.labels)
+      labels = []
+      for label in self.session.labels:
+        if label in self.labels and label in other.labels:
+          labels.append(label)
+        elif label in self.labels:
+          labels.append("+" + label)
+        elif label in other.labels:
+          labels.append("-" + label)
+      labels = " ".join(labels)
+    if show_backup_generation:
+      print " ", self.uri, self.generation, labels
+    else:
+      print " ", self.uri, labels
 
 class Session(dict):
 
   def __init__(self, name):
     self.name = name
-    for elt in ElementTree(file = name).findall("validation_status"):
+    tree = ElementTree(file = name)
+    self.labels = [elt.tag.strip() for elt in tree.find("labels")]
+    for elt in tree.findall("validation_status"):
       generation = elt.get("generation")
       status = elt.get("status")
       uri = elt.text.strip()
@@ -61,7 +76,7 @@ class Session(dict):
       else:
         key = uri
       if key not in self:
-        self[key] = Object(uri, generation)
+        self[key] = Object(self, uri, generation)
       self[key].add(status)
 
 old_db = new_db = None
@@ -76,9 +91,9 @@ for arg in sys.argv[1:]:
 
   only_old = set(old_db) - set(new_db)
   only_new = set(new_db) - set(old_db)
-  common   = set(old_db) & set(new_db)
+  changed =  set(key for key in (set(old_db) & set(new_db)) if old_db[key] != new_db[key])
 
-  if only_old or common or only_new:
+  if only_old or changed or only_new:
     print "Comparing", old_db.name, "with", new_db.name
     print
 
@@ -88,12 +103,11 @@ for arg in sys.argv[1:]:
       old_db[key].show()
     print
 
-  for key in sorted(common):
-    if old_db[key] != new_db[key]:
-      print "Changed:"
-      old_db[key].show()
-      new_db[key].show()
-      print
+  if changed:
+    print "Changed:"
+    for key in sorted(changed):
+      new_db[key].show(old_db[key])
+    print
 
   if only_new:
     print "Only in", new_db.name

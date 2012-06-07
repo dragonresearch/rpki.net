@@ -26,6 +26,7 @@ except ImportError:
   from xml.etree.ElementTree import ElementTree
 
 show_backup_generation = False
+show_rsync_transfer = False
 
 class Object(object):
 
@@ -41,23 +42,30 @@ class Object(object):
   def __cmp__(self, other):
     return cmp(self.labels, other.labels)
 
-  def show(self, other = None):
-    if other is None:
-      labels = " ".join(self.labels)
-    else:
-      labels = []
-      for label in self.session.labels:
-        if label in self.labels and label in other.labels:
-          labels.append(label)
-        elif label in self.labels:
-          labels.append("+" + label)
-        elif label in other.labels:
-          labels.append("-" + label)
-      labels = " ".join(labels)
-    if show_backup_generation:
-      print " ", self.uri, self.generation, labels
-    else:
-      print " ", self.uri, labels
+def show(old = None, new = None):
+  assert old is not None or new is not None
+  assert old is None or new is None or old.uri == new.uri
+  if old is None:
+    obj = new
+    labels = ["+" + label for label in new.labels]
+  elif new is None:
+    obj = old
+    labels = ["-" + label for label in old.labels]
+  else:
+    obj = new
+    labels = []
+    for label in new.session.labels:
+      if label in new.labels and label in old.labels:
+        labels.append(label)
+      elif label in new.labels:
+        labels.append("+" + label)
+      elif label in old.labels:
+        labels.append("-" + label)
+  labels = " ".join(labels)
+  if show_backup_generation:
+    print " ", obj.uri, obj.generation, labels
+  else:
+    print " ", obj.uri, labels
 
 class Session(dict):
 
@@ -69,6 +77,8 @@ class Session(dict):
       generation = elt.get("generation")
       status = elt.get("status")
       uri = elt.text.strip()
+      if not show_rsync_transfer and status.startswith("rsync_transfer_"):
+        continue
       if show_backup_generation:
         key = (uri, generation)
       elif generation == "backup":
@@ -95,22 +105,10 @@ for arg in sys.argv[1:]:
 
   if only_old or changed or only_new:
     print "Comparing", old_db.name, "with", new_db.name
-    print
-
-  if only_old:
-    print "Only in", old_db.name
     for key in sorted(only_old):
-      old_db[key].show()
-    print
-
-  if changed:
-    print "Changed:"
+      show(old = old_db[key])
     for key in sorted(changed):
-      new_db[key].show(old_db[key])
-    print
-
-  if only_new:
-    print "Only in", new_db.name
+      show(old = old_db[key], new = new_db[key])
     for key in sorted(only_new):
-      new_db[key].show()
+      show(new = new_db[key])
     print

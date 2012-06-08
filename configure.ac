@@ -240,6 +240,7 @@ have_acceptable_django=no
 have_lxml=no
 have_mysqldb=no
 have_pyyaml=no
+have_vobject=no
 
 if test "x$PYTHON" != "x"
 then
@@ -289,6 +290,13 @@ then
 		have_pyyaml=yes
 	fi
 	AC_MSG_RESULT([$have_pyyaml])
+
+	AC_MSG_CHECKING([for vobject])
+	if $PYTHON -c 'import vobject' 2>/dev/null
+	then
+		have_vobject=yes
+	fi
+	AC_MSG_RESULT([$have_vobject])
 fi
 
 ok=yes
@@ -322,6 +330,11 @@ case $enable_ca_tools in
 		then
 			ok=no
 			AC_MSG_WARN([The RPKI CA tools require Django 1.2 or higher.])
+		fi
+		if test $have_vobject = no
+		then
+			ok=no
+			AC_MSG_WARN([The RPKI CA GUI requires the Python vobject module])
 		fi
 		if test $ok = no
 		then
@@ -455,14 +468,6 @@ then
 
         # There is no standard name for this tool, so check for it.
         AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
-
-	AC_MSG_CHECKING([for the vobject module])
-	if $PYTHON -c 'import vobject' 2>/dev/null
-	then
-		AC_MSG_RESULT(yes)
-	else
-		AC_MSG_ERROR([The Python vobject module is not installed.  On Linux systems the package is typically called python-vobject, and on FreeBSD systems it is py27-vobject])
-	fi
 
 	AC_CONFIG_FILES([rpkid/Makefile rpkid/tests/Makefile rpkid/portal-gui/Makefile])
 fi

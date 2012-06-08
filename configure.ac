@@ -115,12 +115,6 @@ AC_PATH_PROG([SORT], [sort])
 AC_PATH_PROG([RRDTOOL], [rrdtool])
 AC_PROG_GREP
 
-if test "x$XSLTPROC" != "x" && test "x$AWK" != "x"
-then
-	AC_CONFIG_FILES([rcynic/show.sh],
-			[chmod +x rcynic/show.sh])
-fi
-
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:
 # CMS and RFC 3779 support.  We also have to check whether the user

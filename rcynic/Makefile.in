@@ -59,7 +59,7 @@ uninstall deinstall:
 
 distclean: clean
 	cd static-rsync; ${MAKE} $@
-	rm -f show.sh installation-scripts/linux/install.sh Makefile
+	rm -f installation-scripts/linux/install.sh Makefile
 
 COMPILE_PYTHON = \
 	AC_PYTHON_INTERPRETER='${PYTHON}' \

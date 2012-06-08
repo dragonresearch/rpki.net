@@ -88,6 +88,12 @@ Packages you will need:
   o FreeBSD: /usr/ports/www/py-django
   o Ubuntu: python-django
 
+* http://vobject.skyhouseconsulting.com/, a Python library for parsing VCards.
+  The GUI uses this to parse the payload of RPKI Ghostbuster objects.
+
+  o FreeBSD: /usr/ports/deskutils/py-vobject
+  o Ubuntu: python-vobject
+
 * http://pyyaml.org/. Several of the test programs use PyYAML to parse a YAML
   description of a simulated allocation hierarchy to test.
 

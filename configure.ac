@@ -456,6 +456,14 @@ then
         # There is no standard name for this tool, so check for it.
         AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
 
+	AC_MSG_CHECKING([for the vobject module])
+	if $PYTHON -c 'import vobject' 2>/dev/null
+	then
+		AC_MSG_RESULT(yes)
+	else
+		AC_MSG_ERROR([The Python vobject module is not installed.  On Linux systems the package is typically called python-vobject, and on FreeBSD systems it is py27-vobject])
+	fi
+
 	AC_CONFIG_FILES([rpkid/Makefile rpkid/tests/Makefile rpkid/portal-gui/Makefile])
 fi
 

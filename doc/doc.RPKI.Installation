@@ -132,6 +132,14 @@ libraries or the private OpenSSL libraries, as appopriate.
 In theory, ./configure will complain about any required packages which might be
 missing.
 
+If you don't intend to run any of the CA tools, you can simplify the build and
+installation process by telling ./configure that you only want to build the
+relying party tools:
+
+  $ cd $top
+  $ ./configure --disable-ca-tools
+  $ make
+
 ***** Testing the build *****
 
 Assuming the build stage completed without obvious errors, the next step is to

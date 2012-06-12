@@ -1,0 +1,11 @@
+****** The RPKI Out-Of-Band Setup Protocol ******
+
+This protocol configures the initial URLs and BPKI certificates needed to
+operate the up-down and publication protocols. This is not an IETF standard of
+any kind. The rpki.net code is, as far as we know, the only complete
+implementation of this protocol, but other RPKI CA packages implement portions
+of it for interoperability.
+
+In the long run we intend to clean this up and submit the cleaned-up version as
+a candidate for IETF standardization, since it seems to be in everyone's best
+interests, but we're not there yet.

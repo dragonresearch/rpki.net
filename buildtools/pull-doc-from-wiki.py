@@ -37,6 +37,7 @@ import lxml.etree
 import urllib
 import urlparse
 import subprocess
+import tempfile
 
 # Main program, up front so it doesn't get lost under all the XSL
 
@@ -52,7 +53,7 @@ def main():
 
   def usage(msg = 0):
     sys.stderr.write("Usage: %s %s\n" % (
-      sys.argv[0], " ".join("[%s value]" % o[:-1] if o.endswith("=") else "[%s]" % o
+      sys.argv[0], " ".join("[--%s value]" % o[:-1] if o.endswith("=") else "[--%s]" % o
                             for o in options)))
     sys.stderr.write(__doc__)
     sys.exit(msg)
@@ -88,11 +89,28 @@ def main():
 
   lxml.etree.ElementTree(xml_title).write(htmldoc.stdin)
 
+  png_fns = []
+
   for url in urls:
     path = urlparse.urlparse(url).path
     page = xsl_get_page(lxml.etree.parse(urllib.urlopen(url)).getroot(),
                         basename = repr(base),
                         path = repr(path))
+
+    for img in page.xpath("//img | //object | //embed"): 
+      attr = "data" if img.tag == "object" else "src"
+      img_url = img.get(attr)
+      if img_url.endswith(".svg"):
+        #sys.stderr.write("Converting %s to PNG\n" % img_url)
+        svg = tempfile.NamedTemporaryFile(suffix = ".svg")
+        svg.write(urllib.urlopen(img_url).read())
+        svg.flush()
+        png_fd, png_fn = tempfile.mkstemp(suffix = ".png")
+        subprocess.check_call(("convert", "-resize", "800x800>", svg.name, png_fn))
+        svg.close()
+        os.close(png_fd)
+        img.set(attr, png_fn)
+        png_fns.append(png_fn)
 
     page.write(htmldoc.stdin)
 
@@ -125,6 +143,8 @@ def main():
   htmldoc.wait()
   sys.stderr.write("Wrote %s\n" % pdf)
 
+  for png_fn in png_fns:
+    os.unlink(png_fn)
 
 # HTMLDOC title page.  At some point we might want to generate this
 # dynamically as an ElementTree, but static content will do for the
@@ -246,6 +266,22 @@ xsl_get_page = lxml.etree.XSLT(lxml.etree.XML('''\
         <xsl:apply-templates select="@*[name() != 'src']"/>
         <xsl:apply-templates/>
       </img>
+    </xsl:template>
+
+    <xsl:template match="object[starts-with(@data, '/raw-attachment/wiki/') or
+                                starts-with(@data, '/graphviz/')]">
+      <object data="{concat($basename, @data)}">
+        <xsl:apply-templates select="@*[name() != 'data']"/>
+        <xsl:apply-templates/>
+      </object>
+    </xsl:template>
+
+    <xsl:template match="embed[starts-with(@src, '/raw-attachment/wiki/') or
+                               starts-with(@src, '/graphviz/')]">
+      <embed src="{concat($basename, @src)}">
+        <xsl:apply-templates select="@*[name() != 'src']"/>
+        <xsl:apply-templates/>
+      </embed>
     </xsl:template>
 
     <xsl:template match="text()[contains(., '&#8203;')]">

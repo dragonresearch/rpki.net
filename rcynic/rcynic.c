@@ -278,6 +278,7 @@ static const struct {
   QW(multiple_rsync_uris_in_extension,  "Multiple rsync URIs in extension") \
   QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
   QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
+  QW(rsync_missing_data,		"rsync missing data")		    \
   QW(rsync_transfer_skipped,		"rsync transfer skipped")	    \
   QW(stale_crl_or_manifest,		"Stale CRL or manifest")	    \
   QW(tainted_by_stale_crl,		"Tainted by stale CRL")		    \
@@ -473,7 +474,8 @@ typedef struct rsync_ctx {
   enum {
     rsync_problem_none,		/* Must be first */
     rsync_problem_timed_out,
-    rsync_problem_refused
+    rsync_problem_refused,
+    rsync_problem_missing
   } problem;
   unsigned tries;
   pid_t pid;
@@ -2258,6 +2260,9 @@ static void do_one_rsync_log_line(const rcynic_ctx_t *rc,
     ctx->problem = rsync_problem_refused;
     if (sscanf(s, "@ERROR: max connections (%u) reached -- try again later", &u) == 1)
       logmsg(rc, log_verbose, "Subprocess %u reported limit of %u for %s", ctx->pid, u, ctx->uri.s);
+  } else if (strstr(ctx->buffer, "No such file or directory") != NULL) {
+    logmsg(rc, log_verbose, "Subprocess %u reported missing data for %s", ctx->pid, ctx->uri.s);
+    ctx->problem = rsync_problem_missing;
   }
 }
 
@@ -2424,20 +2429,26 @@ static void rsync_mgr(rcynic_ctx_t *rc)
 	continue;
       }
       
-      /* Otherwise, fall through */
+      goto failure;
 
-    case 2:			/* "Protocol incompatibility" */
-    case 4:		        /* "Requested  action  not supported" */
-    case 10:			/* "Error in socket I/O" */
-    case 11:			/* "Error in file I/O" */
-    case 12:		   	/* "Error in rsync protocol data stream" */
-    case 21:		      	/* "Some error returned by waitpid()" */
-    case 30:			/* "Timeout in data send/receive" */
-    case 35:		 	/* "Timeout waiting for daemon connection" */
+    case 23:			/* "Partial transfer due to error" */
+      /*
+       * Handle missing directories and files, when we can detect
+       * them.  These aren't transfer failures, so we (probably)
+       * shouldn't give up on the repository host.
+       */
+      if (ctx->problem == rsync_problem_missing) {
+	rsync_status = rsync_status_done;
+	log_validation_status(rc, &ctx->uri, rsync_missing_data, object_generation_null);
+	logmsg(rc, log_telemetry, "rsync %u reported missing data while fetching %s",
+	       (unsigned) pid, ctx->uri.s);
+	break;
+      }
 
-      /* Fall through */
+      goto failure;
 
     default:
+    failure:
       rsync_status = rsync_status_failed;
       logmsg(rc, log_data_err, "rsync %u exited with status %d fetching %s",
 	     (unsigned) pid, WEXITSTATUS(pid_status), ctx->uri.s);

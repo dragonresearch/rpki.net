@@ -102,12 +102,10 @@ def main():
       img_url = img.get(attr)
       if img_url.endswith(".svg"):
         #sys.stderr.write("Converting %s to PNG\n" % img_url)
-        svg = tempfile.NamedTemporaryFile(suffix = ".svg")
-        svg.write(urllib.urlopen(img_url).read())
-        svg.flush()
         png_fd, png_fn = tempfile.mkstemp(suffix = ".png")
-        subprocess.check_call(("convert", "-resize", "800x800>", svg.name, png_fn))
-        svg.close()
+        subprocess.Popen(("convert", "-resize", "800x800>", "svg:-", "png:-"),
+                         stdout = png_fd,
+                         stdin = subprocess.PIPE).communicate(urllib.urlopen(img_url).read())
         os.close(png_fd)
         img.set(attr, png_fn)
         png_fns.append(png_fn)

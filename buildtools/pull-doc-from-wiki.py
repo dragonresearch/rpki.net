@@ -103,7 +103,7 @@ def main():
       if img_url.endswith(".svg"):
         #sys.stderr.write("Converting %s to PNG\n" % img_url)
         png_fd, png_fn = tempfile.mkstemp(suffix = ".png")
-        subprocess.Popen(("convert", "-resize", "800x800>", "svg:-", "png:-"),
+        subprocess.Popen(("svg2png", "-h", "700", "-w", "600", "-", "-"),
                          stdout = png_fd,
                          stdin = subprocess.PIPE).communicate(urllib.urlopen(img_url).read())
         os.close(png_fd)

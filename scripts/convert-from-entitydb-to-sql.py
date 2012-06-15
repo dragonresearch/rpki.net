@@ -26,23 +26,48 @@ import rpki.config, rpki.x509, rpki.relaxng, rpki.sundial
 from rpki.mysql_import import MySQLdb
 from lxml.etree import ElementTree
 
-if os.getlogin() != "sra":
-  sys.exit("I //said// this was a work in progress")
-
 cfg_file        = "rpki.conf"
 entitydb        = "entitydb"
 bpki            = "bpki"
 copy_csv_data   = True
+force           = False
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:fh?", ["config=", "force", "help"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
   if o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-f", "--force"):
+    force = True
 if argv:
   sys.exit("Unexpected arguments %s" % argv)
+
+if not force:
+  print """
+        WARNING WARNING WARNING
+
+        This script attempts to upgrade an existing rpkid instance to
+        work with the newer SQL-based back end code.  It has worked in
+        the handful of cases where we've tested it, but it's dangerous
+        and relies heavily on guesses about how your existing instance
+        was originally set up.  It may not work right.  It may not
+        work at all.  It may turn your cat blue.
+
+        Please back up all your data (MySQL databases, bpki/ and
+        entitydb/ directories) and configuration (rpki.conf file) before
+        running this script.
+        """
+  while True:
+    answer = raw_input("Are you SURE you want to proceed? (yes/NO) ").strip().lower()
+    if answer in ("", "n", "no"):
+      sys.exit("You have chosen wisely")
+    elif answer in ("y", "yes"):
+      print "You have been warned"
+      break
+    else:
+      print 'Please answer "yes" or "no"'
 
 cfg = rpki.config.parser(cfg_file)
 

@@ -322,16 +322,19 @@ class main(rpki.cli.Cmd):
     """
 
     sia_base = None
+    flat = False
 
-    opts, argv = getopt.getopt(arg.split(), "", ["sia_base="])
+    opts, argv = getopt.getopt(arg.split(), "", ["flat", "sia_base="])
     for o, a in opts:
-      if o == "--sia_base":
+      if o == "--flat":
+        flat = True
+      elif o == "--sia_base":
         sia_base = a
     
     if len(argv) != 1:
       raise BadCommandSyntax, "Need to specify filename for client.xml"
 
-    r, client_handle = self.zoo.configure_publication_client(argv[0], sia_base)
+    r, client_handle = self.zoo.configure_publication_client(argv[0], sia_base, flat)
     r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
 
     try:

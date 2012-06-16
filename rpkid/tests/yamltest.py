@@ -352,9 +352,10 @@ class allocation(object):
     """
     path = []
     s = self
-    while not s.runs_pubd:
-      path.append(s)
-      s = s.parent
+    if not flat_publication:
+      while not s.runs_pubd:
+        path.append(s)
+        s = s.parent
     path.append(s)
     return ".".join(i.name for i in reversed(path))
 
@@ -430,7 +431,8 @@ class allocation(object):
     """
     Run rpkic for this entity.
     """
-    cmd = (prog_rpkic, "-i", self.name, "-c", self.path("rpki.conf")) + args
+    cmd = [prog_rpkic, "-i", self.name, "-c", self.path("rpki.conf")]
+    cmd.extend(a for a in args if a is not None)
     print 'Running "%s"' % " ".join(cmd)
     subprocess.check_call(cmd, cwd = self.host.path())
 
@@ -488,14 +490,17 @@ cfg_file = None
 pidfile  = None
 keep_going = False
 skip_config = False
+flat_publication = False
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:hkp:s?", ["config=", "help", "keep_going", "pidfile=", "skip_config"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:fhkp:s?", ["config=", "flat_publication", "help", "keep_going", "pidfile=", "skip_config"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
   if o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-f", "--flat_publication"):
+    flat_publication = True
   elif o in ("-k", "--keep_going"):
     keep_going = True
   elif o in ("-p", "--pidfile"):
@@ -646,6 +651,7 @@ try:
         if  d.is_root:
           assert not d.is_hosted
           d.run_rpkic("configure_publication_client",
+                      "--flat" if flat_publication else None,
                       d.path("%s.%s.repository-request.xml" % (d.name, d.name)))
           print
           d.run_rpkic("configure_repository",
@@ -658,6 +664,7 @@ try:
                       d.parent.path("%s.%s.parent-response.xml" % (d.parent.name, d.name)))
           print
           d.pubd.run_rpkic("configure_publication_client",
+                           "--flat" if flat_publication else None,
                            d.path("%s.%s.repository-request.xml" % (d.name, d.parent.name)))
           print
           d.run_rpkic("configure_repository",

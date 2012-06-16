@@ -606,7 +606,7 @@ class Zookeeper(object):
 
 
   @django.db.transaction.commit_on_success
-  def configure_publication_client(self, filename, sia_base = None):
+  def configure_publication_client(self, filename, sia_base = None, flat = False):
     """
     Configure publication server to know about a new client, given the
     client's request-for-service message as input.  Reads the client's
@@ -618,6 +618,10 @@ class Zookeeper(object):
     client = etree_read(filename)
 
     client_ta = rpki.x509.X509(Base64 = client.findtext("bpki_client_ta"))
+
+    if sia_base is None and flat:
+      self.log("Flat publication structure forced, homing client at top-level")
+      sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client.get("handle"))
 
     if sia_base is None and client.get("handle") == self.handle and self.resource_ca.certificate == client_ta:
       self.log("This looks like self-hosted publication")

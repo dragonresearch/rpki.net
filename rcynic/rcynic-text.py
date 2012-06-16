@@ -83,7 +83,7 @@ class Session(object):
 
   def show(self):
     visible = [label for label in self.labels if label.visible]
-    hostnames = sorted(self.hosts)
+    hostnames = sorted(hostname for hostname in self.hosts if hostname is not None)
     hostwidth = max(len(hostname) for hostname in hostnames)
     separator = "+-%s-+-%s-+" % (
       "-" * hostwidth, 

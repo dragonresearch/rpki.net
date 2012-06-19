@@ -47,6 +47,11 @@ EOF
 	/bin/chmod -R a-w "${rcynic_jaildir}/bin" "${rcynic_jaildir}/etc"
 	/usr/sbin/chown -R root:wheel "${rcynic_jaildir}/bin" "${rcynic_jaildir}/etc"
 
+	if /bin/test -f "${rcynic_jaildir}/etc/rsa_key"; then
+		/bin/chmod 400 "${rcynic_jaildir}/etc/rsa_key"
+		/usr/sbin/chown "${rcynic_user}" "${rcynic_jaildir}/etc/rsa_key"
+	fi
+
 	if ! /sbin/mount_devfs devfs "${rcynic_jaildir}/dev"; then
 		echo "Mounting devfs on ${rcynic_jaildir}/dev failed..."
 		exit 1

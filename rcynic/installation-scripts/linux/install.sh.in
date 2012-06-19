@@ -103,6 +103,12 @@ then
     exit 1
 fi
 
+if test -f "${jaildir}/etc/rsa_key"
+then
+    /bin/chmod 400 "${jaildir}/etc/rsa_key"
+    /bin/chown "${jailuser}" "${jaildir}/etc/rsa_key"
+fi
+
 if test -r "$jaildir/etc/rcynic.conf"; then
     echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
 elif /usr/bin/install -m 444 -o root -g root -p ../sample-rcynic.conf "${jaildir}/etc/rcynic.conf"; then

@@ -229,6 +229,7 @@ static const struct {
   QB(crl_not_in_manifest,               "CRL not listed in manifest")	    \
   QB(crl_not_yet_valid,			"CRL not yet valid")		    \
   QB(crl_number_extension_missing,	"CRL number extension missing")	    \
+  QB(crl_number_out_of_range,		"CRL number out of range")	    \
   QB(crldp_doesnt_match_issuer_sia,	"CRLDP doesn't match issuer's SIA") \
   QB(crldp_uri_missing,			"CRLDP URI missing")		    \
   QB(disallowed_x509v3_extension,	"Disallowed X.509v3 extension")     \
@@ -601,11 +602,12 @@ static const char rpki_policy_oid[] = "1.3.6.1.5.5.7.14.2";
 static const char authenticated_symlink_suffix[] = ".new";
 
 /**
- * Constant zero for comparisions.  We can't build this at compile
- * time, so it can't be const, but treat it as if it were.
+ * Constants for comparisions.  We can't build these at compile time,
+ * so they can't be const, but treat them as if they were once
+ * allocated.
  */
 
-static const ASN1_INTEGER *asn1_zero;
+static const ASN1_INTEGER *asn1_zero, *asn1_four_octets, *asn1_twenty_octets;
 
 
 
@@ -3023,6 +3025,12 @@ static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
     goto punt;
   }
 
+  if (ASN1_INTEGER_cmp(crl->crl_number, asn1_zero) < 0 ||
+      ASN1_INTEGER_cmp(crl->crl_number, asn1_twenty_octets) > 0) {
+    log_validation_status(rc, uri, crl_number_out_of_range, generation);
+    goto punt;
+  }
+
   if (X509_CRL_get_ext_count(crl) != 2) {
     log_validation_status(rc, uri, disallowed_x509v3_extension, generation);
     goto punt;
@@ -4041,8 +4049,10 @@ static int check_manifest(rcynic_ctx_t *rc,
 static int extract_roa_prefix(unsigned char *addr,
 			      unsigned *prefixlen,
 			      const ASN1_BIT_STRING *bs,
-			      const unsigned afi)
+			      const unsigned afi,
+			      const ASN1_INTEGER *maxLength)
 {
+  long maxlen = ASN1_INTEGER_get(maxLength);
   unsigned length;
 
   switch (afi) {
@@ -4051,7 +4061,7 @@ static int extract_roa_prefix(unsigned char *addr,
   default: return 0;
   }
 
-  if (bs->length < 0 || bs->length > length)
+  if (bs->length < 0 || bs->length > length || maxlen < 0 || maxlen > (long) length)
     return 0;
 
   if (bs->length > 0) {
@@ -4114,7 +4124,8 @@ static int check_roa_1(rcynic_ctx_t *rc,
     goto error;
   }
 
-  if (ASN1_INTEGER_cmp(roa->asID, asn1_zero) < 0) {
+  if (ASN1_INTEGER_cmp(roa->asID, asn1_zero) < 0 ||
+      ASN1_INTEGER_cmp(roa->asID, asn1_four_octets) > 0) {
     log_validation_status(rc, uri, bad_roa_asID, generation);
     goto error;
   }
@@ -4140,7 +4151,7 @@ static int check_roa_1(rcynic_ctx_t *rc,
     for (j = 0; j < sk_ROAIPAddress_num(rf->addresses); j++) {
       ra = sk_ROAIPAddress_value(rf->addresses, j);
       if (!ra ||
-	  !extract_roa_prefix(addrbuf, &prefixlen, ra->IPAddress, afi) ||
+	  !extract_roa_prefix(addrbuf, &prefixlen, ra->IPAddress, afi, ra->maxLength) ||
 	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen)) {
 	log_validation_status(rc, uri, roa_resources_malformed, generation);
 	goto error;
@@ -4833,13 +4844,11 @@ int main(int argc, char *argv[])
     }
   }
 
-  {
-    ASN1_INTEGER *zero = ASN1_INTEGER_new();
-    if (zero == NULL || !ASN1_INTEGER_set(zero, 0)) {
-      logmsg(&rc, log_sys_err, "Couldn't initialize ASN.1 constant zero!");
-      goto done;
-    }
-    asn1_zero = zero;
+  if ((asn1_zero          = s2i_ASN1_INTEGER(NULL, "0x0")) == NULL ||
+      (asn1_four_octets   = s2i_ASN1_INTEGER(NULL, "0xFFFFFFFF")) == NULL ||
+      (asn1_twenty_octets = s2i_ASN1_INTEGER(NULL, "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't initialize ASN.1 constants!");
+    goto done;
   }
 
   if ((cfg_handle = NCONF_new(NULL)) == NULL) {

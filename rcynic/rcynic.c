@@ -233,6 +233,7 @@ static const struct {
   QB(crldp_doesnt_match_issuer_sia,	"CRLDP doesn't match issuer's SIA") \
   QB(crldp_uri_missing,			"CRLDP URI missing")		    \
   QB(disallowed_x509v3_extension,	"Disallowed X.509v3 extension")     \
+  QB(duplicate_name_in_manifest,	"Duplicate name in manifest")	    \
   QB(inappropriate_eku_extension,	"Inappropriate EKU extension")	    \
   QB(malformed_aia_extension,		"Malformed AIA extension")	    \
   QB(malformed_sia_extension,		"Malformed SIA extension")	    \
@@ -1007,6 +1008,14 @@ static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_
     return obj->length - oidlen;
   else
     return memcmp(obj->data, oid, oidlen);
+}
+
+/**
+ * Compare filename fields of two FileAndHash structures.
+ */
+static int FileAndHash_name_cmp(const FileAndHash * const *a, const FileAndHash * const *b)
+{
+  return strcmp((char *) (*a)->file->data, (char *) (*b)->file->data);
 }
 
 /**
@@ -3869,9 +3878,10 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
 				  certinfo_t *certinfo,
 				  const object_generation_t generation)
 {
+  STACK_OF(FileAndHash) *sorted_fileList = NULL;
   Manifest *manifest = NULL, *result = NULL;
   CMS_ContentInfo *cms = NULL;
-  FileAndHash *fah = NULL;
+  FileAndHash *fah = NULL, *fah2 = NULL;
   BIO *bio = NULL;
   X509 *x;
   int i;
@@ -3919,6 +3929,21 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
     goto done;
   }
 
+  if ((sorted_fileList = sk_FileAndHash_dup(manifest->fileList)) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't allocate shallow copy of fileList for manifest %s", uri->s);
+    goto done;
+  }
+
+  (void) sk_FileAndHash_set_cmp_func(sorted_fileList, FileAndHash_name_cmp);
+  sk_FileAndHash_sort(sorted_fileList);
+
+  for (i = 0; (fah = sk_FileAndHash_value(sorted_fileList, i)) != NULL && (fah2 = sk_FileAndHash_value(sorted_fileList, i + 1)) != NULL; i++) {
+    if (!strcmp((char *) fah->file->data, (char *) fah2->file->data)) {
+      log_validation_status(rc, uri, duplicate_name_in_manifest, generation);
+      goto done;
+    }
+  }
+
   for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++) {
     if (fah->hash->length != HASH_SHA256_LEN ||
 	(fah->hash->flags & (ASN1_STRING_FLAG_BITS_LEFT | 7)) > ASN1_STRING_FLAG_BITS_LEFT) {
@@ -3934,7 +3959,7 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
   BIO_free(bio);
   Manifest_free(manifest);
   CMS_ContentInfo_free(cms);
-
+  sk_FileAndHash_free(sorted_fileList);
   return result;
 }
 

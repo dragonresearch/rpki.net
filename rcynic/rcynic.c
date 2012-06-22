@@ -213,8 +213,6 @@ static const struct {
   QB(bad_asidentifiers,			"Bad ASIdentifiers extension")	    \
   QB(bad_cms_econtenttype,		"Bad CMS eContentType")		    \
   QB(bad_cms_signer_infos,		"Bad CMS signerInfos")		    \
-  QB(bad_cms_si_signature_algorithm,	"Bad CMS SI signature algorithm")   \
-  QB(bad_cms_si_digest_algorithm,	"Bad CMS SI digest algorithm")	    \
   QB(bad_crl,				"Bad CRL")			    \
   QB(bad_ipaddrblocks,			"Bad IPAddrBlocks extension")	    \
   QB(bad_key_usage,			"Bad keyUsage")			    \
@@ -276,6 +274,7 @@ static const struct {
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
   QB(wrong_object_version,		"Wrong object version")		    \
   QW(aia_doesnt_match_issuer,		"AIA doesn't match issuer")	    \
+  QW(bad_cms_si_signed_attributes, 	"Bad CMS SI signed attributes")	    \
   QW(crldp_names_newer_crl,		"CRLDP names newer CRL")	    \
   QW(digest_mismatch,			"Digest mismatch")		    \
   QW(ee_certificate_with_1024_bit_key, 	"EE certificate with 1024 bit key") \
@@ -292,6 +291,8 @@ static const struct {
   QW(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	    \
   QW(unknown_object_type_skipped,	"Unknown object type skipped")	    \
   QW(uri_too_long,			"URI too long")			    \
+  QW(wrong_cms_si_signature_algorithm,	"Wrong CMS SI signature algorithm") \
+  QW(wrong_cms_si_digest_algorithm,	"Wrong CMS SI digest algorithm")    \
   QG(current_cert_recheck,		"Certificate rechecked")	    \
   QG(non_rsync_uri_in_extension,	"Non-rsync URI in extension")	    \
   QG(object_accepted,			"Object accepted")		    \
@@ -544,6 +545,7 @@ struct rcynic_ctx {
   int allow_digest_mismatch, allow_crl_digest_mismatch;
   int allow_nonconformant_name, allow_ee_without_signedObject;
   int allow_1024_bit_ee_key;
+  int allow_wrong_cms_si_algorithms, allow_wrong_cms_si_attributes;
   unsigned max_select_time, validation_status_creation_order;
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -609,9 +611,16 @@ static const char authenticated_symlink_suffix[] = ".new";
  * Constants for comparisions.  We can't build these at compile time,
  * so they can't be const, but treat them as if they were once
  * allocated.
+ *
+ * We probably need both a better scheme for naming NID_ replacements
+ * and a more comprehensive rewrite of how we handle OIDs OpenSSL
+ * doesn't know about, so that we neither conflict with defined
+ * symbols nor duplicate effort nor explode if and when OpenSSL adds
+ * new OIDs (with or without the names we would have used).
  */
 
 static const ASN1_INTEGER *asn1_zero, *asn1_four_octets, *asn1_twenty_octets;
+static int NID_binary_signing_time;
 
 
 
@@ -3726,7 +3735,8 @@ static int check_cms(rcynic_ctx_t *rc,
       sk_CMS_SignerInfo_num(signer_infos) != 1 ||
       (si = sk_CMS_SignerInfo_value(signer_infos, 0)) == NULL ||
       !CMS_SignerInfo_get0_signer_id(si, &sid, &si_issuer, &si_serial) ||
-      sid == NULL || si_issuer != NULL || si_serial != NULL) {
+      sid == NULL || si_issuer != NULL || si_serial != NULL ||
+      CMS_unsigned_get_attr_count(si) != -1) {
     log_validation_status(rc, uri, bad_cms_signer_infos, generation);
     goto error;
   }
@@ -3740,14 +3750,32 @@ static int check_cms(rcynic_ctx_t *rc,
 
   X509_ALGOR_get0(&oid, NULL, NULL, signature_alg);
   if (OBJ_obj2nid(oid) != NID_sha256WithRSAEncryption) {
-    log_validation_status(rc, uri, bad_cms_si_signature_algorithm, generation);
-    goto error;
+    log_validation_status(rc, uri, wrong_cms_si_signature_algorithm, generation);
+    if (!rc->allow_wrong_cms_si_algorithms)
+      goto error;
   }
 
   X509_ALGOR_get0(&oid, NULL, NULL, digest_alg);
   if (OBJ_obj2nid(oid) != NID_sha256) {
-    log_validation_status(rc, uri, bad_cms_si_digest_algorithm, generation);
-    goto error;
+    log_validation_status(rc, uri, wrong_cms_si_digest_algorithm, generation);
+    if (!rc->allow_wrong_cms_si_algorithms)
+      goto error;
+  }
+
+  i = CMS_signed_get_attr_count(si);
+
+  if (CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1) >= 0)
+    --i;
+
+  if (CMS_signed_get_attr_by_NID(si, NID_binary_signing_time, -1) >= 0)
+    --i;
+
+  if (i != 2 ||
+      CMS_signed_get_attr_by_NID(si, NID_pkcs9_messageDigest, -1) < 0 ||
+      CMS_signed_get_attr_by_NID(si, NID_pkcs9_contentType, -1) < 0) {
+    log_validation_status(rc, uri, bad_cms_si_signed_attributes, generation);
+    if (!rc->allow_wrong_cms_si_attributes)
+      goto error;
   }
 
   if (CMS_SignerInfo_cert_cmp(si, x)) {
@@ -4095,14 +4123,17 @@ static int check_manifest(rcynic_ctx_t *rc,
 /**
  * Extract a ROA prefix from the ASN.1 bitstring encoding.
  */
-static int extract_roa_prefix(unsigned char *addr,
-			      unsigned *prefixlen,
-			      const ASN1_BIT_STRING *bs,
+static int extract_roa_prefix(const ROAIPAddress *ra,
 			      const unsigned afi,
-			      const ASN1_INTEGER *maxLength)
+			      unsigned char *addr,
+			      unsigned *prefixlen)
 {
-  long maxlen = ASN1_INTEGER_get(maxLength);
   unsigned length;
+  long maxlen;
+
+  assert(addr && prefixlen && ra);
+
+  maxlen = ASN1_INTEGER_get(ra->maxLength);
 
   switch (afi) {
   case IANA_AFI_IPV4: length =  4; break;
@@ -4110,20 +4141,21 @@ static int extract_roa_prefix(unsigned char *addr,
   default: return 0;
   }
 
-  if (bs->length < 0 || bs->length > length || maxlen < 0 || maxlen > (long) length)
+  if (ra->IPAddress->length < 0 || ra->IPAddress->length > length ||
+      maxlen < 0 || maxlen > (long) length * 8)
     return 0;
 
-  if (bs->length > 0) {
-    memcpy(addr, bs->data, bs->length);
-    if ((bs->flags & 7) != 0) {
-      unsigned char mask = 0xFF >> (8 - (bs->flags & 7));
-      addr[bs->length - 1] &= ~mask;
+  if (ra->IPAddress->length > 0) {
+    memcpy(addr, ra->IPAddress->data, ra->IPAddress->length);
+    if ((ra->IPAddress->flags & 7) != 0) {
+      unsigned char mask = 0xFF >> (8 - (ra->IPAddress->flags & 7));
+      addr[ra->IPAddress->length - 1] &= ~mask;
     }
   }
 
-  memset(addr + bs->length, 0, length - bs->length);
+  memset(addr + ra->IPAddress->length, 0, length - ra->IPAddress->length);
 
-  *prefixlen = (bs->length * 8) - (bs->flags & 7);
+  *prefixlen = (ra->IPAddress->length * 8) - (ra->IPAddress->flags & 7);
 
   return 1;
 }
@@ -4200,7 +4232,7 @@ static int check_roa_1(rcynic_ctx_t *rc,
     for (j = 0; j < sk_ROAIPAddress_num(rf->addresses); j++) {
       ra = sk_ROAIPAddress_value(rf->addresses, j);
       if (!ra ||
-	  !extract_roa_prefix(addrbuf, &prefixlen, ra->IPAddress, afi, ra->maxLength) ||
+	  !extract_roa_prefix(ra, afi, addrbuf, &prefixlen) ||
 	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen)) {
 	log_validation_status(rc, uri, roa_resources_malformed, generation);
 	goto error;
@@ -4832,6 +4864,8 @@ int main(int argc, char *argv[])
   rc.allow_nonconformant_name = 1;
   rc.allow_ee_without_signedObject = 1;
   rc.allow_1024_bit_ee_key = 1;
+  rc.allow_wrong_cms_si_algorithms = 1;
+  rc.allow_wrong_cms_si_attributes = 1;
   rc.max_parallel_fetches = 1;
   rc.max_retries = 3;
   rc.retry_wait_min = 30;
@@ -4893,9 +4927,12 @@ int main(int argc, char *argv[])
     }
   }
 
-  if ((asn1_zero          = s2i_ASN1_INTEGER(NULL, "0x0")) == NULL ||
-      (asn1_four_octets   = s2i_ASN1_INTEGER(NULL, "0xFFFFFFFF")) == NULL ||
-      (asn1_twenty_octets = s2i_ASN1_INTEGER(NULL, "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")) == NULL) {
+  if (!(asn1_zero          = s2i_ASN1_INTEGER(NULL, "0x0")) ||
+      !(asn1_four_octets   = s2i_ASN1_INTEGER(NULL, "0xFFFFFFFF")) ||
+      !(asn1_twenty_octets = s2i_ASN1_INTEGER(NULL, "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")) ||
+      !(NID_binary_signing_time = OBJ_create("1.2.840.113549.1.9.16.2.46",
+					    "id-aa-binarySigningTime",
+					    "id-aa-binarySigningTime"))) {
     logmsg(&rc, log_sys_err, "Couldn't initialize ASN.1 constants!");
     goto done;
   }
@@ -5038,6 +5075,14 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "allow-1024-bit-ee-key") &&
 	     !configure_boolean(&rc, &rc.allow_1024_bit_ee_key, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-wrong-cms-si-algorithms") &&
+	     !configure_boolean(&rc, &rc.allow_wrong_cms_si_algorithms, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-wrong-cms-si-attributes") &&
+	     !configure_boolean(&rc, &rc.allow_wrong_cms_si_attributes, val->value))
       goto done;
 
     /*

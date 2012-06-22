@@ -213,6 +213,8 @@ static const struct {
   QB(bad_asidentifiers,			"Bad ASIdentifiers extension")	    \
   QB(bad_cms_econtenttype,		"Bad CMS eContentType")		    \
   QB(bad_cms_signer_infos,		"Bad CMS signerInfos")		    \
+  QB(bad_cms_si_signature_algorithm,	"Bad CMS SI signature algorithm")   \
+  QB(bad_cms_si_digest_algorithm,	"Bad CMS SI digest algorithm")	    \
   QB(bad_crl,				"Bad CRL")			    \
   QB(bad_ipaddrblocks,			"Bad IPAddrBlocks extension")	    \
   QB(bad_key_usage,			"Bad keyUsage")			    \
@@ -3673,6 +3675,8 @@ static int check_cms(rcynic_ctx_t *rc,
   X509_NAME *si_issuer = NULL;
   ASN1_INTEGER *si_serial = NULL;
   STACK_OF(X509_CRL) *crls = NULL;
+  X509_ALGOR *signature_alg = NULL,  *digest_alg = NULL;
+  ASN1_OBJECT *oid = NULL;
   hashbuf_t hashbuf;
   X509 *x = NULL;
   certinfo_t certinfo_;
@@ -3727,9 +3731,22 @@ static int check_cms(rcynic_ctx_t *rc,
     goto error;
   }
 
-  CMS_SignerInfo_get0_algs(si, NULL, &x, NULL, NULL);
+  CMS_SignerInfo_get0_algs(si, NULL, &x, &digest_alg, &signature_alg);
+
   if (x == NULL) {
     log_validation_status(rc, uri, cms_signer_missing, generation);
+    goto error;
+  }
+
+  X509_ALGOR_get0(&oid, NULL, NULL, signature_alg);
+  if (OBJ_obj2nid(oid) != NID_sha256WithRSAEncryption) {
+    log_validation_status(rc, uri, bad_cms_si_signature_algorithm, generation);
+    goto error;
+  }
+
+  X509_ALGOR_get0(&oid, NULL, NULL, digest_alg);
+  if (OBJ_obj2nid(oid) != NID_sha256) {
+    log_validation_status(rc, uri, bad_cms_si_digest_algorithm, generation);
     goto error;
   }
 

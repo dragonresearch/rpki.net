@@ -223,6 +223,7 @@ static const struct {
   QB(certificate_bad_signature,		"Bad certificate signature")	    \
   QB(certificate_failed_validation,	"Certificate failed validation")    \
   QB(cms_econtent_decode_error,		"CMS eContent decode error")	    \
+  QB(cms_includes_crls, 		"CMS includes CRLs")		    \
   QB(cms_signer_missing,		"CMS signer missing")		    \
   QB(cms_ski_mismatch,			"CMS SKI mismatch")		    \
   QB(cms_validation_failure,		"CMS validation failure")	    \
@@ -3666,12 +3667,12 @@ static int check_cms(rcynic_ctx_t *rc,
 {
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(CMS_SignerInfo) *signer_infos = NULL;
-  STACK_OF(X509) *signers = NULL;
   CMS_ContentInfo *cms = NULL;
   CMS_SignerInfo *si = NULL;
   ASN1_OCTET_STRING *sid = NULL;
   X509_NAME *si_issuer = NULL;
   ASN1_INTEGER *si_serial = NULL;
+  STACK_OF(X509_CRL) *crls = NULL;
   hashbuf_t hashbuf;
   X509 *x = NULL;
   certinfo_t certinfo_;
@@ -3712,9 +3713,8 @@ static int check_cms(rcynic_ctx_t *rc,
     goto error;
   }
 
-  if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1 ||
-      (x = sk_X509_value(signers, 0)) == NULL) {
-    log_validation_status(rc, uri, cms_signer_missing, generation);
+  if ((crls = CMS_get1_crls(cms)) != NULL) {
+    log_validation_status(rc, uri, cms_includes_crls, generation);
     goto error;
   }
 
@@ -3724,6 +3724,12 @@ static int check_cms(rcynic_ctx_t *rc,
       !CMS_SignerInfo_get0_signer_id(si, &sid, &si_issuer, &si_serial) ||
       sid == NULL || si_issuer != NULL || si_serial != NULL) {
     log_validation_status(rc, uri, bad_cms_signer_infos, generation);
+    goto error;
+  }
+
+  CMS_SignerInfo_get0_algs(si, NULL, &x, NULL, NULL);
+  if (x == NULL) {
+    log_validation_status(rc, uri, cms_signer_missing, generation);
     goto error;
   }
 
@@ -3763,6 +3769,7 @@ static int check_cms(rcynic_ctx_t *rc,
 
  error:
   CMS_ContentInfo_free(cms);
+  sk_X509_CRL_pop_free(crls, X509_CRL_free);
 
   return result;
 }

@@ -3,8 +3,6 @@ Prototype of an iterator class to parse the output of an rcynic run.
 This script will almost certainly move to the library package once
 it's stable.
 
-$Id$
-
 Copyright (C) 2010-2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
@@ -19,6 +17,8 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
+
+__revision__ = '$Id$'
 
 import sys, os, rpki.x509, rpki.exceptions
 from xml.etree.ElementTree import ElementTree
@@ -189,14 +189,23 @@ class rcynic_file_iterator(object):
 
 class validation_status_element(object):
     def __init__(self, *args, **kwargs):
+        self.attrs = []
         for k,v in kwargs.iteritems():
             setattr(self, k, v)
+            # attribute names are saved so that the __repr__ method can
+            # display the subset of attributes the user specified
+            self.attrs.append(k)
         self._obj = None
 
     def get_obj(self):
         if not self._obj:
             self._obj = self.file_class(filename=self.filename, uri=self.uri)
         return self._obj
+
+    def __repr__(self):
+        v = [self.__class__.__name__, 'id=%s' % str(id(self))]
+        v.extend(['%s=%s' % (x, getattr(self, x)) for x in self.attrs])
+        return '<%s>' % (' '.join(v),)
 
     obj = property(get_obj)
 

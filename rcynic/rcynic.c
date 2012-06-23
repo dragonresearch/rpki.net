@@ -212,6 +212,7 @@ static const struct {
   QB(aki_extension_wrong_format,	"AKI extension is wrong format")    \
   QB(bad_asidentifiers,			"Bad ASIdentifiers extension")	    \
   QB(bad_cms_econtenttype,		"Bad CMS eContentType")		    \
+  QB(bad_cms_si_contenttype,		"Bad CMS SI ContentType")	    \
   QB(bad_cms_signer_infos,		"Bad CMS signerInfos")		    \
   QB(bad_crl,				"Bad CRL")			    \
   QB(bad_ipaddrblocks,			"Bad IPAddrBlocks extension")	    \
@@ -3684,8 +3685,9 @@ static int check_cms(rcynic_ctx_t *rc,
   X509_NAME *si_issuer = NULL;
   ASN1_INTEGER *si_serial = NULL;
   STACK_OF(X509_CRL) *crls = NULL;
-  X509_ALGOR *signature_alg = NULL,  *digest_alg = NULL;
+  X509_ALGOR *signature_alg = NULL, *digest_alg = NULL;
   ASN1_OBJECT *oid = NULL;
+  X509_ATTRIBUTE *si_contentType = NULL;
   hashbuf_t hashbuf;
   X509 *x = NULL;
   certinfo_t certinfo_;
@@ -3770,12 +3772,19 @@ static int check_cms(rcynic_ctx_t *rc,
   if (CMS_signed_get_attr_by_NID(si, NID_binary_signing_time, -1) >= 0)
     --i;
 
-  if (i != 2 ||
-      CMS_signed_get_attr_by_NID(si, NID_pkcs9_messageDigest, -1) < 0 ||
-      CMS_signed_get_attr_by_NID(si, NID_pkcs9_contentType, -1) < 0) {
+  si_contentType = CMS_signed_get_attr(si, CMS_signed_get_attr_by_NID(si, NID_pkcs9_contentType, -1));
+
+  if (i != 2 || si_contentType == NULL ||
+      CMS_signed_get_attr_by_NID(si, NID_pkcs9_messageDigest, -1) < 0) {
     log_validation_status(rc, uri, bad_cms_si_signed_attributes, generation);
     if (!rc->allow_wrong_cms_si_attributes)
       goto error;
+  }
+
+  if ((oid = X509_ATTRIBUTE_get0_data(si_contentType, 0, V_ASN1_OBJECT, NULL)) == NULL ||
+      oid_cmp(oid, expected_eContentType, expected_eContentType_len)) {
+    log_validation_status(rc, uri, bad_cms_si_contenttype, generation);
+    goto error;
   }
 
   if (CMS_SignerInfo_cert_cmp(si, x)) {

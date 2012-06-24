@@ -545,8 +545,7 @@ struct rcynic_ctx {
   int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
   int allow_digest_mismatch, allow_crl_digest_mismatch;
   int allow_nonconformant_name, allow_ee_without_signedObject;
-  int allow_1024_bit_ee_key;
-  int allow_wrong_cms_si_algorithms, allow_wrong_cms_si_attributes;
+  int allow_1024_bit_ee_key, allow_wrong_cms_si_attributes;
   unsigned max_select_time, validation_status_creation_order;
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -3751,17 +3750,16 @@ static int check_cms(rcynic_ctx_t *rc,
   }
 
   X509_ALGOR_get0(&oid, NULL, NULL, signature_alg);
-  if (OBJ_obj2nid(oid) != NID_sha256WithRSAEncryption) {
+  i = OBJ_obj2nid(oid);
+  if (i != NID_sha256WithRSAEncryption && i != NID_rsaEncryption) {
     log_validation_status(rc, uri, wrong_cms_si_signature_algorithm, generation);
-    if (!rc->allow_wrong_cms_si_algorithms)
-      goto error;
+    goto error;
   }
 
   X509_ALGOR_get0(&oid, NULL, NULL, digest_alg);
   if (OBJ_obj2nid(oid) != NID_sha256) {
     log_validation_status(rc, uri, wrong_cms_si_digest_algorithm, generation);
-    if (!rc->allow_wrong_cms_si_algorithms)
-      goto error;
+    goto error;
   }
 
   i = CMS_signed_get_attr_count(si);
@@ -4873,7 +4871,6 @@ int main(int argc, char *argv[])
   rc.allow_nonconformant_name = 1;
   rc.allow_ee_without_signedObject = 1;
   rc.allow_1024_bit_ee_key = 1;
-  rc.allow_wrong_cms_si_algorithms = 1;
   rc.allow_wrong_cms_si_attributes = 1;
   rc.max_parallel_fetches = 1;
   rc.max_retries = 3;
@@ -5084,10 +5081,6 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "allow-1024-bit-ee-key") &&
 	     !configure_boolean(&rc, &rc.allow_1024_bit_ee_key, val->value))
-      goto done;
-
-    else if (!name_cmp(val->name, "allow-wrong-cms-si-algorithms") &&
-	     !configure_boolean(&rc, &rc.allow_wrong_cms_si_algorithms, val->value))
       goto done;
 
     else if (!name_cmp(val->name, "allow-wrong-cms-si-attributes") &&

@@ -203,7 +203,7 @@ def generator_main():
   sftp.atomic_rename(zip_tempname, zip_filename)
 
   syslog.syslog("Closing upload connection")
-  sftp.close()
+  ssh.close()
 
 def mirror_main():
   client = TransmissionClient()

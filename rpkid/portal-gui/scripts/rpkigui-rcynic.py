@@ -117,6 +117,7 @@ def save_statuses(inst, statuses):
 
         inst.statuses.create(generation=g, timestamp=timestamp, status=status)
 
+
 @transaction.commit_on_success
 def process_cache(root, xml_file):
     dispatch = {
@@ -186,10 +187,17 @@ def process_cache(root, xml_file):
                         logger.warning('unable to find signing cert with ski=%s (%s)' % (obj.aki, obj.issuer))
                         continue
 
-                # do object-specific tasks
-                dispatch[vs.file_class.__name__](obj, inst)
+                try:
+                    # do object-specific tasks
+                    dispatch[vs.file_class.__name__](obj, inst)
 
-                inst.save()  # don't require a save in the dispatch methods
+                    inst.save()  # don't require a save in the dispatch methods
+                except:
+                    logger.error('caught exception while processing rcynic_object:\n'
+                                 'vs=' + repr(vs) + '\nobj=' + repr(obj))
+                    # .show() writes to stdout
+                    obj.show()
+                    raise
             else:
                 logger.debug('object is unchanged')
 
@@ -211,6 +219,7 @@ def process_cache(root, xml_file):
 
     # Delete all objects that have zero validation status elements.
     models.RepositoryObject.objects.annotate(num_statuses=django.db.models.Count('statuses')).filter(num_statuses=0).delete()
+
 
 @transaction.commit_on_success
 def process_labels(xml_file):

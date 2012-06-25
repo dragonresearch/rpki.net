@@ -272,8 +272,8 @@ if plot_all_hosts:
                             set()))
 
 else:
-  hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net",
-               "rpki.afrinic.net", "rpki-pilot.arin.net",
+  hostnames = ("rpki.apnic.net", "rpki.ripe.net", "localcert.ripe.net",
+               "repository.lacnic.net", "rpki.afrinic.net", "rpki-pilot.arin.net",
                "arin.rpki.net", "repo0.rpki.net", "rgnet.rpki.net")
 
 plot_hosts(hostnames, [fmt.attr for fmt in Host.format if fmt.attr != "hostname"])

@@ -256,6 +256,7 @@ static const struct {
   QB(nonconformant_public_key_algorithm,"Nonconformant public key algorithm")\
   QB(nonconformant_signature_algorithm,	"Nonconformant signature algorithm")\
   QB(nonconformant_digest_algorithm,	"Nonconformant digest algorithm")   \
+  QB(nonconformant_certificate_uid,	"Nonconformant certificate UID")    \
   QB(object_rejected,			"Object rejected")		    \
   QB(rfc3779_inheritance_required,	"RFC 3779 inheritance required")    \
   QB(roa_contains_bad_afi_value,	"ROA contains bad AFI value")	    \
@@ -3302,6 +3303,16 @@ static int check_x509(rcynic_ctx_t *rc,
   if (!check_allowed_time_encoding(X509_get_notBefore(x)) ||
       !check_allowed_time_encoding(X509_get_notAfter(x))) {
     log_validation_status(rc, uri, nonconformant_asn1_time_value, generation);
+    goto done;
+  }
+
+  /*
+   * Apparently nothing ever looks at these fields, so there are no
+   * API functions for them.  We wouldn't bother either if they
+   * weren't forbidden by the RPKI certificate profile.
+   */
+  if (!x->cert_info || x->cert_info->issuerUID || x->cert_info->subjectUID) {
+    log_validation_status(rc, uri, nonconformant_certificate_uid, generation);
     goto done;
   }
 

@@ -561,7 +561,7 @@ class HTML(object):
     SubElement(self.body, "br")
 
   def close(self):
-    ElementTree(element = self.html).write(self.filename, pretty_print = True)
+    ElementTree(element = self.html).write(self.filename)
 
   def BodyElement(self, tag, **attrib):
     return SubElement(self.body, tag, **attrib)

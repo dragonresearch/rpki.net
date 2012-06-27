@@ -23,6 +23,7 @@ from rpki.resource_set import (resource_range_as, resource_range_ipv4,
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
 from rpki.gui.app.glue import str_to_resource_range
+import rpki.ipaddrs
 
 
 class AddConfForm(forms.Form):
@@ -184,8 +185,27 @@ class ROARequest(forms.Form):
         """Convert the prefix in the form to a
         rpki.resource_set.resource_range_ip object.
 
+        If there is no mask provided, assume the closest classful mask.
+
         """
         prefix = self.cleaned_data.get('prefix')
+        if '/' not in prefix:
+            p = rpki.ipaddrs.parse(prefix)
+
+            # rpki.ipaddrs.parse doesn't return a v?addr object, so can't
+            # introspect p.bits
+            bits = 32 if ':' not in prefix else 64
+
+            # determine the first nonzero bit starting from the lsb and
+            # subtract from the address size to find the closest classful
+            # mask that contains this single address
+            prefixlen = 0
+            while (p != 0) and (p & 1) == 0:
+                prefixlen = prefixlen + 1
+                p = p >> 1
+            mask = bits - (8 * (prefixlen / 8))
+            prefix = prefix + '/' + str(mask)
+
         return str_to_resource_range(prefix)
 
     def clean_asn(self):
@@ -254,7 +274,7 @@ class ROARequestConfirm(forms.Form):
 
     def clean(self):
         try:
-            r =str_to_resource_range(self.cleaned_data.get('prefix'))
+            r = str_to_resource_range(self.cleaned_data.get('prefix'))
             if r.prefixlen() > self.cleaned_data.get('max_prefixlen'):
                 raise forms.ValidationError('max length is smaller than mask')
         except BadIPResource:

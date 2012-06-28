@@ -9,6 +9,7 @@
 __version__ = '$Id$'
 
 import rpki.config
+import os.path
 
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
@@ -38,12 +39,22 @@ DATABASES = {
   }
 }
 
+
+def select_tz():
+    "Find a supported timezone that looks like UTC"
+    for tz in ('UTC', 'GMT', 'Etc/UTC', 'Etc/GMT'):
+        if os.path.exists('/usr/share/zoneinfo/' + tz):
+            return tz
+    # Can't determine the proper timezone, fall back to UTC and let Django
+    # report the error to the user
+    return 'UTC'
+
 # Local time zone for this installation. Choices can be found here:
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
 # although not all choices may be available on all operating systems.
 # If running in a Windows environment this must be set to the same as your
 # system time zone.
-TIME_ZONE = 'UTC'
+TIME_ZONE = select_tz()
 
 # Make this unique, and don't share it with anybody.
 SECRET_KEY = '%(AC_SECRET_KEY)s'

@@ -28,10 +28,10 @@ def cert_chain(obj):
     """
     returns an iterator covering all certs from the root cert down to the EE.
     """
-    chain = []
-    while obj:
-        chain.append(obj)
+    chain = [ obj ]
+    while obj != obj.issuer:
         obj = obj.issuer
+        chain.append(obj)
     return zip(range(len(chain)), reversed(chain))
 
 def signed_object_detail(request, model_class, pk):

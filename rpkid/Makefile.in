@@ -45,7 +45,8 @@ POW_SO	= rpki/POW/_POW.so
 SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
 	  pubd rootd rpkic rpkid \
 	  portal-gui/scripts/rpkigui-rcynic \
-	  portal-gui/scripts/rpkigui-import-routes
+	  portal-gui/scripts/rpkigui-import-routes \
+	  portal-gui/scripts/rpkigui-check-expired
 
 # scripts we build, but don't install
 BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo
@@ -237,6 +238,9 @@ portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-rout
 	${COMPILE_DJANGO}
 
 portal-gui/scripts/rpkigui-reset-demo: portal-gui/scripts/rpkigui-reset-demo.py
+	${COMPILE_DJANGO}
+
+portal-gui/scripts/rpkigui-check-expired: portal-gui/scripts/rpkigui-check-expired.py
 	${COMPILE_DJANGO}
 
 portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in

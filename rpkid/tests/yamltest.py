@@ -609,6 +609,11 @@ try:
   f.write(root_key.get_DER())
   f.close()
 
+  f = open(os.path.join(test_dir, "root.tal"), "w")
+  f.write(root_uri + "root.cer\n")
+  f.write(root_key.get_RSApublic().get_Base64())
+  f.close()
+
   # From here on we need to pay attention to initialization order.  We
   # used to do all the pre-configure_daemons stuff before running any
   # of the daemons, but that doesn't work right in hosted cases, so we

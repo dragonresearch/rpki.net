@@ -474,6 +474,21 @@ class DER_object(object):
       os.unlink(fn)
     return ret
 
+  def tracking_data(self, uri):
+    """
+    Return a string containing data we want to log when tracking how
+    objects move through the RPKI system.  Subclasses may wrap this to
+    provide more information, but should make sure to include at least
+    this information at the start of the tracking line.
+    """
+    try:
+      d = rpki.POW.Digest(rpki.POW.SHA1_DIGEST)
+      d.update(self.get_DER())
+      return "%s %s %s" % (uri, self.creation_timestamp,
+                           "".join(("%02X" % ord(b) for b in d.digest())))
+    except:
+      return uri
+
 class X509(DER_object):
   """
   X.509 certificates.
@@ -784,6 +799,14 @@ class X509(DER_object):
     if isinstance(chain, cls):
       chain = (chain,)
     return tuple(x for x in chain if x is not None)
+
+  @property
+  def creation_timestamp(self):
+    """
+    Time at which this object was created.
+    """
+    return self.getNotBefore()
+
 
 class PKCS10(DER_object):
   """
@@ -1265,6 +1288,14 @@ class CMS_object(DER_object):
 
     self.POW = cms
 
+  @property
+  def creation_timestamp(self):
+    """
+    Time at which this object was created.
+    """
+    return self.get_signingTime()
+
+
 class DER_CMS_object(CMS_object):
   """
   Class to hold CMS objects with DER-based content.
@@ -1355,6 +1386,38 @@ class ROA(DER_CMS_object):
       rpki.log.debug("Encoding error while generating ROA %r: %s" % (self, e))
       rpki.log.debug("ROA inner content: %r" % (r.get(),))
       raise
+
+  _afi_map = dict((cls.resource_set_type.afi, cls)
+                  for cls in (rpki.resource_set.roa_prefix_set_ipv4,
+                              rpki.resource_set.roa_prefix_set_ipv6))
+
+  def tracking_data(self, uri):
+    """
+    Return a string containing data we want to log when tracking how
+    objects move through the RPKI system.
+    """
+    msg = DER_CMS_object.tracking_data(self, uri)
+    try:
+      if self.content is None:
+        self.extract()
+      roa = self.get_content()
+      asn = roa.asID.get()
+      prefix_sets = {}
+      for fam in roa.ipAddrBlocks:
+        afi = fam.addressFamily.get()
+        prefix_sets[afi] = prefix_set = self._afi_map[afi]()
+        addr_type = prefix_set.resource_set_type.range_type.datum_type
+        for addr in fam.addresses:
+          prefix = addr.address.get()
+          prefixlen = len(prefix)
+          prefix = addr_type(rpki.resource_set._bs2long(prefix, addr_type.bits, 0))
+          maxprefixlen = addr.maxLength.get()
+          prefix_set.append(prefix_set.prefix_type(prefix, prefixlen, maxprefixlen))
+      msg = "%s %s %s" % (msg, asn,
+                          ",".join(str(prefix_sets[i]) for i in sorted(prefix_sets)))
+    except:
+      pass
+    return msg
 
 class Ghostbuster(DER_CMS_object):
   """
@@ -1612,3 +1675,27 @@ class CRL(DER_object):
        (rpki.oids.name2oid["cRLNumber"], False, serial)))
     crl.sign(keypair.get_POW(), digestType)
     return cls(POWpkix = crl)
+
+  @property
+  def creation_timestamp(self):
+    """
+    Time at which this object was created.
+    """
+    return self.getThisUpdate()
+
+## @var uri_dispatch_map
+# Map of known URI filename extensions and corresponding classes.
+
+uri_dispatch_map = {
+  ".cer" : X509,
+  ".crl" : CRL,
+  ".gbr" : Ghostbuster,
+  ".mft" : SignedManifest,
+  ".roa" : ROA,
+  }
+
+def uri_dispatch(uri):
+  """
+  Return the Python class object corresponding to a given URI.
+  """
+  return uri_dispatch_map[os.path.splitext(uri)]

@@ -206,7 +206,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Publish an object.
     """
-    rpki.log.info("Publishing %s" % self.uri)
+    rpki.log.info("Publishing %s" % self.payload.tracking_data(self.uri))
     filename = self.uri_to_filename()
     filename_tmp = filename + ".tmp"
     dirname = os.path.dirname(filename)

@@ -35,14 +35,15 @@ session = None
 
 opt = {
   "refresh"                     : 1800,
-  "show-detailed-status"        : True,
-  "show-problems"               : False,
+  "show-problems"               : True,
   "show-graphs"                 : True,
   "update-rrds"                 : True,
   "png-height"                  : 190,
   "png-width"                   : 1350,
   "svg-height"                  : 600,
-  "svg-width"                   : 1200 }
+  "svg-width"                   : 1200,
+  "eps-height"                  : 0,
+  "eps-width"                   : 0 }
 
 try:
   # Set from autoconf
@@ -335,8 +336,10 @@ class Host(Problem_Mixin):
 
   def rrd_graph(self, html):
     filebase = os.path.join(opt["output_directory"], self.hostname)
+    formats = [format for format in ("png", "svg", "eps")
+               if opt[format + "-width"] and opt[format + "-height"]]
     for period, start in self.graph_periods:
-      for format in ("png", "svg"):
+      for format in formats:
         cmds = [ "graph", "%s_%s.%s" % (filebase, period, format),
                  "--title", "%s last %s" % (self.hostname, period),
                  "--start", start,
@@ -634,10 +637,11 @@ def main():
     html.counter_table(session.hosts[hostname].get_counter, session.hosts[hostname].get_total)
     if opt["show-graphs"]:
       session.hosts[hostname].rrd_graph(html)
-    html.BodyElement("h2").text = "Connection Problems"
-    html.detail_table(session.hosts[hostname].connection_problems)
-    html.BodyElement("h2").text = "Object Problems"
-    html.detail_table(session.hosts[hostname].object_problems)
+    if opt["show-problems"]:
+      html.BodyElement("h2").text = "Connection Problems"
+      html.detail_table(session.hosts[hostname].connection_problems)
+      html.BodyElement("h2").text = "Object Problems"
+      html.detail_table(session.hosts[hostname].object_problems)
     html.close()
 
   html = HTML("rcynic summary", "index")

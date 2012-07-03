@@ -1691,6 +1691,7 @@ uri_dispatch_map = {
   ".crl" : CRL,
   ".gbr" : Ghostbuster,
   ".mft" : SignedManifest,
+  ".mnf" : SignedManifest,
   ".roa" : ROA,
   }
 
@@ -1698,4 +1699,4 @@ def uri_dispatch(uri):
   """
   Return the Python class object corresponding to a given URI.
   """
-  return uri_dispatch_map[os.path.splitext(uri)]
+  return uri_dispatch_map[os.path.splitext(uri)[1]]

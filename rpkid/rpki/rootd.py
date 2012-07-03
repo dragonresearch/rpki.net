@@ -272,7 +272,9 @@ class main(object):
       return cb(400, reason = "Could not process PDU: %s" % e)
 
     def done(r_msg):
-      cb(200, body = cms_msg().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert))
+      cb(200, body = cms_msg().wrap(
+        r_msg, self.rootd_bpki_key, self.rootd_bpki_cert,
+        self.rootd_bpki_crl if self.include_bpki_crl else None))
 
     try:
       q_msg.serve_top_level(None, done)
@@ -376,6 +378,8 @@ class main(object):
 
     self.rpki_subject_lifetime   = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-lifetime", "30d"))
     self.rpki_subject_regen      = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-regen", self.rpki_subject_lifetime.convert_to_seconds() / 2))
+
+    self.include_bpki_crl        = self.cfg.getboolean("include-bpki-crl", False)
 
     rpki.http.server(host     = self.http_server_host,
                      port     = self.http_server_port,

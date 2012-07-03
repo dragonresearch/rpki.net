@@ -1439,6 +1439,8 @@ rpki-root-manifest      = Bandicoot.mft
 rpki-class-name         = Wombat
 rpki-subject-cert       = Wombat.cer
 
+include-bpki-crl        = yes
+
 [req]
 default_bits            = 2048
 encrypt_key             = no

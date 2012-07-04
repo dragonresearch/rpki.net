@@ -215,10 +215,15 @@ def plot_hosts(hostnames, fields):
     for logscale in (False, True):
       gnuplot = subprocess.Popen(("gnuplot",), stdin = subprocess.PIPE)
       gnuplot.stdin.write("set terminal pdf\n")
-      gnuplot.stdin.write("set output '%s-%s.pdf'\n" % (field, "log" if logscale else "linear"))
+      gnuplot.stdin.write("set output '%s/%s-%s.pdf'\n" % (outdir, field, "log" if logscale else "linear"))
       plotter(gnuplot.stdin, hostnames, field, logscale = logscale)
       gnuplot.stdin.close()
       gnuplot.wait()
+
+outdir = "images"
+
+if not os.path.exists(outdir):
+  os.makedirs(outdir)
 
 mb = mailbox.Maildir("/u/sra/rpki/rcynic-xml", factory = None, create = False)
 

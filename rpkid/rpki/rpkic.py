@@ -576,7 +576,7 @@ class main(rpki.cli.Cmd):
   def do_up_down_revoke(self, arg):
     """
     Initiate a "revoke" operation: tell rpkid to clean up old keys
-    formerly used by certificiates issued to it via the up-down
+    formerly used by certificates issued to it via the up-down
     protocol.
 
     This is the cleanup stage of a key rollover operation.
@@ -586,3 +586,22 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
 
     self.zoo.revoke()
+
+
+  def do_revoke_forgotten(self, arg):
+    """
+    Initiate a "revoke_forgotten" operation: tell rpkid to ask its
+    parent to revoke certificates for which rpkid does not know the
+    private keys.  This should never happen during ordinary operation,
+    but can happen if rpkid is misconfigured or its database has been
+    damaged, so we need a way to resynchronize rpkid with its parent
+    in such cases.  We could do this automatically, but as we don't
+    know the precise cause of the failure we don't know if it's
+    recoverable locally (eg, from an SQL backup), so we require a
+    manual trigger before discarding possibly-useful certificates.
+    """
+
+    if arg:
+      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+
+    self.zoo.revoke_forgotten()

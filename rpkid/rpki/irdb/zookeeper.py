@@ -983,6 +983,15 @@ class Zookeeper(object):
       action = "set", self_handle = self.handle, revoke = "yes"))
 
 
+  def revoke_forgotten(self):
+    """
+    Poke rpkid to revoke old forgotten RPKI keys for the current handle.
+    """
+
+    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
+      action = "set", self_handle = self.handle, revoke_forgotten = "yes"))
+
+
   def call_pubd(self, *pdus):
     """
     Issue a call to pubd, return result.

@@ -11,6 +11,7 @@
 # LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
+
 # Generate a report of all RPKI certs which are about to expire
 
 __version__ = '$Id$'
@@ -18,6 +19,7 @@ __version__ = '$Id$'
 from rpki.gui.cacheview.models import Cert
 from rpki.gui.cacheview.views import cert_chain
 from rpki.gui.app.models import ResourceCert, Conf
+from rpki.irdb.models import ResourceHolderCA
 
 import datetime
 import sys
@@ -32,24 +34,25 @@ expire_time = now + datetime.timedelta(expire_days)
 Verbose = False
 
 
-def check_bscs(conf, x):
-    for p in x:
-        t = p.certificate.getNotAfter()
-        if Verbose or t <= expire_time:
-            e = 'expired' if t <= now else 'will expire'
-            print "%s's BSC %s on %s" % (conf.handle, e, t)
+def check_cert(conf, p, object_name=None):
+    """Check the expiration date on the X.509 certificates in each element of
+    the list.
+
+    The displayed object name defaults to the class name, but can be overridden
+    using the `object_name` argument.
+
+    """
+    t = p.certificate.getNotAfter()
+    if Verbose or t <= expire_time:
+        e = 'expired' if t <= now else 'will expire'
+        n = p.__class__.__name__ if object_name is None else object_name
+        print "%s's %s %s on %s" % (conf.handle, n, e, t)
 
 
-def check_cross_cert_expired(conf, x):
+
+def check_cert_list(conf, x, object_name=None):
     for p in x:
-        t = p.ta.getNotAfter()
-        if Verbose or t <= expire_time:
-            e = 'expired' if t <= now else 'will expire'
-            print "%s's TA for %s %s %s on %s" % (conf.handle, p.__class__.__name__, p.handle, e, t)
-        t = p.certificate.getNotAfter()
-        if Verbose or t <= expire_time:
-            e = 'expired' if t <= now else 'will expire'
-            print "%s's cross cert for %s %s %s on %s" % (conf.handle, p.__class__.__name__, p.handle, e, t)
+        check_cert(conf, p, object_name)
 
 
 def check_expire(handle):
@@ -93,11 +96,19 @@ if options.version:
 Verbose = options.verbose
 
 # check expiration of certs for all handles managed by the web portal
-for h in Conf.objects.all():
-    check_bscs(h, h.bscs.all())
-    check_cross_cert_expired(h, h.parents.all())
-    check_cross_cert_expired(h, h.children.all())
-    check_cross_cert_expired(h, h.repositories.all())
+for h in ResourceHolderCA.objects.all():
+    check_cert(h, h)
+
+    # HostedCA is the ResourceHolderCA cross certified under ServerCA, so check
+    # the ServerCA expiration date as well
+    check_cert(h, h.hosted_by)
+    check_cert(h, h.hosted_by.issuer)
+
+    check_cert_list(h, h.bscs.all())
+    check_cert_list(h, h.parents.all())
+    check_cert_list(h, h.children.all())
+    check_cert_list(h, h.repositories.all())
+
     check_expire(h)
 
 sys.exit(0)

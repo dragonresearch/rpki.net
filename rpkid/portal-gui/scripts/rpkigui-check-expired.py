@@ -26,9 +26,22 @@ from optparse import OptionParser
 # check for certs expiring in this many days or less
 expire_days = 14
 
-expire_time = datetime.datetime.utcnow() + datetime.timedelta(expire_days)
+now = datetime.datetime.utcnow()
+expire_time = now + datetime.timedelta(expire_days)
 
 Verbose = False
+
+
+def check_cross_cert_expired(conf, x):
+    for p in x:
+        t = p.ta.getNotAfter()
+        if t <= expire_time:
+            e = 'expired' if t <= now else 'will expire'
+            print "%s's TA for %s %s %s on %s" % (conf.handle, p.__class__.__name__, p.handle, e, t)
+        t = p.certificate.getNotAfter()
+        if t <= expire_time:
+            e = 'expired' if t <= now else 'will expire'
+            print "%s's cross cert for %s %s %s on %s" % (conf.handle, p.__class__.__name__, p.handle, e, t)
 
 
 def check_expire(handle):
@@ -60,21 +73,23 @@ def check_expire(handle):
             print "\n".join(msg)
 
 
-if __name__ == '__main__':
-    parser = OptionParser()
-    parser.add_option('-v', '--verbose', help='enable verbose output',
-                      action='store_true', dest='verbose',
-                      default=False)
-    parser.add_option('-V', '--version', help='display script version',
-                      action='store_true', dest='version', default=False)
-    (options, args) = parser.parse_args()
-    if options.version:
-        print __version__
-        sys.exit(0)
-    Verbose = options.verbose
-
-    # check expiration of certs for all handles managed by the web portal
-    for h in Conf.objects.all():
-        check_expire(h)
-
+parser = OptionParser()
+parser.add_option('-v', '--verbose', help='enable verbose output',
+                    action='store_true', dest='verbose',
+                    default=False)
+parser.add_option('-V', '--version', help='display script version',
+                    action='store_true', dest='version', default=False)
+(options, args) = parser.parse_args()
+if options.version:
+    print __version__
     sys.exit(0)
+Verbose = options.verbose
+
+# check expiration of certs for all handles managed by the web portal
+for h in Conf.objects.all():
+    check_cross_cert_expired(h, h.parents.all())
+    check_cross_cert_expired(h, h.children.all())
+    check_cross_cert_expired(h, h.repositories.all())
+    check_expire(h)
+
+sys.exit(0)

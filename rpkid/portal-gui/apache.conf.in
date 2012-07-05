@@ -10,6 +10,11 @@
 #WSGIDaemonProcess rpki processes=2
 #WSGIProcessGroup rpki
 
+<Directory @INSTDIR@/wsgi>
+Order deny,allow
+Allow from all
+</Directory>
+
 #
 # Defines the URL to the portal-gui
 #

@@ -34,7 +34,7 @@ expire_time = now + datetime.timedelta(expire_days)
 Verbose = False
 
 
-def check_cert(conf, p, object_name=None):
+def check_cert(p):
     """Check the expiration date on the X.509 certificates in each element of
     the list.
 
@@ -45,14 +45,14 @@ def check_cert(conf, p, object_name=None):
     t = p.certificate.getNotAfter()
     if Verbose or t <= expire_time:
         e = 'expired' if t <= now else 'will expire'
-        n = p.__class__.__name__ if object_name is None else object_name
-        print "%s's %s %s on %s" % (conf.handle, n, e, t)
+        print "%(type)s %(desc)s %(expire)s on %(date)s" % {
+            'type': p.__class__.__name__, 'desc': str(p), 'expire': e,
+            'date': t}
 
 
-
-def check_cert_list(conf, x, object_name=None):
+def check_cert_list(x):
     for p in x:
-        check_cert(conf, p, object_name)
+        check_cert(p)
 
 
 def check_expire(handle):
@@ -97,17 +97,17 @@ Verbose = options.verbose
 
 # check expiration of certs for all handles managed by the web portal
 for h in ResourceHolderCA.objects.all():
-    check_cert(h, h)
+    check_cert(h)
 
     # HostedCA is the ResourceHolderCA cross certified under ServerCA, so check
     # the ServerCA expiration date as well
-    check_cert(h, h.hosted_by)
-    check_cert(h, h.hosted_by.issuer)
+    check_cert(h.hosted_by)
+    check_cert(h.hosted_by.issuer)
 
-    check_cert_list(h, h.bscs.all())
-    check_cert_list(h, h.parents.all())
-    check_cert_list(h, h.children.all())
-    check_cert_list(h, h.repositories.all())
+    check_cert_list(h.bscs.all())
+    check_cert_list(h.parents.all())
+    check_cert_list(h.children.all())
+    check_cert_list(h.repositories.all())
 
     check_expire(h)
 

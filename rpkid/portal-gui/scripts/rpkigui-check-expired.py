@@ -32,14 +32,22 @@ expire_time = now + datetime.timedelta(expire_days)
 Verbose = False
 
 
+def check_bscs(conf, x):
+    for p in x:
+        t = p.certificate.getNotAfter()
+        if Verbose or t <= expire_time:
+            e = 'expired' if t <= now else 'will expire'
+            print "%s's BSC %s on %s" % (conf.handle, e, t)
+
+
 def check_cross_cert_expired(conf, x):
     for p in x:
         t = p.ta.getNotAfter()
-        if t <= expire_time:
+        if Verbose or t <= expire_time:
             e = 'expired' if t <= now else 'will expire'
             print "%s's TA for %s %s %s on %s" % (conf.handle, p.__class__.__name__, p.handle, e, t)
         t = p.certificate.getNotAfter()
-        if t <= expire_time:
+        if Verbose or t <= expire_time:
             e = 'expired' if t <= now else 'will expire'
             print "%s's cross cert for %s %s %s on %s" % (conf.handle, p.__class__.__name__, p.handle, e, t)
 
@@ -87,6 +95,7 @@ Verbose = options.verbose
 
 # check expiration of certs for all handles managed by the web portal
 for h in Conf.objects.all():
+    check_bscs(h, h.bscs.all())
     check_cross_cert_expired(h, h.parents.all())
     check_cross_cert_expired(h, h.children.all())
     check_cross_cert_expired(h, h.repositories.all())

@@ -53,15 +53,15 @@ def check_cross_cert_expired(conf, x):
 
 
 def check_expire(handle):
-    if Verbose:
-        print 'checking rescert expiration for %s' % handle
     # get certs for `handle'
     cert_set = ResourceCert.objects.filter(parent__issuer=handle)
     for cert in cert_set:
         # look up cert in cacheview db
         obj_set = Cert.objects.filter(repo__uri=cert.uri)
         if not obj_set:
-            print >>sys.stderr, "Unable to locate rescert %s in rcynic cache" % cert.uri
+            # since the <list_received_resources/> output is cached, this can
+            # occur if the cache is out of date as well..
+            print "Unable to locate rescert in rcynic cache: handle=%s uri=%s not_after=%s" % (handle.handle, cert.uri, cert.not_after)
             continue
         obj = obj_set[0]
         cert_list = cert_chain(obj)
@@ -74,9 +74,8 @@ def check_expire(handle):
             else:
                 f = ' '
             msg.append("%s  [%d] uri=%s ski=%s name=%s expires=%s" % (f, n, c.repo.uri, c.keyid, c.name, c.not_after))
-        if expired:
-            print "Warning: resource cert for user %s will expire soon:\n"
         if expired or Verbose:
+            print "%s's rescert from parent %s will expire soon:\n" % (handle.handle, cert.parent.handle)
             print "Certificate chain:"
             print "\n".join(msg)
 

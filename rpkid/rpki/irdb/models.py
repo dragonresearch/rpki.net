@@ -392,7 +392,7 @@ class HostedCA(Certificate):
     unique_together = ("issuer", "hosted")
 
   def __unicode__(self):
-    return self.hosted_ca.handle
+    return self.hosted.handle
 
 class Revocation(django.db.models.Model):
   serial = django.db.models.BigIntegerField()

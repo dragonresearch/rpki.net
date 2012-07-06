@@ -93,7 +93,6 @@ def list_received_resources(log, conf):
                 cert.asn_ranges.create(min=asn.min, max=asn.max)
 
             for rng in resource_set_ipv4(pdu.ipv4):
-                print >>log, 'adding v4 address range: %s' % rng
                 cert.address_ranges.create(prefix_min=rng.min,
                                            prefix_max=rng.max)
 

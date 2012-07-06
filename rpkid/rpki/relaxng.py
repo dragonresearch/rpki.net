@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 4403 2012-03-19 21:14:48Z sra $
+  $Id: left-right-schema.rnc 4346 2012-02-17 01:11:06Z sra $
   
   RelaxNG Schema for RPKI left-right protocol.
   
@@ -264,6 +264,11 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
         <value>yes</value>
       </attribute>
     </optional>
+    <optional>
+      <attribute name="clear_replay_protection">
+        <value>yes</value>
+      </attribute>
+    </optional>
   </define>
   <define name="self_payload">
     <optional>
@@ -405,7 +410,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </element>
     </optional>
   </define>
-  <define name="bsc_pkcs10">
+  <define name="bsc_readonly">
     <optional>
       <element name="pkcs10_request">
         <ref name="base64"/>
@@ -426,7 +431,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="ctl_create"/>
       <ref name="self_handle"/>
       <ref name="bsc_handle"/>
-      <ref name="bsc_pkcs10"/>
+      <ref name="bsc_readonly"/>
     </element>
   </define>
   <define name="bsc_query" combine="choice">
@@ -443,7 +448,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="ctl_set"/>
       <ref name="self_handle"/>
       <ref name="bsc_handle"/>
-      <ref name="bsc_pkcs10"/>
+      <ref name="bsc_readonly"/>
     </element>
   </define>
   <define name="bsc_query" combine="choice">
@@ -459,7 +464,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="self_handle"/>
       <ref name="bsc_handle"/>
       <ref name="bsc_payload"/>
-      <ref name="bsc_pkcs10"/>
+      <ref name="bsc_readonly"/>
     </element>
   </define>
   <define name="bsc_query" combine="choice">
@@ -474,7 +479,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="self_handle"/>
       <ref name="bsc_handle"/>
       <ref name="bsc_payload"/>
-      <ref name="bsc_pkcs10"/>
+      <ref name="bsc_readonly"/>
     </element>
   </define>
   <define name="bsc_query" combine="choice">
@@ -515,6 +520,11 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     </optional>
     <optional>
       <attribute name="revoke_forgotten">
+        <value>yes</value>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="clear_replay_protection">
         <value>yes</value>
       </attribute>
     </optional>
@@ -644,6 +654,11 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
         <value>yes</value>
       </attribute>
     </optional>
+    <optional>
+      <attribute name="clear_replay_protection">
+        <value>yes</value>
+      </attribute>
+    </optional>
   </define>
   <define name="child_payload">
     <optional>
@@ -741,6 +756,13 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="object_handle"/>
     </attribute>
   </define>
+  <define name="repository_bool">
+    <optional>
+      <attribute name="clear_replay_protection">
+        <value>yes</value>
+      </attribute>
+    </optional>
+  </define>
   <define name="repository_payload">
     <optional>
       <attribute name="peer_contact_uri">
@@ -766,6 +788,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="ctl_create"/>
       <ref name="self_handle"/>
       <ref name="repository_handle"/>
+      <ref name="repository_bool"/>
       <ref name="repository_payload"/>
     </element>
   </define>
@@ -781,6 +804,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="ctl_set"/>
       <ref name="self_handle"/>
       <ref name="repository_handle"/>
+      <ref name="repository_bool"/>
       <ref name="repository_payload"/>
     </element>
   </define>
@@ -925,6 +949,11 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <attribute name="uri">
         <ref name="uri"/>
       </attribute>
+      <optional>
+        <attribute name="child_handle">
+          <ref name="object_handle"/>
+        </attribute>
+      </optional>
       <ref name="base64"/>
     </element>
   </define>
@@ -1450,6 +1479,13 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <ref name="object_handle"/>
     </attribute>
   </define>
+  <define name="client_bool">
+    <optional>
+      <attribute name="clear_replay_protection">
+        <value>yes</value>
+      </attribute>
+    </optional>
+  </define>
   <define name="client_payload">
     <optional>
       <attribute name="base_uri">
@@ -1476,6 +1512,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
         <ref name="tag"/>
       </optional>
       <ref name="client_handle"/>
+      <ref name="client_bool"/>
       <ref name="client_payload"/>
     </element>
   </define>
@@ -1499,6 +1536,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
         <ref name="tag"/>
       </optional>
       <ref name="client_handle"/>
+      <ref name="client_bool"/>
       <ref name="client_payload"/>
     </element>
   </define>

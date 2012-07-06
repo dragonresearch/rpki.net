@@ -992,6 +992,24 @@ class Zookeeper(object):
       action = "set", self_handle = self.handle, revoke_forgotten = "yes"))
 
 
+  def clear_all_sql_cms_replay_protection(self):
+    """
+    Tell rpkid and pubd to clear replay protection for all SQL-based
+    entities.  This is a fairly blunt instrument, but as we don't
+    expect this to be necessary except in the case of gross
+    misconfiguration, it should suffice
+    """
+
+    self.call_rpkid(*[rpki.left_right.self_elt.make_pdu(action = "set", self_handle = ca.handle,
+                                                        clear_replay_protection = "yes")
+                      for ca in rpki.irdb.ResourceHolderCA.objects.all()])
+    if self.run_pubd:
+      self.call_pubd(*[rpki.publication.client_elt.make_pdu(action = "set",
+                                                            client_handle = client.handle,
+                                                            clear_replay_protection = "yes")
+                       for client in self.server_ca.clients.all()])
+
+
   def call_pubd(self, *pdus):
     """
     Issue a call to pubd, return result.

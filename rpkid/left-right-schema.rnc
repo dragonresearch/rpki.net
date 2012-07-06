@@ -109,7 +109,8 @@ self_bool = (attribute rekey { "yes" }?,
              attribute revoke { "yes" }?,
              attribute run_now { "yes" }?,
              attribute publish_world_now { "yes" }?,
-             attribute revoke_forgotten { "yes" }?)
+             attribute revoke_forgotten { "yes" }?,
+             attribute clear_replay_protection { "yes" }?)
 
 self_payload = (attribute use_hsm { "yes" | "no" }?,
                 attribute crl_interval { xsd:positiveInteger }?,
@@ -142,16 +143,16 @@ bsc_handle = attribute bsc_handle { object_handle }
 bsc_payload = (element signing_cert { base64 }?,
                element signing_cert_crl { base64 }?)
 
-bsc_pkcs10 = element pkcs10_request { base64 }?
+bsc_readonly = element pkcs10_request { base64 }?
 
 bsc_query |= element bsc { ctl_create,  self_handle, bsc_handle, bsc_bool, bsc_payload }
-bsc_reply |= element bsc { ctl_create,  self_handle, bsc_handle, bsc_pkcs10 }
+bsc_reply |= element bsc { ctl_create,  self_handle, bsc_handle, bsc_readonly }
 bsc_query |= element bsc { ctl_set,     self_handle, bsc_handle, bsc_bool, bsc_payload }
-bsc_reply |= element bsc { ctl_set,     self_handle, bsc_handle, bsc_pkcs10 }
+bsc_reply |= element bsc { ctl_set,     self_handle, bsc_handle, bsc_readonly }
 bsc_query |= element bsc { ctl_get,     self_handle, bsc_handle }
-bsc_reply |= element bsc { ctl_get,     self_handle, bsc_handle, bsc_payload, bsc_pkcs10 }
+bsc_reply |= element bsc { ctl_get,     self_handle, bsc_handle, bsc_payload, bsc_readonly }
 bsc_query |= element bsc { ctl_list,    self_handle }
-bsc_reply |= element bsc { ctl_list,    self_handle, bsc_handle, bsc_payload, bsc_pkcs10 }
+bsc_reply |= element bsc { ctl_list,    self_handle, bsc_handle, bsc_payload, bsc_readonly }
 bsc_query |= element bsc { ctl_destroy, self_handle, bsc_handle }
 bsc_reply |= element bsc { ctl_destroy, self_handle, bsc_handle }
 
@@ -162,7 +163,8 @@ parent_handle = attribute parent_handle { object_handle }
 parent_bool = (attribute rekey { "yes" }?,
                attribute reissue { "yes" }?,
                attribute revoke { "yes" }?,
-               attribute revoke_forgotten { "yes" }?)
+               attribute revoke_forgotten { "yes" }?,
+             attribute clear_replay_protection { "yes" }?)
 
 parent_payload = (attribute peer_contact_uri { uri }?,
                   attribute sia_base { uri }?,
@@ -188,7 +190,8 @@ parent_reply |= element parent { ctl_destroy, self_handle, parent_handle }
 
 child_handle = attribute child_handle { object_handle }
 
-child_bool = attribute reissue { "yes" }?
+child_bool = (attribute reissue { "yes" }?,
+              attribute clear_replay_protection { "yes" }?)
 
 child_payload = (bsc_handle?,
                  element bpki_cert { base64 }?,
@@ -209,14 +212,16 @@ child_reply |= element child { ctl_destroy, self_handle, child_handle }
 
 repository_handle = attribute repository_handle { object_handle }
 
+repository_bool = attribute clear_replay_protection { "yes" }?
+
 repository_payload = (attribute peer_contact_uri { uri }?,
                       bsc_handle?,
                       element bpki_cert { base64 }?,
                       element bpki_glue { base64 }?)
 
-repository_query |= element repository { ctl_create,  self_handle, repository_handle, repository_payload }
+repository_query |= element repository { ctl_create,  self_handle, repository_handle, repository_bool, repository_payload }
 repository_reply |= element repository { ctl_create,  self_handle, repository_handle }
-repository_query |= element repository { ctl_set,     self_handle, repository_handle, repository_payload }
+repository_query |= element repository { ctl_set,     self_handle, repository_handle, repository_bool, repository_payload }
 repository_reply |= element repository { ctl_set,     self_handle, repository_handle }
 repository_query |= element repository { ctl_get,     self_handle, repository_handle }
 repository_reply |= element repository { ctl_get,     self_handle, repository_handle, repository_payload }
@@ -272,6 +277,7 @@ list_published_objects_query = element list_published_objects {
 list_published_objects_reply = element list_published_objects {
   tag, self_handle,
   attribute uri { uri },
+  attribute child_handle { object_handle }?,
   base64
 }
 

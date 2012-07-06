@@ -73,20 +73,22 @@ object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]*" }
 
 config_payload = (element bpki_crl { base64 }?)
 
-config_query |= element config { attribute action { "set" },     tag?, config_payload }
-config_reply |= element config { attribute action { "set" },     tag? }
-config_query |= element config { attribute action { "get" },     tag? }
-config_reply |= element config { attribute action { "get" },     tag?, config_payload }
+config_query |= element config { attribute action { "set" }, tag?, config_payload }
+config_reply |= element config { attribute action { "set" }, tag? }
+config_query |= element config { attribute action { "get" }, tag? }
+config_reply |= element config { attribute action { "get" }, tag?, config_payload }
 
 # <client/> element (use restricted to repository operator)
 
 client_handle = attribute client_handle { object_handle }
 
+client_bool = attribute clear_replay_protection { "yes" }?
+
 client_payload = (attribute base_uri { uri_t }?, element bpki_cert { base64 }?, element bpki_glue { base64 }?)
 
-client_query |= element client { attribute action { "create" },  tag?, client_handle, client_payload }
+client_query |= element client { attribute action { "create" },  tag?, client_handle, client_bool, client_payload }
 client_reply |= element client { attribute action { "create" },  tag?, client_handle }
-client_query |= element client { attribute action { "set" },     tag?, client_handle, client_payload }
+client_query |= element client { attribute action { "set" },     tag?, client_handle, client_bool, client_payload }
 client_reply |= element client { attribute action { "set" },     tag?, client_handle }
 client_query |= element client { attribute action { "get" },     tag?, client_handle }
 client_reply |= element client { attribute action { "get" },     tag?, client_handle, client_payload }

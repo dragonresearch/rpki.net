@@ -188,6 +188,13 @@
       <ref name="object_handle"/>
     </attribute>
   </define>
+  <define name="client_bool">
+    <optional>
+      <attribute name="clear_replay_protection">
+        <value>yes</value>
+      </attribute>
+    </optional>
+  </define>
   <define name="client_payload">
     <optional>
       <attribute name="base_uri">
@@ -214,6 +221,7 @@
         <ref name="tag"/>
       </optional>
       <ref name="client_handle"/>
+      <ref name="client_bool"/>
       <ref name="client_payload"/>
     </element>
   </define>
@@ -237,6 +245,7 @@
         <ref name="tag"/>
       </optional>
       <ref name="client_handle"/>
+      <ref name="client_bool"/>
       <ref name="client_payload"/>
     </element>
   </define>

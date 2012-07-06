@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 4403 2012-03-19 21:14:48Z sra $
+  $Id: left-right-schema.rnc 4346 2012-02-17 01:11:06Z sra $
   
   RelaxNG Schema for RPKI left-right protocol.
   
@@ -258,6 +258,11 @@
         <value>yes</value>
       </attribute>
     </optional>
+    <optional>
+      <attribute name="clear_replay_protection">
+        <value>yes</value>
+      </attribute>
+    </optional>
   </define>
   <define name="self_payload">
     <optional>
@@ -399,7 +404,7 @@
       </element>
     </optional>
   </define>
-  <define name="bsc_pkcs10">
+  <define name="bsc_readonly">
     <optional>
       <element name="pkcs10_request">
         <ref name="base64"/>
@@ -420,7 +425,7 @@
       <ref name="ctl_create"/>
       <ref name="self_handle"/>
       <ref name="bsc_handle"/>
-      <ref name="bsc_pkcs10"/>
+      <ref name="bsc_readonly"/>
     </element>
   </define>
   <define name="bsc_query" combine="choice">
@@ -437,7 +442,7 @@
       <ref name="ctl_set"/>
       <ref name="self_handle"/>
       <ref name="bsc_handle"/>
-      <ref name="bsc_pkcs10"/>
+      <ref name="bsc_readonly"/>
     </element>
   </define>
   <define name="bsc_query" combine="choice">
@@ -453,7 +458,7 @@
       <ref name="self_handle"/>
       <ref name="bsc_handle"/>
       <ref name="bsc_payload"/>
-      <ref name="bsc_pkcs10"/>
+      <ref name="bsc_readonly"/>
     </element>
   </define>
   <define name="bsc_query" combine="choice">
@@ -468,7 +473,7 @@
       <ref name="self_handle"/>
       <ref name="bsc_handle"/>
       <ref name="bsc_payload"/>
-      <ref name="bsc_pkcs10"/>
+      <ref name="bsc_readonly"/>
     </element>
   </define>
   <define name="bsc_query" combine="choice">
@@ -509,6 +514,11 @@
     </optional>
     <optional>
       <attribute name="revoke_forgotten">
+        <value>yes</value>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="clear_replay_protection">
         <value>yes</value>
       </attribute>
     </optional>
@@ -638,6 +648,11 @@
         <value>yes</value>
       </attribute>
     </optional>
+    <optional>
+      <attribute name="clear_replay_protection">
+        <value>yes</value>
+      </attribute>
+    </optional>
   </define>
   <define name="child_payload">
     <optional>
@@ -735,6 +750,13 @@
       <ref name="object_handle"/>
     </attribute>
   </define>
+  <define name="repository_bool">
+    <optional>
+      <attribute name="clear_replay_protection">
+        <value>yes</value>
+      </attribute>
+    </optional>
+  </define>
   <define name="repository_payload">
     <optional>
       <attribute name="peer_contact_uri">
@@ -760,6 +782,7 @@
       <ref name="ctl_create"/>
       <ref name="self_handle"/>
       <ref name="repository_handle"/>
+      <ref name="repository_bool"/>
       <ref name="repository_payload"/>
     </element>
   </define>
@@ -775,6 +798,7 @@
       <ref name="ctl_set"/>
       <ref name="self_handle"/>
       <ref name="repository_handle"/>
+      <ref name="repository_bool"/>
       <ref name="repository_payload"/>
     </element>
   </define>
@@ -919,6 +943,11 @@
       <attribute name="uri">
         <ref name="uri"/>
       </attribute>
+      <optional>
+        <attribute name="child_handle">
+          <ref name="object_handle"/>
+        </attribute>
+      </optional>
       <ref name="base64"/>
     </element>
   </define>

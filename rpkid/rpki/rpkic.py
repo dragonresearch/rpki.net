@@ -605,3 +605,17 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
 
     self.zoo.revoke_forgotten()
+
+
+  def do_clear_all_sql_cms_replay_protection(self, arg):
+    """
+    Tell rpkid and pubd to clear replay protection for all SQL-based
+    entities.  This is a fairly blunt instrument, but as we don't
+    expect this to be necessary except in the case of gross
+    misconfiguration, it should suffice
+    """
+
+    if arg:
+      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+
+    self.zoo.clear_all_sql_cms_replay_protection()

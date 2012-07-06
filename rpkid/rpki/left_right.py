@@ -135,7 +135,8 @@ class self_elt(data_elt):
   element_name = "self"
   attributes = ("action", "tag", "self_handle", "crl_interval", "regen_margin")
   elements = ("bpki_cert", "bpki_glue")
-  booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "revoke_forgotten")
+  booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "revoke_forgotten",
+              "clear_replay_protection")
 
   sql_template = rpki.sql.template("self", "self_id", "self_handle",
                                    "use_hsm", "crl_interval", "regen_margin",
@@ -209,6 +210,8 @@ class self_elt(data_elt):
       actions.append(self.serve_publish_world_now)
     if q_pdu.run_now:
       actions.append(self.serve_run_now)
+    if q_pdu.clear_replay_protection:
+      actions.append(self.serve_clear_replay_protection)
     def loop(iterator, action):
       action(iterator, eb)
     rpki.async.iterator(actions, loop, cb)
@@ -248,6 +251,15 @@ class self_elt(data_elt):
     def loop(iterator, parent):
       parent.serve_revoke_forgotten(iterator, eb)
     rpki.async.iterator(self.parents, loop, cb)
+
+  def serve_clear_replay_protection(self, cb, eb):
+    """
+    Handle a left-right clear_replay_protection action for this self.
+    """
+    rpki.log.trace()
+    def loop(iterator, obj):
+      obj.serve_clear_replay_protection(iterator, eb)
+    rpki.async.iterator(self.parents + self.children + self.repositories, loop, cb)
 
   def serve_destroy_hook(self, cb, eb):
     """
@@ -780,6 +792,7 @@ class repository_elt(data_elt):
   element_name = "repository"
   attributes = ("action", "tag", "self_handle", "repository_handle", "bsc_handle", "peer_contact_uri")
   elements = ("bpki_cert", "bpki_glue")
+  booleans = ("clear_replay_protection",)
 
   sql_template = rpki.sql.template("repository", "repository_id", "repository_handle",
                                    "self_id", "bsc_id", "peer_contact_uri",
@@ -799,6 +812,25 @@ class repository_elt(data_elt):
     Fetch all parent objects that link to this repository object.
     """
     return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
+
+  def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
+    """
+    Extra server actions for repository_elt.
+    """
+    actions = []
+    if q_pdu.clear_replay_protection:
+      actions.append(self.serve_clear_replay_protection)
+    def loop(iterator, action):
+      action(iterator, eb)
+    rpki.async.iterator(actions, loop, cb)
+
+  def serve_clear_replay_protection(self, cb, eb):
+    """
+    Handle a left-right clear_replay_protection action for this repository.
+    """
+    self.last_cms_timestamp = None
+    self.sql_mark_dirty()
+    cb()
 
   @staticmethod
   def default_pubd_handler(pdu):
@@ -876,7 +908,7 @@ class parent_elt(data_elt):
   attributes = ("action", "tag", "self_handle", "parent_handle", "bsc_handle", "repository_handle",
                 "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
   elements = ("bpki_cms_cert", "bpki_cms_glue")
-  booleans = ("rekey", "reissue", "revoke", "revoke_forgotten")
+  booleans = ("rekey", "reissue", "revoke", "revoke_forgotten", "clear_replay_protection")
 
   sql_template = rpki.sql.template("parent", "parent_id", "parent_handle",
                                    "self_id", "bsc_id", "repository_id",
@@ -919,6 +951,8 @@ class parent_elt(data_elt):
       actions.append(self.serve_reissue)
     if q_pdu.revoke_forgotten:
       actions.append(self.serve_revoke_forgotten)
+    if q_pdu.clear_replay_protection:
+      actions.append(self.serve_clear_replay_protection)
     def loop(iterator, action):
       action(iterator, eb)
     rpki.async.iterator(actions, loop, cb)
@@ -946,6 +980,14 @@ class parent_elt(data_elt):
     def loop(iterator, ca):
       ca.reissue(cb = iterator, eb = eb)
     rpki.async.iterator(self.cas, loop, cb)
+
+  def serve_clear_replay_protection(self, cb, eb):
+    """
+    Handle a left-right clear_replay_protection action for this parent.
+    """
+    self.last_cms_timestamp = None
+    self.sql_mark_dirty()
+    cb()
 
 
   def get_skis(self, cb, eb):
@@ -1099,7 +1141,7 @@ class child_elt(data_elt):
   element_name = "child"
   attributes = ("action", "tag", "self_handle", "child_handle", "bsc_handle")
   elements = ("bpki_cert", "bpki_glue")
-  booleans = ("reissue", )
+  booleans = ("reissue", "clear_replay_protection")
 
   sql_template = rpki.sql.template("child", "child_id", "child_handle",
                                    "self_id", "bsc_id",
@@ -1137,10 +1179,14 @@ class child_elt(data_elt):
     """
     Extra server actions for child_elt.
     """
+    actions = []
     if q_pdu.reissue:
-      self.serve_reissue(cb, eb)
-    else:
-      cb()
+      actions.append(self.serve_reissue)
+    if q_pdu.clear_replay_protection:
+      actions.append(self.serve_clear_replay_protection)
+    def loop(iterator, action):
+      action(iterator, eb)
+    rpki.async.iterator(actions, loop, cb)
 
   def serve_reissue(self, cb, eb):
     """
@@ -1150,6 +1196,14 @@ class child_elt(data_elt):
     for child_cert in self.child_certs:
       child_cert.reissue(child_cert.ca_detail, publisher, force = True)
     publisher.call_pubd(cb, eb)
+
+  def serve_clear_replay_protection(self, cb, eb):
+    """
+    Handle a left-right clear_replay_protection action for this child.
+    """
+    self.last_cms_timestamp = None
+    self.sql_mark_dirty()
+    cb()
 
   def ca_from_class_name(self, class_name):
     """
@@ -1289,10 +1343,11 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
 
   element_name = "list_published_objects"
-  attributes = ("self_handle", "tag", "uri")
+  attributes = ("self_handle", "tag", "uri", "child_handle")
   text_attribute = "obj"
 
   obj = None
+  child_handle = None
 
   def serve_dispatch(self, r_msg, cb, eb):
     """
@@ -1306,16 +1361,20 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
         if ca_detail is not None:
           r_msg.append(self.make_reply(ca_detail.crl_uri, ca_detail.latest_crl))
           r_msg.append(self.make_reply(ca_detail.manifest_uri, ca_detail.latest_manifest))
-          r_msg.extend(self.make_reply(c.uri, c.cert) for c in ca_detail.child_certs)
-          r_msg.extend(self.make_reply(r.uri, r.roa) for r in ca_detail.roas if r.roa is not None)
-          r_msg.extend(self.make_reply(g.uri, g.ghostbuster) for g in ca_detail.ghostbusters)          
+          r_msg.extend(self.make_reply(c.uri, c.cert, c.child.child_handle)
+                       for c in ca_detail.child_certs)
+          r_msg.extend(self.make_reply(r.uri, r.roa)
+                       for r in ca_detail.roas if r.roa is not None)
+          r_msg.extend(self.make_reply(g.uri, g.ghostbuster)
+                       for g in ca_detail.ghostbusters)          
     cb()
 
-  def make_reply(self, uri, obj):
+  def make_reply(self, uri, obj, child_handle = None):
     """
     Generate one reply PDU.
     """
-    r_pdu = self.make_pdu(tag = self.tag, self_handle = self.self_handle, uri = uri)
+    r_pdu = self.make_pdu(tag = self.tag, self_handle = self.self_handle,
+                          uri = uri, child_handle = child_handle)
     r_pdu.obj = obj.get_Base64()
     return r_pdu
 

@@ -118,6 +118,7 @@ class client_elt(control_elt):
   element_name = "client"
   attributes = ("action", "tag", "client_handle", "base_uri")
   elements = ("bpki_cert", "bpki_glue")
+  booleans = ("clear_replay_protection",)
 
   sql_template = rpki.sql.template("client", "client_id", "client_handle", "base_uri",
                                    ("bpki_cert", rpki.x509.X509),
@@ -128,6 +129,25 @@ class client_elt(control_elt):
   bpki_cert = None
   bpki_glue = None
   last_cms_timestamp = None
+
+  def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
+    """
+    Extra server actions for client_elt.
+    """
+    actions = []
+    if q_pdu.clear_replay_protection:
+      actions.append(self.serve_clear_replay_protection)
+    def loop(iterator, action):
+      action(iterator, eb)
+    rpki.async.iterator(actions, loop, cb)
+
+  def serve_clear_replay_protection(self, cb, eb):
+    """
+    Handle a clear_replay_protection action for this client.
+    """
+    self.last_cms_timestamp = None
+    self.sql_mark_dirty()
+    cb()
 
   def serve_fetch_one_maybe(self):
     """
@@ -143,6 +163,9 @@ class client_elt(control_elt):
     return self.sql_fetch_all(self.gctx)
 
   def check_allowed_uri(self, uri):
+    """
+    Make sure that a target URI is within this client's allowed URI space.
+    """
     if not uri.startswith(self.base_uri):
       raise rpki.exceptions.ForbiddenURI
 

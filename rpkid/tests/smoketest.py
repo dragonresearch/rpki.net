@@ -146,6 +146,8 @@ pubd_irbe_key  = None
 pubd_irbe_cert = None
 pubd_pubd_cert = None
 
+pubd_last_cms_time = None
+
 class CantRekeyYAMLLeaf(Exception):
   """
   Can't rekey YAML leaf.
@@ -468,6 +470,7 @@ class allocation(object):
   rpki_port    = None
   crl_interval = None
   regen_margin = None
+  last_cms_time = None
 
   def __init__(self, yaml, db, parent = None):
     """
@@ -821,6 +824,7 @@ class allocation(object):
       rpki.log.info("Callback from rpkid %s" % self.name)
       r_cms = rpki.left_right.cms_msg(DER = r_der)
       r_msg = r_cms.unwrap((self.rpkid_ta, self.rpkid_cert))
+      self.last_cms_time = r_cms.check_replay(self.last_cms_time)
       rpki.log.debug(r_cms.pretty_print_content())
       assert r_msg.is_reply
       for r_pdu in r_msg:
@@ -1221,8 +1225,10 @@ def call_pubd(pdus, cb):
   rpki.log.debug(q_cms.pretty_print_content())
 
   def call_pubd_cb(r_der):
+    global pubd_last_cms_time
     r_cms = rpki.publication.cms_msg(DER = r_der)
     r_msg = r_cms.unwrap((pubd_ta, pubd_pubd_cert))
+    pubd_last_cms_time = r_cms.check_replay(pubd_last_cms_time)
     rpki.log.debug(r_cms.pretty_print_content())
     assert r_msg.is_reply
     for r_pdu in r_msg:
@@ -1278,25 +1284,25 @@ def mangle_sql(filename):
   return " ".join(words).strip(";").split(";")
 
 bpki_cert_fmt_1 = '''\
-[ req ]
+[req]
 distinguished_name      = req_dn
 x509_extensions         = req_x509_ext
 prompt                  = no
 default_md              = sha256
 
-[ req_dn ]
+[req_dn]
 CN                      = Test Certificate %(name)s %(kind)s
 
-[ req_x509_ext ]
+[req_x509_ext]
 basicConstraints        = critical,CA:%(ca)s
 subjectKeyIdentifier    = hash
 authorityKeyIdentifier  = keyid:always
 
 
-[ ca ]
+[ca]
 default_ca = ca_default
 
-[ ca_default ]
+[ca_default]
 
 certificate             = %(name)s-%(kind)s.cer
 serial                  = %(name)s-%(kind)s.srl
@@ -1379,7 +1385,8 @@ bpki-ta         = %(my_name)s-TA.cer
 rpkid-cert      = %(my_name)s-RPKI.cer
 irdbd-cert      = %(my_name)s-IRDB.cer
 irdbd-key       = %(my_name)s-IRDB.key
-http-url       = http://localhost:%(irdb_port)d/
+http-url        = http://localhost:%(irdb_port)d/
+enable_tracebacks = yes
 
 [irbe_cli]
 
@@ -1388,6 +1395,7 @@ rpkid-cert      = %(my_name)s-RPKI.cer
 rpkid-irbe-cert = %(my_name)s-IRBE.cer
 rpkid-irbe-key  = %(my_name)s-IRBE.key
 rpkid-url       = http://localhost:%(rpki_port)d/left-right
+enable_tracebacks = yes
 
 [rpkid]
 
@@ -1409,6 +1417,7 @@ server-host     = localhost
 server-port     = %(rpki_port)d
 
 use-internal-cron = false
+enable_tracebacks = yes
 '''
 
 rootd_fmt_1 = '''\
@@ -1440,6 +1449,7 @@ rpki-class-name         = Wombat
 rpki-subject-cert       = Wombat.cer
 
 include-bpki-crl        = yes
+enable_tracebacks       = yes
 
 [req]
 default_bits            = 2048
@@ -1523,6 +1533,7 @@ irbe-cert               = %(pubd_name)s-IRBE.cer
 server-host             = localhost
 server-port             = %(pubd_port)d
 publication-base        = %(pubd_dir)s
+enable_tracebacks       = yes
 '''
 
 main()

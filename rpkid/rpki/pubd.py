@@ -68,6 +68,7 @@ class main(object):
     self.cfg_file = None
     self.profile = False
     self.foreground = False
+    self.irbe_cms_timestamp = None
 
     opts, argv = getopt.getopt(sys.argv[1:], "c:dfhp:?",
                                ["config=", "debug", "foreground", "help", "profile="])
@@ -136,7 +137,12 @@ class main(object):
       self.sql.sweep()
       cb(reply)
 
-    q_msg = rpki.publication.cms_msg(DER = query).unwrap(certs)
+    q_cms = rpki.publication.cms_msg(DER = query)
+    q_msg = q_cms.unwrap(certs)
+    if client is None:
+      self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp)
+    else:
+      q_cms.check_replay_sql(client)
     q_msg.serve_top_level(self, client, done)
 
   def control_handler(self, query, path, cb):

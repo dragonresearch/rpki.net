@@ -264,7 +264,9 @@ class main(object):
 
   def up_down_handler(self, query, path, cb):
     try:
-      q_msg = cms_msg(DER = query).unwrap((self.bpki_ta, self.child_bpki_cert))
+      q_cms = cms_msg(DER = query)
+      q_msg = q_cms.unwrap((self.bpki_ta, self.child_bpki_cert))
+      self.cms_timestamp = q_cms.check_replay(self.cms_timestamp)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
@@ -323,6 +325,7 @@ class main(object):
     self.crl_number = None
     self.revoked = []
     self.foreground = False
+    self.cms_timestamp = None
 
     os.environ["TZ"] = "UTC"
     time.tzset()

@@ -791,6 +791,7 @@ class repository_elt(data_elt):
 
   bpki_cert = None
   bpki_glue = None
+  last_cms_timestamp = None
 
   @property
   def parents(self):
@@ -840,7 +841,9 @@ class repository_elt(data_elt):
 
       def done(r_der):
         try:
-          r_msg = rpki.publication.cms_msg(DER = r_der).unwrap(bpki_ta_path)
+          r_cms = rpki.publication.cms_msg(DER = r_der)
+          r_msg = r_cms.unwrap(bpki_ta_path)
+          r_cms.check_replay_sql(self)
           for r_pdu in r_msg:
             handler = handlers.get(r_pdu.tag, self.default_pubd_handler)
             if handler:
@@ -887,6 +890,7 @@ class parent_elt(data_elt):
 
   bpki_cms_cert = None
   bpki_cms_glue = None
+  last_cms_timestamp = None
 
   @property
   def repository(self):
@@ -1066,11 +1070,13 @@ class parent_elt(data_elt):
 
     def unwrap(r_der):
       try:
-        r_msg = rpki.up_down.cms_msg(DER = r_der).unwrap((self.gctx.bpki_ta,
-                                                          self.self.bpki_cert,
-                                                          self.self.bpki_glue,
-                                                          self.bpki_cms_cert,
-                                                          self.bpki_cms_glue))
+        r_cms = rpki.up_down.cms_msg(DER = r_der)
+        r_msg = r_cms.unwrap((self.gctx.bpki_ta,
+                              self.self.bpki_cert,
+                              self.self.bpki_glue,
+                              self.bpki_cms_cert,
+                              self.bpki_cms_glue))
+        r_cms.check_replay_sql(self)
         r_msg.payload.check_response()
       except (SystemExit, rpki.async.ExitNow):
         raise
@@ -1105,6 +1111,7 @@ class child_elt(data_elt):
 
   bpki_cert = None
   bpki_glue = None
+  last_cms_timestamp = None
 
   def fetch_child_certs(self, ca_detail = None, ski = None, unique = False):
     """
@@ -1178,11 +1185,13 @@ class child_elt(data_elt):
     bsc = self.bsc
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
-    q_msg = rpki.up_down.cms_msg(DER = query).unwrap((self.gctx.bpki_ta,
-                                                      self.self.bpki_cert,
-                                                      self.self.bpki_glue,
-                                                      self.bpki_cert,
-                                                      self.bpki_glue))
+    q_cms = rpki.up_down.cms_msg(DER = query)
+    q_msg = q_cms.unwrap((self.gctx.bpki_ta,
+                          self.self.bpki_cert,
+                          self.self.bpki_glue,
+                          self.bpki_cert,
+                          self.bpki_glue))
+    q_cms.check_replay_sql(self)
     q_msg.payload.gctx = self.gctx
     if enforce_strict_up_down_xml_sender and q_msg.sender != str(self.child_id):
       raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender

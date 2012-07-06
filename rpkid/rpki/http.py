@@ -1033,6 +1033,7 @@ class caller(object):
     self.server_ta = server_ta
     self.server_cert = server_cert
     self.url = url
+    self.cms_timestamp = None
     if debug is not None:
       self.debug = debug
 
@@ -1044,6 +1045,7 @@ class caller(object):
       """
       r_cms = self.proto.cms_msg(DER = r_der)
       r_msg = r_cms.unwrap((self.server_ta, self.server_cert))
+      self.cms_timestamp = r_cms.check_replay(self.cms_timestamp)
       if self.debug:
         print "<!-- Reply -->"
         print r_cms.pretty_print_content()

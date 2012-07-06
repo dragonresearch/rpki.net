@@ -127,6 +127,7 @@ class client_elt(control_elt):
   base_uri  = None
   bpki_cert = None
   bpki_glue = None
+  last_cms_timestamp = None
 
   def serve_fetch_one_maybe(self):
     """

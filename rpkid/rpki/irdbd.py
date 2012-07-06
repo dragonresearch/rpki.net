@@ -104,7 +104,9 @@ class main(object):
       serverCA = rpki.irdb.ServerCA.objects.get()
       rpkid = serverCA.ee_certificates.get(purpose = "rpkid")
       try:
-        q_msg = rpki.left_right.cms_msg(DER = query).unwrap((serverCA.certificate, rpkid.certificate))
+        q_cms = rpki.left_right.cms_msg(DER = query)
+        q_msg = q_cms.unwrap((serverCA.certificate, rpkid.certificate))
+        self.cms_timestamp = q_cms.check_replay(self.cms_timestamp)
         if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
           raise rpki.exceptions.BadQuery("Unexpected %r PDU" % q_msg)
         for q_pdu in q_msg:
@@ -143,7 +145,7 @@ class main(object):
 
     cfg_file = None
     foreground = False
-
+    
     opts, argv = getopt.getopt(sys.argv[1:], "c:dfh?", ["config=", "debug", "foreground", "help"])
     for o, a in opts:
       if o in ("-h", "--help", "-?"):
@@ -229,6 +231,8 @@ class main(object):
            u.params   == "" and \
            u.query    == "" and \
            u.fragment == ""
+
+    self.cms_timestamp = None
 
     rpki.http.server(
       host     = u.hostname or "localhost",

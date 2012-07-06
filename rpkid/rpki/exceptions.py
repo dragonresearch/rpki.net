@@ -346,3 +346,8 @@ class ResourceOverlap(RPKI_Exception):
   """
   Overlapping resources in resource_set.
   """
+
+class CMSReplay(RPKI_Exception):
+  """
+  Possible CMS replay attack detected.
+  """

@@ -112,8 +112,10 @@ def query_up_down(q_pdu):
   q_der = rpki.up_down.cms_msg().wrap(q_msg, cms_key, cms_certs, cms_crl)
 
   def done(r_der):
+    global last_cms_timestamp
     r_cms = rpki.up_down.cms_msg(DER = r_der)
     r_msg = r_cms.unwrap([cms_ta] + cms_ca_certs)
+    last_cms_timestamp = r_cms.check_replay(last_cms_timestamp)
     print r_cms.pretty_print_content()
     try:
       r_msg.payload.check_response()
@@ -160,6 +162,8 @@ cms_key        = get_PEM("cms-key", rpki.x509.RSA)
 cms_crl        = get_PEM("cms-crl", rpki.x509.CRL)
 cms_certs      = get_PEM_chain("cms-cert-chain", cms_cert)
 cms_ca_certs   = get_PEM_chain("cms-ca-certs")
+
+last_cms_timestamp = None
 
 try:
   dispatch[yaml_req["type"]]()

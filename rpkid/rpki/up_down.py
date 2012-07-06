@@ -252,7 +252,7 @@ class list_pdu(base_elt):
       r_msg.payload = list_response_pdu()
 
       if irdb_resources.valid_until < rpki.sundial.now():
-        rpki.log.debug("Child %s's resources expired %s" % child.child_handle, irdb_resources.valid_until)
+        rpki.log.debug("Child %s's resources expired %s" % (child.child_handle, irdb_resources.valid_until))
       else:
         for parent in child.parents:
           for ca in parent.cas:

@@ -93,25 +93,17 @@ def check_child_certs(conf):
         if isinstance(pdu, report_error_elt):
             print "rpkid reported an error: %s" % pdu.error_code
         elif isinstance(pdu, list_published_objects_elt):
-            uri = pdu.uri
-            if uri.endswith('.cer'):
+            if pdu.uri.endswith('.cer'):
                 cert = X509()
                 cert.set(Base64=pdu.obj)
                 t = cert.getNotAfter()
                 if Verbose or t <= expire_time:
                     e = 'expired' if t <= now else 'will expire'
-                    subject = cert.getSubject()
-
-                    # if the child is hosted by the same rpkid, we can
-                    # determine which client this cert was issued to
-                    qs = ResourceCert.objects.filter(uri=pdu.uri)
-                    child = qs[0].parent.issuer.handle if qs else '<unknown>'
-
                     print "%(handle)s's rescert for Child %(child)s %(expire)s on %(date)s uri=%(uri)s subject=%(subject)s" % {
                         'handle': conf.handle,
-                        'child': child,
+                        'child': pdu.child_handle,
                         'uri': pdu.uri,
-                        'subject': subject,
+                        'subject': cert.getSubject(),
                         'expire': e,
                         'date': t}
 

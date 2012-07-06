@@ -19,6 +19,7 @@ __version__ = '$Id$'
 from rpki.gui.cacheview.models import Cert
 from rpki.gui.cacheview.views import cert_chain
 from rpki.gui.app.models import ResourceCert, Conf
+from rpki.gui.app.glue import list_received_resources
 from rpki.irdb.models import ResourceHolderCA
 
 import datetime
@@ -55,16 +56,21 @@ def check_cert_list(handle, x):
         check_cert(handle, p)
 
 
-def check_expire(handle):
+def check_expire(conf):
+    # force cache update
+    if Verbose:
+        print 'Updating received resources cache for %s' % conf.handle
+    list_received_resources(sys.stdout, conf)
+
     # get certs for `handle'
-    cert_set = ResourceCert.objects.filter(parent__issuer=handle)
+    cert_set = ResourceCert.objects.filter(parent__issuer=conf)
     for cert in cert_set:
         # look up cert in cacheview db
         obj_set = Cert.objects.filter(repo__uri=cert.uri)
         if not obj_set:
             # since the <list_received_resources/> output is cached, this can
             # occur if the cache is out of date as well..
-            print "Unable to locate rescert in rcynic cache: handle=%s uri=%s not_after=%s" % (handle.handle, cert.uri, cert.not_after)
+            print "Unable to locate rescert in rcynic cache: handle=%s uri=%s not_after=%s" % (conf.handle, cert.uri, cert.not_after)
             continue
         obj = obj_set[0]
         cert_list = cert_chain(obj)
@@ -78,7 +84,7 @@ def check_expire(handle):
                 f = ' '
             msg.append("%s  [%d] uri=%s ski=%s name=%s expires=%s" % (f, n, c.repo.uri, c.keyid, c.name, c.not_after))
         if expired or Verbose:
-            print "%s's rescert from parent %s will expire soon:\n" % (handle.handle, cert.parent.handle)
+            print "%s's rescert from parent %s will expire soon:\n" % (conf.handle, cert.parent.handle)
             print "Certificate chain:"
             print "\n".join(msg)
 

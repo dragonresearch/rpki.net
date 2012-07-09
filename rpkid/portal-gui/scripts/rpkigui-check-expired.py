@@ -16,21 +16,22 @@ __version__ = '$Id$'
 
 from rpki.gui.cacheview.models import Cert
 from rpki.gui.cacheview.views import cert_chain
-from rpki.gui.app.models import ResourceCert
+from rpki.gui.app.models import ResourceCert, GhostbusterRequest
 from rpki.gui.app.glue import list_received_resources
 from rpki.irdb.models import ResourceHolderCA
 from rpki.irdb import Zookeeper
 from rpki.left_right import report_error_elt, list_published_objects_elt
 from rpki.x509 import X509
 
+from django.core.mail import send_mail
+
 import datetime
 import sys
+from socket import getfqdn
 from optparse import OptionParser
+from cStringIO import StringIO
 
-Verbose = False
-
-
-def check_cert(handle, p):
+def check_cert(handle, p, errs):
     """Check the expiration date on the X.509 certificates in each element of
     the list.
 
@@ -39,19 +40,19 @@ def check_cert(handle, p):
 
     """
     t = p.certificate.getNotAfter()
-    if Verbose or t <= expire_time:
+    if t <= expire_time:
         e = 'expired' if t <= now else 'will expire'
-        print "%(handle)s's %(type)s %(desc)s %(expire)s on %(date)s" % {
+        errs.write("%(handle)s's %(type)s %(desc)s %(expire)s on %(date)s\n" % {
             'handle': handle, 'type': p.__class__.__name__, 'desc': str(p),
-            'expire': e, 'date': t}
+            'expire': e, 'date': t})
 
 
-def check_cert_list(handle, x):
+def check_cert_list(handle, x, errs):
     for p in x:
-        check_cert(handle, p)
+        check_cert(handle, p, errs)
 
 
-def check_expire(conf):
+def check_expire(conf, errs):
     # get certs for `handle'
     cert_set = ResourceCert.objects.filter(parent__issuer=conf)
     for cert in cert_set:
@@ -60,7 +61,7 @@ def check_expire(conf):
         if not obj_set:
             # since the <list_received_resources/> output is cached, this can
             # occur if the cache is out of date as well..
-            print "Unable to locate rescert in rcynic cache: handle=%s uri=%s not_after=%s" % (conf.handle, cert.uri, cert.not_after)
+            errs.write( "Unable to locate rescert in rcynic cache: handle=%s uri=%s not_after=%s\n" % (conf.handle, cert.uri, cert.not_after))
             continue
         obj = obj_set[0]
         cert_list = cert_chain(obj)
@@ -73,13 +74,25 @@ def check_expire(conf):
             else:
                 f = ' '
             msg.append("%s  [%d] uri=%s ski=%s name=%s expires=%s" % (f, n, c.repo.uri, c.keyid, c.name, c.not_after))
-        if expired or Verbose:
-            print "%s's rescert from parent %s will expire soon:\n" % (conf.handle, cert.parent.handle)
-            print "Certificate chain:"
-            print "\n".join(msg)
+
+            # find ghostbuster records attached to this cert
+            for gbr in c.ghostbusters.all():
+                info = []
+                for s in ('full_name', 'organization', 'email_address', 'telephone'):
+                    t = getattr(gbr, s, None)
+                    if t:
+                        info.append(t)
+
+                msg.append("       Contact: " + ", ".join(info))
+
+        if expired:
+            errs.write("%s's rescert from parent %s will expire soon:\n" % (conf.handle, cert.parent.handle))
+            errs.write("Certificate chain:\n")
+            errs.write("\n".join(msg))
+            errs.write("\n")
 
 
-def check_child_certs(conf):
+def check_child_certs(conf, errs):
     """Fetch the list of published objects from rpkid, and inspect the issued
     resource certs (uri ending in .cer).
 
@@ -91,22 +104,26 @@ def check_child_certs(conf):
     pdus = z.call_rpkid(req)
     for pdu in pdus:
         if isinstance(pdu, report_error_elt):
-            print "rpkid reported an error: %s" % pdu.error_code
+            print >>sys.stderr, "rpkid reported an error: %s" % pdu.error_code
         elif isinstance(pdu, list_published_objects_elt):
             if pdu.uri.endswith('.cer'):
                 cert = X509()
                 cert.set(Base64=pdu.obj)
                 t = cert.getNotAfter()
-                if Verbose or t <= expire_time:
+                if t <= expire_time:
                     e = 'expired' if t <= now else 'will expire'
-                    print "%(handle)s's rescert for Child %(child)s %(expire)s on %(date)s uri=%(uri)s subject=%(subject)s" % {
+                    errs.write( "%(handle)s's rescert for Child %(child)s %(expire)s on %(date)s uri=%(uri)s subject=%(subject)s\n" % {
                         'handle': conf.handle,
                         'child': pdu.child_handle,
                         'uri': pdu.uri,
                         'subject': cert.getSubject(),
                         'expire': e,
-                        'date': t}
+                        'date': t})
 
+
+# this is not exactly right, since we have no way of knowing what the
+# vhost for the web portal running on this machine is
+host = getfqdn()
 
 usage = '%prog [ -vV ] [ handle1 handle2... ]'
 
@@ -116,11 +133,11 @@ report about all resource handles hosted by the local rpkid instance will be
 generated."""
 
 parser = OptionParser(usage, description=description)
-parser.add_option('-v', '--verbose', help='enable verbose output',
-                    action='store_true', dest='verbose',
-                    default=False)
 parser.add_option('-V', '--version', help='display script version',
                     action='store_true', dest='version', default=False)
+parser.add_option('-f', '--from', metavar='ADDRESS', default='root@' + host,
+                  dest='from_email',
+                  help='specify the return email address for notifications [default: %default]')
 parser.add_option('-t', '--expire-time',
                   dest='expire_days',
                   default=14,
@@ -130,33 +147,54 @@ parser.add_option('-t', '--expire-time',
 if options.version:
     print __version__
     sys.exit(0)
-Verbose = options.verbose
 now = datetime.datetime.utcnow()
-expire_time = now + datetime.timedelta(options.expire_days)
+expire_time = now + datetime.timedelta(int(options.expire_days))
+from_email = options.from_email
 
 # if not arguments are given, query all resource holders
 qs = ResourceHolderCA.objects.all() if not args else ResourceHolderCA.objects.filter(handle__in=args)
 
 # check expiration of certs for all handles managed by the web portal
 for h in qs:
-    # force cache update
-    if Verbose:
-        print 'Updating received resources cache for %s' % h.handle
+    # Force cache update since several checks require fresh data
     list_received_resources(sys.stdout, h)
 
-    check_cert(h.handle, h)
+    errs = StringIO()
+
+    check_cert(h.handle, h, errs)
 
     # HostedCA is the ResourceHolderCA cross certified under ServerCA, so check
     # the ServerCA expiration date as well
-    check_cert(h.handle, h.hosted_by)
-    check_cert(h.handle, h.hosted_by.issuer)
+    check_cert(h.handle, h.hosted_by, errs)
+    check_cert(h.handle, h.hosted_by.issuer, errs)
 
-    check_cert_list(h.handle, h.bscs.all())
-    check_cert_list(h.handle, h.parents.all())
-    check_cert_list(h.handle, h.children.all())
-    check_cert_list(h.handle, h.repositories.all())
+    check_cert_list(h.handle, h.bscs.all(), errs)
+    check_cert_list(h.handle, h.parents.all(), errs)
+    check_cert_list(h.handle, h.children.all(), errs)
+    check_cert_list(h.handle, h.repositories.all(), errs)
 
-    check_expire(h)
-    check_child_certs(h)
+    check_expire(h, errs)
+    check_child_certs(h, errs)
+
+    # if there was output, display it now
+    s = errs.getvalue()
+    if s:
+        print s
+
+        notify_emails = []
+        qs = GhostbusterRequest.objects.filter(issuer=h)
+        for gbr in qs:
+            if gbr.email_address:
+                notify_emails.append(gbr.email_address)
+
+        if len(notify_emails) == 0:
+            # fall back to the email address registered for this user
+            user = Users.objects.get(username=h.handle)
+            notify_emails.append(user.email)
+
+        t = """This is an automated notice about the upcoming expiration of RPKI resources for the handle %s on %s.  You are receiving this notification because your email address is either registered in a Ghostbuster record, or as the default email address for the account.\n\n""" % (h.handle, host)
+
+        send_mail(subject='RPKI expiration notice for %s' % h.handle,
+                message=t+s, from_email=from_email, recipient_list=notify_emails)
 
 sys.exit(0)

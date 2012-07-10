@@ -138,6 +138,8 @@ parser.add_option('-V', '--version', help='display script version',
 parser.add_option('-f', '--from', metavar='ADDRESS', default='root@' + host,
                   dest='from_email',
                   help='specify the return email address for notifications [default: %default]')
+parser.add_option('-n', '--no-email', action='store_false', dest='email', default=True,
+                  help='do not send any email reports [default: %default]')
 parser.add_option('-t', '--expire-time',
                   dest='expire_days',
                   default=14,
@@ -181,20 +183,21 @@ for h in qs:
     if s:
         print s
 
-        notify_emails = []
-        qs = GhostbusterRequest.objects.filter(issuer=h)
-        for gbr in qs:
-            if gbr.email_address:
-                notify_emails.append(gbr.email_address)
+        if options.email:
+            notify_emails = []
+            qs = GhostbusterRequest.objects.filter(issuer=h)
+            for gbr in qs:
+                if gbr.email_address:
+                    notify_emails.append(gbr.email_address)
 
-        if len(notify_emails) == 0:
-            # fall back to the email address registered for this user
-            user = Users.objects.get(username=h.handle)
-            notify_emails.append(user.email)
+            if len(notify_emails) == 0:
+                # fall back to the email address registered for this user
+                user = Users.objects.get(username=h.handle)
+                notify_emails.append(user.email)
 
-        t = """This is an automated notice about the upcoming expiration of RPKI resources for the handle %s on %s.  You are receiving this notification because your email address is either registered in a Ghostbuster record, or as the default email address for the account.\n\n""" % (h.handle, host)
+            t = """This is an automated notice about the upcoming expiration of RPKI resources for the handle %s on %s.  You are receiving this notification because your email address is either registered in a Ghostbuster record, or as the default email address for the account.\n\n""" % (h.handle, host)
 
-        send_mail(subject='RPKI expiration notice for %s' % h.handle,
-                message=t+s, from_email=from_email, recipient_list=notify_emails)
+            send_mail(subject='RPKI expiration notice for %s' % h.handle,
+                    message=t+s, from_email=from_email, recipient_list=notify_emails)
 
 sys.exit(0)

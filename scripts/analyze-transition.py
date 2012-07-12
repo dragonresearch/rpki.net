@@ -27,10 +27,9 @@ except ImportError:
 
 class Object(object):
 
-  def __init__(self, session, uri, generation):
+  def __init__(self, session, uri):
     self.session = session
     self.uri = uri
-    self.generation = generation
     self.labels = []
 
   def add(self, label):
@@ -40,7 +39,7 @@ class Object(object):
     return cmp(self.labels, other.labels)
 
   @property
-  def valid(self):
+  def accepted(self):
     return "object_accepted" in self.labels
 
 class Session(dict):
@@ -53,14 +52,15 @@ class Session(dict):
     self.descrs = dict(labels)
     self.date = tree.getroot().get("date")
     for elt in tree.findall("validation_status"):
-      generation = elt.get("generation")
       status = elt.get("status")
       uri = elt.text.strip()
-      if status.startswith("rsync_transfer_") or generation == "backup":
+      if status.startswith("rsync_transfer_") or elt.get("generation") != "current":
         continue
       if uri not in self:
-        self[uri] = Object(self, uri, generation)
+        self[uri] = Object(self, uri)
       self[uri].add(status)
+
+skip_labels = frozenset(("object_accepted", "object_rejected"))
 
 old_db = new_db = None
 
@@ -71,11 +71,18 @@ for arg in sys.argv[1:]:
   if old_db is None:
     continue
 
-  for uri in sorted(set(old_db) - set(new_db)):
+  old_uris = frozenset(old_db)
+  new_uris = frozenset(new_db)
+
+  for uri in sorted(old_uris - new_uris):
     print new_db.date, uri, "dropped"
 
-  for uri in sorted(set(old_db) & set(new_db)):
+  for uri in sorted(old_uris & new_uris):
     old = old_db[uri]
     new = new_db[uri]
-    if old.valid and not new.valid:
-      print new_db.date, uri, "invalid", " ".join(sorted(set(new.labels) - set(old.labels) - set(("object_accepted", "object_rejected"))))
+    if old.accepted and not new.accepted:
+      print new_db.date, uri, "invalid"
+      labels = frozenset(new.labels) - frozenset(old.labels) - skip_labels
+      for label in new.labels:
+        if label in labels:
+          print " ", new_db.descrs[label]

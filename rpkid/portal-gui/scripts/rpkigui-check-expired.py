@@ -17,7 +17,7 @@ __version__ = '$Id$'
 from rpki.gui.cacheview.models import Cert
 from rpki.gui.cacheview.views import cert_chain
 from rpki.gui.app.models import ResourceCert, GhostbusterRequest
-from rpki.gui.app.glue import list_received_resources
+from rpki.gui.app.glue import list_received_resources, get_email_list
 from rpki.irdb.models import ResourceHolderCA
 from rpki.irdb import Zookeeper
 from rpki.left_right import report_error_elt, list_published_objects_elt
@@ -184,16 +184,7 @@ for h in qs:
         print s
 
         if options.email:
-            notify_emails = []
-            qs = GhostbusterRequest.objects.filter(issuer=h)
-            for gbr in qs:
-                if gbr.email_address:
-                    notify_emails.append(gbr.email_address)
-
-            if len(notify_emails) == 0:
-                # fall back to the email address registered for this user
-                user = Users.objects.get(username=h.handle)
-                notify_emails.append(user.email)
+            notify_emails = get_email_list(h)
 
             t = """This is an automated notice about the upcoming expiration of RPKI resources for the handle %s on %s.  You are receiving this notification because your email address is either registered in a Ghostbuster record, or as the default email address for the account.\n\n""" % (h.handle, host)
 

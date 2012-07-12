@@ -121,9 +121,31 @@ def config_from_template(dest, a):
             else:
                 print >>f, r,
 
+
 def str_to_resource_range(prefix):
     try:
         r = resource_range_ipv4.parse_str(prefix)
     except BadIPResource:
         r = resource_range_ipv6.parse_str(prefix)
     return r
+
+
+def get_email_list(conf):
+    """Return a list of the contact emails for this user.
+
+    Contact emails are extract from any ghostbuster requests, and if there are
+    none, returns the default email for the web portal account.
+
+    """
+    notify_emails = []
+    qs = models.GhostbusterRequest.objects.filter(issuer=conf)
+    for gbr in qs:
+        if gbr.email_address:
+            notify_emails.append(gbr.email_address)
+
+    if len(notify_emails) == 0:
+        # fall back to the email address registered for this user
+        user = User.objects.get(username=conf.handle)
+        notify_emails.append(user.email)
+
+    return notify_emails

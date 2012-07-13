@@ -327,7 +327,7 @@ def notify_invalid():
 
         if v.invalid:
             msg.write('The following objects were previously valid, but are '
-                      'now invalid:\n') 
+                      'now invalid:\n')
 
             for o in v.invalid:
                 msg.write('\n')
@@ -355,7 +355,7 @@ record, or is the default email address for this resource holder account on
 
         from_email = 'root@' + getfqdn()
         subj = 'invalid RPKI object alert for resource handle %s' % conf.handle
-        send_email(subj, msg.getvalue(), from_email, emails)
+        send_mail(subj, msg.getvalue(), from_email, emails)
 
 
 if __name__ == '__main__':

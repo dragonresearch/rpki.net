@@ -16,7 +16,7 @@ __version__ = '$Id$'
 
 from rpki.gui.cacheview.models import Cert
 from rpki.gui.cacheview.views import cert_chain
-from rpki.gui.app.models import ResourceCert, GhostbusterRequest
+from rpki.gui.app.models import ResourceCert
 from rpki.gui.app.glue import list_received_resources, get_email_list
 from rpki.irdb.models import ResourceHolderCA
 from rpki.irdb import Zookeeper
@@ -30,6 +30,7 @@ import sys
 from socket import getfqdn
 from optparse import OptionParser
 from cStringIO import StringIO
+
 
 def check_cert(handle, p, errs):
     """Check the expiration date on the X.509 certificates in each element of
@@ -61,7 +62,7 @@ def check_expire(conf, errs):
         if not obj_set:
             # since the <list_received_resources/> output is cached, this can
             # occur if the cache is out of date as well..
-            errs.write( "Unable to locate rescert in rcynic cache: handle=%s uri=%s not_after=%s\n" % (conf.handle, cert.uri, cert.not_after))
+            errs.write("Unable to locate rescert in rcynic cache: handle=%s uri=%s not_after=%s\n" % (conf.handle, cert.uri, cert.not_after))
             continue
         obj = obj_set[0]
         cert_list = cert_chain(obj)
@@ -112,7 +113,7 @@ def check_child_certs(conf, errs):
                 t = cert.getNotAfter()
                 if t <= expire_time:
                     e = 'expired' if t <= now else 'will expire'
-                    errs.write( "%(handle)s's rescert for Child %(child)s %(expire)s on %(date)s uri=%(uri)s subject=%(subject)s\n" % {
+                    errs.write("%(handle)s's rescert for Child %(child)s %(expire)s on %(date)s uri=%(uri)s subject=%(subject)s\n" % {
                         'handle': conf.handle,
                         'child': pdu.child_handle,
                         'uri': pdu.uri,
@@ -189,6 +190,6 @@ for h in qs:
             t = """This is an automated notice about the upcoming expiration of RPKI resources for the handle %s on %s.  You are receiving this notification because your email address is either registered in a Ghostbuster record, or as the default email address for the account.\n\n""" % (h.handle, host)
 
             send_mail(subject='RPKI expiration notice for %s' % h.handle,
-                    message=t+s, from_email=from_email, recipient_list=notify_emails)
+                    message=t + s, from_email=from_email, recipient_list=notify_emails)
 
 sys.exit(0)

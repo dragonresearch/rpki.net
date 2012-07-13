@@ -21,16 +21,22 @@ default_root = '/var/rcynic/data'
 import time
 import vobject
 import logging
+from socket import getfqdn
+from cStringIO import StringIO
 
 from django.db import transaction
 import django.db.models
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.mail import send_mail
 
 import rpki
 import rpki.gui.app.timestamp
+from rpki.gui.app.models import Conf
+from rpki.gui.app.glue import get_email_list
 from rpki.gui.cacheview import models
 from rpki.rcynic import rcynic_xml_iterator, label_iterator
 from rpki.sundial import datetime
+from rpki.irdb.zookeeper import Zookeeper
 
 logger = logging.getLogger(__name__)
 
@@ -101,21 +107,25 @@ def rcynic_gbr(gbr, obj):
 
 LABEL_CACHE = {}
 
+# dict keeping mapping of uri to (handle, old status, new status) for objects
+# published by the local rpkid
+uris = {}
+
 
 def save_statuses(inst, statuses):
+    valid = False
     for vs in statuses:
         timestamp = datetime.fromXMLtime(vs.timestamp).to_sql()
-
-        # cache validation labels
-        if vs.status in LABEL_CACHE:
-            status = LABEL_CACHE[vs.status]
-        else:
-            status = models.ValidationLabel.objects.get(label=vs.status)
-            LABEL_CACHE[vs.status] = status
-
+        status = LABEL_CACHE[vs.status]
         g = models.generations_dict[vs.generation] if vs.generation else None
-
         inst.statuses.create(generation=g, timestamp=timestamp, status=status)
+        valid = valid or status is object_accepted
+
+    # if this object is in our interest set, update with the current validation
+    # status
+    if inst.uri in uris:
+        x, y, z, q = uris[inst.repo.uri]
+        uris[inst.uri] = x, y, valid, inst
 
 
 @transaction.commit_on_success
@@ -203,8 +213,8 @@ def process_cache(root, xml_file):
 
             # insert the saved validation statuses now that the object has been
             # created.
-            save_statuses(inst.repo, statuses)
-            statuses = []
+            #save_statuses(inst.repo, statuses)
+            #statuses = []
 
     # process any left over statuses for an object that was not ultimately
     # accepted
@@ -238,6 +248,115 @@ def process_labels(xml_file):
             obj.status = desc
             obj.save()
 
+            LABEL_CACHE[label] = obj
+
+
+def fetch_published_objects():
+    """Query rpkid for all objects published by local users, and look up the
+    current validation status of each object.  The validation status is used
+    later to send alerts for objects which have transitioned to invalid.
+
+    """
+    logger.info('querying for published objects')
+
+    handles = [conf.handle for conf in Conf.objects.all()]
+    req = [rpki.left_right.list_published_objects_elt.make_pdu(action='list', self_handle=h, tag=h) for h in handles]
+    z = Zookeeper()
+    pdus = z.call_rpkid(*req)
+    for pdu in pdus:
+        if isinstance(pdu, rpki.left_right.list_published_objects_elt):
+            # Look up the object in the rcynic cache
+            qs = models.RepositoryObject.objects.filter(uri=pdu.uri)
+            if qs:
+                # get the current validity state
+                valid = obj.statuses.filter(status=object_accepted).exists()
+                uris[pdu.uri] = (pdu.self_handle, valid, False, None)
+                logger.debug('adding ' + ', '.join(uris[pdu.uri]))
+            else:
+                # this object is not in the cache.  it was either published
+                # recently, or disappared previously.  if it disappeared
+                # previously, it has already been alerted.  in either case, we
+                # omit the uri from the list since we are interested only in
+                # objects which were valid and are no longer valid
+                pass
+        elif isinstance(pdu, rpki.left_right.report_error_elt):
+            logging.error('rpkid reported an error: %s' % pdu.error_code)
+
+
+class Handle(object):
+    def __init__(self):
+        self.invalid = []
+        self.missing = []
+
+    def add_invalid(self, v):
+        self.invalid.append(v)
+
+    def add_missing(self, v):
+        self.missing.append(v)
+
+
+def notify_invalid():
+    """Send email alerts to the addresses registered in ghostbuster records for
+    any invalid objects that were published by users of this system.
+
+    """
+
+    logger.info('sending notifications for invalid objects')
+
+    # group invalid objects by user
+    notify = {}
+    for uri, v in uris.iteritems():
+        handle, old_status, new_status, obj = v
+
+        if obj is None:
+            # object went missing
+            n = notify.get(handle, Handle())
+            n.add_missing(uri)
+        # only select valid->invalid
+        elif old_status and not new_status:
+            n = notify.get(handle, Handle())
+            n.add_invalid(obj)
+
+    for handle, v in notify.iteritems():
+        conf = Conf.objects.get(handle)
+        emails = get_email_list(conf)
+
+        msg = StringIO()
+        msg.write('This is an alert about problems with objects published by '
+                  'the resource handle %s.\n\n' % handle)
+
+        if v.invalid:
+            msg.write('The following objects were previously valid, but are '
+                      'now invalid:\n') 
+
+            for o in v.invalid:
+                msg.write('\n')
+                msg.write(o.repo.uri)
+                msg.write('\n')
+                for s in o.statuses.all():
+                    msg.write('\t')
+                    msg.write(s.status.label)
+                    msg.write(': ')
+                    msg.write(s.status.status)
+                    msg.write('\n')
+
+        if v.missing:
+            msg.write('The following objects were previously valid but are no '
+                      'longer in the cache:\n')
+
+            for o in v.missing:
+                msg.write(o)
+                msg.write('\n')
+
+        msg.write("""--
+You are receiving this email because your address is published in a Ghostbuster
+record, or is the default email address for this resource holder account on
+%s.""" % getfqdn())
+
+        from_email = 'root@' + getfqdn()
+        subj = 'invalid RPKI object alert for resource handle %s' % conf.handle
+        send_email(subj, msg.getvalue(), from_email, emails)
+
 
 if __name__ == '__main__':
     import optparse
@@ -260,7 +379,9 @@ if __name__ == '__main__':
 
     start = time.time()
     process_labels(options.logfile)
+    object_accepted = LABEL_CACHE['object_accepted']
     process_cache(options.root, options.logfile)
+    notify_invalid()
 
     rpki.gui.app.timestamp.update('rcynic_import')
 

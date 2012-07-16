@@ -27,7 +27,7 @@ from django.core.mail import send_mail
 
 import datetime
 import sys
-from socket import getfqdn
+import socket
 from optparse import OptionParser
 from cStringIO import StringIO
 
@@ -124,7 +124,7 @@ def check_child_certs(conf, errs):
 
 # this is not exactly right, since we have no way of knowing what the
 # vhost for the web portal running on this machine is
-host = getfqdn()
+host = socket.getfqdn()
 
 usage = '%prog [ -vV ] [ handle1 handle2... ]'
 
@@ -160,7 +160,11 @@ qs = ResourceHolderCA.objects.all() if not args else ResourceHolderCA.objects.fi
 # check expiration of certs for all handles managed by the web portal
 for h in qs:
     # Force cache update since several checks require fresh data
-    list_received_resources(sys.stdout, h)
+    try:
+        list_received_resources(sys.stdout, h)
+    except socket.error, e:
+        print >>sys.stderr, 'Error while talking to rpkid: %s' % e
+        sys.exit(1)
 
     errs = StringIO()
 

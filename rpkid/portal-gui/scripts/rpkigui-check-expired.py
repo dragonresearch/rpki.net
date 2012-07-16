@@ -163,8 +163,7 @@ for h in qs:
     try:
         list_received_resources(sys.stdout, h)
     except socket.error, e:
-        print >>sys.stderr, 'Error while talking to rpkid: %s' % e
-        sys.exit(1)
+        sys.exit('Error while talking to rpkid: %s' % e)
 
     errs = StringIO()
 

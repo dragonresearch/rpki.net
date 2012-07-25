@@ -41,6 +41,11 @@ class session(object):
   SQL session layer.
   """
 
+  ## @var clear_threshold
+  # Size above which .cache_clear_maybe() should clear the cache.
+
+  clear_threshold = 5000
+
   def __init__(self, cfg):
 
     self.username = cfg.get("sql-username")
@@ -92,7 +97,16 @@ class session(object):
     """
     Clear the object cache.
     """
+    rpki.log.debug("Clearing SQL cache")
+    self.assert_pristine()
     self.cache.clear()
+
+  def cache_clear_maybe(self):
+    """
+    Clear the object cache if its size is above clear_threshold.
+    """
+    if len(self.cache) >= self.clear_threshold:
+      self.cache_clear()
 
   def assert_pristine(self):
     """

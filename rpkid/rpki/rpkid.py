@@ -1873,3 +1873,7 @@ class publication_queue(object):
     def loop(iterator, rid):
       self.repositories[rid].call_pubd(iterator, eb, self.msgs[rid], self.handlers)
     rpki.async.iterator(self.repositories, loop, cb)
+
+  @property
+  def size(self):
+    return sum(len(self.msgs[rid]) for rid in self.repositories)

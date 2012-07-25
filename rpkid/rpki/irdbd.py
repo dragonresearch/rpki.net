@@ -138,15 +138,16 @@ class main(object):
   def __init__(self, **kwargs):
 
     global rpki
-    from django.conf import settings
 
     os.environ["TZ"] = "UTC"
     time.tzset()
 
     cfg_file = None
     foreground = False
-    
-    opts, argv = getopt.getopt(sys.argv[1:], "c:dfh?", ["config=", "debug", "foreground", "help"])
+    profile = None
+
+    opts, argv = getopt.getopt(sys.argv[1:], "c:dfhp:?",
+                               ["config=", "debug", "foreground", "help", "profile="])
     for o, a in opts:
       if o in ("-h", "--help", "-?"):
         print __doc__
@@ -158,18 +159,31 @@ class main(object):
         foreground = True
       elif o in ("-f", "--foreground"):
         foreground = True
+      elif o in ("-p", "--profile"):
+        profile = a
     if argv:
       raise rpki.exceptions.CommandParseFailure("Unexpected arguments %s" % argv)
 
     rpki.log.init("irdbd")
 
-    cfg = rpki.config.parser(cfg_file, "irdbd")
-    cfg.set_global_flags()
+    self.cfg = rpki.config.parser(cfg_file, "irdbd")
+    self.cfg.set_global_flags()
 
     if not foreground:
       rpki.daemonize.daemon()
 
-    startup_msg = cfg.get("startup-message", "")
+    if profile:
+      import cProfile
+      cProfile.run("self.main()", profile)
+    else:
+      self.main()
+
+  def main(self):
+
+    global rpki
+    from django.conf import settings
+
+    startup_msg = self.cfg.get("startup-message", "")
     if startup_msg:
       rpki.log.info(startup_msg)
 
@@ -187,9 +201,9 @@ class main(object):
       DATABASES = {
         "default" : {
           "ENGINE"   : "django.db.backends.mysql",
-          "NAME"     : cfg.get("sql-database"),
-          "USER"     : cfg.get("sql-username"),
-          "PASSWORD" : cfg.get("sql-password"),
+          "NAME"     : self.cfg.get("sql-database"),
+          "USER"     : self.cfg.get("sql-username"),
+          "PASSWORD" : self.cfg.get("sql-password"),
           "HOST"     : "",
           "PORT"     : "" }},
       INSTALLED_APPS = ("rpki.irdb",),)
@@ -223,7 +237,7 @@ class main(object):
       rpki.left_right.list_roa_requests_elt         : self.handle_list_roa_requests,
       rpki.left_right.list_ghostbuster_requests_elt : self.handle_list_ghostbuster_requests }
 
-    u = urlparse.urlparse(cfg.get("http-url"))
+    u = urlparse.urlparse(self.cfg.get("http-url"))
 
     assert u.scheme in ("", "http") and \
            u.username is None and \

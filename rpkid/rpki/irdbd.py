@@ -174,7 +174,12 @@ class main(object):
 
     if profile:
       import cProfile
-      cProfile.run("self.main()", profile)
+      prof = cProfile.Profile()
+      try:
+        prof.runcall(self.main)
+      finally:
+        prof.dump_stats(profile)
+        rpki.log.info("Dumped profile data to %s" % profile)
     else:
       self.main()
 

@@ -327,11 +327,10 @@ class allocation(object):
     """
     Write ROA CSV file.
     """
-    group = self.name if self.is_root else self.parent.name
     f = self.csvout(fn)
-    for r in self.roa_requests:
-      f.writerows((p, r.asn, group)
-                  for p in (r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ()))
+    for g1, r in enumerate(self.roa_requests):
+      f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
+                  for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
     f.close()
     self.run_rpkic("load_roa_requests", fn)
 
@@ -441,8 +440,12 @@ class allocation(object):
     Start a Python daemon and return a subprocess.Popen object
     representing the running daemon.
     """
-    cmd = (prog, "-d", "-c", self.path("rpki.conf"))
-    log = os.path.splitext(os.path.basename(prog))[0] + ".log"
+    basename = os.path.splitext(os.path.basename(prog))[0]
+    cmd = [prog, "-d", "-c", self.path("rpki.conf")]
+    if profile and basename != "rootd":
+      cmd.append("--profile")
+      cmd.append(self.path(basename + ".prof"))
+    log = basename + ".log"
     p = subprocess.Popen(cmd,
                          cwd = self.path(),
                          stdout = open(self.path(log), "w"),
@@ -491,8 +494,11 @@ pidfile  = None
 keep_going = False
 skip_config = False
 flat_publication = False
+profile = False
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:fhkp:s?", ["config=", "flat_publication", "help", "keep_going", "pidfile=", "skip_config"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:fhkp:s?",
+                           ["config=", "flat_publication", "help", "keep_going",
+                            "pidfile=", "skip_config", "profile"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
@@ -507,6 +513,8 @@ for o, a in opts:
     pidfile = a
   elif o in ("-s", "--skip_config"):
     skip_config = True
+  elif o == "--profile":
+    profile = True
 
 # We can't usefully process more than one YAML file at a time, so
 # whine if there's more than one argument left.

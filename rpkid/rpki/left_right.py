@@ -699,7 +699,7 @@ class self_elt(data_elt):
             roa = rpki.rpkid.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
             rpki.log.debug("Couldn't find existing ROA, created %r" % roa)
             if max_new_roas_at_once is not None and publisher.size > max_new_roas_at_once:
-              rpki.log.warn("Too many new ROAs (%d) in a single batch, returning early from update_roas() to avoid timeouts" % publisher.size)
+              rpki.log.warn("Too many new ROAs in a single batch, deferring processing some of them")
               stopped_early = True
               break
           else:

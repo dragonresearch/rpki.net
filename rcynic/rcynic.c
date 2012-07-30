@@ -1293,6 +1293,26 @@ static int startswith(const char *str, const char *prefix)
   return len_str >= len_prefix && !strncmp(str, prefix, len_prefix);
 }
 
+/**
+ * Convert a filename to a file:// URI, for logging.
+ */
+static void filename_to_uri(uri_t *uri,
+			    const char *fn)
+{
+  assert(sizeof("file://") < sizeof(uri->s));
+  strcpy(uri->s, "file://");
+  if (*fn != '/') {
+    if (getcwd(uri->s + strlen(uri->s), sizeof(uri->s) - strlen(uri->s)) == NULL ||
+	(!endswith(uri->s, "/") && strlen(uri->s) >= sizeof(uri->s) - 1))
+      uri->s[0] = '\0';
+    else
+      strcat(uri->s, "/");
+  }
+  if (uri->s[0] != '\0' && strlen(uri->s) + strlen(fn) < sizeof(uri->s))
+    strcat(uri->s, fn);
+  else
+    uri->s[0] = '\0';
+}
 
 /**
  * Set a directory name, adding or stripping trailing slash as needed.
@@ -4901,7 +4921,7 @@ int main(int argc, char *argv[])
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  while ((c = getopt(argc, argv, "a:c:l:sej:u:V")) > 0) {
+  while ((c = getopt(argc, argv, "a:c:l:sej:u:Vx:")) > 0) {
     switch (c) {
     case 'a':
       opt_auth = 1;
@@ -4936,6 +4956,9 @@ int main(int argc, char *argv[])
       puts(svn_id);
       ret = 0;
       goto done;
+    case 'x':
+      xmlfile = strdup(optarg);
+      break;
     default:
       logmsg(&rc, log_usage_err,
 	     "usage: %s [-c configfile] [-s] [-e] [-l loglevel] [-j jitter] [-V]",
@@ -5039,7 +5062,7 @@ int main(int argc, char *argv[])
 			       facilitynames, val->value))
       goto done;
 
-    else if (!name_cmp(val->name, "xml-summary"))
+    else if (!xmlfile && !name_cmp(val->name, "xml-summary"))
       xmlfile = strdup(val->value);
 
     else if (!name_cmp(val->name, "allow-stale-crl") &&
@@ -5228,22 +5251,7 @@ int main(int argc, char *argv[])
 	goto done;
       }
       strcpy(path1.s, val->value);
-
-      /* Construct file:// URI for logging */
-      assert(sizeof("file://") < sizeof(uri.s));
-      strcpy(uri.s, "file://");
-      if (path1.s[0] != '/') {
-	if (getcwd(uri.s + strlen(uri.s), sizeof(uri.s) - strlen(uri.s)) == NULL ||
-	    (!endswith(uri.s, "/") && strlen(uri.s) >= sizeof(uri.s) - 1))
-	  uri.s[0] = '\0';
-	else
-	  strcat(uri.s, "/");
-      }
-      if (uri.s[0] != '\0' && strlen(uri.s) + strlen(path1.s) < sizeof(uri.s))
-	strcat(uri.s, path1.s);
-      else
-	uri.s[0] = '\0';
-
+      filename_to_uri(&uri, path1.s);
       if ((x = read_cert(&path1, NULL)) == NULL) {
 	log_validation_status(&rc, &uri, unreadable_trust_anchor, generation);
 	continue;
@@ -5276,6 +5284,7 @@ int main(int argc, char *argv[])
       fn = val->value;
       bio = BIO_new_file(fn, "r");
       if (!bio || BIO_gets(bio, uri.s, sizeof(uri.s)) <= 0) {
+	filename_to_uri(&uri, fn);
 	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
 	BIO_free(bio);
 	bio = NULL;

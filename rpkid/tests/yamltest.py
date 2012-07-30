@@ -303,7 +303,7 @@ class allocation(object):
     parent_port = self.parent.hosted_by.rpkid_port if self.parent.is_hosted else self.parent.rpkid_port
     return "http://localhost:%d/up-down/%s/%s" % (parent_port, self.parent.name, self.name)
 
-  def dump_asns(self, fn):
+  def dump_asns(self, fn, skip_rpkic = False):
     """
     Write Autonomous System Numbers CSV file.
     """
@@ -311,9 +311,10 @@ class allocation(object):
     for k in self.kids:    
       f.writerows((k.name, a) for a in k.resources.asn)
     f.close()
-    self.run_rpkic("load_asns", fn)
+    if not skip_rpkic:
+      self.run_rpkic("load_asns", fn)
 
-  def dump_prefixes(self, fn):
+  def dump_prefixes(self, fn, skip_rpkic = False):
     """
     Write prefixes CSV file.
     """
@@ -321,9 +322,10 @@ class allocation(object):
     for k in self.kids:
       f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
     f.close()
-    self.run_rpkic("load_prefixes", fn)
+    if not skip_rpkic:
+      self.run_rpkic("load_prefixes", fn)
 
-  def dump_roas(self, fn):
+  def dump_roas(self, fn, skip_rpkic = False):
     """
     Write ROA CSV file.
     """
@@ -332,7 +334,8 @@ class allocation(object):
       f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
                   for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
     f.close()
-    self.run_rpkic("load_roa_requests", fn)
+    if not skip_rpkic:
+      self.run_rpkic("load_roa_requests", fn)
 
   @property
   def pubd(self):
@@ -495,10 +498,11 @@ keep_going = False
 skip_config = False
 flat_publication = False
 profile = False
+stop_after_config = False
 
 opts, argv = getopt.getopt(sys.argv[1:], "c:fhkp:s?",
                            ["config=", "flat_publication", "help", "keep_going",
-                            "pidfile=", "skip_config", "profile"])
+                            "pidfile=", "skip_config", "stop_after_config", "profile"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
@@ -511,8 +515,10 @@ for o, a in opts:
     keep_going = True
   elif o in ("-p", "--pidfile"):
     pidfile = a
-  elif o in ("-s", "--skip_config"):
+  elif o == "--skip_config":
     skip_config = True
+  elif o == "--stop_after_config":
+    stop_after_config = True
   elif o == "--profile":
     profile = True
 
@@ -684,25 +690,34 @@ try:
                       d.pubd.path("%s.repository-response.xml" % d.client_handle))
           print
 
-    # Load all the CSV files
-    for d in db:
-      d.dump_asns("%s.asns.csv" % d.name)
-      d.dump_prefixes("%s.prefixes.csv" % d.name)
-      d.dump_roas("%s.roas.csv" % d.name)
+    print
+    print "Loading CSV files"
+    print
 
-    print "Done initializing daemons"
+    for d in db:
+      d.dump_asns("%s.asns.csv" % d.name, stop_after_config)
+      d.dump_prefixes("%s.prefixes.csv" % d.name, stop_after_config)
+      d.dump_roas("%s.roas.csv" % d.name, stop_after_config)
+
+    print
+    print "Done with initial configuration"
+    print
 
     # Wait until something terminates.
 
-    signal.signal(signal.SIGCHLD, lambda *dont_care: None)
-    while (any(p.poll() is None for p in progs)
-           if keep_going else
-           all(p.poll() is None for p in progs)):
-      signal.pause()
+    if not stop_after_config:
+      print "Waiting for daemons to exit"
+      signal.signal(signal.SIGCHLD, lambda *dont_care: None)
+      while (any(p.poll() is None for p in progs)
+             if keep_going else
+             all(p.poll() is None for p in progs)):
+        signal.pause()
 
   finally:
 
-    # Shut everything down.
+    print
+    print "Shutting down"
+    print
 
     signal.signal(signal.SIGCHLD, signal.SIG_DFL)
     for p in progs:

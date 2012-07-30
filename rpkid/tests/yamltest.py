@@ -500,7 +500,7 @@ flat_publication = False
 profile = False
 stop_after_config = False
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:fhkp:s?",
+opts, argv = getopt.getopt(sys.argv[1:], "c:fhkp:?",
                            ["config=", "flat_publication", "help", "keep_going",
                             "pidfile=", "skip_config", "stop_after_config", "profile"])
 for o, a in opts:

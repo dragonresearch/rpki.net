@@ -532,10 +532,15 @@ class ROARequest(django.db.models.Model):
 
   @property
   def roa_prefix_bag(self):
+    prefixes = list(rpki.irdb.ROARequestPrefix.objects.raw("""
+        SELECT *
+        FROM irdb_roarequestprefix
+        WHERE roa_request_id = %s
+        """, [self.id]))
     v4 = rpki.resource_set.roa_prefix_set_ipv4.from_django(
-      (p.prefix, p.prefixlen, p.max_prefixlen) for p in self.prefixes.filter(version = 'IPv4'))
+      (p.prefix, p.prefixlen, p.max_prefixlen) for p in prefixes if p.version == "IPv4")
     v6 = rpki.resource_set.roa_prefix_set_ipv6.from_django(
-      (p.prefix, p.prefixlen, p.max_prefixlen) for p in self.prefixes.filter(version = 'IPv6'))
+      (p.prefix, p.prefixlen, p.max_prefixlen) for p in prefixes if p.version == "IPv6")
     return rpki.resource_set.roa_prefix_bag(v4 = v4, v6 = v6)
 
   # Writing of .setter method deferred until something needs it.

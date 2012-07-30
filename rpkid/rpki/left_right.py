@@ -1352,6 +1352,9 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.asn, self.ipv4, self.ipv6)
+
 class list_ghostbuster_requests_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
   <list_ghostbuster_requests/> element.

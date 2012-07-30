@@ -70,7 +70,12 @@ class main(object):
     r_msg.append(r_pdu)
 
   def handle_list_roa_requests(self, q_pdu, r_msg):
-    for request in rpki.irdb.ROARequest.objects.filter(issuer__handle__exact = q_pdu.self_handle):
+    for request in rpki.irdb.ROARequest.objects.raw("""
+        SELECT irdb_roarequest.*
+        FROM   irdb_roarequest, irdb_resourceholderca
+        WHERE  irdb_roarequest.issuer_id = irdb_resourceholderca.id
+        AND    irdb_resourceholderca.handle = %s
+        """, [q_pdu.self_handle]):
       prefix_bag = request.roa_prefix_bag
       r_pdu = rpki.left_right.list_roa_requests_elt()
       r_pdu.tag = q_pdu.tag

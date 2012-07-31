@@ -385,6 +385,14 @@ def exit_event_loop():
   """
   raise ExitNow
 
+def event_yield(handler, delay = rpki.sundial.timedelta(seconds = 2)):
+  """
+  Use a near-term timer to schedule an event after letting the timer
+  and I/O systems run.
+  """
+  t = timer(handler)
+  t.set(delay)
+
 class gc_summary(object):
   """
   Periodic summary of GC state, for tracking down memory bloat.

@@ -1846,6 +1846,9 @@ class publication_queue(object):
   replace = True
 
   def __init__(self):
+    self.clear()
+
+  def clear(self):
     self.repositories = {}
     self.msgs = {}
     self.handlers = {}
@@ -1877,7 +1880,10 @@ class publication_queue(object):
   def call_pubd(self, cb, eb):
     def loop(iterator, rid):
       self.repositories[rid].call_pubd(iterator, eb, self.msgs[rid], self.handlers)
-    rpki.async.iterator(self.repositories, loop, cb)
+    def done():
+      self.clear()
+      cb()
+    rpki.async.iterator(self.repositories, loop, done)
 
   @property
   def size(self):

@@ -83,11 +83,14 @@ class main(rpki.cli.Cmd):
 
     cfg_file = None
     handle = None
+    self.autosynch = True
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:hi:?", ["config=", "help", "identity="])
+    opts, argv = getopt.getopt(sys.argv[1:], "c:hi:?", ["config=", "dont_autosynch", "help", "identity="])
     for o, a in opts:
       if o in ("-c", "--config"):
         cfg_file = a
+      elif o == "--dont_autosynch":
+        self.autosynch = False
       elif o in ("-h", "--help", "-?"):
         argv = ["help"]
       elif o in ("-i", "--identity"):
@@ -460,7 +463,8 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Need to specify prefixes.csv filename")
 
     self.zoo.load_prefixes(argv[0], True)
-    self.zoo.synchronize(self.zoo.handle)
+    if self.autosynch:
+      self.zoo.synchronize(self.zoo.handle)
 
 
   def do_show_child_resources(self, arg):
@@ -494,7 +498,8 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Need to specify asns.csv filename")
 
     self.zoo.load_asns(argv[0], True)
-    self.zoo.synchronize(self.zoo.handle)
+    if self.autosynch:
+      self.zoo.synchronize(self.zoo.handle)
 
 
   def do_load_roa_requests(self, arg):
@@ -508,7 +513,8 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Need to specify roa.csv filename")
 
     self.zoo.load_roa_requests(argv[0])
-    self.zoo.synchronize(self.zoo.handle)
+    if self.autosynch:
+      self.zoo.synchronize(self.zoo.handle)
 
 
   def do_synchronize(self, arg):

@@ -268,7 +268,7 @@ def run_deferred():
     except (ExitNow, SystemExit):
       raise
     except Exception, e:
-      rpki.log.error("Unhandled exception from deferred action: %s" % e)
+      rpki.log.error("Unhandled exception from deferred action %s: %s" % (e.__class__.__name__, e))
       rpki.log.traceback()
 
 def _raiseExitNow(signum, frame):

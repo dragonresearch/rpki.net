@@ -83,14 +83,11 @@ class main(rpki.cli.Cmd):
 
     cfg_file = None
     handle = None
-    self.autosynch = True
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:hi:?", ["config=", "dont_autosynch", "help", "identity="])
+    opts, argv = getopt.getopt(sys.argv[1:], "c:hi:?", ["config=", "help", "identity="])
     for o, a in opts:
       if o in ("-c", "--config"):
         cfg_file = a
-      elif o == "--dont_autosynch":
-        self.autosynch = False
       elif o in ("-h", "--help", "-?"):
         argv = ["help"]
       elif o in ("-i", "--identity"):
@@ -108,6 +105,7 @@ class main(rpki.cli.Cmd):
     cfg = rpki.config.parser(cfg_file, "myrpki")
     cfg.set_global_flags()
     self.histfile = cfg.get("history_file", ".rpkic_history")
+    self.autosync = cfg.getboolean("autosync", True, section = "rpkic")
 
     from django.conf import settings
 
@@ -463,7 +461,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Need to specify prefixes.csv filename")
 
     self.zoo.load_prefixes(argv[0], True)
-    if self.autosynch:
+    if self.autosync:
       self.zoo.synchronize(self.zoo.handle)
 
 
@@ -498,7 +496,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Need to specify asns.csv filename")
 
     self.zoo.load_asns(argv[0], True)
-    if self.autosynch:
+    if self.autosync:
       self.zoo.synchronize(self.zoo.handle)
 
 
@@ -513,7 +511,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax("Need to specify roa.csv filename")
 
     self.zoo.load_roa_requests(argv[0])
-    if self.autosynch:
+    if self.autosync:
       self.zoo.synchronize(self.zoo.handle)
 
 

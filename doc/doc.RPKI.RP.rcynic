@@ -181,6 +181,8 @@ log_debug     Only useful when debugging
 
 -V            Print rcynic's version to standard output and exit
 
+-x            Path to XML "summary" file (see below; no default)
+
 ***** Configuration file reference *****
 
 rcynic uses the OpenSSL libcrypto configuration file mechanism. All libcrypto

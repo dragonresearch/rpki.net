@@ -168,9 +168,13 @@ def generator_main():
 
   syslog.syslog("Creating upload connection")
   ssh = paramiko.Transport((cfg.sftp_host, cfg.sftp_port))
+  try:
+    hostkeys = paramiko.util.load_host_keys(cfg.sftp_hostkey_file)[cfg.sftp_host]["ssh-rsa"]
+  except ConfigParser.Error:
+    hostkeys = None
   ssh.connect(
     username = cfg.sftp_user,
-    hostkey  = paramiko.util.load_host_keys(cfg.sftp_hostkey_file)[cfg.sftp_host]["ssh-rsa"],
+    hostkey  = hostkeys,
     pkey     = paramiko.RSAKey.from_private_key_file(cfg.sftp_private_key_file))
   sftp = SFTPClient.from_transport(ssh)
 
@@ -651,10 +655,7 @@ class MyConfigParser(ConfigParser.RawConfigParser):
 
   @property
   def sftp_hostkey_file(self):
-    try:
-      return self.get(self.rpki_torrent_section, "sftp_hostkey_file")
-    except ConfigParser.Error:
-      return None
+    return self.get(self.rpki_torrent_section, "sftp_hostkey_file")
 
   @property
   def sftp_private_key_file(self):

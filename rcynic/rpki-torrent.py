@@ -437,10 +437,13 @@ class ZipFile(object):
       self.changed = True
       log_email("Downloading %s" % self.url)
     except urllib2.HTTPError, e:
-      if e.code != 304:
+      if e.code == 304:
+        syslog.syslog("%s has not changed" % self.url)
+      elif e.code == 404:
+        syslog.syslog("%s does not exist" % self.url)
+      else:
         raise
       r = None
-      syslog.syslog("%s has not changed" % self.url)
 
     self.check_subjectAltNames()
 
@@ -540,6 +543,8 @@ class TransmissionClient(transmissionrpc.client.Client):
 
   def __init__(self, **kwargs):
     kwargs.setdefault("address", "127.0.0.1")
+    kwargs.setdefault("user",     cfg.transmission_username)
+    kwargs.setdefault("password", cfg.transmission_password)
     transmissionrpc.client.Client.__init__(self, **kwargs)
 
 
@@ -646,7 +651,10 @@ class MyConfigParser(ConfigParser.RawConfigParser):
 
   @property
   def sftp_hostkey_file(self):
-    return self.get(self.rpki_torrent_section, "sftp_hostkey_file")
+    try:
+      return self.get(self.rpki_torrent_section, "sftp_hostkey_file")
+    except ConfigParser.Error:
+      return None
 
   @property
   def sftp_private_key_file(self):
@@ -669,6 +677,20 @@ class MyConfigParser(ConfigParser.RawConfigParser):
   @property
   def log_email(self):
     return self.get(self.rpki_torrent_section, "log_email")
+
+  @property
+  def transmission_username(self):
+    try:
+      return self.get(self.rpki_torrent_section, "transmission_username")
+    except ConfigParser.Error:
+      return None
+
+  @property
+  def transmission_password(self):
+    try:
+      return self.get(self.rpki_torrent_section, "transmission_password")
+    except ConfigParser.Error:
+      return None
 
   def multioption_iter(self, name, getter = None):
     if getter is None:

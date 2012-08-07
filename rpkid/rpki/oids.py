@@ -69,9 +69,39 @@ oid2name = {
   (2, 5, 4, 3)                          : "commonName",
   (2, 5, 4, 5)                          : "serialNumber",
   (2, 5, 4, 6)                          : "countryName",
+  (2, 5, 4, 7)                          : "localityName",
+  (2, 5, 4, 8)                          : "stateOrProvinceName",
+  (2, 5, 4, 9)                          : "streetAddress",
+  (2, 5, 4, 10)                         : "organizationName",
+  (2, 5, 4, 11)                         : "organizationalUnitName",
 }
 
 ## @var name2oid
 # Mapping table of string names to OIDs
 
 name2oid = dict((v, k) for k, v in oid2name.items())
+
+def safe_name2oid(name):
+  """
+  Map name to OID, also parsing numeric (dotted decimal) format.
+  """
+
+  try:
+    return name2oid[name]    
+  except KeyError:
+    fields = name.split(".")
+    if all(field.isdigit() for field in fields):
+      return tuple(int(field) for field in fields)
+    else:
+      raise
+
+def safe_oid2name(oid):
+  """
+  Map OID to name.  If we have no mapping, generate numeric (dotted
+  decimal) format.
+  """
+
+  try:
+    return oid2name[oid]
+  except KeyError:
+    return ".".join(str(field) for field in oid)

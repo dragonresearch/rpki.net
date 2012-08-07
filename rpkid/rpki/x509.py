@@ -176,7 +176,7 @@ class X501DN(object):
       raise TypeError("Don't know how to interpret %r as an X.501 DN" % (ini,), ini)
 
   def __str__(self):
-    return "".join("/" + "+".join("%s=%s" % (rpki.oids.oid2name[a[0]], a[1][1])
+    return "".join("/" + "+".join("%s=%s" % (rpki.oids.safe_oid2name(a[0]), a[1][1])
                                   for a in rdn)
                    for rdn in self.dn)
 

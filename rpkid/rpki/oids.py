@@ -68,6 +68,7 @@ oid2name = {
   (2, 5, 29, 37)                        : "extendedKeyUsage",
   (2, 5, 4, 3)                          : "commonName",
   (2, 5, 4, 5)                          : "serialNumber",
+  (2, 5, 4, 6)                          : "countryName",
 }
 
 ## @var name2oid

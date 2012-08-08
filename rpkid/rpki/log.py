@@ -115,13 +115,20 @@ def traceback(do_it = None):
   classes have their own controls for this, this lets us provide a
   unified interface).  If no argument is specified, we use the global
   default value rpki.log.enable_tracebacks.
+
+  Assertion failures generate backtraces unconditionally, on the
+  theory that (a) assertion failures are programming errors by
+  definition, and (b) it's often hard to figure out what's triggering
+  a particular assertion failure without the backtrace.
   """
 
   if do_it is None:
     do_it = enable_tracebacks
 
-  if do_it:
-    assert sys.exc_info() != (None, None, None), "rpki.log.traceback() called without valid trace on stack, this is a programming error"
+  e = sys.exc_info()[1]
+  assert e is not None, "rpki.log.traceback() called without valid trace on stack!  This should not happen."
+
+  if do_it or isinstance(e, AssertionError):
     bt = tb.extract_stack(limit = 3)
     error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
     bt = tb.format_exc()

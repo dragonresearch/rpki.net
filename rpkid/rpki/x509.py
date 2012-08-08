@@ -1484,6 +1484,16 @@ class XML_CMS_object(CMS_object):
 
   dump_inbound_cms = None
 
+  ## @var check_inbound_schema
+  # If set, perform RelaxNG schema check on inbound messages.
+
+  check_inbound_schema = False           # XXX
+
+  ## @var check_outbound_schema
+  # If set, perform RelaxNG schema check on outbound messages.
+
+  check_outbound_schema = False
+
   def encode(self):
     """
     Encode inner content for signing.
@@ -1531,7 +1541,8 @@ class XML_CMS_object(CMS_object):
       self.set_content(msg)
     else:
       self.set_content(msg.toXML())
-    self.schema_check()
+    if self.check_outbound_schema:
+      self.schema_check()
     self.sign(keypair, certs, crls)
     if self.dump_outbound_cms:
       self.dump_outbound_cms.dump(self)
@@ -1544,7 +1555,8 @@ class XML_CMS_object(CMS_object):
     if self.dump_inbound_cms:
       self.dump_inbound_cms.dump(self)
     self.verify(ta)
-    self.schema_check()
+    if self.check_inbound_schema:
+      self.schema_check()
     if self.saxify is None:
       return self.get_content()
     else:

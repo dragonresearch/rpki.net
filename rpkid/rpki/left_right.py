@@ -319,8 +319,12 @@ class self_elt(data_elt):
     """
     Handle a left-right run_now action for this self.
     """
-    rpki.log.debug("Forced immediate run of periodic actions for self %s[%d]" % (self.self_handle, self.self_id))
-    self.cron(cb)
+    rpki.log.debug("Forced immediate run of periodic actions for self %s[%d]" % (
+      self.self_handle, self.self_id))
+    if self.gctx.task_add(self.cron, cb):
+      self.gctx.task_run()
+    else:
+      cb()
 
   def serve_fetch_one_maybe(self):
     """
@@ -378,6 +382,7 @@ class self_elt(data_elt):
       self.gctx.checkpoint()
       self.gctx.sql.sweep()
       self.gctx.sql.cache_clear_maybe()
+      rpki.log.debug("Self %s[%d] finished cron cycle, calling %r" % (self.self_handle, self.self_id, cb))
       cb()
 
     one()
@@ -662,8 +667,9 @@ class self_elt(data_elt):
 
     def got_roa_requests(roa_requests):
 
-      self.gctx.checkpoint()
+      rpki.log.debug("Received response to query for ROA requests")
 
+      self.gctx.checkpoint()
       if self.gctx.sql.dirty:
         rpki.log.warn("Unexpected dirty SQL cache, flushing")
         self.gctx.sql.sweep()
@@ -687,6 +693,8 @@ class self_elt(data_elt):
 
       def loop(iterator, roa_request):
         self.gctx.checkpoint()
+        rpki.log.debug("++ roa_requests %s roas %s orphans %s publisher.size %s ca_details %s seen %s cache %s" % (
+          len(roa_requests), len(roas), len(orphans), publisher.size, len(ca_details), len(seen), len(self.gctx.sql.cache)))
         try:
           k = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
           if k in seen:
@@ -709,6 +717,10 @@ class self_elt(data_elt):
           rpki.log.warn("Could not update %r, skipping: %s" % (roa, e))
         if max_new_roas_at_once is not None and publisher.size > max_new_roas_at_once:
           self.gctx.sql.sweep()
+          for ca_detail in ca_details:
+            ca_detail.generate_crl(publisher = publisher)
+            ca_detail.generate_manifest(publisher = publisher)
+          self.gctx.sql.sweep()
           self.gctx.checkpoint()
           publisher.call_pubd(iterator, publication_failed)
         else:
@@ -721,7 +733,6 @@ class self_elt(data_elt):
         cb()
 
       def done():
-
         orphans.extend(roas.itervalues())
         for roa in orphans:
           try:
@@ -732,13 +743,10 @@ class self_elt(data_elt):
           except Exception, e:
             rpki.log.traceback()
             rpki.log.warn("Could not revoke %r: %s" % (roa, e))
-
         self.gctx.sql.sweep()
-
         for ca_detail in ca_details:
           ca_detail.generate_crl(publisher = publisher)
           ca_detail.generate_manifest(publisher = publisher)
-
         self.gctx.sql.sweep()
         self.gctx.checkpoint()
         publisher.call_pubd(cb, publication_failed)
@@ -752,6 +760,7 @@ class self_elt(data_elt):
 
     self.gctx.checkpoint()
     self.gctx.sql.sweep()
+    rpki.log.debug("Issuing query for ROA requests")
     self.gctx.irdb_query_roa_requests(self.self_handle, got_roa_requests, roa_requests_failed)
 
 
@@ -1276,6 +1285,7 @@ class child_elt(data_elt):
     q_msg.payload.gctx = self.gctx
     if enforce_strict_up_down_xml_sender and q_msg.sender != str(self.child_id):
       raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender
+    self.gctx.sql.sweep()
 
     def done(r_msg):
       #

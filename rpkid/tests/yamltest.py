@@ -720,9 +720,9 @@ try:
     print
 
     signal.signal(signal.SIGCHLD, signal.SIG_DFL)
-    for i in xrange(19):
+    for i in xrange(29):
       for p in progs:
-        if p.poll() is None and i % 5 == 0:
+        if p.poll() is None and i % 15 == 0:
           print "Politely nudging pid %d" % p.pid
           p.terminate()
       if all(p.poll() is not None for p in progs):

@@ -1954,6 +1954,7 @@ class publication_queue(object):
       rpki.log.debug("Calling pubd[%r]" % self.repositories[rid])
       self.repositories[rid].call_pubd(iterator, eb, self.msgs[rid], self.handlers)
     def done():
+      rpki.log.debug("Publication complete")
       self.clear()
       cb()
     rpki.async.iterator(self.repositories, loop, done)

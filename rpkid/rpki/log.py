@@ -54,7 +54,7 @@ show_python_ids = False
 # Whether tracebacks are enabled globally.  Individual classes and
 # modules may choose to override this.
 
-enable_tracebacks = False
+enable_tracebacks = True
 
 tag = ""
 pid = 0

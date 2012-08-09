@@ -40,15 +40,24 @@ class iterator(object):
   to continue to the next item in the iteration.
 
   The termination callback receives no arguments.
+
+  Special case for memory constrained cases: if keyword argument
+  pop_list is True, iterable must be a list, which is modified in
+  place, popping items off of it until it's empty.
   """
 
-  def __init__(self, iterable, item_callback, done_callback, unwind_stack = True):
+  def __init__(self, iterable, item_callback, done_callback, unwind_stack = True, pop_list = False):
+    assert not pop_list or isinstance(iterable, list), "iterable must be a list when using pop_list"
     self.item_callback = item_callback
     self.done_callback = done_callback
     self.caller_file, self.caller_line, self.caller_function = traceback.extract_stack(limit = 2)[0][0:3]
     self.unwind_stack = unwind_stack
+    self.pop_list = pop_list
     try:
-      self.iterator = iter(iterable)
+      if self.pop_list:
+        self.iterator = iterable
+      else:
+        self.iterator = iter(iterable)
     except (ExitNow, SystemExit):
       raise
     except Exception:
@@ -73,11 +82,17 @@ class iterator(object):
     with the next iteration value, call the termination handler if the
     iterator signaled StopIteration.
     """
-    try:
-      self.item_callback(self, self.iterator.next())
-    except StopIteration:
-      if self.done_callback is not None:
+    if self.pop_list:
+      if self.iterator:
+        self.item_callback(self, self.iterator.pop(0))
+      elif self.done_callback is not None:
         self.done_callback()
+    else:
+      try:
+        self.item_callback(self, self.iterator.next())
+      except StopIteration:
+        if self.done_callback is not None:
+          self.done_callback()
 
 class timer(object):
   """

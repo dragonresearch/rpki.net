@@ -32,19 +32,19 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+import weakref
+
 from rpki.mysql_import import (MySQLdb, _mysql_exceptions)
 
-import rpki.x509, rpki.resource_set, rpki.sundial, rpki.log
+import rpki.x509
+import rpki.resource_set
+import rpki.sundial
+import rpki.log
 
 class session(object):
   """
   SQL session layer.
   """
-
-  ## @var clear_threshold
-  # Size above which .cache_clear_maybe() should clear the cache.
-
-  clear_threshold = 5000
 
   def __init__(self, cfg):
 
@@ -52,7 +52,7 @@ class session(object):
     self.database = cfg.get("sql-database")
     self.password = cfg.get("sql-password")
 
-    self.cache = {}
+    self.cache = weakref.WeakValueDictionary()
     self.dirty = set()
 
     self.connect()
@@ -95,18 +95,12 @@ class session(object):
 
   def cache_clear(self):
     """
-    Clear the object cache.
+    Clear the SQL object cache.  Shouldn't be necessary now that the
+    cache uses weak references, but should be harmless.
     """
     rpki.log.debug("Clearing SQL cache")
     self.assert_pristine()
     self.cache.clear()
-
-  def cache_clear_maybe(self):
-    """
-    Clear the object cache if its size is above clear_threshold.
-    """
-    if len(self.cache) >= self.clear_threshold:
-      self.cache_clear()
 
   def assert_pristine(self):
     """

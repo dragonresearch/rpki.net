@@ -720,9 +720,19 @@ try:
     print
 
     signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+    for i in xrange(19):
+      for p in progs:
+        if p.poll() is None and i % 5 == 0:
+          print "Politely nudging pid %d" % p.pid
+          p.terminate()
+      if all(p.poll() is not None for p in progs):
+        break
+      time.sleep(1)
     for p in progs:
       if p.poll() is None:
-        os.kill(p.pid, signal.SIGTERM)
+        print "Pulling the plug on pid %d" % p.pid
+        p.kill()
+    for p in progs:
       print "Program pid %d %r returned %d" % (p.pid, p, p.wait())
 
 finally:

@@ -933,6 +933,30 @@ class PKCS10(DER_object):
     req.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
     return cls(POWpkix = req)
 
+## @var generate_insecure_debug_only_rsa_key
+# Debugging hack to let us save throwaway RSA keys from one debug
+# session to the next.  DO NOT USE THIS IN PRODUCTION.
+
+generate_insecure_debug_only_rsa_key = None
+
+class insecure_debug_only_rsa_key_generator(object):
+
+  def __init__(self, filename):
+    import gdbm
+    self.keyno = 0
+    self.filename = filename
+    self.db = gdbm.open(filename, "c")
+
+  def __call__(self):
+    k = str(self.keyno)
+    try:
+      v = rpki.POW.derRead(rpki.POW.RSA_PRIVATE_KEY, self.db[k])
+    except KeyError:
+      v = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, 2048)
+      self.db[k] = v.derWrite(rpki.POW.RSA_PRIVATE_KEY)
+    self.keyno += 1
+    return v
+
 class RSA(DER_object):
   """
   Class to hold an RSA key pair.
@@ -969,7 +993,10 @@ class RSA(DER_object):
     """
     if not quiet:
       rpki.log.debug("Generating new %d-bit RSA key" % keylength)
-    return cls(POW = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, keylength))
+    if generate_insecure_debug_only_rsa_key is not None:
+      return cls(POW = generate_insecure_debug_only_rsa_key())
+    else:
+      return cls(POW = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):
     """

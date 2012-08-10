@@ -285,3 +285,9 @@ class parser(object):
       rpki.daemonize.pid_filename = self.get("pid_filename")
     except ConfigParser.NoOptionError:
       pass
+
+    try:
+      rpki.x509.generate_insecure_debug_only_rsa_key = rpki.x509.insecure_debug_only_rsa_key_generator(self.get("insecure-debug-only-rsa-key-db"))
+    except ConfigParser.NoOptionError:
+      pass
+

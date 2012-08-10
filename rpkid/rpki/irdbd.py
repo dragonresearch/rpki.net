@@ -105,6 +105,8 @@ class main(object):
     try:
       q_pdu = None
       r_msg = rpki.left_right.msg.reply()
+      from django.db import connection
+      connection.cursor()           # Reconnect to mysqld if necessary
       self.start_new_transaction()
       serverCA = rpki.irdb.ServerCA.objects.get()
       rpkid = serverCA.ee_certificates.get(purpose = "rpkid")

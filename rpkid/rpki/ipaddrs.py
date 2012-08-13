@@ -42,69 +42,86 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import socket
-import ctypes
+import socket, struct
 
-# Scary hack to let us use methods from the Python/C API
-
-PyLong_AsByteArray = ctypes.pythonapi._PyLong_AsByteArray
-PyLong_AsByteArray.argtypes = [ctypes.py_object,
-                               ctypes.c_char_p,
-                               ctypes.c_size_t,
-                               ctypes.c_int,
-                               ctypes.c_int]
-
-PyLong_FromByteArray = ctypes.pythonapi._PyLong_FromByteArray
-PyLong_FromByteArray.restype = ctypes.py_object
-PyLong_FromByteArray.argtypes = [ctypes.c_char_p,
-                                 ctypes.c_size_t,
-                                 ctypes.c_int,
-                                 ctypes.c_int]
-
-class addr(long):
+class v4addr(long):
   """
-  IP address.  This is a virtual class.
-  Derived from long, but supports IP print syntax.
-  Derived classes must define .bits and .af values
-  and may override .normalize_string().
+  IPv4 address.
+
+  Derived from long, but supports IPv4 print syntax.
   """
 
+  bits = 32
+  
   def __new__(cls, x):
+    """
+    Construct a v4addr object.
+    """
     if isinstance(x, unicode):
       x = x.encode("ascii")
     if isinstance(x, str):
-      return cls.from_bytes(socket.inet_pton(cls.af, cls.normalize_string(x)))
+      return cls.from_bytes(socket.inet_pton(socket.AF_INET, ".".join(str(int(i)) for i in x.split("."))))
     else:
       return long.__new__(cls, x)
 
-  @staticmethod
-  def normalize_string(s):
-    return s
-
   def to_bytes(self):
-    b = ctypes.create_string_buffer(self.bits / 8)
-    PyLong_AsByteArray(self, b, len(b), 0, 1)
-    return b.raw
+    """
+    Convert a v4addr object to a raw byte string.
+    """
+    return struct.pack("!I", long(self))
 
   @classmethod
   def from_bytes(cls, x):
-    return cls(PyLong_FromByteArray(x, len(x), 0, 1))
+    """
+    Convert from a raw byte string to a v4addr object.
+    """
+    return cls(struct.unpack("!I", x)[0])
 
   def __str__(self):
-    b = self.to_bytes()
-    return socket.inet_ntop(self.af, b)
+    """
+    Convert a v4addr object to string format.
+    """
+    return socket.inet_ntop(socket.AF_INET, self.to_bytes())
 
-class v4addr(addr):
-  bits = 32
-  af = socket.AF_INET
-  
-  @staticmethod
-  def normalize_string(s):
-    return ".".join(str(int(i)) for i in s.split("."))
+class v6addr(long):
+  """
+  IPv6 address.
 
-class v6addr(addr):
+  Derived from long, but supports IPv6 print syntax.
+  """
+
   bits = 128
-  af = socket.AF_INET6
+
+  def __new__(cls, x):
+    """
+    Construct a v6addr object.
+    """
+    if isinstance(x, unicode):
+      x = x.encode("ascii")
+    if isinstance(x, str):
+      return cls.from_bytes(socket.inet_pton(socket.AF_INET6, x))
+    else:
+      return long.__new__(cls, x)
+
+  def to_bytes(self):
+    """
+    Convert a v6addr object to a raw byte string.
+    """
+    return struct.pack("!QQ", long(self) >> 64, long(self) & 0xFFFFFFFFFFFFFFFF)
+
+  @classmethod
+  def from_bytes(cls, x):
+    """
+    Convert from a raw byte string to a v6addr object.
+    """
+    x = struct.unpack("!QQ", x)
+    return cls((x[0] << 64) | x[1])
+
+  def __str__(self):
+    """
+    Convert a v6addr object to string format.
+    """
+    return socket.inet_ntop(socket.AF_INET6, self.to_bytes())
 
 def parse(s):
   """
@@ -113,13 +130,3 @@ def parse(s):
   if isinstance(s, unicode):
     s = s.encode("ascii")
   return v6addr(s) if ":" in s else v4addr(s)
-
-if __name__ == "__main__":
-  def test(x):
-    y = parse(x)
-    print x, "=>", y
-
-  test("10.0.0.44")
-  test("010.000.000.044")
-  test("::1")
-  test("::")

@@ -1820,6 +1820,20 @@ X509_object_get_extension(x509_object *self, PyObject *args)
   return NULL;
 }
 
+static PyObject *
+X509_object_get_ski(x509_object *self, PyObject *args)
+{
+  /*
+   * Called for side-effect (calls x509v3_cache_extensions() for us).
+   */
+  (void) X509_check_ca(self->x509);
+
+  if (self->x509->skid == NULL)
+    Py_RETURN_NONE;
+  else
+    return Py_BuildValue("s#", self->x509->skid->data, self->x509->skid->length);
+}
+
 static char x509_object_pprint__doc__[] =
 "<method>\n"
 "   <header>\n"
@@ -1900,7 +1914,7 @@ static struct PyMethodDef X509_object_methods[] = {
   {"countExtensions",   (PyCFunction)X509_object_count_extensions, METH_VARARGS,  NULL},
   {"getExtension",      (PyCFunction)X509_object_get_extension,    METH_VARARGS,  NULL},
   {"pprint",            (PyCFunction)x509_object_pprint,           METH_VARARGS,  NULL},
-
+  {"getSKI",            (PyCFunction)X509_object_get_ski,          METH_NOARGS,   NULL},
   {NULL}    /* sentinel */
 };
 

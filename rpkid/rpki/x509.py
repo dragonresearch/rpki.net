@@ -574,6 +574,14 @@ class X509(DER_object):
     """
     return RSApublic(DER = self.get_POWpkix().tbs.subjectPublicKeyInfo.toString())
 
+  def get_SKI(self):
+    """
+    Get the SKI extension from this object.  In theory, this is faster
+    than using the POW.pkix interface, and speed turns out to matter
+    when one is generating a manifest with thousands of entries.
+    """
+    return self.get_POW().getSKI()
+
   def expired(self):
     """
     Test whether this certificate has expired.

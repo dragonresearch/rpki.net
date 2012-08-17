@@ -160,7 +160,6 @@ class main(object):
 
     rpki.log.trace()
     try:
-      self.sql.ping()
       self.handler_common(query, None, done, (self.bpki_ta, self.irbe_cert))
     except (rpki.async.ExitNow, SystemExit):
       raise
@@ -180,7 +179,6 @@ class main(object):
 
     rpki.log.trace()
     try:
-      self.sql.ping()
       match = self.client_url_regexp.search(path)
       if match is None:
         raise rpki.exceptions.BadContactURL, "Bad path: %s" % path

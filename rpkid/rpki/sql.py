@@ -78,15 +78,11 @@ class session(object):
       self.db.close()
     self.db = None
 
-  def ping(self):
-    rpki.log.debug("Pinging SQL server")
-    return self.db.ping(True)
-
   def _wrap_execute(self, func, query, args):
     try:
       now = rpki.sundial.now()
       if now > self.timestamp + self.ping_threshold:
-        self.ping()
+        self.db.ping(True)
       self.timestamp = now
       return func(query, args)
     except _mysql_exceptions.MySQLError:

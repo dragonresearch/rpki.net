@@ -271,7 +271,6 @@ class main(object):
       cb(200, body = reply)
 
     try:
-      self.sql.ping()
       q_cms = rpki.left_right.cms_msg(DER = query)
       q_msg = q_cms.unwrap((self.bpki_ta, self.irbe_cert))
       self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp)
@@ -298,7 +297,6 @@ class main(object):
       cb(200, body = reply)
 
     try:
-      self.sql.ping()
       match = self.up_down_url_regexp.search(path)
       if match is None:
         raise rpki.exceptions.BadContactURL, "Bad URL path received in up_down_handler(): %s" % path
@@ -382,7 +380,6 @@ class main(object):
     """
 
     rpki.log.trace()
-    self.sql.ping()
 
     now = rpki.sundial.now()
 

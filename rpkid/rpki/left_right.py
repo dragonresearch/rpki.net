@@ -48,7 +48,7 @@ enforce_strict_up_down_xml_sender = False
 # the goal is to avoid going totally compute bound when somebody
 # throws 50,000 new ROA requests at us in a single batch.
 
-max_new_roas_at_once = 50
+max_new_roas_at_once = 200
 
 class left_right_namespace(object):
   """
@@ -760,12 +760,16 @@ class self_elt(data_elt):
             rpki.log.traceback()
             rpki.log.warn("Could not revoke %r: %s" % (roa, e))
         self.gctx.sql.sweep()
-        for ca_detail in ca_details:
-          ca_detail.generate_crl(publisher = publisher)
-          ca_detail.generate_manifest(publisher = publisher)
-        self.gctx.sql.sweep()
         self.gctx.checkpoint()
-        publisher.call_pubd(cb, publication_failed)
+        if publisher.size > 0:
+          for ca_detail in ca_details:
+            ca_detail.generate_crl(publisher = publisher)
+            ca_detail.generate_manifest(publisher = publisher)
+          self.gctx.sql.sweep()
+          self.gctx.checkpoint()
+          publisher.call_pubd(cb, publication_failed)
+        else:
+          cb()
 
       rpki.async.iterator(updates, loop, done, pop_list = True)
       

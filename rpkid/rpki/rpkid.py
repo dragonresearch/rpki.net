@@ -1181,13 +1181,16 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       nextUpdate = now + crl_interval
 
     if self.latest_manifest_cert is None or self.latest_manifest_cert.getNotAfter() < nextUpdate:
+      rpki.log.debug("Generating manifest certificate")
       self.generate_manifest_cert()
 
+    rpki.log.debug("Constructing manifest object list")
     objs = [(self.crl_uri_tail, self.latest_crl)]
     objs.extend((c.uri_tail, c.cert) for c in self.child_certs)
     objs.extend((r.uri_tail, r.roa) for r in self.roas if r.roa is not None)
     objs.extend((g.uri_tail, g.ghostbuster) for g in self.ghostbusters)
 
+    rpki.log.debug("Building manifest object")
     self.latest_manifest = rpki.x509.SignedManifest.build(
       serial         = ca.next_manifest_number(),
       thisUpdate     = now,
@@ -1196,6 +1199,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       keypair        = self.manifest_private_key_id,
       certs          = self.latest_manifest_cert)
 
+    rpki.log.debug("Manifest generation took %s" % (rpki.sundial.now() - now))
 
     self.manifest_published = rpki.sundial.now()
     self.sql_mark_dirty()

@@ -46,6 +46,13 @@ class session(object):
   SQL session layer.
   """
 
+  ## @var ping_threshold
+  # Timeout after which we should issue a ping command before the real
+  # one.  Intent is to keep the MySQL connection alive without pinging
+  # before every single command.
+
+  ping_threshold = rpki.sundial.timedelta(seconds = 60)
+
   def __init__(self, cfg):
 
     self.username = cfg.get("sql-username")
@@ -61,6 +68,7 @@ class session(object):
     self.db = MySQLdb.connect(user = self.username, db = self.database, passwd = self.password)
     self.cur = self.db.cursor()
     self.db.autocommit(True)
+    self.timestamp = rpki.sundial.now()
 
   def close(self):
     if self.cur:
@@ -71,10 +79,15 @@ class session(object):
     self.db = None
 
   def ping(self):
+    rpki.log.debug("Pinging SQL server")
     return self.db.ping(True)
 
   def _wrap_execute(self, func, query, args):
     try:
+      now = rpki.sundial.now()
+      if now > self.timestamp + self.ping_threshold:
+        self.ping()
+      self.timestamp = now
       return func(query, args)
     except _mysql_exceptions.MySQLError:
       if self.dirty:

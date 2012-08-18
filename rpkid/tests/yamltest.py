@@ -434,6 +434,9 @@ class allocation(object):
     Run rpkic for this entity.
     """
     cmd = [prog_rpkic, "-i", self.name, "-c", self.path("rpki.conf")]
+    if profile:
+      cmd.append("--profile")
+      cmd.append(self.path("rpkic.%s.prof" % rpki.sundial.now()))
     cmd.extend(a for a in args if a is not None)
     print 'Running "%s"' % " ".join(cmd)
     subprocess.check_call(cmd, cwd = self.host.path())

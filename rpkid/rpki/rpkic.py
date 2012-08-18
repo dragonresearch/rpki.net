@@ -81,28 +81,44 @@ class main(rpki.cli.Cmd):
 
     rpki.log.use_syslog = False
 
-    cfg_file = None
-    handle = None
+    self.cfg_file = None
+    self.handle = None
+    profile = None
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:hi:?", ["config=", "help", "identity="])
+    opts, self.argv = getopt.getopt(sys.argv[1:], "c:hi:?",
+                                    ["config=", "help", "identity=", "profile="])
     for o, a in opts:
       if o in ("-c", "--config"):
-        cfg_file = a
+        self.cfg_file = a
       elif o in ("-h", "--help", "-?"):
-        argv = ["help"]
+        self.argv = ["help"]
       elif o in ("-i", "--identity"):
-        handle = a
+        self.handle = a
+      elif o == "--profile":
+        profile = a
 
-    if not argv or argv[0] != "help":
-      rpki.log.init("rpkic")
-      self.read_config(cfg_file, handle)
+    if self.argv and self.argv[0] == "help":
+      rpki.cli.Cmd.__init__(self, self.argv)
+    elif profile:
+      import cProfile
+      prof = cProfile.Profile()
+      try:
+        prof.runcall(self.main)
+      finally:
+        prof.dump_stats(profile)
+        print "Dumped profile data to %s" % profile
+    else:
+      self.main()
 
-    rpki.cli.Cmd.__init__(self, argv)
+  def main(self):
+    rpki.log.init("rpkic")
+    self.read_config()
+    rpki.cli.Cmd.__init__(self, self.argv)
 
-  def read_config(self, cfg_file, handle):
+  def read_config(self):
     global rpki
 
-    cfg = rpki.config.parser(cfg_file, "myrpki")
+    cfg = rpki.config.parser(self.cfg_file, "myrpki")
     cfg.set_global_flags()
     self.histfile = cfg.get("history_file", ".rpkic_history")
     self.autosync = cfg.getboolean("autosync", True, section = "rpkic")
@@ -144,7 +160,7 @@ class main(rpki.cli.Cmd):
     import django.core.management
     django.core.management.call_command("syncdb", verbosity = 0, load_initial_data = False)
 
-    self.zoo = rpki.irdb.Zookeeper(cfg = cfg, handle = handle, logstream = sys.stdout)
+    self.zoo = rpki.irdb.Zookeeper(cfg = cfg, handle = self.handle, logstream = sys.stdout)
 
   def help_overview(self):
     """

@@ -112,13 +112,13 @@ class main(rpki.cli.Cmd):
 
   def main(self):
     rpki.log.init("rpkic")
-    self.read_config(self.cfg_file, self.handle)
+    self.read_config()
     rpki.cli.Cmd.__init__(self, self.argv)
 
-  def read_config(self, cfg_file, handle):
+  def read_config(self):
     global rpki
 
-    cfg = rpki.config.parser(cfg_file, "myrpki")
+    cfg = rpki.config.parser(self.cfg_file, "myrpki")
     cfg.set_global_flags()
     self.histfile = cfg.get("history_file", ".rpkic_history")
     self.autosync = cfg.getboolean("autosync", True, section = "rpkic")
@@ -160,7 +160,7 @@ class main(rpki.cli.Cmd):
     import django.core.management
     django.core.management.call_command("syncdb", verbosity = 0, load_initial_data = False)
 
-    self.zoo = rpki.irdb.Zookeeper(cfg = cfg, handle = handle, logstream = sys.stdout)
+    self.zoo = rpki.irdb.Zookeeper(cfg = cfg, handle = self.handle, logstream = sys.stdout)
 
   def help_overview(self):
     """

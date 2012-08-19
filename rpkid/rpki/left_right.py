@@ -34,21 +34,12 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
 import rpki.http, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
-import rpki.publication, rpki.async
+import rpki.publication, rpki.async, rpki.rpkid_tasks
 
 ## @var enforce_strict_up_down_xml_sender
 # Enforce strict checking of XML "sender" field in up-down protocol
 
 enforce_strict_up_down_xml_sender = False
-
-## @var max_new_roas_at_once
-# Upper limit on the number of ROAs we'll create in a single
-# self_elt.update_roas() call.  This is a bit of a kludge, and may be
-# replaced with something more clever or general later; for the moment
-# the goal is to avoid going totally compute bound when somebody
-# throws 50,000 new ROA requests at us in a single batch.
-
-max_new_roas_at_once = 200
 
 class left_right_namespace(object):
   """
@@ -159,6 +150,7 @@ class self_elt(data_elt):
   regen_margin = None
   bpki_cert = None
   bpki_glue = None
+  cron_tasks = None
 
   @property
   def bscs(self):
@@ -326,10 +318,10 @@ class self_elt(data_elt):
     """
     rpki.log.debug("Forced immediate run of periodic actions for self %s[%d]" % (
       self.self_handle, self.self_id))
-    if self.gctx.task_add(self.cron, cb):
-      self.gctx.task_run()
-    else:
-      cb()
+    completion = rpki.rpkid_tasks.CompletionHandler(cb)
+    self.schedule_cron_tasks(completion)
+    assert completion.count > 0
+    self.gctx.task_run()
 
   def serve_fetch_one_maybe(self):
     """
@@ -353,440 +345,22 @@ class self_elt(data_elt):
     """
     return self.sql_fetch_all(self.gctx)
 
-  def cron(self, cb):
+  def schedule_cron_tasks(self, completion):
     """
-    Periodic tasks.
-    """
-
-    def one():
-      self.gctx.checkpoint()
-      rpki.log.debug("Self %s[%d] polling parents" % (self.self_handle, self.self_id))
-      self.client_poll(two)
-
-    def two():
-      self.gctx.checkpoint()
-      rpki.log.debug("Self %s[%d] updating children" % (self.self_handle, self.self_id))
-      self.update_children(three)
-
-    def three():
-      self.gctx.checkpoint()
-      rpki.log.debug("Self %s[%d] updating ROAs" % (self.self_handle, self.self_id))
-      self.update_roas(four)
-
-    def four():
-      self.gctx.checkpoint()
-      rpki.log.debug("Self %s[%d] updating Ghostbuster records" % (self.self_handle, self.self_id))
-      self.update_ghostbusters(five)
-
-    def five():
-      self.gctx.checkpoint()
-      rpki.log.debug("Self %s[%d] regenerating CRLs and manifests" % (self.self_handle, self.self_id))
-      self.regenerate_crls_and_manifests(six)
-
-    def six():
-      self.gctx.checkpoint()
-      self.gctx.sql.sweep()
-      rpki.log.debug("Self %s[%d] finished cron cycle, calling %r" % (self.self_handle, self.self_id, cb))
-      cb()
-
-    one()
-
-
-  def client_poll(self, callback):
-    """
-    Run the regular client poll cycle with each of this self's parents
-    in turn.
+    Schedule periodic tasks.
     """
 
-    rpki.log.trace()
-
-    def parent_loop(parent_iterator, parent):
-
-      def got_list(r_msg):
-        ca_map = dict((ca.parent_resource_class, ca) for ca in parent.cas)
-        self.gctx.checkpoint()
-
-        def class_loop(class_iterator, rc):
-
-          def class_update_failed(e):
-            rpki.log.traceback()
-            rpki.log.warn("Couldn't update class, skipping: %s" % e)
-            class_iterator()
-
-          def class_create_failed(e):
-            rpki.log.traceback()
-            rpki.log.warn("Couldn't create class, skipping: %s" % e)
-            class_iterator()
-
-          self.gctx.checkpoint()
-          if rc.class_name in ca_map:
-            ca = ca_map[rc.class_name]
-            del  ca_map[rc.class_name]
-            ca.check_for_updates(parent, rc, class_iterator, class_update_failed)
-          else:
-            rpki.rpkid.ca_obj.create(parent, rc, class_iterator, class_create_failed)
-
-        def class_done():
-
-          def ca_loop(iterator, ca):
-            self.gctx.checkpoint()
-            ca.delete(parent, iterator)
-            
-          def ca_done():
-            self.gctx.checkpoint()
-            self.gctx.sql.sweep()
-            parent_iterator()
-
-          rpki.async.iterator(ca_map.values(), ca_loop, ca_done)
-
-        rpki.async.iterator(r_msg.payload.classes, class_loop, class_done)
-
-      def list_failed(e):
-        rpki.log.traceback()
-        rpki.log.warn("Couldn't get resource class list from parent %r, skipping: %s (%r)" % (parent, e, e))
-        parent_iterator()
-
-      rpki.up_down.list_pdu.query(parent, got_list, list_failed)
-
-    rpki.async.iterator(self.parents, parent_loop, callback)
-
-
-  def update_children(self, cb):
-    """
-    Check for updated IRDB data for all of this self's children and
-    issue new certs as necessary.  Must handle changes both in
-    resources and in expiration date.
-    """
-
-    rpki.log.trace()
-    now = rpki.sundial.now()
-    rsn = now + rpki.sundial.timedelta(seconds = self.regen_margin)
-    publisher = rpki.rpkid.publication_queue()
-
-    def loop(iterator, child):
-
-      def lose(e):
-        rpki.log.traceback()
-        rpki.log.warn("Couldn't update child %r, skipping: %s" % (child, e))
-        iterator()
-
-      def got_resources(irdb_resources):
-        try:
-          for child_cert in child_certs:
-            ca_detail = child_cert.ca_detail
-            ca = ca_detail.ca
-            if ca_detail.state == "active":
-              old_resources = child_cert.cert.get_3779resources()
-              new_resources = irdb_resources.intersection(old_resources).intersection(ca_detail.latest_ca_cert.get_3779resources())
-
-              if new_resources.empty():
-                rpki.log.debug("Resources shrank to the null set, revoking and withdrawing child %s certificate SKI %s" % (child.child_handle, child_cert.cert.gSKI()))
-                child_cert.revoke(publisher = publisher)
-                ca_detail.generate_crl(publisher = publisher)
-                ca_detail.generate_manifest(publisher = publisher)
-
-              elif old_resources != new_resources or (old_resources.valid_until < rsn and irdb_resources.valid_until > now):
-                rpki.log.debug("Need to reissue child %s certificate SKI %s" % (child.child_handle, child_cert.cert.gSKI()))
-                child_cert.reissue(
-                  ca_detail = ca_detail,
-                  resources = new_resources,
-                  publisher = publisher)
-
-              elif old_resources.valid_until < now:
-                rpki.log.debug("Child %s certificate SKI %s has expired: cert.valid_until %s, irdb.valid_until %s"
-                               % (child.child_handle, child_cert.cert.gSKI(), old_resources.valid_until, irdb_resources.valid_until))
-                child_cert.sql_delete()
-                publisher.withdraw(cls = rpki.publication.certificate_elt, uri = child_cert.uri, obj = child_cert.cert, repository = ca.parent.repository)
-                ca_detail.generate_manifest(publisher = publisher)
-
-        except (SystemExit, rpki.async.ExitNow):
-          raise
-        except Exception, e:
-          self.gctx.checkpoint()
-          lose(e)
-        else:
-          self.gctx.checkpoint()
-          self.gctx.sql.sweep()
-          iterator()
-
-      self.gctx.checkpoint()
-      self.gctx.sql.sweep()
-      child_certs = child.child_certs
-      if child_certs:
-        self.gctx.irdb_query_child_resources(child.self.self_handle, child.child_handle, got_resources, lose)
-      else:
-        iterator()
-
-    def done():
-      def lose(e):
-        rpki.log.traceback()
-        rpki.log.warn("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
-        self.gctx.checkpoint()
-        cb()
-      self.gctx.checkpoint()
-      self.gctx.sql.sweep()
-      publisher.call_pubd(cb, lose)
-
-    rpki.async.iterator(self.children, loop, done)
-
-
-  def regenerate_crls_and_manifests(self, cb):
-    """
-    Generate new CRLs and manifests as necessary for all of this
-    self's CAs.  Extracting nextUpdate from a manifest is hard at the
-    moment due to implementation silliness, so for now we generate a
-    new manifest whenever we generate a new CRL
-
-    This method also cleans up tombstones left behind by revoked
-    ca_detail objects, since we're walking through the relevant
-    portions of the database anyway.
-    """
-
-    rpki.log.trace()
-    now = rpki.sundial.now()
-    regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
-    publisher = rpki.rpkid.publication_queue()
-
-    for parent in self.parents:
-      for ca in parent.cas:
-        try:
-          for ca_detail in ca.revoked_ca_details:
-            if now > ca_detail.latest_crl.getNextUpdate():
-              ca_detail.delete(ca = ca, publisher = publisher)
-          ca_detail = ca.active_ca_detail
-          if ca_detail is not None and now + regen_margin > ca_detail.latest_crl.getNextUpdate():
-            ca_detail.generate_crl(publisher = publisher)
-            ca_detail.generate_manifest(publisher = publisher)
-        except (SystemExit, rpki.async.ExitNow):
-          raise
-        except Exception, e:
-          rpki.log.traceback()
-          rpki.log.warn("Couldn't regenerate CRLs and manifests for CA %r, skipping: %s" % (ca, e))
-
-    def lose(e):
-      rpki.log.traceback()
-      rpki.log.warn("Couldn't publish updated CRLs and manifests for self %r, skipping: %s" % (self.self_handle, e))
-      self.gctx.checkpoint()
-      cb()
-
-    self.gctx.checkpoint()
-    self.gctx.sql.sweep()
-    publisher.call_pubd(cb, lose)
-
-
-  def update_ghostbusters(self, cb):
-    """
-    Generate or update Ghostbuster records for this self.
-
-    This is heavily based on .update_roas(), and probably both of them
-    need refactoring.
-    """
-
-    parents = dict((p.parent_handle, p) for p in self.parents)
-
-    def got_ghostbuster_requests(ghostbuster_requests):
-
-      try:
-        self.gctx.checkpoint()
-        if self.gctx.sql.dirty:
-          rpki.log.warn("Unexpected dirty SQL cache, flushing")
-          self.gctx.sql.sweep()
-
-        ghostbusters = {}
-        orphans = []
-        for ghostbuster in self.ghostbusters:
-          k = (ghostbuster.ca_detail_id, ghostbuster.vcard)
-          if ghostbuster.ca_detail.state != "active" or k in ghostbusters:
-            orphans.append(ghostbuster)
-          else:
-            ghostbusters[k] = ghostbuster
-
-        publisher = rpki.rpkid.publication_queue()
-        ca_details = set()
-
-        seen = set()
-        for ghostbuster_request in ghostbuster_requests:
-          if ghostbuster_request.parent_handle not in parents:
-            rpki.log.warn("Unknown parent_handle %r in Ghostbuster request, skipping" % ghostbuster_request.parent_handle)
-            continue
-          k = (ghostbuster_request.parent_handle, ghostbuster_request.vcard)
-          if k in seen:
-            rpki.log.warn("Skipping duplicate Ghostbuster request %r" % ghostbuster_request)
-            continue
-          seen.add(k)
-          for ca in parents[ghostbuster_request.parent_handle].cas:
-            ca_detail = ca.active_ca_detail
-            if ca_detail is not None:
-              ghostbuster = ghostbusters.pop((ca_detail.ca_detail_id, ghostbuster_request.vcard), None)
-              if ghostbuster is None:
-                ghostbuster = rpki.rpkid.ghostbuster_obj(self.gctx, self.self_id, ca_detail.ca_detail_id, ghostbuster_request.vcard)
-                rpki.log.debug("Created new Ghostbuster request for %r" % ghostbuster_request.parent_handle)
-              else:
-                rpki.log.debug("Found existing Ghostbuster request for %r" % ghostbuster_request.parent_handle)
-              ghostbuster.update(publisher = publisher, fast = True)
-              ca_details.add(ca_detail)
-
-        orphans.extend(ghostbusters.itervalues())
-        for ghostbuster in orphans:
-          ca_details.add(ghostbuster.ca_detail)
-          ghostbuster.revoke(publisher = publisher, fast = True)
-
-        for ca_detail in ca_details:
-          ca_detail.generate_crl(publisher = publisher)
-          ca_detail.generate_manifest(publisher = publisher)
-
-        self.gctx.sql.sweep()
-
-        def publication_failed(e):
-          rpki.log.traceback()
-          rpki.log.warn("Couldn't publish Ghostbuster updates for %s, skipping: %s" % (self.self_handle, e))
-          self.gctx.checkpoint()
-          cb()
-
-        self.gctx.checkpoint()
-        publisher.call_pubd(cb, publication_failed)
-
-      except (SystemExit, rpki.async.ExitNow):
-        raise
-      except Exception, e:
-        rpki.log.traceback()
-        rpki.log.warn("Could not update Ghostbuster records for %s, skipping: %s" % (self.self_handle, e))
-        cb()
-
-    def ghostbuster_requests_failed(e):
-      rpki.log.traceback()
-      rpki.log.warn("Could not fetch Ghostbuster record requests for %s, skipping: %s" % (self.self_handle, e))
-      cb()
-
-    self.gctx.checkpoint()
-    self.gctx.sql.sweep()
-    self.gctx.irdb_query_ghostbuster_requests(self.self_handle, parents.iterkeys(),
-                                              got_ghostbuster_requests, ghostbuster_requests_failed)
-
-
-  def update_roas(self, cb):
-    """
-    Generate or update ROAs for this self.
-    """
-
-    def got_roa_requests(roa_requests):
-
-      rpki.log.debug("Received response to query for ROA requests")
-
-      self.gctx.checkpoint()
-      if self.gctx.sql.dirty:
-        rpki.log.warn("Unexpected dirty SQL cache, flushing")
-        self.gctx.sql.sweep()
-
-      roas = {}
-      seen = set()
-      orphans = []
-      updates = []
-      publisher = rpki.rpkid.publication_queue()
-      ca_details = set()
-
-      for roa in self.roas:
-        k = (roa.asn, str(roa.ipv4), str(roa.ipv6))
-        if k not in roas:
-          roas[k] = roa
-        elif (roa.roa is not None and roa.cert is not None and roa.ca_detail is not None and roa.ca_detail.state == "active" and
-              (roas[k].roa is None or roas[k].cert is None or roas[k].ca_detail is None or roas[k].ca_detail.state != "active")):
-          orphans.append(roas[k])
-          roas[k] = roa
-        else:
-          orphans.append(roa)
-
-      for roa_request in roa_requests:
-        rpki.log.debug("++ roa_requests %s roas %s orphans %s updates %s publisher.size %s ca_details %s seen %s cache %s" % (
-          len(roa_requests), len(roas), len(orphans), len(updates), publisher.size, len(ca_details), len(seen), len(self.gctx.sql.cache)))
-        k = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
-        if k in seen:
-          rpki.log.warn("Skipping duplicate ROA request %r" % roa_request)
-        else:
-          seen.add(k)
-          roa = roas.pop(k, None)
-          if roa is None:
-            roa = rpki.rpkid.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
-            rpki.log.debug("Couldn't find existing ROA, created %r" % roa)
-          else:
-            rpki.log.debug("Found existing %r" % roa)
-          updates.append(roa)
-
-      orphans.extend(roas.itervalues())
-
-      roas.clear()  # Release references we no longer need, to free up memory
-      seen.clear()  # Why does using "del" here raise SyntaxError?!?
-      del roa_requests[:]
-
-      def loop(iterator, roa):
-        self.gctx.checkpoint()
-        rpki.log.debug("++ updates %s orphans %s publisher.size %s ca_details %s cache %s" % (
-          len(updates), len(orphans), publisher.size, len(ca_details), len(self.gctx.sql.cache)))
-        try:
-          roa.update(publisher = publisher, fast = True)
-          ca_details.add(roa.ca_detail)
-          self.gctx.sql.sweep()
-        except (SystemExit, rpki.async.ExitNow):
-          raise
-        except rpki.exceptions.NoCoveringCertForROA:
-          rpki.log.warn("No covering certificate for %r, skipping" % roa)
-        except Exception, e:
-          rpki.log.traceback()
-          rpki.log.warn("Could not update %r, skipping: %s" % (roa, e))
-        if max_new_roas_at_once is not None and publisher.size > max_new_roas_at_once:
-          for ca_detail in ca_details:
-            rpki.log.debug("Generating new CRL for %r" % ca_detail)
-            ca_detail.generate_crl(publisher = publisher)
-            rpki.log.debug("Generating new manifest for %r" % ca_detail)
-            ca_detail.generate_manifest(publisher = publisher)
-          rpki.log.debug("Sweeping")
-          self.gctx.sql.sweep()
-          rpki.log.debug("Done sweeping")                         
-          self.gctx.checkpoint()
-          rpki.log.debug("Starting publication")
-          publisher.call_pubd(iterator, publication_failed)
-        else:
-          iterator()
-
-      def publication_failed(e):
-        rpki.log.traceback()
-        rpki.log.warn("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
-        self.gctx.checkpoint()
-        cb()
-
-      def done():
-        for roa in orphans:
-          try:
-            ca_details.add(roa.ca_detail)
-            roa.revoke(publisher = publisher, fast = True)
-          except (SystemExit, rpki.async.ExitNow):
-            raise
-          except Exception, e:
-            rpki.log.traceback()
-            rpki.log.warn("Could not revoke %r: %s" % (roa, e))
-        self.gctx.sql.sweep()
-        self.gctx.checkpoint()
-        if publisher.size > 0:
-          for ca_detail in ca_details:
-            ca_detail.generate_crl(publisher = publisher)
-            ca_detail.generate_manifest(publisher = publisher)
-          self.gctx.sql.sweep()
-          self.gctx.checkpoint()
-          publisher.call_pubd(cb, publication_failed)
-        else:
-          cb()
-
-      rpki.async.iterator(updates, loop, done, pop_list = True)
-      
-    def roa_requests_failed(e):
-      rpki.log.traceback()
-      rpki.log.warn("Could not fetch ROA requests for %s, skipping: %s" % (self.self_handle, e))
-      cb()
-
-    self.gctx.checkpoint()
-    self.gctx.sql.sweep()
-    rpki.log.debug("Issuing query for ROA requests")
-    self.gctx.irdb_query_roa_requests(self.self_handle, got_roa_requests, roa_requests_failed)
+    if self.cron_tasks is None:
+      self.cron_tasks = (
+        rpki.rpkid_tasks.PollParentTask(self),
+        rpki.rpkid_tasks.UpdateChildrenTask(self),
+        rpki.rpkid_tasks.UpdateROAsTask(self),
+        rpki.rpkid_tasks.UpdateGhostbustersTask(self),
+        rpki.rpkid_tasks.RegnerateCRLsAndManifestsTask(self))
+
+    for task in self.cron_tasks:
+      self.gctx.task_add(task)
+      completion.register(task)
 
 
 class bsc_elt(data_elt):

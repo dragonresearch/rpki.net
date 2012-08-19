@@ -108,7 +108,7 @@ class AbstractTask(object):
       self.clear()
       self.start()
     else:
-      rpki.log.debug("Restarting task %r at " % (self, self.continuation))
+      rpki.log.debug("Restarting task %r at %r" % (self, self.continuation))
       continuation = self.continuation
       self.continuation = None
       continuation()

@@ -216,8 +216,13 @@ class timer(object):
     """
     Run the timer queue: for each timer whose call time has passed,
     pull the timer off the queue and call its handler() method.
+
+    Comparisions are made against time at which this function was
+    called, so that even if new events keep getting scheduled, we'll
+    return to the I/O loop reasonably quickly.
     """
-    if timer_queue and rpki.sundial.now() >= timer_queue[0].when:
+    now = rpki.sundial.now()
+    while timer_queue and now >= timer_queue[0].when:
       t = timer_queue.pop(0)
       if cls.run_debug:
         rpki.log.debug("Running %r" % t)

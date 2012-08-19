@@ -134,7 +134,7 @@ class query(object):
     self.qtype = qtype
     self.qclass = qclass
     self.start = time.time()
-    rpki.async.defer(self.go)
+    rpki.async.event_defer(self.go)
 
   def go(self):
     """

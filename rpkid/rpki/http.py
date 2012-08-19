@@ -985,7 +985,7 @@ def client(msg, url, callback, errback):
 
   if debug_http:
     rpki.log.debug("Scheduling connection startup for %r" % request)
-  rpki.async.defer(client_queues[hostport].restart)
+  rpki.async.event_defer(client_queues[hostport].restart)
 
 def server(handlers, port, host = ""):
   """

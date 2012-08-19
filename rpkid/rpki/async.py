@@ -72,7 +72,7 @@ class iterator(object):
 
   def __call__(self):
     if self.unwind_stack:
-      defer(self.doit)
+      event_defer(self.doit)
     else:
       self.doit()
 
@@ -95,7 +95,7 @@ class iterator(object):
           self.done_callback()
 
 
-## @var queue
+## @var timer_queue
 # Timer queue.
 
 timer_queue = []
@@ -274,17 +274,17 @@ def exit_event_loop():
   """
   raise ExitNow
 
-def event_yield(handler, delay = rpki.sundial.timedelta(seconds = 0)):
+def event_defer(handler, delay = rpki.sundial.timedelta(seconds = 0)):
   """
-  Use a near-term timer to schedule an event after letting the timer
-  and I/O systems run.
+  Use a near-term (default: zero interval) timer to schedule an event
+  to run after letting the I/O system have a turn.
   """
-  t = timer(handler)
-  t.set(delay)
+  timer(handler).set(delay)
 
-# Backwards compatability -- clean this up if the change works
+## @var debug_event_timing
+# Enable insanely verbose logging of event timing
 
-defer = event_yield
+debug_event_timing = False
 
 def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
   """
@@ -300,7 +300,8 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
           old_signal_handlers[sig] = old
       while asyncore.socket_map or timer_queue:
         t = timer.seconds_until_wakeup()
-        rpki.log.debug("Dismissing to asyncore.poll(), t = %s, q = %r" % (t, timer_queue))
+        if debug_event_timing:
+          rpki.log.debug("Dismissing to asyncore.poll(), t = %s, q = %r" % (t, timer_queue))
         asyncore.poll(t, asyncore.socket_map)
         timer.runq()
         if timer.gc_debug:
@@ -368,10 +369,6 @@ class sync_wrapper(object):
   def __call__(self, *args, **kwargs):
 
     def thunk():
-      """
-      Deferred action to call the wrapped code once event system is
-      running.
-      """
       try:
         self.func(self.cb, self.eb, *args, **kwargs)
       except ExitNow:
@@ -379,7 +376,7 @@ class sync_wrapper(object):
       except Exception, e:
         self.eb(e)
       
-    defer(thunk)
+    event_defer(thunk)
     event_loop()
     if self.err is None:
       return self.res

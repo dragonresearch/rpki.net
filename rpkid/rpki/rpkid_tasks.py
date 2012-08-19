@@ -42,12 +42,18 @@ class CompletionHandler(object):
   the last of them terminates.
   """
 
+  ## @var debug
+  # Debug logging.
+
+  debug = False
+
   def __init__(self, cb):
     self.cb = cb
     self.tasks = set()
 
   def register(self, task):
-    rpki.log.debug("Completion handler %r registering task %r" % (self, task))
+    if self.debug:
+      rpki.log.debug("Completion handler %r registering task %r" % (self, task))
     self.tasks.add(task)
     task.register_completion(self.done)
 
@@ -57,9 +63,11 @@ class CompletionHandler(object):
     except KeyError:
       rpki.log.warn("Completion handler %r called with unregistered task %r, blundering onwards" % (self, task))
     else:
-      rpki.log.debug("Completion handler %r called with registered task %r" % (self, task))
+      if self.debug:
+        rpki.log.debug("Completion handler %r called with registered task %r" % (self, task))
     if not self.tasks:
-      rpki.log.debug("Completion handler %r finished, calling %r" % (self, self.cb))
+      if self.debug:
+        rpki.log.debug("Completion handler %r finished, calling %r" % (self, self.cb))
       self.cb()
 
   @property

@@ -350,7 +350,7 @@ class main(object):
       self.task_current = None
     else:
       rpki.log.debug("Pulled %r from task queue" % self.task_current)
-      rpki.async.defer(self.task_current)
+      rpki.async.event_defer(self.task_current)
 
   def task_run(self):
     """

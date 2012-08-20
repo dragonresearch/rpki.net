@@ -233,10 +233,16 @@ class UpdateChildrenTask(AbstractTask):
     self.iterator = iterator
     self.child = child
     self.child_certs = child.child_certs
-    if self.child_certs:
-      self.gctx.irdb_query_child_resources(child.self.self_handle, child.child_handle, self.got_resources, self.lose)
+    if self.overdue:
+      self.publisher.call_pubd(lambda: self.postpone(self.do_child), self.publication_failed)
     else:
-      iterator()
+      self.do_child()
+
+  def do_child(self):
+    if self.child_certs:
+      self.gctx.irdb_query_child_resources(self.child.self.self_handle, self.child.child_handle, self.got_resources, self.lose)
+    else:
+      self.iterator()
 
   def lose(self, e):
     rpki.log.traceback()
@@ -360,6 +366,12 @@ class UpdateROAsTask(AbstractTask):
 
     self.orphans.extend(roas.itervalues())
 
+    if self.overdue:
+      self.postpone(self.begin_loop)
+    else:
+      self.begin_loop()
+
+  def begin_loop(self):
     self.count = 0
     rpki.async.iterator(self.updates, self.loop, self.done, pop_list = True)
 

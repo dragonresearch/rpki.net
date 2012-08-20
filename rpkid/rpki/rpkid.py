@@ -1906,15 +1906,22 @@ class publication_queue(object):
     return self._add(     uri, obj, repository, handler, cls.make_withdraw)
 
   def call_pubd(self, cb, eb):
-    def loop(iterator, rid):
-      rpki.log.debug("Calling pubd[%r]" % self.repositories[rid])
-      self.repositories[rid].call_pubd(iterator, eb, self.msgs[rid], self.handlers)
-    def done():
-      rpki.log.debug("Publication complete")
-      self.clear()
+    if self.empty():
       cb()
-    rpki.async.iterator(self.repositories, loop, done)
+    else:
+      def loop(iterator, rid):
+        rpki.log.debug("Calling pubd[%r]" % self.repositories[rid])
+        self.repositories[rid].call_pubd(iterator, eb, self.msgs[rid], self.handlers)
+      def done():
+        rpki.log.debug("Publication complete")
+        self.clear()
+        cb()
+      rpki.async.iterator(self.repositories, loop, done)
 
   @property
   def size(self):
     return sum(len(self.msgs[rid]) for rid in self.repositories)
+
+  def empty(self):
+    assert (not self.msgs) == (self.size == 0)
+    return not self.msgs

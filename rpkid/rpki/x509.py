@@ -949,9 +949,9 @@ generate_insecure_debug_only_rsa_key = None
 
 class insecure_debug_only_rsa_key_generator(object):
 
-  def __init__(self, filename):
+  def __init__(self, filename, keyno = 0):
     import gdbm
-    self.keyno = 0
+    self.keyno = long(keyno)
     self.filename = filename
     self.db = gdbm.open(filename, "c")
 

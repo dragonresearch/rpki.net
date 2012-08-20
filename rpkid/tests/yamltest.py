@@ -168,6 +168,7 @@ class allocation(object):
   pubd_port     = -1
   rsync_port    = -1
   rootd_port    = -1
+  rpkic_counter = 0L
 
   @classmethod
   def allocate_port(cls):
@@ -429,6 +430,11 @@ class allocation(object):
                     "comment      = RPKI test"))
       f.close()
 
+  @classmethod
+  def next_rpkic_counter(cls):
+    cls.rpkic_counter += 10000
+    return str(cls.rpkic_counter)
+
   def run_rpkic(self, *args):
     """
     Run rpkic for this entity.
@@ -439,7 +445,9 @@ class allocation(object):
       cmd.append(self.path("rpkic.%s.prof" % rpki.sundial.now()))
     cmd.extend(a for a in args if a is not None)
     print 'Running "%s"' % " ".join(cmd)
-    subprocess.check_call(cmd, cwd = self.host.path())
+    env = os.environ.copy()
+    env["YAMLTEST_RPKIC_COUNTER"] = self.next_rpkic_counter()
+    subprocess.check_call(cmd, cwd = self.host.path(), env = env)
 
   def run_python_daemon(self, prog):
     """

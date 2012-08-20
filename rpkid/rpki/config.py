@@ -287,7 +287,7 @@ class parser(object):
       pass
 
     try:
-      rpki.x509.generate_insecure_debug_only_rsa_key = rpki.x509.insecure_debug_only_rsa_key_generator(self.get("insecure-debug-only-rsa-key-db"))
+      rpki.x509.generate_insecure_debug_only_rsa_key = rpki.x509.insecure_debug_only_rsa_key_generator(*self.get("insecure-debug-only-rsa-key-db").split())
     except ConfigParser.NoOptionError:
       pass
 

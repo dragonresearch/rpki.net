@@ -280,7 +280,10 @@ class UpdateChildrenTask(AbstractTask):
   def done(self):
     self.gctx.checkpoint()
     self.gctx.sql.sweep()
-    self.publisher.call_pubd(self.exit, self.publication_failed)
+    if self.publisher.size > 0:
+      self.publisher.call_pubd(self.exit, self.publication_failed)
+    else:
+      self.exit()
 
   def publication_failed(self, e):
     rpki.log.traceback()

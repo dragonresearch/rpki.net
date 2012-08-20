@@ -96,24 +96,34 @@ class PEM_writer(object):
   """
   Write PEM files to disk, keeping track of which ones we've already
   written and setting the file mode appropriately.
+
+  Comparing the old file with what we're about to write serves no real
+  purpose except to calm users who find repeated messages about
+  writing the same file confusing.
   """
 
   def __init__(self, logstream = None):
     self.wrote = set()
     self.logstream = logstream
 
-  def __call__(self, filename, obj):
+  def __call__(self, filename, obj, compare = True):
     filename = os.path.realpath(filename)
     if filename in self.wrote:
       return
     tempname = filename
+    pem = obj.get_PEM()
     if not filename.startswith("/dev/"):
+      try:
+        if compare and pem == open(filename, "r").read():
+          return
+      except:
+        pass
       tempname += ".%s.tmp" % os.getpid()
     mode = 0400 if filename.endswith(".key") else 0444
     if self.logstream is not None:
       self.logstream.write("Writing %s\n" % filename)
     f = os.fdopen(os.open(tempname, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode), "w")
-    f.write(obj.get_PEM())
+    f.write(pem)
     f.close()
     if tempname != filename:
       os.rename(tempname, filename)
@@ -1070,31 +1080,10 @@ class Zookeeper(object):
     <self run_now="yes"/> operation.
     """
 
-    # Synchronize rpkid for all CAs
-
     for ca in rpki.irdb.ResourceHolderCA.objects.all():
       self.synchronize_rpkid_one_ca_core(ca, ca.handle in handles_to_poke)
-
-    # Synchronize pubd
-
     self.synchronize_pubd_core()
-
-    # Clean up any <self/> objects rpkid might be holding that don't
-    # match a ResourceCA object.
-
-    rpkid_reply = self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "list"))
-    self.check_error_report(rpkid_reply)
-
-    self_handles = set(s.self_handle for s in rpkid_reply)
-    ca_handles   = set(ca.handle for ca in rpki.irdb.ResourceHolderCA.objects.all())
-    assert ca_handles <= self_handles
-
-    rpkid_query = [rpki.left_right.self_elt.make_pdu(action = "destroy", self_handle = handle)
-                   for handle in (self_handles - ca_handles)]
-
-    if rpkid_query:
-      rpkid_reply = self.call_rpkid(*rpkid_query)
-      self.check_error_report(rpkid_reply)
+    sef.synchronize_rpkid_deleted_core()
 
 
   @django.db.transaction.commit_on_success
@@ -1106,7 +1095,6 @@ class Zookeeper(object):
 
     if ca is None:
       ca = self.resource_ca
-
     self.synchronize_rpkid_one_ca_core(ca, poke)
 
 

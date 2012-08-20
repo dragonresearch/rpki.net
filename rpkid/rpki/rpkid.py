@@ -328,8 +328,6 @@ class main(object):
     """
     Add a task to the scheduler task queue, unless it's already queued.
     """
-    rpki.log.debug("New task %r" % task)
-    rpki.log.debug("Task queue %r" % self.task_queue)
     if task not in self.task_queue:
       rpki.log.debug("Adding %r to task queue" % task)
       self.task_queue.append(task)

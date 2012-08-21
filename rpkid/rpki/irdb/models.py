@@ -476,12 +476,22 @@ class Child(CrossCertification):
 
   @property
   def resource_bag(self):
+    child_asn = rpki.irdb.ChildASN.objects.raw("""
+        SELECT *
+        FROM irdb_childasn
+        WHERE child_id = %s
+        """, [self.id])
+    child_net = list(rpki.irdb.ChildNet.objects.raw("""
+        SELECT *
+        FROM irdb_childnet
+        WHERE child_id = %s
+        """, [self.id]))
     asns = rpki.resource_set.resource_set_as.from_django(
-      (a.start_as, a.end_as) for a in self.asns.all())
+      (a.start_as, a.end_as) for a in child_asn)
     ipv4 = rpki.resource_set.resource_set_ipv4.from_django(
-      (a.start_ip, a.end_ip) for a in self.address_ranges.filter(version = 'IPv4'))
+      (a.start_ip, a.end_ip) for a in child_net if a.version == "IPv4")
     ipv6 = rpki.resource_set.resource_set_ipv6.from_django(
-      (a.start_ip, a.end_ip) for a in self.address_ranges.filter(version = 'IPv6'))
+      (a.start_ip, a.end_ip) for a in child_net if a.version == "IPv6")
     return rpki.resource_set.resource_bag(
       valid_until = self.valid_until, asn = asns, v4 = ipv4, v6 = ipv6)
 
@@ -554,9 +564,11 @@ class ROARequestPrefix(django.db.models.Model):
 
   def as_roa_prefix(self):
     if self.version == 'IPv4':
-      return rpki.resource_set.roa_prefix_ipv4(rpki.ipaddrs.v4addr(self.prefix), self.prefixlen, self.max_prefixlen)
+      return rpki.resource_set.roa_prefix_ipv4(rpki.ipaddrs.v4addr(self.prefix),
+                                               self.prefixlen, self.max_prefixlen)
     else:
-      return rpki.resource_set.roa_prefix_ipv6(rpki.ipaddrs.v6addr(self.prefix), self.prefixlen, self.max_prefixlen)
+      return rpki.resource_set.roa_prefix_ipv6(rpki.ipaddrs.v6addr(self.prefix),
+                                               self.prefixlen, self.max_prefixlen)
 
   def as_resource_range(self):
     return self.as_roa_prefix().to_resource_range()

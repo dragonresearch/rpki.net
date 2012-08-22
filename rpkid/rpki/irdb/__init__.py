@@ -4,7 +4,7 @@ Python package, so humor it.
 
 $Id$
 
-Copyright (C) 2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -21,3 +21,4 @@ PERFORMANCE OF THIS SOFTWARE.
 
 from rpki.irdb.models import *
 from rpki.irdb.zookeeper import Zookeeper
+from rpki.irdb.router import DBContextRouter, database

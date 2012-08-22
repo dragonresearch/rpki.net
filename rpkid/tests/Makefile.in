@@ -6,7 +6,7 @@ abs_top_builddir = @abs_top_builddir@
 all: protocol-samples
 
 clean:
-	rm -rf smoketest.dir left-right-protocol-samples publication-protocol-samples yamltest.dir rcynic.xml rcynic-data
+	rm -rf smoketest.dir left-right-protocol-samples publication-protocol-samples yamltest.dir yamlconf.dir rcynic.xml rcynic-data
 
 protocol-samples: left-right-protocol-samples/.stamp publication-protocol-samples/.stamp
 
@@ -62,6 +62,13 @@ yamltest:
 	rm -rf yamltest.dir rcynic-data
 	${PYTHON} sql-cleaner.py
 	${PYTHON} yamltest.py ${YAMLTEST_CONFIG}
+
+YAMLCONF_CONFIG = smoketest.1.yaml
+
+yamlconf:
+	rm -rf yamlconf.dir rcynic-data
+	${PYTHON} sql-cleaner.py
+	${PYTHON} yamlconf.py ${YAMLCONF_CONFIG}
 
 backup:
 	${PYTHON} sql-dumper.py

@@ -34,56 +34,35 @@ class DBContextRouter(object):
   rpki.irdb.database context handler (q.v.).
   """
 
-  verbose = False
-
   _app = "irdb"
 
   _database = None
 
-  def __init__(self):
-    if self.verbose:
-      print "%r init" % self
-
   def db_for_read(self, model, **hints):
     if model._meta.app_label == self._app:
-      result = self._database
+      return self._database
     else:
-      result = None
-    if self.verbose:
-      print "db_for_read() returning", result
-    return result
+      return None
 
   def db_for_write(self, model, **hints):
     if model._meta.app_label == self._app:
-      result = self._database
+      return self._database
     else:
-      result = None
-    if self.verbose:
-      print "db_for_write() returning", result
-    return result
+      return None
 
   def allow_relation(self, obj1, obj2, **hints):
     if self._database is None:
-      result = None
+      return None
     elif obj1._meta.app_label == self._app and obj2._meta.app_label == self._app:
-      result = True
+      return True
     else:
-      result = None
-    if self.verbose:
-      print "allow_relation() returning", result
-    return result
+      return None
 
   def allow_syncdb(self, db, model):
-    if self.verbose:
-      print "allow_syncdb(): db %r, model %r, self._database %r, model._meta.app_label %r, self._app %r" % (
-        db, model, self._database, model._meta.app_label, self._app)
     if db == self._database and model._meta.app_label == self._app:
-      result = True
+      return True
     else:
-      result = None
-    if self.verbose:
-      print "allow_syncdb(): returning", result
-    return result
+      return None
 
 class database(object):
   """
@@ -96,8 +75,6 @@ class database(object):
   the call to do_stuff(), then restores the prior state.
   """
 
-  verbose = False
-
   def __init__(self, name):
     if not isinstance(name, str):
       raise ValueError("database name must be a string, not %r" % value)
@@ -105,12 +82,8 @@ class database(object):
 
   def __enter__(self):
     self.former = DBContextRouter._database
-    if self.verbose:
-      print "Entering context manager: DBContextRouter.database %r => %r" % (self.former, self.name)
     DBContextRouter._database = self.name
 
   def __exit__(self, type, value, traceback):
     assert DBContextRouter._database is self.name
-    if self.verbose:
-      print "Exiting context manager: DBContextRouter.database %r => %r" % (DBContextRouter._database, self.former)
     DBContextRouter._database = self.former

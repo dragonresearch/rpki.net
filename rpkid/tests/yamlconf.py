@@ -59,9 +59,9 @@ section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
 variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
 
 flat_publication = False
-profile = False
 config_overrides = {}
 only_one_pubd = True
+yaml_file = None
 
 def cleanpath(*names):
   return os.path.normpath(os.path.join(*names))
@@ -296,7 +296,7 @@ class allocation(object):
           "run_rpkid"           : str(not self.is_hosted),
           "run_pubd"            : str(self.runs_pubd),
           "run_rootd"           : str(self.is_root),
-          "irdbd_sql_database"  : "irdb%d" % self.engine,
+          "irdbd_sql_database"  : self.irdb_name,
           "irdbd_sql_username"  : "irdb",
           "rpkid_sql_database"  : "rpki%d" % self.engine,
           "rpkid_sql_username"  : "rpki",
@@ -332,55 +332,28 @@ class allocation(object):
     f.close()
 
   @property
+  def irdb_name(self):
+    return "irdb%d" % self.host.engine
+
+  @property
   def irdb(self):
-    """
-    Return a "with" context manager binding database operations to the
-    IRDB for this entity.
-    """
-    return rpki.irdb.database("irdb%d" % self.host.engine)
+    self.host.zoo.reset_identity(self.name)
+    return rpki.irdb.database(self.irdb_name)
 
   def syncdb(self):
     import django.core.management
     assert not self.is_hosted
-    print "Running syncdb for", self.name
-    with self.irdb:
-      django.core.management.call_command("syncdb",
-                                          database = "irdb%d" % self.engine,
-                                          load_initial_data = False,
-                                          interactive = False,
-                                          verbosity = 0)
+    django.core.management.call_command("syncdb",
+                                        database = self.irdb_name,
+                                        load_initial_data = False,
+                                        interactive = False,
+                                        verbosity = 0)
 
   def hire_zookeeper(self):
     assert not self.is_hosted
-    with self.irdb:
-      self.zoo = rpki.irdb.Zookeeper(
-        cfg = rpki.config.parser(self.path("rpki.conf")),
-        logstream = sys.stdout)
-
-  def run_rpkic(self, *args):
-    raise NotImplementedError
-    cmd = [prog_rpkic, "-i", self.name, "-c", self.path("rpki.conf")]
-    if profile:
-      cmd.append("--profile")
-      cmd.append(self.path("rpkic.%s.prof" % rpki.sundial.now()))
-    cmd.extend(a for a in args if a is not None)
-    print 'Running "%s"' % " ".join(cmd)
-    subprocess.check_call(cmd, cwd = self.host.path())
-
-  def run_python_daemon(self, prog):
-    raise NotImplementedError
-    basename = os.path.splitext(os.path.basename(prog))[0]
-    cmd = [prog, "-d", "-c", self.path("rpki.conf")]
-    if profile and basename != "rootd":
-      cmd.append("--profile")
-      cmd.append(self.path(basename + ".prof"))
-    log = basename + ".log"
-    p = subprocess.Popen(cmd,
-                         cwd = self.path(),
-                         stdout = open(self.path(log), "w"),
-                         stderr = subprocess.STDOUT)
-    print 'Running %s for %s: pid %d process %r' % (" ".join(cmd), self.name, p.pid, p)
-    return p
+    self.zoo = rpki.irdb.Zookeeper(
+      cfg = rpki.config.parser(self.path("rpki.conf")),
+      logstream = sys.stdout)
 
   @property
   def identity(self):
@@ -436,31 +409,22 @@ def dump_root(root):
   f.write(root_key.get_RSApublic().get_Base64())
   f.close()
 
-def count_engines(y):
-  assert y is None or isinstance(y, (dict, list))
-  if y is None:
-    return 0
-  elif isinstance(y, dict):
-    return (0 if "hosted_by" in y else 1) + count_engines(y.get("kids"))
-  else:
-    return sum(count_engines(i) for i in y)
 
 def main():
 
-  global rpki
-
   global flat_publication
-  global profile
   global config_overrides
   global only_one_pubd
+  global yaml_file
 
   os.environ["TZ"] = "UTC"
   time.tzset()
 
   cfg_file = None
+  profile = None
 
   opts, argv = getopt.getopt(sys.argv[1:], "c:fh?",
-                             ["config=", "flat_publication", "help", "profile"])
+                             ["config=", "flat_publication", "help", "profile="])
   for o, a in opts:
     if o in ("-h", "--help", "-?"):
       print __doc__
@@ -470,13 +434,15 @@ def main():
     elif o in ("-f", "--flat_publication"):
       flat_publication = True
     elif o == "--profile":
-      profile = True
+      profile = a
 
   if len(argv) > 1:
     raise rpki.exceptions.CommandParseFailure("Unexpected arguments %r" % argv)
 
   if len(argv) < 1:
     raise rpki.exceptions.CommandParseFailure("Missing YAML file name")
+
+  yaml_file = argv[0]
 
   rpki.log.use_syslog = False
   rpki.log.init("yamlconf")
@@ -486,6 +452,7 @@ def main():
   # example without publishing my own server's passwords.
 
   cfg = rpki.config.parser(cfg_file, "yamlconf", allow_missing = True)
+  cfg.set_global_flags()
 
   example_cfg = rpki.config.parser(rpki_conf, "myrpki")
 
@@ -495,7 +462,21 @@ def main():
             "rpkid_sql_username", "irdbd_sql_username", "pubd_sql_username"):
     config_overrides[k] = cfg.get(k) if cfg.has_option(k) else example_cfg.get(k)
 
-  # Start clean
+  if profile:
+    import cProfile
+    prof = cProfile.Profile()
+    try:
+      prof.runcall(body)
+    finally:
+      prof.dump_stats(profile)
+      print
+      print "Dumped profile data to %s" % profile
+  else:
+    body()
+
+def body():
+
+  global rpki
 
   for root, dirs, files in os.walk(test_dir, topdown = False):
     for file in files:
@@ -503,40 +484,19 @@ def main():
     for dir in dirs:
       os.rmdir(os.path.join(root, dir))
 
-  # Read first YAML doc in file and process as compact description of
-  # test layout and resource allocations.  Ignore subsequent YAML docs,
-  # they're for smoketest.py, not this script.
-
-  y = yaml.safe_load_all(open(argv[0])).next()
-
-  # Before we do anything else with the YAML doc, we need to figure
-  # out how many engines (SQL databases, really) we need to allocate,
-  # so that we can set that up with Django.  Easiest to do this as a
-  # separate recursive function.
-
   print
-  print "Counting engines needed..."
-  print
+  print "Reading YAML", yaml_file
 
-  engine_count = count_engines(y)
-
-  print "This configuration uses", engine_count, "engines"
-  print
-
-  # Maybe we didn't really need to walk YAML separately after all?
-  # Already wrote code, can always throw it away if don't need it.
-
-  db = allocation_db(y)
+  db = allocation_db(yaml.safe_load_all(open(yaml_file)).next())
 
   # Show what we loaded
 
   #db.dump()
 
-  # Now comes the fun stuff with multiple databases.
+  # Fun with multiple databases in Django!
 
   # https://docs.djangoproject.com/en/1.4/topics/db/multi-db/
   # https://docs.djangoproject.com/en/1.4/topics/db/sql/
-  # http://stackoverflow.com/questions/3637419/multiple-database-config-in-django-1-2
 
   database_template = {
     "ENGINE"   : "django.db.backends.mysql",
@@ -546,8 +506,9 @@ def main():
     "PORT"     : "",
     "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}
 
-  databases = dict(("irdb%d" % i, dict(database_template, NAME = "irdb%d" % i))
-                   for i in xrange(engine_count))
+  databases = dict((d.irdb_name,
+                    dict(database_template, NAME = d.irdb_name))
+                   for d in db if not d.is_hosted)
 
   # Django seems really desperate for a default database, even though
   # we have no intention of using it.  Eventually, we may just let it
@@ -561,9 +522,12 @@ def main():
                                 USER = "thisusernamedoesnotexist",
                                 PASSWORD = "thispasswordisinvalid")
 
-  else:
+  elif False:
     databases["default"] = dict(database_template,
                                 NAME = "irdb%d" % allocation.allocate_engine())
+
+  else:
+    databases["default"] = databases[db.root.irdb_name]
 
   # Perhaps we want to do something with plain old MySQLdb as MySQL
   # root to create databases before dragging Django code into this?
@@ -577,8 +541,9 @@ def main():
 
   import rpki.irdb
 
-  # Generate directories, config files, and CSV files.
-  # Initialize databases and zookeepers.
+  print
+  print "Creating directories, .conf and .csv files"
+  print
 
   for d in db:
     if not d.is_hosted:
@@ -589,49 +554,47 @@ def main():
       d.dump_asns("%s.asns.csv" % d.name)
       d.dump_prefixes("%s.prefixes.csv" % d.name)
       d.dump_roas("%s.roas.csv" % d.name)
+      print
+
+  print "Initializing object models and zookeepers"
+
+  for d in db:
+    if not d.is_hosted:
+      print " ", d.name
       d.syncdb()
       d.hire_zookeeper()
 
+  print
   print "Creating rootd RPKI root certificate and TAL"
 
   dump_root(db.root)
 
-  # At the moment, the Zookeeper methods all assume XML files.  We can
-  # work with this using cStringIO, but if profiling shows a
-  # bottleneck in I/O or XML we may have to do something more drastic
-  # about this.
-
-  # Initialize BPKI and generate self-descriptor for each entity.
+  print
 
   for d in db:
-    #d.run_rpkic("initialize")
+    print "Creating identity", d.name
     with d.irdb:
-      d.host.zoo.reset_identity(d.name)
       d.identity = d.host.zoo.initialize()
 
   for d in db:
     print
     print "Configuring", d.name
-    print
-    with d.irdb:
 
-      if d.is_root:
+    if d.is_root:
+      with d.irdb:
         assert not d.is_hosted
-        d.zoo.reset_identity(d.name)
         x = d.zoo.configure_rootd()
         x = d.zoo.configure_publication_client(xmlfile(x), flat = flat_publication)[0]
         d.zoo.configure_repository(xmlfile(x))
 
-      else:
-        with d.parent.irdb:
-          d.parent.zoo.reset_identity(d.parent.name)
-          x = d.parent.zoo.configure_child(d.identity)[0]
-        d.zoo.reset_identity(d.name)
+    else:
+      with d.parent.irdb:
+        x = d.parent.zoo.configure_child(d.identity)[0]
+      with d.irdb:
         x = d.zoo.configure_parent(xmlfile(x))[0]
-        with d.pubd.irdb:
-          d.pubd.zoo.reset_identity(d.pubd.name)
-          x = d.pubd.zoo.configure_publication_client(xmlfile(x), flat = flat_publication)[0]
-        d.zoo.reset_identity(d.name)
+      with d.pubd.irdb:
+        x = d.pubd.zoo.configure_publication_client(xmlfile(x), flat = flat_publication)[0]
+      with d.irdb:
         d.zoo.configure_repository(xmlfile(x))
 
 if __name__ == "__main__":

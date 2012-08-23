@@ -184,6 +184,11 @@ class etree_wrapper(object):
       if self.msg is not None:
         logstream.write(self.msg + "\n")
 
+  @property
+  def file(self):
+    from cStringIO import StringIO 
+    return StringIO(ElementToString(self.etree))
+
 
 
 class Zookeeper(object):

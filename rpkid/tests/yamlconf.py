@@ -47,7 +47,6 @@ import sys
 import yaml
 import signal
 import time
-import cStringIO
 import rpki.resource_set
 import rpki.sundial
 import rpki.config
@@ -77,8 +76,11 @@ config_overrides = {
 def cleanpath(*names):
   return os.path.normpath(os.path.join(*names))
 
+# Use of "yamltest.dir" is deliberate: intent is for what we write to
+# be usable with "yamltest --skip_config".
+
 this_dir  = os.getcwd()
-test_dir  = cleanpath(this_dir, "yamlconf.dir")
+test_dir  = cleanpath(this_dir, "yamltest.dir")
 rpki_conf = cleanpath(this_dir, "..", "examples/rpki.conf")
 
 class roa_request(object):
@@ -162,10 +164,10 @@ class allocation(object):
   crl_interval  = None
   regen_margin  = None
   engine        = -1
-  rpkid_port    = 4400
-  irdbd_port    = 4401
+  rpkid_port    = 4404
+  irdbd_port    = 4403
   pubd_port     = 4402
-  rootd_port    = 4403
+  rootd_port    = 4401
 
   @classmethod
   def allocate_engine(cls):
@@ -387,11 +389,6 @@ class allocation(object):
     del self._identity
 
 
-def xmlfile(s):
-  from rpki.irdb.zookeeper import etree_wrapper
-  assert isinstance(s, (str, etree_wrapper))
-  return cStringIO.StringIO(str(s))
-
 def dump_root(root):
 
   root_resources = rpki.resource_set.resource_bag(
@@ -561,61 +558,49 @@ def body():
 
   import rpki.irdb
 
-  print
-  print "Creating directories, .conf and .csv files"
-  print
-
-  for d in db:
-    if not d.is_hosted:
-      os.makedirs(d.path())
-      if d.is_root or d.runs_pubd:
-        os.makedirs(d.path("publication"))
-      d.dump_conf()
-      d.dump_asns("%s.asns.csv" % d.name)
-      d.dump_prefixes("%s.prefixes.csv" % d.name)
-      d.dump_roas("%s.roas.csv" % d.name)
-      print
-
-  print "Initializing object models and zookeepers"
-
-  for d in db:
-    if not d.is_hosted:
-      print " ", d.name
-      d.syncdb()
-      d.hire_zookeeper()
-
-  print
-  print "Creating rootd RPKI root certificate and TAL"
-
-  dump_root(db.root)
-
-  print
-
-  for d in db:
-    print "Creating identity", d.name
-    with d.irdb:
-      d.identity = d.zoo.initialize()
-
   for d in db:
     print
     print "Configuring", d.name
 
-    if d.is_root:
-      with d.irdb:
-        assert not d.is_hosted
-        x = d.zoo.configure_rootd()
-        x = d.zoo.configure_publication_client(xmlfile(x), flat = flat_publication)[0]
-        d.zoo.configure_repository(xmlfile(x))
+    if not d.is_hosted:
+      print "Creating directories"
+      os.makedirs(d.path())
+    if d.runs_pubd:
+      os.makedirs(d.path("publication"))
 
-    else:
-      with d.parent.irdb:
-        x = d.parent.zoo.configure_child(d.identity)[0]
-      with d.irdb:
-        x = d.zoo.configure_parent(xmlfile(x))[0]
+    if not d.is_hosted:
+      d.dump_conf()
+      d.dump_asns("%s.asns.csv" % d.name)
+      d.dump_prefixes("%s.prefixes.csv" % d.name)
+      d.dump_roas("%s.roas.csv" % d.name)
+
+      print "Initializing SQL"
+      d.syncdb()
+      print "Hiring zookeeper"
+      d.hire_zookeeper()
+
+    with d.irdb:
+      print "Creating identity"
+      x = d.zoo.initialize()
+
+      if d.is_root:
+        assert not d.is_hosted
+        print "Creating RPKI root certificate and TAL"
+        dump_root(db.root)
+        x = d.zoo.configure_rootd()
+
+      else:
+        with d.parent.irdb:
+          x = d.parent.zoo.configure_child(x.file)[0]
+        x = d.zoo.configure_parent(x.file)[0]
+
       with d.pubd.irdb:
-        x = d.pubd.zoo.configure_publication_client(xmlfile(x), flat = flat_publication)[0]
+        x = d.pubd.zoo.configure_publication_client(x.file, flat = flat_publication)[0]
+      d.zoo.configure_repository(x.file)
+
+    if not d.is_hosted:
       with d.irdb:
-        d.zoo.configure_repository(xmlfile(x))
+        d.zoo.write_bpki_files()
 
 if __name__ == "__main__":
   main()

@@ -59,9 +59,20 @@ section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
 variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
 
 flat_publication = False
-config_overrides = {}
 only_one_pubd = True
 yaml_file = None
+
+# The SQL username mismatch between rpkid/examples/rpki.conf and
+# rpkid/tests/smoketest.setup.sql is completely stupid and really
+# should be cleaned up at some point...but not today, at least not as
+# part of writing this program.  These default values are wired into
+# yamltest to match smoketest.setup.sql, so wire them in here too but
+# in a more obvious way.
+
+config_overrides = {
+  "irdbd_sql_username" : "irdb", "irdbd_sql_password" : "fnord",
+  "rpkid_sql_username" : "rpki", "rpkid_sql_password" : "fnord",
+  "pubd_sql_username"  : "pubd", "pubd_sql_password"  : "fnord" }
 
 def cleanpath(*names):
   return os.path.normpath(os.path.join(*names))
@@ -337,8 +348,11 @@ class allocation(object):
 
   @property
   def irdb(self):
-    self.host.zoo.reset_identity(self.name)
-    return rpki.irdb.database(self.irdb_name)
+    prior_name = self.zoo.handle
+    return rpki.irdb.database(
+      self.irdb_name,
+      on_entry = lambda: self.zoo.reset_identity(self.name),
+      on_exit  = lambda: self.zoo.reset_identity(prior_name))
 
   def syncdb(self):
     import django.core.management
@@ -351,9 +365,13 @@ class allocation(object):
 
   def hire_zookeeper(self):
     assert not self.is_hosted
-    self.zoo = rpki.irdb.Zookeeper(
+    self._zoo = rpki.irdb.Zookeeper(
       cfg = rpki.config.parser(self.path("rpki.conf")),
       logstream = sys.stdout)
+
+  @property
+  def zoo(self):
+    return self.host._zoo
 
   @property
   def identity(self):
@@ -452,15 +470,17 @@ def main():
   # example without publishing my own server's passwords.
 
   cfg = rpki.config.parser(cfg_file, "yamlconf", allow_missing = True)
-  cfg.set_global_flags()
-
-  example_cfg = rpki.config.parser(rpki_conf, "myrpki")
+  try:
+    cfg.set_global_flags()
+  except:
+    pass
 
   only_one_pubd = cfg.getboolean("only_one_pubd", True)
 
   for k in ("rpkid_sql_password", "irdbd_sql_password", "pubd_sql_password",
             "rpkid_sql_username", "irdbd_sql_username", "pubd_sql_username"):
-    config_overrides[k] = cfg.get(k) if cfg.has_option(k) else example_cfg.get(k)
+    if cfg.has_option(k):
+      config_overrides[k] = cfg.get(k) 
 
   if profile:
     import cProfile
@@ -574,7 +594,7 @@ def body():
   for d in db:
     print "Creating identity", d.name
     with d.irdb:
-      d.identity = d.host.zoo.initialize()
+      d.identity = d.zoo.initialize()
 
   for d in db:
     print

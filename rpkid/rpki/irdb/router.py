@@ -75,15 +75,21 @@ class database(object):
   the call to do_stuff(), then restores the prior state.
   """
 
-  def __init__(self, name):
+  def __init__(self, name, on_entry = None, on_exit = None):
     if not isinstance(name, str):
       raise ValueError("database name must be a string, not %r" % value)
     self.name = name
+    self.on_entry = on_entry
+    self.on_exit = on_exit
 
   def __enter__(self):
+    if self.on_entry is not None:
+      self.on_entry()
     self.former = DBContextRouter._database
     DBContextRouter._database = self.name
 
   def __exit__(self, type, value, traceback):
     assert DBContextRouter._database is self.name
     DBContextRouter._database = self.former
+    if self.on_exit is not None:
+      self.on_exit()

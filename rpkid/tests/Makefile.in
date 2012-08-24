@@ -63,12 +63,14 @@ yamltest:
 	${PYTHON} sql-cleaner.py
 	${PYTHON} yamltest.py ${YAMLTEST_CONFIG}
 
-YAMLCONF_CONFIG = smoketest.1.yaml
+YAMLCONF_CONFIG = ${YAMLTEST_CONFIG}
 
 yamlconf:
 	rm -rf yamltest.dir rcynic-data
 	${PYTHON} sql-cleaner.py
-	${PYTHON} yamlconf.py ${YAMLCONF_CONFIG}
+	${PYTHON} yamlconf.py --loopback ${YAMLCONF_CONFIG}
+	@echo
+	${PYTHON} yamltest.py --skip_config --synchronize ${YAMLCONF_CONFIG}
 
 backup:
 	${PYTHON} sql-dumper.py

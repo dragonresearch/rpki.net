@@ -60,6 +60,8 @@ variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
 flat_publication = False
 only_one_pubd = True
 yaml_file = None
+loopback = False
+dns_suffix = None
 
 # The SQL username mismatch between rpkid/examples/rpki.conf and
 # rpkid/tests/smoketest.setup.sql is completely stupid and really
@@ -127,12 +129,6 @@ class allocation_db(list):
     if self.root.base.valid_until is None:
       self.root.base.valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 2)
     for a in self:
-      if a.sia_base is None:
-        if a.runs_pubd:
-          base = "rsync://%s/rpki/" % a.hostname
-        else:
-          base = a.parent.sia_base
-        a.sia_base = base + a.name + "/"
       if a.base.valid_until is None:
         a.base.valid_until = a.parent.base.valid_until
       if a.crl_interval is None:
@@ -159,6 +155,7 @@ class allocation(object):
   hosted_by property run their own copies of rpkid, irdbd, and pubd.
   """
 
+  base_port     = 4400
   base_engine   = -1
   parent        = None
   crl_interval  = None
@@ -168,6 +165,12 @@ class allocation(object):
   irdbd_port    = 4403
   pubd_port     = 4402
   rootd_port    = 4401
+  rsync_port    = 873
+
+  @classmethod
+  def allocate_port(cls):
+    cls.base_port += 1
+    return cls.base_port
 
   @classmethod
   def allocate_engine(cls):
@@ -189,7 +192,6 @@ class allocation(object):
       v4 = rpki.resource_set.resource_set_ipv4(y.get("ipv4")),
       v6 = rpki.resource_set.resource_set_ipv6(y.get("ipv6")),
       valid_until = valid_until)
-    self.sia_base = y.get("sia_base")
     if "crl_interval" in y:
       self.crl_interval = rpki.sundial.timedelta.parse(y["crl_interval"]).convert_to_seconds()
     if "regen_margin" in y:
@@ -204,6 +206,14 @@ class allocation(object):
     self.hosts = []
     if not self.is_hosted:
       self.engine = self.allocate_engine()
+    if loopback and not self.is_hosted:
+      self.rpkid_port = self.allocate_port()
+      self.irdbd_port = self.allocate_port()
+    if loopback and self.runs_pubd:
+      self.pubd_port  = self.allocate_port()
+      self.rsync_port = self.allocate_port()
+    if loopback and self.is_root:
+      self.rootd_port = self.allocate_port()
 
   def closure(self):
     resources = self.base
@@ -214,7 +224,19 @@ class allocation(object):
 
   @property
   def hostname(self):
-    return self.name + ".emulation-testbed.rpki.net"
+    if loopback:
+      return "localhost"
+    elif dns_suffix:
+      return self.name + "." + dns_suffix.lstrip(".")
+    else:
+      return self.name
+
+  @property
+  def rsync_server(self):
+    if loopback:
+      return "%s:%s" % (self.pubd.hostname, self.pubd.rsync_port)
+    else:
+      return self.pubd.hostname
 
   def dump(self):
     print str(self)
@@ -226,13 +248,13 @@ class allocation(object):
     if self.resources.v6:       s += "  IPv6: %s\n" % self.resources.v6
     if self.kids:               s += "  Kids: %s\n" % ", ".join(k.name for k in self.kids)
     if self.parent:             s += "    Up: %s\n" % self.parent.name
-    if self.sia_base:           s += "   SIA: %s\n" % self.sia_base
     if self.is_hosted:          s += "  Host: %s\n" % self.hosted_by.name
     if self.hosts:              s += " Hosts: %s\n" % ", ".join(h.name for h in self.hosts)
     for r in self.roa_requests: s += "   ROA: %s\n" % r
     if not self.is_hosted:      s += " IPort: %s\n" % self.irdbd_port
     if self.runs_pubd:          s += " PPort: %s\n" % self.pubd_port
     if not self.is_hosted:      s += " RPort: %s\n" % self.rpkid_port
+    if self.runs_pubd:          s += " SPort: %s\n" % self.rsync_port
     if self.is_root:            s += " TPort: %s\n" % self.rootd_port
     return s + " Until: %s\n" % self.resources.valid_until
 
@@ -315,14 +337,14 @@ class allocation(object):
           "rpkid_sql_username"  : "rpki",
           "rpkid_server_host"   : self.hostname,
           "rpkid_server_port"   : str(self.rpkid_port),
-          "irdbd_server_host"   : self.hostname,
+          "irdbd_server_host"   : "localhost",
           "irdbd_server_port"   : str(self.irdbd_port),
           "rootd_server_port"   : str(self.rootd_port),
           "pubd_sql_database"   : "pubd%d" % self.engine,
           "pubd_sql_username"   : "pubd",
           "pubd_server_host"    : self.pubd.hostname,
           "pubd_server_port"    : str(self.pubd.pubd_port),
-          "publication_rsync_server" : self.pubd.hostname,
+          "publication_rsync_server" : self.rsync_server,
           "bpki_servers_directory" : self.path() }
     
     r.update(config_overrides)
@@ -343,6 +365,22 @@ class allocation(object):
       f.write(line)
 
     f.close()
+
+  def dump_rsyncd(self):
+    if self.runs_pubd:
+      f = open(self.path("rsyncd.conf"), "w")
+      print "Writing", f.name
+      f.writelines(s + "\n" for s in
+                   ("# Automatically generated, do not edit",
+                    "port         = %d"           % self.rsync_port,
+                    "address      = %s"           % self.hostname,
+                    "[rpki]",
+                    "log file     = rsyncd.log",
+                    "read only    = yes",
+                    "use chroot   = no",
+                    "path         = %s"           % self.path("publication"),
+                    "comment      = RPKI test"))
+      f.close()
 
   @property
   def irdb_name(self):
@@ -375,54 +413,47 @@ class allocation(object):
   def zoo(self):
     return self.host._zoo
 
-  @property
-  def identity(self):
-    self._identity.seek(0)
-    return self._identity
+  def dump_root(self):
 
-  @identity.setter
-  def identity(self, value):
-    self._identity = xmlfile(value)
+    assert self.is_root and not self.is_hosted
 
-  @identity.deleter
-  def identity(self):
-    del self._identity
+    root_resources = rpki.resource_set.resource_bag(
+      asn = rpki.resource_set.resource_set_as("0-4294967295"),
+      v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
+      v6  = rpki.resource_set.resource_set_ipv6("::/0"))
 
+    root_key = rpki.x509.RSA.generate(quiet = True)
 
-def dump_root(root):
+    root_uri = "rsync://%s/rpki/" % self.rsync_server
 
-  root_resources = rpki.resource_set.resource_bag(
-    asn = rpki.resource_set.resource_set_as("0-4294967295"),
-    v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
-    v6  = rpki.resource_set.resource_set_ipv6("::/0"))
+    root_sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", root_uri)),
+                (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", root_uri + "root.mft")))
 
-  root_key = rpki.x509.RSA.generate(quiet = True)
+    root_cert = rpki.x509.X509.self_certify(
+      keypair     = root_key,
+      subject_key = root_key.get_RSApublic(),
+      serial      = 1,
+      sia         = root_sia,
+      notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
+      resources   = root_resources)
 
-  root_uri = "rsync://%s/rpki/" % root.hostname
+    f = open(self.path("publication/root.cer"), "wb")
+    f.write(root_cert.get_DER())
+    f.close()
 
-  root_sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", root_uri)),
-              (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", root_uri + "root.mft")))
+    f = open(self.path("root.key"), "wb")
+    f.write(root_key.get_DER())
+    f.close()
 
-  root_cert = rpki.x509.X509.self_certify(
-    keypair     = root_key,
-    subject_key = root_key.get_RSApublic(),
-    serial      = 1,
-    sia         = root_sia,
-    notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
-    resources   = root_resources)
+    f = open(os.path.join(test_dir, "root.tal"), "w")
+    f.write(root_uri + "root.cer\n")
+    f.write(root_key.get_RSApublic().get_Base64())
+    f.close()
 
-  f = open(root.path("publication/root.cer"), "wb")
-  f.write(root_cert.get_DER())
-  f.close()
-
-  f = open(root.path("root.key"), "wb")
-  f.write(root_key.get_DER())
-  f.close()
-
-  f = open(os.path.join(test_dir, "root.tal"), "w")
-  f.write(root_uri + "root.cer\n")
-  f.write(root_key.get_RSApublic().get_Base64())
-  f.close()
+  def mkdir(self, *path):
+    path = self.path(*path)
+    print "Creating directory", path
+    os.makedirs(path)
 
 
 def main():
@@ -430,6 +461,8 @@ def main():
   global flat_publication
   global config_overrides
   global only_one_pubd
+  global loopback
+  global dns_suffix
   global yaml_file
 
   os.environ["TZ"] = "UTC"
@@ -438,14 +471,18 @@ def main():
   cfg_file = None
   profile = None
 
-  opts, argv = getopt.getopt(sys.argv[1:], "c:fh?",
-                             ["config=", "flat_publication", "help", "profile="])
+  opts, argv = getopt.getopt(sys.argv[1:], "c:fhl?",
+                             ["config=", "flat_publication", "help", "loopback", "profile="])
   for o, a in opts:
     if o in ("-h", "--help", "-?"):
       print __doc__
       sys.exit(0)
     if o in ("-c", "--config"):
       cfg_file = a
+    elif o in ("-d", "--dns_suffix"):
+      dns_suffix = a
+    elif o in ("-l", "--loopback"):
+      loopback = True
     elif o in ("-f", "--flat_publication"):
       flat_publication = True
     elif o == "--profile":
@@ -563,13 +600,13 @@ def body():
     print "Configuring", d.name
 
     if not d.is_hosted:
-      print "Creating directories"
-      os.makedirs(d.path())
+      d.mkdir()
     if d.runs_pubd:
-      os.makedirs(d.path("publication"))
+      d.mkdir("publication")
 
     if not d.is_hosted:
       d.dump_conf()
+      d.dump_rsyncd()
       d.dump_asns("%s.asns.csv" % d.name)
       d.dump_prefixes("%s.prefixes.csv" % d.name)
       d.dump_roas("%s.roas.csv" % d.name)
@@ -584,9 +621,8 @@ def body():
       x = d.zoo.initialize()
 
       if d.is_root:
-        assert not d.is_hosted
         print "Creating RPKI root certificate and TAL"
-        dump_root(db.root)
+        d.dump_root()
         x = d.zoo.configure_rootd()
 
       else:

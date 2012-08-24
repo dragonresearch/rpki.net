@@ -190,9 +190,10 @@ for h in qs:
         if options.email:
             notify_emails = get_email_list(h)
 
-            t = """This is an automated notice about the upcoming expiration of RPKI resources for the handle %s on %s.  You are receiving this notification because your email address is either registered in a Ghostbuster record, or as the default email address for the account.\n\n""" % (h.handle, host)
+            if notify_emails:
+                t = """This is an automated notice about the upcoming expiration of RPKI resources for the handle %s on %s.  You are receiving this notification because your email address is either registered in a Ghostbuster record, or as the default email address for the account.\n\n""" % (h.handle, host)
 
-            send_mail(subject='RPKI expiration notice for %s' % h.handle,
-                    message=t + s, from_email=from_email, recipient_list=notify_emails)
+                send_mail(subject='RPKI expiration notice for %s' % h.handle,
+                        message=t + s, from_email=from_email, recipient_list=notify_emails)
 
 sys.exit(0)

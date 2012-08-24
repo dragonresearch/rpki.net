@@ -1088,7 +1088,7 @@ class Zookeeper(object):
     for ca in rpki.irdb.ResourceHolderCA.objects.all():
       self.synchronize_rpkid_one_ca_core(ca, ca.handle in handles_to_poke)
     self.synchronize_pubd_core()
-    sef.synchronize_rpkid_deleted_core()
+    self.synchronize_rpkid_deleted_core()
 
 
   @django.db.transaction.commit_on_success

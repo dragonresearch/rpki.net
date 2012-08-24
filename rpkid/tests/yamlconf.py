@@ -456,6 +456,20 @@ class allocation(object):
     os.makedirs(path)
 
 
+class timestamp(object):
+
+  def __init__(self, *args):
+    self.count = 0
+    self.start = self.tick = rpki.sundial.now()
+
+  def __call__(self, *args):
+    now = rpki.sundial.now()
+    print "[Count %s last %s total %s now %s]" % (
+      self.count, now - self.tick, now - self.start, now)
+    self.tick = now
+    self.count += 1
+
+
 def main():
 
   global flat_publication
@@ -532,6 +546,8 @@ def body():
 
   global rpki
 
+  ts = timestamp()
+
   for root, dirs, files in os.walk(test_dir, topdown = False):
     for file in files:
       os.unlink(os.path.join(root, file))
@@ -546,6 +562,9 @@ def body():
   # Show what we loaded
 
   #db.dump()
+
+  # Perhaps we want to do something with plain old MySQLdb as MySQL
+  # root to create databases before dragging Django code into this?
 
   # Fun with multiple databases in Django!
 
@@ -564,27 +583,7 @@ def body():
                     dict(database_template, NAME = d.irdb_name))
                    for d in db if not d.is_hosted)
 
-  # Django seems really desperate for a default database, even though
-  # we have no intention of using it.  Eventually, we may just let it
-  # have, eg, a default entry pointing to the root IRDB to satisfy
-  # this, but for now, we just waste an engine number so we can be
-  # sure anything written to the other databases was done on purpose.
-
-  if False:
-    databases["default"] = dict(database_template,
-                                NAME = "thisdatabasedoesnotexist",
-                                USER = "thisusernamedoesnotexist",
-                                PASSWORD = "thispasswordisinvalid")
-
-  elif False:
-    databases["default"] = dict(database_template,
-                                NAME = "irdb%d" % allocation.allocate_engine())
-
-  else:
-    databases["default"] = databases[db.root.irdb_name]
-
-  # Perhaps we want to do something with plain old MySQLdb as MySQL
-  # root to create databases before dragging Django code into this?
+  databases["default"] = databases[db.root.irdb_name]
 
   from django.conf import settings
 
@@ -594,6 +593,8 @@ def body():
     INSTALLED_APPS = ("rpki.irdb",))
 
   import rpki.irdb
+
+  ts()
 
   for d in db:
     print
@@ -638,6 +639,7 @@ def body():
       with d.irdb:
         d.zoo.write_bpki_files()
 
+    ts()
+
 if __name__ == "__main__":
   main()
-

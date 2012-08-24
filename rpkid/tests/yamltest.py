@@ -655,16 +655,16 @@ try:
 
     for d in db:
 
-      print
-      print "Running daemons for", d.name
-      if d.is_root:
-        progs.append(d.run_rootd())
       if not d.is_hosted:
+        print
+        print "Running daemons for", d.name
+        if d.is_root:
+          progs.append(d.run_rootd())
         progs.append(d.run_irdbd())
         progs.append(d.run_rpkid())
-      if d.runs_pubd:
-        progs.append(d.run_pubd())
-        progs.append(d.run_rsyncd())
+        if d.runs_pubd:
+          progs.append(d.run_pubd())
+          progs.append(d.run_rsyncd())
 
     print
     print "Giving daemons time to start up"

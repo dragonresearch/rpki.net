@@ -3,7 +3,7 @@ Logging facilities for RPKI libraries.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -32,8 +32,18 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import syslog, sys, os, time
+import syslog
+import sys
+import os
+import time
 import traceback as tb
+
+try:
+  import setproctitle
+  have_setproctitle = True
+except ImportError:
+  have_setproctitle = False
+
 
 ## @var enable_trace
 # Whether call tracing is enabled.
@@ -56,6 +66,12 @@ show_python_ids = False
 
 enable_tracebacks = True
 
+## @var use_setproctitle
+# Whether to use setproctitle (if available) to change name shown for
+# this process in ps listings (etc).
+
+use_setproctitle = True
+
 tag = ""
 pid = 0
 
@@ -70,6 +86,8 @@ def init(ident = "rpki", flags = syslog.LOG_PID, facility = syslog.LOG_DAEMON):
     global tag, pid
     tag = ident
     pid = os.getpid()
+  if ident and have_setproctitle and use_setproctitle:
+    setproctitle.setproctitle("%s (%s)" % (ident, os.path.basename(os.getcwd())))
 
 def set_trace(enable):
   """

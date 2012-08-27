@@ -18,7 +18,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import rpki.config, rpki.sql_schemas
+import rpki.config
+import rpki.sql_schemas
 from rpki.mysql_import import MySQLdb
 
 cfg = rpki.config.parser(None, "yamltest", allow_missing = True)

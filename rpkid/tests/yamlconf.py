@@ -53,6 +53,9 @@ import rpki.config
 import rpki.log
 import rpki.csv_utils
 import rpki.x509
+import rpki.sql_schemas
+
+from rpki.mysql_import import MySQLdb
 
 section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
 variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
@@ -62,6 +65,7 @@ only_one_pubd = True
 yaml_file = None
 loopback = False
 dns_suffix = None
+mysql_rootpw = None
 
 # The SQL username mismatch between rpkid/examples/rpki.conf and
 # rpkid/tests/smoketest.setup.sql is completely stupid and really
@@ -455,6 +459,74 @@ class allocation(object):
     print "Creating directory", path
     os.makedirs(path)
 
+  def dump_sql(self):
+    if not self.is_hosted:
+      with open(self.path("rpkid.sql"), "w") as f:
+        print "Writing", f.name
+        f.write(rpki.sql_schemas.rpkid)
+    if self.runs_pubd:
+      with open(self.path("pubd.sql"), "w") as f:
+        print "Writing", f.name
+        f.write(rpki.sql_schemas.pubd)
+    if not self.is_hosted:
+      username = config_overrides["irdbd_sql_username"]
+      password = config_overrides["irdbd_sql_password"]
+      cmd = ("mysqldump", "-u", username, "-p" + password, self.irdb_name)
+      with open(self.path("irdb.sql"), "w") as f:
+        print "Writing", f.name
+        subprocess.check_call(cmd, stdout = f)
+
+
+def pre_django_sql_setup(needed):
+
+  username = config_overrides["irdbd_sql_username"]
+  password = config_overrides["irdbd_sql_password"]
+
+  # If we have the MySQL root password, just blow away and recreate
+  # the required databases.  Otherwise, check for missing databases,
+  # then blow away all tables in the required databases.  In either
+  # case, we assume that the Django syncdb code will populate
+  # databases as necessary, all we need to do here is provide empty
+  # databases for the Django code to fill in.
+
+  if mysql_rootpw is not None:
+    if mysql_rootpw:
+      db = MySQLdb.connect(user = "root", passwd = mysql_rootpw)
+    else:
+      db = MySQLdb.connect(user = "root")  
+    cur = db.cursor()
+    for database in needed:
+      try:
+        cur.execute("DROP DATABASE IF EXISTS %s" % database)
+      except:
+        pass
+      cur.execute("CREATE DATABASE %s" % database)
+      cur.execute("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY %%s" % (
+        database, username), (password,))
+
+  else:
+    db = MySQLdb.connect(user = username, passwd = password)
+    cur = db.cursor()
+    cur.execute("SHOW DATABASES")
+    existing = set(r[0] for r in cur.fetchall())
+    if needed - existing:
+      sys.stderr.write("The following databases are missing:\n")
+      for database in sorted(needed - existing):
+        sys.stderr.write("  %s\n" % database)
+      sys.stderr.write("Please create them manually or put MySQL root password in my config file\n")
+      sys.exit("Missing databases and MySQL root password not known, can't continue")
+    for database in needed:
+      db.select_db(database)
+      cur.execute("SHOW TABLES")
+      tables = [r[0] for r in cur.fetchall()]
+      cur.execute("SET foreign_key_checks = 0")
+      for table in tables:
+        cur.execute("DROP TABLE %s" % table)
+      cur.execute("SET foreign_key_checks = 1")  
+
+  cur.close()
+  db.commit()
+  db.close()
 
 class timestamp(object):
 
@@ -477,6 +549,7 @@ def main():
   global only_one_pubd
   global loopback
   global dns_suffix
+  global mysql_rootpw
   global yaml_file
 
   os.environ["TZ"] = "UTC"
@@ -525,6 +598,11 @@ def main():
 
   only_one_pubd = cfg.getboolean("only_one_pubd", True)
 
+  try:
+    mysql_rootpw = cfg.get("mysql_rootpw", None)
+  except:
+    pass
+
   for k in ("rpkid_sql_password", "irdbd_sql_password", "pubd_sql_password",
             "rpkid_sql_username", "irdbd_sql_username", "pubd_sql_username"):
     if cfg.has_option(k):
@@ -563,10 +641,11 @@ def body():
 
   #db.dump()
 
-  # Perhaps we want to do something with plain old MySQLdb as MySQL
-  # root to create databases before dragging Django code into this?
+  # Do pre-Django SQL setup
 
-  # Fun with multiple databases in Django!
+  pre_django_sql_setup(set(d.irdb_name for d in db if not d.is_hosted))
+
+  # Now ready for fun with multiple databases in Django!
 
   # https://docs.djangoproject.com/en/1.4/topics/db/multi-db/
   # https://docs.djangoproject.com/en/1.4/topics/db/sql/
@@ -640,6 +719,10 @@ def body():
         d.zoo.write_bpki_files()
 
     ts()
+
+  print
+  for d in db:
+    d.dump_sql()
 
 if __name__ == "__main__":
   main()

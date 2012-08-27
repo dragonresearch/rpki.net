@@ -68,6 +68,12 @@ class csv_reader(object):
         fields += tuple(None for i in xrange(self.columns - len(fields)))
       yield fields
 
+  def __enter__(self):
+    return self
+
+  def __exit__(self, type, value, traceback):
+    self.file.close()
+
 class csv_writer(object):
   """
   Writer object for tab delimited text.  We just use the stock CSV
@@ -82,6 +88,12 @@ class csv_writer(object):
     self.renmwo = "%s.~renmwo%d~" % (filename, os.getpid()) if renmwo else filename
     self.file = open(self.renmwo, "w")
     self.writer = csv.writer(self.file, dialect = csv.get_dialect("excel-tab"))
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, type, value, traceback):
+    self.close()
 
   def close(self):
     """

@@ -65,7 +65,8 @@ only_one_pubd = True
 yaml_file = None
 loopback = False
 dns_suffix = None
-mysql_rootpw = None
+mysql_rootuser = None
+mysql_rootpass = None
 
 # The SQL username mismatch between rpkid/examples/rpki.conf and
 # rpkid/tests/smoketest.setup.sql is completely stupid and really
@@ -289,23 +290,20 @@ class allocation(object):
                                            self.name)
 
   def dump_asns(self, fn):
-    f = self.csvout(fn)
-    for k in self.kids:    
-      f.writerows((k.name, a) for a in k.resources.asn)
-    f.close()
+    with self.csvout(fn) as f:
+      for k in self.kids:    
+        f.writerows((k.name, a) for a in k.resources.asn)
 
   def dump_prefixes(self, fn):
-    f = self.csvout(fn)
-    for k in self.kids:
-      f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
-    f.close()
+    with self.csvout(fn) as f:
+      for k in self.kids:
+        f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
 
   def dump_roas(self, fn):
-    f = self.csvout(fn)
-    for g1, r in enumerate(self.roa_requests):
-      f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
-                  for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
-    f.close()
+    with self.csvout(fn) as f:
+      for g1, r in enumerate(self.roa_requests):
+        f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
+                    for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
 
   @property
   def pubd(self):
@@ -331,60 +329,68 @@ class allocation(object):
 
   def dump_conf(self):
 
-    r = { "handle"              : self.name,
-          "run_rpkid"           : str(not self.is_hosted),
-          "run_pubd"            : str(self.runs_pubd),
-          "run_rootd"           : str(self.is_root),
-          "irdbd_sql_database"  : self.irdb_name,
-          "irdbd_sql_username"  : "irdb",
-          "rpkid_sql_database"  : "rpki%d" % self.engine,
-          "rpkid_sql_username"  : "rpki",
-          "rpkid_server_host"   : self.hostname,
-          "rpkid_server_port"   : str(self.rpkid_port),
-          "irdbd_server_host"   : "localhost",
-          "irdbd_server_port"   : str(self.irdbd_port),
-          "rootd_server_port"   : str(self.rootd_port),
-          "pubd_sql_database"   : "pubd%d" % self.engine,
-          "pubd_sql_username"   : "pubd",
-          "pubd_server_host"    : self.pubd.hostname,
-          "pubd_server_port"    : str(self.pubd.pubd_port),
-          "publication_rsync_server" : self.rsync_server,
-          "bpki_servers_directory" : self.path() }
+    r = dict(
+      handle                    = self.name,
+      run_rpkid                 = str(not self.is_hosted),
+      run_pubd                  = str(self.runs_pubd),
+      run_rootd                 = str(self.is_root),
+      irdbd_sql_username        = "irdb",
+      rpkid_sql_username        = "rpki",
+      rpkid_server_host         = self.hostname,
+      rpkid_server_port         = str(self.rpkid_port),
+      irdbd_server_host         = "localhost",
+      irdbd_server_port         = str(self.irdbd_port),
+      rootd_server_port         = str(self.rootd_port),
+      pubd_sql_username         = "pubd",
+      pubd_server_host          = self.pubd.hostname,
+      pubd_server_port          = str(self.pubd.pubd_port),
+      publication_rsync_server  = self.rsync_server,
+      publication_base_directory = self.path("publication"),
+      bpki_servers_directory    = self.path())
     
+    if loopback:
+      r.update(
+        irdbd_sql_database      = self.irdb_name,
+        rpkid_sql_database      = "rpki%d" % self.engine,
+        pubd_sql_database       = "pubd%d" % self.engine)
+
     r.update(config_overrides)
 
-    f = open(self.path("rpki.conf"), "w")
-    f.write("# Automatically generated, do not edit\n")
-    print "Writing", f.name
+    with open(self.path("rpki.conf"), "w") as f:
+      f.write("# Automatically generated, do not edit\n")
+      print "Writing", f.name
 
-    section = None
-    for line in open(rpki_conf):
-      m = section_regexp.match(line)
-      if m:
-        section = m.group(1)
-      m = variable_regexp.match(line)
-      option = m.group(1) if m and section == "myrpki" else None
-      if option and option in r:
-        line = "%s = %s\n" % (option, r[option])
-      f.write(line)
-
-    f.close()
+      section = None
+      for line in open(rpki_conf):
+        m = section_regexp.match(line)
+        if m:
+          section = m.group(1)
+        m = variable_regexp.match(line)
+        option = m.group(1) if m and section == "myrpki" else None
+        if option and option in r:
+          line = "%s = %s\n" % (option, r[option])
+        f.write(line)
 
   def dump_rsyncd(self):
     if self.runs_pubd:
-      f = open(self.path("rsyncd.conf"), "w")
-      print "Writing", f.name
-      f.writelines(s + "\n" for s in
-                   ("# Automatically generated, do not edit",
-                    "port         = %d"           % self.rsync_port,
-                    "address      = %s"           % self.hostname,
-                    "[rpki]",
-                    "log file     = rsyncd.log",
-                    "read only    = yes",
-                    "use chroot   = no",
-                    "path         = %s"           % self.path("publication"),
-                    "comment      = RPKI test"))
-      f.close()
+      with open(self.path("rsyncd.conf"), "w") as f:
+        print "Writing", f.name
+        f.writelines(s + "\n" for s in
+                     ("# Automatically generated, do not edit",
+                      "port         = %d"           % self.rsync_port,
+                      "address      = %s"           % self.hostname,
+                      "[rpki]",
+                      "log file     = rsyncd.log",
+                      "read only    = yes",
+                      "use chroot   = no",
+                      "path         = %s"           % self.path("publication"),
+                      "comment      = RPKI test",
+                      "[root]",
+                      "log file     = rsyncd_root.log",
+                      "read only    = yes",
+                      "use chroot   = no",
+                      "path         = %s"           % self.path("publication.root"),
+                      "comment      = RPKI test root"))
 
   @property
   def irdb_name(self):
@@ -441,18 +447,15 @@ class allocation(object):
       notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
       resources   = root_resources)
 
-    f = open(self.path("publication/root.cer"), "wb")
-    f.write(root_cert.get_DER())
-    f.close()
+    with open(self.path("publication.root/root.cer"), "wb") as f:
+      f.write(root_cert.get_DER())
 
-    f = open(self.path("root.key"), "wb")
-    f.write(root_key.get_DER())
-    f.close()
+    with open(self.path("root.key"), "wb") as f:
+      f.write(root_key.get_DER())
 
-    f = open(os.path.join(test_dir, "root.tal"), "w")
-    f.write(root_uri + "root.cer\n")
-    f.write(root_key.get_RSApublic().get_Base64())
-    f.close()
+    with open(os.path.join(test_dir, "root.tal"), "w") as f:
+      f.write("rsync://%s/root/root.cer\n\n%s" % (
+        self.rsync_server, root_key.get_RSApublic().get_Base64()))
 
   def mkdir(self, *path):
     path = self.path(*path)
@@ -489,11 +492,11 @@ def pre_django_sql_setup(needed):
   # databases as necessary, all we need to do here is provide empty
   # databases for the Django code to fill in.
 
-  if mysql_rootpw is not None:
-    if mysql_rootpw:
-      db = MySQLdb.connect(user = "root", passwd = mysql_rootpw)
+  if mysql_rootpass is not None:
+    if mysql_rootpass:
+      db = MySQLdb.connect(user = mysql_rootuser, passwd = mysql_rootpass)
     else:
-      db = MySQLdb.connect(user = "root")  
+      db = MySQLdb.connect(user = mysql_rootuser)  
     cur = db.cursor()
     for database in needed:
       try:
@@ -549,7 +552,8 @@ def main():
   global only_one_pubd
   global loopback
   global dns_suffix
-  global mysql_rootpw
+  global mysql_rootuser
+  global mysql_rootpass
   global yaml_file
 
   os.environ["TZ"] = "UTC"
@@ -597,9 +601,10 @@ def main():
     pass
 
   only_one_pubd = cfg.getboolean("only_one_pubd", True)
+  mysql_rootuser = cfg.get("mysql_rootuser", "root")
 
   try:
-    mysql_rootpw = cfg.get("mysql_rootpw", None)
+    mysql_rootpass = cfg.get("mysql_rootpass", None)
   except:
     pass
 
@@ -683,6 +688,8 @@ def body():
       d.mkdir()
     if d.runs_pubd:
       d.mkdir("publication")
+    if d.is_root:
+      d.mkdir("publication.root")
 
     if not d.is_hosted:
       d.dump_conf()
@@ -720,9 +727,10 @@ def body():
 
     ts()
 
-  print
-  for d in db:
-    d.dump_sql()
+  if not loopback:
+    print
+    for d in db:
+      d.dump_sql()
 
 if __name__ == "__main__":
   main()

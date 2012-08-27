@@ -372,12 +372,12 @@ class main(object):
 
     self.rpki_root_key           = rpki.x509.RSA(Auto_update = self.cfg.get("rpki-root-key"))
     self.rpki_root_cert_file     = self.cfg.get("rpki-root-cert")
-    self.rpki_root_cert_uri      = self.cfg.get("rpki-root-cert-uri", self.rpki_base_uri + "Root.cer")
+    self.rpki_root_cert_uri      = self.cfg.get("rpki-root-cert-uri", self.rpki_base_uri + "root.cer")
 
-    self.rpki_root_manifest      = self.cfg.get("rpki-root-manifest", "Root.mft")
-    self.rpki_root_crl           = self.cfg.get("rpki-root-crl",      "Root.crl")
-    self.rpki_subject_cert       = self.cfg.get("rpki-subject-cert",  "Child.cer")
-    self.rpki_subject_pkcs10     = self.cfg.get("rpki-subject-pkcs10", "Child.pkcs10")
+    self.rpki_root_manifest      = self.cfg.get("rpki-root-manifest", "root.mft")
+    self.rpki_root_crl           = self.cfg.get("rpki-root-crl",      "root.crl")
+    self.rpki_subject_cert       = self.cfg.get("rpki-subject-cert",  "child.cer")
+    self.rpki_subject_pkcs10     = self.cfg.get("rpki-subject-pkcs10", "child.pkcs10")
 
     self.rpki_subject_lifetime   = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-lifetime", "30d"))
     self.rpki_subject_regen      = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-regen", self.rpki_subject_lifetime.convert_to_seconds() / 2))

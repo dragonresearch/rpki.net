@@ -420,7 +420,13 @@ class allocation(object):
                     "read only    = yes",
                     "use chroot   = no",
                     "path         = %s"           % self.path("publication"),
-                    "comment      = RPKI test"))
+                    "comment      = RPKI test",
+                    "[root]",
+                    "log file     = rsyncd_root.log",
+                    "read only    = yes",
+                    "use chroot   = no",
+                    "path         = %s"           % self.path("publication.root"),
+                    "comment      = RPKI test root"))
       f.close()
 
   @classmethod
@@ -603,8 +609,10 @@ try:
     # Create publication directories.
 
     for d in db:
-      if d.is_root or d.runs_pubd:
+      if d.runs_pubd:
         os.makedirs(d.path("publication"))
+      if d.is_root:
+        os.makedirs(d.path("publication.root"))
 
     # Create RPKI root certificate.
 
@@ -630,7 +638,7 @@ try:
       notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
       resources   = root_resources)
 
-    f = open(db.root.path("publication/root.cer"), "wb")
+    f = open(db.root.path("publication.root/root.cer"), "wb")
     f.write(root_cert.get_DER())
     f.close()
 
@@ -639,7 +647,7 @@ try:
     f.close()
 
     f = open(os.path.join(test_dir, "root.tal"), "w")
-    f.write(root_uri + "root.cer\n")
+    f.write("rsync://localhost:%d/root/root.cer\n\n" % db.root.pubd.rsync_port)
     f.write(root_key.get_RSApublic().get_Base64())
     f.close()
 

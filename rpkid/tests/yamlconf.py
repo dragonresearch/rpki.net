@@ -67,6 +67,8 @@ loopback = False
 dns_suffix = None
 mysql_rootuser = None
 mysql_rootpass = None
+publication_base = None
+publication_root = None
 
 # The SQL username mismatch between rpkid/examples/rpki.conf and
 # rpkid/tests/smoketest.setup.sql is completely stupid and really
@@ -83,12 +85,9 @@ config_overrides = {
 def cleanpath(*names):
   return os.path.normpath(os.path.join(*names))
 
-# Use of "yamltest.dir" is deliberate: intent is for what we write to
-# be usable with "yamltest --skip_config".
-
 this_dir  = os.getcwd()
-test_dir  = cleanpath(this_dir, "yamltest.dir")
-rpki_conf = cleanpath(this_dir, "..", "examples/rpki.conf")
+test_dir  = None
+rpki_conf = None
 
 class roa_request(object):
   """
@@ -327,6 +326,20 @@ class allocation(object):
   def host(self):
     return self.hosted_by or self
 
+  @property
+  def publication_base_directory(self):
+    if not loopback and publication_base is not None:
+      return publication_base
+    else:
+      return self.path("publication")
+
+  @property
+  def publication_root_directory(self):
+    if not loopback and publication_root is not None:
+      return publication_root
+    else:
+      return self.path("publication.root")
+
   def dump_conf(self):
 
     r = dict(
@@ -345,7 +358,7 @@ class allocation(object):
       pubd_server_host          = self.pubd.hostname,
       pubd_server_port          = str(self.pubd.pubd_port),
       publication_rsync_server  = self.rsync_server,
-      publication_base_directory = self.path("publication"),
+      publication_base_directory = self.publication_base_directory,
       bpki_servers_directory    = self.path())
     
     if loopback:
@@ -372,25 +385,31 @@ class allocation(object):
         f.write(line)
 
   def dump_rsyncd(self):
+    lines = []
     if self.runs_pubd:
+      lines.extend((
+        "# Automatically generated, do not edit",
+        "port         = %d"           % self.rsync_port,
+        "address      = %s"           % self.hostname,
+        "[rpki]",
+        "log file     = rsyncd.log",
+        "read only    = yes",
+        "use chroot   = no",
+        "path         = %s"           % self.publication_base_directory,
+        "comment      = RPKI test"))
+    if self.is_root:
+      assert self.runs_pubd
+      lines.extend((
+        "[root]",
+        "log file     = rsyncd_root.log",
+        "read only    = yes",
+        "use chroot   = no",
+        "path         = %s"           % self.publication_root_directory,
+        "comment      = RPKI test root"))
+    if lines:
       with open(self.path("rsyncd.conf"), "w") as f:
         print "Writing", f.name
-        f.writelines(s + "\n" for s in
-                     ("# Automatically generated, do not edit",
-                      "port         = %d"           % self.rsync_port,
-                      "address      = %s"           % self.hostname,
-                      "[rpki]",
-                      "log file     = rsyncd.log",
-                      "read only    = yes",
-                      "use chroot   = no",
-                      "path         = %s"           % self.path("publication"),
-                      "comment      = RPKI test",
-                      "[root]",
-                      "log file     = rsyncd_root.log",
-                      "read only    = yes",
-                      "use chroot   = no",
-                      "path         = %s"           % self.path("publication.root"),
-                      "comment      = RPKI test root"))
+        f.writelines(line + "\n" for line in lines)
 
   @property
   def irdb_name(self):
@@ -447,13 +466,13 @@ class allocation(object):
       notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
       resources   = root_resources)
 
-    with open(self.path("publication.root/root.cer"), "wb") as f:
+    with open(self.path("publication.root", "root.cer"), "wb") as f:
       f.write(root_cert.get_DER())
 
     with open(self.path("root.key"), "wb") as f:
       f.write(root_key.get_DER())
 
-    with open(os.path.join(test_dir, "root.tal"), "w") as f:
+    with open(cleanpath(test_dir, "root.tal"), "w") as f:
       f.write("rsync://%s/root/root.cer\n\n%s" % (
         self.rsync_server, root_key.get_RSApublic().get_Base64()))
 
@@ -555,6 +574,10 @@ def main():
   global mysql_rootuser
   global mysql_rootpass
   global yaml_file
+  global test_dir
+  global rpki_conf
+  global publication_base
+  global publication_root
 
   os.environ["TZ"] = "UTC"
   time.tzset()
@@ -563,7 +586,8 @@ def main():
   profile = None
 
   opts, argv = getopt.getopt(sys.argv[1:], "c:fhl?",
-                             ["config=", "flat_publication", "help", "loopback", "profile="])
+                             ["config=", "dns_suffix=", "flat_publication", "help",
+                              "loopback", "profile="])
   for o, a in opts:
     if o in ("-h", "--help", "-?"):
       print __doc__
@@ -600,11 +624,26 @@ def main():
   except:
     pass
 
+  # Use of "yamltest.dir" is deliberate: intent is for what we write to
+  # be usable with "yamltest --skip_config".
+
   only_one_pubd = cfg.getboolean("only_one_pubd", True)
+  test_dir = cfg.get("test_directory", cleanpath(this_dir, "yamltest.dir"))
+  rpki_conf = cfg.get("rpki_conf", cleanpath(this_dir, "..", "examples/rpki.conf"))
   mysql_rootuser = cfg.get("mysql_rootuser", "root")
 
   try:
-    mysql_rootpass = cfg.get("mysql_rootpass", None)
+    mysql_rootpass = cfg.get("mysql_rootpass")
+  except:
+    pass
+
+  try:
+    publication_base = cfg.get("publication_base")
+  except:
+    pass
+
+  try:
+    publication_root = cfg.get("publication_root")
   except:
     pass
 

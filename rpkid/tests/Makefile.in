@@ -64,14 +64,20 @@ yamltest:
 	${PYTHON} yamltest.py ${YAMLTEST_CONFIG}
 
 YAMLCONF_CONFIG = ${YAMLTEST_CONFIG}
-YAMLCONF_PROFILE =
 
 yamlconf:
 	rm -rf yamltest.dir rcynic-data
 	${PYTHON} sql-cleaner.py
-	${PYTHON} yamlconf.py --loopback ${YAMLCONF_PROFILE} ${YAMLCONF_CONFIG}
+	${PYTHON} yamlconf.py --loopback ${YAMLCONF_CONFIG}
 	@echo
 	${PYTHON} yamltest.py --skip_config --synchronize ${YAMLCONF_CONFIG}
+
+yamlconf-profile:
+	rm -rf yamltest.dir rcynic-data
+	${PYTHON} sql-cleaner.py
+	${PYTHON} yamlconf.py --loopback --profile yamlconf.prof ${YAMLCONF_CONFIG}
+	@echo
+	${PYTHON} yamltest.py --skip_config --synchronize --profile ${YAMLCONF_CONFIG}
 
 backup:
 	${PYTHON} sql-dumper.py

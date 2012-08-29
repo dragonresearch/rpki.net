@@ -667,7 +667,7 @@ def body():
       os.rmdir(os.path.join(root, dir))
 
   print
-  print "Reading YAML", yaml_file
+  print "Reading YAML", yaml_file.name
 
   db = allocation_db(yaml.safe_load_all(yaml_file).next())
 

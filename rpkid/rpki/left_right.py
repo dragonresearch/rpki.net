@@ -3,7 +3,7 @@ RPKI "left-right" protocol.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -32,9 +32,20 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
-import rpki.http, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
-import rpki.publication, rpki.async, rpki.rpkid_tasks
+import rpki.resource_set
+import rpki.x509
+import rpki.sql
+import rpki.exceptions
+import rpki.xml_utils
+import rpki.http
+import rpki.up_down
+import rpki.relaxng
+import rpki.sundial
+import rpki.log
+import rpki.roa
+import rpki.publication
+import rpki.async
+import rpki.rpkid_tasks
 
 ## @var enforce_strict_up_down_xml_sender
 # Enforce strict checking of XML "sender" field in up-down protocol
@@ -60,6 +71,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
   self_handle = None
 
   @property
+  @rpki.sql.cache_reference
   def self(self):
     """
     Fetch self object to which this object links.
@@ -67,6 +79,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     return self_elt.sql_fetch(self.gctx, self.self_id)
 
   @property
+  @rpki.sql.cache_reference
   def bsc(self):
     """
     Return BSC object to which this object links.
@@ -140,9 +153,16 @@ class self_elt(data_elt):
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "revoke_forgotten",
               "clear_replay_protection")
 
-  sql_template = rpki.sql.template("self", "self_id", "self_handle",
-                                   "use_hsm", "crl_interval", "regen_margin",
-                                   ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
+  sql_template = rpki.sql.template(
+    "self",
+    "self_id",
+    "self_handle",
+    "use_hsm",
+    "crl_interval",
+    "regen_margin",
+    ("bpki_cert", rpki.x509.X509),
+    ("bpki_glue", rpki.x509.X509))
+
   handles = ()
 
   use_hsm = False
@@ -151,6 +171,9 @@ class self_elt(data_elt):
   bpki_cert = None
   bpki_glue = None
   cron_tasks = None
+
+  def __repr__(self):
+    return rpki.log.log_repr(self)
 
   @property
   def bscs(self):
@@ -373,18 +396,26 @@ class bsc_elt(data_elt):
   elements = ("signing_cert", "signing_cert_crl", "pkcs10_request")
   booleans = ("generate_keypair",)
 
-  sql_template = rpki.sql.template("bsc", "bsc_id", "bsc_handle",
-                                   "self_id", "hash_alg",
-                                   ("private_key_id", rpki.x509.RSA),
-                                   ("pkcs10_request", rpki.x509.PKCS10),
-                                   ("signing_cert", rpki.x509.X509),
-                                   ("signing_cert_crl", rpki.x509.CRL))
+  sql_template = rpki.sql.template(
+    "bsc",
+    "bsc_id",
+    "bsc_handle",
+    "self_id",
+    "hash_alg",
+    ("private_key_id", rpki.x509.RSA),
+    ("pkcs10_request", rpki.x509.PKCS10),
+    ("signing_cert", rpki.x509.X509),
+    ("signing_cert_crl", rpki.x509.CRL))
+
   handles = (("self", self_elt),)
 
   private_key_id = None
   pkcs10_request = None
   signing_cert = None
   signing_cert_crl = None
+
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.bsc_handle)
 
   @property
   def repositories(self):
@@ -429,17 +460,26 @@ class repository_elt(data_elt):
   elements = ("bpki_cert", "bpki_glue")
   booleans = ("clear_replay_protection",)
 
-  sql_template = rpki.sql.template("repository", "repository_id", "repository_handle",
-                                   "self_id", "bsc_id", "peer_contact_uri",
-                                   ("bpki_cert", rpki.x509.X509),
-                                   ("bpki_glue", rpki.x509.X509),
-                                   ("last_cms_timestamp", rpki.sundial.datetime))
+  sql_template = rpki.sql.template(
+    "repository",
+    "repository_id",
+    "repository_handle",
+    "self_id",
+    "bsc_id",
+    "peer_contact_uri",
+    ("bpki_cert", rpki.x509.X509),
+    ("bpki_glue", rpki.x509.X509),
+    ("last_cms_timestamp", rpki.sundial.datetime))
 
-  handles = (("self", self_elt), ("bsc", bsc_elt))
+  handles = (("self", self_elt),
+             ("bsc", bsc_elt))
 
   bpki_cert = None
   bpki_glue = None
   last_cms_timestamp = None
+
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.repository_handle)
 
   @property
   def parents(self):
@@ -548,21 +588,34 @@ class parent_elt(data_elt):
   elements = ("bpki_cms_cert", "bpki_cms_glue")
   booleans = ("rekey", "reissue", "revoke", "revoke_forgotten", "clear_replay_protection")
 
-  sql_template = rpki.sql.template("parent", "parent_id", "parent_handle",
-                                   "self_id", "bsc_id", "repository_id",
-                                   "peer_contact_uri", "sia_base",
-                                   "sender_name", "recipient_name",
-                                   ("bpki_cms_cert", rpki.x509.X509),
-                                   ("bpki_cms_glue", rpki.x509.X509),
-                                   ("last_cms_timestamp", rpki.sundial.datetime))
+  sql_template = rpki.sql.template(
+    "parent",
+    "parent_id",
+    "parent_handle",
+    "self_id",
+    "bsc_id",
+    "repository_id",
+    "peer_contact_uri",
+    "sia_base",
+    "sender_name",
+    "recipient_name",
+    ("bpki_cms_cert", rpki.x509.X509),
+    ("bpki_cms_glue", rpki.x509.X509),
+    ("last_cms_timestamp", rpki.sundial.datetime))
 
-  handles = (("self", self_elt), ("bsc", bsc_elt), ("repository", repository_elt))
+  handles = (("self", self_elt),
+             ("bsc", bsc_elt),
+             ("repository", repository_elt))
 
   bpki_cms_cert = None
   bpki_cms_glue = None
   last_cms_timestamp = None
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.parent_handle)
+
   @property
+  @rpki.sql.cache_reference
   def repository(self):
     """
     Fetch repository object to which this parent object links.
@@ -781,17 +834,25 @@ class child_elt(data_elt):
   elements = ("bpki_cert", "bpki_glue")
   booleans = ("reissue", "clear_replay_protection")
 
-  sql_template = rpki.sql.template("child", "child_id", "child_handle",
-                                   "self_id", "bsc_id",
-                                   ("bpki_cert", rpki.x509.X509),
-                                   ("bpki_glue", rpki.x509.X509),
-                                   ("last_cms_timestamp", rpki.sundial.datetime))
+  sql_template = rpki.sql.template(
+    "child",
+    "child_id",
+    "child_handle",
+    "self_id",
+    "bsc_id",
+    ("bpki_cert", rpki.x509.X509),
+    ("bpki_glue", rpki.x509.X509),
+    ("last_cms_timestamp", rpki.sundial.datetime))
 
-  handles = (("self", self_elt), ("bsc", bsc_elt))
+  handles = (("self", self_elt),
+             ("bsc", bsc_elt))
 
   bpki_cert = None
   bpki_glue = None
   last_cms_timestamp = None
+
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.child_handle)
 
   def fetch_child_certs(self, ca_detail = None, ski = None, unique = False):
     """
@@ -854,7 +915,9 @@ class child_elt(data_elt):
       raise rpki.exceptions.ClassNameUnknown, "Unknown class name %s" % class_name
     parent = ca.parent
     if self.self_id != parent.self_id:
-      raise rpki.exceptions.ClassNameMismatch, "Class name mismatch: child.self_id = %d, parent.self_id = %d" % (self.self_id, parent.self_id)
+      raise rpki.exceptions.ClassNameMismatch(
+        "Class name mismatch: child.self_id = %d, parent.self_id = %d" % (
+        self.self_id, parent.self_id))
     return ca
 
   def serve_destroy_hook(self, cb, eb):
@@ -918,6 +981,9 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   attributes = ("self_handle", "tag", "child_handle", "valid_until", "asn", "ipv4", "ipv6")
   valid_until = None
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.self_handle, self.child_handle, self.asn, self.ipv4, self.ipv6)
+
   def startElement(self, stack, name, attrs):
     """
     Handle <list_resources/> element.  This requires special handling
@@ -965,7 +1031,7 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
       self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
 
   def __repr__(self):
-    return rpki.log.log_repr(self, self.asn, self.ipv4, self.ipv6)
+    return rpki.log.log_repr(self, self.self_handle, self.asn, self.ipv4, self.ipv6)
 
 class list_ghostbuster_requests_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
@@ -978,6 +1044,8 @@ class list_ghostbuster_requests_elt(rpki.xml_utils.text_elt, left_right_namespac
 
   vcard = None
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.self_handle, self.parent_handle)
 
 class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
@@ -990,6 +1058,9 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
 
   obj = None
   child_handle = None
+
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.self_handle, self.child_handle, self.uri)
 
   def serve_dispatch(self, r_msg, cb, eb):
     """
@@ -1028,6 +1099,9 @@ class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace)
   element_name = "list_received_resources"
   attributes = ("self_handle", "tag", "parent_handle",
                 "notBefore", "notAfter", "uri", "sia_uri", "aia_uri", "asn", "ipv4", "ipv6")
+
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.self_handle, self.parent_handle, self.uri, self.notAfter)
 
   def serve_dispatch(self, r_msg, cb, eb):
     """
@@ -1072,6 +1146,9 @@ class report_error_elt(rpki.xml_utils.text_elt, left_right_namespace):
 
   error_text = None
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.self_handle, self.error_code)
+
   @classmethod
   def from_exception(cls, e, self_handle = None, tag = None):
     """
@@ -1114,7 +1191,8 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
       def fail(e):
         if not isinstance(e, rpki.exceptions.NotFound):
           rpki.log.traceback()
-        r_msg.append(report_error_elt.from_exception(e, self_handle = q_pdu.self_handle, tag = q_pdu.tag))
+        r_msg.append(report_error_elt.from_exception(
+          e, self_handle = q_pdu.self_handle, tag = q_pdu.tag))
         cb(r_msg)
 
       try:

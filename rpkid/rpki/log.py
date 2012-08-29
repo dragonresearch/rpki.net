@@ -44,7 +44,6 @@ try:
 except ImportError:
   have_setproctitle = False
 
-
 ## @var enable_trace
 # Whether call tracing is enabled.
 
@@ -72,6 +71,15 @@ enable_tracebacks = True
 
 use_setproctitle = True
 
+## @var proctitle_extra
+
+# Extra text to include in proctitle display.  By default this is the
+# tail of the current directory name, as this is often useful, but you
+# can set it to something else if you like.  If None or the empty
+# string, the extra information field will be omitted from the proctitle.
+
+proctitle_extra = os.path.basename(os.getcwd())
+
 tag = ""
 pid = 0
 
@@ -87,7 +95,10 @@ def init(ident = "rpki", flags = syslog.LOG_PID, facility = syslog.LOG_DAEMON):
     tag = ident
     pid = os.getpid()
   if ident and have_setproctitle and use_setproctitle:
-    setproctitle.setproctitle("%s (%s)" % (ident, os.path.basename(os.getcwd())))
+    if proctitle_extra:
+      setproctitle.setproctitle("%s (%s)" % (ident, proctitle_extra))
+    else:
+      setproctitle.setproctitle(ident)
 
 def set_trace(enable):
   """
@@ -165,7 +176,15 @@ def log_repr(obj, *tokens):
     words.append("{%s}" % obj.self.self_handle)
   except:
     pass
-  words.extend(str(token) for token in tokens if token is not None and token != "")
+  for token in tokens:
+    if token is not None and token != "":
+      try:
+        assert token is not None
+        words.append(str(token))
+      except:
+        debug("Failed to generate repr() string for object of type %r" % type(token))
+        traceback()
+        words.append("???")
   if show_python_ids:
     words.append(" at %#x" % id(obj))
   return "<" + " ".join(words) + ">"

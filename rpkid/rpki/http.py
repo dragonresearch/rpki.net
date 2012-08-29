@@ -829,7 +829,7 @@ class http_queue(object):
   log = log_method
 
   def __repr__(self):
-    return rpki.log.log_repr(self, "%s" % addr_to_string(self.hostport))
+    return rpki.log.log_repr(self, addr_to_string(self.hostport))
 
   def __init__(self, hostport):
     self.hostport = hostport

@@ -374,3 +374,32 @@ class sql_persistent(object):
     """
     pass
 
+
+def cache_reference(func):
+  """
+  Decorator for use with property methods which just do an SQL lookup based on an ID.
+  Check for an existing reference to the object, just return that if we find it,
+  otherwise perform the SQL lookup.
+
+  Not 100% certain this is a good idea, but I //think// it should work well with the
+  current weak reference SQL cache, so long as we create no circular references.
+  So don't do that.
+  """
+
+  attr_name = "_" + func.__name__
+
+  def wrapped(self):
+    try:
+      value = getattr(self, attr_name)
+      assert value is not None
+    except AttributeError:
+      value = func(self)
+      if value is not None:
+        setattr(self, attr_name, value)
+    return value
+
+  wrapped.__name__ = func.__name__
+  wrapped.__doc__ = func.__doc__
+  wrapped.__dict__.update(func.__dict__)
+
+  return wrapped

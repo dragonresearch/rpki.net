@@ -73,7 +73,10 @@ class config_elt(control_elt):
   element_name = "config"
   elements = ("bpki_crl",)
 
-  sql_template = rpki.sql.template("config", "config_id", ("bpki_crl", rpki.x509.CRL))
+  sql_template = rpki.sql.template(
+    "config",
+    "config_id",
+    ("bpki_crl", rpki.x509.CRL))
 
   wired_in_config_id = 1
 
@@ -120,10 +123,14 @@ class client_elt(control_elt):
   elements = ("bpki_cert", "bpki_glue")
   booleans = ("clear_replay_protection",)
 
-  sql_template = rpki.sql.template("client", "client_id", "client_handle", "base_uri",
-                                   ("bpki_cert", rpki.x509.X509),
-                                   ("bpki_glue", rpki.x509.X509),
-                                   ("last_cms_timestamp", rpki.sundial.datetime))
+  sql_template = rpki.sql.template(
+    "client",
+    "client_id",
+    "client_handle",
+    "base_uri",
+    ("bpki_cert", rpki.x509.X509),
+    ("bpki_glue", rpki.x509.X509),
+    ("last_cms_timestamp", rpki.sundial.datetime))
 
   base_uri  = None
   bpki_cert = None

@@ -347,7 +347,6 @@ class main(object):
     except IndexError:
       self.task_current = None
     else:
-      rpki.log.debug("Pulled %r from task queue" % self.task_current)
       rpki.async.event_defer(self.task_current)
 
   def task_run(self):
@@ -427,15 +426,22 @@ class ca_obj(rpki.sql.sql_persistent):
     "ca_id",
     "last_crl_sn",
     ("next_crl_update", rpki.sundial.datetime),
-    "last_issued_sn", "last_manifest_sn",
+    "last_issued_sn",
+    "last_manifest_sn",
     ("next_manifest_update", rpki.sundial.datetime),
-    "sia_uri", "parent_id", "parent_resource_class")
+    "sia_uri",
+    "parent_id",
+    "parent_resource_class")
 
   last_crl_sn = 0
   last_issued_sn = 0
   last_manifest_sn = 0
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, repr(self.parent), self.parent_resource_class)
+
   @property
+  @rpki.sql.cache_reference
   def parent(self):
     """
     Fetch parent object to which this CA object links.
@@ -741,6 +747,9 @@ class ca_detail_obj(rpki.sql.sql_persistent):
   manifest_published = None
   latest_ca_cert = None
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, repr(self.ca), self.state, self.ca_cert_uri)
+
   def sql_decode(self, vals):
     """
     Extra assertions for SQL decode of a ca_detail_obj.
@@ -750,6 +759,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     assert self.manifest_public_key is None or self.manifest_private_key_id is None or self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
 
   @property
+  @rpki.sql.cache_reference
   def ca(self):
     """
     Fetch CA object to which this ca_detail links.
@@ -1060,6 +1070,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       rpki.log.debug("Created new child_cert %r" % child_cert)
     else:
       child_cert.cert = cert
+      del child_cert.ca_detail
       child_cert.ca_detail_id = self.ca_detail_id
       rpki.log.debug("Reusing existing child_cert %r" % child_cert)
 
@@ -1194,6 +1205,9 @@ class child_cert_obj(rpki.sql.sql_persistent):
     "ski",
     ("published", rpki.sundial.datetime))
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.uri)
+
   def __init__(self, gctx = None, child_id = None, ca_detail_id = None, cert = None):
     """
     Initialize a child_cert_obj.
@@ -1208,18 +1222,27 @@ class child_cert_obj(rpki.sql.sql_persistent):
       self.sql_mark_dirty()
 
   @property
+  @rpki.sql.cache_reference
   def child(self):
     """
     Fetch child object to which this child_cert object links.
     """
     return rpki.left_right.child_elt.sql_fetch(self.gctx, self.child_id)
-
+    
   @property
+  @rpki.sql.cache_reference
   def ca_detail(self):
     """
     Fetch ca_detail object to which this child_cert object links.
     """
     return ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
+
+  @ca_detail.deleter
+  def ca_detail(self):
+    try:
+      del self._ca_detail
+    except AttributeError:
+      pass
 
   @property
   def uri_tail(self):
@@ -1381,6 +1404,9 @@ class revoked_cert_obj(rpki.sql.sql_persistent):
     ("revoked", rpki.sundial.datetime),
     ("expires", rpki.sundial.datetime))
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, repr(self.ca_detail), self.serial, self.revoked)
+
   def __init__(self, gctx = None, serial = None, revoked = None, expires = None, ca_detail_id = None):
     """
     Initialize a revoked_cert_obj.
@@ -1395,6 +1421,7 @@ class revoked_cert_obj(rpki.sql.sql_persistent):
       self.sql_mark_dirty()
 
   @property
+  @rpki.sql.cache_reference
   def ca_detail(self):
     """
     Fetch ca_detail object to which this revoked_cert_obj links.
@@ -1434,6 +1461,7 @@ class roa_obj(rpki.sql.sql_persistent):
   published = None
 
   @property
+  @rpki.sql.cache_reference
   def self(self):
     """
     Fetch self object to which this roa_obj links.
@@ -1441,11 +1469,19 @@ class roa_obj(rpki.sql.sql_persistent):
     return rpki.left_right.self_elt.sql_fetch(self.gctx, self.self_id)
 
   @property
+  @rpki.sql.cache_reference
   def ca_detail(self):
     """
     Fetch ca_detail object to which this roa_obj links.
     """
     return rpki.rpkid.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
+
+  @ca_detail.deleter
+  def ca_detail(self):
+    try:
+      del self._ca_detail
+    except AttributeError:
+      pass
 
   def sql_fetch_hook(self):
     """
@@ -1597,6 +1633,7 @@ class roa_obj(rpki.sql.sql_persistent):
     resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)
     keypair = rpki.x509.RSA.generate()
 
+    del self.ca_detail
     self.ca_detail_id = ca_detail.ca_detail_id
     self.cert = ca_detail.issue_ee(
       ca          = ca,
@@ -1713,7 +1750,11 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
   published = None
   vcard = None
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.uri)
+
   @property
+  @rpki.sql.cache_reference
   def self(self):
     """
     Fetch self object to which this ghostbuster_obj links.
@@ -1721,6 +1762,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     return rpki.left_right.self_elt.sql_fetch(self.gctx, self.self_id)
 
   @property
+  @rpki.sql.cache_reference
   def ca_detail(self):
     """
     Fetch ca_detail object to which this ghostbuster_obj links.
@@ -1906,17 +1948,13 @@ class publication_queue(object):
     return self._add(     uri, obj, repository, handler, cls.make_withdraw)
 
   def call_pubd(self, cb, eb):
-    if self.empty():
+    def loop(iterator, rid):
+      rpki.log.debug("Calling pubd[%r]" % self.repositories[rid])
+      self.repositories[rid].call_pubd(iterator, eb, self.msgs[rid], self.handlers)
+    def done():
+      self.clear()
       cb()
-    else:
-      def loop(iterator, rid):
-        rpki.log.debug("Calling pubd[%r]" % self.repositories[rid])
-        self.repositories[rid].call_pubd(iterator, eb, self.msgs[rid], self.handlers)
-      def done():
-        rpki.log.debug("Publication complete")
-        self.clear()
-        cb()
-      rpki.async.iterator(self.repositories, loop, done)
+    rpki.async.iterator(self.repositories, loop, done)
 
   @property
   def size(self):

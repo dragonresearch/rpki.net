@@ -33,7 +33,9 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import ConfigParser, os, re
+import ConfigParser
+import os
+import re
 
 ## @var default_filename
 # Default name of config file if caller doesn't specify one explictly.

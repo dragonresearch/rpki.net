@@ -630,7 +630,7 @@ class message_pdu(base_elt):
     """
     Convert a message PDU to a string.
     """
-    lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "UTF-8")
+    return lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "UTF-8")
 
   def serve_top_level(self, child, callback):
     """

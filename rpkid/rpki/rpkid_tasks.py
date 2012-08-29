@@ -348,9 +348,6 @@ class UpdateROAsTask(AbstractTask):
         self.orphans.append(roa)
 
     for roa_request in roa_requests:
-      rpki.log.debug("++ roa_requests %s roas %s orphans %s updates %s ca_details %s seen %s cache %s" % (
-        len(roa_requests), len(roas), len(self.orphans), len(self.updates),
-        len(self.ca_details), len(seen), len(self.gctx.sql.cache)))
       k = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
       if k in seen:
         rpki.log.warn("Skipping duplicate ROA request %r" % roa_request)
@@ -377,8 +374,6 @@ class UpdateROAsTask(AbstractTask):
 
   def loop(self, iterator, roa):
     self.gctx.checkpoint()
-    rpki.log.debug("++ updates %s orphans %s ca_details %s cache %s" % (
-      len(self.updates), len(self.orphans), len(self.ca_details), len(self.gctx.sql.cache)))
     try:
       roa.update(publisher = self.publisher, fast = True)
       self.ca_details.add(roa.ca_detail)
@@ -404,11 +399,8 @@ class UpdateROAsTask(AbstractTask):
         rpki.log.debug("Generating new manifest for %r" % ca_detail)
         ca_detail.generate_manifest(publisher = self.publisher)
     self.ca_details.clear()
-    rpki.log.debug("Sweeping")
     self.gctx.sql.sweep()
-    rpki.log.debug("Done sweeping")                         
     self.gctx.checkpoint()
-    rpki.log.debug("Starting publication")
     self.publisher.call_pubd(done, self.publication_failed)
 
   def publication_failed(self, e):

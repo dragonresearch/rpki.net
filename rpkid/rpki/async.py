@@ -3,7 +3,7 @@ Utilities for event-driven programming.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -18,8 +18,13 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import asyncore, signal, traceback, gc, sys
-import rpki.log, rpki.sundial
+import asyncore
+import signal
+import traceback
+import gc
+import sys
+import rpki.log
+import rpki.sundial
 
 ExitNow = asyncore.ExitNow
 
@@ -49,7 +54,7 @@ class iterator(object):
   def __init__(self, iterable, item_callback, done_callback, unwind_stack = True, pop_list = False):
     assert not pop_list or isinstance(iterable, list), "iterable must be a list when using pop_list"
     self.item_callback = item_callback
-    self.done_callback = done_callback
+    self.done_callback = done_callback if done_callback is not None else lambda: None
     self.caller_file, self.caller_line, self.caller_function = traceback.extract_stack(limit = 2)[0][0:3]
     self.unwind_stack = unwind_stack
     self.pop_list = pop_list
@@ -66,9 +71,10 @@ class iterator(object):
     self.doit()
 
   def __repr__(self):
-    return ("<%s created at %s:%s %s at 0x%x>" %
-            (self.__class__.__name__,
-             self.caller_file, self.caller_line, self.caller_function, id(self)))
+    return rpki.log.log_repr(self,
+                             "created at %s:%s" % (self.caller_file,
+                                                   self.caller_line),
+                             self.caller_function)
 
   def __call__(self):
     if self.unwind_stack:
@@ -82,18 +88,16 @@ class iterator(object):
     with the next iteration value, call the termination handler if the
     iterator signaled StopIteration.
     """
-    if self.pop_list:
-      if self.iterator:
-        self.item_callback(self, self.iterator.pop(0))
-      elif self.done_callback is not None:
-        self.done_callback()
-    else:
-      try:
-        self.item_callback(self, self.iterator.next())
-      except StopIteration:
-        if self.done_callback is not None:
-          self.done_callback()
 
+    try:
+      if self.pop_list:
+        val = self.iterator.pop(0)
+      else:
+        val = self.iterator.next()
+    except (IndexError, StopIteration):
+      self.done_callback()
+    else:
+      self.item_callback(self, val)
 
 ## @var timer_queue
 # Timer queue.

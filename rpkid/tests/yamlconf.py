@@ -42,11 +42,11 @@ PERFORMANCE OF THIS SOFTWARE.
 import subprocess
 import re
 import os
-import getopt
 import sys
 import yaml
 import signal
 import time
+import argparse
 import rpki.resource_set
 import rpki.sundial
 import rpki.config
@@ -582,34 +582,24 @@ def main():
   os.environ["TZ"] = "UTC"
   time.tzset()
 
-  cfg_file = None
-  profile = None
+  parser = argparse.ArgumentParser(description = "yamlconf")
+  parser.add_argument("-c", "--config", help = "configuration file")
+  parser.add_argument("--dns_suffix",
+                      help = "DNS suffix to add to hostnames")
+  parser.add_argument("-l", "--loopback", action = "store_true",
+                      help = "Configure for use with yamltest on localhost")
+  parser.add_argument("-f", "--flat_publication", action = "store_true",
+                      help = "Use flat publication model")
+  parser.add_argument("--profile",
+                      help = "Filename for profile output")
+  parser.add_argument("yaml_file", type = argparse.FileType("r"),
+                      help = "YAML file describing network to build")
+  args = parser.parse_args()
 
-  opts, argv = getopt.getopt(sys.argv[1:], "c:fhl?",
-                             ["config=", "dns_suffix=", "flat_publication", "help",
-                              "loopback", "profile="])
-  for o, a in opts:
-    if o in ("-h", "--help", "-?"):
-      print __doc__
-      sys.exit(0)
-    if o in ("-c", "--config"):
-      cfg_file = a
-    elif o in ("-d", "--dns_suffix"):
-      dns_suffix = a
-    elif o in ("-l", "--loopback"):
-      loopback = True
-    elif o in ("-f", "--flat_publication"):
-      flat_publication = True
-    elif o == "--profile":
-      profile = a
-
-  if len(argv) > 1:
-    raise rpki.exceptions.CommandParseFailure("Unexpected arguments %r" % argv)
-
-  if len(argv) < 1:
-    raise rpki.exceptions.CommandParseFailure("Missing YAML file name")
-
-  yaml_file = argv[0]
+  dns_suffix = args.dns_suffix
+  loopback = args.loopback
+  flat_publication = args.flat_publication
+  yaml_file = args.yaml_file
 
   rpki.log.use_syslog = False
   rpki.log.init("yamlconf")
@@ -618,7 +608,7 @@ def main():
   # passwords: this is mostly so that I can show a complete working
   # example without publishing my own server's passwords.
 
-  cfg = rpki.config.parser(cfg_file, "yamlconf", allow_missing = True)
+  cfg = rpki.config.parser(args.config, "yamlconf", allow_missing = True)
   try:
     cfg.set_global_flags()
   except:
@@ -652,15 +642,15 @@ def main():
     if cfg.has_option(k):
       config_overrides[k] = cfg.get(k) 
 
-  if profile:
+  if args.profile:
     import cProfile
     prof = cProfile.Profile()
     try:
       prof.runcall(body)
     finally:
-      prof.dump_stats(profile)
+      prof.dump_stats(args.profile)
       print
-      print "Dumped profile data to %s" % profile
+      print "Dumped profile data to %s" % args.profile
   else:
     body()
 
@@ -679,7 +669,7 @@ def body():
   print
   print "Reading YAML", yaml_file
 
-  db = allocation_db(yaml.safe_load_all(open(yaml_file)).next())
+  db = allocation_db(yaml.safe_load_all(yaml_file).next())
 
   # Show what we loaded
 

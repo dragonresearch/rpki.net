@@ -206,7 +206,7 @@ class base_elt(object):
     """
     Convert a base_elt object to string format.
     """
-    lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
+    return lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
 
   @classmethod
   def make_pdu(cls, **kargs):
@@ -451,7 +451,7 @@ class msg(list):
     """
     Convert msg object to string.
     """
-    lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
+    return lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
 
   def toXML(self):
     """

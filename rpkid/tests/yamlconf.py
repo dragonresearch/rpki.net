@@ -358,14 +358,14 @@ class allocation(object):
       pubd_server_host          = self.pubd.hostname,
       pubd_server_port          = str(self.pubd.pubd_port),
       publication_rsync_server  = self.rsync_server,
-      publication_base_directory = self.publication_base_directory,
-      bpki_servers_directory    = self.path())
+      publication_base_directory = self.publication_base_directory)
     
     if loopback:
       r.update(
         irdbd_sql_database      = self.irdb_name,
         rpkid_sql_database      = "rpki%d" % self.engine,
-        pubd_sql_database       = "pubd%d" % self.engine)
+        pubd_sql_database       = "pubd%d" % self.engine,
+        bpki_servers_directory  = self.path())
 
     r.update(config_overrides)
 
@@ -750,7 +750,7 @@ def body():
         x = d.pubd.zoo.configure_publication_client(x.file, flat = flat_publication)[0]
       d.zoo.configure_repository(x.file)
 
-    if not d.is_hosted:
+    if loopback and not d.is_hosted:
       with d.irdb:
         d.zoo.write_bpki_files()
 

@@ -494,7 +494,7 @@ class allocation(object):
       username = config_overrides["irdbd_sql_username"]
       password = config_overrides["irdbd_sql_password"]
       cmd = ("mysqldump", "-u", username, "-p" + password, self.irdb_name)
-      with open(self.path("irdb.sql"), "w") as f:
+      with open(self.path("irdbd.sql"), "w") as f:
         print "Writing", f.name
         subprocess.check_call(cmd, stdout = f)
 

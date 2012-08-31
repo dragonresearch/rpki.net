@@ -149,6 +149,7 @@ def get_email_list(conf):
     if len(notify_emails) == 0:
         # fall back to the email address registered for this user
         user = User.objects.get(username=conf.handle)
-        notify_emails.append(user.email)
+        if user.email:
+            notify_emails.append(user.email)
 
     return notify_emails

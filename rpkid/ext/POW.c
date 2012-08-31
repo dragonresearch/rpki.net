@@ -144,6 +144,7 @@
 // Object format
 #define SHORTNAME_FORMAT      1
 #define LONGNAME_FORMAT       2
+#define	OIDNAME_FORMAT        3
 
 // Output format
 #define PEM_FORMAT            1
@@ -627,87 +628,52 @@ static PyObject *
 X509_object_helper_get_name(X509_NAME *name, int format)
 {
   int no_entries = 0, no_pairs = 0, i = 0, j = 0, value_len = 0, nid = 0;
+  PyObject *result = NULL, *item = NULL;
   X509_NAME_ENTRY *entry = NULL;
-  char *value = NULL, long_name[512];
-  const char *short_name;
-
-  PyObject *result_list = NULL;
-  PyObject *pair = NULL;
-  PyObject *py_type = NULL;
-  PyObject *py_value = NULL;
+  const char *oid = NULL;
+  char oidbuf[512];
 
   no_entries = X509_NAME_entry_count(name);
 
-  if ((result_list = PyTuple_New(no_entries)) == NULL)
+  if ((result = PyTuple_New(no_entries)) == NULL)
     lose("could not allocate memory");
 
-  for(i = 0; i < no_entries; i++) {
+  for (i = 0; i < no_entries; i++) {
+
     if ((entry = X509_NAME_get_entry(name, i)) == NULL)
       lose("could not get certificate name");
 
-    if (entry->value->length + 1 > value_len) {
-      if (value)
-        free(value);
-
-      if ((value = malloc(entry->value->length + 1)) == NULL)
-        lose("could not allocate memory");
-
-      value_len = entry->value->length + 1;
-    }
-    memcpy(value, entry->value->data, entry->value->length);
-    value[entry->value->length] = 0;
-
-    if (!i2t_ASN1_OBJECT(long_name, sizeof(long_name), entry->object))
-      lose("could not find object name");
-
     switch (format) {
     case SHORTNAME_FORMAT:
-      nid = OBJ_ln2nid(long_name);
-      short_name = OBJ_nid2sn(nid);
-      py_type = PyString_FromString(short_name);
+      oid = OBJ_nid2sn(OBJ_obj2nid(entry->object));
       break;
     case LONGNAME_FORMAT:
-      py_type = PyString_FromString(long_name);
+      oid = OBJ_nid2ln(OBJ_obj2nid(entry->object));
+      break;
+    case OIDNAME_FORMAT:
+      oid = NULL;
       break;
     default:
       lose("unknown name format");
     }
 
-    py_value = PyString_FromString(value);
+    if (oid == NULL) {
+      if (OBJ_obj2txt(oidbuf, sizeof(oidbuf), entry->object, 1) <= 0)
+        lose("could not translate OID");
+      oid = oidbuf;
+    }
 
-    if ((pair = PyTuple_New(2)) == NULL)
-      lose("could not allocate memory");
+    if ((item = Py_BuildValue("ss#", oid, entry->value->data, entry->value->length)) == NULL)
+      goto error;
 
-    PyTuple_SetItem(pair, 0, py_type);
-    PyTuple_SetItem(pair, 1, py_value);
-    PyTuple_SetItem(result_list, i, pair);
+    PyTuple_SET_ITEM(result, i, item);
+    item = NULL;
   }
 
-  if (value)
-    free(value);
-
-  return result_list;
+  return result;
 
  error:
-
-  if (value)
-    free(value);
-
-  if (result_list) {
-    no_pairs = PyTuple_Size(result_list);
-    for (i = 0; i < no_pairs; i++) {
-      pair = PyTuple_GetItem(result_list, i);
-      no_entries = PyTuple_Size(result_list);
-      for (j = 0; j < no_entries; j++) {
-        py_value = PyTuple_GetItem(pair, i);
-        Py_XDECREF(py_value);
-      }
-    }
-  }
-
-  Py_XDECREF(py_type);
-  Py_XDECREF(py_value);
-  Py_XDECREF(result_list);
+  Py_XDECREF(result);
   return NULL;
 }
 
@@ -1305,7 +1271,7 @@ static char X509_object_get_issuer__doc__[] =
 "   <header>\n"
 "      <memberof>X509</memberof>\n"
 "      <name>getIssuer</name>\n"
-"      <parameter>format = SHORTNAME_FORMAT</parameter>\n"
+"      <parameter>format = OIDNAME_FORMAT</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -1338,7 +1304,7 @@ X509_object_get_issuer(x509_object *self, PyObject *args)
 {
   PyObject *result_list = NULL;
   X509_NAME *name = NULL;
-  int format = SHORTNAME_FORMAT;
+  int format = OIDNAME_FORMAT;
 
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
@@ -1361,7 +1327,7 @@ static char X509_object_get_subject__doc__[] =
 "   <header>\n"
 "      <memberof>X509</memberof>\n"
 "      <name>getSubject</name>\n"
-"      <parameter>format = SHORTNAME_FORMAT</parameter>\n"
+"      <parameter>format = OIDNAME_FORMAT</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -1378,7 +1344,7 @@ X509_object_get_subject(x509_object *self, PyObject *args)
 {
   PyObject *result_list = NULL;
   X509_NAME *name = NULL;
-  int format = SHORTNAME_FORMAT;
+  int format = OIDNAME_FORMAT;
 
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
@@ -2509,7 +2475,7 @@ static char x509_crl_object_get_issuer__doc__[] =
 "   <header>\n"
 "      <memberof>X509Crl</memberof>\n"
 "      <name>getIssuer</name>\n"
-"      <parameter>format = SHORTNAME_FORMAT</parameter>\n"
+"      <parameter>format = OIDNAME_FORMAT</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -2525,7 +2491,7 @@ static PyObject *
 x509_crl_object_get_issuer(x509_crl_object *self, PyObject *args)
 {
   PyObject *result_list = NULL;
-  int format = SHORTNAME_FORMAT;
+  int format = OIDNAME_FORMAT;
 
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
@@ -8444,6 +8410,7 @@ init_POW(void)
   // object format types
   Define_Integer_Constant(LONGNAME_FORMAT);
   Define_Integer_Constant(SHORTNAME_FORMAT);
+  Define_Integer_Constant(OIDNAME_FORMAT);
 
   // PEM encoded types
 #ifndef OPENSSL_NO_RSA

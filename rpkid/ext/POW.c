@@ -627,18 +627,17 @@ X509_object_helper_set_name(X509_NAME *name, PyObject *name_sequence)
 static PyObject *
 X509_object_helper_get_name(X509_NAME *name, int format)
 {
-  int no_entries = 0, no_pairs = 0, i = 0, j = 0, value_len = 0, nid = 0;
-  PyObject *result = NULL, *item = NULL;
   X509_NAME_ENTRY *entry = NULL;
+  PyObject *result = NULL;
+  PyObject *item = NULL;
   const char *oid = NULL;
   char oidbuf[512];
+  int i;
 
-  no_entries = X509_NAME_entry_count(name);
-
-  if ((result = PyTuple_New(no_entries)) == NULL)
+  if ((result = PyTuple_New(X509_NAME_entry_count(name))) == NULL)
     lose("could not allocate memory");
 
-  for (i = 0; i < no_entries; i++) {
+  for (i = 0; i < X509_NAME_entry_count(name); i++) {
 
     if ((entry = X509_NAME_get_entry(name, i)) == NULL)
       lose("could not get certificate name");

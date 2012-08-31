@@ -357,15 +357,15 @@ class allocation(object):
       pubd_sql_username         = "pubd",
       pubd_server_host          = self.pubd.hostname,
       pubd_server_port          = str(self.pubd.pubd_port),
-      publication_rsync_server  = self.rsync_server,
-      publication_base_directory = self.publication_base_directory)
+      publication_rsync_server  = self.rsync_server)
     
     if loopback:
       r.update(
         irdbd_sql_database      = self.irdb_name,
         rpkid_sql_database      = "rpki%d" % self.engine,
         pubd_sql_database       = "pubd%d" % self.engine,
-        bpki_servers_directory  = self.path())
+        bpki_servers_directory  = self.path(),
+        publication_base_directory = self.publication_base_directory)
 
     r.update(config_overrides)
 

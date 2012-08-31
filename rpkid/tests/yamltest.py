@@ -752,18 +752,30 @@ try:
     print
 
     signal.signal(signal.SIGCHLD, signal.SIG_DFL)
-    for i in xrange(29):
-      for p in progs:
-        if p.poll() is None and i % 15 == 0:
-          print "Politely nudging pid %d" % p.pid
-          p.terminate()
+
+    if profile:
+      how_long = 300
+    else:
+      how_long =  30
+
+    how_often = how_long / 2
+
+    for i in xrange(how_long):
+      if i % how_often == 0:
+        for p in progs:
+          if p.poll() is None:
+            print "Politely nudging pid %d" % p.pid
+            p.terminate()
+        print
       if all(p.poll() is not None for p in progs):
         break
       time.sleep(1)
+
     for p in progs:
       if p.poll() is None:
         print "Pulling the plug on pid %d" % p.pid
         p.kill()
+
     for p in progs:
       print "Program pid %d %r returned %d" % (p.pid, p, p.wait())
 

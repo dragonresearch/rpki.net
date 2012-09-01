@@ -566,60 +566,47 @@ set_openssl_ssl_exception(const ssl_object *self, const int ret)
 static PyObject *
 X509_object_helper_set_name(X509_NAME *name, PyObject *name_sequence)
 {
-  PyObject *pair = NULL; PyObject *type = NULL; PyObject *value = NULL;
-  int no_pairs = 0, i = 0, str_type = 0, nid;
-  unsigned char *valueptr = NULL;
-  char *typeptr = NULL;
+  PyObject *pair_obj = NULL;
+  PyObject *type_obj = NULL;
+  PyObject *value_obj = NULL;
+  char *type_str, *value_str;
+  int asn1_type, i;
 
-  no_pairs = PySequence_Size(name_sequence);
-  for (i = 0; i < no_pairs; i++) {
-    if ((pair = PySequence_GetItem(name_sequence, i)) == NULL)
-      return NULL;
+  for (i = 0; i < PySequence_Size(name_sequence); i++) {
 
-    if (!PyTuple_Check(pair) && !PyList_Check(pair))
-      lose_type_error("inapropriate type");
+    if ((pair_obj = PySequence_GetItem(name_sequence, i)) == NULL)
+      goto error;
 
-    if (PySequence_Size(pair) != 2)
-      lose("each name entry must have 2 elements");
+    if (!PySequence_Check(pair_obj) || PySequence_Size(pair_obj) != 2)
+      lose_type_error("each name entry must be a two-element sequence");
 
-    if ((type = PySequence_GetItem(pair, 0)) == NULL)
-      lose_type_error("could not get type string");
+    if ((type_obj = PySequence_GetItem(pair_obj, 0)) == NULL ||
+        (type_str = PyString_AsString(type_obj)) == NULL || 
+        (value_obj = PySequence_GetItem(pair_obj, 1)) == NULL ||
+        (value_str = PyString_AsString(value_obj)) == NULL)
+      goto error;
 
-    if (!PyString_Check(type))
-      lose_type_error("inapropriate type");
+    if ((asn1_type = ASN1_PRINTABLE_type(value_str, -1)) != V_ASN1_PRINTABLESTRING)
+      asn1_type = V_ASN1_UTF8STRING;
 
-    if ((value = PySequence_GetItem(pair, 1)) == NULL)
-      lose_type_error("could not get value string");
-
-    if (!PyString_Check(value))
-      lose_type_error("inapropriate type");
-
-    typeptr = PyString_AsString(type);
-    valueptr = (unsigned char *) PyString_AsString(value);
-
-    str_type = ASN1_PRINTABLE_type(valueptr, -1);
-    if ((nid = OBJ_ln2nid(typeptr)) == 0 &&
-        (nid = OBJ_sn2nid(typeptr)) == 0)
-      lose("unknown ASN1 object");
-
-    if (!X509_NAME_add_entry_by_NID(name, nid, str_type, valueptr,
-                                    strlen((char *) valueptr), -1, 0))
+    if (!X509_NAME_add_entry_by_txt(name, type_str, asn1_type,
+                                    value_str, strlen(value_str), -1, 0))
       lose("unable to add name entry");
 
-    Py_XDECREF(pair);
-    Py_XDECREF(type);
-    Py_XDECREF(value);
-    pair = NULL;
-    type = NULL;
-    value = NULL;
+    Py_XDECREF(pair_obj);
+    Py_XDECREF(type_obj);
+    Py_XDECREF(value_obj);
+
+    pair_obj = type_obj = value_obj = NULL;
   }
-  return name_sequence;
+
+  Py_RETURN_NONE;
 
  error:
 
-  Py_XDECREF(pair);
-  Py_XDECREF(type);
-  Py_XDECREF(value);
+  Py_XDECREF(pair_obj);
+  Py_XDECREF(type_obj);
+  Py_XDECREF(value_obj);
 
   return NULL;
 }
@@ -1394,7 +1381,7 @@ X509_object_set_subject(x509_object *self, PyObject *args)
     lose("could not allocate memory");
 
   if (!X509_object_helper_set_name(name, name_sequence))
-    lose("unable to set new name");
+    goto error;
 
   if (!X509_set_subject_name(self->x509, name))
     lose("unable to set name");
@@ -1404,7 +1391,8 @@ X509_object_set_subject(x509_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
+  if (name)
+    X509_NAME_free(name);
   return NULL;
 }
 
@@ -1441,7 +1429,7 @@ X509_object_set_issuer(x509_object *self, PyObject *args)
     lose("could not allocate memory");
 
   if (!X509_object_helper_set_name(name, name_sequence))
-    lose("unable to set new name");
+    goto error;
 
   if (!X509_set_issuer_name(self->x509,name))
     lose("unable to set name");
@@ -1451,10 +1439,8 @@ X509_object_set_issuer(x509_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
   if (name)
     X509_NAME_free(name);
-
   return  NULL;
 }
 
@@ -2539,7 +2525,7 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
     lose("could not allocate memory");
 
   if (!X509_object_helper_set_name(name, name_sequence))
-    lose("unable to set new name");
+    goto error;
 
   if (!X509_NAME_set(&self->crl->crl->issuer, name))
     lose("unable to set name");
@@ -2549,10 +2535,8 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
   if (name)
     X509_NAME_free(name);
-
   return  NULL;
 }
 

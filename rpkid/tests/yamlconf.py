@@ -723,10 +723,12 @@ def body():
     if not d.is_hosted:
       d.dump_conf()
       d.dump_rsyncd()
-      d.dump_asns("%s.asns.csv" % d.name)
-      d.dump_prefixes("%s.prefixes.csv" % d.name)
-      d.dump_roas("%s.roas.csv" % d.name)
 
+    d.dump_asns("%s.asns.csv" % d.name)
+    d.dump_prefixes("%s.prefixes.csv" % d.name)
+    d.dump_roas("%s.roas.csv" % d.name)
+
+    if not d.is_hosted:
       print "Initializing SQL"
       d.syncdb()
       print "Hiring zookeeper"

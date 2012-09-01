@@ -297,38 +297,44 @@ class allocation(object):
                                                   self.parent.name,
                                                   self.name)
 
-  def dump_asns(self, fn, skip_rpkic = False):
+  def dump_asns(self):
     """
     Write Autonomous System Numbers CSV file.
     """
-    f = self.csvout(fn)
-    for k in self.kids:    
-      f.writerows((k.name, a) for a in k.resources.asn)
-    f.close()
-    if not skip_rpkic:
+    fn = "%s.asns.csv" % d.name
+    if not skip_config:
+      f = self.csvout(fn)
+      for k in self.kids:    
+        f.writerows((k.name, a) for a in k.resources.asn)
+      f.close()
+    if not stop_after_config:
       self.run_rpkic("load_asns", fn)
 
-  def dump_prefixes(self, fn, skip_rpkic = False):
+  def dump_prefixes(self):
     """
     Write prefixes CSV file.
     """
-    f = self.csvout(fn)
-    for k in self.kids:
-      f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
-    f.close()
-    if not skip_rpkic:
+    fn = "%s.prefixes.csv" % d.name
+    if not skip_config:
+      f = self.csvout(fn)
+      for k in self.kids:
+        f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
+      f.close()
+    if not stop_after_config:
       self.run_rpkic("load_prefixes", fn)
 
-  def dump_roas(self, fn, skip_rpkic = False):
+  def dump_roas(self):
     """
     Write ROA CSV file.
     """
-    f = self.csvout(fn)
-    for g1, r in enumerate(self.roa_requests):
-      f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
-                  for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
-    f.close()
-    if not skip_rpkic:
+    fn = "%s.roas.csv" % d.name
+    if not skip_config:
+      f = self.csvout(fn)
+      for g1, r in enumerate(self.roa_requests):
+        f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
+                    for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
+      f.close()
+    if not stop_after_config:
       self.run_rpkic("load_roa_requests", fn)
 
   @property
@@ -359,7 +365,7 @@ class allocation(object):
   def host(self):
     return self.hosted_by or self
 
-  def dump_conf(self, fn):
+  def dump_conf(self):
     """
     Write configuration file for OpenSSL and RPKI tools.
     """
@@ -386,7 +392,7 @@ class allocation(object):
     
     r.update(config_overrides)
 
-    f = open(self.path(fn), "w")
+    f = open(self.path("rpki.conf"), "w")
     f.write("# Automatically generated, do not edit\n")
     print "Writing", f.name
 
@@ -403,13 +409,13 @@ class allocation(object):
 
     f.close()
 
-  def dump_rsyncd(self, fn):
+  def dump_rsyncd(self):
     """
     Write rsyncd configuration file.
     """
 
     if self.runs_pubd:
-      f = open(self.path(fn), "w")
+      f = open(self.path("rsyncd.conf"), "w")
       print "Writing", f.name
       f.writelines(s + "\n" for s in
                    ("# Automatically generated, do not edit",
@@ -597,9 +603,9 @@ try:
     for d in db:
       if not d.is_hosted:
         os.makedirs(d.path())
-        d.dump_conf("rpki.conf")
+        d.dump_conf()
       if d.runs_pubd:
-        d.dump_rsyncd("rsyncd.conf")
+        d.dump_rsyncd()
 
     # Initialize BPKI and generate self-descriptor for each entity.
 
@@ -725,14 +731,14 @@ try:
         if not d.is_hosted:
           d.run_rpkic("synchronize")
 
-    print
-    print "Loading CSV files"
-    print
-
-    for d in db:
-      d.dump_asns("%s.asns.csv" % d.name, stop_after_config)
-      d.dump_prefixes("%s.prefixes.csv" % d.name, stop_after_config)
-      d.dump_roas("%s.roas.csv" % d.name, stop_after_config)
+    if synchronize or not skip_config:
+      print
+      print "Loading CSV files"
+      print
+      for d in db:
+        d.dump_asns()
+        d.dump_prefixes()
+        d.dump_roas()
 
     # Wait until something terminates.
 

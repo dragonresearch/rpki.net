@@ -330,7 +330,7 @@ class ServerCA(CA):
     if self.certificate is not None:
       return self.certificate.getSubject()
     else:
-      return rpki.x509.X501DN("%s BPKI server CA" % socket.gethostname())
+      return rpki.x509.X501DN.from_cn("%s BPKI server CA" % socket.gethostname())
 
 class ResourceHolderCA(CA):
   handle = HandleField(unique = True)
@@ -344,7 +344,7 @@ class ResourceHolderCA(CA):
     if self.certificate is not None:
       return self.certificate.getSubject()
     else:
-      return rpki.x509.X501DN("%s BPKI resource CA" % self.handle)
+      return rpki.x509.X501DN.from_cn("%s BPKI resource CA" % self.handle)
 
 class Certificate(django.db.models.Model):
 
@@ -433,7 +433,8 @@ class ServerEE(EECertificate):
 
   @property
   def subject_name(self):
-    return rpki.x509.X501DN("%s BPKI %s EE" % (socket.gethostname(), self.get_purpose_display()))
+    return rpki.x509.X501DN.from_cn("%s BPKI %s EE" % (socket.gethostname(),
+                                                       self.get_purpose_display()))
 
 class Referral(EECertificate):
   issuer = django.db.models.OneToOneField(ResourceHolderCA, related_name = "referral_certificate")
@@ -441,7 +442,7 @@ class Referral(EECertificate):
 
   @property
   def subject_name(self):
-    return rpki.x509.X501DN("%s BPKI Referral EE" % self.issuer.handle)
+    return rpki.x509.X501DN.from_cn("%s BPKI Referral EE" % self.issuer.handle)
 
 class Turtle(django.db.models.Model):
   service_uri = django.db.models.CharField(max_length = 255)
@@ -452,7 +453,7 @@ class Rootd(EECertificate, Turtle):
 
   @property
   def subject_name(self):
-    return rpki.x509.X501DN("%s BPKI rootd EE" % self.issuer.handle)
+    return rpki.x509.X501DN.from_cn("%s BPKI rootd EE" % self.issuer.handle)
 
 class BSC(Certificate):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "bscs")

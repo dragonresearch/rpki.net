@@ -126,22 +126,27 @@ class X501DN(object):
   Class to hold an X.501 Distinguished Name.
 
   This is nothing like a complete implementation, just enough for our
-  purposes.  POW has one interface to this, POW.pkix has another.  In
-  terms of completeness in the Python representation, the POW.pkix
-  representation is much closer to right, but the whole thing is a
-  horrible mess.
+  purposes.  The original POW code had one interface to this, POW.pkix
+  has another, my own changes to POW are a third.  In terms of
+  completeness in the Python representation, either the POW.pkix or
+  current POW representation is closest to right (depending on whether
+  you think the string type ought to be implicit or explict), but the
+  whole thing is a horrible mess.
+  
+  The main purpose of this class is to hide as much as possible of
+  this mess from code that has to work with these nasty things.
 
   See RFC 5280 4.1.2.4 for the ASN.1 details.  In brief:
 
-    - A DN is a SEQUENCE of RDNs.
+    - A DN is a SEQUENCE OF RDNs.
 
-    - A RDN is a set of AttributeAndValues; in practice, multi-value
+    - A RDN is a SET OF AttributeAndValues; in practice, multi-value
       RDNs are rare, so an RDN is almost always a set with a single
       element.
 
-    - An AttributeAndValue is an OID and a value, where a whole bunch
-      of things including both syntax and semantics of the value are
-      determined by the OID.
+    - An AttributeAndValue is a SEQUENCE consisting of a OID and a
+      value, where a whole bunch of things including both syntax and
+      semantics of the value are determined by the OID.
 
     - The value is some kind of ASN.1 string; there are far too many
       encoding options options, most of which are either strongly
@@ -157,23 +162,12 @@ class X501DN(object):
   BPKI certificates should (we hope) follow the general PKIX guideline
   but the ones we construct ourselves are likely to be relatively
   simple.
-
-  The main purpose of this class is to hide as much as possible of
-  this mess from code that has to work with these wretched things.
   """
 
-  def __init__(self, ini = None, **kwargs):
-    assert ini is None or not kwargs
-    if len(kwargs) == 1 and "CN" in kwargs:
-      ini = kwargs.pop("CN")
-    if isinstance(ini, (str, unicode)):
-      self.dn = (((rpki.oids.name2oid["commonName"], ("printableString", ini)),),)
-    elif isinstance(ini, tuple):
-      self.dn = ini
-    elif kwargs:
-      raise NotImplementedError("Sorry, I haven't implemented keyword arguments yet")
-    elif ini is not None:
-      raise TypeError("Don't know how to interpret %r as an X.501 DN" % (ini,), ini)
+  # At the moment, our internal representation is the one used by
+  # POW.pkix.  Current plan is to change that to the representation
+  # used by the current POW code, in an attempt to speed things up by
+  # phasing out the slow POW.pkix ASN.1 code.
 
   def __str__(self):
     return "".join("/" + "+".join("%s=%s" % (rpki.oids.safe_oid2name(a[0]), a[1][1])
@@ -183,8 +177,30 @@ class X501DN(object):
   def __cmp__(self, other):
     return cmp(self.dn, other.dn)
 
+  @classmethod
+  def from_cn(cls, s):
+    assert isinstance(s, (str, unicode))
+    self = cls()
+    self.dn = (((rpki.oids.name2oid["commonName"], ("printableString", s)),),)
+    return self
+
+  @classmethod
+  def from_POWpkix(cls, t):
+    assert isinstance(t, tuple)
+    self = cls()
+    self.dn = t
+    return self
+
   def get_POWpkix(self):
     return self.dn
+
+  @classmethod
+  def from_POW(cls, t):
+    raise NotImplementedError
+    assert isinstance(t, tuple)
+    self = cls()
+    self.dn = t
+    return self
 
   def get_POW(self):
     raise NotImplementedError("Sorry, I haven't written the conversion to POW format yet")
@@ -542,13 +558,13 @@ class X509(DER_object):
     """
     Get the issuer of this certificate.
     """
-    return X501DN(self.get_POWpkix().getIssuer())
+    return X501DN.from_POWpkix(self.get_POWpkix().getIssuer())
 
   def getSubject(self):
     """
     Get the subject of this certificate.
     """
-    return X501DN(self.get_POWpkix().getSubject())
+    return X501DN.from_POWpkix(self.get_POWpkix().getSubject())
 
   def getNotBefore(self):
     """
@@ -851,7 +867,7 @@ class PKCS10(DER_object):
     """
     Extract the subject name from this certification request.
     """
-    return X501DN(self.get_POWpkix().certificationRequestInfo.subject.get())
+    return X501DN.from_POWpkix(self.get_POWpkix().certificationRequestInfo.subject.get())
 
   def getPublicKey(self):
     """
@@ -1724,7 +1740,7 @@ class CRL(DER_object):
     """
     Get issuer value of this CRL.
     """
-    return X501DN(self.get_POWpkix().getIssuer())
+    return X501DN.from_POWpkix(self.get_POWpkix().getIssuer())
 
   @classmethod
   def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):

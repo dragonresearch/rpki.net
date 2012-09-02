@@ -846,25 +846,25 @@ X509_object_der_read(unsigned char *src, int len)
 static PyObject *
 X509_object_write_helper(x509_object *self, PyObject *args, int format)
 {
-  int len = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
   PyObject *cert = NULL;
+  char *ptr = NULL;
+  BIO *bio = NULL;
+  int len = 0;
 
   if (!PyArg_ParseTuple(args, ""))
     return NULL;
 
-  out_bio = BIO_new(BIO_s_mem());
+  bio = BIO_new(BIO_s_mem());
 
   switch (format) {
 
   case DER_FORMAT:
-    if (!i2d_X509_bio(out_bio, self->x509))
+    if (!i2d_X509_bio(bio, self->x509))
       lose("unable to write certificate");
     break;
 
   case PEM_FORMAT:
-    if (!PEM_write_bio_X509(out_bio, self->x509))
+    if (!PEM_write_bio_X509(bio, self->x509))
       lose("unable to write certificate");
     break;
 
@@ -872,29 +872,15 @@ X509_object_write_helper(x509_object *self, PyObject *args, int format)
     lose("internal error, unknown output format");
   }
 
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
+  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
+    lose("unable to get BIO data");
 
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if (BIO_read(out_bio, buf, len) != len)
-    lose("unable to write out cert");
-
-  cert = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
+  cert = Py_BuildValue("s#", ptr, len);
+  BIO_free(bio);
   return cert;
 
  error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
+  BIO_free(bio);
   Py_XDECREF(cert);
   return NULL;
 }
@@ -1803,42 +1789,28 @@ static char x509_object_pprint__doc__[] =
 static PyObject *
 x509_object_pprint(x509_object *self, PyObject *args)
 {
-  int len = 0, ret = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
   PyObject *cert = NULL;
+  BIO *bio = NULL;
+  char *ptr = NULL;
+  int len = 0;
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
-  out_bio = BIO_new(BIO_s_mem());
+  bio = BIO_new(BIO_s_mem());
 
-  if (!X509_print(out_bio, self->x509))
-    lose("unable to write crl");
+  if (!X509_print(bio, self->x509))
+    lose("unable to write CRL");
 
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
+  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
+    lose("unable to get BIO data");
 
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if ((ret = BIO_read(out_bio, buf, len)) != len)
-    lose("unable to write out cert");
-
-  cert = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
+  cert = Py_BuildValue("s#", ptr, len);
+  BIO_free(bio);
   return cert;
 
  error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
+  BIO_free(bio);
   return NULL;
 
 }
@@ -3239,54 +3211,40 @@ x509_crl_object_verify(x509_crl_object *self, PyObject *args)
 static PyObject *
 x509_crl_object_write_helper(x509_crl_object *self, PyObject *args, int format)
 {
-  int len = 0, ret = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
+  int len = 0;
+  char *ptr = NULL;
+  BIO *bio = NULL;
   PyObject *cert = NULL;
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
-  out_bio = BIO_new(BIO_s_mem());
+  bio = BIO_new(BIO_s_mem());
 
   switch (format) {
 
   case DER_FORMAT:
-    if (!i2d_X509_CRL_bio(out_bio, self->crl))
+    if (!i2d_X509_CRL_bio(bio, self->crl))
       lose("unable to write certificate");
     break;
 
   case PEM_FORMAT:
-    if (!PEM_write_bio_X509_CRL(out_bio, self->crl))
+    if (!PEM_write_bio_X509_CRL(bio, self->crl))
       lose("unable to write certificate");
 
   default:
     lose("internal error, unknown output format");
   }
 
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
+  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
+    lose("unable to get BIO data");
 
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if ((ret = BIO_read(out_bio, buf, len)) != len)
-    lose("unable to write out cert");
-
-  cert = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
+  cert = Py_BuildValue("s#", ptr, len);
+  BIO_free(bio);
   return cert;
 
  error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
+  BIO_free(bio);
   return NULL;
 }
 
@@ -3349,44 +3307,29 @@ static char x509_crl_object_pprint__doc__[] =
 static PyObject *
 x509_crl_object_pprint(x509_crl_object *self, PyObject *args)
 {
-  int len = 0, ret = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
   PyObject *crl = NULL;
+  char *ptr = NULL;
+  BIO *bio = NULL;
+  int len = 0;
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
-  out_bio = BIO_new(BIO_s_mem());
+  bio = BIO_new(BIO_s_mem());
 
-  if (!X509_CRL_print(out_bio, self->crl))
+  if (!X509_CRL_print(bio, self->crl))
     lose("unable to write crl");
 
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
+  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
+    lose("unable to get BIO data");
 
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if ((ret = BIO_read(out_bio, buf, len)) != len)
-    lose("unable to write out cert");
-
-  crl = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
+  crl = Py_BuildValue("s#", ptr, len);
+  BIO_free(bio);
   return crl;
 
  error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
+  BIO_free(bio);
   return NULL;
-
 }
 
 static struct PyMethodDef x509_crl_object_methods[] = {
@@ -5128,8 +5071,8 @@ static PyObject *
 asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
 {
   int key_type = 0, cipher = 0, len = 0, ret = 0;
-  char *kstr = NULL, *buf = NULL;
-  BIO *out_bio = NULL;
+  char *kstr = NULL, *ptr = NULL;
+  BIO *bio = NULL;
   PyObject *asymmetric = NULL;
 
   if (!PyArg_ParseTuple(args, "|iis", &key_type, &cipher, &kstr))
@@ -5138,7 +5081,7 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
   if (key_type == 0)
     key_type = self->key_type;
 
-  if ((out_bio = BIO_new(BIO_s_mem())) == NULL)
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose("unable to create new BIO");
 
   if ((kstr && !cipher) || (cipher && !kstr))
@@ -5148,11 +5091,12 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
 
   case RSA_PRIVATE_KEY:
     if (kstr && cipher) {
-      if (!PEM_write_bio_RSAPrivateKey(out_bio, self->cipher, evp_cipher_factory(cipher), NULL, 0, NULL, kstr))
+      if (!PEM_write_bio_RSAPrivateKey(bio, self->cipher, evp_cipher_factory(cipher),
+                                       NULL, 0, NULL, kstr))
         lose("unable to write key");
     }
     else {
-      if (!PEM_write_bio_RSAPrivateKey(out_bio, self->cipher, NULL, NULL, 0, NULL, NULL))
+      if (!PEM_write_bio_RSAPrivateKey(bio, self->cipher, NULL, NULL, 0, NULL, NULL))
         lose("unable to write key");
     }
     break;
@@ -5161,7 +5105,7 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
     if (kstr && cipher)
       lose("public keys should not encrypted");
     else {
-      if (!PEM_write_bio_RSA_PUBKEY(out_bio, self->cipher))
+      if (!PEM_write_bio_RSA_PUBKEY(bio, self->cipher))
         lose("unable to write key");
     }
     break;
@@ -5170,29 +5114,15 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
     lose("unsupported key type");
   }
 
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get number of bytes in bio");
+  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
+    lose("unable to get BIO data");
 
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if ((ret = BIO_read(out_bio, buf, len)) != len)
-    lose("unable to write out key");
-
-  asymmetric = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
+  asymmetric = Py_BuildValue("s#", ptr, len);
+  BIO_free(bio);
   return asymmetric;
 
  error:
-
-  if (out_bio);
-  BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
+  BIO_free(bio);
   return NULL;
 }
 
@@ -6612,25 +6542,25 @@ CMS_object_der_read(char *src, int len)
 static PyObject *
 CMS_object_write_helper(cms_object *self, PyObject *args, int format)
 {
-  int len = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
   PyObject *cert = NULL;
+  char *ptr = NULL;
+  BIO *bio = NULL;
+  int len = 0;
 
   if (!PyArg_ParseTuple(args, ""))
     return NULL;
 
-  out_bio = BIO_new(BIO_s_mem());
+  bio = BIO_new(BIO_s_mem());
 
   switch (format) {
 
   case DER_FORMAT:
-    if (!i2d_CMS_bio(out_bio, self->cms))
+    if (!i2d_CMS_bio(bio, self->cms))
       lose("unable to write certificate");
     break;
 
   case PEM_FORMAT:
-    if (!PEM_write_bio_CMS(out_bio, self->cms))
+    if (!PEM_write_bio_CMS(bio, self->cms))
       lose("unable to write certificate");
     break;
 
@@ -6638,29 +6568,15 @@ CMS_object_write_helper(cms_object *self, PyObject *args, int format)
     lose("internal error, unknown output format");
   }
 
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
+  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
+    lose("unable to get BIO data");
 
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if (BIO_read(out_bio, buf, len) != len)
-    lose("unable to write out cert");
-
-  cert = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
+  cert = Py_BuildValue("s#", ptr, len);
+  BIO_free(bio);
   return cert;
 
  error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
+  BIO_free(bio);
   Py_XDECREF(cert);
   return NULL;
 }
@@ -6904,7 +6820,7 @@ CMS_object_verify(cms_object *self, PyObject *args)
   PyObject *result = NULL, *certs_sequence = Py_None;
   STACK_OF(X509) *certs_stack = NULL;
   unsigned flags = 0;
-  char *buf = NULL;
+  char *ptr = NULL;
   BIO *bio = NULL;
   int len;
 
@@ -6916,9 +6832,11 @@ CMS_object_verify(cms_object *self, PyObject *args)
 
   assert_no_unhandled_openssl_errors();
 
-  flags &= CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY;
+  flags &= (CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY |
+            CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY);
 
-  if (certs_sequence != Py_None && (certs_stack = x509_helper_sequence_to_stack(certs_sequence)) == NULL)
+  if (certs_sequence != Py_None &&
+      (certs_stack = x509_helper_sequence_to_stack(certs_sequence)) == NULL)
     goto error;
 
   assert_no_unhandled_openssl_errors();
@@ -6928,22 +6846,12 @@ CMS_object_verify(cms_object *self, PyObject *args)
 
   assert_no_unhandled_openssl_errors();
 
-  if ((len = BIO_ctrl_pending(bio)) == 0)
-    lose("unable to get bytes stored in bio");
+  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
+    lose("unable to get BIO data");
 
   assert_no_unhandled_openssl_errors();
 
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  assert_no_unhandled_openssl_errors();
-
-  if (BIO_read(bio, buf, len) != len)
-    lose("unable to write out CMS content");
-
-  assert_no_unhandled_openssl_errors();
-
-  result = Py_BuildValue("s#", buf, len);
+  result = Py_BuildValue("s#", ptr, len);
 
  error:                          /* fall through */
 
@@ -6952,11 +6860,7 @@ CMS_object_verify(cms_object *self, PyObject *args)
   if (certs_stack)
     sk_X509_free(certs_stack);
 
-  if (bio)
-    BIO_free(bio);
-
-  if (buf)
-    free(buf);
+  BIO_free(bio);
 
   return result;
 }
@@ -6988,7 +6892,8 @@ CMS_object_eContentType(cms_object *self, PyObject *args)
   if ((oid = CMS_get0_eContentType(self->cms)) == NULL)
     lose_openssl_error("Could not extract eContentType from CMS message");
 
-  OBJ_obj2txt(buf, sizeof(buf), oid, 1);
+  if (OBJ_obj2txt(buf, sizeof(buf), oid, 1) <= 0)
+    lose("could not translate OID");
 
   result = Py_BuildValue("s", buf);
 
@@ -7085,8 +6990,8 @@ static char CMS_object_pprint__doc__[] =
 static PyObject *
 CMS_object_pprint(cms_object *self, PyObject *args)
 {
-  int len = 0, ret = 0;
-  char *buf = NULL;
+  int len = 0;
+  char *ptr = NULL;
   BIO *bio = NULL;
   PyObject *result = NULL;
 
@@ -7098,26 +7003,16 @@ CMS_object_pprint(cms_object *self, PyObject *args)
   if (!CMS_ContentInfo_print_ctx(bio, self->cms, 0, NULL))
     lose("unable to pprint CMS");
 
-  if ((len = BIO_ctrl_pending(bio)) == 0)
-    lose("unable to get bytes stored in bio");
+  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
+    lose("unable to get BIO data");
 
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if ((ret = BIO_read(bio, buf, len)) != len)
-    lose("unable to pprint CMS");
-
-  result = Py_BuildValue("s#", buf, len);
+  result = Py_BuildValue("s#", ptr, len);
 
  error:                          /* fall through */
 
   assert_no_unhandled_openssl_errors();
 
-  if (bio)
-    BIO_free(bio);
-
-  if (buf)
-    free(buf);
+  BIO_free(bio);
 
   return result;
 }

@@ -564,50 +564,61 @@ set_openssl_ssl_exception(const ssl_object *self, const int ret)
 }
 
 static PyObject *
-X509_object_helper_set_name(X509_NAME *name, PyObject *name_sequence)
+X509_object_helper_set_name(X509_NAME *name, PyObject *dn_obj)
 {
+  PyObject *rdn_obj = NULL;
   PyObject *pair_obj = NULL;
   PyObject *type_obj = NULL;
   PyObject *value_obj = NULL;
   char *type_str, *value_str;
-  int asn1_type, i;
+  int asn1_type, i, j;
 
-  for (i = 0; i < PySequence_Size(name_sequence); i++) {
+  for (i = 0; i < PySequence_Size(dn_obj); i++) {
 
-    if ((pair_obj = PySequence_GetItem(name_sequence, i)) == NULL)
+    if ((rdn_obj = PySequence_GetItem(dn_obj, i)) == NULL)
       goto error;
 
-    if (!PySequence_Check(pair_obj) || PySequence_Size(pair_obj) != 2)
-      lose_type_error("each name entry must be a two-element sequence");
+    if (!PySequence_Check(rdn_obj) || PySequence_Size(rdn_obj) == 0)
+      lose_type_error("each RDN must be a sequence with at least one element");
 
-    if ((type_obj = PySequence_GetItem(pair_obj, 0)) == NULL ||
-        (type_str = PyString_AsString(type_obj)) == NULL || 
-        (value_obj = PySequence_GetItem(pair_obj, 1)) == NULL ||
-        (value_str = PyString_AsString(value_obj)) == NULL)
-      goto error;
+    for (j = 0; j < PySequence_Size(rdn_obj); j++) {
 
-    if ((asn1_type = ASN1_PRINTABLE_type(value_str, -1)) != V_ASN1_PRINTABLESTRING)
-      asn1_type = V_ASN1_UTF8STRING;
+      if ((pair_obj = PySequence_GetItem(rdn_obj, j)) == NULL)
+        goto error;
 
-    if (!X509_NAME_add_entry_by_txt(name, type_str, asn1_type,
-                                    value_str, strlen(value_str), -1, 0))
-      lose("unable to add name entry");
+      if (!PySequence_Check(pair_obj) || PySequence_Size(pair_obj) != 2)
+        lose_type_error("each name entry must be a two-element sequence");
 
-    Py_XDECREF(pair_obj);
-    Py_XDECREF(type_obj);
-    Py_XDECREF(value_obj);
+      if ((type_obj = PySequence_GetItem(pair_obj, 0)) == NULL ||
+          (type_str = PyString_AsString(type_obj)) == NULL || 
+          (value_obj = PySequence_GetItem(pair_obj, 1)) == NULL ||
+          (value_str = PyString_AsString(value_obj)) == NULL)
+        goto error;
 
-    pair_obj = type_obj = value_obj = NULL;
+      if ((asn1_type = ASN1_PRINTABLE_type(value_str, -1)) != V_ASN1_PRINTABLESTRING)
+        asn1_type = V_ASN1_UTF8STRING;
+
+      if (!X509_NAME_add_entry_by_txt(name, type_str, asn1_type,
+                                      value_str, strlen(value_str), -1, j > 0))
+        lose("unable to add name entry");
+
+      Py_XDECREF(pair_obj);
+      Py_XDECREF(type_obj);
+      Py_XDECREF(value_obj);
+      pair_obj = type_obj = value_obj = NULL;
+    }
+
+    Py_XDECREF(rdn_obj);
+    rdn_obj = NULL;
   }
 
   Py_RETURN_NONE;
 
  error:
-
+  Py_XDECREF(rdn_obj);
   Py_XDECREF(pair_obj);
   Py_XDECREF(type_obj);
   Py_XDECREF(value_obj);
-
   return NULL;
 }
 
@@ -629,6 +640,9 @@ X509_object_helper_get_name(X509_NAME *name, int format)
     if ((entry = X509_NAME_get_entry(name, i)) == NULL)
       lose("could not get certificate name");
 
+    if (entry->set != i)
+      lose("sorry, this code does not support multi-value RDNs yet");
+
     switch (format) {
     case SHORTNAME_FORMAT:
       oid = OBJ_nid2sn(OBJ_obj2nid(entry->object));
@@ -649,7 +663,7 @@ X509_object_helper_get_name(X509_NAME *name, int format)
       oid = oidbuf;
     }
 
-    if ((item = Py_BuildValue("ss#", oid, entry->value->data, entry->value->length)) == NULL)
+    if ((item = Py_BuildValue("((ss#))", oid, entry->value->data, entry->value->length)) == NULL)
       goto error;
 
     PyTuple_SET_ITEM(result, i, item);

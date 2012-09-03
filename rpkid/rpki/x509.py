@@ -1756,6 +1756,12 @@ class CRL(DER_object):
     """
     return X501DN.from_POW(self.get_POW().getIssuer())
 
+  def getCRLNumber(self):
+    """
+    Get CRL Number value for this CRL.
+    """
+    return self.get_POWpkix().getExtension(rpki.oids.name2oid["cRLNumber"])[2]
+
   @classmethod
   def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):
     """

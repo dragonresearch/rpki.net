@@ -297,7 +297,7 @@ class main(object):
     if self.crl_number is None:
       try:
         crl = rpki.x509.CRL(DER_file = os.path.join(self.rpki_root_dir, self.rpki_root_crl))
-        self.crl_number = crl.get_POWpkix().getExtension(rpki.oids.name2oid["cRLNumber"])[2]
+        self.crl_number = crl.getCRLNumber()
       except:
         self.crl_number = 0
     self.crl_number += 1

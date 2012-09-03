@@ -124,7 +124,7 @@ all-tests:: unit-tests
 
 all-tests:: relaxng
 
-test all-tests parse-test profile yamltest:: all
+test all-tests parse-test profile yamltest yamlconf:: all
 	cd tests; $(MAKE) $@
 
 tags: Makefile

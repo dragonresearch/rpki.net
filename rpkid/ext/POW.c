@@ -599,7 +599,8 @@ X509_object_helper_set_name(X509_NAME *name, PyObject *dn_obj)
         asn1_type = V_ASN1_UTF8STRING;
 
       if (!X509_NAME_add_entry_by_txt(name, type_str, asn1_type,
-                                      value_str, strlen(value_str), -1, j > 0))
+                                      value_str, strlen(value_str),
+                                      -1, (j ? -1 : 0)))
         lose("unable to add name entry");
 
       Py_XDECREF(pair_obj);
@@ -627,10 +628,18 @@ X509_object_helper_get_name(X509_NAME *name, int format)
 {
   X509_NAME_ENTRY *entry = NULL;
   PyObject *result = NULL;
+  PyObject *rdn = NULL;
   PyObject *item = NULL;
   const char *oid = NULL;
   char oidbuf[512];
-  int i;
+  int i, set = -1;
+
+  /*
+   * Overall theory here: multi-value RDNs are very rare in the wild.
+   * We should support them, so we don't throw an exception if handed
+   * one in a BPKI certificate, but with minimal effort.  What we care
+   * about here is optimizing for the common case of single-valued RDNs.
+   */
 
   if ((result = PyTuple_New(X509_NAME_entry_count(name))) == NULL)
     lose("could not allocate memory");
@@ -640,8 +649,8 @@ X509_object_helper_get_name(X509_NAME *name, int format)
     if ((entry = X509_NAME_get_entry(name, i)) == NULL)
       lose("could not get certificate name");
 
-    if (entry->set != i)
-      lose("sorry, this code does not support multi-value RDNs yet");
+    if (entry->set < 0 || entry->set < set || entry->set > set + 1)
+      lose("X509_NAME->set value out of expected range");
 
     switch (format) {
     case SHORTNAME_FORMAT:
@@ -663,16 +672,40 @@ X509_object_helper_get_name(X509_NAME *name, int format)
       oid = oidbuf;
     }
 
-    if ((item = Py_BuildValue("((ss#))", oid, entry->value->data, entry->value->length)) == NULL)
-      goto error;
+    if (entry->set > set) {
 
-    PyTuple_SET_ITEM(result, i, item);
-    item = NULL;
+      set++;
+      if ((item = Py_BuildValue("((ss#))", oid, entry->value->data, entry->value->length)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result, set, item);
+      item = NULL;
+
+    } else {
+
+      if ((rdn = PyTuple_GetItem(result, set)) == NULL)
+        goto error;
+      (void) _PyTuple_Resize(&rdn, PyTuple_Size(rdn) + 1);
+      PyTuple_SET_ITEM(result, set, rdn);
+      if (rdn == NULL)
+        goto error;
+      if ((item = Py_BuildValue("(ss#)", oid, entry->value->data, entry->value->length)) == NULL)
+        goto error;
+      PyTuple_SetItem(rdn, PyTuple_Size(rdn) - 1, item);
+      rdn = item = NULL;
+
+    }
+  }
+
+  if (++set != PyTuple_Size(result)) {
+    if (set < 0 || set > PyTuple_Size(result))
+      lose("impossible set count for DN, something went horribly wrong");
+    _PyTuple_Resize(&result, set);
   }
 
   return result;
 
  error:
+  Py_XDECREF(item);
   Py_XDECREF(result);
   return NULL;
 }

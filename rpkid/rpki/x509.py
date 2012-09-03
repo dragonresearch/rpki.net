@@ -170,40 +170,53 @@ class X501DN(object):
   # phasing out the slow POW.pkix ASN.1 code.
 
   def __str__(self):
-    return "".join("/" + "+".join("%s=%s" % (rpki.oids.safe_oid2name(a[0]), a[1][1])
+    return "".join("/" + "+".join("%s=%s" % (rpki.oids.safe_dotted2name(a[0]), a[1])
                                   for a in rdn)
                    for rdn in self.dn)
 
   def __cmp__(self, other):
     return cmp(self.dn, other.dn)
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, str(self))
+
+  def _debug(self):
+    if False:
+      import traceback
+      bt = traceback.extract_stack(limit = 3)
+      rpki.log.debug("++ %s() at %s:%d from %s:%d]" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
+    rpki.log.debug("++ %r %r" % (self, self.dn))
+      
   @classmethod
   def from_cn(cls, s):
     assert isinstance(s, (str, unicode))
     self = cls()
-    self.dn = (((rpki.oids.name2oid["commonName"], ("printableString", s)),),)
+    self.dn = (((rpki.oids.safe_name2dotted("commonName"), s),),)
     return self
 
   @classmethod
   def from_POWpkix(cls, t):
     assert isinstance(t, tuple)
     self = cls()
-    self.dn = t
+    self.dn = tuple(tuple((rpki.oids.oid2dotted(a[0]), a[1][1])
+                          for a in rdn)
+                    for rdn in t)
     return self
 
   def get_POWpkix(self):
-    return self.dn
+    return tuple(tuple((rpki.oids.dotted2oid(a[0]), ("printableString", a[1]))
+                       for a in rdn)
+                 for rdn in self.dn)
 
   @classmethod
   def from_POW(cls, t):
-    raise NotImplementedError
     assert isinstance(t, tuple)
     self = cls()
     self.dn = t
     return self
 
   def get_POW(self):
-    raise NotImplementedError("Sorry, I haven't written the conversion to POW format yet")
+    return self.dn
 
 class DER_object(object):
   """
@@ -558,13 +571,13 @@ class X509(DER_object):
     """
     Get the issuer of this certificate.
     """
-    return X501DN.from_POWpkix(self.get_POWpkix().getIssuer())
+    return X501DN.from_POW(self.get_POW().getIssuer())
 
   def getSubject(self):
     """
     Get the subject of this certificate.
     """
-    return X501DN.from_POWpkix(self.get_POWpkix().getSubject())
+    return X501DN.from_POW(self.get_POW().getSubject())
 
   def getNotBefore(self):
     """
@@ -1740,7 +1753,7 @@ class CRL(DER_object):
     """
     Get issuer value of this CRL.
     """
-    return X501DN.from_POWpkix(self.get_POWpkix().getIssuer())
+    return X501DN.from_POW(self.get_POW().getIssuer())
 
   @classmethod
   def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):

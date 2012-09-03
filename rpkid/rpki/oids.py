@@ -92,8 +92,7 @@ def safe_name2oid(name):
     fields = name.split(".")
     if all(field.isdigit() for field in fields):
       return tuple(int(field) for field in fields)
-    else:
-      raise
+    raise
 
 def safe_oid2name(oid):
   """
@@ -104,4 +103,39 @@ def safe_oid2name(oid):
   try:
     return oid2name[oid]
   except KeyError:
-    return ".".join(str(field) for field in oid)
+    return oid2dotted(oid)
+
+def oid2dotted(oid):
+  """
+  Convert OID to numeric (dotted decimal) format.
+  """
+
+  return ".".join(str(field) for field in oid)
+
+def dotted2oid(dotted):
+  """
+  Convert dotted decimal format to OID tuple.
+  """
+  
+  fields = dotted.split(".")
+  if all(field.isdigit() for field in fields):
+    return tuple(int(field) for field in fields)
+  raise ValueError("%r is not a dotted decimal OID" % dotted)
+
+def safe_name2dotted(name):
+  """
+  Convert name to dotted decimal format.
+  """
+
+  return oid2dotted(safe_name2oid(name))
+
+def safe_dotted2name(dotted):
+  """
+  Convert dotted decimal to name if we know one,
+  otherwise just return dotted.
+  """
+
+  try:
+    return oid2name[dotted2oid(dotted)]
+  except KeyError:
+    return dotted

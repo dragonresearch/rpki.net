@@ -183,8 +183,9 @@ class X501DN(object):
   def _debug(self):
     if False:
       import traceback
-      bt = traceback.extract_stack(limit = 3)
-      rpki.log.debug("++ %s() at %s:%d from %s:%d]" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
+      for chunk in traceback.format_stack(limit = 5):
+        for line in chunk.splitlines():
+          rpki.log.debug("== %s" % line)
     rpki.log.debug("++ %r %r" % (self, self.dn))
       
   @classmethod

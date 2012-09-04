@@ -181,10 +181,6 @@ static char pow_module__doc__ [] =
 static PyObject
   *ErrorObject,
   *POWErrorObject,
-  *POWSyscallErrorObject,
-  *POWErrorSSLErrorObject,
-  *POWSyscallSSLErrorObject,
-  *POWUnexpectedEOFErrorObject,
   *POWOtherErrorObject;
 
 static PyTypeObject
@@ -5429,47 +5425,6 @@ pow_module_new_digest (PyObject *self, PyObject *args)
   return NULL;
 }
 
-static char pow_module_new_hmac__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>Hmac</memberof>\n"
-"      <parameter>type</parameter>\n"
-"      <parameter>key</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a new <classname>Hmac</classname>\n"
-"         object.  The parameter <parameter>key</parameter> should be a\n"
-"         string and <parameter>type</parameter> should be one of the following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-"         <member><constant>MD5_DIGEST</constant></member>\n"
-"         <member><constant>SHA_DIGEST</constant></member>\n"
-"         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>SHA256_DIGEST</constant></member>\n"
-"         <member><constant>SHA384_DIGEST</constant></member>\n"
-"         <member><constant>SHA512_DIGEST</constant></member>\n"
-"      </simplelist>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_hmac (PyObject *self, PyObject *args)
-{
-  int digest_type = 0, key_len = 0;
-  char *key = NULL;
-
-  if (!PyArg_ParseTuple(args, "is#", &digest_type, &key, &key_len))
-    goto error;
-
-  return (PyObject*) hmac_object_new(digest_type, key, key_len);
-
- error:
-
-  return NULL;
-}
-
 static char pow_module_new_cms__doc__[] =
 "<constructor>\n"
 "   <header>\n"
@@ -6040,13 +5995,9 @@ init_POW(void)
   PyModule_AddObject(m, #__name__, ((__name__##Object)          \
     = PyErr_NewException("POW." #__name__, __parent__, NULL)))
 
-  Define_Exception(Error,                NULL);
-  Define_Exception(POWError,             ErrorObject);
-  Define_Exception(POWSyscallError,      POWErrorObject);
-  Define_Exception(POWErrorSSLError,     POWErrorObject);
-  Define_Exception(POWSyscallSSLError,   POWErrorObject);
-  Define_Exception(POWUnexpectedEOFError,POWErrorObject);
-  Define_Exception(POWOtherError,        POWErrorObject);
+  Define_Exception(Error,	  NULL);
+  Define_Exception(POWError,	  ErrorObject);
+  Define_Exception(POWOtherError, POWErrorObject);
 
 #undef Define_Exception
 

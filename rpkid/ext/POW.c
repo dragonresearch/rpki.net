@@ -43,19 +43,14 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
-#include <openssl/ssl.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include <openssl/md5.h>
-#ifndef OPENSSL_NO_MD2
-#include <openssl/md2.h>
-#endif
 #include <openssl/sha.h>
-#include <openssl/hmac.h>
-#include <openssl/ripemd.h>
 #include <openssl/cms.h>
 
 #include <time.h>
+#include <string.h>
 
 // Symmetric ciphers
 #define DES_ECB               1
@@ -95,22 +90,6 @@
 #define RC5_32_12_16_ECB      35
 #define RC5_32_12_16_OFB      36
 
-// SSL connection methods
-#define SSLV2_SERVER_METHOD   1
-#define SSLV2_CLIENT_METHOD   2
-#define SSLV2_METHOD          3
-#define SSLV3_SERVER_METHOD   4
-#define SSLV3_CLIENT_METHOD   5
-#define SSLV3_METHOD          6
-#define TLSV1_SERVER_METHOD   7
-#define TLSV1_CLIENT_METHOD   8
-#define TLSV1_METHOD          9
-#define SSLV23_SERVER_METHOD  10
-#define SSLV23_CLIENT_METHOD  11
-#define SSLV23_METHOD         12
-
-// SSL connection states
-
 // PEM encoded data types
 #define RSA_PUBLIC_KEY        1
 #define RSA_PRIVATE_KEY       2
@@ -126,17 +105,11 @@
 #define RSA_CIPHER            1
 #define DSA_CIPHER            2
 #define DH_CIPHER             3
-//#define NO_DSA
-//#define NO_DH
 
 // Digests
-#ifndef OPENSSL_NO_MD2
-#define MD2_DIGEST            1
-#endif
 #define MD5_DIGEST            2
 #define SHA_DIGEST            3
 #define SHA1_DIGEST           4
-#define RIPEMD160_DIGEST      5
 #define SHA256_DIGEST         6
 #define SHA384_DIGEST         7
 #define SHA512_DIGEST         8
@@ -156,14 +129,8 @@
 #define X_X509_crl_Check(op)     ((op)->ob_type == &x509_crltype)
 #define X_X509_revoked_Check(op) ((op)->ob_type == &x509_revokedtype)
 #define X_asymmetric_Check(op)   ((op)->ob_type == &asymmetrictype)
-#define X_symmetric_Check(op)    ((op)->ob_type == &symmetrictype)
 #define X_digest_Check(op)       ((op)->ob_type == &digesttype)
-#define X_hmac_Check(op)         ((op)->ob_type == &hmactype)
-#define X_ssl_Check(op)          ((op)->ob_type == &ssltype)
 #define X_cms_Check(op)          ((op)->ob_type == &cmstype)
-
-// Symbolic representation of "no SSL shutdown mode requested"
-#define SSL_NO_SHUTDOWN       0
 
 static char pow_module__doc__ [] =
 "<moduleDescription>\n"
@@ -213,15 +180,12 @@ static char pow_module__doc__ [] =
 /*========== Pre-definitions ==========*/
 static PyObject
   *ErrorObject,
-  *SSLErrorObject,
-  *ZeroReturnErrorObject,
-  *WantReadErrorObject,
-  *WantWriteErrorObject,
-  *SSLSyscallErrorObject,
-  *SSLErrorSSLErrorObject,
-  *SSLSyscallSSLErrorObject,
-  *SSLUnexpectedEOFErrorObject,
-  *SSLOtherErrorObject;
+  *POWErrorObject,
+  *POWSyscallErrorObject,
+  *POWErrorSSLErrorObject,
+  *POWSyscallSSLErrorObject,
+  *POWUnexpectedEOFErrorObject,
+  *POWOtherErrorObject;
 
 static PyTypeObject
   x509type,
@@ -229,10 +193,7 @@ static PyTypeObject
   x509_crltype,
   x509_revokedtype,
   asymmetrictype,
-  symmetrictype,
   digesttype,
-  hmactype,
-  ssltype,
   cmstype;
 /*========== Pre-definitions ==========*/
 
@@ -266,29 +227,9 @@ typedef struct {
 
 typedef struct {
   PyObject_HEAD
-  EVP_CIPHER_CTX cipher_ctx;
-  int cipher_type;
-} symmetric_object;
-
-typedef struct {
-  PyObject_HEAD
   EVP_MD_CTX digest_ctx;
   int digest_type;
 } digest_object;
-
-typedef struct {
-  PyObject_HEAD
-  HMAC_CTX hmac_ctx;
-} hmac_object;
-
-typedef struct {
-  PyObject_HEAD
-  int ctxset;
-  SSL *ssl;
-  SSL_CTX *ctx;
-  STACK_OF(X509) *trusted_certs;
-  char *x509_cb_err;
-} ssl_object;
 
 typedef struct {
   PyObject_HEAD
@@ -495,72 +436,6 @@ set_openssl_exception(PyObject *error_class, const char *msg)
 
   PyErr_SetObject(error_class, PyList_AsTuple(errors));
   Py_XDECREF(errors);
-}
-
-static void
-set_openssl_ssl_exception(const ssl_object *self, const int ret)
-{
-  int err = SSL_get_error(self->ssl, ret);
-  const char *s = NULL;
-
-  switch(err) {
-
-    /*
-     * These three get their own exceptions.
-     */
-
-  case SSL_ERROR_ZERO_RETURN:
-    PyErr_SetNone(ZeroReturnErrorObject);
-    break;
-  case SSL_ERROR_WANT_READ:
-    PyErr_SetNone(WantReadErrorObject);
-    break;
-  case SSL_ERROR_WANT_WRITE:
-    PyErr_SetNone(WantWriteErrorObject);
-    break;
-
-  case SSL_ERROR_SYSCALL:
-    /*
-     * Horrible jumbled mess of I/O related errors.  I'd ask what they
-     * were thinking, except that it's pretty clear that they weren't.
-     */
-    if (ERR_peek_error())
-      set_openssl_exception(SSLSyscallSSLErrorObject, NULL);
-    else if (ret)
-      PyErr_SetFromErrno(SSLSyscallErrorObject);
-    else
-      PyErr_SetNone(SSLUnexpectedEOFErrorObject);
-    break;
-
-  case SSL_ERROR_SSL:
-    /*
-     * Generic OpenSSL error during an SSL call.  I think.
-     */
-    set_openssl_exception(SSLErrorSSLErrorObject, self->x509_cb_err);
-    break;
-
-    /*
-     * All other SSL errors are returned as a (number, string) tuple.
-     */
-
-  case SSL_ERROR_NONE:
-    s = "SSL_ERROR_NONE";
-    break;
-  case SSL_ERROR_WANT_X509_LOOKUP:
-    s = "SSL_ERROR_WANT_X509_LOOKUP";
-    break;
-  case SSL_ERROR_WANT_CONNECT:
-    s = "SSL_ERROR_WANT_CONNECT";
-    break;
-  case SSL_ERROR_WANT_ACCEPT:
-    s = "SSL_ERROR_WANT_ACCEPT";
-    break;
-  default:
-    s = "UNKNOWN_SSL_ERROR";
-  }
-
-  if (s)
-    PyErr_SetObject(SSLOtherErrorObject, Py_BuildValue("(is)", err, s));
 }
 
 static PyObject *
@@ -833,7 +708,7 @@ BIO_to_PyString_helper(BIO *bio)
   return NULL;
 }
 
-/*========== helper funcitons ==========*/
+/*========== helper functions ==========*/
 
 /*========== X509 code ==========*/
 static x509_object *
@@ -1045,13 +920,9 @@ static char X509_object_sign__doc__[] =
 "         signed, it should be one of the following:\n"
 "      </para>\n"
 "      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
 "         <member><constant>MD5_DIGEST</constant></member>\n"
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
 "         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
@@ -1086,13 +957,6 @@ X509_object_sign(x509_object *self, PyObject *args)
       lose("could not sign certificate");
     break;
 
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    if (!X509_sign(self->x509, pkey, EVP_md2()))
-      lose("could not sign certificate");
-    break;
-#endif
-
   case SHA_DIGEST:
     if (!X509_sign(self->x509, pkey, EVP_sha()))
       lose("could not sign certificate");
@@ -1100,11 +964,6 @@ X509_object_sign(x509_object *self, PyObject *args)
 
   case SHA1_DIGEST:
     if (!X509_sign(self->x509, pkey, EVP_sha1()))
-      lose("could not sign certificate");
-    break;
-
-  case RIPEMD160_DIGEST:
-    if (!X509_sign(self->x509, pkey, EVP_ripemd160()))
       lose("could not sign certificate");
     break;
 
@@ -3083,13 +2942,9 @@ static char x509_crl_object_sign__doc__[] =
 "         signed, it should be one of the following:\n"
 "      </para>\n"
 "      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
 "         <member><constant>MD5_DIGEST</constant></member>\n"
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
 "         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
@@ -3123,13 +2978,6 @@ x509_crl_object_sign(x509_crl_object *self, PyObject *args)
       lose("could not sign CRL");
     break;
 
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    if (!X509_CRL_sign(self->crl, pkey, EVP_md2()))
-      lose("could not sign CRL");
-    break;
-#endif
-
   case SHA_DIGEST:
     if (!X509_CRL_sign(self->crl, pkey, EVP_sha()))
       lose("could not sign CRL");
@@ -3137,11 +2985,6 @@ x509_crl_object_sign(x509_crl_object *self, PyObject *args)
 
   case SHA1_DIGEST:
     if (!X509_CRL_sign(self->crl, pkey, EVP_sha1()))
-      lose("could not sign CRL");
-    break;
-
-  case RIPEMD160_DIGEST:
-    if (!X509_CRL_sign(self->crl, pkey, EVP_ripemd160()))
       lose("could not sign CRL");
     break;
 
@@ -3813,1104 +3656,6 @@ static PyTypeObject x509_revokedtype = {
 };
 /*========== x509 revoked Code ==========*/
 
-/*========== ssl Code ==========*/
-static char ssl_object_use_certificate__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>useCertificate</name>\n"
-"      <parameter>cert</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         The parameter <parameter>cert</parameter> must be an\n"
-"         instance of the <classname>X590</classname> class and must be\n"
-"         called before <function>setFd</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_use_certificate(ssl_object *self, PyObject *args)
-{
-  x509_object *x509 = NULL;
-
-  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
-    goto error;
-
-  if (self->ctxset)
-    lose("cannot be called after setFd()");
-
-  if (!SSL_CTX_use_certificate(self->ctx, x509->x509))
-    lose("could not use certificate");
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static PyObject *
-ssl_object_add_certificate(ssl_object *self, PyObject *args)
-{
-  x509_object *x509 = NULL;
-  X509 *x = NULL;
-
-  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
-    goto error;
-
-  if (self->ctxset)
-    lose("cannot be called after setFd()");
-
-  if ((x = X509_dup(x509->x509)) == NULL)
-    lose("could not duplicate X509 object");
-
-  if (!SSL_CTX_add_extra_chain_cert(self->ctx, x))
-    lose_openssl_error("Could not add certificate");
-
-  x = NULL;
-
-  Py_RETURN_NONE;
-
- error:
-  X509_free(x);
-  return NULL;
-}
-
-static PyObject *
-ssl_object_add_trust(ssl_object *self, PyObject *args)
-{
-  x509_object *x509 = NULL;
-  X509 *x = NULL;
-
-  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
-    goto error;
-
-  if (self->ctxset)
-    lose("Cannot be called after setFd()");
-
-  if (self->trusted_certs == NULL &&
-      (self->trusted_certs = sk_X509_new_null()) == NULL)
-    lose("Couldn't allocate trusted certificate stack");
-
-  if ((x = X509_dup(x509->x509)) == NULL)
-    lose("Couldn't duplicate X509 object");
-
-  if (!sk_X509_push(self->trusted_certs, x))
-    lose("Couldn't push cert onto trusted certificate stack");
-
-  x = NULL;
-
-  Py_RETURN_NONE;
-
- error:
-  X509_free(x);
-  return NULL;
-}
-
-static char ssl_object_use_key__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>useKey</name>\n"
-"      <parameter>key</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         The parameter <parameter>key</parameter> must be an\n"
-"         instance of the <classname>Asymmetric</classname> class and\n"
-"         must contain the private key.  This function cannot be called\n"
-"         after <function>useKey</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_use_key(ssl_object *self, PyObject *args)
-{
-  asymmetric_object *asym = NULL;
-  EVP_PKEY *pkey = NULL;
-
-  if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
-    goto error;
-
-  if (self->ctxset)
-    lose("cannot be called after setFd()");
-
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (asym->key_type != RSA_PRIVATE_KEY)
-    lose("cannot use this type of key");
-
-  if (!EVP_PKEY_set1_RSA(pkey, asym->cipher))
-    lose("EVP_PKEY assignment error");
-
-  if (!SSL_CTX_use_PrivateKey(self->ctx, pkey))
-    lose("ctx key assignment error");
-
-  Py_RETURN_NONE;
-
- error:
-  EVP_PKEY_free(pkey);
-  return NULL;
-}
-
-static char ssl_object_check_key__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>checkKey</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This simple method will return 1 if the public key, contained in\n"
-"         the X509 certificate this <classname>Ssl</classname> instance is using,\n"
-"         matches the private key this <classname>Ssl</classname> instance is using.\n"
-"         Otherwise it will return 0.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_check_key(ssl_object *self, PyObject *args)
-{
-  return PyBool_FromLong(SSL_CTX_check_private_key(self->ctx));
-}
-
-static char ssl_object_set_fd__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>setFd</name>\n"
-"      <parameter>descriptor</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function is used to associate a file descriptor with a\n"
-"         <classname>Ssl</classname> object.  The file descriptor should\n"
-"         belong to an open TCP connection.  Once this function has\n"
-"         been called, calling <function>useKey</function> or\n"
-"         <function>useCertificate</function> will, fail rasing exceptions.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_set_fd(ssl_object *self, PyObject *args)
-{
-  int fd = 0, self_index = 0;
-
-  if (!PyArg_ParseTuple(args, "i", &fd))
-    goto error;
-
-  if ((self->ssl = SSL_new(self->ctx)) == NULL)
-    lose("Unable to create ssl structure");
-
-  SSL_set_mode(self->ssl, (SSL_MODE_ENABLE_PARTIAL_WRITE |
-                           SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER));
-
-  if (!SSL_set_fd(self->ssl, fd))
-    lose("Unable to set file descriptor");
-
-  if ((self_index = SSL_get_ex_new_index(0, "self_index", NULL, NULL, NULL)) != -1)
-    SSL_set_ex_data(self->ssl, self_index, self);
-  else
-    lose("Unable to create ex data index");
-
-  self->ctxset = 1;
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_fileno__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>fileno</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function is used to extract the file descriptor associated\n"
-"         with a <classname>Ssl</classname> object.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_fileno(ssl_object *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  return Py_BuildValue("i", SSL_get_fd(self->ssl));
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_accept__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>accept</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function will attempt the SSL level accept with a\n"
-"         client.  The <classname>Ssl</classname> object must have been\n"
-"         created using a <constant>XXXXX_SERVER_METHOD</constant> or\n"
-"         a <constant>XXXXX_METHOD</constant> and this function should only be\n"
-"         called after <function>useKey</function>,\n"
-"         <function>useCertificate</function> and\n"
-"         <function>setFd</function> functions have been called.\n"
-"      </para>\n"
-"\n"
-"      <example>\n"
-"         <title><function>accept</function> function usage</title>\n"
-"         <programlisting>\n"
-"      keyFile = open('test/private.key', 'r')\n"
-"      certFile = open('test/cacert.pem', 'r')\n"
-"\n"
-"      rsa = POW.pemRead(POW.RSA_PRIVATE_KEY, keyFile.read(), 'pass')\n"
-"      x509 = POW.pemRead(POW.X509_CERTIFICATE, certFile.read())\n"
-"\n"
-"      keyFile.close()\n"
-"      certFile.close()\n"
-"\n"
-"      sl = POW.Ssl(POW.SSLV23_SERVER_METHOD)\n"
-"      sl.useCertificate(x509)\n"
-"      sl.useKey(rsa)\n"
-"\n"
-"      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
-"      s.bind(('localhost', 1111))\n"
-"      s.listen(5)\n"
-"      s2, addr = s.accept()\n"
-"\n"
-"      s.close()\n"
-"\n"
-"      sl.setFd(s2.fileno())\n"
-"      sl.accept()\n"
-"      print sl.read(1024)\n"
-"      sl.write('Message from server to client...')\n"
-"\n"
-"      s2.close()\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_accept(ssl_object *self, PyObject *args)
-{
-  int ret = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  Py_BEGIN_ALLOW_THREADS;
-  ret = SSL_accept(self->ssl);
-  Py_END_ALLOW_THREADS;
-
-  if (ret <= 0)
-    lose_ssl_error(self, ret);
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_connect__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>connect</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function will attempt the SSL level connection with a\n"
-"         server.  The <classname>Ssl</classname> object must have been\n"
-"         created using a <constant>XXXXX_CLIENT_METHOD</constant> or\n"
-"         a <constant>XXXXX_METHOD</constant> and this function should only be\n"
-"         called after <function>setFd</function> has already been\n"
-"         called.\n"
-"      </para>\n"
-"\n"
-"      <example>\n"
-"         <title><function>connect</function> function usage</title>\n"
-"         <programlisting>\n"
-"      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
-"      s.connect(('localhost', 1111))\n"
-"\n"
-"      sl = POW.Ssl(POW.SSLV23_CLIENT_METHOD)\n"
-"      sl.setFd(s.fileno())\n"
-"      sl.connect()\n"
-"      sl.write('Message from client to server...')\n"
-"      print sl.read(1024)\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_connect(ssl_object *self, PyObject *args)
-{
-  int ret;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  Py_BEGIN_ALLOW_THREADS;
-  ret = SSL_connect(self->ssl);
-  Py_END_ALLOW_THREADS;
-
-  if (ret <= 0)
-    lose_ssl_error(self, ret);
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>write</name>\n"
-"      <parameter>string</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method writes the <parameter>string</parameter> to the\n"
-"         <classname>Ssl</classname> object, to be read by it's peer.  This\n"
-"         function is analogous to the <classname>socket</classname>\n"
-"         classes <function>write</function> function.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_write(ssl_object *self, PyObject *args)
-{
-  char *msg;
-  int length = 0, ret = 0;
-
-  if (!PyArg_ParseTuple(args, "s#", &msg, &length))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  Py_BEGIN_ALLOW_THREADS;
-  ret = SSL_write(self->ssl, msg, length);
-  Py_END_ALLOW_THREADS;
-
-  if (ret <= 0)
-    lose_ssl_error(self, ret);
-
-  return Py_BuildValue("i", ret);
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_read__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>read</name>\n"
-"      <parameter>amount = 1024</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method reads up to <parameter>amount</parameter> characters from the\n"
-"         <classname>Ssl</classname> object.  This\n"
-"         function is analogous to the <classname>socket</classname>\n"
-"         classes <function>read</function> function.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_read(ssl_object *self, PyObject *args)
-{
-  PyObject *data;
-  char *msg = NULL;
-  int len = 1024, ret = 0;
-
-  if (!PyArg_ParseTuple(args, "|i", &len))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  if ((msg = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  Py_BEGIN_ALLOW_THREADS;
-  ret = SSL_read(self->ssl, msg, len);
-  Py_END_ALLOW_THREADS;
-
-  if (ret <= 0)
-    lose_ssl_error(self, ret);
-
-  data = Py_BuildValue("s#", msg, ret);
-
-  free(msg);
-  return data;
-
- error:
-
-  if (msg)
-    free(msg);
-
-  return NULL;
-}
-
-static char ssl_object_peer_certificate__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>peerCertificate</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns any peer certificate presented in the initial\n"
-"         SSL negotiation or <constant>None</constant>.  If a certificate is\n"
-"         returned, it will be an instance of <classname>X509</classname>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_peer_certificate(ssl_object *self, PyObject *args)
-{
-  X509 *x509 = NULL;
-  x509_object *x509_obj = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  if ((x509_obj = X509_object_new()) == NULL)
-    lose("could not create x509 object");
-
-  x509 = SSL_get_peer_certificate(self->ssl);
-
-  if (x509) {
-    X509_free(x509_obj->x509);
-    x509_obj->x509 = x509;
-    return (PyObject *) x509_obj;
-  }
-  else {
-    Py_XDECREF(x509_obj);
-    Py_RETURN_NONE;
-  }
-
- error:
-  X509_free(x509);
-  Py_XDECREF(x509_obj);
-  return NULL;
-}
-
-static char ssl_object_clear__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>clear</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method will clear the SSL session ready for\n"
-"         a new SSL connection.  It will not effect the underlying socket.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_clear(ssl_object *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  if (!SSL_clear(self->ssl))
-    lose("failed to clear ssl connection");
-
-  if (self->x509_cb_err) {
-    free(self->x509_cb_err);
-    self->x509_cb_err = NULL;
-  }
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_shutdown__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>shutdown</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method will issue a <constant>shutdown</constant> signal to it's peer.\n"
-"         If this connection's peer has already initiated a shutdown this call\n"
-"         will succeed, otherwise it will raise and exception.  In order to\n"
-"         check the shutdown handshake was successful,\n"
-"         <function>shutdown</function> must be called again.  If no\n"
-"         exception is raised, the handshake is complete.\n"
-"      </para>\n"
-"      <para>\n"
-"         The odd\n"
-"         implementation of this function reflects the underlying OpenSSL\n"
-"         function, which reflects the SSL protocol.  Although rasing an\n"
-"         exception is a bit annoying, the alternative, returning true all\n"
-"         false will not tell you why the call failed and the exception\n"
-"         will, at least that is the theory.  Look up the exact meaning\n"
-"         of the exceptions in the OpenSSL man page SSL_get_error.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_shutdown(ssl_object *self, PyObject *args)
-{
-  int ret = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  ret = SSL_shutdown(self->ssl);
-
-  /*
-   * The original POW behavior here seems nuts to me.  SSL_shutdown()
-   * returns a tristate:
-   *
-   *  1: fully closed
-   *  0: close notification sent, waiting for peer
-   * -1: error, WANT_READ, or WANT_WRITE
-   *
-   * Doc claims the protocol allows us to bail on 0 return if we don't
-   * want to wait.  So the "obvious" thing to do here is return boolean
-   * for 1 or 0 and raise an exception for -1.  Original author's explanation
-   * for why he didn't do that makes no sense to me, so I've changed it.
-   */
-
-  if (ret < 0)
-    lose_ssl_error(self, ret);
-
-  return PyBool_FromLong(ret);
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_get_shutdown__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>getShutdown</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function returns an integer indicating the state of the\n"
-"         SSL connection. <constant>SSL_RECEIVED_SHUTDOWN</constant>\n"
-"         will be set the if it's peer sends a <constant>shutdown</constant>\n"
-"         signal or the underlying socket\n"
-"         receives a close notify .  The possible values are:\n"
-"      </para>\n"
-"      <simplelist>\n"
-"         <member><constant>SSL_NO_SHUTDOWN</constant></member>\n"
-"         <member><constant>SSL_SENT_SHUTDOWN</constant></member>\n"
-"         <member><constant>SSL_RECEIVED_SHUTDOWN</constant></member>\n"
-"         <member><constant>SSL_SENT_SHUTDOWN</constant> | <constant>SSL_RECEIVED_SHUTDOWN</constant></member>\n"
-"      </simplelist>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_get_shutdown(ssl_object *self, PyObject *args)
-{
-  int state = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  state = SSL_get_shutdown(self->ssl);
-
-  return Py_BuildValue("i", state);
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_get_ciphers__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>getCiphers</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function returns a list of available ciphers ordered from\n"
-"         most favored to least.  This function must be called after\n"
-"         <function>setFd</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_get_ciphers(ssl_object *self, PyObject *args)
-{
-  int i = 0;
-  const char *cipher = NULL;
-  PyObject *list = NULL, *name = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  list = PyList_New(0);
-
-  cipher = SSL_get_cipher_list(self->ssl, 0);
-  while (cipher) {
-    if ((name = PyString_FromString(cipher)) == NULL)
-      goto error;
-    if (PyList_Append(list, name) != 0)
-      goto error;
-    Py_XDECREF(name);
-    name = NULL;
-    cipher = SSL_get_cipher_list(self->ssl, ++i);
-  }
-  return list;
-
- error:
-
-  Py_XDECREF(name);
-  Py_XDECREF(list);
-  return NULL;
-}
-
-static char ssl_object_set_ciphers__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>setCiphers</name>\n"
-"      <parameter>ciphers</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         <function>setCiphers</function>\n"
-"         can help protect against certain types of attacks which try to\n"
-"         coerce the server, client or both to negotiate a weak cipher.\n"
-"         <parameter>ciphers</parameter> should be a list of strings, as\n"
-"         produced by <function>getCiphers</function> and described in the\n"
-"         OpenSSL man page ciphers.   <function>setCiphers</function> should\n"
-"         only be called after <function>setFd</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_set_ciphers(ssl_object *self, PyObject *args)
-{
-  PyObject *ciphers = NULL;
-  PyObject *cipher = NULL;
-  int size = 0, cipherstrlen = 0, nextstrlen = 0, i = 0;
-  char *cipherstr = NULL;
-
-  if (!PyArg_ParseTuple(args, "O", &ciphers))
-    goto error;
-
-  if (!PyList_Check(ciphers) && !PyTuple_Check(ciphers))
-    lose_type_error("inapropriate type");
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  cipherstr = malloc(8);        // Very bogus, realloc() dosn't work without some
-                                // previously allocated memory! Really should.
-  memset(cipherstr, 0, 8);
-  size = PySequence_Size(ciphers);
-  for (i = 0; i < size; i++) {
-    if ((cipher = PySequence_GetItem(ciphers, i)) == NULL)
-      goto error;
-
-    if (!PyString_Check(cipher))
-      lose_type_error("inapropriate type");
-
-    cipherstrlen = strlen(cipherstr);
-    nextstrlen = strlen(PyString_AsString(cipher));
-
-    if ((cipherstr = realloc(cipherstr, cipherstrlen + nextstrlen + 2)) == NULL)
-      lose_type_error("could allocate memory");
-
-    if (cipherstrlen)
-      strcat(cipherstr, ":\0");
-
-    strcat(cipherstr, PyString_AsString(cipher));
-    Py_XDECREF(cipher);
-    cipher = NULL;
-  }
-  SSL_set_cipher_list(self->ssl, cipherstr);
-  free(cipherstr);
-  Py_RETURN_NONE;
-
- error:
-
-  if (cipherstr)
-    free(cipherstr);
-
-  Py_XDECREF(cipher);
-
-  return NULL;
-}
-
-static char ssl_object_get_cipher__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>getCipher</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function returns the current cipher in use.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_get_cipher(ssl_object *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  return Py_BuildValue("s", SSL_get_cipher(self->ssl));
-
- error:
-
-  return NULL;
-}
-
-static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
-{
-  ssl_object *self = arg;
-  int ok;
-
-  if (self->trusted_certs)
-    X509_STORE_CTX_trusted_stack(ctx, self->trusted_certs);
-
-  if (self->x509_cb_err) {
-    free(self->x509_cb_err);
-    self->x509_cb_err = NULL;
-  }
-
-  ok = X509_verify_cert(ctx) == 1;
-
-  if (!ok) {
-
-    /*
-     * We probably should be pushing out structured Python data here
-     * rather than a string, but we're pretty deep in the OpenSSL call
-     * chain at this point and I'd rather not risk whacky interactions
-     * with the Python garbage collector.  Try this kludge initially,
-     * rewrite as something better later if it looks worth the effort.
-     */
-
-    BIO *b = BIO_new(BIO_s_mem());
-    char *buf = NULL;
-    int len;
-
-    if (!b)
-      goto fail;
-
-    BIO_puts(b, "TLS validation failure:\n\n");
-
-    if (self->trusted_certs) {
-      int i;
-      BIO_puts(b, "Trusted cert stack\n");
-      for (i = 0; i < sk_X509_num(self->trusted_certs); i++) {
-        X509 *x = sk_X509_value(self->trusted_certs, i);
-        BIO_printf(b, "[%d] ", i);
-        if (x)
-          X509_print(b, x);
-        else
-          BIO_puts(b, "<NULL>!\n");
-      }
-    } else {
-      BIO_puts(b, "No trusted cert stack\n");
-    }
-
-    BIO_printf(b,
-            "\nX509_verify_cert() error: error depth %d error %d current_cert %p current_issuer %p current_crl %p: %s\n",
-            ctx->error_depth,
-            ctx->error,
-            ctx->current_cert,
-            ctx->current_issuer,
-            ctx->current_crl,
-            X509_verify_cert_error_string(ctx->error));
-    if (ctx->current_cert)
-      X509_print(b, ctx->current_cert);
-
-    /* This seems to be returning garbage, don't know why */
-    if (ctx->current_issuer)
-      X509_print(b, ctx->current_issuer);
-
-    if ((len = BIO_ctrl_pending(b)) == 0 || (buf = malloc(len + 1)) == NULL)
-      goto fail;
-
-    if (BIO_read(b, buf, len) == len) {
-      buf[len] = '\0';
-      self->x509_cb_err = buf;
-    } else {
-      free(buf);
-    }
-
-  fail:
-    BIO_free(b);
-  }
-
-  return ok;
-}
-
-static char ssl_object_set_verify_mode__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>setVerifyMode</name>\n"
-"      <parameter>mode</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function sets the behavior of the SSL handshake.  The\n"
-"         parameter <parameter>mode</parameter> should be one of the\n"
-"         following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-"         <member><constant>SSL_VERIFY_NONE</constant></member>\n"
-"         <member><constant>SSL_VERIFY_PEER</constant></member>\n"
-"         <member><constant>SSL_VERIFY_PEER</constant> |\n"
-"                 <constant>SSL_VERIFY_FAIL_IF_NO_PEER_CERT</constant></member>\n"
-"      </simplelist>\n"
-"      <para>\n"
-"         See the OpenSSL man page <function>SSL_CTX_set_verify</function>\n"
-"         for details.  This function must be called after <function>setfd</function>\n"
-"         has been called.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
-{
-  int mode = 0;
-
-  if (!PyArg_ParseTuple(args, "i", &mode))
-    goto error;
-
-  if (self->ctxset)
-    lose("cannot be called after setfd()");
-
-  SSL_CTX_set_verify(self->ctx, mode, NULL);
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static struct PyMethodDef ssl_object_methods[] = {
-  {"useCertificate",   (PyCFunction)ssl_object_use_certificate,  METH_VARARGS,  NULL},
-  {"addCertificate",   (PyCFunction)ssl_object_add_certificate,  METH_VARARGS,  NULL},
-  {"addTrust",         (PyCFunction)ssl_object_add_trust,        METH_VARARGS,  NULL},
-  {"useKey",           (PyCFunction)ssl_object_use_key,          METH_VARARGS,  NULL},
-  {"checkKey",         (PyCFunction)ssl_object_check_key,        METH_VARARGS,  NULL},
-  {"setFd",            (PyCFunction)ssl_object_set_fd,           METH_VARARGS,  NULL},
-  {"fileno",           (PyCFunction)ssl_object_fileno,           METH_VARARGS,  NULL},
-  {"connect",          (PyCFunction)ssl_object_connect,          METH_VARARGS,  NULL},
-  {"accept",           (PyCFunction)ssl_object_accept,           METH_VARARGS,  NULL},
-  {"write",            (PyCFunction)ssl_object_write,            METH_VARARGS,  NULL},
-  {"read",             (PyCFunction)ssl_object_read,             METH_VARARGS,  NULL},
-  {"peerCertificate",  (PyCFunction)ssl_object_peer_certificate, METH_VARARGS,  NULL},
-  {"clear",            (PyCFunction)ssl_object_clear,            METH_VARARGS,  NULL},
-  {"shutdown",         (PyCFunction)ssl_object_shutdown,         METH_VARARGS,  NULL},
-  {"getShutdown",      (PyCFunction)ssl_object_get_shutdown,     METH_VARARGS,  NULL},
-  {"getCiphers",       (PyCFunction)ssl_object_get_ciphers,      METH_VARARGS,  NULL},
-  {"setCiphers",       (PyCFunction)ssl_object_set_ciphers,      METH_VARARGS,  NULL},
-  {"getCipher",        (PyCFunction)ssl_object_get_cipher,       METH_VARARGS,  NULL},
-  {"setVerifyMode",    (PyCFunction)ssl_object_set_verify_mode,  METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
-};
-
-static ssl_object *
-newssl_object(int type)
-{
-  ssl_object *self;
-  const SSL_METHOD *method;
-
-
-  if ((self = PyObject_NEW(ssl_object, &ssltype)) == NULL)
-    goto error;
-
-  self->ctxset = 0;
-  self->ssl = NULL;
-  self->trusted_certs = NULL;
-  self->x509_cb_err = NULL;
-
-  switch (type) {
-  case SSLV2_SERVER_METHOD:  method = SSLv2_server_method();   break;
-  case SSLV2_CLIENT_METHOD:  method = SSLv2_client_method();   break;
-  case SSLV2_METHOD:         method = SSLv2_method();          break;
-  case SSLV3_SERVER_METHOD:  method = SSLv3_server_method();   break;
-  case SSLV3_CLIENT_METHOD:  method = SSLv3_client_method();   break;
-  case SSLV3_METHOD:         method = SSLv3_method();          break;
-  case TLSV1_SERVER_METHOD:  method = TLSv1_server_method();   break;
-  case TLSV1_CLIENT_METHOD:  method = TLSv1_client_method();   break;
-  case TLSV1_METHOD:         method = TLSv1_method();          break;
-  case SSLV23_SERVER_METHOD: method = SSLv23_server_method();  break;
-  case SSLV23_CLIENT_METHOD: method = SSLv23_client_method();  break;
-  case SSLV23_METHOD:        method = SSLv23_method();         break;
-
-  default:
-    lose("unknown ctx method");
-  }
-
-  if ((self->ctx = SSL_CTX_new(method)) == NULL)
-    lose("unable to create new ctx");
-
-  SSL_CTX_set_cert_verify_callback(self->ctx, ssl_object_verify_callback, self);
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static PyObject *
-ssl_object_getattr(ssl_object *self, char *name)
-{
-  return Py_FindMethod(ssl_object_methods, (PyObject *)self, name);
-}
-
-static void
-ssl_object_dealloc(ssl_object *self)
-{
-  SSL_free(self->ssl);
-  SSL_CTX_free(self->ctx);
-  sk_X509_pop_free(self->trusted_certs, X509_free);
-  if (self->x509_cb_err)
-    free(self->x509_cb_err);
-  PyObject_Del(self);
-}
-
-static char ssltype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>Ssl</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides access to the Secure Socket Layer\n"
-"         functionality of OpenSSL.  It is designed to be a simple as\n"
-"         possible to use and is not designed for high performance\n"
-"         applications which handle many simultaneous connections.  The\n"
-"         original motivation for writing this library was to provide a\n"
-"         security layer for network agents written in Python, for this\n"
-"         application, good performance with multiple concurrent connections\n"
-"         is not an issue.\n"
-"      </para>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject ssltype = {
-   PyObject_HEAD_INIT(0)
-   0,                               /*ob_size*/
-   "Ssl",                           /*tp_name*/
-   sizeof(ssl_object),               /*tp_basicsize*/
-   0,                               /*tp_itemsize*/
-   (destructor)ssl_object_dealloc,  /*tp_dealloc*/
-   (printfunc)0,                    /*tp_print*/
-   (getattrfunc)ssl_object_getattr, /*tp_getattr*/
-   (setattrfunc)0,                  /*tp_setattr*/
-   (cmpfunc)0,                      /*tp_compare*/
-   (reprfunc)0,                     /*tp_repr*/
-   0,                               /*tp_as_number*/
-   0,                               /*tp_as_sequence*/
-   0,                               /*tp_as_mapping*/
-   (hashfunc)0,                     /*tp_hash*/
-   (ternaryfunc)0,                  /*tp_call*/
-   (reprfunc)0,                     /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   ssltype__doc__                   /* Documentation string */
-};
-/*========== ssl Object ==========*/
-
 /*========== asymmetric Object ==========*/
 static asymmetric_object *
 asymmetric_object_new(int cipher_type, int key_size)
@@ -5395,13 +4140,9 @@ static char asymmetric_object_sign__doc__[] =
 "         following:\n"
 "      </para>\n"
 "      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
 "         <member><constant>MD5_DIGEST</constant></member>\n"
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
 "         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
@@ -5431,12 +4172,6 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
     lose("could not allocate memory");
 
   switch(digest_type) {
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    digest_nid = NID_md2;
-    digest_len = MD2_DIGEST_LENGTH;
-    break;
-#endif
   case MD5_DIGEST:
     digest_nid = NID_md5;
     digest_len = MD5_DIGEST_LENGTH;
@@ -5448,10 +4183,6 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
   case SHA1_DIGEST:
     digest_nid = NID_sha1;
     digest_len = SHA_DIGEST_LENGTH;
-    break;
-  case RIPEMD160_DIGEST:
-    digest_nid = NID_ripemd160;
-    digest_len = RIPEMD160_DIGEST_LENGTH;
     break;
   case SHA256_DIGEST:
     digest_nid = NID_sha256;
@@ -5534,13 +4265,9 @@ static char asymmetric_object_verify__doc__[] =
 "         following:\n"
 "      </para>\n"
 "      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
 "         <member><constant>MD5_DIGEST</constant></member>\n"
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
 "         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
@@ -5563,12 +4290,6 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
     goto error;
 
   switch (digest_type) {
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    digest_len = MD2_DIGEST_LENGTH;
-    digest_nid = NID_md2;
-    break;
-#endif
   case MD5_DIGEST:
     digest_len = MD5_DIGEST_LENGTH;
     digest_nid = NID_md5;
@@ -5580,10 +4301,6 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
   case SHA1_DIGEST:
     digest_len = SHA_DIGEST_LENGTH;
     digest_nid = NID_sha1;
-    break;
-  case RIPEMD160_DIGEST:
-    digest_len = RIPEMD160_DIGEST_LENGTH;
-    digest_nid = NID_ripemd160;
     break;
   case SHA256_DIGEST:
     digest_len = SHA256_DIGEST_LENGTH;
@@ -5679,299 +4396,6 @@ static PyTypeObject asymmetrictype = {
 };
 /*========== asymmetric Code ==========*/
 
-/*========== symmetric Code ==========*/
-static symmetric_object *
-symmetric_object_new(int cipher_type)
-{
-  symmetric_object *self = NULL;
-
-  if ((self = PyObject_New(symmetric_object, &symmetrictype)) == NULL)
-    goto error;
-
-  self->cipher_type = cipher_type;
-  EVP_CIPHER_CTX_init(&self->cipher_ctx);
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static char symmetric_object_encrypt_init__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Symmetric</memberof>\n"
-"      <name>encryptInit</name>\n"
-"      <parameter>key</parameter>\n"
-"      <parameter>initialvalue = ''</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method sets up the cipher object to start encrypting a stream\n"
-"         of data.  The first parameter is the key used to encrypt the\n"
-"         data.  The second, the <parameter>initialvalue</parameter> serves\n"
-"         a similar purpose the the salt supplied to the Unix\n"
-"         <function>crypt</function> function.\n"
-"         The <parameter>initialvalue</parameter> is normally chosen at random and\n"
-"         often transmitted with the encrypted data, its purpose is to prevent\n"
-"         two identical plain texts resulting in two identical cipher texts.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-symmetric_object_encrypt_init(symmetric_object *self, PyObject *args)
-{
-  unsigned char *key = NULL, *iv = NULL, nulliv [] = "";
-  const EVP_CIPHER *cipher = NULL;
-
-  if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
-    goto error;
-
-  if (!iv)
-    iv = nulliv;
-
-  if ((cipher = evp_cipher_factory(self->cipher_type)) == NULL)
-    lose("unsupported cipher");
-
-  if (!EVP_EncryptInit(&self->cipher_ctx, cipher, key, iv))
-    lose("could not initialise cipher");
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char symmetric_object_decrypt_init__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Symmetric</memberof>\n"
-"      <name>decryptInit</name>\n"
-"      <parameter>key</parameter>\n"
-"      <parameter>initialvalue = ''</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method sets up the cipher object to start decrypting a stream\n"
-"         of data.  The first value must be the key used to encrypt the\n"
-"         data.  The second parameter is the <parameter>initialvalue</parameter>\n"
-"         used to encrypt the data.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-symmetric_object_decrypt_init(symmetric_object *self, PyObject *args)
-{
-  unsigned char *key = NULL, *iv = NULL, nulliv [] = "";
-  const EVP_CIPHER *cipher = NULL;
-
-  if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
-    goto error;
-
-  if (!iv)
-    iv = nulliv;
-
-  if ((cipher = evp_cipher_factory(self->cipher_type)) == NULL)
-    lose("unsupported cipher");
-
-  if (!EVP_DecryptInit(&self->cipher_ctx, cipher, key, iv))
-    lose("could not initialise cipher");
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char symmetric_object_update__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Symmetric</memberof>\n"
-"      <name>update</name>\n"
-"      <parameter>data</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to process the bulk of data being encrypted\n"
-"         or decrypted by the cipher object.  <parameter>data</parameter>\n"
-"         should be a string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-symmetric_object_update(symmetric_object *self, PyObject *args)
-{
-  int inl = 0, outl = 0;
-  unsigned char *in = NULL, *out = NULL;
-  PyObject *py_out = NULL;
-
-  if (!PyArg_ParseTuple(args, "s#", &in, &inl))
-    goto error;
-
-  if ((out = malloc(inl + EVP_CIPHER_CTX_block_size(&self->cipher_ctx))) == NULL)
-    lose("could not allocate memory");
-
-  if (!EVP_CipherUpdate(&self->cipher_ctx, out, &outl, in, inl))
-    lose("could not update cipher");
-
-  if ((py_out = Py_BuildValue("s#", out, outl)) == NULL)
-    lose("could not allocate memory");
-
-  free(out);
-  return py_out;
-
- error:
-
-  if (out)
-    free(out);
-
-  return NULL;
-}
-
-static char symmetric_object_final__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Symmetric</memberof>\n"
-"      <name>final</name>\n"
-"      <parameter>size = 1024</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         Most ciphers are block ciphers, that is they encrypt or decrypt a block of\n"
-"         data at a time.  Often the data being processed will not fill an\n"
-"         entire block, this method processes these half-empty blocks.  A\n"
-"         string is returned of a maximum length <parameter>size</parameter>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-symmetric_object_final(symmetric_object *self, PyObject *args)
-{
-  int outl = 0, size = 1024;
-  unsigned char *out = NULL;
-  PyObject *py_out = NULL;
-
-  if (!PyArg_ParseTuple(args, "|i", &size))
-    goto error;
-
-  if ((out = malloc(size + EVP_CIPHER_CTX_block_size(&self->cipher_ctx))) == NULL)
-    lose("could not allocate memory");
-
-  if (!EVP_CipherFinal(&self->cipher_ctx, out, &outl))
-    lose("could not update cipher");
-
-  if ((py_out = Py_BuildValue("s#", out, outl)) == NULL)
-    lose("could not allocate memory");
-
-  free(out);
-  return py_out;
-
- error:
-
-  if (out)
-    free(out);
-
-  return NULL;
-}
-
-static struct PyMethodDef symmetric_object_methods[] = {
-  {"encryptInit",   (PyCFunction)symmetric_object_encrypt_init,  METH_VARARGS,  NULL},
-  {"decryptInit",   (PyCFunction)symmetric_object_decrypt_init,  METH_VARARGS,  NULL},
-  {"update",        (PyCFunction)symmetric_object_update,        METH_VARARGS,  NULL},
-  {"final",         (PyCFunction)symmetric_object_final,         METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
-};
-
-static PyObject *
-symmetric_object_getattr(symmetric_object *self, char *name)
-{
-  return Py_FindMethod(symmetric_object_methods, (PyObject *)self, name);
-}
-
-static void
-symmetric_object_dealloc(symmetric_object *self, char *name)
-{
-  PyObject_Del(self);
-}
-
-static char symmetrictype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>Symmetric</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides access to all the symmetric ciphers in OpenSSL.\n"
-"         Initialisation of the cipher structures is performed late, only\n"
-"         when <function>encryptInit</function> or\n"
-"         <function>decryptInit</function> is called, the\n"
-"         constructor only records the cipher type.  It is possible to reuse\n"
-"         the <classname>Symmetric</classname> objects by calling\n"
-"         <function>encryptInit</function> or <function>decryptInit</function>\n"
-"         again.\n"
-"      </para>\n"
-"      <example>\n"
-"         <title><classname>Symmetric</classname> class usage</title>\n"
-"         <programlisting>\n"
-"      passphrase = 'my silly passphrase'\n"
-"      md5 = POW.Digest(POW.MD5_DIGEST)\n"
-"      md5.update(passphrase)\n"
-"      password = md5.digest()[:8]\n"
-"\n"
-"      plaintext = 'cast test message'\n"
-"      cast = POW.Symmetric(POW.CAST5_CFB)\n"
-"      cast.encryptInit(password)\n"
-"      ciphertext = cast.update(plaintext) + cast.final()\n"
-"      print 'Cipher text:', ciphertext\n"
-"\n"
-"      cast.decryptInit(password)\n"
-"      out = cast.update(ciphertext) + cast.final()\n"
-"      print 'Deciphered text:', out\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject symmetrictype = {
-  PyObject_HEAD_INIT(0)
-  0,                                     /*ob_size*/
-  "Symmetric",                              /*tp_name*/
-  sizeof(symmetric_object),              /*tp_basicsize*/
-  0,                                     /*tp_itemsize*/
-  (destructor)symmetric_object_dealloc,  /*tp_dealloc*/
-  (printfunc)0,                          /*tp_print*/
-  (getattrfunc)symmetric_object_getattr, /*tp_getattr*/
-  (setattrfunc)0,                        /*tp_setattr*/
-  (cmpfunc)0,                            /*tp_compare*/
-  (reprfunc)0,                           /*tp_repr*/
-  0,                                     /*tp_as_number*/
-  0,                                     /*tp_as_sequence*/
-  0,                                     /*tp_as_mapping*/
-  (hashfunc)0,                           /*tp_hash*/
-  (ternaryfunc)0,                        /*tp_call*/
-  (reprfunc)0,                           /*tp_str*/
-  0,
-  0,
-  0,
-  0,
-  symmetrictype__doc__                    /* Documentation string */
-};
-/*========== symmetric Code ==========*/
-
 /*========== digest Code ==========*/
 static digest_object *
 digest_object_new(int digest_type)
@@ -5982,12 +4406,6 @@ digest_object_new(int digest_type)
     goto error;
 
   switch(digest_type) {
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    self->digest_type = MD2_DIGEST;
-    EVP_DigestInit(&self->digest_ctx, EVP_md2());
-    break;
-#endif
   case MD5_DIGEST:
     self->digest_type = MD5_DIGEST;
     EVP_DigestInit(&self->digest_ctx, EVP_md5());
@@ -5999,10 +4417,6 @@ digest_object_new(int digest_type)
   case SHA1_DIGEST:
     self->digest_type = SHA1_DIGEST;
     EVP_DigestInit(&self->digest_ctx, EVP_sha1());
-    break;
-  case RIPEMD160_DIGEST:
-    self->digest_type = RIPEMD160_DIGEST;
-    EVP_DigestInit(&self->digest_ctx, EVP_ripemd160());
     break;
   case SHA256_DIGEST:
     self->digest_type = SHA256_DIGEST;
@@ -6216,232 +4630,6 @@ static PyTypeObject digesttype = {
   digesttype__doc__                   /* Documentation string */
 };
 /*========== digest Code ==========*/
-
-/*========== hmac Code ==========*/
-static hmac_object *
-hmac_object_new(int digest_type, char *key, int key_len)
-{
-  hmac_object *self = NULL;
-  const EVP_MD *md = NULL;
-
-  if ((self = PyObject_New(hmac_object, &hmactype)) == NULL)
-    goto error;
-
-  switch (digest_type) {
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    md = EVP_md2();
-    break;
-#endif
-  case MD5_DIGEST:
-    md = EVP_md5();
-    break;
-  case SHA_DIGEST:
-    md = EVP_sha();
-    break;
-  case SHA1_DIGEST:
-    md = EVP_sha1();
-    break;
-  case RIPEMD160_DIGEST:
-    md = EVP_ripemd160();
-    break;
-  case SHA256_DIGEST:
-    md = EVP_sha256();
-    break;
-  case SHA384_DIGEST:
-    md = EVP_sha384();
-    break;
-  case SHA512_DIGEST:
-    md = EVP_sha512();
-    break;
-  default:
-    lose("unsupported digest");
-  }
-
-  HMAC_Init(&self->hmac_ctx, key, key_len, md);
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static char hmac_object_update__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Hmac</memberof>\n"
-"      <name>update</name>\n"
-"      <parameter>data</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method updates the internal structures of the\n"
-"         <classname>Hmac</classname> object with <parameter>data</parameter>.\n"
-"         <parameter>data</parameter> should be a string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-hmac_object_update(hmac_object *self, PyObject *args)
-{
-  unsigned char *data = NULL;
-  int len = 0;
-
-  if (!PyArg_ParseTuple(args, "s#", &data, &len))
-    goto error;
-
-  HMAC_Update(&self->hmac_ctx, data, len);
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char hmac_object_copy__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Hmac</memberof>\n"
-"      <name>copy</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a copy of the <classname>Hmac</classname>\n"
-"         object.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-hmac_object_copy(hmac_object *self, PyObject *args)
-{
-  hmac_object *new = NULL;
-
-  if ((new = PyObject_New(hmac_object, &hmactype)) == NULL)
-    lose("could not allocate memory");
-
-  memcpy(&new->hmac_ctx, &self->hmac_ctx, sizeof(HMAC_CTX));
-
-  return (PyObject*) new;
-
- error:
-
-  Py_XDECREF(new);
-  return NULL;
-}
-
-static char hmac_object_mac__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Hmac</memberof>\n"
-"      <name>mac</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns the MAC of all the data which has been\n"
-"         processed.  This function can be called at any time and will not\n"
-"         effect the internal structure of the <classname>Hmac</classname>\n"
-"         object.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-hmac_object_mac(hmac_object *self, PyObject *args)
-{
-  unsigned char hmac_text[EVP_MAX_MD_SIZE];
-  void *hmac_copy = NULL;
-  unsigned int hmac_len = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if ((hmac_copy = malloc(sizeof(HMAC_CTX))) == NULL)
-    lose("could not allocate memory");
-
-  memcpy(hmac_copy, &self->hmac_ctx, sizeof(HMAC_CTX));
-  HMAC_Final(hmac_copy, hmac_text, &hmac_len);
-
-  free(hmac_copy);
-  return Py_BuildValue("s#", hmac_text, hmac_len);
-
- error:
-
-  if (hmac_copy)
-    free(hmac_copy);
-
-  return NULL;
-}
-
-
-static struct PyMethodDef hmac_object_methods[] = {
-  {"update",           (PyCFunction)hmac_object_update, METH_VARARGS,  NULL},
-  {"mac",              (PyCFunction)hmac_object_mac,    METH_VARARGS,  NULL},
-  {"copy",             (PyCFunction)hmac_object_copy,   METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
-};
-
-static PyObject *
-hmac_object_getattr(hmac_object *self, char *name)
-{
-  return Py_FindMethod(hmac_object_methods, (PyObject *)self, name);
-}
-
-static void
-hmac_object_dealloc(hmac_object *self, char *name)
-{
-  PyObject_Del(self);
-}
-
-static char hmactype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>Hmac</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides access to the HMAC functionality of OpenSSL.\n"
-"         HMAC's are a variant on digest based MACs, which have the\n"
-"         interesting property of a provable level of security.  HMAC is\n"
-"         discussed further in RFC 2104.\n"
-"      </para>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject hmactype = {
-   PyObject_HEAD_INIT(0)
-   0,                                  /*ob_size*/
-   "Hmac",                             /*tp_name*/
-   sizeof(hmac_object),                /*tp_basicsize*/
-   0,                                  /*tp_itemsize*/
-   (destructor)hmac_object_dealloc,    /*tp_dealloc*/
-   (printfunc)0,                       /*tp_print*/
-   (getattrfunc)hmac_object_getattr,   /*tp_getattr*/
-   (setattrfunc)0,                     /*tp_setattr*/
-   (cmpfunc)0,                         /*tp_compare*/
-   (reprfunc)0,                        /*tp_repr*/
-   0,                                  /*tp_as_number*/
-   0,                                  /*tp_as_sequence*/
-   0,                                  /*tp_as_mapping*/
-   (hashfunc)0,                        /*tp_hash*/
-   (ternaryfunc)0,                     /*tp_call*/
-   (reprfunc)0,                        /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   hmactype__doc__                     /* Documentation string */
-};
-/*========== hmac Code ==========*/
 
 /*========== CMS code ==========*/
 static cms_object *
@@ -7112,56 +5300,6 @@ static PyTypeObject cmstype = {
 /*========== CMS Code ==========*/
 
 /*========== module functions ==========*/
-static char pow_module_new_ssl__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <parameter>protocol = SSLV23METHOD</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a new <classname>Ssl</classname> object which will behave as a client\n"
-"         or server, depending on the <parameter>protocol</parameter> value passed.  The\n"
-"         <parameter>protocol</parameter> also determines the protocol type\n"
-"         and version and should be one of the following:\n"
-"      </para>\n"
-"\n"
-"      <simplelist>\n"
-"         <member><constant>SSLV2_SERVER_METHOD</constant></member>\n"
-"         <member><constant>SSLV2_CLIENT_METHOD</constant></member>\n"
-"         <member><constant>SSLV2_METHOD</constant></member>\n"
-"         <member><constant>SSLV3_SERVER_METHOD</constant></member>\n"
-"         <member><constant>SSLV3_CLIENT_METHOD</constant></member>\n"
-"         <member><constant>SSLV3_METHOD</constant></member>\n"
-"         <member><constant>TLSV1_SERVER_METHOD</constant></member>\n"
-"         <member><constant>TLSV1_CLIENT_METHOD</constant></member>\n"
-"         <member><constant>TLSV1_METHOD</constant></member>\n"
-"         <member><constant>SSLV23_SERVER_METHOD</constant></member>\n"
-"         <member><constant>SSLV23_CLIENT_METHOD</constant></member>\n"
-"         <member><constant>SSLV23_METHOD</constant></member>\n"
-"      </simplelist>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_ssl (PyObject *self, PyObject *args)
-{
-  ssl_object *ssl = NULL;
-  int ctxtype = SSLV23_METHOD;
-
-  if (!PyArg_ParseTuple(args, "|i", &ctxtype))
-    goto error;
-
-  if ((ssl = newssl_object(ctxtype)) == NULL)
-    goto error;
-
-  return (PyObject*) ssl;
-
- error:
-
-  return NULL;
-}
 
 static char pow_module_new_x509__doc__[] =
 "<constructor>\n"
@@ -7265,13 +5403,9 @@ static char pow_module_new_digest__doc__[] =
 "         of digest to create and should be one of the following:\n"
 "      </para>\n"
 "      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
 "         <member><constant>MD5_DIGEST</constant></member>\n"
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
 "         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
@@ -7309,13 +5443,9 @@ static char pow_module_new_hmac__doc__[] =
 "         string and <parameter>type</parameter> should be one of the following:\n"
 "      </para>\n"
 "      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
 "         <member><constant>MD5_DIGEST</constant></member>\n"
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
 "         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
@@ -7541,81 +5671,6 @@ pow_module_new_x509_store (PyObject *self, PyObject *args)
     goto error;
 
   return (PyObject *) x509_store_object_new();
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_symmetric__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>Symmetric</memberof>\n"
-"      <parameter>type</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a new <classname>Symmetric</classname>\n"
-"         object.  The parameter <parameter>type</parameter> specifies which kind\n"
-"         of cipher to create. <constant>type</constant> should be one of the following:\n"
-"      </para>\n"
-"      <simplelist columns = \"2\">\n"
-"         <member><constant>DES_ECB</constant></member>\n"
-"         <member><constant>DES_EDE</constant></member>\n"
-"         <member><constant>DES_EDE3</constant></member>\n"
-"         <member><constant>DES_CFB</constant></member>\n"
-"         <member><constant>DES_EDE_CFB</constant></member>\n"
-"         <member><constant>DES_EDE3_CFB</constant></member>\n"
-"         <member><constant>DES_OFB</constant></member>\n"
-"         <member><constant>DES_EDE_OFB</constant></member>\n"
-"         <member><constant>DES_EDE3_OFB</constant></member>\n"
-"         <member><constant>DES_CBC</constant></member>\n"
-"         <member><constant>DES_EDE_CBC</constant></member>\n"
-"         <member><constant>DES_EDE3_CBC</constant></member>\n"
-"         <member><constant>DESX_CBC</constant></member>\n"
-"         <member><constant>RC4</constant></member>\n"
-"         <member><constant>RC4_40</constant></member>\n"
-"         <member><constant>IDEA_ECB</constant></member>\n"
-"         <member><constant>IDEA_CFB</constant></member>\n"
-"         <member><constant>IDEA_OFB</constant></member>\n"
-"         <member><constant>IDEA_CBC</constant></member>\n"
-"         <member><constant>RC2_ECB</constant></member>\n"
-"         <member><constant>RC2_CBC</constant></member>\n"
-"         <member><constant>RC2_40_CBC</constant></member>\n"
-"         <member><constant>RC2_CFB</constant></member>\n"
-"         <member><constant>RC2_OFB</constant></member>\n"
-"         <member><constant>BF_ECB</constant></member>\n"
-"         <member><constant>BF_CBC</constant></member>\n"
-"         <member><constant>BF_CFB</constant></member>\n"
-"         <member><constant>BF_OFB</constant></member>\n"
-"         <member><constant>CAST5_ECB</constant></member>\n"
-"         <member><constant>CAST5_CBC</constant></member>\n"
-"         <member><constant>CAST5_CFB</constant></member>\n"
-"         <member><constant>CAST5_OFB</constant></member>\n"
-"         <member><constant>RC5_32_12_16_CBC</constant></member>\n"
-"         <member><constant>RC5_32_12_16_CFB</constant></member>\n"
-"         <member><constant>RC5_32_12_16_ECB</constant></member>\n"
-"         <member><constant>RC5_32_12_16_OFB</constant></member>\n"
-"      </simplelist>\n"
-"      <para>\n"
-"         Please note your version of OpenSSL might not have been compiled with\n"
-"         all the ciphers listed above.  If that is the case, which is very\n"
-"         likely if you are using a stock binary, the unsuported ciphers will not even\n"
-"         be in the module namespace.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_symmetric (PyObject *self, PyObject *args)
-{
-  int cipher_type = 0;
-
-  if (!PyArg_ParseTuple(args, "i", &cipher_type))
-    goto error;
-
-  return (PyObject *) symmetric_object_new(cipher_type);
 
  error:
 
@@ -7942,185 +5997,13 @@ pow_module_read_random_file(PyObject *self, PyObject *args)
   return NULL;
 }
 
-static PyObject *
-pow_module_docset(PyObject *self, PyObject *args)
-{
-  PyObject *docset;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  docset = PyList_New(0);
-
-  // module documentation
-  docset_helper_add(docset, pow_module__doc__);
-
-  // constructors
-  docset_helper_add(docset, pow_module_new_symmetric__doc__);
-  docset_helper_add(docset, pow_module_new_asymmetric__doc__);
-  docset_helper_add(docset, pow_module_new_digest__doc__);
-  docset_helper_add(docset, pow_module_new_hmac__doc__);
-  docset_helper_add(docset, pow_module_new_ssl__doc__);
-  docset_helper_add(docset, pow_module_new_x509__doc__);
-  docset_helper_add(docset, pow_module_new_x509_store__doc__);
-  docset_helper_add(docset, pow_module_new_x509_crl__doc__);
-  docset_helper_add(docset, pow_module_new_x509_revoked__doc__);
-  docset_helper_add(docset, pow_module_new_cms__doc__);
-
-  // functions
-  docset_helper_add(docset, pow_module_pem_read__doc__);
-  docset_helper_add(docset, pow_module_der_read__doc__);
-  docset_helper_add(docset, pow_module_seed__doc__);
-  docset_helper_add(docset, pow_module_add__doc__);
-  docset_helper_add(docset, pow_module_read_random_file__doc__);
-  docset_helper_add(docset, pow_module_write_random_file__doc__);
-  docset_helper_add(docset, pow_module_get_error__doc__);
-  docset_helper_add(docset, pow_module_clear_error__doc__);
-  docset_helper_add(docset, pow_module_add_object__doc__);
-
-  // ssl documentation
-  docset_helper_add(docset, ssltype__doc__);
-  docset_helper_add(docset, ssl_object_set_fd__doc__);
-  docset_helper_add(docset, ssl_object_fileno__doc__);
-  docset_helper_add(docset, ssl_object_accept__doc__);
-  docset_helper_add(docset, ssl_object_connect__doc__);
-  docset_helper_add(docset, ssl_object_write__doc__);
-  docset_helper_add(docset, ssl_object_read__doc__);
-  docset_helper_add(docset, ssl_object_peer_certificate__doc__);
-  docset_helper_add(docset, ssl_object_use_certificate__doc__);
-  docset_helper_add(docset, ssl_object_use_key__doc__);
-  docset_helper_add(docset, ssl_object_check_key__doc__);
-  docset_helper_add(docset, ssl_object_clear__doc__);
-  docset_helper_add(docset, ssl_object_shutdown__doc__);
-  docset_helper_add(docset, ssl_object_get_shutdown__doc__);
-  docset_helper_add(docset, ssl_object_get_ciphers__doc__);
-  docset_helper_add(docset, ssl_object_set_ciphers__doc__);
-  docset_helper_add(docset, ssl_object_get_cipher__doc__);
-  docset_helper_add(docset, ssl_object_set_verify_mode__doc__);
-
-  // x509 documentation
-  docset_helper_add(docset, x509type__doc__);
-  docset_helper_add(docset, X509_object_pem_write__doc__);
-  docset_helper_add(docset, X509_object_der_write__doc__);
-  docset_helper_add(docset, X509_object_sign__doc__);
-  docset_helper_add(docset, X509_object_set_public_key__doc__);
-  docset_helper_add(docset, X509_object_get_version__doc__);
-  docset_helper_add(docset, X509_object_set_version__doc__);
-  docset_helper_add(docset, X509_object_get_serial__doc__);
-  docset_helper_add(docset, X509_object_set_serial__doc__);
-  docset_helper_add(docset, X509_object_get_issuer__doc__);
-  docset_helper_add(docset, X509_object_set_issuer__doc__);
-  docset_helper_add(docset, X509_object_get_subject__doc__);
-  docset_helper_add(docset, X509_object_set_subject__doc__);
-  docset_helper_add(docset, X509_object_get_not_before__doc__);
-  docset_helper_add(docset, X509_object_set_not_before__doc__);
-  docset_helper_add(docset, X509_object_get_not_after__doc__);
-  docset_helper_add(docset, X509_object_set_not_after__doc__);
-  docset_helper_add(docset, X509_object_add_extension__doc__);
-  docset_helper_add(docset, X509_object_clear_extensions__doc__);
-  docset_helper_add(docset, X509_object_count_extensions__doc__);
-  docset_helper_add(docset, X509_object_get_extension__doc__);
-  docset_helper_add(docset, x509_object_pprint__doc__);
-
-  // x509_crl documentation
-  docset_helper_add(docset, x509_crltype__doc__);
-  docset_helper_add(docset, x509_crl_object_pem_write__doc__);
-  docset_helper_add(docset, x509_crl_object_der_write__doc__);
-  docset_helper_add(docset, x509_crl_object_get_version__doc__);
-  docset_helper_add(docset, x509_crl_object_set_version__doc__);
-  docset_helper_add(docset, x509_crl_object_get_issuer__doc__);
-  docset_helper_add(docset, x509_crl_object_set_issuer__doc__);
-  docset_helper_add(docset, x509_crl_object_get_this_update__doc__);
-  docset_helper_add(docset, x509_crl_object_set_this_update__doc__);
-  docset_helper_add(docset, x509_crl_object_get_next_update__doc__);
-  docset_helper_add(docset, x509_crl_object_set_next_update__doc__);
-  docset_helper_add(docset, x509_crl_object_get_revoked__doc__);
-  docset_helper_add(docset, x509_crl_object_set_revoked__doc__);
-  docset_helper_add(docset, x509_crl_object_verify__doc__);
-  docset_helper_add(docset, x509_crl_object_sign__doc__);
-  docset_helper_add(docset, X509_crl_object_add_extension__doc__);
-  docset_helper_add(docset, X509_crl_object_clear_extensions__doc__);
-  docset_helper_add(docset, X509_crl_object_count_extensions__doc__);
-  docset_helper_add(docset, X509_crl_object_get_extension__doc__);
-  docset_helper_add(docset, x509_crl_object_pprint__doc__);
-
-  // x509_revoked documentation
-  docset_helper_add(docset, x509_revokedtype__doc__);
-  docset_helper_add(docset, x509_revoked_object_get_date__doc__);
-  docset_helper_add(docset, x509_revoked_object_set_date__doc__);
-  docset_helper_add(docset, x509_revoked_object_get_serial__doc__);
-  docset_helper_add(docset, x509_revoked_object_set_serial__doc__);
-  docset_helper_add(docset, X509_revoked_object_add_extension__doc__);
-  docset_helper_add(docset, X509_revoked_object_clear_extensions__doc__);
-  docset_helper_add(docset, X509_revoked_object_count_extensions__doc__);
-  docset_helper_add(docset, X509_revoked_object_get_extension__doc__);
-
-  // x509_store documentation
-  docset_helper_add(docset, x509_storetype__doc__);
-  docset_helper_add(docset, x509_store_object_verify__doc__);
-  docset_helper_add(docset, x509_store_object_verify_chain__doc__);
-  docset_helper_add(docset, x509_store_object_verify_detailed__doc__);
-  docset_helper_add(docset, x509_store_object_add_trust__doc__);
-  docset_helper_add(docset, x509_store_object_add_crl__doc__);
-
-  // digest documentation
-  docset_helper_add(docset, digesttype__doc__);
-  docset_helper_add(docset, digest_object_update__doc__);
-  docset_helper_add(docset, digest_object_copy__doc__);
-  docset_helper_add(docset, digest_object_digest__doc__);
-
-  // hmac documentation
-  docset_helper_add(docset, hmactype__doc__);
-  docset_helper_add(docset, hmac_object_update__doc__);
-  docset_helper_add(docset, hmac_object_copy__doc__);
-  docset_helper_add(docset, hmac_object_mac__doc__);
-
-  // cms documentation
-  docset_helper_add(docset, CMS_object_pem_write__doc__);
-  docset_helper_add(docset, CMS_object_der_write__doc__);
-  docset_helper_add(docset, CMS_object_sign__doc__);
-  docset_helper_add(docset, CMS_object_verify__doc__);
-  docset_helper_add(docset, CMS_object_eContentType__doc__);
-  docset_helper_add(docset, CMS_object_signingTime__doc__);
-  docset_helper_add(docset, CMS_object_pprint__doc__);
-  docset_helper_add(docset, CMS_object_certs__doc__);
-  docset_helper_add(docset, CMS_object_crls__doc__);
-
-  // symmetric documentation
-  docset_helper_add(docset, symmetrictype__doc__);
-  docset_helper_add(docset, symmetric_object_encrypt_init__doc__);
-  docset_helper_add(docset, symmetric_object_decrypt_init__doc__);
-  docset_helper_add(docset, symmetric_object_update__doc__);
-  docset_helper_add(docset, symmetric_object_final__doc__);
-
-  // asymmetric documentation
-  docset_helper_add(docset, asymmetrictype__doc__);
-  docset_helper_add(docset, asymmetric_object_pem_write__doc__);
-  docset_helper_add(docset, asymmetric_object_der_write__doc__);
-  docset_helper_add(docset, asymmetric_object_public_encrypt__doc__);
-  docset_helper_add(docset, asymmetric_object_public_decrypt__doc__);
-  docset_helper_add(docset, asymmetric_object_private_encrypt__doc__);
-  docset_helper_add(docset, asymmetric_object_private_decrypt__doc__);
-  docset_helper_add(docset, asymmetric_object_sign__doc__);
-  docset_helper_add(docset, asymmetric_object_verify__doc__);
-
-  return docset;
-
- error:
-
-  return NULL;
-}
-
 static struct PyMethodDef pow_module_methods[] = {
-  {"Ssl",               (PyCFunction)pow_module_new_ssl,           METH_VARARGS,  NULL},
   {"X509",              (PyCFunction)pow_module_new_x509,          METH_VARARGS,  NULL},
   {"pemRead",           (PyCFunction)pow_module_pem_read,          METH_VARARGS,  NULL},
   {"derRead",           (PyCFunction)pow_module_der_read,          METH_VARARGS,  NULL},
   {"Digest",            (PyCFunction)pow_module_new_digest,        METH_VARARGS,  NULL},
-  {"Hmac",              (PyCFunction)pow_module_new_hmac,          METH_VARARGS,  NULL},
   {"CMS",               (PyCFunction)pow_module_new_cms,           METH_VARARGS,  NULL},
   {"Asymmetric",        (PyCFunction)pow_module_new_asymmetric,    METH_VARARGS,  NULL},
-  {"Symmetric",         (PyCFunction)pow_module_new_symmetric,     METH_VARARGS,  NULL},
   {"X509Store",         (PyCFunction)pow_module_new_x509_store,    METH_VARARGS,  NULL},
   {"X509Crl",           (PyCFunction)pow_module_new_x509_crl,      METH_VARARGS,  NULL},
   {"X509Revoked",       (PyCFunction)pow_module_new_x509_revoked,  METH_VARARGS,  NULL},
@@ -8131,8 +6014,6 @@ static struct PyMethodDef pow_module_methods[] = {
   {"readRandomFile",    (PyCFunction)pow_module_read_random_file,  METH_VARARGS,  NULL},
   {"writeRandomFile",   (PyCFunction)pow_module_write_random_file, METH_VARARGS,  NULL},
   {"addObject",         (PyCFunction)pow_module_add_object,        METH_VARARGS,  NULL},
-
-  {"_docset",           (PyCFunction)pow_module_docset,            METH_VARARGS,  NULL},
 
   {NULL}     /* sentinel */
 };
@@ -8149,68 +6030,28 @@ init_POW(void)
   x509_storetype.ob_type   = &PyType_Type;
   x509_crltype.ob_type     = &PyType_Type;
   x509_revokedtype.ob_type = &PyType_Type;
-  ssltype.ob_type          = &PyType_Type;
   asymmetrictype.ob_type   = &PyType_Type;
-  symmetrictype.ob_type    = &PyType_Type;
   digesttype.ob_type       = &PyType_Type;
-  hmactype.ob_type         = &PyType_Type;
   cmstype.ob_type          = &PyType_Type;
 
   m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
 
-#define Define_Exception(__name__, __parent__) \
-  PyModule_AddObject(m, #__name__, ((__name__##Object) = PyErr_NewException("POW." #__name__, __parent__, NULL)))
+#define Define_Exception(__name__, __parent__)                  \
+  PyModule_AddObject(m, #__name__, ((__name__##Object)          \
+    = PyErr_NewException("POW." #__name__, __parent__, NULL)))
 
   Define_Exception(Error,                NULL);
-  Define_Exception(SSLError,             ErrorObject);
-  Define_Exception(ZeroReturnError,      SSLErrorObject);
-  Define_Exception(WantReadError,        SSLErrorObject);
-  Define_Exception(WantWriteError,       SSLErrorObject);
-  Define_Exception(SSLSyscallError,      SSLErrorObject);
-  Define_Exception(SSLErrorSSLError,     SSLErrorObject);
-  Define_Exception(SSLSyscallSSLError,   SSLErrorObject);
-  Define_Exception(SSLUnexpectedEOFError,SSLErrorObject);
-  Define_Exception(SSLOtherError,        SSLErrorObject);
+  Define_Exception(POWError,             ErrorObject);
+  Define_Exception(POWSyscallError,      POWErrorObject);
+  Define_Exception(POWErrorSSLError,     POWErrorObject);
+  Define_Exception(POWSyscallSSLError,   POWErrorObject);
+  Define_Exception(POWUnexpectedEOFError,POWErrorObject);
+  Define_Exception(POWOtherError,        POWErrorObject);
 
 #undef Define_Exception
 
 #define Define_Integer_Constant(__name__) \
   PyModule_AddIntConstant(m, #__name__, __name__)
-
-  // constants for SSL_get_error()
-  Define_Integer_Constant(SSL_ERROR_NONE);
-  Define_Integer_Constant(SSL_ERROR_ZERO_RETURN);
-  Define_Integer_Constant(SSL_ERROR_WANT_READ);
-  Define_Integer_Constant(SSL_ERROR_WANT_WRITE);
-  Define_Integer_Constant(SSL_ERROR_WANT_X509_LOOKUP);
-  Define_Integer_Constant(SSL_ERROR_SYSCALL);
-  Define_Integer_Constant(SSL_ERROR_SSL);
-  Define_Integer_Constant(SSL_ERROR_WANT_CONNECT);
-  Define_Integer_Constant(SSL_ERROR_WANT_ACCEPT);
-
-  // constants for different types of connection methods
-  Define_Integer_Constant(SSLV2_SERVER_METHOD);
-  Define_Integer_Constant(SSLV2_CLIENT_METHOD);
-  Define_Integer_Constant(SSLV2_METHOD);
-  Define_Integer_Constant(SSLV3_SERVER_METHOD);
-  Define_Integer_Constant(SSLV3_CLIENT_METHOD);
-  Define_Integer_Constant(SSLV3_METHOD);
-  Define_Integer_Constant(SSLV23_SERVER_METHOD);
-  Define_Integer_Constant(SSLV23_CLIENT_METHOD);
-  Define_Integer_Constant(SSLV23_METHOD);
-  Define_Integer_Constant(TLSV1_SERVER_METHOD);
-  Define_Integer_Constant(TLSV1_CLIENT_METHOD);
-  Define_Integer_Constant(TLSV1_METHOD);
-
-  Define_Integer_Constant(SSL_NO_SHUTDOWN);
-  Define_Integer_Constant(SSL_SENT_SHUTDOWN);
-  Define_Integer_Constant(SSL_RECEIVED_SHUTDOWN);
-
-  // ssl verification mode
-  Define_Integer_Constant(SSL_VERIFY_NONE);
-  Define_Integer_Constant(SSL_VERIFY_PEER);
-  Define_Integer_Constant(SSL_VERIFY_FAIL_IF_NO_PEER_CERT);
-  Define_Integer_Constant(SSL_VERIFY_CLIENT_ONCE);
 
   // object format types
   Define_Integer_Constant(LONGNAME_FORMAT);
@@ -8296,13 +6137,9 @@ init_POW(void)
 #endif
 
   // message digests
-#ifndef OPENSSL_NO_MD2
-  Define_Integer_Constant(MD2_DIGEST);
-#endif
   Define_Integer_Constant(MD5_DIGEST);
   Define_Integer_Constant(SHA_DIGEST);
   Define_Integer_Constant(SHA1_DIGEST);
-  Define_Integer_Constant(RIPEMD160_DIGEST);
   Define_Integer_Constant(SHA256_DIGEST);
   Define_Integer_Constant(SHA384_DIGEST);
   Define_Integer_Constant(SHA512_DIGEST);

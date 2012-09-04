@@ -744,12 +744,8 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
   return x509_stack;
 
  error:
-
-  if (x509_stack)
-    sk_X509_free(x509_stack);
-
+  sk_X509_free(x509_stack);
   Py_XDECREF(x509obj);
-
   return NULL;
 }
 
@@ -817,6 +813,24 @@ python_ASN1_TIME_set_string(ASN1_TIME *t, const char *s)
     return ASN1_UTCTIME_set_string(t, s + 2);
   else
     return ASN1_GENERALIZEDTIME_set_string(t, s);
+}
+
+/*
+ * Extract a Python string from a memory BIO.
+ */
+static PyObject *
+BIO_to_PyString_helper(BIO *bio)
+{
+  char *ptr = NULL;
+  int len = 0;
+
+  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
+    lose("unable to get BIO data");
+
+  return Py_BuildValue("s#", ptr, len);
+
+ error:
+  return NULL;
 }
 
 /*========== helper funcitons ==========*/
@@ -893,10 +907,8 @@ X509_object_der_read(unsigned char *src, int len)
 static PyObject *
 X509_object_write_helper(x509_object *self, PyObject *args, int format)
 {
-  PyObject *cert = NULL;
-  char *ptr = NULL;
+  PyObject *result = NULL;
   BIO *bio = NULL;
-  int len = 0;
 
   if (!PyArg_ParseTuple(args, ""))
     return NULL;
@@ -919,17 +931,11 @@ X509_object_write_helper(x509_object *self, PyObject *args, int format)
     lose("internal error, unknown output format");
   }
 
-  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
-    lose("unable to get BIO data");
+  result = BIO_to_PyString_helper(bio);
 
-  cert = Py_BuildValue("s#", ptr, len);
+ error:                         /* Fall through */
   BIO_free(bio);
-  return cert;
-
- error:
-  BIO_free(bio);
-  Py_XDECREF(cert);
-  return NULL;
+  return result;
 }
 
 static char X509_object_pem_write__doc__[] =
@@ -1016,12 +1022,8 @@ X509_object_set_public_key(x509_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if (pkey)
-    EVP_PKEY_free(pkey);
-
+  EVP_PKEY_free(pkey);
   return NULL;
-
 }
 
 static char X509_object_sign__doc__[] =
@@ -1125,12 +1127,8 @@ X509_object_sign(x509_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if (pkey)
-    EVP_PKEY_free(pkey);
-
+  EVP_PKEY_free(pkey);
   return NULL;
-
 }
 
 static char X509_object_get_version__doc__[] =
@@ -1278,10 +1276,7 @@ X509_object_set_serial(x509_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if (asn1i)
-    ASN1_INTEGER_free(asn1i);
-
+  ASN1_INTEGER_free(asn1i);
   return NULL;
 }
 
@@ -1424,8 +1419,7 @@ X509_object_set_subject(x509_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-  if (name)
-    X509_NAME_free(name);
+  X509_NAME_free(name);
   return NULL;
 }
 
@@ -1472,8 +1466,7 @@ X509_object_set_issuer(x509_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-  if (name)
-    X509_NAME_free(name);
+  X509_NAME_free(name);
   return  NULL;
 }
 
@@ -1682,10 +1675,7 @@ X509_object_add_extension(x509_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if (extn)
-    X509_EXTENSION_free(extn);
-
+  X509_EXTENSION_free(extn);
   return NULL;
 }
 
@@ -1836,10 +1826,8 @@ static char x509_object_pprint__doc__[] =
 static PyObject *
 x509_object_pprint(x509_object *self, PyObject *args)
 {
-  PyObject *cert = NULL;
+  PyObject *result = NULL;
   BIO *bio = NULL;
-  char *ptr = NULL;
-  int len = 0;
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
@@ -1849,17 +1837,11 @@ x509_object_pprint(x509_object *self, PyObject *args)
   if (!X509_print(bio, self->x509))
     lose("unable to write CRL");
 
-  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
-    lose("unable to get BIO data");
+  result = BIO_to_PyString_helper(bio);
 
-  cert = Py_BuildValue("s#", ptr, len);
+ error:                         /* Fall through */
   BIO_free(bio);
-  return cert;
-
- error:
-  BIO_free(bio);
-  return NULL;
-
+  return result;
 }
 
 static struct PyMethodDef X509_object_methods[] = {
@@ -2094,10 +2076,7 @@ x509_store_object_verify_chain(x509_store_object *self, PyObject *args)
   return PyBool_FromLong(ok);
 
  error:
-
-  if (x509_stack)
-    sk_X509_free(x509_stack);
-
+  sk_X509_free(x509_stack);
   return NULL;
 }
 
@@ -2166,10 +2145,7 @@ x509_store_object_verify_detailed(x509_store_object *self, PyObject *args)
   X509_STORE_CTX_cleanup(&csc);
 
  error:                          /* fall through */
-
-  if (x509_stack)
-    sk_X509_free(x509_stack);
-
+  sk_X509_free(x509_stack);
   return result;
 }
 
@@ -2467,10 +2443,7 @@ x509_crl_object_set_version(x509_crl_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if (asn1_version)
-    ASN1_INTEGER_free(asn1_version);
-
+  ASN1_INTEGER_free(asn1_version);
   return NULL;
 }
 
@@ -2554,9 +2527,8 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-  if (name)
-    X509_NAME_free(name);
-  return  NULL;
+  X509_NAME_free(name);
+  return NULL;
 }
 
 static char x509_crl_object_set_this_update__doc__[] =
@@ -2975,10 +2947,7 @@ X509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if (extn)
-    X509_EXTENSION_free(extn);
-
+  X509_EXTENSION_free(extn);
   return NULL;
 }
 
@@ -3011,7 +2980,6 @@ X509_crl_object_clear_extensions(x509_crl_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
 
@@ -3196,12 +3164,8 @@ x509_crl_object_sign(x509_crl_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if (pkey)
-    EVP_PKEY_free(pkey);
-
+  EVP_PKEY_free(pkey);
   return NULL;
-
 }
 
 static char x509_crl_object_verify__doc__[] =
@@ -3247,21 +3211,15 @@ x509_crl_object_verify(x509_crl_object *self, PyObject *args)
   return PyBool_FromLong(ok);
 
  error:
-
-  if (pkey)
-    EVP_PKEY_free(pkey);
-
+  EVP_PKEY_free(pkey);
   return NULL;
-
 }
 
 static PyObject *
 x509_crl_object_write_helper(x509_crl_object *self, PyObject *args, int format)
 {
-  int len = 0;
-  char *ptr = NULL;
+  PyObject *result = NULL;
   BIO *bio = NULL;
-  PyObject *cert = NULL;
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
@@ -3283,16 +3241,11 @@ x509_crl_object_write_helper(x509_crl_object *self, PyObject *args, int format)
     lose("internal error, unknown output format");
   }
 
-  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
-    lose("unable to get BIO data");
+  result = BIO_to_PyString_helper(bio);
 
-  cert = Py_BuildValue("s#", ptr, len);
+ error:                         /* Fall through */
   BIO_free(bio);
-  return cert;
-
- error:
-  BIO_free(bio);
-  return NULL;
+  return result;
 }
 
 static char x509_crl_object_pem_write__doc__[] =
@@ -3354,10 +3307,8 @@ static char x509_crl_object_pprint__doc__[] =
 static PyObject *
 x509_crl_object_pprint(x509_crl_object *self, PyObject *args)
 {
-  PyObject *crl = NULL;
-  char *ptr = NULL;
+  PyObject *result = NULL;
   BIO *bio = NULL;
-  int len = 0;
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
@@ -3365,18 +3316,13 @@ x509_crl_object_pprint(x509_crl_object *self, PyObject *args)
   bio = BIO_new(BIO_s_mem());
 
   if (!X509_CRL_print(bio, self->crl))
-    lose("unable to write crl");
+    lose("unable to pretty-print CRL");
 
-  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
-    lose("unable to get BIO data");
+  result = BIO_to_PyString_helper(bio);
 
-  crl = Py_BuildValue("s#", ptr, len);
+ error:                         /* Fall through */
   BIO_free(bio);
-  return crl;
-
- error:
-  BIO_free(bio);
-  return NULL;
+  return result;
 }
 
 static struct PyMethodDef x509_crl_object_methods[] = {
@@ -3677,10 +3623,7 @@ X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if (extn)
-    X509_EXTENSION_free(extn);
-
+  X509_EXTENSION_free(extn);
   return NULL;
 }
 
@@ -3713,7 +3656,6 @@ X509_revoked_object_clear_extensions(x509_revoked_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
 
@@ -3933,10 +3875,7 @@ ssl_object_add_certificate(ssl_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if (x)
-    X509_free(x);
-
+  X509_free(x);
   return NULL;
 }
 
@@ -3967,10 +3906,7 @@ ssl_object_add_trust(ssl_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if (x)
-    X509_free(x);
-
+  X509_free(x);
   return NULL;
 }
 
@@ -4019,10 +3955,7 @@ ssl_object_use_key(ssl_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
-  if(pkey)
-    EVP_PKEY_free(pkey);
-
+  EVP_PKEY_free(pkey);
   return NULL;
 }
 
@@ -4407,10 +4340,7 @@ ssl_object_peer_certificate(ssl_object *self, PyObject *args)
   }
 
  error:
-
-  if (x509)
-    X509_free(x509);
-
+  X509_free(x509);
   Py_XDECREF(x509_obj);
   return NULL;
 }
@@ -4929,8 +4859,7 @@ ssl_object_dealloc(ssl_object *self)
 {
   SSL_free(self->ssl);
   SSL_CTX_free(self->ctx);
-  if (self->trusted_certs)
-    sk_X509_pop_free(self->trusted_certs, X509_free);
+  sk_X509_pop_free(self->trusted_certs, X509_free);
   if (self->x509_cb_err)
     free(self->x509_cb_err);
   PyObject_Del(self);
@@ -5117,10 +5046,10 @@ static char asymmetric_object_pem_write__doc__[] =
 static PyObject *
 asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
 {
-  int key_type = 0, cipher = 0, len = 0, ret = 0;
-  char *kstr = NULL, *ptr = NULL;
+  PyObject *result = NULL;
+  int key_type = 0, cipher = 0;
+  char *kstr = NULL;
   BIO *bio = NULL;
-  PyObject *asymmetric = NULL;
 
   if (!PyArg_ParseTuple(args, "|iis", &key_type, &cipher, &kstr))
     goto error;
@@ -5161,16 +5090,11 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
     lose("unsupported key type");
   }
 
-  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
-    lose("unable to get BIO data");
+  result = BIO_to_PyString_helper(bio);
 
-  asymmetric = Py_BuildValue("s#", ptr, len);
+ error:                         /* Fall through */
   BIO_free(bio);
-  return asymmetric;
-
- error:
-  BIO_free(bio);
-  return NULL;
+  return result;
 }
 
 static char asymmetric_object_der_write__doc__[] =
@@ -6578,10 +6502,7 @@ CMS_object_der_read(char *src, int len)
   return self;
 
  error:
-
-  if (bio)
-    BIO_free(bio);
-
+  BIO_free(bio);
   Py_XDECREF(self);
   return NULL;
 }
@@ -6589,10 +6510,8 @@ CMS_object_der_read(char *src, int len)
 static PyObject *
 CMS_object_write_helper(cms_object *self, PyObject *args, int format)
 {
-  PyObject *cert = NULL;
-  char *ptr = NULL;
+  PyObject *result = NULL;
   BIO *bio = NULL;
-  int len = 0;
 
   if (!PyArg_ParseTuple(args, ""))
     return NULL;
@@ -6615,17 +6534,11 @@ CMS_object_write_helper(cms_object *self, PyObject *args, int format)
     lose("internal error, unknown output format");
   }
 
-  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
-    lose("unable to get BIO data");
+  result = BIO_to_PyString_helper(bio);
 
-  cert = Py_BuildValue("s#", ptr, len);
+ error:                         /* Fall through */
   BIO_free(bio);
-  return cert;
-
- error:
-  BIO_free(bio);
-  Py_XDECREF(cert);
-  return NULL;
+  return result;
 }
 
 static char CMS_object_pem_write__doc__[] =
@@ -6803,8 +6716,7 @@ CMS_object_sign(cms_object *self, PyObject *args)
 
   assert_no_unhandled_openssl_errors();
 
-  if (self->cms)
-    CMS_ContentInfo_free(self->cms);
+  CMS_ContentInfo_free(self->cms);
   self->cms = cms;
   cms = NULL;
 
@@ -6814,24 +6726,12 @@ CMS_object_sign(cms_object *self, PyObject *args)
 
   assert_no_unhandled_openssl_errors();
 
-  if (cms)
-    CMS_ContentInfo_free(cms);
-
-  if (bio)
-    BIO_free(bio);
-
-  if (x509_stack)
-    sk_X509_free(x509_stack);
-
-  if (pkey)
-    EVP_PKEY_free(pkey);
-
-  if (econtent_type)
-    ASN1_OBJECT_free(econtent_type);
-
-  if (crlobj) {
-    Py_XDECREF(crlobj);
-  }
+  CMS_ContentInfo_free(cms);
+  BIO_free(bio);
+  sk_X509_free(x509_stack);
+  EVP_PKEY_free(pkey);
+  ASN1_OBJECT_free(econtent_type);
+  Py_XDECREF(crlobj);
 
   return result;
 }
@@ -6867,9 +6767,7 @@ CMS_object_verify(cms_object *self, PyObject *args)
   PyObject *result = NULL, *certs_sequence = Py_None;
   STACK_OF(X509) *certs_stack = NULL;
   unsigned flags = 0;
-  char *ptr = NULL;
   BIO *bio = NULL;
-  int len;
 
   if (!PyArg_ParseTuple(args, "O!|OI", &x509_storetype, &store, &certs_sequence, &flags))
     goto error;
@@ -6893,20 +6791,13 @@ CMS_object_verify(cms_object *self, PyObject *args)
 
   assert_no_unhandled_openssl_errors();
 
-  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
-    lose("unable to get BIO data");
-
-  assert_no_unhandled_openssl_errors();
-
-  result = Py_BuildValue("s#", ptr, len);
+  result = BIO_to_PyString_helper(bio);
 
  error:                          /* fall through */
 
   assert_no_unhandled_openssl_errors();
 
-  if (certs_stack)
-    sk_X509_free(certs_stack);
-
+  sk_X509_free(certs_stack);
   BIO_free(bio);
 
   return result;
@@ -7037,8 +6928,6 @@ static char CMS_object_pprint__doc__[] =
 static PyObject *
 CMS_object_pprint(cms_object *self, PyObject *args)
 {
-  int len = 0;
-  char *ptr = NULL;
   BIO *bio = NULL;
   PyObject *result = NULL;
 
@@ -7050,10 +6939,7 @@ CMS_object_pprint(cms_object *self, PyObject *args)
   if (!CMS_ContentInfo_print_ctx(bio, self->cms, 0, NULL))
     lose("unable to pprint CMS");
 
-  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
-    lose("unable to get BIO data");
-
-  result = Py_BuildValue("s#", ptr, len);
+  result = BIO_to_PyString_helper(bio);
 
  error:                          /* fall through */
 
@@ -7108,10 +6994,7 @@ CMS_object_certs(cms_object *self, PyObject *args)
     lose_openssl_error("Could not extract certs from CMS message");
 
  error:                          /* fall through */
-
-  if (certs)
-    sk_X509_pop_free(certs, X509_free);
-
+  sk_X509_pop_free(certs, X509_free);
   return result;
 }
 
@@ -7158,10 +7041,7 @@ CMS_object_crls(cms_object *self, PyObject *args)
     lose_openssl_error("Could not extract CRLs from CMS message");
 
  error:                          /* fall through */
-
-  if (crls)
-    sk_X509_CRL_pop_free(crls, X509_CRL_free);
-
+  sk_X509_CRL_pop_free(crls, X509_CRL_free);
   return result;
 }
 

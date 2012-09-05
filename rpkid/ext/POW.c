@@ -52,44 +52,6 @@
 #include <time.h>
 #include <string.h>
 
-// Symmetric ciphers
-#define DES_ECB               1
-#define DES_EDE               2
-#define DES_EDE3              3
-#define DES_CFB               4
-#define DES_EDE_CFB           5
-#define DES_EDE3_CFB          6
-#define DES_OFB               7
-#define DES_EDE_OFB           8
-#define DES_EDE3_OFB          9
-#define DES_CBC               10
-#define DES_EDE_CBC           11
-#define DES_EDE3_CBC          12
-#define DESX_CBC              13
-#define RC4                   14
-#define RC4_40                15
-#define IDEA_ECB              16
-#define IDEA_CFB              17
-#define IDEA_OFB              18
-#define IDEA_CBC              19
-#define RC2_ECB               20
-#define RC2_CBC               21
-#define RC2_40_CBC            22
-#define RC2_CFB               23
-#define RC2_OFB               24
-#define BF_ECB                25
-#define BF_CBC                26
-#define BF_CFB                27
-#define BF_OFB                28
-#define CAST5_ECB             29
-#define CAST5_CBC             30
-#define CAST5_CFB             31
-#define CAST5_OFB             32
-#define RC5_32_12_16_CBC      33
-#define RC5_32_12_16_CFB      34
-#define RC5_32_12_16_ECB      35
-#define RC5_32_12_16_OFB      36
-
 // PEM encoded data types
 #define RSA_PUBLIC_KEY        1
 #define RSA_PRIVATE_KEY       2
@@ -301,66 +263,8 @@ assert_helper(int line)
 }
 
 /*
- * Factories to encapsulate tedious EVP-related switch statements.
+ * Consolidate some tedious EVP-related switch statements.
  */
-
-static const EVP_CIPHER *
-evp_cipher_factory(int cipher_type)
-{
-  switch(cipher_type) {
-#ifndef OPENSSL_NO_DES
-  case DES_ECB:           return EVP_des_ecb();
-  case DES_EDE:           return EVP_des_ede();
-  case DES_EDE3:          return EVP_des_ede3();
-  case DES_CFB:           return EVP_des_cfb();
-  case DES_EDE_CFB:       return EVP_des_ede_cfb();
-  case DES_EDE3_CFB:      return EVP_des_ede3_cfb();
-  case DES_OFB:           return EVP_des_ofb();
-  case DES_EDE_OFB:       return EVP_des_ede_ofb();
-  case DES_EDE3_OFB:      return EVP_des_ede3_ofb();
-  case DES_CBC:           return EVP_des_cbc();
-  case DES_EDE_CBC:       return EVP_des_ede_cbc();
-  case DES_EDE3_CBC:      return EVP_des_ede3_cbc();
-  case DESX_CBC:          return EVP_desx_cbc();
-#endif
-#ifndef OPENSSL_NO_RC4
-  case RC4:               return EVP_rc4();
-  case RC4_40:            return EVP_rc4_40();
-#endif
-#ifndef OPENSSL_NO_IDEA
-  case IDEA_ECB:          return EVP_idea_ecb();
-  case IDEA_CFB:          return EVP_idea_cfb();
-  case IDEA_OFB:          return EVP_idea_ofb();
-  case IDEA_CBC:          return EVP_idea_cbc();
-#endif
-#ifndef OPENSSL_NO_RC2
-  case RC2_ECB:           return EVP_rc2_ecb();
-  case RC2_CBC:           return EVP_rc2_cbc();
-  case RC2_40_CBC:        return EVP_rc2_40_cbc();
-  case RC2_CFB:           return EVP_rc2_cfb();
-  case RC2_OFB:           return EVP_rc2_ofb();
-#endif
-#ifndef OPENSSL_NO_BF
-  case BF_ECB:            return EVP_bf_ecb();
-  case BF_CBC:            return EVP_bf_cbc();
-  case BF_CFB:            return EVP_bf_cfb();
-  case BF_OFB:            return EVP_bf_ofb();
-#endif
-#ifndef OPENSSL_NO_CAST5
-  case CAST5_ECB:         return EVP_cast5_ecb();
-  case CAST5_CBC:         return EVP_cast5_cbc();
-  case CAST5_CFB:         return EVP_cast5_cfb();
-  case CAST5_OFB:         return EVP_cast5_ofb();
-#endif
-#ifndef OPENSSL_NO_RC5
-  case RC5_32_12_16_CBC:  return EVP_rc5_32_12_16_cbc();
-  case RC5_32_12_16_CFB:  return EVP_rc5_32_12_16_cfb();
-  case RC5_32_12_16_ECB:  return EVP_rc5_32_12_16_ecb();
-  case RC5_32_12_16_OFB:  return EVP_rc5_32_12_16_ofb();
-#endif
-  default:                return NULL;
-  }
-}
 
 static const EVP_MD *
 evp_digest_factory(int digest_type)
@@ -3606,7 +3510,6 @@ static char asymmetric_object_pem_write__doc__[] =
 "      <memberof>Asymmetric</memberof>\n"
 "      <name>pemWrite</name>\n"
 "      <parameter>keytype</parameter>\n"
-"      <parameter>ciphertype = None</parameter>\n"
 "      <parameter>passphrase = None</parameter>\n"
 "   </header>\n"
 "   <body>\n"
@@ -3618,10 +3521,9 @@ static char asymmetric_object_pem_write__doc__[] =
 "         saved in encrypted files to offer extra security above access\n"
 "         control mechanisms.  If the <parameter>keytype</parameter> is\n"
 "         <constant>RSA_PRIVATE_KEY</constant> a\n"
-"         <parameter>ciphertype</parameter> and\n"
-"         <parameter>passphrase</parameter> can also be specified.  The\n"
-"         <parameter>ciphertype</parameter> should be one of those listed in\n"
-"         the <classname>Symmetric</classname> class section.\n"
+"         <parameter>passphrase</parameter> can also be specified, in which\n"
+"         case the private key will be encrypted with AES-256-CBC using the\n"
+"         given passphrase.\n"
 "      </para>\n"
 "   </body>\n"
 "</method>\n"
@@ -3631,11 +3533,12 @@ static PyObject *
 asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
 {
   PyObject *result = NULL;
-  int key_type = 0, cipher = 0;
-  char *kstr = NULL;
+  char *passphrase = NULL;
+  const EVP_CIPHER *evp_method = NULL;
+  int key_type = 0;
   BIO *bio = NULL;
 
-  if (!PyArg_ParseTuple(args, "|iis", &key_type, &cipher, &kstr))
+  if (!PyArg_ParseTuple(args, "|is", &key_type, &passphrase))
     goto error;
 
   if (key_type == 0)
@@ -3644,30 +3547,26 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose("Unable to create new BIO");
 
-  if ((kstr && !cipher) || (cipher && !kstr))
-    lose("Cipher type and key string must both be supplied");
-
   switch(key_type) {
 
   case RSA_PRIVATE_KEY:
-    if (kstr && cipher) {
-      if (!PEM_write_bio_RSAPrivateKey(bio, self->cipher, evp_cipher_factory(cipher),
-                                       NULL, 0, NULL, kstr))
-        lose("Unable to write key");
-    }
-    else {
-      if (!PEM_write_bio_RSAPrivateKey(bio, self->cipher, NULL, NULL, 0, NULL, NULL))
-        lose("Unable to write key");
-    }
+
+    if (passphrase)
+      evp_method = EVP_aes_256_cbc();
+
+    if (!PEM_write_bio_RSAPrivateKey(bio, self->cipher, evp_method, NULL, 0, NULL, passphrase))
+      lose("Unable to write key");
+
     break;
 
   case RSA_PUBLIC_KEY:
-    if (kstr && cipher)
+
+    if (passphrase)
       lose("Public keys should not encrypted");
-    else {
-      if (!PEM_write_bio_RSA_PUBKEY(bio, self->cipher))
-        lose("Unable to write key");
-    }
+
+    if (!PEM_write_bio_RSA_PUBKEY(bio, self->cipher))
+      lose("Unable to write key");
+
     break;
 
   default:
@@ -5102,7 +5001,7 @@ static char pow_module_new_asymmetric__doc__[] =
 "\n"
 "      rsa = POW.Asymmetric(POW.RSA_CIPHER, 1024)\n"
 "      privateFile.write(rsa.pemWrite(\n"
-"               POW.RSA_PRIVATE_KEY, POW.DES_EDE3_CFB, password))\n"
+"               POW.RSA_PRIVATE_KEY, password))\n"
 "      publicFile.write(rsa.pemWrite(POW.RSA_PUBLIC_KEY))\n"
 "\n"
 "      privateFile.close()\n"
@@ -5749,56 +5648,6 @@ init_POW(void)
 #endif
 #ifndef OPENSSL_NO_DH
   Define_Integer_Constant(DH_CIPHER);
-#endif
-
-  // symmetric ciphers
-#ifndef OPENSSL_NO_DES
-  Define_Integer_Constant(DES_ECB);
-  Define_Integer_Constant(DES_EDE);
-  Define_Integer_Constant(DES_EDE3);
-  Define_Integer_Constant(DES_CFB);
-  Define_Integer_Constant(DES_EDE_CFB);
-  Define_Integer_Constant(DES_EDE3_CFB);
-  Define_Integer_Constant(DES_OFB);
-  Define_Integer_Constant(DES_EDE_OFB);
-  Define_Integer_Constant(DES_EDE3_OFB);
-  Define_Integer_Constant(DES_CBC);
-  Define_Integer_Constant(DES_EDE_CBC);
-  Define_Integer_Constant(DES_EDE3_CBC);
-  Define_Integer_Constant(DESX_CBC);
-#endif
-#ifndef OPENSSL_NO_RC4
-  Define_Integer_Constant(RC4);
-  Define_Integer_Constant(RC4_40);
-#endif
-#ifndef OPENSSL_NO_IDEA
-  Define_Integer_Constant(IDEA_ECB);
-  Define_Integer_Constant(IDEA_CFB);
-  Define_Integer_Constant(IDEA_OFB);
-  Define_Integer_Constant(IDEA_CBC);
-#endif
-#ifndef OPENSSL_NO_RC2
-  Define_Integer_Constant(RC2_ECB);
-  Define_Integer_Constant(RC2_CBC);
-  Define_Integer_Constant(RC2_40_CBC);
-  Define_Integer_Constant(RC2_CFB);
-  Define_Integer_Constant(RC2_OFB);
-#endif
-#ifndef OPENSSL_NO_BF
-  Define_Integer_Constant(BF_ECB);
-  Define_Integer_Constant(BF_CBC);
-  Define_Integer_Constant(BF_CFB);
-  Define_Integer_Constant(BF_OFB);
-#endif
-  Define_Integer_Constant(CAST5_ECB);
-  Define_Integer_Constant(CAST5_CBC);
-  Define_Integer_Constant(CAST5_CFB);
-  Define_Integer_Constant(CAST5_OFB);
-#ifndef OPENSSL_NO_RC5
-  Define_Integer_Constant(RC5_32_12_16_CBC);
-  Define_Integer_Constant(RC5_32_12_16_CFB);
-  Define_Integer_Constant(RC5_32_12_16_ECB);
-  Define_Integer_Constant(RC5_32_12_16_OFB);
 #endif
 
   // message digests

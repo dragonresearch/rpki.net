@@ -377,46 +377,16 @@ evp_digest_factory(int digest_type)
 }
 
 static int
-evp_digest_nid_and_length(int digest_type, int *digest_len, int *digest_nid)
+evp_digest_nid(int digest_type)
 {
-
-  if (!digest_len || !digest_nid)
-    return 0;
-
   switch (digest_type) {
-
-  case MD5_DIGEST:
-    *digest_len = MD5_DIGEST_LENGTH;
-    *digest_nid = NID_md5;
-    return 1;
-
-  case SHA_DIGEST:
-    *digest_len = SHA_DIGEST_LENGTH;
-    *digest_nid = NID_sha;
-    return 1;
-
-  case SHA1_DIGEST:
-    *digest_len = SHA_DIGEST_LENGTH;
-    *digest_nid = NID_sha1;
-    return 1;
-
-  case SHA256_DIGEST:
-    *digest_len = SHA256_DIGEST_LENGTH;
-    *digest_nid = NID_sha256;
-    return 1;
-
-  case SHA384_DIGEST:
-    *digest_len = SHA384_DIGEST_LENGTH;
-    *digest_nid = NID_sha384;
-    return 1;
-
-  case SHA512_DIGEST:
-    *digest_len = SHA512_DIGEST_LENGTH;
-    *digest_nid = NID_sha512;
-    return 1;
-
-  default:
-    return 0;
+  case MD5_DIGEST:	return NID_md5;
+  case SHA_DIGEST:	return NID_sha;
+  case SHA1_DIGEST:	return NID_sha1;
+  case SHA256_DIGEST:	return NID_sha256;
+  case SHA384_DIGEST:	return NID_sha384;
+  case SHA512_DIGEST:	return NID_sha512;
+  default:		return NID_undef;
   }
 }
 
@@ -4028,7 +3998,7 @@ static PyObject *
 asymmetric_object_sign(asymmetric_object *self, PyObject *args)
 {
   unsigned char *digest_text = NULL, *signed_text = NULL;
-  unsigned int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0;
+  unsigned int digest_type = 0, signed_len = 0, digest_len = 0;
   PyObject *obj = NULL;
 
   if (!PyArg_ParseTuple(args, "s#i", &digest_text, &digest_len, &digest_type))
@@ -4040,10 +4010,9 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
   if ((signed_text = malloc(RSA_size(self->cipher))) == NULL)
     lose("Couldn't allocate memory");
 
-  if (!evp_digest_nid_and_length(digest_type, &digest_len, &digest_nid))
-    lose("Unsupported digest algorithm");
-
-  if (!RSA_sign(digest_nid, digest_text, digest_len, signed_text, &signed_len, self->cipher))
+  if (!RSA_sign(evp_digest_nid(digest_type),
+                digest_text, digest_len,
+                signed_text, &signed_len, self->cipher))
     lose("Couldn't sign digest");
 
   obj = Py_BuildValue("s#", signed_text, signed_len);
@@ -4127,26 +4096,16 @@ static PyObject *
 asymmetric_object_verify(asymmetric_object *self, PyObject *args)
 {
   unsigned char *digest_text = NULL, *signed_text = NULL;
-  int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0;
+  int digest_type = 0, signed_len = 0, digest_len = 0;
 
-#warning I do not think this code ever worked properly
-
-  /*
-   * This seems really iffy.  First we get digest_len from the user,
-   * then we get it by doing an algorithm lookup.  Say what?
-   *
-   * None of this seems terribly relevant to RPKI, so maybe we just
-   * delete it.
-   */
-
-  if (!PyArg_ParseTuple(args, "s#s#i", &signed_text, &signed_len, &digest_text,
-                        &digest_len, &digest_type))
+  if (!PyArg_ParseTuple(args, "s#s#i",
+                        &signed_text, &signed_len,
+                        &digest_text, &digest_len,
+                        &digest_type))
     goto error;
 
-  if (!evp_digest_nid_and_length(digest_type, &digest_len, &digest_nid))
-    lose("Unsupported digest algorithm");
-
-  return PyBool_FromLong(RSA_verify(digest_nid, digest_text, digest_len,
+  return PyBool_FromLong(RSA_verify(evp_digest_nid(digest_type),
+                                    digest_text, digest_len,
                                     signed_text, signed_len, self->cipher));
 
  error:

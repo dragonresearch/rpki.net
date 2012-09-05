@@ -776,13 +776,10 @@ X509_object_der_read(unsigned char *src, int len)
  * it is read into a char[] and returned as a string.
  */
 static PyObject *
-X509_object_write_helper(x509_object *self, PyObject *args, int format)
+X509_object_write_helper(x509_object *self, int format)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    return NULL;
 
   bio = BIO_new(BIO_s_mem());
 
@@ -825,9 +822,9 @@ static char X509_object_pem_write__doc__[] =
 ;
 
 static PyObject *
-X509_object_pem_write(x509_object *self, PyObject *args)
+X509_object_pem_write(x509_object *self)
 {
-  return X509_object_write_helper(self, args, PEM_FORMAT);
+  return X509_object_write_helper(self, PEM_FORMAT);
 }
 
 static char X509_object_der_write__doc__[] =
@@ -846,9 +843,9 @@ static char X509_object_der_write__doc__[] =
 ;
 
 static PyObject *
-X509_object_der_write(x509_object *self, PyObject *args)
+X509_object_der_write(x509_object *self)
 {
-  return X509_object_write_helper(self, args, DER_FORMAT);
+  return X509_object_write_helper(self, DER_FORMAT);
 }
 
 /*
@@ -1003,20 +1000,9 @@ static char X509_object_get_version__doc__[] =
 
 
 static PyObject *
-X509_object_get_version(x509_object *self, PyObject *args)
+X509_object_get_version(x509_object *self)
 {
-  long version = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  version = X509_get_version(self->x509);
-
-  return Py_BuildValue("l", version);
-
- error:
-
-  return NULL;
+  return Py_BuildValue("l", X509_get_version(self->x509));
 }
 
 static char X509_object_set_version__doc__[] =
@@ -1070,13 +1056,10 @@ static char X509_object_get_serial__doc__[] =
 ;
 
 static PyObject *
-X509_object_get_serial(x509_object *self, PyObject *args)
+X509_object_get_serial(x509_object *self)
 {
   long serial = 0;
   ASN1_INTEGER *asn1i = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if ((asn1i = X509_get_serialNumber(self->x509)) == NULL)
     lose("could not get serial number");
@@ -1345,16 +1328,9 @@ static char X509_object_get_not_before__doc__[] =
 ;
 
 static PyObject *
-X509_object_get_not_before (x509_object *self, PyObject *args)
+X509_object_get_not_before (x509_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
   return ASN1_TIME_to_Python(self->x509->cert_info->validity->notBefore);
-
- error:
-
-  return NULL;
 }
 
 static char X509_object_get_not_after__doc__[] =
@@ -1376,16 +1352,9 @@ static char X509_object_get_not_after__doc__[] =
 ;
 
 static PyObject *
-X509_object_get_not_after (x509_object *self, PyObject *args)
+X509_object_get_not_after (x509_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
   return ASN1_TIME_to_Python(self->x509->cert_info->validity->notAfter);
-
- error:
-
-  return NULL;
 }
 
 static char X509_object_set_not_after__doc__[] =
@@ -1550,21 +1519,11 @@ static char X509_object_clear_extensions__doc__[] =
 ;
 
 static PyObject *
-X509_object_clear_extensions(x509_object *self, PyObject *args)
+X509_object_clear_extensions(x509_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (self->x509->cert_info->extensions) {
-    sk_X509_EXTENSION_free(self->x509->cert_info->extensions);
-    self->x509->cert_info->extensions = NULL;
-  }
-
+  sk_X509_EXTENSION_free(self->x509->cert_info->extensions);
+  self->x509->cert_info->extensions = NULL;
   Py_RETURN_NONE;
-
- error:
-
-  return NULL;
 }
 
 static char X509_object_count_extensions__doc__[] =
@@ -1583,21 +1542,14 @@ static char X509_object_count_extensions__doc__[] =
 ;
 
 static PyObject *
-X509_object_count_extensions(x509_object *self, PyObject *args)
+X509_object_count_extensions(x509_object *self)
 {
   int num = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if (self->x509->cert_info->extensions)
     num = sk_X509_EXTENSION_num(self->x509->cert_info->extensions);
 
   return Py_BuildValue("i", num);
-
- error:
-
-  return NULL;
 }
 
 static char X509_object_get_extension__doc__[] =
@@ -1679,13 +1631,10 @@ static char x509_object_pprint__doc__[] =
 ;
 
 static PyObject *
-x509_object_pprint(x509_object *self, PyObject *args)
+x509_object_pprint(x509_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   bio = BIO_new(BIO_s_mem());
 
@@ -1700,27 +1649,27 @@ x509_object_pprint(x509_object *self, PyObject *args)
 }
 
 static struct PyMethodDef X509_object_methods[] = {
-  {"pemWrite",          (PyCFunction)X509_object_pem_write,        METH_VARARGS,  NULL},
-  {"derWrite",          (PyCFunction)X509_object_der_write,        METH_VARARGS,  NULL},
+  {"pemWrite",          (PyCFunction)X509_object_pem_write,        METH_NOARGS,   NULL},
+  {"derWrite",          (PyCFunction)X509_object_der_write,        METH_NOARGS,   NULL},
   {"sign",              (PyCFunction)X509_object_sign,             METH_VARARGS,  NULL},
   {"setPublicKey",      (PyCFunction)X509_object_set_public_key,   METH_VARARGS,  NULL},
-  {"getVersion",        (PyCFunction)X509_object_get_version,      METH_VARARGS,  NULL},
+  {"getVersion",        (PyCFunction)X509_object_get_version,      METH_NOARGS,   NULL},
   {"setVersion",        (PyCFunction)X509_object_set_version,      METH_VARARGS,  NULL},
-  {"getSerial",         (PyCFunction)X509_object_get_serial,       METH_VARARGS,  NULL},
+  {"getSerial",         (PyCFunction)X509_object_get_serial,       METH_NOARGS,   NULL},
   {"setSerial",         (PyCFunction)X509_object_set_serial,       METH_VARARGS,  NULL},
   {"getIssuer",         (PyCFunction)X509_object_get_issuer,       METH_VARARGS,  NULL},
   {"setIssuer",         (PyCFunction)X509_object_set_issuer,       METH_VARARGS,  NULL},
   {"getSubject",        (PyCFunction)X509_object_get_subject,      METH_VARARGS,  NULL},
   {"setSubject",        (PyCFunction)X509_object_set_subject,      METH_VARARGS,  NULL},
-  {"getNotBefore",      (PyCFunction)X509_object_get_not_before,   METH_VARARGS,  NULL},
-  {"getNotAfter",       (PyCFunction)X509_object_get_not_after,    METH_VARARGS,  NULL},
+  {"getNotBefore",      (PyCFunction)X509_object_get_not_before,   METH_NOARGS,   NULL},
+  {"getNotAfter",       (PyCFunction)X509_object_get_not_after,    METH_NOARGS,   NULL},
   {"setNotAfter",       (PyCFunction)X509_object_set_not_after,    METH_VARARGS,  NULL},
   {"setNotBefore",      (PyCFunction)X509_object_set_not_before,   METH_VARARGS,  NULL},
   {"addExtension",      (PyCFunction)X509_object_add_extension,    METH_VARARGS,  NULL},
-  {"clearExtensions",   (PyCFunction)X509_object_clear_extensions, METH_VARARGS,  NULL},
-  {"countExtensions",   (PyCFunction)X509_object_count_extensions, METH_VARARGS,  NULL},
+  {"clearExtensions",   (PyCFunction)X509_object_clear_extensions, METH_NOARGS,   NULL},
+  {"countExtensions",   (PyCFunction)X509_object_count_extensions, METH_NOARGS,   NULL},
   {"getExtension",      (PyCFunction)X509_object_get_extension,    METH_VARARGS,  NULL},
-  {"pprint",            (PyCFunction)x509_object_pprint,           METH_VARARGS,  NULL},
+  {"pprint",            (PyCFunction)x509_object_pprint,           METH_NOARGS,   NULL},
   {"getSKI",            (PyCFunction)X509_object_get_ski,          METH_NOARGS,   NULL},
   {NULL}    /* sentinel */
 };
@@ -2244,12 +2193,9 @@ static char x509_crl_object_get_version__doc__[] =
 ;
 
 static PyObject *
-x509_crl_object_get_version(x509_crl_object *self, PyObject *args)
+x509_crl_object_get_version(x509_crl_object *self)
 {
   long version = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if ((version = ASN1_INTEGER_get(self->crl->crl->version)) == -1)
     lose("could not get crl version");
@@ -2442,16 +2388,9 @@ static char x509_crl_object_get_this_update__doc__[] =
 ;
 
 static PyObject *
-x509_crl_object_get_this_update (x509_crl_object *self, PyObject *args)
+x509_crl_object_get_this_update (x509_crl_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
   return ASN1_TIME_to_Python(self->crl->crl->lastUpdate);
-
- error:
-
-  return NULL;
 }
 
 static char x509_crl_object_set_next_update__doc__[] =
@@ -2516,16 +2455,9 @@ static char x509_crl_object_get_next_update__doc__[] =
 ;
 
 static PyObject *
-x509_crl_object_get_next_update (x509_crl_object *self, PyObject *args)
+x509_crl_object_get_next_update (x509_crl_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
   return ASN1_TIME_to_Python(self->crl->crl->nextUpdate);
-
- error:
-
-  return NULL;
 }
 
 static char x509_crl_object_set_revoked__doc__[] =
@@ -2710,16 +2642,9 @@ static char x509_crl_object_get_revoked__doc__[] =
 ;
 
 static PyObject *
-x509_crl_object_get_revoked(x509_crl_object *self, PyObject *args)
+x509_crl_object_get_revoked(x509_crl_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
   return x509_crl_object_helper_get_revoked(X509_CRL_get_REVOKED(self->crl));
-
- error:
-
-  return NULL;
 }
 
 static char X509_crl_object_add_extension__doc__[] =
@@ -2822,20 +2747,11 @@ static char X509_crl_object_clear_extensions__doc__[] =
 ;
 
 static PyObject *
-X509_crl_object_clear_extensions(x509_crl_object *self, PyObject *args)
+X509_crl_object_clear_extensions(x509_crl_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (self->crl->crl->extensions) {
-    sk_X509_EXTENSION_free(self->crl->crl->extensions);
-    self->crl->crl->extensions = NULL;
-  }
-
+  sk_X509_EXTENSION_free(self->crl->crl->extensions);
+  self->crl->crl->extensions = NULL;
   Py_RETURN_NONE;
-
- error:
-  return NULL;
 }
 
 static char X509_crl_object_count_extensions__doc__[] =
@@ -2854,21 +2770,14 @@ static char X509_crl_object_count_extensions__doc__[] =
 ;
 
 static PyObject *
-X509_crl_object_count_extensions(x509_crl_object *self, PyObject *args)
+X509_crl_object_count_extensions(x509_crl_object *self)
 {
   int num = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if (self->crl->crl->extensions)
     num = sk_X509_EXTENSION_num(self->crl->crl->extensions);
 
   return Py_BuildValue("i", num);
-
- error:
-
-  return NULL;
 }
 
 static char X509_crl_object_get_extension__doc__[] =
@@ -3055,13 +2964,10 @@ x509_crl_object_verify(x509_crl_object *self, PyObject *args)
 }
 
 static PyObject *
-x509_crl_object_write_helper(x509_crl_object *self, PyObject *args, int format)
+x509_crl_object_write_helper(x509_crl_object *self, int format)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   bio = BIO_new(BIO_s_mem());
 
@@ -3103,9 +3009,9 @@ static char x509_crl_object_pem_write__doc__[] =
 ;
 
 static PyObject *
-x509_crl_object_pem_write(x509_crl_object *self, PyObject *args)
+x509_crl_object_pem_write(x509_crl_object *self)
 {
-  return x509_crl_object_write_helper(self, args, PEM_FORMAT);
+  return x509_crl_object_write_helper(self, PEM_FORMAT);
 }
 
 static char x509_crl_object_der_write__doc__[] =
@@ -3123,9 +3029,9 @@ static char x509_crl_object_der_write__doc__[] =
 ;
 
 static PyObject *
-x509_crl_object_der_write(x509_crl_object *self, PyObject *args)
+x509_crl_object_der_write(x509_crl_object *self)
 {
-  return x509_crl_object_write_helper(self, args, DER_FORMAT);
+  return x509_crl_object_write_helper(self, DER_FORMAT);
 }
 
 static char x509_crl_object_pprint__doc__[] =
@@ -3144,13 +3050,10 @@ static char x509_crl_object_pprint__doc__[] =
 ;
 
 static PyObject *
-x509_crl_object_pprint(x509_crl_object *self, PyObject *args)
+x509_crl_object_pprint(x509_crl_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   bio = BIO_new(BIO_s_mem());
 
@@ -3167,23 +3070,23 @@ x509_crl_object_pprint(x509_crl_object *self, PyObject *args)
 static struct PyMethodDef x509_crl_object_methods[] = {
   {"sign",             (PyCFunction)x509_crl_object_sign,              METH_VARARGS,  NULL},
   {"verify",           (PyCFunction)x509_crl_object_verify,            METH_VARARGS,  NULL},
-  {"getVersion",       (PyCFunction)x509_crl_object_get_version,       METH_VARARGS,  NULL},
+  {"getVersion",       (PyCFunction)x509_crl_object_get_version,       METH_NOARGS,   NULL},
   {"setVersion",       (PyCFunction)x509_crl_object_set_version,       METH_VARARGS,  NULL},
   {"getIssuer",        (PyCFunction)x509_crl_object_get_issuer,        METH_VARARGS,  NULL},
   {"setIssuer",        (PyCFunction)x509_crl_object_set_issuer,        METH_VARARGS,  NULL},
-  {"getThisUpdate",    (PyCFunction)x509_crl_object_get_this_update,   METH_VARARGS,  NULL},
+  {"getThisUpdate",    (PyCFunction)x509_crl_object_get_this_update,   METH_NOARGS,   NULL},
   {"setThisUpdate",    (PyCFunction)x509_crl_object_set_this_update,   METH_VARARGS,  NULL},
-  {"getNextUpdate",    (PyCFunction)x509_crl_object_get_next_update,   METH_VARARGS,  NULL},
+  {"getNextUpdate",    (PyCFunction)x509_crl_object_get_next_update,   METH_NOARGS,   NULL},
   {"setNextUpdate",    (PyCFunction)x509_crl_object_set_next_update,   METH_VARARGS,  NULL},
   {"setRevoked",       (PyCFunction)x509_crl_object_set_revoked,       METH_VARARGS,  NULL},
-  {"getRevoked",       (PyCFunction)x509_crl_object_get_revoked,       METH_VARARGS,  NULL},
+  {"getRevoked",       (PyCFunction)x509_crl_object_get_revoked,       METH_NOARGS,   NULL},
   {"addExtension",     (PyCFunction)X509_crl_object_add_extension,     METH_VARARGS,  NULL},
-  {"clearExtensions",  (PyCFunction)X509_crl_object_clear_extensions,  METH_VARARGS,  NULL},
-  {"countExtensions",  (PyCFunction)X509_crl_object_count_extensions,  METH_VARARGS,  NULL},
+  {"clearExtensions",  (PyCFunction)X509_crl_object_clear_extensions,  METH_NOARGS,   NULL},
+  {"countExtensions",  (PyCFunction)X509_crl_object_count_extensions,  METH_NOARGS,   NULL},
   {"getExtension",     (PyCFunction)X509_crl_object_get_extension,     METH_VARARGS,  NULL},
-  {"pemWrite",         (PyCFunction)x509_crl_object_pem_write,         METH_VARARGS,  NULL},
-  {"derWrite",         (PyCFunction)x509_crl_object_der_write,         METH_VARARGS,  NULL},
-  {"pprint",           (PyCFunction)x509_crl_object_pprint,            METH_VARARGS,  NULL},
+  {"pemWrite",         (PyCFunction)x509_crl_object_pem_write,         METH_NOARGS,   NULL},
+  {"derWrite",         (PyCFunction)x509_crl_object_der_write,         METH_NOARGS,   NULL},
+  {"pprint",           (PyCFunction)x509_crl_object_pprint,            METH_NOARGS,   NULL},
 
   {NULL}    /* sentinel */
 };
@@ -3310,12 +3213,9 @@ static char x509_revoked_object_get_serial__doc__[] =
 ;
 
 static PyObject *
-x509_revoked_object_get_serial(x509_revoked_object *self, PyObject *args)
+x509_revoked_object_get_serial(x509_revoked_object *self)
 {
   int serial = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if ((serial = ASN1_INTEGER_get(self->revoked->serialNumber)) == -1)
     lose("unable to get serial number");
@@ -3346,16 +3246,9 @@ static char x509_revoked_object_get_date__doc__[] =
 ;
 
 static PyObject *
-x509_revoked_object_get_date(x509_revoked_object *self, PyObject *args)
+x509_revoked_object_get_date(x509_revoked_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
   return ASN1_TIME_to_Python(self->revoked->revocationDate);
-
- error:
-
-  return NULL;
 }
 
 static char x509_revoked_object_set_date__doc__[] =
@@ -3482,20 +3375,11 @@ static char X509_revoked_object_clear_extensions__doc__[] =
 ;
 
 static PyObject *
-X509_revoked_object_clear_extensions(x509_revoked_object *self, PyObject *args)
+X509_revoked_object_clear_extensions(x509_revoked_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (self->revoked->extensions) {
-    sk_X509_EXTENSION_free(self->revoked->extensions);
-    self->revoked->extensions = NULL;
-  }
-
+  sk_X509_EXTENSION_free(self->revoked->extensions);
+  self->revoked->extensions = NULL;
   Py_RETURN_NONE;
-
- error:
-  return NULL;
 }
 
 static char X509_revoked_object_count_extensions__doc__[] =
@@ -3514,12 +3398,9 @@ static char X509_revoked_object_count_extensions__doc__[] =
 ;
 
 static PyObject *
-X509_revoked_object_count_extensions(x509_revoked_object *self, PyObject *args)
+X509_revoked_object_count_extensions(x509_revoked_object *self)
 {
   int num = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if (self->revoked->extensions)
     num = sk_X509_EXTENSION_num(self->revoked->extensions);
@@ -3581,13 +3462,13 @@ X509_revoked_object_get_extension(x509_revoked_object *self, PyObject *args)
 }
 
 static struct PyMethodDef x509_revoked_object_methods[] = {
-  {"getSerial",         (PyCFunction)x509_revoked_object_get_serial,       METH_VARARGS,  NULL},
+  {"getSerial",         (PyCFunction)x509_revoked_object_get_serial,       METH_NOARGS,   NULL},
   {"setSerial",         (PyCFunction)x509_revoked_object_set_serial,       METH_VARARGS,  NULL},
-  {"getDate",           (PyCFunction)x509_revoked_object_get_date,         METH_VARARGS,  NULL},
+  {"getDate",           (PyCFunction)x509_revoked_object_get_date,         METH_NOARGS,   NULL},
   {"setDate",           (PyCFunction)x509_revoked_object_set_date,         METH_VARARGS,  NULL},
   {"addExtension",      (PyCFunction)X509_revoked_object_add_extension,    METH_VARARGS,  NULL},
-  {"clearExtensions",   (PyCFunction)X509_revoked_object_clear_extensions, METH_VARARGS,  NULL},
-  {"countExtensions",   (PyCFunction)X509_revoked_object_count_extensions, METH_VARARGS,  NULL},
+  {"clearExtensions",   (PyCFunction)X509_revoked_object_clear_extensions, METH_NOARGS,   NULL},
+  {"countExtensions",   (PyCFunction)X509_revoked_object_count_extensions, METH_NOARGS,   NULL},
   {"getExtension",      (PyCFunction)X509_revoked_object_get_extension,    METH_VARARGS,  NULL},
 
   {NULL}    /* sentinel */
@@ -4526,14 +4407,11 @@ static char digest_object_digest__doc__[] =
 ;
 
 static PyObject *
-digest_object_digest(digest_object *self, PyObject *args)
+digest_object_digest(digest_object *self)
 {
   unsigned char digest_text[EVP_MAX_MD_SIZE];
   void *md_copy = NULL;
   unsigned digest_len = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if ((md_copy = malloc(sizeof(EVP_MD_CTX))) == NULL)
     lose("could not allocate memory");
@@ -4557,7 +4435,7 @@ digest_object_digest(digest_object *self, PyObject *args)
 
 static struct PyMethodDef digest_object_methods[] = {
   {"update",           (PyCFunction)digest_object_update,  METH_VARARGS, NULL},
-  {"digest",           (PyCFunction)digest_object_digest,  METH_VARARGS, NULL},
+  {"digest",           (PyCFunction)digest_object_digest,  METH_NOARGS,  NULL},
   {"copy",             (PyCFunction)digest_object_copy,    METH_VARARGS, NULL},
 
   {NULL}    /* sentinel */
@@ -4692,13 +4570,10 @@ CMS_object_der_read(char *src, int len)
 }
 
 static PyObject *
-CMS_object_write_helper(cms_object *self, PyObject *args, int format)
+CMS_object_write_helper(cms_object *self, int format)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    return NULL;
 
   bio = BIO_new(BIO_s_mem());
 
@@ -4741,9 +4616,9 @@ static char CMS_object_pem_write__doc__[] =
 ;
 
 static PyObject *
-CMS_object_pem_write(cms_object *self, PyObject *args)
+CMS_object_pem_write(cms_object *self)
 {
-  return CMS_object_write_helper(self, args, PEM_FORMAT);
+  return CMS_object_write_helper(self, PEM_FORMAT);
 }
 
 static char CMS_object_der_write__doc__[] =
@@ -4762,9 +4637,9 @@ static char CMS_object_der_write__doc__[] =
 ;
 
 static PyObject *
-CMS_object_der_write(cms_object *self, PyObject *args)
+CMS_object_der_write(cms_object *self)
 {
-  return CMS_object_write_helper(self, args, DER_FORMAT);
+  return CMS_object_write_helper(self, DER_FORMAT);
 }
 
 static char CMS_object_sign__doc__[] =
@@ -5002,14 +4877,11 @@ static char CMS_object_eContentType__doc__[] =
 ;
 
 static PyObject *
-CMS_object_eContentType(cms_object *self, PyObject *args)
+CMS_object_eContentType(cms_object *self)
 {
   const ASN1_OBJECT *oid = NULL;
   PyObject *result = NULL;
   char buf[512];
-
-  if (!PyArg_ParseTuple(args, ""))
-    return NULL;
 
   if ((oid = CMS_get0_eContentType(self->cms)) == NULL)
     lose_openssl_error("Could not extract eContentType from CMS message");
@@ -5041,7 +4913,7 @@ static char CMS_object_signingTime__doc__[] =
 ;
 
 static PyObject *
-CMS_object_signingTime(cms_object *self, PyObject *args)
+CMS_object_signingTime(cms_object *self)
 {
   PyObject *result = NULL;
   STACK_OF(CMS_SignerInfo) *sis = NULL;
@@ -5049,9 +4921,6 @@ CMS_object_signingTime(cms_object *self, PyObject *args)
   X509_ATTRIBUTE *xa = NULL;
   ASN1_TYPE *so = NULL;
   int i;
-
-  if (!PyArg_ParseTuple(args, ""))
-    return NULL;
 
   if ((sis = CMS_get0_SignerInfos(self->cms)) == NULL)
     lose("Could not extract signerInfos from CMS message[1]");
@@ -5110,13 +4979,10 @@ static char CMS_object_pprint__doc__[] =
 ;
 
 static PyObject *
-CMS_object_pprint(cms_object *self, PyObject *args)
+CMS_object_pprint(cms_object *self)
 {
   BIO *bio = NULL;
   PyObject *result = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   bio = BIO_new(BIO_s_mem());
 
@@ -5161,13 +5027,10 @@ static char CMS_object_certs__doc__[] =
 ;
 
 static PyObject *
-CMS_object_certs(cms_object *self, PyObject *args)
+CMS_object_certs(cms_object *self)
 {
   STACK_OF(X509) *certs = NULL;
   PyObject *result = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if ((certs = CMS_get1_certs(self->cms)) != NULL)
     result = stack_to_tuple_helper(CHECKED_PTR_OF(STACK_OF(X509), certs),
@@ -5208,13 +5071,10 @@ static char CMS_object_crls__doc__[] =
 ;
 
 static PyObject *
-CMS_object_crls(cms_object *self, PyObject *args)
+CMS_object_crls(cms_object *self)
 {
   STACK_OF(X509_CRL) *crls = NULL;
   PyObject *result = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if ((crls = CMS_get1_crls(self->cms)) != NULL)
     result = stack_to_tuple_helper(CHECKED_PTR_OF(STACK_OF(X509_CRL), crls),
@@ -5230,15 +5090,15 @@ CMS_object_crls(cms_object *self, PyObject *args)
 }
 
 static struct PyMethodDef CMS_object_methods[] = {
-  {"pemWrite",     (PyCFunction)CMS_object_pem_write,    METH_VARARGS,  NULL},
-  {"derWrite",     (PyCFunction)CMS_object_der_write,    METH_VARARGS,  NULL},
+  {"pemWrite",     (PyCFunction)CMS_object_pem_write,    METH_NOARGS,   NULL},
+  {"derWrite",     (PyCFunction)CMS_object_der_write,    METH_NOARGS,   NULL},
   {"sign",         (PyCFunction)CMS_object_sign,         METH_VARARGS,  NULL},
   {"verify",       (PyCFunction)CMS_object_verify,       METH_VARARGS,  NULL},
-  {"eContentType", (PyCFunction)CMS_object_eContentType, METH_VARARGS,  NULL},
-  {"signingTime",  (PyCFunction)CMS_object_signingTime,  METH_VARARGS,  NULL},
-  {"pprint",       (PyCFunction)CMS_object_pprint,       METH_VARARGS,  NULL},
-  {"certs",        (PyCFunction)CMS_object_certs,        METH_VARARGS,  NULL},
-  {"crls",         (PyCFunction)CMS_object_crls,         METH_VARARGS,  NULL},
+  {"eContentType", (PyCFunction)CMS_object_eContentType, METH_NOARGS,   NULL},
+  {"signingTime",  (PyCFunction)CMS_object_signingTime,  METH_NOARGS,   NULL},
+  {"pprint",       (PyCFunction)CMS_object_pprint,       METH_NOARGS,   NULL},
+  {"certs",        (PyCFunction)CMS_object_certs,        METH_NOARGS,   NULL},
+  {"crls",         (PyCFunction)CMS_object_crls,         METH_NOARGS,   NULL},
 
   {NULL}    /* sentinel */
 };
@@ -5313,12 +5173,9 @@ static char pow_module_new_x509__doc__[] =
 ;
 
 static PyObject *
-pow_module_new_x509 (PyObject *self, PyObject *args)
+pow_module_new_x509 (PyObject *self)
 {
   x509_object *x509 = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if ((x509 = X509_object_new()) == NULL)
     lose("could not create new x509 object");
@@ -5439,12 +5296,9 @@ static char pow_module_new_cms__doc__[] =
 ;
 
 static PyObject *
-pow_module_new_cms (PyObject *self, PyObject *args)
+pow_module_new_cms (PyObject *self)
 {
   cms_object *cms = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   if ((cms = CMS_object_new()) == NULL)
     lose("could not create new CMS object");
@@ -5620,16 +5474,9 @@ static char pow_module_new_x509_store__doc__[] =
 ;
 
 static PyObject *
-pow_module_new_x509_store (PyObject *self, PyObject *args)
+pow_module_new_x509_store (PyObject *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
   return (PyObject *) x509_store_object_new();
-
- error:
-
-  return NULL;
 }
 
 static char pow_module_new_x509_crl__doc__[] =
@@ -5646,16 +5493,9 @@ static char pow_module_new_x509_crl__doc__[] =
 ;
 
 static PyObject *
-pow_module_new_x509_crl (PyObject *self, PyObject *args)
+pow_module_new_x509_crl (PyObject *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
   return (PyObject *) x509_crl_object_new();
-
- error:
-
-  return NULL;
 }
 
 static char pow_module_new_x509_revoked__doc__[] =
@@ -5752,13 +5592,10 @@ static char pow_module_get_error__doc__[] =
 ;
 
 static PyObject *
-pow_module_get_error(PyObject *self, PyObject *args)
+pow_module_get_error(PyObject *self)
 {
   unsigned long error;
   char buf[256];
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
 
   error = ERR_get_error();
 
@@ -5788,18 +5625,10 @@ static char pow_module_clear_error__doc__[] =
 ;
 
 static PyObject *
-pow_module_clear_error(PyObject *self, PyObject *args)
+pow_module_clear_error(PyObject *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
   ERR_clear_error();
-
   Py_RETURN_NONE;
-
- error:
-
-  return NULL;
 }
 
 static char pow_module_seed__doc__[] =
@@ -5953,17 +5782,17 @@ pow_module_read_random_file(PyObject *self, PyObject *args)
 }
 
 static struct PyMethodDef pow_module_methods[] = {
-  {"X509",              (PyCFunction)pow_module_new_x509,          METH_VARARGS,  NULL},
+  {"X509",              (PyCFunction)pow_module_new_x509,          METH_NOARGS,   NULL},
   {"pemRead",           (PyCFunction)pow_module_pem_read,          METH_VARARGS,  NULL},
   {"derRead",           (PyCFunction)pow_module_der_read,          METH_VARARGS,  NULL},
   {"Digest",            (PyCFunction)pow_module_new_digest,        METH_VARARGS,  NULL},
-  {"CMS",               (PyCFunction)pow_module_new_cms,           METH_VARARGS,  NULL},
+  {"CMS",               (PyCFunction)pow_module_new_cms,           METH_NOARGS,   NULL},
   {"Asymmetric",        (PyCFunction)pow_module_new_asymmetric,    METH_VARARGS,  NULL},
-  {"X509Store",         (PyCFunction)pow_module_new_x509_store,    METH_VARARGS,  NULL},
-  {"X509Crl",           (PyCFunction)pow_module_new_x509_crl,      METH_VARARGS,  NULL},
+  {"X509Store",         (PyCFunction)pow_module_new_x509_store,    METH_NOARGS,   NULL},
+  {"X509Crl",           (PyCFunction)pow_module_new_x509_crl,      METH_NOARGS,   NULL},
   {"X509Revoked",       (PyCFunction)pow_module_new_x509_revoked,  METH_VARARGS,  NULL},
-  {"getError",          (PyCFunction)pow_module_get_error,         METH_VARARGS,  NULL},
-  {"clearError",        (PyCFunction)pow_module_clear_error,       METH_VARARGS,  NULL},
+  {"getError",          (PyCFunction)pow_module_get_error,         METH_NOARGS,   NULL},
+  {"clearError",        (PyCFunction)pow_module_clear_error,       METH_NOARGS,   NULL},
   {"seed",              (PyCFunction)pow_module_seed,              METH_VARARGS,  NULL},
   {"add",               (PyCFunction)pow_module_add,               METH_VARARGS,  NULL},
   {"readRandomFile",    (PyCFunction)pow_module_read_random_file,  METH_VARARGS,  NULL},

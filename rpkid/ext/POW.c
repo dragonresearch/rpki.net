@@ -704,6 +704,13 @@ BIO_to_PyString_helper(BIO *bio)
   return NULL;
 }
 
+/*
+ * Simplify entries in method definition tables.  See the "Common
+ * Object Structures" section of the API manual for available flags.
+ */
+#define Define_Method(__python_name__, __c_name__, __flags__) \
+  { #__python_name__, (PyCFunction) __c_name__, __flags__, __c_name__##__doc__ }
+
 /*========== helper functions ==========*/
 
 /*========== X509 code ==========*/
@@ -1601,6 +1608,8 @@ X509_object_get_extension(x509_object *self, PyObject *args)
   return NULL;
 }
 
+static char X509_object_get_ski__doc__[] = "Not written yet.";
+
 static PyObject *
 X509_object_get_ski(x509_object *self, PyObject *args)
 {
@@ -1615,7 +1624,7 @@ X509_object_get_ski(x509_object *self, PyObject *args)
     return Py_BuildValue("s#", self->x509->skid->data, self->x509->skid->length);
 }
 
-static char x509_object_pprint__doc__[] =
+static char X509_object_pprint__doc__[] =
 "<method>\n"
 "   <header>\n"
 "      <memberof>X509</memberof>\n"
@@ -1631,7 +1640,7 @@ static char x509_object_pprint__doc__[] =
 ;
 
 static PyObject *
-x509_object_pprint(x509_object *self)
+X509_object_pprint(x509_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
@@ -1649,29 +1658,29 @@ x509_object_pprint(x509_object *self)
 }
 
 static struct PyMethodDef X509_object_methods[] = {
-  {"pemWrite",          (PyCFunction)X509_object_pem_write,        METH_NOARGS,   NULL},
-  {"derWrite",          (PyCFunction)X509_object_der_write,        METH_NOARGS,   NULL},
-  {"sign",              (PyCFunction)X509_object_sign,             METH_VARARGS,  NULL},
-  {"setPublicKey",      (PyCFunction)X509_object_set_public_key,   METH_VARARGS,  NULL},
-  {"getVersion",        (PyCFunction)X509_object_get_version,      METH_NOARGS,   NULL},
-  {"setVersion",        (PyCFunction)X509_object_set_version,      METH_VARARGS,  NULL},
-  {"getSerial",         (PyCFunction)X509_object_get_serial,       METH_NOARGS,   NULL},
-  {"setSerial",         (PyCFunction)X509_object_set_serial,       METH_VARARGS,  NULL},
-  {"getIssuer",         (PyCFunction)X509_object_get_issuer,       METH_VARARGS,  NULL},
-  {"setIssuer",         (PyCFunction)X509_object_set_issuer,       METH_VARARGS,  NULL},
-  {"getSubject",        (PyCFunction)X509_object_get_subject,      METH_VARARGS,  NULL},
-  {"setSubject",        (PyCFunction)X509_object_set_subject,      METH_VARARGS,  NULL},
-  {"getNotBefore",      (PyCFunction)X509_object_get_not_before,   METH_NOARGS,   NULL},
-  {"getNotAfter",       (PyCFunction)X509_object_get_not_after,    METH_NOARGS,   NULL},
-  {"setNotAfter",       (PyCFunction)X509_object_set_not_after,    METH_VARARGS,  NULL},
-  {"setNotBefore",      (PyCFunction)X509_object_set_not_before,   METH_VARARGS,  NULL},
-  {"addExtension",      (PyCFunction)X509_object_add_extension,    METH_VARARGS,  NULL},
-  {"clearExtensions",   (PyCFunction)X509_object_clear_extensions, METH_NOARGS,   NULL},
-  {"countExtensions",   (PyCFunction)X509_object_count_extensions, METH_NOARGS,   NULL},
-  {"getExtension",      (PyCFunction)X509_object_get_extension,    METH_VARARGS,  NULL},
-  {"pprint",            (PyCFunction)x509_object_pprint,           METH_NOARGS,   NULL},
-  {"getSKI",            (PyCFunction)X509_object_get_ski,          METH_NOARGS,   NULL},
-  {NULL}    /* sentinel */
+  Define_Method(pemWrite,       X509_object_pem_write,          METH_NOARGS),
+  Define_Method(derWrite,       X509_object_der_write,          METH_NOARGS),
+  Define_Method(sign,           X509_object_sign,               METH_VARARGS),
+  Define_Method(setPublicKey,   X509_object_set_public_key,     METH_VARARGS),
+  Define_Method(getVersion,     X509_object_get_version,        METH_NOARGS),
+  Define_Method(setVersion,     X509_object_set_version,        METH_VARARGS),
+  Define_Method(getSerial,      X509_object_get_serial,         METH_NOARGS),
+  Define_Method(setSerial,      X509_object_set_serial,         METH_VARARGS),
+  Define_Method(getIssuer,      X509_object_get_issuer,         METH_VARARGS),
+  Define_Method(setIssuer,      X509_object_set_issuer,         METH_VARARGS),
+  Define_Method(getSubject,     X509_object_get_subject,        METH_VARARGS),
+  Define_Method(setSubject,     X509_object_set_subject,        METH_VARARGS),
+  Define_Method(getNotBefore,   X509_object_get_not_before,     METH_NOARGS),
+  Define_Method(getNotAfter,    X509_object_get_not_after,      METH_NOARGS),
+  Define_Method(setNotAfter,    X509_object_set_not_after,      METH_VARARGS),
+  Define_Method(setNotBefore,   X509_object_set_not_before,     METH_VARARGS),
+  Define_Method(addExtension,   X509_object_add_extension,      METH_VARARGS),
+  Define_Method(clearExtensions, X509_object_clear_extensions,  METH_NOARGS),
+  Define_Method(countExtensions, X509_object_count_extensions,  METH_NOARGS),
+  Define_Method(getExtension,   X509_object_get_extension,      METH_VARARGS),
+  Define_Method(pprint,         X509_object_pprint,             METH_NOARGS),
+  Define_Method(getSKI,         X509_object_get_ski,            METH_NOARGS),
+  {NULL}
 };
 
 static PyObject *
@@ -2030,13 +2039,12 @@ x509_store_object_add_crl(x509_store_object *self, PyObject *args)
 }
 
 static struct PyMethodDef x509_store_object_methods[] = {
-  {"verify",         (PyCFunction)x509_store_object_verify,          METH_VARARGS,  NULL},
-  {"verifyChain",    (PyCFunction)x509_store_object_verify_chain,    METH_VARARGS,  NULL},
-  {"verifyDetailed", (PyCFunction)x509_store_object_verify_detailed, METH_VARARGS,  NULL},
-  {"addTrust",       (PyCFunction)x509_store_object_add_trust,       METH_VARARGS,  NULL},
-  {"addCrl",         (PyCFunction)x509_store_object_add_crl,         METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
+  Define_Method(verify,         x509_store_object_verify,               METH_VARARGS),
+  Define_Method(verifyChain,    x509_store_object_verify_chain,         METH_VARARGS),
+  Define_Method(verifyDetailed, x509_store_object_verify_detailed,      METH_VARARGS),
+  Define_Method(addTrust,       x509_store_object_add_trust,            METH_VARARGS),
+  Define_Method(addCrl,         x509_store_object_add_crl,              METH_VARARGS),
+  {NULL}
 };
 
 static PyObject *
@@ -3068,27 +3076,26 @@ x509_crl_object_pprint(x509_crl_object *self)
 }
 
 static struct PyMethodDef x509_crl_object_methods[] = {
-  {"sign",             (PyCFunction)x509_crl_object_sign,              METH_VARARGS,  NULL},
-  {"verify",           (PyCFunction)x509_crl_object_verify,            METH_VARARGS,  NULL},
-  {"getVersion",       (PyCFunction)x509_crl_object_get_version,       METH_NOARGS,   NULL},
-  {"setVersion",       (PyCFunction)x509_crl_object_set_version,       METH_VARARGS,  NULL},
-  {"getIssuer",        (PyCFunction)x509_crl_object_get_issuer,        METH_VARARGS,  NULL},
-  {"setIssuer",        (PyCFunction)x509_crl_object_set_issuer,        METH_VARARGS,  NULL},
-  {"getThisUpdate",    (PyCFunction)x509_crl_object_get_this_update,   METH_NOARGS,   NULL},
-  {"setThisUpdate",    (PyCFunction)x509_crl_object_set_this_update,   METH_VARARGS,  NULL},
-  {"getNextUpdate",    (PyCFunction)x509_crl_object_get_next_update,   METH_NOARGS,   NULL},
-  {"setNextUpdate",    (PyCFunction)x509_crl_object_set_next_update,   METH_VARARGS,  NULL},
-  {"setRevoked",       (PyCFunction)x509_crl_object_set_revoked,       METH_VARARGS,  NULL},
-  {"getRevoked",       (PyCFunction)x509_crl_object_get_revoked,       METH_NOARGS,   NULL},
-  {"addExtension",     (PyCFunction)X509_crl_object_add_extension,     METH_VARARGS,  NULL},
-  {"clearExtensions",  (PyCFunction)X509_crl_object_clear_extensions,  METH_NOARGS,   NULL},
-  {"countExtensions",  (PyCFunction)X509_crl_object_count_extensions,  METH_NOARGS,   NULL},
-  {"getExtension",     (PyCFunction)X509_crl_object_get_extension,     METH_VARARGS,  NULL},
-  {"pemWrite",         (PyCFunction)x509_crl_object_pem_write,         METH_NOARGS,   NULL},
-  {"derWrite",         (PyCFunction)x509_crl_object_der_write,         METH_NOARGS,   NULL},
-  {"pprint",           (PyCFunction)x509_crl_object_pprint,            METH_NOARGS,   NULL},
-
-  {NULL}    /* sentinel */
+  Define_Method(sign,           x509_crl_object_sign,                   METH_VARARGS),
+  Define_Method(verify,         x509_crl_object_verify,                 METH_VARARGS),
+  Define_Method(getVersion,     x509_crl_object_get_version,            METH_NOARGS),
+  Define_Method(setVersion,     x509_crl_object_set_version,            METH_VARARGS),
+  Define_Method(getIssuer,      x509_crl_object_get_issuer,             METH_VARARGS),
+  Define_Method(setIssuer,      x509_crl_object_set_issuer,             METH_VARARGS),
+  Define_Method(getThisUpdate,  x509_crl_object_get_this_update,        METH_NOARGS),
+  Define_Method(setThisUpdate,  x509_crl_object_set_this_update,        METH_VARARGS),
+  Define_Method(getNextUpdate,  x509_crl_object_get_next_update,        METH_NOARGS),
+  Define_Method(setNextUpdate,  x509_crl_object_set_next_update,        METH_VARARGS),
+  Define_Method(setRevoked,     x509_crl_object_set_revoked,            METH_VARARGS),
+  Define_Method(getRevoked,     x509_crl_object_get_revoked,            METH_NOARGS),
+  Define_Method(addExtension,   X509_crl_object_add_extension,          METH_VARARGS),
+  Define_Method(clearExtensions, X509_crl_object_clear_extensions,      METH_NOARGS),
+  Define_Method(countExtensions, X509_crl_object_count_extensions,      METH_NOARGS),
+  Define_Method(getExtension,   X509_crl_object_get_extension,          METH_VARARGS),
+  Define_Method(pemWrite,       x509_crl_object_pem_write,              METH_NOARGS),
+  Define_Method(derWrite,       x509_crl_object_der_write,              METH_NOARGS),
+  Define_Method(pprint,         x509_crl_object_pprint,                 METH_NOARGS),
+  {NULL}
 };
 
 static PyObject *
@@ -3462,16 +3469,15 @@ X509_revoked_object_get_extension(x509_revoked_object *self, PyObject *args)
 }
 
 static struct PyMethodDef x509_revoked_object_methods[] = {
-  {"getSerial",         (PyCFunction)x509_revoked_object_get_serial,       METH_NOARGS,   NULL},
-  {"setSerial",         (PyCFunction)x509_revoked_object_set_serial,       METH_VARARGS,  NULL},
-  {"getDate",           (PyCFunction)x509_revoked_object_get_date,         METH_NOARGS,   NULL},
-  {"setDate",           (PyCFunction)x509_revoked_object_set_date,         METH_VARARGS,  NULL},
-  {"addExtension",      (PyCFunction)X509_revoked_object_add_extension,    METH_VARARGS,  NULL},
-  {"clearExtensions",   (PyCFunction)X509_revoked_object_clear_extensions, METH_NOARGS,   NULL},
-  {"countExtensions",   (PyCFunction)X509_revoked_object_count_extensions, METH_NOARGS,   NULL},
-  {"getExtension",      (PyCFunction)X509_revoked_object_get_extension,    METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
+  Define_Method(getSerial,      x509_revoked_object_get_serial,         METH_NOARGS),
+  Define_Method(setSerial,      x509_revoked_object_set_serial,         METH_VARARGS),
+  Define_Method(getDate,        x509_revoked_object_get_date,           METH_NOARGS),
+  Define_Method(setDate,        x509_revoked_object_set_date,           METH_VARARGS),
+  Define_Method(addExtension,   X509_revoked_object_add_extension,      METH_VARARGS),
+  Define_Method(clearExtensions, X509_revoked_object_clear_extensions,  METH_NOARGS),
+  Define_Method(countExtensions, X509_revoked_object_count_extensions,  METH_NOARGS),
+  Define_Method(getExtension,   X509_revoked_object_get_extension,      METH_VARARGS),
+  {NULL}
 };
 
 static PyObject *
@@ -4203,16 +4209,15 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
 }
 
 static struct PyMethodDef asymmetric_object_methods[] = {
-  {"pemWrite",          (PyCFunction)asymmetric_object_pem_write,       METH_VARARGS,  NULL},
-  {"derWrite",          (PyCFunction)asymmetric_object_der_write,       METH_VARARGS,  NULL},
-  {"publicEncrypt",     (PyCFunction)asymmetric_object_public_encrypt,  METH_VARARGS,  NULL},
-  {"privateEncrypt",    (PyCFunction)asymmetric_object_private_encrypt, METH_VARARGS,  NULL},
-  {"privateDecrypt",    (PyCFunction)asymmetric_object_private_decrypt, METH_VARARGS,  NULL},
-  {"publicDecrypt",     (PyCFunction)asymmetric_object_public_decrypt,  METH_VARARGS,  NULL},
-  {"sign",              (PyCFunction)asymmetric_object_sign,            METH_VARARGS,  NULL},
-  {"verify",            (PyCFunction)asymmetric_object_verify,          METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
+  Define_Method(pemWrite,       asymmetric_object_pem_write,            METH_VARARGS),
+  Define_Method(derWrite,       asymmetric_object_der_write,            METH_VARARGS),
+  Define_Method(publicEncrypt,  asymmetric_object_public_encrypt,       METH_VARARGS),
+  Define_Method(privateEncrypt, asymmetric_object_private_encrypt,      METH_VARARGS),
+  Define_Method(privateDecrypt, asymmetric_object_private_decrypt,      METH_VARARGS),
+  Define_Method(publicDecrypt,  asymmetric_object_public_decrypt,       METH_VARARGS),
+  Define_Method(sign,           asymmetric_object_sign,                 METH_VARARGS),
+  Define_Method(verify,         asymmetric_object_verify,               METH_VARARGS),
+  {NULL}
 };
 
 static PyObject *
@@ -4434,11 +4439,10 @@ digest_object_digest(digest_object *self)
 }
 
 static struct PyMethodDef digest_object_methods[] = {
-  {"update",           (PyCFunction)digest_object_update,  METH_VARARGS, NULL},
-  {"digest",           (PyCFunction)digest_object_digest,  METH_NOARGS,  NULL},
-  {"copy",             (PyCFunction)digest_object_copy,    METH_VARARGS, NULL},
-
-  {NULL}    /* sentinel */
+  Define_Method(update,         digest_object_update,   METH_VARARGS),
+  Define_Method(digest,         digest_object_digest,   METH_NOARGS),
+  Define_Method(copy,           digest_object_copy,     METH_VARARGS),
+  {NULL}
 };
 
 static PyObject *
@@ -5090,17 +5094,16 @@ CMS_object_crls(cms_object *self)
 }
 
 static struct PyMethodDef CMS_object_methods[] = {
-  {"pemWrite",     (PyCFunction)CMS_object_pem_write,    METH_NOARGS,   NULL},
-  {"derWrite",     (PyCFunction)CMS_object_der_write,    METH_NOARGS,   NULL},
-  {"sign",         (PyCFunction)CMS_object_sign,         METH_VARARGS,  NULL},
-  {"verify",       (PyCFunction)CMS_object_verify,       METH_VARARGS,  NULL},
-  {"eContentType", (PyCFunction)CMS_object_eContentType, METH_NOARGS,   NULL},
-  {"signingTime",  (PyCFunction)CMS_object_signingTime,  METH_NOARGS,   NULL},
-  {"pprint",       (PyCFunction)CMS_object_pprint,       METH_NOARGS,   NULL},
-  {"certs",        (PyCFunction)CMS_object_certs,        METH_NOARGS,   NULL},
-  {"crls",         (PyCFunction)CMS_object_crls,         METH_NOARGS,   NULL},
-
-  {NULL}    /* sentinel */
+  Define_Method(pemWrite,       CMS_object_pem_write,   	METH_NOARGS),
+  Define_Method(derWrite,       CMS_object_der_write,           METH_NOARGS),
+  Define_Method(sign,           CMS_object_sign,		METH_VARARGS),
+  Define_Method(verify,         CMS_object_verify,              METH_VARARGS),
+  Define_Method(eContentType,   CMS_object_eContentType,        METH_NOARGS),
+  Define_Method(signingTime,    CMS_object_signingTime,         METH_NOARGS),
+  Define_Method(pprint,         CMS_object_pprint,              METH_NOARGS),
+  Define_Method(certs,          CMS_object_certs,               METH_NOARGS),
+  Define_Method(crls,           CMS_object_crls,                METH_NOARGS),
+  {NULL}
 };
 
 static PyObject *
@@ -5782,24 +5785,23 @@ pow_module_read_random_file(PyObject *self, PyObject *args)
 }
 
 static struct PyMethodDef pow_module_methods[] = {
-  {"X509",              (PyCFunction)pow_module_new_x509,          METH_NOARGS,   NULL},
-  {"pemRead",           (PyCFunction)pow_module_pem_read,          METH_VARARGS,  NULL},
-  {"derRead",           (PyCFunction)pow_module_der_read,          METH_VARARGS,  NULL},
-  {"Digest",            (PyCFunction)pow_module_new_digest,        METH_VARARGS,  NULL},
-  {"CMS",               (PyCFunction)pow_module_new_cms,           METH_NOARGS,   NULL},
-  {"Asymmetric",        (PyCFunction)pow_module_new_asymmetric,    METH_VARARGS,  NULL},
-  {"X509Store",         (PyCFunction)pow_module_new_x509_store,    METH_NOARGS,   NULL},
-  {"X509Crl",           (PyCFunction)pow_module_new_x509_crl,      METH_NOARGS,   NULL},
-  {"X509Revoked",       (PyCFunction)pow_module_new_x509_revoked,  METH_VARARGS,  NULL},
-  {"getError",          (PyCFunction)pow_module_get_error,         METH_NOARGS,   NULL},
-  {"clearError",        (PyCFunction)pow_module_clear_error,       METH_NOARGS,   NULL},
-  {"seed",              (PyCFunction)pow_module_seed,              METH_VARARGS,  NULL},
-  {"add",               (PyCFunction)pow_module_add,               METH_VARARGS,  NULL},
-  {"readRandomFile",    (PyCFunction)pow_module_read_random_file,  METH_VARARGS,  NULL},
-  {"writeRandomFile",   (PyCFunction)pow_module_write_random_file, METH_VARARGS,  NULL},
-  {"addObject",         (PyCFunction)pow_module_add_object,        METH_VARARGS,  NULL},
-
-  {NULL}     /* sentinel */
+  Define_Method(X509,           pow_module_new_x509,            METH_NOARGS),
+  Define_Method(pemRead,        pow_module_pem_read,            METH_VARARGS),
+  Define_Method(derRead,        pow_module_der_read,            METH_VARARGS),
+  Define_Method(Digest,         pow_module_new_digest,          METH_VARARGS),
+  Define_Method(CMS,            pow_module_new_cms,             METH_NOARGS),
+  Define_Method(Asymmetric,     pow_module_new_asymmetric,      METH_VARARGS),
+  Define_Method(X509Store,      pow_module_new_x509_store,      METH_NOARGS),
+  Define_Method(X509Crl,        pow_module_new_x509_crl,        METH_NOARGS),
+  Define_Method(X509Revoked,    pow_module_new_x509_revoked,    METH_VARARGS),
+  Define_Method(getError,       pow_module_get_error,           METH_NOARGS),
+  Define_Method(clearError,     pow_module_clear_error,         METH_NOARGS),
+  Define_Method(seed,           pow_module_seed,                METH_VARARGS),
+  Define_Method(add,            pow_module_add,                 METH_VARARGS),
+  Define_Method(readRandomFile, pow_module_read_random_file,    METH_VARARGS),
+  Define_Method(writeRandomFile, pow_module_write_random_file,  METH_VARARGS),
+  Define_Method(addObject,      pow_module_add_object,          METH_VARARGS),
+  {NULL}
 };
 /*========== module functions ==========*/
 

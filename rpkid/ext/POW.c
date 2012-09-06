@@ -229,6 +229,12 @@ typedef struct {
     goto error;                                                         \
   } while (0)
 
+#define lose_no_memory()						\
+  do {                                                                  \
+    PyErr_NoMemory();                                                   \
+    goto error;                                                         \
+  } while (0)
+
 #define lose_type_error(_msg_)                                          \
   do {                                                                  \
     PyErr_SetString(PyExc_TypeError, (_msg_));                          \
@@ -367,10 +373,10 @@ x509_object_helper_set_name(X509_NAME *name, PyObject *dn_obj)
       if (!PySequence_Check(pair_obj) || PySequence_Size(pair_obj) != 2)
         lose_type_error("each name entry must be a two-element sequence");
 
-      if ((type_obj = PySequence_GetItem(pair_obj, 0)) == NULL ||
-          (type_str = PyString_AsString(type_obj)) == NULL || 
+      if ((type_obj  = PySequence_GetItem(pair_obj, 0)) == NULL ||
+          (type_str  = PyString_AsString(type_obj))     == NULL || 
           (value_obj = PySequence_GetItem(pair_obj, 1)) == NULL ||
-          (value_str = PyString_AsString(value_obj)) == NULL)
+          (value_str = PyString_AsString(value_obj))    == NULL)
         goto error;
 
       if ((asn1_type = ASN1_PRINTABLE_type(value_str, -1)) != V_ASN1_PRINTABLESTRING)
@@ -499,7 +505,7 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
     lose_type_error("Inapropriate type");
 
   if ((x509_stack = sk_X509_new_null()) == NULL)
-    lose("Couldn't create new X509 stack");
+    lose_no_memory();
 
   if (x509_sequence != Py_None) {
     size = PySequence_Size(x509_sequence);
@@ -606,7 +612,7 @@ BIO_to_PyString_helper(BIO *bio)
   int len = 0;
 
   if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
-    lose("Unable to get BIO data");
+    lose_openssl_error("Unable to get BIO data");
 
   return Py_BuildValue("s#", ptr, len);
 
@@ -629,8 +635,7 @@ x509_object_new(void)
 {
   x509_object *self;
 
-  self = PyObject_New(x509_object, &x509type);
-  if (self == NULL)
+  if ((self = PyObject_New(x509_object, &x509type)) == NULL)
     goto error;
 
   self->x509 = X509_new();
@@ -655,7 +660,7 @@ x509_object_pem_read(BIO *in)
     goto error;
 
   if ((self->x509 = PEM_read_bio_X509(in, NULL, NULL, NULL)) == NULL)
-    lose("Couldn't load PEM encoded certificate");
+    lose_openssl_error("Couldn't load PEM encoded certificate");
 
   return self;
 
@@ -677,7 +682,7 @@ x509_object_der_read(unsigned char *src, int len)
   self->x509 = X509_new();
 
   if(!d2i_X509(&self->x509, (const unsigned char **) &ptr, len))
-    lose("Couldn't load PEM encoded certificate");
+    lose_openssl_error("Couldn't load PEM encoded certificate");
 
   return self;
 
@@ -698,18 +703,19 @@ x509_object_write_helper(x509_object *self, int format)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
-  bio = BIO_new(BIO_s_mem());
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
   switch (format) {
 
   case DER_FORMAT:
     if (!i2d_X509_bio(bio, self->x509))
-      lose("Unable to write certificate");
+      lose_openssl_error("Unable to write certificate");
     break;
 
   case PEM_FORMAT:
     if (!PEM_write_bio_X509(bio, self->x509))
-      lose("Unable to write certificate");
+      lose_openssl_error("Unable to write certificate");
     break;
 
   default:
@@ -796,7 +802,7 @@ x509_object_set_public_key(x509_object *self, PyObject *args)
     goto error;
 
   if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
     lose("EVP_PKEY assignment error");
@@ -854,7 +860,7 @@ x509_object_sign(x509_object *self, PyObject *args)
     goto error;
 
   if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (asym->key_type != RSA_PRIVATE_KEY)
     lose("Don't know how to use this type of key");
@@ -950,20 +956,7 @@ static char x509_object_get_serial__doc__[] =
 static PyObject *
 x509_object_get_serial(x509_object *self)
 {
-  long serial = 0;
-  ASN1_INTEGER *asn1i = NULL;
-
-  if ((asn1i = X509_get_serialNumber(self->x509)) == NULL)
-    lose("Couldn't get serial number");
-
-  if ((serial = ASN1_INTEGER_get(asn1i)) == -1)
-    lose("Couldn't convert ASN.1 Integer to long");
-
-  return Py_BuildValue("l", serial);
-
- error:
-
-  return NULL;
+  return Py_BuildValue("l", ASN1_INTEGER_get(X509_get_serialNumber(self->x509)));
 }
 
 static char x509_object_set_serial__doc__[] =
@@ -993,7 +986,7 @@ x509_object_set_serial(x509_object *self, PyObject *args)
     goto error;
 
   if ((asn1i = ASN1_INTEGER_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!ASN1_INTEGER_set(asn1i, serial))
     lose("Couldn't set ASN.1 integer");
@@ -1046,7 +1039,7 @@ static char x509_object_get_issuer__doc__[] =
 static PyObject *
 x509_object_get_issuer(x509_object *self, PyObject *args)
 {
-  PyObject *result_list = NULL;
+  PyObject *result = NULL;
   X509_NAME *name = NULL;
   int format = OIDNAME_FORMAT;
 
@@ -1054,16 +1047,12 @@ x509_object_get_issuer(x509_object *self, PyObject *args)
     goto error;
 
   if ((name = X509_get_issuer_name(self->x509)) == NULL)
-    lose("Couldn't get issuer name");
+    lose_openssl_error("Couldn't get issuer name");
 
-  if ((result_list = x509_object_helper_get_name(name, format)) == NULL)
-    lose("Failed to produce name list");
+  result = x509_object_helper_get_name(name, format);
 
-  return result_list;
-
- error:
-
-  return NULL;
+ error:                         /* Fall through */
+  return result;
 }
 
 static char x509_object_get_subject__doc__[] =
@@ -1086,7 +1075,7 @@ static char x509_object_get_subject__doc__[] =
 static PyObject *
 x509_object_get_subject(x509_object *self, PyObject *args)
 {
-  PyObject *result_list = NULL;
+  PyObject *result = NULL;
   X509_NAME *name = NULL;
   int format = OIDNAME_FORMAT;
 
@@ -1096,14 +1085,10 @@ x509_object_get_subject(x509_object *self, PyObject *args)
   if ((name = X509_get_subject_name(self->x509)) == NULL)
     lose("Couldn't get subject name");
 
-  if ((result_list = x509_object_helper_get_name(name, format)) == NULL)
-    lose("Failed to produce name list");
+  result = x509_object_helper_get_name(name, format);
 
-  return result_list;
-
- error:
-
-  return NULL;
+ error:                         /* Fall through */
+  return result;
 }
 
 static char x509_object_set_subject__doc__[] =
@@ -1136,7 +1121,7 @@ x509_object_set_subject(x509_object *self, PyObject *args)
     lose_type_error("Inapropriate type");
 
   if ((name = X509_NAME_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!x509_object_helper_set_name(name, name_sequence))
     goto error;
@@ -1183,12 +1168,12 @@ x509_object_set_issuer(x509_object *self, PyObject *args)
     lose_type_error("Inapropriate type");
 
   if ((name = X509_NAME_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!x509_object_helper_set_name(name, name_sequence))
     goto error;
 
-  if (!X509_set_issuer_name(self->x509,name))
+  if (!X509_set_issuer_name(self->x509, name))
     lose("Unable to set name");
 
   X509_NAME_free(name);
@@ -1370,23 +1355,23 @@ x509_object_add_extension(x509_object *self, PyObject *args)
     goto error;
 
   if ((octetString = M_ASN1_OCTET_STRING_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!ASN1_OCTET_STRING_set(octetString, buf, len))
-    lose("Couldn't set ASN.1 OCTET STRING");
+    lose_openssl_error("Couldn't set ASN.1 OCTET STRING");
 
   if ((nid = OBJ_txt2nid(name)) == NID_undef)
     lose("Extension has unknown object identifier");
 
   if ((extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString)) == NULL)
-    lose("Unable to create ASN.1 X.509 Extension object");
+    lose_openssl_error("Unable to create ASN.1 X.509 Extension object");
 
   if (!self->x509->cert_info->extensions &&
       (self->x509->cert_info->extensions = sk_X509_EXTENSION_new_null()) == NULL)
-    lose("Unable to allocate memory");
+    lose_no_memory();
 
   if (!sk_X509_EXTENSION_push(self->x509->cert_info->extensions, extn))
-    lose("Unable to add extension");
+    lose_no_memory();
 
   Py_RETURN_NONE;
 
@@ -1478,7 +1463,7 @@ x509_object_get_extension(x509_object *self, PyObject *args)
     lose("Certificate doesn't have that many extensions");
 
   if ((ext = sk_X509_EXTENSION_value(self->x509->cert_info->extensions, index)) == NULL)
-    lose("Couldn't get extension");
+    lose_openssl_error("Couldn't get extension");
 
   if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
     lose("Extension has unknown object identifier");
@@ -1530,10 +1515,11 @@ x509_object_pprint(x509_object *self)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
-  bio = BIO_new(BIO_s_mem());
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
   if (!X509_print(bio, self->x509))
-    lose("Unable to write CRL");
+    lose_openssl_error("Unable to pretty-print certificate");
 
   result = BIO_to_PyString_helper(bio);
 
@@ -2015,8 +2001,7 @@ x509_crl_object_new(void)
 {
   x509_crl_object *self = NULL;
 
-  self = PyObject_New(x509_crl_object, &x509_crltype);
-  if (self == NULL)
+  if ((self = PyObject_New(x509_crl_object, &x509_crltype)) == NULL)
     goto error;
 
   self->crl = X509_CRL_new();
@@ -2038,7 +2023,7 @@ x509_crl_object_pem_read(BIO *in)
     goto error;
 
   if ((self->crl = PEM_read_bio_X509_CRL(in, NULL, NULL, NULL)) == NULL)
-    lose("Couldn't load CRL");
+    lose_openssl_error("Couldn't load CRL");
 
   return self;
 
@@ -2057,10 +2042,11 @@ x509_crl_object_der_read(unsigned char *src, int len)
   if ((self = PyObject_New(x509_crl_object, &x509_crltype)) == NULL)
     goto error;
 
-  self->crl = X509_CRL_new();
+  if ((self->crl = X509_CRL_new()) == NULL)
+    lose_no_memory();
 
   if (!d2i_X509_CRL(&self->crl, (const unsigned char **) &ptr, len))
-    lose("Couldn't load CRL");
+    lose_openssl_error("Couldn't load CRL");
 
   return self;
 
@@ -2127,10 +2113,10 @@ x509_crl_object_set_version(x509_crl_object *self, PyObject *args)
     goto error;
 
   if ((asn1_version = ASN1_INTEGER_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!ASN1_INTEGER_set(asn1_version, version))
-    lose("Couldn't set CRL version");
+    lose_openssl_error("Couldn't set CRL version");
 
   self->crl->crl->version = asn1_version;
 
@@ -2161,20 +2147,16 @@ static char x509_crl_object_get_issuer__doc__[] =
 static PyObject *
 x509_crl_object_get_issuer(x509_crl_object *self, PyObject *args)
 {
-  PyObject *result_list = NULL;
+  PyObject *result = NULL;
   int format = OIDNAME_FORMAT;
 
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
 
-  if ((result_list = x509_object_helper_get_name(self->crl->crl->issuer, format)) == NULL)
-    lose("Failed to produce name list");
+  result = x509_object_helper_get_name(self->crl->crl->issuer, format);
 
-  return result_list;
-
- error:
-
-  return NULL;
+ error:                         /* Fall through */
+  return result;
 }
 
 static char x509_crl_object_set_issuer__doc__[] =
@@ -2208,13 +2190,13 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
     lose_type_error("Inapropriate type");
 
   if ((name = X509_NAME_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!x509_object_helper_set_name(name, name_sequence))
     goto error;
 
   if (!X509_NAME_set(&self->crl->crl->issuer, name))
-    lose("Unable to set name");
+    lose_openssl_error("Unable to set name");
 
   X509_NAME_free(name);
 
@@ -2315,7 +2297,7 @@ x509_crl_object_set_next_update (x509_crl_object *self, PyObject *args)
     goto error;
 
   if (self->crl->crl->nextUpdate == NULL && (time = ASN1_UTCTIME_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   self->crl->crl->nextUpdate = time;
 
@@ -2430,14 +2412,14 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
 
   size = PySequence_Size(revoked_sequence);
   for (i = 0; i < size; i++) {
-    if ((revoked = (x509_revoked_object*) PySequence_GetItem(revoked_sequence, i)) == NULL)
+    if ((revoked = (x509_revoked_object *) PySequence_GetItem(revoked_sequence, i)) == NULL)
       goto error;
 
     if (!X_X509_revoked_Check(revoked))
       lose_type_error("inapropriate type");
 
     if ((tmp_revoked = X509_REVOKED_dup(revoked->revoked)) == NULL)
-      lose("Couldn't allocate memory");
+      lose_no_memory();
 
     if (!X509_CRL_add0_revoked(self->crl, tmp_revoked))
       lose("Couldn't add revokation to stack");
@@ -2465,14 +2447,14 @@ x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
   no_entries = sk_X509_REVOKED_num(revoked);
 
   if ((result_list = PyList_New(0)) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   for (i = 0; i < no_entries; i++) {
     if ((revoke_obj = PyObject_New(x509_revoked_object, &x509_revokedtype)) == NULL)
-      lose("Couldn't allocate memory");
+      lose_no_memory();
 
     if ((revoke_obj->revoked = X509_REVOKED_dup(sk_X509_REVOKED_value(revoked, i))) == NULL)
-      lose("Couldn't get revocation");
+      goto error;
 
     if (PyList_Append(result_list, (PyObject*) revoke_obj) != 0)
       goto error;
@@ -2599,23 +2581,23 @@ x509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
     goto error;
 
   if ((octetString = M_ASN1_OCTET_STRING_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!ASN1_OCTET_STRING_set(octetString, buf, len))
-    lose("Couldn't set ASN.1 OCTET STRING");
+    lose_openssl_error("Couldn't set ASN.1 OCTET STRING");
 
   if ((nid = OBJ_txt2nid(name)) == NID_undef)
     lose("Extension has unknown object identifier");
 
   if ((extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString)) == NULL)
-    lose("Unable to create ASN.1 X.509 Extension object");
+    lose_openssl_error("Unable to create ASN.1 X.509 Extension object");
 
   if (!self->crl->crl->extensions &&
       (self->crl->crl->extensions = sk_X509_EXTENSION_new_null()) == NULL)
-    lose("Unable to allocate memory");
+    lose_no_memory();
 
   if (!sk_X509_EXTENSION_push(self->crl->crl->extensions, extn))
-    lose("Unable to add extension");
+    lose_no_memory();
 
   Py_RETURN_NONE;
 
@@ -2708,7 +2690,7 @@ x509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
     lose("CRL does not have that many extensions");
 
   if ((ext = sk_X509_EXTENSION_value(self->crl->crl->extensions, index)) == NULL)
-    lose("Couldn't get extension");
+    lose_openssl_error("Couldn't get extension");
 
   if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
     lose("Extension has unknown object identifier");
@@ -2763,19 +2745,19 @@ x509_crl_object_sign(x509_crl_object *self, PyObject *args)
     goto error;
 
   if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (asym->key_type != RSA_PRIVATE_KEY)
     lose("Don't know how to use this type of key");
 
   if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose("EVP_PKEY assignment error");
+    lose_openssl_error("EVP_PKEY assignment error");
 
   if ((digest_method = evp_digest_factory(digest_type)) == NULL)
     lose("Unsupported digest algorithm");
 
   if (!X509_CRL_sign(self->crl, pkey, digest_method))
-    lose("Couldn't sign CRL");
+    lose_openssl_error("Couldn't sign CRL");
 
   Py_RETURN_NONE;
 
@@ -2811,20 +2793,17 @@ x509_crl_object_verify(x509_crl_object *self, PyObject *args)
 {
   EVP_PKEY *pkey = NULL;
   asymmetric_object *asym;
-  int ok;
 
   if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
     goto error;
 
   if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose("EVP_PKEY assignment error");
+    lose_openssl_error("EVP_PKEY assignment error");
 
-  ok = X509_CRL_verify(self->crl, pkey);
-
-  return PyBool_FromLong(ok);
+  return PyBool_FromLong(X509_CRL_verify(self->crl, pkey));
 
  error:
   EVP_PKEY_free(pkey);
@@ -2837,18 +2816,19 @@ x509_crl_object_write_helper(x509_crl_object *self, int format)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
-  bio = BIO_new(BIO_s_mem());
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
   switch (format) {
 
   case DER_FORMAT:
     if (!i2d_X509_CRL_bio(bio, self->crl))
-      lose("Unable to write CRL");
+      lose_openssl_error("Unable to write CRL");
     break;
 
   case PEM_FORMAT:
     if (!PEM_write_bio_X509_CRL(bio, self->crl))
-      lose("Unable to write CRL");
+      lose_openssl_error("Unable to write CRL");
 
   default:
     lose("Internal error, unknown output format");
@@ -2923,10 +2903,11 @@ x509_crl_object_pprint(x509_crl_object *self)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
-  bio = BIO_new(BIO_s_mem());
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
   if (!X509_CRL_print(bio, self->crl))
-    lose("Unable to pretty-print CRL");
+    lose_openssl_error("Unable to pretty-print CRL");
 
   result = BIO_to_PyString_helper(bio);
 
@@ -3019,7 +3000,8 @@ static x509_revoked_object* x509_revoked_object_new(void)
   if ((self = PyObject_New(x509_revoked_object, &x509_revokedtype)) == NULL)
     goto error;
 
-  self->revoked = X509_REVOKED_new();
+  if ((self->revoked = X509_REVOKED_new()) == NULL)
+    lose_no_memory();
 
   return self;
 
@@ -3202,22 +3184,22 @@ X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
     goto error;
 
   if ((octetString = M_ASN1_OCTET_STRING_new()) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!ASN1_OCTET_STRING_set(octetString, buf, strlen((char *) buf)))
-    lose("Couldn't set ASN.1 OCTET STRING");
+    lose_openssl_error("Couldn't set ASN.1 OCTET STRING");
 
   if ((nid = OBJ_txt2nid(name)) == NID_undef)
     lose("Extension has unknown object identifier");
 
   if ((extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString)) == NULL)
-    lose("Unable to create ASN.1 X.509 Extension object");
+    lose_openssl_error("Unable to create ASN.1 X.509 Extension object");
 
   if (!self->revoked->extensions && (self->revoked->extensions = sk_X509_EXTENSION_new_null()) == NULL)
-    lose("Unable to allocate memory");
+    lose_no_memory();
 
   if (!sk_X509_EXTENSION_push(self->revoked->extensions, extn))
-    lose("Unable to add extension");
+    lose_no_memory();
 
   Py_RETURN_NONE;
 
@@ -3313,7 +3295,7 @@ X509_revoked_object_get_extension(x509_revoked_object *self, PyObject *args)
     lose("Revocation object doesn't have that many extensions");
 
   if ((ext = sk_X509_EXTENSION_value(self->revoked->extensions, index)) == NULL)
-    lose("Couldn't get extension");
+    lose_openssl_error("Couldn't get extension");
 
   if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
     lose("Extension has unknown object identifier");
@@ -3405,15 +3387,14 @@ asymmetric_object_new(int cipher_type, int key_size)
 {
   asymmetric_object *self = NULL;
 
-  self = PyObject_New(asymmetric_object, &asymmetrictype);
-  if (self == NULL)
+  if ((self = PyObject_New(asymmetric_object, &asymmetrictype)) == NULL)
     goto error;
 
   if (cipher_type != RSA_CIPHER)
     lose("Unsupported cipher");
 
-  if ((self->cipher = RSA_generate_key(key_size,RSA_F4,NULL,NULL)) == NULL)
-    lose("Couldn't generate key");
+  if ((self->cipher = RSA_generate_key(key_size, RSA_F4, NULL, NULL)) == NULL)
+    lose_openssl_error("Couldn't generate key");
 
   self->key_type = RSA_PRIVATE_KEY;
   self->cipher_type = RSA_CIPHER;
@@ -3431,22 +3412,21 @@ asymmetric_object_pem_read(int key_type, BIO *in, char *pass)
 {
   asymmetric_object *self = NULL;
 
-  self = PyObject_New(asymmetric_object, &asymmetrictype);
-  if (self == NULL)
+  if ((self = PyObject_New(asymmetric_object, &asymmetrictype)) == NULL)
     goto error;
 
   switch (key_type) {
 
   case RSA_PUBLIC_KEY:
     if ((self->cipher = PEM_read_bio_RSA_PUBKEY(in, NULL, NULL, NULL)) == NULL)
-      lose("Couldn't load public key");
+      lose_openssl_error("Couldn't load public key");
     self->key_type = RSA_PUBLIC_KEY;
     self->cipher_type = RSA_CIPHER;
     break;
 
   case RSA_PRIVATE_KEY:
     if ((self->cipher = PEM_read_bio_RSAPrivateKey(in, NULL, NULL, pass)) == NULL)
-      lose("Couldn't load private key");
+      lose_openssl_error("Couldn't load private key");
     self->key_type = RSA_PRIVATE_KEY;
     self->cipher_type = RSA_CIPHER;
     break;
@@ -3469,15 +3449,14 @@ asymmetric_object_der_read(int key_type, unsigned char *src, int len)
   asymmetric_object *self = NULL;
   unsigned char *ptr = src;
 
-  self = PyObject_New(asymmetric_object, &asymmetrictype);
-  if (self == NULL)
+  if ((self = PyObject_New(asymmetric_object, &asymmetrictype)) == NULL)
     goto error;
 
   switch (key_type) {
   case RSA_PUBLIC_KEY:
 
     if ((self->cipher = d2i_RSA_PUBKEY(NULL, (const unsigned char **) &ptr, len)) == NULL)
-      lose("Couldn't load public key");
+      lose_openssl_error("Couldn't load public key");
 
     self->key_type = RSA_PUBLIC_KEY;
     self->cipher_type = RSA_CIPHER;
@@ -3486,7 +3465,7 @@ asymmetric_object_der_read(int key_type, unsigned char *src, int len)
   case RSA_PRIVATE_KEY:
 
     if ((self->cipher = d2i_RSAPrivateKey(NULL, (const unsigned char **) &ptr, len)) == NULL)
-      lose("Couldn't load private key");
+      lose_openssl_error("Couldn't load private key");
 
     self->key_type = RSA_PRIVATE_KEY;
     self->cipher_type = RSA_CIPHER;
@@ -3545,7 +3524,7 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
     key_type = self->key_type;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
-    lose("Unable to create new BIO");
+    lose_no_memory();
 
   switch(key_type) {
 
@@ -3555,7 +3534,7 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
       evp_method = EVP_aes_256_cbc();
 
     if (!PEM_write_bio_RSAPrivateKey(bio, self->cipher, evp_method, NULL, 0, NULL, passphrase))
-      lose("Unable to write key");
+      lose_openssl_error("Unable to write key");
 
     break;
 
@@ -3565,7 +3544,7 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
       lose("Public keys should not encrypted");
 
     if (!PEM_write_bio_RSA_PUBKEY(bio, self->cipher))
-      lose("Unable to write key");
+      lose_openssl_error("Unable to write key");
 
     break;
 
@@ -3601,9 +3580,9 @@ static char asymmetric_object_der_write__doc__[] =
 static PyObject *
 asymmetric_object_der_write(asymmetric_object *self, PyObject *args)
 {
-  int len = 0, key_type = 0;
-  unsigned char *buf = NULL, *p = NULL;
-  PyObject *asymmetric = NULL;
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+  int key_type = 0;
 
   if (!PyArg_ParseTuple(args, "|i", &key_type))
     goto error;
@@ -3611,41 +3590,30 @@ asymmetric_object_der_write(asymmetric_object *self, PyObject *args)
   if (key_type == 0)
     key_type = self->key_type;
 
-  switch(key_type) {
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  switch (key_type) {
 
   case RSA_PRIVATE_KEY:
-    len = i2d_RSAPrivateKey(self->cipher, NULL);
-    if ((buf = malloc(len)) == NULL)
-      lose("Couldn't allocate memory");
-    p = buf;
-    if (!i2d_RSAPrivateKey(self->cipher, &buf))
-      lose("Unable to write key");
+    if (!i2d_RSAPrivateKey_bio(bio, self->cipher))
+      lose_openssl_error("Unable to write private key");
     break;
 
   case RSA_PUBLIC_KEY:
-    len = i2d_RSA_PUBKEY(self->cipher, NULL);
-    if ((buf = malloc(len)) == NULL)
-      lose("Couldn't allocate memory");
-    p = buf;
-    if (!i2d_RSA_PUBKEY(self->cipher, &buf))
-      lose("Unable to write key");
+    if (!i2d_RSA_PUBKEY_bio(bio, self->cipher))
+      lose_openssl_error("Unable to write public key");
     break;
 
   default:
     lose("Unsupported key type");
   }
 
-  asymmetric = Py_BuildValue("s#", p, len);
+  result = BIO_to_PyString_helper(bio);
 
-  free(p);
-  return asymmetric;
-
- error:
-
-  if (p)
-    free(p);
-
-  return NULL;
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
 }
 
 static char asymmetric_object_public_encrypt__doc__[] =
@@ -3684,10 +3652,10 @@ asymmetric_object_public_encrypt(asymmetric_object *self, PyObject *args)
     lose("Plain text is too long");
 
   if ((cipher_text = malloc(size + 16)) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if ((len = RSA_public_encrypt(len, plain_text, cipher_text, self->cipher, RSA_PKCS1_PADDING)) < 0)
-    lose("Couldn't encrypt plain text");
+    lose_openssl_error("Couldn't encrypt plain text");
 
   obj = Py_BuildValue("s#", cipher_text, len);
   free(cipher_text);
@@ -3737,10 +3705,10 @@ asymmetric_object_private_encrypt(asymmetric_object *self, PyObject *args)
     lose("Plain text is too long");
 
   if ((cipher_text = malloc(size + 16)) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if ((len = RSA_private_encrypt(len, plain_text, cipher_text, self->cipher, RSA_PKCS1_PADDING)) < 0)
-    lose("Couldn't encrypt plain text");
+    lose_openssl_error("Couldn't encrypt plain text");
 
   obj = Py_BuildValue("s#", cipher_text, len);
   free(cipher_text);
@@ -3790,10 +3758,10 @@ asymmetric_object_public_decrypt(asymmetric_object *self, PyObject *args)
     lose("Cipher text is too long");
 
   if ((plain_text = malloc(size + 16)) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if ((len = RSA_public_decrypt(len, cipher_text, plain_text, self->cipher, RSA_PKCS1_PADDING)) < 0)
-    lose("Couldn't decrypt cipher text");
+    lose_openssl_error("Couldn't decrypt cipher text");
 
   obj = Py_BuildValue("s#", plain_text, len);
   free(plain_text);
@@ -3842,10 +3810,10 @@ asymmetric_object_private_decrypt(asymmetric_object *self, PyObject *args)
     lose("Cipher text is too long");
 
   if ((plain_text = malloc(size + 16)) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if ((len = RSA_private_decrypt(len, cipher_text, plain_text, self->cipher, RSA_PKCS1_PADDING)) < 0)
-    lose("Couldn't decrypt cipher text");
+    lose_openssl_error("Couldn't decrypt cipher text");
 
   obj = Py_BuildValue("s#", plain_text, len);
   free(plain_text);
@@ -3907,12 +3875,12 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
     lose("Unsupported key type");
 
   if ((signed_text = malloc(RSA_size(self->cipher))) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!RSA_sign(evp_digest_nid(digest_type),
                 digest_text, digest_len,
                 signed_text, &signed_len, self->cipher))
-    lose("Couldn't sign digest");
+    lose_openssl_error("Couldn't sign digest");
 
   obj = Py_BuildValue("s#", signed_text, signed_len);
   free(signed_text);
@@ -4161,13 +4129,13 @@ digest_object_copy(digest_object *self, PyObject *args)
   digest_object *new = NULL;
 
   if ((new = PyObject_New(digest_object, &digesttype)) == NULL)
-    lose("Couldn't allocate memory");
+    goto error;
 
   new->digest_type = self->digest_type;
   if (!EVP_MD_CTX_copy(&new->digest_ctx, &self->digest_ctx))
-    lose("Couldn't copy digest");
+    lose_openssl_error("Couldn't copy digest");
 
-  return (PyObject*)new;
+  return (PyObject*) new;
 
  error:
 
@@ -4200,7 +4168,7 @@ digest_object_digest(digest_object *self)
   unsigned digest_len = 0;
 
   if ((md_copy = malloc(sizeof(EVP_MD_CTX))) == NULL)
-    lose("Couldn't allocate memory");
+    lose_no_memory();
 
   if (!EVP_MD_CTX_copy(md_copy, &self->digest_ctx))
     lose("Couldn't copy digest");
@@ -4317,7 +4285,7 @@ cms_object_pem_read(BIO *in)
     goto error;
 
   if ((self->cms = PEM_read_bio_CMS(in, NULL, NULL, NULL)) == NULL)
-    lose("Couldn't load PEM encoded CMS message");
+    lose_openssl_error("Couldn't load PEM encoded CMS message");
 
   return self;
 
@@ -4336,13 +4304,14 @@ cms_object_der_read(char *src, int len)
   if ((self = PyObject_New(cms_object, &cmstype)) == NULL)
     goto error;
 
-  self->cms = CMS_ContentInfo_new();
+  if ((self->cms = CMS_ContentInfo_new()) == NULL)
+    lose_no_memory();
 
   if ((bio = BIO_new_mem_buf(src, len)) == NULL)
-    goto error;
+    lose_no_memory();
 
   if (!d2i_CMS_bio(bio, &self->cms))
-    lose("Couldn't load DER encoded CMS message");
+    lose_openssl_error("Couldn't load DER encoded CMS message");
 
   BIO_free(bio);
 
@@ -4360,18 +4329,19 @@ cms_object_write_helper(cms_object *self, int format)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
-  bio = BIO_new(BIO_s_mem());
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
   switch (format) {
 
   case DER_FORMAT:
     if (!i2d_CMS_bio(bio, self->cms))
-      lose("Unable to write CMS object");
+      lose_openssl_error("Unable to write CMS object");
     break;
 
   case PEM_FORMAT:
     if (!PEM_write_bio_CMS(bio, self->cms))
-      lose("Unable to write CMS object");
+      lose_openssl_error("Unable to write CMS object");
     break;
 
   default:
@@ -4491,7 +4461,7 @@ cms_object_sign(cms_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if ((pkey = EVP_PKEY_new()) == NULL)
-    lose_openssl_error("Couldn't allocate memory");
+    lose_no_memory();
 
   assert_no_unhandled_openssl_errors();
 
@@ -4501,7 +4471,7 @@ cms_object_sign(cms_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if ((bio = BIO_new_mem_buf(buf, len)) == NULL)
-    goto error;
+    lose_no_memory();
 
   assert_no_unhandled_openssl_errors();
 
@@ -4529,8 +4499,8 @@ cms_object_sign(cms_object *self, PyObject *args)
 
   if (crl_sequence != Py_None) {
 
-    if (!PyTuple_Check(crl_sequence) && !PyList_Check(crl_sequence))
-      lose_type_error("inapropriate type");
+    if (!PySequence_Check(crl_sequence))
+      lose_type_error("Inapropriate type");
 
     n = PySequence_Size(crl_sequence);
 
@@ -4540,7 +4510,7 @@ cms_object_sign(cms_object *self, PyObject *args)
         goto error;
 
       if (!X_X509_crl_Check(crlobj))
-        lose_type_error("inappropriate type");
+        lose_type_error("Inappropriate type");
 
       if (!crlobj->crl)
         lose("CRL object with null CRL field!");
@@ -4617,7 +4587,7 @@ cms_object_verify(cms_object *self, PyObject *args)
     goto error;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
-    goto error;
+    lose_no_memory();
 
   assert_no_unhandled_openssl_errors();
 
@@ -4708,18 +4678,18 @@ cms_object_signingTime(cms_object *self)
   int i;
 
   if ((sis = CMS_get0_SignerInfos(self->cms)) == NULL)
-    lose("Couldn't extract signerInfos from CMS message[1]");
+    lose_openssl_error("Couldn't extract signerInfos from CMS message[1]");
 
   if (sk_CMS_SignerInfo_num(sis) != 1)
-    lose("Couldn't extract signerInfos from CMS message[2]");
+    lose_openssl_error("Couldn't extract signerInfos from CMS message[2]");
 
   si = sk_CMS_SignerInfo_value(sis, 0);
 
   if ((i = CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1)) < 0)
-    lose("Couldn't extract signerInfos from CMS message[3]");
+    lose_openssl_error("Couldn't extract signerInfos from CMS message[3]");
 
   if ((xa = CMS_signed_get_attr(si, i)) == NULL)
-    lose("Couldn't extract signerInfos from CMS message[4]");
+    lose_openssl_error("Couldn't extract signerInfos from CMS message[4]");
 
   if (xa->single)
     lose("Couldn't extract signerInfos from CMS message[5]");
@@ -4769,10 +4739,11 @@ cms_object_pprint(cms_object *self)
   BIO *bio = NULL;
   PyObject *result = NULL;
 
-  bio = BIO_new(BIO_s_mem());
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
   if (!CMS_ContentInfo_print_ctx(bio, self->cms, 0, NULL))
-    lose("Unable to pretty-print CMS object");
+    lose_openssl_error("Unable to pretty-print CMS object");
 
   result = BIO_to_PyString_helper(bio);
 
@@ -4959,16 +4930,7 @@ static char pow_module_new_x509__doc__[] =
 static PyObject *
 pow_module_new_x509 (PyObject *self)
 {
-  x509_object *x509 = NULL;
-
-  if ((x509 = x509_object_new()) == NULL)
-    lose("Couldn't create new X.509 object");
-
-  return (PyObject*)x509;
-
- error:
-
-  return NULL;
+  return (PyObject *) x509_object_new();
 }
 
 static char pow_module_new_asymmetric__doc__[] =
@@ -5082,16 +5044,7 @@ static char pow_module_new_cms__doc__[] =
 static PyObject *
 pow_module_new_cms (PyObject *self)
 {
-  cms_object *cms = NULL;
-
-  if ((cms = cms_object_new()) == NULL)
-    lose("could not create new CMS object");
-
-  return (PyObject*)cms;
-
- error:
-
-  return NULL;
+  return (PyObject *) cms_object_new();
 }
 
 static char pow_module_pem_read__doc__[] =
@@ -5141,23 +5094,23 @@ pow_module_pem_read (PyObject *self, PyObject *args)
     goto error;
 
   if ((in = BIO_new_mem_buf(src, len)) == NULL)
-    lose("Unable to create new BIO");
+    lose_no_memory();
 
   switch(object_type) {
   case RSA_PRIVATE_KEY:
-    obj = (PyObject*)asymmetric_object_pem_read(object_type, in, pass);
+    obj = (PyObject *) asymmetric_object_pem_read(object_type, in, pass);
     break;
   case RSA_PUBLIC_KEY:
-    obj = (PyObject*)asymmetric_object_pem_read(object_type, in, pass);
+    obj = (PyObject *) asymmetric_object_pem_read(object_type, in, pass);
     break;
   case X509_CERTIFICATE:
-    obj = (PyObject*)x509_object_pem_read(in);
+    obj = (PyObject *) x509_object_pem_read(in);
     break;
   case X_X509_CRL:
-    obj = (PyObject*)x509_crl_object_pem_read(in);
+    obj = (PyObject *) x509_crl_object_pem_read(in);
     break;
   case CMS_MESSAGE:
-    obj = (PyObject*)cms_object_pem_read(in);
+    obj = (PyObject *) cms_object_pem_read(in);
     break;
   default:
     lose("Unknown PEM encoding");

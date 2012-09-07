@@ -228,6 +228,7 @@ class main(rpki.cli.Cmd):
 
     self.zoo.update_bpki()
     self.zoo.write_bpki_files()
+    self.zoo.synchronize()
 
 
   def do_configure_child(self, arg):

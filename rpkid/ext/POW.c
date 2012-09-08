@@ -197,6 +197,11 @@ typedef struct {
 
 /*========== C structs ==========*/
 
+/* Declarations */
+
+static PyObject *
+x509_revoked_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
+
 /*========== helper functions ==========*/
 
 /*
@@ -347,15 +352,19 @@ set_openssl_exception(PyObject *error_class, const char *msg)
   Py_XDECREF(errors);
 }
 
-static PyObject *
-x509_object_helper_set_name(X509_NAME *name, PyObject *dn_obj)
+static X509_NAME *
+x509_object_helper_set_name(PyObject *dn_obj)
 {
   PyObject *rdn_obj = NULL;
   PyObject *pair_obj = NULL;
   PyObject *type_obj = NULL;
   PyObject *value_obj = NULL;
+  X509_NAME *name = NULL;
   char *type_str, *value_str;
   int asn1_type, i, j;
+
+  if ((name = X509_NAME_new()) == NULL)
+    lose_no_memory();
 
   for (i = 0; i < PySequence_Size(dn_obj); i++) {
 
@@ -397,9 +406,10 @@ x509_object_helper_set_name(X509_NAME *name, PyObject *dn_obj)
     rdn_obj = NULL;
   }
 
-  Py_RETURN_NONE;
+  return name;
 
  error:
+  X509_NAME_free(name);
   Py_XDECREF(rdn_obj);
   Py_XDECREF(pair_obj);
   Py_XDECREF(type_obj);
@@ -630,34 +640,29 @@ BIO_to_PyString_helper(BIO *bio)
 /*========== helper functions ==========*/
 
 /*========== X509 code ==========*/
-static x509_object *
-x509_object_new(void)
+
+static PyObject *
+x509_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   x509_object *self;
 
-  if ((self = PyObject_New(x509_object, &x509type)) == NULL)
-    goto error;
-
-  self->x509 = X509_new();
-  return self;
-
- error:
+  if ((self = (x509_object *) type->tp_alloc(type, 0)) != NULL &&
+      (self->x509 = X509_new()) != NULL)
+    return (PyObject *) self;
 
   Py_XDECREF(self);
   return NULL;
 }
 
-/*
- * This function is pretty dumb.  Most of the work is done by the module
- * function pow_module_pem_read().
- */
 static x509_object *
 x509_object_pem_read(BIO *in)
 {
-  x509_object *self;
+  x509_object *self = NULL;
 
-  if ((self = PyObject_New(x509_object, &x509type)) == NULL)
+  if ((self = (x509_object *) x509_object_new(&x509type, NULL, NULL)) == NULL)
     goto error;
+
+  X509_free(self->x509);
 
   if ((self->x509 = PEM_read_bio_X509(in, NULL, NULL, NULL)) == NULL)
     lose_openssl_error("Couldn't load PEM encoded certificate");
@@ -674,14 +679,11 @@ static x509_object *
 x509_object_der_read(unsigned char *src, int len)
 {
   x509_object *self;
-  unsigned char *ptr = src;
 
-  if ((self = PyObject_New(x509_object, &x509type)) == NULL)
+  if ((self = (x509_object *) x509_object_new(&x509type, NULL, NULL)) == NULL)
     goto error;
 
-  self->x509 = X509_new();
-
-  if(!d2i_X509(&self->x509, (const unsigned char **) &ptr, len))
+  if(!d2i_X509(&self->x509, (const unsigned char **) &src, len))
     lose_openssl_error("Couldn't load PEM encoded certificate");
 
   return self;
@@ -692,11 +694,6 @@ x509_object_der_read(unsigned char *src, int len)
   return NULL;
 }
 
-/*
- * Unlike the previous function this creates the BIO itself.  The BIO_s_mem
- * is used as a buffer which the certificate is read into, from this buffer
- * it is read into a char[] and returned as a string.
- */
 static PyObject *
 x509_object_write_helper(x509_object *self, int format)
 {
@@ -791,7 +788,6 @@ static char x509_object_set_public_key__doc__[] =
 "</method>\n"
 ;
 
-
 static PyObject *
 x509_object_set_public_key(x509_object *self, PyObject *args)
 {
@@ -804,11 +800,9 @@ x509_object_set_public_key(x509_object *self, PyObject *args)
   if ((pkey = EVP_PKEY_new()) == NULL)
     lose_no_memory();
 
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose("EVP_PKEY assignment error");
-
-  if (!X509_set_pubkey(self->x509,pkey))
-    lose("Couldn't set certificate's public key");
+  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher) ||
+      !X509_set_pubkey(self->x509, pkey))
+    lose_openssl_error("Couldn't set certificate's public key");
 
   Py_RETURN_NONE;
 
@@ -847,7 +841,6 @@ static char x509_object_sign__doc__[] =
 "</method>\n"
 ;
 
-
 static PyObject *
 x509_object_sign(x509_object *self, PyObject *args)
 {
@@ -866,13 +859,13 @@ x509_object_sign(x509_object *self, PyObject *args)
     lose("Don't know how to use this type of key");
 
   if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose("EVP_PKEY assignment error");
+    lose_openssl_error("EVP_PKEY assignment error");
 
   if ((digest_method = evp_digest_factory(digest_type)) == NULL)
     lose("Unsupported digest algorithm");
 
   if (!X509_sign(self->x509, pkey, digest_method))
-    lose("Couldn't sign certificate");
+    lose_openssl_error("Couldn't sign certificate");
 
   Py_RETURN_NONE;
 
@@ -979,27 +972,22 @@ static char x509_object_set_serial__doc__[] =
 static PyObject *
 x509_object_set_serial(x509_object *self, PyObject *args)
 {
-  long serial = 0;
-  ASN1_INTEGER *asn1i = NULL;
+  long c_serial = 0;
+  ASN1_INTEGER *asn1_serial = NULL;
 
-  if (!PyArg_ParseTuple(args, "l", &serial))
+  if (!PyArg_ParseTuple(args, "l", &c_serial))
     goto error;
 
-  if ((asn1i = ASN1_INTEGER_new()) == NULL)
+  if ((asn1_serial = ASN1_INTEGER_new()) == NULL ||
+      !ASN1_INTEGER_set(asn1_serial, c_serial) ||
+      !X509_set_serialNumber(self->x509, asn1_serial))
     lose_no_memory();
 
-  if (!ASN1_INTEGER_set(asn1i, serial))
-    lose("Couldn't set ASN.1 integer");
-
-  if (!X509_set_serialNumber(self->x509, asn1i))
-    lose("Couldn't set certificate serial");
-
-  ASN1_INTEGER_free(asn1i);
-
+  ASN1_INTEGER_free(asn1_serial);
   Py_RETURN_NONE;
 
  error:
-  ASN1_INTEGER_free(asn1i);
+  ASN1_INTEGER_free(asn1_serial);
   return NULL;
 }
 
@@ -1040,16 +1028,13 @@ static PyObject *
 x509_object_get_issuer(x509_object *self, PyObject *args)
 {
   PyObject *result = NULL;
-  X509_NAME *name = NULL;
   int format = OIDNAME_FORMAT;
 
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
 
-  if ((name = X509_get_issuer_name(self->x509)) == NULL)
-    lose_openssl_error("Couldn't get issuer name");
-
-  result = x509_object_helper_get_name(name, format);
+  result = x509_object_helper_get_name(X509_get_issuer_name(self->x509),
+                                       format);
 
  error:                         /* Fall through */
   return result;
@@ -1076,16 +1061,13 @@ static PyObject *
 x509_object_get_subject(x509_object *self, PyObject *args)
 {
   PyObject *result = NULL;
-  X509_NAME *name = NULL;
   int format = OIDNAME_FORMAT;
 
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
 
-  if ((name = X509_get_subject_name(self->x509)) == NULL)
-    lose("Couldn't get subject name");
-
-  result = x509_object_helper_get_name(name, format);
+  result = x509_object_helper_get_name(X509_get_subject_name(self->x509),
+                                       format);
 
  error:                         /* Fall through */
   return result;
@@ -1120,14 +1102,11 @@ x509_object_set_subject(x509_object *self, PyObject *args)
   if (!PyTuple_Check(name_sequence) && !PyList_Check(name_sequence))
     lose_type_error("Inapropriate type");
 
-  if ((name = X509_NAME_new()) == NULL)
-    lose_no_memory();
-
-  if (!x509_object_helper_set_name(name, name_sequence))
+  if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
     goto error;
 
   if (!X509_set_subject_name(self->x509, name))
-    lose("Unable to set name");
+    lose("Unable to set subject name");
 
   X509_NAME_free(name);
 
@@ -1167,14 +1146,11 @@ x509_object_set_issuer(x509_object *self, PyObject *args)
   if (!PyTuple_Check(name_sequence) && !PyList_Check(name_sequence))
     lose_type_error("Inapropriate type");
 
-  if ((name = X509_NAME_new()) == NULL)
-    lose_no_memory();
-
-  if (!x509_object_helper_set_name(name, name_sequence))
+  if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
     goto error;
 
   if (!X509_set_issuer_name(self->x509, name))
-    lose("Unable to set name");
+    lose("Unable to set issuer name");
 
   X509_NAME_free(name);
 
@@ -1201,7 +1177,6 @@ static char x509_object_get_not_before__doc__[] =
 "      </para>\n"
 "   </body>\n"
 "</method>\n"
-
 ;
 
 static PyObject *
@@ -1366,11 +1341,9 @@ x509_object_add_extension(x509_object *self, PyObject *args)
   if ((extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString)) == NULL)
     lose_openssl_error("Unable to create ASN.1 X.509 Extension object");
 
-  if (!self->x509->cert_info->extensions &&
-      (self->x509->cert_info->extensions = sk_X509_EXTENSION_new_null()) == NULL)
-    lose_no_memory();
-
-  if (!sk_X509_EXTENSION_push(self->x509->cert_info->extensions, extn))
+  if ((!self->x509->cert_info->extensions &&
+       (self->x509->cert_info->extensions = sk_X509_EXTENSION_new_null()) == NULL) ||
+      !sk_X509_EXTENSION_push(self->x509->cert_info->extensions, extn))
     lose_no_memory();
 
   Py_RETURN_NONE;
@@ -1421,12 +1394,7 @@ static char x509_object_count_extensions__doc__[] =
 static PyObject *
 x509_object_count_extensions(x509_object *self)
 {
-  int num = 0;
-
-  if (self->x509->cert_info->extensions)
-    num = sk_X509_EXTENSION_num(self->x509->cert_info->extensions);
-
-  return Py_BuildValue("i", num);
+  return Py_BuildValue("i", sk_X509_EXTENSION_num(self->x509->cert_info->extensions));
 }
 
 static char x509_object_get_extension__doc__[] =
@@ -1448,21 +1416,15 @@ static char x509_object_get_extension__doc__[] =
 static PyObject *
 x509_object_get_extension(x509_object *self, PyObject *args)
 {
-  int num = 0, index = 0, ext_nid = 0;
+  int ext_num = 0, ext_nid = 0;
   char const *ext_ln = NULL;
   char unknown_ext [] = "unknown";
   X509_EXTENSION *ext;
 
-  if (!PyArg_ParseTuple(args, "i", &index))
+  if (!PyArg_ParseTuple(args, "i", &ext_num))
     goto error;
 
-  if (self->x509->cert_info->extensions)
-    num = sk_X509_EXTENSION_num(self->x509->cert_info->extensions);
-
-  if (index >= num)
-    lose("Certificate doesn't have that many extensions");
-
-  if ((ext = sk_X509_EXTENSION_value(self->x509->cert_info->extensions, index)) == NULL)
+  if ((ext = sk_X509_EXTENSION_value(self->x509->cert_info->extensions, ext_num)) == NULL)
     lose_openssl_error("Couldn't get extension");
 
   if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
@@ -1554,17 +1516,11 @@ static struct PyMethodDef x509_object_methods[] = {
   {NULL}
 };
 
-static PyObject *
-x509_object_getattr(x509_object *self, char *name)
-{
-  return Py_FindMethod(x509_object_methods, (PyObject *)self, name);
-}
-
 static void
-x509_object_dealloc(x509_object *self, char *name)
+x509_object_dealloc(x509_object *self)
 {
   X509_free(self->x509);
-  PyObject_Del(self);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
 static char x509type__doc__[] =
@@ -1616,45 +1572,59 @@ static char x509type__doc__[] =
 ;
 
 static PyTypeObject x509type = {
-   PyObject_HEAD_INIT(0)
-   0,                                  /*ob_size*/
-   "X509",                             /*tp_name*/
-   sizeof(x509_object),                /*tp_basicsize*/
-   0,                                  /*tp_itemsize*/
-   (destructor)x509_object_dealloc,    /*tp_dealloc*/
-   (printfunc)0,                       /*tp_print*/
-   (getattrfunc)x509_object_getattr,   /*tp_getattr*/
-   (setattrfunc)0,                     /*tp_setattr*/
-   (cmpfunc)0,                         /*tp_compare*/
-   (reprfunc)0,                        /*tp_repr*/
-   0,                                  /*tp_as_number*/
-   0,                                  /*tp_as_sequence*/
-   0,                                  /*tp_as_mapping*/
-   (hashfunc)0,                        /*tp_hash*/
-   (ternaryfunc)0,                     /*tp_call*/
-   (reprfunc)0,                        /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   x509type__doc__                     /* Documentation string */
+  PyObject_HEAD_INIT(0)
+  0,                                        /* ob_size */
+  "_POW.X509",                              /* tp_name */
+  sizeof(x509_object),                      /* tp_basicsize */
+  0,                                        /* tp_itemsize */
+  (destructor)x509_object_dealloc,          /* tp_dealloc */
+  0,                                        /* tp_print */
+  0,                                        /* tp_getattr */
+  0,                                        /* tp_setattr */
+  0,                                        /* tp_compare */
+  0,                                        /* tp_repr */
+  0,                                        /* tp_as_number */
+  0,                                        /* tp_as_sequence */
+  0,                                        /* tp_as_mapping */
+  0,                                        /* tp_hash */
+  0,                                        /* tp_call */
+  0,                                        /* tp_str */
+  0,                                        /* tp_getattro */
+  0,                                        /* tp_setattro */
+  0,                                        /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  x509type__doc__,                          /* tp_doc */
+  0,                                        /* tp_traverse */
+  0,                                        /* tp_clear */
+  0,                                        /* tp_richcompare */
+  0,                                        /* tp_weaklistoffset */
+  0,                                        /* tp_iter */
+  0,                                        /* tp_iternext */
+  x509_object_methods,                      /* tp_methods */
+  0,                                        /* tp_members */
+  0,                                        /* tp_getset */
+  0,                                        /* tp_base */
+  0,                                        /* tp_dict */
+  0,                                        /* tp_descr_get */
+  0,                                        /* tp_descr_set */
+  0,                                        /* tp_dictoffset */
+  0,                                        /* tp_init */
+  0,                                        /* tp_alloc */
+  x509_object_new,                          /* tp_new */
 };
+
 /*========== X509 Code ==========*/
 
 /*========== x509 store Code ==========*/
-static x509_store_object *
-x509_store_object_new(void)
+
+static PyObject *
+x509_store_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   x509_store_object *self = NULL;
 
-  if ((self = PyObject_New(x509_store_object, &x509_storetype)) == NULL)
-    goto error;
-
-  self->store = X509_STORE_new();
-
-  return self;
-
- error:
+  if ((self = (x509_store_object *) type->tp_alloc(type, 0)) != NULL &&
+      (self->store = X509_STORE_new()) != NULL)
+    return (PyObject *) self;
 
   Py_XDECREF(self);
   return NULL;
@@ -1918,17 +1888,11 @@ static struct PyMethodDef x509_store_object_methods[] = {
   {NULL}
 };
 
-static PyObject *
-x509_store_object_getattr(x509_store_object *self, char *name)
-{
-  return Py_FindMethod(x509_store_object_methods, (PyObject *)self, name);
-}
-
 static void
-x509_store_object_dealloc(x509_store_object *self, char *name)
+x509_store_object_dealloc(x509_store_object *self)
 {
   X509_STORE_free(self->store);
-  PyObject_Del(self);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
 static char x509_storetype__doc__[] =
@@ -1970,45 +1934,59 @@ static char x509_storetype__doc__[] =
 ;
 
 static PyTypeObject x509_storetype = {
-   PyObject_HEAD_INIT(0)
-   0,                                        /*ob_size*/
-   "X509Store",                              /*tp_name*/
-   sizeof(x509_store_object),                /*tp_basicsize*/
-   0,                                        /*tp_itemsize*/
-   (destructor)x509_store_object_dealloc,    /*tp_dealloc*/
-   (printfunc)0,                             /*tp_print*/
-   (getattrfunc)x509_store_object_getattr,   /*tp_getattr*/
-   (setattrfunc)0,                           /*tp_setattr*/
-   (cmpfunc)0,                               /*tp_compare*/
-   (reprfunc)0,                              /*tp_repr*/
-   0,                                        /*tp_as_number*/
-   0,                                        /*tp_as_sequence*/
-   0,                                        /*tp_as_mapping*/
-   (hashfunc)0,                              /*tp_hash*/
-   (ternaryfunc)0,                           /*tp_call*/
-   (reprfunc)0,                              /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   x509_storetype__doc__                    /* Documentation string */
+  PyObject_HEAD_INIT(0)
+  0,                                        /* ob_size */
+  "_POW.X509Store",                         /* tp_name */
+  sizeof(x509_store_object),                /* tp_basicsize */
+  0,                                        /* tp_itemsize */
+  (destructor)x509_store_object_dealloc,    /* tp_dealloc */
+  0,                                        /* tp_print */
+  0,                                        /* tp_getattr */
+  0,                                        /* tp_setattr */
+  0,                                        /* tp_compare */
+  0,                                        /* tp_repr */
+  0,                                        /* tp_as_number */
+  0,                                        /* tp_as_sequence */
+  0,                                        /* tp_as_mapping */
+  0,                                        /* tp_hash */
+  0,                                        /* tp_call */
+  0,                                        /* tp_str */
+  0,                                        /* tp_getattro */
+  0,                                        /* tp_setattro */
+  0,                                        /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  x509_storetype__doc__,                    /* tp_doc */
+  0,                                        /* tp_traverse */
+  0,                                        /* tp_clear */
+  0,                                        /* tp_richcompare */
+  0,                                        /* tp_weaklistoffset */
+  0,                                        /* tp_iter */
+  0,                                        /* tp_iternext */
+  x509_store_object_methods,                /* tp_methods */
+  0,                                        /* tp_members */
+  0,                                        /* tp_getset */
+  0,                                        /* tp_base */
+  0,                                        /* tp_dict */
+  0,                                        /* tp_descr_get */
+  0,                                        /* tp_descr_set */
+  0,                                        /* tp_dictoffset */
+  0,                                        /* tp_init */
+  0,                                        /* tp_alloc */
+  x509_store_object_new,                    /* tp_new */
 };
+
 /*========== x509 store Code ==========*/
 
 /*========== x509 crl Code ==========*/
-static x509_crl_object *
-x509_crl_object_new(void)
+
+static PyObject *
+x509_crl_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   x509_crl_object *self = NULL;
 
-  if ((self = PyObject_New(x509_crl_object, &x509_crltype)) == NULL)
-    goto error;
-
-  self->crl = X509_CRL_new();
-
-  return self;
-
- error:
+  if ((self = (x509_crl_object *) type->tp_alloc(type, 0)) != NULL &&
+      (self->crl = X509_CRL_new()) != NULL)
+    return (PyObject *) self;
 
   Py_XDECREF(self);
   return NULL;
@@ -2019,11 +1997,13 @@ x509_crl_object_pem_read(BIO *in)
 {
   x509_crl_object *self;
 
-  if ((self = PyObject_New(x509_crl_object, &x509_crltype)) == NULL)
+  if ((self = (x509_crl_object *) x509_crl_object_new(&x509_crltype, NULL, NULL)) == NULL)
     goto error;
 
+  X509_CRL_free(self->crl);
+
   if ((self->crl = PEM_read_bio_X509_CRL(in, NULL, NULL, NULL)) == NULL)
-    lose_openssl_error("Couldn't load CRL");
+    lose_openssl_error("Couldn't PEM encoded load CRL");
 
   return self;
 
@@ -2037,16 +2017,12 @@ static x509_crl_object *
 x509_crl_object_der_read(unsigned char *src, int len)
 {
   x509_crl_object *self;
-  unsigned char* ptr = src;
 
-  if ((self = PyObject_New(x509_crl_object, &x509_crltype)) == NULL)
+  if ((self = (x509_crl_object *) x509_crl_object_new(&x509_crltype, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->crl = X509_CRL_new()) == NULL)
-    lose_no_memory();
-
-  if (!d2i_X509_CRL(&self->crl, (const unsigned char **) &ptr, len))
-    lose_openssl_error("Couldn't load CRL");
+  if (!d2i_X509_CRL(&self->crl, (const unsigned char **) &src, len))
+    lose_openssl_error("Couldn't load DER encoded CRL");
 
   return self;
 
@@ -2074,16 +2050,7 @@ static char x509_crl_object_get_version__doc__[] =
 static PyObject *
 x509_crl_object_get_version(x509_crl_object *self)
 {
-  long version = 0;
-
-  if ((version = ASN1_INTEGER_get(self->crl->crl->version)) == -1)
-    lose("Couldn't get CRL version");
-
-  return Py_BuildValue("l", version);
-
- error:
-
-  return NULL;
+  return Py_BuildValue("l", ASN1_INTEGER_get(self->crl->crl->version));
 }
 
 static char x509_crl_object_set_version__doc__[] =
@@ -2107,23 +2074,16 @@ static PyObject *
 x509_crl_object_set_version(x509_crl_object *self, PyObject *args)
 {
   long version = 0;
-  ASN1_INTEGER *asn1_version = NULL;
 
   if (!PyArg_ParseTuple(args, "i", &version))
     goto error;
 
-  if ((asn1_version = ASN1_INTEGER_new()) == NULL)
+  if (!X509_CRL_set_version(self->crl, version))
     lose_no_memory();
-
-  if (!ASN1_INTEGER_set(asn1_version, version))
-    lose_openssl_error("Couldn't set CRL version");
-
-  self->crl->crl->version = asn1_version;
 
   Py_RETURN_NONE;
 
  error:
-  ASN1_INTEGER_free(asn1_version);
   return NULL;
 }
 
@@ -2189,14 +2149,11 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
   if (!PyTuple_Check(name_sequence) && !PyList_Check(name_sequence))
     lose_type_error("Inapropriate type");
 
-  if ((name = X509_NAME_new()) == NULL)
-    lose_no_memory();
-
-  if (!x509_object_helper_set_name(name, name_sequence))
+  if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
     goto error;
 
-  if (!X509_NAME_set(&self->crl->crl->issuer, name))
-    lose_openssl_error("Unable to set name");
+  if (!X509_CRL_set_issuer_name(self->crl, name))
+    lose_openssl_error("Unable to set issuer name");
 
   X509_NAME_free(name);
 
@@ -2407,7 +2364,7 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "O", &revoked_sequence))
     goto error;
 
-  if (!PyTuple_Check(revoked_sequence) && !PyList_Check(revoked_sequence))
+  if (!PySequence_Check(revoked_sequence))
     lose_type_error("inapropriate type");
 
   size = PySequence_Size(revoked_sequence);
@@ -2418,11 +2375,11 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
     if (!X_X509_revoked_Check(revoked))
       lose_type_error("inapropriate type");
 
-    if ((tmp_revoked = X509_REVOKED_dup(revoked->revoked)) == NULL)
+    if ((tmp_revoked = X509_REVOKED_dup(revoked->revoked)) == NULL ||
+        !X509_CRL_add0_revoked(self->crl, tmp_revoked))
       lose_no_memory();
 
-    if (!X509_CRL_add0_revoked(self->crl, tmp_revoked))
-      lose("Couldn't add revokation to stack");
+    tmp_revoked = NULL;
 
     Py_XDECREF(revoked);
     revoked = NULL;
@@ -2431,9 +2388,8 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
+  X509_REVOKED_free(tmp_revoked);
   Py_XDECREF(revoked);
-
   return  NULL;
 }
 
@@ -2450,8 +2406,10 @@ x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
     lose_no_memory();
 
   for (i = 0; i < no_entries; i++) {
-    if ((revoke_obj = PyObject_New(x509_revoked_object, &x509_revokedtype)) == NULL)
+    if ((revoke_obj = (x509_revoked_object *) x509_revoked_object_new(&x509_revokedtype, NULL, NULL)) == NULL)
       lose_no_memory();
+
+    X509_REVOKED_free(revoke_obj->revoked);
 
     if ((revoke_obj->revoked = X509_REVOKED_dup(sk_X509_REVOKED_value(revoked, i))) == NULL)
       goto error;
@@ -2580,11 +2538,9 @@ x509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
     goto error;
 
-  if ((octetString = M_ASN1_OCTET_STRING_new()) == NULL)
+  if ((octetString = ASN1_OCTET_STRING_new()) == NULL ||
+      !ASN1_OCTET_STRING_set(octetString, buf, len))
     lose_no_memory();
-
-  if (!ASN1_OCTET_STRING_set(octetString, buf, len))
-    lose_openssl_error("Couldn't set ASN.1 OCTET STRING");
 
   if ((nid = OBJ_txt2nid(name)) == NID_undef)
     lose("Extension has unknown object identifier");
@@ -2592,16 +2548,17 @@ x509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
   if ((extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString)) == NULL)
     lose_openssl_error("Unable to create ASN.1 X.509 Extension object");
 
-  if (!self->crl->crl->extensions &&
-      (self->crl->crl->extensions = sk_X509_EXTENSION_new_null()) == NULL)
-    lose_no_memory();
+  octetString = NULL;
 
-  if (!sk_X509_EXTENSION_push(self->crl->crl->extensions, extn))
+  if ((!self->crl->crl->extensions &&
+       (self->crl->crl->extensions = sk_X509_EXTENSION_new_null()) == NULL) ||
+      !sk_X509_EXTENSION_push(self->crl->crl->extensions, extn))
     lose_no_memory();
 
   Py_RETURN_NONE;
 
  error:
+  ASN1_OCTET_STRING_free(octetString);
   X509_EXTENSION_free(extn);
   return NULL;
 }
@@ -2647,12 +2604,7 @@ static char x509_crl_object_count_extensions__doc__[] =
 static PyObject *
 x509_crl_object_count_extensions(x509_crl_object *self)
 {
-  int num = 0;
-
-  if (self->crl->crl->extensions)
-    num = sk_X509_EXTENSION_num(self->crl->crl->extensions);
-
-  return Py_BuildValue("i", num);
+  return Py_BuildValue("i", sk_X509_EXTENSION_num(self->crl->crl->extensions));
 }
 
 static char x509_crl_object_get_extension__doc__[] =
@@ -2674,7 +2626,7 @@ static char x509_crl_object_get_extension__doc__[] =
 static PyObject *
 x509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
 {
-  int num = 0, index = 0, ext_nid = 0;
+  int ext_num = 0, ext_nid = 0;
   char const *ext_ln = NULL;
   char unknown_ext [] = "unknown";
   X509_EXTENSION *ext;
@@ -2682,14 +2634,7 @@ x509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "i", &index))
     goto error;
 
-  if (self->crl->crl->extensions)
-    num = sk_X509_EXTENSION_num(self->crl->crl->extensions);
-
-
-  if (index >= num)
-    lose("CRL does not have that many extensions");
-
-  if ((ext = sk_X509_EXTENSION_value(self->crl->crl->extensions, index)) == NULL)
+  if ((ext = sk_X509_EXTENSION_value(self->crl->crl->extensions, ext_num)) == NULL)
     lose_openssl_error("Couldn't get extension");
 
   if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
@@ -2750,13 +2695,11 @@ x509_crl_object_sign(x509_crl_object *self, PyObject *args)
   if (asym->key_type != RSA_PRIVATE_KEY)
     lose("Don't know how to use this type of key");
 
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose_openssl_error("EVP_PKEY assignment error");
-
   if ((digest_method = evp_digest_factory(digest_type)) == NULL)
     lose("Unsupported digest algorithm");
 
-  if (!X509_CRL_sign(self->crl, pkey, digest_method))
+  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher) ||
+      !X509_CRL_sign(self->crl, pkey, digest_method))
     lose_openssl_error("Couldn't sign CRL");
 
   Py_RETURN_NONE;
@@ -2939,17 +2882,11 @@ static struct PyMethodDef x509_crl_object_methods[] = {
   {NULL}
 };
 
-static PyObject *
-x509_crl_object_getattr(x509_crl_object *self, char *name)
-{
-  return Py_FindMethod(x509_crl_object_methods, (PyObject *)self, name);
-}
-
 static void
-x509_crl_object_dealloc(x509_crl_object *self, char *name)
+x509_crl_object_dealloc(x509_crl_object *self)
 {
   X509_CRL_free(self->crl);
-  PyObject_Del(self);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
 static char x509_crltype__doc__[] =
@@ -2968,47 +2905,89 @@ static char x509_crltype__doc__[] =
 
 static PyTypeObject x509_crltype = {
   PyObject_HEAD_INIT(0)
-  0,                                     /*ob_size*/
-  "X509Crl",                             /*tp_name*/
-  sizeof(x509_crl_object),               /*tp_basicsize*/
-  0,                                     /*tp_itemsize*/
-  (destructor)x509_crl_object_dealloc,   /*tp_dealloc*/
-  (printfunc)0,                          /*tp_print*/
-  (getattrfunc)x509_crl_object_getattr,  /*tp_getattr*/
-  (setattrfunc)0,                        /*tp_setattr*/
-  (cmpfunc)0,                            /*tp_compare*/
-  (reprfunc)0,                           /*tp_repr*/
-  0,                                     /*tp_as_number*/
-  0,                                     /*tp_as_sequence*/
-  0,                                     /*tp_as_mapping*/
-  (hashfunc)0,                           /*tp_hash*/
-  (ternaryfunc)0,                        /*tp_call*/
-  (reprfunc)0,                           /*tp_str*/
-  0,
-  0,
-  0,
-  0,
-  x509_crltype__doc__                   /* Documentation string */
+  0,                                     /* ob_size */
+  "_POW.X509Crl",                        /* tp_name */
+  sizeof(x509_crl_object),               /* tp_basicsize */
+  0,                                     /* tp_itemsize */
+  (destructor)x509_crl_object_dealloc,   /* tp_dealloc */
+  0,                                     /* tp_print */
+  0,                                     /* tp_getattr */
+  0,                                     /* tp_setattr */
+  0,                                     /* tp_compare */
+  0,                                     /* tp_repr */
+  0,                                     /* tp_as_number */
+  0,                                     /* tp_as_sequence */
+  0,                                     /* tp_as_mapping */
+  0,                                     /* tp_hash */
+  0,                                     /* tp_call */
+  0,                                     /* tp_str */
+  0,                                     /* tp_getattro */
+  0,                                     /* tp_setattro */
+  0,                                     /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  x509_crltype__doc__,                   /* tp_doc */
+  0,                                     /* tp_traverse */
+  0,                                     /* tp_clear */
+  0,                                     /* tp_richcompare */
+  0,                                     /* tp_weaklistoffset */
+  0,                                     /* tp_iter */
+  0,                                     /* tp_iternext */
+  x509_crl_object_methods,               /* tp_methods */
+  0,                                     /* tp_members */
+  0,                                     /* tp_getset */
+  0,                                     /* tp_base */
+  0,                                     /* tp_dict */
+  0,                                     /* tp_descr_get */
+  0,                                     /* tp_descr_set */
+  0,                                     /* tp_dictoffset */
+  0,                                     /* tp_init */
+  0,                                     /* tp_alloc */
+  x509_crl_object_new,                   /* tp_new */
 };
+
 /*========== x509 crl Code ==========*/
 
 /*========== revoked Code ==========*/
-static x509_revoked_object* x509_revoked_object_new(void)
+
+static PyObject *
+x509_revoked_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   x509_revoked_object *self = NULL;
 
-  if ((self = PyObject_New(x509_revoked_object, &x509_revokedtype)) == NULL)
+  if ((self = (x509_revoked_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
 
   if ((self->revoked = X509_REVOKED_new()) == NULL)
-    lose_no_memory();
+    goto error;
 
-  return self;
+  return (PyObject *) self;
 
  error:
 
   Py_XDECREF(self);
   return NULL;
+}
+
+static int
+x509_revoked_object_init(x509_revoked_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"serial", "date", NULL};
+  int serial = -1;
+  char *date = NULL;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &serial, &date))
+    goto error;
+
+  if (serial != -1 && !ASN1_INTEGER_set(self->revoked->serialNumber, serial))
+    lose_no_memory();
+
+  if (date != NULL && !python_ASN1_TIME_set_string(self->revoked->revocationDate, date))
+    lose_no_memory();
+
+  return 0;
+
+ error:
+  return -1;
 }
 
 static char x509_revoked_object_set_serial__doc__[] =
@@ -3037,7 +3016,7 @@ x509_revoked_object_set_serial(x509_revoked_object *self, PyObject *args)
     goto error;
 
   if (!ASN1_INTEGER_set(self->revoked->serialNumber, serial))
-    lose("Unable to set serial number");
+    lose_no_memory();
 
   Py_RETURN_NONE;
 
@@ -3064,16 +3043,7 @@ static char x509_revoked_object_get_serial__doc__[] =
 static PyObject *
 x509_revoked_object_get_serial(x509_revoked_object *self)
 {
-  int serial = 0;
-
-  if ((serial = ASN1_INTEGER_get(self->revoked->serialNumber)) == -1)
-    lose("Unable to get serial number");
-
-  return Py_BuildValue("i", serial);
-
- error:
-
-  return NULL;
+  return Py_BuildValue("i", ASN1_INTEGER_get(self->revoked->serialNumber));
 }
 
 static char x509_revoked_object_get_date__doc__[] =
@@ -3183,11 +3153,9 @@ X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
     goto error;
 
-  if ((octetString = M_ASN1_OCTET_STRING_new()) == NULL)
+  if ((octetString = ASN1_OCTET_STRING_new()) == NULL ||
+      !ASN1_OCTET_STRING_set(octetString, buf, strlen((char *) buf)))
     lose_no_memory();
-
-  if (!ASN1_OCTET_STRING_set(octetString, buf, strlen((char *) buf)))
-    lose_openssl_error("Couldn't set ASN.1 OCTET STRING");
 
   if ((nid = OBJ_txt2nid(name)) == NID_undef)
     lose("Extension has unknown object identifier");
@@ -3195,15 +3163,17 @@ X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
   if ((extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString)) == NULL)
     lose_openssl_error("Unable to create ASN.1 X.509 Extension object");
 
-  if (!self->revoked->extensions && (self->revoked->extensions = sk_X509_EXTENSION_new_null()) == NULL)
-    lose_no_memory();
+  octetString = NULL;
 
-  if (!sk_X509_EXTENSION_push(self->revoked->extensions, extn))
+  if ((!self->revoked->extensions &&
+       (self->revoked->extensions = sk_X509_EXTENSION_new_null()) == NULL) ||
+      !sk_X509_EXTENSION_push(self->revoked->extensions, extn))
     lose_no_memory();
 
   Py_RETURN_NONE;
 
  error:
+  ASN1_OCTET_STRING_free(octetString);
   X509_EXTENSION_free(extn);
   return NULL;
 }
@@ -3249,16 +3219,7 @@ static char X509_revoked_object_count_extensions__doc__[] =
 static PyObject *
 X509_revoked_object_count_extensions(x509_revoked_object *self)
 {
-  int num = 0;
-
-  if (self->revoked->extensions)
-    num = sk_X509_EXTENSION_num(self->revoked->extensions);
-
-  return Py_BuildValue("i", num);
-
- error:
-
-  return NULL;
+  return Py_BuildValue("i", sk_X509_EXTENSION_num(self->revoked->extensions));
 }
 
 static char X509_revoked_object_get_extension__doc__[] =
@@ -3280,21 +3241,15 @@ static char X509_revoked_object_get_extension__doc__[] =
 static PyObject *
 X509_revoked_object_get_extension(x509_revoked_object *self, PyObject *args)
 {
-  int num = 0, index = 0, ext_nid = 0;
+  int ext_num = 0, ext_nid = 0;
   char const *ext_ln = NULL;
   char unknown_ext [] = "unknown";
   X509_EXTENSION *ext;
 
-  if (!PyArg_ParseTuple(args, "i", &index))
+  if (!PyArg_ParseTuple(args, "i", &ext_num))
     goto error;
 
-  if (self->revoked->extensions)
-    num = sk_X509_EXTENSION_num(self->revoked->extensions);
-
-  if (index >= num)
-    lose("Revocation object doesn't have that many extensions");
-
-  if ((ext = sk_X509_EXTENSION_value(self->revoked->extensions, index)) == NULL)
+  if ((ext = sk_X509_EXTENSION_value(self->revoked->extensions, ext_num)) == NULL)
     lose_openssl_error("Couldn't get extension");
 
   if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
@@ -3322,17 +3277,11 @@ static struct PyMethodDef x509_revoked_object_methods[] = {
   {NULL}
 };
 
-static PyObject *
-x509_revoked_object_getattr(x509_revoked_object *self, char *name)
-{
-  return Py_FindMethod(x509_revoked_object_methods, (PyObject *) self, name);
-}
-
 static void
-x509_revoked_object_dealloc(x509_revoked_object *self, char *name)
+x509_revoked_object_dealloc(x509_revoked_object *self)
 {
   X509_REVOKED_free(self->revoked);
-  PyObject_Del(self);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
 static char x509_revokedtype__doc__[] =
@@ -3357,49 +3306,61 @@ static char x509_revokedtype__doc__[] =
 
 static PyTypeObject x509_revokedtype = {
   PyObject_HEAD_INIT(0)
-  0,                                        /*ob_size*/
-  "X509Revoked",                            /*tp_name*/
-  sizeof(x509_revoked_object),              /*tp_basicsize*/
-  0,                                        /*tp_itemsize*/
-  (destructor)x509_revoked_object_dealloc,  /*tp_dealloc*/
-  (printfunc)0,                             /*tp_print*/
-  (getattrfunc)x509_revoked_object_getattr, /*tp_getattr*/
-  (setattrfunc)0,                           /*tp_setattr*/
-  (cmpfunc)0,                               /*tp_compare*/
-  (reprfunc)0,                              /*tp_repr*/
-  0,                                        /*tp_as_number*/
-  0,                                        /*tp_as_sequence*/
-  0,                                        /*tp_as_mapping*/
-  (hashfunc)0,                              /*tp_hash*/
-  (ternaryfunc)0,                           /*tp_call*/
-  (reprfunc)0,                              /*tp_str*/
-  0,
-  0,
-  0,
-  0,
-  x509_revokedtype__doc__                  /* Documentation string */
+  0,                                        /* ob_size */
+  "_POW.X509Revoked",                       /* tp_name */
+  sizeof(x509_revoked_object),              /* tp_basicsize */
+  0,                                        /* tp_itemsize */
+  (destructor)x509_revoked_object_dealloc,  /* tp_dealloc */
+  0,                                        /* tp_print */
+  0,                                        /* tp_getattr */
+  0,                                        /* tp_setattr */
+  0,                                        /* tp_compare */
+  0,                                        /* tp_repr */
+  0,                                        /* tp_as_number */
+  0,                                        /* tp_as_sequence */
+  0,                                        /* tp_as_mapping */
+  0,                                        /* tp_hash */
+  0,                                        /* tp_call */
+  0,                                        /* tp_str */
+  0,                                        /* tp_getattro */
+  0,                                        /* tp_setattro */
+  0,                                        /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  x509_revokedtype__doc__,                  /* tp_doc */
+  0,                                        /* tp_traverse */
+  0,                                        /* tp_clear */
+  0,                                        /* tp_richcompare */
+  0,                                        /* tp_weaklistoffset */
+  0,                                        /* tp_iter */
+  0,                                        /* tp_iternext */
+  x509_revoked_object_methods,              /* tp_methods */
+  0,                                        /* tp_members */
+  0,                                        /* tp_getset */
+  0,                                        /* tp_base */
+  0,                                        /* tp_dict */
+  0,                                        /* tp_descr_get */
+  0,                                        /* tp_descr_set */
+  0,                                        /* tp_dictoffset */
+  (initproc) x509_revoked_object_init,      /* tp_init */
+  0,                                        /* tp_alloc */
+  x509_revoked_object_new,                  /* tp_new */
 };
+
 /*========== x509 revoked Code ==========*/
 
 /*========== asymmetric Object ==========*/
-static asymmetric_object *
-asymmetric_object_new(int cipher_type, int key_size)
+
+static PyObject *
+asymmetric_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   asymmetric_object *self = NULL;
 
-  if ((self = PyObject_New(asymmetric_object, &asymmetrictype)) == NULL)
+  if ((self = (asymmetric_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
 
-  if (cipher_type != RSA_CIPHER)
-    lose("Unsupported cipher");
+  self->cipher = NULL;
 
-  if ((self->cipher = RSA_generate_key(key_size, RSA_F4, NULL, NULL)) == NULL)
-    lose_openssl_error("Couldn't generate key");
-
-  self->key_type = RSA_PRIVATE_KEY;
-  self->cipher_type = RSA_CIPHER;
-
-  return self;
+  return (PyObject *) self;
 
  error:
 
@@ -3407,12 +3368,43 @@ asymmetric_object_new(int cipher_type, int key_size)
   return NULL;
 }
 
+static int
+asymmetric_object_init(asymmetric_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"cipher", "key_size", NULL};
+  int cipher_type = RSA_CIPHER, key_size = 2048;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ii", kwlist, &cipher_type, &key_size))
+    goto error;
+
+  if (cipher_type != RSA_CIPHER)
+    lose("unsupported cipher");
+
+  switch (self->cipher_type) {
+
+  case RSA_CIPHER:
+    RSA_free(self->cipher);
+    break;
+  }
+
+  if ((self->cipher = RSA_generate_key(key_size, RSA_F4, NULL, NULL)) == NULL)
+    lose("could not generate key");
+
+  self->key_type = RSA_PRIVATE_KEY;
+  self->cipher_type = RSA_CIPHER;
+
+  return 0;
+
+ error:
+  return -1;
+}
+
 static asymmetric_object *
 asymmetric_object_pem_read(int key_type, BIO *in, char *pass)
 {
   asymmetric_object *self = NULL;
 
-  if ((self = PyObject_New(asymmetric_object, &asymmetrictype)) == NULL)
+  if ((self = (asymmetric_object *) asymmetric_object_new(&asymmetrictype, NULL, NULL)) == NULL)
     goto error;
 
   switch (key_type) {
@@ -3438,7 +3430,6 @@ asymmetric_object_pem_read(int key_type, BIO *in, char *pass)
   return self;
 
  error:
-
   Py_XDECREF(self);
   return NULL;
 }
@@ -3447,15 +3438,14 @@ static asymmetric_object *
 asymmetric_object_der_read(int key_type, unsigned char *src, int len)
 {
   asymmetric_object *self = NULL;
-  unsigned char *ptr = src;
 
-  if ((self = PyObject_New(asymmetric_object, &asymmetrictype)) == NULL)
+  if ((self = (asymmetric_object *) asymmetric_object_new(&asymmetrictype, NULL, NULL)) == NULL)
     goto error;
 
   switch (key_type) {
   case RSA_PUBLIC_KEY:
 
-    if ((self->cipher = d2i_RSA_PUBKEY(NULL, (const unsigned char **) &ptr, len)) == NULL)
+    if ((self->cipher = d2i_RSA_PUBKEY(NULL, (const unsigned char **) &src, len)) == NULL)
       lose_openssl_error("Couldn't load public key");
 
     self->key_type = RSA_PUBLIC_KEY;
@@ -3464,7 +3454,7 @@ asymmetric_object_der_read(int key_type, unsigned char *src, int len)
 
   case RSA_PRIVATE_KEY:
 
-    if ((self->cipher = d2i_RSAPrivateKey(NULL, (const unsigned char **) &ptr, len)) == NULL)
+    if ((self->cipher = d2i_RSAPrivateKey(NULL, (const unsigned char **) &src, len)) == NULL)
       lose_openssl_error("Couldn't load private key");
 
     self->key_type = RSA_PRIVATE_KEY;
@@ -3992,21 +3982,15 @@ static struct PyMethodDef asymmetric_object_methods[] = {
   {NULL}
 };
 
-static PyObject *
-asymmetric_object_getattr(asymmetric_object *self, char *name)
-{
-  return Py_FindMethod(asymmetric_object_methods, (PyObject *)self, name);
-}
-
 static void
-asymmetric_object_dealloc(asymmetric_object *self, char *name)
+asymmetric_object_dealloc(asymmetric_object *self)
 {
-  switch(self->cipher_type) {
+  switch (self->cipher_type) {
   case RSA_CIPHER:
     RSA_free(self->cipher);
     break;
   }
-  PyObject_Del(self);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
 static char asymmetrictype__doc__[] =
@@ -4024,53 +4008,90 @@ static char asymmetrictype__doc__[] =
 "</class>\n"
 ;
 
+
 static PyTypeObject asymmetrictype = {
-   PyObject_HEAD_INIT(0)
-   0,                                     /*ob_size*/
-   "Asymmetric",                          /*tp_name*/
-   sizeof(asymmetric_object),             /*tp_basicsize*/
-   0,                                     /*tp_itemsize*/
-   (destructor)asymmetric_object_dealloc, /*tp_dealloc*/
-   (printfunc)0,                          /*tp_print*/
-   (getattrfunc)asymmetric_object_getattr,   /*tp_getattr*/
-   (setattrfunc)0,                        /*tp_setattr*/
-   (cmpfunc)0,                            /*tp_compare*/
-   (reprfunc)0,                           /*tp_repr*/
-   0,                                     /*tp_as_number*/
-   0,                                     /*tp_as_sequence*/
-   0,                                     /*tp_as_mapping*/
-   (hashfunc)0,                           /*tp_hash*/
-   (ternaryfunc)0,                        /*tp_call*/
-   (reprfunc)0,                           /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   asymmetrictype__doc__                   /* Documentation string */
+  PyObject_HEAD_INIT(0)
+  0,                                     /* ob_size */
+  "_POW.Asymmetric",                     /* tp_name */
+  sizeof(asymmetric_object),             /* tp_basicsize */
+  0,                                     /* tp_itemsize */
+  (destructor)asymmetric_object_dealloc, /* tp_dealloc */
+  0,                                     /* tp_print */
+  0,                                     /* tp_getattr */
+  0,                                     /* tp_setattr */
+  0,                                     /* tp_compare */
+  0,                                     /* tp_repr */
+  0,                                     /* tp_as_number */
+  0,                                     /* tp_as_sequence */
+  0,                                     /* tp_as_mapping */
+  0,                                     /* tp_hash */
+  0,                                     /* tp_call */
+  0,                                     /* tp_str */
+  0,                                     /* tp_getattro */
+  0,                                     /* tp_setattro */
+  0,                                     /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  asymmetrictype__doc__,                 /* tp_doc */
+  0,                                     /* tp_traverse */
+  0,                                     /* tp_clear */
+  0,                                     /* tp_richcompare */
+  0,                                     /* tp_weaklistoffset */
+  0,                                     /* tp_iter */
+  0,                                     /* tp_iternext */
+  asymmetric_object_methods,             /* tp_methods */
+  0,                                     /* tp_members */
+  0,                                     /* tp_getset */
+  0,                                     /* tp_base */
+  0,                                     /* tp_dict */
+  0,                                     /* tp_descr_get */
+  0,                                     /* tp_descr_set */
+  0,                                     /* tp_dictoffset */
+  (initproc) asymmetric_object_init,     /* tp_init */
+  0,                                     /* tp_alloc */
+  asymmetric_object_new,                 /* tp_new */
 };
+
 /*========== asymmetric Code ==========*/
 
 /*========== digest Code ==========*/
-static digest_object *
-digest_object_new(int digest_type)
+
+static PyObject *
+digest_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   digest_object *self = NULL;
-  const EVP_MD *digest_method = NULL;
 
-  if ((self = PyObject_New(digest_object, &digesttype)) == NULL)
+  if ((self = (digest_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
+
+  self->digest_type = 0;
+
+  return (PyObject *) self;
+
+ error:
+  return NULL;
+}
+
+static int
+digest_object_init(digest_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"digest_type", NULL};
+  const EVP_MD *digest_method = NULL;
+  int digest_type = 0;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "i", kwlist, &digest_type))
     goto error;
 
   if ((digest_method = evp_digest_factory(digest_type)) == NULL)
     lose("Unsupported digest algorithm");
 
-  EVP_DigestInit(&self->digest_ctx, digest_method);
+  self->digest_type = digest_type;
+  if (!EVP_DigestInit(&self->digest_ctx, digest_method))
+    lose_openssl_error("Couldn't initialize digest");
 
-  return self;
+  return 0;
 
  error:
-
-  Py_XDECREF(self);
-  return NULL;
+  return -1;
 }
 
 static char digest_object_update__doc__[] =
@@ -4099,12 +4120,12 @@ digest_object_update(digest_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s#", &data, &len))
     goto error;
 
-  EVP_DigestUpdate(&self->digest_ctx, data, len);
+  if (!EVP_DigestUpdate(&self->digest_ctx, data, len))
+    lose_openssl_error("EVP_DigestUpdate() failed");
 
   Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
 
@@ -4128,7 +4149,7 @@ digest_object_copy(digest_object *self, PyObject *args)
 {
   digest_object *new = NULL;
 
-  if ((new = PyObject_New(digest_object, &digesttype)) == NULL)
+  if ((new = (digest_object *) digest_object_new(&digesttype, NULL, NULL)) == NULL)
     goto error;
 
   new->digest_type = self->digest_type;
@@ -4164,26 +4185,19 @@ static PyObject *
 digest_object_digest(digest_object *self)
 {
   unsigned char digest_text[EVP_MAX_MD_SIZE];
-  void *md_copy = NULL;
+  EVP_MD_CTX ctx;
   unsigned digest_len = 0;
 
-  if ((md_copy = malloc(sizeof(EVP_MD_CTX))) == NULL)
-    lose_no_memory();
+  if (!EVP_MD_CTX_copy(&ctx, &self->digest_ctx))
+    lose_openssl_error("Couldn't copy digest");
 
-  if (!EVP_MD_CTX_copy(md_copy, &self->digest_ctx))
-    lose("Couldn't copy digest");
+  EVP_DigestFinal(&ctx, digest_text, &digest_len);
 
-  EVP_DigestFinal(md_copy, digest_text, &digest_len);
-
-  free(md_copy);
+  EVP_MD_CTX_cleanup(&ctx);
 
   return Py_BuildValue("s#", digest_text, digest_len);
 
  error:
-
-  if (md_copy)
-    free(md_copy);
-
   return NULL;
 }
 
@@ -4194,17 +4208,11 @@ static struct PyMethodDef digest_object_methods[] = {
   {NULL}
 };
 
-static PyObject *
-digest_object_getattr(digest_object *self, char *name)
-{
-  return Py_FindMethod(digest_object_methods, (PyObject *)self, name);
-}
-
 static void
-digest_object_dealloc(digest_object *self, char *name)
+digest_object_dealloc(digest_object *self)
 {
   EVP_MD_CTX_cleanup(&self->digest_ctx);
-  PyObject_Del(self);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
 static char digesttype__doc__[] =
@@ -4232,46 +4240,61 @@ static char digesttype__doc__[] =
 "</class>\n"
 ;
 
+
 static PyTypeObject digesttype = {
   PyObject_HEAD_INIT(0)
-  0,                                  /*ob_size*/
-  "Digest",                           /*tp_name*/
-  sizeof(digest_object),              /*tp_basicsize*/
-  0,                                  /*tp_itemsize*/
-  (destructor)digest_object_dealloc,  /*tp_dealloc*/
-  (printfunc)0,                       /*tp_print*/
-  (getattrfunc)digest_object_getattr, /*tp_getattr*/
-  (setattrfunc)0,                     /*tp_setattr*/
-  (cmpfunc)0,                         /*tp_compare*/
-  (reprfunc)0,                        /*tp_repr*/
-  0,                                  /*tp_as_number*/
-  0,                                  /*tp_as_sequence*/
-  0,                                  /*tp_as_mapping*/
-  (hashfunc)0,                        /*tp_hash*/
-  (ternaryfunc)0,                     /*tp_call*/
-  (reprfunc)0,                        /*tp_str*/
-  0,
-  0,
-  0,
-  0,
-  digesttype__doc__                   /* Documentation string */
+  0,                                  /* ob_size */
+  "_POW.Digest",                      /* tp_name */
+  sizeof(digest_object),              /* tp_basicsize */
+  0,                                  /* tp_itemsize */
+  (destructor)digest_object_dealloc,  /* tp_dealloc */
+  0,                                  /* tp_print */
+  0,                                  /* tp_getattr */
+  0,                                  /* tp_setattr */
+  0,                                  /* tp_compare */
+  0,                                  /* tp_repr */
+  0,                                  /* tp_as_number */
+  0,                                  /* tp_as_sequence */
+  0,                                  /* tp_as_mapping */
+  0,                                  /* tp_hash */
+  0,                                  /* tp_call */
+  0,                                  /* tp_str */
+  0,                                  /* tp_getattro */
+  0,                                  /* tp_setattro */
+  0,                                  /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  digesttype__doc__,                  /* tp_doc */
+  0,                                  /* tp_traverse */
+  0,                                  /* tp_clear */
+  0,                                  /* tp_richcompare */
+  0,                                  /* tp_weaklistoffset */
+  0,                                  /* tp_iter */
+  0,                                  /* tp_iternext */
+  digest_object_methods,              /* tp_methods */
+  0,                                  /* tp_members */
+  0,                                  /* tp_getset */
+  0,                                  /* tp_base */
+  0,                                  /* tp_dict */
+  0,                                  /* tp_descr_get */
+  0,                                  /* tp_descr_set */
+  0,                                  /* tp_dictoffset */
+  (initproc) digest_object_init,      /* tp_init */
+  0,                                  /* tp_alloc */
+  digest_object_new,                  /* tp_new */
 };
+
 /*========== digest Code ==========*/
 
 /*========== CMS code ==========*/
-static cms_object *
-cms_object_new(void)
+
+static PyObject *
+cms_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   cms_object *self;
 
-  if ((self = PyObject_New(cms_object, &cmstype)) == NULL)
-    goto error;
-
-  self->cms = NULL;
-  return self;
-
- error:
-
+  if ((self = (cms_object *) type->tp_alloc(type, 0)) != NULL)
+    return (PyObject *) self;
+ 
   Py_XDECREF(self);
   return NULL;
 }
@@ -4281,7 +4304,7 @@ cms_object_pem_read(BIO *in)
 {
   cms_object *self;
 
-  if ((self = PyObject_New(cms_object, &cmstype)) == NULL)
+  if ((self = (cms_object *) cms_object_new(&cmstype, NULL, NULL)) == NULL)
     goto error;
 
   if ((self->cms = PEM_read_bio_CMS(in, NULL, NULL, NULL)) == NULL)
@@ -4290,7 +4313,6 @@ cms_object_pem_read(BIO *in)
   return self;
 
  error:
-
   Py_XDECREF(self);
   return NULL;
 }
@@ -4301,13 +4323,11 @@ cms_object_der_read(char *src, int len)
   cms_object *self;
   BIO *bio = NULL;
 
-  if ((self = PyObject_New(cms_object, &cmstype)) == NULL)
+  if ((self = (cms_object *) cms_object_new(&cmstype, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->cms = CMS_ContentInfo_new()) == NULL)
-    lose_no_memory();
-
-  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
+  if ((self->cms = CMS_ContentInfo_new()) == NULL ||
+      (bio = BIO_new_mem_buf(src, len)) == NULL)
     lose_no_memory();
 
   if (!d2i_CMS_bio(bio, &self->cms))
@@ -4748,22 +4768,20 @@ cms_object_pprint(cms_object *self)
   result = BIO_to_PyString_helper(bio);
 
  error:                          /* fall through */
-
   assert_no_unhandled_openssl_errors();
-
   BIO_free(bio);
-
   return result;
 }
-
 
 static PyObject *
 cms_object_helper_get_cert(void *cert)
 {
-  x509_object *obj = PyObject_New(x509_object, &x509type);
+  x509_object *obj = (x509_object *) x509_object_new(&x509type, NULL, NULL);
 
-  if (obj)
+  if (obj) {
+    X509_free(obj->x509);
     obj->x509 = cert;
+  }
 
   return (PyObject *) obj;
 }
@@ -4804,10 +4822,12 @@ cms_object_certs(cms_object *self)
 static PyObject *
 cms_object_helper_get_crl(void *crl)
 {
-  x509_crl_object *obj = PyObject_New(x509_crl_object, &x509_crltype);
+  x509_crl_object *obj = (x509_crl_object *) x509_crl_object_new(&x509_crltype, NULL, NULL);
 
-  if (obj)
+  if (obj) {
+    X509_CRL_free(obj->crl);
     obj->crl = crl;
+  }
 
   return (PyObject *) obj;
 }
@@ -4858,17 +4878,11 @@ static struct PyMethodDef cms_object_methods[] = {
   {NULL}
 };
 
-static PyObject *
-cms_object_getattr(cms_object *self, char *name)
-{
-  return Py_FindMethod(cms_object_methods, (PyObject *)self, name);
-}
-
 static void
-cms_object_dealloc(cms_object *self, char *name)
+cms_object_dealloc(cms_object *self)
 {
   CMS_ContentInfo_free(self->cms);
-  PyObject_Del(self);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
 static char cmstype__doc__[] =
@@ -4885,167 +4899,50 @@ static char cmstype__doc__[] =
 ;
 
 static PyTypeObject cmstype = {
-   PyObject_HEAD_INIT(0)
-   0,                                  /*ob_size*/
-   "CMS",                              /*tp_name*/
-   sizeof(cms_object),                 /*tp_basicsize*/
-   0,                                  /*tp_itemsize*/
-   (destructor)cms_object_dealloc,     /*tp_dealloc*/
-   (printfunc)0,                       /*tp_print*/
-   (getattrfunc)cms_object_getattr,    /*tp_getattr*/
-   (setattrfunc)0,                     /*tp_setattr*/
-   (cmpfunc)0,                         /*tp_compare*/
-   (reprfunc)0,                        /*tp_repr*/
-   0,                                  /*tp_as_number*/
-   0,                                  /*tp_as_sequence*/
-   0,                                  /*tp_as_mapping*/
-   (hashfunc)0,                        /*tp_hash*/
-   (ternaryfunc)0,                     /*tp_call*/
-   (reprfunc)0,                        /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   cmstype__doc__                    /* Documentation string */
+  PyObject_HEAD_INIT(0)
+  0,                                  /* ob_size */
+  "_POW.CMS",                         /* tp_name */
+  sizeof(cms_object),                 /* tp_basicsize */
+  0,                                  /* tp_itemsize */
+  (destructor)cms_object_dealloc,     /* tp_dealloc */
+  0,                                  /* tp_print */
+  0,                                  /* tp_getattr */
+  0,                                  /* tp_setattr */
+  0,                                  /* tp_compare */
+  0,                                  /* tp_repr */
+  0,                                  /* tp_as_number */
+  0,                                  /* tp_as_sequence */
+  0,                                  /* tp_as_mapping */
+  0,                                  /* tp_hash */
+  0,                                  /* tp_call */
+  0,                                  /* tp_str */
+  0,                                  /* tp_getattro */
+  0,                                  /* tp_setattro */
+  0,                                  /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  cmstype__doc__,                     /* tp_doc */
+  0,                                  /* tp_traverse */
+  0,                                  /* tp_clear */
+  0,                                  /* tp_richcompare */
+  0,                                  /* tp_weaklistoffset */
+  0,                                  /* tp_iter */
+  0,                                  /* tp_iternext */
+  cms_object_methods,                 /* tp_methods */
+  0,                                  /* tp_members */
+  0,                                  /* tp_getset */
+  0,                                  /* tp_base */
+  0,                                  /* tp_dict */
+  0,                                  /* tp_descr_get */
+  0,                                  /* tp_descr_set */
+  0,                                  /* tp_dictoffset */
+  0,                                  /* tp_init */
+  0,                                  /* tp_alloc */
+  cms_object_new,                     /* tp_new */
 };
+
 /*========== CMS Code ==========*/
 
 /*========== module functions ==========*/
-
-static char pow_module_new_x509__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a skeletal X509 certificate object.\n"
-"         It won't be any use at all until several structures\n"
-"         have been created using it's member functions.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_x509 (PyObject *self)
-{
-  return (PyObject *) x509_object_new();
-}
-
-static char pow_module_new_asymmetric__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>Asymmetric</memberof>\n"
-"      <parameter>ciphertype = RSA_CIPHER</parameter>\n"
-"      <parameter>keylength = 1024</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor builds a new cipher object.  Only RSA ciphers\n"
-"         are currently support, so the first argument should always be\n"
-"         <constant>RSA_CIPHER</constant>.  The second argument,\n"
-"         <parameter>keylength</parameter>,\n"
-"         is normally 512, 768, 1024 or 2048.  Key lengths as short as 512\n"
-"         bits are generally considered weak, and can be cracked by\n"
-"         determined attackers without tremendous expense.\n"
-"      </para>\n"
-"      <example>\n"
-"         <title><classname>asymmetric</classname> class usage</title>\n"
-"         <programlisting>\n"
-"      privateFile = open('test/private.key', 'w')\n"
-"      publicFile = open('test/public.key', 'w')\n"
-"\n"
-"      passphrase = 'my silly passphrase'\n"
-"      md5 = POW.Digest(POW.SHA256_DIGEST)\n"
-"      md5.update(passphrase)\n"
-"      password = md5.digest()\n"
-"\n"
-"      rsa = POW.Asymmetric(POW.RSA_CIPHER, 1024)\n"
-"      privateFile.write(rsa.pemWrite(\n"
-"               POW.RSA_PRIVATE_KEY, password))\n"
-"      publicFile.write(rsa.pemWrite(POW.RSA_PUBLIC_KEY))\n"
-"\n"
-"      privateFile.close()\n"
-"      publicFile.close()\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_asymmetric (PyObject *self, PyObject *args)
-{
-  int cipher_type = RSA_CIPHER, key_size = 1024;
-
-  if (!PyArg_ParseTuple(args, "|ii", &cipher_type, &key_size))
-    goto error;
-
-  return (PyObject*) asymmetric_object_new(cipher_type, key_size);
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_digest__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>Digest</memberof>\n"
-"      <parameter>type</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a new <classname>Digest</classname>\n"
-"         object.  The parameter <parameter>type</parameter> specifies what kind\n"
-"         of digest to create and should be one of the following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-"         <member><constant>MD5_DIGEST</constant></member>\n"
-"         <member><constant>SHA_DIGEST</constant></member>\n"
-"         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>SHA256_DIGEST</constant></member>\n"
-"         <member><constant>SHA384_DIGEST</constant></member>\n"
-"         <member><constant>SHA512_DIGEST</constant></member>\n"
-"      </simplelist>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_digest (PyObject *self, PyObject *args)
-{
-  int digest_type = 0;
-
-  if (!PyArg_ParseTuple(args, "i", &digest_type))
-    goto error;
-
-  return (PyObject*) digest_object_new(digest_type);
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_cms__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a skeletal CMS object.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_cms (PyObject *self)
-{
-  return (PyObject *) cms_object_new();
-}
 
 static char pow_module_pem_read__doc__[] =
 "<modulefunction>\n"
@@ -5126,7 +5023,6 @@ pow_module_pem_read (PyObject *self, PyObject *args)
   return NULL;
 }
 
-
 static char pow_module_der_read__doc__[] =
 "<modulefunction>\n"
 "   <header>\n"
@@ -5188,88 +5084,6 @@ pow_module_der_read (PyObject *self, PyObject *args)
 
   if (obj)
     return obj;
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_x509_store__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>X509Store</memberof>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor takes no arguments.  The\n"
-"         <classname>X509Store</classname> returned cannot be used for\n"
-"         verifying certificates until at least one trusted certificate has been\n"
-"         added.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_x509_store (PyObject *self)
-{
-  return (PyObject *) x509_store_object_new();
-}
-
-static char pow_module_new_x509_crl__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>x509_crl</memberof>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor builds an empty CRL.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_x509_crl (PyObject *self)
-{
-  return (PyObject *) x509_crl_object_new();
-}
-
-static char pow_module_new_x509_revoked__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>X509Revoked</memberof>\n"
-"      <parameter>serial</parameter>\n"
-"      <parameter>date</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor builds a X509 Revoked structure.  <parameter>serial</parameter>\n"
-"         should be an integer and <parameter>date</parameter> should be and\n"
-"         UTCTime string.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_x509_revoked (PyObject *self, PyObject *args)
-{
-  int serial = -1;
-  char *date = NULL;
-  x509_revoked_object *revoke = NULL;
-
-  if (!PyArg_ParseTuple(args, "|is", &serial, &date))
-    goto error;
-
-  revoke = x509_revoked_object_new();
-  if (serial != -1 && !ASN1_INTEGER_set(revoke->revoked->serialNumber, serial))
-    lose("Unable to set serial number");
-
-  if (date != NULL && !python_ASN1_TIME_set_string(revoke->revoked->revocationDate, date))
-    lose_type_error("Couldn't set revocationDate");
-
-  return (PyObject*) revoke;
 
  error:
 
@@ -5519,15 +5333,8 @@ pow_module_read_random_file(PyObject *self, PyObject *args)
 }
 
 static struct PyMethodDef pow_module_methods[] = {
-  Define_Method(X509,           pow_module_new_x509,            METH_NOARGS),
   Define_Method(pemRead,        pow_module_pem_read,            METH_VARARGS),
   Define_Method(derRead,        pow_module_der_read,            METH_VARARGS),
-  Define_Method(Digest,         pow_module_new_digest,          METH_VARARGS),
-  Define_Method(CMS,            pow_module_new_cms,             METH_NOARGS),
-  Define_Method(Asymmetric,     pow_module_new_asymmetric,      METH_VARARGS),
-  Define_Method(X509Store,      pow_module_new_x509_store,      METH_NOARGS),
-  Define_Method(X509Crl,        pow_module_new_x509_crl,        METH_NOARGS),
-  Define_Method(X509Revoked,    pow_module_new_x509_revoked,    METH_VARARGS),
   Define_Method(getError,       pow_module_get_error,           METH_NOARGS),
   Define_Method(clearError,     pow_module_clear_error,         METH_NOARGS),
   Define_Method(seed,           pow_module_seed,                METH_VARARGS),
@@ -5537,24 +5344,34 @@ static struct PyMethodDef pow_module_methods[] = {
   Define_Method(addObject,      pow_module_add_object,          METH_VARARGS),
   {NULL}
 };
+
 /*========== module functions ==========*/
 
-
 /*==========================================================================*/
+
 void
 init_POW(void)
 {
-  PyObject *m;
+  PyObject *m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
 
-  x509type.ob_type         = &PyType_Type;
-  x509_storetype.ob_type   = &PyType_Type;
-  x509_crltype.ob_type     = &PyType_Type;
-  x509_revokedtype.ob_type = &PyType_Type;
-  asymmetrictype.ob_type   = &PyType_Type;
-  digesttype.ob_type       = &PyType_Type;
-  cmstype.ob_type          = &PyType_Type;
+#define Define_Class(__type__)                                          \
+  do {                                                                  \
+    char *__name__ = strchr(__type__.tp_name, '.');                     \
+    if (PyType_Ready(&__type__) == 0 && __name__ != NULL) {             \
+      Py_INCREF(&__type__);                                             \
+      PyModule_AddObject(m, __name__+1, (PyObject *) &__type__);        \
+    }                                                                   \
+  } while (0)
 
-  m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
+  Define_Class(x509type);
+  Define_Class(x509_storetype);
+  Define_Class(x509_crltype);
+  Define_Class(x509_revokedtype);
+  Define_Class(asymmetrictype);
+  Define_Class(digesttype);
+  Define_Class(cmstype);
+
+#undef Define_Class
 
 #define Define_Exception(__name__, __parent__)                  \
   PyModule_AddObject(m, #__name__, ((__name__##Object)          \
@@ -5645,6 +5462,7 @@ init_POW(void)
   if (PyErr_Occurred())
     Py_FatalError("Can't initialize module POW");
 }
+
 /*==========================================================================*/
 
 /*

@@ -440,9 +440,9 @@ then
 	# search list to preempt conflicts with system copies.
 
 	CFLAGS="-I\${abs_top_srcdir}/openssl/openssl/include $CFLAGS"
-	LIBS="\${abs_top_builddir}/openssl/openssl/libssl.a \${abs_top_builddir}/openssl/openssl/libcrypto.a $LIBS"
+	LIBS="\${abs_top_builddir}/openssl/openssl/libcrypto.a $LIBS"
 else
-	LIBS="$LIBS -lssl -lcrypto"
+	LIBS="$LIBS -lcrypto"
 fi
 
 if test $build_ca_tools = yes

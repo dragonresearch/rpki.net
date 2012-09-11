@@ -171,8 +171,7 @@ static char pow_module__doc__ [] =
 static PyObject
   *ErrorObject,
   *OpenSSLErrorObject,
-  *POWErrorObject,
-  *POWOtherErrorObject;
+  *POWErrorObject;
 
 static PyTypeObject
   x509type,
@@ -247,7 +246,7 @@ typedef struct {
 
 #define lose(_msg_)                                                     \
   do {                                                                  \
-    PyErr_SetString(ErrorObject, (_msg_));                              \
+    PyErr_SetString(POWErrorObject, (_msg_));                           \
     goto error;                                                         \
   } while (0)
 
@@ -1170,14 +1169,15 @@ static char x509_object_add_extension__doc__[] =
 static PyObject *
 x509_object_add_extension(x509_object *self, PyObject *args)
 {
-  int critical = 0, len = 0, ok = 0;
+  PyObject *critical = NULL;
+  int len = 0, ok = 0;
   char *name = NULL;
   unsigned char *buf = NULL;
   ASN1_OBJECT *oid = NULL;
   ASN1_OCTET_STRING *octetString = NULL;
   X509_EXTENSION *ext = NULL;
 
-  if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
+  if (!PyArg_ParseTuple(args, "sOs#", &name, &critical, &buf, &len))
     goto error;
 
   if ((oid = OBJ_txt2obj(name, 0)) == NULL)
@@ -1187,7 +1187,8 @@ x509_object_add_extension(x509_object *self, PyObject *args)
       !ASN1_OCTET_STRING_set(octetString, buf, len))
     lose_no_memory();
 
-  if ((ext = X509_EXTENSION_create_by_OBJ(NULL, oid, critical, octetString)) == NULL)
+  if ((ext = X509_EXTENSION_create_by_OBJ(NULL, oid, PyObject_IsTrue(critical),
+                                          octetString)) == NULL)
     lose_openssl_error("Unable to create ASN.1 X.509 Extension object");
 
   if (!X509_add_ext(self->x509, ext, -1))
@@ -1261,7 +1262,8 @@ x509_object_get_extension(x509_object *self, PyObject *args)
   if ((ext_ln = OBJ_nid2sn(ext_nid)) == NULL)
     ext_ln = unknown_ext;
 
-  return Py_BuildValue("sis#", ext_ln, ext->critical, ext->value->data, ext->value->length);
+  return Py_BuildValue("sNs#", ext_ln, PyBool_FromLong(ext->critical),
+                       ext->value->data, ext->value->length);
 
  error:
 
@@ -1270,18 +1272,139 @@ x509_object_get_extension(x509_object *self, PyObject *args)
 
 static char x509_object_get_ski__doc__[] =
   "This method returns the Subject Key Identifier (SKI) value for this\n"
-  "certificate, or None if the certificate has no SKI extension"
+  "certificate, or None if the certificate has no SKI extension.\n"
   ;
 
 static PyObject *
 x509_object_get_ski(x509_object *self, PyObject *args)
 {
-  (void) X509_check_ca(self->x509); /* Called for side-effect */
+  (void) X509_check_ca(self->x509); /* Calls x509v3_cache_extensions() */
 
   if (self->x509->skid == NULL)
     Py_RETURN_NONE;
   else
     return Py_BuildValue("s#", self->x509->skid->data, self->x509->skid->length);
+}
+
+static char x509_object_get_aki__doc__[] =
+  "This method returns the Authority Key Identifier (AKI) keyid value for\n"
+  " this certificate, or None if the certificate has no AKI extension\n"
+  "or has an AKI extension with no keyid value.\n"
+  ;
+
+static PyObject *
+x509_object_get_aki(x509_object *self, PyObject *args)
+{
+  (void) X509_check_ca(self->x509); /* Calls x509v3_cache_extensions() */
+
+  if (self->x509->akid == NULL || self->x509->akid->keyid == NULL)
+    Py_RETURN_NONE;
+  else
+    return Py_BuildValue("s#", self->x509->akid->keyid->data, self->x509->akid->keyid->length);
+}
+
+static char x509_object_get_key_usage__doc__[] =
+  "This method returns a FrozenSet of strings representing the KeyUsage\n"
+  "settings for this certificate, or None if the certificate has no\n"
+  "KeyUsage extension.  The bits have the same names as in RFC 5280.\n"
+  ;
+
+static PyObject *
+x509_object_get_key_usage(x509_object *self, PyObject *args)
+{
+  extern X509V3_EXT_METHOD v3_key_usage;
+  BIT_STRING_BITNAME *bit_name;
+  ASN1_BIT_STRING *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *token = NULL;
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_key_usage, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if ((result = PyFrozenSet_New(NULL)) == NULL)
+    goto error;
+
+  for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++) {
+    if (ASN1_BIT_STRING_get_bit(ext, bit_name->bitnum) &&
+        ((token = PyString_FromString(bit_name->sname)) == NULL ||
+         PySet_Add(result, token) < 0))
+      goto error;
+    Py_XDECREF(token);
+    token = NULL;
+  }
+
+  ASN1_BIT_STRING_free(ext);
+  return result;
+
+ error:
+  ASN1_BIT_STRING_free(ext);
+  Py_XDECREF(token);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+static char x509_object_set_key_usage__doc__[] =
+  "This method sets the KeyUsage extension  for this certificate.\n"
+  "\n"
+  "Argument \"iterable\" should be an iterable object which returns zero or more\n"
+  "strings naming bits to be enabled.  The bits have the same names as in RFC 5280.\n"
+  ;
+
+static PyObject *
+x509_object_set_key_usage(x509_object *self, PyObject *args)
+{
+  extern X509V3_EXT_METHOD v3_key_usage;
+  BIT_STRING_BITNAME *bit_name;
+  ASN1_BIT_STRING *ext = NULL;
+  PyObject *iterable = NULL;
+  PyObject *critical = NULL;
+  PyObject *iterator = NULL;
+  PyObject *token = NULL;
+  const char *t;
+  int ok = 0;
+
+  if ((ext = ASN1_BIT_STRING_new()) == NULL)
+    lose_no_memory();
+
+  if (!PyArg_ParseTuple(args, "O|O", &iterable, &critical) ||
+      (iterator = PyObject_GetIter(iterable)) == NULL)
+    goto error;
+
+  while ((token = PyIter_Next(iterator)) != NULL) {
+
+    if ((t = PyString_AsString(token)) == NULL)
+      goto error;
+
+    for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++)
+      if (!strcmp(t, bit_name->sname))
+        break;
+
+    if (bit_name->sname == NULL)
+      lose("Unrecognized KeyUsage token");
+
+    if (!ASN1_BIT_STRING_set_bit(ext, bit_name->bitnum, 1))
+      lose_no_memory();
+
+    Py_XDECREF(token);
+    token = NULL;
+  }
+
+  if (!X509_add1_ext_i2d(self->x509, NID_key_usage, ext,
+                         (critical != NULL && PyObject_IsTrue(critical)),
+                         X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add KeyUsage extension to certificate");
+
+  ok = 1;
+
+ error:                         /* Fall through */
+  ASN1_BIT_STRING_free(ext);
+  Py_XDECREF(iterator);
+  Py_XDECREF(token);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
 }
 
 static char x509_object_pprint__doc__[] =
@@ -1330,6 +1453,9 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(getExtension,   x509_object_get_extension,      METH_VARARGS),
   Define_Method(pprint,         x509_object_pprint,             METH_NOARGS),
   Define_Method(getSKI,         x509_object_get_ski,            METH_NOARGS),
+  Define_Method(getAKI,         x509_object_get_aki,            METH_NOARGS),
+  Define_Method(getKeyUsage,	x509_object_get_key_usage,	METH_NOARGS),
+  Define_Method(setKeyUsage,	x509_object_set_key_usage,	METH_VARARGS),
   {NULL}
 };
 
@@ -1913,6 +2039,7 @@ static char x509_crl_object_add_revocations__doc__[] =
 static PyObject *
 x509_crl_object_add_revocations(x509_crl_object *self, PyObject *args)
 {
+  PyObject *iterable = NULL;
   PyObject *iterator = NULL;
   PyObject *item = NULL;
   X509_REVOKED *revoked = NULL;
@@ -1922,7 +2049,8 @@ x509_crl_object_add_revocations(x509_crl_object *self, PyObject *args)
   long c_serial;
   char *c_date;
 
-  if (!PyArg_ParseTuple(args, "O", &iterator))
+  if (!PyArg_ParseTuple(args, "O", &iterable) ||
+      (iterator = PyObject_GetIter(iterable)) == NULL)
     goto error;
 
   while ((item = PyIter_Next(iterator)) != NULL) {
@@ -1950,6 +2078,9 @@ x509_crl_object_add_revocations(x509_crl_object *self, PyObject *args)
     if (!X509_CRL_add0_revoked(self->crl, revoked))
       lose_no_memory();
     revoked = NULL;
+
+    Py_XDECREF(item);
+    item = NULL;
   }
 
   if (!X509_CRL_sort(self->crl))
@@ -2019,14 +2150,15 @@ static char x509_crl_object_add_extension__doc__[] =
 static PyObject *
 x509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
 {
-  int critical = 0, len = 0, ok = 0;
+  PyObject *critical = NULL;
+  int len = 0, ok = 0;
   char *name = NULL;
   unsigned char *buf = NULL;
   ASN1_OBJECT *oid = NULL;
   ASN1_OCTET_STRING *octetString = NULL;
   X509_EXTENSION *ext = NULL;
 
-  if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
+  if (!PyArg_ParseTuple(args, "sOs#", &name, &critical, &buf, &len))
     goto error;
 
   if ((oid = OBJ_txt2obj(name, 0)) == NULL)
@@ -2036,7 +2168,8 @@ x509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
       !ASN1_OCTET_STRING_set(octetString, buf, len))
     lose_no_memory();
 
-  if ((ext = X509_EXTENSION_create_by_OBJ(NULL, oid, critical, octetString)) == NULL)
+  if ((ext = X509_EXTENSION_create_by_OBJ(NULL, oid, PyObject_IsTrue(critical),
+                                          octetString)) == NULL)
     lose_openssl_error("Unable to create ASN.1 X.509 Extension object");
 
   if (!X509_CRL_add_ext(self->crl, ext, -1))
@@ -2108,7 +2241,8 @@ x509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
   if ((ext_ln = OBJ_nid2sn(ext_nid)) == NULL)
     ext_ln = unknown_ext;
 
-  return Py_BuildValue("sis#", ext_ln, ext->critical, ext->value->data, ext->value->length);
+  return Py_BuildValue("sNs#", ext_ln, PyBool_FromLong(ext->critical),
+                       ext->value->data, ext->value->length);
 
  error:
 
@@ -3883,10 +4017,9 @@ init_POW(void)
   PyModule_AddObject(m, #__name__, ((__name__##Object)          \
     = PyErr_NewException("POW." #__name__, __parent__, NULL)))
 
-  Define_Exception(Error,         NULL);
-  Define_Exception(POWError,      OpenSSLErrorObject);
-  Define_Exception(POWError,      ErrorObject);
-  Define_Exception(POWOtherError, POWErrorObject);
+  Define_Exception(Error,	  NULL);
+  Define_Exception(OpenSSLError,  ErrorObject);
+  Define_Exception(POWError,	  ErrorObject);
 
 #undef Define_Exception
 

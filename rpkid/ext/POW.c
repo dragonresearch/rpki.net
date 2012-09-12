@@ -1583,26 +1583,17 @@ x509_object_get_rfc3779(x509_object *self)
     }
   }
 
-  if (asn_result == NULL) {
-    Py_INCREF(Py_None);
-    asn_result = Py_None;
-  } 
-
-  if (ipv4_result == NULL) {
-    Py_INCREF(Py_None);
-    ipv4_result = Py_None;
-  }
-
-  if (ipv6_result == NULL) {
-    Py_INCREF(Py_None);
-    ipv6_result = Py_None;
-  }
-
-  result = Py_BuildValue("(OOO)", asn_result, ipv4_result, ipv6_result);
+  result = Py_BuildValue("(OOO)",
+                         (asn_result  == NULL ? Py_None : asn_result),
+                         (ipv4_result == NULL ? Py_None : ipv4_result),
+                         (ipv6_result == NULL ? Py_None : ipv6_result));
 
  error:                         /* Fall through */
   ASIdentifiers_free(asid);
   sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
+  Py_XDECREF(range_b);
+  Py_XDECREF(range_e);
+  Py_XDECREF(range);
   Py_XDECREF(asn_result);
   Py_XDECREF(ipv4_result);
   Py_XDECREF(ipv6_result);

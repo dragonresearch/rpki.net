@@ -1685,7 +1685,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
         b = e = NULL;
         Py_XDECREF(item);
-        item = NULL;
+        item = range_b = range_e = NULL;
       }
 
       if (!v3_asid_canonize(asid) ||
@@ -1698,12 +1698,72 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
     }
   }
 
-  if (ipv4_arg != Py_None || ipv6_arg != Py_None) {
+  /*
+   * Will almost certainly need to split this up into multiple functions.
+   * For the moment, just inline IPv4 case, refactor later.
+   */
+
+  if (ipv4_arg != Py_None  /* || ipv6_arg != Py_None */ ) {
+
+    if ((addr = sk_IPAddressFamily_new_null()) == NULL)
+      lose_no_memory();
+
+    {
+      int afi = IANA_AFI_IPV4;
+      int len = 4;
+
+      if (PyString_Check(asn_arg)) {
+
+        if (strcmp(PyString_AsString(ipv4_arg), "inherit"))
+          lose_type_error("IPv4 argument must be sequence of range pairs, or \"inherit\"");
+
+        if (!v3_addr_add_inherit(addr, afi, NULL))
+          lose_no_memory();
+
+      } else {
+
+        if ((iterator = PyObject_GetIter(ipv4_arg)) == NULL)
+          goto error;
+
+        while ((item = PyIter_Next(iterator)) != NULL) {
+          unsigned char b_buf[RAW_IPADDR_BUFLEN], e_buf[RAW_IPADDR_BUFLEN];
+
+          memset(b_buf, 0, sizeof(b_buf));
+          memset(e_buf, 0, sizeof(e_buf));
+
+          if (!PyArg_ParseTuple(item, "OO", &range_b, &range_e) ||
+              !PyLong_Check(range_b) ||
+              !PyLong_Check(range_e) ||
+              PyObject_RichCompareBool(range_b, range_e, Py_LE) != 1)
+            lose_type_error("IPAddrBlock must be sequence of range pairs, or \"inherit\"");
+
+          if (_PyLong_AsByteArray((PyLongObject *) range_b, b_buf, len, 0, 0) < 0 ||
+              _PyLong_AsByteArray((PyLongObject *) range_e, e_buf, len, 0, 0) < 0)
+            goto error;
+
+          if (!v3_addr_add_range(addr, afi, NULL, b_buf, e_buf))
+            lose_openssl_error("Couldn't add range to IPAddrBlock");
+
+          Py_XDECREF(item);
+          item = range_b = range_e = NULL;
+        }
+
+        Py_XDECREF(iterator);
+        iterator = NULL;
+      }
+    }
+
+    if (!v3_addr_canonize(addr) ||
+        !X509_add1_ext_i2d(self->x509, NID_sbgp_ipAddrBlock,
+                           addr, 1, X509V3_ADD_REPLACE))
+      lose_openssl_error("Couldn't add IPAddrBlock extension to certificate");
   }
 
   Py_RETURN_NONE;
 
  error:
+  ASIdentifiers_free(asid);
+  sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
   Py_XDECREF(iterator);
   Py_XDECREF(item);
   return NULL;

@@ -109,6 +109,16 @@
 #include <time.h>
 #include <string.h>
 
+/*
+ * Maximum size of a raw IP (v4 or v6) address, in bytes.
+ */
+#define RAW_IPADDR_BUFLEN    16
+
+/*
+ * Maximum size of a raw autonomous system number, in bytes.
+ */
+#define	RAW_ASNUMBER_BUFLEN   4
+
 /* PEM encoded data types */
 #define RSA_PUBLIC_KEY        1
 #define RSA_PRIVATE_KEY       2
@@ -662,6 +672,47 @@ BIO_to_PyString_helper(BIO *bio)
  */
 #define Define_Method(__python_name__, __c_name__, __flags__) \
   { #__python_name__, (PyCFunction) __c_name__, __flags__, __c_name__##__doc__ }
+
+/*
+ * Convert a Python long to an ASN1_INTEGER.
+ * Do not read after eating.
+ */
+static ASN1_INTEGER *
+Python_Long_to_ASN1_INTEGER(PyObject *py_long)
+{
+  ASN1_INTEGER *a = NULL;
+  unsigned char buf[RAW_ASNUMBER_BUFLEN];
+  unsigned char *b = buf;
+  size_t len;
+
+  memset(buf, 0, sizeof(buf));
+
+  if (_PyLong_AsByteArray((PyLongObject *) py_long, buf, sizeof(buf), 0, 0) < 0)
+    lose_type_error("Couldn't extract ASID value");
+
+  while (b < buf + sizeof(buf) - 1 && *b == 0)
+    b++;
+  len = buf + sizeof(buf) - b;
+
+  if ((a = ASN1_INTEGER_new()) == NULL ||
+      (a->length < len + 1 &&
+       (a->data = OPENSSL_realloc(a->data, len + 1)) == NULL))
+    lose_no_memory();
+
+  a->type = V_ASN1_INTEGER;
+  a->length = len;
+  a->data[len] = 0;
+
+  memcpy(a->data, b, len);
+
+  return a;
+
+ error:
+  ASN1_INTEGER_free(a);
+  return NULL;
+}
+
+
 
 /*========== helper functions ==========*/
 
@@ -1407,28 +1458,6 @@ x509_object_set_key_usage(x509_object *self, PyObject *args)
     return NULL;
 }
 
-static int
-addr_expand(unsigned char *addr,
-            const ASN1_BIT_STRING *bs,
-            const int length,
-            const unsigned char fill)
-{
-  if (bs->length < 0 || bs->length > length)
-    return 0;
-  if (bs->length > 0) {
-    memcpy(addr, bs->data, bs->length);
-    if ((bs->flags & 7) != 0) {
-      unsigned char mask = 0xFF >> (8 - (bs->flags & 7));
-      if (fill == 0)
-	addr[bs->length - 1] &= ~mask;
-      else
-	addr[bs->length - 1] |= mask;
-    }
-  }
-  memset(addr + bs->length, fill, length - bs->length);
-  return 1;
-}
-
 static char x509_object_get_rfc3779__doc__[] =
   "This method returns the certificate's RFC 3779 resources.  This is a\n"
   "three-element tuple: the first element is the ASN resources, the\n"
@@ -1508,7 +1537,6 @@ x509_object_get_rfc3779(x509_object *self)
     }
   }
 
-
   if ((addr = X509_get_ext_d2i(self->x509, NID_sbgp_ipAddrBlock, NULL, NULL)) != NULL) {
     for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
       IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
@@ -1517,16 +1545,9 @@ x509_object_get_rfc3779(x509_object *self)
       int addr_len = 0;
 
       switch (afi) {
-      case IANA_AFI_IPV4:
-        result_obj = &ipv4_result;
-        addr_len = 4;
-        break;
-      case IANA_AFI_IPV6:
-        result_obj = &ipv6_result;
-        addr_len = 16;
-        break;
-      default:
-        lose_type_error("Unknown AFI");
+      case IANA_AFI_IPV4: result_obj = &ipv4_result; break;
+      case IANA_AFI_IPV6: result_obj = &ipv6_result; break;
+      default:            lose_type_error("Unknown AFI");
       }
 
       if (*result_obj != NULL)
@@ -1536,41 +1557,29 @@ x509_object_get_rfc3779(x509_object *self)
         lose_type_error("Unsupported SAFI");
 
       switch (f->ipAddressChoice->type) {
+
       case IPAddressChoice_inherit:
         if ((*result_obj = PyString_FromString("inherit")) == NULL)
           goto error;
         continue;
+
       case IPAddressChoice_addressesOrRanges:
         break;
+
       default:
         lose_type_error("Unexpected IPAddressChoice type");
       }
 
-      if ((*result_obj =
-           PyTuple_New(sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges))) == NULL)
+      if ((*result_obj = PyTuple_New(sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges))) == NULL)
         goto error;
 
       for (j = 0; j < sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges); j++) {
-        const IPAddressOrRange *aor = sk_IPAddressOrRange_value(f->ipAddressChoice->u.addressesOrRanges, j);
-        ASN1_BIT_STRING *b = NULL;
-        ASN1_BIT_STRING *e = NULL;
-        unsigned char b_buf[16], e_buf[16];
+        IPAddressOrRange *aor = sk_IPAddressOrRange_value(f->ipAddressChoice->u.addressesOrRanges,
+                                    j);
+        unsigned char b_buf[RAW_IPADDR_BUFLEN], e_buf[RAW_IPADDR_BUFLEN];
 
-        switch (aor->type) {
-        case IPAddressOrRange_addressPrefix:
-          b = e = aor->u.addressPrefix;
-          break;
-        case IPAddressOrRange_addressRange:
-          b = aor->u.addressRange->min;
-          e = aor->u.addressRange->max;
-          break;
-        default:
-          lose_type_error("Unexpected IPAddressOrRange type");
-        }
-
-        if (!addr_expand(b_buf, b, addr_len, 0x00) ||
-            !addr_expand(e_buf, e, addr_len, 0xFF))
-          lose_type_error("BIT STRINGs do not contain valid IP addresses");
+        if ((addr_len = v3_addr_get_range(aor, afi, b_buf, e_buf, RAW_IPADDR_BUFLEN)) == 0)
+          lose_type_error("Couldn't unpack IP addresses from BIT STRINGs");
 
         if ((range_b = _PyLong_FromByteArray(b_buf, addr_len, 0, 0)) == NULL ||
             (range_e = _PyLong_FromByteArray(e_buf, addr_len, 0, 0)) == NULL ||
@@ -1599,6 +1608,105 @@ x509_object_get_rfc3779(x509_object *self)
   Py_XDECREF(ipv6_result);
 
   return result;
+}
+
+static char x509_object_set_rfc3779__doc__[] =
+  "This method sets the certificate's RFC 3779 resources.\n"
+  "\n"
+  "[Add description here once argument format is stable]\n"
+  ;
+
+static PyObject *
+x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"asn", "ipv4", "ipv6", NULL};
+  PyObject *asn_arg  = Py_None;
+  PyObject *ipv4_arg = Py_None;
+  PyObject *ipv6_arg = Py_None;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  PyObject *range_b = NULL;
+  PyObject *range_e = NULL;
+  ASIdentifiers *asid = NULL;
+  IPAddrBlocks *addr = NULL;
+  int i, j;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist, &asn_arg, &ipv4_arg, &ipv6_arg))
+    goto error;
+
+  if (asn_arg != Py_None) {
+
+    if ((asid = ASIdentifiers_new()) == NULL)
+      lose_no_memory();
+
+    if (PyString_Check(asn_arg)) {
+
+      if (strcmp(PyString_AsString(asn_arg), "inherit"))
+        lose_type_error("ASID must be sequence of range pairs, or \"inherit\"");
+
+      if (!v3_asid_add_inherit(asid, V3_ASID_ASNUM))
+        lose_no_memory();
+
+    } else {
+      
+      if ((iterator = PyObject_GetIter(asn_arg)) == NULL)
+        goto error;
+
+      while ((item = PyIter_Next(iterator)) != NULL) {
+        ASN1_INTEGER *b = NULL;
+        ASN1_INTEGER *e = NULL;
+
+        if (!PyArg_ParseTuple(item, "OO", &range_b, &range_e) ||
+            !PyLong_Check(range_b) ||
+            !PyLong_Check(range_e))
+          lose_type_error("ASID must be sequence of range pairs, or \"inherit\"");
+
+        if ((b = Python_Long_to_ASN1_INTEGER(range_b)) == NULL)
+          goto error;
+
+        switch (PyObject_RichCompareBool(range_b, range_e, Py_EQ)) {
+        case 0:
+          if ((e = Python_Long_to_ASN1_INTEGER(range_e)) == NULL) {
+            ASN1_INTEGER_free(b);
+            goto error;
+          }
+        case 1:
+          break;
+        default:
+          ASN1_INTEGER_free(b);
+          lose_type_error("Couldn't compare range values");
+        }
+
+        if (!v3_asid_add_id_or_range(asid, V3_ASID_ASNUM, b, e)) {
+          ASN1_INTEGER_free(b);
+          ASN1_INTEGER_free(e);
+          lose_openssl_error("Couldn't add range to ASID");
+        }
+
+        b = e = NULL;
+        Py_XDECREF(item);
+        item = NULL;
+      }
+
+      if (!v3_asid_canonize(asid) ||
+          !X509_add1_ext_i2d(self->x509, NID_sbgp_autonomousSysNum,
+                             asid, 1, X509V3_ADD_REPLACE))
+        lose_openssl_error("Couldn't add ASID extension to certificate");
+
+      Py_XDECREF(iterator);
+      iterator = NULL;
+    }
+  }
+
+  if (ipv4_arg != Py_None || ipv6_arg != Py_None) {
+  }
+
+  Py_RETURN_NONE;
+
+ error:
+  Py_XDECREF(iterator);
+  Py_XDECREF(item);
+  return NULL;
 }
 
 static char x509_object_pprint__doc__[] =
@@ -1651,6 +1759,7 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(getKeyUsage,	x509_object_get_key_usage,	METH_NOARGS),
   Define_Method(setKeyUsage,	x509_object_set_key_usage,	METH_VARARGS),
   Define_Method(getRFC3779,	x509_object_get_rfc3779,	METH_NOARGS),
+  Define_Method(setRFC3779,	x509_object_set_rfc3779,	METH_KEYWORDS),
   {NULL}
 };
 

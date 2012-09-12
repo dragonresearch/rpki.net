@@ -527,7 +527,7 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
   STACK_OF(X509) *x509_stack = NULL;
   int size = 0, i = 0;
 
-  if (x509_sequence != Py_None && !PyTuple_Check(x509_sequence) && !PyList_Check(x509_sequence))
+  if (x509_sequence != Py_None && !PySequence_Check(x509_sequence))
     lose_type_error("Inapropriate type");
 
   if ((x509_stack = sk_X509_new_null()) == NULL)
@@ -1005,7 +1005,7 @@ x509_object_set_subject(x509_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "O", &name_sequence))
     goto error;
 
-  if (!PyTuple_Check(name_sequence) && !PyList_Check(name_sequence))
+  if (!PySequence_Check(name_sequence))
     lose_type_error("Inapropriate type");
 
   if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
@@ -1038,7 +1038,7 @@ x509_object_set_issuer(x509_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "O", &name_sequence))
     goto error;
 
-  if (!PyTuple_Check(name_sequence) && !PyList_Check(name_sequence))
+  if (!PySequence_Check(name_sequence))
     lose_type_error("Inapropriate type");
 
   if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
@@ -1407,6 +1407,209 @@ x509_object_set_key_usage(x509_object *self, PyObject *args)
     return NULL;
 }
 
+static int
+addr_expand(unsigned char *addr,
+            const ASN1_BIT_STRING *bs,
+            const int length,
+            const unsigned char fill)
+{
+  if (bs->length < 0 || bs->length > length)
+    return 0;
+  if (bs->length > 0) {
+    memcpy(addr, bs->data, bs->length);
+    if ((bs->flags & 7) != 0) {
+      unsigned char mask = 0xFF >> (8 - (bs->flags & 7));
+      if (fill == 0)
+	addr[bs->length - 1] &= ~mask;
+      else
+	addr[bs->length - 1] |= mask;
+    }
+  }
+  memset(addr + bs->length, fill, length - bs->length);
+  return 1;
+}
+
+static char x509_object_get_rfc3779__doc__[] =
+  "This method returns the certificate's RFC 3779 resources.  This is a\n"
+  "three-element tuple: the first element is the ASN resources, the\n"
+  "second is the IPv4 resources, the third is the IPv6 resources.\n"
+  "\n"
+  "[Add more description here once final format is stable]\n"
+  ;
+
+static PyObject *
+x509_object_get_rfc3779(x509_object *self)
+{
+  PyObject *result = NULL;
+  PyObject *asn_result = NULL;
+  PyObject *ipv4_result = NULL;
+  PyObject *ipv6_result = NULL;
+  PyObject *range = NULL;
+  PyObject *range_b = NULL;
+  PyObject *range_e = NULL;
+  ASIdentifiers *asid = NULL;
+  IPAddrBlocks *addr = NULL;
+  int i, j;
+
+  if ((asid = X509_get_ext_d2i(self->x509, NID_sbgp_autonomousSysNum, NULL, NULL)) != NULL) {
+    switch (asid->asnum->type) {
+
+    case ASIdentifierChoice_inherit:
+      if ((asn_result = PyString_FromString("inherit")) == NULL)
+        goto error;
+      break;
+
+    case ASIdentifierChoice_asIdsOrRanges:
+
+      if ((asn_result = PyTuple_New(sk_ASIdOrRange_num(asid->asnum->u.asIdsOrRanges))) == NULL)
+        goto error;
+
+      for (i = 0; i < sk_ASIdOrRange_num(asid->asnum->u.asIdsOrRanges); i++) {
+        ASIdOrRange *aor = sk_ASIdOrRange_value(asid->asnum->u.asIdsOrRanges, i);
+        ASN1_INTEGER *b = NULL;
+        ASN1_INTEGER *e = NULL;
+
+        switch (aor->type) {
+
+        case ASIdOrRange_id:
+          b = e = aor->u.id;
+          break;
+
+        case ASIdOrRange_range:
+          b = aor->u.range->min;
+          e = aor->u.range->max;
+          break;
+
+        default:
+          lose_type_error("Unexpected asIdsOrRanges type");
+        }
+
+        if (ASN1_STRING_type(b) == V_ASN1_NEG_INTEGER ||
+            ASN1_STRING_type(e) == V_ASN1_NEG_INTEGER)
+          lose_type_error("I don't believe in negative ASNs");
+
+        if ((range_b = _PyLong_FromByteArray(ASN1_STRING_data(b),
+                                             ASN1_STRING_length(b),
+                                             0, 0)) == NULL ||
+            (range_e = _PyLong_FromByteArray(ASN1_STRING_data(e),
+                                             ASN1_STRING_length(e),
+                                             0, 0)) == NULL ||
+            (range = Py_BuildValue("(NN)", range_b, range_e)) == NULL)
+          goto error;
+
+        PyTuple_SET_ITEM(asn_result, i, range);
+        range = range_b = range_e = NULL;
+      }
+
+      break;
+
+    default:
+      lose_type_error("Unexpected ASIdentifierChoice type");
+    }
+  }
+
+
+  if ((addr = X509_get_ext_d2i(self->x509, NID_sbgp_ipAddrBlock, NULL, NULL)) != NULL) {
+    for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
+      IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
+      const unsigned int afi = v3_addr_get_afi(f);
+      PyObject **result_obj = NULL;
+      int addr_len = 0;
+
+      switch (afi) {
+      case IANA_AFI_IPV4:
+        result_obj = &ipv4_result;
+        addr_len = 4;
+        break;
+      case IANA_AFI_IPV6:
+        result_obj = &ipv6_result;
+        addr_len = 16;
+        break;
+      default:
+        lose_type_error("Unknown AFI");
+      }
+
+      if (*result_obj != NULL)
+        lose_type_error("Duplicate IPAddressFamily");
+
+      if (f->addressFamily->length > 2)
+        lose_type_error("Unsupported SAFI");
+
+      switch (f->ipAddressChoice->type) {
+      case IPAddressChoice_inherit:
+        if ((*result_obj = PyString_FromString("inherit")) == NULL)
+          goto error;
+        continue;
+      case IPAddressChoice_addressesOrRanges:
+        break;
+      default:
+        lose_type_error("Unexpected IPAddressChoice type");
+      }
+
+      if ((*result_obj =
+           PyTuple_New(sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges))) == NULL)
+        goto error;
+
+      for (j = 0; j < sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges); j++) {
+        const IPAddressOrRange *aor = sk_IPAddressOrRange_value(f->ipAddressChoice->u.addressesOrRanges, j);
+        ASN1_BIT_STRING *b = NULL;
+        ASN1_BIT_STRING *e = NULL;
+        unsigned char b_buf[16], e_buf[16];
+
+        switch (aor->type) {
+        case IPAddressOrRange_addressPrefix:
+          b = e = aor->u.addressPrefix;
+          break;
+        case IPAddressOrRange_addressRange:
+          b = aor->u.addressRange->min;
+          e = aor->u.addressRange->max;
+          break;
+        default:
+          lose_type_error("Unexpected IPAddressOrRange type");
+        }
+
+        if (!addr_expand(b_buf, b, addr_len, 0x00) ||
+            !addr_expand(e_buf, e, addr_len, 0xFF))
+          lose_type_error("BIT STRINGs do not contain valid IP addresses");
+
+        if ((range_b = _PyLong_FromByteArray(b_buf, addr_len, 0, 0)) == NULL ||
+            (range_e = _PyLong_FromByteArray(e_buf, addr_len, 0, 0)) == NULL ||
+            (range = Py_BuildValue("(NN)", range_b, range_e)) == NULL)
+          goto error;
+
+        PyTuple_SET_ITEM(*result_obj, j, range);
+        range = range_b = range_e = NULL;
+      }
+    }
+  }
+
+  if (asn_result == NULL) {
+    Py_INCREF(Py_None);
+    asn_result = Py_None;
+  } 
+
+  if (ipv4_result == NULL) {
+    Py_INCREF(Py_None);
+    ipv4_result = Py_None;
+  }
+
+  if (ipv6_result == NULL) {
+    Py_INCREF(Py_None);
+    ipv6_result = Py_None;
+  }
+
+  result = Py_BuildValue("(OOO)", asn_result, ipv4_result, ipv6_result);
+
+ error:                         /* Fall through */
+  ASIdentifiers_free(asid);
+  sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
+  Py_XDECREF(asn_result);
+  Py_XDECREF(ipv4_result);
+  Py_XDECREF(ipv6_result);
+
+  return result;
+}
+
 static char x509_object_pprint__doc__[] =
   "This method returns a pretty-printed rendition of the certificate.\n"
   ;
@@ -1456,6 +1659,7 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(getAKI,         x509_object_get_aki,            METH_NOARGS),
   Define_Method(getKeyUsage,	x509_object_get_key_usage,	METH_NOARGS),
   Define_Method(setKeyUsage,	x509_object_set_key_usage,	METH_VARARGS),
+  Define_Method(getRFC3779,	x509_object_get_rfc3779,	METH_NOARGS),
   {NULL}
 };
 
@@ -1911,7 +2115,7 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "O", &name_sequence))
     goto error;
 
-  if (!PyTuple_Check(name_sequence) && !PyList_Check(name_sequence))
+  if (!PySequence_Check(name_sequence))
     lose_type_error("Inapropriate type");
 
   if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
@@ -3216,7 +3420,9 @@ cms_object_sign(cms_object *self, PyObject *args)
   asymmetric_object *signkey = NULL;
   x509_object *signcert = NULL;
   x509_crl_object *crlobj = NULL;
-  PyObject *x509_sequence = Py_None, *crl_sequence = Py_None, *result = NULL;
+  PyObject *x509_sequence = Py_None;
+  PyObject *crl_sequence = Py_None;
+  PyObject *result = NULL;
   STACK_OF(X509) *x509_stack = NULL;
   EVP_PKEY *pkey = NULL;
   char *buf = NULL, *oid = NULL;

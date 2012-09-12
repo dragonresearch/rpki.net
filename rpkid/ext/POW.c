@@ -1629,7 +1629,6 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
   PyObject *range_e = NULL;
   ASIdentifiers *asid = NULL;
   IPAddrBlocks *addr = NULL;
-  int i, j;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist, &asn_arg, &ipv4_arg, &ipv6_arg))
     goto error;
@@ -1698,31 +1697,40 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
     }
   }
 
-  /*
-   * Will almost certainly need to split this up into multiple functions.
-   * For the moment, just inline IPv4 case, refactor later.
-   */
-
-  if (ipv4_arg != Py_None  /* || ipv6_arg != Py_None */ ) {
+  if (ipv4_arg != Py_None || ipv6_arg != Py_None) {
+    int afi;
 
     if ((addr = sk_IPAddressFamily_new_null()) == NULL)
       lose_no_memory();
 
-    {
-      int afi = IANA_AFI_IPV4;
-      int len = 4;
+    /*
+     * Cheap trick to let us inline all of this instead of being
+     * forced to use a separate function.  Should probably use a
+     * separate function anyway, but am waiting until I have the ROA
+     * code written to decide how best to refactor all of this.
+     */
 
-      if (PyString_Check(asn_arg)) {
+    for (afi = 0; afi < IANA_AFI_IPV4 + IANA_AFI_IPV6; afi++) {
+      PyObject **argp;
+      int len;
 
-        if (strcmp(PyString_AsString(ipv4_arg), "inherit"))
-          lose_type_error("IPv4 argument must be sequence of range pairs, or \"inherit\"");
+      switch (afi) {
+      case IANA_AFI_IPV4: len =  4; argp = &ipv4_arg; break;
+      case IANA_AFI_IPV6: len = 16; argp = &ipv6_arg; break;
+      default: continue;
+      }
+
+      if (PyString_Check(*argp)) {
+
+        if (strcmp(PyString_AsString(*argp), "inherit"))
+          lose_type_error("Argument must be sequence of range pairs, or \"inherit\"");
 
         if (!v3_addr_add_inherit(addr, afi, NULL))
           lose_no_memory();
 
       } else {
 
-        if ((iterator = PyObject_GetIter(ipv4_arg)) == NULL)
+        if ((iterator = PyObject_GetIter(*argp)) == NULL)
           goto error;
 
         while ((item = PyIter_Next(iterator)) != NULL) {

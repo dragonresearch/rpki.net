@@ -30,9 +30,6 @@
 
 /* $Id$ */
 
-#warning Clean up AVL_PARANOIA junk as soon as we know new code works properly
-#define	AVL_PARANOIA 1
-
 /**
  * @mainpage
  *
@@ -84,6 +81,16 @@
 
 #include "defstack.h"
 #include "defasn1.h"
+
+/*
+ * Whether to run the old slow STACK-based validation_status lookup in
+ * parallel to the new faster AVL-based mechanism.  The code
+ * controlled by this option will probably go away soon, it's just here
+ * in case we run into trouble while testing the new code.
+ */
+#ifndef AVL_PARANOIA
+#define	AVL_PARANOIA	0
+#endif
 
 #if !defined(FILENAME_MAX) && defined(PATH_MAX) && PATH_MAX > 1024
 #define	FILENAME_MAX	PATH_MAX

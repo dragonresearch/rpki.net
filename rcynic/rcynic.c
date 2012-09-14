@@ -30,6 +30,9 @@
 
 /* $Id$ */
 
+#warning Clean up AVL_PARANOIA junk as soon as we know new code works properly
+#define	AVL_PARANOIA 1
+
 /**
  * @mainpage
  *
@@ -389,8 +392,13 @@ typedef struct validation_status {
   uri_t uri;
   object_generation_t generation;
   time_t timestamp;
+#if AVL_PARANOIA
   unsigned creation_order;
+#endif
   unsigned char events[(MIB_COUNTER_T_MAX + 7) / 8];
+  short balance;
+  struct validation_status *left_child;
+  struct validation_status *right_child;
 } validation_status_t;
 
 DECLARE_STACK_OF(validation_status_t)
@@ -547,7 +555,12 @@ struct rcynic_ctx {
   int allow_digest_mismatch, allow_crl_digest_mismatch;
   int allow_nonconformant_name, allow_ee_without_signedObject;
   int allow_1024_bit_ee_key, allow_wrong_cms_si_attributes;
-  unsigned max_select_time, validation_status_creation_order;
+  unsigned max_select_time;
+#if AVL_PARANOIA
+  unsigned validation_status_creation_order;
+#endif
+  validation_status_t *validation_status_in_waiting;
+  validation_status_t *validation_status_root;
   log_level_t log_level;
   X509_STORE *x509_store;
 };
@@ -1056,6 +1069,207 @@ static void validation_status_set_code(validation_status_t *v,
 }
 
 /**
+ * validation_status object comparison, for AVL tree rather than
+ * OpenSSL stacks.
+ */
+static int
+validation_status_cmp(const validation_status_t *node,
+		      const uri_t *uri,
+		      const object_generation_t generation)
+{
+  int cmp = ((int) node->generation) - ((int) generation);
+  if (cmp)
+    return cmp;
+  else
+    return strcmp(uri->s, node->uri.s);
+}
+
+/**
+ * validation_status AVL tree insertion.  Adapted from code written by
+ * Paul Vixie and explictly placed in the public domain using examples
+ * from the book: "Algorithms & Data Structures," Niklaus Wirth,
+ * Prentice-Hall, 1986, ISBN 0-13-022005-1.  Thanks, Paul!
+ */
+static validation_status_t *
+validation_status_sprout(validation_status_t **node,
+			 int *needs_balancing,
+			 validation_status_t *new_node)
+{
+#ifdef AVL_DEBUG
+#define AVL_MSG(msg) sprintf(stderr, "AVL_DEBUG: '%s'\n", msg)
+#else
+#define AVL_MSG(msg)
+#endif
+
+  validation_status_t *p1, *p2, *result;
+  int cmp;
+
+  /*
+   * Are we grounded?  If so, add the node "here" and set the
+   * rebalance flag, then exit.
+   */
+  if (*node == NULL) {
+    AVL_MSG("Grounded, adding new node");
+    new_node->left_child = NULL;
+    new_node->right_child = NULL;
+    new_node->balance = 0;
+    *node = new_node;
+    *needs_balancing = 1;
+    return *node;
+  }
+
+  /*
+   * Compare the data.
+   */
+  cmp = validation_status_cmp(*node, &new_node->uri, new_node->generation);
+
+  /*
+   * If LESS, prepare to move to the left.
+   */
+  if (cmp < 0) {
+
+    AVL_MSG("LESS. sprouting left.");
+    result = validation_status_sprout(&(*node)->left_child, needs_balancing, new_node);
+
+    if (*needs_balancing) {
+      AVL_MSG("LESS: left branch has grown longer");
+
+      switch ((*node)->balance) {
+
+      case 1:
+	/*
+	 * Right branch WAS longer; balance is ok now.
+	 */
+	AVL_MSG("LESS: case 1.. balance restored implicitly");
+	(*node)->balance = 0;
+	*needs_balancing = 0;
+	break;
+
+      case 0:
+	/*
+	 * Balance WAS okay; now left branch longer.
+	 */
+	AVL_MSG("LESS: case 0.. balnce bad but still ok");
+	(*node)->balance = -1;
+	break;
+
+      case -1:
+	/*
+	 * Left branch was already too long.  Rebalance.
+	 */
+	AVL_MSG("LESS: case -1: rebalancing");
+	p1 = (*node)->left_child;
+
+	if (p1->balance == -1) {
+	  AVL_MSG("LESS: single LL");
+	  (*node)->left_child = p1->right_child;
+	  p1->right_child = *node;
+	  (*node)->balance = 0;
+	  *node = p1;
+	}
+
+	else {
+	  AVL_MSG("LESS: double LR");
+
+	  p2 = p1->right_child;
+	  p1->right_child = p2->left_child;
+	  p2->left_child = p1;
+
+	  (*node)->left_child = p2->right_child;
+	  p2->right_child = *node;
+
+	  if (p2->balance == -1)
+	    (*node)->balance = 1;
+	  else
+	    (*node)->balance = 0;
+
+	  if (p2->balance == 1)
+	    p1->balance = -1;
+	  else
+	    p1->balance = 0;
+	  *node = p2;
+	}
+
+	(*node)->balance = 0;
+	*needs_balancing = 0;
+      }
+    }
+    return result;
+  }
+
+  /*
+   * If MORE, prepare to move to the right.
+   */
+  if (cmp > 0) {
+
+    AVL_MSG("MORE: sprouting to the right");
+    result = validation_status_sprout(&(*node)->right_child, needs_balancing, new_node);
+
+    if (*needs_balancing) {
+      AVL_MSG("MORE: right branch has grown longer");
+
+      switch ((*node)->balance) {
+
+      case -1:AVL_MSG("MORE: balance was off, fixed implicitly");
+	(*node)->balance = 0;
+	*needs_balancing = 0;
+	break;
+
+      case 0:	AVL_MSG("MORE: balance was okay, now off but ok");
+	(*node)->balance = 1;
+	break;
+
+      case 1:	AVL_MSG("MORE: balance was off, need to rebalance");
+	p1 = (*node)->right_child;
+
+	if (p1->balance == 1) {
+	  AVL_MSG("MORE: single RR");
+	  (*node)->right_child = p1->left_child;
+	  p1->left_child = *node;
+	  (*node)->balance = 0;
+	  *node = p1;
+	}
+
+	else {
+	  AVL_MSG("MORE: double RL");
+
+	  p2 = p1->left_child;
+	  p1->left_child = p2->right_child;
+	  p2->right_child = p1;
+
+	  (*node)->right_child = p2->left_child;
+	  p2->left_child = *node;
+
+	  if (p2->balance == 1)
+	    (*node)->balance = -1;
+	  else
+	    (*node)->balance = 0;
+
+	  if (p2->balance == -1)
+	    p1->balance = 1;
+	  else
+	    p1->balance = 0;
+
+	  *node = p2;
+	} /*else*/
+	(*node)->balance = 0;
+	*needs_balancing = 0;
+      }
+    }
+    return result;
+  }
+
+  /*
+   * Neither more nor less, found existing node matching key, return it.
+   */
+  AVL_MSG("I found it!");
+  *needs_balancing = 0;
+  return *node;
+
+#undef AVL_DEBUG
+}
+
+/**
  * Add a validation status entry to internal log.
  */
 static void log_validation_status(rcynic_ctx_t *rc,
@@ -1063,8 +1277,8 @@ static void log_validation_status(rcynic_ctx_t *rc,
 				  const mib_counter_t code,
 				  const object_generation_t generation)
 {
-  validation_status_t v_, *v = NULL;
-  int was_set;
+  validation_status_t *v = NULL;
+  int needs_balancing = 0;
 
   assert(rc && uri && code < MIB_COUNTER_T_MAX && generation < OBJECT_GENERATION_MAX);
 
@@ -1074,46 +1288,63 @@ static void log_validation_status(rcynic_ctx_t *rc,
   if (code == rsync_transfer_skipped && !rc->run_rsync)
     return;
 
-  memset(&v_, 0, sizeof(v_));
-  v_.uri = *uri;
-  v_.generation = generation;
-
-  v = sk_validation_status_t_value(rc->validation_status, sk_validation_status_t_find(rc->validation_status, &v_));
-  if (v == NULL) {
-    if ((v = validation_status_t_new()) == NULL) {
-      logmsg(rc, log_sys_err, "Couldn't allocate validation status entry for %s", uri->s);
-      return;
-    }
-    *v = v_;
-    v->creation_order = rc->validation_status_creation_order++;
-    assert(rc->validation_status_creation_order != 0);
-    if (!sk_validation_status_t_push(rc->validation_status, v)) {
-      logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri->s);
-      free(v);
-      return;
-    }
+  if (rc->validation_status_in_waiting == NULL &&
+      (rc->validation_status_in_waiting = validation_status_t_new()) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't allocate validation status entry for %s", uri->s);
+    return;
   }
 
-  was_set = validation_status_get_code(v, code);
+  v = rc->validation_status_in_waiting;
+  memset(v, 0, sizeof(*v));
+  v->uri = *uri;
+  v->generation = generation;
+
+  v = validation_status_sprout(&rc->validation_status_root, &needs_balancing, v);
+  if (v == rc->validation_status_in_waiting)
+    rc->validation_status_in_waiting = NULL;
+
+#if AVL_PARANOIA
+  {
+    validation_status_t *v2 = sk_validation_status_t_value(rc->validation_status,
+							   sk_validation_status_t_find(rc->validation_status, v));
+    assert((rc->validation_status_in_waiting == NULL) == (v2 == NULL));
+    if (rc->validation_status_in_waiting == NULL) {
+      v->creation_order = rc->validation_status_creation_order++;
+      assert(rc->validation_status_creation_order != 0);
+    }
+  }
+#endif
+
+  if (rc->validation_status_in_waiting == NULL &&
+      !sk_validation_status_t_push(rc->validation_status, v)) {
+    logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri->s);
+    return;
+  }
 
   v->timestamp = time(0);
+
+  if (validation_status_get_code(v, code))
+    return;
+
   validation_status_set_code(v, code, 1);
 
-  if (!was_set)
-    logmsg(rc, log_verbose, "Recording \"%s\" for %s%s%s",
-	   (mib_counter_desc[code]
-	    ? mib_counter_desc[code]
-	    : X509_verify_cert_error_string(mib_counter_openssl[code])),
-	   (generation != object_generation_null ? object_generation_label[generation] : ""),
-	   (generation != object_generation_null ? " " : ""),
-	   uri->s);
+  logmsg(rc, log_verbose, "Recording \"%s\" for %s%s%s",
+	 (mib_counter_desc[code]
+	  ? mib_counter_desc[code]
+	  : X509_verify_cert_error_string(mib_counter_openssl[code])),
+	 (generation != object_generation_null ? object_generation_label[generation] : ""),
+	 (generation != object_generation_null ? " " : ""),
+	 uri->s);
 }
+
+#if AVL_PARANOIA
 
 /**
  * Validation status object comparision.  While building up the
  * database, we want to do lookups based on URI and generation number.
  */
-static int validation_status_cmp_uri(const validation_status_t * const *a, const validation_status_t * const *b)
+static int
+validation_status_cmp_uri(const validation_status_t * const *a, const validation_status_t * const *b)
 {
   int cmp = strcmp((*a)->uri.s, (*b)->uri.s);
   if (cmp)
@@ -1137,6 +1368,8 @@ static int validation_status_cmp_creation_order(const validation_status_t * cons
   assert(cmp != 0 || a == b);
   return cmp;
 }
+
+#endif
 
 /**
  * Copy or link a file, as the case may be.
@@ -1220,6 +1453,25 @@ static int install_object(rcynic_ctx_t *rc,
 }
 
 /**
+ * AVL tree lookup for validation status objects.
+ */
+static validation_status_t *
+validation_status_find(validation_status_t *node,
+		       const uri_t *uri,
+		       const object_generation_t generation)
+{
+  int cmp;
+
+  while (node != NULL)
+    if ((cmp = validation_status_cmp(node, uri, generation)) == 0)
+      return node;
+    else
+      node = cmp < 0 ? node->left_child : node->right_child;
+
+  return NULL;
+}
+
+/**
  * Figure out whether we already have a good copy of an object.  This
  * is a little more complicated than it sounds, because we might have
  * failed the current generation and accepted the backup due to having
@@ -1235,9 +1487,8 @@ static int skip_checking_this_object(rcynic_ctx_t *rc,
 				     const uri_t *uri,
 				     const object_generation_t generation)
 {
-  validation_status_t v_, *v = NULL;
+  validation_status_t *v = NULL;
   path_t path;
-  int i;
 
   assert(rc && uri && rc->validation_status);
 
@@ -1252,12 +1503,19 @@ static int skip_checking_this_object(rcynic_ctx_t *rc,
   if (generation != object_generation_current)
     return 1;
 
-  memset(&v_, 0, sizeof(v_));
-  v_.uri = *uri;
-  v_.generation = generation;
+  v = validation_status_find(rc->validation_status_root, uri, generation);
 
-  i = sk_validation_status_t_find(rc->validation_status, &v_);
-  v = sk_validation_status_t_value(rc->validation_status, i);
+#if AVL_PARANOIA
+  {
+    validation_status_t v_, *v2 = NULL;
+    memset(&v_, 0, sizeof(v_));
+    v_.uri = *uri;
+    v_.generation = generation;
+    v2 = sk_validation_status_t_value(rc->validation_status,
+				      sk_validation_status_t_find(rc->validation_status, &v_));
+    assert(v == v2);
+  }
+#endif
 
   if (v != NULL && validation_status_get_code(v, object_accepted))
     return 1;
@@ -4800,8 +5058,10 @@ static int write_xml_file(const rcynic_ctx_t *rc,
   if (ok)
     ok &= fprintf(f, "  </labels>\n") != EOF;
 
+#if AVL_PARANOIA
   (void) sk_validation_status_t_set_cmp_func(rc->validation_status, validation_status_cmp_creation_order);
   sk_validation_status_t_sort(rc->validation_status);
+#endif
 
   for (i = 0; ok && i < sk_validation_status_t_num(rc->validation_status); i++) {
     validation_status_t *v = sk_validation_status_t_value(rc->validation_status, i);
@@ -5142,10 +5402,14 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  if ((rc.validation_status = sk_validation_status_t_new(validation_status_cmp_uri)) == NULL) {
+  if ((rc.validation_status = sk_validation_status_t_new_null()) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate validation_status stack");
     goto done;
   }
+
+#if AVL_PARANOIA
+  (void) sk_validation_status_t_set_cmp_func(rc.validation_status, validation_status_cmp_uri);
+#endif
 
   if ((rc.x509_store = X509_STORE_new()) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate X509_STORE");
@@ -5360,6 +5624,7 @@ int main(int argc, char *argv[])
    */
   sk_validation_status_t_pop_free(rc.validation_status, validation_status_t_free);
   sk_rsync_history_t_pop_free(rc.rsync_history, rsync_history_t_free);
+  validation_status_t_free(rc.validation_status_in_waiting);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);
   CONF_modules_free();

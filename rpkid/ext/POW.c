@@ -692,8 +692,9 @@ BIO_to_PyString_helper(BIO *bio)
  * Do not read after eating.
  */
 static ASN1_INTEGER *
-Python_Long_to_ASN1_INTEGER(PyObject *py_long)
+Python_Long_to_ASN1_INTEGER(PyObject *arg)
 {
+  PyObject *obj = NULL;
   ASN1_INTEGER *a = NULL;
   unsigned char buf[RAW_ASNUMBER_BUFLEN];
   unsigned char *b = buf;
@@ -701,8 +702,12 @@ Python_Long_to_ASN1_INTEGER(PyObject *py_long)
 
   memset(buf, 0, sizeof(buf));
 
-  if (_PyLong_AsByteArray((PyLongObject *) py_long, buf, sizeof(buf), 0, 0) < 0)
+  if ((obj = PyNumber_Long(arg)) == NULL ||
+      _PyLong_AsByteArray((PyLongObject *) obj, buf, sizeof(buf), 0, 0) < 0)
     goto error;
+
+  Py_XDECREF(obj);
+  obj = NULL;
 
   while (b < buf + sizeof(buf) - 1 && *b == 0)
     b++;
@@ -722,6 +727,7 @@ Python_Long_to_ASN1_INTEGER(PyObject *py_long)
   return a;
 
  error:
+  Py_XDECREF(obj);
   ASN1_INTEGER_free(a);
   return NULL;
 }
@@ -1060,7 +1066,7 @@ static PyNumberMethods ipaddress_NumberMethods = {
 static PyTypeObject ipaddresstype = {
   PyObject_HEAD_INIT(NULL)
   0,                                        /* ob_size */
-  "_POW.IPAddress",                         /* tp_name */
+  "POW.IPAddress",                          /* tp_name */
   sizeof(ipaddress_object),                 /* tp_basicsize */
   0,                                        /* tp_itemsize */
   0,                                        /* tp_dealloc */
@@ -1961,14 +1967,33 @@ x509_object_get_rfc3779(x509_object *self)
       for (j = 0; j < sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges); j++) {
         IPAddressOrRange *aor = sk_IPAddressOrRange_value(f->ipAddressChoice->u.addressesOrRanges,
                                     j);
-        unsigned char b_buf[RAW_IPADDR_BUFLEN], e_buf[RAW_IPADDR_BUFLEN];
+        ipaddress_object *addr_b = NULL;
+        ipaddress_object *addr_e = NULL;
+        
+        if ((range_b = ipaddresstype.tp_alloc(&ipaddresstype, 0)) == NULL ||
+            (range_e = ipaddresstype.tp_alloc(&ipaddresstype, 0)) == NULL)
+          goto error;
 
-        if ((addr_len = v3_addr_get_range(aor, afi, b_buf, e_buf, RAW_IPADDR_BUFLEN)) == 0)
+        addr_b = (ipaddress_object *) range_b;
+        addr_e = (ipaddress_object *) range_e;
+
+        if ((addr_len = v3_addr_get_range(aor, afi, addr_b->address, addr_e->address, sizeof(addr_b->address))) == 0)
           lose_type_error("Couldn't unpack IP addresses from BIT STRINGs");
 
-        if ((range_b = _PyLong_FromByteArray(b_buf, addr_len, 0, 0)) == NULL ||
-            (range_e = _PyLong_FromByteArray(e_buf, addr_len, 0, 0)) == NULL ||
-            (range = Py_BuildValue("(NN)", range_b, range_e)) == NULL)
+        switch (afi) {
+        case IANA_AFI_IPV4:
+          addr_b->version = addr_e->version =  4;
+          addr_b->length  = addr_e->length  =  4;
+          addr_b->af      = addr_e->af      = AF_INET;
+          break;
+        case IANA_AFI_IPV6:
+          addr_b->version = addr_e->version =  6;
+          addr_b->length  = addr_e->length  = 16;
+          addr_b->af      = addr_e->af      = AF_INET6;
+          break;
+        }
+
+        if ((range = Py_BuildValue("(NN)", range_b, range_e)) == NULL)
           goto error;
 
         PyTuple_SET_ITEM(*result_obj, j, range);
@@ -2014,6 +2039,10 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
   PyObject *range_e = NULL;
   ASIdentifiers *asid = NULL;
   IPAddrBlocks *addr = NULL;
+  ASN1_INTEGER *asid_b = NULL;
+  ASN1_INTEGER *asid_e = NULL;
+  ipaddress_object *addr_b = NULL;
+  ipaddress_object *addr_e = NULL;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist, &asn_arg, &ipv4_arg, &ipv6_arg))
     goto error;
@@ -2037,37 +2066,26 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
         goto error;
 
       while ((item = PyIter_Next(iterator)) != NULL) {
-        ASN1_INTEGER *b = NULL;
-        ASN1_INTEGER *e = NULL;
 
         if (!PyArg_ParseTuple(item, "OO", &range_b, &range_e) ||
-            !PyLong_Check(range_b) ||
-            !PyLong_Check(range_e))
-          lose_type_error("ASID must be sequence of range pairs, or \"inherit\"");
-
-        if ((b = Python_Long_to_ASN1_INTEGER(range_b)) == NULL)
+            (asid_b = Python_Long_to_ASN1_INTEGER(range_b)) == NULL)
           goto error;
 
         switch (PyObject_RichCompareBool(range_b, range_e, Py_EQ)) {
         case 0:
-          if ((e = Python_Long_to_ASN1_INTEGER(range_e)) == NULL) {
-            ASN1_INTEGER_free(b);
+          if ((asid_e = Python_Long_to_ASN1_INTEGER(range_e)) == NULL)
             goto error;
-          }
+          break;
         case 1:
           break;
         default:
-          ASN1_INTEGER_free(b);
-          lose_type_error("Couldn't compare range values");
+          goto error;
         }
 
-        if (!v3_asid_add_id_or_range(asid, V3_ASID_ASNUM, b, e)) {
-          ASN1_INTEGER_free(b);
-          ASN1_INTEGER_free(e);
+        if (!v3_asid_add_id_or_range(asid, V3_ASID_ASNUM, asid_b, asid_e))
           lose_openssl_error("Couldn't add range to ASID");
-        }
 
-        b = e = NULL;
+        asid_b = asid_e = NULL;
         Py_XDECREF(item);
         item = range_b = range_e = NULL;
       }
@@ -2119,26 +2137,27 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
           goto error;
 
         while ((item = PyIter_Next(iterator)) != NULL) {
-          unsigned char b_buf[RAW_IPADDR_BUFLEN], e_buf[RAW_IPADDR_BUFLEN];
 
-          memset(b_buf, 0, sizeof(b_buf));
-          memset(e_buf, 0, sizeof(e_buf));
-
-          if (!PyArg_ParseTuple(item, "OO", &range_b, &range_e) ||
-              !PyLong_Check(range_b) ||
-              !PyLong_Check(range_e) ||
-              PyObject_RichCompareBool(range_b, range_e, Py_LE) != 1)
-            lose_type_error("IPAddrBlock must be sequence of range pairs, or \"inherit\"");
-
-          if (_PyLong_AsByteArray((PyLongObject *) range_b, b_buf, len, 0, 0) < 0 ||
-              _PyLong_AsByteArray((PyLongObject *) range_e, e_buf, len, 0, 0) < 0)
+          if (!PyArg_ParseTuple(item, "OO", &range_b, &range_e))
             goto error;
 
-          if (!v3_addr_add_range(addr, afi, NULL, b_buf, e_buf))
+          addr_b = (ipaddress_object *) range_b;
+          addr_e = (ipaddress_object *) range_e;
+
+          if (!POW_IPAddress_Check(range_b) ||
+              !POW_IPAddress_Check(range_e) ||
+              addr_b->version != addr_e->version ||
+              addr_b->length != len ||
+              addr_e->length != len ||
+              memcmp(addr_b->address, addr_e->address, addr_b->length) > 0)
+            lose_type_error("IPAddrBlock must be sequence of address pairs, or \"inherit\"");
+
+          if (!v3_addr_add_range(addr, afi, NULL, addr_b->address, addr_e->address))
             lose_openssl_error("Couldn't add range to IPAddrBlock");
 
           Py_XDECREF(item);
           item = range_b = range_e = NULL;
+          addr_b = addr_e = NULL;
         }
 
         Py_XDECREF(iterator);
@@ -2155,6 +2174,8 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 
  error:
+  ASN1_INTEGER_free(asid_b);
+  ASN1_INTEGER_free(asid_e);
   ASIdentifiers_free(asid);
   sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
   Py_XDECREF(iterator);
@@ -2232,7 +2253,7 @@ static char x509type__doc__[] =
 static PyTypeObject x509type = {
   PyObject_HEAD_INIT(0)
   0,                                        /* ob_size */
-  "_POW.X509",                              /* tp_name */
+  "POW.X509",                               /* tp_name */
   sizeof(x509_object),                      /* tp_basicsize */
   0,                                        /* tp_itemsize */
   (destructor)x509_object_dealloc,          /* tp_dealloc */
@@ -2505,7 +2526,7 @@ static char x509_storetype__doc__[] =
 static PyTypeObject x509_storetype = {
   PyObject_HEAD_INIT(0)
   0,                                        /* ob_size */
-  "_POW.X509Store",                         /* tp_name */
+  "POW.X509Store",                          /* tp_name */
   sizeof(x509_store_object),                /* tp_basicsize */
   0,                                        /* tp_itemsize */
   (destructor)x509_store_object_dealloc,    /* tp_dealloc */
@@ -3197,7 +3218,7 @@ static char x509_crltype__doc__[] =
 static PyTypeObject x509_crltype = {
   PyObject_HEAD_INIT(0)
   0,                                     /* ob_size */
-  "_POW.X509Crl",                        /* tp_name */
+  "POW.X509Crl",                         /* tp_name */
   sizeof(x509_crl_object),               /* tp_basicsize */
   0,                                     /* tp_itemsize */
   (destructor)x509_crl_object_dealloc,   /* tp_dealloc */
@@ -3595,7 +3616,7 @@ static char asymmetrictype__doc__[] =
 static PyTypeObject asymmetrictype = {
   PyObject_HEAD_INIT(0)
   0,                                     /* ob_size */
-  "_POW.Asymmetric",                     /* tp_name */
+  "POW.Asymmetric",                      /* tp_name */
   sizeof(asymmetric_object),             /* tp_basicsize */
   0,                                     /* tp_itemsize */
   (destructor)asymmetric_object_dealloc, /* tp_dealloc */
@@ -3789,7 +3810,7 @@ static char digesttype__doc__[] =
 static PyTypeObject digesttype = {
   PyObject_HEAD_INIT(0)
   0,                                  /* ob_size */
-  "_POW.Digest",                      /* tp_name */
+  "POW.Digest",                       /* tp_name */
   sizeof(digest_object),              /* tp_basicsize */
   0,                                  /* tp_itemsize */
   (destructor)digest_object_dealloc,  /* tp_dealloc */
@@ -4369,7 +4390,7 @@ static char cmstype__doc__[] =
 static PyTypeObject cmstype = {
   PyObject_HEAD_INIT(0)
   0,                                  /* ob_size */
-  "_POW.CMS",                         /* tp_name */
+  "POW.CMS",                          /* tp_name */
   sizeof(cms_object),                 /* tp_basicsize */
   0,                                  /* tp_itemsize */
   (destructor)cms_object_dealloc,     /* tp_dealloc */

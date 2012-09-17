@@ -108,6 +108,8 @@
 
 #include <time.h>
 #include <string.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
 /*
  * Maximum size of a raw IP (v4 or v6) address, in bytes.
@@ -153,12 +155,13 @@
 #define DER_FORMAT            2
 
 /* Object check functions */
-#define X_X509_Check(op)         ((op)->ob_type == &x509type)
-#define X_X509_store_Check(op)   ((op)->ob_type == &x509_storetype)
-#define X_X509_crl_Check(op)     ((op)->ob_type == &x509_crltype)
-#define X_asymmetric_Check(op)   ((op)->ob_type == &asymmetrictype)
-#define X_digest_Check(op)       ((op)->ob_type == &digesttype)
-#define X_cms_Check(op)          ((op)->ob_type == &cmstype)
+#define POW_X509_Check(op)         PyObject_TypeCheck(op, &x509type)
+#define POW_X509_Store_Check(op)   PyObject_TypeCheck(op, &x509_storetype)
+#define POW_X509_CRL_Check(op)     PyObject_TypeCheck(op, &x509_crltype)
+#define POW_Asymmetric_Check(op)   PyObject_TypeCheck(op, &asymmetrictype)
+#define POW_Digest_Check(op)       PyObject_TypeCheck(op, &digesttype)
+#define POW_CMS_Check(op)          PyObject_TypeCheck(op, &cmstype)
+#define	POW_IPAddress_Check(op)    PyObject_TypeCheck(op, &ipaddresstype)
 
 static char pow_module__doc__ [] =
   "Python interface to RFC-3779-enabled OpenSSL.  This code is intended\n"
@@ -189,10 +192,21 @@ static PyTypeObject
   x509_crltype,
   asymmetrictype,
   digesttype,
-  cmstype;
+  cmstype,
+  ipaddresstype;
+
 /*========== Pre-definitions ==========*/
 
 /*========== C structs ==========*/
+
+typedef struct {
+  PyObject_HEAD
+  unsigned char address[16];
+  unsigned char version;
+  unsigned char length;
+  unsigned short af;
+} ipaddress_object;
+
 typedef struct {
   PyObject_HEAD
   X509 *x509;
@@ -550,7 +564,7 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
       if ((x509obj = (x509_object*) PySequence_GetItem(x509_sequence, i)) == NULL)
         goto error;
 
-      if (!X_X509_Check(x509obj))
+      if (!POW_X509_Check(x509obj))
         lose_type_error("Inapropriate type");
 
       if (!sk_X509_push(x509_stack, x509obj->x509))
@@ -688,7 +702,7 @@ Python_Long_to_ASN1_INTEGER(PyObject *py_long)
   memset(buf, 0, sizeof(buf));
 
   if (_PyLong_AsByteArray((PyLongObject *) py_long, buf, sizeof(buf), 0, 0) < 0)
-    lose_type_error("Couldn't extract ASID value");
+    goto error;
 
   while (b < buf + sizeof(buf) - 1 && *b == 0)
     b++;
@@ -712,9 +726,380 @@ Python_Long_to_ASN1_INTEGER(PyObject *py_long)
   return NULL;
 }
 
-
-
 /*========== helper functions ==========*/
+
+/*========== IPAddress code ==========*/
+
+static PyObject *
+ipaddress_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"initializer", "version", NULL};
+  ipaddress_object *self = NULL;
+  PyObject *init = NULL;
+  PyObject *pylong = NULL;
+  int version = 0;
+  const char *s = NULL;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|i", kwlist, &init, &version) ||
+      (self = (ipaddress_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
+
+  if (POW_IPAddress_Check(init)) {
+    ipaddress_object *src = (ipaddress_object *) init;
+
+    memcpy(self->address, src->address, sizeof(self->address));
+    self->version = src->version;
+    self->length  = src->length;
+    self->af      = src->af;
+
+    return (PyObject *) self;
+  }
+
+  if ((s = PyString_AsString(init)) == NULL)
+    PyErr_Clear();
+  else if (version == 0)
+    version = strchr(s, ':') ? 6 : 4;
+
+  switch (version) {
+  case 4: self->length =  4; self->af = AF_INET;  break;
+  case 6: self->length = 16; self->af = AF_INET6; break;
+  default: lose("Unknown IP version number");
+  }
+  self->version = version; 
+
+  if (s != NULL) {
+    if (inet_pton(self->af, s, self->address) <= 0)
+      lose("Couldn't parse IP address");
+    return (PyObject *) self;
+  }
+
+  if ((pylong = PyNumber_Long(init)) != NULL) {
+    if (_PyLong_AsByteArray((PyLongObject *) pylong, self->address, self->length, 0, 0) < 0)
+      goto error;
+    Py_XDECREF(pylong);
+    return (PyObject *) self;
+  }
+
+  lose_type_error("Couldn't convert initializer to IPAddress");
+
+ error:
+  Py_XDECREF(self);
+  Py_XDECREF(pylong);
+  return NULL;
+}
+
+static PyObject *
+ipaddress_object_str(ipaddress_object *self)
+{
+  char addrstr[sizeof("aaaa:bbbb:cccc:dddd:eeee:ffff:255.255.255.255") + 1];
+
+  if (!inet_ntop(self->af, self->address, addrstr, sizeof(addrstr)))
+    lose("Couldn't convert IP address");
+
+  return PyString_FromString(addrstr);
+
+ error:
+  return NULL;
+}
+
+static PyObject *
+ipaddress_object_repr(ipaddress_object *self)
+{
+  char addrstr[sizeof("aaaa:bbbb:cccc:dddd:eeee:ffff:255.255.255.255") + 1];
+
+  if (!inet_ntop(self->af, self->address, addrstr, sizeof(addrstr)))
+    lose("Couldn't convert IP address");
+
+  return PyString_FromFormat("<%s object %s at %p>",
+                             self->ob_type->tp_name, addrstr, self);
+
+ error:
+  return NULL;
+}
+
+static int
+ipaddress_object_compare(PyObject *arg1, PyObject *arg2)
+{
+  PyObject *obj1 = PyNumber_Long(arg1);
+  PyObject *obj2 = PyNumber_Long(arg2);
+  int cmp = -1;
+
+  if (obj1 != NULL && obj2 != NULL)
+    cmp = PyObject_Compare(obj1, obj2);
+
+  Py_XDECREF(obj1);
+  Py_XDECREF(obj2);
+  return cmp;
+}
+
+static PyObject *
+ipaddress_object_richcompare(PyObject *arg1, PyObject *arg2, int op)
+{
+  PyObject *obj1 = PyNumber_Long(arg1);
+  PyObject *obj2 = PyNumber_Long(arg2);
+  PyObject *result = NULL;
+
+  if (obj1 != NULL && obj2 != NULL)
+    result = PyObject_RichCompare(obj1, obj2, op);
+
+  Py_XDECREF(obj1);
+  Py_XDECREF(obj2);
+  return result;
+}
+
+static long
+ipaddress_object_hash(ipaddress_object *self)
+{
+  unsigned long h = 0;
+  int i;
+
+  for (i = 0; i < self->length; i++)
+    h ^= self->address[i] << ((i & 3) << 3);
+
+  return (long) h == -1 ? 0 : (long) h;
+}
+
+static PyObject *
+ipaddress_object_get_bits(ipaddress_object *self, void *closure)
+{
+  return PyInt_FromLong(self->length * 8);
+}
+
+static PyObject *
+ipaddress_object_number_binary_helper(binaryfunc function, PyObject *arg1, PyObject *arg2)
+{
+  ipaddress_object *addr = NULL;
+  ipaddress_object *addr1 = NULL;
+  ipaddress_object *addr2 = NULL;
+  ipaddress_object *result = NULL;
+  PyObject *obj1 = NULL;
+  PyObject *obj2 = NULL;
+  PyObject *obj3 = NULL;
+  PyObject *obj4 = NULL;
+
+  if (POW_IPAddress_Check(arg1))
+    addr1 = (ipaddress_object *) arg1;
+
+  if (POW_IPAddress_Check(arg2))
+    addr2 = (ipaddress_object *) arg2;
+
+  if ((addr1 == NULL && addr2 == NULL) ||
+      (addr1 != NULL && addr2 != NULL && addr1->version != addr2->version) ||
+      (obj1 = PyNumber_Long(arg1)) == NULL ||
+      (obj2 = PyNumber_Long(arg2)) == NULL) {
+    result = (ipaddress_object *) Py_NotImplemented;
+    goto error;
+  }
+
+  if ((obj3 = function(obj1, obj2)) == NULL)
+    goto error;
+
+  if ((obj4 = PyNumber_Long(obj3)) == NULL)
+    lose("Couldn't convert result");
+
+  addr = addr1 != NULL ? addr1 : addr2;
+
+  if ((result = (ipaddress_object *) addr->ob_type->tp_alloc(addr->ob_type, 0)) == NULL)
+    goto error;
+
+  result->version = addr->version;
+  result->length  = addr->length;
+  result->af      = addr->af;
+
+  if (_PyLong_AsByteArray((PyLongObject *) obj4, result->address, result->length, 0, 0) < 0) {
+    Py_XDECREF(result);
+    result = NULL;
+  }
+
+ error:                         /* Fall through */
+  Py_XDECREF(obj1);
+  Py_XDECREF(obj2);
+  Py_XDECREF(obj3);
+  Py_XDECREF(obj4);
+
+  return (PyObject *) result;
+}
+
+static PyObject *
+ipaddress_object_number_long(PyObject *arg)
+{
+  ipaddress_object *addr = (ipaddress_object *) arg;
+
+  if (!POW_IPAddress_Check(arg))
+    return Py_NotImplemented;
+
+  return _PyLong_FromByteArray(addr->address, addr->length, 0, 0);
+}
+
+static PyObject *
+ipaddress_object_number_int(PyObject *arg)
+{
+  return ipaddress_object_number_long(arg);
+}
+
+static PyObject *
+ipaddress_object_number_add(PyObject *arg1, PyObject *arg2)
+{
+  return ipaddress_object_number_binary_helper(PyNumber_Add, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_subtract(PyObject *arg1, PyObject *arg2)
+{
+  return ipaddress_object_number_binary_helper(PyNumber_Subtract, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_lshift(PyObject *arg1, PyObject *arg2)
+{
+  return ipaddress_object_number_binary_helper(PyNumber_Lshift, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_rshift(PyObject *arg1, PyObject *arg2)
+{
+  return ipaddress_object_number_binary_helper(PyNumber_Rshift, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_and(PyObject *arg1, PyObject *arg2)
+{
+  return ipaddress_object_number_binary_helper(PyNumber_And, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_xor(PyObject *arg1, PyObject *arg2)
+{
+  return ipaddress_object_number_binary_helper(PyNumber_Xor, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_or(PyObject *arg1, PyObject *arg2)
+{
+  return ipaddress_object_number_binary_helper(PyNumber_Or, arg1, arg2);
+}
+
+static int
+ipaddress_object_number_nonzero(ipaddress_object *self)
+{
+  int i;
+
+  for (i = 0; i < self->length; i++)
+    if (self->address[i] != 0)
+      return 1;
+  return 0;
+}
+
+static PyObject *
+ipaddress_object_number_invert(ipaddress_object *self)
+{
+  ipaddress_object *result = NULL;
+  int i;
+
+  if ((result = (ipaddress_object *) self->ob_type->tp_alloc(self->ob_type, 0)) == NULL)
+    goto error;
+
+  result->version = self->version;
+  result->length  = self->length;
+  result->af      = self->af;
+
+  for (i = 0; i < self->length; i++)
+    result->address[i] = ~self->address[i];
+
+ error:                         /* Fall through */
+  return (PyObject *) result;
+}
+
+static PyGetSetDef ipaddress_getsetters[] = {
+  {"bits", (getter) ipaddress_object_get_bits},
+  {NULL}
+};
+
+static PyNumberMethods ipaddress_NumberMethods = {
+  ipaddress_object_number_add,                  /* nb_add */
+  ipaddress_object_number_subtract,             /* nb_subtract */
+  0,                                            /* nb_multiply */
+  0,                                            /* nb_divide */
+  0,                                            /* nb_remainder */
+  0,                                            /* nb_divmod */
+  0,                                            /* nb_power */
+  0,                                            /* nb_negative */
+  0,                                            /* nb_positive */
+  0,                                            /* nb_absolute */
+  (inquiry) ipaddress_object_number_nonzero,    /* nb_nonzero */
+  (unaryfunc) ipaddress_object_number_invert,   /* nb_invert */
+  ipaddress_object_number_lshift,               /* nb_lshift */
+  ipaddress_object_number_rshift,               /* nb_rshift */
+  ipaddress_object_number_and,                  /* nb_and */
+  ipaddress_object_number_xor,                  /* nb_xor */
+  ipaddress_object_number_or,                   /* nb_or */
+  0,                                            /* nb_coerce */
+  ipaddress_object_number_int,                  /* nb_int */
+  ipaddress_object_number_long,                 /* nb_long */
+  0,                                            /* nb_float */
+  0,                                            /* nb_oct */
+  0,                                            /* nb_hex */
+  0,                                            /* nb_inplace_add */
+  0,                            		/* nb_inplace_subtract */
+  0,                            		/* nb_inplace_multiply */
+  0,                            		/* nb_inplace_divide */
+  0,                            		/* nb_inplace_remainder */
+  0,                            		/* nb_inplace_power */
+  0,                            		/* nb_inplace_lshift */
+  0,                            		/* nb_inplace_rshift */
+  0,                            		/* nb_inplace_and */
+  0,                            		/* nb_inplace_xor */
+  0,                            		/* nb_inplace_or */
+  0,                                            /* nb_floor_divide */
+  0,                                            /* nb_true_divide */
+  0,                            		/* nb_inplace_floor_divide */
+  0,                            		/* nb_inplace_true_divide */
+  0,                                            /* nb_index */
+};
+
+static PyTypeObject ipaddresstype = {
+  PyObject_HEAD_INIT(NULL)
+  0,                                        /* ob_size */
+  "_POW.IPAddress",                         /* tp_name */
+  sizeof(ipaddress_object),                 /* tp_basicsize */
+  0,                                        /* tp_itemsize */
+  0,                                        /* tp_dealloc */
+  0,                                        /* tp_print */
+  0,                                        /* tp_getattr */
+  0,                                        /* tp_setattr */
+  ipaddress_object_compare,                 /* tp_compare */
+  (reprfunc) ipaddress_object_repr,         /* tp_repr */
+  &ipaddress_NumberMethods,                 /* tp_as_number */
+  0,                                        /* tp_as_sequence */
+  0,                                        /* tp_as_mapping */
+  (hashfunc) ipaddress_object_hash,         /* tp_hash */
+  0,                                        /* tp_call */
+  (reprfunc) ipaddress_object_str,          /* tp_str */
+  0,                                        /* tp_getattro */
+  0,                                        /* tp_setattro */
+  0,                                        /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_CHECKTYPES, /* tp_flags */
+  0,                                        /* tp_doc */
+  0,                                        /* tp_traverse */
+  0,                                        /* tp_clear */
+  ipaddress_object_richcompare,             /* tp_richcompare */
+  0,                                        /* tp_weaklistoffset */
+  0,                                        /* tp_iter */
+  0,                                        /* tp_iternext */
+  0,                                        /* tp_methods */
+  0,                                        /* tp_members */
+  ipaddress_getsetters,                     /* tp_getset */
+  0,                                        /* tp_base */
+  0,                                        /* tp_dict */
+  0,                                        /* tp_descr_get */
+  0,                                        /* tp_descr_set */
+  0,                                        /* tp_dictoffset */
+  0,                                        /* tp_init */
+  0,                                        /* tp_alloc */
+  ipaddress_object_new,                     /* tp_new */
+};
+
+/*========== IPAddress code ==========*/
 
 /*========== X509 code ==========*/
 
@@ -3672,7 +4057,7 @@ cms_object_sign(cms_object *self, PyObject *args)
       if ((crlobj = (x509_crl_object *) PySequence_GetItem(crl_sequence, i)) == NULL)
         goto error;
 
-      if (!X_X509_crl_Check(crlobj))
+      if (!POW_X509_CRL_Check(crlobj))
         lose_type_error("Inappropriate type");
 
       if (!crlobj->crl)
@@ -4384,6 +4769,7 @@ init_POW(void)
   Define_Class(asymmetrictype);
   Define_Class(digesttype);
   Define_Class(cmstype);
+  Define_Class(ipaddresstype);
 
 #undef Define_Class
 

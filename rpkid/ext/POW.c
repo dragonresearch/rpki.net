@@ -502,7 +502,7 @@ x509_object_helper_get_name(X509_NAME *name, int format)
 
     if (oid == NULL) {
       if (OBJ_obj2txt(oidbuf, sizeof(oidbuf), entry->object, 1) <= 0)
-        lose("Couldn't translate OID");
+        lose_openssl_error("Couldn't translate OID");
       oid = oidbuf;
     }
 
@@ -1689,32 +1689,25 @@ static char x509_object_get_extension__doc__[] =
 static PyObject *
 x509_object_get_extension(x509_object *self, PyObject *args)
 {
-  int ext_num = 0, ext_nid = 0;
-  char const *ext_ln = NULL;
-  char unknown_ext [] = "unknown";
   X509_EXTENSION *ext;
+  char oid[512];
+  int slot = 0;
 
-  if (!PyArg_ParseTuple(args, "i", &ext_num))
+  if (!PyArg_ParseTuple(args, "i", &slot))
     goto error;
 
-  if ((ext = X509_get_ext(self->x509, ext_num)) == NULL)
+  if ((ext = X509_get_ext(self->x509, slot)) == NULL)
     lose_openssl_error("Couldn't get extension");
 
-#warning OpenSSL NIDs and longNames again, should take format or just return decimal OID
+  if (OBJ_obj2txt(oid, sizeof(oid), ext->object, 1) <= 0)
+    lose_openssl_error("Couldn't translate OID");
 
-  if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
-    lose("Extension has unknown object identifier");
-
-  if ((ext_ln = OBJ_nid2sn(ext_nid)) == NULL)
-    ext_ln = unknown_ext;
-
-  return Py_BuildValue("sNs#", ext_ln,
+  return Py_BuildValue("sNs#", oid,
                        PyBool_FromLong(ext->critical),
                        ASN1_STRING_data(ext->value),
                        ASN1_STRING_length(ext->value));
 
  error:
-
   return NULL;
 }
 
@@ -2273,6 +2266,91 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
+static char x509_object_get_basic_constraints__doc__[] =
+  "Get BasicConstraints value for this certificate.  If the certificate\n"
+  "has no BasicConstraints extension, this method returns None.\n"
+  "Otherwise, it returns a two-element tuple.  The first element of the\n"
+  "tuple is a boolean representing the extension's cA value; the second\n"
+  "element of the tuple is either an integer representing the\n"
+  "pathLenConstraint value or None if there is no pathLenConstraint.\n"
+  ;
+
+static PyObject *
+x509_object_get_basic_constraints(x509_object *self)
+{
+  BASIC_CONSTRAINTS *ext = NULL;
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_basic_constraints, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if (ext->pathlen == NULL)
+    return Py_BuildValue("(NO)", PyBool_FromLong(ext->ca), Py_None);
+  else
+    return Py_BuildValue("(Nl)", PyBool_FromLong(ext->ca), ASN1_INTEGER_get(ext->pathlen));
+}
+
+static char x509_object_set_basic_constraints__doc__[] =
+  "Set BasicConstraints value for this certificate.\n"
+  "\n"
+  "First argument \"ca\" is a boolean indicating whether the certificate\n"
+  "is a CA certificate or not.\n"
+  "\n"
+  "Optional second argument \"pathLenConstraint\" is a non-negative integer\n"
+  "specifying the pathLenConstraint value for this certificate; this value\n"
+  "may only be set for CA certificates."
+  "\n"
+  "Optional third argument \"critical\" specifies whether the extension\n"
+  "should be marked as critical.  RFC 5280 4.2.1.9 requires that CA\n"
+  "certificates mark this extension as critical, so the default is True.\n"
+  ;
+
+static PyObject *
+x509_object_set_basic_constraints(x509_object *self, PyObject *args)
+{
+  BASIC_CONSTRAINTS *ext = NULL;
+  PyObject *is_ca = NULL;
+  PyObject *pathlen_obj = Py_None;
+  PyObject *critical = Py_True;
+  long pathlen;
+  int ok = 0;
+
+  if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
+    goto error;
+
+  if (pathlen_obj != Py_None && (pathlen = PyInt_AsLong(pathlen_obj)) < 0)
+    lose_type_error("Bad pathLenConstraint value");
+
+  if ((ext = BASIC_CONSTRAINTS_new()) == NULL)
+    lose_no_memory();
+
+  ext->ca = PyObject_IsTrue(is_ca) ? 0xFF : 0;
+
+  if (pathlen_obj != Py_None &&
+      ((ext->pathlen == NULL && (ext->pathlen = ASN1_INTEGER_new()) == NULL) ||
+       !ASN1_INTEGER_set(ext->pathlen, pathlen)))
+    lose_no_memory();
+
+  if (!X509_add1_ext_i2d(self->x509, NID_basic_constraints,
+                         ext, PyObject_IsTrue(critical), X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add BasicConstraints extension to certificate");
+
+  ok = 1;
+
+ error:
+  BASIC_CONSTRAINTS_free(ext);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+#warning Need SIA handlers
+#warning Need AIA handlers
+#warning Need CRLDP handlers
+#warning Need Certificate Policies handlers
+#warning Want EKU handlers eventually
+
 static char x509_object_pprint__doc__[] =
   "This method returns a pretty-printed rendition of the certificate.\n"
   ;
@@ -2297,35 +2375,37 @@ x509_object_pprint(x509_object *self)
 }
 
 static struct PyMethodDef x509_object_methods[] = {
-  Define_Method(pemWrite,       x509_object_pem_write,          METH_NOARGS),
-  Define_Method(derWrite,       x509_object_der_write,          METH_NOARGS),
-  Define_Method(sign,           x509_object_sign,               METH_VARARGS),
-  Define_Method(setPublicKey,   x509_object_set_public_key,     METH_VARARGS),
-  Define_Method(getVersion,     x509_object_get_version,        METH_NOARGS),
-  Define_Method(setVersion,     x509_object_set_version,        METH_VARARGS),
-  Define_Method(getSerial,      x509_object_get_serial,         METH_NOARGS),
-  Define_Method(setSerial,      x509_object_set_serial,         METH_VARARGS),
-  Define_Method(getIssuer,      x509_object_get_issuer,         METH_VARARGS),
-  Define_Method(setIssuer,      x509_object_set_issuer,         METH_VARARGS),
-  Define_Method(getSubject,     x509_object_get_subject,        METH_VARARGS),
-  Define_Method(setSubject,     x509_object_set_subject,        METH_VARARGS),
-  Define_Method(getNotBefore,   x509_object_get_not_before,     METH_NOARGS),
-  Define_Method(getNotAfter,    x509_object_get_not_after,      METH_NOARGS),
-  Define_Method(setNotAfter,    x509_object_set_not_after,      METH_VARARGS),
-  Define_Method(setNotBefore,   x509_object_set_not_before,     METH_VARARGS),
-  Define_Method(addExtension,   x509_object_add_extension,      METH_VARARGS),
-  Define_Method(clearExtensions, x509_object_clear_extensions,  METH_NOARGS),
-  Define_Method(countExtensions, x509_object_count_extensions,  METH_NOARGS),
-  Define_Method(getExtension,   x509_object_get_extension,      METH_VARARGS),
-  Define_Method(pprint,         x509_object_pprint,             METH_NOARGS),
-  Define_Method(getSKI,         x509_object_get_ski,            METH_NOARGS),
-  Define_Method(setSKI,         x509_object_set_ski,            METH_VARARGS),
-  Define_Method(getAKI,         x509_object_get_aki,            METH_NOARGS),
-  Define_Method(setAKI,         x509_object_set_aki,            METH_VARARGS),
-  Define_Method(getKeyUsage,	x509_object_get_key_usage,	METH_NOARGS),
-  Define_Method(setKeyUsage,	x509_object_set_key_usage,	METH_VARARGS),
-  Define_Method(getRFC3779,	x509_object_get_rfc3779,	METH_NOARGS),
-  Define_Method(setRFC3779,	x509_object_set_rfc3779,	METH_KEYWORDS),
+  Define_Method(pemWrite,               x509_object_pem_write,                  METH_NOARGS),
+  Define_Method(derWrite,               x509_object_der_write,                  METH_NOARGS),
+  Define_Method(sign,                   x509_object_sign,                       METH_VARARGS),
+  Define_Method(setPublicKey,           x509_object_set_public_key,             METH_VARARGS),
+  Define_Method(getVersion,             x509_object_get_version,                METH_NOARGS),
+  Define_Method(setVersion,     	x509_object_set_version,                METH_VARARGS),
+  Define_Method(getSerial,              x509_object_get_serial,                 METH_NOARGS),
+  Define_Method(setSerial,      	x509_object_set_serial,                 METH_VARARGS),
+  Define_Method(getIssuer,              x509_object_get_issuer,                 METH_VARARGS),
+  Define_Method(setIssuer,      	x509_object_set_issuer,                 METH_VARARGS),
+  Define_Method(getSubject,             x509_object_get_subject,                METH_VARARGS),
+  Define_Method(setSubject,             x509_object_set_subject,                METH_VARARGS),
+  Define_Method(getNotBefore,           x509_object_get_not_before,             METH_NOARGS),
+  Define_Method(getNotAfter,            x509_object_get_not_after,              METH_NOARGS),
+  Define_Method(setNotAfter,            x509_object_set_not_after,              METH_VARARGS),
+  Define_Method(setNotBefore,           x509_object_set_not_before,             METH_VARARGS),
+  Define_Method(addExtension,           x509_object_add_extension,              METH_VARARGS),
+  Define_Method(clearExtensions,        x509_object_clear_extensions,           METH_NOARGS),
+  Define_Method(countExtensions,        x509_object_count_extensions,           METH_NOARGS),
+  Define_Method(getExtension,           x509_object_get_extension,              METH_VARARGS),
+  Define_Method(pprint,                 x509_object_pprint,                     METH_NOARGS),
+  Define_Method(getSKI,                 x509_object_get_ski,                    METH_NOARGS),
+  Define_Method(setSKI,                 x509_object_set_ski,                    METH_VARARGS),
+  Define_Method(getAKI,                 x509_object_get_aki,                    METH_NOARGS),
+  Define_Method(setAKI,         	x509_object_set_aki,                    METH_VARARGS),
+  Define_Method(getKeyUsage,            x509_object_get_key_usage,              METH_NOARGS),
+  Define_Method(setKeyUsage,            x509_object_set_key_usage,		METH_VARARGS),
+  Define_Method(getRFC3779,             x509_object_get_rfc3779,                METH_NOARGS),
+  Define_Method(setRFC3779,             x509_object_set_rfc3779,                METH_KEYWORDS),
+  Define_Method(getBasicConstraints,    x509_object_get_basic_constraints,      METH_NOARGS),
+  Define_Method(setBasicConstraints,    x509_object_set_basic_constraints,      METH_VARARGS),
   {NULL}
 };
 
@@ -2386,7 +2466,7 @@ static PyTypeObject x509type = {
 
 /*========== X509 Code ==========*/
 
-/*========== x509 store Code ==========*/
+/*========== X509 Store Code ==========*/
 
 static PyObject *
 x509_store_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -2657,9 +2737,9 @@ static PyTypeObject x509_storetype = {
   x509_store_object_new,                    /* tp_new */
 };
 
-/*========== x509 store Code ==========*/
+/*========== X509 Store Code ==========*/
 
-/*========== x509 crl Code ==========*/
+/*========== X509 CRL Code ==========*/
 
 static PyObject *
 x509_crl_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -3094,29 +3174,25 @@ static char x509_crl_object_get_extension__doc__[] =
 static PyObject *
 x509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
 {
-  int ext_num = 0, ext_nid = 0;
-  char const *ext_ln = NULL;
-  char unknown_ext [] = "unknown";
   X509_EXTENSION *ext;
+  char oid[512];
+  int slot = 0;
 
-  if (!PyArg_ParseTuple(args, "i", &index))
+  if (!PyArg_ParseTuple(args, "i", &slot))
     goto error;
 
-  if ((ext = X509_CRL_get_ext(self->crl, ext_num)) == NULL)
+  if ((ext = X509_CRL_get_ext(self->crl, slot)) == NULL)
     lose_openssl_error("Couldn't get extension");
 
-  if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
-    lose("Extension has unknown object identifier");
+  if (OBJ_obj2txt(oid, sizeof(oid), ext->object, 1) <= 0)
+    lose_openssl_error("Couldn't translate OID");
 
-  if ((ext_ln = OBJ_nid2sn(ext_nid)) == NULL)
-    ext_ln = unknown_ext;
-
-  return Py_BuildValue("sNs#", ext_ln, PyBool_FromLong(ext->critical),
+  return Py_BuildValue("sNs#", oid,
+                       PyBool_FromLong(ext->critical),
                        ASN1_STRING_data(ext->value),
                        ASN1_STRING_length(ext->value));
 
  error:
-
   return NULL;
 }
 
@@ -3255,6 +3331,9 @@ static char x509_crl_object_pprint__doc__[] =
   "This method returns a pretty-printed rendition of the CRL.\n"
   ;
 
+#warning Need CRL AKI handlers
+#warning Need CRL CRLNumber handlers
+
 static PyObject *
 x509_crl_object_pprint(x509_crl_object *self)
 {
@@ -3350,9 +3429,9 @@ static PyTypeObject x509_crltype = {
   x509_crl_object_new,                   /* tp_new */
 };
 
-/*========== x509 crl Code ==========*/
+/*========== X509 CRL Code ==========*/
 
-/*========== asymmetric Object ==========*/
+/*========== Asymmetric Object ==========*/
 
 static PyObject *
 asymmetric_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)

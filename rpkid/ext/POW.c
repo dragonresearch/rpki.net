@@ -509,7 +509,9 @@ x509_object_helper_get_name(X509_NAME *name, int format)
     if (entry->set > set) {
 
       set++;
-      if ((item = Py_BuildValue("((ss#))", oid, entry->value->data, entry->value->length)) == NULL)
+      if ((item = Py_BuildValue("((ss#))", oid,
+                                ASN1_STRING_data(entry->value),
+                                ASN1_STRING_length(entry->value))) == NULL)
         goto error;
       PyTuple_SET_ITEM(result, set, item);
       item = NULL;
@@ -522,7 +524,9 @@ x509_object_helper_get_name(X509_NAME *name, int format)
       PyTuple_SET_ITEM(result, set, rdn);
       if (rdn == NULL)
         goto error;
-      if ((item = Py_BuildValue("(ss#)", oid, entry->value->data, entry->value->length)) == NULL)
+      if ((item = Py_BuildValue("(ss#)", oid,
+                                ASN1_STRING_data(entry->value),
+                                ASN1_STRING_length(entry->value))) == NULL)
         goto error;
       PyTuple_SetItem(rdn, PyTuple_Size(rdn) - 1, item);
       rdn = item = NULL;
@@ -1144,15 +1148,15 @@ x509_object_pem_read(BIO *in)
 }
 
 static x509_object *
-x509_object_der_read(unsigned char *src, int len)
+x509_object_der_read(BIO *bio)
 {
   x509_object *self;
 
   if ((self = (x509_object *) x509_object_new(&x509type, NULL, NULL)) == NULL)
     goto error;
 
-  if(!d2i_X509(&self->x509, (const unsigned char **) &src, len))
-    lose_openssl_error("Couldn't load PEM encoded certificate");
+  if(!d2i_X509_bio(bio, &self->x509))
+    lose_openssl_error("Couldn't load DER encoded certificate");
 
   return self;
 
@@ -1704,8 +1708,10 @@ x509_object_get_extension(x509_object *self, PyObject *args)
   if ((ext_ln = OBJ_nid2sn(ext_nid)) == NULL)
     ext_ln = unknown_ext;
 
-  return Py_BuildValue("sNs#", ext_ln, PyBool_FromLong(ext->critical),
-                       ext->value->data, ext->value->length);
+  return Py_BuildValue("sNs#", ext_ln,
+                       PyBool_FromLong(ext->critical),
+                       ASN1_STRING_data(ext->value),
+                       ASN1_STRING_length(ext->value));
 
  error:
 
@@ -1725,13 +1731,53 @@ x509_object_get_ski(x509_object *self, PyObject *args)
   if (self->x509->skid == NULL)
     Py_RETURN_NONE;
   else
-    return Py_BuildValue("s#", self->x509->skid->data, self->x509->skid->length);
+    return Py_BuildValue("s#",
+                         ASN1_STRING_data(self->x509->skid),
+                         ASN1_STRING_length(self->x509->skid));
+}
+
+static char x509_object_set_ski__doc__[] =
+  "This method sets the Subject Key Identifier (SKI) value for this\n"
+  "certificate.\n"
+  ;
+
+static PyObject *
+x509_object_set_ski(x509_object *self, PyObject *args)
+{
+  ASN1_OCTET_STRING *ext = NULL;
+  const unsigned char *buf = NULL;
+  int len, ok = 0;
+
+  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
+    goto error;
+
+  if ((ext = ASN1_OCTET_STRING_new()) == NULL ||
+      !ASN1_OCTET_STRING_set(ext, buf, len))
+    lose_no_memory();
+
+  /*
+   * RFC 5280 4.2.1.2 says this MUST be non-critical.
+   */
+
+  if (!X509_add1_ext_i2d(self->x509, NID_subject_key_identifier,
+                         ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add SKI extension to certificate");
+
+  ok = 1;
+
+ error:
+  ASN1_OCTET_STRING_free(ext);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
 }
 
 static char x509_object_get_aki__doc__[] =
   "This method returns the Authority Key Identifier (AKI) keyid value for\n"
   " this certificate, or None if the certificate has no AKI extension\n"
-  "or has an AKI extension with no keyid value.\n"
+  "or has an AKI extension with no keyIdentifier value.\n"
   ;
 
 static PyObject *
@@ -1742,9 +1788,49 @@ x509_object_get_aki(x509_object *self, PyObject *args)
   if (self->x509->akid == NULL || self->x509->akid->keyid == NULL)
     Py_RETURN_NONE;
   else
-    return Py_BuildValue("s#", self->x509->akid->keyid->data, self->x509->akid->keyid->length);
+    return Py_BuildValue("s#",
+                         ASN1_STRING_data(self->x509->akid->keyid),
+                         ASN1_STRING_length(self->x509->akid->keyid));
 }
 
+static char x509_object_set_aki__doc__[] =
+  "This method sets the Authority Key Identifier (AKI) value for this\n"
+  "certificate.   We only support the keyIdentifier method, as that's\n"
+  "the only form which is legal for RPKI certificates.\n"
+  ;
+
+static PyObject *
+x509_object_set_aki(x509_object *self, PyObject *args)
+{
+  AUTHORITY_KEYID *ext = NULL;
+  const unsigned char *buf = NULL;
+  int len, ok = 0;
+
+  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
+    goto error;
+
+  if ((ext->keyid == NULL && (ext->keyid = ASN1_OCTET_STRING_new()) == NULL) ||
+      !ASN1_OCTET_STRING_set(ext->keyid, buf, len))
+    lose_no_memory();
+
+  /*
+   * RFC 5280 4.2.1.1 says this MUST be non-critical.
+   */
+
+  if (!X509_add1_ext_i2d(self->x509, NID_authority_key_identifier,
+                         ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add AKI extension to certificate");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_KEYID_free(ext);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
 static char x509_object_get_key_usage__doc__[] =
   "This method returns a FrozenSet of strings representing the KeyUsage\n"
   "settings for this certificate, or None if the certificate has no\n"
@@ -1790,6 +1876,10 @@ static char x509_object_set_key_usage__doc__[] =
   "\n"
   "Argument \"iterable\" should be an iterable object which returns zero or more\n"
   "strings naming bits to be enabled.  The bits have the same names as in RFC 5280.\n"
+  "\n"
+  "Optional argument \"critical\" is a boolean indicating whether the extension\n"
+  "should be marked as critical or not.  RFC 5280 4.2.1.3 says this extension SHOULD\n"
+  "be marked as critical when used, so the default is True.\n"
   ;
 
 static PyObject *
@@ -1799,7 +1889,7 @@ x509_object_set_key_usage(x509_object *self, PyObject *args)
   BIT_STRING_BITNAME *bit_name;
   ASN1_BIT_STRING *ext = NULL;
   PyObject *iterable = NULL;
-  PyObject *critical = NULL;
+  PyObject *critical = Py_True;
   PyObject *iterator = NULL;
   PyObject *token = NULL;
   const char *t;
@@ -1832,7 +1922,7 @@ x509_object_set_key_usage(x509_object *self, PyObject *args)
   }
 
   if (!X509_add1_ext_i2d(self->x509, NID_key_usage, ext,
-                         (critical != NULL && PyObject_IsTrue(critical)),
+                         PyObject_IsTrue(critical),
                          X509V3_ADD_REPLACE))
     lose_openssl_error("Couldn't add KeyUsage extension to certificate");
 
@@ -2229,7 +2319,9 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(getExtension,   x509_object_get_extension,      METH_VARARGS),
   Define_Method(pprint,         x509_object_pprint,             METH_NOARGS),
   Define_Method(getSKI,         x509_object_get_ski,            METH_NOARGS),
+  Define_Method(setSKI,         x509_object_set_ski,            METH_VARARGS),
   Define_Method(getAKI,         x509_object_get_aki,            METH_NOARGS),
+  Define_Method(setAKI,         x509_object_set_aki,            METH_VARARGS),
   Define_Method(getKeyUsage,	x509_object_get_key_usage,	METH_NOARGS),
   Define_Method(setKeyUsage,	x509_object_set_key_usage,	METH_VARARGS),
   Define_Method(getRFC3779,	x509_object_get_rfc3779,	METH_NOARGS),
@@ -2476,7 +2568,7 @@ x509_store_object_add_trust(x509_store_object *self, PyObject *args)
 static char x509_store_object_add_crl__doc__[] =
   "This method adds a CRL to the store object.\n"
   "\n"
-  "The \"crl\" parameter should be an instance of X509Crl.\n"
+  "The \"crl\" parameter should be an instance of X509CRL.\n"
   ;
 
 #warning These badly capitalized class names are starting to bug me, clean them up
@@ -2604,14 +2696,14 @@ x509_crl_object_pem_read(BIO *in)
 }
 
 static x509_crl_object *
-x509_crl_object_der_read(unsigned char *src, int len)
+x509_crl_object_der_read(BIO *bio)
 {
   x509_crl_object *self;
 
   if ((self = (x509_crl_object *) x509_crl_object_new(&x509_crltype, NULL, NULL)) == NULL)
     goto error;
 
-  if (!d2i_X509_CRL(&self->crl, (const unsigned char **) &src, len))
+  if (!d2i_X509_CRL_bio(bio, &self->crl))
     lose_openssl_error("Couldn't load DER encoded CRL");
 
   return self;
@@ -3020,7 +3112,8 @@ x509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
     ext_ln = unknown_ext;
 
   return Py_BuildValue("sNs#", ext_ln, PyBool_FromLong(ext->critical),
-                       ext->value->data, ext->value->length);
+                       ASN1_STRING_data(ext->value),
+                       ASN1_STRING_length(ext->value));
 
  error:
 
@@ -3218,7 +3311,7 @@ static char x509_crltype__doc__[] =
 static PyTypeObject x509_crltype = {
   PyObject_HEAD_INIT(0)
   0,                                     /* ob_size */
-  "POW.X509Crl",                         /* tp_name */
+  "POW.X509CRL",                         /* tp_name */
   sizeof(x509_crl_object),               /* tp_basicsize */
   0,                                     /* tp_itemsize */
   (destructor)x509_crl_object_dealloc,   /* tp_dealloc */
@@ -3346,7 +3439,7 @@ asymmetric_object_pem_read(int key_type, BIO *in, char *pass)
 }
 
 static asymmetric_object *
-asymmetric_object_der_read(int key_type, unsigned char *src, int len)
+asymmetric_object_der_read(BIO *bio, int key_type)
 {
   asymmetric_object *self = NULL;
 
@@ -3354,28 +3447,23 @@ asymmetric_object_der_read(int key_type, unsigned char *src, int len)
     goto error;
 
   switch (key_type) {
+
   case RSA_PUBLIC_KEY:
-
-    if ((self->cipher = d2i_RSA_PUBKEY(NULL, (const unsigned char **) &src, len)) == NULL)
+    if ((self->cipher = d2i_RSA_PUBKEY_bio(bio, NULL)) == NULL)
       lose_openssl_error("Couldn't load public key");
-
-    self->key_type = RSA_PUBLIC_KEY;
-    self->cipher_type = RSA_CIPHER;
     break;
 
   case RSA_PRIVATE_KEY:
-
-    if ((self->cipher = d2i_RSAPrivateKey(NULL, (const unsigned char **) &src, len)) == NULL)
+    if ((self->cipher = d2i_RSAPrivateKey_bio(bio, NULL)) == NULL)
       lose_openssl_error("Couldn't load private key");
-
-    self->key_type = RSA_PRIVATE_KEY;
-    self->cipher_type = RSA_CIPHER;
     break;
 
   default:
     lose("Unknown key type");
   }
 
+  self->key_type = key_type;
+  self->cipher_type = RSA_CIPHER;
   return self;
 
  error:
@@ -3884,27 +3972,22 @@ cms_object_pem_read(BIO *in)
 }
 
 static cms_object *
-cms_object_der_read(char *src, int len)
+cms_object_der_read(BIO *bio)
 {
   cms_object *self;
-  BIO *bio = NULL;
 
   if ((self = (cms_object *) cms_object_new(&cmstype, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->cms = CMS_ContentInfo_new()) == NULL ||
-      (bio = BIO_new_mem_buf(src, len)) == NULL)
+  if ((self->cms = CMS_ContentInfo_new()) == NULL)
     lose_no_memory();
 
   if (!d2i_CMS_bio(bio, &self->cms))
     lose_openssl_error("Couldn't load DER encoded CMS message");
 
-  BIO_free(bio);
-
   return self;
 
  error:
-  BIO_free(bio);
   Py_XDECREF(self);
   return NULL;
 }
@@ -4466,7 +4549,7 @@ static char pow_module_pem_read__doc__[] =
   "         and the PEM file is encrypted the user will be prompted.  If this is\n"
   "         not desirable, always supply a password.  The object returned will be\n"
   "         and instance of <classname>Asymmetric</classname>,\n"
-  "         <classname>X509</classname>, <classname>X509Crl</classname>,\n"
+  "         <classname>X509</classname>, <classname>X509CRL</classname>,\n"
   "         or <classname>CMS</classname>.\n"
   "      </para>\n"
   "   </body>\n"
@@ -4476,7 +4559,7 @@ static char pow_module_pem_read__doc__[] =
 static PyObject *
 pow_module_pem_read (PyObject *self, PyObject *args)
 {
-  BIO *in = NULL;
+  BIO *bio = NULL;
   PyObject *obj = NULL;
   int object_type = 0, len = 0;
   char *pass = NULL, *src = NULL;
@@ -4484,40 +4567,36 @@ pow_module_pem_read (PyObject *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "is#|s", &object_type, &src, &len, &pass))
     goto error;
 
-  if ((in = BIO_new_mem_buf(src, len)) == NULL)
+  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
     lose_no_memory();
 
   switch(object_type) {
   case RSA_PRIVATE_KEY:
-    obj = (PyObject *) asymmetric_object_pem_read(object_type, in, pass);
+    obj = (PyObject *) asymmetric_object_pem_read(object_type, bio, pass);
     break;
   case RSA_PUBLIC_KEY:
-    obj = (PyObject *) asymmetric_object_pem_read(object_type, in, pass);
+    obj = (PyObject *) asymmetric_object_pem_read(object_type, bio, pass);
     break;
   case X509_CERTIFICATE:
-    obj = (PyObject *) x509_object_pem_read(in);
+    obj = (PyObject *) x509_object_pem_read(bio);
     break;
   case X_X509_CRL:
-    obj = (PyObject *) x509_crl_object_pem_read(in);
+    obj = (PyObject *) x509_crl_object_pem_read(bio);
     break;
   case CMS_MESSAGE:
-    obj = (PyObject *) cms_object_pem_read(in);
+    obj = (PyObject *) cms_object_pem_read(bio);
     break;
   default:
     lose("Unknown PEM encoding");
   }
 
-  BIO_free(in);
-
-  if (obj)
-    return obj;
-
  error:
-
-  return NULL;
+  BIO_free(bio);
+  return obj;
 }
 
-static char pow_module_der_read__doc__[] =
+static
+ char pow_module_der_read__doc__[] =
   "This function should be replaced by class methods for the several\n"
   "kinds of objects this function currently returns.\n"
   "\n"
@@ -4545,7 +4624,7 @@ static char pow_module_der_read__doc__[] =
   "      <para>\n"
   "         As with the PEM operations, the object returned will be and instance\n"
   "         of <classname>Asymmetric</classname>, <classname>X509</classname>,\n"
-  "         <classname>X509Crl</classname>, or <classname>CMS</classname>.\n"
+  "         <classname>X509CRL</classname>, or <classname>CMS</classname>.\n"
   "      </para>\n"
   "   </body>\n"
   "</modulefunction>\n"
@@ -4554,6 +4633,7 @@ static char pow_module_der_read__doc__[] =
 static PyObject *
 pow_module_der_read (PyObject *self, PyObject *args)
 {
+  BIO *bio = NULL;
   PyObject *obj = NULL;
   int object_type = 0, len = 0;
   unsigned char *src = NULL;
@@ -4561,32 +4641,32 @@ pow_module_der_read (PyObject *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "is#", &object_type, &src, &len))
     goto error;
 
+  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
+    lose_no_memory();
+
   switch(object_type) {
   case RSA_PRIVATE_KEY:
-    obj = (PyObject *) asymmetric_object_der_read(object_type, src, len);
+    obj = (PyObject *) asymmetric_object_der_read(bio, object_type);
     break;
   case RSA_PUBLIC_KEY:
-    obj = (PyObject *) asymmetric_object_der_read(object_type, src, len);
+    obj = (PyObject *) asymmetric_object_der_read(bio, object_type);
     break;
   case X509_CERTIFICATE:
-    obj = (PyObject *) x509_object_der_read(src, len);
+    obj = (PyObject *) x509_object_der_read(bio);
     break;
   case X_X509_CRL:
-    obj = (PyObject *) x509_crl_object_der_read(src, len);
+    obj = (PyObject *) x509_crl_object_der_read(bio);
     break;
   case CMS_MESSAGE:
-    obj = (PyObject *) cms_object_der_read((char *) src, len);
+    obj = (PyObject *) cms_object_der_read(bio);
     break;
   default:
     lose("Unknown DER encoding");
   }
 
-  if (obj)
-    return obj;
-
  error:
-
-  return NULL;
+  BIO_free(bio);
+  return obj;
 }
 
 static char pow_module_add_object__doc__[] =

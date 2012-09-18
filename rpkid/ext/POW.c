@@ -3267,8 +3267,6 @@ static char x509_store_object_add_crl__doc__[] =
   "The \"crl\" parameter should be an instance of X509CRL.\n"
   ;
 
-#warning These badly capitalized class names are starting to bug me, clean them up
-
 static PyObject *
 x509_store_object_add_crl(x509_store_object *self, PyObject *args)
 {
@@ -3943,12 +3941,119 @@ x509_crl_object_der_write(x509_crl_object *self)
   return x509_crl_object_write_helper(self, DER_FORMAT);
 }
 
+static char x509_crl_object_get_aki__doc__[] =
+  "This method returns the Authority Key Identifier (AKI) keyid value for\n"
+  "this CRL, or None if the CRL has no AKI extension\n"
+  "or has an AKI extension with no keyIdentifier value.\n"
+  ;
+
+static PyObject *
+x509_crl_object_get_aki(x509_crl_object *self, PyObject *args)
+{
+  AUTHORITY_KEYID *ext = X509_CRL_get_ext_d2i(self->crl, NID_authority_key_identifier, NULL, NULL);
+  int empty = (ext == NULL || ext->keyid == NULL);
+  PyObject *result = NULL;
+
+  if (!empty)
+    result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid), ASN1_STRING_length(ext->keyid));    
+
+  AUTHORITY_KEYID_free(ext);
+
+  if (empty)
+    Py_RETURN_NONE;
+  else
+    return result;
+}
+
+static char x509_crl_object_set_aki__doc__[] =
+  "This method sets the Authority Key Identifier (AKI) value for this\n"
+  "CRL.   We only support the keyIdentifier method, as that's\n"
+  "the only form which is legal for RPKI certificates.\n"
+  ;
+
+static PyObject *
+x509_crl_object_set_aki(x509_crl_object *self, PyObject *args)
+{
+  AUTHORITY_KEYID *ext = NULL;
+  const unsigned char *buf = NULL;
+  int len, ok = 0;
+
+  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
+    goto error;
+
+  if ((ext = AUTHORITY_KEYID_new()) == NULL ||
+      (ext->keyid = ASN1_OCTET_STRING_new()) == NULL ||
+      !ASN1_OCTET_STRING_set(ext->keyid, buf, len))
+    lose_no_memory();
+
+  if (!X509_CRL_add1_ext_i2d(self->crl, NID_authority_key_identifier,
+                             ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add AKI extension to CRL");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_KEYID_free(ext);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char x509_crl_object_get_crl_number__doc__[] =
+  "This method get the CRL Number extension value from this CRL.\n"
+  ;
+
+static PyObject *
+x509_crl_object_get_crl_number(x509_crl_object *self)
+{
+  ASN1_INTEGER *ext = X509_CRL_get_ext_d2i(self->crl, NID_crl_number, NULL, NULL);
+  PyObject *result = NULL;
+
+  if (ext == NULL)
+    Py_RETURN_NONE;
+
+  result = Py_BuildValue("l", ASN1_INTEGER_get(ext));
+  ASN1_INTEGER_free(ext);
+  return result;
+}
+
+#warning Fix uses of ASN1_INTEGER_get or of ASN1_INTEGER_set for serial numbers or CRL numbers, sigh
+
+static char x509_crl_object_set_crl_number__doc__[] =
+  "This method sets the CRL Number extension value in this CRL.\n"
+  "\n"
+  "The \"number\" parameter should ba an integer.\n"
+  ;
+
+static PyObject *
+x509_crl_object_set_crl_number(x509_crl_object *self, PyObject *args)
+{
+  ASN1_INTEGER *ext = NULL;
+  long crl_number = 0;
+
+  if (!PyArg_ParseTuple(args, "l", &crl_number))
+    goto error;
+
+  if ((ext = ASN1_INTEGER_new()) == NULL ||
+      !ASN1_INTEGER_set(ext, crl_number))
+    lose_no_memory();
+
+  if (!X509_CRL_add1_ext_i2d(self->crl, NID_crl_number, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add CRL Number extension to CRL");
+
+  ASN1_INTEGER_free(ext);
+  Py_RETURN_NONE;
+
+ error:
+  ASN1_INTEGER_free(ext);
+  return NULL;
+}
+
 static char x509_crl_object_pprint__doc__[] =
   "This method returns a pretty-printed rendition of the CRL.\n"
   ;
-
-#warning Need CRL AKI handlers
-#warning Need CRL CRLNumber handlers
 
 static PyObject *
 x509_crl_object_pprint(x509_crl_object *self)
@@ -3989,6 +4094,10 @@ static struct PyMethodDef x509_crl_object_methods[] = {
   Define_Method(pemWrite,       x509_crl_object_pem_write,              METH_NOARGS),
   Define_Method(derWrite,       x509_crl_object_der_write,              METH_NOARGS),
   Define_Method(pprint,         x509_crl_object_pprint,                 METH_NOARGS),
+  Define_Method(getAKI,         x509_crl_object_get_aki,                METH_NOARGS),
+  Define_Method(setAKI,         x509_crl_object_set_aki,                METH_VARARGS),
+  Define_Method(getCRLNumber,   x509_crl_object_get_crl_number,         METH_NOARGS),
+  Define_Method(setCRLNumber,   x509_crl_object_set_crl_number,         METH_VARARGS),
   {NULL}
 };
 

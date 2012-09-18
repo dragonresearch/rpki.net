@@ -200,15 +200,16 @@ static int NID_signedObject;
 static const struct {
   int *nid;
   const char *oid;
-  const char *name;
+  const char *sn;
+  const char *ln;
 } missing_nids[] = {
 
 #ifndef NID_rpkiManifest
-  {&NID_rpkiManifest, "1.3.6.1.5.5.7.48.10", "id-ad-rpkiManifest"},
+  {&NID_rpkiManifest, "1.3.6.1.5.5.7.48.10", "id-ad-rpkiManifest", "RPKI Manifest"},
 #endif
 
 #ifndef NID_signedObject
-  {&NID_signedObject, "1.3.6.1.5.5.7.48.9", "id-ad-signedObjectRepository"}
+  {&NID_signedObject, "1.3.6.1.5.5.7.48.9", "id-ad-signedObjectRepository", "Signed Object"}
 #endif
 
 };
@@ -782,8 +783,8 @@ create_missing_nids(void)
   for (i = 0; i < sizeof(missing_nids) / sizeof(*missing_nids); i++)
     if ((*missing_nids[i].nid = OBJ_txt2nid(missing_nids[i].oid)) == NID_undef &&
         (*missing_nids[i].nid = OBJ_create(missing_nids[i].oid,
-                                           missing_nids[i].name,
-                                           missing_nids[i].name)) == NID_undef)
+                                           missing_nids[i].sn,
+                                           missing_nids[i].ln)) == NID_undef)
       return 0;
 
   return 1;
@@ -2404,7 +2405,7 @@ x509_object_set_basic_constraints(x509_object *self, PyObject *args)
 
 static char x509_object_get_sia__doc__[] =
   "Get SIA values for this certificate.  If the certificate\n"
-  "has no BasicConstraints extension, this method returns None.\n"
+  "has no SIA extension, this method returns None.\n"
   "Otherwise, it returns a tuple containing three sequences:\n"
   "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
   "Any other accessMethods are ignored, as are any non-URI\n"
@@ -2592,7 +2593,128 @@ x509_object_set_sia(x509_object *self, PyObject *args)
     return NULL;
 }
 
-#warning Need AIA handlers
+static char x509_object_get_aia__doc__[] =
+  "Get AIA values for this certificate.  If the certificate\n"
+  "has no AIA extension, this method returns None.\n"
+  "Otherwise, it returns a sequence of caIssuers URIs.\n"
+  "Any other accessMethods are ignored, as are any non-URI\n"
+  "accessLocations.\n"
+  ;
+
+static PyObject *
+x509_object_get_aia(x509_object *self)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *result = NULL;
+  const char *uri;
+  PyObject *obj;
+  int i, nid, n = 0;
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_info_access, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type == GEN_URI &&
+        OBJ_obj2nid(a->method) == NID_ad_ca_issuers)
+      n++;
+  }
+
+  if (((result = PyTuple_New(n)) == NULL))
+    goto error;
+
+  n = 0;
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type == GEN_URI && OBJ_obj2nid(a->method) == NID_ad_ca_issuers) {
+      uri = ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result, n++, obj);
+    }
+  }
+
+  AUTHORITY_INFO_ACCESS_free(ext);
+  return result;
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+static char x509_object_set_aia__doc__[] =
+  "Set AIA values for this certificate.  Argument is a iterable\n"
+  "which returns caIssuers URIs.\n"
+  ;
+
+static PyObject *
+x509_object_set_aia(x509_object *self, PyObject *args)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *caIssuers = NULL;
+  PyObject *iterator = NULL;
+  ASN1_OBJECT *oid = NULL;
+  PyObject *item = NULL;
+  ACCESS_DESCRIPTION *a;
+  int i, ok = 0;
+  size_t urilen;
+  char *uri;
+
+  if (!PyArg_ParseTuple(args, "O", &caIssuers))
+    goto error;
+
+  if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
+    lose_no_memory();
+
+  if ((oid = OBJ_nid2obj(NID_ad_ca_issuers)) == NULL)
+    lose_openssl_error("Couldn't find AIA accessMethod OID");
+
+  if ((iterator = PyObject_GetIter(caIssuers)) == NULL)
+    goto error;
+
+  while ((item = PyIter_Next(iterator)) != NULL) {
+
+    if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
+      goto error;
+
+    if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
+        (a->method = OBJ_dup(oid)) == NULL ||
+        (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
+        !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, uri, urilen))
+      lose_no_memory();
+
+    a->location->type = GEN_URI;
+
+    if (!sk_ACCESS_DESCRIPTION_push(ext, a))
+      lose_no_memory();
+
+    a = NULL;
+    Py_XDECREF(item);
+    item = NULL;
+  }
+
+  Py_XDECREF(iterator);
+  iterator = NULL;
+
+  if (!X509_add1_ext_i2d(self->x509, NID_info_access, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add AIA extension to certificate");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  ACCESS_DESCRIPTION_free(a);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
 #warning Need CRLDP handlers
 #warning Need Certificate Policies handlers
 #warning Want EKU handlers eventually
@@ -2654,6 +2776,8 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(setBasicConstraints,    x509_object_set_basic_constraints,      METH_VARARGS),
   Define_Method(getSIA,			x509_object_get_sia,                    METH_NOARGS),
   Define_Method(setSIA,			x509_object_set_sia,                    METH_VARARGS),
+  Define_Method(getAIA,			x509_object_get_aia,                    METH_NOARGS),
+  Define_Method(setAIA,			x509_object_set_aia,                    METH_VARARGS),
   {NULL}
 };
 

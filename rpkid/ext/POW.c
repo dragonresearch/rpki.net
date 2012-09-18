@@ -2848,8 +2848,116 @@ x509_object_set_crldp(x509_object *self, PyObject *args)
     return NULL;
 }
 
-#warning Need Certificate Policies handlers
-#warning Want EKU handlers eventually
+static char x509_object_get_certificate_policies__doc__[] =
+  "Get Certificate Policies values for this certificate.  If the\n"
+  "certificate has no Certificate Policies extension, this method returns\n"
+  "None.  Otherwise, it returns a sequence of Object Identifiers.\n"
+  "Policy qualifiers, if any, are ignored.\n"
+  ;
+
+static PyObject *
+x509_object_get_certificate_policies(x509_object *self)
+{
+  CERTIFICATEPOLICIES *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *obj;
+  int i;
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_certificate_policies, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if (((result = PyTuple_New(sk_POLICYINFO_num(ext))) == NULL))
+    goto error;
+
+  for (i = 0; i < sk_POLICYINFO_num(ext); i++) {
+    POLICYINFO *p = sk_POLICYINFO_value(ext, i);
+    char oid[512];
+
+    if (OBJ_obj2txt(oid, sizeof(oid), p->policyid, 1) <= 0)
+      lose_openssl_error("Couldn't translate OID");
+
+    if ((obj = PyString_FromString(oid)) == NULL)
+      goto error;
+
+    PyTuple_SET_ITEM(result, i, obj);
+  }
+
+  sk_POLICYINFO_pop_free(ext, POLICYINFO_free);
+  return result;
+
+ error:
+  sk_POLICYINFO_pop_free(ext, POLICYINFO_free);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+static char x509_object_set_certificate_policies__doc__[] =
+  "Set Certificate Policies for this certificate.  Argument is a iterable\n"
+  "which returns policy OIDs.  Policy qualifier are not supported.\n"
+  ;
+
+static PyObject *
+x509_object_set_certificate_policies(x509_object *self, PyObject *args)
+{
+  CERTIFICATEPOLICIES *ext = NULL;
+  PyObject *policies = NULL;
+  PyObject *iterator = NULL;
+  POLICYINFO *pol = NULL;
+  PyObject *item = NULL;
+  const char *oid;
+  int ok = 0;
+
+  if (!PyArg_ParseTuple(args, "O", &policies))
+    goto error;
+
+  if ((ext = sk_POLICYINFO_new_null()) == NULL)
+    lose_no_memory();
+
+  if ((iterator = PyObject_GetIter(policies)) == NULL)
+    goto error;
+
+  while ((item = PyIter_Next(iterator)) != NULL) {
+
+    if ((oid = PyString_AsString(item)) == NULL)
+      goto error;
+
+    if ((pol = POLICYINFO_new()) == NULL)
+      lose_no_memory();
+
+    if ((pol->policyid = OBJ_txt2obj(oid, 1)) == NULL)
+      lose("Couldn't parse OID");
+
+    if (!sk_POLICYINFO_push(ext, pol))
+      lose_no_memory();
+
+    pol = NULL;
+    Py_XDECREF(item);
+    item = NULL;
+  }
+
+  Py_XDECREF(iterator);
+  iterator = NULL;
+
+  if (!X509_add1_ext_i2d(self->x509, NID_certificate_policies, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add CERTIFICATE_POLICIES extension to certificate");
+
+  ok = 1;
+
+ error:
+  POLICYINFO_free(pol);
+  sk_POLICYINFO_pop_free(ext, POLICYINFO_free);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+/*
+ * May want EKU handlers eventually, skip for now.
+ */
 
 static char x509_object_pprint__doc__[] =
   "This method returns a pretty-printed rendition of the certificate.\n"
@@ -2912,6 +3020,8 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(setAIA,			x509_object_set_aia,                    METH_VARARGS),
   Define_Method(getCRLDP,		x509_object_get_crldp,                  METH_NOARGS),
   Define_Method(setCRLDP,		x509_object_set_crldp,                  METH_VARARGS),
+  Define_Method(getCertificatePolicies, x509_object_get_certificate_policies,	METH_NOARGS),
+  Define_Method(setCertificatePolicies, x509_object_set_certificate_policies,	METH_VARARGS),
   {NULL}
 };
 
@@ -4712,7 +4822,7 @@ cms_object_sign(cms_object *self, PyObject *args)
 
   assert_no_unhandled_openssl_errors();
 
-  if (oid && (econtent_type = OBJ_txt2obj(oid, 0)) == NULL)
+  if (oid && (econtent_type = OBJ_txt2obj(oid, 1)) == NULL)
     lose_openssl_error("Couldn't parse OID");
 
   assert_no_unhandled_openssl_errors();

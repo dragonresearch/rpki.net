@@ -180,7 +180,41 @@ static char pow_module__doc__ [] =
   "obsolete due to recent or impending API changes.  Once the new API is\n" \
   "stable, this documentation should be rewritten to provide such examples.\n"
 
+/*
+ * Handle NIDs we wish OpenSSL knew about.  This is carefully (we
+ * hope) written to do nothing at all for any NID that OpenSSL knows
+ * about; the intent is just to add definitions for things OpenSSL
+ * doesn't know about yet.  Of necessity, this is a bit gross, since
+ * it confounds runtime static variables with predefined macro names,
+ * but we try to put all the magic associated with this in one place.
+ */
+
+#ifndef NID_rpkiManifest
+static int NID_rpkiManifest;
+#endif
+
+#ifndef NID_signedObject
+static int NID_signedObject;
+#endif
+
+static const struct {
+  int *nid;
+  const char *oid;
+  const char *name;
+} missing_nids[] = {
+
+#ifndef NID_rpkiManifest
+  {&NID_rpkiManifest, "1.3.6.1.5.5.7.48.10", "id-ad-rpkiManifest"},
+#endif
+
+#ifndef NID_signedObject
+  {&NID_signedObject, "1.3.6.1.5.5.7.48.9", "id-ad-signedObjectRepository"}
+#endif
+
+};
+
 /*========== Pre-definitions ==========*/
+
 static PyObject
   *ErrorObject,
   *OpenSSLErrorObject,
@@ -734,6 +768,25 @@ Python_Long_to_ASN1_INTEGER(PyObject *arg)
   Py_XDECREF(obj);
   ASN1_INTEGER_free(a);
   return NULL;
+}
+
+/*
+ * Handle missing NIDs.
+ */
+
+static int
+create_missing_nids(void)
+{
+  int i;
+
+  for (i = 0; i < sizeof(missing_nids) / sizeof(*missing_nids); i++)
+    if ((*missing_nids[i].nid = OBJ_txt2nid(missing_nids[i].oid)) == NID_undef &&
+        (*missing_nids[i].nid = OBJ_create(missing_nids[i].oid,
+                                           missing_nids[i].name,
+                                           missing_nids[i].name)) == NID_undef)
+      return 0;
+
+  return 1;
 }
 
 /*========== helper functions ==========*/
@@ -1831,7 +1884,7 @@ static char x509_object_get_key_usage__doc__[] =
   ;
 
 static PyObject *
-x509_object_get_key_usage(x509_object *self, PyObject *args)
+x509_object_get_key_usage(x509_object *self)
 {
   extern X509V3_EXT_METHOD v3_key_usage;
   BIT_STRING_BITNAME *bit_name;
@@ -2279,14 +2332,18 @@ static PyObject *
 x509_object_get_basic_constraints(x509_object *self)
 {
   BASIC_CONSTRAINTS *ext = NULL;
+  PyObject *result;
 
   if ((ext = X509_get_ext_d2i(self->x509, NID_basic_constraints, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   if (ext->pathlen == NULL)
-    return Py_BuildValue("(NO)", PyBool_FromLong(ext->ca), Py_None);
+    result = Py_BuildValue("(NO)", PyBool_FromLong(ext->ca), Py_None);
   else
-    return Py_BuildValue("(Nl)", PyBool_FromLong(ext->ca), ASN1_INTEGER_get(ext->pathlen));
+    result = Py_BuildValue("(Nl)", PyBool_FromLong(ext->ca), ASN1_INTEGER_get(ext->pathlen));
+
+  BASIC_CONSTRAINTS_free(ext);
+  return result;
 }
 
 static char x509_object_set_basic_constraints__doc__[] =
@@ -2345,7 +2402,196 @@ x509_object_set_basic_constraints(x509_object *self, PyObject *args)
     return NULL;
 }
 
-#warning Need SIA handlers
+static char x509_object_get_sia__doc__[] =
+  "Get SIA values for this certificate.  If the certificate\n"
+  "has no BasicConstraints extension, this method returns None.\n"
+  "Otherwise, it returns a tuple containing three sequences:\n"
+  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
+  "Any other accessMethods are ignored, as are any non-URI\n"
+  "accessLocations.\n"
+  ;
+
+static PyObject *
+x509_object_get_sia(x509_object *self)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *result_caRepository = NULL;
+  PyObject *result_rpkiManifest = NULL;
+  PyObject *result_signedObject = NULL;
+  int n_caRepository = 0;
+  int n_rpkiManifest = 0;
+  int n_signedObject = 0;
+  const char *uri;
+  PyObject *obj;
+  int i, nid;
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_sinfo_access, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  /*
+   * Easiest to do this in two passes, first pass just counts URIs.
+   */
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type != GEN_URI)
+      continue;
+    nid = OBJ_obj2nid(a->method);
+    if (nid == NID_caRepository) {
+      n_caRepository++;
+      continue;
+    }
+    if (nid == NID_rpkiManifest) {
+      n_rpkiManifest++;
+      continue;
+    }
+    if (nid == NID_signedObject) {
+      n_signedObject++;
+      continue;
+    }
+  }
+
+  if (((result_caRepository = PyTuple_New(n_caRepository)) == NULL) ||
+      ((result_rpkiManifest = PyTuple_New(n_rpkiManifest)) == NULL) ||
+      ((result_signedObject = PyTuple_New(n_signedObject)) == NULL))
+    goto error;
+
+  n_caRepository = n_rpkiManifest = n_signedObject = 0;
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type != GEN_URI)
+      continue;
+    nid = OBJ_obj2nid(a->method);
+    uri = ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+    if (nid == NID_caRepository) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_caRepository, n_caRepository++, obj);
+      continue;
+    }
+    if (nid == NID_rpkiManifest) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_rpkiManifest, n_rpkiManifest++, obj);
+      continue;
+    }
+    if (nid == NID_signedObject) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_signedObject, n_signedObject++, obj);
+      continue;
+    }
+  }
+
+  result = Py_BuildValue("(OOO)",
+                         result_caRepository,
+                         result_rpkiManifest,
+                         result_signedObject);
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  Py_XDECREF(result_caRepository);
+  Py_XDECREF(result_rpkiManifest);
+  Py_XDECREF(result_signedObject);
+  return result;
+}
+
+static char x509_object_set_sia__doc__[] =
+  "Set SIA values for this certificate.  Takes three arguments:\n"
+  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
+  "Each of these should be an iterable which returns URIs.\n"
+  "None is acceptable as an alternate way of specifying an empty\n"
+  "sequence of URIs for a particular argument.\n"
+  ;
+
+static PyObject *
+x509_object_set_sia(x509_object *self, PyObject *args)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *caRepository = NULL;
+  PyObject *rpkiManifest = NULL;
+  PyObject *signedObject = NULL;
+  PyObject *iterator = NULL;
+  ASN1_OBJECT *oid = NULL;
+  PyObject **pobj = NULL;
+  PyObject *item = NULL;
+  ACCESS_DESCRIPTION *a;
+  int i, nid, ok = 0;
+  size_t urilen;
+  char *uri;
+
+  if (!PyArg_ParseTuple(args, "OOO", &caRepository, &rpkiManifest, &signedObject))
+    goto error;
+
+  if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
+    lose_no_memory();
+
+  /*
+   * This is going to want refactoring, because it's ugly, because we
+   * want to reuse code for AIA, and because it'd be nice to support a
+   * single URI as an abbreviation for a sequence containing one URI.
+   */
+
+  for (i = 0; i < 3; i++) {
+    switch (i) {
+    case 0: pobj = &caRepository; nid = NID_caRepository; break;
+    case 1: pobj = &rpkiManifest; nid = NID_rpkiManifest; break;
+    case 2: pobj = &signedObject; nid = NID_signedObject; break;
+    }
+
+    if (*pobj == Py_None)
+      continue;
+
+    if ((oid = OBJ_nid2obj(nid)) == NULL)
+      lose_openssl_error("Couldn't find SIA accessMethod OID");
+
+    if ((iterator = PyObject_GetIter(*pobj)) == NULL)
+      goto error;
+
+    while ((item = PyIter_Next(iterator)) != NULL) {
+
+      if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
+        goto error;
+
+      if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
+          (a->method = OBJ_dup(oid)) == NULL ||
+          (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
+          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, uri, urilen))
+        lose_no_memory();
+
+      a->location->type = GEN_URI;
+
+      if (!sk_ACCESS_DESCRIPTION_push(ext, a))
+        lose_no_memory();
+
+      a = NULL;
+      Py_XDECREF(item);
+      item = NULL;
+    }
+
+    Py_XDECREF(iterator);
+    iterator = NULL;
+  }
+
+  if (!X509_add1_ext_i2d(self->x509, NID_sinfo_access, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add SIA extension to certificate");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  ACCESS_DESCRIPTION_free(a);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
 #warning Need AIA handlers
 #warning Need CRLDP handlers
 #warning Need Certificate Policies handlers
@@ -2406,6 +2652,8 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(setRFC3779,             x509_object_set_rfc3779,                METH_KEYWORDS),
   Define_Method(getBasicConstraints,    x509_object_get_basic_constraints,      METH_NOARGS),
   Define_Method(setBasicConstraints,    x509_object_set_basic_constraints,      METH_VARARGS),
+  Define_Method(getSIA,			x509_object_get_sia,                    METH_NOARGS),
+  Define_Method(setSIA,			x509_object_set_sia,                    METH_VARARGS),
   {NULL}
 };
 
@@ -4933,6 +5181,7 @@ void
 init_POW(void)
 {
   PyObject *m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
+  int OpenSSL_ok = 1;
 
 #define Define_Class(__type__)                                          \
   do {                                                                  \
@@ -5033,7 +5282,9 @@ init_POW(void)
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  if (PyErr_Occurred())
+  OpenSSL_ok &= create_missing_nids();
+
+  if (PyErr_Occurred() || !OpenSSL_ok)
     Py_FatalError("Can't initialize module POW");
 }
 

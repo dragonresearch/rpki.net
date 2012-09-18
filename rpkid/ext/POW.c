@@ -2715,7 +2715,139 @@ x509_object_set_aia(x509_object *self, PyObject *args)
     return NULL;
 }
 
-#warning Need CRLDP handlers
+static char x509_object_get_crldp__doc__[] =
+  "Get CRL Distribution Point (CRLDP) values for this certificate.\n"
+  "If the certificate has no CRLDP extension, this method returns None.\n"
+  "Otherwise, it returns a sequence of URIs representing distributionPoint\n"
+  "fullName values found in the first Distribution Point.  Other CRLDP\n"
+  "fields are ignored, as are subsequent Distribution Points and any non-URI\n"
+  "fullName values.\n"
+  ;
+
+static PyObject *
+x509_object_get_crldp(x509_object *self)
+{
+  CRL_DIST_POINTS *ext = NULL;
+  DIST_POINT *dp = NULL;
+  PyObject *result = NULL;
+  const char *uri;
+  PyObject *obj;
+  int i, nid, n = 0;
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_crl_distribution_points, NULL, NULL)) == NULL ||
+      (dp = sk_DIST_POINT_value(ext, 0)) == NULL ||
+      dp->distpoint == NULL ||
+      dp->distpoint->type != 0)
+    Py_RETURN_NONE;
+
+  for (i = 0; i < sk_GENERAL_NAME_num(dp->distpoint->name.fullname); i++) {
+    GENERAL_NAME *gn = sk_GENERAL_NAME_value(dp->distpoint->name.fullname, i);
+    if (gn->type == GEN_URI)
+      n++;
+  }
+
+  if (((result = PyTuple_New(n)) == NULL))
+    goto error;
+
+  n = 0;
+
+  for (i = 0; i < sk_GENERAL_NAME_num(dp->distpoint->name.fullname); i++) {
+    GENERAL_NAME *gn = sk_GENERAL_NAME_value(dp->distpoint->name.fullname, i);
+    if (gn->type == GEN_URI) {
+      uri = ASN1_STRING_data(gn->d.uniformResourceIdentifier);
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result, n++, obj);
+    }
+  }
+
+  sk_DIST_POINT_pop_free(ext, DIST_POINT_free);
+  return result;
+
+ error:
+  sk_DIST_POINT_pop_free(ext, DIST_POINT_free);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+static char x509_object_set_crldp__doc__[] =
+  "Set CRLDP values for this certificate.  Argument is a iterable\n"
+  "which returns distributionPoint fullName URIs.\n"
+  ;
+
+static PyObject *
+x509_object_set_crldp(x509_object *self, PyObject *args)
+{
+  CRL_DIST_POINTS *ext = NULL;
+  PyObject *fullNames = NULL;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  DIST_POINT *dp = NULL;
+  GENERAL_NAME *gn;
+  size_t urilen;
+  char *uri;
+  int ok = 0;
+
+  if (!PyArg_ParseTuple(args, "O", &fullNames))
+    goto error;
+
+  if ((ext = sk_DIST_POINT_new_null()) == NULL ||
+      (dp = DIST_POINT_new()) == NULL ||
+      (dp->distpoint = DIST_POINT_NAME_new()) == NULL ||
+      (dp->distpoint->name.fullname = sk_GENERAL_NAME_new_null()) == NULL)
+    lose_no_memory();
+
+  dp->distpoint->type = 0;
+
+  if ((iterator = PyObject_GetIter(fullNames)) == NULL)
+    goto error;
+
+  while ((item = PyIter_Next(iterator)) != NULL) {
+
+    if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
+      goto error;
+
+    if ((gn = GENERAL_NAME_new()) == NULL ||
+        (gn->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
+        !ASN1_OCTET_STRING_set(gn->d.uniformResourceIdentifier, uri, urilen))
+      lose_no_memory();
+
+    gn->type = GEN_URI;
+
+    if (!sk_GENERAL_NAME_push(dp->distpoint->name.fullname, gn))
+      lose_no_memory();
+
+    gn = NULL;
+    Py_XDECREF(item);
+    item = NULL;
+  }
+
+  Py_XDECREF(iterator);
+  iterator = NULL;
+
+  if (!sk_DIST_POINT_push(ext, dp))
+    lose_no_memory();
+
+  dp = NULL;
+
+  if (!X509_add1_ext_i2d(self->x509, NID_crl_distribution_points, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add CRLDP extension to certificate");
+
+  ok = 1;
+
+ error:
+  sk_DIST_POINT_pop_free(ext, DIST_POINT_free);
+  DIST_POINT_free(dp);  
+  GENERAL_NAME_free(gn);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
 #warning Need Certificate Policies handlers
 #warning Want EKU handlers eventually
 
@@ -2778,6 +2910,8 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(setSIA,			x509_object_set_sia,                    METH_VARARGS),
   Define_Method(getAIA,			x509_object_get_aia,                    METH_NOARGS),
   Define_Method(setAIA,			x509_object_set_aia,                    METH_VARARGS),
+  Define_Method(getCRLDP,		x509_object_get_crldp,                  METH_NOARGS),
+  Define_Method(setCRLDP,		x509_object_set_crldp,                  METH_VARARGS),
   {NULL}
 };
 

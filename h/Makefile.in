@@ -1,0 +1,26 @@
+# $Id$
+
+GEN = rpki/sk_manifest.h rpki/sk_roa.h
+
+PYTHON = @PYTHON@
+
+abs_top_srcdir = @abs_top_srcdir@
+
+all: ${GEN}
+
+rpki/sk_manifest.h: rpki/manifest.h
+	${PYTHON} ${abs_top_srcdir}/buildtools/defstack.py rpki/manifest.h >$@.tmp
+	mv $@.tmp $@
+
+rpki/sk_roa.h: rpki/roa.h
+	${PYTHON} ${abs_top_srcdir}/buildtools/defstack.py rpki/roa.h >$@.tmp
+	mv $@.tmp $@
+
+clean:
+	rm -f ${GEN} *.h.tmp
+
+test install deinstall uninstall:
+	@true
+
+distclean: clean
+	rm -f Makefile

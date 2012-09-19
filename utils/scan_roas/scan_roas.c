@@ -56,6 +56,8 @@
 #include <openssl/asn1t.h>
 #include <openssl/cms.h>
 
+#include <rpki/roa.h>
+
 /*
  * How much buffer space do we need for a raw address?
  */
@@ -65,102 +67,6 @@
  * How long can a filesystem path be?
  */
 #define	PATH_MAX		2048
-
-
-
-/*
- * ASN.1 templates.  Not sure that ASN1_EXP_OPT() is the right macro
- * for these defaulted "version" fields, but it's what the examples
- * for this construction use.  Probably doesn't matter since this
- * program only decodes manifests, never encodes them.
- */
-
-typedef struct ROAIPAddress_st {
-  ASN1_BIT_STRING *IPAddress;
-  ASN1_INTEGER *maxLength;
-} ROAIPAddress;
-
-DECLARE_STACK_OF(ROAIPAddress)
-
-ASN1_SEQUENCE(ROAIPAddress) = {
-  ASN1_SIMPLE(ROAIPAddress, IPAddress, ASN1_BIT_STRING),
-  ASN1_OPT(ROAIPAddress, maxLength, ASN1_INTEGER)
-} ASN1_SEQUENCE_END(ROAIPAddress)
-
-typedef struct ROAIPAddressFamily_st {
-  ASN1_OCTET_STRING *addressFamily;
-  STACK_OF(ROAIPAddress) *addresses;
-} ROAIPAddressFamily;
-
-DECLARE_STACK_OF(ROAIPAddressFamily)
-
-ASN1_SEQUENCE(ROAIPAddressFamily) = {
-  ASN1_SIMPLE(ROAIPAddressFamily, addressFamily, ASN1_OCTET_STRING),
-  ASN1_SEQUENCE_OF(ROAIPAddressFamily, addresses, ROAIPAddress)
-} ASN1_SEQUENCE_END(ROAIPAddressFamily)
-
-typedef struct ROA_st {
-  ASN1_INTEGER *version, *asID;
-  STACK_OF(ROAIPAddressFamily) *ipAddrBlocks;
-} ROA;
-
-ASN1_SEQUENCE(ROA) = {
-  ASN1_EXP_OPT(ROA, version, ASN1_INTEGER, 0),
-  ASN1_SIMPLE(ROA, asID, ASN1_INTEGER),
-  ASN1_SEQUENCE_OF(ROA, ipAddrBlocks, ROAIPAddressFamily)
-} ASN1_SEQUENCE_END(ROA)
-
-DECLARE_ASN1_FUNCTIONS(ROAIPAddress)
-DECLARE_ASN1_FUNCTIONS(ROAIPAddressFamily)
-DECLARE_ASN1_FUNCTIONS(ROA)
-
-IMPLEMENT_ASN1_FUNCTIONS(ROAIPAddress)
-IMPLEMENT_ASN1_FUNCTIONS(ROAIPAddressFamily)
-IMPLEMENT_ASN1_FUNCTIONS(ROA)
-
-#define sk_ROAIPAddress_new(st)				SKM_sk_new(ROAIPAddress, (st))
-#define sk_ROAIPAddress_new_null()			SKM_sk_new_null(ROAIPAddress)
-#define sk_ROAIPAddress_free(st)			SKM_sk_free(ROAIPAddress, (st))
-#define sk_ROAIPAddress_num(st)				SKM_sk_num(ROAIPAddress, (st))
-#define sk_ROAIPAddress_value(st, i)			SKM_sk_value(ROAIPAddress, (st), (i))
-#define sk_ROAIPAddress_set(st, i, val)			SKM_sk_set(ROAIPAddress, (st), (i), (val))
-#define sk_ROAIPAddress_zero(st)			SKM_sk_zero(ROAIPAddress, (st))
-#define sk_ROAIPAddress_push(st, val)			SKM_sk_push(ROAIPAddress, (st), (val))
-#define sk_ROAIPAddress_unshift(st, val)		SKM_sk_unshift(ROAIPAddress, (st), (val))
-#define sk_ROAIPAddress_find(st, val)			SKM_sk_find(ROAIPAddress, (st), (val))
-#define sk_ROAIPAddress_find_ex(st, val)		SKM_sk_find_ex(ROAIPAddress, (st), (val))
-#define sk_ROAIPAddress_delete(st, i)			SKM_sk_delete(ROAIPAddress, (st), (i))
-#define sk_ROAIPAddress_delete_ptr(st, ptr)		SKM_sk_delete_ptr(ROAIPAddress, (st), (ptr))
-#define sk_ROAIPAddress_insert(st, val, i)		SKM_sk_insert(ROAIPAddress, (st), (val), (i))
-#define sk_ROAIPAddress_set_cmp_func(st, cmp)		SKM_sk_set_cmp_func(ROAIPAddress, (st), (cmp))
-#define sk_ROAIPAddress_dup(st)				SKM_sk_dup(ROAIPAddress, st)
-#define sk_ROAIPAddress_pop_free(st, free_func)		SKM_sk_pop_free(ROAIPAddress, (st), (free_func))
-#define sk_ROAIPAddress_shift(st)			SKM_sk_shift(ROAIPAddress, (st))
-#define sk_ROAIPAddress_pop(st)				SKM_sk_pop(ROAIPAddress, (st))
-#define sk_ROAIPAddress_sort(st)			SKM_sk_sort(ROAIPAddress, (st))
-#define sk_ROAIPAddress_is_sorted(st)			SKM_sk_is_sorted(ROAIPAddress, (st))
-
-#define sk_ROAIPAddressFamily_new(st)			SKM_sk_new(ROAIPAddressFamily, (st))
-#define sk_ROAIPAddressFamily_new_null()		SKM_sk_new_null(ROAIPAddressFamily)
-#define sk_ROAIPAddressFamily_free(st)			SKM_sk_free(ROAIPAddressFamily, (st))
-#define sk_ROAIPAddressFamily_num(st)			SKM_sk_num(ROAIPAddressFamily, (st))
-#define sk_ROAIPAddressFamily_value(st, i)		SKM_sk_value(ROAIPAddressFamily, (st), (i))
-#define sk_ROAIPAddressFamily_set(st, i, val)		SKM_sk_set(ROAIPAddressFamily, (st), (i), (val))
-#define sk_ROAIPAddressFamily_zero(st)			SKM_sk_zero(ROAIPAddressFamily, (st))
-#define sk_ROAIPAddressFamily_push(st, val)		SKM_sk_push(ROAIPAddressFamily, (st), (val))
-#define sk_ROAIPAddressFamily_unshift(st, val)		SKM_sk_unshift(ROAIPAddressFamily, (st), (val))
-#define sk_ROAIPAddressFamily_find(st, val)		SKM_sk_find(ROAIPAddressFamily, (st), (val))
-#define sk_ROAIPAddressFamily_find_ex(st, val)		SKM_sk_find_ex(ROAIPAddressFamily, (st), (val))
-#define sk_ROAIPAddressFamily_delete(st, i)		SKM_sk_delete(ROAIPAddressFamily, (st), (i))
-#define sk_ROAIPAddressFamily_delete_ptr(st, ptr)	SKM_sk_delete_ptr(ROAIPAddressFamily, (st), (ptr))
-#define sk_ROAIPAddressFamily_insert(st, val, i)	SKM_sk_insert(ROAIPAddressFamily, (st), (val), (i))
-#define sk_ROAIPAddressFamily_set_cmp_func(st, cmp)	SKM_sk_set_cmp_func(ROAIPAddressFamily, (st), (cmp))
-#define sk_ROAIPAddressFamily_dup(st)			SKM_sk_dup(ROAIPAddressFamily, st)
-#define sk_ROAIPAddressFamily_pop_free(st, free_func)	SKM_sk_pop_free(ROAIPAddressFamily, (st), (free_func))
-#define sk_ROAIPAddressFamily_shift(st)			SKM_sk_shift(ROAIPAddressFamily, (st))
-#define sk_ROAIPAddressFamily_pop(st)			SKM_sk_pop(ROAIPAddressFamily, (st))
-#define sk_ROAIPAddressFamily_sort(st)			SKM_sk_sort(ROAIPAddressFamily, (st))
-#define sk_ROAIPAddressFamily_is_sorted(st)		SKM_sk_is_sorted(ROAIPAddressFamily, (st))
 
 
 

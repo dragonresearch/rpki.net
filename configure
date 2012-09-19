@@ -4425,13 +4425,13 @@ fi
 
 				TOP_LEVEL_SUBDIRS=""
 test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
-				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
+				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS h rcynic utils"
 test $build_ca_tools = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
 test $build_rpki_rtr = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rtr-origin"
 
 
 
-ac_config_files="$ac_config_files Makefile rcynic/Makefile rcynic/static-rsync/Makefile utils/Makefile utils/find_roa/Makefile utils/hashdir/Makefile utils/print_rpki_manifest/Makefile utils/print_roa/Makefile utils/scan_roas/Makefile utils/uri/Makefile"
+ac_config_files="$ac_config_files Makefile h/Makefile rcynic/Makefile rcynic/static-rsync/Makefile utils/Makefile utils/find_roa/Makefile utils/hashdir/Makefile utils/print_rpki_manifest/Makefile utils/print_roa/Makefile utils/scan_roas/Makefile utils/uri/Makefile"
 
 
 case $host_os in
@@ -4572,6 +4572,13 @@ then
 	ac_config_files="$ac_config_files rtr-origin/Makefile"
 
 fi
+
+# Now that we're finally done with all the conditional changes to
+# CFLAGS, add a search directive for our own header directory.  If we
+# ever get to the point of having our own library directory, we'd add
+# it here too, but for the moment our shared C code is all in .h files.
+
+CFLAGS="$CFLAGS -I\${abs_top_srcdir}/h"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -5280,6 +5287,7 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+    "h/Makefile") CONFIG_FILES="$CONFIG_FILES h/Makefile" ;;
     "rcynic/Makefile") CONFIG_FILES="$CONFIG_FILES rcynic/Makefile" ;;
     "rcynic/static-rsync/Makefile") CONFIG_FILES="$CONFIG_FILES rcynic/static-rsync/Makefile" ;;
     "utils/Makefile") CONFIG_FILES="$CONFIG_FILES utils/Makefile" ;;

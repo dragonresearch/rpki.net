@@ -77,10 +77,12 @@
 #include <openssl/asn1t.h>
 #include <openssl/cms.h>
 
+#include <rpki/roa.h>
+#include <rpki/manifest.h>
+
 #include "bio_f_linebreak.h"
 
 #include "defstack.h"
-#include "defasn1.h"
 
 /*
  * Whether to run the old slow STACK-based validation_status lookup in

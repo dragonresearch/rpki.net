@@ -120,9 +120,9 @@
 #define RAW_IPADDR_BUFLEN    16
 
 /*
- * Maximum size of a raw autonomous system number, in bytes.
+ * Maximum size of an ASN.1 Integer converted from a Python Long, in bytes.
  */
-#define	RAW_ASNUMBER_BUFLEN   4
+#define	MAX_ASN1_INTEGER_LEN	20
 
 /* PEM encoded data types */
 #define RSA_PUBLIC_KEY        1
@@ -778,41 +778,99 @@ read_from_file_helper(PyObject *(*object_read_helper)(PyTypeObject *, BIO *),
   Define_Method(__python_name__, __c_name__, (__flags__) | METH_CLASS)
 
 /*
+ * Convert an ASN1_INTEGER into a Python integer or long.
+ */
+static PyObject *
+ASN1_INTEGER_to_PyLong(ASN1_INTEGER *arg)
+{
+  PyObject *result = NULL;
+  PyObject *obj = NULL;
+
+  if ((obj = _PyLong_FromByteArray(ASN1_STRING_data(arg),
+                                   ASN1_STRING_length(arg),
+                                   0, 0)) != NULL)
+    result = PyNumber_Int(obj);
+
+  Py_XDECREF(obj);
+  return result;
+}
+
+/*
  * Convert a Python long to an ASN1_INTEGER.
- * Do not read after eating.
+ * This is just nasty, do not read on a full stomach.
+ *
+ * Maximum size of integer to be converted here is taken from RFC 5280
+ * 4.1.2.2, which sets a maximum of 20 octets for an X.509 certificate
+ * serial number.
+ *
+ * In theory we could use _PyLong_NumBits() to determine the length of
+ * the long before converting, and raise OverflowError if it's too big.
+ * Hmm.
  */
 static ASN1_INTEGER *
-Python_Long_to_ASN1_INTEGER(PyObject *arg)
+PyLong_to_ASN1_INTEGER(PyObject *arg)
 {
   PyObject *obj = NULL;
   ASN1_INTEGER *a = NULL;
-  unsigned char buf[RAW_ASNUMBER_BUFLEN];
-  unsigned char *b = buf;
+  unsigned char buf[MAX_ASN1_INTEGER_LEN];
   size_t len;
 
   memset(buf, 0, sizeof(buf));
 
+  /*
+   * Make sure argument is a PyLong small enough that its length (in
+   * bits!)  doesn't overflow a size_t (which is a mis-use of size_t,
+   * but take that up with whoever wrote _PyLong_NumBits()...).
+   */
   if ((obj = PyNumber_Long(arg)) == NULL ||
-      _PyLong_AsByteArray((PyLongObject *) obj, buf, sizeof(buf), 0, 0) < 0)
+      (len = _PyLong_NumBits(obj)) == (size_t) -1)
     goto error;
 
+  /*
+   * Next make sure it's a non-negative integer small enough to fit in
+   * our buffer.  If we really thought we needed to support larger
+   * integers we could allocate this dynamically, but we don't, so
+   * it's not worth the overhead.
+   *
+   * Paranoia: We can't convert len to bytes yet, because that
+   * requires rounding up and we don't know yet that we have enough
+   * headroom to do that arithmetic without overflowing a size_t.
+   */
+  if (_PyLong_Sign(obj) < 0 || (len / 8) + 1 > sizeof(buf)) {
+    PyErr_SetObject(PyExc_OverflowError, obj);
+    goto error;
+  }
+
+  /*
+   * Now that we know we're dealing with a sane number of bits,
+   * convert it to bytes.
+   */
+  len = (len + 7) / 8;
+
+  /*
+   * Extract that many bytes.
+   */
+  if (_PyLong_AsByteArray((PyLongObject *) obj, buf, len, 0, 0) < 0)
+    goto error;
+
+  /*
+   * We're done with the PyLong now.
+   */
   Py_XDECREF(obj);
   obj = NULL;
 
-  while (b < buf + sizeof(buf) - 1 && *b == 0)
-    b++;
-  len = buf + sizeof(buf) - b;
+  /*
+   * Generate the ASN1_INTEGER and return it.
+   */
 
   if ((a = ASN1_INTEGER_new()) == NULL ||
-      (a->length < len + 1 &&
-       (a->data = OPENSSL_realloc(a->data, len + 1)) == NULL))
+      (a->length < len + 1 && (a->data = OPENSSL_realloc(a->data, len + 1)) == NULL))
     lose_no_memory();
 
   a->type = V_ASN1_INTEGER;
   a->length = len;
   a->data[len] = 0;
-
-  memcpy(a->data, b, len);
+  memcpy(a->data, buf, len);
 
   return a;
 
@@ -1481,7 +1539,7 @@ static char x509_object_get_serial__doc__[] =
 static PyObject *
 x509_object_get_serial(x509_object *self)
 {
-  return Py_BuildValue("l", ASN1_INTEGER_get(X509_get_serialNumber(self->x509)));
+  return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(X509_get_serialNumber(self->x509)));
 }
 
 static char x509_object_set_serial__doc__[] =
@@ -1492,16 +1550,12 @@ static char x509_object_set_serial__doc__[] =
 static PyObject *
 x509_object_set_serial(x509_object *self, PyObject *args)
 {
-  long c_serial = 0;
   ASN1_INTEGER *a_serial = NULL;
+  PyObject *p_serial = NULL;
 
-  if (!PyArg_ParseTuple(args, "l", &c_serial))
+  if (!PyArg_ParseTuple(args, "O", &p_serial) ||
+      (a_serial = PyLong_to_ASN1_INTEGER(p_serial)) == NULL)
     goto error;
-
-  if ((a_serial = ASN1_INTEGER_new()) == NULL ||
-      !ASN1_INTEGER_set(a_serial, c_serial) ||
-      !X509_set_serialNumber(self->x509, a_serial))
-    lose_no_memory();
 
   ASN1_INTEGER_free(a_serial);
   Py_RETURN_NONE;
@@ -2129,12 +2183,8 @@ x509_object_get_rfc3779(x509_object *self)
             ASN1_STRING_type(e) == V_ASN1_NEG_INTEGER)
           lose_type_error("I don't believe in negative ASNs");
 
-        if ((range_b = _PyLong_FromByteArray(ASN1_STRING_data(b),
-                                             ASN1_STRING_length(b),
-                                             0, 0)) == NULL ||
-            (range_e = _PyLong_FromByteArray(ASN1_STRING_data(e),
-                                             ASN1_STRING_length(e),
-                                             0, 0)) == NULL ||
+        if ((range_b = ASN1_INTEGER_to_PyLong(b)) == NULL ||
+            (range_e = ASN1_INTEGER_to_PyLong(e)) == NULL ||
             (range = Py_BuildValue("(NN)", range_b, range_e)) == NULL)
           goto error;
 
@@ -2289,12 +2339,12 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
       while ((item = PyIter_Next(iterator)) != NULL) {
 
         if (!PyArg_ParseTuple(item, "OO", &range_b, &range_e) ||
-            (asid_b = Python_Long_to_ASN1_INTEGER(range_b)) == NULL)
+            (asid_b = PyLong_to_ASN1_INTEGER(range_b)) == NULL)
           goto error;
 
         switch (PyObject_RichCompareBool(range_b, range_e, Py_EQ)) {
         case 0:
-          if ((asid_e = Python_Long_to_ASN1_INTEGER(range_e)) == NULL)
+          if ((asid_e = PyLong_to_ASN1_INTEGER(range_e)) == NULL)
             goto error;
           break;
         case 1:
@@ -3732,11 +3782,11 @@ x509_crl_object_add_revocations(x509_crl_object *self, PyObject *args)
   PyObject *iterable = NULL;
   PyObject *iterator = NULL;
   PyObject *item = NULL;
+  PyObject *p_serial = NULL;
   X509_REVOKED *revoked = NULL;
   ASN1_INTEGER *a_serial = NULL;
   ASN1_TIME *a_date = NULL;
   int ok = 0;
-  long c_serial;
   char *c_date;
 
   if (!PyArg_ParseTuple(args, "O", &iterable) ||
@@ -3745,30 +3795,30 @@ x509_crl_object_add_revocations(x509_crl_object *self, PyObject *args)
 
   while ((item = PyIter_Next(iterator)) != NULL) {
 
-    if (!PyArg_ParseTuple(item, "ls", &c_serial, &c_date))
+    if (!PyArg_ParseTuple(item, "Os", &p_serial, &c_date) ||
+        (a_serial = PyLong_to_ASN1_INTEGER(p_serial)) == NULL)
       goto error;
 
-    if ((revoked = X509_REVOKED_new()) == NULL)
-      lose_no_memory();
-
-    if ((a_serial = ASN1_INTEGER_new()) == NULL ||
-        !ASN1_INTEGER_set(a_serial, c_serial) ||
+    if ((revoked = X509_REVOKED_new()) == NULL ||
         !X509_REVOKED_set_serialNumber(revoked, a_serial))
       lose_no_memory();
+
     ASN1_INTEGER_free(a_serial);
     a_serial = NULL;
 
     if ((a_date = Python_to_ASN1_TIME(c_date)) == NULL)
       lose("Couldn't convert revocationDate string");
+
     if (!X509_REVOKED_set_revocationDate(revoked, a_date))
       lose("Couldn't set revocationDate");
+
     ASN1_TIME_free(a_date);
     a_date = NULL;
 
     if (!X509_CRL_add0_revoked(self->crl, revoked))
       lose_no_memory();
-    revoked = NULL;
 
+    revoked = NULL;
     Py_XDECREF(item);
     item = NULL;
   }
@@ -3803,6 +3853,8 @@ x509_crl_object_get_revoked(x509_crl_object *self)
   X509_REVOKED *r = NULL;
   PyObject *result = NULL;
   PyObject *item = NULL;
+  PyObject *serial = NULL;
+  PyObject *date = NULL;
   int i;
 
   if ((revoked = X509_CRL_get_REVOKED(self->crl)) == NULL)
@@ -3814,13 +3866,13 @@ x509_crl_object_get_revoked(x509_crl_object *self)
   for (i = 0; i < sk_X509_REVOKED_num(revoked); i++) {
     r = sk_X509_REVOKED_value(revoked, i);
 
-    if ((item = Py_BuildValue("(lN)",
-                              ASN1_INTEGER_get(r->serialNumber), 
-                              ASN1_TIME_to_Python(r->revocationDate))) == NULL)
+    if ((serial = ASN1_INTEGER_to_PyLong(r->serialNumber)) == NULL ||
+        (date = ASN1_TIME_to_Python(r->revocationDate)) == NULL ||
+        (item = Py_BuildValue("(NN)", serial, date)) == NULL)
       goto error;
 
     PyTuple_SET_ITEM(result, i, item);
-    item = NULL;
+    item = serial = date = NULL;
   }
 
   return result;
@@ -3828,6 +3880,8 @@ x509_crl_object_get_revoked(x509_crl_object *self)
  error:
   Py_XDECREF(result);
   Py_XDECREF(item);
+  Py_XDECREF(serial);
+  Py_XDECREF(date);
   return NULL;
 }
 
@@ -4135,12 +4189,10 @@ x509_crl_object_get_crl_number(x509_crl_object *self)
   if (ext == NULL)
     Py_RETURN_NONE;
 
-  result = Py_BuildValue("l", ASN1_INTEGER_get(ext));
+  result = Py_BuildValue("N", ASN1_INTEGER_to_PyLong(ext));
   ASN1_INTEGER_free(ext);
   return result;
 }
-
-#warning Fix uses of ASN1_INTEGER_get or of ASN1_INTEGER_set for serial numbers or CRL numbers, sigh
 
 static char x509_crl_object_set_crl_number__doc__[] =
   "This method sets the CRL Number extension value in this CRL.\n"
@@ -4152,14 +4204,11 @@ static PyObject *
 x509_crl_object_set_crl_number(x509_crl_object *self, PyObject *args)
 {
   ASN1_INTEGER *ext = NULL;
-  long crl_number = 0;
+  PyObject *crl_number = NULL;
 
-  if (!PyArg_ParseTuple(args, "l", &crl_number))
+  if (!PyArg_ParseTuple(args, "O", &crl_number) ||
+      (ext = PyLong_to_ASN1_INTEGER(crl_number)) == NULL)
     goto error;
-
-  if ((ext = ASN1_INTEGER_new()) == NULL ||
-      !ASN1_INTEGER_set(ext, crl_number))
-    lose_no_memory();
 
   if (!X509_CRL_add1_ext_i2d(self->crl, NID_crl_number, ext, 0, X509V3_ADD_REPLACE))
     lose_openssl_error("Couldn't add CRL Number extension to CRL");

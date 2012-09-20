@@ -48,13 +48,13 @@ for line in subprocess.check_output(["find_roa"] + sys.argv[1:]).splitlines():
   del words[-1]
   print " ".join(words)
 
-  x = rpki.POW.derRead(rpki.POW.CMS_MESSAGE, open(fn, "rb").read()).certs()[0]
+  x = rpki.POW.CMS.derReadFile(fn).certs()[0]
   uri = get_aia(x)
   print x.getNotAfter(), filename_to_uri(fn)
 
   while uri:
     fn = uri_to_filename(uri)
-    x = rpki.POW.derRead(rpki.POW.X509_CERTIFICATE, open(fn, "rb").read())
+    x = rpki.POW.X509.derReadFile(fn)
     print x.getNotAfter(), uri
     uri = get_aia(x)
 

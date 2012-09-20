@@ -131,10 +131,10 @@ class POWCryptoDriver(CryptoDriver):
       return key.verify(signature, self._digest(oid, plaintext), self.OID2driver[oid])
 
    def toPublicDER(self, key):
-      return key.derWrite(POW.RSA_PUBLIC_KEY)
+      return key.derWritePublic()
 
    def fromPublicDER(self, der):
-      return POW.derRead(POW.RSA_PUBLIC_KEY, der)
+      return POW.Asymmetric.derReadPublic(der)
 
 _cryptoDriver = None                    # Don't touch this directly
 

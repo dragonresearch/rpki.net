@@ -56,7 +56,7 @@ if argv or source_name is None or destination_name is None:
   usage(ok = False)
 
 def pprint_cert(b64):
-  return rpki.POW.derRead(rpki.POW.X509_CERTIFICATE, base64.b64decode(b64)).pprint()
+  return rpki.POW.X509.derRead(base64.b64decode(b64)).pprint()
   
 def up_down():
   msg["X-RPKI-Up-Down-Type"] = xml.get("type")
@@ -101,7 +101,7 @@ try:
       continue
     assert not srcmsg.is_multipart() and srcmsg.get_content_type() == "application/x-rpki"
     payload = srcmsg.get_payload(decode = True)
-    cms = rpki.POW.derRead(rpki.POW.CMS_MESSAGE, payload)
+    cms = rpki.POW.CMS.derRead(payload)
     txt = cms.verify(rpki.POW.X509Store(), None, rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY | rpki.POW.CMS_NO_ATTR_VERIFY | rpki.POW.CMS_NO_CONTENT_VERIFY)
     xml = lxml.etree.fromstring(txt)
     tag = xml.tag

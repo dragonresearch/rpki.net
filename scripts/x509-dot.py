@@ -61,9 +61,9 @@ class x509(object):
     f.close()
 
     if "-----BEGIN" in text:
-      self.pow = rpki.POW.pemRead(rpki.POW.X509_CERTIFICATE, text)
+      self.pow = rpki.POW.X509.pemRead(text)
     else:
-      self.pow = rpki.POW.derRead(rpki.POW.X509_CERTIFICATE, text)
+      self.pow = rpki.POW.X509.derRead(text)
 
     self.extensions = dict((e[0], e[2]) for e in (self.pow.getExtension(i) for i in xrange(self.pow.countExtensions())))
 

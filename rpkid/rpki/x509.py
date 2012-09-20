@@ -554,7 +554,7 @@ class X509(DER_object):
     """
     self.check()
     if not self.POW:
-      self.POW = rpki.POW.derRead(rpki.POW.X509_CERTIFICATE, self.get_DER())
+      self.POW = rpki.POW.X509.derRead(self.get_DER())
     return self.POW
 
   def get_POWpkix(self):
@@ -988,10 +988,10 @@ class insecure_debug_only_rsa_key_generator(object):
   def __call__(self):
     k = str(self.keyno)
     try:
-      v = rpki.POW.derRead(rpki.POW.RSA_PRIVATE_KEY, self.db[k])
+      v = rpki.POW.Asymmetric.derReadPrivate(self.db[k])
     except KeyError:
       v = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, 2048)
-      self.db[k] = v.derWrite(rpki.POW.RSA_PRIVATE_KEY)
+      self.db[k] = v.derWritePrivate()
     self.keyno += 1
     return v
 
@@ -1011,7 +1011,7 @@ class RSA(DER_object):
     if self.DER:
       return self.DER
     if self.POW:
-      self.DER = self.POW.derWrite(rpki.POW.RSA_PRIVATE_KEY)
+      self.DER = self.POW.derWritePrivate()
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
@@ -1021,7 +1021,7 @@ class RSA(DER_object):
     """
     self.check()
     if not self.POW:
-      self.POW = rpki.POW.derRead(rpki.POW.RSA_PRIVATE_KEY, self.get_DER())
+      self.POW = rpki.POW.Asymmetric.derReadPrivate(self.get_DER())
     return self.POW
 
   @classmethod
@@ -1040,7 +1040,7 @@ class RSA(DER_object):
     """
     Get the DER encoding of the public key from this keypair.
     """
-    return self.get_POW().derWrite(rpki.POW.RSA_PUBLIC_KEY)
+    return self.get_POW().derWritePublic()
 
   def get_SKI(self):
     """
@@ -1070,7 +1070,7 @@ class RSApublic(DER_object):
     if self.DER:
       return self.DER
     if self.POW:
-      self.DER = self.POW.derWrite(rpki.POW.RSA_PUBLIC_KEY)
+      self.DER = self.POW.derWritePublic()
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
@@ -1080,7 +1080,7 @@ class RSApublic(DER_object):
     """
     self.check()
     if not self.POW:
-      self.POW = rpki.POW.derRead(rpki.POW.RSA_PUBLIC_KEY, self.get_DER())
+      self.POW = rpki.POW.Asymmetric.derReadPublic(self.get_DER())
     return self.POW
 
   def get_SKI(self):
@@ -1175,7 +1175,7 @@ class CMS_object(DER_object):
     """
     self.check()
     if not self.POW:
-      self.POW = rpki.POW.derRead(rpki.POW.CMS_MESSAGE, self.get_DER())
+      self.POW = rpki.POW.CMS.derRead(self.get_DER())
     return self.POW
 
   def get_content(self):
@@ -1724,7 +1724,7 @@ class CRL(DER_object):
     """
     self.check()
     if not self.POW:
-      self.POW = rpki.POW.derRead(rpki.POW.X509_CRL, self.get_DER())
+      self.POW = rpki.POW.CRL.derRead(self.get_DER())
     return self.POW
 
   def get_POWpkix(self):

@@ -88,7 +88,6 @@
  * defer until I decide whether we need to fix it, so just omit the
  * code for now.
  */
-
 #define	ENABLE_X509_CERTIFICATE_SIGNATURE_AND_VERIFICATION	0	
 
 #include <Python.h>
@@ -3402,7 +3401,7 @@ x509_store_object_add_trust(x509_store_object *self, PyObject *args)
 static char x509_store_object_add_crl__doc__[] =
   "This method adds a CRL to the store object.\n"
   "\n"
-  "The \"crl\" parameter should be an instance of X509CRL.\n"
+  "The \"crl\" parameter should be an instance of CRL.\n"
   ;
 
 static PyObject *
@@ -4289,7 +4288,7 @@ static char x509_crltype__doc__[] =
 static PyTypeObject x509_crltype = {
   PyObject_HEAD_INIT(0)
   0,                                     /* ob_size */
-  "POW.X509CRL",                         /* tp_name */
+  "POW.CRL",                             /* tp_name */
   sizeof(x509_crl_object),               /* tp_basicsize */
   0,                                     /* tp_itemsize */
   (destructor)x509_crl_object_dealloc,   /* tp_dealloc */
@@ -4583,66 +4582,36 @@ asymmetric_object_der_read_public_file(PyTypeObject *type, PyObject *args)
   return read_from_file_helper(asymmetric_object_der_read_public_helper, type, args);
 }
 
-static char asymmetric_object_pem_write__doc__[] =
-  "This method is used to write \"Asymmetric objects out as strings.\n"
+static char asymmetric_object_pem_write_private__doc__[] =
+  "This method writes an \"Asymmetric\" private key as a PEM string.\n"
   "\n"
-  "The \"keytype\" argument should be one of:\n"
-  "\n"
-  "  * RSA_PUBLIC_KEY\n"
-  "  * RSA_PRIVATE_KEY\n"
-  "\n"
-  "Private keys are often saved in encrypted files to offer extra\n"
-  "security above access control mechanisms.  If the keytype parameter is\n"
-  "RSA_PRIVATE_KEY, a \"passphrase\" parameter can also be specified, in\n"
-  "which case the private key will be encrypted with AES-256-CBC using\n"
-  "the given passphrase.\n"
+  "This method takes an optional parameter \"passphrase\" which, if\n"
+  "specified, will be used to encrypt the private key with AES-256-CBC.\n"
+  "If you don't specify a passphrase, the key will not be encrypted.\n"
   ;
 
-#warning This probably ought to be separate methods for private and public keys.
-
 static PyObject *
-asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
+asymmetric_object_pem_write_private(asymmetric_object *self, PyObject *args)
 {
   PyObject *result = NULL;
   char *passphrase = NULL;
   const EVP_CIPHER *evp_method = NULL;
-  int key_type = 0;
   BIO *bio = NULL;
 
-  if (!PyArg_ParseTuple(args, "|is", &key_type, &passphrase))
+  if (!PyArg_ParseTuple(args, "|s", &passphrase))
     goto error;
 
-  if (key_type == 0)
-    key_type = self->key_type;
+  if (self->key_type != RSA_PRIVATE_KEY)
+    lose("Sorry, this object is not a private key");
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
-  switch(key_type) {
+  if (passphrase)
+    evp_method = EVP_aes_256_cbc();
 
-  case RSA_PRIVATE_KEY:
-
-    if (passphrase)
-      evp_method = EVP_aes_256_cbc();
-
-    if (!PEM_write_bio_RSAPrivateKey(bio, self->cipher, evp_method, NULL, 0, NULL, passphrase))
-      lose_openssl_error("Unable to write key");
-
-    break;
-
-  case RSA_PUBLIC_KEY:
-
-    if (passphrase)
-      lose("Public keys should not encrypted");
-
-    if (!PEM_write_bio_RSA_PUBKEY(bio, self->cipher))
-      lose_openssl_error("Unable to write key");
-
-    break;
-
-  default:
-    lose("Unsupported key type");
-  }
+  if (!PEM_write_bio_RSAPrivateKey(bio, self->cipher, evp_method, NULL, 0, NULL, passphrase))
+    lose_openssl_error("Unable to write key");
 
   result = BIO_to_PyString_helper(bio);
 
@@ -4651,48 +4620,71 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
   return result;
 }
 
-static char asymmetric_object_der_write__doc__[] =
-  "This method is used to write Asymmetric objects out as strings.\n"
-  "\n"
-  "The \"keytype\" parameter should be one of:\n"
-  "\n"
-  "  * RSA_PUBLIC_KEY\n"
-  "  * RSA_PRIVATE_KEY\n"
+static char asymmetric_object_pem_write_public__doc__[] =
+  "This method writes an \"Asymmetric\" public key as a PEM string.\n"
   ;
 
-#warning This also probably ought to be separate methods for private and public keys.
-
 static PyObject *
-asymmetric_object_der_write(asymmetric_object *self, PyObject *args)
+asymmetric_object_pem_write_public(asymmetric_object *self)
 {
   PyObject *result = NULL;
+  const EVP_CIPHER *evp_method = NULL;
   BIO *bio = NULL;
-  int key_type = 0;
-
-  if (!PyArg_ParseTuple(args, "|i", &key_type))
-    goto error;
-
-  if (key_type == 0)
-    key_type = self->key_type;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
-  switch (key_type) {
+  if (!PEM_write_bio_RSA_PUBKEY(bio, self->cipher))
+    lose_openssl_error("Unable to write key");
 
-  case RSA_PRIVATE_KEY:
-    if (!i2d_RSAPrivateKey_bio(bio, self->cipher))
-      lose_openssl_error("Unable to write private key");
-    break;
+  result = BIO_to_PyString_helper(bio);
 
-  case RSA_PUBLIC_KEY:
-    if (!i2d_RSA_PUBKEY_bio(bio, self->cipher))
-      lose_openssl_error("Unable to write public key");
-    break;
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
 
-  default:
-    lose("Unsupported key type");
-  }
+static char asymmetric_object_der_write_private__doc__[] =
+  "This method writes an \"Asymmetric\" private key as a DER string.\n"
+  ;
+
+static PyObject *
+asymmetric_object_der_write_private(asymmetric_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if (self->key_type != RSA_PRIVATE_KEY)
+    lose("Sorry, this object is not an RSA private key");
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_RSAPrivateKey_bio(bio, self->cipher))
+    lose_openssl_error("Unable to write private key");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char asymmetric_object_der_write_public__doc__[] =
+  "This method writes an \"Asymmetric\" public key as a DER string.\n"
+  ;
+
+static PyObject *
+asymmetric_object_der_write_public(asymmetric_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_RSA_PUBKEY_bio(bio, self->cipher))
+    lose_openssl_error("Unable to write public key");
 
   result = BIO_to_PyString_helper(bio);
 
@@ -4790,10 +4782,12 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
 }
 
 static struct PyMethodDef asymmetric_object_methods[] = {
-  Define_Method(pemWrite,       asymmetric_object_pem_write,            METH_VARARGS),
-  Define_Method(derWrite,       asymmetric_object_der_write,            METH_VARARGS),
-  Define_Method(sign,           asymmetric_object_sign,                 METH_VARARGS),
-  Define_Method(verify,         asymmetric_object_verify,               METH_VARARGS),
+  Define_Method(pemWritePrivate,          asymmetric_object_pem_write_private,		METH_VARARGS),
+  Define_Method(pemWritePublic,		  asymmetric_object_pem_write_public,		METH_NOARGS),
+  Define_Method(derWritePrivate,          asymmetric_object_der_write_private,		METH_NOARGS),
+  Define_Method(derWritePublic,		  asymmetric_object_der_write_public,		METH_NOARGS),
+  Define_Method(sign,                     asymmetric_object_sign,                       METH_VARARGS),
+  Define_Method(verify,                   asymmetric_object_verify,                     METH_VARARGS),
   Define_Class_Method(pemReadPublic,      asymmetric_object_pem_read_public,       	METH_VARARGS),
   Define_Class_Method(pemReadPublicFile,  asymmetric_object_pem_read_public_file,       METH_VARARGS),
   Define_Class_Method(derReadPublic,	  asymmetric_object_der_read_public,		METH_VARARGS),
@@ -5675,159 +5669,6 @@ static PyTypeObject cmstype = {
 
 /*========== module functions ==========*/
 
-static char pow_module_pem_read__doc__[] =
-  "This function should be replaced by class methods for the several\n"
-  "kinds of objects this function currently returns.\n"
-  "\n"
-  "For now, here is the old documentation for this function.\n"
-  "\n"
-  "<modulefunction>\n"
-  "   <header>\n"
-  "      <name>pemRead</name>\n"
-  "      <parameter>type</parameter>\n"
-  "      <parameter>string</parameter>\n"
-  "      <parameter>pass = None</parameter>\n"
-  "   </header>\n"
-  "   <body>\n"
-  "      <para>\n"
-  "         This function attempts to parse the <parameter>string</parameter> according to the PEM\n"
-  "         type passed. <parameter>type</parameter> should be one of the\n"
-  "         following:\n"
-  "      </para>\n"
-  "      <simplelist>\n"
-  "         <member><constant>RSA_PUBLIC_KEY</constant></member>\n"
-  "         <member><constant>RSA_PRIVATE_KEY</constant></member>\n"
-  "         <member><constant>X509_CERTIFICATE</constant></member>\n"
-  "         <member><constant>X509_CRL</constant></member>\n"
-  "         <member><constant>CMS_MESSAGE</constant></member>\n"
-  "      </simplelist>\n"
-  "      <para>\n"
-  "         <parameter>pass</parameter> should only be provided if an encrypted\n"
-  "         <classname>Asymmetric</classname> is being loaded.  If the password\n"
-  "         is incorrect an exception will be raised, if no password is provided\n"
-  "         and the PEM file is encrypted the user will be prompted.  If this is\n"
-  "         not desirable, always supply a password.  The object returned will be\n"
-  "         and instance of <classname>Asymmetric</classname>,\n"
-  "         <classname>X509</classname>, <classname>X509CRL</classname>,\n"
-  "         or <classname>CMS</classname>.\n"
-  "      </para>\n"
-  "   </body>\n"
-  "</modulefunction>\n"
-  ;
-
-static PyObject *
-pow_module_pem_read (PyObject *self, PyObject *args)
-{
-  BIO *bio = NULL;
-  PyObject *obj = NULL;
-  int object_type = 0, len = 0;
-  char *pass = NULL, *src = NULL;
-
-  if (!PyArg_ParseTuple(args, "is#|s", &object_type, &src, &len, &pass))
-    goto error;
-
-  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
-    lose_no_memory();
-
-  switch(object_type) {
-  case RSA_PRIVATE_KEY:
-    obj = asymmetric_object_pem_read_private_helper(&asymmetrictype, bio, pass);
-    break;
-  case RSA_PUBLIC_KEY:
-    obj = asymmetric_object_pem_read_public_helper(&asymmetrictype, bio);
-    break;
-  case X509_CERTIFICATE:
-    obj = x509_object_pem_read_helper(&x509type, bio);
-    break;
-  case X_X509_CRL:
-    obj = x509_crl_object_pem_read_helper(&x509_crltype, bio);
-    break;
-  case CMS_MESSAGE:
-    obj = cms_object_pem_read_helper(&cmstype, bio);
-    break;
-  default:
-    lose("Unknown PEM encoding");
-  }
-
- error:
-  BIO_free(bio);
-  return obj;
-}
-
-static
- char pow_module_der_read__doc__[] =
-  "This function should be replaced by class methods for the several\n"
-  "kinds of objects this function currently returns.\n"
-  "\n"
-  "For now, here is the old documentation for this function.\n"
-  "\n"
-  "<modulefunction>\n"
-  "   <header>\n"
-  "      <name>derRead</name>\n"
-  "      <parameter>type</parameter>\n"
-  "      <parameter>string</parameter>\n"
-  "   </header>\n"
-  "   <body>\n"
-  "      <para>\n"
-  "         This function attempts to parse the <parameter>string</parameter> according to the PEM\n"
-  "         type passed. <parameter>type</parameter> should be one of the\n"
-  "         following:\n"
-  "      </para>\n"
-  "      <simplelist>\n"
-  "         <member><constant>RSA_PUBLIC_KEY</constant></member>\n"
-  "         <member><constant>RSA_PRIVATE_KEY</constant></member>\n"
-  "         <member><constant>X509_CERTIFICATE</constant></member>\n"
-  "         <member><constant>X509_CRL</constant></member>\n"
-  "         <member><constant>CMS_MESSAGE</constant></member>\n"
-  "      </simplelist>\n"
-  "      <para>\n"
-  "         As with the PEM operations, the object returned will be and instance\n"
-  "         of <classname>Asymmetric</classname>, <classname>X509</classname>,\n"
-  "         <classname>X509CRL</classname>, or <classname>CMS</classname>.\n"
-  "      </para>\n"
-  "   </body>\n"
-  "</modulefunction>\n"
-  ;
-
-static PyObject *
-pow_module_der_read (PyObject *self, PyObject *args)
-{
-  BIO *bio = NULL;
-  PyObject *obj = NULL;
-  int object_type = 0, len = 0;
-  unsigned char *src = NULL;
-
-  if (!PyArg_ParseTuple(args, "is#", &object_type, &src, &len))
-    goto error;
-
-  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
-    lose_no_memory();
-
-  switch(object_type) {
-  case RSA_PRIVATE_KEY:
-    obj = asymmetric_object_der_read_private_helper(&asymmetrictype, bio);
-    break;
-  case RSA_PUBLIC_KEY:
-    obj = asymmetric_object_der_read_public_helper(&asymmetrictype, bio);
-    break;
-  case X509_CERTIFICATE:
-    obj = x509_object_der_read_helper(&x509type, bio);
-    break;
-  case X_X509_CRL:
-    obj = x509_crl_object_der_read_helper(&x509_crltype, bio);
-    break;
-  case CMS_MESSAGE:
-    obj = cms_object_der_read_helper(&cmstype, bio);
-    break;
-  default:
-    lose("Unknown DER encoding");
-  }
-
- error:
-  BIO_free(bio);
-  return obj;
-}
-
 static char pow_module_add_object__doc__[] =
   "This function dynamically adds new a new object identifier to OpenSSL's\n"
   "internal database.\n"
@@ -5993,8 +5834,6 @@ pow_module_read_random_file(PyObject *self, PyObject *args)
 }
 
 static struct PyMethodDef pow_module_methods[] = {
-  Define_Method(pemRead,        pow_module_pem_read,            METH_VARARGS),
-  Define_Method(derRead,        pow_module_der_read,            METH_VARARGS),
   Define_Method(getError,       pow_module_get_error,           METH_NOARGS),
   Define_Method(clearError,     pow_module_clear_error,         METH_NOARGS),
   Define_Method(seed,           pow_module_seed,                METH_VARARGS),

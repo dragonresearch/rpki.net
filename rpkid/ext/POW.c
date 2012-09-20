@@ -106,6 +106,9 @@
 #include <openssl/sha.h>
 #include <openssl/cms.h>
 
+#include <rpki/roa.h>
+#include <rpki/manifest.h>
+
 #include <time.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -719,12 +722,60 @@ BIO_to_PyString_helper(BIO *bio)
   return NULL;
 }
 
+static PyObject *
+read_from_string_helper(PyObject *(*object_read_helper)(PyTypeObject *, BIO *),
+                        PyTypeObject *type,
+                        PyObject *args)
+{
+  PyObject *result = NULL;
+  char *src = NULL;
+  BIO *bio = NULL;
+  int len = 0;
+
+  if (!PyArg_ParseTuple(args, "s#", &src, &len))
+    goto error;
+
+  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
+    lose_no_memory();
+
+  result = object_read_helper(type, bio);
+
+ error:
+  BIO_free(bio);
+  return result;
+}
+
+static PyObject *
+read_from_file_helper(PyObject *(*object_read_helper)(PyTypeObject *, BIO *),
+                      PyTypeObject *type,
+                      PyObject *args)
+{
+  const char *filename = NULL;
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if (!PyArg_ParseTuple(args, "s", &filename))
+    goto error;
+
+  if ((bio = BIO_new_file(filename, "rb")) == NULL)
+    lose_openssl_error("Could not open file");
+
+  result = object_read_helper(type, bio);
+
+ error:
+  BIO_free(bio);
+  return result;
+}
+
 /*
  * Simplify entries in method definition tables.  See the "Common
  * Object Structures" section of the API manual for available flags.
  */
 #define Define_Method(__python_name__, __c_name__, __flags__) \
   { #__python_name__, (PyCFunction) __c_name__, __flags__, __c_name__##__doc__ }
+
+#define Define_Class_Method(__python_name__, __c_name__, __flags__) \
+  Define_Method(__python_name__, __c_name__, (__flags__) | METH_CLASS)
 
 /*
  * Convert a Python long to an ASN1_INTEGER.
@@ -1180,12 +1231,12 @@ x509_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
-static x509_object *
-x509_object_pem_read(BIO *in)
+static PyObject *
+x509_object_pem_read_helper(PyTypeObject *type, BIO *in)
 {
   x509_object *self = NULL;
 
-  if ((self = (x509_object *) x509_object_new(&x509type, NULL, NULL)) == NULL)
+  if ((self = (x509_object *) x509_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
   X509_free(self->x509);
@@ -1193,26 +1244,7 @@ x509_object_pem_read(BIO *in)
   if ((self->x509 = PEM_read_bio_X509(in, NULL, NULL, NULL)) == NULL)
     lose_openssl_error("Couldn't load PEM encoded certificate");
 
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static x509_object *
-x509_object_der_read(BIO *bio)
-{
-  x509_object *self;
-
-  if ((self = (x509_object *) x509_object_new(&x509type, NULL, NULL)) == NULL)
-    goto error;
-
-  if(!d2i_X509_bio(bio, &self->x509))
-    lose_openssl_error("Couldn't load DER encoded certificate");
-
-  return self;
+  return (PyObject *) self;
 
  error:
 
@@ -1221,35 +1253,61 @@ x509_object_der_read(BIO *bio)
 }
 
 static PyObject *
-x509_object_write_helper(x509_object *self, int format)
+x509_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
-  PyObject *result = NULL;
-  BIO *bio = NULL;
+  x509_object *self;
 
-  if ((bio = BIO_new(BIO_s_mem())) == NULL)
-    lose_no_memory();
+  if ((self = (x509_object *) x509_object_new(type, NULL, NULL)) == NULL)
+    goto error;
 
-  switch (format) {
+  if(!d2i_X509_bio(bio, &self->x509))
+    lose_openssl_error("Couldn't load DER encoded certificate");
 
-  case DER_FORMAT:
-    if (!i2d_X509_bio(bio, self->x509))
-      lose_openssl_error("Unable to write certificate");
-    break;
+  return (PyObject *) self;
 
-  case PEM_FORMAT:
-    if (!PEM_write_bio_X509(bio, self->x509))
-      lose_openssl_error("Unable to write certificate");
-    break;
+ error:
+  Py_XDECREF(self);
+  return NULL;
+}
 
-  default:
-    lose("Internal error, unknown output format");
-  }
+static char x509_object_pem_read__doc__[] =
+  "Class method to read a PEM-encoded X.509 object from a string.\n"
+  ;
 
-  result = BIO_to_PyString_helper(bio);
+static PyObject *
+x509_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(x509_object_pem_read_helper, type, args);
+}
 
- error:                         /* Fall through */
-  BIO_free(bio);
-  return result;
+static char x509_object_pem_read_file__doc__[] =
+  "Class method to read a PEM-encoded X.509 object from a file.\n"
+  ;
+
+static PyObject *
+x509_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(x509_object_pem_read_helper, type, args);
+}
+
+static char x509_object_der_read__doc__[] =
+  "Class method to read a DER-encoded X.509 object from a string.\n"
+  ;
+
+static PyObject *
+x509_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(x509_object_der_read_helper, type, args);
+}
+
+static char x509_object_der_read_file__doc__[] =
+  "Class method to read a DER-encoded X.509 object from a file.\n"
+  ;
+
+static PyObject *
+x509_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(x509_object_der_read_helper, type, args);
 }
 
 static char x509_object_pem_write__doc__[] =
@@ -1259,7 +1317,20 @@ static char x509_object_pem_write__doc__[] =
 static PyObject *
 x509_object_pem_write(x509_object *self)
 {
-  return x509_object_write_helper(self, PEM_FORMAT);
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!PEM_write_bio_X509(bio, self->x509))
+    lose_openssl_error("Unable to write certificate");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
 }
 
 static char x509_object_der_write__doc__[] =
@@ -1269,7 +1340,20 @@ static char x509_object_der_write__doc__[] =
 static PyObject *
 x509_object_der_write(x509_object *self)
 {
-  return x509_object_write_helper(self, DER_FORMAT);
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_X509_bio(bio, self->x509))
+    lose_openssl_error("Unable to write certificate");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
 }
 
 /*
@@ -3022,6 +3106,10 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(setCRLDP,		x509_object_set_crldp,                  METH_VARARGS),
   Define_Method(getCertificatePolicies, x509_object_get_certificate_policies,	METH_NOARGS),
   Define_Method(setCertificatePolicies, x509_object_set_certificate_policies,	METH_VARARGS),
+  Define_Class_Method(pemRead,		x509_object_pem_read,	   		METH_VARARGS),
+  Define_Class_Method(pemReadFile,	x509_object_pem_read_file, 		METH_VARARGS),
+  Define_Class_Method(derRead,		x509_object_der_read,	   		METH_VARARGS),
+  Define_Class_Method(derReadFile,	x509_object_der_read_file, 		METH_VARARGS),
   {NULL}
 };
 
@@ -3368,12 +3456,12 @@ x509_crl_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
-static x509_crl_object *
-x509_crl_object_pem_read(BIO *in)
+static PyObject *
+x509_crl_object_pem_read_helper(PyTypeObject *type, BIO *in)
 {
   x509_crl_object *self;
 
-  if ((self = (x509_crl_object *) x509_crl_object_new(&x509_crltype, NULL, NULL)) == NULL)
+  if ((self = (x509_crl_object *) x509_crl_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
   X509_CRL_free(self->crl);
@@ -3381,31 +3469,69 @@ x509_crl_object_pem_read(BIO *in)
   if ((self->crl = PEM_read_bio_X509_CRL(in, NULL, NULL, NULL)) == NULL)
     lose_openssl_error("Couldn't PEM encoded load CRL");
 
-  return self;
+  return (PyObject *) self;
 
  error:
-
   Py_XDECREF(self);
   return NULL;
 }
 
-static x509_crl_object *
-x509_crl_object_der_read(BIO *bio)
+static PyObject *
+x509_crl_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   x509_crl_object *self;
 
-  if ((self = (x509_crl_object *) x509_crl_object_new(&x509_crltype, NULL, NULL)) == NULL)
+  if ((self = (x509_crl_object *) x509_crl_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
   if (!d2i_X509_CRL_bio(bio, &self->crl))
     lose_openssl_error("Couldn't load DER encoded CRL");
 
-  return self;
+  return (PyObject *) self;
 
  error:
-
   Py_XDECREF(self);
   return NULL;
+}
+
+static char x509_crl_object_pem_read__doc__[] =
+  "Class method to read a PEM-encoded CRL object from a string.\n"
+  ;
+
+static PyObject *
+x509_crl_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(x509_crl_object_pem_read_helper, type, args);
+}
+
+static char x509_crl_object_pem_read_file__doc__[] =
+  "Class method to read a PEM-encoded CRL object from a file.\n"
+  ;
+
+static PyObject *
+x509_crl_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(x509_crl_object_pem_read_helper, type, args);
+}
+
+static char x509_crl_object_der_read__doc__[] =
+  "Class method to read a DER-encoded CRL object from a string.\n"
+  ;
+
+static PyObject *
+x509_crl_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(x509_crl_object_der_read_helper, type, args);
+}
+
+static char x509_crl_object_der_read_file__doc__[] =
+  "Class method to read a DER-encoded CRL object from a file.\n"
+  ;
+
+static PyObject *
+x509_crl_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(x509_crl_object_der_read_helper, type, args);
 }
 
 static char x509_crl_object_get_version__doc__[] =
@@ -3890,37 +4016,6 @@ x509_crl_object_verify(x509_crl_object *self, PyObject *args)
   return NULL;
 }
 
-static PyObject *
-x509_crl_object_write_helper(x509_crl_object *self, int format)
-{
-  PyObject *result = NULL;
-  BIO *bio = NULL;
-
-  if ((bio = BIO_new(BIO_s_mem())) == NULL)
-    lose_no_memory();
-
-  switch (format) {
-
-  case DER_FORMAT:
-    if (!i2d_X509_CRL_bio(bio, self->crl))
-      lose_openssl_error("Unable to write CRL");
-    break;
-
-  case PEM_FORMAT:
-    if (!PEM_write_bio_X509_CRL(bio, self->crl))
-      lose_openssl_error("Unable to write CRL");
-
-  default:
-    lose("Internal error, unknown output format");
-  }
-
-  result = BIO_to_PyString_helper(bio);
-
- error:                         /* Fall through */
-  BIO_free(bio);
-  return result;
-}
-
 static char x509_crl_object_pem_write__doc__[] =
   "This method returns a PEM encoded CRL as a string.\n"
   ;
@@ -3928,7 +4023,20 @@ static char x509_crl_object_pem_write__doc__[] =
 static PyObject *
 x509_crl_object_pem_write(x509_crl_object *self)
 {
-  return x509_crl_object_write_helper(self, PEM_FORMAT);
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!PEM_write_bio_X509_CRL(bio, self->crl))
+    lose_openssl_error("Unable to write CRL");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
 }
 
 static char x509_crl_object_der_write__doc__[] =
@@ -3938,7 +4046,20 @@ static char x509_crl_object_der_write__doc__[] =
 static PyObject *
 x509_crl_object_der_write(x509_crl_object *self)
 {
-  return x509_crl_object_write_helper(self, DER_FORMAT);
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_X509_CRL_bio(bio, self->crl))
+    lose_openssl_error("Unable to write CRL");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
 }
 
 static char x509_crl_object_get_aki__doc__[] =
@@ -4075,29 +4196,33 @@ x509_crl_object_pprint(x509_crl_object *self)
 }
 
 static struct PyMethodDef x509_crl_object_methods[] = {
-  Define_Method(sign,           x509_crl_object_sign,                   METH_VARARGS),
-  Define_Method(verify,         x509_crl_object_verify,                 METH_VARARGS),
-  Define_Method(getVersion,     x509_crl_object_get_version,            METH_NOARGS),
-  Define_Method(setVersion,     x509_crl_object_set_version,            METH_VARARGS),
-  Define_Method(getIssuer,      x509_crl_object_get_issuer,             METH_VARARGS),
-  Define_Method(setIssuer,      x509_crl_object_set_issuer,             METH_VARARGS),
-  Define_Method(getThisUpdate,  x509_crl_object_get_this_update,        METH_NOARGS),
-  Define_Method(setThisUpdate,  x509_crl_object_set_this_update,        METH_VARARGS),
-  Define_Method(getNextUpdate,  x509_crl_object_get_next_update,        METH_NOARGS),
-  Define_Method(setNextUpdate,  x509_crl_object_set_next_update,        METH_VARARGS),
-  Define_Method(getRevoked,     x509_crl_object_get_revoked,            METH_NOARGS),
-  Define_Method(addRevocations,	x509_crl_object_add_revocations,	METH_VARARGS),
-  Define_Method(addExtension,   x509_crl_object_add_extension,          METH_VARARGS),
-  Define_Method(clearExtensions, x509_crl_object_clear_extensions,      METH_NOARGS),
-  Define_Method(countExtensions, x509_crl_object_count_extensions,      METH_NOARGS),
-  Define_Method(getExtension,   x509_crl_object_get_extension,          METH_VARARGS),
-  Define_Method(pemWrite,       x509_crl_object_pem_write,              METH_NOARGS),
-  Define_Method(derWrite,       x509_crl_object_der_write,              METH_NOARGS),
-  Define_Method(pprint,         x509_crl_object_pprint,                 METH_NOARGS),
-  Define_Method(getAKI,         x509_crl_object_get_aki,                METH_NOARGS),
-  Define_Method(setAKI,         x509_crl_object_set_aki,                METH_VARARGS),
-  Define_Method(getCRLNumber,   x509_crl_object_get_crl_number,         METH_NOARGS),
-  Define_Method(setCRLNumber,   x509_crl_object_set_crl_number,         METH_VARARGS),
+  Define_Method(sign,                   x509_crl_object_sign,                   METH_VARARGS),
+  Define_Method(verify,         	x509_crl_object_verify,                 METH_VARARGS),
+  Define_Method(getVersion,     	x509_crl_object_get_version,            METH_NOARGS),
+  Define_Method(setVersion,     	x509_crl_object_set_version,            METH_VARARGS),
+  Define_Method(getIssuer,      	x509_crl_object_get_issuer,             METH_VARARGS),
+  Define_Method(setIssuer,      	x509_crl_object_set_issuer,             METH_VARARGS),
+  Define_Method(getThisUpdate,  	x509_crl_object_get_this_update,        METH_NOARGS),
+  Define_Method(setThisUpdate,  	x509_crl_object_set_this_update,        METH_VARARGS),
+  Define_Method(getNextUpdate,  	x509_crl_object_get_next_update,        METH_NOARGS),
+  Define_Method(setNextUpdate,  	x509_crl_object_set_next_update,        METH_VARARGS),
+  Define_Method(getRevoked,     	x509_crl_object_get_revoked,            METH_NOARGS),
+  Define_Method(addRevocations,		x509_crl_object_add_revocations,	METH_VARARGS),
+  Define_Method(addExtension,   	x509_crl_object_add_extension,          METH_VARARGS),
+  Define_Method(clearExtensions, 	x509_crl_object_clear_extensions,       METH_NOARGS),
+  Define_Method(countExtensions, 	x509_crl_object_count_extensions,       METH_NOARGS),
+  Define_Method(getExtension,   	x509_crl_object_get_extension,          METH_VARARGS),
+  Define_Method(pemWrite,       	x509_crl_object_pem_write,              METH_NOARGS),
+  Define_Method(derWrite,       	x509_crl_object_der_write,              METH_NOARGS),
+  Define_Method(pprint,         	x509_crl_object_pprint,                 METH_NOARGS),
+  Define_Method(getAKI,         	x509_crl_object_get_aki,                METH_NOARGS),
+  Define_Method(setAKI,         	x509_crl_object_set_aki,                METH_VARARGS),
+  Define_Method(getCRLNumber,           x509_crl_object_get_crl_number,         METH_NOARGS),
+  Define_Method(setCRLNumber,           x509_crl_object_set_crl_number,         METH_VARARGS),
+  Define_Class_Method(pemRead,		x509_crl_object_pem_read,	   	METH_VARARGS),
+  Define_Class_Method(pemReadFile,	x509_crl_object_pem_read_file, 		METH_VARARGS),
+  Define_Class_Method(derRead,		x509_crl_object_der_read,	   	METH_VARARGS),
+  Define_Class_Method(derReadFile,	x509_crl_object_der_read_file, 		METH_VARARGS),
   {NULL}
 };
 
@@ -4207,73 +4332,206 @@ asymmetric_object_init(asymmetric_object *self, PyObject *args, PyObject *kwds)
   return -1;
 }
 
-static asymmetric_object *
-asymmetric_object_pem_read(int key_type, BIO *in, char *pass)
+static PyObject *
+asymmetric_object_pem_read_private_helper(PyTypeObject *type, BIO *in, char *pass)
 {
   asymmetric_object *self = NULL;
 
-  if ((self = (asymmetric_object *) asymmetric_object_new(&asymmetrictype, NULL, NULL)) == NULL)
+  if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  switch (key_type) {
+  if ((self->cipher = PEM_read_bio_RSAPrivateKey(in, NULL, NULL, pass)) == NULL)
+    lose_openssl_error("Couldn't load private key");
 
-  case RSA_PUBLIC_KEY:
-    if ((self->cipher = PEM_read_bio_RSA_PUBKEY(in, NULL, NULL, NULL)) == NULL)
-      lose_openssl_error("Couldn't load public key");
-    self->key_type = RSA_PUBLIC_KEY;
-    self->cipher_type = RSA_CIPHER;
-    break;
-
-  case RSA_PRIVATE_KEY:
-    if ((self->cipher = PEM_read_bio_RSAPrivateKey(in, NULL, NULL, pass)) == NULL)
-      lose_openssl_error("Couldn't load private key");
-    self->key_type = RSA_PRIVATE_KEY;
-    self->cipher_type = RSA_CIPHER;
-    break;
-
-  default:
-    lose("Unknown key type");
-  }
-
-  return self;
+  self->key_type = RSA_PRIVATE_KEY;
+  self->cipher_type = RSA_CIPHER;
+  return (PyObject *) self;
 
  error:
   Py_XDECREF(self);
   return NULL;
 }
 
-static asymmetric_object *
-asymmetric_object_der_read(BIO *bio, int key_type)
+/*
+ * We can't use the generic read_from_*_helper() functions here
+ * because of optional the PEM password, so we just code the two PEM
+ * read cases for private keys directly.  Other than the passphrase,
+ * code is pretty much the same as the generic functions.
+ */
+
+static char asymmetric_object_pem_read_private__doc__[] =
+  "Class method to read a PEM-encoded private key from a string.\n"
+  "Optional second argument is a passphrase for the key.\n"
+  ;
+
+static PyObject *
+asymmetric_object_pem_read_private(PyTypeObject *type, PyObject *args)
+{
+  PyObject *result = NULL;
+  char *pass = NULL;
+  char *src = NULL;
+  BIO *bio = NULL;
+  int len = 0;
+
+  if (!PyArg_ParseTuple(args, "s#|s", &src, &len, &pass))
+    goto error;
+
+  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
+    lose_no_memory();
+
+  result = asymmetric_object_pem_read_private_helper(type, bio, pass);
+
+ error:
+  BIO_free(bio);
+  return result;
+}
+
+static char asymmetric_object_pem_read_private_file__doc__[] =
+  "Class method to read a PEM-encoded private key from a file.\n"
+  "Optional second argument is a passphrase for the key.\n"
+  ;
+
+static PyObject *
+asymmetric_object_pem_read_private_file(PyTypeObject *type, PyObject *args)
+{
+  const char *filename = NULL;
+  PyObject *result = NULL;
+  char *pass = NULL;
+  BIO *bio = NULL;
+
+  if (!PyArg_ParseTuple(args, "s|s", &filename, &pass))
+    goto error;
+
+  if ((bio = BIO_new_file(filename, "rb")) == NULL)
+    lose_openssl_error("Could not open file");
+
+  result = asymmetric_object_pem_read_private_helper(type, bio, pass);
+
+ error:
+  BIO_free(bio);
+  return result;
+}
+
+static PyObject *
+asymmetric_object_der_read_private_helper(PyTypeObject *type, BIO *bio)
 {
   asymmetric_object *self = NULL;
 
   if ((self = (asymmetric_object *) asymmetric_object_new(&asymmetrictype, NULL, NULL)) == NULL)
     goto error;
 
-  switch (key_type) {
+  if ((self->cipher = d2i_RSAPrivateKey_bio(bio, NULL)) == NULL)
+    lose_openssl_error("Couldn't load private key");
 
-  case RSA_PUBLIC_KEY:
-    if ((self->cipher = d2i_RSA_PUBKEY_bio(bio, NULL)) == NULL)
-      lose_openssl_error("Couldn't load public key");
-    break;
-
-  case RSA_PRIVATE_KEY:
-    if ((self->cipher = d2i_RSAPrivateKey_bio(bio, NULL)) == NULL)
-      lose_openssl_error("Couldn't load private key");
-    break;
-
-  default:
-    lose("Unknown key type");
-  }
-
-  self->key_type = key_type;
+  self->key_type = RSA_PRIVATE_KEY;
   self->cipher_type = RSA_CIPHER;
-  return self;
+  return (PyObject *) self;
 
  error:
 
   Py_XDECREF(self);
   return NULL;
+}
+
+static char asymmetric_object_der_read_private__doc__[] =
+  "Class method to read a DER-encoded private key from a string.\n"
+  ;
+
+static PyObject *
+asymmetric_object_der_read_private(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(asymmetric_object_der_read_private_helper, type, args);
+}
+
+static char asymmetric_object_der_read_private_file__doc__[] =
+  "Class method to read a DER-encoded private key from a file.\n"
+  ;
+
+static PyObject *
+asymmetric_object_der_read_private_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(asymmetric_object_der_read_private_helper, type, args);
+}
+
+static PyObject *
+asymmetric_object_pem_read_public_helper(PyTypeObject *type, BIO *in)
+{
+  asymmetric_object *self = NULL;
+
+  if ((self = (asymmetric_object *) asymmetric_object_new(&asymmetrictype, NULL, NULL)) == NULL)
+    goto error;
+
+  if ((self->cipher = PEM_read_bio_RSA_PUBKEY(in, NULL, NULL, NULL)) == NULL)
+    lose_openssl_error("Couldn't load public key");
+
+  self->key_type = RSA_PUBLIC_KEY;
+  self->cipher_type = RSA_CIPHER;
+  return (PyObject *) self;
+
+ error:
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static PyObject *
+asymmetric_object_der_read_public_helper(PyTypeObject *type, BIO *bio)
+{
+  asymmetric_object *self = NULL;
+
+  if ((self = (asymmetric_object *) asymmetric_object_new(&asymmetrictype, NULL, NULL)) == NULL)
+    goto error;
+
+  if ((self->cipher = d2i_RSA_PUBKEY_bio(bio, NULL)) == NULL)
+    lose_openssl_error("Couldn't load public key");
+
+  self->key_type = RSA_PUBLIC_KEY;
+  self->cipher_type = RSA_CIPHER;
+  return (PyObject *) self;
+
+ error:
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static char asymmetric_object_pem_read_public__doc__[] =
+  "Class method to read a PEM-encoded public key from a string.\n"
+  ;
+
+static PyObject *
+asymmetric_object_pem_read_public(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(asymmetric_object_pem_read_public_helper, type, args);
+}
+
+static char asymmetric_object_pem_read_public_file__doc__[] =
+  "Class method to read a PEM-encoded public key from a file.\n"
+  ;
+
+static PyObject *
+asymmetric_object_pem_read_public_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(asymmetric_object_pem_read_public_helper, type, args);
+}
+
+static char asymmetric_object_der_read_public__doc__[] =
+  "Class method to read a DER-encoded public key from a string.\n"
+  ;
+
+static PyObject *
+asymmetric_object_der_read_public(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(asymmetric_object_der_read_public_helper, type, args);
+}
+
+static char asymmetric_object_der_read_public_file__doc__[] =
+  "Class method to read a DER-encoded public key from a file.\n"
+  ;
+
+static PyObject *
+asymmetric_object_der_read_public_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(asymmetric_object_der_read_public_helper, type, args);
 }
 
 static char asymmetric_object_pem_write__doc__[] =
@@ -4352,6 +4610,8 @@ static char asymmetric_object_der_write__doc__[] =
   "  * RSA_PUBLIC_KEY\n"
   "  * RSA_PRIVATE_KEY\n"
   ;
+
+#warning This also probably ought to be separate methods for private and public keys.
 
 static PyObject *
 asymmetric_object_der_write(asymmetric_object *self, PyObject *args)
@@ -4485,6 +4745,14 @@ static struct PyMethodDef asymmetric_object_methods[] = {
   Define_Method(derWrite,       asymmetric_object_der_write,            METH_VARARGS),
   Define_Method(sign,           asymmetric_object_sign,                 METH_VARARGS),
   Define_Method(verify,         asymmetric_object_verify,               METH_VARARGS),
+  Define_Class_Method(pemReadPublic,      asymmetric_object_pem_read_public,       	METH_VARARGS),
+  Define_Class_Method(pemReadPublicFile,  asymmetric_object_pem_read_public_file,       METH_VARARGS),
+  Define_Class_Method(derReadPublic,	  asymmetric_object_der_read_public,		METH_VARARGS),
+  Define_Class_Method(derReadPublicFile,  asymmetric_object_der_read_public_file, 	METH_VARARGS),
+  Define_Class_Method(pemReadPrivate,	  asymmetric_object_pem_read_private,      	METH_VARARGS),
+  Define_Class_Method(pemReadPrivateFile, asymmetric_object_pem_read_private_file, 	METH_VARARGS),
+  Define_Class_Method(derReadPrivate,	  asymmetric_object_der_read_private,      	METH_VARARGS),
+  Define_Class_Method(derReadPrivateFile, asymmetric_object_der_read_private_file, 	METH_VARARGS),
   {NULL}
 };
 
@@ -4757,30 +5025,30 @@ cms_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
-static cms_object *
-cms_object_pem_read(BIO *in)
+static PyObject *
+cms_object_pem_read_helper(PyTypeObject *type, BIO *in)
 {
   cms_object *self;
 
-  if ((self = (cms_object *) cms_object_new(&cmstype, NULL, NULL)) == NULL)
+  if ((self = (cms_object *) cms_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
   if ((self->cms = PEM_read_bio_CMS(in, NULL, NULL, NULL)) == NULL)
     lose_openssl_error("Couldn't load PEM encoded CMS message");
 
-  return self;
+  return (PyObject *) self;
 
  error:
   Py_XDECREF(self);
   return NULL;
 }
 
-static cms_object *
-cms_object_der_read(BIO *bio)
+static PyObject *
+cms_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   cms_object *self;
 
-  if ((self = (cms_object *) cms_object_new(&cmstype, NULL, NULL)) == NULL)
+  if ((self = (cms_object *) cms_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
   if ((self->cms = CMS_ContentInfo_new()) == NULL)
@@ -4789,43 +5057,51 @@ cms_object_der_read(BIO *bio)
   if (!d2i_CMS_bio(bio, &self->cms))
     lose_openssl_error("Couldn't load DER encoded CMS message");
 
-  return self;
+  return (PyObject *) self;
 
  error:
   Py_XDECREF(self);
   return NULL;
 }
 
+static char cms_object_pem_read__doc__[] =
+  "Class method to read a PEM-encoded CMS object from a string.\n"
+  ;
+
 static PyObject *
-cms_object_write_helper(cms_object *self, int format)
+cms_object_pem_read(PyTypeObject *type, PyObject *args)
 {
-  PyObject *result = NULL;
-  BIO *bio = NULL;
+  return read_from_string_helper(cms_object_pem_read_helper, type, args);
+}
 
-  if ((bio = BIO_new(BIO_s_mem())) == NULL)
-    lose_no_memory();
+static char cms_object_pem_read_file__doc__[] =
+  "Class method to read a PEM-encoded CMS object from a file.\n"
+  ;
 
-  switch (format) {
+static PyObject *
+cms_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(cms_object_pem_read_helper, type, args);
+}
 
-  case DER_FORMAT:
-    if (!i2d_CMS_bio(bio, self->cms))
-      lose_openssl_error("Unable to write CMS object");
-    break;
+static char cms_object_der_read__doc__[] =
+  "Class method to read a DER-encoded CMS object from a string.\n"
+  ;
 
-  case PEM_FORMAT:
-    if (!PEM_write_bio_CMS(bio, self->cms))
-      lose_openssl_error("Unable to write CMS object");
-    break;
+static PyObject *
+cms_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(cms_object_der_read_helper, type, args);
+}
 
-  default:
-    lose("Internal error, unknown output format");
-  }
+static char cms_object_der_read_file__doc__[] =
+  "Class method to read a DER-encoded CMS object from a file.\n"
+  ;
 
-  result = BIO_to_PyString_helper(bio);
-
- error:                         /* Fall through */
-  BIO_free(bio);
-  return result;
+static PyObject *
+cms_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(cms_object_der_read_helper, type, args);
 }
 
 static char cms_object_pem_write__doc__[] =
@@ -4835,7 +5111,20 @@ static char cms_object_pem_write__doc__[] =
 static PyObject *
 cms_object_pem_write(cms_object *self)
 {
-  return cms_object_write_helper(self, PEM_FORMAT);
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!PEM_write_bio_CMS(bio, self->cms))
+    lose_openssl_error("Unable to write CMS object");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
 }
 
 static char cms_object_der_write__doc__[] =
@@ -4845,13 +5134,26 @@ static char cms_object_der_write__doc__[] =
 static PyObject *
 cms_object_der_write(cms_object *self)
 {
-  return cms_object_write_helper(self, DER_FORMAT);
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_CMS_bio(bio, self->cms))
+    lose_openssl_error("Unable to write CMS object");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
 }
 
 static char cms_object_sign__doc__[] =
   "This method signs a message with a private key.\n"
   "\n"
-  "the \"signcert\" parameter should be the certificate against which the\n"
+  "The \"signcert\" parameter should be the certificate against which the\n"
   "message will eventually be verified, an X509 object.\n"
   "\n"
   "The \"key\" parameter should be the private key with which to sign the\n"
@@ -5249,15 +5551,19 @@ cms_object_crls(cms_object *self)
 }
 
 static struct PyMethodDef cms_object_methods[] = {
-  Define_Method(pemWrite,       cms_object_pem_write,           METH_NOARGS),
-  Define_Method(derWrite,       cms_object_der_write,           METH_NOARGS),
-  Define_Method(sign,           cms_object_sign,                METH_VARARGS),
-  Define_Method(verify,         cms_object_verify,              METH_VARARGS),
-  Define_Method(eContentType,   cms_object_eContentType,        METH_NOARGS),
-  Define_Method(signingTime,    cms_object_signingTime,         METH_NOARGS),
-  Define_Method(pprint,         cms_object_pprint,              METH_NOARGS),
-  Define_Method(certs,          cms_object_certs,               METH_NOARGS),
-  Define_Method(crls,           cms_object_crls,                METH_NOARGS),
+  Define_Method(pemWrite,               cms_object_pem_write,           METH_NOARGS),
+  Define_Method(derWrite,               cms_object_der_write,           METH_NOARGS),
+  Define_Method(sign,                   cms_object_sign,                METH_VARARGS),
+  Define_Method(verify,                 cms_object_verify,              METH_VARARGS),
+  Define_Method(eContentType,   	cms_object_eContentType,        METH_NOARGS),
+  Define_Method(signingTime,            cms_object_signingTime,         METH_NOARGS),
+  Define_Method(pprint,                 cms_object_pprint,              METH_NOARGS),
+  Define_Method(certs,                  cms_object_certs,               METH_NOARGS),
+  Define_Method(crls,                   cms_object_crls,                METH_NOARGS),
+  Define_Class_Method(pemRead,		cms_object_pem_read,	   	METH_VARARGS),
+  Define_Class_Method(pemReadFile,	cms_object_pem_read_file, 	METH_VARARGS),
+  Define_Class_Method(derRead,		cms_object_der_read,	   	METH_VARARGS),
+  Define_Class_Method(derReadFile,	cms_object_der_read_file, 	METH_VARARGS),
   {NULL}
 };
 
@@ -5376,19 +5682,19 @@ pow_module_pem_read (PyObject *self, PyObject *args)
 
   switch(object_type) {
   case RSA_PRIVATE_KEY:
-    obj = (PyObject *) asymmetric_object_pem_read(object_type, bio, pass);
+    obj = asymmetric_object_pem_read_private_helper(&asymmetrictype, bio, pass);
     break;
   case RSA_PUBLIC_KEY:
-    obj = (PyObject *) asymmetric_object_pem_read(object_type, bio, pass);
+    obj = asymmetric_object_pem_read_public_helper(&asymmetrictype, bio);
     break;
   case X509_CERTIFICATE:
-    obj = (PyObject *) x509_object_pem_read(bio);
+    obj = x509_object_pem_read_helper(&x509type, bio);
     break;
   case X_X509_CRL:
-    obj = (PyObject *) x509_crl_object_pem_read(bio);
+    obj = x509_crl_object_pem_read_helper(&x509_crltype, bio);
     break;
   case CMS_MESSAGE:
-    obj = (PyObject *) cms_object_pem_read(bio);
+    obj = cms_object_pem_read_helper(&cmstype, bio);
     break;
   default:
     lose("Unknown PEM encoding");
@@ -5450,19 +5756,19 @@ pow_module_der_read (PyObject *self, PyObject *args)
 
   switch(object_type) {
   case RSA_PRIVATE_KEY:
-    obj = (PyObject *) asymmetric_object_der_read(bio, object_type);
+    obj = asymmetric_object_der_read_private_helper(&asymmetrictype, bio);
     break;
   case RSA_PUBLIC_KEY:
-    obj = (PyObject *) asymmetric_object_der_read(bio, object_type);
+    obj = asymmetric_object_der_read_public_helper(&asymmetrictype, bio);
     break;
   case X509_CERTIFICATE:
-    obj = (PyObject *) x509_object_der_read(bio);
+    obj = x509_object_der_read_helper(&x509type, bio);
     break;
   case X_X509_CRL:
-    obj = (PyObject *) x509_crl_object_der_read(bio);
+    obj = x509_crl_object_der_read_helper(&x509_crltype, bio);
     break;
   case CMS_MESSAGE:
-    obj = (PyObject *) cms_object_der_read(bio);
+    obj = cms_object_der_read_helper(&cmstype, bio);
     break;
   default:
     lose("Unknown DER encoding");

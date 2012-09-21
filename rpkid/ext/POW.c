@@ -14,11 +14,11 @@
  ****
  *
  * Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
- * 
+ *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
  * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
  * AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -88,7 +88,7 @@
  * defer until I decide whether we need to fix it, so just omit the
  * code for now.
  */
-#define	ENABLE_X509_CERTIFICATE_SIGNATURE_AND_VERIFICATION	0	
+#define ENABLE_X509_CERTIFICATE_SIGNATURE_AND_VERIFICATION      0
 
 #include <Python.h>
 
@@ -121,23 +121,14 @@
 /*
  * Maximum size of an ASN.1 Integer converted from a Python Long, in bytes.
  */
-#define	MAX_ASN1_INTEGER_LEN	20
+#define MAX_ASN1_INTEGER_LEN    20
 
 /* PEM encoded data types */
 #define RSA_PUBLIC_KEY        1
 #define RSA_PRIVATE_KEY       2
-#define DSA_PUBLIC_KEY        3
-#define DSA_PRIVATE_KEY       4
-#define DH_PUBLIC_KEY         5
-#define DH_PRIVATE_KEY        6
-#define X509_CERTIFICATE      7
-#define X_X509_CRL            8     /* X509_CRL already used by OpenSSL library */
-#define CMS_MESSAGE           9
 
 /* Asymmetric ciphers */
 #define RSA_CIPHER            1
-#define DSA_CIPHER            2
-#define DH_CIPHER             3
 
 /* Digests */
 #define MD5_DIGEST            2
@@ -157,13 +148,15 @@
 #define DER_FORMAT            2
 
 /* Object check functions */
-#define POW_X509_Check(op)         PyObject_TypeCheck(op, &x509type)
-#define POW_X509_Store_Check(op)   PyObject_TypeCheck(op, &x509_storetype)
-#define POW_X509_CRL_Check(op)     PyObject_TypeCheck(op, &x509_crltype)
-#define POW_Asymmetric_Check(op)   PyObject_TypeCheck(op, &asymmetrictype)
-#define POW_Digest_Check(op)       PyObject_TypeCheck(op, &digesttype)
-#define POW_CMS_Check(op)          PyObject_TypeCheck(op, &cmstype)
-#define	POW_IPAddress_Check(op)    PyObject_TypeCheck(op, &ipaddresstype)
+#define POW_X509_Check(op)              PyObject_TypeCheck(op, &POW_X509_Type)
+#define POW_X509Store_Check(op)         PyObject_TypeCheck(op, &POW_X509Store_Type)
+#define POW_CRL_Check(op)               PyObject_TypeCheck(op, &POW_CRL_Type)
+#define POW_Asymmetric_Check(op)        PyObject_TypeCheck(op, &POW_Asymmetric_Type)
+#define POW_Digest_Check(op)            PyObject_TypeCheck(op, &POW_Digest_Type)
+#define POW_CMS_Check(op)               PyObject_TypeCheck(op, &POW_CMS_Type)
+#define POW_IPAddress_Check(op)         PyObject_TypeCheck(op, &POW_IPAddress_Type)
+#define POW_ROA_Check(op)               PyObject_TypeCheck(op, &POW_ROA_Type)
+#define POW_Manifest_Check(op)          PyObject_TypeCheck(op, &POW_Manifest_Type)
 
 static char pow_module__doc__ [] =
   "Python interface to RFC-3779-enabled OpenSSL.  This code is intended\n"
@@ -216,25 +209,33 @@ static const struct {
 
 };
 
-/*========== Pre-definitions ==========*/
+/*
+ * Exception objects.
+ */
 
 static PyObject
   *ErrorObject,
   *OpenSSLErrorObject,
   *POWErrorObject;
 
+/*
+ * Declarations of type objects (definitions come later).
+ */
+
 static PyTypeObject
-  x509type,
-  x509_storetype,
-  x509_crltype,
-  asymmetrictype,
-  digesttype,
-  cmstype,
-  ipaddresstype;
+  POW_X509_Type,
+  POW_X509Store_Type,
+  POW_CRL_Type,
+  POW_Asymmetric_Type,
+  POW_Digest_Type,
+  POW_CMS_Type,
+  POW_IPAddress_Type,
+  POW_ROA_Type,
+  POW_Manifest_Type;
 
-/*========== Pre-definitions ==========*/
-
-/*========== C structs ==========*/
+/*
+ * Object internals.
+ */
 
 typedef struct {
   PyObject_HEAD
@@ -257,7 +258,7 @@ typedef struct {
 typedef struct {
   PyObject_HEAD
   X509_CRL *crl;
-} x509_crl_object;
+} crl_object;
 
 typedef struct {
   PyObject_HEAD
@@ -277,9 +278,21 @@ typedef struct {
   CMS_ContentInfo *cms;
 } cms_object;
 
-/*========== C structs ==========*/
+typedef struct {
+  PyObject_HEAD
+  ROA *roa;
+} roa_object;
 
-/*========== helper functions ==========*/
+typedef struct {
+  PyObject_HEAD
+  Manifest *manifest;
+} manifest_object;
+
+
+
+/*
+ * Utility functions.
+ */
 
 /*
  * Minimal intervention debug-by-printf() hack, use only for good.
@@ -460,7 +473,7 @@ x509_object_helper_set_name(PyObject *dn_obj)
         lose_type_error("each name entry must be a two-element sequence");
 
       if ((type_obj  = PySequence_GetItem(pair_obj, 0)) == NULL ||
-          (type_str  = PyString_AsString(type_obj))     == NULL || 
+          (type_str  = PyString_AsString(type_obj))     == NULL ||
           (value_obj = PySequence_GetItem(pair_obj, 1)) == NULL ||
           (value_str = PyString_AsString(value_obj))    == NULL)
         goto error;
@@ -672,34 +685,43 @@ stack_to_tuple_helper(_STACK *sk, PyObject *(*handler)(void *))
 static PyObject *
 ASN1_TIME_to_Python(ASN1_TIME *t)
 {
-  ASN1_GENERALIZEDTIME *g = ASN1_TIME_to_generalizedtime(t, NULL);
+  ASN1_GENERALIZEDTIME *g = NULL;
   PyObject *result = NULL;
-  if (g) {
-    result = Py_BuildValue("s", g->data);
-    ASN1_GENERALIZEDTIME_free(g);
-  }
+
+  if ((g = ASN1_TIME_to_generalizedtime(t, NULL)) == NULL)
+    lose_openssl_error("Couldn't convert ASN.1 TIME");
+
+  result = Py_BuildValue("s", g->data);
+  
+ error:
+  ASN1_GENERALIZEDTIME_free(g);
   return result;
 }
 
 static ASN1_TIME *
-Python_to_ASN1_TIME(const char *s)
+Python_to_ASN1_TIME(const char *s, const int object_requires_utctime)
 {
-  ASN1_TIME *t = NULL;
+  ASN1_TIME *result = NULL;
   int ok;
+  
+  if (strlen(s) < 10)
+    lose_type_error("String is too short to parse as a valid ASN.1 TIME");
 
-  if (s == NULL || strlen(s) < 10 || (t = ASN1_TIME_new()) == NULL)
-    return NULL;
+  if ((result = ASN1_TIME_new()) == NULL)
+    lose_no_memory();
 
-  if ((s[0] == '1' && s[1] == '9' && s[2] > '4') ||
-      (s[0] == '2' && s[1] == '0' && s[2] < '5'))
-    ok = ASN1_UTCTIME_set_string(t, s + 2);
+  if (object_requires_utctime &&
+      ((s[0] == '1' && s[1] == '9' && s[2] > '4') ||
+       (s[0] == '2' && s[1] == '0' && s[2] < '5')))
+    ok = ASN1_UTCTIME_set_string(result, s + 2);
   else
-    ok = ASN1_GENERALIZEDTIME_set_string(t, s);
+    ok = ASN1_GENERALIZEDTIME_set_string(result, s);
 
   if (ok)
-    return t;
+    return result;
 
-  ASN1_TIME_free(t);
+ error:
+  ASN1_TIME_free(result);
   return NULL;
 }
 
@@ -898,9 +920,11 @@ create_missing_nids(void)
   return 1;
 }
 
-/*========== helper functions ==========*/
+
 
-/*========== IPAddress code ==========*/
+/*
+ * IPAddress object.
+ */
 
 static PyObject *
 ipaddress_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -937,7 +961,7 @@ ipaddress_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   case 6: self->length = 16; self->af = AF_INET6; break;
   default: lose("Unknown IP version number");
   }
-  self->version = version; 
+  self->version = version;
 
   if (s != NULL) {
     if (inet_pton(self->af, s, self->address) <= 0)
@@ -1212,24 +1236,24 @@ static PyNumberMethods ipaddress_NumberMethods = {
   0,                                            /* nb_oct */
   0,                                            /* nb_hex */
   0,                                            /* nb_inplace_add */
-  0,                            		/* nb_inplace_subtract */
-  0,                            		/* nb_inplace_multiply */
-  0,                            		/* nb_inplace_divide */
-  0,                            		/* nb_inplace_remainder */
-  0,                            		/* nb_inplace_power */
-  0,                            		/* nb_inplace_lshift */
-  0,                            		/* nb_inplace_rshift */
-  0,                            		/* nb_inplace_and */
-  0,                            		/* nb_inplace_xor */
-  0,                            		/* nb_inplace_or */
+  0,                                            /* nb_inplace_subtract */
+  0,                                            /* nb_inplace_multiply */
+  0,                                            /* nb_inplace_divide */
+  0,                                            /* nb_inplace_remainder */
+  0,                                            /* nb_inplace_power */
+  0,                                            /* nb_inplace_lshift */
+  0,                                            /* nb_inplace_rshift */
+  0,                                            /* nb_inplace_and */
+  0,                                            /* nb_inplace_xor */
+  0,                                            /* nb_inplace_or */
   0,                                            /* nb_floor_divide */
   0,                                            /* nb_true_divide */
-  0,                            		/* nb_inplace_floor_divide */
-  0,                            		/* nb_inplace_true_divide */
+  0,                                            /* nb_inplace_floor_divide */
+  0,                                            /* nb_inplace_true_divide */
   0,                                            /* nb_index */
 };
 
-static PyTypeObject ipaddresstype = {
+static PyTypeObject POW_IPAddress_Type = {
   PyObject_HEAD_INIT(NULL)
   0,                                        /* ob_size */
   "POW.IPAddress",                          /* tp_name */
@@ -1271,9 +1295,11 @@ static PyTypeObject ipaddresstype = {
   ipaddress_object_new,                     /* tp_new */
 };
 
-/*========== IPAddress code ==========*/
+
 
-/*========== X509 code ==========*/
+/*
+ * X509 object.
+ */
 
 static PyObject *
 x509_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -1429,7 +1455,7 @@ x509_object_set_public_key(x509_object *self, PyObject *args)
   EVP_PKEY *pkey = NULL;
   asymmetric_object *asym;
 
-  if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
+  if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
     goto error;
 
   if ((pkey = EVP_PKEY_new()) == NULL)
@@ -1473,7 +1499,7 @@ x509_object_sign(x509_object *self, PyObject *args)
   int digest_type = SHA256_DIGEST;
   const EVP_MD *digest_method = NULL;
 
-  if (!PyArg_ParseTuple(args, "O!|i", &asymmetrictype, &asym, &digest_type))
+  if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
     goto error;
 
   if ((pkey = EVP_PKEY_new()) == NULL)
@@ -1739,7 +1765,7 @@ x509_object_set_not_after (x509_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
 
-  if ((t = Python_to_ASN1_TIME(s)) == NULL)
+  if ((t = Python_to_ASN1_TIME(s, 1)) == NULL)
     lose("Couldn't convert notAfter string");
 
   if (!X509_set_notAfter(self->x509, t))
@@ -1771,7 +1797,7 @@ x509_object_set_not_before (x509_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
 
-  if ((t = Python_to_ASN1_TIME(s)) == NULL)
+  if ((t = Python_to_ASN1_TIME(s, 1)) == NULL)
     lose("Couldn't convert notBefore string");
 
   if (!X509_set_notBefore(self->x509, t))
@@ -2239,9 +2265,9 @@ x509_object_get_rfc3779(x509_object *self)
                                     j);
         ipaddress_object *addr_b = NULL;
         ipaddress_object *addr_e = NULL;
-        
-        if ((range_b = ipaddresstype.tp_alloc(&ipaddresstype, 0)) == NULL ||
-            (range_e = ipaddresstype.tp_alloc(&ipaddresstype, 0)) == NULL)
+
+        if ((range_b = POW_IPAddress_Type.tp_alloc(&POW_IPAddress_Type, 0)) == NULL ||
+            (range_e = POW_IPAddress_Type.tp_alloc(&POW_IPAddress_Type, 0)) == NULL)
           goto error;
 
         addr_b = (ipaddress_object *) range_b;
@@ -2331,7 +2357,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
         lose_no_memory();
 
     } else {
-      
+
       if ((iterator = PyObject_GetIter(asn_arg)) == NULL)
         goto error;
 
@@ -2970,7 +2996,7 @@ x509_object_set_crldp(x509_object *self, PyObject *args)
 
  error:
   sk_DIST_POINT_pop_free(ext, DIST_POINT_free);
-  DIST_POINT_free(dp);  
+  DIST_POINT_free(dp);
   GENERAL_NAME_free(gn);
   Py_XDECREF(item);
   Py_XDECREF(iterator);
@@ -3121,11 +3147,11 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(sign,                   x509_object_sign,                       METH_VARARGS),
   Define_Method(setPublicKey,           x509_object_set_public_key,             METH_VARARGS),
   Define_Method(getVersion,             x509_object_get_version,                METH_NOARGS),
-  Define_Method(setVersion,     	x509_object_set_version,                METH_VARARGS),
+  Define_Method(setVersion,             x509_object_set_version,                METH_VARARGS),
   Define_Method(getSerial,              x509_object_get_serial,                 METH_NOARGS),
-  Define_Method(setSerial,      	x509_object_set_serial,                 METH_VARARGS),
+  Define_Method(setSerial,              x509_object_set_serial,                 METH_VARARGS),
   Define_Method(getIssuer,              x509_object_get_issuer,                 METH_VARARGS),
-  Define_Method(setIssuer,      	x509_object_set_issuer,                 METH_VARARGS),
+  Define_Method(setIssuer,              x509_object_set_issuer,                 METH_VARARGS),
   Define_Method(getSubject,             x509_object_get_subject,                METH_VARARGS),
   Define_Method(setSubject,             x509_object_set_subject,                METH_VARARGS),
   Define_Method(getNotBefore,           x509_object_get_not_before,             METH_NOARGS),
@@ -3140,25 +3166,25 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(getSKI,                 x509_object_get_ski,                    METH_NOARGS),
   Define_Method(setSKI,                 x509_object_set_ski,                    METH_VARARGS),
   Define_Method(getAKI,                 x509_object_get_aki,                    METH_NOARGS),
-  Define_Method(setAKI,         	x509_object_set_aki,                    METH_VARARGS),
+  Define_Method(setAKI,                 x509_object_set_aki,                    METH_VARARGS),
   Define_Method(getKeyUsage,            x509_object_get_key_usage,              METH_NOARGS),
-  Define_Method(setKeyUsage,            x509_object_set_key_usage,		METH_VARARGS),
+  Define_Method(setKeyUsage,            x509_object_set_key_usage,              METH_VARARGS),
   Define_Method(getRFC3779,             x509_object_get_rfc3779,                METH_NOARGS),
   Define_Method(setRFC3779,             x509_object_set_rfc3779,                METH_KEYWORDS),
   Define_Method(getBasicConstraints,    x509_object_get_basic_constraints,      METH_NOARGS),
   Define_Method(setBasicConstraints,    x509_object_set_basic_constraints,      METH_VARARGS),
-  Define_Method(getSIA,			x509_object_get_sia,                    METH_NOARGS),
-  Define_Method(setSIA,			x509_object_set_sia,                    METH_VARARGS),
-  Define_Method(getAIA,			x509_object_get_aia,                    METH_NOARGS),
-  Define_Method(setAIA,			x509_object_set_aia,                    METH_VARARGS),
-  Define_Method(getCRLDP,		x509_object_get_crldp,                  METH_NOARGS),
-  Define_Method(setCRLDP,		x509_object_set_crldp,                  METH_VARARGS),
-  Define_Method(getCertificatePolicies, x509_object_get_certificate_policies,	METH_NOARGS),
-  Define_Method(setCertificatePolicies, x509_object_set_certificate_policies,	METH_VARARGS),
-  Define_Class_Method(pemRead,		x509_object_pem_read,	   		METH_VARARGS),
-  Define_Class_Method(pemReadFile,	x509_object_pem_read_file, 		METH_VARARGS),
-  Define_Class_Method(derRead,		x509_object_der_read,	   		METH_VARARGS),
-  Define_Class_Method(derReadFile,	x509_object_der_read_file, 		METH_VARARGS),
+  Define_Method(getSIA,                 x509_object_get_sia,                    METH_NOARGS),
+  Define_Method(setSIA,                 x509_object_set_sia,                    METH_VARARGS),
+  Define_Method(getAIA,                 x509_object_get_aia,                    METH_NOARGS),
+  Define_Method(setAIA,                 x509_object_set_aia,                    METH_VARARGS),
+  Define_Method(getCRLDP,               x509_object_get_crldp,                  METH_NOARGS),
+  Define_Method(setCRLDP,               x509_object_set_crldp,                  METH_VARARGS),
+  Define_Method(getCertificatePolicies, x509_object_get_certificate_policies,   METH_NOARGS),
+  Define_Method(setCertificatePolicies, x509_object_set_certificate_policies,   METH_VARARGS),
+  Define_Class_Method(pemRead,          x509_object_pem_read,                   METH_VARARGS),
+  Define_Class_Method(pemReadFile,      x509_object_pem_read_file,              METH_VARARGS),
+  Define_Class_Method(derRead,          x509_object_der_read,                   METH_VARARGS),
+  Define_Class_Method(derReadFile,      x509_object_der_read_file,              METH_VARARGS),
   {NULL}
 };
 
@@ -3169,13 +3195,13 @@ x509_object_dealloc(x509_object *self)
   self->ob_type->tp_free((PyObject*) self);
 }
 
-static char x509type__doc__[] =
+static char POW_X509_Type__doc__[] =
   "This class represents an X.509 certificate.\n"
   "\n"
   LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
   ;
 
-static PyTypeObject x509type = {
+static PyTypeObject POW_X509_Type = {
   PyObject_HEAD_INIT(0)
   0,                                        /* ob_size */
   "POW.X509",                               /* tp_name */
@@ -3197,7 +3223,7 @@ static PyTypeObject x509type = {
   0,                                        /* tp_setattro */
   0,                                        /* tp_as_buffer */
   Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-  x509type__doc__,                          /* tp_doc */
+  POW_X509_Type__doc__,                     /* tp_doc */
   0,                                        /* tp_traverse */
   0,                                        /* tp_clear */
   0,                                        /* tp_richcompare */
@@ -3217,9 +3243,11 @@ static PyTypeObject x509type = {
   x509_object_new,                          /* tp_new */
 };
 
-/*========== X509 Code ==========*/
+
 
-/*========== X509 Store Code ==========*/
+/*
+ * X509Store object.
+ */
 
 static PyObject *
 x509_store_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -3265,7 +3293,7 @@ x509_store_object_verify(x509_store_object *self, PyObject *args)
   x509_object *x509 = NULL;
   int ok;
 
-  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
+  if (!PyArg_ParseTuple(args, "O!", &POW_X509_Type, &x509))
     goto error;
 
   X509_STORE_CTX_init(&ctx, self->store, x509->x509, NULL);
@@ -3299,7 +3327,7 @@ x509_store_object_verify_chain(x509_store_object *self, PyObject *args)
   STACK_OF(X509) *x509_stack = NULL;
   int ok;
 
-  if (!PyArg_ParseTuple(args, "O!O", &x509type, &x509, &x509_sequence))
+  if (!PyArg_ParseTuple(args, "O!O", &POW_X509_Type, &x509, &x509_sequence))
     goto error;
 
   if ((x509_stack = x509_helper_sequence_to_stack(x509_sequence)) == NULL)
@@ -3350,7 +3378,7 @@ x509_store_object_verify_detailed(x509_store_object *self, PyObject *args)
   PyObject *result = NULL;
   int ok;
 
-  if (!PyArg_ParseTuple(args, "O!|O", &x509type, &x509, &x509_sequence))
+  if (!PyArg_ParseTuple(args, "O!|O", &POW_X509_Type, &x509, &x509_sequence))
     goto error;
 
   if (x509_sequence && !(x509_stack = x509_helper_sequence_to_stack(x509_sequence)))
@@ -3386,7 +3414,7 @@ x509_store_object_add_trust(x509_store_object *self, PyObject *args)
 {
   x509_object *x509 = NULL;
 
-  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
+  if (!PyArg_ParseTuple(args, "O!", &POW_X509_Type, &x509))
     goto error;
 
   X509_STORE_add_cert(self->store, x509->x509);
@@ -3407,9 +3435,9 @@ static char x509_store_object_add_crl__doc__[] =
 static PyObject *
 x509_store_object_add_crl(x509_store_object *self, PyObject *args)
 {
-  x509_crl_object *crl = NULL;
+  crl_object *crl = NULL;
 
-  if (!PyArg_ParseTuple(args, "O!", &x509_crltype, &crl))
+  if (!PyArg_ParseTuple(args, "O!", &POW_CRL_Type, &crl))
     goto error;
 
   X509_STORE_add_crl(self->store, crl->crl);
@@ -3439,14 +3467,14 @@ x509_store_object_dealloc(x509_store_object *self)
   self->ob_type->tp_free((PyObject*) self);
 }
 
-static char x509_storetype__doc__[] =
+static char POW_X509Store_Type__doc__[] =
   "This class provides basic access to the OpenSSL certificate store\n"
   "mechanism used in X.509 and CMS verification.\n"
   "\n"
   LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
   ;
 
-static PyTypeObject x509_storetype = {
+static PyTypeObject POW_X509Store_Type = {
   PyObject_HEAD_INIT(0)
   0,                                        /* ob_size */
   "POW.X509Store",                          /* tp_name */
@@ -3468,7 +3496,7 @@ static PyTypeObject x509_storetype = {
   0,                                        /* tp_setattro */
   0,                                        /* tp_as_buffer */
   Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-  x509_storetype__doc__,                    /* tp_doc */
+  POW_X509Store_Type__doc__,                /* tp_doc */
   0,                                        /* tp_traverse */
   0,                                        /* tp_clear */
   0,                                        /* tp_richcompare */
@@ -3488,16 +3516,18 @@ static PyTypeObject x509_storetype = {
   x509_store_object_new,                    /* tp_new */
 };
 
-/*========== X509 Store Code ==========*/
+
 
-/*========== X509 CRL Code ==========*/
+/*
+ * CRL object.
+ */
 
 static PyObject *
-x509_crl_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+crl_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  x509_crl_object *self = NULL;
+  crl_object *self = NULL;
 
-  if ((self = (x509_crl_object *) type->tp_alloc(type, 0)) != NULL &&
+  if ((self = (crl_object *) type->tp_alloc(type, 0)) != NULL &&
       (self->crl = X509_CRL_new()) != NULL)
     return (PyObject *) self;
 
@@ -3506,11 +3536,11 @@ x509_crl_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-x509_crl_object_pem_read_helper(PyTypeObject *type, BIO *in)
+crl_object_pem_read_helper(PyTypeObject *type, BIO *in)
 {
-  x509_crl_object *self;
+  crl_object *self;
 
-  if ((self = (x509_crl_object *) x509_crl_object_new(type, NULL, NULL)) == NULL)
+  if ((self = (crl_object *) crl_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
   X509_CRL_free(self->crl);
@@ -3526,11 +3556,11 @@ x509_crl_object_pem_read_helper(PyTypeObject *type, BIO *in)
 }
 
 static PyObject *
-x509_crl_object_der_read_helper(PyTypeObject *type, BIO *bio)
+crl_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
-  x509_crl_object *self;
+  crl_object *self;
 
-  if ((self = (x509_crl_object *) x509_crl_object_new(type, NULL, NULL)) == NULL)
+  if ((self = (crl_object *) crl_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
   if (!d2i_X509_CRL_bio(bio, &self->crl))
@@ -3543,64 +3573,64 @@ x509_crl_object_der_read_helper(PyTypeObject *type, BIO *bio)
   return NULL;
 }
 
-static char x509_crl_object_pem_read__doc__[] =
+static char crl_object_pem_read__doc__[] =
   "Class method to read a PEM-encoded CRL object from a string.\n"
   ;
 
 static PyObject *
-x509_crl_object_pem_read(PyTypeObject *type, PyObject *args)
+crl_object_pem_read(PyTypeObject *type, PyObject *args)
 {
-  return read_from_string_helper(x509_crl_object_pem_read_helper, type, args);
+  return read_from_string_helper(crl_object_pem_read_helper, type, args);
 }
 
-static char x509_crl_object_pem_read_file__doc__[] =
+static char crl_object_pem_read_file__doc__[] =
   "Class method to read a PEM-encoded CRL object from a file.\n"
   ;
 
 static PyObject *
-x509_crl_object_pem_read_file(PyTypeObject *type, PyObject *args)
+crl_object_pem_read_file(PyTypeObject *type, PyObject *args)
 {
-  return read_from_file_helper(x509_crl_object_pem_read_helper, type, args);
+  return read_from_file_helper(crl_object_pem_read_helper, type, args);
 }
 
-static char x509_crl_object_der_read__doc__[] =
+static char crl_object_der_read__doc__[] =
   "Class method to read a DER-encoded CRL object from a string.\n"
   ;
 
 static PyObject *
-x509_crl_object_der_read(PyTypeObject *type, PyObject *args)
+crl_object_der_read(PyTypeObject *type, PyObject *args)
 {
-  return read_from_string_helper(x509_crl_object_der_read_helper, type, args);
+  return read_from_string_helper(crl_object_der_read_helper, type, args);
 }
 
-static char x509_crl_object_der_read_file__doc__[] =
+static char crl_object_der_read_file__doc__[] =
   "Class method to read a DER-encoded CRL object from a file.\n"
   ;
 
 static PyObject *
-x509_crl_object_der_read_file(PyTypeObject *type, PyObject *args)
+crl_object_der_read_file(PyTypeObject *type, PyObject *args)
 {
-  return read_from_file_helper(x509_crl_object_der_read_helper, type, args);
+  return read_from_file_helper(crl_object_der_read_helper, type, args);
 }
 
-static char x509_crl_object_get_version__doc__[] =
+static char crl_object_get_version__doc__[] =
   "This method returns the version number of this CRL.\n"
   ;
 
 static PyObject *
-x509_crl_object_get_version(x509_crl_object *self)
+crl_object_get_version(crl_object *self)
 {
   return Py_BuildValue("l", X509_CRL_get_version(self->crl));
 }
 
-static char x509_crl_object_set_version__doc__[] =
+static char crl_object_set_version__doc__[] =
   "This method sets the version number of this CRL.\n"
   "\n"
   "The \"version\" parameter should be a positive integer.\n"
   ;
 
 static PyObject *
-x509_crl_object_set_version(x509_crl_object *self, PyObject *args)
+crl_object_set_version(crl_object *self, PyObject *args)
 {
   long version = 0;
 
@@ -3616,13 +3646,13 @@ x509_crl_object_set_version(x509_crl_object *self, PyObject *args)
   return NULL;
 }
 
-static char x509_crl_object_get_issuer__doc__[] =
+static char crl_object_get_issuer__doc__[] =
   "This method returns issuer name from this CRL.\n"
   "See the \"getIssuer\" method of the X509 class for more details.\n"
   ;
 
 static PyObject *
-x509_crl_object_get_issuer(x509_crl_object *self, PyObject *args)
+crl_object_get_issuer(crl_object *self, PyObject *args)
 {
   PyObject *result = NULL;
   int format = OIDNAME_FORMAT;
@@ -3636,13 +3666,13 @@ x509_crl_object_get_issuer(x509_crl_object *self, PyObject *args)
   return result;
 }
 
-static char x509_crl_object_set_issuer__doc__[] =
+static char crl_object_set_issuer__doc__[] =
   "This method sets the CRL's issuer name.\n"
   "See the \"setIssuer\" method of the X509 class for details.\n"
   ;
 
 static PyObject *
-x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
+crl_object_set_issuer(crl_object *self, PyObject *args)
 {
   PyObject *name_sequence = NULL;
   X509_NAME *name = NULL;
@@ -3674,7 +3704,7 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
  * calls "thisUpdate", OpenSSL calls "lastUpdate".
  */
 
-static char x509_crl_object_set_this_update__doc__[] =
+static char crl_object_set_this_update__doc__[] =
   "This method sets the CRL's \"thisUpdate\" value.\n"
   "\n"
   "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
@@ -3684,7 +3714,7 @@ static char x509_crl_object_set_this_update__doc__[] =
   ;
 
 static PyObject *
-x509_crl_object_set_this_update (x509_crl_object *self, PyObject *args)
+crl_object_set_this_update (crl_object *self, PyObject *args)
 {
   char *s = NULL;
   ASN1_TIME *t = NULL;
@@ -3692,7 +3722,7 @@ x509_crl_object_set_this_update (x509_crl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
 
-  if ((t = Python_to_ASN1_TIME(s)) == NULL)
+  if ((t = Python_to_ASN1_TIME(s, 1)) == NULL)
     lose("Couldn't convert thisUpdate string");
 
   if (!X509_CRL_set_lastUpdate(self->crl, t)) /* sic */
@@ -3706,7 +3736,7 @@ x509_crl_object_set_this_update (x509_crl_object *self, PyObject *args)
   return NULL;
 }
 
-static char x509_crl_object_get_this_update__doc__[] =
+static char crl_object_get_this_update__doc__[] =
   "This method returns the CRL's \"thisUpdate\" value\n"
   "in the form of a GeneralizedTime string as restricted by RFC 5280.\n"
   "The code automatically converts RFC-5280-compliant UTCTime strings\n"
@@ -3715,12 +3745,12 @@ static char x509_crl_object_get_this_update__doc__[] =
   ;
 
 static PyObject *
-x509_crl_object_get_this_update (x509_crl_object *self)
+crl_object_get_this_update (crl_object *self)
 {
   return ASN1_TIME_to_Python(X509_CRL_get_lastUpdate(self->crl)); /* sic */
 }
 
-static char x509_crl_object_set_next_update__doc__[] =
+static char crl_object_set_next_update__doc__[] =
   "This method sets the CRL's \"nextUpdate\" value.\n"
   "\n"
   "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
@@ -3730,7 +3760,7 @@ static char x509_crl_object_set_next_update__doc__[] =
   ;
 
 static PyObject *
-x509_crl_object_set_next_update (x509_crl_object *self, PyObject *args)
+crl_object_set_next_update (crl_object *self, PyObject *args)
 {
   char *s = NULL;
   ASN1_TIME *t = NULL;
@@ -3738,7 +3768,7 @@ x509_crl_object_set_next_update (x509_crl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
 
-  if ((t = Python_to_ASN1_TIME(s)) == NULL)
+  if ((t = Python_to_ASN1_TIME(s, 1)) == NULL)
     lose("Couldn't parse nextUpdate string");
 
   if (!X509_CRL_set_nextUpdate(self->crl, t))
@@ -3752,7 +3782,7 @@ x509_crl_object_set_next_update (x509_crl_object *self, PyObject *args)
   return NULL;
 }
 
-static char x509_crl_object_get_next_update__doc__[] =
+static char crl_object_get_next_update__doc__[] =
   "This method returns the CRL's \"nextUpdate\" value\n"
   "in the form of a GeneralizedTime string as restricted by RFC 5280.\n"
   "The code automatically converts RFC-5280-compliant UTCTime strings\n"
@@ -3761,12 +3791,12 @@ static char x509_crl_object_get_next_update__doc__[] =
   ;
 
 static PyObject *
-x509_crl_object_get_next_update (x509_crl_object *self)
+crl_object_get_next_update (crl_object *self)
 {
   return ASN1_TIME_to_Python(X509_CRL_get_nextUpdate(self->crl));
 }
 
-static char x509_crl_object_add_revocations__doc__[] =
+static char crl_object_add_revocations__doc__[] =
   "This method adds a collection of revocations to this CRL.\n"
   "\n"
   "The \"iterable\" parameter should be an iterable object, each element\n"
@@ -3776,7 +3806,7 @@ static char x509_crl_object_add_revocations__doc__[] =
   ;
 
 static PyObject *
-x509_crl_object_add_revocations(x509_crl_object *self, PyObject *args)
+crl_object_add_revocations(crl_object *self, PyObject *args)
 {
   PyObject *iterable = NULL;
   PyObject *iterator = NULL;
@@ -3805,7 +3835,7 @@ x509_crl_object_add_revocations(x509_crl_object *self, PyObject *args)
     ASN1_INTEGER_free(a_serial);
     a_serial = NULL;
 
-    if ((a_date = Python_to_ASN1_TIME(c_date)) == NULL)
+    if ((a_date = Python_to_ASN1_TIME(c_date, 1)) == NULL)
       lose("Couldn't convert revocationDate string");
 
     if (!X509_REVOKED_set_revocationDate(revoked, a_date))
@@ -3840,13 +3870,13 @@ x509_crl_object_add_revocations(x509_crl_object *self, PyObject *args)
     return NULL;
 }
 
-static char x509_crl_object_get_revoked__doc__[] =
+static char crl_object_get_revoked__doc__[] =
   "This method returns a tuple of X509Revoked objects representing the sequence\n"
   "of revoked certificates listed in the CRL.\n"
   ;
 
 static PyObject *
-x509_crl_object_get_revoked(x509_crl_object *self)
+crl_object_get_revoked(crl_object *self)
 {
   STACK_OF(X509_REVOKED) *revoked = NULL;
   X509_REVOKED *r = NULL;
@@ -3884,14 +3914,14 @@ x509_crl_object_get_revoked(x509_crl_object *self)
   return NULL;
 }
 
-static char x509_crl_object_add_extension__doc__[] =
+static char crl_object_add_extension__doc__[] =
   "This method adds an extension to this CRL.\n"
   "It takes the same arguments and has the same limitations as the\n"
   "X509.addExtension() method (q.v.).\n"
   ;
 
 static PyObject *
-x509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
+crl_object_add_extension(crl_object *self, PyObject *args)
 {
   PyObject *critical = NULL;
   int len = 0, ok = 0;
@@ -3931,12 +3961,12 @@ x509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
     return NULL;
 }
 
-static char x509_crl_object_clear_extensions__doc__[] =
+static char crl_object_clear_extensions__doc__[] =
   "This method clears all extensions attached to this CRL.\n"
   ;
 
 static PyObject *
-x509_crl_object_clear_extensions(x509_crl_object *self)
+crl_object_clear_extensions(crl_object *self)
 {
   X509_EXTENSION *ext;
 
@@ -3946,17 +3976,17 @@ x509_crl_object_clear_extensions(x509_crl_object *self)
   Py_RETURN_NONE;
 }
 
-static char x509_crl_object_count_extensions__doc__[] =
+static char crl_object_count_extensions__doc__[] =
   "This method returns the number of extensions attached to this CRL.\n"
   ;
 
 static PyObject *
-x509_crl_object_count_extensions(x509_crl_object *self)
+crl_object_count_extensions(crl_object *self)
 {
   return Py_BuildValue("i", X509_CRL_get_ext_count(self->crl));
 }
 
-static char x509_crl_object_get_extension__doc__[] =
+static char crl_object_get_extension__doc__[] =
   "This method returns a tuple equivalent the parameters of the\n"
   "\"addExtension\" method, and suffers from similar limitations.\n"
   "\n"
@@ -3965,7 +3995,7 @@ static char x509_crl_object_get_extension__doc__[] =
   ;
 
 static PyObject *
-x509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
+crl_object_get_extension(crl_object *self, PyObject *args)
 {
   X509_EXTENSION *ext;
   char oid[512];
@@ -3989,7 +4019,7 @@ x509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
   return NULL;
 }
 
-static char x509_crl_object_sign__doc__[] =
+static char crl_object_sign__doc__[] =
   "This method signs a CRL with a private key.\n"
   "\n"
   "The \"key\" parameter should be an instance of the Asymmetric class,\n"
@@ -4009,14 +4039,14 @@ static char x509_crl_object_sign__doc__[] =
   ;
 
 static PyObject *
-x509_crl_object_sign(x509_crl_object *self, PyObject *args)
+crl_object_sign(crl_object *self, PyObject *args)
 {
   EVP_PKEY *pkey = NULL;
   asymmetric_object *asym;
   int digest_type = SHA256_DIGEST;
   const EVP_MD *digest_method = NULL;
 
-  if (!PyArg_ParseTuple(args, "O!|i", &asymmetrictype, &asym, &digest_type))
+  if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
     goto error;
 
   if ((pkey = EVP_PKEY_new()) == NULL)
@@ -4039,7 +4069,7 @@ x509_crl_object_sign(x509_crl_object *self, PyObject *args)
   return NULL;
 }
 
-static char x509_crl_object_verify__doc__[] =
+static char crl_object_verify__doc__[] =
   "This method verifies the CRL's signature.\n"
   "The check is performed using OpenSSL's X509_CRL_verify() function.\n"
   "\n"
@@ -4048,12 +4078,12 @@ static char x509_crl_object_verify__doc__[] =
   ;
 
 static PyObject *
-x509_crl_object_verify(x509_crl_object *self, PyObject *args)
+crl_object_verify(crl_object *self, PyObject *args)
 {
   EVP_PKEY *pkey = NULL;
   asymmetric_object *asym;
 
-  if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
+  if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
     goto error;
 
   if ((pkey = EVP_PKEY_new()) == NULL)
@@ -4069,12 +4099,12 @@ x509_crl_object_verify(x509_crl_object *self, PyObject *args)
   return NULL;
 }
 
-static char x509_crl_object_pem_write__doc__[] =
+static char crl_object_pem_write__doc__[] =
   "This method returns a PEM encoded CRL as a string.\n"
   ;
 
 static PyObject *
-x509_crl_object_pem_write(x509_crl_object *self)
+crl_object_pem_write(crl_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
@@ -4092,12 +4122,12 @@ x509_crl_object_pem_write(x509_crl_object *self)
   return result;
 }
 
-static char x509_crl_object_der_write__doc__[] =
+static char crl_object_der_write__doc__[] =
   "This method returns a DER encoded CRL as a string.\n"
   ;
 
 static PyObject *
-x509_crl_object_der_write(x509_crl_object *self)
+crl_object_der_write(crl_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
@@ -4115,21 +4145,21 @@ x509_crl_object_der_write(x509_crl_object *self)
   return result;
 }
 
-static char x509_crl_object_get_aki__doc__[] =
+static char crl_object_get_aki__doc__[] =
   "This method returns the Authority Key Identifier (AKI) keyid value for\n"
   "this CRL, or None if the CRL has no AKI extension\n"
   "or has an AKI extension with no keyIdentifier value.\n"
   ;
 
 static PyObject *
-x509_crl_object_get_aki(x509_crl_object *self, PyObject *args)
+crl_object_get_aki(crl_object *self, PyObject *args)
 {
   AUTHORITY_KEYID *ext = X509_CRL_get_ext_d2i(self->crl, NID_authority_key_identifier, NULL, NULL);
   int empty = (ext == NULL || ext->keyid == NULL);
   PyObject *result = NULL;
 
   if (!empty)
-    result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid), ASN1_STRING_length(ext->keyid));    
+    result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid), ASN1_STRING_length(ext->keyid));
 
   AUTHORITY_KEYID_free(ext);
 
@@ -4139,14 +4169,14 @@ x509_crl_object_get_aki(x509_crl_object *self, PyObject *args)
     return result;
 }
 
-static char x509_crl_object_set_aki__doc__[] =
+static char crl_object_set_aki__doc__[] =
   "This method sets the Authority Key Identifier (AKI) value for this\n"
   "CRL.   We only support the keyIdentifier method, as that's\n"
   "the only form which is legal for RPKI certificates.\n"
   ;
 
 static PyObject *
-x509_crl_object_set_aki(x509_crl_object *self, PyObject *args)
+crl_object_set_aki(crl_object *self, PyObject *args)
 {
   AUTHORITY_KEYID *ext = NULL;
   const unsigned char *buf = NULL;
@@ -4175,12 +4205,12 @@ x509_crl_object_set_aki(x509_crl_object *self, PyObject *args)
     return NULL;
 }
 
-static char x509_crl_object_get_crl_number__doc__[] =
+static char crl_object_get_crl_number__doc__[] =
   "This method get the CRL Number extension value from this CRL.\n"
   ;
 
 static PyObject *
-x509_crl_object_get_crl_number(x509_crl_object *self)
+crl_object_get_crl_number(crl_object *self)
 {
   ASN1_INTEGER *ext = X509_CRL_get_ext_d2i(self->crl, NID_crl_number, NULL, NULL);
   PyObject *result = NULL;
@@ -4193,14 +4223,14 @@ x509_crl_object_get_crl_number(x509_crl_object *self)
   return result;
 }
 
-static char x509_crl_object_set_crl_number__doc__[] =
+static char crl_object_set_crl_number__doc__[] =
   "This method sets the CRL Number extension value in this CRL.\n"
   "\n"
   "The \"number\" parameter should ba an integer.\n"
   ;
 
 static PyObject *
-x509_crl_object_set_crl_number(x509_crl_object *self, PyObject *args)
+crl_object_set_crl_number(crl_object *self, PyObject *args)
 {
   ASN1_INTEGER *ext = NULL;
   PyObject *crl_number = NULL;
@@ -4220,12 +4250,12 @@ x509_crl_object_set_crl_number(x509_crl_object *self, PyObject *args)
   return NULL;
 }
 
-static char x509_crl_object_pprint__doc__[] =
+static char crl_object_pprint__doc__[] =
   "This method returns a pretty-printed rendition of the CRL.\n"
   ;
 
 static PyObject *
-x509_crl_object_pprint(x509_crl_object *self)
+crl_object_pprint(crl_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
@@ -4243,55 +4273,55 @@ x509_crl_object_pprint(x509_crl_object *self)
   return result;
 }
 
-static struct PyMethodDef x509_crl_object_methods[] = {
-  Define_Method(sign,                   x509_crl_object_sign,                   METH_VARARGS),
-  Define_Method(verify,         	x509_crl_object_verify,                 METH_VARARGS),
-  Define_Method(getVersion,     	x509_crl_object_get_version,            METH_NOARGS),
-  Define_Method(setVersion,     	x509_crl_object_set_version,            METH_VARARGS),
-  Define_Method(getIssuer,      	x509_crl_object_get_issuer,             METH_VARARGS),
-  Define_Method(setIssuer,      	x509_crl_object_set_issuer,             METH_VARARGS),
-  Define_Method(getThisUpdate,  	x509_crl_object_get_this_update,        METH_NOARGS),
-  Define_Method(setThisUpdate,  	x509_crl_object_set_this_update,        METH_VARARGS),
-  Define_Method(getNextUpdate,  	x509_crl_object_get_next_update,        METH_NOARGS),
-  Define_Method(setNextUpdate,  	x509_crl_object_set_next_update,        METH_VARARGS),
-  Define_Method(getRevoked,     	x509_crl_object_get_revoked,            METH_NOARGS),
-  Define_Method(addRevocations,		x509_crl_object_add_revocations,	METH_VARARGS),
-  Define_Method(addExtension,   	x509_crl_object_add_extension,          METH_VARARGS),
-  Define_Method(clearExtensions, 	x509_crl_object_clear_extensions,       METH_NOARGS),
-  Define_Method(countExtensions, 	x509_crl_object_count_extensions,       METH_NOARGS),
-  Define_Method(getExtension,   	x509_crl_object_get_extension,          METH_VARARGS),
-  Define_Method(pemWrite,       	x509_crl_object_pem_write,              METH_NOARGS),
-  Define_Method(derWrite,       	x509_crl_object_der_write,              METH_NOARGS),
-  Define_Method(pprint,         	x509_crl_object_pprint,                 METH_NOARGS),
-  Define_Method(getAKI,         	x509_crl_object_get_aki,                METH_NOARGS),
-  Define_Method(setAKI,         	x509_crl_object_set_aki,                METH_VARARGS),
-  Define_Method(getCRLNumber,           x509_crl_object_get_crl_number,         METH_NOARGS),
-  Define_Method(setCRLNumber,           x509_crl_object_set_crl_number,         METH_VARARGS),
-  Define_Class_Method(pemRead,		x509_crl_object_pem_read,	   	METH_VARARGS),
-  Define_Class_Method(pemReadFile,	x509_crl_object_pem_read_file, 		METH_VARARGS),
-  Define_Class_Method(derRead,		x509_crl_object_der_read,	   	METH_VARARGS),
-  Define_Class_Method(derReadFile,	x509_crl_object_der_read_file, 		METH_VARARGS),
+static struct PyMethodDef crl_object_methods[] = {
+  Define_Method(sign,                   crl_object_sign,                METH_VARARGS),
+  Define_Method(verify,                 crl_object_verify,              METH_VARARGS),
+  Define_Method(getVersion,             crl_object_get_version,         METH_NOARGS),
+  Define_Method(setVersion,             crl_object_set_version,         METH_VARARGS),
+  Define_Method(getIssuer,              crl_object_get_issuer,          METH_VARARGS),
+  Define_Method(setIssuer,              crl_object_set_issuer,          METH_VARARGS),
+  Define_Method(getThisUpdate,          crl_object_get_this_update,     METH_NOARGS),
+  Define_Method(setThisUpdate,          crl_object_set_this_update,     METH_VARARGS),
+  Define_Method(getNextUpdate,          crl_object_get_next_update,     METH_NOARGS),
+  Define_Method(setNextUpdate,          crl_object_set_next_update,     METH_VARARGS),
+  Define_Method(getRevoked,             crl_object_get_revoked,         METH_NOARGS),
+  Define_Method(addRevocations,         crl_object_add_revocations,     METH_VARARGS),
+  Define_Method(addExtension,           crl_object_add_extension,       METH_VARARGS),
+  Define_Method(clearExtensions,        crl_object_clear_extensions,    METH_NOARGS),
+  Define_Method(countExtensions,        crl_object_count_extensions,    METH_NOARGS),
+  Define_Method(getExtension,           crl_object_get_extension,       METH_VARARGS),
+  Define_Method(pemWrite,               crl_object_pem_write,           METH_NOARGS),
+  Define_Method(derWrite,               crl_object_der_write,           METH_NOARGS),
+  Define_Method(pprint,                 crl_object_pprint,              METH_NOARGS),
+  Define_Method(getAKI,                 crl_object_get_aki,             METH_NOARGS),
+  Define_Method(setAKI,                 crl_object_set_aki,             METH_VARARGS),
+  Define_Method(getCRLNumber,           crl_object_get_crl_number,      METH_NOARGS),
+  Define_Method(setCRLNumber,           crl_object_set_crl_number,      METH_VARARGS),
+  Define_Class_Method(pemRead,          crl_object_pem_read,            METH_VARARGS),
+  Define_Class_Method(pemReadFile,      crl_object_pem_read_file,       METH_VARARGS),
+  Define_Class_Method(derRead,          crl_object_der_read,            METH_VARARGS),
+  Define_Class_Method(derReadFile,      crl_object_der_read_file,       METH_VARARGS),
   {NULL}
 };
 
 static void
-x509_crl_object_dealloc(x509_crl_object *self)
+crl_object_dealloc(crl_object *self)
 {
   X509_CRL_free(self->crl);
   self->ob_type->tp_free((PyObject*) self);
 }
 
-static char x509_crltype__doc__[] =
+static char POW_CRL_Type__doc__[] =
   "This class provides access to OpenSSL X509 CRL management facilities.\n"
   ;
 
-static PyTypeObject x509_crltype = {
+static PyTypeObject POW_CRL_Type = {
   PyObject_HEAD_INIT(0)
   0,                                     /* ob_size */
   "POW.CRL",                             /* tp_name */
-  sizeof(x509_crl_object),               /* tp_basicsize */
+  sizeof(crl_object),                    /* tp_basicsize */
   0,                                     /* tp_itemsize */
-  (destructor)x509_crl_object_dealloc,   /* tp_dealloc */
+  (destructor)crl_object_dealloc,        /* tp_dealloc */
   0,                                     /* tp_print */
   0,                                     /* tp_getattr */
   0,                                     /* tp_setattr */
@@ -4307,14 +4337,14 @@ static PyTypeObject x509_crltype = {
   0,                                     /* tp_setattro */
   0,                                     /* tp_as_buffer */
   Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-  x509_crltype__doc__,                   /* tp_doc */
+  POW_CRL_Type__doc__,                   /* tp_doc */
   0,                                     /* tp_traverse */
   0,                                     /* tp_clear */
   0,                                     /* tp_richcompare */
   0,                                     /* tp_weaklistoffset */
   0,                                     /* tp_iter */
   0,                                     /* tp_iternext */
-  x509_crl_object_methods,               /* tp_methods */
+  crl_object_methods,                    /* tp_methods */
   0,                                     /* tp_members */
   0,                                     /* tp_getset */
   0,                                     /* tp_base */
@@ -4324,12 +4354,14 @@ static PyTypeObject x509_crltype = {
   0,                                     /* tp_dictoffset */
   0,                                     /* tp_init */
   0,                                     /* tp_alloc */
-  x509_crl_object_new,                   /* tp_new */
+  crl_object_new,                        /* tp_new */
 };
 
-/*========== X509 CRL Code ==========*/
+
 
-/*========== Asymmetric Object ==========*/
+/*
+ * Asymmetric object.
+ */
 
 static PyObject *
 asymmetric_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -4465,7 +4497,7 @@ asymmetric_object_der_read_private_helper(PyTypeObject *type, BIO *bio)
 {
   asymmetric_object *self = NULL;
 
-  if ((self = (asymmetric_object *) asymmetric_object_new(&asymmetrictype, NULL, NULL)) == NULL)
+  if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
     goto error;
 
   if ((self->cipher = d2i_RSAPrivateKey_bio(bio, NULL)) == NULL)
@@ -4506,7 +4538,7 @@ asymmetric_object_pem_read_public_helper(PyTypeObject *type, BIO *in)
 {
   asymmetric_object *self = NULL;
 
-  if ((self = (asymmetric_object *) asymmetric_object_new(&asymmetrictype, NULL, NULL)) == NULL)
+  if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
     goto error;
 
   if ((self->cipher = PEM_read_bio_RSA_PUBKEY(in, NULL, NULL, NULL)) == NULL)
@@ -4526,7 +4558,7 @@ asymmetric_object_der_read_public_helper(PyTypeObject *type, BIO *bio)
 {
   asymmetric_object *self = NULL;
 
-  if ((self = (asymmetric_object *) asymmetric_object_new(&asymmetrictype, NULL, NULL)) == NULL)
+  if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
     goto error;
 
   if ((self->cipher = d2i_RSA_PUBKEY_bio(bio, NULL)) == NULL)
@@ -4782,20 +4814,20 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
 }
 
 static struct PyMethodDef asymmetric_object_methods[] = {
-  Define_Method(pemWritePrivate,          asymmetric_object_pem_write_private,		METH_VARARGS),
-  Define_Method(pemWritePublic,		  asymmetric_object_pem_write_public,		METH_NOARGS),
-  Define_Method(derWritePrivate,          asymmetric_object_der_write_private,		METH_NOARGS),
-  Define_Method(derWritePublic,		  asymmetric_object_der_write_public,		METH_NOARGS),
+  Define_Method(pemWritePrivate,          asymmetric_object_pem_write_private,          METH_VARARGS),
+  Define_Method(pemWritePublic,           asymmetric_object_pem_write_public,           METH_NOARGS),
+  Define_Method(derWritePrivate,          asymmetric_object_der_write_private,          METH_NOARGS),
+  Define_Method(derWritePublic,           asymmetric_object_der_write_public,           METH_NOARGS),
   Define_Method(sign,                     asymmetric_object_sign,                       METH_VARARGS),
   Define_Method(verify,                   asymmetric_object_verify,                     METH_VARARGS),
-  Define_Class_Method(pemReadPublic,      asymmetric_object_pem_read_public,       	METH_VARARGS),
+  Define_Class_Method(pemReadPublic,      asymmetric_object_pem_read_public,            METH_VARARGS),
   Define_Class_Method(pemReadPublicFile,  asymmetric_object_pem_read_public_file,       METH_VARARGS),
-  Define_Class_Method(derReadPublic,	  asymmetric_object_der_read_public,		METH_VARARGS),
-  Define_Class_Method(derReadPublicFile,  asymmetric_object_der_read_public_file, 	METH_VARARGS),
-  Define_Class_Method(pemReadPrivate,	  asymmetric_object_pem_read_private,      	METH_VARARGS),
-  Define_Class_Method(pemReadPrivateFile, asymmetric_object_pem_read_private_file, 	METH_VARARGS),
-  Define_Class_Method(derReadPrivate,	  asymmetric_object_der_read_private,      	METH_VARARGS),
-  Define_Class_Method(derReadPrivateFile, asymmetric_object_der_read_private_file, 	METH_VARARGS),
+  Define_Class_Method(derReadPublic,      asymmetric_object_der_read_public,            METH_VARARGS),
+  Define_Class_Method(derReadPublicFile,  asymmetric_object_der_read_public_file,       METH_VARARGS),
+  Define_Class_Method(pemReadPrivate,     asymmetric_object_pem_read_private,           METH_VARARGS),
+  Define_Class_Method(pemReadPrivateFile, asymmetric_object_pem_read_private_file,      METH_VARARGS),
+  Define_Class_Method(derReadPrivate,     asymmetric_object_der_read_private,           METH_VARARGS),
+  Define_Class_Method(derReadPrivateFile, asymmetric_object_der_read_private_file,      METH_VARARGS),
   {NULL}
 };
 
@@ -4810,13 +4842,13 @@ asymmetric_object_dealloc(asymmetric_object *self)
   self->ob_type->tp_free((PyObject*) self);
 }
 
-static char asymmetrictype__doc__[] =
+static char POW_Asymmetric_Type__doc__[] =
   "This class provides basic access to RSA signature and verification.\n"
   "\n"
   LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
   ;
 
-static PyTypeObject asymmetrictype = {
+static PyTypeObject POW_Asymmetric_Type = {
   PyObject_HEAD_INIT(0)
   0,                                     /* ob_size */
   "POW.Asymmetric",                      /* tp_name */
@@ -4838,7 +4870,7 @@ static PyTypeObject asymmetrictype = {
   0,                                     /* tp_setattro */
   0,                                     /* tp_as_buffer */
   Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-  asymmetrictype__doc__,                 /* tp_doc */
+  POW_Asymmetric_Type__doc__,            /* tp_doc */
   0,                                     /* tp_traverse */
   0,                                     /* tp_clear */
   0,                                     /* tp_richcompare */
@@ -4858,9 +4890,11 @@ static PyTypeObject asymmetrictype = {
   asymmetric_object_new,                 /* tp_new */
 };
 
-/*========== asymmetric Code ==========*/
+
 
-/*========== digest Code ==========*/
+/*
+ * Digest object.
+ */
 
 static PyObject *
 digest_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -4934,7 +4968,7 @@ digest_object_copy(digest_object *self, PyObject *args)
 {
   digest_object *new = NULL;
 
-  if ((new = (digest_object *) digest_object_new(&digesttype, NULL, NULL)) == NULL)
+  if ((new = (digest_object *) digest_object_new(&POW_Digest_Type, NULL, NULL)) == NULL)
     goto error;
 
   new->digest_type = self->digest_type;
@@ -4994,7 +5028,7 @@ digest_object_dealloc(digest_object *self)
   self->ob_type->tp_free((PyObject*) self);
 }
 
-static char digesttype__doc__[] =
+static char POW_Digest_Type__doc__[] =
   "This class provides access to the digest functionality of OpenSSL.\n"
   "It emulates the digest modules in the Python Standard Library, but\n"
   "does not currently support the \"hexdigest\" method.\n"
@@ -5010,7 +5044,7 @@ static char digesttype__doc__[] =
   "  * SHA512_DIGEST\n"
   ;
 
-static PyTypeObject digesttype = {
+static PyTypeObject POW_Digest_Type = {
   PyObject_HEAD_INIT(0)
   0,                                  /* ob_size */
   "POW.Digest",                       /* tp_name */
@@ -5032,7 +5066,7 @@ static PyTypeObject digesttype = {
   0,                                  /* tp_setattro */
   0,                                  /* tp_as_buffer */
   Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-  digesttype__doc__,                  /* tp_doc */
+  POW_Digest_Type__doc__,             /* tp_doc */
   0,                                  /* tp_traverse */
   0,                                  /* tp_clear */
   0,                                  /* tp_richcompare */
@@ -5052,9 +5086,11 @@ static PyTypeObject digesttype = {
   digest_object_new,                  /* tp_new */
 };
 
-/*========== digest Code ==========*/
+
 
-/*========== CMS code ==========*/
+/*
+ * CMS object.
+ */
 
 static PyObject *
 cms_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -5063,7 +5099,7 @@ cms_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 
   if ((self = (cms_object *) type->tp_alloc(type, 0)) != NULL)
     return (PyObject *) self;
- 
+
   Py_XDECREF(self);
   return NULL;
 }
@@ -5225,7 +5261,7 @@ cms_object_sign(cms_object *self, PyObject *args)
 {
   asymmetric_object *signkey = NULL;
   x509_object *signcert = NULL;
-  x509_crl_object *crlobj = NULL;
+  crl_object *crlobj = NULL;
   PyObject *x509_sequence = Py_None;
   PyObject *crl_sequence = Py_None;
   PyObject *result = NULL;
@@ -5239,8 +5275,8 @@ cms_object_sign(cms_object *self, PyObject *args)
   ASN1_OBJECT *econtent_type = NULL;
 
   if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
-                        &x509type, &signcert,
-                        &asymmetrictype, &signkey,
+                        &POW_X509_Type, &signcert,
+                        &POW_Asymmetric_Type, &signkey,
                         &buf, &len,
                         &x509_sequence,
                         &crl_sequence,
@@ -5307,10 +5343,10 @@ cms_object_sign(cms_object *self, PyObject *args)
 
     for (i = 0; i < n; i++) {
 
-      if ((crlobj = (x509_crl_object *) PySequence_GetItem(crl_sequence, i)) == NULL)
+      if ((crlobj = (crl_object *) PySequence_GetItem(crl_sequence, i)) == NULL)
         goto error;
 
-      if (!POW_X509_CRL_Check(crlobj))
+      if (!POW_CRL_Check(crlobj))
         lose_type_error("Inappropriate type");
 
       if (!crlobj->crl)
@@ -5379,7 +5415,7 @@ cms_object_verify(cms_object *self, PyObject *args)
   unsigned flags = 0;
   BIO *bio = NULL;
 
-  if (!PyArg_ParseTuple(args, "O!|OI", &x509_storetype, &store, &certs_sequence, &flags))
+  if (!PyArg_ParseTuple(args, "O!|OI", &POW_X509Store_Type, &store, &certs_sequence, &flags))
     goto error;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
@@ -5521,7 +5557,7 @@ cms_object_pprint(cms_object *self)
 static PyObject *
 cms_object_helper_get_cert(void *cert)
 {
-  x509_object *obj = (x509_object *) x509_object_new(&x509type, NULL, NULL);
+  x509_object *obj = (x509_object *) x509_object_new(&POW_X509_Type, NULL, NULL);
 
   if (obj) {
     X509_free(obj->x509);
@@ -5559,7 +5595,7 @@ cms_object_certs(cms_object *self)
 static PyObject *
 cms_object_helper_get_crl(void *crl)
 {
-  x509_crl_object *obj = (x509_crl_object *) x509_crl_object_new(&x509_crltype, NULL, NULL);
+  crl_object *obj = (crl_object *) crl_object_new(&POW_CRL_Type, NULL, NULL);
 
   if (obj) {
     X509_CRL_free(obj->crl);
@@ -5598,15 +5634,15 @@ static struct PyMethodDef cms_object_methods[] = {
   Define_Method(derWrite,               cms_object_der_write,           METH_NOARGS),
   Define_Method(sign,                   cms_object_sign,                METH_VARARGS),
   Define_Method(verify,                 cms_object_verify,              METH_VARARGS),
-  Define_Method(eContentType,   	cms_object_eContentType,        METH_NOARGS),
+  Define_Method(eContentType,           cms_object_eContentType,        METH_NOARGS),
   Define_Method(signingTime,            cms_object_signingTime,         METH_NOARGS),
   Define_Method(pprint,                 cms_object_pprint,              METH_NOARGS),
   Define_Method(certs,                  cms_object_certs,               METH_NOARGS),
   Define_Method(crls,                   cms_object_crls,                METH_NOARGS),
-  Define_Class_Method(pemRead,		cms_object_pem_read,	   	METH_VARARGS),
-  Define_Class_Method(pemReadFile,	cms_object_pem_read_file, 	METH_VARARGS),
-  Define_Class_Method(derRead,		cms_object_der_read,	   	METH_VARARGS),
-  Define_Class_Method(derReadFile,	cms_object_der_read_file, 	METH_VARARGS),
+  Define_Class_Method(pemRead,          cms_object_pem_read,            METH_VARARGS),
+  Define_Class_Method(pemReadFile,      cms_object_pem_read_file,       METH_VARARGS),
+  Define_Class_Method(derRead,          cms_object_der_read,            METH_VARARGS),
+  Define_Class_Method(derReadFile,      cms_object_der_read_file,       METH_VARARGS),
   {NULL}
 };
 
@@ -5617,13 +5653,13 @@ cms_object_dealloc(cms_object *self)
   self->ob_type->tp_free((PyObject*) self);
 }
 
-static char cmstype__doc__[] =
+static char POW_CMS_Type__doc__[] =
   "This class provides basic access OpenSSL's CMS functionality.\n"
   "At present this only handes signed objects, as those are the\n"
   "only kind of CMS objects used in RPKI.\n"
   ;
 
-static PyTypeObject cmstype = {
+static PyTypeObject POW_CMS_Type = {
   PyObject_HEAD_INIT(0)
   0,                                  /* ob_size */
   "POW.CMS",                          /* tp_name */
@@ -5645,7 +5681,7 @@ static PyTypeObject cmstype = {
   0,                                  /* tp_setattro */
   0,                                  /* tp_as_buffer */
   Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-  cmstype__doc__,                     /* tp_doc */
+  POW_CMS_Type__doc__,                /* tp_doc */
   0,                                  /* tp_traverse */
   0,                                  /* tp_clear */
   0,                                  /* tp_richcompare */
@@ -5665,9 +5701,460 @@ static PyTypeObject cmstype = {
   cms_object_new,                     /* tp_new */
 };
 
-/*========== CMS Code ==========*/
+
 
-/*========== module functions ==========*/
+/*
+ * Manifest object.
+ */
+
+static PyObject *
+manifest_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  manifest_object *self = NULL;
+
+  if ((self = (manifest_object *) type->tp_alloc(type, 0)) != NULL &&
+      (self->manifest = Manifest_new()) != NULL)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static PyObject *
+manifest_object_der_read_helper(PyTypeObject *type, BIO *bio)
+{
+  manifest_object *self;
+
+  if ((self = (manifest_object *) manifest_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest))
+    lose_openssl_error("Couldn't load DER encoded manifest");
+
+  return (PyObject *) self;
+
+ error:
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static char manifest_object_der_read__doc__[] =
+  "Class method to read a DER-encoded manifest object from a string.\n"
+  ;
+
+static PyObject *
+manifest_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(manifest_object_der_read_helper, type, args);
+}
+
+static char manifest_object_get_version__doc__[] =
+  "This method returns the version number of this manifest.\n"
+  ;
+
+static PyObject *
+manifest_object_get_version(manifest_object *self)
+{
+  if (self->manifest->version)
+    return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->manifest->version));
+  else
+    return PyInt_FromLong(0);
+}
+
+static char manifest_object_set_version__doc__[] =
+  "This method sets the version number of this manifest.\n"
+  "\n"
+  "The \"version\" parameter should be a non-negative integer.\n"
+  "\n"
+  "As of this writing, zero is both the default and the only defined version,\n"
+  "so attempting to set any version number other than zero will fail, as we\n"
+  "don't understand how to write other versions, by definition.\n"
+  ;
+
+static PyObject *
+manifest_object_set_version(manifest_object *self, PyObject *args)
+{
+  int version = 0;
+
+  if (!PyArg_ParseTuple(args, "|i", &version))
+    goto error;
+
+  if (version != 0)
+    lose("RFC 6486 only defines RPKI manifest version zero");
+
+  ASN1_INTEGER_free(self->manifest->version);
+  self->manifest->version = NULL;
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char manifest_object_get_manifest_number__doc__[] =
+  "This method returns the manifest number of this manifest.\n"
+  ;
+
+static PyObject *
+manifest_object_get_manifest_number(manifest_object *self)
+{
+  return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->manifest->manifestNumber));
+}
+
+static char manifest_object_set_manifest_number__doc__[] =
+  "This method sets the manifest number of this manifest.\n"
+  "\n"
+  "The \"manifestNumber\" parameter should be a non-negative integer.\n"
+  ;
+
+static PyObject *
+manifest_object_set_manifest_number(manifest_object *self, PyObject *args)
+{
+  PyObject *manifestNumber = NULL;
+  PyObject *zero = NULL;
+  int ok = 0;
+
+  if (!PyArg_ParseTuple(args, "O", &manifestNumber))
+    goto error;
+
+  if ((zero = PyInt_FromLong(0)) == NULL)
+    goto error;
+
+  switch (PyObject_RichCompareBool(manifestNumber, zero, Py_GE)) {
+  case -1:
+    goto error;
+  case 0:
+    lose("Negative manifest number is not allowed");
+  }
+
+  ASN1_INTEGER_free(self->manifest->manifestNumber);
+
+  if ((self->manifest->manifestNumber = PyLong_to_ASN1_INTEGER(manifestNumber)) == NULL)
+    goto error;
+
+  ok = 1;
+
+ error:
+  Py_XDECREF(zero);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char manifest_object_set_this_update__doc__[] =
+  "This method sets the manifest's \"thisUpdate\" value.\n"
+  "\n"
+  "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
+  "as restricted by RFC 5280.\n"
+  ;
+
+static PyObject *
+manifest_object_set_this_update (manifest_object *self, PyObject *args)
+{
+  ASN1_TIME *t = NULL;
+  char *s = NULL;
+
+  if (!PyArg_ParseTuple(args, "s", &s))
+    goto error;
+
+  if ((t = Python_to_ASN1_TIME(s, 0)) == NULL)
+    lose("Couldn't convert thisUpdate string");
+
+  ASN1_TIME_free(self->manifest->thisUpdate);
+  self->manifest->thisUpdate = t;
+  Py_RETURN_NONE;
+
+ error:
+  ASN1_TIME_free(t);
+  return NULL;
+}
+
+static char manifest_object_get_this_update__doc__[] =
+  "This method returns the manifest's \"thisUpdate\" value\n"
+  "in the form of a GeneralizedTime string as restricted by RFC 5280.\n"
+  ;
+
+static PyObject *
+manifest_object_get_this_update (manifest_object *self)
+{
+  return ASN1_TIME_to_Python(self->manifest->thisUpdate);
+}
+
+static char manifest_object_set_next_update__doc__[] =
+  "This method sets the manifest's \"nextUpdate\" value.\n"
+  "\n"
+  "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
+  "as restricted by RFC 5280.\n"
+  ;
+
+static PyObject *
+manifest_object_set_next_update (manifest_object *self, PyObject *args)
+{
+  ASN1_TIME *t = NULL;
+  char *s = NULL;
+
+  if (!PyArg_ParseTuple(args, "s", &s))
+    goto error;
+
+  if ((t = Python_to_ASN1_TIME(s, 0)) == NULL)
+    lose("Couldn't parse nextUpdate string");
+
+  ASN1_TIME_free(self->manifest->nextUpdate);
+  self->manifest->nextUpdate = t;
+  Py_RETURN_NONE;
+
+ error:
+  ASN1_TIME_free(t);
+  return NULL;
+}
+
+static char manifest_object_get_next_update__doc__[] =
+  "This method returns the manifest's \"nextUpdate\" value\n"
+  "in the form of a GeneralizedTime string as restricted by RFC 5280.\n"
+  ;
+
+static PyObject *
+manifest_object_get_next_update (manifest_object *self)
+{
+  return ASN1_TIME_to_Python(self->manifest->nextUpdate);
+}
+
+static char manifest_object_get_algorithm__doc__[] =
+  "This method returns the manifest's fileHashAlg OID.\n"
+  ;
+
+static PyObject *
+manifest_object_get_algorithm(manifest_object *self)
+{
+  PyObject *result = NULL;
+  char oid[512];
+
+  if (OBJ_obj2txt(oid, sizeof(oid), self->manifest->fileHashAlg, 1) <= 0)
+    lose("Couldn't translate OID");
+
+  result = Py_BuildValue("s", oid);
+
+ error:
+  return result;
+}
+
+static char manifest_object_set_algorithm__doc__[] =
+  "This method sets the manifest's fileHashAlg OID.\n"
+  ;
+
+static PyObject *
+manifest_object_set_algorithm(manifest_object *self, PyObject *args)
+{
+  ASN1_OBJECT *oid = NULL;
+  const char *s = NULL;
+
+  if (!PyArg_ParseTuple(args, "s", &s))
+    goto error;
+
+  if ((oid = OBJ_txt2obj(s, 1)) == NULL)
+    lose_no_memory();
+
+  ASN1_OBJECT_free(self->manifest->fileHashAlg);
+  self->manifest->fileHashAlg = oid;
+  Py_RETURN_NONE;
+
+ error:
+  ASN1_OBJECT_free(oid);
+  return NULL;
+}
+
+static char manifest_object_add_files__doc__[] =
+  "This method adds a collection of <filename, hash> pairs to this manifest.\n"
+  "\n"
+  "The \"iterable\" parameter should be an iterable object, each element\n"
+  "of which is a two-element sequence; the first element of this sequence\n"
+  "should be the filename (a text string), the second element should be the\n"
+  "hash (a binary string).\n"
+  ;
+
+static PyObject *
+manifest_object_add_files(manifest_object *self, PyObject *args)
+{
+  PyObject *iterable = NULL;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  FileAndHash *fah = NULL;
+  char *file = NULL;
+  char *hash = NULL;
+  int filelen, hashlen, ok = 0;
+
+  if (!PyArg_ParseTuple(args, "O", &iterable) ||
+      (iterator = PyObject_GetIter(iterable)) == NULL)
+    goto error;
+
+  while ((item = PyIter_Next(iterator)) != NULL) {
+
+    if (!PyArg_ParseTuple(item, "s#s#", &file, &filelen, &hash, &hashlen))
+      goto error;
+
+    if ((fah = FileAndHash_new()) == NULL ||
+        !ASN1_OCTET_STRING_set(fah->file, file, filelen) ||
+        !ASN1_BIT_STRING_set(fah->hash, hash, hashlen) ||
+        !sk_FileAndHash_push(self->manifest->fileList, fah))
+      lose_no_memory();
+
+    fah = NULL;
+    Py_XDECREF(item);
+    item = NULL;
+  }
+
+  ok = 1;
+
+ error:
+  Py_XDECREF(iterator);
+  Py_XDECREF(item);
+  FileAndHash_free(fah);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char manifest_object_get_files__doc__[] =
+  "This method returns a tuple of <filename, hash> pairs representing the\n"
+  "contents of this manifest.\n"
+  ;
+
+static PyObject *
+manifest_object_get_files(manifest_object *self)
+{
+  PyObject *result = NULL;
+  PyObject *item = NULL;
+  int i;
+
+  if (self->manifest->fileList == NULL)
+    lose("Inexplicable NULL manifest fileList pointer");
+
+  if ((result = PyTuple_New(sk_FileAndHash_num(self->manifest->fileList))) == NULL)
+    goto error;
+
+  for (i = 0; i < sk_FileAndHash_num(self->manifest->fileList); i++) {
+    FileAndHash *fah = sk_FileAndHash_value(self->manifest->fileList, i);
+
+    if ((item = Py_BuildValue("(s#s#)",
+                              ASN1_STRING_data(fah->file), ASN1_STRING_length(fah->file),
+                              ASN1_STRING_data(fah->hash), ASN1_STRING_length(fah->hash))) == NULL)
+      goto error;
+
+    PyTuple_SET_ITEM(result, i, item);
+    item = NULL;
+  }
+
+  return result;
+
+ error:
+  Py_XDECREF(result);
+  Py_XDECREF(item);
+  return NULL;
+}
+
+static char manifest_object_der_write__doc__[] =
+  "This method returns a DER encoded manifest as a string.\n"
+  ;
+
+static PyObject *
+manifest_object_der_write(manifest_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!ASN1_item_i2d_bio(ASN1_ITEM_rptr(Manifest), bio, self->manifest))
+    lose_openssl_error("Unable to write manifest");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static struct PyMethodDef manifest_object_methods[] = {
+  Define_Method(getVersion,             manifest_object_get_version,		METH_NOARGS),
+  Define_Method(setVersion,             manifest_object_set_version,		METH_VARARGS),
+  Define_Method(getManifestNumber,	manifest_object_get_manifest_number,	METH_NOARGS),
+  Define_Method(setManifestNumber,	manifest_object_set_manifest_number,	METH_VARARGS),
+  Define_Method(getThisUpdate,          manifest_object_get_this_update,	METH_NOARGS),
+  Define_Method(setThisUpdate,          manifest_object_set_this_update,	METH_VARARGS),
+  Define_Method(getNextUpdate,          manifest_object_get_next_update,	METH_NOARGS),
+  Define_Method(setNextUpdate,          manifest_object_set_next_update,        METH_VARARGS),
+  Define_Method(getAlgorithm,		manifest_object_get_algorithm,          METH_NOARGS),
+  Define_Method(setAlgorithm,		manifest_object_set_algorithm,          METH_VARARGS),
+  Define_Method(getFiles,		manifest_object_get_files,              METH_NOARGS),
+  Define_Method(addFiles,               manifest_object_add_files,		METH_VARARGS),
+  Define_Method(derWrite,               manifest_object_der_write,              METH_NOARGS),
+  Define_Class_Method(derRead,          manifest_object_der_read,               METH_VARARGS),
+  {NULL}
+};
+
+static void
+manifest_object_dealloc(manifest_object *self)
+{
+  Manifest_free(self->manifest);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
+static char POW_Manifest_Type__doc__[] =
+  "This class provides access to RPKI manifest payload.\n"
+  ;
+
+static PyTypeObject POW_Manifest_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                            /* ob_size */
+  "POW.Manifest",                               /* tp_name */
+  sizeof(manifest_object),                      /* tp_basicsize */
+  0,                                            /* tp_itemsize */
+  (destructor)manifest_object_dealloc,          /* tp_dealloc */
+  0,                                            /* tp_print */
+  0,                                            /* tp_getattr */
+  0,                                            /* tp_setattr */
+  0,                                            /* tp_compare */
+  0,                                            /* tp_repr */
+  0,                                            /* tp_as_number */
+  0,                                            /* tp_as_sequence */
+  0,                                            /* tp_as_mapping */
+  0,                                            /* tp_hash */
+  0,                                            /* tp_call */
+  0,                                            /* tp_str */
+  0,                                            /* tp_getattro */
+  0,                                            /* tp_setattro */
+  0,                                            /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,     /* tp_flags */
+  POW_Manifest_Type__doc__,                     /* tp_doc */
+  0,                                            /* tp_traverse */
+  0,                                            /* tp_clear */
+  0,                                            /* tp_richcompare */
+  0,                            		/* tp_weaklistoffset */
+  0,						/* tp_iter */
+  0,                                            /* tp_iternext */
+  manifest_object_methods,                      /* tp_methods */
+  0,                                            /* tp_members */
+  0,                                            /* tp_getset */
+  0,                                            /* tp_base */
+  0,                                            /* tp_dict */
+  0,                                            /* tp_descr_get */
+  0,                                            /* tp_descr_set */
+  0,                                            /* tp_dictoffset */
+  0,                                            /* tp_init */
+  0,                                            /* tp_alloc */
+  manifest_object_new,                          /* tp_new */
+};
+
+
+
+/*
+ * Module functions.
+ */
 
 static char pow_module_add_object__doc__[] =
   "This function dynamically adds new a new object identifier to OpenSSL's\n"
@@ -5844,9 +6331,11 @@ static struct PyMethodDef pow_module_methods[] = {
   {NULL}
 };
 
-/*========== module functions ==========*/
+
 
-/*==========================================================================*/
+/*
+ * Module initialization.
+ */
 
 void
 init_POW(void)
@@ -5863,13 +6352,14 @@ init_POW(void)
     }                                                                   \
   } while (0)
 
-  Define_Class(x509type);
-  Define_Class(x509_storetype);
-  Define_Class(x509_crltype);
-  Define_Class(asymmetrictype);
-  Define_Class(digesttype);
-  Define_Class(cmstype);
-  Define_Class(ipaddresstype);
+  Define_Class(POW_X509_Type);
+  Define_Class(POW_X509Store_Type);
+  Define_Class(POW_CRL_Type);
+  Define_Class(POW_Asymmetric_Type);
+  Define_Class(POW_Digest_Type);
+  Define_Class(POW_CMS_Type);
+  Define_Class(POW_IPAddress_Type);
+  Define_Class(POW_Manifest_Type);
 
 #undef Define_Class
 
@@ -5877,9 +6367,9 @@ init_POW(void)
   PyModule_AddObject(m, #__name__, ((__name__##Object)          \
     = PyErr_NewException("POW." #__name__, __parent__, NULL)))
 
-  Define_Exception(Error,	  NULL);
+  Define_Exception(Error,         NULL);
   Define_Exception(OpenSSLError,  ErrorObject);
-  Define_Exception(POWError,	  ErrorObject);
+  Define_Exception(POWError,      ErrorObject);
 
 #undef Define_Exception
 
@@ -5896,27 +6386,10 @@ init_POW(void)
   Define_Integer_Constant(RSA_PUBLIC_KEY);
   Define_Integer_Constant(RSA_PRIVATE_KEY);
 #endif
-#ifndef OPENSSL_NO_DSA
-  Define_Integer_Constant(DSA_PUBLIC_KEY);
-  Define_Integer_Constant(DSA_PRIVATE_KEY);
-#endif
-#ifndef OPENSSL_NO_DH
-  Define_Integer_Constant(DH_PUBLIC_KEY);
-  Define_Integer_Constant(DH_PRIVATE_KEY);
-#endif
-  Define_Integer_Constant(X509_CERTIFICATE);
-  PyModule_AddIntConstant(m, "X509_CRL", X_X509_CRL);
-  Define_Integer_Constant(CMS_MESSAGE);
 
   /* Asymmetric ciphers */
 #ifndef OPENSSL_NO_RSA
   Define_Integer_Constant(RSA_CIPHER);
-#endif
-#ifndef OPENSSL_NO_DSA
-  Define_Integer_Constant(DSA_CIPHER);
-#endif
-#ifndef OPENSSL_NO_DH
-  Define_Integer_Constant(DH_CIPHER);
 #endif
 
   /* Message digests */
@@ -5958,8 +6431,6 @@ init_POW(void)
   if (PyErr_Occurred() || !OpenSSL_ok)
     Py_FatalError("Can't initialize module POW");
 }
-
-/*==========================================================================*/
 
 /*
  * Local Variables:

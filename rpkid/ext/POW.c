@@ -157,6 +157,7 @@
 #define POW_IPAddress_Check(op)         PyObject_TypeCheck(op, &POW_IPAddress_Type)
 #define POW_ROA_Check(op)               PyObject_TypeCheck(op, &POW_ROA_Type)
 #define POW_Manifest_Check(op)          PyObject_TypeCheck(op, &POW_Manifest_Type)
+#define POW_ROA_Check(op)          	PyObject_TypeCheck(op, &POW_ROA_Type)
 
 static char pow_module__doc__ [] =
   "Python interface to RFC-3779-enabled OpenSSL.  This code is intended\n"
@@ -231,7 +232,8 @@ static PyTypeObject
   POW_CMS_Type,
   POW_IPAddress_Type,
   POW_ROA_Type,
-  POW_Manifest_Type;
+  POW_Manifest_Type,
+  POW_ROA_Type;
 
 /*
  * Object internals.
@@ -6153,6 +6155,467 @@ static PyTypeObject POW_Manifest_Type = {
 
 
 /*
+ * ROA object.
+ */
+
+static PyObject *
+roa_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  roa_object *self = NULL;
+
+  if ((self = (roa_object *) type->tp_alloc(type, 0)) != NULL &&
+      (self->roa = ROA_new()) != NULL)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static PyObject *
+roa_object_der_read_helper(PyTypeObject *type, BIO *bio)
+{
+  roa_object *self;
+
+  if ((self = (roa_object *) roa_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa))
+    lose_openssl_error("Couldn't load DER encoded roa");
+
+  return (PyObject *) self;
+
+ error:
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static char roa_object_der_read__doc__[] =
+  "Class method to read a DER-encoded ROA from a string.\n"
+  ;
+
+static PyObject *
+roa_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(roa_object_der_read_helper, type, args);
+}
+
+static char roa_object_get_version__doc__[] =
+  "This method returns the version number of this ROA.\n"
+  ;
+
+static PyObject *
+roa_object_get_version(roa_object *self)
+{
+  if (self->roa->version)
+    return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->roa->version));
+  else
+    return PyInt_FromLong(0);
+}
+
+static char roa_object_set_version__doc__[] =
+  "This method sets the version number of this ROA.\n"
+  "\n"
+  "The \"version\" parameter should be a non-negative integer.\n"
+  "\n"
+  "As of this writing, zero is both the default and the only defined version,\n"
+  "so attempting to set any version number other than zero will fail, as we\n"
+  "don't understand how to write other versions, by definition.\n"
+  ;
+
+static PyObject *
+roa_object_set_version(roa_object *self, PyObject *args)
+{
+  int version = 0;
+
+  if (!PyArg_ParseTuple(args, "|i", &version))
+    goto error;
+
+  if (version != 0)
+    lose("RFC 6482 only defines ROA version zero");
+
+  ASN1_INTEGER_free(self->roa->version);
+  self->roa->version = NULL;
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char roa_object_get_asid__doc__[] =
+  "This method returns the Autonomous System ID of this ROA.\n"
+  ;
+
+static PyObject *
+roa_object_get_asid(roa_object *self)
+{
+  return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->roa->asID));
+}
+
+static char roa_object_set_asid__doc__[] =
+  "This method sets the Autonomous System ID of this ROA.\n"
+  "\n"
+  "The \"asID\" parameter should be a non-negative integer.\n"
+  ;
+
+static PyObject *
+roa_object_set_asid(roa_object *self, PyObject *args)
+{
+  PyObject *asID = NULL;
+  PyObject *zero = NULL;
+  int ok = 0;
+
+  if (!PyArg_ParseTuple(args, "O", &asID))
+    goto error;
+
+  if ((zero = PyInt_FromLong(0)) == NULL)
+    goto error;
+
+  switch (PyObject_RichCompareBool(asID, zero, Py_GE)) {
+  case -1:
+    goto error;
+  case 0:
+    lose("Negative asID is not allowed");
+  }
+
+  ASN1_INTEGER_free(self->roa->asID);
+
+  if ((self->roa->asID = PyLong_to_ASN1_INTEGER(asID)) == NULL)
+    goto error;
+
+  ok = 1;
+
+ error:
+  Py_XDECREF(zero);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char roa_object_get_prefixes__doc__[] =
+  "This method returns the ROA's prefix list.  This is a two-element\n"
+  "tuple: the first element is the IPv4 prefix list, the second is the\n"
+  "IPv6 prefix list.\n"
+  "\n"
+  "[Add more description here once final format is stable]\n"
+  ;
+
+static PyObject *
+roa_object_get_prefixes(roa_object *self)
+{
+  PyObject *result = NULL;
+  PyObject *ipv4_result = NULL;
+  PyObject *ipv6_result = NULL;
+  PyObject *item = NULL;
+  ipaddress_object *addr = NULL;
+  int i, j;
+
+  for (i = 0; i < sk_ROAIPAddressFamily_num(self->roa->ipAddrBlocks); i++) {
+    ROAIPAddressFamily *fam = sk_ROAIPAddressFamily_value(self->roa->ipAddrBlocks, i);
+    const unsigned afi = (fam->addressFamily->data[0] << 8) | (fam->addressFamily->data[1]);
+    PyObject **resultp = NULL;
+
+    switch (afi) {
+    case IANA_AFI_IPV4: resultp = &ipv4_result; break;
+    case IANA_AFI_IPV6: resultp = &ipv6_result; break;
+    default:            lose_type_error("Unknown AFI");
+    }
+
+    if (fam->addressFamily->length > 2)
+      lose_type_error("Unsupported SAFI");
+
+    if (*resultp != NULL)
+      lose_type_error("Duplicate ROAIPAddressFamily");
+
+    if ((*resultp = PyTuple_New(sk_ROAIPAddress_num(fam->addresses))) == NULL)
+      goto error;
+
+    for (j = 0; j < sk_ROAIPAddress_num(fam->addresses); j++) {
+      ROAIPAddress *a = sk_ROAIPAddress_value(fam->addresses, j);
+      unsigned prefixlen = ((a->IPAddress)->length * 8 - ((a->IPAddress)->flags & 7));
+
+      if ((addr = (ipaddress_object *) POW_IPAddress_Type.tp_alloc(&POW_IPAddress_Type, 0)) == NULL)
+        goto error;
+
+      switch (afi) {
+      case IANA_AFI_IPV4:
+        addr->version =  4;
+        addr->length  =  4;
+        addr->af      = AF_INET;
+        break;
+      case IANA_AFI_IPV6:
+        addr->version =  6;
+        addr->length  = 16;
+        addr->af      = AF_INET6;
+        break;
+      }
+
+      memset(addr->address, 0, sizeof(addr->address));
+
+      if (a->IPAddress->length > addr->length)
+        lose("ROAIPAddress BIT STRING too long for AFI");
+
+      if (a->IPAddress->length > 0) {
+        memcpy(addr->address, a->IPAddress->data, a->IPAddress->length);
+
+        if ((a->IPAddress->flags & 7) != 0) {
+          unsigned char mask = 0xFF >> (8 - (a->IPAddress->flags & 7));
+          addr->address[a->IPAddress->length - 1] &= ~mask;
+        }
+      }
+
+      if (a->maxLength == NULL)
+        item = Py_BuildValue("(NIO)", addr, prefixlen, Py_None);
+      else
+        item = Py_BuildValue("(NIl)", addr, prefixlen, ASN1_INTEGER_get(a->maxLength));
+
+      if (item == NULL)
+        goto error;
+
+      PyTuple_SET_ITEM(*resultp, j, item);
+      item = NULL;
+      addr = NULL;
+    }
+  }
+
+  result = Py_BuildValue("(OO)",
+                         (ipv4_result == NULL ? Py_None : ipv4_result),
+                         (ipv6_result == NULL ? Py_None : ipv6_result));
+
+ error:                         /* Fall through */
+  Py_XDECREF(addr);
+  Py_XDECREF(item);
+  Py_XDECREF(ipv4_result);
+  Py_XDECREF(ipv6_result);
+
+  return result;
+}
+
+static char roa_object_set_prefixes__doc__[] =
+  "This method sets the ROA's prefix list.\n"
+  "\n"
+  "[Add description here once argument format is stable]\n"
+  ;
+
+static PyObject *
+roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"ipv4", "ipv6", NULL};
+  STACK_OF(ROAIPAddressFamily) *prefixes = NULL;
+  ROAIPAddressFamily *fam = NULL;
+  ROAIPAddress *a = NULL;
+  PyObject *ipv4_arg = Py_None;
+  PyObject *ipv6_arg = Py_None;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  int afi, ok = 0;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO", kwlist, &ipv4_arg, &ipv6_arg))
+    goto error;
+
+  if ((prefixes = sk_ROAIPAddressFamily_new_null()) == NULL)
+    lose_no_memory();
+
+  /*
+   * Cheap trick.  Refactor once I figure out how this all works.
+   */
+
+  for (afi = 0; afi < IANA_AFI_IPV4 + IANA_AFI_IPV6; afi++) {
+    unsigned char afibuf[2];
+    PyObject **argp;
+    int len;
+
+    switch (afi) {
+    case IANA_AFI_IPV4: len =  4; argp = &ipv4_arg; break;
+    case IANA_AFI_IPV6: len = 16; argp = &ipv6_arg; break;
+    default: continue;
+    }
+
+    if (*argp == Py_None)
+      continue;
+
+    afibuf[0] = (afi >> 8) & 0xFF;
+    afibuf[1] = afi & 0xFF;
+
+    if ((iterator = PyObject_GetIter(*argp)) == NULL)
+      goto error;
+
+    while ((item = PyIter_Next(iterator)) != NULL) {
+      unsigned prefixlen, maxprefixlen, bitlen, bytelen;
+      ipaddress_object *addr = NULL;
+      PyObject *maxlenobj = Py_None;
+
+      if (!PyArg_ParseTuple(item, "OI|O", &addr, &prefixlen, &maxlenobj))
+        goto error;
+
+      if (maxlenobj == Py_None)
+        maxprefixlen = prefixlen;
+      else {
+        maxprefixlen = (unsigned) PyInt_AsLong(maxlenobj);
+        if (PyErr_Occurred())
+          goto error;
+      }
+
+      if (!POW_IPAddress_Check(addr) || addr->length != len)
+        lose_type_error("Bad ROA prefix");
+
+      if (prefixlen > addr->length * 8)
+        lose("Bad prefix length");
+
+      if (maxprefixlen > addr->length * 8 || maxprefixlen < prefixlen)
+        lose("Bad maxLength value");
+
+      bytelen = (prefixlen + 7) / 8;
+      bitlen = prefixlen % 8;
+
+      if ((a = ROAIPAddress_new()) == NULL ||
+          (a->IPAddress == NULL && (a->IPAddress = ASN1_BIT_STRING_new()) == NULL) ||
+          !ASN1_BIT_STRING_set(a->IPAddress, addr->address, bytelen))
+        lose_no_memory();
+
+      a->IPAddress->flags &= ~7;
+      a->IPAddress->flags |= ASN1_STRING_FLAG_BITS_LEFT;
+      if (bitlen > 0) {
+        a->IPAddress->data[bytelen - 1] &= ~(0xFF >> bitlen);
+        a->IPAddress->flags |= 8 - bitlen;
+      }
+
+      if (prefixlen != maxprefixlen &&
+          ((a->maxLength = ASN1_INTEGER_new()) == NULL ||
+           !ASN1_INTEGER_set(a->maxLength, maxprefixlen)))
+        lose_no_memory();
+
+      if (fam == NULL &&
+          ((fam = ROAIPAddressFamily_new()) == NULL ||
+           !sk_ROAIPAddressFamily_push(prefixes, fam) ||
+           !ASN1_OCTET_STRING_set(fam->addressFamily, afibuf, sizeof(afibuf))))
+        lose_no_memory();
+
+      if (!sk_ROAIPAddress_push(fam->addresses, a))
+        lose_no_memory();
+
+      a = NULL;
+      Py_XDECREF(item);
+      item = NULL;
+    }
+
+    fam = NULL;
+    Py_XDECREF(iterator);
+    iterator = NULL;
+  }
+
+  sk_ROAIPAddressFamily_pop_free(self->roa->ipAddrBlocks, ROAIPAddressFamily_free);
+  self->roa->ipAddrBlocks = prefixes;
+  prefixes = NULL;
+
+  ok = 1;
+
+ error:
+  sk_ROAIPAddressFamily_pop_free(prefixes, ROAIPAddressFamily_free);
+  ROAIPAddressFamily_free(fam);
+  ROAIPAddress_free(a);
+  Py_XDECREF(iterator);
+  Py_XDECREF(item);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char roa_object_der_write__doc__[] =
+  "This method returns a DER encoded roa as a string.\n"
+  ;
+
+static PyObject *
+roa_object_der_write(roa_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!ASN1_item_i2d_bio(ASN1_ITEM_rptr(ROA), bio, self->roa))
+    lose_openssl_error("Unable to write ROA");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static struct PyMethodDef roa_object_methods[] = {
+  Define_Method(getVersion,             roa_object_get_version,		METH_NOARGS),
+  Define_Method(setVersion,             roa_object_set_version,		METH_VARARGS),
+  Define_Method(getASID,           	roa_object_get_asid,            METH_NOARGS),
+  Define_Method(setASID,           	roa_object_set_asid,            METH_VARARGS),
+  Define_Method(getPrefixes,		roa_object_get_prefixes,	METH_NOARGS),
+  Define_Method(setPrefixes,		roa_object_set_prefixes,	METH_KEYWORDS),
+  Define_Method(derWrite,               roa_object_der_write,		METH_NOARGS),
+  Define_Class_Method(derRead,          roa_object_der_read,		METH_VARARGS),
+  {NULL}
+};
+
+static void
+roa_object_dealloc(roa_object *self)
+{
+  ROA_free(self->roa);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
+static char POW_ROA_Type__doc__[] =
+  "This class provides access to RPKI roa payload.\n"
+  ;
+
+static PyTypeObject POW_ROA_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                            /* ob_size */
+  "POW.ROA",                                    /* tp_name */
+  sizeof(roa_object),                           /* tp_basicsize */
+  0,                                            /* tp_itemsize */
+  (destructor)roa_object_dealloc,               /* tp_dealloc */
+  0,                                            /* tp_print */
+  0,                                            /* tp_getattr */
+  0,                                            /* tp_setattr */
+  0,                                            /* tp_compare */
+  0,                                            /* tp_repr */
+  0,                                            /* tp_as_number */
+  0,                                            /* tp_as_sequence */
+  0,                                            /* tp_as_mapping */
+  0,                                            /* tp_hash */
+  0,                                            /* tp_call */
+  0,                                            /* tp_str */
+  0,                                            /* tp_getattro */
+  0,                                            /* tp_setattro */
+  0,                                            /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,     /* tp_flags */
+  POW_ROA_Type__doc__,                          /* tp_doc */
+  0,                                            /* tp_traverse */
+  0,                                            /* tp_clear */
+  0,                                            /* tp_richcompare */
+  0,                            		/* tp_weaklistoffset */
+  0,						/* tp_iter */
+  0,                                            /* tp_iternext */
+  roa_object_methods,                           /* tp_methods */
+  0,                                            /* tp_members */
+  0,                                            /* tp_getset */
+  0,                                            /* tp_base */
+  0,                                            /* tp_dict */
+  0,                                            /* tp_descr_get */
+  0,                                            /* tp_descr_set */
+  0,                                            /* tp_dictoffset */
+  0,                                            /* tp_init */
+  0,                                            /* tp_alloc */
+  roa_object_new,                               /* tp_new */
+};
+
+
+
+/*
  * Module functions.
  */
 
@@ -6360,6 +6823,7 @@ init_POW(void)
   Define_Class(POW_CMS_Type);
   Define_Class(POW_IPAddress_Type);
   Define_Class(POW_Manifest_Type);
+  Define_Class(POW_ROA_Type);
 
 #undef Define_Class
 

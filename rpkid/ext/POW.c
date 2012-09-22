@@ -115,7 +115,9 @@
  * PEM_write_bio_PUBKEY().
  *
  * PEM passphrases use a callback which takes a void* cookie, so that
- * shouldn't be too bad.
+ * shouldn't be too bad.  Furthermore, it looks like if we just leave
+ * the callback pointer NULL and pass the password as the void*
+ * cookie, the default callback handler will do exactly what we want.
  *
  * A lot of the EVP_PKEY manipulation we'd need to do here looks like
  * we'd just be incrementing reference counts.  EVP_PKEY_free()
@@ -127,6 +129,11 @@
  * Return value from CRYPTO_add() can be ignored when incrementing,
  * not when decrementing (might go to zero).  Probably just use
  * EVP_PKEY_free() to decrement even if it looks funny.
+ *
+ * Looks like the way to find out what kind of public key this is, if
+ * we really need to know, is to use EVP_PKEY_asn1_get0_info() to get
+ * the pkey_id value, which happens to map exactly to algorithm NIDs
+ * but conceptually is a separate space.
  */
 
 /*
@@ -312,9 +319,7 @@ typedef struct {
 
 typedef struct {
   PyObject_HEAD
-  void *cipher;
-  int key_type;
-  int cipher_type;
+  EVP_PKEY *pkey;
 } asymmetric_object;
 
 typedef struct {
@@ -1504,23 +1509,17 @@ static char x509_object_set_public_key__doc__[] =
 static PyObject *
 x509_object_set_public_key(x509_object *self, PyObject *args)
 {
-  EVP_PKEY *pkey = NULL;
   asymmetric_object *asym;
 
   if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
     goto error;
 
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose_no_memory();
-
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher) ||
-      !X509_set_pubkey(self->x509, pkey))
+  if (!X509_set_pubkey(self->x509, asym->pkey))
     lose_openssl_error("Couldn't set certificate's public key");
 
   Py_RETURN_NONE;
 
  error:
-  EVP_PKEY_free(pkey);
   return NULL;
 }
 
@@ -1546,7 +1545,6 @@ static char x509_object_sign__doc__[] =
 static PyObject *
 x509_object_sign(x509_object *self, PyObject *args)
 {
-  EVP_PKEY *pkey = NULL;
   asymmetric_object *asym;
   int digest_type = SHA256_DIGEST;
   const EVP_MD *digest_method = NULL;
@@ -1554,25 +1552,15 @@ x509_object_sign(x509_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
     goto error;
 
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose_no_memory();
-
-  if (asym->key_type != RSA_PRIVATE_KEY)
-    lose("Don't know how to use this type of key");
-
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose_openssl_error("EVP_PKEY assignment error");
-
   if ((digest_method = evp_digest_factory(digest_type)) == NULL)
     lose("Unsupported digest algorithm");
 
-  if (!X509_sign(self->x509, pkey, digest_method))
+  if (!X509_sign(self->x509, asym->pkey, digest_method))
     lose_openssl_error("Couldn't sign certificate");
 
   Py_RETURN_NONE;
 
  error:
-  EVP_PKEY_free(pkey);
   return NULL;
 }
 
@@ -2819,7 +2807,7 @@ x509_object_get_aia(x509_object *self)
   PyObject *result = NULL;
   const char *uri;
   PyObject *obj;
-  int i, nid, n = 0;
+  int i, n = 0;
 
   if ((ext = X509_get_ext_d2i(self->x509, NID_info_access, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
@@ -2869,7 +2857,7 @@ x509_object_set_aia(x509_object *self, PyObject *args)
   ASN1_OBJECT *oid = NULL;
   PyObject *item = NULL;
   ACCESS_DESCRIPTION *a;
-  int i, ok = 0;
+  int ok = 0;
   size_t urilen;
   char *uri;
 
@@ -2943,7 +2931,7 @@ x509_object_get_crldp(x509_object *self)
   PyObject *result = NULL;
   const char *uri;
   PyObject *obj;
-  int i, nid, n = 0;
+  int i, n = 0;
 
   if ((ext = X509_get_ext_d2i(self->x509, NID_crl_distribution_points, NULL, NULL)) == NULL ||
       (dp = sk_DIST_POINT_value(ext, 0)) == NULL ||
@@ -4093,7 +4081,6 @@ static char crl_object_sign__doc__[] =
 static PyObject *
 crl_object_sign(crl_object *self, PyObject *args)
 {
-  EVP_PKEY *pkey = NULL;
   asymmetric_object *asym;
   int digest_type = SHA256_DIGEST;
   const EVP_MD *digest_method = NULL;
@@ -4101,23 +4088,15 @@ crl_object_sign(crl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
     goto error;
 
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose_no_memory();
-
-  if (asym->key_type != RSA_PRIVATE_KEY)
-    lose("Don't know how to use this type of key");
-
   if ((digest_method = evp_digest_factory(digest_type)) == NULL)
     lose("Unsupported digest algorithm");
 
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher) ||
-      !X509_CRL_sign(self->crl, pkey, digest_method))
+  if (!X509_CRL_sign(self->crl, asym->pkey, digest_method))
     lose_openssl_error("Couldn't sign CRL");
 
   Py_RETURN_NONE;
 
  error:
-  EVP_PKEY_free(pkey);
   return NULL;
 }
 
@@ -4132,22 +4111,14 @@ static char crl_object_verify__doc__[] =
 static PyObject *
 crl_object_verify(crl_object *self, PyObject *args)
 {
-  EVP_PKEY *pkey = NULL;
   asymmetric_object *asym;
 
   if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
     goto error;
 
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose_no_memory();
-
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose_openssl_error("EVP_PKEY assignment error");
-
-  return PyBool_FromLong(X509_CRL_verify(self->crl, pkey));
+  return PyBool_FromLong(X509_CRL_verify(self->crl, asym->pkey));
 
  error:
-  EVP_PKEY_free(pkey);
   return NULL;
 }
 
@@ -4423,7 +4394,7 @@ asymmetric_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   if ((self = (asymmetric_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
 
-  self->cipher = NULL;
+  self->pkey = NULL;
 
   return (PyObject *) self;
 
@@ -4438,30 +4409,47 @@ asymmetric_object_init(asymmetric_object *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[] = {"cipher", "key_size", NULL};
   int cipher_type = RSA_CIPHER, key_size = 2048;
+  EVP_PKEY_CTX *ctx = NULL;
+  int ok = 0;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ii", kwlist, &cipher_type, &key_size))
     goto error;
 
+  /*
+   * This silliness is necessary until we move this to an RSA-specific class method.
+   */
   if (cipher_type != RSA_CIPHER)
     lose("unsupported cipher");
 
-  switch (self->cipher_type) {
+  if ((ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL)) == NULL ||
+      EVP_PKEY_keygen_init(ctx) <= 0 ||
+      EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, key_size) <= 0)
+    lose_openssl_error("Couldn't initialize EVP_PKEY_CTX");
 
-  case RSA_CIPHER:
-    RSA_free(self->cipher);
-    break;
-  }
+#warning Look up how to set additional RSA key generation parameters like F4
+  /*
+   * Should set RSA_F4 for drill, although I think it's the default now.
+   * Looks like the call is 
+   *   int EVP_PKEY_CTX_set_rsa_keygen_pubexp(EVP_PKEY_CTX *ctx, BIGNUM *pubexp);
+   * while RSA_F4 is a plain C long integer, so would need to make a bignum (sigh),
+   * which is probably BN_new()/BN_set_word()/BN_free().
+   */
 
-  if ((self->cipher = RSA_generate_key(key_size, RSA_F4, NULL, NULL)) == NULL)
-    lose("could not generate key");
+  EVP_PKEY_free(self->pkey);
+  self->pkey = NULL;
 
-  self->key_type = RSA_PRIVATE_KEY;
-  self->cipher_type = RSA_CIPHER;
+  if (EVP_PKEY_keygen(ctx, &self->pkey) <= 0)
+    lose_openssl_error("Couldn't generate new RSA key");
 
-  return 0;
+  ok = 1;
 
  error:
-  return -1;
+  EVP_PKEY_CTX_free(ctx);
+
+  if (ok)
+    return 0;
+  else
+    return -1;
 }
 
 static PyObject *
@@ -4472,11 +4460,9 @@ asymmetric_object_pem_read_private_helper(PyTypeObject *type, BIO *in, char *pas
   if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->cipher = PEM_read_bio_RSAPrivateKey(in, NULL, NULL, pass)) == NULL)
+  if ((self->pkey = PEM_read_bio_PrivateKey(in, NULL, NULL, pass)) == NULL)
     lose_openssl_error("Couldn't load private key");
 
-  self->key_type = RSA_PRIVATE_KEY;
-  self->cipher_type = RSA_CIPHER;
   return (PyObject *) self;
 
  error:
@@ -4552,11 +4538,9 @@ asymmetric_object_der_read_private_helper(PyTypeObject *type, BIO *bio)
   if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->cipher = d2i_RSAPrivateKey_bio(bio, NULL)) == NULL)
+  if ((self->pkey = d2i_PrivateKey_bio(bio, NULL)) == NULL)
     lose_openssl_error("Couldn't load private key");
 
-  self->key_type = RSA_PRIVATE_KEY;
-  self->cipher_type = RSA_CIPHER;
   return (PyObject *) self;
 
  error:
@@ -4593,11 +4577,9 @@ asymmetric_object_pem_read_public_helper(PyTypeObject *type, BIO *in)
   if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->cipher = PEM_read_bio_RSA_PUBKEY(in, NULL, NULL, NULL)) == NULL)
+  if ((self->pkey = PEM_read_bio_PUBKEY(in, NULL, NULL, NULL)) == NULL)
     lose_openssl_error("Couldn't load public key");
 
-  self->key_type = RSA_PUBLIC_KEY;
-  self->cipher_type = RSA_CIPHER;
   return (PyObject *) self;
 
  error:
@@ -4613,11 +4595,9 @@ asymmetric_object_der_read_public_helper(PyTypeObject *type, BIO *bio)
   if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->cipher = d2i_RSA_PUBKEY_bio(bio, NULL)) == NULL)
+  if ((self->pkey = d2i_PUBKEY_bio(bio, NULL)) == NULL)
     lose_openssl_error("Couldn't load public key");
 
-  self->key_type = RSA_PUBLIC_KEY;
-  self->cipher_type = RSA_CIPHER;
   return (PyObject *) self;
 
  error:
@@ -4685,16 +4665,13 @@ asymmetric_object_pem_write_private(asymmetric_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "|s", &passphrase))
     goto error;
 
-  if (self->key_type != RSA_PRIVATE_KEY)
-    lose("Sorry, this object is not a private key");
-
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
   if (passphrase)
     evp_method = EVP_aes_256_cbc();
 
-  if (!PEM_write_bio_RSAPrivateKey(bio, self->cipher, evp_method, NULL, 0, NULL, passphrase))
+  if (!PEM_write_bio_PrivateKey(bio, self->pkey, evp_method, NULL, 0, NULL, passphrase))
     lose_openssl_error("Unable to write key");
 
   result = BIO_to_PyString_helper(bio);
@@ -4718,7 +4695,7 @@ asymmetric_object_pem_write_public(asymmetric_object *self)
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
-  if (!PEM_write_bio_RSA_PUBKEY(bio, self->cipher))
+  if (!PEM_write_bio_PUBKEY(bio, self->pkey))
     lose_openssl_error("Unable to write key");
 
   result = BIO_to_PyString_helper(bio);
@@ -4738,13 +4715,10 @@ asymmetric_object_der_write_private(asymmetric_object *self)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
-  if (self->key_type != RSA_PRIVATE_KEY)
-    lose("Sorry, this object is not an RSA private key");
-
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
-  if (!i2d_RSAPrivateKey_bio(bio, self->cipher))
+  if (!i2d_PrivateKey_bio(bio, self->pkey))
     lose_openssl_error("Unable to write private key");
 
   result = BIO_to_PyString_helper(bio);
@@ -4767,7 +4741,7 @@ asymmetric_object_der_write_public(asymmetric_object *self)
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
-  if (!i2d_RSA_PUBKEY_bio(bio, self->cipher))
+  if (!i2d_PUBKEY_bio(bio, self->pkey))
     lose_openssl_error("Unable to write public key");
 
   result = BIO_to_PyString_helper(bio);
@@ -4798,25 +4772,36 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
 {
   unsigned char *digest_text = NULL, *signed_text = NULL;
   unsigned int digest_type = 0, signed_len = 0, digest_len = 0;
+  EVP_PKEY_CTX *ctx = NULL;
   PyObject *result = NULL;
 
   if (!PyArg_ParseTuple(args, "s#i", &digest_text, &digest_len, &digest_type))
     goto error;
 
-  if (self->key_type != RSA_PRIVATE_KEY)
-    lose("Unsupported key type");
+#warning Not sure if I should be setting signature_md here or not
+      /*
+       * More precisely, I'm sure I should but I'm also sure that the
+       * POW API here is an antique, and something we want to go away.
+       * Try setting signature_md here, revisit if this doesn't work.
+       */
 
-  if ((signed_text = malloc(RSA_size(self->cipher))) == NULL)
+  if ((ctx = EVP_PKEY_CTX_new(self->pkey, NULL)) == NULL ||
+      EVP_PKEY_sign_init(ctx) <= 0 ||
+      EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) <= 0 ||
+      EVP_PKEY_CTX_set_signature_md(ctx, evp_digest_factory(digest_type)) <= 0 ||
+      EVP_PKEY_sign(ctx, NULL, &signed_len, digest_text, digest_len) <= 0)
+    lose_openssl_error("Couldn't set up signing context");
+  
+  if ((signed_text = malloc(signed_len)) == NULL)
     lose_no_memory();
 
-  if (!RSA_sign(evp_digest_nid(digest_type),
-                digest_text, digest_len,
-                signed_text, &signed_len, self->cipher))
+  if (EVP_PKEY_sign(ctx, signed_text, &signed_len, digest_text, digest_len) <= 0)
     lose_openssl_error("Couldn't sign digest");
 
   result = Py_BuildValue("s#", signed_text, signed_len);
 
  error:                         /* Fall through */
+  EVP_PKEY_CTX_free(ctx);
   if (signed_text)
     free(signed_text);
   return result;
@@ -4849,6 +4834,8 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
 {
   unsigned char *digest_text = NULL, *signed_text = NULL;
   int digest_type = 0, signed_len = 0, digest_len = 0;
+  EVP_PKEY_CTX *ctx = NULL;
+  int ok = 0, result;
 
   if (!PyArg_ParseTuple(args, "s#s#i",
                         &signed_text, &signed_len,
@@ -4856,13 +4843,24 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
                         &digest_type))
     goto error;
 
-  return PyBool_FromLong(RSA_verify(evp_digest_nid(digest_type),
-                                    digest_text, digest_len,
-                                    signed_text, signed_len, self->cipher));
+  if ((ctx = EVP_PKEY_CTX_new(self->pkey, NULL)) == NULL ||
+      EVP_PKEY_verify_init(ctx) <= 0 ||
+      EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) <= 0 ||
+      EVP_PKEY_CTX_set_signature_md(ctx, evp_digest_factory(digest_type)) <= 0)
+    lose_openssl_error("Couldn't set up EVP_PKEY_CTX");
+
+  if ((result = EVP_PKEY_verify(ctx, signed_text, signed_len, digest_text, digest_len)) < 0)
+    lose_openssl_error("Unable to perform public key validation");
+
+  ok = 1;
 
  error:
+  EVP_PKEY_CTX_free(ctx);
 
-  return NULL;
+  if (ok)
+    PyBool_FromLong(result);
+  else
+    return NULL;
 }
 
 static struct PyMethodDef asymmetric_object_methods[] = {
@@ -4886,11 +4884,7 @@ static struct PyMethodDef asymmetric_object_methods[] = {
 static void
 asymmetric_object_dealloc(asymmetric_object *self)
 {
-  switch (self->cipher_type) {
-  case RSA_CIPHER:
-    RSA_free(self->cipher);
-    break;
-  }
+  EVP_PKEY_free(self->pkey);
   self->ob_type->tp_free((PyObject*) self);
 }
 
@@ -5318,7 +5312,6 @@ cms_object_sign(cms_object *self, PyObject *args)
   PyObject *crl_sequence = Py_None;
   PyObject *result = NULL;
   STACK_OF(X509) *x509_stack = NULL;
-  EVP_PKEY *pkey = NULL;
   char *buf = NULL, *oid = NULL;
   int i, n, len;
   unsigned flags = 0;
@@ -5341,21 +5334,8 @@ cms_object_sign(cms_object *self, PyObject *args)
   flags &= CMS_NOCERTS | CMS_NOATTR;
   flags |= CMS_BINARY | CMS_NOSMIMECAP | CMS_PARTIAL | CMS_USE_KEYID;
 
-  if (signkey->key_type != RSA_PRIVATE_KEY)
-    lose("Unsupported key type");
-
   if ((x509_stack = x509_helper_sequence_to_stack(x509_sequence)) == NULL)
     goto error;
-
-  assert_no_unhandled_openssl_errors();
-
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose_no_memory();
-
-  assert_no_unhandled_openssl_errors();
-
-  if (!EVP_PKEY_assign_RSA(pkey, signkey->cipher))
-    lose_openssl_error("EVP_PKEY assignment error");
 
   assert_no_unhandled_openssl_errors();
 
@@ -5379,10 +5359,8 @@ cms_object_sign(cms_object *self, PyObject *args)
 
   assert_no_unhandled_openssl_errors();
 
-  if (!CMS_add1_signer(cms, signcert->x509, pkey, EVP_sha256(), flags))
+  if (!CMS_add1_signer(cms, signcert->x509, signkey->pkey, EVP_sha256(), flags))
     lose_openssl_error("Couldn't sign CMS message");
-
-  pkey = NULL;                 /* CMS_add1_signer() now owns pkey */
 
   assert_no_unhandled_openssl_errors();
 
@@ -5432,7 +5410,6 @@ cms_object_sign(cms_object *self, PyObject *args)
   CMS_ContentInfo_free(cms);
   BIO_free(bio);
   sk_X509_free(x509_stack);
-  EVP_PKEY_free(pkey);
   ASN1_OBJECT_free(econtent_type);
   Py_XDECREF(crlobj);
 

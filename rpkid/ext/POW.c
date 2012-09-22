@@ -81,6 +81,54 @@
 
 /* $Id: rcynic.c 4613 2012-07-30 23:24:15Z sra $ */
 
+#warning Still need PKCS10 type and methods
+
+#warning Consider making ROA and Manifest C/API-level subclasses of CMS
+/*
+ * This would be a major change to the Python code but really seems
+ * like the right thing at the API level, the current two-level API is
+ * a horrible kludge forced on us by circumstance.
+ */
+
+#warning May want to tighten up type checking using O-bang PyArg_ParseTuple format
+/*
+ * Probably a good idea to let PyArg_ParseTuple do the type checking
+ * for us where it can.
+ */
+
+#warning Might want common worker code supporting extensions for X509, CRL, and PKCS10 classes
+/*
+ * May not really be necessary, neither CRLs nor PKCS10 requests are
+ * allowed very many extensions in the RPKI profile.
+ */
+
+#warning Asymmetric class probably should be storing an EVP and using the EVP API for everything
+/*
+ * EVP_PKEY == EVP public key.  We already construct an EVP_PKEY
+ * almost every time we use the underlying RSA object that we store
+ * now, seems it would make more sense to store the EVP_PKEY.
+ *
+ * EVP_PKEY_new(), EVP_PKEY_free(), EVP_PKEY_assign_RSA(),
+ * EVP_PKEY_set1_RSA(), i2d_PrivateKey_bio(), d2i_PrivateKey_bio(),
+ * i2d_PUBKEY_bio(), d2i_PUBKEY_bio(), PEM_read_bio_PrivateKey(),
+ * PEM_write_bio_PrivateKey(), PEM_read_bio_PUBKEY(),
+ * PEM_write_bio_PUBKEY().
+ *
+ * PEM passphrases use a callback which takes a void* cookie, so that
+ * shouldn't be too bad.
+ *
+ * A lot of the EVP_PKEY manipulation we'd need to do here looks like
+ * we'd just be incrementing reference counts.  EVP_PKEY_free()
+ * appears to do the right thing, and I see no EVP_PKEY_dup().  The
+ * approved way of incrementing the reference count appears to be:
+ *
+ *   CRYPTO_add(&my_evp_pkey->references, 1, CRYPTO_LOCK_EVP_PKEY);
+ *
+ * Return value from CRYPTO_add() can be ignored when incrementing,
+ * not when decrementing (might go to zero).  Probably just use
+ * EVP_PKEY_free() to decrement even if it looks funny.
+ */
+
 /*
  * Disable compilation of X509 certificate signature and verification
  * API.  We don't currently need this for RPKI but I'm not quite ready
@@ -1440,6 +1488,8 @@ x509_object_der_write(x509_object *self)
   BIO_free(bio);
   return result;
 }
+
+#warning Where did x509_object_get_public_key go
 
 /*
  * Currently this function only supports RSA keys.

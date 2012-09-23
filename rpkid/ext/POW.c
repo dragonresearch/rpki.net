@@ -82,6 +82,20 @@
 /* $Id: rcynic.c 4613 2012-07-30 23:24:15Z sra $ */
 
 #warning Still need PKCS10 type and methods
+/*
+ * From rpki.x509.PKCS10, it looks like we need to:
+ *  get/set basicConstraints, SIA, and keyUsage (check RFC)
+ *  get/set version
+ *  get/set subject name
+ *  get/set subject public key / sign with private key
+ *
+ * The last two are integrated even POW.pkix, almost certainly they
+ * are in OpenSSL as well.  See: X509_REQ_ in x509/x509.h,
+ * x509/x509_req.c, x509/x509rset.c, x509/x_all.c.
+ *
+ * Looks like Xt09_REQ_add_extensions() wants to add all extensions as
+ * a group.  Yum.
+ */
 
 #warning Consider making ROA and Manifest C/API-level subclasses of CMS
 /*
@@ -90,50 +104,10 @@
  * a horrible kludge forced on us by circumstance.
  */
 
-#warning May want to tighten up type checking using O-bang PyArg_ParseTuple format
-/*
- * Probably a good idea to let PyArg_ParseTuple do the type checking
- * for us where it can.
- */
-
 #warning Might want common worker code supporting extensions for X509, CRL, and PKCS10 classes
 /*
  * May not really be necessary, neither CRLs nor PKCS10 requests are
  * allowed very many extensions in the RPKI profile.
- */
-
-#warning Asymmetric class probably should be storing an EVP and using the EVP API for everything
-/*
- * EVP_PKEY == EVP public key.  We already construct an EVP_PKEY
- * almost every time we use the underlying RSA object that we store
- * now, seems it would make more sense to store the EVP_PKEY.
- *
- * EVP_PKEY_new(), EVP_PKEY_free(), EVP_PKEY_assign_RSA(),
- * EVP_PKEY_set1_RSA(), i2d_PrivateKey_bio(), d2i_PrivateKey_bio(),
- * i2d_PUBKEY_bio(), d2i_PUBKEY_bio(), PEM_read_bio_PrivateKey(),
- * PEM_write_bio_PrivateKey(), PEM_read_bio_PUBKEY(),
- * PEM_write_bio_PUBKEY().
- *
- * PEM passphrases use a callback which takes a void* cookie, so that
- * shouldn't be too bad.  Furthermore, it looks like if we just leave
- * the callback pointer NULL and pass the password as the void*
- * cookie, the default callback handler will do exactly what we want.
- *
- * A lot of the EVP_PKEY manipulation we'd need to do here looks like
- * we'd just be incrementing reference counts.  EVP_PKEY_free()
- * appears to do the right thing, and I see no EVP_PKEY_dup().  The
- * approved way of incrementing the reference count appears to be:
- *
- *   CRYPTO_add(&my_evp_pkey->references, 1, CRYPTO_LOCK_EVP_PKEY);
- *
- * Return value from CRYPTO_add() can be ignored when incrementing,
- * not when decrementing (might go to zero).  Probably just use
- * EVP_PKEY_free() to decrement even if it looks funny.
- *
- * Looks like the way to find out what kind of public key this is, if
- * we really need to know, is to use EVP_PKEY_asn1_get0_info() to get
- * the pkey_id value, which happens to map exactly to algorithm NIDs
- * but conceptually is a separate space.
  */
 
 /*
@@ -177,10 +151,6 @@
  * Maximum size of an ASN.1 Integer converted from a Python Long, in bytes.
  */
 #define MAX_ASN1_INTEGER_LEN    20
-
-/* PEM encoded data types */
-#define RSA_PUBLIC_KEY        1
-#define RSA_PRIVATE_KEY       2
 
 /* Asymmetric ciphers */
 #define RSA_CIPHER            1
@@ -436,20 +406,6 @@ evp_digest_factory(int digest_type)
   }
 }
 
-static int
-evp_digest_nid(int digest_type)
-{
-  switch (digest_type) {
-  case MD5_DIGEST:      return NID_md5;
-  case SHA_DIGEST:      return NID_sha;
-  case SHA1_DIGEST:     return NID_sha1;
-  case SHA256_DIGEST:   return NID_sha256;
-  case SHA384_DIGEST:   return NID_sha384;
-  case SHA512_DIGEST:   return NID_sha512;
-  default:              return NID_undef;
-  }
-}
-
 /*
  * Raise an exception with data pulled from the OpenSSL error stack.
  * Exception value is a tuple with some internal structure.  If a
@@ -533,11 +489,12 @@ x509_object_helper_set_name(PyObject *dn_obj)
           (value_str = PyString_AsString(value_obj))    == NULL)
         goto error;
 
-      if ((asn1_type = ASN1_PRINTABLE_type(value_str, -1)) != V_ASN1_PRINTABLESTRING)
+      if ((asn1_type = ASN1_PRINTABLE_type((unsigned char *) value_str, -1)) != V_ASN1_PRINTABLESTRING)
         asn1_type = V_ASN1_UTF8STRING;
 
       if (!X509_NAME_add_entry_by_txt(name, type_str, asn1_type,
-                                      value_str, strlen(value_str),
+                                      (unsigned char *) value_str,
+                                      strlen((char *) value_str),
                                       -1, (j ? -1 : 0)))
         lose("Unable to add name entry");
 
@@ -1494,11 +1451,28 @@ x509_object_der_write(x509_object *self)
   return result;
 }
 
-#warning Where did x509_object_get_public_key go
+static char x509_object_get_public_key__doc__[] =
+  "This method gets the public key for this certificate object.\n"
+  ;
 
-/*
- * Currently this function only supports RSA keys.
- */
+static PyObject *
+x509_object_get_public_key(x509_object *self)
+{
+  PyTypeObject *type = &POW_Asymmetric_Type;
+  asymmetric_object *asym = NULL;
+
+  if ((asym = (asymmetric_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
+
+  if ((asym->pkey = X509_get_pubkey(self->x509)) == NULL)
+    lose_openssl_error("Couldn't extract public key from certificate");
+
+  return (PyObject *) asym;
+
+ error:
+  Py_XDECREF(asym);
+  return NULL;
+}
 
 static char x509_object_set_public_key__doc__[] =
   "This method sets the public key for this certificate object.\n"
@@ -2474,19 +2448,19 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
         while ((item = PyIter_Next(iterator)) != NULL) {
 
-          if (!PyArg_ParseTuple(item, "OO", &range_b, &range_e))
+          if (!PyArg_ParseTuple(item, "O!O!",
+                                &POW_IPAddress_Type, &range_b, 
+                                &POW_IPAddress_Type, &range_e))
             goto error;
 
           addr_b = (ipaddress_object *) range_b;
           addr_e = (ipaddress_object *) range_e;
 
-          if (!POW_IPAddress_Check(range_b) ||
-              !POW_IPAddress_Check(range_e) ||
-              addr_b->version != addr_e->version ||
+          if (addr_b->version != addr_e->version ||
               addr_b->length != len ||
               addr_e->length != len ||
               memcmp(addr_b->address, addr_e->address, addr_b->length) > 0)
-            lose_type_error("IPAddrBlock must be sequence of address pairs, or \"inherit\"");
+            lose("IPAddrBlock must be sequence of address pairs, or \"inherit\"");
 
           if (!v3_addr_add_range(addr, afi, NULL, addr_b->address, addr_e->address))
             lose_openssl_error("Couldn't add range to IPAddrBlock");
@@ -2568,7 +2542,7 @@ x509_object_set_basic_constraints(x509_object *self, PyObject *args)
   PyObject *is_ca = NULL;
   PyObject *pathlen_obj = Py_None;
   PyObject *critical = Py_True;
-  long pathlen;
+  long pathlen = -1;
   int ok = 0;
 
   if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
@@ -2664,7 +2638,7 @@ x509_object_get_sia(x509_object *self)
     if (a->location->type != GEN_URI)
       continue;
     nid = OBJ_obj2nid(a->method);
-    uri = ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+    uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
     if (nid == NID_caRepository) {
       if ((obj = PyString_FromString(uri)) == NULL)
         goto error;
@@ -2717,9 +2691,9 @@ x509_object_set_sia(x509_object *self, PyObject *args)
   ASN1_OBJECT *oid = NULL;
   PyObject **pobj = NULL;
   PyObject *item = NULL;
-  ACCESS_DESCRIPTION *a;
-  int i, nid, ok = 0;
-  size_t urilen;
+  ACCESS_DESCRIPTION *a = NULL;
+  int i, nid = NID_undef, ok = 0;
+  Py_ssize_t urilen;
   char *uri;
 
   if (!PyArg_ParseTuple(args, "OOO", &caRepository, &rpkiManifest, &signedObject))
@@ -2758,7 +2732,7 @@ x509_object_set_sia(x509_object *self, PyObject *args)
       if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
           (a->method = OBJ_dup(oid)) == NULL ||
           (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
-          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, uri, urilen))
+          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
         lose_no_memory();
 
       a->location->type = GEN_URI;
@@ -2827,7 +2801,7 @@ x509_object_get_aia(x509_object *self)
   for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
     ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
     if (a->location->type == GEN_URI && OBJ_obj2nid(a->method) == NID_ad_ca_issuers) {
-      uri = ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+      uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
       if ((obj = PyString_FromString(uri)) == NULL)
         goto error;
       PyTuple_SET_ITEM(result, n++, obj);
@@ -2856,9 +2830,9 @@ x509_object_set_aia(x509_object *self, PyObject *args)
   PyObject *iterator = NULL;
   ASN1_OBJECT *oid = NULL;
   PyObject *item = NULL;
-  ACCESS_DESCRIPTION *a;
+  ACCESS_DESCRIPTION *a = NULL;
   int ok = 0;
-  size_t urilen;
+  Py_ssize_t urilen;
   char *uri;
 
   if (!PyArg_ParseTuple(args, "O", &caIssuers))
@@ -2881,7 +2855,7 @@ x509_object_set_aia(x509_object *self, PyObject *args)
     if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
         (a->method = OBJ_dup(oid)) == NULL ||
         (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
-        !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, uri, urilen))
+        !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
       lose_no_memory();
 
     a->location->type = GEN_URI;
@@ -2953,7 +2927,7 @@ x509_object_get_crldp(x509_object *self)
   for (i = 0; i < sk_GENERAL_NAME_num(dp->distpoint->name.fullname); i++) {
     GENERAL_NAME *gn = sk_GENERAL_NAME_value(dp->distpoint->name.fullname, i);
     if (gn->type == GEN_URI) {
-      uri = ASN1_STRING_data(gn->d.uniformResourceIdentifier);
+      uri = (char *) ASN1_STRING_data(gn->d.uniformResourceIdentifier);
       if ((obj = PyString_FromString(uri)) == NULL)
         goto error;
       PyTuple_SET_ITEM(result, n++, obj);
@@ -2982,8 +2956,8 @@ x509_object_set_crldp(x509_object *self, PyObject *args)
   PyObject *iterator = NULL;
   PyObject *item = NULL;
   DIST_POINT *dp = NULL;
-  GENERAL_NAME *gn;
-  size_t urilen;
+  GENERAL_NAME *gn = NULL;
+  Py_ssize_t urilen;
   char *uri;
   int ok = 0;
 
@@ -3008,7 +2982,7 @@ x509_object_set_crldp(x509_object *self, PyObject *args)
 
     if ((gn = GENERAL_NAME_new()) == NULL ||
         (gn->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
-        !ASN1_OCTET_STRING_set(gn->d.uniformResourceIdentifier, uri, urilen))
+        !ASN1_OCTET_STRING_set(gn->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
       lose_no_memory();
 
     gn->type = GEN_URI;
@@ -3185,6 +3159,7 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(pemWrite,               x509_object_pem_write,                  METH_NOARGS),
   Define_Method(derWrite,               x509_object_der_write,                  METH_NOARGS),
   Define_Method(sign,                   x509_object_sign,                       METH_VARARGS),
+  Define_Method(getPublicKey,		x509_object_get_public_key,		METH_NOARGS),
   Define_Method(setPublicKey,           x509_object_set_public_key,             METH_VARARGS),
   Define_Method(getVersion,             x509_object_get_version,                METH_NOARGS),
   Define_Method(setVersion,             x509_object_set_version,                METH_VARARGS),
@@ -4689,7 +4664,6 @@ static PyObject *
 asymmetric_object_pem_write_public(asymmetric_object *self)
 {
   PyObject *result = NULL;
-  const EVP_CIPHER *evp_method = NULL;
   BIO *bio = NULL;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
@@ -4771,19 +4745,20 @@ static PyObject *
 asymmetric_object_sign(asymmetric_object *self, PyObject *args)
 {
   unsigned char *digest_text = NULL, *signed_text = NULL;
-  unsigned int digest_type = 0, signed_len = 0, digest_len = 0;
+  unsigned int digest_type = 0;
+  size_t signed_len = 0, digest_len = 0;
   EVP_PKEY_CTX *ctx = NULL;
   PyObject *result = NULL;
 
   if (!PyArg_ParseTuple(args, "s#i", &digest_text, &digest_len, &digest_type))
     goto error;
 
-#warning Not sure if I should be setting signature_md here or not
-      /*
-       * More precisely, I'm sure I should but I'm also sure that the
-       * POW API here is an antique, and something we want to go away.
-       * Try setting signature_md here, revisit if this doesn't work.
-       */
+  /*
+   * If we need to find out what kind of public key this is, we can
+   * use EVP_PKEY_asn1_get0_info() to get the pkey_id value, which
+   * happens to map exactly to algorithm NIDs but conceptually is a
+   * separate space.
+   */
 
   if ((ctx = EVP_PKEY_CTX_new(self->pkey, NULL)) == NULL ||
       EVP_PKEY_sign_init(ctx) <= 0 ||
@@ -4858,7 +4833,7 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
   EVP_PKEY_CTX_free(ctx);
 
   if (ok)
-    PyBool_FromLong(result);
+    return PyBool_FromLong(result);
   else
     return NULL;
 }
@@ -6024,8 +5999,8 @@ manifest_object_add_files(manifest_object *self, PyObject *args)
       goto error;
 
     if ((fah = FileAndHash_new()) == NULL ||
-        !ASN1_OCTET_STRING_set(fah->file, file, filelen) ||
-        !ASN1_BIT_STRING_set(fah->hash, hash, hashlen) ||
+        !ASN1_OCTET_STRING_set(fah->file, (unsigned char *) file, filelen) ||
+        !ASN1_BIT_STRING_set(fah->hash, (unsigned char *) hash, hashlen) ||
         !sk_FileAndHash_push(self->manifest->fileList, fah))
       lose_no_memory();
 
@@ -6474,7 +6449,7 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
       ipaddress_object *addr = NULL;
       PyObject *maxlenobj = Py_None;
 
-      if (!PyArg_ParseTuple(item, "OI|O", &addr, &prefixlen, &maxlenobj))
+      if (!PyArg_ParseTuple(item, "O!I|O", &POW_IPAddress_Type, &addr, &prefixlen, &maxlenobj))
         goto error;
 
       if (maxlenobj == Py_None)
@@ -6485,7 +6460,7 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
           goto error;
       }
 
-      if (!POW_IPAddress_Check(addr) || addr->length != len)
+      if (addr->length != len)
         lose_type_error("Bad ROA prefix");
 
       if (prefixlen > addr->length * 8)
@@ -6692,9 +6667,6 @@ pow_module_get_error(PyObject *self)
 
   ERR_error_string_n(error, buf, sizeof(buf));
   return Py_BuildValue("s", buf);
-
- error:
-  return NULL;
 }
 
 static char pow_module_clear_error__doc__[] =
@@ -6872,16 +6844,8 @@ init_POW(void)
   Define_Integer_Constant(SHORTNAME_FORMAT);
   Define_Integer_Constant(OIDNAME_FORMAT);
 
-  /* PEM encoded types */
-#ifndef OPENSSL_NO_RSA
-  Define_Integer_Constant(RSA_PUBLIC_KEY);
-  Define_Integer_Constant(RSA_PRIVATE_KEY);
-#endif
-
   /* Asymmetric ciphers */
-#ifndef OPENSSL_NO_RSA
   Define_Integer_Constant(RSA_CIPHER);
-#endif
 
   /* Message digests */
   Define_Integer_Constant(MD5_DIGEST);

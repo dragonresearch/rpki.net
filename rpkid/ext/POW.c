@@ -81,22 +81,6 @@
 
 /* $Id: rcynic.c 4613 2012-07-30 23:24:15Z sra $ */
 
-#warning Still need PKCS10 type and methods
-/*
- * From rpki.x509.PKCS10, it looks like we need to:
- *  get/set basicConstraints, SIA, and keyUsage (check RFC)
- *  get/set version
- *  get/set subject name
- *  get/set subject public key / sign with private key
- *
- * The last two are integrated even POW.pkix, almost certainly they
- * are in OpenSSL as well.  See: X509_REQ_ in x509/x509.h,
- * x509/x509_req.c, x509/x509rset.c, x509/x_all.c.
- *
- * Looks like Xt09_REQ_add_extensions() wants to add all extensions as
- * a group.  Yum.
- */
-
 #warning Consider making ROA and Manifest C/API-level subclasses of CMS
 /*
  * This would be a major change to the Python code but really seems
@@ -258,7 +242,8 @@ static PyTypeObject
   POW_IPAddress_Type,
   POW_ROA_Type,
   POW_Manifest_Type,
-  POW_ROA_Type;
+  POW_ROA_Type,
+  POW_PKCS10_Type;
 
 /*
  * Object internals.
@@ -312,6 +297,12 @@ typedef struct {
   PyObject_HEAD
   Manifest *manifest;
 } manifest_object;
+
+typedef struct {
+  PyObject_HEAD
+  X509_REQ *pkcs10;
+  STACK_OF(X509_EXTENSION) *exts;
+} pkcs10_object;
 
 
 
@@ -1355,7 +1346,7 @@ x509_object_der_read_helper(PyTypeObject *type, BIO *bio)
   if ((self = (x509_object *) x509_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  if(!d2i_X509_bio(bio, &self->x509))
+  if (!d2i_X509_bio(bio, &self->x509))
     lose_openssl_error("Couldn't load DER encoded certificate");
 
   return (PyObject *) self;
@@ -2055,6 +2046,7 @@ x509_object_set_aki(x509_object *self, PyObject *args)
   else
     return NULL;
 }
+
 static char x509_object_get_key_usage__doc__[] =
   "This method returns a FrozenSet of strings representing the KeyUsage\n"
   "settings for this certificate, or None if the certificate has no\n"
@@ -6618,6 +6610,872 @@ static PyTypeObject POW_ROA_Type = {
 
 
 /*
+ * PKCS10 object.
+ */
+
+static PyObject *
+pkcs10_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  pkcs10_object *self;
+
+  if ((self = (pkcs10_object *) type->tp_alloc(type, 0)) != NULL &&
+      (self->pkcs10 = X509_REQ_new()) != NULL &&
+      (self->exts = sk_X509_EXTENSION_new_null()) != NULL)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static PyObject *
+pkcs10_object_pem_read_helper(PyTypeObject *type, BIO *in)
+{
+  pkcs10_object *self = NULL;
+
+  if ((self = (pkcs10_object *) pkcs10_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  X509_REQ_free(self->pkcs10);
+  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
+  self->pkcs10 = NULL;
+  self->exts = NULL;
+
+  if ((self->pkcs10 = PEM_read_bio_X509_REQ(in, NULL, NULL, NULL)) == NULL)
+    lose_openssl_error("Couldn't load PEM encoded PKCS#10 request");
+
+  self->exts = X509_REQ_get_extensions(self->pkcs10);
+
+  return (PyObject *) self;
+
+ error:
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static PyObject *
+pkcs10_object_der_read_helper(PyTypeObject *type, BIO *bio)
+{
+  pkcs10_object *self;
+
+  if ((self = (pkcs10_object *) pkcs10_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
+  self->exts = NULL;
+
+  if (!d2i_X509_REQ_bio(bio, &self->pkcs10))
+    lose_openssl_error("Couldn't load DER encoded PKCS#10 request");
+
+  self->exts = X509_REQ_get_extensions(self->pkcs10);
+
+  return (PyObject *) self;
+
+ error:
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static char pkcs10_object_pem_read__doc__[] =
+  "Class method to read a PEM-encoded PKCS#10 object from a string.\n"
+  ;
+
+static PyObject *
+pkcs10_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(pkcs10_object_pem_read_helper, type, args);
+}
+
+static char pkcs10_object_pem_read_file__doc__[] =
+  "Class method to read a PEM-encoded PKCS#10 object from a file.\n"
+  ;
+
+static PyObject *
+pkcs10_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(pkcs10_object_pem_read_helper, type, args);
+}
+
+static char pkcs10_object_der_read__doc__[] =
+  "Class method to read a DER-encoded PKCS#10 object from a string.\n"
+  ;
+
+static PyObject *
+pkcs10_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(pkcs10_object_der_read_helper, type, args);
+}
+
+static char pkcs10_object_der_read_file__doc__[] =
+  "Class method to read a DER-encoded PKCS#10 object from a file.\n"
+  ;
+
+static PyObject *
+pkcs10_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(pkcs10_object_der_read_helper, type, args);
+}
+
+static char pkcs10_object_pem_write__doc__[] =
+  "This method returns a PEM-encoded PKCS#10 object as a string.\n"
+  ;
+
+static PyObject *
+pkcs10_object_pem_write(pkcs10_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!PEM_write_bio_X509_REQ(bio, self->pkcs10))
+    lose_openssl_error("Unable to write PKCS#10 request");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char pkcs10_object_der_write__doc__[] =
+  "This method returns a DER-encoded PKCS#10 object as a string.\n"
+  ;
+
+static PyObject *
+pkcs10_object_der_write(pkcs10_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_X509_REQ_bio(bio, self->pkcs10))
+    lose_openssl_error("Unable to write PKCS#10 request");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char pkcs10_object_get_public_key__doc__[] =
+  "This method gets the public key for this PKCS#10 request.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_public_key(pkcs10_object *self)
+{
+  PyTypeObject *type = &POW_Asymmetric_Type;
+  asymmetric_object *asym = NULL;
+
+  if ((asym = (asymmetric_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
+
+  if ((asym->pkey = X509_REQ_get_pubkey(self->pkcs10)) == NULL)
+    lose_openssl_error("Couldn't extract public key from PKCS#10 request");
+
+  return (PyObject *) asym;
+
+ error:
+  Py_XDECREF(asym);
+  return NULL;
+}
+
+static char pkcs10_object_set_public_key__doc__[] =
+  "This method sets the public key for this PKCS#10 request.\n"
+  "The \"key\" parameter should be an instance of the Asymmetric class,\n"
+  "containing a public key.\n"
+  ;
+
+static PyObject *
+pkcs10_object_set_public_key(pkcs10_object *self, PyObject *args)
+{
+  asymmetric_object *asym;
+
+  if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
+    goto error;
+
+  if (!X509_REQ_set_pubkey(self->pkcs10, asym->pkey))
+    lose_openssl_error("Couldn't set certificate's PKCS#10 request");
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char pkcs10_object_sign__doc__[] =
+  "This method signs a PKCS#10 request with a private key.\n"
+  "\n"
+  "The \"key\" parameter should be an instance of the Asymmetric class,\n"
+  "containing a private key.\n"
+  "\n"
+  "The optional \"digest\" parameter indicates which digest to compute and\n"
+  "sign, and should be one of the following:\n"
+  "\n"
+  "* MD5_DIGEST\n"
+  "* SHA_DIGEST\n"
+  "* SHA1_DIGEST\n"
+  "* SHA256_DIGEST\n"
+  "* SHA384_DIGEST\n"
+  "* SHA512_DIGEST\n"
+  "\n"
+  "The default digest algorithm is SHA-256.\n"
+  ;
+
+static PyObject *
+pkcs10_object_sign(pkcs10_object *self, PyObject *args)
+{
+  asymmetric_object *asym;
+  int digest_type = SHA256_DIGEST;
+  const EVP_MD *digest_method = NULL;
+
+  if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
+    goto error;
+
+  if ((digest_method = evp_digest_factory(digest_type)) == NULL)
+    lose("Unsupported digest algorithm");
+
+  /*
+   * Not sure whether we should do this or not, but without it we end
+   * up creating a second attribute if one already exists, which
+   * confuses at least OpenSSL.  RFCs are not much help.  Will a PKIX
+   * expert next time I see one in the hallway....
+   */
+#warning Confirm proper PKCS10 attribute behavior
+#if 0
+  while (X509_REQ_get_attr_count(self->pkcs10) > 0)
+    X509_ATTRIBUTE_free(X509_REQ_delete_attr(self->pkcs10, 0));
+#endif
+
+  if (sk_X509_EXTENSION_num(self->exts) > 0 &&
+      !X509_REQ_add_extensions(self->pkcs10, self->exts))
+    lose_openssl_error("Couldn't add extensions block to PKCS#10 request");
+
+  if (!X509_REQ_sign(self->pkcs10, asym->pkey, digest_method))
+    lose_openssl_error("Couldn't sign PKCS#10 request");
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char pkcs10_object_verify__doc__[] =
+  "Verify a PKCS#10 request.\n"
+  ;
+
+static PyObject *
+pkcs10_object_verify(pkcs10_object *self)
+{
+  EVP_PKEY *pkey = NULL;
+  int status;
+
+  if ((pkey = X509_REQ_get_pubkey(self->pkcs10)) == NULL)
+    lose_openssl_error("Couldn't extract public key from PKCS#10 for verification");
+
+  if ((status = X509_REQ_verify(self->pkcs10, pkey)) < 0)
+    lose_openssl_error("Couldn't verify PKCS#10 signature");
+
+  EVP_PKEY_free(pkey);
+  return PyBool_FromLong(status);
+
+ error:
+  EVP_PKEY_free(pkey);
+  return NULL;
+}
+
+static char pkcs10_object_get_version__doc__[] =
+  "This method returns the version number from the version field of this PKCS#10 request.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_version(pkcs10_object *self)
+{
+  return Py_BuildValue("l", X509_REQ_get_version(self->pkcs10));
+}
+
+static char pkcs10_object_set_version__doc__[] =
+  "This method sets the version number in the version field of this PKCS#10 request.\n"
+  "The \"version\" parameter should be an integer, but the only value is zero, so\n"
+  "this field is optional and defaults to zero.\n"
+;
+
+static PyObject *
+pkcs10_object_set_version(pkcs10_object *self, PyObject *args)
+{
+  long version = 0;
+
+  if (!PyArg_ParseTuple(args, "|l", &version))
+    goto error;
+
+  if (version != 0)
+    lose("RFC 6487 6.1.1 forbids non-zero values for this field");
+
+  if (!X509_REQ_set_version(self->pkcs10, version))
+    lose("Couldn't set certificate version");
+
+  Py_RETURN_NONE;
+
+ error:
+
+  return NULL;
+}
+
+static char pkcs10_object_get_subject__doc__[] =
+  "This method returns a tuple containing the subject's name.  See\n"
+  "the X509.getIssuer() method for details of the return value\n"
+  "and use of the optional \"format\" parameter.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_subject(pkcs10_object *self, PyObject *args)
+{
+  PyObject *result = NULL;
+  int format = OIDNAME_FORMAT;
+
+  if (!PyArg_ParseTuple(args, "|i", &format))
+    goto error;
+
+  result = x509_object_helper_get_name(X509_REQ_get_subject_name(self->pkcs10),
+                                       format);
+
+ error:                         /* Fall through */
+  return result;
+}
+
+static char pkcs10_object_set_subject__doc__[] =
+  "This method is used to set the PKCS#10 request's subject name.\n"
+  "The \"name\" parameter should be in the same format as the return\n"
+  "value from the \"getSubject\" method.\n"
+  ;
+
+static PyObject *
+pkcs10_object_set_subject(pkcs10_object *self, PyObject *args)
+{
+  PyObject *name_sequence = NULL;
+  X509_NAME *name = NULL;
+
+  if (!PyArg_ParseTuple(args, "O", &name_sequence))
+    goto error;
+
+  if (!PySequence_Check(name_sequence))
+    lose_type_error("Inapropriate type");
+
+  if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
+    goto error;
+
+  if (!X509_REQ_set_subject_name(self->pkcs10, name))
+    lose("Unable to set subject name");
+
+  X509_NAME_free(name);
+
+  Py_RETURN_NONE;
+
+ error:
+  X509_NAME_free(name);
+  return NULL;
+}
+
+static char pkcs10_object_get_key_usage__doc__[] =
+  "This method returns a FrozenSet of strings representing the KeyUsage\n"
+  "settings for this PKCS#10 request, or None if the request has no\n"
+  "KeyUsage extension.  The bits have the same names as in RFC 5280.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_key_usage(pkcs10_object *self)
+{
+  extern X509V3_EXT_METHOD v3_key_usage;
+  BIT_STRING_BITNAME *bit_name;
+  ASN1_BIT_STRING *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *token = NULL;
+
+  if ((ext = X509V3_get_d2i(self->exts, NID_key_usage, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if ((result = PyFrozenSet_New(NULL)) == NULL)
+    goto error;
+
+  for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++) {
+    if (ASN1_BIT_STRING_get_bit(ext, bit_name->bitnum) &&
+        ((token = PyString_FromString(bit_name->sname)) == NULL ||
+         PySet_Add(result, token) < 0))
+      goto error;
+    Py_XDECREF(token);
+    token = NULL;
+  }
+
+  ASN1_BIT_STRING_free(ext);
+  return result;
+
+ error:
+  ASN1_BIT_STRING_free(ext);
+  Py_XDECREF(token);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+static char pkcs10_object_set_key_usage__doc__[] =
+  "This method sets the KeyUsage extension  for this PKCS#10 request.\n"
+  "\n"
+  "Argument \"iterable\" should be an iterable object which returns zero or more\n"
+  "strings naming bits to be enabled.  The bits have the same names as in RFC 5280.\n"
+  "\n"
+  "Optional argument \"critical\" is a boolean indicating whether the extension\n"
+  "should be marked as critical or not.  RFC 5280 4.2.1.3 says this extension SHOULD\n"
+  "be marked as critical when used, so the default is True.\n"
+  ;
+
+static PyObject *
+pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
+{
+  extern X509V3_EXT_METHOD v3_key_usage;
+  BIT_STRING_BITNAME *bit_name;
+  ASN1_BIT_STRING *ext = NULL;
+  PyObject *iterable = NULL;
+  PyObject *critical = Py_True;
+  PyObject *iterator = NULL;
+  PyObject *token = NULL;
+  const char *t;
+  int ok = 0;
+
+  if ((ext = ASN1_BIT_STRING_new()) == NULL)
+    lose_no_memory();
+
+  if (!PyArg_ParseTuple(args, "O|O", &iterable, &critical) ||
+      (iterator = PyObject_GetIter(iterable)) == NULL)
+    goto error;
+
+  while ((token = PyIter_Next(iterator)) != NULL) {
+
+    if ((t = PyString_AsString(token)) == NULL)
+      goto error;
+
+    for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++)
+      if (!strcmp(t, bit_name->sname))
+        break;
+
+    if (bit_name->sname == NULL)
+      lose("Unrecognized KeyUsage token");
+
+    if (!ASN1_BIT_STRING_set_bit(ext, bit_name->bitnum, 1))
+      lose_no_memory();
+
+    Py_XDECREF(token);
+    token = NULL;
+  }
+
+  if (!X509V3_add1_i2d(&self->exts, NID_key_usage, ext,
+                       PyObject_IsTrue(critical),
+                       X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add KeyUsage extension to certificate");
+
+  ok = 1;
+
+ error:                         /* Fall through */
+  ASN1_BIT_STRING_free(ext);
+  Py_XDECREF(iterator);
+  Py_XDECREF(token);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char pkcs10_object_get_basic_constraints__doc__[] =
+  "Get BasicConstraints value for this PKCS#10 request.  If the request\n"
+  "has no BasicConstraints extension, this method returns None.\n"
+  "Otherwise, it returns a two-element tuple.  The first element of the\n"
+  "tuple is a boolean representing the extension's cA value; the second\n"
+  "element of the tuple is either an integer representing the\n"
+  "pathLenConstraint value or None if there is no pathLenConstraint.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_basic_constraints(pkcs10_object *self)
+{
+  BASIC_CONSTRAINTS *ext = NULL;
+  PyObject *result;
+
+  if ((ext = X509V3_get_d2i(self->exts, NID_basic_constraints, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if (ext->pathlen == NULL)
+    result = Py_BuildValue("(NO)", PyBool_FromLong(ext->ca), Py_None);
+  else
+    result = Py_BuildValue("(Nl)", PyBool_FromLong(ext->ca), ASN1_INTEGER_get(ext->pathlen));
+
+  BASIC_CONSTRAINTS_free(ext);
+  return result;
+}
+
+static char pkcs10_object_set_basic_constraints__doc__[] =
+  "Set BasicConstraints value for this PKCS#10 request.\n"
+  "\n"
+  "First argument \"ca\" is a boolean indicating whether the request\n"
+  "is for a CA certificate or not.\n"
+  "\n"
+  "Optional second argument \"pathLenConstraint\" is a non-negative integer\n"
+  "specifying the pathLenConstraint value for this certificate; this value\n"
+  "may only be set for CA certificates."
+  "\n"
+  "Optional third argument \"critical\" specifies whether the extension\n"
+  "should be marked as critical.  RFC 5280 4.2.1.9 requires that CA\n"
+  "certificates mark this extension as critical, so the default is True.\n"
+  ;
+
+static PyObject *
+pkcs10_object_set_basic_constraints(pkcs10_object *self, PyObject *args)
+{
+  BASIC_CONSTRAINTS *ext = NULL;
+  PyObject *is_ca = NULL;
+  PyObject *pathlen_obj = Py_None;
+  PyObject *critical = Py_True;
+  long pathlen = -1;
+  int ok = 0;
+
+  if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
+    goto error;
+
+  if (pathlen_obj != Py_None && (pathlen = PyInt_AsLong(pathlen_obj)) < 0)
+    lose_type_error("Bad pathLenConstraint value");
+
+  if ((ext = BASIC_CONSTRAINTS_new()) == NULL)
+    lose_no_memory();
+
+  ext->ca = PyObject_IsTrue(is_ca) ? 0xFF : 0;
+
+  if (pathlen_obj != Py_None &&
+      ((ext->pathlen == NULL && (ext->pathlen = ASN1_INTEGER_new()) == NULL) ||
+       !ASN1_INTEGER_set(ext->pathlen, pathlen)))
+    lose_no_memory();
+
+  if (!X509V3_add1_i2d(&self->exts, NID_basic_constraints, ext,
+                       PyObject_IsTrue(critical), X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add BasicConstraints extension to certificate");
+
+  ok = 1;
+
+ error:
+  BASIC_CONSTRAINTS_free(ext);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char pkcs10_object_get_sia__doc__[] =
+  "Get SIA values for this PKCS#10 request.  If the request\n"
+  "has no SIA extension, this method returns None.\n"
+  "Otherwise, it returns a tuple containing three sequences:\n"
+  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
+  "Any other accessMethods are ignored, as are any non-URI\n"
+  "accessLocations.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_sia(pkcs10_object *self)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *result_caRepository = NULL;
+  PyObject *result_rpkiManifest = NULL;
+  PyObject *result_signedObject = NULL;
+  int n_caRepository = 0;
+  int n_rpkiManifest = 0;
+  int n_signedObject = 0;
+  const char *uri;
+  PyObject *obj;
+  int i, nid;
+
+  if ((ext = X509V3_get_d2i(self->exts, NID_sinfo_access, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  /*
+   * Easiest to do this in two passes, first pass just counts URIs.
+   */
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type != GEN_URI)
+      continue;
+    nid = OBJ_obj2nid(a->method);
+    if (nid == NID_caRepository) {
+      n_caRepository++;
+      continue;
+    }
+    if (nid == NID_rpkiManifest) {
+      n_rpkiManifest++;
+      continue;
+    }
+    if (nid == NID_signedObject) {
+      n_signedObject++;
+      continue;
+    }
+  }
+
+  if (((result_caRepository = PyTuple_New(n_caRepository)) == NULL) ||
+      ((result_rpkiManifest = PyTuple_New(n_rpkiManifest)) == NULL) ||
+      ((result_signedObject = PyTuple_New(n_signedObject)) == NULL))
+    goto error;
+
+  n_caRepository = n_rpkiManifest = n_signedObject = 0;
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type != GEN_URI)
+      continue;
+    nid = OBJ_obj2nid(a->method);
+    uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+    if (nid == NID_caRepository) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_caRepository, n_caRepository++, obj);
+      continue;
+    }
+    if (nid == NID_rpkiManifest) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_rpkiManifest, n_rpkiManifest++, obj);
+      continue;
+    }
+    if (nid == NID_signedObject) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_signedObject, n_signedObject++, obj);
+      continue;
+    }
+  }
+
+  result = Py_BuildValue("(OOO)",
+                         result_caRepository,
+                         result_rpkiManifest,
+                         result_signedObject);
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  Py_XDECREF(result_caRepository);
+  Py_XDECREF(result_rpkiManifest);
+  Py_XDECREF(result_signedObject);
+  return result;
+}
+
+static char pkcs10_object_set_sia__doc__[] =
+  "Set SIA values for this PKCS#10 request.  Takes three arguments:\n"
+  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
+  "Each of these should be an iterable which returns URIs.\n"
+  "None is acceptable as an alternate way of specifying an empty\n"
+  "sequence of URIs for a particular argument.\n"
+  ;
+
+static PyObject *
+pkcs10_object_set_sia(pkcs10_object *self, PyObject *args)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *caRepository = NULL;
+  PyObject *rpkiManifest = NULL;
+  PyObject *signedObject = NULL;
+  PyObject *iterator = NULL;
+  ASN1_OBJECT *oid = NULL;
+  PyObject **pobj = NULL;
+  PyObject *item = NULL;
+  ACCESS_DESCRIPTION *a = NULL;
+  int i, nid = NID_undef, ok = 0;
+  Py_ssize_t urilen;
+  char *uri;
+
+  if (!PyArg_ParseTuple(args, "OOO", &caRepository, &rpkiManifest, &signedObject))
+    goto error;
+
+  if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
+    lose_no_memory();
+
+  /*
+   * This is going to want refactoring, because it's ugly, because we
+   * want to reuse code for AIA, and because it'd be nice to support a
+   * single URI as an abbreviation for a sequence containing one URI.
+   */
+
+  for (i = 0; i < 3; i++) {
+    switch (i) {
+    case 0: pobj = &caRepository; nid = NID_caRepository; break;
+    case 1: pobj = &rpkiManifest; nid = NID_rpkiManifest; break;
+    case 2: pobj = &signedObject; nid = NID_signedObject; break;
+    }
+
+    if (*pobj == Py_None)
+      continue;
+
+    if ((oid = OBJ_nid2obj(nid)) == NULL)
+      lose_openssl_error("Couldn't find SIA accessMethod OID");
+
+    if ((iterator = PyObject_GetIter(*pobj)) == NULL)
+      goto error;
+
+    while ((item = PyIter_Next(iterator)) != NULL) {
+
+      if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
+        goto error;
+
+      if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
+          (a->method = OBJ_dup(oid)) == NULL ||
+          (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
+          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
+        lose_no_memory();
+
+      a->location->type = GEN_URI;
+
+      if (!sk_ACCESS_DESCRIPTION_push(ext, a))
+        lose_no_memory();
+
+      a = NULL;
+      Py_XDECREF(item);
+      item = NULL;
+    }
+
+    Py_XDECREF(iterator);
+    iterator = NULL;
+  }
+
+  if (!X509V3_add1_i2d(&self->exts, NID_sinfo_access, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add SIA extension to certificate");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  ACCESS_DESCRIPTION_free(a);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+/*
+ * May want EKU handlers eventually, skip for now.
+ */
+
+static char pkcs10_object_pprint__doc__[] =
+  "This method returns a pretty-printed rendition of the PKCS#10 request.\n"
+  ;
+
+static PyObject *
+pkcs10_object_pprint(pkcs10_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!X509_REQ_print(bio, self->pkcs10))
+    lose_openssl_error("Unable to pretty-print PKCS#10 request");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static struct PyMethodDef pkcs10_object_methods[] = {
+  Define_Method(pemWrite,               pkcs10_object_pem_write,                METH_NOARGS),
+  Define_Method(derWrite,               pkcs10_object_der_write,                METH_NOARGS),
+  Define_Method(sign,                   pkcs10_object_sign,                     METH_VARARGS),
+  Define_Method(verify,			pkcs10_object_verify,			METH_NOARGS),
+  Define_Method(getPublicKey,		pkcs10_object_get_public_key,		METH_NOARGS),
+  Define_Method(setPublicKey,           pkcs10_object_set_public_key,           METH_VARARGS),
+  Define_Method(getVersion,             pkcs10_object_get_version,              METH_NOARGS),
+  Define_Method(setVersion,             pkcs10_object_set_version,              METH_VARARGS),
+  Define_Method(getSubject,             pkcs10_object_get_subject,              METH_VARARGS),
+  Define_Method(setSubject,             pkcs10_object_set_subject,              METH_VARARGS),
+  Define_Method(pprint,                 pkcs10_object_pprint,                   METH_NOARGS),
+  Define_Method(getKeyUsage,            pkcs10_object_get_key_usage,            METH_NOARGS),
+  Define_Method(setKeyUsage,            pkcs10_object_set_key_usage,            METH_VARARGS),
+  Define_Method(getBasicConstraints,    pkcs10_object_get_basic_constraints,    METH_NOARGS),
+  Define_Method(setBasicConstraints,    pkcs10_object_set_basic_constraints,    METH_VARARGS),
+  Define_Method(getSIA,                 pkcs10_object_get_sia,                  METH_NOARGS),
+  Define_Method(setSIA,                 pkcs10_object_set_sia,                  METH_VARARGS),
+  Define_Class_Method(pemRead,          pkcs10_object_pem_read,                 METH_VARARGS),
+  Define_Class_Method(pemReadFile,      pkcs10_object_pem_read_file,            METH_VARARGS),
+  Define_Class_Method(derRead,          pkcs10_object_der_read,                 METH_VARARGS),
+  Define_Class_Method(derReadFile,      pkcs10_object_der_read_file,            METH_VARARGS),
+  {NULL}
+};
+
+static void
+pkcs10_object_dealloc(pkcs10_object *self)
+{
+  X509_REQ_free(self->pkcs10);
+  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
+static char POW_PKCS10_Type__doc__[] =
+  "This class represents a PKCS#10 request.\n"
+  "\n"
+  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
+  ;
+
+static PyTypeObject POW_PKCS10_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                        /* ob_size */
+  "POW.PKCS10",                             /* tp_name */
+  sizeof(pkcs10_object),		    /* tp_basicsize */
+  0,                                        /* tp_itemsize */
+  (destructor)pkcs10_object_dealloc,	    /* tp_dealloc */
+  0,                                        /* tp_print */
+  0,                                        /* tp_getattr */
+  0,                                        /* tp_setattr */
+  0,                                        /* tp_compare */
+  0,                                        /* tp_repr */
+  0,                                        /* tp_as_number */
+  0,                                        /* tp_as_sequence */
+  0,                                        /* tp_as_mapping */
+  0,                                        /* tp_hash */
+  0,                                        /* tp_call */
+  0,                                        /* tp_str */
+  0,                                        /* tp_getattro */
+  0,                                        /* tp_setattro */
+  0,                                        /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  POW_PKCS10_Type__doc__,		    /* tp_doc */
+  0,                                        /* tp_traverse */
+  0,                                        /* tp_clear */
+  0,                                        /* tp_richcompare */
+  0,                                        /* tp_weaklistoffset */
+  0,                                        /* tp_iter */
+  0,                                        /* tp_iternext */
+  pkcs10_object_methods,		    /* tp_methods */
+  0,                                        /* tp_members */
+  0,                                        /* tp_getset */
+  0,                                        /* tp_base */
+  0,                                        /* tp_dict */
+  0,                                        /* tp_descr_get */
+  0,                                        /* tp_descr_set */
+  0,                                        /* tp_dictoffset */
+  0,                                        /* tp_init */
+  0,                                        /* tp_alloc */
+  pkcs10_object_new,			    /* tp_new */
+};
+
+
+
+
+
+
+/*
  * Module functions.
  */
 
@@ -6823,6 +7681,7 @@ init_POW(void)
   Define_Class(POW_IPAddress_Type);
   Define_Class(POW_Manifest_Type);
   Define_Class(POW_ROA_Type);
+  Define_Class(POW_PKCS10_Type);
 
 #undef Define_Class
 

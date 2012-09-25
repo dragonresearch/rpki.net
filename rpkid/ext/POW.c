@@ -6831,7 +6831,7 @@ static PyObject *
 pkcs10_object_sign(pkcs10_object *self, PyObject *args)
 {
   asymmetric_object *asym;
-  int digest_type = SHA256_DIGEST;
+  int loc, digest_type = SHA256_DIGEST;
   const EVP_MD *digest_method = NULL;
 
   if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
@@ -6840,17 +6840,8 @@ pkcs10_object_sign(pkcs10_object *self, PyObject *args)
   if ((digest_method = evp_digest_factory(digest_type)) == NULL)
     lose("Unsupported digest algorithm");
 
-  /*
-   * Not sure whether we should do this or not, but without it we end
-   * up creating a second attribute if one already exists, which
-   * confuses at least OpenSSL.  RFCs are not much help.  Will a PKIX
-   * expert next time I see one in the hallway....
-   */
-#warning Confirm proper PKCS10 attribute behavior
-#if 0
-  while (X509_REQ_get_attr_count(self->pkcs10) > 0)
-    X509_ATTRIBUTE_free(X509_REQ_delete_attr(self->pkcs10, 0));
-#endif
+  while ((loc = X509_REQ_get_attr_by_NID(self->pkcs10, NID_ext_req, -1)) >= 0)
+    X509_ATTRIBUTE_free(X509_REQ_delete_attr(self->pkcs10, loc));
 
   if (sk_X509_EXTENSION_num(self->exts) > 0 &&
       !X509_REQ_add_extensions(self->pkcs10, self->exts))

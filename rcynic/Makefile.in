@@ -29,7 +29,7 @@ all: ${BIN} ${SCRIPTS}
 
 clean:
 	cd static-rsync; ${MAKE} $@
-	rm -f ${BIN} ${OBJS} ${GEN} ${SCRIPTS}
+	rm -f ${BIN} ${OBJS} ${SCRIPTS}
 
 ${OBJ}: ${SRC} ${GEN}
 

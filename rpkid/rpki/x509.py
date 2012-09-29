@@ -442,7 +442,7 @@ class DER_object(object):
     Get the basicConstraints extension from this object.  Only works
     for subclasses that support getExtension().
     """
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["basicConstraints"]) or ((), 0, None))[2]
+    return self.get_POW().getBasicConstraints()
 
   def is_CA(self):
     """
@@ -450,7 +450,7 @@ class DER_object(object):
     extension and its cA value is true.
     """
     basicConstraints = self.get_basicConstraints()
-    return basicConstraints and basicConstraints[0] != 0
+    return basicConstraints is not None and basicConstraints[0]
 
   def get_3779resources(self):
     """

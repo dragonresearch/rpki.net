@@ -84,16 +84,6 @@
 
 #include "defstack.h"
 
-/*
- * Whether to run the old slow STACK-based validation_status lookup in
- * parallel to the new faster AVL-based mechanism.  The code
- * controlled by this option will probably go away soon, it's just here
- * in case we run into trouble while testing the new code.
- */
-#ifndef AVL_PARANOIA
-#define	AVL_PARANOIA	0
-#endif
-
 #if !defined(FILENAME_MAX) && defined(PATH_MAX) && PATH_MAX > 1024
 #define	FILENAME_MAX	PATH_MAX
 #elif !defined(FILENAME_MAX)
@@ -401,9 +391,6 @@ typedef struct validation_status {
   uri_t uri;
   object_generation_t generation;
   time_t timestamp;
-#if AVL_PARANOIA
-  unsigned creation_order;
-#endif
   unsigned char events[(MIB_COUNTER_T_MAX + 7) / 8];
   short balance;
   struct validation_status *left_child;
@@ -565,9 +552,6 @@ struct rcynic_ctx {
   int allow_nonconformant_name, allow_ee_without_signedObject;
   int allow_1024_bit_ee_key, allow_wrong_cms_si_attributes;
   unsigned max_select_time;
-#if AVL_PARANOIA
-  unsigned validation_status_creation_order;
-#endif
   validation_status_t *validation_status_in_waiting;
   validation_status_t *validation_status_root;
   log_level_t log_level;
@@ -1312,18 +1296,6 @@ static void log_validation_status(rcynic_ctx_t *rc,
   if (v == rc->validation_status_in_waiting)
     rc->validation_status_in_waiting = NULL;
 
-#if AVL_PARANOIA
-  {
-    validation_status_t *v2 = sk_validation_status_t_value(rc->validation_status,
-							   sk_validation_status_t_find(rc->validation_status, v));
-    assert((rc->validation_status_in_waiting == NULL) == (v2 == NULL));
-    if (rc->validation_status_in_waiting == NULL) {
-      v->creation_order = rc->validation_status_creation_order++;
-      assert(rc->validation_status_creation_order != 0);
-    }
-  }
-#endif
-
   if (rc->validation_status_in_waiting == NULL &&
       !sk_validation_status_t_push(rc->validation_status, v)) {
     logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri->s);
@@ -1345,40 +1317,6 @@ static void log_validation_status(rcynic_ctx_t *rc,
 	 (generation != object_generation_null ? " " : ""),
 	 uri->s);
 }
-
-#if AVL_PARANOIA
-
-/**
- * Validation status object comparision.  While building up the
- * database, we want to do lookups based on URI and generation number.
- */
-static int
-validation_status_cmp_uri(const validation_status_t * const *a, const validation_status_t * const *b)
-{
-  int cmp = strcmp((*a)->uri.s, (*b)->uri.s);
-  if (cmp)
-    return cmp;
-  cmp = (int) ((*a)->generation) - (int) ((*b)->generation);
-  if (cmp)
-    return cmp;
-  return 0;
-}
-
-/**
- * Validation status object comparision.  When writing out the
- * database, one of our primary consumers has respectfully requested
- * that we write in something approximating the order we traversed, so
- * we regenerate that order using the "order" field added for just
- * that purpose when creating these objects.
- */
-static int validation_status_cmp_creation_order(const validation_status_t * const *a, const validation_status_t * const *b)
-{
-  int cmp = (*a)->creation_order - (*b)->creation_order;
-  assert(cmp != 0 || a == b);
-  return cmp;
-}
-
-#endif
 
 /**
  * Copy or link a file, as the case may be.
@@ -1513,18 +1451,6 @@ static int skip_checking_this_object(rcynic_ctx_t *rc,
     return 1;
 
   v = validation_status_find(rc->validation_status_root, uri, generation);
-
-#if AVL_PARANOIA
-  {
-    validation_status_t v_, *v2 = NULL;
-    memset(&v_, 0, sizeof(v_));
-    v_.uri = *uri;
-    v_.generation = generation;
-    v2 = sk_validation_status_t_value(rc->validation_status,
-				      sk_validation_status_t_find(rc->validation_status, &v_));
-    assert(v == v2);
-  }
-#endif
 
   if (v != NULL && validation_status_get_code(v, object_accepted))
     return 1;
@@ -5067,11 +4993,6 @@ static int write_xml_file(const rcynic_ctx_t *rc,
   if (ok)
     ok &= fprintf(f, "  </labels>\n") != EOF;
 
-#if AVL_PARANOIA
-  (void) sk_validation_status_t_set_cmp_func(rc->validation_status, validation_status_cmp_creation_order);
-  sk_validation_status_t_sort(rc->validation_status);
-#endif
-
   for (i = 0; ok && i < sk_validation_status_t_num(rc->validation_status); i++) {
     validation_status_t *v = sk_validation_status_t_value(rc->validation_status, i);
     assert(v);
@@ -5415,10 +5336,6 @@ int main(int argc, char *argv[])
     logmsg(&rc, log_sys_err, "Couldn't allocate validation_status stack");
     goto done;
   }
-
-#if AVL_PARANOIA
-  (void) sk_validation_status_t_set_cmp_func(rc.validation_status, validation_status_cmp_uri);
-#endif
 
   if ((rc.x509_store = X509_STORE_new()) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate X509_STORE");

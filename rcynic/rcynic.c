@@ -1409,13 +1409,10 @@ validation_status_find(validation_status_t *node,
 {
   int cmp;
 
-  while (node != NULL)
-    if ((cmp = validation_status_cmp(node, uri, generation)) == 0)
-      return node;
-    else
-      node = cmp < 0 ? node->left_child : node->right_child;
+  while (node != NULL && (cmp = validation_status_cmp(node, uri, generation)) != 0)
+    node = cmp < 0 ? node->left_child : node->right_child;
 
-  return NULL;
+  return node;
 }
 
 /**

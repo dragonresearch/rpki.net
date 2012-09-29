@@ -164,11 +164,6 @@ class X501DN(object):
   simple.
   """
 
-  # At the moment, our internal representation is the one used by
-  # POW.pkix.  Current plan is to change that to the representation
-  # used by the current POW code, in an attempt to speed things up by
-  # phasing out the slow POW.pkix ASN.1 code.
-
   def __str__(self):
     return "".join("/" + "+".join("%s=%s" % (rpki.oids.safe_dotted2name(a[0]), a[1])
                                   for a in rdn)
@@ -398,15 +393,14 @@ class DER_object(object):
     Get the AKI extension from this object.  Only works for subclasses
     that support getExtension().
     """
-    aki = (self.get_POWpkix().getExtension(rpki.oids.name2oid["authorityKeyIdentifier"]) or ((), 0, None))[2]
-    return aki[0] if isinstance(aki, tuple) else aki
+    return self.get_POW().getAKI()
 
   def get_SKI(self):
     """
     Get the SKI extension from this object.  Only works for subclasses
     that support getExtension().
     """
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["subjectKeyIdentifier"]) or ((), 0, None))[2]
+    return self.get_POW().getSKI()
 
   def get_SIA(self):
     """
@@ -584,13 +578,13 @@ class X509(DER_object):
     """
     Get the inception time of this certificate.
     """
-    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().tbs.validity.notBefore.get())
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getNotBefore())
 
   def getNotAfter(self):
     """
     Get the expiration time of this certificate.
     """
-    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().tbs.validity.notAfter.get())
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getNotAfter())
 
   def getSerial(self):
     """
@@ -881,7 +875,7 @@ class PKCS10(DER_object):
     """
     Extract the subject name from this certification request.
     """
-    return X501DN.from_POWpkix(self.get_POWpkix().certificationRequestInfo.subject.get())
+    return X501DN.from_POW(self.get_POW().getSubject())
 
   def getPublicKey(self):
     """
@@ -1742,13 +1736,13 @@ class CRL(DER_object):
     """
     Get thisUpdate value from this CRL.
     """
-    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().getThisUpdate())
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getThisUpdate())
 
   def getNextUpdate(self):
     """
     Get nextUpdate value from this CRL.
     """
-    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().getNextUpdate())
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getNextUpdate())
 
   def getIssuer(self):
     """
@@ -1760,7 +1754,7 @@ class CRL(DER_object):
     """
     Get CRL Number value for this CRL.
     """
-    return self.get_POWpkix().getExtension(rpki.oids.name2oid["cRLNumber"])[2]
+    return self.get_POW().getCRLNumber()
 
   @classmethod
   def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):

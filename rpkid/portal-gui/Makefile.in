@@ -40,9 +40,9 @@ apache.conf: $(srcdir)/apache.conf.in Makefile
 	$(edit) $@.in > $@
 
 install: $(BUILD)
-	${INSTALL} -d $(SYSCONFDIR)
-	${INSTALL} -d $(INSTDIR)/media/css
-	${INSTALL} -d $(INSTDIR)/wsgi
+	if test -d $(SYSCONFDIR); then :; else ${INSTALL} -d $(SYSCONFDIR); fi
+	if test -d $(INSTDIR)/media/css; then :; else ${INSTALL} -d $(INSTDIR)/media/css; fi
+	if test -d $(INSTDIR)/wsgi; then :; else ${INSTALL} -d $(INSTDIR)/wsgi; fi
 	${INSTALL} -m 644 apache.conf $(SYSCONFDIR)/apache.conf
 	${INSTALL} -m 644 $(srcdir)/media/css/bootstrap.min.css $(INSTDIR)/media/css/bootstrap.min.css
 	${INSTALL} -m 644 rpki.wsgi $(INSTDIR)/wsgi/rpki.wsgi

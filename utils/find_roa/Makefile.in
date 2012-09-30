@@ -43,7 +43,7 @@ test: ${BIN}
 	sh ./test_roa.sh ${TEST_ARGS}
 
 install: all
-	${INSTALL} -d ${DESTDIR}${bindir}
+	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -d ${DESTDIR}${bindir}; fi
 	${INSTALL} ${BIN} ${DESTDIR}${bindir}
 
 deinstall uninstall:

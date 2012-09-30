@@ -985,10 +985,17 @@ generate_insecure_debug_only_rsa_key = None
 class insecure_debug_only_rsa_key_generator(object):
 
   def __init__(self, filename, keyno = 0):
-    import gdbm
-    self.keyno = long(keyno)
-    self.filename = filename
-    self.db = gdbm.open(filename, "c")
+    try:
+      try:
+        import gdbm as dbm_du_jour
+      except ImportError:
+        import dbm as dbm_du_jour
+      self.keyno = long(keyno)
+      self.filename = filename
+      self.db = dbm_du_jour.open(filename, "c")
+    except:
+      rpki.log.warn("insecure_debug_only_rsa_key_generator initialization FAILED, hack inoperative")
+      raise
 
   def __call__(self):
     k = str(self.keyno)

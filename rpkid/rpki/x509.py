@@ -845,7 +845,7 @@ class PKCS10(DER_object):
   Class to hold a PKCS #10 request.
   """
 
-  formats = ("DER", "POWpkix")
+  formats = ("DER", "POW", "POWpkix")
   pem_converter = PEM_converter("CERTIFICATE REQUEST")
   
   def get_DER(self):
@@ -855,10 +855,21 @@ class PKCS10(DER_object):
     self.check()
     if self.DER:
       return self.DER
+    if self.POW:
+      self.DER = self.POW.derWrite()
     if self.POWpkix:
       self.DER = self.POWpkix.toString()
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+
+  def get_POW(self):
+    """
+    Get the rpki.POW value of this certification request.
+    """
+    self.check()
+    if not self.POW:
+      self.POW = rpki.POW.PKCS10.derRead(self.get_DER())
+    return self.POW
 
   def get_POWpkix(self):
     """

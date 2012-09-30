@@ -441,7 +441,7 @@ class allocation(object):
     assert not self.is_hosted
     self._zoo = rpki.irdb.Zookeeper(
       cfg = rpki.config.parser(self.path("rpki.conf")),
-      logstream = sys.stdout)
+      logstream = None if quiet else sys.stdout)
 
   @property
   def zoo(self):
@@ -601,7 +601,7 @@ def main():
                       help = "Configure for use with yamltest on localhost")
   parser.add_argument("-f", "--flat_publication", action = "store_true",
                       help = "Use flat publication model")
-  parser.add_argument("-q", "--quiet", action = "store_false",
+  parser.add_argument("-q", "--quiet", action = "store_true",
                       help = "Work more quietly")
   parser.add_argument("--profile",
                       help = "Filename for profile output")

@@ -64,6 +64,7 @@ flat_publication = False
 only_one_pubd = True
 yaml_file = None
 loopback = False
+quiet = False
 dns_suffix = None
 mysql_rootuser = None
 mysql_rootpass = None
@@ -243,7 +244,8 @@ class allocation(object):
       return self.pubd.hostname
 
   def dump(self):
-    print str(self)
+    if not quiet:
+      print str(self)
 
   def __str__(self):
     s = self.name + ":\n"
@@ -279,7 +281,8 @@ class allocation(object):
 
   def csvout(self, fn):
     path = self.path(fn)
-    print "Writing", path
+    if not quiet:
+      print "Writing", path
     return rpki.csv_utils.csv_writer(path)
 
   def up_down_url(self):
@@ -371,7 +374,8 @@ class allocation(object):
 
     with open(self.path("rpki.conf"), "w") as f:
       f.write("# Automatically generated, do not edit\n")
-      print "Writing", f.name
+      if not quiet:
+        print "Writing", f.name
 
       section = None
       for line in open(rpki_conf):
@@ -408,7 +412,8 @@ class allocation(object):
         "comment      = RPKI test root"))
     if lines:
       with open(self.path("rsyncd.conf"), "w") as f:
-        print "Writing", f.name
+        if not quiet:
+          print "Writing", f.name
         f.writelines(line + "\n" for line in lines)
 
   @property
@@ -478,24 +483,28 @@ class allocation(object):
 
   def mkdir(self, *path):
     path = self.path(*path)
-    print "Creating directory", path
+    if not quiet:
+      print "Creating directory", path
     os.makedirs(path)
 
   def dump_sql(self):
     if not self.is_hosted:
       with open(self.path("rpkid.sql"), "w") as f:
-        print "Writing", f.name
+        if not quiet:
+          print "Writing", f.name
         f.write(rpki.sql_schemas.rpkid)
     if self.runs_pubd:
       with open(self.path("pubd.sql"), "w") as f:
-        print "Writing", f.name
+        if not quiet:
+          print "Writing", f.name
         f.write(rpki.sql_schemas.pubd)
     if not self.is_hosted:
       username = config_overrides["irdbd_sql_username"]
       password = config_overrides["irdbd_sql_password"]
       cmd = ("mysqldump", "-u", username, "-p" + password, self.irdb_name)
       with open(self.path("irdbd.sql"), "w") as f:
-        print "Writing", f.name
+        if not quiet:
+          print "Writing", f.name
         subprocess.check_call(cmd, stdout = f)
 
 
@@ -558,8 +567,9 @@ class timestamp(object):
 
   def __call__(self, *args):
     now = rpki.sundial.now()
-    print "[Count %s last %s total %s now %s]" % (
-      self.count, now - self.tick, now - self.start, now)
+    if not quiet:
+      print "[Count %s last %s total %s now %s]" % (
+        self.count, now - self.tick, now - self.start, now)
     self.tick = now
     self.count += 1
 
@@ -578,6 +588,7 @@ def main():
   global rpki_conf
   global publication_base
   global publication_root
+  global quiet
 
   os.environ["TZ"] = "UTC"
   time.tzset()
@@ -590,6 +601,8 @@ def main():
                       help = "Configure for use with yamltest on localhost")
   parser.add_argument("-f", "--flat_publication", action = "store_true",
                       help = "Use flat publication model")
+  parser.add_argument("-q", "--quiet", action = "store_false",
+                      help = "Work more quietly")
   parser.add_argument("--profile",
                       help = "Filename for profile output")
   parser.add_argument("yaml_file", type = argparse.FileType("r"),
@@ -599,6 +612,7 @@ def main():
   dns_suffix = args.dns_suffix
   loopback = args.loopback
   flat_publication = args.flat_publication
+  quiet = args.quiet
   yaml_file = args.yaml_file
 
   rpki.log.use_syslog = False
@@ -649,8 +663,9 @@ def main():
       prof.runcall(body)
     finally:
       prof.dump_stats(args.profile)
-      print
-      print "Dumped profile data to %s" % args.profile
+      if not quiet:
+        print
+        print "Dumped profile data to %s" % args.profile
   else:
     body()
 
@@ -666,8 +681,9 @@ def body():
     for dir in dirs:
       os.rmdir(os.path.join(root, dir))
 
-  print
-  print "Reading YAML", yaml_file.name
+  if not quiet:
+    print
+    print "Reading YAML", yaml_file.name
 
   db = allocation_db(yaml.safe_load_all(yaml_file).next())
 
@@ -710,8 +726,9 @@ def body():
   ts()
 
   for d in db:
-    print
-    print "Configuring", d.name
+    if not quiet:
+      print
+      print "Configuring", d.name
 
     if not d.is_hosted:
       d.mkdir()
@@ -729,17 +746,21 @@ def body():
     d.dump_roas("%s.roas.csv" % d.name)
 
     if not d.is_hosted:
-      print "Initializing SQL"
+      if not quiet:
+        print "Initializing SQL"
       d.syncdb()
-      print "Hiring zookeeper"
+      if not quiet:
+        print "Hiring zookeeper"
       d.hire_zookeeper()
 
     with d.irdb:
-      print "Creating identity"
+      if not quiet:
+        print "Creating identity"
       x = d.zoo.initialize()
 
       if d.is_root:
-        print "Creating RPKI root certificate and TAL"
+        if not quiet:
+          print "Creating RPKI root certificate and TAL"
         d.dump_root()
         x = d.zoo.configure_rootd()
 
@@ -759,7 +780,8 @@ def body():
     ts()
 
   if not loopback:
-    print
+    if not quiet:
+      print
     for d in db:
       d.dump_sql()
 

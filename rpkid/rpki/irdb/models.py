@@ -306,7 +306,7 @@ class CA(django.db.models.Model):
   def generate_crl(self):
     now = rpki.sundial.now()
     self.revocations.filter(expires__lt = now).delete()
-    revoked = [(r.serial, rpki.sundial.datetime.fromdatetime(r.revoked).toASN1tuple(), ())
+    revoked = [(r.serial, rpki.sundial.datetime.fromdatetime(r.revoked))
                for r in self.revocations.all()]
     self.latest_crl = rpki.x509.CRL.generate(
       keypair = self.private_key,

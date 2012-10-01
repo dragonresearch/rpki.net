@@ -247,7 +247,7 @@ class main(object):
     f.close()
 
   def revoke_subject_cert(self, now):
-    self.revoked.append((self.get_subject_cert().getSerial(), now.toASN1tuple(), ()))
+    self.revoked.append((self.get_subject_cert().getSerial(), now))
 
   def compose_response(self, r_msg, pkcs10 = None):
     subject_cert = self.issue_subject_cert_maybe(pkcs10)

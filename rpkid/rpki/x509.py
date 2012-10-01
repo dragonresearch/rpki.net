@@ -1775,22 +1775,19 @@ class CRL(DER_object):
     return self.get_POW().getCRLNumber()
 
   @classmethod
-  def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):
+  def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1):
     """
     Generate a new CRL.
     """
-    crl = rpki.POW.pkix.CertificateList()
+    crl = rpki.POW.CRL()
     crl.setVersion(version)
-    crl.setIssuer(issuer.get_POWpkix().getSubject())
-    crl.setThisUpdate(thisUpdate.toASN1tuple())
-    crl.setNextUpdate(nextUpdate.toASN1tuple())
-    if revokedCertificates:
-      crl.setRevokedCertificates(revokedCertificates)
-    crl.setExtensions(
-      ((rpki.oids.name2oid["authorityKeyIdentifier"], False, (issuer.get_SKI(), (), None)),
-       (rpki.oids.name2oid["cRLNumber"], False, serial)))
-    crl.sign(keypair.get_POW(), digestType)
-    return cls(POWpkix = crl)
+    crl.setIssuer(issuer.getSubject().get_POW())
+    crl.setThisUpdate(thisUpdate.toGeneralizedTime())
+    crl.setNextUpdate(nextUpdate.toGeneralizedTime())
+    crl.setAKI(issuer.get_SKI())
+    crl.setCRLNumber(serial)
+    crl.sign(keypair.get_POW())
+    return cls(POW = crl)
 
   @property
   def creation_timestamp(self):

@@ -1106,7 +1106,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       if now > revoked_cert.expires + crl_interval:
         revoked_cert.sql_delete()
       else:
-        certlist.append((revoked_cert.serial, revoked_cert.revoked.toASN1tuple(), ()))
+        certlist.append((revoked_cert.serial, revoked_cert.revoked))
     certlist.sort()
 
     self.latest_crl = rpki.x509.CRL.generate(

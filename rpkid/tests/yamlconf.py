@@ -723,6 +723,9 @@ def body():
 
   import rpki.irdb
 
+  rpki.irdb.models.ca_certificate_lifetime = rpki.sundial.timedelta(days = 3652 * 2)
+  rpki.irdb.models.ee_certificate_lifetime = rpki.sundial.timedelta(days = 3652)
+
   ts()
 
   for d in db:

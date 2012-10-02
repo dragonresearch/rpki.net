@@ -88,12 +88,6 @@
  * a horrible kludge forced on us by circumstance.
  */
 
-#warning Might want common worker code supporting extensions for X509, CRL, and PKCS10 classes
-/*
- * May not really be necessary, neither CRLs nor PKCS10 requests are
- * allowed very many extensions in the RPKI profile.
- */
-
 /*
  * Disable compilation of X509 certificate signature and verification
  * API.  We don't currently need this for RPKI but I'm not quite ready
@@ -3270,15 +3264,6 @@ x509_store_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 #if ENABLE_X509_CERTIFICATE_SIGNATURE_AND_VERIFICATION
-
-static char x509_store_object_verify__doc__[] =
-  "This method performs X.509 certificate verification using\n"
-  "the OpenSSL X509_verify_cert() function.\n"
-  "\n"
-  "The \"certificate\" parameter is the certificate to verify, and\n"
-  "should be an X509 object.\n"
-  ;
-
 #warning Check X509_verify_cert options
 /*
  * I once knew all the grotty details of how X509_verify_cert() gets
@@ -3290,8 +3275,16 @@ static char x509_store_object_verify__doc__[] =
  * tell X509_verify_cert() whether to check CRLs, whether to verify
  * the whole chain, whether to enforce policy constraints, etc etc.
  * This may all be covered already, I just don't remember.  Might not
- * even matter, not sure whether anything is calling this method.
+ * matter, as these methods are probably destined for deletion.
  */
+
+static char x509_store_object_verify__doc__[] =
+  "This method performs X.509 certificate verification using\n"
+  "the OpenSSL X509_verify_cert() function.\n"
+  "\n"
+  "The \"certificate\" parameter is the certificate to verify, and\n"
+  "should be an X509 object.\n"
+  ;
 
 static PyObject *
 x509_store_object_verify(x509_store_object *self, PyObject *args)
@@ -4393,7 +4386,6 @@ asymmetric_object_init(asymmetric_object *self, PyObject *args, PyObject *kwds)
       EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, key_size) <= 0)
     lose_openssl_error("Couldn't initialize EVP_PKEY_CTX");
 
-#warning Look up how to set additional RSA key generation parameters like F4
   /*
    * Should set RSA_F4 for drill, although I think it's the default now.
    * Looks like the call is 

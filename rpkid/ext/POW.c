@@ -81,13 +81,6 @@
 
 /* $Id: rcynic.c 4613 2012-07-30 23:24:15Z sra $ */
 
-#warning Consider making ROA and Manifest C/API-level subclasses of CMS
-/*
- * This would be a major change to the Python code but really seems
- * like the right thing at the API level, the current two-level API is
- * a horrible kludge forced on us by circumstance.
- */
-
 /*
  * Disable compilation of X509 certificate signature and verification
  * API.  We don't currently need this for RPKI but I'm not quite ready
@@ -220,7 +213,8 @@ static const struct {
 static PyObject
   *ErrorObject,
   *OpenSSLErrorObject,
-  *POWErrorObject;
+  *POWErrorObject,
+  *NotVerifiedErrorObject;
 
 /*
  * Declarations of type objects (definitions come later).
@@ -283,12 +277,12 @@ typedef struct {
 } cms_object;
 
 typedef struct {
-  PyObject_HEAD
+  cms_object cms;               /* Subclass of CMS */
   ROA *roa;
 } roa_object;
 
 typedef struct {
-  PyObject_HEAD
+  cms_object cms;               /* Subclass of CMS */
   Manifest *manifest;
 } manifest_object;
 
@@ -315,17 +309,8 @@ typedef struct {
 #endif
 
 /*
- * Error handling macros.  These macros make two assumptions:
- *
- * 1) All the macros assume that there's a cleanup label named
- *    "error" which these macros can use as a goto target.
- *
- * 2) assert_no_unhandled_openssl_errors() assumes that the return
- *    value is stored in a PyObject* variable named "result".
- *
- * These are icky assumptions, but they make it easier to provide
- * uniform error handling and make the code easier to read, not to
- * mention making it easier to track down obscure OpenSSL errors.
+ * Error handling macros.  All of macros assume that there's a cleanup
+ * label named "error" which these macros can use as a goto target.
  */
 
 #define lose(_msg_)                                                     \
@@ -352,15 +337,16 @@ typedef struct {
     goto error;                                                         \
   } while (0)
 
+#define lose_not_verified(_msg_)                                        \
+  do {                                                                  \
+    PyErr_SetString(NotVerifiedErrorObject, (_msg_));                   \
+    goto error;                                                         \
+  } while (0)
+
 #define assert_no_unhandled_openssl_errors()                            \
   do {                                                                  \
-    if (ERR_peek_error()) {                                             \
-      if (result) {                                                     \
-        Py_XDECREF(result);                                             \
-        result = NULL;                                                  \
-      }                                                                 \
+    if (ERR_peek_error())                                               \
       lose_openssl_error(assert_helper(__LINE__));                      \
-    }                                                                   \
   } while (0)
 
 static char *
@@ -1312,7 +1298,7 @@ x509_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-x509_object_pem_read_helper(PyTypeObject *type, BIO *in)
+x509_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   x509_object *self = NULL;
 
@@ -1321,7 +1307,7 @@ x509_object_pem_read_helper(PyTypeObject *type, BIO *in)
 
   X509_free(self->x509);
 
-  if ((self->x509 = PEM_read_bio_X509(in, NULL, NULL, NULL)) == NULL)
+  if ((self->x509 = PEM_read_bio_X509(bio, NULL, NULL, NULL)) == NULL)
     lose_openssl_error("Couldn't load PEM encoded certificate");
 
   return (PyObject *) self;
@@ -3536,7 +3522,7 @@ crl_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-crl_object_pem_read_helper(PyTypeObject *type, BIO *in)
+crl_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   crl_object *self;
 
@@ -3545,7 +3531,7 @@ crl_object_pem_read_helper(PyTypeObject *type, BIO *in)
 
   X509_CRL_free(self->crl);
 
-  if ((self->crl = PEM_read_bio_X509_CRL(in, NULL, NULL, NULL)) == NULL)
+  if ((self->crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL)) == NULL)
     lose_openssl_error("Couldn't PEM encoded load CRL");
 
   return (PyObject *) self;
@@ -4412,14 +4398,14 @@ asymmetric_object_init(asymmetric_object *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-asymmetric_object_pem_read_private_helper(PyTypeObject *type, BIO *in, char *pass)
+asymmetric_object_pem_read_private_helper(PyTypeObject *type, BIO *bio, char *pass)
 {
   asymmetric_object *self = NULL;
 
   if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->pkey = PEM_read_bio_PrivateKey(in, NULL, NULL, pass)) == NULL)
+  if ((self->pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, pass)) == NULL)
     lose_openssl_error("Couldn't load private key");
 
   return (PyObject *) self;
@@ -4529,14 +4515,14 @@ asymmetric_object_der_read_private_file(PyTypeObject *type, PyObject *args)
 }
 
 static PyObject *
-asymmetric_object_pem_read_public_helper(PyTypeObject *type, BIO *in)
+asymmetric_object_pem_read_public_helper(PyTypeObject *type, BIO *bio)
 {
   asymmetric_object *self = NULL;
 
   if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->pkey = PEM_read_bio_PUBKEY(in, NULL, NULL, NULL)) == NULL)
+  if ((self->pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL)) == NULL)
     lose_openssl_error("Couldn't load public key");
 
   return (PyObject *) self;
@@ -5110,14 +5096,14 @@ cms_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-cms_object_pem_read_helper(PyTypeObject *type, BIO *in)
+cms_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   cms_object *self;
 
-  if ((self = (cms_object *) cms_object_new(type, NULL, NULL)) == NULL)
+  if ((self = (cms_object *) type->tp_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->cms = PEM_read_bio_CMS(in, NULL, NULL, NULL)) == NULL)
+  if ((self->cms = PEM_read_bio_CMS(bio, NULL, NULL, NULL)) == NULL)
     lose_openssl_error("Couldn't load PEM encoded CMS message");
 
   return (PyObject *) self;
@@ -5132,7 +5118,7 @@ cms_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   cms_object *self;
 
-  if ((self = (cms_object *) cms_object_new(type, NULL, NULL)) == NULL)
+  if ((self = (cms_object *) type->tp_new(type, NULL, NULL)) == NULL)
     goto error;
 
   if ((self->cms = CMS_ContentInfo_new()) == NULL)
@@ -5234,59 +5220,21 @@ cms_object_der_write(cms_object *self)
   return result;
 }
 
-static char cms_object_sign__doc__[] =
-  "This method signs a message with a private key.\n"
-  "\n"
-  "The \"signcert\" parameter should be the certificate against which the\n"
-  "message will eventually be verified, an X509 object.\n"
-  "\n"
-  "The \"key\" parameter should be the private key with which to sign the\n"
-  "message, an Asymmetric object.\n"
-  "\n"
-  "The \"data\" parameter should be the message to be signed, a string.\n"
-  "\n"
-  "The optional \"certs\" parameter should be a sequence of X509 objects\n"
-  "to be included in the signed message.\n"
-  "\n"
-  "The optional \"crls\" parameter should be a sequence of CRL objects\n"
-  "to be included in the signed message.\n"
-  "\n"
-  "The optional \"eContentType\" parameter should be an Object Identifier\n"
-  "to use as the eContentType value in the signed message.\n"
-  "\n"
-  "The optional \"flags\" parameters should be an integer holding a bitmask,\n"
-  "and can include the following flags:\n"
-  "\n"
-  "  * CMS_NOCERTS\n"
-  "  * CMS_NOATTR\n"
-  ;
-
-static PyObject *
-cms_object_sign(cms_object *self, PyObject *args)
+static int
+cms_object_sign_helper(cms_object *self,
+                       BIO *bio,
+                       x509_object *signcert,
+                       asymmetric_object *signkey,
+                       PyObject *x509_sequence,
+                       PyObject *crl_sequence,
+                       char *oid,
+                       unsigned flags)                       
 {
-  asymmetric_object *signkey = NULL;
-  x509_object *signcert = NULL;
   crl_object *crlobj = NULL;
-  PyObject *x509_sequence = Py_None;
-  PyObject *crl_sequence = Py_None;
-  PyObject *result = NULL;
   STACK_OF(X509) *x509_stack = NULL;
-  char *buf = NULL, *oid = NULL;
-  int i, n, len;
-  unsigned flags = 0;
-  BIO *bio = NULL;
+  int i, n, ok = 0;
   CMS_ContentInfo *cms = NULL;
   ASN1_OBJECT *econtent_type = NULL;
-
-  if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
-                        &POW_X509_Type, &signcert,
-                        &POW_Asymmetric_Type, &signkey,
-                        &buf, &len,
-                        &x509_sequence,
-                        &crl_sequence,
-                        &oid,
-                        &flags))
-    goto error;
 
   assert_no_unhandled_openssl_errors();
 
@@ -5295,11 +5243,6 @@ cms_object_sign(cms_object *self, PyObject *args)
 
   if ((x509_stack = x509_helper_sequence_to_stack(x509_sequence)) == NULL)
     goto error;
-
-  assert_no_unhandled_openssl_errors();
-
-  if ((bio = BIO_new_mem_buf(buf, len)) == NULL)
-    lose_no_memory();
 
   assert_no_unhandled_openssl_errors();
 
@@ -5360,19 +5303,130 @@ cms_object_sign(cms_object *self, PyObject *args)
   self->cms = cms;
   cms = NULL;
 
-  result = Py_BuildValue("");
+  ok = 1;
 
  error:                          /* fall through */
-
-  assert_no_unhandled_openssl_errors();
-
   CMS_ContentInfo_free(cms);
-  BIO_free(bio);
   sk_X509_free(x509_stack);
   ASN1_OBJECT_free(econtent_type);
   Py_XDECREF(crlobj);
 
-  return result;
+  return ok;
+}
+
+static char cms_object_sign__doc__[] =
+  "This method signs a message with a private key.\n"
+  "\n"
+  "The \"signcert\" parameter should be the certificate against which the\n"
+  "message will eventually be verified, an X509 object.\n"
+  "\n"
+  "The \"key\" parameter should be the private key with which to sign the\n"
+  "message, an Asymmetric object.\n"
+  "\n"
+  "The \"data\" parameter should be the message to be signed, a string.\n"
+  "\n"
+  "The optional \"certs\" parameter should be a sequence of X509 objects\n"
+  "to be included in the signed message.\n"
+  "\n"
+  "The optional \"crls\" parameter should be a sequence of CRL objects\n"
+  "to be included in the signed message.\n"
+  "\n"
+  "The optional \"eContentType\" parameter should be an Object Identifier\n"
+  "to use as the eContentType value in the signed message.\n"
+  "\n"
+  "The optional \"flags\" parameters should be an integer holding a bitmask,\n"
+  "and can include the following flags:\n"
+  "\n"
+  "  * CMS_NOCERTS\n"
+  "  * CMS_NOATTR\n"
+  ;
+
+static PyObject *
+cms_object_sign(cms_object *self, PyObject *args)
+{
+  asymmetric_object *signkey = NULL;
+  x509_object *signcert = NULL;
+  PyObject *x509_sequence = Py_None;
+  PyObject *crl_sequence = Py_None;
+  char *buf = NULL, *oid = NULL;
+  int len;
+  unsigned flags = 0;
+  BIO *bio = NULL;
+  int ok = 0;
+
+  if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
+                        &POW_X509_Type, &signcert,
+                        &POW_Asymmetric_Type, &signkey,
+                        &buf, &len,
+                        &x509_sequence,
+                        &crl_sequence,
+                        &oid,
+                        &flags))
+    goto error;
+
+  assert_no_unhandled_openssl_errors();
+
+  if ((bio = BIO_new_mem_buf(buf, len)) == NULL)
+    lose_no_memory();
+
+  assert_no_unhandled_openssl_errors();
+
+  ok = cms_object_sign_helper(self, bio, signcert, signkey,
+                              x509_sequence, crl_sequence, oid, flags);
+
+ error:
+  BIO_free(bio);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+#warning Might want to convert flag bits here to keyword argument booleans
+
+static BIO *
+cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"store", "certs", "flags", NULL};
+  x509_store_object *store = NULL;
+  PyObject *certs_sequence = Py_None;
+  STACK_OF(X509) *certs_stack = NULL;
+  unsigned flags = 0, ok = 0;
+  BIO *bio = NULL;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OI", kwlist, &POW_X509Store_Type, &store, &certs_sequence, &flags))
+    goto error;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  assert_no_unhandled_openssl_errors();
+
+  flags &= (CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY |
+            CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY);
+
+  if (certs_sequence != Py_None &&
+      (certs_stack = x509_helper_sequence_to_stack(certs_sequence)) == NULL)
+    goto error;
+
+  assert_no_unhandled_openssl_errors();
+
+  if (CMS_verify(self->cms, certs_stack, store->store, NULL, bio, flags) <= 0)
+    lose_openssl_error("Couldn't verify CMS message");
+
+  assert_no_unhandled_openssl_errors();
+
+  ok = 1;
+
+ error:                          /* fall through */
+  sk_X509_free(certs_stack);
+
+  if (ok)
+    return bio;
+
+  BIO_free(bio);
+  return NULL;
 }
 
 static char cms_object_verify__doc__[] =
@@ -5395,45 +5449,15 @@ static char cms_object_verify__doc__[] =
   ;
 
 static PyObject *
-cms_object_verify(cms_object *self, PyObject *args)
+cms_object_verify(cms_object *self, PyObject *args, PyObject *kwds)
 {
-  x509_store_object *store = NULL;
-  PyObject *result = NULL, *certs_sequence = Py_None;
-  STACK_OF(X509) *certs_stack = NULL;
-  unsigned flags = 0;
+  PyObject *result = NULL;
   BIO *bio = NULL;
 
-  if (!PyArg_ParseTuple(args, "O!|OI", &POW_X509Store_Type, &store, &certs_sequence, &flags))
-    goto error;
+  if ((bio = cms_object_verify_helper(self, args, kwds)) != NULL)
+    result = BIO_to_PyString_helper(bio);
 
-  if ((bio = BIO_new(BIO_s_mem())) == NULL)
-    lose_no_memory();
-
-  assert_no_unhandled_openssl_errors();
-
-  flags &= (CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY |
-            CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY);
-
-  if (certs_sequence != Py_None &&
-      (certs_stack = x509_helper_sequence_to_stack(certs_sequence)) == NULL)
-    goto error;
-
-  assert_no_unhandled_openssl_errors();
-
-  if (CMS_verify(self->cms, certs_stack, store->store, NULL, bio, flags) <= 0)
-    lose_openssl_error("Couldn't verify CMS message");
-
-  assert_no_unhandled_openssl_errors();
-
-  result = BIO_to_PyString_helper(bio);
-
- error:                          /* fall through */
-
-  assert_no_unhandled_openssl_errors();
-
-  sk_X509_free(certs_stack);
   BIO_free(bio);
-
   return result;
 }
 
@@ -5454,12 +5478,11 @@ cms_object_eContentType(cms_object *self)
   if (OBJ_obj2txt(buf, sizeof(buf), oid, 1) <= 0)
     lose("Couldn't translate OID");
 
+  assert_no_unhandled_openssl_errors();
+
   result = Py_BuildValue("s", buf);
 
  error:
-
-  assert_no_unhandled_openssl_errors();
-
   return result;
 }
 
@@ -5512,9 +5535,6 @@ cms_object_signingTime(cms_object *self)
   }
 
  error:
-
-  assert_no_unhandled_openssl_errors();
-
   return result;
 }
 
@@ -5536,8 +5556,7 @@ cms_object_pprint(cms_object *self)
 
   result = BIO_to_PyString_helper(bio);
 
- error:                          /* fall through */
-  assert_no_unhandled_openssl_errors();
+ error:
   BIO_free(bio);
   return result;
 }
@@ -5621,7 +5640,7 @@ static struct PyMethodDef cms_object_methods[] = {
   Define_Method(pemWrite,               cms_object_pem_write,           METH_NOARGS),
   Define_Method(derWrite,               cms_object_der_write,           METH_NOARGS),
   Define_Method(sign,                   cms_object_sign,                METH_VARARGS),
-  Define_Method(verify,                 cms_object_verify,              METH_VARARGS),
+  Define_Method(verify,                 cms_object_verify,              METH_KEYWORDS),
   Define_Method(eContentType,           cms_object_eContentType,        METH_NOARGS),
   Define_Method(signingTime,            cms_object_signingTime,         METH_NOARGS),
   Define_Method(pprint,                 cms_object_pprint,              METH_NOARGS),
@@ -5700,7 +5719,7 @@ manifest_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   manifest_object *self = NULL;
 
-  if ((self = (manifest_object *) type->tp_alloc(type, 0)) != NULL &&
+  if ((self = (manifest_object *) cms_object_new(type, args, kwds)) != NULL &&
       (self->manifest = Manifest_new()) != NULL)
     return (PyObject *) self;
 
@@ -5708,22 +5727,45 @@ manifest_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
+static char manifest_object_verify__doc__[] =
+  "Needs doc.\n"
+  ;
+
+static PyObject *
+manifest_object_verify(manifest_object *self, PyObject *args, PyObject *kwds)
+{
+  BIO *bio = NULL;
+  int ok = 0;
+
+  if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
+    goto error;
+
+  Manifest_free(self->manifest);
+  self->manifest = NULL;
+
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest))
+    lose_openssl_error("Couldn't decode manifest");
+
+  ok = 1;
+
+ error:
+  BIO_free(bio);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
 static PyObject *
 manifest_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   manifest_object *self;
 
-  if ((self = (manifest_object *) manifest_object_new(type, NULL, NULL)) == NULL)
-    goto error;
-
-  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest))
-    lose_openssl_error("Couldn't load DER encoded manifest");
+  if ((self = (manifest_object *) cms_object_der_read_helper(type, bio)) != NULL)
+    self->manifest = NULL;
 
   return (PyObject *) self;
-
- error:
-  Py_XDECREF(self);
-  return NULL;
 }
 
 static char manifest_object_der_read__doc__[] =
@@ -5736,6 +5778,47 @@ manifest_object_der_read(PyTypeObject *type, PyObject *args)
   return read_from_string_helper(manifest_object_der_read_helper, type, args);
 }
 
+static PyObject *
+manifest_object_pem_read_helper(PyTypeObject *type, BIO *bio)
+{
+  manifest_object *self;
+
+  if ((self = (manifest_object *) cms_object_pem_read_helper(type, bio)) != NULL)
+    self->manifest = NULL;
+
+  return (PyObject *) self;
+}
+
+static char manifest_object_pem_read__doc__[] =
+  "Class method to read a PEM-encoded manifest object from a string.\n"
+  ;
+
+static PyObject *
+manifest_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(manifest_object_pem_read_helper, type, args);
+}
+
+static char manifest_object_pem_read_file__doc__[] =
+  "Class method to read a PEM-encoded manifest object from a file.\n"
+  ;
+
+static PyObject *
+manifest_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(manifest_object_pem_read_helper, type, args);
+}
+
+static char manifest_object_der_read_file__doc__[] =
+  "Class method to read a DER-encoded manifest object from a file.\n"
+  ;
+
+static PyObject *
+manifest_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(manifest_object_der_read_helper, type, args);
+}
+
 static char manifest_object_get_version__doc__[] =
   "This method returns the version number of this manifest.\n"
   ;
@@ -5743,10 +5826,16 @@ static char manifest_object_get_version__doc__[] =
 static PyObject *
 manifest_object_get_version(manifest_object *self)
 {
+  if (self->manifest == NULL)
+    lose_not_verified("Can't report version of unverified manifest");
+
   if (self->manifest->version)
     return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->manifest->version));
   else
     return PyInt_FromLong(0);
+
+ error:
+  return NULL;
 }
 
 static char manifest_object_set_version__doc__[] =
@@ -5770,6 +5859,9 @@ manifest_object_set_version(manifest_object *self, PyObject *args)
   if (version != 0)
     lose("RFC 6486 only defines RPKI manifest version zero");
 
+  if (self->manifest == NULL)
+    lose_not_verified("Can't set version of unverified manifest");
+
   ASN1_INTEGER_free(self->manifest->version);
   self->manifest->version = NULL;
 
@@ -5786,7 +5878,13 @@ static char manifest_object_get_manifest_number__doc__[] =
 static PyObject *
 manifest_object_get_manifest_number(manifest_object *self)
 {
+  if (self->manifest == NULL)
+    lose_not_verified("Can't get manifestNumber of unverified manifest");
+
   return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->manifest->manifestNumber));
+
+ error:
+  return NULL;
 }
 
 static char manifest_object_set_manifest_number__doc__[] =
@@ -5814,6 +5912,9 @@ manifest_object_set_manifest_number(manifest_object *self, PyObject *args)
   case 0:
     lose("Negative manifest number is not allowed");
   }
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't set manifestNumber of unverified manifest");
 
   ASN1_INTEGER_free(self->manifest->manifestNumber);
 
@@ -5847,6 +5948,9 @@ manifest_object_set_this_update (manifest_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
 
+  if (self->manifest == NULL)
+    lose_not_verified("Can't set thisUpdate value of unverified manifest");
+
   if ((t = Python_to_ASN1_TIME(s, 0)) == NULL)
     lose("Couldn't convert thisUpdate string");
 
@@ -5867,7 +5971,13 @@ static char manifest_object_get_this_update__doc__[] =
 static PyObject *
 manifest_object_get_this_update (manifest_object *self)
 {
+  if (self->manifest == NULL)
+    lose_not_verified("Can't get thisUpdate value of unverified manifest");
+
   return ASN1_TIME_to_Python(self->manifest->thisUpdate);
+
+ error:
+  return NULL;
 }
 
 static char manifest_object_set_next_update__doc__[] =
@@ -5885,6 +5995,9 @@ manifest_object_set_next_update (manifest_object *self, PyObject *args)
 
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't set nextUpdate value of unverified manifest"); 
 
   if ((t = Python_to_ASN1_TIME(s, 0)) == NULL)
     lose("Couldn't parse nextUpdate string");
@@ -5906,7 +6019,13 @@ static char manifest_object_get_next_update__doc__[] =
 static PyObject *
 manifest_object_get_next_update (manifest_object *self)
 {
+  if (self->manifest == NULL)
+    lose_not_verified("Can't extract nextUpdate value of unverified manifest");
+
   return ASN1_TIME_to_Python(self->manifest->nextUpdate);
+
+ error:
+  return NULL;
 }
 
 static char manifest_object_get_algorithm__doc__[] =
@@ -5918,6 +6037,9 @@ manifest_object_get_algorithm(manifest_object *self)
 {
   PyObject *result = NULL;
   char oid[512];
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't extract algorithm OID of unverified manifest");
 
   if (OBJ_obj2txt(oid, sizeof(oid), self->manifest->fileHashAlg, 1) <= 0)
     lose("Couldn't translate OID");
@@ -5940,6 +6062,9 @@ manifest_object_set_algorithm(manifest_object *self, PyObject *args)
 
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't set algorithm OID for unverified manifest");
 
   if ((oid = OBJ_txt2obj(s, 1)) == NULL)
     lose_no_memory();
@@ -5972,6 +6097,9 @@ manifest_object_add_files(manifest_object *self, PyObject *args)
   char *file = NULL;
   char *hash = NULL;
   int filelen, hashlen, ok = 0;
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't add files to unverified manifest");
 
   if (!PyArg_ParseTuple(args, "O", &iterable) ||
       (iterator = PyObject_GetIter(iterable)) == NULL)
@@ -6018,6 +6146,9 @@ manifest_object_get_files(manifest_object *self)
   PyObject *item = NULL;
   int i;
 
+  if (self->manifest == NULL)
+    lose_not_verified("Can't get files from unverified manifest");
+
   if (self->manifest->fileList == NULL)
     lose("Inexplicable NULL manifest fileList pointer");
 
@@ -6044,27 +6175,54 @@ manifest_object_get_files(manifest_object *self)
   return NULL;
 }
 
-static char manifest_object_der_write__doc__[] =
-  "This method returns a DER encoded manifest as a string.\n"
+static char manifest_object_sign__doc__[] =
+  "Needs doc.\n"
   ;
 
+
 static PyObject *
-manifest_object_der_write(manifest_object *self)
+manifest_object_sign(manifest_object *self, PyObject *args)
 {
-  PyObject *result = NULL;
+  asymmetric_object *signkey = NULL;
+  x509_object *signcert = NULL;
+  PyObject *x509_sequence = Py_None;
+  PyObject *crl_sequence = Py_None;
+  char *buf = NULL, *oid = NULL;
+  int len;
+  unsigned flags = 0;
   BIO *bio = NULL;
+  int ok = 0;
+
+  if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
+                        &POW_X509_Type, &signcert,
+                        &POW_Asymmetric_Type, &signkey,
+                        &buf, &len,
+                        &x509_sequence,
+                        &crl_sequence,
+                        &oid,
+                        &flags))
+    goto error;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
+  assert_no_unhandled_openssl_errors();
+
   if (!ASN1_item_i2d_bio(ASN1_ITEM_rptr(Manifest), bio, self->manifest))
     lose_openssl_error("Unable to write manifest");
 
-  result = BIO_to_PyString_helper(bio);
+  assert_no_unhandled_openssl_errors();
 
- error:                         /* Fall through */
+  ok = cms_object_sign_helper(&self->cms, bio, signcert, signkey,
+                              x509_sequence, crl_sequence, oid, flags);
+
+ error:
   BIO_free(bio);
-  return result;
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
 }
 
 static struct PyMethodDef manifest_object_methods[] = {
@@ -6080,8 +6238,12 @@ static struct PyMethodDef manifest_object_methods[] = {
   Define_Method(setAlgorithm,		manifest_object_set_algorithm,          METH_VARARGS),
   Define_Method(getFiles,		manifest_object_get_files,              METH_NOARGS),
   Define_Method(addFiles,               manifest_object_add_files,		METH_VARARGS),
-  Define_Method(derWrite,               manifest_object_der_write,              METH_NOARGS),
-  Define_Class_Method(derRead,          manifest_object_der_read,               METH_VARARGS),
+  Define_Method(sign,                   manifest_object_sign,                	METH_VARARGS),
+  Define_Method(verify,                 manifest_object_verify,              	METH_KEYWORDS),
+  Define_Class_Method(pemRead,          manifest_object_pem_read,            	METH_VARARGS),
+  Define_Class_Method(pemReadFile,      manifest_object_pem_read_file,       	METH_VARARGS),
+  Define_Class_Method(derRead,          manifest_object_der_read,            	METH_VARARGS),
+  Define_Class_Method(derReadFile,      manifest_object_der_read_file,       	METH_VARARGS),
   {NULL}
 };
 
@@ -6089,7 +6251,7 @@ static void
 manifest_object_dealloc(manifest_object *self)
 {
   Manifest_free(self->manifest);
-  self->ob_type->tp_free((PyObject*) self);
+  self->cms.ob_type->tp_free((PyObject*) self);
 }
 
 static char POW_Manifest_Type__doc__[] =
@@ -6128,7 +6290,7 @@ static PyTypeObject POW_Manifest_Type = {
   manifest_object_methods,                      /* tp_methods */
   0,                                            /* tp_members */
   0,                                            /* tp_getset */
-  0,                                            /* tp_base */
+  &POW_CMS_Type,                                /* tp_base */
   0,                                            /* tp_dict */
   0,                                            /* tp_descr_get */
   0,                                            /* tp_descr_set */
@@ -6149,7 +6311,7 @@ roa_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   roa_object *self = NULL;
 
-  if ((self = (roa_object *) type->tp_alloc(type, 0)) != NULL &&
+  if ((self = (roa_object *) cms_object_new(type, args, kwds)) != NULL &&
       (self->roa = ROA_new()) != NULL)
     return (PyObject *) self;
 
@@ -6157,32 +6319,96 @@ roa_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
+static char roa_object_verify__doc__[] =
+  "Needs doc.  For now, see CMS.verify().\n"
+  ;
+
+static PyObject *
+roa_object_verify(roa_object *self, PyObject *args, PyObject *kwds)
+{
+  BIO *bio = NULL;
+  int ok = 0;
+
+  if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
+    goto error;
+
+  ROA_free(self->roa);
+  self->roa = NULL;
+  
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa))
+    lose_openssl_error("Couldn't decode ROA");
+
+  ok = 1;
+
+ error:
+  BIO_free(bio);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static PyObject *
+roa_object_pem_read_helper(PyTypeObject *type, BIO *bio)
+{
+  roa_object *self;
+
+  if ((self = (roa_object *) cms_object_pem_read_helper(type, bio)) != NULL)
+    self->roa = NULL;
+
+  return (PyObject *) self;
+}
+
 static PyObject *
 roa_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   roa_object *self;
 
-  if ((self = (roa_object *) roa_object_new(type, NULL, NULL)) == NULL)
-    goto error;
-
-  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa))
-    lose_openssl_error("Couldn't load DER encoded roa");
+  if ((self = (roa_object *) cms_object_der_read_helper(type, bio)) != NULL)
+    self->roa = NULL;
 
   return (PyObject *) self;
+}
 
- error:
-  Py_XDECREF(self);
-  return NULL;
+static char roa_object_pem_read__doc__[] =
+  "Class method to read a PEM-encoded ROA object from a string.\n"
+  ;
+
+static PyObject *
+roa_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  return read_from_string_helper(roa_object_pem_read_helper, type, args);
+}
+
+static char roa_object_pem_read_file__doc__[] =
+  "Class method to read a PEM-encoded ROA object from a file.\n"
+  ;
+
+static PyObject *
+roa_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(roa_object_pem_read_helper, type, args);
 }
 
 static char roa_object_der_read__doc__[] =
-  "Class method to read a DER-encoded ROA from a string.\n"
+  "Class method to read a DER-encoded ROA object from a string.\n"
   ;
 
 static PyObject *
 roa_object_der_read(PyTypeObject *type, PyObject *args)
 {
   return read_from_string_helper(roa_object_der_read_helper, type, args);
+}
+
+static char roa_object_der_read_file__doc__[] =
+  "Class method to read a DER-encoded ROA object from a file.\n"
+  ;
+
+static PyObject *
+roa_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  return read_from_file_helper(roa_object_der_read_helper, type, args);
 }
 
 static char roa_object_get_version__doc__[] =
@@ -6192,10 +6418,16 @@ static char roa_object_get_version__doc__[] =
 static PyObject *
 roa_object_get_version(roa_object *self)
 {
+  if (self->roa == NULL)
+    lose_not_verified("Can't get version of unverified ROA");
+
   if (self->roa->version)
     return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->roa->version));
   else
     return PyInt_FromLong(0);
+
+ error:
+  return NULL;
 }
 
 static char roa_object_set_version__doc__[] =
@@ -6212,6 +6444,9 @@ static PyObject *
 roa_object_set_version(roa_object *self, PyObject *args)
 {
   int version = 0;
+
+  if (self->roa == NULL)
+    lose_not_verified("Can't set version of unverified ROA");
 
   if (!PyArg_ParseTuple(args, "|i", &version))
     goto error;
@@ -6235,7 +6470,13 @@ static char roa_object_get_asid__doc__[] =
 static PyObject *
 roa_object_get_asid(roa_object *self)
 {
+  if (self->roa == NULL)
+    lose_not_verified("Can't get ASN of unverified ROA");
+
   return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->roa->asID));
+
+ error:
+  return NULL;
 }
 
 static char roa_object_set_asid__doc__[] =
@@ -6250,6 +6491,9 @@ roa_object_set_asid(roa_object *self, PyObject *args)
   PyObject *asID = NULL;
   PyObject *zero = NULL;
   int ok = 0;
+
+  if (self->roa == NULL)
+    lose_not_verified("Can't set ASN of unverified ROA");
 
   if (!PyArg_ParseTuple(args, "O", &asID))
     goto error;
@@ -6297,6 +6541,9 @@ roa_object_get_prefixes(roa_object *self)
   PyObject *item = NULL;
   ipaddress_object *addr = NULL;
   int i, j;
+
+  if (self->roa == NULL)
+    lose_not_verified("Can't get prefixes from unverified ROA");
 
   for (i = 0; i < sk_ROAIPAddressFamily_num(self->roa->ipAddrBlocks); i++) {
     ROAIPAddressFamily *fam = sk_ROAIPAddressFamily_value(self->roa->ipAddrBlocks, i);
@@ -6397,6 +6644,9 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
   PyObject *iterator = NULL;
   PyObject *item = NULL;
   int afi, ok = 0;
+
+  if (self->roa == NULL)
+    lose_not_verified("Can't set prefixes of unverified ROA");
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO", kwlist, &ipv4_arg, &ipv6_arg))
     goto error;
@@ -6511,27 +6761,53 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
     return NULL;
 }
 
-static char roa_object_der_write__doc__[] =
-  "This method returns a DER encoded roa as a string.\n"
+static char roa_object_sign__doc__[] =
+  "Needs doc.  For now, see CMS.sign.\n"
   ;
 
 static PyObject *
-roa_object_der_write(roa_object *self)
+roa_object_sign(roa_object *self, PyObject *args)
 {
-  PyObject *result = NULL;
+  asymmetric_object *signkey = NULL;
+  x509_object *signcert = NULL;
+  PyObject *x509_sequence = Py_None;
+  PyObject *crl_sequence = Py_None;
+  char *buf = NULL, *oid = NULL;
+  int len;
+  unsigned flags = 0;
   BIO *bio = NULL;
+  int ok = 0;
+
+  if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
+                        &POW_X509_Type, &signcert,
+                        &POW_Asymmetric_Type, &signkey,
+                        &buf, &len,
+                        &x509_sequence,
+                        &crl_sequence,
+                        &oid,
+                        &flags))
+    goto error;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
+  assert_no_unhandled_openssl_errors();
+
   if (!ASN1_item_i2d_bio(ASN1_ITEM_rptr(ROA), bio, self->roa))
     lose_openssl_error("Unable to write ROA");
 
-  result = BIO_to_PyString_helper(bio);
+  assert_no_unhandled_openssl_errors();
 
- error:                         /* Fall through */
+  ok = cms_object_sign_helper(&self->cms, bio, signcert, signkey,
+                              x509_sequence, crl_sequence, oid, flags);
+
+ error:
   BIO_free(bio);
-  return result;
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
 }
 
 static struct PyMethodDef roa_object_methods[] = {
@@ -6541,8 +6817,12 @@ static struct PyMethodDef roa_object_methods[] = {
   Define_Method(setASID,           	roa_object_set_asid,            METH_VARARGS),
   Define_Method(getPrefixes,		roa_object_get_prefixes,	METH_NOARGS),
   Define_Method(setPrefixes,		roa_object_set_prefixes,	METH_KEYWORDS),
-  Define_Method(derWrite,               roa_object_der_write,		METH_NOARGS),
-  Define_Class_Method(derRead,          roa_object_der_read,		METH_VARARGS),
+  Define_Method(sign,                   roa_object_sign,                METH_VARARGS),
+  Define_Method(verify,                 roa_object_verify,              METH_KEYWORDS),
+  Define_Class_Method(pemRead,          roa_object_pem_read,            METH_VARARGS),
+  Define_Class_Method(pemReadFile,      roa_object_pem_read_file,       METH_VARARGS),
+  Define_Class_Method(derRead,          roa_object_der_read,            METH_VARARGS),
+  Define_Class_Method(derReadFile,      roa_object_der_read_file,       METH_VARARGS),
   {NULL}
 };
 
@@ -6550,7 +6830,7 @@ static void
 roa_object_dealloc(roa_object *self)
 {
   ROA_free(self->roa);
-  self->ob_type->tp_free((PyObject*) self);
+  self->cms.ob_type->tp_free((PyObject*) self);
 }
 
 static char POW_ROA_Type__doc__[] =
@@ -6589,7 +6869,7 @@ static PyTypeObject POW_ROA_Type = {
   roa_object_methods,                           /* tp_methods */
   0,                                            /* tp_members */
   0,                                            /* tp_getset */
-  0,                                            /* tp_base */
+  &POW_CMS_Type,                                /* tp_base */
   0,                                            /* tp_dict */
   0,                                            /* tp_descr_get */
   0,                                            /* tp_descr_set */
@@ -6620,7 +6900,7 @@ pkcs10_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-pkcs10_object_pem_read_helper(PyTypeObject *type, BIO *in)
+pkcs10_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   pkcs10_object *self = NULL;
 
@@ -6632,7 +6912,7 @@ pkcs10_object_pem_read_helper(PyTypeObject *type, BIO *in)
   self->pkcs10 = NULL;
   self->exts = NULL;
 
-  if ((self->pkcs10 = PEM_read_bio_X509_REQ(in, NULL, NULL, NULL)) == NULL)
+  if ((self->pkcs10 = PEM_read_bio_X509_REQ(bio, NULL, NULL, NULL)) == NULL)
     lose_openssl_error("Couldn't load PEM encoded PKCS#10 request");
 
   self->exts = X509_REQ_get_extensions(self->pkcs10);
@@ -7672,9 +7952,10 @@ init_POW(void)
   PyModule_AddObject(m, #__name__, ((__name__##Object)          \
     = PyErr_NewException("POW." #__name__, __parent__, NULL)))
 
-  Define_Exception(Error,         NULL);
-  Define_Exception(OpenSSLError,  ErrorObject);
-  Define_Exception(POWError,      ErrorObject);
+  Define_Exception(Error,               NULL);
+  Define_Exception(OpenSSLError,        ErrorObject);
+  Define_Exception(POWError,            ErrorObject);
+  Define_Exception(NotVerifiedError,    ErrorObject);
 
 #undef Define_Exception
 

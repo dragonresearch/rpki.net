@@ -303,9 +303,15 @@ typedef struct {
  */
 
 #if 0
-#define KVETCH(_msg_)   write(2, _msg_ "\n", sizeof(_msg_))
+#define KVETCH(_msg_)   	write(2, _msg_ "\n", sizeof(_msg_))
 #else
-#define KVETCH(_msg_)
+#define KVETCH(_msg_)		((void) 0)
+#endif
+
+#if 0
+#define ENTERING(_name_) 	KVETCH("Entering " #_name_ "()")
+#else
+#define ENTERING(_name_) 	((void) 0)
 #endif
 
 /*
@@ -903,6 +909,23 @@ create_missing_nids(void)
   return 1;
 }
 
+static PyObject *
+ASN1_OBJECT_to_PyString(const ASN1_OBJECT *oid)
+{
+  PyObject *result = NULL;
+  char buf[512];
+
+  ENTERING(ASN1_OBJECT_to_PyString);
+
+  if (OBJ_obj2txt(buf, sizeof(buf), oid, 1) <= 0)
+    lose_openssl_error("Couldn't translate OID");
+
+  result = PyString_FromString(buf);
+
+ error:
+  return result;
+}
+
 
 
 /*
@@ -1289,6 +1312,8 @@ x509_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   x509_object *self;
 
+  ENTERING(x509_object_new);
+
   if ((self = (x509_object *) type->tp_alloc(type, 0)) != NULL &&
       (self->x509 = X509_new()) != NULL)
     return (PyObject *) self;
@@ -1297,17 +1322,25 @@ x509_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
+static void
+x509_object_dealloc(x509_object *self)
+{
+  ENTERING(x509_object_dealloc);
+  X509_free(self->x509);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
 static PyObject *
 x509_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   x509_object *self = NULL;
 
+  ENTERING(x509_object_pem_read_helper);
+
   if ((self = (x509_object *) x509_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  X509_free(self->x509);
-
-  if ((self->x509 = PEM_read_bio_X509(bio, NULL, NULL, NULL)) == NULL)
+  if (!PEM_read_bio_X509(bio, &self->x509, NULL, NULL))
     lose_openssl_error("Couldn't load PEM encoded certificate");
 
   return (PyObject *) self;
@@ -1322,6 +1355,8 @@ static PyObject *
 x509_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   x509_object *self;
+
+  ENTERING(x509_object_der_read_helper);
 
   if ((self = (x509_object *) x509_object_new(type, NULL, NULL)) == NULL)
     goto error;
@@ -1343,6 +1378,7 @@ static char x509_object_pem_read__doc__[] =
 static PyObject *
 x509_object_pem_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(x509_object_pem_read);
   return read_from_string_helper(x509_object_pem_read_helper, type, args);
 }
 
@@ -1353,6 +1389,7 @@ static char x509_object_pem_read_file__doc__[] =
 static PyObject *
 x509_object_pem_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(x509_object_pem_read_file);
   return read_from_file_helper(x509_object_pem_read_helper, type, args);
 }
 
@@ -1363,6 +1400,7 @@ static char x509_object_der_read__doc__[] =
 static PyObject *
 x509_object_der_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(x509_object_der_read);
   return read_from_string_helper(x509_object_der_read_helper, type, args);
 }
 
@@ -1373,6 +1411,7 @@ static char x509_object_der_read_file__doc__[] =
 static PyObject *
 x509_object_der_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(x509_object_der_read_file);
   return read_from_file_helper(x509_object_der_read_helper, type, args);
 }
 
@@ -1385,6 +1424,8 @@ x509_object_pem_write(x509_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
+
+  ENTERING(x509_object_pem_write);
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
@@ -1409,6 +1450,8 @@ x509_object_der_write(x509_object *self)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
+  ENTERING(x509_object_der_write);
+
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
@@ -1431,6 +1474,8 @@ x509_object_get_public_key(x509_object *self)
 {
   PyTypeObject *type = &POW_Asymmetric_Type;
   asymmetric_object *asym = NULL;
+
+  ENTERING(x509_object_get_public_key);
 
   if ((asym = (asymmetric_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
@@ -1455,6 +1500,8 @@ static PyObject *
 x509_object_set_public_key(x509_object *self, PyObject *args)
 {
   asymmetric_object *asym;
+
+  ENTERING(x509_object_set_public_key);
 
   if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
     goto error;
@@ -1494,6 +1541,8 @@ x509_object_sign(x509_object *self, PyObject *args)
   int digest_type = SHA256_DIGEST;
   const EVP_MD *digest_method = NULL;
 
+  ENTERING(x509_object_sign);
+
   if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
     goto error;
 
@@ -1516,6 +1565,7 @@ static char x509_object_get_version__doc__[] =
 static PyObject *
 x509_object_get_version(x509_object *self)
 {
+  ENTERING(x509_object_get_version);
   return Py_BuildValue("l", X509_get_version(self->x509));
 }
 
@@ -1528,6 +1578,8 @@ static PyObject *
 x509_object_set_version(x509_object *self, PyObject *args)
 {
   long version = 0;
+
+  ENTERING(x509_object_set_version);
 
   if (!PyArg_ParseTuple(args, "l", &version))
     goto error;
@@ -1549,6 +1601,7 @@ static char x509_object_get_serial__doc__[] =
 static PyObject *
 x509_object_get_serial(x509_object *self)
 {
+  ENTERING(x509_object_get_serial);
   return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(X509_get_serialNumber(self->x509)));
 }
 
@@ -1562,6 +1615,8 @@ x509_object_set_serial(x509_object *self, PyObject *args)
 {
   ASN1_INTEGER *a_serial = NULL;
   PyObject *p_serial = NULL;
+
+  ENTERING(x509_object_set_serial);
 
   if (!PyArg_ParseTuple(args, "O", &p_serial) ||
       (a_serial = PyLong_to_ASN1_INTEGER(p_serial)) == NULL)
@@ -1606,6 +1661,8 @@ x509_object_get_issuer(x509_object *self, PyObject *args)
   PyObject *result = NULL;
   int format = OIDNAME_FORMAT;
 
+  ENTERING(x509_object_get_issuer);
+
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
 
@@ -1628,6 +1685,8 @@ x509_object_get_subject(x509_object *self, PyObject *args)
   PyObject *result = NULL;
   int format = OIDNAME_FORMAT;
 
+  ENTERING(x509_object_get_subject);
+
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
 
@@ -1649,6 +1708,8 @@ x509_object_set_subject(x509_object *self, PyObject *args)
 {
   PyObject *name_sequence = NULL;
   X509_NAME *name = NULL;
+
+  ENTERING(x509_object_set_subject);
 
   if (!PyArg_ParseTuple(args, "O", &name_sequence))
     goto error;
@@ -1683,6 +1744,8 @@ x509_object_set_issuer(x509_object *self, PyObject *args)
   PyObject *name_sequence = NULL;
   X509_NAME *name = NULL;
 
+  ENTERING(x509_object_set_issuer);
+
   if (!PyArg_ParseTuple(args, "O", &name_sequence))
     goto error;
 
@@ -1715,6 +1778,7 @@ static char x509_object_get_not_before__doc__[] =
 static PyObject *
 x509_object_get_not_before (x509_object *self)
 {
+  ENTERING(x509_object_get_not_before);
   return ASN1_TIME_to_Python(X509_get_notBefore(self->x509));
 }
 
@@ -1729,6 +1793,7 @@ static char x509_object_get_not_after__doc__[] =
 static PyObject *
 x509_object_get_not_after (x509_object *self)
 {
+  ENTERING(x509_object_get_not_after);
   return ASN1_TIME_to_Python(X509_get_notAfter(self->x509));
 }
 
@@ -1746,6 +1811,8 @@ x509_object_set_not_after (x509_object *self, PyObject *args)
 {
   char *s = NULL;
   ASN1_TIME *t = NULL;
+
+  ENTERING(x509_object_set_not_after);
 
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
@@ -1778,6 +1845,8 @@ x509_object_set_not_before (x509_object *self, PyObject *args)
 {
   char *s = NULL;
   ASN1_TIME *t = NULL;
+
+  ENTERING(x509_object_set_not_before);
 
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
@@ -1825,6 +1894,8 @@ x509_object_add_extension(x509_object *self, PyObject *args)
   ASN1_OCTET_STRING *octetString = NULL;
   X509_EXTENSION *ext = NULL;
 
+  ENTERING(x509_object_add_extension);
+
   if (!PyArg_ParseTuple(args, "sOs#", &name, &critical, &buf, &len))
     goto error;
 
@@ -1864,6 +1935,8 @@ x509_object_clear_extensions(x509_object *self)
 {
   X509_EXTENSION *ext;
 
+  ENTERING(x509_object_clear_extensions);
+
   while ((ext = X509_delete_ext(self->x509, 0)) != NULL)
     X509_EXTENSION_free(ext);
 
@@ -1877,6 +1950,7 @@ static char x509_object_count_extensions__doc__[] =
 static PyObject *
 x509_object_count_extensions(x509_object *self)
 {
+  ENTERING(x509_object_count_extensions);
   return Py_BuildValue("i", X509_get_ext_count(self->x509));
 }
 
@@ -1894,6 +1968,8 @@ x509_object_get_extension(x509_object *self, PyObject *args)
   X509_EXTENSION *ext;
   char oid[512];
   int slot = 0;
+
+  ENTERING(x509_object_get_extension);
 
   if (!PyArg_ParseTuple(args, "i", &slot))
     goto error;
@@ -1921,6 +1997,8 @@ static char x509_object_get_ski__doc__[] =
 static PyObject *
 x509_object_get_ski(x509_object *self, PyObject *args)
 {
+  ENTERING(x509_object_get_ski);
+
   (void) X509_check_ca(self->x509); /* Calls x509v3_cache_extensions() */
 
   if (self->x509->skid == NULL)
@@ -1942,6 +2020,8 @@ x509_object_set_ski(x509_object *self, PyObject *args)
   ASN1_OCTET_STRING *ext = NULL;
   const unsigned char *buf = NULL;
   int len, ok = 0;
+
+  ENTERING(x509_object_set_ski);
 
   if (!PyArg_ParseTuple(args, "s#", &buf, &len))
     goto error;
@@ -1978,6 +2058,8 @@ static char x509_object_get_aki__doc__[] =
 static PyObject *
 x509_object_get_aki(x509_object *self, PyObject *args)
 {
+  ENTERING(x509_object_get_aki);
+
   (void) X509_check_ca(self->x509); /* Calls x509v3_cache_extensions() */
 
   if (self->x509->akid == NULL || self->x509->akid->keyid == NULL)
@@ -2000,6 +2082,8 @@ x509_object_set_aki(x509_object *self, PyObject *args)
   AUTHORITY_KEYID *ext = NULL;
   const unsigned char *buf = NULL;
   int len, ok = 0;
+
+  ENTERING(x509_object_set_aki);
 
   if (!PyArg_ParseTuple(args, "s#", &buf, &len))
     goto error;
@@ -2041,6 +2125,8 @@ x509_object_get_key_usage(x509_object *self)
   ASN1_BIT_STRING *ext = NULL;
   PyObject *result = NULL;
   PyObject *token = NULL;
+
+  ENTERING(x509_object_get_key_usage);
 
   if ((ext = X509_get_ext_d2i(self->x509, NID_key_usage, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
@@ -2090,6 +2176,8 @@ x509_object_set_key_usage(x509_object *self, PyObject *args)
   PyObject *token = NULL;
   const char *t;
   int ok = 0;
+
+  ENTERING(x509_object_set_key_usage);
 
   if ((ext = ASN1_BIT_STRING_new()) == NULL)
     lose_no_memory();
@@ -2156,6 +2244,8 @@ x509_object_get_rfc3779(x509_object *self)
   ASIdentifiers *asid = NULL;
   IPAddrBlocks *addr = NULL;
   int i, j;
+
+  ENTERING(x509_object_get_rfc3779);
 
   if ((asid = X509_get_ext_d2i(self->x509, NID_sbgp_autonomousSysNum, NULL, NULL)) != NULL) {
     switch (asid->asnum->type) {
@@ -2326,6 +2416,8 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
   ipaddress_object *addr_b = NULL;
   ipaddress_object *addr_e = NULL;
 
+  ENTERING(x509_object_set_rfc3779);
+
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist, &asn_arg, &ipv4_arg, &ipv6_arg))
     goto error;
 
@@ -2480,6 +2572,8 @@ x509_object_get_basic_constraints(x509_object *self)
   BASIC_CONSTRAINTS *ext = NULL;
   PyObject *result;
 
+  ENTERING(x509_object_get_basic_constraints);
+
   if ((ext = X509_get_ext_d2i(self->x509, NID_basic_constraints, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
@@ -2516,6 +2610,8 @@ x509_object_set_basic_constraints(x509_object *self, PyObject *args)
   PyObject *critical = Py_True;
   long pathlen = -1;
   int ok = 0;
+
+  ENTERING(x509_object_set_basic_constraints);
 
   if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
     goto error;
@@ -2571,6 +2667,8 @@ x509_object_get_sia(x509_object *self)
   const char *uri;
   PyObject *obj;
   int i, nid;
+
+  ENTERING(x509_object_get_sia);
 
   if ((ext = X509_get_ext_d2i(self->x509, NID_sinfo_access, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
@@ -2668,6 +2766,8 @@ x509_object_set_sia(x509_object *self, PyObject *args)
   Py_ssize_t urilen;
   char *uri;
 
+  ENTERING(x509_object_set_sia);
+
   if (!PyArg_ParseTuple(args, "OOO", &caRepository, &rpkiManifest, &signedObject))
     goto error;
 
@@ -2755,6 +2855,8 @@ x509_object_get_aia(x509_object *self)
   PyObject *obj;
   int i, n = 0;
 
+  ENTERING(x509_object_get_aia);
+
   if ((ext = X509_get_ext_d2i(self->x509, NID_info_access, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
@@ -2806,6 +2908,8 @@ x509_object_set_aia(x509_object *self, PyObject *args)
   int ok = 0;
   Py_ssize_t urilen;
   char *uri;
+
+  ENTERING(x509_object_set_aia);
 
   if (!PyArg_ParseTuple(args, "O", &caIssuers))
     goto error;
@@ -2879,6 +2983,8 @@ x509_object_get_crldp(x509_object *self)
   PyObject *obj;
   int i, n = 0;
 
+  ENTERING(x509_object_get_crldp);
+
   if ((ext = X509_get_ext_d2i(self->x509, NID_crl_distribution_points, NULL, NULL)) == NULL ||
       (dp = sk_DIST_POINT_value(ext, 0)) == NULL ||
       dp->distpoint == NULL ||
@@ -2932,6 +3038,8 @@ x509_object_set_crldp(x509_object *self, PyObject *args)
   Py_ssize_t urilen;
   char *uri;
   int ok = 0;
+
+  ENTERING(x509_object_set_crldp);
 
   if (!PyArg_ParseTuple(args, "O", &fullNames))
     goto error;
@@ -3008,6 +3116,8 @@ x509_object_get_certificate_policies(x509_object *self)
   PyObject *obj;
   int i;
 
+  ENTERING(x509_object_get_certificate_policies);
+
   if ((ext = X509_get_ext_d2i(self->x509, NID_certificate_policies, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
@@ -3016,12 +3126,8 @@ x509_object_get_certificate_policies(x509_object *self)
 
   for (i = 0; i < sk_POLICYINFO_num(ext); i++) {
     POLICYINFO *p = sk_POLICYINFO_value(ext, i);
-    char oid[512];
 
-    if (OBJ_obj2txt(oid, sizeof(oid), p->policyid, 1) <= 0)
-      lose_openssl_error("Couldn't translate OID");
-
-    if ((obj = PyString_FromString(oid)) == NULL)
+    if ((obj = ASN1_OBJECT_to_PyString(p->policyid)) == NULL)
       goto error;
 
     PyTuple_SET_ITEM(result, i, obj);
@@ -3051,6 +3157,8 @@ x509_object_set_certificate_policies(x509_object *self, PyObject *args)
   PyObject *item = NULL;
   const char *oid;
   int ok = 0;
+
+  ENTERING(x509_object_set_certificate_policies);
 
   if (!PyArg_ParseTuple(args, "O", &policies))
     goto error;
@@ -3114,6 +3222,8 @@ x509_object_pprint(x509_object *self)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
+  ENTERING(x509_object_pprint);
+
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
@@ -3175,13 +3285,6 @@ static struct PyMethodDef x509_object_methods[] = {
   {NULL}
 };
 
-static void
-x509_object_dealloc(x509_object *self)
-{
-  X509_free(self->x509);
-  self->ob_type->tp_free((PyObject*) self);
-}
-
 static char POW_X509_Type__doc__[] =
   "This class represents an X.509 certificate.\n"
   "\n"
@@ -3241,12 +3344,22 @@ x509_store_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   x509_store_object *self = NULL;
 
+  ENTERING(x509_store_object_new);
+
   if ((self = (x509_store_object *) type->tp_alloc(type, 0)) != NULL &&
       (self->store = X509_STORE_new()) != NULL)
     return (PyObject *) self;
 
   Py_XDECREF(self);
   return NULL;
+}
+
+static void
+x509_store_object_dealloc(x509_store_object *self)
+{
+  ENTERING(x509_store_object_dealloc);
+  X509_STORE_free(self->store);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
 #if ENABLE_X509_CERTIFICATE_SIGNATURE_AND_VERIFICATION
@@ -3289,7 +3402,6 @@ x509_store_object_verify(x509_store_object *self, PyObject *args)
   return PyBool_FromLong(ok);
 
  error:
-
   return NULL;
 }
 
@@ -3320,9 +3432,7 @@ x509_store_object_verify_chain(x509_store_object *self, PyObject *args)
     goto error;
 
   X509_STORE_CTX_init(&ctx, self->store, x509->x509, x509_stack);
-
   ok = X509_verify_cert(&ctx) == 1;
-
   X509_STORE_CTX_cleanup(&ctx);
   sk_X509_free(x509_stack);
 
@@ -3371,11 +3481,8 @@ x509_store_object_verify_detailed(x509_store_object *self, PyObject *args)
     goto error;
 
   X509_STORE_CTX_init(&ctx, self->store, x509->x509, x509_stack);
-
   ok = X509_verify_cert(&ctx) == 1;
-
   result = Py_BuildValue("(iii)", ok, ctx.error, ctx.error_depth);
-
   X509_STORE_CTX_cleanup(&ctx);
 
  error:                          /* fall through */
@@ -3400,6 +3507,8 @@ x509_store_object_add_trust(x509_store_object *self, PyObject *args)
 {
   x509_object *x509 = NULL;
 
+  ENTERING(x509_store_object_add_trust);
+
   if (!PyArg_ParseTuple(args, "O!", &POW_X509_Type, &x509))
     goto error;
 
@@ -3423,6 +3532,8 @@ x509_store_object_add_crl(x509_store_object *self, PyObject *args)
 {
   crl_object *crl = NULL;
 
+  ENTERING(x509_store_object_add_crl);
+
   if (!PyArg_ParseTuple(args, "O!", &POW_CRL_Type, &crl))
     goto error;
 
@@ -3445,13 +3556,6 @@ static struct PyMethodDef x509_store_object_methods[] = {
   Define_Method(addCrl,         x509_store_object_add_crl,              METH_VARARGS),
   {NULL}
 };
-
-static void
-x509_store_object_dealloc(x509_store_object *self)
-{
-  X509_STORE_free(self->store);
-  self->ob_type->tp_free((PyObject*) self);
-}
 
 static char POW_X509Store_Type__doc__[] =
   "This class provides basic access to the OpenSSL certificate store\n"
@@ -3513,6 +3617,8 @@ crl_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   crl_object *self = NULL;
 
+  ENTERING(crl_object_new);
+
   if ((self = (crl_object *) type->tp_alloc(type, 0)) != NULL &&
       (self->crl = X509_CRL_new()) != NULL)
     return (PyObject *) self;
@@ -3521,17 +3627,25 @@ crl_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
+static void
+crl_object_dealloc(crl_object *self)
+{
+  ENTERING(crl_object_dealloc);
+  X509_CRL_free(self->crl);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
 static PyObject *
 crl_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   crl_object *self;
 
+  ENTERING(crl_object_pem_read_helper);
+
   if ((self = (crl_object *) crl_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  X509_CRL_free(self->crl);
-
-  if ((self->crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL)) == NULL)
+  if (!PEM_read_bio_X509_CRL(bio, &self->crl, NULL, NULL))
     lose_openssl_error("Couldn't PEM encoded load CRL");
 
   return (PyObject *) self;
@@ -3545,6 +3659,8 @@ static PyObject *
 crl_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   crl_object *self;
+
+  ENTERING(crl_object_der_read_helper);
 
   if ((self = (crl_object *) crl_object_new(type, NULL, NULL)) == NULL)
     goto error;
@@ -3566,6 +3682,7 @@ static char crl_object_pem_read__doc__[] =
 static PyObject *
 crl_object_pem_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(crl_object_pem_read);
   return read_from_string_helper(crl_object_pem_read_helper, type, args);
 }
 
@@ -3576,6 +3693,7 @@ static char crl_object_pem_read_file__doc__[] =
 static PyObject *
 crl_object_pem_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(crl_object_pem_read_file);
   return read_from_file_helper(crl_object_pem_read_helper, type, args);
 }
 
@@ -3586,6 +3704,7 @@ static char crl_object_der_read__doc__[] =
 static PyObject *
 crl_object_der_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(crl_object_der_read);
   return read_from_string_helper(crl_object_der_read_helper, type, args);
 }
 
@@ -3596,6 +3715,7 @@ static char crl_object_der_read_file__doc__[] =
 static PyObject *
 crl_object_der_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(crl_object_der_read_file);
   return read_from_file_helper(crl_object_der_read_helper, type, args);
 }
 
@@ -3606,6 +3726,7 @@ static char crl_object_get_version__doc__[] =
 static PyObject *
 crl_object_get_version(crl_object *self)
 {
+  ENTERING(crl_object_get_version);
   return Py_BuildValue("l", X509_CRL_get_version(self->crl));
 }
 
@@ -3619,6 +3740,8 @@ static PyObject *
 crl_object_set_version(crl_object *self, PyObject *args)
 {
   long version = 0;
+
+  ENTERING(crl_object_set_version);
 
   if (!PyArg_ParseTuple(args, "i", &version))
     goto error;
@@ -3643,6 +3766,8 @@ crl_object_get_issuer(crl_object *self, PyObject *args)
   PyObject *result = NULL;
   int format = OIDNAME_FORMAT;
 
+  ENTERING(crl_object_get_issuer);
+
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
 
@@ -3662,6 +3787,8 @@ crl_object_set_issuer(crl_object *self, PyObject *args)
 {
   PyObject *name_sequence = NULL;
   X509_NAME *name = NULL;
+
+  ENTERING(crl_object_set_issuer);
 
   if (!PyArg_ParseTuple(args, "O", &name_sequence))
     goto error;
@@ -3705,6 +3832,8 @@ crl_object_set_this_update (crl_object *self, PyObject *args)
   char *s = NULL;
   ASN1_TIME *t = NULL;
 
+  ENTERING(crl_object_set_this_update);
+
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
 
@@ -3733,6 +3862,7 @@ static char crl_object_get_this_update__doc__[] =
 static PyObject *
 crl_object_get_this_update (crl_object *self)
 {
+  ENTERING(crl_object_get_this_update);
   return ASN1_TIME_to_Python(X509_CRL_get_lastUpdate(self->crl)); /* sic */
 }
 
@@ -3750,6 +3880,8 @@ crl_object_set_next_update (crl_object *self, PyObject *args)
 {
   char *s = NULL;
   ASN1_TIME *t = NULL;
+
+  ENTERING(crl_object_set_next_update);
 
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
@@ -3779,6 +3911,7 @@ static char crl_object_get_next_update__doc__[] =
 static PyObject *
 crl_object_get_next_update (crl_object *self)
 {
+  ENTERING(crl_object_get_next_update);
   return ASN1_TIME_to_Python(X509_CRL_get_nextUpdate(self->crl));
 }
 
@@ -3803,6 +3936,8 @@ crl_object_add_revocations(crl_object *self, PyObject *args)
   ASN1_TIME *a_date = NULL;
   int ok = 0;
   char *c_date;
+
+  ENTERING(crl_object_add_revocations);
 
   if (!PyArg_ParseTuple(args, "O", &iterable) ||
       (iterator = PyObject_GetIter(iterable)) == NULL)
@@ -3872,6 +4007,8 @@ crl_object_get_revoked(crl_object *self)
   PyObject *date = NULL;
   int i;
 
+  ENTERING(crl_object_get_revoked);
+
   if ((revoked = X509_CRL_get_REVOKED(self->crl)) == NULL)
     lose("Inexplicable NULL revocation list pointer");
 
@@ -3917,6 +4054,8 @@ crl_object_add_extension(crl_object *self, PyObject *args)
   ASN1_OCTET_STRING *octetString = NULL;
   X509_EXTENSION *ext = NULL;
 
+  ENTERING(crl_object_add_extension);
+
   if (!PyArg_ParseTuple(args, "sOs#", &name, &critical, &buf, &len))
     goto error;
 
@@ -3956,6 +4095,8 @@ crl_object_clear_extensions(crl_object *self)
 {
   X509_EXTENSION *ext;
 
+  ENTERING(crl_object_clear_extensions);
+
   while ((ext = X509_CRL_delete_ext(self->crl, 0)) != NULL)
     X509_EXTENSION_free(ext);
 
@@ -3969,6 +4110,7 @@ static char crl_object_count_extensions__doc__[] =
 static PyObject *
 crl_object_count_extensions(crl_object *self)
 {
+  ENTERING(crl_object_count_extensions);
   return Py_BuildValue("i", X509_CRL_get_ext_count(self->crl));
 }
 
@@ -3986,6 +4128,8 @@ crl_object_get_extension(crl_object *self, PyObject *args)
   X509_EXTENSION *ext;
   char oid[512];
   int slot = 0;
+
+  ENTERING(crl_object_get_extension);
 
   if (!PyArg_ParseTuple(args, "i", &slot))
     goto error;
@@ -4031,6 +4175,8 @@ crl_object_sign(crl_object *self, PyObject *args)
   int digest_type = SHA256_DIGEST;
   const EVP_MD *digest_method = NULL;
 
+  ENTERING(crl_object_sign);
+
   if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
     goto error;
 
@@ -4059,6 +4205,8 @@ crl_object_verify(crl_object *self, PyObject *args)
 {
   asymmetric_object *asym;
 
+  ENTERING(crl_object_verify);
+
   if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
     goto error;
 
@@ -4077,6 +4225,8 @@ crl_object_pem_write(crl_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
+
+  ENTERING(crl_object_pem_write);
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
@@ -4100,6 +4250,8 @@ crl_object_der_write(crl_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
+
+  ENTERING(crl_object_der_write);
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
@@ -4127,6 +4279,8 @@ crl_object_get_aki(crl_object *self, PyObject *args)
   int empty = (ext == NULL || ext->keyid == NULL);
   PyObject *result = NULL;
 
+  ENTERING(crl_object_get_aki);
+
   if (!empty)
     result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid), ASN1_STRING_length(ext->keyid));
 
@@ -4150,6 +4304,8 @@ crl_object_set_aki(crl_object *self, PyObject *args)
   AUTHORITY_KEYID *ext = NULL;
   const unsigned char *buf = NULL;
   int len, ok = 0;
+
+  ENTERING(crl_object_set_aki);
 
   if (!PyArg_ParseTuple(args, "s#", &buf, &len))
     goto error;
@@ -4184,6 +4340,8 @@ crl_object_get_crl_number(crl_object *self)
   ASN1_INTEGER *ext = X509_CRL_get_ext_d2i(self->crl, NID_crl_number, NULL, NULL);
   PyObject *result = NULL;
 
+  ENTERING(crl_object_get_crl_number);
+
   if (ext == NULL)
     Py_RETURN_NONE;
 
@@ -4203,6 +4361,8 @@ crl_object_set_crl_number(crl_object *self, PyObject *args)
 {
   ASN1_INTEGER *ext = NULL;
   PyObject *crl_number = NULL;
+
+  ENTERING(crl_object_set_crl_number);
 
   if (!PyArg_ParseTuple(args, "O", &crl_number) ||
       (ext = PyLong_to_ASN1_INTEGER(crl_number)) == NULL)
@@ -4228,6 +4388,8 @@ crl_object_pprint(crl_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
+
+  ENTERING(crl_object_pprint);
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
@@ -4272,13 +4434,6 @@ static struct PyMethodDef crl_object_methods[] = {
   Define_Class_Method(derReadFile,      crl_object_der_read_file,       METH_VARARGS),
   {NULL}
 };
-
-static void
-crl_object_dealloc(crl_object *self)
-{
-  X509_CRL_free(self->crl);
-  self->ob_type->tp_free((PyObject*) self);
-}
 
 static char POW_CRL_Type__doc__[] =
   "This class provides access to OpenSSL X509 CRL management facilities.\n"
@@ -4337,6 +4492,8 @@ asymmetric_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   asymmetric_object *self = NULL;
 
+  ENTERING(asymmetric_object_new);
+
   if ((self = (asymmetric_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
 
@@ -4357,6 +4514,8 @@ asymmetric_object_init(asymmetric_object *self, PyObject *args, PyObject *kwds)
   int cipher_type = RSA_CIPHER, key_size = 2048;
   EVP_PKEY_CTX *ctx = NULL;
   int ok = 0;
+
+  ENTERING(asymmetric_object_init);
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ii", kwlist, &cipher_type, &key_size))
     goto error;
@@ -4397,15 +4556,25 @@ asymmetric_object_init(asymmetric_object *self, PyObject *args, PyObject *kwds)
     return -1;
 }
 
+static void
+asymmetric_object_dealloc(asymmetric_object *self)
+{
+  ENTERING(asymmetric_object_dealloc);
+  EVP_PKEY_free(self->pkey);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
 static PyObject *
 asymmetric_object_pem_read_private_helper(PyTypeObject *type, BIO *bio, char *pass)
 {
   asymmetric_object *self = NULL;
 
+  ENTERING(asymmetric_object_pem_read_private_helper);
+
   if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, pass)) == NULL)
+  if (!PEM_read_bio_PrivateKey(bio, &self->pkey, NULL, pass))
     lose_openssl_error("Couldn't load private key");
 
   return (PyObject *) self;
@@ -4436,6 +4605,8 @@ asymmetric_object_pem_read_private(PyTypeObject *type, PyObject *args)
   BIO *bio = NULL;
   int len = 0;
 
+  ENTERING(asymmetric_object_pem_read_private);
+
   if (!PyArg_ParseTuple(args, "s#|s", &src, &len, &pass))
     goto error;
 
@@ -4462,6 +4633,8 @@ asymmetric_object_pem_read_private_file(PyTypeObject *type, PyObject *args)
   char *pass = NULL;
   BIO *bio = NULL;
 
+  ENTERING(asymmetric_object_pem_read_private_file);
+
   if (!PyArg_ParseTuple(args, "s|s", &filename, &pass))
     goto error;
 
@@ -4480,10 +4653,12 @@ asymmetric_object_der_read_private_helper(PyTypeObject *type, BIO *bio)
 {
   asymmetric_object *self = NULL;
 
+  ENTERING(asymmetric_object_der_read_private_helper);
+
   if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->pkey = d2i_PrivateKey_bio(bio, NULL)) == NULL)
+  if (!d2i_PrivateKey_bio(bio, &self->pkey))
     lose_openssl_error("Couldn't load private key");
 
   return (PyObject *) self;
@@ -4501,6 +4676,7 @@ static char asymmetric_object_der_read_private__doc__[] =
 static PyObject *
 asymmetric_object_der_read_private(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(asymmetric_object_der_read_private);
   return read_from_string_helper(asymmetric_object_der_read_private_helper, type, args);
 }
 
@@ -4511,6 +4687,7 @@ static char asymmetric_object_der_read_private_file__doc__[] =
 static PyObject *
 asymmetric_object_der_read_private_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(asymmetric_object_der_read_private_file);
   return read_from_file_helper(asymmetric_object_der_read_private_helper, type, args);
 }
 
@@ -4519,10 +4696,12 @@ asymmetric_object_pem_read_public_helper(PyTypeObject *type, BIO *bio)
 {
   asymmetric_object *self = NULL;
 
+  ENTERING(asymmetric_object_pem_read_public_helper);
+
   if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL)) == NULL)
+  if (!PEM_read_bio_PUBKEY(bio, &self->pkey, NULL, NULL))
     lose_openssl_error("Couldn't load public key");
 
   return (PyObject *) self;
@@ -4537,10 +4716,12 @@ asymmetric_object_der_read_public_helper(PyTypeObject *type, BIO *bio)
 {
   asymmetric_object *self = NULL;
 
+  ENTERING(asymmetric_object_der_read_public_helper);
+
   if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->pkey = d2i_PUBKEY_bio(bio, NULL)) == NULL)
+  if (!d2i_PUBKEY_bio(bio, &self->pkey))
     lose_openssl_error("Couldn't load public key");
 
   return (PyObject *) self;
@@ -4558,6 +4739,7 @@ static char asymmetric_object_pem_read_public__doc__[] =
 static PyObject *
 asymmetric_object_pem_read_public(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(asymmetric_object_pem_read_public);
   return read_from_string_helper(asymmetric_object_pem_read_public_helper, type, args);
 }
 
@@ -4568,6 +4750,7 @@ static char asymmetric_object_pem_read_public_file__doc__[] =
 static PyObject *
 asymmetric_object_pem_read_public_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(asymmetric_object_pem_read_public_file);
   return read_from_file_helper(asymmetric_object_pem_read_public_helper, type, args);
 }
 
@@ -4578,6 +4761,7 @@ static char asymmetric_object_der_read_public__doc__[] =
 static PyObject *
 asymmetric_object_der_read_public(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(asymmetric_object_der_read_public);
   return read_from_string_helper(asymmetric_object_der_read_public_helper, type, args);
 }
 
@@ -4588,6 +4772,7 @@ static char asymmetric_object_der_read_public_file__doc__[] =
 static PyObject *
 asymmetric_object_der_read_public_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(asymmetric_object_der_read_public_file);
   return read_from_file_helper(asymmetric_object_der_read_public_helper, type, args);
 }
 
@@ -4606,6 +4791,8 @@ asymmetric_object_pem_write_private(asymmetric_object *self, PyObject *args)
   char *passphrase = NULL;
   const EVP_CIPHER *evp_method = NULL;
   BIO *bio = NULL;
+
+  ENTERING(asymmetric_object_pem_write_private);
 
   if (!PyArg_ParseTuple(args, "|s", &passphrase))
     goto error;
@@ -4636,6 +4823,8 @@ asymmetric_object_pem_write_public(asymmetric_object *self)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
+  ENTERING(asymmetric_object_pem_write_public);
+
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
@@ -4659,6 +4848,8 @@ asymmetric_object_der_write_private(asymmetric_object *self)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
+  ENTERING(asymmetric_object_der_write_private);
+
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
@@ -4681,6 +4872,8 @@ asymmetric_object_der_write_public(asymmetric_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
+
+  ENTERING(asymmetric_object_der_write_public);
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
@@ -4719,6 +4912,8 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
   size_t signed_len = 0, digest_len = 0;
   EVP_PKEY_CTX *ctx = NULL;
   PyObject *result = NULL;
+
+  ENTERING(asymmetric_object_sign);
 
   if (!PyArg_ParseTuple(args, "s#i", &digest_text, &digest_len, &digest_type))
     goto error;
@@ -4782,6 +4977,8 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
   EVP_PKEY_CTX *ctx = NULL;
   int ok = 0, result;
 
+  ENTERING(asymmetric_object_verify);
+
   if (!PyArg_ParseTuple(args, "s#s#i",
                         &signed_text, &signed_len,
                         &digest_text, &digest_len,
@@ -4825,13 +5022,6 @@ static struct PyMethodDef asymmetric_object_methods[] = {
   Define_Class_Method(derReadPrivateFile, asymmetric_object_der_read_private_file,      METH_VARARGS),
   {NULL}
 };
-
-static void
-asymmetric_object_dealloc(asymmetric_object *self)
-{
-  EVP_PKEY_free(self->pkey);
-  self->ob_type->tp_free((PyObject*) self);
-}
 
 static char POW_Asymmetric_Type__doc__[] =
   "This class provides basic access to RSA signature and verification.\n"
@@ -4892,6 +5082,8 @@ digest_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   digest_object *self = NULL;
 
+  ENTERING(digest_object_new);
+
   if ((self = (digest_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
 
@@ -4910,6 +5102,8 @@ digest_object_init(digest_object *self, PyObject *args, PyObject *kwds)
   const EVP_MD *digest_method = NULL;
   int digest_type = 0;
 
+  ENTERING(digest_object_init);
+
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "i", kwlist, &digest_type))
     goto error;
 
@@ -4926,6 +5120,14 @@ digest_object_init(digest_object *self, PyObject *args, PyObject *kwds)
   return -1;
 }
 
+static void
+digest_object_dealloc(digest_object *self)
+{
+  ENTERING(digest_object_dealloc);
+  EVP_MD_CTX_cleanup(&self->digest_ctx);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
 static char digest_object_update__doc__[] =
   "This method adds data to a digest.\n"
   "\n"
@@ -4937,6 +5139,8 @@ digest_object_update(digest_object *self, PyObject *args)
 {
   char *data = NULL;
   int len = 0;
+
+  ENTERING(digest_object_update);
 
   if (!PyArg_ParseTuple(args, "s#", &data, &len))
     goto error;
@@ -4958,6 +5162,8 @@ static PyObject *
 digest_object_copy(digest_object *self, PyObject *args)
 {
   digest_object *new = NULL;
+
+  ENTERING(digest_object_copy);
 
   if ((new = (digest_object *) digest_object_new(&POW_Digest_Type, NULL, NULL)) == NULL)
     goto error;
@@ -4992,6 +5198,8 @@ digest_object_digest(digest_object *self)
   EVP_MD_CTX ctx;
   unsigned digest_len = 0;
 
+  ENTERING(digest_object_digest);
+
   if (!EVP_MD_CTX_copy(&ctx, &self->digest_ctx))
     lose_openssl_error("Couldn't copy digest");
 
@@ -5011,13 +5219,6 @@ static struct PyMethodDef digest_object_methods[] = {
   Define_Method(copy,           digest_object_copy,     METH_VARARGS),
   {NULL}
 };
-
-static void
-digest_object_dealloc(digest_object *self)
-{
-  EVP_MD_CTX_cleanup(&self->digest_ctx);
-  self->ob_type->tp_free((PyObject*) self);
-}
 
 static char POW_Digest_Type__doc__[] =
   "This class provides access to the digest functionality of OpenSSL.\n"
@@ -5088,6 +5289,8 @@ cms_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   cms_object *self;
 
+  ENTERING(cms_object_new);
+
   if ((self = (cms_object *) type->tp_alloc(type, 0)) != NULL)
     return (PyObject *) self;
 
@@ -5095,15 +5298,25 @@ cms_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
+static void
+cms_object_dealloc(cms_object *self)
+{
+  ENTERING(cms_object_dealloc);
+  CMS_ContentInfo_free(self->cms);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
 static PyObject *
 cms_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   cms_object *self;
 
+  ENTERING(cms_object_pem_read_helper);
+
   if ((self = (cms_object *) type->tp_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((self->cms = PEM_read_bio_CMS(bio, NULL, NULL, NULL)) == NULL)
+  if (!PEM_read_bio_CMS(bio, &self->cms, NULL, NULL))
     lose_openssl_error("Couldn't load PEM encoded CMS message");
 
   return (PyObject *) self;
@@ -5118,11 +5331,10 @@ cms_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   cms_object *self;
 
+  ENTERING(cms_object_der_read_helper);
+
   if ((self = (cms_object *) type->tp_new(type, NULL, NULL)) == NULL)
     goto error;
-
-  if ((self->cms = CMS_ContentInfo_new()) == NULL)
-    lose_no_memory();
 
   if (!d2i_CMS_bio(bio, &self->cms))
     lose_openssl_error("Couldn't load DER encoded CMS message");
@@ -5141,6 +5353,7 @@ static char cms_object_pem_read__doc__[] =
 static PyObject *
 cms_object_pem_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(cms_object_pem_read);
   return read_from_string_helper(cms_object_pem_read_helper, type, args);
 }
 
@@ -5151,6 +5364,7 @@ static char cms_object_pem_read_file__doc__[] =
 static PyObject *
 cms_object_pem_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(cms_object_pem_read_file);
   return read_from_file_helper(cms_object_pem_read_helper, type, args);
 }
 
@@ -5161,6 +5375,7 @@ static char cms_object_der_read__doc__[] =
 static PyObject *
 cms_object_der_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(cms_object_der_read);
   return read_from_string_helper(cms_object_der_read_helper, type, args);
 }
 
@@ -5171,6 +5386,7 @@ static char cms_object_der_read_file__doc__[] =
 static PyObject *
 cms_object_der_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(cms_object_der_read_file);
   return read_from_file_helper(cms_object_der_read_helper, type, args);
 }
 
@@ -5183,6 +5399,8 @@ cms_object_pem_write(cms_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
+
+  ENTERING(cms_object_pem_write);
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
@@ -5206,6 +5424,8 @@ cms_object_der_write(cms_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
+
+  ENTERING(cms_object_der_write);
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
@@ -5235,6 +5455,8 @@ cms_object_sign_helper(cms_object *self,
   int i, n, ok = 0;
   CMS_ContentInfo *cms = NULL;
   ASN1_OBJECT *econtent_type = NULL;
+
+  ENTERING(cms_object_sign_helper);
 
   assert_no_unhandled_openssl_errors();
 
@@ -5354,6 +5576,8 @@ cms_object_sign(cms_object *self, PyObject *args)
   BIO *bio = NULL;
   int ok = 0;
 
+  ENTERING(cms_object_sign);
+
   if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
                         &POW_X509_Type, &signcert,
                         &POW_Asymmetric_Type, &signkey,
@@ -5371,8 +5595,13 @@ cms_object_sign(cms_object *self, PyObject *args)
 
   assert_no_unhandled_openssl_errors();
 
-  ok = cms_object_sign_helper(self, bio, signcert, signkey,
-                              x509_sequence, crl_sequence, oid, flags);
+  if (!cms_object_sign_helper(self, bio, signcert, signkey,
+                              x509_sequence, crl_sequence, oid, flags))
+    lose_openssl_error("Couldn't sign CMS object");
+
+  assert_no_unhandled_openssl_errors();
+
+  ok = 1;
 
  error:
   BIO_free(bio);
@@ -5394,6 +5623,8 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
   STACK_OF(X509) *certs_stack = NULL;
   unsigned flags = 0, ok = 0;
   BIO *bio = NULL;
+
+  ENTERING(cms_object_verify_helper);
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OI", kwlist, &POW_X509Store_Type, &store, &certs_sequence, &flags))
     goto error;
@@ -5454,6 +5685,8 @@ cms_object_verify(cms_object *self, PyObject *args, PyObject *kwds)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
+  ENTERING(cms_object_verify);
+
   if ((bio = cms_object_verify_helper(self, args, kwds)) != NULL)
     result = BIO_to_PyString_helper(bio);
 
@@ -5470,17 +5703,15 @@ cms_object_eContentType(cms_object *self)
 {
   const ASN1_OBJECT *oid = NULL;
   PyObject *result = NULL;
-  char buf[512];
+
+  ENTERING(cms_object_eContentType);
 
   if ((oid = CMS_get0_eContentType(self->cms)) == NULL)
     lose_openssl_error("Couldn't extract eContentType from CMS message");
 
-  if (OBJ_obj2txt(buf, sizeof(buf), oid, 1) <= 0)
-    lose("Couldn't translate OID");
-
   assert_no_unhandled_openssl_errors();
 
-  result = Py_BuildValue("s", buf);
+  result = ASN1_OBJECT_to_PyString(oid);
 
  error:
   return result;
@@ -5499,6 +5730,8 @@ cms_object_signingTime(cms_object *self)
   X509_ATTRIBUTE *xa = NULL;
   ASN1_TYPE *so = NULL;
   int i;
+
+  ENTERING(cms_object_signingTime);
 
   if ((sis = CMS_get0_SignerInfos(self->cms)) == NULL)
     lose_openssl_error("Couldn't extract signerInfos from CMS message[1]");
@@ -5548,6 +5781,8 @@ cms_object_pprint(cms_object *self)
   BIO *bio = NULL;
   PyObject *result = NULL;
 
+  ENTERING(cms_object_pprint);
+
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
@@ -5564,13 +5799,15 @@ cms_object_pprint(cms_object *self)
 static PyObject *
 cms_object_helper_get_cert(void *cert)
 {
-  x509_object *obj = (x509_object *) x509_object_new(&POW_X509_Type, NULL, NULL);
+  x509_object *obj;
 
-  if (obj) {
-    X509_free(obj->x509);
-    obj->x509 = cert;
-  }
+  ENTERING(cms_object_helper_get_cert);
 
+  if ((obj = (x509_object *) x509_object_new(&POW_X509_Type, NULL, NULL)) == NULL)
+    return NULL;
+
+  X509_free(obj->x509);
+  obj->x509 = cert;
   return (PyObject *) obj;
 }
 
@@ -5585,6 +5822,8 @@ cms_object_certs(cms_object *self)
 {
   STACK_OF(X509) *certs = NULL;
   PyObject *result = NULL;
+
+  ENTERING(cms_object_certs);
 
   if ((certs = CMS_get1_certs(self->cms)) != NULL)
     result = stack_to_tuple_helper(CHECKED_PTR_OF(STACK_OF(X509), certs),
@@ -5602,13 +5841,15 @@ cms_object_certs(cms_object *self)
 static PyObject *
 cms_object_helper_get_crl(void *crl)
 {
-  crl_object *obj = (crl_object *) crl_object_new(&POW_CRL_Type, NULL, NULL);
+  crl_object *obj;
 
-  if (obj) {
-    X509_CRL_free(obj->crl);
-    obj->crl = crl;
-  }
+  ENTERING(cms_object_helper_get_crl);
 
+  if ((obj = (crl_object *) crl_object_new(&POW_CRL_Type, NULL, NULL)) == NULL)
+    return NULL;
+
+  X509_CRL_free(obj->crl);
+  obj->crl = crl;
   return (PyObject *) obj;
 }
 
@@ -5622,6 +5863,8 @@ cms_object_crls(cms_object *self)
 {
   STACK_OF(X509_CRL) *crls = NULL;
   PyObject *result = NULL;
+
+  ENTERING(cms_object_crls);
 
   if ((crls = CMS_get1_crls(self->cms)) != NULL)
     result = stack_to_tuple_helper(CHECKED_PTR_OF(STACK_OF(X509_CRL), crls),
@@ -5652,13 +5895,6 @@ static struct PyMethodDef cms_object_methods[] = {
   Define_Class_Method(derReadFile,      cms_object_der_read_file,       METH_VARARGS),
   {NULL}
 };
-
-static void
-cms_object_dealloc(cms_object *self)
-{
-  CMS_ContentInfo_free(self->cms);
-  self->ob_type->tp_free((PyObject*) self);
-}
 
 static char POW_CMS_Type__doc__[] =
   "This class provides basic access OpenSSL's CMS functionality.\n"
@@ -5719,12 +5955,22 @@ manifest_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   manifest_object *self = NULL;
 
+  ENTERING(manifest_object_new);
+
   if ((self = (manifest_object *) cms_object_new(type, args, kwds)) != NULL &&
       (self->manifest = Manifest_new()) != NULL)
     return (PyObject *) self;
 
   Py_XDECREF(self);
   return NULL;
+}
+
+static void
+manifest_object_dealloc(manifest_object *self)
+{
+  ENTERING(manifest_object_dealloc);
+  Manifest_free(self->manifest);
+  cms_object_dealloc(&self->cms);
 }
 
 static char manifest_object_verify__doc__[] =
@@ -5737,11 +5983,10 @@ manifest_object_verify(manifest_object *self, PyObject *args, PyObject *kwds)
   BIO *bio = NULL;
   int ok = 0;
 
+  ENTERING(manifest_object_verify);
+
   if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
     goto error;
-
-  Manifest_free(self->manifest);
-  self->manifest = NULL;
 
   if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest))
     lose_openssl_error("Couldn't decode manifest");
@@ -5762,6 +6007,8 @@ manifest_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   manifest_object *self;
 
+  ENTERING(manifest_object_der_read_helper);
+
   if ((self = (manifest_object *) cms_object_der_read_helper(type, bio)) != NULL)
     self->manifest = NULL;
 
@@ -5775,13 +6022,27 @@ static char manifest_object_der_read__doc__[] =
 static PyObject *
 manifest_object_der_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(manifest_object_der_read);
   return read_from_string_helper(manifest_object_der_read_helper, type, args);
+}
+
+static char manifest_object_der_read_file__doc__[] =
+  "Class method to read a DER-encoded manifest object from a file.\n"
+  ;
+
+static PyObject *
+manifest_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(manifest_object_der_read_file);
+  return read_from_file_helper(manifest_object_der_read_helper, type, args);
 }
 
 static PyObject *
 manifest_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   manifest_object *self;
+
+  ENTERING(manifest_object_pem_read_helper);
 
   if ((self = (manifest_object *) cms_object_pem_read_helper(type, bio)) != NULL)
     self->manifest = NULL;
@@ -5796,6 +6057,7 @@ static char manifest_object_pem_read__doc__[] =
 static PyObject *
 manifest_object_pem_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(manifest_object_pem_read);
   return read_from_string_helper(manifest_object_pem_read_helper, type, args);
 }
 
@@ -5806,17 +6068,8 @@ static char manifest_object_pem_read_file__doc__[] =
 static PyObject *
 manifest_object_pem_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(manifest_object_pem_read_file);
   return read_from_file_helper(manifest_object_pem_read_helper, type, args);
-}
-
-static char manifest_object_der_read_file__doc__[] =
-  "Class method to read a DER-encoded manifest object from a file.\n"
-  ;
-
-static PyObject *
-manifest_object_der_read_file(PyTypeObject *type, PyObject *args)
-{
-  return read_from_file_helper(manifest_object_der_read_helper, type, args);
 }
 
 static char manifest_object_get_version__doc__[] =
@@ -5826,6 +6079,8 @@ static char manifest_object_get_version__doc__[] =
 static PyObject *
 manifest_object_get_version(manifest_object *self)
 {
+  ENTERING(manifest_object_get_version);
+
   if (self->manifest == NULL)
     lose_not_verified("Can't report version of unverified manifest");
 
@@ -5853,6 +6108,8 @@ manifest_object_set_version(manifest_object *self, PyObject *args)
 {
   int version = 0;
 
+  ENTERING(manifest_object_set_version);
+
   if (!PyArg_ParseTuple(args, "|i", &version))
     goto error;
 
@@ -5878,6 +6135,8 @@ static char manifest_object_get_manifest_number__doc__[] =
 static PyObject *
 manifest_object_get_manifest_number(manifest_object *self)
 {
+  ENTERING(manifest_object_get_manifest_number);
+
   if (self->manifest == NULL)
     lose_not_verified("Can't get manifestNumber of unverified manifest");
 
@@ -5899,6 +6158,8 @@ manifest_object_set_manifest_number(manifest_object *self, PyObject *args)
   PyObject *manifestNumber = NULL;
   PyObject *zero = NULL;
   int ok = 0;
+
+  ENTERING(manifest_object_set_manifest_number);
 
   if (!PyArg_ParseTuple(args, "O", &manifestNumber))
     goto error;
@@ -5945,6 +6206,8 @@ manifest_object_set_this_update (manifest_object *self, PyObject *args)
   ASN1_TIME *t = NULL;
   char *s = NULL;
 
+  ENTERING(manifest_object_set_this_update);
+
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
 
@@ -5971,6 +6234,8 @@ static char manifest_object_get_this_update__doc__[] =
 static PyObject *
 manifest_object_get_this_update (manifest_object *self)
 {
+  ENTERING(manifest_object_get_this_update);
+
   if (self->manifest == NULL)
     lose_not_verified("Can't get thisUpdate value of unverified manifest");
 
@@ -5992,6 +6257,8 @@ manifest_object_set_next_update (manifest_object *self, PyObject *args)
 {
   ASN1_TIME *t = NULL;
   char *s = NULL;
+
+  ENTERING(manifest_object_set_next_update);
 
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
@@ -6019,6 +6286,8 @@ static char manifest_object_get_next_update__doc__[] =
 static PyObject *
 manifest_object_get_next_update (manifest_object *self)
 {
+  ENTERING(manifest_object_get_next_update);
+
   if (self->manifest == NULL)
     lose_not_verified("Can't extract nextUpdate value of unverified manifest");
 
@@ -6036,15 +6305,13 @@ static PyObject *
 manifest_object_get_algorithm(manifest_object *self)
 {
   PyObject *result = NULL;
-  char oid[512];
+
+  ENTERING(manifest_object_get_algorithm);
 
   if (self->manifest == NULL)
     lose_not_verified("Can't extract algorithm OID of unverified manifest");
 
-  if (OBJ_obj2txt(oid, sizeof(oid), self->manifest->fileHashAlg, 1) <= 0)
-    lose("Couldn't translate OID");
-
-  result = Py_BuildValue("s", oid);
+  result = ASN1_OBJECT_to_PyString(self->manifest->fileHashAlg);
 
  error:
   return result;
@@ -6059,6 +6326,8 @@ manifest_object_set_algorithm(manifest_object *self, PyObject *args)
 {
   ASN1_OBJECT *oid = NULL;
   const char *s = NULL;
+
+  ENTERING(manifest_object_set_algorithm);
 
   if (!PyArg_ParseTuple(args, "s", &s))
     goto error;
@@ -6097,6 +6366,8 @@ manifest_object_add_files(manifest_object *self, PyObject *args)
   char *file = NULL;
   char *hash = NULL;
   int filelen, hashlen, ok = 0;
+
+  ENTERING(manifest_object_add_files);
 
   if (self->manifest == NULL)
     lose_not_verified("Can't add files to unverified manifest");
@@ -6146,6 +6417,8 @@ manifest_object_get_files(manifest_object *self)
   PyObject *item = NULL;
   int i;
 
+  ENTERING(manifest_object_get_files);
+
   if (self->manifest == NULL)
     lose_not_verified("Can't get files from unverified manifest");
 
@@ -6179,7 +6452,6 @@ static char manifest_object_sign__doc__[] =
   "Needs doc.\n"
   ;
 
-
 static PyObject *
 manifest_object_sign(manifest_object *self, PyObject *args)
 {
@@ -6192,6 +6464,8 @@ manifest_object_sign(manifest_object *self, PyObject *args)
   unsigned flags = 0;
   BIO *bio = NULL;
   int ok = 0;
+
+  ENTERING(manifest_object_sign);
 
   if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
                         &POW_X509_Type, &signcert,
@@ -6209,12 +6483,17 @@ manifest_object_sign(manifest_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if (!ASN1_item_i2d_bio(ASN1_ITEM_rptr(Manifest), bio, self->manifest))
-    lose_openssl_error("Unable to write manifest");
+    lose_openssl_error("Couldn't encode manifest");
 
   assert_no_unhandled_openssl_errors();
 
-  ok = cms_object_sign_helper(&self->cms, bio, signcert, signkey,
-                              x509_sequence, crl_sequence, oid, flags);
+  if (!cms_object_sign_helper(&self->cms, bio, signcert, signkey,
+                              x509_sequence, crl_sequence, oid, flags))
+    lose_openssl_error("Couldn't sign manifest");
+
+  assert_no_unhandled_openssl_errors();
+
+  ok = 1;
 
  error:
   BIO_free(bio);
@@ -6246,13 +6525,6 @@ static struct PyMethodDef manifest_object_methods[] = {
   Define_Class_Method(derReadFile,      manifest_object_der_read_file,       	METH_VARARGS),
   {NULL}
 };
-
-static void
-manifest_object_dealloc(manifest_object *self)
-{
-  Manifest_free(self->manifest);
-  self->cms.ob_type->tp_free((PyObject*) self);
-}
 
 static char POW_Manifest_Type__doc__[] =
   "This class provides access to RPKI manifest payload.\n"
@@ -6311,12 +6583,22 @@ roa_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   roa_object *self = NULL;
 
+  ENTERING(roa_object_new);
+
   if ((self = (roa_object *) cms_object_new(type, args, kwds)) != NULL &&
       (self->roa = ROA_new()) != NULL)
     return (PyObject *) self;
 
   Py_XDECREF(self);
   return NULL;
+}
+
+static void
+roa_object_dealloc(roa_object *self)
+{
+  ENTERING(roa_object_dealloc);
+  ROA_free(self->roa);
+  cms_object_dealloc(&self->cms);
 }
 
 static char roa_object_verify__doc__[] =
@@ -6329,11 +6611,10 @@ roa_object_verify(roa_object *self, PyObject *args, PyObject *kwds)
   BIO *bio = NULL;
   int ok = 0;
 
+  ENTERING(roa_object_verify);
+
   if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
     goto error;
-
-  ROA_free(self->roa);
-  self->roa = NULL;
   
   if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa))
     lose_openssl_error("Couldn't decode ROA");
@@ -6354,6 +6635,8 @@ roa_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   roa_object *self;
 
+  ENTERING(roa_object_pem_read_helper);
+
   if ((self = (roa_object *) cms_object_pem_read_helper(type, bio)) != NULL)
     self->roa = NULL;
 
@@ -6364,6 +6647,8 @@ static PyObject *
 roa_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   roa_object *self;
+
+  ENTERING(roa_object_der_read_helper);
 
   if ((self = (roa_object *) cms_object_der_read_helper(type, bio)) != NULL)
     self->roa = NULL;
@@ -6378,6 +6663,7 @@ static char roa_object_pem_read__doc__[] =
 static PyObject *
 roa_object_pem_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(roa_object_pem_read);
   return read_from_string_helper(roa_object_pem_read_helper, type, args);
 }
 
@@ -6388,6 +6674,7 @@ static char roa_object_pem_read_file__doc__[] =
 static PyObject *
 roa_object_pem_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(roa_object_pem_read_file);
   return read_from_file_helper(roa_object_pem_read_helper, type, args);
 }
 
@@ -6398,6 +6685,7 @@ static char roa_object_der_read__doc__[] =
 static PyObject *
 roa_object_der_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(roa_object_der_read);
   return read_from_string_helper(roa_object_der_read_helper, type, args);
 }
 
@@ -6408,6 +6696,7 @@ static char roa_object_der_read_file__doc__[] =
 static PyObject *
 roa_object_der_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(roa_object_der_read_file);
   return read_from_file_helper(roa_object_der_read_helper, type, args);
 }
 
@@ -6418,6 +6707,8 @@ static char roa_object_get_version__doc__[] =
 static PyObject *
 roa_object_get_version(roa_object *self)
 {
+  ENTERING(roa_object_get_version);
+
   if (self->roa == NULL)
     lose_not_verified("Can't get version of unverified ROA");
 
@@ -6445,6 +6736,8 @@ roa_object_set_version(roa_object *self, PyObject *args)
 {
   int version = 0;
 
+  ENTERING(roa_object_set_version);
+
   if (self->roa == NULL)
     lose_not_verified("Can't set version of unverified ROA");
 
@@ -6470,6 +6763,8 @@ static char roa_object_get_asid__doc__[] =
 static PyObject *
 roa_object_get_asid(roa_object *self)
 {
+  ENTERING(roa_object_get_asid);
+
   if (self->roa == NULL)
     lose_not_verified("Can't get ASN of unverified ROA");
 
@@ -6491,6 +6786,8 @@ roa_object_set_asid(roa_object *self, PyObject *args)
   PyObject *asID = NULL;
   PyObject *zero = NULL;
   int ok = 0;
+
+  ENTERING(roa_object_set_asid);
 
   if (self->roa == NULL)
     lose_not_verified("Can't set ASN of unverified ROA");
@@ -6541,6 +6838,8 @@ roa_object_get_prefixes(roa_object *self)
   PyObject *item = NULL;
   ipaddress_object *addr = NULL;
   int i, j;
+
+  ENTERING(roa_object_get_prefixes);
 
   if (self->roa == NULL)
     lose_not_verified("Can't get prefixes from unverified ROA");
@@ -6644,6 +6943,8 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
   PyObject *iterator = NULL;
   PyObject *item = NULL;
   int afi, ok = 0;
+
+  ENTERING(roa_object_set_prefixes);
 
   if (self->roa == NULL)
     lose_not_verified("Can't set prefixes of unverified ROA");
@@ -6778,6 +7079,8 @@ roa_object_sign(roa_object *self, PyObject *args)
   BIO *bio = NULL;
   int ok = 0;
 
+  ENTERING(roa_object_sign);
+
   if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
                         &POW_X509_Type, &signcert,
                         &POW_Asymmetric_Type, &signkey,
@@ -6794,12 +7097,17 @@ roa_object_sign(roa_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if (!ASN1_item_i2d_bio(ASN1_ITEM_rptr(ROA), bio, self->roa))
-    lose_openssl_error("Unable to write ROA");
+    lose_openssl_error("Couldn't encode ROA");
 
   assert_no_unhandled_openssl_errors();
 
-  ok = cms_object_sign_helper(&self->cms, bio, signcert, signkey,
-                              x509_sequence, crl_sequence, oid, flags);
+  if (!cms_object_sign_helper(&self->cms, bio, signcert, signkey,
+                              x509_sequence, crl_sequence, oid, flags))
+    lose_openssl_error("Couldn't sign ROA");
+
+  assert_no_unhandled_openssl_errors();
+
+  ok = 1;
 
  error:
   BIO_free(bio);
@@ -6825,13 +7133,6 @@ static struct PyMethodDef roa_object_methods[] = {
   Define_Class_Method(derReadFile,      roa_object_der_read_file,       METH_VARARGS),
   {NULL}
 };
-
-static void
-roa_object_dealloc(roa_object *self)
-{
-  ROA_free(self->roa);
-  self->cms.ob_type->tp_free((PyObject*) self);
-}
 
 static char POW_ROA_Type__doc__[] =
   "This class provides access to RPKI roa payload.\n"
@@ -6890,6 +7191,8 @@ pkcs10_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   pkcs10_object *self;
 
+  ENTERING(pkcs10_object_new);
+
   if ((self = (pkcs10_object *) type->tp_alloc(type, 0)) != NULL &&
       (self->pkcs10 = X509_REQ_new()) != NULL &&
       (self->exts = sk_X509_EXTENSION_new_null()) != NULL)
@@ -6899,23 +7202,36 @@ pkcs10_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
+static void
+pkcs10_object_dealloc(pkcs10_object *self)
+{
+  ENTERING(pkcs10_object_dealloc);
+  X509_REQ_free(self->pkcs10);
+  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
 static PyObject *
 pkcs10_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   pkcs10_object *self = NULL;
 
+  ENTERING(pkcs10_object_pem_read_helper);
+
+  assert_no_unhandled_openssl_errors();
+
   if ((self = (pkcs10_object *) pkcs10_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  X509_REQ_free(self->pkcs10);
-  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
-  self->pkcs10 = NULL;
-  self->exts = NULL;
+  assert_no_unhandled_openssl_errors();
 
-  if ((self->pkcs10 = PEM_read_bio_X509_REQ(bio, NULL, NULL, NULL)) == NULL)
+  if (!PEM_read_bio_X509_REQ(bio, &self->pkcs10, NULL, NULL))
     lose_openssl_error("Couldn't load PEM encoded PKCS#10 request");
 
+  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
   self->exts = X509_REQ_get_extensions(self->pkcs10);
+
+  assert_no_unhandled_openssl_errors();
 
   return (PyObject *) self;
 
@@ -6930,16 +7246,22 @@ pkcs10_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   pkcs10_object *self;
 
+  ENTERING(pkcs10_object_der_read_helper);
+
+  assert_no_unhandled_openssl_errors();
+
   if ((self = (pkcs10_object *) pkcs10_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
-  self->exts = NULL;
+  assert_no_unhandled_openssl_errors();
 
   if (!d2i_X509_REQ_bio(bio, &self->pkcs10))
     lose_openssl_error("Couldn't load DER encoded PKCS#10 request");
 
+  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
   self->exts = X509_REQ_get_extensions(self->pkcs10);
+
+  assert_no_unhandled_openssl_errors();
 
   return (PyObject *) self;
 
@@ -6955,6 +7277,7 @@ static char pkcs10_object_pem_read__doc__[] =
 static PyObject *
 pkcs10_object_pem_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(pkcs10_object_pem_read);
   return read_from_string_helper(pkcs10_object_pem_read_helper, type, args);
 }
 
@@ -6965,6 +7288,7 @@ static char pkcs10_object_pem_read_file__doc__[] =
 static PyObject *
 pkcs10_object_pem_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(pkcs10_object_pem_read_file);
   return read_from_file_helper(pkcs10_object_pem_read_helper, type, args);
 }
 
@@ -6975,6 +7299,7 @@ static char pkcs10_object_der_read__doc__[] =
 static PyObject *
 pkcs10_object_der_read(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(pkcs10_object_der_read);
   return read_from_string_helper(pkcs10_object_der_read_helper, type, args);
 }
 
@@ -6985,6 +7310,7 @@ static char pkcs10_object_der_read_file__doc__[] =
 static PyObject *
 pkcs10_object_der_read_file(PyTypeObject *type, PyObject *args)
 {
+  ENTERING(pkcs10_object_der_read_file);
   return read_from_file_helper(pkcs10_object_der_read_helper, type, args);
 }
 
@@ -6997,6 +7323,8 @@ pkcs10_object_pem_write(pkcs10_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
+
+  ENTERING(pkcs10_object_pem_write);
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
@@ -7021,6 +7349,8 @@ pkcs10_object_der_write(pkcs10_object *self)
   PyObject *result = NULL;
   BIO *bio = NULL;
 
+  ENTERING(pkcs10_object_der_write);
+
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
@@ -7043,6 +7373,8 @@ pkcs10_object_get_public_key(pkcs10_object *self)
 {
   PyTypeObject *type = &POW_Asymmetric_Type;
   asymmetric_object *asym = NULL;
+
+  ENTERING(pkcs10_object_get_public_key);
 
   if ((asym = (asymmetric_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
@@ -7067,6 +7399,8 @@ static PyObject *
 pkcs10_object_set_public_key(pkcs10_object *self, PyObject *args)
 {
   asymmetric_object *asym;
+
+  ENTERING(pkcs10_object_set_public_key);
 
   if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
     goto error;
@@ -7106,6 +7440,8 @@ pkcs10_object_sign(pkcs10_object *self, PyObject *args)
   int loc, digest_type = SHA256_DIGEST;
   const EVP_MD *digest_method = NULL;
 
+  ENTERING(pkcs10_object_sign);
+
   if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
     goto error;
 
@@ -7138,6 +7474,8 @@ pkcs10_object_verify(pkcs10_object *self)
   EVP_PKEY *pkey = NULL;
   int status;
 
+  ENTERING(pkcs10_object_verify);
+
   if ((pkey = X509_REQ_get_pubkey(self->pkcs10)) == NULL)
     lose_openssl_error("Couldn't extract public key from PKCS#10 for verification");
 
@@ -7159,6 +7497,7 @@ static char pkcs10_object_get_version__doc__[] =
 static PyObject *
 pkcs10_object_get_version(pkcs10_object *self)
 {
+  ENTERING(pkcs10_object_get_version);
   return Py_BuildValue("l", X509_REQ_get_version(self->pkcs10));
 }
 
@@ -7172,6 +7511,8 @@ static PyObject *
 pkcs10_object_set_version(pkcs10_object *self, PyObject *args)
 {
   long version = 0;
+
+  ENTERING(pkcs10_object_set_version);
 
   if (!PyArg_ParseTuple(args, "|l", &version))
     goto error;
@@ -7201,6 +7542,8 @@ pkcs10_object_get_subject(pkcs10_object *self, PyObject *args)
   PyObject *result = NULL;
   int format = OIDNAME_FORMAT;
 
+  ENTERING(pkcs10_object_get_subject);
+
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
 
@@ -7222,6 +7565,8 @@ pkcs10_object_set_subject(pkcs10_object *self, PyObject *args)
 {
   PyObject *name_sequence = NULL;
   X509_NAME *name = NULL;
+
+  ENTERING(pkcs10_object_set_subject);
 
   if (!PyArg_ParseTuple(args, "O", &name_sequence))
     goto error;
@@ -7258,6 +7603,8 @@ pkcs10_object_get_key_usage(pkcs10_object *self)
   ASN1_BIT_STRING *ext = NULL;
   PyObject *result = NULL;
   PyObject *token = NULL;
+
+  ENTERING(pkcs10_object_get_key_usage);
 
   if ((ext = X509V3_get_d2i(self->exts, NID_key_usage, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
@@ -7307,6 +7654,8 @@ pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
   PyObject *token = NULL;
   const char *t;
   int ok = 0;
+
+  ENTERING(pkcs10_object_set_key_usage);
 
   if ((ext = ASN1_BIT_STRING_new()) == NULL)
     lose_no_memory();
@@ -7367,6 +7716,8 @@ pkcs10_object_get_basic_constraints(pkcs10_object *self)
   BASIC_CONSTRAINTS *ext = NULL;
   PyObject *result;
 
+  ENTERING(pkcs10_object_get_basic_constraints);
+
   if ((ext = X509V3_get_d2i(self->exts, NID_basic_constraints, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
@@ -7403,6 +7754,8 @@ pkcs10_object_set_basic_constraints(pkcs10_object *self, PyObject *args)
   PyObject *critical = Py_True;
   long pathlen = -1;
   int ok = 0;
+
+  ENTERING(pkcs10_object_set_basic_constraints);
 
   if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
     goto error;
@@ -7458,6 +7811,8 @@ pkcs10_object_get_sia(pkcs10_object *self)
   const char *uri;
   PyObject *obj;
   int i, nid;
+
+  ENTERING(pkcs10_object_get_sia);
 
   if ((ext = X509V3_get_d2i(self->exts, NID_sinfo_access, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
@@ -7555,6 +7910,8 @@ pkcs10_object_set_sia(pkcs10_object *self, PyObject *args)
   Py_ssize_t urilen;
   char *uri;
 
+  ENTERING(pkcs10_object_set_sia);
+
   if (!PyArg_ParseTuple(args, "OOO", &caRepository, &rpkiManifest, &signedObject))
     goto error;
 
@@ -7625,6 +7982,57 @@ pkcs10_object_set_sia(pkcs10_object *self, PyObject *args)
     return NULL;
 }
 
+static char pkcs10_object_get_signature_algorithm__doc__[] =
+  "Extract signature algorithm OID from this request.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_signature_algorithm(pkcs10_object *self)
+{
+  ASN1_OBJECT *oid = NULL;
+
+  ENTERING(pkcs10_object_get_signature_algorithm);
+
+  X509_ALGOR_get0(&oid, NULL, NULL, self->pkcs10->sig_alg);
+
+  return ASN1_OBJECT_to_PyString(oid);
+}
+
+static char pkcs10_object_get_extension_oids__doc__[] =
+  "Get the set of extension OIDs used in this request.  This is mostly\n"
+  "useful for enforcing restrictions on what extensions are allowed to be\n"
+  "present, to conform with a profile.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_extension_oids(pkcs10_object *self)
+{
+  PyObject *result = NULL;
+  PyObject *oid = NULL;
+  int i;
+
+  ENTERING(pkcs10_object_get_extension_oids);
+
+  if ((result = PyFrozenSet_New(NULL)) == NULL)
+    goto error;
+
+  for (i = 0; i < sk_X509_EXTENSION_num(self->exts); i++) {
+    X509_EXTENSION *ext = sk_X509_EXTENSION_value(self->exts, i);
+    if ((oid = ASN1_OBJECT_to_PyString(ext->object)) == NULL ||
+        PySet_Add(result, oid) < 0)
+      goto error;
+    Py_XDECREF(oid);
+    oid = NULL;
+  }
+
+  return result;
+
+ error:
+  Py_XDECREF(result);
+  Py_XDECREF(oid);
+  return NULL;  
+}
+
 /*
  * May want EKU handlers eventually, skip for now.
  */
@@ -7638,6 +8046,8 @@ pkcs10_object_pprint(pkcs10_object *self)
 {
   PyObject *result = NULL;
   BIO *bio = NULL;
+
+  ENTERING(pkcs10_object_pprint);
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
@@ -7670,20 +8080,14 @@ static struct PyMethodDef pkcs10_object_methods[] = {
   Define_Method(setBasicConstraints,    pkcs10_object_set_basic_constraints,    METH_VARARGS),
   Define_Method(getSIA,                 pkcs10_object_get_sia,                  METH_NOARGS),
   Define_Method(setSIA,                 pkcs10_object_set_sia,                  METH_VARARGS),
+  Define_Method(getSignatureAlgorithm,	pkcs10_object_get_signature_algorithm,	METH_NOARGS),
+  Define_Method(getExtensionOIDs,	pkcs10_object_get_extension_oids,	METH_NOARGS),
   Define_Class_Method(pemRead,          pkcs10_object_pem_read,                 METH_VARARGS),
   Define_Class_Method(pemReadFile,      pkcs10_object_pem_read_file,            METH_VARARGS),
   Define_Class_Method(derRead,          pkcs10_object_der_read,                 METH_VARARGS),
   Define_Class_Method(derReadFile,      pkcs10_object_der_read_file,            METH_VARARGS),
   {NULL}
 };
-
-static void
-pkcs10_object_dealloc(pkcs10_object *self)
-{
-  X509_REQ_free(self->pkcs10);
-  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
-  self->ob_type->tp_free((PyObject*) self);
-}
 
 static char POW_PKCS10_Type__doc__[] =
   "This class represents a PKCS#10 request.\n"
@@ -7733,9 +8137,6 @@ static PyTypeObject POW_PKCS10_Type = {
   pkcs10_object_new,			    /* tp_new */
 };
 
-
-
-
 
 
 /*
@@ -7758,6 +8159,8 @@ static PyObject *
 pow_module_add_object(PyObject *self, PyObject *args)
 {
   char *oid = NULL, *sn = NULL, *ln = NULL;
+
+  ENTERING(pow_module_add_object);
 
   if (!PyArg_ParseTuple(args, "sss", &oid, &sn, &ln))
     goto error;
@@ -7783,6 +8186,8 @@ pow_module_get_error(PyObject *self)
   unsigned long error = ERR_get_error();
   char buf[256];
 
+  ENTERING(pow_module_get_error);
+
   if (!error)
     Py_RETURN_NONE;
 
@@ -7797,6 +8202,7 @@ static char pow_module_clear_error__doc__[] =
 static PyObject *
 pow_module_clear_error(PyObject *self)
 {
+  ENTERING(pow_module_clear_error);
   ERR_clear_error();
   Py_RETURN_NONE;
 }
@@ -7813,6 +8219,8 @@ pow_module_seed(PyObject *self, PyObject *args)
 {
   char *data = NULL;
   int datalen = 0;
+
+  ENTERING(pow_module_seed);
 
   if (!PyArg_ParseTuple(args, "s#", &data, &datalen))
     goto error;
@@ -7842,6 +8250,8 @@ pow_module_add(PyObject *self, PyObject *args)
   int datalen = 0;
   double entropy = 0;
 
+  ENTERING(pow_module_add);
+
   if (!PyArg_ParseTuple(args, "s#d", &data, &datalen, &entropy))
     goto error;
 
@@ -7864,6 +8274,8 @@ static PyObject *
 pow_module_write_random_file(PyObject *self, PyObject *args)
 {
   char *filename = NULL;
+
+  ENTERING(pow_module_write_random_file);
 
   if (!PyArg_ParseTuple(args, "s", &filename))
     goto error;
@@ -7889,6 +8301,8 @@ pow_module_read_random_file(PyObject *self, PyObject *args)
 {
   char *file = NULL;
   int len = -1;
+
+  ENTERING(pow_module_read_random_file);
 
   if (!PyArg_ParseTuple(args, "s|i", &file, &len))
     goto error;

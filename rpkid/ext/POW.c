@@ -7244,7 +7244,7 @@ pkcs10_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 static PyObject *
 pkcs10_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
-  pkcs10_object *self;
+  pkcs10_object *self = NULL;
 
   ENTERING(pkcs10_object_der_read_helper);
 

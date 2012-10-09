@@ -42,7 +42,6 @@ import rpki.up_down
 import rpki.relaxng
 import rpki.sundial
 import rpki.log
-import rpki.roa
 import rpki.publication
 import rpki.async
 import rpki.rpkid_tasks

@@ -43,10 +43,26 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import rpki.POW, rpki.POW.pkix, base64, lxml.etree, os, subprocess, sys
-import email.mime.application, email.utils, mailbox, time
-import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
-import rpki.manifest, rpki.roa, rpki.log, rpki.async, rpki.ghostbuster
+import rpki.POW
+import rpki.POW.pkix
+import base64
+import lxml.etree
+import os
+import subprocess
+import sys
+import email.mime.application
+import email.utils
+import mailbox
+import time
+import rpki.exceptions
+import rpki.resource_set
+import rpki.oids
+import rpki.sundial
+import rpki.manifest
+import rpki.roa
+import rpki.log
+import rpki.async
+import rpki.ghostbuster
 import rpki.relaxng
 
 def base64_with_linebreaks(der):
@@ -1549,21 +1565,6 @@ class ROA(DER_CMS_object):
     except:
       pass
     return msg
-
-class Ghostbuster(DER_CMS_object):
-  """
-  Class to hold a signed Ghostbuster record.
-  """
-
-  content_class = rpki.ghostbuster.Ghostbuster
-
-  @classmethod
-  def build(cls, vcard, keypair, certs):
-      self = cls()
-      gbr = content_class(vcard)
-      self.set_content(gbr)
-      self.sign(keypair, certs)
-      return self
 
 class DeadDrop(object):
   """

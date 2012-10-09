@@ -58,17 +58,6 @@ def base64_with_linebreaks(der):
   n = len(b)
   return "\n" + "\n".join(b[i : min(i + 64, n)] for i in xrange(0, n, 64)) + "\n"
 
-def calculate_SKI(public_key_der):
-  """
-  Calculate the SKI value given the DER representation of a public
-  key, which requires first peeling the ASN.1 wrapper off the key.
-  """
-  k = rpki.POW.pkix.SubjectPublicKeyInfo()
-  k.fromString(public_key_der)
-  d = rpki.POW.Digest(rpki.POW.SHA1_DIGEST)
-  d.update(k.subjectPublicKey.get())
-  return d.digest()
-
 class PEM_converter(object):
   """
   Convert between DER and PEM encodings for various kinds of ASN.1 data.
@@ -1089,7 +1078,7 @@ class RSA(DER_object):
     """
     Calculate the SKI of this keypair.
     """
-    return calculate_SKI(self.get_public_DER())
+    return self.get_POW().calculateSKI()
 
   def get_RSApublic(self):
     """
@@ -1130,7 +1119,7 @@ class RSApublic(DER_object):
     """
     Calculate the SKI of this public key.
     """
-    return calculate_SKI(self.get_DER())
+    return self.get_POW().calculateSKI()
 
 def POWify_OID(oid):
   """

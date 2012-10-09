@@ -153,7 +153,7 @@
 #define POW_IPAddress_Check(op)         PyObject_TypeCheck(op, &POW_IPAddress_Type)
 #define POW_ROA_Check(op)               PyObject_TypeCheck(op, &POW_ROA_Type)
 #define POW_Manifest_Check(op)          PyObject_TypeCheck(op, &POW_Manifest_Type)
-#define POW_ROA_Check(op)          	PyObject_TypeCheck(op, &POW_ROA_Type)
+#define POW_ROA_Check(op)               PyObject_TypeCheck(op, &POW_ROA_Type)
 
 static char pow_module__doc__ [] =
   "Python interface to RFC-3779-enabled OpenSSL.  This code is intended\n"
@@ -303,15 +303,15 @@ typedef struct {
  */
 
 #if 0
-#define KVETCH(_msg_)   	write(2, _msg_ "\n", sizeof(_msg_))
+#define KVETCH(_msg_)           write(2, _msg_ "\n", sizeof(_msg_))
 #else
-#define KVETCH(_msg_)		((void) 0)
+#define KVETCH(_msg_)           ((void) 0)
 #endif
 
 #if 0
-#define ENTERING(_name_) 	KVETCH("Entering " #_name_ "()")
+#define ENTERING(_name_)        KVETCH("Entering " #_name_ "()")
 #else
-#define ENTERING(_name_) 	((void) 0)
+#define ENTERING(_name_)        ((void) 0)
 #endif
 
 /*
@@ -3241,7 +3241,7 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(pemWrite,               x509_object_pem_write,                  METH_NOARGS),
   Define_Method(derWrite,               x509_object_der_write,                  METH_NOARGS),
   Define_Method(sign,                   x509_object_sign,                       METH_VARARGS),
-  Define_Method(getPublicKey,		x509_object_get_public_key,		METH_NOARGS),
+  Define_Method(getPublicKey,           x509_object_get_public_key,             METH_NOARGS),
   Define_Method(setPublicKey,           x509_object_set_public_key,             METH_VARARGS),
   Define_Method(getVersion,             x509_object_get_version,                METH_NOARGS),
   Define_Method(setVersion,             x509_object_set_version,                METH_VARARGS),
@@ -5005,6 +5005,37 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
     return NULL;
 }
 
+static char asymmetric_object_calculate_ski__doc__[] =
+  "Calculate SKI value for this key.\n"
+  "\n"
+  "The SKI is the SHA-1 hash of key's SubjectPublicKey value.\n"
+  ;
+
+
+static PyObject *
+asymmetric_object_calculate_ski(asymmetric_object *self)
+{
+  PyObject *result = NULL;
+  X509_PUBKEY *pubkey = NULL;
+  unsigned char digest[EVP_MAX_MD_SIZE];
+  unsigned digest_length;
+
+  ENTERING(asymmetric_object_calculate_ski);
+
+  if (!X509_PUBKEY_set(&pubkey, self->pkey))
+    lose_openssl_error("Couldn't extract public key");
+
+  if (!EVP_Digest(pubkey->public_key->data, pubkey->public_key->length,
+                  digest, &digest_length, EVP_sha1(), NULL))
+    lose_openssl_error("Couldn't calculate SHA-1 digest of public key");
+
+  result = PyString_FromStringAndSize(digest, digest_length);
+
+ error:
+  X509_PUBKEY_free(pubkey);
+  return result;
+}
+
 static struct PyMethodDef asymmetric_object_methods[] = {
   Define_Method(pemWritePrivate,          asymmetric_object_pem_write_private,          METH_VARARGS),
   Define_Method(pemWritePublic,           asymmetric_object_pem_write_public,           METH_NOARGS),
@@ -5012,6 +5043,7 @@ static struct PyMethodDef asymmetric_object_methods[] = {
   Define_Method(derWritePublic,           asymmetric_object_der_write_public,           METH_NOARGS),
   Define_Method(sign,                     asymmetric_object_sign,                       METH_VARARGS),
   Define_Method(verify,                   asymmetric_object_verify,                     METH_VARARGS),
+  Define_Method(calculateSKI,             asymmetric_object_calculate_ski,              METH_NOARGS),
   Define_Class_Method(pemReadPublic,      asymmetric_object_pem_read_public,            METH_VARARGS),
   Define_Class_Method(pemReadPublicFile,  asymmetric_object_pem_read_public_file,       METH_VARARGS),
   Define_Class_Method(derReadPublic,      asymmetric_object_der_read_public,            METH_VARARGS),
@@ -6505,24 +6537,24 @@ manifest_object_sign(manifest_object *self, PyObject *args)
 }
 
 static struct PyMethodDef manifest_object_methods[] = {
-  Define_Method(getVersion,             manifest_object_get_version,		METH_NOARGS),
-  Define_Method(setVersion,             manifest_object_set_version,		METH_VARARGS),
-  Define_Method(getManifestNumber,	manifest_object_get_manifest_number,	METH_NOARGS),
-  Define_Method(setManifestNumber,	manifest_object_set_manifest_number,	METH_VARARGS),
-  Define_Method(getThisUpdate,          manifest_object_get_this_update,	METH_NOARGS),
-  Define_Method(setThisUpdate,          manifest_object_set_this_update,	METH_VARARGS),
-  Define_Method(getNextUpdate,          manifest_object_get_next_update,	METH_NOARGS),
+  Define_Method(getVersion,             manifest_object_get_version,            METH_NOARGS),
+  Define_Method(setVersion,             manifest_object_set_version,            METH_VARARGS),
+  Define_Method(getManifestNumber,      manifest_object_get_manifest_number,    METH_NOARGS),
+  Define_Method(setManifestNumber,      manifest_object_set_manifest_number,    METH_VARARGS),
+  Define_Method(getThisUpdate,          manifest_object_get_this_update,        METH_NOARGS),
+  Define_Method(setThisUpdate,          manifest_object_set_this_update,        METH_VARARGS),
+  Define_Method(getNextUpdate,          manifest_object_get_next_update,        METH_NOARGS),
   Define_Method(setNextUpdate,          manifest_object_set_next_update,        METH_VARARGS),
-  Define_Method(getAlgorithm,		manifest_object_get_algorithm,          METH_NOARGS),
-  Define_Method(setAlgorithm,		manifest_object_set_algorithm,          METH_VARARGS),
-  Define_Method(getFiles,		manifest_object_get_files,              METH_NOARGS),
-  Define_Method(addFiles,               manifest_object_add_files,		METH_VARARGS),
-  Define_Method(sign,                   manifest_object_sign,                	METH_VARARGS),
-  Define_Method(verify,                 manifest_object_verify,              	METH_KEYWORDS),
-  Define_Class_Method(pemRead,          manifest_object_pem_read,            	METH_VARARGS),
-  Define_Class_Method(pemReadFile,      manifest_object_pem_read_file,       	METH_VARARGS),
-  Define_Class_Method(derRead,          manifest_object_der_read,            	METH_VARARGS),
-  Define_Class_Method(derReadFile,      manifest_object_der_read_file,       	METH_VARARGS),
+  Define_Method(getAlgorithm,           manifest_object_get_algorithm,          METH_NOARGS),
+  Define_Method(setAlgorithm,           manifest_object_set_algorithm,          METH_VARARGS),
+  Define_Method(getFiles,               manifest_object_get_files,              METH_NOARGS),
+  Define_Method(addFiles,               manifest_object_add_files,              METH_VARARGS),
+  Define_Method(sign,                   manifest_object_sign,                   METH_VARARGS),
+  Define_Method(verify,                 manifest_object_verify,                 METH_KEYWORDS),
+  Define_Class_Method(pemRead,          manifest_object_pem_read,               METH_VARARGS),
+  Define_Class_Method(pemReadFile,      manifest_object_pem_read_file,          METH_VARARGS),
+  Define_Class_Method(derRead,          manifest_object_der_read,               METH_VARARGS),
+  Define_Class_Method(derReadFile,      manifest_object_der_read_file,          METH_VARARGS),
   {NULL}
 };
 
@@ -6556,8 +6588,8 @@ static PyTypeObject POW_Manifest_Type = {
   0,                                            /* tp_traverse */
   0,                                            /* tp_clear */
   0,                                            /* tp_richcompare */
-  0,                            		/* tp_weaklistoffset */
-  0,						/* tp_iter */
+  0,                                            /* tp_weaklistoffset */
+  0,                                            /* tp_iter */
   0,                                            /* tp_iternext */
   manifest_object_methods,                      /* tp_methods */
   0,                                            /* tp_members */
@@ -7119,12 +7151,12 @@ roa_object_sign(roa_object *self, PyObject *args)
 }
 
 static struct PyMethodDef roa_object_methods[] = {
-  Define_Method(getVersion,             roa_object_get_version,		METH_NOARGS),
-  Define_Method(setVersion,             roa_object_set_version,		METH_VARARGS),
-  Define_Method(getASID,           	roa_object_get_asid,            METH_NOARGS),
-  Define_Method(setASID,           	roa_object_set_asid,            METH_VARARGS),
-  Define_Method(getPrefixes,		roa_object_get_prefixes,	METH_NOARGS),
-  Define_Method(setPrefixes,		roa_object_set_prefixes,	METH_KEYWORDS),
+  Define_Method(getVersion,             roa_object_get_version,         METH_NOARGS),
+  Define_Method(setVersion,             roa_object_set_version,         METH_VARARGS),
+  Define_Method(getASID,                roa_object_get_asid,            METH_NOARGS),
+  Define_Method(setASID,                roa_object_set_asid,            METH_VARARGS),
+  Define_Method(getPrefixes,            roa_object_get_prefixes,        METH_NOARGS),
+  Define_Method(setPrefixes,            roa_object_set_prefixes,        METH_KEYWORDS),
   Define_Method(sign,                   roa_object_sign,                METH_VARARGS),
   Define_Method(verify,                 roa_object_verify,              METH_KEYWORDS),
   Define_Class_Method(pemRead,          roa_object_pem_read,            METH_VARARGS),
@@ -7164,8 +7196,8 @@ static PyTypeObject POW_ROA_Type = {
   0,                                            /* tp_traverse */
   0,                                            /* tp_clear */
   0,                                            /* tp_richcompare */
-  0,                            		/* tp_weaklistoffset */
-  0,						/* tp_iter */
+  0,                                            /* tp_weaklistoffset */
+  0,                                            /* tp_iter */
   0,                                            /* tp_iternext */
   roa_object_methods,                           /* tp_methods */
   0,                                            /* tp_members */
@@ -8066,8 +8098,8 @@ static struct PyMethodDef pkcs10_object_methods[] = {
   Define_Method(pemWrite,               pkcs10_object_pem_write,                METH_NOARGS),
   Define_Method(derWrite,               pkcs10_object_der_write,                METH_NOARGS),
   Define_Method(sign,                   pkcs10_object_sign,                     METH_VARARGS),
-  Define_Method(verify,			pkcs10_object_verify,			METH_NOARGS),
-  Define_Method(getPublicKey,		pkcs10_object_get_public_key,		METH_NOARGS),
+  Define_Method(verify,                 pkcs10_object_verify,                   METH_NOARGS),
+  Define_Method(getPublicKey,           pkcs10_object_get_public_key,           METH_NOARGS),
   Define_Method(setPublicKey,           pkcs10_object_set_public_key,           METH_VARARGS),
   Define_Method(getVersion,             pkcs10_object_get_version,              METH_NOARGS),
   Define_Method(setVersion,             pkcs10_object_set_version,              METH_VARARGS),
@@ -8080,8 +8112,8 @@ static struct PyMethodDef pkcs10_object_methods[] = {
   Define_Method(setBasicConstraints,    pkcs10_object_set_basic_constraints,    METH_VARARGS),
   Define_Method(getSIA,                 pkcs10_object_get_sia,                  METH_NOARGS),
   Define_Method(setSIA,                 pkcs10_object_set_sia,                  METH_VARARGS),
-  Define_Method(getSignatureAlgorithm,	pkcs10_object_get_signature_algorithm,	METH_NOARGS),
-  Define_Method(getExtensionOIDs,	pkcs10_object_get_extension_oids,	METH_NOARGS),
+  Define_Method(getSignatureAlgorithm,  pkcs10_object_get_signature_algorithm,  METH_NOARGS),
+  Define_Method(getExtensionOIDs,       pkcs10_object_get_extension_oids,       METH_NOARGS),
   Define_Class_Method(pemRead,          pkcs10_object_pem_read,                 METH_VARARGS),
   Define_Class_Method(pemReadFile,      pkcs10_object_pem_read_file,            METH_VARARGS),
   Define_Class_Method(derRead,          pkcs10_object_der_read,                 METH_VARARGS),
@@ -8099,9 +8131,9 @@ static PyTypeObject POW_PKCS10_Type = {
   PyObject_HEAD_INIT(0)
   0,                                        /* ob_size */
   "POW.PKCS10",                             /* tp_name */
-  sizeof(pkcs10_object),		    /* tp_basicsize */
+  sizeof(pkcs10_object),                    /* tp_basicsize */
   0,                                        /* tp_itemsize */
-  (destructor)pkcs10_object_dealloc,	    /* tp_dealloc */
+  (destructor)pkcs10_object_dealloc,        /* tp_dealloc */
   0,                                        /* tp_print */
   0,                                        /* tp_getattr */
   0,                                        /* tp_setattr */
@@ -8117,14 +8149,14 @@ static PyTypeObject POW_PKCS10_Type = {
   0,                                        /* tp_setattro */
   0,                                        /* tp_as_buffer */
   Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-  POW_PKCS10_Type__doc__,		    /* tp_doc */
+  POW_PKCS10_Type__doc__,                   /* tp_doc */
   0,                                        /* tp_traverse */
   0,                                        /* tp_clear */
   0,                                        /* tp_richcompare */
   0,                                        /* tp_weaklistoffset */
   0,                                        /* tp_iter */
   0,                                        /* tp_iternext */
-  pkcs10_object_methods,		    /* tp_methods */
+  pkcs10_object_methods,                    /* tp_methods */
   0,                                        /* tp_members */
   0,                                        /* tp_getset */
   0,                                        /* tp_base */
@@ -8134,7 +8166,7 @@ static PyTypeObject POW_PKCS10_Type = {
   0,                                        /* tp_dictoffset */
   0,                                        /* tp_init */
   0,                                        /* tp_alloc */
-  pkcs10_object_new,			    /* tp_new */
+  pkcs10_object_new,                        /* tp_new */
 };
 
 

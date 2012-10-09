@@ -395,19 +395,16 @@ class allocation(object):
         "# Automatically generated, do not edit",
         "port         = %d"           % self.rsync_port,
         "address      = %s"           % self.hostname,
-        "[rpki]",
         "log file     = rsyncd.log",
         "read only    = yes",
         "use chroot   = no",
+        "[rpki]",
         "path         = %s"           % self.publication_base_directory,
         "comment      = RPKI test"))
     if self.is_root:
       assert self.runs_pubd
       lines.extend((
         "[root]",
-        "log file     = rsyncd_root.log",
-        "read only    = yes",
-        "use chroot   = no",
         "path         = %s"           % self.publication_root_directory,
         "comment      = RPKI test root"))
     if lines:
@@ -460,8 +457,7 @@ class allocation(object):
 
     root_uri = "rsync://%s/rpki/" % self.rsync_server
 
-    root_sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", root_uri)),
-                (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", root_uri + "root.mft")))
+    root_sia = (root_uri, root_uri + "root.mft", None)
 
     root_cert = rpki.x509.X509.self_certify(
       keypair     = root_key,

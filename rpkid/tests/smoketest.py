@@ -409,7 +409,7 @@ class allocation_db(list):
       self.root.regen_margin = rpki.sundial.timedelta.parse(cfg.get("regen_margin", "1d")).convert_to_seconds()
     for a in self:
       if a.sia_base is None:
-        a.sia_base = (rootd_sia if a.is_root else a.parent.sia_base) + a.name + "/"
+        a.sia_base = (rootd_sia + "root/trunk/" if a.is_root else a.parent.sia_base) + a.name + "/"
       if a.base.valid_until is None:
         a.base.valid_until = a.parent.base.valid_until
       if a.crl_interval is None:
@@ -1140,7 +1140,7 @@ def setup_rootd(rpkid, rootd_yaml):
   f.close()
   s = "exec >/dev/null 2>&1\n"
   #s = "set -x\n"
-  if not os.path.exists(rootd_name + ".key"):
+  if not os.path.exists("root.key"):
     s += rootd_fmt_2 % d
   s += rootd_fmt_3 % d
   subprocess.check_call(s, shell = True)
@@ -1175,14 +1175,15 @@ def setup_publication(pubd_sql):
   Set up publication daemon.
   """
   rpki.log.info("Configure publication daemon")
-  pubd_dir = os.getcwd() + "/publication/"
+  publication_dir = os.getcwd() + "/publication/"
   assert rootd_sia.startswith("rsync://")
   i = 0
   for j in xrange(4):
     i = rootd_sia.index("/", i + 1)
   global rsyncd_dir
-  rsyncd_dir = pubd_dir.rstrip("/") + rootd_sia[i:]
-  os.makedirs(rsyncd_dir)
+  rsyncd_dir = publication_dir.rstrip("/") + rootd_sia[i:]
+  pubd_dir = rsyncd_dir
+  os.makedirs(pubd_dir + "root/trunk")
   db = MySQLdb.connect(db = pubd_db_name, user = pubd_db_user, passwd = pubd_db_pass)
   cur = db.cursor()
   db.autocommit(True)
@@ -1432,21 +1433,21 @@ child-bpki-cert         = %(rootd_name)s-TA-%(rpkid_name)s-SELF.cer
 
 server-port             = %(rootd_port)s
 
-rpki-root-dir           = %(rsyncd_dir)s
-rpki-base-uri           = %(rootd_sia)s
-rpki-root-cert-uri      = %(rootd_sia)s%(rootd_name)s.cer
+rpki-root-dir           = %(rsyncd_dir)sroot
+rpki-base-uri           = %(rootd_sia)sroot/
+rpki-root-cert-uri      = %(rootd_sia)sroot.cer
 
-rpki-root-key           = %(rootd_name)s.key
-rpki-root-cert          = %(rootd_name)s.cer
+rpki-root-key           = root.key
+rpki-root-cert          = root.cer
 
 rpki-subject-pkcs10     = %(rootd_name)s.subject.pkcs10
 rpki-subject-lifetime   = %(lifetime)s
 
-rpki-root-crl           = Bandicoot.crl
-rpki-root-manifest      = Bandicoot.mft
+rpki-root-crl           = root.crl
+rpki-root-manifest      = root.mft
 
-rpki-class-name         = Wombat
-rpki-subject-cert       = Wombat.cer
+rpki-class-name         = trunk
+rpki-subject-cert       = trunk.cer
 
 include-bpki-crl        = yes
 enable_tracebacks       = yes
@@ -1455,7 +1456,6 @@ enable_tracebacks       = yes
 default_bits            = 2048
 encrypt_key             = no
 distinguished_name      = req_dn
-#req_extensions          = req_x509_ext
 prompt                  = no
 default_md              = sha256
 default_days            = 60
@@ -1472,7 +1472,7 @@ authorityKeyIdentifier  = keyid:always
 basicConstraints        = critical,CA:true
 subjectKeyIdentifier    = hash
 keyUsage                = critical,keyCertSign,cRLSign
-subjectInfoAccess       = 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)s,1.3.6.1.5.5.7.48.10;URI:%(rootd_sia)sBandicoot.mft
+subjectInfoAccess       = 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)sroot/,1.3.6.1.5.5.7.48.10;URI:%(rootd_sia)sroot/root.mft
 sbgp-autonomousSysNum   = critical,AS:0-4294967295
 sbgp-ipAddrBlock        = critical,IPv4:0.0.0.0/0,IPv6:0::/0
 certificatePolicies     = critical, @rpki_certificate_policy
@@ -1483,17 +1483,17 @@ policyIdentifier = 1.3.6.1.5.5.7.14.2
 '''
 
 rootd_fmt_2 = '''\
-%(openssl)s genrsa -out %(rootd_name)s.key 2048 &&
+%(openssl)s genrsa -out root.key 2048 &&
 '''
 
 rootd_fmt_3 = '''\
-echo >%(rootd_name)s.tal %(rootd_sia)s%(rootd_name)s.cer &&
+echo >%(rootd_name)s.tal %(rootd_sia)sroot.cer &&
 echo >>%(rootd_name)s.tal &&
-%(openssl)s rsa -pubout -in %(rootd_name)s.key | awk '!/-----(BEGIN|END)/' >>%(rootd_name)s.tal &&
-%(openssl)s req -new -sha256 -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text -extensions req_x509_rpki_ext &&
-%(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_rpki_ext \
-                      -signkey %(rootd_name)s.key &&
-ln -f %(rootd_name)s.cer  %(rsyncd_dir)s
+%(openssl)s rsa -pubout -in root.key | awk '!/-----(BEGIN|END)/' >>%(rootd_name)s.tal &&
+%(openssl)s req -new -sha256 -key root.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text -extensions req_x509_rpki_ext &&
+%(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out root.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_rpki_ext \
+                      -signkey root.key &&
+ln -f root.cer %(rsyncd_dir)s
 '''
 
 rcynic_fmt_1 = '''\
@@ -1504,7 +1504,6 @@ use-links               = yes
 use-syslog              = no
 use-stderr              = yes
 log-level               = log_debug
-#trust-anchor            = %(rootd_name)s.cer
 trust-anchor-locator    = %(rootd_name)s.tal
 '''
 

@@ -633,8 +633,7 @@ try:
 
     root_uri = "rsync://localhost:%d/rpki/" % db.root.pubd.rsync_port
 
-    root_sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", root_uri)),
-                (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", root_uri + "root.mft")))
+    root_sia = (root_uri, root_uri + "root.mft", None)
 
     root_cert = rpki.x509.X509.self_certify(
       keypair     = root_key,

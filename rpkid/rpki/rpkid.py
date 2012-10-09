@@ -1039,7 +1039,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       ca          = self.ca,
       resources   = resources,
       subject_key = self.manifest_public_key,
-      sia         = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.manifest_uri)),))
+      sia         = (None, None, self.manifest_uri))
 
   def issue(self, ca, child, subject_key, sia, resources, publisher, child_cert = None):
     """
@@ -1639,7 +1639,7 @@ class roa_obj(rpki.sql.sql_persistent):
       ca          = ca,
       resources   = resources,
       subject_key = keypair.get_RSApublic(),
-      sia         = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.uri_from_key(keypair))),))
+      sia         = (None, None, self.uri_from_key(keypair)))
     self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
     self.published = rpki.sundial.now()
     self.sql_store()
@@ -1818,7 +1818,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
       ca          = ca,
       resources   = resources,
       subject_key = keypair.get_RSApublic(),
-      sia         = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.uri_from_key(keypair))),))
+      sia         = (None, None, self.uri_from_key(keypair)))
     self.ghostbuster = rpki.x509.Ghostbuster.build(self.vcard, keypair, (self.cert,))
     self.published = rpki.sundial.now()
     self.sql_store()

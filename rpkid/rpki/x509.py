@@ -96,6 +96,18 @@ class PEM_converter(object):
     """
     return self.b + base64_with_linebreaks(der) + self.e + "\n"
 
+def first_rsync_uri(xia):
+  """
+  Find first rsync URI in a sequence of AIA or SIA URIs.
+  Returns the URI if found, otherwise None.
+  """
+
+  if xia is not None:
+    for uri in xia:
+      if uri.startswith("rsync://"):
+        return uri
+  return None
+
 def _find_xia_uri(extension, name):
   """
   Find a rsync URI in an SIA or AIA extension.
@@ -394,37 +406,47 @@ class DER_object(object):
   def get_SIA(self):
     """
     Get the SIA extension from this object.  Only works for subclasses
-    that support getExtension().
+    that support getSIA().
     """
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
+    return self.get_POW().getSIA()
 
   def get_sia_directory_uri(self):
     """
     Get SIA directory (id-ad-caRepository) URI from this object.
-    Only works for subclasses that support getExtension().
+    Only works for subclasses that support getSIA().
     """
-    return _find_xia_uri(self.get_SIA(), "id-ad-caRepository")
+    sia = self.get_POW().getSIA()
+    return None if sia is None else first_rsync_uri(sia[0])
 
   def get_sia_manifest_uri(self):
     """
     Get SIA manifest (id-ad-rpkiManifest) URI from this object.
-    Only works for subclasses that support getExtension().
+    Only works for subclasses that support getSIA().
     """
-    return _find_xia_uri(self.get_SIA(), "id-ad-rpkiManifest")
+    sia = self.get_POW().getSIA()
+    return None if sia is None else first_rsync_uri(sia[1])
+
+  def get_sia_object_uri(self):
+    """
+    Get SIA object (id-ad-signedObject) URI from this object.
+    Only works for subclasses that support getSIA().
+    """
+    sia = self.get_POW().getSIA()
+    return None if sia is None else first_rsync_uri(sia[2])
 
   def get_AIA(self):
     """
     Get the SIA extension from this object.  Only works for subclasses
-    that support getExtension().
+    that support getAIA().
     """
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["authorityInfoAccess"]) or ((), 0, None))[2]
+    return self.get_POW().getAIA()
 
   def get_aia_uri(self):
     """
     Get AIA (id-ad-caIssuers) URI from this object.
-    Only works for subclasses that support getExtension().
+    Only works for subclasses that support getAIA().
     """
-    return _find_xia_uri(self.get_AIA(), "id-ad-caIssuers")
+    return first_rsync_uri(self.get_POW().getAIA())
 
   def get_basicConstraints(self):
     """
@@ -632,6 +654,7 @@ class X509(DER_object):
     """
 
     ski = subject_key.get_SKI()
+
     if cn is None:
       cn = "".join(("%02X" % ord(i) for i in ski))
 
@@ -663,8 +686,6 @@ class X509(DER_object):
     if cn is None:
       cn = "".join(("%02X" % ord(i) for i in ski))
 
-    # if notAfter is None: notAfter = now + rpki.sundial.timedelta(days = 30)
-
     cert = rpki.POW.pkix.Certificate()
     cert.setVersion(2)
     cert.setSerial(serial)
@@ -678,7 +699,6 @@ class X509(DER_object):
              ["authorityKeyIdentifier", False, (aki, (), None)],
              ["certificatePolicies",    True,  ((rpki.oids.name2oid["id-cp-ipAddr-asNumber"], ()),)] ]
 
-
     if crldp is not None:
       exts.append(["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)])
 
@@ -691,10 +711,22 @@ class X509(DER_object):
     else:
       exts.append(["keyUsage",          True,  (1,)])
 
+    assert sia is not None or not is_ca
+
+    # Nasty bit midway through conversion from POW.pkix to POW, just
+    # grit teeth for the moment.
+
     if sia is not None:
+      tagged_sia = zip(("id-ad-caRepository", "id-ad-rpkiManifest", "id-ad-signedObject"), sia)
+      sia = []
+      for tag, uris in tagged_sia:
+        if isinstance(uris, str):
+          uris = (uris,)
+        if uris:
+          oid = rpki.oids.name2oid[tag]
+          sia.extend((oid, ("uri", uri)) for uri in uris)
+      assert len(sia) > 0
       exts.append(["subjectInfoAccess", False, sia])
-    else:
-      assert not is_ca
 
     # This next bit suggests that perhaps .to_rfc3779_tuple() should
     # be raising an exception when there are no resources rather than

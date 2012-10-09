@@ -2088,7 +2088,8 @@ x509_object_set_aki(x509_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s#", &buf, &len))
     goto error;
 
-  if ((ext->keyid == NULL && (ext->keyid = ASN1_OCTET_STRING_new()) == NULL) ||
+  if ((ext = AUTHORITY_KEYID_new()) == NULL ||
+      (ext->keyid == NULL && (ext->keyid = ASN1_OCTET_STRING_new()) == NULL) ||
       !ASN1_OCTET_STRING_set(ext->keyid, buf, len))
     lose_no_memory();
 

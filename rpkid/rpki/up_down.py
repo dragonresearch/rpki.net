@@ -434,11 +434,13 @@ class issue_pdu(base_elt):
     Send an "issue" request to parent associated with ca.
     """
     assert ca_detail is not None and ca_detail.state in ("pending", "active")
-    sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
-           (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", ca_detail.manifest_uri)))
     self = cls()
     self.class_name = ca.parent_resource_class
-    self.pkcs10 = rpki.x509.PKCS10.create_ca(ca_detail.private_key_id, sia)
+    self.pkcs10 = rpki.x509.PKCS10.create(
+      keypair = ca_detail.private_key_id,
+      is_ca = True,
+      caRepository = ca.sia_uri,
+      rpkiManifest = ca_detail.manifest_uri)
     rpki.log.info('Sending "issue" request to parent %s' % parent.parent_handle)
     parent.query_up_down(self, callback, errback)
 

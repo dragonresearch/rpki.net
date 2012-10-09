@@ -785,27 +785,21 @@ class X509(DER_object):
     assert pathLenConstraint is None or (isinstance(pathLenConstraint, (int, long)) and
                                          pathLenConstraint >= 0)
 
-    extensions = [
-      (rpki.oids.name2oid["subjectKeyIdentifier"    ], False, subject_key.get_SKI())]
-    if issuer_key != subject_key:
-      extensions.append(
-        (rpki.oids.name2oid["authorityKeyIdentifier"], False, (issuer_key.get_SKI(), (), None)))
-    if is_ca:
-      extensions.append(
-        (rpki.oids.name2oid["basicConstraints"      ], True,  (1, pathLenConstraint)))
-
-    cert = rpki.POW.pkix.Certificate()
+    cert = rpki.POW.X509()
     cert.setVersion(2)
     cert.setSerial(serial)
-    cert.setIssuer(issuer_name.get_POWpkix())
-    cert.setSubject(subject_name.get_POWpkix())
-    cert.setNotBefore(now.toASN1tuple())
-    cert.setNotAfter(notAfter.toASN1tuple())
-    cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
-    cert.setExtensions(extensions)
+    cert.setIssuer(issuer_name.get_POW())
+    cert.setSubject(subject_name.get_POW())
+    cert.setNotBefore(now.toGeneralizedTime())
+    cert.setNotAfter(notAfter.toGeneralizedTime())
+    cert.setPublicKey(subject_key.get_POW())
+    cert.setSKI(subject_key.get_POW().calculateSKI())
+    if issuer_key != subject_key:
+      cert.setAKI(issuer_key.get_POW().calculateSKI())
+    if is_ca:
+      cert.setBasicConstraints(is_ca, pathLenConstraint)
     cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
-
-    return cls(POWpkix = cert)
+    return cls(POW = cert)
 
   @classmethod
   def normalize_chain(cls, chain):
@@ -858,6 +852,7 @@ class PKCS10(DER_object):
       return self.DER
     if self.POW:
       self.DER = self.POW.derWrite()
+      return self.get_DER()
     if self.POWpkix:
       self.DER = self.POWpkix.toString()
       return self.get_DER()
@@ -969,32 +964,39 @@ class PKCS10(DER_object):
       raise rpki.exceptions.BadPKCS10, "Certificate request SIA id-ad-rpkiManifest ends with slash"
 
   @classmethod
-  def create_ca(cls, keypair, sia = None):
+  def create(cls, keypair, exts = None, is_ca = False,
+             caRepository = None, rpkiManifest = None, signedObject = None):
     """
-    Create a new request for a given keypair, including given SIA value.
+    Create a new request for a given keypair.
     """
-    exts = [["basicConstraints", True, (1, None)],
-            ["keyUsage",         True, (0, 0, 0, 0, 0, 1, 1)]]
-    if sia is not None:
-      exts.append(["subjectInfoAccess", False, sia])
-    for x in exts:
-      x[0] = rpki.oids.name2oid[x[0]]
-    return cls.create(keypair, exts)
 
-  @classmethod
-  def create(cls, keypair, exts = None):
-    """
-    Create a new request for a given keypair, including given extensions.
-    """
+    assert exts is None, "Old calling sequence to rpki.x509.PKCS10.create()"
+
     cn = "".join(("%02X" % ord(i) for i in keypair.get_SKI()))
-    req = rpki.POW.pkix.CertificationRequest()
-    req.certificationRequestInfo.version.set(0)
-    req.certificationRequestInfo.subject.set((((rpki.oids.name2oid["commonName"],
-                                                ("printableString", cn)),),))
-    if exts is not None:
-      req.setExtensions(exts)
+
+    if isinstance(caRepository, str):
+      caRepository = (caRepository,)
+
+    if isinstance(rpkiManifest, str):
+      rpkiManifest = (rpkiManifest,)
+
+    if isinstance(signedObject, str):
+      signedObject = (signedObject,)
+
+    req = rpki.POW.PKCS10()
+    req.setVersion(0)
+    req.setSubject(X501DN.from_cn(cn).get_POW())
+    req.setPublicKey(keypair.get_POW())
+
+    if is_ca:
+      req.setBasicConstraints(True, None)
+      req.setKeyUsage(cls.expected_ca_keyUsage)
+
+    if caRepository or rpkiManifest or signedObject:
+      req.setSIA(caRepository, rpkiManifest, signedObject)
+
     req.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
-    return cls(POWpkix = req)
+    return cls(POW = req)
 
 ## @var generate_insecure_debug_only_rsa_key
 # Debugging hack to let us save throwaway RSA keys from one debug

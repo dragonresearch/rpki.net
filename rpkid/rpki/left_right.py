@@ -446,7 +446,7 @@ class bsc_elt(data_elt):
     if q_pdu.generate_keypair:
       assert q_pdu.key_type in (None, "rsa") and q_pdu.hash_alg in (None, "sha256")
       self.private_key_id = rpki.x509.RSA.generate(keylength = q_pdu.key_length or 2048)
-      self.pkcs10_request = rpki.x509.PKCS10.create(self.private_key_id)
+      self.pkcs10_request = rpki.x509.PKCS10.create(keypair = self.private_key_id)
       r_pdu.pkcs10_request = self.pkcs10_request
     data_elt.serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb)
 

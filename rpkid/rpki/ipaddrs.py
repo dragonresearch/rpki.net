@@ -52,6 +52,7 @@ class v4addr(long):
   """
 
   bits = 32
+  ipversion = 4
   
   def __new__(cls, x):
     """
@@ -91,6 +92,7 @@ class v6addr(long):
   """
 
   bits = 128
+  ipversion = 6
 
   def __new__(cls, x):
     """

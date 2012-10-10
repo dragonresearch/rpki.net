@@ -7114,7 +7114,7 @@ roa_object_sign(roa_object *self, PyObject *args)
 
   ENTERING(roa_object_sign);
 
-  if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
+  if (!PyArg_ParseTuple(args, "O!O!|OOsI",
                         &POW_X509_Type, &signcert,
                         &POW_Asymmetric_Type, &signkey,
                         &x509_sequence,

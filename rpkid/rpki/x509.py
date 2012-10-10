@@ -1183,21 +1183,13 @@ def POWify_OID(oid):
 
 class CMS_object(DER_object):
   """
-  Class to hold a CMS-wrapped object.
-
-  CMS-wrapped objects are a little different from the other DER_object
-  types because the signed object is CMS wrapping inner content that's
-  also ASN.1, and due to our current minimal support for CMS we can't
-  just handle this as a pretty composite object.  So, for now anyway,
-  a CMS_object is the outer CMS wrapped object so that the usual DER
-  and PEM operations do the obvious things, and the inner content is
-  handle via separate methods.
+  Abstract class to hold a CMS object.
   """
 
   formats = ("DER", "POW")
-  other_clear = ("content",)
   econtent_oid = POWify_OID("id-data")
   pem_converter = PEM_converter("CMS")
+  POW_class = rpki.POW.CMS
 
   ## @var dump_on_verify_failure
   # Set this to True to get dumpasn1 dumps of ASN.1 on CMS verify failures.
@@ -1257,23 +1249,8 @@ class CMS_object(DER_object):
     """
     self.check()
     if not self.POW:
-      self.POW = rpki.POW.CMS.derRead(self.get_DER())
+      self.POW = self.POW_class.derRead(self.get_DER())
     return self.POW
-
-  def get_content(self):
-    """
-    Get the inner content of this CMS_object.
-    """
-    if self.content is None:
-      raise rpki.exceptions.CMSContentNotSet, "Inner content of CMS object %r is not set" % self
-    return self.content
-
-  def set_content(self, content):
-    """
-    Set the (inner) content of this CMS_object, clearing the wrapper.
-    """
-    self.clear()
-    self.content = content
 
   def get_signingTime(self):
     """
@@ -1292,18 +1269,21 @@ class CMS_object(DER_object):
       raise
     except Exception:
       if self.print_on_der_error:
-        rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %r" % self.get_DER())
+        rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %r" %
+                       self.get_DER())
       raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:
-      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
+      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (
+        cms.eContentType(), self.econtent_oid)
 
     certs = [X509(POW = x) for x in cms.certs()]
     crls  = [CRL(POW = c) for c in cms.crls()]
 
     if self.debug_cms_certs:
       for x in certs:
-        rpki.log.debug("Received CMS cert issuer %s subject %s SKI %s" % (x.getIssuer(), x.getSubject(), x.hSKI()))
+        rpki.log.debug("Received CMS cert issuer %s subject %s SKI %s" % (
+          x.getIssuer(), x.getSubject(), x.hSKI()))
       for c in crls:
         rpki.log.debug("Received CMS CRL issuer %r" % (c.getIssuer(),))
 
@@ -1315,43 +1295,52 @@ class CMS_object(DER_object):
 
     for x in X509.normalize_chain(ta):
       if self.debug_cms_certs:
-        rpki.log.debug("CMS trusted cert issuer %s subject %s SKI %s" % (x.getIssuer(), x.getSubject(), x.hSKI()))
+        rpki.log.debug("CMS trusted cert issuer %s subject %s SKI %s" % (
+          x.getIssuer(), x.getSubject(), x.hSKI()))
       if x.getNotAfter() < now:
-        raise rpki.exceptions.TrustedCMSCertHasExpired("Trusted CMS certificate has expired", "%s (%s)" % (x.getSubject(), x.hSKI()))
+        raise rpki.exceptions.TrustedCMSCertHasExpired("Trusted CMS certificate has expired",
+                                                       "%s (%s)" % (x.getSubject(), x.hSKI()))
       if not x.is_CA():
         if trusted_ee is None:
           trusted_ee = x
         else:
-          raise rpki.exceptions.MultipleCMSEECert("Multiple CMS EE certificates", *("%s (%s)" % (x.getSubject(), x.hSKI()) for x in ta if not x.is_CA()))
+          raise rpki.exceptions.MultipleCMSEECert("Multiple CMS EE certificates", *("%s (%s)" % (
+            x.getSubject(), x.hSKI()) for x in ta if not x.is_CA()))
       store.addTrust(x.get_POW())
 
     if trusted_ee:
       if self.debug_cms_certs:
-        rpki.log.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI()))
+        rpki.log.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (
+          trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI()))
       if len(certs) > 1 or (len(certs) == 1 and
                             (certs[0].getSubject() != trusted_ee.getSubject() or
                              certs[0].getPublicKey() != trusted_ee.getPublicKey())):
-        raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (x.getSubject(), x.hSKI()) for x in certs))
+        raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (
+          x.getSubject(), x.hSKI()) for x in certs))
       if crls:
-        raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (c.getIssuer(), c.hAKI()) for c in crls))
+        raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (
+          c.getIssuer(), c.hAKI()) for c in crls))
 
     else:
       untrusted_ee = [x for x in certs if not x.is_CA()]
       if len(untrusted_ee) < 1:
         raise rpki.exceptions.MissingCMSEEcert
       if len(untrusted_ee) > 1 or (not self.allow_extra_certs and len(certs) > len(untrusted_ee)):
-        raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (x.getSubject(), x.hSKI()) for x in certs))
+        raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (
+          x.getSubject(), x.hSKI()) for x in certs))
       if len(crls) < 1:
         if self.require_crls:
           raise rpki.exceptions.MissingCMSCRL
         else:
           rpki.log.warn("MISSING CMS CRL!  Ignoring per self.require_crls setting")
       if len(crls) > 1 and not self.allow_extra_crls:
-        raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (c.getIssuer(), c.hAKI()) for c in crls))
+        raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (
+          c.getIssuer(), c.hAKI()) for c in crls))
 
     for x in certs:
       if x.getNotAfter() < now:
-        raise rpki.exceptions.CMSCertHasExpired("CMS certificate has expired", "%s (%s)" % (x.getSubject(), x.hSKI()))
+        raise rpki.exceptions.CMSCertHasExpired("CMS certificate has expired", "%s (%s)" % (
+          x.getSubject(), x.hSKI()))
 
     try:
       content = cms.verify(store)
@@ -1368,8 +1357,7 @@ class CMS_object(DER_object):
           rpki.log.warn(line)
       raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
-    self.decode(content)
-    return self.get_content()
+    return content
 
   def extract(self):
     """
@@ -1392,12 +1380,13 @@ class CMS_object(DER_object):
       raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:
-      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
+      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (
+        cms.eContentType(), self.econtent_oid)
 
-    content = cms.verify(rpki.POW.X509Store(), None, rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY | rpki.POW.CMS_NO_ATTR_VERIFY | rpki.POW.CMS_NO_CONTENT_VERIFY)
+    return cms.verify(rpki.POW.X509Store(), None,
+                      (rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY |
+                       rpki.POW.CMS_NO_ATTR_VERIFY | rpki.POW.CMS_NO_CONTENT_VERIFY))
 
-    self.decode(content)
-    return self.get_content()
 
   def sign(self, keypair, certs, crls = None, no_certs = False):
     """
@@ -1419,21 +1408,17 @@ class CMS_object(DER_object):
       crls = (crls,)
 
     if self.debug_cms_certs:
-      rpki.log.debug("Signing with cert issuer %s subject %s SKI %s" % (cert.getIssuer(), cert.getSubject(), cert.hSKI()))
+      rpki.log.debug("Signing with cert issuer %s subject %s SKI %s" % (
+        cert.getIssuer(), cert.getSubject(), cert.hSKI()))
       for i, c in enumerate(certs):
-        rpki.log.debug("Additional cert %d issuer %s subject %s SKI %s" % (i, c.getIssuer(), c.getSubject(), c.hSKI()))
+        rpki.log.debug("Additional cert %d issuer %s subject %s SKI %s" % (
+          i, c.getIssuer(), c.getSubject(), c.hSKI()))
 
-    cms = rpki.POW.CMS()
-
-    cms.sign(cert.get_POW(),
-             keypair.get_POW(),
-             self.encode(),
-             [x.get_POW() for x in certs],
-             [c.get_POW() for c in crls],
-             self.econtent_oid,
-             rpki.POW.CMS_NOCERTS if no_certs else 0)
-
-    self.POW = cms
+    self._sign(cert.get_POW(),
+               keypair.get_POW(),
+               [x.get_POW() for x in certs],
+               [c.get_POW() for c in crls],
+               rpki.POW.CMS_NOCERTS if no_certs else 0)
 
   @property
   def creation_timestamp(self):
@@ -1443,24 +1428,98 @@ class CMS_object(DER_object):
     return self.get_signingTime()
 
 
+class Wrapped_CMS_object(CMS_object):
+  """
+  Abstract class to hold CMS objects wrapping non-DER content (eg, XML
+  or VCard).
+
+  CMS-wrapped objects are a little different from the other DER_object
+  types because the signed object is CMS wrapping some other kind of
+  inner content.  A Wrapped_CMS_object is the outer CMS wrapped object
+  so that the usual DER and PEM operations do the obvious things, and
+  the inner content is handle via separate methods.
+  """
+
+  other_clear = ("content",)
+
+  def get_content(self):
+    """
+    Get the inner content of this Wrapped_CMS_object.
+    """
+    if self.content is None:
+      raise rpki.exceptions.CMSContentNotSet, "Inner content of CMS object %r is not set" % self
+    return self.content
+
+  def set_content(self, content):
+    """
+    Set the (inner) content of this Wrapped_CMS_object, clearing the wrapper.
+    """
+    self.clear()
+    self.content = content
+
+  def verify(self, ta):
+    """
+    Verify CMS wrapper and store inner content.
+    """
+
+    self.decode(CMS_object.verify(self, ta))
+    return self.get_content()
+
+  def extract(self):
+    """
+    Extract and store inner content from CMS wrapper without verifying
+    the CMS.
+
+    DANGER WILL ROBINSON!!!
+
+    Do not use this method on unvalidated data.  Use the verify()
+    method instead.
+
+    If you don't understand this warning, don't use this method.
+    """
+
+    self.decode(CMS_object.extract(self))
+    return self.get_content()
+
+  def _sign(self, cert, keypair, certs, crls, flags):
+    """
+    Internal method to call POW to do CMS signature.  This is split
+    out from the .sign() API method to handle differences in how
+    different CMS-based POW classes handle the inner content.
+    """
+
+    cms = self.POW_class()
+    cms.sign(cert, keypair, self.encode(), certs, crls, self.econtent_oid, flags)
+    self.POW = cms
+  
+
 class DER_CMS_object(CMS_object):
   """
   Class to hold CMS objects with DER-based content.
   """
 
-  def encode(self):
+  def _sign(self, cert, keypair, certs, crls, flags):
     """
-    Encode inner content for signing.
+    Internal method to call POW to do CMS signature.  This is split
+    out from the .sign() API method to handle differences in how
+    different CMS-based POW classes handle the inner content.
     """
-    return self.get_content().toString()
 
-  def decode(self, der):
-    """
-    Decode DER and set inner content.
-    """
-    obj = self.content_class()
-    obj.fromString(der)
-    self.content = obj
+    rpki.log.debug("DER_CMS_object._sign()")
+    rpki.log.debug("self: %r" % self)
+    rpki.log.debug("self.POW: %r" % self.get_POW())
+    rpki.log.debug("cert: %r" % cert)
+    rpki.log.debug("keypair: %r" % keypair)
+    rpki.log.debug("certs, crls: %r, %r" % (certs, crls))
+    rpki.log.debug("OID: %r" % (self.econtent_oid,))
+    rpki.log.debug("flags: %r" % flags)
+
+    try:
+      self.get_POW().sign(cert, keypair, certs, crls, self.econtent_oid, flags)
+    except Exception, e:
+      rpki.log.debug("%r.sign() threw exception %s (%r)" % (self.get_POW(), e, e))
+      raise
+
 
 class SignedManifest(DER_CMS_object):
   """
@@ -1470,39 +1529,42 @@ class SignedManifest(DER_CMS_object):
   pem_converter = PEM_converter("RPKI MANIFEST")
   content_class = rpki.manifest.Manifest
   econtent_oid = POWify_OID("id-ct-rpkiManifest")
+  POW_class = rpki.POW.Manifest
   
   def getThisUpdate(self):
     """
     Get thisUpdate value from this manifest.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_content().thisUpdate.get())
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getThisUpdate())
 
   def getNextUpdate(self):
     """
     Get nextUpdate value from this manifest.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_content().nextUpdate.get())
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getNextUpdate())
 
   @classmethod
   def build(cls, serial, thisUpdate, nextUpdate, names_and_objs, keypair, certs, version = 0):
     """
     Build a signed manifest.
     """
-    self = cls()
+
     filelist = []
     for name, obj in names_and_objs:
       d = rpki.POW.Digest(rpki.POW.SHA256_DIGEST)
       d.update(obj.get_DER())
       filelist.append((name.rpartition("/")[2], d.digest()))
     filelist.sort(key = lambda x: x[0])
-    m = rpki.manifest.Manifest()
-    m.version.set(version)
-    m.manifestNumber.set(serial)
-    m.thisUpdate.set(thisUpdate.toGeneralizedTime())
-    m.nextUpdate.set(nextUpdate.toGeneralizedTime())
-    m.fileHashAlg.set(rpki.oids.name2oid["id-sha256"])
-    m.fileList.set(filelist)
-    self.set_content(m)
+
+    pow = cls.POW_class()
+    pow.setVersion(version)
+    pow.setManifestNumber(serial)
+    pow.setThisUpdate(thisUpdate.toGeneralizedTime())
+    pow.setNextUpdate(nextUpdate.toGeneralizedTime())
+    pow.setAlgorithm(POWify_OID(rpki.oids.name2oid["id-sha256"]))
+    pow.addFiles(filelist)
+
+    self = cls(POW = pow)
     self.sign(keypair, certs)
     return self
 
@@ -1514,29 +1576,22 @@ class ROA(DER_CMS_object):
   pem_converter = PEM_converter("ROUTE ORIGIN ATTESTATION")
   content_class = rpki.roa.RouteOriginAttestation
   econtent_oid = POWify_OID("id-ct-routeOriginAttestation")
+  POW_class = rpki.POW.ROA
 
   @classmethod
   def build(cls, asn, ipv4, ipv6, keypair, certs, version = 0):
     """
     Build a ROA.
     """
-    try:
-      self = cls()
-      r = rpki.roa.RouteOriginAttestation()
-      r.version.set(version)
-      r.asID.set(asn)
-      r.ipAddrBlocks.set((a.to_roa_tuple() for a in (ipv4, ipv6) if a))
-      self.set_content(r)
-      self.sign(keypair, certs)
-      return self
-    except rpki.POW.pkix.DerError, e:
-      rpki.log.debug("Encoding error while generating ROA %r: %s" % (self, e))
-      rpki.log.debug("ROA inner content: %r" % (r.get(),))
-      raise
-
-  _afi_map = dict((cls.resource_set_type.afi, cls)
-                  for cls in (rpki.resource_set.roa_prefix_set_ipv4,
-                              rpki.resource_set.roa_prefix_set_ipv6))
+    ipv4 = ipv4.to_POW_roa_tuple() if ipv4 else None
+    ipv6 = ipv6.to_POW_roa_tuple() if ipv6 else None
+    pow = cls.POW_class()
+    pow.setVersion(version)
+    pow.setASID(asn)
+    pow.setPrefixes(ipv4 = ipv4, ipv6 = ipv6)
+    self = cls(POW = pow)
+    self.sign(keypair, certs)
+    return self
 
   def tracking_data(self, uri):
     """
@@ -1545,23 +1600,21 @@ class ROA(DER_CMS_object):
     """
     msg = DER_CMS_object.tracking_data(self, uri)
     try:
-      if self.content is None:
+      try:
+        self.get_POW().getVersion()
+      except rpki.POW.NotVerifiedError:
         self.extract()
-      roa = self.get_content()
-      asn = roa.asID.get()
-      prefix_sets = {}
-      for fam in roa.ipAddrBlocks:
-        afi = fam.addressFamily.get()
-        prefix_sets[afi] = prefix_set = self._afi_map[afi]()
-        addr_type = prefix_set.resource_set_type.range_type.datum_type
-        for addr in fam.addresses:
-          prefix = addr.address.get()
-          prefixlen = len(prefix)
-          prefix = addr_type(rpki.resource_set._bs2long(prefix, addr_type.bits, 0))
-          maxprefixlen = addr.maxLength.get()
-          prefix_set.append(prefix_set.prefix_type(prefix, prefixlen, maxprefixlen))
-      msg = "%s %s %s" % (msg, asn,
-                          ",".join(str(prefix_sets[i]) for i in sorted(prefix_sets)))
+      asn = self.get_POW().getASID()
+      text = []
+      for prefixes in self.get_POW().getPrefixes():
+        if prefixes is not None:
+          for prefix, prefixlen, maxprefixlen in prefixes:
+            if maxprefixlen is None or prefixlen == maxprefixlen:
+              text.append("%s/%s" % (prefix, prefixlen))
+            else:
+              text.append("%s/%s-%s" % (prefix, prefixlen, maxprefixlen))
+      text.sort()
+      msg = "%s %s %s" % (msg, asn, ",".join(text))
     except:
       pass
     return msg
@@ -1597,7 +1650,7 @@ class DeadDrop(object):
         rpki.log.warn("Could not write to mailbox %s: %e" % (self.name, e))
         self.warned = True
 
-class XML_CMS_object(CMS_object):
+class XML_CMS_object(Wrapped_CMS_object):
   """
   Class to hold CMS-wrapped XML protocol data.
   """
@@ -1727,7 +1780,7 @@ class SignedReferral(XML_CMS_object):
   schema = rpki.relaxng.myrpki
   saxify = None
 
-class Ghostbuster(CMS_object):
+class Ghostbuster(Wrapped_CMS_object):
   """
   Class to hold Ghostbusters record (CMS-wrapped VCard).  This is
   quite minimal because we treat the VCard as an opaque byte string

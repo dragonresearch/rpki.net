@@ -10,7 +10,7 @@ We also provide some basic set operations (union, intersection, etc).
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -39,8 +39,11 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import re, math
-import rpki.ipaddrs, rpki.oids, rpki.exceptions
+import re
+import math
+import rpki.ipaddrs
+import rpki.oids
+import rpki.exceptions
 
 ## @var inherit_token
 # Token used to indicate inheritance in read and print syntax.
@@ -967,6 +970,14 @@ class roa_prefix(object):
     return (_long2bs(self.prefix, self.range_type.datum_type.bits, prefixlen = self.prefixlen),
             None if self.prefixlen == self.max_prefixlen else self.max_prefixlen)
 
+  def to_POW_roa_tuple(self):
+    """
+    Convert a resource_range_ip to rpki.POW.ROA.setPrefixes() format.
+    """
+    return (rpki.POW.IPAddress(self.prefix, self.range_type.datum_type.ipversion),
+            self.prefixlen,
+            None if self.prefixlen == self.max_prefixlen else self.max_prefixlen)
+
   @classmethod
   def parse_str(cls, x):
     """
@@ -1095,6 +1106,16 @@ class roa_prefix_set(list):
       return (self.resource_set_type.afi, tuple(a.to_roa_tuple() for a in self))
     else:
       return None
+
+  def to_POW_roa_tuple(self):
+    """
+    Convert ROA prefix set to form used by rpki.POW.ROA.setPrefixes().
+    """
+    if self:
+      return tuple(a.to_POW_roa_tuple() for a in self)
+    else:
+      return None
+
 
 class roa_prefix_set_ipv4(roa_prefix_set):
   """

@@ -227,7 +227,7 @@ class main(object):
       keypair     = self.rpki_root_key,
       subject_key = manifest_keypair.get_RSApublic(),
       serial      = self.serial_number,
-      sia         = (None, None, self.rpki_root_manifest),
+      sia         = (None, None, self.rpki_base_uri + self.rpki_root_manifest),
       aia         = self.rpki_root_cert_uri,
       crldp       = self.rpki_base_uri + self.rpki_root_crl,
       resources   = manifest_resources,

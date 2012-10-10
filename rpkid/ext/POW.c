@@ -6420,6 +6420,9 @@ manifest_object_add_files(manifest_object *self, PyObject *args)
         !sk_FileAndHash_push(self->manifest->fileList, fah))
       lose_no_memory();
 
+    fah->hash->flags &= ~7;
+    fah->hash->flags |= ASN1_STRING_FLAG_BITS_LEFT;
+
     fah = NULL;
     Py_XDECREF(item);
     item = NULL;
@@ -6492,18 +6495,16 @@ manifest_object_sign(manifest_object *self, PyObject *args)
   x509_object *signcert = NULL;
   PyObject *x509_sequence = Py_None;
   PyObject *crl_sequence = Py_None;
-  char *buf = NULL, *oid = NULL;
-  int len;
+  char *oid = NULL;
   unsigned flags = 0;
   BIO *bio = NULL;
   int ok = 0;
 
   ENTERING(manifest_object_sign);
 
-  if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
+  if (!PyArg_ParseTuple(args, "O!O!|OOsI",
                         &POW_X509_Type, &signcert,
                         &POW_Asymmetric_Type, &signkey,
-                        &buf, &len,
                         &x509_sequence,
                         &crl_sequence,
                         &oid,
@@ -7106,8 +7107,7 @@ roa_object_sign(roa_object *self, PyObject *args)
   x509_object *signcert = NULL;
   PyObject *x509_sequence = Py_None;
   PyObject *crl_sequence = Py_None;
-  char *buf = NULL, *oid = NULL;
-  int len;
+  char *oid = NULL;
   unsigned flags = 0;
   BIO *bio = NULL;
   int ok = 0;
@@ -7117,7 +7117,6 @@ roa_object_sign(roa_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
                         &POW_X509_Type, &signcert,
                         &POW_Asymmetric_Type, &signkey,
-                        &buf, &len,
                         &x509_sequence,
                         &crl_sequence,
                         &oid,

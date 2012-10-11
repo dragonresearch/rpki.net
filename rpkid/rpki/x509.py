@@ -1495,30 +1495,12 @@ class Wrapped_CMS_object(CMS_object):
 
 class DER_CMS_object(CMS_object):
   """
-  Class to hold CMS objects with DER-based content.
+  Abstract class for CMS-based objects with DER-encoded content
+  handled by C-level subclasses of rpki.POW.CMS.
   """
 
   def _sign(self, cert, keypair, certs, crls, flags):
-    """
-    Internal method to call POW to do CMS signature.  This is split
-    out from the .sign() API method to handle differences in how
-    different CMS-based POW classes handle the inner content.
-    """
-
-    rpki.log.debug("DER_CMS_object._sign()")
-    rpki.log.debug("self: %r" % self)
-    rpki.log.debug("self.POW: %r" % self.get_POW())
-    rpki.log.debug("cert: %r" % cert)
-    rpki.log.debug("keypair: %r" % keypair)
-    rpki.log.debug("certs, crls: %r, %r" % (certs, crls))
-    rpki.log.debug("OID: %r" % (self.econtent_oid,))
-    rpki.log.debug("flags: %r" % flags)
-
-    try:
-      self.get_POW().sign(cert, keypair, certs, crls, self.econtent_oid, flags)
-    except Exception, e:
-      rpki.log.debug("%r.sign() threw exception %s (%r)" % (self.get_POW(), e, e))
-      raise
+    self.get_POW().sign(cert, keypair, certs, crls, self.econtent_oid, flags)
 
 
 class SignedManifest(DER_CMS_object):

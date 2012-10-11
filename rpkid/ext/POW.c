@@ -8392,6 +8392,24 @@ init_POW(void)
   PyObject *m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
   int OpenSSL_ok = 1;
 
+  /*
+   * Python encourages us to use these functions instead of the ones
+   * in libc, and OpenSSL allows us to do this.  The result seems to
+   * work, and, in theory, gives Python's memory allocator a better
+   * idea of how much memory we're really using.  Not sure why it
+   * cares, but let's try to be nice about it.
+   *
+   * Note that this must be done BEFORE anything in OpenSSL uses
+   * dynamic memory, and that this will probably fail in horrible ways
+   * without the build-time code (-Bsymbolic, etc) which isolates our
+   * copy of the OpenSSL code from any system shared libraries.
+   * Enough other things already fail in horrible ways without that
+   * isolation that adding one more doesn't make much difference, but
+   * if you tinker with the build script and start seeing nasty
+   * memory-related issues, this might be the cause.
+   */
+  CRYPTO_set_mem_functions(PyMem_Malloc, PyMem_Realloc, PyMem_Free);
+
 #define Define_Class(__type__)                                          \
   do {                                                                  \
     char *__name__ = strchr(__type__.tp_name, '.');                     \

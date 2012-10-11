@@ -201,7 +201,7 @@ static const struct {
 #endif
 
 #ifndef NID_signedObject
-  {&NID_signedObject, "1.3.6.1.5.5.7.48.9", "id-ad-signedObjectRepository", "Signed Object"}
+  {&NID_signedObject, "1.3.6.1.5.5.7.48.11", "id-ad-signedObject", "Signed Object"}
 #endif
 
 };
@@ -1615,6 +1615,7 @@ x509_object_set_serial(x509_object *self, PyObject *args)
 {
   ASN1_INTEGER *a_serial = NULL;
   PyObject *p_serial = NULL;
+  int ok = 0;
 
   ENTERING(x509_object_set_serial);
 
@@ -1622,12 +1623,18 @@ x509_object_set_serial(x509_object *self, PyObject *args)
       (a_serial = PyLong_to_ASN1_INTEGER(p_serial)) == NULL)
     goto error;
 
-  ASN1_INTEGER_free(a_serial);
-  Py_RETURN_NONE;
+  if (!X509_set_serialNumber(self->x509, a_serial))
+    lose_no_memory();
+
+  ok = 1;
 
  error:
   ASN1_INTEGER_free(a_serial);
-  return NULL;
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
 }
 
 static char x509_object_get_issuer__doc__[] =
@@ -2248,7 +2255,8 @@ x509_object_get_rfc3779(x509_object *self)
 
   ENTERING(x509_object_get_rfc3779);
 
-  if ((asid = X509_get_ext_d2i(self->x509, NID_sbgp_autonomousSysNum, NULL, NULL)) != NULL) {
+  if ((asid = X509_get_ext_d2i(self->x509, NID_sbgp_autonomousSysNum, NULL, NULL)) != NULL &&
+      asid->asnum != NULL) {
     switch (asid->asnum->type) {
 
     case ASIdentifierChoice_inherit:
@@ -2416,6 +2424,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
   ASN1_INTEGER *asid_e = NULL;
   ipaddress_object *addr_b = NULL;
   ipaddress_object *addr_e = NULL;
+  int empty = 0;
 
   ENTERING(x509_object_set_rfc3779);
 
@@ -2423,6 +2432,8 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
     goto error;
 
   if (asn_arg != Py_None) {
+
+    empty = 1;
 
     if ((asid = ASIdentifiers_new()) == NULL)
       lose_no_memory();
@@ -2434,6 +2445,8 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
       if (!v3_asid_add_inherit(asid, V3_ASID_ASNUM))
         lose_no_memory();
+
+      empty = 0;
 
     } else {
 
@@ -2463,11 +2476,12 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
         asid_b = asid_e = NULL;
         Py_XDECREF(item);
         item = range_b = range_e = NULL;
+        empty = 0;
       }
 
-      if (!v3_asid_canonize(asid) ||
-          !X509_add1_ext_i2d(self->x509, NID_sbgp_autonomousSysNum,
-                             asid, 1, X509V3_ADD_REPLACE))
+      if (!empty && (!v3_asid_canonize(asid) ||
+                     !X509_add1_ext_i2d(self->x509, NID_sbgp_autonomousSysNum,
+                                        asid, 1, X509V3_ADD_REPLACE)))
         lose_openssl_error("Couldn't add ASID extension to certificate");
 
       Py_XDECREF(iterator);
@@ -2477,6 +2491,8 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
   if (ipv4_arg != Py_None || ipv6_arg != Py_None) {
     int afi;
+
+    empty = 1;
 
     if ((addr = sk_IPAddressFamily_new_null()) == NULL)
       lose_no_memory();
@@ -2505,6 +2521,8 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
         if (!v3_addr_add_inherit(addr, afi, NULL))
           lose_no_memory();
+
+        empty = 0;
 
       } else {
 
@@ -2537,12 +2555,13 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
         Py_XDECREF(iterator);
         iterator = NULL;
+        empty = 0;
       }
     }
 
-    if (!v3_addr_canonize(addr) ||
-        !X509_add1_ext_i2d(self->x509, NID_sbgp_ipAddrBlock,
-                           addr, 1, X509V3_ADD_REPLACE))
+    if (!empty && (!v3_addr_canonize(addr) ||
+                   !X509_add1_ext_i2d(self->x509, NID_sbgp_ipAddrBlock,
+                                      addr, 1, X509V3_ADD_REPLACE)))
       lose_openssl_error("Couldn't add IPAddrBlock extension to certificate");
   }
 
@@ -3146,6 +3165,7 @@ x509_object_get_certificate_policies(x509_object *self)
 static char x509_object_set_certificate_policies__doc__[] =
   "Set Certificate Policies for this certificate.  Argument is a iterable\n"
   "which returns policy OIDs.  Policy qualifier are not supported.\n"
+  "The extension will be marked as critical.\n"
   ;
 
 static PyObject *
@@ -3192,7 +3212,7 @@ x509_object_set_certificate_policies(x509_object *self, PyObject *args)
   Py_XDECREF(iterator);
   iterator = NULL;
 
-  if (!X509_add1_ext_i2d(self->x509, NID_certificate_policies, ext, 0, X509V3_ADD_REPLACE))
+  if (!X509_add1_ext_i2d(self->x509, NID_certificate_policies, ext, 1, X509V3_ADD_REPLACE))
     lose_openssl_error("Couldn't add CERTIFICATE_POLICIES extension to certificate");
 
   ok = 1;

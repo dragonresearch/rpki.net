@@ -688,8 +688,8 @@ class X509(DER_object):
       issuer_name = X501DN.from_cn(cn))
 
 
-  @staticmethod
-  def _issue(keypair, subject_key, serial, sia, aia, crldp, notAfter,
+  @classmethod
+  def _issue(cls, keypair, subject_key, serial, sia, aia, crldp, notAfter,
              cn, resources, is_ca, aki, issuer_name):
     """
     Common code to issue an RPKI certificate.
@@ -701,67 +701,50 @@ class X509(DER_object):
     if cn is None:
       cn = "".join(("%02X" % ord(i) for i in ski))
 
-    cert = rpki.POW.pkix.Certificate()
+    cert = rpki.POW.X509()
+
     cert.setVersion(2)
     cert.setSerial(serial)
-    cert.setIssuer(issuer_name.get_POWpkix())
-    cert.setSubject((((rpki.oids.name2oid["commonName"], ("printableString", cn)),),))
-    cert.setNotBefore(now.toASN1tuple())
-    cert.setNotAfter(notAfter.toASN1tuple())
-    cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
-
-    exts = [ ["subjectKeyIdentifier",   False, ski],
-             ["authorityKeyIdentifier", False, (aki, (), None)],
-             ["certificatePolicies",    True,  ((rpki.oids.name2oid["id-cp-ipAddr-asNumber"], ()),)] ]
+    cert.setIssuer(issuer_name.get_POW())
+    cert.setSubject(X501DN.from_cn(cn).get_POW())
+    cert.setNotBefore(now.toGeneralizedTime())
+    cert.setNotAfter(notAfter.toGeneralizedTime())
+    cert.setPublicKey(subject_key.get_POW())
+    cert.setSKI(ski)
+    cert.setAKI(aki)
+    cert.setCertificatePolicies((POWify_OID("id-cp-ipAddr-asNumber"),))
 
     if crldp is not None:
-      exts.append(["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)])
+      cert.setCRLDP((crldp,))
 
     if aia is not None:
-      exts.append(["authorityInfoAccess",    False, ((rpki.oids.name2oid["id-ad-caIssuers"], ("uri", aia)),)])
+      cert.setAIA((aia,))
 
     if is_ca:
-      exts.append(["basicConstraints",  True,  (1, None)])
-      exts.append(["keyUsage",          True,  (0, 0, 0, 0, 0, 1, 1)])
+      cert.setBasicConstraints(True, None)
+      cert.setKeyUsage(frozenset(("keyCertSign", "cRLSign")))
+
     else:
-      exts.append(["keyUsage",          True,  (1,)])
+      cert.setKeyUsage(frozenset(("digitalSignature",)))
 
     assert sia is not None or not is_ca
 
-    # Nasty bit midway through conversion from POW.pkix to POW, just
-    # grit teeth for the moment.
-
     if sia is not None:
-      tagged_sia = zip(("id-ad-caRepository", "id-ad-rpkiManifest", "id-ad-signedObject"), sia)
-      sia = []
-      for tag, uris in tagged_sia:
-        if isinstance(uris, str):
-          uris = (uris,)
-        if uris:
-          oid = rpki.oids.name2oid[tag]
-          sia.extend((oid, ("uri", uri)) for uri in uris)
-      assert len(sia) > 0
-      exts.append(["subjectInfoAccess", False, sia])
-
-    # This next bit suggests that perhaps .to_rfc3779_tuple() should
-    # be raising an exception when there are no resources rather than
-    # returning None.  Maybe refactor later.
+      caRepository, rpkiManifest, signedObject = sia
+      cert.setSIA(
+        (caRepository,) if isinstance(caRepository, str) else caRepository,
+        (rpkiManifest,) if isinstance(rpkiManifest, str) else rpkiManifest,
+        (signedObject,) if isinstance(signedObject, str) else signedObject)
 
     if resources is not None:
-      r = resources.asn.to_rfc3779_tuple()
-      if r is not None:
-        exts.append(["sbgp-autonomousSysNum", True, (r, None)])
-      r = [x for x in (resources.v4.to_rfc3779_tuple(), resources.v6.to_rfc3779_tuple()) if x is not None]
-      if r:
-        exts.append(["sbgp-ipAddrBlock", True, r])
-
-    for x in exts:
-      x[0] = rpki.oids.name2oid[x[0]]
-    cert.setExtensions(exts)
+      cert.setRFC3779(
+        asn  = ((r.min, r.max) for r in resources.asn),
+        ipv4 = ((rpki.POW.IPAddress(r.min, 4), rpki.POW.IPAddress(r.max, 4)) for r in resources.v4),
+        ipv6 = ((rpki.POW.IPAddress(r.min, 6), rpki.POW.IPAddress(r.max, 6)) for r in resources.v6))
 
     cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
 
-    return X509(POWpkix = cert)
+    return cls(POW = cert)
 
   def bpki_cross_certify(self, keypair, source_cert, serial, notAfter,
                          now = None, pathLenConstraint = 0):
@@ -844,7 +827,7 @@ class X509(DER_object):
     if issuer_key != subject_key:
       cert.setAKI(issuer_key.get_POW().calculateSKI())
     if is_ca:
-      cert.setBasicConstraints(is_ca, pathLenConstraint)
+      cert.setBasicConstraints(True, pathLenConstraint)
     cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
     return cls(POW = cert)
 

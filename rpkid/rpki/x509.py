@@ -481,10 +481,9 @@ class DER_object(object):
 
   def get_3779resources(self):
     """
-    Get RFC 3779 resources as rpki.resource_set objects.  Only works
-    for subclasses that support getExtensions().
+    Get RFC 3779 resources as rpki.resource_set objects.
     """
-    resources = rpki.resource_set.resource_bag.from_rfc3779_tuples(self.get_POWpkix().getExtensions())
+    resources = rpki.resource_set.resource_bag.from_POW_rfc3779(self.get_POW().getRFC3779())
     try:
       resources.valid_until = self.getNotAfter()
     except AttributeError:

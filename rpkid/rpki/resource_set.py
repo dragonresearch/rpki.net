@@ -806,6 +806,28 @@ class resource_bag(object):
             v6 = resource_set_ipv6(fam[1])
     return cls(asn, v4, v6)
 
+  @classmethod
+  def from_POW_rfc3779(cls, resources):
+    """
+    Build a resource_bag from data returned by
+    rpki.POW.X509.getRFC3779().
+
+    The conversion to long for v4 and v6 is (intended to be)
+    temporary: in the long run, we should be using rpki.POW.IPAddress
+    rather than long here.
+    """
+    asn = [resource_range_as(long(r[0]), long(r[1]))
+           for r in resources[0] or ()]
+    v4 = [resource_range_ipv4(rpki.ipaddrs.v4addr(long(r[0])),
+                              rpki.ipaddrs.v4addr(long(r[1])))
+          for r in resources[1] or ()]
+    v6 = [resource_range_ipv6(rpki.ipaddrs.v6addr(long(r[0])),
+                              rpki.ipaddrs.v6addr(long(r[1])))
+          for r in resources[2] or ()]
+    return cls(resource_set_as(asn)  if asn else None,
+               resource_set_ipv4(v4) if v4  else None,
+               resource_set_ipv6(v6) if v6  else None)
+
   def empty(self):
     """
     True iff all resource sets in this bag are empty.

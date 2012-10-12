@@ -23,7 +23,7 @@ import struct
 from django.db import models
 
 import rpki.resource_set
-import rpki.ipaddrs
+import rpki.POW
 
 class IPv6AddressField(models.Field):
     "Field large enough to hold a 128-bit unsigned integer."
@@ -34,16 +34,15 @@ class IPv6AddressField(models.Field):
         return 'binary(16)'
 
     def to_python(self, value):
-        if isinstance(value, rpki.ipaddrs.v6addr):
+        if isinstance(value, rpki.POW.IPAddress):
             return value
-        x = struct.unpack('!QQ', value)
-        return rpki.ipaddrs.v6addr((x[0] << 64) | x[1])
+        return rpki.POW.IPAddress.from_bytes(value)
 
     def get_db_prep_value(self, value, connection, prepared):
-        return struct.pack('!QQ', (long(value) >> 64) & 0xFFFFFFFFFFFFFFFFL, long(value) & 0xFFFFFFFFFFFFFFFFL)
+        return value.to_bytes()
 
 class IPv4AddressField(models.Field):
-    "Wrapper around rpki.ipaddrs.v4addr."
+    "Wrapper around rpki.POW.IPAddress."
 
     __metaclass__ = models.SubfieldBase
 
@@ -51,9 +50,9 @@ class IPv4AddressField(models.Field):
         return 'int UNSIGNED'
 
     def to_python(self, value):
-        if isinstance(value, rpki.ipaddrs.v4addr):
+        if isinstance(value, rpki.POW.IPAddress):
             return value
-        return rpki.ipaddrs.v4addr(value)
+        return rpki.POW.IPAddress(value)
 
     def get_db_prep_value(self, value, connection, prepared):
         return long(value)

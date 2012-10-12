@@ -20,7 +20,6 @@ import time
 
 from django.db import models
 
-import rpki.ipaddrs
 import rpki.resource_set
 import rpki.gui.models
 

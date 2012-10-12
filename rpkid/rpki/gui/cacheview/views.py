@@ -20,7 +20,7 @@ from django.shortcuts import get_object_or_404, redirect
 from rpki.gui.cacheview import models, forms, misc
 from rpki.gui.app.views import render
 from rpki.resource_set import resource_range_as
-from rpki.ipaddrs import v4addr, v6addr
+from rpki.POW import IPAddress
 
 # Create your views here.
 
@@ -133,11 +133,7 @@ def query_view(request):
                 prefix_list = []
                 for roa in roas:
                     for pfx in roa.prefixes.all():
-                        if pfx.family == 4:
-                            addr = v4addr(pfx.prefix.encode())
-                        elif pfx.family == 6:
-                            addr = v6addr(pfx.prefix.encode())
-
+                        addr = IPAddress(pfx.prefix.encode())
                         prefix_list.append((pfx, roa, addr))
                 prefix_list.sort(cmp=cmp_prefix)
 

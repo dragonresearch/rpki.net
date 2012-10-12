@@ -26,7 +26,6 @@ import django.db.models
 import rpki.x509
 import rpki.sundial
 import rpki.resource_set
-import rpki.ipaddrs
 import socket
 
 ## @var ip_version_choices
@@ -565,11 +564,9 @@ class ROARequestPrefix(django.db.models.Model):
 
   def as_roa_prefix(self):
     if self.version == 'IPv4':
-      return rpki.resource_set.roa_prefix_ipv4(rpki.ipaddrs.v4addr(self.prefix),
-                                               self.prefixlen, self.max_prefixlen)
+      return rpki.resource_set.roa_prefix_ipv4(self.prefix, self.prefixlen, self.max_prefixlen)
     else:
-      return rpki.resource_set.roa_prefix_ipv6(rpki.ipaddrs.v6addr(self.prefix),
-                                               self.prefixlen, self.max_prefixlen)
+      return rpki.resource_set.roa_prefix_ipv6(self.prefix, self.prefixlen, self.max_prefixlen)
 
   def as_resource_range(self):
     return self.as_roa_prefix().to_resource_range()

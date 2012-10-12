@@ -41,9 +41,9 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import re
 import math
-import rpki.ipaddrs
 import rpki.oids
 import rpki.exceptions
+import rpki.POW
 
 ## @var inherit_token
 # Token used to indicate inheritance in read and print syntax.
@@ -65,18 +65,12 @@ class resource_range(object):
   """
 
   def __init__(self, min, max):
-    """
-    Initialize and sanity check a resource_range.
-    """
     assert min.__class__ is max.__class__, "Type mismatch, %r doesn't match %r" % (min.__class__, max.__class__)
     assert min <= max, "Mis-ordered range: %s before %s" % (min, max)
     self.min = min
     self.max = max
 
   def __cmp__(self, other):
-    """
-    Compare two resource_range objects.
-    """
     assert self.__class__ is other.__class__, "Type mismatch, comparing %r with %r" % (self.__class__, other.__class__)
     return cmp(self.min, other.min) or cmp(self.max, other.max)
 
@@ -92,6 +86,11 @@ class resource_range_as(resource_range):
   # Type of underlying data (min and max).
 
   datum_type = long
+
+  def __init__(self, min, max):
+    resource_range.__init__(self,
+                            long(min) if isinstance(min, int) else min,
+                            long(max) if isinstance(max, int) else max)
 
   def __str__(self):
     """
@@ -133,6 +132,11 @@ class resource_range_ip(resource_range):
   directly.
   """
 
+  ## @var datum_type
+  # Type of underlying data (min and max).
+
+  datum_type = rpki.POW.IPAddress
+
   def prefixlen(self):
     """
     Determine whether a resource_range_ip can be expressed as a
@@ -142,16 +146,13 @@ class resource_range_ip(resource_range):
     mask = self.min ^ self.max
     if self.min & mask != 0:
       raise rpki.exceptions.MustBePrefix
-    prefixlen = self.datum_type.bits
+    prefixlen = self.min.bits
     while mask & 1:
       prefixlen -= 1
       mask >>= 1
     if mask:
       raise rpki.exceptions.MustBePrefix
     return prefixlen
-
-  # Backwards compatability, will go away at some point
-  _prefixlen = prefixlen
 
   def __str__(self):
     """
@@ -169,10 +170,10 @@ class resource_range_ip(resource_range):
     """
     r = re_address_range.match(x)
     if r:
-      return cls(cls.datum_type(r.group(1)), cls.datum_type(r.group(2)))
+      return cls(rpki.POW.IPAddress(r.group(1)), rpki.POW.IPAddress(r.group(2)))
     r = re_prefix.match(x)
     if r:
-      return cls.make_prefix(cls.datum_type(r.group(1)), int(r.group(2)))
+      return cls.make_prefix(rpki.POW.IPAddress(r.group(1)), int(r.group(2)))
     raise rpki.exceptions.BadIPResource, 'Bad IP resource "%s"' % (x)
 
   @classmethod
@@ -180,11 +181,11 @@ class resource_range_ip(resource_range):
     """
     Construct a resource range corresponding to a prefix.
     """
-    assert isinstance(prefix, cls.datum_type) and isinstance(prefixlen, (int, long))
-    assert prefixlen >= 0 and prefixlen <= cls.datum_type.bits, "Nonsensical prefix length: %s" % prefixlen
-    mask = (1 << (cls.datum_type.bits - prefixlen)) - 1
+    assert isinstance(prefix, rpki.POW.IPAddress) and isinstance(prefixlen, (int, long))
+    assert prefixlen >= 0 and prefixlen <= prefix.bits, "Nonsensical prefix length: %s" % prefixlen
+    mask = (1 << (prefix.bits - prefixlen)) - 1
     assert (prefix & mask) == 0, "Resource not in canonical form: %s/%s" % (prefix, prefixlen)
-    return cls(cls.datum_type(prefix), cls.datum_type(prefix | mask))
+    return cls(prefix, rpki.POW.IPAddress(prefix | mask))
 
   def chop_into_prefixes(self, result):
     """
@@ -198,7 +199,7 @@ class resource_range_ip(resource_range):
       min = self.min
       max = self.max
       while max >= min:
-        bits = int(math.log(max - min + 1, 2))
+        bits = int(math.log(long(max - min + 1), 2))
         while True:
           mask = ~(~0 << bits)
           assert min + mask <= max
@@ -206,8 +207,8 @@ class resource_range_ip(resource_range):
             break
           assert bits > 0
           bits -= 1
-        result.append(self.make_prefix(min, self.datum_type.bits - bits))
-        min = self.datum_type(min + mask + 1)
+        result.append(self.make_prefix(min, min.bits - bits))
+        min = min + mask + 1
 
   @classmethod
   def from_strings(cls, a, b = None):
@@ -216,54 +217,55 @@ class resource_range_ip(resource_range):
     """
     if b is None:
       b = a
-    a = rpki.ipaddrs.parse(a)
-    b = rpki.ipaddrs.parse(b)
-    if a.__class__ is not b.__class__:
+    a = rpki.POW.IPAddress(a)
+    b = rpki.POW.IPAddress(b)
+    if a.version !=  b.version:
       raise TypeError
     if cls is resource_range_ip:
-      if isinstance(a, rpki.ipaddrs.v4addr):
+      if a.version == 4:
         return resource_range_ipv4(a, b)
-      if isinstance(a, rpki.ipaddrs.v6addr):
+      if a.version == 6:
         return resource_range_ipv6(a, b)
-    elif isinstance(a, cls.datum_type):
+    elif a.version == cls.version:
       return cls(a, b)
-    raise TypeError
+    else:
+      raise TypeError
 
 class resource_range_ipv4(resource_range_ip):
   """
   Range of IPv4 addresses.
   """
 
-  ## @var datum_type
-  # Type of underlying data (min and max).
-
-  datum_type = rpki.ipaddrs.v4addr
+  version = 4
 
 class resource_range_ipv6(resource_range_ip):
   """
   Range of IPv6 addresses.
   """
 
-  ## @var datum_type
-  # Type of underlying data (min and max).
-
-  datum_type = rpki.ipaddrs.v6addr
+  version = 6
 
 def _rsplit(rset, that):
   """
   Utility function to split a resource range into two resource ranges.
   """
+
   this = rset.pop(0)
-  cell_type = type(this.min)
-  assert type(this) is type(that) and type(this.max) is cell_type and \
-         type(that.min) is cell_type and type(that.max) is cell_type
+
+  assert type(this) is type(that), "type(this) [%r] is not type(that) [%r]" % (type(this), type(that))
+
+  assert type(this.min) is type(that.min), "type(this.min) [%r] is not type(that.min) [%r]" % (type(this.min), type(that.min))
+  assert type(this.min) is type(this.max), "type(this.min) [%r] is not type(this.max) [%r]" % (type(this.min), type(this.max))
+  assert type(that.min) is type(that.max), "type(that.min) [%r] is not type(that.max) [%r]" % (type(that.min), type(that.max))
+
   if this.min < that.min:
-    rset.insert(0, type(this)(this.min, cell_type(that.min - 1)))
+    rset.insert(0, type(this)(this.min, type(that.min)(that.min - 1)))
     rset.insert(1, type(this)(that.min, this.max))
+
   else:
     assert this.max > that.max
     rset.insert(0, type(this)(this.min, that.max))
-    rset.insert(1, type(this)(cell_type(that.max + 1), this.max))
+    rset.insert(1, type(this)(type(that.max)(that.max + 1), this.max))
 
 class resource_set(list):
   """
@@ -664,14 +666,9 @@ class resource_bag(object):
     temporary: in the long run, we should be using rpki.POW.IPAddress
     rather than long here.
     """
-    asn = [resource_range_as(long(r[0]), long(r[1]))
-           for r in resources[0] or ()]
-    v4 = [resource_range_ipv4(rpki.ipaddrs.v4addr(long(r[0])),
-                              rpki.ipaddrs.v4addr(long(r[1])))
-          for r in resources[1] or ()]
-    v6 = [resource_range_ipv6(rpki.ipaddrs.v6addr(long(r[0])),
-                              rpki.ipaddrs.v6addr(long(r[1])))
-          for r in resources[2] or ()]
+    asn = [resource_range_as(r[0], r[1])   for r in resources[0] or ()]
+    v4  = [resource_range_ipv4(r[0], r[1]) for r in resources[1] or ()]
+    v6  = [resource_range_ipv6(r[0], r[1]) for r in resources[2] or ()]
     return cls(resource_set_as(asn)  if asn else None,
                resource_set_ipv4(v4) if v4  else None,
                resource_set_ipv6(v6) if v6  else None)
@@ -829,16 +826,13 @@ class roa_prefix(object):
     """
     Return highest address covered by prefix.
     """
-    t = self.range_type.datum_type
-    return t(self.prefix | ((1 << (t.bits - self.prefixlen)) - 1))
+    return self.prefix | ((1 << (self.prefix.bits - self.prefixlen)) - 1)
 
   def to_POW_roa_tuple(self):
     """
     Convert a resource_range_ip to rpki.POW.ROA.setPrefixes() format.
     """
-    return (rpki.POW.IPAddress(self.prefix, self.range_type.datum_type.ipversion),
-            self.prefixlen,
-            None if self.prefixlen == self.max_prefixlen else self.max_prefixlen)
+    return self.prefix, self.prefixlen, self.max_prefixlen
 
   @classmethod
   def parse_str(cls, x):
@@ -847,10 +841,10 @@ class roa_prefix(object):
     """
     r = re_prefix_with_maxlen.match(x)
     if r:
-      return cls(cls.range_type.datum_type(r.group(1)), int(r.group(2)), int(r.group(3)))
+      return cls(rpki.POW.IPAddress(r.group(1)), int(r.group(2)), int(r.group(3)))
     r = re_prefix.match(x)
     if r:
-      return cls(cls.range_type.datum_type(r.group(1)), int(r.group(2)))
+      return cls(rpki.POW.IPAddress(r.group(1)), int(r.group(2)))
     raise rpki.exceptions.BadROAPrefix, 'Bad ROA prefix "%s"' % (x)
 
 class roa_prefix_ipv4(roa_prefix):
@@ -935,7 +929,7 @@ class roa_prefix_set(list):
     """
 
     sql.execute(query, args)
-    return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
+    return cls([cls.prefix_type(rpki.POW.IPAddress(x), int(y), int(z))
                 for (x, y, z) in sql.fetchall()])
 
   @classmethod
@@ -947,7 +941,7 @@ class roa_prefix_set(list):
     max_prefixlen) triples.
     """
 
-    return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
+    return cls([cls.prefix_type(rpki.POW.IPAddress(x), int(y), int(z))
                 for (x, y, z) in iterable])
 
   def to_POW_roa_tuple(self):

@@ -942,6 +942,8 @@ ipaddress_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   int version = 0;
   const char *s = NULL;
 
+  ENTERING(ipaddress_object_new);
+
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|i", kwlist, &init, &version) ||
       (self = (ipaddress_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
@@ -995,6 +997,8 @@ ipaddress_object_str(ipaddress_object *self)
 {
   char addrstr[sizeof("aaaa:bbbb:cccc:dddd:eeee:ffff:255.255.255.255") + 1];
 
+  ENTERING(ipaddress_object_str);
+
   if (!inet_ntop(self->af, self->address, addrstr, sizeof(addrstr)))
     lose("Couldn't convert IP address");
 
@@ -1008,6 +1012,8 @@ static PyObject *
 ipaddress_object_repr(ipaddress_object *self)
 {
   char addrstr[sizeof("aaaa:bbbb:cccc:dddd:eeee:ffff:255.255.255.255") + 1];
+
+  ENTERING(ipaddress_object_repr);
 
   if (!inet_ntop(self->af, self->address, addrstr, sizeof(addrstr)))
     lose("Couldn't convert IP address");
@@ -1026,6 +1032,8 @@ ipaddress_object_compare(PyObject *arg1, PyObject *arg2)
   PyObject *obj2 = PyNumber_Long(arg2);
   int cmp = -1;
 
+  ENTERING(ipaddress_object_compare);
+
   if (obj1 != NULL && obj2 != NULL)
     cmp = PyObject_Compare(obj1, obj2);
 
@@ -1041,6 +1049,8 @@ ipaddress_object_richcompare(PyObject *arg1, PyObject *arg2, int op)
   PyObject *obj2 = PyNumber_Long(arg2);
   PyObject *result = NULL;
 
+  ENTERING(ipaddress_object_richcompare);
+
   if (obj1 != NULL && obj2 != NULL)
     result = PyObject_RichCompare(obj1, obj2, op);
 
@@ -1055,16 +1065,74 @@ ipaddress_object_hash(ipaddress_object *self)
   unsigned long h = 0;
   int i;
 
+  ENTERING(ipaddress_object_hash);
+
   for (i = 0; i < self->length; i++)
     h ^= self->address[i] << ((i & 3) << 3);
 
   return (long) h == -1 ? 0 : (long) h;
 }
 
+static char ipaddress_object_from_bytes__doc__[] =
+  "Construct an IPAddress object from a sequence of bytes.\n"
+  "\n"
+  "Argument must be a Python string of exactly 4 or 16 bytes.\n"
+  ;
+
+static PyObject *
+ipaddress_object_from_bytes(PyTypeObject *type, PyObject *args)
+{
+  ipaddress_object *result = NULL;
+  char *bytes = NULL;
+  size_t len;
+
+  ENTERING(ipaddress_object_from_bytes);
+
+  if (!PyArg_ParseTuple(args, "s#", &bytes, &len))
+    goto error;
+
+  if (len != 4 && len != 16)
+    lose("Argument must be a string of exactly 4 or 16 bytes");
+
+  if ((result = (ipaddress_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
+
+  memcpy(result->address, bytes, len);
+  result->length = len;
+
+  switch (len) {
+  case  4: result->version = 4; result->af = AF_INET;  break;
+  case 16: result->version = 6; result->af = AF_INET6; break;
+  }
+
+ error:
+  return (PyObject *) result;
+}
+
+static char ipaddress_object_to_bytes__doc__[] =
+  "Returns a Python string of exactly 4 or 16 bytes representing\n"
+  "the binary value of this IPAddress.\n"
+  ;
+
+static PyObject *
+ipaddress_object_to_bytes(ipaddress_object *self)
+{
+  ENTERING(ipaddress_object_from_bytes);
+  return PyString_FromStringAndSize(self->address, self->length);
+}
+
 static PyObject *
 ipaddress_object_get_bits(ipaddress_object *self, void *closure)
 {
+  ENTERING(ipaddress_object_get_bits);
   return PyInt_FromLong(self->length * 8);
+}
+
+static PyObject *
+ipaddress_object_get_version(ipaddress_object *self, void *closure)
+{
+  ENTERING(ipaddress_object_get_version);
+  return PyInt_FromLong(self->version);
 }
 
 static PyObject *
@@ -1127,6 +1195,8 @@ ipaddress_object_number_long(PyObject *arg)
 {
   ipaddress_object *addr = (ipaddress_object *) arg;
 
+  ENTERING(ipaddress_object_number_long);
+
   if (!POW_IPAddress_Check(arg))
     return Py_NotImplemented;
 
@@ -1136,48 +1206,56 @@ ipaddress_object_number_long(PyObject *arg)
 static PyObject *
 ipaddress_object_number_int(PyObject *arg)
 {
+  ENTERING(ipaddress_object_number_int);
   return ipaddress_object_number_long(arg);
 }
 
 static PyObject *
 ipaddress_object_number_add(PyObject *arg1, PyObject *arg2)
 {
+  ENTERING(ipaddress_object_number_add);
   return ipaddress_object_number_binary_helper(PyNumber_Add, arg1, arg2);
 }
 
 static PyObject *
 ipaddress_object_number_subtract(PyObject *arg1, PyObject *arg2)
 {
+  ENTERING(ipaddress_object_number_subtract);
   return ipaddress_object_number_binary_helper(PyNumber_Subtract, arg1, arg2);
 }
 
 static PyObject *
 ipaddress_object_number_lshift(PyObject *arg1, PyObject *arg2)
 {
+  ENTERING(ipaddress_object_number_lshift);
   return ipaddress_object_number_binary_helper(PyNumber_Lshift, arg1, arg2);
 }
 
 static PyObject *
 ipaddress_object_number_rshift(PyObject *arg1, PyObject *arg2)
 {
+  ENTERING(ipaddress_object_number_rshift);
   return ipaddress_object_number_binary_helper(PyNumber_Rshift, arg1, arg2);
 }
 
 static PyObject *
 ipaddress_object_number_and(PyObject *arg1, PyObject *arg2)
 {
+  ENTERING(ipaddress_object_number_and);
   return ipaddress_object_number_binary_helper(PyNumber_And, arg1, arg2);
 }
 
 static PyObject *
 ipaddress_object_number_xor(PyObject *arg1, PyObject *arg2)
 {
+  ENTERING(ipaddress_object_number_xor);
   return ipaddress_object_number_binary_helper(PyNumber_Xor, arg1, arg2);
 }
 
 static PyObject *
 ipaddress_object_number_or(PyObject *arg1, PyObject *arg2)
 {
+  ENTERING(ipaddress_object_number_or);
   return ipaddress_object_number_binary_helper(PyNumber_Or, arg1, arg2);
 }
 
@@ -1185,6 +1263,8 @@ static int
 ipaddress_object_number_nonzero(ipaddress_object *self)
 {
   int i;
+
+  ENTERING(ipaddress_object_number_nonzero);
 
   for (i = 0; i < self->length; i++)
     if (self->address[i] != 0)
@@ -1197,6 +1277,8 @@ ipaddress_object_number_invert(ipaddress_object *self)
 {
   ipaddress_object *result = NULL;
   int i;
+
+  ENTERING(ipaddress_object_number_invert);
 
   if ((result = (ipaddress_object *) self->ob_type->tp_alloc(self->ob_type, 0)) == NULL)
     goto error;
@@ -1212,8 +1294,15 @@ ipaddress_object_number_invert(ipaddress_object *self)
   return (PyObject *) result;
 }
 
-static PyGetSetDef ipaddress_getsetters[] = {
-  {"bits", (getter) ipaddress_object_get_bits},
+static struct PyMethodDef ipaddress_object_methods[] = {
+  Define_Method(toBytes,                ipaddress_object_to_bytes,      METH_NOARGS),
+  Define_Class_Method(fromBytes,        ipaddress_object_from_bytes,    METH_VARARGS),
+  {NULL}
+};
+
+static PyGetSetDef ipaddress_object_getsetters[] = {
+  {"bits", 	(getter) ipaddress_object_get_bits},
+  {"version", 	(getter) ipaddress_object_get_version},
   {NULL}
 };
 
@@ -1288,9 +1377,9 @@ static PyTypeObject POW_IPAddress_Type = {
   0,                                        /* tp_weaklistoffset */
   0,                                        /* tp_iter */
   0,                                        /* tp_iternext */
-  0,                                        /* tp_methods */
+  ipaddress_object_methods,                 /* tp_methods */
   0,                                        /* tp_members */
-  ipaddress_getsetters,                     /* tp_getset */
+  ipaddress_object_getsetters,              /* tp_getset */
   0,                                        /* tp_base */
   0,                                        /* tp_dict */
   0,                                        /* tp_descr_get */

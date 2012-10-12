@@ -1351,7 +1351,7 @@ static PyNumberMethods ipaddress_NumberMethods = {
 static PyTypeObject POW_IPAddress_Type = {
   PyObject_HEAD_INIT(NULL)
   0,                                        /* ob_size */
-  "POW.IPAddress",                          /* tp_name */
+  "rpki.POW.IPAddress",                     /* tp_name */
   sizeof(ipaddress_object),                 /* tp_basicsize */
   0,                                        /* tp_itemsize */
   0,                                        /* tp_dealloc */
@@ -3404,7 +3404,7 @@ static char POW_X509_Type__doc__[] =
 static PyTypeObject POW_X509_Type = {
   PyObject_HEAD_INIT(0)
   0,                                        /* ob_size */
-  "POW.X509",                               /* tp_name */
+  "rpki.POW.X509",                          /* tp_name */
   sizeof(x509_object),                      /* tp_basicsize */
   0,                                        /* tp_itemsize */
   (destructor)x509_object_dealloc,          /* tp_dealloc */
@@ -3677,7 +3677,7 @@ static char POW_X509Store_Type__doc__[] =
 static PyTypeObject POW_X509Store_Type = {
   PyObject_HEAD_INIT(0)
   0,                                        /* ob_size */
-  "POW.X509Store",                          /* tp_name */
+  "rpki.POW.X509Store",                     /* tp_name */
   sizeof(x509_store_object),                /* tp_basicsize */
   0,                                        /* tp_itemsize */
   (destructor)x509_store_object_dealloc,    /* tp_dealloc */
@@ -4552,7 +4552,7 @@ static char POW_CRL_Type__doc__[] =
 static PyTypeObject POW_CRL_Type = {
   PyObject_HEAD_INIT(0)
   0,                                     /* ob_size */
-  "POW.CRL",                             /* tp_name */
+  "rpki.POW.CRL",                        /* tp_name */
   sizeof(crl_object),                    /* tp_basicsize */
   0,                                     /* tp_itemsize */
   (destructor)crl_object_dealloc,        /* tp_dealloc */
@@ -5174,7 +5174,7 @@ static char POW_Asymmetric_Type__doc__[] =
 static PyTypeObject POW_Asymmetric_Type = {
   PyObject_HEAD_INIT(0)
   0,                                     /* ob_size */
-  "POW.Asymmetric",                      /* tp_name */
+  "rpki.POW.Asymmetric",                 /* tp_name */
   sizeof(asymmetric_object),             /* tp_basicsize */
   0,                                     /* tp_itemsize */
   (destructor)asymmetric_object_dealloc, /* tp_dealloc */
@@ -5381,7 +5381,7 @@ static char POW_Digest_Type__doc__[] =
 static PyTypeObject POW_Digest_Type = {
   PyObject_HEAD_INIT(0)
   0,                                  /* ob_size */
-  "POW.Digest",                       /* tp_name */
+  "rpki.POW.Digest",                  /* tp_name */
   sizeof(digest_object),              /* tp_basicsize */
   0,                                  /* tp_itemsize */
   (destructor)digest_object_dealloc,  /* tp_dealloc */
@@ -6047,7 +6047,7 @@ static char POW_CMS_Type__doc__[] =
 static PyTypeObject POW_CMS_Type = {
   PyObject_HEAD_INIT(0)
   0,                                  /* ob_size */
-  "POW.CMS",                          /* tp_name */
+  "rpki.POW.CMS",                     /* tp_name */
   sizeof(cms_object),                 /* tp_basicsize */
   0,                                  /* tp_itemsize */
   (destructor)cms_object_dealloc,     /* tp_dealloc */
@@ -6676,7 +6676,7 @@ static char POW_Manifest_Type__doc__[] =
 static PyTypeObject POW_Manifest_Type = {
   PyObject_HEAD_INIT(0)
   0,                                            /* ob_size */
-  "POW.Manifest",                               /* tp_name */
+  "rpki.POW.Manifest",                          /* tp_name */
   sizeof(manifest_object),                      /* tp_basicsize */
   0,                                            /* tp_itemsize */
   (destructor)manifest_object_dealloc,          /* tp_dealloc */
@@ -7282,7 +7282,7 @@ static char POW_ROA_Type__doc__[] =
 static PyTypeObject POW_ROA_Type = {
   PyObject_HEAD_INIT(0)
   0,                                            /* ob_size */
-  "POW.ROA",                                    /* tp_name */
+  "rpki.POW.ROA",                               /* tp_name */
   sizeof(roa_object),                           /* tp_basicsize */
   0,                                            /* tp_itemsize */
   (destructor)roa_object_dealloc,               /* tp_dealloc */
@@ -8239,7 +8239,7 @@ static char POW_PKCS10_Type__doc__[] =
 static PyTypeObject POW_PKCS10_Type = {
   PyObject_HEAD_INIT(0)
   0,                                        /* ob_size */
-  "POW.PKCS10",                             /* tp_name */
+  "rpki.POW.PKCS10",                        /* tp_name */
   sizeof(pkcs10_object),                    /* tp_basicsize */
   0,                                        /* tp_itemsize */
   (destructor)pkcs10_object_dealloc,        /* tp_dealloc */
@@ -8501,7 +8501,7 @@ init_POW(void)
 
 #define Define_Class(__type__)                                          \
   do {                                                                  \
-    char *__name__ = strchr(__type__.tp_name, '.');                     \
+    char *__name__ = strrchr(__type__.tp_name, '.');                    \
     if (PyType_Ready(&__type__) == 0 && __name__ != NULL) {             \
       Py_INCREF(&__type__);                                             \
       PyModule_AddObject(m, __name__+1, (PyObject *) &__type__);        \
@@ -8521,9 +8521,9 @@ init_POW(void)
 
 #undef Define_Class
 
-#define Define_Exception(__name__, __parent__)                  \
-  PyModule_AddObject(m, #__name__, ((__name__##Object)          \
-    = PyErr_NewException("POW." #__name__, __parent__, NULL)))
+#define Define_Exception(__name__, __parent__)                          \
+  PyModule_AddObject(m, #__name__, ((__name__##Object)                  \
+    = PyErr_NewException("rpki.POW." #__name__, __parent__, NULL)))
 
   Define_Exception(Error,               NULL);
   Define_Exception(OpenSSLError,        ErrorObject);

@@ -498,9 +498,9 @@ class allocation(object):
     self.roa_requests = [roa_request.parse(y) for y in yaml.get("roa_request", yaml.get("route_origin", ()))]
     for r in self.roa_requests:
       if r.v4:
-        self.base.v4 = self.base.v4.union(r.v4.to_resource_set())
+        self.base.v4 |= r.v4.to_resource_set()
       if r.v6:
-        self.base.v6 = self.base.v6.union(r.v6.to_resource_set())
+        self.base.v6 |= r.v6.to_resource_set()
     self.hosted_by = yaml.get("hosted_by")
     self.extra_conf = yaml.get("extra_conf", [])
     self.hosts = []
@@ -511,7 +511,7 @@ class allocation(object):
     """
     resources = self.base
     for kid in self.kids:
-      resources = resources.union(kid.closure())
+      resources |= kid.closure()
     self.resources = resources
     return resources
 
@@ -531,27 +531,27 @@ class allocation(object):
     rpki.async.iterator(yaml.items(), loop, cb)
 
   def apply_add_as(self, text, cb):
-    self.base.asn = self.base.asn.union(rpki.resource_set.resource_set_as(text))
+    self.base.asn |= rpki.resource_set.resource_set_as(text)
     cb()
 
   def apply_add_v4(self, text, cb):
-    self.base.v4 = self.base.v4.union(rpki.resource_set.resource_set_ipv4(text))
+    self.base.v4 |= rpki.resource_set.resource_set_ipv4(text)
     cb()
 
   def apply_add_v6(self, text, cb):
-    self.base.v6 = self.base.v6.union(rpki.resource_set.resource_set_ipv6(text))
+    self.base.v6 |= rpki.resource_set.resource_set_ipv6(text)
     cb()
 
   def apply_sub_as(self, text, cb):
-    self.base.asn = self.base.asn.difference(rpki.resource_set.resource_set_as(text))
+    self.base.asn |= rpki.resource_set.resource_set_as(text)
     cb()
 
   def apply_sub_v4(self, text, cb):
-    self.base.v4 = self.base.v4.difference(rpki.resource_set.resource_set_ipv4(text))
+    self.base.v4 |= rpki.resource_set.resource_set_ipv4(text)
     cb()
 
   def apply_sub_v6(self, text, cb):
-    self.base.v6 = self.base.v6.difference(rpki.resource_set.resource_set_ipv6(text))
+    self.base.v6 |= rpki.resource_set.resource_set_ipv6(text)
     cb()
 
   def apply_valid_until(self, stamp, cb):

@@ -204,9 +204,9 @@ class allocation(object):
     self.roa_requests = [roa_request.parse(r) for r in y.get("roa_request", ())]
     for r in self.roa_requests:
       if r.v4:
-        self.base.v4 = self.base.v4.union(r.v4.to_resource_set())
+        self.base.v4 |= r.v4.to_resource_set()
       if r.v6:
-        self.base.v6 = self.base.v6.union(r.v6.to_resource_set())
+        self.base.v6 |= r.v6.to_resource_set()
     self.hosted_by = y.get("hosted_by")
     self.hosts = []
     if not self.is_hosted:
@@ -223,7 +223,7 @@ class allocation(object):
   def closure(self):
     resources = self.base
     for kid in self.kids:
-      resources = resources.union(kid.closure())
+      resources |= kid.closure()
     self.resources = resources
     return resources
 

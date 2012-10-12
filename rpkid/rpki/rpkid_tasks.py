@@ -256,7 +256,7 @@ class UpdateChildrenTask(AbstractTask):
         ca = ca_detail.ca
         if ca_detail.state == "active":
           old_resources = child_cert.cert.get_3779resources()
-          new_resources = irdb_resources.intersection(old_resources).intersection(ca_detail.latest_ca_cert.get_3779resources())
+          new_resources = old_resources & irdb_resources & ca_detail.latest_ca_cert.get_3779resources()
 
           if new_resources.empty():
             rpki.log.debug("Resources shrank to the null set, revoking and withdrawing child %s certificate SKI %s" % (child.child_handle, child_cert.cert.gSKI()))

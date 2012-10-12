@@ -983,7 +983,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
           if sia_uri_changed or child_resources.oversized(new_resources):
             child_cert.reissue(
               ca_detail = self,
-              resources = child_resources.intersection(new_resources),
+              resources = child_resources & new_resources,
               publisher = publisher)
 
       publisher.call_pubd(callback, errback)

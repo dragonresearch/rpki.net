@@ -260,7 +260,7 @@ class list_pdu(base_elt):
             if not ca_detail:
               rpki.log.debug("No active ca_detail, can't issue to %s" % child.child_handle)
               continue
-            resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
+            resources = ca_detail.latest_ca_cert.get_3779resources() & irdb_resources
             if resources.empty():
               rpki.log.debug("No overlap between received resources and what child %s should get ([%s], [%s])" % (child.child_handle, ca_detail.latest_ca_cert.get_3779resources(), irdb_resources))
               continue
@@ -384,7 +384,7 @@ class issue_pdu(base_elt):
       if irdb_resources.valid_until < rpki.sundial.now():
         raise rpki.exceptions.IRDBExpired, "IRDB entry for child %s expired %s" % (child.child_handle, irdb_resources.valid_until)
 
-      resources = irdb_resources.intersection(ca_detail.latest_ca_cert.get_3779resources())
+      resources = irdb_resources & ca_detail.latest_ca_cert.get_3779resources()
       req_key = self.pkcs10.getPublicKey()
       req_sia = self.pkcs10.get_SIA()
       child_cert = child.fetch_child_certs(ca_detail = ca_detail, ski = req_key.get_SKI(), unique = True)

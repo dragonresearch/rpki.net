@@ -436,7 +436,7 @@ class resource_set(list):
     Set symmetric difference (XOR) for resource sets.
     """
     com = self._comm(other)
-    return com[0].union(com[1])
+    return com[0] | com[1]
 
   __xor__ = symmetric_difference
 
@@ -913,7 +913,7 @@ class roa_prefix_set(list):
     s.append(None)
     for p in self:
       s[0] = p.to_resource_range()
-      r = r.union(s)
+      r |= s
     return r
 
   @classmethod

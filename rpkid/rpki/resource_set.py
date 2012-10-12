@@ -569,11 +569,6 @@ class resource_set_ipv4(resource_set_ip):
 
   range_type = resource_range_ipv4
 
-  ## @var afi
-  # Address Family Identifier value for IPv4.
-
-  afi = "\x00\x01"
-
 class resource_set_ipv6(resource_set_ip):
   """
   IPv6 address resource set.
@@ -583,11 +578,6 @@ class resource_set_ipv6(resource_set_ip):
   # Type of range underlying this type of resource_set.
 
   range_type = resource_range_ipv6
-
-  ## @var afi
-  # Address Family Identifier value for IPv6.
-
-  afi = "\x00\x02"
 
 class resource_bag(object):
   """
@@ -959,17 +949,6 @@ class roa_prefix_set(list):
 
     return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
                 for (x, y, z) in iterable])
-
-
-  def to_roa_tuple(self):
-    """
-    Convert ROA prefix set into tuple format used by ROA ASN.1
-    encoder.  This is a variation on the format used in RFC 3779.
-    """
-    if self:
-      return (self.resource_set_type.afi, tuple(a.to_roa_tuple() for a in self))
-    else:
-      return None
 
   def to_POW_roa_tuple(self):
     """

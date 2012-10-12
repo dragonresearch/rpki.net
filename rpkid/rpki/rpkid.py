@@ -932,10 +932,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       nextUpdate = rpki.sundial.now()
 
       if self.latest_manifest is not None:
-        try:
-          self.latest_manifest.get_content()
-        except rpki.exceptions.CMSContentNotSet:
-          self.latest_manifest.extract()
+        self.latest_manifest.extract_if_needed()
         nextUpdate = nextUpdate.later(self.latest_manifest.getNextUpdate())
 
       if self.latest_crl is not None:

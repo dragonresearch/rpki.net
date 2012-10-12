@@ -1,9 +1,7 @@
 """
 Prototype of an iterator class to parse the output of an rcynic run.
-This script will almost certainly move to the library package once
-it's stable.
 
-Copyright (C) 2010-2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -20,7 +18,11 @@ PERFORMANCE OF THIS SOFTWARE.
 
 __revision__ = '$Id$'
 
-import sys, os, rpki.x509, rpki.exceptions
+import sys
+import os
+import rpki.x509
+import rpki.exceptions
+import rpki.resource_set
 from xml.etree.ElementTree import ElementTree
 
 class UnknownObject(rpki.exceptions.RPKI_Exception):
@@ -100,25 +102,18 @@ class rcynic_roa(rcynic_object):
 
   obj_class = rpki.x509.ROA
 
-  _afi_map = dict((cls.resource_set_type.afi, cls)
-                  for cls in (rpki.resource_set.roa_prefix_set_ipv4,
-                              rpki.resource_set.roa_prefix_set_ipv6))
-
   def __init__(self, filename, **kwargs):
     rcynic_object.__init__(self, filename, **kwargs)
     self.obj.extract()
-    self.asID = self.obj.get_content().asID.get()
+    self.asID = self.obj.get_POW().getASID()
     self.prefix_sets = []
-    for fam in self.obj.get_content().ipAddrBlocks:
-      prefix_set = self._afi_map[fam.addressFamily.get()]()
-      addr_type = prefix_set.resource_set_type.range_type.datum_type
-      self.prefix_sets.append(prefix_set)
-      for addr in fam.addresses:
-        prefix = addr.address.get()
-        prefixlen = len(prefix)
-        prefix = addr_type(rpki.resource_set._bs2long(prefix, addr_type.bits, 0))
-        maxprefixlen = addr.maxLength.get()
-        prefix_set.append(prefix_set.prefix_type(prefix, prefixlen, maxprefixlen))
+    v4, v6 = self.obj.get_POW().getPrefixes()
+    if v4:
+      self.prefix_sets.append(rpki.resource_set.roa_prefix_set_ipv4([
+        rpki.resource_set.roa_prefix_ipv4(long(p[0]), p[1], p[2]) for p in v4]))
+    if v6:
+      self.prefix_sets.append(rpki.resource_set.roa_prefix_set_ipv6([
+        rpki.resource_set.roa_prefix_ipv6(long(p[0]), p[1], p[2]) for p in v6]))
     self.ee = rpki.x509.X509(POW = self.obj.get_POW().certs()[0])
     self.notBefore = self.ee.getNotBefore()
     self.notAfter = self.ee.getNotAfter()

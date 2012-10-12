@@ -44,7 +44,6 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import rpki.POW
-import rpki.POW.pkix
 import base64
 import lxml.etree
 import os
@@ -58,11 +57,8 @@ import rpki.exceptions
 import rpki.resource_set
 import rpki.oids
 import rpki.sundial
-import rpki.manifest
-import rpki.roa
 import rpki.log
 import rpki.async
-import rpki.ghostbuster
 import rpki.relaxng
 
 def base64_with_linebreaks(der):
@@ -143,17 +139,7 @@ class X501DN(object):
   Class to hold an X.501 Distinguished Name.
 
   This is nothing like a complete implementation, just enough for our
-  purposes.  The original POW code had one interface to this, POW.pkix
-  has another, my own changes to POW are a third.  In terms of
-  completeness in the Python representation, either the POW.pkix or
-  current POW representation is closest to right (depending on whether
-  you think the string type ought to be implicit or explict), but the
-  whole thing is a horrible mess.
-  
-  The main purpose of this class is to hide as much as possible of
-  this mess from code that has to work with these nasty things.
-
-  See RFC 5280 4.1.2.4 for the ASN.1 details.  In brief:
+  purposes.  See RFC 5280 4.1.2.4 for the ASN.1 details.  In brief:
 
     - A DN is a SEQUENCE OF RDNs.
 
@@ -206,20 +192,6 @@ class X501DN(object):
     self = cls()
     self.dn = (((rpki.oids.safe_name2dotted("commonName"), s),),)
     return self
-
-  @classmethod
-  def from_POWpkix(cls, t):
-    assert isinstance(t, tuple)
-    self = cls()
-    self.dn = tuple(tuple((rpki.oids.oid2dotted(a[0]), a[1][1])
-                          for a in rdn)
-                    for rdn in t)
-    return self
-
-  def get_POWpkix(self):
-    return tuple(tuple((rpki.oids.dotted2oid(a[0]), ("printableString", a[1]))
-                       for a in rdn)
-                 for rdn in self.dn)
 
   @classmethod
   def from_POW(cls, t):
@@ -550,7 +522,7 @@ class X509(DER_object):
   have to care about this implementation nightmare.
   """
 
-  formats = ("DER", "POW", "POWpkix")
+  formats = ("DER", "POW")
   pem_converter = PEM_converter("CERTIFICATE")
   
   def get_DER(self):
@@ -563,9 +535,6 @@ class X509(DER_object):
     if self.POW:
       self.DER = self.POW.derWrite()
       return self.get_DER()
-    if self.POWpkix:
-      self.DER = self.POWpkix.toString()
-      return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
@@ -576,17 +545,6 @@ class X509(DER_object):
     if not self.POW:
       self.POW = rpki.POW.X509.derRead(self.get_DER())
     return self.POW
-
-  def get_POWpkix(self):
-    """
-    Get the rpki.POW.pkix value of this certificate.
-    """
-    self.check()
-    if not self.POWpkix:
-      cert = rpki.POW.pkix.Certificate()
-      cert.fromString(self.get_DER())
-      self.POWpkix = cert
-    return self.POWpkix
 
   def getIssuer(self):
     """
@@ -626,9 +584,7 @@ class X509(DER_object):
 
   def get_SKI(self):
     """
-    Get the SKI extension from this object.  In theory, this is faster
-    than using the POW.pkix interface, and speed turns out to matter
-    when one is generating a manifest with thousands of entries.
+    Get the SKI extension from this object.
     """
     return self.get_POW().getSKI()
 
@@ -857,7 +813,7 @@ class PKCS10(DER_object):
   Class to hold a PKCS #10 request.
   """
 
-  formats = ("DER", "POW", "POWpkix")
+  formats = ("DER", "POW")
   pem_converter = PEM_converter("CERTIFICATE REQUEST")
 
   ## @var expected_ca_keyUsage
@@ -883,9 +839,6 @@ class PKCS10(DER_object):
     if self.POW:
       self.DER = self.POW.derWrite()
       return self.get_DER()
-    if self.POWpkix:
-      self.DER = self.POWpkix.toString()
-      return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
@@ -896,17 +849,6 @@ class PKCS10(DER_object):
     if not self.POW:
       self.POW = rpki.POW.PKCS10.derRead(self.get_DER())
     return self.POW
-
-  def get_POWpkix(self):
-    """
-    Get the rpki.POW.pkix value of this certification request.
-    """
-    self.check()
-    if not self.POWpkix:
-      req = rpki.POW.pkix.CertificationRequest()
-      req.fromString(self.get_DER())
-      self.POWpkix = req
-    return self.POWpkix
 
   def getSubject(self):
     """
@@ -1485,13 +1427,24 @@ class DER_CMS_object(CMS_object):
     self.get_POW().sign(cert, keypair, certs, crls, self.econtent_oid, flags)
 
 
+  def extract_if_needed(self):
+    """
+    Extract inner content if needed.  See caveats for .extract(), do
+    not use unless you really know what you are doing.
+    """
+
+    try:
+      self.get_POW().getVersion()
+    except rpki.POW.NotVerifiedError:
+      self.extract()
+
+
 class SignedManifest(DER_CMS_object):
   """
   Class to hold a signed manifest.
   """
 
   pem_converter = PEM_converter("RPKI MANIFEST")
-  content_class = rpki.manifest.Manifest
   econtent_oid = POWify_OID("id-ct-rpkiManifest")
   POW_class = rpki.POW.Manifest
   
@@ -1538,7 +1491,6 @@ class ROA(DER_CMS_object):
   """
 
   pem_converter = PEM_converter("ROUTE ORIGIN ATTESTATION")
-  content_class = rpki.roa.RouteOriginAttestation
   econtent_oid = POWify_OID("id-ct-routeOriginAttestation")
   POW_class = rpki.POW.ROA
 
@@ -1647,7 +1599,10 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
     Encode inner content for signing.
     """
-    return lxml.etree.tostring(self.get_content(), pretty_print = True, encoding = self.encoding, xml_declaration = True)
+    return lxml.etree.tostring(self.get_content(),
+                               pretty_print = True,
+                               encoding = self.encoding,
+                               xml_declaration = True)
 
   def decode(self, xml):
     """
@@ -1659,7 +1614,10 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
     Pretty print XML content of this message.
     """
-    return lxml.etree.tostring(self.get_content(), pretty_print = True, encoding = self.encoding, xml_declaration = True)
+    return lxml.etree.tostring(self.get_content(),
+                               pretty_print = True,
+                               encoding = self.encoding,
+                               xml_declaration = True)
 
   def schema_check(self):
     """
@@ -1784,7 +1742,7 @@ class CRL(DER_object):
   Class to hold a Certificate Revocation List.
   """
 
-  formats = ("DER", "POW", "POWpkix")
+  formats = ("DER", "POW")
   pem_converter = PEM_converter("X509 CRL")
   
   def get_DER(self):
@@ -1797,9 +1755,6 @@ class CRL(DER_object):
     if self.POW:
       self.DER = self.POW.derWrite()
       return self.get_DER()
-    if self.POWpkix:
-      self.DER = self.POWpkix.toString()
-      return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
@@ -1810,17 +1765,6 @@ class CRL(DER_object):
     if not self.POW:
       self.POW = rpki.POW.CRL.derRead(self.get_DER())
     return self.POW
-
-  def get_POWpkix(self):
-    """
-    Get the rpki.POW.pkix value of this CRL.
-    """
-    self.check()
-    if not self.POWpkix:
-      crl = rpki.POW.pkix.CertificateList()
-      crl.fromString(self.get_DER())
-      self.POWpkix = crl
-    return self.POWpkix
 
   def getThisUpdate(self):
     """

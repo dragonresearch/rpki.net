@@ -99,31 +99,6 @@ class datetime(pydatetime.datetime):
     return self.strftime("%Y%m%d%H%M%SZ")
 
   @classmethod
-  def fromASN1tuple(cls, x):
-    """
-    Convert from ASN.1 tuple representation.
-    """
-    assert isinstance(x, tuple) and len(x) == 2 and x[0] in ("utcTime", "generalTime")
-    if x[0] == "utcTime":
-      return cls.fromUTCTime(x[1])
-    else:
-      return cls.fromGeneralizedTime(x[1])
-
-  ## @var PKIX_threshhold
-  # Threshold specified in RFC 3280 for switchover from UTCTime to GeneralizedTime.
-
-  PKIX_threshhold = pydatetime.datetime(2050, 1, 1)
-
-  def toASN1tuple(self):
-    """
-    Convert to ASN.1 tuple representation.
-    """
-    if self < self.PKIX_threshhold:
-      return "utcTime", self.toUTCTime()
-    else:
-      return "generalTime", self.toGeneralizedTime()
-
-  @classmethod
   def fromXMLtime(cls, x):
     """
     Convert from XML time representation.
@@ -311,7 +286,6 @@ if __name__ == "__main__":
     print "seconds since epoch:", t.strftime("%s")
     print "UTCTime:            ", t.toUTCTime()
     print "GeneralizedTime:    ", t.toGeneralizedTime()
-    print "ASN1tuple:          ", t.toASN1tuple()
     print "XMLtime:            ", t.toXMLtime()
     print
 

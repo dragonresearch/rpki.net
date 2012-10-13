@@ -207,6 +207,29 @@ static const struct {
 };
 
 /*
+ * IP versions.
+ */
+
+typedef struct ipaddress_version {
+  unsigned version;
+  unsigned afi;
+  unsigned af;
+  unsigned length;
+} ipaddress_version;
+
+static const ipaddress_version ipaddress_version_4 = {
+  4, IANA_AFI_IPV4, AF_INET, 4
+};
+
+static const ipaddress_version ipaddress_version_6 = {
+  6, IANA_AFI_IPV6, AF_INET6, 16
+};
+
+static const ipaddress_version * const ipaddress_versions[] = {
+  &ipaddress_version_4, &ipaddress_version_6
+};
+
+/*
  * Exception objects.
  */
 
@@ -240,9 +263,7 @@ static PyTypeObject
 typedef struct {
   PyObject_HEAD
   unsigned char address[16];
-  unsigned char version;
-  unsigned char length;
-  unsigned short af;
+  const struct ipaddress_version *type;
 } ipaddress_object;
 
 typedef struct {
@@ -941,6 +962,7 @@ ipaddress_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   PyObject *pylong = NULL;
   int version = 0;
   const char *s = NULL;
+  int v;
 
   ENTERING(ipaddress_object_new);
 
@@ -950,12 +972,8 @@ ipaddress_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 
   if (POW_IPAddress_Check(init)) {
     ipaddress_object *src = (ipaddress_object *) init;
-
     memcpy(self->address, src->address, sizeof(self->address));
-    self->version = src->version;
-    self->length  = src->length;
-    self->af      = src->af;
-
+    self->type = src->type;
     return (PyObject *) self;
   }
 
@@ -964,21 +982,23 @@ ipaddress_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
   else if (version == 0)
     version = strchr(s, ':') ? 6 : 4;
 
-  switch (version) {
-  case 4: self->length =  4; self->af = AF_INET;  break;
-  case 6: self->length = 16; self->af = AF_INET6; break;
-  default: lose("Unknown IP version number");
-  }
-  self->version = version;
+  self->type = NULL;
+
+  for (v = 0; v < sizeof(ipaddress_versions)/sizeof(*ipaddress_versions); v++)
+    if (version == ipaddress_versions[v]->version)
+      self->type = ipaddress_versions[v];
+
+  if (self->type == NULL)
+    lose("Unknown IP version number");
 
   if (s != NULL) {
-    if (inet_pton(self->af, s, self->address) <= 0)
+    if (inet_pton(self->type->af, s, self->address) <= 0)
       lose("Couldn't parse IP address");
     return (PyObject *) self;
   }
 
   if ((pylong = PyNumber_Long(init)) != NULL) {
-    if (_PyLong_AsByteArray((PyLongObject *) pylong, self->address, self->length, 0, 0) < 0)
+    if (_PyLong_AsByteArray((PyLongObject *) pylong, self->address, self->type->length, 0, 0) < 0)
       goto error;
     Py_XDECREF(pylong);
     return (PyObject *) self;
@@ -999,7 +1019,7 @@ ipaddress_object_str(ipaddress_object *self)
 
   ENTERING(ipaddress_object_str);
 
-  if (!inet_ntop(self->af, self->address, addrstr, sizeof(addrstr)))
+  if (!inet_ntop(self->type->af, self->address, addrstr, sizeof(addrstr)))
     lose("Couldn't convert IP address");
 
   return PyString_FromString(addrstr);
@@ -1015,7 +1035,7 @@ ipaddress_object_repr(ipaddress_object *self)
 
   ENTERING(ipaddress_object_repr);
 
-  if (!inet_ntop(self->af, self->address, addrstr, sizeof(addrstr)))
+  if (!inet_ntop(self->type->af, self->address, addrstr, sizeof(addrstr)))
     lose("Couldn't convert IP address");
 
   return PyString_FromFormat("<%s object %s at %p>",
@@ -1067,7 +1087,7 @@ ipaddress_object_hash(ipaddress_object *self)
 
   ENTERING(ipaddress_object_hash);
 
-  for (i = 0; i < self->length; i++)
+  for (i = 0; i < self->type->length; i++)
     h ^= self->address[i] << ((i & 3) << 3);
 
   return (long) h == -1 ? 0 : (long) h;
@@ -1085,25 +1105,26 @@ ipaddress_object_from_bytes(PyTypeObject *type, PyObject *args)
   ipaddress_object *result = NULL;
   char *bytes = NULL;
   size_t len;
+  int v;
 
   ENTERING(ipaddress_object_from_bytes);
 
   if (!PyArg_ParseTuple(args, "s#", &bytes, &len))
     goto error;
 
-  if (len != 4 && len != 16)
-    lose("Argument must be a string of exactly 4 or 16 bytes");
-
   if ((result = (ipaddress_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
 
-  memcpy(result->address, bytes, len);
-  result->length = len;
+  result->type = NULL;
 
-  switch (len) {
-  case  4: result->version = 4; result->af = AF_INET;  break;
-  case 16: result->version = 6; result->af = AF_INET6; break;
-  }
+  for (v = 0; v < sizeof(ipaddress_versions)/sizeof(*ipaddress_versions); v++)
+    if (len == ipaddress_versions[v]->length)
+      result->type = ipaddress_versions[v];
+
+  if (result->type == NULL)
+    lose("Unknown IP version number");
+
+  memcpy(result->address, bytes, len);
 
  error:
   return (PyObject *) result;
@@ -1118,21 +1139,21 @@ static PyObject *
 ipaddress_object_to_bytes(ipaddress_object *self)
 {
   ENTERING(ipaddress_object_from_bytes);
-  return PyString_FromStringAndSize(self->address, self->length);
+  return PyString_FromStringAndSize(self->address, self->type->length);
 }
 
 static PyObject *
 ipaddress_object_get_bits(ipaddress_object *self, void *closure)
 {
   ENTERING(ipaddress_object_get_bits);
-  return PyInt_FromLong(self->length * 8);
+  return PyInt_FromLong(self->type->length * 8);
 }
 
 static PyObject *
 ipaddress_object_get_version(ipaddress_object *self, void *closure)
 {
   ENTERING(ipaddress_object_get_version);
-  return PyInt_FromLong(self->version);
+  return PyInt_FromLong(self->type->version);
 }
 
 static PyObject *
@@ -1154,7 +1175,7 @@ ipaddress_object_number_binary_helper(binaryfunc function, PyObject *arg1, PyObj
     addr2 = (ipaddress_object *) arg2;
 
   if ((addr1 == NULL && addr2 == NULL) ||
-      (addr1 != NULL && addr2 != NULL && addr1->version != addr2->version) ||
+      (addr1 != NULL && addr2 != NULL && addr1->type != addr2->type) ||
       (obj1 = PyNumber_Long(arg1)) == NULL ||
       (obj2 = PyNumber_Long(arg2)) == NULL) {
     result = (ipaddress_object *) Py_NotImplemented;
@@ -1172,11 +1193,9 @@ ipaddress_object_number_binary_helper(binaryfunc function, PyObject *arg1, PyObj
   if ((result = (ipaddress_object *) addr->ob_type->tp_alloc(addr->ob_type, 0)) == NULL)
     goto error;
 
-  result->version = addr->version;
-  result->length  = addr->length;
-  result->af      = addr->af;
+  result->type = addr->type;
 
-  if (_PyLong_AsByteArray((PyLongObject *) obj4, result->address, result->length, 0, 0) < 0) {
+  if (_PyLong_AsByteArray((PyLongObject *) obj4, result->address, result->type->length, 0, 0) < 0) {
     Py_XDECREF(result);
     result = NULL;
   }
@@ -1200,7 +1219,7 @@ ipaddress_object_number_long(PyObject *arg)
   if (!POW_IPAddress_Check(arg))
     return Py_NotImplemented;
 
-  return _PyLong_FromByteArray(addr->address, addr->length, 0, 0);
+  return _PyLong_FromByteArray(addr->address, addr->type->length, 0, 0);
 }
 
 static PyObject *
@@ -1266,7 +1285,7 @@ ipaddress_object_number_nonzero(ipaddress_object *self)
 
   ENTERING(ipaddress_object_number_nonzero);
 
-  for (i = 0; i < self->length; i++)
+  for (i = 0; i < self->type->length; i++)
     if (self->address[i] != 0)
       return 1;
   return 0;
@@ -1283,11 +1302,9 @@ ipaddress_object_number_invert(ipaddress_object *self)
   if ((result = (ipaddress_object *) self->ob_type->tp_alloc(self->ob_type, 0)) == NULL)
     goto error;
 
-  result->version = self->version;
-  result->length  = self->length;
-  result->af      = self->af;
+  result->type = self->type;
 
-  for (i = 0; i < self->length; i++)
+  for (i = 0; i < self->type->length; i++)
     result->address[i] = ~self->address[i];
 
  error:                         /* Fall through */
@@ -2401,13 +2418,14 @@ x509_object_get_rfc3779(x509_object *self)
   if ((addr = X509_get_ext_d2i(self->x509, NID_sbgp_ipAddrBlock, NULL, NULL)) != NULL) {
     for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
       IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
+      const struct ipaddress_version *ip_type = NULL;
       const unsigned int afi = v3_addr_get_afi(f);
       PyObject **result_obj = NULL;
       int addr_len = 0;
 
       switch (afi) {
-      case IANA_AFI_IPV4: result_obj = &ipv4_result; break;
-      case IANA_AFI_IPV6: result_obj = &ipv6_result; break;
+      case IANA_AFI_IPV4: result_obj = &ipv4_result; ip_type = &ipaddress_version_4; break;
+      case IANA_AFI_IPV6: result_obj = &ipv6_result; ip_type = &ipaddress_version_6; break;
       default:            lose_type_error("Unknown AFI");
       }
 
@@ -2435,8 +2453,7 @@ x509_object_get_rfc3779(x509_object *self)
         goto error;
 
       for (j = 0; j < sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges); j++) {
-        IPAddressOrRange *aor = sk_IPAddressOrRange_value(f->ipAddressChoice->u.addressesOrRanges,
-                                    j);
+        IPAddressOrRange *aor = sk_IPAddressOrRange_value(f->ipAddressChoice->u.addressesOrRanges, j);
         ipaddress_object *addr_b = NULL;
         ipaddress_object *addr_e = NULL;
 
@@ -2447,21 +2464,11 @@ x509_object_get_rfc3779(x509_object *self)
         addr_b = (ipaddress_object *) range_b;
         addr_e = (ipaddress_object *) range_e;
 
-        if ((addr_len = v3_addr_get_range(aor, afi, addr_b->address, addr_e->address, sizeof(addr_b->address))) == 0)
+        if ((addr_len = v3_addr_get_range(aor, afi, addr_b->address, addr_e->address,
+                                          sizeof(addr_b->address))) == 0)
           lose_type_error("Couldn't unpack IP addresses from BIT STRINGs");
 
-        switch (afi) {
-        case IANA_AFI_IPV4:
-          addr_b->version = addr_e->version =  4;
-          addr_b->length  = addr_e->length  =  4;
-          addr_b->af      = addr_e->af      = AF_INET;
-          break;
-        case IANA_AFI_IPV6:
-          addr_b->version = addr_e->version =  6;
-          addr_b->length  = addr_e->length  = 16;
-          addr_b->af      = addr_e->af      = AF_INET6;
-          break;
-        }
+        addr_b->type = addr_e->type = ip_type;
 
         if ((range = Py_BuildValue("(NN)", range_b, range_e)) == NULL)
           goto error;
@@ -2579,7 +2586,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
   }
 
   if (ipv4_arg != Py_None || ipv6_arg != Py_None) {
-    int afi;
+    int v;
 
     empty = 1;
 
@@ -2588,19 +2595,17 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
     /*
      * Cheap trick to let us inline all of this instead of being
-     * forced to use a separate function.  Should probably use a
-     * separate function anyway, but am waiting until I have the ROA
-     * code written to decide how best to refactor all of this.
+     * forced to use a separate function.  Refactor, some day.
      */
 
-    for (afi = 0; afi < IANA_AFI_IPV4 + IANA_AFI_IPV6; afi++) {
+    for (v = 0; v < sizeof(ipaddress_versions)/sizeof(*ipaddress_versions); v++) {
+      const struct ipaddress_version *ip_type = ipaddress_versions[v];
       PyObject **argp;
-      int len;
 
-      switch (afi) {
-      case IANA_AFI_IPV4: len =  4; argp = &ipv4_arg; break;
-      case IANA_AFI_IPV6: len = 16; argp = &ipv6_arg; break;
-      default: continue;
+      switch (ip_type->version) {
+      case 4: argp = &ipv4_arg; break;
+      case 6: argp = &ipv6_arg; break;
+      default: continue;        /* Never happens */
       }
 
       if (PyString_Check(*argp)) {
@@ -2608,7 +2613,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
         if (strcmp(PyString_AsString(*argp), "inherit"))
           lose_type_error("Argument must be sequence of range pairs, or \"inherit\"");
 
-        if (!v3_addr_add_inherit(addr, afi, NULL))
+        if (!v3_addr_add_inherit(addr, ip_type->afi, NULL))
           lose_no_memory();
 
         empty = 0;
@@ -2628,13 +2633,12 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
           addr_b = (ipaddress_object *) range_b;
           addr_e = (ipaddress_object *) range_e;
 
-          if (addr_b->version != addr_e->version ||
-              addr_b->length != len ||
-              addr_e->length != len ||
-              memcmp(addr_b->address, addr_e->address, addr_b->length) > 0)
+          if (addr_b->type != ip_type ||
+              addr_e->type != ip_type ||
+              memcmp(addr_b->address, addr_e->address, ip_type->length) > 0)
             lose("IPAddrBlock must be sequence of address pairs, or \"inherit\"");
 
-          if (!v3_addr_add_range(addr, afi, NULL, addr_b->address, addr_e->address))
+          if (!v3_addr_add_range(addr, ip_type->afi, NULL, addr_b->address, addr_e->address))
             lose_openssl_error("Couldn't add range to IPAddrBlock");
 
           Py_XDECREF(item);
@@ -6990,11 +6994,12 @@ roa_object_get_prefixes(roa_object *self)
   for (i = 0; i < sk_ROAIPAddressFamily_num(self->roa->ipAddrBlocks); i++) {
     ROAIPAddressFamily *fam = sk_ROAIPAddressFamily_value(self->roa->ipAddrBlocks, i);
     const unsigned afi = (fam->addressFamily->data[0] << 8) | (fam->addressFamily->data[1]);
+    const ipaddress_version *ip_type = NULL;
     PyObject **resultp = NULL;
 
     switch (afi) {
-    case IANA_AFI_IPV4: resultp = &ipv4_result; break;
-    case IANA_AFI_IPV6: resultp = &ipv6_result; break;
+    case IANA_AFI_IPV4: resultp = &ipv4_result; ip_type = &ipaddress_version_4; break;
+    case IANA_AFI_IPV6: resultp = &ipv6_result; ip_type = &ipaddress_version_6; break;
     default:            lose_type_error("Unknown AFI");
     }
 
@@ -7014,22 +7019,11 @@ roa_object_get_prefixes(roa_object *self)
       if ((addr = (ipaddress_object *) POW_IPAddress_Type.tp_alloc(&POW_IPAddress_Type, 0)) == NULL)
         goto error;
 
-      switch (afi) {
-      case IANA_AFI_IPV4:
-        addr->version =  4;
-        addr->length  =  4;
-        addr->af      = AF_INET;
-        break;
-      case IANA_AFI_IPV6:
-        addr->version =  6;
-        addr->length  = 16;
-        addr->af      = AF_INET6;
-        break;
-      }
+      addr->type = ip_type;
 
       memset(addr->address, 0, sizeof(addr->address));
 
-      if (a->IPAddress->length > addr->length)
+      if (a->IPAddress->length > addr->type->length)
         lose("ROAIPAddress BIT STRING too long for AFI");
 
       if (a->IPAddress->length > 0) {
@@ -7085,7 +7079,8 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
   PyObject *ipv6_arg = Py_None;
   PyObject *iterator = NULL;
   PyObject *item = NULL;
-  int afi, ok = 0;
+  int ok = 0;
+  int v;
 
   ENTERING(roa_object_set_prefixes);
 
@@ -7098,26 +7093,22 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
   if ((prefixes = sk_ROAIPAddressFamily_new_null()) == NULL)
     lose_no_memory();
 
-  /*
-   * Cheap trick.  Refactor once I figure out how this all works.
-   */
-
-  for (afi = 0; afi < IANA_AFI_IPV4 + IANA_AFI_IPV6; afi++) {
+  for (v = 0; v < sizeof(ipaddress_versions)/sizeof(*ipaddress_versions); v++) {
+    const struct ipaddress_version *ip_type = ipaddress_versions[v];
     unsigned char afibuf[2];
     PyObject **argp;
-    int len;
 
-    switch (afi) {
-    case IANA_AFI_IPV4: len =  4; argp = &ipv4_arg; break;
-    case IANA_AFI_IPV6: len = 16; argp = &ipv6_arg; break;
+    switch (ip_type->version) {
+    case 4: argp = &ipv4_arg; break;
+    case 6: argp = &ipv6_arg; break;
     default: continue;
     }
 
     if (*argp == Py_None)
       continue;
 
-    afibuf[0] = (afi >> 8) & 0xFF;
-    afibuf[1] = afi & 0xFF;
+    afibuf[0] = (ip_type->afi >> 8) & 0xFF;
+    afibuf[1] = (ip_type->afi     ) & 0xFF;
 
     if ((iterator = PyObject_GetIter(*argp)) == NULL)
       goto error;
@@ -7138,13 +7129,13 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
           goto error;
       }
 
-      if (addr->length != len)
+      if (addr->type != ip_type)
         lose_type_error("Bad ROA prefix");
 
-      if (prefixlen > addr->length * 8)
+      if (prefixlen > addr->type->length * 8)
         lose("Bad prefix length");
 
-      if (maxprefixlen > addr->length * 8 || maxprefixlen < prefixlen)
+      if (maxprefixlen > addr->type->length * 8 || maxprefixlen < prefixlen)
         lose("Bad maxLength value");
 
       bytelen = (prefixlen + 7) / 8;

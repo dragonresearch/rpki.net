@@ -1139,7 +1139,7 @@ static PyObject *
 ipaddress_object_to_bytes(ipaddress_object *self)
 {
   ENTERING(ipaddress_object_from_bytes);
-  return PyString_FromStringAndSize(self->address, self->type->length);
+  return PyString_FromStringAndSize((char *) self->address, self->type->length);
 }
 
 static PyObject *
@@ -5143,7 +5143,7 @@ asymmetric_object_calculate_ski(asymmetric_object *self)
                   digest, &digest_length, EVP_sha1(), NULL))
     lose_openssl_error("Couldn't calculate SHA-1 digest of public key");
 
-  result = PyString_FromStringAndSize(digest, digest_length);
+  result = PyString_FromStringAndSize((char *) digest, digest_length);
 
  error:
   X509_PUBKEY_free(pubkey);
@@ -5757,8 +5757,6 @@ cms_object_sign(cms_object *self, PyObject *args)
   else
     return NULL;
 }
-
-#warning Might want to convert flag bits here to keyword argument booleans
 
 static BIO *
 cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)

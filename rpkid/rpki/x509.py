@@ -1588,7 +1588,7 @@ class XML_CMS_object(Wrapped_CMS_object):
   ## @var check_inbound_schema
   # If set, perform RelaxNG schema check on inbound messages.
 
-  check_inbound_schema = False           # XXX
+  check_inbound_schema = True
 
   ## @var check_outbound_schema
   # If set, perform RelaxNG schema check on outbound messages.

@@ -269,6 +269,16 @@ class parser(object):
       pass
 
     try:
+      rpki.x509.XML_CMS_object.check_inbound_schema = self.get("check_inbound_schema")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
+      rpki.x509.XML_CMS_object.check_outbound_schema = self.get("check_outbound_schema")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
       rpki.async.gc_summary(self.getint("gc_summary"), self.getint("gc_summary_threshold", 0))
     except ConfigParser.NoOptionError:
       pass

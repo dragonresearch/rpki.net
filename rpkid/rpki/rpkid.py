@@ -477,6 +477,13 @@ class ca_obj(rpki.sql.sql_persistent):
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'deprecated'", (self.ca_id,))
 
   @property
+  def active_or_deprecated_ca_details(self):
+    """
+    Fetch active and deprecated ca_details for this CA, if any.
+    """
+    return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND (state = 'active' OR state = 'deprecated')", (self.ca_id,))
+
+  @property
   def revoked_ca_details(self):
     """
     Fetch revoked ca_details for this CA, if any.
@@ -618,6 +625,7 @@ class ca_obj(rpki.sql.sql_persistent):
         callback = cb,
         errback  = eb)
 
+    rpki.log.debug("Sending issue request to %r from %r" % (parent, self.create))
     rpki.up_down.issue_pdu.query(parent, self, ca_detail, done, eb)
 
   def delete(self, parent, callback):
@@ -693,6 +701,7 @@ class ca_obj(rpki.sql.sql_persistent):
         callback    = cb,
         errback     = eb)
 
+    rpki.log.debug("Sending issue request to %r from %r" % (parent, self.rekey))
     rpki.up_down.issue_pdu.query(parent, self, new_detail, done, eb)
 
   def revoke(self, cb, eb, revoke_all = False):
@@ -849,14 +858,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
         child_cert.reissue(ca_detail = self, publisher = publisher)
       for roa in predecessor.roas:
         roa.regenerate(publisher = publisher)
-
-      # Need to do something to regenerate ghostbusters here?
-      # Yes, I suspect so, since presumably we want the ghostbuster to
-      # be issued by the new ca_detail at this point.  But check code.
-
-      if predecessor.ghostbusters:
-        rpki.log.warn("Probably should be regenerating Ghostbusters %r here" % ghostbuster)
-
+      for ghostbuster in predecessor.ghostbusters:
+        ghostbuster.regenerate(publisher = publisher)
+      predecessor.generate_crl(publisher = publisher)
+      predecessor.generate_manifest(publisher = publisher)
 
     publisher.call_pubd(callback, errback)
 
@@ -973,7 +978,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
 
     def issued(issue_response):
-      self.latest_ca_cert = issue_response.payload.classes[0].certs[0].cert
+      new_ca_cert = issue_response.payload.classes[0].certs[0].cert
+      if self.latest_ca_cert != new_ca_cert:
+        self.latest_ca_cert = new_ca_cert
+        self.sql_mark_dirty()
       new_resources = self.latest_ca_cert.get_3779resources()
       publisher = publication_queue()
 
@@ -988,6 +996,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
       publisher.call_pubd(callback, errback)
 
+    rpki.log.debug("Sending issue request to %r from %r" % (parent, self.update))
     rpki.up_down.issue_pdu.query(parent, ca, self, issued, errback)
 
   @classmethod
@@ -1024,7 +1033,6 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       resources   = resources,
       notAfter    = self.latest_ca_cert.getNotAfter(),
       is_ca       = False)
-
 
   def generate_manifest_cert(self):
     """
@@ -1136,21 +1144,24 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     parent = ca.parent
     crl_interval = rpki.sundial.timedelta(seconds = parent.self.crl_interval)
     now = rpki.sundial.now()
+    uri = self.manifest_uri
 
     if nextUpdate is None:
       nextUpdate = now + crl_interval
 
     if self.latest_manifest_cert is None or self.latest_manifest_cert.getNotAfter() < nextUpdate:
-      rpki.log.debug("Generating manifest certificate")
+      rpki.log.debug("Generating EE certificate for %s" % uri)
       self.generate_manifest_cert()
+      rpki.log.debug("Latest CA cert notAfter %s, new %s EE notAfter %s" % (
+        self.latest_ca_cert.getNotAfter(), uri, self.latest_manifest_cert.getNotAfter()))
 
-    rpki.log.debug("Constructing manifest object list")
+    rpki.log.debug("Constructing manifest object list for %s" % uri)
     objs = [(self.crl_uri_tail, self.latest_crl)]
     objs.extend((c.uri_tail, c.cert) for c in self.child_certs)
     objs.extend((r.uri_tail, r.roa) for r in self.roas if r.roa is not None)
     objs.extend((g.uri_tail, g.ghostbuster) for g in self.ghostbusters)
 
-    rpki.log.debug("Building manifest object")
+    rpki.log.debug("Building manifest object %s" % uri)
     self.latest_manifest = rpki.x509.SignedManifest.build(
       serial         = ca.next_manifest_number(),
       thisUpdate     = now,
@@ -1163,7 +1174,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
     self.manifest_published = rpki.sundial.now()
     self.sql_mark_dirty()
-    publisher.publish(cls = rpki.publication.manifest_elt, uri = self.manifest_uri, obj = self.latest_manifest, repository = parent.repository,
+    publisher.publish(cls = rpki.publication.manifest_elt, uri = uri, obj = self.latest_manifest, repository = parent.repository,
                       handler = self.manifest_published_callback)
 
   def manifest_published_callback(self, pdu):

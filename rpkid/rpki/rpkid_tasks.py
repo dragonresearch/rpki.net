@@ -553,10 +553,10 @@ class RegnerateCRLsAndManifestsTask(AbstractTask):
           for ca_detail in ca.revoked_ca_details:
             if now > ca_detail.latest_crl.getNextUpdate():
               ca_detail.delete(ca = ca, publisher = publisher)
-          ca_detail = ca.active_ca_detail
-          if ca_detail is not None and now + regen_margin > ca_detail.latest_crl.getNextUpdate():
-            ca_detail.generate_crl(publisher = publisher)
-            ca_detail.generate_manifest(publisher = publisher)
+          for ca_detail in ca.active_or_deprecated_ca_details:
+            if now + regen_margin > ca_detail.latest_crl.getNextUpdate():
+              ca_detail.generate_crl(publisher = publisher)
+              ca_detail.generate_manifest(publisher = publisher)
         except (SystemExit, rpki.async.ExitNow):
           raise
         except Exception, e:

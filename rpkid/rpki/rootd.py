@@ -186,7 +186,9 @@ class main(object):
       rpki.log.debug("No PKCS #10 request, can't generate subject certificate yet")
       return None
     resources = self.rpki_root_cert.get_3779resources()
-    rpki.log.info("Generating subject cert with resources " + str(resources))
+    notAfter = now + self.rpki_subject_lifetime
+    rpki.log.info("Generating subject cert %s with resources %s, expires %s" % (
+      self.rpki_base_uri + self.rpki_subject_cert, resources, notAfter))
     req_key = pkcs10.getPublicKey()
     req_sia = pkcs10.get_SIA()
     self.next_serial_number()
@@ -198,7 +200,7 @@ class main(object):
       aia         = self.rpki_root_cert_uri,
       crldp       = self.rpki_base_uri + self.rpki_root_crl,
       resources   = resources,
-      notAfter    = now + self.rpki_subject_lifetime)
+      notAfter    = notAfter)
     self.set_subject_cert(subject_cert)
     self.generate_crl_and_manifest(now)
     return subject_cert

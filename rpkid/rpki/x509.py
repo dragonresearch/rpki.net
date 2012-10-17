@@ -1802,6 +1802,8 @@ class CRL(DER_object):
     crl.setNextUpdate(nextUpdate.toGeneralizedTime())
     crl.setAKI(issuer.get_SKI())
     crl.setCRLNumber(serial)
+    crl.addRevocations((r[0], r[1].toGeneralizedTime())
+                       for r in revokedCertificates)
     crl.sign(keypair.get_POW())
     return cls(POW = crl)
 

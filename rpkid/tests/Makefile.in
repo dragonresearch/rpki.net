@@ -81,7 +81,7 @@ yamlconf-profile:
 
 backup:
 	${PYTHON} sql-dumper.py
-	tar cvvzf yamltest.backup.$$(TZ='' date +%Y.%m.%d.%H.%M.%S).tgz screenlog.* yamltest.dir backup.*.sql
+	tar cvvJf yamltest.backup.$$(TZ='' date +%Y.%m.%d.%H.%M.%S).txz screenlog.* yamltest.dir backup.*.sql
 	rm backup.*.sql
 
 distclean: clean

@@ -269,12 +269,12 @@ class parser(object):
       pass
 
     try:
-      rpki.x509.XML_CMS_object.check_inbound_schema = self.get("check_inbound_schema")
+      rpki.x509.XML_CMS_object.check_inbound_schema = self.getboolean("check_inbound_schema")
     except ConfigParser.NoOptionError:
       pass
 
     try:
-      rpki.x509.XML_CMS_object.check_outbound_schema = self.get("check_outbound_schema")
+      rpki.x509.XML_CMS_object.check_outbound_schema = self.getboolean("check_outbound_schema")
     except ConfigParser.NoOptionError:
       pass
 

@@ -77,7 +77,7 @@ class database(object):
 
   def __init__(self, name, on_entry = None, on_exit = None):
     if not isinstance(name, str):
-      raise ValueError("database name must be a string, not %r" % value)
+      raise ValueError("database name must be a string, not %r" % name)
     self.name = name
     self.on_entry = on_entry
     self.on_exit = on_exit
@@ -88,7 +88,7 @@ class database(object):
     self.former = DBContextRouter._database
     DBContextRouter._database = self.name
 
-  def __exit__(self, type, value, traceback):
+  def __exit__(self, _type, value, traceback):
     assert DBContextRouter._database is self.name
     DBContextRouter._database = self.former
     if self.on_exit is not None:

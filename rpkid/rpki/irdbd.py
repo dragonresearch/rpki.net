@@ -42,7 +42,6 @@ import os
 import time
 import getopt
 import urlparse
-import warnings
 import rpki.http
 import rpki.config
 import rpki.resource_set
@@ -144,7 +143,7 @@ class main(object):
 
   def __init__(self, **kwargs):
 
-    global rpki
+    global rpki                         # pylint: disable=W0602
 
     os.environ["TZ"] = "UTC"
     time.tzset()
@@ -192,7 +191,7 @@ class main(object):
 
   def main(self):
 
-    global rpki
+    global rpki                         # pylint: disable=W0602
     from django.conf import settings
 
     startup_msg = self.cfg.get("startup-message", "")
@@ -220,8 +219,8 @@ class main(object):
           "PORT"     : "" }},
       INSTALLED_APPS = ("rpki.irdb",),)
 
-    import rpki.irdb
-
+    import rpki.irdb                    # pylint: disable=W0621
+    
     # Entirely too much fun with read-only access to transactional databases.
     # 
     # http://stackoverflow.com/questions/3346124/how-do-i-force-django-to-ignore-any-caches-and-reload-data

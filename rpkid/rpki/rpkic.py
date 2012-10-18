@@ -39,16 +39,10 @@ PERFORMANCE OF THIS SOFTWARE.
 # modules, or anything that imports Django modules.  Bottom line is
 # that we don't import such modules until we need them.
 
-import csv
-import re
 import os
 import getopt
 import sys
-import base64
 import time
-import glob
-import copy
-import warnings
 import rpki.config
 import rpki.cli
 import rpki.sundial
@@ -116,7 +110,7 @@ class main(rpki.cli.Cmd):
     rpki.cli.Cmd.__init__(self, self.argv)
 
   def read_config(self):
-    global rpki
+    global rpki                         # pylint: disable=W0602
 
     cfg = rpki.config.parser(self.cfg_file, "myrpki")
     cfg.set_global_flags()
@@ -137,7 +131,7 @@ class main(rpki.cli.Cmd):
       INSTALLED_APPS = ("rpki.irdb",),
     )
 
-    import rpki.irdb
+    import rpki.irdb                    # pylint: disable=W0621
 
     try:
       rpki.irdb.models.ca_certificate_lifetime = rpki.sundial.timedelta.parse(

@@ -10,7 +10,7 @@ Usage: python rootd.py [ { -c | --config } configfile ]
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -299,7 +299,7 @@ class main(object):
       try:
         crl = rpki.x509.CRL(DER_file = os.path.join(self.rpki_root_dir, self.rpki_root_crl))
         self.crl_number = crl.getCRLNumber()
-      except:
+      except:                           # pylint: disable=W0702
         self.crl_number = 0
     self.crl_number += 1
     return self.crl_number

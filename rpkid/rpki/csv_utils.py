@@ -3,7 +3,7 @@ CSV utilities, moved here from myrpki.py.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -71,7 +71,7 @@ class csv_reader(object):
   def __enter__(self):
     return self
 
-  def __exit__(self, type, value, traceback):
+  def __exit__(self, _type, value, traceback):
     self.file.close()
 
 class csv_writer(object):
@@ -92,7 +92,7 @@ class csv_writer(object):
   def __enter__(self):
     return self
 
-  def __exit__(self, type, value, traceback):
+  def __exit__(self, _type, value, traceback):
     self.close()
 
   def close(self):

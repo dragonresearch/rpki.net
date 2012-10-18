@@ -3,7 +3,7 @@ HTTP utilities, both client and server.
 
 $Id$
 
-Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -82,11 +82,6 @@ enable_ipv6_servers = True
 # far too much of the world.
 enable_ipv6_clients = False
 
-## @var use_adns
-# Whether to use rpki.adns code.  This is still experimental, so it's
-# not (yet) enabled by default.
-use_adns = False
-
 ## @var have_ipv6
 # Whether the current machine claims to support IPv6.  Note that just
 # because the kernel supports it doesn't mean that the machine has
@@ -95,6 +90,7 @@ use_adns = False
 # SRI-NIC.ARPA?" seems a bit dated...).  Don't set this, it's set
 # automatically by probing using the socket() system call at runtime.
 try:
+  # pylint: disable=W0702,W0104
   socket.socket(socket.AF_INET6).close()
   socket.IPPROTO_IPV6
   socket.IPV6_V6ONLY
@@ -102,6 +98,16 @@ except:
   have_ipv6 = False
 else:
   have_ipv6 = True
+
+## @var use_adns
+
+# Whether to use rpki.adns code.  This is still experimental, so it's
+# not (yet) enabled by default.
+use_adns = False
+try:
+  import rpki.adns
+except ImportError:
+  pass
 
 def supported_address_families(enable_ipv6):
   """
@@ -590,7 +596,7 @@ class http_listener(asyncore.dispatcher):
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
     try:
-      af, socktype, proto, canonname, sockaddr = addrinfo
+      af, socktype, proto, canonname, sockaddr = addrinfo # pylint: disable=W0612
       self.create_socket(af, socktype)
       self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       try:
@@ -614,8 +620,8 @@ class http_listener(asyncore.dispatcher):
     stream for it and pass along all of our handler data.
     """
     try:
-      s, client = self.accept()
-      self.log("Accepting connection from %s" % addr_to_string(client))
+      s, c = self.accept()
+      self.log("Accepting connection from %s" % addr_to_string(c))
       http_server(sock = s, handlers = self.handlers)
     except (rpki.async.ExitNow, SystemExit):
       raise
@@ -669,7 +675,6 @@ class http_client(http_stream):
       self.log("Bypassing DNS for localhost")
       self.gotaddrinfo(localhost_addrinfo())
     else:
-      import rpki.adns                  # This should move to start of file once we've decided to inflict it on all users
       families = supported_address_families(enable_ipv6_clients)
       self.log("Starting ADNS lookup for %s in families %r" % (self.host, families))
       rpki.adns.getaddrinfo(self.gotaddrinfo, self.dns_error, self.host, families)
@@ -804,7 +809,7 @@ class http_client(http_stream):
     if bad:
       try:
         raise rpki.exceptions.HTTPTimeout
-      except:
+      except:                           # pylint: disable=W0702
         self.handle_error()
     else:
       self.queue.detach(self)
@@ -886,7 +891,7 @@ class http_queue(object):
       self.log("Detaching client %r" % client_)
       self.client = None
 
-  def return_result(self, client, result, detach = False):
+  def return_result(self, client, result, detach = False): # pylint: disable=W0621
     """
     Client stream has returned a result, which we need to pass along
     to the original caller.  Result may be either an HTTP response

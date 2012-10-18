@@ -17,7 +17,7 @@ things that don't belong in yaml_script.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -46,9 +46,25 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, yaml, warnings, subprocess, signal, time, getopt, sys, errno
-import rpki.resource_set, rpki.sundial, rpki.x509, rpki.http
-import rpki.log, rpki.left_right, rpki.config, rpki.publication, rpki.async
+# pylint: disable=W0621
+
+import os
+import yaml
+import subprocess
+import signal
+import time
+import getopt
+import sys
+import errno
+import rpki.resource_set
+import rpki.sundial
+import rpki.x509
+import rpki.http
+import rpki.log
+import rpki.left_right
+import rpki.config
+import rpki.publication
+import rpki.async
 
 from rpki.mysql_import import MySQLdb
 
@@ -194,21 +210,21 @@ def main():
   # Apparently os.walk() can't tell the difference between directories
   # and symlinks to directories, so we have to handle both.
   for root, dirs, files in os.walk(".", topdown = False):
-    for file in files:
-      if not file.endswith(".key"):
-        os.remove(os.path.join(root, file))
-    for dir in dirs:
+    for fn in files:
+      if not fn.endswith(".key"):
+        os.remove(os.path.join(root, fn))
+    for d in dirs:
       try:
-        os.rmdir(os.path.join(root, dir))
+        os.rmdir(os.path.join(root, d))
       except OSError, e:
         if e.errno == errno.ENOTDIR:
-          os.remove(os.path.join(root, dir))
+          os.remove(os.path.join(root, d))
         else:
           raise
 
   rpki.log.info("Reading master YAML configuration")
   y = yaml_script.pop(0)
-
+  
   rpki.log.info("Constructing internal allocation database")
   db = allocation_db(y)
 
@@ -217,6 +233,7 @@ def main():
 
   rpki.log.info("Constructing BPKI keys and certs for pubd")
   setup_bpki_cert_chain(pubd_name, ee = ("PUBD", "IRBE"))
+
 
   for a in db:
     a.setup_bpki_certs()
@@ -322,6 +339,7 @@ def main():
     for proc, name in ((rootd_process,  "rootd"),
                        (pubd_process,   "pubd"),
                        (rsyncd_process, "rsyncd")):
+      # pylint: disable=E1103
       if proc is not None:
         rpki.log.info("Killing %s, pid %s" % (name, proc.pid))
         try:
@@ -416,10 +434,7 @@ class allocation_db(list):
         a.crl_interval = a.parent.crl_interval
       if a.regen_margin is None:
         a.regen_margin = a.parent.regen_margin
-      i = 0
-      for j in xrange(4):
-        i = a.sia_base.index("/", i) + 1
-      a.client_handle = a.sia_base[i:].rstrip("/")
+      a.client_handle = "/".join(a.sia_base.split("/")[4:]).rstrip("/")
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     self.engines = [a for a in self if a.is_engine]
@@ -782,6 +797,7 @@ class allocation(object):
     """
     Kill daemons for this entity.
     """
+    # pylint: disable=E1103
     rpki.log.info("Killing daemons for %s" % self.name)
     try:
       for proc in (self.rpkid_process, self.irdbd_process):
@@ -1175,15 +1191,13 @@ def setup_publication(pubd_sql):
   Set up publication daemon.
   """
   rpki.log.info("Configure publication daemon")
-  publication_dir = os.getcwd() + "/publication/"
+  publication_dir = os.getcwd() + "/publication"
   assert rootd_sia.startswith("rsync://")
-  i = 0
-  for j in xrange(4):
-    i = rootd_sia.index("/", i + 1)
   global rsyncd_dir
-  rsyncd_dir = publication_dir.rstrip("/") + rootd_sia[i:]
-  pubd_dir = rsyncd_dir
-  os.makedirs(pubd_dir + "root/trunk")
+  rsyncd_dir = publication_dir + "/".join(rootd_sia.split("/")[4:])
+  if not rsyncd_dir.endswith("/"):
+    rsyncd_dir += "/"
+  os.makedirs(rsyncd_dir + "root/trunk")
   db = MySQLdb.connect(db = pubd_db_name, user = pubd_db_user, passwd = pubd_db_pass)
   cur = db.cursor()
   db.autocommit(True)
@@ -1199,7 +1213,7 @@ def setup_publication(pubd_sql):
         "pubd_db_name" : pubd_db_name,
         "pubd_db_user" : pubd_db_user,
         "pubd_db_pass" : pubd_db_pass,
-        "pubd_dir"     : pubd_dir }
+        "pubd_dir"     : rsyncd_dir }
   f = open(pubd_name + ".conf", "w")
   f.write(pubd_fmt_1 % d)
   f.close()

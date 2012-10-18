@@ -36,15 +36,15 @@ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
 LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
-
 """
+
+# pylint: disable=W0702,W0621,W0602
 
 import subprocess
 import re
 import os
 import sys
 import yaml
-import signal
 import time
 import argparse
 import rpki.resource_set
@@ -57,8 +57,8 @@ import rpki.sql_schemas
 
 from rpki.mysql_import import MySQLdb
 
-section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
-variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
+section_regexp = re.compile(r"\s*\[\s*(.+?)\s*\]\s*$")
+variable_regexp = re.compile(r"\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
 
 flat_publication = False
 only_one_pubd = True
@@ -672,10 +672,10 @@ def body():
   ts = timestamp()
 
   for root, dirs, files in os.walk(test_dir, topdown = False):
-    for file in files:
-      os.unlink(os.path.join(root, file))
-    for dir in dirs:
-      os.rmdir(os.path.join(root, dir))
+    for fn in files:
+      os.unlink(os.path.join(root, fn))
+    for d in dirs:
+      os.rmdir(os.path.join(root, d))
 
   if not quiet:
     print

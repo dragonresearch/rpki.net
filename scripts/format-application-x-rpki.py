@@ -6,7 +6,7 @@ format because nmh makes a handy viewer.
 
 $Id$
 
-Copyright (C) 2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -21,8 +21,18 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import email.mime, email.mime.application, email.mime.text, email.mime.multipart, email.utils, email.encoders
-import mailbox, rpki.POW, lxml.etree, getopt, sys, base64
+import email.mime
+import email.mime.application
+import email.mime.text
+import email.mime.multipart
+import email.utils
+import email.encoders
+import mailbox
+import rpki.POW
+import lxml.etree
+import getopt
+import sys
+import base64
 
 source_name = None
 destination_name = None

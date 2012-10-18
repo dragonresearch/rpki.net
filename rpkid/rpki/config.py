@@ -4,7 +4,7 @@ ConfigParser module.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -87,6 +87,8 @@ class parser(object):
       if default_dirname is not None:
         filenames.append("%s/%s" % (default_dirname, default_filename))
 
+    f = fn = None
+
     for fn in filenames:
       try:
         f = open(fn)
@@ -130,7 +132,7 @@ class parser(object):
       section = self.default_section
     if self.cfg.has_option(section, option):
       matches.append((-1, self.get(option, section = section)))
-    for key, value in self.cfg.items(section):
+    for key in self.cfg.options(section):
       s = key.rsplit(".", 1)
       if len(s) == 2 and s[0] == option and s[1].isdigit():
         matches.append((int(s[1]), self.get(option, section = section)))

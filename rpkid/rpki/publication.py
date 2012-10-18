@@ -205,7 +205,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
     if text:
-      self.payload = self.payload_type(Base64 = text)
+      self.payload = self.payload_type(Base64 = text) # pylint: disable=E1102
     stack.pop()
 
   def toXML(self):
@@ -221,6 +221,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Action dispatch handler.
     """
+    # pylint: disable=E0203
     try:
       if self.client is None:
         raise rpki.exceptions.BadQuery, "Client query received on control channel"

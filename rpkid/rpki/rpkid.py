@@ -42,7 +42,6 @@ import os
 import time
 import getopt
 import sys
-import lxml.etree
 import re
 import random
 import rpki.resource_set

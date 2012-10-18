@@ -19,6 +19,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+# pylint: disable=W0401
+
 from rpki.irdb.models import *
 from rpki.irdb.zookeeper import Zookeeper
 from rpki.irdb.router import DBContextRouter, database

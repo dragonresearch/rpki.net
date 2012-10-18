@@ -48,7 +48,6 @@ import base64
 import lxml.etree
 import os
 import subprocess
-import sys
 import email.mime.application
 import email.utils
 import mailbox
@@ -508,7 +507,7 @@ class DER_object(object):
       d.update(self.get_DER())
       return "%s %s %s" % (uri, self.creation_timestamp,
                            "".join(("%02X" % ord(b) for b in d.digest())))
-    except:
+    except:                             # pylint: disable=W0702
       return uri
 
 class X509(DER_object):
@@ -542,7 +541,7 @@ class X509(DER_object):
     Get the rpki.POW value of this certificate.
     """
     self.check()
-    if not self.POW:
+    if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.X509.derRead(self.get_DER())
     return self.POW
 
@@ -846,7 +845,7 @@ class PKCS10(DER_object):
     Get the rpki.POW value of this certification request.
     """
     self.check()
-    if not self.POW:
+    if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.PKCS10.derRead(self.get_DER())
     return self.POW
 
@@ -1026,7 +1025,7 @@ class RSA(DER_object):
     Get the rpki.POW value of this keypair.
     """
     self.check()
-    if not self.POW:
+    if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.Asymmetric.derReadPrivate(self.get_DER())
     return self.POW
 
@@ -1085,7 +1084,7 @@ class RSApublic(DER_object):
     Get the rpki.POW value of this public key.
     """
     self.check()
-    if not self.POW:
+    if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.Asymmetric.derReadPublic(self.get_DER())
     return self.POW
 
@@ -1172,7 +1171,7 @@ class CMS_object(DER_object):
     Get the rpki.POW value of this CMS_object.
     """
     self.check()
-    if not self.POW:
+    if not self.POW:                    # pylint: disable=E0203
       self.POW = self.POW_class.derRead(self.get_DER())
     return self.POW
 
@@ -1473,15 +1472,15 @@ class SignedManifest(DER_CMS_object):
       filelist.append((name.rpartition("/")[2], d.digest()))
     filelist.sort(key = lambda x: x[0])
 
-    pow = cls.POW_class()
-    pow.setVersion(version)
-    pow.setManifestNumber(serial)
-    pow.setThisUpdate(thisUpdate.toGeneralizedTime())
-    pow.setNextUpdate(nextUpdate.toGeneralizedTime())
-    pow.setAlgorithm(POWify_OID(rpki.oids.name2oid["id-sha256"]))
-    pow.addFiles(filelist)
+    obj = cls.POW_class()
+    obj.setVersion(version)
+    obj.setManifestNumber(serial)
+    obj.setThisUpdate(thisUpdate.toGeneralizedTime())
+    obj.setNextUpdate(nextUpdate.toGeneralizedTime())
+    obj.setAlgorithm(POWify_OID(rpki.oids.name2oid["id-sha256"]))
+    obj.addFiles(filelist)
 
-    self = cls(POW = pow)
+    self = cls(POW = obj)
     self.sign(keypair, certs)
     return self
 
@@ -1501,11 +1500,11 @@ class ROA(DER_CMS_object):
     """
     ipv4 = ipv4.to_POW_roa_tuple() if ipv4 else None
     ipv6 = ipv6.to_POW_roa_tuple() if ipv6 else None
-    pow = cls.POW_class()
-    pow.setVersion(version)
-    pow.setASID(asn)
-    pow.setPrefixes(ipv4 = ipv4, ipv6 = ipv6)
-    self = cls(POW = pow)
+    obj = cls.POW_class()
+    obj.setVersion(version)
+    obj.setASID(asn)
+    obj.setPrefixes(ipv4 = ipv4, ipv6 = ipv6)
+    self = cls(POW = obj)
     self.sign(keypair, certs)
     return self
 
@@ -1531,7 +1530,7 @@ class ROA(DER_CMS_object):
               text.append("%s/%s-%s" % (prefix, prefixlen, maxprefixlen))
       text.sort()
       msg = "%s %s %s" % (msg, asn, ",".join(text))
-    except:
+    except:                             # pylint: disable=W0702
       pass
     return msg
 
@@ -1667,7 +1666,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     if self.saxify is None:
       return self.get_content()
     else:
-      return self.saxify(self.get_content())
+      return self.saxify(self.get_content()) # pylint: disable=E1102
 
   def check_replay(self, timestamp):
     """
@@ -1762,7 +1761,7 @@ class CRL(DER_object):
     Get the rpki.POW value of this CRL.
     """
     self.check()
-    if not self.POW:
+    if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.CRL.derRead(self.get_DER())
     return self.POW
 

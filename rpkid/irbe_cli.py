@@ -3,7 +3,7 @@ Command line IR back-end control program for rpkid and pubd.
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -95,6 +95,7 @@ class cmd_elt_mixin(reply_elt_mixin):
     """
     Parse options for this class.
     """
+    # pylint: disable=W0621
     opts, argv = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements if x not in self.excludes] + list(self.booleans))
     for o, a in opts:
       o = o[2:]
@@ -148,47 +149,48 @@ class cmd_msg_mixin(object):
 
 # left-right protcol
 
-class self_elt(cmd_elt_mixin, rpki.left_right.self_elt):
-  pass
-
-class bsc_elt(cmd_elt_mixin, rpki.left_right.bsc_elt):
-
-  excludes = ("pkcs10_request",)
-
-  def client_query_signing_cert(self, arg):
-    """--signing_cert option."""
-    self.signing_cert = rpki.x509.X509(Auto_file = arg)
-
-  def client_query_signing_cert_crl(self, arg):
-    """--signing_cert_crl option."""
-    self.signing_cert_crl = rpki.x509.CRL(Auto_file = arg)
-
-  def client_reply_decode(self):
-    global pem_out
-    if pem_out is not None and self.pkcs10_request is not None:
-      if isinstance(pem_out, str):
-        pem_out = open(pem_out, "w")
-      pem_out.write(self.pkcs10_request.get_PEM())
-
-class parent_elt(cmd_elt_mixin, rpki.left_right.parent_elt):
-  pass
-
-class child_elt(cmd_elt_mixin, rpki.left_right.child_elt):
-  pass
-
-class repository_elt(cmd_elt_mixin, rpki.left_right.repository_elt):
-  pass
-
-class list_published_objects_elt(cmd_elt_mixin, rpki.left_right.list_published_objects_elt):
-  excludes = ("uri",)
-
-class list_received_resources_elt(cmd_elt_mixin, rpki.left_right.list_received_resources_elt):
-  excludes = ("parent_handle", "notBefore", "notAfter", "uri", "sia_uri", "aia_uri", "asn", "ipv4", "ipv6")
-
-class report_error_elt(reply_elt_mixin, rpki.left_right.report_error_elt):
-  pass
-
 class left_right_msg(cmd_msg_mixin, rpki.left_right.msg):
+
+  class self_elt(cmd_elt_mixin, rpki.left_right.self_elt):
+    pass
+
+  class bsc_elt(cmd_elt_mixin, rpki.left_right.bsc_elt):
+
+    excludes = ("pkcs10_request",)
+
+    def client_query_signing_cert(self, arg):
+      """--signing_cert option."""
+      self.signing_cert = rpki.x509.X509(Auto_file = arg)
+
+    def client_query_signing_cert_crl(self, arg):
+      """--signing_cert_crl option."""
+      self.signing_cert_crl = rpki.x509.CRL(Auto_file = arg)
+
+    def client_reply_decode(self):
+      global pem_out
+      if pem_out is not None and self.pkcs10_request is not None:
+        if isinstance(pem_out, str):
+          pem_out = open(pem_out, "w")
+        pem_out.write(self.pkcs10_request.get_PEM())
+
+  class parent_elt(cmd_elt_mixin, rpki.left_right.parent_elt):
+    pass
+
+  class child_elt(cmd_elt_mixin, rpki.left_right.child_elt):
+    pass
+
+  class repository_elt(cmd_elt_mixin, rpki.left_right.repository_elt):
+    pass
+
+  class list_published_objects_elt(cmd_elt_mixin, rpki.left_right.list_published_objects_elt):
+    excludes = ("uri",)
+
+  class list_received_resources_elt(cmd_elt_mixin, rpki.left_right.list_received_resources_elt):
+    excludes = ("parent_handle", "notBefore", "notAfter", "uri", "sia_uri", "aia_uri", "asn", "ipv4", "ipv6")
+
+  class report_error_elt(reply_elt_mixin, rpki.left_right.report_error_elt):
+    pass
+
   pdus = dict((x.element_name, x)
               for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt,
                         list_published_objects_elt, list_received_resources_elt, report_error_elt))
@@ -201,36 +203,37 @@ class left_right_cms_msg(rpki.left_right.cms_msg):
 
 # Publication protocol
 
-class config_elt(cmd_elt_mixin, rpki.publication.config_elt):
-
-  def client_query_bpki_crl(self, arg):
-    """
-    Special handler for --bpki_crl option.
-    """
-    self.bpki_crl = rpki.x509.CRL(Auto_file = arg)
-
-class client_elt(cmd_elt_mixin, rpki.publication.client_elt):
-  pass
-
-class certificate_elt(cmd_elt_mixin, rpki.publication.certificate_elt):
-  pass
-
-class crl_elt(cmd_elt_mixin, rpki.publication.crl_elt):
-  pass
-
-class manifest_elt(cmd_elt_mixin, rpki.publication.manifest_elt):
-  pass
-
-class roa_elt(cmd_elt_mixin, rpki.publication.roa_elt):
-  pass
-
-class report_error_elt(reply_elt_mixin, rpki.publication.report_error_elt):
-  pass
-
-class ghostbuster_elt(cmd_elt_mixin, rpki.publication.ghostbuster_elt):
-  pass
-
 class publication_msg(cmd_msg_mixin, rpki.publication.msg):
+
+  class config_elt(cmd_elt_mixin, rpki.publication.config_elt):
+
+    def client_query_bpki_crl(self, arg):
+      """
+      Special handler for --bpki_crl option.
+      """
+      self.bpki_crl = rpki.x509.CRL(Auto_file = arg)
+
+  class client_elt(cmd_elt_mixin, rpki.publication.client_elt):
+    pass
+
+  class certificate_elt(cmd_elt_mixin, rpki.publication.certificate_elt):
+    pass
+
+  class crl_elt(cmd_elt_mixin, rpki.publication.crl_elt):
+    pass
+
+  class manifest_elt(cmd_elt_mixin, rpki.publication.manifest_elt):
+    pass
+
+  class roa_elt(cmd_elt_mixin, rpki.publication.roa_elt):
+    pass
+
+  class report_error_elt(reply_elt_mixin, rpki.publication.report_error_elt):
+    pass
+
+  class ghostbuster_elt(cmd_elt_mixin, rpki.publication.ghostbuster_elt):
+    pass
+
   pdus = dict((x.element_name, x)
               for x in (config_elt, client_elt, certificate_elt, crl_elt,
                         manifest_elt, roa_elt, report_error_elt,

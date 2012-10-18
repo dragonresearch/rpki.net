@@ -171,6 +171,7 @@ def log_repr(obj, *tokens):
   IDs as needed, includes self_handle when available.
   """
 
+  # pylint: disable=W0702
   words = ["%s.%s" % (obj.__class__.__module__, obj.__class__.__name__)]
   try:
     words.append("{%s}" % obj.self.self_handle)

@@ -1,6 +1,6 @@
 # $Id$
 #
-# Copyright (C) 2011  Internet Systems Consortium ("ISC")
+# Copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -36,6 +36,8 @@ ac_libexecdir   = os.getenv("AC_LIBEXECDIR",    "").strip()
 # complete pathnames to .a files elsewhere in the build tree.  Most of
 # this insanity is to kludge around pre-existing OpenSSL libraries
 # that would screw up our build without these gymnastics.
+
+# pylint: disable=W0622
 
 pow = Extension("rpki.POW._POW", ["ext/POW.c"], 
                 extra_compile_args = ac_cflags,

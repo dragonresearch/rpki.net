@@ -15,7 +15,7 @@ Still to do:
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -42,19 +42,31 @@ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
 LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
-
 """
 
-import subprocess, re, os, getopt, sys, yaml, signal, time
-import rpki.resource_set, rpki.sundial, rpki.config, rpki.log
-import rpki.csv_utils, rpki.x509
+# pylint: disable=W0702,W0621
+
+import subprocess
+import re
+import os
+import getopt
+import sys
+import yaml
+import signal
+import time
+import rpki.resource_set
+import rpki.sundial
+import rpki.config
+import rpki.log
+import rpki.csv_utils
+import rpki.x509
 
 # Nasty regular expressions for parsing config files.  Sadly, while
 # the Python ConfigParser supports writing config files, it does so in
 # such a limited way that it's easier just to hack this ourselves.
 
-section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
-variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
+section_regexp = re.compile(r"\s*\[\s*(.+?)\s*\]\s*$")
+variable_regexp = re.compile(r"\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
 
 def cleanpath(*names):
   """
@@ -99,11 +111,11 @@ class roa_request(object):
       return "%s: %s" % (self.asn, self.v4 or self.v6)
 
   @classmethod
-  def parse(cls, yaml):
+  def parse(cls, y):
     """
     Parse a ROA request from YAML format.
     """
-    return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"))
+    return cls(y.get("asn"), y.get("ipv4"), y.get("ipv6"))
     
 class allocation_db(list):
   """
@@ -577,10 +589,10 @@ try:
 
   if not skip_config:
     for root, dirs, files in os.walk(test_dir, topdown = False):
-      for file in files:
-        os.unlink(os.path.join(root, file))
-      for dir in dirs:
-        os.rmdir(os.path.join(root, dir))
+      for fn in files:
+        os.unlink(os.path.join(root, fn))
+      for d in dirs:
+        os.rmdir(os.path.join(root, d))
 
   # Read first YAML doc in file and process as compact description of
   # test layout and resource allocations.  Ignore subsequent YAML docs,

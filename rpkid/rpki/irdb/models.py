@@ -7,7 +7,7 @@ Django GUI code, so be careful.
 
 $Id$
 
-Copyright (C) 2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -21,6 +21,8 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
+
+# pylint: disable=W0232
 
 import django.db.models
 import rpki.x509
@@ -294,7 +296,7 @@ class CA(django.db.models.Model):
     return result
 
   def revoke(self, cert):
-    Revocations.objects.create(
+    Revocation.objects.create(
       issuer  = self,
       revoked = rpki.sundial.now(),
       serial  = cert.certificate.getSerial(),

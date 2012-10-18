@@ -3,7 +3,7 @@ SQL interface code.
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -176,7 +176,7 @@ class sql_persistent(object):
   sql_debug = False
 
   @classmethod
-  def sql_fetch(cls, gctx, id):
+  def sql_fetch(cls, gctx, id):         # pylint: disable=W0622
     """
     Fetch one object from SQL, based on its primary key.
 
@@ -312,7 +312,7 @@ class sql_persistent(object):
     Delete this object from SQL.
     """
     if self.sql_in_db:
-      id = getattr(self, self.sql_template.index)
+      id = getattr(self, self.sql_template.index) # pylint: disable=W0622
       if self.sql_debug:
         rpki.log.debug("sql_fetch_delete(%r, %r)" % (self.sql_template.delete, id))
       self.sql_delete_hook()

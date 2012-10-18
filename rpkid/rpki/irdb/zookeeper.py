@@ -18,17 +18,10 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess
-import csv
-import re
+# pylint: disable=W0612
+
 import os
-import getopt
-import sys
-import base64
-import time
-import glob
 import copy
-import warnings
 import rpki.config
 import rpki.cli
 import rpki.sundial
@@ -45,10 +38,9 @@ import rpki.irdb
 import django.db.transaction
 
 from lxml.etree import (Element, SubElement, ElementTree,
-                        fromstring as ElementFromString,
-                        tostring   as ElementToString)
+                        tostring as ElementToString)
 
-from rpki.csv_utils import (csv_reader, csv_writer, BadCSVSyntax)
+from rpki.csv_utils import csv_reader
 
 
 
@@ -116,7 +108,7 @@ class PEM_writer(object):
       try:
         if compare and pem == open(filename, "r").read():
           return
-      except:
+      except:                           # pylint: disable=W0702
         pass
       tempname += ".%s.tmp" % os.getpid()
     mode = 0400 if filename.endswith(".key") else 0444
@@ -233,7 +225,7 @@ class Zookeeper(object):
 
     if handle is None:
       raise MissingHandle
-    self.handle= handle
+    self.handle = handle
 
 
   def set_logstream(self, logstream):
@@ -529,7 +521,7 @@ class Zookeeper(object):
     try:
       self.resource_ca.children.get(handle = child_handle).delete()
     except rpki.irdb.Child.DoesNotExist:
-      self.log("No such child \"%s\"" % arg)
+      self.log("No such child \"%s\"" % child_handle)
 
 
   @django.db.transaction.commit_on_success
@@ -605,7 +597,7 @@ class Zookeeper(object):
     try:
       self.resource_ca.parents.get(handle = parent_handle).delete()
     except rpki.irdb.Parent.DoesNotExist:
-      self.log("No such parent \"%s\"" % arg)
+      self.log("No such parent \"%s\"" % parent_handle)
 
 
   @django.db.transaction.commit_on_success
@@ -724,7 +716,7 @@ class Zookeeper(object):
     try:
       self.server_ca.clients.get(handle = client_handle).delete()
     except rpki.irdb.Client.DoesNotExist:
-      self.log("No such client \"%s\"" % arg)
+      self.log("No such client \"%s\"" % client_handle)
 
 
   @django.db.transaction.commit_on_success
@@ -773,9 +765,9 @@ class Zookeeper(object):
 
     assert repository_handle is not None
     try:
-      self.resource_ca.repositories.get(handle = arg).delete()
+      self.resource_ca.repositories.get(handle = repository_handle).delete()
     except rpki.irdb.Repository.DoesNotExist:
-      self.log("No such repository \"%s\"" % arg)
+      self.log("No such repository \"%s\"" % repository_handle)
 
 
   @django.db.transaction.commit_on_success

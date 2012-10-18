@@ -37,9 +37,19 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, time, getopt, urlparse, warnings
-import rpki.http, rpki.config, rpki.resource_set, rpki.relaxng
-import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
+import sys
+import os
+import time
+import getopt
+import urlparse
+import rpki.http
+import rpki.config
+import rpki.resource_set
+import rpki.relaxng
+import rpki.exceptions
+import rpki.left_right
+import rpki.log
+import rpki.x509
 
 from rpki.mysql_import import MySQLdb
 

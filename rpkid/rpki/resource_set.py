@@ -64,14 +64,16 @@ class resource_range(object):
   directly.
   """
 
-  def __init__(self, min, max):
-    assert min.__class__ is max.__class__, "Type mismatch, %r doesn't match %r" % (min.__class__, max.__class__)
-    assert min <= max, "Mis-ordered range: %s before %s" % (min, max)
-    self.min = min
-    self.max = max
+  def __init__(self, range_min, range_max):
+    assert range_min.__class__ is range_max.__class__, \
+           "Type mismatch, %r doesn't match %r" % (range_min.__class__, range_max.__class__)
+    assert range_min <= range_max, "Mis-ordered range: %s before %s" % (range_min, range_max)
+    self.min = range_min
+    self.max = range_max
 
   def __cmp__(self, other):
-    assert self.__class__ is other.__class__, "Type mismatch, comparing %r with %r" % (self.__class__, other.__class__)
+    assert self.__class__ is other.__class__, \
+           "Type mismatch, comparing %r with %r" % (self.__class__, other.__class__)
     return cmp(self.min, other.min) or cmp(self.max, other.max)
 
 class resource_range_as(resource_range):
@@ -87,10 +89,10 @@ class resource_range_as(resource_range):
 
   datum_type = long
 
-  def __init__(self, min, max):
+  def __init__(self, range_min, range_max):
     resource_range.__init__(self,
-                            long(min) if isinstance(min, int) else min,
-                            long(max) if isinstance(max, int) else max)
+                            long(range_min) if isinstance(range_min, int) else range_min,
+                            long(range_max) if isinstance(range_max, int) else range_max)
 
   def __str__(self):
     """
@@ -196,19 +198,19 @@ class resource_range_ip(resource_range):
       self.prefixlen()
       result.append(self)
     except rpki.exceptions.MustBePrefix:
-      min = self.min
-      max = self.max
-      while max >= min:
-        bits = int(math.log(long(max - min + 1), 2))
+      range_min = self.min
+      range_max = self.max
+      while range_max >= range_min:
+        bits = int(math.log(long(range_max - range_min + 1), 2))
         while True:
           mask = ~(~0 << bits)
-          assert min + mask <= max
-          if min & mask == 0:
+          assert range_min + mask <= range_max
+          if range_min & mask == 0:
             break
           assert bits > 0
           bits -= 1
-        result.append(self.make_prefix(min, min.bits - bits))
-        min = min + mask + 1
+        result.append(self.make_prefix(range_min, range_min.bits - bits))
+        range_min = range_min + mask + 1
 
   @classmethod
   def from_strings(cls, a, b = None):
@@ -400,16 +402,14 @@ class resource_set(list):
         this = set1.pop(0)
         that = set2.pop(0)
         assert type(this) is type(that)
-        if this.min < that.min: min = this.min
-        else:                   min = that.min
-        if this.max > that.max: max = this.max
-        else:                   max = that.max
-        result.append(type(this)(min, max))
-        while set1 and set1[0].max <= max:
-          assert set1[0].min >= min
+        range_min = min(this.min, that.min)
+        range_max = max(this.max, that.max)
+        result.append(type(this)(range_min, range_max))
+        while set1 and set1[0].max <= range_max:
+          assert set1[0].min >= range_min
           del set1[0]
-        while set2 and set2[0].max <= max:
-          assert set2[0].min >= min
+        while set2 and set2[0].max <= range_max:
+          assert set2[0].min >= range_min
           del set2[0]
     return type(self)(result)
 
@@ -449,20 +449,20 @@ class resource_set(list):
     if not self:
       return False
     if type(item) is type(self[0]):
-      min = item.min
-      max = item.max
+      range_min = item.min
+      range_max = item.max
     else:
-      min = item
-      max = item
+      range_min = item
+      range_max = item
     lo = 0
     hi = len(self)
     while lo < hi:
       mid = (lo + hi) / 2
-      if self[mid].max < max:
+      if self[mid].max < range_max:
         lo = mid + 1
       else:
         hi = mid
-    return lo < len(self) and self[lo].min <= min and self[lo].max >= max
+    return lo < len(self) and self[lo].min <= range_min and self[lo].max >= range_max
 
   __contains__ = contains
 

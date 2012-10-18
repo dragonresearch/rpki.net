@@ -259,7 +259,7 @@ class UpdateChildrenTask(AbstractTask):
           new_resources = old_resources & irdb_resources & ca_detail.latest_ca_cert.get_3779resources()
 
           if new_resources.empty():
-            rpki.log.debug("Resources shrank to the null set, revoking and withdrawing child %s certificate SKI %s" % (child.child_handle, child_cert.cert.gSKI()))
+            rpki.log.debug("Resources shrank to the null set, revoking and withdrawing child %s certificate SKI %s" % (self.child.child_handle, child_cert.cert.gSKI()))
             child_cert.revoke(publisher = self.publisher)
             ca_detail.generate_crl(publisher = self.publisher)
             ca_detail.generate_manifest(publisher = self.publisher)

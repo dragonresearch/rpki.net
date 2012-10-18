@@ -106,17 +106,7 @@ timer_queue = []
 
 class timer(object):
   """
-  Timer construct for event-driven code.  It can be used in either of two ways:
-
-  - As a virtual class, in which case the subclass should provide a
-    handler() method to receive the wakup event when the timer expires; or
-
-  - By setting an explicit handler callback, either via the
-    constructor or the set_handler() method.
-
-  Subclassing is probably more Pythonic, but setting an explict
-  handler turns out to be very convenient when combined with bound
-  methods to other objects.
+  Timer construct for event-driven code.
   """
 
   ## @var gc_debug
@@ -185,13 +175,6 @@ class timer(object):
     """
     return self in timer_queue
 
-  def handler(self):
-    """
-    Handle a timer that has expired.  This must either be overriden by
-    a subclass or set dynamically by set_handler().
-    """
-    raise NotImplementedError
-
   def set_handler(self, handler):
     """
     Set timer's expiration handler.  This is an alternative to
@@ -201,13 +184,6 @@ class timer(object):
     connection).
     """
     self.handler = handler
-
-  def errback(self, e):
-    """
-    Error callback.  May be overridden, or set with set_errback().
-    """
-    rpki.log.error("Unhandled exception from timer: %s" % e)
-    rpki.log.traceback()
 
   def set_errback(self, errback):
     """

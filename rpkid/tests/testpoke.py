@@ -12,7 +12,7 @@ Default configuration file is testpoke.yaml, override with --yaml option.
 
 $Id$
 
-Copyright (C) 2010--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2010--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -154,7 +154,7 @@ def do_revoke():
 
 dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 
-def fail(e):
+def fail(e):                            # pylint: disable=W0621
   rpki.log.traceback(debug)
   sys.exit("Testpoke failed: %s" % e)
 

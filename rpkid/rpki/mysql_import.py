@@ -16,7 +16,7 @@ object from this module.  Looks kind of strange, but seems to work.
 
 $Id$
 
-Copyright (C) 2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -44,6 +44,8 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
+
+# pylint: disable=W0611
 
 from __future__ import with_statement
 

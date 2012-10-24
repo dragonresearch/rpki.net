@@ -23,7 +23,7 @@ abs_top_builddir = @abs_top_builddir@
 
 host_os = @host_os@
 
-SCRIPTS = rcynic-text rcynic-html validation_status
+SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status
 
 all: ${BIN} ${SCRIPTS}
 
@@ -71,6 +71,9 @@ rcynic-text: rcynic-text.py
 	${COMPILE_PYTHON}
 
 rcynic-html: rcynic-html.py
+	${COMPILE_PYTHON}
+
+rcynic-svn: rcynic-svn.py
 	${COMPILE_PYTHON}
 
 validation_status: validation_status.py

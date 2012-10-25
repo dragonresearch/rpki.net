@@ -81,15 +81,6 @@
 
 /* $Id: rcynic.c 4613 2012-07-30 23:24:15Z sra $ */
 
-/*
- * Disable compilation of X509 certificate signature and verification
- * API.  We don't currently need this for RPKI but I'm not quite ready
- * to rip it out yet.  The current API has issues which I'd rather
- * defer until I decide whether we need to fix it, so just omit the
- * code for now.
- */
-#define ENABLE_X509_CERTIFICATE_SIGNATURE_AND_VERIFICATION      0
-
 #include <Python.h>
 
 #include <openssl/opensslconf.h>
@@ -708,12 +699,17 @@ ASN1_TIME_to_Python(ASN1_TIME *t)
   return result;
 }
 
+#warning Perhaps Python_to_ASN1_TIME() should take a PyObject* so it can accept DateTime as well as string
+
 static ASN1_TIME *
 Python_to_ASN1_TIME(const char *s, const int object_requires_utctime)
 {
   ASN1_TIME *result = NULL;
   int ok;
   
+  if (s == NULL)
+    goto error;
+
   if (strlen(s) < 10)
     lose_type_error("String is too short to parse as a valid ASN.1 TIME");
 
@@ -1131,8 +1127,8 @@ ipaddress_object_from_bytes(PyTypeObject *type, PyObject *args)
 }
 
 static char ipaddress_object_to_bytes__doc__[] =
-  "Returns a Python string of exactly 4 or 16 bytes representing\n"
-  "the binary value of this IPAddress.\n"
+  "Return the binary value of this IPAddress as a Python string\n"
+  "of exactly 4 or 16 bytes.\n"
   ;
 
 static PyObject *
@@ -1478,7 +1474,7 @@ x509_object_der_read_helper(PyTypeObject *type, BIO *bio)
 }
 
 static char x509_object_pem_read__doc__[] =
-  "Class method to read a PEM-encoded X.509 object from a string.\n"
+  "Read a PEM-encoded X.509 object from a string.\n"
   ;
 
 static PyObject *
@@ -1489,7 +1485,7 @@ x509_object_pem_read(PyTypeObject *type, PyObject *args)
 }
 
 static char x509_object_pem_read_file__doc__[] =
-  "Class method to read a PEM-encoded X.509 object from a file.\n"
+  "Read a PEM-encoded X.509 object from a file.\n"
   ;
 
 static PyObject *
@@ -1500,7 +1496,7 @@ x509_object_pem_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char x509_object_der_read__doc__[] =
-  "Class method to read a DER-encoded X.509 object from a string.\n"
+  "Read a DER-encoded X.509 object from a string.\n"
   ;
 
 static PyObject *
@@ -1511,7 +1507,7 @@ x509_object_der_read(PyTypeObject *type, PyObject *args)
 }
 
 static char x509_object_der_read_file__doc__[] =
-  "Class method to read a DER-encoded X.509 object from a file.\n"
+  "Read a DER-encoded X.509 object from a file.\n"
   ;
 
 static PyObject *
@@ -1522,7 +1518,7 @@ x509_object_der_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char x509_object_pem_write__doc__[] =
-  "This method returns a PEM- encoded certificate as a string.\n"
+  "Return the PEM encoding of this certificate, as a string.\n"
   ;
 
 static PyObject *
@@ -1547,7 +1543,7 @@ x509_object_pem_write(x509_object *self)
 }
 
 static char x509_object_der_write__doc__[] =
-  "This method returns a DER encoded certificate as a string.\n"
+  "Return the DER encoding of this certificate, as a string.\n"
   ;
 
 static PyObject *
@@ -1572,7 +1568,8 @@ x509_object_der_write(x509_object *self)
 }
 
 static char x509_object_get_public_key__doc__[] =
-  "This method gets the public key for this certificate object.\n"
+  "Return the public key from this certificate object,\n"
+  "as an Asymmetric object.\n"
   ;
 
 static PyObject *
@@ -1597,7 +1594,8 @@ x509_object_get_public_key(x509_object *self)
 }
 
 static char x509_object_set_public_key__doc__[] =
-  "This method sets the public key for this certificate object.\n"
+  "Set the public key of this certificate object.\n"
+  "\n"
   "The \"key\" parameter should be an instance of the Asymmetric class,\n"
   "containing a public key.\n"
   ;
@@ -1622,7 +1620,7 @@ x509_object_set_public_key(x509_object *self, PyObject *args)
 }
 
 static char x509_object_sign__doc__[] =
-  "This method signs a certificate with a private key.\n"
+  "Sign a certificate with a private key.\n"
   "\n"
   "The \"key\" parameter should be an instance of the Asymmetric class,\n"
   "containing a private key.\n"
@@ -1665,7 +1663,7 @@ x509_object_sign(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_version__doc__[] =
-  "This method returns the version number from the version field of this certificate.\n"
+  "Return version number of this certificate.\n"
   ;
 
 static PyObject *
@@ -1676,9 +1674,10 @@ x509_object_get_version(x509_object *self)
 }
 
 static char x509_object_set_version__doc__[] =
-  "This method sets the version number in the version field of this certificate.\n"
+  "Set version number of this certificate.\n"
+  "\n"
   "The \"version\" parameter should be an integer.\n"
-;
+  ;
 
 static PyObject *
 x509_object_set_version(x509_object *self, PyObject *args)
@@ -1701,7 +1700,7 @@ x509_object_set_version(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_serial__doc__[] =
-  "This method get the serial number in the serial field of this certificate.\n"
+  "Return the serial number of this certificate.\n"
   ;
 
 static PyObject *
@@ -1712,7 +1711,8 @@ x509_object_get_serial(x509_object *self)
 }
 
 static char x509_object_set_serial__doc__[] =
-  "This method sets the serial number in the serial field of this certificate.\n"
+  "Set the serial number of this certificate.\n"
+  "\n"
   "The \"serial\" parameter should ba an integer.\n"
   ;
 
@@ -1744,13 +1744,15 @@ x509_object_set_serial(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_issuer__doc__[] =
-  "This method returns a tuple representing the issuers name.\n"
+  "Return this certificate's issuer name, represented as a tuple.\n"
+  "\n"
   "Each element of this tuple is another tuple representing one\n"
   "\"Relative Distinguished Name\" (RDN), each element of which in turn\n"
   "is yet another tuple representing one AttributeTypeAndValue pair.\n"
+  "\n"
   "In practice, RDNs containing multiple attributes are rare, thus the RDN\n"
-  "tuples will usually be exactly one element long, but using this\n"
-  "structure allows us to represent the general case.\n"
+  "tuples will usually be exactly one element long, but using the\n"
+  "tuple-of-tuples-of-tuples format lets us represent the general case.\n"
   "\n"
   "The AttributeTypeANdValue pairs are two-element tuples, the first\n"
   "element of which is a string representing an Object Identifier (OID),\n"
@@ -1787,9 +1789,11 @@ x509_object_get_issuer(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_subject__doc__[] =
-  "This method returns a tuple containing the subjects name.  See\n"
-  "the \"getIssuer\" method for details of the return value\n"
-  "and use of the optional \"format\" parameter.\n"
+  "Return this certificate's subject name, as a tuple.\n"
+  "\n"
+  "See the documentation for the \"getIssuer\" method for details on the\n"
+  "structure of the return value and use of the optional \"format\"\n"
+  "parameter.\n"
   ;
 
 static PyObject *
@@ -1811,7 +1815,8 @@ x509_object_get_subject(x509_object *self, PyObject *args)
 }
 
 static char x509_object_set_subject__doc__[] =
-  "This method is used to set the certificate's subject name.\n"
+  "Set this certificate's subject name.\n"
+  "\n"
   "The \"name\" parameter should be in the same format as the return\n"
   "value from the \"getIssuer\" method.\n"
   ;
@@ -1846,7 +1851,8 @@ x509_object_set_subject(x509_object *self, PyObject *args)
 }
 
 static char x509_object_set_issuer__doc__[] =
-  "This method is used to set the certificate's issuer name.\n"
+  "Set this certificate's issuer name.\n"
+  "\n"
   "The \"name\" parameter should be in the same format as the return\n"
   "value from the \"getIssuer\" method.\n"
   ;
@@ -1881,8 +1887,9 @@ x509_object_set_issuer(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_not_before__doc__[] =
-  "This method returns the certificate's \"notBefore\" value\n"
-  "in the form of a GeneralizedTime string as restricted by RFC 5280.\n"
+  "Return this certificate's \"notBefore\" value in the form of a\n"
+  "GeneralizedTime string as restricted by RFC 5280.\n"
+  "\n"
   "The code automatically converts RFC-5280-compliant UTCTime strings\n"
   "into the GeneralizedTime format, so that Python code need not worry\n"
   "about the conversion rules.\n"
@@ -1896,8 +1903,9 @@ x509_object_get_not_before (x509_object *self)
 }
 
 static char x509_object_get_not_after__doc__[] =
-  "This method returns the certificate's \"notAfter\" value\n"
-  "in the form of a GeneralizedTime string as restricted by RFC 5280.\n"
+  "Return this certificate's \"notAfter\" value in the form of a\n"
+  "GeneralizedTime string as restricted by RFC 5280.\n"
+  "\n"
   "The code automatically converts RFC-5280-compliant UTCTime strings\n"
   "into the GeneralizedTime format, so that Python code need not worry\n"
   "about the conversion rules.\n"
@@ -1911,7 +1919,7 @@ x509_object_get_not_after (x509_object *self)
 }
 
 static char x509_object_set_not_after__doc__[] =
-  "This method sets the certificate's \"notAfter\" value.\n"
+  "Set this certificate's \"notAfter\" value.\n"
   "\n"
   "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
   "as restricted by RFC 5280. The code automatically converts to UTCTime\n"
@@ -1945,7 +1953,7 @@ x509_object_set_not_after (x509_object *self, PyObject *args)
 }
 
 static char x509_object_set_not_before__doc__[] =
-  "This method sets the certificate's \"notBefore\" value.\n"
+  "Set this certificate's \"notBefore\" value.\n"
   "\n"
   "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
   "as restricted by RFC 5280. The code automatically converts to UTCTime\n"
@@ -1978,69 +1986,8 @@ x509_object_set_not_before (x509_object *self, PyObject *args)
   return NULL;
 }
 
-static char x509_object_add_extension__doc__[] =
-  "This method provides a generalized mechanism for adding an X509v3\n"
-  "extension to a certificate.  Sadly, this is less useful than it might\n"
-  "at first appear, because the extension to be added must be encoded using\n"
-  "ASN.1 DER for  encapsulation in the extension as an OCTET STRING.\n"
-  "It might be possible to make this method more useful by combining it\n"
-  "with code using the OpenSSL ASN1_generate_v3(), ASN1_generate_nconf(),\n"
-  "X509V3_EXT_conf_nid(), or X509V3_EXT_nconf() functions, but for RPKI\n"
-  "work we probably want extension-specific methods anyway.  For now, we\n"
-  "retain this API function, but it may go away in the near future.\n"
-  "\n"
-  "This method takes three parameters:\n"
-  "\n"
-  "  * \"name\", an OpenSSL \"short name\"\n"
-  "  * \"critical\", a boolean\n"
-  "  * \"value\", the DER-encoded extension value as a Python string\n"
-  ;
-
-static PyObject *
-x509_object_add_extension(x509_object *self, PyObject *args)
-{
-  PyObject *critical = NULL;
-  int len = 0, ok = 0;
-  char *name = NULL;
-  unsigned char *buf = NULL;
-  ASN1_OBJECT *oid = NULL;
-  ASN1_OCTET_STRING *octetString = NULL;
-  X509_EXTENSION *ext = NULL;
-
-  ENTERING(x509_object_add_extension);
-
-  if (!PyArg_ParseTuple(args, "sOs#", &name, &critical, &buf, &len))
-    goto error;
-
-  if ((oid = OBJ_txt2obj(name, 0)) == NULL)
-    lose("Extension has unknown object identifier");
-
-  if ((octetString = ASN1_OCTET_STRING_new()) == NULL ||
-      !ASN1_OCTET_STRING_set(octetString, buf, len))
-    lose_no_memory();
-
-  if ((ext = X509_EXTENSION_create_by_OBJ(NULL, oid, PyObject_IsTrue(critical),
-                                          octetString)) == NULL)
-    lose_openssl_error("Unable to create ASN.1 X.509 Extension object");
-
-  if (!X509_add_ext(self->x509, ext, -1))
-    lose_no_memory();
-
-  ok = 1;
-
- error:                         /* Fall through */
-  ASN1_OBJECT_free(oid);
-  ASN1_OCTET_STRING_free(octetString);
-  X509_EXTENSION_free(ext);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
-}
-
 static char x509_object_clear_extensions__doc__[] =
-  "This method clears all extensions attached to this certificate.\n"
+  "Clear all extensions attached to this certificate.\n"
   ;
 
 static PyObject *
@@ -2056,54 +2003,8 @@ x509_object_clear_extensions(x509_object *self)
   Py_RETURN_NONE;
 }
 
-static char x509_object_count_extensions__doc__[] =
-  "This method returns the number of extensions attached to this certificate.\n"
-  ;
-
-static PyObject *
-x509_object_count_extensions(x509_object *self)
-{
-  ENTERING(x509_object_count_extensions);
-  return Py_BuildValue("i", X509_get_ext_count(self->x509));
-}
-
-static char x509_object_get_extension__doc__[] =
-  "This method returns a tuple equivalent the parameters of the\n"
-  "\"addExtension\" method, and suffers from similar limitations.\n"
-  "\n"
-  "The \"index\" parameter is the position in the extension list of\n"
-  "the extension to be returned.\n"
-  ;
-
-static PyObject *
-x509_object_get_extension(x509_object *self, PyObject *args)
-{
-  X509_EXTENSION *ext;
-  char oid[512];
-  int slot = 0;
-
-  ENTERING(x509_object_get_extension);
-
-  if (!PyArg_ParseTuple(args, "i", &slot))
-    goto error;
-
-  if ((ext = X509_get_ext(self->x509, slot)) == NULL)
-    lose_openssl_error("Couldn't get extension");
-
-  if (OBJ_obj2txt(oid, sizeof(oid), ext->object, 1) <= 0)
-    lose_openssl_error("Couldn't translate OID");
-
-  return Py_BuildValue("sNs#", oid,
-                       PyBool_FromLong(ext->critical),
-                       ASN1_STRING_data(ext->value),
-                       ASN1_STRING_length(ext->value));
-
- error:
-  return NULL;
-}
-
 static char x509_object_get_ski__doc__[] =
-  "This method returns the Subject Key Identifier (SKI) value for this\n"
+  "Return the Subject Key Identifier (SKI) value for this\n"
   "certificate, or None if the certificate has no SKI extension.\n"
   ;
 
@@ -2123,8 +2024,7 @@ x509_object_get_ski(x509_object *self, PyObject *args)
 }
 
 static char x509_object_set_ski__doc__[] =
-  "This method sets the Subject Key Identifier (SKI) value for this\n"
-  "certificate.\n"
+  "Set the Subject Key Identifier (SKI) value for this certificate.\n"
   ;
 
 static PyObject *
@@ -2163,9 +2063,9 @@ x509_object_set_ski(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_aki__doc__[] =
-  "This method returns the Authority Key Identifier (AKI) keyid value for\n"
-  " this certificate, or None if the certificate has no AKI extension\n"
-  "or has an AKI extension with no keyIdentifier value.\n"
+  "Return the Authority Key Identifier (AKI) keyid value for this\n"
+  "certificate, or None if the certificate has no AKI extension or has an\n"
+  "AKI extension with no keyIdentifier value.\n"
   ;
 
 static PyObject *
@@ -2184,9 +2084,10 @@ x509_object_get_aki(x509_object *self, PyObject *args)
 }
 
 static char x509_object_set_aki__doc__[] =
-  "This method sets the Authority Key Identifier (AKI) value for this\n"
-  "certificate.   We only support the keyIdentifier method, as that's\n"
-  "the only form which is legal for RPKI certificates.\n"
+  "Set the Authority Key Identifier (AKI) value for this certificate.\n"
+  "\n"
+  "We only support the keyIdentifier method, as that's the only form\n"
+  "which is legal for RPKI certificates.\n"
   ;
 
 static PyObject *
@@ -2226,7 +2127,7 @@ x509_object_set_aki(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_key_usage__doc__[] =
-  "This method returns a FrozenSet of strings representing the KeyUsage\n"
+  "Return a FrozenSet of strings representing the KeyUsage\n"
   "settings for this certificate, or None if the certificate has no\n"
   "KeyUsage extension.  The bits have the same names as in RFC 5280.\n"
   ;
@@ -2268,7 +2169,7 @@ x509_object_get_key_usage(x509_object *self)
 }
 
 static char x509_object_set_key_usage__doc__[] =
-  "This method sets the KeyUsage extension  for this certificate.\n"
+  "Set the KeyUsage extension for this certificate.\n"
   "\n"
   "Argument \"iterable\" should be an iterable object which returns zero or more\n"
   "strings naming bits to be enabled.  The bits have the same names as in RFC 5280.\n"
@@ -2338,11 +2239,18 @@ x509_object_set_key_usage(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_rfc3779__doc__[] =
-  "This method returns the certificate's RFC 3779 resources.  This is a\n"
-  "three-element tuple: the first element is the ASN resources, the\n"
-  "second is the IPv4 resources, the third is the IPv6 resources.\n"
+  "Return this certificate's RFC 3779 resources.\n"
   "\n"
-  "[Add more description here once final format is stable]\n"
+  "Return value is a three-element tuple: the first element is the ASN\n"
+  "resources, the second is the IPv4 resources, the third is the IPv6\n"
+  "resources.  Each of these elements in turn is either the string\n"
+  "\"inherit\" or a tuple representing a set of ranges of ASNs or IP\n"
+  "addresses.\n"
+  "\n"
+  "Each range is a two-element tuple, respectively representing the low\n"
+  "and high ends of the range, inclusive.  ASN ranges are represented by\n"
+  "pairs of integers, IP address ranges are represented by pairs of\n"
+  "IPAddress objects.\n"
   ;
 
 static PyObject *
@@ -2498,9 +2406,19 @@ x509_object_get_rfc3779(x509_object *self)
 }
 
 static char x509_object_set_rfc3779__doc__[] =
-  "This method sets the certificate's RFC 3779 resources.\n"
+  "Set this certificate's RFC 3779 resources.\n"
   "\n"
-  "[Add description here once argument format is stable]\n"
+  "This method takes three arguments: \"asn\", \"ipv4\", and \"ipv6\".\n"
+  "\n"
+  "Each of these arguments can be:\n"
+  "\n"
+  "* None, to omit this kind of resource;\n"
+  "\n"
+  "* The string \"inherit\", to specify RFC 3779 resource inheritance; or\n"
+  "\n"
+  "* An iterable object which returns range pairs of the appropriate type.\n"
+  "\n"
+  "Range pairs are as returned by the .getRFC3779() method.\n"
   ;
 
 static PyObject *
@@ -2512,8 +2430,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
   PyObject *ipv6_arg = Py_None;
   PyObject *iterator = NULL;
   PyObject *item = NULL;
-  PyObject *range_b = NULL;
-  PyObject *range_e = NULL;
+  PyObject *fast = NULL;
   ASIdentifiers *asid = NULL;
   IPAddrBlocks *addr = NULL;
   ASN1_INTEGER *asid_b = NULL;
@@ -2551,13 +2468,19 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
       while ((item = PyIter_Next(iterator)) != NULL) {
 
-        if (!PyArg_ParseTuple(item, "OO", &range_b, &range_e) ||
-            (asid_b = PyLong_to_ASN1_INTEGER(range_b)) == NULL)
+        if ((fast = PySequence_Fast(item, "ASN range must be a sequence")) == NULL)
           goto error;
 
-        switch (PyObject_RichCompareBool(range_b, range_e, Py_EQ)) {
+        if (PySequence_Fast_GET_SIZE(fast) != 2)
+          lose_type_error("ASN range must be two-element sequence");
+
+        if ((asid_b = PyLong_to_ASN1_INTEGER(PySequence_Fast_GET_ITEM(fast, 0))) == NULL)
+          goto error;
+
+        switch (PyObject_RichCompareBool(PySequence_Fast_GET_ITEM(fast, 0),
+                                         PySequence_Fast_GET_ITEM(fast, 1), Py_EQ)) {
         case 0:
-          if ((asid_e = PyLong_to_ASN1_INTEGER(range_e)) == NULL)
+          if ((asid_e = PyLong_to_ASN1_INTEGER(PySequence_Fast_GET_ITEM(fast, 1))) == NULL)
             goto error;
           break;
         case 1:
@@ -2571,7 +2494,8 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
         asid_b = asid_e = NULL;
         Py_XDECREF(item);
-        item = range_b = range_e = NULL;
+        Py_XDECREF(fast);
+        item = fast = NULL;
         empty = 0;
       }
 
@@ -2625,13 +2549,16 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
         while ((item = PyIter_Next(iterator)) != NULL) {
 
-          if (!PyArg_ParseTuple(item, "O!O!",
-                                &POW_IPAddress_Type, &range_b, 
-                                &POW_IPAddress_Type, &range_e))
-            goto error;
+        if ((fast = PySequence_Fast(item, "Address range must be a sequence")) == NULL)
+          goto error;
 
-          addr_b = (ipaddress_object *) range_b;
-          addr_e = (ipaddress_object *) range_e;
+        if (PySequence_Fast_GET_SIZE(fast) != 2 ||
+            !POW_IPAddress_Check(PySequence_Fast_GET_ITEM(fast, 0)) ||
+            !POW_IPAddress_Check(PySequence_Fast_GET_ITEM(fast, 1)))
+          lose_type_error("Address range must be two-element sequence of IPAddress objects");
+
+          addr_b = (ipaddress_object *) PySequence_Fast_GET_ITEM(fast, 0);
+          addr_e = (ipaddress_object *) PySequence_Fast_GET_ITEM(fast, 1);
 
           if (addr_b->type != ip_type ||
               addr_e->type != ip_type ||
@@ -2642,7 +2569,8 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
             lose_openssl_error("Couldn't add range to IPAddrBlock");
 
           Py_XDECREF(item);
-          item = range_b = range_e = NULL;
+          Py_XDECREF(fast);
+          item = fast = NULL;
           addr_b = addr_e = NULL;
         }
 
@@ -2667,15 +2595,19 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
   sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
   Py_XDECREF(iterator);
   Py_XDECREF(item);
+  Py_XDECREF(fast);
   return NULL;
 }
 
 static char x509_object_get_basic_constraints__doc__[] =
-  "Get BasicConstraints value for this certificate.  If the certificate\n"
-  "has no BasicConstraints extension, this method returns None.\n"
-  "Otherwise, it returns a two-element tuple.  The first element of the\n"
-  "tuple is a boolean representing the extension's cA value; the second\n"
-  "element of the tuple is either an integer representing the\n"
+  "Return BasicConstraints for this certificate.\n"
+  "\n"
+  "If this certificate has no BasicConstraints extension, this method\n"
+  "returns None.\n"
+  "\n"
+  "Otherwise, this method returns a two-element tuple.  The first element\n"
+  "of the tuple is a boolean representing the extension's cA value; the\n"
+  "second element of the tuple is either an integer representing the\n"
   "pathLenConstraint value or None if there is no pathLenConstraint.\n"
   ;
 
@@ -2700,7 +2632,7 @@ x509_object_get_basic_constraints(x509_object *self)
 }
 
 static char x509_object_set_basic_constraints__doc__[] =
-  "Set BasicConstraints value for this certificate.\n"
+  "Set BasicConstraints for this certificate.\n"
   "\n"
   "First argument \"ca\" is a boolean indicating whether the certificate\n"
   "is a CA certificate or not.\n"
@@ -2758,10 +2690,15 @@ x509_object_set_basic_constraints(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_sia__doc__[] =
-  "Get SIA values for this certificate.  If the certificate\n"
-  "has no SIA extension, this method returns None.\n"
-  "Otherwise, it returns a tuple containing three sequences:\n"
+  "Get SIA values for this certificate.\n"
+  "\n"
+  "If the certificate has no SIA extension, this method returns None.\n"
+  "\n"
+  "Otherwise, it returns a tuple containing three values:\n"
   "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
+  "Each of these values is a tuple of strings, representing an ordered\n"
+  "sequence of URIs.  Any or all of these sequences may be empty.\n"
+  "\n"
   "Any other accessMethods are ignored, as are any non-URI\n"
   "accessLocations.\n"
   ;
@@ -2857,19 +2794,21 @@ x509_object_get_sia(x509_object *self)
 
 static char x509_object_set_sia__doc__[] =
   "Set SIA values for this certificate.  Takes three arguments:\n"
-  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
+  "\"caRepository\", \"rpkiManifest\", and \"signedObject\".\n"
   "Each of these should be an iterable which returns URIs.\n"
+  "\n"
   "None is acceptable as an alternate way of specifying an empty\n"
   "sequence of URIs for a particular argument.\n"
   ;
 
 static PyObject *
-x509_object_set_sia(x509_object *self, PyObject *args)
+x509_object_set_sia(x509_object *self, PyObject *args, PyObject *kwds)
 {
+  static char *kwlist[] = {"caRepository", "rpkiManifest", "signedObject", NULL};
   AUTHORITY_INFO_ACCESS *ext = NULL;
-  PyObject *caRepository = NULL;
-  PyObject *rpkiManifest = NULL;
-  PyObject *signedObject = NULL;
+  PyObject *caRepository = Py_None;
+  PyObject *rpkiManifest = Py_None;
+  PyObject *signedObject = Py_None;
   PyObject *iterator = NULL;
   ASN1_OBJECT *oid = NULL;
   PyObject **pobj = NULL;
@@ -2881,7 +2820,8 @@ x509_object_set_sia(x509_object *self, PyObject *args)
 
   ENTERING(x509_object_set_sia);
 
-  if (!PyArg_ParseTuple(args, "OOO", &caRepository, &rpkiManifest, &signedObject))
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist,
+                                   &caRepository, &rpkiManifest, &signedObject))
     goto error;
 
   if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
@@ -2952,9 +2892,12 @@ x509_object_set_sia(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_aia__doc__[] =
-  "Get AIA values for this certificate.  If the certificate\n"
-  "has no AIA extension, this method returns None.\n"
-  "Otherwise, it returns a sequence of caIssuers URIs.\n"
+  "Get this certificate's AIA values.\n"
+  "\n"
+  "If the certificate has no AIA extension, this method returns None.\n"
+  "\n"  
+  "Otherwise, this returns a sequence of caIssuers URIs.\n"
+  "\n"
   "Any other accessMethods are ignored, as are any non-URI\n"
   "accessLocations.\n"
   ;
@@ -3005,8 +2948,9 @@ x509_object_get_aia(x509_object *self)
 }
 
 static char x509_object_set_aia__doc__[] =
-  "Set AIA values for this certificate.  Argument is a iterable\n"
-  "which returns caIssuers URIs.\n"
+  "Set AIA URIs for this certificate.\n"
+  "\n"
+  "Argument is a iterable which returns caIssuers URIs.\n"
   ;
 
 static PyObject *
@@ -3079,7 +3023,9 @@ x509_object_set_aia(x509_object *self, PyObject *args)
 
 static char x509_object_get_crldp__doc__[] =
   "Get CRL Distribution Point (CRLDP) values for this certificate.\n"
+  "\n"
   "If the certificate has no CRLDP extension, this method returns None.\n"
+  "\n"
   "Otherwise, it returns a sequence of URIs representing distributionPoint\n"
   "fullName values found in the first Distribution Point.  Other CRLDP\n"
   "fields are ignored, as are subsequent Distribution Points and any non-URI\n"
@@ -3135,8 +3081,9 @@ x509_object_get_crldp(x509_object *self)
 }
 
 static char x509_object_set_crldp__doc__[] =
-  "Set CRLDP values for this certificate.  Argument is a iterable\n"
-  "which returns distributionPoint fullName URIs.\n"
+  "Set CRLDP values for this certificate.\n"
+  "\n"
+  "Argument is a iterable which returns distributionPoint fullName URIs.\n"
   ;
 
 static PyObject *
@@ -3215,9 +3162,13 @@ x509_object_set_crldp(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_certificate_policies__doc__[] =
-  "Get Certificate Policies values for this certificate.  If the\n"
-  "certificate has no Certificate Policies extension, this method returns\n"
-  "None.  Otherwise, it returns a sequence of Object Identifiers.\n"
+  "Get Certificate Policies values for this certificate.\n"
+  "\n"
+  "If this certificate has no Certificate Policies extension, this method\n"
+  "returns None.\n"
+  "\n"
+  "Otherwise, this method returns a sequence of Object Identifiers.\n"
+  "\n"
   "Policy qualifiers, if any, are ignored.\n"
   ;
 
@@ -3256,9 +3207,14 @@ x509_object_get_certificate_policies(x509_object *self)
 }
 
 static char x509_object_set_certificate_policies__doc__[] =
-  "Set Certificate Policies for this certificate.  Argument is a iterable\n"
-  "which returns policy OIDs.  Policy qualifier are not supported.\n"
-  "The extension will be marked as critical.\n"
+  "Set Certificate Policies for this certificate.\n"
+  "\n"
+  "Argument is a iterable which returns policy OIDs.\n"
+  "\n"  
+  "Policy qualifier are not supported.\n"
+  "\n"
+  "The extension will be marked as critical, since there's not much point\n"
+  "in using this extension without making it critical.\n"
   ;
 
 static PyObject *
@@ -3327,7 +3283,7 @@ x509_object_set_certificate_policies(x509_object *self, PyObject *args)
  */
 
 static char x509_object_pprint__doc__[] =
-  "This method returns a pretty-printed rendition of the certificate.\n"
+  "Return a pretty-printed rendition of this certificate.\n"
   ;
 
 static PyObject *
@@ -3369,10 +3325,7 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(getNotAfter,            x509_object_get_not_after,              METH_NOARGS),
   Define_Method(setNotAfter,            x509_object_set_not_after,              METH_VARARGS),
   Define_Method(setNotBefore,           x509_object_set_not_before,             METH_VARARGS),
-  Define_Method(addExtension,           x509_object_add_extension,              METH_VARARGS),
   Define_Method(clearExtensions,        x509_object_clear_extensions,           METH_NOARGS),
-  Define_Method(countExtensions,        x509_object_count_extensions,           METH_NOARGS),
-  Define_Method(getExtension,           x509_object_get_extension,              METH_VARARGS),
   Define_Method(pprint,                 x509_object_pprint,                     METH_NOARGS),
   Define_Method(getSKI,                 x509_object_get_ski,                    METH_NOARGS),
   Define_Method(setSKI,                 x509_object_set_ski,                    METH_VARARGS),
@@ -3385,7 +3338,7 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(getBasicConstraints,    x509_object_get_basic_constraints,      METH_NOARGS),
   Define_Method(setBasicConstraints,    x509_object_set_basic_constraints,      METH_VARARGS),
   Define_Method(getSIA,                 x509_object_get_sia,                    METH_NOARGS),
-  Define_Method(setSIA,                 x509_object_set_sia,                    METH_VARARGS),
+  Define_Method(setSIA,                 x509_object_set_sia,                    METH_KEYWORDS),
   Define_Method(getAIA,                 x509_object_get_aia,                    METH_NOARGS),
   Define_Method(setAIA,                 x509_object_set_aia,                    METH_VARARGS),
   Define_Method(getCRLDP,               x509_object_get_crldp,                  METH_NOARGS),
@@ -3476,144 +3429,10 @@ x509_store_object_dealloc(x509_store_object *self)
   self->ob_type->tp_free((PyObject*) self);
 }
 
-#if ENABLE_X509_CERTIFICATE_SIGNATURE_AND_VERIFICATION
-#warning Check X509_verify_cert options
-/*
- * I once knew all the grotty details of how X509_verify_cert() gets
- * its control flags and data, but don't remember off the top of my head,
- * and would prefer not to stop the current documentation cleanup pass
- * to relearn all of that.  So come back to this.
- *
- * Mostly what I'm worried about here is the ten zillion flags that
- * tell X509_verify_cert() whether to check CRLs, whether to verify
- * the whole chain, whether to enforce policy constraints, etc etc.
- * This may all be covered already, I just don't remember.  Might not
- * matter, as these methods are probably destined for deletion.
- */
-
-static char x509_store_object_verify__doc__[] =
-  "This method performs X.509 certificate verification using\n"
-  "the OpenSSL X509_verify_cert() function.\n"
-  "\n"
-  "The \"certificate\" parameter is the certificate to verify, and\n"
-  "should be an X509 object.\n"
-  ;
-
-static PyObject *
-x509_store_object_verify(x509_store_object *self, PyObject *args)
-{
-  X509_STORE_CTX ctx;
-  x509_object *x509 = NULL;
-  int ok;
-
-  if (!PyArg_ParseTuple(args, "O!", &POW_X509_Type, &x509))
-    goto error;
-
-  X509_STORE_CTX_init(&ctx, self->store, x509->x509, NULL);
-  ok = X509_verify_cert(&ctx) == 1;
-  X509_STORE_CTX_cleanup(&ctx);
-
-  return PyBool_FromLong(ok);
-
- error:
-  return NULL;
-}
-
-static char x509_store_object_verify_chain__doc__[] =
-  "This method performs X.509 certificate verification using\n"
-  "the OpenSSL X509_verify_cert() function.\n"
-  "\n"
-  "The \"certificate\" parameter is the certificate to verify, and\n"
-  "should be an X509 object.\n"
-  "\n"
-  "the \"chain\" paramater should be a sequence of X509 objects which\n"
-  "form a chain to a trusted certificate.\n"
-  ;
-
-static PyObject *
-x509_store_object_verify_chain(x509_store_object *self, PyObject *args)
-{
-  PyObject *x509_sequence = NULL;
-  X509_STORE_CTX ctx;
-  x509_object *x509 = NULL;
-  STACK_OF(X509) *x509_stack = NULL;
-  int ok;
-
-  if (!PyArg_ParseTuple(args, "O!O", &POW_X509_Type, &x509, &x509_sequence))
-    goto error;
-
-  if ((x509_stack = x509_helper_sequence_to_stack(x509_sequence)) == NULL)
-    goto error;
-
-  X509_STORE_CTX_init(&ctx, self->store, x509->x509, x509_stack);
-  ok = X509_verify_cert(&ctx) == 1;
-  X509_STORE_CTX_cleanup(&ctx);
-  sk_X509_free(x509_stack);
-
-  return PyBool_FromLong(ok);
-
- error:
-  sk_X509_free(x509_stack);
-  return NULL;
-}
-
-static char x509_store_object_verify_detailed__doc__[] =
-  "This method performs X.509 certificate verification using\n"
-  "the OpenSSL X509_verify_cert() function.\n"
-  "\n"
-  "The \"certificate\" parameter is the certificate to verify, and\n"
-  "should be an X509 object.\n"
-  "\n"
-  "the \"chain\" paramater should be a sequence of X509 objects which\n"
-  "form a chain to a trusted certificate.\n"
-  "\n"
-  "Unlike the \"verify\" and \"verifyChain\" methods, this method returns\n"
-  "some information about what went wrong when verification fails.\n"
-  "The return value is currently a 3-element tuple consisting of:\n"
-  "\n"
-  "  * The numeric return value from X509_verify_cert()\n"
-  "  * The numeric error code value from the X509_STORE_CTX\n"
-  "  * The numeric error_depth value from the X509_STORE_CTX\n"
-  "\n"
-  "Other values may added to this tuple later, if needed.\n"
-  ;
-
-static PyObject *
-x509_store_object_verify_detailed(x509_store_object *self, PyObject *args)
-{
-  PyObject *x509_sequence = Py_None;
-  X509_STORE_CTX ctx;
-  x509_object *x509 = NULL;
-  STACK_OF(X509) *x509_stack = NULL;
-  PyObject *result = NULL;
-  int ok;
-
-  if (!PyArg_ParseTuple(args, "O!|O", &POW_X509_Type, &x509, &x509_sequence))
-    goto error;
-
-  if (x509_sequence && !(x509_stack = x509_helper_sequence_to_stack(x509_sequence)))
-    goto error;
-
-  X509_STORE_CTX_init(&ctx, self->store, x509->x509, x509_stack);
-  ok = X509_verify_cert(&ctx) == 1;
-  result = Py_BuildValue("(iii)", ok, ctx.error, ctx.error_depth);
-  X509_STORE_CTX_cleanup(&ctx);
-
- error:                          /* fall through */
-  sk_X509_free(x509_stack);
-  return result;
-}
-
-#endif /* ENABLE_X509_CERTIFICATE_SIGNATURE_AND_VERIFICATION */
-
 static char x509_store_object_add_trust__doc__[] =
-  "This method adds a new trusted certificate to the store object.\n"
+  "Add a trusted certificate to this certificate store object.\n"
   "\n"
   "The \"certificate\" parameter should be an instance of the X509 class.\n"
-  "\n"
-  "Using trusted certificates to manage verification is relatively primitive,\n"
-  "more sophisticated systems can be constructed at application level by\n"
-  "constructing certificate chains to verify.\n"
   ;
 
 static PyObject *
@@ -3636,9 +3455,9 @@ x509_store_object_add_trust(x509_store_object *self, PyObject *args)
 }
 
 static char x509_store_object_add_crl__doc__[] =
-  "This method adds a CRL to the store object.\n"
+  "Add a CRL to this certificate store object.\n"
   "\n"
-  "The \"crl\" parameter should be an instance of CRL.\n"
+  "The \"crl\" parameter should be an instance of the CRL class.\n"
   ;
 
 static PyObject *
@@ -3661,19 +3480,14 @@ x509_store_object_add_crl(x509_store_object *self, PyObject *args)
 }
 
 static struct PyMethodDef x509_store_object_methods[] = {
-#if ENABLE_X509_CERTIFICATE_SIGNATURE_AND_VERIFICATION
-  Define_Method(verify,         x509_store_object_verify,               METH_VARARGS),
-  Define_Method(verifyChain,    x509_store_object_verify_chain,         METH_VARARGS),
-  Define_Method(verifyDetailed, x509_store_object_verify_detailed,      METH_VARARGS),
-#endif
   Define_Method(addTrust,       x509_store_object_add_trust,            METH_VARARGS),
   Define_Method(addCrl,         x509_store_object_add_crl,              METH_VARARGS),
   {NULL}
 };
 
 static char POW_X509Store_Type__doc__[] =
-  "This class provides basic access to the OpenSSL certificate store\n"
-  "mechanism used in X.509 and CMS verification.\n"
+  "This class holds the OpenSSL certificate store objects used in CMS\n"
+  "verification.\n"
   "\n"
   LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
   ;
@@ -3790,7 +3604,7 @@ crl_object_der_read_helper(PyTypeObject *type, BIO *bio)
 }
 
 static char crl_object_pem_read__doc__[] =
-  "Class method to read a PEM-encoded CRL object from a string.\n"
+  "Read a PEM-encoded CRL object from a string.\n"
   ;
 
 static PyObject *
@@ -3801,7 +3615,7 @@ crl_object_pem_read(PyTypeObject *type, PyObject *args)
 }
 
 static char crl_object_pem_read_file__doc__[] =
-  "Class method to read a PEM-encoded CRL object from a file.\n"
+  "Read a PEM-encoded CRL object from a file.\n"
   ;
 
 static PyObject *
@@ -3812,7 +3626,7 @@ crl_object_pem_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char crl_object_der_read__doc__[] =
-  "Class method to read a DER-encoded CRL object from a string.\n"
+  "Read a DER-encoded CRL object from a string.\n"
   ;
 
 static PyObject *
@@ -3823,7 +3637,7 @@ crl_object_der_read(PyTypeObject *type, PyObject *args)
 }
 
 static char crl_object_der_read_file__doc__[] =
-  "Class method to read a DER-encoded CRL object from a file.\n"
+  "Read a DER-encoded CRL object from a file.\n"
   ;
 
 static PyObject *
@@ -3834,7 +3648,7 @@ crl_object_der_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char crl_object_get_version__doc__[] =
-  "This method returns the version number of this CRL.\n"
+  "return the version number of this CRL.\n"
   ;
 
 static PyObject *
@@ -3845,7 +3659,7 @@ crl_object_get_version(crl_object *self)
 }
 
 static char crl_object_set_version__doc__[] =
-  "This method sets the version number of this CRL.\n"
+  "Set the version number of this CRL.\n"
   "\n"
   "The \"version\" parameter should be a positive integer.\n"
   ;
@@ -3870,8 +3684,9 @@ crl_object_set_version(crl_object *self, PyObject *args)
 }
 
 static char crl_object_get_issuer__doc__[] =
-  "This method returns issuer name from this CRL.\n"
-  "See the \"getIssuer\" method of the X509 class for more details.\n"
+  "Return issuer name of this CRL.\n"
+  "\n"
+  "See the \"getIssuer()\" method of the X509 class for more details.\n"
   ;
 
 static PyObject *
@@ -3892,8 +3707,9 @@ crl_object_get_issuer(crl_object *self, PyObject *args)
 }
 
 static char crl_object_set_issuer__doc__[] =
-  "This method sets the CRL's issuer name.\n"
-  "See the \"setIssuer\" method of the X509 class for details.\n"
+  "Set this CRL's issuer name.\n"
+  "\n"
+  "See the \"setIssuer()\" method of the X509 class for details.\n"
   ;
 
 static PyObject *
@@ -3932,7 +3748,7 @@ crl_object_set_issuer(crl_object *self, PyObject *args)
  */
 
 static char crl_object_set_this_update__doc__[] =
-  "This method sets the CRL's \"thisUpdate\" value.\n"
+  "Set this CRL's \"thisUpdate\" value.\n"
   "\n"
   "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
   "as restricted by RFC 5280. The code automatically converts to UTCTime\n"
@@ -3966,8 +3782,9 @@ crl_object_set_this_update (crl_object *self, PyObject *args)
 }
 
 static char crl_object_get_this_update__doc__[] =
-  "This method returns the CRL's \"thisUpdate\" value\n"
-  "in the form of a GeneralizedTime string as restricted by RFC 5280.\n"
+  "Return this CRL's \"thisUpdate\" value in the form of a\n"
+  "GeneralizedTime string as restricted by RFC 5280.\n"
+  "\n"
   "The code automatically converts RFC-5280-compliant UTCTime strings\n"
   "into the GeneralizedTime format, so that Python code need not worry\n"
   "about the conversion rules.\n"
@@ -3981,7 +3798,7 @@ crl_object_get_this_update (crl_object *self)
 }
 
 static char crl_object_set_next_update__doc__[] =
-  "This method sets the CRL's \"nextUpdate\" value.\n"
+  "Set this CRL's \"nextUpdate\" value.\n"
   "\n"
   "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
   "as restricted by RFC 5280. The code automatically converts to UTCTime\n"
@@ -4015,8 +3832,9 @@ crl_object_set_next_update (crl_object *self, PyObject *args)
 }
 
 static char crl_object_get_next_update__doc__[] =
-  "This method returns the CRL's \"nextUpdate\" value\n"
-  "in the form of a GeneralizedTime string as restricted by RFC 5280.\n"
+  "Returns this CRL's \"nextUpdate\" value in the form of a GeneralizedTime\n"
+  "string as restricted by RFC 5280.\n"
+  "\n"
   "The code automatically converts RFC-5280-compliant UTCTime strings\n"
   "into the GeneralizedTime format, so that Python code need not worry\n"
   "about the conversion rules.\n"
@@ -4032,10 +3850,10 @@ crl_object_get_next_update (crl_object *self)
 static char crl_object_add_revocations__doc__[] =
   "This method adds a collection of revocations to this CRL.\n"
   "\n"
-  "The \"iterable\" parameter should be an iterable object, each element\n"
-  "of which is a two-element sequence; the first element of this sequence\n"
-  "should be the revoked serial number (an integer), the second element\n"
-  "should be the revocation date (a timestamp in GeneralizedTime format).\n"
+  "The \"iterable\" parameter should be an iterable object which returns\n"
+  "two-element sequences.  The first element of each pair should be the\n"
+  "revoked serial number (an integer), the second element should be the\n"
+  "revocation date (a timestamp in GeneralizedTime format).\n"
   ;
 
 static PyObject *
@@ -4044,12 +3862,11 @@ crl_object_add_revocations(crl_object *self, PyObject *args)
   PyObject *iterable = NULL;
   PyObject *iterator = NULL;
   PyObject *item = NULL;
-  PyObject *p_serial = NULL;
+  PyObject *fast = NULL;
   X509_REVOKED *revoked = NULL;
-  ASN1_INTEGER *a_serial = NULL;
-  ASN1_TIME *a_date = NULL;
+  ASN1_INTEGER *serial = NULL;
+  ASN1_TIME *date = NULL;
   int ok = 0;
-  char *c_date;
 
   ENTERING(crl_object_add_revocations);
 
@@ -4059,32 +3876,34 @@ crl_object_add_revocations(crl_object *self, PyObject *args)
 
   while ((item = PyIter_Next(iterator)) != NULL) {
 
-    if (!PyArg_ParseTuple(item, "Os", &p_serial, &c_date) ||
-        (a_serial = PyLong_to_ASN1_INTEGER(p_serial)) == NULL)
+    if ((fast = PySequence_Fast(item, "Revocation entry must be a sequence")) == NULL)
+      goto error;
+
+    if (PySequence_Fast_GET_SIZE(fast) != 2)
+      lose_type_error("Revocation entry must be two-element sequence");
+
+    if ((serial = PyLong_to_ASN1_INTEGER(PySequence_Fast_GET_ITEM(fast, 0))) == NULL ||
+        (date = Python_to_ASN1_TIME(PyString_AsString(PySequence_Fast_GET_ITEM(fast, 1)), 1)) == NULL)
       goto error;
 
     if ((revoked = X509_REVOKED_new()) == NULL ||
-        !X509_REVOKED_set_serialNumber(revoked, a_serial))
+        !X509_REVOKED_set_serialNumber(revoked, serial) ||
+        !X509_REVOKED_set_revocationDate(revoked, date))
       lose_no_memory();
 
-    ASN1_INTEGER_free(a_serial);
-    a_serial = NULL;
+    ASN1_INTEGER_free(serial);
+    serial = NULL;
 
-    if ((a_date = Python_to_ASN1_TIME(c_date, 1)) == NULL)
-      lose("Couldn't convert revocationDate string");
-
-    if (!X509_REVOKED_set_revocationDate(revoked, a_date))
-      lose("Couldn't set revocationDate");
-
-    ASN1_TIME_free(a_date);
-    a_date = NULL;
+    ASN1_TIME_free(date);
+    date = NULL;
 
     if (!X509_CRL_add0_revoked(self->crl, revoked))
       lose_no_memory();
 
     revoked = NULL;
     Py_XDECREF(item);
-    item = NULL;
+    Py_XDECREF(fast);
+    item = fast = NULL;
   }
 
   if (!X509_CRL_sort(self->crl))
@@ -4095,9 +3914,10 @@ crl_object_add_revocations(crl_object *self, PyObject *args)
  error:
   Py_XDECREF(iterator);
   Py_XDECREF(item);
+  Py_XDECREF(fast);
   X509_REVOKED_free(revoked);
-  ASN1_INTEGER_free(a_serial);
-  ASN1_TIME_free(a_date);
+  ASN1_INTEGER_free(serial);
+  ASN1_TIME_free(date);
 
   if (ok)
     Py_RETURN_NONE;
@@ -4106,8 +3926,11 @@ crl_object_add_revocations(crl_object *self, PyObject *args)
 }
 
 static char crl_object_get_revoked__doc__[] =
-  "This method returns a tuple of X509Revoked objects representing the sequence\n"
-  "of revoked certificates listed in the CRL.\n"
+  "Return a sequence of two-element tuples representing the sequence of\n"
+  "revoked certificates listed in this CRL.\n"
+  "\n"
+  "The first element of each pair is the serialNumber of the revoked\n"
+  "certificate, the second element is the revocationDate.\n"
   ;
 
 static PyObject *
@@ -4151,57 +3974,8 @@ crl_object_get_revoked(crl_object *self)
   return NULL;
 }
 
-static char crl_object_add_extension__doc__[] =
-  "This method adds an extension to this CRL.\n"
-  "It takes the same arguments and has the same limitations as the\n"
-  "X509.addExtension() method (q.v.).\n"
-  ;
-
-static PyObject *
-crl_object_add_extension(crl_object *self, PyObject *args)
-{
-  PyObject *critical = NULL;
-  int len = 0, ok = 0;
-  char *name = NULL;
-  unsigned char *buf = NULL;
-  ASN1_OBJECT *oid = NULL;
-  ASN1_OCTET_STRING *octetString = NULL;
-  X509_EXTENSION *ext = NULL;
-
-  ENTERING(crl_object_add_extension);
-
-  if (!PyArg_ParseTuple(args, "sOs#", &name, &critical, &buf, &len))
-    goto error;
-
-  if ((oid = OBJ_txt2obj(name, 0)) == NULL)
-    lose("Extension has unknown object identifier");
-
-  if ((octetString = ASN1_OCTET_STRING_new()) == NULL ||
-      !ASN1_OCTET_STRING_set(octetString, buf, len))
-    lose_no_memory();
-
-  if ((ext = X509_EXTENSION_create_by_OBJ(NULL, oid, PyObject_IsTrue(critical),
-                                          octetString)) == NULL)
-    lose_openssl_error("Unable to create ASN.1 X.509 Extension object");
-
-  if (!X509_CRL_add_ext(self->crl, ext, -1))
-    lose_no_memory();
-
-  ok = 1;
-
- error:                         /* Fall through */
-  ASN1_OBJECT_free(oid);
-  ASN1_OCTET_STRING_free(octetString);
-  X509_EXTENSION_free(ext);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
-}
-
 static char crl_object_clear_extensions__doc__[] =
-  "This method clears all extensions attached to this CRL.\n"
+  "Clear all extensions attached to this CRL.\n"
   ;
 
 static PyObject *
@@ -4217,54 +3991,8 @@ crl_object_clear_extensions(crl_object *self)
   Py_RETURN_NONE;
 }
 
-static char crl_object_count_extensions__doc__[] =
-  "This method returns the number of extensions attached to this CRL.\n"
-  ;
-
-static PyObject *
-crl_object_count_extensions(crl_object *self)
-{
-  ENTERING(crl_object_count_extensions);
-  return Py_BuildValue("i", X509_CRL_get_ext_count(self->crl));
-}
-
-static char crl_object_get_extension__doc__[] =
-  "This method returns a tuple equivalent the parameters of the\n"
-  "\"addExtension\" method, and suffers from similar limitations.\n"
-  "\n"
-  "The \"index\" parameter is the position in the extension list of\n"
-  "the extension to be returned.\n"
-  ;
-
-static PyObject *
-crl_object_get_extension(crl_object *self, PyObject *args)
-{
-  X509_EXTENSION *ext;
-  char oid[512];
-  int slot = 0;
-
-  ENTERING(crl_object_get_extension);
-
-  if (!PyArg_ParseTuple(args, "i", &slot))
-    goto error;
-
-  if ((ext = X509_CRL_get_ext(self->crl, slot)) == NULL)
-    lose_openssl_error("Couldn't get extension");
-
-  if (OBJ_obj2txt(oid, sizeof(oid), ext->object, 1) <= 0)
-    lose_openssl_error("Couldn't translate OID");
-
-  return Py_BuildValue("sNs#", oid,
-                       PyBool_FromLong(ext->critical),
-                       ASN1_STRING_data(ext->value),
-                       ASN1_STRING_length(ext->value));
-
- error:
-  return NULL;
-}
-
 static char crl_object_sign__doc__[] =
-  "This method signs a CRL with a private key.\n"
+  "Sign this CRL with a private key.\n"
   "\n"
   "The \"key\" parameter should be an instance of the Asymmetric class,\n"
   "containing a private key.\n"
@@ -4307,7 +4035,8 @@ crl_object_sign(crl_object *self, PyObject *args)
 }
 
 static char crl_object_verify__doc__[] =
-  "This method verifies the CRL's signature.\n"
+  "Verifie this CRL's signature.\n"
+  "\n"
   "The check is performed using OpenSSL's X509_CRL_verify() function.\n"
   "\n"
   "The \"key\" parameter should be an instance of the Asymmetric class\n"
@@ -4331,7 +4060,7 @@ crl_object_verify(crl_object *self, PyObject *args)
 }
 
 static char crl_object_pem_write__doc__[] =
-  "This method returns a PEM encoded CRL as a string.\n"
+  "Return the PEM encoding of this CRL, as a string.\n"
   ;
 
 static PyObject *
@@ -4356,7 +4085,7 @@ crl_object_pem_write(crl_object *self)
 }
 
 static char crl_object_der_write__doc__[] =
-  "This method returns a DER encoded CRL as a string.\n"
+  "Return the DER encoding of this CRL, as a string.\n"
   ;
 
 static PyObject *
@@ -4381,7 +4110,7 @@ crl_object_der_write(crl_object *self)
 }
 
 static char crl_object_get_aki__doc__[] =
-  "This method returns the Authority Key Identifier (AKI) keyid value for\n"
+  "Return the Authority Key Identifier (AKI) keyid value for\n"
   "this CRL, or None if the CRL has no AKI extension\n"
   "or has an AKI extension with no keyIdentifier value.\n"
   ;
@@ -4407,7 +4136,7 @@ crl_object_get_aki(crl_object *self, PyObject *args)
 }
 
 static char crl_object_set_aki__doc__[] =
-  "This method sets the Authority Key Identifier (AKI) value for this\n"
+  "Set the Authority Key Identifier (AKI) value for this\n"
   "CRL.   We only support the keyIdentifier method, as that's\n"
   "the only form which is legal for RPKI certificates.\n"
   ;
@@ -4445,7 +4174,7 @@ crl_object_set_aki(crl_object *self, PyObject *args)
 }
 
 static char crl_object_get_crl_number__doc__[] =
-  "This method get the CRL Number extension value from this CRL.\n"
+  "Return the CRL Number extension value from this CRL, an integer.\n"
   ;
 
 static PyObject *
@@ -4465,9 +4194,9 @@ crl_object_get_crl_number(crl_object *self)
 }
 
 static char crl_object_set_crl_number__doc__[] =
-  "This method sets the CRL Number extension value in this CRL.\n"
+  "Set the CRL Number extension value in this CRL.\n"
   "\n"
-  "The \"number\" parameter should ba an integer.\n"
+  "The \"number\" parameter should be an integer.\n"
   ;
 
 static PyObject *
@@ -4494,7 +4223,7 @@ crl_object_set_crl_number(crl_object *self, PyObject *args)
 }
 
 static char crl_object_pprint__doc__[] =
-  "This method returns a pretty-printed rendition of the CRL.\n"
+  "Return a pretty-printed rendition of this CRL.\n"
   ;
 
 static PyObject *
@@ -4531,10 +4260,7 @@ static struct PyMethodDef crl_object_methods[] = {
   Define_Method(setNextUpdate,          crl_object_set_next_update,     METH_VARARGS),
   Define_Method(getRevoked,             crl_object_get_revoked,         METH_NOARGS),
   Define_Method(addRevocations,         crl_object_add_revocations,     METH_VARARGS),
-  Define_Method(addExtension,           crl_object_add_extension,       METH_VARARGS),
   Define_Method(clearExtensions,        crl_object_clear_extensions,    METH_NOARGS),
-  Define_Method(countExtensions,        crl_object_count_extensions,    METH_NOARGS),
-  Define_Method(getExtension,           crl_object_get_extension,       METH_VARARGS),
   Define_Method(pemWrite,               crl_object_pem_write,           METH_NOARGS),
   Define_Method(derWrite,               crl_object_der_write,           METH_NOARGS),
   Define_Method(pprint,                 crl_object_pprint,              METH_NOARGS),
@@ -4550,7 +4276,7 @@ static struct PyMethodDef crl_object_methods[] = {
 };
 
 static char POW_CRL_Type__doc__[] =
-  "This class provides access to OpenSSL X509 CRL management facilities.\n"
+  "Container for OpenSSL's X509 CRL management facilities.\n"
   ;
 
 static PyTypeObject POW_CRL_Type = {
@@ -4706,7 +4432,8 @@ asymmetric_object_pem_read_private_helper(PyTypeObject *type, BIO *bio, char *pa
  */
 
 static char asymmetric_object_pem_read_private__doc__[] =
-  "Class method to read a PEM-encoded private key from a string.\n"
+  "Read a PEM-encoded private key from a string.\n"
+  "\n"
   "Optional second argument is a passphrase for the key.\n"
   ;
 
@@ -4735,7 +4462,8 @@ asymmetric_object_pem_read_private(PyTypeObject *type, PyObject *args)
 }
 
 static char asymmetric_object_pem_read_private_file__doc__[] =
-  "Class method to read a PEM-encoded private key from a file.\n"
+  "Read a PEM-encoded private key from a file.\n"
+  "\n"
   "Optional second argument is a passphrase for the key.\n"
   ;
 
@@ -4784,7 +4512,7 @@ asymmetric_object_der_read_private_helper(PyTypeObject *type, BIO *bio)
 }
 
 static char asymmetric_object_der_read_private__doc__[] =
-  "Class method to read a DER-encoded private key from a string.\n"
+  "Read a DER-encoded private key from a string.\n"
   ;
 
 static PyObject *
@@ -4795,7 +4523,7 @@ asymmetric_object_der_read_private(PyTypeObject *type, PyObject *args)
 }
 
 static char asymmetric_object_der_read_private_file__doc__[] =
-  "Class method to read a DER-encoded private key from a file.\n"
+  "Read a DER-encoded private key from a file.\n"
   ;
 
 static PyObject *
@@ -4847,7 +4575,7 @@ asymmetric_object_der_read_public_helper(PyTypeObject *type, BIO *bio)
 }
 
 static char asymmetric_object_pem_read_public__doc__[] =
-  "Class method to read a PEM-encoded public key from a string.\n"
+  "Read a PEM-encoded public key from a string.\n"
   ;
 
 static PyObject *
@@ -4858,7 +4586,7 @@ asymmetric_object_pem_read_public(PyTypeObject *type, PyObject *args)
 }
 
 static char asymmetric_object_pem_read_public_file__doc__[] =
-  "Class method to read a PEM-encoded public key from a file.\n"
+  "Read a PEM-encoded public key from a file.\n"
   ;
 
 static PyObject *
@@ -4869,7 +4597,7 @@ asymmetric_object_pem_read_public_file(PyTypeObject *type, PyObject *args)
 }
 
 static char asymmetric_object_der_read_public__doc__[] =
-  "Class method to read a DER-encoded public key from a string.\n"
+  "Read a DER-encoded public key from a string.\n"
   ;
 
 static PyObject *
@@ -4880,7 +4608,7 @@ asymmetric_object_der_read_public(PyTypeObject *type, PyObject *args)
 }
 
 static char asymmetric_object_der_read_public_file__doc__[] =
-  "Class method to read a DER-encoded public key from a file.\n"
+  "Read a DER-encoded public key from a file.\n"
   ;
 
 static PyObject *
@@ -4891,10 +4619,11 @@ asymmetric_object_der_read_public_file(PyTypeObject *type, PyObject *args)
 }
 
 static char asymmetric_object_pem_write_private__doc__[] =
-  "This method writes an \"Asymmetric\" private key as a PEM string.\n"
+  "Return the PEM encoding of an \"Asymmetric\" private key.\n"
   "\n"
   "This method takes an optional parameter \"passphrase\" which, if\n"
   "specified, will be used to encrypt the private key with AES-256-CBC.\n"
+  "\n"
   "If you don't specify a passphrase, the key will not be encrypted.\n"
   ;
 
@@ -4928,7 +4657,7 @@ asymmetric_object_pem_write_private(asymmetric_object *self, PyObject *args)
 }
 
 static char asymmetric_object_pem_write_public__doc__[] =
-  "This method writes an \"Asymmetric\" public key as a PEM string.\n"
+  "Return the PEM encoding of an \"Asymmetric\" public key.\n"
   ;
 
 static PyObject *
@@ -4953,7 +4682,7 @@ asymmetric_object_pem_write_public(asymmetric_object *self)
 }
 
 static char asymmetric_object_der_write_private__doc__[] =
-  "This method writes an \"Asymmetric\" private key as a DER string.\n"
+  "Return the DER encoding of an \"Asymmetric\" private key.\n"
   ;
 
 static PyObject *
@@ -4978,7 +4707,7 @@ asymmetric_object_der_write_private(asymmetric_object *self)
 }
 
 static char asymmetric_object_der_write_public__doc__[] =
-  "This method writes an \"Asymmetric\" public key as a DER string.\n"
+  "Return the DER encoding of an \"Asymmetric\" public key.\n"
   ;
 
 static PyObject *
@@ -5002,129 +4731,11 @@ asymmetric_object_der_write_public(asymmetric_object *self)
   return result;
 }
 
-static char asymmetric_object_sign__doc__[] =
-  "This method signs a digest of text to be protected.\n"
-  "The Asymmetric object should be the  private key to be used for signing.\n"
-  "\n"
-  "The \"digesttext\" parameter should be a digest of the protected data.\n"
-  "\n"
-  "The \"digesttype\" parameter should be one of the following:\n"
-  "\n"
-  "  * MD5_DIGEST\n"
-  "  * SHA_DIGEST\n"
-  "  * SHA1_DIGEST\n"
-  "  * SHA256_DIGEST\n"
-  "  * SHA384_DIGEST\n"
-  "  * SHA512_DIGEST\n"
-  ;
-
-static PyObject *
-asymmetric_object_sign(asymmetric_object *self, PyObject *args)
-{
-  unsigned char *digest_text = NULL, *signed_text = NULL;
-  unsigned int digest_type = 0;
-  size_t signed_len = 0, digest_len = 0;
-  EVP_PKEY_CTX *ctx = NULL;
-  PyObject *result = NULL;
-
-  ENTERING(asymmetric_object_sign);
-
-  if (!PyArg_ParseTuple(args, "s#i", &digest_text, &digest_len, &digest_type))
-    goto error;
-
-  /*
-   * If we need to find out what kind of public key this is, we can
-   * use EVP_PKEY_asn1_get0_info() to get the pkey_id value, which
-   * happens to map exactly to algorithm NIDs but conceptually is a
-   * separate space.
-   */
-
-  if ((ctx = EVP_PKEY_CTX_new(self->pkey, NULL)) == NULL ||
-      EVP_PKEY_sign_init(ctx) <= 0 ||
-      EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) <= 0 ||
-      EVP_PKEY_CTX_set_signature_md(ctx, evp_digest_factory(digest_type)) <= 0 ||
-      EVP_PKEY_sign(ctx, NULL, &signed_len, digest_text, digest_len) <= 0)
-    lose_openssl_error("Couldn't set up signing context");
-  
-  if ((signed_text = malloc(signed_len)) == NULL)
-    lose_no_memory();
-
-  if (EVP_PKEY_sign(ctx, signed_text, &signed_len, digest_text, digest_len) <= 0)
-    lose_openssl_error("Couldn't sign digest");
-
-  result = Py_BuildValue("s#", signed_text, signed_len);
-
- error:                         /* Fall through */
-  EVP_PKEY_CTX_free(ctx);
-  if (signed_text)
-    free(signed_text);
-  return result;
-}
-
-static char asymmetric_object_verify__doc__[] =
-  "This method verifies a signed digest.  The Assymetric object should be\n"
-  "the public key against which to verify the signature.\n"
-  "\n"
-  "The \"signedtext\" parameter should be the signed digest to verify.\n"
-  "\n"
-  "The \"digesttext\" parameter should be a digest of the same data used\n"
-  "to produce signedtext.\n"
-  "\n"
-  "The \"digesttype\" parameter should be one of the following:\n"
-  "\n"
-  "  * MD5_DIGEST\n"
-  "  * SHA_DIGEST\n"
-  "  * SHA1_DIGEST\n"
-  "  * SHA256_DIGEST\n"
-  "  * SHA384_DIGEST\n"
-  "  * SHA512_DIGEST\n"
-  "\n"
-  "This method returns a boolean value indicating whether the signature\n"
-  "could be verified.\n"
-  ;
-
-static PyObject *
-asymmetric_object_verify(asymmetric_object *self, PyObject *args)
-{
-  unsigned char *digest_text = NULL, *signed_text = NULL;
-  int digest_type = 0, signed_len = 0, digest_len = 0;
-  EVP_PKEY_CTX *ctx = NULL;
-  int ok = 0, result;
-
-  ENTERING(asymmetric_object_verify);
-
-  if (!PyArg_ParseTuple(args, "s#s#i",
-                        &signed_text, &signed_len,
-                        &digest_text, &digest_len,
-                        &digest_type))
-    goto error;
-
-  if ((ctx = EVP_PKEY_CTX_new(self->pkey, NULL)) == NULL ||
-      EVP_PKEY_verify_init(ctx) <= 0 ||
-      EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) <= 0 ||
-      EVP_PKEY_CTX_set_signature_md(ctx, evp_digest_factory(digest_type)) <= 0)
-    lose_openssl_error("Couldn't set up EVP_PKEY_CTX");
-
-  if ((result = EVP_PKEY_verify(ctx, signed_text, signed_len, digest_text, digest_len)) < 0)
-    lose_openssl_error("Unable to perform public key validation");
-
-  ok = 1;
-
- error:
-  EVP_PKEY_CTX_free(ctx);
-
-  if (ok)
-    return PyBool_FromLong(result);
-  else
-    return NULL;
-}
-
 static char asymmetric_object_calculate_ski__doc__[] =
   "Calculate SKI value for this key.\n"
   "\n"
   "The SKI is the SHA-1 hash of key's SubjectPublicKey value.\n"
   ;
-
 
 static PyObject *
 asymmetric_object_calculate_ski(asymmetric_object *self)
@@ -5155,8 +4766,6 @@ static struct PyMethodDef asymmetric_object_methods[] = {
   Define_Method(pemWritePublic,           asymmetric_object_pem_write_public,           METH_NOARGS),
   Define_Method(derWritePrivate,          asymmetric_object_der_write_private,          METH_NOARGS),
   Define_Method(derWritePublic,           asymmetric_object_der_write_public,           METH_NOARGS),
-  Define_Method(sign,                     asymmetric_object_sign,                       METH_VARARGS),
-  Define_Method(verify,                   asymmetric_object_verify,                     METH_VARARGS),
   Define_Method(calculateSKI,             asymmetric_object_calculate_ski,              METH_NOARGS),
   Define_Class_Method(pemReadPublic,      asymmetric_object_pem_read_public,            METH_VARARGS),
   Define_Class_Method(pemReadPublicFile,  asymmetric_object_pem_read_public_file,       METH_VARARGS),
@@ -5170,7 +4779,10 @@ static struct PyMethodDef asymmetric_object_methods[] = {
 };
 
 static char POW_Asymmetric_Type__doc__[] =
-  "This class provides basic access to RSA signature and verification.\n"
+  "Container for OpenSSL's EVP_PKEY asymmetric key classes.\n"
+  "\n"
+  "At the moment the only supported algorithm is RSA, but that will\n"
+  "likely change, as BGPSEC will require EC-DSA.\n"
   "\n"
   LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
   ;
@@ -5275,7 +4887,7 @@ digest_object_dealloc(digest_object *self)
 }
 
 static char digest_object_update__doc__[] =
-  "This method adds data to a digest.\n"
+  "Add data to this digest.\n"
   "\n"
   "the \"data\" parameter should be a string containing the data to be added.\n"
   ;
@@ -5301,7 +4913,7 @@ digest_object_update(digest_object *self, PyObject *args)
 }
 
 static char digest_object_copy__doc__[] =
-  "This method returns a copy of the Digest object.\n"
+  "Return a copy of this Digest object.\n"
   ;
 
 static PyObject *
@@ -5327,9 +4939,10 @@ digest_object_copy(digest_object *self, PyObject *args)
 }
 
 static char digest_object_digest__doc__[] =
-  "This method returns the digest of all the data which has been processed.\n"
-  "This function can be called at any time and will not effect the internal\n"
-  "structure of the Digest object.\n"
+  "Return the digest of all the data which this Digest object has processed.\n"
+  "\n"
+  "This method can be called at any time and will not effect the internal\n"
+  "state of the Digest object.\n"
   ;
 
 /*
@@ -5493,7 +5106,7 @@ cms_object_der_read_helper(PyTypeObject *type, BIO *bio)
 }
 
 static char cms_object_pem_read__doc__[] =
-  "Class method to read a PEM-encoded CMS object from a string.\n"
+  "Read a PEM-encoded CMS object from a string.\n"
   ;
 
 static PyObject *
@@ -5504,7 +5117,7 @@ cms_object_pem_read(PyTypeObject *type, PyObject *args)
 }
 
 static char cms_object_pem_read_file__doc__[] =
-  "Class method to read a PEM-encoded CMS object from a file.\n"
+  "Read a PEM-encoded CMS object from a file.\n"
   ;
 
 static PyObject *
@@ -5515,7 +5128,7 @@ cms_object_pem_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char cms_object_der_read__doc__[] =
-  "Class method to read a DER-encoded CMS object from a string.\n"
+  "Read a DER-encoded CMS object from a string.\n"
   ;
 
 static PyObject *
@@ -5526,7 +5139,7 @@ cms_object_der_read(PyTypeObject *type, PyObject *args)
 }
 
 static char cms_object_der_read_file__doc__[] =
-  "Class method to read a DER-encoded CMS object from a file.\n"
+  "Read a DER-encoded CMS object from a file.\n"
   ;
 
 static PyObject *
@@ -5537,7 +5150,7 @@ cms_object_der_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char cms_object_pem_write__doc__[] =
-  "This method returns a PEM encoded CMS message as a string.\n"
+  "Return the DER encoding of this CMS message.\n"
   ;
 
 static PyObject *
@@ -5562,7 +5175,7 @@ cms_object_pem_write(cms_object *self)
 }
 
 static char cms_object_der_write__doc__[] =
-  "This method returns a DER encoded CMS message as a string.\n"
+  "Return the DER encoding of this CMS message.\n"
   ;
 
 static PyObject *
@@ -5683,7 +5296,7 @@ cms_object_sign_helper(cms_object *self,
 }
 
 static char cms_object_sign__doc__[] =
-  "This method signs a message with a private key.\n"
+  "Sign this CMS message message with a private key.\n"
   "\n"
   "The \"signcert\" parameter should be the certificate against which the\n"
   "message will eventually be verified, an X509 object.\n"
@@ -5805,7 +5418,7 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
 }
 
 static char cms_object_verify__doc__[] =
-  "This method verifies a message against a trusted store.\n"
+  "Verify this CMS message against a trusted certificate store.\n"
   "\n"
   "The \"store\" parameter is an X509Store object, the trusted certificate\n"
   "store to use in verification.\n"
@@ -5839,7 +5452,7 @@ cms_object_verify(cms_object *self, PyObject *args, PyObject *kwds)
 }
 
 static char cms_object_eContentType__doc__[] =
-  "This method returns the eContentType of a CMS message.\n"
+  "Return the eContentType OID of this CMS message.\n"
   ;
 
 static PyObject *
@@ -5862,7 +5475,7 @@ cms_object_eContentType(cms_object *self)
 }
 
 static char cms_object_signingTime__doc__[] =
-  "This method returns the signingTime of a CMS message.\n"
+  "Return the signingTime of this CMS message.\n"
   ;
 
 static PyObject *
@@ -5916,7 +5529,7 @@ cms_object_signingTime(cms_object *self)
 }
 
 static char cms_object_pprint__doc__[] =
-  "This method returns a pretty-printed representation of a CMS message.\n"
+  "Return a pretty-printed representation of this CMS message.\n"
   ;
 
 static PyObject *
@@ -5956,7 +5569,7 @@ cms_object_helper_get_cert(void *cert)
 }
 
 static char cms_object_certs__doc__[] =
-  "This method returns any certificates embedded in a CMS message, as a\n"
+  "Return any certificates embedded in this CMS message, as a\n"
   "tuple of X509 objects.   This tuple will be empty if the message\n"
   "wrapper contains no certificates.\n"
   ;
@@ -5998,7 +5611,7 @@ cms_object_helper_get_crl(void *crl)
 }
 
 static char cms_object_crls__doc__[] =
-  "This method returns any CRLs embedded in a CMS message, as a tuple of\n"
+  "Return any CRLs embedded in this CMS message, as a tuple of\n"
   "CRL objects.  This tuple will be empty if the message contains no CRLs.\n"
   ;
 
@@ -6041,9 +5654,8 @@ static struct PyMethodDef cms_object_methods[] = {
 };
 
 static char POW_CMS_Type__doc__[] =
-  "This class provides basic access OpenSSL's CMS functionality.\n"
-  "At present this only handes signed objects, as those are the\n"
-  "only kind of CMS objects used in RPKI.\n"
+  "Wrapper for OpenSSL's CMS class.  At present this only handes signed\n"
+  "objects, as those are the only kind of CMS objects used in RPKI.\n"
   ;
 
 static PyTypeObject POW_CMS_Type = {
@@ -6118,7 +5730,7 @@ manifest_object_dealloc(manifest_object *self)
 }
 
 static char manifest_object_verify__doc__[] =
-  "Needs doc.\n"
+  "Verify this manifest.  See the CMS class's .verify() method for details.\n"
   ;
 
 static PyObject *
@@ -6160,7 +5772,7 @@ manifest_object_der_read_helper(PyTypeObject *type, BIO *bio)
 }
 
 static char manifest_object_der_read__doc__[] =
-  "Class method to read a DER-encoded manifest object from a string.\n"
+  "Read a DER-encoded manifest object from a string.\n"
   ;
 
 static PyObject *
@@ -6171,7 +5783,7 @@ manifest_object_der_read(PyTypeObject *type, PyObject *args)
 }
 
 static char manifest_object_der_read_file__doc__[] =
-  "Class method to read a DER-encoded manifest object from a file.\n"
+  "Read a DER-encoded manifest object from a file.\n"
   ;
 
 static PyObject *
@@ -6195,7 +5807,7 @@ manifest_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 }
 
 static char manifest_object_pem_read__doc__[] =
-  "Class method to read a PEM-encoded manifest object from a string.\n"
+  "Read a PEM-encoded manifest object from a string.\n"
   ;
 
 static PyObject *
@@ -6206,7 +5818,7 @@ manifest_object_pem_read(PyTypeObject *type, PyObject *args)
 }
 
 static char manifest_object_pem_read_file__doc__[] =
-  "Class method to read a PEM-encoded manifest object from a file.\n"
+  "Read a PEM-encoded manifest object from a file.\n"
   ;
 
 static PyObject *
@@ -6217,7 +5829,7 @@ manifest_object_pem_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char manifest_object_get_version__doc__[] =
-  "This method returns the version number of this manifest.\n"
+  "Return the version number of this manifest.\n"
   ;
 
 static PyObject *
@@ -6238,12 +5850,12 @@ manifest_object_get_version(manifest_object *self)
 }
 
 static char manifest_object_set_version__doc__[] =
-  "This method sets the version number of this manifest.\n"
+  "Set the version number of this manifest.\n"
   "\n"
   "The \"version\" parameter should be a non-negative integer.\n"
   "\n"
-  "As of this writing, zero is both the default and the only defined version,\n"
-  "so attempting to set any version number other than zero will fail, as we\n"
+  "As of this writing, zero is both the default and the only defined version.\n"
+  "Attempting to set any version number other than zero will fail, as we\n"
   "don't understand how to write other versions, by definition.\n"
   ;
 
@@ -6273,7 +5885,7 @@ manifest_object_set_version(manifest_object *self, PyObject *args)
 }
 
 static char manifest_object_get_manifest_number__doc__[] =
-  "This method returns the manifest number of this manifest.\n"
+  "Return the manifestNumber of this manifest.\n"
   ;
 
 static PyObject *
@@ -6291,7 +5903,7 @@ manifest_object_get_manifest_number(manifest_object *self)
 }
 
 static char manifest_object_set_manifest_number__doc__[] =
-  "This method sets the manifest number of this manifest.\n"
+  "Set the manifestNumber of this manifest.\n"
   "\n"
   "The \"manifestNumber\" parameter should be a non-negative integer.\n"
   ;
@@ -6338,7 +5950,7 @@ manifest_object_set_manifest_number(manifest_object *self, PyObject *args)
 }
 
 static char manifest_object_set_this_update__doc__[] =
-  "This method sets the manifest's \"thisUpdate\" value.\n"
+  "Set this manifest's \"thisUpdate\" value.\n"
   "\n"
   "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
   "as restricted by RFC 5280.\n"
@@ -6371,8 +5983,8 @@ manifest_object_set_this_update (manifest_object *self, PyObject *args)
 }
 
 static char manifest_object_get_this_update__doc__[] =
-  "This method returns the manifest's \"thisUpdate\" value\n"
-  "in the form of a GeneralizedTime string as restricted by RFC 5280.\n"
+  "Return this manifest's \"thisUpdate\" value in the form of a\n"
+  "GeneralizedTime string as restricted by RFC 5280.\n"
   ;
 
 static PyObject *
@@ -6390,7 +6002,7 @@ manifest_object_get_this_update (manifest_object *self)
 }
 
 static char manifest_object_set_next_update__doc__[] =
-  "This method sets the manifest's \"nextUpdate\" value.\n"
+  "Set this manifest's \"nextUpdate\" value.\n"
   "\n"
   "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
   "as restricted by RFC 5280.\n"
@@ -6423,8 +6035,8 @@ manifest_object_set_next_update (manifest_object *self, PyObject *args)
 }
 
 static char manifest_object_get_next_update__doc__[] =
-  "This method returns the manifest's \"nextUpdate\" value\n"
-  "in the form of a GeneralizedTime string as restricted by RFC 5280.\n"
+  "Return this manifest's \"nextUpdate\" value in the form of a\n"
+  "GeneralizedTime string as restricted by RFC 5280.\n"
   ;
 
 static PyObject *
@@ -6442,7 +6054,7 @@ manifest_object_get_next_update (manifest_object *self)
 }
 
 static char manifest_object_get_algorithm__doc__[] =
-  "This method returns the manifest's fileHashAlg OID.\n"
+  "Return this manifest's fileHashAlg OID.\n"
   ;
 
 static PyObject *
@@ -6462,7 +6074,7 @@ manifest_object_get_algorithm(manifest_object *self)
 }
 
 static char manifest_object_set_algorithm__doc__[] =
-  "This method sets the manifest's fileHashAlg OID.\n"
+  "Set this manifest's fileHashAlg OID.\n"
   ;
 
 static PyObject *
@@ -6492,7 +6104,7 @@ manifest_object_set_algorithm(manifest_object *self, PyObject *args)
 }
 
 static char manifest_object_add_files__doc__[] =
-  "This method adds a collection of <filename, hash> pairs to this manifest.\n"
+  "Add a collection of <filename, hash> pairs to this manifest.\n"
   "\n"
   "The \"iterable\" parameter should be an iterable object, each element\n"
   "of which is a two-element sequence; the first element of this sequence\n"
@@ -6506,6 +6118,7 @@ manifest_object_add_files(manifest_object *self, PyObject *args)
   PyObject *iterable = NULL;
   PyObject *iterator = NULL;
   PyObject *item = NULL;
+  PyObject *fast = NULL;
   FileAndHash *fah = NULL;
   char *file = NULL;
   char *hash = NULL;
@@ -6522,7 +6135,14 @@ manifest_object_add_files(manifest_object *self, PyObject *args)
 
   while ((item = PyIter_Next(iterator)) != NULL) {
 
-    if (!PyArg_ParseTuple(item, "s#s#", &file, &filelen, &hash, &hashlen))
+    if ((fast = PySequence_Fast(item, "FileAndHash entry must be a sequence")) == NULL)
+      goto error;
+
+    if (PySequence_Fast_GET_SIZE(fast) != 2)
+      lose_type_error("FileAndHash entry must be two-element sequence");
+
+    if (PyString_AsStringAndSize(PySequence_Fast_GET_ITEM(fast, 0), &file, &filelen) < 0 ||
+        PyString_AsStringAndSize(PySequence_Fast_GET_ITEM(fast, 1), &hash, &hashlen) < 0)
       goto error;
 
     if ((fah = FileAndHash_new()) == NULL ||
@@ -6536,7 +6156,8 @@ manifest_object_add_files(manifest_object *self, PyObject *args)
 
     fah = NULL;
     Py_XDECREF(item);
-    item = NULL;
+    Py_XDECREF(fast);
+    item = fast = NULL;
   }
 
   ok = 1;
@@ -6544,6 +6165,7 @@ manifest_object_add_files(manifest_object *self, PyObject *args)
  error:
   Py_XDECREF(iterator);
   Py_XDECREF(item);
+  Py_XDECREF(fast);
   FileAndHash_free(fah);
 
   if (ok)
@@ -6553,8 +6175,8 @@ manifest_object_add_files(manifest_object *self, PyObject *args)
 }
 
 static char manifest_object_get_files__doc__[] =
-  "This method returns a tuple of <filename, hash> pairs representing the\n"
-  "contents of this manifest.\n"
+  "Return a tuple of <filename, hash> pairs representing the contents of\n"
+  "this manifest.\n"
   ;
 
 static PyObject *
@@ -6596,7 +6218,7 @@ manifest_object_get_files(manifest_object *self)
 }
 
 static char manifest_object_sign__doc__[] =
-  "Needs doc.\n"
+  "Sign this manifest.  See the CMS class's .sign() method for details.\n"
   ;
 
 static PyObject *
@@ -6673,6 +6295,7 @@ static struct PyMethodDef manifest_object_methods[] = {
 
 static char POW_Manifest_Type__doc__[] =
   "This class provides access to RPKI manifest payload.\n"
+  "Most methods are inherited from or share code with the CMS class.\n"
   ;
 
 static PyTypeObject POW_Manifest_Type = {
@@ -6747,7 +6370,7 @@ roa_object_dealloc(roa_object *self)
 }
 
 static char roa_object_verify__doc__[] =
-  "Needs doc.  For now, see CMS.verify().\n"
+  "Verify this ROA.   See CMS.verify() for details.\n"
   ;
 
 static PyObject *
@@ -6802,7 +6425,7 @@ roa_object_der_read_helper(PyTypeObject *type, BIO *bio)
 }
 
 static char roa_object_pem_read__doc__[] =
-  "Class method to read a PEM-encoded ROA object from a string.\n"
+  "Read a PEM-encoded ROA object from a string.\n"
   ;
 
 static PyObject *
@@ -6813,7 +6436,7 @@ roa_object_pem_read(PyTypeObject *type, PyObject *args)
 }
 
 static char roa_object_pem_read_file__doc__[] =
-  "Class method to read a PEM-encoded ROA object from a file.\n"
+  "Read a PEM-encoded ROA object from a file.\n"
   ;
 
 static PyObject *
@@ -6824,7 +6447,7 @@ roa_object_pem_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char roa_object_der_read__doc__[] =
-  "Class method to read a DER-encoded ROA object from a string.\n"
+  "Read a DER-encoded ROA object from a string.\n"
   ;
 
 static PyObject *
@@ -6835,7 +6458,7 @@ roa_object_der_read(PyTypeObject *type, PyObject *args)
 }
 
 static char roa_object_der_read_file__doc__[] =
-  "Class method to read a DER-encoded ROA object from a file.\n"
+  "Read a DER-encoded ROA object from a file.\n"
   ;
 
 static PyObject *
@@ -6846,7 +6469,7 @@ roa_object_der_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char roa_object_get_version__doc__[] =
-  "This method returns the version number of this ROA.\n"
+  "Return the version number of this ROA.\n"
   ;
 
 static PyObject *
@@ -6867,12 +6490,12 @@ roa_object_get_version(roa_object *self)
 }
 
 static char roa_object_set_version__doc__[] =
-  "This method sets the version number of this ROA.\n"
+  "Set the version number of this ROA.\n"
   "\n"
   "The \"version\" parameter should be a non-negative integer.\n"
   "\n"
-  "As of this writing, zero is both the default and the only defined version,\n"
-  "so attempting to set any version number other than zero will fail, as we\n"
+  "As of this writing, zero is both the default and the only defined version.\n"
+  "Attempting to set any version number other than zero will fail, as we\n"
   "don't understand how to write other versions, by definition.\n"
   ;
 
@@ -6902,7 +6525,7 @@ roa_object_set_version(roa_object *self, PyObject *args)
 }
 
 static char roa_object_get_asid__doc__[] =
-  "This method returns the Autonomous System ID of this ROA.\n"
+  "Return the Autonomous System ID of this ROA.\n"
   ;
 
 static PyObject *
@@ -6920,7 +6543,7 @@ roa_object_get_asid(roa_object *self)
 }
 
 static char roa_object_set_asid__doc__[] =
-  "This method sets the Autonomous System ID of this ROA.\n"
+  "Sets the Autonomous System ID of this ROA.\n"
   "\n"
   "The \"asID\" parameter should be a non-negative integer.\n"
   ;
@@ -6967,11 +6590,18 @@ roa_object_set_asid(roa_object *self, PyObject *args)
 }
 
 static char roa_object_get_prefixes__doc__[] =
-  "This method returns the ROA's prefix list.  This is a two-element\n"
-  "tuple: the first element is the IPv4 prefix list, the second is the\n"
-  "IPv6 prefix list.\n"
+  "Return this ROA's prefix list.  This is a two-element\n"
+  "tuple: the first element is the IPv4 prefix set, the second is the\n"
+  "IPv6 prefix set.\n"
   "\n"
-  "[Add more description here once final format is stable]\n"
+  "Each prefix set is either None, if there are no prefixes for this IP\n"
+  "version, or a sequence of three-element tuple representing ROA prefix\n"
+  "entries.\n"
+  "\n"
+  "Each ROA prefix entry consists of the prefix itself (an IPAddress),\n"
+  "the prefix length (an integer), and the maxPrefixLen value, which is\n"
+  "either an integer or None depending on whether the maxPrefixLen value\n"
+  "is set for this prefix.\n"
   ;
 
 static PyObject *
@@ -7061,9 +6691,15 @@ roa_object_get_prefixes(roa_object *self)
 }
 
 static char roa_object_set_prefixes__doc__[] =
-  "This method sets the ROA's prefix list.\n"
+  "Set this ROA's prefix list.\n"
   "\n"
-  "[Add description here once argument format is stable]\n"
+  "This method takes two arguments, \"ipv4\" and \"ipv6\".  Each of these\n"
+  "is either None, if no prefixes should be set for this IP version, or\n"
+  "an iterable object returning ROA prefix entries in the same format as\n"
+  "returned by the .getPrefixes() method.  The maxPrefixLen value may be\n"
+  "omitted (that is, the ROA prefix entry tuple may be of length two\n"
+  "rather than of length three); this will be taken as equivalent to\n"
+  "specifying a maxPrefixLen value of None.\n"
   ;
 
 static PyObject *
@@ -7077,6 +6713,7 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
   PyObject *ipv6_arg = Py_None;
   PyObject *iterator = NULL;
   PyObject *item = NULL;
+  PyObject *fast = NULL;
   int ok = 0;
   int v;
 
@@ -7116,12 +6753,28 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
       ipaddress_object *addr = NULL;
       PyObject *maxlenobj = Py_None;
 
-      if (!PyArg_ParseTuple(item, "O!I|O", &POW_IPAddress_Type, &addr, &prefixlen, &maxlenobj))
+      if ((fast = PySequence_Fast(item, "ROA prefix must be a sequence")) == NULL)
         goto error;
 
-      if (maxlenobj == Py_None)
+      switch (PySequence_Fast_GET_SIZE(fast)) {
+      case 3:
+        maxlenobj = PySequence_Fast_GET_ITEM(fast, 2);
+        /* Fall through */
+      case 2:
+        if (!POW_IPAddress_Check(PySequence_Fast_GET_ITEM(fast, 0)))
+          lose_type_error("First element of ROA prefix must be an IPAddress object");
+        addr = (ipaddress_object *) PySequence_Fast_GET_ITEM(fast, 0);
+        prefixlen = (unsigned) PyInt_AsLong(PySequence_Fast_GET_ITEM(fast, 1));
+        if (PyErr_Occurred())
+          goto error;
+        break;
+      default:
+        lose_type_error("ROA prefix must be a two- or three-element sequence");
+      }
+
+      if (maxlenobj == Py_None) {
         maxprefixlen = prefixlen;
-      else {
+      } else {
         maxprefixlen = (unsigned) PyInt_AsLong(maxlenobj);
         if (PyErr_Occurred())
           goto error;
@@ -7167,7 +6820,8 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
 
       a = NULL;
       Py_XDECREF(item);
-      item = NULL;
+      Py_XDECREF(fast);
+      item = fast = NULL;
     }
 
     fam = NULL;
@@ -7187,6 +6841,7 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
   ROAIPAddress_free(a);
   Py_XDECREF(iterator);
   Py_XDECREF(item);
+  Py_XDECREF(fast);
 
   if (ok)
     Py_RETURN_NONE;
@@ -7195,7 +6850,7 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
 }
 
 static char roa_object_sign__doc__[] =
-  "Needs doc.  For now, see CMS.sign.\n"
+  "Sign this ROA.  See CMS.sign() for details.\n"
   ;
 
 static PyObject *
@@ -7265,7 +6920,8 @@ static struct PyMethodDef roa_object_methods[] = {
 };
 
 static char POW_ROA_Type__doc__[] =
-  "This class provides access to RPKI roa payload.\n"
+  "This class provides access to RPKI ROA payload.\n"
+  "Most methods are inherited from or share code with the CMS class.\n"
   ;
 
 static PyTypeObject POW_ROA_Type = {
@@ -7401,7 +7057,7 @@ pkcs10_object_der_read_helper(PyTypeObject *type, BIO *bio)
 }
 
 static char pkcs10_object_pem_read__doc__[] =
-  "Class method to read a PEM-encoded PKCS#10 object from a string.\n"
+  "Read a PEM-encoded PKCS#10 object from a string.\n"
   ;
 
 static PyObject *
@@ -7412,7 +7068,7 @@ pkcs10_object_pem_read(PyTypeObject *type, PyObject *args)
 }
 
 static char pkcs10_object_pem_read_file__doc__[] =
-  "Class method to read a PEM-encoded PKCS#10 object from a file.\n"
+  "Read a PEM-encoded PKCS#10 object from a file.\n"
   ;
 
 static PyObject *
@@ -7423,7 +7079,7 @@ pkcs10_object_pem_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char pkcs10_object_der_read__doc__[] =
-  "Class method to read a DER-encoded PKCS#10 object from a string.\n"
+  "Read a DER-encoded PKCS#10 object from a string.\n"
   ;
 
 static PyObject *
@@ -7434,7 +7090,7 @@ pkcs10_object_der_read(PyTypeObject *type, PyObject *args)
 }
 
 static char pkcs10_object_der_read_file__doc__[] =
-  "Class method to read a DER-encoded PKCS#10 object from a file.\n"
+  "Read a DER-encoded PKCS#10 object from a file.\n"
   ;
 
 static PyObject *
@@ -7445,7 +7101,7 @@ pkcs10_object_der_read_file(PyTypeObject *type, PyObject *args)
 }
 
 static char pkcs10_object_pem_write__doc__[] =
-  "This method returns a PEM-encoded PKCS#10 object as a string.\n"
+  "Returns the PEM encoding of this PKCS#10 object.\n"
   ;
 
 static PyObject *
@@ -7470,7 +7126,7 @@ pkcs10_object_pem_write(pkcs10_object *self)
 }
 
 static char pkcs10_object_der_write__doc__[] =
-  "This method returns a DER-encoded PKCS#10 object as a string.\n"
+  "Return the DER encoding of this PKCS#10 object.\n"
   ;
 
 static PyObject *
@@ -7495,7 +7151,8 @@ pkcs10_object_der_write(pkcs10_object *self)
 }
 
 static char pkcs10_object_get_public_key__doc__[] =
-  "This method gets the public key for this PKCS#10 request.\n"
+  "Return the public key from this PKCS#10 request, as an Asymmetric\n"
+  "object.\n"
   ;
 
 static PyObject *
@@ -7520,7 +7177,8 @@ pkcs10_object_get_public_key(pkcs10_object *self)
 }
 
 static char pkcs10_object_set_public_key__doc__[] =
-  "This method sets the public key for this PKCS#10 request.\n"
+  "Set the public key for this PKCS#10 request.\n"
+  "\n"
   "The \"key\" parameter should be an instance of the Asymmetric class,\n"
   "containing a public key.\n"
   ;
@@ -7545,7 +7203,7 @@ pkcs10_object_set_public_key(pkcs10_object *self, PyObject *args)
 }
 
 static char pkcs10_object_sign__doc__[] =
-  "This method signs a PKCS#10 request with a private key.\n"
+  "Sign a PKCS#10 request with a private key.\n"
   "\n"
   "The \"key\" parameter should be an instance of the Asymmetric class,\n"
   "containing a private key.\n"
@@ -7596,6 +7254,9 @@ pkcs10_object_sign(pkcs10_object *self, PyObject *args)
 
 static char pkcs10_object_verify__doc__[] =
   "Verify a PKCS#10 request.\n"
+  "\n"
+  "This calls OpenSSL's X509_REQ_verify() method to check the request's\n"
+  "self-signature.\n"
   ;
 
 static PyObject *
@@ -7621,7 +7282,7 @@ pkcs10_object_verify(pkcs10_object *self)
 }
 
 static char pkcs10_object_get_version__doc__[] =
-  "This method returns the version number from the version field of this PKCS#10 request.\n"
+  "Return the version number of this PKCS#10 request.\n"
   ;
 
 static PyObject *
@@ -7632,9 +7293,10 @@ pkcs10_object_get_version(pkcs10_object *self)
 }
 
 static char pkcs10_object_set_version__doc__[] =
-  "This method sets the version number in the version field of this PKCS#10 request.\n"
-  "The \"version\" parameter should be an integer, but the only value is zero, so\n"
-  "this field is optional and defaults to zero.\n"
+  "Set the version number of this PKCS#10 request.\n"
+  "\n"
+  "The \"version\" parameter should be an integer, but the only defined\n"
+  "value is zero, so this field is optional and defaults to zero.\n"
 ;
 
 static PyObject *
@@ -7661,9 +7323,10 @@ pkcs10_object_set_version(pkcs10_object *self, PyObject *args)
 }
 
 static char pkcs10_object_get_subject__doc__[] =
-  "This method returns a tuple containing the subject's name.  See\n"
-  "the X509.getIssuer() method for details of the return value\n"
-  "and use of the optional \"format\" parameter.\n"
+  "Return this PKCS #10 request's subject name.\n"
+  "\n"
+  "See the X509.getIssuer() method for details of the return value and\n"
+  "use of the optional \"format\" parameter.\n"
   ;
 
 static PyObject *
@@ -7685,7 +7348,8 @@ pkcs10_object_get_subject(pkcs10_object *self, PyObject *args)
 }
 
 static char pkcs10_object_set_subject__doc__[] =
-  "This method is used to set the PKCS#10 request's subject name.\n"
+  "Set this PKCS#10 request's subject name.\n"
+  "\n"
   "The \"name\" parameter should be in the same format as the return\n"
   "value from the \"getSubject\" method.\n"
   ;
@@ -7720,9 +7384,9 @@ pkcs10_object_set_subject(pkcs10_object *self, PyObject *args)
 }
 
 static char pkcs10_object_get_key_usage__doc__[] =
-  "This method returns a FrozenSet of strings representing the KeyUsage\n"
-  "settings for this PKCS#10 request, or None if the request has no\n"
-  "KeyUsage extension.  The bits have the same names as in RFC 5280.\n"
+  "Return a FrozenSet of strings representing the KeyUsage settings for\n"
+  "this PKCS#10 request, or None if the request has no KeyUsage\n"
+  "extension.  The bits have the same names as in RFC 5280.\n"
   ;
 
 static PyObject *
@@ -7762,7 +7426,7 @@ pkcs10_object_get_key_usage(pkcs10_object *self)
 }
 
 static char pkcs10_object_set_key_usage__doc__[] =
-  "This method sets the KeyUsage extension  for this PKCS#10 request.\n"
+  "Set the KeyUsage extension for this PKCS#10 request.\n"
   "\n"
   "Argument \"iterable\" should be an iterable object which returns zero or more\n"
   "strings naming bits to be enabled.  The bits have the same names as in RFC 5280.\n"
@@ -7832,12 +7496,15 @@ pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
 }
 
 static char pkcs10_object_get_basic_constraints__doc__[] =
-  "Get BasicConstraints value for this PKCS#10 request.  If the request\n"
-  "has no BasicConstraints extension, this method returns None.\n"
-  "Otherwise, it returns a two-element tuple.  The first element of the\n"
-  "tuple is a boolean representing the extension's cA value; the second\n"
-  "element of the tuple is either an integer representing the\n"
-  "pathLenConstraint value or None if there is no pathLenConstraint.\n"
+  "Return BasicConstraints value for this PKCS#10 request.\n"
+  "\n"
+  "If this request has no BasicConstraints extension, this method returns\n"
+  "None.\n"
+  "\n"
+  "Otherwise, this method returns a two-element tuple.  The first element\n"
+  "of the tuple is a boolean representing the extension's cA value; the\n"
+  "second element of the tuple is either an integer representing\n"
+  "thepathLenConstraint value or None if there is no pathLenConstraint.\n"
   ;
 
 static PyObject *
@@ -7866,9 +7533,10 @@ static char pkcs10_object_set_basic_constraints__doc__[] =
   "First argument \"ca\" is a boolean indicating whether the request\n"
   "is for a CA certificate or not.\n"
   "\n"
-  "Optional second argument \"pathLenConstraint\" is a non-negative integer\n"
-  "specifying the pathLenConstraint value for this certificate; this value\n"
-  "may only be set for CA certificates."
+  "Optional second argument \"pathLenConstraint\" is None or a\n"
+  "non-negative integer specifying the pathLenConstraint value for this\n"
+  "certificate.  Per RFC 5280, this value may only be set to an integer\n"
+  "value for CA certificates."
   "\n"
   "Optional third argument \"critical\" specifies whether the extension\n"
   "should be marked as critical.  RFC 5280 4.2.1.9 requires that CA\n"
@@ -7919,9 +7587,11 @@ pkcs10_object_set_basic_constraints(pkcs10_object *self, PyObject *args)
 }
 
 static char pkcs10_object_get_sia__doc__[] =
-  "Get SIA values for this PKCS#10 request.  If the request\n"
-  "has no SIA extension, this method returns None.\n"
-  "Otherwise, it returns a tuple containing three sequences:\n"
+  "Return the SIA values for this PKCS#10 request.\n"
+  "\n"
+  "If this request has no SIA extension, this method returns None.\n"
+  "\n"
+  "Otherwise, this returns a tuple containing three sequences:\n"
   "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
   "Any other accessMethods are ignored, as are any non-URI\n"
   "accessLocations.\n"
@@ -8017,9 +7687,12 @@ pkcs10_object_get_sia(pkcs10_object *self)
 }
 
 static char pkcs10_object_set_sia__doc__[] =
-  "Set SIA values for this PKCS#10 request.  Takes three arguments:\n"
-  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
+  "Set SIA values for this PKCS#10 request.\n"
+  "\n"
+  "Takes three arguments: caRepository, rpkiManifest, and signedObject.\n"
+  "\n"
   "Each of these should be an iterable which returns URIs.\n"
+  "\n"
   "None is acceptable as an alternate way of specifying an empty\n"
   "sequence of URIs for a particular argument.\n"
   ;
@@ -8113,7 +7786,7 @@ pkcs10_object_set_sia(pkcs10_object *self, PyObject *args)
 }
 
 static char pkcs10_object_get_signature_algorithm__doc__[] =
-  "Extract signature algorithm OID from this request.\n"
+  "Return this PKCS #10 reqeuest's signature algorithm OID.\n"
   ;
 
 static PyObject *
@@ -8129,9 +7802,9 @@ pkcs10_object_get_signature_algorithm(pkcs10_object *self)
 }
 
 static char pkcs10_object_get_extension_oids__doc__[] =
-  "Get the set of extension OIDs used in this request.  This is mostly\n"
+  "Return the set of extension OIDs used in this request.  This is mostly\n"
   "useful for enforcing restrictions on what extensions are allowed to be\n"
-  "present, to conform with a profile.\n"
+  "present, eg, to conform with the RPKI profile.\n"
   ;
 
 static PyObject *
@@ -8168,7 +7841,7 @@ pkcs10_object_get_extension_oids(pkcs10_object *self)
  */
 
 static char pkcs10_object_pprint__doc__[] =
-  "This method returns a pretty-printed rendition of the PKCS#10 request.\n"
+  "Return a pretty-printed rendition of this PKCS#10 request.\n"
   ;
 
 static PyObject *
@@ -8274,8 +7947,7 @@ static PyTypeObject POW_PKCS10_Type = {
  */
 
 static char pow_module_add_object__doc__[] =
-  "This function dynamically adds new a new object identifier to OpenSSL's\n"
-  "internal database.\n"
+  "Add new a new object identifier to OpenSSL's internal database.\n"
   "\n"
   "The \"oid\" should be an ASN.1 object identifer, represented as a string\n"
   "in dotted-decimal format.\n"
@@ -8306,7 +7978,8 @@ pow_module_add_object(PyObject *self, PyObject *args)
 }
 
 static char pow_module_get_error__doc__[] =
-  "Pops one error off OpenSSL's global error stack and returns it as a string.\n"
+  "Pop one error off OpenSSL's global error stack and returns it as a string.\n"
+  "\n"
   "Returns None if the error stack is empty.\n"
   ;
 
@@ -8394,8 +8067,8 @@ pow_module_add(PyObject *self, PyObject *args)
 }
 
 static char pow_module_write_random_file__doc__[] =
-  "This function writes the current state of OpenSSL's pseduo-random\n"
-  "number generator to a file.\n"
+  "Write the current state of OpenSSL's pseduo-random number generator to\n"
+  "a file.\n"
   "\n"
   "The \"filename\" parameter is the name of the file to write.\n"
   ;
@@ -8420,8 +8093,8 @@ pow_module_write_random_file(PyObject *self, PyObject *args)
 }
 
 static char pow_module_read_random_file__doc__[] =
-  "This function restores the state of OpenSSLs pseudo-random number\n"
-  "generator from state previously saved to a file.\n"
+  "Restore the state of OpenSSLs pseudo-random number generator from\n"
+  "data previously saved to a file.\n"
   "\n"
   "The \"filename\" parameter is the name of the file to read.\n"
   ;

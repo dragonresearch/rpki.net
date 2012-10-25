@@ -82,6 +82,7 @@
 /* $Id: rcynic.c 4613 2012-07-30 23:24:15Z sra $ */
 
 #include <Python.h>
+#include <datetime.h>
 
 #include <openssl/opensslconf.h>
 #include <openssl/crypto.h>
@@ -699,15 +700,27 @@ ASN1_TIME_to_Python(ASN1_TIME *t)
   return result;
 }
 
-#warning Perhaps Python_to_ASN1_TIME() should take a PyObject* so it can accept DateTime as well as string
-
 static ASN1_TIME *
-Python_to_ASN1_TIME(const char *s, const int object_requires_utctime)
+Python_to_ASN1_TIME(PyObject *arg, const int object_requires_utctime)
 {
+  char buf[sizeof("20010101010101Z") + 1];
   ASN1_TIME *result = NULL;
+  const char *s = NULL;
   int ok;
   
-  if (s == NULL)
+  if (PyDateTime_Check(arg)) {
+    if (snprintf(buf, sizeof(buf), "%4d%02d%02d%02d%02d%02dZ", 
+                 PyDateTime_GET_YEAR(arg),
+                 PyDateTime_GET_MONTH(arg),
+                 PyDateTime_GET_DAY(arg),
+                 PyDateTime_DATE_GET_HOUR(arg),
+                 PyDateTime_DATE_GET_MINUTE(arg),
+                 PyDateTime_DATE_GET_SECOND(arg)) >= sizeof(buf))
+      lose("Internal error -- GeneralizedTime buffer too small");
+    s = buf;
+  }
+
+  if (s == NULL && (s = PyString_AsString(arg)) == NULL)
     goto error;
 
   if (strlen(s) < 10)
@@ -1930,15 +1943,15 @@ static char x509_object_set_not_after__doc__[] =
 static PyObject *
 x509_object_set_not_after (x509_object *self, PyObject *args)
 {
-  char *s = NULL;
+  PyObject *o = NULL;
   ASN1_TIME *t = NULL;
 
   ENTERING(x509_object_set_not_after);
 
-  if (!PyArg_ParseTuple(args, "s", &s))
+  if (!PyArg_ParseTuple(args, "O", &o))
     goto error;
 
-  if ((t = Python_to_ASN1_TIME(s, 1)) == NULL)
+  if ((t = Python_to_ASN1_TIME(o, 1)) == NULL)
     lose("Couldn't convert notAfter string");
 
   if (!X509_set_notAfter(self->x509, t))
@@ -1964,15 +1977,15 @@ static char x509_object_set_not_before__doc__[] =
 static PyObject *
 x509_object_set_not_before (x509_object *self, PyObject *args)
 {
-  char *s = NULL;
+  PyObject *o = NULL;
   ASN1_TIME *t = NULL;
 
   ENTERING(x509_object_set_not_before);
 
-  if (!PyArg_ParseTuple(args, "s", &s))
+  if (!PyArg_ParseTuple(args, "O", &o))
     goto error;
 
-  if ((t = Python_to_ASN1_TIME(s, 1)) == NULL)
+  if ((t = Python_to_ASN1_TIME(o, 1)) == NULL)
     lose("Couldn't convert notBefore string");
 
   if (!X509_set_notBefore(self->x509, t))
@@ -3759,15 +3772,15 @@ static char crl_object_set_this_update__doc__[] =
 static PyObject *
 crl_object_set_this_update (crl_object *self, PyObject *args)
 {
-  char *s = NULL;
+  PyObject *o = NULL;
   ASN1_TIME *t = NULL;
 
   ENTERING(crl_object_set_this_update);
 
-  if (!PyArg_ParseTuple(args, "s", &s))
+  if (!PyArg_ParseTuple(args, "O", &o))
     goto error;
 
-  if ((t = Python_to_ASN1_TIME(s, 1)) == NULL)
+  if ((t = Python_to_ASN1_TIME(o, 1)) == NULL)
     lose("Couldn't convert thisUpdate string");
 
   if (!X509_CRL_set_lastUpdate(self->crl, t)) /* sic */
@@ -3809,15 +3822,15 @@ static char crl_object_set_next_update__doc__[] =
 static PyObject *
 crl_object_set_next_update (crl_object *self, PyObject *args)
 {
-  char *s = NULL;
+  PyObject *o = NULL;
   ASN1_TIME *t = NULL;
 
   ENTERING(crl_object_set_next_update);
 
-  if (!PyArg_ParseTuple(args, "s", &s))
+  if (!PyArg_ParseTuple(args, "O", &o))
     goto error;
 
-  if ((t = Python_to_ASN1_TIME(s, 1)) == NULL)
+  if ((t = Python_to_ASN1_TIME(o, 1)) == NULL)
     lose("Couldn't parse nextUpdate string");
 
   if (!X509_CRL_set_nextUpdate(self->crl, t))
@@ -3883,7 +3896,7 @@ crl_object_add_revocations(crl_object *self, PyObject *args)
       lose_type_error("Revocation entry must be two-element sequence");
 
     if ((serial = PyLong_to_ASN1_INTEGER(PySequence_Fast_GET_ITEM(fast, 0))) == NULL ||
-        (date = Python_to_ASN1_TIME(PyString_AsString(PySequence_Fast_GET_ITEM(fast, 1)), 1)) == NULL)
+        (date = Python_to_ASN1_TIME(PySequence_Fast_GET_ITEM(fast, 1), 1)) == NULL)
       goto error;
 
     if ((revoked = X509_REVOKED_new()) == NULL ||
@@ -5960,17 +5973,17 @@ static PyObject *
 manifest_object_set_this_update (manifest_object *self, PyObject *args)
 {
   ASN1_TIME *t = NULL;
-  char *s = NULL;
+  PyObject *o = NULL;
 
   ENTERING(manifest_object_set_this_update);
 
-  if (!PyArg_ParseTuple(args, "s", &s))
+  if (!PyArg_ParseTuple(args, "O", &o))
     goto error;
 
   if (self->manifest == NULL)
     lose_not_verified("Can't set thisUpdate value of unverified manifest");
 
-  if ((t = Python_to_ASN1_TIME(s, 0)) == NULL)
+  if ((t = Python_to_ASN1_TIME(o, 0)) == NULL)
     lose("Couldn't convert thisUpdate string");
 
   ASN1_TIME_free(self->manifest->thisUpdate);
@@ -6012,17 +6025,17 @@ static PyObject *
 manifest_object_set_next_update (manifest_object *self, PyObject *args)
 {
   ASN1_TIME *t = NULL;
-  char *s = NULL;
+  PyObject *o = NULL;
 
   ENTERING(manifest_object_set_next_update);
 
-  if (!PyArg_ParseTuple(args, "s", &s))
+  if (!PyArg_ParseTuple(args, "O", &o))
     goto error;
 
   if (self->manifest == NULL)
     lose_not_verified("Can't set nextUpdate value of unverified manifest"); 
 
-  if ((t = Python_to_ASN1_TIME(s, 0)) == NULL)
+  if ((t = Python_to_ASN1_TIME(o, 0)) == NULL)
     lose("Couldn't parse nextUpdate string");
 
   ASN1_TIME_free(self->manifest->nextUpdate);
@@ -8160,6 +8173,12 @@ init_POW(void)
    * memory-related issues, this might be the cause.
    */
   CRYPTO_set_mem_functions(PyMem_Malloc, PyMem_Realloc, PyMem_Free);
+
+  /*
+   * Import the DateTime API
+   */
+
+  PyDateTime_IMPORT;
 
 #define Define_Class(__type__)                                          \
   do {                                                                  \

@@ -340,13 +340,14 @@ def main():
                        (pubd_process,   "pubd"),
                        (rsyncd_process, "rsyncd")):
       # pylint: disable=E1103
-      if proc is not None:
+      if proc is not None and proc.poll() is None:
         rpki.log.info("Killing %s, pid %s" % (name, proc.pid))
         try:
-          os.kill(proc.pid, signal.SIGTERM)
+          proc.terminate()
         except OSError:
           pass
-        proc.wait()
+      if proc is not None:
+        rpki.log.info("Daemon %s, pid %s exited with code %s" % (name, proc.pid, proc.wait()))
 
 def cmd_sleep(cb, interval):
   """
@@ -486,6 +487,8 @@ class allocation(object):
   crl_interval = None
   regen_margin = None
   last_cms_time = None
+  rpkid_process = None
+  irdbd_process = None
 
   def __init__(self, yaml, db, parent = None):
     """
@@ -798,17 +801,17 @@ class allocation(object):
     Kill daemons for this entity.
     """
     # pylint: disable=E1103
-    rpki.log.info("Killing daemons for %s" % self.name)
-    try:
-      for proc in (self.rpkid_process, self.irdbd_process):
+    for proc, name in ((self.rpkid_process, "rpkid"),
+                       (self.irdbd_process, "irdbd")):
+      if proc is not None and proc.poll() is None:
+        rpki.log.info("Killing daemon %s pid %s for %s" % (name, proc.pid, self.name))
         try:
-          rpki.log.info("Killing pid %d" % proc.pid)
-          os.kill(proc.pid, signal.SIGTERM)
+          proc.terminate()
         except OSError:
           pass
-        proc.wait()
-    except AttributeError:
-      pass
+      if proc is not None:
+        rpki.log.info("Daemon %s pid %s for %s exited with code %s" % (
+          name, proc.pid, self.name, proc.wait()))
 
   def call_rpkid(self, pdus, cb):
     """

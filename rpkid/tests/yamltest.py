@@ -202,7 +202,7 @@ class allocation(object):
     self.kids = [allocation(k, db, self) for k in yaml.get("kids", ())]
     valid_until = None
     if "valid_until" in yaml:
-      valid_until = rpki.sundial.datetime.fromdatetime(yaml.get("valid_until"))
+      valid_until = rpki.sundial.datetime.from_datetime(yaml.get("valid_until"))
     if valid_until is None and "valid_for" in yaml:
       valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(yaml["valid_for"])
     self.base = rpki.resource_set.resource_bag(

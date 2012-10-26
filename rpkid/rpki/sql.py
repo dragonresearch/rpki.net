@@ -59,13 +59,21 @@ class session(object):
     self.database = cfg.get("sql-database")
     self.password = cfg.get("sql-password")
 
+    self.conv = MySQLdb.converters.conversions.copy()
+    self.conv.update({
+      rpki.sundial.datetime                  : MySQLdb.converters.DateTime2literal,
+      MySQLdb.converters.FIELD_TYPE.DATETIME : rpki.sundial.datetime.DateTime_or_None })
+
     self.cache = weakref.WeakValueDictionary()
     self.dirty = set()
 
     self.connect()
 
   def connect(self):
-    self.db = MySQLdb.connect(user = self.username, db = self.database, passwd = self.password)
+    self.db = MySQLdb.connect(user   = self.username,
+                              db     = self.database,
+                              passwd = self.password,
+                              conv   = self.conv)
     self.cur = self.db.cursor()
     self.db.autocommit(True)
     self.timestamp = rpki.sundial.now()

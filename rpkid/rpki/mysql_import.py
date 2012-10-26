@@ -61,3 +61,5 @@ else:
 import _mysql_exceptions
 
 warnings.simplefilter("error", _mysql_exceptions.Warning)
+
+import MySQLdb.converters

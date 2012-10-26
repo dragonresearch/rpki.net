@@ -91,12 +91,23 @@ class datetime(pydatetime.datetime):
     return self.toXMLtime()
 
   @classmethod
-  def fromdatetime(cls, x):
+  def from_datetime(cls, x):
     """
     Convert a datetime.datetime object into this subclass.  This is
     whacky due to the weird constructors for datetime.
     """
     return cls.combine(x.date(), x.time())
+
+  def to_datetime(self):
+    """
+    Convert to a datetime.datetime object.  In most cases this
+    shouldn't be necessary, but convincing SQL interfaces to use
+    subclasses of datetime can be hard.
+    """
+    return pydatetime.datetime(year = self.year, month = self.month, day = self.day,
+                               hour = self.hour, minute = self.minute, second = self.second,
+                               microsecond = 0, tzinfo = None)
+
 
   @classmethod
   def fromOpenSSL(cls, x):
@@ -113,22 +124,13 @@ class datetime(pydatetime.datetime):
     """
     Convert from SQL storage format.
     """
-    return cls.fromdatetime(x)
+    return cls.from_datetime(x)
 
   def to_sql(self):
     """
     Convert to SQL storage format.
-
-    There's something whacky going on in the MySQLdb module, it throws
-    range errors when storing a derived type into a DATETIME column.
-    Investigate some day, but for now brute force this by copying the
-    relevant fields into a datetime.datetime for MySQLdb's
-    consumption.
-
     """
-    return pydatetime.datetime(year = self.year, month = self.month, day = self.day,
-                               hour = self.hour, minute = self.minute, second = self.second,
-                               microsecond = 0, tzinfo = None)
+    return self.to_datetime()
 
   def later(self, other):
     """
@@ -146,6 +148,24 @@ class datetime(pydatetime.datetime):
   def __radd__(self, y): return _cast(pydatetime.datetime.__radd__(self, y))
   def __rsub__(self, y): return _cast(pydatetime.datetime.__rsub__(self, y))
   def __sub__(self, y):  return _cast(pydatetime.datetime.__sub__(self, y))
+
+  @classmethod
+  def DateTime_or_None(cls, s):
+    """
+    MySQLdb converter.  Parse as this class if we can, let the default
+    MySQLdb DateTime_or_None() converter deal with failure cases.
+    """
+
+    for sep in " T":
+      d, _, t = s.partition(sep)
+      if t:
+        try:
+          return cls(*[int(x) for x in d.split("-") + t.split(":")])
+        except:
+          break
+
+    from rpki.mysql_import import MySQLdb
+    return MySQLdb.times.DateTime_or_None(s)
 
 class timedelta(pydatetime.timedelta):
   """
@@ -245,7 +265,7 @@ def _cast(x):
   Cast result of arithmetic operations back into correct subtype.
   """
   if isinstance(x, pydatetime.datetime):
-    return datetime.fromdatetime(x)
+    return datetime.from_datetime(x)
   if isinstance(x, pydatetime.timedelta):
     return timedelta.fromtimedelta(x)
   return x

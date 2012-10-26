@@ -174,6 +174,11 @@ class CouldntIssueBSCEECertificate(Exception):
   Couldn't issue BSC EE certificate
   """
 
+sql_conversions = MySQLdb.converters.conversions.copy()
+sql_conversions.update({
+  rpki.sundial.datetime                  : MySQLdb.converters.DateTime2literal,
+  MySQLdb.converters.FIELD_TYPE.DATETIME : rpki.sundial.datetime.DateTime_or_None })
+
 def main():
   """
   Main program.
@@ -500,7 +505,7 @@ class allocation(object):
     self.kids = [allocation(k, db, self) for k in yaml.get("kids", ())]
     valid_until = None
     if "valid_until" in yaml:
-      valid_until = rpki.sundial.datetime.fromdatetime(yaml.get("valid_until"))
+      valid_until = rpki.sundial.datetime.from_datetime(yaml.get("valid_until"))
     if valid_until is None and "valid_for" in yaml:
       valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(yaml["valid_for"])
     self.base = rpki.resource_set.resource_bag(
@@ -573,7 +578,7 @@ class allocation(object):
     cb()
 
   def apply_valid_until(self, stamp, cb):
-    self.base.valid_until = rpki.sundial.datetime.fromdatetime(stamp)
+    self.base.valid_until = rpki.sundial.datetime.from_datetime(stamp)
     cb()
 
   def apply_valid_for(self, text, cb):
@@ -729,7 +734,8 @@ class allocation(object):
     Set up this entity's IRDB.
     """
     rpki.log.info("Setting up MySQL for %s" % self.name)
-    db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass)
+    db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass,
+                         conv = sql_conversions)
     cur = db.cursor()
     db.autocommit(True)
     for sql in rpki_sql:
@@ -739,7 +745,8 @@ class allocation(object):
         if "DROP TABLE IF EXISTS" not in sql.upper():
           raise
     db.close()
-    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
+    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass,
+                         conv = sql_conversions)
     cur = db.cursor()
     db.autocommit(True)
     for sql in irdb_sql:
@@ -751,7 +758,7 @@ class allocation(object):
     for s in [self] + self.hosts:
       for kid in s.kids:
         cur.execute("INSERT registrant (registrant_handle, registry_handle, valid_until) VALUES (%s, %s, %s)",
-                    (kid.name, s.name, kid.resources.valid_until.to_sql()))
+                    (kid.name, s.name, kid.resources.valid_until))
     db.close()
 
   def sync_sql(self):
@@ -761,7 +768,8 @@ class allocation(object):
     this entity.
     """
     rpki.log.info("Updating MySQL data for IRDB %s" % self.name)
-    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
+    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass,
+                         conv = sql_conversions)
     cur = db.cursor()
     db.autocommit(True)
     cur.execute("DELETE FROM registrant_asn")
@@ -778,7 +786,7 @@ class allocation(object):
           cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))
         for v6_range in kid.resources.v6:
           cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
-        cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until.to_sql(), registrant_id))
+        cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until, registrant_id))
       for r in s.roa_requests:
         cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (s.name, r.asn))
         roa_request_id = cur.lastrowid
@@ -1201,7 +1209,8 @@ def setup_publication(pubd_sql):
   if not rsyncd_dir.endswith("/"):
     rsyncd_dir += "/"
   os.makedirs(rsyncd_dir + "root/trunk")
-  db = MySQLdb.connect(db = pubd_db_name, user = pubd_db_user, passwd = pubd_db_pass)
+  db = MySQLdb.connect(db = pubd_db_name, user = pubd_db_user, passwd = pubd_db_pass,
+                       conv = sql_conversions)
   cur = db.cursor()
   db.autocommit(True)
   for sql in pubd_sql:

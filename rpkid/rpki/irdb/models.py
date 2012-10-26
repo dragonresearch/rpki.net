@@ -98,14 +98,14 @@ class SundialField(django.db.models.DateTimeField):
 
   def to_python(self, value):
     if isinstance(value, rpki.sundial.pydatetime.datetime):
-      return rpki.sundial.datetime.fromdatetime(
+      return rpki.sundial.datetime.from_datetime(
         django.db.models.DateTimeField.to_python(self, value))
     else:
       return value
 
   def get_prep_value(self, value):
     if isinstance(value, rpki.sundial.datetime):
-      return value.to_sql()
+      return value.to_datetime()
     else:
       return value
 
@@ -307,8 +307,7 @@ class CA(django.db.models.Model):
   def generate_crl(self):
     now = rpki.sundial.now()
     self.revocations.filter(expires__lt = now).delete()
-    revoked = [(r.serial, rpki.sundial.datetime.fromdatetime(r.revoked))
-               for r in self.revocations.all()]
+    revoked = [(r.serial, r.revoked) for r in self.revocations.all()]
     self.latest_crl = rpki.x509.CRL.generate(
       keypair = self.private_key,
       issuer  = self.certificate,

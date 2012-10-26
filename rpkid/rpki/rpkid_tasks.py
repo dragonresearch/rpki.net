@@ -526,7 +526,7 @@ class UpdateGhostbustersTask(AbstractTask):
     rpki.log.warn("Could not fetch Ghostbuster record requests for %s, skipping: %s" % (self.self_handle, e))
     self.exit()
 
-class RegnerateCRLsAndManifestsTask(AbstractTask):
+class RegenerateCRLsAndManifestsTask(AbstractTask):
   """
   Generate new CRLs and manifests as necessary for all of this self's
   CAs.  Extracting nextUpdate from a manifest is hard at the moment

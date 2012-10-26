@@ -118,10 +118,8 @@ class timer(object):
   run_debug = False
 
   def __init__(self, handler = None, errback = None):
-    if handler is not None:
-      self.set_handler(handler)
-    if errback is not None:
-      self.set_errback(errback)
+    self.set_handler(handler)
+    self.set_errback(errback)
     self.when = None
     if self.gc_debug:
       self.trace("Creating %r" % self)
@@ -207,11 +205,18 @@ class timer(object):
       if cls.run_debug:
         rpki.log.debug("Running %r" % t)
       try:
-        t.handler()
+        if t.handler is not None:
+          t.handler()
+        else:
+          rpki.log.warn("Timer %r expired with no handler set" % t)
       except (ExitNow, SystemExit):
         raise
       except Exception, e:
-        t.errback(e)
+        if t.errback is not None:
+          t.errback(e)
+        else:
+          rpki.log.error("Unhandled exception from timer %r: %s" % (t, e))
+          rpki.log.traceback()
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.when, repr(self.handler))

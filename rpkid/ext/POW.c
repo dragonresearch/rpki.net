@@ -106,6 +106,16 @@
 #include <sys/socket.h>
 
 /*
+ * GCC attribute to let us tell GCC not to whine about unused formal
+ * parameters when we're in maximal warning mode.
+ */
+#ifdef __GNUC__
+#define	GCC_UNUSED	__attribute__((unused))
+#else
+define	GCC_UNUSED
+#endif
+
+/*
  * Maximum size of a raw IP (v4 or v6) address, in bytes.
  */
 #define RAW_IPADDR_BUFLEN    16
@@ -230,6 +240,12 @@ static PyObject
   *OpenSSLErrorObject,
   *POWErrorObject,
   *NotVerifiedErrorObject;
+
+/*
+ * Constructor for customized datetime class.
+ */
+
+static PyObject *custom_datetime;
 
 /*
  * Declarations of type objects (definitions come later).
@@ -677,11 +693,13 @@ stack_to_tuple_helper(_STACK *sk, PyObject *(*handler)(void *))
 }
 
 /*
- * Time conversion functions.  These follow RFC 5280, but use a single
- * text encoding that looks like GeneralizedTime as restricted by RFC
- * 5280; conversion to and from UTCTime is handled internally
- * according to the RFC 5280 rules.  The intent is to hide the
- * horrible short-sighted mess from Python code entirely.
+ * Time conversion functions.  Obvious mapping into Python data types
+ * is datetime, or, rather, our customized rpki.sundial.datetime.
+ *
+ * Unsuprisingly, it's easiest for us to map between GeneralizedTime
+ * (as restricted by RFC 5280) and datetime.  Conversion between
+ * GeneralizedTime and UTCTime is handled automatically according to
+ * the RFC 5280 rules for those ASN.1 types where it's required.
  */
 
 static PyObject *
@@ -689,11 +707,20 @@ ASN1_TIME_to_Python(ASN1_TIME *t)
 {
   ASN1_GENERALIZEDTIME *g = NULL;
   PyObject *result = NULL;
+  int year, month, day, hour, minute, second;
 
   if ((g = ASN1_TIME_to_generalizedtime(t, NULL)) == NULL)
     lose_openssl_error("Couldn't convert ASN.1 TIME");
 
-  result = Py_BuildValue("s", g->data);
+  if (sscanf((char *) g->data, "%4d%2d%2d%2d%2d%2dZ",
+             &year, &month, &day, &hour, &minute, &second) != 6)
+    lose("Couldn't scan ASN.1 TIME value");
+  
+  if (custom_datetime != NULL && custom_datetime != Py_None)
+    result = PyObject_CallFunction(custom_datetime, "iiiiii",
+                                   year, month, day, hour, minute, second);
+  else
+    result = PyDateTime_FromDateAndTime(year, month, day, hour, minute, second, 0);
   
  error:
   ASN1_GENERALIZEDTIME_free(g);
@@ -703,7 +730,7 @@ ASN1_TIME_to_Python(ASN1_TIME *t)
 static ASN1_TIME *
 Python_to_ASN1_TIME(PyObject *arg, const int object_requires_utctime)
 {
-  char buf[sizeof("20010101010101Z") + 1];
+  char buf[sizeof("20010401123456Z") + 1];
   ASN1_TIME *result = NULL;
   const char *s = NULL;
   int ok;
@@ -715,7 +742,7 @@ Python_to_ASN1_TIME(PyObject *arg, const int object_requires_utctime)
                  PyDateTime_GET_DAY(arg),
                  PyDateTime_DATE_GET_HOUR(arg),
                  PyDateTime_DATE_GET_MINUTE(arg),
-                 PyDateTime_DATE_GET_SECOND(arg)) >= sizeof(buf))
+                 PyDateTime_DATE_GET_SECOND(arg)) >= (int) sizeof(buf))
       lose("Internal error -- GeneralizedTime buffer too small");
     s = buf;
   }
@@ -902,9 +929,8 @@ PyLong_to_ASN1_INTEGER(PyObject *arg)
   /*
    * Generate the ASN1_INTEGER and return it.
    */
-
   if ((a = ASN1_INTEGER_new()) == NULL ||
-      (a->length < len + 1 && (a->data = OPENSSL_realloc(a->data, len + 1)) == NULL))
+      (a->length < (int) len + 1 && (a->data = OPENSSL_realloc(a->data, len + 1)) == NULL))
     lose_no_memory();
 
   a->type = V_ASN1_INTEGER;
@@ -929,7 +955,7 @@ create_missing_nids(void)
 {
   int i;
 
-  for (i = 0; i < sizeof(missing_nids) / sizeof(*missing_nids); i++)
+  for (i = 0; i < (int) (sizeof(missing_nids) / sizeof(*missing_nids)); i++)
     if ((*missing_nids[i].nid = OBJ_txt2nid(missing_nids[i].oid)) == NID_undef &&
         (*missing_nids[i].nid = OBJ_create(missing_nids[i].oid,
                                            missing_nids[i].sn,
@@ -993,8 +1019,8 @@ ipaddress_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 
   self->type = NULL;
 
-  for (v = 0; v < sizeof(ipaddress_versions)/sizeof(*ipaddress_versions); v++)
-    if (version == ipaddress_versions[v]->version)
+  for (v = 0; v < (int) (sizeof(ipaddress_versions)/sizeof(*ipaddress_versions)); v++)
+    if ((unsigned) version == ipaddress_versions[v]->version)
       self->type = ipaddress_versions[v];
 
   if (self->type == NULL)
@@ -1096,7 +1122,7 @@ ipaddress_object_hash(ipaddress_object *self)
 
   ENTERING(ipaddress_object_hash);
 
-  for (i = 0; i < self->type->length; i++)
+  for (i = 0; (unsigned) i < self->type->length; i++)
     h ^= self->address[i] << ((i & 3) << 3);
 
   return (long) h == -1 ? 0 : (long) h;
@@ -1126,7 +1152,7 @@ ipaddress_object_from_bytes(PyTypeObject *type, PyObject *args)
 
   result->type = NULL;
 
-  for (v = 0; v < sizeof(ipaddress_versions)/sizeof(*ipaddress_versions); v++)
+  for (v = 0; v < (int) (sizeof(ipaddress_versions)/sizeof(*ipaddress_versions)); v++)
     if (len == ipaddress_versions[v]->length)
       result->type = ipaddress_versions[v];
 
@@ -1152,14 +1178,14 @@ ipaddress_object_to_bytes(ipaddress_object *self)
 }
 
 static PyObject *
-ipaddress_object_get_bits(ipaddress_object *self, void *closure)
+ipaddress_object_get_bits(ipaddress_object *self, GCC_UNUSED void *closure)
 {
   ENTERING(ipaddress_object_get_bits);
   return PyInt_FromLong(self->type->length * 8);
 }
 
 static PyObject *
-ipaddress_object_get_version(ipaddress_object *self, void *closure)
+ipaddress_object_get_version(ipaddress_object *self, GCC_UNUSED void *closure)
 {
   ENTERING(ipaddress_object_get_version);
   return PyInt_FromLong(self->type->version);
@@ -1294,7 +1320,7 @@ ipaddress_object_number_nonzero(ipaddress_object *self)
 
   ENTERING(ipaddress_object_number_nonzero);
 
-  for (i = 0; i < self->type->length; i++)
+  for (i = 0; (unsigned) i < self->type->length; i++)
     if (self->address[i] != 0)
       return 1;
   return 0;
@@ -1313,7 +1339,7 @@ ipaddress_object_number_invert(ipaddress_object *self)
 
   result->type = self->type;
 
-  for (i = 0; i < self->type->length; i++)
+  for (i = 0; (unsigned) i < self->type->length; i++)
     result->address[i] = ~self->address[i];
 
  error:                         /* Fall through */
@@ -1423,7 +1449,7 @@ static PyTypeObject POW_IPAddress_Type = {
  */
 
 static PyObject *
-x509_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+x509_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
   x509_object *self;
 
@@ -1900,12 +1926,7 @@ x509_object_set_issuer(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_not_before__doc__[] =
-  "Return this certificate's \"notBefore\" value in the form of a\n"
-  "GeneralizedTime string as restricted by RFC 5280.\n"
-  "\n"
-  "The code automatically converts RFC-5280-compliant UTCTime strings\n"
-  "into the GeneralizedTime format, so that Python code need not worry\n"
-  "about the conversion rules.\n"
+  "Return this certificate's \"notBefore\" value as a datetime.\n"
   ;
 
 static PyObject *
@@ -1916,12 +1937,7 @@ x509_object_get_not_before (x509_object *self)
 }
 
 static char x509_object_get_not_after__doc__[] =
-  "Return this certificate's \"notAfter\" value in the form of a\n"
-  "GeneralizedTime string as restricted by RFC 5280.\n"
-  "\n"
-  "The code automatically converts RFC-5280-compliant UTCTime strings\n"
-  "into the GeneralizedTime format, so that Python code need not worry\n"
-  "about the conversion rules.\n"
+  "Return this certificate's \"notAfter\" value as a datetime.\n"
   ;
 
 static PyObject *
@@ -1934,10 +1950,7 @@ x509_object_get_not_after (x509_object *self)
 static char x509_object_set_not_after__doc__[] =
   "Set this certificate's \"notAfter\" value.\n"
   "\n"
-  "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
-  "as restricted by RFC 5280. The code automatically converts to UTCTime\n"
-  "when the RFC 5280 rules require UTCTime instead of GeneralizedTime,\n"
-  "so that Python code need not worry about the conversion rules.\n"
+  "The \"time\" parameter should be a datetime object.\n"
   ;
 
 static PyObject *
@@ -1968,10 +1981,7 @@ x509_object_set_not_after (x509_object *self, PyObject *args)
 static char x509_object_set_not_before__doc__[] =
   "Set this certificate's \"notBefore\" value.\n"
   "\n"
-  "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
-  "as restricted by RFC 5280. The code automatically converts to UTCTime\n"
-  "when the RFC 5280 rules require UTCTime instead of GeneralizedTime,\n"
-  "so that Python code need not worry about the conversion rules.\n"
+  "The \"time\" parameter should be a datetime object.\n"
   ;
 
 static PyObject *
@@ -2022,7 +2032,7 @@ static char x509_object_get_ski__doc__[] =
   ;
 
 static PyObject *
-x509_object_get_ski(x509_object *self, PyObject *args)
+x509_object_get_ski(x509_object *self)
 {
   ENTERING(x509_object_get_ski);
 
@@ -2082,7 +2092,7 @@ static char x509_object_get_aki__doc__[] =
   ;
 
 static PyObject *
-x509_object_get_aki(x509_object *self, PyObject *args)
+x509_object_get_aki(x509_object *self)
 {
   ENTERING(x509_object_get_aki);
 
@@ -2535,7 +2545,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
      * forced to use a separate function.  Refactor, some day.
      */
 
-    for (v = 0; v < sizeof(ipaddress_versions)/sizeof(*ipaddress_versions); v++) {
+    for (v = 0; v < (int) (sizeof(ipaddress_versions)/sizeof(*ipaddress_versions)); v++) {
       const struct ipaddress_version *ip_type = ipaddress_versions[v];
       PyObject **argp;
 
@@ -3420,7 +3430,7 @@ static PyTypeObject POW_X509_Type = {
  */
 
 static PyObject *
-x509_store_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+x509_store_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
   x509_store_object *self = NULL;
 
@@ -3554,7 +3564,7 @@ static PyTypeObject POW_X509Store_Type = {
  */
 
 static PyObject *
-crl_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+crl_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
   crl_object *self = NULL;
 
@@ -3763,10 +3773,7 @@ crl_object_set_issuer(crl_object *self, PyObject *args)
 static char crl_object_set_this_update__doc__[] =
   "Set this CRL's \"thisUpdate\" value.\n"
   "\n"
-  "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
-  "as restricted by RFC 5280. The code automatically converts to UTCTime\n"
-  "when the RFC 5280 rules require UTCTime instead of GeneralizedTime,\n"
-  "so that Python code need not worry about the conversion rules.\n"
+  "The \"time\" parameter should be a datetime object.\n"
   ;
 
 static PyObject *
@@ -3795,12 +3802,7 @@ crl_object_set_this_update (crl_object *self, PyObject *args)
 }
 
 static char crl_object_get_this_update__doc__[] =
-  "Return this CRL's \"thisUpdate\" value in the form of a\n"
-  "GeneralizedTime string as restricted by RFC 5280.\n"
-  "\n"
-  "The code automatically converts RFC-5280-compliant UTCTime strings\n"
-  "into the GeneralizedTime format, so that Python code need not worry\n"
-  "about the conversion rules.\n"
+  "Return this CRL's \"thisUpdate\" value as a datetime.\n"
   ;
 
 static PyObject *
@@ -3813,10 +3815,7 @@ crl_object_get_this_update (crl_object *self)
 static char crl_object_set_next_update__doc__[] =
   "Set this CRL's \"nextUpdate\" value.\n"
   "\n"
-  "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
-  "as restricted by RFC 5280. The code automatically converts to UTCTime\n"
-  "when the RFC 5280 rules require UTCTime instead of GeneralizedTime,\n"
-  "so that Python code need not worry about the conversion rules.\n"
+  "The \"time\" parameter should be a datetime object.\n"
   ;
 
 static PyObject *
@@ -3845,12 +3844,7 @@ crl_object_set_next_update (crl_object *self, PyObject *args)
 }
 
 static char crl_object_get_next_update__doc__[] =
-  "Returns this CRL's \"nextUpdate\" value in the form of a GeneralizedTime\n"
-  "string as restricted by RFC 5280.\n"
-  "\n"
-  "The code automatically converts RFC-5280-compliant UTCTime strings\n"
-  "into the GeneralizedTime format, so that Python code need not worry\n"
-  "about the conversion rules.\n"
+  "Returns this CRL's \"nextUpdate\" value as a datetime.\n"
   ;
 
 static PyObject *
@@ -3866,7 +3860,7 @@ static char crl_object_add_revocations__doc__[] =
   "The \"iterable\" parameter should be an iterable object which returns\n"
   "two-element sequences.  The first element of each pair should be the\n"
   "revoked serial number (an integer), the second element should be the\n"
-  "revocation date (a timestamp in GeneralizedTime format).\n"
+  "revocation date (a datetime object).\n"
   ;
 
 static PyObject *
@@ -4129,7 +4123,7 @@ static char crl_object_get_aki__doc__[] =
   ;
 
 static PyObject *
-crl_object_get_aki(crl_object *self, PyObject *args)
+crl_object_get_aki(crl_object *self)
 {
   AUTHORITY_KEYID *ext = X509_CRL_get_ext_d2i(self->crl, NID_authority_key_identifier, NULL, NULL);
   int empty = (ext == NULL || ext->keyid == NULL);
@@ -4341,7 +4335,7 @@ static PyTypeObject POW_CRL_Type = {
  */
 
 static PyObject *
-asymmetric_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+asymmetric_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
   asymmetric_object *self = NULL;
 
@@ -4510,7 +4504,7 @@ asymmetric_object_der_read_private_helper(PyTypeObject *type, BIO *bio)
 
   ENTERING(asymmetric_object_der_read_private_helper);
 
-  if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
+  if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
   if (!d2i_PrivateKey_bio(bio, &self->pkey))
@@ -4553,7 +4547,7 @@ asymmetric_object_pem_read_public_helper(PyTypeObject *type, BIO *bio)
 
   ENTERING(asymmetric_object_pem_read_public_helper);
 
-  if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
+  if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
   if (!PEM_read_bio_PUBKEY(bio, &self->pkey, NULL, NULL))
@@ -4573,7 +4567,7 @@ asymmetric_object_der_read_public_helper(PyTypeObject *type, BIO *bio)
 
   ENTERING(asymmetric_object_der_read_public_helper);
 
-  if ((self = (asymmetric_object *) asymmetric_object_new(&POW_Asymmetric_Type, NULL, NULL)) == NULL)
+  if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
   if (!d2i_PUBKEY_bio(bio, &self->pkey))
@@ -4849,7 +4843,7 @@ static PyTypeObject POW_Asymmetric_Type = {
  */
 
 static PyObject *
-digest_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+digest_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
   digest_object *self = NULL;
 
@@ -4930,7 +4924,7 @@ static char digest_object_copy__doc__[] =
   ;
 
 static PyObject *
-digest_object_copy(digest_object *self, PyObject *args)
+digest_object_copy(digest_object *self)
 {
   digest_object *new = NULL;
 
@@ -4988,7 +4982,7 @@ digest_object_digest(digest_object *self)
 static struct PyMethodDef digest_object_methods[] = {
   Define_Method(update,         digest_object_update,   METH_VARARGS),
   Define_Method(digest,         digest_object_digest,   METH_NOARGS),
-  Define_Method(copy,           digest_object_copy,     METH_VARARGS),
+  Define_Method(copy,           digest_object_copy,     METH_NOARGS),
   {NULL}
 };
 
@@ -5057,7 +5051,7 @@ static PyTypeObject POW_Digest_Type = {
  */
 
 static PyObject *
-cms_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+cms_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
   cms_object *self;
 
@@ -5965,8 +5959,7 @@ manifest_object_set_manifest_number(manifest_object *self, PyObject *args)
 static char manifest_object_set_this_update__doc__[] =
   "Set this manifest's \"thisUpdate\" value.\n"
   "\n"
-  "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
-  "as restricted by RFC 5280.\n"
+  "The \"time\" parameter should be a datetime object.\n"
   ;
 
 static PyObject *
@@ -5996,8 +5989,7 @@ manifest_object_set_this_update (manifest_object *self, PyObject *args)
 }
 
 static char manifest_object_get_this_update__doc__[] =
-  "Return this manifest's \"thisUpdate\" value in the form of a\n"
-  "GeneralizedTime string as restricted by RFC 5280.\n"
+  "Return this manifest's \"thisUpdate\" value as a datetime.\n"
   ;
 
 static PyObject *
@@ -6017,8 +6009,7 @@ manifest_object_get_this_update (manifest_object *self)
 static char manifest_object_set_next_update__doc__[] =
   "Set this manifest's \"nextUpdate\" value.\n"
   "\n"
-  "The \"time\" parameter should be in the form of a GeneralizedTime string\n"
-  "as restricted by RFC 5280.\n"
+  "The \"time\" parameter should be a datetime object.\n"
   ;
 
 static PyObject *
@@ -6048,8 +6039,7 @@ manifest_object_set_next_update (manifest_object *self, PyObject *args)
 }
 
 static char manifest_object_get_next_update__doc__[] =
-  "Return this manifest's \"nextUpdate\" value in the form of a\n"
-  "GeneralizedTime string as restricted by RFC 5280.\n"
+  "Return this manifest's \"nextUpdate\" value as a datetime.\n"
   ;
 
 static PyObject *
@@ -6664,7 +6654,7 @@ roa_object_get_prefixes(roa_object *self)
 
       memset(addr->address, 0, sizeof(addr->address));
 
-      if (a->IPAddress->length > addr->type->length)
+      if ((unsigned) a->IPAddress->length > addr->type->length)
         lose("ROAIPAddress BIT STRING too long for AFI");
 
       if (a->IPAddress->length > 0) {
@@ -6741,7 +6731,7 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
   if ((prefixes = sk_ROAIPAddressFamily_new_null()) == NULL)
     lose_no_memory();
 
-  for (v = 0; v < sizeof(ipaddress_versions)/sizeof(*ipaddress_versions); v++) {
+  for (v = 0; v < (int) (sizeof(ipaddress_versions)/sizeof(*ipaddress_versions)); v++) {
     const struct ipaddress_version *ip_type = ipaddress_versions[v];
     unsigned char afibuf[2];
     PyObject **argp;
@@ -6986,7 +6976,7 @@ static PyTypeObject POW_ROA_Type = {
  */
 
 static PyObject *
-pkcs10_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+pkcs10_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
   pkcs10_object *self;
 
@@ -7971,7 +7961,7 @@ static char pow_module_add_object__doc__[] =
   ;
 
 static PyObject *
-pow_module_add_object(PyObject *self, PyObject *args)
+pow_module_add_object(GCC_UNUSED PyObject *self, PyObject *args)
 {
   char *oid = NULL, *sn = NULL, *ln = NULL;
 
@@ -7997,7 +7987,7 @@ static char pow_module_get_error__doc__[] =
   ;
 
 static PyObject *
-pow_module_get_error(PyObject *self)
+pow_module_get_error(GCC_UNUSED PyObject *self)
 {
   unsigned long error = ERR_get_error();
   char buf[256];
@@ -8016,7 +8006,7 @@ static char pow_module_clear_error__doc__[] =
   ;
 
 static PyObject *
-pow_module_clear_error(PyObject *self)
+pow_module_clear_error(GCC_UNUSED PyObject *self)
 {
   ENTERING(pow_module_clear_error);
   ERR_clear_error();
@@ -8031,7 +8021,7 @@ static char pow_module_seed__doc__[] =
   ;
 
 static PyObject *
-pow_module_seed(PyObject *self, PyObject *args)
+pow_module_seed(GCC_UNUSED PyObject *self, PyObject *args)
 {
   char *data = NULL;
   int datalen = 0;
@@ -8060,7 +8050,7 @@ static char pow_module_add__doc__[] =
   ;
 
 static PyObject *
-pow_module_add(PyObject *self, PyObject *args)
+pow_module_add(GCC_UNUSED PyObject *self, PyObject *args)
 {
   char *data = NULL;
   int datalen = 0;
@@ -8087,7 +8077,7 @@ static char pow_module_write_random_file__doc__[] =
   ;
 
 static PyObject *
-pow_module_write_random_file(PyObject *self, PyObject *args)
+pow_module_write_random_file(GCC_UNUSED PyObject *self, PyObject *args)
 {
   char *filename = NULL;
 
@@ -8113,7 +8103,7 @@ static char pow_module_read_random_file__doc__[] =
   ;
 
 static PyObject *
-pow_module_read_random_file(PyObject *self, PyObject *args)
+pow_module_read_random_file(GCC_UNUSED PyObject *self, PyObject *args)
 {
   char *file = NULL;
   int len = -1;
@@ -8129,9 +8119,33 @@ pow_module_read_random_file(PyObject *self, PyObject *args)
   Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
+
+static char pow_module_custom_datetime__doc__[] =
+  "Set constructor callback for customized datetime class.\n"
+  ;
+
+static PyObject *
+pow_module_custom_datetime(GCC_UNUSED PyObject *self, PyObject *args)
+{
+  PyObject *cb = NULL;
+
+  ENTERING(pow_module_custom_datetime);
+
+  if (!PyArg_ParseTuple(args, "O", &cb))
+    goto error;
+
+  Py_XINCREF(cb);
+  Py_XDECREF(custom_datetime);
+  custom_datetime = cb;
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
 
 static struct PyMethodDef pow_module_methods[] = {
   Define_Method(getError,       pow_module_get_error,           METH_NOARGS),
@@ -8141,6 +8155,7 @@ static struct PyMethodDef pow_module_methods[] = {
   Define_Method(readRandomFile, pow_module_read_random_file,    METH_VARARGS),
   Define_Method(writeRandomFile, pow_module_write_random_file,  METH_VARARGS),
   Define_Method(addObject,      pow_module_add_object,          METH_VARARGS),
+  Define_Method(customDatetime,	pow_module_custom_datetime,	METH_VARARGS),
   {NULL}
 };
 

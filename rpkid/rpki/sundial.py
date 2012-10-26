@@ -72,33 +72,6 @@ class datetime(pydatetime.datetime):
     return int(self.strftime("%s"))
 
   @classmethod
-  def fromUTCTime(cls, x):
-    """
-    Convert from ASN.1 UTCTime.
-    """
-    x = str(x)
-    return cls.fromGeneralizedTime(("19" if x[0] >= "5" else "20") + x)
-
-  def toUTCTime(self):
-    """
-    Convert to ASN.1 UTCTime.
-    """
-    return self.strftime("%y%m%d%H%M%SZ")
-
-  @classmethod
-  def fromGeneralizedTime(cls, x):
-    """
-    Convert from ASN.1 GeneralizedTime.
-    """
-    return cls.strptime(x, "%Y%m%d%H%M%SZ")
-
-  def toGeneralizedTime(self):
-    """
-    Convert to ASN.1 GeneralizedTime.
-    """
-    return self.strftime("%Y%m%d%H%M%SZ")
-
-  @classmethod
   def fromXMLtime(cls, x):
     """
     Convert from XML time representation.
@@ -284,8 +257,6 @@ if __name__ == "__main__":
     print "str:                ", t
     print "repr:               ", repr(t)
     print "seconds since epoch:", t.strftime("%s")
-    print "UTCTime:            ", t.toUTCTime()
-    print "GeneralizedTime:    ", t.toGeneralizedTime()
     print "XMLtime:            ", t.toXMLtime()
     print
 

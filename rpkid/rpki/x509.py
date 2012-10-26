@@ -561,13 +561,13 @@ class X509(DER_object):
     """
     Get the inception time of this certificate.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getNotBefore())
+    return self.get_POW().getNotBefore()
 
   def getNotAfter(self):
     """
     Get the expiration time of this certificate.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getNotAfter())
+    return self.get_POW().getNotAfter()
 
   def getSerial(self):
     """
@@ -1179,7 +1179,7 @@ class CMS_object(DER_object):
     """
     Extract signingTime from CMS signed attributes.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().signingTime())
+    return self.get_POW().signingTime()
 
   def verify(self, ta):
     """
@@ -1451,13 +1451,13 @@ class SignedManifest(DER_CMS_object):
     """
     Get thisUpdate value from this manifest.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getThisUpdate())
+    return self.get_POW().getThisUpdate()
 
   def getNextUpdate(self):
     """
     Get nextUpdate value from this manifest.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getNextUpdate())
+    return self.get_POW().getNextUpdate()
 
   @classmethod
   def build(cls, serial, thisUpdate, nextUpdate, names_and_objs, keypair, certs, version = 0):
@@ -1769,13 +1769,13 @@ class CRL(DER_object):
     """
     Get thisUpdate value from this CRL.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getThisUpdate())
+    return self.get_POW().getThisUpdate()
 
   def getNextUpdate(self):
     """
     Get nextUpdate value from this CRL.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().getNextUpdate())
+    return self.get_POW().getNextUpdate()
 
   def getIssuer(self):
     """

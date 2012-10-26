@@ -6125,7 +6125,8 @@ manifest_object_add_files(manifest_object *self, PyObject *args)
   FileAndHash *fah = NULL;
   char *file = NULL;
   char *hash = NULL;
-  int filelen, hashlen, ok = 0;
+  Py_ssize_t filelen, hashlen;
+  int ok = 0;
 
   ENTERING(manifest_object_add_files);
 

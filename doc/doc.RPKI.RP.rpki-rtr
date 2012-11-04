@@ -155,7 +155,11 @@ rtr-origin has two other modes which might be useful for debugging:
 
   1. --client mode implements a dumb client program for this protocol, over
      ssh, raw TCP, or by invoking --server mode directly in a subprocess. The
-     output is not expected to be useful except for debugging.
+     output is not expected to be useful except for debugging. Either run it
+     locally where you run the cron job, or run it anywhere on the net, as in
+
+       $ rtr-origin --client tcp <hostname> <port>
+
   2. --show mode will display a text dump of pre-digested data files in the
      current directory.
 

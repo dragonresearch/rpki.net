@@ -137,7 +137,7 @@ class Validation_Status(object):
     self.uri = elt.text.strip()
     self.timestamp = elt.get("timestamp")
     self.generation = elt.get("generation")
-    self.hostname = urlparse.urlparse(self.uri).hostname or None
+    self.hostname = urlparse.urlparse(self.uri).hostname or "[None]"
     self.fn2 = os.path.splitext(self.uri)[1] or None if self.generation else None
     self.label = label_map[elt.get("status")]
 

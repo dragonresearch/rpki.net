@@ -26,7 +26,6 @@ from cStringIO import StringIO
 
 from django.db import transaction
 import django.db.models
-from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 
 import rpki
@@ -88,8 +87,8 @@ def rcynic_roa(roa, obj):
 
         for pfx in pfxset:
             attrs = {'prefix_min': pfx.min(),
-                        'prefix_max': pfx.max(),
-                        'max_length': pfx.max_prefixlen}
+                     'prefix_max': pfx.max(),
+                     'max_length': pfx.max_prefixlen}
             q = roa_cls.objects.filter(**attrs)
             if not q:
                 prefix_obj.create(**attrs)
@@ -191,11 +190,26 @@ def process_cache(root, xml_file):
                     assert(isinstance(inst, models.Cert))
                     inst.issuer = inst
                 else:
-                    try:
-                        inst.issuer = models.Cert.objects.get(keyid=obj.aki, name=obj.issuer)
-                    except ObjectDoesNotExist:
+                    # if an object has moved in the repository, the entry for
+                    # the old location will still be in the database, but
+                    # without any object_accepted in its validtion status
+                    qs = models.Cert.objects.filter(
+                        keyid=obj.aki,
+                        name=obj.issuer,
+                        repo__statuses=object_accepted
+                    )
+                    ncerts = len(qs)
+                    if ncerts == 0:
                         logger.warning('unable to find signing cert with ski=%s (%s)' % (obj.aki, obj.issuer))
                         continue
+                    else:
+                        if ncerts > 1:
+                            # multiple matching certs, all of which are valid
+                            logger.warning('Found multiple certs matching ski=%s sn=%s' % (obj.aki, obj.issuer))
+                            for c in qs:
+                                logger.warning(c.repo.uri)
+                        # just use the first match
+                        inst.issuer = qs[0]
 
                 try:
                     # do object-specific tasks

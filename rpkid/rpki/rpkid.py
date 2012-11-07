@@ -754,6 +754,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
   crl_published = None
   manifest_published = None
   latest_ca_cert = None
+  latest_crl = None
+  latest_manifest = None
 
   def __repr__(self):
     return rpki.log.log_repr(self, repr(self.ca), self.state, self.ca_cert_uri)
@@ -1053,6 +1055,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     containing the newly issued cert.
     """
 
+    self.check_failed_publication(publisher)
+
     assert child_cert is None or child_cert.child_id == child.child_id
 
     cert = self.latest_ca_cert.issue(
@@ -1097,6 +1101,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     new CRL is needed.
     """
 
+    self.check_failed_publication(publisher)
+
     ca = self.ca
     parent = ca.parent
     crl_interval = rpki.sundial.timedelta(seconds = parent.self.crl_interval)
@@ -1138,6 +1144,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Generate a new manifest for this ca_detail.
     """
+
+    self.check_failed_publication(publisher)
 
     ca = self.ca
     parent = ca.parent
@@ -1190,6 +1198,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
 
     publisher = publication_queue()
+    self.check_failed_publication(publisher)
     for roa in self.roas:
       roa.regenerate(publisher, fast = True)
     for ghostbuster in self.ghostbusters:
@@ -1197,6 +1206,46 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     for child_cert in self.child_certs:
       child_cert.reissue(self, publisher, force = True)
     publisher.call_pubd(cb, eb)
+
+  def check_failed_publication(self, publisher):
+    """
+    Check for failed publication of objects issued by this ca_detail.
+
+    All publishable objects have timestamp fields recording time of
+    last attempted publication, and callback methods which clear these
+    timestamps once publication has succeeded.  Our task here is to
+    look for objects issued by this ca_detail which have timestamps
+    set (indicating that they have not been published) and for which
+    the timestamps are not very recent (for some definition of very
+    recent -- intent is to allow a bit of slack in case pubd is just
+    being slow).  In such cases, we want to retry publication.
+
+    As an optimization, we can probably just check the manifest and
+    CRL; if these are up to date we probably don't need to check other
+    objects (which would involve several more SQL queries).  Not sure
+    yet whether this optimization is worthwhile.
+
+    At the moment, we only check CRL and manifest, full stop.  This
+    should be expanded to check other objects, but that would take
+    longer and I have a user who needs this fix today.
+    """
+
+    stale = rpki.sundial.now() - rpki.sundial.timedelta(seconds = 60)
+    repository = self.ca.parent.repository
+
+    if self.latest_crl is not None and self.crl_published is not None and self.crl_published < stale:
+      publisher.publish(cls = rpki.publication.crl_elt,
+                        uri = self.crl_uri,
+                        obj = self.latest_crl,
+                        repository = repository,
+                        handler = self.crl_published_callback)
+
+    if self.latest_manifest is not None and self.manifest_published is not None and self.manifest_published < stale:      
+      publisher.publish(cls = rpki.publication.manifest_elt,
+                        uri = self.manifest_uri,
+                        obj = self.latest_manifest,
+                        repository = repository,
+                        handler = self.manifest_published_callback)
 
 class child_cert_obj(rpki.sql.sql_persistent):
   """

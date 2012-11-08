@@ -1234,6 +1234,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     repository = self.ca.parent.repository
 
     if self.latest_crl is not None and self.crl_published is not None and self.crl_published < stale:
+      rpki.log.debug("Retrying publication for %s" % self.crl_uri)
       publisher.publish(cls = rpki.publication.crl_elt,
                         uri = self.crl_uri,
                         obj = self.latest_crl,
@@ -1241,6 +1242,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
                         handler = self.crl_published_callback)
 
     if self.latest_manifest is not None and self.manifest_published is not None and self.manifest_published < stale:      
+      rpki.log.debug("Retrying publication for %s" % self.manifest_uri)
       publisher.publish(cls = rpki.publication.manifest_elt,
                         uri = self.manifest_uri,
                         obj = self.latest_manifest,

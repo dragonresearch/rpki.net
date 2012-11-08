@@ -18,12 +18,11 @@ PERFORMANCE OF THIS SOFTWARE.
 Common classes for reuse in apps.
 """
 
-import struct
-
 from django.db import models
 
 import rpki.resource_set
 import rpki.POW
+
 
 class IPv6AddressField(models.Field):
     "Field large enough to hold a 128-bit unsigned integer."
@@ -36,10 +35,11 @@ class IPv6AddressField(models.Field):
     def to_python(self, value):
         if isinstance(value, rpki.POW.IPAddress):
             return value
-        return rpki.POW.IPAddress.from_bytes(value)
+        return rpki.POW.IPAddress.fromBytes(value)
 
     def get_db_prep_value(self, value, connection, prepared):
-        return value.to_bytes()
+        return value.toBytes()
+
 
 class IPv4AddressField(models.Field):
     "Wrapper around rpki.POW.IPAddress."
@@ -52,10 +52,11 @@ class IPv4AddressField(models.Field):
     def to_python(self, value):
         if isinstance(value, rpki.POW.IPAddress):
             return value
-        return rpki.POW.IPAddress(value)
+        return rpki.POW.IPAddress(value, version=4)
 
     def get_db_prep_value(self, value, connection, prepared):
         return long(value)
+
 
 class Prefix(models.Model):
     """Common implementation for models with an IP address range.
@@ -84,9 +85,10 @@ class Prefix(models.Model):
 
     class Meta:
         abstract = True
-        
+
         # default sort order reflects what "sh ip bgp" outputs
         ordering = ('prefix_min',)
+
 
 class PrefixV4(Prefix):
     "IPv4 Prefix."
@@ -99,6 +101,7 @@ class PrefixV4(Prefix):
     class Meta(Prefix.Meta):
         abstract = True
 
+
 class PrefixV6(Prefix):
     "IPv6 Prefix."
 
@@ -109,6 +112,7 @@ class PrefixV6(Prefix):
 
     class Meta(Prefix.Meta):
         abstract = True
+
 
 class ASN(models.Model):
     """Represents a range of ASNs.

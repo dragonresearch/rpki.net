@@ -1346,7 +1346,30 @@ ipaddress_object_number_invert(ipaddress_object *self)
   return (PyObject *) result;
 }
 
+static char ipaddress_object_copy__doc__[] =
+  ""
+  ;
+
+static PyObject *
+ipaddress_object_copy(ipaddress_object *self, GCC_UNUSED PyObject *args)
+{
+  ipaddress_object *result = NULL;
+
+  ENTERING(ipaddress_object_copy);
+
+  if ((result = (ipaddress_object *) self->ob_type->tp_alloc(self->ob_type, 0)) == NULL)
+    goto error;
+
+  memcpy(result->address, self->address, sizeof(result->address));
+  result->type = self->type;
+
+ error:
+  return (PyObject *) result;
+}
+
 static struct PyMethodDef ipaddress_object_methods[] = {
+  Define_Method(__copy__,		ipaddress_object_copy,		METH_VARARGS),
+  Define_Method(__deepcopy__,		ipaddress_object_copy,		METH_VARARGS),
   Define_Method(toBytes,                ipaddress_object_to_bytes,      METH_NOARGS),
   Define_Class_Method(fromBytes,        ipaddress_object_from_bytes,    METH_VARARGS),
   {NULL}

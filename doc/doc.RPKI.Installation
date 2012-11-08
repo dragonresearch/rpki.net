@@ -114,6 +114,11 @@ Packages you will need:
   o FreeBSD: /usr/ports/databases/rrdtool
   o Ubuntu: rrdtool
 
+* http://www.freshports.org/www/mod_wsgi3/ If you intend to run the GUI with
+  wsgi, its default configuration, you will need to install mod_wsgi v3
+
+  o FreeBSD: /usr/ports/www/mod_wsgi3
+
 ***** Configure and build *****
 
 Once you have the prerequesite packages installed, you should be able to build

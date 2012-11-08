@@ -143,3 +143,7 @@ generate a root certificate as follows:
           -signkey root.key -in root.req  \
           -outform DER -out root.cer      \
           -extfile root.conf -extensions x509v3_extensions
+
+To create a TAL format trust anchor locator use
+
+  $ $top/rcynic/make-tal.sh <rsync URI of root.cer> <local copy of root.cer>

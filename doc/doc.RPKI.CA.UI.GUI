@@ -1,4 +1,34 @@
-****** RPKI CA Engine GUI Interface ******
+****** GUI Installation ******
+
+Be sure you have $LANG defined in your environment, as in
+
+  export LANG=en_US.UTF-8
+
+Then create the initial tables
+
+  $ django-admin.py syncdb --pythonpath /usr/local/etc/rpki --settings=settings
+
+Answer "yes" when asked if you want to create superuser Enter username for
+superuser Enter password
+
+Now configure apache, using /usr/local/etc/rpki/apache.conf, e.g.
+
+  $ cp apache.conf /usr/local/etc/apache22/Includes/rpki.conf
+
+You can put it in a virtual host if you wish.
+
+Restart apache
+
+  $ apachectl restart
+
+Go to the URL for your web server and enter the superuser and password in login
+form.
+
+If you've only done the above bootstrap, there will only be a single handle to
+manage, so the GUI will automatically bring you to the dashboard for that
+handle.
+
+****** Using the GUI ******
 
 ****** GUI Examples ******
 

@@ -11,10 +11,15 @@ Then create the initial tables
 Answer "yes" when asked if you want to create superuser Enter username for
 superuser Enter password
 
-If you need to recreate superuser, you can
+If you need to create superuser, you can
 
   $ django-admin.py createsuperuser --pythonpath /usr/local/etc/rpki --
   settings=settings
+
+If you need to change superuser's password
+
+  $ django-admin.py changepassword --settings=settings --pythonpath=/usr/local/
+  etc/rpki <username>
 
 Now configure apache, using /usr/local/etc/rpki/apache.conf, e.g.
 

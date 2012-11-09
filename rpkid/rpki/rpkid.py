@@ -137,11 +137,17 @@ class main(object):
 
     self.publication_kludge_base = self.cfg.get("publication-kludge-base", "publication/")
 
+    # Icky hack to let Iain do some testing quickly, should go away
+    # once we sort out whether we can make this change permanent.
+
+    self.merge_publication_directories = self.cfg.getboolean("merge_publication_directories",
+                                                             False)
+
     self.use_internal_cron = self.cfg.getboolean("use-internal-cron", True)
 
     self.initial_delay = random.randint(self.cfg.getint("initial-delay-min", 10),
                                         self.cfg.getint("initial-delay-max", 120))
-    
+
     # Should be much longer in production
     self.cron_period = rpki.sundial.timedelta(seconds = self.cfg.getint("cron-period", 120))
     self.cron_keepalive = rpki.sundial.timedelta(seconds = self.cfg.getint("cron-keepalive", 0))
@@ -509,7 +515,11 @@ class ca_obj(rpki.sql.sql_persistent):
       sia_uri = parent.sia_base
     if not sia_uri.endswith("/"):
       raise rpki.exceptions.BadURISyntax, "SIA URI must end with a slash: %s" % sia_uri
-    return sia_uri + str(self.ca_id) + "/"
+    # With luck this can go away sometime soon.
+    if self.gctx.merge_publication_directories:
+      return sia_uri
+    else:
+      return sia_uri + str(self.ca_id) + "/"
 
   def check_for_updates(self, parent, rc, cb, eb):
     """

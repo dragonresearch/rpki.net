@@ -28,6 +28,7 @@ import rpki.sundial
 import rpki.resource_set
 import rpki.ipaddrs
 import socket
+from south.modelsinspector import add_introspection_rules
 
 ## @var ip_version_choices
 # Choice argument for fields implementing IP version numbers.
@@ -64,6 +65,7 @@ class HandleField(django.db.models.CharField):
     kwargs["max_length"] = 120
     django.db.models.CharField.__init__(self, *args, **kwargs)
 
+
 class EnumField(django.db.models.PositiveSmallIntegerField):
   """
   An enumeration type that uses strings in Python and small integers
@@ -75,8 +77,9 @@ class EnumField(django.db.models.PositiveSmallIntegerField):
   __metaclass__ = django.db.models.SubfieldBase
 
   def __init__(self, *args, **kwargs):
-    if isinstance(kwargs["choices"], (tuple, list)) and isinstance(kwargs["choices"][0], str):
-      kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
+    if 'choices' in kwargs:
+      if isinstance(kwargs["choices"], (tuple, list)) and isinstance(kwargs["choices"][0], str):
+        kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
     django.db.models.PositiveSmallIntegerField.__init__(self, *args, **kwargs)
     self.enum_i2s = dict(self.flatchoices)
     self.enum_s2i = dict((v, k) for k, v in self.flatchoices)
@@ -164,6 +167,20 @@ class CertificateField(django.db.models.Field):
   __metaclass__ = django.db.models.SubfieldBase
   description   = "X.509 certificate"
   rpki_type     = rpki.x509.X509
+
+
+add_introspection_rules([
+    (
+        [CertificateField],
+        [],
+        {
+            'serialize': ('serialize', {}),
+            'blank': ('blank', {}),
+            'default': ('default', {})
+        }
+    ),
+], ['^rpki\.irdb\.models\.CertificateField'])
+
 
 @DERField
 class RSAKeyField(django.db.models.Field):
@@ -588,3 +605,14 @@ class Client(CrossCertification):
   # This shouldn't be necessary
   class Meta:
     unique_together = ("issuer", "handle")
+
+
+# for Django South -- these are just simple subclasses
+add_introspection_rules([],
+                        ['^rpki\.irdb\.models\.HandleField',
+                         '^rpki\.irdb\.models\.SundialField',
+                         '^rpki\.irdb\.models\.RSAKeyField',
+                         '^rpki\.irdb\.models\.CRLField',
+                         '^rpki\.irdb\.models\.SignedReferralField'])
+
+add_introspection_rules([], ['^rpki\.irdb\.models\.EnumField'])

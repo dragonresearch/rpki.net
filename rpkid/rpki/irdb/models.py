@@ -77,9 +77,8 @@ class EnumField(django.db.models.PositiveSmallIntegerField):
   __metaclass__ = django.db.models.SubfieldBase
 
   def __init__(self, *args, **kwargs):
-    if 'choices' in kwargs:
-      if isinstance(kwargs["choices"], (tuple, list)) and isinstance(kwargs["choices"][0], str):
-        kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
+    if isinstance(kwargs.get("choices"), (tuple, list)) and isinstance(kwargs["choices"][0], str):
+      kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
     django.db.models.PositiveSmallIntegerField.__init__(self, *args, **kwargs)
     self.enum_i2s = dict(self.flatchoices)
     self.enum_s2i = dict((v, k) for k, v in self.flatchoices)

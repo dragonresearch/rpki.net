@@ -168,20 +168,6 @@ class CertificateField(django.db.models.Field):
   description   = "X.509 certificate"
   rpki_type     = rpki.x509.X509
 
-
-add_introspection_rules([
-    (
-        [CertificateField],
-        [],
-        {
-            'serialize': ('serialize', {}),
-            'blank': ('blank', {}),
-            'default': ('default', {})
-        }
-    ),
-], ['^rpki\.irdb\.models\.CertificateField'])
-
-
 @DERField
 class RSAKeyField(django.db.models.Field):
   __metaclass__ = django.db.models.SubfieldBase
@@ -609,10 +595,10 @@ class Client(CrossCertification):
 
 # for Django South -- these are just simple subclasses
 add_introspection_rules([],
-                        ['^rpki\.irdb\.models\.HandleField',
-                         '^rpki\.irdb\.models\.SundialField',
-                         '^rpki\.irdb\.models\.RSAKeyField',
+                        ('^rpki\.irdb\.models\.CertificateField',
                          '^rpki\.irdb\.models\.CRLField',
-                         '^rpki\.irdb\.models\.SignedReferralField'])
-
-add_introspection_rules([], ['^rpki\.irdb\.models\.EnumField'])
+                         '^rpki\.irdb\.models\.EnumField',
+                         '^rpki\.irdb\.models\.HandleField',
+                         '^rpki\.irdb\.models\.RSAKeyField',
+                         '^rpki\.irdb\.models\.SignedReferralField',
+                         '^rpki\.irdb\.models\.SundialField'))

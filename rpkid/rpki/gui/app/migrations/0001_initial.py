@@ -159,7 +159,7 @@ class Migration(SchemaMigration):
         },
         'irdb.parent': {
             'Meta': {'unique_together': "(('issuer', 'handle'),)", 'object_name': 'Parent', '_ormbases': ['irdb.Turtle']},
-            'certificate': ('rpki.irdb.models.CertificateField', [], {'default': 'None', 'serialize': 'False', 'blank': 'True'}),
+            'certificate': ('rpki.irdb.models.CertificateField', [], {'default': 'None', 'blank': 'True'}),
             'child_handle': ('rpki.irdb.models.HandleField', [], {'max_length': '120'}),
             'handle': ('rpki.irdb.models.HandleField', [], {'max_length': '120'}),
             'issuer': ('django.db.models.fields.related.ForeignKey', [], {'related_name': "'parents'", 'to': "orm['irdb.ResourceHolderCA']"}),
@@ -167,12 +167,12 @@ class Migration(SchemaMigration):
             'referral_authorization': ('rpki.irdb.models.SignedReferralField', [], {'default': 'None', 'null': 'True', 'blank': 'True'}),
             'referrer': ('rpki.irdb.models.HandleField', [], {'max_length': '120', 'null': 'True', 'blank': 'True'}),
             'repository_type': ('rpki.irdb.models.EnumField', [], {}),
-            'ta': ('rpki.irdb.models.CertificateField', [], {'default': 'None', 'serialize': 'False', 'blank': 'True'}),
+            'ta': ('rpki.irdb.models.CertificateField', [], {'default': 'None', 'blank': 'True'}),
             'turtle_ptr': ('django.db.models.fields.related.OneToOneField', [], {'to': "orm['irdb.Turtle']", 'unique': 'True', 'primary_key': 'True'})
         },
         'irdb.resourceholderca': {
             'Meta': {'object_name': 'ResourceHolderCA'},
-            'certificate': ('rpki.irdb.models.CertificateField', [], {'default': 'None', 'serialize': 'False', 'blank': 'True'}),
+            'certificate': ('rpki.irdb.models.CertificateField', [], {'default': 'None', 'blank': 'True'}),
             'handle': ('rpki.irdb.models.HandleField', [], {'unique': 'True', 'max_length': '120'}),
             'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
             'last_crl_update': ('rpki.irdb.models.SundialField', [], {}),

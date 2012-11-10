@@ -40,6 +40,29 @@ If you've only done the above bootstrap, there will only be a single handle to
 manage, so the GUI will automatically bring you to the dashboard for that
 handle.
 
+****** Installation of Route Views Support for the GUI ******
+
+If you want ROA creation to tell the user what routes are in the global routing
+table for what they are about to create,
+
+Be sure you have curl installed. On FreeBSD it is in /usr/ports/ftp/curl
+
+Install a script such as the following as /usr/locl/bin/do-routeviews
+
+  #!/bin/sh
+  # Fetch the full bgp dump from routeviews.org and update the web
+  # portal's database
+  i=oix-full-snapshot-latest.dat.bz2
+  o=/tmp/$i
+  curl -s -S -o $o http://archive.routeviews.org/oix-route-views/$i
+  if [ $? -eq 0 ]; then
+     /usr/local/sbin/rpkigui-import-routes -l error $o
+  fi
+
+and create an entry in root's crontab such as
+
+  30  */2 *   *   *   root    /usr/local/sbin/do-routeviews
+
 ****** GUI Installation to Work With rootd ******
 
 Some of the commands depend on whether your are upgrading your existing

@@ -29,7 +29,11 @@
       <tr>
 	<td>{{ object }}</td>
 	<td>{{ object.cert.not_after }}</td>
-	<td>{{ object.cert.parent.handle }}</td>
+	<td>
+	  {% if object.cert.parent %}
+	  {{ object.cert.parent.handle }}
+	  {% endif %}
+	</td>
       </tr>
       {% endfor %}
 
@@ -37,7 +41,11 @@
       <tr>
 	<td>{{ object.as_resource_range }}</td>
 	<td>{{ object.cert.not_after }}</td>
-	<td>{{ object.cert.parent.handle }}</td>
+	<td>
+	  {% if object.cert.parent %}
+	  {{ object.cert.parent.handle }}
+	  {% endif %}
+	</td>
       </tr>
       {% endfor %}
 
@@ -46,7 +54,11 @@
       <tr>
 	<td>{{ object.as_resource_range }}</td>
 	<td>{{ object.cert.not_after }}</td>
-	<td>{{ object.cert.parent.handle }}</td>
+	<td>
+	  {% if object.cert.parent %}
+	  {{ object.cert.parent.handle }}
+	  {% endif %}
+	</td>
       </tr>
       {% endfor %}
       {% endif %}

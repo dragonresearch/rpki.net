@@ -120,8 +120,13 @@ class ResourceCert(models.Model):
     This model is used to cache the output of <list_received_resources/>.
 
     """
-    # pointer to the parent object in the irdb
-    parent = models.ForeignKey(Parent, related_name='certs')
+
+    # Handle to which this cert was issued
+    conf = models.ForeignKey(Conf, related_name='certs')
+
+    # The parent that issued the cert.  This field is marked null=True because
+    # the root has no parent
+    parent = models.ForeignKey(Parent, related_name='certs', null=True)
 
     # certificate validity period
     not_before = models.DateTimeField()
@@ -132,8 +137,11 @@ class ResourceCert(models.Model):
     uri = models.CharField(max_length=255)
 
     def __unicode__(self):
-        return u"%s's cert from %s" % (self.parent.issuer.handle,
-                                       self.parent.handle)
+        if self.parent:
+            return u"%s's cert from %s" % (self.conf.handle,
+                                           self.parent.handle)
+        else:
+            return u"%s's root cert" % self.conf.handle
 
 
 class ResourceRangeAddressV4(rpki.gui.models.PrefixV4):

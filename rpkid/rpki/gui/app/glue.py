@@ -78,19 +78,23 @@ def list_received_resources(log, conf):
     z = Zookeeper(handle=conf.handle)
     pdus = z.call_rpkid(list_received_resources_elt.make_pdu(self_handle=conf.handle))
 
-    models.ResourceCert.objects.filter(parent__issuer=conf).delete()
+    models.ResourceCert.objects.filter(conf=conf).delete()
 
     for pdu in pdus:
         if isinstance(pdu, list_received_resources_elt):
-            parent = models.Parent.objects.get(issuer=conf,
-                                               handle=pdu.parent_handle)
+            if pdu.parent_handle != conf.handle:
+                parent = models.Parent.objects.get(issuer=conf,
+                                                   handle=pdu.parent_handle)
+            else:
+                # root cert, self-signed
+                parent = None
 
             not_before = datetime.strptime(pdu.notBefore, "%Y-%m-%dT%H:%M:%SZ")
             not_after = datetime.strptime(pdu.notAfter, "%Y-%m-%dT%H:%M:%SZ")
 
-            cert = models.ResourceCert.objects.create(parent=parent,
-                    not_before=not_before, not_after=not_after,
-                    uri=pdu.uri)
+            cert = models.ResourceCert.objects.create(
+                conf=conf, parent=parent, not_before=not_before,
+                not_after=not_after, uri=pdu.uri)
 
             for asn in resource_set_as(pdu.asn):
                 cert.asn_ranges.create(min=asn.min, max=asn.max)

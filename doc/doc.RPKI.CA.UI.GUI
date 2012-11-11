@@ -63,6 +63,12 @@ and create an entry in root's crontab such as
 
   30  */2 *   *   *   root    /usr/local/sbin/do-routeviews
 
+If you want the GUI's "routes" page to see ROAs when you click those buttons,
+you will need to run rcynic. see the instructions for setting up rcynic.
+
+If you are running rootd, you may want to run with only your local trust
+anchor.
+
 ****** GUI Installation to Work With rootd ******
 
 Some of the commands depend on whether your are upgrading your existing

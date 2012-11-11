@@ -71,6 +71,12 @@ anchor. In this case, to have the GUI be fairly responsive to changes, you may
 want to run the rcynic often. In this case, you may want to look at the value
 of jitter in rcynic.conf.
 
+In addition, your rcynic script should also have
+
+  /usr/local/sbin/rpkigui-rcynic -l error
+
+after the rcynic run.
+
 ****** GUI Installation to Work With rootd ******
 
 Some of the commands depend on whether your are upgrading your existing

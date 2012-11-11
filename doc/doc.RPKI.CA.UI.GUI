@@ -67,7 +67,9 @@ If you want the GUI's "routes" page to see ROAs when you click those buttons,
 you will need to run rcynic. see the instructions for setting up rcynic.
 
 If you are running rootd, you may want to run with only your local trust
-anchor.
+anchor. In this case, to have the GUI be fairly responsive to changes, you may
+want to run the rcynic often. In this case, you may want to look at the value
+of jitter in rcynic.conf.
 
 ****** GUI Installation to Work With rootd ******
 

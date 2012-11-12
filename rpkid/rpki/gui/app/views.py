@@ -374,12 +374,12 @@ def child_add_asn(request, pk):
 
 def add_address_callback(child, form):
     address_range = form.cleaned_data.get('address_range')
-    try:
-        r = resource_range_ipv4.parse_str(address_range)
-        version = 'IPv4'
-    except BadIPResource:
+    if ':' in address_range:
         r = resource_range_ipv6.parse_str(address_range)
         version = 'IPv6'
+    else:
+        r = resource_range_ipv4.parse_str(address_range)
+        version = 'IPv4'
     child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
                                 version=version)
 

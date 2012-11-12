@@ -319,16 +319,16 @@ def AddNetForm(qsv4, qsv6):
         def clean_address_range(self):
             address_range = self.cleaned_data.get('address_range')
             try:
-                r = resource_range_ipv4.parse_str(address_range)
-                if not qsv4.filter(prefix_min__lte=r.min, prefix_max__gte=r.max).exists():
-                    raise forms.ValidationError('IP address range is not delegated to you')
-            except BadIPResource:
-                try:
+                if ':' in address_range:
                     r = resource_range_ipv6.parse_str(address_range)
                     if not qsv6.filter(prefix_min__lte=r.min, prefix_max__gte=r.max).exists():
                         raise forms.ValidationError('IP address range is not delegated to you')
-                except BadIPResource:
-                    raise forms.ValidationError('invalid IP address range')
+                else:
+                    r = resource_range_ipv4.parse_str(address_range)
+                    if not qsv4.filter(prefix_min__lte=r.min, prefix_max__gte=r.max).exists():
+                        raise forms.ValidationError('IP address range is not delegated to you')
+            except BadIPResource:
+                raise forms.ValidationError('invalid IP address range')
             return str(r)
 
     return _wrapped

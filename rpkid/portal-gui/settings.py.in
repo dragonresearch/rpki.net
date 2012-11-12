@@ -91,6 +91,7 @@ INSTALLED_APPS = (
     'rpki.gui.app',
     'rpki.gui.cacheview',
     'rpki.gui.routeview',
+    'south'
 )
 
 TEMPLATE_CONTEXT_PROCESSORS = (

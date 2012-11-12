@@ -180,7 +180,7 @@ def dashboard(request):
     used_asns.extend((resource_range_as(obj.start_as, obj.end_as) for obj in child_asns))
 
     # my received asns
-    asns = models.ResourceRangeAS.objects.filter(cert__parent__issuer=conf)
+    asns = models.ResourceRangeAS.objects.filter(cert__conf=conf)
     my_asns = range_list.RangeList([resource_range_as(obj.min, obj.max) for obj in asns])
 
     unused_asns = my_asns.difference(used_asns)
@@ -207,8 +207,8 @@ def dashboard(request):
         used_prefixes_v6.append(obj.as_resource_range())
 
     # my received prefixes
-    prefixes = models.ResourceRangeAddressV4.objects.filter(cert__parent__issuer=conf).all()
-    prefixes_v6 = models.ResourceRangeAddressV6.objects.filter(cert__parent__issuer=conf).all()
+    prefixes = models.ResourceRangeAddressV4.objects.filter(cert__conf=conf).all()
+    prefixes_v6 = models.ResourceRangeAddressV6.objects.filter(cert__conf=conf).all()
     my_prefixes = range_list.RangeList([obj.as_resource_range() for obj in prefixes])
     my_prefixes_v6 = range_list.RangeList([obj.as_resource_range() for obj in prefixes_v6])
 
@@ -367,7 +367,7 @@ def add_asn_callback(child, form):
 def child_add_asn(request, pk):
     conf = request.session['handle']
     get_object_or_404(models.Child, issuer=conf, pk=pk)
-    qs = models.ResourceRangeAS.objects.filter(cert__parent__issuer=conf)
+    qs = models.ResourceRangeAS.objects.filter(cert__conf=conf)
     return child_add_resource(request, pk, forms.AddASNForm(qs), [],
                               add_asn_callback)
 
@@ -387,8 +387,8 @@ def add_address_callback(child, form):
 def child_add_address(request, pk):
     conf = request.session['handle']
     get_object_or_404(models.Child, issuer=conf, pk=pk)
-    qsv4 = models.ResourceRangeAddressV4.objects.filter(cert__parent__issuer=conf)
-    qsv6 = models.ResourceRangeAddressV6.objects.filter(cert__parent__issuer=conf)
+    qsv4 = models.ResourceRangeAddressV4.objects.filter(cert__conf=conf)
+    qsv6 = models.ResourceRangeAddressV6.objects.filter(cert__conf=conf)
     return child_add_resource(request, pk,
                               forms.AddNetForm(qsv4, qsv6),
                               [],
@@ -789,11 +789,11 @@ def route_view(request):
     log = request.META['wsgi.errors']
 
     routes = []
-    for p in models.ResourceRangeAddressV4.objects.filter(cert__parent__in=conf.parents.all()):
+    for p in models.ResourceRangeAddressV4.objects.filter(cert__conf=conf):
         r = p.as_resource_range()
         print >>log, 'querying for routes matching %s' % r
         routes.extend([validate_route(*x) for x in roa_match(r)])
-    for p in models.ResourceRangeAddressV6.objects.filter(cert__parent__in=conf.parents.all()):
+    for p in models.ResourceRangeAddressV6.objects.filter(cert__conf=conf):
         r = p.as_resource_range()
         print >>log, 'querying for routes matching %s' % r
         routes.extend([validate_route(*x) for x in roa_match(r)])

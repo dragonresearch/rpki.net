@@ -7,6 +7,7 @@ PYTHON = @PYTHON@
 SECRET_KEY = @SECRET_KEY@
 DJANGO_DIR = @DJANGO_DIR@
 VIRTUAL_ENV = @VIRTUAL_ENV@
+DJANGO_ADMIN = @DJANGO_ADMIN@
 
 CFLAGS	= @CFLAGS@
 LDFLAGS = @LDFLAGS@ @POW_LDFLAGS@
@@ -46,7 +47,8 @@ SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
 	  pubd rootd rpkic rpkid \
 	  portal-gui/scripts/rpkigui-rcynic \
 	  portal-gui/scripts/rpkigui-import-routes \
-	  portal-gui/scripts/rpkigui-check-expired
+	  portal-gui/scripts/rpkigui-check-expired \
+	  portal-gui/scripts/rpki-manage
 
 # scripts we build, but don't install
 BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo
@@ -253,3 +255,9 @@ portal-gui/settings.py: ${srcdir}/portal-gui/settings.py.in
 
 rpki/gui/app/settings.py: ${srcdir}/rpki/gui/app/settings.py.in
 	${COMPILE_SETTINGS}
+
+portal-gui/scripts/rpki-manage: ${srcdir}/portal-gui/scripts/rpki-manage.in
+	sed -e "s|@DJANGO""_ADMIN@|${DJANGO_ADMIN}|" \
+		-e "s|@PYTHON""PATH@|${sysconfdir}/rpki|" \
+		${srcdir}/portal-gui/scripts/rpki-manage.in > portal-gui/scripts/rpki-manage
+	chmod 755 $@

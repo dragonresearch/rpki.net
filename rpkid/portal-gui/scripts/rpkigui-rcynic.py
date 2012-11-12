@@ -196,7 +196,7 @@ def process_cache(root, xml_file):
                     qs = models.Cert.objects.filter(
                         keyid=obj.aki,
                         name=obj.issuer,
-                        repo__statuses=object_accepted
+                        repo__statuses__status=object_accepted
                     )
                     ncerts = len(qs)
                     if ncerts == 0:

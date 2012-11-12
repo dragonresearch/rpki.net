@@ -41,7 +41,7 @@ Usage:
 print_rpki_manifest prettyprints the content of a manifest. It does NOT attempt
 to verify the signature. Usage:
 
-  $ print_manifest manifest [manifest...]
+  $ print_rpki_manifest manifest [manifest...]
 
 ***** print_roa *****
 

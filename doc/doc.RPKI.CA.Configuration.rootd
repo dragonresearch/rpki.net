@@ -144,6 +144,12 @@ generate a root certificate as follows:
           -outform DER -out root.cer      \
           -extfile root.conf -extensions x509v3_extensions
 
+The generated root.cer must be copied to the publication directory as defined
+in rpki.conf,
+
+  rpki-root-cert                  = ${myrpki::publication_base_directory}/
+  root.cer
+
 To create a TAL format trust anchor locator use
 
   $ $top/rcynic/make-tal.sh <rsync URI of root.cer> <local copy of root.cer>

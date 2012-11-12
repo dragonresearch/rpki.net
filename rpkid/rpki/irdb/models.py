@@ -30,6 +30,7 @@ import rpki.sundial
 import rpki.resource_set
 import socket
 import rpki.POW
+from south.modelsinspector import add_introspection_rules
 
 ## @var ip_version_choices
 # Choice argument for fields implementing IP version numbers.
@@ -77,7 +78,7 @@ class EnumField(django.db.models.PositiveSmallIntegerField):
   __metaclass__ = django.db.models.SubfieldBase
 
   def __init__(self, *args, **kwargs):
-    if isinstance(kwargs["choices"], (tuple, list)) and isinstance(kwargs["choices"][0], str):
+    if isinstance(kwargs.get("choices"), (tuple, list)) and isinstance(kwargs["choices"][0], str):
       kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
     django.db.models.PositiveSmallIntegerField.__init__(self, *args, **kwargs)
     self.enum_i2s = dict(self.flatchoices)
@@ -600,3 +601,13 @@ class Client(CrossCertification):
   # This shouldn't be necessary
   class Meta:
     unique_together = ("issuer", "handle")
+
+# for Django South -- these are just simple subclasses
+add_introspection_rules([],
+                        ('^rpki\.irdb\.models\.CertificateField',
+                         '^rpki\.irdb\.models\.CRLField',
+                         '^rpki\.irdb\.models\.EnumField',
+                         '^rpki\.irdb\.models\.HandleField',
+                         '^rpki\.irdb\.models\.RSAKeyField',
+                         '^rpki\.irdb\.models\.SignedReferralField',
+                         '^rpki\.irdb\.models\.SundialField'))

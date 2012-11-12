@@ -1,0 +1,20 @@
+#!/bin/sh -
+# $Id$
+
+/bin/cat <<EOF
+
+WARNING:
+
+trang XML schema converter not found on your system.  If you haven't
+modified any of the RelaxNG source files, you can ignore this, as it's
+probably a spurious warning caused by something stomping file
+modification times in the source repository or your local build tree.
+
+If you have modified the RelaxNG sources, you need to install trang
+(see installation manual).
+
+Suppressing this warning for file: $2
+
+EOF
+
+/usr/bin/touch "$2"

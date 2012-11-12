@@ -114,6 +114,7 @@ AC_PATH_PROG([AWK], [awk])
 AC_PATH_PROG([SORT], [sort])
 AC_PATH_PROG([RRDTOOL], [rrdtool])
 AC_PROG_GREP
+AC_PATH_PROG([TRANG], [trang], [\${abs_top_srcdir}/buildtools/trang-not-found])
 
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:

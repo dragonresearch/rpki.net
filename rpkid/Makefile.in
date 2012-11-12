@@ -3,6 +3,7 @@
 SUBDIRS = portal-gui
 
 PYTHON = @PYTHON@
+TRANG  = @TRANG@
 
 SECRET_KEY = @SECRET_KEY@
 DJANGO_DIR = @DJANGO_DIR@
@@ -78,16 +79,16 @@ rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS}
 	mv $@.tmp $@
 
 left-right-schema.rng: left-right-schema.rnc
-	trang left-right-schema.rnc left-right-schema.rng
+	${TRANG} left-right-schema.rnc left-right-schema.rng
 
 up-down-schema.rng: up-down-schema.rnc
-	trang up-down-schema.rnc up-down-schema.rng
+	${TRANG} up-down-schema.rnc up-down-schema.rng
 
 publication-schema.rng: publication-schema.rnc
-	trang publication-schema.rnc publication-schema.rng
+	${TRANG} publication-schema.rnc publication-schema.rng
 
 myrpki.rng: myrpki.rnc
-	trang myrpki.rnc myrpki.rng
+	${TRANG} myrpki.rnc myrpki.rng
 
 rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql pubd.sql
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp

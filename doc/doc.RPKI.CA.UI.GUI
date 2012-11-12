@@ -1,27 +1,72 @@
 ****** GUI Installation ******
 
-Be sure you have $LANG defined in your environment, as in
+These steps assume that you have already installed and configured the other CA
+tools.
 
-If you are running FreeBSD, django-admin is actually invoked as django-admin.py
+rpki-manage is a shell script wrapper around the django-admin command which
+sets $PYTHONPATH and $DJANGO_SETTINGS_MODULE.
 
-  export LANG=en_US.UTF-8
+***** Prerequisites *****
 
-Then create the initial tables
+* Django
 
-  $ django-admin syncdb --pythonpath /usr/local/etc/rpki --settings=settings
+* Django South
+
+* Apache 2
+
+* mod_wsgi 3
+
+***** Upgrading from a Previous Release *****
+
+If you had previously installed the web portal before the database migration
+support was added, you will need to take some additional steps.
+
+**** Edit settings.py ****
+
+You will need to edit /usr/local/etc/rpki/settings.py and edit the
+INSTALLED_APPS list to include 'south'.
+
+**** Sync databases ****
+
+  $ rpki-manage syncdb
+
+**** Database Migration ****
+
+If you have not previously run the new database migration step, you will need
+to run this command. Note that you only need to run this command the first time
+you upgrade.
+
+  $ rpki-manage migrate app 0001 --fake
+
+Now bring your database up to date with the current release:
+
+  $ rpki-manage migrate app
+
+***** New Installation *****
+
+**** Create the initial tables ****
+
+  $ rpki-manage syncdb
 
 Answer "yes" when asked if you want to create superuser Enter username for
 superuser Enter password
 
-If you need to create superuser, you can
+If you need to create superuser at a later time, you can run
 
-  $ django-admin createsuperuser --pythonpath /usr/local/etc/rpki --
-  settings=settings
+  $ rpki-manage createsuperuser
 
 If you need to change superuser's password
 
-  $ django-admin changepassword --settings=settings --pythonpath=/usr/local/
-  etc/rpki <username>
+  $ rpki-manage changepassword <username>
+
+**** Perform Database Migration ****
+
+If there were any changes to the database schema, this command will bring your
+existing database up to date with the current software.
+
+  $ rpki-manage migrate app
+
+***** Configure Apache *****
 
 Now configure apache, using /usr/local/etc/rpki/apache.conf, e.g.
 

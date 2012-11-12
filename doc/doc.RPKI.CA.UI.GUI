@@ -2,23 +2,25 @@
 
 Be sure you have $LANG defined in your environment, as in
 
+If you are running FreeBSD, django-admin is actually invoked as django-admin.py
+
   export LANG=en_US.UTF-8
 
 Then create the initial tables
 
-  $ django-admin.py syncdb --pythonpath /usr/local/etc/rpki --settings=settings
+  $ django-admin syncdb --pythonpath /usr/local/etc/rpki --settings=settings
 
 Answer "yes" when asked if you want to create superuser Enter username for
 superuser Enter password
 
 If you need to create superuser, you can
 
-  $ django-admin.py createsuperuser --pythonpath /usr/local/etc/rpki --
+  $ django-admin createsuperuser --pythonpath /usr/local/etc/rpki --
   settings=settings
 
 If you need to change superuser's password
 
-  $ django-admin.py changepassword --settings=settings --pythonpath=/usr/local/
+  $ django-admin changepassword --settings=settings --pythonpath=/usr/local/
   etc/rpki <username>
 
 Now configure apache, using /usr/local/etc/rpki/apache.conf, e.g.
@@ -37,6 +39,92 @@ form.
 If you've only done the above bootstrap, there will only be a single handle to
 manage, so the GUI will automatically bring you to the dashboard for that
 handle.
+
+****** Installation of Route Views Support for the GUI ******
+
+If you want ROA creation to tell the user what routes are in the global routing
+table for what they are about to create,
+
+Be sure you have curl installed. On FreeBSD it is in /usr/ports/ftp/curl
+
+Install a script such as the following as /usr/locl/bin/do-routeviews
+
+  #!/bin/sh
+  # Fetch the full bgp dump from routeviews.org and update the web
+  # portal's database
+  i=oix-full-snapshot-latest.dat.bz2
+  o=/tmp/$i
+  curl -s -S -o $o http://archive.routeviews.org/oix-route-views/$i
+  if [ $? -eq 0 ]; then
+     /usr/local/sbin/rpkigui-import-routes -l error $o
+  fi
+
+and create an entry in root's crontab such as
+
+  30  */2 *   *   *   root    /usr/local/sbin/do-routeviews
+
+If you want the GUI's "routes" page to see ROAs when you click those buttons,
+you will need to run rcynic. see the instructions for setting up rcynic.
+
+If you are running rootd, you may want to run with only your local trust
+anchor. In this case, to have the GUI be fairly responsive to changes, you may
+want to run the rcynic often. In this case, you may want to look at the value
+of jitter in rcynic.conf.
+
+In addition, your rcynic script should also have
+
+  /usr/local/sbin/rpkigui-rcynic -l error
+
+after the rcynic run.
+
+****** GUI Installation to Work With rootd ******
+
+Some of the commands depend on whether your are upgrading your existing
+database, or starting a new installation from scratch.
+
+[All users] First step is you will need to install Django South. For FreeBSD
+this is /usr/ports/databases/py-south.
+
+The code is currently in the tk316 branch, so in order to play, you will need
+to check it out:
+
+  $ svn co https://subvert-rpki.hactrn.net/branches/tk316
+  $ cd tk316
+  $ ./configure
+  $ make
+  $ make install
+
+[Upgrading users] You will need to edit /usr/local/etc/rpki/settings.py and add
+'south' to the INSTALLED_APPS list. See /usr/local/etc/rpki/settings.py.new for
+an example (we don't automatically overwrite settings.py).
+
+[All users] Run syncdb:
+
+  $ django-admin syncdb --pythonpath=/usr/local/etc/rpki --settings=settings
+
+Verify that Django South is installed:
+
+  $ django-admin migrate --list --pythonpath=/usr/local/etc/rpki --
+  settings=settings
+
+[Upgrading Users] Since you already have an existing db, you need to fake doing
+the initial migration step:
+
+  $ django-admin migrate app 0001 --fake --pythonpath=/usr/local/etc/rpki --
+  settings=settings
+
+[All users] Perform the database migrations new to this release:
+
+  $ django-admin migrate app --pythonpath=/usr/local/etc/rpki --
+  settings=settings
+
+[All users] Restart apache so that the web portal picks up the newly installed
+code:
+
+  $ apachectl restart
+
+Now head back to the gui. Click on the 'refresh' link when viewing the altCA
+dashboard, and it should now pick up the resources from the root cert.
 
 ****** Using the GUI ******
 

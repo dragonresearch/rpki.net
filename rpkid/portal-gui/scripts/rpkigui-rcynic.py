@@ -122,7 +122,7 @@ def save_statuses(inst, statuses):
     # if this object is in our interest set, update with the current validation
     # status
     if inst.uri in uris:
-        x, y, z, q = uris[inst.repo.uri]
+        x, y, z, q = uris[inst.uri]
         uris[inst.uri] = x, y, valid, inst
 
 
@@ -283,9 +283,9 @@ def fetch_published_objects():
             qs = models.RepositoryObject.objects.filter(uri=pdu.uri)
             if qs:
                 # get the current validity state
-                valid = obj.statuses.filter(status=object_accepted).exists()
+                valid = qs[0].statuses.filter(status=object_accepted).exists()
                 uris[pdu.uri] = (pdu.self_handle, valid, False, None)
-                logger.debug('adding ' + ', '.join(uris[pdu.uri]))
+                logger.debug('adding ' + pdu.uri)
             else:
                 # this object is not in the cache.  it was either published
                 # recently, or disappared previously.  if it disappeared
@@ -394,6 +394,7 @@ if __name__ == '__main__':
     start = time.time()
     process_labels(options.logfile)
     object_accepted = LABEL_CACHE['object_accepted']
+    fetch_published_objects()
     process_cache(options.root, options.logfile)
     notify_invalid()
 

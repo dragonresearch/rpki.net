@@ -98,7 +98,6 @@ def rcynic_roa(roa, obj):
 
 def rcynic_gbr(gbr, obj):
     vcard = vobject.readOne(gbr.vcard)
-    logger.debug(vcard.prettyPrint())
     obj.full_name = vcard.fn.value if hasattr(vcard, 'fn') else None
     obj.email_address = vcard.email.value if hasattr(vcard, 'email') else None
     obj.telephone = vcard.tel.value if hasattr(vcard, 'tel') else None
@@ -130,14 +129,14 @@ def save_statuses(inst, statuses):
 @transaction.commit_on_success
 def process_cache(root, xml_file):
     dispatch = {
-      'rcynic_certificate': rcynic_cert,
-      'rcynic_roa': rcynic_roa,
-      'rcynic_ghostbuster': rcynic_gbr
+        'rcynic_certificate': rcynic_cert,
+        'rcynic_roa': rcynic_roa,
+        'rcynic_ghostbuster': rcynic_gbr
     }
     model_class = {
-      'rcynic_certificate': models.Cert,
-      'rcynic_roa': models.ROA,
-      'rcynic_ghostbuster': models.Ghostbuster
+        'rcynic_certificate': models.Cert,
+        'rcynic_roa': models.ROA,
+        'rcynic_ghostbuster': models.Ghostbuster
     }
 
     last_uri = None
@@ -176,7 +175,8 @@ def process_cache(root, xml_file):
                 try:
                     obj = vs.obj  # causes object to be lazily loaded
                 except rpki.POW._der.DerError, e:
-                    logger.warning('Caught %s while processing %s: %s' % (type(e), vs.filename, e))
+                    logger.warning('Caught %s while processing %s: %s' % (
+                        type(e), vs.filename, e))
                     continue
 
                 inst.not_before = obj.notBefore.to_sql()

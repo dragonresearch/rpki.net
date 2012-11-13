@@ -42,6 +42,9 @@ Now bring your database up to date with the current release:
 
   $ rpki-manage migrate app
 
+From this point on you will just need to run the latter command every time you
+upgrade.
+
 ***** New Installation *****
 
 **** Create the initial tables ****
@@ -121,55 +124,6 @@ In addition, your rcynic script should also have
   /usr/local/sbin/rpkigui-rcynic -l error
 
 after the rcynic run.
-
-****** GUI Installation to Work With rootd ******
-
-Some of the commands depend on whether your are upgrading your existing
-database, or starting a new installation from scratch.
-
-[All users] First step is you will need to install Django South. For FreeBSD
-this is /usr/ports/databases/py-south.
-
-The code is currently in the tk316 branch, so in order to play, you will need
-to check it out:
-
-  $ svn co https://subvert-rpki.hactrn.net/branches/tk316
-  $ cd tk316
-  $ ./configure
-  $ make
-  $ make install
-
-[Upgrading users] You will need to edit /usr/local/etc/rpki/settings.py and add
-'south' to the INSTALLED_APPS list. See /usr/local/etc/rpki/settings.py.new for
-an example (we don't automatically overwrite settings.py).
-
-[All users] Run syncdb:
-
-  $ django-admin syncdb --pythonpath=/usr/local/etc/rpki --settings=settings
-
-Verify that Django South is installed:
-
-  $ django-admin migrate --list --pythonpath=/usr/local/etc/rpki --
-  settings=settings
-
-[Upgrading Users] Since you already have an existing db, you need to fake doing
-the initial migration step:
-
-  $ django-admin migrate app 0001 --fake --pythonpath=/usr/local/etc/rpki --
-  settings=settings
-
-[All users] Perform the database migrations new to this release:
-
-  $ django-admin migrate app --pythonpath=/usr/local/etc/rpki --
-  settings=settings
-
-[All users] Restart apache so that the web portal picks up the newly installed
-code:
-
-  $ apachectl restart
-
-Now head back to the gui. Click on the 'refresh' link when viewing the altCA
-dashboard, and it should now pick up the resources from the root cert.
 
 ****** Using the GUI ******
 

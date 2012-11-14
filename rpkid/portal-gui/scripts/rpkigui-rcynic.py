@@ -98,7 +98,6 @@ def rcynic_roa(roa, obj):
 
 def rcynic_gbr(gbr, obj):
     vcard = vobject.readOne(gbr.vcard)
-    logger.debug(vcard.prettyPrint())
     obj.full_name = vcard.fn.value if hasattr(vcard, 'fn') else None
     obj.email_address = vcard.email.value if hasattr(vcard, 'email') else None
     obj.telephone = vcard.tel.value if hasattr(vcard, 'tel') else None
@@ -123,21 +122,21 @@ def save_statuses(inst, statuses):
     # if this object is in our interest set, update with the current validation
     # status
     if inst.uri in uris:
-        x, y, z, q = uris[inst.repo.uri]
+        x, y, z, q = uris[inst.uri]
         uris[inst.uri] = x, y, valid, inst
 
 
 @transaction.commit_on_success
 def process_cache(root, xml_file):
     dispatch = {
-      'rcynic_certificate': rcynic_cert,
-      'rcynic_roa': rcynic_roa,
-      'rcynic_ghostbuster': rcynic_gbr
+        'rcynic_certificate': rcynic_cert,
+        'rcynic_roa': rcynic_roa,
+        'rcynic_ghostbuster': rcynic_gbr
     }
     model_class = {
-      'rcynic_certificate': models.Cert,
-      'rcynic_roa': models.ROA,
-      'rcynic_ghostbuster': models.Ghostbuster
+        'rcynic_certificate': models.Cert,
+        'rcynic_roa': models.ROA,
+        'rcynic_ghostbuster': models.Ghostbuster
     }
 
     last_uri = None
@@ -176,7 +175,8 @@ def process_cache(root, xml_file):
                 try:
                     obj = vs.obj  # causes object to be lazily loaded
                 except rpki.POW._der.DerError, e:
-                    logger.warning('Caught %s while processing %s: %s' % (type(e), vs.filename, e))
+                    logger.warning('Caught %s while processing %s: %s' % (
+                        type(e), vs.filename, e))
                     continue
 
                 inst.not_before = obj.notBefore.to_sql()
@@ -283,9 +283,9 @@ def fetch_published_objects():
             qs = models.RepositoryObject.objects.filter(uri=pdu.uri)
             if qs:
                 # get the current validity state
-                valid = obj.statuses.filter(status=object_accepted).exists()
+                valid = qs[0].statuses.filter(status=object_accepted).exists()
                 uris[pdu.uri] = (pdu.self_handle, valid, False, None)
-                logger.debug('adding ' + ', '.join(uris[pdu.uri]))
+                logger.debug('adding ' + pdu.uri)
             else:
                 # this object is not in the cache.  it was either published
                 # recently, or disappared previously.  if it disappeared
@@ -394,6 +394,7 @@ if __name__ == '__main__':
     start = time.time()
     process_labels(options.logfile)
     object_accepted = LABEL_CACHE['object_accepted']
+    fetch_published_objects()
     process_cache(options.root, options.logfile)
     notify_invalid()
 

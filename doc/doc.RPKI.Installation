@@ -119,12 +119,12 @@ Packages you will need:
 
   o FreeBSD: /usr/ports/www/mod_wsgi3
 
-* http://south.aeracode.org/ Django South. This tool is used to ease the pain
-  of changes to the web portal database schema.
+* http://south.aeracode.org/ Django South 0.7.6 or later. This tool is used to
+  ease the pain of changes to the web portal database schema.
 
   o FreeBSD: /usr/ports/databases/py-south
-  o Ubuntu: python-django-south
-  o CentOS/RHEL: Django-south
+  o Ubuntu: do not use the python-django-south 0.7.3 package in 12.04 LTS as it
+    is known not to work
 
 ***** Configure and build *****
 

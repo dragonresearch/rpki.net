@@ -46,13 +46,7 @@ install: $(BUILD)
 	${INSTALL} -m 644 apache.conf $(SYSCONFDIR)/apache.conf
 	${INSTALL} -m 644 $(srcdir)/media/css/bootstrap.min.css $(INSTDIR)/media/css/bootstrap.min.css
 	${INSTALL} -m 644 rpki.wsgi $(INSTDIR)/wsgi/rpki.wsgi
-	# FIXME should eventually try to merge new settings?
-	@if [ ! -f ${SYSCONFDIR}/settings.py ]; then \
-	    ${INSTALL} -m 644 settings.py ${SYSCONFDIR}; \
-	else \
-	    echo "${SYSCONFDIR}/settings.py already exists, installing settings.py as ${SYSCONFDIR}/settings.py.new"; \
-	    ${INSTALL} -m 644 settings.py ${SYSCONFDIR}/settings.py.new; \
-	fi
+	${INSTALL} -m 644 settings.py ${SYSCONFDIR}
 
 deinstall uninstall:
 	rm -rf $(INSTDIR)

@@ -86,12 +86,13 @@ INSTALLED_APPS = (
     #'django.contrib.admin',
     #'django.contrib.admindocs',
     'django.contrib.contenttypes',
+    'django.contrib.formtools',
     'django.contrib.sessions',
     'rpki.irdb',
     'rpki.gui.app',
     'rpki.gui.cacheview',
     'rpki.gui.routeview',
-    'south'
+    'south',
 )
 
 TEMPLATE_CONTEXT_PROCESSORS = (

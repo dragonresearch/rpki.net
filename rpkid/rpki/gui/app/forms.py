@@ -282,14 +282,13 @@ class ROARequestConfirm(forms.Form):
         return self.cleaned_data
 
 
-def AddASNForm(qs):
+def AddASNForm(child):
     """
-    Generate a form class which only allows specification of ASNs contained
-    within the specified queryset.  `qs` should be a QuerySet of
-    irdb.models.ChildASN.
+    Returns a forms.Form subclass which verifies that the entered ASN range
+    does not overlap with a previous allocation to the specified child, and
+    that the ASN range is within the range allocated to the parent.
 
     """
-
     class _wrapped(forms.Form):
         asns = forms.CharField(label='ASNs', help_text='single ASN or range')
 
@@ -298,21 +297,30 @@ def AddASNForm(qs):
                 r = resource_range_as.parse_str(self.cleaned_data.get('asns'))
             except:
                 raise forms.ValidationError('invalid AS or range')
-            if not qs.filter(min__lte=r.min, max__gte=r.max).exists():
+
+            if not models.ResourceRangeAS.objects.filter(
+                cert__conf=child.issuer,
+                min__lte=r.min,
+                max__gte=r.max).exists():
                 raise forms.ValidationError('AS or range is not delegated to you')
+
+            # determine if the entered range overlaps with any AS already
+            # allocated to this child
+            if child.asns.filter(end_as__gte=r.min, start_as__lte=r.max).exists():
+                raise forms.ValidationError(
+                    'Overlap with previous allocation to this child')
+
             return str(r)
 
     return _wrapped
 
-
-def AddNetForm(qsv4, qsv6):
+def AddNetForm(child):
     """
-    Generate a form class which only allows specification of prefixes contained
-    within the specified queryset.  `qs` should be a QuerySet of
-    irdb.models.ChildNet.
+    Returns a forms.Form subclass which validates that the entered address
+    range is within the resources allocated to the parent, and does not overlap
+    with what is already allocated to the specified child.
 
     """
-
     class _wrapped(forms.Form):
         address_range = forms.CharField(help_text='CIDR or range')
 
@@ -321,18 +329,31 @@ def AddNetForm(qsv4, qsv6):
             try:
                 if ':' in address_range:
                     r = resource_range_ipv6.parse_str(address_range)
-                    if not qsv6.filter(prefix_min__lte=r.min, prefix_max__gte=r.max).exists():
-                        raise forms.ValidationError('IP address range is not delegated to you')
+                    qs = models.ResourceRangeAddressV6
+                    version = 'IPv6'
                 else:
                     r = resource_range_ipv4.parse_str(address_range)
-                    if not qsv4.filter(prefix_min__lte=r.min, prefix_max__gte=r.max).exists():
-                        raise forms.ValidationError('IP address range is not delegated to you')
+                    qs = models.ResourceRangeAddressV4
+                    version = 'IPv4'
             except BadIPResource:
                 raise forms.ValidationError('invalid IP address range')
+
+            if not qs.objects.filter(cert__conf=child.issuer,
+                                     prefix_min__lte=r.min,
+                                     prefix_max__gte=r.max).exists():
+                raise forms.ValidationError('IP address range is not delegated to you')
+
+            # determine if the entered range overlaps with any prefix
+            # already allocated to this child
+            for n in child.address_ranges.filter(version=version):
+                rng = n.as_resource_range()
+                if r.max >= rng.min and r.min <= rng.max:
+                    raise forms.ValidationError(
+                        'Overlap with previous allocation to this child')
+
             return str(r)
 
     return _wrapped
-
 
 def ChildForm(instance):
     """

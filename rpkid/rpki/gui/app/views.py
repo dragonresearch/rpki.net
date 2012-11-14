@@ -31,15 +31,14 @@ from django.utils.http import urlquote
 from django.template import RequestContext
 from django import http
 from django.views.generic.list_detail import object_list, object_detail
-from django.views.generic.create_update import delete_object
 from django.core.urlresolvers import reverse
 from django.contrib.auth.models import User
+from django.contrib.formtools.preview import FormPreview
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
 from rpki.resource_set import (resource_range_as, resource_range_ipv4,
                                resource_range_ipv6, roa_prefix_ipv4)
-from rpki.exceptions import BadIPResource
 from rpki import sundial
 
 from rpki.gui.cacheview.models import ROAPrefixV4, ROAPrefixV6, ROA
@@ -339,61 +338,81 @@ def child_list(request):
                 'create_label': 'Import'})
 
 
+class ChildAddResourcePreview(FormPreview):
+    """
+    Base class for handling preview of AS/Prefix additions to a child.
+    Subclasses implement the 'done' method to perform actual work on IRDB.
+
+    """
+
+    form_template = 'app/child_detail.html'
+    preview_template = 'app/child_detail.html'
+
+    def __init__(self, *args, **kwargs):
+        """
+        The docstring for FormPreview says we should not redefine this method, but
+        I don't see how we can set extra information in this class otherwise.
+
+        """
+        self.child = kwargs.pop('child')
+        self.logstream = kwargs.pop('logstream')
+        super(ChildAddResourcePreview, self).__init__(*args, **kwargs)
+
+    def get_context(self, *args, **kwargs):
+        """"
+        Override the superclass method to add context variables needed by the
+        form template.
+
+        """
+        d = super(ChildAddResourcePreview, self).get_context(*args, **kwargs)
+        d['object'] = self.child
+        d['form_label'] = 'Add Resource'
+        return d
+
+    def process_preview(self, request, form, context):
+        # set a boolean flag so that the template knows this is a preview
+        context['is_preview'] = True
+
+
+class ChildAddPrefixPreview(ChildAddResourcePreview):
+    def done(self, request, cleaned_data):
+        address_range = cleaned_data.get('address_range')
+        if ':' in address_range:
+            r = resource_range_ipv6.parse_str(address_range)
+            version = 'IPv6'
+        else:
+            r = resource_range_ipv4.parse_str(address_range)
+            version = 'IPv4'
+        self.child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
+                                         version=version)
+        Zookeeper(handle=self.child.issuer.handle, logstream=self.logstream).run_rpkid_now()
+        return http.HttpResponseRedirect(self.child.get_absolute_url())
+
 @handle_required
-def child_add_resource(request, pk, form_class, unused_list, callback,
-                       template_name='app/child_add_resource_form.html'):
-    conf = request.session['handle']
-    child = models.Child.objects.get(issuer=conf, pk=pk)
-    log = request.META['wsgi.errors']
-    if request.method == 'POST':
-        form = form_class(request.POST, request.FILES)
-        if form.is_valid():
-            callback(child, form)
-            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
-            return http.HttpResponseRedirect(child.get_absolute_url())
-    else:
-        form = form_class()
-
-    return render(request, template_name,
-                  {'object': child, 'form': form, 'unused': unused_list})
-
-
-def add_asn_callback(child, form):
-    asns = form.cleaned_data.get('asns')
-    r = resource_range_as.parse_str(asns)
-    child.asns.create(start_as=r.min, end_as=r.max)
-
-
-def child_add_asn(request, pk):
-    conf = request.session['handle']
-    get_object_or_404(models.Child, issuer=conf, pk=pk)
-    qs = models.ResourceRangeAS.objects.filter(cert__conf=conf)
-    return child_add_resource(request, pk, forms.AddASNForm(qs), [],
-                              add_asn_callback)
-
-
-def add_address_callback(child, form):
-    address_range = form.cleaned_data.get('address_range')
-    if ':' in address_range:
-        r = resource_range_ipv6.parse_str(address_range)
-        version = 'IPv6'
-    else:
-        r = resource_range_ipv4.parse_str(address_range)
-        version = 'IPv4'
-    child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
-                                version=version)
-
-
 def child_add_address(request, pk):
+    logstream = request.META['wsgi.errors']
     conf = request.session['handle']
-    get_object_or_404(models.Child, issuer=conf, pk=pk)
-    qsv4 = models.ResourceRangeAddressV4.objects.filter(cert__conf=conf)
-    qsv6 = models.ResourceRangeAddressV6.objects.filter(cert__conf=conf)
-    return child_add_resource(request, pk,
-                              forms.AddNetForm(qsv4, qsv6),
-                              [],
-                              callback=add_address_callback)
+    child = get_object_or_404(models.Child, issuer=conf, pk=pk)
+    form = forms.AddNetForm(child)
+    preview = ChildAddPrefixPreview(form, child=child, logstream=logstream)
+    return preview(request)
 
+class ChildAddASNPreview(ChildAddResourcePreview):
+    def done(self, request, cleaned_data):
+        asns = cleaned_data.get('asns')
+        r = resource_range_as.parse_str(asns)
+        self.child.asns.create(start_as=r.min, end_as=r.max)
+        Zookeeper(handle=self.child.issuer.handle, logstream=self.logstream).run_rpkid_now()
+        return http.HttpResponseRedirect(self.child.get_absolute_url())
+
+@handle_required
+def child_add_asn(request, pk):
+    logstream = request.META['wsgi.errors']
+    conf = request.session['handle']
+    child = get_object_or_404(models.Child, issuer=conf, pk=pk)
+    form = forms.AddASNForm(child)
+    preview = ChildAddASNPreview(form, child=child, logstream=logstream)
+    return preview(request)
 
 @handle_required
 def child_view(request, pk):

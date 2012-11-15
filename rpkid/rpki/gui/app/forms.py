@@ -245,27 +245,12 @@ class ROARequest(forms.Form):
             max_prefixlen = self.cleaned_data.get('max_prefixlen')
             max_prefixlen = int(max_prefixlen) if max_prefixlen else r.prefixlen()
             if max_prefixlen < r.prefixlen():
-                raise forms.ValidationError('max prefix length must be greater than or equal to the prefix length')
+                raise forms.ValidationError(
+                    'max prefix length must be greater than or equal to the prefix length')
             if max_prefixlen > r.datum_type.bits:
                 raise forms.ValidationError, \
                         'max prefix length (%d) is out of range for IP version (%d)' % (max_prefixlen, r.datum_type.bits)
-
-            # verify that the request prefix is not already part of a
-            # roarequest
-            if models.ROARequestPrefix.objects.filter(
-                roa_request__issuer=self.conf,
-                roa_request__asn=self.cleaned_data.get('asn'),
-                version='IPv%d' % (4 if isinstance(r, resource_range_ipv4) else 6,),
-                prefix=str(r.min),
-                prefixlen=r.prefixlen(),
-                max_prefixlen=max_prefixlen
-            ).exists():
-                raise forms.ValidationError(
-                    'this ROA request prefix already exists'
-                )
-
             self.cleaned_data['max_prefixlen'] = str(max_prefixlen)
-
         return self.cleaned_data
 
 
@@ -329,6 +314,7 @@ def AddASNForm(child):
 
     return _wrapped
 
+
 def AddNetForm(child):
     """
     Returns a forms.Form subclass which validates that the entered address
@@ -369,6 +355,7 @@ def AddNetForm(child):
             return str(r)
 
     return _wrapped
+
 
 def ChildForm(instance):
     """

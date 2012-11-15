@@ -398,13 +398,14 @@ fi
 
 				TOP_LEVEL_SUBDIRS=""
 test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
-				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
+				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS h rcynic utils"
 test $build_ca_tools = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
 test $build_rpki_rtr = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rtr-origin"
 
 AC_SUBST(TOP_LEVEL_SUBDIRS)
 
 AC_CONFIG_FILES([Makefile
+		 h/Makefile
 		 rcynic/Makefile
 		 rcynic/static-rsync/Makefile
 		 utils/Makefile
@@ -465,9 +466,9 @@ then
 	# search list to preempt conflicts with system copies.
 
 	CFLAGS="-I\${abs_top_srcdir}/openssl/openssl/include $CFLAGS"
-	LIBS="\${abs_top_builddir}/openssl/openssl/libssl.a \${abs_top_builddir}/openssl/openssl/libcrypto.a $LIBS"
+	LIBS="\${abs_top_builddir}/openssl/openssl/libcrypto.a $LIBS"
 else
-	LIBS="$LIBS -lssl -lcrypto"
+	LIBS="$LIBS -lcrypto"
 fi
 
 if test $build_ca_tools = yes
@@ -495,5 +496,12 @@ if test $build_rpki_rtr = yes
 then
 	AC_CONFIG_FILES([rtr-origin/Makefile])
 fi
+
+# Now that we're finally done with all the conditional changes to
+# CFLAGS, add a search directive for our own header directory.  If we
+# ever get to the point of having our own library directory, we'd add
+# it here too, but for the moment our shared C code is all in .h files.
+
+CFLAGS="$CFLAGS -I\${abs_top_srcdir}/h"
 
 AC_OUTPUT

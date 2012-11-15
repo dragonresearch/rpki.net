@@ -4,7 +4,7 @@ ConfigParser module.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -33,7 +33,9 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import ConfigParser, os, re
+import ConfigParser
+import os
+import re
 
 ## @var default_filename
 # Default name of config file if caller doesn't specify one explictly.
@@ -85,6 +87,8 @@ class parser(object):
       if default_dirname is not None:
         filenames.append("%s/%s" % (default_dirname, default_filename))
 
+    f = fn = None
+
     for fn in filenames:
       try:
         f = open(fn)
@@ -128,7 +132,7 @@ class parser(object):
       section = self.default_section
     if self.cfg.has_option(section, option):
       matches.append((-1, self.get(option, section = section)))
-    for key, value in self.cfg.items(section):
+    for key in self.cfg.options(section):
       s = key.rsplit(".", 1)
       if len(s) == 2 and s[0] == option and s[1].isdigit():
         matches.append((int(s[1]), self.get(option, section = section)))
@@ -267,6 +271,16 @@ class parser(object):
       pass
 
     try:
+      rpki.x509.XML_CMS_object.check_inbound_schema = self.getboolean("check_inbound_schema")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
+      rpki.x509.XML_CMS_object.check_outbound_schema = self.getboolean("check_outbound_schema")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
       rpki.async.gc_summary(self.getint("gc_summary"), self.getint("gc_summary_threshold", 0))
     except ConfigParser.NoOptionError:
       pass
@@ -285,3 +299,10 @@ class parser(object):
       rpki.daemonize.pid_filename = self.get("pid_filename")
     except ConfigParser.NoOptionError:
       pass
+
+    try:
+      rpki.x509.generate_insecure_debug_only_rsa_key = rpki.x509.insecure_debug_only_rsa_key_generator(*self.get("insecure-debug-only-rsa-key-db").split())
+    except ConfigParser.NoOptionError:
+      pass
+    except:
+      rpki.log.warn("insecure-debug-only-rsa-key-db configured but initialization failed, check for corrupted database file")

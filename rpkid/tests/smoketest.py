@@ -17,7 +17,7 @@ things that don't belong in yaml_script.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -46,9 +46,25 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, yaml, warnings, subprocess, signal, time, getopt, sys, errno
-import rpki.resource_set, rpki.sundial, rpki.x509, rpki.http
-import rpki.log, rpki.left_right, rpki.config, rpki.publication, rpki.async
+# pylint: disable=W0621
+
+import os
+import yaml
+import subprocess
+import signal
+import time
+import getopt
+import sys
+import errno
+import rpki.resource_set
+import rpki.sundial
+import rpki.x509
+import rpki.http
+import rpki.log
+import rpki.left_right
+import rpki.config
+import rpki.publication
+import rpki.async
 
 from rpki.mysql_import import MySQLdb
 
@@ -158,6 +174,11 @@ class CouldntIssueBSCEECertificate(Exception):
   Couldn't issue BSC EE certificate
   """
 
+sql_conversions = MySQLdb.converters.conversions.copy()
+sql_conversions.update({
+  rpki.sundial.datetime                  : MySQLdb.converters.DateTime2literal,
+  MySQLdb.converters.FIELD_TYPE.DATETIME : rpki.sundial.datetime.DateTime_or_None })
+
 def main():
   """
   Main program.
@@ -194,21 +215,21 @@ def main():
   # Apparently os.walk() can't tell the difference between directories
   # and symlinks to directories, so we have to handle both.
   for root, dirs, files in os.walk(".", topdown = False):
-    for file in files:
-      if not file.endswith(".key"):
-        os.remove(os.path.join(root, file))
-    for dir in dirs:
+    for fn in files:
+      if not fn.endswith(".key"):
+        os.remove(os.path.join(root, fn))
+    for d in dirs:
       try:
-        os.rmdir(os.path.join(root, dir))
+        os.rmdir(os.path.join(root, d))
       except OSError, e:
         if e.errno == errno.ENOTDIR:
-          os.remove(os.path.join(root, dir))
+          os.remove(os.path.join(root, d))
         else:
           raise
 
   rpki.log.info("Reading master YAML configuration")
   y = yaml_script.pop(0)
-
+  
   rpki.log.info("Constructing internal allocation database")
   db = allocation_db(y)
 
@@ -217,6 +238,7 @@ def main():
 
   rpki.log.info("Constructing BPKI keys and certs for pubd")
   setup_bpki_cert_chain(pubd_name, ee = ("PUBD", "IRBE"))
+
 
   for a in db:
     a.setup_bpki_certs()
@@ -322,13 +344,15 @@ def main():
     for proc, name in ((rootd_process,  "rootd"),
                        (pubd_process,   "pubd"),
                        (rsyncd_process, "rsyncd")):
-      if proc is not None:
+      # pylint: disable=E1103
+      if proc is not None and proc.poll() is None:
         rpki.log.info("Killing %s, pid %s" % (name, proc.pid))
         try:
-          os.kill(proc.pid, signal.SIGTERM)
+          proc.terminate()
         except OSError:
           pass
-        proc.wait()
+      if proc is not None:
+        rpki.log.info("Daemon %s, pid %s exited with code %s" % (name, proc.pid, proc.wait()))
 
 def cmd_sleep(cb, interval):
   """
@@ -409,17 +433,14 @@ class allocation_db(list):
       self.root.regen_margin = rpki.sundial.timedelta.parse(cfg.get("regen_margin", "1d")).convert_to_seconds()
     for a in self:
       if a.sia_base is None:
-        a.sia_base = (rootd_sia if a.is_root else a.parent.sia_base) + a.name + "/"
+        a.sia_base = (rootd_sia + "root/trunk/" if a.is_root else a.parent.sia_base) + a.name + "/"
       if a.base.valid_until is None:
         a.base.valid_until = a.parent.base.valid_until
       if a.crl_interval is None:
         a.crl_interval = a.parent.crl_interval
       if a.regen_margin is None:
         a.regen_margin = a.parent.regen_margin
-      i = 0
-      for j in xrange(4):
-        i = a.sia_base.index("/", i) + 1
-      a.client_handle = a.sia_base[i:].rstrip("/")
+      a.client_handle = "/".join(a.sia_base.split("/")[4:]).rstrip("/")
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     self.engines = [a for a in self if a.is_engine]
@@ -471,6 +492,8 @@ class allocation(object):
   crl_interval = None
   regen_margin = None
   last_cms_time = None
+  rpkid_process = None
+  irdbd_process = None
 
   def __init__(self, yaml, db, parent = None):
     """
@@ -482,7 +505,7 @@ class allocation(object):
     self.kids = [allocation(k, db, self) for k in yaml.get("kids", ())]
     valid_until = None
     if "valid_until" in yaml:
-      valid_until = rpki.sundial.datetime.fromdatetime(yaml.get("valid_until"))
+      valid_until = rpki.sundial.datetime.from_datetime(yaml.get("valid_until"))
     if valid_until is None and "valid_for" in yaml:
       valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(yaml["valid_for"])
     self.base = rpki.resource_set.resource_bag(
@@ -498,9 +521,9 @@ class allocation(object):
     self.roa_requests = [roa_request.parse(y) for y in yaml.get("roa_request", yaml.get("route_origin", ()))]
     for r in self.roa_requests:
       if r.v4:
-        self.base.v4 = self.base.v4.union(r.v4.to_resource_set())
+        self.base.v4 |= r.v4.to_resource_set()
       if r.v6:
-        self.base.v6 = self.base.v6.union(r.v6.to_resource_set())
+        self.base.v6 |= r.v6.to_resource_set()
     self.hosted_by = yaml.get("hosted_by")
     self.extra_conf = yaml.get("extra_conf", [])
     self.hosts = []
@@ -511,7 +534,7 @@ class allocation(object):
     """
     resources = self.base
     for kid in self.kids:
-      resources = resources.union(kid.closure())
+      resources |= kid.closure()
     self.resources = resources
     return resources
 
@@ -531,31 +554,31 @@ class allocation(object):
     rpki.async.iterator(yaml.items(), loop, cb)
 
   def apply_add_as(self, text, cb):
-    self.base.asn = self.base.asn.union(rpki.resource_set.resource_set_as(text))
+    self.base.asn |= rpki.resource_set.resource_set_as(text)
     cb()
 
   def apply_add_v4(self, text, cb):
-    self.base.v4 = self.base.v4.union(rpki.resource_set.resource_set_ipv4(text))
+    self.base.v4 |= rpki.resource_set.resource_set_ipv4(text)
     cb()
 
   def apply_add_v6(self, text, cb):
-    self.base.v6 = self.base.v6.union(rpki.resource_set.resource_set_ipv6(text))
+    self.base.v6 |= rpki.resource_set.resource_set_ipv6(text)
     cb()
 
   def apply_sub_as(self, text, cb):
-    self.base.asn = self.base.asn.difference(rpki.resource_set.resource_set_as(text))
+    self.base.asn |= rpki.resource_set.resource_set_as(text)
     cb()
 
   def apply_sub_v4(self, text, cb):
-    self.base.v4 = self.base.v4.difference(rpki.resource_set.resource_set_ipv4(text))
+    self.base.v4 |= rpki.resource_set.resource_set_ipv4(text)
     cb()
 
   def apply_sub_v6(self, text, cb):
-    self.base.v6 = self.base.v6.difference(rpki.resource_set.resource_set_ipv6(text))
+    self.base.v6 |= rpki.resource_set.resource_set_ipv6(text)
     cb()
 
   def apply_valid_until(self, stamp, cb):
-    self.base.valid_until = rpki.sundial.datetime.fromdatetime(stamp)
+    self.base.valid_until = rpki.sundial.datetime.from_datetime(stamp)
     cb()
 
   def apply_valid_for(self, text, cb):
@@ -711,7 +734,8 @@ class allocation(object):
     Set up this entity's IRDB.
     """
     rpki.log.info("Setting up MySQL for %s" % self.name)
-    db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass)
+    db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass,
+                         conv = sql_conversions)
     cur = db.cursor()
     db.autocommit(True)
     for sql in rpki_sql:
@@ -721,7 +745,8 @@ class allocation(object):
         if "DROP TABLE IF EXISTS" not in sql.upper():
           raise
     db.close()
-    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
+    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass,
+                         conv = sql_conversions)
     cur = db.cursor()
     db.autocommit(True)
     for sql in irdb_sql:
@@ -733,7 +758,7 @@ class allocation(object):
     for s in [self] + self.hosts:
       for kid in s.kids:
         cur.execute("INSERT registrant (registrant_handle, registry_handle, valid_until) VALUES (%s, %s, %s)",
-                    (kid.name, s.name, kid.resources.valid_until.to_sql()))
+                    (kid.name, s.name, kid.resources.valid_until))
     db.close()
 
   def sync_sql(self):
@@ -743,7 +768,8 @@ class allocation(object):
     this entity.
     """
     rpki.log.info("Updating MySQL data for IRDB %s" % self.name)
-    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
+    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass,
+                         conv = sql_conversions)
     cur = db.cursor()
     db.autocommit(True)
     cur.execute("DELETE FROM registrant_asn")
@@ -760,7 +786,7 @@ class allocation(object):
           cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))
         for v6_range in kid.resources.v6:
           cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
-        cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until.to_sql(), registrant_id))
+        cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until, registrant_id))
       for r in s.roa_requests:
         cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (s.name, r.asn))
         roa_request_id = cur.lastrowid
@@ -782,17 +808,18 @@ class allocation(object):
     """
     Kill daemons for this entity.
     """
-    rpki.log.info("Killing daemons for %s" % self.name)
-    try:
-      for proc in (self.rpkid_process, self.irdbd_process):
+    # pylint: disable=E1103
+    for proc, name in ((self.rpkid_process, "rpkid"),
+                       (self.irdbd_process, "irdbd")):
+      if proc is not None and proc.poll() is None:
+        rpki.log.info("Killing daemon %s pid %s for %s" % (name, proc.pid, self.name))
         try:
-          rpki.log.info("Killing pid %d" % proc.pid)
-          os.kill(proc.pid, signal.SIGTERM)
+          proc.terminate()
         except OSError:
           pass
-        proc.wait()
-    except AttributeError:
-      pass
+      if proc is not None:
+        rpki.log.info("Daemon %s pid %s for %s exited with code %s" % (
+          name, proc.pid, self.name, proc.wait()))
 
   def call_rpkid(self, pdus, cb):
     """
@@ -1140,7 +1167,7 @@ def setup_rootd(rpkid, rootd_yaml):
   f.close()
   s = "exec >/dev/null 2>&1\n"
   #s = "set -x\n"
-  if not os.path.exists(rootd_name + ".key"):
+  if not os.path.exists("root.key"):
     s += rootd_fmt_2 % d
   s += rootd_fmt_3 % d
   subprocess.check_call(s, shell = True)
@@ -1175,15 +1202,15 @@ def setup_publication(pubd_sql):
   Set up publication daemon.
   """
   rpki.log.info("Configure publication daemon")
-  pubd_dir = os.getcwd() + "/publication/"
+  publication_dir = os.getcwd() + "/publication"
   assert rootd_sia.startswith("rsync://")
-  i = 0
-  for j in xrange(4):
-    i = rootd_sia.index("/", i + 1)
   global rsyncd_dir
-  rsyncd_dir = pubd_dir.rstrip("/") + rootd_sia[i:]
-  os.makedirs(rsyncd_dir)
-  db = MySQLdb.connect(db = pubd_db_name, user = pubd_db_user, passwd = pubd_db_pass)
+  rsyncd_dir = publication_dir + "/".join(rootd_sia.split("/")[4:])
+  if not rsyncd_dir.endswith("/"):
+    rsyncd_dir += "/"
+  os.makedirs(rsyncd_dir + "root/trunk")
+  db = MySQLdb.connect(db = pubd_db_name, user = pubd_db_user, passwd = pubd_db_pass,
+                       conv = sql_conversions)
   cur = db.cursor()
   db.autocommit(True)
   for sql in pubd_sql:
@@ -1198,7 +1225,7 @@ def setup_publication(pubd_sql):
         "pubd_db_name" : pubd_db_name,
         "pubd_db_user" : pubd_db_user,
         "pubd_db_pass" : pubd_db_pass,
-        "pubd_dir"     : pubd_dir }
+        "pubd_dir"     : rsyncd_dir }
   f = open(pubd_name + ".conf", "w")
   f.write(pubd_fmt_1 % d)
   f.close()
@@ -1432,21 +1459,21 @@ child-bpki-cert         = %(rootd_name)s-TA-%(rpkid_name)s-SELF.cer
 
 server-port             = %(rootd_port)s
 
-rpki-root-dir           = %(rsyncd_dir)s
-rpki-base-uri           = %(rootd_sia)s
-rpki-root-cert-uri      = %(rootd_sia)s%(rootd_name)s.cer
+rpki-root-dir           = %(rsyncd_dir)sroot
+rpki-base-uri           = %(rootd_sia)sroot/
+rpki-root-cert-uri      = %(rootd_sia)sroot.cer
 
-rpki-root-key           = %(rootd_name)s.key
-rpki-root-cert          = %(rootd_name)s.cer
+rpki-root-key           = root.key
+rpki-root-cert          = root.cer
 
 rpki-subject-pkcs10     = %(rootd_name)s.subject.pkcs10
 rpki-subject-lifetime   = %(lifetime)s
 
-rpki-root-crl           = Bandicoot.crl
-rpki-root-manifest      = Bandicoot.mft
+rpki-root-crl           = root.crl
+rpki-root-manifest      = root.mft
 
-rpki-class-name         = Wombat
-rpki-subject-cert       = Wombat.cer
+rpki-class-name         = trunk
+rpki-subject-cert       = trunk.cer
 
 include-bpki-crl        = yes
 enable_tracebacks       = yes
@@ -1455,7 +1482,6 @@ enable_tracebacks       = yes
 default_bits            = 2048
 encrypt_key             = no
 distinguished_name      = req_dn
-#req_extensions          = req_x509_ext
 prompt                  = no
 default_md              = sha256
 default_days            = 60
@@ -1472,7 +1498,7 @@ authorityKeyIdentifier  = keyid:always
 basicConstraints        = critical,CA:true
 subjectKeyIdentifier    = hash
 keyUsage                = critical,keyCertSign,cRLSign
-subjectInfoAccess       = 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)s,1.3.6.1.5.5.7.48.10;URI:%(rootd_sia)sBandicoot.mft
+subjectInfoAccess       = 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)sroot/,1.3.6.1.5.5.7.48.10;URI:%(rootd_sia)sroot/root.mft
 sbgp-autonomousSysNum   = critical,AS:0-4294967295
 sbgp-ipAddrBlock        = critical,IPv4:0.0.0.0/0,IPv6:0::/0
 certificatePolicies     = critical, @rpki_certificate_policy
@@ -1483,17 +1509,17 @@ policyIdentifier = 1.3.6.1.5.5.7.14.2
 '''
 
 rootd_fmt_2 = '''\
-%(openssl)s genrsa -out %(rootd_name)s.key 2048 &&
+%(openssl)s genrsa -out root.key 2048 &&
 '''
 
 rootd_fmt_3 = '''\
-echo >%(rootd_name)s.tal %(rootd_sia)s%(rootd_name)s.cer &&
+echo >%(rootd_name)s.tal %(rootd_sia)sroot.cer &&
 echo >>%(rootd_name)s.tal &&
-%(openssl)s rsa -pubout -in %(rootd_name)s.key | awk '!/-----(BEGIN|END)/' >>%(rootd_name)s.tal &&
-%(openssl)s req -new -sha256 -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text -extensions req_x509_rpki_ext &&
-%(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_rpki_ext \
-                      -signkey %(rootd_name)s.key &&
-ln -f %(rootd_name)s.cer  %(rsyncd_dir)s
+%(openssl)s rsa -pubout -in root.key | awk '!/-----(BEGIN|END)/' >>%(rootd_name)s.tal &&
+%(openssl)s req -new -sha256 -key root.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text -extensions req_x509_rpki_ext &&
+%(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out root.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_rpki_ext \
+                      -signkey root.key &&
+ln -f root.cer %(rsyncd_dir)s
 '''
 
 rcynic_fmt_1 = '''\
@@ -1504,7 +1530,6 @@ use-links               = yes
 use-syslog              = no
 use-stderr              = yes
 log-level               = log_debug
-#trust-anchor            = %(rootd_name)s.cer
 trust-anchor-locator    = %(rootd_name)s.tal
 '''
 

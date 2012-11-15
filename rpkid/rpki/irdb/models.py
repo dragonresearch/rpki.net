@@ -7,7 +7,7 @@ Django GUI code, so be careful.
 
 $Id$
 
-Copyright (C) 2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -22,12 +22,14 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+# pylint: disable=W0232
+
 import django.db.models
 import rpki.x509
 import rpki.sundial
 import rpki.resource_set
-import rpki.ipaddrs
 import socket
+import rpki.POW
 from south.modelsinspector import add_introspection_rules
 
 ## @var ip_version_choices
@@ -65,7 +67,6 @@ class HandleField(django.db.models.CharField):
     kwargs["max_length"] = 120
     django.db.models.CharField.__init__(self, *args, **kwargs)
 
-
 class EnumField(django.db.models.PositiveSmallIntegerField):
   """
   An enumeration type that uses strings in Python and small integers
@@ -99,14 +100,14 @@ class SundialField(django.db.models.DateTimeField):
 
   def to_python(self, value):
     if isinstance(value, rpki.sundial.pydatetime.datetime):
-      return rpki.sundial.datetime.fromdatetime(
+      return rpki.sundial.datetime.from_datetime(
         django.db.models.DateTimeField.to_python(self, value))
     else:
       return value
 
   def get_prep_value(self, value):
     if isinstance(value, rpki.sundial.datetime):
-      return value.to_sql()
+      return value.to_datetime()
     else:
       return value
 
@@ -297,7 +298,7 @@ class CA(django.db.models.Model):
     return result
 
   def revoke(self, cert):
-    Revocations.objects.create(
+    Revocation.objects.create(
       issuer  = self,
       revoked = rpki.sundial.now(),
       serial  = cert.certificate.getSerial(),
@@ -308,8 +309,7 @@ class CA(django.db.models.Model):
   def generate_crl(self):
     now = rpki.sundial.now()
     self.revocations.filter(expires__lt = now).delete()
-    revoked = [(r.serial, rpki.sundial.datetime.fromdatetime(r.revoked).toASN1tuple(), ())
-               for r in self.revocations.all()]
+    revoked = [(r.serial, r.revoked) for r in self.revocations.all()]
     self.latest_crl = rpki.x509.CRL.generate(
       keypair = self.private_key,
       issuer  = self.certificate,
@@ -332,7 +332,7 @@ class ServerCA(CA):
     if self.certificate is not None:
       return self.certificate.getSubject()
     else:
-      return rpki.x509.X501DN("%s BPKI server CA" % socket.gethostname())
+      return rpki.x509.X501DN.from_cn("%s BPKI server CA" % socket.gethostname())
 
 class ResourceHolderCA(CA):
   handle = HandleField(unique = True)
@@ -346,7 +346,7 @@ class ResourceHolderCA(CA):
     if self.certificate is not None:
       return self.certificate.getSubject()
     else:
-      return rpki.x509.X501DN("%s BPKI resource CA" % self.handle)
+      return rpki.x509.X501DN.from_cn("%s BPKI resource CA" % self.handle)
 
 class Certificate(django.db.models.Model):
 
@@ -435,7 +435,8 @@ class ServerEE(EECertificate):
 
   @property
   def subject_name(self):
-    return rpki.x509.X501DN("%s BPKI %s EE" % (socket.gethostname(), self.get_purpose_display()))
+    return rpki.x509.X501DN.from_cn("%s BPKI %s EE" % (socket.gethostname(),
+                                                       self.get_purpose_display()))
 
 class Referral(EECertificate):
   issuer = django.db.models.OneToOneField(ResourceHolderCA, related_name = "referral_certificate")
@@ -443,7 +444,7 @@ class Referral(EECertificate):
 
   @property
   def subject_name(self):
-    return rpki.x509.X501DN("%s BPKI Referral EE" % self.issuer.handle)
+    return rpki.x509.X501DN.from_cn("%s BPKI Referral EE" % self.issuer.handle)
 
 class Turtle(django.db.models.Model):
   service_uri = django.db.models.CharField(max_length = 255)
@@ -454,7 +455,7 @@ class Rootd(EECertificate, Turtle):
 
   @property
   def subject_name(self):
-    return rpki.x509.X501DN("%s BPKI rootd EE" % self.issuer.handle)
+    return rpki.x509.X501DN.from_cn("%s BPKI rootd EE" % self.issuer.handle)
 
 class BSC(Certificate):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "bscs")
@@ -478,12 +479,22 @@ class Child(CrossCertification):
 
   @property
   def resource_bag(self):
+    child_asn = rpki.irdb.ChildASN.objects.raw("""
+        SELECT *
+        FROM irdb_childasn
+        WHERE child_id = %s
+        """, [self.id])
+    child_net = list(rpki.irdb.ChildNet.objects.raw("""
+        SELECT *
+        FROM irdb_childnet
+        WHERE child_id = %s
+        """, [self.id]))
     asns = rpki.resource_set.resource_set_as.from_django(
-      (a.start_as, a.end_as) for a in self.asns.all())
+      (a.start_as, a.end_as) for a in child_asn)
     ipv4 = rpki.resource_set.resource_set_ipv4.from_django(
-      (a.start_ip, a.end_ip) for a in self.address_ranges.filter(version = 'IPv4'))
+      (a.start_ip, a.end_ip) for a in child_net if a.version == "IPv4")
     ipv6 = rpki.resource_set.resource_set_ipv6.from_django(
-      (a.start_ip, a.end_ip) for a in self.address_ranges.filter(version = 'IPv6'))
+      (a.start_ip, a.end_ip) for a in child_net if a.version == "IPv6")
     return rpki.resource_set.resource_bag(
       valid_until = self.valid_until, asn = asns, v4 = ipv4, v6 = ipv6)
 
@@ -556,9 +567,9 @@ class ROARequestPrefix(django.db.models.Model):
 
   def as_roa_prefix(self):
     if self.version == 'IPv4':
-      return rpki.resource_set.roa_prefix_ipv4(rpki.ipaddrs.v4addr(self.prefix), self.prefixlen, self.max_prefixlen)
+      return rpki.resource_set.roa_prefix_ipv4(rpki.POW.IPAddress(self.prefix), self.prefixlen, self.max_prefixlen)
     else:
-      return rpki.resource_set.roa_prefix_ipv6(rpki.ipaddrs.v6addr(self.prefix), self.prefixlen, self.max_prefixlen)
+      return rpki.resource_set.roa_prefix_ipv6(rpki.POW.IPAddress(self.prefix), self.prefixlen, self.max_prefixlen)
 
   def as_resource_range(self):
     return self.as_roa_prefix().to_resource_range()
@@ -590,7 +601,6 @@ class Client(CrossCertification):
   # This shouldn't be necessary
   class Meta:
     unique_together = ("issuer", "handle")
-
 
 # for Django South -- these are just simple subclasses
 add_introspection_rules([],

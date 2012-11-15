@@ -28,7 +28,7 @@ clean:
 	rm -f ${BIN}
 
 install: all
-	${INSTALL} -d ${DESTDIR}${bindir}
+	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -d ${DESTDIR}${bindir}; fi
 	${INSTALL} ${BIN} ${DESTDIR}${bindir}/${BIN}
 
 deinstall uninstall:

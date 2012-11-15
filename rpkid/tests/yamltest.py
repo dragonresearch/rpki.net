@@ -15,7 +15,7 @@ Still to do:
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -42,19 +42,31 @@ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
 LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
-
 """
 
-import subprocess, re, os, getopt, sys, yaml, signal, time
-import rpki.resource_set, rpki.sundial, rpki.config, rpki.log
-import rpki.csv_utils, rpki.x509
+# pylint: disable=W0702,W0621
+
+import subprocess
+import re
+import os
+import getopt
+import sys
+import yaml
+import signal
+import time
+import rpki.resource_set
+import rpki.sundial
+import rpki.config
+import rpki.log
+import rpki.csv_utils
+import rpki.x509
 
 # Nasty regular expressions for parsing config files.  Sadly, while
 # the Python ConfigParser supports writing config files, it does so in
 # such a limited way that it's easier just to hack this ourselves.
 
-section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
-variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
+section_regexp = re.compile(r"\s*\[\s*(.+?)\s*\]\s*$")
+variable_regexp = re.compile(r"\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
 
 def cleanpath(*names):
   """
@@ -99,11 +111,11 @@ class roa_request(object):
       return "%s: %s" % (self.asn, self.v4 or self.v6)
 
   @classmethod
-  def parse(cls, yaml):
+  def parse(cls, y):
     """
     Parse a ROA request from YAML format.
     """
-    return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"))
+    return cls(y.get("asn"), y.get("ipv4"), y.get("ipv6"))
     
 class allocation_db(list):
   """
@@ -121,12 +133,6 @@ class allocation_db(list):
     if self.root.base.valid_until is None:
       self.root.base.valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 2)
     for a in self:
-      if a.sia_base is None:
-        if a.runs_pubd:
-          base = "rsync://localhost:%d/rpki/" % a.rsync_port
-        else:
-          base = a.parent.sia_base
-        a.sia_base = base + a.name + "/"
       if a.base.valid_until is None:
         a.base.valid_until = a.parent.base.valid_until
       if a.crl_interval is None:
@@ -168,6 +174,7 @@ class allocation(object):
   pubd_port     = -1
   rsync_port    = -1
   rootd_port    = -1
+  rpkic_counter = 0L
 
   @classmethod
   def allocate_port(cls):
@@ -195,7 +202,7 @@ class allocation(object):
     self.kids = [allocation(k, db, self) for k in yaml.get("kids", ())]
     valid_until = None
     if "valid_until" in yaml:
-      valid_until = rpki.sundial.datetime.fromdatetime(yaml.get("valid_until"))
+      valid_until = rpki.sundial.datetime.from_datetime(yaml.get("valid_until"))
     if valid_until is None and "valid_for" in yaml:
       valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(yaml["valid_for"])
     self.base = rpki.resource_set.resource_bag(
@@ -203,7 +210,6 @@ class allocation(object):
       v4 = rpki.resource_set.resource_set_ipv4(yaml.get("ipv4")),
       v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")),
       valid_until = valid_until)
-    self.sia_base = yaml.get("sia_base")
     if "crl_interval" in yaml:
       self.crl_interval = rpki.sundial.timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
     if "regen_margin" in yaml:
@@ -211,9 +217,9 @@ class allocation(object):
     self.roa_requests = [roa_request.parse(y) for y in yaml.get("roa_request", yaml.get("route_origin", ()))]
     for r in self.roa_requests:
       if r.v4:
-        self.base.v4 = self.base.v4.union(r.v4.to_resource_set())
+        self.base.v4 |= r.v4.to_resource_set()
       if r.v6:
-        self.base.v6 = self.base.v6.union(r.v6.to_resource_set())
+        self.base.v6 |= r.v6.to_resource_set()
     self.hosted_by = yaml.get("hosted_by")
     self.hosts = []
     if not self.is_hosted:
@@ -233,7 +239,7 @@ class allocation(object):
     """
     resources = self.base
     for kid in self.kids:
-      resources = resources.union(kid.closure())
+      resources |= kid.closure()
     self.resources = resources
     return resources
 
@@ -250,7 +256,6 @@ class allocation(object):
     if self.resources.v6:       s += "  IPv6: %s\n" % self.resources.v6
     if self.kids:               s += "  Kids: %s\n" % ", ".join(k.name for k in self.kids)
     if self.parent:             s += "    Up: %s\n" % self.parent.name
-    if self.sia_base:           s += "   SIA: %s\n" % self.sia_base
     if self.is_hosted:          s += "  Host: %s\n" % self.hosted_by.name
     if self.hosts:              s += " Hosts: %s\n" % ", ".join(h.name for h in self.hosts)
     for r in self.roa_requests: s += "   ROA: %s\n" % r
@@ -300,41 +305,48 @@ class allocation(object):
     """
     Construct service URL for this node's parent.
     """
-    parent_port = self.parent.hosted_by.rpkid_port if self.parent.is_hosted else self.parent.rpkid_port
-    return "http://localhost:%d/up-down/%s/%s" % (parent_port, self.parent.name, self.name)
+    return "http://localhost:%d/up-down/%s/%s" % (self.parent.host.rpkid_port,
+                                                  self.parent.name,
+                                                  self.name)
 
-  def dump_asns(self, fn, skip_rpkic = False):
+  def dump_asns(self):
     """
     Write Autonomous System Numbers CSV file.
     """
-    f = self.csvout(fn)
-    for k in self.kids:    
-      f.writerows((k.name, a) for a in k.resources.asn)
-    f.close()
-    if not skip_rpkic:
+    fn = "%s.asns.csv" % d.name
+    if not skip_config:
+      f = self.csvout(fn)
+      for k in self.kids:    
+        f.writerows((k.name, a) for a in k.resources.asn)
+      f.close()
+    if not stop_after_config:
       self.run_rpkic("load_asns", fn)
 
-  def dump_prefixes(self, fn, skip_rpkic = False):
+  def dump_prefixes(self):
     """
     Write prefixes CSV file.
     """
-    f = self.csvout(fn)
-    for k in self.kids:
-      f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
-    f.close()
-    if not skip_rpkic:
+    fn = "%s.prefixes.csv" % d.name
+    if not skip_config:
+      f = self.csvout(fn)
+      for k in self.kids:
+        f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
+      f.close()
+    if not stop_after_config:
       self.run_rpkic("load_prefixes", fn)
 
-  def dump_roas(self, fn, skip_rpkic = False):
+  def dump_roas(self):
     """
     Write ROA CSV file.
     """
-    f = self.csvout(fn)
-    for g1, r in enumerate(self.roa_requests):
-      f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
-                  for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
-    f.close()
-    if not skip_rpkic:
+    fn = "%s.roas.csv" % d.name
+    if not skip_config:
+      f = self.csvout(fn)
+      for g1, r in enumerate(self.roa_requests):
+        f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
+                    for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
+      f.close()
+    if not stop_after_config:
       self.run_rpkic("load_roa_requests", fn)
 
   @property
@@ -365,7 +377,7 @@ class allocation(object):
   def host(self):
     return self.hosted_by or self
 
-  def dump_conf(self, fn):
+  def dump_conf(self):
     """
     Write configuration file for OpenSSL and RPKI tools.
     """
@@ -392,7 +404,7 @@ class allocation(object):
     
     r.update(config_overrides)
 
-    f = open(self.path(fn), "w")
+    f = open(self.path("rpki.conf"), "w")
     f.write("# Automatically generated, do not edit\n")
     print "Writing", f.name
 
@@ -409,13 +421,13 @@ class allocation(object):
 
     f.close()
 
-  def dump_rsyncd(self, fn):
+  def dump_rsyncd(self):
     """
     Write rsyncd configuration file.
     """
 
     if self.runs_pubd:
-      f = open(self.path(fn), "w")
+      f = open(self.path("rsyncd.conf"), "w")
       print "Writing", f.name
       f.writelines(s + "\n" for s in
                    ("# Automatically generated, do not edit",
@@ -426,8 +438,19 @@ class allocation(object):
                     "read only    = yes",
                     "use chroot   = no",
                     "path         = %s"           % self.path("publication"),
-                    "comment      = RPKI test"))
+                    "comment      = RPKI test",
+                    "[root]",
+                    "log file     = rsyncd_root.log",
+                    "read only    = yes",
+                    "use chroot   = no",
+                    "path         = %s"           % self.path("publication.root"),
+                    "comment      = RPKI test root"))
       f.close()
+
+  @classmethod
+  def next_rpkic_counter(cls):
+    cls.rpkic_counter += 10000
+    return str(cls.rpkic_counter)
 
   def run_rpkic(self, *args):
     """
@@ -439,7 +462,9 @@ class allocation(object):
       cmd.append(self.path("rpkic.%s.prof" % rpki.sundial.now()))
     cmd.extend(a for a in args if a is not None)
     print 'Running "%s"' % " ".join(cmd)
-    subprocess.check_call(cmd, cwd = self.host.path())
+    env = os.environ.copy()
+    env["YAMLTEST_RPKIC_COUNTER"] = self.next_rpkic_counter()
+    subprocess.check_call(cmd, cwd = self.host.path(), env = env)
 
   def run_python_daemon(self, prog):
     """
@@ -502,10 +527,12 @@ skip_config = False
 flat_publication = False
 profile = False
 stop_after_config = False
+synchronize = False
 
 opts, argv = getopt.getopt(sys.argv[1:], "c:fhkp:?",
-                           ["config=", "flat_publication", "help", "keep_going",
-                            "pidfile=", "skip_config", "stop_after_config", "profile"])
+                           ["config=", "flat_publication", "help",
+                            "keep_going", "pidfile=", "profile",
+                            "skip_config", "stop_after_config", "synchronize"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
@@ -522,6 +549,8 @@ for o, a in opts:
     skip_config = True
   elif o == "--stop_after_config":
     stop_after_config = True
+  elif o == "--synchronize":
+    synchronize = True
   elif o == "--profile":
     profile = True
 
@@ -556,13 +585,14 @@ try:
               "rpkid_sql_username", "irdbd_sql_username", "pubd_sql_username")
     if cfg.has_option(k))
 
-  # Start clean
+  # Start clean, maybe
 
-  for root, dirs, files in os.walk(test_dir, topdown = False):
-    for file in files:
-      os.unlink(os.path.join(root, file))
-    for dir in dirs:
-      os.rmdir(os.path.join(root, dir))
+  if not skip_config:
+    for root, dirs, files in os.walk(test_dir, topdown = False):
+      for fn in files:
+        os.unlink(os.path.join(root, fn))
+      for d in dirs:
+        os.rmdir(os.path.join(root, d))
 
   # Read first YAML doc in file and process as compact description of
   # test layout and resource allocations.  Ignore subsequent YAML docs,
@@ -574,62 +604,69 @@ try:
 
   #db.dump()
 
-  # Set up each entity in our test
+  if skip_config:
 
-  for d in db:
-    if not d.is_hosted:
-      os.makedirs(d.path())
-      d.dump_conf("rpki.conf")
-    if d.runs_pubd:
-      d.dump_rsyncd("rsyncd.conf")
+    print "Skipping pre-daemon configuration, assuming you already did that"
+    
+  else:
 
-  # Initialize BPKI and generate self-descriptor for each entity.
+    # Set up each entity in our test
 
-  for d in db:
-    d.run_rpkic("initialize")
+    for d in db:
+      if not d.is_hosted:
+        os.makedirs(d.path())
+        d.dump_conf()
+      if d.runs_pubd:
+        d.dump_rsyncd()
 
-  # Create publication directories.
+    # Initialize BPKI and generate self-descriptor for each entity.
 
-  for d in db:
-    if d.is_root or d.runs_pubd:
-      os.makedirs(d.path("publication"))
+    for d in db:
+      d.run_rpkic("initialize")
 
-  # Create RPKI root certificate.
+    # Create publication directories.
 
-  print "Creating rootd RPKI root certificate"
+    for d in db:
+      if d.runs_pubd:
+        os.makedirs(d.path("publication"))
+      if d.is_root:
+        os.makedirs(d.path("publication.root"))
 
-  root_resources = rpki.resource_set.resource_bag(
-    asn = rpki.resource_set.resource_set_as("0-4294967295"),
-    v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
-    v6  = rpki.resource_set.resource_set_ipv6("::/0"))
+    # Create RPKI root certificate.
 
-  root_key = rpki.x509.RSA.generate(quiet = True)
+    print "Creating rootd RPKI root certificate"
 
-  root_uri = "rsync://localhost:%d/rpki/" % db.root.pubd.rsync_port
+    root_resources = rpki.resource_set.resource_bag(
+      asn = rpki.resource_set.resource_set_as("0-4294967295"),
+      v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
+      v6  = rpki.resource_set.resource_set_ipv6("::/0"))
 
-  root_sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", root_uri)),
-              (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", root_uri + "root.mnf")))
+    root_key = rpki.x509.RSA.generate(quiet = True)
 
-  root_cert = rpki.x509.X509.self_certify(
-    keypair     = root_key,
-    subject_key = root_key.get_RSApublic(),
-    serial      = 1,
-    sia         = root_sia,
-    notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
-    resources   = root_resources)
+    root_uri = "rsync://localhost:%d/rpki/" % db.root.pubd.rsync_port
 
-  f = open(db.root.path("publication/root.cer"), "wb")
-  f.write(root_cert.get_DER())
-  f.close()
+    root_sia = (root_uri, root_uri + "root.mft", None)
 
-  f = open(db.root.path("root.key"), "wb")
-  f.write(root_key.get_DER())
-  f.close()
+    root_cert = rpki.x509.X509.self_certify(
+      keypair     = root_key,
+      subject_key = root_key.get_RSApublic(),
+      serial      = 1,
+      sia         = root_sia,
+      notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
+      resources   = root_resources)
 
-  f = open(os.path.join(test_dir, "root.tal"), "w")
-  f.write(root_uri + "root.cer\n")
-  f.write(root_key.get_RSApublic().get_Base64())
-  f.close()
+    f = open(db.root.path("publication.root/root.cer"), "wb")
+    f.write(root_cert.get_DER())
+    f.close()
+
+    f = open(db.root.path("root.key"), "wb")
+    f.write(root_key.get_DER())
+    f.close()
+
+    f = open(os.path.join(test_dir, "root.tal"), "w")
+    f.write("rsync://localhost:%d/root/root.cer\n\n" % db.root.pubd.rsync_port)
+    f.write(root_key.get_RSApublic().get_Base64())
+    f.close()
 
   # From here on we need to pay attention to initialization order.  We
   # used to do all the pre-configure_daemons stuff before running any
@@ -643,16 +680,16 @@ try:
 
     for d in db:
 
-      print
-      print "Running daemons for", d.name
-      if d.is_root:
-        progs.append(d.run_rootd())
       if not d.is_hosted:
+        print
+        print "Running daemons for", d.name
+        if d.is_root:
+          progs.append(d.run_rootd())
         progs.append(d.run_irdbd())
         progs.append(d.run_rpkid())
-      if d.runs_pubd:
-        progs.append(d.run_pubd())
-        progs.append(d.run_rsyncd())
+        if d.runs_pubd:
+          progs.append(d.run_pubd())
+          progs.append(d.run_rsyncd())
 
     print
     print "Giving daemons time to start up"
@@ -661,7 +698,7 @@ try:
 
     if skip_config:
 
-      print "Skipping configure_*, you'll have to do that yourself"
+      print "Skipping configure_*, you'll have to do that yourself if needed"
 
     else:
 
@@ -670,7 +707,7 @@ try:
         print
         print "Configuring", d.name
         print
-        if  d.is_root:
+        if d.is_root:
           assert not d.is_hosted
           d.run_rpkic("configure_publication_client",
                       "--flat" if flat_publication else None,
@@ -693,22 +730,31 @@ try:
                       d.pubd.path("%s.repository-response.xml" % d.client_handle))
           print
 
-    print
-    print "Loading CSV files"
-    print
+      print
+      print "Done with initial configuration"
+      print
 
-    for d in db:
-      d.dump_asns("%s.asns.csv" % d.name, stop_after_config)
-      d.dump_prefixes("%s.prefixes.csv" % d.name, stop_after_config)
-      d.dump_roas("%s.roas.csv" % d.name, stop_after_config)
+    if synchronize:
+      print
+      print "Synchronizing"
+      print
+      for d in db:
+        if not d.is_hosted:
+          d.run_rpkic("synchronize")
 
-    print
-    print "Done with initial configuration"
-    print
+    if synchronize or not skip_config:
+      print
+      print "Loading CSV files"
+      print
+      for d in db:
+        d.dump_asns()
+        d.dump_prefixes()
+        d.dump_roas()
 
     # Wait until something terminates.
 
     if not stop_after_config:
+      print
       print "Waiting for daemons to exit"
       signal.signal(signal.SIGCHLD, lambda *dont_care: None)
       while (any(p.poll() is None for p in progs)
@@ -723,9 +769,31 @@ try:
     print
 
     signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
+    if profile:
+      how_long = 300
+    else:
+      how_long =  30
+
+    how_often = how_long / 2
+
+    for i in xrange(how_long):
+      if i % how_often == 0:
+        for p in progs:
+          if p.poll() is None:
+            print "Politely nudging pid %d" % p.pid
+            p.terminate()
+        print
+      if all(p.poll() is not None for p in progs):
+        break
+      time.sleep(1)
+
     for p in progs:
       if p.poll() is None:
-        os.kill(p.pid, signal.SIGTERM)
+        print "Pulling the plug on pid %d" % p.pid
+        p.kill()
+
+    for p in progs:
       print "Program pid %d %r returned %d" % (p.pid, p, p.wait())
 
 finally:

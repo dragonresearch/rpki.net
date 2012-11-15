@@ -39,16 +39,10 @@ PERFORMANCE OF THIS SOFTWARE.
 # modules, or anything that imports Django modules.  Bottom line is
 # that we don't import such modules until we need them.
 
-import csv
-import re
 import os
 import getopt
 import sys
-import base64
 import time
-import glob
-import copy
-import warnings
 import rpki.config
 import rpki.cli
 import rpki.sundial
@@ -116,7 +110,7 @@ class main(rpki.cli.Cmd):
     rpki.cli.Cmd.__init__(self, self.argv)
 
   def read_config(self):
-    global rpki
+    global rpki                         # pylint: disable=W0602
 
     cfg = rpki.config.parser(self.cfg_file, "myrpki")
     cfg.set_global_flags()
@@ -137,7 +131,7 @@ class main(rpki.cli.Cmd):
       INSTALLED_APPS = ("rpki.irdb",),
     )
 
-    import rpki.irdb
+    import rpki.irdb                    # pylint: disable=W0621
 
     try:
       rpki.irdb.models.ca_certificate_lifetime = rpki.sundial.timedelta.parse(
@@ -228,6 +222,7 @@ class main(rpki.cli.Cmd):
 
     self.zoo.update_bpki()
     self.zoo.write_bpki_files()
+    self.zoo.synchronize()
 
 
   def do_configure_child(self, arg):
@@ -252,7 +247,7 @@ class main(rpki.cli.Cmd):
 
     r, child_handle = self.zoo.configure_child(argv[0], child_handle)
     r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), sys.stdout)
-    self.zoo.synchronize()
+    self.zoo.synchronize_ca()
 
 
   def do_delete_child(self, arg):
@@ -262,7 +257,7 @@ class main(rpki.cli.Cmd):
 
     try:
       self.zoo.delete_child(arg)
-      self.zoo.synchronize()
+      self.zoo.synchronize_ca()
     except rpki.irdb.Child.DoesNotExist:
       print "No such child \"%s\"" % arg
 
@@ -309,7 +304,7 @@ class main(rpki.cli.Cmd):
 
     try:
       self.zoo.delete_parent(arg)
-      self.zoo.synchronize()
+      self.zoo.synchronize_ca()
     except rpki.irdb.Parent.DoesNotExist:
       print "No such parent \"%s\"" % arg
 
@@ -324,7 +319,7 @@ class main(rpki.cli.Cmd):
 
     try:
       self.zoo.delete_rootd()
-      self.zoo.synchronize()
+      self.zoo.synchronize_ca()
     except rpki.irdb.Rootd.DoesNotExist:
       print "No associated rootd"
 
@@ -355,7 +350,7 @@ class main(rpki.cli.Cmd):
     r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
 
     try:
-      self.zoo.synchronize()
+      self.zoo.synchronize_pubd()
     except rpki.irdb.Repository.DoesNotExist:
       pass
 
@@ -367,7 +362,7 @@ class main(rpki.cli.Cmd):
 
     try:
       self.zoo.delete_publication_client(arg).delete()
-      self.zoo.synchronize()
+      self.zoo.synchronize_pubd()
     except rpki.irdb.Client.DoesNotExist:
       print "No such client \"%s\"" % arg
 
@@ -396,7 +391,7 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax, "Need to specify filename for repository.xml on command line"
 
     self.zoo.configure_repository(argv[0], parent_handle)
-    self.zoo.synchronize()
+    self.zoo.synchronize_ca()
 
   def do_delete_repository(self, arg):
     """
@@ -408,7 +403,7 @@ class main(rpki.cli.Cmd):
 
     try:
       self.zoo.delete_repository(arg)
-      self.zoo.synchronize()
+      self.zoo.synchronize_ca()
     except rpki.irdb.Repository.DoesNotExist:
       print "No such repository \"%s\"" % arg
 
@@ -422,7 +417,7 @@ class main(rpki.cli.Cmd):
     """
 
     self.zoo.delete_self()
-    self.zoo.synchronize()
+    self.zoo.synchronize_deleted_ca()
 
 
   def do_renew_child(self, arg):
@@ -441,7 +436,9 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax, "Need to specify child handle"
 
     self.zoo.renew_children(argv[0], valid_until)
-    self.zoo.synchronize(self.zoo.handle)
+    self.zoo.synchronize_ca()
+    if self.autosync:
+      self.zoo.run_rpkid_now()
 
   def complete_renew_child(self, *args):
     return self.irdb_handle_complete(self.zoo.resource_ca.children, *args)
@@ -463,7 +460,9 @@ class main(rpki.cli.Cmd):
       raise BadCommandSyntax, "Unexpected arguments"
 
     self.zoo.renew_children(None, valid_until)
-    self.zoo.synchronize(self.zoo.handle)
+    self.zoo.synchronize_ca()
+    if self.autosync:
+      self.zoo.run_rpkid_now()
 
 
   def do_load_prefixes(self, arg):
@@ -478,7 +477,7 @@ class main(rpki.cli.Cmd):
 
     self.zoo.load_prefixes(argv[0], True)
     if self.autosync:
-      self.zoo.synchronize(self.zoo.handle)
+      self.zoo.run_rpkid_now()
 
 
   def do_show_child_resources(self, arg):
@@ -513,7 +512,7 @@ class main(rpki.cli.Cmd):
 
     self.zoo.load_asns(argv[0], True)
     if self.autosync:
-      self.zoo.synchronize(self.zoo.handle)
+      self.zoo.run_rpkid_now()
 
 
   def do_load_roa_requests(self, arg):
@@ -528,7 +527,7 @@ class main(rpki.cli.Cmd):
 
     self.zoo.load_roa_requests(argv[0])
     if self.autosync:
-      self.zoo.synchronize(self.zoo.handle)
+      self.zoo.run_rpkid_now()
 
 
   def do_synchronize(self, arg):
@@ -542,7 +541,7 @@ class main(rpki.cli.Cmd):
     if arg:
       raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
 
-    self.zoo.synchronize(self.zoo.handle)
+    self.zoo.synchronize()
 
 
   def do_force_publication(self, arg):

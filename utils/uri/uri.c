@@ -30,6 +30,7 @@
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
+#include <openssl/cms.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/safestack.h>
@@ -42,23 +43,44 @@ static const unsigned char id_ad_signedObject[] =           {0x2b, 0x6, 0x1, 0x5
 
 static X509 *read_cert(const char *filename, int format, int verbose)
 {
+  BIO *b = BIO_new_file(filename, "r");
+  STACK_OF(X509) *certs = NULL;
+  CMS_ContentInfo *cms = NULL;
   X509 *x = NULL;
-  BIO *b;
 
-  if ((b = BIO_new_file(filename, "r")) != NULL) {
+  if (b == NULL)
+    return NULL;
+
+  switch (format) {
+  case 'p':
+    x = PEM_read_bio_X509(b, NULL, NULL, NULL);
+    break;
+  case 'd':
+    x = d2i_X509_bio(b, NULL);
+    break;
+  }
+
+  if (x == NULL) {
+    BIO_reset(b);
     switch (format) {
     case 'p':
-      x = PEM_read_bio_X509_AUX(b, NULL, NULL, NULL);
+      cms = PEM_read_bio_CMS(b, NULL, NULL, NULL);
       break;
     case 'd':
-      x = d2i_X509_bio(b, NULL);
+      cms = d2i_CMS_bio(b, NULL);
       break;
     }
-    if (verbose && x != NULL) {
-      X509_print_fp(stdout, x);
-      printf("\n");
-    }
+    if (cms != NULL && (certs = CMS_get1_certs(cms)) != NULL)
+      x = sk_X509_shift(certs);
   }
+
+  if (x != NULL && verbose) {
+    X509_print_fp(stdout, x);
+    printf("\n");
+  }
+  
+  sk_X509_pop_free(certs, X509_free);
+  CMS_ContentInfo_free(cms);
   BIO_free(b);
   return x;
 }

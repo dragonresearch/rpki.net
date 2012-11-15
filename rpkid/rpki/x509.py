@@ -13,7 +13,7 @@ some of the nasty details.  This involves a lot of format conversion.
 $Id$
 
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -43,10 +43,21 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import rpki.POW, rpki.POW.pkix, base64, lxml.etree, os, subprocess, sys
-import email.mime.application, email.utils, mailbox, time
-import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
-import rpki.manifest, rpki.roa, rpki.log, rpki.async, rpki.ghostbuster
+import rpki.POW
+import base64
+import lxml.etree
+import os
+import subprocess
+import email.mime.application
+import email.utils
+import mailbox
+import time
+import rpki.exceptions
+import rpki.resource_set
+import rpki.oids
+import rpki.sundial
+import rpki.log
+import rpki.async
 import rpki.relaxng
 
 def base64_with_linebreaks(der):
@@ -57,17 +68,6 @@ def base64_with_linebreaks(der):
   b = base64.b64encode(der)
   n = len(b)
   return "\n" + "\n".join(b[i : min(i + 64, n)] for i in xrange(0, n, 64)) + "\n"
-
-def calculate_SKI(public_key_der):
-  """
-  Calculate the SKI value given the DER representation of a public
-  key, which requires first peeling the ASN.1 wrapper off the key.
-  """
-  k = rpki.POW.pkix.SubjectPublicKeyInfo()
-  k.fromString(public_key_der)
-  d = rpki.POW.Digest(rpki.POW.SHA1_DIGEST)
-  d.update(k.subjectPublicKey.get())
-  return d.digest()
 
 class PEM_converter(object):
   """
@@ -107,6 +107,18 @@ class PEM_converter(object):
     """
     return self.b + base64_with_linebreaks(der) + self.e + "\n"
 
+def first_rsync_uri(xia):
+  """
+  Find first rsync URI in a sequence of AIA or SIA URIs.
+  Returns the URI if found, otherwise None.
+  """
+
+  if xia is not None:
+    for uri in xia:
+      if uri.startswith("rsync://"):
+        return uri
+  return None
+
 def _find_xia_uri(extension, name):
   """
   Find a rsync URI in an SIA or AIA extension.
@@ -126,22 +138,17 @@ class X501DN(object):
   Class to hold an X.501 Distinguished Name.
 
   This is nothing like a complete implementation, just enough for our
-  purposes.  POW has one interface to this, POW.pkix has another.  In
-  terms of completeness in the Python representation, the POW.pkix
-  representation is much closer to right, but the whole thing is a
-  horrible mess.
+  purposes.  See RFC 5280 4.1.2.4 for the ASN.1 details.  In brief:
 
-  See RFC 5280 4.1.2.4 for the ASN.1 details.  In brief:
+    - A DN is a SEQUENCE OF RDNs.
 
-    - A DN is a SEQUENCE of RDNs.
-
-    - A RDN is a set of AttributeAndValues; in practice, multi-value
+    - A RDN is a SET OF AttributeAndValues; in practice, multi-value
       RDNs are rare, so an RDN is almost always a set with a single
       element.
 
-    - An AttributeAndValue is an OID and a value, where a whole bunch
-      of things including both syntax and semantics of the value are
-      determined by the OID.
+    - An AttributeAndValue is a SEQUENCE consisting of a OID and a
+      value, where a whole bunch of things including both syntax and
+      semantics of the value are determined by the OID.
 
     - The value is some kind of ASN.1 string; there are far too many
       encoding options options, most of which are either strongly
@@ -157,37 +164,43 @@ class X501DN(object):
   BPKI certificates should (we hope) follow the general PKIX guideline
   but the ones we construct ourselves are likely to be relatively
   simple.
-
-  The main purpose of this class is to hide as much as possible of
-  this mess from code that has to work with these wretched things.
   """
 
-  def __init__(self, ini = None, **kwargs):
-    assert ini is None or not kwargs
-    if len(kwargs) == 1 and "CN" in kwargs:
-      ini = kwargs.pop("CN")
-    if isinstance(ini, (str, unicode)):
-      self.dn = (((rpki.oids.name2oid["commonName"], ("printableString", ini)),),)
-    elif isinstance(ini, tuple):
-      self.dn = ini
-    elif kwargs:
-      raise NotImplementedError("Sorry, I haven't implemented keyword arguments yet")
-    elif ini is not None:
-      raise TypeError("Don't know how to interpret %r as an X.501 DN" % (ini,), ini)
-
   def __str__(self):
-    return "".join("/" + "+".join("%s=%s" % (rpki.oids.safe_oid2name(a[0]), a[1][1])
+    return "".join("/" + "+".join("%s=%s" % (rpki.oids.safe_dotted2name(a[0]), a[1])
                                   for a in rdn)
                    for rdn in self.dn)
 
   def __cmp__(self, other):
     return cmp(self.dn, other.dn)
 
-  def get_POWpkix(self):
-    return self.dn
+  def __repr__(self):
+    return rpki.log.log_repr(self, str(self))
+
+  def _debug(self):
+    if False:
+      import traceback
+      for chunk in traceback.format_stack(limit = 5):
+        for line in chunk.splitlines():
+          rpki.log.debug("== %s" % line)
+    rpki.log.debug("++ %r %r" % (self, self.dn))
+      
+  @classmethod
+  def from_cn(cls, s):
+    assert isinstance(s, (str, unicode))
+    self = cls()
+    self.dn = (((rpki.oids.safe_name2dotted("commonName"), s),),)
+    return self
+
+  @classmethod
+  def from_POW(cls, t):
+    assert isinstance(t, tuple)
+    self = cls()
+    self.dn = t
+    return self
 
   def get_POW(self):
-    raise NotImplementedError("Sorry, I haven't written the conversion to POW format yet")
+    return self.dn
 
 class DER_object(object):
   """
@@ -368,57 +381,66 @@ class DER_object(object):
     Get the AKI extension from this object.  Only works for subclasses
     that support getExtension().
     """
-    aki = (self.get_POWpkix().getExtension(rpki.oids.name2oid["authorityKeyIdentifier"]) or ((), 0, None))[2]
-    return aki[0] if isinstance(aki, tuple) else aki
+    return self.get_POW().getAKI()
 
   def get_SKI(self):
     """
     Get the SKI extension from this object.  Only works for subclasses
     that support getExtension().
     """
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["subjectKeyIdentifier"]) or ((), 0, None))[2]
+    return self.get_POW().getSKI()
 
   def get_SIA(self):
     """
     Get the SIA extension from this object.  Only works for subclasses
-    that support getExtension().
+    that support getSIA().
     """
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
+    return self.get_POW().getSIA()
 
   def get_sia_directory_uri(self):
     """
     Get SIA directory (id-ad-caRepository) URI from this object.
-    Only works for subclasses that support getExtension().
+    Only works for subclasses that support getSIA().
     """
-    return _find_xia_uri(self.get_SIA(), "id-ad-caRepository")
+    sia = self.get_POW().getSIA()
+    return None if sia is None else first_rsync_uri(sia[0])
 
   def get_sia_manifest_uri(self):
     """
     Get SIA manifest (id-ad-rpkiManifest) URI from this object.
-    Only works for subclasses that support getExtension().
+    Only works for subclasses that support getSIA().
     """
-    return _find_xia_uri(self.get_SIA(), "id-ad-rpkiManifest")
+    sia = self.get_POW().getSIA()
+    return None if sia is None else first_rsync_uri(sia[1])
+
+  def get_sia_object_uri(self):
+    """
+    Get SIA object (id-ad-signedObject) URI from this object.
+    Only works for subclasses that support getSIA().
+    """
+    sia = self.get_POW().getSIA()
+    return None if sia is None else first_rsync_uri(sia[2])
 
   def get_AIA(self):
     """
     Get the SIA extension from this object.  Only works for subclasses
-    that support getExtension().
+    that support getAIA().
     """
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["authorityInfoAccess"]) or ((), 0, None))[2]
+    return self.get_POW().getAIA()
 
   def get_aia_uri(self):
     """
     Get AIA (id-ad-caIssuers) URI from this object.
-    Only works for subclasses that support getExtension().
+    Only works for subclasses that support getAIA().
     """
-    return _find_xia_uri(self.get_AIA(), "id-ad-caIssuers")
+    return first_rsync_uri(self.get_POW().getAIA())
 
   def get_basicConstraints(self):
     """
     Get the basicConstraints extension from this object.  Only works
     for subclasses that support getExtension().
     """
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["basicConstraints"]) or ((), 0, None))[2]
+    return self.get_POW().getBasicConstraints()
 
   def is_CA(self):
     """
@@ -426,14 +448,13 @@ class DER_object(object):
     extension and its cA value is true.
     """
     basicConstraints = self.get_basicConstraints()
-    return basicConstraints and basicConstraints[0] != 0
+    return basicConstraints is not None and basicConstraints[0]
 
   def get_3779resources(self):
     """
-    Get RFC 3779 resources as rpki.resource_set objects.  Only works
-    for subclasses that support getExtensions().
+    Get RFC 3779 resources as rpki.resource_set objects.
     """
-    resources = rpki.resource_set.resource_bag.from_rfc3779_tuples(self.get_POWpkix().getExtensions())
+    resources = rpki.resource_set.resource_bag.from_POW_rfc3779(self.get_POW().getRFC3779())
     try:
       resources.valid_until = self.getNotAfter()
     except AttributeError:
@@ -486,7 +507,7 @@ class DER_object(object):
       d.update(self.get_DER())
       return "%s %s %s" % (uri, self.creation_timestamp,
                            "".join(("%02X" % ord(b) for b in d.digest())))
-    except:
+    except:                             # pylint: disable=W0702
       return uri
 
 class X509(DER_object):
@@ -500,7 +521,7 @@ class X509(DER_object):
   have to care about this implementation nightmare.
   """
 
-  formats = ("DER", "POW", "POWpkix")
+  formats = ("DER", "POW")
   pem_converter = PEM_converter("CERTIFICATE")
   
   def get_DER(self):
@@ -513,9 +534,6 @@ class X509(DER_object):
     if self.POW:
       self.DER = self.POW.derWrite()
       return self.get_DER()
-    if self.POWpkix:
-      self.DER = self.POWpkix.toString()
-      return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
@@ -523,44 +541,33 @@ class X509(DER_object):
     Get the rpki.POW value of this certificate.
     """
     self.check()
-    if not self.POW:
-      self.POW = rpki.POW.derRead(rpki.POW.X509_CERTIFICATE, self.get_DER())
+    if not self.POW:                    # pylint: disable=E0203
+      self.POW = rpki.POW.X509.derRead(self.get_DER())
     return self.POW
-
-  def get_POWpkix(self):
-    """
-    Get the rpki.POW.pkix value of this certificate.
-    """
-    self.check()
-    if not self.POWpkix:
-      cert = rpki.POW.pkix.Certificate()
-      cert.fromString(self.get_DER())
-      self.POWpkix = cert
-    return self.POWpkix
 
   def getIssuer(self):
     """
     Get the issuer of this certificate.
     """
-    return X501DN(self.get_POWpkix().getIssuer())
+    return X501DN.from_POW(self.get_POW().getIssuer())
 
   def getSubject(self):
     """
     Get the subject of this certificate.
     """
-    return X501DN(self.get_POWpkix().getSubject())
+    return X501DN.from_POW(self.get_POW().getSubject())
 
   def getNotBefore(self):
     """
     Get the inception time of this certificate.
     """
-    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().tbs.validity.notBefore.get())
+    return self.get_POW().getNotBefore()
 
   def getNotAfter(self):
     """
     Get the expiration time of this certificate.
     """
-    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().tbs.validity.notAfter.get())
+    return self.get_POW().getNotAfter()
 
   def getSerial(self):
     """
@@ -572,7 +579,13 @@ class X509(DER_object):
     """
     Extract the public key from this certificate.
     """
-    return RSApublic(DER = self.get_POWpkix().tbs.subjectPublicKeyInfo.toString())
+    return RSApublic(POW = self.get_POW().getPublicKey())
+
+  def get_SKI(self):
+    """
+    Get the SKI extension from this object.
+    """
+    return self.get_POW().getSKI()
 
   def expired(self):
     """
@@ -600,7 +613,7 @@ class X509(DER_object):
       resources   = resources,
       is_ca       = is_ca,
       aki         = self.get_SKI(),
-      issuer_name = self.get_POWpkix().getSubject())
+      issuer_name = self.getSubject())
 
 
   @classmethod
@@ -611,6 +624,7 @@ class X509(DER_object):
     """
 
     ski = subject_key.get_SKI()
+
     if cn is None:
       cn = "".join(("%02X" % ord(i) for i in ski))
 
@@ -626,11 +640,11 @@ class X509(DER_object):
       resources   = resources,
       is_ca       = True,
       aki         = ski,
-      issuer_name = (((rpki.oids.name2oid["commonName"], ("printableString", cn)),),))
+      issuer_name = X501DN.from_cn(cn))
 
 
-  @staticmethod
-  def _issue(keypair, subject_key, serial, sia, aia, crldp, notAfter,
+  @classmethod
+  def _issue(cls, keypair, subject_key, serial, sia, aia, crldp, notAfter,
              cn, resources, is_ca, aki, issuer_name):
     """
     Common code to issue an RPKI certificate.
@@ -642,58 +656,50 @@ class X509(DER_object):
     if cn is None:
       cn = "".join(("%02X" % ord(i) for i in ski))
 
-    # if notAfter is None: notAfter = now + rpki.sundial.timedelta(days = 30)
+    cert = rpki.POW.X509()
 
-    cert = rpki.POW.pkix.Certificate()
     cert.setVersion(2)
     cert.setSerial(serial)
-    cert.setIssuer(issuer_name)
-    cert.setSubject((((rpki.oids.name2oid["commonName"], ("printableString", cn)),),))
-    cert.setNotBefore(now.toASN1tuple())
-    cert.setNotAfter(notAfter.toASN1tuple())
-    cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
-
-    exts = [ ["subjectKeyIdentifier",   False, ski],
-             ["authorityKeyIdentifier", False, (aki, (), None)],
-             ["certificatePolicies",    True,  ((rpki.oids.name2oid["id-cp-ipAddr-asNumber"], ()),)] ]
-
+    cert.setIssuer(issuer_name.get_POW())
+    cert.setSubject(X501DN.from_cn(cn).get_POW())
+    cert.setNotBefore(now)
+    cert.setNotAfter(notAfter)
+    cert.setPublicKey(subject_key.get_POW())
+    cert.setSKI(ski)
+    cert.setAKI(aki)
+    cert.setCertificatePolicies((POWify_OID("id-cp-ipAddr-asNumber"),))
 
     if crldp is not None:
-      exts.append(["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)])
+      cert.setCRLDP((crldp,))
 
     if aia is not None:
-      exts.append(["authorityInfoAccess",    False, ((rpki.oids.name2oid["id-ad-caIssuers"], ("uri", aia)),)])
+      cert.setAIA((aia,))
 
     if is_ca:
-      exts.append(["basicConstraints",  True,  (1, None)])
-      exts.append(["keyUsage",          True,  (0, 0, 0, 0, 0, 1, 1)])
+      cert.setBasicConstraints(True, None)
+      cert.setKeyUsage(frozenset(("keyCertSign", "cRLSign")))
+
     else:
-      exts.append(["keyUsage",          True,  (1,)])
+      cert.setKeyUsage(frozenset(("digitalSignature",)))
+
+    assert sia is not None or not is_ca
 
     if sia is not None:
-      exts.append(["subjectInfoAccess", False, sia])
-    else:
-      assert not is_ca
-
-    # This next bit suggests that perhaps .to_rfc3779_tuple() should
-    # be raising an exception when there are no resources rather than
-    # returning None.  Maybe refactor later.
+      caRepository, rpkiManifest, signedObject = sia
+      cert.setSIA(
+        (caRepository,) if isinstance(caRepository, str) else caRepository,
+        (rpkiManifest,) if isinstance(rpkiManifest, str) else rpkiManifest,
+        (signedObject,) if isinstance(signedObject, str) else signedObject)
 
     if resources is not None:
-      r = resources.asn.to_rfc3779_tuple()
-      if r is not None:
-        exts.append(["sbgp-autonomousSysNum", True, (r, None)])
-      r = [x for x in (resources.v4.to_rfc3779_tuple(), resources.v6.to_rfc3779_tuple()) if x is not None]
-      if r:
-        exts.append(["sbgp-ipAddrBlock", True, r])
-
-    for x in exts:
-      x[0] = rpki.oids.name2oid[x[0]]
-    cert.setExtensions(exts)
+      cert.setRFC3779(
+        asn  = ((r.min, r.max) for r in resources.asn),
+        ipv4 = ((rpki.POW.IPAddress(r.min, 4), rpki.POW.IPAddress(r.max, 4)) for r in resources.v4),
+        ipv6 = ((rpki.POW.IPAddress(r.min, 6), rpki.POW.IPAddress(r.max, 6)) for r in resources.v6))
 
     cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
 
-    return X509(POWpkix = cert)
+    return cls(POW = cert)
 
   def bpki_cross_certify(self, keypair, source_cert, serial, notAfter,
                          now = None, pathLenConstraint = 0):
@@ -764,27 +770,21 @@ class X509(DER_object):
     assert pathLenConstraint is None or (isinstance(pathLenConstraint, (int, long)) and
                                          pathLenConstraint >= 0)
 
-    extensions = [
-      (rpki.oids.name2oid["subjectKeyIdentifier"    ], False, subject_key.get_SKI())]
-    if issuer_key != subject_key:
-      extensions.append(
-        (rpki.oids.name2oid["authorityKeyIdentifier"], False, (issuer_key.get_SKI(), (), None)))
-    if is_ca:
-      extensions.append(
-        (rpki.oids.name2oid["basicConstraints"      ], True,  (1, pathLenConstraint)))
-
-    cert = rpki.POW.pkix.Certificate()
+    cert = rpki.POW.X509()
     cert.setVersion(2)
     cert.setSerial(serial)
-    cert.setIssuer(issuer_name.get_POWpkix())
-    cert.setSubject(subject_name.get_POWpkix())
-    cert.setNotBefore(now.toASN1tuple())
-    cert.setNotAfter(notAfter.toASN1tuple())
-    cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
-    cert.setExtensions(extensions)
+    cert.setIssuer(issuer_name.get_POW())
+    cert.setSubject(subject_name.get_POW())
+    cert.setNotBefore(now)
+    cert.setNotAfter(notAfter)
+    cert.setPublicKey(subject_key.get_POW())
+    cert.setSKI(subject_key.get_POW().calculateSKI())
+    if issuer_key != subject_key:
+      cert.setAKI(issuer_key.get_POW().calculateSKI())
+    if is_ca:
+      cert.setBasicConstraints(True, pathLenConstraint)
     cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
-
-    return cls(POWpkix = cert)
+    return cls(POW = cert)
 
   @classmethod
   def normalize_chain(cls, chain):
@@ -807,15 +807,27 @@ class X509(DER_object):
     """
     return self.getNotBefore()
 
-
 class PKCS10(DER_object):
   """
   Class to hold a PKCS #10 request.
   """
 
-  formats = ("DER", "POWpkix")
+  formats = ("DER", "POW")
   pem_converter = PEM_converter("CERTIFICATE REQUEST")
-  
+
+  ## @var expected_ca_keyUsage
+  # KeyUsage extension flags expected for CA requests.
+
+  expected_ca_keyUsage = frozenset(("keyCertSign", "cRLSign"))
+
+  ## @var allowed_extensions
+  # Extensions allowed by RPKI profile.
+
+  allowed_extensions = frozenset(rpki.oids.safe_name2dotted(name)
+                                 for name in ("basicConstraints",
+                                              "keyUsage",
+                                              "subjectInfoAccess"))
+
   def get_DER(self):
     """
     Get the DER value of this certification request.
@@ -823,33 +835,31 @@ class PKCS10(DER_object):
     self.check()
     if self.DER:
       return self.DER
-    if self.POWpkix:
-      self.DER = self.POWpkix.toString()
+    if self.POW:
+      self.DER = self.POW.derWrite()
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
-  def get_POWpkix(self):
+  def get_POW(self):
     """
-    Get the rpki.POW.pkix value of this certification request.
+    Get the rpki.POW value of this certification request.
     """
     self.check()
-    if not self.POWpkix:
-      req = rpki.POW.pkix.CertificationRequest()
-      req.fromString(self.get_DER())
-      self.POWpkix = req
-    return self.POWpkix
+    if not self.POW:                    # pylint: disable=E0203
+      self.POW = rpki.POW.PKCS10.derRead(self.get_DER())
+    return self.POW
 
   def getSubject(self):
     """
     Extract the subject name from this certification request.
     """
-    return X501DN(self.get_POWpkix().certificationRequestInfo.subject.get())
+    return X501DN.from_POW(self.get_POW().getSubject())
 
   def getPublicKey(self):
     """
     Extract the public key from this certification request.
     """
-    return RSApublic(DER = self.get_POWpkix().certificationRequestInfo.subjectPublicKeyInfo.toString())
+    return RSApublic(POW = self.get_POW().getPublicKey())
 
   def check_valid_rpki(self):
     """
@@ -866,72 +876,129 @@ class PKCS10(DER_object):
     RPKI profile only allows EKU for EE certificates.
     """
 
-    if not self.get_POWpkix().verify():
+    if not self.get_POW().verify():
       raise rpki.exceptions.BadPKCS10, "Signature check failed"
 
-    if self.get_POWpkix().certificationRequestInfo.version.get() != 0:
-      raise rpki.exceptions.BadPKCS10, \
-            "Bad version number %s" % self.get_POWpkix().certificationRequestInfo.version
+    ver = self.get_POW().getVersion()
 
-    if rpki.oids.oid2name.get(self.get_POWpkix().signatureAlgorithm.algorithm.get()) != "sha256WithRSAEncryption":
-      raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % self.get_POWpkix().signatureAlgorithm
+    if ver != 0:
+      raise rpki.exceptions.BadPKCS10, "Bad version number %s" % ver
 
-    exts = dict((rpki.oids.oid2name.get(oid, oid), value)
-                for (oid, critical, value) in self.get_POWpkix().getExtensions())
+    alg = rpki.oids.safe_dotted2name(self.get_POW().getSignatureAlgorithm())
 
-    if any(oid not in ("basicConstraints", "keyUsage", "subjectInfoAccess") for oid in exts):
-      raise rpki.exceptions.BadExtension, "Forbidden extension(s) in certificate request"
+    if alg != "sha256WithRSAEncryption":
+      raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % alg
 
-    if "basicConstraints" not in exts or not exts["basicConstraints"][0]:
+    bc = self.get_POW().getBasicConstraints()
+    
+    if bc is None or not bc[0]:
       raise rpki.exceptions.BadPKCS10, "Request for EE certificate not allowed here"
 
-    if exts["basicConstraints"][1] is not None:
+    if bc[1] is not None:
       raise rpki.exceptions.BadPKCS10, "basicConstraints must not specify Path Length"
 
-    if "keyUsage" in exts and (not exts["keyUsage"][5] or not exts["keyUsage"][6]):
-      raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
+    ku = self.get_POW().getKeyUsage()
 
-    sias = dict((rpki.oids.oid2name.get(oid, oid), value[1])
-                for oid, value in exts.get("subjectInfoAccess", ())
-                if value[0] == "uri" and value[1].startswith("rsync://"))
+    if ku is not None and self.expected_ca_keyUsage != ku:
+      raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints: %r" % ku
 
-    for oid in ("id-ad-caRepository", "id-ad-rpkiManifest"):
-      if oid not in sias:
-        raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA %s" % oid
+    if any(oid not in self.allowed_extensions
+           for oid in self.get_POW().getExtensionOIDs()):
+      raise rpki.exceptions.BadExtension, "Forbidden extension(s) in certificate request"
 
-    if not sias["id-ad-caRepository"].endswith("/"):
-      raise rpki.exceptions.BadPKCS10, "Certificate request id-ad-caRepository does not end with slash: %r" % sias["id-ad-caRepository"]
+    sias = self.get_POW().getSIA()
 
-    if sias["id-ad-rpkiManifest"].endswith("/"):
-      raise rpki.exceptions.BadPKCS10, "Certificate request id-ad-rpkiManifest ends with slash: %r" % sias["id-ad-rpkiManifest"]
+    if sias is None:
+      raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA extension"
+
+    caRepository, rpkiManifest, signedObject = sias
+
+    if signedObject:
+      raise rpki.exceptions.BadPKCS10, "CA certificate request has SIA id-ad-signedObject"
+
+    if not caRepository:
+      raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA id-ad-caRepository"
+
+    if not any(uri.startswith("rsync://") for uri in caRepository):
+      raise rpki.exceptions.BadPKCS10, "Certificate request SIA id-ad-caRepository contains no rsync URIs"
+
+    if not rpkiManifest:
+      raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA id-ad-rpkiManifest"
+      
+    if not any(uri.startswith("rsync://") for uri in rpkiManifest):
+      raise rpki.exceptions.BadPKCS10, "Certificate request SIA id-ad-rpkiManifest contains no rsync URIs"
+
+    if any(uri.startswith("rsync://") and not uri.endswith("/") for uri in caRepository):
+      raise rpki.exceptions.BadPKCS10, "Certificate request SIA id-ad-caRepository does not end with slash"
+
+    if any(uri.startswith("rsync://") and uri.endswith("/") for uri in rpkiManifest):
+      raise rpki.exceptions.BadPKCS10, "Certificate request SIA id-ad-rpkiManifest ends with slash"
 
   @classmethod
-  def create_ca(cls, keypair, sia = None):
+  def create(cls, keypair, exts = None, is_ca = False,
+             caRepository = None, rpkiManifest = None, signedObject = None):
     """
-    Create a new request for a given keypair, including given SIA value.
+    Create a new request for a given keypair.
     """
-    exts = [["basicConstraints", True, (1, None)],
-            ["keyUsage",         True, (0, 0, 0, 0, 0, 1, 1)]]
-    if sia is not None:
-      exts.append(["subjectInfoAccess", False, sia])
-    for x in exts:
-      x[0] = rpki.oids.name2oid[x[0]]
-    return cls.create(keypair, exts)
 
-  @classmethod
-  def create(cls, keypair, exts = None):
-    """
-    Create a new request for a given keypair, including given extensions.
-    """
+    assert exts is None, "Old calling sequence to rpki.x509.PKCS10.create()"
+
     cn = "".join(("%02X" % ord(i) for i in keypair.get_SKI()))
-    req = rpki.POW.pkix.CertificationRequest()
-    req.certificationRequestInfo.version.set(0)
-    req.certificationRequestInfo.subject.set((((rpki.oids.name2oid["commonName"],
-                                                ("printableString", cn)),),))
-    if exts is not None:
-      req.setExtensions(exts)
+
+    if isinstance(caRepository, str):
+      caRepository = (caRepository,)
+
+    if isinstance(rpkiManifest, str):
+      rpkiManifest = (rpkiManifest,)
+
+    if isinstance(signedObject, str):
+      signedObject = (signedObject,)
+
+    req = rpki.POW.PKCS10()
+    req.setVersion(0)
+    req.setSubject(X501DN.from_cn(cn).get_POW())
+    req.setPublicKey(keypair.get_POW())
+
+    if is_ca:
+      req.setBasicConstraints(True, None)
+      req.setKeyUsage(cls.expected_ca_keyUsage)
+
+    if caRepository or rpkiManifest or signedObject:
+      req.setSIA(caRepository, rpkiManifest, signedObject)
+
     req.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
-    return cls(POWpkix = req)
+    return cls(POW = req)
+
+## @var generate_insecure_debug_only_rsa_key
+# Debugging hack to let us save throwaway RSA keys from one debug
+# session to the next.  DO NOT USE THIS IN PRODUCTION.
+
+generate_insecure_debug_only_rsa_key = None
+
+class insecure_debug_only_rsa_key_generator(object):
+
+  def __init__(self, filename, keyno = 0):
+    try:
+      try:
+        import gdbm as dbm_du_jour
+      except ImportError:
+        import dbm as dbm_du_jour
+      self.keyno = long(keyno)
+      self.filename = filename
+      self.db = dbm_du_jour.open(filename, "c")
+    except:
+      rpki.log.warn("insecure_debug_only_rsa_key_generator initialization FAILED, hack inoperative")
+      raise
+
+  def __call__(self):
+    k = str(self.keyno)
+    try:
+      v = rpki.POW.Asymmetric.derReadPrivate(self.db[k])
+    except KeyError:
+      v = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, 2048)
+      self.db[k] = v.derWritePrivate()
+    self.keyno += 1
+    return v
 
 class RSA(DER_object):
   """
@@ -949,7 +1016,7 @@ class RSA(DER_object):
     if self.DER:
       return self.DER
     if self.POW:
-      self.DER = self.POW.derWrite(rpki.POW.RSA_PRIVATE_KEY)
+      self.DER = self.POW.derWritePrivate()
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
@@ -958,8 +1025,8 @@ class RSA(DER_object):
     Get the rpki.POW value of this keypair.
     """
     self.check()
-    if not self.POW:
-      self.POW = rpki.POW.derRead(rpki.POW.RSA_PRIVATE_KEY, self.get_DER())
+    if not self.POW:                    # pylint: disable=E0203
+      self.POW = rpki.POW.Asymmetric.derReadPrivate(self.get_DER())
     return self.POW
 
   @classmethod
@@ -969,19 +1036,22 @@ class RSA(DER_object):
     """
     if not quiet:
       rpki.log.debug("Generating new %d-bit RSA key" % keylength)
-    return cls(POW = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, keylength))
+    if generate_insecure_debug_only_rsa_key is not None:
+      return cls(POW = generate_insecure_debug_only_rsa_key())
+    else:
+      return cls(POW = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):
     """
     Get the DER encoding of the public key from this keypair.
     """
-    return self.get_POW().derWrite(rpki.POW.RSA_PUBLIC_KEY)
+    return self.get_POW().derWritePublic()
 
   def get_SKI(self):
     """
     Calculate the SKI of this keypair.
     """
-    return calculate_SKI(self.get_public_DER())
+    return self.get_POW().calculateSKI()
 
   def get_RSApublic(self):
     """
@@ -1005,7 +1075,7 @@ class RSApublic(DER_object):
     if self.DER:
       return self.DER
     if self.POW:
-      self.DER = self.POW.derWrite(rpki.POW.RSA_PUBLIC_KEY)
+      self.DER = self.POW.derWritePublic()
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
@@ -1014,15 +1084,15 @@ class RSApublic(DER_object):
     Get the rpki.POW value of this public key.
     """
     self.check()
-    if not self.POW:
-      self.POW = rpki.POW.derRead(rpki.POW.RSA_PUBLIC_KEY, self.get_DER())
+    if not self.POW:                    # pylint: disable=E0203
+      self.POW = rpki.POW.Asymmetric.derReadPublic(self.get_DER())
     return self.POW
 
   def get_SKI(self):
     """
     Calculate the SKI of this public key.
     """
-    return calculate_SKI(self.get_DER())
+    return self.get_POW().calculateSKI()
 
 def POWify_OID(oid):
   """
@@ -1036,21 +1106,13 @@ def POWify_OID(oid):
 
 class CMS_object(DER_object):
   """
-  Class to hold a CMS-wrapped object.
-
-  CMS-wrapped objects are a little different from the other DER_object
-  types because the signed object is CMS wrapping inner content that's
-  also ASN.1, and due to our current minimal support for CMS we can't
-  just handle this as a pretty composite object.  So, for now anyway,
-  a CMS_object is the outer CMS wrapped object so that the usual DER
-  and PEM operations do the obvious things, and the inner content is
-  handle via separate methods.
+  Abstract class to hold a CMS object.
   """
 
   formats = ("DER", "POW")
-  other_clear = ("content",)
   econtent_oid = POWify_OID("id-data")
   pem_converter = PEM_converter("CMS")
+  POW_class = rpki.POW.CMS
 
   ## @var dump_on_verify_failure
   # Set this to True to get dumpasn1 dumps of ASN.1 on CMS verify failures.
@@ -1109,30 +1171,15 @@ class CMS_object(DER_object):
     Get the rpki.POW value of this CMS_object.
     """
     self.check()
-    if not self.POW:
-      self.POW = rpki.POW.derRead(rpki.POW.CMS_MESSAGE, self.get_DER())
+    if not self.POW:                    # pylint: disable=E0203
+      self.POW = self.POW_class.derRead(self.get_DER())
     return self.POW
-
-  def get_content(self):
-    """
-    Get the inner content of this CMS_object.
-    """
-    if self.content is None:
-      raise rpki.exceptions.CMSContentNotSet, "Inner content of CMS object %r is not set" % self
-    return self.content
-
-  def set_content(self, content):
-    """
-    Set the (inner) content of this CMS_object, clearing the wrapper.
-    """
-    self.clear()
-    self.content = content
 
   def get_signingTime(self):
     """
     Extract signingTime from CMS signed attributes.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().signingTime())
+    return self.get_POW().signingTime()
 
   def verify(self, ta):
     """
@@ -1145,18 +1192,21 @@ class CMS_object(DER_object):
       raise
     except Exception:
       if self.print_on_der_error:
-        rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %r" % self.get_DER())
+        rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %r" %
+                       self.get_DER())
       raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:
-      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
+      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (
+        cms.eContentType(), self.econtent_oid)
 
     certs = [X509(POW = x) for x in cms.certs()]
     crls  = [CRL(POW = c) for c in cms.crls()]
 
     if self.debug_cms_certs:
       for x in certs:
-        rpki.log.debug("Received CMS cert issuer %s subject %s SKI %s" % (x.getIssuer(), x.getSubject(), x.hSKI()))
+        rpki.log.debug("Received CMS cert issuer %s subject %s SKI %s" % (
+          x.getIssuer(), x.getSubject(), x.hSKI()))
       for c in crls:
         rpki.log.debug("Received CMS CRL issuer %r" % (c.getIssuer(),))
 
@@ -1168,43 +1218,52 @@ class CMS_object(DER_object):
 
     for x in X509.normalize_chain(ta):
       if self.debug_cms_certs:
-        rpki.log.debug("CMS trusted cert issuer %s subject %s SKI %s" % (x.getIssuer(), x.getSubject(), x.hSKI()))
+        rpki.log.debug("CMS trusted cert issuer %s subject %s SKI %s" % (
+          x.getIssuer(), x.getSubject(), x.hSKI()))
       if x.getNotAfter() < now:
-        raise rpki.exceptions.TrustedCMSCertHasExpired("Trusted CMS certificate has expired", "%s (%s)" % (x.getSubject(), x.hSKI()))
+        raise rpki.exceptions.TrustedCMSCertHasExpired("Trusted CMS certificate has expired",
+                                                       "%s (%s)" % (x.getSubject(), x.hSKI()))
       if not x.is_CA():
         if trusted_ee is None:
           trusted_ee = x
         else:
-          raise rpki.exceptions.MultipleCMSEECert("Multiple CMS EE certificates", *("%s (%s)" % (x.getSubject(), x.hSKI()) for x in ta if not x.is_CA()))
+          raise rpki.exceptions.MultipleCMSEECert("Multiple CMS EE certificates", *("%s (%s)" % (
+            x.getSubject(), x.hSKI()) for x in ta if not x.is_CA()))
       store.addTrust(x.get_POW())
 
     if trusted_ee:
       if self.debug_cms_certs:
-        rpki.log.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI()))
+        rpki.log.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (
+          trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI()))
       if len(certs) > 1 or (len(certs) == 1 and
                             (certs[0].getSubject() != trusted_ee.getSubject() or
                              certs[0].getPublicKey() != trusted_ee.getPublicKey())):
-        raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (x.getSubject(), x.hSKI()) for x in certs))
+        raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (
+          x.getSubject(), x.hSKI()) for x in certs))
       if crls:
-        raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (c.getIssuer(), c.hAKI()) for c in crls))
+        raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (
+          c.getIssuer(), c.hAKI()) for c in crls))
 
     else:
       untrusted_ee = [x for x in certs if not x.is_CA()]
       if len(untrusted_ee) < 1:
         raise rpki.exceptions.MissingCMSEEcert
       if len(untrusted_ee) > 1 or (not self.allow_extra_certs and len(certs) > len(untrusted_ee)):
-        raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (x.getSubject(), x.hSKI()) for x in certs))
+        raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (
+          x.getSubject(), x.hSKI()) for x in certs))
       if len(crls) < 1:
         if self.require_crls:
           raise rpki.exceptions.MissingCMSCRL
         else:
           rpki.log.warn("MISSING CMS CRL!  Ignoring per self.require_crls setting")
       if len(crls) > 1 and not self.allow_extra_crls:
-        raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (c.getIssuer(), c.hAKI()) for c in crls))
+        raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (
+          c.getIssuer(), c.hAKI()) for c in crls))
 
     for x in certs:
       if x.getNotAfter() < now:
-        raise rpki.exceptions.CMSCertHasExpired("CMS certificate has expired", "%s (%s)" % (x.getSubject(), x.hSKI()))
+        raise rpki.exceptions.CMSCertHasExpired("CMS certificate has expired", "%s (%s)" % (
+          x.getSubject(), x.hSKI()))
 
     try:
       content = cms.verify(store)
@@ -1221,8 +1280,7 @@ class CMS_object(DER_object):
           rpki.log.warn(line)
       raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
-    self.decode(content)
-    return self.get_content()
+    return content
 
   def extract(self):
     """
@@ -1245,12 +1303,13 @@ class CMS_object(DER_object):
       raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:
-      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
+      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (
+        cms.eContentType(), self.econtent_oid)
 
-    content = cms.verify(rpki.POW.X509Store(), None, rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY | rpki.POW.CMS_NO_ATTR_VERIFY | rpki.POW.CMS_NO_CONTENT_VERIFY)
+    return cms.verify(rpki.POW.X509Store(), None,
+                      (rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY |
+                       rpki.POW.CMS_NO_ATTR_VERIFY | rpki.POW.CMS_NO_CONTENT_VERIFY))
 
-    self.decode(content)
-    return self.get_content()
 
   def sign(self, keypair, certs, crls = None, no_certs = False):
     """
@@ -1272,21 +1331,17 @@ class CMS_object(DER_object):
       crls = (crls,)
 
     if self.debug_cms_certs:
-      rpki.log.debug("Signing with cert issuer %s subject %s SKI %s" % (cert.getIssuer(), cert.getSubject(), cert.hSKI()))
+      rpki.log.debug("Signing with cert issuer %s subject %s SKI %s" % (
+        cert.getIssuer(), cert.getSubject(), cert.hSKI()))
       for i, c in enumerate(certs):
-        rpki.log.debug("Additional cert %d issuer %s subject %s SKI %s" % (i, c.getIssuer(), c.getSubject(), c.hSKI()))
+        rpki.log.debug("Additional cert %d issuer %s subject %s SKI %s" % (
+          i, c.getIssuer(), c.getSubject(), c.hSKI()))
 
-    cms = rpki.POW.CMS()
-
-    cms.sign(cert.get_POW(),
-             keypair.get_POW(),
-             self.encode(),
-             [x.get_POW() for x in certs],
-             [c.get_POW() for c in crls],
-             self.econtent_oid,
-             rpki.POW.CMS_NOCERTS if no_certs else 0)
-
-    self.POW = cms
+    self._sign(cert.get_POW(),
+               keypair.get_POW(),
+               [x.get_POW() for x in certs],
+               [c.get_POW() for c in crls],
+               rpki.POW.CMS_NOCERTS if no_certs else 0)
 
   @property
   def creation_timestamp(self):
@@ -1296,24 +1351,92 @@ class CMS_object(DER_object):
     return self.get_signingTime()
 
 
+class Wrapped_CMS_object(CMS_object):
+  """
+  Abstract class to hold CMS objects wrapping non-DER content (eg, XML
+  or VCard).
+
+  CMS-wrapped objects are a little different from the other DER_object
+  types because the signed object is CMS wrapping some other kind of
+  inner content.  A Wrapped_CMS_object is the outer CMS wrapped object
+  so that the usual DER and PEM operations do the obvious things, and
+  the inner content is handle via separate methods.
+  """
+
+  other_clear = ("content",)
+
+  def get_content(self):
+    """
+    Get the inner content of this Wrapped_CMS_object.
+    """
+    if self.content is None:
+      raise rpki.exceptions.CMSContentNotSet, "Inner content of CMS object %r is not set" % self
+    return self.content
+
+  def set_content(self, content):
+    """
+    Set the (inner) content of this Wrapped_CMS_object, clearing the wrapper.
+    """
+    self.clear()
+    self.content = content
+
+  def verify(self, ta):
+    """
+    Verify CMS wrapper and store inner content.
+    """
+
+    self.decode(CMS_object.verify(self, ta))
+    return self.get_content()
+
+  def extract(self):
+    """
+    Extract and store inner content from CMS wrapper without verifying
+    the CMS.
+
+    DANGER WILL ROBINSON!!!
+
+    Do not use this method on unvalidated data.  Use the verify()
+    method instead.
+
+    If you don't understand this warning, don't use this method.
+    """
+
+    self.decode(CMS_object.extract(self))
+    return self.get_content()
+
+  def _sign(self, cert, keypair, certs, crls, flags):
+    """
+    Internal method to call POW to do CMS signature.  This is split
+    out from the .sign() API method to handle differences in how
+    different CMS-based POW classes handle the inner content.
+    """
+
+    cms = self.POW_class()
+    cms.sign(cert, keypair, self.encode(), certs, crls, self.econtent_oid, flags)
+    self.POW = cms
+  
+
 class DER_CMS_object(CMS_object):
   """
-  Class to hold CMS objects with DER-based content.
+  Abstract class for CMS-based objects with DER-encoded content
+  handled by C-level subclasses of rpki.POW.CMS.
   """
 
-  def encode(self):
-    """
-    Encode inner content for signing.
-    """
-    return self.get_content().toString()
+  def _sign(self, cert, keypair, certs, crls, flags):
+    self.get_POW().sign(cert, keypair, certs, crls, self.econtent_oid, flags)
 
-  def decode(self, der):
+
+  def extract_if_needed(self):
     """
-    Decode DER and set inner content.
+    Extract inner content if needed.  See caveats for .extract(), do
+    not use unless you really know what you are doing.
     """
-    obj = self.content_class()
-    obj.fromString(der)
-    self.content = obj
+
+    try:
+      self.get_POW().getVersion()
+    except rpki.POW.NotVerifiedError:
+      self.extract()
+
 
 class SignedManifest(DER_CMS_object):
   """
@@ -1321,41 +1444,43 @@ class SignedManifest(DER_CMS_object):
   """
 
   pem_converter = PEM_converter("RPKI MANIFEST")
-  content_class = rpki.manifest.Manifest
   econtent_oid = POWify_OID("id-ct-rpkiManifest")
+  POW_class = rpki.POW.Manifest
   
   def getThisUpdate(self):
     """
     Get thisUpdate value from this manifest.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_content().thisUpdate.get())
+    return self.get_POW().getThisUpdate()
 
   def getNextUpdate(self):
     """
     Get nextUpdate value from this manifest.
     """
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_content().nextUpdate.get())
+    return self.get_POW().getNextUpdate()
 
   @classmethod
   def build(cls, serial, thisUpdate, nextUpdate, names_and_objs, keypair, certs, version = 0):
     """
     Build a signed manifest.
     """
-    self = cls()
+
     filelist = []
     for name, obj in names_and_objs:
       d = rpki.POW.Digest(rpki.POW.SHA256_DIGEST)
       d.update(obj.get_DER())
       filelist.append((name.rpartition("/")[2], d.digest()))
     filelist.sort(key = lambda x: x[0])
-    m = rpki.manifest.Manifest()
-    m.version.set(version)
-    m.manifestNumber.set(serial)
-    m.thisUpdate.set(thisUpdate.toGeneralizedTime())
-    m.nextUpdate.set(nextUpdate.toGeneralizedTime())
-    m.fileHashAlg.set(rpki.oids.name2oid["id-sha256"])
-    m.fileList.set(filelist)
-    self.set_content(m)
+
+    obj = cls.POW_class()
+    obj.setVersion(version)
+    obj.setManifestNumber(serial)
+    obj.setThisUpdate(thisUpdate)
+    obj.setNextUpdate(nextUpdate)
+    obj.setAlgorithm(POWify_OID(rpki.oids.name2oid["id-sha256"]))
+    obj.addFiles(filelist)
+
+    self = cls(POW = obj)
     self.sign(keypair, certs)
     return self
 
@@ -1365,31 +1490,23 @@ class ROA(DER_CMS_object):
   """
 
   pem_converter = PEM_converter("ROUTE ORIGIN ATTESTATION")
-  content_class = rpki.roa.RouteOriginAttestation
   econtent_oid = POWify_OID("id-ct-routeOriginAttestation")
+  POW_class = rpki.POW.ROA
 
   @classmethod
   def build(cls, asn, ipv4, ipv6, keypair, certs, version = 0):
     """
     Build a ROA.
     """
-    try:
-      self = cls()
-      r = rpki.roa.RouteOriginAttestation()
-      r.version.set(version)
-      r.asID.set(asn)
-      r.ipAddrBlocks.set((a.to_roa_tuple() for a in (ipv4, ipv6) if a))
-      self.set_content(r)
-      self.sign(keypair, certs)
-      return self
-    except rpki.POW.pkix.DerError, e:
-      rpki.log.debug("Encoding error while generating ROA %r: %s" % (self, e))
-      rpki.log.debug("ROA inner content: %r" % (r.get(),))
-      raise
-
-  _afi_map = dict((cls.resource_set_type.afi, cls)
-                  for cls in (rpki.resource_set.roa_prefix_set_ipv4,
-                              rpki.resource_set.roa_prefix_set_ipv6))
+    ipv4 = ipv4.to_POW_roa_tuple() if ipv4 else None
+    ipv6 = ipv6.to_POW_roa_tuple() if ipv6 else None
+    obj = cls.POW_class()
+    obj.setVersion(version)
+    obj.setASID(asn)
+    obj.setPrefixes(ipv4 = ipv4, ipv6 = ipv6)
+    self = cls(POW = obj)
+    self.sign(keypair, certs)
+    return self
 
   def tracking_data(self, uri):
     """
@@ -1398,41 +1515,24 @@ class ROA(DER_CMS_object):
     """
     msg = DER_CMS_object.tracking_data(self, uri)
     try:
-      if self.content is None:
+      try:
+        self.get_POW().getVersion()
+      except rpki.POW.NotVerifiedError:
         self.extract()
-      roa = self.get_content()
-      asn = roa.asID.get()
-      prefix_sets = {}
-      for fam in roa.ipAddrBlocks:
-        afi = fam.addressFamily.get()
-        prefix_sets[afi] = prefix_set = self._afi_map[afi]()
-        addr_type = prefix_set.resource_set_type.range_type.datum_type
-        for addr in fam.addresses:
-          prefix = addr.address.get()
-          prefixlen = len(prefix)
-          prefix = addr_type(rpki.resource_set._bs2long(prefix, addr_type.bits, 0))
-          maxprefixlen = addr.maxLength.get()
-          prefix_set.append(prefix_set.prefix_type(prefix, prefixlen, maxprefixlen))
-      msg = "%s %s %s" % (msg, asn,
-                          ",".join(str(prefix_sets[i]) for i in sorted(prefix_sets)))
-    except:
+      asn = self.get_POW().getASID()
+      text = []
+      for prefixes in self.get_POW().getPrefixes():
+        if prefixes is not None:
+          for prefix, prefixlen, maxprefixlen in prefixes:
+            if maxprefixlen is None or prefixlen == maxprefixlen:
+              text.append("%s/%s" % (prefix, prefixlen))
+            else:
+              text.append("%s/%s-%s" % (prefix, prefixlen, maxprefixlen))
+      text.sort()
+      msg = "%s %s %s" % (msg, asn, ",".join(text))
+    except:                             # pylint: disable=W0702
       pass
     return msg
-
-class Ghostbuster(DER_CMS_object):
-  """
-  Class to hold a signed Ghostbuster record.
-  """
-
-  content_class = rpki.ghostbuster.Ghostbuster
-
-  @classmethod
-  def build(cls, vcard, keypair, certs):
-      self = cls()
-      gbr = content_class(vcard)
-      self.set_content(gbr)
-      self.sign(keypair, certs)
-      return self
 
 class DeadDrop(object):
   """
@@ -1465,7 +1565,7 @@ class DeadDrop(object):
         rpki.log.warn("Could not write to mailbox %s: %e" % (self.name, e))
         self.warned = True
 
-class XML_CMS_object(CMS_object):
+class XML_CMS_object(Wrapped_CMS_object):
   """
   Class to hold CMS-wrapped XML protocol data.
   """
@@ -1484,11 +1584,24 @@ class XML_CMS_object(CMS_object):
 
   dump_inbound_cms = None
 
+  ## @var check_inbound_schema
+  # If set, perform RelaxNG schema check on inbound messages.
+
+  check_inbound_schema = True
+
+  ## @var check_outbound_schema
+  # If set, perform RelaxNG schema check on outbound messages.
+
+  check_outbound_schema = False
+
   def encode(self):
     """
     Encode inner content for signing.
     """
-    return lxml.etree.tostring(self.get_content(), pretty_print = True, encoding = self.encoding, xml_declaration = True)
+    return lxml.etree.tostring(self.get_content(),
+                               pretty_print = True,
+                               encoding = self.encoding,
+                               xml_declaration = True)
 
   def decode(self, xml):
     """
@@ -1500,7 +1613,10 @@ class XML_CMS_object(CMS_object):
     """
     Pretty print XML content of this message.
     """
-    return lxml.etree.tostring(self.get_content(), pretty_print = True, encoding = self.encoding, xml_declaration = True)
+    return lxml.etree.tostring(self.get_content(),
+                               pretty_print = True,
+                               encoding = self.encoding,
+                               xml_declaration = True)
 
   def schema_check(self):
     """
@@ -1531,7 +1647,8 @@ class XML_CMS_object(CMS_object):
       self.set_content(msg)
     else:
       self.set_content(msg.toXML())
-    self.schema_check()
+    if self.check_outbound_schema:
+      self.schema_check()
     self.sign(keypair, certs, crls)
     if self.dump_outbound_cms:
       self.dump_outbound_cms.dump(self)
@@ -1544,11 +1661,12 @@ class XML_CMS_object(CMS_object):
     if self.dump_inbound_cms:
       self.dump_inbound_cms.dump(self)
     self.verify(ta)
-    self.schema_check()
+    if self.check_inbound_schema:
+      self.schema_check()
     if self.saxify is None:
       return self.get_content()
     else:
-      return self.saxify(self.get_content())
+      return self.saxify(self.get_content()) # pylint: disable=E1102
 
   def check_replay(self, timestamp):
     """
@@ -1583,7 +1701,7 @@ class SignedReferral(XML_CMS_object):
   schema = rpki.relaxng.myrpki
   saxify = None
 
-class Ghostbuster(CMS_object):
+class Ghostbuster(Wrapped_CMS_object):
   """
   Class to hold Ghostbusters record (CMS-wrapped VCard).  This is
   quite minimal because we treat the VCard as an opaque byte string
@@ -1623,7 +1741,7 @@ class CRL(DER_object):
   Class to hold a Certificate Revocation List.
   """
 
-  formats = ("DER", "POW", "POWpkix")
+  formats = ("DER", "POW")
   pem_converter = PEM_converter("X509 CRL")
   
   def get_DER(self):
@@ -1636,9 +1754,6 @@ class CRL(DER_object):
     if self.POW:
       self.DER = self.POW.derWrite()
       return self.get_DER()
-    if self.POWpkix:
-      self.DER = self.POWpkix.toString()
-      return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
@@ -1646,56 +1761,49 @@ class CRL(DER_object):
     Get the rpki.POW value of this CRL.
     """
     self.check()
-    if not self.POW:
-      self.POW = rpki.POW.derRead(rpki.POW.X509_CRL, self.get_DER())
+    if not self.POW:                    # pylint: disable=E0203
+      self.POW = rpki.POW.CRL.derRead(self.get_DER())
     return self.POW
-
-  def get_POWpkix(self):
-    """
-    Get the rpki.POW.pkix value of this CRL.
-    """
-    self.check()
-    if not self.POWpkix:
-      crl = rpki.POW.pkix.CertificateList()
-      crl.fromString(self.get_DER())
-      self.POWpkix = crl
-    return self.POWpkix
 
   def getThisUpdate(self):
     """
     Get thisUpdate value from this CRL.
     """
-    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().getThisUpdate())
+    return self.get_POW().getThisUpdate()
 
   def getNextUpdate(self):
     """
     Get nextUpdate value from this CRL.
     """
-    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().getNextUpdate())
+    return self.get_POW().getNextUpdate()
 
   def getIssuer(self):
     """
     Get issuer value of this CRL.
     """
-    return X501DN(self.get_POWpkix().getIssuer())
+    return X501DN.from_POW(self.get_POW().getIssuer())
+
+  def getCRLNumber(self):
+    """
+    Get CRL Number value for this CRL.
+    """
+    return self.get_POW().getCRLNumber()
 
   @classmethod
-  def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):
+  def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1):
     """
     Generate a new CRL.
     """
-    crl = rpki.POW.pkix.CertificateList()
+    crl = rpki.POW.CRL()
     crl.setVersion(version)
-    crl.setIssuer(issuer.get_POWpkix().getSubject())
-    crl.setThisUpdate(thisUpdate.toASN1tuple())
-    crl.setNextUpdate(nextUpdate.toASN1tuple())
-    if revokedCertificates:
-      crl.setRevokedCertificates(revokedCertificates)
-    crl.setExtensions(
-      ((rpki.oids.name2oid["authorityKeyIdentifier"], False, (issuer.get_SKI(), (), None)),
-       (rpki.oids.name2oid["cRLNumber"], False, serial)))
-    crl.sign(keypair.get_POW(), digestType)
-    return cls(POWpkix = crl)
+    crl.setIssuer(issuer.getSubject().get_POW())
+    crl.setThisUpdate(thisUpdate)
+    crl.setNextUpdate(nextUpdate)
+    crl.setAKI(issuer.get_SKI())
+    crl.setCRLNumber(serial)
+    crl.addRevocations(revokedCertificates)
+    crl.sign(keypair.get_POW())
+    return cls(POW = crl)
 
   @property
   def creation_timestamp(self):

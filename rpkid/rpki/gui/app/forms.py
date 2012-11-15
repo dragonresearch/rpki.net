@@ -23,7 +23,7 @@ from rpki.resource_set import (resource_range_as, resource_range_ipv4,
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
 from rpki.gui.app.glue import str_to_resource_range
-import rpki.ipaddrs
+from rpki.POW import IPAddress
 
 
 class AddConfForm(forms.Form):
@@ -190,11 +190,7 @@ class ROARequest(forms.Form):
         """
         prefix = self.cleaned_data.get('prefix')
         if '/' not in prefix:
-            p = rpki.ipaddrs.parse(prefix)
-
-            # rpki.ipaddrs.parse doesn't return a v?addr object, so can't
-            # introspect p.bits
-            bits = 32 if ':' not in prefix else 64
+            p = IPAddress(prefix)
 
             # determine the first nonzero bit starting from the lsb and
             # subtract from the address size to find the closest classful
@@ -203,7 +199,7 @@ class ROARequest(forms.Form):
             while (p != 0) and (p & 1) == 0:
                 prefixlen = prefixlen + 1
                 p = p >> 1
-            mask = bits - (8 * (prefixlen / 8))
+            mask = p.bits - (8 * (prefixlen / 8))
             prefix = prefix + '/' + str(mask)
 
         return str_to_resource_range(prefix)

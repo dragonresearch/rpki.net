@@ -3,7 +3,7 @@ SQL interface code.
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -32,19 +32,26 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+import weakref
+
 from rpki.mysql_import import (MySQLdb, _mysql_exceptions)
 
-import rpki.x509, rpki.resource_set, rpki.sundial, rpki.log
+import rpki.x509
+import rpki.resource_set
+import rpki.sundial
+import rpki.log
 
 class session(object):
   """
   SQL session layer.
   """
 
-  ## @var clear_threshold
-  # Size above which .cache_clear_maybe() should clear the cache.
+  ## @var ping_threshold
+  # Timeout after which we should issue a ping command before the real
+  # one.  Intent is to keep the MySQL connection alive without pinging
+  # before every single command.
 
-  clear_threshold = 5000
+  ping_threshold = rpki.sundial.timedelta(seconds = 60)
 
   def __init__(self, cfg):
 
@@ -52,15 +59,24 @@ class session(object):
     self.database = cfg.get("sql-database")
     self.password = cfg.get("sql-password")
 
-    self.cache = {}
+    self.conv = MySQLdb.converters.conversions.copy()
+    self.conv.update({
+      rpki.sundial.datetime                  : MySQLdb.converters.DateTime2literal,
+      MySQLdb.converters.FIELD_TYPE.DATETIME : rpki.sundial.datetime.DateTime_or_None })
+
+    self.cache = weakref.WeakValueDictionary()
     self.dirty = set()
 
     self.connect()
 
   def connect(self):
-    self.db = MySQLdb.connect(user = self.username, db = self.database, passwd = self.password)
+    self.db = MySQLdb.connect(user   = self.username,
+                              db     = self.database,
+                              passwd = self.password,
+                              conv   = self.conv)
     self.cur = self.db.cursor()
     self.db.autocommit(True)
+    self.timestamp = rpki.sundial.now()
 
   def close(self):
     if self.cur:
@@ -70,11 +86,12 @@ class session(object):
       self.db.close()
     self.db = None
 
-  def ping(self):
-    return self.db.ping(True)
-
   def _wrap_execute(self, func, query, args):
     try:
+      now = rpki.sundial.now()
+      if now > self.timestamp + self.ping_threshold:
+        self.db.ping(True)
+      self.timestamp = now
       return func(query, args)
     except _mysql_exceptions.MySQLError:
       if self.dirty:
@@ -95,18 +112,12 @@ class session(object):
 
   def cache_clear(self):
     """
-    Clear the object cache.
+    Clear the SQL object cache.  Shouldn't be necessary now that the
+    cache uses weak references, but should be harmless.
     """
     rpki.log.debug("Clearing SQL cache")
     self.assert_pristine()
     self.cache.clear()
-
-  def cache_clear_maybe(self):
-    """
-    Clear the object cache if its size is above clear_threshold.
-    """
-    if len(self.cache) >= self.clear_threshold:
-      self.cache_clear()
 
   def assert_pristine(self):
     """
@@ -173,7 +184,7 @@ class sql_persistent(object):
   sql_debug = False
 
   @classmethod
-  def sql_fetch(cls, gctx, id):
+  def sql_fetch(cls, gctx, id):         # pylint: disable=W0622
     """
     Fetch one object from SQL, based on its primary key.
 
@@ -309,7 +320,7 @@ class sql_persistent(object):
     Delete this object from SQL.
     """
     if self.sql_in_db:
-      id = getattr(self, self.sql_template.index)
+      id = getattr(self, self.sql_template.index) # pylint: disable=W0622
       if self.sql_debug:
         rpki.log.debug("sql_fetch_delete(%r, %r)" % (self.sql_template.delete, id))
       self.sql_delete_hook()
@@ -371,3 +382,32 @@ class sql_persistent(object):
     """
     pass
 
+
+def cache_reference(func):
+  """
+  Decorator for use with property methods which just do an SQL lookup based on an ID.
+  Check for an existing reference to the object, just return that if we find it,
+  otherwise perform the SQL lookup.
+
+  Not 100% certain this is a good idea, but I //think// it should work well with the
+  current weak reference SQL cache, so long as we create no circular references.
+  So don't do that.
+  """
+
+  attr_name = "_" + func.__name__
+
+  def wrapped(self):
+    try:
+      value = getattr(self, attr_name)
+      assert value is not None
+    except AttributeError:
+      value = func(self)
+      if value is not None:
+        setattr(self, attr_name, value)
+    return value
+
+  wrapped.__name__ = func.__name__
+  wrapped.__doc__ = func.__doc__
+  wrapped.__dict__.update(func.__dict__)
+
+  return wrapped

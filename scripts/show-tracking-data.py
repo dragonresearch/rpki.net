@@ -26,12 +26,14 @@ PERFORMANCE OF THIS SOFTWARE.
 import os
 import sys
 import rpki.x509
+import rpki.sundial
 
 rcynic_dir = sys.argv[1]
 
 for root, dirs, files in os.walk(rcynic_dir):
   for f in files:
     path = os.path.join(root, f)
+    date = rpki.sundial.datetime.utcfromtimestamp(os.stat(path).st_mtime)
     uri = "rsync://" + path[len(rcynic_dir):].lstrip("/")
     obj = rpki.x509.uri_dispatch(uri)(DER_file = path)
-    print obj.tracking_data(uri)
+    print date, obj.tracking_data(uri)

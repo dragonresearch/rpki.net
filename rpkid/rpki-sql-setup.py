@@ -4,7 +4,7 @@ root password, pulls other information from rpki.conf.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -19,8 +19,10 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, getopt, sys, rpki.config, getpass, warnings
-
+import getopt
+import sys
+import getpass
+import rpki.config
 import rpki.sql_schemas
 
 from rpki.mysql_import import MySQLdb

@@ -58,6 +58,7 @@ cfg = rpki.config.parser(cfg_file, "myrpki")
 
 
 def run(name):
+  # pylint: disable=E1103
   cmd = (sys.executable, os.path.join(rpkid_dir, name), "-c", cfg.filename)
   if debug:
     proc = subprocess.Popen(cmd + ("-d",), stdout = open(name + ".log", "a"), stderr = subprocess.STDOUT)

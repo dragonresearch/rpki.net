@@ -1,0 +1,13 @@
+$Id$
+
+C header files common to RPKI code.  For now, most of this is ASN.1
+definitions in OpenSSL's strange template language.  May add utility
+routines later.
+
+Due to complexities of the build environment in which some of this is
+used, we may end up keeping all the shared C code in .h files rather
+than attempting to build a library that all the programs can use.
+Python extension modules in particular have their own peculiar linkage
+requirements, and while we could no doubt jump thorugh hoops to get
+all of this right on every platform, it's much simpler to handle code
+reuse via the C preprocssor.  Hey, it worked for MIDAS on ITS.

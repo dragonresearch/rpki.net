@@ -3,7 +3,7 @@ Test parser and display tool for myrpki.xml files.
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -29,9 +29,9 @@ if False:
 
 relaxng.assertValid(tree)
 
-def showitems(x):
+def showitems(y):
   if False:
-    for k, v in x.items():
+    for k, v in y.items():
       if v:
         print " ", k, v
 

@@ -3,7 +3,7 @@
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -18,7 +18,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import rpki.config, rpki.sql_schemas
+import rpki.config
+import rpki.sql_schemas
 from rpki.mysql_import import MySQLdb
 
 cfg = rpki.config.parser(None, "yamltest", allow_missing = True)
@@ -34,12 +35,16 @@ for name in ("rpkid", "irdbd", "pubd"):
   schema = " ".join(schema).strip(";").split(";")
   schema = [statement.strip() for statement in schema if statement and "DROP TABLE" not in statement]
 
-  for i in xrange(12):
+  db = MySQLdb.connect(user = username, passwd = password)
+  cur = db.cursor()
 
-    database = "%s%d" % (name[:4], i)
+  cur.execute("SHOW DATABASES")
 
-    db = MySQLdb.connect(user = username, db = database, passwd = password)
-    cur = db.cursor()
+  databases = [r[0] for r in cur.fetchall() if r[0][:4] == name[:4] and r[0][4:].isdigit()]
+
+  for database in databases:
+
+    cur.execute("USE " + database)
 
     cur.execute("SHOW TABLES")
     tables = [r[0] for r in cur.fetchall()]
@@ -52,5 +57,5 @@ for name in ("rpkid", "irdbd", "pubd"):
     for statement in schema:
       cur.execute(statement)
 
-    cur.close()
-    db.close()
+  cur.close()
+  db.close()

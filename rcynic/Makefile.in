@@ -6,7 +6,6 @@ BIN = ${NAME}
 SRC = ${NAME}.c
 OBJ = ${NAME}.o
 
-HDR = defasn1.h
 GEN = defstack.h
 
 OBJS = ${OBJ} bio_f_linebreak.o
@@ -24,21 +23,22 @@ abs_top_builddir = @abs_top_builddir@
 
 host_os = @host_os@
 
-SCRIPTS = rcynic-text rcynic-html
+SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status
 
 all: ${BIN} ${SCRIPTS}
 
 clean:
 	cd static-rsync; ${MAKE} $@
-	rm -f ${BIN} ${OBJS} ${GEN} ${SCRIPTS}
+	rm -f ${BIN} ${OBJS} ${SCRIPTS}
 
-${OBJ}: ${SRC} ${HDR} ${GEN}
+${OBJ}: ${SRC} ${GEN}
 
 ${BIN}: ${OBJS}
 	${CC} ${CFLAGS} -o $@ ${OBJS} ${LDFLAGS} ${LIBS}
 
-defstack.h: defstack.awk ${SRC} ${HDR}
-	${AWK} -f >$@ defstack.awk ${SRC} ${HDR}
+${GEN}: ${SRC}
+	${PYTHON} ${abs_top_srcdir}/buildtools/defstack.py ${SRC} >$@.tmp
+	mv $@.tmp $@
 
 test: ${BIN}
 	if test -r rcynic.conf; \
@@ -73,7 +73,13 @@ rcynic-text: rcynic-text.py
 rcynic-html: rcynic-html.py
 	${COMPILE_PYTHON}
 
+rcynic-svn: rcynic-svn.py
+	${COMPILE_PYTHON}
+
+validation_status: validation_status.py
+	${COMPILE_PYTHON}
+
 tags: TAGS
 
-TAGS: ${SRC} ${HDR} ${GEN}
-	etags ${SRC} ${HDR} ${GEN}
+TAGS: ${SRC} ${GEN}
+	etags ${SRC} ${GEN}

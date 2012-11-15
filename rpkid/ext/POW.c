@@ -1,40 +1,88 @@
-/*****************************************************************************/
-/*                                                                           */
-/*  Copyright (c) 2001, 2002, Peter Shannon                                  */
-/*  All rights reserved.                                                     */
-/*                                                                           */
-/*  Redistribution and use in source and binary forms, with or without       */
-/*  modification, are permitted provided that the following conditions       */
-/*  are met:                                                                 */
-/*                                                                           */
-/*      * Redistributions of source code must retain the above               */
-/*        copyright notice, this list of conditions and the following        */
-/*        disclaimer.                                                        */
-/*                                                                           */
-/*      * Redistributions in binary form must reproduce the above            */
-/*        copyright notice, this list of conditions and the following        */
-/*        disclaimer in the documentation and/or other materials             */
-/*        provided with the distribution.                                    */
-/*                                                                           */
-/*      * The name of the contributors may be used to endorse or promote     */
-/*        products derived from this software without specific prior         */
-/*        written permission.                                                */
-/*                                                                           */
-/*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS      */
-/*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT        */
-/*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS        */
-/*  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS   */
-/*  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,          */
-/*  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT         */
-/*  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,    */
-/*  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY    */
-/*  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT      */
-/*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
-/*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
-/*                                                                           */
-/*****************************************************************************/
+/*
+ * This module started out as the core of Peter Shannon's "Python
+ * OpenSSL Wrappers" package, an excellent but somewhat dated package
+ * which I encountered while looking for some halfway sane way to cram
+ * RFC 3779 certificate support code into Python.
+ *
+ * At this point enough of the code has been added or rewritten that
+ * it's unclear (either way) whether this code properly qualifies as a
+ * derivative work.  Given that both Peter's original code and all of
+ * subsequent changes to it were done under something equivalent to a
+ * BSD license, this may not matter very much, but the following
+ * attempts to give proper credit to all concerned.
+ *
+ ****
+ *
+ * Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+ * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+ * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+ * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ *
+ ****
+ *
+ * Portions copyright (C) 2006--2008 American Registry for Internet
+ * Numbers ("ARIN")
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
+ * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+ * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+ * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ *
+ ****
+ *
+ * Portions Copyright (c) 2001, 2002, Peter Shannon
+ * All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *      * Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      * Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ *      * The name of the contributors may be used to endorse or promote
+ *        products derived from this software without specific prior
+ *        written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS
+ *  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/* $Id: rcynic.c 4613 2012-07-30 23:24:15Z sra $ */
 
 #include <Python.h>
+#include <datetime.h>
 
 #include <openssl/opensslconf.h>
 #include <openssl/crypto.h>
@@ -43,199 +91,189 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
-#include <openssl/ssl.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include <openssl/md5.h>
-#ifndef OPENSSL_NO_MD2
-#include <openssl/md2.h>
-#endif
 #include <openssl/sha.h>
-#include <openssl/hmac.h>
-#include <openssl/ripemd.h>
 #include <openssl/cms.h>
 
+#include <rpki/roa.h>
+#include <rpki/manifest.h>
+
 #include <time.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
-// Symmetric ciphers
-#define DES_ECB               1
-#define DES_EDE               2
-#define DES_EDE3              3
-#define DES_CFB               4
-#define DES_EDE_CFB           5
-#define DES_EDE3_CFB          6
-#define DES_OFB               7
-#define DES_EDE_OFB           8
-#define DES_EDE3_OFB          9
-#define DES_CBC               10
-#define DES_EDE_CBC           11
-#define DES_EDE3_CBC          12
-#define DESX_CBC              13
-#define RC4                   14
-#define RC4_40                15
-#define IDEA_ECB              16
-#define IDEA_CFB              17
-#define IDEA_OFB              18
-#define IDEA_CBC              19
-#define RC2_ECB               20
-#define RC2_CBC               21
-#define RC2_40_CBC            22
-#define RC2_CFB               23
-#define RC2_OFB               24
-#define BF_ECB                25
-#define BF_CBC                26
-#define BF_CFB                27
-#define BF_OFB                28
-#define CAST5_ECB             29
-#define CAST5_CBC             30
-#define CAST5_CFB             31
-#define CAST5_OFB             32
-#define RC5_32_12_16_CBC      33
-#define RC5_32_12_16_CFB      34
-#define RC5_32_12_16_ECB      35
-#define RC5_32_12_16_OFB      36
-
-// SSL connection methods
-#define SSLV2_SERVER_METHOD   1
-#define SSLV2_CLIENT_METHOD   2
-#define SSLV2_METHOD          3
-#define SSLV3_SERVER_METHOD   4
-#define SSLV3_CLIENT_METHOD   5
-#define SSLV3_METHOD          6
-#define TLSV1_SERVER_METHOD   7
-#define TLSV1_CLIENT_METHOD   8
-#define TLSV1_METHOD          9
-#define SSLV23_SERVER_METHOD  10
-#define SSLV23_CLIENT_METHOD  11
-#define SSLV23_METHOD         12
-
-// SSL connection states
-
-// PEM encoded data types
-#define RSA_PUBLIC_KEY        1
-#define RSA_PRIVATE_KEY       2
-#define DSA_PUBLIC_KEY        3
-#define DSA_PRIVATE_KEY       4
-#define DH_PUBLIC_KEY         5
-#define DH_PRIVATE_KEY        6
-#define X509_CERTIFICATE      7
-#define X_X509_CRL            8     // X509_CRL already used by OpenSSL library
-#define CMS_MESSAGE           9
-
-// Asymmetric ciphers
-#define RSA_CIPHER            1
-#define DSA_CIPHER            2
-#define DH_CIPHER             3
-//#define NO_DSA
-//#define NO_DH
-
-// Digests
-#ifndef OPENSSL_NO_MD2
-#define MD2_DIGEST            1
+/*
+ * GCC attribute to let us tell GCC not to whine about unused formal
+ * parameters when we're in maximal warning mode.
+ */
+#ifdef __GNUC__
+#define	GCC_UNUSED	__attribute__((unused))
+#else
+define	GCC_UNUSED
 #endif
+
+/*
+ * Maximum size of a raw IP (v4 or v6) address, in bytes.
+ */
+#define RAW_IPADDR_BUFLEN    16
+
+/*
+ * Maximum size of an ASN.1 Integer converted from a Python Long, in bytes.
+ */
+#define MAX_ASN1_INTEGER_LEN    20
+
+/* Asymmetric ciphers */
+#define RSA_CIPHER            1
+
+/* Digests */
 #define MD5_DIGEST            2
 #define SHA_DIGEST            3
 #define SHA1_DIGEST           4
-#define RIPEMD160_DIGEST      5
 #define SHA256_DIGEST         6
 #define SHA384_DIGEST         7
 #define SHA512_DIGEST         8
 
-// Object format
+/* Object format */
 #define SHORTNAME_FORMAT      1
 #define LONGNAME_FORMAT       2
+#define OIDNAME_FORMAT        3
 
-// Output format
+/* Output format */
 #define PEM_FORMAT            1
 #define DER_FORMAT            2
 
-// Object check functions
-#define X_X509_Check(op)         ((op)->ob_type == &x509type)
-#define X_X509_store_Check(op)   ((op)->ob_type == &x509_storetype)
-#define X_X509_crl_Check(op)     ((op)->ob_type == &x509_crltype)
-#define X_X509_revoked_Check(op) ((op)->ob_type == &x509_revokedtype)
-#define X_asymmetric_Check(op)   ((op)->ob_type == &asymmetrictype)
-#define X_symmetric_Check(op)    ((op)->ob_type == &symmetrictype)
-#define X_digest_Check(op)       ((op)->ob_type == &digesttype)
-#define X_hmac_Check(op)         ((op)->ob_type == &hmactype)
-#define X_ssl_Check(op)          ((op)->ob_type == &ssltype)
-#define X_cms_Check(op)          ((op)->ob_type == &cmstype)
-
-// Symbolic representation of "no SSL shutdown mode requested"
-#define SSL_NO_SHUTDOWN       0
+/* Object check functions */
+#define POW_X509_Check(op)              PyObject_TypeCheck(op, &POW_X509_Type)
+#define POW_X509Store_Check(op)         PyObject_TypeCheck(op, &POW_X509Store_Type)
+#define POW_CRL_Check(op)               PyObject_TypeCheck(op, &POW_CRL_Type)
+#define POW_Asymmetric_Check(op)        PyObject_TypeCheck(op, &POW_Asymmetric_Type)
+#define POW_Digest_Check(op)            PyObject_TypeCheck(op, &POW_Digest_Type)
+#define POW_CMS_Check(op)               PyObject_TypeCheck(op, &POW_CMS_Type)
+#define POW_IPAddress_Check(op)         PyObject_TypeCheck(op, &POW_IPAddress_Type)
+#define POW_ROA_Check(op)               PyObject_TypeCheck(op, &POW_ROA_Type)
+#define POW_Manifest_Check(op)          PyObject_TypeCheck(op, &POW_Manifest_Type)
+#define POW_ROA_Check(op)               PyObject_TypeCheck(op, &POW_ROA_Type)
 
 static char pow_module__doc__ [] =
-"<moduleDescription>\n"
-"   <header>\n"
-"      <name>POW</name>\n"
-"      <author>Peter Shannon</author>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This third major release of POW addresses the most critical missing\n"
-"         parts of functionality, X509v3 support.  Initially I thought adding\n"
-"         support via the OpenSSL code would be the easiest option but this\n"
-"         proved to be incorrect mainly due to the way I have chosen to handle\n"
-"         the complex data such as <classname>directoryNames</classname> and\n"
-"         <classname>generalNames</classname>.  It is easier in python to\n"
-"         construct complex sets of data using lists and dictionaries than\n"
-"         coordinate large numbers of objects and method calls.  This is no\n"
-"         criticism, it is just extremely easy.  Coding complex data such as the\n"
-"         <classname>certificatePolicies</classname> coding coding routines in C\n"
-"         to handle the data proved laborous and ultimately error prone.\n"
-"      </para>\n"
-"      <para>\n"
-"         PKIX structures are supported by a few operations on the relevant POW\n"
-"         objects and through a Python library which is modelled on the DER\n"
-"         encoding rules.  Modeling DER does expose some of the complexities of\n"
-"         the ASN1 specifications but avoids coding many assumptions into the\n"
-"         data structures and the interface for the objects.  For an example of\n"
-"         overly complex definitions take a look at the\n"
-"         <classname>Name</classname> object in RFC3280.  It is equally\n"
-"         important that modeling DER in the way leads to a library which is\n"
-"         trivial to extend to support new objects - simple objects are one\n"
-"         liners and complex objects only require the definition of a new\n"
-"         constructor.\n"
-"      </para>\n"
-"      <para>\n"
-"         functionality have been plugged.  The <classname>Ssl</classname> class has received\n"
-"         several new features relating to security.  Other areas have been\n"
-"         improved: PRNG support, certificate and CRL signing, certificate chain\n"
-"         and client verification.  Many bugs have been fixed, and certain\n"
-"         parts of code re-written where necessary.  I hope you enjoy using POW\n"
-"         and please feel free to send me feature requests and bug reports.\n"
-"      </para>\n"
-"   </body>\n"
-"</moduleDescription>\n"
-;
+  "Python interface to RFC-3779-enabled OpenSSL.  This code is intended\n"
+  "to support the rpki.net toolset.\n"
+  "\n"
+  "This code started out life as Peter Shannon's excellent \"Python OpenSSL\n"
+  "Wrappers\" package.  It has been extensively modified since then, to add\n"
+  "support for things needed for the RPKI protocols, to upgrade the code\n"
+  "to use modern (circa Python 2.7) classes, and to remove code not\n"
+  "needed for RPKI.\n"
+  ;
 
-/*========== Pre-definitions ==========*/
+#define LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION \
+  "The documentation for this class used to provide a nice example of how\n" \
+  "to use the class.  Sadly, most of what was in that example is now\n" \
+  "obsolete due to recent or impending API changes.  Once the new API is\n" \
+  "stable, this documentation should be rewritten to provide such examples.\n"
+
+/*
+ * Handle NIDs we wish OpenSSL knew about.  This is carefully (we
+ * hope) written to do nothing at all for any NID that OpenSSL knows
+ * about; the intent is just to add definitions for things OpenSSL
+ * doesn't know about yet.  Of necessity, this is a bit gross, since
+ * it confounds runtime static variables with predefined macro names,
+ * but we try to put all the magic associated with this in one place.
+ */
+
+#ifndef NID_rpkiManifest
+static int NID_rpkiManifest;
+#endif
+
+#ifndef NID_signedObject
+static int NID_signedObject;
+#endif
+
+static const struct {
+  int *nid;
+  const char *oid;
+  const char *sn;
+  const char *ln;
+} missing_nids[] = {
+
+#ifndef NID_rpkiManifest
+  {&NID_rpkiManifest, "1.3.6.1.5.5.7.48.10", "id-ad-rpkiManifest", "RPKI Manifest"},
+#endif
+
+#ifndef NID_signedObject
+  {&NID_signedObject, "1.3.6.1.5.5.7.48.11", "id-ad-signedObject", "Signed Object"}
+#endif
+
+};
+
+/*
+ * IP versions.
+ */
+
+typedef struct ipaddress_version {
+  unsigned version;
+  unsigned afi;
+  unsigned af;
+  unsigned length;
+} ipaddress_version;
+
+static const ipaddress_version ipaddress_version_4 = {
+  4, IANA_AFI_IPV4, AF_INET, 4
+};
+
+static const ipaddress_version ipaddress_version_6 = {
+  6, IANA_AFI_IPV6, AF_INET6, 16
+};
+
+static const ipaddress_version * const ipaddress_versions[] = {
+  &ipaddress_version_4, &ipaddress_version_6
+};
+
+/*
+ * Exception objects.
+ */
+
 static PyObject
   *ErrorObject,
-  *SSLErrorObject,
-  *ZeroReturnErrorObject,
-  *WantReadErrorObject,
-  *WantWriteErrorObject,
-  *SSLSyscallErrorObject,
-  *SSLErrorSSLErrorObject,
-  *SSLSyscallSSLErrorObject,
-  *SSLUnexpectedEOFErrorObject,
-  *SSLOtherErrorObject;
+  *OpenSSLErrorObject,
+  *POWErrorObject,
+  *NotVerifiedErrorObject;
+
+/*
+ * Constructor for customized datetime class.
+ */
+
+static PyObject *custom_datetime;
+
+/*
+ * Declarations of type objects (definitions come later).
+ */
 
 static PyTypeObject
-  x509type,
-  x509_storetype,
-  x509_crltype,
-  x509_revokedtype,
-  asymmetrictype,
-  symmetrictype,
-  digesttype,
-  hmactype,
-  ssltype,
-  cmstype;
-/*========== Pre-definitions ==========*/
+  POW_X509_Type,
+  POW_X509Store_Type,
+  POW_CRL_Type,
+  POW_Asymmetric_Type,
+  POW_Digest_Type,
+  POW_CMS_Type,
+  POW_IPAddress_Type,
+  POW_ROA_Type,
+  POW_Manifest_Type,
+  POW_ROA_Type,
+  POW_PKCS10_Type;
 
-/*========== C structs ==========*/
+/*
+ * Object internals.
+ */
+
+typedef struct {
+  PyObject_HEAD
+  unsigned char address[16];
+  const struct ipaddress_version *type;
+} ipaddress_object;
+
 typedef struct {
   PyObject_HEAD
   X509 *x509;
@@ -249,25 +287,12 @@ typedef struct {
 typedef struct {
   PyObject_HEAD
   X509_CRL *crl;
-} x509_crl_object;
+} crl_object;
 
 typedef struct {
   PyObject_HEAD
-  X509_REVOKED *revoked;
-} x509_revoked_object;
-
-typedef struct {
-  PyObject_HEAD
-  void *cipher;
-  int key_type;
-  int cipher_type;
+  EVP_PKEY *pkey;
 } asymmetric_object;
-
-typedef struct {
-  PyObject_HEAD
-  EVP_CIPHER_CTX cipher_ctx;
-  int cipher_type;
-} symmetric_object;
 
 typedef struct {
   PyObject_HEAD
@@ -277,54 +302,61 @@ typedef struct {
 
 typedef struct {
   PyObject_HEAD
-  HMAC_CTX hmac_ctx;
-} hmac_object;
-
-typedef struct {
-  PyObject_HEAD
-  int ctxset;
-  SSL *ssl;
-  SSL_CTX *ctx;
-  STACK_OF(X509) *trusted_certs;
-  char *x509_cb_err;
-} ssl_object;
-
-typedef struct {
-  PyObject_HEAD
   CMS_ContentInfo *cms;
 } cms_object;
 
-/*========== C structs ==========*/
+typedef struct {
+  cms_object cms;               /* Subclass of CMS */
+  ROA *roa;
+} roa_object;
 
-/*========== helper functions ==========*/
+typedef struct {
+  cms_object cms;               /* Subclass of CMS */
+  Manifest *manifest;
+} manifest_object;
+
+typedef struct {
+  PyObject_HEAD
+  X509_REQ *pkcs10;
+  STACK_OF(X509_EXTENSION) *exts;
+} pkcs10_object;
+
+
+
+/*
+ * Utility functions.
+ */
 
 /*
  * Minimal intervention debug-by-printf() hack, use only for good.
  */
 
 #if 0
-#define KVETCH(_msg_)   write(2, _msg_ "\n", sizeof(_msg_))
+#define KVETCH(_msg_)           write(2, _msg_ "\n", sizeof(_msg_))
 #else
-#define KVETCH(_msg_)
+#define KVETCH(_msg_)           ((void) 0)
+#endif
+
+#if 0
+#define ENTERING(_name_)        KVETCH("Entering " #_name_ "()")
+#else
+#define ENTERING(_name_)        ((void) 0)
 #endif
 
 /*
- * Error handling macros.  These macros make two assumptions:
- *
- * 1) All the macros assume that there's a cleanup label named
- *    "error" which these macros can use as a goto target.
- *
- * 2) assert_no_unhandled_openssl_errors() assumes that the return
- *    value is stored in a PyObject* variable named "result".
- *
- * These are icky assumptions, but they make it easier to provide
- * uniform error handling and make the code easier to read, not to
- * mention making it easier to track down obscure OpenSSL errors.
+ * Error handling macros.  All of macros assume that there's a cleanup
+ * label named "error" which these macros can use as a goto target.
  */
 
 #define lose(_msg_)                                                     \
   do {                                                                  \
-    PyErr_SetString(ErrorObject, (_msg_));                              \
+    PyErr_SetString(POWErrorObject, (_msg_));                           \
+    goto error;                                                         \
+  } while (0)
+
+#define lose_no_memory()                                                \
+  do {                                                                  \
+    PyErr_NoMemory();                                                   \
     goto error;                                                         \
   } while (0)
 
@@ -336,25 +368,20 @@ typedef struct {
 
 #define lose_openssl_error(_msg_)                                       \
   do {                                                                  \
-    set_openssl_exception(ErrorObject, (_msg_));                        \
+    set_openssl_exception(OpenSSLErrorObject, (_msg_));                 \
     goto error;                                                         \
   } while (0)
 
-#define lose_ssl_error(_self_, _code_)                                  \
+#define lose_not_verified(_msg_)                                        \
   do {                                                                  \
-    set_openssl_ssl_exception(_self_, _code_);                          \
+    PyErr_SetString(NotVerifiedErrorObject, (_msg_));                   \
     goto error;                                                         \
   } while (0)
 
 #define assert_no_unhandled_openssl_errors()                            \
   do {                                                                  \
-    if (ERR_peek_error()) {                                             \
-      if (result) {                                                     \
-        Py_XDECREF(result);                                             \
-        result = NULL;                                                  \
-      }                                                                 \
+    if (ERR_peek_error())                                               \
       lose_openssl_error(assert_helper(__LINE__));                      \
-    }                                                                   \
   } while (0)
 
 static char *
@@ -367,85 +394,21 @@ assert_helper(int line)
   return msg;
 }
 
-static int
-docset_helper_add(PyObject *set, char *v)
-{
-  PyObject *value = NULL;
-
-  if ((value = PyString_FromString(v)) == NULL)
-    lose("could not allocate memory");
-
-  if (PyList_Append(set, value) != 0)
-    goto error;
-
-  Py_XDECREF(value);
-  return 1;
-
- error:
-
-  Py_XDECREF(value);
-  return 0;
-}
-
 /*
- * Generate an encrypion envelope.  Saves a lot of space having this case
- * statement in one place.
+ * Consolidate some tedious EVP-related switch statements.
  */
-static const EVP_CIPHER *
-evp_cipher_factory(int cipher_type)
+
+static const EVP_MD *
+evp_digest_factory(int digest_type)
 {
-  switch(cipher_type) {
-#ifndef OPENSSL_NO_DES
-  case DES_ECB:           return EVP_des_ecb();
-  case DES_EDE:           return EVP_des_ede();
-  case DES_EDE3:          return EVP_des_ede3();
-  case DES_CFB:           return EVP_des_cfb();
-  case DES_EDE_CFB:       return EVP_des_ede_cfb();
-  case DES_EDE3_CFB:      return EVP_des_ede3_cfb();
-  case DES_OFB:           return EVP_des_ofb();
-  case DES_EDE_OFB:       return EVP_des_ede_ofb();
-  case DES_EDE3_OFB:      return EVP_des_ede3_ofb();
-  case DES_CBC:           return EVP_des_cbc();
-  case DES_EDE_CBC:       return EVP_des_ede_cbc();
-  case DES_EDE3_CBC:      return EVP_des_ede3_cbc();
-  case DESX_CBC:          return EVP_desx_cbc();
-#endif
-#ifndef OPENSSL_NO_RC4
-  case RC4:               return EVP_rc4();
-  case RC4_40:            return EVP_rc4_40();
-#endif
-#ifndef OPENSSL_NO_IDEA
-  case IDEA_ECB:          return EVP_idea_ecb();
-  case IDEA_CFB:          return EVP_idea_cfb();
-  case IDEA_OFB:          return EVP_idea_ofb();
-  case IDEA_CBC:          return EVP_idea_cbc();
-#endif
-#ifndef OPENSSL_NO_RC2
-  case RC2_ECB:           return EVP_rc2_ecb();
-  case RC2_CBC:           return EVP_rc2_cbc();
-  case RC2_40_CBC:        return EVP_rc2_40_cbc();
-  case RC2_CFB:           return EVP_rc2_cfb();
-  case RC2_OFB:           return EVP_rc2_ofb();
-#endif
-#ifndef OPENSSL_NO_BF
-  case BF_ECB:            return EVP_bf_ecb();
-  case BF_CBC:            return EVP_bf_cbc();
-  case BF_CFB:            return EVP_bf_cfb();
-  case BF_OFB:            return EVP_bf_ofb();
-#endif
-#ifndef OPENSSL_NO_CAST5
-  case CAST5_ECB:         return EVP_cast5_ecb();
-  case CAST5_CBC:         return EVP_cast5_cbc();
-  case CAST5_CFB:         return EVP_cast5_cfb();
-  case CAST5_OFB:         return EVP_cast5_ofb();
-#endif
-#ifndef OPENSSL_NO_RC5
-  case RC5_32_12_16_CBC:  return EVP_rc5_32_12_16_cbc();
-  case RC5_32_12_16_CFB:  return EVP_rc5_32_12_16_cfb();
-  case RC5_32_12_16_ECB:  return EVP_rc5_32_12_16_ecb();
-  case RC5_32_12_16_OFB:  return EVP_rc5_32_12_16_ofb();
-#endif
-  default:                return NULL;
+  switch (digest_type) {
+  case MD5_DIGEST:      return EVP_md5();
+  case SHA_DIGEST:      return EVP_sha();
+  case SHA1_DIGEST:     return EVP_sha1();
+  case SHA256_DIGEST:   return EVP_sha256();
+  case SHA384_DIGEST:   return EVP_sha384();
+  case SHA512_DIGEST:   return EVP_sha512();
+  default:              return NULL;
   }
 }
 
@@ -496,218 +459,160 @@ set_openssl_exception(PyObject *error_class, const char *msg)
   Py_XDECREF(errors);
 }
 
-static void
-set_openssl_ssl_exception(const ssl_object *self, const int ret)
+static X509_NAME *
+x509_object_helper_set_name(PyObject *dn_obj)
 {
-  int err = SSL_get_error(self->ssl, ret);
-  const char *s = NULL;
+  PyObject *rdn_obj = NULL;
+  PyObject *pair_obj = NULL;
+  PyObject *type_obj = NULL;
+  PyObject *value_obj = NULL;
+  X509_NAME *name = NULL;
+  char *type_str, *value_str;
+  int asn1_type, i, j;
 
-  switch(err) {
+  if ((name = X509_NAME_new()) == NULL)
+    lose_no_memory();
 
-    /*
-     * These three get their own exceptions.
-     */
+  for (i = 0; i < PySequence_Size(dn_obj); i++) {
 
-  case SSL_ERROR_ZERO_RETURN:
-    PyErr_SetNone(ZeroReturnErrorObject);
-    break;
-  case SSL_ERROR_WANT_READ:
-    PyErr_SetNone(WantReadErrorObject);
-    break;
-  case SSL_ERROR_WANT_WRITE:
-    PyErr_SetNone(WantWriteErrorObject);
-    break;
+    if ((rdn_obj = PySequence_GetItem(dn_obj, i)) == NULL)
+      goto error;
 
-  case SSL_ERROR_SYSCALL:
-    /*
-     * Horrible jumbled mess of I/O related errors.  I'd ask what they
-     * were thinking, except that it's pretty clear that they weren't.
-     */
-    if (ERR_peek_error())
-      set_openssl_exception(SSLSyscallSSLErrorObject, NULL);
-    else if (ret)
-      PyErr_SetFromErrno(SSLSyscallErrorObject);
-    else
-      PyErr_SetNone(SSLUnexpectedEOFErrorObject);
-    break;
+    if (!PySequence_Check(rdn_obj) || PySequence_Size(rdn_obj) == 0)
+      lose_type_error("each RDN must be a sequence with at least one element");
 
-  case SSL_ERROR_SSL:
-    /*
-     * Generic OpenSSL error during an SSL call.  I think.
-     */
-    set_openssl_exception(SSLErrorSSLErrorObject, self->x509_cb_err);
-    break;
+    for (j = 0; j < PySequence_Size(rdn_obj); j++) {
 
-    /*
-     * All other SSL errors are returned as a (number, string) tuple.
-     */
+      if ((pair_obj = PySequence_GetItem(rdn_obj, j)) == NULL)
+        goto error;
 
-  case SSL_ERROR_NONE:
-    s = "SSL_ERROR_NONE";
-    break;
-  case SSL_ERROR_WANT_X509_LOOKUP:
-    s = "SSL_ERROR_WANT_X509_LOOKUP";
-    break;
-  case SSL_ERROR_WANT_CONNECT:
-    s = "SSL_ERROR_WANT_CONNECT";
-    break;
-  case SSL_ERROR_WANT_ACCEPT:
-    s = "SSL_ERROR_WANT_ACCEPT";
-    break;
-  default:
-    s = "UNKNOWN_SSL_ERROR";
+      if (!PySequence_Check(pair_obj) || PySequence_Size(pair_obj) != 2)
+        lose_type_error("each name entry must be a two-element sequence");
+
+      if ((type_obj  = PySequence_GetItem(pair_obj, 0)) == NULL ||
+          (type_str  = PyString_AsString(type_obj))     == NULL ||
+          (value_obj = PySequence_GetItem(pair_obj, 1)) == NULL ||
+          (value_str = PyString_AsString(value_obj))    == NULL)
+        goto error;
+
+      if ((asn1_type = ASN1_PRINTABLE_type((unsigned char *) value_str, -1)) != V_ASN1_PRINTABLESTRING)
+        asn1_type = V_ASN1_UTF8STRING;
+
+      if (!X509_NAME_add_entry_by_txt(name, type_str, asn1_type,
+                                      (unsigned char *) value_str,
+                                      strlen((char *) value_str),
+                                      -1, (j ? -1 : 0)))
+        lose("Unable to add name entry");
+
+      Py_XDECREF(pair_obj);
+      Py_XDECREF(type_obj);
+      Py_XDECREF(value_obj);
+      pair_obj = type_obj = value_obj = NULL;
+    }
+
+    Py_XDECREF(rdn_obj);
+    rdn_obj = NULL;
   }
 
-  if (s)
-    PyErr_SetObject(SSLOtherErrorObject, Py_BuildValue("(is)", err, s));
-}
-
-static PyObject *
-X509_object_helper_set_name(X509_NAME *name, PyObject *name_sequence)
-{
-  PyObject *pair = NULL; PyObject *type = NULL; PyObject *value = NULL;
-  int no_pairs = 0, i = 0, str_type = 0, nid;
-  unsigned char *valueptr = NULL;
-  char *typeptr = NULL;
-
-  no_pairs = PySequence_Size(name_sequence);
-  for (i = 0; i < no_pairs; i++) {
-    if ((pair = PySequence_GetItem(name_sequence, i)) == NULL)
-      return NULL;
-
-    if (!PyTuple_Check(pair) && !PyList_Check(pair))
-      lose_type_error("inapropriate type");
-
-    if (PySequence_Size(pair) != 2)
-      lose("each name entry must have 2 elements");
-
-    if ((type = PySequence_GetItem(pair, 0)) == NULL)
-      lose_type_error("could not get type string");
-
-    if (!PyString_Check(type))
-      lose_type_error("inapropriate type");
-
-    if ((value = PySequence_GetItem(pair, 1)) == NULL)
-      lose_type_error("could not get value string");
-
-    if (!PyString_Check(value))
-      lose_type_error("inapropriate type");
-
-    typeptr = PyString_AsString(type);
-    valueptr = (unsigned char *) PyString_AsString(value);
-
-    str_type = ASN1_PRINTABLE_type(valueptr, -1);
-    if ((nid = OBJ_ln2nid(typeptr)) == 0 &&
-        (nid = OBJ_sn2nid(typeptr)) == 0)
-      lose("unknown ASN1 object");
-
-    if (!X509_NAME_add_entry_by_NID(name, nid, str_type, valueptr,
-                                    strlen((char *) valueptr), -1, 0))
-      lose("unable to add name entry");
-
-    Py_XDECREF(pair);
-    Py_XDECREF(type);
-    Py_XDECREF(value);
-    pair = NULL;
-    type = NULL;
-    value = NULL;
-  }
-  return name_sequence;
+  return name;
 
  error:
-
-  Py_XDECREF(pair);
-  Py_XDECREF(type);
-  Py_XDECREF(value);
-
+  X509_NAME_free(name);
+  Py_XDECREF(rdn_obj);
+  Py_XDECREF(pair_obj);
+  Py_XDECREF(type_obj);
+  Py_XDECREF(value_obj);
   return NULL;
 }
 
 static PyObject *
-X509_object_helper_get_name(X509_NAME *name, int format)
+x509_object_helper_get_name(X509_NAME *name, int format)
 {
-  int no_entries = 0, no_pairs = 0, i = 0, j = 0, value_len = 0, nid = 0;
   X509_NAME_ENTRY *entry = NULL;
-  char *value = NULL, long_name[512];
-  const char *short_name;
+  PyObject *result = NULL;
+  PyObject *rdn = NULL;
+  PyObject *item = NULL;
+  const char *oid = NULL;
+  char oidbuf[512];
+  int i, set = -1;
 
-  PyObject *result_list = NULL;
-  PyObject *pair = NULL;
-  PyObject *py_type = NULL;
-  PyObject *py_value = NULL;
+  /*
+   * Overall theory here: multi-value RDNs are very rare in the wild.
+   * We should support them, so we don't throw an exception if handed
+   * one in a BPKI certificate, but with minimal effort.  What we care
+   * about here is optimizing for the common case of single-valued RDNs.
+   */
 
-  no_entries = X509_NAME_entry_count(name);
+  if ((result = PyTuple_New(X509_NAME_entry_count(name))) == NULL)
+    goto error;
 
-  if ((result_list = PyTuple_New(no_entries)) == NULL)
-    lose("could not allocate memory");
+  for (i = 0; i < X509_NAME_entry_count(name); i++) {
 
-  for(i = 0; i < no_entries; i++) {
     if ((entry = X509_NAME_get_entry(name, i)) == NULL)
-      lose("could not get certificate name");
+      lose("Couldn't get certificate name");
 
-    if (entry->value->length + 1 > value_len) {
-      if (value)
-        free(value);
-
-      if ((value = malloc(entry->value->length + 1)) == NULL)
-        lose("could not allocate memory");
-
-      value_len = entry->value->length + 1;
-    }
-    memcpy(value, entry->value->data, entry->value->length);
-    value[entry->value->length] = 0;
-
-    if (!i2t_ASN1_OBJECT(long_name, sizeof(long_name), entry->object))
-      lose("could not find object name");
+    if (entry->set < 0 || entry->set < set || entry->set > set + 1)
+      lose("X509_NAME->set value out of expected range");
 
     switch (format) {
     case SHORTNAME_FORMAT:
-      nid = OBJ_ln2nid(long_name);
-      short_name = OBJ_nid2sn(nid);
-      py_type = PyString_FromString(short_name);
+      oid = OBJ_nid2sn(OBJ_obj2nid(entry->object));
       break;
     case LONGNAME_FORMAT:
-      py_type = PyString_FromString(long_name);
+      oid = OBJ_nid2ln(OBJ_obj2nid(entry->object));
+      break;
+    case OIDNAME_FORMAT:
+      oid = NULL;
       break;
     default:
-      lose("unknown name format");
+      lose("Unknown name format");
     }
 
-    py_value = PyString_FromString(value);
+    if (oid == NULL) {
+      if (OBJ_obj2txt(oidbuf, sizeof(oidbuf), entry->object, 1) <= 0)
+        lose_openssl_error("Couldn't translate OID");
+      oid = oidbuf;
+    }
 
-    if ((pair = PyTuple_New(2)) == NULL)
-      lose("could not allocate memory");
+    if (entry->set > set) {
 
-    PyTuple_SetItem(pair, 0, py_type);
-    PyTuple_SetItem(pair, 1, py_value);
-    PyTuple_SetItem(result_list, i, pair);
+      set++;
+      if ((item = Py_BuildValue("((ss#))", oid,
+                                ASN1_STRING_data(entry->value),
+                                ASN1_STRING_length(entry->value))) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result, set, item);
+      item = NULL;
+
+    } else {
+
+      if ((rdn = PyTuple_GetItem(result, set)) == NULL)
+        goto error;
+      (void) _PyTuple_Resize(&rdn, PyTuple_Size(rdn) + 1);
+      PyTuple_SET_ITEM(result, set, rdn);
+      if (rdn == NULL)
+        goto error;
+      if ((item = Py_BuildValue("(ss#)", oid,
+                                ASN1_STRING_data(entry->value),
+                                ASN1_STRING_length(entry->value))) == NULL)
+        goto error;
+      PyTuple_SetItem(rdn, PyTuple_Size(rdn) - 1, item);
+      rdn = item = NULL;
+
+    }
   }
 
-  if (value)
-    free(value);
+  if (++set != PyTuple_Size(result)) {
+    if (set < 0 || set > PyTuple_Size(result))
+      lose("Impossible set count for DN, something went horribly wrong");
+    _PyTuple_Resize(&result, set);
+  }
 
-  return result_list;
+  return result;
 
  error:
-
-  if (value)
-    free(value);
-
-  if (result_list) {
-    no_pairs = PyTuple_Size(result_list);
-    for (i = 0; i < no_pairs; i++) {
-      pair = PyTuple_GetItem(result_list, i);
-      no_entries = PyTuple_Size(result_list);
-      for (j = 0; j < no_entries; j++) {
-        py_value = PyTuple_GetItem(pair, i);
-        Py_XDECREF(py_value);
-      }
-    }
-  }
-
-  Py_XDECREF(py_type);
-  Py_XDECREF(py_value);
-  Py_XDECREF(result_list);
+  Py_XDECREF(item);
+  Py_XDECREF(result);
   return NULL;
 }
 
@@ -718,11 +623,11 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
   STACK_OF(X509) *x509_stack = NULL;
   int size = 0, i = 0;
 
-  if (x509_sequence != Py_None && !PyTuple_Check(x509_sequence) && !PyList_Check(x509_sequence))
+  if (x509_sequence != Py_None && !PySequence_Check(x509_sequence))
     lose_type_error("Inapropriate type");
 
   if ((x509_stack = sk_X509_new_null()) == NULL)
-    lose("Couldn't create new X509 stack");
+    lose_no_memory();
 
   if (x509_sequence != Py_None) {
     size = PySequence_Size(x509_sequence);
@@ -731,7 +636,7 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
       if ((x509obj = (x509_object*) PySequence_GetItem(x509_sequence, i)) == NULL)
         goto error;
 
-      if (!X_X509_Check(x509obj))
+      if (!POW_X509_Check(x509obj))
         lose_type_error("Inapropriate type");
 
       if (!sk_X509_push(x509_stack, x509obj->x509))
@@ -745,469 +650,1109 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
   return x509_stack;
 
  error:
-
-  if (x509_stack)
-    sk_X509_free(x509_stack);
-
+  sk_X509_free(x509_stack);
   Py_XDECREF(x509obj);
-
-  return NULL;
-}
-
-static PyObject *
-stack_to_tuple_helper(_STACK *sk, PyObject *(*handler)(void *))
-{
-  PyObject *result_list = NULL, *result_tuple = NULL, *obj = NULL;
-
-  if ((result_list = PyList_New(0)) == NULL)
-    lose("could not allocate memory");
-
-  while (sk_num(sk)) {
-
-    if ((obj = handler(sk_value(sk, 0))) == NULL)
-      lose("could not allocate memory");
-
-    sk_shift(sk);
-
-    if (PyList_Append(result_list, obj) != 0)
-      goto error;
-
-    Py_XDECREF(obj);
-    obj = NULL;
-  }
-
-  result_tuple = PyList_AsTuple(result_list);
-  Py_XDECREF(result_list);
-
-  return result_tuple;
-
- error:
-
-  Py_XDECREF(obj);
-  Py_XDECREF(result_list);
   return NULL;
 }
 
 /*
- * Time conversion functions.  These follow RFC 5280, but use a single
- * text encoding that looks like GeneralizedTime as restricted by RFC
- * 5280; conversion to and from UTCTime is handled internally
- * according to the RFC 5280 rules.  The intent is to hide the
- * horrible short-sighted mess from Python code entirely.
+ * Pull items off an OpenSSL STACK and put them into a Python tuple.
+ * Assumes that handler is stealing the OpenSSL references to the
+ * items in the STACK, so shifts consumed frames off the stack so that
+ * the appropriate _pop_free() destructor can clean up on failures.
+ * This is OK because all current uses of this function are processing
+ * the result of OpenSSL xxx_get1_xxx() methods which we have to free
+ * in any case.
+ */
+
+static PyObject *
+stack_to_tuple_helper(_STACK *sk, PyObject *(*handler)(void *))
+{
+  PyObject *result = NULL;
+  PyObject *obj = NULL;
+  int i;
+
+  if ((result = PyTuple_New(sk_num(sk))) == NULL)
+    goto error;
+
+  for (i = 0; sk_num(sk); i++) {
+    if ((obj = handler(sk_value(sk, 0))) == NULL)
+      goto error;
+    sk_shift(sk);
+    if (PyTuple_SetItem(result, i, obj) != 0)
+      goto error;
+    obj = NULL;
+  }
+
+  return result;
+
+ error:
+
+  Py_XDECREF(obj);
+  return NULL;
+}
+
+/*
+ * Time conversion functions.  Obvious mapping into Python data types
+ * is datetime, or, rather, our customized rpki.sundial.datetime.
+ *
+ * Unsuprisingly, it's easiest for us to map between GeneralizedTime
+ * (as restricted by RFC 5280) and datetime.  Conversion between
+ * GeneralizedTime and UTCTime is handled automatically according to
+ * the RFC 5280 rules for those ASN.1 types where it's required.
  */
 
 static PyObject *
 ASN1_TIME_to_Python(ASN1_TIME *t)
 {
-  ASN1_GENERALIZEDTIME *g = ASN1_TIME_to_generalizedtime(t, NULL);
+  ASN1_GENERALIZEDTIME *g = NULL;
   PyObject *result = NULL;
-  if (g) {
-    result = Py_BuildValue("s", g->data);
-    ASN1_GENERALIZEDTIME_free(g);
-  }
+  int year, month, day, hour, minute, second;
+
+  if ((g = ASN1_TIME_to_generalizedtime(t, NULL)) == NULL)
+    lose_openssl_error("Couldn't convert ASN.1 TIME");
+
+  if (sscanf((char *) g->data, "%4d%2d%2d%2d%2d%2dZ",
+             &year, &month, &day, &hour, &minute, &second) != 6)
+    lose("Couldn't scan ASN.1 TIME value");
+  
+  if (custom_datetime != NULL && custom_datetime != Py_None)
+    result = PyObject_CallFunction(custom_datetime, "iiiiii",
+                                   year, month, day, hour, minute, second);
+  else
+    result = PyDateTime_FromDateAndTime(year, month, day, hour, minute, second, 0);
+  
+ error:
+  ASN1_GENERALIZEDTIME_free(g);
   return result;
 }
 
-static int
-python_ASN1_TIME_set_string(ASN1_TIME *t, const char *s)
+static ASN1_TIME *
+Python_to_ASN1_TIME(PyObject *arg, const int object_requires_utctime)
 {
-  if (t == NULL || s == NULL || strlen(s) < 10)
-    return 0;
-  if ((s[0] == '1' && s[1] == '9' && s[2] > '4') ||
-      (s[0] == '2' && s[1] == '0' && s[2] < '5'))
-    return ASN1_UTCTIME_set_string(t, s + 2);
+  char buf[sizeof("20010401123456Z") + 1];
+  ASN1_TIME *result = NULL;
+  const char *s = NULL;
+  int ok;
+  
+  if (PyDateTime_Check(arg)) {
+    if (snprintf(buf, sizeof(buf), "%4d%02d%02d%02d%02d%02dZ", 
+                 PyDateTime_GET_YEAR(arg),
+                 PyDateTime_GET_MONTH(arg),
+                 PyDateTime_GET_DAY(arg),
+                 PyDateTime_DATE_GET_HOUR(arg),
+                 PyDateTime_DATE_GET_MINUTE(arg),
+                 PyDateTime_DATE_GET_SECOND(arg)) >= (int) sizeof(buf))
+      lose("Internal error -- GeneralizedTime buffer too small");
+    s = buf;
+  }
+
+  if (s == NULL && (s = PyString_AsString(arg)) == NULL)
+    goto error;
+
+  if (strlen(s) < 10)
+    lose_type_error("String is too short to parse as a valid ASN.1 TIME");
+
+  if ((result = ASN1_TIME_new()) == NULL)
+    lose_no_memory();
+
+  if (object_requires_utctime &&
+      ((s[0] == '1' && s[1] == '9' && s[2] > '4') ||
+       (s[0] == '2' && s[1] == '0' && s[2] < '5')))
+    ok = ASN1_UTCTIME_set_string(result, s + 2);
   else
-    return ASN1_GENERALIZEDTIME_set_string(t, s);
-}
+    ok = ASN1_GENERALIZEDTIME_set_string(result, s);
 
-/*========== helper funcitons ==========*/
-
-/*========== X509 code ==========*/
-static x509_object *
-X509_object_new(void)
-{
-  x509_object *self;
-
-  self = PyObject_New(x509_object, &x509type);
-  if (self == NULL)
-    goto error;
-
-  self->x509 = X509_new();
-  return self;
+  if (ok)
+    return result;
 
  error:
-
-  Py_XDECREF(self);
+  ASN1_TIME_free(result);
   return NULL;
 }
 
 /*
- * This function is pretty dumb.  Most of the work is done by the module
- * function pow_module_pem_read().
- */
-static x509_object *
-X509_object_pem_read(BIO *in)
-{
-  x509_object *self;
-
-  if ((self = PyObject_New(x509_object, &x509type)) == NULL)
-    goto error;
-
-  if ((self->x509 = PEM_read_bio_X509(in, NULL, NULL, NULL)) == NULL)
-    lose("could not load PEM encoded certificate");
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static x509_object *
-X509_object_der_read(unsigned char *src, int len)
-{
-  x509_object *self;
-  unsigned char *ptr = src;
-
-  if ((self = PyObject_New(x509_object, &x509type)) == NULL)
-    goto error;
-
-  self->x509 = X509_new();
-
-  if(!d2i_X509(&self->x509, (const unsigned char **) &ptr, len))
-    lose("could not load PEM encoded certificate");
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-/*
- * Unlike the previous function this creates the BIO itself.  The BIO_s_mem
- * is used as a buffer which the certificate is read into, from this buffer
- * it is read into a char[] and returned as a string.
+ * Extract a Python string from a memory BIO.
  */
 static PyObject *
-X509_object_write_helper(x509_object *self, PyObject *args, int format)
+BIO_to_PyString_helper(BIO *bio)
 {
+  char *ptr = NULL;
   int len = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
-  PyObject *cert = NULL;
 
-  if (!PyArg_ParseTuple(args, ""))
-    return NULL;
+  if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
+    lose_openssl_error("Unable to get BIO data");
 
-  out_bio = BIO_new(BIO_s_mem());
-
-  switch (format) {
-
-  case DER_FORMAT:
-    if (!i2d_X509_bio(out_bio, self->x509))
-      lose("unable to write certificate");
-    break;
-
-  case PEM_FORMAT:
-    if (!PEM_write_bio_X509(out_bio, self->x509))
-      lose("unable to write certificate");
-    break;
-
-  default:
-    lose("internal error, unknown output format");
-  }
-
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
-
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if (BIO_read(out_bio, buf, len) != len)
-    lose("unable to write out cert");
-
-  cert = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
-  return cert;
+  return Py_BuildValue("s#", ptr, len);
 
  error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
-  Py_XDECREF(cert);
   return NULL;
 }
 
-static char X509_object_pem_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>pemWrite</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a PEM encoded certificate as a\n"
-"         string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
 static PyObject *
-X509_object_pem_write(x509_object *self, PyObject *args)
+read_from_string_helper(PyObject *(*object_read_helper)(PyTypeObject *, BIO *),
+                        PyTypeObject *type,
+                        PyObject *args)
 {
-  return X509_object_write_helper(self, args, PEM_FORMAT);
+  PyObject *result = NULL;
+  char *src = NULL;
+  BIO *bio = NULL;
+  int len = 0;
+
+  if (!PyArg_ParseTuple(args, "s#", &src, &len))
+    goto error;
+
+  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
+    lose_no_memory();
+
+  result = object_read_helper(type, bio);
+
+ error:
+  BIO_free(bio);
+  return result;
 }
 
-static char X509_object_der_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>derWrite</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a DER encoded certificate as a\n"
-"         string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
 static PyObject *
-X509_object_der_write(x509_object *self, PyObject *args)
+read_from_file_helper(PyObject *(*object_read_helper)(PyTypeObject *, BIO *),
+                      PyTypeObject *type,
+                      PyObject *args)
 {
-  return X509_object_write_helper(self, args, DER_FORMAT);
+  const char *filename = NULL;
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  if (!PyArg_ParseTuple(args, "s", &filename))
+    goto error;
+
+  if ((bio = BIO_new_file(filename, "rb")) == NULL)
+    lose_openssl_error("Could not open file");
+
+  result = object_read_helper(type, bio);
+
+ error:
+  BIO_free(bio);
+  return result;
 }
 
 /*
- * Currently this function only supports RSA keys.
+ * Simplify entries in method definition tables.  See the "Common
+ * Object Structures" section of the API manual for available flags.
  */
-static char X509_object_set_public_key__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>setPublicKey</name>\n"
-"      <parameter>key</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method sets the public key for this certificate object.  The\n"
-"         parameter <parameter>key</parameter> should be an instance of\n"
-"         <classname>Asymmetric</classname> containing a public key.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+#define Define_Method(__python_name__, __c_name__, __flags__) \
+  { #__python_name__, (PyCFunction) __c_name__, __flags__, __c_name__##__doc__ }
 
+#define Define_Class_Method(__python_name__, __c_name__, __flags__) \
+  Define_Method(__python_name__, __c_name__, (__flags__) | METH_CLASS)
 
+/*
+ * Convert an ASN1_INTEGER into a Python integer or long.
+ */
 static PyObject *
-X509_object_set_public_key(x509_object *self, PyObject *args)
+ASN1_INTEGER_to_PyLong(ASN1_INTEGER *arg)
 {
-  EVP_PKEY *pkey = NULL;
-  asymmetric_object *asym;
+  PyObject *result = NULL;
+  PyObject *obj = NULL;
 
-  if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
-    goto error;
+  if ((obj = _PyLong_FromByteArray(ASN1_STRING_data(arg),
+                                   ASN1_STRING_length(arg),
+                                   0, 0)) != NULL)
+    result = PyNumber_Int(obj);
 
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose("EVP_PKEY assignment error");
-
-  if (!X509_set_pubkey(self->x509,pkey))
-    lose("could not set certificate's public key");
-
-  Py_RETURN_NONE;
-
- error:
-
-  if (pkey)
-    EVP_PKEY_free(pkey);
-
-  return NULL;
-
+  Py_XDECREF(obj);
+  return result;
 }
 
-static char X509_object_sign__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>sign</name>\n"
-"      <parameter>key</parameter>\n"
-"      <optional><parameter>digest = MD5_DIGEST</parameter></optional>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method signs a certificate with a private key.  See the\n"
-"         example for the methods which should be invoked before signing a\n"
-"         certificate.  <parameter>key</parameter> should be an instance of\n"
-"         <classname>Asymmetric</classname> containing a private key.\n"
-"         The optional parameter <parameter>digest</parameter> indicates\n"
-"         which digest function should be used to compute the hash to be\n"
-"         signed, it should be one of the following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
-"         <member><constant>MD5_DIGEST</constant></member>\n"
-"         <member><constant>SHA_DIGEST</constant></member>\n"
-"         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
-"         <member><constant>SHA256_DIGEST</constant></member>\n"
-"         <member><constant>SHA384_DIGEST</constant></member>\n"
-"         <member><constant>SHA512_DIGEST</constant></member>\n"
-"     </simplelist>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-
-static PyObject *
-X509_object_sign(x509_object *self, PyObject *args)
+/*
+ * Convert a Python long to an ASN1_INTEGER.
+ * This is just nasty, do not read on a full stomach.
+ *
+ * Maximum size of integer to be converted here is taken from RFC 5280
+ * 4.1.2.2, which sets a maximum of 20 octets for an X.509 certificate
+ * serial number.
+ *
+ * In theory we could use _PyLong_NumBits() to determine the length of
+ * the long before converting, and raise OverflowError if it's too big.
+ * Hmm.
+ */
+static ASN1_INTEGER *
+PyLong_to_ASN1_INTEGER(PyObject *arg)
 {
-  EVP_PKEY *pkey = NULL;
-  asymmetric_object *asym;
-  int digest = MD5_DIGEST;
+  PyObject *obj = NULL;
+  ASN1_INTEGER *a = NULL;
+  unsigned char buf[MAX_ASN1_INTEGER_LEN];
+  size_t len;
 
-  if (!PyArg_ParseTuple(args, "O!|i", &asymmetrictype, &asym, &digest))
+  memset(buf, 0, sizeof(buf));
+
+  /*
+   * Make sure argument is a PyLong small enough that its length (in
+   * bits!)  doesn't overflow a size_t (which is a mis-use of size_t,
+   * but take that up with whoever wrote _PyLong_NumBits()...).
+   */
+  if ((obj = PyNumber_Long(arg)) == NULL ||
+      (len = _PyLong_NumBits(obj)) == (size_t) -1)
     goto error;
 
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (asym->key_type != RSA_PRIVATE_KEY)
-    lose("cannot use this type of key");
-
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose("EVP_PKEY assignment error");
-
-  switch (digest) {
-  case MD5_DIGEST:
-    if (!X509_sign(self->x509, pkey, EVP_md5()))
-      lose("could not sign certificate");
-    break;
-
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    if (!X509_sign(self->x509, pkey, EVP_md2()))
-      lose("could not sign certificate");
-    break;
-#endif
-
-  case SHA_DIGEST:
-    if (!X509_sign(self->x509, pkey, EVP_sha()))
-      lose("could not sign certificate");
-    break;
-
-  case SHA1_DIGEST:
-    if (!X509_sign(self->x509, pkey, EVP_sha1()))
-      lose("could not sign certificate");
-    break;
-
-  case RIPEMD160_DIGEST:
-    if (!X509_sign(self->x509, pkey, EVP_ripemd160()))
-      lose("could not sign certificate");
-    break;
-
-  case SHA256_DIGEST:
-    if (!X509_sign(self->x509, pkey, EVP_sha256()))
-      lose("could not sign certificate");
-    break;
-
-  case SHA384_DIGEST:
-    if (!X509_sign(self->x509, pkey, EVP_sha384()))
-      lose("could not sign certificate");
-    break;
-
-  case SHA512_DIGEST:
-    if (!X509_sign(self->x509, pkey, EVP_sha512()))
-      lose("could not sign certificate");
-    break;
+  /*
+   * Next make sure it's a non-negative integer small enough to fit in
+   * our buffer.  If we really thought we needed to support larger
+   * integers we could allocate this dynamically, but we don't, so
+   * it's not worth the overhead.
+   *
+   * Paranoia: We can't convert len to bytes yet, because that
+   * requires rounding up and we don't know yet that we have enough
+   * headroom to do that arithmetic without overflowing a size_t.
+   */
+  if (_PyLong_Sign(obj) < 0 || (len / 8) + 1 > sizeof(buf)) {
+    PyErr_SetObject(PyExc_OverflowError, obj);
+    goto error;
   }
 
+  /*
+   * Now that we know we're dealing with a sane number of bits,
+   * convert it to bytes.
+   */
+  len = (len + 7) / 8;
+
+  /*
+   * Extract that many bytes.
+   */
+  if (_PyLong_AsByteArray((PyLongObject *) obj, buf, len, 0, 0) < 0)
+    goto error;
+
+  /*
+   * We're done with the PyLong now.
+   */
+  Py_XDECREF(obj);
+  obj = NULL;
+
+  /*
+   * Generate the ASN1_INTEGER and return it.
+   */
+  if ((a = ASN1_INTEGER_new()) == NULL ||
+      (a->length < (int) len + 1 && (a->data = OPENSSL_realloc(a->data, len + 1)) == NULL))
+    lose_no_memory();
+
+  a->type = V_ASN1_INTEGER;
+  a->length = len;
+  a->data[len] = 0;
+  memcpy(a->data, buf, len);
+
+  return a;
+
+ error:
+  Py_XDECREF(obj);
+  ASN1_INTEGER_free(a);
+  return NULL;
+}
+
+/*
+ * Handle missing NIDs.
+ */
+
+static int
+create_missing_nids(void)
+{
+  int i;
+
+  for (i = 0; i < (int) (sizeof(missing_nids) / sizeof(*missing_nids)); i++)
+    if ((*missing_nids[i].nid = OBJ_txt2nid(missing_nids[i].oid)) == NID_undef &&
+        (*missing_nids[i].nid = OBJ_create(missing_nids[i].oid,
+                                           missing_nids[i].sn,
+                                           missing_nids[i].ln)) == NID_undef)
+      return 0;
+
+  return 1;
+}
+
+static PyObject *
+ASN1_OBJECT_to_PyString(const ASN1_OBJECT *oid)
+{
+  PyObject *result = NULL;
+  char buf[512];
+
+  ENTERING(ASN1_OBJECT_to_PyString);
+
+  if (OBJ_obj2txt(buf, sizeof(buf), oid, 1) <= 0)
+    lose_openssl_error("Couldn't translate OID");
+
+  result = PyString_FromString(buf);
+
+ error:
+  return result;
+}
+
+
+
+/*
+ * IPAddress object.
+ */
+
+static PyObject *
+ipaddress_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"initializer", "version", NULL};
+  ipaddress_object *self = NULL;
+  PyObject *init = NULL;
+  PyObject *pylong = NULL;
+  int version = 0;
+  const char *s = NULL;
+  int v;
+
+  ENTERING(ipaddress_object_new);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|i", kwlist, &init, &version) ||
+      (self = (ipaddress_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
+
+  if (POW_IPAddress_Check(init)) {
+    ipaddress_object *src = (ipaddress_object *) init;
+    memcpy(self->address, src->address, sizeof(self->address));
+    self->type = src->type;
+    return (PyObject *) self;
+  }
+
+  if ((s = PyString_AsString(init)) == NULL)
+    PyErr_Clear();
+  else if (version == 0)
+    version = strchr(s, ':') ? 6 : 4;
+
+  self->type = NULL;
+
+  for (v = 0; v < (int) (sizeof(ipaddress_versions)/sizeof(*ipaddress_versions)); v++)
+    if ((unsigned) version == ipaddress_versions[v]->version)
+      self->type = ipaddress_versions[v];
+
+  if (self->type == NULL)
+    lose("Unknown IP version number");
+
+  if (s != NULL) {
+    if (inet_pton(self->type->af, s, self->address) <= 0)
+      lose("Couldn't parse IP address");
+    return (PyObject *) self;
+  }
+
+  if ((pylong = PyNumber_Long(init)) != NULL) {
+    if (_PyLong_AsByteArray((PyLongObject *) pylong, self->address, self->type->length, 0, 0) < 0)
+      goto error;
+    Py_XDECREF(pylong);
+    return (PyObject *) self;
+  }
+
+  lose_type_error("Couldn't convert initializer to IPAddress");
+
+ error:
+  Py_XDECREF(self);
+  Py_XDECREF(pylong);
+  return NULL;
+}
+
+static PyObject *
+ipaddress_object_str(ipaddress_object *self)
+{
+  char addrstr[sizeof("aaaa:bbbb:cccc:dddd:eeee:ffff:255.255.255.255") + 1];
+
+  ENTERING(ipaddress_object_str);
+
+  if (!inet_ntop(self->type->af, self->address, addrstr, sizeof(addrstr)))
+    lose("Couldn't convert IP address");
+
+  return PyString_FromString(addrstr);
+
+ error:
+  return NULL;
+}
+
+static PyObject *
+ipaddress_object_repr(ipaddress_object *self)
+{
+  char addrstr[sizeof("aaaa:bbbb:cccc:dddd:eeee:ffff:255.255.255.255") + 1];
+
+  ENTERING(ipaddress_object_repr);
+
+  if (!inet_ntop(self->type->af, self->address, addrstr, sizeof(addrstr)))
+    lose("Couldn't convert IP address");
+
+  return PyString_FromFormat("<%s object %s at %p>",
+                             self->ob_type->tp_name, addrstr, self);
+
+ error:
+  return NULL;
+}
+
+static int
+ipaddress_object_compare(PyObject *arg1, PyObject *arg2)
+{
+  PyObject *obj1 = PyNumber_Long(arg1);
+  PyObject *obj2 = PyNumber_Long(arg2);
+  int cmp = -1;
+
+  ENTERING(ipaddress_object_compare);
+
+  if (obj1 != NULL && obj2 != NULL)
+    cmp = PyObject_Compare(obj1, obj2);
+
+  Py_XDECREF(obj1);
+  Py_XDECREF(obj2);
+  return cmp;
+}
+
+static PyObject *
+ipaddress_object_richcompare(PyObject *arg1, PyObject *arg2, int op)
+{
+  PyObject *obj1 = PyNumber_Long(arg1);
+  PyObject *obj2 = PyNumber_Long(arg2);
+  PyObject *result = NULL;
+
+  ENTERING(ipaddress_object_richcompare);
+
+  if (obj1 != NULL && obj2 != NULL)
+    result = PyObject_RichCompare(obj1, obj2, op);
+
+  Py_XDECREF(obj1);
+  Py_XDECREF(obj2);
+  return result;
+}
+
+static long
+ipaddress_object_hash(ipaddress_object *self)
+{
+  unsigned long h = 0;
+  int i;
+
+  ENTERING(ipaddress_object_hash);
+
+  for (i = 0; (unsigned) i < self->type->length; i++)
+    h ^= self->address[i] << ((i & 3) << 3);
+
+  return (long) h == -1 ? 0 : (long) h;
+}
+
+static char ipaddress_object_from_bytes__doc__[] =
+  "Construct an IPAddress object from a sequence of bytes.\n"
+  "\n"
+  "Argument must be a Python string of exactly 4 or 16 bytes.\n"
+  ;
+
+static PyObject *
+ipaddress_object_from_bytes(PyTypeObject *type, PyObject *args)
+{
+  ipaddress_object *result = NULL;
+  char *bytes = NULL;
+  size_t len;
+  int v;
+
+  ENTERING(ipaddress_object_from_bytes);
+
+  if (!PyArg_ParseTuple(args, "s#", &bytes, &len))
+    goto error;
+
+  if ((result = (ipaddress_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
+
+  result->type = NULL;
+
+  for (v = 0; v < (int) (sizeof(ipaddress_versions)/sizeof(*ipaddress_versions)); v++)
+    if (len == ipaddress_versions[v]->length)
+      result->type = ipaddress_versions[v];
+
+  if (result->type == NULL)
+    lose("Unknown IP version number");
+
+  memcpy(result->address, bytes, len);
+
+ error:
+  return (PyObject *) result;
+}
+
+static char ipaddress_object_to_bytes__doc__[] =
+  "Return the binary value of this IPAddress as a Python string\n"
+  "of exactly 4 or 16 bytes.\n"
+  ;
+
+static PyObject *
+ipaddress_object_to_bytes(ipaddress_object *self)
+{
+  ENTERING(ipaddress_object_from_bytes);
+  return PyString_FromStringAndSize((char *) self->address, self->type->length);
+}
+
+static PyObject *
+ipaddress_object_get_bits(ipaddress_object *self, GCC_UNUSED void *closure)
+{
+  ENTERING(ipaddress_object_get_bits);
+  return PyInt_FromLong(self->type->length * 8);
+}
+
+static PyObject *
+ipaddress_object_get_version(ipaddress_object *self, GCC_UNUSED void *closure)
+{
+  ENTERING(ipaddress_object_get_version);
+  return PyInt_FromLong(self->type->version);
+}
+
+static PyObject *
+ipaddress_object_number_binary_helper(binaryfunc function, PyObject *arg1, PyObject *arg2)
+{
+  ipaddress_object *addr = NULL;
+  ipaddress_object *addr1 = NULL;
+  ipaddress_object *addr2 = NULL;
+  ipaddress_object *result = NULL;
+  PyObject *obj1 = NULL;
+  PyObject *obj2 = NULL;
+  PyObject *obj3 = NULL;
+  PyObject *obj4 = NULL;
+
+  if (POW_IPAddress_Check(arg1))
+    addr1 = (ipaddress_object *) arg1;
+
+  if (POW_IPAddress_Check(arg2))
+    addr2 = (ipaddress_object *) arg2;
+
+  if ((addr1 == NULL && addr2 == NULL) ||
+      (addr1 != NULL && addr2 != NULL && addr1->type != addr2->type) ||
+      (obj1 = PyNumber_Long(arg1)) == NULL ||
+      (obj2 = PyNumber_Long(arg2)) == NULL) {
+    result = (ipaddress_object *) Py_NotImplemented;
+    goto error;
+  }
+
+  if ((obj3 = function(obj1, obj2)) == NULL)
+    goto error;
+
+  if ((obj4 = PyNumber_Long(obj3)) == NULL)
+    lose("Couldn't convert result");
+
+  addr = addr1 != NULL ? addr1 : addr2;
+
+  if ((result = (ipaddress_object *) addr->ob_type->tp_alloc(addr->ob_type, 0)) == NULL)
+    goto error;
+
+  result->type = addr->type;
+
+  if (_PyLong_AsByteArray((PyLongObject *) obj4, result->address, result->type->length, 0, 0) < 0) {
+    Py_XDECREF(result);
+    result = NULL;
+  }
+
+ error:                         /* Fall through */
+  Py_XDECREF(obj1);
+  Py_XDECREF(obj2);
+  Py_XDECREF(obj3);
+  Py_XDECREF(obj4);
+
+  return (PyObject *) result;
+}
+
+static PyObject *
+ipaddress_object_number_long(PyObject *arg)
+{
+  ipaddress_object *addr = (ipaddress_object *) arg;
+
+  ENTERING(ipaddress_object_number_long);
+
+  if (!POW_IPAddress_Check(arg))
+    return Py_NotImplemented;
+
+  return _PyLong_FromByteArray(addr->address, addr->type->length, 0, 0);
+}
+
+static PyObject *
+ipaddress_object_number_int(PyObject *arg)
+{
+  ENTERING(ipaddress_object_number_int);
+  return ipaddress_object_number_long(arg);
+}
+
+static PyObject *
+ipaddress_object_number_add(PyObject *arg1, PyObject *arg2)
+{
+  ENTERING(ipaddress_object_number_add);
+  return ipaddress_object_number_binary_helper(PyNumber_Add, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_subtract(PyObject *arg1, PyObject *arg2)
+{
+  ENTERING(ipaddress_object_number_subtract);
+  return ipaddress_object_number_binary_helper(PyNumber_Subtract, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_lshift(PyObject *arg1, PyObject *arg2)
+{
+  ENTERING(ipaddress_object_number_lshift);
+  return ipaddress_object_number_binary_helper(PyNumber_Lshift, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_rshift(PyObject *arg1, PyObject *arg2)
+{
+  ENTERING(ipaddress_object_number_rshift);
+  return ipaddress_object_number_binary_helper(PyNumber_Rshift, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_and(PyObject *arg1, PyObject *arg2)
+{
+  ENTERING(ipaddress_object_number_and);
+  return ipaddress_object_number_binary_helper(PyNumber_And, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_xor(PyObject *arg1, PyObject *arg2)
+{
+  ENTERING(ipaddress_object_number_xor);
+  return ipaddress_object_number_binary_helper(PyNumber_Xor, arg1, arg2);
+}
+
+static PyObject *
+ipaddress_object_number_or(PyObject *arg1, PyObject *arg2)
+{
+  ENTERING(ipaddress_object_number_or);
+  return ipaddress_object_number_binary_helper(PyNumber_Or, arg1, arg2);
+}
+
+static int
+ipaddress_object_number_nonzero(ipaddress_object *self)
+{
+  int i;
+
+  ENTERING(ipaddress_object_number_nonzero);
+
+  for (i = 0; (unsigned) i < self->type->length; i++)
+    if (self->address[i] != 0)
+      return 1;
+  return 0;
+}
+
+static PyObject *
+ipaddress_object_number_invert(ipaddress_object *self)
+{
+  ipaddress_object *result = NULL;
+  int i;
+
+  ENTERING(ipaddress_object_number_invert);
+
+  if ((result = (ipaddress_object *) self->ob_type->tp_alloc(self->ob_type, 0)) == NULL)
+    goto error;
+
+  result->type = self->type;
+
+  for (i = 0; (unsigned) i < self->type->length; i++)
+    result->address[i] = ~self->address[i];
+
+ error:                         /* Fall through */
+  return (PyObject *) result;
+}
+
+static char ipaddress_object_copy__doc__[] =
+  ""
+  ;
+
+static PyObject *
+ipaddress_object_copy(ipaddress_object *self, GCC_UNUSED PyObject *args)
+{
+  ipaddress_object *result = NULL;
+
+  ENTERING(ipaddress_object_copy);
+
+  if ((result = (ipaddress_object *) self->ob_type->tp_alloc(self->ob_type, 0)) == NULL)
+    goto error;
+
+  memcpy(result->address, self->address, sizeof(result->address));
+  result->type = self->type;
+
+ error:
+  return (PyObject *) result;
+}
+
+static struct PyMethodDef ipaddress_object_methods[] = {
+  Define_Method(__copy__,		ipaddress_object_copy,		METH_VARARGS),
+  Define_Method(__deepcopy__,		ipaddress_object_copy,		METH_VARARGS),
+  Define_Method(toBytes,                ipaddress_object_to_bytes,      METH_NOARGS),
+  Define_Class_Method(fromBytes,        ipaddress_object_from_bytes,    METH_VARARGS),
+  {NULL}
+};
+
+static PyGetSetDef ipaddress_object_getsetters[] = {
+  {"bits", 	(getter) ipaddress_object_get_bits},
+  {"version", 	(getter) ipaddress_object_get_version},
+  {NULL}
+};
+
+static PyNumberMethods ipaddress_NumberMethods = {
+  ipaddress_object_number_add,                  /* nb_add */
+  ipaddress_object_number_subtract,             /* nb_subtract */
+  0,                                            /* nb_multiply */
+  0,                                            /* nb_divide */
+  0,                                            /* nb_remainder */
+  0,                                            /* nb_divmod */
+  0,                                            /* nb_power */
+  0,                                            /* nb_negative */
+  0,                                            /* nb_positive */
+  0,                                            /* nb_absolute */
+  (inquiry) ipaddress_object_number_nonzero,    /* nb_nonzero */
+  (unaryfunc) ipaddress_object_number_invert,   /* nb_invert */
+  ipaddress_object_number_lshift,               /* nb_lshift */
+  ipaddress_object_number_rshift,               /* nb_rshift */
+  ipaddress_object_number_and,                  /* nb_and */
+  ipaddress_object_number_xor,                  /* nb_xor */
+  ipaddress_object_number_or,                   /* nb_or */
+  0,                                            /* nb_coerce */
+  ipaddress_object_number_int,                  /* nb_int */
+  ipaddress_object_number_long,                 /* nb_long */
+  0,                                            /* nb_float */
+  0,                                            /* nb_oct */
+  0,                                            /* nb_hex */
+  0,                                            /* nb_inplace_add */
+  0,                                            /* nb_inplace_subtract */
+  0,                                            /* nb_inplace_multiply */
+  0,                                            /* nb_inplace_divide */
+  0,                                            /* nb_inplace_remainder */
+  0,                                            /* nb_inplace_power */
+  0,                                            /* nb_inplace_lshift */
+  0,                                            /* nb_inplace_rshift */
+  0,                                            /* nb_inplace_and */
+  0,                                            /* nb_inplace_xor */
+  0,                                            /* nb_inplace_or */
+  0,                                            /* nb_floor_divide */
+  0,                                            /* nb_true_divide */
+  0,                                            /* nb_inplace_floor_divide */
+  0,                                            /* nb_inplace_true_divide */
+  0,                                            /* nb_index */
+};
+
+static PyTypeObject POW_IPAddress_Type = {
+  PyObject_HEAD_INIT(NULL)
+  0,                                        /* ob_size */
+  "rpki.POW.IPAddress",                     /* tp_name */
+  sizeof(ipaddress_object),                 /* tp_basicsize */
+  0,                                        /* tp_itemsize */
+  0,                                        /* tp_dealloc */
+  0,                                        /* tp_print */
+  0,                                        /* tp_getattr */
+  0,                                        /* tp_setattr */
+  ipaddress_object_compare,                 /* tp_compare */
+  (reprfunc) ipaddress_object_repr,         /* tp_repr */
+  &ipaddress_NumberMethods,                 /* tp_as_number */
+  0,                                        /* tp_as_sequence */
+  0,                                        /* tp_as_mapping */
+  (hashfunc) ipaddress_object_hash,         /* tp_hash */
+  0,                                        /* tp_call */
+  (reprfunc) ipaddress_object_str,          /* tp_str */
+  0,                                        /* tp_getattro */
+  0,                                        /* tp_setattro */
+  0,                                        /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_CHECKTYPES, /* tp_flags */
+  0,                                        /* tp_doc */
+  0,                                        /* tp_traverse */
+  0,                                        /* tp_clear */
+  ipaddress_object_richcompare,             /* tp_richcompare */
+  0,                                        /* tp_weaklistoffset */
+  0,                                        /* tp_iter */
+  0,                                        /* tp_iternext */
+  ipaddress_object_methods,                 /* tp_methods */
+  0,                                        /* tp_members */
+  ipaddress_object_getsetters,              /* tp_getset */
+  0,                                        /* tp_base */
+  0,                                        /* tp_dict */
+  0,                                        /* tp_descr_get */
+  0,                                        /* tp_descr_set */
+  0,                                        /* tp_dictoffset */
+  0,                                        /* tp_init */
+  0,                                        /* tp_alloc */
+  ipaddress_object_new,                     /* tp_new */
+};
+
+
+
+/*
+ * X509 object.
+ */
+
+static PyObject *
+x509_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
+{
+  x509_object *self;
+
+  ENTERING(x509_object_new);
+
+  if ((self = (x509_object *) type->tp_alloc(type, 0)) != NULL &&
+      (self->x509 = X509_new()) != NULL)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static void
+x509_object_dealloc(x509_object *self)
+{
+  ENTERING(x509_object_dealloc);
+  X509_free(self->x509);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
+static PyObject *
+x509_object_pem_read_helper(PyTypeObject *type, BIO *bio)
+{
+  x509_object *self = NULL;
+
+  ENTERING(x509_object_pem_read_helper);
+
+  if ((self = (x509_object *) x509_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if (!PEM_read_bio_X509(bio, &self->x509, NULL, NULL))
+    lose_openssl_error("Couldn't load PEM encoded certificate");
+
+  return (PyObject *) self;
+
+ error:
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static PyObject *
+x509_object_der_read_helper(PyTypeObject *type, BIO *bio)
+{
+  x509_object *self;
+
+  ENTERING(x509_object_der_read_helper);
+
+  if ((self = (x509_object *) x509_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if (!d2i_X509_bio(bio, &self->x509))
+    lose_openssl_error("Couldn't load DER encoded certificate");
+
+  return (PyObject *) self;
+
+ error:
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static char x509_object_pem_read__doc__[] =
+  "Read a PEM-encoded X.509 object from a string.\n"
+  ;
+
+static PyObject *
+x509_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(x509_object_pem_read);
+  return read_from_string_helper(x509_object_pem_read_helper, type, args);
+}
+
+static char x509_object_pem_read_file__doc__[] =
+  "Read a PEM-encoded X.509 object from a file.\n"
+  ;
+
+static PyObject *
+x509_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(x509_object_pem_read_file);
+  return read_from_file_helper(x509_object_pem_read_helper, type, args);
+}
+
+static char x509_object_der_read__doc__[] =
+  "Read a DER-encoded X.509 object from a string.\n"
+  ;
+
+static PyObject *
+x509_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(x509_object_der_read);
+  return read_from_string_helper(x509_object_der_read_helper, type, args);
+}
+
+static char x509_object_der_read_file__doc__[] =
+  "Read a DER-encoded X.509 object from a file.\n"
+  ;
+
+static PyObject *
+x509_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(x509_object_der_read_file);
+  return read_from_file_helper(x509_object_der_read_helper, type, args);
+}
+
+static char x509_object_pem_write__doc__[] =
+  "Return the PEM encoding of this certificate, as a string.\n"
+  ;
+
+static PyObject *
+x509_object_pem_write(x509_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(x509_object_pem_write);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!PEM_write_bio_X509(bio, self->x509))
+    lose_openssl_error("Unable to write certificate");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char x509_object_der_write__doc__[] =
+  "Return the DER encoding of this certificate, as a string.\n"
+  ;
+
+static PyObject *
+x509_object_der_write(x509_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(x509_object_der_write);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_X509_bio(bio, self->x509))
+    lose_openssl_error("Unable to write certificate");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char x509_object_get_public_key__doc__[] =
+  "Return the public key from this certificate object,\n"
+  "as an Asymmetric object.\n"
+  ;
+
+static PyObject *
+x509_object_get_public_key(x509_object *self)
+{
+  PyTypeObject *type = &POW_Asymmetric_Type;
+  asymmetric_object *asym = NULL;
+
+  ENTERING(x509_object_get_public_key);
+
+  if ((asym = (asymmetric_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
+
+  if ((asym->pkey = X509_get_pubkey(self->x509)) == NULL)
+    lose_openssl_error("Couldn't extract public key from certificate");
+
+  return (PyObject *) asym;
+
+ error:
+  Py_XDECREF(asym);
+  return NULL;
+}
+
+static char x509_object_set_public_key__doc__[] =
+  "Set the public key of this certificate object.\n"
+  "\n"
+  "The \"key\" parameter should be an instance of the Asymmetric class,\n"
+  "containing a public key.\n"
+  ;
+
+static PyObject *
+x509_object_set_public_key(x509_object *self, PyObject *args)
+{
+  asymmetric_object *asym;
+
+  ENTERING(x509_object_set_public_key);
+
+  if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
+    goto error;
+
+  if (!X509_set_pubkey(self->x509, asym->pkey))
+    lose_openssl_error("Couldn't set certificate's public key");
+
   Py_RETURN_NONE;
 
  error:
-
-  if (pkey)
-    EVP_PKEY_free(pkey);
-
   return NULL;
-
 }
 
-static char X509_object_get_version__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>getVersion</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns the version number from the version field of\n"
-"         this certificate.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
+static char x509_object_sign__doc__[] =
+  "Sign a certificate with a private key.\n"
+  "\n"
+  "The \"key\" parameter should be an instance of the Asymmetric class,\n"
+  "containing a private key.\n"
+  "\n"
+  "The optional \"digest\" parameter indicates which digest to compute and\n"
+  "sign, and should be one of the following:\n"
+  "\n"
+  "* MD5_DIGEST\n"
+  "* SHA_DIGEST\n"
+  "* SHA1_DIGEST\n"
+  "* SHA256_DIGEST\n"
+  "* SHA384_DIGEST\n"
+  "* SHA512_DIGEST\n"
+  "\n"
+  "The default digest algorithm is SHA-256.\n"
+  ;
 
 static PyObject *
-X509_object_get_version(x509_object *self, PyObject *args)
+x509_object_sign(x509_object *self, PyObject *args)
 {
-  long version = 0;
+  asymmetric_object *asym;
+  int digest_type = SHA256_DIGEST;
+  const EVP_MD *digest_method = NULL;
 
-  if (!PyArg_ParseTuple(args, ""))
+  ENTERING(x509_object_sign);
+
+  if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
     goto error;
 
-  version = X509_get_version(self->x509);
+  if ((digest_method = evp_digest_factory(digest_type)) == NULL)
+    lose("Unsupported digest algorithm");
 
-  return Py_BuildValue("l", version);
+  if (!X509_sign(self->x509, asym->pkey, digest_method))
+    lose_openssl_error("Couldn't sign certificate");
+
+  Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
 
-static char X509_object_set_version__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>setVersion</name>\n"
-"      <parameter>version</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method sets the version number in the version field of\n"
-"         this certificate.  <parameter>version</parameter> should be an\n"
-"         integer.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_get_version__doc__[] =
+  "Return version number of this certificate.\n"
+  ;
 
 static PyObject *
-X509_object_set_version(x509_object *self, PyObject *args)
+x509_object_get_version(x509_object *self)
+{
+  ENTERING(x509_object_get_version);
+  return Py_BuildValue("l", X509_get_version(self->x509));
+}
+
+static char x509_object_set_version__doc__[] =
+  "Set version number of this certificate.\n"
+  "\n"
+  "The \"version\" parameter should be an integer.\n"
+  ;
+
+static PyObject *
+x509_object_set_version(x509_object *self, PyObject *args)
 {
   long version = 0;
+
+  ENTERING(x509_object_set_version);
 
   if (!PyArg_ParseTuple(args, "l", &version))
     goto error;
 
   if (!X509_set_version(self->x509, version))
-    lose("could not set certificate version");
+    lose("Couldn't set certificate version");
 
   Py_RETURN_NONE;
 
@@ -1216,1005 +1761,1734 @@ X509_object_set_version(x509_object *self, PyObject *args)
   return NULL;
 }
 
-static char X509_object_get_serial__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>getSerial</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method get the serial number in the serial field of\n"
-"         this certificate.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_get_serial__doc__[] =
+  "Return the serial number of this certificate.\n"
+  ;
 
 static PyObject *
-X509_object_get_serial(x509_object *self, PyObject *args)
+x509_object_get_serial(x509_object *self)
 {
-  long serial = 0;
-  ASN1_INTEGER *asn1i = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if ((asn1i = X509_get_serialNumber(self->x509)) == NULL)
-    lose("could not get serial number");
-
-  if ((serial = ASN1_INTEGER_get(asn1i)) == -1)
-    lose("could not convert ASN1 Integer to long");
-
-  return Py_BuildValue("l", serial);
-
- error:
-
-  return NULL;
+  ENTERING(x509_object_get_serial);
+  return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(X509_get_serialNumber(self->x509)));
 }
 
-static char X509_object_set_serial__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>setSerial</name>\n"
-"      <parameter>serial</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method sets the serial number in the serial field of\n"
-"         this certificate.  <parameter>serial</parameter> should ba an\n"
-"         integer.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_set_serial__doc__[] =
+  "Set the serial number of this certificate.\n"
+  "\n"
+  "The \"serial\" parameter should ba an integer.\n"
+  ;
 
 static PyObject *
-X509_object_set_serial(x509_object *self, PyObject *args)
+x509_object_set_serial(x509_object *self, PyObject *args)
 {
-  long serial = 0;
-  ASN1_INTEGER *asn1i = NULL;
+  ASN1_INTEGER *a_serial = NULL;
+  PyObject *p_serial = NULL;
+  int ok = 0;
 
-  if (!PyArg_ParseTuple(args, "l", &serial))
+  ENTERING(x509_object_set_serial);
+
+  if (!PyArg_ParseTuple(args, "O", &p_serial) ||
+      (a_serial = PyLong_to_ASN1_INTEGER(p_serial)) == NULL)
     goto error;
 
-  if ((asn1i = ASN1_INTEGER_new()) == NULL)
-    lose("could not allocate memory");
+  if (!X509_set_serialNumber(self->x509, a_serial))
+    lose_no_memory();
 
-  if (!ASN1_INTEGER_set(asn1i, serial))
-    lose("could not set ASN1 integer");
-
-  if (!X509_set_serialNumber(self->x509, asn1i))
-    lose("could not set certificate serial");
-
-  ASN1_INTEGER_free(asn1i);
-
-  Py_RETURN_NONE;
+  ok = 1;
 
  error:
+  ASN1_INTEGER_free(a_serial);
 
-  if (asn1i)
-    ASN1_INTEGER_free(asn1i);
-
-  return NULL;
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
 }
 
-static char X509_object_get_issuer__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>getIssuer</name>\n"
-"      <parameter>format = SHORTNAME_FORMAT</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a tuple containing the issuers name.  Each\n"
-"         element of the tuple is a tuple with 2 elements.  The first tuple\n"
-"         is an object name and the second is it's value.  Both issuer and\n"
-"         subject are names distinguished normally composed of a small\n"
-"         number of objects:\n"
-"      </para>\n"
-"      <simplelist>\n"
-"         <member><constant>c</constant> or <constant>countryName</constant></member>\n"
-"         <member><constant>st</constant> or <constant>stateOrProvinceName</constant></member>\n"
-"         <member><constant>o</constant> or <constant>organizationName</constant></member>\n"
-"         <member><constant>l</constant> or <constant>localityName</constant></member>\n"
-"         <member><constant>ou</constant> or <constant>organizationalUnitName</constant></member>\n"
-"         <member><constant>cn</constant> or <constant>commonName</constant></member>\n"
-"      </simplelist>\n"
-"      <para>\n"
-"         The data type varies from one object to another, however, all the\n"
-"         common objects are strings.  It would be possible to specify any\n"
-"         kind of object but that would certainly adversely effect\n"
-"         portability and is not recommended.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_get_issuer__doc__[] =
+  "Return this certificate's issuer name, represented as a tuple.\n"
+  "\n"
+  "Each element of this tuple is another tuple representing one\n"
+  "\"Relative Distinguished Name\" (RDN), each element of which in turn\n"
+  "is yet another tuple representing one AttributeTypeAndValue pair.\n"
+  "\n"
+  "In practice, RDNs containing multiple attributes are rare, thus the RDN\n"
+  "tuples will usually be exactly one element long, but using the\n"
+  "tuple-of-tuples-of-tuples format lets us represent the general case.\n"
+  "\n"
+  "The AttributeTypeANdValue pairs are two-element tuples, the first\n"
+  "element of which is a string representing an Object Identifier (OID),\n"
+  "the second of which contains the attribute value.\n"
+  "\n"
+  "This method takes an optional \"format\" parameter which controls\n"
+  "the format in which OIDs are returned.  Allowed values are:\n"
+  "\n"
+  "  * SHORTNAME_FORMAT (the OpenSSL \"short name\" for this OID)\n"
+  "  * LONGNAME_FORMAT  (the OpenSSL \"long name\" for this OID)\n"
+  "  * OIDNAME_FORMAT   (the OID in dotted decimal numeric format)\n"
+  "\n"
+  "The default is OIDNAME_FORMAT.\n"
+  "\n"
+  "See RFC 5280 section 4.1.2.4 for details of the ASN.1 structure.\n"
+  ;
 
 static PyObject *
-X509_object_get_issuer(x509_object *self, PyObject *args)
+x509_object_get_issuer(x509_object *self, PyObject *args)
 {
-  PyObject *result_list = NULL;
-  X509_NAME *name = NULL;
-  int format = SHORTNAME_FORMAT;
+  PyObject *result = NULL;
+  int format = OIDNAME_FORMAT;
+
+  ENTERING(x509_object_get_issuer);
 
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
 
-  if ((name = X509_get_issuer_name(self->x509)) == NULL)
-    lose("could not get issuers name");
+  result = x509_object_helper_get_name(X509_get_issuer_name(self->x509),
+                                       format);
 
-  if ((result_list = X509_object_helper_get_name(name, format)) == NULL)
-    lose("failed to produce name list");
-
-  return result_list;
-
- error:
-
-  return NULL;
+ error:                         /* Fall through */
+  return result;
 }
 
-static char X509_object_get_subject__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>getSubject</name>\n"
-"      <parameter>format = SHORTNAME_FORMAT</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a tuple containing the subjects name.  See\n"
-"         <function>getIssuer</function> for a description of the returned\n"
-"         object's format.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_get_subject__doc__[] =
+  "Return this certificate's subject name, as a tuple.\n"
+  "\n"
+  "See the documentation for the \"getIssuer\" method for details on the\n"
+  "structure of the return value and use of the optional \"format\"\n"
+  "parameter.\n"
+  ;
 
 static PyObject *
-X509_object_get_subject(x509_object *self, PyObject *args)
+x509_object_get_subject(x509_object *self, PyObject *args)
 {
-  PyObject *result_list = NULL;
-  X509_NAME *name = NULL;
-  int format = SHORTNAME_FORMAT;
+  PyObject *result = NULL;
+  int format = OIDNAME_FORMAT;
+
+  ENTERING(x509_object_get_subject);
 
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
 
-  if ((name = X509_get_subject_name(self->x509)) == NULL)
-    lose("could not get issuers name");
+  result = x509_object_helper_get_name(X509_get_subject_name(self->x509),
+                                       format);
 
-  if ((result_list = X509_object_helper_get_name(name, format)) == NULL)
-    lose("failed to produce name list");
-
-  return result_list;
-
- error:
-
-  return NULL;
+ error:                         /* Fall through */
+  return result;
 }
 
-static char X509_object_set_subject__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>setSubject</name>\n"
-"      <parameter>name</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to set the subjects name.\n"
-"         <parameter>name</parameter> can be comprised of lists or tuples in\n"
-"         the format described in the <function>getIssuer</function> method.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_set_subject__doc__[] =
+  "Set this certificate's subject name.\n"
+  "\n"
+  "The \"name\" parameter should be in the same format as the return\n"
+  "value from the \"getIssuer\" method.\n"
+  ;
 
 static PyObject *
-X509_object_set_subject(x509_object *self, PyObject *args)
+x509_object_set_subject(x509_object *self, PyObject *args)
 {
   PyObject *name_sequence = NULL;
   X509_NAME *name = NULL;
 
+  ENTERING(x509_object_set_subject);
+
   if (!PyArg_ParseTuple(args, "O", &name_sequence))
     goto error;
 
-  if (!PyTuple_Check(name_sequence) && !PyList_Check(name_sequence))
+  if (!PySequence_Check(name_sequence))
     lose_type_error("Inapropriate type");
 
-  if ((name = X509_NAME_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (!X509_object_helper_set_name(name, name_sequence))
-    lose("unable to set new name");
+  if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
+    goto error;
 
   if (!X509_set_subject_name(self->x509, name))
-    lose("unable to set name");
+    lose("Unable to set subject name");
 
   X509_NAME_free(name);
 
   Py_RETURN_NONE;
 
  error:
-
+  X509_NAME_free(name);
   return NULL;
 }
 
-static char X509_object_set_issuer__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>setIssuer</name>\n"
-"      <parameter>name</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to set the issuers name.\n"
-"         <parameter>name</parameter> can be comprised of lists or tuples in\n"
-"         the format described in the <function>getissuer</function> method.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_set_issuer__doc__[] =
+  "Set this certificate's issuer name.\n"
+  "\n"
+  "The \"name\" parameter should be in the same format as the return\n"
+  "value from the \"getIssuer\" method.\n"
+  ;
 
 static PyObject *
-X509_object_set_issuer(x509_object *self, PyObject *args)
+x509_object_set_issuer(x509_object *self, PyObject *args)
 {
   PyObject *name_sequence = NULL;
   X509_NAME *name = NULL;
 
+  ENTERING(x509_object_set_issuer);
+
   if (!PyArg_ParseTuple(args, "O", &name_sequence))
     goto error;
 
-  if (!PyTuple_Check(name_sequence) && !PyList_Check(name_sequence))
+  if (!PySequence_Check(name_sequence))
     lose_type_error("Inapropriate type");
 
-  if ((name = X509_NAME_new()) == NULL)
-    lose("could not allocate memory");
+  if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
+    goto error;
 
-  if (!X509_object_helper_set_name(name, name_sequence))
-    lose("unable to set new name");
-
-  if (!X509_set_issuer_name(self->x509,name))
-    lose("unable to set name");
+  if (!X509_set_issuer_name(self->x509, name))
+    lose("Unable to set issuer name");
 
   X509_NAME_free(name);
 
   Py_RETURN_NONE;
 
  error:
-
-  if (name)
-    X509_NAME_free(name);
-
+  X509_NAME_free(name);
   return  NULL;
 }
 
-static char X509_object_get_not_before__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>getNotBefore</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         In a change from previous releases, for reasons of portability\n"
-"         and to avoid hard to fix issues with problems in unreliable time\n"
-"         functions, this function returns a UTCTime string.  You\n"
-"         can use the function <function>time2utc</function> to convert to a\n"
-"         string if you like and <function>utc2time</function> to back.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-
-;
+static char x509_object_get_not_before__doc__[] =
+  "Return this certificate's \"notBefore\" value as a datetime.\n"
+  ;
 
 static PyObject *
-X509_object_get_not_before (x509_object *self, PyObject *args)
+x509_object_get_not_before (x509_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  return ASN1_TIME_to_Python(self->x509->cert_info->validity->notBefore);
-
- error:
-
-  return NULL;
+  ENTERING(x509_object_get_not_before);
+  return ASN1_TIME_to_Python(X509_get_notBefore(self->x509));
 }
 
-static char X509_object_get_not_after__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>getNotAfter</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         In a change from previous releases, for reasons of portability\n"
-"         and to avoid hard to fix issues with problems in unreliable time\n"
-"         functions, this function returns a UTCTime string.  You\n"
-"         can use the function <function>time2utc</function> to convert to a\n"
-"         string if you like and <function>utc2time</function> to back.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_get_not_after__doc__[] =
+  "Return this certificate's \"notAfter\" value as a datetime.\n"
+  ;
 
 static PyObject *
-X509_object_get_not_after (x509_object *self, PyObject *args)
+x509_object_get_not_after (x509_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  return ASN1_TIME_to_Python(self->x509->cert_info->validity->notAfter);
-
- error:
-
-  return NULL;
+  ENTERING(x509_object_get_not_after);
+  return ASN1_TIME_to_Python(X509_get_notAfter(self->x509));
 }
 
-static char X509_object_set_not_after__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>setNotAfter</name>\n"
-"      <parameter>time</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         In a change from previous releases, for reasons of portability\n"
-"         and to avoid hard to fix issues with problems in unreliable time\n"
-"         functions, this accepts one parameter, a UTCTime string.  You\n"
-"         can use the function <function>time2utc</function> to convert to a\n"
-"         string if you like and <function>utc2time</function> to back.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_set_not_after__doc__[] =
+  "Set this certificate's \"notAfter\" value.\n"
+  "\n"
+  "The \"time\" parameter should be a datetime object.\n"
+  ;
 
 static PyObject *
-X509_object_set_not_after (x509_object *self, PyObject *args)
+x509_object_set_not_after (x509_object *self, PyObject *args)
 {
-  char *new_time = NULL;
+  PyObject *o = NULL;
+  ASN1_TIME *t = NULL;
 
-  if (!PyArg_ParseTuple(args, "s", &new_time))
+  ENTERING(x509_object_set_not_after);
+
+  if (!PyArg_ParseTuple(args, "O", &o))
     goto error;
 
-  if (!python_ASN1_TIME_set_string(self->x509->cert_info->validity->notAfter, new_time))
-    lose("Could not set notAfter");
+  if ((t = Python_to_ASN1_TIME(o, 1)) == NULL)
+    lose("Couldn't convert notAfter string");
 
+  if (!X509_set_notAfter(self->x509, t))
+    lose("Couldn't set notAfter");
+
+  ASN1_TIME_free(t);
   Py_RETURN_NONE;
 
  error:
-
+  ASN1_TIME_free(t);
   return NULL;
 }
 
-static char X509_object_set_not_before__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>setNotBefore</name>\n"
-"      <parameter>time</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         In a change from previous releases, for reasons of portability\n"
-"         and to avoid hard to fix issues with problems in unreliable time\n"
-"         functions, this accepts one parameter, a UTCTime string.  You\n"
-"         can use the function <function>time2utc</function> to convert to a\n"
-"         string if you like and <function>utc2time</function> to back.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_set_not_before__doc__[] =
+  "Set this certificate's \"notBefore\" value.\n"
+  "\n"
+  "The \"time\" parameter should be a datetime object.\n"
+  ;
 
 static PyObject *
-X509_object_set_not_before (x509_object *self, PyObject *args)
+x509_object_set_not_before (x509_object *self, PyObject *args)
 {
-  char *new_time = NULL;
+  PyObject *o = NULL;
+  ASN1_TIME *t = NULL;
 
-  if (!PyArg_ParseTuple(args, "s", &new_time))
+  ENTERING(x509_object_set_not_before);
+
+  if (!PyArg_ParseTuple(args, "O", &o))
     goto error;
 
-  if (!python_ASN1_TIME_set_string(self->x509->cert_info->validity->notBefore, new_time))
-    lose("Could not set notBefore");
+  if ((t = Python_to_ASN1_TIME(o, 1)) == NULL)
+    lose("Couldn't convert notBefore string");
 
+  if (!X509_set_notBefore(self->x509, t))
+    lose("Couldn't set notBefore");
+
+  ASN1_TIME_free(t);
   Py_RETURN_NONE;
 
  error:
-
+  ASN1_TIME_free(t);
   return NULL;
 }
 
-static char X509_object_add_extension__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>addExtension</name>\n"
-"      <parameter>extensionName</parameter>\n"
-"      <parameter>critical</parameter>\n"
-"      <parameter>extensionValue</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method adds an extension to this certificate.\n"
-"         <parameter>extensionName</parameter> should be the of the\n"
-"         extension.  <parameter>critical</parameter> should an integer, 1\n"
-"         for true and 0 for false.  <parameter>extensionValue</parameter>\n"
-"         should be a string, DER encoded value of the extension.  The name\n"
-"         of the extension must be correct according to OpenSSL and can be\n"
-"         checked in the <constant>objects.h</constant> header file, part of\n"
-"         the OpenSSL source distribution.  In the majority of cases they\n"
-"         are the same as those defined in <constant>POW._oids</constant>\n"
-"         but if you do encounter problems is may be worth checking.\n"
-"      </para>\n"
-"      <example>\n"
-"         <title><function>addExtension</function> method usage</title>\n"
-"         <programlisting>\n"
-"      basic = POW.pkix.BasicConstraints()\n"
-"      basic.set([1,5])\n"
-"      serverCert.addExtension('basicConstraints', 0, basic.toString())\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_clear_extensions__doc__[] =
+  "Clear all extensions attached to this certificate.\n"
+  ;
 
 static PyObject *
-X509_object_add_extension(x509_object *self, PyObject *args)
+x509_object_clear_extensions(x509_object *self)
 {
-  int critical = 0, nid = 0, len = 0;
-  char *name = NULL;
-  unsigned char *buf = NULL;
-  ASN1_OCTET_STRING *octetString = NULL;
-  X509_EXTENSION *extn = NULL;
+  X509_EXTENSION *ext;
 
-  if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
-    goto error;
+  ENTERING(x509_object_clear_extensions);
 
-  if ((octetString = M_ASN1_OCTET_STRING_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (!ASN1_OCTET_STRING_set(octetString, buf, len))
-    lose("could not set ASN1 Octect string");
-
-  if ((nid = OBJ_txt2nid(name)) == NID_undef)
-    lose("extension has unknown object identifier");
-
-  if ((extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString)) == NULL)
-    lose("unable to create ASN1 X509 Extension object");
-
-  if (!self->x509->cert_info->extensions &&
-      (self->x509->cert_info->extensions = sk_X509_EXTENSION_new_null()) == NULL)
-    lose("unable to allocate memory");
-
-  if (!sk_X509_EXTENSION_push(self->x509->cert_info->extensions, extn))
-    lose("unable to add extension");
+  while ((ext = X509_delete_ext(self->x509, 0)) != NULL)
+    X509_EXTENSION_free(ext);
 
   Py_RETURN_NONE;
+}
+
+static char x509_object_get_ski__doc__[] =
+  "Return the Subject Key Identifier (SKI) value for this\n"
+  "certificate, or None if the certificate has no SKI extension.\n"
+  ;
+
+static PyObject *
+x509_object_get_ski(x509_object *self)
+{
+  ENTERING(x509_object_get_ski);
+
+  (void) X509_check_ca(self->x509); /* Calls x509v3_cache_extensions() */
+
+  if (self->x509->skid == NULL)
+    Py_RETURN_NONE;
+  else
+    return Py_BuildValue("s#",
+                         ASN1_STRING_data(self->x509->skid),
+                         ASN1_STRING_length(self->x509->skid));
+}
+
+static char x509_object_set_ski__doc__[] =
+  "Set the Subject Key Identifier (SKI) value for this certificate.\n"
+  ;
+
+static PyObject *
+x509_object_set_ski(x509_object *self, PyObject *args)
+{
+  ASN1_OCTET_STRING *ext = NULL;
+  const unsigned char *buf = NULL;
+  int len, ok = 0;
+
+  ENTERING(x509_object_set_ski);
+
+  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
+    goto error;
+
+  if ((ext = ASN1_OCTET_STRING_new()) == NULL ||
+      !ASN1_OCTET_STRING_set(ext, buf, len))
+    lose_no_memory();
+
+  /*
+   * RFC 5280 4.2.1.2 says this MUST be non-critical.
+   */
+
+  if (!X509_add1_ext_i2d(self->x509, NID_subject_key_identifier,
+                         ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add SKI extension to certificate");
+
+  ok = 1;
 
  error:
+  ASN1_OCTET_STRING_free(ext);
 
-  if (extn)
-    X509_EXTENSION_free(extn);
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
 
+static char x509_object_get_aki__doc__[] =
+  "Return the Authority Key Identifier (AKI) keyid value for this\n"
+  "certificate, or None if the certificate has no AKI extension or has an\n"
+  "AKI extension with no keyIdentifier value.\n"
+  ;
+
+static PyObject *
+x509_object_get_aki(x509_object *self)
+{
+  ENTERING(x509_object_get_aki);
+
+  (void) X509_check_ca(self->x509); /* Calls x509v3_cache_extensions() */
+
+  if (self->x509->akid == NULL || self->x509->akid->keyid == NULL)
+    Py_RETURN_NONE;
+  else
+    return Py_BuildValue("s#",
+                         ASN1_STRING_data(self->x509->akid->keyid),
+                         ASN1_STRING_length(self->x509->akid->keyid));
+}
+
+static char x509_object_set_aki__doc__[] =
+  "Set the Authority Key Identifier (AKI) value for this certificate.\n"
+  "\n"
+  "We only support the keyIdentifier method, as that's the only form\n"
+  "which is legal for RPKI certificates.\n"
+  ;
+
+static PyObject *
+x509_object_set_aki(x509_object *self, PyObject *args)
+{
+  AUTHORITY_KEYID *ext = NULL;
+  const unsigned char *buf = NULL;
+  int len, ok = 0;
+
+  ENTERING(x509_object_set_aki);
+
+  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
+    goto error;
+
+  if ((ext = AUTHORITY_KEYID_new()) == NULL ||
+      (ext->keyid == NULL && (ext->keyid = ASN1_OCTET_STRING_new()) == NULL) ||
+      !ASN1_OCTET_STRING_set(ext->keyid, buf, len))
+    lose_no_memory();
+
+  /*
+   * RFC 5280 4.2.1.1 says this MUST be non-critical.
+   */
+
+  if (!X509_add1_ext_i2d(self->x509, NID_authority_key_identifier,
+                         ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add AKI extension to certificate");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_KEYID_free(ext);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char x509_object_get_key_usage__doc__[] =
+  "Return a FrozenSet of strings representing the KeyUsage\n"
+  "settings for this certificate, or None if the certificate has no\n"
+  "KeyUsage extension.  The bits have the same names as in RFC 5280.\n"
+  ;
+
+static PyObject *
+x509_object_get_key_usage(x509_object *self)
+{
+  extern X509V3_EXT_METHOD v3_key_usage;
+  BIT_STRING_BITNAME *bit_name;
+  ASN1_BIT_STRING *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *token = NULL;
+
+  ENTERING(x509_object_get_key_usage);
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_key_usage, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if ((result = PyFrozenSet_New(NULL)) == NULL)
+    goto error;
+
+  for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++) {
+    if (ASN1_BIT_STRING_get_bit(ext, bit_name->bitnum) &&
+        ((token = PyString_FromString(bit_name->sname)) == NULL ||
+         PySet_Add(result, token) < 0))
+      goto error;
+    Py_XDECREF(token);
+    token = NULL;
+  }
+
+  ASN1_BIT_STRING_free(ext);
+  return result;
+
+ error:
+  ASN1_BIT_STRING_free(ext);
+  Py_XDECREF(token);
+  Py_XDECREF(result);
   return NULL;
 }
 
-static char X509_object_clear_extensions__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>clearExtensions</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method clears the structure which holds the extension for\n"
-"         this certificate.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_set_key_usage__doc__[] =
+  "Set the KeyUsage extension for this certificate.\n"
+  "\n"
+  "Argument \"iterable\" should be an iterable object which returns zero or more\n"
+  "strings naming bits to be enabled.  The bits have the same names as in RFC 5280.\n"
+  "\n"
+  "Optional argument \"critical\" is a boolean indicating whether the extension\n"
+  "should be marked as critical or not.  RFC 5280 4.2.1.3 says this extension SHOULD\n"
+  "be marked as critical when used, so the default is True.\n"
+  ;
 
 static PyObject *
-X509_object_clear_extensions(x509_object *self, PyObject *args)
+x509_object_set_key_usage(x509_object *self, PyObject *args)
 {
-  if (!PyArg_ParseTuple(args, ""))
+  extern X509V3_EXT_METHOD v3_key_usage;
+  BIT_STRING_BITNAME *bit_name;
+  ASN1_BIT_STRING *ext = NULL;
+  PyObject *iterable = NULL;
+  PyObject *critical = Py_True;
+  PyObject *iterator = NULL;
+  PyObject *token = NULL;
+  const char *t;
+  int ok = 0;
+
+  ENTERING(x509_object_set_key_usage);
+
+  if ((ext = ASN1_BIT_STRING_new()) == NULL)
+    lose_no_memory();
+
+  if (!PyArg_ParseTuple(args, "O|O", &iterable, &critical) ||
+      (iterator = PyObject_GetIter(iterable)) == NULL)
     goto error;
 
-  if (self->x509->cert_info->extensions) {
-    sk_X509_EXTENSION_free(self->x509->cert_info->extensions);
-    self->x509->cert_info->extensions = NULL;
+  while ((token = PyIter_Next(iterator)) != NULL) {
+
+    if ((t = PyString_AsString(token)) == NULL)
+      goto error;
+
+    for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++)
+      if (!strcmp(t, bit_name->sname))
+        break;
+
+    if (bit_name->sname == NULL)
+      lose("Unrecognized KeyUsage token");
+
+    if (!ASN1_BIT_STRING_set_bit(ext, bit_name->bitnum, 1))
+      lose_no_memory();
+
+    Py_XDECREF(token);
+    token = NULL;
+  }
+
+  if (!X509_add1_ext_i2d(self->x509, NID_key_usage, ext,
+                         PyObject_IsTrue(critical),
+                         X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add KeyUsage extension to certificate");
+
+  ok = 1;
+
+ error:                         /* Fall through */
+  ASN1_BIT_STRING_free(ext);
+  Py_XDECREF(iterator);
+  Py_XDECREF(token);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char x509_object_get_rfc3779__doc__[] =
+  "Return this certificate's RFC 3779 resources.\n"
+  "\n"
+  "Return value is a three-element tuple: the first element is the ASN\n"
+  "resources, the second is the IPv4 resources, the third is the IPv6\n"
+  "resources.  Each of these elements in turn is either the string\n"
+  "\"inherit\" or a tuple representing a set of ranges of ASNs or IP\n"
+  "addresses.\n"
+  "\n"
+  "Each range is a two-element tuple, respectively representing the low\n"
+  "and high ends of the range, inclusive.  ASN ranges are represented by\n"
+  "pairs of integers, IP address ranges are represented by pairs of\n"
+  "IPAddress objects.\n"
+  ;
+
+static PyObject *
+x509_object_get_rfc3779(x509_object *self)
+{
+  PyObject *result = NULL;
+  PyObject *asn_result = NULL;
+  PyObject *ipv4_result = NULL;
+  PyObject *ipv6_result = NULL;
+  PyObject *range = NULL;
+  PyObject *range_b = NULL;
+  PyObject *range_e = NULL;
+  ASIdentifiers *asid = NULL;
+  IPAddrBlocks *addr = NULL;
+  int i, j;
+
+  ENTERING(x509_object_get_rfc3779);
+
+  if ((asid = X509_get_ext_d2i(self->x509, NID_sbgp_autonomousSysNum, NULL, NULL)) != NULL &&
+      asid->asnum != NULL) {
+    switch (asid->asnum->type) {
+
+    case ASIdentifierChoice_inherit:
+      if ((asn_result = PyString_FromString("inherit")) == NULL)
+        goto error;
+      break;
+
+    case ASIdentifierChoice_asIdsOrRanges:
+
+      if ((asn_result = PyTuple_New(sk_ASIdOrRange_num(asid->asnum->u.asIdsOrRanges))) == NULL)
+        goto error;
+
+      for (i = 0; i < sk_ASIdOrRange_num(asid->asnum->u.asIdsOrRanges); i++) {
+        ASIdOrRange *aor = sk_ASIdOrRange_value(asid->asnum->u.asIdsOrRanges, i);
+        ASN1_INTEGER *b = NULL;
+        ASN1_INTEGER *e = NULL;
+
+        switch (aor->type) {
+
+        case ASIdOrRange_id:
+          b = e = aor->u.id;
+          break;
+
+        case ASIdOrRange_range:
+          b = aor->u.range->min;
+          e = aor->u.range->max;
+          break;
+
+        default:
+          lose_type_error("Unexpected asIdsOrRanges type");
+        }
+
+        if (ASN1_STRING_type(b) == V_ASN1_NEG_INTEGER ||
+            ASN1_STRING_type(e) == V_ASN1_NEG_INTEGER)
+          lose_type_error("I don't believe in negative ASNs");
+
+        if ((range_b = ASN1_INTEGER_to_PyLong(b)) == NULL ||
+            (range_e = ASN1_INTEGER_to_PyLong(e)) == NULL ||
+            (range = Py_BuildValue("(NN)", range_b, range_e)) == NULL)
+          goto error;
+
+        PyTuple_SET_ITEM(asn_result, i, range);
+        range = range_b = range_e = NULL;
+      }
+
+      break;
+
+    default:
+      lose_type_error("Unexpected ASIdentifierChoice type");
+    }
+  }
+
+  if ((addr = X509_get_ext_d2i(self->x509, NID_sbgp_ipAddrBlock, NULL, NULL)) != NULL) {
+    for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
+      IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
+      const struct ipaddress_version *ip_type = NULL;
+      const unsigned int afi = v3_addr_get_afi(f);
+      PyObject **result_obj = NULL;
+      int addr_len = 0;
+
+      switch (afi) {
+      case IANA_AFI_IPV4: result_obj = &ipv4_result; ip_type = &ipaddress_version_4; break;
+      case IANA_AFI_IPV6: result_obj = &ipv6_result; ip_type = &ipaddress_version_6; break;
+      default:            lose_type_error("Unknown AFI");
+      }
+
+      if (*result_obj != NULL)
+        lose_type_error("Duplicate IPAddressFamily");
+
+      if (f->addressFamily->length > 2)
+        lose_type_error("Unsupported SAFI");
+
+      switch (f->ipAddressChoice->type) {
+
+      case IPAddressChoice_inherit:
+        if ((*result_obj = PyString_FromString("inherit")) == NULL)
+          goto error;
+        continue;
+
+      case IPAddressChoice_addressesOrRanges:
+        break;
+
+      default:
+        lose_type_error("Unexpected IPAddressChoice type");
+      }
+
+      if ((*result_obj = PyTuple_New(sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges))) == NULL)
+        goto error;
+
+      for (j = 0; j < sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges); j++) {
+        IPAddressOrRange *aor = sk_IPAddressOrRange_value(f->ipAddressChoice->u.addressesOrRanges, j);
+        ipaddress_object *addr_b = NULL;
+        ipaddress_object *addr_e = NULL;
+
+        if ((range_b = POW_IPAddress_Type.tp_alloc(&POW_IPAddress_Type, 0)) == NULL ||
+            (range_e = POW_IPAddress_Type.tp_alloc(&POW_IPAddress_Type, 0)) == NULL)
+          goto error;
+
+        addr_b = (ipaddress_object *) range_b;
+        addr_e = (ipaddress_object *) range_e;
+
+        if ((addr_len = v3_addr_get_range(aor, afi, addr_b->address, addr_e->address,
+                                          sizeof(addr_b->address))) == 0)
+          lose_type_error("Couldn't unpack IP addresses from BIT STRINGs");
+
+        addr_b->type = addr_e->type = ip_type;
+
+        if ((range = Py_BuildValue("(NN)", range_b, range_e)) == NULL)
+          goto error;
+
+        PyTuple_SET_ITEM(*result_obj, j, range);
+        range = range_b = range_e = NULL;
+      }
+    }
+  }
+
+  result = Py_BuildValue("(OOO)",
+                         (asn_result  == NULL ? Py_None : asn_result),
+                         (ipv4_result == NULL ? Py_None : ipv4_result),
+                         (ipv6_result == NULL ? Py_None : ipv6_result));
+
+ error:                         /* Fall through */
+  ASIdentifiers_free(asid);
+  sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
+  Py_XDECREF(range_b);
+  Py_XDECREF(range_e);
+  Py_XDECREF(range);
+  Py_XDECREF(asn_result);
+  Py_XDECREF(ipv4_result);
+  Py_XDECREF(ipv6_result);
+
+  return result;
+}
+
+static char x509_object_set_rfc3779__doc__[] =
+  "Set this certificate's RFC 3779 resources.\n"
+  "\n"
+  "This method takes three arguments: \"asn\", \"ipv4\", and \"ipv6\".\n"
+  "\n"
+  "Each of these arguments can be:\n"
+  "\n"
+  "* None, to omit this kind of resource;\n"
+  "\n"
+  "* The string \"inherit\", to specify RFC 3779 resource inheritance; or\n"
+  "\n"
+  "* An iterable object which returns range pairs of the appropriate type.\n"
+  "\n"
+  "Range pairs are as returned by the .getRFC3779() method.\n"
+  ;
+
+static PyObject *
+x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"asn", "ipv4", "ipv6", NULL};
+  PyObject *asn_arg  = Py_None;
+  PyObject *ipv4_arg = Py_None;
+  PyObject *ipv6_arg = Py_None;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  PyObject *fast = NULL;
+  ASIdentifiers *asid = NULL;
+  IPAddrBlocks *addr = NULL;
+  ASN1_INTEGER *asid_b = NULL;
+  ASN1_INTEGER *asid_e = NULL;
+  ipaddress_object *addr_b = NULL;
+  ipaddress_object *addr_e = NULL;
+  int empty = 0;
+
+  ENTERING(x509_object_set_rfc3779);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist, &asn_arg, &ipv4_arg, &ipv6_arg))
+    goto error;
+
+  if (asn_arg != Py_None) {
+
+    empty = 1;
+
+    if ((asid = ASIdentifiers_new()) == NULL)
+      lose_no_memory();
+
+    if (PyString_Check(asn_arg)) {
+
+      if (strcmp(PyString_AsString(asn_arg), "inherit"))
+        lose_type_error("ASID must be sequence of range pairs, or \"inherit\"");
+
+      if (!v3_asid_add_inherit(asid, V3_ASID_ASNUM))
+        lose_no_memory();
+
+      empty = 0;
+
+    } else {
+
+      if ((iterator = PyObject_GetIter(asn_arg)) == NULL)
+        goto error;
+
+      while ((item = PyIter_Next(iterator)) != NULL) {
+
+        if ((fast = PySequence_Fast(item, "ASN range must be a sequence")) == NULL)
+          goto error;
+
+        if (PySequence_Fast_GET_SIZE(fast) != 2)
+          lose_type_error("ASN range must be two-element sequence");
+
+        if ((asid_b = PyLong_to_ASN1_INTEGER(PySequence_Fast_GET_ITEM(fast, 0))) == NULL)
+          goto error;
+
+        switch (PyObject_RichCompareBool(PySequence_Fast_GET_ITEM(fast, 0),
+                                         PySequence_Fast_GET_ITEM(fast, 1), Py_EQ)) {
+        case 0:
+          if ((asid_e = PyLong_to_ASN1_INTEGER(PySequence_Fast_GET_ITEM(fast, 1))) == NULL)
+            goto error;
+          break;
+        case 1:
+          break;
+        default:
+          goto error;
+        }
+
+        if (!v3_asid_add_id_or_range(asid, V3_ASID_ASNUM, asid_b, asid_e))
+          lose_openssl_error("Couldn't add range to ASID");
+
+        asid_b = asid_e = NULL;
+        Py_XDECREF(item);
+        Py_XDECREF(fast);
+        item = fast = NULL;
+        empty = 0;
+      }
+
+      if (!empty && (!v3_asid_canonize(asid) ||
+                     !X509_add1_ext_i2d(self->x509, NID_sbgp_autonomousSysNum,
+                                        asid, 1, X509V3_ADD_REPLACE)))
+        lose_openssl_error("Couldn't add ASID extension to certificate");
+
+      Py_XDECREF(iterator);
+      iterator = NULL;
+    }
+  }
+
+  if (ipv4_arg != Py_None || ipv6_arg != Py_None) {
+    int v;
+
+    empty = 1;
+
+    if ((addr = sk_IPAddressFamily_new_null()) == NULL)
+      lose_no_memory();
+
+    /*
+     * Cheap trick to let us inline all of this instead of being
+     * forced to use a separate function.  Refactor, some day.
+     */
+
+    for (v = 0; v < (int) (sizeof(ipaddress_versions)/sizeof(*ipaddress_versions)); v++) {
+      const struct ipaddress_version *ip_type = ipaddress_versions[v];
+      PyObject **argp;
+
+      switch (ip_type->version) {
+      case 4: argp = &ipv4_arg; break;
+      case 6: argp = &ipv6_arg; break;
+      default: continue;        /* Never happens */
+      }
+
+      if (PyString_Check(*argp)) {
+
+        if (strcmp(PyString_AsString(*argp), "inherit"))
+          lose_type_error("Argument must be sequence of range pairs, or \"inherit\"");
+
+        if (!v3_addr_add_inherit(addr, ip_type->afi, NULL))
+          lose_no_memory();
+
+        empty = 0;
+
+      } else {
+
+        if ((iterator = PyObject_GetIter(*argp)) == NULL)
+          goto error;
+
+        while ((item = PyIter_Next(iterator)) != NULL) {
+
+        if ((fast = PySequence_Fast(item, "Address range must be a sequence")) == NULL)
+          goto error;
+
+        if (PySequence_Fast_GET_SIZE(fast) != 2 ||
+            !POW_IPAddress_Check(PySequence_Fast_GET_ITEM(fast, 0)) ||
+            !POW_IPAddress_Check(PySequence_Fast_GET_ITEM(fast, 1)))
+          lose_type_error("Address range must be two-element sequence of IPAddress objects");
+
+          addr_b = (ipaddress_object *) PySequence_Fast_GET_ITEM(fast, 0);
+          addr_e = (ipaddress_object *) PySequence_Fast_GET_ITEM(fast, 1);
+
+          if (addr_b->type != ip_type ||
+              addr_e->type != ip_type ||
+              memcmp(addr_b->address, addr_e->address, ip_type->length) > 0)
+            lose("IPAddrBlock must be sequence of address pairs, or \"inherit\"");
+
+          if (!v3_addr_add_range(addr, ip_type->afi, NULL, addr_b->address, addr_e->address))
+            lose_openssl_error("Couldn't add range to IPAddrBlock");
+
+          Py_XDECREF(item);
+          Py_XDECREF(fast);
+          item = fast = NULL;
+          addr_b = addr_e = NULL;
+        }
+
+        Py_XDECREF(iterator);
+        iterator = NULL;
+        empty = 0;
+      }
+    }
+
+    if (!empty && (!v3_addr_canonize(addr) ||
+                   !X509_add1_ext_i2d(self->x509, NID_sbgp_ipAddrBlock,
+                                      addr, 1, X509V3_ADD_REPLACE)))
+      lose_openssl_error("Couldn't add IPAddrBlock extension to certificate");
   }
 
   Py_RETURN_NONE;
 
  error:
-
+  ASN1_INTEGER_free(asid_b);
+  ASN1_INTEGER_free(asid_e);
+  ASIdentifiers_free(asid);
+  sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
+  Py_XDECREF(iterator);
+  Py_XDECREF(item);
+  Py_XDECREF(fast);
   return NULL;
 }
 
-static char X509_object_count_extensions__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>countExtensions</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns the size of the structure which holds the\n"
-"         extension for this certificate.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_get_basic_constraints__doc__[] =
+  "Return BasicConstraints for this certificate.\n"
+  "\n"
+  "If this certificate has no BasicConstraints extension, this method\n"
+  "returns None.\n"
+  "\n"
+  "Otherwise, this method returns a two-element tuple.  The first element\n"
+  "of the tuple is a boolean representing the extension's cA value; the\n"
+  "second element of the tuple is either an integer representing the\n"
+  "pathLenConstraint value or None if there is no pathLenConstraint.\n"
+  ;
 
 static PyObject *
-X509_object_count_extensions(x509_object *self, PyObject *args)
+x509_object_get_basic_constraints(x509_object *self)
 {
-  int num = 0;
+  BASIC_CONSTRAINTS *ext = NULL;
+  PyObject *result;
 
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
+  ENTERING(x509_object_get_basic_constraints);
 
-  if (self->x509->cert_info->extensions)
-    num = sk_X509_EXTENSION_num(self->x509->cert_info->extensions);
+  if ((ext = X509_get_ext_d2i(self->x509, NID_basic_constraints, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
 
-  return Py_BuildValue("i", num);
+  if (ext->pathlen == NULL)
+    result = Py_BuildValue("(NO)", PyBool_FromLong(ext->ca), Py_None);
+  else
+    result = Py_BuildValue("(Nl)", PyBool_FromLong(ext->ca), ASN1_INTEGER_get(ext->pathlen));
 
- error:
-
-  return NULL;
+  BASIC_CONSTRAINTS_free(ext);
+  return result;
 }
 
-static char X509_object_get_extension__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>getExtension</name>\n"
-"      <parameter>index</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a tuple equivalent the parameters of\n"
-"         <function>addExtension</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char x509_object_set_basic_constraints__doc__[] =
+  "Set BasicConstraints for this certificate.\n"
+  "\n"
+  "First argument \"ca\" is a boolean indicating whether the certificate\n"
+  "is a CA certificate or not.\n"
+  "\n"
+  "Optional second argument \"pathLenConstraint\" is a non-negative integer\n"
+  "specifying the pathLenConstraint value for this certificate; this value\n"
+  "may only be set for CA certificates."
+  "\n"
+  "Optional third argument \"critical\" specifies whether the extension\n"
+  "should be marked as critical.  RFC 5280 4.2.1.9 requires that CA\n"
+  "certificates mark this extension as critical, so the default is True.\n"
+  ;
 
 static PyObject *
-X509_object_get_extension(x509_object *self, PyObject *args)
+x509_object_set_basic_constraints(x509_object *self, PyObject *args)
 {
-  int num = 0, index = 0, ext_nid = 0;
-  char const *ext_ln = NULL;
-  char unknown_ext [] = "unknown";
-  X509_EXTENSION *ext;
+  BASIC_CONSTRAINTS *ext = NULL;
+  PyObject *is_ca = NULL;
+  PyObject *pathlen_obj = Py_None;
+  PyObject *critical = Py_True;
+  long pathlen = -1;
+  int ok = 0;
 
-  if (!PyArg_ParseTuple(args, "i", &index))
+  ENTERING(x509_object_set_basic_constraints);
+
+  if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
     goto error;
 
-  if (self->x509->cert_info->extensions)
-    num = sk_X509_EXTENSION_num(self->x509->cert_info->extensions);
+  if (pathlen_obj != Py_None && (pathlen = PyInt_AsLong(pathlen_obj)) < 0)
+    lose_type_error("Bad pathLenConstraint value");
 
-  if (index >= num)
-    lose("certificate does not have that many extensions");
+  if ((ext = BASIC_CONSTRAINTS_new()) == NULL)
+    lose_no_memory();
 
-  if ((ext = sk_X509_EXTENSION_value(self->x509->cert_info->extensions, index)) == NULL)
-    lose("could not get extension");
+  ext->ca = PyObject_IsTrue(is_ca) ? 0xFF : 0;
 
-  if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
-    lose("extension has unknown object identifier");
+  if (pathlen_obj != Py_None &&
+      ((ext->pathlen == NULL && (ext->pathlen = ASN1_INTEGER_new()) == NULL) ||
+       !ASN1_INTEGER_set(ext->pathlen, pathlen)))
+    lose_no_memory();
 
-  if ((ext_ln = OBJ_nid2sn(ext_nid)) == NULL)
-    ext_ln = unknown_ext;
+  if (!X509_add1_ext_i2d(self->x509, NID_basic_constraints,
+                         ext, PyObject_IsTrue(critical), X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add BasicConstraints extension to certificate");
 
-  return Py_BuildValue("sis#", ext_ln, ext->critical, ext->value->data, ext->value->length);
+  ok = 1;
 
  error:
+  BASIC_CONSTRAINTS_free(ext);
 
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char x509_object_get_sia__doc__[] =
+  "Get SIA values for this certificate.\n"
+  "\n"
+  "If the certificate has no SIA extension, this method returns None.\n"
+  "\n"
+  "Otherwise, it returns a tuple containing three values:\n"
+  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
+  "Each of these values is a tuple of strings, representing an ordered\n"
+  "sequence of URIs.  Any or all of these sequences may be empty.\n"
+  "\n"
+  "Any other accessMethods are ignored, as are any non-URI\n"
+  "accessLocations.\n"
+  ;
+
+static PyObject *
+x509_object_get_sia(x509_object *self)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *result_caRepository = NULL;
+  PyObject *result_rpkiManifest = NULL;
+  PyObject *result_signedObject = NULL;
+  int n_caRepository = 0;
+  int n_rpkiManifest = 0;
+  int n_signedObject = 0;
+  const char *uri;
+  PyObject *obj;
+  int i, nid;
+
+  ENTERING(x509_object_get_sia);
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_sinfo_access, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  /*
+   * Easiest to do this in two passes, first pass just counts URIs.
+   */
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type != GEN_URI)
+      continue;
+    nid = OBJ_obj2nid(a->method);
+    if (nid == NID_caRepository) {
+      n_caRepository++;
+      continue;
+    }
+    if (nid == NID_rpkiManifest) {
+      n_rpkiManifest++;
+      continue;
+    }
+    if (nid == NID_signedObject) {
+      n_signedObject++;
+      continue;
+    }
+  }
+
+  if (((result_caRepository = PyTuple_New(n_caRepository)) == NULL) ||
+      ((result_rpkiManifest = PyTuple_New(n_rpkiManifest)) == NULL) ||
+      ((result_signedObject = PyTuple_New(n_signedObject)) == NULL))
+    goto error;
+
+  n_caRepository = n_rpkiManifest = n_signedObject = 0;
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type != GEN_URI)
+      continue;
+    nid = OBJ_obj2nid(a->method);
+    uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+    if (nid == NID_caRepository) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_caRepository, n_caRepository++, obj);
+      continue;
+    }
+    if (nid == NID_rpkiManifest) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_rpkiManifest, n_rpkiManifest++, obj);
+      continue;
+    }
+    if (nid == NID_signedObject) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_signedObject, n_signedObject++, obj);
+      continue;
+    }
+  }
+
+  result = Py_BuildValue("(OOO)",
+                         result_caRepository,
+                         result_rpkiManifest,
+                         result_signedObject);
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  Py_XDECREF(result_caRepository);
+  Py_XDECREF(result_rpkiManifest);
+  Py_XDECREF(result_signedObject);
+  return result;
+}
+
+static char x509_object_set_sia__doc__[] =
+  "Set SIA values for this certificate.  Takes three arguments:\n"
+  "\"caRepository\", \"rpkiManifest\", and \"signedObject\".\n"
+  "Each of these should be an iterable which returns URIs.\n"
+  "\n"
+  "None is acceptable as an alternate way of specifying an empty\n"
+  "sequence of URIs for a particular argument.\n"
+  ;
+
+static PyObject *
+x509_object_set_sia(x509_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"caRepository", "rpkiManifest", "signedObject", NULL};
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *caRepository = Py_None;
+  PyObject *rpkiManifest = Py_None;
+  PyObject *signedObject = Py_None;
+  PyObject *iterator = NULL;
+  ASN1_OBJECT *oid = NULL;
+  PyObject **pobj = NULL;
+  PyObject *item = NULL;
+  ACCESS_DESCRIPTION *a = NULL;
+  int i, nid = NID_undef, ok = 0;
+  Py_ssize_t urilen;
+  char *uri;
+
+  ENTERING(x509_object_set_sia);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist,
+                                   &caRepository, &rpkiManifest, &signedObject))
+    goto error;
+
+  if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
+    lose_no_memory();
+
+  /*
+   * This is going to want refactoring, because it's ugly, because we
+   * want to reuse code for AIA, and because it'd be nice to support a
+   * single URI as an abbreviation for a sequence containing one URI.
+   */
+
+  for (i = 0; i < 3; i++) {
+    switch (i) {
+    case 0: pobj = &caRepository; nid = NID_caRepository; break;
+    case 1: pobj = &rpkiManifest; nid = NID_rpkiManifest; break;
+    case 2: pobj = &signedObject; nid = NID_signedObject; break;
+    }
+
+    if (*pobj == Py_None)
+      continue;
+
+    if ((oid = OBJ_nid2obj(nid)) == NULL)
+      lose_openssl_error("Couldn't find SIA accessMethod OID");
+
+    if ((iterator = PyObject_GetIter(*pobj)) == NULL)
+      goto error;
+
+    while ((item = PyIter_Next(iterator)) != NULL) {
+
+      if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
+        goto error;
+
+      if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
+          (a->method = OBJ_dup(oid)) == NULL ||
+          (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
+          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
+        lose_no_memory();
+
+      a->location->type = GEN_URI;
+
+      if (!sk_ACCESS_DESCRIPTION_push(ext, a))
+        lose_no_memory();
+
+      a = NULL;
+      Py_XDECREF(item);
+      item = NULL;
+    }
+
+    Py_XDECREF(iterator);
+    iterator = NULL;
+  }
+
+  if (!X509_add1_ext_i2d(self->x509, NID_sinfo_access, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add SIA extension to certificate");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  ACCESS_DESCRIPTION_free(a);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char x509_object_get_aia__doc__[] =
+  "Get this certificate's AIA values.\n"
+  "\n"
+  "If the certificate has no AIA extension, this method returns None.\n"
+  "\n"  
+  "Otherwise, this returns a sequence of caIssuers URIs.\n"
+  "\n"
+  "Any other accessMethods are ignored, as are any non-URI\n"
+  "accessLocations.\n"
+  ;
+
+static PyObject *
+x509_object_get_aia(x509_object *self)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *result = NULL;
+  const char *uri;
+  PyObject *obj;
+  int i, n = 0;
+
+  ENTERING(x509_object_get_aia);
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_info_access, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type == GEN_URI &&
+        OBJ_obj2nid(a->method) == NID_ad_ca_issuers)
+      n++;
+  }
+
+  if (((result = PyTuple_New(n)) == NULL))
+    goto error;
+
+  n = 0;
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type == GEN_URI && OBJ_obj2nid(a->method) == NID_ad_ca_issuers) {
+      uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result, n++, obj);
+    }
+  }
+
+  AUTHORITY_INFO_ACCESS_free(ext);
+  return result;
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  Py_XDECREF(result);
   return NULL;
 }
+
+static char x509_object_set_aia__doc__[] =
+  "Set AIA URIs for this certificate.\n"
+  "\n"
+  "Argument is a iterable which returns caIssuers URIs.\n"
+  ;
+
+static PyObject *
+x509_object_set_aia(x509_object *self, PyObject *args)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *caIssuers = NULL;
+  PyObject *iterator = NULL;
+  ASN1_OBJECT *oid = NULL;
+  PyObject *item = NULL;
+  ACCESS_DESCRIPTION *a = NULL;
+  int ok = 0;
+  Py_ssize_t urilen;
+  char *uri;
+
+  ENTERING(x509_object_set_aia);
+
+  if (!PyArg_ParseTuple(args, "O", &caIssuers))
+    goto error;
+
+  if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
+    lose_no_memory();
+
+  if ((oid = OBJ_nid2obj(NID_ad_ca_issuers)) == NULL)
+    lose_openssl_error("Couldn't find AIA accessMethod OID");
+
+  if ((iterator = PyObject_GetIter(caIssuers)) == NULL)
+    goto error;
+
+  while ((item = PyIter_Next(iterator)) != NULL) {
+
+    if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
+      goto error;
+
+    if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
+        (a->method = OBJ_dup(oid)) == NULL ||
+        (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
+        !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
+      lose_no_memory();
+
+    a->location->type = GEN_URI;
+
+    if (!sk_ACCESS_DESCRIPTION_push(ext, a))
+      lose_no_memory();
+
+    a = NULL;
+    Py_XDECREF(item);
+    item = NULL;
+  }
+
+  Py_XDECREF(iterator);
+  iterator = NULL;
+
+  if (!X509_add1_ext_i2d(self->x509, NID_info_access, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add AIA extension to certificate");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  ACCESS_DESCRIPTION_free(a);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char x509_object_get_crldp__doc__[] =
+  "Get CRL Distribution Point (CRLDP) values for this certificate.\n"
+  "\n"
+  "If the certificate has no CRLDP extension, this method returns None.\n"
+  "\n"
+  "Otherwise, it returns a sequence of URIs representing distributionPoint\n"
+  "fullName values found in the first Distribution Point.  Other CRLDP\n"
+  "fields are ignored, as are subsequent Distribution Points and any non-URI\n"
+  "fullName values.\n"
+  ;
+
+static PyObject *
+x509_object_get_crldp(x509_object *self)
+{
+  CRL_DIST_POINTS *ext = NULL;
+  DIST_POINT *dp = NULL;
+  PyObject *result = NULL;
+  const char *uri;
+  PyObject *obj;
+  int i, n = 0;
+
+  ENTERING(x509_object_get_crldp);
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_crl_distribution_points, NULL, NULL)) == NULL ||
+      (dp = sk_DIST_POINT_value(ext, 0)) == NULL ||
+      dp->distpoint == NULL ||
+      dp->distpoint->type != 0)
+    Py_RETURN_NONE;
+
+  for (i = 0; i < sk_GENERAL_NAME_num(dp->distpoint->name.fullname); i++) {
+    GENERAL_NAME *gn = sk_GENERAL_NAME_value(dp->distpoint->name.fullname, i);
+    if (gn->type == GEN_URI)
+      n++;
+  }
+
+  if (((result = PyTuple_New(n)) == NULL))
+    goto error;
+
+  n = 0;
+
+  for (i = 0; i < sk_GENERAL_NAME_num(dp->distpoint->name.fullname); i++) {
+    GENERAL_NAME *gn = sk_GENERAL_NAME_value(dp->distpoint->name.fullname, i);
+    if (gn->type == GEN_URI) {
+      uri = (char *) ASN1_STRING_data(gn->d.uniformResourceIdentifier);
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result, n++, obj);
+    }
+  }
+
+  sk_DIST_POINT_pop_free(ext, DIST_POINT_free);
+  return result;
+
+ error:
+  sk_DIST_POINT_pop_free(ext, DIST_POINT_free);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+static char x509_object_set_crldp__doc__[] =
+  "Set CRLDP values for this certificate.\n"
+  "\n"
+  "Argument is a iterable which returns distributionPoint fullName URIs.\n"
+  ;
+
+static PyObject *
+x509_object_set_crldp(x509_object *self, PyObject *args)
+{
+  CRL_DIST_POINTS *ext = NULL;
+  PyObject *fullNames = NULL;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  DIST_POINT *dp = NULL;
+  GENERAL_NAME *gn = NULL;
+  Py_ssize_t urilen;
+  char *uri;
+  int ok = 0;
+
+  ENTERING(x509_object_set_crldp);
+
+  if (!PyArg_ParseTuple(args, "O", &fullNames))
+    goto error;
+
+  if ((ext = sk_DIST_POINT_new_null()) == NULL ||
+      (dp = DIST_POINT_new()) == NULL ||
+      (dp->distpoint = DIST_POINT_NAME_new()) == NULL ||
+      (dp->distpoint->name.fullname = sk_GENERAL_NAME_new_null()) == NULL)
+    lose_no_memory();
+
+  dp->distpoint->type = 0;
+
+  if ((iterator = PyObject_GetIter(fullNames)) == NULL)
+    goto error;
+
+  while ((item = PyIter_Next(iterator)) != NULL) {
+
+    if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
+      goto error;
+
+    if ((gn = GENERAL_NAME_new()) == NULL ||
+        (gn->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
+        !ASN1_OCTET_STRING_set(gn->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
+      lose_no_memory();
+
+    gn->type = GEN_URI;
+
+    if (!sk_GENERAL_NAME_push(dp->distpoint->name.fullname, gn))
+      lose_no_memory();
+
+    gn = NULL;
+    Py_XDECREF(item);
+    item = NULL;
+  }
+
+  Py_XDECREF(iterator);
+  iterator = NULL;
+
+  if (!sk_DIST_POINT_push(ext, dp))
+    lose_no_memory();
+
+  dp = NULL;
+
+  if (!X509_add1_ext_i2d(self->x509, NID_crl_distribution_points, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add CRLDP extension to certificate");
+
+  ok = 1;
+
+ error:
+  sk_DIST_POINT_pop_free(ext, DIST_POINT_free);
+  DIST_POINT_free(dp);
+  GENERAL_NAME_free(gn);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char x509_object_get_certificate_policies__doc__[] =
+  "Get Certificate Policies values for this certificate.\n"
+  "\n"
+  "If this certificate has no Certificate Policies extension, this method\n"
+  "returns None.\n"
+  "\n"
+  "Otherwise, this method returns a sequence of Object Identifiers.\n"
+  "\n"
+  "Policy qualifiers, if any, are ignored.\n"
+  ;
+
+static PyObject *
+x509_object_get_certificate_policies(x509_object *self)
+{
+  CERTIFICATEPOLICIES *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *obj;
+  int i;
+
+  ENTERING(x509_object_get_certificate_policies);
+
+  if ((ext = X509_get_ext_d2i(self->x509, NID_certificate_policies, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if (((result = PyTuple_New(sk_POLICYINFO_num(ext))) == NULL))
+    goto error;
+
+  for (i = 0; i < sk_POLICYINFO_num(ext); i++) {
+    POLICYINFO *p = sk_POLICYINFO_value(ext, i);
+
+    if ((obj = ASN1_OBJECT_to_PyString(p->policyid)) == NULL)
+      goto error;
+
+    PyTuple_SET_ITEM(result, i, obj);
+  }
+
+  sk_POLICYINFO_pop_free(ext, POLICYINFO_free);
+  return result;
+
+ error:
+  sk_POLICYINFO_pop_free(ext, POLICYINFO_free);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+static char x509_object_set_certificate_policies__doc__[] =
+  "Set Certificate Policies for this certificate.\n"
+  "\n"
+  "Argument is a iterable which returns policy OIDs.\n"
+  "\n"  
+  "Policy qualifier are not supported.\n"
+  "\n"
+  "The extension will be marked as critical, since there's not much point\n"
+  "in using this extension without making it critical.\n"
+  ;
+
+static PyObject *
+x509_object_set_certificate_policies(x509_object *self, PyObject *args)
+{
+  CERTIFICATEPOLICIES *ext = NULL;
+  PyObject *policies = NULL;
+  PyObject *iterator = NULL;
+  POLICYINFO *pol = NULL;
+  PyObject *item = NULL;
+  const char *oid;
+  int ok = 0;
+
+  ENTERING(x509_object_set_certificate_policies);
+
+  if (!PyArg_ParseTuple(args, "O", &policies))
+    goto error;
+
+  if ((ext = sk_POLICYINFO_new_null()) == NULL)
+    lose_no_memory();
+
+  if ((iterator = PyObject_GetIter(policies)) == NULL)
+    goto error;
+
+  while ((item = PyIter_Next(iterator)) != NULL) {
+
+    if ((oid = PyString_AsString(item)) == NULL)
+      goto error;
+
+    if ((pol = POLICYINFO_new()) == NULL)
+      lose_no_memory();
+
+    if ((pol->policyid = OBJ_txt2obj(oid, 1)) == NULL)
+      lose("Couldn't parse OID");
+
+    if (!sk_POLICYINFO_push(ext, pol))
+      lose_no_memory();
+
+    pol = NULL;
+    Py_XDECREF(item);
+    item = NULL;
+  }
+
+  Py_XDECREF(iterator);
+  iterator = NULL;
+
+  if (!X509_add1_ext_i2d(self->x509, NID_certificate_policies, ext, 1, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add CERTIFICATE_POLICIES extension to certificate");
+
+  ok = 1;
+
+ error:
+  POLICYINFO_free(pol);
+  sk_POLICYINFO_pop_free(ext, POLICYINFO_free);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+/*
+ * May want EKU handlers eventually, skip for now.
+ */
 
 static char x509_object_pprint__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"      <name>pprint</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a formatted string showing the information\n"
-"         held in the certificate.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+  "Return a pretty-printed rendition of this certificate.\n"
+  ;
 
 static PyObject *
-x509_object_pprint(x509_object *self, PyObject *args)
+x509_object_pprint(x509_object *self)
 {
-  int len = 0, ret = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
-  PyObject *cert = NULL;
+  PyObject *result = NULL;
+  BIO *bio = NULL;
 
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
+  ENTERING(x509_object_pprint);
 
-  out_bio = BIO_new(BIO_s_mem());
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
-  if (!X509_print(out_bio, self->x509))
-    lose("unable to write crl");
+  if (!X509_print(bio, self->x509))
+    lose_openssl_error("Unable to pretty-print certificate");
 
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
+  result = BIO_to_PyString_helper(bio);
 
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if ((ret = BIO_read(out_bio, buf, len)) != len)
-    lose("unable to write out cert");
-
-  cert = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
-  return cert;
-
- error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
-  return NULL;
-
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
 }
 
-static struct PyMethodDef X509_object_methods[] = {
-  {"pemWrite",          (PyCFunction)X509_object_pem_write,        METH_VARARGS,  NULL},
-  {"derWrite",          (PyCFunction)X509_object_der_write,        METH_VARARGS,  NULL},
-  {"sign",              (PyCFunction)X509_object_sign,             METH_VARARGS,  NULL},
-  {"setPublicKey",      (PyCFunction)X509_object_set_public_key,   METH_VARARGS,  NULL},
-  {"getVersion",        (PyCFunction)X509_object_get_version,      METH_VARARGS,  NULL},
-  {"setVersion",        (PyCFunction)X509_object_set_version,      METH_VARARGS,  NULL},
-  {"getSerial",         (PyCFunction)X509_object_get_serial,       METH_VARARGS,  NULL},
-  {"setSerial",         (PyCFunction)X509_object_set_serial,       METH_VARARGS,  NULL},
-  {"getIssuer",         (PyCFunction)X509_object_get_issuer,       METH_VARARGS,  NULL},
-  {"setIssuer",         (PyCFunction)X509_object_set_issuer,       METH_VARARGS,  NULL},
-  {"getSubject",        (PyCFunction)X509_object_get_subject,      METH_VARARGS,  NULL},
-  {"setSubject",        (PyCFunction)X509_object_set_subject,      METH_VARARGS,  NULL},
-  {"getNotBefore",      (PyCFunction)X509_object_get_not_before,   METH_VARARGS,  NULL},
-  {"getNotAfter",       (PyCFunction)X509_object_get_not_after,    METH_VARARGS,  NULL},
-  {"setNotAfter",       (PyCFunction)X509_object_set_not_after,    METH_VARARGS,  NULL},
-  {"setNotBefore",      (PyCFunction)X509_object_set_not_before,   METH_VARARGS,  NULL},
-  {"addExtension",      (PyCFunction)X509_object_add_extension,    METH_VARARGS,  NULL},
-  {"clearExtensions",   (PyCFunction)X509_object_clear_extensions, METH_VARARGS,  NULL},
-  {"countExtensions",   (PyCFunction)X509_object_count_extensions, METH_VARARGS,  NULL},
-  {"getExtension",      (PyCFunction)X509_object_get_extension,    METH_VARARGS,  NULL},
-  {"pprint",            (PyCFunction)x509_object_pprint,           METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
+static struct PyMethodDef x509_object_methods[] = {
+  Define_Method(pemWrite,               x509_object_pem_write,                  METH_NOARGS),
+  Define_Method(derWrite,               x509_object_der_write,                  METH_NOARGS),
+  Define_Method(sign,                   x509_object_sign,                       METH_VARARGS),
+  Define_Method(getPublicKey,           x509_object_get_public_key,             METH_NOARGS),
+  Define_Method(setPublicKey,           x509_object_set_public_key,             METH_VARARGS),
+  Define_Method(getVersion,             x509_object_get_version,                METH_NOARGS),
+  Define_Method(setVersion,             x509_object_set_version,                METH_VARARGS),
+  Define_Method(getSerial,              x509_object_get_serial,                 METH_NOARGS),
+  Define_Method(setSerial,              x509_object_set_serial,                 METH_VARARGS),
+  Define_Method(getIssuer,              x509_object_get_issuer,                 METH_VARARGS),
+  Define_Method(setIssuer,              x509_object_set_issuer,                 METH_VARARGS),
+  Define_Method(getSubject,             x509_object_get_subject,                METH_VARARGS),
+  Define_Method(setSubject,             x509_object_set_subject,                METH_VARARGS),
+  Define_Method(getNotBefore,           x509_object_get_not_before,             METH_NOARGS),
+  Define_Method(getNotAfter,            x509_object_get_not_after,              METH_NOARGS),
+  Define_Method(setNotAfter,            x509_object_set_not_after,              METH_VARARGS),
+  Define_Method(setNotBefore,           x509_object_set_not_before,             METH_VARARGS),
+  Define_Method(clearExtensions,        x509_object_clear_extensions,           METH_NOARGS),
+  Define_Method(pprint,                 x509_object_pprint,                     METH_NOARGS),
+  Define_Method(getSKI,                 x509_object_get_ski,                    METH_NOARGS),
+  Define_Method(setSKI,                 x509_object_set_ski,                    METH_VARARGS),
+  Define_Method(getAKI,                 x509_object_get_aki,                    METH_NOARGS),
+  Define_Method(setAKI,                 x509_object_set_aki,                    METH_VARARGS),
+  Define_Method(getKeyUsage,            x509_object_get_key_usage,              METH_NOARGS),
+  Define_Method(setKeyUsage,            x509_object_set_key_usage,              METH_VARARGS),
+  Define_Method(getRFC3779,             x509_object_get_rfc3779,                METH_NOARGS),
+  Define_Method(setRFC3779,             x509_object_set_rfc3779,                METH_KEYWORDS),
+  Define_Method(getBasicConstraints,    x509_object_get_basic_constraints,      METH_NOARGS),
+  Define_Method(setBasicConstraints,    x509_object_set_basic_constraints,      METH_VARARGS),
+  Define_Method(getSIA,                 x509_object_get_sia,                    METH_NOARGS),
+  Define_Method(setSIA,                 x509_object_set_sia,                    METH_KEYWORDS),
+  Define_Method(getAIA,                 x509_object_get_aia,                    METH_NOARGS),
+  Define_Method(setAIA,                 x509_object_set_aia,                    METH_VARARGS),
+  Define_Method(getCRLDP,               x509_object_get_crldp,                  METH_NOARGS),
+  Define_Method(setCRLDP,               x509_object_set_crldp,                  METH_VARARGS),
+  Define_Method(getCertificatePolicies, x509_object_get_certificate_policies,   METH_NOARGS),
+  Define_Method(setCertificatePolicies, x509_object_set_certificate_policies,   METH_VARARGS),
+  Define_Class_Method(pemRead,          x509_object_pem_read,                   METH_VARARGS),
+  Define_Class_Method(pemReadFile,      x509_object_pem_read_file,              METH_VARARGS),
+  Define_Class_Method(derRead,          x509_object_der_read,                   METH_VARARGS),
+  Define_Class_Method(derReadFile,      x509_object_der_read_file,              METH_VARARGS),
+  {NULL}
 };
+
+static char POW_X509_Type__doc__[] =
+  "This class represents an X.509 certificate.\n"
+  "\n"
+  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
+  ;
+
+static PyTypeObject POW_X509_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                        /* ob_size */
+  "rpki.POW.X509",                          /* tp_name */
+  sizeof(x509_object),                      /* tp_basicsize */
+  0,                                        /* tp_itemsize */
+  (destructor)x509_object_dealloc,          /* tp_dealloc */
+  0,                                        /* tp_print */
+  0,                                        /* tp_getattr */
+  0,                                        /* tp_setattr */
+  0,                                        /* tp_compare */
+  0,                                        /* tp_repr */
+  0,                                        /* tp_as_number */
+  0,                                        /* tp_as_sequence */
+  0,                                        /* tp_as_mapping */
+  0,                                        /* tp_hash */
+  0,                                        /* tp_call */
+  0,                                        /* tp_str */
+  0,                                        /* tp_getattro */
+  0,                                        /* tp_setattro */
+  0,                                        /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  POW_X509_Type__doc__,                     /* tp_doc */
+  0,                                        /* tp_traverse */
+  0,                                        /* tp_clear */
+  0,                                        /* tp_richcompare */
+  0,                                        /* tp_weaklistoffset */
+  0,                                        /* tp_iter */
+  0,                                        /* tp_iternext */
+  x509_object_methods,                      /* tp_methods */
+  0,                                        /* tp_members */
+  0,                                        /* tp_getset */
+  0,                                        /* tp_base */
+  0,                                        /* tp_dict */
+  0,                                        /* tp_descr_get */
+  0,                                        /* tp_descr_set */
+  0,                                        /* tp_dictoffset */
+  0,                                        /* tp_init */
+  0,                                        /* tp_alloc */
+  x509_object_new,                          /* tp_new */
+};
+
+
+
+/*
+ * X509Store object.
+ */
 
 static PyObject *
-X509_object_getattr(x509_object *self, char *name)
-{
-  return Py_FindMethod(X509_object_methods, (PyObject *)self, name);
-}
-
-static void
-X509_object_dealloc(x509_object *self, char *name)
-{
-  X509_free(self->x509);
-  PyObject_Del(self);
-}
-
-static char x509type__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>X509</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides access to a significant proportion of X509\n"
-"         functionality of OpenSSL.\n"
-"      </para>\n"
-"\n"
-"      <example>\n"
-"         <title><classname>x509</classname> class usage</title>\n"
-"         <programlisting>\n"
-"      privateFile = open('test/private.key', 'r')\n"
-"      publicFile = open('test/public.key', 'r')\n"
-"      certFile = open('test/cacert.pem', 'w')\n"
-"\n"
-"      publicKey = POW.pemRead(POW.RSA_PUBLIC_KEY, publicFile.read())\n"
-"      privateKey = POW.pemRead(POW.RSA_PRIVATE_KEY, privateFile.read(), 'pass')\n"
-"\n"
-"      c = POW.X509()\n"
-"\n"
-"      name = [  ['C', 'GB'], ['ST', 'Hertfordshire'],\n"
-"                ['O','The House'], ['CN', 'Peter Shannon'] ]\n"
-"\n"
-"      c.setIssuer(name)\n"
-"      c.setSubject(name)\n"
-"      c.setSerial(0)\n"
-"      t1 = POW.pkix.time2utc(time.time())\n"
-"      t2 = POW.pkix.time2utc(time.time() + 60*60*24*365)\n"
-"      c.setNotBefore(t1)\n"
-"      c.setNotAfter(t2)\n"
-"      c.setPublicKey(publicKey)\n"
-"      c.sign(privateKey)\n"
-"\n"
-"      certFile.write(c.pemWrite())\n"
-"\n"
-"      privateFile.close()\n"
-"      publicFile.close()\n"
-"      certFile.close()\n"
-"         </programlisting>\n"
-"      </example>\n"
-"\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject x509type = {
-   PyObject_HEAD_INIT(0)
-   0,                                  /*ob_size*/
-   "X509",                             /*tp_name*/
-   sizeof(x509_object),                /*tp_basicsize*/
-   0,                                  /*tp_itemsize*/
-   (destructor)X509_object_dealloc,    /*tp_dealloc*/
-   (printfunc)0,                       /*tp_print*/
-   (getattrfunc)X509_object_getattr,   /*tp_getattr*/
-   (setattrfunc)0,                     /*tp_setattr*/
-   (cmpfunc)0,                         /*tp_compare*/
-   (reprfunc)0,                        /*tp_repr*/
-   0,                                  /*tp_as_number*/
-   0,                                  /*tp_as_sequence*/
-   0,                                  /*tp_as_mapping*/
-   (hashfunc)0,                        /*tp_hash*/
-   (ternaryfunc)0,                     /*tp_call*/
-   (reprfunc)0,                        /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   x509type__doc__                     /* Documentation string */
-};
-/*========== X509 Code ==========*/
-
-/*========== x509 store Code ==========*/
-static x509_store_object *
-x509_store_object_new(void)
+x509_store_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
   x509_store_object *self = NULL;
 
-  if ((self = PyObject_New(x509_store_object, &x509_storetype)) == NULL)
-    goto error;
+  ENTERING(x509_store_object_new);
 
-  self->store = X509_STORE_new();
-
-  return self;
-
- error:
+  if ((self = (x509_store_object *) type->tp_alloc(type, 0)) != NULL &&
+      (self->store = X509_STORE_new()) != NULL)
+    return (PyObject *) self;
 
   Py_XDECREF(self);
   return NULL;
 }
 
-static char x509_store_object_verify__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Store</memberof>\n"
-"      <name>verify</name>\n"
-"      <parameter>certificate</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         The <classname>X509Store</classname> method\n"
-"         <function>verify</function> is based on the\n"
-"         <function>X509_verify_cert</function>.  It handles certain aspects\n"
-"         of verification but not others.  The certificate will be verified\n"
-"         against <constant>notBefore</constant>,\n"
-"         <constant>notAfter</constant> and trusted certificates.\n"
-"         It crucially will not handle checking the certificate against\n"
-"         CRLs.  This functionality will probably make it into OpenSSL\n"
-"         0.9.7.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_store_object_verify(x509_store_object *self, PyObject *args)
+static void
+x509_store_object_dealloc(x509_store_object *self)
 {
-  X509_STORE_CTX csc;
-  x509_object *x509 = NULL;
-  int ok;
-
-  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
-    goto error;
-
-  X509_STORE_CTX_init(&csc, self->store, x509->x509, NULL);
-  ok = X509_verify_cert(&csc) == 1;
-  X509_STORE_CTX_cleanup(&csc);
-
-  return PyBool_FromLong(ok);
-
- error:
-
-  return NULL;
-}
-
-static char x509_store_object_verify_chain__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Store</memberof>\n"
-"      <name>verifyChain</name>\n"
-"      <parameter>certificate</parameter>\n"
-"      <parameter>chain</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         The <classname>X509Store</classname> method <function>verifyChain</function>\n"
-"         is based on the <function>X509_verify_cert</function> but is initialised\n"
-"         with a <classname>X509</classname> object to verify and list of\n"
-"         <classname>X509</classname> objects which form a chain to a trusted\n"
-"         certificate.  Certain aspects of the verification are handled but not others.\n"
-"         The certificates will be verified against <constant>notBefore</constant>,\n"
-"         <constant>notAfter</constant> and trusted certificates.  It crucially will\n"
-"         not handle checking the certificate against CRLs.  This functionality will\n"
-"         probably make it into OpenSSL 0.9.7.\n"
-"      </para>\n"
-"      <para>\n"
-"         This may all sound quite straight forward but determining the\n"
-"         certificate associated with the signature on another certificate\n"
-"         can be very time consuming.  The management aspects of\n"
-"         certificates are addressed by various V3 extensions which are not\n"
-"         currently supported.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_store_object_verify_chain(x509_store_object *self, PyObject *args)
-{
-  PyObject *x509_sequence = NULL;
-  X509_STORE_CTX csc;
-  x509_object *x509 = NULL;
-  STACK_OF(X509) *x509_stack = NULL;
-  int ok;
-
-  if (!PyArg_ParseTuple(args, "O!O", &x509type, &x509, &x509_sequence))
-    goto error;
-
-  if ((x509_stack = x509_helper_sequence_to_stack(x509_sequence)) == NULL)
-    goto error;
-
-  X509_STORE_CTX_init(&csc, self->store, x509->x509, x509_stack);
-
-  ok = X509_verify_cert(&csc) == 1;
-
-  X509_STORE_CTX_cleanup(&csc);
-  sk_X509_free(x509_stack);
-
-  return PyBool_FromLong(ok);
-
- error:
-
-  if (x509_stack)
-    sk_X509_free(x509_stack);
-
-  return NULL;
-}
-
-static char x509_store_object_verify_detailed__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Store</memberof>\n"
-"      <name>verifyDetailed</name>\n"
-"      <parameter>certificate</parameter>\n"
-"      <optional>\n"
-"        <parameter>chain</parameter>\n"
-"      </optional>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         The <classname>X509Store</classname> method <function>verifyDetailed</function>\n"
-"         is based on the <function>X509_verify_cert</function> but is initialised\n"
-"         with a <classname>X509</classname> object to verify and list of\n"
-"         <classname>X509</classname> objects which form a chain to a trusted\n"
-"         certificate.  Certain aspects of the verification are handled but not others.\n"
-"         The certificates will be verified against <constant>notBefore</constant>,\n"
-"         <constant>notAfter</constant> and trusted certificates.  It crucially will\n"
-"         not handle checking the certificate against CRLs.  This functionality will\n"
-"         probably make it into OpenSSL 0.9.7.\n"
-"      </para>\n"
-"      <para>\n"
-"         This may all sound quite straight forward but determining the\n"
-"         certificate associated with the signature on another certificate\n"
-"         can be very time consuming.  The management aspects of\n"
-"         certificates are addressed by various V3 extensions which are not\n"
-"         currently supported.\n"
-"      </para>\n"
-"      <para>\n"
-"         Unlike the <function>verify</function> and <function>verifyChain</function>\n"
-"         methods, <function>verifyDetailed</function> returns some information about\n"
-"         what went wrong when verification fails.  The return value is currently a 3-tuple:\n"
-"         the first value is the return value from X509_verify_cert(), the second and third\n"
-"         are the error and error_depth values from the X509_STORE_CTX.\n"
-"         Other values may added to this tuple later.\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_store_object_verify_detailed(x509_store_object *self, PyObject *args)
-{
-  PyObject *x509_sequence = Py_None;
-  X509_STORE_CTX csc;
-  x509_object *x509 = NULL;
-  STACK_OF(X509) *x509_stack = NULL;
-  PyObject *result = NULL;
-  int ok;
-
-  if (!PyArg_ParseTuple(args, "O!|O", &x509type, &x509, &x509_sequence))
-    goto error;
-
-  if (x509_sequence && !(x509_stack = x509_helper_sequence_to_stack(x509_sequence)))
-    goto error;
-
-  X509_STORE_CTX_init(&csc, self->store, x509->x509, x509_stack);
-
-  ok = X509_verify_cert(&csc) == 1;
-
-  result = Py_BuildValue("(iii)", ok, csc.error, csc.error_depth);
-
-  X509_STORE_CTX_cleanup(&csc);
-
- error:                          /* fall through */
-
-  if (x509_stack)
-    sk_X509_free(x509_stack);
-
-  return result;
+  ENTERING(x509_store_object_dealloc);
+  X509_STORE_free(self->store);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
 static char x509_store_object_add_trust__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Store</memberof>\n"
-"      <name>addTrust</name>\n"
-"      <parameter>cert</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method adds a new certificate to the store to be used in the\n"
-"         verification process.  <parameter>cert</parameter> should be an\n"
-"         instance of <classname>X509</classname>.  Using trusted certificates to manage\n"
-"         verification is relatively primitive, more sophisticated systems\n"
-"         can be constructed at an application level by by constructing\n"
-"         certificate chains to verify.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+  "Add a trusted certificate to this certificate store object.\n"
+  "\n"
+  "The \"certificate\" parameter should be an instance of the X509 class.\n"
+  ;
 
 static PyObject *
 x509_store_object_add_trust(x509_store_object *self, PyObject *args)
 {
   x509_object *x509 = NULL;
 
-  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
+  ENTERING(x509_store_object_add_trust);
+
+  if (!PyArg_ParseTuple(args, "O!", &POW_X509_Type, &x509))
     goto error;
 
   X509_STORE_add_cert(self->store, x509->x509);
@@ -2227,33 +3501,19 @@ x509_store_object_add_trust(x509_store_object *self, PyObject *args)
 }
 
 static char x509_store_object_add_crl__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Store</memberof>\n"
-"      <name>addCrl</name>\n"
-"      <parameter>crl</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method adds a CRL to a store to be used for verification.\n"
-"         <parameter>crl</parameter> should be an instance of\n"
-"         <classname>X509Crl</classname>.\n"
-"         Unfortunately, the current stable release of OpenSSL does not\n"
-"         support CRL checking for certificate verification.\n"
-"         This functionality will probably make it into OpenSSL 0.9.7, until\n"
-"         it does this function is useless and CRL verification must be\n"
-"         implemented by the application.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+  "Add a CRL to this certificate store object.\n"
+  "\n"
+  "The \"crl\" parameter should be an instance of the CRL class.\n"
+  ;
 
 static PyObject *
 x509_store_object_add_crl(x509_store_object *self, PyObject *args)
 {
-  x509_crl_object *crl = NULL;
+  crl_object *crl = NULL;
 
-  if (!PyArg_ParseTuple(args, "O!", &x509_crltype, &crl))
+  ENTERING(x509_store_object_add_crl);
+
+  if (!PyArg_ParseTuple(args, "O!", &POW_CRL_Type, &crl))
     goto error;
 
   X509_STORE_add_crl(self->store, crl->crl);
@@ -2266,2867 +3526,1014 @@ x509_store_object_add_crl(x509_store_object *self, PyObject *args)
 }
 
 static struct PyMethodDef x509_store_object_methods[] = {
-  {"verify",         (PyCFunction)x509_store_object_verify,          METH_VARARGS,  NULL},
-  {"verifyChain",    (PyCFunction)x509_store_object_verify_chain,    METH_VARARGS,  NULL},
-  {"verifyDetailed", (PyCFunction)x509_store_object_verify_detailed, METH_VARARGS,  NULL},
-  {"addTrust",       (PyCFunction)x509_store_object_add_trust,       METH_VARARGS,  NULL},
-  {"addCrl",         (PyCFunction)x509_store_object_add_crl,         METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
+  Define_Method(addTrust,       x509_store_object_add_trust,            METH_VARARGS),
+  Define_Method(addCrl,         x509_store_object_add_crl,              METH_VARARGS),
+  {NULL}
 };
 
+static char POW_X509Store_Type__doc__[] =
+  "This class holds the OpenSSL certificate store objects used in CMS\n"
+  "verification.\n"
+  "\n"
+  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
+  ;
+
+static PyTypeObject POW_X509Store_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                        /* ob_size */
+  "rpki.POW.X509Store",                     /* tp_name */
+  sizeof(x509_store_object),                /* tp_basicsize */
+  0,                                        /* tp_itemsize */
+  (destructor)x509_store_object_dealloc,    /* tp_dealloc */
+  0,                                        /* tp_print */
+  0,                                        /* tp_getattr */
+  0,                                        /* tp_setattr */
+  0,                                        /* tp_compare */
+  0,                                        /* tp_repr */
+  0,                                        /* tp_as_number */
+  0,                                        /* tp_as_sequence */
+  0,                                        /* tp_as_mapping */
+  0,                                        /* tp_hash */
+  0,                                        /* tp_call */
+  0,                                        /* tp_str */
+  0,                                        /* tp_getattro */
+  0,                                        /* tp_setattro */
+  0,                                        /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  POW_X509Store_Type__doc__,                /* tp_doc */
+  0,                                        /* tp_traverse */
+  0,                                        /* tp_clear */
+  0,                                        /* tp_richcompare */
+  0,                                        /* tp_weaklistoffset */
+  0,                                        /* tp_iter */
+  0,                                        /* tp_iternext */
+  x509_store_object_methods,                /* tp_methods */
+  0,                                        /* tp_members */
+  0,                                        /* tp_getset */
+  0,                                        /* tp_base */
+  0,                                        /* tp_dict */
+  0,                                        /* tp_descr_get */
+  0,                                        /* tp_descr_set */
+  0,                                        /* tp_dictoffset */
+  0,                                        /* tp_init */
+  0,                                        /* tp_alloc */
+  x509_store_object_new,                    /* tp_new */
+};
+
+
+
+/*
+ * CRL object.
+ */
+
 static PyObject *
-x509_store_object_getattr(x509_store_object *self, char *name)
+crl_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
-  return Py_FindMethod(x509_store_object_methods, (PyObject *)self, name);
+  crl_object *self = NULL;
+
+  ENTERING(crl_object_new);
+
+  if ((self = (crl_object *) type->tp_alloc(type, 0)) != NULL &&
+      (self->crl = X509_CRL_new()) != NULL)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
 }
 
 static void
-x509_store_object_dealloc(x509_store_object *self, char *name)
+crl_object_dealloc(crl_object *self)
 {
-  X509_STORE_free(self->store);
-  PyObject_Del(self);
+  ENTERING(crl_object_dealloc);
+  X509_CRL_free(self->crl);
+  self->ob_type->tp_free((PyObject*) self);
 }
-
-static char x509_storetype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>X509Store</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides preliminary access to OpenSSL X509 verification\n"
-"         facilities.\n"
-"      </para>\n"
-"\n"
-"      <example>\n"
-"         <title><classname>x509_store</classname> class usage</title>\n"
-"         <programlisting>\n"
-"      store = POW.X509Store()\n"
-"\n"
-"      caFile = open('test/cacert.pem', 'r')\n"
-"      ca = POW.pemRead(POW.X509_CERTIFICATE, caFile.read())\n"
-"      caFile.close()\n"
-"\n"
-"      store.addTrust(ca)\n"
-"\n"
-"      certFile = open('test/foocom.cert', 'r')\n"
-"      x509 = POW.pemRead(POW.X509_CERTIFICATE, certFile.read())\n"
-"      certFile.close()\n"
-"\n"
-"      print x509.pprint()\n"
-"\n"
-"      if store.verify(x509):\n"
-"         print 'Verified certificate!.'\n"
-"      else:\n"
-"         print 'Failed to verify certificate!.'\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject x509_storetype = {
-   PyObject_HEAD_INIT(0)
-   0,                                        /*ob_size*/
-   "X509Store",                              /*tp_name*/
-   sizeof(x509_store_object),                /*tp_basicsize*/
-   0,                                        /*tp_itemsize*/
-   (destructor)x509_store_object_dealloc,    /*tp_dealloc*/
-   (printfunc)0,                             /*tp_print*/
-   (getattrfunc)x509_store_object_getattr,   /*tp_getattr*/
-   (setattrfunc)0,                           /*tp_setattr*/
-   (cmpfunc)0,                               /*tp_compare*/
-   (reprfunc)0,                              /*tp_repr*/
-   0,                                        /*tp_as_number*/
-   0,                                        /*tp_as_sequence*/
-   0,                                        /*tp_as_mapping*/
-   (hashfunc)0,                              /*tp_hash*/
-   (ternaryfunc)0,                           /*tp_call*/
-   (reprfunc)0,                              /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   x509_storetype__doc__                    /* Documentation string */
-};
-/*========== x509 store Code ==========*/
-
-/*========== x509 crl Code ==========*/
-static x509_crl_object *
-x509_crl_object_new(void)
-{
-  x509_crl_object *self = NULL;
-
-  self = PyObject_New(x509_crl_object, &x509_crltype);
-  if (self == NULL)
-    goto error;
-
-  self->crl = X509_CRL_new();
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static x509_crl_object *
-x509_crl_object_pem_read(BIO *in)
-{
-  x509_crl_object *self;
-
-  if ((self = PyObject_New(x509_crl_object, &x509_crltype)) == NULL)
-    goto error;
-
-  if ((self->crl = PEM_read_bio_X509_CRL(in, NULL, NULL, NULL)) == NULL)
-    lose("could not load certificate");
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static x509_crl_object *
-x509_crl_object_der_read(unsigned char *src, int len)
-{
-  x509_crl_object *self;
-  unsigned char* ptr = src;
-
-  if ((self = PyObject_New(x509_crl_object, &x509_crltype)) == NULL)
-    goto error;
-
-  self->crl = X509_CRL_new();
-
-  if (!d2i_X509_CRL(&self->crl, (const unsigned char **) &ptr, len))
-    lose("could not load PEM encoded CRL");
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static char x509_crl_object_get_version__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>getVersion</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns the version number from the version field of\n"
-"         this CRL.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
 
 static PyObject *
-x509_crl_object_get_version(x509_crl_object *self, PyObject *args)
+crl_object_pem_read_helper(PyTypeObject *type, BIO *bio)
+{
+  crl_object *self;
+
+  ENTERING(crl_object_pem_read_helper);
+
+  if ((self = (crl_object *) crl_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if (!PEM_read_bio_X509_CRL(bio, &self->crl, NULL, NULL))
+    lose_openssl_error("Couldn't PEM encoded load CRL");
+
+  return (PyObject *) self;
+
+ error:
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static PyObject *
+crl_object_der_read_helper(PyTypeObject *type, BIO *bio)
+{
+  crl_object *self;
+
+  ENTERING(crl_object_der_read_helper);
+
+  if ((self = (crl_object *) crl_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if (!d2i_X509_CRL_bio(bio, &self->crl))
+    lose_openssl_error("Couldn't load DER encoded CRL");
+
+  return (PyObject *) self;
+
+ error:
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static char crl_object_pem_read__doc__[] =
+  "Read a PEM-encoded CRL object from a string.\n"
+  ;
+
+static PyObject *
+crl_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(crl_object_pem_read);
+  return read_from_string_helper(crl_object_pem_read_helper, type, args);
+}
+
+static char crl_object_pem_read_file__doc__[] =
+  "Read a PEM-encoded CRL object from a file.\n"
+  ;
+
+static PyObject *
+crl_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(crl_object_pem_read_file);
+  return read_from_file_helper(crl_object_pem_read_helper, type, args);
+}
+
+static char crl_object_der_read__doc__[] =
+  "Read a DER-encoded CRL object from a string.\n"
+  ;
+
+static PyObject *
+crl_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(crl_object_der_read);
+  return read_from_string_helper(crl_object_der_read_helper, type, args);
+}
+
+static char crl_object_der_read_file__doc__[] =
+  "Read a DER-encoded CRL object from a file.\n"
+  ;
+
+static PyObject *
+crl_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(crl_object_der_read_file);
+  return read_from_file_helper(crl_object_der_read_helper, type, args);
+}
+
+static char crl_object_get_version__doc__[] =
+  "return the version number of this CRL.\n"
+  ;
+
+static PyObject *
+crl_object_get_version(crl_object *self)
+{
+  ENTERING(crl_object_get_version);
+  return Py_BuildValue("l", X509_CRL_get_version(self->crl));
+}
+
+static char crl_object_set_version__doc__[] =
+  "Set the version number of this CRL.\n"
+  "\n"
+  "The \"version\" parameter should be a positive integer.\n"
+  ;
+
+static PyObject *
+crl_object_set_version(crl_object *self, PyObject *args)
 {
   long version = 0;
 
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if ((version = ASN1_INTEGER_get(self->crl->crl->version)) == -1)
-    lose("could not get crl version");
-
-  return Py_BuildValue("l", version);
-
- error:
-
-  return NULL;
-}
-
-static char x509_crl_object_set_version__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>setVersion</name>\n"
-"      <parameter>version</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method sets the version number in the version field of\n"
-"         this CRL.  <parameter>version</parameter> should be an\n"
-"         integer.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_crl_object_set_version(x509_crl_object *self, PyObject *args)
-{
-  long version = 0;
-  ASN1_INTEGER *asn1_version = NULL;
+  ENTERING(crl_object_set_version);
 
   if (!PyArg_ParseTuple(args, "i", &version))
     goto error;
 
-  if ((asn1_version = ASN1_INTEGER_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (!ASN1_INTEGER_set(asn1_version, version))
-    lose("could not get set version");
-
-  self->crl->crl->version = asn1_version;
+  if (!X509_CRL_set_version(self->crl, version))
+    lose_no_memory();
 
   Py_RETURN_NONE;
 
  error:
-
-  if (asn1_version)
-    ASN1_INTEGER_free(asn1_version);
-
   return NULL;
 }
 
-static char x509_crl_object_get_issuer__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>getIssuer</name>\n"
-"      <parameter>format = SHORTNAME_FORMAT</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a tuple containing the issuers name.  See the\n"
-"         <function>getIssuer</function> method of\n"
-"         <classname>X509</classname> for more details.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_get_issuer__doc__[] =
+  "Return issuer name of this CRL.\n"
+  "\n"
+  "See the \"getIssuer()\" method of the X509 class for more details.\n"
+  ;
 
 static PyObject *
-x509_crl_object_get_issuer(x509_crl_object *self, PyObject *args)
+crl_object_get_issuer(crl_object *self, PyObject *args)
 {
-  PyObject *result_list = NULL;
-  int format = SHORTNAME_FORMAT;
+  PyObject *result = NULL;
+  int format = OIDNAME_FORMAT;
+
+  ENTERING(crl_object_get_issuer);
 
   if (!PyArg_ParseTuple(args, "|i", &format))
     goto error;
 
-  if ((result_list = X509_object_helper_get_name(self->crl->crl->issuer, format)) == NULL)
-    lose("failed to produce name list");
+  result = x509_object_helper_get_name(X509_CRL_get_issuer(self->crl), format);
 
-  return result_list;
-
- error:
-
-  return NULL;
+ error:                         /* Fall through */
+  return result;
 }
 
-static char x509_crl_object_set_issuer__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>setIssuer</name>\n"
-"      <parameter>name</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to set the issuers name.\n"
-"         <parameter>name</parameter> can be comprised of lists or tuples in\n"
-"         the format described in the <function>getIssuer</function> method\n"
-"         of <classname>X509</classname>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_set_issuer__doc__[] =
+  "Set this CRL's issuer name.\n"
+  "\n"
+  "See the \"setIssuer()\" method of the X509 class for details.\n"
+  ;
 
 static PyObject *
-x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
+crl_object_set_issuer(crl_object *self, PyObject *args)
 {
   PyObject *name_sequence = NULL;
   X509_NAME *name = NULL;
 
+  ENTERING(crl_object_set_issuer);
+
   if (!PyArg_ParseTuple(args, "O", &name_sequence))
     goto error;
 
-  if (!PyTuple_Check(name_sequence) && !PyList_Check(name_sequence))
+  if (!PySequence_Check(name_sequence))
     lose_type_error("Inapropriate type");
 
-  if ((name = X509_NAME_new()) == NULL)
-    lose("could not allocate memory");
+  if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
+    goto error;
 
-  if (!X509_object_helper_set_name(name, name_sequence))
-    lose("unable to set new name");
-
-  if (!X509_NAME_set(&self->crl->crl->issuer, name))
-    lose("unable to set name");
+  if (!X509_CRL_set_issuer_name(self->crl, name))
+    lose_openssl_error("Unable to set issuer name");
 
   X509_NAME_free(name);
 
   Py_RETURN_NONE;
 
  error:
-
-  if (name)
-    X509_NAME_free(name);
-
-  return  NULL;
+  X509_NAME_free(name);
+  return NULL;
 }
 
-static char x509_crl_object_set_this_update__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>setThisUpdate</name>\n"
-"      <parameter>time</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         In a change from previous releases, for reasons of portability\n"
-"         and to avoid hard to fix issues with problems in unreliable time\n"
-"         functions, this accepts one parameter, a UTCTime string.  You\n"
-"         can use the function <function>time2utc</function> to convert to a\n"
-"         string if you like and <function>utc2time</function> to back.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+/*
+ * NB: OpenSSL is confused about the name of this field, probably for
+ * backwards compatability with some ancient mistake.  What RFC 5280
+ * calls "thisUpdate", OpenSSL calls "lastUpdate".
+ */
+
+static char crl_object_set_this_update__doc__[] =
+  "Set this CRL's \"thisUpdate\" value.\n"
+  "\n"
+  "The \"time\" parameter should be a datetime object.\n"
+  ;
 
 static PyObject *
-x509_crl_object_set_this_update (x509_crl_object *self, PyObject *args)
+crl_object_set_this_update (crl_object *self, PyObject *args)
 {
-  char *new_time = NULL;
+  PyObject *o = NULL;
+  ASN1_TIME *t = NULL;
 
-  if (!PyArg_ParseTuple(args, "s", &new_time))
+  ENTERING(crl_object_set_this_update);
+
+  if (!PyArg_ParseTuple(args, "O", &o))
     goto error;
 
-  if (!python_ASN1_TIME_set_string(self->crl->crl->lastUpdate, new_time))
-    lose("Could not set lastUpdate");
+  if ((t = Python_to_ASN1_TIME(o, 1)) == NULL)
+    lose("Couldn't convert thisUpdate string");
 
+  if (!X509_CRL_set_lastUpdate(self->crl, t)) /* sic */
+    lose("Couldn't set thisUpdate");
+
+  ASN1_TIME_free(t);
   Py_RETURN_NONE;
 
  error:
-
+  ASN1_TIME_free(t);
   return NULL;
 }
 
-static char x509_crl_object_get_this_update__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>getThisUpdate</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         In a change from previous releases, for reasons of portability\n"
-"         and to avoid hard to fix issues with problems in unreliable time\n"
-"         functions, this function returns a UTCTime string.  You\n"
-"         can use the function <function>time2utc</function> to convert to a\n"
-"         string if you like and <function>utc2time</function> to back.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_get_this_update__doc__[] =
+  "Return this CRL's \"thisUpdate\" value as a datetime.\n"
+  ;
 
 static PyObject *
-x509_crl_object_get_this_update (x509_crl_object *self, PyObject *args)
+crl_object_get_this_update (crl_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  return ASN1_TIME_to_Python(self->crl->crl->lastUpdate);
-
- error:
-
-  return NULL;
+  ENTERING(crl_object_get_this_update);
+  return ASN1_TIME_to_Python(X509_CRL_get_lastUpdate(self->crl)); /* sic */
 }
 
-static char x509_crl_object_set_next_update__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>setNextUpdate</name>\n"
-"      <parameter>time</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         In a change from previous releases, for reasons of portability\n"
-"         and to avoid hard to fix issues with problems in unreliable time\n"
-"         functions, this accepts one parameter, a UTCTime string.  You\n"
-"         can use the function <function>time2utc</function> to convert to a\n"
-"         string if you like and <function>utc2time</function> to back.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_set_next_update__doc__[] =
+  "Set this CRL's \"nextUpdate\" value.\n"
+  "\n"
+  "The \"time\" parameter should be a datetime object.\n"
+  ;
 
 static PyObject *
-x509_crl_object_set_next_update (x509_crl_object *self, PyObject *args)
+crl_object_set_next_update (crl_object *self, PyObject *args)
 {
-  char *new_time = NULL;
-  ASN1_UTCTIME *time = NULL;
+  PyObject *o = NULL;
+  ASN1_TIME *t = NULL;
 
-  if (!PyArg_ParseTuple(args, "s", &new_time))
+  ENTERING(crl_object_set_next_update);
+
+  if (!PyArg_ParseTuple(args, "O", &o))
     goto error;
 
-  if (self->crl->crl->nextUpdate == NULL && (time = ASN1_UTCTIME_new()) == NULL)
-    lose("could not allocate memory");
+  if ((t = Python_to_ASN1_TIME(o, 1)) == NULL)
+    lose("Couldn't parse nextUpdate string");
 
-  self->crl->crl->nextUpdate = time;
+  if (!X509_CRL_set_nextUpdate(self->crl, t))
+    lose("Couldn't set nextUpdate");
 
-  if (!python_ASN1_TIME_set_string(time, new_time))
-    lose("Could not set nextUpdate");
-
+  ASN1_TIME_free(t);
   Py_RETURN_NONE;
 
  error:
-
+  ASN1_TIME_free(t);
   return NULL;
 }
 
-static char x509_crl_object_get_next_update__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>getNextUpdate</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         In a change from previous releases, for reasons of portability\n"
-"         and to avoid hard to fix issues with problems in unreliable time\n"
-"         functions, this function returns a UTCTime string.  You\n"
-"         can use the function <function>time2utc</function> to convert to a\n"
-"         string if you like and <function>utc2time</function> to back.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_get_next_update__doc__[] =
+  "Returns this CRL's \"nextUpdate\" value as a datetime.\n"
+  ;
 
 static PyObject *
-x509_crl_object_get_next_update (x509_crl_object *self, PyObject *args)
+crl_object_get_next_update (crl_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  return ASN1_TIME_to_Python(self->crl->crl->nextUpdate);
-
- error:
-
-  return NULL;
+  ENTERING(crl_object_get_next_update);
+  return ASN1_TIME_to_Python(X509_CRL_get_nextUpdate(self->crl));
 }
 
-static char x509_crl_object_set_revoked__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>setRevoked</name>\n"
-"      <parameter>revoked</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method sets the sequence of revoked certificates in this CRL.\n"
-"         <parameter>revoked</parameter> should be a list or tuple of\n"
-"         <classname>X509Revoked</classname>.\n"
-"      </para>\n"
-"      <example>\n"
-"         <title><function>setRevoked</function> function usage</title>\n"
-"         <programlisting>\n"
-"      privateFile = open('test/private.key', 'r')\n"
-"      publicFile = open('test/public.key', 'r')\n"
-"      crlFile = open('test/crl.pem', 'w')\n"
-"\n"
-"      publicKey = POW.pemRead(POW.RSA_PUBLIC_KEY, publicFile.read())\n"
-"      privateKey = POW.pemRead(POW.RSA_PRIVATE_KEY, privateFile.read(), 'pass')\n"
-"\n"
-"      crl = POW.X509Crl()\n"
-"\n"
-"      name = [  ['C', 'GB'], ['ST', 'Hertfordshire'],\n"
-"                ['O','The House'], ['CN', 'Peter Shannon'] ]\n"
-"\n"
-"      t1 = POW.pkix.time2utc(time.time())\n"
-"      t2 = POW.pkix.time2utc(time.time() + 60*60*24*365)\n"
-"      crl.setIssuer(name)\n"
-"      rev = [  POW.X509Revoked(3, t1),\n"
-"               POW.X509Revoked(4, t1),\n"
-"               POW.X509Revoked(5, t1)    ]\n"
-"\n"
-"      crl.setRevoked(rev)\n"
-"      crl.setThisUpdate(t1)\n"
-"      crl.setNextUpdate(t2)\n"
-"      crl.sign(privateKey)\n"
-"\n"
-"      crlFile.write(crl.pemWrite())\n"
-"\n"
-"      privateFile.close()\n"
-"      publicFile.close()\n"
-"      crlFile.close()\n"
-"         </programlisting>\n"
-"      </example>\n"
-"\n"
-"   </body>\n"
-"</method>\n"
-;
-
-// added because we don't already have one!
-static X509_REVOKED *
-X509_REVOKED_dup(X509_REVOKED *rev)
-{
-  return((X509_REVOKED *)ASN1_dup((i2d_of_void *) i2d_X509_REVOKED,
-                                  (d2i_of_void *) d2i_X509_REVOKED,
-                                  (char *) rev));
-}
+static char crl_object_add_revocations__doc__[] =
+  "This method adds a collection of revocations to this CRL.\n"
+  "\n"
+  "The \"iterable\" parameter should be an iterable object which returns\n"
+  "two-element sequences.  The first element of each pair should be the\n"
+  "revoked serial number (an integer), the second element should be the\n"
+  "revocation date (a datetime object).\n"
+  ;
 
 static PyObject *
-x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
+crl_object_add_revocations(crl_object *self, PyObject *args)
 {
-  PyObject *revoked_sequence = NULL;
-  x509_revoked_object *revoked = NULL;
-  X509_REVOKED *tmp_revoked = NULL;
-  int i = 0,size = 0;
+  PyObject *iterable = NULL;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  PyObject *fast = NULL;
+  X509_REVOKED *revoked = NULL;
+  ASN1_INTEGER *serial = NULL;
+  ASN1_TIME *date = NULL;
+  int ok = 0;
 
-  if (!PyArg_ParseTuple(args, "O", &revoked_sequence))
+  ENTERING(crl_object_add_revocations);
+
+  if (!PyArg_ParseTuple(args, "O", &iterable) ||
+      (iterator = PyObject_GetIter(iterable)) == NULL)
     goto error;
 
-  if (!PyTuple_Check(revoked_sequence) && !PyList_Check(revoked_sequence))
-    lose_type_error("inapropriate type");
+  while ((item = PyIter_Next(iterator)) != NULL) {
 
-  size = PySequence_Size(revoked_sequence);
-  for (i = 0; i < size; i++) {
-    if ((revoked = (x509_revoked_object*) PySequence_GetItem(revoked_sequence, i)) == NULL)
+    if ((fast = PySequence_Fast(item, "Revocation entry must be a sequence")) == NULL)
       goto error;
 
-    if (!X_X509_revoked_Check(revoked))
-      lose_type_error("inapropriate type");
+    if (PySequence_Fast_GET_SIZE(fast) != 2)
+      lose_type_error("Revocation entry must be two-element sequence");
 
-    if ((tmp_revoked = X509_REVOKED_dup(revoked->revoked)) == NULL)
-      lose("could not allocate memory");
+    if ((serial = PyLong_to_ASN1_INTEGER(PySequence_Fast_GET_ITEM(fast, 0))) == NULL ||
+        (date = Python_to_ASN1_TIME(PySequence_Fast_GET_ITEM(fast, 1), 1)) == NULL)
+      goto error;
 
-    if (!X509_CRL_add0_revoked(self->crl, tmp_revoked))
-      lose("could not add revokation to stack");
+    if ((revoked = X509_REVOKED_new()) == NULL ||
+        !X509_REVOKED_set_serialNumber(revoked, serial) ||
+        !X509_REVOKED_set_revocationDate(revoked, date))
+      lose_no_memory();
 
-    Py_XDECREF(revoked);
+    ASN1_INTEGER_free(serial);
+    serial = NULL;
+
+    ASN1_TIME_free(date);
+    date = NULL;
+
+    if (!X509_CRL_add0_revoked(self->crl, revoked))
+      lose_no_memory();
+
     revoked = NULL;
+    Py_XDECREF(item);
+    Py_XDECREF(fast);
+    item = fast = NULL;
   }
 
-  Py_RETURN_NONE;
+  if (!X509_CRL_sort(self->crl))
+    lose_openssl_error("Couldn't sort CRL");
+
+  ok = 1;
 
  error:
-
-  Py_XDECREF(revoked);
-
-  return  NULL;
-}
-
-static PyObject *
-x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
-{
-  int no_entries = 0, i = 0;
-  x509_revoked_object *revoke_obj = NULL;
-  PyObject *result_list = NULL, *result_tuple = NULL;
-
-  no_entries = sk_X509_REVOKED_num(revoked);
-
-  if ((result_list = PyList_New(0)) == NULL)
-    lose("could not allocate memory");
-
-  for (i = 0; i < no_entries; i++) {
-    if ((revoke_obj = PyObject_New(x509_revoked_object, &x509_revokedtype)) == NULL)
-      lose("could not allocate memory");
-
-    if ((revoke_obj->revoked = X509_REVOKED_dup(sk_X509_REVOKED_value(revoked, i))) == NULL)
-      lose("could not get revocation");
-
-    if (PyList_Append(result_list, (PyObject*) revoke_obj) != 0)
-      goto error;
-
-    Py_XDECREF(revoke_obj);
-    revoke_obj = NULL;
-  }
-
-  result_tuple = PyList_AsTuple(result_list);
-  Py_XDECREF(result_list);
-
-  return result_tuple;
-
- error:
-
-  Py_XDECREF(revoke_obj);
-  Py_XDECREF(result_list);
-  return NULL;
-}
-
-static char x509_crl_object_get_revoked__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>getRevoked</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a tuple of <classname>X509Revoked</classname>\n"
-"         objects described in the CRL.\n"
-"      </para>\n"
-"      <example>\n"
-"         <title><function>getRevoked</function> function usage</title>\n"
-"         <programlisting>\n"
-"      publicFile = open('test/public.key', 'r')\n"
-"      crlFile = open('test/crl.pem', 'r')\n"
-"\n"
-"      publicKey = POW.pemRead(POW.RSA_PUBLIC_KEY, publicFile.read())\n"
-"\n"
-"      crl = POW.pemRead(POW.X509_CRL, crlFile.read())\n"
-"\n"
-"      print crl.pprint()\n"
-"      if crl.verify(publicKey):\n"
-"         print 'signature ok!'\n"
-"      else:\n"
-"         print 'signature not ok!'\n"
-"\n"
-"      revocations = crl.getRevoked()\n"
-"      for revoked in revocations:\n"
-"         print 'serial number:', revoked.getSerial()\n"
-"         print 'date:', time.ctime(revoked.getDate()[0])\n"
-"\n"
-"      publicFile.close()\n"
-"      crlFile.close()\n"
-"         </programlisting>\n"
-"      </example>\n"
-"\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_crl_object_get_revoked(x509_crl_object *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  return x509_crl_object_helper_get_revoked(X509_CRL_get_REVOKED(self->crl));
-
- error:
-
-  return NULL;
-}
-
-static char X509_crl_object_add_extension__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>addExtension</name>\n"
-"      <parameter>extensionName</parameter>\n"
-"      <parameter>critical</parameter>\n"
-"      <parameter>extensionValue</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method adds an extension to this CRL.\n"
-"         <parameter>extensionName</parameter> should be the of the\n"
-"         extension.  <parameter>critical</parameter> should an integer, 1\n"
-"         for true and 0 for clase.  <parameter>extensionValue</parameter>\n"
-"         should be a string, DER encoded value of the extension.  The name\n"
-"         of the extension must be correct according to OpenSSL and can be\n"
-"         checkd in the <constant>objects.h</constant> header file, part of\n"
-"         the OpenSSL source distrobution.  In the majority of cases they\n"
-"         are the same as those defined in <constant>POW._oids</constant>\n"
-"         but if you do encounter problems is may be worth checking.\n"
-"      </para>\n"
-"      <example>\n"
-"         <title><function>addExtension</function> method usage</title>\n"
-"         <programlisting>\n"
-"      oids = POW.pkix.OidData()\n"
-"      o2i = oids.obj2oid\n"
-"\n"
-"      n1 = ('directoryName',  (((o2i('countryName'), ('printableString', 'UK')),),\n"
-"                               ((o2i('stateOrProvinceName'), ('printableString', 'Herts')),),\n"
-"                               ((o2i('organizationName'), ('printableString', 'The House')),),\n"
-"                               ((o2i('commonName'), ('printableString', 'Shannon Works')),)))\n"
-"\n"
-"      n2 = ('rfc822Name', 'peter_shannon@yahoo.com')\n"
-"      n3 = ('uri', 'http://www.p-s.org.uk')\n"
-"      n4 = ('iPAddress', (192,168,100,51))\n"
-"\n"
-"      issuer = POW.pkix.IssuerAltName()\n"
-"      issuer.set([n1,n2,n3,n4])\n"
-"      crl.addExtension('issuerAltName', 0, issuer.toString())\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-X509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
-{
-  int critical = 0, nid = 0, len = 0;
-  char *name = NULL;
-  unsigned char *buf = NULL;
-  ASN1_OCTET_STRING *octetString = NULL;
-  X509_EXTENSION *extn = NULL;
-
-  if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
-    goto error;
-
-  if ((octetString = M_ASN1_OCTET_STRING_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (!ASN1_OCTET_STRING_set(octetString, buf, len))
-    lose("could not set ASN1 Octect string");
-
-  if ((nid = OBJ_txt2nid(name)) == NID_undef)
-    lose("extension has unknown object identifier");
-
-  if ((extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString)) == NULL)
-    lose("unable to create ASN1 X509 Extension object");
-
-  if (!self->crl->crl->extensions &&
-      (self->crl->crl->extensions = sk_X509_EXTENSION_new_null()) == NULL)
-    lose("unable to allocate memory");
-
-  if (!sk_X509_EXTENSION_push(self->crl->crl->extensions, extn))
-    lose("unable to add extension");
-
-  Py_RETURN_NONE;
-
- error:
-
-  if (extn)
-    X509_EXTENSION_free(extn);
-
-  return NULL;
-}
-
-static char X509_crl_object_clear_extensions__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>clearExtensions</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method clears the structure which holds the extension for\n"
-"         this CRL.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-X509_crl_object_clear_extensions(x509_crl_object *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (self->crl->crl->extensions) {
-    sk_X509_EXTENSION_free(self->crl->crl->extensions);
-    self->crl->crl->extensions = NULL;
-  }
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char X509_crl_object_count_extensions__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>countExtensions</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns the size of the structure which holds the\n"
-"         extension for this CRL.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-X509_crl_object_count_extensions(x509_crl_object *self, PyObject *args)
-{
-  int num = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (self->crl->crl->extensions)
-    num = sk_X509_EXTENSION_num(self->crl->crl->extensions);
-
-  return Py_BuildValue("i", num);
-
- error:
-
-  return NULL;
-}
-
-static char X509_crl_object_get_extension__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>getExtension</name>\n"
-"      <parameter>index</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a tuple equivalent the parameters of\n"
-"         <function>addExtension</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-X509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
-{
-  int num = 0, index = 0, ext_nid = 0;
-  char const *ext_ln = NULL;
-  char unknown_ext [] = "unknown";
-  X509_EXTENSION *ext;
-
-  if (!PyArg_ParseTuple(args, "i", &index))
-    goto error;
-
-  if (self->crl->crl->extensions)
-    num = sk_X509_EXTENSION_num(self->crl->crl->extensions);
-
-
-  if (index >= num)
-    lose("certificate does not have that many extensions");
-
-  if ((ext = sk_X509_EXTENSION_value(self->crl->crl->extensions, index)) == NULL)
-    lose("could not get extension");
-
-  if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
-    lose("extension has unknown object identifier");
-
-  if ((ext_ln = OBJ_nid2sn(ext_nid)) == NULL)
-    ext_ln = unknown_ext;
-
-  return Py_BuildValue("sis#", ext_ln, ext->critical, ext->value->data, ext->value->length);
-
- error:
-
-  return NULL;
-}
-
-static char x509_crl_object_sign__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>sign</name>\n"
-"      <parameter>key</parameter>\n"
-"      <parameter>digest = MD5_DIGEST</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         <parameter>key</parameter> should be an instance of\n"
-"         <classname>Asymmetric</classname> and contain a private key.\n"
-"         <parameter>digest</parameter> indicates\n"
-"         which digest function should be used to compute the hash to be\n"
-"         signed, it should be one of the following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
-"         <member><constant>MD5_DIGEST</constant></member>\n"
-"         <member><constant>SHA_DIGEST</constant></member>\n"
-"         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
-"         <member><constant>SHA256_DIGEST</constant></member>\n"
-"         <member><constant>SHA384_DIGEST</constant></member>\n"
-"         <member><constant>SHA512_DIGEST</constant></member>\n"
-"     </simplelist>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_crl_object_sign(x509_crl_object *self, PyObject *args)
-{
-  EVP_PKEY *pkey = NULL;
-  asymmetric_object *asym;
-  int digest = MD5_DIGEST;
-
-  if (!PyArg_ParseTuple(args, "O!|i", &asymmetrictype, &asym, &digest))
-    goto error;
-
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (asym->key_type != RSA_PRIVATE_KEY)
-    lose("cannot use this type of key");
-
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose("EVP_PKEY assignment error");
-
-  switch (digest) {
-  case MD5_DIGEST:
-    if (!X509_CRL_sign(self->crl, pkey, EVP_md5()))
-      lose("could not sign CRL");
-    break;
-
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    if (!X509_CRL_sign(self->crl, pkey, EVP_md2()))
-      lose("could not sign CRL");
-    break;
-#endif
-
-  case SHA_DIGEST:
-    if (!X509_CRL_sign(self->crl, pkey, EVP_sha()))
-      lose("could not sign CRL");
-    break;
-
-  case SHA1_DIGEST:
-    if (!X509_CRL_sign(self->crl, pkey, EVP_sha1()))
-      lose("could not sign CRL");
-    break;
-
-  case RIPEMD160_DIGEST:
-    if (!X509_CRL_sign(self->crl, pkey, EVP_ripemd160()))
-      lose("could not sign CRL");
-    break;
-
-  case SHA256_DIGEST:
-    if (!X509_CRL_sign(self->crl, pkey, EVP_sha256()))
-      lose("could not sign CRL");
-    break;
-
-  case SHA384_DIGEST:
-    if (!X509_CRL_sign(self->crl, pkey, EVP_sha384()))
-      lose("could not sign CRL");
-    break;
-
-  case SHA512_DIGEST:
-    if (!X509_CRL_sign(self->crl, pkey, EVP_sha512()))
-      lose("could not sign CRL");
-    break;
-  }
-
-  Py_RETURN_NONE;
-
- error:
-
-  if (pkey)
-    EVP_PKEY_free(pkey);
-
-  return NULL;
-
-}
-
-static char x509_crl_object_verify__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>verify</name>\n"
-"      <parameter>key</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         The <classname>X509Crl</classname> method\n"
-"         <function>verify</function> is based on the\n"
-"         <function>X509_CRL_verify</function> function.  Unlike the\n"
-"         <classname>X509</classname> function of the same name, this\n"
-"         function simply checks the CRL was signed with the private key\n"
-"         which corresponds the parameter <parameter>key</parameter>.\n"
-"         <parameter>key</parameter> should be an instance of\n"
-"         <classname>Asymmetric</classname> and contain a public key.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_crl_object_verify(x509_crl_object *self, PyObject *args)
-{
-  EVP_PKEY *pkey = NULL;
-  asymmetric_object *asym;
-  int ok;
-
-  if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
-    goto error;
-
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
-    lose("EVP_PKEY assignment error");
-
-  ok = X509_CRL_verify(self->crl, pkey);
-
-  return PyBool_FromLong(ok);
-
- error:
-
-  if (pkey)
-    EVP_PKEY_free(pkey);
-
-  return NULL;
-
-}
-
-static PyObject *
-x509_crl_object_write_helper(x509_crl_object *self, PyObject *args, int format)
-{
-  int len = 0, ret = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
-  PyObject *cert = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  out_bio = BIO_new(BIO_s_mem());
-
-  switch (format) {
-
-  case DER_FORMAT:
-    if (!i2d_X509_CRL_bio(out_bio, self->crl))
-      lose("unable to write certificate");
-    break;
-
-  case PEM_FORMAT:
-    if (!PEM_write_bio_X509_CRL(out_bio, self->crl))
-      lose("unable to write certificate");
-
-  default:
-    lose("internal error, unknown output format");
-  }
-
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
-
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if ((ret = BIO_read(out_bio, buf, len)) != len)
-    lose("unable to write out cert");
-
-  cert = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
-  return cert;
-
- error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
-  return NULL;
-}
-
-static char x509_crl_object_pem_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>pemWrite</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a PEM encoded CRL as a\n"
-"         string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_crl_object_pem_write(x509_crl_object *self, PyObject *args)
-{
-  return x509_crl_object_write_helper(self, args, PEM_FORMAT);
-}
-
-static char x509_crl_object_der_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>derWrite</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a DER encoded CRL as a string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_crl_object_der_write(x509_crl_object *self, PyObject *args)
-{
-  return x509_crl_object_write_helper(self, args, DER_FORMAT);
-}
-
-static char x509_crl_object_pprint__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Crl</memberof>\n"
-"      <name>pprint</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a formatted string showing the information\n"
-"         held in the CRL.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_crl_object_pprint(x509_crl_object *self, PyObject *args)
-{
-  int len = 0, ret = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
-  PyObject *crl = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  out_bio = BIO_new(BIO_s_mem());
-
-  if (!X509_CRL_print(out_bio, self->crl))
-    lose("unable to write crl");
-
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
-
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if ((ret = BIO_read(out_bio, buf, len)) != len)
-    lose("unable to write out cert");
-
-  crl = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
-  return crl;
-
- error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
-  return NULL;
-
-}
-
-static struct PyMethodDef x509_crl_object_methods[] = {
-  {"sign",             (PyCFunction)x509_crl_object_sign,              METH_VARARGS,  NULL},
-  {"verify",           (PyCFunction)x509_crl_object_verify,            METH_VARARGS,  NULL},
-  {"getVersion",       (PyCFunction)x509_crl_object_get_version,       METH_VARARGS,  NULL},
-  {"setVersion",       (PyCFunction)x509_crl_object_set_version,       METH_VARARGS,  NULL},
-  {"getIssuer",        (PyCFunction)x509_crl_object_get_issuer,        METH_VARARGS,  NULL},
-  {"setIssuer",        (PyCFunction)x509_crl_object_set_issuer,        METH_VARARGS,  NULL},
-  {"getThisUpdate",    (PyCFunction)x509_crl_object_get_this_update,   METH_VARARGS,  NULL},
-  {"setThisUpdate",    (PyCFunction)x509_crl_object_set_this_update,   METH_VARARGS,  NULL},
-  {"getNextUpdate",    (PyCFunction)x509_crl_object_get_next_update,   METH_VARARGS,  NULL},
-  {"setNextUpdate",    (PyCFunction)x509_crl_object_set_next_update,   METH_VARARGS,  NULL},
-  {"setRevoked",       (PyCFunction)x509_crl_object_set_revoked,       METH_VARARGS,  NULL},
-  {"getRevoked",       (PyCFunction)x509_crl_object_get_revoked,       METH_VARARGS,  NULL},
-  {"addExtension",     (PyCFunction)X509_crl_object_add_extension,     METH_VARARGS,  NULL},
-  {"clearExtensions",  (PyCFunction)X509_crl_object_clear_extensions,  METH_VARARGS,  NULL},
-  {"countExtensions",  (PyCFunction)X509_crl_object_count_extensions,  METH_VARARGS,  NULL},
-  {"getExtension",     (PyCFunction)X509_crl_object_get_extension,     METH_VARARGS,  NULL},
-  {"pemWrite",         (PyCFunction)x509_crl_object_pem_write,         METH_VARARGS,  NULL},
-  {"derWrite",         (PyCFunction)x509_crl_object_der_write,         METH_VARARGS,  NULL},
-  {"pprint",           (PyCFunction)x509_crl_object_pprint,            METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
-};
-
-static PyObject *
-x509_crl_object_getattr(x509_crl_object *self, char *name)
-{
-  return Py_FindMethod(x509_crl_object_methods, (PyObject *)self, name);
-}
-
-static void
-x509_crl_object_dealloc(x509_crl_object *self, char *name)
-{
-  X509_CRL_free(self->crl);
-  PyObject_Del(self);
-}
-
-static char x509_crltype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>X509Crl</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides access to OpenSSL X509 CRL management\n"
-"         facilities.\n"
-"      </para>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject x509_crltype = {
-  PyObject_HEAD_INIT(0)
-  0,                                     /*ob_size*/
-  "X509Crl",                             /*tp_name*/
-  sizeof(x509_crl_object),               /*tp_basicsize*/
-  0,                                     /*tp_itemsize*/
-  (destructor)x509_crl_object_dealloc,   /*tp_dealloc*/
-  (printfunc)0,                          /*tp_print*/
-  (getattrfunc)x509_crl_object_getattr,  /*tp_getattr*/
-  (setattrfunc)0,                        /*tp_setattr*/
-  (cmpfunc)0,                            /*tp_compare*/
-  (reprfunc)0,                           /*tp_repr*/
-  0,                                     /*tp_as_number*/
-  0,                                     /*tp_as_sequence*/
-  0,                                     /*tp_as_mapping*/
-  (hashfunc)0,                           /*tp_hash*/
-  (ternaryfunc)0,                        /*tp_call*/
-  (reprfunc)0,                           /*tp_str*/
-  0,
-  0,
-  0,
-  0,
-  x509_crltype__doc__                   /* Documentation string */
-};
-/*========== x509 crl Code ==========*/
-
-/*========== revoked Code ==========*/
-static x509_revoked_object* x509_revoked_object_new(void)
-{
-  x509_revoked_object *self = NULL;
-
-  if ((self = PyObject_New(x509_revoked_object, &x509_revokedtype)) == NULL)
-    goto error;
-
-  self->revoked = X509_REVOKED_new();
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static char x509_revoked_object_set_serial__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Revoked</memberof>\n"
-"      <name>setSerial</name>\n"
-"      <parameter>serial</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method sets the serial number in the serial field of\n"
-"         this object.  <parameter>serial</parameter> should be an\n"
-"         integer.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_revoked_object_set_serial(x509_revoked_object *self, PyObject *args)
-{
-  int serial = 0;
-
-  if (!PyArg_ParseTuple(args, "i", &serial))
-    goto error;
-
-  if (!ASN1_INTEGER_set(self->revoked->serialNumber, serial))
-    lose("unable to set serial number");
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char x509_revoked_object_get_serial__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Revoked</memberof>\n"
-"      <name>getSerial</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method gets the serial number in the serial field of\n"
-"         this object.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_revoked_object_get_serial(x509_revoked_object *self, PyObject *args)
-{
-  int serial = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if ((serial = ASN1_INTEGER_get(self->revoked->serialNumber)) == -1)
-    lose("unable to get serial number");
-
-  return Py_BuildValue("i", serial);
-
- error:
-
-  return NULL;
-}
-
-static char x509_revoked_object_get_date__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Revoked</memberof>\n"
-"      <name>getDate</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         In a change from previous releases, for reasons of portability\n"
-"         and to avoid hard to fix issues with problems in unreliable time\n"
-"         functions, this function returns a UTCTime string.  You\n"
-"         can use the function <function>time2utc</function> to convert to a\n"
-"         string if you like and <function>utc2time</function> to back.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_revoked_object_get_date(x509_revoked_object *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  return ASN1_TIME_to_Python(self->revoked->revocationDate);
-
- error:
-
-  return NULL;
-}
-
-static char x509_revoked_object_set_date__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Revoked</memberof>\n"
-"      <name>setDate</name>\n"
-"      <parameter>time</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         In a change from previous releases, for reasons of portability\n"
-"         and to avoid hard to fix issues with problems in unreliable time\n"
-"         functions, this accepts one parameter, a UTCTime string.  You\n"
-"         can use the function <function>time2utc</function> to convert to a\n"
-"         string if you like and <function>utc2time</function> to back.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-x509_revoked_object_set_date(x509_revoked_object *self, PyObject *args)
-{
-  char *time = NULL;
-
-  if (!PyArg_ParseTuple(args, "s", &time))
-    goto error;
-
-  if (!python_ASN1_TIME_set_string(self->revoked->revocationDate, time))
-    lose_type_error("Could not set revocationDate");
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char X509_revoked_object_add_extension__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Revoked</memberof>\n"
-"      <name>addExtension</name>\n"
-"      <parameter>extensionName</parameter>\n"
-"      <parameter>critical</parameter>\n"
-"      <parameter>extensionValue</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method adds an extension to this revocation.\n"
-"         <parameter>extensionName</parameter> should be the of the\n"
-"         extension.  <parameter>critical</parameter> should an integer, 1\n"
-"         for true and 0 for clase.  <parameter>extensionValue</parameter>\n"
-"         should be a string, DER encoded value of the extension.  The name\n"
-"         of the extension must be correct according to OpenSSL and can be\n"
-"         checkd in the <constant>objects.h</constant> header file, part of\n"
-"         the OpenSSL source distrobution.  In the majority of cases they\n"
-"         are the same as those defined in <constant>POW._oids</constant>\n"
-"         but if you do encounter problems is may be worth checking.\n"
-"      </para>\n"
-"      <example>\n"
-"         <title><function>addExtension</function> method usage</title>\n"
-"         <programlisting>\n"
-"      reason = POW.pkix.CrlReason()\n"
-"      reason.set(1)\n"
-"      revocation.addExtension('CRLReason', 0, reason.toString())\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
-{
-  int critical = 0, nid = 0, len = 0;
-  char *name = NULL;
-  unsigned char *buf = NULL;
-  ASN1_OCTET_STRING *octetString = NULL;
-  X509_EXTENSION *extn = NULL;
-
-  if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
-    goto error;
-
-  if ((octetString = M_ASN1_OCTET_STRING_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (!ASN1_OCTET_STRING_set(octetString, buf, strlen((char *) buf)))
-    lose("could not set ASN1 Octect string");
-
-  if ((nid = OBJ_txt2nid(name)) == NID_undef)
-    lose("extension has unknown object identifier");
-
-  if ((extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString)) == NULL)
-    lose("unable to create ASN1 X509 Extension object");
-
-  if (!self->revoked->extensions && (self->revoked->extensions = sk_X509_EXTENSION_new_null()) == NULL)
-    lose("unable to allocate memory");
-
-  if (!sk_X509_EXTENSION_push(self->revoked->extensions, extn))
-    lose("unable to add extension");
-
-  Py_RETURN_NONE;
-
- error:
-
-  if (extn)
-    X509_EXTENSION_free(extn);
-
-  return NULL;
-}
-
-static char X509_revoked_object_clear_extensions__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Revoked</memberof>\n"
-"      <name>clearExtensions</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method clears the structure which holds the extension for\n"
-"         this revocation.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-X509_revoked_object_clear_extensions(x509_revoked_object *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (self->revoked->extensions) {
-    sk_X509_EXTENSION_free(self->revoked->extensions);
-    self->revoked->extensions = NULL;
-  }
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char X509_revoked_object_count_extensions__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Revoked</memberof>\n"
-"      <name>countExtensions</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns the size of the structure which holds the\n"
-"         extension for this revocation.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-X509_revoked_object_count_extensions(x509_revoked_object *self, PyObject *args)
-{
-  int num = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (self->revoked->extensions)
-    num = sk_X509_EXTENSION_num(self->revoked->extensions);
-
-  return Py_BuildValue("i", num);
-
- error:
-
-  return NULL;
-}
-
-static char X509_revoked_object_get_extension__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>X509Revoked</memberof>\n"
-"      <name>getExtension</name>\n"
-"      <parameter>index</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a tuple equivalent the parameters of\n"
-"         <function>addExtension</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-X509_revoked_object_get_extension(x509_revoked_object *self, PyObject *args)
-{
-  int num = 0, index = 0, ext_nid = 0;
-  char const *ext_ln = NULL;
-  char unknown_ext [] = "unknown";
-  X509_EXTENSION *ext;
-
-  if (!PyArg_ParseTuple(args, "i", &index))
-    goto error;
-
-  if (self->revoked->extensions)
-    num = sk_X509_EXTENSION_num(self->revoked->extensions);
-
-  if (index >= num)
-    lose("certificate does not have that many extensions");
-
-  if ((ext = sk_X509_EXTENSION_value(self->revoked->extensions, index)) == NULL)
-    lose("could not get extension");
-
-  if ((ext_nid = OBJ_obj2nid(ext->object)) == NID_undef)
-    lose("extension has unknown object identifier");
-
-  if ((ext_ln = OBJ_nid2sn(ext_nid)) == NULL)
-    ext_ln = unknown_ext;
-
-  return Py_BuildValue("sis#", ext_ln, ext->critical, ext->value->data, ext->value->length);
-
- error:
-
-  return NULL;
-}
-
-static struct PyMethodDef x509_revoked_object_methods[] = {
-  {"getSerial",         (PyCFunction)x509_revoked_object_get_serial,       METH_VARARGS,  NULL},
-  {"setSerial",         (PyCFunction)x509_revoked_object_set_serial,       METH_VARARGS,  NULL},
-  {"getDate",           (PyCFunction)x509_revoked_object_get_date,         METH_VARARGS,  NULL},
-  {"setDate",           (PyCFunction)x509_revoked_object_set_date,         METH_VARARGS,  NULL},
-  {"addExtension",      (PyCFunction)X509_revoked_object_add_extension,    METH_VARARGS,  NULL},
-  {"clearExtensions",   (PyCFunction)X509_revoked_object_clear_extensions, METH_VARARGS,  NULL},
-  {"countExtensions",   (PyCFunction)X509_revoked_object_count_extensions, METH_VARARGS,  NULL},
-  {"getExtension",      (PyCFunction)X509_revoked_object_get_extension,    METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
-};
-
-static PyObject *
-x509_revoked_object_getattr(x509_revoked_object *self, char *name)
-{
-  return Py_FindMethod(x509_revoked_object_methods, (PyObject *) self, name);
-}
-
-static void
-x509_revoked_object_dealloc(x509_revoked_object *self, char *name)
-{
-  X509_REVOKED_free(self->revoked);
-  PyObject_Del(self);
-}
-
-static char x509_revokedtype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>X509Revoked</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides a container for details of a revoked\n"
-"         certificate.  It normally would only be used in association with\n"
-"         a CRL, its not much use by itself.  Indeed the only reason this\n"
-"         class exists is because in the future POW is likely to be extended\n"
-"         to support extensions for certificates, CRLs and revocations.\n"
-"         <classname>X509Revoked</classname> existing as an object in its\n"
-"         own right will make adding this support easier, while avoiding\n"
-"         backwards compatibility issues.\n"
-"      </para>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject x509_revokedtype = {
-  PyObject_HEAD_INIT(0)
-  0,                                        /*ob_size*/
-  "X509Revoked",                            /*tp_name*/
-  sizeof(x509_revoked_object),              /*tp_basicsize*/
-  0,                                        /*tp_itemsize*/
-  (destructor)x509_revoked_object_dealloc,  /*tp_dealloc*/
-  (printfunc)0,                             /*tp_print*/
-  (getattrfunc)x509_revoked_object_getattr, /*tp_getattr*/
-  (setattrfunc)0,                           /*tp_setattr*/
-  (cmpfunc)0,                               /*tp_compare*/
-  (reprfunc)0,                              /*tp_repr*/
-  0,                                        /*tp_as_number*/
-  0,                                        /*tp_as_sequence*/
-  0,                                        /*tp_as_mapping*/
-  (hashfunc)0,                              /*tp_hash*/
-  (ternaryfunc)0,                           /*tp_call*/
-  (reprfunc)0,                              /*tp_str*/
-  0,
-  0,
-  0,
-  0,
-  x509_revokedtype__doc__                  /* Documentation string */
-};
-/*========== x509 revoked Code ==========*/
-
-/*========== ssl Code ==========*/
-static char ssl_object_use_certificate__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>useCertificate</name>\n"
-"      <parameter>cert</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         The parameter <parameter>cert</parameter> must be an\n"
-"         instance of the <classname>X590</classname> class and must be\n"
-"         called before <function>setFd</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_use_certificate(ssl_object *self, PyObject *args)
-{
-  x509_object *x509 = NULL;
-
-  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
-    goto error;
-
-  if (self->ctxset)
-    lose("cannot be called after setFd()");
-
-  if (!SSL_CTX_use_certificate(self->ctx, x509->x509))
-    lose("could not use certificate");
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static PyObject *
-ssl_object_add_certificate(ssl_object *self, PyObject *args)
-{
-  x509_object *x509 = NULL;
-  X509 *x = NULL;
-
-  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
-    goto error;
-
-  if (self->ctxset)
-    lose("cannot be called after setFd()");
-
-  if ((x = X509_dup(x509->x509)) == NULL)
-    lose("could not duplicate X509 object");
-
-  if (!SSL_CTX_add_extra_chain_cert(self->ctx, x))
-    lose_openssl_error("Could not add certificate");
-
-  x = NULL;
-
-  Py_RETURN_NONE;
-
- error:
-
-  if (x)
-    X509_free(x);
-
-  return NULL;
-}
-
-static PyObject *
-ssl_object_add_trust(ssl_object *self, PyObject *args)
-{
-  x509_object *x509 = NULL;
-  X509 *x = NULL;
-
-  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
-    goto error;
-
-  if (self->ctxset)
-    lose("Cannot be called after setFd()");
-
-  if (self->trusted_certs == NULL &&
-      (self->trusted_certs = sk_X509_new_null()) == NULL)
-    lose("Couldn't allocate trusted certificate stack");
-
-  if ((x = X509_dup(x509->x509)) == NULL)
-    lose("Couldn't duplicate X509 object");
-
-  if (!sk_X509_push(self->trusted_certs, x))
-    lose("Couldn't push cert onto trusted certificate stack");
-
-  x = NULL;
-
-  Py_RETURN_NONE;
-
- error:
-
-  if (x)
-    X509_free(x);
-
-  return NULL;
-}
-
-static char ssl_object_use_key__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>useKey</name>\n"
-"      <parameter>key</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         The parameter <parameter>key</parameter> must be an\n"
-"         instance of the <classname>Asymmetric</classname> class and\n"
-"         must contain the private key.  This function cannot be called\n"
-"         after <function>useKey</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_use_key(ssl_object *self, PyObject *args)
-{
-  asymmetric_object *asym = NULL;
-  EVP_PKEY *pkey = NULL;
-
-  if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
-    goto error;
-
-  if (self->ctxset)
-    lose("cannot be called after setFd()");
-
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (asym->key_type != RSA_PRIVATE_KEY)
-    lose("cannot use this type of key");
-
-  if (!EVP_PKEY_set1_RSA(pkey, asym->cipher))
-    lose("EVP_PKEY assignment error");
-
-  if (!SSL_CTX_use_PrivateKey(self->ctx, pkey))
-    lose("ctx key assignment error");
-
-  Py_RETURN_NONE;
-
- error:
-
-  if(pkey)
-    EVP_PKEY_free(pkey);
-
-  return NULL;
-}
-
-static char ssl_object_check_key__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>checkKey</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This simple method will return 1 if the public key, contained in\n"
-"         the X509 certificate this <classname>Ssl</classname> instance is using,\n"
-"         matches the private key this <classname>Ssl</classname> instance is using.\n"
-"         Otherwise it will return 0.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_check_key(ssl_object *self, PyObject *args)
-{
-  return PyBool_FromLong(SSL_CTX_check_private_key(self->ctx));
-}
-
-static char ssl_object_set_fd__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>setFd</name>\n"
-"      <parameter>descriptor</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function is used to associate a file descriptor with a\n"
-"         <classname>Ssl</classname> object.  The file descriptor should\n"
-"         belong to an open TCP connection.  Once this function has\n"
-"         been called, calling <function>useKey</function> or\n"
-"         <function>useCertificate</function> will, fail rasing exceptions.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_set_fd(ssl_object *self, PyObject *args)
-{
-  int fd = 0, self_index = 0;
-
-  if (!PyArg_ParseTuple(args, "i", &fd))
-    goto error;
-
-  if ((self->ssl = SSL_new(self->ctx)) == NULL)
-    lose("Unable to create ssl structure");
-
-  SSL_set_mode(self->ssl, (SSL_MODE_ENABLE_PARTIAL_WRITE |
-                           SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER));
-
-  if (!SSL_set_fd(self->ssl, fd))
-    lose("Unable to set file descriptor");
-
-  if ((self_index = SSL_get_ex_new_index(0, "self_index", NULL, NULL, NULL)) != -1)
-    SSL_set_ex_data(self->ssl, self_index, self);
-  else
-    lose("Unable to create ex data index");
-
-  self->ctxset = 1;
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_fileno__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>fileno</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function is used to extract the file descriptor associated\n"
-"         with a <classname>Ssl</classname> object.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_fileno(ssl_object *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  return Py_BuildValue("i", SSL_get_fd(self->ssl));
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_accept__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>accept</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function will attempt the SSL level accept with a\n"
-"         client.  The <classname>Ssl</classname> object must have been\n"
-"         created using a <constant>XXXXX_SERVER_METHOD</constant> or\n"
-"         a <constant>XXXXX_METHOD</constant> and this function should only be\n"
-"         called after <function>useKey</function>,\n"
-"         <function>useCertificate</function> and\n"
-"         <function>setFd</function> functions have been called.\n"
-"      </para>\n"
-"\n"
-"      <example>\n"
-"         <title><function>accept</function> function usage</title>\n"
-"         <programlisting>\n"
-"      keyFile = open('test/private.key', 'r')\n"
-"      certFile = open('test/cacert.pem', 'r')\n"
-"\n"
-"      rsa = POW.pemRead(POW.RSA_PRIVATE_KEY, keyFile.read(), 'pass')\n"
-"      x509 = POW.pemRead(POW.X509_CERTIFICATE, certFile.read())\n"
-"\n"
-"      keyFile.close()\n"
-"      certFile.close()\n"
-"\n"
-"      sl = POW.Ssl(POW.SSLV23_SERVER_METHOD)\n"
-"      sl.useCertificate(x509)\n"
-"      sl.useKey(rsa)\n"
-"\n"
-"      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
-"      s.bind(('localhost', 1111))\n"
-"      s.listen(5)\n"
-"      s2, addr = s.accept()\n"
-"\n"
-"      s.close()\n"
-"\n"
-"      sl.setFd(s2.fileno())\n"
-"      sl.accept()\n"
-"      print sl.read(1024)\n"
-"      sl.write('Message from server to client...')\n"
-"\n"
-"      s2.close()\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_accept(ssl_object *self, PyObject *args)
-{
-  int ret = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  Py_BEGIN_ALLOW_THREADS;
-  ret = SSL_accept(self->ssl);
-  Py_END_ALLOW_THREADS;
-
-  if (ret <= 0)
-    lose_ssl_error(self, ret);
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_connect__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>connect</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function will attempt the SSL level connection with a\n"
-"         server.  The <classname>Ssl</classname> object must have been\n"
-"         created using a <constant>XXXXX_CLIENT_METHOD</constant> or\n"
-"         a <constant>XXXXX_METHOD</constant> and this function should only be\n"
-"         called after <function>setFd</function> has already been\n"
-"         called.\n"
-"      </para>\n"
-"\n"
-"      <example>\n"
-"         <title><function>connect</function> function usage</title>\n"
-"         <programlisting>\n"
-"      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
-"      s.connect(('localhost', 1111))\n"
-"\n"
-"      sl = POW.Ssl(POW.SSLV23_CLIENT_METHOD)\n"
-"      sl.setFd(s.fileno())\n"
-"      sl.connect()\n"
-"      sl.write('Message from client to server...')\n"
-"      print sl.read(1024)\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_connect(ssl_object *self, PyObject *args)
-{
-  int ret;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  Py_BEGIN_ALLOW_THREADS;
-  ret = SSL_connect(self->ssl);
-  Py_END_ALLOW_THREADS;
-
-  if (ret <= 0)
-    lose_ssl_error(self, ret);
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>write</name>\n"
-"      <parameter>string</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method writes the <parameter>string</parameter> to the\n"
-"         <classname>Ssl</classname> object, to be read by it's peer.  This\n"
-"         function is analogous to the <classname>socket</classname>\n"
-"         classes <function>write</function> function.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_write(ssl_object *self, PyObject *args)
-{
-  char *msg;
-  int length = 0, ret = 0;
-
-  if (!PyArg_ParseTuple(args, "s#", &msg, &length))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  Py_BEGIN_ALLOW_THREADS;
-  ret = SSL_write(self->ssl, msg, length);
-  Py_END_ALLOW_THREADS;
-
-  if (ret <= 0)
-    lose_ssl_error(self, ret);
-
-  return Py_BuildValue("i", ret);
-
- error:
-
-  return NULL;
-}
-
-static char ssl_object_read__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>read</name>\n"
-"      <parameter>amount = 1024</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method reads up to <parameter>amount</parameter> characters from the\n"
-"         <classname>Ssl</classname> object.  This\n"
-"         function is analogous to the <classname>socket</classname>\n"
-"         classes <function>read</function> function.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_read(ssl_object *self, PyObject *args)
-{
-  PyObject *data;
-  char *msg = NULL;
-  int len = 1024, ret = 0;
-
-  if (!PyArg_ParseTuple(args, "|i", &len))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  if ((msg = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  Py_BEGIN_ALLOW_THREADS;
-  ret = SSL_read(self->ssl, msg, len);
-  Py_END_ALLOW_THREADS;
-
-  if (ret <= 0)
-    lose_ssl_error(self, ret);
-
-  data = Py_BuildValue("s#", msg, ret);
-
-  free(msg);
-  return data;
-
- error:
-
-  if (msg)
-    free(msg);
-
-  return NULL;
-}
-
-static char ssl_object_peer_certificate__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>peerCertificate</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns any peer certificate presented in the initial\n"
-"         SSL negotiation or <constant>None</constant>.  If a certificate is\n"
-"         returned, it will be an instance of <classname>X509</classname>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_peer_certificate(ssl_object *self, PyObject *args)
-{
-  X509 *x509 = NULL;
-  x509_object *x509_obj = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  if ((x509_obj = X509_object_new()) == NULL)
-    lose("could not create x509 object");
-
-  x509 = SSL_get_peer_certificate(self->ssl);
-
-  if (x509) {
-    X509_free(x509_obj->x509);
-    x509_obj->x509 = x509;
-    return (PyObject *) x509_obj;
-  }
-  else {
-    Py_XDECREF(x509_obj);
+  Py_XDECREF(iterator);
+  Py_XDECREF(item);
+  Py_XDECREF(fast);
+  X509_REVOKED_free(revoked);
+  ASN1_INTEGER_free(serial);
+  ASN1_TIME_free(date);
+
+  if (ok)
     Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char crl_object_get_revoked__doc__[] =
+  "Return a sequence of two-element tuples representing the sequence of\n"
+  "revoked certificates listed in this CRL.\n"
+  "\n"
+  "The first element of each pair is the serialNumber of the revoked\n"
+  "certificate, the second element is the revocationDate.\n"
+  ;
+
+static PyObject *
+crl_object_get_revoked(crl_object *self)
+{
+  STACK_OF(X509_REVOKED) *revoked = NULL;
+  X509_REVOKED *r = NULL;
+  PyObject *result = NULL;
+  PyObject *item = NULL;
+  PyObject *serial = NULL;
+  PyObject *date = NULL;
+  int i;
+
+  ENTERING(crl_object_get_revoked);
+
+  if ((revoked = X509_CRL_get_REVOKED(self->crl)) == NULL)
+    lose("Inexplicable NULL revocation list pointer");
+
+  if ((result = PyTuple_New(sk_X509_REVOKED_num(revoked))) == NULL)
+    goto error;
+
+  for (i = 0; i < sk_X509_REVOKED_num(revoked); i++) {
+    r = sk_X509_REVOKED_value(revoked, i);
+
+    if ((serial = ASN1_INTEGER_to_PyLong(r->serialNumber)) == NULL ||
+        (date = ASN1_TIME_to_Python(r->revocationDate)) == NULL ||
+        (item = Py_BuildValue("(NN)", serial, date)) == NULL)
+      goto error;
+
+    PyTuple_SET_ITEM(result, i, item);
+    item = serial = date = NULL;
   }
 
+  return result;
+
  error:
-
-  if (x509)
-    X509_free(x509);
-
-  Py_XDECREF(x509_obj);
+  Py_XDECREF(result);
+  Py_XDECREF(item);
+  Py_XDECREF(serial);
+  Py_XDECREF(date);
   return NULL;
 }
 
-static char ssl_object_clear__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>clear</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method will clear the SSL session ready for\n"
-"         a new SSL connection.  It will not effect the underlying socket.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_clear_extensions__doc__[] =
+  "Clear all extensions attached to this CRL.\n"
+  ;
 
 static PyObject *
-ssl_object_clear(ssl_object *self, PyObject *args)
+crl_object_clear_extensions(crl_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
+  X509_EXTENSION *ext;
+
+  ENTERING(crl_object_clear_extensions);
+
+  while ((ext = X509_CRL_delete_ext(self->crl, 0)) != NULL)
+    X509_EXTENSION_free(ext);
+
+  Py_RETURN_NONE;
+}
+
+static char crl_object_sign__doc__[] =
+  "Sign this CRL with a private key.\n"
+  "\n"
+  "The \"key\" parameter should be an instance of the Asymmetric class,\n"
+  "containing a private key.\n"
+  "\n"
+  "The optional \"digest\" parameter indicates which digest to compute and\n"
+  "sign, and should be one of the following:\n"
+  "\n"
+  "* MD5_DIGEST\n"
+  "* SHA_DIGEST\n"
+  "* SHA1_DIGEST\n"
+  "* SHA256_DIGEST\n"
+  "* SHA384_DIGEST\n"
+  "* SHA512_DIGEST\n"
+  "\n"
+  "The default digest algorithm is SHA-256.\n"
+  ;
+
+static PyObject *
+crl_object_sign(crl_object *self, PyObject *args)
+{
+  asymmetric_object *asym;
+  int digest_type = SHA256_DIGEST;
+  const EVP_MD *digest_method = NULL;
+
+  ENTERING(crl_object_sign);
+
+  if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
     goto error;
 
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
+  if ((digest_method = evp_digest_factory(digest_type)) == NULL)
+    lose("Unsupported digest algorithm");
 
-  if (!SSL_clear(self->ssl))
-    lose("failed to clear ssl connection");
-
-  if (self->x509_cb_err) {
-    free(self->x509_cb_err);
-    self->x509_cb_err = NULL;
-  }
+  if (!X509_CRL_sign(self->crl, asym->pkey, digest_method))
+    lose_openssl_error("Couldn't sign CRL");
 
   Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
 
-static char ssl_object_shutdown__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>shutdown</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method will issue a <constant>shutdown</constant> signal to it's peer.\n"
-"         If this connection's peer has already initiated a shutdown this call\n"
-"         will succeed, otherwise it will raise and exception.  In order to\n"
-"         check the shutdown handshake was successful,\n"
-"         <function>shutdown</function> must be called again.  If no\n"
-"         exception is raised, the handshake is complete.\n"
-"      </para>\n"
-"      <para>\n"
-"         The odd\n"
-"         implementation of this function reflects the underlying OpenSSL\n"
-"         function, which reflects the SSL protocol.  Although rasing an\n"
-"         exception is a bit annoying, the alternative, returning true all\n"
-"         false will not tell you why the call failed and the exception\n"
-"         will, at least that is the theory.  Look up the exact meaning\n"
-"         of the exceptions in the OpenSSL man page SSL_get_error.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_verify__doc__[] =
+  "Verifie this CRL's signature.\n"
+  "\n"
+  "The check is performed using OpenSSL's X509_CRL_verify() function.\n"
+  "\n"
+  "The \"key\" parameter should be an instance of the Asymmetric class\n"
+  "containing the public key of the purported signer.\n"
+  ;
 
 static PyObject *
-ssl_object_shutdown(ssl_object *self, PyObject *args)
+crl_object_verify(crl_object *self, PyObject *args)
 {
-  int ret = 0;
+  asymmetric_object *asym;
 
-  if (!PyArg_ParseTuple(args, ""))
+  ENTERING(crl_object_verify);
+
+  if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
     goto error;
 
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  ret = SSL_shutdown(self->ssl);
-
-  /*
-   * The original POW behavior here seems nuts to me.  SSL_shutdown()
-   * returns a tristate:
-   *
-   *  1: fully closed
-   *  0: close notification sent, waiting for peer
-   * -1: error, WANT_READ, or WANT_WRITE
-   *
-   * Doc claims the protocol allows us to bail on 0 return if we don't
-   * want to wait.  So the "obvious" thing to do here is return boolean
-   * for 1 or 0 and raise an exception for -1.  Original author's explanation
-   * for why he didn't do that makes no sense to me, so I've changed it.
-   */
-
-  if (ret < 0)
-    lose_ssl_error(self, ret);
-
-  return PyBool_FromLong(ret);
+  return PyBool_FromLong(X509_CRL_verify(self->crl, asym->pkey));
 
  error:
-
   return NULL;
 }
 
-static char ssl_object_get_shutdown__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>getShutdown</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function returns an integer indicating the state of the\n"
-"         SSL connection. <constant>SSL_RECEIVED_SHUTDOWN</constant>\n"
-"         will be set the if it's peer sends a <constant>shutdown</constant>\n"
-"         signal or the underlying socket\n"
-"         receives a close notify .  The possible values are:\n"
-"      </para>\n"
-"      <simplelist>\n"
-"         <member><constant>SSL_NO_SHUTDOWN</constant></member>\n"
-"         <member><constant>SSL_SENT_SHUTDOWN</constant></member>\n"
-"         <member><constant>SSL_RECEIVED_SHUTDOWN</constant></member>\n"
-"         <member><constant>SSL_SENT_SHUTDOWN</constant> | <constant>SSL_RECEIVED_SHUTDOWN</constant></member>\n"
-"      </simplelist>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_pem_write__doc__[] =
+  "Return the PEM encoding of this CRL, as a string.\n"
+  ;
 
 static PyObject *
-ssl_object_get_shutdown(ssl_object *self, PyObject *args)
+crl_object_pem_write(crl_object *self)
 {
-  int state = 0;
+  PyObject *result = NULL;
+  BIO *bio = NULL;
 
-  if (!PyArg_ParseTuple(args, ""))
+  ENTERING(crl_object_pem_write);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!PEM_write_bio_X509_CRL(bio, self->crl))
+    lose_openssl_error("Unable to write CRL");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char crl_object_der_write__doc__[] =
+  "Return the DER encoding of this CRL, as a string.\n"
+  ;
+
+static PyObject *
+crl_object_der_write(crl_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(crl_object_der_write);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_X509_CRL_bio(bio, self->crl))
+    lose_openssl_error("Unable to write CRL");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char crl_object_get_aki__doc__[] =
+  "Return the Authority Key Identifier (AKI) keyid value for\n"
+  "this CRL, or None if the CRL has no AKI extension\n"
+  "or has an AKI extension with no keyIdentifier value.\n"
+  ;
+
+static PyObject *
+crl_object_get_aki(crl_object *self)
+{
+  AUTHORITY_KEYID *ext = X509_CRL_get_ext_d2i(self->crl, NID_authority_key_identifier, NULL, NULL);
+  int empty = (ext == NULL || ext->keyid == NULL);
+  PyObject *result = NULL;
+
+  ENTERING(crl_object_get_aki);
+
+  if (!empty)
+    result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid), ASN1_STRING_length(ext->keyid));
+
+  AUTHORITY_KEYID_free(ext);
+
+  if (empty)
+    Py_RETURN_NONE;
+  else
+    return result;
+}
+
+static char crl_object_set_aki__doc__[] =
+  "Set the Authority Key Identifier (AKI) value for this\n"
+  "CRL.   We only support the keyIdentifier method, as that's\n"
+  "the only form which is legal for RPKI certificates.\n"
+  ;
+
+static PyObject *
+crl_object_set_aki(crl_object *self, PyObject *args)
+{
+  AUTHORITY_KEYID *ext = NULL;
+  const unsigned char *buf = NULL;
+  int len, ok = 0;
+
+  ENTERING(crl_object_set_aki);
+
+  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
     goto error;
 
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
+  if ((ext = AUTHORITY_KEYID_new()) == NULL ||
+      (ext->keyid = ASN1_OCTET_STRING_new()) == NULL ||
+      !ASN1_OCTET_STRING_set(ext->keyid, buf, len))
+    lose_no_memory();
 
-  state = SSL_get_shutdown(self->ssl);
+  if (!X509_CRL_add1_ext_i2d(self->crl, NID_authority_key_identifier,
+                             ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add AKI extension to CRL");
 
-  return Py_BuildValue("i", state);
+  ok = 1;
 
  error:
+  AUTHORITY_KEYID_free(ext);
 
-  return NULL;
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
 }
 
-static char ssl_object_get_ciphers__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>getCiphers</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function returns a list of available ciphers ordered from\n"
-"         most favored to least.  This function must be called after\n"
-"         <function>setFd</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_get_crl_number__doc__[] =
+  "Return the CRL Number extension value from this CRL, an integer.\n"
+  ;
 
 static PyObject *
-ssl_object_get_ciphers(ssl_object *self, PyObject *args)
+crl_object_get_crl_number(crl_object *self)
 {
-  int i = 0;
-  const char *cipher = NULL;
-  PyObject *list = NULL, *name = NULL;
+  ASN1_INTEGER *ext = X509_CRL_get_ext_d2i(self->crl, NID_crl_number, NULL, NULL);
+  PyObject *result = NULL;
 
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
+  ENTERING(crl_object_get_crl_number);
 
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
+  if (ext == NULL)
+    Py_RETURN_NONE;
 
-  list = PyList_New(0);
-
-  cipher = SSL_get_cipher_list(self->ssl, 0);
-  while (cipher) {
-    if ((name = PyString_FromString(cipher)) == NULL)
-      goto error;
-    if (PyList_Append(list, name) != 0)
-      goto error;
-    Py_XDECREF(name);
-    name = NULL;
-    cipher = SSL_get_cipher_list(self->ssl, ++i);
-  }
-  return list;
-
- error:
-
-  Py_XDECREF(name);
-  Py_XDECREF(list);
-  return NULL;
+  result = Py_BuildValue("N", ASN1_INTEGER_to_PyLong(ext));
+  ASN1_INTEGER_free(ext);
+  return result;
 }
 
-static char ssl_object_set_ciphers__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>setCiphers</name>\n"
-"      <parameter>ciphers</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         <function>setCiphers</function>\n"
-"         can help protect against certain types of attacks which try to\n"
-"         coerce the server, client or both to negotiate a weak cipher.\n"
-"         <parameter>ciphers</parameter> should be a list of strings, as\n"
-"         produced by <function>getCiphers</function> and described in the\n"
-"         OpenSSL man page ciphers.   <function>setCiphers</function> should\n"
-"         only be called after <function>setFd</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_set_crl_number__doc__[] =
+  "Set the CRL Number extension value in this CRL.\n"
+  "\n"
+  "The \"number\" parameter should be an integer.\n"
+  ;
 
 static PyObject *
-ssl_object_set_ciphers(ssl_object *self, PyObject *args)
+crl_object_set_crl_number(crl_object *self, PyObject *args)
 {
-  PyObject *ciphers = NULL;
-  PyObject *cipher = NULL;
-  int size = 0, cipherstrlen = 0, nextstrlen = 0, i = 0;
-  char *cipherstr = NULL;
+  ASN1_INTEGER *ext = NULL;
+  PyObject *crl_number = NULL;
 
-  if (!PyArg_ParseTuple(args, "O", &ciphers))
+  ENTERING(crl_object_set_crl_number);
+
+  if (!PyArg_ParseTuple(args, "O", &crl_number) ||
+      (ext = PyLong_to_ASN1_INTEGER(crl_number)) == NULL)
     goto error;
 
-  if (!PyList_Check(ciphers) && !PyTuple_Check(ciphers))
-    lose_type_error("inapropriate type");
+  if (!X509_CRL_add1_ext_i2d(self->crl, NID_crl_number, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add CRL Number extension to CRL");
 
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
-
-  cipherstr = malloc(8);        // Very bogus, realloc() dosn't work without some
-                                // previously allocated memory! Really should.
-  memset(cipherstr, 0, 8);
-  size = PySequence_Size(ciphers);
-  for (i = 0; i < size; i++) {
-    if ((cipher = PySequence_GetItem(ciphers, i)) == NULL)
-      goto error;
-
-    if (!PyString_Check(cipher))
-      lose_type_error("inapropriate type");
-
-    cipherstrlen = strlen(cipherstr);
-    nextstrlen = strlen(PyString_AsString(cipher));
-
-    if ((cipherstr = realloc(cipherstr, cipherstrlen + nextstrlen + 2)) == NULL)
-      lose_type_error("could allocate memory");
-
-    if (cipherstrlen)
-      strcat(cipherstr, ":\0");
-
-    strcat(cipherstr, PyString_AsString(cipher));
-    Py_XDECREF(cipher);
-    cipher = NULL;
-  }
-  SSL_set_cipher_list(self->ssl, cipherstr);
-  free(cipherstr);
+  ASN1_INTEGER_free(ext);
   Py_RETURN_NONE;
 
  error:
-
-  if (cipherstr)
-    free(cipherstr);
-
-  Py_XDECREF(cipher);
-
+  ASN1_INTEGER_free(ext);
   return NULL;
 }
 
-static char ssl_object_get_cipher__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>getCipher</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function returns the current cipher in use.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char crl_object_pprint__doc__[] =
+  "Return a pretty-printed rendition of this CRL.\n"
+  ;
 
 static PyObject *
-ssl_object_get_cipher(ssl_object *self, PyObject *args)
+crl_object_pprint(crl_object *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
+  PyObject *result = NULL;
+  BIO *bio = NULL;
 
-  if (!self->ctxset)
-    lose("cannot be called before setFd()");
+  ENTERING(crl_object_pprint);
 
-  return Py_BuildValue("s", SSL_get_cipher(self->ssl));
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
- error:
+  if (!X509_CRL_print(bio, self->crl))
+    lose_openssl_error("Unable to pretty-print CRL");
 
-  return NULL;
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
 }
 
-static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
-{
-  ssl_object *self = arg;
-  int ok;
-
-  if (self->trusted_certs)
-    X509_STORE_CTX_trusted_stack(ctx, self->trusted_certs);
-
-  if (self->x509_cb_err) {
-    free(self->x509_cb_err);
-    self->x509_cb_err = NULL;
-  }
-
-  ok = X509_verify_cert(ctx) == 1;
-
-  if (!ok) {
-
-    /*
-     * We probably should be pushing out structured Python data here
-     * rather than a string, but we're pretty deep in the OpenSSL call
-     * chain at this point and I'd rather not risk whacky interactions
-     * with the Python garbage collector.  Try this kludge initially,
-     * rewrite as something better later if it looks worth the effort.
-     */
-
-    BIO *b = BIO_new(BIO_s_mem());
-    char *buf = NULL;
-    int len;
-
-    if (!b)
-      goto fail;
-
-    BIO_puts(b, "TLS validation failure:\n\n");
-
-    if (self->trusted_certs) {
-      int i;
-      BIO_puts(b, "Trusted cert stack\n");
-      for (i = 0; i < sk_X509_num(self->trusted_certs); i++) {
-        X509 *x = sk_X509_value(self->trusted_certs, i);
-        BIO_printf(b, "[%d] ", i);
-        if (x)
-          X509_print(b, x);
-        else
-          BIO_puts(b, "<NULL>!\n");
-      }
-    } else {
-      BIO_puts(b, "No trusted cert stack\n");
-    }
-
-    BIO_printf(b,
-            "\nX509_verify_cert() error: error depth %d error %d current_cert %p current_issuer %p current_crl %p: %s\n",
-            ctx->error_depth,
-            ctx->error,
-            ctx->current_cert,
-            ctx->current_issuer,
-            ctx->current_crl,
-            X509_verify_cert_error_string(ctx->error));
-    if (ctx->current_cert)
-      X509_print(b, ctx->current_cert);
-
-    /* This seems to be returning garbage, don't know why */
-    if (ctx->current_issuer)
-      X509_print(b, ctx->current_issuer);
-
-    if ((len = BIO_ctrl_pending(b)) == 0 || (buf = malloc(len + 1)) == NULL)
-      goto fail;
-
-    if (BIO_read(b, buf, len) == len) {
-      buf[len] = '\0';
-      self->x509_cb_err = buf;
-    } else {
-      free(buf);
-    }
-
-  fail:
-    BIO_free(b);
-  }
-
-  return ok;
-}
-
-static char ssl_object_set_verify_mode__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <name>setVerifyMode</name>\n"
-"      <parameter>mode</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function sets the behavior of the SSL handshake.  The\n"
-"         parameter <parameter>mode</parameter> should be one of the\n"
-"         following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-"         <member><constant>SSL_VERIFY_NONE</constant></member>\n"
-"         <member><constant>SSL_VERIFY_PEER</constant></member>\n"
-"         <member><constant>SSL_VERIFY_PEER</constant> |\n"
-"                 <constant>SSL_VERIFY_FAIL_IF_NO_PEER_CERT</constant></member>\n"
-"      </simplelist>\n"
-"      <para>\n"
-"         See the OpenSSL man page <function>SSL_CTX_set_verify</function>\n"
-"         for details.  This function must be called after <function>setfd</function>\n"
-"         has been called.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
-{
-  int mode = 0;
-
-  if (!PyArg_ParseTuple(args, "i", &mode))
-    goto error;
-
-  if (self->ctxset)
-    lose("cannot be called after setfd()");
-
-  SSL_CTX_set_verify(self->ctx, mode, NULL);
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static struct PyMethodDef ssl_object_methods[] = {
-  {"useCertificate",   (PyCFunction)ssl_object_use_certificate,  METH_VARARGS,  NULL},
-  {"addCertificate",   (PyCFunction)ssl_object_add_certificate,  METH_VARARGS,  NULL},
-  {"addTrust",         (PyCFunction)ssl_object_add_trust,        METH_VARARGS,  NULL},
-  {"useKey",           (PyCFunction)ssl_object_use_key,          METH_VARARGS,  NULL},
-  {"checkKey",         (PyCFunction)ssl_object_check_key,        METH_VARARGS,  NULL},
-  {"setFd",            (PyCFunction)ssl_object_set_fd,           METH_VARARGS,  NULL},
-  {"fileno",           (PyCFunction)ssl_object_fileno,           METH_VARARGS,  NULL},
-  {"connect",          (PyCFunction)ssl_object_connect,          METH_VARARGS,  NULL},
-  {"accept",           (PyCFunction)ssl_object_accept,           METH_VARARGS,  NULL},
-  {"write",            (PyCFunction)ssl_object_write,            METH_VARARGS,  NULL},
-  {"read",             (PyCFunction)ssl_object_read,             METH_VARARGS,  NULL},
-  {"peerCertificate",  (PyCFunction)ssl_object_peer_certificate, METH_VARARGS,  NULL},
-  {"clear",            (PyCFunction)ssl_object_clear,            METH_VARARGS,  NULL},
-  {"shutdown",         (PyCFunction)ssl_object_shutdown,         METH_VARARGS,  NULL},
-  {"getShutdown",      (PyCFunction)ssl_object_get_shutdown,     METH_VARARGS,  NULL},
-  {"getCiphers",       (PyCFunction)ssl_object_get_ciphers,      METH_VARARGS,  NULL},
-  {"setCiphers",       (PyCFunction)ssl_object_set_ciphers,      METH_VARARGS,  NULL},
-  {"getCipher",        (PyCFunction)ssl_object_get_cipher,       METH_VARARGS,  NULL},
-  {"setVerifyMode",    (PyCFunction)ssl_object_set_verify_mode,  METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
+static struct PyMethodDef crl_object_methods[] = {
+  Define_Method(sign,                   crl_object_sign,                METH_VARARGS),
+  Define_Method(verify,                 crl_object_verify,              METH_VARARGS),
+  Define_Method(getVersion,             crl_object_get_version,         METH_NOARGS),
+  Define_Method(setVersion,             crl_object_set_version,         METH_VARARGS),
+  Define_Method(getIssuer,              crl_object_get_issuer,          METH_VARARGS),
+  Define_Method(setIssuer,              crl_object_set_issuer,          METH_VARARGS),
+  Define_Method(getThisUpdate,          crl_object_get_this_update,     METH_NOARGS),
+  Define_Method(setThisUpdate,          crl_object_set_this_update,     METH_VARARGS),
+  Define_Method(getNextUpdate,          crl_object_get_next_update,     METH_NOARGS),
+  Define_Method(setNextUpdate,          crl_object_set_next_update,     METH_VARARGS),
+  Define_Method(getRevoked,             crl_object_get_revoked,         METH_NOARGS),
+  Define_Method(addRevocations,         crl_object_add_revocations,     METH_VARARGS),
+  Define_Method(clearExtensions,        crl_object_clear_extensions,    METH_NOARGS),
+  Define_Method(pemWrite,               crl_object_pem_write,           METH_NOARGS),
+  Define_Method(derWrite,               crl_object_der_write,           METH_NOARGS),
+  Define_Method(pprint,                 crl_object_pprint,              METH_NOARGS),
+  Define_Method(getAKI,                 crl_object_get_aki,             METH_NOARGS),
+  Define_Method(setAKI,                 crl_object_set_aki,             METH_VARARGS),
+  Define_Method(getCRLNumber,           crl_object_get_crl_number,      METH_NOARGS),
+  Define_Method(setCRLNumber,           crl_object_set_crl_number,      METH_VARARGS),
+  Define_Class_Method(pemRead,          crl_object_pem_read,            METH_VARARGS),
+  Define_Class_Method(pemReadFile,      crl_object_pem_read_file,       METH_VARARGS),
+  Define_Class_Method(derRead,          crl_object_der_read,            METH_VARARGS),
+  Define_Class_Method(derReadFile,      crl_object_der_read_file,       METH_VARARGS),
+  {NULL}
 };
 
-static ssl_object *
-newssl_object(int type)
-{
-  ssl_object *self;
-  const SSL_METHOD *method;
+static char POW_CRL_Type__doc__[] =
+  "Container for OpenSSL's X509 CRL management facilities.\n"
+  ;
 
+static PyTypeObject POW_CRL_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                     /* ob_size */
+  "rpki.POW.CRL",                        /* tp_name */
+  sizeof(crl_object),                    /* tp_basicsize */
+  0,                                     /* tp_itemsize */
+  (destructor)crl_object_dealloc,        /* tp_dealloc */
+  0,                                     /* tp_print */
+  0,                                     /* tp_getattr */
+  0,                                     /* tp_setattr */
+  0,                                     /* tp_compare */
+  0,                                     /* tp_repr */
+  0,                                     /* tp_as_number */
+  0,                                     /* tp_as_sequence */
+  0,                                     /* tp_as_mapping */
+  0,                                     /* tp_hash */
+  0,                                     /* tp_call */
+  0,                                     /* tp_str */
+  0,                                     /* tp_getattro */
+  0,                                     /* tp_setattro */
+  0,                                     /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  POW_CRL_Type__doc__,                   /* tp_doc */
+  0,                                     /* tp_traverse */
+  0,                                     /* tp_clear */
+  0,                                     /* tp_richcompare */
+  0,                                     /* tp_weaklistoffset */
+  0,                                     /* tp_iter */
+  0,                                     /* tp_iternext */
+  crl_object_methods,                    /* tp_methods */
+  0,                                     /* tp_members */
+  0,                                     /* tp_getset */
+  0,                                     /* tp_base */
+  0,                                     /* tp_dict */
+  0,                                     /* tp_descr_get */
+  0,                                     /* tp_descr_set */
+  0,                                     /* tp_dictoffset */
+  0,                                     /* tp_init */
+  0,                                     /* tp_alloc */
+  crl_object_new,                        /* tp_new */
+};
 
-  if ((self = PyObject_NEW(ssl_object, &ssltype)) == NULL)
-    goto error;
+
 
-  self->ctxset = 0;
-  self->ssl = NULL;
-  self->trusted_certs = NULL;
-  self->x509_cb_err = NULL;
-
-  switch (type) {
-  case SSLV2_SERVER_METHOD:  method = SSLv2_server_method();   break;
-  case SSLV2_CLIENT_METHOD:  method = SSLv2_client_method();   break;
-  case SSLV2_METHOD:         method = SSLv2_method();          break;
-  case SSLV3_SERVER_METHOD:  method = SSLv3_server_method();   break;
-  case SSLV3_CLIENT_METHOD:  method = SSLv3_client_method();   break;
-  case SSLV3_METHOD:         method = SSLv3_method();          break;
-  case TLSV1_SERVER_METHOD:  method = TLSv1_server_method();   break;
-  case TLSV1_CLIENT_METHOD:  method = TLSv1_client_method();   break;
-  case TLSV1_METHOD:         method = TLSv1_method();          break;
-  case SSLV23_SERVER_METHOD: method = SSLv23_server_method();  break;
-  case SSLV23_CLIENT_METHOD: method = SSLv23_client_method();  break;
-  case SSLV23_METHOD:        method = SSLv23_method();         break;
-
-  default:
-    lose("unknown ctx method");
-  }
-
-  if ((self->ctx = SSL_CTX_new(method)) == NULL)
-    lose("unable to create new ctx");
-
-  SSL_CTX_set_cert_verify_callback(self->ctx, ssl_object_verify_callback, self);
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
+/*
+ * Asymmetric object.
+ */
 
 static PyObject *
-ssl_object_getattr(ssl_object *self, char *name)
-{
-  return Py_FindMethod(ssl_object_methods, (PyObject *)self, name);
-}
-
-static void
-ssl_object_dealloc(ssl_object *self)
-{
-  SSL_free(self->ssl);
-  SSL_CTX_free(self->ctx);
-  if (self->trusted_certs)
-    sk_X509_pop_free(self->trusted_certs, X509_free);
-  if (self->x509_cb_err)
-    free(self->x509_cb_err);
-  PyObject_Del(self);
-}
-
-static char ssltype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>Ssl</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides access to the Secure Socket Layer\n"
-"         functionality of OpenSSL.  It is designed to be a simple as\n"
-"         possible to use and is not designed for high performance\n"
-"         applications which handle many simultaneous connections.  The\n"
-"         original motivation for writing this library was to provide a\n"
-"         security layer for network agents written in Python, for this\n"
-"         application, good performance with multiple concurrent connections\n"
-"         is not an issue.\n"
-"      </para>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject ssltype = {
-   PyObject_HEAD_INIT(0)
-   0,                               /*ob_size*/
-   "Ssl",                           /*tp_name*/
-   sizeof(ssl_object),               /*tp_basicsize*/
-   0,                               /*tp_itemsize*/
-   (destructor)ssl_object_dealloc,  /*tp_dealloc*/
-   (printfunc)0,                    /*tp_print*/
-   (getattrfunc)ssl_object_getattr, /*tp_getattr*/
-   (setattrfunc)0,                  /*tp_setattr*/
-   (cmpfunc)0,                      /*tp_compare*/
-   (reprfunc)0,                     /*tp_repr*/
-   0,                               /*tp_as_number*/
-   0,                               /*tp_as_sequence*/
-   0,                               /*tp_as_mapping*/
-   (hashfunc)0,                     /*tp_hash*/
-   (ternaryfunc)0,                  /*tp_call*/
-   (reprfunc)0,                     /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   ssltype__doc__                   /* Documentation string */
-};
-/*========== ssl Object ==========*/
-
-/*========== asymmetric Object ==========*/
-static asymmetric_object *
-asymmetric_object_new(int cipher_type, int key_size)
+asymmetric_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
   asymmetric_object *self = NULL;
 
-  self = PyObject_New(asymmetric_object, &asymmetrictype);
-  if (self == NULL)
+  ENTERING(asymmetric_object_new);
+
+  if ((self = (asymmetric_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
 
+  self->pkey = NULL;
+
+  return (PyObject *) self;
+
+ error:
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static int
+asymmetric_object_init(asymmetric_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"cipher", "key_size", NULL};
+  int cipher_type = RSA_CIPHER, key_size = 2048;
+  EVP_PKEY_CTX *ctx = NULL;
+  int ok = 0;
+
+  ENTERING(asymmetric_object_init);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ii", kwlist, &cipher_type, &key_size))
+    goto error;
+
+  /*
+   * This silliness is necessary until we move this to an RSA-specific class method.
+   */
   if (cipher_type != RSA_CIPHER)
     lose("unsupported cipher");
 
-  if ((self->cipher = RSA_generate_key(key_size,RSA_F4,NULL,NULL)) == NULL)
-    lose("could not generate key");
+  if ((ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL)) == NULL ||
+      EVP_PKEY_keygen_init(ctx) <= 0 ||
+      EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, key_size) <= 0)
+    lose_openssl_error("Couldn't initialize EVP_PKEY_CTX");
 
-  self->key_type = RSA_PRIVATE_KEY;
-  self->cipher_type = RSA_CIPHER;
+  /*
+   * Should set RSA_F4 for drill, although I think it's the default now.
+   * Looks like the call is 
+   *   int EVP_PKEY_CTX_set_rsa_keygen_pubexp(EVP_PKEY_CTX *ctx, BIGNUM *pubexp);
+   * while RSA_F4 is a plain C long integer, so would need to make a bignum (sigh),
+   * which is probably BN_new()/BN_set_word()/BN_free().
+   */
 
-  return self;
+  EVP_PKEY_free(self->pkey);
+  self->pkey = NULL;
+
+  if (EVP_PKEY_keygen(ctx, &self->pkey) <= 0)
+    lose_openssl_error("Couldn't generate new RSA key");
+
+  ok = 1;
 
  error:
+  EVP_PKEY_CTX_free(ctx);
 
-  Py_XDECREF(self);
-  return NULL;
+  if (ok)
+    return 0;
+  else
+    return -1;
 }
 
-static asymmetric_object *
-asymmetric_object_pem_read(int key_type, BIO *in, char *pass)
+static void
+asymmetric_object_dealloc(asymmetric_object *self)
+{
+  ENTERING(asymmetric_object_dealloc);
+  EVP_PKEY_free(self->pkey);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
+static PyObject *
+asymmetric_object_pem_read_private_helper(PyTypeObject *type, BIO *bio, char *pass)
 {
   asymmetric_object *self = NULL;
 
-  self = PyObject_New(asymmetric_object, &asymmetrictype);
-  if (self == NULL)
+  ENTERING(asymmetric_object_pem_read_private_helper);
+
+  if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  switch (key_type) {
+  if (!PEM_read_bio_PrivateKey(bio, &self->pkey, NULL, pass))
+    lose_openssl_error("Couldn't load private key");
 
-  case RSA_PUBLIC_KEY:
-    if ((self->cipher = PEM_read_bio_RSA_PUBKEY(in, NULL, NULL, NULL)) == NULL)
-      lose("could not load public key");
-    self->key_type = RSA_PUBLIC_KEY;
-    self->cipher_type = RSA_CIPHER;
-    break;
-
-  case RSA_PRIVATE_KEY:
-    if ((self->cipher = PEM_read_bio_RSAPrivateKey(in, NULL, NULL, pass)) == NULL)
-      lose("could not load private key");
-    self->key_type = RSA_PRIVATE_KEY;
-    self->cipher_type = RSA_CIPHER;
-    break;
-
-  default:
-    lose("unknown key type");
-  }
-
-  return self;
+  return (PyObject *) self;
 
  error:
-
   Py_XDECREF(self);
   return NULL;
 }
 
-static asymmetric_object *
-asymmetric_object_der_read(int key_type, unsigned char *src, int len)
+/*
+ * We can't use the generic read_from_*_helper() functions here
+ * because of optional the PEM password, so we just code the two PEM
+ * read cases for private keys directly.  Other than the passphrase,
+ * code is pretty much the same as the generic functions.
+ */
+
+static char asymmetric_object_pem_read_private__doc__[] =
+  "Read a PEM-encoded private key from a string.\n"
+  "\n"
+  "Optional second argument is a passphrase for the key.\n"
+  ;
+
+static PyObject *
+asymmetric_object_pem_read_private(PyTypeObject *type, PyObject *args)
+{
+  PyObject *result = NULL;
+  char *pass = NULL;
+  char *src = NULL;
+  BIO *bio = NULL;
+  int len = 0;
+
+  ENTERING(asymmetric_object_pem_read_private);
+
+  if (!PyArg_ParseTuple(args, "s#|s", &src, &len, &pass))
+    goto error;
+
+  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
+    lose_no_memory();
+
+  result = asymmetric_object_pem_read_private_helper(type, bio, pass);
+
+ error:
+  BIO_free(bio);
+  return result;
+}
+
+static char asymmetric_object_pem_read_private_file__doc__[] =
+  "Read a PEM-encoded private key from a file.\n"
+  "\n"
+  "Optional second argument is a passphrase for the key.\n"
+  ;
+
+static PyObject *
+asymmetric_object_pem_read_private_file(PyTypeObject *type, PyObject *args)
+{
+  const char *filename = NULL;
+  PyObject *result = NULL;
+  char *pass = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(asymmetric_object_pem_read_private_file);
+
+  if (!PyArg_ParseTuple(args, "s|s", &filename, &pass))
+    goto error;
+
+  if ((bio = BIO_new_file(filename, "rb")) == NULL)
+    lose_openssl_error("Could not open file");
+
+  result = asymmetric_object_pem_read_private_helper(type, bio, pass);
+
+ error:
+  BIO_free(bio);
+  return result;
+}
+
+static PyObject *
+asymmetric_object_der_read_private_helper(PyTypeObject *type, BIO *bio)
 {
   asymmetric_object *self = NULL;
-  unsigned char *ptr = src;
 
-  self = PyObject_New(asymmetric_object, &asymmetrictype);
-  if (self == NULL)
+  ENTERING(asymmetric_object_der_read_private_helper);
+
+  if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  switch (key_type) {
-  case RSA_PUBLIC_KEY:
+  if (!d2i_PrivateKey_bio(bio, &self->pkey))
+    lose_openssl_error("Couldn't load private key");
 
-    if ((self->cipher = d2i_RSA_PUBKEY(NULL, (const unsigned char **) &ptr, len)) == NULL)
-      lose("could not load public key");
-
-    self->key_type = RSA_PUBLIC_KEY;
-    self->cipher_type = RSA_CIPHER;
-    break;
-
-  case RSA_PRIVATE_KEY:
-
-    if ((self->cipher = d2i_RSAPrivateKey(NULL, (const unsigned char **) &ptr, len)) == NULL)
-      lose("could not load private key");
-
-    self->key_type = RSA_PRIVATE_KEY;
-    self->cipher_type = RSA_CIPHER;
-    break;
-
-  default:
-    lose("unknown key type");
-  }
-
-  return self;
+  return (PyObject *) self;
 
  error:
 
@@ -5134,1052 +4541,386 @@ asymmetric_object_der_read(int key_type, unsigned char *src, int len)
   return NULL;
 }
 
-static char asymmetric_object_pem_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Asymmetric</memberof>\n"
-"      <name>pemWrite</name>\n"
-"      <parameter>keytype</parameter>\n"
-"      <parameter>ciphertype = None</parameter>\n"
-"      <parameter>passphrase = None</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to write <classname>Asymmetric</classname>\n"
-"         objects out as strings.  The first argument should be either\n"
-"         <constant>RSA_PUBLIC_KEY</constant> or\n"
-"         <constant>RSA_PRIVATE_KEY</constant>.  Private keys are often\n"
-"         saved in encrypted files to offer extra security above access\n"
-"         control mechanisms.  If the <parameter>keytype</parameter> is\n"
-"         <constant>RSA_PRIVATE_KEY</constant> a\n"
-"         <parameter>ciphertype</parameter> and\n"
-"         <parameter>passphrase</parameter> can also be specified.  The\n"
-"         <parameter>ciphertype</parameter> should be one of those listed in\n"
-"         the <classname>Symmetric</classname> class section.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char asymmetric_object_der_read_private__doc__[] =
+  "Read a DER-encoded private key from a string.\n"
+  ;
 
 static PyObject *
-asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
+asymmetric_object_der_read_private(PyTypeObject *type, PyObject *args)
 {
-  int key_type = 0, cipher = 0, len = 0, ret = 0;
-  char *kstr = NULL, *buf = NULL;
-  BIO *out_bio = NULL;
-  PyObject *asymmetric = NULL;
+  ENTERING(asymmetric_object_der_read_private);
+  return read_from_string_helper(asymmetric_object_der_read_private_helper, type, args);
+}
 
-  if (!PyArg_ParseTuple(args, "|iis", &key_type, &cipher, &kstr))
+static char asymmetric_object_der_read_private_file__doc__[] =
+  "Read a DER-encoded private key from a file.\n"
+  ;
+
+static PyObject *
+asymmetric_object_der_read_private_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(asymmetric_object_der_read_private_file);
+  return read_from_file_helper(asymmetric_object_der_read_private_helper, type, args);
+}
+
+static PyObject *
+asymmetric_object_pem_read_public_helper(PyTypeObject *type, BIO *bio)
+{
+  asymmetric_object *self = NULL;
+
+  ENTERING(asymmetric_object_pem_read_public_helper);
+
+  if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  if (key_type == 0)
-    key_type = self->key_type;
+  if (!PEM_read_bio_PUBKEY(bio, &self->pkey, NULL, NULL))
+    lose_openssl_error("Couldn't load public key");
 
-  if ((out_bio = BIO_new(BIO_s_mem())) == NULL)
-    lose("unable to create new BIO");
-
-  if ((kstr && !cipher) || (cipher && !kstr))
-    lose("cipher type and key string must both be supplied");
-
-  switch(key_type) {
-
-  case RSA_PRIVATE_KEY:
-    if (kstr && cipher) {
-      if (!PEM_write_bio_RSAPrivateKey(out_bio, self->cipher, evp_cipher_factory(cipher), NULL, 0, NULL, kstr))
-        lose("unable to write key");
-    }
-    else {
-      if (!PEM_write_bio_RSAPrivateKey(out_bio, self->cipher, NULL, NULL, 0, NULL, NULL))
-        lose("unable to write key");
-    }
-    break;
-
-  case RSA_PUBLIC_KEY:
-    if (kstr && cipher)
-      lose("public keys should not encrypted");
-    else {
-      if (!PEM_write_bio_RSA_PUBKEY(out_bio, self->cipher))
-        lose("unable to write key");
-    }
-    break;
-
-  default:
-    lose("unsupported key type");
-  }
-
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get number of bytes in bio");
-
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if ((ret = BIO_read(out_bio, buf, len)) != len)
-    lose("unable to write out key");
-
-  asymmetric = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
-  return asymmetric;
+  return (PyObject *) self;
 
  error:
-
-  if (out_bio);
-  BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
+  Py_XDECREF(self);
   return NULL;
 }
 
-static char asymmetric_object_der_write__doc__[] =
-"<method>"
-"   <header>"
-"      <memberof>Asymmetric</memberof>"
-"      <name>derWrite</name>"
-"      <parameter>keytype</parameter>"
-"   </header>"
-"   <body>"
-"      <para>"
-"         This method is used to write <classname>Asymmetric</classname>"
-"         objects out as strings.  The first argument should be either"
-"         <constant>RSA_PUBLIC_KEY</constant> or "
-"         <constant>RSA_PRIVATE_KEY</constant>."
-"      </para>"
-"   </body>"
-"</method>"
-;
-
 static PyObject *
-asymmetric_object_der_write(asymmetric_object *self, PyObject *args)
+asymmetric_object_der_read_public_helper(PyTypeObject *type, BIO *bio)
 {
-  int len = 0, key_type = 0;
-  unsigned char *buf = NULL, *p = NULL;
-  PyObject *asymmetric = NULL;
+  asymmetric_object *self = NULL;
 
-  if (!PyArg_ParseTuple(args, "|i", &key_type))
+  ENTERING(asymmetric_object_der_read_public_helper);
+
+  if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  if (key_type == 0)
-    key_type = self->key_type;
+  if (!d2i_PUBKEY_bio(bio, &self->pkey))
+    lose_openssl_error("Couldn't load public key");
 
-  switch(key_type) {
-
-  case RSA_PRIVATE_KEY:
-    len = i2d_RSAPrivateKey(self->cipher, NULL);
-    if ((buf = malloc(len)) == NULL)
-      lose("could not allocate memory");
-    p = buf;
-    if (!i2d_RSAPrivateKey(self->cipher, &buf))
-      lose("unable to write key");
-    break;
-
-  case RSA_PUBLIC_KEY:
-    len = i2d_RSA_PUBKEY(self->cipher, NULL);
-    if ((buf = malloc(len)) == NULL)
-      lose("could not allocate memory");
-    p = buf;
-    if (!i2d_RSA_PUBKEY(self->cipher, &buf))
-      lose("unable to write key");
-    break;
-
-  default:
-    lose("unsupported key type");
-  }
-
-  asymmetric = Py_BuildValue("s#", p, len);
-
-  free(p);
-  return asymmetric;
+  return (PyObject *) self;
 
  error:
 
-  if (p)
-    free(p);
-
+  Py_XDECREF(self);
   return NULL;
 }
 
-static char asymmetric_object_public_encrypt__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Asymmetric</memberof>\n"
-"      <name>publicEncrypt</name>\n"
-"      <parameter>plaintext</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to encrypt the <parameter>plaintext</parameter>\n"
-"         using a public key. It should be noted; in practice this\n"
-"         function would be used almost exclusively to encrypt symmetric cipher\n"
-"         keys and not data since asymmetric cipher operations are very slow.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char asymmetric_object_pem_read_public__doc__[] =
+  "Read a PEM-encoded public key from a string.\n"
+  ;
 
 static PyObject *
-asymmetric_object_public_encrypt(asymmetric_object *self, PyObject *args)
+asymmetric_object_pem_read_public(PyTypeObject *type, PyObject *args)
 {
-  unsigned char *plain_text = NULL, *cipher_text = NULL;
-  int len = 0, size = 0;
-  PyObject *obj = NULL;
-
-  if (self->cipher_type != RSA_CIPHER)
-    lose("unsupported cipher type");
-
-  if (!PyArg_ParseTuple(args, "s#", &plain_text, &len))
-    goto error;
-
-  size = RSA_size(self->cipher);
-  if (len > size)
-    lose("plain text is too long");
-
-  if ((cipher_text = malloc(size + 16)) == NULL)
-    lose("could not allocate memory");
-
-  if ((len = RSA_public_encrypt(len, plain_text, cipher_text, self->cipher, RSA_PKCS1_PADDING)) < 0)
-    lose("could not encrypt plain text");
-
-  obj = Py_BuildValue("s#", cipher_text, len);
-  free(cipher_text);
-  return obj;
-
- error:
-
-  if (cipher_text)
-    free(cipher_text);
-
-  return NULL;
+  ENTERING(asymmetric_object_pem_read_public);
+  return read_from_string_helper(asymmetric_object_pem_read_public_helper, type, args);
 }
 
-static char asymmetric_object_private_encrypt__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Asymmetric</memberof>\n"
-"      <name>privateEncrypt</name>\n"
-"      <parameter>plaintext</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to encrypt the <parameter>plaintext</parameter>\n"
-"         using a private key. It should be noted; in practice this\n"
-"         function would be used almost exclusively to encrypt symmetric cipher\n"
-"         keys and not data since asymmetric cipher operations are very slow.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char asymmetric_object_pem_read_public_file__doc__[] =
+  "Read a PEM-encoded public key from a file.\n"
+  ;
 
 static PyObject *
-asymmetric_object_private_encrypt(asymmetric_object *self, PyObject *args)
+asymmetric_object_pem_read_public_file(PyTypeObject *type, PyObject *args)
 {
-  unsigned char *plain_text = NULL, *cipher_text = NULL;
-  int len = 0, size = 0;
-  PyObject *obj = NULL;
-
-  if (self->key_type != RSA_PRIVATE_KEY)
-    lose("cannot perform private encryption with this key");
-
-  if (!PyArg_ParseTuple(args, "s#", &plain_text, &len))
-    goto error;
-
-  size = RSA_size(self->cipher);
-  if (len > size)
-    lose("plain text is too long");
-
-  if ((cipher_text = malloc(size + 16)) == NULL)
-    lose("could not allocate memory");
-
-  if ((len = RSA_private_encrypt(len, plain_text, cipher_text, self->cipher, RSA_PKCS1_PADDING)) < 0)
-    lose("could not encrypt plain text");
-
-  obj = Py_BuildValue("s#", cipher_text, len);
-  free(cipher_text);
-  return obj;
-
- error:
-
-  if (cipher_text)
-    free(cipher_text);
-
-  return NULL;
+  ENTERING(asymmetric_object_pem_read_public_file);
+  return read_from_file_helper(asymmetric_object_pem_read_public_helper, type, args);
 }
 
-static char asymmetric_object_public_decrypt__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Asymmetric</memberof>\n"
-"      <name>publicDecrypt</name>\n"
-"      <parameter>ciphertext</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to decrypt the\n"
-"         <parameter>ciphertext</parameter> which has been encrypted\n"
-"         using the corresponding private key and the\n"
-"         <function>privateEncrypt</function> function.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char asymmetric_object_der_read_public__doc__[] =
+  "Read a DER-encoded public key from a string.\n"
+  ;
 
 static PyObject *
-asymmetric_object_public_decrypt(asymmetric_object *self, PyObject *args)
+asymmetric_object_der_read_public(PyTypeObject *type, PyObject *args)
 {
-  unsigned char *plain_text = NULL, *cipher_text = NULL;
-  int len = 0, size = 0;
-  PyObject *obj = NULL;
-
-  if (self->cipher_type != RSA_CIPHER)
-    lose("unsupported cipher type");
-
-  if (!PyArg_ParseTuple(args, "s#", &cipher_text, &len))
-    goto error;
-
-  size = RSA_size(self->cipher);
-  if (len > size)
-    lose("cipher text is too long");
-
-  if ((plain_text = malloc(size + 16)) == NULL)
-    lose("could not allocate memory");
-
-  if ((len = RSA_public_decrypt(len, cipher_text, plain_text, self->cipher, RSA_PKCS1_PADDING)) < 0)
-    lose("could not decrypt cipher text");
-
-  obj = Py_BuildValue("s#", plain_text, len);
-  free(plain_text);
-  return obj;
-
- error:
-
-  if (plain_text)
-    free(plain_text);
-
-  return NULL;
+  ENTERING(asymmetric_object_der_read_public);
+  return read_from_string_helper(asymmetric_object_der_read_public_helper, type, args);
 }
 
-static char asymmetric_object_private_decrypt__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Asymmetric</memberof>\n"
-"      <name>privateDecrypt</name>\n"
-"      <parameter>ciphertext</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to decrypt ciphertext which has been encrypted\n"
-"         using the corresponding public key and the\n"
-"         <function>publicEncrypt</function> function.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char asymmetric_object_der_read_public_file__doc__[] =
+  "Read a DER-encoded public key from a file.\n"
+  ;
 
 static PyObject *
-asymmetric_object_private_decrypt(asymmetric_object *self, PyObject *args)
+asymmetric_object_der_read_public_file(PyTypeObject *type, PyObject *args)
 {
-  unsigned char *plain_text = NULL, *cipher_text = NULL;
-  int len = 0, size = 0;
-  PyObject *obj = NULL;
-
-  if (self->key_type != RSA_PRIVATE_KEY)
-    lose("cannot perform private decryption with this key");
-
-  if (!PyArg_ParseTuple(args, "s#", &cipher_text, &len))
-    goto error;
-
-  size = RSA_size(self->cipher);
-  if (len > size)
-    lose("cipher text is too long");
-
-  if ((plain_text = malloc(size + 16)) == NULL)
-    lose("could not allocate memory");
-
-  if ((len = RSA_private_decrypt(len, cipher_text, plain_text, self->cipher, RSA_PKCS1_PADDING)) < 0)
-    lose("could not decrypt cipher text");
-
-  obj = Py_BuildValue("s#", plain_text, len);
-  free(plain_text);
-  return obj;
-
- error:
-
-  if (plain_text)
-    free(plain_text);
-  return NULL;
+  ENTERING(asymmetric_object_der_read_public_file);
+  return read_from_file_helper(asymmetric_object_der_read_public_helper, type, args);
 }
 
-static char asymmetric_object_sign__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Asymmetric</memberof>\n"
-"      <name>sign</name>\n"
-"      <parameter>digesttext</parameter>\n"
-"      <parameter>digesttype</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to produce a signed digest text.\n"
-"         This instance of\n"
-"         <classname>Asymmetric</classname> should be a private key used for\n"
-"         signing.  The parameter\n"
-"         <parameter>digesttext</parameter> should be a digest of the\n"
-"         data to protect against alteration and\n"
-"         finally <parameter>digesttype</parameter> should be one of the\n"
-"         following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
-"         <member><constant>MD5_DIGEST</constant></member>\n"
-"         <member><constant>SHA_DIGEST</constant></member>\n"
-"         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
-"         <member><constant>SHA256_DIGEST</constant></member>\n"
-"         <member><constant>SHA384_DIGEST</constant></member>\n"
-"         <member><constant>SHA512_DIGEST</constant></member>\n"
-"      </simplelist>\n"
-"      <para>\n"
-"         If the procedure was successful, a string containing the signed\n"
-"         digest is returned.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char asymmetric_object_pem_write_private__doc__[] =
+  "Return the PEM encoding of an \"Asymmetric\" private key.\n"
+  "\n"
+  "This method takes an optional parameter \"passphrase\" which, if\n"
+  "specified, will be used to encrypt the private key with AES-256-CBC.\n"
+  "\n"
+  "If you don't specify a passphrase, the key will not be encrypted.\n"
+  ;
 
 static PyObject *
-asymmetric_object_sign(asymmetric_object *self, PyObject *args)
+asymmetric_object_pem_write_private(asymmetric_object *self, PyObject *args)
 {
-  unsigned char *digest_text = NULL, *signed_text = NULL;
-  unsigned int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0;
-  PyObject *obj = NULL;
+  PyObject *result = NULL;
+  char *passphrase = NULL;
+  const EVP_CIPHER *evp_method = NULL;
+  BIO *bio = NULL;
 
-  if (!PyArg_ParseTuple(args, "s#i", &digest_text, &digest_len, &digest_type))
+  ENTERING(asymmetric_object_pem_write_private);
+
+  if (!PyArg_ParseTuple(args, "|s", &passphrase))
     goto error;
 
-  if (self->key_type != RSA_PRIVATE_KEY)
-    lose("unsupported key type");
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
-  if ((signed_text = malloc(RSA_size(self->cipher))) == NULL)
-    lose("could not allocate memory");
+  if (passphrase)
+    evp_method = EVP_aes_256_cbc();
 
-  switch(digest_type) {
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    digest_nid = NID_md2;
-    digest_len = MD2_DIGEST_LENGTH;
-    break;
-#endif
-  case MD5_DIGEST:
-    digest_nid = NID_md5;
-    digest_len = MD5_DIGEST_LENGTH;
-    break;
-  case SHA_DIGEST:
-    digest_nid = NID_sha;
-    digest_len = SHA_DIGEST_LENGTH;
-    break;
-  case SHA1_DIGEST:
-    digest_nid = NID_sha1;
-    digest_len = SHA_DIGEST_LENGTH;
-    break;
-  case RIPEMD160_DIGEST:
-    digest_nid = NID_ripemd160;
-    digest_len = RIPEMD160_DIGEST_LENGTH;
-    break;
-  case SHA256_DIGEST:
-    digest_nid = NID_sha256;
-    digest_len = SHA256_DIGEST_LENGTH;
-    break;
-  case SHA384_DIGEST:
-    digest_nid = NID_sha384;
-    digest_len = SHA384_DIGEST_LENGTH;
-    break;
-  case SHA512_DIGEST:
-    digest_nid = NID_sha512;
-    digest_len = SHA512_DIGEST_LENGTH;
-    break;
-  default:
-    lose("unsupported digest");
-  }
+  if (!PEM_write_bio_PrivateKey(bio, self->pkey, evp_method, NULL, 0, NULL, passphrase))
+    lose_openssl_error("Unable to write key");
 
-  if (!RSA_sign(digest_nid, digest_text, digest_len, signed_text, &signed_len, self->cipher))
-    lose("could not sign digest");
+  result = BIO_to_PyString_helper(bio);
 
-  obj = Py_BuildValue("s#", signed_text, signed_len);
-  free(signed_text);
-  return obj;
-
- error:
-
-  if (signed_text)
-    free(signed_text);
-
-  return NULL;
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
 }
 
-static char asymmetric_object_verify__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Asymmetric</memberof>\n"
-"      <name>verify</name>\n"
-"      <parameter>signedtext</parameter>\n"
-"      <parameter>digesttext</parameter>\n"
-"      <parameter>digesttype</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to verify a signed digest text.\n"
-"      </para>\n"
-"       <example>\n"
-"         <title><function>verify</function> method usage</title>\n"
-"         <programlisting>\n"
-"      plain_text = 'Hello World!'\n"
-"      print '\tPlain text:', plain_text\n"
-"      digest = POW.Digest(POW.RIPEMD160_DIGEST)\n"
-"      digest.update(plain_text)\n"
-"      print '\tDigest text:', digest.digest()\n"
-"\n"
-"      privateFile = open('test/private.key', 'r')\n"
-"      privateKey = POW.pemRead(POW.RSA_PRIVATE_KEY, privateFile.read(), 'pass')\n"
-"      privateFile.close()\n"
-"      signed_text =  privateKey.sign(digest.digest(), POW.RIPEMD160_DIGEST)\n"
-"      print '\tSigned text:', signed_text\n"
-"\n"
-"      digest2 = POW.Digest(POW.RIPEMD160_DIGEST)\n"
-"      digest2.update(plain_text)\n"
-"      publicFile = open('test/public.key', 'r')\n"
-"      publicKey = POW.pemRead(POW.RSA_PUBLIC_KEY, publicFile.read())\n"
-"      publicFile.close()\n"
-"      if publicKey.verify(signed_text, digest2.digest(), POW.RIPEMD160_DIGEST):\n"
-"         print 'Signing verified!'\n"
-"      else:\n"
-"         print 'Signing gone wrong!'\n"
-"         </programlisting>\n"
-"      </example>\n"
-"      <para>\n"
-"         The parameter <parameter>signedtext</parameter> should be a\n"
-"         signed digest text.  This instance of\n"
-"         <classname>Asymmetric</classname> should correspond to the private\n"
-"         key used to sign the digest.  The parameter\n"
-"         <parameter>digesttext</parameter> should be a digest of the same\n"
-"         data used to produce the <parameter>signedtext</parameter> and\n"
-"         finally <parameter>digesttype</parameter> should be one of the\n"
-"         following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
-"         <member><constant>MD5_DIGEST</constant></member>\n"
-"         <member><constant>SHA_DIGEST</constant></member>\n"
-"         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
-"         <member><constant>SHA256_DIGEST</constant></member>\n"
-"         <member><constant>SHA384_DIGEST</constant></member>\n"
-"         <member><constant>SHA512_DIGEST</constant></member>\n"
-"      </simplelist>\n"
-"      <para>\n"
-"         If the procedure was successful, 1 is returned, otherwise 0 is\n"
-"         returned.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char asymmetric_object_pem_write_public__doc__[] =
+  "Return the PEM encoding of an \"Asymmetric\" public key.\n"
+  ;
 
 static PyObject *
-asymmetric_object_verify(asymmetric_object *self, PyObject *args)
+asymmetric_object_pem_write_public(asymmetric_object *self)
 {
-  unsigned char *digest_text = NULL, *signed_text = NULL;
-  int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0;
+  PyObject *result = NULL;
+  BIO *bio = NULL;
 
-  if (!PyArg_ParseTuple(args, "s#s#i", &signed_text, &signed_len, &digest_text, &digest_len, &digest_type))
-    goto error;
+  ENTERING(asymmetric_object_pem_write_public);
 
-  switch (digest_type) {
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    digest_len = MD2_DIGEST_LENGTH;
-    digest_nid = NID_md2;
-    break;
-#endif
-  case MD5_DIGEST:
-    digest_len = MD5_DIGEST_LENGTH;
-    digest_nid = NID_md5;
-    break;
-  case SHA_DIGEST:
-    digest_len = SHA_DIGEST_LENGTH;
-    digest_nid = NID_sha;
-    break;
-  case SHA1_DIGEST:
-    digest_len = SHA_DIGEST_LENGTH;
-    digest_nid = NID_sha1;
-    break;
-  case RIPEMD160_DIGEST:
-    digest_len = RIPEMD160_DIGEST_LENGTH;
-    digest_nid = NID_ripemd160;
-    break;
-  case SHA256_DIGEST:
-    digest_len = SHA256_DIGEST_LENGTH;
-    digest_nid = NID_sha256;
-    break;
-  case SHA384_DIGEST:
-    digest_len = SHA384_DIGEST_LENGTH;
-    digest_nid = NID_sha384;
-    break;
-  case SHA512_DIGEST:
-    digest_len = SHA512_DIGEST_LENGTH;
-    digest_nid = NID_sha512;
-    break;
-  default:
-    lose("unsupported digest");
-  }
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
-  return PyBool_FromLong(RSA_verify(digest_nid, digest_text, digest_len, signed_text, signed_len, self->cipher));
+  if (!PEM_write_bio_PUBKEY(bio, self->pkey))
+    lose_openssl_error("Unable to write key");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char asymmetric_object_der_write_private__doc__[] =
+  "Return the DER encoding of an \"Asymmetric\" private key.\n"
+  ;
+
+static PyObject *
+asymmetric_object_der_write_private(asymmetric_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(asymmetric_object_der_write_private);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_PrivateKey_bio(bio, self->pkey))
+    lose_openssl_error("Unable to write private key");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char asymmetric_object_der_write_public__doc__[] =
+  "Return the DER encoding of an \"Asymmetric\" public key.\n"
+  ;
+
+static PyObject *
+asymmetric_object_der_write_public(asymmetric_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(asymmetric_object_der_write_public);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_PUBKEY_bio(bio, self->pkey))
+    lose_openssl_error("Unable to write public key");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char asymmetric_object_calculate_ski__doc__[] =
+  "Calculate SKI value for this key.\n"
+  "\n"
+  "The SKI is the SHA-1 hash of key's SubjectPublicKey value.\n"
+  ;
+
+static PyObject *
+asymmetric_object_calculate_ski(asymmetric_object *self)
+{
+  PyObject *result = NULL;
+  X509_PUBKEY *pubkey = NULL;
+  unsigned char digest[EVP_MAX_MD_SIZE];
+  unsigned digest_length;
+
+  ENTERING(asymmetric_object_calculate_ski);
+
+  if (!X509_PUBKEY_set(&pubkey, self->pkey))
+    lose_openssl_error("Couldn't extract public key");
+
+  if (!EVP_Digest(pubkey->public_key->data, pubkey->public_key->length,
+                  digest, &digest_length, EVP_sha1(), NULL))
+    lose_openssl_error("Couldn't calculate SHA-1 digest of public key");
+
+  result = PyString_FromStringAndSize((char *) digest, digest_length);
 
  error:
-
-  return NULL;
+  X509_PUBKEY_free(pubkey);
+  return result;
 }
 
 static struct PyMethodDef asymmetric_object_methods[] = {
-  {"pemWrite",          (PyCFunction)asymmetric_object_pem_write,       METH_VARARGS,  NULL},
-  {"derWrite",          (PyCFunction)asymmetric_object_der_write,       METH_VARARGS,  NULL},
-  {"publicEncrypt",     (PyCFunction)asymmetric_object_public_encrypt,  METH_VARARGS,  NULL},
-  {"privateEncrypt",    (PyCFunction)asymmetric_object_private_encrypt, METH_VARARGS,  NULL},
-  {"privateDecrypt",    (PyCFunction)asymmetric_object_private_decrypt, METH_VARARGS,  NULL},
-  {"publicDecrypt",     (PyCFunction)asymmetric_object_public_decrypt,  METH_VARARGS,  NULL},
-  {"sign",              (PyCFunction)asymmetric_object_sign,            METH_VARARGS,  NULL},
-  {"verify",            (PyCFunction)asymmetric_object_verify,          METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
+  Define_Method(pemWritePrivate,          asymmetric_object_pem_write_private,          METH_VARARGS),
+  Define_Method(pemWritePublic,           asymmetric_object_pem_write_public,           METH_NOARGS),
+  Define_Method(derWritePrivate,          asymmetric_object_der_write_private,          METH_NOARGS),
+  Define_Method(derWritePublic,           asymmetric_object_der_write_public,           METH_NOARGS),
+  Define_Method(calculateSKI,             asymmetric_object_calculate_ski,              METH_NOARGS),
+  Define_Class_Method(pemReadPublic,      asymmetric_object_pem_read_public,            METH_VARARGS),
+  Define_Class_Method(pemReadPublicFile,  asymmetric_object_pem_read_public_file,       METH_VARARGS),
+  Define_Class_Method(derReadPublic,      asymmetric_object_der_read_public,            METH_VARARGS),
+  Define_Class_Method(derReadPublicFile,  asymmetric_object_der_read_public_file,       METH_VARARGS),
+  Define_Class_Method(pemReadPrivate,     asymmetric_object_pem_read_private,           METH_VARARGS),
+  Define_Class_Method(pemReadPrivateFile, asymmetric_object_pem_read_private_file,      METH_VARARGS),
+  Define_Class_Method(derReadPrivate,     asymmetric_object_der_read_private,           METH_VARARGS),
+  Define_Class_Method(derReadPrivateFile, asymmetric_object_der_read_private_file,      METH_VARARGS),
+  {NULL}
 };
 
-static PyObject *
-asymmetric_object_getattr(asymmetric_object *self, char *name)
-{
-  return Py_FindMethod(asymmetric_object_methods, (PyObject *)self, name);
-}
+static char POW_Asymmetric_Type__doc__[] =
+  "Container for OpenSSL's EVP_PKEY asymmetric key classes.\n"
+  "\n"
+  "At the moment the only supported algorithm is RSA, but that will\n"
+  "likely change, as BGPSEC will require EC-DSA.\n"
+  "\n"
+  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
+  ;
 
-static void
-asymmetric_object_dealloc(asymmetric_object *self, char *name)
-{
-  switch(self->cipher_type) {
-  case RSA_CIPHER:
-    RSA_free(self->cipher);
-    break;
-  }
-  PyObject_Del(self);
-}
-
-static char asymmetrictype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>Asymmetric</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides access to RSA asymmetric ciphers in OpenSSL.\n"
-"         Other ciphers will probably be supported in the future but this is\n"
-"         not a priority.\n"
-"      </para>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject asymmetrictype = {
-   PyObject_HEAD_INIT(0)
-   0,                                     /*ob_size*/
-   "Asymmetric",                          /*tp_name*/
-   sizeof(asymmetric_object),             /*tp_basicsize*/
-   0,                                     /*tp_itemsize*/
-   (destructor)asymmetric_object_dealloc, /*tp_dealloc*/
-   (printfunc)0,                          /*tp_print*/
-   (getattrfunc)asymmetric_object_getattr,   /*tp_getattr*/
-   (setattrfunc)0,                        /*tp_setattr*/
-   (cmpfunc)0,                            /*tp_compare*/
-   (reprfunc)0,                           /*tp_repr*/
-   0,                                     /*tp_as_number*/
-   0,                                     /*tp_as_sequence*/
-   0,                                     /*tp_as_mapping*/
-   (hashfunc)0,                           /*tp_hash*/
-   (ternaryfunc)0,                        /*tp_call*/
-   (reprfunc)0,                           /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   asymmetrictype__doc__                   /* Documentation string */
-};
-/*========== asymmetric Code ==========*/
-
-/*========== symmetric Code ==========*/
-static symmetric_object *
-symmetric_object_new(int cipher_type)
-{
-  symmetric_object *self = NULL;
-
-  if ((self = PyObject_New(symmetric_object, &symmetrictype)) == NULL)
-    goto error;
-
-  self->cipher_type = cipher_type;
-  EVP_CIPHER_CTX_init(&self->cipher_ctx);
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static char symmetric_object_encrypt_init__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Symmetric</memberof>\n"
-"      <name>encryptInit</name>\n"
-"      <parameter>key</parameter>\n"
-"      <parameter>initialvalue = ''</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method sets up the cipher object to start encrypting a stream\n"
-"         of data.  The first parameter is the key used to encrypt the\n"
-"         data.  The second, the <parameter>initialvalue</parameter> serves\n"
-"         a similar purpose the the salt supplied to the Unix\n"
-"         <function>crypt</function> function.\n"
-"         The <parameter>initialvalue</parameter> is normally chosen at random and\n"
-"         often transmitted with the encrypted data, its purpose is to prevent\n"
-"         two identical plain texts resulting in two identical cipher texts.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-symmetric_object_encrypt_init(symmetric_object *self, PyObject *args)
-{
-  unsigned char *key = NULL, *iv = NULL, nulliv [] = "";
-  const EVP_CIPHER *cipher = NULL;
-
-  if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
-    goto error;
-
-  if (!iv)
-    iv = nulliv;
-
-  if ((cipher = evp_cipher_factory(self->cipher_type)) == NULL)
-    lose("unsupported cipher");
-
-  if (!EVP_EncryptInit(&self->cipher_ctx, cipher, key, iv))
-    lose("could not initialise cipher");
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char symmetric_object_decrypt_init__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Symmetric</memberof>\n"
-"      <name>decryptInit</name>\n"
-"      <parameter>key</parameter>\n"
-"      <parameter>initialvalue = ''</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method sets up the cipher object to start decrypting a stream\n"
-"         of data.  The first value must be the key used to encrypt the\n"
-"         data.  The second parameter is the <parameter>initialvalue</parameter>\n"
-"         used to encrypt the data.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-symmetric_object_decrypt_init(symmetric_object *self, PyObject *args)
-{
-  unsigned char *key = NULL, *iv = NULL, nulliv [] = "";
-  const EVP_CIPHER *cipher = NULL;
-
-  if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
-    goto error;
-
-  if (!iv)
-    iv = nulliv;
-
-  if ((cipher = evp_cipher_factory(self->cipher_type)) == NULL)
-    lose("unsupported cipher");
-
-  if (!EVP_DecryptInit(&self->cipher_ctx, cipher, key, iv))
-    lose("could not initialise cipher");
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char symmetric_object_update__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Symmetric</memberof>\n"
-"      <name>update</name>\n"
-"      <parameter>data</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method is used to process the bulk of data being encrypted\n"
-"         or decrypted by the cipher object.  <parameter>data</parameter>\n"
-"         should be a string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-symmetric_object_update(symmetric_object *self, PyObject *args)
-{
-  int inl = 0, outl = 0;
-  unsigned char *in = NULL, *out = NULL;
-  PyObject *py_out = NULL;
-
-  if (!PyArg_ParseTuple(args, "s#", &in, &inl))
-    goto error;
-
-  if ((out = malloc(inl + EVP_CIPHER_CTX_block_size(&self->cipher_ctx))) == NULL)
-    lose("could not allocate memory");
-
-  if (!EVP_CipherUpdate(&self->cipher_ctx, out, &outl, in, inl))
-    lose("could not update cipher");
-
-  if ((py_out = Py_BuildValue("s#", out, outl)) == NULL)
-    lose("could not allocate memory");
-
-  free(out);
-  return py_out;
-
- error:
-
-  if (out)
-    free(out);
-
-  return NULL;
-}
-
-static char symmetric_object_final__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Symmetric</memberof>\n"
-"      <name>final</name>\n"
-"      <parameter>size = 1024</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         Most ciphers are block ciphers, that is they encrypt or decrypt a block of\n"
-"         data at a time.  Often the data being processed will not fill an\n"
-"         entire block, this method processes these half-empty blocks.  A\n"
-"         string is returned of a maximum length <parameter>size</parameter>.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-symmetric_object_final(symmetric_object *self, PyObject *args)
-{
-  int outl = 0, size = 1024;
-  unsigned char *out = NULL;
-  PyObject *py_out = NULL;
-
-  if (!PyArg_ParseTuple(args, "|i", &size))
-    goto error;
-
-  if ((out = malloc(size + EVP_CIPHER_CTX_block_size(&self->cipher_ctx))) == NULL)
-    lose("could not allocate memory");
-
-  if (!EVP_CipherFinal(&self->cipher_ctx, out, &outl))
-    lose("could not update cipher");
-
-  if ((py_out = Py_BuildValue("s#", out, outl)) == NULL)
-    lose("could not allocate memory");
-
-  free(out);
-  return py_out;
-
- error:
-
-  if (out)
-    free(out);
-
-  return NULL;
-}
-
-static struct PyMethodDef symmetric_object_methods[] = {
-  {"encryptInit",   (PyCFunction)symmetric_object_encrypt_init,  METH_VARARGS,  NULL},
-  {"decryptInit",   (PyCFunction)symmetric_object_decrypt_init,  METH_VARARGS,  NULL},
-  {"update",        (PyCFunction)symmetric_object_update,        METH_VARARGS,  NULL},
-  {"final",         (PyCFunction)symmetric_object_final,         METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
-};
-
-static PyObject *
-symmetric_object_getattr(symmetric_object *self, char *name)
-{
-  return Py_FindMethod(symmetric_object_methods, (PyObject *)self, name);
-}
-
-static void
-symmetric_object_dealloc(symmetric_object *self, char *name)
-{
-  PyObject_Del(self);
-}
-
-static char symmetrictype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>Symmetric</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides access to all the symmetric ciphers in OpenSSL.\n"
-"         Initialisation of the cipher structures is performed late, only\n"
-"         when <function>encryptInit</function> or\n"
-"         <function>decryptInit</function> is called, the\n"
-"         constructor only records the cipher type.  It is possible to reuse\n"
-"         the <classname>Symmetric</classname> objects by calling\n"
-"         <function>encryptInit</function> or <function>decryptInit</function>\n"
-"         again.\n"
-"      </para>\n"
-"      <example>\n"
-"         <title><classname>Symmetric</classname> class usage</title>\n"
-"         <programlisting>\n"
-"      passphrase = 'my silly passphrase'\n"
-"      md5 = POW.Digest(POW.MD5_DIGEST)\n"
-"      md5.update(passphrase)\n"
-"      password = md5.digest()[:8]\n"
-"\n"
-"      plaintext = 'cast test message'\n"
-"      cast = POW.Symmetric(POW.CAST5_CFB)\n"
-"      cast.encryptInit(password)\n"
-"      ciphertext = cast.update(plaintext) + cast.final()\n"
-"      print 'Cipher text:', ciphertext\n"
-"\n"
-"      cast.decryptInit(password)\n"
-"      out = cast.update(ciphertext) + cast.final()\n"
-"      print 'Deciphered text:', out\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject symmetrictype = {
+static PyTypeObject POW_Asymmetric_Type = {
   PyObject_HEAD_INIT(0)
-  0,                                     /*ob_size*/
-  "Symmetric",                              /*tp_name*/
-  sizeof(symmetric_object),              /*tp_basicsize*/
-  0,                                     /*tp_itemsize*/
-  (destructor)symmetric_object_dealloc,  /*tp_dealloc*/
-  (printfunc)0,                          /*tp_print*/
-  (getattrfunc)symmetric_object_getattr, /*tp_getattr*/
-  (setattrfunc)0,                        /*tp_setattr*/
-  (cmpfunc)0,                            /*tp_compare*/
-  (reprfunc)0,                           /*tp_repr*/
-  0,                                     /*tp_as_number*/
-  0,                                     /*tp_as_sequence*/
-  0,                                     /*tp_as_mapping*/
-  (hashfunc)0,                           /*tp_hash*/
-  (ternaryfunc)0,                        /*tp_call*/
-  (reprfunc)0,                           /*tp_str*/
-  0,
-  0,
-  0,
-  0,
-  symmetrictype__doc__                    /* Documentation string */
+  0,                                     /* ob_size */
+  "rpki.POW.Asymmetric",                 /* tp_name */
+  sizeof(asymmetric_object),             /* tp_basicsize */
+  0,                                     /* tp_itemsize */
+  (destructor)asymmetric_object_dealloc, /* tp_dealloc */
+  0,                                     /* tp_print */
+  0,                                     /* tp_getattr */
+  0,                                     /* tp_setattr */
+  0,                                     /* tp_compare */
+  0,                                     /* tp_repr */
+  0,                                     /* tp_as_number */
+  0,                                     /* tp_as_sequence */
+  0,                                     /* tp_as_mapping */
+  0,                                     /* tp_hash */
+  0,                                     /* tp_call */
+  0,                                     /* tp_str */
+  0,                                     /* tp_getattro */
+  0,                                     /* tp_setattro */
+  0,                                     /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  POW_Asymmetric_Type__doc__,            /* tp_doc */
+  0,                                     /* tp_traverse */
+  0,                                     /* tp_clear */
+  0,                                     /* tp_richcompare */
+  0,                                     /* tp_weaklistoffset */
+  0,                                     /* tp_iter */
+  0,                                     /* tp_iternext */
+  asymmetric_object_methods,             /* tp_methods */
+  0,                                     /* tp_members */
+  0,                                     /* tp_getset */
+  0,                                     /* tp_base */
+  0,                                     /* tp_dict */
+  0,                                     /* tp_descr_get */
+  0,                                     /* tp_descr_set */
+  0,                                     /* tp_dictoffset */
+  (initproc) asymmetric_object_init,     /* tp_init */
+  0,                                     /* tp_alloc */
+  asymmetric_object_new,                 /* tp_new */
 };
-/*========== symmetric Code ==========*/
 
-/*========== digest Code ==========*/
-static digest_object *
-digest_object_new(int digest_type)
+
+
+/*
+ * Digest object.
+ */
+
+static PyObject *
+digest_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
   digest_object *self = NULL;
 
-  if ((self = PyObject_New(digest_object, &digesttype)) == NULL)
+  ENTERING(digest_object_new);
+
+  if ((self = (digest_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
 
-  switch(digest_type) {
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    self->digest_type = MD2_DIGEST;
-    EVP_DigestInit(&self->digest_ctx, EVP_md2());
-    break;
-#endif
-  case MD5_DIGEST:
-    self->digest_type = MD5_DIGEST;
-    EVP_DigestInit(&self->digest_ctx, EVP_md5());
-    break;
-  case SHA_DIGEST:
-    self->digest_type = SHA_DIGEST;
-    EVP_DigestInit(&self->digest_ctx, EVP_sha());
-    break;
-  case SHA1_DIGEST:
-    self->digest_type = SHA1_DIGEST;
-    EVP_DigestInit(&self->digest_ctx, EVP_sha1());
-    break;
-  case RIPEMD160_DIGEST:
-    self->digest_type = RIPEMD160_DIGEST;
-    EVP_DigestInit(&self->digest_ctx, EVP_ripemd160());
-    break;
-  case SHA256_DIGEST:
-    self->digest_type = SHA256_DIGEST;
-    EVP_DigestInit(&self->digest_ctx, EVP_sha256());
-    break;
-  case SHA384_DIGEST:
-    self->digest_type = SHA384_DIGEST;
-    EVP_DigestInit(&self->digest_ctx, EVP_sha384());
-    break;
-  case SHA512_DIGEST:
-    self->digest_type = SHA512_DIGEST;
-    EVP_DigestInit(&self->digest_ctx, EVP_sha512());
-    break;
-  default:
-    lose("unsupported digest");
-  }
+  self->digest_type = 0;
 
-  return self;
+  return (PyObject *) self;
 
  error:
-
-  Py_XDECREF(self);
   return NULL;
 }
 
+static int
+digest_object_init(digest_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"digest_type", NULL};
+  const EVP_MD *digest_method = NULL;
+  int digest_type = 0;
+
+  ENTERING(digest_object_init);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "i", kwlist, &digest_type))
+    goto error;
+
+  if ((digest_method = evp_digest_factory(digest_type)) == NULL)
+    lose("Unsupported digest algorithm");
+
+  self->digest_type = digest_type;
+  if (!EVP_DigestInit(&self->digest_ctx, digest_method))
+    lose_openssl_error("Couldn't initialize digest");
+
+  return 0;
+
+ error:
+  return -1;
+}
+
+static void
+digest_object_dealloc(digest_object *self)
+{
+  ENTERING(digest_object_dealloc);
+  EVP_MD_CTX_cleanup(&self->digest_ctx);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
 static char digest_object_update__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Digest</memberof>\n"
-"      <name>update</name>\n"
-"      <parameter>data</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method updates the internal structures of the\n"
-"         <classname>Digest</classname> object with <parameter>data</parameter>.\n"
-"         <parameter>data</parameter> should be a string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+  "Add data to this digest.\n"
+  "\n"
+  "the \"data\" parameter should be a string containing the data to be added.\n"
+  ;
 
 static PyObject *
 digest_object_update(digest_object *self, PyObject *args)
@@ -6187,282 +4928,37 @@ digest_object_update(digest_object *self, PyObject *args)
   char *data = NULL;
   int len = 0;
 
+  ENTERING(digest_object_update);
+
   if (!PyArg_ParseTuple(args, "s#", &data, &len))
     goto error;
 
-  EVP_DigestUpdate(&self->digest_ctx, data, len);
+  if (!EVP_DigestUpdate(&self->digest_ctx, data, len))
+    lose_openssl_error("EVP_DigestUpdate() failed");
 
   Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
 
 static char digest_object_copy__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Digest</memberof>\n"
-"      <name>copy</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a copy of the <classname>Digest</classname>\n"
-"         object.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+  "Return a copy of this Digest object.\n"
+  ;
 
 static PyObject *
-digest_object_copy(digest_object *self, PyObject *args)
+digest_object_copy(digest_object *self)
 {
   digest_object *new = NULL;
 
-  if ((new = PyObject_New(digest_object, &digesttype)) == NULL)
-    lose("could not allocate memory");
+  ENTERING(digest_object_copy);
+
+  if ((new = (digest_object *) digest_object_new(&POW_Digest_Type, NULL, NULL)) == NULL)
+    goto error;
 
   new->digest_type = self->digest_type;
   if (!EVP_MD_CTX_copy(&new->digest_ctx, &self->digest_ctx))
-    lose("could not copy digest");
-
-  return (PyObject*)new;
-
- error:
-
-  Py_XDECREF(new);
-  return NULL;
-}
-
-static char digest_object_digest__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Digest</memberof>\n"
-"      <name>digest</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns the digest of all the data which has been\n"
-"         processed.  This function can be called at any time and will not\n"
-"         effect the internal structure of the <classname>digest</classname>\n"
-"         object.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-digest_object_digest(digest_object *self, PyObject *args)
-{
-  unsigned char digest_text[EVP_MAX_MD_SIZE];
-  void *md_copy = NULL;
-  unsigned digest_len = 0;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if ((md_copy = malloc(sizeof(EVP_MD_CTX))) == NULL)
-    lose("could not allocate memory");
-
-  if (!EVP_MD_CTX_copy(md_copy, &self->digest_ctx))
-    lose("could not copy digest");
-
-  EVP_DigestFinal(md_copy, digest_text, &digest_len);
-
-  free(md_copy);
-
-  return Py_BuildValue("s#", digest_text, digest_len);
-
- error:
-
-  if (md_copy)
-    free(md_copy);
-
-  return NULL;
-}
-
-static struct PyMethodDef digest_object_methods[] = {
-  {"update",           (PyCFunction)digest_object_update,  METH_VARARGS, NULL},
-  {"digest",           (PyCFunction)digest_object_digest,  METH_VARARGS, NULL},
-  {"copy",             (PyCFunction)digest_object_copy,    METH_VARARGS, NULL},
-
-  {NULL}    /* sentinel */
-};
-
-static PyObject *
-digest_object_getattr(digest_object *self, char *name)
-{
-  return Py_FindMethod(digest_object_methods, (PyObject *)self, name);
-}
-
-static void
-digest_object_dealloc(digest_object *self, char *name)
-{
-  EVP_MD_CTX_cleanup(&self->digest_ctx);
-  PyObject_Del(self);
-}
-
-static char digesttype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>Digest</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides access to the digest functionality of OpenSSL.\n"
-"         It emulates the digest modules in the Python Standard Library but\n"
-"         does not currently support the <function>hexdigest</function>\n"
-"         function.\n"
-"      </para>\n"
-"      <example>\n"
-"         <title><classname>digest</classname> class usage</title>\n"
-"         <programlisting>\n"
-"      plain_text = 'Hello World!'\n"
-"      sha1 = POW.Digest(POW.SHA1_DIGEST)\n"
-"      sha1.update(plain_text)\n"
-"      print '\tPlain text: Hello World! =>', sha1.digest()\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject digesttype = {
-  PyObject_HEAD_INIT(0)
-  0,                                  /*ob_size*/
-  "Digest",                           /*tp_name*/
-  sizeof(digest_object),              /*tp_basicsize*/
-  0,                                  /*tp_itemsize*/
-  (destructor)digest_object_dealloc,  /*tp_dealloc*/
-  (printfunc)0,                       /*tp_print*/
-  (getattrfunc)digest_object_getattr, /*tp_getattr*/
-  (setattrfunc)0,                     /*tp_setattr*/
-  (cmpfunc)0,                         /*tp_compare*/
-  (reprfunc)0,                        /*tp_repr*/
-  0,                                  /*tp_as_number*/
-  0,                                  /*tp_as_sequence*/
-  0,                                  /*tp_as_mapping*/
-  (hashfunc)0,                        /*tp_hash*/
-  (ternaryfunc)0,                     /*tp_call*/
-  (reprfunc)0,                        /*tp_str*/
-  0,
-  0,
-  0,
-  0,
-  digesttype__doc__                   /* Documentation string */
-};
-/*========== digest Code ==========*/
-
-/*========== hmac Code ==========*/
-static hmac_object *
-hmac_object_new(int digest_type, char *key, int key_len)
-{
-  hmac_object *self = NULL;
-  const EVP_MD *md = NULL;
-
-  if ((self = PyObject_New(hmac_object, &hmactype)) == NULL)
-    goto error;
-
-  switch (digest_type) {
-#ifndef OPENSSL_NO_MD2
-  case MD2_DIGEST:
-    md = EVP_md2();
-    break;
-#endif
-  case MD5_DIGEST:
-    md = EVP_md5();
-    break;
-  case SHA_DIGEST:
-    md = EVP_sha();
-    break;
-  case SHA1_DIGEST:
-    md = EVP_sha1();
-    break;
-  case RIPEMD160_DIGEST:
-    md = EVP_ripemd160();
-    break;
-  case SHA256_DIGEST:
-    md = EVP_sha256();
-    break;
-  case SHA384_DIGEST:
-    md = EVP_sha384();
-    break;
-  case SHA512_DIGEST:
-    md = EVP_sha512();
-    break;
-  default:
-    lose("unsupported digest");
-  }
-
-  HMAC_Init(&self->hmac_ctx, key, key_len, md);
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static char hmac_object_update__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Hmac</memberof>\n"
-"      <name>update</name>\n"
-"      <parameter>data</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method updates the internal structures of the\n"
-"         <classname>Hmac</classname> object with <parameter>data</parameter>.\n"
-"         <parameter>data</parameter> should be a string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-hmac_object_update(hmac_object *self, PyObject *args)
-{
-  unsigned char *data = NULL;
-  int len = 0;
-
-  if (!PyArg_ParseTuple(args, "s#", &data, &len))
-    goto error;
-
-  HMAC_Update(&self->hmac_ctx, data, len);
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char hmac_object_copy__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Hmac</memberof>\n"
-"      <name>copy</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a copy of the <classname>Hmac</classname>\n"
-"         object.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-hmac_object_copy(hmac_object *self, PyObject *args)
-{
-  hmac_object *new = NULL;
-
-  if ((new = PyObject_New(hmac_object, &hmactype)) == NULL)
-    lose("could not allocate memory");
-
-  memcpy(&new->hmac_ctx, &self->hmac_ctx, sizeof(HMAC_CTX));
+    lose_openssl_error("Couldn't copy digest");
 
   return (PyObject*) new;
 
@@ -6472,363 +4968,302 @@ hmac_object_copy(hmac_object *self, PyObject *args)
   return NULL;
 }
 
-static char hmac_object_mac__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>Hmac</memberof>\n"
-"      <name>mac</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns the MAC of all the data which has been\n"
-"         processed.  This function can be called at any time and will not\n"
-"         effect the internal structure of the <classname>Hmac</classname>\n"
-"         object.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char digest_object_digest__doc__[] =
+  "Return the digest of all the data which this Digest object has processed.\n"
+  "\n"
+  "This method can be called at any time and will not effect the internal\n"
+  "state of the Digest object.\n"
+  ;
+
+/*
+ * Do we really need to do this copy?  Nice general operation, but does
+ * anything we're doing for RPKI care?
+ */
 
 static PyObject *
-hmac_object_mac(hmac_object *self, PyObject *args)
+digest_object_digest(digest_object *self)
 {
-  unsigned char hmac_text[EVP_MAX_MD_SIZE];
-  void *hmac_copy = NULL;
-  unsigned int hmac_len = 0;
+  unsigned char digest_text[EVP_MAX_MD_SIZE];
+  EVP_MD_CTX ctx;
+  unsigned digest_len = 0;
 
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
+  ENTERING(digest_object_digest);
 
-  if ((hmac_copy = malloc(sizeof(HMAC_CTX))) == NULL)
-    lose("could not allocate memory");
+  if (!EVP_MD_CTX_copy(&ctx, &self->digest_ctx))
+    lose_openssl_error("Couldn't copy digest");
 
-  memcpy(hmac_copy, &self->hmac_ctx, sizeof(HMAC_CTX));
-  HMAC_Final(hmac_copy, hmac_text, &hmac_len);
+  EVP_DigestFinal(&ctx, digest_text, &digest_len);
 
-  free(hmac_copy);
-  return Py_BuildValue("s#", hmac_text, hmac_len);
+  EVP_MD_CTX_cleanup(&ctx);
+
+  return Py_BuildValue("s#", digest_text, digest_len);
 
  error:
-
-  if (hmac_copy)
-    free(hmac_copy);
-
   return NULL;
 }
 
-
-static struct PyMethodDef hmac_object_methods[] = {
-  {"update",           (PyCFunction)hmac_object_update, METH_VARARGS,  NULL},
-  {"mac",              (PyCFunction)hmac_object_mac,    METH_VARARGS,  NULL},
-  {"copy",             (PyCFunction)hmac_object_copy,   METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
+static struct PyMethodDef digest_object_methods[] = {
+  Define_Method(update,         digest_object_update,   METH_VARARGS),
+  Define_Method(digest,         digest_object_digest,   METH_NOARGS),
+  Define_Method(copy,           digest_object_copy,     METH_NOARGS),
+  {NULL}
 };
 
+static char POW_Digest_Type__doc__[] =
+  "This class provides access to the digest functionality of OpenSSL.\n"
+  "It emulates the digest modules in the Python Standard Library, but\n"
+  "does not currently support the \"hexdigest\" method.\n"
+  "\n"
+  "The constructor takes one parameter, the kind of Digest object to create.\n"
+  "This should be one of the following:\n"
+  "\n"
+  "  * MD5_DIGEST\n"
+  "  * SHA_DIGEST\n"
+  "  * SHA1_DIGEST\n"
+  "  * SHA256_DIGEST\n"
+  "  * SHA384_DIGEST\n"
+  "  * SHA512_DIGEST\n"
+  ;
+
+static PyTypeObject POW_Digest_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                  /* ob_size */
+  "rpki.POW.Digest",                  /* tp_name */
+  sizeof(digest_object),              /* tp_basicsize */
+  0,                                  /* tp_itemsize */
+  (destructor)digest_object_dealloc,  /* tp_dealloc */
+  0,                                  /* tp_print */
+  0,                                  /* tp_getattr */
+  0,                                  /* tp_setattr */
+  0,                                  /* tp_compare */
+  0,                                  /* tp_repr */
+  0,                                  /* tp_as_number */
+  0,                                  /* tp_as_sequence */
+  0,                                  /* tp_as_mapping */
+  0,                                  /* tp_hash */
+  0,                                  /* tp_call */
+  0,                                  /* tp_str */
+  0,                                  /* tp_getattro */
+  0,                                  /* tp_setattro */
+  0,                                  /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  POW_Digest_Type__doc__,             /* tp_doc */
+  0,                                  /* tp_traverse */
+  0,                                  /* tp_clear */
+  0,                                  /* tp_richcompare */
+  0,                                  /* tp_weaklistoffset */
+  0,                                  /* tp_iter */
+  0,                                  /* tp_iternext */
+  digest_object_methods,              /* tp_methods */
+  0,                                  /* tp_members */
+  0,                                  /* tp_getset */
+  0,                                  /* tp_base */
+  0,                                  /* tp_dict */
+  0,                                  /* tp_descr_get */
+  0,                                  /* tp_descr_set */
+  0,                                  /* tp_dictoffset */
+  (initproc) digest_object_init,      /* tp_init */
+  0,                                  /* tp_alloc */
+  digest_object_new,                  /* tp_new */
+};
+
+
+
+/*
+ * CMS object.
+ */
+
 static PyObject *
-hmac_object_getattr(hmac_object *self, char *name)
+cms_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
-  return Py_FindMethod(hmac_object_methods, (PyObject *)self, name);
+  cms_object *self;
+
+  ENTERING(cms_object_new);
+
+  if ((self = (cms_object *) type->tp_alloc(type, 0)) != NULL)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
 }
 
 static void
-hmac_object_dealloc(hmac_object *self, char *name)
+cms_object_dealloc(cms_object *self)
 {
-  PyObject_Del(self);
+  ENTERING(cms_object_dealloc);
+  CMS_ContentInfo_free(self->cms);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
-static char hmactype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>Hmac</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides access to the HMAC functionality of OpenSSL.\n"
-"         HMAC's are a variant on digest based MACs, which have the\n"
-"         interesting property of a provable level of security.  HMAC is\n"
-"         discussed further in RFC 2104.\n"
-"      </para>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject hmactype = {
-   PyObject_HEAD_INIT(0)
-   0,                                  /*ob_size*/
-   "Hmac",                             /*tp_name*/
-   sizeof(hmac_object),                /*tp_basicsize*/
-   0,                                  /*tp_itemsize*/
-   (destructor)hmac_object_dealloc,    /*tp_dealloc*/
-   (printfunc)0,                       /*tp_print*/
-   (getattrfunc)hmac_object_getattr,   /*tp_getattr*/
-   (setattrfunc)0,                     /*tp_setattr*/
-   (cmpfunc)0,                         /*tp_compare*/
-   (reprfunc)0,                        /*tp_repr*/
-   0,                                  /*tp_as_number*/
-   0,                                  /*tp_as_sequence*/
-   0,                                  /*tp_as_mapping*/
-   (hashfunc)0,                        /*tp_hash*/
-   (ternaryfunc)0,                     /*tp_call*/
-   (reprfunc)0,                        /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   hmactype__doc__                     /* Documentation string */
-};
-/*========== hmac Code ==========*/
-
-/*========== CMS code ==========*/
-static cms_object *
-CMS_object_new(void)
+static PyObject *
+cms_object_pem_read_helper(PyTypeObject *type, BIO *bio)
 {
   cms_object *self;
 
-  if ((self = PyObject_New(cms_object, &cmstype)) == NULL)
+  ENTERING(cms_object_pem_read_helper);
+
+  if ((self = (cms_object *) type->tp_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  self->cms = NULL;
-  return self;
+  if (!PEM_read_bio_CMS(bio, &self->cms, NULL, NULL))
+    lose_openssl_error("Couldn't load PEM encoded CMS message");
+
+  return (PyObject *) self;
 
  error:
-
   Py_XDECREF(self);
   return NULL;
 }
 
-static cms_object *
-CMS_object_pem_read(BIO *in)
+static PyObject *
+cms_object_der_read_helper(PyTypeObject *type, BIO *bio)
 {
   cms_object *self;
 
-  if ((self = PyObject_New(cms_object, &cmstype)) == NULL)
-    goto error;
+  ENTERING(cms_object_der_read_helper);
 
-  if ((self->cms = PEM_read_bio_CMS(in, NULL, NULL, NULL)) == NULL)
-    lose("could not load PEM encoded CMS message");
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static cms_object *
-CMS_object_der_read(char *src, int len)
-{
-  cms_object *self;
-  BIO *bio = NULL;
-
-  if ((self = PyObject_New(cms_object, &cmstype)) == NULL)
-    goto error;
-
-  self->cms = CMS_ContentInfo_new();
-
-  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
+  if ((self = (cms_object *) type->tp_new(type, NULL, NULL)) == NULL)
     goto error;
 
   if (!d2i_CMS_bio(bio, &self->cms))
-    lose("could not load DER encoded CMS message");
+    lose_openssl_error("Couldn't load DER encoded CMS message");
 
-  BIO_free(bio);
-
-  return self;
+  return (PyObject *) self;
 
  error:
-
-  if (bio)
-    BIO_free(bio);
-
   Py_XDECREF(self);
   return NULL;
 }
 
+static char cms_object_pem_read__doc__[] =
+  "Read a PEM-encoded CMS object from a string.\n"
+  ;
+
 static PyObject *
-CMS_object_write_helper(cms_object *self, PyObject *args, int format)
+cms_object_pem_read(PyTypeObject *type, PyObject *args)
 {
-  int len = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
-  PyObject *cert = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    return NULL;
-
-  out_bio = BIO_new(BIO_s_mem());
-
-  switch (format) {
-
-  case DER_FORMAT:
-    if (!i2d_CMS_bio(out_bio, self->cms))
-      lose("unable to write certificate");
-    break;
-
-  case PEM_FORMAT:
-    if (!PEM_write_bio_CMS(out_bio, self->cms))
-      lose("unable to write certificate");
-    break;
-
-  default:
-    lose("internal error, unknown output format");
-  }
-
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
-
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if (BIO_read(out_bio, buf, len) != len)
-    lose("unable to write out cert");
-
-  cert = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
-  return cert;
-
- error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
-  Py_XDECREF(cert);
-  return NULL;
+  ENTERING(cms_object_pem_read);
+  return read_from_string_helper(cms_object_pem_read_helper, type, args);
 }
 
-static char CMS_object_pem_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"      <name>pemWrite</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a PEM encoded CMS message as a\n"
-"         string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char cms_object_pem_read_file__doc__[] =
+  "Read a PEM-encoded CMS object from a file.\n"
+  ;
 
 static PyObject *
-CMS_object_pem_write(cms_object *self, PyObject *args)
+cms_object_pem_read_file(PyTypeObject *type, PyObject *args)
 {
-  return CMS_object_write_helper(self, args, PEM_FORMAT);
+  ENTERING(cms_object_pem_read_file);
+  return read_from_file_helper(cms_object_pem_read_helper, type, args);
 }
 
-static char CMS_object_der_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"      <name>derWrite</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a DER encoded CMS message as a\n"
-"         string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char cms_object_der_read__doc__[] =
+  "Read a DER-encoded CMS object from a string.\n"
+  ;
 
 static PyObject *
-CMS_object_der_write(cms_object *self, PyObject *args)
+cms_object_der_read(PyTypeObject *type, PyObject *args)
 {
-  return CMS_object_write_helper(self, args, DER_FORMAT);
+  ENTERING(cms_object_der_read);
+  return read_from_string_helper(cms_object_der_read_helper, type, args);
 }
 
-static char CMS_object_sign__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"      <name>sign</name>\n"
-"      <parameter>signcert</parameter>\n"
-"      <parameter>key</parameter>\n"
-"      <parameter>data</parameter>\n"
-"      <optional>\n"
-"        <parameter>certs</parameter>\n"
-"        <parameter>crls</parameter>\n"
-"        <parameter>eContentType</parameter>\n"
-"        <parameter>flags</parameter>\n"
-"      </optional>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method signs a message with a private key.\n"
-"         Supported flags: CMS_NOCERTS, CMS_NOATTR.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char cms_object_der_read_file__doc__[] =
+  "Read a DER-encoded CMS object from a file.\n"
+  ;
 
 static PyObject *
-CMS_object_sign(cms_object *self, PyObject *args)
+cms_object_der_read_file(PyTypeObject *type, PyObject *args)
 {
-  asymmetric_object *signkey = NULL;
-  x509_object *signcert = NULL;
-  x509_crl_object *crlobj = NULL;
-  PyObject *x509_sequence = Py_None, *crl_sequence = Py_None, *result = NULL;
-  STACK_OF(X509) *x509_stack = NULL;
-  EVP_PKEY *pkey = NULL;
-  char *buf = NULL, *oid = NULL;
-  int i, n, len;
-  unsigned flags = 0;
+  ENTERING(cms_object_der_read_file);
+  return read_from_file_helper(cms_object_der_read_helper, type, args);
+}
+
+static char cms_object_pem_write__doc__[] =
+  "Return the DER encoding of this CMS message.\n"
+  ;
+
+static PyObject *
+cms_object_pem_write(cms_object *self)
+{
+  PyObject *result = NULL;
   BIO *bio = NULL;
+
+  ENTERING(cms_object_pem_write);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!PEM_write_bio_CMS(bio, self->cms))
+    lose_openssl_error("Unable to write CMS object");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char cms_object_der_write__doc__[] =
+  "Return the DER encoding of this CMS message.\n"
+  ;
+
+static PyObject *
+cms_object_der_write(cms_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(cms_object_der_write);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_CMS_bio(bio, self->cms))
+    lose_openssl_error("Unable to write CMS object");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static int
+cms_object_sign_helper(cms_object *self,
+                       BIO *bio,
+                       x509_object *signcert,
+                       asymmetric_object *signkey,
+                       PyObject *x509_sequence,
+                       PyObject *crl_sequence,
+                       char *oid,
+                       unsigned flags)                       
+{
+  crl_object *crlobj = NULL;
+  STACK_OF(X509) *x509_stack = NULL;
+  int i, n, ok = 0;
   CMS_ContentInfo *cms = NULL;
   ASN1_OBJECT *econtent_type = NULL;
 
-  if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
-                        &x509type, &signcert,
-                        &asymmetrictype, &signkey,
-                        &buf, &len,
-                        &x509_sequence,
-                        &crl_sequence,
-                        &oid,
-                        &flags))
-    goto error;
+  ENTERING(cms_object_sign_helper);
 
   assert_no_unhandled_openssl_errors();
 
   flags &= CMS_NOCERTS | CMS_NOATTR;
   flags |= CMS_BINARY | CMS_NOSMIMECAP | CMS_PARTIAL | CMS_USE_KEYID;
 
-  if (signkey->key_type != RSA_PRIVATE_KEY)
-    lose("unsupported key type");
-
   if ((x509_stack = x509_helper_sequence_to_stack(x509_sequence)) == NULL)
     goto error;
 
   assert_no_unhandled_openssl_errors();
 
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose_openssl_error("Could not allocate memory");
-
-  assert_no_unhandled_openssl_errors();
-
-  if (!EVP_PKEY_assign_RSA(pkey, signkey->cipher))
-    lose_openssl_error("EVP_PKEY assignment error");
-
-  assert_no_unhandled_openssl_errors();
-
-  if ((bio = BIO_new_mem_buf(buf, len)) == NULL)
-    goto error;
-
-  assert_no_unhandled_openssl_errors();
-
-  if (oid && (econtent_type = OBJ_txt2obj(oid, 0)) == NULL)
-    lose_openssl_error("Could not parse OID");
+  if (oid && (econtent_type = OBJ_txt2obj(oid, 1)) == NULL)
+    lose_openssl_error("Couldn't parse OID");
 
   assert_no_unhandled_openssl_errors();
 
   if ((cms = CMS_sign(NULL, NULL, x509_stack, bio, flags)) == NULL)
-    lose_openssl_error("Could not create CMS message");
+    lose_openssl_error("Couldn't create CMS message");
 
   assert_no_unhandled_openssl_errors();
 
@@ -6837,33 +5272,31 @@ CMS_object_sign(cms_object *self, PyObject *args)
 
   assert_no_unhandled_openssl_errors();
 
-  if (!CMS_add1_signer(cms, signcert->x509, pkey, EVP_sha256(), flags))
-    lose_openssl_error("Could not sign CMS message");
-
-  pkey = NULL;                 /* CMS_add1_signer() now owns pkey */
+  if (!CMS_add1_signer(cms, signcert->x509, signkey->pkey, EVP_sha256(), flags))
+    lose_openssl_error("Couldn't sign CMS message");
 
   assert_no_unhandled_openssl_errors();
 
   if (crl_sequence != Py_None) {
 
-    if (!PyTuple_Check(crl_sequence) && !PyList_Check(crl_sequence))
-      lose_type_error("inapropriate type");
+    if (!PySequence_Check(crl_sequence))
+      lose_type_error("Inapropriate type");
 
     n = PySequence_Size(crl_sequence);
 
     for (i = 0; i < n; i++) {
 
-      if ((crlobj = (x509_crl_object *) PySequence_GetItem(crl_sequence, i)) == NULL)
+      if ((crlobj = (crl_object *) PySequence_GetItem(crl_sequence, i)) == NULL)
         goto error;
 
-      if (!X_X509_crl_Check(crlobj))
-        lose_type_error("inappropriate type");
+      if (!POW_CRL_Check(crlobj))
+        lose_type_error("Inappropriate type");
 
       if (!crlobj->crl)
-        lose("CRL object with null crl field!");
+        lose("CRL object with null CRL field!");
 
       if (!CMS_add1_crl(cms, crlobj->crl))
-        lose_openssl_error("Could not add CRL to CMS");
+        lose_openssl_error("Couldn't add CRL to CMS");
 
       assert_no_unhandled_openssl_errors();
 
@@ -6873,185 +5306,210 @@ CMS_object_sign(cms_object *self, PyObject *args)
   }
 
   if (!CMS_final(cms, bio, NULL, flags))
-    lose_openssl_error("Could not finalize CMS signatures");
+    lose_openssl_error("Couldn't finalize CMS signatures");
 
   assert_no_unhandled_openssl_errors();
 
-  if (self->cms)
-    CMS_ContentInfo_free(self->cms);
+  CMS_ContentInfo_free(self->cms);
   self->cms = cms;
   cms = NULL;
 
-  result = Py_BuildValue("");
+  ok = 1;
 
  error:                          /* fall through */
+  CMS_ContentInfo_free(cms);
+  sk_X509_free(x509_stack);
+  ASN1_OBJECT_free(econtent_type);
+  Py_XDECREF(crlobj);
+
+  return ok;
+}
+
+static char cms_object_sign__doc__[] =
+  "Sign this CMS message message with a private key.\n"
+  "\n"
+  "The \"signcert\" parameter should be the certificate against which the\n"
+  "message will eventually be verified, an X509 object.\n"
+  "\n"
+  "The \"key\" parameter should be the private key with which to sign the\n"
+  "message, an Asymmetric object.\n"
+  "\n"
+  "The \"data\" parameter should be the message to be signed, a string.\n"
+  "\n"
+  "The optional \"certs\" parameter should be a sequence of X509 objects\n"
+  "to be included in the signed message.\n"
+  "\n"
+  "The optional \"crls\" parameter should be a sequence of CRL objects\n"
+  "to be included in the signed message.\n"
+  "\n"
+  "The optional \"eContentType\" parameter should be an Object Identifier\n"
+  "to use as the eContentType value in the signed message.\n"
+  "\n"
+  "The optional \"flags\" parameters should be an integer holding a bitmask,\n"
+  "and can include the following flags:\n"
+  "\n"
+  "  * CMS_NOCERTS\n"
+  "  * CMS_NOATTR\n"
+  ;
+
+static PyObject *
+cms_object_sign(cms_object *self, PyObject *args)
+{
+  asymmetric_object *signkey = NULL;
+  x509_object *signcert = NULL;
+  PyObject *x509_sequence = Py_None;
+  PyObject *crl_sequence = Py_None;
+  char *buf = NULL, *oid = NULL;
+  int len;
+  unsigned flags = 0;
+  BIO *bio = NULL;
+  int ok = 0;
+
+  ENTERING(cms_object_sign);
+
+  if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
+                        &POW_X509_Type, &signcert,
+                        &POW_Asymmetric_Type, &signkey,
+                        &buf, &len,
+                        &x509_sequence,
+                        &crl_sequence,
+                        &oid,
+                        &flags))
+    goto error;
 
   assert_no_unhandled_openssl_errors();
 
-  if (cms)
-    CMS_ContentInfo_free(cms);
+  if ((bio = BIO_new_mem_buf(buf, len)) == NULL)
+    lose_no_memory();
 
-  if (bio)
-    BIO_free(bio);
+  assert_no_unhandled_openssl_errors();
 
-  if (x509_stack)
-    sk_X509_free(x509_stack);
+  if (!cms_object_sign_helper(self, bio, signcert, signkey,
+                              x509_sequence, crl_sequence, oid, flags))
+    lose_openssl_error("Couldn't sign CMS object");
 
-  if (pkey)
-    EVP_PKEY_free(pkey);
+  assert_no_unhandled_openssl_errors();
 
-  if (econtent_type)
-    ASN1_OBJECT_free(econtent_type);
+  ok = 1;
 
-  if (crlobj) {
-    Py_XDECREF(crlobj);
-  }
+ error:
+  BIO_free(bio);
 
-  return result;
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
 }
 
-static char CMS_object_verify__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"      <name>verify</name>\n"
-"      <parameter>store</parameter>\n"
-"      <optional>\n"
-"        <parameter>certs</parameter>\n"
-"        <parameter>flags</parameter>\n"
-"      </optional>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method verifies a message against a trusted store.\n"
-"         The optional certs parameter is a set of certificates to search\n"
-"         for the signer's certificate.\n"
-"         Supported flags: CMS_NOINTERN, CMS_NOCRL,\n"
-"         CMS_NO_SIGNER_CERT_VERIFY, CMS_NO_ATTR_VERIFY,\n"
-"         CMS_NO_CONTENT_VERIFY.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-CMS_object_verify(cms_object *self, PyObject *args)
+static BIO *
+cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
 {
+  static char *kwlist[] = {"store", "certs", "flags", NULL};
   x509_store_object *store = NULL;
-  PyObject *result = NULL, *certs_sequence = Py_None;
+  PyObject *certs_sequence = Py_None;
   STACK_OF(X509) *certs_stack = NULL;
-  unsigned flags = 0;
-  char *buf = NULL;
+  unsigned flags = 0, ok = 0;
   BIO *bio = NULL;
-  int len;
 
-  if (!PyArg_ParseTuple(args, "O!|OI", &x509_storetype, &store, &certs_sequence, &flags))
+  ENTERING(cms_object_verify_helper);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OI", kwlist, &POW_X509Store_Type, &store, &certs_sequence, &flags))
     goto error;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
-    goto error;
+    lose_no_memory();
 
   assert_no_unhandled_openssl_errors();
 
-  flags &= CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY;
+  flags &= (CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY |
+            CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY);
 
-  if (certs_sequence != Py_None && (certs_stack = x509_helper_sequence_to_stack(certs_sequence)) == NULL)
+  if (certs_sequence != Py_None &&
+      (certs_stack = x509_helper_sequence_to_stack(certs_sequence)) == NULL)
     goto error;
 
   assert_no_unhandled_openssl_errors();
 
   if (CMS_verify(self->cms, certs_stack, store->store, NULL, bio, flags) <= 0)
-    lose_openssl_error("Could not verify CMS message");
+    lose_openssl_error("Couldn't verify CMS message");
 
   assert_no_unhandled_openssl_errors();
 
-  if ((len = BIO_ctrl_pending(bio)) == 0)
-    lose("unable to get bytes stored in bio");
-
-  assert_no_unhandled_openssl_errors();
-
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  assert_no_unhandled_openssl_errors();
-
-  if (BIO_read(bio, buf, len) != len)
-    lose("unable to write out CMS content");
-
-  assert_no_unhandled_openssl_errors();
-
-  result = Py_BuildValue("s#", buf, len);
+  ok = 1;
 
  error:                          /* fall through */
+  sk_X509_free(certs_stack);
 
-  assert_no_unhandled_openssl_errors();
+  if (ok)
+    return bio;
 
-  if (certs_stack)
-    sk_X509_free(certs_stack);
+  BIO_free(bio);
+  return NULL;
+}
 
-  if (bio)
-    BIO_free(bio);
+static char cms_object_verify__doc__[] =
+  "Verify this CMS message against a trusted certificate store.\n"
+  "\n"
+  "The \"store\" parameter is an X509Store object, the trusted certificate\n"
+  "store to use in verification.\n"
+  "\n"
+  "The optional \"certs\" parameter is a set of certificates to search\n"
+  "for the signer's certificate.\n"
+  "\n"
+  "The optional \"flags\" parameter is an integer of bit flags,\n"
+  "containing zero or more of the following:\n"
+  "\n"
+  "  * CMS_NOINTERN\n"
+  "  * CMS_NOCRL\n"
+  "  * CMS_NO_SIGNER_CERT_VERIFY\n"
+  "  * CMS_NO_ATTR_VERIFY\n"
+  "  * CMS_NO_CONTENT_VERIFY\n"
+  ;
 
-  if (buf)
-    free(buf);
+static PyObject *
+cms_object_verify(cms_object *self, PyObject *args, PyObject *kwds)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
 
+  ENTERING(cms_object_verify);
+
+  if ((bio = cms_object_verify_helper(self, args, kwds)) != NULL)
+    result = BIO_to_PyString_helper(bio);
+
+  BIO_free(bio);
   return result;
 }
 
-static char CMS_object_eContentType__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"      <name>get_eContentType</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns the eContentType of a CMS message.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char cms_object_eContentType__doc__[] =
+  "Return the eContentType OID of this CMS message.\n"
+  ;
 
 static PyObject *
-CMS_object_eContentType(cms_object *self, PyObject *args)
+cms_object_eContentType(cms_object *self)
 {
   const ASN1_OBJECT *oid = NULL;
   PyObject *result = NULL;
-  char buf[512];
 
-  if (!PyArg_ParseTuple(args, ""))
-    return NULL;
+  ENTERING(cms_object_eContentType);
 
   if ((oid = CMS_get0_eContentType(self->cms)) == NULL)
-    lose_openssl_error("Could not extract eContentType from CMS message");
-
-  OBJ_obj2txt(buf, sizeof(buf), oid, 1);
-
-  result = Py_BuildValue("s", buf);
-
- error:
+    lose_openssl_error("Couldn't extract eContentType from CMS message");
 
   assert_no_unhandled_openssl_errors();
 
+  result = ASN1_OBJECT_to_PyString(oid);
+
+ error:
   return result;
 }
 
-static char CMS_object_signingTime__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"      <name>get_signingTime</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns the signingTime of a CMS message.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char cms_object_signingTime__doc__[] =
+  "Return the signingTime of this CMS message.\n"
+  ;
 
 static PyObject *
-CMS_object_signingTime(cms_object *self, PyObject *args)
+cms_object_signingTime(cms_object *self)
 {
   PyObject *result = NULL;
   STACK_OF(CMS_SignerInfo) *sis = NULL;
@@ -7060,31 +5518,30 @@ CMS_object_signingTime(cms_object *self, PyObject *args)
   ASN1_TYPE *so = NULL;
   int i;
 
-  if (!PyArg_ParseTuple(args, ""))
-    return NULL;
+  ENTERING(cms_object_signingTime);
 
   if ((sis = CMS_get0_SignerInfos(self->cms)) == NULL)
-    lose("Could not extract signerInfos from CMS message[1]");
+    lose_openssl_error("Couldn't extract signerInfos from CMS message[1]");
 
   if (sk_CMS_SignerInfo_num(sis) != 1)
-    lose("Could not extract signerInfos from CMS message[2]");
+    lose_openssl_error("Couldn't extract signerInfos from CMS message[2]");
 
   si = sk_CMS_SignerInfo_value(sis, 0);
 
   if ((i = CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1)) < 0)
-    lose("Could not extract signerInfos from CMS message[3]");
+    lose_openssl_error("Couldn't extract signerInfos from CMS message[3]");
 
   if ((xa = CMS_signed_get_attr(si, i)) == NULL)
-    lose("Could not extract signerInfos from CMS message[4]");
+    lose_openssl_error("Couldn't extract signerInfos from CMS message[4]");
 
   if (xa->single)
-    lose("Could not extract signerInfos from CMS message[5]");
+    lose("Couldn't extract signerInfos from CMS message[5]");
 
   if (sk_ASN1_TYPE_num(xa->value.set) != 1)
-    lose("Could not extract signerInfos from CMS message[6]");
+    lose("Couldn't extract signerInfos from CMS message[6]");
 
   if ((so = sk_ASN1_TYPE_value(xa->value.set, 0)) == NULL)
-    lose("Could not extract signerInfos from CMS message[7]");
+    lose("Couldn't extract signerInfos from CMS message[7]");
 
   switch (so->type) {
   case V_ASN1_UTCTIME:
@@ -7094,105 +5551,66 @@ CMS_object_signingTime(cms_object *self, PyObject *args)
     result = ASN1_TIME_to_Python(so->value.generalizedtime);
     break;
   default:
-    lose("Could not extract signerInfos from CMS message[8]");
+    lose("Couldn't extract signerInfos from CMS message[8]");
   }
 
  error:
-
-  assert_no_unhandled_openssl_errors();
-
   return result;
 }
 
-static char CMS_object_pprint__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"      <name>pprint</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a formatted string showing the information\n"
-"         held in the certificate.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char cms_object_pprint__doc__[] =
+  "Return a pretty-printed representation of this CMS message.\n"
+  ;
 
 static PyObject *
-CMS_object_pprint(cms_object *self, PyObject *args)
+cms_object_pprint(cms_object *self)
 {
-  int len = 0, ret = 0;
-  char *buf = NULL;
   BIO *bio = NULL;
   PyObject *result = NULL;
 
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
+  ENTERING(cms_object_pprint);
 
-  bio = BIO_new(BIO_s_mem());
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
 
   if (!CMS_ContentInfo_print_ctx(bio, self->cms, 0, NULL))
-    lose("unable to pprint CMS");
+    lose_openssl_error("Unable to pretty-print CMS object");
 
-  if ((len = BIO_ctrl_pending(bio)) == 0)
-    lose("unable to get bytes stored in bio");
+  result = BIO_to_PyString_helper(bio);
 
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if ((ret = BIO_read(bio, buf, len)) != len)
-    lose("unable to pprint CMS");
-
-  result = Py_BuildValue("s#", buf, len);
-
- error:                          /* fall through */
-
-  assert_no_unhandled_openssl_errors();
-
-  if (bio)
-    BIO_free(bio);
-
-  if (buf)
-    free(buf);
-
+ error:
+  BIO_free(bio);
   return result;
 }
-
 
 static PyObject *
 cms_object_helper_get_cert(void *cert)
 {
-  x509_object *obj = PyObject_New(x509_object, &x509type);
+  x509_object *obj;
 
-  if (obj)
-    obj->x509 = cert;
+  ENTERING(cms_object_helper_get_cert);
 
+  if ((obj = (x509_object *) x509_object_new(&POW_X509_Type, NULL, NULL)) == NULL)
+    return NULL;
+
+  X509_free(obj->x509);
+  obj->x509 = cert;
   return (PyObject *) obj;
 }
 
-static char CMS_object_certs__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"      <name>certs</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns any certs embedded in a CMS message.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char cms_object_certs__doc__[] =
+  "Return any certificates embedded in this CMS message, as a\n"
+  "tuple of X509 objects.   This tuple will be empty if the message\n"
+  "wrapper contains no certificates.\n"
+  ;
 
 static PyObject *
-CMS_object_certs(cms_object *self, PyObject *args)
+cms_object_certs(cms_object *self)
 {
   STACK_OF(X509) *certs = NULL;
   PyObject *result = NULL;
 
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
+  ENTERING(cms_object_certs);
 
   if ((certs = CMS_get1_certs(self->cms)) != NULL)
     result = stack_to_tuple_helper(CHECKED_PTR_OF(STACK_OF(X509), certs),
@@ -7200,49 +5618,40 @@ CMS_object_certs(cms_object *self, PyObject *args)
   else if (!ERR_peek_error())
     result = Py_BuildValue("()");
   else
-    lose_openssl_error("Could not extract certs from CMS message");
+    lose_openssl_error("Couldn't extract certs from CMS message");
 
  error:                          /* fall through */
-
-  if (certs)
-    sk_X509_pop_free(certs, X509_free);
-
+  sk_X509_pop_free(certs, X509_free);
   return result;
 }
 
 static PyObject *
 cms_object_helper_get_crl(void *crl)
 {
-  x509_crl_object *obj = PyObject_New(x509_crl_object, &x509_crltype);
+  crl_object *obj;
 
-  if (obj)
-    obj->crl = crl;
+  ENTERING(cms_object_helper_get_crl);
 
+  if ((obj = (crl_object *) crl_object_new(&POW_CRL_Type, NULL, NULL)) == NULL)
+    return NULL;
+
+  X509_CRL_free(obj->crl);
+  obj->crl = crl;
   return (PyObject *) obj;
 }
 
-static char CMS_object_crls__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"      <name>crls</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns any CRLs embedded in a CMS message.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
+static char cms_object_crls__doc__[] =
+  "Return any CRLs embedded in this CMS message, as a tuple of\n"
+  "CRL objects.  This tuple will be empty if the message contains no CRLs.\n"
+  ;
 
 static PyObject *
-CMS_object_crls(cms_object *self, PyObject *args)
+cms_object_crls(cms_object *self)
 {
   STACK_OF(X509_CRL) *crls = NULL;
   PyObject *result = NULL;
 
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
+  ENTERING(cms_object_crls);
 
   if ((crls = CMS_get1_crls(self->cms)) != NULL)
     result = stack_to_tuple_helper(CHECKED_PTR_OF(STACK_OF(X509_CRL), crls),
@@ -7250,690 +5659,2343 @@ CMS_object_crls(cms_object *self, PyObject *args)
   else if (!ERR_peek_error())
     result = Py_BuildValue("()");
   else
-    lose_openssl_error("Could not extract CRLs from CMS message");
+    lose_openssl_error("Couldn't extract CRLs from CMS message");
 
  error:                          /* fall through */
+  sk_X509_CRL_pop_free(crls, X509_CRL_free);
+  return result;
+}
 
-  if (crls)
-    sk_X509_CRL_pop_free(crls, X509_CRL_free);
+static struct PyMethodDef cms_object_methods[] = {
+  Define_Method(pemWrite,               cms_object_pem_write,           METH_NOARGS),
+  Define_Method(derWrite,               cms_object_der_write,           METH_NOARGS),
+  Define_Method(sign,                   cms_object_sign,                METH_VARARGS),
+  Define_Method(verify,                 cms_object_verify,              METH_KEYWORDS),
+  Define_Method(eContentType,           cms_object_eContentType,        METH_NOARGS),
+  Define_Method(signingTime,            cms_object_signingTime,         METH_NOARGS),
+  Define_Method(pprint,                 cms_object_pprint,              METH_NOARGS),
+  Define_Method(certs,                  cms_object_certs,               METH_NOARGS),
+  Define_Method(crls,                   cms_object_crls,                METH_NOARGS),
+  Define_Class_Method(pemRead,          cms_object_pem_read,            METH_VARARGS),
+  Define_Class_Method(pemReadFile,      cms_object_pem_read_file,       METH_VARARGS),
+  Define_Class_Method(derRead,          cms_object_der_read,            METH_VARARGS),
+  Define_Class_Method(derReadFile,      cms_object_der_read_file,       METH_VARARGS),
+  {NULL}
+};
+
+static char POW_CMS_Type__doc__[] =
+  "Wrapper for OpenSSL's CMS class.  At present this only handes signed\n"
+  "objects, as those are the only kind of CMS objects used in RPKI.\n"
+  ;
+
+static PyTypeObject POW_CMS_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                  /* ob_size */
+  "rpki.POW.CMS",                     /* tp_name */
+  sizeof(cms_object),                 /* tp_basicsize */
+  0,                                  /* tp_itemsize */
+  (destructor)cms_object_dealloc,     /* tp_dealloc */
+  0,                                  /* tp_print */
+  0,                                  /* tp_getattr */
+  0,                                  /* tp_setattr */
+  0,                                  /* tp_compare */
+  0,                                  /* tp_repr */
+  0,                                  /* tp_as_number */
+  0,                                  /* tp_as_sequence */
+  0,                                  /* tp_as_mapping */
+  0,                                  /* tp_hash */
+  0,                                  /* tp_call */
+  0,                                  /* tp_str */
+  0,                                  /* tp_getattro */
+  0,                                  /* tp_setattro */
+  0,                                  /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  POW_CMS_Type__doc__,                /* tp_doc */
+  0,                                  /* tp_traverse */
+  0,                                  /* tp_clear */
+  0,                                  /* tp_richcompare */
+  0,                                  /* tp_weaklistoffset */
+  0,                                  /* tp_iter */
+  0,                                  /* tp_iternext */
+  cms_object_methods,                 /* tp_methods */
+  0,                                  /* tp_members */
+  0,                                  /* tp_getset */
+  0,                                  /* tp_base */
+  0,                                  /* tp_dict */
+  0,                                  /* tp_descr_get */
+  0,                                  /* tp_descr_set */
+  0,                                  /* tp_dictoffset */
+  0,                                  /* tp_init */
+  0,                                  /* tp_alloc */
+  cms_object_new,                     /* tp_new */
+};
+
+
+
+/*
+ * Manifest object.
+ */
+
+static PyObject *
+manifest_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  manifest_object *self = NULL;
+
+  ENTERING(manifest_object_new);
+
+  if ((self = (manifest_object *) cms_object_new(type, args, kwds)) != NULL &&
+      (self->manifest = Manifest_new()) != NULL)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static void
+manifest_object_dealloc(manifest_object *self)
+{
+  ENTERING(manifest_object_dealloc);
+  Manifest_free(self->manifest);
+  cms_object_dealloc(&self->cms);
+}
+
+static char manifest_object_verify__doc__[] =
+  "Verify this manifest.  See the CMS class's .verify() method for details.\n"
+  ;
+
+static PyObject *
+manifest_object_verify(manifest_object *self, PyObject *args, PyObject *kwds)
+{
+  BIO *bio = NULL;
+  int ok = 0;
+
+  ENTERING(manifest_object_verify);
+
+  if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
+    goto error;
+
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest))
+    lose_openssl_error("Couldn't decode manifest");
+
+  ok = 1;
+
+ error:
+  BIO_free(bio);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static PyObject *
+manifest_object_der_read_helper(PyTypeObject *type, BIO *bio)
+{
+  manifest_object *self;
+
+  ENTERING(manifest_object_der_read_helper);
+
+  if ((self = (manifest_object *) cms_object_der_read_helper(type, bio)) != NULL)
+    self->manifest = NULL;
+
+  return (PyObject *) self;
+}
+
+static char manifest_object_der_read__doc__[] =
+  "Read a DER-encoded manifest object from a string.\n"
+  ;
+
+static PyObject *
+manifest_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(manifest_object_der_read);
+  return read_from_string_helper(manifest_object_der_read_helper, type, args);
+}
+
+static char manifest_object_der_read_file__doc__[] =
+  "Read a DER-encoded manifest object from a file.\n"
+  ;
+
+static PyObject *
+manifest_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(manifest_object_der_read_file);
+  return read_from_file_helper(manifest_object_der_read_helper, type, args);
+}
+
+static PyObject *
+manifest_object_pem_read_helper(PyTypeObject *type, BIO *bio)
+{
+  manifest_object *self;
+
+  ENTERING(manifest_object_pem_read_helper);
+
+  if ((self = (manifest_object *) cms_object_pem_read_helper(type, bio)) != NULL)
+    self->manifest = NULL;
+
+  return (PyObject *) self;
+}
+
+static char manifest_object_pem_read__doc__[] =
+  "Read a PEM-encoded manifest object from a string.\n"
+  ;
+
+static PyObject *
+manifest_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(manifest_object_pem_read);
+  return read_from_string_helper(manifest_object_pem_read_helper, type, args);
+}
+
+static char manifest_object_pem_read_file__doc__[] =
+  "Read a PEM-encoded manifest object from a file.\n"
+  ;
+
+static PyObject *
+manifest_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(manifest_object_pem_read_file);
+  return read_from_file_helper(manifest_object_pem_read_helper, type, args);
+}
+
+static char manifest_object_get_version__doc__[] =
+  "Return the version number of this manifest.\n"
+  ;
+
+static PyObject *
+manifest_object_get_version(manifest_object *self)
+{
+  ENTERING(manifest_object_get_version);
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't report version of unverified manifest");
+
+  if (self->manifest->version)
+    return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->manifest->version));
+  else
+    return PyInt_FromLong(0);
+
+ error:
+  return NULL;
+}
+
+static char manifest_object_set_version__doc__[] =
+  "Set the version number of this manifest.\n"
+  "\n"
+  "The \"version\" parameter should be a non-negative integer.\n"
+  "\n"
+  "As of this writing, zero is both the default and the only defined version.\n"
+  "Attempting to set any version number other than zero will fail, as we\n"
+  "don't understand how to write other versions, by definition.\n"
+  ;
+
+static PyObject *
+manifest_object_set_version(manifest_object *self, PyObject *args)
+{
+  int version = 0;
+
+  ENTERING(manifest_object_set_version);
+
+  if (!PyArg_ParseTuple(args, "|i", &version))
+    goto error;
+
+  if (version != 0)
+    lose("RFC 6486 only defines RPKI manifest version zero");
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't set version of unverified manifest");
+
+  ASN1_INTEGER_free(self->manifest->version);
+  self->manifest->version = NULL;
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char manifest_object_get_manifest_number__doc__[] =
+  "Return the manifestNumber of this manifest.\n"
+  ;
+
+static PyObject *
+manifest_object_get_manifest_number(manifest_object *self)
+{
+  ENTERING(manifest_object_get_manifest_number);
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't get manifestNumber of unverified manifest");
+
+  return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->manifest->manifestNumber));
+
+ error:
+  return NULL;
+}
+
+static char manifest_object_set_manifest_number__doc__[] =
+  "Set the manifestNumber of this manifest.\n"
+  "\n"
+  "The \"manifestNumber\" parameter should be a non-negative integer.\n"
+  ;
+
+static PyObject *
+manifest_object_set_manifest_number(manifest_object *self, PyObject *args)
+{
+  PyObject *manifestNumber = NULL;
+  PyObject *zero = NULL;
+  int ok = 0;
+
+  ENTERING(manifest_object_set_manifest_number);
+
+  if (!PyArg_ParseTuple(args, "O", &manifestNumber))
+    goto error;
+
+  if ((zero = PyInt_FromLong(0)) == NULL)
+    goto error;
+
+  switch (PyObject_RichCompareBool(manifestNumber, zero, Py_GE)) {
+  case -1:
+    goto error;
+  case 0:
+    lose("Negative manifest number is not allowed");
+  }
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't set manifestNumber of unverified manifest");
+
+  ASN1_INTEGER_free(self->manifest->manifestNumber);
+
+  if ((self->manifest->manifestNumber = PyLong_to_ASN1_INTEGER(manifestNumber)) == NULL)
+    goto error;
+
+  ok = 1;
+
+ error:
+  Py_XDECREF(zero);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char manifest_object_set_this_update__doc__[] =
+  "Set this manifest's \"thisUpdate\" value.\n"
+  "\n"
+  "The \"time\" parameter should be a datetime object.\n"
+  ;
+
+static PyObject *
+manifest_object_set_this_update (manifest_object *self, PyObject *args)
+{
+  ASN1_TIME *t = NULL;
+  PyObject *o = NULL;
+
+  ENTERING(manifest_object_set_this_update);
+
+  if (!PyArg_ParseTuple(args, "O", &o))
+    goto error;
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't set thisUpdate value of unverified manifest");
+
+  if ((t = Python_to_ASN1_TIME(o, 0)) == NULL)
+    lose("Couldn't convert thisUpdate string");
+
+  ASN1_TIME_free(self->manifest->thisUpdate);
+  self->manifest->thisUpdate = t;
+  Py_RETURN_NONE;
+
+ error:
+  ASN1_TIME_free(t);
+  return NULL;
+}
+
+static char manifest_object_get_this_update__doc__[] =
+  "Return this manifest's \"thisUpdate\" value as a datetime.\n"
+  ;
+
+static PyObject *
+manifest_object_get_this_update (manifest_object *self)
+{
+  ENTERING(manifest_object_get_this_update);
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't get thisUpdate value of unverified manifest");
+
+  return ASN1_TIME_to_Python(self->manifest->thisUpdate);
+
+ error:
+  return NULL;
+}
+
+static char manifest_object_set_next_update__doc__[] =
+  "Set this manifest's \"nextUpdate\" value.\n"
+  "\n"
+  "The \"time\" parameter should be a datetime object.\n"
+  ;
+
+static PyObject *
+manifest_object_set_next_update (manifest_object *self, PyObject *args)
+{
+  ASN1_TIME *t = NULL;
+  PyObject *o = NULL;
+
+  ENTERING(manifest_object_set_next_update);
+
+  if (!PyArg_ParseTuple(args, "O", &o))
+    goto error;
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't set nextUpdate value of unverified manifest"); 
+
+  if ((t = Python_to_ASN1_TIME(o, 0)) == NULL)
+    lose("Couldn't parse nextUpdate string");
+
+  ASN1_TIME_free(self->manifest->nextUpdate);
+  self->manifest->nextUpdate = t;
+  Py_RETURN_NONE;
+
+ error:
+  ASN1_TIME_free(t);
+  return NULL;
+}
+
+static char manifest_object_get_next_update__doc__[] =
+  "Return this manifest's \"nextUpdate\" value as a datetime.\n"
+  ;
+
+static PyObject *
+manifest_object_get_next_update (manifest_object *self)
+{
+  ENTERING(manifest_object_get_next_update);
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't extract nextUpdate value of unverified manifest");
+
+  return ASN1_TIME_to_Python(self->manifest->nextUpdate);
+
+ error:
+  return NULL;
+}
+
+static char manifest_object_get_algorithm__doc__[] =
+  "Return this manifest's fileHashAlg OID.\n"
+  ;
+
+static PyObject *
+manifest_object_get_algorithm(manifest_object *self)
+{
+  PyObject *result = NULL;
+
+  ENTERING(manifest_object_get_algorithm);
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't extract algorithm OID of unverified manifest");
+
+  result = ASN1_OBJECT_to_PyString(self->manifest->fileHashAlg);
+
+ error:
+  return result;
+}
+
+static char manifest_object_set_algorithm__doc__[] =
+  "Set this manifest's fileHashAlg OID.\n"
+  ;
+
+static PyObject *
+manifest_object_set_algorithm(manifest_object *self, PyObject *args)
+{
+  ASN1_OBJECT *oid = NULL;
+  const char *s = NULL;
+
+  ENTERING(manifest_object_set_algorithm);
+
+  if (!PyArg_ParseTuple(args, "s", &s))
+    goto error;
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't set algorithm OID for unverified manifest");
+
+  if ((oid = OBJ_txt2obj(s, 1)) == NULL)
+    lose_no_memory();
+
+  ASN1_OBJECT_free(self->manifest->fileHashAlg);
+  self->manifest->fileHashAlg = oid;
+  Py_RETURN_NONE;
+
+ error:
+  ASN1_OBJECT_free(oid);
+  return NULL;
+}
+
+static char manifest_object_add_files__doc__[] =
+  "Add a collection of <filename, hash> pairs to this manifest.\n"
+  "\n"
+  "The \"iterable\" parameter should be an iterable object, each element\n"
+  "of which is a two-element sequence; the first element of this sequence\n"
+  "should be the filename (a text string), the second element should be the\n"
+  "hash (a binary string).\n"
+  ;
+
+static PyObject *
+manifest_object_add_files(manifest_object *self, PyObject *args)
+{
+  PyObject *iterable = NULL;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  PyObject *fast = NULL;
+  FileAndHash *fah = NULL;
+  char *file = NULL;
+  char *hash = NULL;
+  Py_ssize_t filelen, hashlen;
+  int ok = 0;
+
+  ENTERING(manifest_object_add_files);
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't add files to unverified manifest");
+
+  if (!PyArg_ParseTuple(args, "O", &iterable) ||
+      (iterator = PyObject_GetIter(iterable)) == NULL)
+    goto error;
+
+  while ((item = PyIter_Next(iterator)) != NULL) {
+
+    if ((fast = PySequence_Fast(item, "FileAndHash entry must be a sequence")) == NULL)
+      goto error;
+
+    if (PySequence_Fast_GET_SIZE(fast) != 2)
+      lose_type_error("FileAndHash entry must be two-element sequence");
+
+    if (PyString_AsStringAndSize(PySequence_Fast_GET_ITEM(fast, 0), &file, &filelen) < 0 ||
+        PyString_AsStringAndSize(PySequence_Fast_GET_ITEM(fast, 1), &hash, &hashlen) < 0)
+      goto error;
+
+    if ((fah = FileAndHash_new()) == NULL ||
+        !ASN1_OCTET_STRING_set(fah->file, (unsigned char *) file, filelen) ||
+        !ASN1_BIT_STRING_set(fah->hash, (unsigned char *) hash, hashlen) ||
+        !sk_FileAndHash_push(self->manifest->fileList, fah))
+      lose_no_memory();
+
+    fah->hash->flags &= ~7;
+    fah->hash->flags |= ASN1_STRING_FLAG_BITS_LEFT;
+
+    fah = NULL;
+    Py_XDECREF(item);
+    Py_XDECREF(fast);
+    item = fast = NULL;
+  }
+
+  ok = 1;
+
+ error:
+  Py_XDECREF(iterator);
+  Py_XDECREF(item);
+  Py_XDECREF(fast);
+  FileAndHash_free(fah);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char manifest_object_get_files__doc__[] =
+  "Return a tuple of <filename, hash> pairs representing the contents of\n"
+  "this manifest.\n"
+  ;
+
+static PyObject *
+manifest_object_get_files(manifest_object *self)
+{
+  PyObject *result = NULL;
+  PyObject *item = NULL;
+  int i;
+
+  ENTERING(manifest_object_get_files);
+
+  if (self->manifest == NULL)
+    lose_not_verified("Can't get files from unverified manifest");
+
+  if (self->manifest->fileList == NULL)
+    lose("Inexplicable NULL manifest fileList pointer");
+
+  if ((result = PyTuple_New(sk_FileAndHash_num(self->manifest->fileList))) == NULL)
+    goto error;
+
+  for (i = 0; i < sk_FileAndHash_num(self->manifest->fileList); i++) {
+    FileAndHash *fah = sk_FileAndHash_value(self->manifest->fileList, i);
+
+    if ((item = Py_BuildValue("(s#s#)",
+                              ASN1_STRING_data(fah->file), ASN1_STRING_length(fah->file),
+                              ASN1_STRING_data(fah->hash), ASN1_STRING_length(fah->hash))) == NULL)
+      goto error;
+
+    PyTuple_SET_ITEM(result, i, item);
+    item = NULL;
+  }
+
+  return result;
+
+ error:
+  Py_XDECREF(result);
+  Py_XDECREF(item);
+  return NULL;
+}
+
+static char manifest_object_sign__doc__[] =
+  "Sign this manifest.  See the CMS class's .sign() method for details.\n"
+  ;
+
+static PyObject *
+manifest_object_sign(manifest_object *self, PyObject *args)
+{
+  asymmetric_object *signkey = NULL;
+  x509_object *signcert = NULL;
+  PyObject *x509_sequence = Py_None;
+  PyObject *crl_sequence = Py_None;
+  char *oid = NULL;
+  unsigned flags = 0;
+  BIO *bio = NULL;
+  int ok = 0;
+
+  ENTERING(manifest_object_sign);
+
+  if (!PyArg_ParseTuple(args, "O!O!|OOsI",
+                        &POW_X509_Type, &signcert,
+                        &POW_Asymmetric_Type, &signkey,
+                        &x509_sequence,
+                        &crl_sequence,
+                        &oid,
+                        &flags))
+    goto error;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  assert_no_unhandled_openssl_errors();
+
+  if (!ASN1_item_i2d_bio(ASN1_ITEM_rptr(Manifest), bio, self->manifest))
+    lose_openssl_error("Couldn't encode manifest");
+
+  assert_no_unhandled_openssl_errors();
+
+  if (!cms_object_sign_helper(&self->cms, bio, signcert, signkey,
+                              x509_sequence, crl_sequence, oid, flags))
+    lose_openssl_error("Couldn't sign manifest");
+
+  assert_no_unhandled_openssl_errors();
+
+  ok = 1;
+
+ error:
+  BIO_free(bio);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static struct PyMethodDef manifest_object_methods[] = {
+  Define_Method(getVersion,             manifest_object_get_version,            METH_NOARGS),
+  Define_Method(setVersion,             manifest_object_set_version,            METH_VARARGS),
+  Define_Method(getManifestNumber,      manifest_object_get_manifest_number,    METH_NOARGS),
+  Define_Method(setManifestNumber,      manifest_object_set_manifest_number,    METH_VARARGS),
+  Define_Method(getThisUpdate,          manifest_object_get_this_update,        METH_NOARGS),
+  Define_Method(setThisUpdate,          manifest_object_set_this_update,        METH_VARARGS),
+  Define_Method(getNextUpdate,          manifest_object_get_next_update,        METH_NOARGS),
+  Define_Method(setNextUpdate,          manifest_object_set_next_update,        METH_VARARGS),
+  Define_Method(getAlgorithm,           manifest_object_get_algorithm,          METH_NOARGS),
+  Define_Method(setAlgorithm,           manifest_object_set_algorithm,          METH_VARARGS),
+  Define_Method(getFiles,               manifest_object_get_files,              METH_NOARGS),
+  Define_Method(addFiles,               manifest_object_add_files,              METH_VARARGS),
+  Define_Method(sign,                   manifest_object_sign,                   METH_VARARGS),
+  Define_Method(verify,                 manifest_object_verify,                 METH_KEYWORDS),
+  Define_Class_Method(pemRead,          manifest_object_pem_read,               METH_VARARGS),
+  Define_Class_Method(pemReadFile,      manifest_object_pem_read_file,          METH_VARARGS),
+  Define_Class_Method(derRead,          manifest_object_der_read,               METH_VARARGS),
+  Define_Class_Method(derReadFile,      manifest_object_der_read_file,          METH_VARARGS),
+  {NULL}
+};
+
+static char POW_Manifest_Type__doc__[] =
+  "This class provides access to RPKI manifest payload.\n"
+  "Most methods are inherited from or share code with the CMS class.\n"
+  ;
+
+static PyTypeObject POW_Manifest_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                            /* ob_size */
+  "rpki.POW.Manifest",                          /* tp_name */
+  sizeof(manifest_object),                      /* tp_basicsize */
+  0,                                            /* tp_itemsize */
+  (destructor)manifest_object_dealloc,          /* tp_dealloc */
+  0,                                            /* tp_print */
+  0,                                            /* tp_getattr */
+  0,                                            /* tp_setattr */
+  0,                                            /* tp_compare */
+  0,                                            /* tp_repr */
+  0,                                            /* tp_as_number */
+  0,                                            /* tp_as_sequence */
+  0,                                            /* tp_as_mapping */
+  0,                                            /* tp_hash */
+  0,                                            /* tp_call */
+  0,                                            /* tp_str */
+  0,                                            /* tp_getattro */
+  0,                                            /* tp_setattro */
+  0,                                            /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,     /* tp_flags */
+  POW_Manifest_Type__doc__,                     /* tp_doc */
+  0,                                            /* tp_traverse */
+  0,                                            /* tp_clear */
+  0,                                            /* tp_richcompare */
+  0,                                            /* tp_weaklistoffset */
+  0,                                            /* tp_iter */
+  0,                                            /* tp_iternext */
+  manifest_object_methods,                      /* tp_methods */
+  0,                                            /* tp_members */
+  0,                                            /* tp_getset */
+  &POW_CMS_Type,                                /* tp_base */
+  0,                                            /* tp_dict */
+  0,                                            /* tp_descr_get */
+  0,                                            /* tp_descr_set */
+  0,                                            /* tp_dictoffset */
+  0,                                            /* tp_init */
+  0,                                            /* tp_alloc */
+  manifest_object_new,                          /* tp_new */
+};
+
+
+
+/*
+ * ROA object.
+ */
+
+static PyObject *
+roa_object_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  roa_object *self = NULL;
+
+  ENTERING(roa_object_new);
+
+  if ((self = (roa_object *) cms_object_new(type, args, kwds)) != NULL &&
+      (self->roa = ROA_new()) != NULL)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static void
+roa_object_dealloc(roa_object *self)
+{
+  ENTERING(roa_object_dealloc);
+  ROA_free(self->roa);
+  cms_object_dealloc(&self->cms);
+}
+
+static char roa_object_verify__doc__[] =
+  "Verify this ROA.   See CMS.verify() for details.\n"
+  ;
+
+static PyObject *
+roa_object_verify(roa_object *self, PyObject *args, PyObject *kwds)
+{
+  BIO *bio = NULL;
+  int ok = 0;
+
+  ENTERING(roa_object_verify);
+
+  if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
+    goto error;
+  
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa))
+    lose_openssl_error("Couldn't decode ROA");
+
+  ok = 1;
+
+ error:
+  BIO_free(bio);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static PyObject *
+roa_object_pem_read_helper(PyTypeObject *type, BIO *bio)
+{
+  roa_object *self;
+
+  ENTERING(roa_object_pem_read_helper);
+
+  if ((self = (roa_object *) cms_object_pem_read_helper(type, bio)) != NULL)
+    self->roa = NULL;
+
+  return (PyObject *) self;
+}
+
+static PyObject *
+roa_object_der_read_helper(PyTypeObject *type, BIO *bio)
+{
+  roa_object *self;
+
+  ENTERING(roa_object_der_read_helper);
+
+  if ((self = (roa_object *) cms_object_der_read_helper(type, bio)) != NULL)
+    self->roa = NULL;
+
+  return (PyObject *) self;
+}
+
+static char roa_object_pem_read__doc__[] =
+  "Read a PEM-encoded ROA object from a string.\n"
+  ;
+
+static PyObject *
+roa_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(roa_object_pem_read);
+  return read_from_string_helper(roa_object_pem_read_helper, type, args);
+}
+
+static char roa_object_pem_read_file__doc__[] =
+  "Read a PEM-encoded ROA object from a file.\n"
+  ;
+
+static PyObject *
+roa_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(roa_object_pem_read_file);
+  return read_from_file_helper(roa_object_pem_read_helper, type, args);
+}
+
+static char roa_object_der_read__doc__[] =
+  "Read a DER-encoded ROA object from a string.\n"
+  ;
+
+static PyObject *
+roa_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(roa_object_der_read);
+  return read_from_string_helper(roa_object_der_read_helper, type, args);
+}
+
+static char roa_object_der_read_file__doc__[] =
+  "Read a DER-encoded ROA object from a file.\n"
+  ;
+
+static PyObject *
+roa_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(roa_object_der_read_file);
+  return read_from_file_helper(roa_object_der_read_helper, type, args);
+}
+
+static char roa_object_get_version__doc__[] =
+  "Return the version number of this ROA.\n"
+  ;
+
+static PyObject *
+roa_object_get_version(roa_object *self)
+{
+  ENTERING(roa_object_get_version);
+
+  if (self->roa == NULL)
+    lose_not_verified("Can't get version of unverified ROA");
+
+  if (self->roa->version)
+    return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->roa->version));
+  else
+    return PyInt_FromLong(0);
+
+ error:
+  return NULL;
+}
+
+static char roa_object_set_version__doc__[] =
+  "Set the version number of this ROA.\n"
+  "\n"
+  "The \"version\" parameter should be a non-negative integer.\n"
+  "\n"
+  "As of this writing, zero is both the default and the only defined version.\n"
+  "Attempting to set any version number other than zero will fail, as we\n"
+  "don't understand how to write other versions, by definition.\n"
+  ;
+
+static PyObject *
+roa_object_set_version(roa_object *self, PyObject *args)
+{
+  int version = 0;
+
+  ENTERING(roa_object_set_version);
+
+  if (self->roa == NULL)
+    lose_not_verified("Can't set version of unverified ROA");
+
+  if (!PyArg_ParseTuple(args, "|i", &version))
+    goto error;
+
+  if (version != 0)
+    lose("RFC 6482 only defines ROA version zero");
+
+  ASN1_INTEGER_free(self->roa->version);
+  self->roa->version = NULL;
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char roa_object_get_asid__doc__[] =
+  "Return the Autonomous System ID of this ROA.\n"
+  ;
+
+static PyObject *
+roa_object_get_asid(roa_object *self)
+{
+  ENTERING(roa_object_get_asid);
+
+  if (self->roa == NULL)
+    lose_not_verified("Can't get ASN of unverified ROA");
+
+  return Py_BuildValue("N", ASN1_INTEGER_to_PyLong(self->roa->asID));
+
+ error:
+  return NULL;
+}
+
+static char roa_object_set_asid__doc__[] =
+  "Sets the Autonomous System ID of this ROA.\n"
+  "\n"
+  "The \"asID\" parameter should be a non-negative integer.\n"
+  ;
+
+static PyObject *
+roa_object_set_asid(roa_object *self, PyObject *args)
+{
+  PyObject *asID = NULL;
+  PyObject *zero = NULL;
+  int ok = 0;
+
+  ENTERING(roa_object_set_asid);
+
+  if (self->roa == NULL)
+    lose_not_verified("Can't set ASN of unverified ROA");
+
+  if (!PyArg_ParseTuple(args, "O", &asID))
+    goto error;
+
+  if ((zero = PyInt_FromLong(0)) == NULL)
+    goto error;
+
+  switch (PyObject_RichCompareBool(asID, zero, Py_GE)) {
+  case -1:
+    goto error;
+  case 0:
+    lose("Negative asID is not allowed");
+  }
+
+  ASN1_INTEGER_free(self->roa->asID);
+
+  if ((self->roa->asID = PyLong_to_ASN1_INTEGER(asID)) == NULL)
+    goto error;
+
+  ok = 1;
+
+ error:
+  Py_XDECREF(zero);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char roa_object_get_prefixes__doc__[] =
+  "Return this ROA's prefix list.  This is a two-element\n"
+  "tuple: the first element is the IPv4 prefix set, the second is the\n"
+  "IPv6 prefix set.\n"
+  "\n"
+  "Each prefix set is either None, if there are no prefixes for this IP\n"
+  "version, or a sequence of three-element tuple representing ROA prefix\n"
+  "entries.\n"
+  "\n"
+  "Each ROA prefix entry consists of the prefix itself (an IPAddress),\n"
+  "the prefix length (an integer), and the maxPrefixLen value, which is\n"
+  "either an integer or None depending on whether the maxPrefixLen value\n"
+  "is set for this prefix.\n"
+  ;
+
+static PyObject *
+roa_object_get_prefixes(roa_object *self)
+{
+  PyObject *result = NULL;
+  PyObject *ipv4_result = NULL;
+  PyObject *ipv6_result = NULL;
+  PyObject *item = NULL;
+  ipaddress_object *addr = NULL;
+  int i, j;
+
+  ENTERING(roa_object_get_prefixes);
+
+  if (self->roa == NULL)
+    lose_not_verified("Can't get prefixes from unverified ROA");
+
+  for (i = 0; i < sk_ROAIPAddressFamily_num(self->roa->ipAddrBlocks); i++) {
+    ROAIPAddressFamily *fam = sk_ROAIPAddressFamily_value(self->roa->ipAddrBlocks, i);
+    const unsigned afi = (fam->addressFamily->data[0] << 8) | (fam->addressFamily->data[1]);
+    const ipaddress_version *ip_type = NULL;
+    PyObject **resultp = NULL;
+
+    switch (afi) {
+    case IANA_AFI_IPV4: resultp = &ipv4_result; ip_type = &ipaddress_version_4; break;
+    case IANA_AFI_IPV6: resultp = &ipv6_result; ip_type = &ipaddress_version_6; break;
+    default:            lose_type_error("Unknown AFI");
+    }
+
+    if (fam->addressFamily->length > 2)
+      lose_type_error("Unsupported SAFI");
+
+    if (*resultp != NULL)
+      lose_type_error("Duplicate ROAIPAddressFamily");
+
+    if ((*resultp = PyTuple_New(sk_ROAIPAddress_num(fam->addresses))) == NULL)
+      goto error;
+
+    for (j = 0; j < sk_ROAIPAddress_num(fam->addresses); j++) {
+      ROAIPAddress *a = sk_ROAIPAddress_value(fam->addresses, j);
+      unsigned prefixlen = ((a->IPAddress)->length * 8 - ((a->IPAddress)->flags & 7));
+
+      if ((addr = (ipaddress_object *) POW_IPAddress_Type.tp_alloc(&POW_IPAddress_Type, 0)) == NULL)
+        goto error;
+
+      addr->type = ip_type;
+
+      memset(addr->address, 0, sizeof(addr->address));
+
+      if ((unsigned) a->IPAddress->length > addr->type->length)
+        lose("ROAIPAddress BIT STRING too long for AFI");
+
+      if (a->IPAddress->length > 0) {
+        memcpy(addr->address, a->IPAddress->data, a->IPAddress->length);
+
+        if ((a->IPAddress->flags & 7) != 0) {
+          unsigned char mask = 0xFF >> (8 - (a->IPAddress->flags & 7));
+          addr->address[a->IPAddress->length - 1] &= ~mask;
+        }
+      }
+
+      if (a->maxLength == NULL)
+        item = Py_BuildValue("(NIO)", addr, prefixlen, Py_None);
+      else
+        item = Py_BuildValue("(NIl)", addr, prefixlen, ASN1_INTEGER_get(a->maxLength));
+
+      if (item == NULL)
+        goto error;
+
+      PyTuple_SET_ITEM(*resultp, j, item);
+      item = NULL;
+      addr = NULL;
+    }
+  }
+
+  result = Py_BuildValue("(OO)",
+                         (ipv4_result == NULL ? Py_None : ipv4_result),
+                         (ipv6_result == NULL ? Py_None : ipv6_result));
+
+ error:                         /* Fall through */
+  Py_XDECREF(addr);
+  Py_XDECREF(item);
+  Py_XDECREF(ipv4_result);
+  Py_XDECREF(ipv6_result);
 
   return result;
 }
 
-static struct PyMethodDef CMS_object_methods[] = {
-  {"pemWrite",     (PyCFunction)CMS_object_pem_write,    METH_VARARGS,  NULL},
-  {"derWrite",     (PyCFunction)CMS_object_der_write,    METH_VARARGS,  NULL},
-  {"sign",         (PyCFunction)CMS_object_sign,         METH_VARARGS,  NULL},
-  {"verify",       (PyCFunction)CMS_object_verify,       METH_VARARGS,  NULL},
-  {"eContentType", (PyCFunction)CMS_object_eContentType, METH_VARARGS,  NULL},
-  {"signingTime",  (PyCFunction)CMS_object_signingTime,  METH_VARARGS,  NULL},
-  {"pprint",       (PyCFunction)CMS_object_pprint,       METH_VARARGS,  NULL},
-  {"certs",        (PyCFunction)CMS_object_certs,        METH_VARARGS,  NULL},
-  {"crls",         (PyCFunction)CMS_object_crls,         METH_VARARGS,  NULL},
-
-  {NULL}    /* sentinel */
-};
+static char roa_object_set_prefixes__doc__[] =
+  "Set this ROA's prefix list.\n"
+  "\n"
+  "This method takes two arguments, \"ipv4\" and \"ipv6\".  Each of these\n"
+  "is either None, if no prefixes should be set for this IP version, or\n"
+  "an iterable object returning ROA prefix entries in the same format as\n"
+  "returned by the .getPrefixes() method.  The maxPrefixLen value may be\n"
+  "omitted (that is, the ROA prefix entry tuple may be of length two\n"
+  "rather than of length three); this will be taken as equivalent to\n"
+  "specifying a maxPrefixLen value of None.\n"
+  ;
 
 static PyObject *
-CMS_object_getattr(cms_object *self, char *name)
+roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
 {
-  return Py_FindMethod(CMS_object_methods, (PyObject *)self, name);
+  static char *kwlist[] = {"ipv4", "ipv6", NULL};
+  STACK_OF(ROAIPAddressFamily) *prefixes = NULL;
+  ROAIPAddressFamily *fam = NULL;
+  ROAIPAddress *a = NULL;
+  PyObject *ipv4_arg = Py_None;
+  PyObject *ipv6_arg = Py_None;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  PyObject *fast = NULL;
+  int ok = 0;
+  int v;
+
+  ENTERING(roa_object_set_prefixes);
+
+  if (self->roa == NULL)
+    lose_not_verified("Can't set prefixes of unverified ROA");
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO", kwlist, &ipv4_arg, &ipv6_arg))
+    goto error;
+
+  if ((prefixes = sk_ROAIPAddressFamily_new_null()) == NULL)
+    lose_no_memory();
+
+  for (v = 0; v < (int) (sizeof(ipaddress_versions)/sizeof(*ipaddress_versions)); v++) {
+    const struct ipaddress_version *ip_type = ipaddress_versions[v];
+    unsigned char afibuf[2];
+    PyObject **argp;
+
+    switch (ip_type->version) {
+    case 4: argp = &ipv4_arg; break;
+    case 6: argp = &ipv6_arg; break;
+    default: continue;
+    }
+
+    if (*argp == Py_None)
+      continue;
+
+    afibuf[0] = (ip_type->afi >> 8) & 0xFF;
+    afibuf[1] = (ip_type->afi     ) & 0xFF;
+
+    if ((iterator = PyObject_GetIter(*argp)) == NULL)
+      goto error;
+
+    while ((item = PyIter_Next(iterator)) != NULL) {
+      unsigned prefixlen, maxprefixlen, bitlen, bytelen;
+      ipaddress_object *addr = NULL;
+      PyObject *maxlenobj = Py_None;
+
+      if ((fast = PySequence_Fast(item, "ROA prefix must be a sequence")) == NULL)
+        goto error;
+
+      switch (PySequence_Fast_GET_SIZE(fast)) {
+      case 3:
+        maxlenobj = PySequence_Fast_GET_ITEM(fast, 2);
+        /* Fall through */
+      case 2:
+        if (!POW_IPAddress_Check(PySequence_Fast_GET_ITEM(fast, 0)))
+          lose_type_error("First element of ROA prefix must be an IPAddress object");
+        addr = (ipaddress_object *) PySequence_Fast_GET_ITEM(fast, 0);
+        prefixlen = (unsigned) PyInt_AsLong(PySequence_Fast_GET_ITEM(fast, 1));
+        if (PyErr_Occurred())
+          goto error;
+        break;
+      default:
+        lose_type_error("ROA prefix must be a two- or three-element sequence");
+      }
+
+      if (maxlenobj == Py_None) {
+        maxprefixlen = prefixlen;
+      } else {
+        maxprefixlen = (unsigned) PyInt_AsLong(maxlenobj);
+        if (PyErr_Occurred())
+          goto error;
+      }
+
+      if (addr->type != ip_type)
+        lose_type_error("Bad ROA prefix");
+
+      if (prefixlen > addr->type->length * 8)
+        lose("Bad prefix length");
+
+      if (maxprefixlen > addr->type->length * 8 || maxprefixlen < prefixlen)
+        lose("Bad maxLength value");
+
+      bytelen = (prefixlen + 7) / 8;
+      bitlen = prefixlen % 8;
+
+      if ((a = ROAIPAddress_new()) == NULL ||
+          (a->IPAddress == NULL && (a->IPAddress = ASN1_BIT_STRING_new()) == NULL) ||
+          !ASN1_BIT_STRING_set(a->IPAddress, addr->address, bytelen))
+        lose_no_memory();
+
+      a->IPAddress->flags &= ~7;
+      a->IPAddress->flags |= ASN1_STRING_FLAG_BITS_LEFT;
+      if (bitlen > 0) {
+        a->IPAddress->data[bytelen - 1] &= ~(0xFF >> bitlen);
+        a->IPAddress->flags |= 8 - bitlen;
+      }
+
+      if (prefixlen != maxprefixlen &&
+          ((a->maxLength = ASN1_INTEGER_new()) == NULL ||
+           !ASN1_INTEGER_set(a->maxLength, maxprefixlen)))
+        lose_no_memory();
+
+      if (fam == NULL &&
+          ((fam = ROAIPAddressFamily_new()) == NULL ||
+           !sk_ROAIPAddressFamily_push(prefixes, fam) ||
+           !ASN1_OCTET_STRING_set(fam->addressFamily, afibuf, sizeof(afibuf))))
+        lose_no_memory();
+
+      if (!sk_ROAIPAddress_push(fam->addresses, a))
+        lose_no_memory();
+
+      a = NULL;
+      Py_XDECREF(item);
+      Py_XDECREF(fast);
+      item = fast = NULL;
+    }
+
+    fam = NULL;
+    Py_XDECREF(iterator);
+    iterator = NULL;
+  }
+
+  sk_ROAIPAddressFamily_pop_free(self->roa->ipAddrBlocks, ROAIPAddressFamily_free);
+  self->roa->ipAddrBlocks = prefixes;
+  prefixes = NULL;
+
+  ok = 1;
+
+ error:
+  sk_ROAIPAddressFamily_pop_free(prefixes, ROAIPAddressFamily_free);
+  ROAIPAddressFamily_free(fam);
+  ROAIPAddress_free(a);
+  Py_XDECREF(iterator);
+  Py_XDECREF(item);
+  Py_XDECREF(fast);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char roa_object_sign__doc__[] =
+  "Sign this ROA.  See CMS.sign() for details.\n"
+  ;
+
+static PyObject *
+roa_object_sign(roa_object *self, PyObject *args)
+{
+  asymmetric_object *signkey = NULL;
+  x509_object *signcert = NULL;
+  PyObject *x509_sequence = Py_None;
+  PyObject *crl_sequence = Py_None;
+  char *oid = NULL;
+  unsigned flags = 0;
+  BIO *bio = NULL;
+  int ok = 0;
+
+  ENTERING(roa_object_sign);
+
+  if (!PyArg_ParseTuple(args, "O!O!|OOsI",
+                        &POW_X509_Type, &signcert,
+                        &POW_Asymmetric_Type, &signkey,
+                        &x509_sequence,
+                        &crl_sequence,
+                        &oid,
+                        &flags))
+    goto error;
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  assert_no_unhandled_openssl_errors();
+
+  if (!ASN1_item_i2d_bio(ASN1_ITEM_rptr(ROA), bio, self->roa))
+    lose_openssl_error("Couldn't encode ROA");
+
+  assert_no_unhandled_openssl_errors();
+
+  if (!cms_object_sign_helper(&self->cms, bio, signcert, signkey,
+                              x509_sequence, crl_sequence, oid, flags))
+    lose_openssl_error("Couldn't sign ROA");
+
+  assert_no_unhandled_openssl_errors();
+
+  ok = 1;
+
+ error:
+  BIO_free(bio);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static struct PyMethodDef roa_object_methods[] = {
+  Define_Method(getVersion,             roa_object_get_version,         METH_NOARGS),
+  Define_Method(setVersion,             roa_object_set_version,         METH_VARARGS),
+  Define_Method(getASID,                roa_object_get_asid,            METH_NOARGS),
+  Define_Method(setASID,                roa_object_set_asid,            METH_VARARGS),
+  Define_Method(getPrefixes,            roa_object_get_prefixes,        METH_NOARGS),
+  Define_Method(setPrefixes,            roa_object_set_prefixes,        METH_KEYWORDS),
+  Define_Method(sign,                   roa_object_sign,                METH_VARARGS),
+  Define_Method(verify,                 roa_object_verify,              METH_KEYWORDS),
+  Define_Class_Method(pemRead,          roa_object_pem_read,            METH_VARARGS),
+  Define_Class_Method(pemReadFile,      roa_object_pem_read_file,       METH_VARARGS),
+  Define_Class_Method(derRead,          roa_object_der_read,            METH_VARARGS),
+  Define_Class_Method(derReadFile,      roa_object_der_read_file,       METH_VARARGS),
+  {NULL}
+};
+
+static char POW_ROA_Type__doc__[] =
+  "This class provides access to RPKI ROA payload.\n"
+  "Most methods are inherited from or share code with the CMS class.\n"
+  ;
+
+static PyTypeObject POW_ROA_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                            /* ob_size */
+  "rpki.POW.ROA",                               /* tp_name */
+  sizeof(roa_object),                           /* tp_basicsize */
+  0,                                            /* tp_itemsize */
+  (destructor)roa_object_dealloc,               /* tp_dealloc */
+  0,                                            /* tp_print */
+  0,                                            /* tp_getattr */
+  0,                                            /* tp_setattr */
+  0,                                            /* tp_compare */
+  0,                                            /* tp_repr */
+  0,                                            /* tp_as_number */
+  0,                                            /* tp_as_sequence */
+  0,                                            /* tp_as_mapping */
+  0,                                            /* tp_hash */
+  0,                                            /* tp_call */
+  0,                                            /* tp_str */
+  0,                                            /* tp_getattro */
+  0,                                            /* tp_setattro */
+  0,                                            /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,     /* tp_flags */
+  POW_ROA_Type__doc__,                          /* tp_doc */
+  0,                                            /* tp_traverse */
+  0,                                            /* tp_clear */
+  0,                                            /* tp_richcompare */
+  0,                                            /* tp_weaklistoffset */
+  0,                                            /* tp_iter */
+  0,                                            /* tp_iternext */
+  roa_object_methods,                           /* tp_methods */
+  0,                                            /* tp_members */
+  0,                                            /* tp_getset */
+  &POW_CMS_Type,                                /* tp_base */
+  0,                                            /* tp_dict */
+  0,                                            /* tp_descr_get */
+  0,                                            /* tp_descr_set */
+  0,                                            /* tp_dictoffset */
+  0,                                            /* tp_init */
+  0,                                            /* tp_alloc */
+  roa_object_new,                               /* tp_new */
+};
+
+
+
+/*
+ * PKCS10 object.
+ */
+
+static PyObject *
+pkcs10_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
+{
+  pkcs10_object *self;
+
+  ENTERING(pkcs10_object_new);
+
+  if ((self = (pkcs10_object *) type->tp_alloc(type, 0)) != NULL &&
+      (self->pkcs10 = X509_REQ_new()) != NULL &&
+      (self->exts = sk_X509_EXTENSION_new_null()) != NULL)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
 }
 
 static void
-CMS_object_dealloc(cms_object *self, char *name)
+pkcs10_object_dealloc(pkcs10_object *self)
 {
-  CMS_ContentInfo_free(self->cms);
-  PyObject_Del(self);
+  ENTERING(pkcs10_object_dealloc);
+  X509_REQ_free(self->pkcs10);
+  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
+  self->ob_type->tp_free((PyObject*) self);
 }
 
-static char cmstype__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>CMS</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides basic access OpenSSL's CMS functionality.\n"
-"      </para>\n"
-"   </body>\n"
-"</class>\n"
+static PyObject *
+pkcs10_object_pem_read_helper(PyTypeObject *type, BIO *bio)
+{
+  pkcs10_object *self = NULL;
+
+  ENTERING(pkcs10_object_pem_read_helper);
+
+  assert_no_unhandled_openssl_errors();
+
+  if ((self = (pkcs10_object *) pkcs10_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  assert_no_unhandled_openssl_errors();
+
+  if (!PEM_read_bio_X509_REQ(bio, &self->pkcs10, NULL, NULL))
+    lose_openssl_error("Couldn't load PEM encoded PKCS#10 request");
+
+  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
+  self->exts = X509_REQ_get_extensions(self->pkcs10);
+
+  assert_no_unhandled_openssl_errors();
+
+  return (PyObject *) self;
+
+ error:
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static PyObject *
+pkcs10_object_der_read_helper(PyTypeObject *type, BIO *bio)
+{
+  pkcs10_object *self = NULL;
+
+  ENTERING(pkcs10_object_der_read_helper);
+
+  assert_no_unhandled_openssl_errors();
+
+  if ((self = (pkcs10_object *) pkcs10_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  assert_no_unhandled_openssl_errors();
+
+  if (!d2i_X509_REQ_bio(bio, &self->pkcs10))
+    lose_openssl_error("Couldn't load DER encoded PKCS#10 request");
+
+  sk_X509_EXTENSION_pop_free(self->exts, X509_EXTENSION_free);
+  self->exts = X509_REQ_get_extensions(self->pkcs10);
+
+  assert_no_unhandled_openssl_errors();
+
+  return (PyObject *) self;
+
+ error:
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static char pkcs10_object_pem_read__doc__[] =
+  "Read a PEM-encoded PKCS#10 object from a string.\n"
+  ;
+
+static PyObject *
+pkcs10_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(pkcs10_object_pem_read);
+  return read_from_string_helper(pkcs10_object_pem_read_helper, type, args);
+}
+
+static char pkcs10_object_pem_read_file__doc__[] =
+  "Read a PEM-encoded PKCS#10 object from a file.\n"
+  ;
+
+static PyObject *
+pkcs10_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(pkcs10_object_pem_read_file);
+  return read_from_file_helper(pkcs10_object_pem_read_helper, type, args);
+}
+
+static char pkcs10_object_der_read__doc__[] =
+  "Read a DER-encoded PKCS#10 object from a string.\n"
+  ;
+
+static PyObject *
+pkcs10_object_der_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(pkcs10_object_der_read);
+  return read_from_string_helper(pkcs10_object_der_read_helper, type, args);
+}
+
+static char pkcs10_object_der_read_file__doc__[] =
+  "Read a DER-encoded PKCS#10 object from a file.\n"
+  ;
+
+static PyObject *
+pkcs10_object_der_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(pkcs10_object_der_read_file);
+  return read_from_file_helper(pkcs10_object_der_read_helper, type, args);
+}
+
+static char pkcs10_object_pem_write__doc__[] =
+  "Returns the PEM encoding of this PKCS#10 object.\n"
+  ;
+
+static PyObject *
+pkcs10_object_pem_write(pkcs10_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(pkcs10_object_pem_write);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!PEM_write_bio_X509_REQ(bio, self->pkcs10))
+    lose_openssl_error("Unable to write PKCS#10 request");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char pkcs10_object_der_write__doc__[] =
+  "Return the DER encoding of this PKCS#10 object.\n"
+  ;
+
+static PyObject *
+pkcs10_object_der_write(pkcs10_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(pkcs10_object_der_write);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!i2d_X509_REQ_bio(bio, self->pkcs10))
+    lose_openssl_error("Unable to write PKCS#10 request");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char pkcs10_object_get_public_key__doc__[] =
+  "Return the public key from this PKCS#10 request, as an Asymmetric\n"
+  "object.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_public_key(pkcs10_object *self)
+{
+  PyTypeObject *type = &POW_Asymmetric_Type;
+  asymmetric_object *asym = NULL;
+
+  ENTERING(pkcs10_object_get_public_key);
+
+  if ((asym = (asymmetric_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
+
+  if ((asym->pkey = X509_REQ_get_pubkey(self->pkcs10)) == NULL)
+    lose_openssl_error("Couldn't extract public key from PKCS#10 request");
+
+  return (PyObject *) asym;
+
+ error:
+  Py_XDECREF(asym);
+  return NULL;
+}
+
+static char pkcs10_object_set_public_key__doc__[] =
+  "Set the public key for this PKCS#10 request.\n"
+  "\n"
+  "The \"key\" parameter should be an instance of the Asymmetric class,\n"
+  "containing a public key.\n"
+  ;
+
+static PyObject *
+pkcs10_object_set_public_key(pkcs10_object *self, PyObject *args)
+{
+  asymmetric_object *asym;
+
+  ENTERING(pkcs10_object_set_public_key);
+
+  if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
+    goto error;
+
+  if (!X509_REQ_set_pubkey(self->pkcs10, asym->pkey))
+    lose_openssl_error("Couldn't set certificate's PKCS#10 request");
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char pkcs10_object_sign__doc__[] =
+  "Sign a PKCS#10 request with a private key.\n"
+  "\n"
+  "The \"key\" parameter should be an instance of the Asymmetric class,\n"
+  "containing a private key.\n"
+  "\n"
+  "The optional \"digest\" parameter indicates which digest to compute and\n"
+  "sign, and should be one of the following:\n"
+  "\n"
+  "* MD5_DIGEST\n"
+  "* SHA_DIGEST\n"
+  "* SHA1_DIGEST\n"
+  "* SHA256_DIGEST\n"
+  "* SHA384_DIGEST\n"
+  "* SHA512_DIGEST\n"
+  "\n"
+  "The default digest algorithm is SHA-256.\n"
+  ;
+
+static PyObject *
+pkcs10_object_sign(pkcs10_object *self, PyObject *args)
+{
+  asymmetric_object *asym;
+  int loc, digest_type = SHA256_DIGEST;
+  const EVP_MD *digest_method = NULL;
+
+  ENTERING(pkcs10_object_sign);
+
+  if (!PyArg_ParseTuple(args, "O!|i", &POW_Asymmetric_Type, &asym, &digest_type))
+    goto error;
+
+  if ((digest_method = evp_digest_factory(digest_type)) == NULL)
+    lose("Unsupported digest algorithm");
+
+  while ((loc = X509_REQ_get_attr_by_NID(self->pkcs10, NID_ext_req, -1)) >= 0)
+    X509_ATTRIBUTE_free(X509_REQ_delete_attr(self->pkcs10, loc));
+
+  if (sk_X509_EXTENSION_num(self->exts) > 0 &&
+      !X509_REQ_add_extensions(self->pkcs10, self->exts))
+    lose_openssl_error("Couldn't add extensions block to PKCS#10 request");
+
+  if (!X509_REQ_sign(self->pkcs10, asym->pkey, digest_method))
+    lose_openssl_error("Couldn't sign PKCS#10 request");
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char pkcs10_object_verify__doc__[] =
+  "Verify a PKCS#10 request.\n"
+  "\n"
+  "This calls OpenSSL's X509_REQ_verify() method to check the request's\n"
+  "self-signature.\n"
+  ;
+
+static PyObject *
+pkcs10_object_verify(pkcs10_object *self)
+{
+  EVP_PKEY *pkey = NULL;
+  int status;
+
+  ENTERING(pkcs10_object_verify);
+
+  if ((pkey = X509_REQ_get_pubkey(self->pkcs10)) == NULL)
+    lose_openssl_error("Couldn't extract public key from PKCS#10 for verification");
+
+  if ((status = X509_REQ_verify(self->pkcs10, pkey)) < 0)
+    lose_openssl_error("Couldn't verify PKCS#10 signature");
+
+  EVP_PKEY_free(pkey);
+  return PyBool_FromLong(status);
+
+ error:
+  EVP_PKEY_free(pkey);
+  return NULL;
+}
+
+static char pkcs10_object_get_version__doc__[] =
+  "Return the version number of this PKCS#10 request.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_version(pkcs10_object *self)
+{
+  ENTERING(pkcs10_object_get_version);
+  return Py_BuildValue("l", X509_REQ_get_version(self->pkcs10));
+}
+
+static char pkcs10_object_set_version__doc__[] =
+  "Set the version number of this PKCS#10 request.\n"
+  "\n"
+  "The \"version\" parameter should be an integer, but the only defined\n"
+  "value is zero, so this field is optional and defaults to zero.\n"
 ;
 
-static PyTypeObject cmstype = {
-   PyObject_HEAD_INIT(0)
-   0,                                  /*ob_size*/
-   "CMS",                              /*tp_name*/
-   sizeof(cms_object),                 /*tp_basicsize*/
-   0,                                  /*tp_itemsize*/
-   (destructor)CMS_object_dealloc,     /*tp_dealloc*/
-   (printfunc)0,                       /*tp_print*/
-   (getattrfunc)CMS_object_getattr,    /*tp_getattr*/
-   (setattrfunc)0,                     /*tp_setattr*/
-   (cmpfunc)0,                         /*tp_compare*/
-   (reprfunc)0,                        /*tp_repr*/
-   0,                                  /*tp_as_number*/
-   0,                                  /*tp_as_sequence*/
-   0,                                  /*tp_as_mapping*/
-   (hashfunc)0,                        /*tp_hash*/
-   (ternaryfunc)0,                     /*tp_call*/
-   (reprfunc)0,                        /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   cmstype__doc__                    /* Documentation string */
+static PyObject *
+pkcs10_object_set_version(pkcs10_object *self, PyObject *args)
+{
+  long version = 0;
+
+  ENTERING(pkcs10_object_set_version);
+
+  if (!PyArg_ParseTuple(args, "|l", &version))
+    goto error;
+
+  if (version != 0)
+    lose("RFC 6487 6.1.1 forbids non-zero values for this field");
+
+  if (!X509_REQ_set_version(self->pkcs10, version))
+    lose("Couldn't set certificate version");
+
+  Py_RETURN_NONE;
+
+ error:
+
+  return NULL;
+}
+
+static char pkcs10_object_get_subject__doc__[] =
+  "Return this PKCS #10 request's subject name.\n"
+  "\n"
+  "See the X509.getIssuer() method for details of the return value and\n"
+  "use of the optional \"format\" parameter.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_subject(pkcs10_object *self, PyObject *args)
+{
+  PyObject *result = NULL;
+  int format = OIDNAME_FORMAT;
+
+  ENTERING(pkcs10_object_get_subject);
+
+  if (!PyArg_ParseTuple(args, "|i", &format))
+    goto error;
+
+  result = x509_object_helper_get_name(X509_REQ_get_subject_name(self->pkcs10),
+                                       format);
+
+ error:                         /* Fall through */
+  return result;
+}
+
+static char pkcs10_object_set_subject__doc__[] =
+  "Set this PKCS#10 request's subject name.\n"
+  "\n"
+  "The \"name\" parameter should be in the same format as the return\n"
+  "value from the \"getSubject\" method.\n"
+  ;
+
+static PyObject *
+pkcs10_object_set_subject(pkcs10_object *self, PyObject *args)
+{
+  PyObject *name_sequence = NULL;
+  X509_NAME *name = NULL;
+
+  ENTERING(pkcs10_object_set_subject);
+
+  if (!PyArg_ParseTuple(args, "O", &name_sequence))
+    goto error;
+
+  if (!PySequence_Check(name_sequence))
+    lose_type_error("Inapropriate type");
+
+  if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
+    goto error;
+
+  if (!X509_REQ_set_subject_name(self->pkcs10, name))
+    lose("Unable to set subject name");
+
+  X509_NAME_free(name);
+
+  Py_RETURN_NONE;
+
+ error:
+  X509_NAME_free(name);
+  return NULL;
+}
+
+static char pkcs10_object_get_key_usage__doc__[] =
+  "Return a FrozenSet of strings representing the KeyUsage settings for\n"
+  "this PKCS#10 request, or None if the request has no KeyUsage\n"
+  "extension.  The bits have the same names as in RFC 5280.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_key_usage(pkcs10_object *self)
+{
+  extern X509V3_EXT_METHOD v3_key_usage;
+  BIT_STRING_BITNAME *bit_name;
+  ASN1_BIT_STRING *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *token = NULL;
+
+  ENTERING(pkcs10_object_get_key_usage);
+
+  if ((ext = X509V3_get_d2i(self->exts, NID_key_usage, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if ((result = PyFrozenSet_New(NULL)) == NULL)
+    goto error;
+
+  for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++) {
+    if (ASN1_BIT_STRING_get_bit(ext, bit_name->bitnum) &&
+        ((token = PyString_FromString(bit_name->sname)) == NULL ||
+         PySet_Add(result, token) < 0))
+      goto error;
+    Py_XDECREF(token);
+    token = NULL;
+  }
+
+  ASN1_BIT_STRING_free(ext);
+  return result;
+
+ error:
+  ASN1_BIT_STRING_free(ext);
+  Py_XDECREF(token);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+static char pkcs10_object_set_key_usage__doc__[] =
+  "Set the KeyUsage extension for this PKCS#10 request.\n"
+  "\n"
+  "Argument \"iterable\" should be an iterable object which returns zero or more\n"
+  "strings naming bits to be enabled.  The bits have the same names as in RFC 5280.\n"
+  "\n"
+  "Optional argument \"critical\" is a boolean indicating whether the extension\n"
+  "should be marked as critical or not.  RFC 5280 4.2.1.3 says this extension SHOULD\n"
+  "be marked as critical when used, so the default is True.\n"
+  ;
+
+static PyObject *
+pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
+{
+  extern X509V3_EXT_METHOD v3_key_usage;
+  BIT_STRING_BITNAME *bit_name;
+  ASN1_BIT_STRING *ext = NULL;
+  PyObject *iterable = NULL;
+  PyObject *critical = Py_True;
+  PyObject *iterator = NULL;
+  PyObject *token = NULL;
+  const char *t;
+  int ok = 0;
+
+  ENTERING(pkcs10_object_set_key_usage);
+
+  if ((ext = ASN1_BIT_STRING_new()) == NULL)
+    lose_no_memory();
+
+  if (!PyArg_ParseTuple(args, "O|O", &iterable, &critical) ||
+      (iterator = PyObject_GetIter(iterable)) == NULL)
+    goto error;
+
+  while ((token = PyIter_Next(iterator)) != NULL) {
+
+    if ((t = PyString_AsString(token)) == NULL)
+      goto error;
+
+    for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++)
+      if (!strcmp(t, bit_name->sname))
+        break;
+
+    if (bit_name->sname == NULL)
+      lose("Unrecognized KeyUsage token");
+
+    if (!ASN1_BIT_STRING_set_bit(ext, bit_name->bitnum, 1))
+      lose_no_memory();
+
+    Py_XDECREF(token);
+    token = NULL;
+  }
+
+  if (!X509V3_add1_i2d(&self->exts, NID_key_usage, ext,
+                       PyObject_IsTrue(critical),
+                       X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add KeyUsage extension to certificate");
+
+  ok = 1;
+
+ error:                         /* Fall through */
+  ASN1_BIT_STRING_free(ext);
+  Py_XDECREF(iterator);
+  Py_XDECREF(token);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char pkcs10_object_get_basic_constraints__doc__[] =
+  "Return BasicConstraints value for this PKCS#10 request.\n"
+  "\n"
+  "If this request has no BasicConstraints extension, this method returns\n"
+  "None.\n"
+  "\n"
+  "Otherwise, this method returns a two-element tuple.  The first element\n"
+  "of the tuple is a boolean representing the extension's cA value; the\n"
+  "second element of the tuple is either an integer representing\n"
+  "thepathLenConstraint value or None if there is no pathLenConstraint.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_basic_constraints(pkcs10_object *self)
+{
+  BASIC_CONSTRAINTS *ext = NULL;
+  PyObject *result;
+
+  ENTERING(pkcs10_object_get_basic_constraints);
+
+  if ((ext = X509V3_get_d2i(self->exts, NID_basic_constraints, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if (ext->pathlen == NULL)
+    result = Py_BuildValue("(NO)", PyBool_FromLong(ext->ca), Py_None);
+  else
+    result = Py_BuildValue("(Nl)", PyBool_FromLong(ext->ca), ASN1_INTEGER_get(ext->pathlen));
+
+  BASIC_CONSTRAINTS_free(ext);
+  return result;
+}
+
+static char pkcs10_object_set_basic_constraints__doc__[] =
+  "Set BasicConstraints value for this PKCS#10 request.\n"
+  "\n"
+  "First argument \"ca\" is a boolean indicating whether the request\n"
+  "is for a CA certificate or not.\n"
+  "\n"
+  "Optional second argument \"pathLenConstraint\" is None or a\n"
+  "non-negative integer specifying the pathLenConstraint value for this\n"
+  "certificate.  Per RFC 5280, this value may only be set to an integer\n"
+  "value for CA certificates."
+  "\n"
+  "Optional third argument \"critical\" specifies whether the extension\n"
+  "should be marked as critical.  RFC 5280 4.2.1.9 requires that CA\n"
+  "certificates mark this extension as critical, so the default is True.\n"
+  ;
+
+static PyObject *
+pkcs10_object_set_basic_constraints(pkcs10_object *self, PyObject *args)
+{
+  BASIC_CONSTRAINTS *ext = NULL;
+  PyObject *is_ca = NULL;
+  PyObject *pathlen_obj = Py_None;
+  PyObject *critical = Py_True;
+  long pathlen = -1;
+  int ok = 0;
+
+  ENTERING(pkcs10_object_set_basic_constraints);
+
+  if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
+    goto error;
+
+  if (pathlen_obj != Py_None && (pathlen = PyInt_AsLong(pathlen_obj)) < 0)
+    lose_type_error("Bad pathLenConstraint value");
+
+  if ((ext = BASIC_CONSTRAINTS_new()) == NULL)
+    lose_no_memory();
+
+  ext->ca = PyObject_IsTrue(is_ca) ? 0xFF : 0;
+
+  if (pathlen_obj != Py_None &&
+      ((ext->pathlen == NULL && (ext->pathlen = ASN1_INTEGER_new()) == NULL) ||
+       !ASN1_INTEGER_set(ext->pathlen, pathlen)))
+    lose_no_memory();
+
+  if (!X509V3_add1_i2d(&self->exts, NID_basic_constraints, ext,
+                       PyObject_IsTrue(critical), X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add BasicConstraints extension to certificate");
+
+  ok = 1;
+
+ error:
+  BASIC_CONSTRAINTS_free(ext);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char pkcs10_object_get_sia__doc__[] =
+  "Return the SIA values for this PKCS#10 request.\n"
+  "\n"
+  "If this request has no SIA extension, this method returns None.\n"
+  "\n"
+  "Otherwise, this returns a tuple containing three sequences:\n"
+  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
+  "Any other accessMethods are ignored, as are any non-URI\n"
+  "accessLocations.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_sia(pkcs10_object *self)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *result_caRepository = NULL;
+  PyObject *result_rpkiManifest = NULL;
+  PyObject *result_signedObject = NULL;
+  int n_caRepository = 0;
+  int n_rpkiManifest = 0;
+  int n_signedObject = 0;
+  const char *uri;
+  PyObject *obj;
+  int i, nid;
+
+  ENTERING(pkcs10_object_get_sia);
+
+  if ((ext = X509V3_get_d2i(self->exts, NID_sinfo_access, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  /*
+   * Easiest to do this in two passes, first pass just counts URIs.
+   */
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type != GEN_URI)
+      continue;
+    nid = OBJ_obj2nid(a->method);
+    if (nid == NID_caRepository) {
+      n_caRepository++;
+      continue;
+    }
+    if (nid == NID_rpkiManifest) {
+      n_rpkiManifest++;
+      continue;
+    }
+    if (nid == NID_signedObject) {
+      n_signedObject++;
+      continue;
+    }
+  }
+
+  if (((result_caRepository = PyTuple_New(n_caRepository)) == NULL) ||
+      ((result_rpkiManifest = PyTuple_New(n_rpkiManifest)) == NULL) ||
+      ((result_signedObject = PyTuple_New(n_signedObject)) == NULL))
+    goto error;
+
+  n_caRepository = n_rpkiManifest = n_signedObject = 0;
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type != GEN_URI)
+      continue;
+    nid = OBJ_obj2nid(a->method);
+    uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+    if (nid == NID_caRepository) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_caRepository, n_caRepository++, obj);
+      continue;
+    }
+    if (nid == NID_rpkiManifest) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_rpkiManifest, n_rpkiManifest++, obj);
+      continue;
+    }
+    if (nid == NID_signedObject) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_signedObject, n_signedObject++, obj);
+      continue;
+    }
+  }
+
+  result = Py_BuildValue("(OOO)",
+                         result_caRepository,
+                         result_rpkiManifest,
+                         result_signedObject);
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  Py_XDECREF(result_caRepository);
+  Py_XDECREF(result_rpkiManifest);
+  Py_XDECREF(result_signedObject);
+  return result;
+}
+
+static char pkcs10_object_set_sia__doc__[] =
+  "Set SIA values for this PKCS#10 request.\n"
+  "\n"
+  "Takes three arguments: caRepository, rpkiManifest, and signedObject.\n"
+  "\n"
+  "Each of these should be an iterable which returns URIs.\n"
+  "\n"
+  "None is acceptable as an alternate way of specifying an empty\n"
+  "sequence of URIs for a particular argument.\n"
+  ;
+
+static PyObject *
+pkcs10_object_set_sia(pkcs10_object *self, PyObject *args)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *caRepository = NULL;
+  PyObject *rpkiManifest = NULL;
+  PyObject *signedObject = NULL;
+  PyObject *iterator = NULL;
+  ASN1_OBJECT *oid = NULL;
+  PyObject **pobj = NULL;
+  PyObject *item = NULL;
+  ACCESS_DESCRIPTION *a = NULL;
+  int i, nid = NID_undef, ok = 0;
+  Py_ssize_t urilen;
+  char *uri;
+
+  ENTERING(pkcs10_object_set_sia);
+
+  if (!PyArg_ParseTuple(args, "OOO", &caRepository, &rpkiManifest, &signedObject))
+    goto error;
+
+  if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
+    lose_no_memory();
+
+  /*
+   * This is going to want refactoring, because it's ugly, because we
+   * want to reuse code for AIA, and because it'd be nice to support a
+   * single URI as an abbreviation for a sequence containing one URI.
+   */
+
+  for (i = 0; i < 3; i++) {
+    switch (i) {
+    case 0: pobj = &caRepository; nid = NID_caRepository; break;
+    case 1: pobj = &rpkiManifest; nid = NID_rpkiManifest; break;
+    case 2: pobj = &signedObject; nid = NID_signedObject; break;
+    }
+
+    if (*pobj == Py_None)
+      continue;
+
+    if ((oid = OBJ_nid2obj(nid)) == NULL)
+      lose_openssl_error("Couldn't find SIA accessMethod OID");
+
+    if ((iterator = PyObject_GetIter(*pobj)) == NULL)
+      goto error;
+
+    while ((item = PyIter_Next(iterator)) != NULL) {
+
+      if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
+        goto error;
+
+      if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
+          (a->method = OBJ_dup(oid)) == NULL ||
+          (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
+          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
+        lose_no_memory();
+
+      a->location->type = GEN_URI;
+
+      if (!sk_ACCESS_DESCRIPTION_push(ext, a))
+        lose_no_memory();
+
+      a = NULL;
+      Py_XDECREF(item);
+      item = NULL;
+    }
+
+    Py_XDECREF(iterator);
+    iterator = NULL;
+  }
+
+  if (!X509V3_add1_i2d(&self->exts, NID_sinfo_access, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add SIA extension to certificate");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  ACCESS_DESCRIPTION_free(a);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char pkcs10_object_get_signature_algorithm__doc__[] =
+  "Return this PKCS #10 reqeuest's signature algorithm OID.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_signature_algorithm(pkcs10_object *self)
+{
+  ASN1_OBJECT *oid = NULL;
+
+  ENTERING(pkcs10_object_get_signature_algorithm);
+
+  X509_ALGOR_get0(&oid, NULL, NULL, self->pkcs10->sig_alg);
+
+  return ASN1_OBJECT_to_PyString(oid);
+}
+
+static char pkcs10_object_get_extension_oids__doc__[] =
+  "Return the set of extension OIDs used in this request.  This is mostly\n"
+  "useful for enforcing restrictions on what extensions are allowed to be\n"
+  "present, eg, to conform with the RPKI profile.\n"
+  ;
+
+static PyObject *
+pkcs10_object_get_extension_oids(pkcs10_object *self)
+{
+  PyObject *result = NULL;
+  PyObject *oid = NULL;
+  int i;
+
+  ENTERING(pkcs10_object_get_extension_oids);
+
+  if ((result = PyFrozenSet_New(NULL)) == NULL)
+    goto error;
+
+  for (i = 0; i < sk_X509_EXTENSION_num(self->exts); i++) {
+    X509_EXTENSION *ext = sk_X509_EXTENSION_value(self->exts, i);
+    if ((oid = ASN1_OBJECT_to_PyString(ext->object)) == NULL ||
+        PySet_Add(result, oid) < 0)
+      goto error;
+    Py_XDECREF(oid);
+    oid = NULL;
+  }
+
+  return result;
+
+ error:
+  Py_XDECREF(result);
+  Py_XDECREF(oid);
+  return NULL;  
+}
+
+/*
+ * May want EKU handlers eventually, skip for now.
+ */
+
+static char pkcs10_object_pprint__doc__[] =
+  "Return a pretty-printed rendition of this PKCS#10 request.\n"
+  ;
+
+static PyObject *
+pkcs10_object_pprint(pkcs10_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(pkcs10_object_pprint);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (!X509_REQ_print(bio, self->pkcs10))
+    lose_openssl_error("Unable to pretty-print PKCS#10 request");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static struct PyMethodDef pkcs10_object_methods[] = {
+  Define_Method(pemWrite,               pkcs10_object_pem_write,                METH_NOARGS),
+  Define_Method(derWrite,               pkcs10_object_der_write,                METH_NOARGS),
+  Define_Method(sign,                   pkcs10_object_sign,                     METH_VARARGS),
+  Define_Method(verify,                 pkcs10_object_verify,                   METH_NOARGS),
+  Define_Method(getPublicKey,           pkcs10_object_get_public_key,           METH_NOARGS),
+  Define_Method(setPublicKey,           pkcs10_object_set_public_key,           METH_VARARGS),
+  Define_Method(getVersion,             pkcs10_object_get_version,              METH_NOARGS),
+  Define_Method(setVersion,             pkcs10_object_set_version,              METH_VARARGS),
+  Define_Method(getSubject,             pkcs10_object_get_subject,              METH_VARARGS),
+  Define_Method(setSubject,             pkcs10_object_set_subject,              METH_VARARGS),
+  Define_Method(pprint,                 pkcs10_object_pprint,                   METH_NOARGS),
+  Define_Method(getKeyUsage,            pkcs10_object_get_key_usage,            METH_NOARGS),
+  Define_Method(setKeyUsage,            pkcs10_object_set_key_usage,            METH_VARARGS),
+  Define_Method(getBasicConstraints,    pkcs10_object_get_basic_constraints,    METH_NOARGS),
+  Define_Method(setBasicConstraints,    pkcs10_object_set_basic_constraints,    METH_VARARGS),
+  Define_Method(getSIA,                 pkcs10_object_get_sia,                  METH_NOARGS),
+  Define_Method(setSIA,                 pkcs10_object_set_sia,                  METH_VARARGS),
+  Define_Method(getSignatureAlgorithm,  pkcs10_object_get_signature_algorithm,  METH_NOARGS),
+  Define_Method(getExtensionOIDs,       pkcs10_object_get_extension_oids,       METH_NOARGS),
+  Define_Class_Method(pemRead,          pkcs10_object_pem_read,                 METH_VARARGS),
+  Define_Class_Method(pemReadFile,      pkcs10_object_pem_read_file,            METH_VARARGS),
+  Define_Class_Method(derRead,          pkcs10_object_der_read,                 METH_VARARGS),
+  Define_Class_Method(derReadFile,      pkcs10_object_der_read_file,            METH_VARARGS),
+  {NULL}
 };
-/*========== CMS Code ==========*/
 
-/*========== module functions ==========*/
-static char pow_module_new_ssl__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>Ssl</memberof>\n"
-"      <parameter>protocol = SSLV23METHOD</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a new <classname>Ssl</classname> object which will behave as a client\n"
-"         or server, depending on the <parameter>protocol</parameter> value passed.  The\n"
-"         <parameter>protocol</parameter> also determines the protocol type\n"
-"         and version and should be one of the following:\n"
-"      </para>\n"
-"\n"
-"      <simplelist>\n"
-"         <member><constant>SSLV2_SERVER_METHOD</constant></member>\n"
-"         <member><constant>SSLV2_CLIENT_METHOD</constant></member>\n"
-"         <member><constant>SSLV2_METHOD</constant></member>\n"
-"         <member><constant>SSLV3_SERVER_METHOD</constant></member>\n"
-"         <member><constant>SSLV3_CLIENT_METHOD</constant></member>\n"
-"         <member><constant>SSLV3_METHOD</constant></member>\n"
-"         <member><constant>TLSV1_SERVER_METHOD</constant></member>\n"
-"         <member><constant>TLSV1_CLIENT_METHOD</constant></member>\n"
-"         <member><constant>TLSV1_METHOD</constant></member>\n"
-"         <member><constant>SSLV23_SERVER_METHOD</constant></member>\n"
-"         <member><constant>SSLV23_CLIENT_METHOD</constant></member>\n"
-"         <member><constant>SSLV23_METHOD</constant></member>\n"
-"      </simplelist>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_ssl (PyObject *self, PyObject *args)
-{
-  ssl_object *ssl = NULL;
-  int ctxtype = SSLV23_METHOD;
-
-  if (!PyArg_ParseTuple(args, "|i", &ctxtype))
-    goto error;
-
-  if ((ssl = newssl_object(ctxtype)) == NULL)
-    goto error;
-
-  return (PyObject*) ssl;
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_x509__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>X509</memberof>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a skeletal X509 certificate object.\n"
-"         It won't be any use at all until several structures\n"
-"         have been created using it's member functions.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_x509 (PyObject *self, PyObject *args)
-{
-  x509_object *x509 = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if ((x509 = X509_object_new()) == NULL)
-    lose("could not create new x509 object");
-
-  return (PyObject*)x509;
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_asymmetric__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>Asymmetric</memberof>\n"
-"      <parameter>ciphertype = RSA_CIPHER</parameter>\n"
-"      <parameter>keylength = 1024</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor builds a new cipher object.  Only RSA ciphers\n"
-"         are currently support, so the first argument should always be\n"
-"         <constant>RSA_CIPHER</constant>.  The second argument,\n"
-"         <parameter>keylength</parameter>,\n"
-"         is normally 512, 768, 1024 or 2048.  Key lengths as short as 512\n"
-"         bits are generally considered weak, and can be cracked by\n"
-"         determined attackers without tremendous expense.\n"
-"      </para>\n"
-"      <example>\n"
-"         <title><classname>asymmetric</classname> class usage</title>\n"
-"         <programlisting>\n"
-"      privateFile = open('test/private.key', 'w')\n"
-"      publicFile = open('test/public.key', 'w')\n"
-"\n"
-"      passphrase = 'my silly passphrase'\n"
-"      md5 = POW.Digest(POW.MD5_DIGEST)\n"
-"      md5.update(passphrase)\n"
-"      password = md5.digest()\n"
-"\n"
-"      rsa = POW.Asymmetric(POW.RSA_CIPHER, 1024)\n"
-"      privateFile.write(rsa.pemWrite(\n"
-"               POW.RSA_PRIVATE_KEY, POW.DES_EDE3_CFB, password))\n"
-"      publicFile.write(rsa.pemWrite(POW.RSA_PUBLIC_KEY))\n"
-"\n"
-"      privateFile.close()\n"
-"      publicFile.close()\n"
-"         </programlisting>\n"
-"      </example>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_asymmetric (PyObject *self, PyObject *args)
-{
-  int cipher_type = RSA_CIPHER, key_size = 1024;
-
-  if (!PyArg_ParseTuple(args, "|ii", &cipher_type, &key_size))
-    goto error;
-
-  return (PyObject*) asymmetric_object_new(cipher_type, key_size);
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_digest__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>Digest</memberof>\n"
-"      <parameter>type</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a new <classname>Digest</classname>\n"
-"         object.  The parameter <parameter>type</parameter> specifies what kind\n"
-"         of digest to create and should be one of the following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
-"         <member><constant>MD5_DIGEST</constant></member>\n"
-"         <member><constant>SHA_DIGEST</constant></member>\n"
-"         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
-"         <member><constant>SHA256_DIGEST</constant></member>\n"
-"         <member><constant>SHA384_DIGEST</constant></member>\n"
-"         <member><constant>SHA512_DIGEST</constant></member>\n"
-"      </simplelist>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_digest (PyObject *self, PyObject *args)
-{
-  int digest_type = 0;
-
-  if (!PyArg_ParseTuple(args, "i", &digest_type))
-    goto error;
-
-  return (PyObject*) digest_object_new(digest_type);
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_hmac__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>Hmac</memberof>\n"
-"      <parameter>type</parameter>\n"
-"      <parameter>key</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a new <classname>Hmac</classname>\n"
-"         object.  The parameter <parameter>key</parameter> should be a\n"
-"         string and <parameter>type</parameter> should be one of the following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-#ifndef OPENSSL_NO_MD2
-"         <member><constant>MD2_DIGEST</constant></member>\n"
-#endif
-"         <member><constant>MD5_DIGEST</constant></member>\n"
-"         <member><constant>SHA_DIGEST</constant></member>\n"
-"         <member><constant>SHA1_DIGEST</constant></member>\n"
-"         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
-"         <member><constant>SHA256_DIGEST</constant></member>\n"
-"         <member><constant>SHA384_DIGEST</constant></member>\n"
-"         <member><constant>SHA512_DIGEST</constant></member>\n"
-"      </simplelist>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_hmac (PyObject *self, PyObject *args)
-{
-  int digest_type = 0, key_len = 0;
-  char *key = NULL;
-
-  if (!PyArg_ParseTuple(args, "is#", &digest_type, &key, &key_len))
-    goto error;
-
-  return (PyObject*) hmac_object_new(digest_type, key, key_len);
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_cms__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>CMS</memberof>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a skeletal CMS object.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_cms (PyObject *self, PyObject *args)
-{
-  cms_object *cms = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if ((cms = CMS_object_new()) == NULL)
-    lose("could not create new CMS object");
-
-  return (PyObject*)cms;
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_pem_read__doc__[] =
-"<modulefunction>\n"
-"   <header>\n"
-"      <name>pemRead</name>\n"
-"      <parameter>type</parameter>\n"
-"      <parameter>string</parameter>\n"
-"      <parameter>pass = None</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function attempts to parse the <parameter>string</parameter> according to the PEM\n"
-"         type passed. <parameter>type</parameter> should be one of the\n"
-"         following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-"         <member><constant>RSA_PUBLIC_KEY</constant></member>\n"
-"         <member><constant>RSA_PRIVATE_KEY</constant></member>\n"
-"         <member><constant>X509_CERTIFICATE</constant></member>\n"
-"         <member><constant>X509_CRL</constant></member>\n"
-"         <member><constant>CMS_MESSAGE</constant></member>\n"
-"      </simplelist>\n"
-"      <para>\n"
-"         <parameter>pass</parameter> should only be provided if an encrypted\n"
-"         <classname>Asymmetric</classname> is being loaded.  If the password\n"
-"         is incorrect an exception will be raised, if no password is provided\n"
-"         and the PEM file is encrypted the user will be prompted.  If this is\n"
-"         not desirable, always supply a password.  The object returned will be\n"
-"         and instance of <classname>Asymmetric</classname>,\n"
-"         <classname>X509</classname>, <classname>X509Crl</classname>,\n"
-"         or <classname>CMS</classname>.\n"
-"      </para>\n"
-"   </body>\n"
-"</modulefunction>\n"
-;
-
-static PyObject *
-pow_module_pem_read (PyObject *self, PyObject *args)
-{
-  BIO *in = NULL;
-  PyObject *obj = NULL;
-  int object_type = 0, len = 0;
-  char *pass = NULL, *src = NULL;
-
-  if (!PyArg_ParseTuple(args, "is#|s", &object_type, &src, &len, &pass))
-    goto error;
-
-  if ((in = BIO_new_mem_buf(src, len)) == NULL)
-    lose("unable to create new BIO");
-
-  switch(object_type) {
-  case RSA_PRIVATE_KEY:
-    obj = (PyObject*)asymmetric_object_pem_read(object_type, in, pass);
-    break;
-  case RSA_PUBLIC_KEY:
-    obj = (PyObject*)asymmetric_object_pem_read(object_type, in, pass);
-    break;
-  case X509_CERTIFICATE:
-    obj = (PyObject*)X509_object_pem_read(in);
-    break;
-  case X_X509_CRL:
-    obj = (PyObject*)x509_crl_object_pem_read(in);
-    break;
-  case CMS_MESSAGE:
-    obj = (PyObject*)CMS_object_pem_read(in);
-    break;
-  default:
-    lose("unknown pem encoding");
-  }
-
-  BIO_free(in);
-
-  if (obj)
-    return obj;
-
- error:
-
-  return NULL;
-}
-
-
-static char pow_module_der_read__doc__[] =
-"<modulefunction>\n"
-"   <header>\n"
-"      <name>derRead</name>\n"
-"      <parameter>type</parameter>\n"
-"      <parameter>string</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function attempts to parse the <parameter>string</parameter> according to the PEM\n"
-"         type passed. <parameter>type</parameter> should be one of the\n"
-"         following:\n"
-"      </para>\n"
-"      <simplelist>\n"
-"         <member><constant>RSA_PUBLIC_KEY</constant></member>\n"
-"         <member><constant>RSA_PRIVATE_KEY</constant></member>\n"
-"         <member><constant>X509_CERTIFICATE</constant></member>\n"
-"         <member><constant>X509_CRL</constant></member>\n"
-"         <member><constant>CMS_MESSAGE</constant></member>\n"
-"      </simplelist>\n"
-"      <para>\n"
-"         As with the PEM operations, the object returned will be and instance\n"
-"         of <classname>Asymmetric</classname>, <classname>X509</classname>,\n"
-"         <classname>X509Crl</classname>, or <classname>CMS</classname>.\n"
-"      </para>\n"
-"   </body>\n"
-"</modulefunction>\n"
-;
-
-static PyObject *
-pow_module_der_read (PyObject *self, PyObject *args)
-{
-  PyObject *obj = NULL;
-  int object_type = 0, len = 0;
-  unsigned char *src = NULL;
-
-  if (!PyArg_ParseTuple(args, "is#", &object_type, &src, &len))
-    goto error;
-
-  switch(object_type) {
-  case RSA_PRIVATE_KEY:
-    obj = (PyObject*) asymmetric_object_der_read(object_type, src, len);
-    break;
-  case RSA_PUBLIC_KEY:
-    obj = (PyObject*) asymmetric_object_der_read(object_type, src, len);
-    break;
-  case X509_CERTIFICATE:
-    obj = (PyObject*)X509_object_der_read(src, len);
-    break;
-  case X_X509_CRL:
-    obj = (PyObject*)x509_crl_object_der_read(src, len);
-    break;
-  case CMS_MESSAGE:
-    obj = (PyObject*)CMS_object_der_read((char *) src, len);
-    break;
-  default:
-    lose("unknown der encoding");
-  }
-
-  if (obj)
-    return obj;
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_x509_store__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>X509Store</memberof>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor takes no arguments.  The\n"
-"         <classname>X509Store</classname> returned cannot be used for\n"
-"         verifying certificates until at least one trusted certificate has been\n"
-"         added.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_x509_store (PyObject *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  return (PyObject *) x509_store_object_new();
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_symmetric__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>Symmetric</memberof>\n"
-"      <parameter>type</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a new <classname>Symmetric</classname>\n"
-"         object.  The parameter <parameter>type</parameter> specifies which kind\n"
-"         of cipher to create. <constant>type</constant> should be one of the following:\n"
-"      </para>\n"
-"      <simplelist columns = \"2\">\n"
-"         <member><constant>DES_ECB</constant></member>\n"
-"         <member><constant>DES_EDE</constant></member>\n"
-"         <member><constant>DES_EDE3</constant></member>\n"
-"         <member><constant>DES_CFB</constant></member>\n"
-"         <member><constant>DES_EDE_CFB</constant></member>\n"
-"         <member><constant>DES_EDE3_CFB</constant></member>\n"
-"         <member><constant>DES_OFB</constant></member>\n"
-"         <member><constant>DES_EDE_OFB</constant></member>\n"
-"         <member><constant>DES_EDE3_OFB</constant></member>\n"
-"         <member><constant>DES_CBC</constant></member>\n"
-"         <member><constant>DES_EDE_CBC</constant></member>\n"
-"         <member><constant>DES_EDE3_CBC</constant></member>\n"
-"         <member><constant>DESX_CBC</constant></member>\n"
-"         <member><constant>RC4</constant></member>\n"
-"         <member><constant>RC4_40</constant></member>\n"
-"         <member><constant>IDEA_ECB</constant></member>\n"
-"         <member><constant>IDEA_CFB</constant></member>\n"
-"         <member><constant>IDEA_OFB</constant></member>\n"
-"         <member><constant>IDEA_CBC</constant></member>\n"
-"         <member><constant>RC2_ECB</constant></member>\n"
-"         <member><constant>RC2_CBC</constant></member>\n"
-"         <member><constant>RC2_40_CBC</constant></member>\n"
-"         <member><constant>RC2_CFB</constant></member>\n"
-"         <member><constant>RC2_OFB</constant></member>\n"
-"         <member><constant>BF_ECB</constant></member>\n"
-"         <member><constant>BF_CBC</constant></member>\n"
-"         <member><constant>BF_CFB</constant></member>\n"
-"         <member><constant>BF_OFB</constant></member>\n"
-"         <member><constant>CAST5_ECB</constant></member>\n"
-"         <member><constant>CAST5_CBC</constant></member>\n"
-"         <member><constant>CAST5_CFB</constant></member>\n"
-"         <member><constant>CAST5_OFB</constant></member>\n"
-"         <member><constant>RC5_32_12_16_CBC</constant></member>\n"
-"         <member><constant>RC5_32_12_16_CFB</constant></member>\n"
-"         <member><constant>RC5_32_12_16_ECB</constant></member>\n"
-"         <member><constant>RC5_32_12_16_OFB</constant></member>\n"
-"      </simplelist>\n"
-"      <para>\n"
-"         Please note your version of OpenSSL might not have been compiled with\n"
-"         all the ciphers listed above.  If that is the case, which is very\n"
-"         likely if you are using a stock binary, the unsuported ciphers will not even\n"
-"         be in the module namespace.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_symmetric (PyObject *self, PyObject *args)
-{
-  int cipher_type = 0;
-
-  if (!PyArg_ParseTuple(args, "i", &cipher_type))
-    goto error;
-
-  return (PyObject *) symmetric_object_new(cipher_type);
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_x509_crl__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>x509_crl</memberof>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor builds an empty CRL.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_x509_crl (PyObject *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  return (PyObject *) x509_crl_object_new();
-
- error:
-
-  return NULL;
-}
-
-static char pow_module_new_x509_revoked__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>X509Revoked</memberof>\n"
-"      <parameter>serial</parameter>\n"
-"      <parameter>date</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor builds a X509 Revoked structure.  <parameter>serial</parameter>\n"
-"         should be an integer and <parameter>date</parameter> should be and\n"
-"         UTCTime string.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_x509_revoked (PyObject *self, PyObject *args)
-{
-  int serial = -1;
-  char *date = NULL;
-  x509_revoked_object *revoke = NULL;
-
-  if (!PyArg_ParseTuple(args, "|is", &serial, &date))
-    goto error;
-
-  revoke = x509_revoked_object_new();
-  if (serial != -1 && !ASN1_INTEGER_set(revoke->revoked->serialNumber, serial))
-    lose("unable to set serial number");
-
-  if (date != NULL && !python_ASN1_TIME_set_string(revoke->revoked->revocationDate, date))
-    lose_type_error("Could not set revocationDate");
-
-  return (PyObject*) revoke;
-
- error:
-
-  return NULL;
-}
+static char POW_PKCS10_Type__doc__[] =
+  "This class represents a PKCS#10 request.\n"
+  "\n"
+  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
+  ;
+
+static PyTypeObject POW_PKCS10_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                        /* ob_size */
+  "rpki.POW.PKCS10",                        /* tp_name */
+  sizeof(pkcs10_object),                    /* tp_basicsize */
+  0,                                        /* tp_itemsize */
+  (destructor)pkcs10_object_dealloc,        /* tp_dealloc */
+  0,                                        /* tp_print */
+  0,                                        /* tp_getattr */
+  0,                                        /* tp_setattr */
+  0,                                        /* tp_compare */
+  0,                                        /* tp_repr */
+  0,                                        /* tp_as_number */
+  0,                                        /* tp_as_sequence */
+  0,                                        /* tp_as_mapping */
+  0,                                        /* tp_hash */
+  0,                                        /* tp_call */
+  0,                                        /* tp_str */
+  0,                                        /* tp_getattro */
+  0,                                        /* tp_setattro */
+  0,                                        /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  POW_PKCS10_Type__doc__,                   /* tp_doc */
+  0,                                        /* tp_traverse */
+  0,                                        /* tp_clear */
+  0,                                        /* tp_richcompare */
+  0,                                        /* tp_weaklistoffset */
+  0,                                        /* tp_iter */
+  0,                                        /* tp_iternext */
+  pkcs10_object_methods,                    /* tp_methods */
+  0,                                        /* tp_members */
+  0,                                        /* tp_getset */
+  0,                                        /* tp_base */
+  0,                                        /* tp_dict */
+  0,                                        /* tp_descr_get */
+  0,                                        /* tp_descr_set */
+  0,                                        /* tp_dictoffset */
+  0,                                        /* tp_init */
+  0,                                        /* tp_alloc */
+  pkcs10_object_new,                        /* tp_new */
+};
+
+
+
+/*
+ * Module functions.
+ */
 
 static char pow_module_add_object__doc__[] =
-"<modulefunction>\n"
-"   <header>\n"
-"      <name>addObject</name>\n"
-"      <parameter>oid</parameter>\n"
-"      <parameter>shortName</parameter>\n"
-"      <parameter>longName</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function can be used to dynamically add new objects to\n"
-"         OpenSSL.  The <parameter>oid</parameter> should be a string of space separated numbers\n"
-"         and <parameter>shortName</parameter> and\n"
-"         <parameter>longName</parameter> are the names of the object, ie\n"
-"         'cn' and 'commonName'.\n"
-"      </para>\n"
-"   </body>\n"
-"</modulefunction>\n"
-;
+  "Add new a new object identifier to OpenSSL's internal database.\n"
+  "\n"
+  "The \"oid\" should be an ASN.1 object identifer, represented as a string\n"
+  "in dotted-decimal format.\n"
+  "\n"
+  "The \"shortName\" parameter should be the OpenSSL \"short name\" to use.\n"
+  "\n"
+  "The \"longName\" parameter should be the OpenSSL \"long name\" to use.\n"
+  ;
 
 static PyObject *
-pow_module_add_object(PyObject *self, PyObject *args)
+pow_module_add_object(GCC_UNUSED PyObject *self, PyObject *args)
 {
   char *oid = NULL, *sn = NULL, *ln = NULL;
+
+  ENTERING(pow_module_add_object);
 
   if (!PyArg_ParseTuple(args, "sss", &oid, &sn, &ln))
     goto error;
 
   if (!OBJ_create(oid, sn, ln))
-    lose("unable to add object");
+    lose_openssl_error("Unable to add object");
 
   Py_RETURN_NONE;
 
@@ -7943,104 +8005,57 @@ pow_module_add_object(PyObject *self, PyObject *args)
 }
 
 static char pow_module_get_error__doc__[] =
-"<modulefunction>\n"
-"   <header>\n"
-"      <name>getError</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         Pops an error off the global error stack and returns it as a string.\n"
-"         Returns None if the global error stack is empty.\n"
-"      </para>\n"
-"   </body>\n"
-"</modulefunction>\n"
-;
+  "Pop one error off OpenSSL's global error stack and returns it as a string.\n"
+  "\n"
+  "Returns None if the error stack is empty.\n"
+  ;
 
 static PyObject *
-pow_module_get_error(PyObject *self, PyObject *args)
+pow_module_get_error(GCC_UNUSED PyObject *self)
 {
-  unsigned long error;
+  unsigned long error = ERR_get_error();
   char buf[256];
 
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  error = ERR_get_error();
+  ENTERING(pow_module_get_error);
 
   if (!error)
     Py_RETURN_NONE;
 
   ERR_error_string_n(error, buf, sizeof(buf));
-
   return Py_BuildValue("s", buf);
-
- error:
-
-  return NULL;
 }
 
 static char pow_module_clear_error__doc__[] =
-"<modulefunction>\n"
-"   <header>\n"
-"      <name>clearError</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         Removes all errors from the global error stack.\n"
-"      </para>\n"
-"   </body>\n"
-"</modulefunction>\n"
-;
+  "Remove all errors from OpenSSL's global error stack.\n"
+  ;
 
 static PyObject *
-pow_module_clear_error(PyObject *self, PyObject *args)
+pow_module_clear_error(GCC_UNUSED PyObject *self)
 {
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
+  ENTERING(pow_module_clear_error);
   ERR_clear_error();
-
   Py_RETURN_NONE;
-
- error:
-
-  return NULL;
 }
 
 static char pow_module_seed__doc__[] =
-"<modulefunction>\n"
-"   <header>\n"
-"      <name>seed</name>\n"
-"      <parameter>data</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         The <function>seed</function> function adds data to OpenSSLs PRNG\n"
-"         state.  It is often said the hardest part of cryptography is\n"
-"         getting good random data, after all if you don't have good random\n"
-"         data, a 1024 bit key is no better than a 512 bit key and neither\n"
-"         would provide protection from a targeted brute force attack.\n"
-"         The <function>seed</function> and <function>add</function> are very\n"
-"         similar, except the entropy of the data is assumed to be equal to\n"
-"         the length for <function>seed</function>.  One final point to be aware\n"
-"         of, only systems which support /dev/urandom are automatically seeded.\n"
-"         If your system does not support /dev/urandom it is your responsibility\n"
-"         to seed OpenSSL's PRNG.\n"
-"      </para>\n"
-"   </body>\n"
-"</modulefunction>\n"
-;
+  "Add data to OpenSSL's pseudo-random number generator state.\n"
+  "\n"
+  "The \"data\" parameter is the seed to add.  Entropy of the data is\n"
+  "assumed to be equal to the length of the data.\n"
+  ;
 
 static PyObject *
-pow_module_seed(PyObject *self, PyObject *args)
+pow_module_seed(GCC_UNUSED PyObject *self, PyObject *args)
 {
-  char *in = NULL;
-  int inl = 0;
+  char *data = NULL;
+  int datalen = 0;
 
-  if (!PyArg_ParseTuple(args, "s#", &in, &inl))
+  ENTERING(pow_module_seed);
+
+  if (!PyArg_ParseTuple(args, "s#", &data, &datalen))
     goto error;
 
-  RAND_seed(in, inl);
+  RAND_seed(data, datalen);
 
   Py_RETURN_NONE;
 
@@ -8050,489 +8065,213 @@ pow_module_seed(PyObject *self, PyObject *args)
 }
 
 static char pow_module_add__doc__[] =
-"<modulefunction>\n"
-"   <header>\n"
-"      <name>add</name>\n"
-"      <parameter>data</parameter>\n"
-"      <parameter>entropy</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         The <function>add</function> function adds data to OpenSSLs PRNG\n"
-"         state.  <parameter>data</parameter> should be data obtained from a\n"
-"         random source and <parameter>entropy</parameter> is an estimation of the number of random\n"
-"         bytes in <parameter>data</parameter>.\n"
-"      </para>\n"
-"   </body>\n"
-"</modulefunction>\n"
-;
+  "Add data to OpenSSL's pseudo-random number generator state.\n"
+  "\n"
+  "The \"data\" parameter is the data to add.\n"
+  "\n"
+  "The \"entropy\" parameter should be an estimate of the number of\n"
+  "random bytes in the data parameter.\n"
+  ;
 
 static PyObject *
-pow_module_add(PyObject *self, PyObject *args)
+pow_module_add(GCC_UNUSED PyObject *self, PyObject *args)
 {
-  char *in = NULL;
-  int inl = 0;
+  char *data = NULL;
+  int datalen = 0;
   double entropy = 0;
 
-  if (!PyArg_ParseTuple(args, "s#d", &in, &inl, &entropy))
+  ENTERING(pow_module_add);
+
+  if (!PyArg_ParseTuple(args, "s#d", &data, &datalen, &entropy))
     goto error;
 
-  RAND_add(in, inl, entropy);
+  RAND_add(data, datalen, entropy);
 
   Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
 
 static char pow_module_write_random_file__doc__[] =
-"<modulefunction>\n"
-"   <header>\n"
-"      <name>writeRandomFile</name>\n"
-"      <parameter>filename</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function writes the current random state to a file.  Clearly\n"
-"         this function should be used in conjunction with\n"
-"         <function>readRandomFile</function>.\n"
-"      </para>\n"
-"   </body>\n"
-"</modulefunction>\n"
-;
+  "Write the current state of OpenSSL's pseduo-random number generator to\n"
+  "a file.\n"
+  "\n"
+  "The \"filename\" parameter is the name of the file to write.\n"
+  ;
 
 static PyObject *
-pow_module_write_random_file(PyObject *self, PyObject *args)
+pow_module_write_random_file(GCC_UNUSED PyObject *self, PyObject *args)
 {
-  char *file = NULL;
+  char *filename = NULL;
 
-  if (!PyArg_ParseTuple(args, "s", &file))
+  ENTERING(pow_module_write_random_file);
+
+  if (!PyArg_ParseTuple(args, "s", &filename))
     goto error;
 
-  if (RAND_write_file(file) == -1)
-    lose("could not write random file");
+  if (RAND_write_file(filename) == -1)
+    lose("Couldn't write random file");
 
   Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
 
 static char pow_module_read_random_file__doc__[] =
-"<modulefunction>\n"
-"   <header>\n"
-"      <name>readRandomFile</name>\n"
-"      <parameter>filename</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This function reads a previously saved random state.  It can be very\n"
-"         useful to improve the quality of random data used by an application.\n"
-"         The random data should be added to, using the\n"
-"         <function>add</function> function, with data from other\n"
-"         suitable random sources.\n"
-"      </para>\n"
-"   </body>\n"
-"</modulefunction>\n"
-;
+  "Restore the state of OpenSSLs pseudo-random number generator from\n"
+  "data previously saved to a file.\n"
+  "\n"
+  "The \"filename\" parameter is the name of the file to read.\n"
+  ;
 
 static PyObject *
-pow_module_read_random_file(PyObject *self, PyObject *args)
+pow_module_read_random_file(GCC_UNUSED PyObject *self, PyObject *args)
 {
   char *file = NULL;
   int len = -1;
+
+  ENTERING(pow_module_read_random_file);
 
   if (!PyArg_ParseTuple(args, "s|i", &file, &len))
     goto error;
 
   if (!RAND_load_file(file, len))
-    lose("could not load random file");
+    lose("Couldn't load random file");
 
   Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
+
+static char pow_module_custom_datetime__doc__[] =
+  "Set constructor callback for customized datetime class.\n"
+  ;
 
 static PyObject *
-pow_module_docset(PyObject *self, PyObject *args)
+pow_module_custom_datetime(GCC_UNUSED PyObject *self, PyObject *args)
 {
-  PyObject *docset;
+  PyObject *cb = NULL;
 
-  if (!PyArg_ParseTuple(args, ""))
+  ENTERING(pow_module_custom_datetime);
+
+  if (!PyArg_ParseTuple(args, "O", &cb))
     goto error;
 
-  docset = PyList_New(0);
+  Py_XINCREF(cb);
+  Py_XDECREF(custom_datetime);
+  custom_datetime = cb;
 
-  // module documentation
-  docset_helper_add(docset, pow_module__doc__);
-
-  // constructors
-  docset_helper_add(docset, pow_module_new_symmetric__doc__);
-  docset_helper_add(docset, pow_module_new_asymmetric__doc__);
-  docset_helper_add(docset, pow_module_new_digest__doc__);
-  docset_helper_add(docset, pow_module_new_hmac__doc__);
-  docset_helper_add(docset, pow_module_new_ssl__doc__);
-  docset_helper_add(docset, pow_module_new_x509__doc__);
-  docset_helper_add(docset, pow_module_new_x509_store__doc__);
-  docset_helper_add(docset, pow_module_new_x509_crl__doc__);
-  docset_helper_add(docset, pow_module_new_x509_revoked__doc__);
-  docset_helper_add(docset, pow_module_new_cms__doc__);
-
-  // functions
-  docset_helper_add(docset, pow_module_pem_read__doc__);
-  docset_helper_add(docset, pow_module_der_read__doc__);
-  docset_helper_add(docset, pow_module_seed__doc__);
-  docset_helper_add(docset, pow_module_add__doc__);
-  docset_helper_add(docset, pow_module_read_random_file__doc__);
-  docset_helper_add(docset, pow_module_write_random_file__doc__);
-  docset_helper_add(docset, pow_module_get_error__doc__);
-  docset_helper_add(docset, pow_module_clear_error__doc__);
-  docset_helper_add(docset, pow_module_add_object__doc__);
-
-  // ssl documentation
-  docset_helper_add(docset, ssltype__doc__);
-  docset_helper_add(docset, ssl_object_set_fd__doc__);
-  docset_helper_add(docset, ssl_object_fileno__doc__);
-  docset_helper_add(docset, ssl_object_accept__doc__);
-  docset_helper_add(docset, ssl_object_connect__doc__);
-  docset_helper_add(docset, ssl_object_write__doc__);
-  docset_helper_add(docset, ssl_object_read__doc__);
-  docset_helper_add(docset, ssl_object_peer_certificate__doc__);
-  docset_helper_add(docset, ssl_object_use_certificate__doc__);
-  docset_helper_add(docset, ssl_object_use_key__doc__);
-  docset_helper_add(docset, ssl_object_check_key__doc__);
-  docset_helper_add(docset, ssl_object_clear__doc__);
-  docset_helper_add(docset, ssl_object_shutdown__doc__);
-  docset_helper_add(docset, ssl_object_get_shutdown__doc__);
-  docset_helper_add(docset, ssl_object_get_ciphers__doc__);
-  docset_helper_add(docset, ssl_object_set_ciphers__doc__);
-  docset_helper_add(docset, ssl_object_get_cipher__doc__);
-  docset_helper_add(docset, ssl_object_set_verify_mode__doc__);
-
-  // x509 documentation
-  docset_helper_add(docset, x509type__doc__);
-  docset_helper_add(docset, X509_object_pem_write__doc__);
-  docset_helper_add(docset, X509_object_der_write__doc__);
-  docset_helper_add(docset, X509_object_sign__doc__);
-  docset_helper_add(docset, X509_object_set_public_key__doc__);
-  docset_helper_add(docset, X509_object_get_version__doc__);
-  docset_helper_add(docset, X509_object_set_version__doc__);
-  docset_helper_add(docset, X509_object_get_serial__doc__);
-  docset_helper_add(docset, X509_object_set_serial__doc__);
-  docset_helper_add(docset, X509_object_get_issuer__doc__);
-  docset_helper_add(docset, X509_object_set_issuer__doc__);
-  docset_helper_add(docset, X509_object_get_subject__doc__);
-  docset_helper_add(docset, X509_object_set_subject__doc__);
-  docset_helper_add(docset, X509_object_get_not_before__doc__);
-  docset_helper_add(docset, X509_object_set_not_before__doc__);
-  docset_helper_add(docset, X509_object_get_not_after__doc__);
-  docset_helper_add(docset, X509_object_set_not_after__doc__);
-  docset_helper_add(docset, X509_object_add_extension__doc__);
-  docset_helper_add(docset, X509_object_clear_extensions__doc__);
-  docset_helper_add(docset, X509_object_count_extensions__doc__);
-  docset_helper_add(docset, X509_object_get_extension__doc__);
-  docset_helper_add(docset, x509_object_pprint__doc__);
-
-  // x509_crl documentation
-  docset_helper_add(docset, x509_crltype__doc__);
-  docset_helper_add(docset, x509_crl_object_pem_write__doc__);
-  docset_helper_add(docset, x509_crl_object_der_write__doc__);
-  docset_helper_add(docset, x509_crl_object_get_version__doc__);
-  docset_helper_add(docset, x509_crl_object_set_version__doc__);
-  docset_helper_add(docset, x509_crl_object_get_issuer__doc__);
-  docset_helper_add(docset, x509_crl_object_set_issuer__doc__);
-  docset_helper_add(docset, x509_crl_object_get_this_update__doc__);
-  docset_helper_add(docset, x509_crl_object_set_this_update__doc__);
-  docset_helper_add(docset, x509_crl_object_get_next_update__doc__);
-  docset_helper_add(docset, x509_crl_object_set_next_update__doc__);
-  docset_helper_add(docset, x509_crl_object_get_revoked__doc__);
-  docset_helper_add(docset, x509_crl_object_set_revoked__doc__);
-  docset_helper_add(docset, x509_crl_object_verify__doc__);
-  docset_helper_add(docset, x509_crl_object_sign__doc__);
-  docset_helper_add(docset, X509_crl_object_add_extension__doc__);
-  docset_helper_add(docset, X509_crl_object_clear_extensions__doc__);
-  docset_helper_add(docset, X509_crl_object_count_extensions__doc__);
-  docset_helper_add(docset, X509_crl_object_get_extension__doc__);
-  docset_helper_add(docset, x509_crl_object_pprint__doc__);
-
-  // x509_revoked documentation
-  docset_helper_add(docset, x509_revokedtype__doc__);
-  docset_helper_add(docset, x509_revoked_object_get_date__doc__);
-  docset_helper_add(docset, x509_revoked_object_set_date__doc__);
-  docset_helper_add(docset, x509_revoked_object_get_serial__doc__);
-  docset_helper_add(docset, x509_revoked_object_set_serial__doc__);
-  docset_helper_add(docset, X509_revoked_object_add_extension__doc__);
-  docset_helper_add(docset, X509_revoked_object_clear_extensions__doc__);
-  docset_helper_add(docset, X509_revoked_object_count_extensions__doc__);
-  docset_helper_add(docset, X509_revoked_object_get_extension__doc__);
-
-  // x509_store documentation
-  docset_helper_add(docset, x509_storetype__doc__);
-  docset_helper_add(docset, x509_store_object_verify__doc__);
-  docset_helper_add(docset, x509_store_object_verify_chain__doc__);
-  docset_helper_add(docset, x509_store_object_verify_detailed__doc__);
-  docset_helper_add(docset, x509_store_object_add_trust__doc__);
-  docset_helper_add(docset, x509_store_object_add_crl__doc__);
-
-  // digest documentation
-  docset_helper_add(docset, digesttype__doc__);
-  docset_helper_add(docset, digest_object_update__doc__);
-  docset_helper_add(docset, digest_object_copy__doc__);
-  docset_helper_add(docset, digest_object_digest__doc__);
-
-  // hmac documentation
-  docset_helper_add(docset, hmactype__doc__);
-  docset_helper_add(docset, hmac_object_update__doc__);
-  docset_helper_add(docset, hmac_object_copy__doc__);
-  docset_helper_add(docset, hmac_object_mac__doc__);
-
-  // cms documentation
-  docset_helper_add(docset, CMS_object_pem_write__doc__);
-  docset_helper_add(docset, CMS_object_der_write__doc__);
-  docset_helper_add(docset, CMS_object_sign__doc__);
-  docset_helper_add(docset, CMS_object_verify__doc__);
-  docset_helper_add(docset, CMS_object_eContentType__doc__);
-  docset_helper_add(docset, CMS_object_signingTime__doc__);
-  docset_helper_add(docset, CMS_object_pprint__doc__);
-  docset_helper_add(docset, CMS_object_certs__doc__);
-  docset_helper_add(docset, CMS_object_crls__doc__);
-
-  // symmetric documentation
-  docset_helper_add(docset, symmetrictype__doc__);
-  docset_helper_add(docset, symmetric_object_encrypt_init__doc__);
-  docset_helper_add(docset, symmetric_object_decrypt_init__doc__);
-  docset_helper_add(docset, symmetric_object_update__doc__);
-  docset_helper_add(docset, symmetric_object_final__doc__);
-
-  // asymmetric documentation
-  docset_helper_add(docset, asymmetrictype__doc__);
-  docset_helper_add(docset, asymmetric_object_pem_write__doc__);
-  docset_helper_add(docset, asymmetric_object_der_write__doc__);
-  docset_helper_add(docset, asymmetric_object_public_encrypt__doc__);
-  docset_helper_add(docset, asymmetric_object_public_decrypt__doc__);
-  docset_helper_add(docset, asymmetric_object_private_encrypt__doc__);
-  docset_helper_add(docset, asymmetric_object_private_decrypt__doc__);
-  docset_helper_add(docset, asymmetric_object_sign__doc__);
-  docset_helper_add(docset, asymmetric_object_verify__doc__);
-
-  return docset;
+  Py_RETURN_NONE;
 
  error:
-
   return NULL;
 }
 
+
 static struct PyMethodDef pow_module_methods[] = {
-  {"Ssl",               (PyCFunction)pow_module_new_ssl,           METH_VARARGS,  NULL},
-  {"X509",              (PyCFunction)pow_module_new_x509,          METH_VARARGS,  NULL},
-  {"pemRead",           (PyCFunction)pow_module_pem_read,          METH_VARARGS,  NULL},
-  {"derRead",           (PyCFunction)pow_module_der_read,          METH_VARARGS,  NULL},
-  {"Digest",            (PyCFunction)pow_module_new_digest,        METH_VARARGS,  NULL},
-  {"Hmac",              (PyCFunction)pow_module_new_hmac,          METH_VARARGS,  NULL},
-  {"CMS",               (PyCFunction)pow_module_new_cms,           METH_VARARGS,  NULL},
-  {"Asymmetric",        (PyCFunction)pow_module_new_asymmetric,    METH_VARARGS,  NULL},
-  {"Symmetric",         (PyCFunction)pow_module_new_symmetric,     METH_VARARGS,  NULL},
-  {"X509Store",         (PyCFunction)pow_module_new_x509_store,    METH_VARARGS,  NULL},
-  {"X509Crl",           (PyCFunction)pow_module_new_x509_crl,      METH_VARARGS,  NULL},
-  {"X509Revoked",       (PyCFunction)pow_module_new_x509_revoked,  METH_VARARGS,  NULL},
-  {"getError",          (PyCFunction)pow_module_get_error,         METH_VARARGS,  NULL},
-  {"clearError",        (PyCFunction)pow_module_clear_error,       METH_VARARGS,  NULL},
-  {"seed",              (PyCFunction)pow_module_seed,              METH_VARARGS,  NULL},
-  {"add",               (PyCFunction)pow_module_add,               METH_VARARGS,  NULL},
-  {"readRandomFile",    (PyCFunction)pow_module_read_random_file,  METH_VARARGS,  NULL},
-  {"writeRandomFile",   (PyCFunction)pow_module_write_random_file, METH_VARARGS,  NULL},
-  {"addObject",         (PyCFunction)pow_module_add_object,        METH_VARARGS,  NULL},
-
-  {"_docset",           (PyCFunction)pow_module_docset,            METH_VARARGS,  NULL},
-
-  {NULL}     /* sentinel */
+  Define_Method(getError,       pow_module_get_error,           METH_NOARGS),
+  Define_Method(clearError,     pow_module_clear_error,         METH_NOARGS),
+  Define_Method(seed,           pow_module_seed,                METH_VARARGS),
+  Define_Method(add,            pow_module_add,                 METH_VARARGS),
+  Define_Method(readRandomFile, pow_module_read_random_file,    METH_VARARGS),
+  Define_Method(writeRandomFile, pow_module_write_random_file,  METH_VARARGS),
+  Define_Method(addObject,      pow_module_add_object,          METH_VARARGS),
+  Define_Method(customDatetime,	pow_module_custom_datetime,	METH_VARARGS),
+  {NULL}
 };
-/*========== module functions ==========*/
 
+
 
-/*==========================================================================*/
+/*
+ * Module initialization.
+ */
+
 void
 init_POW(void)
 {
-  PyObject *m;
+  PyObject *m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
+  int OpenSSL_ok = 1;
 
-  x509type.ob_type         = &PyType_Type;
-  x509_storetype.ob_type   = &PyType_Type;
-  x509_crltype.ob_type     = &PyType_Type;
-  x509_revokedtype.ob_type = &PyType_Type;
-  ssltype.ob_type          = &PyType_Type;
-  asymmetrictype.ob_type   = &PyType_Type;
-  symmetrictype.ob_type    = &PyType_Type;
-  digesttype.ob_type       = &PyType_Type;
-  hmactype.ob_type         = &PyType_Type;
-  cmstype.ob_type          = &PyType_Type;
+  /*
+   * Python encourages us to use these functions instead of the ones
+   * in libc, and OpenSSL allows us to do this.  The result seems to
+   * work, and, in theory, gives Python's memory allocator a better
+   * idea of how much memory we're really using.  Not sure why it
+   * cares, but let's try to be nice about it.
+   *
+   * Note that this must be done BEFORE anything in OpenSSL uses
+   * dynamic memory, and that this will probably fail in horrible ways
+   * without the build-time code (-Bsymbolic, etc) which isolates our
+   * copy of the OpenSSL code from any system shared libraries.
+   * Enough other things already fail in horrible ways without that
+   * isolation that adding one more doesn't make much difference, but
+   * if you tinker with the build script and start seeing nasty
+   * memory-related issues, this might be the cause.
+   */
+  CRYPTO_set_mem_functions(PyMem_Malloc, PyMem_Realloc, PyMem_Free);
 
-  m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
+  /*
+   * Import the DateTime API
+   */
 
-#define Define_Exception(__name__, __parent__) \
-  PyModule_AddObject(m, #__name__, ((__name__##Object) = PyErr_NewException("POW." #__name__, __parent__, NULL)))
+  PyDateTime_IMPORT;
 
-  Define_Exception(Error,                NULL);
-  Define_Exception(SSLError,             ErrorObject);
-  Define_Exception(ZeroReturnError,      SSLErrorObject);
-  Define_Exception(WantReadError,        SSLErrorObject);
-  Define_Exception(WantWriteError,       SSLErrorObject);
-  Define_Exception(SSLSyscallError,      SSLErrorObject);
-  Define_Exception(SSLErrorSSLError,     SSLErrorObject);
-  Define_Exception(SSLSyscallSSLError,   SSLErrorObject);
-  Define_Exception(SSLUnexpectedEOFError,SSLErrorObject);
-  Define_Exception(SSLOtherError,        SSLErrorObject);
+#define Define_Class(__type__)                                          \
+  do {                                                                  \
+    char *__name__ = strrchr(__type__.tp_name, '.');                    \
+    if (PyType_Ready(&__type__) == 0 && __name__ != NULL) {             \
+      Py_INCREF(&__type__);                                             \
+      PyModule_AddObject(m, __name__+1, (PyObject *) &__type__);        \
+    }                                                                   \
+  } while (0)
+
+  Define_Class(POW_X509_Type);
+  Define_Class(POW_X509Store_Type);
+  Define_Class(POW_CRL_Type);
+  Define_Class(POW_Asymmetric_Type);
+  Define_Class(POW_Digest_Type);
+  Define_Class(POW_CMS_Type);
+  Define_Class(POW_IPAddress_Type);
+  Define_Class(POW_Manifest_Type);
+  Define_Class(POW_ROA_Type);
+  Define_Class(POW_PKCS10_Type);
+
+#undef Define_Class
+
+#define Define_Exception(__name__, __parent__)                          \
+  PyModule_AddObject(m, #__name__, ((__name__##Object)                  \
+    = PyErr_NewException("rpki.POW." #__name__, __parent__, NULL)))
+
+  Define_Exception(Error,               NULL);
+  Define_Exception(OpenSSLError,        ErrorObject);
+  Define_Exception(POWError,            ErrorObject);
+  Define_Exception(NotVerifiedError,    ErrorObject);
 
 #undef Define_Exception
 
 #define Define_Integer_Constant(__name__) \
   PyModule_AddIntConstant(m, #__name__, __name__)
 
-  // constants for SSL_get_error()
-  Define_Integer_Constant(SSL_ERROR_NONE);
-  Define_Integer_Constant(SSL_ERROR_ZERO_RETURN);
-  Define_Integer_Constant(SSL_ERROR_WANT_READ);
-  Define_Integer_Constant(SSL_ERROR_WANT_WRITE);
-  Define_Integer_Constant(SSL_ERROR_WANT_X509_LOOKUP);
-  Define_Integer_Constant(SSL_ERROR_SYSCALL);
-  Define_Integer_Constant(SSL_ERROR_SSL);
-  Define_Integer_Constant(SSL_ERROR_WANT_CONNECT);
-  Define_Integer_Constant(SSL_ERROR_WANT_ACCEPT);
-
-  // constants for different types of connection methods
-  Define_Integer_Constant(SSLV2_SERVER_METHOD);
-  Define_Integer_Constant(SSLV2_CLIENT_METHOD);
-  Define_Integer_Constant(SSLV2_METHOD);
-  Define_Integer_Constant(SSLV3_SERVER_METHOD);
-  Define_Integer_Constant(SSLV3_CLIENT_METHOD);
-  Define_Integer_Constant(SSLV3_METHOD);
-  Define_Integer_Constant(SSLV23_SERVER_METHOD);
-  Define_Integer_Constant(SSLV23_CLIENT_METHOD);
-  Define_Integer_Constant(SSLV23_METHOD);
-  Define_Integer_Constant(TLSV1_SERVER_METHOD);
-  Define_Integer_Constant(TLSV1_CLIENT_METHOD);
-  Define_Integer_Constant(TLSV1_METHOD);
-
-  Define_Integer_Constant(SSL_NO_SHUTDOWN);
-  Define_Integer_Constant(SSL_SENT_SHUTDOWN);
-  Define_Integer_Constant(SSL_RECEIVED_SHUTDOWN);
-
-  // ssl verification mode
-  Define_Integer_Constant(SSL_VERIFY_NONE);
-  Define_Integer_Constant(SSL_VERIFY_PEER);
-  Define_Integer_Constant(SSL_VERIFY_FAIL_IF_NO_PEER_CERT);
-  Define_Integer_Constant(SSL_VERIFY_CLIENT_ONCE);
-
-  // object format types
+  /* Object format types */
   Define_Integer_Constant(LONGNAME_FORMAT);
   Define_Integer_Constant(SHORTNAME_FORMAT);
+  Define_Integer_Constant(OIDNAME_FORMAT);
 
-  // PEM encoded types
-#ifndef OPENSSL_NO_RSA
-  Define_Integer_Constant(RSA_PUBLIC_KEY);
-  Define_Integer_Constant(RSA_PRIVATE_KEY);
-#endif
-#ifndef OPENSSL_NO_DSA
-  Define_Integer_Constant(DSA_PUBLIC_KEY);
-  Define_Integer_Constant(DSA_PRIVATE_KEY);
-#endif
-#ifndef OPENSSL_NO_DH
-  Define_Integer_Constant(DH_PUBLIC_KEY);
-  Define_Integer_Constant(DH_PRIVATE_KEY);
-#endif
-  Define_Integer_Constant(X509_CERTIFICATE);
-  PyModule_AddIntConstant(m, "X509_CRL", X_X509_CRL);
-  Define_Integer_Constant(CMS_MESSAGE);
-
-  // asymmetric ciphers
-#ifndef OPENSSL_NO_RSA
+  /* Asymmetric ciphers */
   Define_Integer_Constant(RSA_CIPHER);
-#endif
-#ifndef OPENSSL_NO_DSA
-  Define_Integer_Constant(DSA_CIPHER);
-#endif
-#ifndef OPENSSL_NO_DH
-  Define_Integer_Constant(DH_CIPHER);
-#endif
 
-  // symmetric ciphers
-#ifndef OPENSSL_NO_DES
-  Define_Integer_Constant(DES_ECB);
-  Define_Integer_Constant(DES_EDE);
-  Define_Integer_Constant(DES_EDE3);
-  Define_Integer_Constant(DES_CFB);
-  Define_Integer_Constant(DES_EDE_CFB);
-  Define_Integer_Constant(DES_EDE3_CFB);
-  Define_Integer_Constant(DES_OFB);
-  Define_Integer_Constant(DES_EDE_OFB);
-  Define_Integer_Constant(DES_EDE3_OFB);
-  Define_Integer_Constant(DES_CBC);
-  Define_Integer_Constant(DES_EDE_CBC);
-  Define_Integer_Constant(DES_EDE3_CBC);
-  Define_Integer_Constant(DESX_CBC);
-#endif
-#ifndef OPENSSL_NO_RC4
-  Define_Integer_Constant(RC4);
-  Define_Integer_Constant(RC4_40);
-#endif
-#ifndef OPENSSL_NO_IDEA
-  Define_Integer_Constant(IDEA_ECB);
-  Define_Integer_Constant(IDEA_CFB);
-  Define_Integer_Constant(IDEA_OFB);
-  Define_Integer_Constant(IDEA_CBC);
-#endif
-#ifndef OPENSSL_NO_RC2
-  Define_Integer_Constant(RC2_ECB);
-  Define_Integer_Constant(RC2_CBC);
-  Define_Integer_Constant(RC2_40_CBC);
-  Define_Integer_Constant(RC2_CFB);
-  Define_Integer_Constant(RC2_OFB);
-#endif
-#ifndef OPENSSL_NO_BF
-  Define_Integer_Constant(BF_ECB);
-  Define_Integer_Constant(BF_CBC);
-  Define_Integer_Constant(BF_CFB);
-  Define_Integer_Constant(BF_OFB);
-#endif
-  Define_Integer_Constant(CAST5_ECB);
-  Define_Integer_Constant(CAST5_CBC);
-  Define_Integer_Constant(CAST5_CFB);
-  Define_Integer_Constant(CAST5_OFB);
-#ifndef OPENSSL_NO_RC5
-  Define_Integer_Constant(RC5_32_12_16_CBC);
-  Define_Integer_Constant(RC5_32_12_16_CFB);
-  Define_Integer_Constant(RC5_32_12_16_ECB);
-  Define_Integer_Constant(RC5_32_12_16_OFB);
-#endif
-
-  // message digests
-#ifndef OPENSSL_NO_MD2
-  Define_Integer_Constant(MD2_DIGEST);
-#endif
+  /* Message digests */
   Define_Integer_Constant(MD5_DIGEST);
   Define_Integer_Constant(SHA_DIGEST);
   Define_Integer_Constant(SHA1_DIGEST);
-  Define_Integer_Constant(RIPEMD160_DIGEST);
   Define_Integer_Constant(SHA256_DIGEST);
   Define_Integer_Constant(SHA384_DIGEST);
   Define_Integer_Constant(SHA512_DIGEST);
 
-  // general name
-  Define_Integer_Constant(GEN_OTHERNAME);
-  Define_Integer_Constant(GEN_EMAIL);
-  Define_Integer_Constant(GEN_DNS);
-  Define_Integer_Constant(GEN_X400);
-  Define_Integer_Constant(GEN_DIRNAME);
-  Define_Integer_Constant(GEN_EDIPARTY);
-  Define_Integer_Constant(GEN_URI);
-  Define_Integer_Constant(GEN_IPADD);
-  Define_Integer_Constant(GEN_RID);
-
-  // CMS flags
+  /* CMS flags */
   Define_Integer_Constant(CMS_NOCERTS);
   Define_Integer_Constant(CMS_NOATTR);
   Define_Integer_Constant(CMS_NOINTERN);
@@ -8543,19 +8282,26 @@ init_POW(void)
 
 #undef Define_Integer_Constant
 
-  // initialise library
-  SSL_library_init();
+  /*
+   * Initialise library.
+   *
+   * We shouldn't need any of the SSL code or error strings anymore.
+   *
+   * If we cared deeply about avoiding references to symmetric cipher
+   * algorithms and digest algorithms we're not using, we could
+   * replace the call to OpenSSL_add_all_algorithms() with calls to
+   * add just the specific algorithms we use rather than all of them.
+   * For now, don't worry about it.
+   */
+
   OpenSSL_add_all_algorithms();
-  OpenSSL_add_all_ciphers();
-  OpenSSL_add_all_digests();
+  ERR_load_crypto_strings();
 
-  // load error strings
-  SSL_load_error_strings();
+  OpenSSL_ok &= create_missing_nids();
 
-  if (PyErr_Occurred())
+  if (PyErr_Occurred() || !OpenSSL_ok)
     Py_FatalError("Can't initialize module POW");
 }
-/*==========================================================================*/
 
 /*
  * Local Variables:

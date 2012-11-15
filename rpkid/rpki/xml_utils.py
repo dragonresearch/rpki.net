@@ -3,7 +3,7 @@ XML utilities.
 
 $Id$
 
-Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -206,7 +206,7 @@ class base_elt(object):
     """
     Convert a base_elt object to string format.
     """
-    lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
+    return lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
 
   @classmethod
   def make_pdu(cls, **kargs):
@@ -451,7 +451,7 @@ class msg(list):
     """
     Convert msg object to string.
     """
-    lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
+    return lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
 
   def toXML(self):
     """

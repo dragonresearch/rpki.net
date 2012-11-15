@@ -4,7 +4,7 @@ dnspython package.
 
 $Id$
 
-Copyright (C) 2010--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2010--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -34,8 +34,13 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 """
 
-import asyncore, socket, time, sys
-import rpki.async, rpki.sundial, rpki.log
+import asyncore
+import socket
+import time
+import sys
+import rpki.async
+import rpki.sundial
+import rpki.log
 
 try:
   import dns.resolver, dns.rdatatype, dns.rdataclass, dns.name, dns.message
@@ -134,7 +139,7 @@ class query(object):
     self.qtype = qtype
     self.qclass = qclass
     self.start = time.time()
-    rpki.async.defer(self.go)
+    rpki.async.event_defer(self.go)
 
   def go(self):
     """
@@ -364,12 +369,12 @@ if __name__ == "__main__":
         e)
 
   if True:
-    for qtype in (dns.rdatatype.A, dns.rdatatype.AAAA, dns.rdatatype.HINFO):
-      test_query("subvert-rpki.hactrn.net", qtype)
+    for t in (dns.rdatatype.A, dns.rdatatype.AAAA, dns.rdatatype.HINFO):
+      test_query("subvert-rpki.hactrn.net", t)
     test_query("nonexistant.rpki.net")
     test_query("subvert-rpki.hactrn.net", qclass = dns.rdataclass.CH)
 
-  for host in ("subvert-rpki.hactrn.net", "nonexistant.rpki.net"):
-    test_getaddrinfo(host)
+  for h in ("subvert-rpki.hactrn.net", "nonexistant.rpki.net"):
+    test_getaddrinfo(h)
 
   rpki.async.event_loop()

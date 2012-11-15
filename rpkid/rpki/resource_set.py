@@ -10,7 +10,7 @@ We also provide some basic set operations (union, intersection, etc).
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -39,8 +39,11 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import re, math
-import rpki.ipaddrs, rpki.oids, rpki.exceptions
+import re
+import math
+import rpki.oids
+import rpki.exceptions
+import rpki.POW
 
 ## @var inherit_token
 # Token used to indicate inheritance in read and print syntax.
@@ -61,20 +64,16 @@ class resource_range(object):
   directly.
   """
 
-  def __init__(self, min, max):
-    """
-    Initialize and sanity check a resource_range.
-    """
-    assert min.__class__ is max.__class__, "Type mismatch, %r doesn't match %r" % (min.__class__, max.__class__)
-    assert min <= max, "Mis-ordered range: %s before %s" % (min, max)
-    self.min = min
-    self.max = max
+  def __init__(self, range_min, range_max):
+    assert range_min.__class__ is range_max.__class__, \
+           "Type mismatch, %r doesn't match %r" % (range_min.__class__, range_max.__class__)
+    assert range_min <= range_max, "Mis-ordered range: %s before %s" % (range_min, range_max)
+    self.min = range_min
+    self.max = range_max
 
   def __cmp__(self, other):
-    """
-    Compare two resource_range objects.
-    """
-    assert self.__class__ is other.__class__, "Type mismatch, comparing %r with %r" % (self.__class__, other.__class__)
+    assert self.__class__ is other.__class__, \
+           "Type mismatch, comparing %r with %r" % (self.__class__, other.__class__)
     return cmp(self.min, other.min) or cmp(self.max, other.max)
 
 class resource_range_as(resource_range):
@@ -90,6 +89,11 @@ class resource_range_as(resource_range):
 
   datum_type = long
 
+  def __init__(self, range_min, range_max):
+    resource_range.__init__(self,
+                            long(range_min) if isinstance(range_min, int) else range_min,
+                            long(range_max) if isinstance(range_max, int) else range_max)
+
   def __str__(self):
     """
     Convert a resource_range_as to string format.
@@ -98,15 +102,6 @@ class resource_range_as(resource_range):
       return str(self.min)
     else:
       return str(self.min) + "-" + str(self.max)
-
-  def to_rfc3779_tuple(self):
-    """
-    Convert a resource_range_as to tuple format for RFC 3779 ASN.1 encoding.
-    """
-    if self.min == self.max:
-      return ("id", self.min)
-    else:
-      return ("range", (self.min, self.max))
 
   @classmethod
   def parse_str(cls, x):
@@ -139,6 +134,11 @@ class resource_range_ip(resource_range):
   directly.
   """
 
+  ## @var datum_type
+  # Type of underlying data (min and max).
+
+  datum_type = rpki.POW.IPAddress
+
   def prefixlen(self):
     """
     Determine whether a resource_range_ip can be expressed as a
@@ -148,16 +148,13 @@ class resource_range_ip(resource_range):
     mask = self.min ^ self.max
     if self.min & mask != 0:
       raise rpki.exceptions.MustBePrefix
-    prefixlen = self.datum_type.bits
+    prefixlen = self.min.bits
     while mask & 1:
       prefixlen -= 1
       mask >>= 1
     if mask:
       raise rpki.exceptions.MustBePrefix
     return prefixlen
-
-  # Backwards compatability, will go away at some point
-  _prefixlen = prefixlen
 
   def __str__(self):
     """
@@ -168,18 +165,6 @@ class resource_range_ip(resource_range):
     except rpki.exceptions.MustBePrefix:
       return str(self.min) + "-" + str(self.max)
 
-  def to_rfc3779_tuple(self):
-    """
-    Convert a resource_range_ip to tuple format for RFC 3779 ASN.1
-    encoding.
-    """
-    try:
-      return ("addressPrefix", _long2bs(self.min, self.datum_type.bits,
-                                        prefixlen = self.prefixlen()))
-    except rpki.exceptions.MustBePrefix:
-      return ("addressRange", (_long2bs(self.min, self.datum_type.bits, strip = 0),
-                               _long2bs(self.max, self.datum_type.bits, strip = 1)))
-
   @classmethod
   def parse_str(cls, x):
     """
@@ -187,10 +172,10 @@ class resource_range_ip(resource_range):
     """
     r = re_address_range.match(x)
     if r:
-      return cls(cls.datum_type(r.group(1)), cls.datum_type(r.group(2)))
+      return cls(rpki.POW.IPAddress(r.group(1)), rpki.POW.IPAddress(r.group(2)))
     r = re_prefix.match(x)
     if r:
-      return cls.make_prefix(cls.datum_type(r.group(1)), int(r.group(2)))
+      return cls.make_prefix(rpki.POW.IPAddress(r.group(1)), int(r.group(2)))
     raise rpki.exceptions.BadIPResource, 'Bad IP resource "%s"' % (x)
 
   @classmethod
@@ -198,11 +183,11 @@ class resource_range_ip(resource_range):
     """
     Construct a resource range corresponding to a prefix.
     """
-    assert isinstance(prefix, cls.datum_type) and isinstance(prefixlen, (int, long))
-    assert prefixlen >= 0 and prefixlen <= cls.datum_type.bits, "Nonsensical prefix length: %s" % prefixlen
-    mask = (1 << (cls.datum_type.bits - prefixlen)) - 1
+    assert isinstance(prefix, rpki.POW.IPAddress) and isinstance(prefixlen, (int, long))
+    assert prefixlen >= 0 and prefixlen <= prefix.bits, "Nonsensical prefix length: %s" % prefixlen
+    mask = (1 << (prefix.bits - prefixlen)) - 1
     assert (prefix & mask) == 0, "Resource not in canonical form: %s/%s" % (prefix, prefixlen)
-    return cls(cls.datum_type(prefix), cls.datum_type(prefix | mask))
+    return cls(prefix, rpki.POW.IPAddress(prefix | mask))
 
   def chop_into_prefixes(self, result):
     """
@@ -213,19 +198,19 @@ class resource_range_ip(resource_range):
       self.prefixlen()
       result.append(self)
     except rpki.exceptions.MustBePrefix:
-      min = self.min
-      max = self.max
-      while max >= min:
-        bits = int(math.log(max - min + 1, 2))
+      range_min = self.min
+      range_max = self.max
+      while range_max >= range_min:
+        bits = int(math.log(long(range_max - range_min + 1), 2))
         while True:
           mask = ~(~0 << bits)
-          assert min + mask <= max
-          if min & mask == 0:
+          assert range_min + mask <= range_max
+          if range_min & mask == 0:
             break
           assert bits > 0
           bits -= 1
-        result.append(self.make_prefix(min, self.datum_type.bits - bits))
-        min = self.datum_type(min + mask + 1)
+        result.append(self.make_prefix(range_min, range_min.bits - bits))
+        range_min = range_min + mask + 1
 
   @classmethod
   def from_strings(cls, a, b = None):
@@ -234,54 +219,55 @@ class resource_range_ip(resource_range):
     """
     if b is None:
       b = a
-    a = rpki.ipaddrs.parse(a)
-    b = rpki.ipaddrs.parse(b)
-    if a.__class__ is not b.__class__:
+    a = rpki.POW.IPAddress(a)
+    b = rpki.POW.IPAddress(b)
+    if a.version !=  b.version:
       raise TypeError
     if cls is resource_range_ip:
-      if isinstance(a, rpki.ipaddrs.v4addr):
+      if a.version == 4:
         return resource_range_ipv4(a, b)
-      if isinstance(a, rpki.ipaddrs.v6addr):
+      if a.version == 6:
         return resource_range_ipv6(a, b)
-    elif isinstance(a, cls.datum_type):
+    elif a.version == cls.version:
       return cls(a, b)
-    raise TypeError
+    else:
+      raise TypeError
 
 class resource_range_ipv4(resource_range_ip):
   """
   Range of IPv4 addresses.
   """
 
-  ## @var datum_type
-  # Type of underlying data (min and max).
-
-  datum_type = rpki.ipaddrs.v4addr
+  version = 4
 
 class resource_range_ipv6(resource_range_ip):
   """
   Range of IPv6 addresses.
   """
 
-  ## @var datum_type
-  # Type of underlying data (min and max).
-
-  datum_type = rpki.ipaddrs.v6addr
+  version = 6
 
 def _rsplit(rset, that):
   """
   Utility function to split a resource range into two resource ranges.
   """
+
   this = rset.pop(0)
-  cell_type = type(this.min)
-  assert type(this) is type(that) and type(this.max) is cell_type and \
-         type(that.min) is cell_type and type(that.max) is cell_type
+
+  assert type(this) is type(that), "type(this) [%r] is not type(that) [%r]" % (type(this), type(that))
+
+  assert type(this.min) is type(that.min), "type(this.min) [%r] is not type(that.min) [%r]" % (type(this.min), type(that.min))
+  assert type(this.min) is type(this.max), "type(this.min) [%r] is not type(this.max) [%r]" % (type(this.min), type(this.max))
+  assert type(that.min) is type(that.max), "type(that.min) [%r] is not type(that.max) [%r]" % (type(that.min), type(that.max))
+
   if this.min < that.min:
-    rset.insert(0, type(this)(this.min, cell_type(that.min - 1)))
+    rset.insert(0, type(this)(this.min, type(that.min)(that.min - 1)))
     rset.insert(1, type(this)(that.min, this.max))
+
   else:
     assert this.max > that.max
     rset.insert(0, type(this)(this.min, that.max))
-    rset.insert(1, type(this)(cell_type(that.max + 1), this.max))
+    rset.insert(1, type(this)(type(that.max)(that.max + 1), this.max))
 
 class resource_set(list):
   """
@@ -312,8 +298,6 @@ class resource_set(list):
       self.inherit = True
     elif isinstance(ini, str) and len(ini):
       self.extend(self.parse_str(s) for s in ini.split(","))
-    elif isinstance(ini, tuple):
-      self.parse_rfc3779_tuple(ini)
     elif isinstance(ini, list):
       self.extend(ini)
     elif ini is not None and ini != "":
@@ -418,16 +402,14 @@ class resource_set(list):
         this = set1.pop(0)
         that = set2.pop(0)
         assert type(this) is type(that)
-        if this.min < that.min: min = this.min
-        else:                   min = that.min
-        if this.max > that.max: max = this.max
-        else:                   max = that.max
-        result.append(type(this)(min, max))
-        while set1 and set1[0].max <= max:
-          assert set1[0].min >= min
+        range_min = min(this.min, that.min)
+        range_max = max(this.max, that.max)
+        result.append(type(this)(range_min, range_max))
+        while set1 and set1[0].max <= range_max:
+          assert set1[0].min >= range_min
           del set1[0]
-        while set2 and set2[0].max <= max:
-          assert set2[0].min >= min
+        while set2 and set2[0].max <= range_max:
+          assert set2[0].min >= range_min
           del set2[0]
     return type(self)(result)
 
@@ -454,7 +436,7 @@ class resource_set(list):
     Set symmetric difference (XOR) for resource sets.
     """
     com = self._comm(other)
-    return com[0].union(com[1])
+    return com[0] | com[1]
 
   __xor__ = symmetric_difference
 
@@ -467,20 +449,20 @@ class resource_set(list):
     if not self:
       return False
     if type(item) is type(self[0]):
-      min = item.min
-      max = item.max
+      range_min = item.min
+      range_max = item.max
     else:
-      min = item
-      max = item
+      range_min = item
+      range_max = item
     lo = 0
     hi = len(self)
     while lo < hi:
       mid = (lo + hi) / 2
-      if self[mid].max < max:
+      if self[mid].max < range_max:
         lo = mid + 1
       else:
         hi = mid
-    return lo < len(self) and self[lo].min <= min and self[lo].max >= max
+    return lo < len(self) and self[lo].min <= range_min and self[lo].max >= range_max
 
   __contains__ = contains
 
@@ -560,37 +542,6 @@ class resource_set_as(resource_set):
 
   range_type = resource_range_as
 
-  def parse_rfc3779_tuple(self, x):
-    """
-    Parse ASN resource from tuple format generated by RFC 3779 ASN.1
-    decoder.
-    """
-    if x[0] == "asIdsOrRanges":
-      for aor in x[1]:
-        if aor[0] == "range":
-          min = aor[1][0]
-          max = aor[1][1]
-        else:
-          min = aor[1]
-          max = min
-        self.append(resource_range_as(min, max))
-    else:
-      assert x[0] == "inherit"
-      self.inherit = True
-
-  def to_rfc3779_tuple(self):
-    """
-    Convert ASN resource set into tuple format used for RFC 3779 ASN.1
-    encoding.
-    """
-    self.canonize()
-    if self:
-      return ("asIdsOrRanges", tuple(a.to_rfc3779_tuple() for a in self))
-    elif self.inherit:
-      return ("inherit", "")
-    else:
-      return None
-
 class resource_set_ip(resource_set):
   """
   (Generic) IP address resource set.
@@ -598,24 +549,6 @@ class resource_set_ip(resource_set):
   This is a virtual class.  You probably don't want to use it
   directly.
   """
-
-  def parse_rfc3779_tuple(self, x):
-    """
-    Parse IP address resource sets from tuple format generated by RFC
-    3779 ASN.1 decoder.
-    """
-    if x[0] == "addressesOrRanges":
-      for aor in x[1]:
-        if aor[0] == "addressRange":
-          min = _bs2long(aor[1][0], self.range_type.datum_type.bits, 0)
-          max = _bs2long(aor[1][1], self.range_type.datum_type.bits, 1)
-        else:
-          min = _bs2long(aor[1], self.range_type.datum_type.bits, 0)
-          max = _bs2long(aor[1], self.range_type.datum_type.bits, 1)
-        self.append(self.range_type(self.range_type.datum_type(min), self.range_type.datum_type(max)))
-    else:
-      assert x[0] == "inherit"
-      self.inherit = True
 
   def to_roa_prefix_set(self):
     """
@@ -628,19 +561,6 @@ class resource_set_ip(resource_set):
       self.roa_prefix_set_type.prefix_type(r.min, r.prefixlen())
       for r in prefix_ranges])
 
-  def to_rfc3779_tuple(self):
-    """
-    Convert IP resource set into tuple format used by RFC 3779 ASN.1
-    encoder.
-    """
-    self.canonize()
-    if self:
-      return (self.afi, ("addressesOrRanges", tuple(a.to_rfc3779_tuple() for a in self)))
-    elif self.inherit:
-      return (self.afi, ("inherit", ""))
-    else:
-      return None
-
 class resource_set_ipv4(resource_set_ip):
   """
   IPv4 address resource set.
@@ -651,11 +571,6 @@ class resource_set_ipv4(resource_set_ip):
 
   range_type = resource_range_ipv4
 
-  ## @var afi
-  # Address Family Identifier value for IPv4.
-
-  afi = "\x00\x01"
-
 class resource_set_ipv6(resource_set_ip):
   """
   IPv6 address resource set.
@@ -665,44 +580,6 @@ class resource_set_ipv6(resource_set_ip):
   # Type of range underlying this type of resource_set.
 
   range_type = resource_range_ipv6
-
-  ## @var afi
-  # Address Family Identifier value for IPv6.
-
-  afi = "\x00\x02"
-
-def _bs2long(bs, addrlen, fill):
-  """
-  Utility function to convert a bitstring (rpki.POW.pkix tuple
-  representation) into a Python long.
-  """
-  x = 0L
-  for y in bs:
-    x = (x << 1) | y
-  for y in xrange(addrlen - len(bs)):
-    x = (x << 1) | fill
-  return x
-
-def _long2bs(number, addrlen, prefixlen = None, strip = None):
-  """
-  Utility function to convert a Python long into a rpki.POW.pkix tuple
-  bitstring.  This is a bit complicated because it supports the
-  fiendishly compact encoding used in RFC 3779.
-  """
-  assert prefixlen is None or strip is None
-  bs = []
-  while number:
-    bs.append(int(number & 1))
-    number >>= 1
-  if addrlen > len(bs):
-    bs.extend((0 for i in xrange(addrlen - len(bs))))
-  bs.reverse()
-  if prefixlen is not None:
-    return tuple(bs[0:prefixlen])
-  if strip is not None:
-    while bs and bs[-1] == strip:
-      bs.pop()
-  return tuple(bs)
 
 class resource_bag(object):
   """
@@ -780,28 +657,21 @@ class resource_bag(object):
                v6  = resource_set_ipv6(",".join(v6s), allow_overlap) if v6s  else None)
 
   @classmethod
-  def from_rfc3779_tuples(cls, exts):
+  def from_POW_rfc3779(cls, resources):
     """
-    Build a resource_bag from intermediate form generated by RFC 3779
-    ASN.1 decoder.
+    Build a resource_bag from data returned by
+    rpki.POW.X509.getRFC3779().
+
+    The conversion to long for v4 and v6 is (intended to be)
+    temporary: in the long run, we should be using rpki.POW.IPAddress
+    rather than long here.
     """
-    asn = None
-    v4 = None
-    v6 = None
-    for x in exts:
-      if x[0] == rpki.oids.name2oid["sbgp-autonomousSysNum"]:
-        assert len(x[2]) == 1 or x[2][1] is None, "RDI not implemented: %s" % (str(x))
-        assert asn is None
-        asn = resource_set_as(x[2][0])
-      if x[0] == rpki.oids.name2oid["sbgp-ipAddrBlock"]:
-        for fam in x[2]:
-          if fam[0] == resource_set_ipv4.afi:
-            assert v4 is None
-            v4 = resource_set_ipv4(fam[1])
-          if fam[0] == resource_set_ipv6.afi:
-            assert v6 is None
-            v6 = resource_set_ipv6(fam[1])
-    return cls(asn, v4, v6)
+    asn = [resource_range_as(r[0], r[1])   for r in resources[0] or ()]
+    v4  = [resource_range_ipv4(r[0], r[1]) for r in resources[1] or ()]
+    v6  = [resource_range_ipv6(r[0], r[1]) for r in resources[2] or ()]
+    return cls(resource_set_as(asn)  if asn else None,
+               resource_set_ipv4(v4) if v4  else None,
+               resource_set_ipv6(v6) if v6  else None)
 
   def empty(self):
     """
@@ -956,16 +826,13 @@ class roa_prefix(object):
     """
     Return highest address covered by prefix.
     """
-    t = self.range_type.datum_type
-    return t(self.prefix | ((1 << (t.bits - self.prefixlen)) - 1))
-    
-  def to_roa_tuple(self):
+    return self.prefix | ((1 << (self.prefix.bits - self.prefixlen)) - 1)
+
+  def to_POW_roa_tuple(self):
     """
-    Convert a resource_range_ip to tuple format for ROA ASN.1
-    encoding.
+    Convert a resource_range_ip to rpki.POW.ROA.setPrefixes() format.
     """
-    return (_long2bs(self.prefix, self.range_type.datum_type.bits, prefixlen = self.prefixlen),
-            None if self.prefixlen == self.max_prefixlen else self.max_prefixlen)
+    return self.prefix, self.prefixlen, self.max_prefixlen
 
   @classmethod
   def parse_str(cls, x):
@@ -974,19 +841,11 @@ class roa_prefix(object):
     """
     r = re_prefix_with_maxlen.match(x)
     if r:
-      return cls(cls.range_type.datum_type(r.group(1)), int(r.group(2)), int(r.group(3)))
+      return cls(rpki.POW.IPAddress(r.group(1)), int(r.group(2)), int(r.group(3)))
     r = re_prefix.match(x)
     if r:
-      return cls(cls.range_type.datum_type(r.group(1)), int(r.group(2)))
+      return cls(rpki.POW.IPAddress(r.group(1)), int(r.group(2)))
     raise rpki.exceptions.BadROAPrefix, 'Bad ROA prefix "%s"' % (x)
-
-  @classmethod
-  def from_roa_tuple(cls, o):
-    """
-    Convert from ROA ASN.1 tuple format.
-    """
-    assert isinstance(o, (list, tuple)), 'argument must be either list or tuple'
-    return cls(cls.range_type.datum_type(_bs2long(o[0], cls.range_type.datum_type.bits, 0)), len(o[0]), o[1])
 
 class roa_prefix_ipv4(roa_prefix):
   """
@@ -1054,7 +913,7 @@ class roa_prefix_set(list):
     s.append(None)
     for p in self:
       s[0] = p.to_resource_range()
-      r = r.union(s)
+      r |= s
     return r
 
   @classmethod
@@ -1070,7 +929,7 @@ class roa_prefix_set(list):
     """
 
     sql.execute(query, args)
-    return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
+    return cls([cls.prefix_type(rpki.POW.IPAddress(x), int(y), int(z))
                 for (x, y, z) in sql.fetchall()])
 
   @classmethod
@@ -1082,19 +941,18 @@ class roa_prefix_set(list):
     max_prefixlen) triples.
     """
 
-    return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
+    return cls([cls.prefix_type(rpki.POW.IPAddress(x), int(y), int(z))
                 for (x, y, z) in iterable])
 
-
-  def to_roa_tuple(self):
+  def to_POW_roa_tuple(self):
     """
-    Convert ROA prefix set into tuple format used by ROA ASN.1
-    encoder.  This is a variation on the format used in RFC 3779.
+    Convert ROA prefix set to form used by rpki.POW.ROA.setPrefixes().
     """
     if self:
-      return (self.resource_set_type.afi, tuple(a.to_roa_tuple() for a in self))
+      return tuple(a.to_POW_roa_tuple() for a in self)
     else:
       return None
+
 
 class roa_prefix_set_ipv4(roa_prefix_set):
   """

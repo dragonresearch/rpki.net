@@ -4,7 +4,7 @@ import lxml.etree
 
 ## @var left_right
 ## Parsed RelaxNG left_right schema
-left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
+left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: left-right-schema.rnc 4588 2012-07-06 19:43:56Z sra $
   
@@ -1037,7 +1037,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
 
 ## @var up_down
 ## Parsed RelaxNG up_down schema
-up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
+up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: up-down-schema.rnc 3913 2011-07-01 17:04:18Z sra $
   
@@ -1289,7 +1289,7 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
 
 ## @var publication
 ## Parsed RelaxNG publication schema
-publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
+publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: publication-schema.rnc 4588 2012-07-06 19:43:56Z sra $
   
@@ -1879,7 +1879,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
 
 ## @var myrpki
 ## Parsed RelaxNG myrpki schema
-myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
+myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: myrpki.rnc 4430 2012-04-17 16:00:14Z sra $
   

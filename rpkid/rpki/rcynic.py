@@ -1,9 +1,7 @@
 """
 Prototype of an iterator class to parse the output of an rcynic run.
-This script will almost certainly move to the library package once
-it's stable.
 
-Copyright (C) 2010-2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -18,9 +16,12 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-__revision__ = '$Id$'
+__version__ = '$Id$'
 
-import sys, os, rpki.x509, rpki.exceptions
+import os
+import rpki.x509
+import rpki.exceptions
+import rpki.resource_set
 from xml.etree.ElementTree import ElementTree
 
 class UnknownObject(rpki.exceptions.RPKI_Exception):
@@ -100,25 +101,18 @@ class rcynic_roa(rcynic_object):
 
   obj_class = rpki.x509.ROA
 
-  _afi_map = dict((cls.resource_set_type.afi, cls)
-                  for cls in (rpki.resource_set.roa_prefix_set_ipv4,
-                              rpki.resource_set.roa_prefix_set_ipv6))
-
   def __init__(self, filename, **kwargs):
     rcynic_object.__init__(self, filename, **kwargs)
     self.obj.extract()
-    self.asID = self.obj.get_content().asID.get()
+    self.asID = self.obj.get_POW().getASID()
     self.prefix_sets = []
-    for fam in self.obj.get_content().ipAddrBlocks:
-      prefix_set = self._afi_map[fam.addressFamily.get()]()
-      addr_type = prefix_set.resource_set_type.range_type.datum_type
-      self.prefix_sets.append(prefix_set)
-      for addr in fam.addresses:
-        prefix = addr.address.get()
-        prefixlen = len(prefix)
-        prefix = addr_type(rpki.resource_set._bs2long(prefix, addr_type.bits, 0))
-        maxprefixlen = addr.maxLength.get()
-        prefix_set.append(prefix_set.prefix_type(prefix, prefixlen, maxprefixlen))
+    v4, v6 = self.obj.get_POW().getPrefixes()
+    if v4:
+      self.prefix_sets.append(rpki.resource_set.roa_prefix_set_ipv4([
+        rpki.resource_set.roa_prefix_ipv4(long(p[0]), p[1], p[2]) for p in v4]))
+    if v6:
+      self.prefix_sets.append(rpki.resource_set.roa_prefix_set_ipv6([
+        rpki.resource_set.roa_prefix_ipv6(long(p[0]), p[1], p[2]) for p in v6]))
     self.ee = rpki.x509.X509(POW = self.obj.get_POW().certs()[0])
     self.notBefore = self.ee.getNotBefore()
     self.notAfter = self.ee.getNotAfter()
@@ -180,7 +174,7 @@ class rcynic_file_iterator(object):
     self.rcynic_dir = os.path.join(rcynic_root, authenticated_subdir)
 
   def __iter__(self):
-    for root, dirs, files in os.walk(self.rcynic_dir):
+    for root, dirs, files in os.walk(self.rcynic_dir): # pylint: disable=W0612
       for filename in files:
         filename = os.path.join(root, filename)
         ext = os.path.splitext(filename)[1]
@@ -188,26 +182,26 @@ class rcynic_file_iterator(object):
           yield file_name_classes[ext](filename)
 
 class validation_status_element(object):
-    def __init__(self, *args, **kwargs):
-        self.attrs = []
-        for k,v in kwargs.iteritems():
-            setattr(self, k, v)
-            # attribute names are saved so that the __repr__ method can
-            # display the subset of attributes the user specified
-            self.attrs.append(k)
-        self._obj = None
+  def __init__(self, *args, **kwargs):
+    self.attrs = []
+    for k, v in kwargs.iteritems():
+      setattr(self, k, v)
+      # attribute names are saved so that the __repr__ method can
+      # display the subset of attributes the user specified
+      self.attrs.append(k)
+    self._obj = None
 
-    def get_obj(self):
-        if not self._obj:
-            self._obj = self.file_class(filename=self.filename, uri=self.uri)
-        return self._obj
+  def get_obj(self):
+    if not self._obj:
+      self._obj = self.file_class(filename=self.filename, uri=self.uri)
+    return self._obj
 
-    def __repr__(self):
-        v = [self.__class__.__name__, 'id=%s' % str(id(self))]
-        v.extend(['%s=%s' % (x, getattr(self, x)) for x in self.attrs])
-        return '<%s>' % (' '.join(v),)
+  def __repr__(self):
+    v = [self.__class__.__name__, 'id=%s' % str(id(self))]
+    v.extend(['%s=%s' % (x, getattr(self, x)) for x in self.attrs])
+    return '<%s>' % (' '.join(v),)
 
-    obj = property(get_obj)
+  obj = property(get_obj)
 
 class rcynic_xml_iterator(object):
   """
@@ -256,25 +250,26 @@ class rcynic_xml_iterator(object):
 
       # determine the path to this object
       if status == 'object_accepted':
-          d = self.authenticated_subdir
+        d = self.authenticated_subdir
       elif generation == 'backup':
-          d = self.authenticated_old_subdir
+        d = self.authenticated_old_subdir
       else:
-          d = self.unauthenticated_subdir
+        d = self.unauthenticated_subdir
 
       filename = os.path.join(d, self.uri_to_filename(uri))
 
       ext = os.path.splitext(filename)[1]
       if ext in file_name_classes:
-          yield validation_status_element(timestamp=timestamp, generation=generation, uri=uri,
-                  status=status, filename=filename, file_class=file_name_classes[ext])
+        yield validation_status_element(timestamp = timestamp, generation = generation,
+                                        uri=uri, status = status, filename = filename,
+                                        file_class = file_name_classes[ext])
 
 def label_iterator(xml_file):
-    """
-    Returns an iterator which contains all defined labels from an rcynic XML
-    output file.  Each item is a tuple of the form
-    (label, kind, description).
-    """
+  """
+  Returns an iterator which contains all defined labels from an rcynic XML
+  output file.  Each item is a tuple of the form
+  (label, kind, description).
+  """
 
-    for label in ElementTree(file=xml_file).find("labels"):
-        yield label.tag, label.get("kind"), label.text.strip()
+  for label in ElementTree(file=xml_file).find("labels"):
+    yield label.tag, label.get("kind"), label.text.strip()

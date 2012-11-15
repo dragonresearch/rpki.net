@@ -6,7 +6,7 @@ format because nmh makes a handy viewer.
 
 $Id$
 
-Copyright (C) 2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -21,8 +21,18 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import email.mime, email.mime.application, email.mime.text, email.mime.multipart, email.utils, email.encoders
-import mailbox, rpki.POW, lxml.etree, getopt, sys, base64
+import email.mime
+import email.mime.application
+import email.mime.text
+import email.mime.multipart
+import email.utils
+import email.encoders
+import mailbox
+import rpki.POW
+import lxml.etree
+import getopt
+import sys
+import base64
 
 source_name = None
 destination_name = None
@@ -56,7 +66,7 @@ if argv or source_name is None or destination_name is None:
   usage(ok = False)
 
 def pprint_cert(b64):
-  return rpki.POW.derRead(rpki.POW.X509_CERTIFICATE, base64.b64decode(b64)).pprint()
+  return rpki.POW.X509.derRead(base64.b64decode(b64)).pprint()
   
 def up_down():
   msg["X-RPKI-Up-Down-Type"] = xml.get("type")
@@ -101,7 +111,7 @@ try:
       continue
     assert not srcmsg.is_multipart() and srcmsg.get_content_type() == "application/x-rpki"
     payload = srcmsg.get_payload(decode = True)
-    cms = rpki.POW.derRead(rpki.POW.CMS_MESSAGE, payload)
+    cms = rpki.POW.CMS.derRead(payload)
     txt = cms.verify(rpki.POW.X509Store(), None, rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY | rpki.POW.CMS_NO_ATTR_VERIFY | rpki.POW.CMS_NO_CONTENT_VERIFY)
     xml = lxml.etree.fromstring(txt)
     tag = xml.tag

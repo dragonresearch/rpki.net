@@ -3,7 +3,7 @@ RPKI "publication" protocol.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -32,9 +32,18 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, errno
-import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
-import rpki.http, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
+import os
+import errno
+import rpki.resource_set
+import rpki.x509
+import rpki.sql
+import rpki.exceptions
+import rpki.xml_utils
+import rpki.http
+import rpki.up_down
+import rpki.relaxng
+import rpki.sundial
+import rpki.log
 
 class publication_namespace(object):
   """
@@ -73,7 +82,10 @@ class config_elt(control_elt):
   element_name = "config"
   elements = ("bpki_crl",)
 
-  sql_template = rpki.sql.template("config", "config_id", ("bpki_crl", rpki.x509.CRL))
+  sql_template = rpki.sql.template(
+    "config",
+    "config_id",
+    ("bpki_crl", rpki.x509.CRL))
 
   wired_in_config_id = 1
 
@@ -120,10 +132,14 @@ class client_elt(control_elt):
   elements = ("bpki_cert", "bpki_glue")
   booleans = ("clear_replay_protection",)
 
-  sql_template = rpki.sql.template("client", "client_id", "client_handle", "base_uri",
-                                   ("bpki_cert", rpki.x509.X509),
-                                   ("bpki_glue", rpki.x509.X509),
-                                   ("last_cms_timestamp", rpki.sundial.datetime))
+  sql_template = rpki.sql.template(
+    "client",
+    "client_id",
+    "client_handle",
+    "base_uri",
+    ("bpki_cert", rpki.x509.X509),
+    ("bpki_glue", rpki.x509.X509),
+    ("last_cms_timestamp", rpki.sundial.datetime))
 
   base_uri  = None
   bpki_cert = None
@@ -189,7 +205,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
     if text:
-      self.payload = self.payload_type(Base64 = text)
+      self.payload = self.payload_type(Base64 = text) # pylint: disable=E1102
     stack.pop()
 
   def toXML(self):
@@ -205,6 +221,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Action dispatch handler.
     """
+    # pylint: disable=E0203
     try:
       if self.client is None:
         raise rpki.exceptions.BadQuery, "Client query received on control channel"

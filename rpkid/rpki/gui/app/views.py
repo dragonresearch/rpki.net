@@ -433,7 +433,7 @@ def child_edit(request, pk):
     if request.method == 'POST':
         form = form_class(request.POST, request.FILES)
         if form.is_valid():
-            child.valid_until = sundial.datetime.fromdatetime(form.cleaned_data.get('valid_until'))
+            child.valid_until = sundial.datetime.from_datetime(form.cleaned_data.get('valid_until'))
             child.save()
             # remove AS & prefixes that are not selected in the form
             models.ChildASN.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('as_ranges')).delete()

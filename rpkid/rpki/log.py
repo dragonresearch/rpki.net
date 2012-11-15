@@ -3,7 +3,7 @@ Logging facilities for RPKI libraries.
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -32,8 +32,17 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import syslog, sys, os, time
+import syslog
+import sys
+import os
+import time
 import traceback as tb
+
+try:
+  import setproctitle
+  have_setproctitle = True
+except ImportError:
+  have_setproctitle = False
 
 ## @var enable_trace
 # Whether call tracing is enabled.
@@ -54,7 +63,22 @@ show_python_ids = False
 # Whether tracebacks are enabled globally.  Individual classes and
 # modules may choose to override this.
 
-enable_tracebacks = False
+enable_tracebacks = True
+
+## @var use_setproctitle
+# Whether to use setproctitle (if available) to change name shown for
+# this process in ps listings (etc).
+
+use_setproctitle = True
+
+## @var proctitle_extra
+
+# Extra text to include in proctitle display.  By default this is the
+# tail of the current directory name, as this is often useful, but you
+# can set it to something else if you like.  If None or the empty
+# string, the extra information field will be omitted from the proctitle.
+
+proctitle_extra = os.path.basename(os.getcwd())
 
 tag = ""
 pid = 0
@@ -70,6 +94,11 @@ def init(ident = "rpki", flags = syslog.LOG_PID, facility = syslog.LOG_DAEMON):
     global tag, pid
     tag = ident
     pid = os.getpid()
+  if ident and have_setproctitle and use_setproctitle:
+    if proctitle_extra:
+      setproctitle.setproctitle("%s (%s)" % (ident, proctitle_extra))
+    else:
+      setproctitle.setproctitle(ident)
 
 def set_trace(enable):
   """
@@ -115,13 +144,20 @@ def traceback(do_it = None):
   classes have their own controls for this, this lets us provide a
   unified interface).  If no argument is specified, we use the global
   default value rpki.log.enable_tracebacks.
+
+  Assertion failures generate backtraces unconditionally, on the
+  theory that (a) assertion failures are programming errors by
+  definition, and (b) it's often hard to figure out what's triggering
+  a particular assertion failure without the backtrace.
   """
 
   if do_it is None:
     do_it = enable_tracebacks
 
-  if do_it:
-    assert sys.exc_info() != (None, None, None), "rpki.log.traceback() called without valid trace on stack, this is a programming error"
+  e = sys.exc_info()[1]
+  assert e is not None, "rpki.log.traceback() called without valid trace on stack!  This should not happen."
+
+  if do_it or isinstance(e, AssertionError):
     bt = tb.extract_stack(limit = 3)
     error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
     bt = tb.format_exc()
@@ -135,12 +171,21 @@ def log_repr(obj, *tokens):
   IDs as needed, includes self_handle when available.
   """
 
+  # pylint: disable=W0702
   words = ["%s.%s" % (obj.__class__.__module__, obj.__class__.__name__)]
   try:
     words.append("{%s}" % obj.self.self_handle)
   except:
     pass
-  words.extend(str(token) for token in tokens if token is not None and token != "")
+  for token in tokens:
+    if token is not None and token != "":
+      try:
+        assert token is not None
+        words.append(str(token))
+      except:
+        debug("Failed to generate repr() string for object of type %r" % type(token))
+        traceback()
+        words.append("???")
   if show_python_ids:
     words.append(" at %#x" % id(obj))
   return "<" + " ".join(words) + ">"

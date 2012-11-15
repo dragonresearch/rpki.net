@@ -10,7 +10,7 @@ Usage: python rootd.py [ { -c | --config } configfile ]
 
 $Id$
 
-Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -186,7 +186,9 @@ class main(object):
       rpki.log.debug("No PKCS #10 request, can't generate subject certificate yet")
       return None
     resources = self.rpki_root_cert.get_3779resources()
-    rpki.log.info("Generating subject cert with resources " + str(resources))
+    notAfter = now + self.rpki_subject_lifetime
+    rpki.log.info("Generating subject cert %s with resources %s, expires %s" % (
+      self.rpki_base_uri + self.rpki_subject_cert, resources, notAfter))
     req_key = pkcs10.getPublicKey()
     req_sia = pkcs10.get_SIA()
     self.next_serial_number()
@@ -198,7 +200,7 @@ class main(object):
       aia         = self.rpki_root_cert_uri,
       crldp       = self.rpki_base_uri + self.rpki_root_crl,
       resources   = resources,
-      notAfter    = now + self.rpki_subject_lifetime)
+      notAfter    = notAfter)
     self.set_subject_cert(subject_cert)
     self.generate_crl_and_manifest(now)
     return subject_cert
@@ -227,8 +229,7 @@ class main(object):
       keypair     = self.rpki_root_key,
       subject_key = manifest_keypair.get_RSApublic(),
       serial      = self.serial_number,
-      sia         = ((rpki.oids.name2oid["id-ad-signedObject"],
-                      ("uri", self.rpki_base_uri + self.rpki_root_manifest)),),
+      sia         = (None, None, self.rpki_base_uri + self.rpki_root_manifest),
       aia         = self.rpki_root_cert_uri,
       crldp       = self.rpki_base_uri + self.rpki_root_crl,
       resources   = manifest_resources,
@@ -247,7 +248,7 @@ class main(object):
     f.close()
 
   def revoke_subject_cert(self, now):
-    self.revoked.append((self.get_subject_cert().getSerial(), now.toASN1tuple(), ()))
+    self.revoked.append((self.get_subject_cert().getSerial(), now))
 
   def compose_response(self, r_msg, pkcs10 = None):
     subject_cert = self.issue_subject_cert_maybe(pkcs10)
@@ -297,8 +298,8 @@ class main(object):
     if self.crl_number is None:
       try:
         crl = rpki.x509.CRL(DER_file = os.path.join(self.rpki_root_dir, self.rpki_root_crl))
-        self.crl_number = crl.get_POWpkix().getExtension(rpki.oids.name2oid["cRLNumber"])[2]
-      except:
+        self.crl_number = crl.getCRLNumber()
+      except:                           # pylint: disable=W0702
         self.crl_number = 0
     self.crl_number += 1
     return self.crl_number
@@ -372,12 +373,12 @@ class main(object):
 
     self.rpki_root_key           = rpki.x509.RSA(Auto_update = self.cfg.get("rpki-root-key"))
     self.rpki_root_cert_file     = self.cfg.get("rpki-root-cert")
-    self.rpki_root_cert_uri      = self.cfg.get("rpki-root-cert-uri", self.rpki_base_uri + "Root.cer")
+    self.rpki_root_cert_uri      = self.cfg.get("rpki-root-cert-uri", self.rpki_base_uri + "root.cer")
 
-    self.rpki_root_manifest      = self.cfg.get("rpki-root-manifest", "Root.mft")
-    self.rpki_root_crl           = self.cfg.get("rpki-root-crl",      "Root.crl")
-    self.rpki_subject_cert       = self.cfg.get("rpki-subject-cert",  "Child.cer")
-    self.rpki_subject_pkcs10     = self.cfg.get("rpki-subject-pkcs10", "Child.pkcs10")
+    self.rpki_root_manifest      = self.cfg.get("rpki-root-manifest", "root.mft")
+    self.rpki_root_crl           = self.cfg.get("rpki-root-crl",      "root.crl")
+    self.rpki_subject_cert       = self.cfg.get("rpki-subject-cert",  "child.cer")
+    self.rpki_subject_pkcs10     = self.cfg.get("rpki-subject-pkcs10", "child.pkcs10")
 
     self.rpki_subject_lifetime   = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-lifetime", "30d"))
     self.rpki_subject_regen      = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-regen", self.rpki_subject_lifetime.convert_to_seconds() / 2))

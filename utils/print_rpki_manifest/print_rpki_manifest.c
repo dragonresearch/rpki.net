@@ -40,44 +40,7 @@
 #include <openssl/asn1t.h>
 #include <openssl/cms.h>
 
-/*
- * ASN.1 templates for signed manifests.  Not sure that ASN1_EXP_OPT()
- * is the right macro for "version", but it's what the examples for
- * this construction use.  Probably doesn't matter since this program
- * only decodes manifests, never encodes them.
- */
-
-typedef struct FileAndHash_st {
-  ASN1_IA5STRING *file;
-  ASN1_BIT_STRING *hash;
-} FileAndHash;
-
-ASN1_SEQUENCE(FileAndHash) = {
-  ASN1_SIMPLE(FileAndHash, file, ASN1_IA5STRING),
-  ASN1_SIMPLE(FileAndHash, hash, ASN1_BIT_STRING)
-} ASN1_SEQUENCE_END(FileAndHash)
-
-DECLARE_STACK_OF(FileAndHash)
-DECLARE_ASN1_FUNCTIONS(FileAndHash)
-
-#define sk_FileAndHash_num(st)		SKM_sk_num(FileAndHash, (st))
-#define sk_FileAndHash_value(st, i)	SKM_sk_value(FileAndHash, (st), (i))
-
-typedef struct Manifest_st {
-  ASN1_INTEGER *version, *manifestNumber;
-  ASN1_GENERALIZEDTIME *thisUpdate, *nextUpdate;
-  ASN1_OBJECT *fileHashAlg;
-  STACK_OF(FileAndHash) *fileList;
-} Manifest;
-
-ASN1_SEQUENCE(Manifest) = {
-  ASN1_EXP_OPT(Manifest, version, ASN1_INTEGER, 0),
-  ASN1_SIMPLE(Manifest, manifestNumber, ASN1_INTEGER),
-  ASN1_SIMPLE(Manifest, thisUpdate, ASN1_GENERALIZEDTIME),
-  ASN1_SIMPLE(Manifest, nextUpdate, ASN1_GENERALIZEDTIME),
-  ASN1_SIMPLE(Manifest, fileHashAlg, ASN1_OBJECT),
-  ASN1_SEQUENCE_OF(Manifest, fileList, FileAndHash)
-} ASN1_SEQUENCE_END(Manifest)
+#include <rpki/manifest.h>
 
 /*
  * Read manifest (CMS object) in DER format.

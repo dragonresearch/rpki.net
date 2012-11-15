@@ -512,9 +512,12 @@ def roa_create(request):
 
 @handle_required
 def roa_create_confirm(request):
+    """This function is called when the user confirms the creation of a ROA
+    request.  It is responsible for updating the IRDB.
+
+    """
     conf = request.session['handle']
     log = request.META['wsgi.errors']
-
     if request.method == 'POST':
         form = forms.ROARequestConfirm(request.POST, request.FILES)
         if form.is_valid():
@@ -522,25 +525,18 @@ def roa_create_confirm(request):
             prefix = form.cleaned_data.get('prefix')
             rng = glue.str_to_resource_range(prefix)
             max_prefixlen = form.cleaned_data.get('max_prefixlen')
-
-            roarequests = models.ROARequest.objects.filter(issuer=conf,
-                                                           asn=asn)
-            if roarequests:
-                # FIXME need to handle the case where there are
-                # multiple ROAs for the same AS due to prefixes
-                # delegated from different resource certs.
-                roa = roarequests[0]
-            else:
-                roa = models.ROARequest.objects.create(issuer=conf,
-                                                        asn=asn)
+            # Always create ROA requests with a single prefix.
+            # https://trac.rpki.net/ticket/32
+            roa = models.ROARequest.objects.create(issuer=conf, asn=asn)
             v = 'IPv4' if isinstance(rng, resource_range_ipv4) else 'IPv6'
             roa.prefixes.create(version=v, prefix=str(rng.min),
                                 prefixlen=rng.prefixlen(),
                                 max_prefixlen=max_prefixlen)
             Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(roa_list))
-    else:
-        return http.HttpResponseRedirect(reverse(roa_create))
+        # What should happen when the submission form isn't valid?  For now
+        # just fall through and redirect back to the ROA creation form
+    return http.HttpResponseRedirect(reverse(roa_create))
 
 
 @handle_required
@@ -860,6 +856,7 @@ def repository_delete(request, pk):
     conf = request.session['handle']
     # Ensure the repository being deleted belongs to the current user.
     obj = get_object_or_404(models.Repository, issuer=conf, pk=pk)
+    form_class = forms.UserDeleteForm  # FIXME
     if request.method == 'POST':
         form = form_class(request.POST, request.FILES)
         if form.is_valid():

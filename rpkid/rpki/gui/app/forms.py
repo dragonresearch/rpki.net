@@ -221,7 +221,7 @@ class ROARequest(forms.Form):
             raise forms.ValidationError('invalid IP address')
 
         manager = models.ResourceRangeAddressV4 if isinstance(r, resource_range_ipv4) else models.ResourceRangeAddressV6
-        if not manager.objects.filter(cert__parent__issuer=self.conf,
+        if not manager.objects.filter(cert__conf=self.conf,
                                       prefix_min__lte=r.min,
                                       prefix_max__gte=r.max).exists():
             raise forms.ValidationError('prefix is not allocated to you')
@@ -249,6 +249,21 @@ class ROARequest(forms.Form):
             if max_prefixlen > r.datum_type.bits:
                 raise forms.ValidationError, \
                         'max prefix length (%d) is out of range for IP version (%d)' % (max_prefixlen, r.datum_type.bits)
+
+            # verify that the request prefix is not already part of a
+            # roarequest
+            if models.ROARequestPrefix.objects.filter(
+                roa_request__issuer=self.conf,
+                roa_request__asn=self.cleaned_data.get('asn'),
+                version='IPv%d' % (4 if isinstance(r, resource_range_ipv4) else 6,),
+                prefix=str(r.min),
+                prefixlen=r.prefixlen(),
+                max_prefixlen=max_prefixlen
+            ).exists():
+                raise forms.ValidationError(
+                    'this ROA request prefix already exists'
+                )
+
             self.cleaned_data['max_prefixlen'] = str(max_prefixlen)
 
         return self.cleaned_data

@@ -347,14 +347,17 @@ case $enable_ca_tools in
 			ok=no
 			AC_MSG_WARN([The RPKI CA GUI requires the Python vobject module])
 		fi
-		if test $ok = no
-		then
-			AC_MSG_WARN([If you do not wish to install the RPKI CA tools, please specify --disable-ca-tools as an argument to this configure script.])
-		fi
 		if test $have_acceptable_django_south = no
 		then
 			ok=no
 			AC_MSG_WARN([The RPKI CA tools require Django South 0.7.6 or higher.])
+		fi
+		#
+		# This should be the last test in this group, so that failures get the --disable-ca-tools warning.
+		#
+		if test $ok = no
+		then
+			AC_MSG_WARN([If you do not wish to install the RPKI CA tools, please specify --disable-ca-tools as an argument to this configure script.])
 		fi
 		;;
      no)	build_ca_tools=no

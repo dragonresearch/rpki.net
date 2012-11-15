@@ -10,7 +10,7 @@ sets $PYTHONPATH and $DJANGO_SETTINGS_MODULE.
 
 * Django
 
-* Django South
+* Django South 0.7.6 or later
 
 * Apache 2
 
@@ -20,11 +20,6 @@ sets $PYTHONPATH and $DJANGO_SETTINGS_MODULE.
 
 If you had previously installed the web portal before the database migration
 support was added, you will need to take some additional steps.
-
-**** Edit settings.py ****
-
-You will need to edit /usr/local/etc/rpki/settings.py and edit the
-INSTALLED_APPS list to include 'south'.
 
 **** Sync databases ****
 

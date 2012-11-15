@@ -236,6 +236,8 @@ have_lxml=no
 have_mysqldb=no
 have_pyyaml=no
 have_vobject=no
+have_django_south=no
+have_acceptable_django_south=no
 
 if test "x$PYTHON" != "x"
 then
@@ -292,6 +294,20 @@ then
 		have_vobject=yes
 	fi
 	AC_MSG_RESULT([$have_vobject])
+
+	AC_MSG_CHECKING([for Django South])
+	if $PYTHON -c 'import south' 2>/dev/null
+	then
+		have_django_south=yes
+	fi
+	AC_MSG_RESULT([$have_django_south])
+
+	if test $have_django_south = yes
+	then
+		AC_MSG_CHECKING([for Django South 0.7.6 or later])
+		have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [[0, 7, 6]] else 'yes'"`
+		AC_MSG_RESULT([$have_acceptable_django_south])
+	fi
 fi
 
 ok=yes
@@ -331,6 +347,14 @@ case $enable_ca_tools in
 			ok=no
 			AC_MSG_WARN([The RPKI CA GUI requires the Python vobject module])
 		fi
+		if test $have_acceptable_django_south = no
+		then
+			ok=no
+			AC_MSG_WARN([The RPKI CA tools require Django South 0.7.6 or higher.])
+		fi
+		#
+		# This should be the last test in this group, so that failures get the --disable-ca-tools warning.
+		#
 		if test $ok = no
 		then
 			AC_MSG_WARN([If you do not wish to install the RPKI CA tools, please specify --disable-ca-tools as an argument to this configure script.])

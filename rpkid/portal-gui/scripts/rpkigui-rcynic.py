@@ -1,4 +1,5 @@
-# Copyright (C) 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2011  SPARTA, Inc. dba Cobham
+# Anaportal-gui/scripts/rpkigui-rcynic.py
 # Copyright (C) 2012  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
@@ -188,7 +189,7 @@ def process_cache(root, xml_file):
                 if obj.issuer == obj.subject:
                     # self-signed cert (TA)
                     assert(isinstance(inst, models.Cert))
-                    inst.issuer = inst
+                    inst.issuer = None
                 else:
                     # if an object has moved in the repository, the entry for
                     # the old location will still be in the database, but
@@ -216,6 +217,12 @@ def process_cache(root, xml_file):
                     dispatch[vs.file_class.__name__](obj, inst)
 
                     inst.save()  # don't require a save in the dispatch methods
+
+                    # for the root cert, we can't set inst.issuer = inst until
+                    # after inst.save() has been called.
+                    if inst.issuer is None:
+                        inst.issuer = inst
+                        inst.save()
                 except:
                     logger.error('caught exception while processing rcynic_object:\n'
                                  'vs=' + repr(vs) + '\nobj=' + repr(obj))

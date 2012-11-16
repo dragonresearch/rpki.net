@@ -16,9 +16,8 @@ __version__ = '$Id$'
 
 from rpki.gui.cacheview.models import Cert
 from rpki.gui.cacheview.views import cert_chain
-from rpki.gui.app.models import ResourceCert
+from rpki.gui.app.models import Conf, ResourceCert
 from rpki.gui.app.glue import list_received_resources, get_email_list
-from rpki.irdb.models import ResourceHolderCA
 from rpki.irdb import Zookeeper
 from rpki.left_right import report_error_elt, list_published_objects_elt
 from rpki.x509 import X509
@@ -55,7 +54,7 @@ def check_cert_list(handle, x, errs):
 
 def check_expire(conf, errs):
     # get certs for `handle'
-    cert_set = ResourceCert.objects.filter(parent__issuer=conf)
+    cert_set = ResourceCert.objects.filter(conf=conf)
     for cert in cert_set:
         # look up cert in cacheview db
         obj_set = Cert.objects.filter(repo__uri=cert.uri)
@@ -87,7 +86,11 @@ def check_expire(conf, errs):
                 msg.append("       Contact: " + ", ".join(info))
 
         if expired:
-            errs.write("%s's rescert from parent %s will expire soon:\n" % (conf.handle, cert.parent.handle))
+            errs.write("%s's rescert from parent %s will expire soon:\n" % (
+                conf.handle,
+                # parent is None for the root cert
+                cert.parent.handle if cert.parent else 'self'
+            ))
             errs.write("Certificate chain:\n")
             errs.write("\n".join(msg))
             errs.write("\n")
@@ -126,7 +129,7 @@ def check_child_certs(conf, errs):
 # vhost for the web portal running on this machine is
 host = socket.getfqdn()
 
-usage = '%prog [ -vV ] [ handle1 handle2... ]'
+usage = '%prog [ -nV ] [ handle1 handle2... ]'
 
 description = """Generate a report detailing all RPKI/BPKI certificates which
 are due for impending expiration.  If no resource handles are specified, a
@@ -155,7 +158,7 @@ expire_time = now + datetime.timedelta(int(options.expire_days))
 from_email = options.from_email
 
 # if not arguments are given, query all resource holders
-qs = ResourceHolderCA.objects.all() if not args else ResourceHolderCA.objects.filter(handle__in=args)
+qs = Conf.objects.all() if not args else Conf.objects.filter(handle__in=args)
 
 # check expiration of certs for all handles managed by the web portal
 for h in qs:

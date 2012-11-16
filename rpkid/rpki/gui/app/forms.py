@@ -165,10 +165,12 @@ class ROARequest(forms.Form):
 
     Handles both IPv4 and IPv6."""
 
-    asn = forms.IntegerField(label='AS')
-    prefix = forms.CharField(max_length=50)
+    prefix = forms.CharField(
+        widget=forms.TextInput(attrs={'autofocus': 'true', 'size': '50'})
+    )
     max_prefixlen = forms.CharField(required=False,
-            label='Max Prefix Length')
+                                    label='Max Prefix Length')
+    asn = forms.IntegerField(label='AS')
     confirmed = forms.BooleanField(widget=forms.HiddenInput, required=False)
 
     def __init__(self, *args, **kwargs):

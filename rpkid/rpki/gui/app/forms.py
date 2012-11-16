@@ -286,7 +286,11 @@ def AddASNForm(child):
 
     """
     class _wrapped(forms.Form):
-        asns = forms.CharField(label='ASNs', help_text='single ASN or range')
+        asns = forms.CharField(
+            label='ASNs',
+            help_text='single ASN or range',
+            widget=forms.TextInput(attrs={'autofocus': 'true'})
+        )
 
         def clean_asns(self):
             try:
@@ -319,7 +323,10 @@ def AddNetForm(child):
 
     """
     class _wrapped(forms.Form):
-        address_range = forms.CharField(help_text='CIDR or range')
+        address_range = forms.CharField(
+            help_text='CIDR or range',
+            widget=forms.TextInput(attrs={'autofocus': 'true'})
+        )
 
         def clean_address_range(self):
             address_range = self.cleaned_data.get('address_range')

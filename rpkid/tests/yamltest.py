@@ -753,7 +753,7 @@ try:
 
     # Wait until something terminates.
 
-    if not stop_after_config:
+    if not stop_after_config or keep_going:
       print
       print "Waiting for daemons to exit"
       signal.signal(signal.SIGCHLD, lambda *dont_care: None)

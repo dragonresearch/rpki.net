@@ -572,3 +572,27 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
     rpki.log.warn("Couldn't publish updated CRLs and manifests for self %r, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
+
+class CheckFailedPublication(AbstractTask):
+  """
+  Periodic check for objects we tried to publish but failed (eg, due
+  to pubd being down or unreachable).
+  """
+
+  def start(self):
+    rpki.log.trace()
+    publisher = rpki.rpkid.publication_queue()
+    for parent in self.parents:
+      for ca in parent.cas:
+        ca_detail = ca.active_ca_detail
+        if ca_detail is not None:
+          ca_detail.check_failed_publication(publisher)
+        self.gctx.checkpoint()
+    self.gctx.sql.sweep()
+    publisher.call_pubd(self.exit, self.publication_failed)
+
+  def publication_failed(self, e):
+    rpki.log.traceback()
+    rpki.log.warn("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
+    self.gctx.checkpoint()
+    self.exit()

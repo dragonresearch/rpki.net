@@ -378,7 +378,8 @@ class self_elt(data_elt):
         rpki.rpkid_tasks.UpdateChildrenTask(self),
         rpki.rpkid_tasks.UpdateROAsTask(self),
         rpki.rpkid_tasks.UpdateGhostbustersTask(self),
-        rpki.rpkid_tasks.RegenerateCRLsAndManifestsTask(self))
+        rpki.rpkid_tasks.RegenerateCRLsAndManifestsTask(self),
+        rpki.rpkid_tasks.CheckFailedPublication(self))
 
     for task in self.cron_tasks:
       self.gctx.task_add(task)

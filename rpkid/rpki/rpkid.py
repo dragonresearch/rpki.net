@@ -786,11 +786,11 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     return ca_obj.sql_fetch(self.gctx, self.ca_id)
 
-  def fetch_child_certs(self, child = None, ski = None, unique = False):
+  def fetch_child_certs(self, child = None, ski = None, unique = False, unpublished = None):
     """
     Fetch all child_cert objects that link to this ca_detail.
     """
-    return rpki.rpkid.child_cert_obj.fetch(self.gctx, child, self, ski, unique)
+    return rpki.rpkid.child_cert_obj.fetch(self.gctx, child, self, ski, unique, unpublished)
 
   @property
   def child_certs(self):
@@ -798,6 +798,13 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     Fetch all child_cert objects that link to this ca_detail.
     """
     return self.fetch_child_certs()
+
+  def unpublished_child_certs(self, when):
+    """
+    Fetch all unpublished child_cert objects linked to this ca_detail
+    with attempted publication dates older than when.
+    """
+    return self.fetch_child_certs(unpublished = when)
 
   @property
   def revoked_certs(self):
@@ -813,12 +820,26 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     return rpki.rpkid.roa_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
+  def unpublished_roas(self, when):
+    """
+    Fetch all unpublished ROA objects linked to this ca_detail with
+    attempted publication dates older than when.
+    """
+    return rpki.rpkid.roa_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s AND published IS NOT NULL and published < %s", (self.ca_detail_id, when))
+
   @property
   def ghostbusters(self):
     """
     Fetch all Ghostbuster objects that link to this ca_detail.
     """
     return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
+
+  def unpublished_ghostbusters(self, when):
+    """
+    Fetch all unpublished Ghostbusters objects linked to this
+    ca_detail with attempted publication dates older than when.
+    """
+    return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s AND published IS NOT NULL and published < %s", (self.ca_detail_id, when))
 
   @property
   def crl_uri(self):
@@ -989,6 +1010,14 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
 
     def issued(issue_response):
+      if self.state == "pending":
+        return self.activate(
+          ca       = ca,
+          cert     = issue_response.payload.classes[0].certs[0].cert,
+          uri      = issue_response.payload.classes[0].certs[0].cert_url,
+          callback = callback,
+          errback  = errback)
+
       new_ca_cert = issue_response.payload.classes[0].certs[0].cert
       if self.latest_ca_cert != new_ca_cert:
         self.latest_ca_cert = new_ca_cert
@@ -1217,7 +1246,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       child_cert.reissue(self, publisher, force = True)
     publisher.call_pubd(cb, eb)
 
-  def check_failed_publication(self, publisher):
+  def check_failed_publication(self, publisher, check_all = True):
     """
     Check for failed publication of objects issued by this ca_detail.
 
@@ -1230,20 +1259,26 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     recent -- intent is to allow a bit of slack in case pubd is just
     being slow).  In such cases, we want to retry publication.
 
-    As an optimization, we can probably just check the manifest and
-    CRL; if these are up to date we probably don't need to check other
-    objects (which would involve several more SQL queries).  Not sure
-    yet whether this optimization is worthwhile.
+    As an optimization, we can probably skip checking other products
+    if manifest and CRL have been published, thus saving ourselves
+    several complex SQL queries.  Not sure yet whether this
+    optimization is worthwhile.
 
-    At the moment, we only check CRL and manifest, full stop.  This
-    should be expanded to check other objects, but that would take
-    longer and I have a user who needs this fix today.
+    For the moment we check everything without optimization, because
+    it simplifies testing.
+
+    For the moment our definition of staleness is hardwired; this
+    should become configurable.
     """
+
+    rpki.log.debug("Checking for failed publication for %r" % self)
 
     stale = rpki.sundial.now() - rpki.sundial.timedelta(seconds = 60)
     repository = self.ca.parent.repository
 
-    if self.latest_crl is not None and self.crl_published is not None and self.crl_published < stale:
+    if self.latest_crl is not None and \
+         self.crl_published is not None and \
+         self.crl_published < stale:
       rpki.log.debug("Retrying publication for %s" % self.crl_uri)
       publisher.publish(cls = rpki.publication.crl_elt,
                         uri = self.crl_uri,
@@ -1251,13 +1286,48 @@ class ca_detail_obj(rpki.sql.sql_persistent):
                         repository = repository,
                         handler = self.crl_published_callback)
 
-    if self.latest_manifest is not None and self.manifest_published is not None and self.manifest_published < stale:      
+    if self.latest_manifest is not None and \
+         self.manifest_published is not None and \
+         self.manifest_published < stale:
       rpki.log.debug("Retrying publication for %s" % self.manifest_uri)
       publisher.publish(cls = rpki.publication.manifest_elt,
                         uri = self.manifest_uri,
                         obj = self.latest_manifest,
                         repository = repository,
                         handler = self.manifest_published_callback)
+
+    if not check_all:
+      return
+
+    # Might also be able to return here if manifest and CRL are up to
+    # date, but let's avoid premature optimization
+
+    for child_cert in self.unpublished_child_certs(stale):
+      rpki.log.debug("Retrying publication for %s" % child_cert)
+      publisher.publish(
+        cls = rpki.publication.certificate_elt,
+        uri = child_cert.uri,
+        obj = child_cert.cert,
+        repository = repository,
+        handler = child_cert.published_callback)
+
+    for roa in self.unpublished_roas(stale):
+      rpki.log.debug("Retrying publication for %s" % roa)
+      publisher.publish(
+        cls = rpki.publication.roa_elt,
+        uri = roa.uri,
+        obj = roa.roa,
+        repository = repository,
+        handler = roa.published_callback)
+      
+    for ghostbuster in self.unpublished_ghostbusters(stale):
+      rpki.log.debug("Retrying publication for %s" % ghostbuster)
+      publisher.publish(
+        cls = rpki.publication.ghostbuster_elt,
+        uri = ghostbuster.uri,
+        obj = ghostbuster.ghostbuster,
+        repository = repository,
+        handler = ghostbuster.published_callback)
 
 class child_cert_obj(rpki.sql.sql_persistent):
   """
@@ -1419,7 +1489,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     return child_cert
 
   @classmethod
-  def fetch(cls, gctx = None, child = None, ca_detail = None, ski = None, unique = False):
+  def fetch(cls, gctx = None, child = None, ca_detail = None, ski = None, unique = False, unpublished = None):
     """
     Fetch all child_cert objects matching a particular set of
     parameters.  This is a wrapper to consolidate various queries that
@@ -1441,6 +1511,10 @@ class child_cert_obj(rpki.sql.sql_persistent):
     if ski:
       where.append("ski = %s")
       args.append(ski)
+
+    if unpublished is not None:
+      where.append("published IS NOT NULL AND published < %s")
+      args.append(unpublished)
 
     where = " AND ".join(where)
 
@@ -1713,7 +1787,12 @@ class roa_obj(rpki.sql.sql_persistent):
     self.sql_store()
 
     rpki.log.debug("Generating %r URI %s" % (self, self.uri))
-    publisher.publish(cls = rpki.publication.roa_elt, uri = self.uri, obj = self.roa, repository = ca.parent.repository, handler = self.published_callback)
+    publisher.publish(
+      cls = rpki.publication.roa_elt,
+      uri = self.uri,
+      obj = self.roa,
+      repository = ca.parent.repository,
+      handler = self.published_callback)
     if not fast:
       ca_detail.generate_manifest(publisher = publisher)
 
@@ -1892,7 +1971,12 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     self.sql_store()
 
     rpki.log.debug("Generating Ghostbuster record %r" % self.uri)
-    publisher.publish(cls = rpki.publication.ghostbuster_elt, uri = self.uri, obj = self.ghostbuster, repository = ca.parent.repository, handler = self.published_callback)
+    publisher.publish(
+      cls = rpki.publication.ghostbuster_elt,
+      uri = self.uri,
+      obj = self.ghostbuster,
+      repository = ca.parent.repository,
+      handler = self.published_callback)
     if not fast:
       ca_detail.generate_manifest(publisher = publisher)
 

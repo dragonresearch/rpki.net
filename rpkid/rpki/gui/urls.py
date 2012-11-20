@@ -26,8 +26,9 @@ urlpatterns = patterns('',
     # Uncomment the next line to enable the admin:
     #(r'^admin/', include(admin.site.urls)),
 
-    (r'^rpki/', include('rpki.gui.app.urls')),
+    (r'^api/', include('rpki.gui.api.urls')),
     (r'^cacheview/', include('rpki.gui.cacheview.urls')),
+    (r'^rpki/', include('rpki.gui.app.urls')),
 
     (r'^accounts/login/$', 'django.contrib.auth.views.login'),
     (r'^accounts/logout/$', 'django.contrib.auth.views.logout',

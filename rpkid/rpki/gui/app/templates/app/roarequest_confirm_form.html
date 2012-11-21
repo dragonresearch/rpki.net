@@ -1,4 +1,5 @@
 {% extends "app/app_base.html" %}
+{% load crispy_forms_tags %}
 
 {% block content %}
 <div class='page-title'>
@@ -6,12 +7,12 @@
 </div>
 
 <div class='row'>
-  <div class='span8'>
-    <div class='alert-message block-message warning'>
+  <div class='span5'>
+    <div class='alert alert-block-message alert-warning'>
       <p><strong>Please confirm</strong> that you would like to create the following ROA.
       The accompanying table indicates how the validation status may change as a result.
 
-      <table class='condensed-table'>
+      <table class='table table-condensed table-striped'>
 	<tr>
 	  <th>AS</th>
 	  <th>Prefix</th>
@@ -26,19 +27,20 @@
 
       <form method='POST' action='{% url rpki.gui.app.views.roa_create_confirm %}'>
 	{% csrf_token %}
-	{% include "app/bootstrap_form.html" %}
-	<div class='alert-actions'>
-	  <input class='btn primary' type='submit' value='Create'/>
+  {{ form|crispy }}
+
+	<div class='form-actions'>
+	  <input class='btn btn-primary' type='submit' value='Create'/>
 	  <a class='btn' href='{% url rpki.gui.app.views.roa_list %}'>Cancel</a>
 	</div>
       </form>
     </div><!-- /alert-message -->
   </div>
 
-  <div class='span8'>
+  <div class='span5'>
     <h2>Matched Routes</h2>
 
-    <table style='zebra-striped condensed-table'>
+    <table style='table table-striped table-condensed'>
       <tr>
         <th>Prefix</th>
         <th>Origin AS</th>

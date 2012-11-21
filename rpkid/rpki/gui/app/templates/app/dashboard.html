@@ -11,14 +11,14 @@
 {% endblock sidebar_extra %}
 
 {% block content %}
-<div class='page-header'>
+<div class="page-header">
   <h1>Dashboard</h1>
 </div>
 
 <div class='row'>
-  <div class='span10'>
+  <div class='span6'>
     <h2>Resources</h2>
-    <table class='condensed-table zebra-striped'>
+    <table class='table table-condensed-table table-striped'>
       <tr>
 	<th>Resource</th>
 	<th>Valid Until</th>
@@ -64,7 +64,7 @@
       {% endif %}
     </table>
   </div>
-  <div class='span6'>
+  <div class='span4'>
     <h2>Unallocated Resources</h2>
     <p>The following resources have not been allocated to a child, nor appear in a ROA.
 

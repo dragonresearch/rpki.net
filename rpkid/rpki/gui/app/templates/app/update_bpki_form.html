@@ -6,7 +6,7 @@
 
 <form method="POST" action="{{ request.get_full_path }}">
     {% csrf_token %}
-    <table>
+    <table class="table table-condensed table-striped">
 {{ form.as_table }}
 </table>
 <input type="submit" value="Update">

@@ -26,9 +26,8 @@ import os.path
 from tempfile import NamedTemporaryFile
 
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, render_to_response
+from django.shortcuts import get_object_or_404, render
 from django.utils.http import urlquote
-from django.template import RequestContext
 from django import http
 from django.views.generic.list_detail import object_list, object_detail
 from django.core.urlresolvers import reverse
@@ -55,17 +54,6 @@ def superuser_required(f):
             return http.HttpResponseForbidden()
         return f(request, *args, **kwargs)
     return _wrapped
-
-
-# FIXME  This method is included in Django 1.3 and can be removed when Django
-# 1.2 is out of its support window.
-def render(request, template, context):
-    """
-    https://docs.djangoproject.com/en/1.3/topics/http/shortcuts/#render
-
-    """
-    return render_to_response(template, context,
-            context_instance=RequestContext(request))
 
 
 def handle_required(f):
@@ -98,7 +86,7 @@ def handle_required(f):
 
 @handle_required
 def generic_import(request, queryset, configure, form_class=None,
-                   template_name=None, post_import_redirect=None):
+                   post_import_redirect=None):
     """
     Generic view function for importing XML files used in the setup
     process.
@@ -113,11 +101,6 @@ def generic_import(request, queryset, configure, form_class=None,
         specifies the form to use for import.  If None, uses the generic
         forms.ImportForm.
 
-    template_name
-        path to the html template to use to render the form.  If None, defaults
-        to "app/<model>_import_form.html", where <model> is introspected from
-        the "queryset" argument.
-
     post_import_redirect
         if None (default), the user will be redirected to the detail page for
         the imported object.  Otherwise, the user will be redirected to the
@@ -125,8 +108,6 @@ def generic_import(request, queryset, configure, form_class=None,
 
     """
     conf = request.session['handle']
-    if template_name is None:
-        template_name = 'app/%s_import_form.html' % queryset.model.__name__.lower()
     if form_class is None:
         form_class = forms.ImportForm
     if request.method == 'POST':
@@ -159,7 +140,10 @@ def generic_import(request, queryset, configure, form_class=None,
     else:
         form = form_class()
 
-    return render(request, template_name, {'form': form})
+    return render(request, 'app/app_form.html', {
+        'form': form,
+        'form_title': 'Import ' + queryset.model._meta.verbose_name,
+    })
 
 
 @handle_required
@@ -445,8 +429,11 @@ def child_edit(request, pk):
             'as_ranges': child.asns.all(),
             'address_ranges': child.address_ranges.all()})
 
-    return render(request, 'app/child_form.html',
-                    {'object': child, 'form': form})
+    return render(request, 'app/app_form.html', {
+        'object': child,
+        'form': form,
+        'form_title': 'Edit Child: ' + child.handle,
+    })
 
 
 @handle_required
@@ -677,8 +664,11 @@ def _ghostbuster_edit(request, obj=None):
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
         form = form_class(conf, instance=obj)
-    return render(request, 'app/ghostbuster_form.html',
-                  {'form': form, 'object': obj})
+    return render(request, 'app/app_form.html', {
+        'form': form,
+        'object': obj,
+        'form_title': 'Edit Ghostbuster Request',
+    })
 
 
 @handle_required
@@ -990,8 +980,11 @@ def user_edit(request, pk):
             return http.HttpResponseRedirect(reverse(user_list))
     else:
         form = forms.UserEditForm(initial={'email': user.email})
-    return render(request, 'app/user_edit_form.html',
-                  {'object': user, 'form': form})
+    return render(request, 'app/app_form.html', {
+        'object': user,
+        'form': form,
+        'form_title': 'Edit User: ' + user.username,
+    })
 
 
 @handle_required
@@ -1038,4 +1031,8 @@ def user_create(request):
         conf = request.session['handle']
         form = forms.UserCreateForm(initial={'parent': conf})
 
-    return render(request, 'app/user_create_form.html', {'form': form})
+    return render(request, 'app/app_form.html', {
+        'form': form,
+        'form_title': 'Create User',
+        'cancel_url': reverse(user_list),
+    })

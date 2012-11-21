@@ -33,9 +33,4 @@ urlpatterns = patterns('',
     (r'^accounts/login/$', 'django.contrib.auth.views.login'),
     (r'^accounts/logout/$', 'django.contrib.auth.views.logout',
         {'next_page': '/rpki/'}),
-
-    # !!!REMOVE THIS BEFORE COMMITTING!!!
-    # for testing with the django test webserver
-    (r'^site_media/(?P<path>.*)$', 'django.views.static.serve',
-            {'document_root': '/usr/local/share/rpki/media'}),
 )

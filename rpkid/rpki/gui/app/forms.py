@@ -288,41 +288,43 @@ class ROARequestConfirm(forms.Form):
         return self.cleaned_data
 
 
-def AddASNForm(child):
+class AddASNForm(forms.Form):
     """
     Returns a forms.Form subclass which verifies that the entered ASN range
     does not overlap with a previous allocation to the specified child, and
     that the ASN range is within the range allocated to the parent.
 
     """
-    class _wrapped(forms.Form):
-        asns = forms.CharField(
-            label='ASNs',
-            help_text='single ASN or range',
-            widget=forms.TextInput(attrs={'autofocus': 'true'})
-        )
 
-        def clean_asns(self):
-            try:
-                r = resource_range_as.parse_str(self.cleaned_data.get('asns'))
-            except:
-                raise forms.ValidationError('invalid AS or range')
+    asns = forms.CharField(
+        label='ASNs',
+        help_text='single ASN or range',
+        widget=forms.TextInput(attrs={'autofocus': 'true'})
+    )
 
-            if not models.ResourceRangeAS.objects.filter(
-                cert__conf=child.issuer,
-                min__lte=r.min,
-                max__gte=r.max).exists():
-                raise forms.ValidationError('AS or range is not delegated to you')
+    def __init__(self, *args, **kwargs):
+        self.child = kwargs.pop('child')
+        super(AddASNForm, self).__init__(*args, **kwargs)
 
-            # determine if the entered range overlaps with any AS already
-            # allocated to this child
-            if child.asns.filter(end_as__gte=r.min, start_as__lte=r.max).exists():
-                raise forms.ValidationError(
-                    'Overlap with previous allocation to this child')
+    def clean_asns(self):
+        try:
+            r = resource_range_as.parse_str(self.cleaned_data.get('asns'))
+        except:
+            raise forms.ValidationError('invalid AS or range')
 
-            return str(r)
+        if not models.ResourceRangeAS.objects.filter(
+            cert__conf=self.child.issuer,
+            min__lte=r.min,
+            max__gte=r.max).exists():
+            raise forms.ValidationError('AS or range is not delegated to you')
 
-    return _wrapped
+        # determine if the entered range overlaps with any AS already
+        # allocated to this child
+        if self.child.asns.filter(end_as__gte=r.min, start_as__lte=r.max).exists():
+            raise forms.ValidationError(
+                'Overlap with previous allocation to this child')
+
+        return str(r)
 
 
 def AddNetForm(child):

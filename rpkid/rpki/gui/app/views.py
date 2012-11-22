@@ -32,9 +32,9 @@ from django import http
 from django.views.generic.list_detail import object_detail
 from django.core.urlresolvers import reverse, reverse_lazy
 from django.contrib.auth.models import User
-from django.contrib.formtools.preview import FormPreview
 from django.views.generic import (DetailView, ListView, CreateView, UpdateView,
-                                  DeleteView)
+                                  DeleteView, FormView)
+from django.views.generic.detail import SingleObjectMixin
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
@@ -296,56 +296,23 @@ def child_import(request):
     return generic_import(request, conf.children, Zookeeper.configure_child)
 
 
-class ObjectActionPreview(FormPreview):
-    """Generic base class for confirming an action of an object.
+class ChildAddPrefix(FormView, SingleObjectMixin):
+    form_class = forms.AddNetForm
+    template_name = 'app/app_form.html'
 
-    Subclasses should define:
-    - template_name
+    def get_queryset(self):
+        return self.request.session['handle'].children
 
-    """
+    def get_form_kwargs(self):
+        kwargs = super(ChildAddPrefix, self).get_form_kwargs()
+        kwargs['child'] = self.get_object()
+        return kwargs
 
-    def __init__(self, *args, **kwargs):
-        """
-        The docstring for FormPreview says we should not redefine this method, but
-        I don't see how we can set extra information in this class otherwise.
+    # FormMixin
+    def form_valid(self, form):
+        r = super(ChildAddPrefix, self).form_valid(form)
 
-        """
-        self.form_object = kwargs.pop('form_object')
-        self.logstream = kwargs.pop('logstream')
-        # use the same template for both form edit and preview
-        self.form_template = self.template_name
-        self.preview_template = self.template_name
-        super(ObjectActionPreview, self).__init__(*args, **kwargs)
-
-    def get_context(self, *args, **kwargs):
-        """"
-        Override the superclass method to add context variables needed by the
-        form template.
-
-        """
-        d = super(ObjectActionPreview, self).get_context(*args, **kwargs)
-        d['object'] = self.form_object
-        d['form_label'] = self.form_label
-        return d
-
-    def process_preview(self, request, form, context):
-        # set a boolean flag so that the template knows this is a preview
-        context['is_preview'] = True
-
-
-class ChildAddResourcePreview(ObjectActionPreview):
-    """
-    Base class for handling preview of AS/Prefix additions to a child.
-    Subclasses implement the 'done' method to perform actual work on IRDB.
-
-    """
-    template_name = 'app/child_detail.html'
-    form_label = 'Add Resource'
-
-
-class ChildAddPrefixPreview(ChildAddResourcePreview):
-    def done(self, request, cleaned_data):
-        address_range = cleaned_data.get('address_range')
+        address_range = form.cleaned_data.get('address_range')
         if ':' in address_range:
             r = resource_range_ipv6.parse_str(address_range)
             version = 'IPv6'
@@ -355,33 +322,35 @@ class ChildAddPrefixPreview(ChildAddResourcePreview):
         self.child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
                                          version=version)
         Zookeeper(handle=self.child.issuer.handle, logstream=self.logstream).run_rpkid_now()
-        return http.HttpResponseRedirect(self.child.get_absolute_url())
+        return r
 
-@handle_required
-def child_add_address(request, pk):
-    logstream = request.META['wsgi.errors']
-    conf = request.session['handle']
-    child = get_object_or_404(models.Child, issuer=conf, pk=pk)
-    form = forms.AddNetForm(child)
-    preview = ChildAddPrefixPreview(form, form_object=child, logstream=logstream)
-    return preview(request)
 
-class ChildAddASNPreview(ChildAddResourcePreview):
-    def done(self, request, cleaned_data):
-        asns = cleaned_data.get('asns')
+
+class ChildAddASN(FormView, SingleObjectMixin):
+    form_class = forms.AddASNForm
+    template_name = 'app/app_form.html'
+
+    def get_queryset(self):
+        return self.request.session['handle'].children
+
+    def get_form_kwargs(self):
+        kwargs = super(ChildAddASN, self).get_form_kwargs()
+        kwargs['child'] = self.get_object()
+        return kwargs
+
+    # FormMixin
+    def form_valid(self, form):
+        resp = super(ChildAddASN, self).form_valid(form)
+
+        asns = form.cleaned_data.get('asns')
         r = resource_range_as.parse_str(asns)
-        self.child.asns.create(start_as=r.min, end_as=r.max)
-        Zookeeper(handle=self.child.issuer.handle, logstream=self.logstream).run_rpkid_now()
-        return http.HttpResponseRedirect(self.child.get_absolute_url())
+        self.get_object().asns.create(start_as=r.min, end_as=r.max)
 
-@handle_required
-def child_add_asn(request, pk):
-    logstream = request.META['wsgi.errors']
-    conf = request.session['handle']
-    child = get_object_or_404(models.Child, issuer=conf, pk=pk)
-    form = forms.AddASNForm(child)
-    preview = ChildAddASNPreview(form, form_object=child, logstream=logstream)
-    return preview(request)
+        return resp
+
+    def get_success_url(self):
+        return self.get_object().get_absolute_url()
+
 
 @handle_required
 def child_view(request, pk):
@@ -434,30 +403,30 @@ def child_response(request, pk):
     return resp
 
 
-class ChildDeletePreview(ObjectActionPreview):
-    template_name = 'app/child_detail.html'
-    form_label = 'Delete Child'
+class GenericDeleteView(DeleteView):
+    """Subclasses should implement the get_queryset() method.
 
-    def __init__(self, *args, **kwargs):
-        self.conf = kwargs.pop('conf')
-        super(ChildDeletePreview, self).__init__(*args, **kwargs)
+    """
+    template_name = 'app/object_confirm_delete.html'
+    success_url = reverse_lazy(dashboard)
 
-    def done(self, request, cleaned_data):
-        z = Zookeeper(handle=self.conf.handle)
-        z.delete_child(self.form_object.handle)
+    def get_context_data(self, **kwargs):
+        context = super(GenericDeleteView, self).get_context_data(**kwargs)
+        context['parent_template'] = 'app/%s_detail.html' % self.object.__class__.__name__.lower()
+        return context
+
+
+class ChildDeleteView(GenericDeleteView):
+    def get_queryset(self):
+        return self.request.session['handle'].children
+
+    # override DeletionMixin.delete()
+    def delete(self, request, *args, **kwargs):
+        z = Zookeeper(handle=request.session['handle'])
+        z.delete_child(self.get_object().handle)
         z.synchronize()
-        return http.HttpResponseRedirect(reverse(dashboard))
+        return http.HttpResponseRedirect(self.get_success_url())
 
-@handle_required
-def child_delete(request, pk):
-    log = request.META['wsgi.errors']
-    conf = request.session['handle']
-    # verify this child belongs to the current user
-    obj = get_object_or_404(conf.children, pk=pk)
-    form_class = forms.UserDeleteForm  # FIXME
-    preview = ChildDeletePreview(form_class, conf=conf, form_object=obj,
-                                logstream=log)
-    return preview(request)
 
 @handle_required
 def roa_create(request):
@@ -609,17 +578,9 @@ class GhostbusterDetailView(DetailView):
         return self.request.session['handle'].ghostbusters
 
 
-class GhostbusterDeleteView(DeleteView):
-    template_name = 'app/object_confirm_delete.html'
-    success_url = reverse_lazy(dashboard)
-
+class GhostbusterDeleteView(GenericDeleteView):
     def get_queryset(self):
         return self.request.session['handle'].ghostbusters
-
-    def get_context_data(self, **kwargs):
-        context = super(GhostbusterDeleteView, self).get_context_data(**kwargs)
-        context['parent_template'] = 'app/ghostbusterrequest_detail.html'
-        return context
 
 
 class GhostbusterCreateView(CreateView):

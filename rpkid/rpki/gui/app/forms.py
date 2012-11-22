@@ -83,13 +83,14 @@ class GhostbusterRequestForm(forms.ModelForm):
         family_name = self.cleaned_data.get('family_name')
         given_name = self.cleaned_data.get('given_name')
         if not all([family_name, given_name]):
-            raise forms.ValidationError, 'Family and Given names must be specified'
+            raise forms.ValidationError('Family and Given names must be specified')
 
         email = self.cleaned_data.get('email_address')
         postal = self.cleaned_data.get('postal_address')
         telephone = self.cleaned_data.get('telephone')
         if not any([email, postal, telephone]):
-            raise forms.ValidationError, 'One of telephone, email or postal address must be specified'
+            raise forms.ValidationError(
+                'One of telephone, email or postal address must be specified')
 
         # if the full name is not specified, default to given+family
         fn = self.cleaned_data.get('full_name')
@@ -327,49 +328,51 @@ class AddASNForm(forms.Form):
         return str(r)
 
 
-def AddNetForm(child):
+class AddNetForm(forms.Form):
     """
     Returns a forms.Form subclass which validates that the entered address
     range is within the resources allocated to the parent, and does not overlap
     with what is already allocated to the specified child.
 
     """
-    class _wrapped(forms.Form):
-        address_range = forms.CharField(
-            help_text='CIDR or range',
-            widget=forms.TextInput(attrs={'autofocus': 'true'})
-        )
+    address_range = forms.CharField(
+        help_text='CIDR or range',
+        widget=forms.TextInput(attrs={'autofocus': 'true'})
+    )
 
-        def clean_address_range(self):
-            address_range = self.cleaned_data.get('address_range')
-            try:
-                if ':' in address_range:
-                    r = resource_range_ipv6.parse_str(address_range)
-                    qs = models.ResourceRangeAddressV6
-                    version = 'IPv6'
-                else:
-                    r = resource_range_ipv4.parse_str(address_range)
-                    qs = models.ResourceRangeAddressV4
-                    version = 'IPv4'
-            except BadIPResource:
-                raise forms.ValidationError('invalid IP address range')
+    def __init__(self, *args, **kwargs):
+        self.child = kwargs.pop('child')
+        super(AddNetForm, self).__init__(*args, **kwargs)
 
-            if not qs.objects.filter(cert__conf=child.issuer,
-                                     prefix_min__lte=r.min,
-                                     prefix_max__gte=r.max).exists():
-                raise forms.ValidationError('IP address range is not delegated to you')
+    def clean_address_range(self):
+        address_range = self.cleaned_data.get('address_range')
+        try:
+            if ':' in address_range:
+                r = resource_range_ipv6.parse_str(address_range)
+                qs = models.ResourceRangeAddressV6
+                version = 'IPv6'
+            else:
+                r = resource_range_ipv4.parse_str(address_range)
+                qs = models.ResourceRangeAddressV4
+                version = 'IPv4'
+        except BadIPResource:
+            raise forms.ValidationError('invalid IP address range')
 
-            # determine if the entered range overlaps with any prefix
-            # already allocated to this child
-            for n in child.address_ranges.filter(version=version):
-                rng = n.as_resource_range()
-                if r.max >= rng.min and r.min <= rng.max:
-                    raise forms.ValidationError(
-                        'Overlap with previous allocation to this child')
+        if not qs.objects.filter(cert__conf=self.child.issuer,
+                                 prefix_min__lte=r.min,
+                                 prefix_max__gte=r.max).exists():
+            raise forms.ValidationError(
+                'IP address range is not delegated to you')
 
-            return str(r)
+        # determine if the entered range overlaps with any prefix
+        # already allocated to this child
+        for n in self.child.address_ranges.filter(version=version):
+            rng = n.as_resource_range()
+            if r.max >= rng.min and r.min <= rng.max:
+                raise forms.ValidationError(
+                    'Overlap with previous allocation to this child')
 
-    return _wrapped
+        return str(r)
 
 
 def ChildForm(instance):

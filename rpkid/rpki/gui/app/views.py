@@ -32,9 +32,7 @@ from django import http
 from django.views.generic.list_detail import object_detail
 from django.core.urlresolvers import reverse, reverse_lazy
 from django.contrib.auth.models import User
-from django.views.generic import (DetailView, ListView, CreateView, UpdateView,
-                                  DeleteView, FormView)
-from django.views.generic.detail import SingleObjectMixin
+from django.views.generic import DetailView, CreateView, UpdateView, DeleteView
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
@@ -79,7 +77,7 @@ def handle_required(f):
                 # Should reverse the view for this instead of hardcoding
                 # the URL.
                 url = '%s?next=%s' % (reverse(conf_list),
-                        urlquote(request.get_full_path()))
+                                      urlquote(request.get_full_path()))
                 return http.HttpResponseRedirect(url)
 
         return f(request, *args, **kwargs)
@@ -209,12 +207,14 @@ def dashboard(request):
         'prefixes': prefixes,
         'prefixes_v6': prefixes_v6,
     })
+
 
 @superuser_required
 def conf_list(request, **kwargs):
     """Allow the user to select a handle."""
-    view = ListView.as_view(model=models.Conf)
-    return view(request, **kwargs)
+    return render(request, 'app/conf_list.html',
+                  {'conf_list': models.Conf.objects.all()})
+
 
 @superuser_required
 def conf_select(request):
@@ -228,6 +228,7 @@ def conf_select(request):
     request.session['handle'] = get_object_or_404(models.Conf, handle=handle)
     return http.HttpResponseRedirect(next_url)
 
+
 def serve_xml(content, basename):
     """
     Generate a HttpResponse object with the content type set to XML.
@@ -240,6 +241,7 @@ def serve_xml(content, basename):
     resp = http.HttpResponse(content, mimetype='application/xml')
     resp['Content-Disposition'] = 'attachment; filename=%s.xml' % (basename,)
     return resp
+
 
 @handle_required
 def conf_export(request):
@@ -255,12 +257,12 @@ def parent_import(request):
     conf = request.session['handle']
     return generic_import(request, conf.parents, Zookeeper.configure_parent)
 
+
 @handle_required
-def parent_detail(*args, **kwargs):
-    """Detail view for a particular parent."""
-    conf = args[0].session['handle']
-    view = DetailView.as_view(queryset=conf.parents)
-    return view(*args, **kwargs)
+def parent_detail(request, pk):
+    return render(request, 'app/parent_detail.html', {
+        'object': get_object_or_404(request.session['handle'].parents, pk=pk)})
+
 
 @handle_required
 def parent_delete(request, pk):
@@ -277,8 +279,11 @@ def parent_delete(request, pk):
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = form_class()
-    return render(request, 'app/parent_detail.html',
-                  {'object': obj, 'form': form, 'confirm_delete': True})
+    return render(request, 'app/object_confirm_delete.html',
+                  {'object': obj,
+                   'form': form,
+                   'parent_template': 'app/parent_detail.html'})
+
 
 @handle_required
 def parent_export(request, pk):
@@ -296,69 +301,57 @@ def child_import(request):
     return generic_import(request, conf.children, Zookeeper.configure_child)
 
 
-class ChildAddPrefix(FormView, SingleObjectMixin):
-    form_class = forms.AddNetForm
-    template_name = 'app/app_form.html'
-
-    def get_queryset(self):
-        return self.request.session['handle'].children
-
-    def get_form_kwargs(self):
-        kwargs = super(ChildAddPrefix, self).get_form_kwargs()
-        kwargs['child'] = self.get_object()
-        return kwargs
-
-    # FormMixin
-    def form_valid(self, form):
-        r = super(ChildAddPrefix, self).form_valid(form)
-
-        address_range = form.cleaned_data.get('address_range')
-        if ':' in address_range:
-            r = resource_range_ipv6.parse_str(address_range)
-            version = 'IPv6'
-        else:
-            r = resource_range_ipv4.parse_str(address_range)
-            version = 'IPv4'
-        self.child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
-                                         version=version)
-        Zookeeper(handle=self.child.issuer.handle, logstream=self.logstream).run_rpkid_now()
-        return r
-
-
-
-class ChildAddASN(FormView, SingleObjectMixin):
-    form_class = forms.AddASNForm
-    template_name = 'app/app_form.html'
-
-    def get_queryset(self):
-        return self.request.session['handle'].children
-
-    def get_form_kwargs(self):
-        kwargs = super(ChildAddASN, self).get_form_kwargs()
-        kwargs['child'] = self.get_object()
-        return kwargs
-
-    # FormMixin
-    def form_valid(self, form):
-        resp = super(ChildAddASN, self).form_valid(form)
-
-        asns = form.cleaned_data.get('asns')
-        r = resource_range_as.parse_str(asns)
-        self.get_object().asns.create(start_as=r.min, end_as=r.max)
-
-        return resp
-
-    def get_success_url(self):
-        return self.get_object().get_absolute_url()
+@handle_required
+def child_add_prefix(request, pk):
+    logstream = request.META['wsgi.errors']
+    conf = request.session['handle']
+    child = get_object_or_404(conf.children, pk=pk)
+    if request.method == 'POST':
+        form = forms.AddNetForm(request.GET, child=child)
+        if form.is_valid():
+            address_range = form.cleaned_data.get('address_range')
+            if ':' in address_range:
+                r = resource_range_ipv6.parse_str(address_range)
+                version = 'IPv6'
+            else:
+                r = resource_range_ipv4.parse_str(address_range)
+                version = 'IPv4'
+            child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
+                                        version=version)
+            z = Zookeeper(handle=conf.handle, logstream=logstream)
+            z.run_rpkid_now()
+            return http.HttpResponseRedirect(child.get_absolute_url())
+    else:
+        form = forms.AddNetForm(child=child)
+    return render(request, 'app/app_form.html',
+                  {'object': child, 'form': form})
 
 
 @handle_required
-def child_view(request, pk):
-    """Detail view of child for the currently selected handle."""
+def child_add_asn(request, pk):
+    logstream = request.META['wsgi.errors']
     conf = request.session['handle']
-    child = get_object_or_404(conf.children.all(), pk=pk)
-    return render(request, 'app/child_detail.html',
-                  {'object': child, 'can_edit': True})
+    child = get_object_or_404(conf.children, pk=pk)
+    if request.method == 'POST':
+        form = forms.AddASNForm(request.GET, child=child)
+        if form.is_valid():
+            asns = form.cleaned_data.get('asns')
+            r = resource_range_as.parse_str(asns)
+            child.asns.create(start_as=r.min, end_as=r.max)
+            z = Zookeeper(handle=conf.handle, logstream=logstream)
+            z.run_rpkid_now()
+            return http.HttpResponseRedirect(child.get_absolute_url())
+    else:
+        form = forms.AddNetForm(child=child)
+    return render(request, 'app/app_form.html',
+                  {'object': child, 'form': form})
+
+
+@handle_required
+def child_detail(request, pk):
+    child = get_object_or_404(request.session['handle'].children, pk=pk)
+    return render(request, 'app/child_detail.html', {'object': child})
+
 
 @handle_required
 def child_edit(request, pk):
@@ -388,6 +381,7 @@ def child_edit(request, pk):
         'form_title': 'Edit Child: ' + child.handle,
     })
 
+
 @handle_required
 def child_response(request, pk):
     """
@@ -416,16 +410,25 @@ class GenericDeleteView(DeleteView):
         return context
 
 
-class ChildDeleteView(GenericDeleteView):
-    def get_queryset(self):
-        return self.request.session['handle'].children
-
-    # override DeletionMixin.delete()
-    def delete(self, request, *args, **kwargs):
-        z = Zookeeper(handle=request.session['handle'])
-        z.delete_child(self.get_object().handle)
-        z.synchronize()
-        return http.HttpResponseRedirect(self.get_success_url())
+@handle_required
+def child_delete(request, pk):
+    logstream = request.META['wsgi.errors']
+    conf = request.session['handle']
+    child = get_object_or_404(conf.children, pk=pk)
+    if request.method == 'POST':
+        form = forms.Form(request.POST)
+        if form.is_valid():
+            z = Zookeeper(handle=conf.handle, logstream=logstream)
+            z.delete_child(child.handle)
+            z.synchronize()
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.Form()
+    return render(request, 'app/object_confirm_delete.html', {
+        'object': child,
+        'form': form,
+        'parent_template': 'app/child_detail.html'
+    })
 
 
 @handle_required
@@ -517,6 +520,7 @@ def roa_create_confirm(request):
         # just fall through and redirect back to the ROA creation form
     return http.HttpResponseRedirect(reverse(roa_create))
 
+
 @handle_required
 def roa_detail(request, pk):
     """Not implemented.
@@ -604,6 +608,7 @@ class GhostbusterEditView(UpdateView):
         kwargs = super(GhostbusterEditView, self).get_form_kwargs()
         kwargs['conf'] = self.request.session['handle']
         return kwargs
+
 
 @handle_required
 def refresh(request):
@@ -614,7 +619,6 @@ def refresh(request):
     glue.list_received_resources(request.META['wsgi.errors'],
                                  request.session['handle'])
     return http.HttpResponseRedirect(reverse(dashboard))
-
 
 
 def roa_match(rng):
@@ -749,6 +753,7 @@ def repository_import(request):
 def client_detail(request, pk):
     return object_detail(request, queryset=models.Client.objects, object_id=pk)
 
+
 @superuser_required
 def client_delete(request, pk):
     log = request.META['wsgi.errors']
@@ -766,12 +771,14 @@ def client_delete(request, pk):
     return render(request, 'app/client_detail.html',
                   {'object': obj, 'form': form, 'confirm_delete': True})
 
+
 @superuser_required
 def client_import(request):
     return generic_import(request, models.Client.objects,
                           Zookeeper.configure_publication_client,
                           form_class=forms.ImportClientForm,
                           post_import_redirect=reverse(dashboard))
+
 
 @superuser_required
 def client_export(request, pk):

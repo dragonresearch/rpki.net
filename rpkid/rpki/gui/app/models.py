@@ -57,7 +57,7 @@ class Child(rpki.irdb.models.Child):
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.app.views.child_view', [str(self.pk)])
+        return ('rpki.gui.app.views.child_detail', [str(self.pk)])
 
     class Meta:
         proxy = True

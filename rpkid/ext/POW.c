@@ -1160,9 +1160,11 @@ ipaddress_object_from_bytes(PyTypeObject *type, PyObject *args)
     lose("Unknown IP version number");
 
   memcpy(result->address, bytes, len);
+  return (PyObject *) result;
 
  error:
-  return (PyObject *) result;
+  Py_XDECREF(result);
+  return NULL;
 }
 
 static char ipaddress_object_to_bytes__doc__[] =

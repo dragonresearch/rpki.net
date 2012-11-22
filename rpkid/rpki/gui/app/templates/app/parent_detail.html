@@ -1,6 +1,6 @@
 {% extends "app/object_detail.html" %}
 
-{% block object_detail %}
+{% block object_display %}
 <h2>{{ object.handle }}</h2>
 
 <table class="table table-striped table-condensed">
@@ -55,8 +55,9 @@
     </ul>
   </div>
 </div>
-{% endblock object_detail %}
+{% endblock object_display %}
 
-{% block actions %}
-<a class='btn' href='{{ object.get_absolute_url }}/export' title='Download XML to send to repository operator'>Export</a>
-{% endblock actions %}
+{% block action %}
+{{ block.super }}
+<a class='btn' href='{{ object.get_absolute_url }}export' title='Download XML to send to repository operator'>Export</a>
+{% endblock action %}

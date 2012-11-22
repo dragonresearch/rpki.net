@@ -1,0 +1,22 @@
+{% extends parent_template %}
+{% comment %}
+Since Django templates do not support multiple inheritance, we simluate it by
+dynamically extending from the *_detail.html template for a concrete object
+type.  The *DeleteView classes should set a "parent_template" variable which is
+string specifying the concrete template to inherit from.
+{% endcomment %}
+
+{% block action_name %}Delete{% endblock %}
+
+{% block action %}
+<div class="alert alert-warning alert-block">
+  <h4>Warning!</h4>
+  Please confirm that you would like to delete this object
+</div>
+
+<form action='' method='POST'>
+  {% csrf_token %}
+  <input class='btn btn-danger' type='submit' value='Confirm'>
+  <a class='btn' href="{{ object.get_absolute_url }}">Cancel</a>
+</form>
+{% endblock %}

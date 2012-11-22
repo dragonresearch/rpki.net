@@ -63,13 +63,21 @@ class GhostbusterRequestForm(forms.ModelForm):
     full_name = forms.CharField(max_length=40, required=False,
             help_text='automatically generated from family and given names if left blank')
 
-    def __init__(self, issuer, *args, **kwargs):
+    #override
+    issuer = forms.ModelChoiceField(queryset=None, widget=forms.HiddenInput)
+
+    def __init__(self, *args, **kwargs):
+        conf = kwargs.pop('conf')
+        # override initial value for conf in case user tries to alter it
+        initial = kwargs.setdefault('initial', {})
+        initial['issuer'] = conf
         super(GhostbusterRequestForm, self).__init__(*args, **kwargs)
-        self.fields['parent'].queryset = models.Parent.objects.filter(issuer=issuer)
+        self.fields['parent'].queryset = conf.parents.all()
+        self.fields['issuer'].queryset = models.Conf.objects.filter(pk=conf.pk)
 
     class Meta:
         model = models.GhostbusterRequest
-        exclude = ('issuer', 'vcard')
+        exclude = ('vcard')
 
     def clean(self):
         family_name = self.cleaned_data.get('family_name')

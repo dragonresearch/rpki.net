@@ -1,6 +1,6 @@
 {% extends "app/object_detail.html" %}
 
-{% block object_detail %}
+{% block object_display %}
 <table class='table table-striped table-condensed'>
   <tr><td >Full Name</td><td>{{ object.full_name }}</td></tr>
 
@@ -49,5 +49,4 @@
   {% endif %}
 
 </table>
-{% endblock object_detail %}
-<!-- vim: set sw=2: -->
+{% endblock object_display %}

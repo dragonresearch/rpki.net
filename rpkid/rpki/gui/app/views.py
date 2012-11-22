@@ -29,10 +29,12 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.utils.http import urlquote
 from django import http
-from django.views.generic.list_detail import object_list, object_detail
-from django.core.urlresolvers import reverse
+from django.views.generic.list_detail import object_detail
+from django.core.urlresolvers import reverse, reverse_lazy
 from django.contrib.auth.models import User
 from django.contrib.formtools.preview import FormPreview
+from django.views.generic import (DetailView, ListView, CreateView, UpdateView,
+                                  DeleteView)
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
@@ -205,18 +207,14 @@ def dashboard(request):
         'unused_prefixes_v6': unused_prefixes_v6,
         'asns': asns,
         'prefixes': prefixes,
-        'prefixes_v6': prefixes_v6})
-
-
+        'prefixes_v6': prefixes_v6,
+    })
+
 @superuser_required
-def conf_list(request):
+def conf_list(request, **kwargs):
     """Allow the user to select a handle."""
-    queryset = models.Conf.objects.all()
-    return object_list(request, queryset,
-                       template_name='app/conf_list.html',
-                       template_object_name='conf',
-                       extra_context={'select_url': reverse(conf_select)})
-
+    view = ListView.as_view(model=models.Conf)
+    return view(request, **kwargs)
 
 @superuser_required
 def conf_select(request):
@@ -230,7 +228,6 @@ def conf_select(request):
     request.session['handle'] = get_object_or_404(models.Conf, handle=handle)
     return http.HttpResponseRedirect(next_url)
 
-
 def serve_xml(content, basename):
     """
     Generate a HttpResponse object with the content type set to XML.
@@ -243,7 +240,6 @@ def serve_xml(content, basename):
     resp = http.HttpResponse(content, mimetype='application/xml')
     resp['Content-Disposition'] = 'attachment; filename=%s.xml' % (basename,)
     return resp
-
 
 @handle_required
 def conf_export(request):
@@ -259,22 +255,12 @@ def parent_import(request):
     conf = request.session['handle']
     return generic_import(request, conf.parents, Zookeeper.configure_parent)
 
-
 @handle_required
-def parent_list(request):
-    """List view for parent objects."""
-    conf = request.session['handle']
-    return object_list(request, queryset=conf.parents.all(),
-                       extra_context={'create_url': reverse(parent_import),
-                                      'create_label': 'Import'})
-
-
-@handle_required
-def parent_detail(request, pk):
+def parent_detail(*args, **kwargs):
     """Detail view for a particular parent."""
-    conf = request.session['handle']
-    return object_detail(request, conf.parents.all(), object_id=pk)
-
+    conf = args[0].session['handle']
+    view = DetailView.as_view(queryset=conf.parents)
+    return view(*args, **kwargs)
 
 @handle_required
 def parent_delete(request, pk):
@@ -288,12 +274,11 @@ def parent_delete(request, pk):
             z = Zookeeper(handle=conf.handle, logstream=log)
             z.delete_parent(obj.handle)
             z.synchronize()
-            return http.HttpResponseRedirect(reverse(parent_list))
+            return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = form_class()
     return render(request, 'app/parent_detail.html',
                   {'object': obj, 'form': form, 'confirm_delete': True})
-
 
 @handle_required
 def parent_export(request, pk):
@@ -311,26 +296,13 @@ def child_import(request):
     return generic_import(request, conf.children, Zookeeper.configure_child)
 
 
-@handle_required
-def child_list(request):
-    """List of children for current user."""
-    conf = request.session['handle']
-    return object_list(request, queryset=conf.children.all(),
-            template_name='app/child_list.html',
-            extra_context={
-                'create_url': reverse(child_import),
-                'create_label': 'Import'})
+class ObjectActionPreview(FormPreview):
+    """Generic base class for confirming an action of an object.
 
-
-class ChildAddResourcePreview(FormPreview):
-    """
-    Base class for handling preview of AS/Prefix additions to a child.
-    Subclasses implement the 'done' method to perform actual work on IRDB.
+    Subclasses should define:
+    - template_name
 
     """
-
-    form_template = 'app/child_detail.html'
-    preview_template = 'app/child_detail.html'
 
     def __init__(self, *args, **kwargs):
         """
@@ -338,9 +310,12 @@ class ChildAddResourcePreview(FormPreview):
         I don't see how we can set extra information in this class otherwise.
 
         """
-        self.child = kwargs.pop('child')
+        self.form_object = kwargs.pop('form_object')
         self.logstream = kwargs.pop('logstream')
-        super(ChildAddResourcePreview, self).__init__(*args, **kwargs)
+        # use the same template for both form edit and preview
+        self.form_template = self.template_name
+        self.preview_template = self.template_name
+        super(ObjectActionPreview, self).__init__(*args, **kwargs)
 
     def get_context(self, *args, **kwargs):
         """"
@@ -348,14 +323,24 @@ class ChildAddResourcePreview(FormPreview):
         form template.
 
         """
-        d = super(ChildAddResourcePreview, self).get_context(*args, **kwargs)
-        d['object'] = self.child
-        d['form_label'] = 'Add Resource'
+        d = super(ObjectActionPreview, self).get_context(*args, **kwargs)
+        d['object'] = self.form_object
+        d['form_label'] = self.form_label
         return d
 
     def process_preview(self, request, form, context):
         # set a boolean flag so that the template knows this is a preview
         context['is_preview'] = True
+
+
+class ChildAddResourcePreview(ObjectActionPreview):
+    """
+    Base class for handling preview of AS/Prefix additions to a child.
+    Subclasses implement the 'done' method to perform actual work on IRDB.
+
+    """
+    template_name = 'app/child_detail.html'
+    form_label = 'Add Resource'
 
 
 class ChildAddPrefixPreview(ChildAddResourcePreview):
@@ -378,7 +363,7 @@ def child_add_address(request, pk):
     conf = request.session['handle']
     child = get_object_or_404(models.Child, issuer=conf, pk=pk)
     form = forms.AddNetForm(child)
-    preview = ChildAddPrefixPreview(form, child=child, logstream=logstream)
+    preview = ChildAddPrefixPreview(form, form_object=child, logstream=logstream)
     return preview(request)
 
 class ChildAddASNPreview(ChildAddResourcePreview):
@@ -395,7 +380,7 @@ def child_add_asn(request, pk):
     conf = request.session['handle']
     child = get_object_or_404(models.Child, issuer=conf, pk=pk)
     form = forms.AddASNForm(child)
-    preview = ChildAddASNPreview(form, child=child, logstream=logstream)
+    preview = ChildAddASNPreview(form, form_object=child, logstream=logstream)
     return preview(request)
 
 @handle_required
@@ -405,7 +390,6 @@ def child_view(request, pk):
     child = get_object_or_404(conf.children.all(), pk=pk)
     return render(request, 'app/child_detail.html',
                   {'object': child, 'can_edit': True})
-
 
 @handle_required
 def child_edit(request, pk):
@@ -435,6 +419,45 @@ def child_edit(request, pk):
         'form_title': 'Edit Child: ' + child.handle,
     })
 
+@handle_required
+def child_response(request, pk):
+    """
+    Export the XML file containing the output of the configure_child
+    to send back to the client.
+
+    """
+    conf = request.session['handle']
+    child = get_object_or_404(models.Child, issuer=conf, pk=pk)
+    z = Zookeeper(handle=conf.handle)
+    xml = z.generate_parental_response(child)
+    resp = serve_xml(str(xml), child.handle)
+    return resp
+
+
+class ChildDeletePreview(ObjectActionPreview):
+    template_name = 'app/child_detail.html'
+    form_label = 'Delete Child'
+
+    def __init__(self, *args, **kwargs):
+        self.conf = kwargs.pop('conf')
+        super(ChildDeletePreview, self).__init__(*args, **kwargs)
+
+    def done(self, request, cleaned_data):
+        z = Zookeeper(handle=self.conf.handle)
+        z.delete_child(self.form_object.handle)
+        z.synchronize()
+        return http.HttpResponseRedirect(reverse(dashboard))
+
+@handle_required
+def child_delete(request, pk):
+    log = request.META['wsgi.errors']
+    conf = request.session['handle']
+    # verify this child belongs to the current user
+    obj = get_object_or_404(conf.children, pk=pk)
+    form_class = forms.UserDeleteForm  # FIXME
+    preview = ChildDeletePreview(form_class, conf=conf, form_object=obj,
+                                logstream=log)
+    return preview(request)
 
 @handle_required
 def roa_create(request):
@@ -520,26 +543,10 @@ def roa_create_confirm(request):
                                 prefixlen=rng.prefixlen(),
                                 max_prefixlen=max_prefixlen)
             Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
-            return http.HttpResponseRedirect(reverse(roa_list))
+            return http.HttpResponseRedirect(reverse(dashboard))
         # What should happen when the submission form isn't valid?  For now
         # just fall through and redirect back to the ROA creation form
     return http.HttpResponseRedirect(reverse(roa_create))
-
-
-@handle_required
-def roa_list(request):
-    """
-    Display a list of ROARequestPrefix objects for the current resource
-    handle.
-
-    """
-
-    conf = request.session['handle']
-    qs = models.ROARequestPrefix.objects.filter(roa_request__issuer=conf).order_by('prefix')
-    return object_list(request, queryset=qs,
-            template_name='app/roa_request_list.html',
-            extra_context={'create_url': reverse(roa_create)})
-
 
 @handle_required
 def roa_detail(request, pk):
@@ -573,7 +580,7 @@ def roa_delete(request, pk):
         if not roa.prefixes.exists():
             roa.delete()
         Zookeeper(handle=conf.handle).run_rpkid_now()
-        return http.HttpResponseRedirect(reverse(roa_list))
+        return http.HttpResponseRedirect(reverse(dashboard))
 
     ### Process GET ###
 
@@ -597,94 +604,45 @@ def roa_delete(request, pk):
                   {'object': obj, 'routes': routes})
 
 
-@handle_required
-def ghostbuster_list(request):
-    """
-    Display a list of all ghostbuster requests for the current Conf.
-
-    """
-    conf = request.session['handle']
-    qs = models.GhostbusterRequest.objects.filter(issuer=conf)
-    return object_list(request, queryset=qs)
+class GhostbusterDetailView(DetailView):
+    def get_queryset(self):
+        return self.request.session['handle'].ghostbusters
 
 
-@handle_required
-def ghostbuster_view(request, pk):
-    """
-    Display an individual ghostbuster request.
+class GhostbusterDeleteView(DeleteView):
+    template_name = 'app/object_confirm_delete.html'
+    success_url = reverse_lazy(dashboard)
 
-    """
-    conf = request.session['handle']
-    qs = models.GhostbusterRequest.objects.filter(issuer=conf)
-    return object_detail(request, queryset=qs, object_id=pk,
-                         extra_context={'can_edit': True})
+    def get_queryset(self):
+        return self.request.session['handle'].ghostbusters
 
-
-@handle_required
-def ghostbuster_delete(request, pk):
-    """
-    Handle deletion of a GhostbusterRequest object.
-
-    """
-    conf = request.session['handle']
-    log = request.META['wsgi.errors']
-    form_class = forms.UserDeleteForm  # FIXME
-    # Ensure the GhosbusterRequest object belongs to the current user.
-    obj = get_object_or_404(models.GhostbusterRequest, issuer=conf, pk=pk)
-    if request.method == 'POST':
-        form = form_class(request.POST, request.FILES)
-        if form.is_valid():
-            obj.delete()
-            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
-            return http.HttpResponseRedirect(reverse(ghostbuster_list))
-    else:
-        form = form_class()
-    return render(request, 'app/ghostbusterrequest_detail.html',
-                  {'object': obj, 'form': form, 'confirm_delete': True})
+    def get_context_data(self, **kwargs):
+        context = super(GhostbusterDeleteView, self).get_context_data(**kwargs)
+        context['parent_template'] = 'app/ghostbusterrequest_detail.html'
+        return context
 
 
-def _ghostbuster_edit(request, obj=None):
-    """
-    Common code for create/edit.
-
-    """
-    conf = request.session['handle']
+class GhostbusterCreateView(CreateView):
     form_class = forms.GhostbusterRequestForm
-    if request.method == 'POST':
-        form = form_class(conf, request.POST, request.FILES, instance=obj)
-        if form.is_valid():
-            # use commit=False for the creation case, otherwise form.save()
-            # will fail due to schema constraint violation because conf is
-            # NULL
-            obj = form.save(commit=False)
-            obj.issuer = conf
-            obj.vcard = glue.ghostbuster_to_vcard(obj)
-            obj.save()
-            Zookeeper(handle=conf.handle).run_rpkid_now()
-            return http.HttpResponseRedirect(obj.get_absolute_url())
-    else:
-        form = form_class(conf, instance=obj)
-    return render(request, 'app/app_form.html', {
-        'form': form,
-        'object': obj,
-        'form_title': 'Edit Ghostbuster Request',
-    })
+    template_name = 'app/app_form.html'
+
+    def get_form_kwargs(self):
+        kwargs = super(GhostbusterCreateView, self).get_form_kwargs()
+        kwargs['conf'] = self.request.session['handle']
+        return kwargs
 
 
-@handle_required
-def ghostbuster_edit(request, pk):
-    conf = request.session['handle']
+class GhostbusterEditView(UpdateView):
+    form_class = forms.GhostbusterRequestForm
+    template_name = 'app/app_form.html'
 
-    # verify that the object is owned by this conf
-    obj = get_object_or_404(models.GhostbusterRequest, pk=pk, issuer=conf)
+    def get_queryset(self):
+        return self.request.session['handle'].ghostbusters
 
-    return _ghostbuster_edit(request, obj)
-
-
-@handle_required
-def ghostbuster_create(request):
-    return _ghostbuster_edit(request)
-
+    def get_form_kwargs(self):
+        kwargs = super(GhostbusterEditView, self).get_form_kwargs()
+        kwargs['conf'] = self.request.session['handle']
+        return kwargs
 
 @handle_required
 def refresh(request):
@@ -696,39 +654,6 @@ def refresh(request):
                                  request.session['handle'])
     return http.HttpResponseRedirect(reverse(dashboard))
 
-
-@handle_required
-def child_response(request, pk):
-    """
-    Export the XML file containing the output of the configure_child
-    to send back to the client.
-
-    """
-    conf = request.session['handle']
-    child = get_object_or_404(models.Child, issuer=conf, pk=pk)
-    z = Zookeeper(handle=conf.handle)
-    xml = z.generate_parental_response(child)
-    resp = serve_xml(str(xml), child.handle)
-    return resp
-
-
-@handle_required
-def child_delete(request, pk):
-    conf = request.session['handle']
-    # verify this child belongs to the current user
-    obj = get_object_or_404(conf.children, pk=pk)
-    form_class = forms.UserDeleteForm  # FIXME
-    if request.method == 'POST':
-        form = form_class(request.POST, request.FILES)
-        if form.is_valid():
-            z = Zookeeper(handle=conf.handle)
-            z.delete_child(obj.handle)
-            z.synchronize()
-            return http.HttpResponseRedirect(reverse(child_list))
-    else:
-        form = form_class()
-    return render(request, 'app/child_detail.html',
-                  {'object': obj, 'form': form, 'confirm_delete': True})
 
 
 def roa_match(rng):
@@ -822,17 +747,6 @@ def route_roa_list(request, pk):
 
 
 @handle_required
-def repository_list(request):
-    conf = request.session['handle']
-    qs = models.Repository.objects.filter(issuer=conf)
-    return object_list(request, queryset=qs,
-                       template_name='app/repository_list.html',
-                       extra_context={
-                           'create_url': reverse(repository_import),
-                           'create_label': u'Import'})
-
-
-@handle_required
 def repository_detail(request, pk):
     conf = request.session['handle']
     qs = models.Repository.objects.filter(issuer=conf)
@@ -853,7 +767,7 @@ def repository_delete(request, pk):
             z = Zookeeper(handle=conf.handle, logstream=log)
             z.delete_repository(obj.handle)
             z.synchronize()
-            return http.HttpResponseRedirect(reverse(repository_list))
+            return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = form_class()
     return render(request, 'app/repository_detail.html',
@@ -867,21 +781,12 @@ def repository_import(request):
                           models.Repository.objects,
                           Zookeeper.configure_repository,
                           form_class=forms.ImportRepositoryForm,
-                          post_import_redirect=reverse(repository_list))
+                          post_import_redirect=reverse(dashboard))
 
 
 @superuser_required
-def client_list(request):
-    return object_list(request, queryset=models.Client.objects.all(),
-            extra_context={
-                'create_url': reverse(client_import),
-                'create_label': u'Import'})
-
-
-@superuser_required
 def client_detail(request, pk):
     return object_detail(request, queryset=models.Client.objects, object_id=pk)
-
 
 @superuser_required
 def client_delete(request, pk):
@@ -894,20 +799,18 @@ def client_delete(request, pk):
             z = Zookeeper(logstream=log)
             z.delete_publication_client(obj.handle)
             z.synchronize()
-            return http.HttpResponseRedirect(reverse(client_list))
+            return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = form_class()
     return render(request, 'app/client_detail.html',
                   {'object': obj, 'form': form, 'confirm_delete': True})
-
 
 @superuser_required
 def client_import(request):
     return generic_import(request, models.Client.objects,
                           Zookeeper.configure_publication_client,
                           form_class=forms.ImportClientForm,
-                          post_import_redirect=reverse(client_list))
-
+                          post_import_redirect=reverse(dashboard))
 
 @superuser_required
 def client_export(request, pk):

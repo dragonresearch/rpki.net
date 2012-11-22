@@ -61,6 +61,7 @@ class Child(rpki.irdb.models.Child):
 
     class Meta:
         proxy = True
+        verbose_name = 'Child'
         verbose_name_plural = 'Children'
 
 
@@ -105,6 +106,14 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
 
         """
         return Child.objects.filter(issuer=self)
+
+    @property
+    def ghostbusters(self):
+        return GhostbusterRequest.objects.filter(issuer=self)
+
+    @property
+    def repositories(self):
+        return Repository.objects.filter(issuer=self)
 
     @models.permalink
     def get_absolute_url(self):
@@ -217,7 +226,7 @@ class GhostbusterRequest(rpki.irdb.models.GhostbusterRequest):
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.app.views.ghostbuster_view', [str(self.pk)])
+        return ('gbr-detail', [str(self.pk)])
 
     class Meta:
         ordering = ('family_name', 'given_name')
@@ -243,6 +252,7 @@ class Timestamp(models.Model):
 class Repository(rpki.irdb.models.Repository):
     class Meta:
         proxy = True
+        verbose_name = 'Repository'
         verbose_name_plural = 'Repositories'
 
     @models.permalink

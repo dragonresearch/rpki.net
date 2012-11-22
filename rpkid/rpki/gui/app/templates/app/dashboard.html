@@ -2,22 +2,21 @@
 
 {% block sidebar_extra %}
 <ul class='unstyled'>
-  <li><a href="{% url rpki.gui.app.views.conf_export %}" title="download XML identity to send to parent">export identity</a></li>
+  <li><a href="{% url rpki.gui.app.views.conf_export %}" title="download XML identity to send to parent"><i class="icon-download"></i> export identity</a></li>
 </ul>
 
 <ul class='unstyled'>
-    <li><a href="{% url rpki.gui.app.views.refresh %}">refresh</a></li>
+  <li>
 </ul>
 {% endblock sidebar_extra %}
 
 {% block content %}
-<div class="page-header">
-  <h1>Dashboard</h1>
-</div>
-
 <div class='row'>
-  <div class='span6'>
-    <h2>Resources</h2>
+  <div class='span5'>
+    <div class="page-header">
+      <h1>Resources</h1>
+    </div>
+
     <table class='table table-condensed-table table-striped'>
       <tr>
 	<th>Resource</th>
@@ -31,7 +30,7 @@
 	<td>{{ object.cert.not_after }}</td>
 	<td>
 	  {% if object.cert.parent %}
-	  {{ object.cert.parent.handle }}
+	  <a href="{{ object.cert.parent.get_absolute_url }}">{{ object.cert.parent.handle }}</a>
 	  {% endif %}
 	</td>
       </tr>
@@ -43,7 +42,7 @@
 	<td>{{ object.cert.not_after }}</td>
 	<td>
 	  {% if object.cert.parent %}
-	  {{ object.cert.parent.handle }}
+	  <a href="{{ object.cert.parent.get_absolute_url }}">{{ object.cert.parent.handle }}</a>
 	  {% endif %}
 	</td>
       </tr>
@@ -56,15 +55,16 @@
 	<td>{{ object.cert.not_after }}</td>
 	<td>
 	  {% if object.cert.parent %}
-	  {{ object.cert.parent.handle }}
+	  <a href="{{ object.cert.parent.get_absolute_url }}">{{ object.cert.parent.handle }}</a>
 	  {% endif %}
 	</td>
       </tr>
       {% endfor %}
       {% endif %}
     </table>
+    <a class='btn' href="{% url rpki.gui.app.views.refresh %}" title="refresh resource list from rpkid"><i class="icon-refresh"></i> refresh</a></li>
   </div>
-  <div class='span4'>
+  <div class='span5'>
     <h2>Unallocated Resources</h2>
     <p>The following resources have not been allocated to a child, nor appear in a ROA.
 
@@ -93,5 +93,93 @@
     {% endif %}
 
   </div><!-- /span -->
+</div><!-- /row -->
+
+<div class="row">
+  <div class="span5">
+<div class="page-header">
+  <h1>ROA Requests</h1>
+</div>
+<table class="table table-condensed table-striped">
+  <tr><th>Prefix</th><th>Max Length</th><th>AS</th></tr>
+  {% for roa in conf.roas %}
+  <tr>
+    <td>{{ roa.prefixes.0.prefix }}/{{ roa.prefixes.0.prefixlen }}</td>
+    <td>{{ roa.prefixes.0.max_prefixlen }}</td>
+    <td>{{ roa.asn }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<a class="btn" href="{% url rpki.gui.app.views.roa_create %}"><i class="icon-plus-sign"></i> Create</a>
+</div>
+
+  <div class="span5">
+<div class="page-header">
+  <h1>Ghostbuster Requests</h1>
+</div>
+<table class="table table-condensed table-striped">
+  <tr><th>Full Name</th><th>Organization</th><th>Email</th><th>Telephone</th></tr>
+  {% for gbr in conf.ghostbusters %}
+  <tr>
+    <td>{{ gbr.full_name }}</td>
+    <td>{{ gbr.organization }}</td>
+    <td>{{ gbr.email_address }}</td>
+    <td>{{ gbr.telephone }}</td>
+    <td><a href="{{ gbr.get_absolute_url }}"><i class="icon-edit"></i> edit</a></td>
+  </tr>
+  {% endfor %}
+</table>
+<a class="btn" href="{% url gbr-create %}"><i class="icon-plus-sign"></i> Create</a>
+</div><!-- /span -->
+</div><!-- /row -->
+
+<div class="row">
+  <div class="span5">
+    <div class="page-header">
+      <h1>Children</h1>
+    </div>
+    <ul>
+      {% for child in conf.children %}
+      <li><a href="{{ child.get_absolute_url }}">{{ child.handle }}</a></li>
+      {% endfor %}
+    </ul>
+    <a class="btn" href="{% url rpki.gui.app.views.child_import %}"><i class="icon-upload"></i> Import</a>
+  </div><!-- /span -->
+  <div class="span5">
+    <div class="page-header">
+      <h1>Parents</h1>
+    </div>
+    <ul>
+      {% for parent in conf.parents %}
+      <li><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a></li>
+      {% endfor %}
+    </ul>
+    <a class="btn" href="{% url rpki.gui.app.views.parent_import %}"><i class="icon-upload"></i> Import</a>
+  </div><!-- /span -->
+</div><!-- /row -->
+
+<div class="row">
+  <div class="span5">
+    <div class="page-header">
+      <h1>Repositories</h1>
+    </div>
+    <ul>
+      {% for repo in conf.repositories %}
+      <li><a href="{{ repo.get_absolute_url }}">{{ repo.handle }}</a></li>
+      {% endfor %}
+    </ul>
+    <a class="btn" href="{% url rpki.gui.app.views.repository_import %}"><i class="icon-upload"></i> Import</a>
+  </div><!-- /span -->
+  {% if request.user.is_superuser %}
+  <div class="span5">
+    <div class="page-header">
+      <h1>Repository Clients</h1>
+    </div>
+    <ul>
+      <li>TODO</li>
+    </ul>
+    <a class="btn" href="{% url rpki.gui.app.views.client_import %}"><i class="icon-upload"></i> Import</a>
+  </div><!-- /span -->
+  {% endif %}
 </div><!-- /row -->
 {% endblock %}

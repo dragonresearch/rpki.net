@@ -81,6 +81,7 @@
 
 /* $Id: rcynic.c 4613 2012-07-30 23:24:15Z sra $ */
 
+#define	PY_SSIZE_T_CLEAN 1
 #include <Python.h>
 #include <datetime.h>
 
@@ -577,9 +578,8 @@ x509_object_helper_get_name(X509_NAME *name, int format)
     if (entry->set > set) {
 
       set++;
-      if ((item = Py_BuildValue("((ss#))", oid,
-                                ASN1_STRING_data(entry->value),
-                                ASN1_STRING_length(entry->value))) == NULL)
+      if ((item = Py_BuildValue("((ss#))", oid, ASN1_STRING_data(entry->value),
+                                (Py_ssize_t) ASN1_STRING_length(entry->value))) == NULL)
         goto error;
       PyTuple_SET_ITEM(result, set, item);
       item = NULL;
@@ -592,9 +592,8 @@ x509_object_helper_get_name(X509_NAME *name, int format)
       PyTuple_SET_ITEM(result, set, rdn);
       if (rdn == NULL)
         goto error;
-      if ((item = Py_BuildValue("(ss#)", oid,
-                                ASN1_STRING_data(entry->value),
-                                ASN1_STRING_length(entry->value))) == NULL)
+      if ((item = Py_BuildValue("(ss#)", oid, ASN1_STRING_data(entry->value),
+                                (Py_ssize_t) ASN1_STRING_length(entry->value))) == NULL)
         goto error;
       PyTuple_SetItem(rdn, PyTuple_Size(rdn) - 1, item);
       rdn = item = NULL;
@@ -778,7 +777,7 @@ static PyObject *
 BIO_to_PyString_helper(BIO *bio)
 {
   char *ptr = NULL;
-  int len = 0;
+  Py_ssize_t len = 0;
 
   if ((len = BIO_get_mem_data(bio, &ptr)) == 0)
     lose_openssl_error("Unable to get BIO data");
@@ -797,7 +796,7 @@ read_from_string_helper(PyObject *(*object_read_helper)(PyTypeObject *, BIO *),
   PyObject *result = NULL;
   char *src = NULL;
   BIO *bio = NULL;
-  int len = 0;
+  Py_ssize_t len = 0;
 
   if (!PyArg_ParseTuple(args, "s#", &src, &len))
     goto error;
@@ -1139,7 +1138,7 @@ ipaddress_object_from_bytes(PyTypeObject *type, PyObject *args)
 {
   ipaddress_object *result = NULL;
   char *bytes = NULL;
-  size_t len;
+  Py_ssize_t len;
   int v;
 
   ENTERING(ipaddress_object_from_bytes);
@@ -2066,9 +2065,8 @@ x509_object_get_ski(x509_object *self)
   if (self->x509->skid == NULL)
     Py_RETURN_NONE;
   else
-    return Py_BuildValue("s#",
-                         ASN1_STRING_data(self->x509->skid),
-                         ASN1_STRING_length(self->x509->skid));
+    return Py_BuildValue("s#", ASN1_STRING_data(self->x509->skid),
+                         (Py_ssize_t) ASN1_STRING_length(self->x509->skid));
 }
 
 static char x509_object_set_ski__doc__[] =
@@ -2080,7 +2078,8 @@ x509_object_set_ski(x509_object *self, PyObject *args)
 {
   ASN1_OCTET_STRING *ext = NULL;
   const unsigned char *buf = NULL;
-  int len, ok = 0;
+  Py_ssize_t len;
+  int ok = 0;
 
   ENTERING(x509_object_set_ski);
 
@@ -2126,9 +2125,8 @@ x509_object_get_aki(x509_object *self)
   if (self->x509->akid == NULL || self->x509->akid->keyid == NULL)
     Py_RETURN_NONE;
   else
-    return Py_BuildValue("s#",
-                         ASN1_STRING_data(self->x509->akid->keyid),
-                         ASN1_STRING_length(self->x509->akid->keyid));
+    return Py_BuildValue("s#", ASN1_STRING_data(self->x509->akid->keyid),
+                         (Py_ssize_t) ASN1_STRING_length(self->x509->akid->keyid));
 }
 
 static char x509_object_set_aki__doc__[] =
@@ -2143,7 +2141,8 @@ x509_object_set_aki(x509_object *self, PyObject *args)
 {
   AUTHORITY_KEYID *ext = NULL;
   const unsigned char *buf = NULL;
-  int len, ok = 0;
+  Py_ssize_t len;
+  int ok = 0;
 
   ENTERING(x509_object_set_aki);
 
@@ -4157,7 +4156,8 @@ crl_object_get_aki(crl_object *self)
   ENTERING(crl_object_get_aki);
 
   if (!empty)
-    result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid), ASN1_STRING_length(ext->keyid));
+    result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid),
+                           (Py_ssize_t) ASN1_STRING_length(ext->keyid));
 
   AUTHORITY_KEYID_free(ext);
 
@@ -4178,7 +4178,8 @@ crl_object_set_aki(crl_object *self, PyObject *args)
 {
   AUTHORITY_KEYID *ext = NULL;
   const unsigned char *buf = NULL;
-  int len, ok = 0;
+  Py_ssize_t len;
+  int ok = 0;
 
   ENTERING(crl_object_set_aki);
 
@@ -4476,7 +4477,7 @@ asymmetric_object_pem_read_private(PyTypeObject *type, PyObject *args)
   char *pass = NULL;
   char *src = NULL;
   BIO *bio = NULL;
-  int len = 0;
+  Py_ssize_t len = 0;
 
   ENTERING(asymmetric_object_pem_read_private);
 
@@ -4928,7 +4929,7 @@ static PyObject *
 digest_object_update(digest_object *self, PyObject *args)
 {
   char *data = NULL;
-  int len = 0;
+  Py_ssize_t len = 0;
 
   ENTERING(digest_object_update);
 
@@ -4998,7 +4999,7 @@ digest_object_digest(digest_object *self)
 
   EVP_MD_CTX_cleanup(&ctx);
 
-  return Py_BuildValue("s#", digest_text, digest_len);
+  return Py_BuildValue("s#", digest_text, (Py_ssize_t) digest_len);
 
  error:
   return NULL;
@@ -5362,7 +5363,7 @@ cms_object_sign(cms_object *self, PyObject *args)
   PyObject *x509_sequence = Py_None;
   PyObject *crl_sequence = Py_None;
   char *buf = NULL, *oid = NULL;
-  int len;
+  Py_ssize_t len;
   unsigned flags = 0;
   BIO *bio = NULL;
   int ok = 0;
@@ -5415,7 +5416,8 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
 
   ENTERING(cms_object_verify_helper);
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OI", kwlist, &POW_X509Store_Type, &store, &certs_sequence, &flags))
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OI", kwlist,
+                                   &POW_X509Store_Type, &store, &certs_sequence, &flags))
     goto error;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
@@ -6229,9 +6231,12 @@ manifest_object_get_files(manifest_object *self)
   for (i = 0; i < sk_FileAndHash_num(self->manifest->fileList); i++) {
     FileAndHash *fah = sk_FileAndHash_value(self->manifest->fileList, i);
 
-    if ((item = Py_BuildValue("(s#s#)",
-                              ASN1_STRING_data(fah->file), ASN1_STRING_length(fah->file),
-                              ASN1_STRING_data(fah->hash), ASN1_STRING_length(fah->hash))) == NULL)
+    item = Py_BuildValue("(s#s#)",
+                         ASN1_STRING_data(fah->file),
+                         (Py_ssize_t) ASN1_STRING_length(fah->file),
+                         ASN1_STRING_data(fah->hash),
+                         (Py_ssize_t) ASN1_STRING_length(fah->hash));
+    if (item == NULL)
       goto error;
 
     PyTuple_SET_ITEM(result, i, item);
@@ -8050,7 +8055,7 @@ static PyObject *
 pow_module_seed(GCC_UNUSED PyObject *self, PyObject *args)
 {
   char *data = NULL;
-  int datalen = 0;
+  Py_ssize_t datalen = 0;
 
   ENTERING(pow_module_seed);
 
@@ -8079,7 +8084,7 @@ static PyObject *
 pow_module_add(GCC_UNUSED PyObject *self, PyObject *args)
 {
   char *data = NULL;
-  int datalen = 0;
+  Py_ssize_t datalen = 0;
   double entropy = 0;
 
   ENTERING(pow_module_add);

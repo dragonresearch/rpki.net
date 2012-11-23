@@ -11,7 +11,7 @@
   {{ form|crispy }}
   <div class='form-actions'>
     <input class='btn btn-primary' type='submit' value='Save'>
-    <a class='btn' href="{% if cancel_url %}{{ cancel_url }}{% else %}{% url rpki.gui.app.views.dashboard %}{% endif %}">Cancel</a>
+    <a class='btn' href="{% url rpki.gui.app.views.dashboard %}">Cancel</a>
   </div>
 </form>
 {% endblock %}

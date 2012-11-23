@@ -4,10 +4,6 @@
 <ul class='unstyled'>
   <li><a href="{% url rpki.gui.app.views.conf_export %}" title="download XML identity to send to parent"><i class="icon-download"></i> export identity</a></li>
 </ul>
-
-<ul class='unstyled'>
-  <li>
-</ul>
 {% endblock sidebar_extra %}
 
 {% block content %}
@@ -101,12 +97,16 @@
   <h1>ROA Requests</h1>
 </div>
 <table class="table table-condensed table-striped">
-  <tr><th>Prefix</th><th>Max Length</th><th>AS</th></tr>
+  <tr><th>Prefix</th><th>Max Length</th><th>AS</th><th></th></tr>
   {% for roa in conf.roas %}
   <tr>
-    <td>{{ roa.prefixes.0.prefix }}/{{ roa.prefixes.0.prefixlen }}</td>
-    <td>{{ roa.prefixes.0.max_prefixlen }}</td>
+    <!-- each roa request has a single roa request prefix object associated -->
+    <td>{{ roa.prefixes.all.0.as_roa_prefix }}</td>
+    <td>{{ roa.prefixes.all.0.max_prefixlen }}</td>
     <td>{{ roa.asn }}</td>
+    <td>
+      <a class="btn btn-mini" href="{% url rpki.gui.app.views.roa_delete roa.pk %}" title="Delete"><i class="icon-trash"></i></a>
+    </td>
   </tr>
   {% endfor %}
 </table>
@@ -118,14 +118,17 @@
   <h1>Ghostbuster Requests</h1>
 </div>
 <table class="table table-condensed table-striped">
-  <tr><th>Full Name</th><th>Organization</th><th>Email</th><th>Telephone</th></tr>
+  <tr><th>Full Name</th><th>Organization</th><th>Email</th><th>Telephone</th><th></th></tr>
   {% for gbr in conf.ghostbusters %}
   <tr>
     <td>{{ gbr.full_name }}</td>
     <td>{{ gbr.organization }}</td>
     <td>{{ gbr.email_address }}</td>
     <td>{{ gbr.telephone }}</td>
-    <td><a href="{{ gbr.get_absolute_url }}"><i class="icon-edit"></i> edit</a></td>
+    <td>
+      <a class="btn btn-mini" href="{% url gbr-edit gbr.pk %}" title="Edit"><i class="icon-edit"></i></a>
+      <a class="btn btn-mini" href="{% url gbr-delete gbr.pk %}" title="Delete"><i class="icon-trash"></i></a>
+    </td>
   </tr>
   {% endfor %}
 </table>
@@ -138,22 +141,33 @@
     <div class="page-header">
       <h1>Children</h1>
     </div>
-    <ul>
+<table class="table table-condensed table-striped">
       {% for child in conf.children %}
-      <li><a href="{{ child.get_absolute_url }}">{{ child.handle }}</a></li>
+      <tr>
+      <td><a href="{{ child.get_absolute_url }}">{{ child.handle }}</a></td>
+	<td>
+	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.child_delete child.pk %}"><i class="icon-trash"></i></a>
+	</td>
+      </tr>
       {% endfor %}
-    </ul>
+    </table>
     <a class="btn" href="{% url rpki.gui.app.views.child_import %}"><i class="icon-upload"></i> Import</a>
   </div><!-- /span -->
   <div class="span5">
     <div class="page-header">
       <h1>Parents</h1>
     </div>
-    <ul>
+<table class="table table-condensed table-striped">
+      <tr><th>Handle</th><th></th></tr>
       {% for parent in conf.parents %}
-      <li><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a></li>
+      <tr>
+	<td><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a></td>
+	<td>
+	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.parent_delete parent.pk %}"><i class="icon-trash"></i></a>
+	</td>
+      </tr>
       {% endfor %}
-    </ul>
+    </table>
     <a class="btn" href="{% url rpki.gui.app.views.parent_import %}"><i class="icon-upload"></i> Import</a>
   </div><!-- /span -->
 </div><!-- /row -->
@@ -163,11 +177,17 @@
     <div class="page-header">
       <h1>Repositories</h1>
     </div>
-    <ul>
+<table class="table table-condensed table-striped">
+      <tr><th>Handle</th><th></th></tr>
       {% for repo in conf.repositories %}
-      <li><a href="{{ repo.get_absolute_url }}">{{ repo.handle }}</a></li>
+      <tr>
+	<td><a href="{{ repo.get_absolute_url }}">{{ repo.handle }}</a></td>
+	<td>
+	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.repository_delete repo.pk %}"><i class="icon-trash"></i></a>
+	</td>
+      </tr>
       {% endfor %}
-    </ul>
+    </table>
     <a class="btn" href="{% url rpki.gui.app.views.repository_import %}"><i class="icon-upload"></i> Import</a>
   </div><!-- /span -->
   {% if request.user.is_superuser %}
@@ -175,9 +195,17 @@
     <div class="page-header">
       <h1>Repository Clients</h1>
     </div>
-    <ul>
-      <li>TODO</li>
-    </ul>
+<table class="table table-condensed table-striped">
+      <tr><th>Handle</th><th></th></tr>
+      {% for client in clients %}
+      <tr>
+	<td><a href="{% url rpki.gui.app.views.client_detail client.pk %}">{{ client.handle }}</a></td>
+	<td>
+	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.client_delete client.pk %}"><i class="icon-trash"></i></a>
+	</td>
+      </tr>
+      {% endfor %}
+    </table>
     <a class="btn" href="{% url rpki.gui.app.views.client_import %}"><i class="icon-upload"></i> Import</a>
   </div><!-- /span -->
   {% endif %}

@@ -398,6 +398,6 @@ def ChildForm(instance):
     return _wrapped
 
 
-class UserDeleteForm(forms.Form):
-    """Stub form for deleting users."""
+class Empty(forms.Form):
+    """Stub form for views requiring confirmation."""
     pass

@@ -18,7 +18,8 @@ __version__ = '$Id$'
 from django.conf.urls.defaults import *
 from rpki.gui.app import views
 
-urlpatterns = patterns('',
+urlpatterns = patterns(
+    '',
     (r'^$', views.dashboard),
     (r'^conf/export$', views.conf_export),
     (r'^conf/list$', views.conf_list),
@@ -50,7 +51,6 @@ urlpatterns = patterns('',
     (r'^repo/(?P<pk>\d+)/delete$', views.repository_delete),
     (r'^roa/create$', views.roa_create),
     (r'^roa/confirm$', views.roa_create_confirm),
-    (r'^roa/(?P<pk>\d+)/$', views.roa_detail),
     (r'^roa/(?P<pk>\d+)/delete$', views.roa_delete),
     (r'^route/$', views.route_view),
     (r'^route/(?P<pk>\d+)/$', views.route_detail),

@@ -115,6 +115,10 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
     def repositories(self):
         return Repository.objects.filter(issuer=self)
 
+    @property
+    def roas(self):
+        return ROARequest.objects.filter(issuer=self)
+
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.app.views.user_detail', [str(self.pk)])
@@ -172,6 +176,10 @@ class ROARequest(rpki.irdb.models.ROARequest):
     def __unicode__(self):
         return u"%s's ROA request for AS%d" % (self.issuer.handle, self.asn)
 
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.roa_detail', [str(self.pk)])
+
 
 class ROARequestPrefix(rpki.irdb.models.ROARequestPrefix):
     class Meta:
@@ -181,10 +189,6 @@ class ROARequestPrefix(rpki.irdb.models.ROARequestPrefix):
     def __unicode__(self):
         return u'ROA request prefix %s for asn %d' % (str(self.as_roa_prefix()),
                                                       self.roa_request.asn)
-
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.app.views.roa_detail', [str(self.pk)])
 
 
 class GhostbusterRequest(rpki.irdb.models.GhostbusterRequest):

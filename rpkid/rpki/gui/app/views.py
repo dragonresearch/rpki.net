@@ -33,6 +33,7 @@ from django.views.generic.list_detail import object_detail
 from django.core.urlresolvers import reverse, reverse_lazy
 from django.contrib.auth.models import User
 from django.views.generic import DetailView, CreateView, UpdateView, DeleteView
+from django.conf import settings
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
@@ -148,7 +149,6 @@ def generic_import(request, queryset, configure, form_class=None,
 
 @handle_required
 def dashboard(request):
-    log = request.META['wsgi.errors']
     conf = request.session['handle']
 
     used_asns = range_list.RangeList()
@@ -198,6 +198,8 @@ def dashboard(request):
     unused_prefixes = my_prefixes.difference(used_prefixes)
     unused_prefixes_v6 = my_prefixes_v6.difference(used_prefixes_v6)
 
+    clients = models.Client.objects.all() if request.user.is_superuser else None
+
     return render(request, 'app/dashboard.html', {
         'conf': conf,
         'unused_asns': unused_asns,
@@ -206,6 +208,7 @@ def dashboard(request):
         'asns': asns,
         'prefixes': prefixes,
         'prefixes_v6': prefixes_v6,
+        'clients': clients,
     })
 
 
@@ -269,20 +272,20 @@ def parent_delete(request, pk):
     conf = request.session['handle']
     obj = get_object_or_404(conf.parents, pk=pk)  # confirm permission
     log = request.META['wsgi.errors']
-    form_class = forms.UserDeleteForm
     if request.method == 'POST':
-        form = form_class(request.POST, request.FILES)
+        form = forms.Empty(request.POST, request.FILES)
         if form.is_valid():
             z = Zookeeper(handle=conf.handle, logstream=log)
             z.delete_parent(obj.handle)
-            z.synchronize()
+            z.synchronize(conf.handle)
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
-        form = form_class()
-    return render(request, 'app/object_confirm_delete.html',
-                  {'object': obj,
-                   'form': form,
-                   'parent_template': 'app/parent_detail.html'})
+        form = forms.Empty()
+    return render(request, 'app/object_confirm_delete.html', {
+        'object': obj,
+        'form': form,
+        'parent_template': 'app/parent_detail.html'
+    })
 
 
 @handle_required
@@ -307,7 +310,7 @@ def child_add_prefix(request, pk):
     conf = request.session['handle']
     child = get_object_or_404(conf.children, pk=pk)
     if request.method == 'POST':
-        form = forms.AddNetForm(request.GET, child=child)
+        form = forms.AddNetForm(request.POST, child=child)
         if form.is_valid():
             address_range = form.cleaned_data.get('address_range')
             if ':' in address_range:
@@ -319,7 +322,8 @@ def child_add_prefix(request, pk):
             child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
                                         version=version)
             z = Zookeeper(handle=conf.handle, logstream=logstream)
-            z.run_rpkid_now()
+            if settings.RPKID_RUN:
+                z.run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = forms.AddNetForm(child=child)
@@ -333,16 +337,17 @@ def child_add_asn(request, pk):
     conf = request.session['handle']
     child = get_object_or_404(conf.children, pk=pk)
     if request.method == 'POST':
-        form = forms.AddASNForm(request.GET, child=child)
+        form = forms.AddASNForm(request.POST, child=child)
         if form.is_valid():
             asns = form.cleaned_data.get('asns')
             r = resource_range_as.parse_str(asns)
             child.asns.create(start_as=r.min, end_as=r.max)
-            z = Zookeeper(handle=conf.handle, logstream=logstream)
-            z.run_rpkid_now()
+            if settings.RPKID_RUN:
+                z = Zookeeper(handle=conf.handle, logstream=logstream)
+                z.run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
-        form = forms.AddNetForm(child=child)
+        form = forms.AddASNForm(child=child)
     return render(request, 'app/app_form.html',
                   {'object': child, 'form': form})
 
@@ -368,7 +373,8 @@ def child_edit(request, pk):
             # remove AS & prefixes that are not selected in the form
             models.ChildASN.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('as_ranges')).delete()
             models.ChildNet.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('address_ranges')).delete()
-            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
+            if settings.RPKID_RUN:
+                Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = form_class(initial={
@@ -397,33 +403,20 @@ def child_response(request, pk):
     return resp
 
 
-class GenericDeleteView(DeleteView):
-    """Subclasses should implement the get_queryset() method.
-
-    """
-    template_name = 'app/object_confirm_delete.html'
-    success_url = reverse_lazy(dashboard)
-
-    def get_context_data(self, **kwargs):
-        context = super(GenericDeleteView, self).get_context_data(**kwargs)
-        context['parent_template'] = 'app/%s_detail.html' % self.object.__class__.__name__.lower()
-        return context
-
-
 @handle_required
 def child_delete(request, pk):
     logstream = request.META['wsgi.errors']
     conf = request.session['handle']
     child = get_object_or_404(conf.children, pk=pk)
     if request.method == 'POST':
-        form = forms.Form(request.POST)
+        form = forms.Empty(request.POST)
         if form.is_valid():
             z = Zookeeper(handle=conf.handle, logstream=logstream)
             z.delete_child(child.handle)
-            z.synchronize()
+            z.synchronize(conf.handle)
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
-        form = forms.Form()
+        form = forms.Empty()
     return render(request, 'app/object_confirm_delete.html', {
         'object': child,
         'form': form,
@@ -463,16 +456,16 @@ def roa_create(request):
                     # if the AS matches, it is valid, otherwise invalid
                     if (route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen):
                         route.status = 'valid'
-                        route.status_label = 'success'
+                        route.status_label = 'label-success'
                     else:
                         route.status = 'invalid'
-                        route.status_label = 'important'
+                        route.status_label = 'label-important'
                 elif route.status == 'invalid':
                     # if the route was previously invalid, but this new ROA
                     # matches the ASN, it is now valid
                     if route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen:
                         route.status = 'valid'
-                        route.status_label = 'success'
+                        route.status_label = 'label-success'
 
                 routes.append(route)
 
@@ -514,7 +507,8 @@ def roa_create_confirm(request):
             roa.prefixes.create(version=v, prefix=str(rng.min),
                                 prefixlen=rng.prefixlen(),
                                 max_prefixlen=max_prefixlen)
-            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
+            if settings.RPKID_RUN:
+                Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(dashboard))
         # What should happen when the submission form isn't valid?  For now
         # just fall through and redirect back to the ROA creation form
@@ -522,20 +516,8 @@ def roa_create_confirm(request):
 
 
 @handle_required
-def roa_detail(request, pk):
-    """Not implemented.
-
-    This is a placeholder so that
-    models.ROARequestPrefix.get_absolute_url works.  The only reason it
-    exist is so that the /delete URL works.
-
-    """
-    pass
-
-
-@handle_required
 def roa_delete(request, pk):
-    """Handles deletion of a single ROARequestPrefix object.
+    """Handles deletion of a single ROARequest object.
 
     Uses a form for double confirmation, displaying how the route
     validation status may change as a result.
@@ -543,23 +525,17 @@ def roa_delete(request, pk):
     """
 
     conf = request.session['handle']
-    obj = get_object_or_404(models.ROARequestPrefix.objects,
-                            roa_request__issuer=conf, pk=pk)
-
+    roa = get_object_or_404(conf.roas, pk=pk)
     if request.method == 'POST':
-        roa = obj.roa_request
-        obj.delete()
-        # if this was the last prefix on the ROA, delete the ROA request
-        if not roa.prefixes.exists():
-            roa.delete()
-        Zookeeper(handle=conf.handle).run_rpkid_now()
+        roa.delete()
+        if settings.RPKID_RUN:
+            Zookeeper(handle=conf.handle).run_rpkid_now()
         return http.HttpResponseRedirect(reverse(dashboard))
 
     ### Process GET ###
-
-    match = roa_match(obj.as_resource_range())
-
+    obj = roa.prefixes.all()[0]
     roa_pfx = obj.as_roa_prefix()
+    match = roa_match(obj.as_resource_range())
 
     pfx = 'prefixes' if isinstance(roa_pfx, roa_prefix_ipv4) else 'prefixes_v6'
     args = {'%s__prefix_min' % pfx: roa_pfx.min(),
@@ -569,17 +545,30 @@ def roa_delete(request, pk):
     # exclude ROAs which seem to match this request and display the result
     routes = []
     for route, roas in match:
-        qs = roas.exclude(asid=obj.roa_request.asn, **args)
+        qs = roas.exclude(asid=roa.asn, **args)
         validate_route(route, qs)
         routes.append(route)
 
     return render(request, 'app/roa_request_confirm_delete.html',
-                  {'object': obj, 'routes': routes})
+                  {'object': roa, 'routes': routes})
 
 
 class GhostbusterDetailView(DetailView):
     def get_queryset(self):
         return self.request.session['handle'].ghostbusters
+
+
+class GenericDeleteView(DeleteView):
+    """Subclasses should implement the get_queryset() method.
+
+    """
+    template_name = 'app/object_confirm_delete.html'
+    success_url = reverse_lazy(dashboard)
+
+    def get_context_data(self, **kwargs):
+        context = super(GenericDeleteView, self).get_context_data(**kwargs)
+        context['parent_template'] = 'app/%s_detail.html' % self.object.__class__.__name__.lower()
+        return context
 
 
 class GhostbusterDeleteView(GenericDeleteView):
@@ -725,16 +714,15 @@ def repository_delete(request, pk):
     conf = request.session['handle']
     # Ensure the repository being deleted belongs to the current user.
     obj = get_object_or_404(models.Repository, issuer=conf, pk=pk)
-    form_class = forms.UserDeleteForm  # FIXME
     if request.method == 'POST':
-        form = form_class(request.POST, request.FILES)
+        form = forms.Empty(request.POST, request.FILES)
         if form.is_valid():
             z = Zookeeper(handle=conf.handle, logstream=log)
             z.delete_repository(obj.handle)
-            z.synchronize()
+            z.synchronize(conf.handle)
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
-        form = form_class()
+        form = forms.Empty()
     return render(request, 'app/repository_detail.html',
                   {'object': obj, 'form': form, 'confirm_delete': True})
 
@@ -751,25 +739,28 @@ def repository_import(request):
 
 @superuser_required
 def client_detail(request, pk):
-    return object_detail(request, queryset=models.Client.objects, object_id=pk)
+    return render(request, 'app/client_detail.html',
+                  {'object': get_object_or_404(models.Client, pk=pk)})
 
 
 @superuser_required
 def client_delete(request, pk):
     log = request.META['wsgi.errors']
     obj = get_object_or_404(models.Client, pk=pk)
-    form_class = forms.UserDeleteForm  # FIXME
     if request.method == 'POST':
-        form = form_class(request.POST, request.FILES)
+        form = forms.Empty(request.POST, request.FILES)
         if form.is_valid():
             z = Zookeeper(logstream=log)
             z.delete_publication_client(obj.handle)
             z.synchronize()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
-        form = form_class()
-    return render(request, 'app/client_detail.html',
-                  {'object': obj, 'form': form, 'confirm_delete': True})
+        form = forms.Empty()
+    return render(request, 'app/object_confirm_delete.html', {
+        'object': obj,
+        'form': form,
+        'parent_template': 'app/client_detail.html'
+    })
 
 
 @superuser_required
@@ -817,7 +808,7 @@ def user_delete(request, pk):
     conf = models.Conf.objects.get(pk=pk)
     log = request.META['wsgi.errors']
     if request.method == 'POST':
-        form = forms.UserDeleteForm(request.POST)
+        form = forms.Empty(request.POST)
         if form.is_valid():
             User.objects.filter(username=conf.handle).delete()
             z = Zookeeper(handle=conf.handle, logstream=log)
@@ -825,7 +816,7 @@ def user_delete(request, pk):
             z.synchronize()
             return http.HttpResponseRedirect(reverse(user_list))
     else:
-        form = forms.UserDeleteForm()
+        form = forms.Empty()
     return render(request, 'app/user_confirm_delete.html',
                   {'object': conf, 'form': form})
 

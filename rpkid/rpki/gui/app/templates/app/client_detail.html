@@ -2,19 +2,17 @@
 
 {% block object_display %}
 <div class='row'>
-  <div class='span2'>
-    <p><strong>Name</strong>
-  </div>
-  <div class='span6'>
-    <p>{{ object.handle }}
-  </div>
-</div>
-<div class='row'>
-  <div class='span2'>
-    <p><strong>SIA</strong>
-  </div>
-  <div class='span6'>
-    <p>{{ object.sia_base }}
+  <div class='span3'>
+    <table class="table">
+      <tr>
+	<td>Name</td>
+	<td>{{ object.handle }} </td>
+      </tr>
+      <tr>
+	<td>SIA</td>
+	<td>{{ object.sia_base }}</td>
+      </tr>
+    </table>
   </div>
 </div>
 {% endblock object_display %}

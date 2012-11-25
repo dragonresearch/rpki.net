@@ -9,21 +9,19 @@
   <tr>
     <th>Username</th>
     <th>Email</th>
-    <th>Action</th>
+    <th></th>
   </tr>
   {% for u in users %}
   <tr>
     <td>{{ u.0.handle }}</td>
     <td>{{ u.1.email }}</td>
     <td>
-      <a class='btn small' href='{{ u.0.get_absolute_url }}/edit'>Edit</a>
-      <a class='btn small danger' href='{{ u.0.get_absolute_url }}/delete'>Delete</a>
+      <a class='btn btn-small' href='{% url rpki.gui.app.views.user_edit u.0.pk %}' title="Edit"><i class="icon-edit"></i></a>
+      <a class='btn btn-small' href='{% url rpki.gui.app.views.user_delete u.0.pk %}' title="Delete"><i class="icon-trash"></i></a>
     </td>
   </tr>
   {% endfor %}
 </table>
 
-<div class='actions'>
-  <a class='btn' href="{% url rpki.gui.app.views.user_create %}" title="create a new locally hosted resource handle">Create</a>
-</div>
+<a class='btn' href="{% url rpki.gui.app.views.user_create %}" title="create a new locally hosted resource handle">Create</a>
 {% endblock content %}

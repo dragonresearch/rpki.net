@@ -58,11 +58,6 @@ class GhostbusterRequestForm(forms.ModelForm):
     parent = forms.ModelChoiceField(queryset=None, required=False,
             help_text='Specify specific parent, or none for all parents')
 
-    # override full_name.  it is required in the db schema, but we allow the
-    # user to skip it and default from family+given name
-    full_name = forms.CharField(max_length=40, required=False,
-            help_text='automatically generated from family and given names if left blank')
-
     #override
     issuer = forms.ModelChoiceField(queryset=None, widget=forms.HiddenInput)
 
@@ -77,25 +72,16 @@ class GhostbusterRequestForm(forms.ModelForm):
 
     class Meta:
         model = models.GhostbusterRequest
-        exclude = ('vcard')
+        exclude = ('vcard', 'given_name', 'family_name', 'additional_name',
+                   'honorific_prefix', 'honorific_suffix')
 
     def clean(self):
-        family_name = self.cleaned_data.get('family_name')
-        given_name = self.cleaned_data.get('given_name')
-        if not all([family_name, given_name]):
-            raise forms.ValidationError('Family and Given names must be specified')
-
         email = self.cleaned_data.get('email_address')
         postal = self.cleaned_data.get('postal_address')
         telephone = self.cleaned_data.get('telephone')
         if not any([email, postal, telephone]):
             raise forms.ValidationError(
                 'One of telephone, email or postal address must be specified')
-
-        # if the full name is not specified, default to given+family
-        fn = self.cleaned_data.get('full_name')
-        if not fn:
-            self.cleaned_data['full_name'] = '%s %s' % (given_name, family_name)
 
         return self.cleaned_data
 

@@ -105,6 +105,7 @@
     <td>{{ roa.prefixes.all.0.max_prefixlen }}</td>
     <td>{{ roa.asn }}</td>
     <td>
+      <a class="btn btn-mini" href="{% url rpki.gui.app.views.roa_detail roa.pk %}" title="Detail"><i class="icon-info-sign"></i></a>
       <a class="btn btn-mini" href="{% url rpki.gui.app.views.roa_delete roa.pk %}" title="Delete"><i class="icon-trash"></i></a>
     </td>
   </tr>
@@ -126,6 +127,7 @@
     <td>{{ gbr.email_address }}</td>
     <td>{{ gbr.telephone }}</td>
     <td>
+      <a class="btn btn-mini" href="{% url gbr-detail gbr.pk %}" title="View"><i class="icon-info-sign"></i></a>
       <a class="btn btn-mini" href="{% url gbr-edit gbr.pk %}" title="Edit"><i class="icon-edit"></i></a>
       <a class="btn btn-mini" href="{% url gbr-delete gbr.pk %}" title="Delete"><i class="icon-trash"></i></a>
     </td>
@@ -142,11 +144,12 @@
       <h1>Children</h1>
     </div>
 <table class="table table-condensed table-striped">
+  <tr><th>Handle</th><th></th>
       {% for child in conf.children %}
       <tr>
       <td><a href="{{ child.get_absolute_url }}">{{ child.handle }}</a></td>
 	<td>
-	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.child_delete child.pk %}"><i class="icon-trash"></i></a>
+	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.child_delete child.pk %}" title="Delete"><i class="icon-trash"></i></a>
 	</td>
       </tr>
       {% endfor %}
@@ -163,7 +166,7 @@
       <tr>
 	<td><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a></td>
 	<td>
-	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.parent_delete parent.pk %}"><i class="icon-trash"></i></a>
+	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.parent_delete parent.pk %}" title="Delete"><i class="icon-trash"></i></a>
 	</td>
       </tr>
       {% endfor %}
@@ -183,7 +186,7 @@
       <tr>
 	<td><a href="{{ repo.get_absolute_url }}">{{ repo.handle }}</a></td>
 	<td>
-	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.repository_delete repo.pk %}"><i class="icon-trash"></i></a>
+	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.repository_delete repo.pk %}" title="Delete"><i class="icon-trash"></i></a>
 	</td>
       </tr>
       {% endfor %}
@@ -201,7 +204,7 @@
       <tr>
 	<td><a href="{% url rpki.gui.app.views.client_detail client.pk %}">{{ client.handle }}</a></td>
 	<td>
-	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.client_delete client.pk %}"><i class="icon-trash"></i></a>
+	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.client_delete client.pk %}" title="Delete"><i class="icon-trash"></i></a>
 	</td>
       </tr>
       {% endfor %}

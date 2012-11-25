@@ -16,7 +16,7 @@ string specifying the concrete template to inherit from.
 
 <form action='' method='POST'>
   {% csrf_token %}
-  <input class='btn btn-danger' type='submit' value='Confirm'>
-  <a class='btn' href="{{ object.get_absolute_url }}">Cancel</a>
+  <input class='btn btn-danger' type='submit' value='Delete'>
+  <a class='btn' href="{% url rpki.gui.app.views.dashboard %}">Cancel</a>
 </form>
 {% endblock %}

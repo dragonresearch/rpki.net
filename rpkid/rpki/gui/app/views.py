@@ -29,11 +29,9 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.utils.http import urlquote
 from django import http
-from django.views.generic.list_detail import object_detail
 from django.core.urlresolvers import reverse, reverse_lazy
 from django.contrib.auth.models import User
 from django.views.generic import DetailView, CreateView, UpdateView, DeleteView
-from django.conf import settings
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
@@ -41,7 +39,8 @@ from rpki.resource_set import (resource_range_as, resource_range_ipv4,
                                resource_range_ipv6, roa_prefix_ipv4)
 from rpki import sundial
 
-from rpki.gui.cacheview.models import ROAPrefixV4, ROAPrefixV6, ROA
+from rpki.gui.cacheview.models import ROAPrefixV4, ROA
+from rpki.gui.routeview.models import RouteOrigin
 
 
 def superuser_required(f):
@@ -321,9 +320,7 @@ def child_add_prefix(request, pk):
                 version = 'IPv4'
             child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
                                         version=version)
-            z = Zookeeper(handle=conf.handle, logstream=logstream)
-            if settings.RPKID_RUN:
-                z.run_rpkid_now()
+            Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = forms.AddNetForm(child=child)
@@ -342,9 +339,7 @@ def child_add_asn(request, pk):
             asns = form.cleaned_data.get('asns')
             r = resource_range_as.parse_str(asns)
             child.asns.create(start_as=r.min, end_as=r.max)
-            if settings.RPKID_RUN:
-                z = Zookeeper(handle=conf.handle, logstream=logstream)
-                z.run_rpkid_now()
+            Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = forms.AddASNForm(child=child)
@@ -373,8 +368,7 @@ def child_edit(request, pk):
             # remove AS & prefixes that are not selected in the form
             models.ChildASN.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('as_ranges')).delete()
             models.ChildNet.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('address_ranges')).delete()
-            if settings.RPKID_RUN:
-                Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
+            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = form_class(initial={
@@ -424,6 +418,19 @@ def child_delete(request, pk):
     })
 
 
+@handle_required
+def roa_detail(request, pk):
+    conf = request.session['handle']
+    obj = get_object_or_404(conf.roas, pk=pk)
+    pfx = obj.prefixes.all()[0].as_resource_range()
+    routes = RouteOrigin.objects.filter(prefix_min__gte=pfx.min,
+                                        prefix_max__lte=pfx.max)
+    return render(request, 'app/roa_detail.html', {
+        'object': obj,
+        'routes': routes,
+    })
+
+
 @handle_required
 def roa_create(request):
     """Present the user with a form to create a ROA.
@@ -507,8 +514,7 @@ def roa_create_confirm(request):
             roa.prefixes.create(version=v, prefix=str(rng.min),
                                 prefixlen=rng.prefixlen(),
                                 max_prefixlen=max_prefixlen)
-            if settings.RPKID_RUN:
-                Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
+            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(dashboard))
         # What should happen when the submission form isn't valid?  For now
         # just fall through and redirect back to the ROA creation form
@@ -528,8 +534,7 @@ def roa_delete(request, pk):
     roa = get_object_or_404(conf.roas, pk=pk)
     if request.method == 'POST':
         roa.delete()
-        if settings.RPKID_RUN:
-            Zookeeper(handle=conf.handle).run_rpkid_now()
+        Zookeeper(handle=conf.handle).run_rpkid_now()
         return http.HttpResponseRedirect(reverse(dashboard))
 
     ### Process GET ###
@@ -620,7 +625,9 @@ def roa_match(rng):
         pfx = 'prefixes'
 
     rv = []
-    for obj in route_manager.filter(prefix_min__gte=rng.min, prefix_max__lte=rng.max):
+    # return a max of 50 routes
+    for obj in route_manager.filter(prefix_min__gte=rng.min,
+                                    prefix_max__lte=rng.max)[:50]:
         # This is a bit of a gross hack, since the foreign keys for v4 and v6
         # prefixes have different names.
         args = {'%s__prefix_min__lte' % pfx: obj.prefix_min,
@@ -646,17 +653,17 @@ def validate_route(route, roas):
     # 2. if the candidate ROA set is empty, end with unknown
     if not roas.exists():
         route.status = 'unknown'
-        route.status_label = 'warning'
+        route.status_label = 'label-warning'
     # 3. if any candidate roa matches the origin AS and max_length, end with
     # valid
     #
     # AS0 is always invalid.
     elif route.asn != 0 and roas.filter(**args).exists():
-        route.status_label = 'success'
+        route.status_label = 'label-success'
         route.status = 'valid'
     # 4. otherwise the route is invalid
     else:
-        route.status_label = 'important'
+        route.status_label = 'label-important'
         route.status = 'invalid'
 
     return route
@@ -687,10 +694,6 @@ def route_view(request):
                   {'routes': routes, 'timestamp': ts})
 
 
-def route_detail(request, pk):
-    pass
-
-
 def route_roa_list(request, pk):
     """Show a list of ROAs that match a given route."""
     object = get_object_or_404(models.RouteOrigin, pk=pk)
@@ -703,9 +706,9 @@ def route_roa_list(request, pk):
 @handle_required
 def repository_detail(request, pk):
     conf = request.session['handle']
-    qs = models.Repository.objects.filter(issuer=conf)
-    return object_detail(request, queryset=qs, object_id=pk,
-                         template_name='app/repository_detail.html')
+    return render(request,
+                  'app/repository_detail.html',
+                  {'object': get_object_or_404(conf.repositories, pk=pk)})
 
 
 @handle_required
@@ -795,12 +798,6 @@ def user_list(request):
             u = None
         users.append((conf, u))
     return render(request, 'app/user_list.html', {'users': users})
-
-
-@superuser_required
-def user_detail(request):
-    """Placeholder for Conf.get_absolute_url()."""
-    pass
 
 
 @superuser_required

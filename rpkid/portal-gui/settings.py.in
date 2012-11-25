@@ -107,6 +107,3 @@ TEMPLATE_CONTEXT_PROCESSORS = (
 )
 
 STATIC_URL = '/static/'
-
-# whether or not to force rpkid to run its cron job immediately after a change
-RPKID_RUN = False

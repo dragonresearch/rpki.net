@@ -58,6 +58,6 @@
 {% endblock object_display %}
 
 {% block action %}
-{{ block.super }}
-<a class='btn' href='{{ object.get_absolute_url }}export' title='Download XML to send to repository operator'><i class="icon-download"></i> Export</a>
+<a class='btn' href='{% url rpki.gui.app.views.parent_export object.pk %}' title='Download XML to send to repository operator'><i class="icon-download"></i> Export</a>
+<a class="btn" href="{% url rpki.gui.app.views.parent_delete object.pk %}" title="Delete this parent"><i class="icon-trash"></i> Delete</a>
 {% endblock action %}

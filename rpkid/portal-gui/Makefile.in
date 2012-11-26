@@ -41,16 +41,10 @@ apache.conf: $(srcdir)/apache.conf.in Makefile
 
 install: $(BUILD)
 	if test -d $(SYSCONFDIR); then :; else ${INSTALL} -d $(SYSCONFDIR); fi
-	if test -d $(INSTDIR)/media/css; then :; else ${INSTALL} -d $(INSTDIR)/media/css; fi
-	if test -d $(INSTDIR)/media/img; then :; else ${INSTALL} -d $(INSTDIR)/media/img; fi
-	if test -d $(INSTDIR)/media/js; then :; else ${INSTALL} -d $(INSTDIR)/media/js; fi
 	if test -d $(INSTDIR)/wsgi; then :; else ${INSTALL} -d $(INSTDIR)/wsgi; fi
 	${INSTALL} -m 644 apache.conf $(SYSCONFDIR)/apache.conf
-	${INSTALL} -m 644 $(srcdir)/media/css/bootstrap.min.css $(INSTDIR)/media/css/bootstrap.min.css
-	${INSTALL} -m 644 $(srcdir)/media/js/jquery-1.8.3.min.js $(INSTDIR)/media/js/jquery.min.js
 	${INSTALL} -m 644 rpki.wsgi $(INSTDIR)/wsgi/rpki.wsgi
 	${INSTALL} -m 644 settings.py ${SYSCONFDIR}
-	${INSTALL} -m 644 -t $(INSTDIR)/media/img $(srcdir)/media/img/*
 
 deinstall uninstall:
 	rm -rf $(INSTDIR)

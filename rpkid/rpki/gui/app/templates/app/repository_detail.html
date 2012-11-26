@@ -18,3 +18,7 @@
   </div>
 </div>
 {% endblock object_display %}
+
+{% block action %}
+<a class="btn" href="{% url rpki.gui.app.views.repository_delete object.pk %}" title="Delete this repository"><i class="icon-trash"></i> Delete</a>
+{% endblock %}

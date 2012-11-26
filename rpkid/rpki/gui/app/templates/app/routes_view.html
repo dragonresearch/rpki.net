@@ -32,7 +32,7 @@ This view shows currently advertised routes for the prefixes listed in resource 
     <td>{{ r.asn }}</td>
     <td>
       <span class='label {{ r.status_label }}'>{{ r.status }}</span>
-      <a href='{{ r.get_absolute_url }}/roa/' help='display ROAs matching this prefix'>roas</a>
+      <a href='{% url rpki.gui.app.views.route_detail r.pk %}' title='display ROAs covering this prefix'><i class="icon-info-sign"></i></a>
     </td>
   </tr>
   {% endfor %}

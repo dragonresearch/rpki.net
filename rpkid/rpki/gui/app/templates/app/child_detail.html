@@ -51,5 +51,5 @@
 <a class='btn' href="{% url rpki.gui.app.views.child_add_asn object.pk %}" title='Delegate an ASN to this child'><i class="icon-plus-sign"></i> AS</a>
 <a class='btn' href="{% url rpki.gui.app.views.child_add_prefix object.pk %}" title='Delegate a prefix to this child'><i class="icon-plus-sign"></i> Prefix</a>
 <a class='btn' href="{% url rpki.gui.app.views.child_response object.pk %}" title='Download XML file to send to child'><i class="icon-download"></i> Export</a>
-{{ block.super }}
+<a class="btn" href="{% url rpki.gui.app.views.child_delete object.pk %}" title="Delete this child"><i class="icon-trash"></i> Delete</a>
 {% endblock action %}

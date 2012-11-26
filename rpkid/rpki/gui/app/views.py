@@ -31,7 +31,7 @@ from django.utils.http import urlquote
 from django import http
 from django.core.urlresolvers import reverse, reverse_lazy
 from django.contrib.auth.models import User
-from django.views.generic import DetailView, CreateView, UpdateView, DeleteView
+from django.views.generic import DetailView, DeleteView
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
@@ -581,27 +581,37 @@ class GhostbusterDeleteView(GenericDeleteView):
         return self.request.session['handle'].ghostbusters
 
 
-class GhostbusterCreateView(CreateView):
-    form_class = forms.GhostbusterRequestForm
-    template_name = 'app/app_form.html'
+@handle_required
+def ghostbuster_create(request):
+    conf = request.session['handle']
+    if request.method == 'POST':
+        form = forms.GhostbusterRequestForm(request.POST, request.FILES,
+                                            conf=conf)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.vcard = glue.ghostbuster_to_vcard(obj)
+            obj.save()
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.GhostbusterRequestForm(conf=conf)
+    return render(request, 'app/app_form.html', {'form': form})
 
-    def get_form_kwargs(self):
-        kwargs = super(GhostbusterCreateView, self).get_form_kwargs()
-        kwargs['conf'] = self.request.session['handle']
-        return kwargs
 
-
-class GhostbusterEditView(UpdateView):
-    form_class = forms.GhostbusterRequestForm
-    template_name = 'app/app_form.html'
-
-    def get_queryset(self):
-        return self.request.session['handle'].ghostbusters
-
-    def get_form_kwargs(self):
-        kwargs = super(GhostbusterEditView, self).get_form_kwargs()
-        kwargs['conf'] = self.request.session['handle']
-        return kwargs
+@handle_required
+def ghostbuster_edit(request, pk):
+    conf = request.session['handle']
+    obj = get_object_or_404(conf.ghostbusters, pk=pk)
+    if request.method == 'POST':
+        form = forms.GhostbusterRequestForm(request.POST, request.FILES,
+                                            conf=conf, instance=obj)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.vcard = glue.ghostbuster_to_vcard(obj)
+            obj.save()
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.GhostbusterRequestForm(conf=conf, instance=obj)
+    return render(request, 'app/app_form.html', {'form': form})
 
 
 @handle_required
@@ -694,13 +704,17 @@ def route_view(request):
                   {'routes': routes, 'timestamp': ts})
 
 
-def route_roa_list(request, pk):
+def route_detail(request, pk):
     """Show a list of ROAs that match a given route."""
-    object = get_object_or_404(models.RouteOrigin, pk=pk)
+    # FIXME only supports IPv4 routes
+    route = get_object_or_404(models.RouteOrigin, pk=pk)
     # select accepted ROAs which cover this route
-    qs = ROAPrefixV4.objects.filter(prefix_min__lte=object.prefix_min,
-                                    prefix_max__gte=object.prefix_max).select_related()
-    return object_list(request, qs, template_name='app/route_roa_list.html')
+    # The rpki.net tool only generates a single prefix per ROA, but other tools
+    # may not, so we generate the list by roa prefix instead
+    qs = ROAPrefixV4.objects.filter(prefix_min__lte=route.prefix_min,
+                                    prefix_max__gte=route.prefix_max).select_related()
+    return render(request, 'app/route_detail.html',
+                  {'object': route, 'roa_prefixes': qs})
 
 
 @handle_required

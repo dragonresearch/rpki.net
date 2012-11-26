@@ -52,6 +52,6 @@
 {% endblock object_display %}
 
 {% block action %}
-{{ block.super }}
 <a class="btn" href="{% url gbr-edit object.pk %}"><i class="icon-edit"></i> Edit</a>
+<a class="btn" href="{% url gbr-delete object.pk %}"><i class="icon-trash"></i> Delete</a>
 {% endblock %}

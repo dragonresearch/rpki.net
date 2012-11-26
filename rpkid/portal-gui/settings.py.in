@@ -106,4 +106,7 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.static"
 )
 
+# where to put static files
+STATIC_ROOT = '/usr/local/share/rpki/static'
+
 STATIC_URL = '/static/'

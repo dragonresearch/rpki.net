@@ -4,7 +4,7 @@
 # $LANG is unset
 if [ -z "$LANG" ]; then
 	echo '$LANG is unset, default to en_US.UTF-8'
-	exort LANG=en_US.UTF-8
+	export LANG=en_US.UTF-8
 fi
 export PYTHONPATH=@PYTHONPATH@${PYTHONPATH:+:}${PYTHONPATH} DJANGO_SETTINGS_MODULE=settings
 @DJANGO_ADMIN@ $*

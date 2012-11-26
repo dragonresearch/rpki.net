@@ -1,5 +1,4 @@
 # Copyright (C) 2011  SPARTA, Inc. dba Cobham
-# Anaportal-gui/scripts/rpkigui-rcynic.py
 # Copyright (C) 2012  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
@@ -175,7 +174,7 @@ def process_cache(root, xml_file):
                 inst.mtime = mtime
                 try:
                     obj = vs.obj  # causes object to be lazily loaded
-                except rpki.POW._der.DerError, e:
+                except Exception, e:
                     logger.warning('Caught %s while processing %s: %s' % (
                         type(e), vs.filename, e))
                     continue

@@ -25,8 +25,7 @@ Order deny,allow
 Allow from all
 </Directory>
 
-Alias /media/ @INSTDIR@/media/
-Alias /site_media/ @INSTDIR@/media/
+Alias /static @INSTDIR@/static
 
 # redirect to the dashboard when someone hits the bare vhost
 RedirectMatch ^/$ /rpki/

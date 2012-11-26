@@ -57,7 +57,7 @@ install: $(BUILD)
 
 deinstall uninstall:
 	rm -rf $(INSTDIR)/media $(INSTDIR)/wsgi
-	rm -rf $(SYSCONFDIR)/apache.conf $(SYSCONFDIR)/settings.py
+	rm -rf $(SYSCONFDIR)/apache.conf $(SYSCONFDIR)/settings.py $(SYSCONFDIR)/settings.pyc
 
 test:
 	@true

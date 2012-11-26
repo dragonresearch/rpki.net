@@ -276,8 +276,8 @@ then
 
 	if test $have_django = yes
 	then
-		AC_MSG_CHECKING([for Django 1.2 or higher])
-		have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 2) else 'yes'"`
+		AC_MSG_CHECKING([for Django 1.3 or higher])
+		have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3) else 'yes'"`
 		AC_MSG_RESULT([$have_acceptable_django])
 	fi
 

@@ -93,7 +93,6 @@ INSTALLED_APPS = (
     'rpki.gui.cacheview',
     'rpki.gui.routeview',
     'south',
-    'crispy_forms'
 )
 
 TEMPLATE_CONTEXT_PROCESSORS = (

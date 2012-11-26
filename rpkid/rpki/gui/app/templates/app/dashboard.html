@@ -7,8 +7,8 @@
 {% endblock sidebar_extra %}
 
 {% block content %}
-<div class='row'>
-  <div class='span5'>
+<div class='row-fluid'>
+  <div class='span6'>
     <div class="page-header">
       <h1>Resources</h1>
     </div>
@@ -60,7 +60,7 @@
     </table>
     <a class='btn' href="{% url rpki.gui.app.views.refresh %}" title="refresh resource list from rpkid"><i class="icon-refresh"></i> refresh</a></li>
   </div>
-  <div class='span5'>
+  <div class='span6'>
     <h2>Unallocated Resources</h2>
     <p>The following resources have not been allocated to a child, nor appear in a ROA.
 
@@ -91,8 +91,8 @@
   </div><!-- /span -->
 </div><!-- /row -->
 
-<div class="row">
-  <div class="span5">
+<div class="row-fluid">
+  <div class="span6">
 <div class="page-header">
   <h1>ROA Requests</h1>
 </div>
@@ -114,7 +114,7 @@
 <a class="btn" href="{% url rpki.gui.app.views.roa_create %}"><i class="icon-plus-sign"></i> Create</a>
 </div>
 
-  <div class="span5">
+  <div class="span6">
 <div class="page-header">
   <h1>Ghostbuster Requests</h1>
 </div>
@@ -138,8 +138,8 @@
 </div><!-- /span -->
 </div><!-- /row -->
 
-<div class="row">
-  <div class="span5">
+<div class="row-fluid">
+  <div class="span6">
     <div class="page-header">
       <h1>Children</h1>
     </div>
@@ -156,7 +156,7 @@
     </table>
     <a class="btn" href="{% url rpki.gui.app.views.child_import %}"><i class="icon-upload"></i> Import</a>
   </div><!-- /span -->
-  <div class="span5">
+  <div class="span6">
     <div class="page-header">
       <h1>Parents</h1>
     </div>
@@ -175,8 +175,8 @@
   </div><!-- /span -->
 </div><!-- /row -->
 
-<div class="row">
-  <div class="span5">
+<div class="row-fluid">
+  <div class="span6">
     <div class="page-header">
       <h1>Repositories</h1>
     </div>
@@ -194,7 +194,7 @@
     <a class="btn" href="{% url rpki.gui.app.views.repository_import %}"><i class="icon-upload"></i> Import</a>
   </div><!-- /span -->
   {% if request.user.is_superuser %}
-  <div class="span5">
+  <div class="span6">
     <div class="page-header">
       <h1>Repository Clients</h1>
     </div>

@@ -32,8 +32,8 @@
   </tr>
 </table>
 
-<div class='row'>
-  <div class='span4'>
+<div class='row-fluid'>
+  <div class='span6'>
     <h3>Delegated Addresses</h3>
     <ul class='unstyled'>
       {% for c in object.certs.all %}
@@ -46,7 +46,7 @@
       {% endfor %}
     </ul>
   </div>
-  <div class='span4'>
+  <div class='span6'>
     <h3>Delegated ASNs</h3>
     <ul class='unstyled'>
       {% for c in object.certs.all %}

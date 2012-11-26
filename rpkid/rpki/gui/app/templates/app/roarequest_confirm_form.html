@@ -1,13 +1,12 @@
 {% extends "app/app_base.html" %}
-{% load crispy_forms_tags %}
 
 {% block content %}
 <div class='page-title'>
-  <h1>Create ROA</h1>
+  <h1>Confirm ROA Request</h1>
 </div>
 
-<div class='row'>
-  <div class='span5'>
+<div class='row-fluid'>
+  <div class='span6'>
     <div class='alert alert-block-message alert-warning'>
       <p><strong>Please confirm</strong> that you would like to create the following ROA.
       The accompanying table indicates how the validation status may change as a result.
@@ -27,7 +26,7 @@
 
       <form method='POST' action='{% url rpki.gui.app.views.roa_create_confirm %}'>
 	{% csrf_token %}
-  {{ form|crispy }}
+	{% include "app/bootstrap_form.html" %}
 
 	<div class='form-actions'>
 	  <input class='btn btn-primary' type='submit' value='Create'/>
@@ -37,7 +36,7 @@
     </div><!-- /alert-message -->
   </div>
 
-  <div class='span5'>
+  <div class='span6'>
     <h2>Matched Routes</h2>
 
     <table style='table table-striped table-condensed'>

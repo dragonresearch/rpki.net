@@ -1,10 +1,10 @@
 {% extends "app/app_base.html" %}
 
-{% load crispy_forms_tags %}
+{# This form is used for creating a new ROA request #}
 
 {% block content %}
 <div class='page-title'>
-  <h1>Create ROA</h1>
+  <h1>Create ROA Request</h1>
 </div>
 
 <script src='{{ STATIC_URL }}js/jquery-1.8.3.min.js'></script>
@@ -26,11 +26,11 @@
   $(document).ready(function(){ $("#id_prefix").change(f) })
 </script>
 
-<div class='row'>
-  <div class='span5'>
+<div class='row-fluid'>
+  <div class='span6'>
     <form method='POST' action='{{ request.get_full_path }}'>
       {% csrf_token %}
-      {{ form|crispy }}
+      {% include "app/bootstrap_form.html" %}
       <div class="form-actions">
 	<input class="btn" type="submit" value="Preview">
 	<a class="btn" href="{% url rpki.gui.app.views.dashboard %}">Cancel</a>
@@ -38,7 +38,7 @@
     </form>
   </div>
 
-  <div class='span5'>
+  <div class='span6'>
     Routes matching your prefix:
     <table class='table table-condensed table-striped' id='route_table'>
       <tr><th>Prefix</th><th>AS</th></tr>

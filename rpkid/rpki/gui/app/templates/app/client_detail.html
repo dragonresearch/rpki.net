@@ -5,20 +5,16 @@
   <h1>Repository Client: {{ object.handle }}</h1>
 </div>
 
-<div class='row'>
-  <div class='span3'>
-    <table class="table">
-      <tr>
-	<td>Name</td>
-	<td>{{ object.handle }} </td>
-      </tr>
-      <tr>
-	<td>SIA</td>
-	<td>{{ object.sia_base }}</td>
-      </tr>
-    </table>
-  </div>
-</div>
+<table class="table">
+  <tr>
+    <td>Name</td>
+    <td>{{ object.handle }} </td>
+  </tr>
+  <tr>
+    <td>SIA</td>
+    <td>{{ object.sia_base }}</td>
+  </tr>
+</table>
 
 {% block action %}
 <a class="btn" href="{% url rpki.gui.app.views.client_delete object.pk %}"><i class="icon-trash"></i> Delete</a>

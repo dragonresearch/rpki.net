@@ -554,7 +554,7 @@ def roa_delete(request, pk):
         validate_route(route, qs)
         routes.append(route)
 
-    return render(request, 'app/roa_request_confirm_delete.html',
+    return render(request, 'app/roarequest_confirm_delete.html',
                   {'object': roa, 'routes': routes})
 
 

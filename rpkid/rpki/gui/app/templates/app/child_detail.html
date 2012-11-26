@@ -5,25 +5,12 @@
   <h1>Child: {{ object.handle }}</h1>
 </div>
 
-<div class='row'>
-  <div class='span2'>
-    <p><strong>Child Handle</strong>
-  </div>
-  <div class='span2'>
-    <p>{{ object.handle }}
-  </div>
-</div>
-<div class='row'>
-  <div class='span2'>
-    <p><strong>Valid until</strong>
-  </div>
-  <div class='span4'>
-    <p>{{ object.valid_until }}
-  </div>
+<div class='row-fluid'>
+    <p><strong>Valid until</strong> {{ object.valid_until }}
 </div>
 
-<div class='row'>
-  <div class='span4'>
+<div class='row-fluid'>
+  <div class='span6'>
     <strong>Addresses</strong>
     {% if object.address_ranges.all %}
     <ul class='unstyled'>
@@ -35,7 +22,7 @@
     <p style='font-style:italic'>none</p>
     {% endif %}
   </div>
-  <div class='span4'>
+  <div class='span6'>
     <strong>ASNs</strong>
     {% if object.asns.all %}
     <ul class='unstyled'>

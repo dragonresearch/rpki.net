@@ -107,6 +107,7 @@ TEMPLATE_CONTEXT_PROCESSORS = (
 )
 
 # where to put static files
-STATIC_ROOT = '/usr/local/share/rpki/static'
+STATIC_ROOT = '%(AC_DATAROOTDIR)s/rpki/media'
 
-STATIC_URL = '/static/'
+# must end with a slash!
+STATIC_URL = '/media/'

@@ -42,12 +42,22 @@ apache.conf: $(srcdir)/apache.conf.in Makefile
 install: $(BUILD)
 	if test -d $(SYSCONFDIR); then :; else ${INSTALL} -d $(SYSCONFDIR); fi
 	if test -d $(INSTDIR)/wsgi; then :; else ${INSTALL} -d $(INSTDIR)/wsgi; fi
+	if test -d $(INSTDIR)/media; then :; else ${INSTALL} -d $(INSTDIR)/media; fi
+	if test -d $(INSTDIR)/media/css; then :; else ${INSTALL} -d $(INSTDIR)/media/css; fi
+	if test -d $(INSTDIR)/media/img; then :; else ${INSTALL} -d $(INSTDIR)/media/img; fi
+	if test -d $(INSTDIR)/media/js; then :; else ${INSTALL} -d $(INSTDIR)/media/js; fi
 	${INSTALL} -m 644 apache.conf $(SYSCONFDIR)/apache.conf
 	${INSTALL} -m 644 rpki.wsgi $(INSTDIR)/wsgi/rpki.wsgi
 	${INSTALL} -m 644 settings.py ${SYSCONFDIR}
+	# this would be better handled with "django-admin collectstatic" but makes the install
+	# process harder for the end user.
+	${INSTALL} -m 644 -t $(INSTDIR)/media/css $(srcdir)/../rpki/gui/app/static/css/*
+	${INSTALL} -m 644 -t $(INSTDIR)/media/js $(srcdir)/../rpki/gui/app/static/js/*
+	${INSTALL} -m 644 -t $(INSTDIR)/media/img $(srcdir)/../rpki/gui/app/static/img/*
 
 deinstall uninstall:
-	rm -rf $(INSTDIR)
+	rm -rf $(INSTDIR)/media $(INSTDIR)/wsgi
+	rm -rf $(SYSCONFDIR)/apache.conf $(SYSCONFDIR)/settings.py
 
 test:
 	@true

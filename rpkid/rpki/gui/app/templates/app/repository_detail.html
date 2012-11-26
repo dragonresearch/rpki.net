@@ -1,6 +1,10 @@
-{% extends "app/object_detail.html" %}
+{% extends "app/app_base.html" %}
 
-{% block object_display %}
+{% block content %}
+<div class="page-header">
+  <h1>Repository: {{ object.handle }}</h1>
+</div>
+
 <div class='row'>
   <div class='span2'>
     <p><strong>Name</strong>
@@ -17,8 +21,8 @@
     <p>{{ object.sia_base }}</td>
   </div>
 </div>
-{% endblock object_display %}
 
 {% block action %}
 <a class="btn" href="{% url rpki.gui.app.views.repository_delete object.pk %}" title="Delete this repository"><i class="icon-trash"></i> Delete</a>
+{% endblock %}
 {% endblock %}

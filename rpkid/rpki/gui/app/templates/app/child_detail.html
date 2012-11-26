@@ -1,6 +1,10 @@
-{% extends "app/object_detail.html" %}
+{% extends "app/app_base.html" %}
 
-{% block object_display %}
+{% block content %}
+<div class="page-header">
+  <h1>Child: {{ object.handle }}</h1>
+</div>
+
 <div class='row'>
   <div class='span2'>
     <p><strong>Child Handle</strong>
@@ -44,7 +48,6 @@
     {% endif %}
   </div>
 </div>
-{% endblock object_display %}
 
 {% block action %}
 <a class='btn' href="{% url rpki.gui.app.views.child_edit object.pk %}" title='Edit this child'><i class="icon-edit"></i> Edit</a>
@@ -52,4 +55,6 @@
 <a class='btn' href="{% url rpki.gui.app.views.child_add_prefix object.pk %}" title='Delegate a prefix to this child'><i class="icon-plus-sign"></i> Prefix</a>
 <a class='btn' href="{% url rpki.gui.app.views.child_response object.pk %}" title='Download XML file to send to child'><i class="icon-download"></i> Export</a>
 <a class="btn" href="{% url rpki.gui.app.views.child_delete object.pk %}" title="Delete this child"><i class="icon-trash"></i> Delete</a>
-{% endblock action %}
+{% endblock %}
+
+{% endblock %}

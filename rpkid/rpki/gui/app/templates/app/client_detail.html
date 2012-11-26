@@ -1,6 +1,10 @@
-{% extends "app/object_detail.html" %}
+{% extends "app/app_base.html" %}
 
-{% block object_display %}
+{% block content %}
+<div class="page-header">
+  <h1>Repository Client: {{ object.handle }}</h1>
+</div>
+
 <div class='row'>
   <div class='span3'>
     <table class="table">
@@ -15,8 +19,9 @@
     </table>
   </div>
 </div>
-{% endblock object_display %}
 
 {% block action %}
 <a class="btn" href="{% url rpki.gui.app.views.client_delete object.pk %}"><i class="icon-trash"></i> Delete</a>
+{% endblock %}
+
 {% endblock %}

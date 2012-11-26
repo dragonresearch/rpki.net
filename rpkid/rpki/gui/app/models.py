@@ -46,7 +46,6 @@ class Parent(rpki.irdb.models.Parent):
 
     class Meta:
         proxy = True
-        verbose_name = 'Parent'
 
 
 class Child(rpki.irdb.models.Child):
@@ -61,8 +60,7 @@ class Child(rpki.irdb.models.Child):
 
     class Meta:
         proxy = True
-        verbose_name = 'Child'
-        verbose_name_plural = 'Children'
+        verbose_name_plural = 'children'
 
 
 class ChildASN(rpki.irdb.models.ChildASN):
@@ -228,7 +226,6 @@ class GhostbusterRequest(rpki.irdb.models.GhostbusterRequest):
 
     class Meta:
         ordering = ('family_name', 'given_name')
-        verbose_name = 'Ghostbuster'
 
 
 class Timestamp(models.Model):

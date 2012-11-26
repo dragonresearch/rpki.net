@@ -142,7 +142,7 @@ def generic_import(request, queryset, configure, form_class=None,
 
     return render(request, 'app/app_form.html', {
         'form': form,
-        'form_title': 'Import ' + queryset.model._meta.verbose_name,
+        'form_title': 'Import ' + queryset.model._meta.verbose_name.capitalize(),
     })
 
 
@@ -325,7 +325,7 @@ def child_add_prefix(request, pk):
     else:
         form = forms.AddNetForm(child=child)
     return render(request, 'app/app_form.html',
-                  {'object': child, 'form': form})
+                  {'object': child, 'form': form, 'form_title': 'Add Prefix'})
 
 
 @handle_required
@@ -344,7 +344,7 @@ def child_add_asn(request, pk):
     else:
         form = forms.AddASNForm(child=child)
     return render(request, 'app/app_form.html',
-                  {'object': child, 'form': form})
+                  {'object': child, 'form': form, 'form_title': 'Add ASN'})
 
 
 @handle_required
@@ -594,7 +594,8 @@ def ghostbuster_create(request):
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.GhostbusterRequestForm(conf=conf)
-    return render(request, 'app/app_form.html', {'form': form})
+    return render(request, 'app/app_form.html',
+                  {'form': form, 'form_title': 'New Ghostbuster Request'})
 
 
 @handle_required
@@ -611,7 +612,8 @@ def ghostbuster_edit(request, pk):
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.GhostbusterRequestForm(conf=conf, instance=obj)
-    return render(request, 'app/app_form.html', {'form': form})
+    return render(request, 'app/app_form.html',
+                  {'form': form, 'form_title': 'Edit Ghostbuster Request'})
 
 
 @handle_required
@@ -740,8 +742,12 @@ def repository_delete(request, pk):
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.Empty()
-    return render(request, 'app/repository_detail.html',
-                  {'object': obj, 'form': form, 'confirm_delete': True})
+    return render(request, 'app/object_confirm_delete.html', {
+        'object': obj,
+        'form': form,
+        'parent_template':
+        'app/repository_detail.html',
+    })
 
 
 @handle_required

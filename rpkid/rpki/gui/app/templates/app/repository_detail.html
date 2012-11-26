@@ -5,7 +5,12 @@
   <h1>Repository: {{ object.handle }}</h1>
 </div>
 
-<p><strong>SIA</strong> {{ object.sia_base }}
+<table class="table">
+  <tr>
+    <td><strong>SIA</strong></td>
+    <td>{{ object.sia_base }}</td>
+  </tr>
+</table>
 
 {% block action %}
 <a class="btn" href="{% url rpki.gui.app.views.repository_delete object.pk %}" title="Delete this repository"><i class="icon-trash"></i> Delete</a>

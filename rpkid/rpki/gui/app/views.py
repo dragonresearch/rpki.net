@@ -29,9 +29,9 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.utils.http import urlquote
 from django import http
-from django.core.urlresolvers import reverse, reverse_lazy
+from django.core.urlresolvers import reverse
 from django.contrib.auth.models import User
-from django.views.generic import DetailView, DeleteView
+from django.views.generic import DetailView
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
@@ -563,22 +563,24 @@ class GhostbusterDetailView(DetailView):
         return self.request.session['handle'].ghostbusters
 
 
-class GenericDeleteView(DeleteView):
-    """Subclasses should implement the get_queryset() method.
-
-    """
-    template_name = 'app/object_confirm_delete.html'
-    success_url = reverse_lazy(dashboard)
-
-    def get_context_data(self, **kwargs):
-        context = super(GenericDeleteView, self).get_context_data(**kwargs)
-        context['parent_template'] = 'app/%s_detail.html' % self.object.__class__.__name__.lower()
-        return context
-
-
-class GhostbusterDeleteView(GenericDeleteView):
-    def get_queryset(self):
-        return self.request.session['handle'].ghostbusters
+@handle_required
+def ghostbuster_delete(request, pk):
+    conf = request.session['handle']
+    logstream = request.META['wsgi.errors']
+    obj = get_object_or_404(conf.ghostbusters, pk=pk)
+    if request.method == 'POST':
+        form = forms.Empty(request.POST, request.FILES)
+        if form.is_valid():
+            obj.delete()
+            Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
+            return http.HttpResponseRedirect(reverse(dashboard))
+    else:
+        form = forms.Empty(request.POST, request.FILES)
+    return render(request, 'app/object_confirm_delete.html', {
+        'object': obj,
+        'form': form,
+        'parent_template': 'app/ghostbusterrequest_detail.html'
+    })
 
 
 @handle_required

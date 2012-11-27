@@ -38,7 +38,7 @@ urlpatterns = patterns(
     url(r'^gbr/create$', views.ghostbuster_create, name='gbr-create'),
     url(r'^gbr/(?P<pk>\d+)/$', views.GhostbusterDetailView.as_view(), name='gbr-detail'),
     url(r'^gbr/(?P<pk>\d+)/edit$', views.ghostbuster_edit, name='gbr-edit'),
-    url(r'^gbr/(?P<pk>\d+)/delete$', views.GhostbusterDeleteView.as_view(), name='gbr-delete'),
+    url(r'^gbr/(?P<pk>\d+)/delete$', views.ghostbuster_delete, name='gbr-delete'),
     (r'^refresh$', views.refresh),
     (r'^client/import$', views.client_import),
     (r'^client/(?P<pk>\d+)/$', views.client_detail),

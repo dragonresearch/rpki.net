@@ -46,7 +46,6 @@ class Parent(rpki.irdb.models.Parent):
 
     class Meta:
         proxy = True
-        verbose_name = 'Parent'
 
 
 class Child(rpki.irdb.models.Child):
@@ -57,11 +56,11 @@ class Child(rpki.irdb.models.Child):
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.app.views.child_view', [str(self.pk)])
+        return ('rpki.gui.app.views.child_detail', [str(self.pk)])
 
     class Meta:
         proxy = True
-        verbose_name_plural = 'Children'
+        verbose_name_plural = 'children'
 
 
 class ChildASN(rpki.irdb.models.ChildASN):
@@ -106,9 +105,17 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
         """
         return Child.objects.filter(issuer=self)
 
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.app.views.user_detail', [str(self.pk)])
+    @property
+    def ghostbusters(self):
+        return GhostbusterRequest.objects.filter(issuer=self)
+
+    @property
+    def repositories(self):
+        return Repository.objects.filter(issuer=self)
+
+    @property
+    def roas(self):
+        return ROARequest.objects.filter(issuer=self)
 
     class Meta:
         proxy = True
@@ -163,19 +170,17 @@ class ROARequest(rpki.irdb.models.ROARequest):
     def __unicode__(self):
         return u"%s's ROA request for AS%d" % (self.issuer.handle, self.asn)
 
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.roa_detail', [str(self.pk)])
+
 
 class ROARequestPrefix(rpki.irdb.models.ROARequestPrefix):
     class Meta:
         proxy = True
-        verbose_name = 'ROA'
 
     def __unicode__(self):
-        return u'ROA request prefix %s for asn %d' % (str(self.as_roa_prefix()),
-                                                      self.roa_request.asn)
-
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.app.views.roa_detail', [str(self.pk)])
+        return u'ROA Request Prefix %s' % str(self.as_roa_prefix())
 
 
 class GhostbusterRequest(rpki.irdb.models.GhostbusterRequest):
@@ -217,11 +222,10 @@ class GhostbusterRequest(rpki.irdb.models.GhostbusterRequest):
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.app.views.ghostbuster_view', [str(self.pk)])
+        return ('gbr-detail', [str(self.pk)])
 
     class Meta:
         ordering = ('family_name', 'given_name')
-        verbose_name = 'Ghostbuster'
 
 
 class Timestamp(models.Model):
@@ -243,6 +247,7 @@ class Timestamp(models.Model):
 class Repository(rpki.irdb.models.Repository):
     class Meta:
         proxy = True
+        verbose_name = 'Repository'
         verbose_name_plural = 'Repositories'
 
     @models.permalink

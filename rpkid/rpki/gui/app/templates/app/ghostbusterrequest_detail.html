@@ -1,8 +1,12 @@
-{% extends "app/object_detail.html" %}
+{% extends "app/app_base.html" %}
 
-{% block object_detail %}
-<table class='zebra-striped condensed-table'>
-  <tr><td >Full Name</td><td>{{ object.full_name }}</td></tr>
+{% block content %}
+<div class="page-header">
+  <h1>Ghostbuster Request</h1>
+</div>
+
+<table class='table table-striped table-condensed'>
+  <tr><td>Full Name</td><td>{{ object.full_name }}</td></tr>
 
   {% if object.honorific_prefix %}
   <tr><td >Honorific Prefix</td><td>{{ object.honorific_prefix }}</td></tr>
@@ -49,5 +53,11 @@
   {% endif %}
 
 </table>
-{% endblock object_detail %}
-<!-- vim: set sw=2: -->
+
+{% block action %}
+{# the roarequest_confirm_delete template will override this section #}
+<a class="btn" href="{% url gbr-edit object.pk %}"><i class="icon-edit"></i> Edit</a>
+<a class="btn" href="{% url gbr-delete object.pk %}"><i class="icon-trash"></i> Delete</a>
+{% endblock %}
+
+{% endblock %}

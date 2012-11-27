@@ -1,16 +1,49 @@
 {% extends "app/app_base.html" %}
 
+{# This form is used for creating a new ROA request #}
+
 {% block content %}
 <div class='page-title'>
-  <h1>Create ROA</h1>
+  <h1>Create ROA Request</h1>
 </div>
 
-<form method='POST' action='{{ request.get_full_path }}'>
-  {% csrf_token %}
-  {% include "app/bootstrap_form.html" %}
-  <div class='actions'>
-    <input class='btn primary' type='submit' value='Create'/>
-    <a class='btn' href='{% url rpki.gui.app.views.roa_list %}'>Cancel</a>
+<script src='{{ STATIC_URL }}js/jquery-1.8.3.min.js'></script>
+<script type='text/javascript'>
+  var f = function(){
+    var e = $("#route_table")
+    e.empty()
+    e.append('<tr><th>Prefix</th><th>AS</th></tr>')
+    $.getJSON('/api/v1/route/', {'prefix__in':$(this).val()}, function(data){
+      if (data.length == 1) {
+	$("#id_asn").val(data[0].asn)
+      }
+      for (var x in data) {
+	e.append('<tr><td>' + data[x].prefix + '</td><td>' + data[x].asn + '</td></tr>')
+      }
+    })
+  }
+
+  $(document).ready(function(){ $("#id_prefix").change(f) })
+</script>
+
+<div class='row-fluid'>
+  <div class='span6'>
+    <form method='POST' action='{{ request.get_full_path }}'>
+      {% csrf_token %}
+      {% include "app/bootstrap_form.html" %}
+      <div class="form-actions">
+	<input class="btn" type="submit" value="Preview">
+	<a class="btn" href="{% url rpki.gui.app.views.dashboard %}">Cancel</a>
+      </div>
+    </form>
   </div>
-</form>
+
+  <div class='span6'>
+    Routes matching your prefix:
+    <table class='table table-condensed table-striped' id='route_table'>
+      <tr><th>Prefix</th><th>AS</th></tr>
+      <!-- script above populates this table based upon prefix matches -->
+    </table>
+  </div>
+</div><!--row-->
 {% endblock content %}

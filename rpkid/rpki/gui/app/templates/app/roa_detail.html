@@ -1,0 +1,33 @@
+{% extends "app/app_base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>ROA Request Detail</h1>
+</div>
+
+<div class="row-fluid">
+  <div class="span6 well">
+    <table class="table">
+      <tr><th>Prefix</th><th>Max Length</th><th>AS</th></tr>
+      <tr>
+	<td>{{ object.prefixes.all.0.as_roa_prefix }}</td>
+	<td>{{ object.prefixes.all.0.max_prefixlen }}</td>
+	<td>{{ object.asn }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="span6">
+    <h3>Covered Routes</h3>
+    <p>This table lists currently announced routes which are covered by prefixes included in this ROA.
+    <table class="table">
+      <tr><th>Prefix</th><th>AS</th></tr>
+      {% for r in routes %}
+      <tr><td>{{ r.as_resource_range }}</td><td>{{ r.asn }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<a class="btn" href="{% url rpki.gui.app.views.roa_delete object.pk %}"><i class="icon-trash"></i> Delete</a>
+{% endblock %}

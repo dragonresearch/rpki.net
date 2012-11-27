@@ -1,20 +1,23 @@
-{% extends "app/object_detail.html" %}
+{% extends "app/app_base.html" %}
 
-{% block object_detail %}
-<div class='row'>
-  <div class='span2'>
-    <p><strong>Name</strong>
-  </div>
-  <div class='span6'>
-    <p>{{ object.handle }}
-  </div>
+{% block content %}
+<div class="page-header">
+  <h1>Repository Client: {{ object.handle }}</h1>
 </div>
-<div class='row'>
-  <div class='span2'>
-    <p><strong>SIA</strong>
-  </div>
-  <div class='span6'>
-    <p>{{ object.sia_base }}
-  </div>
-</div>
-{% endblock object_detail %}
+
+<table class="table">
+  <tr>
+    <td>Name</td>
+    <td>{{ object.handle }} </td>
+  </tr>
+  <tr>
+    <td>SIA</td>
+    <td>{{ object.sia_base }}</td>
+  </tr>
+</table>
+
+{% block action %}
+<a class="btn" href="{% url rpki.gui.app.views.client_delete object.pk %}"><i class="icon-trash"></i> Delete</a>
+{% endblock %}
+
+{% endblock %}

@@ -1,4 +1,3 @@
-# Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 # Copyright (C) 2012  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
@@ -16,21 +15,8 @@
 __version__ = '$Id$'
 
 from django.conf.urls.defaults import *
+from rpki.gui.routeview.api import route_list
 
 urlpatterns = patterns('',
-
-    # Uncomment the admin/doc line below and add 'django.contrib.admindocs'
-    # to INSTALLED_APPS to enable admin documentation:
-    #(r'^admin/doc/', include('django.contrib.admindocs.urls')),
-
-    # Uncomment the next line to enable the admin:
-    #(r'^admin/', include(admin.site.urls)),
-
-    (r'^api/', include('rpki.gui.api.urls')),
-    (r'^cacheview/', include('rpki.gui.cacheview.urls')),
-    (r'^rpki/', include('rpki.gui.app.urls')),
-
-    (r'^accounts/login/$', 'django.contrib.auth.views.login'),
-    (r'^accounts/logout/$', 'django.contrib.auth.views.logout',
-        {'next_page': '/rpki/'}),
+    (r'^v1/route/$', route_list),
 )

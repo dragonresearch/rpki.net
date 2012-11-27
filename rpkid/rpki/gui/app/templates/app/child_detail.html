@@ -1,25 +1,16 @@
-{% extends "app/object_detail.html" %}
+{% extends "app/app_base.html" %}
 
-{% block object_detail %}
-<div class='row'>
-  <div class='span2'>
-    <p><strong>Child Handle</strong>
-  </div>
-  <div class='span2'>
-    <p>{{ object.handle }}
-  </div>
-</div>
-<div class='row'>
-  <div class='span2'>
-    <p><strong>Valid until</strong>
-  </div>
-  <div class='span4'>
-    <p>{{ object.valid_until }}
-  </div>
+{% block content %}
+<div class="page-header">
+  <h1>Child: {{ object.handle }}</h1>
 </div>
 
-<div class='row'>
-  <div class='span4'>
+<div class='row-fluid'>
+    <p><strong>Valid until</strong> {{ object.valid_until }}
+</div>
+
+<div class='row-fluid'>
+  <div class='span6'>
     <strong>Addresses</strong>
     {% if object.address_ranges.all %}
     <ul class='unstyled'>
@@ -31,7 +22,7 @@
     <p style='font-style:italic'>none</p>
     {% endif %}
   </div>
-  <div class='span4'>
+  <div class='span6'>
     <strong>ASNs</strong>
     {% if object.asns.all %}
     <ul class='unstyled'>
@@ -44,10 +35,13 @@
     {% endif %}
   </div>
 </div>
-{% endblock object_detail %}
 
-{% block actions %}
-<a class='btn' href="{{ object.get_absolute_url }}/add_asn" title='Delegate an ASN to this child'>+AS</a>
-<a class='btn' href="{{ object.get_absolute_url }}/add_address" title='Delegate a prefix to this child'>+Prefix</a>
-<a class='btn' href="{{ object.get_absolute_url }}/export" title='Download XML file to send to child'>Export</a>
-{% endblock actions %}
+{% block action %}
+<a class='btn' href="{% url rpki.gui.app.views.child_edit object.pk %}" title='Edit this child'><i class="icon-edit"></i> Edit</a>
+<a class='btn' href="{% url rpki.gui.app.views.child_add_asn object.pk %}" title='Delegate an ASN to this child'><i class="icon-plus-sign"></i> AS</a>
+<a class='btn' href="{% url rpki.gui.app.views.child_add_prefix object.pk %}" title='Delegate a prefix to this child'><i class="icon-plus-sign"></i> Prefix</a>
+<a class='btn' href="{% url rpki.gui.app.views.child_response object.pk %}" title='Download XML file to send to child'><i class="icon-download"></i> Export</a>
+<a class="btn" href="{% url rpki.gui.app.views.child_delete object.pk %}" title="Delete this child"><i class="icon-trash"></i> Delete</a>
+{% endblock %}
+
+{% endblock %}

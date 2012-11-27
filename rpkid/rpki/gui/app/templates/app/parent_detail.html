@@ -1,9 +1,11 @@
-{% extends "app/object_detail.html" %}
+{% extends "app/app_base.html" %}
 
-{% block object_detail %}
-<h2>{{ object.handle }}</h2>
+{% block content %}
+<div class="page-header">
+  <h1>Parent: {{ object.handle }}</h1>
+</div>
 
-<table>
+<table class="table table-striped table-condensed">
   <tr>
     <td>service_uri</td>
     <td>{{ object.service_uri }}</td>
@@ -30,8 +32,8 @@
   </tr>
 </table>
 
-<div class='row'>
-  <div class='span4'>
+<div class='row-fluid'>
+  <div class='span6'>
     <h3>Delegated Addresses</h3>
     <ul class='unstyled'>
       {% for c in object.certs.all %}
@@ -44,7 +46,7 @@
       {% endfor %}
     </ul>
   </div>
-  <div class='span4'>
+  <div class='span6'>
     <h3>Delegated ASNs</h3>
     <ul class='unstyled'>
       {% for c in object.certs.all %}
@@ -55,8 +57,10 @@
     </ul>
   </div>
 </div>
-{% endblock object_detail %}
 
-{% block actions %}
-<a class='btn' href='{{ object.get_absolute_url }}/export' title='Download XML to send to repository operator'>Export</a>
-{% endblock actions %}
+{% block action %}
+<a class='btn' href='{% url rpki.gui.app.views.parent_export object.pk %}' title='Download XML to send to repository operator'><i class="icon-download"></i> Export</a>
+<a class="btn" href="{% url rpki.gui.app.views.parent_delete object.pk %}" title="Delete this parent"><i class="icon-trash"></i> Delete</a>
+{% endblock %}
+
+{% endblock %}

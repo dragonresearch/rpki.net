@@ -67,8 +67,12 @@ setup(name              = "rpkitoolkit",
       url               = "http://www.rpki.net/",
       packages          = ["rpki", "rpki.POW", "rpki.irdb",
                            "rpki.gui", "rpki.gui.app", "rpki.gui.cacheview",
-                           "rpki.gui.routeview" ],
+                           "rpki.gui.api", "rpki.gui.routeview" ],
       ext_modules       = [pow],
-      package_data      = {'rpki.gui.app': ['migrations/*.py', 'templates/*.html', 'templates/*/*.html', 'templatetags/*.py'],
-                           'rpki.gui.cacheview': ['templates/*/*.html']},
+      package_data      = {
+          'rpki.gui.app': ['migrations/*.py', 'static/*/*',
+                           'templates/*.html', 'templates/*/*.html',
+                           'templatetags/*.py'],
+          'rpki.gui.cacheview': ['templates/*/*.html']
+      },
       data_files	= data_files)

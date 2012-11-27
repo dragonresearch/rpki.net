@@ -30,7 +30,7 @@ from rpki.resource_set import (resource_set_as, resource_set_ipv4,
                                resource_range_ipv6)
 from rpki.left_right import list_received_resources_elt
 from rpki.irdb.zookeeper import Zookeeper
-from rpki.gui.app import models, settings
+from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
 
 from django.contrib.auth.models import User
@@ -108,25 +108,6 @@ def list_received_resources(log, conf):
                                               prefix_max=rng.max)
         else:
             print >>log, "error: unexpected pdu from rpkid type=%s" % type(pdu)
-
-
-def config_from_template(dest, a):
-    """
-    Create a new rpki.conf file from a generic template.  Go line by line
-    through the template and substitute directives from the dictionary 'a'.
-
-    """
-    with open(dest, 'w') as f:
-        for r in open(settings.RPKI_CONF_TEMPLATE):
-            words = r.split()
-            if words:
-                word = words[0].strip()
-                if word in a:
-                    print >>f, "%s\t\t\t\t= %s\n" % (word, a[word])
-                else:
-                    print >>f, r,
-            else:
-                print >>f, r,
 
 
 def str_to_resource_range(prefix):

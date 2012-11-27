@@ -340,7 +340,7 @@ case $enable_ca_tools in
 		if test $have_acceptable_django = no
 		then
 			ok=no
-			AC_MSG_WARN([The RPKI CA tools require Django 1.2 or higher.])
+			AC_MSG_WARN([The RPKI CA tools require Django 1.3 or higher.])
 		fi
 		if test $have_vobject = no
 		then

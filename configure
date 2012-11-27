@@ -4409,8 +4409,8 @@ $as_echo "$as_me: WARNING: I can't find Python.h.  Python sources are required t
 		if test $have_acceptable_django = no
 		then
 			ok=no
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django 1.2 or higher." >&5
-$as_echo "$as_me: WARNING: The RPKI CA tools require Django 1.2 or higher." >&2;}
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django 1.3 or higher." >&5
+$as_echo "$as_me: WARNING: The RPKI CA tools require Django 1.3 or higher." >&2;}
 		fi
 		if test $have_vobject = no
 		then

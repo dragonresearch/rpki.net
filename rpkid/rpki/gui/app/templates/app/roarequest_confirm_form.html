@@ -10,36 +10,36 @@
     <div class='alert alert-block-message alert-warning'>
       <p><strong>Please confirm</strong> that you would like to create the following ROA.
       The accompanying table indicates how the validation status may change as a result.
+    </div>
 
-      <table class='table table-condensed table-striped'>
-	<tr>
-	  <th>AS</th>
-	  <th>Prefix</th>
-	  <th>Max Length</th>
-	</tr>
-	<tr>
-	  <td>{{ asn }}</td>
-	  <td>{{ prefix }}</td>
-	  <td>{{ max_prefixlen }}</td>
-	</tr>
-      </table>
+    <table class='table table-condensed table-striped'>
+      <tr>
+	<th>AS</th>
+	<th>Prefix</th>
+	<th>Max Length</th>
+      </tr>
+      <tr>
+	<td>{{ asn }}</td>
+	<td>{{ prefix }}</td>
+	<td>{{ max_prefixlen }}</td>
+      </tr>
+    </table>
 
-      <form method='POST' action='{% url rpki.gui.app.views.roa_create_confirm %}'>
-	{% csrf_token %}
-	{% include "app/bootstrap_form.html" %}
+    <form method='POST' action='{% url rpki.gui.app.views.roa_create_confirm %}'>
+      {% csrf_token %}
+      {% include "app/bootstrap_form.html" %}
 
-	<div class='form-actions'>
-	  <input class='btn btn-primary' type='submit' value='Create'/>
-	  <a class='btn' href='{% url rpki.gui.app.views.dashboard %}'>Cancel</a>
-	</div>
-      </form>
-    </div><!-- /alert-message -->
+      <div class='form-actions'>
+	<input class='btn btn-primary' type='submit' value='Create'/>
+	<a class='btn' href='{% url rpki.gui.app.views.dashboard %}'>Cancel</a>
+      </div>
+    </form>
   </div>
 
   <div class='span6'>
     <h2>Matched Routes</h2>
 
-    <table style='table table-striped table-condensed'>
+    <table class='table table-striped table-condensed'>
       <tr>
         <th>Prefix</th>
         <th>Origin AS</th>

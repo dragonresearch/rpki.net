@@ -584,6 +584,7 @@ class GhostbusterDeleteView(GenericDeleteView):
 @handle_required
 def ghostbuster_create(request):
     conf = request.session['handle']
+    logstream = request.META['wsgi.errors']
     if request.method == 'POST':
         form = forms.GhostbusterRequestForm(request.POST, request.FILES,
                                             conf=conf)
@@ -591,6 +592,7 @@ def ghostbuster_create(request):
             obj = form.save(commit=False)
             obj.vcard = glue.ghostbuster_to_vcard(obj)
             obj.save()
+            Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.GhostbusterRequestForm(conf=conf)
@@ -602,6 +604,7 @@ def ghostbuster_create(request):
 def ghostbuster_edit(request, pk):
     conf = request.session['handle']
     obj = get_object_or_404(conf.ghostbusters, pk=pk)
+    logstream = request.META['wsgi.errors']
     if request.method == 'POST':
         form = forms.GhostbusterRequestForm(request.POST, request.FILES,
                                             conf=conf, instance=obj)
@@ -609,6 +612,7 @@ def ghostbuster_edit(request, pk):
             obj = form.save(commit=False)
             obj.vcard = glue.ghostbuster_to_vcard(obj)
             obj.save()
+            Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.GhostbusterRequestForm(conf=conf, instance=obj)

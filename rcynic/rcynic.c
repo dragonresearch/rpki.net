@@ -279,6 +279,7 @@ static const struct {
   QB(wrong_object_version,		"Wrong object version")		    \
   QW(aia_doesnt_match_issuer,		"AIA doesn't match issuer")	    \
   QW(bad_cms_si_signed_attributes, 	"Bad CMS SI signed attributes")	    \
+  QW(bad_signed_object_uri,		"Bad signedObject URI")		    \
   QW(crldp_names_newer_crl,		"CRLDP names newer CRL")	    \
   QW(digest_mismatch,			"Digest mismatch")		    \
   QW(ee_certificate_with_1024_bit_key, 	"EE certificate with 1024 bit key") \
@@ -3609,6 +3610,9 @@ static int check_x509(rcynic_ctx_t *rc,
     log_validation_status(rc, uri, sia_extension_missing, generation);
     goto done;
   }
+
+  if (certinfo->signedobject.s[0] && strcmp(uri->s, certinfo->signedobject.s))
+    log_validation_status(rc, uri, bad_signed_object_uri, generation);
 
   if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL)) != NULL) {
     ex_count--;

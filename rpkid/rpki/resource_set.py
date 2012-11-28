@@ -156,6 +156,22 @@ class resource_range_ip(resource_range):
       raise rpki.exceptions.MustBePrefix
     return prefixlen
 
+  @property
+  def can_be_prefix(self):
+    """
+    Boolean property indicating whether this range can be expressed as
+    a prefix.
+
+    This just calls .prefixlen() to do the work, so that we can keep
+    the logic in one place.  This property is useful primarily in
+    context where catching an exception isn't practical.
+    """
+    try:
+      self.prefixlen()
+      return True
+    except rpki.exceptions.MustBePrefix:
+      return False
+
   def __str__(self):
     """
     Convert a resource_range_ip to string format.

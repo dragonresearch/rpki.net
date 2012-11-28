@@ -188,10 +188,15 @@ class resource_range_ip(resource_range):
     """
     r = re_address_range.match(x)
     if r:
-      return cls(rpki.POW.IPAddress(r.group(1)), rpki.POW.IPAddress(r.group(2)))
+      return cls.from_strings(r.group(1), r.group(2))
     r = re_prefix.match(x)
     if r:
-      return cls.make_prefix(rpki.POW.IPAddress(r.group(1)), int(r.group(2)))
+      a = rpki.POW.IPAddress(r.group(1))
+      if cls is resource_range_ip and a.version == 4:
+        cls = resource_range_ipv4
+      if cls is resource_range_ip and a.version == 6:
+        cls = resource_range_ipv6
+      return cls.make_prefix(a, int(r.group(2)))
     raise rpki.exceptions.BadIPResource, 'Bad IP resource "%s"' % (x)
 
   @classmethod

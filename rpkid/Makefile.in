@@ -1,18 +1,20 @@
 # $Id$
 
-SUBDIRS = portal-gui
+SUBDIRS		= portal-gui
 
-PYTHON = @PYTHON@
-TRANG  = @TRANG@
+PYTHON		= @PYTHON@
+TRANG		= @TRANG@
 
-SECRET_KEY = @SECRET_KEY@
-DJANGO_DIR = @DJANGO_DIR@
-VIRTUAL_ENV = @VIRTUAL_ENV@
-DJANGO_ADMIN = @DJANGO_ADMIN@
+SECRET_KEY	= @SECRET_KEY@
+DJANGO_DIR	= @DJANGO_DIR@
+VIRTUAL_ENV	= @VIRTUAL_ENV@
+DJANGO_ADMIN	= @DJANGO_ADMIN@
 
-CFLAGS	= @CFLAGS@
-LDFLAGS = @LDFLAGS@ @POW_LDFLAGS@
-LIBS	= @LIBS@
+CFLAGS		= @CFLAGS@
+LDFLAGS		= @LDFLAGS@ @POW_LDFLAGS@
+LIBS		= @LIBS@
+
+INSTALL		= @INSTALL@ -m 555 
 
 prefix		= @prefix@
 exec_prefix	= @exec_prefix@
@@ -30,6 +32,12 @@ abs_builddir	= @abs_builddir@
 abs_top_srcdir	= @abs_top_srcdir@
 abs_top_builddir= @abs_top_builddir@
 srcdir          = @srcdir@
+
+# PID files seem to go into /var/run/ on every platform we support.
+# We could make this an autoconf substitution if anything ever cares,
+# but let's keep it simple for now.
+
+PID_DIR		= /var/run/rpkid
 
 SETUP_PY = \
 	AC_CFLAGS='${CFLAGS}' \
@@ -104,6 +112,7 @@ install::
 	@echo
 	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
 	@echo
+	if test -d ${PID_DIR}; then :; else ${INSTALL} -d ${PID_DIR}; fi
 
 uninstall deinstall::
 	xargs rm -fv <installed

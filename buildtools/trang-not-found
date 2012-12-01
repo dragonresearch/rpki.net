@@ -17,4 +17,13 @@ Suppressing this warning for file: $2
 
 EOF
 
-/usr/bin/touch "$2"
+# You can thank Red Hat for the following silliness.
+
+for touch in /usr/bin/touch /bin/touch
+do
+    if /bin/test -x $touch
+    then
+	$touch "$2"
+	exit
+    fi
+done

@@ -166,7 +166,7 @@ if test -f ${libdir}/libresolv.so.2; then
     shared_libraries="${shared_libraries} ${libdir}/libresolv.so.2"
 fi
 
-for shared in ${libdir}/ld*.so $shared_libraries ${libdir}/libnss*.so.*
+for shared in ${libdir}/*ld*.so* $shared_libraries ${libdir}/libnss*.so.*
 do
     if test -r "${jaildir}/${shared}"
     then

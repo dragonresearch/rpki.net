@@ -49,6 +49,7 @@ Packages you will need:
 
     # python
     # python-dev
+    # python-setuptools
 
 * http://codespeak.net/lxml/, a Pythonic interface to the Gnome LibXML2
   libraries. lxml in turn requires the LibXML2 C libraries.

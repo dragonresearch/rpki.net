@@ -124,8 +124,17 @@ Packages you will need:
   ease the pain of changes to the web portal database schema.
 
   o FreeBSD: /usr/ports/databases/py-south
-  o Ubuntu: do not use the python-django-south 0.7.3 package in 12.04 LTS as it
-    is known not to work
+  o Ubuntu: Do not use the python-django-south 0.7.3 package in 12.04 LTS, as
+    it is known not to work.
+    Instead, download and install the latest version (eg, south-0.7.6.tar.gz)
+    by doing something like:
+
+      south=south-0.7.6
+      wget -nd http://www.aeracode.org/releases/south/$south.tar.gz
+      tar xzf $south.tar.gz
+      cd $south
+      python setup.py develop
+      python setup.py install
 
 ***** Configure and build *****
 

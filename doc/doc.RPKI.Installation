@@ -126,15 +126,9 @@ Packages you will need:
   o FreeBSD: /usr/ports/databases/py-south
   o Ubuntu: Do not use the python-django-south 0.7.3 package in 12.04 LTS, as
     it is known not to work.
-    Instead, download and install the latest version (eg, south-0.7.6.tar.gz)
-    by doing something like:
+    Instead, install a recent version using easy_install (or pip, or ...):
 
-      south=south-0.7.6
-      wget -nd http://www.aeracode.org/releases/south/$south.tar.gz
-      tar xzf $south.tar.gz
-      cd $south
-      python setup.py develop
-      python setup.py install
+      easy_install South==0.7.6
 
 ***** Configure and build *****
 

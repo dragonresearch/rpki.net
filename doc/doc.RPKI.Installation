@@ -52,11 +52,16 @@ Packages you will need:
     # python-setuptools
 
 * http://codespeak.net/lxml/, a Pythonic interface to the Gnome LibXML2
-  libraries. lxml in turn requires the LibXML2 C libraries.
+  libraries. lxml in turn requires the LibXML2 C libraries; on some platforms,
+  some of the LibXML2 utilities are packaged separately and may not be pulled
+  in as dependencies.
 
   o FreeBSD: /usr/ports/devel/py-lxml
   o Fedora: python-lxml.i386
-  o Ubuntu: python-lxml
+  o Ubuntu:
+
+    # python-lxml
+    # libxml2-utils
 
 * http://www.mysql.com/, MySQL client and server. How these are packaged varies
   by platform, on some platforms the client and server are separate packages,

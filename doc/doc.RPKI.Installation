@@ -124,6 +124,7 @@ Packages you will need:
   wsgi, its default configuration, you will need to install mod_wsgi v3
 
   o FreeBSD: /usr/ports/www/mod_wsgi3
+  o Ubuntu: libapache2-mod-wsgi
 
 * http://south.aeracode.org/ Django South 0.7.6 or later. This tool is used to
   ease the pain of changes to the web portal database schema.

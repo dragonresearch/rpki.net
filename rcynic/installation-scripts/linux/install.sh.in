@@ -229,9 +229,14 @@ EOF
 *)
     /bin/cat <<EOF
 
-	You'll need to add a crontab entry running the following command as root:
+	You'll need to add a crontab entry running one of the the following command as root:
 
-	    /usr/sbin/chroot -u $jailuser -g $jailgroup $jaildir /bin/rcynic -c /etc/rcynic.conf
+	    /usr/sbin/chroot --userspec $jailuser:$jailgroup $jaildir /bin/rcynic -c /etc/rcynic.conf
+
+	    /usr/bin/chrootuid $jaildir rcynic /bin/rcynic -c /etc/rcynic.conf
+
+	We recommend the latter, as chrootuid has proven more reliable for us than the chroot
+	program that is included on some GNU/Linux platforms.
 
 	Please try to pick a random time for this, don't just run it on the hour,
 	or at local midnight, or, worst of all, at midnight UTC.

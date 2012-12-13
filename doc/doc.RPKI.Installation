@@ -135,6 +135,18 @@ Packages you will need:
 
       easy_install South==0.7.6
 
+* ftp://ftp.porcupine.org/pub/security/chrootuid1.3.tar.gz or later. This isn't
+  needed on all platforms, but on systems without a usable system chroot
+  program, you'll need this if you're going to set up rcynic to run in a chroot
+  jail (recommended). At present, all GNU/Linux systems will require this,
+  because the chroot program, while present, is broken in mysterious ways on
+  some of them and we haven't figured out a reliable autoconf test for the
+  usable versions.
+
+  o FreeBSD: not needed (but it's in /usr/ports/security/chrootuid if you
+    really want it for some reason)
+  o Ubuntu: chrootuid
+
 ***** Configure and build *****
 
 Once you have the prerequesite packages installed, you should be able to build

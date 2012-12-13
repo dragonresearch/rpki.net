@@ -104,15 +104,21 @@ This assumes that you have done
   mkdir /var/rpki-rtr
   chown rcynic /var/rpki-rtr
 
-On Linux, the script might look like this:
+On GNU/Linux systems, the script might look like this if you use the chrootuid
+program:
 
   #!/bin/sh -
-  /usr/sbin/chroot --userspec rcynic:rcynic /var/rcynic /bin/rcynic -c /etc/
-  rcynic.conf || exit
+  /usr/bin/chrootuid /var/rcynic rcynic /bin/rcynic -c /etc/rcynic.conf || exit
   /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /var/www/rcynic
   cd /var/rpki-rtr
   /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
   data/authenticated'
+
+If you use the chroot program instead of chrootuid, change the line that
+invokes rcynic to:
+
+  /usr/sbin/chroot --userspec rcynic:rcynic /var/rcynic /bin/rcynic -c /etc/
+  rcynic.conf || exit
 
 ***** Running a hierarchical rsync configuration *****
 

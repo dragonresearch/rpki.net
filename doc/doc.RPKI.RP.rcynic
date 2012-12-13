@@ -567,9 +567,9 @@ chrootuid1.3.tar.gz.
 
 Warning::
 
-     The chroot program included in at least some Linux distributions is
-     not adaquate to this task, you need a wrapper that knows how to drop
-     privileges after performing the chroot() operation itself. If in
+     The chroot program included in at least some GNU/Linux distributions
+     is not adaquate to this task. You need a wrapper that knows how to
+     drop privileges after performing the chroot() operation itself. If in
      doubt, use chrootuid.
 
 Unfortunately, the precise details of setting up a proper chroot jail vary

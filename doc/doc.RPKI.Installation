@@ -43,7 +43,7 @@ Packages you will need:
 
   o FreeBSD:
 
-    # /usr/ports/lang/python27
+    # /usr/ports/lang/python27 (python)
 
   o Ubuntu:
 
@@ -56,7 +56,7 @@ Packages you will need:
   some of the LibXML2 utilities are packaged separately and may not be pulled
   in as dependencies.
 
-  o FreeBSD: /usr/ports/devel/py-lxml
+  o FreeBSD: /usr/ports/devel/py-lxml (py27-lxml)
   o Fedora: python-lxml.i386
   o Ubuntu:
 
@@ -73,8 +73,8 @@ Packages you will need:
 
   o FreeBSD:
 
-    # /usr/ports/databases/mysql55-server
-    # /usr/ports/databases/mysql55-client
+    # /usr/ports/databases/mysql55-server (mysql55-server)
+    # /usr/ports/databases/mysql55-client (mysql55-client)
 
   o Ubuntu:
 
@@ -84,32 +84,32 @@ Packages you will need:
 * http://sourceforge.net/projects/mysql-python/, the Python "db" interface to
   MySQL.
 
-  o FreeBSD: /usr/ports/databases/py-MySQLdb
+  o FreeBSD: /usr/ports/databases/py-MySQLdb (py27-MySQLdb)
   o Fedora: MySQL-python.i386
   o Ubuntu: python-mysqldb
 
 * http://www.djangoproject.com/, the Django web user interface toolkit. The GUI
   interface to the CA tools requires this. Django 1.3 or later is required.
 
-  o FreeBSD: /usr/ports/www/py-django
+  o FreeBSD: /usr/ports/www/py-django (py27-django)
   o Ubuntu: python-django
 
 * http://vobject.skyhouseconsulting.com/, a Python library for parsing VCards.
   The GUI uses this to parse the payload of RPKI Ghostbuster objects.
 
-  o FreeBSD: /usr/ports/deskutils/py-vobject
+  o FreeBSD: /usr/ports/deskutils/py-vobject (py27-vobject)
   o Ubuntu: python-vobject
 
 * http://pyyaml.org/. Several of the test programs use PyYAML to parse a YAML
   description of a simulated allocation hierarchy to test.
 
-  o FreeBSD: /usr/ports/devel/py-yaml
+  o FreeBSD: /usr/ports/devel/py-yaml (py27-yaml)
   o Ubuntu: python-yaml
 
 * http://xmlsoft.org/XSLT/. Some of the test code uses xsltproc, from the Gnome
   LibXSLT package.
 
-  o FreeBSD: /usr/ports/textproc/libxslt
+  o FreeBSD: /usr/ports/textproc/libxslt (libxslt)
   o Ubuntu: xsltproc
 
 * http://www.rrdtool.org/. The relying party tools use this to generate
@@ -117,19 +117,19 @@ Packages you will need:
   validator. The rest of the software will work fine without rrdtool, you just
   won't be able to generate those graphics.
 
-  o FreeBSD: /usr/ports/databases/rrdtool
+  o FreeBSD: /usr/ports/databases/rrdtool (rrdtool)
   o Ubuntu: rrdtool
 
 * http://www.freshports.org/www/mod_wsgi3/ If you intend to run the GUI with
   wsgi, its default configuration, you will need to install mod_wsgi v3
 
-  o FreeBSD: /usr/ports/www/mod_wsgi3
+  o FreeBSD: /usr/ports/www/mod_wsgi3 (app22-mod_wsgi)
   o Ubuntu: libapache2-mod-wsgi
 
 * http://south.aeracode.org/ Django South 0.7.6 or later. This tool is used to
   ease the pain of changes to the web portal database schema.
 
-  o FreeBSD: /usr/ports/databases/py-south
+  o FreeBSD: /usr/ports/databases/py-south (py27-south)
   o Ubuntu: Do not use the python-django-south 0.7.3 package in 12.04 LTS, as
     it is known not to work.
     Instead, install a recent version using easy_install (or pip, or ...):

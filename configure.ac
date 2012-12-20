@@ -416,12 +416,6 @@ AC_CONFIG_FILES([Makefile
 		 utils/scan_roas/Makefile
 		 utils/uri/Makefile])
 
-case $host_os in
-linux*)
-	AC_CONFIG_FILES([rcynic/installation-scripts/linux/install.sh])
-	;;
-esac
-
 # OpenSSL has its own build system that bears no relationship to
 # anything but itself, and our use of it is a bit weird, so this is a
 # BFMI (Brute Force and Massive Ignorance) job.

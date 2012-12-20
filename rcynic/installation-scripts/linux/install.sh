@@ -10,9 +10,6 @@
 : ${jailgroup="rcynic"}
 : ${setupcron="NO"}
 
-AWK='@AWK@'
-SORT='@SORT@'
-
 echo "Setting up \"${jaildir}\" as a chroot jail for rcynic."
 
 if ${AWK} -F: -v jailgroup="${jailgroup}" 'BEGIN {status = 1} $1 == jailgroup {status = 0} END {exit status}' /etc/group
@@ -62,7 +59,7 @@ if ! /bin/mkdir -p -v -m 555		\
     "${jaildir}/bin"			\
     "${jaildir}/dev"			\
     "${jaildir}/etc/trust-anchors"	\
-    "${jaildir}/${libdir}"			\
+    "${jaildir}/${libdir}"		\
     "${jaildir}/usr/lib"		\
     "${jaildir}/data"
 then

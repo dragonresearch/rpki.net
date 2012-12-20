@@ -15,6 +15,7 @@ LDFLAGS = @LDFLAGS@ @LD_STATIC_FLAG@
 LIBS = @LIBS@
 
 AWK = @AWK@
+SORT= @SORT@
 PYTHON = @PYTHON@
 RRDTOOL = @RRDTOOL@
 
@@ -52,7 +53,7 @@ test: ${BIN}
 	fi
 
 install: ${BIN} installation-scripts/install.sh
-	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; . ./install.sh
+	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; AWK="${AWK}"; SORT="${SORT}"; . ./install.sh
 
 uninstall deinstall:
 	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; . ./deinstall.sh

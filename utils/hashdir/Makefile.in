@@ -48,6 +48,9 @@ install: all
 	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -d ${DESTDIR}${bindir}; fi
 	${INSTALL} ${BIN} ${DESTDIR}${bindir}
 
+installation-manifest:
+	echo >>${abs_top_builddir}/installation-manifest F %%BINDIR%%/${BIN}
+
 deinstall uninstall:
 	rm -f ${DESTDIR}${bindir}/${BIN}
 

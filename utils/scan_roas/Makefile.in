@@ -48,5 +48,8 @@ install: all
 deinstall uninstall:
 	rm -f ${DESTDIR}${bindir}/${BIN}
 
+installation-manifest:
+	echo >>${abs_top_builddir}/installation-manifest F %%BINDIR%%/${BIN}
+
 distclean: clean
 	rm -f Makefile

@@ -120,6 +120,17 @@ uninstall deinstall::
 distclean::
 	rm -f installed
 
+installation-manifest::
+	for i in ${SCRIPTS}; do echo >>${abs_top_builddir}/installation-manifest F %%SBINDIR%%/$$i; done
+	for i in ${AUX_SCRIPTS}; do echo >>${abs_top_builddir}/installation-manifest F %%LIBEXECDIR%%/$$i; done
+	find rpki -name .svn -prune -o -name TODO -prune -o -type f -print  | awk '\
+		{print "F %%PYTHON_SITELIBDIR%%/" $$0} \
+		/\.py$$/ {print "F %%PYTHON_SITELIBDIR%%/" $$0 "c"} \
+		' >>${abs_top_builddir}/installation-manifest
+	find rpki -name .svn -prune -o -type d -print | awk '\
+		{print "D %%PYTHON_SITELIBDIR%%/" $$0} \
+		' >>${abs_top_builddir}/installation-manifest
+
 dont-run-trang:
 	touch *.rng
 
@@ -188,7 +199,7 @@ distclean:: clean docclean
 	cd tests; ${MAKE} $@
 	rm -f TAGS Makefile
 
-all install clean test distclean deinstall uninstall::
+all install clean test distclean deinstall uninstall installation-manifest::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
 # Scripts

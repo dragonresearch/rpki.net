@@ -17,7 +17,7 @@ rpki/sk_roa.h: rpki/roa.h
 clean:
 	rm -f *.h.tmp
 
-test install deinstall uninstall:
+test install deinstall uninstall installation-manifest:
 	@true
 
 distclean: clean

@@ -74,3 +74,6 @@ sandblast:
 
 test: all
 	cd tests; ${MAKE} $@
+
+installation-manifest:
+	@true

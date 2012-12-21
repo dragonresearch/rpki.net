@@ -84,16 +84,18 @@ USE_MYSQL=      server
 USE_APACHE_RUN= 22+
 USE_GNOME=      libxml2 libxslt
 
-# These should be split up into BUILD, RUN, ... DEPENDS
+# Split between dependency targets is somewhat arbitrary here, much of what's
+# listed as BUILD_DEPENDS might be better as RUN_DEPENDS.
 
 BUILD_DEPENDS+= ${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \\
                 ${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb       \\
                 ${PYTHON_PKGNAMEPREFIX}django>=1.3:${PORTSDIR}/www/py-django            \\
                 ${PYTHON_PKGNAMEPREFIX}vobject>0:${PORTSDIR}/deskutils/py-vobject       \\
                 ${PYTHON_PKGNAMEPREFIX}yaml>0:${PORTSDIR}/devel/py-yaml                 \\
-                rrdtool>0:${PORTSDIR}/databases/rrdtool                                 \\
-                ${APACHE_PKGNAMEPREFIX}mod_wsgi>3:${PORTSDIR}/www/mod_wsgi3             \\
                 ${PYTHON_PKGNAMEPREFIX}south>=0.7.6:${PORTSDIR}/databases/py-south
+
+RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool                                 \\
+                ${APACHE_PKGNAMEPREFIX}mod_wsgi>3:${PORTSDIR}/www/mod_wsgi3
 
 .include <bsd.port.mk>
 ''' % { "portname"      : base,

@@ -127,7 +127,8 @@ print "Running make configure"
 # Not sure what this is about, seems to trigger on empty pkg-plist, so just disable
 # this while generating pkg-plist so we can leave proper USE_GNOME setting in Makefile.
 
-subprocess.check_call(("make", "configure", "DISTDIR=" + os.getcwd(), "USE_GNOME="),
+subprocess.check_call(("make", "configure", "DISTDIR=" + os.getcwd(),
+                       "USE_GNOME=", "NO_DEPENDS=yes"),
                       cwd = base)
 
 print "Running make installation-manifest"

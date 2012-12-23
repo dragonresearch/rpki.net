@@ -121,7 +121,9 @@ distclean::
 	rm -f installed
 
 installation-manifest::
-	for i in ${SCRIPTS}; do echo >>${abs_top_builddir}/installation-manifest F %%SBINDIR%%/$$i; done
+	echo >>${abs_top_builddir}/installation-manifest D %%PYTHON_SITELIBDIR%%/rpki/POW
+	echo >>${abs_top_builddir}/installation-manifest F %%PYTHON_SITELIBDIR%%/rpki/POW/${POW_SO}
+	for i in ${SCRIPTS}; do echo >>${abs_top_builddir}/installation-manifest F %%SBINDIR%%/$${i##*}; done
 	for i in ${AUX_SCRIPTS}; do echo >>${abs_top_builddir}/installation-manifest F %%LIBEXECDIR%%/$$i; done
 	find rpki -name .svn -prune -o -name TODO -prune -o -type f -print  | awk '\
 		{print "F %%PYTHON_SITELIBDIR%%/" $$0} \

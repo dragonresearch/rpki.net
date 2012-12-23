@@ -159,7 +159,7 @@ with open(fn, "r") as f:
     kind, fn = line.rstrip("/").split()
     dir, sep, tail =  fn.partition("/")
     if dir in dirmap:
-      fn = os.path.join(dirmap[dir], tail)
+      fn = dirmap[dir] + sep + tail
     else:
       print "Warning: No mapping for %r in %r, blundering onwards" % (dir, fn)
     if kind == "F":

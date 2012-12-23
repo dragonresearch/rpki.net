@@ -51,9 +51,9 @@ install: $(BUILD)
 	${INSTALL} -m 644 settings.py ${SYSCONFDIR}
 	# this would be better handled with "django-admin collectstatic" but makes the install
 	# process harder for the end user.
-	${INSTALL} -m 644 -t $(INSTDIR)/media/css $(srcdir)/../rpki/gui/app/static/css/*
-	${INSTALL} -m 644 -t $(INSTDIR)/media/js $(srcdir)/../rpki/gui/app/static/js/*
-	${INSTALL} -m 644 -t $(INSTDIR)/media/img $(srcdir)/../rpki/gui/app/static/img/*
+	${INSTALL} -m 644 $(srcdir)/../rpki/gui/app/static/css/* $(INSTDIR)/media/css
+	${INSTALL} -m 644 $(srcdir)/../rpki/gui/app/static/js/*  $(INSTDIR)/media/js
+	${INSTALL} -m 644 $(srcdir)/../rpki/gui/app/static/img/* $(INSTDIR)/media/img
 
 deinstall uninstall:
 	rm -rf $(INSTDIR)/media $(INSTDIR)/wsgi

@@ -84,7 +84,10 @@ USE_MYSQL=      server
 USE_APACHE_RUN= 22+
 USE_GNOME=      libxml2 libxslt
 
-# Split between dependency targets is somewhat arbitrary here, much of what's
+# For OpenSSL, not needed otherwise
+USE_PERL5_BUILD=yes
+
+# Split between dependency targets is somewhat arbitrary here, much of what is
 # listed as BUILD_DEPENDS might be better as RUN_DEPENDS.
 
 BUILD_DEPENDS+= ${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \\
@@ -92,7 +95,8 @@ BUILD_DEPENDS+= ${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml         
                 ${PYTHON_PKGNAMEPREFIX}django>=1.3:${PORTSDIR}/www/py-django            \\
                 ${PYTHON_PKGNAMEPREFIX}vobject>0:${PORTSDIR}/deskutils/py-vobject       \\
                 ${PYTHON_PKGNAMEPREFIX}yaml>0:${PORTSDIR}/devel/py-yaml                 \\
-                ${PYTHON_PKGNAMEPREFIX}south>=0.7.6:${PORTSDIR}/databases/py-south
+                ${PYTHON_PKGNAMEPREFIX}south>=0.7.6:${PORTSDIR}/databases/py-south      \\
+                makedepend>0:${PORTSDIR}/devel/makedepend
 
 RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool                                 \\
                 ${APACHE_PKGNAMEPREFIX}mod_wsgi>3:${PORTSDIR}/www/mod_wsgi3

@@ -63,7 +63,7 @@ installation-manifest:
 
 distclean: clean
 	cd static-rsync; ${MAKE} $@
-	rm -f installation-scripts/linux/install.sh Makefile
+	rm -f Makefile
 
 COMPILE_PYTHON = \
 	AC_PYTHON_INTERPRETER='${PYTHON}' \

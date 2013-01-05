@@ -1,0 +1,89 @@
+# -*- Python -*-
+
+# Experimental interface between distutils and autoconf for rpki CA tools.
+# 
+# This is not yet ready for prime time.
+
+# $Id$
+#
+# Copyright (C) 2012  Internet Systems Consortium ("ISC")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+import re
+import os
+
+class Autoconf(object):
+
+  def __init__(self):
+    self._names = set()
+    self._lists = set()
+
+  def _configure_strings(self, **kwargs):
+    for k, v in kwargs.iteritems():
+      setattr(self, k, v.strip())
+    self._names.update(kwargs)
+
+  def _configure_lists(self, **kwargs):
+    self._configure_strings(**kwargs)
+    self._lists.update(kwargs)
+
+  @property
+  def build_openssl(self):
+    return "openssl" in self.TOP_LEVEL_SUBDIRS
+
+  _re = re.compile(r"\$\{[^}]+\}")
+
+  def _repl(self, m):
+    orig = m.group(0)
+    name = orig[2:-1]
+    return getattr(self, name, os.getenv(name, orig))
+
+  def _fixup(self):
+
+    done = False
+    while not done:
+      done = True
+      for name in self._names:
+        v, n = self._re.subn(self._repl, getattr(self, name))
+        if v != getattr(self, name):
+          setattr(self, name, v)
+          done = False
+
+    for name in self._lists:
+      setattr(self, name, getattr(self, name).split())
+
+ac = Autoconf()
+
+ac._configure_lists(
+  TOP_LEVEL_SUBDIRS     = '''@TOP_LEVEL_SUBDIRS@''',
+  CFLAGS                = '''@CFLAGS@''',
+  LDFLAGS               = '''@LDFLAGS@ @POW_LDFLAGS@''',
+  LIBS                  = '''@LIBS@''')
+
+ac._configure_strings(
+  prefix                = '''@prefix@''',
+  sbindir               = '''@sbindir@''',
+  abs_top_builddir      = '''@abs_top_builddir@''',
+  abs_top_srcdir        = '''@abs_top_srcdir@''',
+  abs_builddir          = '''@abs_builddir@''',
+  exec_prefix           = '''@exec_prefix@''',
+  libexecdir            = '''@libexecdir@''')
+
+ac._fixup()
+
+if __name__ == "__main__":
+  for name in ac._names:
+    print "%s: %r" % (name, getattr(ac, name))
+  print
+  print "build_openssl:", ac.build_openssl

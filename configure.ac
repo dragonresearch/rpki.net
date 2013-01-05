@@ -405,6 +405,7 @@ test $build_rpki_rtr = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rtr-origin"
 AC_SUBST(TOP_LEVEL_SUBDIRS)
 
 AC_CONFIG_FILES([Makefile
+		 ac_rpki.py
 		 h/Makefile
 		 rcynic/Makefile
 		 rcynic/static-rsync/Makefile

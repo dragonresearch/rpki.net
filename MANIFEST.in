@@ -1,0 +1,16 @@
+# $Id$
+include Makefile.in
+include README
+include ac_rpki.py.in
+include setup.py
+include configure
+include configure.ac
+graft buildtools
+graft doc
+graft h
+graft openssl
+graft rcynic
+graft rpkid
+graft rtr-origin
+graft scripts
+graft utils

@@ -38,6 +38,7 @@ from rpki.gui.app import models, forms, glue, range_list
 from rpki.resource_set import (resource_range_as, resource_range_ipv4,
                                resource_range_ipv6, roa_prefix_ipv4)
 from rpki import sundial
+import rpki.exceptions
 
 from rpki.gui.cacheview.models import ROAPrefixV4, ROA
 from rpki.gui.routeview.models import RouteOrigin
@@ -195,6 +196,16 @@ def dashboard(request):
     my_prefixes_v6 = range_list.RangeList([obj.as_resource_range() for obj in prefixes_v6])
 
     unused_prefixes = my_prefixes.difference(used_prefixes)
+    # monkey-patch each object with a boolean value indicating whether or not
+    # it is a prefix.  We have to do this here because in the template there is
+    # no way to catch the MustBePrefix exception.
+    for x in unused_prefixes:
+        try:
+            x.prefixlen()
+            x.is_prefix = True
+        except rpki.exceptions.MustBePrefix:
+            x.is_prefix = False
+
     unused_prefixes_v6 = my_prefixes_v6.difference(used_prefixes_v6)
 
     clients = models.Client.objects.all() if request.user.is_superuser else None
@@ -487,7 +498,12 @@ def roa_create(request):
                            'max_prefixlen': max_prefixlen,
                            'routes': routes})
     else:
-        form = forms.ROARequest()
+        # pull initial values from query parameters
+        d = {}
+        for s in ('asn', 'prefix'):
+            if s in request.GET:
+                d[s] = request.GET[s]
+        form = forms.ROARequest(initial=d)
 
     return render(request, 'app/roarequest_form.html', {'form': form})
 

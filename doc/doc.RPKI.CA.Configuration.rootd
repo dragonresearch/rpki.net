@@ -142,7 +142,11 @@ generate a root certificate as follows:
   $ openssl x509 -req -sha256             \
           -signkey root.key -in root.req  \
           -outform DER -out root.cer      \
-          -extfile root.conf -extensions x509v3_extensions
+          -extfile root.conf -extensions x509v3_extensions \
+          -days 1825
+
+You may want to shorten the five year expire time (1825 days), which is a bit
+long. It is a root certificate, so a longer expire is not unusual.
 
 The generated root.cer must be copied to the publication directory as defined
 in rpki.conf,

@@ -120,6 +120,18 @@ In addition, your rcynic script should also have
 
 after the rcynic run.
 
+****** Expiration Checking ******
+
+The web portal can notify users when it detects that RPKI certificates will
+expire in the near future. Run the following script as a cron job, perhaps once
+a night:
+
+  /usr/local/sbin/rpkigui-check-expired
+
+By default it will warn of expiration 14 days in advance, but this may be
+changed by using the -t command line option and specifying how many days in
+advance to check.
+
 ****** Using the GUI ******
 
 ****** GUI Examples ******

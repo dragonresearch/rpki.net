@@ -65,6 +65,7 @@
     <p>The following resources have not been allocated to a child, nor appear in a ROA.
 
     {% if unused_asns %}
+    <h3>ASNs</h3>
     <ul>
       {% for asn in unused_asns %}
       <li>AS{{ asn }}
@@ -73,19 +74,39 @@
     {% endif %}
 
     {% if unused_prefixes %}
-    <ul>
+    <h3>IPv4</h3>
+    <table class="table table-condensed table-striped">
+      <tr><th>Prefix</th><th>Action</th></tr>
       {% for addr in unused_prefixes %}
-      <li>{{ addr }}
+      <tr>
+	<td>{{ addr }}</td>
+	<td>
+	  {# if addr can be represented as a prefix, add a button for issuing a roa #}
+	  {% if addr.is_prefix %}
+	  <a class="btn btn-mini" title="Create ROA using this prefix" href="{% url rpki.gui.app.views.roa_create %}?prefix={{ addr }}">ROA</a>
+	  {% endif %}
+	</td>
+      </tr>
       {% endfor %} <!-- addrs -->
-    </ul>
+    </table>
     {% endif %}
 
     {% if unused_prefixes_v6 %}
-    <ul>
+    <h3>IPv6</h3>
+    <table class="table table-condensed table-striped">
+      <tr><th>Prefix</th><th></th></tr>
       {% for addr in unused_prefixes_v6 %}
-      <li>{{ addr }}
+      <tr>
+	<td>{{ addr }}</td>
+	<td>
+	  {# if addr can be represented as a prefix, add a button for issuing a roa #}
+	  {% if addr.is_prefix %}
+	  <a class="btn btn-mini" title='create roa using this prefix' href="{% url rpki.gui.app.views.roa_create %}?prefix={{ addr }}">roa</a>
+	  {% endif %}
+	</td>
+      </tr>
       {% endfor %} <!-- addrs -->
-    </ul>
+    </table>
     {% endif %}
 
   </div><!-- /span -->

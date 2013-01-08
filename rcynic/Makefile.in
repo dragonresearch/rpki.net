@@ -24,6 +24,9 @@ abs_top_builddir = @abs_top_builddir@
 
 host_os = @host_os@
 
+USE_RCYNIC_JAIL = @USE_RCYNIC_JAIL@
+RCYNIC_JAIL_DIRECTORY = @RCYNIC_JAIL_DIRECTORY@
+
 SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status
 
 all: ${BIN} ${SCRIPTS}
@@ -53,7 +56,7 @@ test: ${BIN}
 	fi
 
 install: ${BIN} installation-scripts/install.sh
-	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; AWK="${AWK}"; SORT="${SORT}"; . ./install.sh
+	cd installation-scripts; host_os="${host_os}"; jaildir="${RCYNIC_JAIL_DIR}" DESTDIR="${DESTDIR}"; AWK="${AWK}"; SORT="${SORT}"; . ./install.sh
 
 uninstall deinstall:
 	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; . ./deinstall.sh

@@ -26,6 +26,7 @@ fi
 # Put the user option stuff up front.
 
 AC_ARG_WITH([system_openssl], [AS_HELP_STRING([--with-system-openssl], [Link against system copy of OpenSSL])],    [], [with_system_openssl=auto])
+AC_ARG_WITH([rcynic-jail],    [AS_HELP_STRING([--with-rcynic-jail],    [Set location of rcynic jail directory])],  [], [with_rcynic_jail=auto])
 AC_ARG_ENABLE([openssl_asm],  [AS_HELP_STRING([--disable-openssl-asm], [Don't let OpenSSL build assembler code])], [], [enable_openssl_asm=auto])
 AC_ARG_ENABLE([ca_tools],     [AS_HELP_STRING([--disable-ca-tools],    [Don't build any of the CA tools])],        [], [enable_ca_tools=yes])
 AC_ARG_ENABLE([rpki_rtr],     [AS_HELP_STRING([--disable-rpki-rtr],    [Don't build the rpki-rtr code])],	   [], [enable_rpki_rtr=yes])
@@ -219,6 +220,38 @@ case $enable_openssl_asm in
 		AC_MSG_ERROR([Unrecognized value for --enable-openssl-asm: $enable_openssl_asm])
 		;;
 esac     
+
+# Figure out where to put rcynic jail.  In the long run I suspect we
+# will want to use autoconf file substitution here to let us include
+# different chunks of Makefile code depending on whether we're
+# building a jail or not, but for today all I really care about is
+# being able to set the jail directory so I can write a FreeBSD port.
+
+AC_MSG_CHECKING([where to put rcynic jail])
+
+case $with_rcynic_jail in
+	yes|auto)
+		RCYNIC_JAIL_DIRECTORY=/var/rcynic
+		;;
+	no)
+		RCYNIC_JAIL_DIRECTORY=''
+		;;
+	*)
+		RCYNIC_JAIL_DIRECTORY="$with_rcynic_jail"
+		;;
+esac
+
+if test "X$RCYNIC_JAIL_DIRECTORY" = "X"
+then
+	USE_RCYNIC_JAIL=no
+	AC_MSG_RESULT([no rcynic jail])
+else
+	USE_RCYNIC_JAIL=yes
+	AC_MSG_RESULT([$RCYNIC_JAIL_DIRECTORY])
+fi
+
+AC_SUBST(USE_RCYNIC_JAIL)
+AC_SUBST(RCYNIC_JAIL_DIRECTORY)
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If

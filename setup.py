@@ -29,6 +29,7 @@ import os
 import subprocess
 from distutils.core import setup, Extension, Command
 from distutils.command.build_ext import build_ext as _build_ext
+from distutils.command.sdist import sdist as _sdist
 
 ac = None
 
@@ -102,6 +103,17 @@ class build_ext(_build_ext):
 
     return _build_ext.run(self)
 
+# The following hack uses "svn ls -R" to generate the manifest.
+# Haven't decided yet whether that's a good idea or not, commented out
+# of cmdclass for now.
+
+class sdist(_sdist):
+  def add_defaults(self):
+    try:
+      self.filelist.extend(subprocess.check_output(("svn", "ls", "-R")).splitlines())
+    except CalledProcessError:
+      return _sdist.add_default(self)
+
 # Be careful constructing data_files, empty file lists here appear to
 # confuse setup into putting dangerous nonsense into the list of
 # installed files.
@@ -151,7 +163,9 @@ setup(name              = "rpkitoolkit",
       url               = "http://www.rpki.net/",
       cmdclass          = {"autoconf" : autoconf,
                            "build_ext"  : build_ext,
-                           "build_openssl" : build_openssl},
+                           "build_openssl" : build_openssl,
+                           # "sdist" : sdist,
+                           },
       package_dir       = {"" : "rpkid"},
       packages          = ["rpki", "rpki.POW", "rpki.irdb",
                            "rpki.gui", "rpki.gui.app", "rpki.gui.cacheview",

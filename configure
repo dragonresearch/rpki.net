@@ -629,6 +629,8 @@ OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 TOP_LEVEL_SUBDIRS
 PYTHON
+RCYNIC_JAIL_DIRECTORY
+USE_RCYNIC_JAIL
 TRANG
 RRDTOOL
 SORT
@@ -699,6 +701,7 @@ ac_subst_files=''
 ac_user_opts='
 enable_option_checking
 with_system_openssl
+with_rcynic_jail
 enable_openssl_asm
 enable_ca_tools
 enable_rpki_rtr
@@ -1337,6 +1340,7 @@ Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-system-openssl   Link against system copy of OpenSSL
+  --with-rcynic-jail      Set location of rcynic jail directory
 
 Some influential environment variables:
   CC          C compiler command
@@ -2368,6 +2372,14 @@ if test "${with_system_openssl+set}" = set; then :
   withval=$with_system_openssl;
 else
   with_system_openssl=auto
+fi
+
+
+# Check whether --with-rcynic-jail was given.
+if test "${with_rcynic_jail+set}" = set; then :
+  withval=$with_rcynic_jail;
+else
+  with_rcynic_jail=auto
 fi
 
 # Check whether --enable-openssl_asm was given.
@@ -4239,6 +4251,41 @@ case $enable_openssl_asm in
 		as_fn_error $? "Unrecognized value for --enable-openssl-asm: $enable_openssl_asm" "$LINENO" 5
 		;;
 esac
+
+# Figure out where to put rcynic jail.  In the long run I suspect we
+# will want to use autoconf file substitution here to let us include
+# different chunks of Makefile code depending on whether we're
+# building a jail or not, but for today all I really care about is
+# being able to set the jail directory so I can write a FreeBSD port.
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking where to put rcynic jail" >&5
+$as_echo_n "checking where to put rcynic jail... " >&6; }
+
+case $with_rcynic_jail in
+	yes|auto)
+		RCYNIC_JAIL_DIRECTORY=/var/rcynic
+		;;
+	no)
+		RCYNIC_JAIL_DIRECTORY=''
+		;;
+	*)
+		RCYNIC_JAIL_DIRECTORY="$with_rcynic_jail"
+		;;
+esac
+
+if test "X$RCYNIC_JAIL_DIRECTORY" = "X"
+then
+	USE_RCYNIC_JAIL=no
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no rcynic jail" >&5
+$as_echo "no rcynic jail" >&6; }
+else
+	USE_RCYNIC_JAIL=yes
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $RCYNIC_JAIL_DIRECTORY" >&5
+$as_echo "$RCYNIC_JAIL_DIRECTORY" >&6; }
+fi
+
+
+
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If

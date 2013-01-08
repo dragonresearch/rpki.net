@@ -51,10 +51,8 @@ if ! rcynic_jaildir="$jaildir" rcynic_user="$jailuser" rcynic_group="$jailgroup"
     exit 1
 fi
 
-if /bin/test -r "$jaildir/etc/rcynic.conf"; then
-    echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
-elif /usr/bin/install -m 444 -o root -g wheel -p ../sample-rcynic.conf "${jaildir}/etc/rcynic.conf"; then
-    echo "Installed minimal ${jaildir}/etc/rcynic.conf, adding SAMPLE trust anchors"
+if /usr/bin/install -m 444 -o root -g wheel -p ../sample-rcynic.conf "${jaildir}/etc/rcynic.conf.sample"; then
+    echo "Installed minimal ${jaildir}/etc/rcynic.conf.sample, adding SAMPLE trust anchors"
     for i in ../../sample-trust-anchors/*.tal; do
 	j="$jaildir/etc/trust-anchors/${i##*/}"
 	/bin/test -r "$i" || continue
@@ -64,9 +62,18 @@ elif /usr/bin/install -m 444 -o root -g wheel -p ../sample-rcynic.conf "${jaildi
     done
     j=1
     for i in $jaildir/etc/trust-anchors/*.tal; do
-	echo >>"${jaildir}/etc/rcynic.conf" "trust-anchor-locator.$j	= /etc/trust-anchors/${i##*/}"
+	echo >>"${jaildir}/etc/rcynic.conf.sample" "trust-anchor-locator.$j	= /etc/trust-anchors/${i##*/}"
 	j=$((j+1))
     done
+else
+    echo "Installing minimal ${jaildir}/etc/rcynic.conf.sample failed"
+    exit 1
+fi
+
+if /bin/test -r "$jaildir/etc/rcynic.conf"; then
+    echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
+elif /bin/cp -p "$jaildir/etc/rcynic.conf.sample" "$jaildir/etc/rcynic.conf"
+    echo "Installed minimal ${jaildir}/etc/rcynic.conf"
 else
     echo "Installing minimal ${jaildir}/etc/rcynic.conf failed"
     exit 1

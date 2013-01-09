@@ -34,7 +34,7 @@ else
 fi
 
 if ! /bin/test -d "${jaildir}"; then
-    /bin/mkdir "${jaildir}"
+    /bin/mkdir -p "${jaildir}"
 fi
 
 if /usr/bin/install -m 555 -o root -g wheel -p rc.d.rcynic ${DESTDIR}/usr/local/etc/rc.d/rcynic; then

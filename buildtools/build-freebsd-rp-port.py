@@ -53,11 +53,11 @@ name = stripext(name, ".tar", ".tgz", ".tbz", ".txz")
 # tarballs.
 
 try:
-  base, trunk, vers = name.split("-")
+  base, branch, vers = name.split("-")
 except:
-  base, trunk, vers = None
+  base, branch, vers = None
 
-if trunk != "trunk" or not vers.isdigit():
+if branch not in ("trunk", "tk377") or not vers.isdigit():
   sys.exit("Unexpected tarball URL name format")
 
 base += "-rp"
@@ -94,7 +94,7 @@ RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 # Just want relying party tools, and have to whack rcynic jail
 # location to something acceptable to FreeBSD package system.
 
-CONIGURE_ARGS=  --disable-ca-tools --with-rcynic-jail=/usr/local/var/rcynic
+CONFIGURE_ARGS=  --disable-ca-tools --with-rcynic-jail=/usr/local/var/rcynic
 
 # This is not necessary at the moment because "make install" does
 # all the same things.  This is here as a reminder in case that changes.
@@ -218,12 +218,35 @@ else
     exit 1
 fi
 
-echo "Running /usr/local/etc/rc.d/rcynic to set up directories"
+echo "Setting up jail directories"
 
-if ! rcynic_jaildir="$jaildir" rcynic_user="$jailuser" rcynic_group="$jailgroup" /bin/sh /usr/local/etc/rc.d/rcynic start; then
-    echo "Directory setup failed"
-    exit 1
-fi
+/usr/sbin/mtree -deU -p "$jaildir" <<EOF
+
+	/set type=dir uname=root gname=wheel mode=0555
+	.
+		bin
+		..
+		dev
+		..
+		etc
+			trust-anchors
+			..
+		..
+		var
+			run
+			..
+		..
+		data	uname=$jailuser gname=$jailgroup mode=0755
+		..
+	..
+EOF
+
+for i in /etc/localtime /etc/resolv.conf; do
+        j="${jaildir}${i}"
+        if /bin/test -r "$i" && ! /usr/bin/cmp -s "$i" "$j"; then
+		/usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
+	fi
+done
 
 if /usr/bin/install -m 444 -o root -g wheel -p ../sample-rcynic.conf "${jaildir}/etc/rcynic.conf.sample"; then
     echo "Installed minimal ${jaildir}/etc/rcynic.conf.sample, adding SAMPLE trust anchors"

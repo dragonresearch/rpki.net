@@ -56,7 +56,7 @@ test: ${BIN}
 	fi
 
 install: ${BIN} installation-scripts/install.sh
-	cd installation-scripts; host_os="${host_os}"; jaildir="${RCYNIC_JAIL_DIR}" DESTDIR="${DESTDIR}"; AWK="${AWK}"; SORT="${SORT}"; . ./install.sh
+	cd installation-scripts; host_os="${host_os}"; jaildir="${RCYNIC_JAIL_DIRECTORY}" DESTDIR="${DESTDIR}"; AWK="${AWK}"; SORT="${SORT}"; . ./install.sh
 
 uninstall deinstall:
 	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; . ./deinstall.sh

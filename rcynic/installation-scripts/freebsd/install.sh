@@ -72,7 +72,7 @@ fi
 
 if /bin/test -r "$jaildir/etc/rcynic.conf"; then
     echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
-elif /bin/cp -p "$jaildir/etc/rcynic.conf.sample" "$jaildir/etc/rcynic.conf"
+elif /bin/cp -p "$jaildir/etc/rcynic.conf.sample" "$jaildir/etc/rcynic.conf"; then
     echo "Installed minimal ${jaildir}/etc/rcynic.conf"
 else
     echo "Installing minimal ${jaildir}/etc/rcynic.conf failed"

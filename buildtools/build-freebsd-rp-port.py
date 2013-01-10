@@ -207,17 +207,6 @@ else
     exit 1
 fi
 
-if ! /bin/test -d "${jaildir}"; then
-    /bin/mkdir "${jaildir}"
-fi
-
-if /usr/bin/install -m 555 -o root -g wheel -p rc.d.rcynic ${DESTDIR}/usr/local/etc/rc.d/rcynic; then
-    echo "Installed rc.d.rcynic as ${DESTDIR}/usr/local/etc/rc.d/rcynic"
-else
-    echo "Installing ${DESTDIR}/usr/local/etc/rc.d/rcynic failed"
-    exit 1
-fi
-
 echo "Setting up jail directories"
 
 /usr/sbin/mtree -deU -p "$jaildir" <<EOF
@@ -248,65 +237,10 @@ for i in /etc/localtime /etc/resolv.conf; do
 	fi
 done
 
-if /usr/bin/install -m 444 -o root -g wheel -p ../sample-rcynic.conf "${jaildir}/etc/rcynic.conf.sample"; then
-    echo "Installed minimal ${jaildir}/etc/rcynic.conf.sample, adding SAMPLE trust anchors"
-    for i in ../../sample-trust-anchors/*.tal; do
-	j="$jaildir/etc/trust-anchors/${i##*/}"
-	/bin/test -r "$i" || continue
-	/bin/test -r "$j" && continue
-	echo "Installing $i as $j"
-	/usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
-    done
-    j=1
-    for i in $jaildir/etc/trust-anchors/*.tal; do
-	echo >>"${jaildir}/etc/rcynic.conf.sample" "trust-anchor-locator.$j	= /etc/trust-anchors/${i##*/}"
-	j=$((j+1))
-    done
-else
-    echo "Installing minimal ${jaildir}/etc/rcynic.conf.sample failed"
-    exit 1
-fi
-
-if /bin/test -r "$jaildir/etc/rcynic.conf"; then
-    echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
-elif /bin/cp -p "$jaildir/etc/rcynic.conf.sample" "$jaildir/etc/rcynic.conf"
-    echo "Installed minimal ${jaildir}/etc/rcynic.conf"
-else
-    echo "Installing minimal ${jaildir}/etc/rcynic.conf failed"
-    exit 1
-fi
-
-echo "Installing rcynic as ${jaildir}/bin/rcynic"
-
-/usr/bin/install -m 555 -o root -g wheel -p ../../rcynic "${jaildir}/bin/rcynic"
-
-if /bin/test ! -x "$jaildir/bin/rsync" -a ! -x ../../static-rsync/rsync; then
-    echo "Building static rsync for jail, this may take a little while"
-    (cd ../../static-rsync && exec make)
-fi
-
-if /bin/test -x "$jaildir/bin/rsync"; then
-    echo "You already have an executable \"$jaildir/bin/rsync\", so I will use it"
-elif /usr/bin/install -m 555 -o root -g wheel -p ../../static-rsync/rsync "${jaildir}/bin/rsync"; then
-    echo "Installed static rsync as \"${jaildir}/bin/rsync\""
-else
-    echo "Installing static rsync failed"
-    exit 1
-fi
-
-if /usr/bin/install -m 555 -o root -g wheel -p ../../rcynic-html "${jaildir}/bin/rcynic-html"; then
-    echo "Installed rcynic.py as \"${jaildir}/bin/rcynic-html\""
-else
-    echo "Installing rcynic-html failed"
-    exit 1
-fi
-
-# "'"
-
-echo "Setting up root's crontab to run jailed rcynic"
-
 case "$setupcron" in
 YES|yes)
+    # "'"
+    echo "Setting up root's crontab to run jailed rcynic"
     /usr/bin/crontab -l -u root 2>/dev/null |
     /usr/bin/awk -v "jailuser=$jailuser" -v "jailgroup=$jailgroup" -v "jaildir=$jaildir" '
 	BEGIN {

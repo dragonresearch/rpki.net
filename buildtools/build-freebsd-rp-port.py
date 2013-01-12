@@ -91,10 +91,10 @@ BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
 # For rcynic-html
 RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 
-# Just want relying party tools, and have to whack rcynic jail
-# location to something acceptable to FreeBSD package system.
+# Just want relying party tools, try to use system OpenSSL if we can.
 
-CONFIGURE_ARGS=  --disable-ca-tools --with-rcynic-jail=/usr/local/var/rcynic
+CONFIGURE_ARGS=  --disable-ca-tools
+CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
 # This is not necessary at the moment because "make install" does
 # all the same things.  This is here as a reminder in case that changes.
@@ -143,6 +143,7 @@ bin/print_rpki_manifest
 bin/rtr-origin
 bin/scan_roas
 etc/rc.d/rcynic
+@cwd /
 var/rcynic/bin/rcynic
 var/rcynic/bin/rcynic-html
 var/rcynic/bin/rsync
@@ -157,9 +158,13 @@ var/rcynic/etc/rcynic.conf.sample
   f.write('''\
 @exec mkdir -p %D/var/rcynic/var
 @dirrm var/rcynic/var
+@exec mkdir -p %D/var/rcynic/run
+@dirrm var/rcynic/run
+@unexec rm -f %D/var/rcynic/etc/localtime %D/var/rcynic/etc/resolv.conf 
 @dirrm var/rcynic/etc/trust-anchors
 @dirrm var/rcynic/etc
 @exec mkdir -p %D/var/rcynic/dev
+@unexec if [ -c %D/var/rcynic/dev/null ] ; then umount %D/var/rcynic/dev; fi
 @dirrm var/rcynic/dev
 @exec mkdir -p %D/var/rcynic/data
 @dirrm var/rcynic/data
@@ -180,7 +185,7 @@ with open(os.path.join(base, "pkg-install"), "w") as f:
 
 /bin/test "X$2" = 'XPRE-INSTALL' && exit 0
 
-: ${jaildir="${DESTDIR}/usr/local/var/rcynic"}
+: ${jaildir="${DESTDIR}/var/rcynic"}
 : ${jailuser="rcynic"}
 : ${jailgroup="rcynic"}
 : ${setupcron="NO"}
@@ -285,10 +290,9 @@ with open(os.path.join(base, "pkg-message"), "w") as f:
   print "Writing", f.name
 
   f.write('''\
-You may need to customize /usr/local/var/rcynic/etc/rcynic.conf.
-If you did not install your own trust anchors, a default set of SAMPLE
-trust anchors may have been installed for you, but you, the relying
-party, are the only one who can decide whether you trust those
-anchors.  rcynic will not do anything useful without good trust
-anchors.
+You may need to customize /var/rcynic/etc/rcynic.conf.  If you did not
+install your own trust anchors, a default set of SAMPLE trust anchors
+may have been installed for you, but you, the relying party, are the
+only one who can decide whether you trust those anchors.  rcynic will
+not do anything useful without good trust anchors.
 ''')

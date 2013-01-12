@@ -13,6 +13,9 @@ BIN_LOG	= > ../build.log  2>&1
 
 BIN	= rsync
 
+abs_top_srcdir	 = @abs_top_srcdir@
+abs_top_builddir = @abs_top_builddir@
+
 all: ${BIN}
 
 ${BIN}: ${DIRNAME}/${BIN}

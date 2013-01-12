@@ -12,7 +12,7 @@ name="rcynic"
 start_cmd="rcynic_start"
 stop_cmd="rcynic_stop"
 
-: ${rcynic_jaildir="/usr/local/var/rcynic"}
+: ${rcynic_jaildir="/var/rcynic"}
 : ${rcynic_user="rcynic"}
 : ${rcynic_group="rcynic"}
 

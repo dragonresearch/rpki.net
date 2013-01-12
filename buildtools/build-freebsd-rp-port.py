@@ -156,10 +156,9 @@ var/rcynic/etc/rcynic.conf.sample
     f.write("var/rcynic/etc/trust-anchors/%s\n" % trust_anchor)
 
   f.write('''\
-@exec mkdir -p %D/var/rcynic/var
+@exec mkdir -p %D/var/rcynic/var/run
+@dirrm var/rcynic/var/run
 @dirrm var/rcynic/var
-@exec mkdir -p %D/var/rcynic/run
-@dirrm var/rcynic/run
 @unexec rm -f %D/var/rcynic/etc/localtime %D/var/rcynic/etc/resolv.conf 
 @dirrm var/rcynic/etc/trust-anchors
 @dirrm var/rcynic/etc

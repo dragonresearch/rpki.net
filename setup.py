@@ -31,7 +31,10 @@ from distutils.core import setup, Extension, Command
 from distutils.command.build_ext import build_ext as _build_ext
 from distutils.command.sdist import sdist as _sdist
 
-ac = None
+try:
+  from ac_rpki import ac
+except ImportError:
+  ac = None
 
 class autoconf(Command):
 
@@ -46,13 +49,11 @@ class autoconf(Command):
     pass
 
   def run(self):
-    try:
-      import ac_rpki
-    except ImportError:
+    global ac
+    if ac is None:
       subprocess.check_call(("./configure",))
       import ac_rpki
-    global ac
-    ac = ac_rpki.ac
+      ac = ac_rpki.ac
 
 class build_openssl(Command):
 
@@ -121,31 +122,35 @@ class sdist(_sdist):
 # bdist_rpm seems to get confused by relative names for scripts, so we
 # have to prefix source names here with the build directory name.
 
-# Not sure why these are being treated as data files instead of
-# scripts, probably historical based on our use of autoconf.  More
-# distutils commands needed to customize scripts, probably
+# We handle these as data files instead of scripts because
+# install_scripts isn't clever enough to let us choose the
+# installation directory.  We need to construct these files anyway, so
+# that's not a big deal.
+#
+# At present we build these in rpkid/Makefile, but we need to change that
+# to build these here in a new (not yet written) distutils command.
 
-scripts      = ['rpki-sql-backup',
-                'rpki-sql-setup',
-                'rpki-start-servers',
-                'irbe_cli',
-                'irdbd',
-                'pubd',
-                'rootd',
-                'rpkic',
-                'rpkid',
-                'portal-gui/scripts/rpkigui-rcynic',
-                'portal-gui/scripts/rpkigui-import-routes',
-                'portal-gui/scripts/rpkigui-check-expired',
-                'portal-gui/scripts/rpki-manage']
+scripts      = ["rpkid/rpki-sql-backup",
+                "rpkid/rpki-sql-setup",
+                "rpkid/rpki-start-servers",
+                "rpkid/irbe_cli",
+                "rpkid/irdbd",
+                "rpkid/pubd",
+                "rpkid/rootd",
+                "rpkid/rpkic",
+                "rpkid/rpkid",
+                "rpkid/portal-gui/scripts/rpkigui-rcynic",
+                "rpkid/portal-gui/scripts/rpkigui-import-routes",
+                "rpkid/portal-gui/scripts/rpkigui-check-expired",
+                "rpkid/portal-gui/scripts/rpki-manage"]
 
 aux_scripts  = []
 
-data_files = []
+data_files   = []
 
-# XXX disable all scripts for now until I get extension build working.
+# Have to be careful with configuration that comes from autoconf.
 
-if False:
+if ac is not None:
 
   if ac.sbindir and scripts:
     data_files.append((ac.sbindir,
@@ -171,10 +176,10 @@ setup(name              = "rpkitoolkit",
                            "rpki.gui", "rpki.gui.app", "rpki.gui.cacheview",
                            "rpki.gui.api", "rpki.gui.routeview"],
       ext_modules       = [Extension("rpki.POW._POW", ["rpkid/ext/POW.c"])],
-      package_data      = {
-          'rpki.gui.app': ['migrations/*.py', 'static/*/*',
-                           'templates/*.html', 'templates/*/*.html',
-                           'templatetags/*.py'],
-          'rpki.gui.cacheview': ['templates/*/*.html']
-      },
+      package_data      = {"rpki.gui.app"       : ["migrations/*.py",
+                                                   "static/*/*",
+                                                   "templates/*.html",
+                                                   "templates/*/*.html",
+                                                   "templatetags/*.py"],
+                           "rpki.gui.cacheview" : ["templates/*/*.html"] },
       data_files	= data_files)

@@ -11,7 +11,7 @@
 
 # $Id$
 #
-# Copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
+# Copyright (C) 2011-2013  Internet Systems Consortium ("ISC")
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -26,9 +26,11 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 import os
+import stat
 import subprocess
 from distutils.core import setup, Extension, Command
 from distutils.command.build_ext import build_ext as _build_ext
+from distutils.command.install_data import install_data as _install_data
 from distutils.command.sdist import sdist as _sdist
 
 try:
@@ -130,34 +132,118 @@ class sdist(_sdist):
 # At present we build these in rpkid/Makefile, but we need to change that
 # to build these here in a new (not yet written) distutils command.
 
-scripts      = ["rpkid/rpki-sql-backup",
-                "rpkid/rpki-sql-setup",
-                "rpkid/rpki-start-servers",
-                "rpkid/irbe_cli",
-                "rpkid/irdbd",
-                "rpkid/pubd",
-                "rpkid/rootd",
-                "rpkid/rpkic",
-                "rpkid/rpkid",
-                "rpkid/portal-gui/scripts/rpkigui-rcynic",
-                "rpkid/portal-gui/scripts/rpkigui-import-routes",
-                "rpkid/portal-gui/scripts/rpkigui-check-expired",
-                "rpkid/portal-gui/scripts/rpki-manage"]
+daemon_scripts = ["rpkid/rpki-sql-backup",
+                  "rpkid/rpki-sql-setup",
+                  "rpkid/rpki-start-servers",
+                  "rpkid/irbe_cli",
+                  "rpkid/irdbd",
+                  "rpkid/pubd",
+                  "rpkid/rootd",
+                  "rpkid/rpkic",
+                  "rpkid/rpkid"]
 
-aux_scripts  = []
+django_scripts = ["rpkid/portal-gui/scripts/rpkigui-rcynic",
+                  "rpkid/portal-gui/scripts/rpkigui-import-routes",
+                  "rpkid/portal-gui/scripts/rpkigui-check-expired",
+                  #"rpkid/portal-gui/scripts/rpki-manage",
+                  ]
 
-data_files   = []
+# rpkid/Makefile.in stuff not handled yet:
+#  portal-gui/settings.py
+#  portal-gui/scripts/rpki-manage
+
+# Not sure these really all should be in sbin, the Django stuff looks
+# more libexec to me.  Preserve existing locations for now.
+
+sbin_scripts = daemon_scripts + django_scripts
+
+libexec_scripts  = []
+
+daemon_script_template = '''\
+#!%(ac_PYTHON)s
+# Automatically constructed script header
+
+# Set location of global rpki.conf file
+if __name__ == "__main__":
+  import rpki.config
+  rpki.config.default_dirname = "%(ac_sysconfdir)s"
+
+# Original script starts here
+
+'''
+
+django_script_template = '''\
+#!%(ac_PYTHON)s
+# Automatically constructed script header
+
+import sys, os
+# sys.path[0] is the cwd of the script being executed, so we add the
+# path to the settings.py file after it
+sys.path.insert(1, '%(ac_sysconfdir)s/rpki')
+os.environ['DJANGO_SETTINGS_MODULE'] = 'settings'
+
+# Original script starts here
+
+'''
+
+class build_data(Command):
+
+  description = 'build various constructed "data" files'
+
+  # Most of these are really scripts, but install_scripts has no
+  # provision for installing in different directories, and we do have
+  # some real data files as well, so it's easiest just to handle all
+  # of that here.
+
+  user_options = []
+
+  def initialize_options(self):
+    pass
+
+  def finalize_options(self):
+    pass
+
+  def run(self):
+    self.run_command("autoconf")
+    for fn in daemon_scripts:
+      self.build_script(fn, daemon_script_template,
+                        ac_PYTHON = ac.PYTHON,
+                        ac_sysconfdir = ac.sysconfdir)
+    for fn in django_scripts:
+      self.build_script(fn, django_script_template,
+                        ac_PYTHON = ac.PYTHON,
+                        ac_sysconfdir = ac.sysconfdir)
+
+  def build_script(self, fn, template, **kwargs):
+    pyfn = fn + ".py"
+    mode = stat.S_IMODE(os.stat(pyfn).st_mode) | 0555
+    f = open(fn, "w")
+    f.write(template % kwargs)
+    f.write(open(pyfn, "r").read())
+    f.close()
+    os.chmod(fn, mode)
+
+class install_data(_install_data):
+  def run(self):
+    self.run_command("build_data")
+    return _install_data.run(self)
 
 # Have to be careful with configuration that comes from autoconf.
 
+data_files   = []
+
 if ac is not None:
 
-  if ac.sbindir and scripts:
+  if ac.sbindir and sbin_scripts:
     data_files.append((ac.sbindir,
-                       ["%s/%s" % (ac.abs_builddir, f) for f in scripts]))
-  if ac.libexecdir and aux_scripts:
+                       ["%s/%s" % (ac.abs_builddir, f) for f in sbin_scripts]))
+  if ac.libexecdir and libexec_scripts:
     data_files.append((ac.libexecdir,
-                       ["%s/%s" % (ac.abs_builddir, f) for f in aux_scripts]))
+                       ["%s/%s" % (ac.abs_builddir, f) for f in libexec_scripts]))
+
+# Then there's all the stuff from rpkid/portal-gui/Makefile.in which
+# also needs to go into data_files.
+
 if not data_files:
   data_files = None
 
@@ -168,7 +254,9 @@ setup(name              = "rpkitoolkit",
       url               = "http://www.rpki.net/",
       cmdclass          = {"autoconf" : autoconf,
                            "build_ext"  : build_ext,
+                           "build_data" : build_data,
                            "build_openssl" : build_openssl,
+                           "install_data" : install_data,
                            # "sdist" : sdist,
                            },
       package_dir       = {"" : "rpkid"},

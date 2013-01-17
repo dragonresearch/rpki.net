@@ -36,11 +36,13 @@ ${BIN}: ${SRC}
 	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} ${LIBS}
 
 
-TEST_ARGS = ${abs_top_builddir}/rcynic/rcynic-data/authenticated 10.3.0.44 10.2.0.6 10.0.0.0/24
+ROA_DIR = ${abs_top_builddir}/rcynic/rcynic-data/authenticated
+
+TEST_ARGS = ${ROA_DIR} 10.3.0.44 10.2.0.6 10.0.0.0/24
 
 test: ${BIN}
-#	./${BIN} ${TEST_ARGS}
-	sh ./test_roa.sh ${TEST_ARGS}
+#	if test -d ${ROA_DIR}; then ./${BIN} ${TEST_ARGS} ; else :; fi
+	if test -d ${ROA_DIR}; then sh ./test_roa.sh ${TEST_ARGS} ; else :; fi
 
 install: all
 	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -d ${DESTDIR}${bindir}; fi

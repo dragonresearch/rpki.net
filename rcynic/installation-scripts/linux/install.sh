@@ -10,9 +10,21 @@
 : ${jailgroup="rcynic"}
 : ${setupcron="NO"}
 
+echo "Checking whether we are running under fakeroot"
+
+if test `whoami` = `(unset LD_PRELOAD; whoami)`
+then
+    running_fakeroot=no
+else
+    running_fakeroot=yes
+fi
+
 echo "Setting up \"${jaildir}\" as a chroot jail for rcynic."
 
-if ${AWK} -F: -v jailgroup="${jailgroup}" 'BEGIN {status = 1} $1 == jailgroup {status = 0} END {exit status}' /etc/group
+if test $running_fakeroot = yes
+then
+    echo "Running under fakeroot, so skipping ${jailgroup} group setup"
+elif ${AWK} -F: -v jailgroup="${jailgroup}" 'BEGIN {status = 1} $1 == jailgroup {status = 0} END {exit status}' /etc/group
 then
     echo "You already have a group \"${jailgroup}\", so I will use it."
 elif /usr/sbin/groupadd ${jailgroup}
@@ -34,7 +46,10 @@ if test -f /etc/redhat-release; then
 	fi
 fi
 
-if ${AWK} -F: -v jailuser="${jailuser}" 'BEGIN {status = 1} $1 == jailuser {status = 0} END {exit status}' /etc/passwd
+if test $running_fakeroot = yes
+then
+    echo "Running under fakeroot, so skipping ${jailuser} user setup"
+elif ${AWK} -F: -v jailuser="${jailuser}" 'BEGIN {status = 1} $1 == jailuser {status = 0} END {exit status}' /etc/passwd
 then
     echo "You already have a user \"${jailuser}\", so I will use it."
 elif /usr/sbin/useradd -g ${jailgroup} -M $nogroup -d "${jaildir}" -s /sbin/nologin -c "RPKI validation system" ${jailuser}
@@ -93,17 +108,21 @@ echo "Whacking file permissions"
 
 if ! /bin/chmod -R a-w "${jaildir}/bin" "${jaildir}/etc" ||
    ! /bin/chmod -R 755 "${jaildir}/data" ||
-   ! /bin/chown -R root:root "${jaildir}/bin" "${jaildir}/etc" ||
-   ! /bin/chown -R "${jailuser}:${jailgroup}" "${jaildir}/data"
+   ( test -f "${jaildir}/etc/rsa_key" && ! /bin/chmod 400 "${jaildir}/etc/rsa_key" )
 then
-    echo "Unable to set file permissions and ownerships correctly, please fix this and try again"
+    echo "Unable to set file permissions correctly, please fix this and try again"
     exit 1
 fi
 
-if test -f "${jaildir}/etc/rsa_key"
+if test $running_fakeroot = yes
 then
-    /bin/chmod 400 "${jaildir}/etc/rsa_key"
-    /bin/chown "${jailuser}" "${jaildir}/etc/rsa_key"
+    echo "Running under fakeroot, so skipping chown calls"
+elif ! /bin/chown -R root:root "${jaildir}/bin" "${jaildir}/etc" ||
+    ! /bin/chown -R "${jailuser}:${jailgroup}" "${jaildir}/data" ||
+    ( test -f "${jaildir}/etc/rsa_key" && ! /bin/chown "${jailuser}" "${jaildir}/etc/rsa_key" )
+then
+    echo "Unable to set file ownership correctly, please fix this and try again"
+    exit 1
 fi
 
 if test -r "$jaildir/etc/rcynic.conf"; then
@@ -196,10 +215,14 @@ else
     exit 1
 fi
 
-echo "Setting up root's crontab to run jailed rcynic"
+if test $running_fakeroot = yes
+then
+    setupcron=NO
+fi
 
 case "$setupcron" in
 YES|yes)
+    echo "Setting up root's crontab to run jailed rcynic"
     /usr/bin/crontab -l -u root 2>/dev/null |
     ${AWK} -v "jailuser=$jailuser" -v "jailgroup=$jailgroup" -v "jaildir=$jaildir" '
 	BEGIN {

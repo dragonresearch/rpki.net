@@ -59,20 +59,5 @@ deinstall uninstall:
 	rm -rf $(INSTDIR)/media $(INSTDIR)/wsgi
 	rm -rf $(SYSCONFDIR)/apache.conf $(SYSCONFDIR)/settings.py $(SYSCONFDIR)/settings.pyc
 
-installation-manifest:
-	echo >>${abs_top_builddir}/installation-manifest D %%SYSCONFDIR%%/rpki
-	echo >>${abs_top_builddir}/installation-manifest D %%DATAROOTDIR%%/rpki
-	echo >>${abs_top_builddir}/installation-manifest D %%DATAROOTDIR%%/rpki/wsgi
-	echo >>${abs_top_builddir}/installation-manifest D %%DATAROOTDIR%%/rpki/media
-	echo >>${abs_top_builddir}/installation-manifest D %%DATAROOTDIR%%/rpki/media/css
-	echo >>${abs_top_builddir}/installation-manifest D %%DATAROOTDIR%%/rpki/media/img
-	echo >>${abs_top_builddir}/installation-manifest D %%DATAROOTDIR%%/rpki/media/js
-	echo >>${abs_top_builddir}/installation-manifest F %%SYSCONFDIR%%/rpki/apache.conf
-	echo >>${abs_top_builddir}/installation-manifest F %%SYSCONFDIR%%/rpki/settings.py
-	echo >>${abs_top_builddir}/installation-manifest F %%DATAROOTDIR%%/rpki/wsgi/rpki.wsgi
-	find $(srcdir)/../rpki/gui/app/static/css $(srcdir)/../rpki/gui/app/static/js $(srcdir)/../rpki/gui/app/static/img \
-		-name .svn -prune -o -type f -print | \
-		sed 's=$(srcdir)/../rpki/gui/app/static=F %%DATAROOTDIR%%/rpki/media=' >>${abs_top_builddir}/installation-manifest
-
 test:
 	@true

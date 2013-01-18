@@ -137,6 +137,11 @@ subprocess.check_call(("make", "configure", "DISTDIR=" + os.getcwd(),
                        "USE_GNOME=", "NO_DEPENDS=yes"),
                       cwd = base)
 
+raise NotImplementedError
+
+# "make installation-manifest" was a silly idea, and is no longer in
+# the Makefiles.  This script needs rewriting.
+
 print "Running make installation-manifest"
 
 subprocess.check_call(("make", "installation-manifest"),

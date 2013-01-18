@@ -61,9 +61,6 @@ install: ${BIN} installation-scripts/install.sh
 uninstall deinstall:
 	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; . ./deinstall.sh
 
-installation-manifest:
-	cd installation-scripts; host_os="${host_os}"; abs_top_builddir="${abs_top_builddir}"; . ./manifest.sh
-
 distclean: clean
 	cd static-rsync; ${MAKE} $@
 	rm -f Makefile

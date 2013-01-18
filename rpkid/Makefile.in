@@ -33,11 +33,13 @@ abs_top_srcdir	= @abs_top_srcdir@
 abs_top_builddir= @abs_top_builddir@
 srcdir          = @srcdir@
 
+SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
+
 # PID files seem to go into /var/run/ on every platform we support.
 # We could make this an autoconf substitution if anything ever cares,
 # but let's keep it simple for now.
 
-PID_DIR		= /var/run/rpkid
+PID_DIR		= ${DESTDIR}/var/run/rpkid
 
 SETUP_PY = \
 	AC_CFLAGS='${CFLAGS}' \
@@ -110,7 +112,7 @@ clean::
 	rm -f ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
 install::
-	${SETUP_PY} install ${SETUP_PY_ROOT} --record installed
+	${SETUP_PY} install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
 	@echo
 	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
 	@echo

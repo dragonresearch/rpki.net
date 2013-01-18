@@ -427,6 +427,32 @@ then
 	AC_MSG_ERROR([Please correct the problems above then re-run this configuration script.])
 fi
 
+# Figure out whether we are on a Debian-derived system where we need
+# to tell setup.py about Debian installation layout.
+
+if test $build_ca_tools = yes
+then
+	AC_MSG_CHECKING([whether we need to tell distutils to use Debian installation layout])
+	use_debian_layout=no
+	if test -x /usr/bin/lsb_release
+	then
+		case `/usr/bin/lsb_release -is` in
+		Debian|Ubuntu)
+			use_debian_layout=yes
+			;;
+		esac
+	fi
+	AC_MSG_RESULT([$use_debian_layout])
+	if test $use_debian_layout = yes
+	then
+		SETUP_PY_INSTALL_LAYOUT='--install-layout=deb'
+	else
+		SETUP_PY_INSTALL_LAYOUT=''
+
+	fi
+	AC_SUBST(SETUP_PY_INSTALL_LAYOUT)
+fi
+
 # Figure out which parts of this package we have to build.
 
 				TOP_LEVEL_SUBDIRS=""

@@ -84,7 +84,10 @@ fi
 
 echo "Installing device inodes"
 
-if ! (cd /dev; /bin/ls null zero random urandom | /bin/cpio -puv "${jaildir}/dev")
+if test $running_fakeroot = yes
+then
+    echo "Running under fakeroot, so skipping ${jaildir}/dev device inode setup"
+elif ! (cd /dev; /bin/ls null zero random urandom | /bin/cpio -puv "${jaildir}/dev")
 then
     echo "Unable to install device inodes in ${jaildir}/dev/, please fix this then try again"
     exit 1
@@ -116,7 +119,7 @@ fi
 
 if test $running_fakeroot = yes
 then
-    echo "Running under fakeroot, so skipping chown calls"
+    echo "Running under fakeroot, so skipping ${jaildir} chown calls"
 elif ! /bin/chown -R root:root "${jaildir}/bin" "${jaildir}/etc" ||
     ! /bin/chown -R "${jailuser}:${jailgroup}" "${jaildir}/data" ||
     ( test -f "${jaildir}/etc/rsa_key" && ! /bin/chown "${jailuser}" "${jaildir}/etc/rsa_key" )

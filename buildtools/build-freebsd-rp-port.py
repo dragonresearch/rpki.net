@@ -57,7 +57,16 @@ try:
 except:
   base, branch, vers = None
 
-if branch not in ("trunk", "tk377") or not vers.isdigit():
+if base not in ("rpkitools", "rpki"):
+  base = None
+
+if branch != "trunk" and (branch[:2] != "tk" or not branch[2:].isdigit()):
+  branch = None
+
+if not vers.isdigit() and (base != "rpki" or vers[0] != "r" or not vers[1:].isdigit()):
+  vers = None
+
+if None in (base, branch, vers):
   sys.exit("Unexpected tarball URL name format")
 
 base += "-rp"

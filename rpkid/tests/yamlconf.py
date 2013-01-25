@@ -611,8 +611,7 @@ def main():
   quiet = args.quiet
   yaml_file = args.yaml_file
 
-  rpki.log.use_syslog = False
-  rpki.log.init("yamlconf")
+  rpki.log.init("yamlconf", use_syslog = False)
 
   # Allow optional config file for this tool to override default
   # passwords: this is mostly so that I can show a complete working

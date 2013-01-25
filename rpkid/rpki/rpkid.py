@@ -75,6 +75,7 @@ class main(object):
     self.irbe_cms_timestamp = None
     self.task_current = None
     self.task_queue = []
+    use_syslog = True
 
     opts, argv = getopt.getopt(sys.argv[1:], "c:dfhp:?",
                                ["config=", "debug", "foreground", "help", "profile="])
@@ -83,7 +84,7 @@ class main(object):
         print __doc__
         sys.exit(0)
       elif o in ("-d", "--debug"):
-        rpki.log.use_syslog = False
+        use_syslog = False
         self.foreground = True
       elif o in ("-f", "--foreground"):
         self.foreground = True
@@ -94,7 +95,7 @@ class main(object):
     if argv:
       raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
 
-    rpki.log.init("rpkid")
+    rpki.log.init("rpkid", use_syslog = use_syslog)
 
     self.cfg = rpki.config.parser(self.cfg_file, "rpkid")
     self.cfg.set_global_flags()

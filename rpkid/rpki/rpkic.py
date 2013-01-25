@@ -73,8 +73,6 @@ class main(rpki.cli.Cmd):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-    rpki.log.use_syslog = False
-
     self.cfg_file = None
     self.handle = None
     profile = None
@@ -105,7 +103,7 @@ class main(rpki.cli.Cmd):
       self.main()
 
   def main(self):
-    rpki.log.init("rpkic")
+    rpki.log.init("rpkic", use_syslog = False)
     self.read_config()
     rpki.cli.Cmd.__init__(self, self.argv)
 

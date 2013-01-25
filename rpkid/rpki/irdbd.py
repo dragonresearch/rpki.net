@@ -151,6 +151,7 @@ class main(object):
     cfg_file = None
     foreground = False
     profile = None
+    use_syslog = True
 
     opts, argv = getopt.getopt(sys.argv[1:], "c:dfhp:?",
                                ["config=", "debug", "foreground", "help", "profile="])
@@ -161,7 +162,7 @@ class main(object):
       if o in ("-c", "--config"):
         cfg_file = a
       elif o in ("-d", "--debug"):
-        rpki.log.use_syslog = False
+        use_syslog = False
         foreground = True
       elif o in ("-f", "--foreground"):
         foreground = True
@@ -170,7 +171,7 @@ class main(object):
     if argv:
       raise rpki.exceptions.CommandParseFailure("Unexpected arguments %s" % argv)
 
-    rpki.log.init("irdbd")
+    rpki.log.init("irdbd", use_syslog = use_syslog)
 
     self.cfg = rpki.config.parser(cfg_file, "irdbd")
     self.cfg.set_global_flags()

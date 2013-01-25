@@ -70,6 +70,8 @@ class main(object):
     self.foreground = False
     self.irbe_cms_timestamp = None
 
+    use_syslog = True
+
     opts, argv = getopt.getopt(sys.argv[1:], "c:dfhp:?",
                                ["config=", "debug", "foreground", "help", "profile="])
     for o, a in opts:
@@ -79,7 +81,7 @@ class main(object):
       elif o in ("-c", "--config"):
         self.cfg_file = a
       elif o in ("-d", "--debug"):
-        rpki.log.use_syslog = False
+        use_syslog = False
         self.foreground = True
       elif o in ("-f", "--foreground"):
         self.foreground = True
@@ -88,7 +90,7 @@ class main(object):
     if argv:
       raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
 
-    rpki.log.init("pubd")
+    rpki.log.init("pubd", use_syslog = use_syslog)
 
     self.cfg = rpki.config.parser(self.cfg_file, "pubd")
     self.cfg.set_global_flags()

@@ -1048,13 +1048,18 @@ class caller(object):
       """
       Handle CMS-wrapped XML response message.
       """
-      r_cms = self.proto.cms_msg(DER = r_der)
-      r_msg = r_cms.unwrap((self.server_ta, self.server_cert))
-      self.cms_timestamp = r_cms.check_replay(self.cms_timestamp)
-      if self.debug:
-        print "<!-- Reply -->"
-        print r_cms.pretty_print_content()
-      cb(r_msg)
+      try:
+        r_cms = self.proto.cms_msg(DER = r_der)
+        r_msg = r_cms.unwrap((self.server_ta, self.server_cert))
+        self.cms_timestamp = r_cms.check_replay(self.cms_timestamp)
+        if self.debug:
+          print "<!-- Reply -->"
+          print r_cms.pretty_print_content()
+        cb(r_msg)
+      except (rpki.async.ExitNow, SystemExit):
+        raise
+      except Exception, e:
+        eb(e)
 
     q_msg = self.proto.msg.query(*pdus)
     q_cms = self.proto.cms_msg()

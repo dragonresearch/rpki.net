@@ -184,8 +184,7 @@ def main():
   Main program.
   """
 
-  rpki.log.use_syslog = False
-  rpki.log.init(smoketest_name)
+  rpki.log.init(smoketest_name, use_syslog = False)
   rpki.log.info("Starting")
 
   pubd_process = None

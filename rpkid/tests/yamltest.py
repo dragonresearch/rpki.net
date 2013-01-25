@@ -565,8 +565,7 @@ try:
   if pidfile is not None:
     open(pidfile, "w").write("%s\n" % os.getpid())
 
-  rpki.log.use_syslog = False
-  rpki.log.init("yamltest")
+  rpki.log.init("yamltest", use_syslog = False)
 
   yaml_file = argv[0] if argv else "smoketest.1.yaml"
 

@@ -332,6 +332,7 @@ class main(object):
     time.tzset()
 
     self.cfg_file = None
+    use_syslog = True
 
     opts, argv = getopt.getopt(sys.argv[1:], "c:dfh?", ["config=", "debug", "foreground", "help"])
     for o, a in opts:
@@ -341,7 +342,7 @@ class main(object):
       elif o in ("-c", "--config"):
         self.cfg_file = a
       elif o in ("-d", "--debug"):
-        rpki.log.use_syslog = False
+        use_syslog = False
         self.foreground = True
       elif o in ("-f", "--foreground"):
         self.foreground = True
@@ -349,7 +350,7 @@ class main(object):
     if argv:
       raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
 
-    rpki.log.init("rootd")
+    rpki.log.init("rootd", use_syslog = use_syslog)
 
     self.cfg = rpki.config.parser(self.cfg_file, "rootd")
     self.cfg.set_global_flags()

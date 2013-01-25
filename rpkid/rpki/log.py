@@ -49,11 +49,6 @@ except ImportError:
 
 enable_trace = False
 
-## @var use_syslog
-# Whether to use syslog
-
-use_syslog = True
-
 ## @var show_python_ids
 # Whether __repr__() methods should show Python id numbers
 
@@ -80,25 +75,62 @@ use_setproctitle = True
 
 proctitle_extra = os.path.basename(os.getcwd())
 
-tag = ""
-pid = 0
-
-def init(ident = "rpki", flags = syslog.LOG_PID, facility = syslog.LOG_DAEMON):
+def init(ident = "rpki", flags = syslog.LOG_PID, facility = syslog.LOG_DAEMON, use_syslog = None, log_file = sys.stderr, tag_log_lines = True):
   """
   Initialize logging system.
   """
 
+  # If caller didn't say whether to use syslog, use log file if user supplied one, otherwise use syslog
+
+  if use_syslog is None:
+    use_syslog = log_file is sys.stderr
+
+  logger.use_syslog = use_syslog
+  logger.tag_log_lines = tag_log_lines
+
   if use_syslog:
-    return syslog.openlog(ident, flags, facility)
+    syslog.openlog(ident, flags, facility)
+
   else:
-    global tag, pid
-    tag = ident
-    pid = os.getpid()
+    logger.tag = ident
+    logger.pid = os.getpid()
+    logger.log_file = log_file
+
   if ident and have_setproctitle and use_setproctitle:
     if proctitle_extra:
       setproctitle.setproctitle("%s (%s)" % (ident, proctitle_extra))
     else:
       setproctitle.setproctitle(ident)
+
+class logger(object):
+  """
+  Closure for logging.
+  """
+
+  use_syslog = True
+  tag = ""
+  pid = 0
+  log_file = sys.stderr
+
+  def __init__(self, priority):
+    self.priority = priority
+
+  def __call__(self, message):
+    if self.use_syslog:
+      syslog.syslog(self.priority, message)
+    elif self.tag_log_lines:
+      self.log_file.write("%s %s[%d]: %s\n" % (time.strftime("%F %T"), self.tag, self.pid, message))
+      self.log_file.flush()
+    else:
+      self.log_file.write(message + "\n")
+      self.log_file.flush()
+
+error = logger(syslog.LOG_ERR)
+warn  = logger(syslog.LOG_WARNING)
+note  = logger(syslog.LOG_NOTICE)
+info  = logger(syslog.LOG_INFO)
+debug = logger(syslog.LOG_DEBUG)
+
 
 def set_trace(enable):
   """
@@ -107,26 +139,6 @@ def set_trace(enable):
 
   global enable_trace
   enable_trace = enable
-
-class logger(object):
-  """
-  Closure for logging.
-  """
-
-  def __init__(self, priority):
-    self.priority = priority
-
-  def __call__(self, message):
-    if use_syslog:
-      return syslog.syslog(self.priority, message)
-    else:
-      sys.stderr.write("%s %s[%d]: %s\n" % (time.strftime("%F %T"), tag, pid, message))
-
-error = logger(syslog.LOG_ERR)
-warn  = logger(syslog.LOG_WARNING)
-note  = logger(syslog.LOG_NOTICE)
-info  = logger(syslog.LOG_INFO)
-debug = logger(syslog.LOG_DEBUG)
 
 def trace():
   """

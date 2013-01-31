@@ -621,6 +621,8 @@ ac_includes_default="\
 
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+WSGI_PROCESS_GROUP
+WSGI_DAEMON_PROCESS
 DJANGO_ADMIN
 DJANGO_DIR
 SECRET_KEY
@@ -714,6 +716,7 @@ enable_openssl_asm
 enable_ca_tools
 enable_rpki_rtr
 enable_target_installation
+enable_daemon_mode
 enable_python
 enable_django
 '
@@ -1346,6 +1349,8 @@ Optional Features:
   --disable-rpki-rtr      Don't build the rpki-rtr code
   --disable-target-installation
                           Don't perform final target installation
+  --enable-daemon-mode=user:group
+                          Run the web portal as a separate process
   --disable-python        (Obsolete, do not use)
   --disable-django        (Obsolete, do not use)
 
@@ -2421,6 +2426,13 @@ if test "${enable_target_installation+set}" = set; then :
   enableval=$enable_target_installation;
 else
   enable_target_installation=yes
+fi
+
+# Check whether --enable-daemon_mode was given.
+if test "${enable_daemon_mode+set}" = set; then :
+  enableval=$enable_daemon_mode;
+else
+  enable_daemon_mode=no
 fi
 
 
@@ -4342,6 +4354,7 @@ case $enable_rcynic_jail in
 		use_rcynic_jail=yes
 		RCYNIC_CONF_FILE='${RCYNIC_DIR}/etc/rcynic.conf'
 		RCYNIC_TA_DIR='${RCYNIC_DIR}/etc/trust-anchors'
+		RCYNIC_BIN_RCYNIC='${RCYNIC_DIR}/bin/rcynic'
 		RCYNIC_CONF_RSYNC='/bin/rsync'
 		RCYNIC_CONF_DATA='/data'
 		RCYNIC_CONF_TA_DIR='/etc/trust-anchors'
@@ -4355,6 +4368,7 @@ case $enable_rcynic_jail in
 		use_rcynic_jail=no
 		RCYNIC_CONF_FILE='${DESTDIR}${sysconfdir}/rcynic.conf'
 		RCYNIC_TA_DIR='${DESTDIR}${sysconfdir}/rpki/trust-anchors'
+		RCYNIC_BIN_RCYNIC='${bindir}/rcynic'
 		RCYNIC_CONF_RSYNC="${RSYNC}"
 		RCYNIC_CONF_DATA='${RCYNIC_DIR}/data'
 		RCYNIC_CONF_TA_DIR="${RCYNIC_TA_DIR}"
@@ -4846,6 +4860,21 @@ fi
   test -n "$DJANGO_ADMIN" && break
 done
 
+
+	if test "$enable_daemon_mode" != no
+	then
+		save_IFS="$IFS"
+		IFS=':' read user group <<_EOF
+$enable_daemon_mode
+_EOF
+		IFS="$save_IFS"
+		WSGI_DAEMON_PROCESS="WSGIDaemonMode rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}"
+
+		WSGI_PROCESS_GROUP="WSGIProcessGroup rpkigui"
+
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: running mod_wsgi in daemon mode with user \"$user\" and group \"${group:-default}\"" >&5
+$as_echo "running mod_wsgi in daemon mode with user \"$user\" and group \"${group:-default}\"" >&6; }
+	fi
 
 	ac_config_files="$ac_config_files rpkid/Makefile rpkid/tests/Makefile rpkid/portal-gui/Makefile"
 

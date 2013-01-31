@@ -252,6 +252,7 @@ case $enable_rcynic_jail in
 		use_rcynic_jail=yes
 		RCYNIC_CONF_FILE='${RCYNIC_DIR}/etc/rcynic.conf'
 		RCYNIC_TA_DIR='${RCYNIC_DIR}/etc/trust-anchors'
+		RCYNIC_BIN_RCYNIC='${RCYNIC_DIR}/bin/rcynic'
 		RCYNIC_CONF_RSYNC='/bin/rsync'
 		RCYNIC_CONF_DATA='/data'
 		RCYNIC_CONF_TA_DIR='/etc/trust-anchors'
@@ -265,6 +266,7 @@ case $enable_rcynic_jail in
 		use_rcynic_jail=no
 		RCYNIC_CONF_FILE='${DESTDIR}${sysconfdir}/rcynic.conf'
 		RCYNIC_TA_DIR='${DESTDIR}${sysconfdir}/rpki/trust-anchors'
+		RCYNIC_BIN_RCYNIC='${bindir}/rcynic'
 		RCYNIC_CONF_RSYNC="${RSYNC}"
 		RCYNIC_CONF_DATA='${RCYNIC_DIR}/data'
 		RCYNIC_CONF_TA_DIR="${RCYNIC_TA_DIR}"

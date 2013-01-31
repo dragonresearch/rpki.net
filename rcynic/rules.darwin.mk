@@ -1,7 +1,7 @@
 # $Id$
 
 create-rcynic-user-and-group: .FORCE
-	if /usr/bin/dscl . -read "/Groups/${RCYNIC_GROUP}" >/dev/null 2>&1; \
+	@if /usr/bin/dscl . -read "/Groups/${RCYNIC_GROUP}" >/dev/null 2>&1; \
 	then \
 	    echo "You already have a group \"${RCYNIC_GROUP}\", so I will use it."; \
 	elif gid="$$(/usr/bin/dscl . -list /Groups PrimaryGroupID | /usr/bin/awk 'BEGIN {gid = 501} $$2 >= gid {gid = 1 + $$2} END {print gid}')" && \
@@ -36,3 +36,31 @@ create-rcynic-user-and-group: .FORCE
 	    echo "Please create it, then try again."; \
 	    exit 1; \
 	fi
+
+
+install-shared-libraries: .FORCE
+	@echo "Copying required shared libraries" 
+	@shared_libraries="${RCYNIC_DIR}/bin/rcynic ${RCYNIC_DIR}/bin/rsync"; \
+	while true; \
+	do \
+	    closure="$$(/usr/bin/otool -L $${shared_libraries} | /usr/bin/awk '/:$$/ {next} {print $$1}' | /usr/bin/sort -u)"; \
+	    if test "x$$shared_libraries" = "x$$closure"; 
+	    then \
+		break; \
+	    else \
+		shared_libraries="$$closure"; \
+	    fi; \
+	done; \
+	for shared in /usr/lib/dyld $$shared_libraries; \
+	do \
+	    if /bin/test -r "${RCYNIC_DIR}/$${shared}"; \
+	    then \
+		echo "You already have a \"${RCYNIC_DIR}/$${shared}\", so I will use it"; \
+	    elif /usr/bin/install -m 555 -o root -g wheel -p "$${shared}" "${RCYNIC_DIR}/$${shared}"; \
+	    then \
+		echo "Copied $${shared} into ${RCYNIC_DIR}"; \
+	    else \
+		echo "Unable to copy $${shared} into ${RCYNIC_DIR}"; \
+		exit 1; \
+	    fi; \
+	done

@@ -23,3 +23,9 @@ create-rcynic-user-and-group: .FORCE
 	    echo "Please create it, then try again."; \
 	    exit 1; \
 	fi
+
+
+# We use static compilation on FreeBSD, so no need for shared libraries
+
+install-shared-libraries: 
+	@true

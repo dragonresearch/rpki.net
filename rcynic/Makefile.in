@@ -28,6 +28,7 @@ RCYNIC_DIR		= @RCYNIC_DIR@
 RCYNIC_JAIL_DIRS	= @RCYNIC_JAIL_DIRS@
 RCYNIC_CONF_FILE	= @RCYNIC_CONF_FILE@
 RCYNIC_TA_DIR		= @RCYNIC_TA_DIR@
+RCYNIC_BIN_RCYNIC	= @RCYNIC_BIN_RCYNIC@
 RCYNIC_DATA_DIR		= ${RCYNIC_DIR}/data
 RCYNIC_RPKI_RTR_DIR	= ${RCYNIC_DIR}/rpki-rtr
 RCYNIC_DIRS		= ${RCYNIC_TA_DIR} ${RCYNIC_JAIL_DIRS} ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
@@ -151,6 +152,30 @@ ${RCYNIC_CONF_FILE}:
          done
 	@chmod 444 $@.tmp
 	@mv $@.tmp $@
+
+install-rcynic: ${RCYNIC_BIN_RCYNIC}
+
+${RCYNIC_BIN_RCYNIC}: ${BIN}
+	${INSTALL} -p -m 555 ${BIN} $@
+
+install-static-rsync: ${RCYNIC_DIR}/bin/rsync
+
+${RCYNIC_DIR}/bin/rsync: static-rsync/rsync
+	${INSTALL} -p -m 555 static-rsync/rsync $@
+
+install-scripts: ${bindir}/rcynic-text ${bindir}/rcynic-html ${bindir}/rcynic-svn ${bindir}/validation_status
+
+${bindir}/rcynic-text: rcynic-text
+	${INSTALL} -p -m 555 rcynic-text ${bindir}
+
+${bindir}/rcynic-html: rcynic-html
+	${INSTALL} -p -m 555 rcynic-html ${bindir}
+
+${bindir}/rcynic-svn: rcynic-svn
+	${INSTALL} -p -m 555 rcynic-svn ${bindir}
+
+${bindir}/validation_status: validation_status
+	${INSTALL} -p -m 555 validation_status ${bindir}
 
 .FORCE:
 

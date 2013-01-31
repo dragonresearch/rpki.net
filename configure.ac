@@ -29,6 +29,7 @@ AC_ARG_WITH([system_openssl], [AS_HELP_STRING([--with-system-openssl], [Link aga
 AC_ARG_ENABLE([openssl_asm],  [AS_HELP_STRING([--disable-openssl-asm], [Don't let OpenSSL build assembler code])], [], [enable_openssl_asm=auto])
 AC_ARG_ENABLE([ca_tools],     [AS_HELP_STRING([--disable-ca-tools],    [Don't build any of the CA tools])],        [], [enable_ca_tools=yes])
 AC_ARG_ENABLE([rpki_rtr],     [AS_HELP_STRING([--disable-rpki-rtr],    [Don't build the rpki-rtr code])],	   [], [enable_rpki_rtr=yes])
+AC_ARG_ENABLE([daemon_mode],  [AS_HELP_STRING([--enable-daemon-mode=user[:group]],[Run the web portal as a separate process])],[],[enable_daemon_mode=no])
 
 # Obsolete options.  If you know of a better way to handle this, tell me.
 
@@ -482,6 +483,16 @@ then
 
         # There is no standard name for this tool, so check for it.
         AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
+
+	if test "$enable_daemon_mode" != no
+	then
+		IFS=':' read user group <<_EOF
+$enable_daemon_mode
+_EOF
+		AC_SUBST(WSGI_DAEMON_PROCESS, "WSGIDaemonMode rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}")
+		AC_SUBST(WSGI_PROCESS_GROUP, "WSGIProcessGroup rpkigui")
+		AC_MSG_RESULT([running mod_wsgi in daemon mode with user "$user" and group "${group:-default}"])
+	fi
 
 	AC_CONFIG_FILES([rpkid/Makefile rpkid/tests/Makefile rpkid/portal-gui/Makefile])
 fi

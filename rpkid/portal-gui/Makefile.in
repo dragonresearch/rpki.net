@@ -17,6 +17,8 @@ libexecdir=@libexecdir@
 sysconfdir=@sysconfdir@
 
 INSTALL = @INSTALL@
+WSGI_DAEMON_PROCESS=@WSGI_DAEMON_PROCESS@
+WSGI_PROCESS_GROUP=@WSGI_PROCESS_GROUP@
 
 INSTDIR=${DESTDIR}$(datarootdir)/rpki
 SYSCONFDIR=${DESTDIR}${sysconfdir}/rpki
@@ -34,7 +36,9 @@ distclean: clean
 	rm -f Makefile
 
 edit = sed \
-	     -e 's|@INSTDIR[@]|$(INSTDIR)|g'
+	     -e 's|@INSTDIR[@]|$(INSTDIR)|g' \
+	     -e 's|@WSGI_DAEMON_PROCESS[@]|$(WSGI_DAEMON_PROCESS)|' \
+	     -e 's|@WSGI_PROCESS_GROUP[@]|$(WSGI_PROCESS_GROUP)|'
 
 apache.conf: $(srcdir)/apache.conf.in Makefile
 	$(edit) $@.in > $@

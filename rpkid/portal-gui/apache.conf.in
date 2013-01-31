@@ -7,8 +7,8 @@
 # Configure the WSGI application to run as a separate process from the
 # Apache daemon itself.
 #
-#WSGIDaemonProcess rpki processes=2
-#WSGIProcessGroup rpki
+@WSGI_DAEMON_PROCESS@
+@WSGI_PROCESS_GROUP@
 
 <Directory @INSTDIR@/wsgi>
 Order deny,allow

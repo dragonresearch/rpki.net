@@ -24,7 +24,7 @@
 	  {% if user.is_authenticated %}
 	    <li><p class="navbar-text">Logged in as {{ user }}</li>
 	    <li class="divider-vertical"></li>
-	    <li><a href="{% url django.contrib.auth.views.logout %}">Log Out</a></li>
+	    <li><a href="{% url rpki.gui.views.logout %}">Log Out</a></li>
 	  {% endif %}
 	  </ul>
 	</div>

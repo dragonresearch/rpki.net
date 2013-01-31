@@ -42,6 +42,7 @@ import rpki.exceptions
 
 from rpki.gui.cacheview.models import ROAPrefixV4, ROA
 from rpki.gui.routeview.models import RouteOrigin
+from rpki.gui.decorators import tls_required
 
 
 def superuser_required(f):
@@ -63,6 +64,7 @@ def handle_required(f):
 
     """
     @login_required
+    @tls_required
     def wrapped_fn(request, *args, **kwargs):
         if 'handle' not in request.session:
             if request.user.is_superuser:

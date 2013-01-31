@@ -14,25 +14,37 @@ CFLAGS = @CFLAGS@ -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations -We
 LDFLAGS = @LDFLAGS@ @LD_STATIC_FLAG@
 LIBS = @LIBS@
 
-AWK = @AWK@
-SORT= @SORT@
-PYTHON = @PYTHON@
-RRDTOOL = @RRDTOOL@
+AWK			= @AWK@
+SORT			= @SORT@
+PYTHON			= @PYTHON@
+RRDTOOL			= @RRDTOOL@
+INSTALL			= @INSTALL@
 
-abs_top_srcdir	 = @abs_top_srcdir@
-abs_top_builddir = @abs_top_builddir@
+abs_top_srcdir		= @abs_top_srcdir@
+abs_top_builddir	= @abs_top_builddir@
 
-host_os = @host_os@
-
-USE_RCYNIC_JAIL = @USE_RCYNIC_JAIL@
-RCYNIC_JAIL_DIRECTORY = @RCYNIC_JAIL_DIRECTORY@
+RCYNIC_INSTALL_TARGETS	= @RCYNIC_INSTALL_TARGETS@
+RCYNIC_DIR		= @RCYNIC_DIR@
+RCYNIC_JAIL_DIRS	= @RCYNIC_JAIL_DIRS@
+RCYNIC_CONF_FILE	= @RCYNIC_CONF_FILE@
+RCYNIC_TA_DIR		= @RCYNIC_TA_DIR@
+RCYNIC_DATA_DIR		= ${RCYNIC_DIR}/data
+RCYNIC_RPKI_RTR_DIR	= ${RCYNIC_DIR}/rpki-rtr
+RCYNIC_DIRS		= ${RCYNIC_TA_DIR} ${RCYNIC_JAIL_DIRS} ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
+RCYNIC_CONF_RSYNC	= @RCYNIC_CONF_RSYNC@
+RCYNIC_CONF_DATA	= @RCYNIC_CONF_DATA@
+RCYNIC_CONF_TA_DIR	= @RCYNIC_CONF_TA_DIR@
+RCYNIC_USER		= rcynic
+RCYNIC_GROUP		= rcynic
+RCYNIC_GECOS		= RPKI Validation System
+RCYNIC_STATIC_RSYNC	= @RCYNIC_STATIC_RSYNC@
 
 SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status
 
-all: ${BIN} ${SCRIPTS}
+all: ${BIN} ${SCRIPTS} ${RCYNIC_STATIC_RSYNC}
 
 clean:
-	cd static-rsync; ${MAKE} $@
+	if test -r static-rsync/Makefile; then cd static-rsync; ${MAKE} $@; fi
 	rm -f ${BIN} ${OBJS} ${SCRIPTS}
 
 ${OBJ}: ${SRC} ${GEN}
@@ -43,27 +55,6 @@ ${BIN}: ${OBJS}
 ${GEN}: ${SRC}
 	${PYTHON} ${abs_top_srcdir}/buildtools/defstack.py ${SRC} >$@.tmp
 	mv $@.tmp $@
-
-test: ${BIN}
-	if test -r rcynic.conf; \
-	then \
-		./${BIN} -j 0 && \
-		test -r rcynic.xml && \
-		echo && \
-		./rcynic-text rcynic.xml; \
-	else \
-		 echo No rcynic.conf, skipping test; \
-	fi
-
-install: ${BIN} installation-scripts/install.sh
-	cd installation-scripts; host_os="${host_os}"; jaildir="${DESTDIR}${RCYNIC_JAIL_DIRECTORY}" DESTDIR="${DESTDIR}"; AWK="${AWK}"; SORT="${SORT}"; . ./install.sh
-
-uninstall deinstall:
-	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; . ./deinstall.sh
-
-distclean: clean
-	cd static-rsync; ${MAKE} $@
-	rm -f Makefile
 
 COMPILE_PYTHON = \
 	AC_PYTHON_INTERPRETER='${PYTHON}' \
@@ -87,3 +78,83 @@ tags: TAGS
 
 TAGS: ${SRC} ${GEN}
 	etags ${SRC} ${GEN}
+
+test: ${BIN}
+	if test -r rcynic.conf; \
+	then \
+		./${BIN} -j 0 && \
+		test -r rcynic.xml && \
+		echo && \
+		./rcynic-text rcynic.xml; \
+	else \
+		 echo No rcynic.conf, skipping test; \
+	fi
+
+uninstall deinstall:
+	@echo Sorry, automated deinstallation of rcynic is not implemented yet
+
+distclean: clean
+	if test -r static-rsync/Makefile; then cd static-rsync; ${MAKE} $@; fi
+	rm -f Makefile
+
+static-rsync/rsync:
+	@echo "Building static rsync for use in chroot jail"
+	cd static-rsync; ${MAKE} all
+
+install: ${BIN} ${RSYNC_INSTALL_TARGETS}
+
+# From here down is a long list of rules to handle installation on
+# various platforms.  This used to be a set of nasty shell scripts,
+# now it's nasty Makefile autoconf AC_SUBST_FILE snippets.
+#
+# Still working out details here.
+
+create-rcynic-directories: ${RCYNIC_DIRS}
+
+${RCYNIC_DIRS}:
+	mkdir -p -v -555 $@
+
+postconf-rcynic-directories: ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
+	chown ${RCYNIC_USER}:${RCYNIC_GROUP} ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
+
+# Old script only installed trust anchors if rcynic.conf was missing.
+# Haven't decided yet whether we want to preserve that behavior.
+
+install-rcynic-trust-anchors: ${RCYNIC_TA_DIR}
+	@cd sample-trust-anchors; \
+	for i in *.tal; \
+	do \
+	    ${INSTALL} -C -p -m 444 "$$i" "${RCYNIC_TA_DIR}/$$i"; \
+	done
+
+install-rcynic-conf: ${RCYNIC_CONF_FILE}
+
+${RCYNIC_CONF_FILE}:
+	@echo Found no ${RCYNIC_CONF_FILE}, creating sample config.  You might want to edit this.
+	@echo > $@.tmp '# Sample rcynic configuration file.  See documentation for details.'
+	@echo >>$@.tmp ''
+	@echo >>$@.tmp '[rcynic]'
+	@echo >>$@.tmp 'rsync-program		= ${RCYNIC_CONF_RSYNC}'
+	@echo >>$@.tmp 'authenticated		= ${RCYNIC_CONF_DATA}/authenticated'
+	@echo >>$@.tmp 'unauthenticated		= ${RCYNIC_CONF_DATA}/unauthenticated'
+	@echo >>$@.tmp 'lockfile		= ${RCYNIC_CONF_DATA}/lock'
+	@echo >>$@.tmp 'xml-summary		= ${RCYNIC_CONF_DATA}/rcynic.xml'
+	@echo >>$@.tmp 'jitter			= 600'
+	@echo >>$@.tmp 'use-syslog		= true'
+	@echo >>$@.tmp 'log-level		= log_usage_err'
+	@cd ${RCYNIC_TA_DIR}; \
+	 j=1; \
+	 for i in *.tal; \
+	 do \
+	    echo >>$@ "trust-anchor-locator.$$j	= ${RCYNIC_CONF_TA_DIR}/$$i"; \
+	    j=$$((j+1)); \
+         done
+	@chmod 444 $@.tmp
+	@mv $@.tmp $@
+
+.FORCE:
+
+# Not sure we want this, test it both ways I guess
+#.PHONY: .FORCE
+
+@RCYNIC_MAKE_RULES@

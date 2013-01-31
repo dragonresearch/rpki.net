@@ -25,11 +25,14 @@ fi
 
 # Put the user option stuff up front.
 
-AC_ARG_WITH([system_openssl], [AS_HELP_STRING([--with-system-openssl], [Link against system copy of OpenSSL])],    [], [with_system_openssl=auto])
-AC_ARG_WITH([rcynic-jail],    [AS_HELP_STRING([--with-rcynic-jail],    [Set location of rcynic jail directory])],  [], [with_rcynic_jail=auto])
-AC_ARG_ENABLE([openssl_asm],  [AS_HELP_STRING([--disable-openssl-asm], [Don't let OpenSSL build assembler code])], [], [enable_openssl_asm=auto])
-AC_ARG_ENABLE([ca_tools],     [AS_HELP_STRING([--disable-ca-tools],    [Don't build any of the CA tools])],        [], [enable_ca_tools=yes])
-AC_ARG_ENABLE([rpki_rtr],     [AS_HELP_STRING([--disable-rpki-rtr],    [Don't build the rpki-rtr code])],	   [], [enable_rpki_rtr=yes])
+AC_ARG_WITH([system_openssl],		[AS_HELP_STRING([--with-system-openssl],		[Link against system copy of OpenSSL])],    [], [with_system_openssl=auto])
+AC_ARG_ENABLE([rcynic_jail],		[AS_HELP_STRING([--enable-rcynic-jail],			[Run rcynic in chroot jail])],              [], [enable_rcynic_jail=no])
+AC_ARG_ENABLE([openssl_asm],		[AS_HELP_STRING([--disable-openssl-asm],		[Don't let OpenSSL build assembler code])], [], [enable_openssl_asm=auto])
+AC_ARG_ENABLE([ca_tools],		[AS_HELP_STRING([--disable-ca-tools],			[Don't build any of the CA tools])],        [], [enable_ca_tools=yes])
+AC_ARG_ENABLE([rpki_rtr],		[AS_HELP_STRING([--disable-rpki-rtr],			[Don't build the rpki-rtr code])],          [], [enable_rpki_rtr=yes])
+AC_ARG_ENABLE([target_installation],	[AS_HELP_STRING([--disable-target-installation],	[Don't perform final target installation])],[], [enable_target_installation=yes])
+
+AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rtr-origin; also controls jail location for --enable-rcynic-jail])
 
 # Obsolete options.  If you know of a better way to handle this, tell me.
 
@@ -75,8 +78,12 @@ dnl  LDFLAGS="$old_LDFLAGS"
 dnl  unset old_LDFLAGS
 
 case $host_os in
-freebsd*)	LD_STATIC_FLAG='-static';;
-*)		LD_STATIC_FLAG='';;
+	freebsd*)
+		LD_STATIC_FLAG='-static'
+		;;
+	*)
+		LD_STATIC_FLAG=''
+		;;
 esac
 AC_SUBST(LD_STATIC_FLAG)
 
@@ -116,6 +123,7 @@ AC_PATH_PROG([SORT], [sort])
 AC_PATH_PROG([RRDTOOL], [rrdtool])
 AC_PROG_GREP
 AC_PATH_PROG([TRANG], [trang], [\${abs_top_srcdir}/buildtools/trang-not-found])
+AC_PATH_PROG([RSYNC], [rsync])
 
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:
@@ -221,37 +229,109 @@ case $enable_openssl_asm in
 		;;
 esac     
 
-# Figure out where to put rcynic jail.  In the long run I suspect we
-# will want to use autoconf file substitution here to let us include
-# different chunks of Makefile code depending on whether we're
-# building a jail or not, but for today all I really care about is
-# being able to set the jail directory so I can write a FreeBSD port.
+# RCYNIC_DIR is a "precious" argument variable to this script (see
+# autoconf doc), which means that autoconf is careful with whatever
+# value (if any) was passed in, and that it's already been declared
+# for variable substitution.  We still have to set a default value for
+# it, though, and we might as well handle DESTDIR while we're at it.
 
-AC_MSG_CHECKING([where to put rcynic jail])
+if test "X$RCYNIC_DIR" = "X"
+then
+	RCYNIC_DIR='${DESTDIR}/var/rcynic'
+else
+	RCYNIC_DIR='${DESTDIR}'"${RCYNIC_DIR}"
+fi
 
-case $with_rcynic_jail in
-	yes|auto)
-		RCYNIC_JAIL_DIRECTORY=/var/rcynic
+# Figure out whether to run rcynic in a chroot jail, which determines
+# a bunch of other settings.
+
+AC_MSG_CHECKING([whether to build chroot jail for rcynic])
+
+case $enable_rcynic_jail in
+	yes)
+		use_rcynic_jail=yes
+		RCYNIC_CONF_FILE='${RCYNIC_DIR}/etc/rcynic.conf'
+		RCYNIC_TA_DIR='${RCYNIC_DIR}/etc/trust-anchors'
+		RCYNIC_CONF_RSYNC='/bin/rsync'
+		RCYNIC_CONF_DATA='/data'
+		RCYNIC_CONF_TA_DIR='/etc/trust-anchors'
+		RCYNIC_JAIL_DIRS='${RCYNIC_DIR}/bin ${RCYNIC_DIR}/dev ${RCYNIC_DIR}/etc'
+		if test "X$host_os" = "Xlinux"
+		then
+			RCYNIC_JAIL_DIRS="RCYNIC_JAIL_DIRS "'${RCYNIC_DIR}/lib ${RCYNIC_DIR}/lib64 ${RCYNIC_DIR}/usr/lib'
+		fi
 		;;
 	no)
-		RCYNIC_JAIL_DIRECTORY=''
+		use_rcynic_jail=no
+		RCYNIC_CONF_FILE='${DESTDIR}${sysconfdir}/rcynic.conf'
+		RCYNIC_TA_DIR='${DESTDIR}${sysconfdir}/rpki/trust-anchors'
+		RCYNIC_CONF_RSYNC="${RSYNC}"
+		RCYNIC_CONF_DATA='${RCYNIC_DIR}/data'
+		RCYNIC_CONF_TA_DIR="${RCYNIC_TA_DIR}"
+		RCYNIC_JAIL_DIRS=''
 		;;
 	*)
-		RCYNIC_JAIL_DIRECTORY="$with_rcynic_jail"
+		AC_MSG_ERROR([Unrecognized value for --enable-rcynic-jail: $enable_rcynic_jail])
 		;;
 esac
 
-if test "X$RCYNIC_JAIL_DIRECTORY" = "X"
+AC_SUBST(RCYNIC_JAIL_DIRS)
+AC_SUBST(RCYNIC_CONF_FILE)
+AC_SUBST(RCYNIC_TA_DIR)
+AC_SUBST(RCYNIC_CONF_RSYNC)
+AC_SUBST(RCYNIC_CONF_DATA)
+AC_SUBST(RCYNIC_CONF_TA_DIR)
+
+AC_MSG_RESULT([$use_rcynic_jail])
+
+if test $use_rcynic_jail = yes && test "X$LD_STATIC_FLAG" != "X"
 then
-	USE_RCYNIC_JAIL=no
-	AC_MSG_RESULT([no rcynic jail])
+	RCYNIC_STATIC_RSYNC='static-rsync/rsync'
 else
-	USE_RCYNIC_JAIL=yes
-	AC_MSG_RESULT([$RCYNIC_JAIL_DIRECTORY])
+	RCYNIC_STATIC_RSYNC=''
 fi
 
-AC_SUBST(USE_RCYNIC_JAIL)
-AC_SUBST(RCYNIC_JAIL_DIRECTORY)
+AC_SUBST(RCYNIC_STATIC_RSYNC)
+
+# Check whether to do "final target installation".  This means actions
+# that can only be done when installing a package, as opposed to when
+# building a package.  On FreeBSD this is sort of irrelevant, because
+# of the way package installs work when building from source, but on
+# Debian and Ubuntu, for example, there's a strict separation between
+# things that are done during package build and things that are done
+# by the binary package's {pre,post}inst scripts.
+
+AC_MSG_CHECKING([whether to do final target installation on "make install"])
+
+case $enable_target_installation in
+	yes|no)
+		;;
+	*)
+		AC_MSG_ERROR([Unrecognized value for --enable-target-installation: $enable_target_installation])
+		;;
+esac
+
+AC_MSG_RESULT([$enable_target_installation])
+
+# rcynic jail setup is complicated enough that it's simplest to have
+# different rule sets for different platforms.  Icky, but....
+
+case $host_os in
+	darwin*)
+		RCYNIC_MAKE_RULES='rcynic/rules.darwin.mk'
+		;;
+	freebsd*)
+		RCYNIC_MAKE_RULES='rcynic/rules.freebsd.mk'
+		;;
+	linux*)
+		RCYNIC_MAKE_RULES='rcynic/rules.linux.mk'
+		;;
+	*)
+		RCYNIC_MAKE_RULES='rcynic/rules.unknown.mk'
+		;;
+esac
+
+AC_SUBST_FILE(RCYNIC_MAKE_RULES)
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If
@@ -467,7 +547,6 @@ AC_CONFIG_FILES([Makefile
 		 ac_rpki.py
 		 h/Makefile
 		 rcynic/Makefile
-		 rcynic/static-rsync/Makefile
 		 utils/Makefile
 		 utils/find_roa/Makefile
 		 utils/hashdir/Makefile
@@ -475,6 +554,11 @@ AC_CONFIG_FILES([Makefile
 		 utils/print_roa/Makefile
 		 utils/scan_roas/Makefile
 		 utils/uri/Makefile])
+
+if test "X$RCYNIC_STATIC_RSYNC" != "X"
+then
+	AC_CONFIG_FILES([rcynic/static-rsync/Makefile])
+fi
 
 # OpenSSL has its own build system that bears no relationship to
 # anything but itself, and our use of it is a bit weird, so this is a

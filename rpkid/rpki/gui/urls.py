@@ -30,7 +30,7 @@ urlpatterns = patterns('',
     (r'^cacheview/', include('rpki.gui.cacheview.urls')),
     (r'^rpki/', include('rpki.gui.app.urls')),
 
-    (r'^accounts/login/$', 'django.contrib.auth.views.login'),
-    (r'^accounts/logout/$', 'django.contrib.auth.views.logout',
+    (r'^accounts/login/$', 'rpki.gui.views.login'),
+    (r'^accounts/logout/$', 'rpki.gui.views.logout',
         {'next_page': '/rpki/'}),
 )

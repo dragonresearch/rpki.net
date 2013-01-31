@@ -3707,7 +3707,8 @@ static int check_x509(rcynic_ctx_t *rc,
     ex_count--;
     if ((loc = X509_get_ext_by_NID(x, NID_sbgp_ipAddrBlock, -1)) < 0 ||
 	!X509_EXTENSION_get_critical(X509_get_ext(x, loc)) ||
-	!v3_addr_is_canonical(x->rfc3779_addr)) {
+	!v3_addr_is_canonical(x->rfc3779_addr) ||
+	sk_IPAddressFamily_num(x->rfc3779_addr) == 0) {
       log_validation_status(rc, uri, bad_ipaddrblocks, generation);
       goto done;
     }
@@ -3718,6 +3719,7 @@ static int check_x509(rcynic_ctx_t *rc,
     if ((loc = X509_get_ext_by_NID(x, NID_sbgp_autonomousSysNum, -1)) < 0 ||
 	!X509_EXTENSION_get_critical(X509_get_ext(x, loc)) ||
 	!v3_asid_is_canonical(x->rfc3779_asid) ||
+	x->rfc3779_asid->asnum == NULL ||
 	x->rfc3779_asid->rdi != NULL) {
       log_validation_status(rc, uri, bad_asidentifiers, generation);
       goto done;

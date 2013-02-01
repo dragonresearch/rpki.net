@@ -21,25 +21,17 @@ PERFORMANCE OF THIS SOFTWARE.
 # Locking code here works like FreeBSD's lockf(1) utility given -k and
 # -t 0 options, which is both the sanest and simplest combination for
 # our purposes.  In theory this is portable to any Unix-like system.
+#
+# At some point we might want to implement the chroot() and setuid()
+# functionality here rather than using this mess of platform-specific
+# external programs.  I don't have time to write and debug that today,
+# but it might well be simpler and more portable.
 
 import subprocess
 import sys
 import fcntl
 import os
 import pwd
-
-# Stuff we need from autoconf:
-#
-#  AC_RCYNIC_USER
-#  AC_RCYNIC_GROUP
-#  AC_RCYNIC_DIR
-#  AC_bindir
-#  AC_sysconfdir
-#  AC_RCYNIC_HTML_DIR
-#  AC_SU
-#  AC_SUDO
-#  AC_CHROOT
-#  AC_CHROOTUID
 
 we_are_root = os.getuid() == 0
 

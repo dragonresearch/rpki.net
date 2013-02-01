@@ -26,6 +26,7 @@ import subprocess
 import sys
 import fcntl
 import os
+import pwd
 
 # Stuff we need from autoconf:
 #
@@ -76,6 +77,9 @@ def run(*cmd, **kwargs):
 try:
   lock = os.open(os.path.join(AC_RCYNIC_DIR, "data/lock"), os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
   fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+  if we_are_root:
+    pw = pwd.getpwnam(AC_RCYNIC_USER)
+    os.fchown(lock, pw.pw_uid, pw.pw_gid)
 except (IOError, OSError), e:
   sys.exit("Error %r opening lock %r" % (e.strerror, os.path.join(AC_RCYNIC_DIR, "data/lock")))
 

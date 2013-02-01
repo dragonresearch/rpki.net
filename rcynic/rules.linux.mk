@@ -61,3 +61,8 @@ install-shared-libraries: .FORCE
 			${INSTALL} -m 555 -p "$${shared}" "${RCYNIC_DIR}$${shared}"; \
 		fi; \
 	done
+
+# No devfs, so no rc script
+
+install-rc-scripts:
+	@true

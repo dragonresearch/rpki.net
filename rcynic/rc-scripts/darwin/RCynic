@@ -1,0 +1,42 @@
+#!/bin/sh -
+#
+# $Id$
+#
+. /etc/rc.common
+
+name="rcynic"
+start_cmd="rcynic_start"
+stop_cmd="rcynic_stop"
+
+: ${rcynic_dir="/var/rcynic"}
+
+StartService()
+{
+	/sbin/umount "${rcynic_dir}/dev" 2>/dev/null
+
+	if ! /sbin/mount_devfs devfs "${rcynic_dir}/dev"; then
+		echo "Mounting devfs on ${rcynic_dir}/dev failed..."
+		exit 1
+	fi
+
+	for i in /etc/localtime /etc/resolv.conf; do
+		j="${rcynic_dir}${i}"
+		if /bin/test -r "$i" && ! /usr/bin/cmp -s "$i" "$j"; then
+			/usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
+		fi
+	done
+
+	/bin/ln -f /var/run/mDNSResponder "${rcynic_dir}/var/run/mDNSResponder"
+}
+
+StopService()
+{
+	/sbin/umount "${rcynic_dir}/dev" 2>/dev/null
+}
+
+RestartService()
+{
+	StartService
+}
+
+RunService "$1"

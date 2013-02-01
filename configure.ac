@@ -262,6 +262,7 @@ case $enable_rcynic_jail in
 		RCYNIC_CONF_RSYNC='/bin/rsync'
 		RCYNIC_CONF_DATA='/data'
 		RCYNIC_CONF_TA_DIR='/etc/trust-anchors'
+		RCYNIC_CRON_USER='root'
 		RCYNIC_JAIL_DIRS='${RCYNIC_DIR}/bin ${RCYNIC_DIR}/dev ${RCYNIC_DIR}/etc'
 		if test "X$host_os" = "Xlinux"
 		then
@@ -276,6 +277,7 @@ case $enable_rcynic_jail in
 		RCYNIC_CONF_RSYNC="${RSYNC}"
 		RCYNIC_CONF_DATA='${RCYNIC_DIR}/data'
 		RCYNIC_CONF_TA_DIR="${RCYNIC_TA_DIR}"
+		RCYNIC_CRON_USER='${RCYNIC_USER}'
 		RCYNIC_JAIL_DIRS=''
 		;;
 	*)

@@ -61,6 +61,7 @@ RCYNIC_GROUP		= rcynic
 RCYNIC_GECOS		= RPKI Validation System
 RCYNIC_STATIC_RSYNC	= @RCYNIC_STATIC_RSYNC@
 RCYNIC_HTML_DIR		= @RCYNIC_HTML_DIR@
+RCYNIC_CRON_USER	= @RCYNIC_CRON_USER@
 
 SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status rcynic-cron
 
@@ -203,7 +204,12 @@ install-static-rsync: ${RCYNIC_DIR}/bin/rsync
 ${RCYNIC_DIR}/bin/rsync: static-rsync/rsync
 	${INSTALL} -p -m 555 static-rsync/rsync $@
 
-install-scripts: ${bindir}/rcynic-text ${bindir}/rcynic-html ${bindir}/rcynic-svn ${bindir}/validation_status
+install-scripts: \
+	${bindir}/rcynic-text \
+	${bindir}/rcynic-html \
+	${bindir}/rcynic-svn \
+	${bindir}/rcynic-cron \
+	${bindir}/validation_status
 
 ${bindir}/rcynic-text: rcynic-text
 	${INSTALL} -p -m 555 rcynic-text ${bindir}
@@ -214,6 +220,9 @@ ${bindir}/rcynic-html: rcynic-html
 ${bindir}/rcynic-svn: rcynic-svn
 	${INSTALL} -p -m 555 rcynic-svn ${bindir}
 
+${bindir}/rcynic-cron: rcynic-cron
+	${INSTALL} -p -m 555 rcynic-cron ${bindir}
+
 ${bindir}/validation_status: validation_status
 	${INSTALL} -p -m 555 validation_status ${bindir}
 
@@ -221,5 +230,22 @@ ${bindir}/validation_status: validation_status
 
 # Not sure we want this, test it both ways I guess
 #.PHONY: .FORCE
+
+configure-rcynic-crontab: .FORCE
+	@echo "Setting up ${RCYNIC_CRON_USER}'s crontab to run rcynic-cron script
+	@crontab -l -u ${RCYNIC_CRON_USER} 2>/dev/null | \
+	 ${AWK} -v t=`hexdump -n 2 -e '"%u\n"' /dev/random` '\
+	 BEGIN { \
+	    cmd = "exec ${bindir}/rcynic-cron"; \
+	 } \
+	 $$0 !~ cmd { \
+	    print; \
+	 } \
+	 END { \
+	    printf "%u * * * *\t%s\n", t % 60, cmd; \
+	 }' | \
+	 /usr/bin/crontab -u ${RCYNIC_CRON_USER} -
+
+# Platform-specific rules below here.
 
 @RCYNIC_MAKE_RULES@

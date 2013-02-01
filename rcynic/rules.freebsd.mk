@@ -29,3 +29,6 @@ create-rcynic-user-and-group: .FORCE
 
 install-shared-libraries: 
 	@true
+
+install-rc-scripts:
+	${INSTALL} -m 555 -o root -g wheel -p rc-scripts/freebsd/rc.d.rcynic ${DESTDIR}/usr/local/etc/rc.d/rcynic

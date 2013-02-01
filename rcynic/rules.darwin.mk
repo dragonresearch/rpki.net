@@ -64,3 +64,10 @@ install-shared-libraries: .FORCE
 		exit 1; \
 	    fi; \
 	done
+
+install-rc-scripts:
+	${INSTALL} -o root -g wheel -d ${DESTDIR}/Library/StartupItems/RCynic
+	${INSTALL} -o root -g wheel -m 555 \
+		rc-scripts/darwin/RCynic \
+		rc-scripts/darwin/StartupParameters.plist \
+		${DESTDIR}/Library/Startup/RCynic

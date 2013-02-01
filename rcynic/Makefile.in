@@ -19,9 +19,30 @@ SORT			= @SORT@
 PYTHON			= @PYTHON@
 RRDTOOL			= @RRDTOOL@
 INSTALL			= @INSTALL@
+SU			= @SU@
+SUDO			= @SUDO@
+CHROOT			= @CHROOT@
+CHROOTUID		= @CHROOTUID@
 
 abs_top_srcdir		= @abs_top_srcdir@
 abs_top_builddir	= @abs_top_builddir@
+
+prefix			= @prefix@
+exec_prefix		= @exec_prefix@
+datarootdir		= @datarootdir@
+datadir			= @datadir@
+localstatedir		= @localstatedir@
+sharedstatedir		= @sharedstatedir@
+sysconfdir		= @sysconfdir@
+bindir			= @bindir@
+sbindir			= @sbindir@
+libexecdir		= @libexecdir@
+sysconfdir		= @sysconfdir@
+
+abs_builddir		= @abs_builddir@
+abs_top_srcdir		= @abs_top_srcdir@
+abs_top_builddir	= @abs_top_builddir@
+srcdir			= @srcdir@
 
 RCYNIC_INSTALL_TARGETS	= @RCYNIC_INSTALL_TARGETS@
 RCYNIC_DIR		= @RCYNIC_DIR@
@@ -39,8 +60,9 @@ RCYNIC_USER		= rcynic
 RCYNIC_GROUP		= rcynic
 RCYNIC_GECOS		= RPKI Validation System
 RCYNIC_STATIC_RSYNC	= @RCYNIC_STATIC_RSYNC@
+RCYNIC_HTML_DIR		= @RCYNIC_HTML_DIR@
 
-SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status
+SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status rcynic-cron
 
 all: ${BIN} ${SCRIPTS} ${RCYNIC_STATIC_RSYNC}
 
@@ -63,6 +85,21 @@ COMPILE_PYTHON = \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-rcynic-script.py <$? >$@; \
 	chmod 755 $@
 
+COMPILE_PYTHON_CRON = \
+	AC_PYTHON_INTERPRETER='${PYTHON}' \
+	AC_RCYNIC_USER='${RCYNIC_USER}' \
+	AC_RCYNIC_GROUP='${RCYNIC_GROUP}' \
+	AC_RCYNIC_DIR='${RCYNIC_DIR}' \
+	AC_bindir='${bindir}' \
+	AC_sysconfdir='${sysconfdir}' \
+	AC_RCYNIC_HTML_DIR='${RCYNIC_HTML_DIR}' \
+	AC_SU='${SU}' \
+	AC_SUDO='${SUDO}' \
+	AC_CHROOT='${CHROOT}' \
+	AC_CHROOTUID='${CHROOTUID}' \
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-rcynic-script.py <$? >$@; \
+	chmod 755 $@
+
 rcynic-text: rcynic-text.py
 	${COMPILE_PYTHON}
 
@@ -74,6 +111,9 @@ rcynic-svn: rcynic-svn.py
 
 validation_status: validation_status.py
 	${COMPILE_PYTHON}
+
+rcynic-cron: rcynic-cron.py
+	${COMPILE_PYTHON_CRON}
 
 tags: TAGS
 

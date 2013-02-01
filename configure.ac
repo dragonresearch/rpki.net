@@ -118,13 +118,18 @@ then
 fi
 unset old_LDFLAGS
 
+AC_PROG_GREP
+AC_PATH_PROG([PYTHON], [python])
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 AC_PATH_PROG([AWK], [awk])
 AC_PATH_PROG([SORT], [sort])
 AC_PATH_PROG([RRDTOOL], [rrdtool])
-AC_PROG_GREP
 AC_PATH_PROG([TRANG], [trang], [\${abs_top_srcdir}/buildtools/trang-not-found])
 AC_PATH_PROG([RSYNC], [rsync])
+AC_PATH_PROG([SU], [su])
+AC_PATH_PROG([SUDO], [sudo])
+AC_PATH_PROG([CHROOT], [chroot])
+AC_PATH_PROG([CHROOTUID], [chrootuid])
 
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:
@@ -336,12 +341,27 @@ esac
 
 AC_SUBST_FILE(RCYNIC_MAKE_RULES)
 
+# Where to put HTML files is similarly platform dependent, we have to know.
+# rcynic-cron will skip generating HTML files if it has no place to put them.
+
+case $host_os in
+	freebsd*)
+		RCYNIC_HTML_DIR='/usr/local/www/data/rcynic'
+		;;
+	linux*)
+		RCYNIC_HTML_DIR='/var/www/rcynic'
+		;;
+	*)
+		RCYNIC_HTML_DIR=''
+		;;
+esac
+
+AC_SUBST(RCYNIC_HTML_DIR)
+
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If
 # we do have Python, we need to check for required packages and
 # versions.
-
-AC_PATH_PROG([PYTHON], [python])
 
 have_python=no
 have_acceptable_python=no

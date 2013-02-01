@@ -1,7 +1,7 @@
 """
 $Id$
 
-Copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
+Copyright (C) 2011-2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -23,10 +23,16 @@ sys.stdout.write('''\
 #!%(AC_PYTHON_INTERPRETER)s
 # Automatically constructed script header
 
-ac_rrdtool_binary = "%(AC_RRDTOOL_BINARY)s"
+''' % os.environ)
+
+for k, v in os.environ.iteritems():
+  if k.startswith("AC_") and k != "AC_PYTHON_INTERPRETER":
+    sys.stdout.write("%s = '''%s'''\n" % (k.lower(), v))
+
+sys.stdout.write('''\
 
 # Original script starts here
 
-''' % os.environ)
+''')
 
 sys.stdout.write(sys.stdin.read())

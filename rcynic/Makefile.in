@@ -143,56 +143,50 @@ static-rsync/rsync:
 	@echo "Building static rsync for use in chroot jail"
 	cd static-rsync; ${MAKE} all
 
-install: ${BIN} ${RSYNC_INSTALL_TARGETS}
+install: all ${RCYNIC_INSTALL_TARGETS}
 
-# From here down is a long list of rules to handle installation on
-# various platforms.  This used to be a set of nasty shell scripts,
-# now it's nasty Makefile autoconf AC_SUBST_FILE snippets.
-#
-# Still working out details here.
+install-always: \
+	install-directories install-rcynic install-scripts install-rcynic-conf install-crontab
 
-create-rcynic-directories: ${RCYNIC_DIRS}
+install-postconf: \
+	install-rcynic-user-and-group install-directory-ownership
+
+install-jailed: \
+	install-static-rsync install-shared-libraries install-rc-scripts
+
+install-directories: ${RCYNIC_DIRS}
 
 ${RCYNIC_DIRS}:
-	mkdir -p -v -555 $@
+	${INSTALL} -v -d $@
 
-postconf-rcynic-directories: ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
+install-directory-ownership: ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
 	chown ${RCYNIC_USER}:${RCYNIC_GROUP} ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
-
-# Old script only installed trust anchors if rcynic.conf was missing.
-# Haven't decided yet whether we want to preserve that behavior.
-
-install-rcynic-trust-anchors: ${RCYNIC_TA_DIR}
-	@cd sample-trust-anchors; \
-	for i in *.tal; \
-	do \
-	    ${INSTALL} -C -p -m 444 "$$i" "${RCYNIC_TA_DIR}/$$i"; \
-	done
 
 install-rcynic-conf: ${RCYNIC_CONF_FILE}
 
 ${RCYNIC_CONF_FILE}:
 	@echo Found no ${RCYNIC_CONF_FILE}, creating sample config.  You might want to edit this.
-	@echo > $@.tmp '# Sample rcynic configuration file.  See documentation for details.'
+	@echo > $@.tmp '# Basic rcynic configuration file with default trust anchors.'
+	@echo >>$@.tmp '# See documentation for details.'
 	@echo >>$@.tmp ''
 	@echo >>$@.tmp '[rcynic]'
 	@echo >>$@.tmp 'rsync-program		= ${RCYNIC_CONF_RSYNC}'
 	@echo >>$@.tmp 'authenticated		= ${RCYNIC_CONF_DATA}/authenticated'
 	@echo >>$@.tmp 'unauthenticated		= ${RCYNIC_CONF_DATA}/unauthenticated'
-	@echo >>$@.tmp 'lockfile		= ${RCYNIC_CONF_DATA}/lock'
 	@echo >>$@.tmp 'xml-summary		= ${RCYNIC_CONF_DATA}/rcynic.xml'
 	@echo >>$@.tmp 'jitter			= 600'
 	@echo >>$@.tmp 'use-syslog		= true'
 	@echo >>$@.tmp 'log-level		= log_usage_err'
-	@cd ${RCYNIC_TA_DIR}; \
+	@cd sample-trust-anchors; \
 	 j=1; \
 	 for i in *.tal; \
 	 do \
+	    ${INSTALL} -C -p -m 444 "$$i" "${RCYNIC_TA_DIR}/$$i"; \
 	    echo >>$@ "trust-anchor-locator.$$j	= ${RCYNIC_CONF_TA_DIR}/$$i"; \
 	    j=$$((j+1)); \
          done
 	@chmod 444 $@.tmp
-	@mv $@.tmp $@
+	@mv -f $@.tmp $@
 
 install-rcynic: ${RCYNIC_BIN_RCYNIC}
 
@@ -231,7 +225,7 @@ ${bindir}/validation_status: validation_status
 # Not sure we want this, test it both ways I guess
 #.PHONY: .FORCE
 
-configure-rcynic-crontab: .FORCE
+install-crontab: .FORCE
 	@echo "Setting up ${RCYNIC_CRON_USER}'s crontab to run rcynic-cron script
 	@crontab -l -u ${RCYNIC_CRON_USER} 2>/dev/null | \
 	 ${AWK} -v t=`hexdump -n 2 -e '"%u\n"' /dev/random` '\

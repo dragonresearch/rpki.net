@@ -288,9 +288,11 @@ esac
 AC_SUBST(RCYNIC_JAIL_DIRS)
 AC_SUBST(RCYNIC_CONF_FILE)
 AC_SUBST(RCYNIC_TA_DIR)
+AC_SUBST(RCYNIC_BIN_RCYNIC)
 AC_SUBST(RCYNIC_CONF_RSYNC)
 AC_SUBST(RCYNIC_CONF_DATA)
 AC_SUBST(RCYNIC_CONF_TA_DIR)
+AC_SUBST(RCYNIC_CRON_USER)
 
 AC_MSG_RESULT([$use_rcynic_jail])
 
@@ -359,6 +361,23 @@ case $host_os in
 esac
 
 AC_SUBST(RCYNIC_HTML_DIR)
+
+# Sort out which things to install, depending on rcynic jail status and whether
+# we're doing final target installation.
+
+RCYNIC_INSTALL_TARGETS='install-always'
+
+if test $use_rcynic_jail = yes
+then
+	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-jailed"
+fi
+
+if test $enable_target_installation = yes
+then
+	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-postconf"
+fi
+
+AC_SUBST(RCYNIC_INSTALL_TARGETS)
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If

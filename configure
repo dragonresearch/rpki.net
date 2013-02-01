@@ -631,11 +631,14 @@ OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 TOP_LEVEL_SUBDIRS
 SETUP_PY_INSTALL_LAYOUT
+RCYNIC_INSTALL_TARGETS
 RCYNIC_HTML_DIR
 RCYNIC_STATIC_RSYNC
+RCYNIC_CRON_USER
 RCYNIC_CONF_TA_DIR
 RCYNIC_CONF_DATA
 RCYNIC_CONF_RSYNC
+RCYNIC_BIN_RCYNIC
 RCYNIC_TA_DIR
 RCYNIC_CONF_FILE
 RCYNIC_JAIL_DIRS
@@ -4593,6 +4596,8 @@ esac
 
 
 
+
+
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $use_rcynic_jail" >&5
 $as_echo "$use_rcynic_jail" >&6; }
 
@@ -4661,6 +4666,23 @@ case $host_os in
 		RCYNIC_HTML_DIR=''
 		;;
 esac
+
+
+
+# Sort out which things to install, depending on rcynic jail status and whether
+# we're doing final target installation.
+
+RCYNIC_INSTALL_TARGETS='install-always'
+
+if test $use_rcynic_jail = yes
+then
+	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-jailed"
+fi
+
+if test $enable_target_installation = yes
+then
+	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-postconf"
+fi
 
 
 

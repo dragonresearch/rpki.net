@@ -1,6 +1,6 @@
 # $Id$
 
-create-rcynic-user-and-group: .FORCE
+install-user-and-group: .FORCE
 	@if /usr/bin/dscl . -read "/Groups/${RCYNIC_GROUP}" >/dev/null 2>&1; \
 	then \
 	    echo "You already have a group \"${RCYNIC_GROUP}\", so I will use it."; \

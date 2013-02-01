@@ -1,6 +1,6 @@
 # $Id$
 
-create-rcynic-user-and-group: .FORCE
+install-user-and-group: .FORCE
 	if ${AWK} -F: 'BEGIN {status = 1} $$1 == ${RCYNIC_GROUP} {status = 0} END {exit status}' /etc/group; \
 	then \
 	    echo "You already have a group \"${RCYNIC_GROUP}\", so I will use it."; \

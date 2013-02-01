@@ -1,6 +1,6 @@
 # $Id$
 
-create-rcynic-user-and-group: .FORCE
+install-user-and-group: .FORCE
 	if /usr/sbin/pw groupshow "${RCYNIC_GROUP}" 2>/dev/null; \
 	then \
 	    echo "You already have a group \"${RCYNIC_GROUP}\", so I will use it."; \

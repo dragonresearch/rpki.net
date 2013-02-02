@@ -110,6 +110,28 @@ CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 #
 #post-install:; PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} POST-INSTALL.
 
+# rcynic's Makefile constructs an rcynic.conf for us if it doesn't
+# find one already installed.  This turns out to be exactly what
+# FreeBSD's rules want us to install as rcynic.conf.sample, so we
+# shuffle things around a bit just before and just after installation
+# to make this all come out right.
+# 
+# If I ever teach rcynic to construct a .conf.sample file per the
+# FreeBSD way of doing things, this will need to change to match.
+
+pre-install:
+	@if [ -f ${PREFIX}/etc/rcynic.conf ]; then \
+		${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.real ; \
+	fi
+
+post-install:
+	@if [ -f ${PREFIX}/etc/rcynic.conf.real ]; then \
+		${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample ; \
+		${MV} -f ${PREFIX}/etc/rcynic.conf.real ${PREFIX}/etc/rcynic.conf ; \
+	else \
+		${CP} -p ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample ; \
+	fi
+
 .include <bsd.port.mk>
 ''' % { "portname"      : base,
         "snapshot"      : vers,
@@ -166,6 +188,8 @@ etc/rcynic.conf.sample
     f.write("etc/rpki/trust-anchors/%s\n" % trust_anchor)
 
   f.write('''\
+@dirrm etc/rpki/trust-anchors
+@dirrmtry etc/rpki
 @cwd /
 @exec install -d -o root   -g wheel  %D/var/rcynic
 @exec install -d -o rcynic -g rcynic %D/var/rcynic/data
@@ -190,20 +214,20 @@ case $2 in
 
 PRE-INSTALL)
     if /usr/sbin/pw groupshow "rcynic" 2>/dev/null; then
-        echo "You already have a group \"rcynic\", so I will use it."
+        echo "You already have a group \\"rcynic\\", so I will use it."
     elif /usr/sbin/pw groupadd rcynic; then
-        echo "Added group \"rcynic\"."
+        echo "Added group \\"rcynic\\"."
     else
-        echo "Adding group \"rcynic\" failed..."
+        echo "Adding group \\"rcynic\\" failed..."
         echo "Please create it, then try again."
         exit 1
     fi
     if /usr/sbin/pw usershow "rcynic" 2>/dev/null; then
-        echo "You already have a user \"rcynic\", so I will use it."
+        echo "You already have a user \\"rcynic\\", so I will use it."
     elif /usr/sbin/pw useradd rcynic -g rcynic -h - -d /nonexistant -s /usr/sbin/nologin -c "RPKI validation system"; then
-        echo "Added user \"rcynic\"."
+        echo "Added user \\"rcynic\\"."
     else
-        echo "Adding user \"rcynic\" failed..."
+        echo "Adding user \\"rcynic\\" failed..."
         echo "Please create it, then try again."
         exit 1
     fi
@@ -212,7 +236,7 @@ PRE-INSTALL)
 POST-INSTALL)
     echo "Setting up rcynic's crontab to run rcynic-cron script"
     /usr/bin/crontab -l -u rcynic 2>/dev/null |
-    /usr/bin/awk -v t=`hexdump -n 2 -e '"%u\n"' /dev/random '
+    /usr/bin/awk -v t=`hexdump -n 2 -e '"%u\\n"' /dev/random` '
         BEGIN {
 	    cmd = "exec /usr/local/bin/rcynic-cron";
 	}
@@ -220,13 +244,50 @@ POST-INSTALL)
 	    print;
 	}
 	END {
-	    printf "%u * * * *\t%s\n", t % 60, cmd;
+	    printf "%u * * * *\\t%s\\n", t % 60, cmd;
+	}' |
+    /usr/bin/crontab -u rcynic -
+    ;;
+
+*)
+    echo "No clue what this script is meant to do when invoked with arguments \\"$*\\".  Punting."
+    exit 1
+    ;;
+
+esac
+''')
+
+with open(os.path.join(base, "pkg-deinstall"), "w") as f:
+
+  print "Writing", f.name
+
+  f.write('''\
+#!/bin/sh -
+
+case $2 in
+
+DEINSTALL)
+    echo "Whacking rcynic's crontab"
+    /usr/bin/crontab -l -u rcynic 2>/dev/null |
+    /usr/bin/awk '
+	$0 !~ "exec /usr/local/bin/rcynic-cron" {
+	    line[++n] = $0;
+	}
+	END {
+	    if (n)
+		for (i = 1; i <= n; i)
+		    print line[i] | "/usr/bin/crontab -u rcynic -";
+	    else
+		system("/usr/bin/crontab -u rcynic -r");
 	}' |
     /usr/bin/crontab -u root -
     ;;
 
+POST-DEINSTALL)
+    ;;
+
 *)
-    echo "No clue what this script is meant to do when invoked with arguments \"$*\".  Punting."
+    echo "No clue what this script is meant to do when invoked with arguments \\"$*\\".  Punting."
     exit 1
     ;;
 

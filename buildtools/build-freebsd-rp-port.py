@@ -97,6 +97,9 @@ USE_PERL5_BUILD=yes
 # For OpenSSL, not needed otherwise
 BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
 
+# For rcynic
+RUN_DEPENDS+=   rsync>0:${PORTSDIR}/net/rsync
+
 # For rcynic-html
 RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 

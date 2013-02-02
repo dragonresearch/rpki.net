@@ -62,7 +62,7 @@ def run(*cmd, **kwargs):
   try:
     subprocess.check_call(cmd, **kwargs)
   except subprocess.CalledProcessError, e:
-    sys.exit("Error %r running command: %s" % (e.strerror, " ".join(repr(c) for c in cmd)))
+    sys.exit(str(e))
 
 try:
   lock = os.open(os.path.join(ac_rcynic_dir, "data/lock"), os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)

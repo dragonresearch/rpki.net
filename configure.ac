@@ -546,6 +546,12 @@ then
 	AC_MSG_WARN([rrdtool missing, so rcynic-html won't be able to draw graphs.])
 fi
 
+if test $use_rcynic_jail = no && test "X$RSYNC" = "X"
+then
+	ok=no
+	AC_MSG_WARN([The RPKI relying party tools require rsync.])
+fi
+
 if test $ok = no
 then
 	AC_MSG_ERROR([Please correct the problems above then re-run this configuration script.])

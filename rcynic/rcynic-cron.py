@@ -38,27 +38,25 @@ we_are_root = os.getuid() == 0
 beastie = sys.platform.startswith("freebsd") or sys.platform.startswith("darwin")
 
 def bin(name, chroot = False):
-  return os.path.join("/bin" if chroot and we_are_root else AC_bindir, name)
+  return os.path.join("/bin" if chroot and we_are_root else ac_bindir, name)
 
 def etc(name, chroot = False):
-  return os.path.join("/etc" if chroot and we_are_root else AC_sysconfdir, name)
+  return os.path.join("/etc" if chroot and we_are_root else ac_sysconfdir, name)
 
 def rcy(name):
-  return os.path.join(AC_RCYNIC_DIR, name)
-
-jail_dirs = { AC_bindir : "/bin", AC_sysconfdir : "/etc" }
+  return os.path.join(ac_rcynic_dir, name)
 
 def run(*cmd, **kwargs):
   chroot = kwargs.pop("chroot", False) and we_are_root
   if we_are_root:
     if chroot and beastie:
-      cmd = (AC_CHROOT, "-u", AC_RCYNIC_USER, "-g", AC_RCYNIC_GROUP, AC_RCYNIC_DIR) + cmd
+      cmd = (ac_chroot, "-u", ac_rcynic_user, "-g", ac_rcynic_group, ac_rcynic_dir) + cmd
     elif chroot and not beastie:
-      cmd = (AC_CHROOTUID, AC_RCYNIC_DIR, AC_RCYNIC_USER) + cmd
+      cmd = (ac_chrootuid, ac_rcynic_dir, ac_rcynic_user) + cmd
     elif not chroot and beastie:
-      cmd = (AC_SU, "-m", AC_RCYNIC_USER, "-c", " ".join(cmd))
+      cmd = (ac_su, "-m", ac_rcynic_user, "-c", " ".join(cmd))
     elif not chroot and not beastie:
-      cmd = (AC_SUDO, "-u", AC_RCYNIC_USER) + cmd
+      cmd = (ac_sudo, "-u", ac_rcynic_user) + cmd
     else:
       raise RuntimeError("How the frell did I get here?")
   try:
@@ -67,17 +65,17 @@ def run(*cmd, **kwargs):
     sys.exit("Error %r running command: %s" % (e.strerror, " ".join(repr(c) for c in cmd)))
 
 try:
-  lock = os.open(os.path.join(AC_RCYNIC_DIR, "data/lock"), os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
+  lock = os.open(os.path.join(ac_rcynic_dir, "data/lock"), os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
   fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
   if we_are_root:
-    pw = pwd.getpwnam(AC_RCYNIC_USER)
+    pw = pwd.getpwnam(ac_rcynic_user)
     os.fchown(lock, pw.pw_uid, pw.pw_gid)
 except (IOError, OSError), e:
-  sys.exit("Error %r opening lock %r" % (e.strerror, os.path.join(AC_RCYNIC_DIR, "data/lock")))
+  sys.exit("Error %r opening lock %r" % (e.strerror, os.path.join(ac_rcynic_dir, "data/lock")))
 
 run(bin("rcynic", chroot = True), "-c", etc("rcynic.conf", chroot = True), chroot = True)
 
-if AC_RCYNIC_HTML_DIR:
-  run(bin("rcynic-html"), rcy("data/rcynic.xml"), AC_RCYNIC_HTML_DIR)
+if ac_rcynic_html_dir:
+  run(bin("rcynic-html"), rcy("data/rcynic.xml"), ac_rcynic_html_dir)
 
 run(bin("rtr-origin"), "--cronjob", rcy("data/authenticated"), cwd = rcy("rpki-rtr"))

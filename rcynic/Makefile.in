@@ -146,7 +146,7 @@ static-rsync/rsync:
 install: all ${RCYNIC_INSTALL_TARGETS}
 
 install-always: \
-	install-directories install-rcynic install-scripts install-rcynic-conf
+	install-directories install-scripts install-rcynic install-rcynic-conf
 
 install-postconf: \
 	install-user-and-group install-directory-ownership install-crontab
@@ -156,7 +156,7 @@ install-jailed: \
 
 install-directories: ${RCYNIC_DIRS}
 
-${RCYNIC_DIRS}:
+${RCYNIC_DIRS} ${DESTDIR}${bindir} ${DESTDIR}${sysconfdir}:
 	${INSTALL} -v -d $@
 
 install-directory-ownership: ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
@@ -165,6 +165,7 @@ install-directory-ownership: ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
 install-rcynic-conf: ${RCYNIC_CONF_FILE}
 
 ${RCYNIC_CONF_FILE}:
+	${INSTALL} -v -d ${RCYNIC_TA_DIR}
 	@echo Found no ${RCYNIC_CONF_FILE}, creating sample config.  You might want to edit this.
 	@echo > $@.tmp '# Basic rcynic configuration file with default trust anchors.'
 	@echo >>$@.tmp '# See documentation for details.'
@@ -199,6 +200,7 @@ ${RCYNIC_DIR}/bin/rsync: static-rsync/rsync
 	${INSTALL} -p -m 555 static-rsync/rsync $@
 
 install-scripts: \
+	${DESTDIR}${bindir} \
 	${DESTDIR}${bindir}/rcynic-text \
 	${DESTDIR}${bindir}/rcynic-html \
 	${DESTDIR}${bindir}/rcynic-svn \
@@ -206,19 +208,19 @@ install-scripts: \
 	${DESTDIR}${bindir}/validation_status
 
 ${DESTDIR}${bindir}/rcynic-text: rcynic-text
-	${INSTALL} -p -m 555 rcynic-text ${bindir}
+	${INSTALL} -p -m 555 rcynic-text $@
 
 ${DESTDIR}${bindir}/rcynic-html: rcynic-html
-	${INSTALL} -p -m 555 rcynic-html ${bindir}
+	${INSTALL} -p -m 555 rcynic-html $@
 
 ${DESTDIR}${bindir}/rcynic-svn: rcynic-svn
-	${INSTALL} -p -m 555 rcynic-svn ${bindir}
+	${INSTALL} -p -m 555 rcynic-svn $@
 
 ${DESTDIR}${bindir}/rcynic-cron: rcynic-cron
-	${INSTALL} -p -m 555 rcynic-cron ${bindir}
+	${INSTALL} -p -m 555 rcynic-cron $@
 
 ${DESTDIR}${bindir}/validation_status: validation_status
-	${INSTALL} -p -m 555 validation_status ${bindir}
+	${INSTALL} -p -m 555 validation_status $@
 
 .FORCE:
 

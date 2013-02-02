@@ -157,7 +157,6 @@ bin/rcynic-text
 bin/rtr-origin
 bin/scan_roas
 bin/validation_status
-etc/rc.d/rcynic
 @unexec if cmp -s %D/etc/rcynic.conf.sample %D/etc/rcynic.conf; then rm -f %D/etc/rcynic.conf; fi
 etc/rcynic.conf.sample
 @exec if [ ! -f  %D/etc/rcynic.conf ] ; then cp -p %D/%F %D/etc/rcynic.conf; fi

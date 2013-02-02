@@ -280,7 +280,7 @@ DEINSTALL)
 	}
 	END {
 	    if (n)
-		for (i = 1; i <= n; i)
+		for (i = 1; i <= n; i++)
 		    print line[i] | "/usr/bin/crontab -u rcynic -";
 	    else
 		system("/usr/bin/crontab -u rcynic -r");

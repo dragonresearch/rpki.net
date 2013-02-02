@@ -182,7 +182,7 @@ ${RCYNIC_CONF_FILE}:
 	 for i in *.tal; \
 	 do \
 	    ${INSTALL} -C -p -m 444 "$$i" "${RCYNIC_TA_DIR}/$$i"; \
-	    echo >>$@ "trust-anchor-locator.$$j	= ${RCYNIC_CONF_TA_DIR}/$$i"; \
+	    echo >>$@.tmp "trust-anchor-locator.$$j	= ${RCYNIC_CONF_TA_DIR}/$$i"; \
 	    j=$$((j+1)); \
          done
 	@chmod 444 $@.tmp

@@ -39,9 +39,9 @@ distclean: clean
 	rm -f Makefile
 
 ${BIN} : ${SRC}
-	echo >$@ '#!${PYTHON}'
-	cat >>$@ ${SRC}
-	chmod a+x ${BIN}
+	AC_PYTHON_INTERPRETER='${PYTHON}' AC_SCAN_ROAS='${bindir}/scan_roas' \
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-rcynic-script.py <${SRC} >$@
+	chmod a+x $@
 
 test:
 	@true

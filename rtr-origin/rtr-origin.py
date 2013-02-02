@@ -9,7 +9,7 @@
 # 
 # $Id$
 # 
-# Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009-2013  Internet Systems Consortium ("ISC")
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -1805,9 +1805,15 @@ def bgpdump_server_main(argv):
   except KeyboardInterrupt:
     sys.exit(0)
 
-
-scan_roas = os.path.normpath(os.path.join(sys.path[0], "..", "utils",
-                                          "scan_roas", "scan_roas"))
+# Figure out where the scan_roas utility program is today
+try:
+  # Set from autoconf
+  scan_roas = ac_scan_roas
+except NameError:
+  # Source directory
+  scan_roas = os.path.normpath(os.path.join(sys.path[0], "..", "utils",
+                                            "scan_roas", "scan_roas"))
+# If that didn't work, use $PATH and hope for the best
 if not os.path.exists(scan_roas):
   scan_roas = "scan_roas"
 

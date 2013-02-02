@@ -94,10 +94,12 @@ USE_GNOME=      libxml2 libxslt
 # For OpenSSL, not needed otherwise
 USE_PERL5_BUILD=yes
 
-# For OpenSSL, not needed otherwise
+# For building OpenSSL, not needed otherwise
 BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
 
-# For rcynic
+# Needed at build to keep ./configure from complaining;
+# needed at runtime for rcynic to do anything useful.
+BUILD_DEPENDS+= rsync>0:${PORTSDIR}/net/rsync
 RUN_DEPENDS+=   rsync>0:${PORTSDIR}/net/rsync
 
 # For rcynic-html
@@ -105,7 +107,7 @@ RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 
 # Just want relying party tools, try to use system OpenSSL if we can.
 
-CONFIGURE_ARGS=  --disable-ca-tools
+CONFIGURE_ARGS= --disable-ca-tools
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
 # This is not necessary at the moment because "make install" does

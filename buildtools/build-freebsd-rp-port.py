@@ -149,34 +149,30 @@ bin/find_roa
 bin/hashdir
 bin/print_roa
 bin/print_rpki_manifest
+bin/rcynic
+bin/rcynic-cron
+bin/rcynic-html
+bin/rcynic-svn
+bin/rcynic-text
 bin/rtr-origin
 bin/scan_roas
+bin/validation_status
 etc/rc.d/rcynic
-@cwd /
-var/rcynic/bin/rcynic
-var/rcynic/bin/rcynic-html
-var/rcynic/bin/rsync
-@unexec if cmp -s %D/var/rcynic/etc/rcynic.conf.sample %D/var/rcynic/etc/rcynic.conf; then rm -f %D/var/rcynic/etc/rcynic.conf; fi
-var/rcynic/etc/rcynic.conf.sample
-@exec if [ ! -f  %D/var/rcynic/etc/rcynic.conf ] ; then cp -p %D/%F %D/var/rcynic/etc/rcynic.conf; fi
+@unexec if cmp -s %D/etc/rcynic.conf.sample %D/etc/rcynic.conf; then rm -f %D/etc/rcynic.conf; fi
+etc/rcynic.conf.sample
+@exec if [ ! -f  %D/etc/rcynic.conf ] ; then cp -p %D/%F %D/etc/rcynic.conf; fi
 ''')
 
   for trust_anchor in sorted(trust_anchors):
-    f.write("var/rcynic/etc/trust-anchors/%s\n" % trust_anchor)
+    f.write("etc/rpki/trust-anchors/%s\n" % trust_anchor)
 
   f.write('''\
-@exec mkdir -p %D/var/rcynic/var/run
-@dirrm var/rcynic/var/run
-@dirrm var/rcynic/var
-@unexec rm -f %D/var/rcynic/etc/localtime %D/var/rcynic/etc/resolv.conf 
-@dirrm var/rcynic/etc/trust-anchors
-@dirrm var/rcynic/etc
-@exec mkdir -p %D/var/rcynic/dev
-@unexec if [ -c %D/var/rcynic/dev/null ] ; then umount %D/var/rcynic/dev; fi
-@dirrm var/rcynic/dev
-@exec mkdir -p %D/var/rcynic/data
+@cwd /
+@exec install -d -o root   -g wheel  %D/var/rcynic
+@exec install -d -o rcynic -g rcynic %D/var/rcynic/data
 @dirrm var/rcynic/data
-@dirrm var/rcynic/bin
+@exec install -d -o rcynic -g rcynic %D/var/rcynic/rpki-rtr
+@dirrm var/rcynic/rpki-rtr
 @dirrm var/rcynic
 ''')
 
@@ -191,103 +187,48 @@ with open(os.path.join(base, "pkg-install"), "w") as f:
   f.write('''\
 #!/bin/sh -
 
-/bin/test "X$2" = 'XPRE-INSTALL' && exit 0
+case $2 in
 
-: ${jaildir="${DESTDIR}/var/rcynic"}
-: ${jailuser="rcynic"}
-: ${jailgroup="rcynic"}
-: ${setupcron="NO"}
+PRE-INSTALL)
+    if /usr/sbin/pw groupshow "rcynic" 2>/dev/null; then
+        echo "You already have a group \"rcynic\", so I will use it."
+    elif /usr/sbin/pw groupadd rcynic; then
+        echo "Added group \"rcynic\"."
+    else
+        echo "Adding group \"rcynic\" failed..."
+        echo "Please create it, then try again."
+        exit 1
+    fi
+    if /usr/sbin/pw usershow "rcynic" 2>/dev/null; then
+        echo "You already have a user \"rcynic\", so I will use it."
+    elif /usr/sbin/pw useradd rcynic -g rcynic -h - -d /nonexistant -s /usr/sbin/nologin -c "RPKI validation system"; then
+        echo "Added user \"rcynic\"."
+    else
+        echo "Adding user \"rcynic\" failed..."
+        echo "Please create it, then try again."
+        exit 1
+    fi
+    ;;
 
-echo "Setting up \"${jaildir}\" as a chroot jail for rcynic."
-
-if /usr/sbin/pw groupshow "${jailgroup}" 2>/dev/null; then
-    echo "You already have a group \"${jailgroup}\", so I will use it."
-elif /usr/sbin/pw groupadd ${jailgroup}; then
-    echo "Added group \"${jailgroup}\"."
-else
-    echo "Adding group \"${jailgroup}\" failed..."
-    echo "Please create it, then try again."
-    exit 1
-fi
-
-if /usr/sbin/pw usershow "${jailuser}" 2>/dev/null; then
-    echo "You already have a user \"${jailuser}\", so I will use it."
-elif /usr/sbin/pw useradd ${jailuser} -g ${jailgroup} -h - -d /nonexistant -s /usr/sbin/nologin -c "RPKI validation system"; then
-    echo "Added user \"${jailuser}\"."
-else
-    echo "Adding user \"${jailuser}\" failed..."
-    echo "Please create it, then try again."
-    exit 1
-fi
-
-echo "Setting up jail directories"
-
-/usr/sbin/mtree -deU -p "$jaildir" <<EOF
-
-	/set type=dir uname=root gname=wheel mode=0555
-	.
-		bin
-		..
-		dev
-		..
-		etc
-			trust-anchors
-			..
-		..
-		var
-			run
-			..
-		..
-		data	uname=$jailuser gname=$jailgroup mode=0755
-		..
-	..
-EOF
-
-for i in /etc/localtime /etc/resolv.conf; do
-        j="${jaildir}${i}"
-        if /bin/test -r "$i" && ! /usr/bin/cmp -s "$i" "$j"; then
-		/usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
-	fi
-done
-
-case "$setupcron" in
-YES|yes)
-    # "'"
-    echo "Setting up root's crontab to run jailed rcynic"
-    /usr/bin/crontab -l -u root 2>/dev/null |
-    /usr/bin/awk -v "jailuser=$jailuser" -v "jailgroup=$jailgroup" -v "jaildir=$jaildir" '
-	BEGIN {
-	    cmd = "exec /usr/sbin/chroot -u " jailuser " -g " jailgroup " " jaildir;
-	    cmd = cmd " /bin/rcynic -c /etc/rcynic.conf";
+POST-INSTALL)
+    echo "Setting up rcynic's crontab to run rcynic-cron script"
+    /usr/bin/crontab -l -u rcynic 2>/dev/null |
+    /usr/bin/awk -v t=`hexdump -n 2 -e '"%u\n"' /dev/random '
+        BEGIN {
+	    cmd = "exec /usr/local/bin/rcynic-cron";
 	}
 	$0 !~ cmd {
 	    print;
 	}
 	END {
-	    "/usr/bin/hexdump -n 2 -e \"\\\"%u\\\\\\n\\\"\" /dev/random" | getline;
-	    printf "%u * * * *\t%s\n", $1 % 60, cmd;
+	    printf "%u * * * *\t%s\n", t % 60, cmd;
 	}' |
     /usr/bin/crontab -u root -
-    /bin/cat <<EOF
-
-	crontab is set up to run rcynic hourly, at a randomly selected
-	minute (to spread load on the rsync servers).  Please do NOT
-	adjust this to run on the hour.  In particular please do NOT
-	adjust this to run at midnight UTC.
-EOF
     ;;
 
 *)
-    /bin/cat <<EOF
-
-	You'll need to add a crontab entry running the following command as root:
-
-	    /usr/sbin/chroot -u $jailuser -g $jailgroup $jaildir /bin/rcynic -c /etc/rcynic.conf
-
-	Please try to pick a random time for this, don't just run it on the hour,
-	or at local midnight, or, worst of all, at midnight UTC.
-
-EOF
+    echo "No clue what this script is meant to do when invoked with arguments \"$*\".  Punting."
+    exit 1
     ;;
 
 esac
@@ -298,9 +239,14 @@ with open(os.path.join(base, "pkg-message"), "w") as f:
   print "Writing", f.name
 
   f.write('''\
-You may need to customize /var/rcynic/etc/rcynic.conf.  If you did not
+You may want to customize /usr/local/etc/rcynic.conf.  If you did not
 install your own trust anchors, a default set of SAMPLE trust anchors
 may have been installed for you, but you, the relying party, are the
 only one who can decide whether you trust those anchors.  rcynic will
 not do anything useful without good trust anchors.
+
+rcynic-cron has been configured to run hourly, at a randomly selected
+minute, to spread load on the global RPKI repository servers.  Please
+do NOT adjust this to run on the hour.  In particular please do NOT
+adjust this to run at midnight UTC.
 ''')

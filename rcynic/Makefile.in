@@ -146,10 +146,10 @@ static-rsync/rsync:
 install: all ${RCYNIC_INSTALL_TARGETS}
 
 install-always: \
-	install-directories install-rcynic install-scripts install-rcynic-conf install-crontab
+	install-directories install-rcynic install-scripts install-rcynic-conf
 
 install-postconf: \
-	install-rcynic-user-and-group install-directory-ownership
+	install-user-and-group install-directory-ownership install-crontab
 
 install-jailed: \
 	install-static-rsync install-shared-libraries install-rc-scripts
@@ -199,25 +199,25 @@ ${RCYNIC_DIR}/bin/rsync: static-rsync/rsync
 	${INSTALL} -p -m 555 static-rsync/rsync $@
 
 install-scripts: \
-	${bindir}/rcynic-text \
-	${bindir}/rcynic-html \
-	${bindir}/rcynic-svn \
-	${bindir}/rcynic-cron \
-	${bindir}/validation_status
+	${DESTDIR}${bindir}/rcynic-text \
+	${DESTDIR}${bindir}/rcynic-html \
+	${DESTDIR}${bindir}/rcynic-svn \
+	${DESTDIR}${bindir}/rcynic-cron \
+	${DESTDIR}${bindir}/validation_status
 
-${bindir}/rcynic-text: rcynic-text
+${DESTDIR}${bindir}/rcynic-text: rcynic-text
 	${INSTALL} -p -m 555 rcynic-text ${bindir}
 
-${bindir}/rcynic-html: rcynic-html
+${DESTDIR}${bindir}/rcynic-html: rcynic-html
 	${INSTALL} -p -m 555 rcynic-html ${bindir}
 
-${bindir}/rcynic-svn: rcynic-svn
+${DESTDIR}${bindir}/rcynic-svn: rcynic-svn
 	${INSTALL} -p -m 555 rcynic-svn ${bindir}
 
-${bindir}/rcynic-cron: rcynic-cron
+${DESTDIR}${bindir}/rcynic-cron: rcynic-cron
 	${INSTALL} -p -m 555 rcynic-cron ${bindir}
 
-${bindir}/validation_status: validation_status
+${DESTDIR}${bindir}/validation_status: validation_status
 	${INSTALL} -p -m 555 validation_status ${bindir}
 
 .FORCE:

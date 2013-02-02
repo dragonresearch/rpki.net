@@ -32,6 +32,7 @@ import sys
 import fcntl
 import os
 import pwd
+import errno
 
 we_are_root = os.getuid() == 0
 
@@ -71,7 +72,10 @@ try:
     pw = pwd.getpwnam(ac_rcynic_user)
     os.fchown(lock, pw.pw_uid, pw.pw_gid)
 except (IOError, OSError), e:
-  sys.exit("Error %r opening lock %r" % (e.strerror, os.path.join(ac_rcynic_dir, "data/lock")))
+  if e.errno == errno.EAGAIN:
+    sys.exit(0)                         # Another instance of this script is already running, exit silently
+  else:
+    sys.exit("Error %r opening lock %r" % (e.strerror, os.path.join(ac_rcynic_dir, "data/lock")))
 
 run(bin("rcynic", chroot = True), "-c", etc("rcynic.conf", chroot = True), chroot = True)
 

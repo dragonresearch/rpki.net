@@ -243,10 +243,12 @@ esac
 
 if test "X$RCYNIC_DIR" = "X"
 then
-	RCYNIC_DIR='${DESTDIR}/var/rcynic'
+	rcynic_base_dir='/var/rcynic'
 else
-	RCYNIC_DIR='${DESTDIR}'"${RCYNIC_DIR}"
+	rcynic_base_dir="${RCYNIC_DIR}"
 fi
+
+RCYNIC_DIR='${DESTDIR}'"${rcynic_base_dir}"
 
 # Figure out whether to run rcynic in a chroot jail, which determines
 # a bunch of other settings.
@@ -275,8 +277,8 @@ case $enable_rcynic_jail in
 		RCYNIC_TA_DIR='${DESTDIR}${sysconfdir}/rpki/trust-anchors'
 		RCYNIC_BIN_RCYNIC='${DESTDIR}${bindir}/rcynic'
 		RCYNIC_CONF_RSYNC="${RSYNC}"
-		RCYNIC_CONF_DATA='${RCYNIC_DIR}/data'
-		RCYNIC_CONF_TA_DIR="${RCYNIC_TA_DIR}"
+		RCYNIC_CONF_DATA="${rcynic_base_dir}/data"
+		RCYNIC_CONF_TA_DIR='${sysconfdir}/rpki/trust-anchors'
 		RCYNIC_CRON_USER='${RCYNIC_USER}'
 		RCYNIC_JAIL_DIRS=''
 		;;

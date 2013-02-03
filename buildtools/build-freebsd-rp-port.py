@@ -284,8 +284,7 @@ DEINSTALL)
 		    print line[i] | "/usr/bin/crontab -u rcynic -";
 	    else
 		system("/usr/bin/crontab -u rcynic -r");
-	}' |
-    /usr/bin/crontab -u root -
+	}'
     ;;
 
 POST-DEINSTALL)

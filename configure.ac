@@ -352,7 +352,7 @@ AC_SUBST_FILE(RCYNIC_MAKE_RULES)
 
 case $host_os in
 	freebsd*)
-		RCYNIC_HTML_DIR='/usr/local/www/data/rcynic'
+		RCYNIC_HTML_DIR='/usr/local/www/apache22/data/rcynic'
 		;;
 	linux*)
 		RCYNIC_HTML_DIR='/var/www/rcynic'

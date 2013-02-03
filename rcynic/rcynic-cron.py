@@ -79,7 +79,7 @@ except (IOError, OSError), e:
 
 run(bin("rcynic", chroot = True), "-c", etc("rcynic.conf", chroot = True), chroot = True)
 
-if ac_rcynic_html_dir:
+if ac_rcynic_html_dir and os.path.exists(os.path.dirname(ac_rcynic_html_dir)):
   run(bin("rcynic-html"), rcy("data/rcynic.xml"), ac_rcynic_html_dir)
 
 run(bin("rtr-origin"), "--cronjob", rcy("data/authenticated"), cwd = rcy("rpki-rtr"))

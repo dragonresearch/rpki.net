@@ -116,7 +116,12 @@ install::
 	@echo
 	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
 	@echo
-	if test -d ${PID_DIR}; then :; else ${INSTALL} -d ${PID_DIR}; fi
+#
+# We used to do this, but Debian/Ubuntu lintian complained that
+# /var/run may be a temporary filesystem, thus directories like this
+# should be created at boot.  Fair point.
+#
+#	if test -d ${PID_DIR}; then :; else ${INSTALL} -d ${PID_DIR}; fi
 
 uninstall deinstall::
 	xargs rm -fv <installed

@@ -3,7 +3,7 @@ Construct a FreeBSD port template given the URL of a source tarball.
 
 $Id$
 
-Copyright (C) 2012  Internet Systems Consortium ("ISC")
+Copyright (C) 2012-2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -53,20 +53,29 @@ name = stripext(name, ".tar", ".tgz", ".tbz", ".txz")
 # tarballs.
 
 try:
-  base, trunk, vers = name.split("-")
+  base, branch, vers = name.split("-")
 except:
-  base, trunk, vers = None
+  base, branch, vers = None
 
-if trunk != "trunk" or not vers.isdigit():
+if base not in ("rpkitools", "rpki"):
+  base = None
+
+if branch != "trunk" and (branch[:2] != "tk" or not branch[2:].isdigit()):
+  branch = None
+
+if not vers.isdigit() and (base != "rpki" or vers[0] != "r" or not vers[1:].isdigit()):
+  vers = None
+
+if None in (base, branch, vers):
   sys.exit("Unexpected tarball URL name format")
+
+base += "-ca"
 
 mkdir_maybe(base)
 
-fn = os.path.join(base, "Makefile")
+with open(os.path.join(base, "Makefile"), "w") as f:
+  print "Writing", f.name
 
-print "Writing", fn
-
-with open(fn, "w") as f:
   f.write('''\
 PORTNAME=	%(portname)s
 PORTVERSION=	0.%(snapshot)s
@@ -76,30 +85,41 @@ DISTFILES=	%(distfiles)s
 WRKSRC=         ${WRKDIR}/%(tarname)s
 
 MAINTAINER=	sra@hactrn.net
-COMMENT=	rpki.net RPKI tools package
+COMMENT=	rpki.net RPKI CA tools
 
 GNU_CONFIGURE=  yes
 USE_PYTHON=	2.7+
+USE_GNOME=      libxml2 libxslt
 USE_MYSQL=      server
 USE_APACHE_RUN= 22+
-USE_GNOME=      libxml2 libxslt
+
+# In theory, this invokes all the Python magic for us.  Whether that
+# solves any of our problems remains to be seen.
+USE_PYDISTUTILS=yes
 
 # For OpenSSL, not needed otherwise
 USE_PERL5_BUILD=yes
 
-# Split between dependency targets is somewhat arbitrary here, much of what is
-# listed as BUILD_DEPENDS might be better as RUN_DEPENDS.
+# For building OpenSSL, not needed otherwise
+BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
 
-BUILD_DEPENDS+= ${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \\
+# Needed at build to keep ./configure from complaining.
+BUILD_DEPENDS+= rsync>0:${PORTSDIR}/net/rsync
+
+RPKID_DEPENDS=	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \\
                 ${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb       \\
                 ${PYTHON_PKGNAMEPREFIX}django>=1.3:${PORTSDIR}/www/py-django            \\
                 ${PYTHON_PKGNAMEPREFIX}vobject>0:${PORTSDIR}/deskutils/py-vobject       \\
                 ${PYTHON_PKGNAMEPREFIX}yaml>0:${PORTSDIR}/devel/py-yaml                 \\
-                ${PYTHON_PKGNAMEPREFIX}south>=0.7.6:${PORTSDIR}/databases/py-south      \\
-                makedepend>0:${PORTSDIR}/devel/makedepend
+                ${PYTHON_PKGNAMEPREFIX}south>=0.7.6:${PORTSDIR}/databases/py-south
 
-RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool                                 \\
-                ${APACHE_PKGNAMEPREFIX}mod_wsgi>3:${PORTSDIR}/www/mod_wsgi3
+BUILD_DEPENDS+=	${RPKID_DEPENDS}
+RUN_DEPENDS+=	${RPKID_DEPENDS}
+
+RUN_DEPENDS+=	${APACHE_PKGNAMEPREFIX}mod_wsgi>3:${PORTSDIR}/www/mod_wsgi3
+
+# Try to use system OpenSSL if we can.
+CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
 .include <bsd.port.mk>
 ''' % { "portname"      : base,
@@ -108,83 +128,24 @@ RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool                         
         "master_sites"  : os.path.dirname(url) + "/",
         "distfiles"     : os.path.basename(url) })
 
-fn = os.path.join(base, "pkg-descr")
+with open(os.path.join(base, "pkg-descr"), "w") as f:
+  print "Writing", f.name
 
-print "Writing", fn
-
-with open(fn, "w") as f:
   f.write('''\
-This is a port of the rpki.net RPKI toolkit.
+This is a port of the rpki.net RPKI toolkit CA tools.
 
 WWW: http://rpki.net/
 ''')
+
+#with open(os.path.join(base, "pkg-plist"), "w") as f:
+#  print "Writing empty", f.name
 
 print "Generating checksum"
 
 subprocess.check_call(("make", "makesum", "DISTDIR=" + os.getcwd()), cwd = base)
 
-fn = os.path.join(base, "pkg-plist")
-print "Creating empty", fn
-open(fn, "w").close()
+# In theory, using the magic Python stuff means we don't have to write
+# a pkg-plist.
 
-print "Running make configure"
-
-# The "USE_GNOME=" setting is to silence a mess of grep errors we'd get otherwise.
-# Not sure what this is about, seems to trigger on empty pkg-plist, so just disable
-# this while generating pkg-plist so we can leave proper USE_GNOME setting in Makefile.
-
-subprocess.check_call(("make", "configure", "DISTDIR=" + os.getcwd(),
-                       "USE_GNOME=", "NO_DEPENDS=yes"),
-                      cwd = base)
-
-raise NotImplementedError
-
-# "make installation-manifest" was a silly idea, and is no longer in
-# the Makefiles.  This script needs rewriting.
-
-print "Running make installation-manifest"
-
-subprocess.check_call(("make", "installation-manifest"),
-                      cwd = os.path.join(base, "work", name))
-
-files = []
-dirs = []
-
-dirmap = {
-  "%%BINDIR%%"                  : "bin",
-  "%%DATAROOTDIR%%"             : "share",
-  "%%PYTHON_SITELIBDIR%%"       : "%%PYTHON_SITELIBDIR%%",
-  "%%RCDIR%%"                   : "etc/rc.d",
-  "%%RCYNICJAILDIR%%"           : "/var/rcynic",
-  "%%SBINDIR%%"                 : "sbin",
-  "%%SYSCONFDIR%%"              : "etc" }
-
-fn = os.path.join(base, "work", name, "installation-manifest")
-
-print "Parsing", fn
-
-with open(fn, "r") as f:
-  for line in f:
-    kind, fn = line.rstrip("/").split()
-    dir, sep, tail =  fn.partition("/")
-    if dir in dirmap:
-      fn = dirmap[dir] + sep + tail
-    else:
-      print "Warning: No mapping for %r in %r, blundering onwards" % (dir, fn)
-    if kind == "F":
-      files.append(fn)
-    elif kind == "D":
-      dirs.append(fn)
-    else:
-      sys.exit("Don't know what to do with %r" % line)
-
-files.sort()
-dirs.sort(reverse = True)
-
-fn = os.path.join(base, "pkg-plist")
-print "Writing", fn
-with open(fn, "w") as f:
-  for fn in files:
-    f.write("%s\n" % fn)
-  for fn in dirs:
-    f.write("@dirrm %s\n" % fn)
+# We will need a pkg-install and perhaps a pkg-deinstall, but I don't
+# know what they look like (yet).

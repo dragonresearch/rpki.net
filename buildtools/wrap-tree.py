@@ -26,14 +26,17 @@ import sys
 
 result = {}
 
-for root, dirs, files in os.walk("."):
-  for dn in dirs:
-    dn = os.path.relpath(os.path.join(root, dn))
-    result[dn] = None
-  for fn in files:
-    fn = os.path.relpath(os.path.join(root, fn))
-    with open(fn, "r") as f:
-      result[fn] = f.read()
+for root in sys.argv[1:] or ["."]:
+  if root != ".":
+    result[root] = None
+  for dirpath, dirs, files in os.walk(root):
+    for dn in dirs:
+      dn = os.path.relpath(os.path.join(dirpath, dn))
+      result[dn] = None
+    for fn in files:
+      fn = os.path.relpath(os.path.join(dirpath, fn))
+      with open(fn, "r") as f:
+        result[fn] = f.read()
 
 sys.stdout.write("# Automatically generated.  Hack if you like, but beware of overwriting.\n\nimport os\n")
 

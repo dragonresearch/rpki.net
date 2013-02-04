@@ -528,20 +528,29 @@ author		"Rob Austein <sra@hactrn.net>"
 # welcome, but please first read the Python code to understand what it
 # is doing.
 
-# Our only real dependency is on mysqld.
+# Our only real dependencies are on mysqld and our config file.
 
 start on started mysql
 stop on stopping mysql
 
 pre-start script
-    install -m 755 -o rpki -g rpki -d /var/run/rpki
-    sudo -u rpki /usr/sbin/rpki-start-servers
+    if test -f /etc/rpki.conf
+    then
+        install -m 755 -o rpki -g rpki -d /var/run/rpki
+	sudo -u rpki /usr/sbin/rpki-start-servers
+    else
+	stop
+	exit 0
+    fi
 end script
 
 post-stop script
     for i in rpkid pubd irdbd rootd
     do
-	[ -f /var/run/rpki/$i.pid ] && 	kill `/bin/cat /var/run/rpki/$i.pid`
+	if test -f /var/run/rpki/$i.pid
+	then
+	    kill `cat /var/run/rpki/$i.pid`
+	fi
     done
 end script
 ''')
@@ -590,7 +599,11 @@ with open('debian/rpki-rp.postinst', "wb") as f:
 set -e
 
 setup_rcynic_ownership() {
-    chown rcynic:rcynic /var/rcynic/data /var/rcynic/rpki-rtr
+    install -o rcynic -g rcynic -d /var/rcynic/data /var/rcynic/rpki-rtr /var/rcynic/rpki-rtr
+    if test -d /var/www
+    then
+	install -o rcynic -g rcynic -d /var/www/rcynic
+    fi
 }
 
 setup_rcynic_user() {

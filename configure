@@ -719,7 +719,7 @@ with_system_openssl
 enable_openssl_asm
 enable_ca_tools
 enable_rpki_rtr
-enable_daemon_mode
+enable_wsgi_daemon_mode
 enable_python
 enable_django
 '
@@ -1360,7 +1360,7 @@ Optional Features:
   --disable-openssl-asm   Don't let OpenSSL build assembler code
   --disable-ca-tools      Don't build any of the CA tools
   --disable-rpki-rtr      Don't build the rpki-rtr code
-  --enable-daemon-mode=user:group
+  --enable-wsgi-daemon-mode=user:group
                           Run the web portal as a separate process
   --disable-python        (Obsolete, do not use)
   --disable-django        (Obsolete, do not use)
@@ -1989,11 +1989,11 @@ else
   enable_rpki_rtr=yes
 fi
 
-# Check whether --enable-daemon_mode was given.
-if test "${enable_daemon_mode+set}" = set; then
-  enableval=$enable_daemon_mode;
+# Check whether --enable-wsgi_daemon_mode was given.
+if test "${enable_wsgi_daemon_mode+set}" = set; then
+  enableval=$enable_wsgi_daemon_mode;
 else
-  enable_daemon_mode=no
+  enable_wsgi_daemon_mode=no
 fi
 
 
@@ -5193,10 +5193,10 @@ fi
 done
 
 
-	if test "$enable_daemon_mode" != no
+	if test "$enable_wsgi_daemon_mode" != no
 	then
 		IFS=':' read user group <<_EOF
-$enable_daemon_mode
+$enable_wsgi_daemon_mode
 _EOF
 		WSGI_DAEMON_PROCESS="WSGIDaemonMode rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}"
 

@@ -5198,7 +5198,7 @@ done
 		IFS=':' read user group <<_EOF
 $enable_wsgi_daemon_mode
 _EOF
-		WSGI_DAEMON_PROCESS="WSGIDaemonMode rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}"
+		WSGI_DAEMON_PROCESS="WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}"
 
 		WSGI_PROCESS_GROUP="WSGIProcessGroup rpkigui"
 

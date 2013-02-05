@@ -489,7 +489,7 @@ then
 		IFS=':' read user group <<_EOF
 $enable_wsgi_daemon_mode
 _EOF
-		AC_SUBST(WSGI_DAEMON_PROCESS, "WSGIDaemonMode rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}")
+		AC_SUBST(WSGI_DAEMON_PROCESS, "WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}")
 		AC_SUBST(WSGI_PROCESS_GROUP, "WSGIProcessGroup rpkigui")
 		AC_MSG_RESULT([running mod_wsgi in daemon mode with user "$user" and group "${group:-default}"])
 	fi

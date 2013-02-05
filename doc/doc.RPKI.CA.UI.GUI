@@ -89,7 +89,7 @@ By default, the web portal is run in embedded mode in mod_wsgi, which means it
 runs inside the apache process. However, you can make the web portal run in
 daemon mode as a different user using mod_wsgi.
 
-  $ ./configure --enable-daemon-mode[=user[:group]]
+  $ ./configure --enable-wsgi-daemon-mode[=user[:group]]
 
 Where user is the optional user to run the web portal as, and group is the
 optional group to run the web portal as. If user is not specified, it will run

@@ -293,10 +293,29 @@ start on started mysql
 stop on stopping mysql
 
 pre-start script
-    if test -f /etc/rpki.conf
+    if  test -f /etc/rpki.conf &&
+	test -f /usr/share/rpki/ca.cer &&
+	test -f /usr/share/rpki/irbe.cer &&
+	test -f /usr/share/rpki/irdbd.cer &&
+	test -f /usr/share/rpki/rpkid.cer &&
+	test -f /usr/share/rpki/rpkid.key
     then
         install -m 755 -o rpkid -g rpkid -d /var/run/rpki
-	sudo -u rpkid /usr/sbin/rpki-start-servers
+
+	# This should be running as user rpkid, but I haven't got all
+	# the pesky details worked out yet.  Most testing to date has
+	# either been all under a single non-root user or everything
+	# as root, so, eg, running "rpkic initialize" as root will not
+	# leave things in a sane state for rpkid running as user
+	# rpkid.
+	#
+	# In the interest of debugging the rest of this before trying
+	# to break new ground, run daemons as root for the moment,
+	# with the intention of coming back to fix this later.
+	#
+	#sudo -u rpkid /usr/sbin/rpki-start-servers
+	/usr/sbin/rpki-start-servers
+
     else
 	stop
 	exit 0

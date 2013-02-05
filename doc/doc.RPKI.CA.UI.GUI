@@ -8,7 +8,7 @@ sets $PYTHONPATH and $DJANGO_SETTINGS_MODULE.
 
 ***** Prerequisites *****
 
-* Django
+* Django 1.3 or later
 
 * Django South 0.7.6 or later
 
@@ -82,6 +82,34 @@ form.
 If you've only done the above bootstrap, there will only be a single handle to
 manage, so the GUI will automatically bring you to the dashboard for that
 handle.
+
+**** Running the web portal as a different user ****
+
+By default, the web portal is run in embedded mode in mod_wsgi, which means it
+runs inside the apache process. However, you can make the web portal run in
+daemon mode as a different user using mod_wsgi.
+
+  $ ./configure --enable-daemon-mode[=user[:group]]
+
+Where user is the optional user to run the web portal as, and group is the
+optional group to run the web portal as. If user is not specified, it will run
+in a separate process but the same user as apache is configured to run.
+
+Note that when run in daemon mode, a unix domain socket will be created in the
+same directory as the apache log files. If the user you have specified to run
+the web portal as does not have permission to read a file in that directory,
+the web interface will return a 500 Internal Server Error and you will see a
+permission denied error in your apache logs. The solution to this is to use the
+WSGISocketPrefix apache configuration directive to specify an alternative
+location, such as:
+
+  WSGISocketPrefix /var/run/wsgi
+
+Note that this directive must not be placed inside of the VirtualHost section.
+It must be located at the global scope.
+
+see http://code.google.com/p/modwsgi/wiki/
+ConfigurationDirectives#WSGISocketPrefix for more information.
 
 ****** Installation of Route Views Support for the GUI ******
 

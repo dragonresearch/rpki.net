@@ -1245,6 +1245,12 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       ghostbuster.regenerate(publisher, fast = True)
     for child_cert in self.child_certs:
       child_cert.reissue(self, publisher, force = True)
+    self.gctx.sql.sweep()
+    self.generate_manifest_cert()
+    self.sql_mark_dirty()
+    self.generate_crl(publisher = publisher)
+    self.generate_manifest(publisher = publisher)
+    self.gctx.sql.sweep()
     publisher.call_pubd(cb, eb)
 
   def check_failed_publication(self, publisher, check_all = True):

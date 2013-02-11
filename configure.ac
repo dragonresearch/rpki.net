@@ -25,13 +25,13 @@ fi
 
 # Put the user option stuff up front.
 
-AC_ARG_WITH([system_openssl],		[AS_HELP_STRING([--with-system-openssl],		[Link against system copy of OpenSSL])],        [], [with_system_openssl=auto])
-AC_ARG_ENABLE([rcynic_jail],		[AS_HELP_STRING([--enable-rcynic-jail],			[Run rcynic in chroot jail])],                  [], [enable_rcynic_jail=no])
-AC_ARG_ENABLE([openssl_asm],		[AS_HELP_STRING([--disable-openssl-asm],		[Don't let OpenSSL build assembler code])],     [], [enable_openssl_asm=auto])
-AC_ARG_ENABLE([ca_tools],		[AS_HELP_STRING([--disable-ca-tools],			[Don't build any of the CA tools])],            [], [enable_ca_tools=yes])
-AC_ARG_ENABLE([rp_tools],		[AS_HELP_STRING([--disable-rp-tools],			[Don't build any of the relying party tools])], [], [enable_rp_tools=yes])
-AC_ARG_ENABLE([target_installation],	[AS_HELP_STRING([--disable-target-installation],	[Don't perform final target installation])],    [], [enable_target_installation=yes])
-AC_ARG_ENABLE([daemon_mode],  		[AS_HELP_STRING([--enable-daemon-mode=user[:group]],	[Run the web portal as a separate process])],   [], [enable_daemon_mode=no])
+AC_ARG_WITH([system_openssl],		[AS_HELP_STRING([--with-system-openssl],		  [Link against system copy of OpenSSL])],        [], [with_system_openssl=auto])
+AC_ARG_ENABLE([rcynic_jail],		[AS_HELP_STRING([--enable-rcynic-jail],			  [Run rcynic in chroot jail])],                  [], [enable_rcynic_jail=no])
+AC_ARG_ENABLE([openssl_asm],		[AS_HELP_STRING([--disable-openssl-asm],		  [Don't let OpenSSL build assembler code])],     [], [enable_openssl_asm=auto])
+AC_ARG_ENABLE([ca_tools],		[AS_HELP_STRING([--disable-ca-tools],			  [Don't build any of the CA tools])],            [], [enable_ca_tools=yes])
+AC_ARG_ENABLE([rp_tools],		[AS_HELP_STRING([--disable-rp-tools],			  [Don't build any of the relying party tools])], [], [enable_rp_tools=yes])
+AC_ARG_ENABLE([target_installation],	[AS_HELP_STRING([--disable-target-installation],	  [Don't perform final target installation])],    [], [enable_target_installation=yes])
+AC_ARG_ENABLE([wsgi_daemon_mode],	[AS_HELP_STRING([--enable-wsgi-daemon-mode=user[:group]], [Run the web portal as a separate process])],   [], [enable_wsgi_daemon_mode=no])
 
 AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rtr-origin; also controls jail location for --enable-rcynic-jail])
 
@@ -679,14 +679,14 @@ then
         # There is no standard name for this tool, so check for it.
         AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
 
-	if test "$enable_daemon_mode" != no
+	if test "$enable_wsgi_daemon_mode" != no
 	then
 		save_IFS="$IFS"
 		IFS=':' read user group <<_EOF
-$enable_daemon_mode
+$enable_wsgi_daemon_mode
 _EOF
 		IFS="$save_IFS"
-		AC_SUBST(WSGI_DAEMON_PROCESS, "WSGIDaemonMode rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}")
+		AC_SUBST(WSGI_DAEMON_PROCESS, "WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}")
 		AC_SUBST(WSGI_PROCESS_GROUP, "WSGIProcessGroup rpkigui")
 		AC_MSG_RESULT([running mod_wsgi in daemon mode with user "$user" and group "${group:-default}"])
 	fi

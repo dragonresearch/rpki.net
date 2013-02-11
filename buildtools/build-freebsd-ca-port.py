@@ -83,7 +83,6 @@ CATEGORIES=	net
 MASTER_SITES=	%(master_sites)s
 DISTFILES=	%(distfiles)s
 WRKSRC=         ${WRKDIR}/%(tarname)s
-
 MAINTAINER=	sra@hactrn.net
 COMMENT=	rpki.net RPKI CA tools
 
@@ -92,10 +91,6 @@ USE_PYTHON=	2.7+
 USE_GNOME=      libxml2 libxslt
 USE_MYSQL=      server
 USE_APACHE_RUN= 22+
-
-# In theory, this invokes all the Python magic for us.  Whether that
-# solves any of our problems remains to be seen.
-USE_PYDISTUTILS=yes
 
 # For OpenSSL, not needed otherwise
 USE_PERL5_BUILD=yes
@@ -121,6 +116,8 @@ RUN_DEPENDS+=	${APACHE_PKGNAMEPREFIX}mod_wsgi>3:${PORTSDIR}/www/mod_wsgi3
 # Try to use system OpenSSL if we can.
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
+CONFIGURE_ARGS= --disable-target-installation --disable-rp-tools
+
 .include <bsd.port.mk>
 ''' % { "portname"      : base,
         "snapshot"      : vers,
@@ -144,8 +141,50 @@ print "Generating checksum"
 
 subprocess.check_call(("make", "makesum", "DISTDIR=" + os.getcwd()), cwd = base)
 
-# In theory, using the magic Python stuff means we don't have to write
-# a pkg-plist.
-
 # We will need a pkg-install and perhaps a pkg-deinstall, but I don't
 # know what they look like (yet).
+
+print "Building"
+
+subprocess.check_call(("make", "DISTDIR=" + os.getcwd()), cwd = base)
+
+print "Installing to temporary tree"
+
+tempdir = os.path.join(base, "work", "temp-install", "")
+
+subprocess.check_call(("make", "install", "DESTDIR=" + os.path.abspath(tempdir)),
+                      cwd = os.path.join(base, "work", name))
+
+print "Generating pkg-plist"
+
+with open(os.path.join(base, "pkg-plist"), "w") as f:
+
+  dont_remove = ("usr", "etc", "bin", "var", "lib", "sbin", "share", "lib/python2.7", "lib/python2.7/site-packages")
+
+  usr_local = None
+
+  for dirpath, dirnames, filenames in os.walk(tempdir, topdown = False):
+    dn = dirpath[len(tempdir):]
+
+    if dn.startswith("usr/local"):
+      if not usr_local and usr_local is not None:
+        f.write("@cwd\n")
+      usr_local = True
+      dn = dn[len("usr/local/"):]
+    else:
+      if usr_local:
+        f.write("@cwd /\n")
+      usr_local = False
+
+    if not dirnames and not filenames:
+      f.write("@exec mkdir -p %%D/%s\n" % dn)
+
+    for fn in filenames:
+      if fn == "rpki.conf.sample":
+        f.write("@unexec if cmp -s %%D/%s/rpki.conf.sample rpki.conf; then rm -f %%D/%s/rpki.conf; fi\n" % (dn, dn))
+      f.write(os.path.join(dn, fn) + "\n")
+      if fn == "rpki.conf.sample":
+        f.write("@exec if [ ! -f %%D/%s/rpki.conf ] ; then cp -p %%D/%s/rpki.conf.sample %%D/%s/rpki.conf; fi\n" % (dn, dn, dn))
+
+    if dn and dn not in dont_remove:
+      f.write("@dirrm %s\n" % dn)

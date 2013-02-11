@@ -146,7 +146,12 @@ subprocess.check_call(("make", "makesum", "DISTDIR=" + os.getcwd()), cwd = base)
 
 print "Building"
 
-subprocess.check_call(("make", "DISTDIR=" + os.getcwd()), cwd = base)
+# "USE_GNOME=" gets rid of annoying whining due to empty or
+# non-existent pkg-plist.  The (direct) Gnome dependency doesn't
+# matter while constructing the port skeleton, so it's simplest just
+# to disable it for this one command.
+
+subprocess.check_call(("make", "DISTDIR=" + os.getcwd(), "USE_GNOME="), cwd = base)
 
 print "Installing to temporary tree"
 
@@ -181,10 +186,14 @@ with open(os.path.join(base, "pkg-plist"), "w") as f:
 
     for fn in filenames:
       if fn == "rpki.conf.sample":
-        f.write("@unexec if cmp -s %%D/%s/rpki.conf.sample rpki.conf; then rm -f %%D/%s/rpki.conf; fi\n" % (dn, dn))
+        f.write("@unexec if cmp -s %%D/%s/rpki.conf.sample %%D/%s/rpki.conf; then rm -f %%D/%s/rpki.conf; fi\n" % (dn, dn, dn))
       f.write(os.path.join(dn, fn) + "\n")
       if fn == "rpki.conf.sample":
         f.write("@exec if [ ! -f %%D/%s/rpki.conf ] ; then cp -p %%D/%s/rpki.conf.sample %%D/%s/rpki.conf; fi\n" % (dn, dn, dn))
 
     if dn and dn not in dont_remove:
       f.write("@dirrm %s\n" % dn)
+
+print "Cleaning up"
+
+subprocess.check_call(("make", "clean"), cwd = base)

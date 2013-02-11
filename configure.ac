@@ -25,20 +25,21 @@ fi
 
 # Put the user option stuff up front.
 
-AC_ARG_WITH([system_openssl],		[AS_HELP_STRING([--with-system-openssl],		[Link against system copy of OpenSSL])],    [], [with_system_openssl=auto])
-AC_ARG_ENABLE([rcynic_jail],		[AS_HELP_STRING([--enable-rcynic-jail],			[Run rcynic in chroot jail])],              [], [enable_rcynic_jail=no])
-AC_ARG_ENABLE([openssl_asm],		[AS_HELP_STRING([--disable-openssl-asm],		[Don't let OpenSSL build assembler code])], [], [enable_openssl_asm=auto])
-AC_ARG_ENABLE([ca_tools],		[AS_HELP_STRING([--disable-ca-tools],			[Don't build any of the CA tools])],        [], [enable_ca_tools=yes])
-AC_ARG_ENABLE([rpki_rtr],		[AS_HELP_STRING([--disable-rpki-rtr],			[Don't build the rpki-rtr code])],          [], [enable_rpki_rtr=yes])
-AC_ARG_ENABLE([target_installation],	[AS_HELP_STRING([--disable-target-installation],	[Don't perform final target installation])],[], [enable_target_installation=yes])
-AC_ARG_ENABLE([daemon_mode],  		[AS_HELP_STRING([--enable-daemon-mode=user[:group]],	[Run the web portal as a separate process])],[],[enable_daemon_mode=no])
+AC_ARG_WITH([system_openssl],		[AS_HELP_STRING([--with-system-openssl],		[Link against system copy of OpenSSL])],        [], [with_system_openssl=auto])
+AC_ARG_ENABLE([rcynic_jail],		[AS_HELP_STRING([--enable-rcynic-jail],			[Run rcynic in chroot jail])],                  [], [enable_rcynic_jail=no])
+AC_ARG_ENABLE([openssl_asm],		[AS_HELP_STRING([--disable-openssl-asm],		[Don't let OpenSSL build assembler code])],     [], [enable_openssl_asm=auto])
+AC_ARG_ENABLE([ca_tools],		[AS_HELP_STRING([--disable-ca-tools],			[Don't build any of the CA tools])],            [], [enable_ca_tools=yes])
+AC_ARG_ENABLE([rp_tools],		[AS_HELP_STRING([--disable-rp-tools],			[Don't build any of the relying party tools])], [], [enable_rp_tools=yes])
+AC_ARG_ENABLE([target_installation],	[AS_HELP_STRING([--disable-target-installation],	[Don't perform final target installation])],    [], [enable_target_installation=yes])
+AC_ARG_ENABLE([daemon_mode],  		[AS_HELP_STRING([--enable-daemon-mode=user[:group]],	[Run the web portal as a separate process])],   [], [enable_daemon_mode=no])
 
 AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rtr-origin; also controls jail location for --enable-rcynic-jail])
 
 # Obsolete options.  If you know of a better way to handle this, tell me.
 
-AC_ARG_ENABLE([python], [AS_HELP_STRING([--disable-python], [(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-python is obsolete.  Please see the --disable-ca-tools option])], [])
-AC_ARG_ENABLE([django], [AS_HELP_STRING([--disable-django], [(Obsolete, do not use)])],	[AC_MSG_ERROR([--disable-django is obsolete.  Please see the --disable-ca-tools option])], [])
+AC_ARG_ENABLE([python],   [AS_HELP_STRING([--disable-python],	[(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-python is obsolete.  Please see the --disable-ca-tools option])], [])
+AC_ARG_ENABLE([django],   [AS_HELP_STRING([--disable-django],	[(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-django is obsolete.  Please see the --disable-ca-tools option])], [])
+AC_ARG_ENABLE([rpki_rtr], [AS_HELP_STRING([--disable-rpki-rtr],	[(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-rpki-rtr is obsolete.  Please see the --disable-rp-tools option])], [])
 
 AC_PROG_CC
 AC_PROG_INSTALL
@@ -471,23 +472,26 @@ fi
 
 ok=yes
 
-if test $enable_ca_tools = yes || test $enable_rpki_rtr = yes
+if test $have_python = no
 then
-	if test $have_python = no
-	then
-		ok=no
-		AC_MSG_WARN([I can't find a Python binary, perhaps you need to set PATH?])
-	fi
-	if test $have_acceptable_python = no
-	then
-		ok=no
-		AC_MSG_WARN([The RPKI code requires Python version 2.x, for x = 6 or higher.])
-	fi
-	if test $ok = no
-	then
-		AC_MSG_WARN([If you do not wish to install the rpki-rtr code, please specify --disable-rpki-rtr as an argument to this configure script.])
-	fi
+	ok=no
+	AC_MSG_WARN([I can't find a Python binary, perhaps you need to set PATH?])
 fi
+
+if test $have_acceptable_python = no
+then
+	ok=no
+	AC_MSG_WARN([The RPKI code requires Python version 2.x, for x = 6 or higher.])
+fi
+
+case $enable_rp_tools in
+     yes)	build_rp_tools=yes
+     		;;
+     no)	build_rp_tools=no
+     		;;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-rp-tools: $enable_rp_tools])
+     		;;
+esac
 
 case $enable_ca_tools in
      yes)	build_ca_tools=yes
@@ -523,15 +527,6 @@ case $enable_ca_tools in
 		;;
      *)		AC_MSG_ERROR([Unrecognized value for --enable-ca-tools: $enable_ca_tools]);;
 esac
-
-case $enable_rpki_rtr in
-     yes)	build_rpki_rtr=yes
-     		;;
-     no)	build_rpki_rtr=no
-     		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-rpki-rtr: $enable_rpki_rtr]);;
-esac
-
 
 if test $build_ca_tools = yes && test $have_pyyaml = no
 then
@@ -589,23 +584,15 @@ fi
 
 				TOP_LEVEL_SUBDIRS=""
 test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
-				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS h rcynic utils"
+				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS h"
+test $build_rp_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS h rcynic utils rtr-origin"
 test $build_ca_tools = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
-test $build_rpki_rtr = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rtr-origin"
 
 AC_SUBST(TOP_LEVEL_SUBDIRS)
 
 AC_CONFIG_FILES([Makefile
 		 ac_rpki.py
-		 h/Makefile
-		 rcynic/Makefile
-		 utils/Makefile
-		 utils/find_roa/Makefile
-		 utils/hashdir/Makefile
-		 utils/print_rpki_manifest/Makefile
-		 utils/print_roa/Makefile
-		 utils/scan_roas/Makefile
-		 utils/uri/Makefile])
+		 h/Makefile])
 
 if test "X$RCYNIC_STATIC_RSYNC" != "X"
 then
@@ -661,10 +648,23 @@ else
 	LIBS="$LIBS -lcrypto"
 fi
 
+if test $build_rp_tools = yes
+then
+	AC_CONFIG_FILES([rcynic/Makefile
+			 utils/Makefile
+			 utils/find_roa/Makefile
+			 utils/hashdir/Makefile
+			 utils/print_rpki_manifest/Makefile
+			 utils/print_roa/Makefile
+			 utils/scan_roas/Makefile
+			 utils/uri/Makefile
+			 rtr-origin/Makefile])
+fi
+
 if test $build_ca_tools = yes
 then
 	AC_MSG_CHECKING([if running under virtualenv])
-	if test x$VIRTUAL_ENV != x; then
+	if test "x$VIRTUAL_ENV" != "x"; then
 		AC_SUBST(VIRTUAL_ENV, [$VIRTUAL_ENV])
 		AC_MSG_RESULT([$VIRTUAL_ENV])
 	else
@@ -692,11 +692,6 @@ _EOF
 	fi
 
 	AC_CONFIG_FILES([rpkid/Makefile rpkid/tests/Makefile rpkid/portal-gui/Makefile])
-fi
-
-if test $build_rpki_rtr = yes
-then
-	AC_CONFIG_FILES([rtr-origin/Makefile])
 fi
 
 # Now that we're finally done with all the conditional changes to

@@ -34,10 +34,10 @@ def stripext(fn, *exts):
   fn1, fn2 = os.path.splitext(fn)
   return fn1 if fn2 in exts else fn
 
-def mkdir_maybe(*args):
+def mkdir_maybe(d):
   try:
-    print "Creating", args[0]
-    os.makedirs(*args)
+    print "Creating", d
+    os.makedirs(d)
   except OSError, e:
     if e.errno != errno.EEXIST:
       raise
@@ -92,6 +92,8 @@ USE_GNOME=      libxml2 libxslt
 USE_MYSQL=      server
 USE_APACHE_RUN= 22+
 
+USE_RC_SUBR=	rpki-ca
+
 # For OpenSSL, not needed otherwise
 USE_PERL5_BUILD=yes
 
@@ -133,6 +135,60 @@ This is a port of the rpki.net RPKI toolkit CA tools.
 
 WWW: http://rpki.net/
 ''')
+
+mkdir_maybe(os.path.join(base, "files"))
+
+with open(os.path.join(base, "files", "rpki-ca.in"), "w") as f:
+  print "Writing", f.name
+
+  f.write('''\
+#!/bin/sh
+
+# PROVIDE: rpki-ca
+# REQUIRE: LOGIN mysql
+# KEYWORD: shutdown
+#
+# Add the following line to /etc/rc.conf[.local] to enable whatever
+# RPKI CA services you have configured in rpki.conf
+#
+# rpkica_enable="YES"
+
+. /etc/rc.subr
+
+name="rpkica"
+rcvar=rpkica_enable
+
+start_cmd="rpkica_start"
+stop_cmd="rpkica_stop"
+
+load_rc_config $name
+
+: ${rpkica_enable="NO"}
+
+: ${rpkica_pid_dir="/var/run/rpki"}
+
+rpkica_start()
+{
+	/usr/bin/install -m 755 -d $rpkica_pid_dir
+	/usr/local/sbin/rpki-start-servers
+	return 0
+}
+
+rpkica_stop()
+{
+	for i in rpkid pubd irdbd rootd
+	do
+		if /bin/test -f $rpkica_pid_dir/$i.pid
+		then
+			/bin/kill `/bin/cat $rpkica_pid_dir/$i.pid`
+		fi
+	done
+	return 0
+}
+
+run_rc_command "$1"
+''')
+
 
 #with open(os.path.join(base, "pkg-plist"), "w") as f:
 #  print "Writing empty", f.name

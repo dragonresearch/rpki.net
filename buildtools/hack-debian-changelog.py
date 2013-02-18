@@ -29,6 +29,7 @@ import textwrap
 import time
 import calendar
 import errno
+import os
 
 try:
     from lxml.etree            import XML
@@ -103,5 +104,7 @@ if changed:
     with open(fn + ".new", "w") as f:
         print "Writing", f.name
         changelog.write_to_open_file(f)
+    print "Renaming %s.new to %s" % (fn, fn)
+    os.rename(fn + ".new", fn)
 else:
     print "No changes"

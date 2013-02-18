@@ -41,6 +41,16 @@ ignore_trivial_changes = False
 
 trivial_changes =  ("Pull from trunk.", "Merge from trunk.", "Checkpoint.", "Cleanup.")
 
+# Fill this in (somehow) with real email addresses if and when we
+# care.  Right now we only care to the extent that failing to comply
+# with the required syntax breaks package builds.
+
+author_map = {}
+
+author_default_format = "%s <%s@rpki.net>"
+
+# Main
+
 changelog = debian.changelog.Changelog()
 
 try:
@@ -57,7 +67,7 @@ except IOError, e:
 
 print "Pulling change list from subversion"
 
-svn = XML(subprocess.check_output(("svn", "log", "--xml", "--revision", "%s:HEAD" % (latest + 1))))
+svn = XML(subprocess.check_output(("svn", "log", "--xml", "--revision", "%s:COMMITTED" % (latest + 1))))
 
 first_wrapper = textwrap.TextWrapper(initial_indent = "  * ", subsequent_indent = "    ")
 rest_wrapper  = textwrap.TextWrapper(initial_indent = "    ", subsequent_indent = "    ")
@@ -68,16 +78,19 @@ print "Generating new change entries"
 
 for elt in svn.findall("logentry"):
     msg = elt.findtext("msg")
+    author = elt.findtext("author")
 
     if ignore_trivial_changes and (msg in trivial_changes or msg + "." in trivial_changes):
         continue
+
+    author = author_map.get(author, author_default_format % (author, author))
 
     changelog.new_block(
         package         = changelog.package,
         version         = "0." + elt.get("revision"),
         distributions   = changelog.distributions,
         urgency         = changelog.urgency,
-        author          = elt.findtext("author") + "@rpki.net",
+        author          = author,
         date            = email.utils.formatdate(calendar.timegm(time.strptime(elt.findtext("date"),
                                                                         "%Y-%m-%dT%H:%M:%S.%fZ"))))
     changelog.add_change("\n\n".join((rest_wrapper if i else first_wrapper).fill(s)

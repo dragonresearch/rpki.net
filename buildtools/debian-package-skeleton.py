@@ -519,6 +519,9 @@ export DH_VERBOSE=1
 
 override_dh_auto_configure:
 	dh_auto_configure -- --disable-target-installation
+
+override_dh_auto_test:
+	@true
 ''')
 
 os.makedirs('debian/source')

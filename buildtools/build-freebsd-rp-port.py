@@ -65,6 +65,8 @@ if branch != "trunk" and (branch[:2] != "tk" or not branch[2:].isdigit()):
 
 if not vers.isdigit() and (base != "rpki" or vers[0] != "r" or not vers[1:].isdigit()):
   vers = None
+else:
+  vers = vers[1:]
 
 if None in (base, branch, vers):
   sys.exit("Unexpected tarball URL name format")

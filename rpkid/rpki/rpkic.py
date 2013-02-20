@@ -112,7 +112,7 @@ class main(rpki.cli.Cmd):
 
     cfg = rpki.config.parser(self.cfg_file, "myrpki")
     cfg.set_global_flags()
-    self.histfile = cfg.get("history_file", ".rpkic_history")
+    self.histfile = cfg.get("history_file", os.path.expanduser("~/.rpkic_history"))
     self.autosync = cfg.getboolean("autosync", True, section = "rpkic")
 
     from django.conf import settings

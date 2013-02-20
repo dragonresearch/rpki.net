@@ -21,7 +21,6 @@ from django import forms
 from rpki.resource_set import (resource_range_as, resource_range_ip)
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
-from rpki.gui.app.glue import str_to_resource_range
 from rpki.POW import IPAddress
 
 
@@ -210,7 +209,7 @@ class ROARequest(forms.Form):
         try:
             r = self._as_resource_range()
         except:
-            raise forms.ValidationError('invalid IP address')
+            raise forms.ValidationError('invalid prefix')
 
         manager = models.ResourceRangeAddressV4 if r.version == 4 else models.ResourceRangeAddressV6
         if not manager.objects.filter(cert__conf=self.conf,
@@ -259,14 +258,14 @@ class ROARequestConfirm(forms.Form):
 
     def clean_prefix(self):
         try:
-            r = str_to_resource_range(self.cleaned_data.get('prefix'))
+            r = resource_range_ip.parse_str(self.cleaned_data.get('prefix'))
         except BadIPResource:
             raise forms.ValidationError('invalid prefix')
         return str(r)
 
     def clean(self):
         try:
-            r = str_to_resource_range(self.cleaned_data.get('prefix'))
+            r = resource_range_ip.parse_str(self.cleaned_data.get('prefix'))
             if r.prefixlen() > self.cleaned_data.get('max_prefixlen'):
                 raise forms.ValidationError('max length is smaller than mask')
         except BadIPResource:

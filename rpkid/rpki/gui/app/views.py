@@ -35,8 +35,8 @@ from django.views.generic import DetailView
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
-from rpki.resource_set import (resource_range_as, resource_range_ipv4,
-                               resource_range_ipv6, roa_prefix_ipv4)
+from rpki.resource_set import (resource_range_as, resource_range_ip,
+                               roa_prefix_ipv4)
 from rpki import sundial
 import rpki.exceptions
 
@@ -331,12 +331,8 @@ def child_add_prefix(request, pk):
         form = forms.AddNetForm(request.POST, child=child)
         if form.is_valid():
             address_range = form.cleaned_data.get('address_range')
-            if ':' in address_range:
-                r = resource_range_ipv6.parse_str(address_range)
-                version = 'IPv6'
-            else:
-                r = resource_range_ipv4.parse_str(address_range)
-                version = 'IPv4'
+            r = resource_range_ip.parse_str(address_range)
+            version = 'IPv%d' % r.version
             child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
                                         version=version)
             Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
@@ -529,12 +525,12 @@ def roa_create_confirm(request):
         if form.is_valid():
             asn = form.cleaned_data.get('asn')
             prefix = form.cleaned_data.get('prefix')
-            rng = glue.str_to_resource_range(prefix)
+            rng = resource_range_ip.parse_str(prefix)
             max_prefixlen = form.cleaned_data.get('max_prefixlen')
             # Always create ROA requests with a single prefix.
             # https://trac.rpki.net/ticket/32
             roa = models.ROARequest.objects.create(issuer=conf, asn=asn)
-            v = 'IPv4' if isinstance(rng, resource_range_ipv4) else 'IPv6'
+            v = 'IPv%d' % rng.version
             roa.prefixes.create(version=v, prefix=str(rng.min),
                                 prefixlen=rng.prefixlen(),
                                 max_prefixlen=max_prefixlen)
@@ -659,7 +655,7 @@ def refresh(request):
 
 def roa_match(rng):
     """Return a list of tuples of matching routes and roas."""
-    if isinstance(rng, resource_range_ipv6):
+    if rng.min.version == 6:
         route_manager = models.RouteOriginV6.objects
         pfx = 'prefixes_v6'
     else:

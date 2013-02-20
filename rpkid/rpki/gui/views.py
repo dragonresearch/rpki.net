@@ -27,4 +27,4 @@ def login(request, *args, **kwargs):
 @tls_required
 def logout(request, *args, **kwargs):
     "Wrapper around django.contrib.auth.views.logout to force use of TLS."
-    return django.contrib.auth.views.login(request, *args, **kwargs)
+    return django.contrib.auth.views.logout(request, *args, **kwargs)

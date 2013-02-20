@@ -209,6 +209,12 @@ def dashboard(request):
             x.is_prefix = False
 
     unused_prefixes_v6 = my_prefixes_v6.difference(used_prefixes_v6)
+    for x in unused_prefixes_v6:
+        try:
+            x.prefixlen()
+            x.is_prefix = True
+        except rpki.exceptions.MustBePrefix:
+            x.is_prefix = False
 
     clients = models.Client.objects.all() if request.user.is_superuser else None
 

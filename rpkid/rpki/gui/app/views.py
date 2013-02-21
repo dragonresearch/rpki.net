@@ -32,6 +32,7 @@ from django import http
 from django.core.urlresolvers import reverse
 from django.contrib.auth.models import User
 from django.views.generic import DetailView
+from django.core.paginator import Paginator
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
@@ -716,6 +717,8 @@ def route_view(request):
     """
     conf = request.session['handle']
     log = request.META['wsgi.errors']
+    count = request.GET.get('count', 25)
+    page = request.GET.get('page', 1)
 
     routes = []
     for p in models.ResourceRangeAddressV4.objects.filter(cert__conf=conf):
@@ -727,9 +730,12 @@ def route_view(request):
         print >>log, 'querying for routes matching %s' % r
         routes.extend([validate_route(*x) for x in roa_match(r)])
 
+    paginator = Paginator(routes, count)
+    content = paginator.page(page)
+
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
     return render(request, 'app/routes_view.html',
-                  {'routes': routes, 'timestamp': ts})
+                  {'routes': content, 'timestamp': ts})
 
 
 def route_detail(request, pk):

@@ -18,11 +18,9 @@ __version__ = '$Id$'
 
 from django.contrib.auth.models import User
 from django import forms
-from rpki.resource_set import (resource_range_as, resource_range_ipv4,
-                               resource_range_ipv6)
+from rpki.resource_set import (resource_range_as, resource_range_ip)
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
-from rpki.gui.app.glue import str_to_resource_range
 from rpki.POW import IPAddress
 
 
@@ -199,7 +197,7 @@ class ROARequest(forms.Form):
             mask = p.bits - (8 * (prefixlen / 8))
             prefix = prefix + '/' + str(mask)
 
-        return str_to_resource_range(prefix)
+        return resource_range_ip.parse_str(prefix)
 
     def clean_asn(self):
         value = self.cleaned_data.get('asn')
@@ -211,9 +209,9 @@ class ROARequest(forms.Form):
         try:
             r = self._as_resource_range()
         except:
-            raise forms.ValidationError('invalid IP address')
+            raise forms.ValidationError('invalid prefix')
 
-        manager = models.ResourceRangeAddressV4 if isinstance(r, resource_range_ipv4) else models.ResourceRangeAddressV6
+        manager = models.ResourceRangeAddressV4 if r.version == 4 else models.ResourceRangeAddressV6
         if not manager.objects.filter(cert__conf=self.conf,
                                       prefix_min__lte=r.min,
                                       prefix_max__gte=r.max).exists():
@@ -260,14 +258,14 @@ class ROARequestConfirm(forms.Form):
 
     def clean_prefix(self):
         try:
-            r = str_to_resource_range(self.cleaned_data.get('prefix'))
+            r = resource_range_ip.parse_str(self.cleaned_data.get('prefix'))
         except BadIPResource:
             raise forms.ValidationError('invalid prefix')
         return str(r)
 
     def clean(self):
         try:
-            r = str_to_resource_range(self.cleaned_data.get('prefix'))
+            r = resource_range_ip.parse_str(self.cleaned_data.get('prefix'))
             if r.prefixlen() > self.cleaned_data.get('max_prefixlen'):
                 raise forms.ValidationError('max length is smaller than mask')
         except BadIPResource:
@@ -333,12 +331,11 @@ class AddNetForm(forms.Form):
     def clean_address_range(self):
         address_range = self.cleaned_data.get('address_range')
         try:
-            if ':' in address_range:
-                r = resource_range_ipv6.parse_str(address_range)
+            r = resource_range_ip.parse_str(address_range)
+            if r.version == 6:
                 qs = models.ResourceRangeAddressV6
                 version = 'IPv6'
             else:
-                r = resource_range_ipv4.parse_str(address_range)
                 qs = models.ResourceRangeAddressV4
                 version = 'IPv4'
         except BadIPResource:

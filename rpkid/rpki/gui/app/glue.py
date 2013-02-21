@@ -110,14 +110,6 @@ def list_received_resources(log, conf):
             print >>log, "error: unexpected pdu from rpkid type=%s" % type(pdu)
 
 
-def str_to_resource_range(prefix):
-    try:
-        r = resource_range_ipv4.parse_str(prefix)
-    except BadIPResource:
-        r = resource_range_ipv6.parse_str(prefix)
-    return r
-
-
 def get_email_list(conf):
     """Return a list of the contact emails for this user.
 

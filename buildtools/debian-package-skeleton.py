@@ -8,6 +8,227 @@ os.makedirs('debian')
 
 with open('debian/changelog', "wb") as f:
   f.write('''\
+rpki (0.5051) UNRELEASED; urgency=low
+  * Pull from trunk.
+ -- sra <sra@rpki.net>  Thu, 21 Feb 2013 01:17:22 -0000
+
+rpki (0.5047) UNRELEASED; urgency=low
+  * Pull from trunk.
+ -- sra <sra@rpki.net>  Wed, 20 Feb 2013 08:31:58 -0000
+
+rpki (0.5045) UNRELEASED; urgency=low
+  * Pull from trunk.
+ -- sra <sra@rpki.net>  Wed, 20 Feb 2013 01:31:40 -0000
+
+rpki (0.5042) UNRELEASED; urgency=low
+  * Get rid of silly "r" prefix on version number for FreeBSD
+    packages, among other reasons so that we can have the same version
+    numbers on FreeBSD and Ubuntu, doh.
+ -- sra <sra@rpki.net>  Tue, 19 Feb 2013 02:20:28 -0000
+
+rpki (0.5041) UNRELEASED; urgency=low
+  * Install generated debian/changelog, now that we generate ones that
+    debuild accepts.
+ -- sra <sra@rpki.net>  Mon, 18 Feb 2013 07:17:57 -0000
+
+rpki (0.5040) UNRELEASED; urgency=low
+  * debuild et al are picky about format of email addresses.
+
+    For some reason debuild now cares about "make test" failing (which
+    it always has on package builds, because of MySQL setup
+    requirements, but debuild used to ignore that), so tweak rules to
+    skip the test suite.
+ -- sra <sra@rpki.net>  Mon, 18 Feb 2013 06:58:51 -0000
+
+rpki (0.5039) UNRELEASED; urgency=low
+  * Script to automate debian/changelogs.
+ -- sra <sra@rpki.net>  Mon, 18 Feb 2013 05:46:00 -0000
+
+rpki (0.5038) UNRELEASED; urgency=low
+  * Add rc.d script.
+ -- sra <sra@rpki.net>  Sun, 17 Feb 2013 10:05:49 -0000
+
+rpki (0.5037) UNRELEASED; urgency=low
+  * Debug pkg-plist generation.
+ -- sra <sra@rpki.net>  Mon, 11 Feb 2013 05:27:59 -0000
+
+rpki (0.5036) UNRELEASED; urgency=low
+  * pkg-plist generation hacks.
+ -- sra <sra@rpki.net>  Mon, 11 Feb 2013 03:04:05 -0000
+
+rpki (0.5035) UNRELEASED; urgency=low
+  * Pull from trunk.
+ -- sra <sra@rpki.net>  Mon, 11 Feb 2013 02:25:18 -0000
+
+rpki (0.5034) UNRELEASED; urgency=low
+  * Add --disable-rp-tools, for package building.
+ -- sra <sra@rpki.net>  Mon, 11 Feb 2013 02:18:42 -0000
+
+rpki (0.5030) UNRELEASED; urgency=low
+  * Pull from trunk.
+ -- sra <sra@rpki.net>  Tue, 05 Feb 2013 21:04:06 -0000
+
+rpki (0.5028) UNRELEASED; urgency=low
+  * Run daemons as root for now, come back to permission issues when
+    everything else works as expected.
+ -- sra <sra@rpki.net>  Tue, 05 Feb 2013 04:41:02 -0000
+
+rpki (0.5027) UNRELEASED; urgency=low
+  * Clean up debian/ directory, enable upstart.
+ -- sra <sra@rpki.net>  Tue, 05 Feb 2013 00:12:49 -0000
+
+rpki (0.5026) UNRELEASED; urgency=low
+  * Install sample rpki.conf, since we don't (yet?) have a good way to
+    generate one automatically during installation.  Installation
+    dialog is probably not the right way to go, some kind of setup
+    wizard script for the user to run after installation is probably a
+    better bet.
+ -- sra <sra@rpki.net>  Mon, 04 Feb 2013 23:09:34 -0000
+
+rpki (0.5025) UNRELEASED; urgency=low
+  * Tweak directory ownerships on Debian install, and add a few more
+    bits to rpki-ca.upstart while we're at it.
+ -- sra <sra@rpki.net>  Mon, 04 Feb 2013 05:36:12 -0000
+
+rpki (0.5024) UNRELEASED; urgency=low
+  * Allow naming tree(s) on command line.
+ -- sra <sra@rpki.net>  Mon, 04 Feb 2013 05:31:03 -0000
+
+rpki (0.5023) UNRELEASED; urgency=low
+  * Wrapped debian skeleton.
+ -- sra <sra@rpki.net>  Sun, 03 Feb 2013 22:27:01 -0000
+
+rpki (0.5022) UNRELEASED; urgency=low
+  * Helper for generating package skeletons.
+ -- sra <sra@rpki.net>  Sun, 03 Feb 2013 22:15:47 -0000
+
+rpki (0.5021) UNRELEASED; urgency=low
+  * Checkpoint.
+ -- sra <sra@rpki.net>  Sun, 03 Feb 2013 17:02:21 -0000
+
+rpki (0.5020) UNRELEASED; urgency=low
+  * Change default location of rcynic-html output on FreeBSD to track
+    the current FreeBSD Apache default, silly though that location may
+    be. Thanks, Jay!
+ -- sra <sra@rpki.net>  Sun, 03 Feb 2013 16:41:33 -0000
+
+rpki (0.5019) UNRELEASED; urgency=low
+  * Don't try to run rcynic-html if parent output directory doesn't
+    exist.
+ -- sra <sra@rpki.net>  Sun, 03 Feb 2013 16:36:45 -0000
+
+rpki (0.5018) UNRELEASED; urgency=low
+  * Doh, don't put  in generated rcynic.conf.
+ -- sra <sra@rpki.net>  Sun, 03 Feb 2013 16:25:18 -0000
+
+rpki (0.5017) UNRELEASED; urgency=low
+  * Cleanup
+ -- sra <sra@rpki.net>  Sun, 03 Feb 2013 05:38:42 -0000
+
+rpki (0.5016) UNRELEASED; urgency=low
+  * Seems /var/run is a temporary filesystem on some platforms.
+ -- sra <sra@rpki.net>  Sun, 03 Feb 2013 02:07:39 -0000
+
+rpki (0.5015) UNRELEASED; urgency=low
+  * Typo in pkg-deinstall.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 19:46:33 -0000
+
+rpki (0.5014) UNRELEASED; urgency=low
+  * Exit without whining when another process holds the lock.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 19:08:34 -0000
+
+rpki (0.5013) UNRELEASED; urgency=low
+  * Wire installed location of scan_roas into installed rtr-origin, so
+    that we can stop fighting with FreeBSD's odd habit of installing
+    packaged software in /usr/local/bin while excluding /usr/local/bin
+    from the default $PATH in system cron jobs and shell scripts.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 19:02:11 -0000
+
+rpki (0.5012) UNRELEASED; urgency=low
+  * Need rsync as both build and runtime dependency.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 08:34:30 -0000
+
+rpki (0.5011) UNRELEASED; urgency=low
+  * OK, now I know why nobody ever uses "install -C".
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 08:19:35 -0000
+
+rpki (0.5010) UNRELEASED; urgency=low
+  * rcynic requires rsync, doh.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 07:56:31 -0000
+
+rpki (0.5009) UNRELEASED; urgency=low
+  * Fun with DESTDIR.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 07:22:08 -0000
+
+rpki (0.5008) UNRELEASED; urgency=low
+  * Beat FreeBSD packaging stuff with a club.  Might be working now.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 06:58:53 -0000
+
+rpki (0.5007) UNRELEASED; urgency=low
+  * Whoops, ac_* variables are lowercase this week.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 06:58:27 -0000
+
+rpki (0.5006) UNRELEASED; urgency=low
+  * Doh, write TAL configuration to correct file.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 05:37:46 -0000
+
+rpki (0.5005) UNRELEASED; urgency=low
+  * etc/rc.d/rcynic is only for jails, so it's not in the port
+    anymore.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 05:29:03 -0000
+
+rpki (0.5004) UNRELEASED; urgency=low
+  * Whack FreeBSD port skeleton to track recent changes.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 05:00:27 -0000
+
+rpki (0.5003) UNRELEASED; urgency=low
+  * First round of fixes to installation targets.
+ -- sra <sra@rpki.net>  Sat, 02 Feb 2013 04:15:51 -0000
+
+rpki (0.5002) UNRELEASED; urgency=low
+  * Finally ready to start testing new rcynic install code.
+ -- sra <sra@rpki.net>  Fri, 01 Feb 2013 21:50:18 -0000
+
+rpki (0.5001) UNRELEASED; urgency=low
+  * Checkpoint
+ -- sra <sra@rpki.net>  Fri, 01 Feb 2013 18:38:48 -0000
+
+rpki (0.5000) UNRELEASED; urgency=low
+  * Cleanup.
+ -- sra <sra@rpki.net>  Fri, 01 Feb 2013 13:22:19 -0000
+
+rpki (0.4999) UNRELEASED; urgency=low
+  * chown() lock file to rcynic user when creating it as root.
+ -- sra <sra@rpki.net>  Fri, 01 Feb 2013 05:08:08 -0000
+
+rpki (0.4998) UNRELEASED; urgency=low
+  * Add rcynic-cron.
+ -- sra <sra@rpki.net>  Fri, 01 Feb 2013 03:17:34 -0000
+
+rpki (0.4997) UNRELEASED; urgency=low
+  * Merge from trunk.
+ -- sra <sra@rpki.net>  Thu, 31 Jan 2013 22:10:02 -0000
+
+rpki (0.4995) UNRELEASED; urgency=low
+  * Checkpoint
+ -- sra <sra@rpki.net>  Thu, 31 Jan 2013 21:56:29 -0000
+
+rpki (0.4989) UNRELEASED; urgency=low
+  * Pull from trunk.
+ -- sra <sra@rpki.net>  Thu, 31 Jan 2013 05:04:39 -0000
+
+rpki (0.4988) UNRELEASED; urgency=low
+  * Checkpoint
+ -- sra <sra@rpki.net>  Thu, 31 Jan 2013 05:03:04 -0000
+
+rpki (0.4980) UNRELEASED; urgency=low
+  * Pull from trunk.
+ -- sra <sra@rpki.net>  Fri, 25 Jan 2013 07:41:00 -0000
+
+rpki (0.4978) UNRELEASED; urgency=low
+  * Pull from trunk.
+ -- sra <sra@rpki.net>  Fri, 25 Jan 2013 05:09:38 -0000
+
 rpki (0.4976) UNRELEASED; urgency=low
 
   * Test update to changelog.
@@ -28,10 +249,20 @@ with open('debian/compat', "wb") as f:
 
 with open('debian/control', "wb") as f:
   f.write('''\
+# Dependencies on python-pip are a temporary hack, so that we can
+# install recent versions of django and south during Singapore
+# hackathon without messing about with setting up our own apt
+# repository.  In the longer run, the dependencies on python-pip
+# should go away, and we should dependencies on python-django and
+# python-south with the right version numbers.
+# 
+# Also see the pip install stuff in rpki-ca.postinst, which is part of
+# the same kludge.
+
 Source: rpki
 Priority: extra
 Maintainer: Rob Austein <sra@hactrn.net>
-Build-Depends: debhelper (>= 8.0.0), autotools-dev, xsltproc, python (>= 2.7), python-all-dev, python-setuptools, python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-django, python-vobject, python-yaml
+Build-Depends: debhelper (>= 8.0.0), autotools-dev, xsltproc, python (>= 2.7), python-all-dev, python-setuptools, python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml
 Standards-Version: 3.9.3
 Homepage: http://trac.rpki.net/
 Vcs-Svn: http://subvert-rpki.hactrn.net/
@@ -46,7 +277,7 @@ Description: rpki.net relying party tools
 
 Package: rpki-ca
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, xsltproc, python (>= 2.7), python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-django, python-vobject, python-yaml
+Depends: ${shlibs:Depends}, ${misc:Depends}, xsltproc, python (>= 2.7), python-pip, python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml
 Description: rpki.net certification authority tools
  "Certification authority" tools for issuing RPKI certificates and
  related objects using the rpki.net toolkit.
@@ -240,6 +471,44 @@ setup_rpkid_group() {
     fi
 }
 
+# This is kind of sick, but the versions of Django and and South that
+# ship with Ubuntu 12.04 LTS are too old, so we need to install from
+# PyPi if we can.  If the user has already done that, great, otherwise
+# we try to do it here.  Clearly this is not what we want in the long
+# run, but neither rae the OpenSSL library hacks.
+#
+# Basic approach here is copied from what we do in configure.ac.
+
+maybe_install_django() {
+    if python -c 'import sys, django; sys.exit(0 if django.VERSION < (1, 3, 7) else 1)' 2>/dev/null
+    then
+	echo 1>&2 "Unusable version of Django installed, please uninstall it then try again"
+	exit 1
+    fi
+
+    if  ! python -c 'import django' 2>/dev/null &&
+	! pip install django==1.3.7 
+    then
+	echo 1>&2 "Unable to install usable version of Django, sorry"
+	exit 1
+    fi
+}
+
+maybe_install_south() {
+    if python -c 'import sys, south; sys.exit(0 if map(int,south.__version__.split(".")) < [0, 7, 6] else 1)' 2>/dev/null
+    then
+	echo 1>&2 "Unusable version of South installed, please uninstall it then try again"
+	exit 1
+    fi
+
+    if  ! python -c 'import south' 2>/dev/null &&
+	! pip install South==0.7.6
+    then
+	echo 1>&2 "Unable to install usable version of Django, sorry"
+	exit 1
+    fi
+}
+
 # summary of how this script can be called:
 #        * <postinst> `configure' <most-recently-configured-version>
 #        * <old-postinst> `abort-upgrade' <new version>
@@ -257,6 +526,8 @@ case "$1" in
     configure)
 	setup_rpkid_group
 	setup_rpkid_user
+	maybe_install_django
+	maybe_install_south
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

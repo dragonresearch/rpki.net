@@ -270,7 +270,7 @@ Vcs-Browser: http://trac.rpki.net/browser
 
 Package: rpki-rp
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python (>= 2.7), rrdtool, rsync
+Depends: ${shlibs:Depends}, ${misc:Depends}, python (>= 2.7), rrdtool, rsync, xinetd
 Description: rpki.net relying party tools
  "Relying party" validation tools from the rpki.net toolkit.
  See the online documentation at http://rpki.net/.

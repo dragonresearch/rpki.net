@@ -26,13 +26,14 @@ import os.path
 from tempfile import NamedTemporaryFile
 
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, render, redirect
 from django.utils.http import urlquote
 from django import http
 from django.core.urlresolvers import reverse
 from django.contrib.auth.models import User
 from django.views.generic import DetailView
 from django.core.paginator import Paginator
+from django.forms.formsets import formset_factory, BaseFormSet
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet
 from rpki.gui.app import models, forms, glue, range_list
@@ -447,6 +448,39 @@ def roa_detail(request, pk):
     })
 
 
+def get_covered_routes(rng, max_prefixlen, asn):
+    """find list of matching routes"""
+
+    routes = []
+    match = roa_match(rng)
+    for route, roas in match:
+        validate_route(route, roas)
+        # tweak the validation status due to the presence of the
+        # new ROA.  Don't need to check the prefix bounds here
+        # because all the matches routes will be covered by this
+        # new ROA
+        if route.status == 'unknown':
+            # if the route was previously unknown (no covering
+            # ROAs), then:
+                # if the AS matches, it is valid, otherwise invalid
+                if (route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen):
+                    route.status = 'valid'
+                    route.status_label = 'label-success'
+                else:
+                    route.status = 'invalid'
+                    route.status_label = 'label-important'
+        elif route.status == 'invalid':
+            # if the route was previously invalid, but this new ROA
+            # matches the ASN, it is now valid
+            if route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen:
+                route.status = 'valid'
+                route.status_label = 'label-success'
+
+        routes.append(route)
+
+    return routes
+
+
 @handle_required
 def roa_create(request):
     """Present the user with a form to create a ROA.
@@ -464,33 +498,34 @@ def roa_create(request):
             rng = form._as_resource_range()  # FIXME calling "private" method
             max_prefixlen = int(form.cleaned_data.get('max_prefixlen'))
 
-            # find list of matching routes
-            routes = []
-            match = roa_match(rng)
-            for route, roas in match:
-                validate_route(route, roas)
-                # tweak the validation status due to the presence of the
-                # new ROA.  Don't need to check the prefix bounds here
-                # because all the matches routes will be covered by this
-                # new ROA
-                if route.status == 'unknown':
-                    # if the route was previously unknown (no covering
-                    # ROAs), then:
-                    # if the AS matches, it is valid, otherwise invalid
-                    if (route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen):
-                        route.status = 'valid'
-                        route.status_label = 'label-success'
-                    else:
-                        route.status = 'invalid'
-                        route.status_label = 'label-important'
-                elif route.status == 'invalid':
-                    # if the route was previously invalid, but this new ROA
-                    # matches the ASN, it is now valid
-                    if route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen:
-                        route.status = 'valid'
-                        route.status_label = 'label-success'
-
-                routes.append(route)
+#            # find list of matching routes
+#            routes = []
+#            match = roa_match(rng)
+#            for route, roas in match:
+#                validate_route(route, roas)
+#                # tweak the validation status due to the presence of the
+#                # new ROA.  Don't need to check the prefix bounds here
+#                # because all the matches routes will be covered by this
+#                # new ROA
+#                if route.status == 'unknown':
+#                    # if the route was previously unknown (no covering
+#                    # ROAs), then:
+#                    # if the AS matches, it is valid, otherwise invalid
+#                    if (route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen):
+#                        route.status = 'valid'
+#                        route.status_label = 'label-success'
+#                    else:
+#                        route.status = 'invalid'
+#                        route.status_label = 'label-important'
+#                elif route.status == 'invalid':
+#                    # if the route was previously invalid, but this new ROA
+#                    # matches the ASN, it is now valid
+#                    if route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen:
+#                        route.status = 'valid'
+#                        route.status_label = 'label-success'
+#
+#                routes.append(route)
+            routes = get_covered_routes(rng, max_prefixlen, asn)
 
             prefix = str(rng)
             form = forms.ROARequestConfirm(initial={'asn': asn,
@@ -511,6 +546,90 @@ def roa_create(request):
         form = forms.ROARequest(initial=d)
 
     return render(request, 'app/roarequest_form.html', {'form': form})
+
+
+class ROARequestFormSet(BaseFormSet):
+    """There is no way to pass arbitrary keyword arguments to the form
+    constructor, so we have to override BaseFormSet to allow it.
+
+    """
+    def __init__(self, *args, **kwargs):
+        self.conf = kwargs.pop('conf')
+        super(ROARequestFormSet, self).__init__(*args, **kwargs)
+
+    def _construct_forms(self):
+        self.forms = []
+        for i in xrange(self.total_form_count()):
+            self.forms.append(self._construct_form(i, conf=self.conf))
+
+
+def split_with_default(s):
+    xs = s.split(',')
+    if len(xs) == 1:
+        return xs[0], None
+    return xs
+
+
+@handle_required
+def roa_create_multi(request):
+    """version of roa_create that uses a formset to allow entry of multiple
+    roas on a single page.
+
+    ROAs can be specified in the GET query string, as such:
+
+        ?roa=prefix,asn
+
+    Mulitple ROAs may be specified:
+
+        ?roa=prefix,asn+roa=prefix2,asn2
+
+    If an IP range is specified, it will be automatically split into multiple
+    prefixes:
+
+        ?roa=1.1.1.1-2.2.2.2,42
+
+    The ASN may optionally be omitted.
+
+    """
+
+    conf = request.session['handle']
+    if request.method == 'GET':
+        init = []
+        for x in request.GET.getlist('roa'):
+            rng, asn = split_with_default(x)
+            rng = resource_range_ip.parse_str(rng)
+            if rng.can_be_prefix:
+                init.append({'asn': asn, 'prefix': str(rng)})
+            else:
+                v = []
+                rng.chop_into_prefixes(v)
+                init.extend([{'asn': asn, 'prefix': str(p)} for p in v])
+        formset = formset_factory(forms.ROARequest, formset=ROARequestFormSet,
+                                 can_delete=True)(initial=init, conf=conf)
+    elif request.method == 'POST':
+        formset = formset_factory(forms.ROARequest, formset=ROARequestFormSet,
+                                  extra=0, can_delete=True)(request.POST, request.FILES, conf=conf)
+        if formset.is_valid():
+            routes = []
+            v = []
+            # as of Django 1.4.5 we still can't use formset.cleaned_data
+            # because deleted forms are not excluded, which causes an
+            # AttributeError to be raised.
+            for form in formset:
+                if hasattr(form, 'cleaned_data') and form.cleaned_data:  # exclude empty forms
+                    asn = form.cleaned_data.get('asn')
+                    rng = resource_range_ip.parse_str(form.cleaned_data.get('prefix'))
+                    max_prefixlen = int(form.cleaned_data.get('max_prefixlen'))
+                    routes.extend(get_covered_routes(rng, max_prefixlen, asn))
+                    v.append({'prefix': str(rng), 'max_prefixlen': max_prefixlen,
+                            'asn': asn})
+            # if there were no rows, skip the confirmation step
+            if v:
+                formset = formset_factory(forms.ROARequestConfirm, extra=0)(initial=v)
+                return render(request, 'app/roarequest_confirm_multi_form.html',
+                            {'routes': routes, 'formset': formset, 'roas': v})
+    return render(request, 'app/roarequest_multi_form.html',
+                  {'formset': formset})
 
 
 @handle_required
@@ -540,6 +659,36 @@ def roa_create_confirm(request):
         # What should happen when the submission form isn't valid?  For now
         # just fall through and redirect back to the ROA creation form
     return http.HttpResponseRedirect(reverse(roa_create))
+
+
+@handle_required
+def roa_create_multi_confirm(request):
+    """This function is called when the user confirms the creation of a ROA
+    request.  It is responsible for updating the IRDB.
+
+    """
+    conf = request.session['handle']
+    log = request.META['wsgi.errors']
+    if request.method == 'POST':
+        formset = formset_factory(forms.ROARequestConfirm, extra=0)(request.POST, request.FILES)
+        if formset.is_valid():
+            for cleaned_data in formset.cleaned_data:
+                asn = cleaned_data.get('asn')
+                prefix = cleaned_data.get('prefix')
+                rng = resource_range_ip.parse_str(prefix)
+                max_prefixlen = cleaned_data.get('max_prefixlen')
+                # Always create ROA requests with a single prefix.
+                # https://trac.rpki.net/ticket/32
+                roa = models.ROARequest.objects.create(issuer=conf, asn=asn)
+                v = 'IPv%d' % rng.version
+                roa.prefixes.create(version=v, prefix=str(rng.min),
+                                    prefixlen=rng.prefixlen(),
+                                    max_prefixlen=max_prefixlen)
+            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
+            return redirect(dashboard)
+        # What should happen when the submission form isn't valid?  For now
+        # just fall through and redirect back to the ROA creation form
+    return http.HttpResponseRedirect(reverse(roa_create_multi))
 
 
 @handle_required

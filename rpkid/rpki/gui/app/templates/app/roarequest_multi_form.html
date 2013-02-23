@@ -1,0 +1,27 @@
+{% extends "app/app_base.html" %}
+
+{% block content %}
+<div class='page-title'>
+  <h1>Create ROA Requests</h1>
+</div>
+
+<form method='POST' action='{{ request.get_full_path }}'>
+  {% csrf_token %}
+  {{ formset.management_form }}
+  {% for form in formset %}
+  <div class="controls controls-row">
+    {{ form.prefix }}
+    {{ form.max_prefixlen }}
+    {{ form.asn }}
+    <label class="checkbox inline span1">{{ form.DELETE }} Delete</label>
+    {% if form.errors %}<span class="help-inline">{{ form.errors }}</span>{% endif %}
+    {% if form.non_field_errors %}<span class="help-inline">{{ form.non_field_errors }}</span>{% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="form-actions">
+    <input class="btn" type="submit" value="Preview">
+    <a class="btn" href="{% url rpki.gui.app.views.dashboard %}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

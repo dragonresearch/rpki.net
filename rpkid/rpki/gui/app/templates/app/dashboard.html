@@ -81,10 +81,7 @@
       <tr>
 	<td>{{ addr }}</td>
 	<td>
-	  {# if addr can be represented as a prefix, add a button for issuing a roa #}
-	  {% if addr.is_prefix %}
-	  <a class="btn btn-mini" title="Create ROA using this prefix" href="{% url rpki.gui.app.views.roa_create %}?prefix={{ addr }}">ROA</a>
-	  {% endif %}
+	  <a class="btn btn-mini" title="Create ROA using this prefix" href="{% url rpki.gui.app.views.roa_create_multi %}?roa={{ addr }}"><i class="icon-plus-sign"></i> ROA</a>
 	</td>
       </tr>
       {% endfor %} <!-- addrs -->
@@ -99,10 +96,7 @@
       <tr>
 	<td>{{ addr }}</td>
 	<td>
-	  {# if addr can be represented as a prefix, add a button for issuing a roa #}
-	  {% if addr.is_prefix %}
-	  <a class="btn btn-mini" title='create roa using this prefix' href="{% url rpki.gui.app.views.roa_create %}?prefix={{ addr }}">roa</a>
-	  {% endif %}
+	  <a class="btn btn-mini" title='create roa using this prefix' href="{% url rpki.gui.app.views.roa_create_multi %}?roa={{ addr }}"><i class="icon-plus-sign"></i> ROA</a>
 	</td>
       </tr>
       {% endfor %} <!-- addrs -->
@@ -132,7 +126,7 @@
   </tr>
   {% endfor %}
 </table>
-<a class="btn" href="{% url rpki.gui.app.views.roa_create %}"><i class="icon-plus-sign"></i> Create</a>
+<a class="btn" href="{% url rpki.gui.app.views.roa_create_multi %}"><i class="icon-plus-sign"></i> Create</a>
 </div>
 
   <div class="span6">

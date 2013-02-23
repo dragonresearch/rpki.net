@@ -159,11 +159,24 @@ class ROARequest(forms.Form):
     Handles both IPv4 and IPv6."""
 
     prefix = forms.CharField(
-        widget=forms.TextInput(attrs={'autofocus': 'true', 'size': '50'})
+        widget=forms.TextInput(attrs={
+            'autofocus': 'true', 'placeholder': 'Prefix',
+            'class': 'span4'
+        })
     )
-    max_prefixlen = forms.CharField(required=False,
-                                    label='Max Prefix Length')
-    asn = forms.IntegerField(label='AS')
+    max_prefixlen = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': 'Max len',
+            'class': 'span1'
+        })
+    )
+    asn = forms.IntegerField(
+        widget=forms.TextInput(attrs={
+            'placeholder': 'ASN',
+            'class': 'span1'
+        })
+    )
     confirmed = forms.BooleanField(widget=forms.HiddenInput, required=False)
 
     def __init__(self, *args, **kwargs):
@@ -173,8 +186,11 @@ class ROARequest(forms.Form):
 
         """
         conf = kwargs.pop('conf', None)
+        kwargs['auto_id'] = False
         super(ROARequest, self).__init__(*args, **kwargs)
         self.conf = conf
+        self.inline = True
+        self.use_table = False
 
     def _as_resource_range(self):
         """Convert the prefix in the form to a

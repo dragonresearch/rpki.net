@@ -34,10 +34,10 @@ def stripext(fn, *exts):
   fn1, fn2 = os.path.splitext(fn)
   return fn1 if fn2 in exts else fn
 
-def mkdir_maybe(*args):
+def mkdir_maybe(d):
   try:
-    print "Creating", args[0]
-    os.makedirs(*args)
+    print "Creating", d
+    os.makedirs(d)
   except OSError, e:
     if e.errno != errno.EEXIST:
       raise
@@ -85,7 +85,6 @@ CATEGORIES=	net
 MASTER_SITES=	%(master_sites)s
 DISTFILES=	%(distfiles)s
 WRKSRC=         ${WRKDIR}/%(tarname)s
-
 MAINTAINER=	sra@hactrn.net
 COMMENT=	rpki.net RPKI relying party tools
 
@@ -112,11 +111,6 @@ RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 CONFIGURE_ARGS= --disable-ca-tools
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
-# This is not necessary at the moment because "make install" does
-# all the same things.  This is here as a reminder in case that changes.
-#
-#post-install:; PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} POST-INSTALL.
-
 # rcynic's Makefile constructs an rcynic.conf for us if it doesn't
 # find one already installed.  This turns out to be exactly what
 # FreeBSD's rules want us to install as rcynic.conf.sample, so we
@@ -127,11 +121,13 @@ CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 # FreeBSD way of doing things, this will need to change to match.
 
 pre-install:
+	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} PRE-INSTALL
 	@if [ -f ${PREFIX}/etc/rcynic.conf ]; then \
 		${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.real ; \
 	fi
 
 post-install:
+	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} POST-INSTALL
 	@if [ -f ${PREFIX}/etc/rcynic.conf.real ]; then \
 		${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample ; \
 		${MV} -f ${PREFIX}/etc/rcynic.conf.real ${PREFIX}/etc/rcynic.conf ; \
@@ -197,11 +193,13 @@ etc/rcynic.conf.sample
   f.write('''\
 @dirrm etc/rpki/trust-anchors
 @dirrmtry etc/rpki
+@dirrm www/apache22/data/rcynic
 @cwd /
 @exec install -d -o root   -g wheel  %D/var/rcynic
 @exec install -d -o rcynic -g rcynic %D/var/rcynic/data
 @dirrm var/rcynic/data
 @exec install -d -o rcynic -g rcynic %D/var/rcynic/rpki-rtr
+@dirrm var/rcynic/rpki-rtr/sockets
 @dirrm var/rcynic/rpki-rtr
 @dirrm var/rcynic
 ''')
@@ -241,6 +239,16 @@ PRE-INSTALL)
     ;;
 
 POST-INSTALL)
+    htmldir=/usr/local/www/apache22/data/rcynic
+    if ! test -d $htmldir ; then
+        echo "Creating $htmldir"
+        install -o rcynic -g rcynic -d $htmldir
+    fi
+    sockdir=/var/rcynic/rpki-rtr/sockets
+    if ! test -d $sockdir ; then
+        echo "Creating $sockdir"
+        install -o nobody -g rcynic -d $sockdir
+    fi
     echo "Setting up rcynic's crontab to run rcynic-cron script"
     /usr/bin/crontab -l -u rcynic 2>/dev/null |
     /usr/bin/awk -v t=`hexdump -n 2 -e '"%u\\n"' /dev/random` '
@@ -254,6 +262,31 @@ POST-INSTALL)
 	    printf "%u * * * *\\t%s\\n", t % 60, cmd;
 	}' |
     /usr/bin/crontab -u rcynic -
+    echo "Setting up rpki-rtr listener under inetd"
+    if /usr/bin/egrep -q '^rpki-rtr' /etc/services ; then
+        echo "You already have a /etc/services entry for rpki-rtr, so I will use it."
+    elif echo >>/etc/services "rpki-rtr	43779/tcp  #RFC 6810" ; then
+        echo "Added rpki-rtr to /etc/services."
+    else
+        echo "Adding rpki-rtr to /etc/services failed, please fix this, then try again."
+        exit 1
+    fi
+    if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp[ 	]" /etc/inetd.conf; then
+        echo "You already have an inetd.conf entry for rpki-rtr on TCPv4, so I will use it."
+    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"; then
+        echo "Added rpki-rtr for TCPv4 to /etc/inetd.conf."
+    else
+        echo "Adding rpki-rtr for TCPv4 to /etc/inetd.conf failed, please fix this, then try again."
+        exit 1
+    fi
+    if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp6[ 	]" /etc/inetd.conf; then
+        echo "You already have an inetd.conf entry for rpki-rtr on TCPv6, so I will use it."
+    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp6	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"; then
+        echo "Added rpki-rtr for TCPv6 to /etc/inetd.conf."
+    else
+        echo "Adding rpki-rtr for TCPv6 to /etc/inetd.conf failed, please fix this, then try again."
+        exit 1
+    fi
     ;;
 
 *)

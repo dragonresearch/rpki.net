@@ -631,6 +631,7 @@ OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 TOP_LEVEL_SUBDIRS
 SETUP_PY_INSTALL_LAYOUT
+RTR_ORIGIN_INSTALL_TARGETS
 RCYNIC_INSTALL_TARGETS
 RCYNIC_HTML_DIR
 RCYNIC_STATIC_RSYNC
@@ -715,7 +716,8 @@ PACKAGE_TARNAME
 PACKAGE_NAME
 PATH_SEPARATOR
 SHELL'
-ac_subst_files='RCYNIC_MAKE_RULES'
+ac_subst_files='RCYNIC_MAKE_RULES
+RTR_ORIGIN_MAKE_RULES'
 ac_user_opts='
 enable_option_checking
 with_system_openssl
@@ -4643,21 +4645,27 @@ $as_echo "$enable_target_installation" >&6; }
 
 # rcynic jail setup is complicated enough that it's simplest to have
 # different rule sets for different platforms.  Icky, but....
+# rpki-rtr isn't as complicated, but has similar issues, same hack.
 
 case $host_os in
 	darwin*)
 		RCYNIC_MAKE_RULES='rcynic/rules.darwin.mk'
+		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.darwin.mk'
 		;;
 	freebsd*)
 		RCYNIC_MAKE_RULES='rcynic/rules.freebsd.mk'
+		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.freebsd.mk'
 		;;
 	linux*)
 		RCYNIC_MAKE_RULES='rcynic/rules.linux.mk'
+		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.linux.mk'
 		;;
 	*)
 		RCYNIC_MAKE_RULES='rcynic/rules.unknown.mk'
+		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.unknown.mk'
 		;;
 esac
+
 
 
 
@@ -4682,6 +4690,7 @@ esac
 # we're doing final target installation.
 
 RCYNIC_INSTALL_TARGETS='install-always'
+RTR_ORIGIN_INSTALL_TARGETS='install-always'
 
 if test $use_rcynic_jail = yes
 then
@@ -4691,7 +4700,9 @@ fi
 if test $enable_target_installation = yes
 then
 	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-postconf"
+	RTR_ORIGIN_INSTALL_TARGETS="$RTR_ORIGIN_INSTALL_TARGETS install-postconf"
 fi
+
 
 
 
@@ -4936,11 +4947,10 @@ fi
 
 # Figure out which parts of this package we have to build.
 
-				TOP_LEVEL_SUBDIRS=""
-test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
-				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS h"
-test $build_rp_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS h rcynic utils rtr-origin"
-test $build_ca_tools = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
+			      TOP_LEVEL_SUBDIRS="h"
+test $build_openssl  = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
+test $build_rp_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils rtr-origin"
+test $build_ca_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
 
 
 

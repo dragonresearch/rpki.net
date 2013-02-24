@@ -52,12 +52,13 @@ RCYNIC_TA_DIR		= @RCYNIC_TA_DIR@
 RCYNIC_BIN_RCYNIC	= @RCYNIC_BIN_RCYNIC@
 RCYNIC_DATA_DIR		= ${RCYNIC_DIR}/data
 RCYNIC_RPKI_RTR_DIR	= ${RCYNIC_DIR}/rpki-rtr
-RCYNIC_DIRS		= ${RCYNIC_TA_DIR} ${RCYNIC_JAIL_DIRS} ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
+RCYNIC_DIRS		= ${RCYNIC_TA_DIR} ${RCYNIC_JAIL_DIRS} ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}  ${RCYNIC_RPKI_RTR_DIR}/sockets
 RCYNIC_CONF_RSYNC	= @RCYNIC_CONF_RSYNC@
 RCYNIC_CONF_DATA	= @RCYNIC_CONF_DATA@
 RCYNIC_CONF_TA_DIR	= @RCYNIC_CONF_TA_DIR@
 RCYNIC_USER		= rcynic
 RCYNIC_GROUP		= rcynic
+NOBODY_USER		= nobody
 RCYNIC_GECOS		= RPKI Validation System
 RCYNIC_STATIC_RSYNC	= @RCYNIC_STATIC_RSYNC@
 RCYNIC_HTML_DIR		= @RCYNIC_HTML_DIR@
@@ -161,6 +162,7 @@ ${RCYNIC_DIRS} ${DESTDIR}${bindir} ${DESTDIR}${sysconfdir}:
 
 install-directory-ownership: ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
 	chown ${RCYNIC_USER}:${RCYNIC_GROUP} ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
+	chown ${NOBODY_USER}:${RCYNIC_GROUP} ${RCYNIC_RPKI_RTR_DIR}/sockets
 
 install-rcynic-conf: ${RCYNIC_CONF_FILE}
 
@@ -223,9 +225,6 @@ ${DESTDIR}${bindir}/validation_status: validation_status
 	${INSTALL} -p -m 555 validation_status $@
 
 .FORCE:
-
-# Not sure we want this, test it both ways I guess
-#.PHONY: .FORCE
 
 install-crontab: .FORCE
 	@echo "Setting up ${RCYNIC_CRON_USER}'s crontab to run rcynic-cron script

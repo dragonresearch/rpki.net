@@ -111,7 +111,7 @@ clean::
 	cd tests; $(MAKE) $@
 	rm -f ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
-install::
+install:: all
 	${SETUP_PY} install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
 	@echo
 	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="

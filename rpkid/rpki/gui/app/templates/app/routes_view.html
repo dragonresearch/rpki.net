@@ -1,5 +1,7 @@
 {% extends "app/app_base.html" %}
 
+{% load bootstrap_pager %}
+
 {% block sidebar_extra %}
 <p>
 BGP data updated<br>
@@ -37,5 +39,7 @@ This view shows currently advertised routes for the prefixes listed in resource 
   </tr>
   {% endfor %}
 </table>
+
+{% bootstrap_pager request routes %}
 
 {% endblock %}

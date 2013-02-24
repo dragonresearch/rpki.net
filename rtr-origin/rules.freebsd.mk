@@ -1,5 +1,9 @@
 # $Id$
 
+install-always: install-binary
+
+install-postconf: install-listener
+
 install-listener: .FORCE
 	@if /usr/bin/egrep -q '^rpki-rtr' /etc/services ; \
 	then \

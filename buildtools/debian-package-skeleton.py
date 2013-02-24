@@ -8,6 +8,38 @@ os.makedirs('debian')
 
 with open('debian/changelog', "wb") as f:
   f.write('''\
+rpki (0.5059) UNRELEASED; urgency=low
+  * Not using MANIFEST.in.
+ -- sra <sra@rpki.net>  Sun, 24 Feb 2013 03:24:07 -0000
+
+rpki (0.5060) UNRELEASED; urgency=low
+  * First build, then install, doh.
+ -- sra <sra@rpki.net>  Sun, 24 Feb 2013 03:33:30 -0000
+
+rpki (0.5059) UNRELEASED; urgency=low
+  * Not using MANIFEST.in.
+ -- sra <sra@rpki.net>  Sun, 24 Feb 2013 03:24:07 -0000
+
+rpki (0.5058) UNRELEASED; urgency=low
+  * inetd/xinetd listener for rpki-rtr on source code installation,
+    also needed for Ubuntu package.
+ -- sra <sra@rpki.net>  Sun, 24 Feb 2013 03:22:00 -0000
+
+rpki (0.5057) UNRELEASED; urgency=low
+  * Add dependency on xinetd.
+ -- sra <sra@rpki.net>  Sat, 23 Feb 2013 13:25:46 -0000
+
+rpki (0.5056) UNRELEASED; urgency=low
+  * More post-installation: add rpki-rtr listener to /etc/services and
+    /etc/inetd.conf, create a few missing directories.
+ -- sra <sra@rpki.net>  Sat, 23 Feb 2013 12:22:10 -0000
+
+rpki (0.5054) UNRELEASED; urgency=low
+  * Hack to use pip to install recent versions of Django and South.
+    Probably should be replaced by our own APT repository at some
+    point, but this seems to work.
+ -- sra <sra@rpki.net>  Fri, 22 Feb 2013 03:48:54 -0000
+
 rpki (0.5051) UNRELEASED; urgency=low
   * Pull from trunk.
  -- sra <sra@rpki.net>  Thu, 21 Feb 2013 01:17:22 -0000
@@ -608,6 +640,7 @@ with open('debian/rpki-rp.install', "wb") as f:
   f.write('''\
 etc/rcynic.conf
 etc/rpki/trust-anchors
+etc/xinetd.d/rpki-rtr
 usr/bin
 var/rcynic
 ''')
@@ -682,6 +715,10 @@ setup_rcynic_cron() {
     crontab -u rcynic -
 }
 
+setup_rpki_rtr_listener() {
+    killall -HUP xinetd
+}
+
 # summary of how this script can be called:
 #        * <postinst> `configure' <most-recently-configured-version>
 #        * <old-postinst> `abort-upgrade' <new version>
@@ -701,6 +738,7 @@ case "$1" in
 	setup_rcynic_user
 	setup_rcynic_ownership
 	setup_rcynic_cron
+	setup_rpki_rtr_listener
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

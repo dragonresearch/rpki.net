@@ -34,11 +34,9 @@ clean:
 
 install: all ${RTR_ORIGIN_INSTALL_TARGETS}
 
-install-always:
+install-binary:
 	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -m 555 -d ${DESTDIR}${bindir}; fi
 	${INSTALL} -m 555 ${BIN} ${DESTDIR}${bindir}/${BIN}
-
-install-postconf: install-listener
 
 deinstall uninstall:
 	rm -f ${DESTDIR}${bindir}/${BIN}

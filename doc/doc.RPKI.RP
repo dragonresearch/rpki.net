@@ -21,6 +21,17 @@ output as their input.
 
 See the instructions for setting up and running rcynic.
 
+**** rcynic-html ****
+
+rcynic-html is a post-processor which converts rcyic's XML status output into a
+set of HTML pages displaying status and history.
+
+**** rcynic-cron ****
+
+rcynic-cron is a small script to run the most common set of relying party tools
+under cron. See the discussion of running relying party tools under cron for
+further details.
+
 **** rtr-origin ****
 
 rtr-origin is an implementation of the rpki-rtr protocol, using rcynic's output
@@ -66,19 +77,25 @@ cron daemon. Consequently, most of the other tools are also designed to run
 under the cron daemon, so that they can make use of rcynic's output immediately
 after rcynic finishes a validation run.
 
+rcynic-cron runs the basic set of relying party tools (rcynic, rcynic-html, and
+rtr-origin --cronjob); if this suffices for your purposes, you don't need to do
+anything else. The rest of this section is a discussion of alternative
+approaches.
+
 Which tools you want to run depends on how you intend to use the relying party
 tools. Here we assume a typical case in which you want to gather and validate
 RPKI data and feed the results to routers using the rpki-rtr protocol. We also
 assume that everything has been installed in the default locations.
 
 The exact sequence for invoking rcynic itself varies depending both on whether
-you're using a chroot jail (the normal case) or not and on the platform on
-which you're running rcynic, as the chroot utilities on different platforms
-behave slightly differently.
+you're using a chroot jail or not and on the platform on which you're running
+rcynic, as the chroot utilities on different platforms behave slightly
+differently. Using a chroot jail used to be the default for rcynic, but it
+turned out that many users found the setup involved to be too complex.
 
-It's probably simplest to generate a short shell script which calls the tools
-you want in the correct order, so that's what we show here. At some future date
-we may provide some sort of wrapper script which handles this for you.
+If you're not using rcynic-cron, it's probably simplest to generate a short
+shell script which calls the tools you want in the correct order, so that's
+what we show here.
 
 Once you've written this script, install it in your crontab, running at some
 appropriate interval: perhaps hourly, or perhaps every six hours, depending on
@@ -95,14 +112,14 @@ On FreeBSD or MacOSX, this script might look like this:
   rcynic.conf || exit
   /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /usr/local/www/data/
   rcynic
-  cd /var/rpki-rtr
+  cd /var/rcynic/rpki-rtr
   /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
   data/authenticated'
 
 This assumes that you have done
 
-  mkdir /var/rpki-rtr
-  chown rcynic /var/rpki-rtr
+  mkdir /var/rcynic/rpki-rtr
+  chown rcynic /var/rcynic/rpki-rtr
 
 On GNU/Linux systems, the script might look like this if you use the chrootuid
 program:
@@ -110,7 +127,7 @@ program:
   #!/bin/sh -
   /usr/bin/chrootuid /var/rcynic rcynic /bin/rcynic -c /etc/rcynic.conf || exit
   /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /var/www/rcynic
-  cd /var/rpki-rtr
+  cd /var/rcynic/rpki-rtr
   /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
   data/authenticated'
 
@@ -170,7 +187,7 @@ Script for a downstream relying party using ssh might look like this:
     /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /usr/local/www/
   data/rcynic.${host}
   done
-  cd /var/rpki-rtr
+  cd /var/rcynic/rpki-rtr
   /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
   data/authenticated'
 
@@ -201,7 +218,7 @@ configuration would look more like this:
     /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /usr/local/www/
   data/rcynic.${host}
   done
-  cd /var/rpki-rtr
+  cd /var/rcynic/rpki-rtr
   /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
   data/authenticated'
 

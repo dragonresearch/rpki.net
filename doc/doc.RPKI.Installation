@@ -1,5 +1,9 @@
 ****** Installation ******
 
+This section of the manual is primarily about installing the code from source.
+If you're installing from a pre-built package, you may be able to skip ahead to
+next steps.
+
 At present, the entire RPKI tools collection is a single source tree with a
 shared autoconf configuration. This may change in the future, but for now, this
 means that the build process is essentially the same regardless of which tools
@@ -19,19 +23,25 @@ such as Fedora, Ubuntu, and MacOSX.
 
 ***** Prerequisites *****
 
-Before attempting to build the tools, you need to install any missing
-prerequisites.
+Before attempting to build the tools from source, you need to install any
+missing prerequisites.
+
+If you're using one of the pre-built packages (including the FreeBSD ports
+framework), this should be handled automatically via the package dependencies,
+but if you run into trouble you may want to review this list to confirm that
+the right packages have been installed.
 
 Some of the relying party tools and most of the CA tools are written in Python.
 Note that the Python code requires Python version 2.5, 2.6, or 2.7.
 
-On some platforms (particularly MacOSX) the simplest way to install most of the
-Python packages may be the easy_install tool that comes with Python.
+On some platforms (particularly MacOSX) the simplest way to install some of the
+Python packages may be the "easy_install" or "pip" tools that comes with
+Python.
 
 Packages you will need:
 
-* We do not (yet) have binary packages for any platform, so you will need a C
-  compiler. gcc is fine, others such as Clang may also work.
+* If you're building from source, you will need a C compiler. gcc is fine,
+  others such as Clang should also work.
 
 * http://www.python.org/, the Python interpreter, libraries, and sources. On
   some platforms the Python sources (in particular, the header files and
@@ -89,14 +99,14 @@ Packages you will need:
   o Ubuntu: python-mysqldb
 
 * http://www.djangoproject.com/, the Django web user interface toolkit. The GUI
-  interface to the CA tools requires this. Django 1.3 or later is required.
+  interface to the CA tools requires this. Django 1.3.7 or later is required.
 
   o FreeBSD: /usr/ports/www/py-django (py27-django)
   o Ubuntu: Do not use the python-django package (Django 1.3.1) in 12.04 LTS,
     as it is known not to work.
-    Instead, install a recent version using easy_install (or pip, or ...):
+    Instead, install a recent version using easy_install or pip:
 
-      $ sudo easy_install django
+      $ sudo pip install django>=1.3.7
 
 * http://vobject.skyhouseconsulting.com/, a Python library for parsing VCards.
   The GUI uses this to parse the payload of RPKI Ghostbuster objects.
@@ -136,9 +146,9 @@ Packages you will need:
   o FreeBSD: /usr/ports/databases/py-south (py27-south)
   o Ubuntu: Do not use the python-django-south 0.7.3 package in 12.04 LTS, as
     it is known not to work.
-    Instead, install a recent version using easy_install (or pip, or ...):
+    Instead, install a recent version using easy_install or pip:
 
-      easy_install South==0.7.6
+      pip install South>=0.7.6
 
 * ftp://ftp.porcupine.org/pub/security/chrootuid1.3.tar.gz or later. This isn't
   needed on all platforms, but on systems without a usable system chroot

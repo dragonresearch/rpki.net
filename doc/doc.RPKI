@@ -11,12 +11,21 @@ interface more convenient.
 
 ***** Download *****
 
-The recommended way to obtain the code is via subversion. To download, do:
+The recommended way to obtain the source code is via subversion. To download,
+do:
 
   $ svn checkout http://subvert-rpki.hactrn.net/trunk/
 
-Nightly snapshots of trunk are also available from http://download.rpki.net/ as
-xz-compressed tarballs.
+Nightly snapshots are also available from http://download.rpki.net/ as xz-
+compressed tarballs.
+
+We also have binary packages for a few platforms:
+
+* Ubuntu
+* FreeBSD
+
+At the moment, binary packages are generated manually, so the source code may
+be more recent.
 
 ***** Installation *****
 

@@ -599,7 +599,6 @@ test $build_ca_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
 AC_SUBST(TOP_LEVEL_SUBDIRS)
 
 AC_CONFIG_FILES([Makefile
-		 ac_rpki.py
 		 h/Makefile])
 
 if test "X$RCYNIC_STATIC_RSYNC" != "X"

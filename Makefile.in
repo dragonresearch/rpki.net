@@ -12,7 +12,7 @@ all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
 distclean::
-	rm -f Makefile config.log config.status ac_rpki.py ac_rpki.pyc
+	rm -f Makefile config.log config.status
 
 export:
 	svn export http://subvert-rpki.hactrn.net/

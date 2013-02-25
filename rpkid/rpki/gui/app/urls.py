@@ -41,6 +41,7 @@ urlpatterns = patterns(
     url(r'^gbr/(?P<pk>\d+)/delete$', views.ghostbuster_delete, name='gbr-delete'),
     (r'^refresh$', views.refresh),
     (r'^client/import$', views.client_import),
+    (r'^client/$', views.client_list),
     (r'^client/(?P<pk>\d+)/$', views.client_detail),
     (r'^client/(?P<pk>\d+)/delete$', views.client_delete),
     (r'^client/(?P<pk>\d+)/export$', views.client_export),

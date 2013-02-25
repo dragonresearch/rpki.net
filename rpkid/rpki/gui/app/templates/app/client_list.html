@@ -1,1 +1,21 @@
-{% extends "app/object_list.html" %}
+{% extends "app/app_base.html" %}
+
+{% block content %}
+<div class="page-header">
+	<h1>Repository Clients</h1>
+</div>
+<table class="table table-striped">
+	<thead><tr><th>Handle</th><th>Action</th></tr></thead>
+	<tbody>
+		{% for client in object_list %}
+		<tr>
+			<td><a href="{% url rpki.gui.app.views.client_detail client.pk %}">{{ client.handle }}</a></td>
+			<td>
+				<a class="btn btn-mini" href="{% url rpki.gui.app.views.client_delete client.pk %}" title="Delete"><i class="icon-trash"></i></a>
+			</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+<a class="btn" href="{% url rpki.gui.app.views.client_import %}"><i class="icon-upload"></i> Import</a>
+{% endblock content %}

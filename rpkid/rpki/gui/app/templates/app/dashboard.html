@@ -208,24 +208,5 @@
     </table>
     <a class="btn" href="{% url rpki.gui.app.views.repository_import %}"><i class="icon-upload"></i> Import</a>
   </div><!-- /span -->
-  {% if request.user.is_superuser %}
-  <div class="span6">
-    <div class="page-header">
-      <h1>Repository Clients</h1>
-    </div>
-<table class="table table-condensed table-striped">
-      <tr><th>Handle</th><th></th></tr>
-      {% for client in clients %}
-      <tr>
-	<td><a href="{% url rpki.gui.app.views.client_detail client.pk %}">{{ client.handle }}</a></td>
-	<td>
-	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.client_delete client.pk %}" title="Delete"><i class="icon-trash"></i></a>
-	</td>
-      </tr>
-      {% endfor %}
-    </table>
-    <a class="btn" href="{% url rpki.gui.app.views.client_import %}"><i class="icon-upload"></i> Import</a>
-  </div><!-- /span -->
-  {% endif %}
 </div><!-- /row -->
 {% endblock %}

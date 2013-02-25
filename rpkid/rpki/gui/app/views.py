@@ -942,6 +942,15 @@ def repository_import(request):
 
 
 @superuser_required
+def client_list(request):
+    """display a list of all repository client (irdb.models.Client)"""
+
+    return render(request, 'app/client_list.html', {
+        'object_list': models.Client.objects.all()
+    })
+
+
+@superuser_required
 def client_detail(request, pk):
     return render(request, 'app/client_detail.html',
                   {'object': get_object_or_404(models.Client, pk=pk)})

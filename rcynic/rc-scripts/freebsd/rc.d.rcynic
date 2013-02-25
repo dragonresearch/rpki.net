@@ -1,0 +1,44 @@
+#!/bin/sh -
+#
+# $Id$
+#
+# PROVIDE: rcynic
+# REQUIRE: DAEMON
+# KEYWORD: nojail
+
+. /etc/rc.subr
+
+name="rcynic"
+start_cmd="rcynic_start"
+stop_cmd="rcynic_stop"
+
+: ${rcynic_dir="/var/rcynic"}
+
+rcynic_start()
+{
+	/sbin/umount "${rcynic_dir}/dev" 2>/dev/null
+
+	if ! /sbin/mount -t devfs dev "${rcynic_dir}/dev"; then
+		echo "Mounting devfs on ${rcynic_dir}/dev failed..."
+		exit 1
+	fi
+
+	/sbin/devfs -m "${rcynic_dir}/dev" rule apply hide
+	/sbin/devfs -m "${rcynic_dir}/dev" rule apply path null unhide
+	/sbin/devfs -m "${rcynic_dir}/dev" rule apply path random unhide
+
+	for i in /etc/localtime /etc/resolv.conf; do
+		j="${rcynic_dir}${i}"
+		if /bin/test -r "$i" && ! /usr/bin/cmp -s "$i" "$j"; then
+			/usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
+		fi
+	done
+}
+
+rcynic_stop()
+{
+	/sbin/umount "${rcynic_dir}/dev" 2>/dev/null
+}
+
+load_rc_config $name
+run_rc_command "$1"

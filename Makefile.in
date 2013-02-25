@@ -19,10 +19,5 @@ export:
 	tar czf subvert-rpki.hactrn.net-$$(date +%Y.%m.%d).tar.gz subvert-rpki.hactrn.net
 	rm -rf subvert-rpki.hactrn.net
 
-installation-manifest: Makefile
-	cp /dev/null ${abs_top_builddir}/installation-manifest
-	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} installation-manifest); done
-	sort -u -o ${abs_top_builddir}/installation-manifest ${abs_top_builddir}/installation-manifest
-
-clean::
-	rm -f installation-manifest
+distclean clean::
+	rm -rf build autom4te.cache

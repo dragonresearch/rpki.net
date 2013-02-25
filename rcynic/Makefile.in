@@ -14,22 +14,62 @@ CFLAGS = @CFLAGS@ -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations -We
 LDFLAGS = @LDFLAGS@ @LD_STATIC_FLAG@
 LIBS = @LIBS@
 
-AWK = @AWK@
-SORT= @SORT@
-PYTHON = @PYTHON@
-RRDTOOL = @RRDTOOL@
+AWK			= @AWK@
+SORT			= @SORT@
+PYTHON			= @PYTHON@
+RRDTOOL			= @RRDTOOL@
+INSTALL			= @INSTALL@
+SU			= @SU@
+SUDO			= @SUDO@
+CHROOT			= @CHROOT@
+CHROOTUID		= @CHROOTUID@
 
-abs_top_srcdir	 = @abs_top_srcdir@
-abs_top_builddir = @abs_top_builddir@
+abs_top_srcdir		= @abs_top_srcdir@
+abs_top_builddir	= @abs_top_builddir@
 
-host_os = @host_os@
+prefix			= @prefix@
+exec_prefix		= @exec_prefix@
+datarootdir		= @datarootdir@
+datadir			= @datadir@
+localstatedir		= @localstatedir@
+sharedstatedir		= @sharedstatedir@
+sysconfdir		= @sysconfdir@
+bindir			= @bindir@
+sbindir			= @sbindir@
+libexecdir		= @libexecdir@
+sysconfdir		= @sysconfdir@
 
-SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status
+abs_builddir		= @abs_builddir@
+abs_top_srcdir		= @abs_top_srcdir@
+abs_top_builddir	= @abs_top_builddir@
+srcdir			= @srcdir@
 
-all: ${BIN} ${SCRIPTS}
+RCYNIC_INSTALL_TARGETS	= @RCYNIC_INSTALL_TARGETS@
+RCYNIC_DIR		= @RCYNIC_DIR@
+RCYNIC_JAIL_DIRS	= @RCYNIC_JAIL_DIRS@
+RCYNIC_CONF_FILE	= @RCYNIC_CONF_FILE@
+RCYNIC_TA_DIR		= @RCYNIC_TA_DIR@
+RCYNIC_BIN_RCYNIC	= @RCYNIC_BIN_RCYNIC@
+RCYNIC_DATA_DIR		= ${RCYNIC_DIR}/data
+RCYNIC_RPKI_RTR_DIR	= ${RCYNIC_DIR}/rpki-rtr
+RCYNIC_DIRS		= ${RCYNIC_TA_DIR} ${RCYNIC_JAIL_DIRS} ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}  ${RCYNIC_RPKI_RTR_DIR}/sockets
+RCYNIC_CONF_RSYNC	= @RCYNIC_CONF_RSYNC@
+RCYNIC_CONF_DATA	= @RCYNIC_CONF_DATA@
+RCYNIC_CONF_TA_DIR	= @RCYNIC_CONF_TA_DIR@
+RCYNIC_USER		= rcynic
+RCYNIC_GROUP		= rcynic
+NOBODY_USER		= nobody
+RCYNIC_GECOS		= RPKI Validation System
+RCYNIC_STATIC_RSYNC	= @RCYNIC_STATIC_RSYNC@
+RCYNIC_HTML_DIR		= @RCYNIC_HTML_DIR@
+RCYNIC_CRON_USER	= @RCYNIC_CRON_USER@
+
+SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status rcynic-cron
+
+all: ${BIN} ${SCRIPTS} ${RCYNIC_STATIC_RSYNC}
 
 clean:
-	cd static-rsync; ${MAKE} $@
+	if test -r static-rsync/Makefile; then cd static-rsync; ${MAKE} $@; fi
 	rm -f ${BIN} ${OBJS} ${SCRIPTS}
 
 ${OBJ}: ${SRC} ${GEN}
@@ -41,33 +81,24 @@ ${GEN}: ${SRC}
 	${PYTHON} ${abs_top_srcdir}/buildtools/defstack.py ${SRC} >$@.tmp
 	mv $@.tmp $@
 
-test: ${BIN}
-	if test -r rcynic.conf; \
-	then \
-		./${BIN} -j 0 && \
-		test -r rcynic.xml && \
-		echo && \
-		./rcynic-text rcynic.xml; \
-	else \
-		 echo No rcynic.conf, skipping test; \
-	fi
-
-install: ${BIN} installation-scripts/install.sh
-	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; AWK="${AWK}"; SORT="${SORT}"; . ./install.sh
-
-uninstall deinstall:
-	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; . ./deinstall.sh
-
-installation-manifest:
-	cd installation-scripts; host_os="${host_os}"; abs_top_builddir="${abs_top_builddir}"; . ./manifest.sh
-
-distclean: clean
-	cd static-rsync; ${MAKE} $@
-	rm -f Makefile
-
 COMPILE_PYTHON = \
 	AC_PYTHON_INTERPRETER='${PYTHON}' \
 	AC_RRDTOOL_BINARY='${RRDTOOL}' \
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-rcynic-script.py <$? >$@; \
+	chmod 755 $@
+
+COMPILE_PYTHON_CRON = \
+	AC_PYTHON_INTERPRETER='${PYTHON}' \
+	AC_RCYNIC_USER='${RCYNIC_USER}' \
+	AC_RCYNIC_GROUP='${RCYNIC_GROUP}' \
+	AC_RCYNIC_DIR='${RCYNIC_DIR}' \
+	AC_bindir='${bindir}' \
+	AC_sysconfdir='${sysconfdir}' \
+	AC_RCYNIC_HTML_DIR='${RCYNIC_HTML_DIR}' \
+	AC_SU='${SU}' \
+	AC_SUDO='${SUDO}' \
+	AC_CHROOT='${CHROOT}' \
+	AC_CHROOTUID='${CHROOTUID}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-rcynic-script.py <$? >$@; \
 	chmod 755 $@
 
@@ -83,7 +114,133 @@ rcynic-svn: rcynic-svn.py
 validation_status: validation_status.py
 	${COMPILE_PYTHON}
 
+rcynic-cron: rcynic-cron.py
+	${COMPILE_PYTHON_CRON}
+
 tags: TAGS
 
 TAGS: ${SRC} ${GEN}
 	etags ${SRC} ${GEN}
+
+test: ${BIN}
+	if test -r rcynic.conf; \
+	then \
+		./${BIN} -j 0 && \
+		test -r rcynic.xml && \
+		echo && \
+		./rcynic-text rcynic.xml; \
+	else \
+		 echo No rcynic.conf, skipping test; \
+	fi
+
+uninstall deinstall:
+	@echo Sorry, automated deinstallation of rcynic is not implemented yet
+
+distclean: clean
+	if test -r static-rsync/Makefile; then cd static-rsync; ${MAKE} $@; fi
+	rm -f Makefile
+
+static-rsync/rsync:
+	@echo "Building static rsync for use in chroot jail"
+	cd static-rsync; ${MAKE} all
+
+install: all ${RCYNIC_INSTALL_TARGETS}
+
+install-always: \
+	install-directories install-scripts install-rcynic install-rcynic-conf
+
+install-postconf: \
+	install-user-and-group install-directory-ownership install-crontab
+
+install-jailed: \
+	install-static-rsync install-shared-libraries install-rc-scripts
+
+install-directories: ${RCYNIC_DIRS}
+
+${RCYNIC_DIRS} ${DESTDIR}${bindir} ${DESTDIR}${sysconfdir}:
+	${INSTALL} -v -d $@
+
+install-directory-ownership: ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
+	chown ${RCYNIC_USER}:${RCYNIC_GROUP} ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
+	chown ${NOBODY_USER}:${RCYNIC_GROUP} ${RCYNIC_RPKI_RTR_DIR}/sockets
+
+install-rcynic-conf: ${RCYNIC_CONF_FILE}
+
+${RCYNIC_CONF_FILE}:
+	${INSTALL} -v -d ${RCYNIC_TA_DIR}
+	@echo Found no ${RCYNIC_CONF_FILE}, creating sample config.  You might want to edit this.
+	@echo > $@.tmp '# Basic rcynic configuration file with default trust anchors.'
+	@echo >>$@.tmp '# See documentation for details.'
+	@echo >>$@.tmp ''
+	@echo >>$@.tmp '[rcynic]'
+	@echo >>$@.tmp 'rsync-program		= ${RCYNIC_CONF_RSYNC}'
+	@echo >>$@.tmp 'authenticated		= ${RCYNIC_CONF_DATA}/authenticated'
+	@echo >>$@.tmp 'unauthenticated		= ${RCYNIC_CONF_DATA}/unauthenticated'
+	@echo >>$@.tmp 'xml-summary		= ${RCYNIC_CONF_DATA}/rcynic.xml'
+	@echo >>$@.tmp 'jitter			= 600'
+	@echo >>$@.tmp 'use-syslog		= true'
+	@echo >>$@.tmp 'log-level		= log_usage_err'
+	@cd sample-trust-anchors; \
+	 j=1; \
+	 for i in *.tal; \
+	 do \
+	    ${INSTALL} -p -m 444 "$$i" "${RCYNIC_TA_DIR}/$$i"; \
+	    echo >>$@.tmp "trust-anchor-locator.$$j	= ${RCYNIC_CONF_TA_DIR}/$$i"; \
+	    j=$$((j+1)); \
+         done
+	@chmod 444 $@.tmp
+	@mv -f $@.tmp $@
+
+install-rcynic: ${RCYNIC_BIN_RCYNIC}
+
+${RCYNIC_BIN_RCYNIC}: ${BIN}
+	${INSTALL} -p -m 555 ${BIN} $@
+
+install-static-rsync: ${RCYNIC_DIR}/bin/rsync
+
+${RCYNIC_DIR}/bin/rsync: static-rsync/rsync
+	${INSTALL} -p -m 555 static-rsync/rsync $@
+
+install-scripts: \
+	${DESTDIR}${bindir} \
+	${DESTDIR}${bindir}/rcynic-text \
+	${DESTDIR}${bindir}/rcynic-html \
+	${DESTDIR}${bindir}/rcynic-svn \
+	${DESTDIR}${bindir}/rcynic-cron \
+	${DESTDIR}${bindir}/validation_status
+
+${DESTDIR}${bindir}/rcynic-text: rcynic-text
+	${INSTALL} -p -m 555 rcynic-text $@
+
+${DESTDIR}${bindir}/rcynic-html: rcynic-html
+	${INSTALL} -p -m 555 rcynic-html $@
+
+${DESTDIR}${bindir}/rcynic-svn: rcynic-svn
+	${INSTALL} -p -m 555 rcynic-svn $@
+
+${DESTDIR}${bindir}/rcynic-cron: rcynic-cron
+	${INSTALL} -p -m 555 rcynic-cron $@
+
+${DESTDIR}${bindir}/validation_status: validation_status
+	${INSTALL} -p -m 555 validation_status $@
+
+.FORCE:
+
+install-crontab: .FORCE
+	@echo "Setting up ${RCYNIC_CRON_USER}'s crontab to run rcynic-cron script
+	@crontab -l -u ${RCYNIC_CRON_USER} 2>/dev/null | \
+	 ${AWK} -v t=`hexdump -n 2 -e '"%u\n"' /dev/random` '\
+	 BEGIN { \
+	    cmd = "exec ${bindir}/rcynic-cron"; \
+	 } \
+	 $$0 !~ cmd { \
+	    print; \
+	 } \
+	 END { \
+	    printf "%u * * * *\t%s\n", t % 60, cmd; \
+	 }' | \
+	 /usr/bin/crontab -u ${RCYNIC_CRON_USER} -
+
+# Platform-specific rules below here.
+
+@RCYNIC_MAKE_RULES@

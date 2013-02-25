@@ -33,22 +33,26 @@ abs_top_srcdir	= @abs_top_srcdir@
 abs_top_builddir= @abs_top_builddir@
 srcdir          = @srcdir@
 
+SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
+
 # PID files seem to go into /var/run/ on every platform we support.
 # We could make this an autoconf substitution if anything ever cares,
 # but let's keep it simple for now.
 
-PID_DIR		= /var/run/rpkid
+PID_DIR		= ${DESTDIR}/var/run/rpkid
 
 SETUP_PY = \
 	AC_CFLAGS='${CFLAGS}' \
 	AC_LDFLAGS='${LDFLAGS}' \
 	AC_LIBS='${LIBS}' \
-	AC_SBINDIR='${DESTDIR}${sbindir}' \
+	AC_SBINDIR='${sbindir}' \
 	AC_SCRIPTS='${SCRIPTS}' \
 	AC_ABS_BUILDDIR='${abs_builddir}' \
-	AC_LIBEXECDIR='${DESTDIR}${libexecdir}' \
+	AC_LIBEXECDIR='${libexecdir}' \
 	AC_AUX_SCRIPTS='${AUX_SCRIPTS}' \
 	${PYTHON} setup.py
+
+SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
 
 POW_SO	= rpki/POW/_POW.so
 
@@ -107,31 +111,23 @@ clean::
 	cd tests; $(MAKE) $@
 	rm -f ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
-install::
-	${SETUP_PY} install --record installed
+install:: all
+	${SETUP_PY} install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
 	@echo
 	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
 	@echo
-	if test -d ${PID_DIR}; then :; else ${INSTALL} -d ${PID_DIR}; fi
+#
+# We used to do this, but Debian/Ubuntu lintian complained that
+# /var/run may be a temporary filesystem, thus directories like this
+# should be created at boot.  Fair point.
+#
+#	if test -d ${PID_DIR}; then :; else ${INSTALL} -d ${PID_DIR}; fi
 
 uninstall deinstall::
 	xargs rm -fv <installed
 
 distclean::
 	rm -f installed
-
-installation-manifest::
-	echo >>${abs_top_builddir}/installation-manifest D %%PYTHON_SITELIBDIR%%/rpki/POW
-	echo >>${abs_top_builddir}/installation-manifest F %%PYTHON_SITELIBDIR%%/${POW_SO}
-	for i in ${SCRIPTS}; do echo >>${abs_top_builddir}/installation-manifest F %%SBINDIR%%/`echo $$i | sed 's=.*/==g'`; done
-	for i in ${AUX_SCRIPTS}; do echo >>${abs_top_builddir}/installation-manifest F %%LIBEXECDIR%%/`echo $$i | sed 's=.*/==g'`; done
-	find rpki -name .svn -prune -o -name TODO -prune -o -type f -print  | awk '\
-		{print "F %%PYTHON_SITELIBDIR%%/" $$0} \
-		/\.py$$/ {print "F %%PYTHON_SITELIBDIR%%/" $$0 "c"} \
-		' >>${abs_top_builddir}/installation-manifest
-	find rpki -name .svn -prune -o -type d -print | awk '\
-		{print "D %%PYTHON_SITELIBDIR%%/" $$0} \
-		' >>${abs_top_builddir}/installation-manifest
 
 dont-run-trang:
 	touch *.rng
@@ -201,32 +197,35 @@ distclean:: clean docclean
 	cd tests; ${MAKE} $@
 	rm -f TAGS Makefile
 
-all install clean test distclean deinstall uninstall installation-manifest::
+all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
+
+install::
+	${INSTALL} examples/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample
 
 # Scripts
 
 COMPILE_PYTHON = \
 	rm -f $@; \
 	AC_PYTHON_INTERPRETER='${PYTHON}' \
-	AC_RPKI_CONFIG_DIR='${DESTDIR}${sysconfdir}' \
+	AC_RPKI_CONFIG_DIR='${sysconfdir}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; \
 	chmod 555 $@
 
 COMPILE_DJANGO = \
 	rm -f $@; \
 	AC_PYTHON_INTERPRETER='${PYTHON}' \
-	AC_PYTHONPATH='${DESTDIR}${sysconfdir}/rpki' \
+	AC_PYTHONPATH='${sysconfdir}/rpki' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-django-script.py <$? >$@; \
 	chmod 555 $@
 
 COMPILE_SETTINGS = \
 	rm -f $@; \
 	AC_SECRET_KEY='${SECRET_KEY}' \
-	AC_LOCALSTATEDIR='${DESTDIR}${localstatedir}' \
-	AC_DATAROOTDIR='${DESTDIR}${datarootdir}' \
+	AC_LOCALSTATEDIR='${localstatedir}' \
+	AC_DATAROOTDIR='${datarootdir}' \
 	AC_DJANGO_DIR='${DJANGO_DIR}' \
-	AC_SYSCONFDIR='${DESTDIR}${sysconfdir}' \
+	AC_SYSCONFDIR='${sysconfdir}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@
 
 rpki-sql-backup: rpki-sql-backup.py

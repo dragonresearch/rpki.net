@@ -323,6 +323,9 @@ class Host(Problem_Mixin):
     except OSError, e:
       usage("Problem running %s, perhaps you need to set --rrdtool-binary?  (%s)" % (
         opt["rrdtool-binary"], e))
+    except subprocess.CalledProcessError, e:
+      sys.exit("Failure running %s: %s" % (
+        opt["rrdtool-binary"], e))
 
   def rrd_update(self):
     filename = os.path.join(opt["output_directory"], self.hostname) + ".rrd"

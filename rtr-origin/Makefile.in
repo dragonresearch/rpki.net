@@ -4,8 +4,9 @@ BASE		= rtr-origin
 SRC		= ${BASE}.py
 BIN		= ${BASE}
 
-INSTALL		= @INSTALL@ -m 555
+INSTALL		= @INSTALL@
 PYTHON		= @PYTHON@
+AWK		= @AWK@
 
 prefix		= @prefix@
 exec_prefix	= @exec_prefix@
@@ -22,29 +23,38 @@ libdir		= @libdir@
 abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
 
+RTR_ORIGIN_INSTALL_TARGETS = @RCYNIC_INSTALL_TARGETS@
+
+RPKI_RTR_PORT	= 43779
+
 all: ${BIN}
 
 clean:
 	rm -f ${BIN}
 
-install: all
-	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -d ${DESTDIR}${bindir}; fi
-	${INSTALL} ${BIN} ${DESTDIR}${bindir}/${BIN}
+install: all ${RTR_ORIGIN_INSTALL_TARGETS}
+
+install-binary:
+	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -m 555 -d ${DESTDIR}${bindir}; fi
+	${INSTALL} -m 555 ${BIN} ${DESTDIR}${bindir}/${BIN}
 
 deinstall uninstall:
 	rm -f ${DESTDIR}${bindir}/${BIN}
-
-installation-manifest:
-	echo >>${abs_top_builddir}/installation-manifest F %%BINDIR%%/${BIN}
 
 distclean: clean
 	rm -rf current sockets *.ax *.ix.*
 	rm -f Makefile
 
 ${BIN} : ${SRC}
-	echo >$@ '#!${PYTHON}'
-	cat >>$@ ${SRC}
-	chmod a+x ${BIN}
+	AC_PYTHON_INTERPRETER='${PYTHON}' AC_SCAN_ROAS='${bindir}/scan_roas' \
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-rcynic-script.py <${SRC} >$@
+	chmod a+x $@
 
 test:
 	@true
+
+.FORCE:
+
+# Platform-specific rules below here.
+
+@RTR_ORIGIN_MAKE_RULES@

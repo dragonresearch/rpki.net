@@ -18,7 +18,7 @@ OPENSSL	= ${abs_top_builddir}/openssl/openssl/apps/openssl
 all: ${BIN}
 
 clean:
-	rm -f ${BIN} ${OBJ}
+	rm -rf ${BIN} ${OBJ} ${BIN}.dSYM
 
 ${BIN}: ${SRC}
 	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} ${LIBS}

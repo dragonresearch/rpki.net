@@ -14,7 +14,8 @@ data.
 If you just want to get started with the CA tools and hate reading
 documentation, here's a roadmap on what you do need to read:
 
-  1. Start with the installation instructions
+  1. Start with the installation instructions; if you're using pre-built
+     packages you may be able to skip this step.
   2. Then read the configuration instructions
   3. Then the MySQL setup instructions
   4. And finally either the command line tool or web interface

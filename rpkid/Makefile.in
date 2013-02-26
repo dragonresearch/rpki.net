@@ -200,8 +200,15 @@ distclean:: clean docclean
 all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
+all:: rpki.conf.sample
+
+rpki.conf.sample:
+	sed -e 's=@HANDLE@='`hostname | sed 's=[.]=_=g'`'=' \
+	    -e 's=@SHAREDSTATEDIR@=${sharedstatedir}=' \
+	    examples/rpki.conf >$@
+
 install::
-	${INSTALL} examples/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample
+	${INSTALL} rpki.conf.sample ${DESTDIR}${sysconfdir}/rpki.conf.sample
 
 # Scripts
 

@@ -204,7 +204,7 @@ all:: rpki.conf.sample
 
 rpki.conf.sample:
 	sed -e 's=@HANDLE@='`hostname | sed 's=[.]=_=g'`'=' \
-	    -e 's=@SHAREDSTATEDIR@=${sharedstatedir}=' \
+	    -e 's=@DATAROOTDIR@=${datarootdir}=' \
 	    examples/rpki.conf >$@
 
 install::

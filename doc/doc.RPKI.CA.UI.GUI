@@ -193,3 +193,10 @@ advance to check.
  07-route view.jpg
 
 ***** Ghostbusters etc. are Similar *****
+
+****** User Management ******
+
+The web portal uses a model where users are distinct from resource holders. A
+user is authorized to log into the web portal, and may be granted permission to
+manage zero or more resource holders. The same name may be used as both a user
+and resource holder for simple cases where there is a one-to-one mapping.

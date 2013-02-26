@@ -108,32 +108,29 @@ class ImportClientForm(forms.Form):
 
 
 class UserCreateForm(forms.Form):
-    handle = forms.CharField(max_length=30, help_text='handle for new child')
+    username = forms.CharField(max_length=30)
     email = forms.CharField(max_length=30,
                             help_text='email address for new user')
     password = forms.CharField(widget=forms.PasswordInput)
     password2 = forms.CharField(widget=forms.PasswordInput,
                                 label='Confirm Password')
-    parent = forms.ModelChoiceField(required=False,
-                                    queryset=models.Conf.objects.all(),
-                                    help_text='optionally make a child of')
+    resource_holders = forms.ModelMultipleChoiceField(
+        queryset=models.Conf.objects.all(),
+        help_text='allowed to manage these resource holders'
 
-    def clean_handle(self):
-        handle = self.cleaned_data.get('handle')
-        if (handle and models.Conf.objects.filter(handle=handle).exists() or
-            User.objects.filter(username=handle).exists()):
+    )
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if User.objects.filter(username=username).exists():
             raise forms.ValidationError('user already exists')
-        return handle
+        return username
 
     def clean(self):
         p1 = self.cleaned_data.get('password')
         p2 = self.cleaned_data.get('password2')
         if p1 != p2:
             raise forms.ValidationError('passwords do not match')
-        handle = self.cleaned_data.get('handle')
-        parent = self.cleaned_data.get('parent')
-        if handle and parent and parent.children.filter(handle=handle).exists():
-            raise forms.ValidationError('parent already has a child by that name')
         return self.cleaned_data
 
 
@@ -143,7 +140,11 @@ class UserEditForm(forms.Form):
     pw = forms.CharField(widget=forms.PasswordInput, label='Password',
                          required=False)
     pw2 = forms.CharField(widget=forms.PasswordInput, label='Confirm password',
-                         required=False)
+                          required=False)
+    resource_holders = forms.ModelMultipleChoiceField(
+        queryset=models.Conf.objects.all(),
+        help_text='allowed to manage these resource holders'
+    )
 
     def clean(self):
         p1 = self.cleaned_data.get('pw')
@@ -400,3 +401,41 @@ def ChildForm(instance):
 class Empty(forms.Form):
     """Stub form for views requiring confirmation."""
     pass
+
+
+class ResourceHolderForm(forms.Form):
+    """form for editing ACL on Conf objects."""
+    users = forms.ModelMultipleChoiceField(
+        queryset=User.objects.all(),
+        help_text='users allowed to mange this resource holder'
+    )
+
+
+class ResourceHolderCreateForm(forms.Form):
+    """form for creating new resource holdres."""
+    handle = forms.CharField(max_length=30)
+    parent = forms.ModelChoiceField(
+        required=False,
+        queryset=models.Conf.objects.all(),
+        help_text='optionally make the new resource holder a child of this resource holder'
+    )
+    users = forms.ModelMultipleChoiceField(
+        required=False,
+        queryset=User.objects.all(),
+        help_text='users allowed to mange this resource holder'
+    )
+
+    def clean_handle(self):
+        handle = self.cleaned_data.get('handle')
+        if models.Conf.objects.filter(handle=handle).exists():
+            raise forms.ValidationError(
+                'a resource holder with that handle already exists'
+            )
+        return handle
+
+    def clean(self):
+        handle = self.cleaned_data.get('handle')
+        parent = self.cleaned_data.get('parent')
+        if handle and parent and parent.children.filter(handle=handle).exists():
+            raise forms.ValidationError('parent already has a child by that name')
+        return self.cleaned_data

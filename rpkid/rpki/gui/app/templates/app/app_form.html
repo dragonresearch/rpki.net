@@ -5,12 +5,12 @@
   <h1>{{ form_title }}</h1>
 </div>
 
-<form method='POST' action='{{ request.get_full_path }}' class="form-horizontal">
+<form method="POST" action="" class="form-horizontal">
   {% csrf_token %}
   {% include "app/bootstrap_form.html" %}
   <div class="form-actions">
     <input class='btn btn-primary' type='submit' value='Save'>
-    <a class='btn' href="{% url rpki.gui.app.views.dashboard %}">Cancel</a>
+    <a class='btn' href="{{ cancel_url }}">Cancel</a>
   </div>
 </form>
 {% endblock %}

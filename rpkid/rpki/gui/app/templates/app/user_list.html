@@ -5,23 +5,32 @@
   <h1>Users</h1>
 </div>
 
-<table class='table table-striped table-condensed'>
-  <tr>
-    <th>Username</th>
-    <th>Email</th>
-    <th></th>
-  </tr>
-  {% for u in users %}
-  <tr>
-    <td>{{ u.0.handle }}</td>
-    <td>{{ u.1.email }}</td>
-    <td>
-      <a class='btn btn-small' href='{% url rpki.gui.app.views.user_edit u.0.pk %}' title="Edit"><i class="icon-edit"></i></a>
-      <a class='btn btn-small' href='{% url rpki.gui.app.views.user_delete u.0.pk %}' title="Delete"><i class="icon-trash"></i></a>
-    </td>
-  </tr>
-  {% endfor %}
+<p>
+This page lists all user accounts in the web interface.  Note that this is distinct from the
+<a href="{% url rpki.gui.app.views.resource_holder_list %}">list of resource holders</a>.
+</p>
+
+<table class='table table-striped'>
+  <thead>
+    <tr>
+      <th>Username</th>
+      <th>Email</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for user in object_list %}
+    <tr>
+      <td>{{ user.username }}</td>
+      <td>{{ user.email }}</td>
+      <td>
+	<a class='btn btn-small' href='{% url rpki.gui.app.views.user_edit user.pk %}' title="Edit"><i class="icon-edit"></i></a>
+	<a class='btn btn-small' href='{% url rpki.gui.app.views.user_delete user.pk %}' title="Delete"><i class="icon-trash"></i></a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
 </table>
 
-<a class='btn' href="{% url rpki.gui.app.views.user_create %}" title="create a new locally hosted resource handle">Create</a>
+<a class='btn' href="{% url rpki.gui.app.views.user_create %}" title="create a new locally hosted resource handle"><i class="icon-plus-sign"></i> Create</a>
 {% endblock content %}

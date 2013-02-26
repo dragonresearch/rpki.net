@@ -16,6 +16,7 @@
 __version__ = '$Id$'
 
 from django.db import models
+from django.contrib.auth.models import User
 
 import rpki.resource_set
 import rpki.exceptions
@@ -289,3 +290,16 @@ class RouteOriginV6(rpki.gui.routeview.models.RouteOriginV6):
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.app.views.route_detail', [str(self.pk)])
+
+
+class ConfACL(models.Model):
+    """Stores access control for which users are allowed to manage a given
+    resource handle.
+
+    """
+
+    conf = models.ForeignKey(Conf)
+    user = models.ForeignKey(User)
+
+    class Meta:
+        unique_together = (('user', 'conf'))

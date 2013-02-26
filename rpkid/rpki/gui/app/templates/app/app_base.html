@@ -13,10 +13,14 @@
   <li><a href="{% url rpki.gui.app.views.route_view %}">routes</a></li>
 </ul>
 
-{% if request.user.is_superuser %}
 <ul class='unstyled'>
   <li><a href="{% url rpki.gui.app.views.conf_list %}" title="select a different resource handle to manage">select identity</a></li>
-  <li><a href="{% url rpki.gui.app.views.user_list %}" title="manage users"><i class="icon-user"></i> users</a></li>
+</ul>
+
+{% if request.user.is_superuser %}
+<ul class='unstyled'>
+  <li><a href="{% url rpki.gui.app.views.user_list %}" title="manage users"><i class="icon-user"></i> web users</a></li>
+  <li><a href="{% url rpki.gui.app.views.resource_holder_list %}" title="manage resource holders"><i class="icon-user"></i> resource holders</a></li>
   <li><a href="{% url rpki.gui.app.views.client_list %}" title="manage repository clients">repository clients</a></li>
 </ul>
 {% endif %}

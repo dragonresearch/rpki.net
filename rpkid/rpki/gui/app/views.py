@@ -72,15 +72,13 @@ def handle_required(f):
             if request.user.is_superuser:
                 conf = models.Conf.objects.all()
             else:
-                conf = models.Conf.objects.filter(handle=request.user.username)
+                conf = models.Conf.objects.filter(confacl__user=request.user)
 
             if conf.count() == 1:
                 request.session['handle'] = conf[0]
             elif conf.count() == 0:
                 return render(request, 'app/conf_empty.html', {})
             else:
-                # Should reverse the view for this instead of hardcoding
-                # the URL.
                 url = '%s?next=%s' % (reverse(conf_list),
                                       urlquote(request.get_full_path()))
                 return http.HttpResponseRedirect(url)
@@ -232,23 +230,29 @@ def dashboard(request):
     })
 
 
-@superuser_required
+@login_required
 def conf_list(request, **kwargs):
     """Allow the user to select a handle."""
-    return render(request, 'app/conf_list.html',
-                  {'conf_list': models.Conf.objects.all()})
+    next_url = request.GET.get('next', reverse(dashboard))
+    return render(request, 'app/conf_list.html', {
+        'conf_list': models.Conf.objects.filter(confacl__user=request.user),
+        'next_url': next_url
+    })
 
 
-@superuser_required
+@login_required
 def conf_select(request):
     """Change the handle for the current session."""
     if not 'handle' in request.GET:
-        return http.HttpResponseRedirect('/myrpki/conf/select')
+        return redirect(conf_list)
     handle = request.GET['handle']
     next_url = request.GET.get('next', reverse(dashboard))
-    if next_url == '':
-        next_url = reverse(dashboard)
-    request.session['handle'] = get_object_or_404(models.Conf, handle=handle)
+    if request.user.is_superuser:
+        request.session['handle'] = get_object_or_404(models.Conf, handle=handle)
+    else:
+        request.session['handle'] = get_object_or_404(
+            models.Conf, confacl__user=request.user, handle=handle
+        )
     return http.HttpResponseRedirect(next_url)
 
 
@@ -996,85 +1000,67 @@ def client_export(request, pk):
     return serve_xml(str(xml), '%s.repo' % z.handle)
 
 
+### Routines for managing resource handles serviced by this server
+
 @superuser_required
-def user_list(request):
+def resource_holder_list(request):
     """Display a list of all the RPKI handles managed by this server."""
-    # create a list of tuples of (Conf, User)
-    users = []
-    for conf in models.Conf.objects.all():
-        try:
-            u = User.objects.get(username=conf.handle)
-        except User.DoesNotExist:
-            u = None
-        users.append((conf, u))
-    return render(request, 'app/user_list.html', {'users': users})
+    return render(request, 'app/resource_holder_list.html', {
+        'object_list': models.Conf.objects.all()
+    })
 
 
 @superuser_required
-def user_delete(request, pk):
-    conf = models.Conf.objects.get(pk=pk)
+def resource_holder_edit(request, pk):
+    """Display a list of all the RPKI handles managed by this server."""
+    conf = get_object_or_404(models.Conf, pk=pk)
+    if request.method == 'POST':
+        form = forms.ResourceHolderForm(request.POST, request.FILES)
+        if form.is_valid():
+            models.ConfACL.objects.filter(conf=conf).delete()
+            for user in form.cleaned_data.get('users'):
+                models.ConfACL.objects.create(user=user, conf=conf)
+            return redirect(resource_holder_list)
+    else:
+        users = [acl.user for acl in models.ConfACL.objects.filter(conf=conf).all()]
+        form = forms.ResourceHolderForm(initial={
+            'users': users
+        })
+    return render(request, 'app/app_form.html', {
+        'form_title': "Edit Resource Holder: " + conf.handle,
+        'form': form,
+        'cancel_url': reverse(resource_holder_list)
+    })
+
+
+@superuser_required
+def resource_holder_delete(request, pk):
+    conf = get_object_or_404(models.Conf, pk=pk)
     log = request.META['wsgi.errors']
     if request.method == 'POST':
         form = forms.Empty(request.POST)
         if form.is_valid():
-            User.objects.filter(username=conf.handle).delete()
             z = Zookeeper(handle=conf.handle, logstream=log)
             z.delete_self()
             z.synchronize()
-            return http.HttpResponseRedirect(reverse(user_list))
+            return redirect(resource_holder_list)
     else:
         form = forms.Empty()
-    return render(request, 'app/user_confirm_delete.html',
-                  {'object': conf, 'form': form})
-
-
-@superuser_required
-def user_edit(request, pk):
-    conf = get_object_or_404(models.Conf, pk=pk)
-    # in the old model, there may be users with a different name, so create a
-    # new user object if it is missing.
-    try:
-        user = User.objects.get(username=conf.handle)
-    except User.DoesNotExist:
-        user = User(username=conf.handle)
-
-    if request.method == 'POST':
-        form = forms.UserEditForm(request.POST)
-        if form.is_valid():
-            pw = form.cleaned_data.get('pw')
-            if pw:
-                user.set_password(pw)
-            user.email = form.cleaned_data.get('email')
-            user.save()
-            return http.HttpResponseRedirect(reverse(user_list))
-    else:
-        form = forms.UserEditForm(initial={'email': user.email})
-    return render(request, 'app/app_form.html', {
-        'object': user,
+    return render(request, 'app/app_confirm_delete.html', {
+        'form_title': 'Delete Resource Holder: ' + conf.handle,
         'form': form,
-        'form_title': 'Edit User: ' + user.username,
+        'cancel_url': reverse(resource_holder_list)
     })
 
 
-@handle_required
-def user_create(request):
-    """
-    Wizard mode to create a new locally hosted child.
-
-    """
-    if not request.user.is_superuser:
-        return http.HttpResponseForbidden()
-
+@superuser_required
+def resource_holder_create(request):
     log = request.META['wsgi.errors']
     if request.method == 'POST':
-        form = forms.UserCreateForm(request.POST, request.FILES)
+        form = forms.ResourceHolderCreateForm(request.POST, request.FILES)
         if form.is_valid():
             handle = form.cleaned_data.get('handle')
-            pw = form.cleaned_data.get('password')
-            email = form.cleaned_data.get('email')
             parent = form.cleaned_data.get('parent')
-
-            User.objects.create_user(handle, email, pw)
 
             zk_child = Zookeeper(handle=handle, logstream=log)
             identity_xml = zk_child.initialize()
@@ -1094,14 +1080,88 @@ def user_create(request):
                 zk_child.configure_repository(t.name)
                 os.remove(t.name)
             zk_child.synchronize()
-
-            return http.HttpResponseRedirect(reverse(dashboard))
+            return redirect(resource_holder_list)
     else:
-        conf = request.session['handle']
-        form = forms.UserCreateForm(initial={'parent': conf})
+        form = forms.ResourceHolderCreateForm()
+    return render(request, 'app/app_form.html', {
+        'form': form,
+        'form_title': 'Create Resource Holder',
+        'cancel_url': reverse(resource_holder_list)
+    })
+
+
+### views for managing user logins to the web interface
+
+@superuser_required
+def user_create(request):
+    if request.method == 'POST':
+        form = forms.UserCreateForm(request.POST, request.FILES)
+        if form.is_valid():
+            username = form.cleaned_data.get('username')
+            pw = form.cleaned_data.get('password')
+            email = form.cleaned_data.get('email')
+            user = User.objects.create_user(username, email, pw)
+            for conf in form.cleaned_data.get('resource_holders'):
+                models.ConfACL.objects.create(user=user, conf=conf)
+            return redirect(user_list)
+    else:
+        form = forms.UserCreateForm()
 
     return render(request, 'app/app_form.html', {
         'form': form,
         'form_title': 'Create User',
         'cancel_url': reverse(user_list),
+    })
+
+
+@superuser_required
+def user_list(request):
+    """Display a list of all the RPKI handles managed by this server."""
+    return render(request, 'app/user_list.html', {
+        'object_list': User.objects.all()
+    })
+
+
+@superuser_required
+def user_delete(request, pk):
+    user = get_object_or_404(User, pk=pk)
+    if request.method == 'POST':
+        form = forms.Empty(request.POST, request.FILES)
+        if form.is_valid():
+            user.delete()
+            return redirect(user_list)
+    else:
+        form = forms.Empty()
+    return render(request, 'app/app_confirm_delete.html', {
+        'form_title': 'Delete User: ' + user.username,
+        'form': form,
+        'cancel_url': reverse(user_list)
+    })
+
+
+@superuser_required
+def user_edit(request, pk):
+    user = get_object_or_404(User, pk=pk)
+    if request.method == 'POST':
+        form = forms.UserEditForm(request.POST)
+        if form.is_valid():
+            pw = form.cleaned_data.get('pw')
+            if pw:
+                user.set_password(pw)
+            user.email = form.cleaned_data.get('email')
+            user.save()
+            models.ConfACL.objects.filter(user=user).delete()
+            handles = form.cleaned_data.get('resource_holders')
+            for conf in handles:
+                models.ConfACL.objects.create(user=user, conf=conf)
+            return redirect(user_list)
+    else:
+        form = forms.UserEditForm(initial={
+            'email': user.email,
+            'resource_holders': models.Conf.objects.filter(confacl__user=user).all()
+        })
+    return render(request, 'app/app_form.html', {
+        'form': form,
+        'form_title': 'Edit User: ' + user.username,
+        'cancel_url': reverse(user_list)
     })

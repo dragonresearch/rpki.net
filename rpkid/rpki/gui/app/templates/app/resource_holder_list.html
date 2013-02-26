@@ -1,0 +1,35 @@
+{% extends "app/app_base.html" %}
+
+{% block content %}
+<div class='page-title'>
+  <h1>Resource Holders</h1>
+</div>
+
+<p>
+This page lists all of the resource holders that are currently managed by this server.
+Note that this is distinct from the
+<a href="{% url rpki.gui.app.views.user_list %}">list of web interface users</a>.
+</p>
+
+<table class='table table-striped'>
+  <thead>
+    <tr>
+      <th>Handle</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for conf in object_list %}
+    <tr>
+      <td>{{ conf.handle }}</td>
+      <td>
+	<a class='btn btn-small' href='{% url rpki.gui.app.views.resource_holder_edit conf.pk %}' title="Edit"><i class="icon-edit"></i></a>
+	<a class='btn btn-small' href='{% url rpki.gui.app.views.resource_holder_delete conf.pk %}' title="Delete"><i class="icon-trash"></i></a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<a class="btn" href="{% url rpki.gui.app.views.resource_holder_create %}"><i class="icon-plus-sign"></i> Create</a>
+{% endblock content %}

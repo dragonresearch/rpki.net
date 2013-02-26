@@ -603,7 +603,7 @@ pre-start script
 	test -f /usr/share/rpki/rpkid.cer &&
 	test -f /usr/share/rpki/rpkid.key
     then
-        install -m 755 -o rpkid -g rpkid -d /var/run/rpki
+        install -m 755 -o rpkid -g rpkid -d /var/run/rpki /usr/share/rpki/publication
 
 	# This should be running as user rpkid, but I haven't got all
 	# the pesky details worked out yet.  Most testing to date has

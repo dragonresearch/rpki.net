@@ -209,6 +209,7 @@ rpki.conf.sample:
 
 install::
 	${INSTALL} rpki.conf.sample ${DESTDIR}${sysconfdir}/rpki.conf.sample
+	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/publication
 
 clean::
 	rm -f rpki.conf.sample

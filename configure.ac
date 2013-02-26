@@ -445,8 +445,8 @@ then
 
 	if test $have_django = yes
 	then
-		AC_MSG_CHECKING([for Django 1.3 or higher])
-		have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3) else 'yes'"`
+		AC_MSG_CHECKING([for Django 1.3.7 or higher])
+		have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3, 7) else 'yes'"`
 		AC_MSG_RESULT([$have_acceptable_django])
 	fi
 
@@ -512,7 +512,7 @@ case $enable_ca_tools in
 		if test $have_acceptable_django = no
 		then
 			ok=no
-			AC_MSG_WARN([The RPKI CA tools require Django 1.3 or higher.])
+			AC_MSG_WARN([The RPKI CA tools require Django 1.3.7 or higher.])
 		fi
 		if test $have_vobject = no
 		then

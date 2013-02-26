@@ -519,7 +519,7 @@ maybe_install_django() {
     fi
 
     if  ! python -c 'import django' 2>/dev/null &&
-	! pip install django==1.3.7 
+	! pip install django>=1.3.7 
     then
 	echo 1>&2 "Unable to install usable version of Django, sorry"
 	exit 1
@@ -534,7 +534,7 @@ maybe_install_south() {
     fi
 
     if  ! python -c 'import south' 2>/dev/null &&
-	! pip install South==0.7.6
+	! pip install South>=0.7.6
     then
 	echo 1>&2 "Unable to install usable version of Django, sorry"
 	exit 1

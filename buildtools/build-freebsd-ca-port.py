@@ -107,7 +107,7 @@ BUILD_DEPENDS+= rsync>0:${PORTSDIR}/net/rsync
 
 RPKID_DEPENDS=	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \\
                 ${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb       \\
-                ${PYTHON_PKGNAMEPREFIX}django>=1.3:${PORTSDIR}/www/py-django            \\
+                ${PYTHON_PKGNAMEPREFIX}django>=1.3.7:${PORTSDIR}/www/py-django          \\
                 ${PYTHON_PKGNAMEPREFIX}vobject>0:${PORTSDIR}/deskutils/py-vobject       \\
                 ${PYTHON_PKGNAMEPREFIX}yaml>0:${PORTSDIR}/devel/py-yaml                 \\
                 ${PYTHON_PKGNAMEPREFIX}south>=0.7.6:${PORTSDIR}/databases/py-south

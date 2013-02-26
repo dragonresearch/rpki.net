@@ -5254,9 +5254,9 @@ echo "${ECHO_T}$have_django" >&6; }
 
 	if test $have_django = yes
 	then
-		{ echo "$as_me:$LINENO: checking for Django 1.3 or higher" >&5
-echo $ECHO_N "checking for Django 1.3 or higher... $ECHO_C" >&6; }
-		have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3) else 'yes'"`
+		{ echo "$as_me:$LINENO: checking for Django 1.3.7 or higher" >&5
+echo $ECHO_N "checking for Django 1.3.7 or higher... $ECHO_C" >&6; }
+		have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3, 7) else 'yes'"`
 		{ echo "$as_me:$LINENO: result: $have_acceptable_django" >&5
 echo "${ECHO_T}$have_acceptable_django" >&6; }
 	fi
@@ -5336,8 +5336,8 @@ echo "$as_me: WARNING: I can't find Python.h.  Python sources are required to bu
 		if test $have_acceptable_django = no
 		then
 			ok=no
-			{ echo "$as_me:$LINENO: WARNING: The RPKI CA tools require Django 1.3 or higher." >&5
-echo "$as_me: WARNING: The RPKI CA tools require Django 1.3 or higher." >&2;}
+			{ echo "$as_me:$LINENO: WARNING: The RPKI CA tools require Django 1.3.7 or higher." >&5
+echo "$as_me: WARNING: The RPKI CA tools require Django 1.3.7 or higher." >&2;}
 		fi
 		if test $have_vobject = no
 		then

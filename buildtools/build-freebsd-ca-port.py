@@ -160,6 +160,8 @@ with open(os.path.join(base, "files", "rpki-ca.in"), "w") as f:
 name="rpkica"
 rcvar=rpkica_enable
 
+required_files="/usr/local/etc/rpki.conf"
+
 start_cmd="rpkica_start"
 stop_cmd="rpkica_stop"
 

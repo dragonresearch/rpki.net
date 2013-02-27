@@ -731,6 +731,15 @@ def roa_delete(request, pk):
     return render(request, 'app/roarequest_confirm_delete.html',
                   {'object': roa, 'routes': routes})
 
+
+@handle_required
+def roa_clone(request, pk):
+    conf = request.session['handle']
+    roa = get_object_or_404(conf.roas, pk=pk)
+    return redirect(
+        reverse(roa_create_multi) + "?roa=" + str(roa.prefixes.all()[0].as_roa_prefix())
+    )
+
 
 class GhostbusterDetailView(DetailView):
     def get_queryset(self):

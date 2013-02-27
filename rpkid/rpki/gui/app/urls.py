@@ -58,6 +58,7 @@ urlpatterns = patterns(
     (r'^roa/confirm$', views.roa_create_confirm),
     (r'^roa/confirm_multi$', views.roa_create_multi_confirm),
     (r'^roa/(?P<pk>\d+)/delete$', views.roa_delete),
+    url(r'^roa/(?P<pk>\d+)/clone$', views.roa_clone, name="roa-clone"),
     (r'^route/$', views.route_view),
     (r'^route/(?P<pk>\d+)/$', views.route_detail),
     (r'^user/$', views.user_list),

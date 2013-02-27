@@ -125,6 +125,7 @@
     <td>
       <a class="btn btn-mini" href="{% url "rpki.gui.app.views.roa_detail" roa.pk %}" title="Detail"><i class="icon-info-sign"></i></a>
       <a class="btn btn-mini" href="{% url "rpki.gui.app.views.roa_delete" roa.pk %}" title="Delete"><i class="icon-trash"></i></a>
+      <a class="btn btn-mini" href="{% url "roa-clone" roa.pk %}" title="create another ROA for this prefix"><i class="icon-repeat"></i></a>
     </td>
   </tr>
   {% endfor %}

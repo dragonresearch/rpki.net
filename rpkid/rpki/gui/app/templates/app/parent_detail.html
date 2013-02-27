@@ -1,4 +1,5 @@
 {% extends "app/app_base.html" %}
+{% load url from future %}
 
 {% block content %}
 <div class="page-header">
@@ -59,8 +60,8 @@
 </div>
 
 {% block action %}
-<a class='btn' href='{% url rpki.gui.app.views.parent_export object.pk %}' title='Download XML to send to repository operator'><i class="icon-download"></i> Export</a>
-<a class="btn" href="{% url rpki.gui.app.views.parent_delete object.pk %}" title="Delete this parent"><i class="icon-trash"></i> Delete</a>
-{% endblock %}
+<a class='btn' href='{% url "rpki.gui.app.views.parent_export" object.pk %}' title='Download XML to send to repository operator'><i class="icon-download"></i> Export</a>
+<a class="btn" href="{% url "rpki.gui.app.views.parent_delete" object.pk %}" title="Delete this parent"><i class="icon-trash"></i> Delete</a>
+{% endblock action %}
 
-{% endblock %}
+{% endblock content %}

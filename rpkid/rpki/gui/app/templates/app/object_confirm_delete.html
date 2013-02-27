@@ -5,6 +5,7 @@ dynamically extending from the *_detail.html template for a concrete object
 type.  The *DeleteView classes should set a "parent_template" variable which is
 string specifying the concrete template to inherit from.
 {% endcomment %}
+{% load url from future %}
 
 {% block action %}
 <div class="alert alert-warning alert-block">
@@ -15,6 +16,6 @@ string specifying the concrete template to inherit from.
 <form action='' method='POST'>
   {% csrf_token %}
   <input class='btn btn-danger' type='submit' value='Delete'>
-  <a class='btn' href="{% url rpki.gui.app.views.dashboard %}">Cancel</a>
+  <a class='btn' href="{% url "rpki.gui.app.views.dashboard" %}">Cancel</a>
 </form>
 {% endblock %}

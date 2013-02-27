@@ -1,5 +1,5 @@
 {% extends "app/app_base.html" %}
-
+{% load url from future %}
 {% load bootstrap_pager %}
 
 {% block sidebar_extra %}
@@ -34,7 +34,7 @@ This view shows currently advertised routes for the prefixes listed in resource 
     <td>{{ r.asn }}</td>
     <td>
       <span class='label {{ r.status_label }}'>{{ r.status }}</span>
-      <a href='{% url rpki.gui.app.views.route_detail r.pk %}' title='display ROAs covering this prefix'><i class="icon-info-sign"></i></a>
+      <a href='{% url "rpki.gui.app.views.route_detail" r.pk %}' title='display ROAs covering this prefix'><i class="icon-info-sign"></i></a>
     </td>
   </tr>
   {% endfor %}
@@ -42,4 +42,4 @@ This view shows currently advertised routes for the prefixes listed in resource 
 
 {% bootstrap_pager request routes %}
 
-{% endblock %}
+{% endblock content %}

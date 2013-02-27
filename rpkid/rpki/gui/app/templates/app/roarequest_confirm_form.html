@@ -1,4 +1,5 @@
 {% extends "app/app_base.html" %}
+{% load url from future %}
 
 {% block content %}
 <div class='page-title'>
@@ -25,13 +26,13 @@
       </tr>
     </table>
 
-    <form method='POST' action='{% url rpki.gui.app.views.roa_create_confirm %}'>
+    <form method='POST' action='{% url "rpki.gui.app.views.roa_create_confirm" %}'>
       {% csrf_token %}
       {% include "app/bootstrap_form.html" %}
 
       <div class='form-actions'>
 	<input class='btn btn-primary' type='submit' value='Create'/>
-	<a class='btn' href='{% url rpki.gui.app.views.dashboard %}'>Cancel</a>
+	<a class='btn' href='{% url "rpki.gui.app.views.dashboard" %}'>Cancel</a>
       </div>
     </form>
   </div>

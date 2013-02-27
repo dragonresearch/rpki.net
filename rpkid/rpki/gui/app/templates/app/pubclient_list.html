@@ -1,8 +1,9 @@
 {% extends "app/object_list.html" %}
+{% load url from future %}
 
 {% block actions %}
 <div class='actions'>
-  <a class='btn' href='{% url rpki.gui.app.views.pubclient_import %}'>Import</a>
+  <a class='btn' href='{% url "rpki.gui.app.views.pubclient_import" %}'>Import</a>
 </div>
 {% endblock actions %}
 

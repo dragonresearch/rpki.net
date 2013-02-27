@@ -1,4 +1,5 @@
 {% extends "app/app_base.html" %}
+{% load url from future %}
 
 {# This form is used for creating a new ROA request #}
 
@@ -33,7 +34,7 @@
       {% include "app/bootstrap_form.html" %}
       <div class="form-actions">
 	<input class="btn" type="submit" value="Preview">
-	<a class="btn" href="{% url rpki.gui.app.views.dashboard %}">Cancel</a>
+	<a class="btn" href="{% url "rpki.gui.app.views.dashboard" %}">Cancel</a>
       </div>
     </form>
   </div>

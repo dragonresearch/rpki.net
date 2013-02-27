@@ -1,16 +1,17 @@
 {% extends "app/app_base.html" %}
+{% load url from future %}
 
 {% block content %}
 <div class="page-header">
-<h1>Handle List</h1>
+  <h1>Handle List</h1>
 </div>
 
 <p>Please select a handle.</p>
 
 <ul>
-{% for c in conf_list %}
-<li><a href="{% url rpki.gui.app.views.conf_select %}?handle={{ c.handle }}&next={{ next_url }}">{{ c.handle }}</a></li>
-{% endfor %}
+  {% for c in conf_list %}
+  <li><a href="{% url "rpki.gui.app.views.conf_select" %}?handle={{ c.handle }}&next={{ next_url }}">{{ c.handle }}</a></li>
+  {% endfor %}
 </ul>
 
 {% endblock %}

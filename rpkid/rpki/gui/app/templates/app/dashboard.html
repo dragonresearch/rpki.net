@@ -1,8 +1,11 @@
 {% extends "app/app_base.html" %}
 
+{# this can be removed when django 1.4 is EOL, because it is the default behavior in 1.5 #}
+{% load url from future %}
+
 {% block sidebar_extra %}
 <ul class='unstyled'>
-  <li><a href="{% url rpki.gui.app.views.conf_export %}" title="download XML identity to send to parent"><i class="icon-download"></i> export identity</a></li>
+  <li><a href="{% url "rpki.gui.app.views.conf_export" %}" title="download XML identity to send to parent"><i class="icon-download"></i> export identity</a></li>
 </ul>
 {% endblock sidebar_extra %}
 
@@ -58,7 +61,7 @@
       {% endfor %}
       {% endif %}
     </table>
-    <a class='btn' href="{% url rpki.gui.app.views.refresh %}" title="refresh resource list from rpkid"><i class="icon-refresh"></i> refresh</a></li>
+    <a class='btn' href="{% url "rpki.gui.app.views.refresh" %}" title="refresh resource list from rpkid"><i class="icon-refresh"></i> refresh</a></li>
   </div>
   <div class='span6'>
     <h2>Unallocated Resources</h2>
@@ -81,7 +84,7 @@
       <tr>
 	<td>{{ addr }}</td>
 	<td>
-	  <a class="btn btn-mini" title="Create ROA using this prefix" href="{% url rpki.gui.app.views.roa_create_multi %}?roa={{ addr }}"><i class="icon-plus-sign"></i> ROA</a>
+	  <a class="btn btn-mini" title="Create ROA using this prefix" href="{% url "rpki.gui.app.views.roa_create_multi" %}?roa={{ addr }}"><i class="icon-plus-sign"></i> ROA</a>
 	</td>
       </tr>
       {% endfor %} <!-- addrs -->
@@ -96,7 +99,7 @@
       <tr>
 	<td>{{ addr }}</td>
 	<td>
-	  <a class="btn btn-mini" title='create roa using this prefix' href="{% url rpki.gui.app.views.roa_create_multi %}?roa={{ addr }}"><i class="icon-plus-sign"></i> ROA</a>
+	  <a class="btn btn-mini" title='create roa using this prefix' href="{% url "rpki.gui.app.views.roa_create_multi" %}?roa={{ addr }}"><i class="icon-plus-sign"></i> ROA</a>
 	</td>
       </tr>
       {% endfor %} <!-- addrs -->
@@ -120,13 +123,13 @@
     <td>{{ roa.prefixes.all.0.max_prefixlen }}</td>
     <td>{{ roa.asn }}</td>
     <td>
-      <a class="btn btn-mini" href="{% url rpki.gui.app.views.roa_detail roa.pk %}" title="Detail"><i class="icon-info-sign"></i></a>
-      <a class="btn btn-mini" href="{% url rpki.gui.app.views.roa_delete roa.pk %}" title="Delete"><i class="icon-trash"></i></a>
+      <a class="btn btn-mini" href="{% url "rpki.gui.app.views.roa_detail" roa.pk %}" title="Detail"><i class="icon-info-sign"></i></a>
+      <a class="btn btn-mini" href="{% url "rpki.gui.app.views.roa_delete" roa.pk %}" title="Delete"><i class="icon-trash"></i></a>
     </td>
   </tr>
   {% endfor %}
 </table>
-<a class="btn" href="{% url rpki.gui.app.views.roa_create_multi %}"><i class="icon-plus-sign"></i> Create</a>
+<a class="btn" href="{% url "rpki.gui.app.views.roa_create_multi" %}"><i class="icon-plus-sign"></i> Create</a>
 </div>
 
   <div class="span6">
@@ -142,14 +145,14 @@
     <td>{{ gbr.email_address }}</td>
     <td>{{ gbr.telephone }}</td>
     <td>
-      <a class="btn btn-mini" href="{% url gbr-detail gbr.pk %}" title="View"><i class="icon-info-sign"></i></a>
-      <a class="btn btn-mini" href="{% url gbr-edit gbr.pk %}" title="Edit"><i class="icon-edit"></i></a>
-      <a class="btn btn-mini" href="{% url gbr-delete gbr.pk %}" title="Delete"><i class="icon-trash"></i></a>
+      <a class="btn btn-mini" href="{% url "gbr-detail" gbr.pk %}" title="View"><i class="icon-info-sign"></i></a>
+      <a class="btn btn-mini" href="{% url "gbr-edit" gbr.pk %}" title="Edit"><i class="icon-edit"></i></a>
+      <a class="btn btn-mini" href="{% url "gbr-delete" gbr.pk %}" title="Delete"><i class="icon-trash"></i></a>
     </td>
   </tr>
   {% endfor %}
 </table>
-<a class="btn" href="{% url gbr-create %}"><i class="icon-plus-sign"></i> Create</a>
+<a class="btn" href="{% url "gbr-create" %}"><i class="icon-plus-sign"></i> Create</a>
 </div><!-- /span -->
 </div><!-- /row -->
 
@@ -164,12 +167,12 @@
       <tr>
       <td><a href="{{ child.get_absolute_url }}">{{ child.handle }}</a></td>
 	<td>
-	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.child_delete child.pk %}" title="Delete"><i class="icon-trash"></i></a>
+	  <a class="btn btn-mini" href="{% url "rpki.gui.app.views.child_delete" child.pk %}" title="Delete"><i class="icon-trash"></i></a>
 	</td>
       </tr>
       {% endfor %}
     </table>
-    <a class="btn" href="{% url rpki.gui.app.views.child_import %}"><i class="icon-upload"></i> Import</a>
+    <a class="btn" href="{% url "rpki.gui.app.views.child_import" %}"><i class="icon-upload"></i> Import</a>
   </div><!-- /span -->
   <div class="span6">
     <div class="page-header">
@@ -181,12 +184,12 @@
       <tr>
 	<td><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a></td>
 	<td>
-	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.parent_delete parent.pk %}" title="Delete"><i class="icon-trash"></i></a>
+	  <a class="btn btn-mini" href="{% url "rpki.gui.app.views.parent_delete" parent.pk %}" title="Delete"><i class="icon-trash"></i></a>
 	</td>
       </tr>
       {% endfor %}
     </table>
-    <a class="btn" href="{% url rpki.gui.app.views.parent_import %}"><i class="icon-upload"></i> Import</a>
+    <a class="btn" href="{% url "rpki.gui.app.views.parent_import" %}"><i class="icon-upload"></i> Import</a>
   </div><!-- /span -->
 </div><!-- /row -->
 
@@ -201,12 +204,12 @@
       <tr>
 	<td><a href="{{ repo.get_absolute_url }}">{{ repo.handle }}</a></td>
 	<td>
-	  <a class="btn btn-mini" href="{% url rpki.gui.app.views.repository_delete repo.pk %}" title="Delete"><i class="icon-trash"></i></a>
+	  <a class="btn btn-mini" href="{% url "rpki.gui.app.views.repository_delete" repo.pk %}" title="Delete"><i class="icon-trash"></i></a>
 	</td>
       </tr>
       {% endfor %}
     </table>
-    <a class="btn" href="{% url rpki.gui.app.views.repository_import %}"><i class="icon-upload"></i> Import</a>
+    <a class="btn" href="{% url "rpki.gui.app.views.repository_import" %}"><i class="icon-upload"></i> Import</a>
   </div><!-- /span -->
 </div><!-- /row -->
 {% endblock %}

@@ -227,7 +227,7 @@ ${DESTDIR}${bindir}/validation_status: validation_status
 .FORCE:
 
 install-crontab: .FORCE
-	@echo "Setting up ${RCYNIC_CRON_USER}'s crontab to run rcynic-cron script
+	@echo "Setting up ${RCYNIC_CRON_USER}'s crontab to run rcynic-cron script"
 	@crontab -l -u ${RCYNIC_CRON_USER} 2>/dev/null | \
 	 ${AWK} -v t=`hexdump -n 2 -e '"%u\n"' /dev/random` '\
 	 BEGIN { \

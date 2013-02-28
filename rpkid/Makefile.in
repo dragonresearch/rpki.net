@@ -64,7 +64,8 @@ SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
 	  portal-gui/scripts/rpki-manage
 
 # scripts we build, but don't install
-BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo
+BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo \
+		portal-gui/scripts/rpkigui-flatten-roas
 
 AUX_SCRIPTS =
 
@@ -276,6 +277,9 @@ portal-gui/scripts/rpkigui-reset-demo: portal-gui/scripts/rpkigui-reset-demo.py
 	${COMPILE_DJANGO}
 
 portal-gui/scripts/rpkigui-check-expired: portal-gui/scripts/rpkigui-check-expired.py
+	${COMPILE_DJANGO}
+
+portal-gui/scripts/rpkigui-flatten-roas: portal-gui/scripts/rpkigui-flatten-roas.py
 	${COMPILE_DJANGO}
 
 portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in

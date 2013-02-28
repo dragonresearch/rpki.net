@@ -1,5 +1,5 @@
 # Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
-# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2013  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -27,7 +27,7 @@ urlpatterns = patterns('',
     #(r'^admin/', include(admin.site.urls)),
 
     (r'^api/', include('rpki.gui.api.urls')),
-    (r'^cacheview/', include('rpki.gui.cacheview.urls')),
+    #(r'^cacheview/', include('rpki.gui.cacheview.urls')),
     (r'^rpki/', include('rpki.gui.app.urls')),
 
     (r'^accounts/login/$', 'rpki.gui.views.login'),

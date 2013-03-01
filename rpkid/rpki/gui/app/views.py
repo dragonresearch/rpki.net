@@ -235,7 +235,6 @@ def conf_list(request, **kwargs):
     """Allow the user to select a handle."""
     log = request.META['wsgi.errors']
     next_url = request.GET.get('next', reverse(dashboard))
-    qs = models.Conf.objects.all()
     if request.user.is_superuser:
         qs = models.Conf.objects.all()
     else:

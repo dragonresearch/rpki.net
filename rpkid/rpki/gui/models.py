@@ -39,7 +39,12 @@ class IPv6AddressField(models.Field):
         return rpki.POW.IPAddress.fromBytes(value)
 
     def get_db_prep_value(self, value, connection, prepared):
-        return value.toBytes()
+        """
+        Note that we add a custom conversion to encode long values as hex
+        strings in SQL statements.  See settings.get_conv() for details.
+
+        """
+        return long(value)
 
 
 class IPv4AddressField(models.Field):

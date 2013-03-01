@@ -33,12 +33,35 @@ you upgrade.
 
   $ rpki-manage migrate app 0001 --fake
 
+If you are unsure whether or not you have previously run this command, you can
+verify with the following command:
+
+  $ rpki-manage migrate --list
+
+   app
+    (*) 0001_initial
+    (*) 0002_auto__add_field_resourcecert_conf
+    (*) 0003_set_conf_from_parent
+    (*) 0004_auto__chg_field_resourcecert_conf
+    (*) 0005_auto__chg_field_resourcecert_parent
+    ( ) 0006_add_conf_acl
+    ( ) 0007_default_acls
+
+The migrations are an ordered list. The presence of the asterisk (*) indicates
+that the migration has already been performed. ( ) indicates that the specific
+migration has not yet been applied. In the example above, migrations 0001
+through 0005 have been applied, but 0006 and 0007 have not.
+
 Now bring your database up to date with the current release:
 
   $ rpki-manage migrate app
 
 From this point on you will just need to run the latter command every time you
 upgrade.
+
+Restart apache
+
+  $ apachectl restart
 
 ***** New Installation *****
 

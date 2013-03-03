@@ -24,7 +24,7 @@ INSTDIR=${DESTDIR}$(datarootdir)/rpki
 SYSCONFDIR=${DESTDIR}${sysconfdir}/rpki
 
 # automatically built sources
-BUILD=apache.conf
+BUILD=apache.conf local_settings.py
 
 all: $(BUILD)
 
@@ -53,6 +53,7 @@ install: $(BUILD)
 	${INSTALL} -m 644 apache.conf $(SYSCONFDIR)/apache.conf
 	${INSTALL} -m 644 rpki.wsgi $(INSTDIR)/wsgi/rpki.wsgi
 	${INSTALL} -m 644 settings.py ${SYSCONFDIR}
+	${INSTALL} -m 644 local_settings.py ${SYSCONFDIR}
 	# this would be better handled with "django-admin collectstatic" but makes the install
 	# process harder for the end user.
 	${INSTALL} -m 644 $(srcdir)/../rpki/gui/app/static/css/* $(INSTDIR)/media/css
@@ -61,7 +62,8 @@ install: $(BUILD)
 
 deinstall uninstall:
 	rm -rf $(INSTDIR)/media $(INSTDIR)/wsgi
-	rm -rf $(SYSCONFDIR)/apache.conf $(SYSCONFDIR)/settings.py $(SYSCONFDIR)/settings.pyc
+	rm -rf $(SYSCONFDIR)/apache.conf $(SYSCONFDIR)/settings.py $(SYSCONFDIR)/settings.pyc \
+		$(SYSCONFDIR)/local_settings.py $(SYSCONFDIR)/settings.pyc
 
 test:
 	@true

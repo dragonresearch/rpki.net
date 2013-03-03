@@ -69,7 +69,7 @@ BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo \
 
 AUX_SCRIPTS =
 
-SETTINGS = portal-gui/settings.py portal-gui/rpki.wsgi
+SETTINGS = portal-gui/local_settings.py portal-gui/rpki.wsgi
 
 all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
@@ -287,8 +287,12 @@ portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in
 		-e "s|@PYTHON""PATH@|${sysconfdir}/rpki|" \
 		${srcdir}/portal-gui/rpki.wsgi.in > portal-gui/rpki.wsgi
 
-portal-gui/settings.py: ${srcdir}/portal-gui/settings.py.in
-	${COMPILE_SETTINGS}
+portal-gui/local_settings.py: Makefile
+	( echo 'import rpki.config'; \
+		echo 'SECRET_KEY="${SECRET_KEY}"'; \
+		echo 'STATIC_ROOT="${datarootdir}/rpki/media"'; \
+		echo 'rpki.config.default_dirname="${sysconfdir}"'; \
+	) > portal-gui/local_settings.py
 
 portal-gui/scripts/rpki-manage: ${srcdir}/portal-gui/scripts/rpki-manage.in
 	sed -e "s|@DJANGO""_ADMIN@|${DJANGO_ADMIN}|" \

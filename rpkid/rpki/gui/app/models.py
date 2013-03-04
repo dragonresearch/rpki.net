@@ -151,6 +151,18 @@ class ResourceCert(models.Model):
         else:
             return u"%s's root cert" % self.conf.handle
 
+    def get_cert_chain(self):
+        """Return a list containing the complete certificate chain for this
+        certificate."""
+        cert = self
+        x = [cert]
+        while cert.issuer:
+            cert = cert.issuer
+            x.append(cert)
+        x.reverse()
+        return x
+    cert_chain = property(get_cert_chain)
+
 
 class ResourceRangeAddressV4(rpki.gui.models.PrefixV4):
     cert = models.ForeignKey(ResourceCert, related_name='address_ranges')

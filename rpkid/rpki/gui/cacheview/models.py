@@ -138,6 +138,18 @@ class Cert(SignedObject):
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.cert_detail', [str(self.pk)])
 
+    def get_cert_chain(self):
+        """Return a list containing the complete certificate chain for this
+        certificate."""
+        cert = self
+        x = [cert]
+        while cert != cert.issuer:
+            cert = cert.issuer
+            x.append(cert)
+        x.reverse()
+        return x
+    cert_chain = property(get_cert_chain)
+
 
 class ROAPrefix(models.Model):
     "Abstract base class for ROA mixin."

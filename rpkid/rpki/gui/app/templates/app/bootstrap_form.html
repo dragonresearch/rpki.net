@@ -10,7 +10,7 @@
 {{ field }}
 {% else %}
 <div class="control-group {% if field.errors %}error{% endif %}">
-  <label class="control-label" for="field.html_name">{{ field.label }}</label>
+	<label class="control-label" for="{{ field.html_name }}">{{ field.label }}</label>
   <div class="controls">
     {{ field }}
     {% if field.help_text %}

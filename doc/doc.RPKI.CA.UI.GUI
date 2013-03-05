@@ -8,7 +8,7 @@ sets $PYTHONPATH and $DJANGO_SETTINGS_MODULE.
 
 ***** Prerequisites *****
 
-* Django 1.3.7 or later
+* Django 1.4 (Django 1.5 is not currently supported)
 
 * Django South 0.7.6 or later
 

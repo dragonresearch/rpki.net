@@ -99,14 +99,15 @@ Packages you will need:
   o Ubuntu: python-mysqldb
 
 * http://www.djangoproject.com/, the Django web user interface toolkit. The GUI
-  interface to the CA tools requires this. Django 1.3.7 or later is required.
+  interface to the CA tools requires this. Django 1.4 is required. Django 1.5
+  is currently not supported.
 
   o FreeBSD: /usr/ports/www/py-django (py27-django)
   o Ubuntu: Do not use the python-django package (Django 1.3.1) in 12.04 LTS,
     as it is known not to work.
     Instead, install a recent version using easy_install or pip:
 
-      $ sudo pip install django>=1.3.7
+      $ sudo pip install django==1.4.5
 
 * http://vobject.skyhouseconsulting.com/, a Python library for parsing VCards.
   The GUI uses this to parse the payload of RPKI Ghostbuster objects.

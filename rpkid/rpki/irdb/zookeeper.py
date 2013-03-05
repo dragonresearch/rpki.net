@@ -1262,31 +1262,39 @@ class Zookeeper(object):
     # <repository/> and <parent/>, and further assumes that the handles
     # for an associated pair are the identical (that is:
     # parent.repository_handle == parent.parent_handle).
+    #
+    # If no such repository exists, our choices are to ignore the
+    # parent entry or throw an error.  For now, we ignore the parent.
 
     for parent in ca.parents.all():
 
-      parent_pdu = parent_pdus.pop(parent.handle, None)
+      try:
 
-      if (parent_pdu is None or
-          parent_pdu.bsc_handle != bsc_handle or
-          parent_pdu.repository_handle != parent.handle or
-          parent_pdu.peer_contact_uri != parent.service_uri or
-          parent_pdu.sia_base != parent.repository.sia_base or
-          parent_pdu.sender_name != parent.child_handle or
-          parent_pdu.recipient_name != parent.parent_handle or
-          parent_pdu.bpki_cms_cert != parent.certificate):
-        rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
-          action = "create" if parent_pdu is None else "set",
-          tag = parent.handle,
-          self_handle = ca.handle,
-          parent_handle = parent.handle,
-          bsc_handle = bsc_handle,
-          repository_handle = parent.handle,
-          peer_contact_uri = parent.service_uri,
-          sia_base = parent.repository.sia_base,
-          sender_name = parent.child_handle,
-          recipient_name = parent.parent_handle,
-          bpki_cms_cert = parent.certificate))
+        parent_pdu = parent_pdus.pop(parent.handle, None)
+
+        if (parent_pdu is None or
+            parent_pdu.bsc_handle != bsc_handle or
+            parent_pdu.repository_handle != parent.handle or
+            parent_pdu.peer_contact_uri != parent.service_uri or
+            parent_pdu.sia_base != parent.repository.sia_base or
+            parent_pdu.sender_name != parent.child_handle or
+            parent_pdu.recipient_name != parent.parent_handle or
+            parent_pdu.bpki_cms_cert != parent.certificate):
+          rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
+            action = "create" if parent_pdu is None else "set",
+            tag = parent.handle,
+            self_handle = ca.handle,
+            parent_handle = parent.handle,
+            bsc_handle = bsc_handle,
+            repository_handle = parent.handle,
+            peer_contact_uri = parent.service_uri,
+            sia_base = parent.repository.sia_base,
+            sender_name = parent.child_handle,
+            recipient_name = parent.parent_handle,
+            bpki_cms_cert = parent.certificate))
+
+      except rpki.irdb.Repository.DoesNotExist:
+        pass
 
     try:
 

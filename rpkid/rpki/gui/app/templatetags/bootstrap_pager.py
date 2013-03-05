@@ -17,14 +17,24 @@ class BootstrapPagerNode(template.Node):
         else:
             r.append('<li><a href="%s?page=%d">&laquo;</a></li>' % (request.path, pager_object.number - 1))
 
-        for i in pager_object.paginator.page_range:
+        # display at most 5 pages around the current page
+        min_page = max(pager_object.number - 2, 1)
+        max_page = min(min_page + 5, pager_object.paginator.num_pages)
+
+        if min_page > 1:
+            r.append('<li class="disabled"><a>&hellip;</a></li>')
+
+        for i in range(min_page, max_page + 1):
             r.append('<li %s><a href="%s?page=%d">%d</a></li>' % ('' if i != pager_object.number else 'class="active"', request.path, i, i))
 
+        if max_page < pager_object.paginator.num_pages:
+            r.append('<li class="disabled"><a>&hellip;</a></li>')
 
         if pager_object.number < pager_object.paginator.num_pages:
             r.append('<li><a href="%s?page=%d">&raquo;</a></li>' % (request.path, pager_object.number + 1))
         else:
             r.append('<li class="disabled"><a>&raquo;</a></li>')
+
 
         r.append('</ul></div>')
         return '\n'.join(r)

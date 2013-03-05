@@ -89,22 +89,19 @@ class ImportForm(forms.Form):
     handle = forms.CharField(required=False,
                              widget=forms.TextInput(attrs={'class': 'xlarge'}),
                              help_text='Optional.  Your name for this entity, or blank to accept name in XML')
-    xml = forms.FileField(label='XML file',
-                          widget=forms.FileInput(attrs={'class': 'input-file'}))
+    xml = forms.FileField(label='XML file')
 
 
 class ImportRepositoryForm(forms.Form):
     handle = forms.CharField(max_length=30, required=False,
                              label='Parent Handle',
                              help_text='Optional.  Must be specified if you use a different name for this parent')
-    xml = forms.FileField(label='XML file',
-                          widget=forms.FileInput(attrs={'class': 'input-file'}))
+    xml = forms.FileField(label='XML file')
 
 
 class ImportClientForm(forms.Form):
     """Form used for importing publication client requests."""
-    xml = forms.FileField(label='XML file',
-                          widget=forms.FileInput(attrs={'class': 'input-file'}))
+    xml = forms.FileField(label='XML file')
 
 
 class UserCreateForm(forms.Form):

@@ -684,10 +684,7 @@ then
 	AC_SUBST(DJANGO_DIR, [`$PYTHON -c 'import os,sys; print [[os.path.join(p, "django") for p in sys.path if os.path.exists(os.path.join(p, "django"))]][[0]]'`])
 
         # There is no standard name for this tool, so check for it.
-        AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py], [no])
-	if test "$DJANGO_ADMIN" = no; then
-		AC_MSG_ERROR([unable to locate the django-admin script in your \$PATH])
-	fi
+        AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
 
 	if test "$enable_wsgi_daemon_mode" != no
 	then

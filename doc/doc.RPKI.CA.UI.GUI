@@ -25,6 +25,15 @@ support was added, you will need to take some additional steps.
 
   $ rpki-manage syncdb
 
+Note that at the end of the syncdb output you will see the following message:
+
+  Not synced (use migrations):
+   - rpki.gui.app
+  (use ./manage.py migrate to migrate these)
+
+You should ignore the message about running ./manage.py since that script does
+not exist in our setup.
+
 **** Database Migration ****
 
 If you have not previously run the new database migration step, you will need
@@ -71,6 +80,15 @@ Restart apache
 
 Answer "yes" when asked if you want to create superuser Enter username for
 superuser Enter password
+
+Note that at the end of the syncdb output you will see the following message:
+
+  Not synced (use migrations):
+   - rpki.gui.app
+  (use ./manage.py migrate to migrate these)
+
+You should ignore the message about running ./manage.py since that script does
+not exist in our setup.
 
 If you need to create superuser at a later time, you can run
 

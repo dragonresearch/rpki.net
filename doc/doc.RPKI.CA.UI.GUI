@@ -93,6 +93,10 @@ Now configure apache, using /usr/local/etc/rpki/apache.conf, e.g.
 
   $ cp apache.conf /usr/local/etc/apache22/Includes/rpki.conf
 
+On Ubuntu this will be
+
+  $ cp apache.conf /etc/apache2/conf.d/rpki.conf
+
 You can put it in a virtual host if you wish.
 
 Restart apache

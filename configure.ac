@@ -688,6 +688,9 @@ then
 
 	if test "$enable_wsgi_daemon_mode" != no
 	then
+		if test "$enable_wsgi_daemon_mode" = yes; then
+			AC_MSG_ERROR([You must specify the user to run the wsgi process as with --enable-wsgi-daemon-mode=USER])
+		fi
 		save_IFS="$IFS"
 		IFS=':' read user group <<_EOF
 $enable_wsgi_daemon_mode

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# django-admin seems to have problems creataing the superuser account when
+# django-admin seems to have problems creating the superuser account when
 # $LANG is unset
 if [ -z "$LANG" ]; then
 	echo '$LANG is unset, default to en_US.UTF-8'

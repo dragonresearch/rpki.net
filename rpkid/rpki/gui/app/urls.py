@@ -15,7 +15,7 @@
 
 __version__ = '$Id$'
 
-from django.conf.urls.defaults import *
+from django.conf.urls import patterns, url
 from rpki.gui.app import views
 
 urlpatterns = patterns(

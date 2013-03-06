@@ -15,7 +15,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-from django.conf.urls.defaults import *
+from django.conf.urls import patterns
 
 urlpatterns = patterns('',
     (r'^query$',              'rpki.gui.cacheview.views.query_view'),

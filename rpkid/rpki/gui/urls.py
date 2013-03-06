@@ -15,9 +15,10 @@
 
 __version__ = '$Id$'
 
-from django.conf.urls.defaults import *
+from django.conf.urls import patterns, include
 
-urlpatterns = patterns('',
+urlpatterns = patterns(
+    '',
 
     # Uncomment the admin/doc line below and add 'django.contrib.admindocs'
     # to INSTALLED_APPS to enable admin documentation:
@@ -31,6 +32,5 @@ urlpatterns = patterns('',
     (r'^rpki/', include('rpki.gui.app.urls')),
 
     (r'^accounts/login/$', 'rpki.gui.views.login'),
-    (r'^accounts/logout/$', 'rpki.gui.views.logout',
-        {'next_page': '/rpki/'}),
+    (r'^accounts/logout/$', 'rpki.gui.views.logout', {'next_page': '/rpki/'}),
 )

@@ -1,5 +1,5 @@
 # Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
-# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2013  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -24,6 +24,7 @@ import os.path
 import sys
 
 old_sys_path = list(sys.path)
+
 
 def walk_error(e):
     'This function is invoked when os.walk() needs to report an error'
@@ -54,7 +55,7 @@ for elt in list(sys.path):
         sys.path.remove(elt)
 sys.path[:0] = new_sys_path
 
-print >>sys.stderr, sys.path
+#print >>sys.stderr, sys.path
 
 import django.core.handlers.wsgi
 application = django.core.handlers.wsgi.WSGIHandler()

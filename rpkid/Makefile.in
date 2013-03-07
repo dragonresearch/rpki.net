@@ -76,9 +76,12 @@ BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo \
 DATA_FILES = portal-gui/routeviews.sh
 
 # these files get put in ${sysconfdir}/rpki
-CONF_FILES = portal-gui/settings.py portal-gui/apache.conf
+CONF_FILES = portal-gui/apache.conf ${SETTINGS}
 
-all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${CONF_FILES} ${BUILD_SCRIPTS}
+# automatically generated config files
+SETTINGS=portal-gui/settings.py
+
+all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace

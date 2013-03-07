@@ -4792,9 +4792,9 @@ $as_echo "$have_django_south" >&6; }
 
 	if test $have_django_south = yes
 	then
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django South 0.7.6 or later" >&5
-$as_echo_n "checking for Django South 0.7.6 or later... " >&6; }
-		have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [0, 7, 6] else 'yes'"`
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django South 0.7.5 or later" >&5
+$as_echo_n "checking for Django South 0.7.5 or later... " >&6; }
+		have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [0, 7, 5] else 'yes'"`
 		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_acceptable_django_south" >&5
 $as_echo "$have_acceptable_django_south" >&6; }
 	fi
@@ -4848,8 +4848,8 @@ $as_echo "$as_me: WARNING: The RPKI CA GUI requires the Python vobject module" >
 		if test $have_acceptable_django_south = no
 		then
 			ok=no
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django South 0.7.6 or higher." >&5
-$as_echo "$as_me: WARNING: The RPKI CA tools require Django South 0.7.6 or higher." >&2;}
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django South 0.7.5 or higher." >&5
+$as_echo "$as_me: WARNING: The RPKI CA tools require Django South 0.7.5 or higher." >&2;}
 		fi
 		#
 		# This should be the last test in this group, so that failures get the --disable-ca-tools warning.

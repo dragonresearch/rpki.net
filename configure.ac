@@ -473,8 +473,8 @@ then
 
 	if test $have_django_south = yes
 	then
-		AC_MSG_CHECKING([for Django South 0.7.6 or later])
-		have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [[0, 7, 6]] else 'yes'"`
+		AC_MSG_CHECKING([for Django South 0.7.5 or later])
+		have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [[0, 7, 5]] else 'yes'"`
 		AC_MSG_RESULT([$have_acceptable_django_south])
 	fi
 fi
@@ -522,7 +522,7 @@ case $enable_ca_tools in
 		if test $have_acceptable_django_south = no
 		then
 			ok=no
-			AC_MSG_WARN([The RPKI CA tools require Django South 0.7.6 or higher.])
+			AC_MSG_WARN([The RPKI CA tools require Django South 0.7.5 or higher.])
 		fi
 		#
 		# This should be the last test in this group, so that failures get the --disable-ca-tools warning.

@@ -25,10 +25,14 @@ ac_ldflags	= os.getenv("AC_LDFLAGS",	"").split()
 ac_libs		= os.getenv("AC_LIBS",		"").split()
 ac_scripts	= os.getenv("AC_SCRIPTS",	"").split()
 ac_aux_scripts  = os.getenv("AC_AUX_SCRIPTS",   "").split()
+ac_data_files   = os.getenv("AC_DATA_FILES",    "").split()
+ac_conf_files   = os.getenv("AC_CONF_FILES",    "").split()
 
 ac_sbindir	= os.getenv("AC_SBINDIR",	"").strip()
 ac_abs_builddir = os.getenv("AC_ABS_BUILDDIR",	"").strip()
 ac_libexecdir   = os.getenv("AC_LIBEXECDIR",    "").strip()
+ac_datarootdir  = os.getenv("AC_DATAROOTDIR",   "").strip()
+ac_sysconfdir   = os.getenv("AC_SYSCONFDIR",    "").strip()
 
 # Non-standard extension build specification: we need to force
 # whatever build options our top-level ./configure selected, and we
@@ -57,6 +61,12 @@ if ac_sbindir and ac_scripts:
 if ac_libexecdir and ac_aux_scripts:
   data_files.append((ac_libexecdir,
                      ["%s/%s" % (ac_abs_builddir, f) for f in ac_aux_scripts]))
+if ac_datarootdir and ac_data_files:
+  data_files.append((ac_datarootdir,
+                     ["%s/%s" % (ac_abs_builddir, f) for f in ac_data_files]))
+if ac_sysconfdir and ac_conf_files:
+  data_files.append((ac_sysconfdir,
+                     ["%s/%s" % (ac_abs_builddir, f) for f in ac_conf_files]))
 if not data_files:
   data_files = None
 

@@ -47,9 +47,13 @@ SETUP_PY = \
 	AC_LIBS='${LIBS}' \
 	AC_SBINDIR='${sbindir}' \
 	AC_SCRIPTS='${SCRIPTS}' \
+	AC_DATA_FILES='${DATA_FILES}' \
+	AC_CONF_FILES='${CONF_FILES}' \
 	AC_ABS_BUILDDIR='${abs_builddir}' \
 	AC_LIBEXECDIR='${libexecdir}' \
 	AC_AUX_SCRIPTS='${AUX_SCRIPTS}' \
+	AC_DATAROOTDIR='${datarootdir}/rpki' \
+	AC_SYSCONFDIR='${sysconfdir}/rpki' \
 	${PYTHON} setup.py
 
 SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
@@ -65,13 +69,16 @@ SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
 
 # scripts we build, but don't install
 BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo \
-		portal-gui/scripts/rpkigui-flatten-roas
+		portal-gui/scripts/rpkigui-flatten-roas \
+		portal-gui/rpki.wsgi
 
-AUX_SCRIPTS =
+# these files get put in ${datarootdir}/rpki
+DATA_FILES = portal-gui/routeviews.sh
 
-SETTINGS = portal-gui/settings.py portal-gui/rpki.wsgi
+# these files get put in ${sysconfdir}/rpki
+CONF_FILES = portal-gui/settings.py portal-gui/apache.conf
 
-all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
+all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${CONF_FILES} ${BUILD_SCRIPTS}
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace

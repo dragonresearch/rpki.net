@@ -19,6 +19,7 @@ sysconfdir=@sysconfdir@
 INSTALL = @INSTALL@
 WSGI_DAEMON_PROCESS=@WSGI_DAEMON_PROCESS@
 WSGI_PROCESS_GROUP=@WSGI_PROCESS_GROUP@
+GUI_INSTALL_TARGETS=@GUI_INSTALL_TARGETS@
 
 INSTDIR=${DESTDIR}$(datarootdir)/rpki
 SYSCONFDIR=${DESTDIR}${sysconfdir}/rpki
@@ -43,7 +44,7 @@ edit = sed \
 apache.conf: $(srcdir)/apache.conf.in Makefile
 	$(edit) $@.in > $@
 
-install: all install-always
+install: all $(GUI_INSTALL_TARGETS)
 
 install-always:
 	if test -d $(INSTDIR)/wsgi; then :; else ${INSTALL} -d $(INSTDIR)/wsgi; fi

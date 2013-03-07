@@ -107,6 +107,25 @@ existing database up to date with the current software.
 
 ***** Configure Apache *****
 
+**** Ubuntu ****
+
+First, you need to install apache and enable SSL:
+
+  apt-get install apache2 libapache2-mod-wsgi
+  a2enmod ssl
+  a2ensite default-ssl
+
+Edit /etc/apache2/sites-enabled/default-ssl and place the following line inside
+the <VirtualHost> section:
+
+  Include /usr/share/rpki/apache.conf
+
+Now restart apache:
+
+  service apache2 restart
+
+**** FreeBSD ****
+
 Now configure apache, using /usr/local/etc/rpki/apache.conf, e.g.
 
   $ cp apache.conf /usr/local/etc/apache22/Includes/rpki.conf

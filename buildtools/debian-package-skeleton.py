@@ -8,6 +8,259 @@ os.makedirs('debian')
 
 with open('debian/changelog', "wb") as f:
   f.write('''\
+rpki (0.5116) UNRELEASED; urgency=low
+  * Automatic pull of documentation from Wiki.
+ -- docbot <docbot@rpki.net>  Thu, 07 Mar 2013 02:00:11 -0000
+
+rpki (0.5115) UNRELEASED; urgency=low
+  * fix typoh
+ -- melkins <melkins@rpki.net>  Wed, 06 Mar 2013 23:26:45 -0000
+
+rpki (0.5114) UNRELEASED; urgency=low
+  * Automatic pull of documentation from Wiki.
+ -- docbot <docbot@rpki.net>  Wed, 06 Mar 2013 18:00:09 -0000
+
+rpki (0.5113) UNRELEASED; urgency=low
+  * display error message if username was omitted when specifying
+    --enable-wsgi-daemon-mode
+ -- melkins <melkins@rpki.net>  Wed, 06 Mar 2013 17:28:54 -0000
+
+rpki (0.5112) UNRELEASED; urgency=low
+  * fix DeprecationWarning showing up in the apache.log
+
+    see #447
+ -- melkins <melkins@rpki.net>  Wed, 06 Mar 2013 17:16:49 -0000
+
+rpki (0.5111) UNRELEASED; urgency=low
+  * comment out debug statement printing sys.path
+
+    see #447
+ -- melkins <melkins@rpki.net>  Wed, 06 Mar 2013 17:06:46 -0000
+
+rpki (0.5110) UNRELEASED; urgency=low
+  * Automatic pull of documentation from Wiki.
+ -- docbot <docbot@rpki.net>  Wed, 06 Mar 2013 07:00:16 -0000
+
+rpki (0.5109) UNRELEASED; urgency=low
+  * revert [5090]
+
+    see #423
+ -- melkins <melkins@rpki.net>  Wed, 06 Mar 2013 03:12:55 -0000
+
+rpki (0.5108) UNRELEASED; urgency=low
+  * revert [5096]
+
+    see #438
+ -- melkins <melkins@rpki.net>  Wed, 06 Mar 2013 03:09:49 -0000
+
+rpki (0.5107) UNRELEASED; urgency=low
+  * Skip synchronization for parents with no repository set.  Fixes
+    #438.
+ -- sra <sra@rpki.net>  Tue, 05 Mar 2013 15:20:34 -0000
+
+rpki (0.5106) UNRELEASED; urgency=low
+  * fix paginator template tag to nicely display when there are a huge
+    amount of pages.  display at most 5 page links and use ellipsis to
+    indicate there are more pages.
+ -- melkins <melkins@rpki.net>  Tue, 05 Mar 2013 01:04:29 -0000
+
+rpki (0.5105) UNRELEASED; urgency=low
+  * need enctype="multipart/form-data" when uploading files in a form
+
+    closes #392
+ -- melkins <melkins@rpki.net>  Tue, 05 Mar 2013 00:17:09 -0000
+
+rpki (0.5104) UNRELEASED; urgency=low
+  * field label was not being expanded in the app_form.html template
+ -- melkins <melkins@rpki.net>  Tue, 05 Mar 2013 00:16:24 -0000
+
+rpki (0.5103) UNRELEASED; urgency=low
+  * remove outdated css class attributes for an old version of
+    bootstap
+ -- melkins <melkins@rpki.net>  Tue, 05 Mar 2013 00:15:50 -0000
+
+rpki (0.5102) UNRELEASED; urgency=low
+  * Automatic pull of documentation from Wiki.
+ -- docbot <docbot@rpki.net>  Tue, 05 Mar 2013 00:00:26 -0000
+
+rpki (0.5101) UNRELEASED; urgency=low
+  * remove deprecated script that was used back when the web portal
+    used the sqlite db backend
+ -- melkins <melkins@rpki.net>  Mon, 04 Mar 2013 23:03:14 -0000
+
+rpki (0.5100) UNRELEASED; urgency=low
+  * move core function to rpki.gui.app.check_expired
+
+    see #442
+ -- melkins <melkins@rpki.net>  Mon, 04 Mar 2013 22:54:47 -0000
+
+rpki (0.5099) UNRELEASED; urgency=low
+  * add .cert_chain property to return the complete certificate chain
+    for the specified object
+ -- melkins <melkins@rpki.net>  Mon, 04 Mar 2013 22:14:53 -0000
+
+rpki (0.5098) UNRELEASED; urgency=low
+  * move core of rpkid/portal-gui/scripts/rpkigui-import-routes.py to
+    rpkid/rpki/gui/routeview/util.py
+
+    see #442
+ -- melkins <melkins@rpki.net>  Mon, 04 Mar 2013 21:02:43 -0000
+
+rpki (0.5097) UNRELEASED; urgency=low
+  * move core implementation to rpki.gui.cacheview.util and only leave
+    the script wrapper
+
+    see #442
+ -- melkins <melkins@rpki.net>  Mon, 04 Mar 2013 19:41:55 -0000
+
+rpki (0.5096) UNRELEASED; urgency=low
+  * move build-time generated configuration to local_settings.py and
+    leave settings.py as a static file
+ -- melkins <melkins@rpki.net>  Sun, 03 Mar 2013 19:02:15 -0000
+
+rpki (0.5095) UNRELEASED; urgency=low
+  * remove duplication line of code
+ -- melkins <melkins@rpki.net>  Fri, 01 Mar 2013 22:16:44 -0000
+
+rpki (0.5094) UNRELEASED; urgency=low
+  * Automatic pull of documentation from Wiki.
+ -- docbot <docbot@rpki.net>  Fri, 01 Mar 2013 22:00:09 -0000
+
+rpki (0.5093) UNRELEASED; urgency=low
+  * change rpki.gui.models.IPV6AddressField.get_db_prep_value() to
+    return `long` rather than a string
+
+    add a custom encoder to the mysql database connection which
+    converts long values to hex strings when generating SQL statements
+
+    closes #434
+ -- melkins <melkins@rpki.net>  Fri, 01 Mar 2013 18:50:03 -0000
+
+rpki (0.5092) UNRELEASED; urgency=low
+  * remove rpki.gui.cacheview from urls.py since it is outdated and
+    doesn't compile with django 1.5
+
+    see #433
+ -- melkins <melkins@rpki.net>  Thu, 28 Feb 2013 17:50:36 -0000
+
+rpki (0.5091) UNRELEASED; urgency=low
+  * update templates for new syntax of the {% url %} tag in django 1.5
+ -- melkins <melkins@rpki.net>  Thu, 28 Feb 2013 17:49:43 -0000
+
+rpki (0.5090) UNRELEASED; urgency=low
+  * if the django-admin script is not found, configure should exit and
+    inform the user so they can correct their $PATH
+
+    see #431
+ -- melkins <melkins@rpki.net>  Thu, 28 Feb 2013 17:15:00 -0000
+
+rpki (0.5089) UNRELEASED; urgency=low
+  * Fix rcynic installation rules broken in packaging branch merge.
+    Fixes #428 and 429.
+ -- sra <sra@rpki.net>  Thu, 28 Feb 2013 01:10:14 -0000
+
+rpki (0.5088) UNRELEASED; urgency=low
+  * svn:ignore.
+ -- sra <sra@rpki.net>  Thu, 28 Feb 2013 01:07:23 -0000
+
+rpki (0.5087) UNRELEASED; urgency=low
+  * conf list for superusers should show everything
+ -- melkins <melkins@rpki.net>  Thu, 28 Feb 2013 00:14:34 -0000
+
+rpki (0.5086) UNRELEASED; urgency=low
+  * add new script rpkigui-flatten-roas script to take care of
+    flattening old roas which had multiple prefixes
+
+    see #421
+ -- melkins <melkins@rpki.net>  Thu, 28 Feb 2013 00:07:35 -0000
+
+rpki (0.5085) UNRELEASED; urgency=low
+  * drop "Request" from "ROA Requests" in dashboard
+
+    closes #419
+ -- melkins <melkins@rpki.net>  Wed, 27 Feb 2013 22:51:21 -0000
+
+rpki (0.5084) UNRELEASED; urgency=low
+  * add a clone button to each roa, which copies the prefix as the
+    default value when generating a new roa
+
+    see #325
+ -- melkins <melkins@rpki.net>  Wed, 27 Feb 2013 22:47:00 -0000
+
+rpki (0.5083) UNRELEASED; urgency=low
+  * updated web portal html templates to use newer syntax for the {%
+    url %} tag
+ -- melkins <melkins@rpki.net>  Wed, 27 Feb 2013 22:19:19 -0000
+
+rpki (0.5082) UNRELEASED; urgency=low
+  * Automatic pull of documentation from Wiki.
+ -- docbot <docbot@rpki.net>  Tue, 26 Feb 2013 19:00:12 -0000
+
+rpki (0.5081) UNRELEASED; urgency=low
+  * add support for multiple users managing the same resource holder
+ -- melkins <melkins@rpki.net>  Tue, 26 Feb 2013 18:57:15 -0000
+
+rpki (0.5080) UNRELEASED; urgency=low
+  * Create publication directory.
+ -- sra <sra@rpki.net>  Tue, 26 Feb 2013 08:59:39 -0000
+
+rpki (0.5079) UNRELEASED; urgency=low
+  * Clean generated rpki.conf.sample.
+ -- sra <sra@rpki.net>  Tue, 26 Feb 2013 06:04:50 -0000
+
+rpki (0.5078) UNRELEASED; urgency=low
+  * Sigh, I guess it would be too simple if @sharedstatedir@ had
+    anything to do with /usr/share.  Apparently I really meant
+    @datarootdir@.
+ -- sra <sra@rpki.net>  Tue, 26 Feb 2013 04:22:28 -0000
+
+rpki (0.5077) UNRELEASED; urgency=low
+  * svn:ignore.
+ -- sra <sra@rpki.net>  Tue, 26 Feb 2013 04:09:24 -0000
+
+rpki (0.5076) UNRELEASED; urgency=low
+  * Make ${sharedstatedir}/rpki/publication the default location for
+    the publication tree.  Customize rpki.conf.sample to account for
+    sharedstatedir setting.
+ -- sra <sra@rpki.net>  Tue, 26 Feb 2013 03:49:58 -0000
+
+rpki (0.5075) UNRELEASED; urgency=low
+  * Need rpki.conf to start CA daemons.
+ -- sra <sra@rpki.net>  Tue, 26 Feb 2013 02:28:57 -0000
+
+rpki (0.5074) UNRELEASED; urgency=low
+  * Automatic pull of documentation from Wiki.
+ -- docbot <docbot@rpki.net>  Tue, 26 Feb 2013 02:00:20 -0000
+
+rpki (0.5073) UNRELEASED; urgency=low
+  * Make Django requirement consistent in doc and scripts: we now want
+    1.3.7 or later.
+ -- sra <sra@rpki.net>  Tue, 26 Feb 2013 01:20:37 -0000
+
+rpki (0.5072) UNRELEASED; urgency=low
+  * move repository client list to its own page
+
+    closes #424
+ -- melkins <melkins@rpki.net>  Mon, 25 Feb 2013 17:27:24 -0000
+
+rpki (0.5071) UNRELEASED; urgency=low
+  * Automatic pull of documentation from Wiki.
+ -- docbot <docbot@rpki.net>  Mon, 25 Feb 2013 09:00:51 -0000
+
+rpki (0.5069) UNRELEASED; urgency=low
+  * Automatic pull of documentation from Wiki.
+ -- docbot <docbot@rpki.net>  Mon, 25 Feb 2013 08:00:41 -0000
+
+rpki (0.5067) UNRELEASED; urgency=low
+  * Automatic pull of documentation from Wiki.
+ -- docbot <docbot@rpki.net>  Mon, 25 Feb 2013 07:00:29 -0000
+
+rpki (0.5065) UNRELEASED; urgency=low
+  * Merge platform-specific packaging changes back to trunk.  Closes
+    #377, #374, #395, #398.  Also see #373, which ended up not being
+    covered by this branch after all.
+ -- sra <sra@rpki.net>  Mon, 25 Feb 2013 03:58:36 -0000
+
 rpki (0.5059) UNRELEASED; urgency=low
   * Not using MANIFEST.in.
  -- sra <sra@rpki.net>  Sun, 24 Feb 2013 03:24:07 -0000
@@ -281,20 +534,13 @@ with open('debian/compat', "wb") as f:
 
 with open('debian/control', "wb") as f:
   f.write('''\
-# Dependencies on python-pip are a temporary hack, so that we can
-# install recent versions of django and south during Singapore
-# hackathon without messing about with setting up our own apt
-# repository.  In the longer run, the dependencies on python-pip
-# should go away, and we should dependencies on python-django and
-# python-south with the right version numbers.
-# 
-# Also see the pip install stuff in rpki-ca.postinst, which is part of
-# the same kludge.
+# python-django should be at least 1.3.7, but we don't support 1.5 yet (see #443), so for now ask for something lower than 1.5 and hope for the best.
 
 Source: rpki
+Section: net
 Priority: extra
 Maintainer: Rob Austein <sra@hactrn.net>
-Build-Depends: debhelper (>= 8.0.0), autotools-dev, xsltproc, python (>= 2.7), python-all-dev, python-setuptools, python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml
+Build-Depends: debhelper (>= 8.0.0), autotools-dev, xsltproc, python (>= 2.7), python-all-dev, python-setuptools, python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml, python-django (<< 1.5), python-django-south (>= 0.7.5)
 Standards-Version: 3.9.3
 Homepage: http://trac.rpki.net/
 Vcs-Svn: http://subvert-rpki.hactrn.net/
@@ -302,14 +548,14 @@ Vcs-Browser: http://trac.rpki.net/browser
 
 Package: rpki-rp
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python (>= 2.7), rrdtool, rsync, xinetd
+Depends: ${shlibs:Depends}, ${misc:Depends}, python (>= 2.7), rrdtool, rsync, xinetd, apache2
 Description: rpki.net relying party tools
  "Relying party" validation tools from the rpki.net toolkit.
  See the online documentation at http://rpki.net/.
 
 Package: rpki-ca
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, xsltproc, python (>= 2.7), python-pip, python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml
+Depends: ${shlibs:Depends}, ${misc:Depends}, xsltproc, python (>= 2.7), python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml, python-django (<< 1.5), python-django-south (>= 0.7.5), apache2
 Description: rpki.net certification authority tools
  "Certification authority" tools for issuing RPKI certificates and
  related objects using the rpki.net toolkit.
@@ -503,44 +749,6 @@ setup_rpkid_group() {
     fi
 }
 
-# This is kind of sick, but the versions of Django and and South that
-# ship with Ubuntu 12.04 LTS are too old, so we need to install from
-# PyPi if we can.  If the user has already done that, great, otherwise
-# we try to do it here.  Clearly this is not what we want in the long
-# run, but neither rae the OpenSSL library hacks.
-#
-# Basic approach here is copied from what we do in configure.ac.
-
-maybe_install_django() {
-    if python -c 'import sys, django; sys.exit(0 if django.VERSION < (1, 3, 7) else 1)' 2>/dev/null
-    then
-	echo 1>&2 "Unusable version of Django installed, please uninstall it then try again"
-	exit 1
-    fi
-
-    if  ! python -c 'import django' 2>/dev/null &&
-	! pip install django>=1.3.7 
-    then
-	echo 1>&2 "Unable to install usable version of Django, sorry"
-	exit 1
-    fi
-}
-
-maybe_install_south() {
-    if python -c 'import sys, south; sys.exit(0 if map(int,south.__version__.split(".")) < [0, 7, 6] else 1)' 2>/dev/null
-    then
-	echo 1>&2 "Unusable version of South installed, please uninstall it then try again"
-	exit 1
-    fi
-
-    if  ! python -c 'import south' 2>/dev/null &&
-	! pip install South>=0.7.6
-    then
-	echo 1>&2 "Unable to install usable version of Django, sorry"
-	exit 1
-    fi
-}
-
 # summary of how this script can be called:
 #        * <postinst> `configure' <most-recently-configured-version>
 #        * <old-postinst> `abort-upgrade' <new version>
@@ -558,8 +766,6 @@ case "$1" in
     configure)
 	setup_rpkid_group
 	setup_rpkid_user
-	maybe_install_django
-	maybe_install_south
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

@@ -555,7 +555,7 @@ Description: rpki.net relying party tools
 
 Package: rpki-ca
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, xsltproc, python (>= 2.7), python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml, python-django (<< 1.5), python-django-south (>= 0.7.5), apache2
+Depends: ${shlibs:Depends}, ${misc:Depends}, xsltproc, python (>= 2.7), python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml, python-django (<< 1.5), python-django-south (>= 0.7.5), apache2, libapache2-mod-wsgi
 Description: rpki.net certification authority tools
  "Certification authority" tools for issuing RPKI certificates and
  related objects using the rpki.net toolkit.
@@ -749,6 +749,10 @@ setup_rpkid_group() {
     fi
 }
 
+enable_mod_ssl() {
+    a2enmod ssl
+}
+
 # summary of how this script can be called:
 #        * <postinst> `configure' <most-recently-configured-version>
 #        * <old-postinst> `abort-upgrade' <new version>
@@ -766,6 +770,7 @@ case "$1" in
     configure)
 	setup_rpkid_group
 	setup_rpkid_user
+        enable_mod_ssl
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

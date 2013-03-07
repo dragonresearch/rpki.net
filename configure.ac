@@ -32,6 +32,7 @@ AC_ARG_ENABLE([ca_tools],		[AS_HELP_STRING([--disable-ca-tools],			  [Don't buil
 AC_ARG_ENABLE([rp_tools],		[AS_HELP_STRING([--disable-rp-tools],			  [Don't build any of the relying party tools])], [], [enable_rp_tools=yes])
 AC_ARG_ENABLE([target_installation],	[AS_HELP_STRING([--disable-target-installation],	  [Don't perform final target installation])],    [], [enable_target_installation=yes])
 AC_ARG_ENABLE([wsgi_daemon_mode],	[AS_HELP_STRING([--enable-wsgi-daemon-mode=user[:group]], [Run the web portal as a separate process])],   [], [enable_wsgi_daemon_mode=no])
+AC_ARG_ENABLE([python_install_layout],	[AS_HELP_STRING([--enable-python-install-layout=layout],  [Specify Python --install-layout])],		  [], [enable_python_install_layout=auto])
 
 AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rtr-origin; also controls jail location for --enable-rcynic-jail])
 
@@ -577,24 +578,42 @@ fi
 
 if test $build_ca_tools = yes
 then
-	AC_MSG_CHECKING([whether we need to tell distutils to use Debian installation layout])
-	use_debian_layout=no
+	AC_MSG_CHECKING([whether we need to tell distutils to use a particular installation layout])
+	looks_like_debian=no
 	if test -x /usr/bin/lsb_release
 	then
 		case `/usr/bin/lsb_release -is` in
 		Debian|Ubuntu)
-			use_debian_layout=yes
+			looks_like_debian=yes
 			;;
 		esac
 	fi
-	AC_MSG_RESULT([$use_debian_layout])
-	if test $use_debian_layout = yes
+	if test $looks_like_debian = yes
 	then
-		SETUP_PY_INSTALL_LAYOUT='--install-layout=deb'
+		install_layout="deb"
+	else
+		install_layout="unix"
+	fi
+	case $enable_python_install_layout in
+	yes|no)
+		use_install_layout=$enable_python_install_layout
+		;;
+	auto)
+		use_install_layout=$looks_like_debian
+		;;
+	*)
+		use_install_layout=yes
+		install_layout="$enable_python_install_layout"
+		;;
+	esac
+	if test $use_install_layout = yes
+	then
+		SETUP_PY_INSTALL_LAYOUT="--install-layout=$install_layout"
 	else
 		SETUP_PY_INSTALL_LAYOUT=''
 
 	fi
+	AC_MSG_RESULT([$use_install_layout $SETUP_PY_INSTALL_LAYOUT])
 	AC_SUBST(SETUP_PY_INSTALL_LAYOUT)
 fi
 

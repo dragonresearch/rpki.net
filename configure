@@ -708,6 +708,7 @@ enable_ca_tools
 enable_rp_tools
 enable_target_installation
 enable_wsgi_daemon_mode
+enable_python_install_layout
 enable_python
 enable_django
 enable_rpki_rtr
@@ -1345,6 +1346,8 @@ Optional Features:
                           Don't perform final target installation
   --enable-wsgi-daemon-mode=user:group
                           Run the web portal as a separate process
+  --enable-python-install-layout=layout
+                          Specify Python --install-layout
   --disable-python        (Obsolete, do not use)
   --disable-django        (Obsolete, do not use)
   --disable-rpki-rtr      (Obsolete, do not use)
@@ -2423,6 +2426,13 @@ if test "${enable_wsgi_daemon_mode+set}" = set; then :
   enableval=$enable_wsgi_daemon_mode;
 else
   enable_wsgi_daemon_mode=no
+fi
+
+# Check whether --enable-python_install_layout was given.
+if test "${enable_python_install_layout+set}" = set; then :
+  enableval=$enable_python_install_layout;
+else
+  enable_python_install_layout=auto
 fi
 
 
@@ -4910,26 +4920,44 @@ fi
 
 if test $build_ca_tools = yes
 then
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether we need to tell distutils to use Debian installation layout" >&5
-$as_echo_n "checking whether we need to tell distutils to use Debian installation layout... " >&6; }
-	use_debian_layout=no
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether we need to tell distutils to use a particular installation layout" >&5
+$as_echo_n "checking whether we need to tell distutils to use a particular installation layout... " >&6; }
+	looks_like_debian=no
 	if test -x /usr/bin/lsb_release
 	then
 		case `/usr/bin/lsb_release -is` in
 		Debian|Ubuntu)
-			use_debian_layout=yes
+			looks_like_debian=yes
 			;;
 		esac
 	fi
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $use_debian_layout" >&5
-$as_echo "$use_debian_layout" >&6; }
-	if test $use_debian_layout = yes
+	if test $looks_like_debian = yes
 	then
-		SETUP_PY_INSTALL_LAYOUT='--install-layout=deb'
+		install_layout="deb"
+	else
+		install_layout="unix"
+	fi
+	case $enable_python_install_layout in
+	yes|no)
+		use_install_layout=$enable_python_install_layout
+		;;
+	auto)
+		use_install_layout=$looks_like_debian
+		;;
+	*)
+		use_install_layout=yes
+		install_layout="$enable_python_install_layout"
+		;;
+	esac
+	if test $use_install_layout = yes
+	then
+		SETUP_PY_INSTALL_LAYOUT="--install-layout=$install_layout"
 	else
 		SETUP_PY_INSTALL_LAYOUT=''
 
 	fi
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $use_install_layout $SETUP_PY_INSTALL_LAYOUT" >&5
+$as_echo "$use_install_layout $SETUP_PY_INSTALL_LAYOUT" >&6; }
 
 fi
 

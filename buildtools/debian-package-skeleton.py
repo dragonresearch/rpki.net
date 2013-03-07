@@ -1033,7 +1033,7 @@ export DH_VERBOSE=1
 	dh $@ --with python2
 
 override_dh_auto_configure:
-	dh_auto_configure -- --disable-target-installation
+	dh_auto_configure -- --disable-target-installation --enable-python-install-layout=deb
 
 override_dh_auto_test:
 	@true

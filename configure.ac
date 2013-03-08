@@ -11,7 +11,14 @@ dnl AC_REVISION([$Revision$])
 
 AC_CONFIG_SRCDIR([rcynic/rcynic.c])
 AC_CONFIG_AUX_DIR([buildtools])
+
+# I'm not sure we should really be using the $host_* variables as we
+# are, some of the stuff we're doing with them looks more like
+# $target_* to me now, but on the theory that we should not fix things
+# that aren't broken, stick with $host_* for now.
+
 AC_CANONICAL_HOST
+dnl AC_CANONICAL_TARGET
 
 # Remember whether CFLAGS or LDFLAGS were set explictly.  This has to
 # come early in the script, before we mess it up testing things.
@@ -653,9 +660,9 @@ then
 	*)
 		if test $build_openssl_asm = yes
 		then
-			OPENSSL_CONFIG_COMMAND='./config'
+			OPENSSL_CONFIG_COMMAND="MACHINE=$host_cpu ./config"
 		else
-			OPENSSL_CONFIG_COMMAND='./config no-asm'
+			OPENSSL_CONFIG_COMMAND="MACHINE=$host_cpu ./config no-asm"
 		fi
 		;;
 	esac

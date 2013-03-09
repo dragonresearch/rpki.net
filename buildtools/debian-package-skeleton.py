@@ -598,7 +598,7 @@ Source: rpki
 Section: net
 Priority: extra
 Maintainer: Rob Austein <sra@hactrn.net>
-Build-Depends: debhelper (>= 8.0.0), autotools-dev, rsync, xsltproc, python (>= 2.7), python-all-dev, python-setuptools, python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml, python-django (<< 1.5), python-django-south (>= 0.7.5)
+Build-Depends: debhelper (>= 8.0.0), autotools-dev, rsync, rrdtool, xsltproc, python (>= 2.7), python-all-dev, python-setuptools, python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml, python-django (<< 1.5), python-django-south (>= 0.7.5)
 Standards-Version: 3.9.3
 Homepage: http://trac.rpki.net/
 Vcs-Svn: http://subvert-rpki.hactrn.net/

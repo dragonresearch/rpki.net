@@ -749,8 +749,53 @@ setup_rpkid_group() {
     fi
 }
 
-enable_mod_ssl() {
-    a2enmod ssl
+setup_apache() {
+    # edit existing file
+    f=/etc/apache2/sites-available/default-ssl
+    conf=/etc/rpki/apache.conf
+    cmd=no
+    if test "x$(grep -q "[^#]*Include $conf" $f)" = "x"
+    then
+        awk < $f > ${f}.tmp -v conf=$conf '
+	    $0 ~ /[^#]*<\/VirtualHost>/ { print "Include", conf }
+            { print }
+	'
+        if test ! -f ${f}.orig
+        then
+            ln $f ${f}.orig
+        fi
+        mv ${f}.tmp $f
+        cmd=reload
+    fi
+    if test ! -f /etc/apache2/sites-enabled/default-ssl
+    then
+        a2ensite default-ssl
+        cmd=reload
+    fi
+    if test ! -f /etc/apache2/mods-enabled/ssl.conf
+    then
+        a2enmod ssl
+        cmd=restart
+    fi
+    if test $cmd != no
+    then
+        service apache2 $cmd
+    fi
+}
+
+setup_django() {
+    # we can't perform automatic upgrade when rpki.conf isn't present
+    if test -f /etc/rpki.conf
+    then
+	rpki-manage syncdb
+	rpki-manage migrate app
+    fi
+}
+
+setup_cron() {
+    t=$(hexdump -n 1 -e '"%u"' /dev/urandom) && echo "$(($t % 60)) 0/2 * * * nobody /usr/share/rpki/routeviews.sh" > /etc/cron.d/rpkigui-routeviews
+    chmod 644 /etc/cron.d/rpkigui-routeviews
+    ln -sf /usr/sbin/rpkigui-check-expired /etc/cron.daily/rpkigui-check-expired
 }
 
 # summary of how this script can be called:
@@ -770,14 +815,16 @@ case "$1" in
     configure)
 	setup_rpkid_group
 	setup_rpkid_user
-        enable_mod_ssl
+	setup_apache
+	setup_django
+	setup_cron
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
     ;;
 
     *)
-        echo "postinst called with unknown argument \\`$1'" >&2
+        echo "postinst called with unknown argument \`$1'" >&2
         exit 1
     ;;
 esac

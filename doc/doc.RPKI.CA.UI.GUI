@@ -182,7 +182,7 @@ table for what they are about to create,
 
 Be sure you have curl installed. On FreeBSD it is in /usr/ports/ftp/curl
 
-Install a script such as the following as /usr/locl/bin/do-routeviews
+Install a script such as the following as /usr/local/sbin/do-routeviews
 
   #!/bin/sh
   # Fetch the full bgp dump from routeviews.org and update the web

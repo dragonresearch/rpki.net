@@ -8,6 +8,64 @@ os.makedirs('debian')
 
 with open('debian/changelog', "wb") as f:
   f.write('''\
+rpki (0.5126) UNRELEASED; urgency=low
+  * Michael's replacement rpki-ca.postinst, with minor changes.
+ -- sra <sra@rpki.net>  Sat, 09 Mar 2013 03:36:28 -0000
+
+rpki (0.5125) UNRELEASED; urgency=low
+  * rsync is a build dependency because ./configure says it is.
+ -- sra <sra@rpki.net>  Fri, 08 Mar 2013 21:29:17 -0000
+
+rpki (0.5124) UNRELEASED; urgency=low
+  * Whack OpenSSL configuration to pull its notion of the CPU from
+    autoconf rather than deducing this on its own, so that we can use
+    pbuilder and pbuilder-dist to build both 32-bit and 64-bit
+    packages on the same 64-bit Ubuntu machine.  See #423.
+ -- sra <sra@rpki.net>  Fri, 08 Mar 2013 04:32:55 -0000
+
+rpki (0.5123) UNRELEASED; urgency=low
+  * Add mod_wsgi, enable mod_ssl.
+ -- sra <sra@rpki.net>  Thu, 07 Mar 2013 20:03:55 -0000
+
+rpki (0.5122) UNRELEASED; urgency=low
+  * fix issue with automatically built config files
+ -- melkins <melkins@rpki.net>  Thu, 07 Mar 2013 19:44:56 -0000
+
+rpki (0.5121) UNRELEASED; urgency=low
+  * pbuilder doesn't provide enough clues for us to guess that we need
+    to use --install-layout=deb, so add ./configure option to force
+    it.
+ -- sra <sra@rpki.net>  Thu, 07 Mar 2013 19:31:47 -0000
+
+rpki (0.5120) UNRELEASED; urgency=low
+  * use --enable-target-install framework to add install-linux to the
+    install target for the web portal
+ -- melkins <melkins@rpki.net>  Thu, 07 Mar 2013 18:47:07 -0000
+
+rpki (0.5119) UNRELEASED; urgency=low
+  * move installation of most portal-gui scripts to setup.py (see
+    #373)
+
+    add script to be invoked by cron to download routeviews data
+
+    add install-linux target for creating cron jobs for some rpki gui
+    tasks
+ -- melkins <melkins@rpki.net>  Thu, 07 Mar 2013 18:33:41 -0000
+
+rpki (0.5118) UNRELEASED; urgency=low
+  * Add "Section: net" header to debian/control; fixes #449.  Make
+    both RPKI packages depend on apache2; fixes #445.  Get rid of "pip
+    install" hack and change back to proper depends on Django and
+    South to work properly with project APT repository; see #423.
+    mod_ssl ("a2enmod ssl") and mod_wsgi not handled yet, get those
+    tomorrow.
+ -- sra <sra@rpki.net>  Thu, 07 Mar 2013 07:20:35 -0000
+
+rpki (0.5117) UNRELEASED; urgency=low
+  * Relax South requirement to version 0.7.5, per Michael's testing.
+    Closes #450.
+ -- sra <sra@rpki.net>  Thu, 07 Mar 2013 07:04:27 -0000
+
 rpki (0.5116) UNRELEASED; urgency=low
   * Automatic pull of documentation from Wiki.
  -- docbot <docbot@rpki.net>  Thu, 07 Mar 2013 02:00:11 -0000
@@ -757,7 +815,7 @@ setup_apache() {
     if test "x$(grep -q "[^#]*Include $conf" $f)" = "x"
     then
         awk < $f > ${f}.tmp -v conf=$conf '
-	    $0 ~ /[^#]*<\/VirtualHost>/ { print "Include", conf }
+	    $0 ~ /[^#]*<\\/VirtualHost>/ { print "Include", conf }
             { print }
 	'
         if test ! -f ${f}.orig
@@ -824,7 +882,7 @@ case "$1" in
     ;;
 
     *)
-        echo "postinst called with unknown argument \`$1'" >&2
+        echo "postinst called with unknown argument \\`$1'" >&2
         exit 1
     ;;
 esac

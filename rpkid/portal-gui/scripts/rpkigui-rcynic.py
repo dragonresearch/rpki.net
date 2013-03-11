@@ -27,7 +27,7 @@ if __name__ == '__main__':
     import optparse
 
     parser = optparse.OptionParser()
-    parser.add_option("-l", "--level", dest="log_level", default='INFO',
+    parser.add_option("-l", "--level", dest="log_level", default='WARNING',
                       help="specify the logging level [default: %default]")
     parser.add_option(
         "-f", "--file", dest="logfile",

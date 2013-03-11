@@ -32,7 +32,7 @@ input file is a bzip2 compressed file, it will be decompressed
 automatically.""")
     parser.add_option('-t', '--type', dest='filetype', metavar='TYPE',
                       help='Specify the input file type (auto, text, mrt) [Default: %default]')
-    parser.add_option('-l', '--level', dest='log_level', default='INFO',
+    parser.add_option('-l', '--level', dest='log_level', default='WARNING',
                       help='Set logging level [Default: %default]')
     parser.add_option('-u', '--bunzip2', dest='bunzip', metavar='PROG',
                       help='Specify bunzip2 program to use')

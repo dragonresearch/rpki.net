@@ -33,7 +33,7 @@ parser.add_option('-f', '--from', metavar='ADDRESS', dest='from_email',
                   help='specify the return email address for notifications')
 parser.add_option('-t', '--expire-time', dest='expire_days', metavar='DAYS',
                   help='specify the number of days in the future to check')
-parser.add_option('-l', '--level', dest='log_level', default='INFO',
+parser.add_option('-l', '--level', dest='log_level', default='WARNING',
                   help='Set logging level [Default: %default]')
 (options, args) = parser.parse_args()
 if options.version:

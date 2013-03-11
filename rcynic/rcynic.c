@@ -230,6 +230,7 @@ static const struct {
   QB(cms_signer_missing,		"CMS signer missing")		    \
   QB(cms_ski_mismatch,			"CMS SKI mismatch")		    \
   QB(cms_validation_failure,		"CMS validation failure")	    \
+  QB(crl_issuer_name_mismatch,		"CRL issuer name mismatch")	\
   QB(crl_not_in_manifest,               "CRL not listed in manifest")	    \
   QB(crl_not_yet_valid,			"CRL not yet valid")		    \
   QB(crl_number_extension_missing,	"CRL number extension missing")	    \
@@ -3266,6 +3267,11 @@ static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
 
   if (X509_CRL_get_ext_count(crl) != 2) {
     log_validation_status(rc, uri, disallowed_x509v3_extension, generation);
+    goto punt;
+  }
+
+  if (X509_NAME_cmp(X509_CRL_get_issuer(crl), X509_get_subject_name(issuer))) {
+    log_validation_status(rc, uri, crl_issuer_name_mismatch, generation);
     goto punt;
   }
 

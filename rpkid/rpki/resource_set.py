@@ -687,6 +687,8 @@ class resource_bag(object):
     temporary: in the long run, we should be using rpki.POW.IPAddress
     rather than long here.
     """
+    if any(x == 'inherit' for x in resources):
+        raise rpki.exceptions.NotImplementedYet('The RFC3779 "inherit" element is not supported')
     asn = [resource_range_as(r[0], r[1])   for r in resources[0] or ()]
     v4  = [resource_range_ipv4(r[0], r[1]) for r in resources[1] or ()]
     v6  = [resource_range_ipv6(r[0], r[1]) for r in resources[2] or ()]

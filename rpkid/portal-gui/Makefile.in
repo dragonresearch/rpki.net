@@ -60,7 +60,7 @@ install-always:
 	${INSTALL} -m 644 $(srcdir)/../rpki/gui/app/static/img/* $(INSTDIR)/media/img
 
 install-linux:
-	t=$$(hexdump -n 1 -e '"%u"' /dev/urandom) && echo "$$(($$t % 60)) */2 * * * nobody ${datarootdir}/rpki/routeviews.sh" > ${DESTDIR}/etc/cron.d/rpkigui-routeviews
+	(echo PATH=/bin:/usr/bin:/usr/local/bin:/usr/local/sbin && t=$$(hexdump -n 1 -e '"%u"' /dev/urandom) && echo "$$(($$t % 60)) */2 * * * nobody ${datarootdir}/rpki/routeviews.sh") > ${DESTDIR}/etc/cron.d/rpkigui-routeviews
 	chmod 644 ${DESTDIR}/etc/cron.d/rpkigui-routeviews
 	ln -sf ${DESTDIR}${sbindir}/rpkigui-check-expired /etc/cron.daily/rpkigui-check-expired
 

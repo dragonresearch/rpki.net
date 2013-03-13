@@ -83,3 +83,9 @@ if ac_rcynic_html_dir and os.path.exists(os.path.dirname(ac_rcynic_html_dir)):
   run(bin("rcynic-html"), rcy("data/rcynic.xml"), ac_rcynic_html_dir)
 
 run(bin("rtr-origin"), "--cronjob", rcy("data/authenticated"), cwd = rcy("rpki-rtr"))
+
+try:
+  import rpki.gui.cacheview.util 
+  rpki.gui.cacheview.util.import_rcynic_xml()
+except ImportError:
+  pass

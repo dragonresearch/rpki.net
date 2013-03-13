@@ -2,6 +2,18 @@
 Ensure that a web login exists for labuser* resource holder
 """
 
+import os
+import sys
+
+# if the environment is not already set up, look in the default places
+if not os.getenv("DJANGO_SETTINGS_MODULE"):
+    os.environ["DJANGO_SETTINGS_MODULE"] = 'settings'
+    for d in ('/etc/rpki', '/usr/local/etc/rpki'):
+        if os.path.exists(os.path.join(d, 'settings.py')):
+            print 'found settings.py in ' + d
+            sys.path.insert(1, d)
+            break
+
 from django.contrib.auth.models import User
 from rpki.gui.app.models import Conf, ConfACL
 

@@ -28,6 +28,13 @@ Allow from all
 Alias /media/ @INSTDIR@/media/
 Alias /site_media/ @INSTDIR@/media/
 
+<Directory @RCYNIC_HTML_DIR@>
+Order deny,allow
+Allow from all
+</Directory>
+Alias /rcynic/ @RCYNIC_HTML_DIR@/
+
+
 # redirect to the dashboard when someone hits the bare vhost
 RedirectMatch ^/$ /rpki/
 

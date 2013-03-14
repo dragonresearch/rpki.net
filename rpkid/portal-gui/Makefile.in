@@ -20,6 +20,7 @@ INSTALL = @INSTALL@
 WSGI_DAEMON_PROCESS=@WSGI_DAEMON_PROCESS@
 WSGI_PROCESS_GROUP=@WSGI_PROCESS_GROUP@
 GUI_INSTALL_TARGETS=@GUI_INSTALL_TARGETS@
+RCYNIC_HTML_DIR=@RCYNIC_HTML_DIR@
 
 INSTDIR=${DESTDIR}$(datarootdir)/rpki
 SYSCONFDIR=${DESTDIR}${sysconfdir}/rpki
@@ -39,7 +40,8 @@ distclean: clean
 edit = sed \
 	     -e 's|@INSTDIR[@]|$(INSTDIR)|g' \
 	     -e 's|@WSGI_DAEMON_PROCESS[@]|$(WSGI_DAEMON_PROCESS)|' \
-	     -e 's|@WSGI_PROCESS_GROUP[@]|$(WSGI_PROCESS_GROUP)|'
+	     -e 's|@WSGI_PROCESS_GROUP[@]|$(WSGI_PROCESS_GROUP)|' \
+	     -e 's|@RCYNIC_HTML_DIR[@]|$(RCYNIC_HTML_DIR)|'
 
 apache.conf: $(srcdir)/apache.conf.in Makefile
 	$(edit) $@.in > $@

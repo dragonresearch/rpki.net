@@ -24,6 +24,7 @@ import subprocess
 import urlparse
 import errno
 import glob
+import shutil
 
 try:
   url = sys.argv[1]

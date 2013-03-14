@@ -1,0 +1,29 @@
+#!/bin/sh -
+
+case $2 in
+
+DEINSTALL)
+    echo "Whacking rcynic's crontab"
+    /usr/bin/crontab -l -u rcynic 2>/dev/null |
+    /usr/bin/awk '
+	$0 !~ "exec /usr/local/bin/rcynic-cron" {
+	    line[++n] = $0;
+	}
+	END {
+	    if (n)
+		for (i = 1; i <= n; i++)
+		    print line[i] | "/usr/bin/crontab -u rcynic -";
+	    else
+		system("/usr/bin/crontab -u rcynic -r");
+	}'
+    ;;
+
+POST-DEINSTALL)
+    ;;
+
+*)
+    echo "No clue what this script is meant to do when invoked with arguments \"$*\".  Punting."
+    exit 1
+    ;;
+
+esac

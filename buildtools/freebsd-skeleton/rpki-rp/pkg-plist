@@ -1,0 +1,39 @@
+bin/find_roa
+bin/hashdir
+bin/print_roa
+bin/print_rpki_manifest
+bin/rcynic
+bin/rcynic-cron
+bin/rcynic-html
+bin/rcynic-svn
+bin/rcynic-text
+bin/rtr-origin
+bin/scan_roas
+bin/validation_status
+@unexec if cmp -s %D/etc/rcynic.conf.sample %D/etc/rcynic.conf; then rm -f %D/etc/rcynic.conf; fi
+etc/rcynic.conf.sample
+@exec if [ ! -f  %D/etc/rcynic.conf ] ; then cp -p %D/%F %D/etc/rcynic.conf; fi
+etc/rpki/trust-anchors/afrinic.tal
+etc/rpki/trust-anchors/altCA.tal
+etc/rpki/trust-anchors/apnic-rpki-root-afrinic-origin.tal
+etc/rpki/trust-anchors/apnic-rpki-root-arin-origin.tal
+etc/rpki/trust-anchors/apnic-rpki-root-iana-origin.tal
+etc/rpki/trust-anchors/apnic-rpki-root-lacnic-origin.tal
+etc/rpki/trust-anchors/apnic-rpki-root-ripe-origin.tal
+etc/rpki/trust-anchors/jpnic.tal
+etc/rpki/trust-anchors/lacnic.tal
+etc/rpki/trust-anchors/ripe-ncc-root.tal
+etc/rpki/trust-anchors/ripe-pilot.tal
+etc/rpki/trust-anchors/rpki.net-testbed.tal
+etc/rpki/trust-anchors/testbed-apnicrpki.tal
+@dirrm etc/rpki/trust-anchors
+@dirrmtry etc/rpki
+@dirrm www/apache22/data/rcynic
+@cwd /
+@exec install -d -o root   -g wheel  %D/var/rcynic
+@exec install -d -o rcynic -g rcynic %D/var/rcynic/data
+@dirrm var/rcynic/data
+@exec install -d -o rcynic -g rcynic %D/var/rcynic/rpki-rtr
+@dirrm var/rcynic/rpki-rtr/sockets
+@dirrm var/rcynic/rpki-rtr
+@dirrm var/rcynic

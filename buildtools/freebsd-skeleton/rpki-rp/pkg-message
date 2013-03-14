@@ -1,0 +1,10 @@
+You may want to customize /usr/local/etc/rcynic.conf.  If you did not
+install your own trust anchors, a default set of SAMPLE trust anchors
+may have been installed for you, but you, the relying party, are the
+only one who can decide whether you trust those anchors.  rcynic will
+not do anything useful without good trust anchors.
+
+rcynic-cron has been configured to run hourly, at a randomly selected
+minute, to spread load on the global RPKI repository servers.  Please
+do NOT adjust this to run on the hour.  In particular please do NOT
+adjust this to run at midnight UTC.

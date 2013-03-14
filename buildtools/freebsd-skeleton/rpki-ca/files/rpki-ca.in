@@ -1,0 +1,47 @@
+#!/bin/sh
+
+# PROVIDE: rpki-ca
+# REQUIRE: LOGIN mysql
+# KEYWORD: shutdown
+#
+# Add the following line to /etc/rc.conf[.local] to enable whatever
+# RPKI CA services you have configured in rpki.conf
+#
+# rpkica_enable="YES"
+
+. /etc/rc.subr
+
+name="rpkica"
+rcvar=rpkica_enable
+
+required_files="/usr/local/etc/rpki.conf"
+
+start_cmd="rpkica_start"
+stop_cmd="rpkica_stop"
+
+load_rc_config $name
+
+: ${rpkica_enable="NO"}
+
+: ${rpkica_pid_dir="/var/run/rpki"}
+
+rpkica_start()
+{
+	/usr/bin/install -m 755 -d $rpkica_pid_dir
+	/usr/local/sbin/rpki-start-servers
+	return 0
+}
+
+rpkica_stop()
+{
+	for i in rpkid pubd irdbd rootd
+	do
+		if /bin/test -f $rpkica_pid_dir/$i.pid
+		then
+			/bin/kill `/bin/cat $rpkica_pid_dir/$i.pid`
+		fi
+	done
+	return 0
+}
+
+run_rc_command "$1"

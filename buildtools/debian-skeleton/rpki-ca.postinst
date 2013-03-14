@@ -24,7 +24,7 @@ setup_apache() {
     f=/etc/apache2/sites-available/default-ssl
     conf=/etc/rpki/apache.conf
     cmd=no
-    if test "x$(grep -q "[^#]*Include $conf" $f)" = "x"
+    if test "$(grep "[^#]*Include $conf" $f 2>/dev/null)" = ""
     then
         awk < $f > ${f}.tmp -v conf=$conf '
 	    $0 ~ /[^#]*<\/VirtualHost>/ { print "Include", conf }

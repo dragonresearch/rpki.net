@@ -68,11 +68,6 @@ for port in ("rpi-rp", "rpki-ca"):
   with open(fn, "w") as f:
     f.write(template % formatdict)
 
-  fn = os.path.join(portsdir, port, "pkg-plist")
-  if not os.path.exists(fn):
-    with open(fn, "w") as f:
-      pass
-
 subprocess.check_call(("make", "makesum", "DISTDIR=" + portsdir), cwd = base_rp)
 subprocess.check_call(("make", "makesum", "DISTDIR=" + portsdir), cwd = base_ca)
 

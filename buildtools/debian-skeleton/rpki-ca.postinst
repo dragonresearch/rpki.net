@@ -63,7 +63,7 @@ setup_django() {
 }
 
 setup_cron() {
-    t=$(hexdump -n 1 -e '"%u"' /dev/urandom) && echo "$(($t % 60)) 0/2 * * * nobody /usr/share/rpki/routeviews.sh" > /etc/cron.d/rpkigui-routeviews
+    t=$(hexdump -n 1 -e '"%u"' /dev/urandom) && echo "$(($t % 60)) */2 * * * nobody /usr/share/rpki/routeviews.sh" > /etc/cron.d/rpkigui-routeviews
     chmod 644 /etc/cron.d/rpkigui-routeviews
     ln -sf /usr/sbin/rpkigui-check-expired /etc/cron.daily/rpkigui-check-expired
 }

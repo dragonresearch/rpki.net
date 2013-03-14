@@ -1,5 +1,6 @@
 """
-Construct FreeBSD ports templates given the URL of a source tarball.
+Construct FreeBSD ports templates given the name of a Subversion
+working directory.
 
 $Id$
 
@@ -21,150 +22,65 @@ PERFORMANCE OF THIS SOFTWARE.
 import sys
 import os
 import subprocess
-import urlparse
 import errno
 import glob
 import shutil
 
 try:
-  url = sys.argv[1]
+  svndir = sys.argv[1]
 except IndexError:
-  sys.exit("Usage: %s URL-of-source-tarball" % sys.argv[0])
+  sys.exit("Usage: %s subversion-working-directory" % sys.argv[0])
 
-def stripext(fn, *exts):
-  fn1, fn2 = os.path.splitext(fn)
-  return fn1 if fn2 in exts else fn
+if not os.path.isdir(svndir):
+  sys.exit("Usage: %s subversion-working-directory" % sys.argv[0])
 
-def mkdir_maybe(d):
-  try:
-    print "Creating", d
-    os.makedirs(d)
-  except OSError, e:
-    if e.errno != errno.EEXIST:
-      raise
+svnversion = subprocess.check_output(("svnversion", "-c", svndir)).strip().split(":")[-1]
 
-name = os.path.basename(urlparse.urlparse(url).path)
-name = stripext(name, ".gz", ".bz2", ".xz")
-name = stripext(name, ".tar", ".tgz", ".tbz", ".txz")
+if not svnversion.isdigit():
+  sys.exit("Sources don't look pristine, not building (%r)" % svnversion)
 
-try:
-  base, branch, vers = name.split("-")
-except:
-  base, branch, vers = None
-
-if base != "rpki":
-  base = None
+branch  = os.path.basename(svndir.rstrip(os.path.sep))
 
 if branch != "trunk" and (branch[:2] != "tk" or not branch[2:].isdigit()):
-  branch = None
+  sys.exit("Could not parse branch from working directory name, not building (%r)" % branch)
 
-if not vers.isdigit() and (base != "rpki" or vers[0] != "r" or not vers[1:].isdigit()):
-  vers = None
-else:
-  vers = vers[1:]
+version = "0." + svnversion
+tarball = "rpki-%s-r%d.tar.xz" % (branch, svnversion)
+url     = "http://download.rpki.net/" + tarball
 
-if None in (base, branch, vers):
-  sys.exit("Unexpected tarball URL name format")
+portsdir = os.path.abspath("freebsd-ports")
 
-base_rp = base + "-rp"
-base_ca = base + "-ca"
+if os.path.isdir(portsdir):
+  shutil.rmtree(portsdir)
 
-mkdir_maybe(base_rp)
-mkdir_maybe(base_ca)
+shutil.copytree(os.path.join(svndir, "buildtools", "freebsd-skeleton"), portsdir)
 
-with open(os.path.join(base_rp, "Makefile"), "w") as f:
-  print "Writing", f.name
+base_rp = os.path.join(portsdir, "rpki-rp")
+base_ca = os.path.join(portsdir, "rpki-ca")
 
-  f.write('''\
-PORTNAME=	%(portname)s
-PORTVERSION=	0.%(snapshot)s
-CATEGORIES=	net
-MASTER_SITES=	%(master_sites)s
-DISTFILES=	%(distfiles)s
-WRKSRC=         ${WRKDIR}/%(tarname)s
-MAINTAINER=	sra@hactrn.net
-COMMENT=	rpki.net RPKI relying party tools
+formatdict = { "SVNVERSION" : svnversion }
 
-GNU_CONFIGURE=  yes
-USE_PYTHON=	2.7+
-USE_GNOME=      libxml2 libxslt
+for port in ("rpi-rp", "rpki-ca"):
 
-# For OpenSSL, not needed otherwise
-USE_PERL5_BUILD=yes
+  fn = os.path.join(portsdir, port, "Makefile")
+  with open(fn, "r") as f:
+    template = f.read()
+  with open(fn, "w") as f:
+    f.write(template % formatdict)
 
-# For building OpenSSL, not needed otherwise
-BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
+  fn = os.path.join(portsdir, port, "pkg-plist")
+  if not os.path.exists(fn):
+    with open(fn, "w") as f:
+      pass
 
-# Needed at build to keep ./configure from complaining;
-# needed at runtime for rcynic to do anything useful.
-BUILD_DEPENDS+= rsync>0:${PORTSDIR}/net/rsync
-RUN_DEPENDS+=   rsync>0:${PORTSDIR}/net/rsync
-
-# For rcynic-html
-RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
-
-# Just want relying party tools, try to use system OpenSSL if we can.
-
-CONFIGURE_ARGS= --disable-ca-tools
-CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
-
-# rcynic's Makefile constructs an rcynic.conf for us if it doesn't
-# find one already installed.  This turns out to be exactly what
-# FreeBSD's rules want us to install as rcynic.conf.sample, so we
-# shuffle things around a bit just before and just after installation
-# to make this all come out right.
-# 
-# If I ever teach rcynic to construct a .conf.sample file per the
-# FreeBSD way of doing things, this will need to change to match.
-
-pre-install:
-	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} PRE-INSTALL
-	@if [ -f ${PREFIX}/etc/rcynic.conf ]; then \
-		${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.real ; \
-	fi
-
-post-install:
-	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} POST-INSTALL
-	@if [ -f ${PREFIX}/etc/rcynic.conf.real ]; then \
-		${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample ; \
-		${MV} -f ${PREFIX}/etc/rcynic.conf.real ${PREFIX}/etc/rcynic.conf ; \
-	else \
-		${CP} -p ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample ; \
-	fi
-
-.include <bsd.port.mk>
-''' % { "portname"      : base_rp,
-        "snapshot"      : vers,
-        "tarname"       : name,
-        "master_sites"  : os.path.dirname(url) + "/",
-        "distfiles"     : os.path.basename(url) })
-
-with open(os.path.join(base_rp, "pkg-descr"), "w") as f:
-  print "Writing", f.name
-
-  f.write('''\
-This is a port of the rpki.net RPKI toolkit relying party tools.
-
-WWW: http://rpki.net/
-''')
-
-with open(os.path.join(base_rp, "pkg-plist"), "w") as f:
-
-  print "Writing empty", f.name
-
-print "Generating checksum"
-
-subprocess.check_call(("make", "makesum", "DISTDIR=" + os.getcwd()), cwd = base_rp)
-
-print "Extracting list of trust anchors"
+subprocess.check_call(("make", "makesum", "DISTDIR=" + portsdir), cwd = base_rp)
+subprocess.check_call(("make", "makesum", "DISTDIR=" + portsdir), cwd = base_ca)
 
 trust_anchors = [os.path.basename(fn)
-                 for fn in subprocess.check_output(("tar", "tf", os.path.basename(url))).splitlines()
+                 for fn in subprocess.check_output(("tar", "tf", os.path.join(portsdir, tarball))).splitlines()
                  if "/rcynic/sample-trust-anchors/" in fn and fn.endswith(".tal")]
 
 with open(os.path.join(base_rp, "pkg-plist"), "w") as f:
-
-  print "Writing", f.name
 
   f.write('''\
 bin/find_roa
@@ -201,298 +117,17 @@ etc/rcynic.conf.sample
 @dirrm var/rcynic
 ''')
 
-# 90% of this is $top/rcynic/installation-scripts/freebsd/install.sh.
-# Somehow or another this duplication needs to go away, but priority
-# for today is a working package.
-
-with open(os.path.join(base_rp, "pkg-install"), "w") as f:
-
-  print "Writing", f.name
-
-  f.write('''\
-#!/bin/sh -
-
-case $2 in
-
-PRE-INSTALL)
-    if /usr/sbin/pw groupshow "rcynic" 2>/dev/null; then
-        echo "You already have a group \\"rcynic\\", so I will use it."
-    elif /usr/sbin/pw groupadd rcynic; then
-        echo "Added group \\"rcynic\\"."
-    else
-        echo "Adding group \\"rcynic\\" failed..."
-        echo "Please create it, then try again."
-        exit 1
-    fi
-    if /usr/sbin/pw usershow "rcynic" 2>/dev/null; then
-        echo "You already have a user \\"rcynic\\", so I will use it."
-    elif /usr/sbin/pw useradd rcynic -g rcynic -h - -d /nonexistant -s /usr/sbin/nologin -c "RPKI validation system"; then
-        echo "Added user \\"rcynic\\"."
-    else
-        echo "Adding user \\"rcynic\\" failed..."
-        echo "Please create it, then try again."
-        exit 1
-    fi
-    ;;
-
-POST-INSTALL)
-    htmldir=/usr/local/www/apache22/data/rcynic
-    if ! test -d $htmldir ; then
-        echo "Creating $htmldir"
-        install -o rcynic -g rcynic -d $htmldir
-    fi
-    sockdir=/var/rcynic/rpki-rtr/sockets
-    if ! test -d $sockdir ; then
-        echo "Creating $sockdir"
-        install -o nobody -g rcynic -d $sockdir
-    fi
-    echo "Setting up rcynic's crontab to run rcynic-cron script"
-    /usr/bin/crontab -l -u rcynic 2>/dev/null |
-    /usr/bin/awk -v t=`hexdump -n 2 -e '"%u\\n"' /dev/random` '
-        BEGIN {
-	    cmd = "exec /usr/local/bin/rcynic-cron";
-	}
-	$0 !~ cmd {
-	    print;
-	}
-	END {
-	    printf "%u * * * *\\t%s\\n", t % 60, cmd;
-	}' |
-    /usr/bin/crontab -u rcynic -
-    echo "Setting up rpki-rtr listener under inetd"
-    if /usr/bin/egrep -q '^rpki-rtr' /etc/services ; then
-        echo "You already have a /etc/services entry for rpki-rtr, so I will use it."
-    elif echo >>/etc/services "rpki-rtr	43779/tcp  #RFC 6810" ; then
-        echo "Added rpki-rtr to /etc/services."
-    else
-        echo "Adding rpki-rtr to /etc/services failed, please fix this, then try again."
-        exit 1
-    fi
-    if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp[ 	]" /etc/inetd.conf; then
-        echo "You already have an inetd.conf entry for rpki-rtr on TCPv4, so I will use it."
-    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"; then
-        echo "Added rpki-rtr for TCPv4 to /etc/inetd.conf."
-    else
-        echo "Adding rpki-rtr for TCPv4 to /etc/inetd.conf failed, please fix this, then try again."
-        exit 1
-    fi
-    if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp6[ 	]" /etc/inetd.conf; then
-        echo "You already have an inetd.conf entry for rpki-rtr on TCPv6, so I will use it."
-    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp6	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"; then
-        echo "Added rpki-rtr for TCPv6 to /etc/inetd.conf."
-    else
-        echo "Adding rpki-rtr for TCPv6 to /etc/inetd.conf failed, please fix this, then try again."
-        exit 1
-    fi
-    ;;
-
-*)
-    echo "No clue what this script is meant to do when invoked with arguments \\"$*\\".  Punting."
-    exit 1
-    ;;
-
-esac
-''')
-
-with open(os.path.join(base_rp, "pkg-deinstall"), "w") as f:
-
-  print "Writing", f.name
-
-  f.write('''\
-#!/bin/sh -
-
-case $2 in
-
-DEINSTALL)
-    echo "Whacking rcynic's crontab"
-    /usr/bin/crontab -l -u rcynic 2>/dev/null |
-    /usr/bin/awk '
-	$0 !~ "exec /usr/local/bin/rcynic-cron" {
-	    line[++n] = $0;
-	}
-	END {
-	    if (n)
-		for (i = 1; i <= n; i++)
-		    print line[i] | "/usr/bin/crontab -u rcynic -";
-	    else
-		system("/usr/bin/crontab -u rcynic -r");
-	}'
-    ;;
-
-POST-DEINSTALL)
-    ;;
-
-*)
-    echo "No clue what this script is meant to do when invoked with arguments \\"$*\\".  Punting."
-    exit 1
-    ;;
-
-esac
-''')
-
-with open(os.path.join(base_rp, "pkg-message"), "w") as f:
-
-  print "Writing", f.name
-
-  f.write('''\
-You may want to customize /usr/local/etc/rcynic.conf.  If you did not
-install your own trust anchors, a default set of SAMPLE trust anchors
-may have been installed for you, but you, the relying party, are the
-only one who can decide whether you trust those anchors.  rcynic will
-not do anything useful without good trust anchors.
-
-rcynic-cron has been configured to run hourly, at a randomly selected
-minute, to spread load on the global RPKI repository servers.  Please
-do NOT adjust this to run on the hour.  In particular please do NOT
-adjust this to run at midnight UTC.
-''')
-
-with open(os.path.join(base_ca, "Makefile"), "w") as f:
-  print "Writing", f.name
-
-  f.write('''\
-PORTNAME=	%(portname)s
-PORTVERSION=	0.%(snapshot)s
-CATEGORIES=	net
-MASTER_SITES=	%(master_sites)s
-DISTFILES=	%(distfiles)s
-WRKSRC=         ${WRKDIR}/%(tarname)s
-MAINTAINER=	sra@hactrn.net
-COMMENT=	rpki.net RPKI CA tools
-
-GNU_CONFIGURE=  yes
-USE_PYTHON=	2.7+
-USE_GNOME=      libxml2 libxslt
-USE_MYSQL=      server
-USE_APACHE_RUN= 22+
-
-USE_RC_SUBR=	rpki-ca
-
-# For OpenSSL, not needed otherwise
-USE_PERL5_BUILD=yes
-
-# For building OpenSSL, not needed otherwise
-BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
-
-# Needed at build to keep ./configure from complaining.
-BUILD_DEPENDS+= rsync>0:${PORTSDIR}/net/rsync
-
-RPKID_DEPENDS=	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \\
-                ${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb       \\
-                ${PYTHON_PKGNAMEPREFIX}django>=1.3.7:${PORTSDIR}/www/py-django          \\
-                ${PYTHON_PKGNAMEPREFIX}vobject>0:${PORTSDIR}/deskutils/py-vobject       \\
-                ${PYTHON_PKGNAMEPREFIX}yaml>0:${PORTSDIR}/devel/py-yaml                 \\
-                ${PYTHON_PKGNAMEPREFIX}south>=0.7.6:${PORTSDIR}/databases/py-south
-
-BUILD_DEPENDS+=	${RPKID_DEPENDS}
-RUN_DEPENDS+=	${RPKID_DEPENDS}
-
-RUN_DEPENDS+=	${APACHE_PKGNAMEPREFIX}mod_wsgi>3:${PORTSDIR}/www/mod_wsgi3
-
-# Try to use system OpenSSL if we can.
-CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
-
-CONFIGURE_ARGS= --disable-target-installation --disable-rp-tools
-
-.include <bsd.port.mk>
-''' % { "portname"      : base_ca,
-        "snapshot"      : vers,
-        "tarname"       : name,
-        "master_sites"  : os.path.dirname(url) + "/",
-        "distfiles"     : os.path.basename(url) })
-
-with open(os.path.join(base_ca, "pkg-descr"), "w") as f:
-  print "Writing", f.name
-
-  f.write('''\
-This is a port of the rpki.net RPKI toolkit CA tools.
-
-WWW: http://rpki.net/
-''')
-
-mkdir_maybe(os.path.join(base_ca, "files"))
-
-with open(os.path.join(base_ca, "files", "rpki-ca.in"), "w") as f:
-  print "Writing", f.name
-
-  f.write('''\
-#!/bin/sh
-
-# PROVIDE: rpki-ca
-# REQUIRE: LOGIN mysql
-# KEYWORD: shutdown
-#
-# Add the following line to /etc/rc.conf[.local] to enable whatever
-# RPKI CA services you have configured in rpki.conf
-#
-# rpkica_enable="YES"
-
-. /etc/rc.subr
-
-name="rpkica"
-rcvar=rpkica_enable
-
-required_files="/usr/local/etc/rpki.conf"
-
-start_cmd="rpkica_start"
-stop_cmd="rpkica_stop"
-
-load_rc_config $name
-
-: ${rpkica_enable="NO"}
-
-: ${rpkica_pid_dir="/var/run/rpki"}
-
-rpkica_start()
-{
-	/usr/bin/install -m 755 -d $rpkica_pid_dir
-	/usr/local/sbin/rpki-start-servers
-	return 0
-}
-
-rpkica_stop()
-{
-	for i in rpkid pubd irdbd rootd
-	do
-		if /bin/test -f $rpkica_pid_dir/$i.pid
-		then
-			/bin/kill `/bin/cat $rpkica_pid_dir/$i.pid`
-		fi
-	done
-	return 0
-}
-
-run_rc_command "$1"
-''')
-
-
-#with open(os.path.join(base_ca, "pkg-plist"), "w") as f:
-#  print "Writing empty", f.name
-
-print "Generating checksum"
-
-subprocess.check_call(("make", "makesum", "DISTDIR=" + os.getcwd()), cwd = base_ca)
-
-# We will need a pkg-install and perhaps a pkg-deinstall, but I don't
-# know what they look like (yet).
-
-print "Building"
-
 # "USE_GNOME=" gets rid of annoying whining due to empty or
 # non-existent pkg-plist.  The (direct) Gnome dependency doesn't
 # matter while constructing the port skeleton, so it's simplest just
 # to disable it for this one command.
 
-subprocess.check_call(("make", "DISTDIR=" + os.getcwd(), "USE_GNOME="), cwd = base_ca)
-
-print "Installing to temporary tree"
+subprocess.check_call(("make", "DISTDIR=" + portsdir, "USE_GNOME="), cwd = base_ca)
 
 tempdir = os.path.join(base_ca, "work", "temp-install", "")
 
 subprocess.check_call(("make", "install", "DESTDIR=" + os.path.abspath(tempdir)),
                       cwd = os.path.join(base_ca, "work", name))
-
-print "Generating pkg-plist"
 
 with open(os.path.join(base_ca, "pkg-plist"), "w") as f:
 
@@ -526,6 +161,8 @@ with open(os.path.join(base_ca, "pkg-plist"), "w") as f:
     if dn and dn not in dont_remove:
       f.write("@dirrm %s\n" % dn)
 
-print "Cleaning up"
-
 subprocess.check_call(("make", "clean"), cwd = base_ca)
+
+print
+print "And finally, we should tar up the generated ports and clean up."
+print

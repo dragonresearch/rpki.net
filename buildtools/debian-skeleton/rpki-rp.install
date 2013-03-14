@@ -1,0 +1,5 @@
+etc/rcynic.conf
+etc/rpki/trust-anchors
+etc/xinetd.d/rpki-rtr
+usr/bin
+var/rcynic

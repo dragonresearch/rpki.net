@@ -1,0 +1,26 @@
+# python-django should be at least 1.3.7, but we don't support 1.5 yet (see #443), so for now ask for something lower than 1.5 and hope for the best.
+
+Source: rpki
+Section: net
+Priority: extra
+Maintainer: Rob Austein <sra@hactrn.net>
+Build-Depends: debhelper (>= 8.0.0), autotools-dev, rsync, rrdtool, xsltproc, python (>= 2.7), python-all-dev, python-setuptools, python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml, python-django (<< 1.5), python-django-south (>= 0.7.5)
+Standards-Version: 3.9.3
+Homepage: http://trac.rpki.net/
+Vcs-Svn: http://subvert-rpki.hactrn.net/
+Vcs-Browser: http://trac.rpki.net/browser
+
+Package: rpki-rp
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, python (>= 2.7), rrdtool, rsync, xinetd, apache2
+Description: rpki.net relying party tools
+ "Relying party" validation tools from the rpki.net toolkit.
+ See the online documentation at http://rpki.net/.
+
+Package: rpki-ca
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, xsltproc, python (>= 2.7), python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml, python-django (<< 1.5), python-django-south (>= 0.7.5), apache2, libapache2-mod-wsgi
+Description: rpki.net certification authority tools
+ "Certification authority" tools for issuing RPKI certificates and
+ related objects using the rpki.net toolkit.
+ See the online documentation at http://rpki.net/.

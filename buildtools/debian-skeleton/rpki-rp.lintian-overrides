@@ -1,0 +1,22 @@
+# The RPKI code requires a copy of the OpenSSL library with both the
+# CMS code and RFC 3779 code enabled.  All recent versions of OpenSSL
+# include this code, but it's not enabled on all platforms.  On Ubuntu
+# 12.04 LTS, the RFC 3779 code is disabled.  So we take the least bad
+# of our several bad options, and carefully link against a private
+# copy of the OpenSSL crypto library built with the options we need,
+# with all the voodoo necessary to avoid conflicts with, eg, the
+# OpenSSL shared libraries that are already linked into Python.
+#
+# It would be totally awesome if the OpenSSL package maintainers were
+# to enable the RFC 3779 code for us, but I'm not holding my breath.
+#
+# In the meantime, we need to tell lintian to allow this nasty hack.
+
+rpki-rp: embedded-library
+
+# /var/rcynic is where we have been keeping this for years.  We could change
+# but all the documentation says /var/rcynic.  Maybe some day we will
+# figure out a politically correct place to put this, for now stick
+# with what the documentation leads the user to expect.
+
+rpki-rp: non-standard-dir-in-var

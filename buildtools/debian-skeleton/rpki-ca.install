@@ -1,0 +1,6 @@
+etc/rpki.conf.sample
+etc/rpki/apache.conf
+etc/rpki/settings.py
+usr/lib
+usr/sbin
+usr/share

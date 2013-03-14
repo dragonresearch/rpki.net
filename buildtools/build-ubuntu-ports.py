@@ -13,11 +13,7 @@ import shutil
 import sys
 import os
 
-version = subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1]
-
-#if not version.isdigit(): sys.exit("Sources don't look pristine, not building (%r)" % version)
-
-version = "0." + version
+version = "0." + subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1]
 
 shutil.copytree("buildtools/debian-skeleton", "debian")
 
@@ -27,4 +23,4 @@ subprocess.check_call(("dch", "--create", "--package", "rpki", "--newversion",  
                                  EDITOR   = "true",
                                  VISUAL   = "true",
                                  TZ       = "UTC",
-                                 DEBEMAIL = "Rob Austein <sra@rpki.net>"))
+                                 DEBEMAIL = "APT Builder Robot <aptbot@rpki.net>"))

@@ -45,7 +45,8 @@ if branch != "trunk" and (branch[:2] != "tk" or not branch[2:].isdigit()):
   sys.exit("Could not parse branch from working directory name, not building (%r)" % branch)
 
 version = "0." + svnversion
-tarball = "rpki-%s-r%d.tar.xz" % (branch, svnversion)
+tarname = "rpki-%s-r%s" % (branch, svnversion)
+tarball = tarname + ".tar.xz"
 url     = "http://download.rpki.net/" + tarball
 
 portsdir = os.path.abspath("freebsd-ports")
@@ -60,7 +61,7 @@ base_ca = os.path.join(portsdir, "rpki-ca")
 
 formatdict = { "SVNVERSION" : svnversion }
 
-for port in ("rpi-rp", "rpki-ca"):
+for port in ("rpki-rp", "rpki-ca"):
 
   fn = os.path.join(portsdir, port, "Makefile")
   with open(fn, "r") as f:
@@ -122,7 +123,7 @@ subprocess.check_call(("make", "DISTDIR=" + portsdir, "USE_GNOME="), cwd = base_
 tempdir = os.path.join(base_ca, "work", "temp-install", "")
 
 subprocess.check_call(("make", "install", "DESTDIR=" + os.path.abspath(tempdir)),
-                      cwd = os.path.join(base_ca, "work", name))
+                      cwd = os.path.join(base_ca, "work", tarname))
 
 with open(os.path.join(base_ca, "pkg-plist"), "w") as f:
 
@@ -158,6 +159,5 @@ with open(os.path.join(base_ca, "pkg-plist"), "w") as f:
 
 subprocess.check_call(("make", "clean"), cwd = base_ca)
 
-print
-print "And finally, we should tar up the generated ports and clean up."
-print
+for port in ("rpki-rp", "rpki-ca"):
+  subprocess.check_call(("tar", "czf", "%s-port.tgz" % port, port), cwd = portsdir)

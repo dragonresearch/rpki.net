@@ -59,7 +59,8 @@ shutil.copytree(os.path.join(svndir, "buildtools", "freebsd-skeleton"), portsdir
 base_rp = os.path.join(portsdir, "rpki-rp")
 base_ca = os.path.join(portsdir, "rpki-ca")
 
-formatdict = { "SVNVERSION" : svnversion }
+formatdict = dict(SVNVERSION = svnversion,
+                  SVNBRANCH  = branch)
 
 for port in ("rpki-rp", "rpki-ca"):
 

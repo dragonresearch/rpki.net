@@ -2,8 +2,8 @@ PORTNAME=	rpki-ca
 PORTVERSION=	0.%(SVNVERSION)s
 CATEGORIES=	net
 MASTER_SITES=	http://download.rpki.net/
-DISTFILES=	rpki-trunk-r%(SVNVERSION)s.tar.xz
-WRKSRC=         ${WRKDIR}/rpki-trunk-r%(SVNVERSION)s
+DISTFILES=	rpki-%(SVNBRANCH)s-r%(SVNVERSION)s.tar.xz
+WRKSRC=         ${WRKDIR}/rpki-%(SVNBRANCH)s-r%(SVNVERSION)s
 MAINTAINER=	sra@hactrn.net
 COMMENT=	rpki.net RPKI CA tools
 

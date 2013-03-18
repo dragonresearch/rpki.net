@@ -365,7 +365,7 @@ class main(rpki.cli.Cmd):
       print "No such client \"%s\"" % arg
 
   def complete_delete_publication_client(self, *args):
-    return self.irdb_handle_complete(self.zoo.resource_ca.clients, *args)
+    return self.irdb_handle_complete(self.zoo.server_ca.clients, *args)
 
 
   def do_configure_repository(self, arg):

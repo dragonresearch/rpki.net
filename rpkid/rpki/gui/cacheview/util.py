@@ -52,26 +52,40 @@ def rcynic_cert(cert, obj):
     obj.asns.clear()
     obj.addresses.clear()
 
-    for asr in cert.resources.asn:
-        logger.debug('processing %s' % asr)
+    if cert.resources.asn.inherit:
+        # FIXME: what happens when the parent's resources change and the child
+        # cert is not reissued?
+        obj.asns.add(*obj.issuer.asns.all())
+    else:
+        for asr in cert.resources.asn:
+            logger.debug('processing %s' % asr)
 
-        attrs = {'min': asr.min, 'max': asr.max}
-        q = models.ASRange.objects.filter(**attrs)
-        if not q:
-            obj.asns.create(**attrs)
-        else:
-            obj.asns.add(q[0])
-
-    for cls, addr_obj, addrset in (models.AddressRange, obj.addresses, cert.resources.v4), (models.AddressRangeV6, obj.addresses_v6, cert.resources.v6):
-        for rng in addrset:
-            logger.debug('processing %s' % rng)
-
-            attrs = {'prefix_min': rng.min, 'prefix_max': rng.max}
-            q = cls.objects.filter(**attrs)
+            attrs = {'min': asr.min, 'max': asr.max}
+            q = models.ASRange.objects.filter(**attrs)
             if not q:
-                addr_obj.create(**attrs)
+                obj.asns.create(**attrs)
             else:
-                addr_obj.add(q[0])
+                obj.asns.add(q[0])
+
+    for cls, addr_obj, addrset, parentset in (
+        models.AddressRange, obj.addresses, cert.resources.v4,
+        obj.issuer.addresses
+    ), (
+        models.AddressRangeV6, obj.addresses_v6, cert.resources.v6,
+        obj.issuer.addresses_v6
+    ):
+        if addrset.inherit:
+            addr_obj.add(*parentset.all())
+        else:
+            for rng in addrset:
+                logger.debug('processing %s' % rng)
+
+                attrs = {'prefix_min': rng.min, 'prefix_max': rng.max}
+                q = cls.objects.filter(**attrs)
+                if not q:
+                    addr_obj.create(**attrs)
+                else:
+                    addr_obj.add(q[0])
 
 
 def rcynic_roa(roa, obj):

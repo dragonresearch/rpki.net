@@ -329,7 +329,7 @@ class resource_set(list):
     """
     Whack this resource_set into canonical form.
     """
-    assert not self.inherit or not self
+    assert not self.inherit or len(self) == 0
     if not self.canonical:
       self.sort()
       i = 0
@@ -512,9 +512,23 @@ class resource_set(list):
   def __gt__(self, other):
     return not self.issubset(other)
 
-  __eq__ = list.__eq__
+  def __ne__(self, other):
+    """
+    A set with the inherit bit set is always unequal to any other set, because
+    we can't know the answer here.  This is also consistent with __nonzero__
+    which returns True for inherit sets, and False for empty sets.
+    """
+    return self.inherit or other.inherit or list.__ne__(self, other)
 
-  __ne__ = list.__ne__
+  def __eq__(self, other):
+    return not self.__ne__(other)
+
+  def __nonzero__(self):
+    """
+    Tests whether or not this set is empty.  Note that sets with the inherit
+    bit set are considered non-empty, despite having zero length.
+    """
+    return self.inherit or len(self)
 
   @classmethod
   def from_sql(cls, sql, query, args = None):

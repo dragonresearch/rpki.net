@@ -370,7 +370,14 @@ case $host_os in
 		RCYNIC_HTML_DIR='/usr/local/www/apache22/data/rcynic'
 		;;
 	linux*)
-		RCYNIC_HTML_DIR='/var/www/rcynic'
+		if test -d /var/www/html
+		then
+			# RHEL/CentOS
+			RCYNIC_HTML_DIR='/var/www/html/rcynic'
+		else
+			# Ubuntu
+			RCYNIC_HTML_DIR='/var/www/rcynic'
+		fi
 		;;
 	*)
 		RCYNIC_HTML_DIR=''

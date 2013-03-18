@@ -135,10 +135,6 @@ AC_PATH_PROG([SORT], [sort])
 AC_PATH_PROG([RRDTOOL], [rrdtool])
 AC_PATH_PROG([TRANG], [trang], [\${abs_top_srcdir}/buildtools/trang-not-found])
 AC_PATH_PROG([RSYNC], [rsync])
-AC_PATH_PROG([SU], [su])
-AC_PATH_PROG([SUDO], [sudo])
-AC_PATH_PROG([CHROOT], [chroot])
-AC_PATH_PROG([CHROOTUID], [chrootuid])
 
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:

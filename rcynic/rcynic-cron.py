@@ -27,49 +27,68 @@ PERFORMANCE OF THIS SOFTWARE.
 # external programs.  I don't have time to write and debug that today,
 # but it might well be simpler and more portable.
 
-import subprocess
-import sys
-import fcntl
 import os
+import sys
 import pwd
+import fcntl
 import errno
+import getopt
+
+def usage(result):
+  f = sys.stderr if result else sys.stdout
+  f.write("Usage: %s [--chroot] [--help]\n" % sys.argv[0])
+  sys.exit(result)
+
+def run(*cmd, **kwargs):
+  chroot_this = kwargs.pop("chroot_this", False)
+  cwd = kwargs.pop("cwd", None)
+  pid = os.fork()
+  if pid == 0:
+    if chroot_this:
+      os.chdir(ac_rcynic_dir)
+    elif cwd is not None:
+      os.chdir(cwd)
+    if we_are_root:
+      os.initgroups(pw.pw_uid, pw.pw_gid)
+    if chroot_this:
+      os.chroot(ac_rcynic_dir)
+    if we_are_root:
+      os.setgid(pw.pw_gid)
+      os.setuid(pw.pw_uid)
+    os.closerange(3, os.sysconf("SC_OPEN_MAX"))
+    os.execvp(cmd[0], cmd)
+    os._exit(1)
+  else:
+    status = os.waitpid(pid, 0)[1]
+    if status != 0:
+      sys.exit("Program %s exited with status %s" % (" ".join(cmd), status))
+
+want_chroot = False
+
+opts, argv = getopt.getopt(sys.argv[1:], "h?", ["chroot", "help"])
+for o, a in opts:
+  if o in ("-?", "-h", "--help"):
+    usage(0)
+  elif o =="--chroot":
+    want_chroot = True
+
+if argv:
+  usage("Unexpected arguments: %r" % (argv,))
 
 we_are_root = os.getuid() == 0
 
-beastie = sys.platform.startswith("freebsd") or sys.platform.startswith("darwin")
+if want_chroot and not we_are_root:
+  usage("Only root can --chroot")
 
-def bin(name, chroot = False):
-  return os.path.join("/bin" if chroot and we_are_root else ac_bindir, name)
-
-def etc(name, chroot = False):
-  return os.path.join("/etc" if chroot and we_are_root else ac_sysconfdir, name)
-
-def rcy(name):
-  return os.path.join(ac_rcynic_dir, name)
-
-def run(*cmd, **kwargs):
-  chroot = kwargs.pop("chroot", False) and we_are_root
-  if we_are_root:
-    if chroot and beastie:
-      cmd = (ac_chroot, "-u", ac_rcynic_user, "-g", ac_rcynic_group, ac_rcynic_dir) + cmd
-    elif chroot and not beastie:
-      cmd = (ac_chrootuid, ac_rcynic_dir, ac_rcynic_user) + cmd
-    elif not chroot and beastie:
-      cmd = (ac_su, "-m", ac_rcynic_user, "-c", " ".join(cmd))
-    elif not chroot and not beastie:
-      cmd = (ac_sudo, "-u", ac_rcynic_user) + cmd
-    else:
-      raise RuntimeError("How the frell did I get here?")
-  try:
-    subprocess.check_call(cmd, **kwargs)
-  except subprocess.CalledProcessError, e:
-    sys.exit(str(e))
+try:
+  pw = pwd.getpwnam(ac_rcynic_user)
+except KeyError:
+  sys.exit("Could not find passwd entry for user %s" % ac_rcynic_user)
 
 try:
   lock = os.open(os.path.join(ac_rcynic_dir, "data/lock"), os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
   fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
   if we_are_root:
-    pw = pwd.getpwnam(ac_rcynic_user)
     os.fchown(lock, pw.pw_uid, pw.pw_gid)
 except (IOError, OSError), e:
   if e.errno == errno.EAGAIN:
@@ -77,12 +96,20 @@ except (IOError, OSError), e:
   else:
     sys.exit("Error %r opening lock %r" % (e.strerror, os.path.join(ac_rcynic_dir, "data/lock")))
 
-run(bin("rcynic", chroot = True), "-c", etc("rcynic.conf", chroot = True), chroot = True)
+if want_chroot:
+  run("/bin/rcynic", "-c", "/etc/rcynic.conf", chroot_this = True)
+else:
+  run(os.path.join(ac_bindir, "rcynic"), "-c", os.path.join(ac_sysconfdir, "rcynic.conf"))
 
 if ac_rcynic_html_dir and os.path.exists(os.path.dirname(ac_rcynic_html_dir)):
-  run(bin("rcynic-html"), rcy("data/rcynic.xml"), ac_rcynic_html_dir)
+  run(os.path.join(ac_bindir, "rcynic-html"),
+      os.path.join(ac_rcynic_dir, "data/rcynic.xml"),
+      ac_rcynic_html_dir)
 
-run(bin("rtr-origin"), "--cronjob", rcy("data/authenticated"), cwd = rcy("rpki-rtr"))
+run(os.path.join(ac_bindir, "rtr-origin"),
+    "--cronjob", 
+    os.path.join(ac_rcynic_dir, "data/authenticated"),
+    cwd = os.path.join(ac_rcynic_dir, "rpki-rtr"))
 
 try:
   import rpki.gui.cacheview.util 

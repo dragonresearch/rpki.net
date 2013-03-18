@@ -19,7 +19,7 @@ Description: rpki.net relying party tools
 
 Package: rpki-ca
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, xsltproc, python (>= 2.7), python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml, python-django (<< 1.5), python-django-south (>= 0.7.5), apache2, libapache2-mod-wsgi
+Depends: ${shlibs:Depends}, ${misc:Depends}, rpki-rp (= ${binary:Version}), xsltproc, python (>= 2.7), python-lxml, libxml2-utils, mysql-client, mysql-server, python-mysqldb, python-vobject, python-yaml, python-django (<< 1.5), python-django-south (>= 0.7.5), apache2, libapache2-mod-wsgi
 Description: rpki.net certification authority tools
  "Certification authority" tools for issuing RPKI certificates and
  related objects using the rpki.net toolkit.

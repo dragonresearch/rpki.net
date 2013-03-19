@@ -604,7 +604,6 @@ LIBOBJS
 WSGI_PROCESS_GROUP
 WSGI_DAEMON_PROCESS
 DJANGO_ADMIN
-DJANGO_DIR
 SECRET_KEY
 VIRTUAL_ENV
 OPENSSL_SO_GLOB
@@ -4904,9 +4903,6 @@ $as_echo "no" >&6; }
 
         # Source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
         SECRET_KEY=`$PYTHON -c 'import random; print "".join(random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50))'`
-
-
-	DJANGO_DIR=`$PYTHON -c 'import os,sys; print [os.path.join(p, "django") for p in sys.path if os.path.exists(os.path.join(p, "django"))][0]'`
 
 
         # There is no standard name for this tool, so check for it.

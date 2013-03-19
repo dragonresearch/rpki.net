@@ -67,15 +67,17 @@ def rcynic_cert(cert, obj):
             else:
                 obj.asns.add(q[0])
 
+    # obj.issuer is None the first time we process the root cert in the
+    # hierarchy, so we need to guard against dereference
     for cls, addr_obj, addrset, parentset in (
         models.AddressRange, obj.addresses, cert.resources.v4,
-        obj.issuer.addresses
+        obj.issuer.addresses.all() if obj.issuer else []
     ), (
         models.AddressRangeV6, obj.addresses_v6, cert.resources.v6,
-        obj.issuer.addresses_v6
+        obj.issuer.addresses_v6.all() if obj.issuer else []
     ):
         if addrset.inherit:
-            addr_obj.add(*parentset.all())
+            addr_obj.add(*parentset)
         else:
             for rng in addrset:
                 logger.debug('processing %s' % rng)

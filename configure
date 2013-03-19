@@ -624,10 +624,6 @@ RCYNIC_BIN_RCYNIC
 RCYNIC_TA_DIR
 RCYNIC_CONF_FILE
 RCYNIC_JAIL_DIRS
-CHROOTUID
-CHROOT
-SUDO
-SU
 RSYNC
 TRANG
 RRDTOOL
@@ -4199,166 +4195,6 @@ $as_echo "no" >&6; }
 fi
 
 
-# Extract the first word of "su", so it can be a program name with args.
-set dummy su; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_path_SU+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  case $SU in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_SU="$SU" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_SU="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-  ;;
-esac
-fi
-SU=$ac_cv_path_SU
-if test -n "$SU"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $SU" >&5
-$as_echo "$SU" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-# Extract the first word of "sudo", so it can be a program name with args.
-set dummy sudo; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_path_SUDO+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  case $SUDO in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_SUDO="$SUDO" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_SUDO="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-  ;;
-esac
-fi
-SUDO=$ac_cv_path_SUDO
-if test -n "$SUDO"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $SUDO" >&5
-$as_echo "$SUDO" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-# Extract the first word of "chroot", so it can be a program name with args.
-set dummy chroot; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_path_CHROOT+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  case $CHROOT in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_CHROOT="$CHROOT" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_CHROOT="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-  ;;
-esac
-fi
-CHROOT=$ac_cv_path_CHROOT
-if test -n "$CHROOT"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $CHROOT" >&5
-$as_echo "$CHROOT" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-# Extract the first word of "chrootuid", so it can be a program name with args.
-set dummy chrootuid; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_path_CHROOTUID+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  case $CHROOTUID in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_CHROOTUID="$CHROOTUID" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_CHROOTUID="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-  ;;
-esac
-fi
-CHROOTUID=$ac_cv_path_CHROOTUID
-if test -n "$CHROOTUID"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $CHROOTUID" >&5
-$as_echo "$CHROOTUID" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
 
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:
@@ -4672,7 +4508,14 @@ case $host_os in
 		RCYNIC_HTML_DIR='/usr/local/www/apache22/data/rcynic'
 		;;
 	linux*)
-		RCYNIC_HTML_DIR='/var/www/rcynic'
+		if test -d /var/www/html
+		then
+			# RHEL/CentOS
+			RCYNIC_HTML_DIR='/var/www/html/rcynic'
+		else
+			# Ubuntu
+			RCYNIC_HTML_DIR='/var/www/rcynic'
+		fi
 		;;
 	*)
 		RCYNIC_HTML_DIR=''

@@ -610,7 +610,6 @@ OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 TOP_LEVEL_SUBDIRS
 SETUP_PY_INSTALL_LAYOUT
-GUI_INSTALL_TARGETS
 RTR_ORIGIN_INSTALL_TARGETS
 RCYNIC_INSTALL_TARGETS
 RCYNIC_HTML_DIR
@@ -4528,7 +4527,6 @@ esac
 
 RCYNIC_INSTALL_TARGETS='install-always'
 RTR_ORIGIN_INSTALL_TARGETS='install-always'
-GUI_INSTALL_TARGETS='install-always'
 
 if test $use_rcynic_jail = yes
 then
@@ -4539,15 +4537,7 @@ if test $enable_target_installation = yes
 then
 	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-postconf"
 	RTR_ORIGIN_INSTALL_TARGETS="$RTR_ORIGIN_INSTALL_TARGETS install-postconf"
-
-	case $host_os in
-		linux*)
-			GUI_INSTALL_TARGETS="$GUI_INSTALL_TARGETS install-linux"
-			;;
-	esac
-
 fi
-
 
 
 

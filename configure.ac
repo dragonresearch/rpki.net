@@ -387,7 +387,6 @@ AC_SUBST(RCYNIC_HTML_DIR)
 
 RCYNIC_INSTALL_TARGETS='install-always'
 RTR_ORIGIN_INSTALL_TARGETS='install-always'
-GUI_INSTALL_TARGETS='install-always'
 
 if test $use_rcynic_jail = yes
 then
@@ -398,18 +397,10 @@ if test $enable_target_installation = yes
 then
 	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-postconf"
 	RTR_ORIGIN_INSTALL_TARGETS="$RTR_ORIGIN_INSTALL_TARGETS install-postconf"
-
-	case $host_os in
-		linux*)
-			GUI_INSTALL_TARGETS="$GUI_INSTALL_TARGETS install-linux"
-			;;
-	esac
-	    
 fi
 
 AC_SUBST(RCYNIC_INSTALL_TARGETS)
 AC_SUBST(RTR_ORIGIN_INSTALL_TARGETS)
-AC_SUBST(GUI_INSTALL_TARGETS)
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If

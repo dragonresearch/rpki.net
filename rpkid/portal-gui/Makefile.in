@@ -14,16 +14,13 @@ sharedstatedir=@sharedstatedir@
 bindir=@bindir@
 sbindir=@sbindir@
 libexecdir=@libexecdir@
-sysconfdir=@sysconfdir@
 
 INSTALL = @INSTALL@
 WSGI_DAEMON_PROCESS=@WSGI_DAEMON_PROCESS@
 WSGI_PROCESS_GROUP=@WSGI_PROCESS_GROUP@
-GUI_INSTALL_TARGETS=@GUI_INSTALL_TARGETS@
 RCYNIC_HTML_DIR=@RCYNIC_HTML_DIR@
 
 INSTDIR=${DESTDIR}$(datarootdir)/rpki
-SYSCONFDIR=${DESTDIR}${sysconfdir}/rpki
 
 # automatically built sources
 BUILD=apache.conf
@@ -46,9 +43,7 @@ edit = sed \
 apache.conf: $(srcdir)/apache.conf.in Makefile
 	$(edit) $@.in > $@
 
-install: all $(GUI_INSTALL_TARGETS)
-
-install-always:
+install: all
 	if test -d $(INSTDIR)/wsgi; then :; else ${INSTALL} -d $(INSTDIR)/wsgi; fi
 	if test -d $(INSTDIR)/media; then :; else ${INSTALL} -d $(INSTDIR)/media; fi
 	if test -d $(INSTDIR)/media/css; then :; else ${INSTALL} -d $(INSTDIR)/media/css; fi
@@ -61,16 +56,8 @@ install-always:
 	${INSTALL} -m 644 $(srcdir)/../rpki/gui/app/static/js/*  $(INSTDIR)/media/js
 	${INSTALL} -m 644 $(srcdir)/../rpki/gui/app/static/img/* $(INSTDIR)/media/img
 
-install-linux:
-	(echo PATH=/bin:/usr/bin:/usr/local/bin:/usr/local/sbin && t=$$(hexdump -n 1 -e '"%u"' /dev/urandom) && echo "$$(($$t % 60)) */2 * * * nobody ${datarootdir}/rpki/routeviews.sh") > ${DESTDIR}/etc/cron.d/rpkigui-routeviews
-	chmod 644 ${DESTDIR}/etc/cron.d/rpkigui-routeviews
-	ln -sf ${DESTDIR}${sbindir}/rpkigui-check-expired /etc/cron.daily/rpkigui-check-expired
-
 deinstall uninstall:
 	rm -rf $(INSTDIR)/media $(INSTDIR)/wsgi
-
-deinstall-linux:
-	rm -f /etc/cron.d/rpkigui-routeviews /etc/cron.daily/rpkigui-check-expired
 
 test:
 	@true

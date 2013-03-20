@@ -49,7 +49,7 @@ def run(*cmd, **kwargs):
     elif cwd is not None:
       os.chdir(cwd)
     if we_are_root:
-      os.initgroups(pw.pw_uid, pw.pw_gid)
+      os.initgroups(pw.pw_name, pw.pw_gid)
     if chroot_this:
       os.chroot(ac_rcynic_dir)
     if we_are_root:

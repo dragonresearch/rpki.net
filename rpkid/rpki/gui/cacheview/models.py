@@ -177,6 +177,13 @@ class ROAPrefixV4(ROAPrefix, rpki.gui.models.PrefixV4):
 
     roa_cls = rpki.resource_set.roa_prefix_ipv4
 
+    @property
+    def routes(self):
+        """return all routes covered by this roa prefix"""
+        return RouteOrigin.objects.filter(
+            prefix_min__lte=self.prefix_max,
+            prefix_max__gte=self.prefix_min)
+
     class Meta:
         ordering = ('prefix_min',)
 
@@ -227,3 +234,6 @@ class Ghostbuster(SignedObject):
         if self.email_address:
             return self.email_address
         return self.telephone
+
+
+from rpki.gui.routeview.models import RouteOrigin

@@ -13,7 +13,7 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-__version__ = '$Id'
+__version__ = '$Id$'
 
 from django.db.models import PositiveIntegerField
 import rpki.gui.models
@@ -27,6 +27,33 @@ class RouteOrigin(rpki.gui.models.PrefixV4):
     def __unicode__(self):
         return u"AS%d's route origin for %s" % (self.asn,
                                                 self.get_prefix_display())
+
+    @property
+    def roas(self):
+        "Return a queryset of ROAs which cover this route."
+        return cacheview.models.ROA.objects.filter(
+            prefixes__prefix_min__lte=self.prefix_min,
+            prefixes__prefix_max__gte=self.prefix_max
+        )
+
+    @property
+    def roa_prefixes(self):
+        "Return a queryset of ROA prefixes which cover this route."
+        return cacheview.models.ROAPrefixV4.objects.filter(
+            prefix_min__lte=self.prefix_min,
+            prefix_max__gte=self.prefix_max
+        )
+
+    @property
+    def status(self):
+        "Returns the validation status of this route origin object."
+        roas = self.roas
+        # subselect exact match
+        if self.asn != 0 and roas.filter(asid=self.asn, prefixes__max_length__gte=self.prefixlen).exists():
+            return 'valid'
+        elif roas.exists():
+            return 'invalid'
+        return 'unknown'
 
     class Meta:
         # sort by increasing mask length (/16 before /24)
@@ -44,3 +71,7 @@ class RouteOriginV6(rpki.gui.models.PrefixV6):
 
     class Meta:
         ordering = ('prefix_min', '-prefix_max')
+
+
+# this goes at the end of the file to avoid problems with circular imports
+from rpki.gui import cacheview

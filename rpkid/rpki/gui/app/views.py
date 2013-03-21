@@ -34,15 +34,17 @@ from django.contrib.auth.models import User
 from django.views.generic import DetailView
 from django.core.paginator import Paginator
 from django.forms.formsets import formset_factory, BaseFormSet
+import django.db.models
+from django.contrib import messages
 
-from rpki.irdb import Zookeeper, ChildASN, ChildNet
+from rpki.irdb import Zookeeper, ChildASN, ChildNet, ROARequestPrefix
 from rpki.gui.app import models, forms, glue, range_list
 from rpki.resource_set import (resource_range_as, resource_range_ip,
                                roa_prefix_ipv4)
 from rpki import sundial
 import rpki.exceptions
 
-from rpki.gui.cacheview.models import ROAPrefixV4, ROA
+from rpki.gui.cacheview.models import ROA
 from rpki.gui.routeview.models import RouteOrigin
 from rpki.gui.decorators import tls_required
 
@@ -448,44 +450,46 @@ def child_delete(request, pk):
 def roa_detail(request, pk):
     conf = request.session['handle']
     obj = get_object_or_404(conf.roas, pk=pk)
-    pfx = obj.prefixes.all()[0].as_resource_range()
-    routes = RouteOrigin.objects.filter(prefix_min__gte=pfx.min,
-                                        prefix_max__lte=pfx.max)
-    return render(request, 'app/roa_detail.html', {
-        'object': obj,
-        'routes': routes,
-    })
+    return render(request, 'app/roa_detail.html', {'object': obj})
 
 
 def get_covered_routes(rng, max_prefixlen, asn):
-    """find list of matching routes"""
+    """Returns a list of routeview.models.RouteOrigin objects which would
+    change validation status if a ROA were created with the parameters to this
+    function.
 
+    A "newstatus" attribute is monkey-patched on the RouteOrigin objects which
+    can be used in the template.  "status" remains the current validation
+    status of the object.
+
+    """
+
+    qs = RouteOrigin.objects.filter(
+        prefix_min__lte=rng.max,
+        prefix_max__gte=rng.min
+    )
     routes = []
-    match = roa_match(rng)
-    for route, roas in match:
-        validate_route(route, roas)
+    for route in qs:
+        status = route.status
         # tweak the validation status due to the presence of the
         # new ROA.  Don't need to check the prefix bounds here
         # because all the matches routes will be covered by this
         # new ROA
-        if route.status == 'unknown':
+        if status == 'unknown':
             # if the route was previously unknown (no covering
             # ROAs), then:
-                # if the AS matches, it is valid, otherwise invalid
-                if (route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen):
-                    route.status = 'valid'
-                    route.status_label = 'label-success'
-                else:
-                    route.status = 'invalid'
-                    route.status_label = 'label-important'
-        elif route.status == 'invalid':
+            # if the AS matches, it is valid, otherwise invalid
+            if (route.asn != 0 and route.asn == asn and route.prefixlen <= max_prefixlen):
+                route.newstatus = 'valid'
+            else:
+                route.newstatus = 'invalid'
+            routes.append(route)
+        elif status == 'invalid':
             # if the route was previously invalid, but this new ROA
             # matches the ASN, it is now valid
-            if route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen:
-                route.status = 'valid'
-                route.status_label = 'label-success'
-
-        routes.append(route)
+            if route.asn != 0 and route.asn == asn and route.prefixlen <= max_prefixlen:
+                route.newstatus = 'valid'
+                routes.append(route)
 
     return routes
 
@@ -507,33 +511,6 @@ def roa_create(request):
             rng = form._as_resource_range()  # FIXME calling "private" method
             max_prefixlen = int(form.cleaned_data.get('max_prefixlen'))
 
-#            # find list of matching routes
-#            routes = []
-#            match = roa_match(rng)
-#            for route, roas in match:
-#                validate_route(route, roas)
-#                # tweak the validation status due to the presence of the
-#                # new ROA.  Don't need to check the prefix bounds here
-#                # because all the matches routes will be covered by this
-#                # new ROA
-#                if route.status == 'unknown':
-#                    # if the route was previously unknown (no covering
-#                    # ROAs), then:
-#                    # if the AS matches, it is valid, otherwise invalid
-#                    if (route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen):
-#                        route.status = 'valid'
-#                        route.status_label = 'label-success'
-#                    else:
-#                        route.status = 'invalid'
-#                        route.status_label = 'label-important'
-#                elif route.status == 'invalid':
-#                    # if the route was previously invalid, but this new ROA
-#                    # matches the ASN, it is now valid
-#                    if route.asn != 0 and route.asn == asn and route.prefixlen() <= max_prefixlen:
-#                        route.status = 'valid'
-#                        route.status_label = 'label-success'
-#
-#                routes.append(route)
             routes = get_covered_routes(rng, max_prefixlen, asn)
 
             prefix = str(rng)
@@ -629,9 +606,13 @@ def roa_create_multi(request):
                     asn = form.cleaned_data.get('asn')
                     rng = resource_range_ip.parse_str(form.cleaned_data.get('prefix'))
                     max_prefixlen = int(form.cleaned_data.get('max_prefixlen'))
+                    # FIXME: This won't do the right thing in the event that a
+                    # route is covered by multiple ROAs created in the form.
+                    # You will see duplicate entries, each with a potentially
+                    # different validation status.
                     routes.extend(get_covered_routes(rng, max_prefixlen, asn))
                     v.append({'prefix': str(rng), 'max_prefixlen': max_prefixlen,
-                            'asn': asn})
+                              'asn': asn})
             # if there were no rows, skip the confirmation step
             if v:
                 formset = formset_factory(forms.ROARequestConfirm, extra=0)(initial=v)
@@ -714,23 +695,37 @@ def roa_delete(request, pk):
     if request.method == 'POST':
         roa.delete()
         Zookeeper(handle=conf.handle).run_rpkid_now()
-        return http.HttpResponseRedirect(reverse(dashboard))
+        return redirect(reverse(dashboard))
 
     ### Process GET ###
-    obj = roa.prefixes.all()[0]
-    roa_pfx = obj.as_roa_prefix()
-    match = roa_match(obj.as_resource_range())
 
-    pfx = 'prefixes' if isinstance(roa_pfx, roa_prefix_ipv4) else 'prefixes_v6'
-    args = {'%s__prefix_min' % pfx: roa_pfx.min(),
-            '%s__prefix_max' % pfx: roa_pfx.max(),
-            '%s__max_length' % pfx: roa_pfx.max_prefixlen}
+    # note: assumes we only generate one prefix per ROA
+    roa_prefix = roa.prefixes.all()[0]
+    rng = roa_prefix.as_resource_range()
 
-    # exclude ROAs which seem to match this request and display the result
     routes = []
-    for route, roas in match:
-        qs = roas.exclude(asid=roa.asn, **args)
-        validate_route(route, qs)
+    for route in roa.routes:
+        # select all roas which cover this route
+        # excluding the current roa
+        # note: we can't identify the exact ROA here, because we only know what
+        # was requested to rpkid
+        roas = route.roas.exclude(
+            asid=roa.asn,
+            prefixes__prefix_min=rng.min,
+            prefixes__prefix_max=rng.max,
+            prefixes__max_length=roa_prefix.max_prefixlen
+        )
+
+        # subselect exact match
+        if route.asn != 0 and roas.filter(asid=route.asn,
+                                          prefixes__max_length__gte=route.prefixlen).exists():
+            route.newstatus = 'valid'
+        elif roas.exists():
+            route.newstatus = 'invalid'
+        else:
+            route.newstatus = 'unknown'
+        # we may want to ignore routes for which there is no status change,
+        # but the user may want to see that nothing has changed explicitly
         routes.append(route)
 
     return render(request, 'app/roarequest_confirm_delete.html',
@@ -744,6 +739,48 @@ def roa_clone(request, pk):
     return redirect(
         reverse(roa_create_multi) + "?roa=" + str(roa.prefixes.all()[0].as_roa_prefix())
     )
+
+
+@handle_required
+def roa_import(request):
+    """Import CSV containing ROA declarations."""
+    if request.method == 'POST':
+        form = forms.ImportCSVForm(request.POST, request.FILES)
+        if form.is_valid():
+            import tempfile
+            tmp = tempfile.NamedTemporaryFile(suffix='.csv', prefix='roas', delete=False)
+            tmp.write(request.FILES['csv'].read())
+            tmp.close()
+            z = Zookeeper(handle=request.session['handle'])
+            z.load_roa_requests(tmp.name)
+            z.run_rpkid_now()
+            os.unlink(tmp.name)
+            messages.success(request, 'Successfully imported ROAs.')
+            return redirect(dashboard)
+    else:
+        form = forms.ImportCSVForm()
+    return render(request, 'app/app_form.html', {
+        'form_title': 'Import ROAs from CSV',
+        'form': form,
+        'cancel_url': reverse(dashboard)
+    })
+
+
+@handle_required
+def roa_export(request):
+    """Export CSV containing ROA declarations."""
+    # FIXME: remove when Zookeeper can do this
+    import cStringIO
+    import csv
+    f = cStringIO.StringIO()
+    csv = csv.writer(f, delimiter=' ')
+    conf = request.session['handle']
+    # each roa prefix gets a unique group so rpkid will issue separate roas
+    for group, roapfx in enumerate(ROARequestPrefix.objects.filter(roa_request__issuer=conf)):
+        csv.writerow([str(roapfx.as_roa_prefix()), roapfx.roa_request.asn, '%s-%d' % (conf.handle, group)])
+    resp = http.HttpResponse(f.getvalue(), mimetype='application/csv')
+    resp['Content-Disposition'] = 'attachment; filename=roas.csv'
+    return resp
 
 
 class GhostbusterDetailView(DetailView):
@@ -821,60 +858,6 @@ def refresh(request):
     return http.HttpResponseRedirect(reverse(dashboard))
 
 
-def roa_match(rng):
-    """Return a list of tuples of matching routes and roas."""
-    if rng.min.version == 6:
-        route_manager = models.RouteOriginV6.objects
-        pfx = 'prefixes_v6'
-    else:
-        route_manager = models.RouteOrigin.objects
-        pfx = 'prefixes'
-
-    rv = []
-    # return a max of 50 routes
-    for obj in route_manager.filter(prefix_min__gte=rng.min,
-                                    prefix_max__lte=rng.max)[:50]:
-        # This is a bit of a gross hack, since the foreign keys for v4 and v6
-        # prefixes have different names.
-        args = {'%s__prefix_min__lte' % pfx: obj.prefix_min,
-                '%s__prefix_max__gte' % pfx: obj.prefix_max}
-        roas = ROA.objects.filter(**args)
-        rv.append((obj, roas))
-
-    return rv
-
-
-def validate_route(route, roas):
-    """Annotate the route object with its validation status.
-
-    `roas` is a queryset containing ROAs which cover `route`.
-
-    """
-    pfx = 'prefixes' if isinstance(route, models.RouteOrigin) else 'prefixes_v6'
-    args = {'asid': route.asn,
-            '%s__prefix_min__lte' % pfx: route.prefix_min,
-            '%s__prefix_max__gte' % pfx: route.prefix_max,
-            '%s__max_length__gte' % pfx: route.prefixlen()}
-
-    # 2. if the candidate ROA set is empty, end with unknown
-    if not roas.exists():
-        route.status = 'unknown'
-        route.status_label = 'label-warning'
-    # 3. if any candidate roa matches the origin AS and max_length, end with
-    # valid
-    #
-    # AS0 is always invalid.
-    elif route.asn != 0 and roas.filter(**args).exists():
-        route.status_label = 'label-success'
-        route.status = 'valid'
-    # 4. otherwise the route is invalid
-    else:
-        route.status_label = 'label-important'
-        route.status = 'invalid'
-
-    return route
-
-
 @handle_required
 def route_view(request):
     """
@@ -883,39 +866,20 @@ def route_view(request):
 
     """
     conf = request.session['handle']
-    log = request.META['wsgi.errors']
     count = request.GET.get('count', 25)
     page = request.GET.get('page', 1)
 
-    routes = []
-    for p in models.ResourceRangeAddressV4.objects.filter(cert__conf=conf):
-        r = p.as_resource_range()
-        print >>log, 'querying for routes matching %s' % r
-        routes.extend([validate_route(*x) for x in roa_match(r)])
-    for p in models.ResourceRangeAddressV6.objects.filter(cert__conf=conf):
-        r = p.as_resource_range()
-        print >>log, 'querying for routes matching %s' % r
-        routes.extend([validate_route(*x) for x in roa_match(r)])
-
-    paginator = Paginator(routes, count)
-    content = paginator.page(page)
-
+    paginator = Paginator(conf.routes, count)
+    routes = paginator.page(page)
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
     return render(request, 'app/routes_view.html',
-                  {'routes': content, 'timestamp': ts})
+                  {'routes': routes, 'timestamp': ts})
 
 
 def route_detail(request, pk):
-    """Show a list of ROAs that match a given route."""
-    # FIXME only supports IPv4 routes
+    """Show a list of ROAs that match a given IPv4 route."""
     route = get_object_or_404(models.RouteOrigin, pk=pk)
-    # select accepted ROAs which cover this route
-    # The rpki.net tool only generates a single prefix per ROA, but other tools
-    # may not, so we generate the list by roa prefix instead
-    qs = ROAPrefixV4.objects.filter(prefix_min__lte=route.prefix_min,
-                                    prefix_max__gte=route.prefix_max).select_related()
-    return render(request, 'app/route_detail.html',
-                  {'object': route, 'roa_prefixes': qs})
+    return render(request, 'app/route_detail.html', {'object': route})
 
 
 @handle_required

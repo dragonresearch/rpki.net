@@ -118,6 +118,34 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
     def roas(self):
         return ROARequest.objects.filter(issuer=self)
 
+    @property
+    def routes(self):
+        """Return all IPv4 routes covered by RPKI certs issued to this resource
+        holder.
+
+        """
+        # build a Q filter to select all RouteOrigin objects covered by
+        # prefixes in the resource holder's certificates
+        q = models.Q()
+        for p in ResourceRangeAddressV4.objects.filter(cert__conf=self):
+            q |= models.Q(prefix_min__gte=p.prefix_min,
+                          prefix_max__lte=p.prefix_max)
+        return RouteOrigin.objects.filter(q)
+
+    @property
+    def routes_v6(self):
+        """Return all IPv6 routes covered by RPKI certs issued to this resource
+        holder.
+
+        """
+        # build a Q filter to select all RouteOrigin objects covered by
+        # prefixes in the resource holder's certificates
+        q = models.Q()
+        for p in ResourceRangeAddressV6.objects.filter(cert__conf=self):
+            q |= models.Q(prefix_min__gte=p.prefix_min,
+                          prefix_max__lte=p.prefix_max)
+        return RouteOriginV6.objects.filter(q)
+
     class Meta:
         proxy = True
 
@@ -186,6 +214,26 @@ class ROARequest(rpki.irdb.models.ROARequest):
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.app.views.roa_detail', [str(self.pk)])
+
+    @property
+    def routes(self):
+        "Return all IPv4 routes covered by this roa prefix."
+        # this assumes one prefix per ROA
+        rng = self.prefixes.filter(version=4)[0].as_resource_range()
+        return rpki.gui.routeview.models.RouteOrigin.objects.filter(
+            prefix_min__lte=rng.max,
+            prefix_max__gte=rng.min
+        )
+
+    @property
+    def routes_v6(self):
+        "Return all IPv6 routes covered by this roa prefix."
+        # this assumes one prefix per ROA
+        rng = self.prefixes.filter(version=6)[0].as_resource_range()
+        return rpki.gui.routeview.models.RouteOriginV6.objects.filter(
+            prefix_min__lte=rng.max,
+            prefix_max__gte=rng.min
+        )
 
 
 class ROARequestPrefix(rpki.irdb.models.ROARequestPrefix):

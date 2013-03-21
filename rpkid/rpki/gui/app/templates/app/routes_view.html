@@ -1,6 +1,7 @@
 {% extends "app/app_base.html" %}
 {% load url from future %}
 {% load bootstrap_pager %}
+{% load app_extras %}
 
 {% block sidebar_extra %}
 <p>
@@ -23,21 +24,25 @@ rcynic cache updated<br>
 This view shows currently advertised routes for the prefixes listed in resource certs received from RPKI parents.
 
 <table class='table table-striped table-condensed'>
-  <tr>
-    <th>Prefix</th>
-    <th>Origin AS</th>
-    <th>Validation Status</th>
-  </tr>
-  {% for r in routes %}
-  <tr>
-    <td>{{ r.get_prefix_display }}</td>
-    <td>{{ r.asn }}</td>
-    <td>
-      <span class='label {{ r.status_label }}'>{{ r.status }}</span>
-      <a href='{% url "rpki.gui.app.views.route_detail" r.pk %}' title='display ROAs covering this prefix'><i class="icon-info-sign"></i></a>
-    </td>
-  </tr>
-  {% endfor %}
+  <thead>
+    <tr>
+      <th>Prefix</th>
+      <th>Origin AS</th>
+      <th>Validation Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in routes %}
+    <tr>
+      <td>{{ r.get_prefix_display }}</td>
+      <td>{{ r.asn }}</td>
+      <td>
+	{% validity_label r.status %}
+	<a href='{% url "rpki.gui.app.views.route_detail" r.pk %}' title='display ROAs covering this prefix'><i class="icon-info-sign"></i></a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
 </table>
 
 {% bootstrap_pager request routes %}

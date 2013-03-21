@@ -11,6 +11,8 @@ class BootstrapPagerNode(template.Node):
     def render(self, context):
         request = self.request.resolve(context)
         pager_object = self.pager_object.resolve(context)
+        if pager_object.paginator.num_pages == 1:
+            return ''
         r = ['<div class="pagination"><ul>']
         if pager_object.number == 1:
             r.append('<li class="disabled"><a>&laquo;</a></li>')

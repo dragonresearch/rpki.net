@@ -1,5 +1,6 @@
 {% extends "app/app_base.html" %}
 {% load url from future %}
+{% load app_extras %}
 
 {% block content %}
 <div class='page-title'>
@@ -55,7 +56,7 @@
       <tr>
         <td>{{ r.get_prefix_display }}</td>
         <td>{{ r.asn }}</td>
-        <td><span class='label {{ r.status_label }}'>{{ r.status }}</span></td>
+	<td>{% validity_label r.newstatus %}</td>
       </tr>
       {% endfor %}
     </table>

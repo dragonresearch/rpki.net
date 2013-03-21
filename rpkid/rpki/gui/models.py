@@ -84,6 +84,7 @@ class Prefix(models.Model):
         """
         return self.range_cls(self.prefix_min, self.prefix_max)
 
+    @property
     def prefixlen(self):
         "Returns the prefix length for the prefix in this object."
         return self.as_resource_range().prefixlen()

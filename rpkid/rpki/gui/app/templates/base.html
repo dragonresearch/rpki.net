@@ -41,6 +41,14 @@
 	</div>
 
 	<div class="span10">
+	  {% if messages %}
+	  {% for message in messages %}
+	  {# this will break if there is more than one tag, but don't expect to use that feature #}
+	  <div class='alert alert-{{ message.tags }}'>
+	    {{ message }}
+	  </div>
+	  {% endfor %}
+	  {% endif %}
 	  {% block content %}{% endblock %}
 	</div>
     </div>

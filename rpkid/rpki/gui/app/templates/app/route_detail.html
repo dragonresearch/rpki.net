@@ -1,4 +1,5 @@
 {% extends "app/app_base.html" %}
+{% load app_extras %}
 
 {# template for displaying the list of ROAs covering a specific route #}
 
@@ -10,12 +11,16 @@
 <div class="row-fluid">
   <div class="span12 well">
     <table class="table table-striped table-condensed">
-      <tr><th>Prefix</th><th>AS</th></tr>
-      <tr>
-	<td>{{ object.as_resource_range }}</td>
-	<td>{{ object.asn }}
-	</td>
-      </tr>
+      <thead>
+	<tr><th>Prefix</th><th>AS</th><th>Validity</th></tr>
+      </thead>
+      <tbody>
+	<tr>
+	  <td>{{ object.as_resource_range }}</td>
+	  <td>{{ object.asn }}</td>
+	  <td>{% validity_label object.status %}</td>
+	</tr>
+      </tbody>
     </table>
   </div>
 </div>
@@ -25,22 +30,26 @@
     <p>The table below lists all ROAs which cover the route described above.
 
     <table class="table table-striped table-condensed">
-      <tr>
-	<th>Prefix</th>
-	<th>Max Length</th>
-	<th>ASN</th>
-	<th>Expires</th>
-	<th>URI</th>
-      </tr>
-      {% for pfx in roa_prefixes %}
-      <tr>
-	<td>{{ pfx.as_resource_range }}</td>
-	<td>{{ pfx.max_length }}</td>
-	<td>{{ pfx.roas.all.0.asid }}</td>
-	<td>{{ pfx.roas.all.0.not_after }}</td>
-	<td>{{ pfx.roas.all.0.repo.uri }}</td>
-      </tr>
-      {% endfor %}
+      <thead>
+	<tr>
+	  <th>Prefix</th>
+	  <th>Max Length</th>
+	  <th>ASN</th>
+	  <th>Expires</th>
+	  <th>URI</th>
+	</tr>
+      </thead>
+      <tbody>
+	{% for pfx in object.roa_prefixes %}
+	<tr>
+	  <td>{{ pfx.as_resource_range }}</td>
+	  <td>{{ pfx.max_length }}</td>
+	  <td>{{ pfx.roas.all.0.asid }}</td>
+	  <td>{{ pfx.roas.all.0.not_after }}</td>
+	  <td>{{ pfx.roas.all.0.repo.uri }}</td>
+	</tr>
+	{% endfor %}
+      </tbody>
     </table>
   </div>
 </div>

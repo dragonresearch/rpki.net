@@ -1,5 +1,6 @@
 {% extends "app/app_base.html" %}
 {% load url from future %}
+{% load app_extras %}
 
 {% block content %}
 <div class="page-header">
@@ -22,9 +23,9 @@
     <h3>Covered Routes</h3>
     <p>This table lists currently announced routes which are covered by prefixes included in this ROA.
     <table class="table">
-      <tr><th>Prefix</th><th>AS</th></tr>
-      {% for r in routes %}
-      <tr><td>{{ r.as_resource_range }}</td><td>{{ r.asn }}</td></tr>
+      <tr><th>Prefix</th><th>AS</th><th>Validity</th></tr>
+      {% for r in object.routes %}
+      <tr><td>{{ r.as_resource_range }}</td><td>{{ r.asn }}</td><td>{% validity_label r.status %}</tr>
       {% endfor %}
     </table>
   </div>

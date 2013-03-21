@@ -104,6 +104,10 @@ class ImportClientForm(forms.Form):
     xml = forms.FileField(label='XML file')
 
 
+class ImportCSVForm(forms.Form):
+    csv = forms.FileField(label='CSV file')
+
+
 class UserCreateForm(forms.Form):
     username = forms.CharField(max_length=30)
     email = forms.CharField(max_length=30,

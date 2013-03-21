@@ -624,7 +624,11 @@ class ca_obj(rpki.sql.sql_persistent):
     self.parent_id = parent.parent_id
     self.parent_resource_class = rc.class_name
     self.sql_store()
-    self.sia_uri = self.construct_sia_uri(parent, rc)
+    try:
+      self.sia_uri = self.construct_sia_uri(parent, rc)
+    except rpki.exceptions.BadURISyntax:
+      self.sql_delete()
+      raise
     ca_detail = ca_detail_obj.create(self)
 
     def done(issue_response):

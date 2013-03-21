@@ -850,7 +850,7 @@ class allocation(object):
       rpki.log.info("Callback from rpkid %s" % self.name)
       r_cms = rpki.left_right.cms_msg(DER = r_der)
       r_msg = r_cms.unwrap((self.rpkid_ta, self.rpkid_cert))
-      self.last_cms_time = r_cms.check_replay(self.last_cms_time)
+      self.last_cms_time = r_cms.check_replay(self.last_cms_time, q_url)
       rpki.log.debug(r_cms.pretty_print_content())
       assert r_msg.is_reply
       for r_pdu in r_msg:
@@ -1254,7 +1254,7 @@ def call_pubd(pdus, cb):
     global pubd_last_cms_time
     r_cms = rpki.publication.cms_msg(DER = r_der)
     r_msg = r_cms.unwrap((pubd_ta, pubd_pubd_cert))
-    pubd_last_cms_time = r_cms.check_replay(pubd_last_cms_time)
+    pubd_last_cms_time = r_cms.check_replay(pubd_last_cms_time, q_url)
     rpki.log.debug(r_cms.pretty_print_content())
     assert r_msg.is_reply
     for r_pdu in r_msg:

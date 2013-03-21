@@ -267,7 +267,7 @@ class main(object):
     try:
       q_cms = cms_msg(DER = query)
       q_msg = q_cms.unwrap((self.bpki_ta, self.child_bpki_cert))
-      self.cms_timestamp = q_cms.check_replay(self.cms_timestamp)
+      self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, path)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:

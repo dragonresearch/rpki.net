@@ -58,7 +58,7 @@ show_python_ids = False
 # Whether tracebacks are enabled globally.  Individual classes and
 # modules may choose to override this.
 
-enable_tracebacks = True
+enable_tracebacks = False
 
 ## @var use_setproctitle
 # Whether to use setproctitle (if available) to change name shown for

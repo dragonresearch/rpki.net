@@ -147,9 +147,9 @@ class main(object):
     q_cms = rpki.publication.cms_msg(DER = query)
     q_msg = q_cms.unwrap(certs)
     if client is None:
-      self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp)
+      self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp, "control")
     else:
-      q_cms.check_replay_sql(client)
+      q_cms.check_replay_sql(client, client.client_handle)
     q_msg.serve_top_level(self, client, done)
 
   def control_handler(self, query, path, cb):

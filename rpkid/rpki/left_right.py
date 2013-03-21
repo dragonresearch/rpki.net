@@ -551,7 +551,7 @@ class repository_elt(data_elt):
           rpki.log.debug("Received response from pubd")
           r_cms = rpki.publication.cms_msg(DER = r_der)
           r_msg = r_cms.unwrap(bpki_ta_path)
-          r_cms.check_replay_sql(self)
+          r_cms.check_replay_sql(self, self.peer_contact_uri)
           for r_pdu in r_msg:
             handler = handlers.get(r_pdu.tag, self.default_pubd_handler)
             if handler:
@@ -809,7 +809,7 @@ class parent_elt(data_elt):
                               self.self.bpki_glue,
                               self.bpki_cms_cert,
                               self.bpki_cms_glue))
-        r_cms.check_replay_sql(self)
+        r_cms.check_replay_sql(self, self.peer_contact_uri)
         r_msg.payload.check_response()
       except (SystemExit, rpki.async.ExitNow):
         raise
@@ -946,9 +946,9 @@ class child_elt(data_elt):
                           self.self.bpki_glue,
                           self.bpki_cert,
                           self.bpki_glue))
-    q_cms.check_replay_sql(self)
+    q_cms.check_replay_sql(self, "child", self.child_handle)
     q_msg.payload.gctx = self.gctx
-    if enforce_strict_up_down_xml_sender and q_msg.sender != str(self.child_id):
+    if enforce_strict_up_down_xml_sender and q_msg.sender != self.child_handle:
       raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender
     self.gctx.sql.sweep()
 

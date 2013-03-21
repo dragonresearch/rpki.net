@@ -1051,7 +1051,7 @@ class caller(object):
       try:
         r_cms = self.proto.cms_msg(DER = r_der)
         r_msg = r_cms.unwrap((self.server_ta, self.server_cert))
-        self.cms_timestamp = r_cms.check_replay(self.cms_timestamp)
+        self.cms_timestamp = r_cms.check_replay(self.cms_timestamp, self.url)
         if self.debug:
           print "<!-- Reply -->"
           print r_cms.pretty_print_content()

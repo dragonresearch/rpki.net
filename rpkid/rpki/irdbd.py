@@ -112,7 +112,7 @@ class main(object):
       try:
         q_cms = rpki.left_right.cms_msg(DER = query)
         q_msg = q_cms.unwrap((serverCA.certificate, rpkid.certificate))
-        self.cms_timestamp = q_cms.check_replay(self.cms_timestamp)
+        self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, path)
         if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
           raise rpki.exceptions.BadQuery("Unexpected %r PDU" % q_msg)
         for q_pdu in q_msg:

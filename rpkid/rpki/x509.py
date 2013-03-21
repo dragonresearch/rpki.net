@@ -1674,7 +1674,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     else:
       return self.saxify(self.get_content()) # pylint: disable=E1102
 
-  def check_replay(self, timestamp):
+  def check_replay(self, timestamp, *context):
     """
     Check CMS signing-time in this object against a recorded
     timestamp.  Raises an exception if the recorded timestamp is more
@@ -1682,17 +1682,20 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
     new_timestamp = self.get_signingTime()
     if timestamp is not None and timestamp > new_timestamp:
+      if context:
+        context = " (" + " ".join(context) + ")"
       raise rpki.exceptions.CMSReplay(
-        "CMS replay: last message %s, this message %s" % (timestamp, new_timestamp))
+        "CMS replay: last message %s, this message %s%s" % (
+        timestamp, new_timestamp, context))
     return new_timestamp
 
-  def check_replay_sql(self, obj):
+  def check_replay_sql(self, obj, *context):
     """
     Like .check_replay() but gets recorded timestamp from
     "last_cms_timestamp" field of an SQL object and stores the new 
     timestamp back in that same field.
     """
-    obj.last_cms_timestamp = self.check_replay(obj.last_cms_timestamp)
+    obj.last_cms_timestamp = self.check_replay(obj.last_cms_timestamp, *context)
     obj.sql_mark_dirty()
 
   ## @var saxify

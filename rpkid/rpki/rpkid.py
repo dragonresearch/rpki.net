@@ -198,7 +198,7 @@ class main(object):
     def unwrap(r_der):
       r_cms = rpki.left_right.cms_msg(DER = r_der)
       r_msg = r_cms.unwrap((self.bpki_ta, self.irdb_cert))
-      self.irdbd_cms_timestamp = r_cms.check_replay(self.irdbd_cms_timestamp)
+      self.irdbd_cms_timestamp = r_cms.check_replay(self.irdbd_cms_timestamp, self.irdb_url)
       if not r_msg.is_reply() or not all(type(r_pdu) in q_types for r_pdu in r_msg):
         raise rpki.exceptions.BadIRDBReply(
           "Unexpected response to IRDB query: %s" % r_cms.pretty_print_content())
@@ -280,7 +280,7 @@ class main(object):
     try:
       q_cms = rpki.left_right.cms_msg(DER = query)
       q_msg = q_cms.unwrap((self.bpki_ta, self.irbe_cert))
-      self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp)
+      self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp, path)
       if not q_msg.is_query():
         raise rpki.exceptions.BadQuery, "Message type is not query"
       q_msg.serve_top_level(self, done)

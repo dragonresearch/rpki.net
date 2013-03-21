@@ -222,7 +222,7 @@ static const struct {
   QB(bad_manifest_digest_length,	"Bad manifest digest length")	    \
   QB(bad_public_key,			"Bad public key")		    \
   QB(bad_roa_asID,			"Bad ROA asID")			    \
-  QB(bad_serial_number,			"Bad serialNumber")		    \
+  QB(bad_certificate_serial_number,	"Bad certificate serialNumber")	    \
   QB(certificate_bad_signature,		"Bad certificate signature")	    \
   QB(certificate_failed_validation,	"Certificate failed validation")    \
   QB(cms_econtent_decode_error,		"CMS eContent decode error")	    \
@@ -230,10 +230,11 @@ static const struct {
   QB(cms_signer_missing,		"CMS signer missing")		    \
   QB(cms_ski_mismatch,			"CMS SKI mismatch")		    \
   QB(cms_validation_failure,		"CMS validation failure")	    \
-  QB(crl_issuer_name_mismatch,		"CRL issuer name mismatch")	\
+  QB(crl_issuer_name_mismatch,		"CRL issuer name mismatch")	    \
   QB(crl_not_in_manifest,               "CRL not listed in manifest")	    \
   QB(crl_not_yet_valid,			"CRL not yet valid")		    \
   QB(crl_number_extension_missing,	"CRL number extension missing")	    \
+  QB(crl_number_is_negative,		"CRL number is negative")	    \
   QB(crl_number_out_of_range,		"CRL number out of range")	    \
   QB(crldp_doesnt_match_issuer_sia,	"CRLDP doesn't match issuer's SIA") \
   QB(crldp_uri_missing,			"CRLDP URI missing")		    \
@@ -279,6 +280,9 @@ static const struct {
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
   QB(wrong_object_version,		"Wrong object version")		    \
   QW(aia_doesnt_match_issuer,		"AIA doesn't match issuer")	    \
+  QW(backup_thisupdate_newer_than_current, "Backup thisUpdate newer than current") \
+  QW(backup_number_higher_than_current, "Backup number higher than current") \
+  QW(bad_thisupdate,			"Bad CRL thisUpdate")		    \
   QW(bad_cms_si_signed_attributes, 	"Bad CMS SI signed attributes")	    \
   QW(bad_signed_object_uri,		"Bad signedObject URI")		    \
   QW(crldp_names_newer_crl,		"CRLDP names newer CRL")	    \
@@ -3259,8 +3263,12 @@ static X509_CRL *check_crl_1(rcynic_ctx_t *rc,
     goto punt;
   }
 
-  if (ASN1_INTEGER_cmp(crl->crl_number, asn1_zero) < 0 ||
-      ASN1_INTEGER_cmp(crl->crl_number, asn1_twenty_octets) > 0) {
+  if (ASN1_INTEGER_cmp(crl->crl_number, asn1_zero) < 0) {
+    log_validation_status(rc, uri, crl_number_is_negative, generation);
+    goto punt;
+  }
+
+  if (ASN1_INTEGER_cmp(crl->crl_number, asn1_twenty_octets) > 0) {
     log_validation_status(rc, uri, crl_number_out_of_range, generation);
     goto punt;
   }
@@ -3333,12 +3341,33 @@ static X509_CRL *check_crl(rcynic_ctx_t *rc,
 
   if (!new_crl)
     result = old_crl;
+
   else if (!old_crl)
     result = new_crl;
-  else if (ASN1_INTEGER_cmp(new_crl->crl_number, old_crl->crl_number) < 0)
-    result = old_crl;
-  else
-    result = new_crl;
+
+  else {
+    ASN1_GENERALIZEDTIME *g_old = ASN1_TIME_to_generalizedtime(X509_CRL_get_lastUpdate(old_crl), NULL);
+    ASN1_GENERALIZEDTIME *g_new = ASN1_TIME_to_generalizedtime(X509_CRL_get_lastUpdate(new_crl), NULL);
+    int num_cmp = ASN1_INTEGER_cmp(old_crl->crl_number, new_crl->crl_number);
+    int date_cmp = (!g_old || !g_new) ? 0 : ASN1_STRING_cmp(g_old, g_new);
+
+    if (!g_old)
+      log_validation_status(rc, uri, bad_thisupdate, object_generation_backup);
+    if (!g_new)
+      log_validation_status(rc, uri, bad_thisupdate, object_generation_current);
+    if (num_cmp > 0)
+      log_validation_status(rc, uri, backup_number_higher_than_current, object_generation_current);
+    if (g_old && g_new && date_cmp > 0)
+      log_validation_status(rc, uri, backup_thisupdate_newer_than_current, object_generation_current);
+
+    if (num_cmp > 0 && (!g_old || !g_new || date_cmp > 0))
+      result = old_crl;      
+    else
+      result = new_crl;
+
+    ASN1_GENERALIZEDTIME_free(g_old);
+    ASN1_GENERALIZEDTIME_free(g_new);
+  }
 
   if (result && result == new_crl)
     install_object(rc, uri, &new_path, object_generation_current);
@@ -3513,7 +3542,7 @@ static int check_x509(rcynic_ctx_t *rc,
   certinfo->generation = generation;
 
   if (ASN1_INTEGER_cmp(X509_get_serialNumber(x), asn1_zero) <= 0) {
-    log_validation_status(rc, uri, bad_serial_number, generation);
+    log_validation_status(rc, uri, bad_certificate_serial_number, generation);
     goto done;
   }
 
@@ -4297,12 +4326,24 @@ static int check_manifest(rcynic_ctx_t *rc,
 
   if (!new_manifest)
     result = old_manifest;
+
   else if (!old_manifest)
     result = new_manifest;
-  else if (ASN1_INTEGER_cmp(new_manifest->manifestNumber, old_manifest->manifestNumber) < 0)
-    result = old_manifest;
-  else
-    result = new_manifest;
+  
+  else {
+    int num_cmp = ASN1_INTEGER_cmp(old_manifest->manifestNumber, new_manifest->manifestNumber);
+    int date_cmp = ASN1_STRING_cmp(old_manifest->thisUpdate, new_manifest->thisUpdate);
+
+    if (num_cmp > 0)
+      log_validation_status(rc, uri, backup_number_higher_than_current, object_generation_current);
+    if (date_cmp > 0)
+      log_validation_status(rc, uri, backup_thisupdate_newer_than_current, object_generation_current);
+
+    if (num_cmp > 0 && date_cmp > 0)
+      result = old_manifest;
+    else
+      result = new_manifest;
+  }
 
   if (result && result == new_manifest) {
     generation = object_generation_current;

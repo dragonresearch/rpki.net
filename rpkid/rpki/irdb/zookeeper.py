@@ -630,10 +630,6 @@ class Zookeeper(object):
       self.log("Flat publication structure forced, homing client at top-level")
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client.get("handle"))
 
-    if sia_base is None and client.get("handle") == self.handle and self.resource_ca.certificate == client_ta:
-      self.log("This looks like self-hosted publication")
-      sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, self.handle)
-
     if sia_base is None and client.get("type") == "referral":
       self.log("This looks like a referral, checking")
       try:
@@ -647,18 +643,25 @@ class Zookeeper(object):
       except rpki.irdb.Client.DoesNotExist:
         self.log("We have no record of the client (%s) alleged to have made this referral" % auth.get("referrer"))
 
-    if sia_base is None and client.get("type") == "offer" and client.get("parent_handle") == self.handle:
-      self.log("This looks like an offer, client claims to be our child, checking")
+    if sia_base is None and client.get("type") == "offer":
+      self.log("This looks like an offer, checking")
       try:
-        child = self.resource_ca.children.get(ta = client_ta)
-      except rpki.irdb.Child.DoesNotExist:
-        self.log("Can't find a child matching this client")
-      else:
-        sia_base = "rsync://%s/%s/%s/%s/" % (self.rsync_server, self.rsync_module,
-                                             self.handle, client.get("handle"))
-
-    # If we still haven't figured out what to do with this client, it
-    # gets a top-level tree of its own, no attempt at nesting.
+        parent = rpki.irdb.ResourceHolderCA.objects.get(children__ta__exact = client_ta)
+        if "/" in parent.repositories.get(ta = self.server_ca.certificate).client_handle:
+          self.log("Client's parent is not top-level, this is not a valid offer")
+        else:
+          self.log("Found client and its parent, nesting")
+          sia_base = "rsync://%s/%s/%s/%s/" % (self.rsync_server, self.rsync_module,
+                                                 parent.handle, client.get("handle"))
+      except rpki.irdb.Repository.DoesNotExist:
+        self.log("Found client's parent, but repository isn't set, this shouldn't happen!")
+      except rpki.irdb.ResourceHolderCA.DoesNotExist:
+        try:
+          rpki.irdb.Rootd.objects.get(issuer__certificate__exact = client_ta)
+        except rpki.irdb.Rootd.DoesNotExist:
+          self.log("We don't host this client's parent, so we didn't make this offer")
+        else:
+          self.log("This client's parent is rootd")
 
     if sia_base is None:
       self.log("Don't know where to nest this client, defaulting to top-level")

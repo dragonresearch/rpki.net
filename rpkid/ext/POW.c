@@ -2546,19 +2546,19 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
         empty = 0;
       }
 
-      if (!empty && (!v3_asid_canonize(asid) ||
-                     !X509_add1_ext_i2d(self->x509, NID_sbgp_autonomousSysNum,
-                                        asid, 1, X509V3_ADD_REPLACE)))
-        lose_openssl_error("Couldn't add ASID extension to certificate");
-
       Py_XDECREF(iterator);
       iterator = NULL;
     }
+
+    if (!empty && (!v3_asid_canonize(asid) ||
+                   !X509_add1_ext_i2d(self->x509, NID_sbgp_autonomousSysNum,
+                                      asid, 1, X509V3_ADD_REPLACE)))
+      lose_openssl_error("Couldn't add ASID extension to certificate");
   }
 
   if (ipv4_arg != Py_None || ipv6_arg != Py_None) {
     int v;
-
+ 
     empty = 1;
 
     if ((addr = sk_IPAddressFamily_new_null()) == NULL)
@@ -2596,13 +2596,13 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 
         while ((item = PyIter_Next(iterator)) != NULL) {
 
-        if ((fast = PySequence_Fast(item, "Address range must be a sequence")) == NULL)
-          goto error;
+          if ((fast = PySequence_Fast(item, "Address range must be a sequence")) == NULL)
+            goto error;
 
-        if (PySequence_Fast_GET_SIZE(fast) != 2 ||
-            !POW_IPAddress_Check(PySequence_Fast_GET_ITEM(fast, 0)) ||
-            !POW_IPAddress_Check(PySequence_Fast_GET_ITEM(fast, 1)))
-          lose_type_error("Address range must be two-element sequence of IPAddress objects");
+          if (PySequence_Fast_GET_SIZE(fast) != 2 ||
+              !POW_IPAddress_Check(PySequence_Fast_GET_ITEM(fast, 0)) ||
+              !POW_IPAddress_Check(PySequence_Fast_GET_ITEM(fast, 1)))
+            lose_type_error("Address range must be two-element sequence of IPAddress objects");
 
           addr_b = (ipaddress_object *) PySequence_Fast_GET_ITEM(fast, 0);
           addr_e = (ipaddress_object *) PySequence_Fast_GET_ITEM(fast, 1);
@@ -2619,11 +2619,11 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
           Py_XDECREF(fast);
           item = fast = NULL;
           addr_b = addr_e = NULL;
+          empty = 0;
         }
 
         Py_XDECREF(iterator);
         iterator = NULL;
-        empty = 0;
       }
     }
 

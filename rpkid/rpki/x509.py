@@ -693,15 +693,12 @@ class X509(DER_object):
 
     if resources is not None:
       cert.setRFC3779(
-        asn = (("inherit" if resources.asn.inherit else
-                ((r.min, r.max) for r in resources.asn))
-               or None),
-        ipv4 = (("inherit" if resources.v4.inherit else
-                 ((r.min, r.max) for r in resources.v4))
-                or None),
-        ipv6 = (("inherit" if resources.v6.inherit else
-                 ((r.min, r.max) for r in resources.v6))
-                or None))
+        asn  = ("inherit" if resources.asn.inherit else
+                ((r.min, r.max) for r in resources.asn)),
+        ipv4 = ("inherit" if resources.v4.inherit else
+                ((r.min, r.max) for r in resources.v4)),
+        ipv6 = ("inherit" if resources.v6.inherit else
+                ((r.min, r.max) for r in resources.v6)))
 
     cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
 

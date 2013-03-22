@@ -24,6 +24,8 @@ __version__ = '$Id$'
 import os
 import os.path
 from tempfile import NamedTemporaryFile
+import cStringIO
+import csv
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render, redirect
@@ -263,7 +265,7 @@ def conf_select(request):
     return http.HttpResponseRedirect(next_url)
 
 
-def serve_xml(content, basename):
+def serve_xml(content, basename, ext='csv'):
     """
     Generate a HttpResponse object with the content type set to XML.
 
@@ -271,9 +273,11 @@ def serve_xml(content, basename):
 
     `basename` is the prefix to specify for the XML filename.
 
+    `csv` is the type (default: xml)
+
     """
-    resp = http.HttpResponse(content, mimetype='application/xml')
-    resp['Content-Disposition'] = 'attachment; filename=%s.xml' % (basename,)
+    resp = http.HttpResponse(content, mimetype='application/%s' % ext)
+    resp['Content-Disposition'] = 'attachment; filename=%s.%s' % (basename, ext)
     return resp
 
 
@@ -284,6 +288,74 @@ def conf_export(request):
     z = Zookeeper(handle=conf.handle)
     xml = z.generate_identity()
     return serve_xml(str(xml), '%s.identity' % conf.handle)
+
+
+@handle_required
+def export_asns(request):
+    """Export CSV file containing ASN allocations to children."""
+    conf = request.session['handle']
+    s = cStringIO.StringIO()
+    csv_writer = csv.writer(s, delimiter=' ')
+    for childasn in ChildASN.objects.filter(child__issuer=conf):
+        csv_writer.writerow([childasn.child.handle, str(childasn.as_resource_range())])
+    return serve_xml(s.getvalue(), '%s.asns' % conf.handle, ext='csv')
+
+
+@handle_required
+def import_asns(request):
+    conf = request.session['handle']
+    if request.method == 'POST':
+        form = forms.ImportCSVForm(request.POST, request.FILES)
+        if form.is_valid():
+            f = NamedTemporaryFile(prefix='asns', suffix='.csv', delete=False)
+            f.write(request.FILES['csv'].read())
+            f.close()
+            z = Zookeeper(handle=conf.handle)
+            z.load_asns(f.name)
+            z.synchronize()
+            os.unlink(f.name)
+            return redirect(dashboard)
+    else:
+        form = forms.ImportCSVForm()
+    return render(request, 'app/app_form.html', {
+        'form_title': 'Import CSV containing ASN delegations',
+        'form': form,
+        'cancel_url': reverse(dashboard)
+    })
+
+
+@handle_required
+def export_prefixes(request):
+    """Export CSV file containing ASN allocations to children."""
+    conf = request.session['handle']
+    s = cStringIO.StringIO()
+    csv_writer = csv.writer(s, delimiter=' ')
+    for childnet in ChildNet.objects.filter(child__issuer=conf):
+        csv_writer.writerow([childnet.child.handle, str(childnet.as_resource_range())])
+    return serve_xml(s.getvalue(), '%s.prefixes' % conf.handle, ext='csv')
+
+
+@handle_required
+def import_prefixes(request):
+    conf = request.session['handle']
+    if request.method == 'POST':
+        form = forms.ImportCSVForm(request.POST, request.FILES)
+        if form.is_valid():
+            f = NamedTemporaryFile(prefix='prefixes', suffix='.csv', delete=False)
+            f.write(request.FILES['csv'].read())
+            f.close()
+            z = Zookeeper(handle=conf.handle)
+            z.load_prefixes(f.name)
+            z.synchronize()
+            os.unlink(f.name)
+            return redirect(dashboard)
+    else:
+        form = forms.ImportCSVForm()
+    return render(request, 'app/app_form.html', {
+        'form_title': 'Import CSV containing Prefix delegations',
+        'form': form,
+        'cancel_url': reverse(dashboard)
+    })
 
 
 @handle_required
@@ -770,14 +842,12 @@ def roa_import(request):
 def roa_export(request):
     """Export CSV containing ROA declarations."""
     # FIXME: remove when Zookeeper can do this
-    import cStringIO
-    import csv
     f = cStringIO.StringIO()
-    csv = csv.writer(f, delimiter=' ')
+    csv_writer = csv.writer(f, delimiter=' ')
     conf = request.session['handle']
     # each roa prefix gets a unique group so rpkid will issue separate roas
     for group, roapfx in enumerate(ROARequestPrefix.objects.filter(roa_request__issuer=conf)):
-        csv.writerow([str(roapfx.as_roa_prefix()), roapfx.roa_request.asn, '%s-%d' % (conf.handle, group)])
+        csv_writer.writerow([str(roapfx.as_roa_prefix()), roapfx.roa_request.asn, '%s-%d' % (conf.handle, group)])
     resp = http.HttpResponse(f.getvalue(), mimetype='application/csv')
     resp['Content-Disposition'] = 'attachment; filename=roas.csv'
     return resp

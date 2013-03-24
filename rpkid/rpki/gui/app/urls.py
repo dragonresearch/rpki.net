@@ -48,7 +48,7 @@ urlpatterns = patterns(
     (r'^client/$', views.client_list),
     (r'^client/(?P<pk>\d+)/$', views.client_detail),
     (r'^client/(?P<pk>\d+)/delete$', views.client_delete),
-    (r'^client/(?P<pk>\d+)/export$', views.client_export),
+    url(r'^client/(?P<pk>\d+)/export$', views.client_export, name='client-export'),
     (r'^repo/import$', views.repository_import),
     (r'^repo/(?P<pk>\d+)/$', views.repository_detail),
     (r'^repo/(?P<pk>\d+)/delete$', views.repository_delete),

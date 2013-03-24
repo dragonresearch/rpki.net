@@ -265,7 +265,7 @@ def conf_select(request):
     return http.HttpResponseRedirect(next_url)
 
 
-def serve_xml(content, basename, ext='csv'):
+def serve_xml(content, basename, ext='xml'):
     """
     Generate a HttpResponse object with the content type set to XML.
 

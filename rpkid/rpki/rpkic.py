@@ -256,6 +256,8 @@ class main(rpki.cli.Cmd):
     try:
       self.zoo.delete_child(arg)
       self.zoo.synchronize_ca()
+    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+      print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Child.DoesNotExist:
       print "No such child \"%s\"" % arg
 
@@ -303,6 +305,8 @@ class main(rpki.cli.Cmd):
     try:
       self.zoo.delete_parent(arg)
       self.zoo.synchronize_ca()
+    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+      print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Parent.DoesNotExist:
       print "No such parent \"%s\"" % arg
 
@@ -318,6 +322,8 @@ class main(rpki.cli.Cmd):
     try:
       self.zoo.delete_rootd()
       self.zoo.synchronize_ca()
+    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+      print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Rootd.DoesNotExist:
       print "No associated rootd"
 
@@ -359,8 +365,10 @@ class main(rpki.cli.Cmd):
     """
 
     try:
-      self.zoo.delete_publication_client(arg).delete()
+      self.zoo.delete_publication_client(arg)
       self.zoo.synchronize_pubd()
+    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+      print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Client.DoesNotExist:
       print "No such client \"%s\"" % arg
 
@@ -402,6 +410,8 @@ class main(rpki.cli.Cmd):
     try:
       self.zoo.delete_repository(arg)
       self.zoo.synchronize_ca()
+    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+      print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Repository.DoesNotExist:
       print "No such repository \"%s\"" % arg
 
@@ -414,8 +424,11 @@ class main(rpki.cli.Cmd):
     Delete the current RPKI entity (<self/> object).
     """
 
-    self.zoo.delete_self()
-    self.zoo.synchronize_deleted_ca()
+    try:
+      self.zoo.delete_self()
+      self.zoo.synchronize_deleted_ca()
+    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+      print "No such resource holder \"%s\"" % self.zoo.handle
 
 
   def do_renew_child(self, arg):

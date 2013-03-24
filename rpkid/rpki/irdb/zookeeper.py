@@ -60,7 +60,8 @@ rootd_section  = "rootd"
 
 # A whole lot of exceptions
 
-class MissingHandle(Exception):         "Missing handle"
+class HandleNotSet(Exception):          "Handle not set."
+class MissingHandle(Exception):         "Missing handle."
 class CouldntTalkToDaemon(Exception):   "Couldn't talk to daemon."
 class BadXMLMessage(Exception):         "Bad XML message."
 class PastExpiration(Exception):        "Expiration date has already passed."
@@ -253,11 +254,9 @@ class Zookeeper(object):
     Get ResourceHolderCA object associated with current handle.
     """
 
-    assert self.handle is not None
-    try:
-      return rpki.irdb.ResourceHolderCA.objects.get(handle = self.handle)
-    except rpki.irdb.ResourceHolderCA.DoesNotExist:
-      return None
+    if self.handle is None:
+      raise HandleNotSet
+    return rpki.irdb.ResourceHolderCA.objects.get(handle = self.handle)
 
 
   @property
@@ -266,10 +265,7 @@ class Zookeeper(object):
     Get ServerCA object.
     """
 
-    try:
-      return rpki.irdb.ServerCA.objects.get()
-    except rpki.irdb.ServerCA.DoesNotExist:
-      return None
+    return rpki.irdb.ServerCA.objects.get()
 
 
   @django.db.transaction.commit_on_success
@@ -517,11 +513,7 @@ class Zookeeper(object):
     Delete a child of this RPKI entity.
     """
 
-    assert child_handle is not None
-    try:
-      self.resource_ca.children.get(handle = child_handle).delete()
-    except rpki.irdb.Child.DoesNotExist:
-      self.log("No such child \"%s\"" % child_handle)
+    self.resource_ca.children.get(handle = child_handle).delete()
 
 
   @django.db.transaction.commit_on_success
@@ -593,11 +585,7 @@ class Zookeeper(object):
     Delete a parent of this RPKI entity.
     """
 
-    assert parent_handle is not None
-    try:
-      self.resource_ca.parents.get(handle = parent_handle).delete()
-    except rpki.irdb.Parent.DoesNotExist:
-      self.log("No such parent \"%s\"" % parent_handle)
+    self.resource_ca.parents.get(handle = parent_handle).delete()
 
 
   @django.db.transaction.commit_on_success
@@ -606,10 +594,7 @@ class Zookeeper(object):
     Delete rootd associated with this RPKI entity.
     """
 
-    try:
-      self.resource_ca.rootd.delete()
-    except rpki.irdb.Rootd.DoesNotExist:
-      self.log("No associated rootd")
+    self.resource_ca.rootd.delete()
 
 
   @django.db.transaction.commit_on_success
@@ -715,11 +700,7 @@ class Zookeeper(object):
     Delete a publication client of this RPKI entity.
     """
 
-    assert client_handle is not None
-    try:
-      self.server_ca.clients.get(handle = client_handle).delete()
-    except rpki.irdb.Client.DoesNotExist:
-      self.log("No such client \"%s\"" % client_handle)
+    self.server_ca.clients.get(handle = client_handle).delete()
 
 
   @django.db.transaction.commit_on_success
@@ -766,11 +747,7 @@ class Zookeeper(object):
     Delete a repository of this RPKI entity.
     """
 
-    assert repository_handle is not None
-    try:
-      self.resource_ca.repositories.get(handle = repository_handle).delete()
-    except rpki.irdb.Repository.DoesNotExist:
-      self.log("No such repository \"%s\"" % repository_handle)
+    self.resource_ca.repositories.get(handle = repository_handle).delete()
 
 
   @django.db.transaction.commit_on_success

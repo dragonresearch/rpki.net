@@ -1111,7 +1111,7 @@ def resource_holder_create(request):
             parent = form.cleaned_data.get('parent')
 
             zk_child = Zookeeper(handle=handle, logstream=log)
-            identity_xml = zk_child.initialize()
+            identity_xml = zk_child.initialize_resource_bpki()
             if parent:
                 # FIXME etree_wrapper should allow us to deal with file objects
                 t = NamedTemporaryFile(delete=False)

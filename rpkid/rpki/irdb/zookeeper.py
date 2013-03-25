@@ -269,15 +269,12 @@ class Zookeeper(object):
 
 
   @django.db.transaction.commit_on_success
-  def initialize(self):
+  def initialize_server_bpki(self):
     """
-    Initialize an RPKI installation.  Reads the configuration file,
-    creates the BPKI and EntityDB directories, generates the initial
-    BPKI certificates, and creates an XML file describing the
-    resource-holding aspect of this RPKI installation.
+    Initialize server BPKI portion of an RPKI installation.  Reads the
+    configuration file and generates the initial BPKI server
+    certificates needed to start daemons.
     """
-
-    resource_ca, created = rpki.irdb.ResourceHolderCA.objects.get_or_certify(handle = self.handle)
 
     if self.run_rpkid or self.run_pubd:
       server_ca, created = rpki.irdb.ServerCA.objects.get_or_certify()
@@ -290,7 +287,33 @@ class Zookeeper(object):
     if self.run_pubd:
       rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "pubd")
 
+
+  @django.db.transaction.commit_on_success
+  def initialize_resource_bpki(self):
+    """
+    Initialize the resource-holding BPKI for an RPKI installation.
+    Returns XML describing the resource holder.
+
+    This method is present primarily for backwards compatibility with
+    the old combined initialize() method which initialized both the
+    server BPKI and the default resource-holding BPKI in a single
+    method call.  In the long run we want to replace this with
+    something that takes a handle as argument and creates the
+    resource-holding BPKI idenity if needed.
+    """
+
+    resource_ca, created = rpki.irdb.ResourceHolderCA.objects.get_or_certify(handle = self.handle)
     return self.generate_identity()
+
+
+  def initialize(self):
+    """
+    Backwards compatibility wrapper: calls initialize_server_bpki()
+    and initialize_resource_bpki(), returns latter's result.
+    """
+
+    self.initialize_server_bpki()
+    return self.initialize_resource_bpki()
 
 
   def generate_identity(self):

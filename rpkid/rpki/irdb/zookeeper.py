@@ -405,12 +405,15 @@ class Zookeeper(object):
              self.server_ca.ee_certificates.get(purpose = "irbe").certificate)
 
     if self.run_rootd:
-      rootd = rpki.irdb.ResourceHolderCA.objects.get(handle = self.cfg.get("handle", section = myrpki_section)).rootd
-      writer(self.cfg.get("bpki-ta",         section = rootd_section), self.server_ca.certificate)
-      writer(self.cfg.get("rootd-bpki-crl",  section = rootd_section), self.server_ca.latest_crl)
-      writer(self.cfg.get("rootd-bpki-key",  section = rootd_section), rootd.private_key)
-      writer(self.cfg.get("rootd-bpki-cert", section = rootd_section), rootd.certificate)
-      writer(self.cfg.get("child-bpki-cert", section = rootd_section), rootd.issuer.certificate)
+      try:
+        rootd = rpki.irdb.ResourceHolderCA.objects.get(handle = self.cfg.get("handle", section = myrpki_section)).rootd
+        writer(self.cfg.get("bpki-ta",         section = rootd_section), self.server_ca.certificate)
+        writer(self.cfg.get("rootd-bpki-crl",  section = rootd_section), self.server_ca.latest_crl)
+        writer(self.cfg.get("rootd-bpki-key",  section = rootd_section), rootd.private_key)
+        writer(self.cfg.get("rootd-bpki-cert", section = rootd_section), rootd.certificate)
+        writer(self.cfg.get("child-bpki-cert", section = rootd_section), rootd.issuer.certificate)
+      except rpki.irdb.ResourceHolderCA.DoesNotExist:
+        self.log("rootd enabled but resource holding entity not yet configured, skipping rootd setup")
 
 
   @django.db.transaction.commit_on_success

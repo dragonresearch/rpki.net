@@ -208,48 +208,46 @@ class main(rpki.cli.Cmd):
     self.zoo.write_bpki_files()
 
 
-  # These aren't quite ready for prime time yet.  See https://trac.rpki.net/ticket/466
+  def do_create_identity(self, arg):
+    """
+    Create a new resource-holding entity.  Argument is the handle of
+    the entity to create.  Returns XML file describing the new
+    resource holder.
 
-  if False:
+    This command is idempotent: calling it for a resource holder which
+    already exists returns the existing identity.
+    """
 
-    def do_create_identity(self, arg):
-      """
-      Create a new resource-holding entity.  Argument is the handle of
-      the entity to create.  Returns XML file describing the new
-      resource holder.
+    argv = arg.split()
+    if len(argv) != 1:
+      raise BadCommandSyntax("This command expexcts one argument, not %r" % arg)
 
-      This command is idempotent: calling it for a resource holder which
-      already exists returns the existing identity.
-      """
+    self.zoo.reset_identity(argv[0])
 
-      argv = arg.split()
-      if len(argv) != 1:
-        raise BadCommandSyntax("This command expexcts one argument, not %r" % arg)
+    rootd_case = self.zoo.run_rootd and self.zoo.handle == self.zoo.cfg.get("handle")
 
-      self.zoo.reset_identity(argv[0])
+    r = self.zoo.initialize_resource_bpki()
+    r.save("%s.identity.xml" % self.zoo.handle,
+           None if rootd_case else sys.stdout)
 
-      rootd_case = self.zoo.run_rootd and self.zoo.handle == self.zoo.cfg.get("handle")
-
-      r = self.zoo.initialize_resource_bpki()
-      r.save("%s.identity.xml" % self.zoo.handle,
-             None if rootd_case else sys.stdout)
-
-      if rootd_case:
-        r = self.zoo.configure_rootd()
-        if r is not None:
-          r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
-
-    def do_initialize_server_bpki(self, arg):
-      """
-      Initialize server BPKI portion of an RPKI installation.  Reads
-      server configuration from configuration file and creates the
-      server BPKI objects needed to start daemons.
-      """
-
-      if arg:
-        raise BadCommandSyntax, "This command takes no arguments"
-      self.zoo.initialize_server_bpki()
+    if rootd_case:
+      r = self.zoo.configure_rootd()
+      if r is not None:
+        r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
       self.zoo.write_bpki_files()
+
+
+  def do_initialize_server_bpki(self, arg):
+    """
+    Initialize server BPKI portion of an RPKI installation.  Reads
+    server configuration from configuration file and creates the
+    server BPKI objects needed to start daemons.
+    """
+
+    if arg:
+      raise BadCommandSyntax, "This command takes no arguments"
+    self.zoo.initialize_server_bpki()
+    self.zoo.write_bpki_files()
 
 
   def do_update_bpki(self, arg):

@@ -519,6 +519,44 @@ class allocation(object):
     print "Running rsyncd for %s: pid %d process %r" % (self.name, p.pid, p)
     return p
 
+def create_root_certificate(db_root):
+
+  print "Creating rootd RPKI root certificate"
+
+  root_resources = rpki.resource_set.resource_bag(
+    asn = rpki.resource_set.resource_set_as("0-4294967295"),
+    v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
+    v6  = rpki.resource_set.resource_set_ipv6("::/0"))
+
+  root_key = rpki.x509.RSA.generate(quiet = True)
+
+  root_uri = "rsync://localhost:%d/rpki/" % db_root.pubd.rsync_port
+
+  root_sia = (root_uri, root_uri + "root.mft", None)
+
+  root_cert = rpki.x509.X509.self_certify(
+    keypair     = root_key,
+    subject_key = root_key.get_RSApublic(),
+    serial      = 1,
+    sia         = root_sia,
+    notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
+    resources   = root_resources)
+
+  f = open(db_root.path("publication.root/root.cer"), "wb")
+  f.write(root_cert.get_DER())
+  f.close()
+
+  f = open(db_root.path("root.key"), "wb")
+  f.write(root_key.get_DER())
+  f.close()
+
+  f = open(os.path.join(test_dir, "root.tal"), "w")
+  f.write("rsync://localhost:%d/root/root.cer\n\n" % db_root.pubd.rsync_port)
+  f.write(root_key.get_RSApublic().get_Base64())
+  f.close()
+
+
+
 os.environ["TZ"] = "UTC"
 time.tzset()
 
@@ -611,63 +649,29 @@ try:
     
   else:
 
-    # Set up each entity in our test
+    # Set up each entity in our test, create publication directories,
+    # and initialize server BPKI.
 
     for d in db:
       if not d.is_hosted:
         os.makedirs(d.path())
         d.dump_conf()
-      if d.runs_pubd:
-        d.dump_rsyncd()
+        if d.runs_pubd:
+          os.makedirs(d.path("publication"))
+          d.dump_rsyncd()
+        if d.is_root:
+          os.makedirs(d.path("publication.root"))
+        d.run_rpkic("initialize_server_bpki")
 
-    # Initialize BPKI and generate self-descriptor for each entity.
+    # Initialize resource holding BPKI and generate self-descriptor
+    # for each entity.
 
     for d in db:
-      d.run_rpkic("initialize")
-
-    # Create publication directories.
-
-    for d in db:
-      if d.runs_pubd:
-        os.makedirs(d.path("publication"))
-      if d.is_root:
-        os.makedirs(d.path("publication.root"))
+      d.run_rpkic("create_identity", d.name)
 
     # Create RPKI root certificate.
 
-    print "Creating rootd RPKI root certificate"
-
-    root_resources = rpki.resource_set.resource_bag(
-      asn = rpki.resource_set.resource_set_as("0-4294967295"),
-      v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
-      v6  = rpki.resource_set.resource_set_ipv6("::/0"))
-
-    root_key = rpki.x509.RSA.generate(quiet = True)
-
-    root_uri = "rsync://localhost:%d/rpki/" % db.root.pubd.rsync_port
-
-    root_sia = (root_uri, root_uri + "root.mft", None)
-
-    root_cert = rpki.x509.X509.self_certify(
-      keypair     = root_key,
-      subject_key = root_key.get_RSApublic(),
-      serial      = 1,
-      sia         = root_sia,
-      notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
-      resources   = root_resources)
-
-    f = open(db.root.path("publication.root/root.cer"), "wb")
-    f.write(root_cert.get_DER())
-    f.close()
-
-    f = open(db.root.path("root.key"), "wb")
-    f.write(root_key.get_DER())
-    f.close()
-
-    f = open(os.path.join(test_dir, "root.tal"), "w")
-    f.write("rsync://localhost:%d/root/root.cer\n\n" % db.root.pubd.rsync_port)
-    f.write(root_key.get_RSApublic().get_Base64())
-    f.close()
+    create_root_certificate(db.root)
 
   # From here on we need to pay attention to initialization order.  We
   # used to do all the pre-configure_daemons stuff before running any

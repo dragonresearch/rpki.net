@@ -63,6 +63,7 @@ SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
 	  pubd rootd rpkic rpkid \
 	  portal-gui/scripts/rpkigui-import-routes \
 	  portal-gui/scripts/rpkigui-check-expired \
+	  portal-gui/scripts/rpkigui-rcynic \
 	  portal-gui/scripts/rpki-manage
 
 # scripts we build, but don't install

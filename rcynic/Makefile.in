@@ -88,6 +88,7 @@ COMPILE_PYTHON_CRON = \
 	AC_RCYNIC_USER='${RCYNIC_USER}' \
 	AC_RCYNIC_DIR='${RCYNIC_DIR}' \
 	AC_bindir='${bindir}' \
+	AC_sbindir='${sbindir}' \
 	AC_sysconfdir='${sysconfdir}' \
 	AC_RCYNIC_HTML_DIR='${RCYNIC_HTML_DIR}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-rcynic-script.py <$? >$@; \

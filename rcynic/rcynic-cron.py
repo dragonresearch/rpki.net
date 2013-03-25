@@ -111,8 +111,6 @@ run(os.path.join(ac_bindir, "rtr-origin"),
     os.path.join(ac_rcynic_dir, "data/authenticated"),
     cwd = os.path.join(ac_rcynic_dir, "rpki-rtr"))
 
-try:
-  import rpki.gui.cacheview.util 
-  rpki.gui.cacheview.util.import_rcynic_xml()
-except ImportError:
-  pass
+prog = os.path.join(ac_sbindir, "rpkigui-rcynic")
+if os.path.exists(prog):
+  run(prog)

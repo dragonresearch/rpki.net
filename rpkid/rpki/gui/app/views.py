@@ -135,7 +135,7 @@ def generic_import(request, queryset, configure, form_class=None,
             # here.  Unpack the tuple below if post_import_redirect is None.
             r = configure(z, tmpf.name, handle)
             # force rpkid run now
-            z.synchronize(conf.handle)
+            z.synchronize_ca(poke=True)
             os.remove(tmpf.name)
             if post_import_redirect:
                 url = post_import_redirect
@@ -312,7 +312,7 @@ def import_asns(request):
             f.close()
             z = Zookeeper(handle=conf.handle)
             z.load_asns(f.name)
-            z.synchronize()
+            z.run_rpkid_now()
             os.unlink(f.name)
             return redirect(dashboard)
     else:
@@ -346,7 +346,7 @@ def import_prefixes(request):
             f.close()
             z = Zookeeper(handle=conf.handle)
             z.load_prefixes(f.name)
-            z.synchronize()
+            z.run_rpkid_now()
             os.unlink(f.name)
             return redirect(dashboard)
     else:
@@ -380,7 +380,7 @@ def parent_delete(request, pk):
         if form.is_valid():
             z = Zookeeper(handle=conf.handle, logstream=log)
             z.delete_parent(obj.handle)
-            z.synchronize(conf.handle)
+            z.synchronize_ca()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.Empty()
@@ -507,7 +507,7 @@ def child_delete(request, pk):
         if form.is_valid():
             z = Zookeeper(handle=conf.handle, logstream=logstream)
             z.delete_child(child.handle)
-            z.synchronize(conf.handle)
+            z.synchronize_ca()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.Empty()
@@ -971,7 +971,7 @@ def repository_delete(request, pk):
         if form.is_valid():
             z = Zookeeper(handle=conf.handle, logstream=log)
             z.delete_repository(obj.handle)
-            z.synchronize(conf.handle)
+            z.synchronize_ca()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.Empty()
@@ -1017,7 +1017,7 @@ def client_delete(request, pk):
         if form.is_valid():
             z = Zookeeper(logstream=log)
             z.delete_publication_client(obj.handle)
-            z.synchronize()
+            z.synchronize_pubd()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.Empty()
@@ -1090,7 +1090,7 @@ def resource_holder_delete(request, pk):
         if form.is_valid():
             z = Zookeeper(handle=conf.handle, logstream=log)
             z.delete_self()
-            z.synchronize()
+            z.synchronize_deleted_ca()
             return redirect(resource_holder_list)
     else:
         form = forms.Empty()
@@ -1121,13 +1121,15 @@ def resource_holder_create(request):
                 zk_parent = Zookeeper(handle=parent.handle, logstream=log)
                 parent_response, _ = zk_parent.configure_child(t.name)
                 parent_response.save(t.name)
+                zk_parent.synchronize_ca()
                 repo_req, _ = zk_child.configure_parent(t.name)
                 repo_req.save(t.name)
                 repo_resp, _ = zk_parent.configure_publication_client(t.name)
                 repo_resp.save(t.name)
+                zk_parent.synchronize_pubd()
                 zk_child.configure_repository(t.name)
                 os.remove(t.name)
-            zk_child.synchronize()
+            zk_child.synchronize_ca()
             return redirect(resource_holder_list)
     else:
         form = forms.ResourceHolderCreateForm()

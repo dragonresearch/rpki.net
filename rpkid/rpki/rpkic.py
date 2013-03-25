@@ -44,7 +44,6 @@ import getopt
 import sys
 import time
 import rpki.config
-import rpki.cli
 import rpki.sundial
 import rpki.log
 import rpki.oids
@@ -56,18 +55,19 @@ import rpki.left_right
 import rpki.x509
 import rpki.async
 
-class BadCommandSyntax(Exception):      "Bad command line syntax."
+from rpki.cli import Cmd, BadCommandSyntax
+
 class BadPrefixSyntax(Exception):       "Bad prefix syntax."
 class CouldntTalkToDaemon(Exception):   "Couldn't talk to daemon."
 class BadXMLMessage(Exception):         "Bad XML message."
 class PastExpiration(Exception):        "Expiration date has already passed."
 class CantRunRootd(Exception):          "Can't run rootd."
 
-class main(rpki.cli.Cmd):
+class main(Cmd):
 
   prompt = "rpkic> "
 
-  completedefault = rpki.cli.Cmd.filename_complete
+  completedefault = Cmd.filename_complete
 
   def __init__(self):
     os.environ["TZ"] = "UTC"
@@ -90,7 +90,7 @@ class main(rpki.cli.Cmd):
         profile = a
 
     if self.argv and self.argv[0] == "help":
-      rpki.cli.Cmd.__init__(self, self.argv)
+      Cmd.__init__(self, self.argv)
     elif profile:
       import cProfile
       prof = cProfile.Profile()
@@ -105,7 +105,9 @@ class main(rpki.cli.Cmd):
   def main(self):
     rpki.log.init("rpkic", use_syslog = False)
     self.read_config()
-    rpki.cli.Cmd.__init__(self, self.argv)
+    Cmd.__init__(self, self.argv)
+    if self.argv:
+      sys.exit(1 if self.last_command_failed else 0)
 
   def read_config(self):
     global rpki                         # pylint: disable=W0602
@@ -176,7 +178,7 @@ class main(rpki.cli.Cmd):
 
     argv = arg.split()
     if len(argv) != 1:
-      raise BadCommandSyntax("This command expexcts one argument, not %r" % arg)
+      raise BadCommandSyntax("Expecting handle of new selected entity")
     self.zoo.reset_identity(argv[0])
 
   def complete_select_identity(self, *args):
@@ -192,7 +194,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise BadCommandSyntax, "This command takes no arguments"
+      raise BadCommandSyntax("This command takes no arguments")
 
     rootd_case = self.zoo.run_rootd and self.zoo.handle == self.zoo.cfg.get("handle")
 
@@ -220,21 +222,12 @@ class main(rpki.cli.Cmd):
 
     argv = arg.split()
     if len(argv) != 1:
-      raise BadCommandSyntax("This command expexcts one argument, not %r" % arg)
+      raise BadCommandSyntax("Expecting handle of new entity")
 
     self.zoo.reset_identity(argv[0])
 
-    rootd_case = self.zoo.run_rootd and self.zoo.handle == self.zoo.cfg.get("handle")
-
     r = self.zoo.initialize_resource_bpki()
-    r.save("%s.identity.xml" % self.zoo.handle,
-           None if rootd_case else sys.stdout)
-
-    if rootd_case:
-      r = self.zoo.configure_rootd()
-      if r is not None:
-        r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
-      self.zoo.write_bpki_files()
+    r.save("%s.identity.xml" % self.zoo.handle, sys.stdout)
 
 
   def do_initialize_server_bpki(self, arg):
@@ -245,7 +238,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise BadCommandSyntax, "This command takes no arguments"
+      raise BadCommandSyntax("This command takes no arguments")
     self.zoo.initialize_server_bpki()
     self.zoo.write_bpki_files()
 
@@ -264,7 +257,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise BadCommandSyntax, "This command takes no arguments"
+      raise BadCommandSyntax("This command takes no arguments")
     self.zoo.update_bpki()
     self.zoo.write_bpki_files()
 
@@ -287,8 +280,7 @@ class main(rpki.cli.Cmd):
         child_handle = a
     
     if len(argv) != 1:
-      raise BadCommandSyntax, "Need to specify filename for child.xml"
-
+      raise BadCommandSyntax("Expecting filename of child's identity XML")
     r, child_handle = self.zoo.configure_child(argv[0], child_handle)
     r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), sys.stdout)
     self.zoo.synchronize_ca()
@@ -299,13 +291,17 @@ class main(rpki.cli.Cmd):
     Delete a child of this RPKI entity.
     """
 
+    argv = arg.split()
+    if len(argv) != 1:
+      raise BadCommandSyntax("Expecting handle of child to delete")
+
     try:
-      self.zoo.delete_child(arg)
+      self.zoo.delete_child(argv[0])
       self.zoo.synchronize_ca()
     except rpki.irdb.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Child.DoesNotExist:
-      print "No such child \"%s\"" % arg
+      print "No such child \"%s\"" % argv[0]
 
   def complete_delete_child(self, *args):
     return self.irdb_handle_complete(self.zoo.resource_ca.children, *args)
@@ -337,8 +333,7 @@ class main(rpki.cli.Cmd):
         parent_handle = a
 
     if len(argv) != 1:
-      raise BadCommandSyntax, "Need to specify filename for parent.xml on command line"
-
+      raise BadCommandSyntax("Expecting filename of parental response XML")
     r, parent_handle = self.zoo.configure_parent(argv[0], parent_handle)
     r.save("%s.%s.repository-request.xml" % (self.zoo.handle, parent_handle), sys.stdout)
 
@@ -348,23 +343,45 @@ class main(rpki.cli.Cmd):
     Delete a parent of this RPKI entity.
     """
 
+    argv = arg.split()
+    if len(argv) != 1:
+      raise BadCommandSyntax("Expecting handle of parent to delete")
+
     try:
-      self.zoo.delete_parent(arg)
+      self.zoo.delete_parent(argv[0])
       self.zoo.synchronize_ca()
     except rpki.irdb.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Parent.DoesNotExist:
-      print "No such parent \"%s\"" % arg
+      print "No such parent \"%s\"" % argv[0]
 
   def complete_delete_parent(self, *args):
     return self.irdb_handle_complete(self.zoo.resource_ca.parents, *args)
 
 
-  def do_delete_rootd(self, arg):
+  def do_configure_root(self, arg):
     """
-    Delete rootd associated with this RPKI entity.
+    Configure the current resource holding identity as a root (ie,
+    configure it to talk to rootd as (one of) its parent(s).  Returns
+    repository request XML file like configure_parent does.
     """
 
+    if arg:
+      raise BadCommandSyntax("This command takes no arguments")
+    r = self.zoo.configure_rootd()
+    if r is not None:
+      r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
+    self.zoo.write_bpki_files()
+
+
+  def do_delete_root(self, arg):
+    """
+    Delete association with local RPKI root as parent of the current
+    entity (ie, tell this rpkid <self/> to stop talking to rootd).
+    """
+
+    if arg:
+      raise BadCommandSyntax("This command takes no arguments")
     try:
       self.zoo.delete_rootd()
       self.zoo.synchronize_ca()
@@ -394,11 +411,9 @@ class main(rpki.cli.Cmd):
         sia_base = a
     
     if len(argv) != 1:
-      raise BadCommandSyntax, "Need to specify filename for client.xml"
-
+      raise BadCommandSyntax("Expecting filename for publication client request XML")
     r, client_handle = self.zoo.configure_publication_client(argv[0], sia_base, flat)
     r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
-
     try:
       self.zoo.synchronize_pubd()
     except rpki.irdb.Repository.DoesNotExist:
@@ -410,13 +425,16 @@ class main(rpki.cli.Cmd):
     Delete a publication client of this RPKI entity.
     """
 
+    argv = arg.split()
+    if len(argv) != 1:
+      raise BadCommandSyntax("Expecting handle of client to delete")
     try:
-      self.zoo.delete_publication_client(arg)
+      self.zoo.delete_publication_client(argv[0])
       self.zoo.synchronize_pubd()
     except rpki.irdb.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Client.DoesNotExist:
-      print "No such client \"%s\"" % arg
+      print "No such client \"%s\"" % argv[0]
 
   def complete_delete_publication_client(self, *args):
     return self.irdb_handle_complete(self.zoo.server_ca.clients, *args)
@@ -440,7 +458,7 @@ class main(rpki.cli.Cmd):
         parent_handle = a
 
     if len(argv) != 1:
-      raise BadCommandSyntax, "Need to specify filename for repository.xml on command line"
+      raise BadCommandSyntax("Expecting filename for repository response XML")
 
     self.zoo.configure_repository(argv[0], parent_handle)
     self.zoo.synchronize_ca()
@@ -453,28 +471,40 @@ class main(rpki.cli.Cmd):
     repository, but doesn't, yet.
     """
 
+    argv = arg.split()
+    if len(argv) != 1:
+      raise BadCommandSyntax("Expecting handle of repository to delete")
+
     try:
-      self.zoo.delete_repository(arg)
+      self.zoo.delete_repository(argv[0])
       self.zoo.synchronize_ca()
     except rpki.irdb.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Repository.DoesNotExist:
-      print "No such repository \"%s\"" % arg
+      print "No such repository \"%s\"" % argv[0]
 
   def complete_delete_repository(self, *args):
     return self.irdb_handle_complete(self.zoo.resource_ca.repositories, *args)
 
 
-  def do_delete_self(self, arg):
+  def do_delete_identity(self, arg):
     """
-    Delete the current RPKI entity (<self/> object).
+    Delete the current RPKI identity (rpkid <self/> object).
     """
+
+    if arg:
+      raise BadCommandSyntax("This command takes no arguments")
 
     try:
       self.zoo.delete_self()
       self.zoo.synchronize_deleted_ca()
     except rpki.irdb.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
+
+
+  def do_delete_self(self, arg):
+    print "This is a deprecated alias for the \"delete_identity\" command."
+    self.do_delete_identity(arg)
 
 
   def do_renew_child(self, arg):
@@ -490,7 +520,7 @@ class main(rpki.cli.Cmd):
         valid_until = a
 
     if len(argv) != 1:
-      raise BadCommandSyntax, "Need to specify child handle"
+      raise BadCommandSyntax("Expecting handle of child to renew")
 
     self.zoo.renew_children(argv[0], valid_until)
     self.zoo.synchronize_ca()
@@ -513,8 +543,8 @@ class main(rpki.cli.Cmd):
       if o == "--valid_until":
         valid_until = a
 
-    if len(argv) != 0:
-      raise BadCommandSyntax, "Unexpected arguments"
+    if argv:
+      raise BadCommandSyntax("This command takes no arguments")
 
     self.zoo.renew_children(None, valid_until)
     self.zoo.synchronize_ca()
@@ -530,7 +560,7 @@ class main(rpki.cli.Cmd):
     argv = arg.split()
 
     if len(argv) != 1:
-      raise BadCommandSyntax("Need to specify prefixes.csv filename")
+      raise BadCommandSyntax("Expecting filename of prefixes CSV")
 
     self.zoo.load_prefixes(argv[0], True)
     if self.autosync:
@@ -542,7 +572,7 @@ class main(rpki.cli.Cmd):
     Show resources assigned to children.
     """
 
-    if arg.strip():
+    if arg:
       raise BadCommandSyntax("This command takes no arguments")
 
     for child in self.zoo.resource_ca.children.all():
@@ -565,7 +595,7 @@ class main(rpki.cli.Cmd):
     argv = arg.split()
 
     if len(argv) != 1:
-      raise BadCommandSyntax("Need to specify asns.csv filename")
+      raise BadCommandSyntax("Expecting filename of ASNs CSV")
 
     self.zoo.load_asns(argv[0], True)
     if self.autosync:
@@ -580,7 +610,7 @@ class main(rpki.cli.Cmd):
     argv = arg.split()
 
     if len(argv) != 1:
-      raise BadCommandSyntax("Need to specify roa.csv filename")
+      raise BadCommandSyntax("Expecting filename of ROAs CSV")
 
     self.zoo.load_roa_requests(argv[0])
     if self.autosync:
@@ -596,7 +626,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+      raise BadCommandSyntax("This command takes no arguments")
 
     self.zoo.synchronize()
 
@@ -612,7 +642,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+      raise BadCommandSyntax("This command takes no arguments")
 
     self.zoo.publish_world_now()
 
@@ -628,7 +658,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+      raise BadCommandSyntax("This command takes no arguments")
 
     self.zoo.reissue()
 
@@ -644,7 +674,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+      raise BadCommandSyntax("This command takes no arguments")
 
     self.zoo.rekey()
 
@@ -659,7 +689,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+      raise BadCommandSyntax("This command takes no arguments")
 
     self.zoo.revoke()
 
@@ -678,7 +708,7 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+      raise BadCommandSyntax("This command takes no arguments")
 
     self.zoo.revoke_forgotten()
 
@@ -692,6 +722,6 @@ class main(rpki.cli.Cmd):
     """
 
     if arg:
-      raise BadCommandSyntax("Unexpected argument(s): %r" % arg)
+      raise BadCommandSyntax("This command takes no arguments")
 
     self.zoo.clear_all_sql_cms_replay_protection()

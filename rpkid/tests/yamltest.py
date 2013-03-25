@@ -673,6 +673,10 @@ try:
 
     create_root_certificate(db.root)
 
+    # Set up rootd.
+
+    db.root.run_rpkic("configure_root")
+
   # From here on we need to pay attention to initialization order.  We
   # used to do all the pre-configure_daemons stuff before running any
   # of the daemons, but that doesn't work right in hosted cases, so we

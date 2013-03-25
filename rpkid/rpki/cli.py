@@ -26,6 +26,9 @@ try:
 except ImportError:
   have_readline = False
 
+class BadCommandSyntax(Exception):
+  "Bad command line syntax."
+
 class Cmd(cmd.Cmd):
   """
   Customized subclass of Python cmd module.
@@ -39,6 +42,8 @@ class Cmd(cmd.Cmd):
 
   histfile = None
 
+  last_command_failed = False
+
   def __init__(self, argv = None):
     cmd.Cmd.__init__(self)
     if argv:
@@ -51,12 +56,17 @@ class Cmd(cmd.Cmd):
     Wrap error handling around cmd.Cmd.onecmd().  Might want to do
     something kinder than showing a traceback, eventually.
     """
+    self.last_command_failed = False
     try:
       return cmd.Cmd.onecmd(self, line)
     except SystemExit:
       raise
+    except BadCommandSyntax, e:
+      print e
     except Exception:
       traceback.print_exc()
+    self.last_command_failed = True
+    return False
 
   def do_EOF(self, arg):
     """

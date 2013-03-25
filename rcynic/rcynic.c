@@ -5541,7 +5541,7 @@ int main(int argc, char *argv[])
 	bio = NULL;
 	continue;
       }
-      if (endswith(uri.s, "/")) {
+      if (!endswith(uri.s, ".cer")) {
 	log_validation_status(&rc, &uri, malformed_tal_uri, object_generation_null);
 	BIO_free_all(bio);
 	bio = NULL;

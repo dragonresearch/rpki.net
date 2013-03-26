@@ -16,6 +16,11 @@ __version__ = '$Id$'
 
 import optparse
 import logging
+
+# configure django ORM
+from rpki.gui.script_util import setup
+setup()
+
 from rpki.gui.routeview.util import import_routeviews_dump
 
 

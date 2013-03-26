@@ -16,6 +16,11 @@ __version__ = '$Id$'
 
 from optparse import OptionParser
 import logging
+import sys
+
+# configure django ORM
+from rpki.gui.script_util import setup
+setup()
 
 from rpki.gui.app.check_expired import notify_expired
 

@@ -1,3 +1,6 @@
+from rpki.gui.script_util import setup
+setup()
+
 from django.db import transaction
 from django.db.models import Count
 from rpki.gui.app.models import ROARequest

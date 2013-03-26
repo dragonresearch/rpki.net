@@ -21,6 +21,9 @@ default_root = '/var/rcynic/data'
 
 import logging
 
+from rpki.gui.script_util import setup
+setup()
+
 from rpki.gui.cacheview.util import import_rcynic_xml
 
 if __name__ == '__main__':

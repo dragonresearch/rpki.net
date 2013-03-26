@@ -76,10 +76,10 @@ BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo \
 DATA_FILES = portal-gui/routeviews.sh
 
 # these files get put in ${sysconfdir}/rpki
-CONF_FILES = portal-gui/apache.conf ${SETTINGS}
+CONF_FILES = portal-gui/apache.conf portal-gui/default_settings.py ${SETTINGS}
 
 # automatically generated config files
-SETTINGS=portal-gui/settings.py portal-gui/default_settings.py
+SETTINGS=portal-gui/settings.py
 
 all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
@@ -278,19 +278,19 @@ rpkid: rpkid.py
 	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-rcynic: portal-gui/scripts/rpkigui-rcynic.py
-	${COMPILE_DJANGO}
+	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-routes.py
-	${COMPILE_DJANGO}
+	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-reset-demo: portal-gui/scripts/rpkigui-reset-demo.py
 	${COMPILE_DJANGO}
 
 portal-gui/scripts/rpkigui-check-expired: portal-gui/scripts/rpkigui-check-expired.py
-	${COMPILE_DJANGO}
+	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-flatten-roas: portal-gui/scripts/rpkigui-flatten-roas.py
-	${COMPILE_DJANGO}
+	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-sync-users: portal-gui/scripts/rpkigui-sync-users.py
 	${COMPILE_DJANGO}

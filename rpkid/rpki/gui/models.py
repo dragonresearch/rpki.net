@@ -44,7 +44,7 @@ class IPv6AddressField(models.Field):
         strings in SQL statements.  See settings.get_conv() for details.
 
         """
-        return long(value)
+        return value.toBytes()
 
 
 class IPv4AddressField(models.Field):

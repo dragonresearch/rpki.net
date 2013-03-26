@@ -88,11 +88,6 @@ TEMPLATE_LOADERS = (
 MIDDLEWARE_CLASSES = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-
-    # order is important here.  if csrfmidware is put before condgetmidware,
-    # the returned pages get truncated for some reason!
-    'django.middleware.http.ConditionalGetMiddleware',
-
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware'

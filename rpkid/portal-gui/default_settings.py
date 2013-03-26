@@ -35,7 +35,7 @@ LOGGING = {
             'handlers': ['stderr', 'mail_admins'],
         },
         'rpki.gui': {
-            'level': 'DEBUG',
+            'level': 'WARNING',
             'handlers': ['stderr'],
         },
     },

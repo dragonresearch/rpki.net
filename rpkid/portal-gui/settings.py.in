@@ -129,3 +129,6 @@ STATIC_ROOT = '%(AC_DATAROOTDIR)s/rpki/media'
 
 # must end with a slash!
 STATIC_URL = '/media/'
+
+# where to email server errors
+ADMINS = (('Administrator', 'root@localhost'),)

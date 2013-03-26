@@ -14,6 +14,8 @@ def setup():
     Configure Django enough to use the ORM.
     """
     cfg = parser(section='web_portal')
+    # INSTALLED_APPS doesn't seem necessary so long as you are only accessing
+    # existing tables.
     settings.configure(
         DATABASES={
             'default': {
@@ -23,10 +25,4 @@ def setup():
                 'PASSWORD': cfg.get('sql-password'),
             }
         },
-        INSTALLED_APPS=(
-            'rpki.gui.app',
-            'rpki.gui.cacheview',
-            'rpki.gui.routeview',
-            'rpki.irdb'
-        )
     )

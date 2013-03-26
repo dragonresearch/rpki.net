@@ -11,7 +11,7 @@ locked)
     exec >cronjob.log 2>&1
     set -x
     export PATH=/bin:/usr/bin:/usr/local/bin
-    /usr/local/bin/svn update
+    /usr/local/bin/svn update ..
     /usr/local/bin/python ../buildtools/pull-doc-from-wiki.py
     /usr/local/bin/svn status
     if test -n "$(/usr/local/bin/svn status doc.*)"

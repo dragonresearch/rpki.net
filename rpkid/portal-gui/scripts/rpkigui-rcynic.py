@@ -20,6 +20,7 @@ default_logfile = '/var/rcynic/data/rcynic.xml'
 default_root = '/var/rcynic/data'
 
 import logging
+import sys
 
 from rpki.gui.script_util import setup
 setup()

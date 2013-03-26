@@ -79,7 +79,7 @@ DATA_FILES = portal-gui/routeviews.sh
 CONF_FILES = portal-gui/apache.conf ${SETTINGS}
 
 # automatically generated config files
-SETTINGS=portal-gui/settings.py
+SETTINGS=portal-gui/settings.py portal-gui/default_settings.py
 
 all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 

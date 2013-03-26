@@ -26,6 +26,7 @@ import os.path
 from tempfile import NamedTemporaryFile
 import cStringIO
 import csv
+import logging
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render, redirect
@@ -49,6 +50,8 @@ import rpki.exceptions
 from rpki.gui.cacheview.models import ROA
 from rpki.gui.routeview.models import RouteOrigin
 from rpki.gui.decorators import tls_required
+
+logger = logging.getLogger(__name__)
 
 
 def superuser_required(f):

@@ -127,8 +127,13 @@ TEMPLATE_CONTEXT_PROCESSORS = (
 # where to put static files
 STATIC_ROOT = '%(AC_DATAROOTDIR)s/rpki/media'
 
-# must end with a slash!
-STATIC_URL = '/media/'
+try:
+    from default_settings import *
+except:
+    pass
 
-# where to email server errors
-ADMINS = (('Administrator', 'root@localhost'),)
+# allow local site to override any setting above
+try:
+    from local_settings import *
+except:
+    pass

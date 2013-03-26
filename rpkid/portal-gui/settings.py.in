@@ -19,26 +19,6 @@ rpki.config.default_dirname = '%(AC_SYSCONFDIR)s'
 rpki_config = rpki.config.parser(section='web_portal')
 
 
-def get_conv():
-    """Add a custom data converter to encode long() as a hex string
-    in generated SQL statements.
-
-    This is necessary since Django doesn't support binary field types, and
-    assumes all strings are UTF-8.  Without this conversion, the generated SQL
-    uses a raw byte string.
-
-    See https://trac.rpki.net/ticket/434
-
-    """
-    from MySQLdb.converters import conversions
-    import types
-    conv = conversions.copy()
-    # WARNING: the extra percents in the following line are due to the fact
-    # that this entire script is used as a format string to generate
-    # settings.py
-    conv[types.LongType] = lambda x, conv: "0x%%x" %% x
-    return conv
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -53,7 +33,6 @@ DATABASES = {
 
         'OPTIONS': {
             'init_command': 'SET storage_engine=INNODB',
-            'conv': get_conv(),
         }
     }
 }

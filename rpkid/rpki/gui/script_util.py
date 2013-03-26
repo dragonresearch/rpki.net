@@ -18,7 +18,8 @@ This module contains utility functions for use in standalone scripts.
 
 from django.conf import settings
 
-from rpki.config import parser
+from rpki import config
+from rpki.gui import autoconf
 
 __version__ = '$Id$'
 
@@ -27,7 +28,8 @@ def setup():
     """
     Configure Django enough to use the ORM.
     """
-    cfg = parser(section='web_portal')
+    config.default_dirname = autoconf.sysconfdir
+    cfg = config.parser(section='web_portal')
     # INSTALLED_APPS doesn't seem necessary so long as you are only accessing
     # existing tables.
     settings.configure(

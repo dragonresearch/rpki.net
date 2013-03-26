@@ -70,7 +70,8 @@ SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
 BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo \
 		portal-gui/scripts/rpkigui-flatten-roas \
 		portal-gui/scripts/rpkigui-sync-users \
-		portal-gui/rpki.wsgi
+		portal-gui/rpki.wsgi \
+		rpki/gui/autoconf.py
 
 # these files get put in ${datarootdir}/rpki
 DATA_FILES = portal-gui/routeviews.sh
@@ -299,3 +300,12 @@ portal-gui/scripts/rpki-manage: ${srcdir}/portal-gui/scripts/rpki-manage.in
 		-e "s|@PYTHON""PATH@|${sysconfdir}/rpki|" \
 		${srcdir}/portal-gui/scripts/rpki-manage.in > portal-gui/scripts/rpki-manage
 	chmod 755 $@
+
+rpki/gui/autoconf.py: Makefile
+	(echo '# automatically generated.  DO NOT EDIT.'; \
+         echo 'bindir="${bindir}"'; \
+	 echo 'datarootdir="${datarootdir}"'; \
+	 echo 'localstatedir="${localstatedir}"'; \
+	 echo 'sbindir="${sbindir}"'; \
+	 echo 'sharedstatedir="${sharedstatedir}"'; \
+	 echo 'sysconfdir="${sysconfdir}"') > $@

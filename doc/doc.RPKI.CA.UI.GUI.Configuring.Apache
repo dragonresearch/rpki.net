@@ -1,0 +1,83 @@
+****** Apache Configuration ******
+
+This page documents how to configure Apache to server the web portal
+application.
+
+During the software install process, /usr/local/etc/rpki/apache.conf is
+created, which needs to be included from the apache configuration inside of a
+VirtualHost section.
+
+Note that the web portal application requires TLS to be enabled for the
+VirtualHost it is configured in, otherwise it will fail to operate.
+
+***** Requirements *****
+
+* Apache 2.2 or later
+* mod_ssl
+* mod_wsgi 3 or later
+
+***** Ubuntu *****
+
+First, you need to install apache and enable SSL. Run the following commands in
+a shell as root:
+
+  apt-get install apache2 libapache2-mod-wsgi
+  a2enmod ssl
+  a2ensite default-ssl
+
+Edit /etc/apache2/sites-enabled/default-ssl and place the following line inside
+the <VirtualHost> section:
+
+  Include /usr/local/etc/rpki/apache.conf
+
+Now restart apache:
+
+  service apache2 restart
+
+***** FreeBSD *****
+
+Now configure apache, using /usr/local/etc/rpki/apache.conf, e.g.
+
+  $ cp apache.conf /usr/local/etc/apache22/Includes/rpki.conf
+
+Restart apache
+
+  $ apachectl restart
+
+***** Running the web portal as a different user (optional) *****
+
+By default, the web portal is run in embedded mode in mod_wsgi, which means it
+runs inside the apache process. However, you can make the web portal run in
+daemon mode as a different user using mod_wsgi.
+
+  $ ./configure --enable-wsgi-daemon-mode[=user[:group]]
+
+Where user is the optional user to run the web portal as, and group is the
+optional group to run the web portal as. If user is not specified, it will run
+in a separate process but the same user as apache is configured to run.
+
+Note that when run in daemon mode, a unix domain socket will be created in the
+same directory as the apache log files. If the user you have specified to run
+the web portal as does not have permission to read a file in that directory,
+the web interface will return a 500 Internal Server Error and you will see a
+permission denied error in your apache logs. The solution to this is to use the
+WSGISocketPrefix apache configuration directive to specify an alternative
+location, such as:
+
+  WSGISocketPrefix /var/run/wsgi
+
+Note that this directive must not be placed inside of the VirtualHost section.
+It must be located at the global scope.
+
+see http://code.google.com/p/modwsgi/wiki/
+ConfigurationDirectives#WSGISocketPrefix for more information.
+
+***** Verify the Web Portal is Working *****
+
+Navigate to https://YOURHOST/rpki/ and you should see the login page for the
+web portal.
+
+Enter the superuser and password in login form (see doc/RPKI/CA/UI/GUI/
+UserModel if you haven't yet created a superuser). If you've only done the
+above bootstrap, there will only be a single handle to manage, so the GUI will
+automatically bring you to the dashboard for that handle.

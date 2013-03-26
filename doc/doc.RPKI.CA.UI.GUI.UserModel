@@ -1,0 +1,129 @@
+****** RPKI Web Portal User Model ******
+
+***** Roles *****
+
+The web portal uses a model where users are distinct from resource holders.
+
+**** Users ****
+
+A user is an entity that is granted permission to utilize the web portal. Each
+user account has an associated password that is used to log in to the web
+portal.
+
+The web portal maintains an access control list that specifies which resource
+holders the user is allowed to manage. If a user is authorized to manage more
+than a single resource holder, the user will be presented with a list of the
+resource holders upon login.
+
+Database tables: irdbd.auth_user and irdbd.app_confacl
+
+*** Changing User Passwords ***
+
+The password for a user may be changed via the web portal, or on the command
+line:
+
+  $ rpki-manage changepassword <USER>
+
+*** Superuser ***
+
+A user account with the superuser bit set has the special capability that it
+may assume the role of any resource holder managed by the local RPKI service.
+Superusers are created via the command line interface:
+
+  $ rpki-manage createsuperuser
+
+*** Creating user accounts ***
+
+When logged into the web portal with a #superuser account, select the web users
+link in the sidebar, and then click on the create button at the bottom of the
+page. You may optionally select one or more resource holders that this user is
+granted authorization to manage.
+
+Note that creating a user does not create a matching #resource-holder. See
+creating resource holders.
+
+*** Destroying user accounts ***
+
+When logged into the web portal with a #superuser account, select the web users
+link in the sidebar, and then click on the Delete icon next to the user you
+wish to delete.
+
+Note that this action does not remove any of the resource holders the user is
+granted authorization to manage.
+
+**** Resource Holders ****
+
+Resource holders are entities that have authority to manage a set of Internet
+number resources. When a user logs into the web portal, they select which
+resource holder role to assume. The user may choose to assume the role of a
+different resource holder by clicking on the select identity link in the
+sidebar.
+
+The list of resource holders managed by the local RPKI service can be viewed
+with a #superuser account by clicking on the resource holders link in the
+sidebar of the web portal. From this page the super can manage the resource
+holders.
+
+Database table: irdbd.irdb_resourceholderca (via irdbd.app_conf proxy model)
+
+*** Creating resource holders ***
+
+Note that creating a new resource holder does not create a user account. See
+#create-user.
+
+** GUI **
+
+When logged into the web portal with a #superuser account, select the resource
+holders link in the sidebar, and then click on the create button at the bottom
+of the page.
+
+If the new resource holder is going to be a child of another resource holder
+hosted by the local RPKI service, you may optionally select the parent resource
+holder from the dropdown box, and the parent-child relationship will
+automatically be established when the new resource holder is created.
+
+Additionally, one or more #users authorized to manage the new resource holder
+may be selected from the Users list on the creation form.
+
+** Command Line **
+
+You can also create resource holders on the command line:
+
+  $ rpkic -i <HANDLE> initialize
+  $ rpkic synchronize
+
+where HANDLE is the name of new resource holder. Note that this new resource
+holder will initially only be allowed to be managed by #superuser accounts. You
+may wish to create a matching user account, but the name of the user need not
+be the same as the handle of the resource holder. Additionally, you can manage
+the list of users allowed to manage this resource holder via the web portal;
+click on the Edit icon next to the resource holder, and select the users you
+wish to grant permission to manage.
+
+*** Destroying resource holders ***
+
+Note that deleting a resource holder does not remove any user accounts.
+
+** GUI **
+
+When logged into the web portal with a #superuser account, select the resource
+holders link in the sidebar, and then click on the delete button next to the
+resource holder you wish to delete.
+
+** Command Line **
+
+Or you may use the command line interface:
+
+  $ rpkic -i <HANDLE> delete_self
+  $ rpkic synchronize
+
+where HANDLE is the name of the resource holder you wish to destroy.
+
+*** Modifying the User ACL ***
+
+Each resource holder may be managed by one or more user accounts. The list of
+users authorized to assume the role of a particular resource holder may be
+changed in the web portal. When logged into the web portal with a #superuser
+account, select the resource holders link in the sidebar, and then click on the
+Edit icon next to the resource holder, and select the users you wish to grant
+permission to manage.

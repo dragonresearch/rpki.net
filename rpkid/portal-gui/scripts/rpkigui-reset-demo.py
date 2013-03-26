@@ -1,4 +1,4 @@
-# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2013  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -20,6 +20,11 @@ issued by the labuser accounts.
 """
 
 __version__ = '$Id$'
+
+from rpki.gui.script_util import setup
+setup()
+
+import sys
 
 from rpki.irdb.models import ROARequest, GhostbusterRequest, ResourceHolderCA
 from rpki.gui.app.glue import list_received_resources

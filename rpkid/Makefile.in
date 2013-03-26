@@ -234,13 +234,6 @@ COMPILE_PYTHON = \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; \
 	chmod 555 $@
 
-COMPILE_DJANGO = \
-	rm -f $@; \
-	AC_PYTHON_INTERPRETER='${PYTHON}' \
-	AC_PYTHONPATH='${sysconfdir}/rpki' \
-	${PYTHON} ${abs_top_srcdir}/buildtools/make-django-script.py <$? >$@; \
-	chmod 555 $@
-
 COMPILE_SETTINGS = \
 	rm -f $@; \
 	AC_SECRET_KEY='${SECRET_KEY}' \
@@ -284,7 +277,7 @@ portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-rout
 	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-reset-demo: portal-gui/scripts/rpkigui-reset-demo.py
-	${COMPILE_DJANGO}
+	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-check-expired: portal-gui/scripts/rpkigui-check-expired.py
 	${COMPILE_PYTHON}
@@ -293,7 +286,7 @@ portal-gui/scripts/rpkigui-flatten-roas: portal-gui/scripts/rpkigui-flatten-roas
 	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-sync-users: portal-gui/scripts/rpkigui-sync-users.py
-	${COMPILE_DJANGO}
+	${COMPILE_PYTHON}
 
 portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in
 	sed -e "s|@VIRTUAL"_"ENV@|${VIRTUAL_ENV}|" \

@@ -67,10 +67,7 @@ SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
 	  portal-gui/scripts/rpki-manage
 
 # scripts we build, but don't install
-BUILD_SCRIPTS = portal-gui/scripts/rpkigui-reset-demo \
-		portal-gui/scripts/rpkigui-flatten-roas \
-		portal-gui/scripts/rpkigui-sync-users \
-		portal-gui/rpki.wsgi \
+BUILD_SCRIPTS = portal-gui/rpki.wsgi \
 		rpki/gui/autoconf.py
 
 # these files get put in ${datarootdir}/rpki
@@ -269,22 +266,17 @@ rpkic: rpkic.py
 rpkid: rpkid.py
 	${COMPILE_PYTHON}
 
+# These are here for legacy reasons, but no longer required.  The problem is
+# that anyone with an existing copy of the repository will already have
+# previously built files by these names, so I can't rename them in the
+# repository, or svn will abort when the user tries to update.
 portal-gui/scripts/rpkigui-rcynic: portal-gui/scripts/rpkigui-rcynic.py
 	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-routes.py
 	${COMPILE_PYTHON}
 
-portal-gui/scripts/rpkigui-reset-demo: portal-gui/scripts/rpkigui-reset-demo.py
-	${COMPILE_PYTHON}
-
 portal-gui/scripts/rpkigui-check-expired: portal-gui/scripts/rpkigui-check-expired.py
-	${COMPILE_PYTHON}
-
-portal-gui/scripts/rpkigui-flatten-roas: portal-gui/scripts/rpkigui-flatten-roas.py
-	${COMPILE_PYTHON}
-
-portal-gui/scripts/rpkigui-sync-users: portal-gui/scripts/rpkigui-sync-users.py
 	${COMPILE_PYTHON}
 
 portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in

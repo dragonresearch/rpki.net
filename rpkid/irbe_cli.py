@@ -3,7 +3,7 @@ Command line IR back-end control program for rpkid and pubd.
 
 $Id$
 
-Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -32,9 +32,16 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import getopt, sys, textwrap
-import rpki.left_right, rpki.http, rpki.x509, rpki.config, rpki.log
-import rpki.publication, rpki.async
+import sys
+import getopt
+import textwrap
+import rpki.left_right
+import rpki.http
+import rpki.x509
+import rpki.config
+import rpki.log
+import rpki.publication
+import rpki.async
 
 pem_out = None
 
@@ -337,13 +344,17 @@ if q_msg_left_right:
 
   rpkid = server_ca.ee_certificates.get(purpose = "rpkid")
 
+  rpkid_url = "http://%s:%s/left-right/" % (
+    cfg.get("server-host", section = "rpkid"),
+    cfg.get("server-port", section = "rpkid"))
+
   call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
     proto       = left_right_proto,
     client_key  = irbe.private_key,
     client_cert = irbe.certificate,
     server_ta   = server_ca.certificate,
     server_cert = rpkid.certificate,
-    url         = cfg.get("rpkid-url"),
+    url         = rpkid_url,
     debug       = verbose))
 
   call_rpkid(*q_msg_left_right)
@@ -356,13 +367,17 @@ if q_msg_publication:
 
   pubd = server_ca.ee_certificates.get(purpose = "pubd")
 
+  pubd_url = "http://%s:%s/control/" % (
+    cfg.get("server-host", section = "pubd"),
+    cfg.get("server-port", section = "pubd"))
+
   call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
     proto       = publication_proto,
     client_key  = irbe.private_key,
     client_cert = irbe.certificate,
     server_ta   = server_ca.certificate,
     server_cert = pubd.certificate,
-    url         = cfg.get("pubd-url"),
+    url         = pubd_url,
     debug       = verbose))
 
   call_pubd(*q_msg_publication)

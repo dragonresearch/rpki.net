@@ -131,13 +131,13 @@
   {% endfor %}
 </table>
 <a class="btn" href="{% url "rpki.gui.app.views.roa_create_multi" %}"><i class="icon-plus-sign"></i> Create</a>
-<a class="btn" href="{% url "roa-import" %}" title="import a CSV file containing ROA requests"><i class="icon-upload"></i> Import</a>
-<a class="btn" href="{% url "roa-export" %}" title="download a CSV file containing ROA requests"><i class="icon-download"></i> Export</a>
+<a class="btn" href="{% url "roa-import" %}" title="import a CSV file containing ROAs"><i class="icon-upload"></i> Import</a>
+<a class="btn" href="{% url "roa-export" %}" title="download a CSV file containing ROAs"><i class="icon-download"></i> Export</a>
 </div>
 
   <div class="span6">
 <div class="page-header">
-  <h1>Ghostbuster Requests</h1>
+  <h1>Ghostbusters</h1>
 </div>
 <table class="table table-condensed table-striped">
   <tr><th>Full Name</th><th>Organization</th><th>Email</th><th>Telephone</th><th></th></tr>

@@ -954,6 +954,27 @@ def route_detail(request, pk):
     route = get_object_or_404(models.RouteOrigin, pk=pk)
     return render(request, 'app/route_detail.html', {'object': route})
 
+
+def route_suggest(request):
+    """Handles POSTs from the route view and redirects to the ROA creation
+    page based on selected route objects.  The form should contain elements of
+    the form "pk-NUM" where NUM is the RouteOrigin object id.
+
+    """
+    if request.method == 'POST':
+        routes = []
+        for pk in request.POST.iterkeys():
+            logger.debug(pk)
+            if pk.startswith("pk-"):
+                n = int(pk[3:])
+                routes.append(n)
+        qs = RouteOrigin.objects.filter(pk__in=routes)
+        s = []
+        for r in qs:
+            s.append('roa=%s/%d,%d' % (str(r.prefix_min), r.prefixlen, r.asn))
+        p = '&'.join(s)
+        return redirect(reverse(roa_create_multi) + '?' + p)
+
 
 @handle_required
 def repository_detail(request, pk):

@@ -67,6 +67,7 @@ urlpatterns = patterns(
     url(r'^roa/(?P<pk>\d+)/clone$', views.roa_clone, name="roa-clone"),
     (r'^route/$', views.route_view),
     (r'^route/(?P<pk>\d+)/$', views.route_detail),
+    url(r'^route/suggest$', views.route_suggest, name="suggest-roas"),
     (r'^user/$', views.user_list),
     (r'^user/create$', views.user_create),
     (r'^user/(?P<pk>\d+)/delete$', views.user_delete),

@@ -32,16 +32,16 @@ class RouteOrigin(rpki.gui.models.PrefixV4):
     def roas(self):
         "Return a queryset of ROAs which cover this route."
         return cacheview.models.ROA.objects.filter(
-            prefixes__prefix_min__lte=self.prefix_max,
-            prefixes__prefix_max__gte=self.prefix_min
+            prefixes__prefix_min__lte=self.prefix_min,
+            prefixes__prefix_max__gte=self.prefix_max
         )
 
     @property
     def roa_prefixes(self):
         "Return a queryset of ROA prefixes which cover this route."
         return cacheview.models.ROAPrefixV4.objects.filter(
-            prefix_min__lte=self.prefix_max,
-            prefix_max__gte=self.prefix_min
+            prefix_min__lte=self.prefix_min,
+            prefix_max__gte=self.prefix_max
         )
 
     @property

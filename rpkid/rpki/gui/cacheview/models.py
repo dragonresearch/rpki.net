@@ -180,9 +180,8 @@ class ROAPrefixV4(ROAPrefix, rpki.gui.models.PrefixV4):
     @property
     def routes(self):
         """return all routes covered by this roa prefix"""
-        return RouteOrigin.objects.filter(
-            prefix_min__lte=self.prefix_max,
-            prefix_max__gte=self.prefix_min)
+        return RouteOrigin.objects.filter(prefix_min__gte=self.prefix_min,
+                                          prefix_max__lte=self.prefix_max)
 
     class Meta:
         ordering = ('prefix_min',)

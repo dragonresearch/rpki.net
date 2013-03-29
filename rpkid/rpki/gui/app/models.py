@@ -221,8 +221,8 @@ class ROARequest(rpki.irdb.models.ROARequest):
         # this assumes one prefix per ROA
         rng = self.prefixes.filter(version=4)[0].as_resource_range()
         return rpki.gui.routeview.models.RouteOrigin.objects.filter(
-            prefix_min__lte=rng.max,
-            prefix_max__gte=rng.min
+            prefix_min__gte=rng.min,
+            prefix_max__lte=rng.max
         )
 
     @property
@@ -231,8 +231,8 @@ class ROARequest(rpki.irdb.models.ROARequest):
         # this assumes one prefix per ROA
         rng = self.prefixes.filter(version=6)[0].as_resource_range()
         return rpki.gui.routeview.models.RouteOriginV6.objects.filter(
-            prefix_min__lte=rng.max,
-            prefix_max__gte=rng.min
+            prefix_min__gte=rng.min,
+            prefix_max__lte=rng.max
         )
 
 

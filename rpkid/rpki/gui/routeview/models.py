@@ -15,7 +15,7 @@
 
 __version__ = '$Id$'
 
-from django.db.models import PositiveIntegerField
+from django.db.models import PositiveIntegerField, permalink
 import rpki.gui.models
 
 
@@ -32,16 +32,16 @@ class RouteOrigin(rpki.gui.models.PrefixV4):
     def roas(self):
         "Return a queryset of ROAs which cover this route."
         return cacheview.models.ROA.objects.filter(
-            prefixes__prefix_min__lte=self.prefix_min,
-            prefixes__prefix_max__gte=self.prefix_max
+            prefixes__prefix_min__lte=self.prefix_max,
+            prefixes__prefix_max__gte=self.prefix_min
         )
 
     @property
     def roa_prefixes(self):
         "Return a queryset of ROA prefixes which cover this route."
         return cacheview.models.ROAPrefixV4.objects.filter(
-            prefix_min__lte=self.prefix_min,
-            prefix_max__gte=self.prefix_max
+            prefix_min__lte=self.prefix_max,
+            prefix_max__gte=self.prefix_min
         )
 
     @property
@@ -54,6 +54,10 @@ class RouteOrigin(rpki.gui.models.PrefixV4):
         elif roas.exists():
             return 'invalid'
         return 'unknown'
+
+    @permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.route_detail', [str(self.pk)])
 
     class Meta:
         # sort by increasing mask length (/16 before /24)

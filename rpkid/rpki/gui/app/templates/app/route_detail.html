@@ -1,5 +1,6 @@
 {% extends "app/app_base.html" %}
 {% load app_extras %}
+{% load bootstrap_pager %}
 
 {# template for displaying the list of ROAs covering a specific route #}
 
@@ -40,7 +41,7 @@
 	</tr>
       </thead>
       <tbody>
-	{% for pfx in object.roa_prefixes %}
+	{% for pfx in roa_prefixes %}
 	<tr>
 	  <td>{{ pfx.as_resource_range }}</td>
 	  <td>{{ pfx.max_length }}</td>
@@ -51,6 +52,7 @@
 	{% endfor %}
       </tbody>
     </table>
+    {% bootstrap_pager request roa_prefixes %}
   </div>
 </div>
 {% endblock %}

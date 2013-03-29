@@ -952,7 +952,16 @@ def route_view(request):
 def route_detail(request, pk):
     """Show a list of ROAs that match a given IPv4 route."""
     route = get_object_or_404(models.RouteOrigin, pk=pk)
-    return render(request, 'app/route_detail.html', {'object': route})
+    # when running rootd, viewing the 0.0.0.0/0 route will cause a fetch of all
+    # roas, so we paginate here, even though in the general case the number of
+    # objects will be small enough to fit a single page
+    count = request.GET.get('count', 25)
+    page = request.GET.get('page', 1)
+    paginator = Paginator(route.roa_prefixes.all(), count)
+    return render(request, 'app/route_detail.html', {
+        'object': route,
+        'roa_prefixes': paginator.page(page),
+    })
 
 
 def route_suggest(request):

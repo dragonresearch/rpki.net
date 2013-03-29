@@ -25,7 +25,12 @@
     <table class="table">
       <tr><th>Prefix</th><th>AS</th><th>Validity</th></tr>
       {% for r in object.routes %}
-      <tr><td>{{ r.as_resource_range }}</td><td>{{ r.asn }}</td><td>{% validity_label r.status %}</tr>
+      <tr>
+	<td>{{ r.as_resource_range }}</td>
+	<td>{{ r.asn }}</td>
+	<td>{% validity_label r.status %}</td>
+	<td><a href="{{ r.get_absolute_url }}" title="view route detail"><i class="icon-info-sign"></i></a></td>
+      </tr>
       {% endfor %}
     </table>
   </div>

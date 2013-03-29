@@ -4,9 +4,9 @@
 {% load url from future %}
 
 {% block sidebar_extra %}
-<ul class='unstyled'>
-  <li><a href="{% url "rpki.gui.app.views.conf_export" %}" title="download XML identity to send to parent"><i class="icon-download"></i> export identity</a></li>
-</ul>
+  <li class="divider"></li>
+  <li><a href="{% url "rpki.gui.app.views.conf_export" %}" title="download XML identity to send to parent">
+    {#<i class="icon-download"></i> #}export identity</a></li>
 {% endblock sidebar_extra %}
 
 {% block content %}

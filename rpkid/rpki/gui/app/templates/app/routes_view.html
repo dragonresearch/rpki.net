@@ -4,14 +4,11 @@
 {% load app_extras %}
 
 {% block sidebar_extra %}
-<p>
-BGP data updated<br>
-IPv4: {{ timestamp.bgp_v4_import.isoformat }}<br>
-IPv6: {{ timestamp.bgp_v6_import.isoformat }}
-<p>
-rcynic cache updated<br>
-{{ timestamp.rcynic_import.isoformat }}
-
+<li class="nav-header">BGP data updated</li>
+<li>IPv4: {{ timestamp.bgp_v4_import.isoformat }}</li>
+<li>IPv6: {{ timestamp.bgp_v6_import.isoformat }}</li>
+<li class="nav-header">rcynic cache updated</li>
+<li>{{ timestamp.rcynic_import.isoformat }}</li>
 {% endblock sidebar_extra %}
 
 {% block content %}

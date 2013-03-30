@@ -4,7 +4,7 @@ root password, pulls other information from rpki.conf.
 
 $Id$
 
-Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -31,6 +31,7 @@ def read_schema(name):
   """
   Convert an SQL file into a list of SQL statements.
   """
+
   lines = []
   for line in getattr(rpki.sql_schemas, name, "").splitlines():
     line = " ".join(line.split())
@@ -43,10 +44,15 @@ def sql_setup(name):
   """
   Create a new SQL database and construct all its tables.
   """
+
   database = cfg.get("sql-database", section = name)
   username = cfg.get("sql-username", section = name)
   password = cfg.get("sql-password", section = name)
   schema = read_schema(name)
+
+  if missing_only and database in databases:
+    print "Database already present and --missing-only set, skipping \"%s\"" % database
+    return
 
   print "Creating database", database
   cur = rootdb.cursor()
@@ -72,8 +78,10 @@ def sql_setup(name):
 cfg_file = None
 
 verbose = False
+mysql_defaults = None
+missing_only = False
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:hv?", ["config=", "help", "verbose"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:hv?", ["config=", "help", "missing_only", "mysql_defaults=", "verbose"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
@@ -82,10 +90,23 @@ for o, a in opts:
     verbose = True
   if o in ("-c", "--config"):
     cfg_file = a
+  if o == "--missing_only":
+    missing_only = not missing_only
+  if o == "--mysql_defaults":
+    mysql_defaults = a
 
 cfg = rpki.config.parser(cfg_file, "myrpki")
 
-rootdb = MySQLdb.connect(db = "mysql", user = "root", passwd = getpass.getpass("Please enter your MySQL root password: "))
+if mysql_defaults is None:
+  rootdb = MySQLdb.connect(db = "mysql", user = "root", passwd = getpass.getpass("Please enter your MySQL root password: "))
+else:
+  mysql_cfg = rpki.config.parser(mysql_defaults, "client")
+  rootdb = MySQLdb.connect(db = "mysql", user = mysql_cfg.get("user"), passwd = mysql_cfg.get("password"))
+
+cur = rootdb.cursor()
+cur.execute("SHOW DATABASES")
+databases = set(d[0] for d in cur.fetchall())
+del cur
 
 if cfg.getboolean("start_irdbd", False):
   sql_setup("irdbd")

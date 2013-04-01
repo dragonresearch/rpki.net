@@ -22,7 +22,7 @@ import logging
 import datetime
 
 from rpki.gui.cacheview.models import Cert
-from rpki.gui.app.models import Conf, ResourceCert
+from rpki.gui.app.models import Conf, ResourceCert, Timestamp
 from rpki.gui.app.glue import list_received_resources, get_email_list
 from rpki.irdb import Zookeeper
 from rpki.left_right import report_error_elt, list_published_objects_elt
@@ -153,6 +153,12 @@ def notify_expired(expire_days=14, from_email=None):
     if not from_email:
         from_email = 'root@' + host
 
+    # Ensure that the rcynic and routeviews data has been updated recently
+    # The QuerySet is created here so that it will be cached and reused on each
+    # iteration of the loop below
+    t = now - datetime.timedelta(hours=12)  # 12 hours
+    stale_timestamps = Timestamp.objects.filter(ts__lte=t)
+
     # if not arguments are given, query all resource holders
     qs = Conf.objects.all()
 
@@ -165,6 +171,14 @@ def notify_expired(expire_days=14, from_email=None):
             raise NetworkError('Error while talking to rpkid: %s' % e)
 
         errs = StringIO()
+
+        # Warn the resource holder admins when data may be out of date
+        if stale_timestamps:
+            errs.write('Warning!  Stale data from external sources.\n')
+            errs.write('data source    : last import\n')
+            for obj in stale_timestamps:
+                errs.write('%-15s: %s\n' % (obj.name, obj.ts))
+            errs.write('\n')
 
         check_cert(h.handle, h, errs)
 

@@ -365,7 +365,7 @@ class main(object):
     self.child_bpki_cert         = rpki.x509.X509(Auto_update = self.cfg.get("child-bpki-cert"))
 
     self.http_server_host        = self.cfg.get("server-host", "")
-    self.http_server_port        = int(self.cfg.get("server-port"))
+    self.http_server_port        = self.cfg.getint("server-port")
 
     self.rpki_class_name         = self.cfg.get("rpki-class-name", "wombat")
 

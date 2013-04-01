@@ -249,18 +249,25 @@ class main(object):
       rpki.left_right.list_roa_requests_elt         : self.handle_list_roa_requests,
       rpki.left_right.list_ghostbuster_requests_elt : self.handle_list_ghostbuster_requests }
 
-    u = urlparse.urlparse(self.cfg.get("http-url"))
-
-    assert u.scheme in ("", "http") and \
-           u.username is None and \
-           u.password is None and \
-           u.params   == "" and \
-           u.query    == "" and \
-           u.fragment == ""
+    try:
+      self.http_server_host = self.cfg.get("server-host", "")
+      self.http_server_port = self.cfg.getint("server-port")
+    except:
+      #
+      # Backwards compatibility, remove this eventually.
+      #
+      u = urlparse.urlparse(self.cfg.get("http-url"))
+      if (u.scheme not in ("", "http") or
+          u.username is not None or
+          u.password is not None or
+          u.params or u.query or u.fragment):
+        raise
+      self.http_server_host = u.hostname
+      self.http_server_port = int(u.port)
 
     self.cms_timestamp = None
 
     rpki.http.server(
-      host     = u.hostname or "localhost",
-      port     = u.port or 443,
-      handlers = ((u.path, self.handler),))
+      host     = self.http_server_host,
+      port     = self.http_server_port,
+      handlers = self.handler)

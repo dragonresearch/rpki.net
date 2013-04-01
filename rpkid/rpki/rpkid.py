@@ -134,7 +134,7 @@ class main(object):
     self.irdb_url   = self.cfg.get("irdb-url")
 
     self.http_server_host = self.cfg.get("server-host", "")
-    self.http_server_port = self.cfg.getint("server-port", 4433)
+    self.http_server_port = self.cfg.getint("server-port")
 
     self.publication_kludge_base = self.cfg.get("publication-kludge-base", "publication/")
 

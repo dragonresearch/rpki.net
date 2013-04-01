@@ -122,17 +122,17 @@ class main(object):
     self.pubd_key  = rpki.x509.RSA( Auto_update = self.cfg.get("pubd-key"))
 
     self.http_server_host = self.cfg.get("server-host", "")
-    self.http_server_port = int(self.cfg.get("server-port", "4434"))
+    self.http_server_port = self.cfg.getint("server-port")
 
     self.publication_base = self.cfg.get("publication-base", "publication/")
 
     self.publication_multimodule = self.cfg.getboolean("publication-multimodule", False)
 
     rpki.http.server(
-      host                          = self.http_server_host,
-      port                          = self.http_server_port,
-      handlers                      = (("/control", self.control_handler),
-                                       ("/client/", self.client_handler)))
+      host     = self.http_server_host,
+      port     = self.http_server_port,
+      handlers = (("/control", self.control_handler),
+                  ("/client/", self.client_handler)))
 
   def handler_common(self, query, client, cb, certs, crl = None):
     """

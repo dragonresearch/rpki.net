@@ -504,12 +504,6 @@ binary option:
   $ rcynic-html --rrdtoolbinary /some/where/rrdtool rcynic.xml /web/server/
   directory/
 
-**** rcynic.py ****
-
-An earlier attempt at what rcynic-html now does. Kept briefly for backwards
-compatability, but no longer maintained and will go away soon. Use rcynic-html
-instead.
-
 **** rcynic.xsl ****
 
 An earlier attempt at the same kind of HTML display as rcynic-html. XSLT was a

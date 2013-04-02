@@ -28,6 +28,12 @@ sql-password::
 
      Password to hand to MySQL when connecting to irdbd's database.
 
-http-url::
+server-host::
 
-     Service URL for irdbd. Must be a http:// URL.
+     Hostname or IP address on which to listen for HTTP connections.
+     Default is the wildcard address (IPv4 0.0.0.0, IPv6 ::), which should
+     work in most cases.
+
+server-port::
+
+     TCP port on which to listen for HTTP connections.

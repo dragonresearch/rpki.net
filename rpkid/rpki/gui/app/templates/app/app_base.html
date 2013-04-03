@@ -15,7 +15,7 @@
   {% if request.session.handle %}
   <li><a href="{% url "rpki.gui.app.views.dashboard" %}">dashboard</a></li>
   <li><a href="{% url "rpki.gui.app.views.route_view" %}">routes</a></li>
-  <li><a href="{% url "alert-list" %}">alerts</a>{% alert_count request.session.handle %}</li>
+  <li><a href="{% url "alert-list" %}">alerts {% alert_count request.session.handle %}</a></li>
   <li class="divider"></li>
   {% endif %}
   <li><a href="{% url "rpki.gui.app.views.conf_list" %}" title="select a different resource handle to manage">select identity</a></li>

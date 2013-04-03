@@ -605,7 +605,6 @@ WSGI_PROCESS_GROUP
 WSGI_DAEMON_PROCESS
 DJANGO_ADMIN
 SECRET_KEY
-VIRTUAL_ENV
 OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 TOP_LEVEL_SUBDIRS
@@ -4879,18 +4878,6 @@ fi
 
 if test $build_ca_tools = yes
 then
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking if running under virtualenv" >&5
-$as_echo_n "checking if running under virtualenv... " >&6; }
-	if test "x$VIRTUAL_ENV" != "x"; then
-		VIRTUAL_ENV=$VIRTUAL_ENV
-
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $VIRTUAL_ENV" >&5
-$as_echo "$VIRTUAL_ENV" >&6; }
-	else
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-	fi
-
         # Source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
         SECRET_KEY=`$PYTHON -c 'import random; print "".join(random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50))'`
 

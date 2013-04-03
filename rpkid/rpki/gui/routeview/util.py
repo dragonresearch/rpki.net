@@ -21,6 +21,8 @@ import os.path
 import subprocess
 import time
 import logging
+import urlparse
+from urllib import urlretrieve, unquote
 
 from django.db import transaction, connection
 
@@ -171,6 +173,19 @@ def import_routeviews_dump(filename, filetype='auto'):
 
     """
     start_time = time.time()
+
+    if filename.startswith('http://'):
+        #get filename from the basename of the URL
+        u = urlparse.urlparse(filename)
+        bname = os.path.basename(unquote(u.path))
+        tmpname = os.path.join('/tmp', bname)
+
+        logger.info("Downloading %s to %s" % (filename, tmpname))
+        if os.path.exists(tmpname):
+            os.remove(tmpname)
+        # filename is replaced with a local filename containing cached copy of
+        # URL
+        filename, headers = urlretrieve(filename, tmpname)
 
     if filetype == 'auto':
         # try to determine input type from filename, based on the default

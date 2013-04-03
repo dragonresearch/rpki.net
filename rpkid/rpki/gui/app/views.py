@@ -32,9 +32,9 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render, redirect
 from django.utils.http import urlquote
 from django import http
-from django.core.urlresolvers import reverse
+from django.core.urlresolvers import reverse, reverse_lazy
 from django.contrib.auth.models import User
-from django.views.generic import DetailView
+from django.views.generic import DetailView, ListView, DeleteView
 from django.core.paginator import Paginator
 from django.forms.formsets import formset_factory, BaseFormSet
 import django.db.models
@@ -1248,3 +1248,30 @@ def user_edit(request, pk):
         'form_title': 'Edit User: ' + user.username,
         'cancel_url': reverse(user_list)
     })
+
+
+class AlertListView(ListView):
+    def get_queryset(self, **kwargs):
+        conf = self.request.session['handle']
+        return conf.alerts.all()
+
+
+class AlertDetailView(DetailView):
+    def get_queryset(self, **kwargs):
+        conf = self.request.session['handle']
+        return conf.alerts.all()
+
+    def get_object(self, **kwargs):
+        obj = super(AlertDetailView, self).get_object(**kwargs)
+        # mark alert as read by the user
+        obj.seen = True
+        obj.save()
+        return obj
+
+
+class AlertDeleteView(DeleteView):
+    success_url = reverse_lazy('alert-list')
+
+    def get_queryset(self, **kwargs):
+        conf = self.request.session['handle']
+        return conf.alerts.all()

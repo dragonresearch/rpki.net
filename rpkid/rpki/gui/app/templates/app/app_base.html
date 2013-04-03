@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {# this can be removed when django 1.4 is EOL, because it is the default behavior in 1.5 #}
 {% load url from future %}
+{% load app_extras %}
 
 {# This template defines the common structure for the rpki.gui.app application. #}
 
@@ -11,9 +12,12 @@
 {# common navigation #}
 
 <ul class='nav nav-list'>
+  {% if request.session.handle %}
   <li><a href="{% url "rpki.gui.app.views.dashboard" %}">dashboard</a></li>
   <li><a href="{% url "rpki.gui.app.views.route_view" %}">routes</a></li>
+  <li><a href="{% url "alert-list" %}">alerts {% alert_count request.session.handle %}</a></li>
   <li class="divider"></li>
+  {% endif %}
   <li><a href="{% url "rpki.gui.app.views.conf_list" %}" title="select a different resource handle to manage">select identity</a></li>
 {% if request.user.is_superuser %}
   <li class="divider"></li>

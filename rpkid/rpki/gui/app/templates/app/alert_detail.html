@@ -1,0 +1,31 @@
+{% extends "app/app_base.html" %}
+{% load url from future %}
+{% load app_extras %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Alert Detail <small>{{ object.subject }}</small></h1>
+</div>
+
+<div class="row-fluid">
+<table class="table">
+  <tr>
+    <th>Date:</th><td> {{ object.when }}</td>
+  </tr>
+  <tr>
+    <th>Severity:</th><td><span class="label {% severity_class object.severity %}">{{ object.get_severity_display }}</span></td>
+  </tr>
+</table>
+
+<p>
+{{ object.text }}
+
+</div>
+
+{% block action %}
+<div class="row-fluid">
+<a class="btn btn-danger" title="delete this alert" href="{% url "alert-delete" object.pk %}"><i class="icon-trash"></i> Delete</a>
+</div>
+{% endblock action %}
+
+{% endblock content %}

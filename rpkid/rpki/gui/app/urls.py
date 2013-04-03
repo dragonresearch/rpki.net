@@ -21,6 +21,11 @@ from rpki.gui.app import views
 urlpatterns = patterns(
     '',
     (r'^$', views.dashboard),
+    url(r'^alert/$', views.AlertListView.as_view(), name='alert-list'),
+    url(r'^alert/(?P<pk>\d+)/$', views.AlertDetailView.as_view(),
+        name='alert-detail'),
+    url(r'^alert/(?P<pk>\d+)/delete$', views.AlertDeleteView.as_view(),
+        name='alert-delete'),
     (r'^conf/export$', views.conf_export),
     (r'^conf/list$', views.conf_list),
     (r'^conf/select$', views.conf_select),

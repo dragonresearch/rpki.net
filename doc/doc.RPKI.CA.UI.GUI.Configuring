@@ -35,23 +35,21 @@ these tasks.
 
 **** Importing Routing Table Snapshot ****
 
-Requires: wget
-
 In order for the web portal to display the validation status of routes covered
 by a resource holder's RPKI certificates, it needs a source of the currently
 announced global routing table. The web portal includes a script which can
 parse the output of the RouteViews full snapshot (warning: links to very large
 file!).
 
-When the software is installed, there will be a /usr/local/share/routeviews.sh
-script that should be invoked periodically. Routeviews.org updates the snapshot
-every two hours, so it does not make sense to run it more frequently than two
-hours. How often to run it depends on how often the routes you are interested
-in are changing.
+When the software is installed, there will be a /usr/local/sbin/rpkigui-import-
+routes script that should be invoked periodically. Routeviews.org updates the
+snapshot every two hours, so it does not make sense to run it more frequently
+than two hours. How often to run it depends on how often the routes you are
+interested in are changing.
 
 Create an entry in root's crontab such as
 
-  30  */2 *   *   *      /usr/local/share/routeviews.sh
+  30  */2 *   *   *      /usr/local/sbin/rpkigui-import-routes
 
 **** Importing ROAs ****
 

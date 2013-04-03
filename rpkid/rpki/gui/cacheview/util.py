@@ -29,12 +29,10 @@ from cStringIO import StringIO
 
 from django.db import transaction
 import django.db.models
-from django.core.mail import send_mail
 
 import rpki
 import rpki.gui.app.timestamp
-from rpki.gui.app.models import Conf
-from rpki.gui.app.glue import get_email_list
+from rpki.gui.app.models import Conf, Alert
 from rpki.gui.cacheview import models
 from rpki.rcynic import rcynic_xml_iterator, label_iterator
 from rpki.sundial import datetime
@@ -358,7 +356,6 @@ def notify_invalid():
 
     for handle, v in notify.iteritems():
         conf = Conf.objects.get(handle)
-        emails = get_email_list(conf)
 
         msg = StringIO()
         msg.write('This is an alert about problems with objects published by '
@@ -394,7 +391,7 @@ record, or is the default email address for this resource holder account on
 
         from_email = 'root@' + getfqdn()
         subj = 'invalid RPKI object alert for resource handle %s' % conf.handle
-        send_mail(subj, msg.getvalue(), from_email, emails)
+        conf.send_alert(subj, msg.getvalue(), from_email, severity=Alert.ERROR)
 
 
 def import_rcynic_xml(root=default_root, logfile=default_logfile):

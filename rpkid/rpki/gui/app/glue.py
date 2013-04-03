@@ -108,25 +108,3 @@ def list_received_resources(log, conf):
                                               prefix_max=rng.max)
         else:
             print >>log, "error: unexpected pdu from rpkid type=%s" % type(pdu)
-
-
-def get_email_list(conf):
-    """Return a list of the contact emails for this user.
-
-    Contact emails are extract from any ghostbuster requests, and if there are
-    none, returns the default email for the web portal account.
-
-    """
-    notify_emails = []
-    qs = models.GhostbusterRequest.objects.filter(issuer=conf)
-    for gbr in qs:
-        if gbr.email_address:
-            notify_emails.append(gbr.email_address)
-
-    if len(notify_emails) == 0:
-        # fall back to the email address registered for this user
-        user = User.objects.get(username=conf.handle)
-        if user.email:
-            notify_emails.append(user.email)
-
-    return notify_emails

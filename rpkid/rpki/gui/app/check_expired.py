@@ -22,8 +22,8 @@ import logging
 import datetime
 
 from rpki.gui.cacheview.models import Cert
-from rpki.gui.app.models import Conf, ResourceCert, Timestamp
-from rpki.gui.app.glue import list_received_resources, get_email_list
+from rpki.gui.app.models import Conf, ResourceCert, Timestamp, Alert
+from rpki.gui.app.glue import list_received_resources
 from rpki.irdb import Zookeeper
 from rpki.left_right import report_error_elt, list_published_objects_elt
 from rpki.x509 import X509
@@ -200,14 +200,10 @@ def notify_expired(expire_days=14, from_email=None):
         if s:
             logger.info(s)
 
-            notify_emails = get_email_list(h)
-
-            if notify_emails:
-                t = """This is an automated notice about the upcoming expiration of RPKI resources for the handle %s on %s.  You are receiving this notification because your email address is either registered in a Ghostbuster record, or as the default email address for the account.\n\n""" % (h.handle, host)
-
-                send_mail(
-                    subject='RPKI expiration notice for %s' % h.handle,
-                    message=t + s,
-                    from_email=from_email,
-                    recipient_list=notify_emails
-                )
+            t = """This is an automated notice about the upcoming expiration of RPKI resources for the handle %s on %s.  You are receiving this notification because your email address is either registered in a Ghostbuster record, or as the default email address for the account.\n\n""" % (h.handle, host)
+            h.send_alert(
+                subject='RPKI expiration notice for %s' % h.handle,
+                message=t + s,
+                from_email=from_email,
+                severity=Alert.WARNING
+            )

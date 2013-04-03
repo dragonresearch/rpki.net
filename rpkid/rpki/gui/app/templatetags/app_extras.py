@@ -33,3 +33,20 @@ def severity_class(severity):
         2: 'label-important',
     }
     return css.get(severity)
+
+
+@register.simple_tag
+def alert_count(conf):
+    qs = conf.alerts.filter(seen=False)
+    unread = len(qs)
+    if unread:
+        severity = max([x.severity for x in qs])
+        css = {
+            0: 'badge-info',
+            1: 'badge-warning',
+            2: 'badge-important'
+        }
+        css_class = css.get(severity)
+    else:
+        css_class = 'badge-default'
+    return u'<span class="badge %s">%d</span>' % (css_class, unread)

@@ -1,0 +1,17 @@
+{% extends "app/alert_detail.html" %}
+{% load url from future %}
+
+{% block action %}
+<div class="row-fluid">
+  <div class="alert">
+    Please confirm that you would like to delete this alert.
+  </div>
+  <form method="POST">
+    {% csrf_token %}
+    <div class="form-actions">
+      <button class="btn btn-danger" type="submit"><i class="icon-trash"></i> Delete</button>
+      <a class="btn" href="{{ object.get_absolute_url }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock action %}

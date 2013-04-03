@@ -363,3 +363,28 @@ class ConfACL(models.Model):
 
     class Meta:
         unique_together = (('user', 'conf'))
+
+
+class Alert(models.Model):
+    """Stores alert messages intended to be consumed by the user."""
+
+    INFO = 0
+    WARNING = 1
+    ERROR = 2
+
+    SEVERITY_CHOICES = (
+        (INFO, 'info'),
+        (WARNING, 'warning'),
+        (ERROR, 'error'),
+    )
+
+    conf = models.ForeignKey(Conf, related_name='alerts')
+    severity = models.SmallIntegerField(choices=SEVERITY_CHOICES, default=INFO)
+    when = models.DateTimeField(auto_now_add=True)
+    seen = models.BooleanField(default=False)
+    subject = models.CharField(max_length=66)
+    text = models.TextField()
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('alert-detail', [str(self.pk)])

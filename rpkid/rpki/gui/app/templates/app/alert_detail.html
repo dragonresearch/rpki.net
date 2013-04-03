@@ -1,0 +1,21 @@
+{% extends "app/app_base.html" %}
+{% load app_extras %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Alert Detail <small>{{ object.subject }}</small></h1>
+</div>
+
+<table class="table">
+  <tr>
+    <th>Date:</th><td> {{ object.when }}</td>
+  </tr>
+  <tr>
+    <th>Severity:</th><td><span class="label {% severity_class object.severity %}">{{ object.get_severity_display }}</span></td>
+  </tr>
+</table>
+
+<p>
+{{ object.text }}
+
+{% endblock content %}

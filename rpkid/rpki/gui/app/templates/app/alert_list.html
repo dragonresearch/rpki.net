@@ -1,0 +1,26 @@
+{% extends "app/app_base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Alerts</h1>
+</div>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Date</th>
+      <th>Subject</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for obj in object_list %}
+    <tr {% if not obj.seen %}style="font-weight: bold" {% endif %}class="{% if obj.severity == 1 %}warning{% endif %} {% if obj.severity == 2 %}error{% endif %}">
+      <td>{# <input type="checkbox"> #}</td>
+      <td>{{ obj.when }}</td>
+      <td><a href="{{ obj.get_absolute_url }}" title="view text of alert">{{ obj.subject }}</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock content %}

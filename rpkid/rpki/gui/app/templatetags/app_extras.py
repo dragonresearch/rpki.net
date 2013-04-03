@@ -23,3 +23,13 @@ css = {
 @register.simple_tag
 def validity_label(validity):
     return '<span class="label %s">%s</span>' % (css.get(validity, ''), validity)
+
+
+@register.simple_tag
+def severity_class(severity):
+    css = {
+        0: 'label-info',
+        1: 'label-warning',
+        2: 'label-important',
+    }
+    return css.get(severity)

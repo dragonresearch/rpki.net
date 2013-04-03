@@ -13,6 +13,7 @@
 <ul class='nav nav-list'>
   <li><a href="{% url "rpki.gui.app.views.dashboard" %}">dashboard</a></li>
   <li><a href="{% url "rpki.gui.app.views.route_view" %}">routes</a></li>
+  <li><a href="{% url "alert-list" %}">alerts</a><span class="badge">{{ request.session.handle.alerts.count }}<span></li>
   <li class="divider"></li>
   <li><a href="{% url "rpki.gui.app.views.conf_list" %}" title="select a different resource handle to manage">select identity</a></li>
 {% if request.user.is_superuser %}

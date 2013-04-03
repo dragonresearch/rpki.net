@@ -17,6 +17,7 @@ __version__ = '$Id$'
 
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.mail import send_mail
 
 import rpki.resource_set
 import rpki.exceptions
@@ -84,6 +85,31 @@ class ChildNet(rpki.irdb.models.ChildNet):
         return u'%s' % self.as_resource_range()
 
 
+class Alert(models.Model):
+    """Stores alert messages intended to be consumed by the user."""
+
+    INFO = 0
+    WARNING = 1
+    ERROR = 2
+
+    SEVERITY_CHOICES = (
+        (INFO, 'info'),
+        (WARNING, 'warning'),
+        (ERROR, 'error'),
+    )
+
+    conf = models.ForeignKey('Conf', related_name='alerts')
+    severity = models.SmallIntegerField(choices=SEVERITY_CHOICES, default=INFO)
+    when = models.DateTimeField(auto_now_add=True)
+    seen = models.BooleanField(default=False)
+    subject = models.CharField(max_length=66)
+    text = models.TextField()
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('alert-detail', [str(self.pk)])
+
+
 class Conf(rpki.irdb.models.ResourceHolderCA):
     """This is the center of the universe, also known as a place to
     have a handle on a resource-holding entity.  It's the <self>
@@ -145,6 +171,32 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
             q |= models.Q(prefix_min__gte=p.prefix_min,
                           prefix_max__lte=p.prefix_max)
         return RouteOriginV6.objects.filter(q)
+
+    def send_alert(self, subject, message, from_email, severity=Alert.INFO):
+        """Store an alert for this resource holder."""
+        self.alerts.create(subject=subject, text=message, severity=severity)
+
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=from_email,
+            recipient_list=self.email_list
+        )
+
+    @property
+    def email_list(self):
+        """Return a list of the contact emails for this resource holder.
+
+        Contact emails are extract from any ghostbuster requests, and any
+        linked user accounts.
+
+        """
+        notify_emails = [gbr.email_address for gbr in self.ghostbusters if gbr.email_address]
+        notify_emails.extend(
+            [acl.user.email for acl in ConfACL.objects.filter(conf=self) if acl.user.email]
+        )
+        return notify_emails
+
 
     class Meta:
         proxy = True
@@ -363,28 +415,3 @@ class ConfACL(models.Model):
 
     class Meta:
         unique_together = (('user', 'conf'))
-
-
-class Alert(models.Model):
-    """Stores alert messages intended to be consumed by the user."""
-
-    INFO = 0
-    WARNING = 1
-    ERROR = 2
-
-    SEVERITY_CHOICES = (
-        (INFO, 'info'),
-        (WARNING, 'warning'),
-        (ERROR, 'error'),
-    )
-
-    conf = models.ForeignKey(Conf, related_name='alerts')
-    severity = models.SmallIntegerField(choices=SEVERITY_CHOICES, default=INFO)
-    when = models.DateTimeField(auto_now_add=True)
-    seen = models.BooleanField(default=False)
-    subject = models.CharField(max_length=66)
-    text = models.TextField()
-
-    @models.permalink
-    def get_absolute_url(self):
-        return ('alert-detail', [str(self.pk)])

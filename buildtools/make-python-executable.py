@@ -1,11 +1,11 @@
 """
-Convert a Python script into an executable Python script.  Mostly this
-means constructing a header based on a few parameters supplied by
-autoconf.
+Convert a Python script into an executable Python script.  This used
+to do something more complicated, at this point it just adds the
+shebang line.
 
 $Id$
 
-Copyright (C) 2011  Internet Systems Consortium ("ISC")
+Copyright (C) 2011-2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -20,19 +20,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, sys
+import sys
 
-sys.stdout.write('''\
-#!%(AC_PYTHON_INTERPRETER)s
-# Automatically constructed script header
-
-# Set location of global rpki.conf file
-if __name__ == "__main__":
-  import rpki.config
-  rpki.config.default_dirname = "%(AC_RPKI_CONFIG_DIR)s"
-
-# Original script starts here
-
-''' % os.environ)
-
+sys.stdout.write("#!%s\n" % sys.executable)
 sys.stdout.write(sys.stdin.read())

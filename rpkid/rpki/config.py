@@ -47,7 +47,11 @@ default_filename = "rpki.conf"
 # if no global config file.  Autoconf-generated code may set this to a
 # non-None value during script startup.
 
-default_dirname = None
+try:
+  import rpki.autoconf
+  default_dirname = rpki.autoconf.sysconfdir
+except ImportError:
+  default_dirname = None
 
 ## @var default_envname
 # Name of environment variable containing config file name.

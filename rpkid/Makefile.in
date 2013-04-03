@@ -50,7 +50,6 @@ SETUP_PY = \
 	AC_CONF_FILES='${CONF_FILES}' \
 	AC_ABS_BUILDDIR='${abs_builddir}' \
 	AC_LIBEXECDIR='${libexecdir}' \
-	AC_AUX_SCRIPTS='${AUX_SCRIPTS}' \
 	AC_DATAROOTDIR='${datarootdir}/rpki' \
 	AC_SYSCONFDIR='${sysconfdir}/rpki' \
 	${PYTHON} setup.py
@@ -59,16 +58,18 @@ SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.
 
 POW_SO	= rpki/POW/_POW.so
 
-SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
-	  pubd rootd rpkic rpkid \
-	  portal-gui/scripts/rpkigui-import-routes \
-	  portal-gui/scripts/rpkigui-check-expired \
-	  portal-gui/scripts/rpkigui-rcynic \
-	  portal-gui/scripts/rpki-manage
+SCRIPTS = \
+	rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
+	pubd rootd rpkic rpkid \
+	portal-gui/scripts/rpkigui-import-routes \
+	portal-gui/scripts/rpkigui-check-expired \
+	portal-gui/scripts/rpkigui-rcynic \
+	portal-gui/scripts/rpki-manage
 
 # scripts we build, but don't install
-BUILD_SCRIPTS = portal-gui/rpki.wsgi \
-		rpki/gui/autoconf.py
+BUILD_SCRIPTS = \
+	portal-gui/rpki.wsgi \
+	rpki/autoconf.py
 
 # these files get put in ${datarootdir}/rpki
 DATA_FILES = portal-gui/routeviews.sh
@@ -79,19 +80,13 @@ CONF_FILES = portal-gui/apache.conf portal-gui/default_settings.py ${SETTINGS}
 # automatically generated config files
 SETTINGS=portal-gui/settings.py
 
-all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
+all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace
 
 clean::
 	rm -rf ${POW_SO} build dist
-
-rpm deb:: all
-	${SETUP_PY} bdist_rpm
-
-deb::
-	cd dist; for i in *.rpm; do case $$i in *.src.rpm) :;; *) (set -x; fakeroot alien -v $$i);; esac; done
 
 RNGS = left-right-schema.rng up-down-schema.rng publication-schema.rng myrpki.rng
 
@@ -118,7 +113,7 @@ rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql 
 clean::
 	find . -type f -name '*.py[co]' -delete
 	cd tests; $(MAKE) $@
-	rm -f ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
+	rm -f ${SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
 install:: all
 	${SETUP_PY} install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
@@ -227,8 +222,6 @@ clean::
 
 COMPILE_PYTHON = \
 	rm -f $@; \
-	AC_PYTHON_INTERPRETER='${PYTHON}' \
-	AC_RPKI_CONFIG_DIR='${sysconfdir}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; \
 	chmod 555 $@
 
@@ -293,11 +286,13 @@ portal-gui/scripts/rpki-manage: ${srcdir}/portal-gui/scripts/rpki-manage.in
 		${srcdir}/portal-gui/scripts/rpki-manage.in > portal-gui/scripts/rpki-manage
 	chmod 755 $@
 
-rpki/gui/autoconf.py: Makefile
-	(echo '# automatically generated.  DO NOT EDIT.'; \
-         echo 'bindir="${bindir}"'; \
-	 echo 'datarootdir="${datarootdir}"'; \
-	 echo 'localstatedir="${localstatedir}"'; \
-	 echo 'sbindir="${sbindir}"'; \
-	 echo 'sharedstatedir="${sharedstatedir}"'; \
-	 echo 'sysconfdir="${sysconfdir}"') > $@
+rpki/autoconf.py: Makefile
+	@echo 'Generating $@';					\
+	(echo '# Automatically generated.  DO NOT EDIT.';	\
+         echo 'bindir         = "${bindir}"';			\
+	 echo 'datarootdir    = "${datarootdir}"';		\
+	 echo 'localstatedir  = "${localstatedir}"';		\
+	 echo 'sbindir        = "${sbindir}"';			\
+	 echo 'sharedstatedir = "${sharedstatedir}"';		\
+	 echo 'sysconfdir     = "${sysconfdir}"'		\
+	) > $@

@@ -30,7 +30,7 @@ class BadArgument(Exception):
 
 if __name__ == '__main__':
     parser = optparse.OptionParser(
-        usage='%prog [options] PATH',
+        usage='%prog [options] [PATH]',
         description="""This tool is used to import the IPv4/6 BGP table dumps
 from routeviews.org into the RPKI Web Portal database.  If the
 input file is a bzip2 compressed file, it will be decompressed
@@ -54,10 +54,9 @@ automatically.""")
         BGPDUMP = os.path.expanduser(options.bgpdump)
 
     try:
-        if len(args) != 1:
-            raise BadArgument('no filename specified, or more than one filename specified')
-        filename = args[0]
-        import_routeviews_dump(filename)
+        if len(args) > 1:
+            raise BadArgument('more than one filename specified')
+        import_routeviews_dump(*args)
 
     except Exception as e:
         logging.exception(e)

@@ -33,6 +33,8 @@ import rpki.gui.app.timestamp
 # globals
 logger = logging.getLogger(__name__)
 
+# Eventually this can be retrived from rpki.conf
+DEFAULT_URL = 'http://archive.routeviews.org/oix-route-views/oix-full-snapshot-latest.dat.bz2'
 
 def parse_text(f):
     last_prefix = None
@@ -161,13 +163,13 @@ class PipeFailed(ProgException):
     pass
 
 
-def import_routeviews_dump(filename, filetype='auto'):
+def import_routeviews_dump(filename=DEFAULT_URL, filetype='auto'):
     """Load the oix-full-snapshot-latest.bz2 from routeview.org into the
     rpki.gui.routeview database.
 
     Arguments:
 
-        filename [required]: the full path to the downloaded file to parse
+        filename [optional]: the full path to the downloaded file to parse
 
         filetype [optional]: 'text' or 'mrt'
 

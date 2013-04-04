@@ -11,10 +11,6 @@ __version__ = '$Id$'
 import rpki.config
 import os.path
 
-# needs to be set prior to the call to rpki.config.parser so it knows
-# where to find the system rpki.conf
-rpki.config.default_dirname = '%(AC_SYSCONFDIR)s'
-
 # load the sql authentication bits from the system rpki.conf
 rpki_config = rpki.config.parser(section='web_portal')
 

@@ -94,9 +94,6 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.static"
 )
 
-# where to put static files
-STATIC_ROOT = '%(AC_DATAROOTDIR)s/rpki/media'
-
 try:
     from default_settings import *
 except:

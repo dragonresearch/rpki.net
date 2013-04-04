@@ -4,6 +4,12 @@ This module contains static configuration settings for the web portal.
 
 __version__ = '$Id$'
 
+import os
+from rpki import autoconf
+
+# where to put static files
+STATIC_ROOT = autoconf.datarootdir + '/rpki/media'
+
 # must end with a slash!
 STATIC_URL = '/media/'
 

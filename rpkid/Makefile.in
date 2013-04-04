@@ -227,8 +227,6 @@ COMPILE_PYTHON = \
 COMPILE_SETTINGS = \
 	rm -f $@; \
 	AC_SECRET_KEY='${SECRET_KEY}' \
-	AC_DATAROOTDIR='${datarootdir}' \
-	AC_SYSCONFDIR='${sysconfdir}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@
 
 rpki-sql-backup: rpki-sql-backup.py

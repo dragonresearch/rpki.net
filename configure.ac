@@ -699,9 +699,6 @@ fi
 
 if test $build_ca_tools = yes
 then
-        # There is no standard name for this tool, so check for it.
-        AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
-
 	if test "$enable_wsgi_daemon_mode" != no
 	then
 		if test "$enable_wsgi_daemon_mode" = yes; then

@@ -78,7 +78,7 @@ class Section(object):
 THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.
 
 Generated from ''' + ident + '''
-by $Id$
+by                 $Id$
 }}}
 
 = ![''' + self.name + '''] section =
@@ -141,7 +141,7 @@ for o, a in opts:
   elif o == "--autoconf":
     try:
       import rpki.autoconf
-      for option in section_map["autoconf"]:
+      for option in section_map["autoconf"].options:
         try:
           option.value = getattr(rpki.autoconf, option.name)
         except AttributeError:
@@ -166,9 +166,10 @@ for o, a in opts:
   elif o == "--write-conf":
     with open(a, "w") as f:
       f.write('''\
-# Automatically generated.  Edit if you like, but be careful of overwriting.
+# Automatically generated.  Edit as needed, but be careful of overwriting.
+#
 # Generated from ''' + ident + '''
-# by $Id$
+# by             $Id$
 ''')
       width = max(s.width for s in sections)
       for section in sections:

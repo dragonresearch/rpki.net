@@ -199,19 +199,28 @@ distclean:: clean docclean
 all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
-all:: rpki.conf.sample
+all:: examples/rpki.conf
 
-rpki.conf.sample:
-	sed -e 's=@HANDLE@='`hostname | sed 's=[.]=_=g'`'=' \
-	    -e 's=@DATAROOTDIR@=${datarootdir}=' \
-	    examples/rpki.conf >$@
+# Source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
+
+GENERATE_DJANGO_SECRET_KEY = ${PYTHON} -c 'import random, string; print "".join(random.choice(string.uppercase + string.lowercase + string.digits) for _ in xrange(50))'
+
+examples/rpki.conf: rpki/autoconf.py rpki-confgen.py rpki-confgen.xml
+	${PYTHON} rpki-confgen.py \
+		--read-xml rpki-confgen.xml \
+		--autoconf \
+		--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'` \
+		--set myrpki::rpkid_server_host=`hostname -f` \
+		--set myrpki::pubd_server_host=`hostname -f` \
+		--set web_portal::django-secret-key=`${GENERATE_DJANGO_SECRET_KEY}` \
+		--write-conf $@
 
 install::
-	${INSTALL} rpki.conf.sample ${DESTDIR}${sysconfdir}/rpki.conf.sample
+	${INSTALL} examples/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample
 	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/publication
 
 clean::
-	rm -f rpki.conf.sample
+	rm -f examples/rpki.conf
 
 # Scripts
 

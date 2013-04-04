@@ -261,8 +261,7 @@ portal-gui/scripts/rpkigui-check-expired: portal-gui/scripts/rpkigui-check-expir
 	${COMPILE_PYTHON}
 
 portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in
-	sed -e "s|@PYTHON""PATH@|${sysconfdir}/rpki|" \
-		${srcdir}/portal-gui/rpki.wsgi.in > portal-gui/rpki.wsgi
+	cp $? $@
 
 portal-gui/scripts/rpki-manage: ${srcdir}/portal-gui/scripts/rpki-manage.in
 	sed -e "s|@DJANGO""_ADMIN@|${DJANGO_ADMIN}|" \

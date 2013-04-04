@@ -272,10 +272,8 @@ portal-gui/scripts/rpkigui-check-expired: portal-gui/scripts/rpkigui-check-expir
 portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in
 	cp $? $@
 
-portal-gui/scripts/rpki-manage: ${srcdir}/portal-gui/scripts/rpki-manage.in
-	sed -e "s|@DJANGO""_ADMIN@|${DJANGO_ADMIN}|" \
-		-e "s|@PYTHON""PATH@|${sysconfdir}/rpki|" \
-		${srcdir}/portal-gui/scripts/rpki-manage.in > portal-gui/scripts/rpki-manage
+portal-gui/scripts/rpki-manage: ${srcdir}/portal-gui/scripts/rpki-manage.py
+	cp $? $@
 	chmod 755 $@
 
 rpki/autoconf.py: Makefile

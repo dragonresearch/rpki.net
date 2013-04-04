@@ -5,7 +5,6 @@ SUBDIRS		= portal-gui
 PYTHON		= @PYTHON@
 TRANG		= @TRANG@
 
-SECRET_KEY	= @SECRET_KEY@
 DJANGO_ADMIN	= @DJANGO_ADMIN@
 
 CFLAGS		= @CFLAGS@
@@ -74,12 +73,9 @@ BUILD_SCRIPTS = \
 DATA_FILES = portal-gui/routeviews.sh
 
 # these files get put in ${sysconfdir}/rpki
-CONF_FILES = portal-gui/apache.conf portal-gui/default_settings.py ${SETTINGS}
+CONF_FILES = portal-gui/apache.conf
 
-# automatically generated config files
-SETTINGS=portal-gui/settings.py
-
-all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
+all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${BUILD_SCRIPTS}
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace
@@ -224,11 +220,6 @@ COMPILE_PYTHON = \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; \
 	chmod 555 $@
 
-COMPILE_SETTINGS = \
-	rm -f $@; \
-	AC_SECRET_KEY='${SECRET_KEY}' \
-	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@
-
 rpki-sql-backup: rpki-sql-backup.py
 	${COMPILE_PYTHON}
 
@@ -272,9 +263,6 @@ portal-gui/scripts/rpkigui-check-expired: portal-gui/scripts/rpkigui-check-expir
 portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in
 	sed -e "s|@PYTHON""PATH@|${sysconfdir}/rpki|" \
 		${srcdir}/portal-gui/rpki.wsgi.in > portal-gui/rpki.wsgi
-
-portal-gui/settings.py: ${srcdir}/portal-gui/settings.py.in
-	${COMPILE_SETTINGS}
 
 portal-gui/scripts/rpki-manage: ${srcdir}/portal-gui/scripts/rpki-manage.in
 	sed -e "s|@DJANGO""_ADMIN@|${DJANGO_ADMIN}|" \

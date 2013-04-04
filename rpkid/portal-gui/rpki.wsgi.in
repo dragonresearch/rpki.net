@@ -20,7 +20,7 @@ __version__ = '$Id$'
 import sys
 import os
 
-os.environ['DJANGO_SETTINGS_MODULE'] = 'settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.default_settings'
 sys.path.insert(1, '@PYTHONPATH@')
 
 import django.core.handlers.wsgi

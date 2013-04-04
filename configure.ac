@@ -699,9 +699,6 @@ fi
 
 if test $build_ca_tools = yes
 then
-        # Source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
-        AC_SUBST(SECRET_KEY, `$PYTHON -c 'import random; print "".join([random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50)])'`)
-
         # There is no standard name for this tool, so check for it.
         AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
 

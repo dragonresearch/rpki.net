@@ -604,7 +604,6 @@ LIBOBJS
 WSGI_PROCESS_GROUP
 WSGI_DAEMON_PROCESS
 DJANGO_ADMIN
-SECRET_KEY
 OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 TOP_LEVEL_SUBDIRS
@@ -4878,10 +4877,6 @@ fi
 
 if test $build_ca_tools = yes
 then
-        # Source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
-        SECRET_KEY=`$PYTHON -c 'import random; print "".join(random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50))'`
-
-
         # There is no standard name for this tool, so check for it.
         for ac_prog in django-admin django-admin.py
 do

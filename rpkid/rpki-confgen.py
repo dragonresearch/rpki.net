@@ -4,9 +4,16 @@ import textwrap
 
 from lxml.etree import Element, SubElement, ElementTree
 
+space2 = " " * 2
+space4 = " " * 4
+space6 = " " * 6
+space8 = " " * 8
+
 text_wrapper = textwrap.TextWrapper()
-item_wrapper = textwrap.TextWrapper(initial_indent = "  ", subsequent_indent = "  ")
 conf_wrapper = textwrap.TextWrapper(initial_indent = "# ", subsequent_indent = "# ")
+item_wrapper = textwrap.TextWrapper(initial_indent = space2, subsequent_indent = space2)
+xml6_wrapper = textwrap.TextWrapper(initial_indent = space6, subsequent_indent = space6)
+xml8_wrapper = textwrap.TextWrapper(initial_indent = space8, subsequent_indent = space8)
 
 class Option(object):
 
@@ -22,7 +29,7 @@ class Option(object):
   def to_xml(self):
     x = Element("option", name = self.name, value = self.value)
     for d in self.doc:
-      SubElement(x, "doc").text = "\n" + text_wrapper.fill(d) + "\n"
+      SubElement(x, "doc").text = "\n" + xml8_wrapper.fill(d) + "\n" + space6
     return x
 
   def to_wiki(self, f):
@@ -60,7 +67,7 @@ class Section(object):
   def to_xml(self):
     x = Element("section", name = self.name)
     for d in self.doc:
-      SubElement(x, "doc").text = "\n" + text_wrapper.fill(d) + "\n"
+      SubElement(x, "doc").text = "\n" + xml6_wrapper.fill(d) + "\n" + space4
     x.extend(o.to_xml() for o in self.options)
     return x
 
@@ -93,35 +100,56 @@ by $Id$
       o.to_conf(f, width)
 
 sections = []
-index = None
+section_map = None
+option_map = None
 ident = None
 
-opts, argv = getopt.getopt(sys.argv[1:], "", ["read-xml=", "write-xml=", "write-wiki=", "write-conf=", "set="])
+opts, argv = getopt.getopt(sys.argv[1:], "",
+                           ["read-xml=", "write-xml=",
+                            "write-wiki=", "write-conf=",
+                            "set=", "autoconf"])
 for o, a in opts:
 
   if o == "--read-xml":
-    index = None
+    option_map = None
     root = ElementTree(file = a).getroot()
     ident = root.get("ident")
     sections.extend(Section.from_xml(x) for x in root)
-    index = {}
+    option_map = {}
+    section_map = {}
     for section in sections:
+      if section.name in section_map:
+        sys.exit("Duplicate section %s" % section.name)
+      section_map[section.name] = section
       for option in section.options:
         name = (section.name, option.name)
-        if name in index:
-          sys.exit("Duplicate entry for section \"%s\" option \"%s\"" % name)
-        index[name] = option
+        if name in option_map:
+          sys.exit("Duplicate option %s::%s" % name)
+        option_map[name] = option
 
   elif o == "--set":
     try:
       name, value = a.split("=", 1)
-      section, option = name.split(":")
+      section, option = name.split("::")
     except ValueError:
       sys.exit("Couldn't parse --set specification \"%s\"" % a)
     name = (section, option)
-    if name not in index:
-      sys.exit("Couldn't find section \"%s\" option \"%s\"" % name)
-    index[name].value = value
+    if name not in option_map:
+      sys.exit("Couldn't find option %s::%s" % name)
+    option_map[name].value = value
+
+  elif o == "--autoconf":
+    try:
+      import rpki.autoconf
+      for option in section_map["autoconf"]:
+        try:
+          option.value = getattr(rpki.autoconf, option.name)
+        except AttributeError:
+          pass
+    except ImportError:
+      sys.exit("rpki.autoconf module is not available")
+    except KeyError:
+      sys.exit("Couldn't find autoconf section")
 
   elif o == "--write-xml":
     x = Element("configuration", ident = ident)
@@ -140,7 +168,7 @@ for o, a in opts:
       f.write('''\
 # Automatically generated.  Edit if you like, but be careful of overwriting.
 # Generated from ''' + ident + '''
-# by $Id
+# by $Id$
 ''')
       width = max(s.width for s in sections)
       for section in sections:

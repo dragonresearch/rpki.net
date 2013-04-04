@@ -6,5 +6,5 @@ if [ -z "$LANG" ]; then
 	echo '$LANG is unset, default to en_US.UTF-8'
 	export LANG=en_US.UTF-8
 fi
-export PYTHONPATH=@PYTHONPATH@${PYTHONPATH:+:}${PYTHONPATH} DJANGO_SETTINGS_MODULE=settings
+export PYTHONPATH=@PYTHONPATH@${PYTHONPATH:+:}${PYTHONPATH} DJANGO_SETTINGS_MODULE=rpki.gui.default_settings
 @DJANGO_ADMIN@ $*

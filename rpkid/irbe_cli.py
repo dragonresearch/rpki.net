@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Command line IR back-end control program for rpkid and pubd.
 

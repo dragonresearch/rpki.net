@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # Copyright (C) 2011  SPARTA, Inc. dba Cobham
 # Copyright (C) 2012, 2013  SPARTA, Inc. a Parsons Company
 #

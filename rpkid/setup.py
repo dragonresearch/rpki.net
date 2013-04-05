@@ -20,19 +20,29 @@ import os
 # We can't build POW without these settings, but allow them to be null
 # so that things like "python setup.py --help" will work.
 
-ac_cflags	= os.getenv("AC_CFLAGS",	"").split()
-ac_ldflags	= os.getenv("AC_LDFLAGS",	"").split()
-ac_libs		= os.getenv("AC_LIBS",		"").split()
-ac_scripts	= os.getenv("AC_SCRIPTS",	"").split()
+ac_scripts      = os.getenv("AC_SCRIPTS",       "").split()
 ac_aux_scripts  = os.getenv("AC_AUX_SCRIPTS",   "").split()
 ac_data_files   = os.getenv("AC_DATA_FILES",    "").split()
 ac_conf_files   = os.getenv("AC_CONF_FILES",    "").split()
 
-ac_sbindir	= os.getenv("AC_SBINDIR",	"").strip()
-ac_abs_builddir = os.getenv("AC_ABS_BUILDDIR",	"").strip()
-ac_libexecdir   = os.getenv("AC_LIBEXECDIR",    "").strip()
-ac_datarootdir  = os.getenv("AC_DATAROOTDIR",   "").strip()
-ac_sysconfdir   = os.getenv("AC_SYSCONFDIR",    "").strip()
+try:
+  import setup_autoconf
+  ac_cflags      = setup_autoconf.CFLAGS.split()
+  ac_ldflags     = setup_autoconf.LDFLAGS.split()
+  ac_libs        = setup_autoconf.LIBS.split()
+  ac_sbindir     = setup_autoconf.sbindir
+  ac_libexecdir  = setup_autoconf.libexecdir
+  ac_datarootdir = os.path.join(setup_autoconf.datarootdir, "rpki")
+  ac_sysconfdir  = os.path.join(setup_autoconf.sysconfdir, "rpki")
+
+except ImportError:
+  ac_cflags      = ()
+  ac_ldflags     = ()
+  ac_libs        = ()
+  ac_sbindir     = None
+  ac_libexecdir  = None
+  ac_datarootdir = None
+  ac_sysconfdir  = None
 
 # Non-standard extension build specification: we need to force
 # whatever build options our top-level ./configure selected, and we
@@ -52,21 +62,19 @@ pow = Extension("rpki.POW._POW", ["ext/POW.c"],
 # installed files.
 #
 # bdist_rpm seems to get confused by relative names for scripts, so we
-# have to prefix source names here with the build directory name.
+# have to prefix source names here with the build directory name.  Well,
+# if we care about bdist_rpm, which it now looks like we don't, but
+# leave it alone for the moment.
 
 data_files = []
 if ac_sbindir and ac_scripts:
-  data_files.append((ac_sbindir,
-                     ["%s/%s" % (ac_abs_builddir, f) for f in ac_scripts]))
+  data_files.append((ac_sbindir,     [os.path.abspath(f) for f in ac_scripts]))
 if ac_libexecdir and ac_aux_scripts:
-  data_files.append((ac_libexecdir,
-                     ["%s/%s" % (ac_abs_builddir, f) for f in ac_aux_scripts]))
+  data_files.append((ac_libexecdir,  [os.path.abspath(f) for f in ac_aux_scripts]))
 if ac_datarootdir and ac_data_files:
-  data_files.append((ac_datarootdir,
-                     ["%s/%s" % (ac_abs_builddir, f) for f in ac_data_files]))
+  data_files.append((ac_datarootdir, [os.path.abspath(f) for f in ac_data_files]))
 if ac_sysconfdir and ac_conf_files:
-  data_files.append((ac_sysconfdir,
-                     ["%s/%s" % (ac_abs_builddir, f) for f in ac_conf_files]))
+  data_files.append((ac_sysconfdir,  [os.path.abspath(f) for f in ac_conf_files]))
 if not data_files:
   data_files = None
 
@@ -85,4 +93,4 @@ setup(name              = "rpkitoolkit",
                            'templatetags/*.py'],
           'rpki.gui.cacheview': ['templates/*/*.html']
       },
-      data_files	= data_files)
+      data_files        = data_files)

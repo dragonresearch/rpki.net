@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Automated setup of all the pesky SQL stuff we need.  Prompts for MySQL
 root password, pulls other information from rpki.conf.

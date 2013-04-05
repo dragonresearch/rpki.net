@@ -20,7 +20,7 @@ setup_rpkid_group() {
 }
 
 setup_apache() {
-    # edit existing file
+    # Edit existing file
     f=/etc/apache2/sites-available/default-ssl
     conf=/etc/rpki/apache.conf
     cmd=no
@@ -53,13 +53,44 @@ setup_apache() {
     fi
 }
 
-setup_django() {
-    # we can't perform automatic upgrade when rpki.conf isn't present
-    if test -f /etc/rpki.conf
+setup_rpki_conf() {
+    # Update /etc/rpki.conf.sample for this system, and copy it to
+    # /etc/rpki.conf if no configuration file exists yet.
+
+    # We don't (yet) have the ability to merge in settings from an
+    # existing rpki.conf, so we generate a new secret_key and a new
+    # SQL password every time, but that's harmless so long as we're
+    # careful not to overwrite an existing configuration.
+
+    mysql_passwd=`python -c 'import random, string; print "".join(random.choice(string.uppercase + string.lowercase + string.digits) for _ in xrange(16))'`
+    secret_key=`python -c 'import random, string; print "".join(random.choice(string.uppercase + string.lowercase + string.digits) for _ in xrange(50))'`
+
+    rpki-confgen --read-xml /etc/rpki/rpki-confgen.xml			\
+	--autoconf							\
+	--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'`		\
+	--set myrpki::rpkid_server_host=`hostname -f`			\
+	--set myrpki::pubd_server_host=`hostname -f`			\
+	--set myrpki::shared_sql_password="$mysql_passwd"		\
+	--set web_portal::secret-key="$secret_key"			\
+	--write-conf /etc/rpki.conf.sample
+
+    if test ! -f /etc/rpki.conf
     then
-	rpki-manage syncdb
-	rpki-manage migrate app
+	cp -p /etc/rpki.conf.sample /etc/rpki.conf
     fi
+}
+
+setup_mysql() {
+    rpki-sql-setup --missing_only --mysql_defaults /etc/mysql/debian.cnf
+}
+
+setup_bpki() {
+    rpkic initialize_server_bpki
+}
+
+setup_django() {
+    rpki-manage syncdb --noinput
+    rpki-manage migrate app
 }
 
 setup_cron() {
@@ -86,6 +117,9 @@ case "$1" in
 	setup_rpkid_group
 	setup_rpkid_user
 	setup_apache
+	setup_rpki_conf
+	setup_mysql
+	setup_bpki
 	setup_django
 	setup_cron
     ;;

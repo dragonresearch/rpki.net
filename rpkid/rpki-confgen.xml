@@ -25,7 +25,7 @@
     </option>
 
     <option name  = "run_rpkid"
-            value = "True">
+            value = "yes">
       <doc>
         Whether you want to run your own copy of rpkid (and irdbd).  You
         want this on unless somebody else is hosting rpkid service for you.
@@ -64,7 +64,7 @@
     </option>
 
     <option name  = "run_pubd"
-            value = "False">
+            value = "yes">
       <doc>
         Whether you want to run your own copy of pubd.  In general, it's
         best to use your parent's pubd if you can, to reduce the overall
@@ -99,7 +99,7 @@
     </option>
 
     <option name  = "run_rootd"
-            value = "False">
+            value = "no">
       <doc>
         Whether you want to run your very own copy of rootd.  Don't enable
         this unless you really know what you're doing.

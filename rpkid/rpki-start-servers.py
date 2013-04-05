@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Start servers, logging to files, looking at config file to figure out
 which servers the user wants started.

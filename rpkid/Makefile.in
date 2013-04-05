@@ -56,7 +56,7 @@ POW_SO	= rpki/POW/_POW.so
 
 SCRIPTS = \
 	rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
-	pubd rootd rpkic rpkid \
+	pubd rootd rpkic rpkid rpki-confgen \
 	portal-gui/scripts/rpkigui-import-routes \
 	portal-gui/scripts/rpkigui-check-expired \
 	portal-gui/scripts/rpkigui-rcynic \
@@ -71,11 +71,11 @@ BUILD_SCRIPTS = \
 DATA_FILES = portal-gui/routeviews.sh
 
 # these files get put in ${sysconfdir}/rpki
-CONF_FILES = portal-gui/apache.conf
+CONF_FILES = portal-gui/apache.conf rpki-confgen.xml
 
 all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${BUILD_SCRIPTS}
 
-${POW_SO}: ext/POW.c setup.py
+${POW_SO}: ext/POW.c setup.py setup_autoconf.py
 	${SETUP_PY} build_ext --inplace
 
 clean::
@@ -220,59 +220,61 @@ install::
 clean::
 	rm -f examples/rpki.conf
 
-# Scripts
+# Scripts.  This whole business of copying scripts is a holdover from
+# a more complex build process which we haven't quite finished
+# cleaning up yet.  In theory, eventually this will all be handled by
+# setup.py without any need for copying anything here.
 
-COMPILE_PYTHON = \
-	rm -f $@; \
-	${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; \
-	chmod 555 $@
+COPY_SCRIPT = cp -pf $? $@; chmod 555 $@
 
 rpki-sql-backup: rpki-sql-backup.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 rpki-sql-setup: rpki-sql-setup.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 rpki-start-servers: rpki-start-servers.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 irbe_cli: irbe_cli.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 irdbd: irdbd.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 pubd: pubd.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 rootd: rootd.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 rpkic: rpkic.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 rpkid: rpkid.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
+
+rpki-confgen: rpki-confgen.py
+	${COPY_SCRIPT}
 
 # These are here for legacy reasons, but no longer required.  The problem is
 # that anyone with an existing copy of the repository will already have
 # previously built files by these names, so I can't rename them in the
 # repository, or svn will abort when the user tries to update.
 portal-gui/scripts/rpkigui-rcynic: portal-gui/scripts/rpkigui-rcynic.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-routes.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 portal-gui/scripts/rpkigui-check-expired: portal-gui/scripts/rpkigui-check-expired.py
-	${COMPILE_PYTHON}
+	${COPY_SCRIPT}
 
 portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in
-	cp $? $@
+	${COPY_SCRIPT}
 
 portal-gui/scripts/rpki-manage: ${srcdir}/portal-gui/scripts/rpki-manage.py
-	cp $? $@
-	chmod 755 $@
+	${COPY_SCRIPT}
 
 rpki/autoconf.py: Makefile
 	@echo 'Generating $@';					\
@@ -282,5 +284,17 @@ rpki/autoconf.py: Makefile
 	 echo 'localstatedir  = "${localstatedir}"';		\
 	 echo 'sbindir        = "${sbindir}"';			\
 	 echo 'sharedstatedir = "${sharedstatedir}"';		\
-	 echo 'sysconfdir     = "${sysconfdir}"'		\
+	 echo 'sysconfdir     = "${sysconfdir}"';		\
+	 echo 'libexecdir     = "${libexecdir}"';		\
 	) > $@
+
+setup_autoconf.py: rpki/autoconf.py
+	@echo 'Generating $@';					\
+	(cat rpki/autoconf.py;					\
+	 echo 'CFLAGS         = """${CFLAGS}"""';		\
+	 echo 'LDFLAGS	      = """${LDFLAGS}"""';		\
+	 echo 'LIBS	      = """${LIBS}"""';			\
+	) > $@
+
+clean::
+	rm -f setup_autoconf.py setup_autoconf.pyc

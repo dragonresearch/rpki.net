@@ -1,4 +1,4 @@
-etc/rpki.conf.sample
+etc/rpki/rpki-confgen.xml
 etc/rpki/apache.conf
 usr/lib
 usr/sbin

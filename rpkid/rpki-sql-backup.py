@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Back up data from SQL databases, looking at config file to figure out
 which databases and what credentials to use with them.

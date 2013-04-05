@@ -1,6 +1,6 @@
 # $Id$
 #
-# Copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
+# Copyright (C) 2011-2013  Internet Systems Consortium ("ISC")
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -20,11 +20,6 @@ import os
 # We can't build POW without these settings, but allow them to be null
 # so that things like "python setup.py --help" will work.
 
-ac_scripts      = os.getenv("AC_SCRIPTS",       "").split()
-ac_aux_scripts  = os.getenv("AC_AUX_SCRIPTS",   "").split()
-ac_data_files   = os.getenv("AC_DATA_FILES",    "").split()
-ac_conf_files   = os.getenv("AC_CONF_FILES",    "").split()
-
 try:
   import setup_autoconf
   ac_cflags      = setup_autoconf.CFLAGS.split()
@@ -43,6 +38,25 @@ except ImportError:
   ac_libexecdir  = None
   ac_datarootdir = None
   ac_sysconfdir  = None
+
+# Scripts and data files, moved here from Makefile.in.
+
+ac_scripts = [
+  "rpki-sql-backup", "rpki-sql-setup",
+  "rpki-start-servers", "irbe_cli", "irdbd",
+  "pubd rootd rpkic rpkid rpki-confgen",
+  "portal-gui/scripts/rpkigui-import-routes",
+  "portal-gui/scripts/rpkigui-check-expired",
+  "portal-gui/scripts/rpkigui-rcynic",
+  "portal-gui/scripts/rpki-manage" ]
+
+ac_aux_scripts = []
+
+ac_data_files = []
+
+ac_conf_files = [
+  "portal-gui/apache.conf",
+  "rpki-confgen.xml" ]
 
 # Non-standard extension build specification: we need to force
 # whatever build options our top-level ./configure selected, and we

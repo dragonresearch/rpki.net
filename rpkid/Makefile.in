@@ -30,53 +30,14 @@ srcdir          = @srcdir@
 
 SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
 
-# PID files seem to go into /var/run/ on every platform we support.
-# We could make this an autoconf substitution if anything ever cares,
-# but let's keep it simple for now.
-
-PID_DIR		= ${DESTDIR}/var/run/rpkid
-
-SETUP_PY = \
-	AC_CFLAGS='${CFLAGS}' \
-	AC_LDFLAGS='${LDFLAGS}' \
-	AC_LIBS='${LIBS}' \
-	AC_SBINDIR='${sbindir}' \
-	AC_SCRIPTS='${SCRIPTS}' \
-	AC_DATA_FILES='${DATA_FILES}' \
-	AC_CONF_FILES='${CONF_FILES}' \
-	AC_ABS_BUILDDIR='${abs_builddir}' \
-	AC_LIBEXECDIR='${libexecdir}' \
-	AC_DATAROOTDIR='${datarootdir}/rpki' \
-	AC_SYSCONFDIR='${sysconfdir}/rpki' \
-	${PYTHON} setup.py
-
 SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
 
-POW_SO	= rpki/POW/_POW.so
+POW_SO = rpki/POW/_POW.so
 
-SCRIPTS = \
-	rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd \
-	pubd rootd rpkic rpkid rpki-confgen \
-	portal-gui/scripts/rpkigui-import-routes \
-	portal-gui/scripts/rpkigui-check-expired \
-	portal-gui/scripts/rpkigui-rcynic \
-	portal-gui/scripts/rpki-manage
-
-# scripts we build, but don't install
-BUILD_SCRIPTS = \
-	portal-gui/rpki.wsgi \
-	rpki/autoconf.py
-
-# these files get put in ${datarootdir}/rpki
-DATA_FILES = portal-gui/routeviews.sh
-
-# these files get put in ${sysconfdir}/rpki
-CONF_FILES = portal-gui/apache.conf rpki-confgen.xml
-
-all:: ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${SCRIPTS} ${BUILD_SCRIPTS}
+all:: rpki/autoconf.py ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py
 
 ${POW_SO}: ext/POW.c setup.py setup_autoconf.py
-	${SETUP_PY} build_ext --inplace
+	${PYTHON} setup.py build_ext --inplace
 
 clean::
 	rm -rf ${POW_SO} build dist
@@ -106,19 +67,12 @@ rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql 
 clean::
 	find . -type f -name '*.py[co]' -delete
 	cd tests; $(MAKE) $@
-	rm -f ${SCRIPTS} ${SETTINGS} ${BUILD_SCRIPTS}
 
 install:: all
-	${SETUP_PY} install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
+	${PYTHON} setup.py install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
 	@echo
 	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
 	@echo
-#
-# We used to do this, but Debian/Ubuntu lintian complained that
-# /var/run may be a temporary filesystem, thus directories like this
-# should be created at boot.  Fair point.
-#
-#	if test -d ${PID_DIR}; then :; else ${INSTALL} -d ${PID_DIR}; fi
 
 uninstall deinstall::
 	xargs rm -fv <installed
@@ -203,8 +157,8 @@ all:: examples/rpki.conf
 
 GENERATE_DJANGO_SECRET_KEY = ${PYTHON} -c 'import random, string; print "".join(random.choice(string.uppercase + string.lowercase + string.digits) for _ in xrange(50))'
 
-examples/rpki.conf: rpki/autoconf.py rpki-confgen.py rpki-confgen.xml
-	${PYTHON} rpki-confgen.py \
+examples/rpki.conf: rpki/autoconf.py rpki-confgen rpki-confgen.xml
+	${PYTHON} rpki-confgen \
 		--read-xml rpki-confgen.xml \
 		--autoconf \
 		--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'` \
@@ -220,62 +174,6 @@ install::
 clean::
 	rm -f examples/rpki.conf
 
-# Scripts.  This whole business of copying scripts is a holdover from
-# a more complex build process which we haven't quite finished
-# cleaning up yet.  In theory, eventually this will all be handled by
-# setup.py without any need for copying anything here.
-
-COPY_SCRIPT = cp -pf $? $@; chmod 555 $@
-
-rpki-sql-backup: rpki-sql-backup.py
-	${COPY_SCRIPT}
-
-rpki-sql-setup: rpki-sql-setup.py
-	${COPY_SCRIPT}
-
-rpki-start-servers: rpki-start-servers.py
-	${COPY_SCRIPT}
-
-irbe_cli: irbe_cli.py
-	${COPY_SCRIPT}
-
-irdbd: irdbd.py
-	${COPY_SCRIPT}
-
-pubd: pubd.py
-	${COPY_SCRIPT}
-
-rootd: rootd.py
-	${COPY_SCRIPT}
-
-rpkic: rpkic.py
-	${COPY_SCRIPT}
-
-rpkid: rpkid.py
-	${COPY_SCRIPT}
-
-rpki-confgen: rpki-confgen.py
-	${COPY_SCRIPT}
-
-# These are here for legacy reasons, but no longer required.  The problem is
-# that anyone with an existing copy of the repository will already have
-# previously built files by these names, so I can't rename them in the
-# repository, or svn will abort when the user tries to update.
-portal-gui/scripts/rpkigui-rcynic: portal-gui/scripts/rpkigui-rcynic.py
-	${COPY_SCRIPT}
-
-portal-gui/scripts/rpkigui-import-routes: portal-gui/scripts/rpkigui-import-routes.py
-	${COPY_SCRIPT}
-
-portal-gui/scripts/rpkigui-check-expired: portal-gui/scripts/rpkigui-check-expired.py
-	${COPY_SCRIPT}
-
-portal-gui/rpki.wsgi: ${srcdir}/portal-gui/rpki.wsgi.in
-	${COPY_SCRIPT}
-
-portal-gui/scripts/rpki-manage: ${srcdir}/portal-gui/scripts/rpki-manage.py
-	${COPY_SCRIPT}
-
 rpki/autoconf.py: Makefile
 	@echo 'Generating $@';					\
 	(echo '# Automatically generated.  DO NOT EDIT.';	\
@@ -287,6 +185,9 @@ rpki/autoconf.py: Makefile
 	 echo 'sysconfdir     = "${sysconfdir}"';		\
 	 echo 'libexecdir     = "${libexecdir}"';		\
 	) > $@
+
+clean::
+	rm -f rpki/autoconf.py
 
 setup_autoconf.py: rpki/autoconf.py
 	@echo 'Generating $@';					\

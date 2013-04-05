@@ -210,7 +210,7 @@ examples/rpki.conf: rpki/autoconf.py rpki-confgen.py rpki-confgen.xml
 		--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'` \
 		--set myrpki::rpkid_server_host=`hostname -f` \
 		--set myrpki::pubd_server_host=`hostname -f` \
-		--set web_portal::django-secret-key=`${GENERATE_DJANGO_SECRET_KEY}` \
+		--set web_portal::secret-key=`${GENERATE_DJANGO_SECRET_KEY}` \
 		--write-conf $@
 
 install::

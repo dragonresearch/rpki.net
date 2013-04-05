@@ -31,7 +31,15 @@ import os
 
 version = "0." + subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1]
 
-shutil.copytree("buildtools/debian-skeleton", "debian")
+if os.path.exists("debian"):
+    shutil.rmtree("debian")
+
+def ignore_dot_svn(src, names):
+    return [name for name in names if name == ".svn"]
+
+shutil.copytree("buildtools/debian-skeleton", "debian", ignore = ignore_dot_svn)
+
+os.chmod("debian/rules", 0755)
 
 subprocess.check_call(("dch", "--create", "--package", "rpki", "--newversion",  version,
                        "Version %s of https://subvert-rpki.hactrn.net/trunk/" % version),

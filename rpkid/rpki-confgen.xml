@@ -718,7 +718,7 @@
       </doc>
     </option>
 
-    <option name  = "django-secret-key"
+    <option name  = "secret-key"
 	    value = "">
       <doc>
 	Site-specific secret key for Django.

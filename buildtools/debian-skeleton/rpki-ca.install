@@ -1,7 +1,5 @@
 etc/rpki.conf.sample
 etc/rpki/apache.conf
-etc/rpki/default_settings.py
-etc/rpki/settings.py
 usr/lib
 usr/sbin
 usr/share

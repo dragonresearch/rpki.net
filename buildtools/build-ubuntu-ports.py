@@ -25,9 +25,29 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 import subprocess
+import getopt
 import shutil
 import sys
 import os
+
+def usage(status):
+    f = sys.stderr if status else sys.stdout
+    f.write("Usage: %s [--debuild]\n" % sys.argv[0])
+    sys.exit(status)
+
+debuild = False
+
+try:
+    opts, argv = getopt.getopt(sys.argv[1:], "-bh?", ["debuild", "help"])
+except getopt.GetoptError:
+    usage(1)
+for o, a in opts:
+    if o in ("-h", "-?", "--help"):
+        usage(0)
+    elif o in ("-b", "--debuild"):
+        debuild = not debuild
+if argv:
+    usage(1)
 
 version = "0." + subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1]
 
@@ -48,3 +68,6 @@ subprocess.check_call(("dch", "--create", "--package", "rpki", "--newversion",  
                                  VISUAL   = "true",
                                  TZ       = "UTC",
                                  DEBEMAIL = "APT Builder Robot <aptbot@rpki.net>"))
+
+if debuild:
+    subprocess.check_call(("debuild", "-us", "-uc"))

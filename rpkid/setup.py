@@ -42,9 +42,16 @@ except ImportError:
 # Scripts and data files, moved here from Makefile.in.
 
 ac_scripts = [
-  "rpki-sql-backup", "rpki-sql-setup",
-  "rpki-start-servers", "irbe_cli", "irdbd",
-  "pubd rootd rpkic rpkid rpki-confgen",
+  "rpki-sql-backup",
+  "rpki-sql-setup",
+  "rpki-start-servers",
+  "irbe_cli",
+  "irdbd",
+  "pubd",
+  "rootd",
+  "rpkic",
+  "rpkid",
+  "rpki-confgen",
   "portal-gui/scripts/rpkigui-import-routes",
   "portal-gui/scripts/rpkigui-check-expired",
   "portal-gui/scripts/rpkigui-rcynic",

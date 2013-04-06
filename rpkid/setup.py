@@ -15,32 +15,17 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 from distutils.core import setup, Extension
+from glob import glob
 import setup_extensions
-import os
 
 try:
-  # Import settings derived from autoconf tests and configuration.
-  #
   import setup_autoconf as autoconf
-  ac_cflags      = autoconf.CFLAGS.split()
-  ac_ldflags     = autoconf.LDFLAGS.split()
-  ac_libs        = autoconf.LIBS.split()
-  ac_sbindir     = autoconf.sbindir
-  ac_libexecdir  = autoconf.libexecdir
-  ac_datarootdir = os.path.join(autoconf.datarootdir, "rpki")
-  ac_sysconfdir  = os.path.join(autoconf.sysconfdir, "rpki")
 
 except ImportError:
-  # We can't build POW without the autoconf settings, but we allow them
-  # to be absent when running things like "python setup.py --help".
-  #
-  ac_cflags      = ()
-  ac_ldflags     = ()
-  ac_libs        = ()
-  ac_sbindir     = None
-  ac_libexecdir  = None
-  ac_datarootdir = None
-  ac_sysconfdir  = None
+  # We can't build or install without the autoconf settings, but this 
+  # allows things like "python setup.py --help" to work.
+  class autoconf:
+    sbindir = libexecdir = datarootdir = sysconfdir = CFLAGS = LDFLAGS = LIBS = ""
 
 # pylint: disable=W0622
 
@@ -60,15 +45,16 @@ setup(name              = "rpkitoolkit",
                            "rpki.gui.api",
                            "rpki.gui.routeview"],
       ext_modules       = [Extension("rpki.POW._POW", ["ext/POW.c"], 
-                                     extra_compile_args = ac_cflags,
-                                     extra_link_args    = ac_ldflags + ac_libs)],
+                                     extra_compile_args =  autoconf.CFLAGS.split(),
+                                     extra_link_args    = (autoconf.LDFLAGS + " " +
+                                                           autoconf.LIBS).split())],
       package_data      = {"rpki.gui.app"       : ["migrations/*.py",
                                                    "static/*/*",
                                                    "templates/*.html",
                                                    "templates/*/*.html",
                                                    "templatetags/*.py"],
                            "rpki.gui.cacheview" : ["templates/*/*.html"]},
-      scripts           = [(ac_sbindir,
+      scripts           = [(autoconf.sbindir,
                             ["rpkic",
                              "rpki-confgen",
                              "rpki-start-servers",
@@ -76,7 +62,7 @@ setup(name              = "rpkitoolkit",
                              "rpki-sql-setup",
                              "portal-gui/scripts/rpki-manage",
                              "irbe_cli"]),
-                           (ac_libexecdir,
+                           (autoconf.libexecdir,
                             ["irdbd",
                              "pubd",
                              "rootd",
@@ -84,6 +70,14 @@ setup(name              = "rpkitoolkit",
                              "portal-gui/scripts/rpkigui-import-routes",
                              "portal-gui/scripts/rpkigui-check-expired",
                              "portal-gui/scripts/rpkigui-rcynic"])],
-      data_files        = [(ac_sysconfdir,
+      data_files        = [(autoconf.sysconfdir  + "/rpki",
                             ["portal-gui/apache.conf",
-                             "rpki-confgen.xml"])])
+                             "rpki-confgen.xml"]),
+                           (autoconf.datarootdir + "/rpki/wsgi",
+                            ["portal-gui/rpki.wsgi"]),
+                           (autoconf.datarootdir + "/rpki/media/css",
+                            glob("rpki/gui/app/static/css/*")),
+                           (autoconf.datarootdir + "/rpki/media/js",
+                            glob("rpki/gui/app/static/js/*")),
+                           (autoconf.datarootdir + "/rpki/media/img",
+                            glob("rpki/gui/app/static/img/*"))])

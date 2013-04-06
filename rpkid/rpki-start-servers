@@ -6,7 +6,7 @@ which servers the user wants started.
 
 $Id$
 
-Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -36,17 +36,22 @@ PERFORMANCE OF THIS SOFTWARE.
 
 """
 
-import subprocess, os, getopt, sys, time, rpki.config
-
-rpkid_dir = os.path.normpath(sys.path[0])
+import subprocess
+import os
+import getopt
+import sys
+import time
+import rpki.config
+import rpki.autoconf
 
 os.environ["TZ"] = "UTC"
 time.tzset()
 
 cfg_file = None
-debug = False
+debug    = False
+log_dir  = "."
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:dhp:?", ["config=", "debug" "help"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:dhp:?", ["config=", "debug" "help", "logdir="])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
@@ -55,15 +60,19 @@ for o, a in opts:
     cfg_file = a
   elif o in ("-d", "--debug"):
     debug = True
+  elif o == "--logdir":
+    log_dir = a
 
 cfg = rpki.config.parser(cfg_file, "myrpki")
 
 
 def run(name):
   # pylint: disable=E1103
-  cmd = (sys.executable, os.path.join(rpkid_dir, name), "-c", cfg.filename)
+  cmd = (os.path.join(rpki.autoconf.libexecdir, name), "-c", cfg.filename)
   if debug:
-    proc = subprocess.Popen(cmd + ("-d",), stdout = open(name + ".log", "a"), stderr = subprocess.STDOUT)
+    proc = subprocess.Popen(cmd + ("-d",),
+                            stdout = open(os.path.join(log_dir, name + ".log"), "a"),
+                            stderr = subprocess.STDOUT)
   else:
     proc = subprocess.Popen(cmd)
   if debug and proc.poll() is None:

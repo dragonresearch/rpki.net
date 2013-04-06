@@ -177,7 +177,7 @@ clean::
 rpki/autoconf.py: Makefile
 	@echo 'Generating $@';					\
 	(echo '# Automatically generated.  DO NOT EDIT.';	\
-         echo 'bindir         = "${bindir}"';			\
+	 echo 'bindir         = "${bindir}"';			\
 	 echo 'datarootdir    = "${datarootdir}"';		\
 	 echo 'localstatedir  = "${localstatedir}"';		\
 	 echo 'sbindir        = "${sbindir}"';			\
@@ -192,9 +192,9 @@ clean::
 setup_autoconf.py: rpki/autoconf.py
 	@echo 'Generating $@';					\
 	(cat rpki/autoconf.py;					\
-	 echo 'CFLAGS         = """${CFLAGS}"""';		\
-	 echo 'LDFLAGS	      = """${LDFLAGS}"""';		\
-	 echo 'LIBS	      = """${LIBS}"""';			\
+	 echo 'CFLAGS         = """${CFLAGS}"""';               \
+	 echo 'LDFLAGS        = """${LDFLAGS}"""';              \
+	 echo 'LIBS           = """${LIBS}"""';                 \
 	) > $@
 
 clean::

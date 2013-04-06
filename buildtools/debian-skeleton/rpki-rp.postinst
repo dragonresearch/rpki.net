@@ -40,7 +40,10 @@ setup_rcynic_cron() {
 }
 
 setup_rpki_rtr_listener() {
-    killall -HUP xinetd
+    if test -f /var/run/xinetd.pid
+    then
+	kill -HUP `cat /var/run/xinetd.pid`
+    fi
 }
 
 # summary of how this script can be called:

@@ -15,22 +15,29 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 from distutils.core import setup, Extension
+from distutils.util import change_root, convert_path
+from distutils.command.build_scripts   import build_scripts   as _build_scripts
+from distutils.command.install_scripts import install_scripts as _install_scripts
+from distutils import log
+from stat import S_IMODE
 import os
 
-# We can't build POW without these settings, but allow them to be null
-# so that things like "python setup.py --help" will work.
-
 try:
-  import setup_autoconf
-  ac_cflags      = setup_autoconf.CFLAGS.split()
-  ac_ldflags     = setup_autoconf.LDFLAGS.split()
-  ac_libs        = setup_autoconf.LIBS.split()
-  ac_sbindir     = setup_autoconf.sbindir
-  ac_libexecdir  = setup_autoconf.libexecdir
-  ac_datarootdir = os.path.join(setup_autoconf.datarootdir, "rpki")
-  ac_sysconfdir  = os.path.join(setup_autoconf.sysconfdir, "rpki")
+  # Import settings derived from autoconf tests and configuration.
+  #
+  import setup_autoconf as autoconf
+  ac_cflags      = autoconf.CFLAGS.split()
+  ac_ldflags     = autoconf.LDFLAGS.split()
+  ac_libs        = autoconf.LIBS.split()
+  ac_sbindir     = autoconf.sbindir
+  ac_libexecdir  = autoconf.libexecdir
+  ac_datarootdir = os.path.join(autoconf.datarootdir, "rpki")
+  ac_sysconfdir  = os.path.join(autoconf.sysconfdir, "rpki")
 
 except ImportError:
+  # We can't build POW without the autoconf settings, but we allow them
+  # to be absent when running things like "python setup.py --help".
+  #
   ac_cflags      = ()
   ac_ldflags     = ()
   ac_libs        = ()
@@ -39,79 +46,126 @@ except ImportError:
   ac_datarootdir = None
   ac_sysconfdir  = None
 
-# Scripts and data files, moved here from Makefile.in.
+class build_scripts(_build_scripts):
+  """
+  Hacked version of distutils.build_scripts, designed to support
+  multiple target installation directories like install_data does.
 
-ac_scripts = [
-  "rpki-sql-backup",
-  "rpki-sql-setup",
-  "rpki-start-servers",
-  "irbe_cli",
-  "irdbd",
-  "pubd",
-  "rootd",
-  "rpkic",
-  "rpkid",
-  "rpki-confgen",
-  "portal-gui/scripts/rpkigui-import-routes",
-  "portal-gui/scripts/rpkigui-check-expired",
-  "portal-gui/scripts/rpkigui-rcynic",
-  "portal-gui/scripts/rpki-manage" ]
+  [(target_directory, [list_of_source_scripts]), ...]
 
-ac_aux_scripts = []
+  Most of the real work is in the companion hacked install_scripts,
+  but we need to tweak the list of source files that build_scripts
+  pulls out of the Distribution object.
+  """
 
-ac_data_files = []
+  def finalize_options(self):
+    _build_scripts.finalize_options(self)
+    self.scripts = []
+    for script in self.distribution.scripts:
+      if isinstance(script, str):
+        self.scripts.append(script)
+      else:        
+        self.scripts.extend(script[1])
 
-ac_conf_files = [
-  "portal-gui/apache.conf",
-  "rpki-confgen.xml" ]
+class install_scripts(_install_scripts):
+  """
+  Hacked version of distutils.install_scripts, designed to support
+  multiple target installation directories like install_data does.
 
-# Non-standard extension build specification: we need to force
-# whatever build options our top-level ./configure selected, and we
-# have to specify our libraries as extra_link_args because they may be
-# complete pathnames to .a files elsewhere in the build tree.  Most of
-# this insanity is to kludge around pre-existing OpenSSL libraries
-# that would screw up our build without these gymnastics.
+  [(target_directory, [list_of_source_scripts]), ...]
+
+  The code here is a tweaked combination of what the stock
+  install_scripts and install_data classes do.
+  """
+
+  user_options = _install_scripts.user_options + [
+    ("root=", None, "install everything relative to this alternate root directory")]
+
+  def initialize_options(self):
+    _install_scripts.initialize_options(self)
+    self.outfiles = []
+    self.root = None
+
+  def finalize_options (self):
+    self.set_undefined_options("build",
+                               ("build_scripts", "build_dir"))
+    self.set_undefined_options("install",
+                               ("install_scripts", "install_dir"),
+                               ("root", "root"),
+                               ("force", "force"),
+                               ("skip_build", "skip_build"))
+
+  def run(self):
+    if not self.skip_build:
+      self.run_command("build_scripts")
+    for script in self.distribution.scripts:
+      if isinstance(script, str):
+        fn = os.path.join(self.build_dir, os.path.basename(convert_path(script)))
+        out, _ = self.copy_file(fn, self.install_dir)
+        self.outfiles.append(out)
+      else:
+        dn = convert_path(script[0])
+        if not os.path.isabs(dn):
+          dn = os.path.join(self.install_dir, dn)
+        elif self.root:
+          dn = change_root(self.root, dn)
+        self.mkpath(dn)
+        if not script[1]:
+          self.outfiles.append(dn)
+        else:
+          for s in script[1]:
+            fn = os.path.join(self.build_dir, os.path.basename(convert_path(s)))
+            out, _ = self.copy_file(fn, dn)
+            self.outfiles.append(out)
+    if os.name == "posix":
+      for fn in self.get_outputs():
+        mode = S_IMODE(os.stat(fn).st_mode) | 0555
+        log.info("changing mode of %s to %o", fn, mode)
+        if not self.dry_run:
+          os.chmod(fn, mode)
 
 # pylint: disable=W0622
-
-pow = Extension("rpki.POW._POW", ["ext/POW.c"], 
-                extra_compile_args = ac_cflags,
-                extra_link_args    = ac_ldflags + ac_libs)
-
-# Be careful constructing data_files, empty file lists here appear to
-# confuse setup into putting dangerous nonsense into the list of
-# installed files.
-#
-# bdist_rpm seems to get confused by relative names for scripts, so we
-# have to prefix source names here with the build directory name.  Well,
-# if we care about bdist_rpm, which it now looks like we don't, but
-# leave it alone for the moment.
-
-data_files = []
-if ac_sbindir and ac_scripts:
-  data_files.append((ac_sbindir,     [os.path.abspath(f) for f in ac_scripts]))
-if ac_libexecdir and ac_aux_scripts:
-  data_files.append((ac_libexecdir,  [os.path.abspath(f) for f in ac_aux_scripts]))
-if ac_datarootdir and ac_data_files:
-  data_files.append((ac_datarootdir, [os.path.abspath(f) for f in ac_data_files]))
-if ac_sysconfdir and ac_conf_files:
-  data_files.append((ac_sysconfdir,  [os.path.abspath(f) for f in ac_conf_files]))
-if not data_files:
-  data_files = None
 
 setup(name              = "rpkitoolkit",
       version           = "1.0",
       description       = "RPKI Toolkit",
       license           = "BSD",
-      url               = "http://www.rpki.net/",
-      packages          = ["rpki", "rpki.POW", "rpki.irdb",
-                           "rpki.gui", "rpki.gui.app", "rpki.gui.cacheview",
-                           "rpki.gui.api", "rpki.gui.routeview" ],
-      ext_modules       = [pow],
-      package_data      = {
-          'rpki.gui.app': ['migrations/*.py', 'static/*/*',
-                           'templates/*.html', 'templates/*/*.html',
-                           'templatetags/*.py'],
-          'rpki.gui.cacheview': ['templates/*/*.html']
-      },
-      data_files        = data_files)
+      url               = "http://rpki.net/",
+      cmdclass          = {"build_scripts"   : build_scripts,
+                           "install_scripts" : install_scripts},
+      packages          = ["rpki",
+                           "rpki.POW",
+                           "rpki.irdb",
+                           "rpki.gui",
+                           "rpki.gui.app",
+                           "rpki.gui.cacheview",
+                           "rpki.gui.api",
+                           "rpki.gui.routeview"],
+      ext_modules       = [Extension("rpki.POW._POW", ["ext/POW.c"], 
+                                     extra_compile_args = ac_cflags,
+                                     extra_link_args    = ac_ldflags + ac_libs)],
+      package_data      = {"rpki.gui.app"       : ["migrations/*.py",
+                                                   "static/*/*",
+                                                   "templates/*.html",
+                                                   "templates/*/*.html",
+                                                   "templatetags/*.py"],
+                           "rpki.gui.cacheview" : ["templates/*/*.html"]},
+      scripts           = [(ac_sbindir,
+                            ["rpkic",
+                             "rpki-confgen",
+                             "rpki-start-servers",
+                             "rpki-sql-backup",
+                             "rpki-sql-setup",
+                             "portal-gui/scripts/rpki-manage",
+                             "irbe_cli"]),
+                           (ac_libexecdir,
+                            ["irdbd",
+                             "pubd",
+                             "rootd",
+                             "rpkid",
+                             "portal-gui/scripts/rpkigui-import-routes",
+                             "portal-gui/scripts/rpkigui-check-expired",
+                             "portal-gui/scripts/rpkigui-rcynic"])],
+      data_files        = [(ac_sysconfdir,
+                            ["portal-gui/apache.conf",
+                             "rpki-confgen.xml"])])

@@ -22,12 +22,7 @@ set -e
 case "$1" in
 
     purge)
-	sql=/etc/rpki/drop_databases.sql
-	if test -f $sql
-	then
-	    mysql --defaults-file=/etc/mysql/debian.cnf --execute "source $sql"
-	fi
-	rm -f /etc/rpki.conf /etc/rpki.conf.sample $sql
+	rm -rf /var/rcynic
     ;;
 
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

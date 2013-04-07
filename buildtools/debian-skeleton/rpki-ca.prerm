@@ -26,6 +26,29 @@ case "$1" in
 	rm -f /usr/share/rpki/pubd.key
 	rm -f /usr/share/rpki/rpkid.cer
 	rm -f /usr/share/rpki/rpkid.key
+
+	rpki-sql-setup --mysql_defaults /etc/mysql/debian.cnf --script_purge >/etc/rpki/drop_databases.sql
+
+	f=/etc/apache2/sites-available/default-ssl
+	awk < $f > ${f}.tmp '
+	    BEGIN {
+		conf_file = "/etc/rpki/apache.conf";
+		conf_regexp = "^[ \t]*Include[ \t]+" conf_file "[ \t]*$";
+	    }
+	    $0 !~ conf_regexp {
+		print;
+	    }'
+
+	if cmp -s ${f}.tmp ${f}.orig
+	then
+	    mv -f ${f}.orig $f
+	    rm -f ${f}.tmp
+	else
+	    mv -f ${f}.tmp $f
+	fi
+	# At this point we've cleaned up our config mess.
+	# Not sure whether we should do "service apache2 reload"
+	# here, one could make a case either way.  Skip for now.
 	;;
 
     upgrade|deconfigure)

@@ -32,13 +32,14 @@ import os
 
 def usage(status):
     f = sys.stderr if status else sys.stdout
-    f.write("Usage: %s [--debuild]\n" % sys.argv[0])
+    f.write("Usage: %s [--debuild] [--debi]\n" % sys.argv[0])
     sys.exit(status)
 
 debuild = False
+debi    = False
 
 try:
-    opts, argv = getopt.getopt(sys.argv[1:], "-bh?", ["debuild", "help"])
+    opts, argv = getopt.getopt(sys.argv[1:], "-bih?", ["debuild", "debi", "help"])
 except getopt.GetoptError:
     usage(1)
 for o, a in opts:
@@ -46,6 +47,8 @@ for o, a in opts:
         usage(0)
     elif o in ("-b", "--debuild"):
         debuild = not debuild
+    elif o in ("-i", "--debi"):
+        debi = not debi
 if argv:
     usage(1)
 
@@ -69,5 +72,8 @@ subprocess.check_call(("dch", "--create", "--package", "rpki", "--newversion",  
                                  TZ       = "UTC",
                                  DEBEMAIL = "APT Builder Robot <aptbot@rpki.net>"))
 
-if debuild:
+if debuild or debi:
     subprocess.check_call(("debuild", "-us", "-uc"))
+
+if debi:
+    subprocess.check_call(("sudo", "debi", "--with-depends"))

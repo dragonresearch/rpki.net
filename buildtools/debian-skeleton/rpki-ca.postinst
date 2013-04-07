@@ -20,33 +20,51 @@ setup_rpkid_group() {
 }
 
 setup_apache() {
-    # Edit existing file
+
+    # Whack our config into existing config file for default SSL
+    # vhost; if you want this to run in a different vhost, you'll have
+    # to do that yourself.
     f=/etc/apache2/sites-available/default-ssl
-    conf=/etc/rpki/apache.conf
     cmd=no
-    if test "$(grep "[^#]*Include $conf" $f 2>/dev/null)" = ""
+    awk < $f > ${f}.tmp '
+	BEGIN {
+	    conf_file = "/etc/rpki/apache.conf";
+	    conf_regexp = "^[ \t]*Include[ \t]+" conf_file "[ \t]*$";
+	    conf_line = "\tInclude " conf_file;
+	}
+	/^[ \t]*<\/VirtualHost>/ {
+	    print conf_line;
+	}
+	$0 !~ conf_regexp {
+	    print;
+	}'
+    if cmp -s $f ${f}.tmp
     then
-        awk < $f > ${f}.tmp -v conf=$conf '
-	    $0 ~ /[^#]*<\/VirtualHost>/ { print "Include", conf }
-            { print }
-	'
+	rm -f ${f}.tmp
+    else
         if test ! -f ${f}.orig
         then
             ln $f ${f}.orig
         fi
-        mv ${f}.tmp $f
+        mv -f ${f}.tmp $f
         cmd=reload
     fi
+
+    # Enable default SSL vhost if necessary.
     if test ! -f /etc/apache2/sites-enabled/default-ssl
     then
         a2ensite default-ssl
         cmd=reload
     fi
+
+    # Enable mod_ssl if necessary.
     if test ! -f /etc/apache2/mods-enabled/ssl.conf
     then
         a2enmod ssl
         cmd=restart
     fi
+
+    # Whack Apache if we've changed anything here.
     if test $cmd != no
     then
         service apache2 $cmd
@@ -81,7 +99,7 @@ setup_rpki_conf() {
 }
 
 setup_mysql() {
-    rpki-sql-setup --missing_only --mysql_defaults /etc/mysql/debian.cnf
+    rpki-sql-setup --mysql_defaults /etc/mysql/debian.cnf
 }
 
 setup_bpki() {

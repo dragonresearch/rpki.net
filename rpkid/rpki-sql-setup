@@ -52,49 +52,74 @@ def sql_setup(name):
   password = cfg.get("sql-password", section = name)
   schema = read_schema(name)
 
-  if missing_only and database in databases:
-    print "Database already present and --missing-only set, skipping \"%s\"" % database
+  if script_purge and database in databases:
+    databases.remove(database)
+    print "DROP DATABASE IF EXISTS %s;" %  database
     return
 
-  print "Creating database", database
   cur = rootdb.cursor()
-  try:
-    cur.execute("DROP DATABASE IF EXISTS %s" %  database)
-  except Exception:
-    pass
-  cur.execute("CREATE DATABASE %s" % database)
-  cur.execute("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY %%s" % (database, username), (password,))
+
+  if drop and database in databases:
+    log("Dropping database %s" % database)
+    databases.remove(database)
+    try:
+      cur.execute("DROP DATABASE IF EXISTS %s" %  database)
+    except Exception, e:
+      log("Couldn't drop database %s, blundering onwards: %s" % (database, e))
+
+  if create and database not in databases:
+    log("Creating database %s" % database)
+    cur = rootdb.cursor()
+    cur.execute("CREATE DATABASE %s" % database)
+    cur.execute("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY %%s" % (database, username), (password,))
+
   rootdb.commit()
 
-  db = MySQLdb.connect(db = database, user = username, passwd = password)
-  cur = db.cursor()
-  for statement in schema:
-    if statement.upper().startswith("DROP TABLE"):
-      continue
-    if verbose:
-      print "+", statement
-    cur.execute(statement)
-  db.commit()
-  db.close()
+  if create and database not in databases:
+    databases.add(database)
+    db = MySQLdb.connect(db = database, user = username, passwd = password)
+    cur = db.cursor()
+    for statement in schema:
+      if statement.upper().startswith("DROP TABLE"):
+        continue
+      if verbose:
+        log(statement)
+      cur.execute(statement)
+    db.commit()
+    db.close()
+
+def log(text):
+  if verbose:
+    print "#", text
 
 cfg_file = None
 
 verbose = False
 mysql_defaults = None
-missing_only = False
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:hv?", ["config=", "help", "missing_only", "mysql_defaults=", "verbose"])
+drop = False
+create = True
+script_purge = False
+
+opts, argv = getopt.getopt(sys.argv[1:], "c:hv?", ["config=", "help", "missing_only", "mysql_defaults=", "purge", "script_purge", "recreate", "verbose"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
   if o in ("-v", "--verbose"):
     verbose = True
-  if o in ("-c", "--config"):
+  elif o in ("-c", "--config"):
     cfg_file = a
-  if o == "--missing_only":
-    missing_only = not missing_only
-  if o == "--mysql_defaults":
+  elif o == "--purge":
+    drop = True
+    create = script_purge = False
+  elif o == "--recreate":
+    drop = create = True
+    script_purge = False
+  elif o == "--script_purge":
+    script_purge = True
+    drop = create = False
+  elif o == "--mysql_defaults":
     mysql_defaults = a
 
 cfg = rpki.config.parser(cfg_file, "myrpki")

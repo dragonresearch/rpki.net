@@ -36,6 +36,9 @@ if not os.path.isdir(svndir):
 
 svnversion = subprocess.check_output(("svnversion", "-c", svndir)).strip().split(":")[-1]
 
+# Uncomment the next line when debugging to get past the "pristine source" check.
+#svnversion = svnversion.translate(None, "M")
+
 if not svnversion.isdigit():
   sys.exit("Sources don't look pristine, not building (%r)" % svnversion)
 
@@ -50,11 +53,21 @@ tarball = tarname + ".tar.xz"
 url     = "http://download.rpki.net/" + tarball
 
 portsdir = os.path.abspath("freebsd-ports")
+portsdir_old = portsdir + ".old"
+
+if os.path.isdir(portsdir_old):
+  shutil.rmtree(portsdir_old)
 
 if os.path.isdir(portsdir):
-  shutil.rmtree(portsdir)
+  os.rename(portsdir, portsdir_old)
 
 shutil.copytree(os.path.join(svndir, "buildtools", "freebsd-skeleton"), portsdir)
+
+if os.path.exists(os.path.join(portsdir_old, tarball)):
+  os.link(os.path.join(portsdir_old, tarball), os.path.join(portsdir, tarball))
+
+if os.path.isdir(portsdir_old):
+  shutil.rmtree(portsdir_old)
 
 base_rp = os.path.join(portsdir, "rpki-rp")
 base_ca = os.path.join(portsdir, "rpki-ca")
@@ -128,7 +141,7 @@ subprocess.check_call(("make", "install", "DESTDIR=" + os.path.abspath(tempdir))
 
 with open(os.path.join(base_ca, "pkg-plist"), "w") as f:
 
-  dont_remove = ("usr", "etc", "bin", "var", "lib", "sbin", "share", "lib/python2.7", "lib/python2.7/site-packages")
+  dont_remove = ("usr", "etc", "bin", "var", "lib", "libexec", "sbin", "share", "lib/python2.7", "lib/python2.7/site-packages")
 
   usr_local = None
 
@@ -149,11 +162,19 @@ with open(os.path.join(base_ca, "pkg-plist"), "w") as f:
       f.write("@exec mkdir -p %%D/%s\n" % dn)
 
     for fn in filenames:
-      if fn == "rpki.conf.sample":
-        f.write("@unexec if cmp -s %%D/%s/rpki.conf.sample %%D/%s/rpki.conf; then rm -f %%D/%s/rpki.conf; fi\n" % (dn, dn, dn))
+      if dn == "etc" and fn == "rpki.conf.sample":
+        f.write("@unexec if cmp -s %D/etc/rpki.conf.sample %D/etc/rpki.conf; then rm -f %D/etc/rpki.conf; fi\n")
       f.write(os.path.join(dn, fn) + "\n")
-      if fn == "rpki.conf.sample":
-        f.write("@exec if [ ! -f %%D/%s/rpki.conf ] ; then cp -p %%D/%s/rpki.conf.sample %%D/%s/rpki.conf; fi\n" % (dn, dn, dn))
+      if dn == "etc" and fn == "rpki.conf.sample":
+        f.write("@exec %D/sbin/rpki-confgen"
+                " --read-xml %D/etc/rpki/rpki-confgen.xml"
+                " --autoconf"
+                " --set myrpki::handle=`/bin/hostname -f | /usr/bin/sed 's/[.]/_/g'`"
+                " --set myrpki::rpkid_server_host=`/bin/hostname -f`"
+                " --set myrpki::pubd_server_host=`/bin/hostname -f`"
+                " --set web_portal::secret-key=`%D/bin/python -c 'import random, string; print \"\".join(random.choice(string.uppercase + string.lowercase + string.digits) for _ in xrange(50))'`"
+                " --write-conf %D/etc/rpki.conf.sample\n")
+        f.write("@exec if [ ! -f %D/etc/rpki.conf ] ; then cp -p %D/etc/rpki.conf.sample %D/etc/rpki.conf; fi\n")
 
     if dn and dn not in dont_remove:
       f.write("@dirrm %s\n" % dn)

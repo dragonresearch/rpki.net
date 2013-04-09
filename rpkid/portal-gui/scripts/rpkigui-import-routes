@@ -18,6 +18,8 @@ __version__ = '$Id$'
 
 import optparse
 import logging
+import time
+import random
 
 # configure django ORM
 from rpki.gui.script_util import setup
@@ -45,7 +47,9 @@ automatically.""")
                       help='Specify bunzip2 program to use')
     parser.add_option('-b', '--bgpdump', dest='bgpdump', metavar='PROG',
                       help='Specify path to bgdump binary')
-    parser.set_defaults(debug=False, verbose=False, filetype='auto')
+    parser.add_option('-j', '--jitter', dest='jitter', type='int',
+                      help='Specify upper bound of startup delay [Default: %default]')
+    parser.set_defaults(debug=False, verbose=False, filetype='auto', jitter=0)
     options, args = parser.parse_args()
 
     v = getattr(logging, options.log_level.upper())
@@ -54,6 +58,14 @@ automatically.""")
 
     if options.bgpdump:
         BGPDUMP = os.path.expanduser(options.bgpdump)
+
+    if options.jitter > 0:
+        try:
+            delay = random.SystemRandom().randint(0, options.jitter)
+        except NotImplementedError:
+            delay = random.randint(0, options.jitter)
+        logging.info('jitter active, delaying startup for %d seconds' % delay)
+        time.sleep(delay)
 
     try:
         if len(args) > 1:

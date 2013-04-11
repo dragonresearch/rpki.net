@@ -13,7 +13,7 @@
  *
  ****
  *
- * Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+ * Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -230,6 +230,23 @@ static const ipaddress_version ipaddress_version_6 = {
 
 static const ipaddress_version * const ipaddress_versions[] = {
   &ipaddress_version_4, &ipaddress_version_6
+};
+
+/*
+ * Names of bits in the KeyUsage BitString (RFC 5280 4.2.1.3).
+ */
+
+static const char * const key_usage_bit_names[] = {
+  "digitalSignature",           /* (0) */
+  "nonRepudiation",             /* (1) */
+  "keyEncipherment",            /* (2) */
+  "dataEncipherment",           /* (3) */
+  "keyAgreement",               /* (4) */
+  "keyCertSign",                /* (5) */
+  "cRLSign",                    /* (6) */
+  "encipherOnly",               /* (7) */
+  "decipherOnly",               /* (8) */
+  NULL
 };
 
 /*
@@ -2182,11 +2199,11 @@ static char x509_object_get_key_usage__doc__[] =
 static PyObject *
 x509_object_get_key_usage(x509_object *self)
 {
-  extern X509V3_EXT_METHOD v3_key_usage;
   BIT_STRING_BITNAME *bit_name;
   ASN1_BIT_STRING *ext = NULL;
   PyObject *result = NULL;
   PyObject *token = NULL;
+  int bit = -1;
 
   ENTERING(x509_object_get_key_usage);
 
@@ -2196,9 +2213,9 @@ x509_object_get_key_usage(x509_object *self)
   if ((result = PyFrozenSet_New(NULL)) == NULL)
     goto error;
 
-  for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++) {
-    if (ASN1_BIT_STRING_get_bit(ext, bit_name->bitnum) &&
-        ((token = PyString_FromString(bit_name->sname)) == NULL ||
+  for (bit = 0; key_usage_bit_names[bit] != NULL; bit++) {
+    if (ASN1_BIT_STRING_get_bit(ext, bit) &&
+        ((token = PyString_FromString(key_usage_bit_names[bit])) == NULL ||
          PySet_Add(result, token) < 0))
       goto error;
     Py_XDECREF(token);
@@ -2229,7 +2246,6 @@ static char x509_object_set_key_usage__doc__[] =
 static PyObject *
 x509_object_set_key_usage(x509_object *self, PyObject *args)
 {
-  extern X509V3_EXT_METHOD v3_key_usage;
   BIT_STRING_BITNAME *bit_name;
   ASN1_BIT_STRING *ext = NULL;
   PyObject *iterable = NULL;
@@ -2237,6 +2253,7 @@ x509_object_set_key_usage(x509_object *self, PyObject *args)
   PyObject *iterator = NULL;
   PyObject *token = NULL;
   const char *t;
+  int bit = -1;
   int ok = 0;
 
   ENTERING(x509_object_set_key_usage);
@@ -2253,14 +2270,14 @@ x509_object_set_key_usage(x509_object *self, PyObject *args)
     if ((t = PyString_AsString(token)) == NULL)
       goto error;
 
-    for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++)
-      if (!strcmp(t, bit_name->sname))
+    for (bit = 0; key_usage_bit_names[bit] != NULL; bit++)
+      if (!strcmp(t, key_usage_bit_names[bit]))
         break;
 
-    if (bit_name->sname == NULL)
+    if (key_usage_bit_names[bit] == NULL)
       lose("Unrecognized KeyUsage token");
 
-    if (!ASN1_BIT_STRING_set_bit(ext, bit_name->bitnum, 1))
+    if (!ASN1_BIT_STRING_set_bit(ext, bit, 1))
       lose_no_memory();
 
     Py_XDECREF(token);
@@ -7426,11 +7443,11 @@ static char pkcs10_object_get_key_usage__doc__[] =
 static PyObject *
 pkcs10_object_get_key_usage(pkcs10_object *self)
 {
-  extern X509V3_EXT_METHOD v3_key_usage;
   BIT_STRING_BITNAME *bit_name;
   ASN1_BIT_STRING *ext = NULL;
   PyObject *result = NULL;
   PyObject *token = NULL;
+  int bit = -1;
 
   ENTERING(pkcs10_object_get_key_usage);
 
@@ -7440,9 +7457,9 @@ pkcs10_object_get_key_usage(pkcs10_object *self)
   if ((result = PyFrozenSet_New(NULL)) == NULL)
     goto error;
 
-  for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++) {
-    if (ASN1_BIT_STRING_get_bit(ext, bit_name->bitnum) &&
-        ((token = PyString_FromString(bit_name->sname)) == NULL ||
+  for (bit = 0; key_usage_bit_names[bit] != NULL; bit++) {
+    if (ASN1_BIT_STRING_get_bit(ext, bit) &&
+        ((token = PyString_FromString(key_usage_bit_names[bit])) == NULL ||
          PySet_Add(result, token) < 0))
       goto error;
     Py_XDECREF(token);
@@ -7473,7 +7490,6 @@ static char pkcs10_object_set_key_usage__doc__[] =
 static PyObject *
 pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
 {
-  extern X509V3_EXT_METHOD v3_key_usage;
   BIT_STRING_BITNAME *bit_name;
   ASN1_BIT_STRING *ext = NULL;
   PyObject *iterable = NULL;
@@ -7481,6 +7497,7 @@ pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
   PyObject *iterator = NULL;
   PyObject *token = NULL;
   const char *t;
+  int bit = -1;
   int ok = 0;
 
   ENTERING(pkcs10_object_set_key_usage);
@@ -7497,14 +7514,14 @@ pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
     if ((t = PyString_AsString(token)) == NULL)
       goto error;
 
-    for (bit_name = v3_key_usage.usr_data; bit_name->sname != NULL; bit_name++)
-      if (!strcmp(t, bit_name->sname))
+    for (bit = 0; key_usage_bit_names[bit] != NULL; bit++)
+      if (!strcmp(t, key_usage_bit_names[bit]))
         break;
 
-    if (bit_name->sname == NULL)
+    if (key_usage_bit_names[bit] == NULL)
       lose("Unrecognized KeyUsage token");
 
-    if (!ASN1_BIT_STRING_set_bit(ext, bit_name->bitnum, 1))
+    if (!ASN1_BIT_STRING_set_bit(ext, bit, 1))
       lose_no_memory();
 
     Py_XDECREF(token);

@@ -19,6 +19,10 @@ set -e
 
 case "$1" in
     remove)
+
+	# Clean up BPKI files.  These all come from SQL, so we can
+	# regenerate them easily if appropriate.
+
 	rm -f /usr/share/rpki/ca.cer
 	rm -f /usr/share/rpki/irbe.cer
 	rm -f /usr/share/rpki/irdbd.cer
@@ -27,7 +31,20 @@ case "$1" in
 	rm -f /usr/share/rpki/rpkid.cer
 	rm -f /usr/share/rpki/rpkid.key
 
+	# Record what will be needed to drop the databases completely,
+	# while we still have the necessary configuration data, but
+	# postpone dropping the databases until the postrm script,
+	# since that's where we find out whether this is a purge.
+
 	rpki-sql-setup --mysql_defaults /etc/mysql/debian.cnf --script_purge >/etc/rpki/drop_databases.sql
+
+	# Clean up our cron jobs.
+
+	rm -f /etc/cron.d/rpkigui-routeviews
+	rm -f /etc/cron.daily/rpkigui-check-expired
+	rm -f /etc/cron.d/rpki-update-bpki
+
+	# Clean up what we did to Apache.
 
 	f=/etc/apache2/sites-available/default-ssl
 	awk < $f > ${f}.tmp '
@@ -46,9 +63,11 @@ case "$1" in
 	else
 	    mv -f ${f}.tmp $f
 	fi
-	# At this point we've cleaned up our config mess.
+
+	# At this point we've cleaned up our Apache config mess.
 	# Not sure whether we should do "service apache2 reload"
 	# here, one could make a case either way.  Skip for now.
+
 	;;
 
     upgrade|deconfigure)

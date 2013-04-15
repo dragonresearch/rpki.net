@@ -112,9 +112,16 @@ setup_django() {
 }
 
 setup_cron() {
-    t=$(hexdump -n 1 -e '"%u"' /dev/urandom) && echo "$(($t % 60)) */2 * * * nobody /usr/share/rpki/routeviews.sh" > /etc/cron.d/rpkigui-routeviews
+    t=$(hexdump -n 1 -e '"%u"' /dev/urandom) && echo "$(($t % 60)) */2 * * * nobody /usr/lib/rpki/rpkigui-import-routes" > /etc/cron.d/rpkigui-routeviews
     chmod 644 /etc/cron.d/rpkigui-routeviews
     ln -sf /usr/lib/rpki/rpkigui-check-expired /etc/cron.daily/rpkigui-check-expired
+
+    # This should be user rpkid, but I don't have permissions set up
+    # properly for that yet.  Arguably this should be integrated with
+    # rpkigui-check-expired anyway, not there yet either.
+
+    echo "30 3 * * * root /usr/sbin/rpkic update_bpki" >/etc/cron.d/rpki-update-bpki
+    chmod 644 /etc/cron.d/rpki-update-bpki
 }
 
 # summary of how this script can be called:

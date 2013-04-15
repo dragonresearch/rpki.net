@@ -5,6 +5,9 @@
   <h1>{{ form_title }}</h1>
 </div>
 
+{# allow this template to be subclassed to fill in extra information, such as warnings #}
+{% block form_info %}{% endblock form_info %}
+
 <form method="POST" action="" enctype="multipart/form-data" class="form-horizontal">
   {% csrf_token %}
   {% include "app/bootstrap_form.html" %}

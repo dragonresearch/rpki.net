@@ -1,0 +1,9 @@
+{% extends "app/app_form.html" %}
+
+{% block form_info %}
+<div class="alert alert-block alert-warning">
+  <b>Warning!</b>  All existing resources of this type currently in the
+  database <b>will be deleted</b> and replaced with the contents of the CSV
+  file you are uploading.
+</div>
+{% endblock form_info %}

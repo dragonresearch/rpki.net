@@ -317,10 +317,11 @@ def import_asns(request):
             z.load_asns(f.name)
             z.run_rpkid_now()
             os.unlink(f.name)
+            messages.success(request, 'Successfully imported AS delgations from CSV file.')
             return redirect(dashboard)
     else:
         form = forms.ImportCSVForm()
-    return render(request, 'app/app_form.html', {
+    return render(request, 'app/import_resource_form.html', {
         'form_title': 'Import CSV containing ASN delegations',
         'form': form,
         'cancel_url': reverse(dashboard)
@@ -351,10 +352,11 @@ def import_prefixes(request):
             z.load_prefixes(f.name)
             z.run_rpkid_now()
             os.unlink(f.name)
+            messages.success(request, 'Successfully imported prefix delegations from CSV file.')
             return redirect(dashboard)
     else:
         form = forms.ImportCSVForm()
-    return render(request, 'app/app_form.html', {
+    return render(request, 'app/import_resource_form.html', {
         'form_title': 'Import CSV containing Prefix delegations',
         'form': form,
         'cancel_url': reverse(dashboard)
@@ -834,7 +836,7 @@ def roa_import(request):
             return redirect(dashboard)
     else:
         form = forms.ImportCSVForm()
-    return render(request, 'app/app_form.html', {
+    return render(request, 'app/import_resource_form.html', {
         'form_title': 'Import ROAs from CSV',
         'form': form,
         'cancel_url': reverse(dashboard)

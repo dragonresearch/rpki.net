@@ -1139,13 +1139,23 @@ class Zookeeper(object):
 
     bsc_handle = "bsc"
 
-    # Default values for CRL parameters are low, for testing.  Not
-    # quite as low as they once were, too much expired CRL whining.
+    # A default RPKI CRL cycle time of six hours seems sane.  One
+    # might make a case for a day instead, but we've been running with
+    # six hours for a while now and haven't seen a lot of whining.
 
-    self_crl_interval = self.cfg.getint("self_crl_interval", 6 * 60 * 60,
-                                        section = myrpki_section)
-    self_regen_margin = self.cfg.getint("self_regen_margin", self_crl_interval / 4,
-                                        section = myrpki_section)
+    self_crl_interval = self.cfg.getint("self_crl_interval", 6 * 60 * 60, section = myrpki_section)
+
+    # regen_margin now just controls how long before RPKI certificate
+    # expiration we should regenerate; it used to control the interval
+    # before RPKI CRL staleness at which to regenerate the CRL, but
+    # using the same timer value for both of these is hopeless.
+    #
+    # A default regeneration margin of two weeks gives enough time for
+    # humans to react.  We add a two hour fudge factor in the hope
+    # that this will regenerate certificates just *before* the
+    # companion cron job warns of impending doom.
+
+    self_regen_margin = self.cfg.getint("self_regen_margin", 14 * 24 * 60 * 60 + 2 * 60, section = myrpki_section)
 
     # See what rpkid already has on file for this entity.
 

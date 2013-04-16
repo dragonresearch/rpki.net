@@ -128,7 +128,7 @@ class allocation_db(list):
     self.root = allocation(y, self)
     assert self.root.is_root
     if self.root.crl_interval is None:
-      self.root.crl_interval = 24 * 60 * 60
+      self.root.crl_interval = 60 * 60
     if self.root.regen_margin is None:
       self.root.regen_margin = 24 * 60 * 60
     if self.root.base.valid_until is None:

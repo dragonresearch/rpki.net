@@ -544,7 +544,8 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
     rpki.log.debug("Self %s[%d] regenerating CRLs and manifests" % (self.self_handle, self.self_id))
 
     now = rpki.sundial.now()
-    regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
+    crl_interval = rpki.sundial.timedelta(seconds = self.crl_interval)
+    regen_margin = max(self.gctx.cron_period * 2, crl_interval / 4)
     publisher = rpki.rpkid.publication_queue()
 
     for parent in self.parents:

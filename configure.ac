@@ -335,28 +335,34 @@ AC_MSG_RESULT([$enable_target_installation])
 # rcynic jail setup is complicated enough that it's simplest to have
 # different rule sets for different platforms.  Icky, but....
 # rpki-rtr isn't as complicated, but has similar issues, same hack.
+# rpkid isn't as complicated either, but same hack.
 
 case $host_os in
 	darwin*)
 		RCYNIC_MAKE_RULES='rcynic/rules.darwin.mk'
 		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.darwin.mk'
+		RPKID_MAKE_RULES='rpkid/rules.darwin.mk'
 		;;
 	freebsd*)
 		RCYNIC_MAKE_RULES='rcynic/rules.freebsd.mk'
 		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.freebsd.mk'
+		RPKID_MAKE_RULES='rpkid/rules.freebsd.mk'
 		;;
 	linux*)
 		RCYNIC_MAKE_RULES='rcynic/rules.linux.mk'
 		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.linux.mk'
+		RPKID_MAKE_RULES='rpkid/rules.linux.mk'
 		;;
 	*)
 		RCYNIC_MAKE_RULES='rcynic/rules.unknown.mk'
 		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.unknown.mk'
+		RPKID_MAKE_RULES='rpkid/rules.unknown.mk'
 		;;
 esac
 
 AC_SUBST_FILE(RCYNIC_MAKE_RULES)
 AC_SUBST_FILE(RTR_ORIGIN_MAKE_RULES)
+AC_SUBST_FILE(RPKID_MAKE_RULES)
 
 # Where to put HTML files is similarly platform dependent, we have to know.
 # rcynic-cron will skip generating HTML files if it has no place to put them.
@@ -387,6 +393,7 @@ AC_SUBST(RCYNIC_HTML_DIR)
 
 RCYNIC_INSTALL_TARGETS='install-always'
 RTR_ORIGIN_INSTALL_TARGETS='install-always'
+RPKID_INSTALL_TARGETS='install-always'
 
 if test $use_rcynic_jail = yes
 then
@@ -397,10 +404,12 @@ if test $enable_target_installation = yes
 then
 	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-postconf"
 	RTR_ORIGIN_INSTALL_TARGETS="$RTR_ORIGIN_INSTALL_TARGETS install-postconf"
+	RPKID_INSTALL_TARGETS="$RPKID_INSTALL_TARGETS install-postconf"
 fi
 
 AC_SUBST(RCYNIC_INSTALL_TARGETS)
 AC_SUBST(RTR_ORIGIN_INSTALL_TARGETS)
+AC_SUBST(RPKID_INSTALL_TARGETS)
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If

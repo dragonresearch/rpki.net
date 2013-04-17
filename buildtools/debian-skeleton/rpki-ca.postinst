@@ -80,16 +80,13 @@ setup_rpki_conf() {
     # SQL password every time, but that's harmless so long as we're
     # careful not to overwrite an existing configuration.
 
-    mysql_passwd=`python -c 'import random, string; print "".join(random.choice(string.uppercase + string.lowercase + string.digits) for _ in xrange(16))'`
-    secret_key=`python -c 'import random, string; print "".join(random.choice(string.uppercase + string.lowercase + string.digits) for _ in xrange(50))'`
-
     rpki-confgen --read-xml /etc/rpki/rpki-confgen.xml			\
 	--autoconf							\
 	--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'`		\
 	--set myrpki::rpkid_server_host=`hostname -f`			\
 	--set myrpki::pubd_server_host=`hostname -f`			\
-	--set myrpki::shared_sql_password="$mysql_passwd"		\
-	--set web_portal::secret-key="$secret_key"			\
+	--pwgen myrpki::shared_sql_password				\
+	--pwgen web_portal::secret-key					\
 	--write-conf /etc/rpki.conf.sample
 
     if test ! -f /etc/rpki.conf

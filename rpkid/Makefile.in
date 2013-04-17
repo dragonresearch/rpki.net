@@ -28,6 +28,8 @@ abs_top_srcdir	= @abs_top_srcdir@
 abs_top_builddir= @abs_top_builddir@
 srcdir          = @srcdir@
 
+RPKID_INSTALL_TARGETS	= @RPKID_INSTALL_TARGETS@
+
 SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
 
 SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
@@ -68,7 +70,9 @@ clean::
 	find . -type f -name '*.py[co]' -delete
 	cd tests; $(MAKE) $@
 
-install:: all
+install:: ${RPKID_INSTALL_TARGETS}
+
+install-always:: all
 	${PYTHON} setup.py install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
 	@echo
 	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
@@ -153,10 +157,6 @@ all install clean test distclean deinstall uninstall::
 
 all:: examples/rpki.conf
 
-# Source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
-
-GENERATE_DJANGO_SECRET_KEY = ${PYTHON} -c 'import random, string; print "".join(random.choice(string.uppercase + string.lowercase + string.digits) for _ in xrange(50))'
-
 examples/rpki.conf: rpki/autoconf.py rpki-confgen rpki-confgen.xml
 	${PYTHON} rpki-confgen \
 		--read-xml rpki-confgen.xml \
@@ -164,10 +164,11 @@ examples/rpki.conf: rpki/autoconf.py rpki-confgen rpki-confgen.xml
 		--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'` \
 		--set myrpki::rpkid_server_host=`hostname -f` \
 		--set myrpki::pubd_server_host=`hostname -f` \
-		--set web_portal::secret-key=`${GENERATE_DJANGO_SECRET_KEY}` \
+		--pwgen myrpki::shared_sql_password \
+		--pwgen web_portal::secret-key \
 		--write-conf $@
 
-install::
+install-always::
 	${INSTALL} examples/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample
 	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/publication
 
@@ -199,3 +200,43 @@ setup_autoconf.py: rpki/autoconf.py
 
 clean::
 	rm -f setup_autoconf.py setup_autoconf.pyc
+
+install-postconf: \
+	install-user install-apache install-mysql install-bpki install-django install-cron
+
+# This should create user "rpkid" and group "rpkid", but as we have
+# not yet tested our ability to run in such a configuration, this
+# would be a little premature.  Can steal Makefile code for this from
+# rcynic when we're ready to do something with it.
+install-user:
+	@true
+
+# This needs to do whatever is needed to get the web UI configured
+# under Apache on this platform.  Likely to be an awful mess, see
+# Ubuntu rpki-ca.postinst for details.
+install-apache:
+	@true
+
+# This just runs rpki-mysql-setup, but we should figure out a way for
+# that to avoid prompting us for the SQL root password when we don't
+# really need it.
+install-mysql:
+	@true
+#	${sbindir}/rpki-sql-setup
+
+install-bpki:
+	@true
+#	${sbindir}/rpkic initialize_server_bpki
+
+install-django:
+	@true
+#	${sbindir}/rpki-manage syncdb --noinput
+#	${sbindir}/rpki-manage migrate app
+
+# This needs to set up crontab entries for rpkigui-check-expired,
+# rpkigui-import-routes, and rpkic update_bpki.  They probably don't
+# want run under the same user IDs either, so what with having to use
+# /usr/bin/crontab on some platforms, this should be entirely too
+# entertaining.  Might be ok to run them all as user rpkid eventually.
+install-cron:
+	@true

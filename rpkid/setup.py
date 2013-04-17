@@ -22,8 +22,6 @@ try:
   import setup_autoconf as autoconf
 
 except ImportError:
-  # We can't build or install without the autoconf settings, but this 
-  # allows things like "python setup.py --help" to work.
   class autoconf:
     sbindir = libexecdir = datarootdir = sysconfdir = CFLAGS = LDFLAGS = LIBS = ""
 

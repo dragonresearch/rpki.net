@@ -266,6 +266,7 @@ class UpdateChildrenTask(AbstractTask):
 
           elif old_resources != new_resources or (old_resources.valid_until < self.rsn and irdb_resources.valid_until > self.now):
             rpki.log.debug("Need to reissue child %s certificate SKI %s" % (self.child.child_handle, child_cert.cert.gSKI()))
+            new_resources.valid_until = irdb_resources.valid_until
             child_cert.reissue(
               ca_detail = ca_detail,
               resources = new_resources,

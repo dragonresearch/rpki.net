@@ -22,6 +22,12 @@ kids:
     kids:
       - name: Betty
         hosted_by: RIR
+        ghostbuster: |
+          BEGIN:VCARD
+          VERSION:4.0
+          FN:Carol Clever
+          EMAIL:carol@example.org
+          END:VCARD
         kids:
           - name: Carol
             hosted_by: RIR
@@ -40,6 +46,19 @@ kids:
                         roa_request:
                           - asn: 64533
                             ipv6: 2001:db8::80/121
+                        ghostbusters:
+                          - |
+                            BEGIN:VCARD
+                            VERSION:4.0
+                            FN:Fiona Fearless
+                            EMAIL:fiona@example.org
+                            END:VCARD
+                          - |
+                            BEGIN:VCARD
+                            VERSION:4.0
+                            FN:Frank Fearless
+                            EMAIL:frank@example.org
+                            END:VCARD
 ---
 - name: Fiona
   add_as: 33

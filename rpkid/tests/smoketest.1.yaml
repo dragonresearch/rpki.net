@@ -34,6 +34,16 @@ regen_margin:   2m
 valid_for:      2d
 kids:
   - name: R0
+    ghostbuster: |
+      BEGIN:VCARD
+      VERSION:4.0
+      FN:R0
+      ORG:Organizational Entity
+      ADR;TYPE=WORK:;;42 Twisty Passage;Deep Cavern;WA;98666;U.S.A.
+      TEL;TYPE=VOICE,TEXT,WORK;VALUE=uri:tel:+1-666-555-1212
+      TEL;TYPE=FAX,WORK;VALUE=uri:tel:+1-666-555-1213
+      EMAIL:human@example.com
+      END:VCARD
     kids:
       - name: Alice
         ipv4: 192.0.2.1-192.0.2.33

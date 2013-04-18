@@ -918,6 +918,27 @@ class Zookeeper(object):
           max_prefixlen = int(p.max_prefixlen))
 
 
+  @django.db.transaction.commit_on_success
+  def load_ghostbuster_requests(self, filename, parent = None):
+    """
+    Whack IRDB to match ghostbusters.vcard.
+
+    This accepts one or more vCards from a file.
+    """
+
+    self.resource_ca.ghostbuster_requests.filter(parent = parent).delete()
+
+    vcard = []
+
+    for line in open(filename, "r"):
+      if not vcard and not line.upper().startswith("BEGIN:VCARD"):
+        continue
+      vcard.append(line)
+      if line.upper().startswith("END:VCARD"):
+        self.resource_ca.ghostbuster_requests.create(vcard = "".join(vcard), parent = parent)
+        vcard = []
+
+
   def call_rpkid(self, *pdus):
     """
     Issue a call to rpkid, return result.

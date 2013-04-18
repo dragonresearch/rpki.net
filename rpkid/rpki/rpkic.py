@@ -617,6 +617,21 @@ class main(Cmd):
       self.zoo.run_rpkid_now()
 
 
+  def do_load_ghostbuster_requests(self, arg):
+    """
+    Load Ghostbuster requests into IRDB from file.
+    """
+
+    argv = arg.split()
+
+    if len(argv) != 1:
+      raise BadCommandSyntax("Expecting filename of Ghostbuster vCard(s)")
+
+    self.zoo.load_ghostbuster_requests(argv[0])
+    if self.autosync:
+      self.zoo.run_rpkid_now()
+
+
   def do_synchronize(self, arg):
     """
     Whack daemons to match IRDB.

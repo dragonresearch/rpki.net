@@ -215,6 +215,12 @@ class allocation(object):
     if "regen_margin" in yaml:
       self.regen_margin = rpki.sundial.timedelta.parse(yaml["regen_margin"]).convert_to_seconds()
     self.roa_requests = [roa_request.parse(y) for y in yaml.get("roa_request", yaml.get("route_origin", ()))]
+    if "ghostbusters" in yaml:
+      self.ghostbusters = yaml.get("ghostbusters")
+    elif "ghostbuster" in yaml:
+      self.ghostbusters = [yaml.get("ghostbuster")]
+    else:
+      self.ghostbusters = []
     for r in self.roa_requests:
       if r.v4:
         self.base.v4 |= r.v4.to_resource_set()
@@ -348,6 +354,24 @@ class allocation(object):
       f.close()
     if not stop_after_config:
       self.run_rpkic("load_roa_requests", fn)
+
+  def dump_ghostbusters(self):
+    """
+    Write Ghostbusters vCard file.
+    """
+    if self.ghostbusters:
+      fn = "%s.ghostbusters.vcard" % d.name
+      if not skip_config:
+        path = self.path(fn)
+        print "Writing", path
+        f = open(path, "w")
+        for i, g in enumerate(self.ghostbusters):
+          if i:
+            f.write("\n")
+          f.write(g)
+        f.close()
+      if not stop_after_config:
+        self.run_rpkic("load_ghostbuster_requests", fn)
 
   @property
   def pubd(self):
@@ -759,6 +783,7 @@ try:
         d.dump_asns()
         d.dump_prefixes()
         d.dump_roas()
+        d.dump_ghostbusters()
 
     # Wait until something terminates.
 

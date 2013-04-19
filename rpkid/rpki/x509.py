@@ -13,7 +13,7 @@ some of the nasty details.  This involves a lot of format conversion.
 $Id$
 
 
-Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -98,7 +98,7 @@ class PEM_converter(object):
     while lines and lines.pop(-1) != self.e:
       pass
     if not lines:
-      raise rpki.exceptions.EmptyPEM, "Could not find PEM in:\n%s" % pem
+      raise rpki.exceptions.EmptyPEM("Could not find PEM in:\n%s" % pem)
     return base64.b64decode("".join(lines))
 
   def to_PEM(self, der):
@@ -279,7 +279,7 @@ class DER_object(object):
         self.clear()
         self.DER = value
         return
-    raise rpki.exceptions.DERObjectConversionError, "Can't honor conversion request %r" % (kw,)
+    raise rpki.exceptions.DERObjectConversionError("Can't honor conversion request %r" % (kw,))
   
   def check_auto_update(self):
     """
@@ -317,7 +317,7 @@ class DER_object(object):
     self.check()
     if self.DER:
       return self.DER
-    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+    raise rpki.exceptions.DERObjectConversionError("No conversion path to DER available")
 
   def get_Base64(self):
     """
@@ -534,7 +534,7 @@ class X509(DER_object):
     if self.POW:
       self.DER = self.POW.derWrite()
       return self.get_DER()
-    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+    raise rpki.exceptions.DERObjectConversionError("No conversion path to DER available")
 
   def get_POW(self):
     """
@@ -655,6 +655,9 @@ class X509(DER_object):
 
     if cn is None:
       cn = "".join(("%02X" % ord(i) for i in ski))
+
+    if now >= notAfter:
+      raise rpki.exceptions.PastNotAfter("notAfter value %s is already in the past" % notAfter)
 
     cert = rpki.POW.X509()
 
@@ -841,7 +844,7 @@ class PKCS10(DER_object):
     if self.POW:
       self.DER = self.POW.derWrite()
       return self.get_DER()
-    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+    raise rpki.exceptions.DERObjectConversionError("No conversion path to DER available")
 
   def get_POW(self):
     """
@@ -880,62 +883,62 @@ class PKCS10(DER_object):
     """
 
     if not self.get_POW().verify():
-      raise rpki.exceptions.BadPKCS10, "Signature check failed"
+      raise rpki.exceptions.BadPKCS10("Signature check failed")
 
     ver = self.get_POW().getVersion()
 
     if ver != 0:
-      raise rpki.exceptions.BadPKCS10, "Bad version number %s" % ver
+      raise rpki.exceptions.BadPKCS10("Bad version number %s" % ver)
 
     alg = rpki.oids.safe_dotted2name(self.get_POW().getSignatureAlgorithm())
 
     if alg != "sha256WithRSAEncryption":
-      raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % alg
+      raise rpki.exceptions.BadPKCS10("Bad signature algorithm %s" % alg)
 
     bc = self.get_POW().getBasicConstraints()
     
     if bc is None or not bc[0]:
-      raise rpki.exceptions.BadPKCS10, "Request for EE certificate not allowed here"
+      raise rpki.exceptions.BadPKCS10("Request for EE certificate not allowed here")
 
     if bc[1] is not None:
-      raise rpki.exceptions.BadPKCS10, "basicConstraints must not specify Path Length"
+      raise rpki.exceptions.BadPKCS10("basicConstraints must not specify Path Length")
 
     ku = self.get_POW().getKeyUsage()
 
     if ku is not None and self.expected_ca_keyUsage != ku:
-      raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints: %r" % ku
+      raise rpki.exceptions.BadPKCS10("keyUsage doesn't match basicConstraints: %r" % ku)
 
     if any(oid not in self.allowed_extensions
            for oid in self.get_POW().getExtensionOIDs()):
-      raise rpki.exceptions.BadExtension, "Forbidden extension(s) in certificate request"
+      raise rpki.exceptions.BadExtension("Forbidden extension(s) in certificate request")
 
     sias = self.get_POW().getSIA()
 
     if sias is None:
-      raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA extension"
+      raise rpki.exceptions.BadPKCS10("Certificate request is missing SIA extension")
 
     caRepository, rpkiManifest, signedObject = sias
 
     if signedObject:
-      raise rpki.exceptions.BadPKCS10, "CA certificate request has SIA id-ad-signedObject"
+      raise rpki.exceptions.BadPKCS10("CA certificate request has SIA id-ad-signedObject")
 
     if not caRepository:
-      raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA id-ad-caRepository"
+      raise rpki.exceptions.BadPKCS10("Certificate request is missing SIA id-ad-caRepository")
 
     if not any(uri.startswith("rsync://") for uri in caRepository):
-      raise rpki.exceptions.BadPKCS10, "Certificate request SIA id-ad-caRepository contains no rsync URIs"
+      raise rpki.exceptions.BadPKCS10("Certificate request SIA id-ad-caRepository contains no rsync URIs")
 
     if not rpkiManifest:
-      raise rpki.exceptions.BadPKCS10, "Certificate request is missing SIA id-ad-rpkiManifest"
+      raise rpki.exceptions.BadPKCS10("Certificate request is missing SIA id-ad-rpkiManifest")
       
     if not any(uri.startswith("rsync://") for uri in rpkiManifest):
-      raise rpki.exceptions.BadPKCS10, "Certificate request SIA id-ad-rpkiManifest contains no rsync URIs"
+      raise rpki.exceptions.BadPKCS10("Certificate request SIA id-ad-rpkiManifest contains no rsync URIs")
 
     if any(uri.startswith("rsync://") and not uri.endswith("/") for uri in caRepository):
-      raise rpki.exceptions.BadPKCS10, "Certificate request SIA id-ad-caRepository does not end with slash"
+      raise rpki.exceptions.BadPKCS10("Certificate request SIA id-ad-caRepository does not end with slash")
 
     if any(uri.startswith("rsync://") and uri.endswith("/") for uri in rpkiManifest):
-      raise rpki.exceptions.BadPKCS10, "Certificate request SIA id-ad-rpkiManifest ends with slash"
+      raise rpki.exceptions.BadPKCS10("Certificate request SIA id-ad-rpkiManifest ends with slash")
 
   @classmethod
   def create(cls, keypair, exts = None, is_ca = False,
@@ -1021,7 +1024,7 @@ class RSA(DER_object):
     if self.POW:
       self.DER = self.POW.derWritePrivate()
       return self.get_DER()
-    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+    raise rpki.exceptions.DERObjectConversionError("No conversion path to DER available")
 
   def get_POW(self):
     """
@@ -1080,7 +1083,7 @@ class RSApublic(DER_object):
     if self.POW:
       self.DER = self.POW.derWritePublic()
       return self.get_DER()
-    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+    raise rpki.exceptions.DERObjectConversionError("No conversion path to DER available")
 
   def get_POW(self):
     """
@@ -1167,7 +1170,7 @@ class CMS_object(DER_object):
     if self.POW:
       self.DER = self.POW.derWrite()
       return self.get_DER()
-    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+    raise rpki.exceptions.DERObjectConversionError("No conversion path to DER available")
 
   def get_POW(self):
     """
@@ -1200,8 +1203,8 @@ class CMS_object(DER_object):
       raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:
-      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (
-        cms.eContentType(), self.econtent_oid)
+      raise rpki.exceptions.WrongEContentType("Got CMS eContentType %s, expected %s" % (
+        cms.eContentType(), self.econtent_oid))
 
     certs = [X509(POW = x) for x in cms.certs()]
     crls  = [CRL(POW = c) for c in cms.crls()]
@@ -1281,7 +1284,7 @@ class CMS_object(DER_object):
         rpki.log.warn("CMS verification failed, dumping ASN.1 (%d octets):" % len(self.get_DER()))
         for line in dbg.splitlines():
           rpki.log.warn(line)
-      raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
+      raise rpki.exceptions.CMSVerificationFailed("CMS verification failed")
 
     return content
 
@@ -1306,8 +1309,8 @@ class CMS_object(DER_object):
       raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:
-      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (
-        cms.eContentType(), self.econtent_oid)
+      raise rpki.exceptions.WrongEContentType("Got CMS eContentType %s, expected %s" % (
+        cms.eContentType(), self.econtent_oid))
 
     return cms.verify(rpki.POW.X509Store(), None,
                       (rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY |
@@ -1373,7 +1376,7 @@ class Wrapped_CMS_object(CMS_object):
     Get the inner content of this Wrapped_CMS_object.
     """
     if self.content is None:
-      raise rpki.exceptions.CMSContentNotSet, "Inner content of CMS object %r is not set" % self
+      raise rpki.exceptions.CMSContentNotSet("Inner content of CMS object %r is not set" % self)
     return self.content
 
   def set_content(self, content):
@@ -1760,7 +1763,7 @@ class CRL(DER_object):
     if self.POW:
       self.DER = self.POW.derWrite()
       return self.get_DER()
-    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+    raise rpki.exceptions.DERObjectConversionError("No conversion path to DER available")
 
   def get_POW(self):
     """

@@ -3,7 +3,7 @@ Exception definitions for RPKI modules.
 
 $Id$
 
-Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -350,4 +350,9 @@ class ResourceOverlap(RPKI_Exception):
 class CMSReplay(RPKI_Exception):
   """
   Possible CMS replay attack detected.
+  """
+
+class PastNotAfter(RPKI_Exception):
+  """
+  Requested notAfter value is already in the past.
   """

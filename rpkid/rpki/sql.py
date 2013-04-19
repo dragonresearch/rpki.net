@@ -3,7 +3,7 @@ SQL interface code.
 
 $Id$
 
-Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -130,7 +130,8 @@ class session(object):
     Write any dirty objects out to SQL.
     """
     for s in self.dirty.copy():
-      rpki.log.debug("Sweeping %r" % s)
+      #if s.sql_cache_debug:
+      rpki.log.debug("Sweeping (%s) %r" % ("deleting" if s.sql_deleted else "storing", s))
       if s.sql_deleted:
         s.sql_delete()
       else:
@@ -182,6 +183,11 @@ class sql_persistent(object):
   # Enable logging of SQL actions
 
   sql_debug = False
+
+  ## @var sql_cache_debug
+  # Enable debugging of SQL cache actions
+
+  sql_cache_debug = False
 
   @classmethod
   def sql_fetch(cls, gctx, id):         # pylint: disable=W0622
@@ -272,14 +278,19 @@ class sql_persistent(object):
     """
     Mark this object as needing to be written back to SQL.
     """
+    if self.sql_cache_debug and not self.sql_is_dirty:
+      rpki.log.debug("Marking %r SQL dirty" % self)
     self.gctx.sql.dirty.add(self)
 
   def sql_mark_clean(self):
     """
     Mark this object as not needing to be written back to SQL.
     """
+    if self.sql_cache_debug and self.sql_is_dirty:
+      rpki.log.debug("Marking %r SQL clean" % self)
     self.gctx.sql.dirty.discard(self)
 
+  @property
   def sql_is_dirty(self):
     """
     Query whether this object needs to be written back to SQL.
@@ -300,14 +311,14 @@ class sql_persistent(object):
     args = self.sql_encode()
     if not self.sql_in_db:
       if self.sql_debug:
-        rpki.log.debug("sql_fetch_store(%r, %r)" % (self.sql_template.insert, args))
+        rpki.log.debug("sql_store(%r, %r)" % (self.sql_template.insert, args))
       self.gctx.sql.execute(self.sql_template.insert, args)
       setattr(self, self.sql_template.index, self.gctx.sql.lastrowid())
       self.gctx.sql.cache[(self.__class__, self.gctx.sql.lastrowid())] = self
       self.sql_insert_hook()
     else:
       if self.sql_debug:
-        rpki.log.debug("sql_fetch_store(%r, %r)" % (self.sql_template.update, args))
+        rpki.log.debug("sql_store(%r, %r)" % (self.sql_template.update, args))
       self.gctx.sql.execute(self.sql_template.update, args)
       self.sql_update_hook()
     key = (self.__class__, getattr(self, self.sql_template.index))
@@ -322,7 +333,7 @@ class sql_persistent(object):
     if self.sql_in_db:
       id = getattr(self, self.sql_template.index) # pylint: disable=W0622
       if self.sql_debug:
-        rpki.log.debug("sql_fetch_delete(%r, %r)" % (self.sql_template.delete, id))
+        rpki.log.debug("sql_delete(%r, %r)" % (self.sql_template.delete, id))
       self.sql_delete_hook()
       self.gctx.sql.execute(self.sql_template.delete, id)
       key = (self.__class__, id)

@@ -4,7 +4,7 @@ because interactions with rpkid scheduler were getting too complicated.
 
 $Id$
 
-Copyright (C) 2012  Internet Systems Consortium ("ISC")
+Copyright (C) 2012-2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -264,8 +264,16 @@ class UpdateChildrenTask(AbstractTask):
             ca_detail.generate_crl(publisher = self.publisher)
             ca_detail.generate_manifest(publisher = self.publisher)
 
-          elif old_resources != new_resources or (old_resources.valid_until < self.rsn and irdb_resources.valid_until > self.now):
+          elif old_resources != new_resources or (old_resources.valid_until < self.rsn and
+                                                  irdb_resources.valid_until > self.now and
+                                                  old_resources.valid_until != irdb_resources.valid_until):
+
             rpki.log.debug("Need to reissue child %s certificate SKI %s" % (self.child.child_handle, child_cert.cert.gSKI()))
+            if old_resources != new_resources:
+              rpki.log.debug("Child %s SKI %s resources changed: old %s new %s" % (self.child.child_handle, child_cert.cert.gSKI(), old_resources, new_resources))
+            if old_resources.valid_until != irdb_resources.valid_until:
+              rpki.log.debug("Child %s SKI %s validity changed: old %s new %s" % (self.child.child_handle, child_cert.cert.gSKI(), old_resources.valid_until, irdb_resources.valid_until))
+
             new_resources.valid_until = irdb_resources.valid_until
             child_cert.reissue(
               ca_detail = ca_detail,

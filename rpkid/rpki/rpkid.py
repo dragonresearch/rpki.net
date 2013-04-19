@@ -660,12 +660,13 @@ class ca_obj(rpki.sql.sql_persistent):
       callback()
 
     def done():
+      rpki.log.debug("Deleting %r" % self)
       self.sql_delete()      
       callback()
 
     publisher = publication_queue()
     for ca_detail in self.ca_details:
-      ca_detail.delete(ca = self, publisher = publisher)
+      ca_detail.delete(ca = self, publisher = publisher, allow_failure = True)
     publisher.call_pubd(done, lose)
 
   def next_serial_number(self):
@@ -771,6 +772,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
   latest_ca_cert = None
   latest_crl = None
   latest_manifest = None
+  ca_cert_uri = None
 
   def __repr__(self):
     return rpki.log.log_repr(self, repr(self.ca), self.state, self.ca_cert_uri)
@@ -911,29 +913,43 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
 
     repository = ca.parent.repository
+    handler = False if allow_failure else None
     for child_cert in self.child_certs:
-      publisher.withdraw(cls = rpki.publication.certificate_elt, uri = child_cert.uri, obj = child_cert.cert, repository = repository,
-                         handler = False if allow_failure else None)
+      publisher.withdraw(cls = rpki.publication.certificate_elt,
+                         uri = child_cert.uri,
+                         obj = child_cert.cert,
+                         repository = repository,
+                         handler = handler)
+      child_cert.sql_mark_deleted()
     for roa in self.roas:
-      roa.revoke(publisher = publisher, allow_failure = allow_failure)      
+      roa.revoke(publisher = publisher, allow_failure = allow_failure, fast = True)      
     for ghostbuster in self.ghostbusters:
-      ghostbuster.revoke(publisher = publisher, allow_failure = allow_failure)
+      ghostbuster.revoke(publisher = publisher, allow_failure = allow_failure, fast = True)
     try:
       latest_manifest = self.latest_manifest
     except AttributeError:
       latest_manifest = None
     if latest_manifest is not None:
-      publisher.withdraw(cls = rpki.publication.manifest_elt, uri = self.manifest_uri, obj = self.latest_manifest, repository = repository,
-                         handler = False if allow_failure else None)
+      publisher.withdraw(cls = rpki.publication.manifest_elt,
+                         uri = self.manifest_uri,
+                         obj = self.latest_manifest,
+                         repository = repository,
+                         handler = handler)
     try:
       latest_crl = self.latest_crl
     except AttributeError:
       latest_crl = None
     if latest_crl is not None:
-      publisher.withdraw(cls = rpki.publication.crl_elt,      uri = self.crl_uri,      obj = self.latest_crl,      repository = repository,
-                         handler = False if allow_failure else None)
-    for cert in self.child_certs + self.revoked_certs:
+      publisher.withdraw(cls = rpki.publication.crl_elt,
+                         uri = self.crl_uri,
+                         obj = self.latest_crl,
+                         repository = repository,
+                         handler = handler)
+    self.gctx.sql.sweep()
+    for cert in self.revoked_certs:     # + self.child_certs
+      rpki.log.debug("Deleting %r" % cert)
       cert.sql_delete()
+    rpki.log.debug("Deleting %r" % self)
     self.sql_delete()
 
   def revoke(self, cb, eb):
@@ -1225,7 +1241,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
     self.manifest_published = rpki.sundial.now()
     self.sql_mark_dirty()
-    publisher.publish(cls = rpki.publication.manifest_elt, uri = uri, obj = self.latest_manifest, repository = parent.repository,
+    publisher.publish(cls = rpki.publication.manifest_elt,
+                      uri = uri,
+                      obj = self.latest_manifest,
+                      repository = parent.repository,
                       handler = self.manifest_published_callback)
 
   def manifest_published_callback(self, pdu):
@@ -1837,7 +1856,8 @@ class roa_obj(rpki.sql.sql_persistent):
     roa = self.roa
     uri = self.uri
 
-    rpki.log.debug("Regenerating ROA %r, ca_detail %r state is %s" % (
+    rpki.log.debug("%s %r, ca_detail %r state is %s" % (
+      "Regenerating" if regenerate else "Not regenerating",
       self, ca_detail, ca_detail.state))
 
     if regenerate:
@@ -1845,7 +1865,8 @@ class roa_obj(rpki.sql.sql_persistent):
 
     rpki.log.debug("Withdrawing %r %s and revoking its EE cert" % (self, uri))
     rpki.rpkid.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
-    publisher.withdraw(cls = rpki.publication.roa_elt, uri = uri, obj = roa, repository = ca_detail.ca.parent.repository,
+    publisher.withdraw(cls = rpki.publication.roa_elt, uri = uri, obj = roa,
+                       repository = ca_detail.ca.parent.repository,
                        handler = False if allow_failure else None)
 
     if not regenerate:
@@ -1949,7 +1970,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self.regen_margin)
 
     if rpki.sundial.now() > regen_time:
-      rpki.log.debug("Ghostbuster record past threshold %s, regenerating" % (regen_time,))
+      rpki.log.debug("%r past threshold %s, regenerating" % (self, regen_time))
       return self.regenerate(publisher = publisher, fast = fast)
 
   def generate(self, publisher, fast = False):
@@ -2020,15 +2041,23 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     ghostbuster = self.ghostbuster
     uri = self.uri
 
+    rpki.log.debug("%s %r, ca_detail %r state is %s" % (
+      "Regenerating" if regenerate else "Not regenerating",
+      self, ca_detail, ca_detail.state))
+
     if regenerate:
       assert ca_detail.state == 'active'
       self.generate(publisher = publisher, fast = fast)
 
-    rpki.log.debug("Withdrawing Ghostbuster record %r and revoking its EE cert" % uri)
+    rpki.log.debug("Withdrawing %r %s and revoking its EE cert" % (self, uri))
     rpki.rpkid.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
-    publisher.withdraw(cls = rpki.publication.ghostbuster_elt, uri = uri, obj = ghostbuster, repository = ca_detail.ca.parent.repository,
+    publisher.withdraw(cls = rpki.publication.ghostbuster_elt, uri = uri, obj = ghostbuster,
+                       repository = ca_detail.ca.parent.repository,
                        handler = False if allow_failure else None)
-    self.sql_mark_deleted()
+
+    if not regenerate:
+      self.sql_mark_deleted()
+
     if not fast:
       ca_detail.generate_crl(publisher = publisher)
       ca_detail.generate_manifest(publisher = publisher)

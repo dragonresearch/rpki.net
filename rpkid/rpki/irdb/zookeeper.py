@@ -457,7 +457,7 @@ class Zookeeper(object):
 
 
   @django.db.transaction.commit_on_success
-  def configure_child(self, filename, child_handle = None):
+  def configure_child(self, filename, child_handle = None, valid_until = None):
     """
     Configure a new child of this RPKI entity, given the child's XML
     identity file as an input.  Extracts the child's data from the
@@ -472,7 +472,12 @@ class Zookeeper(object):
     if child_handle is None:
       child_handle = c.get("handle")
 
-    valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
+    if valid_until is None:
+      valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
+    else:
+      valid_until = rpki.sundial.datetime.fromXMLtime(valid_until)
+      if valid_until < rpki.sundial.now():
+        raise PastExpiration, "Specified new expiration time %s has passed" % valid_until
 
     self.log("Child calls itself %r, we call it %r" % (c.get("handle"), child_handle))
 
@@ -791,7 +796,7 @@ class Zookeeper(object):
     if valid_until is None:
       valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
     else:
-      valid_until = rpki.sundial.fromXMLtime(valid_until)
+      valid_until = rpki.sundial.datetime.fromXMLtime(valid_until)
       if valid_until < rpki.sundial.now():
         raise PastExpiration, "Specified new expiration time %s has passed" % valid_until
 

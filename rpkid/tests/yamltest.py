@@ -486,7 +486,7 @@ class allocation(object):
     if profile:
       cmd.append("--profile")
       cmd.append(self.path("rpkic.%s.prof" % rpki.sundial.now()))
-    cmd.extend(a for a in args if a is not None)
+    cmd.extend(str(a) for a in args if a is not None)
     print 'Running "%s"' % " ".join(cmd)
     env = os.environ.copy()
     env["YAMLTEST_RPKIC_COUNTER"] = self.next_rpkic_counter()
@@ -750,7 +750,9 @@ try:
                       d.path("%s.repository-response.xml" % d.client_handle))
           print
         else:
-          d.parent.run_rpkic("configure_child", d.path("%s.identity.xml" % d.name))
+          d.parent.run_rpkic("configure_child",
+                             "--valid_until", d.resources.valid_until,
+                             d.path("%s.identity.xml" % d.name))
           print
           d.run_rpkic("configure_parent",
                       d.parent.path("%s.%s.parent-response.xml" % (d.parent.name, d.name)))

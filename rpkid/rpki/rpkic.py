@@ -273,15 +273,18 @@ class main(Cmd):
     """
 
     child_handle = None
+    valid_until = None
 
-    opts, argv = getopt.getopt(arg.split(), "", ["child_handle="])
+    opts, argv = getopt.getopt(arg.split(), "", ["child_handle=", "valid_until="])
     for o, a in opts:
       if o == "--child_handle":
         child_handle = a
+      elif o == "--valid_until":
+        valid_until = a
     
     if len(argv) != 1:
       raise BadCommandSyntax("Expecting filename of child's identity XML")
-    r, child_handle = self.zoo.configure_child(argv[0], child_handle)
+    r, child_handle = self.zoo.configure_child(argv[0], child_handle, valid_until)
     r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), sys.stdout)
     self.zoo.synchronize_ca()
 

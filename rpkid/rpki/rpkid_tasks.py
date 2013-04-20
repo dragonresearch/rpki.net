@@ -365,7 +365,7 @@ class UpdateROAsTask(AbstractTask):
         roa = roas.pop(k, None)
         if roa is None:
           roa = rpki.rpkid.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
-          rpki.log.debug("Couldn't find existing ROA, created %r" % roa)
+          rpki.log.debug("Created new %r" % roa)
         else:
           rpki.log.debug("Found existing %r" % roa)
         self.updates.append(roa)
@@ -497,9 +497,9 @@ class UpdateGhostbustersTask(AbstractTask):
             ghostbuster = ghostbusters.pop((ca_detail.ca_detail_id, ghostbuster_request.vcard), None)
             if ghostbuster is None:
               ghostbuster = rpki.rpkid.ghostbuster_obj(self.gctx, self.self_id, ca_detail.ca_detail_id, ghostbuster_request.vcard)
-              rpki.log.debug("Created new Ghostbuster request for %r" % ghostbuster_request.parent_handle)
+              rpki.log.debug("Created new %r for %r" % (ghostbuster, ghostbuster_request.parent_handle))
             else:
-              rpki.log.debug("Found existing Ghostbuster request for %r" % ghostbuster_request.parent_handle)
+              rpki.log.debug("Found existing %r for %s" % (ghostbuster, ghostbuster_request.parent_handle))
             ghostbuster.update(publisher = publisher, fast = True)
             ca_details.add(ca_detail)
 

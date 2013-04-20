@@ -15,11 +15,18 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 name:           RIR
-valid_for:      2d
+valid_for:      4w
 kids:
   - name: Alice
     hosted_by: RIR
-    #valid_for:  5m
+    #
+    # To test immediate expiration
+    #valid_for: 5m
+    #
+    # To test what happens when we reach rgen_margin
+    #valid_for: 2w2h5m
+    #valid_for: 2w5m
+    #
     kids:
       - name: Betty
         hosted_by: RIR

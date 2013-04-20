@@ -1047,6 +1047,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
           callback = callback,
           errback  = errback)
 
+      validity_changed = self.latest_ca_cert is None or self.latest_ca_cert.getNotAfter() != c.cert.getNotAfter()
+
       publisher = publication_queue()
 
       if self.latest_ca_cert != c.cert:
@@ -1067,11 +1069,13 @@ class ca_detail_obj(rpki.sql.sql_persistent):
               resources = child_resources & new_resources,
               publisher = publisher)
 
-      # And why, exactly, are we not whacking other things issued by
-      # this ca_detail?  Oversight?  Fiendish cleverness I should have
-      # documented?  Faith that normal cron cycle will regenerate
-      # anything that needs it quickly enough?  Faith that nothing
-      # else needs regeneration at this point?
+      if sia_uri_changed or validity_changed or old_resources.oversized(new_resources):
+        for roa in self.roas:
+          roa.update(publisher = publisher, fast = True)
+
+      if sia_uri_changed or validity_changed:
+        for ghostbuster in self.ghostbusters:
+          ghostbuster.update(publisher = publisher, fast = True)
 
       publisher.call_pubd(callback, errback)
 
@@ -1708,9 +1712,12 @@ class roa_obj(rpki.sql.sql_persistent):
     self.gctx.sql.execute("DELETE FROM roa_prefix WHERE roa_id = %s", (self.roa_id,))
 
   def __repr__(self):
-    v4 = "" if self.ipv4 is None else self.ipv4
-    v6 = "" if self.ipv6 is None else self.ipv6
-    return rpki.log.log_repr(self, self.asn, ("%s,%s" % (v4, v6)).strip(","))
+    args = [self, self.asn, self.ipv4, self.ipv6]
+    try:
+      args.append(self.uri)
+    except:
+      pass
+    return rpki.log.log_repr(*args)
 
   def __init__(self, gctx = None, self_id = None, asn = None, ipv4 = None, ipv6 = None):
     rpki.sql.sql_persistent.__init__(self)
@@ -1948,7 +1955,16 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
   vcard = None
 
   def __repr__(self):
-    return rpki.log.log_repr(self, self.uri)
+    args = [self]
+    try:
+      args.extend(self.vcard.splitlines()[2:-1])
+    except:
+      pass
+    try:
+      args.append(self.uri)
+    except:
+      pass
+    return rpki.log.log_repr(*args)
 
   @property
   @rpki.sql.cache_reference

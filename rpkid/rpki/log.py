@@ -184,20 +184,25 @@ def log_repr(obj, *tokens):
   """
 
   # pylint: disable=W0702
+
   words = ["%s.%s" % (obj.__class__.__module__, obj.__class__.__name__)]
   try:
     words.append("{%s}" % obj.self.self_handle)
   except:
     pass
+
   for token in tokens:
-    if token is not None and token != "":
+    if token is not None:
       try:
-        assert token is not None
-        words.append(str(token))
+        s = str(token)
       except:
+        s = "???"
         debug("Failed to generate repr() string for object of type %r" % type(token))
         traceback()
-        words.append("???")
+      if s:
+        words.append(s)
+
   if show_python_ids:
     words.append(" at %#x" % id(obj))
+
   return "<" + " ".join(words) + ">"

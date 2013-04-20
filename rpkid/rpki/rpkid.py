@@ -565,6 +565,7 @@ class ca_obj(rpki.sql.sql_persistent):
           if (ca_detail.state == "pending" or
               sia_uri_changed or
               ca_detail.latest_ca_cert != rc_cert.cert or
+              ca_detail.latest_ca_cert.getNotAfter() != rc_resources.valid_until or
               current_resources.undersized(rc_resources) or
               current_resources.oversized(rc_resources)):
             return ca_detail.update(
@@ -632,10 +633,12 @@ class ca_obj(rpki.sql.sql_persistent):
     ca_detail = ca_detail_obj.create(self)
 
     def done(issue_response):
+      c = issue_response.payload.classes[0].certs[0]
+      rpki.log.debug("CA %r received certificate %s" % (self, c.cert_url))
       ca_detail.activate(
         ca       = self,
-        cert     = issue_response.payload.classes[0].certs[0].cert,
-        uri      = issue_response.payload.classes[0].certs[0].cert_url,
+        cert     = c.cert,
+        uri      = c.cert_url,
         callback = cb,
         errback  = eb)
 
@@ -708,10 +711,12 @@ class ca_obj(rpki.sql.sql_persistent):
     new_detail = ca_detail_obj.create(self)
 
     def done(issue_response):
+      c = issue_response.payload.classes[0].certs[0]
+      rpki.log.debug("CA %r received certificate %s" % (self, c.cert_url))
       new_detail.activate(
         ca          = self,
-        cert        = issue_response.payload.classes[0].certs[0].cert,
-        uri         = issue_response.payload.classes[0].certs[0].cert_url,
+        cert        = c.cert,
+        uri         = c.cert_url,
         predecessor = old_detail,
         callback    = cb,
         errback     = eb)
@@ -1031,20 +1036,27 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
 
     def issued(issue_response):
+      c = issue_response.payload.classes[0].certs[0]
+      rpki.log.debug("CA %r received certificate %s" % (self, c.cert_url))
+
       if self.state == "pending":
         return self.activate(
           ca       = ca,
-          cert     = issue_response.payload.classes[0].certs[0].cert,
-          uri      = issue_response.payload.classes[0].certs[0].cert_url,
+          cert     = c.cert,
+          uri      = c.cert_url,
           callback = callback,
           errback  = errback)
 
-      new_ca_cert = issue_response.payload.classes[0].certs[0].cert
-      if self.latest_ca_cert != new_ca_cert:
-        self.latest_ca_cert = new_ca_cert
-        self.sql_mark_dirty()
-      new_resources = self.latest_ca_cert.get_3779resources()
       publisher = publication_queue()
+
+      if self.latest_ca_cert != c.cert:
+        self.latest_ca_cert = c.cert
+        self.sql_mark_dirty()
+        self.generate_manifest_cert()
+        self.generate_crl(publisher = publisher)
+        self.generate_manifest(publisher = publisher)
+
+      new_resources = self.latest_ca_cert.get_3779resources()
 
       if sia_uri_changed or old_resources.oversized(new_resources):
         for child_cert in self.child_certs:
@@ -1054,6 +1066,12 @@ class ca_detail_obj(rpki.sql.sql_persistent):
               ca_detail = self,
               resources = child_resources & new_resources,
               publisher = publisher)
+
+      # And why, exactly, are we not whacking other things issued by
+      # this ca_detail?  Oversight?  Fiendish cleverness I should have
+      # documented?  Faith that normal cron cycle will regenerate
+      # anything that needs it quickly enough?  Faith that nothing
+      # else needs regeneration at this point?
 
       publisher.call_pubd(callback, errback)
 
@@ -1469,25 +1487,25 @@ class child_cert_obj(rpki.sql.sql_persistent):
 
     assert resources.valid_until is not None and old_resources.valid_until is not None
 
-    if resources != old_resources:
-      rpki.log.debug("Resources changed for %r" % self)
+    if resources.asn != old_resources.asn or resources.v4 != old_resources.v4 or resources.v6 != old_resources.v6:
+      rpki.log.debug("Resources changed for %r: old %s new %s" % (self, old_resources, resources))
+      needed = True
+
+    if resources.valid_until != old_resources.valid_until:
+      rpki.log.debug("Validity changed for %r: old %s new %s" % (self, old_resources.valid_until, resources.valid_until))
       needed = True
 
     if sia != old_sia:
-      rpki.log.debug("SIA changed for %r" % self)
+      rpki.log.debug("SIA changed for %r: old %r new %r" % (self, old_sia, sia))
       needed = True
 
     if ca_detail != old_ca_detail:
-      rpki.log.debug("Issuer changed for %r %s" % (self, self.uri))
+      rpki.log.debug("Issuer changed for %r %s: old %r new %r" % (self, self.uri, old_ca_detail, ca_detail))
       needed = True
 
     must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until
     if must_revoke:
       rpki.log.debug("Must revoke any existing cert(s) for %r" % self)
-      needed = True
-
-    if resources.valid_until != old_resources.valid_until:
-      rpki.log.debug("Validity changed for %r: %s %s" % (self, old_resources.valid_until, resources.valid_until))
       needed = True
 
     if not needed and force:

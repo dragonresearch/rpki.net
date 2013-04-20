@@ -86,7 +86,7 @@ class base_elt(object):
     """
     Default PDU handler to catch unexpected types.
     """
-    raise rpki.exceptions.BadQuery, "Unexpected query type %s" % q_msg.type
+    raise rpki.exceptions.BadQuery("Unexpected query type %s" % q_msg.type)
 
   def check_response(self):
     """
@@ -110,7 +110,7 @@ class multi_uri(list):
       self[:] = ini.split(",")
       for s in self:
         if s.strip() != s or "://" not in s:
-          raise rpki.exceptions.BadURISyntax, "Bad URI \"%s\"" % s
+          raise rpki.exceptions.BadURISyntax("Bad URI \"%s\"" % s)
     else:
       raise TypeError
 
@@ -368,23 +368,25 @@ class issue_pdu(base_elt):
     if self.req_resource_set_as or \
        self.req_resource_set_ipv4 or \
        self.req_resource_set_ipv6:
-      raise rpki.exceptions.NotImplementedYet, "req_* attributes not implemented yet, sorry"
+      raise rpki.exceptions.NotImplementedYet("req_* attributes not implemented yet, sorry")
 
     # Check the request
     self.pkcs10.check_valid_rpki()
     ca = child.ca_from_class_name(self.class_name)
     ca_detail = ca.active_ca_detail
     if ca_detail is None:
-      raise rpki.exceptions.NoActiveCA, "No active CA for class %r" % self.class_name
+      raise rpki.exceptions.NoActiveCA("No active CA for class %r" % self.class_name)
 
     # Check current cert, if any
 
     def got_resources(irdb_resources):
 
       if irdb_resources.valid_until < rpki.sundial.now():
-        raise rpki.exceptions.IRDBExpired, "IRDB entry for child %s expired %s" % (child.child_handle, irdb_resources.valid_until)
+        raise rpki.exceptions.IRDBExpired("IRDB entry for child %s expired %s" % (
+          child.child_handle, irdb_resources.valid_until))
 
       resources = irdb_resources & ca_detail.latest_ca_cert.get_3779resources()
+      resources.valid_until = irdb_resources.valid_until
       req_key = self.pkcs10.getPublicKey()
       req_sia = self.pkcs10.get_SIA()
       child_cert = child.fetch_child_certs(ca_detail = ca_detail, ski = req_key.get_SKI(), unique = True)
@@ -555,7 +557,7 @@ class error_response_pdu(base_elt):
     if name == "status":
       code = int(text)
       if code not in self.codes:
-        raise rpki.exceptions.BadStatusCode, "%s is not a known status code" % code
+        raise rpki.exceptions.BadStatusCode("%s is not a known status code" % code)
       self.status = code
     elif name == "description":
       self.description = text
@@ -584,7 +586,7 @@ class error_response_pdu(base_elt):
     Handle an error response.  For now, just raise an exception,
     perhaps figure out something more clever to do later.
     """
-    raise rpki.exceptions.UpstreamError, self.codes[self.status]
+    raise rpki.exceptions.UpstreamError(self.codes[self.status])
 
 class message_pdu(base_elt):
   """

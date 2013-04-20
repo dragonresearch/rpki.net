@@ -1,6 +1,6 @@
 # $Id$
 
-# Copyright (C) 2009  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009-2013  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -19,18 +19,19 @@ valid_for:      2d
 kids:
   - name: Alice
     hosted_by: RIR
+    #valid_for:  5m
     kids:
       - name: Betty
         hosted_by: RIR
-        ghostbuster: |
-          BEGIN:VCARD
-          VERSION:4.0
-          FN:Carol Clever
-          EMAIL:carol@example.org
-          END:VCARD
         kids:
           - name: Carol
             hosted_by: RIR
+            ghostbuster: |
+              BEGIN:VCARD
+              VERSION:4.0
+              FN:Carol Clever
+              EMAIL:carol@example.org
+              END:VCARD
             kids:
               - name: Dana
                 hosted_by: RIR

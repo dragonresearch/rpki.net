@@ -209,10 +209,6 @@ install-postconf: \
 install-user:
 	@true
 
-# This should copy rpki.conf.sample to rpki.conf if the latter doesn't
-# exist.  We also need a deinstallation rule to cover this, following
-# the FreeBSD convention that we deinstall the .conf if and only if
-# it's identical to the .conf.sample.
 install-conf: ${DESTDIR}${sysconfdir}/rpki.conf
 
 ${DESTDIR}${sysconfdir}/rpki.conf: ${DESTDIR}${sysconfdir}/rpki.conf.sample
@@ -228,9 +224,6 @@ deinstall::
 install-apache:
 	@true
 
-# This just runs rpki-mysql-setup, but we should figure out a way for
-# that to avoid prompting us for the SQL root password when we don't
-# really need it.
 install-mysql:
 	${sbindir}/rpki-sql-setup
 

@@ -1,0 +1,1 @@
+*/10 * * * *	/usr/bin/python $HOME/rpki-pbuilder.py > $HOME/rpki-pbuilder.$$.log 2>&1; if test -s $HOME/rpki-pbuilder.$$.log; then /bin/mv -f $HOME/rpki-pbuilder.$$.log $HOME/rpki-pbuilder.log; else /bin/rm -f $HOME/rpki-pbuilder.$$.log; fi

@@ -77,6 +77,8 @@ install-always:: all
 	@echo
 	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
 	@echo
+	${INSTALL} examples/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample
+	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/publication
 
 uninstall deinstall::
 	xargs rm -fv <installed
@@ -168,10 +170,6 @@ examples/rpki.conf: rpki/autoconf.py rpki-confgen rpki-confgen.xml
 		--pwgen web_portal::secret-key \
 		--write-conf $@
 
-install-always::
-	${INSTALL} examples/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample
-	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/publication
-
 clean::
 	rm -f examples/rpki.conf
 
@@ -202,7 +200,7 @@ clean::
 	rm -f setup_autoconf.py setup_autoconf.pyc
 
 install-postconf: \
-	install-user install-apache install-mysql install-bpki install-django install-cron
+	install-user install-conf install-apache install-mysql install-bpki install-django install-cron
 
 # This should create user "rpkid" and group "rpkid", but as we have
 # not yet tested our ability to run in such a configuration, this
@@ -210,6 +208,19 @@ install-postconf: \
 # rcynic when we're ready to do something with it.
 install-user:
 	@true
+
+# This should copy rpki.conf.sample to rpki.conf if the latter doesn't
+# exist.  We also need a deinstallation rule to cover this, following
+# the FreeBSD convention that we deinstall the .conf if and only if
+# it's identical to the .conf.sample.
+install-conf: ${DESTDIR}${sysconfdir}/rpki.conf
+
+${DESTDIR}${sysconfdir}/rpki.conf: ${DESTDIR}${sysconfdir}/rpki.conf.sample
+	cp -p ${DESTDIR}${sysconfdir}/rpki.conf.sample $@
+
+deinstall::
+	if cmp -s ${DESTDIR}${sysconfdir}/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample; then rm -f ${DESTDIR}${sysconfdir}/rpki.conf; else true; fi
+	rm -f ${DESTDIR}${sysconfdir}/rpki.conf.sample
 
 # This needs to do whatever is needed to get the web UI configured
 # under Apache on this platform.  Likely to be an awful mess, see
@@ -221,17 +232,14 @@ install-apache:
 # that to avoid prompting us for the SQL root password when we don't
 # really need it.
 install-mysql:
-	@true
-#	${sbindir}/rpki-sql-setup
+	${sbindir}/rpki-sql-setup
 
 install-bpki:
-	@true
-#	${sbindir}/rpkic initialize_server_bpki
+	${sbindir}/rpkic initialize_server_bpki
 
 install-django:
-	@true
-#	${sbindir}/rpki-manage syncdb --noinput
-#	${sbindir}/rpki-manage migrate app
+	${sbindir}/rpki-manage syncdb --noinput
+	${sbindir}/rpki-manage migrate app
 
 # This needs to set up crontab entries for rpkigui-check-expired,
 # rpkigui-import-routes, and rpkic update_bpki.  They probably don't

@@ -96,7 +96,7 @@ setup_rpki_conf() {
 }
 
 setup_mysql() {
-    rpki-sql-setup --mysql_defaults /etc/mysql/debian.cnf
+    rpki-sql-setup --mysql-defaults /etc/mysql/debian.cnf
 }
 
 setup_bpki() {

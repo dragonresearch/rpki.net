@@ -16,18 +16,82 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-__doc__ = """
-Automated setup of all the pesky SQL stuff we need.  Prompts for MySQL
-root password, pulls other information from rpki.conf.
-"""
-
-import getopt
 import sys
 import getpass
+import argparse
 import rpki.config
 import rpki.sql_schemas
 
 from rpki.mysql_import import MySQLdb
+
+class RootDB(object):
+  """
+  Class to wrap MySQL actions that require root-equivalent access so
+  we can defer such actions until we're sure they're really needed.
+  Overall goal here is to prompt the user for the root password once
+  at most, and not at all when not necessary.
+  """
+
+  def __init__(self, mysql_defaults = None):
+    self.initialized = False
+    self.mysql_defaults = mysql_defaults
+
+  def __getattr__(self, name):
+    if self.initialized:
+      raise AttributeError
+    if self.mysql_defaults is None:
+      self.db = MySQLdb.connect(db     = "mysql",
+                                user   = "root",
+                                passwd = getpass.getpass("Please enter your MySQL root password: "))
+    else:
+      mysql_cfg = rpki.config.parser(self.mysql_defaults, "client")
+      self.db = MySQLdb.connect(db     = "mysql",
+                                user   = mysql_cfg.get("user"),
+                                passwd = mysql_cfg.get("password"))
+    self.cur = self.db.cursor()
+    self.cur.execute("SHOW DATABASES")
+    self.databases = set(d[0] for d in self.cur.fetchall())
+    self.initialized = True
+    return getattr(self, name)
+
+  def close(self):
+    if self.initialized:
+      self.db.close()
+
+class UserDB(object):
+  """
+  Class to wrap MySQL access parameters for a particular database.
+  """
+
+  def __init__(self, name):
+    self.database = cfg.get("sql-database", section = name)
+    self.username = cfg.get("sql-username", section = name)
+    self.password = cfg.get("sql-password", section = name)
+    self.db = None
+    self.cur = None
+
+  def open(self):
+    self.db = MySQLdb.connect(db = self.database, user = self.username, passwd = self.password)
+    self.cur = self.db.cursor()
+
+  def commit(self):
+    self.db.commit()
+
+  def close(self):
+    if self.db is not None:
+      self.db.close()
+      self.db = None
+      self.cur = None
+
+  @property
+  def exists_and_accessible(self):
+    try:
+      db = MySQLdb.connect(db = self.database, user = self.username, passwd = self.password)
+      db.close()
+      return True
+    except:
+      return False
+
 
 def read_schema(name):
   """
@@ -42,106 +106,95 @@ def read_schema(name):
 
   return [statement.strip() for statement in " ".join(lines).rstrip(";").split(";") if statement.strip()]
 
-def sql_setup(name):
-  """
-  Create a new SQL database and construct all its tables.
-  """
+def do_drop(name):
+  db = UserDB(name)
+  if db.database in root.databases:
+    log("DROP DATABASE %s" %  db.database)
+    root.cur.execute("DROP DATABASE %s" %  db.database)
+    root.db.commit()
 
-  database = cfg.get("sql-database", section = name)
-  username = cfg.get("sql-username", section = name)
-  password = cfg.get("sql-password", section = name)
-  schema = read_schema(name)
+def do_create(name):
+  db = UserDB(name)
+  log("CREATE DATABASE %s" % db.database)
+  root.cur.execute("CREATE DATABASE %s" % db.database)
+  log("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY ###" % (db.database, db.username))
+  root.cur.execute("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY %%s" % (db.database, db.username),
+                   (db.password,))
+  root.db.commit()
+  db.open()
+  for statement in read_schema(name):
+    if not statement.upper().startswith("DROP TABLE"):
+      log(statement)
+      db.cur.execute(statement)
+  db.commit()
+  db.close()
 
-  if script_purge and database in databases:
-    databases.remove(database)
-    print "DROP DATABASE IF EXISTS %s;" %  database
-    return
+def do_script_drop(name):
+  db = UserDB(name)
+  print "DROP DATABASE IF EXISTS %s;" % db.database
 
-  cur = rootdb.cursor()
+def do_drop_and_create(name):
+  do_drop(name)
+  do_create(name)
 
-  if drop and database in databases:
-    log("Dropping database %s" % database)
-    databases.remove(database)
-    try:
-      cur.execute("DROP DATABASE IF EXISTS %s" %  database)
-    except Exception, e:
-      log("Couldn't drop database %s, blundering onwards: %s" % (database, e))
+def do_fix_grants(name):
+  db = UserDB(name)
+  if not db.exists_and_accessible:
+    log("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY ###" % (db.database, db.username))
+    root.cur.execute("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY %%s" % (db.database, db.username),
+                     (db.password,))
+    root.db.commit()
 
-  if create and database not in databases:
-    log("Creating database %s" % database)
-    cur = rootdb.cursor()
-    cur.execute("CREATE DATABASE %s" % database)
-    cur.execute("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY %%s" % (database, username), (password,))
-
-  rootdb.commit()
-
-  if create and database not in databases:
-    databases.add(database)
-    db = MySQLdb.connect(db = database, user = username, passwd = password)
-    cur = db.cursor()
-    for statement in schema:
-      if statement.upper().startswith("DROP TABLE"):
-        continue
-      if verbose:
-        log(statement)
-      cur.execute(statement)
-    db.commit()
-    db.close()
+def do_create_if_missing(name):
+  db = UserDB(name)
+  if not db.exists_and_accessible:
+    do_create(name)
 
 def log(text):
-  if verbose:
+  if args.verbose:
     print "#", text
 
-cfg_file = None
+parser = argparse.ArgumentParser(description = """\
+Automated setup of all SQL stuff used by the RPKI CA tools.  Pulls
+configuration from rpki.conf, prompts for MySQL password when needed.
+""")
+group  = parser.add_mutually_exclusive_group()
+parser.add_argument("-c", "--config",
+                    help = "specify alternate location for rpki.conf")
+parser.add_argument("-v", "--verbose",  action = "store_true",
+                    help = "whistle while you work")
+parser.add_argument("--mysql-defaults",
+                    help = "specify MySQL root access credentials via a configuration file")
+group.add_argument("--create",
+                   action = "store_const", dest = "dispatch", const = do_create,
+                   help = "create databases and load schemas")
+group.add_argument("--drop",
+                   action = "store_const", dest = "dispatch", const = do_drop,
+                   help = "drop databases")
+group.add_argument("--script-drop",
+                   action = "store_const", dest = "dispatch", const = do_script_drop,
+                   help = "send SQL commands to drop databases to standard output")
+group.add_argument("--drop-and-create",
+                   action = "store_const", dest = "dispatch", const = do_drop_and_create,
+                   help = "drop databases then recreate them and load schemas")
+group.add_argument("--fix-grants",
+                   action = "store_const", dest = "dispatch", const = do_fix_grants,
+                   help = "whack database access to match current configuration file")
+group.add_argument("--create-if-missing",
+                   action = "store_const", dest = "dispatch", const = do_create_if_missing,
+                   help = "create databases and load schemas if they don't exist already")
+parser.set_defaults(dispatch = do_create_if_missing)
+args = parser.parse_args()
 
-verbose = False
-mysql_defaults = None
-
-drop = False
-create = True
-script_purge = False
-
-opts, argv = getopt.getopt(sys.argv[1:], "c:hv?", ["config=", "help", "missing_only", "mysql_defaults=", "purge", "script_purge", "recreate", "verbose"])
-for o, a in opts:
-  if o in ("-h", "--help", "-?"):
-    print __doc__
-    sys.exit(0)
-  if o in ("-v", "--verbose"):
-    verbose = True
-  elif o in ("-c", "--config"):
-    cfg_file = a
-  elif o == "--purge":
-    drop = True
-    create = script_purge = False
-  elif o == "--recreate":
-    drop = create = True
-    script_purge = False
-  elif o == "--script_purge":
-    script_purge = True
-    drop = create = False
-  elif o == "--mysql_defaults":
-    mysql_defaults = a
-
-cfg = rpki.config.parser(cfg_file, "myrpki")
-
-if mysql_defaults is None:
-  rootdb = MySQLdb.connect(db = "mysql", user = "root", passwd = getpass.getpass("Please enter your MySQL root password: "))
-else:
-  mysql_cfg = rpki.config.parser(mysql_defaults, "client")
-  rootdb = MySQLdb.connect(db = "mysql", user = mysql_cfg.get("user"), passwd = mysql_cfg.get("password"))
-
-cur = rootdb.cursor()
-cur.execute("SHOW DATABASES")
-databases = set(d[0] for d in cur.fetchall())
-del cur
-
-if cfg.getboolean("start_irdbd", False):
-  sql_setup("irdbd")
-
-if cfg.getboolean("start_rpkid", False):
-  sql_setup("rpkid")
-
-if cfg.getboolean("start_pubd",  False):
-  sql_setup("pubd")
-
-rootdb.close()
+cfg  = rpki.config.parser(args.config, "myrpki")
+root = RootDB(args.mysql_defaults)
+try:
+  if cfg.getboolean("start_irdbd", False):
+    args.dispatch("irdbd")
+  if cfg.getboolean("start_rpkid", False):
+    args.dispatch("rpkid")
+  if cfg.getboolean("start_pubd",  False):
+    args.dispatch("pubd")
+  root.close()
+except Exception, e:
+  sys.exit(str(e))

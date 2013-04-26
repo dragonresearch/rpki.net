@@ -25,6 +25,13 @@ os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.default_settings'
 # needed for local_settings.py
 sys.path.insert(1, rpki.autoconf.sysconfdir + '/rpki')
 
+# Kludge to disable use of setproctitle in rpki.log.  For reasons
+# unknown, at least on Ubuntu 12.04 LTS, we dump core with a segment
+# violation if we try to load that module in this process, even though
+# it works fine in other processes on the same system.  Not yet sure
+# what this is about, just disable setproctitle in WSGI case for now.
+os.environ['DISABLE_SETPROCTITLE'] = 'yes'
+
 import django.core.handlers.wsgi
 application = django.core.handlers.wsgi.WSGIHandler()
 

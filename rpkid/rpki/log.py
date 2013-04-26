@@ -39,10 +39,12 @@ import time
 import traceback as tb
 
 try:
-  import setproctitle
-  have_setproctitle = True
-except ImportError:
   have_setproctitle = False
+  if os.getenv("DISABLE_SETPROCTITLE") is None:
+    import setproctitle
+    have_setproctitle = True
+except ImportError:
+  pass
 
 ## @var enable_trace
 # Whether call tracing is enabled.

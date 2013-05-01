@@ -1,0 +1,264 @@
+#!/usr/bin/env python
+
+# $Id$
+#
+# Copyright (C) 2013  Internet Systems Consortium ("ISC")
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+__doc__ = """\
+Generate and (de)install configuration suitable for using Apache httpd
+to drive the RPKI web interface under WSGI.
+"""
+
+import os
+import sys
+import socket
+import argparse
+import subprocess
+import rpki.autoconf
+
+fqdn = socket.getfqdn()
+
+vhost = '''\
+<VirtualHost *:443>
+
+  ServerName          %(fqdn)s
+
+  #
+  # Configure the WSGI application to run as a separate process from
+  # the Apache daemon itself.
+  #
+  %(WSGI_DAEMON_PROCESS)s
+  %(WSGI_PROCESS_GROUP)s
+
+  <Directory %(datarootdir)s/rpki/wsgi>
+    Order deny,allow
+    Allow from all
+  </Directory>
+
+  #
+  # Defines the URL to the portal-gui
+  #
+  WSGIScriptAlias /       %(datarootdir)s/rpki/wsgi/rpki.wsgi
+
+  <Directory %(datarootdir)s/rpki/media>
+    Order deny,allow
+    Allow from all
+  </Directory>
+
+  Alias   /media/         %(datarootdir)s/rpki/media/
+  Alias   /site_media/    %(datarootdir)s/rpki/media/
+
+  <Directory %(RCYNIC_HTML_DIR)s>
+    Order deny,allow
+    Allow from all
+  </Directory>
+
+  # Leave the trailing slash off the URL, otherwise /rcynic is swallowed by the
+  # WSGIScriptAlias
+  Alias   /rcynic         %(RCYNIC_HTML_DIR)s/
+
+  # Redirect to the dashboard when someone hits the bare vhost
+  RedirectMatch   ^/$     /rpki/
+
+  # Enable HTTPS
+  SSLEngine on
+
+  # There's no perfect place to put these, but $sysconfdir/rpki isn't
+  # a terrible place, and we can symlink from there to, eg, the
+  # Debian/Ubuntu SnakeOil certificates if necessary.
+  #
+  SSLCertificateFile     %(sysconfdir)s/rpki/apache.cer
+  SSLCertificateKeyFile  %(sysconfdir)s/rpki/apache.key
+
+  # Take pity on users running Internet Exploder
+  BrowserMatch "MSIE [2-6]"  ssl-unclean-shutdown nokeepalive downgrade-1.0 force-response-1.0
+  BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
+
+</VirtualHost>
+''' % dict(rpki.autoconf.__dict__,
+           fqdn = fqdn)
+
+listeners = '''\
+Listen [::]:443
+Listen 0.0.0.0:443
+NameVirtualHost *:443
+
+'''
+
+debian_snake_oil_cer = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
+debian_snake_oil_key = "/etc/ssl/private/ssl-cert-snakeoil.key"
+
+apache_cer  = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.cer")
+apache_key  = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.key")
+
+apache_conf = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.conf")
+apache_conf_sample = apache_conf + ".sample"
+
+def run(*cmd, **kwargs):
+  if args.verbose:
+    print "Running", " ".join(cmd)
+  subprocess.check_call(cmd, **kwargs)
+
+def add_snake_oil():
+  if os.path.exists(apache_cer) and os.path.exists(apache_key):
+    if args.verbose:
+      print apache_cer, "and", apache_key, "already exist"
+    return
+  req_cmd  = ("openssl", "req", "-new",
+              "-config", "/dev/stdin",
+              "-out", "/dev/stdout",
+              "-keyout", apache_key,
+              "-newkey", "rsa:2048")
+  x509_cmd = ("openssl", "x509", "-req", "-sha256",
+              "-signkey", apache_key,
+              "-in", "/dev/stdin",
+              "-out", apache_cer,
+              "-days", "3650")
+  req  = subprocess.Popen(req_cmd,
+                          stdin = subprocess.PIPE,
+                          stdout = subprocess.PIPE,
+                          stderr = open("/dev/null", "w")
+  )
+  x509 = subprocess.Popen(x509_cmd,
+                          stdin = req.stdout,
+                          stderr = open("/dev/null", "w")
+  )
+  req.stdin.write('''\
+    [req]
+    default_bits            = 2048
+    default_md              = sha256
+    distinguished_name      = req_dn
+    prompt                  = no
+    encrypt_key             = no
+
+    [req_dn]
+    CN                      = %s
+    ''' % socket.getfqdn())
+  req.stdin.close()
+  if req.wait():
+    raise subprocess.CalledProcessError(req.returncode, req_cmd)
+  if x509.wait():
+    raise subprocess.CalledProcessError(x509.returncode, x509_cmd)
+  if args.verbose:
+    print "Created", apache_cer, "and", apache_key, "chmoding", apache_key
+  os.chmod(apache_key, 0600)
+
+def platform_freebsd():
+  with open(apache_conf_sample, "w") as f:
+    if args.verbose:
+      print "Writing", f.name
+    f.write(listeners)
+    f.write(vhost)
+  if not os.path.exists(apache_conf):
+    if args.verbose:
+      print "Linking", apache_conf, "to", apache_conf_sample
+    os.link(apache_conf_sample, apache_conf)
+  #
+  # Apache version numbers here should come from autoconf.
+  # Hard wire to 2.2 for the moment.
+  #
+  fn = "/usr/local/etc/apache22/Includes/rpki.conf"
+  if not os.path.exists(fn):
+    if args.verbose:
+      print "Symlinking", fn, "to", apache_conf
+    os.symlink(apache_conf, fn)
+  if args.verbose:
+    print "Checking HTTPS server certificate"
+  add_snake_oil()
+  if args.verbose:
+    print "Restarting apache"
+  run("service", "apache22", "restart")
+
+def platform_debian():
+  with open(apache_conf_sample, "w") as f:
+    if args.verbose:
+      print "Writing", f.name
+    f.write(vhost)
+  if not os.path.exists(apache_conf):
+    os.link(apache_conf_sample, apache_conf)
+  #
+  # Dunno yet whether this should come from autoconf.
+  #
+  fn = "/etc/apache2/mods-available/rpki"
+  if not os.path.exists(fn):
+    os.symlink(apache_conf, fn)
+
+  if os.path.exists(debian_snake_oil_cer) and os.path.exists(debian_snake_oil_key):
+    if not os.path.exists(apache_cer):
+      os.symlink(debian_snake_oil_cer, apache_cer)
+    if not os.path.exists(apache_key):
+      os.symlink(debian_snake_oil_key, apache_key)
+  else:
+    add_snake_oil()
+  run("a2enmod", "ssl")
+  run("a2ensite", "rpki")
+  run("service", "apache2", "restart")
+
+def platform_redhat():
+  raise NotImplementedError("--redhat not implemented yet")
+
+def platform_darwin():
+  raise NotImplementedError("--darwin not implemented yet")
+
+def platform_guess():
+  if sys.platform.startswith("freebsd"):
+    return platform_freebsd()
+  if sys.platform.startswith("darwin"):
+    return platform_darwin()
+  try:
+    issue = open("/etc/issue", "r").read().split()[0]
+  except:
+    issue = None
+  if issue in ("Debian", "Ubunutu"):
+    return platform_debian()
+  if issue in ("Fedora", "CentOS"):
+    return platform_redhat()
+  raise NotImplementedError("Can't guess what to do on this platform, sorry")
+
+parser = argparse.ArgumentParser(description = __doc__)
+group1 = parser.add_mutually_exclusive_group()
+group2 = parser.add_mutually_exclusive_group()
+
+parser.add_argument("-v", "--verbose", help = "whistle while you work", action = "store_true")
+
+group1.add_argument("--freebsd",
+                    help = "configure for FreeBSD",
+                    action = "store_const", dest = "dispatch", const = platform_freebsd)
+group1.add_argument("--debian", "--ubuntu",
+                    help = "configure for Debian/Ubuntu",
+                    action = "store_const", dest = "dispatch", const = platform_debian)
+group1.add_argument("--redhat", "--fedora", "--centos",
+                    help = "configure for Redhat/Fedora/CentOS",
+                    action = "store_const", dest = "dispatch", const = platform_redhat)
+group1.add_argument("--macosx", "--darwin",
+                    help = "configure for Mac OS X (Darwin)",
+                    action = "store_const", dest = "dispatch", const = platform_darwin)
+group1.add_argument("--guess", help = "guess which platform configuration to use",
+                    action = "store_const", dest = "dispatch", const = platform_guess)
+
+group2.add_argument("--install", help = "perform installation",
+                    action = "store_const", dest = "install", const = True)
+group2.add_argument("--deinstall", help = "perform deinstallation",
+                    action = "store_const", dest = "install", const = False)
+
+parser.set_defaults(dispatch = platform_guess, install = True)
+args = parser.parse_args()
+
+try:
+  if not args.install:
+    raise NotImplementedError("--deinstall not implemented yet")
+  args.dispatch()
+except Exception, e:
+  sys.exit(str(e))

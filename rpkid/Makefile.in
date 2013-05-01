@@ -28,6 +28,10 @@ abs_top_srcdir	= @abs_top_srcdir@
 abs_top_builddir= @abs_top_builddir@
 srcdir          = @srcdir@
 
+WSGI_DAEMON_PROCESS	= @WSGI_DAEMON_PROCESS@
+WSGI_PROCESS_GROUP	= @WSGI_PROCESS_GROUP@
+RCYNIC_HTML_DIR		= @RCYNIC_HTML_DIR@
+
 RPKID_INSTALL_TARGETS	= @RPKID_INSTALL_TARGETS@
 
 SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
@@ -176,6 +180,7 @@ clean::
 rpki/autoconf.py: Makefile
 	@echo 'Generating $@';					\
 	(echo '# Automatically generated.  DO NOT EDIT.';	\
+	 echo ;							\
 	 echo 'bindir         = "${bindir}"';			\
 	 echo 'datarootdir    = "${datarootdir}"';		\
 	 echo 'localstatedir  = "${localstatedir}"';		\
@@ -183,6 +188,10 @@ rpki/autoconf.py: Makefile
 	 echo 'sharedstatedir = "${sharedstatedir}"';		\
 	 echo 'sysconfdir     = "${sysconfdir}"';		\
 	 echo 'libexecdir     = "${libexecdir}"';		\
+	 echo ;							\
+	 echo 'WSGI_DAEMON_PROCESS = "${WSGI_DAEMON_PROCESS}"';	\
+	 echo 'WSGI_PROCESS_GROUP  = "${WSGI_PROCESS_GROUP}"';	\
+	 echo 'RCYNIC_HTML_DIR     = "${RCYNIC_HTML_DIR}"';	\
 	) > $@
 
 clean::
@@ -191,6 +200,7 @@ clean::
 setup_autoconf.py: rpki/autoconf.py
 	@echo 'Generating $@';					\
 	(cat rpki/autoconf.py;					\
+	 echo ;							\
 	 echo 'CFLAGS         = """${CFLAGS}"""';               \
 	 echo 'LDFLAGS        = """${LDFLAGS}"""';              \
 	 echo 'LIBS           = """${LIBS}"""';                 \

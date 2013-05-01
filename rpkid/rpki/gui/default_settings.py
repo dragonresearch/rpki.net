@@ -7,17 +7,18 @@ __version__ = '$Id$'
 import os
 import random
 import string
+import socket
 
 import rpki.config
 import rpki.autoconf
 
-# where to put static files
+# Where to put static files.
 STATIC_ROOT = rpki.autoconf.datarootdir + '/rpki/media'
 
-# must end with a slash!
+# Must end with a slash!
 STATIC_URL = '/media/'
 
-# where to email server errors
+# Where to email server errors.
 ADMINS = (('Administrator', 'root@localhost'),)
 
 LOGGING = {
@@ -50,9 +51,9 @@ LOGGING = {
         },
     },
 }
-# load the sql authentication bits from the system rpki.conf
-rpki_config = rpki.config.parser(section='web_portal')
 
+# Load the SQL authentication bits from the system rpki.conf.
+rpki_config = rpki.config.parser(section='web_portal')
 
 DATABASES = {
     'default': {
@@ -79,7 +80,7 @@ def select_tz():
         if os.path.exists('/usr/share/zoneinfo/' + tz):
             return tz
     # Can't determine the proper timezone, fall back to UTC and let Django
-    # report the error to the user
+    # report the error to the user.
     return 'UTC'
 
 # Local time zone for this installation. Choices can be found here:
@@ -88,7 +89,6 @@ def select_tz():
 # If running in a Windows environment this must be set to the same as your
 # system time zone.
 TIME_ZONE = select_tz()
-
 
 def get_secret_key():
     """Retrieve the secret-key value from rpki.conf or generate a random value
@@ -99,6 +99,15 @@ def get_secret_key():
 
 # Make this unique, and don't share it with anybody.
 SECRET_KEY = get_secret_key()
+
+# See https://docs.djangoproject.com/en/1.5/ref/settings/#allowed-hosts
+# for details on why you might need this.
+def get_allowed_hosts():
+    allowed_hosts = rpki_config.multiget("allowed-hosts")
+    allowed_hosts.append(socket.getfqdn())
+    return allowed_hosts
+
+ALLOWED_HOSTS = get_allowed_hosts()
 
 # List of callables that know how to import templates from various sources.
 TEMPLATE_LOADERS = (
@@ -141,7 +150,10 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.static"
 )
 
-# allow local site to override any setting above
+# Allow local site to override any setting above -- but if there's
+# anything that local sites routinely need to modify, please consider
+# putting that configuration into rpki.conf and just adding code here
+# to read that configuration.
 try:
     from local_settings import *
 except:

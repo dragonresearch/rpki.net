@@ -24,6 +24,19 @@ PRE-INSTALL)
     ;;
 
 POST-INSTALL)
+    if ! test -d /var/rcynic; then
+	echo "Creating /var/rcynic"
+	install -o root -g wheel -d /var/rcynic
+    fi
+    for dir in /var/rcynic/data /var/rcynic/rpki-rtr; do
+	if ! test -d $dir; then
+	    echo "Creating $dir"
+	    install -o rcynic -g rcynic -d /var/rcynic
+	fi
+    done
+    if test ! -f /usr/local/etc/rcynic.conf; then
+	cp -p /usr/local/etc/rcynic.conf.sample /usr/local/etc/rcynic.conf
+    fi
     htmldir=/usr/local/www/apache22/data/rcynic
     if ! test -d $htmldir ; then
         echo "Creating $htmldir"

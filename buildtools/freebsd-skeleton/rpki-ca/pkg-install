@@ -1,0 +1,34 @@
+#!/bin/sh -
+
+case $2 in
+
+PRE-INSTALL)
+    ;;
+
+POST-INSTALL)
+
+    hostname=`hostname`
+    handle=`hostname | sed 's/[.]/_/g'`
+    /usr/local/sbin/rpki-confgen			\
+	--read-xml /usr/local/etc/rpki/rpki-confgen.xml \
+	--autoconf					\
+	--set myrpki::handle="$handle"			\
+	--set myrpki::rpkid_server_host="$hostname"	\
+	--set myrpki::pubd_server_host="$hostname"	\
+	--pwgen myrpki::shared_sql_password		\
+	--pwgen web_portal::secret-key			\
+	--write-conf /usr/local/etc/rpki.conf.sample
+
+    if test ! -f /usr/local/etc/rpki.conf; then
+	cp -p /usr/local/etc/rpki.conf.sample /usr/local/etc/rpki.conf
+    fi
+
+    install -o root -g wheel -d /usr/local/share/rpki/publication
+    ;;
+
+*)
+    echo "No clue what this script is meant to do when invoked with arguments \"$*\".  Punting."
+    exit 1
+    ;;
+
+esac

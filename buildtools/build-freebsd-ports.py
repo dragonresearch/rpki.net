@@ -105,9 +105,7 @@ bin/rcynic-text
 bin/rtr-origin
 bin/scan_roas
 bin/validation_status
-@unexec if cmp -s %D/etc/rcynic.conf.sample %D/etc/rcynic.conf; then rm -f %D/etc/rcynic.conf; fi
 etc/rcynic.conf.sample
-@exec if [ ! -f  %D/etc/rcynic.conf ] ; then cp -p %D/%F %D/etc/rcynic.conf; fi
 ''')
 
   for trust_anchor in sorted(trust_anchors):
@@ -118,10 +116,7 @@ etc/rcynic.conf.sample
 @dirrmtry etc/rpki
 @dirrm www/apache22/data/rcynic
 @cwd /
-@exec install -d -o root   -g wheel  %D/var/rcynic
-@exec install -d -o rcynic -g rcynic %D/var/rcynic/data
 @dirrm var/rcynic/data
-@exec install -d -o rcynic -g rcynic %D/var/rcynic/rpki-rtr
 @dirrm var/rcynic/rpki-rtr/sockets
 @dirrm var/rcynic/rpki-rtr
 @dirrm var/rcynic
@@ -158,23 +153,8 @@ with open(os.path.join(base_ca, "pkg-plist"), "w") as f:
         f.write("@cwd /\n")
       usr_local = False
 
-    if not dirnames and not filenames:
-      f.write("@exec mkdir -p %%D/%s\n" % dn)
-
     for fn in filenames:
-      if dn == "etc" and fn == "rpki.conf.sample":
-        f.write("@unexec if cmp -s %D/etc/rpki.conf.sample %D/etc/rpki.conf; then rm -f %D/etc/rpki.conf; fi\n")
       f.write(os.path.join(dn, fn) + "\n")
-      if dn == "etc" and fn == "rpki.conf.sample":
-        f.write("@exec %D/sbin/rpki-confgen"
-                " --read-xml %D/etc/rpki/rpki-confgen.xml"
-                " --autoconf"
-                " --set myrpki::handle=`/bin/hostname -f | /usr/bin/sed 's/[.]/_/g'`"
-                " --set myrpki::rpkid_server_host=`/bin/hostname -f`"
-                " --set myrpki::pubd_server_host=`/bin/hostname -f`"
-                " --set web_portal::secret-key=`%D/bin/python -c 'import random, string; print \"\".join(random.choice(string.uppercase + string.lowercase + string.digits) for _ in xrange(50))'`"
-                " --write-conf %D/etc/rpki.conf.sample\n")
-        f.write("@exec if [ ! -f %D/etc/rpki.conf ] ; then cp -p %D/etc/rpki.conf.sample %D/etc/rpki.conf; fi\n")
 
     if dn and dn not in dont_remove:
       f.write("@dirrm %s\n" % dn)

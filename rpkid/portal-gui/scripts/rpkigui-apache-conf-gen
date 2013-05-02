@@ -17,6 +17,7 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 import os
+import re
 import sys
 import socket
 import argparse
@@ -96,7 +97,8 @@ class Abstract(object):
 
   def __init__(self, args):
     self.args = args
-    self.log("Platform: %s, action: %s" % (self.__class__.__name__, args.action))
+    self.log("RPKI Apache configuration: platform \"%s\", action \"%s\"" % (
+      self.__class__.__name__, args.action))
     getattr(self, args.action)()
 
   def log(self, msg):
@@ -131,10 +133,12 @@ class Abstract(object):
         ''' % fqdn
 
   def unlink(self, fn, silent = False):
-    if os.path.exists(fn):
+    if os.path.lexists(fn):
       if  not silent:
         self.log("Removing %s" % fn)
       os.unlink(fn)
+    elif  not silent:
+      self.log("Would have removed %s if it existed" % fn)
 
   def del_certs(self, silent = False):
     self.unlink(self.apache_cer, silent)
@@ -157,7 +161,8 @@ class Abstract(object):
       raise subprocess.CalledProcessError(req.returncode,  self.req_cmd)
     if x509.wait():
       raise subprocess.CalledProcessError(x509.returncode, self.x509_cmd)
-    self.log("Created %s and %s, chmoding %s" % (self.apache_cer, self.apache_key, self.apache_key))
+    self.log("Created %s and %s, chmoding %s" % (
+      self.apache_cer, self.apache_key, self.apache_key))
     os.chmod(self.apache_key, 0600)
 
   def install(self):
@@ -167,10 +172,14 @@ class Abstract(object):
         f.write(self.apache_conf_preface)
       f.write(vhost)
     if not os.path.exists(self.apache_conf):
-      self.log("Linking %s to %s" % (self.apache_conf, self.apache_conf_sample))
+      self.unlink(self.apache_conf)
+      self.log("Linking %s to %s" % (
+        self.apache_conf, self.apache_conf_sample))
       os.link(self.apache_conf_sample, self.apache_conf)
     if not os.path.exists(self.apache_conf_target):
-      self.log("Symlinking %s to %s" % (self.apache_conf_target, self.apache_conf))
+      self.unlink(self.apache_conf_target)
+      self.log("Symlinking %s to %s" % (
+        self.apache_conf_target, self.apache_conf))
       os.symlink(self.apache_conf, self.apache_conf_target)
     self.add_certs()
     self.enable()
@@ -215,14 +224,31 @@ class Guess(Abstract):
       return Debian(args)
     if issue in ("Fedora", "CentOS"):
       return Redhat(args)
-    raise NotImplementedError("Can't guess what to do on this platform, sorry")
+    raise NotImplementedError("Can't guess what to do with Apache on this platform, sorry")
 
 class FreeBSD(Abstract):
 
-  # Apache version numbers here should come from autoconf.
-  # Hard wire to 2.2 for the moment.
+  # On FreeBSD we have to ask httpd what version it is before we know
+  # where to put files or what to call the service.  In FreeBSD's makefiles,
+  # this value is called APACHE_VERSION, and is calculated thusly:
+  # 
+  # httpd -V | sed  -ne 's/^Server version: Apache\/\([0-9]\)\.\([0-9]*\).*/\1\2/p'
 
-  apache_conf_target = "/usr/local/etc/apache22/Includes/rpki.conf"
+  _apache_name = None
+
+  @property
+  def apache_name(self):
+    if self._apache_name is None:
+      try:
+        self._apache_name = "apache%s%s" % re.search("^Server version: Apache/(\\d+)\\.(\\d+)",
+                                                     subprocess.check_output(("httpd", "-V"))).groups()
+      except:
+        raise RuntimeError("Couldn't deduce Apache version number")
+    return self._apache_name
+
+  @property
+  def apache_conf_target(self):
+    return "/usr/local/etc/%s/Includes/rpki.conf" % self.apache_name
 
   apache_conf_preface = '''\
         Listen [::]:443
@@ -231,7 +257,7 @@ class FreeBSD(Abstract):
         ''' + "\n"
 
   def restart(self):
-    self.run("service", "apache22", "restart")    
+    self.run("service", self.apache_name, "restart")
 
 class Debian(Abstract):
 
@@ -244,8 +270,10 @@ class Debian(Abstract):
     if not os.path.exists(self.snake_oil_cer) or not os.path.exists(self.snake_oil_key):
       return Abstract.add_certs(self)
     if not os.path.exists(self.apache_cer):
+      self.unlink(self.apache_cer)
       os.symlink(self.snake_oil_cer, self.apache_cer)
     if not os.path.exists(self.apache_key):
+      self.unlink(self.apache_key)
       os.symlink(self.snake_oil_key, self.apache_key)
 
   def enable(self):
@@ -259,12 +287,11 @@ class Debian(Abstract):
     self.run("service", "apache2", "restart")
 
 class NIY(Abstract):
-
   def __init__(self, args):
-    raise NotImplementedError("Platform not implemented yet, sorry")
+    raise NotImplementedError("Platform %s not implemented yet, sorry" % self.__class__.__name__)
 
-Redhat = NIY
-Darwin = NIY
+class Redhat(NIY): pass
+class Darwin(NIY): pass
 
 def main():
   """

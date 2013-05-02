@@ -85,6 +85,7 @@ install-always:: all
 	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/publication
 
 uninstall deinstall::
+	-${libexecdir}/rpkigui-apache-conf-gen --remove --verbose
 	xargs rm -fv <installed
 
 distclean::
@@ -210,7 +211,7 @@ clean::
 	rm -f setup_autoconf.py setup_autoconf.pyc
 
 install-postconf: \
-	install-user install-conf install-apache install-mysql install-bpki install-django install-cron
+	install-user install-conf install-apache install-mysql install-django install-bpki install-cron
 
 # This should create user "rpkid" and group "rpkid", but as we have
 # not yet tested our ability to run in such a configuration, this
@@ -224,25 +225,22 @@ install-conf: ${DESTDIR}${sysconfdir}/rpki.conf
 ${DESTDIR}${sysconfdir}/rpki.conf: ${DESTDIR}${sysconfdir}/rpki.conf.sample
 	cp -p ${DESTDIR}${sysconfdir}/rpki.conf.sample $@
 
-deinstall::
+uninstall deinstall::
 	if cmp -s ${DESTDIR}${sysconfdir}/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample; then rm -f ${DESTDIR}${sysconfdir}/rpki.conf; else true; fi
 	rm -f ${DESTDIR}${sysconfdir}/rpki.conf.sample
 
-# This needs to do whatever is needed to get the web UI configured
-# under Apache on this platform.  Likely to be an awful mess, see
-# Ubuntu rpki-ca.postinst for details.
 install-apache:
-	@true
+	${libexecdir}/rpkigui-apache-conf-gen --install --verbose
 
 install-mysql:
 	${sbindir}/rpki-sql-setup
 
-install-bpki:
-	${sbindir}/rpkic initialize_server_bpki
-
 install-django:
 	${sbindir}/rpki-manage syncdb --noinput
 	${sbindir}/rpki-manage migrate app
+
+install-bpki:
+	${sbindir}/rpkic initialize_server_bpki
 
 # This needs to set up crontab entries for rpkigui-check-expired,
 # rpkigui-import-routes, and rpkic update_bpki.  They probably don't

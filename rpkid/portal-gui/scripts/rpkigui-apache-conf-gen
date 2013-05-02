@@ -16,11 +16,6 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-__doc__ = """\
-Generate and (de)install configuration suitable for using Apache httpd
-to drive the RPKI web interface under WSGI.
-"""
-
 import os
 import sys
 import socket
@@ -90,175 +85,226 @@ vhost = '''\
 ''' % dict(rpki.autoconf.__dict__,
            fqdn = fqdn)
 
-listeners = '''\
-Listen [::]:443
-Listen 0.0.0.0:443
-NameVirtualHost *:443
+class Abstract(object):
 
-'''
+  apache_cer  = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.cer")
+  apache_key  = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.key")
 
-debian_snake_oil_cer = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
-debian_snake_oil_key = "/etc/ssl/private/ssl-cert-snakeoil.key"
+  apache_conf = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.conf")
+  apache_conf_sample = apache_conf + ".sample"  
 
-apache_cer  = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.cer")
-apache_key  = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.key")
+  apache_conf_preface = None
 
-apache_conf = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.conf")
-apache_conf_sample = apache_conf + ".sample"
+  @classmethod
+  def dispatch(cls, args):
+    return cls(args)
 
-def run(*cmd, **kwargs):
-  if args.verbose:
-    print "Running", " ".join(cmd)
-  subprocess.check_call(cmd, **kwargs)
-
-def add_snake_oil():
-  if os.path.exists(apache_cer) and os.path.exists(apache_key):
+  def __init__(self, args):
+    self.args = args
     if args.verbose:
-      print apache_cer, "and", apache_key, "already exist"
-    return
+      print "Platform: %s, action: %s" % (self.__class__.__name__, args.action)
+    getattr(self, args.action)()
+
+  def run(self, *cmd, **kwargs):
+    if self.args.verbose:
+      print "Running", " ".join(cmd)
+    subprocess.check_call(cmd, **kwargs)
+
   req_cmd  = ("openssl", "req", "-new",
               "-config", "/dev/stdin",
               "-out", "/dev/stdout",
               "-keyout", apache_key,
               "-newkey", "rsa:2048")
+
   x509_cmd = ("openssl", "x509", "-req", "-sha256",
               "-signkey", apache_key,
               "-in", "/dev/stdin",
               "-out", apache_cer,
               "-days", "3650")
-  req  = subprocess.Popen(req_cmd,
-                          stdin = subprocess.PIPE,
-                          stdout = subprocess.PIPE,
-                          stderr = open("/dev/null", "w")
-  )
-  x509 = subprocess.Popen(x509_cmd,
-                          stdin = req.stdout,
-                          stderr = open("/dev/null", "w")
-  )
-  req.stdin.write('''\
-    [req]
-    default_bits            = 2048
-    default_md              = sha256
-    distinguished_name      = req_dn
-    prompt                  = no
-    encrypt_key             = no
 
-    [req_dn]
-    CN                      = %s
-    ''' % socket.getfqdn())
-  req.stdin.close()
-  if req.wait():
-    raise subprocess.CalledProcessError(req.returncode, req_cmd)
-  if x509.wait():
-    raise subprocess.CalledProcessError(x509.returncode, x509_cmd)
-  if args.verbose:
-    print "Created", apache_cer, "and", apache_key, "chmoding", apache_key
-  os.chmod(apache_key, 0600)
+  req_conf = '''\
+        [req]
+        default_bits            = 2048
+        default_md              = sha256
+        distinguished_name      = req_dn
+        prompt                  = no
+        encrypt_key             = no
+        [req_dn]
+        CN                      = %s
+        ''' % fqdn
 
-def platform_freebsd():
-  with open(apache_conf_sample, "w") as f:
-    if args.verbose:
-      print "Writing", f.name
-    f.write(listeners)
-    f.write(vhost)
-  if not os.path.exists(apache_conf):
-    if args.verbose:
-      print "Linking", apache_conf, "to", apache_conf_sample
-    os.link(apache_conf_sample, apache_conf)
-  #
+  def unlink(self, fn, silent = False):
+    if os.path.exists(fn):
+      if self.args.verbose and not silent:
+        print "Removing", fn
+      os.unlink(fn)
+
+  def del_certs(self, silent = False):
+    self.unlink(self.apache_cer, silent)
+    self.unlink(self.apache_key, silent)
+
+  def add_certs(self):
+    if os.path.exists(self.apache_cer) and os.path.exists(self.apache_key):
+      return
+    self.del_certs()
+    req  = subprocess.Popen(self.req_cmd,
+                            stdin = subprocess.PIPE,
+                            stdout = subprocess.PIPE,
+                            stderr = open("/dev/null", "w"))
+    x509 = subprocess.Popen(self.x509_cmd,
+                            stdin = req.stdout,
+                            stderr = open("/dev/null", "w"))
+    req.stdin.write(self.req_conf)
+    req.stdin.close()
+    if req.wait():
+      raise subprocess.CalledProcessError(req.returncode,  self.req_cmd)
+    if x509.wait():
+      raise subprocess.CalledProcessError(x509.returncode, self.x509_cmd)
+    if self.args.verbose:
+      print "Created", self.apache_cer, "and", self.apache_key, "chmoding", self.apache_key
+    os.chmod(self.apache_key, 0600)
+
+  def install(self):
+    with open(self.apache_conf_sample, "w") as f:
+      if self.args.verbose:
+        print "Writing", f.name
+      if self.apache_conf_preface is not None:
+        f.write(self.apache_conf_preface)
+      f.write(vhost)
+    if not os.path.exists(self.apache_conf):
+      if self.args.verbose:
+        print "Linking", apache_conf, "to", apache_conf_sample
+      os.link(apache_conf_sample, apache_conf)
+    if not os.path.exists(self.apache_conf_target):
+      if self.args.verbose:
+        print "Symlinking", self.apache_conf_target, "to", self.apache_conf
+      os.symlink(self.apache_conf, self.apache_conf_target)
+    self.add_certs()
+    self.restart_apache()
+
+  def remove(self):
+    try:
+      same = open(self.apache_conf, "r").read() == open(self.apache_conf_sample, "r").read()
+    except:
+      same = False
+    self.unlink(self.apache_conf_sample)
+    if same:
+      self.unlink(self.apache_conf)
+    self.unlink(self.apache_conf_target)
+    self.restart_apache()
+
+  def purge(self):
+    self.remove()
+    self.del_certs()
+
+class Guess(Abstract):
+
+  @classmethod
+  def dispatch(cls, args):
+    if sys.platform.startswith("freebsd"):
+      return FreeBSD(args)
+    if sys.platform.startswith("darwin"):
+      return Darwin(args)
+    try:
+      issue = open("/etc/issue", "r").read().split()[0]
+    except:
+      issue = None
+    if issue in ("Debian", "Ubunutu"):
+      return Debian(args)
+    if issue in ("Fedora", "CentOS"):
+      return Redhat(args)
+    raise NotImplementedError("Can't guess what to do on this platform, sorry")
+
+class FreeBSD(Abstract):
+
   # Apache version numbers here should come from autoconf.
   # Hard wire to 2.2 for the moment.
-  #
-  fn = "/usr/local/etc/apache22/Includes/rpki.conf"
-  if not os.path.exists(fn):
-    if args.verbose:
-      print "Symlinking", fn, "to", apache_conf
-    os.symlink(apache_conf, fn)
-  if args.verbose:
-    print "Checking HTTPS server certificate"
-  add_snake_oil()
-  if args.verbose:
-    print "Restarting apache"
-  run("service", "apache22", "restart")
 
-def platform_debian():
-  with open(apache_conf_sample, "w") as f:
-    if args.verbose:
-      print "Writing", f.name
-    f.write(vhost)
-  if not os.path.exists(apache_conf):
-    os.link(apache_conf_sample, apache_conf)
-  #
-  # Dunno yet whether this should come from autoconf.
-  #
-  fn = "/etc/apache2/mods-available/rpki"
-  if not os.path.exists(fn):
-    os.symlink(apache_conf, fn)
+  apache_conf_target = "/usr/local/etc/apache22/Includes/rpki.conf"
 
-  if os.path.exists(debian_snake_oil_cer) and os.path.exists(debian_snake_oil_key):
-    if not os.path.exists(apache_cer):
-      os.symlink(debian_snake_oil_cer, apache_cer)
-    if not os.path.exists(apache_key):
-      os.symlink(debian_snake_oil_key, apache_key)
-  else:
-    add_snake_oil()
-  run("a2enmod", "ssl")
-  run("a2ensite", "rpki")
-  run("service", "apache2", "restart")
+  apache_conf_preface = '''\
+        Listen [::]:443
+        Listen 0.0.0.0:443
+        NameVirtualHost *:443
+        ''' + "\n"
 
-def platform_redhat():
-  raise NotImplementedError("--redhat not implemented yet")
+  def restart_apache(self):
+    self.run("service", "apache22", "restart")    
 
-def platform_darwin():
-  raise NotImplementedError("--darwin not implemented yet")
+class Debian(Abstract):
 
-def platform_guess():
-  if sys.platform.startswith("freebsd"):
-    return platform_freebsd()
-  if sys.platform.startswith("darwin"):
-    return platform_darwin()
+  apache_conf_target = "/etc/apache2/mods-available/rpki"
+
+  snake_oil_cer = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
+  snake_oil_key = "/etc/ssl/private/ssl-cert-snakeoil.key"
+
+  def add_certs(self):
+    if not os.path.exists(self.snake_oil_cer) or not os.path.exists(self.snake_oil_key):
+      return Abstract.add_certs(self)
+    if not os.path.exists(self.apache_cer):
+      os.symlink(self.snake_oil_cer, self.apache_cer)
+    if not os.path.exists(self.apache_key):
+      os.symlink(self.snake_oil_key, self.apache_key)
+
+  def restart_apache(self):
+    self.run("a2enmod", "ssl")
+    self.run("a2ensite", "rpki")
+    self.run("service", "apache2", "restart")
+
+class NIY(Abstract):
+
+  def __init__(self, args):
+    raise NotImplementedError("Platform not implemented yet, sorry")
+
+Redhat = NIY
+Darwin = NIY
+
+def main():
+  """
+  Generate and (de)install configuration suitable for using Apache httpd
+  to drive the RPKI web interface under WSGI.
+  """
+
+  parser = argparse.ArgumentParser(description = __doc__)
+  group1 = parser.add_mutually_exclusive_group()
+  group2 = parser.add_mutually_exclusive_group()
+
+  parser.add_argument("-v", "--verbose",
+                      help = "whistle while you work", action = "store_true")
+
+  group1.add_argument("--freebsd",
+                      help = "configure for FreeBSD",
+                      action = "store_const", dest = "platform", const = FreeBSD)
+  group1.add_argument("--debian", "--ubuntu",
+                      help = "configure for Debian/Ubuntu",
+                      action = "store_const", dest = "platform", const = Debian)
+  group1.add_argument("--redhat", "--fedora", "--centos",
+                      help = "configure for Redhat/Fedora/CentOS",
+                      action = "store_const", dest = "platform", const = Redhat)
+  group1.add_argument("--macosx", "--darwin",
+                      help = "configure for Mac OS X (Darwin)",
+                      action = "store_const", dest = "platform", const = Darwin)
+  group1.add_argument("--guess",
+                      help = "guess which platform configuration to use",
+                      action = "store_const", dest = "platform", const = Guess)
+
+  group2.add_argument("-i", "--install",
+                      help = "install configuration",
+                      action = "store_const", dest = "action", const = "install")
+  group2.add_argument("-r", "--remove", "--deinstall", "--uninstall",
+                      help = "remove configuration",
+                      action = "store_const", dest = "action", const = "remove")
+  group2.add_argument("-P", "--purge",
+                      help = "remove configuration with extreme prejudice",
+                      action = "store_const", dest = "action", const = "purge")
+
+  parser.set_defaults(platform = Guess, action = "install")
+  args = parser.parse_args()
+
   try:
-    issue = open("/etc/issue", "r").read().split()[0]
-  except:
-    issue = None
-  if issue in ("Debian", "Ubunutu"):
-    return platform_debian()
-  if issue in ("Fedora", "CentOS"):
-    return platform_redhat()
-  raise NotImplementedError("Can't guess what to do on this platform, sorry")
+    args.platform.dispatch(args)
+  except Exception, e:
+    sys.exit(str(e))
 
-parser = argparse.ArgumentParser(description = __doc__)
-group1 = parser.add_mutually_exclusive_group()
-group2 = parser.add_mutually_exclusive_group()
-
-parser.add_argument("-v", "--verbose", help = "whistle while you work", action = "store_true")
-
-group1.add_argument("--freebsd",
-                    help = "configure for FreeBSD",
-                    action = "store_const", dest = "dispatch", const = platform_freebsd)
-group1.add_argument("--debian", "--ubuntu",
-                    help = "configure for Debian/Ubuntu",
-                    action = "store_const", dest = "dispatch", const = platform_debian)
-group1.add_argument("--redhat", "--fedora", "--centos",
-                    help = "configure for Redhat/Fedora/CentOS",
-                    action = "store_const", dest = "dispatch", const = platform_redhat)
-group1.add_argument("--macosx", "--darwin",
-                    help = "configure for Mac OS X (Darwin)",
-                    action = "store_const", dest = "dispatch", const = platform_darwin)
-group1.add_argument("--guess", help = "guess which platform configuration to use",
-                    action = "store_const", dest = "dispatch", const = platform_guess)
-
-group2.add_argument("--install", help = "perform installation",
-                    action = "store_const", dest = "install", const = True)
-group2.add_argument("--deinstall", help = "perform deinstallation",
-                    action = "store_const", dest = "install", const = False)
-
-parser.set_defaults(dispatch = platform_guess, install = True)
-args = parser.parse_args()
-
-try:
-  if not args.install:
-    raise NotImplementedError("--deinstall not implemented yet")
-  args.dispatch()
-except Exception, e:
-  sys.exit(str(e))
+if __name__ == "__main__":
+  main()

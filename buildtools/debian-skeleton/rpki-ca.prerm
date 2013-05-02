@@ -44,7 +44,12 @@ case "$1" in
 	rm -f /etc/cron.daily/rpkigui-check-expired
 	rm -f /etc/cron.d/rpki-update-bpki
 
-	# Clean up what we did to Apache.
+	# Clean up what we did to Apache.  Modern version of this is
+	# just invocation of a Python script, but for now we also
+	# retain code needed to clean up nasty mess we created in the
+	# past, to avoid breaking old installations on upgrade.
+
+	# Remove the old stuff first.
 
 	f=/etc/apache2/sites-available/default-ssl
 	awk < $f > ${f}.tmp '
@@ -67,6 +72,10 @@ case "$1" in
 	# At this point we've cleaned up our Apache config mess.
 	# Not sure whether we should do "service apache2 reload"
 	# here, one could make a case either way.  Skip for now.
+
+	# Now remove the new stuff.
+
+	/usr/lib/rpki/rpkigui-apache-conf-gen --debian --remove --verbose
 
 	;;
 

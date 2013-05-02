@@ -69,11 +69,6 @@ vhost = '''\
 
   # Enable HTTPS
   SSLEngine on
-
-  # There's no perfect place to put these, but $sysconfdir/rpki isn't
-  # a terrible place, and we can symlink from there to, eg, the
-  # Debian/Ubuntu SnakeOil certificates if necessary.
-  #
   SSLCertificateFile     %(sysconfdir)s/rpki/apache.cer
   SSLCertificateKeyFile  %(sysconfdir)s/rpki/apache.key
 
@@ -101,13 +96,15 @@ class Abstract(object):
 
   def __init__(self, args):
     self.args = args
-    if args.verbose:
-      print "Platform: %s, action: %s" % (self.__class__.__name__, args.action)
+    self.log("Platform: %s, action: %s" % (self.__class__.__name__, args.action))
     getattr(self, args.action)()
 
-  def run(self, *cmd, **kwargs):
+  def log(self, msg):
     if self.args.verbose:
-      print "Running", " ".join(cmd)
+      print msg
+
+  def run(self, *cmd, **kwargs):
+    self.log("Running %s" % " ".join(cmd))
     subprocess.check_call(cmd, **kwargs)
 
   req_cmd  = ("openssl", "req", "-new",
@@ -135,8 +132,8 @@ class Abstract(object):
 
   def unlink(self, fn, silent = False):
     if os.path.exists(fn):
-      if self.args.verbose and not silent:
-        print "Removing", fn
+      if  not silent:
+        self.log("Removing %s" % fn)
       os.unlink(fn)
 
   def del_certs(self, silent = False):
@@ -160,27 +157,30 @@ class Abstract(object):
       raise subprocess.CalledProcessError(req.returncode,  self.req_cmd)
     if x509.wait():
       raise subprocess.CalledProcessError(x509.returncode, self.x509_cmd)
-    if self.args.verbose:
-      print "Created", self.apache_cer, "and", self.apache_key, "chmoding", self.apache_key
+    self.log("Created %s and %s, chmoding %s" % (self.apache_cer, self.apache_key, self.apache_key))
     os.chmod(self.apache_key, 0600)
 
   def install(self):
     with open(self.apache_conf_sample, "w") as f:
-      if self.args.verbose:
-        print "Writing", f.name
+      self.log("Writing %s" % f.name)
       if self.apache_conf_preface is not None:
         f.write(self.apache_conf_preface)
       f.write(vhost)
     if not os.path.exists(self.apache_conf):
-      if self.args.verbose:
-        print "Linking", apache_conf, "to", apache_conf_sample
-      os.link(apache_conf_sample, apache_conf)
+      self.log("Linking %s to %s" % (self.apache_conf, self.apache_conf_sample))
+      os.link(self.apache_conf_sample, self.apache_conf)
     if not os.path.exists(self.apache_conf_target):
-      if self.args.verbose:
-        print "Symlinking", self.apache_conf_target, "to", self.apache_conf
+      self.log("Symlinking %s to %s" % (self.apache_conf_target, self.apache_conf))
       os.symlink(self.apache_conf, self.apache_conf_target)
     self.add_certs()
-    self.restart_apache()
+    self.enable()
+    self.restart()
+
+  def enable(self):
+    pass
+
+  def disable(self):
+    pass
 
   def remove(self):
     try:
@@ -191,10 +191,12 @@ class Abstract(object):
     if same:
       self.unlink(self.apache_conf)
     self.unlink(self.apache_conf_target)
-    self.restart_apache()
+    self.disable()
+    self.restart()
 
   def purge(self):
     self.remove()
+    self.unlink(self.apache_conf)
     self.del_certs()
 
 class Guess(Abstract):
@@ -228,12 +230,12 @@ class FreeBSD(Abstract):
         NameVirtualHost *:443
         ''' + "\n"
 
-  def restart_apache(self):
+  def restart(self):
     self.run("service", "apache22", "restart")    
 
 class Debian(Abstract):
 
-  apache_conf_target = "/etc/apache2/mods-available/rpki"
+  apache_conf_target = "/etc/apache2/sites-available/rpki"
 
   snake_oil_cer = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
   snake_oil_key = "/etc/ssl/private/ssl-cert-snakeoil.key"
@@ -246,9 +248,14 @@ class Debian(Abstract):
     if not os.path.exists(self.apache_key):
       os.symlink(self.snake_oil_key, self.apache_key)
 
-  def restart_apache(self):
+  def enable(self):
     self.run("a2enmod", "ssl")
     self.run("a2ensite", "rpki")
+
+  def disable(self):
+    self.run("a2dissite", "rpki")
+
+  def restart(self):
     self.run("service", "apache2", "restart")
 
 class NIY(Abstract):

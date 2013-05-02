@@ -23,6 +23,7 @@ try:
 
 except ImportError:
   class autoconf:
+    "Fake autoconf object to let --help work without autoconf."
     sbindir = libexecdir = datarootdir = sysconfdir = CFLAGS = LDFLAGS = LIBS = ""
 
 # pylint: disable=W0622
@@ -46,12 +47,14 @@ setup(name              = "rpkitoolkit",
                                      extra_compile_args =  autoconf.CFLAGS.split(),
                                      extra_link_args    = (autoconf.LDFLAGS + " " +
                                                            autoconf.LIBS).split())],
-      package_data      = {"rpki.gui.app"       : ["migrations/*.py",
-                                                   "static/*/*",
-                                                   "templates/*.html",
-                                                   "templates/*/*.html",
-                                                   "templatetags/*.py"],
-                           "rpki.gui.cacheview" : ["templates/*/*.html"]},
+      package_data      = {"rpki.gui.app" :
+                             ["migrations/*.py",
+                              "static/*/*",
+                              "templates/*.html",
+                              "templates/*/*.html",
+                              "templatetags/*.py"],
+                           "rpki.gui.cacheview" :
+                             ["templates/*/*.html"]},
       scripts           = [(autoconf.sbindir,
                             ["rpkic",
                              "rpki-confgen",
@@ -67,10 +70,10 @@ setup(name              = "rpkitoolkit",
                              "rpkid",
                              "portal-gui/scripts/rpkigui-import-routes",
                              "portal-gui/scripts/rpkigui-check-expired",
-                             "portal-gui/scripts/rpkigui-rcynic"])],
+                             "portal-gui/scripts/rpkigui-rcynic",
+                             "portal-gui/scripts/rpkigui-apache-conf-gen"])],
       data_files        = [(autoconf.sysconfdir  + "/rpki",
-                            ["portal-gui/apache.conf",
-                             "rpki-confgen.xml"]),
+                            ["rpki-confgen.xml"]),
                            (autoconf.datarootdir + "/rpki/wsgi",
                             ["portal-gui/rpki.wsgi"]),
                            (autoconf.datarootdir + "/rpki/media/css",

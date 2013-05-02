@@ -22,26 +22,14 @@ RCYNIC_HTML_DIR=@RCYNIC_HTML_DIR@
 
 INSTDIR=${DESTDIR}$(datarootdir)/rpki
 
-# automatically built sources
-BUILD=apache.conf
-
-all: $(BUILD)
+all:
+	@true
 
 clean:
 	@true
 
 distclean: clean
-	rm -f $(BUILD)
 	rm -f Makefile
-
-edit = sed \
-	     -e 's|@INSTDIR[@]|$(INSTDIR)|g' \
-	     -e 's|@WSGI_DAEMON_PROCESS[@]|$(WSGI_DAEMON_PROCESS)|' \
-	     -e 's|@WSGI_PROCESS_GROUP[@]|$(WSGI_PROCESS_GROUP)|' \
-	     -e 's|@RCYNIC_HTML_DIR[@]|$(RCYNIC_HTML_DIR)|'
-
-apache.conf: $(srcdir)/apache.conf.in Makefile
-	$(edit) $@.in > $@
 
 install: all
 

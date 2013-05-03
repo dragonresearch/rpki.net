@@ -1,7 +1,7 @@
 #!/bin/sh -
 # $Id$
 
-# Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009-2013  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -28,11 +28,14 @@ screen -X focus
 
 for yaml in smoketest.*.yaml
 do
+  settitle "$yaml: Starting"
   rm -rf test rcynic-data
   python sql-cleaner.py 
-  screen python yamltest.py -p yamltest.pid $yaml
   now=$(date +%s)
   finish=$(($now + $runtime))
+  title="$yaml: will finish at $(date -r $finish)"
+  settitle "$title"
+  screen sh -c "settitle '$title'; exec python yamltest.py -p yamltest.pid $yaml"
   date
   sleep 180
   date
@@ -44,6 +47,7 @@ do
     ../../rcynic/rcynic-text rcynic.xml
     ../../utils/scan_roas/scan_roas rcynic-data/authenticated
     date
+    echo "$title"
   done
   if test -r yamltest.pid
   then

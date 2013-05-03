@@ -3,18 +3,22 @@
 case $2 in
 
 PRE-INSTALL)
-    if /usr/sbin/pw groupshow "rcynic" 2>/dev/null; then
+    if /usr/sbin/pw groupshow "rcynic" 2>/dev/null
+    then
         echo "You already have a group \"rcynic\", so I will use it."
-    elif /usr/sbin/pw groupadd rcynic; then
+    elif /usr/sbin/pw groupadd rcynic
+    then
         echo "Added group \"rcynic\"."
     else
         echo "Adding group \"rcynic\" failed..."
         echo "Please create it, then try again."
         exit 1
     fi
-    if /usr/sbin/pw usershow "rcynic" 2>/dev/null; then
+    if /usr/sbin/pw usershow "rcynic" 2>/dev/null
+    then
         echo "You already have a user \"rcynic\", so I will use it."
-    elif /usr/sbin/pw useradd rcynic -g rcynic -h - -d /nonexistant -s /usr/sbin/nologin -c "RPKI validation system"; then
+    elif /usr/sbin/pw useradd rcynic -g rcynic -h - -d /nonexistant -s /usr/sbin/nologin -c "RPKI validation system"
+    then
         echo "Added user \"rcynic\"."
     else
         echo "Adding user \"rcynic\" failed..."
@@ -24,26 +28,32 @@ PRE-INSTALL)
     ;;
 
 POST-INSTALL)
-    if ! test -d /var/rcynic; then
+    if ! test -d /var/rcynic
+    then
 	echo "Creating /var/rcynic"
 	install -o root -g wheel -d /var/rcynic
     fi
-    for dir in /var/rcynic/data /var/rcynic/rpki-rtr; do
-	if ! test -d $dir; then
+    for dir in /var/rcynic/data /var/rcynic/rpki-rtr
+    do
+	if ! test -d $dir
+	then
 	    echo "Creating $dir"
 	    install -o rcynic -g rcynic -d /var/rcynic
 	fi
     done
-    if test ! -f /usr/local/etc/rcynic.conf; then
+    if test ! -f /usr/local/etc/rcynic.conf
+    then
 	cp -p /usr/local/etc/rcynic.conf.sample /usr/local/etc/rcynic.conf
     fi
     htmldir=/usr/local/www/apache22/data/rcynic
-    if ! test -d $htmldir ; then
+    if ! test -d $htmldir
+    then
         echo "Creating $htmldir"
         install -o rcynic -g rcynic -d $htmldir
     fi
     sockdir=/var/rcynic/rpki-rtr/sockets
-    if ! test -d $sockdir ; then
+    if ! test -d $sockdir
+    then
         echo "Creating $sockdir"
         install -o nobody -g rcynic -d $sockdir
     fi
@@ -57,25 +67,31 @@ POST-INSTALL)
 	/usr/bin/crontab -u rcynic -
     fi
     echo "Setting up rpki-rtr listener under inetd"
-    if /usr/bin/egrep -q '^rpki-rtr' /etc/services ; then
+    if /usr/bin/egrep -q '^rpki-rtr' /etc/services
+    then
         echo "You already have a /etc/services entry for rpki-rtr, so I will use it."
-    elif echo >>/etc/services "rpki-rtr	43779/tcp  #RFC 6810" ; then
+    elif echo >>/etc/services "rpki-rtr	43779/tcp  #RFC 6810"
+    then
         echo "Added rpki-rtr to /etc/services."
     else
         echo "Adding rpki-rtr to /etc/services failed, please fix this, then try again."
         exit 1
     fi
-    if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp[ 	]" /etc/inetd.conf; then
+    if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp[ 	]" /etc/inetd.conf
+    then
         echo "You already have an inetd.conf entry for rpki-rtr on TCPv4, so I will use it."
-    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"; then
+    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"
+    then
         echo "Added rpki-rtr for TCPv4 to /etc/inetd.conf."
     else
         echo "Adding rpki-rtr for TCPv4 to /etc/inetd.conf failed, please fix this, then try again."
         exit 1
     fi
-    if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp6[ 	]" /etc/inetd.conf; then
+    if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp6[ 	]" /etc/inetd.conf
+    then
         echo "You already have an inetd.conf entry for rpki-rtr on TCPv6, so I will use it."
-    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp6	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"; then
+    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp6	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"
+    then
         echo "Added rpki-rtr for TCPv6 to /etc/inetd.conf."
     else
         echo "Adding rpki-rtr for TCPv6 to /etc/inetd.conf failed, please fix this, then try again."

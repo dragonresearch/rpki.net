@@ -3,9 +3,12 @@
 case $2 in
 
 DEINSTALL)
-    if cmp -s /usr/local/etc/rcynic.conf.sample /usr/local/etc/rcynic.conf; then
+
+    if cmp -s /usr/local/etc/rcynic.conf.sample /usr/local/etc/rcynic.conf
+    then
 	rm -f /usr/local/etc/rcynic.conf
     fi
+
     echo "Whacking rcynic's crontab"
     /usr/bin/crontab -l -u rcynic 2>/dev/null |
     /usr/bin/awk '
@@ -19,6 +22,7 @@ DEINSTALL)
 	    else
 		system("/usr/bin/crontab -u rcynic -r");
 	}'
+
     ;;
 
 POST-DEINSTALL)

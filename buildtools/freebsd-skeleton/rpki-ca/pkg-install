@@ -7,6 +7,8 @@ PRE-INSTALL)
 
 POST-INSTALL)
 
+    /usr/local/libexec/rpkigui-apache-conf-gen --freebsd --install --verbose
+
     hostname=`hostname`
     handle=`hostname | sed 's/[.]/_/g'`
     /usr/local/sbin/rpki-confgen			\
@@ -19,11 +21,21 @@ POST-INSTALL)
 	--pwgen web_portal::secret-key			\
 	--write-conf /usr/local/etc/rpki.conf.sample
 
-    if test ! -f /usr/local/etc/rpki.conf; then
+    if test ! -f /usr/local/etc/rpki.conf
+    then
 	cp -p /usr/local/etc/rpki.conf.sample /usr/local/etc/rpki.conf
     fi
 
     install -o root -g wheel -d /usr/local/share/rpki/publication
+
+    rpki-sql-setup
+    rpki-manage syncdb --noinput
+    rpki-manage migrate app
+
+    rpkic initialize_server_bpki
+
+    # We should be setting up a crontab here, but debug the rest of this first.
+
     ;;
 
 *)

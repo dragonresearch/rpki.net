@@ -6,6 +6,7 @@ DISTFILES=	rpki-%(SVNBRANCH)s-r%(SVNVERSION)s.tar.xz
 WRKSRC=         ${WRKDIR}/rpki-%(SVNBRANCH)s-r%(SVNVERSION)s
 MAINTAINER=	sra@hactrn.net
 COMMENT=	rpki.net RPKI relying party tools
+WWW=		http://rpki.net/
 
 GNU_CONFIGURE=  yes
 USE_PYTHON=	2.7+
@@ -41,10 +42,19 @@ CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
 pre-install:
 	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} PRE-INSTALL
-	@if [ -f ${PREFIX}/etc/rcynic.conf ]; then 		${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.real ; 	fi
+	@if test -f ${PREFIX}/etc/rcynic.conf; \
+	 then \
+	    ${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.real; \
+	 fi
 
 post-install:
 	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} POST-INSTALL
-	@if [ -f ${PREFIX}/etc/rcynic.conf.real ]; then 		${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample ; 		${MV} -f ${PREFIX}/etc/rcynic.conf.real ${PREFIX}/etc/rcynic.conf ; 	else 		${CP} -p ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample ; 	fi
+	@if test -f ${PREFIX}/etc/rcynic.conf.real; \
+	 then \
+	    ${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample; \
+	    ${MV} -f ${PREFIX}/etc/rcynic.conf.real ${PREFIX}/etc/rcynic.conf; \
+	 else \
+	    ${CP} -p ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample; \
+	 fi
 
 .include <bsd.port.mk>

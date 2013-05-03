@@ -6,6 +6,7 @@ DISTFILES=	rpki-%(SVNBRANCH)s-r%(SVNVERSION)s.tar.xz
 WRKSRC=         ${WRKDIR}/rpki-%(SVNBRANCH)s-r%(SVNVERSION)s
 MAINTAINER=	sra@hactrn.net
 COMMENT=	rpki.net RPKI CA tools
+WWW=		http://rpki.net/
 
 GNU_CONFIGURE=  yes
 USE_PYTHON=	2.7+
@@ -40,5 +41,11 @@ RUN_DEPENDS+=	${APACHE_PKGNAMEPREFIX}mod_wsgi>3:${PORTSDIR}/www/mod_wsgi3
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
 CONFIGURE_ARGS= --disable-target-installation --disable-rp-tools
+
+pre-install:
+	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} PRE-INSTALL
+
+post-install:
+	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} POST-INSTALL
 
 .include <bsd.port.mk>

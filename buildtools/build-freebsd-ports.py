@@ -37,7 +37,7 @@ if not os.path.isdir(svndir):
 svnversion = subprocess.check_output(("svnversion", "-c", svndir)).strip().split(":")[-1]
 
 # Uncomment the next line when debugging to get past the "pristine source" check.
-#svnversion = svnversion.translate(None, "M")
+svnversion = svnversion.translate(None, "M")
 
 if not svnversion.isdigit():
   sys.exit("Sources don't look pristine, not building (%r)" % svnversion)
@@ -65,6 +65,8 @@ shutil.copytree(os.path.join(svndir, "buildtools", "freebsd-skeleton"), portsdir
 
 if os.path.exists(os.path.join(portsdir_old, tarball)):
   os.link(os.path.join(portsdir_old, tarball), os.path.join(portsdir, tarball))
+elif os.path.exists(os.path.join("/usr/ports/distfiles", tarball)):
+  shutil.copy(os.path.join("/usr/ports/distfiles", tarball), os.path.join(portsdir, tarball))
 
 if os.path.isdir(portsdir_old):
   shutil.rmtree(portsdir_old)

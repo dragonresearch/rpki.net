@@ -3,12 +3,54 @@
 case $2 in
 
 DEINSTALL)
-    if cmp -s /usr/local/etc/rpki.conf.sample /usr/local/etc/rpki.conf; then
+
+    # Clean up BPKI files.  These are all stored in SQL anyway, no great loss.
+
+    rm -f /usr/local/share/rpki/ca.cer
+    rm -f /usr/local/share/rpki/irbe.cer
+    rm -f /usr/local/share/rpki/irdbd.cer
+    rm -f /usr/local/share/rpki/pubd.cer
+    rm -f /usr/local/share/rpki/pubd.key
+    rm -f /usr/local/share/rpki/rpkid.cer
+    rm -f /usr/local/share/rpki/rpkid.key
+
+    # If we were automatically dropping SQL databases, this would be
+    # where we'd want to record what databases to drop.
+
+    # If we had cron jobs installed, this is where we'd get rid of
+    # them (or maybe before whacking the BPKI files).
+
+    # Clean up what we did to Apache.
+
+    /usr/local/libexec/rpkigui-apache-conf-gen --freebsd --remove --verbose
+
+    # Clean up configuration file
+
+    if cmp -s /usr/local/etc/rpki.conf.sample /usr/local/etc/rpki.conf
+    then
 	rm -f /usr/local/etc/rpki.conf
     fi
+    rm -f /usr/local/etc/rpki.conf.sample
+
     ;;
 
 POST-DEINSTALL)
+
+    # FreeBSD has no equivalent to Debian "purge" operation, so
+    # there are some things we're deliberately leaving undone here:
+    #
+    # - We're not dropping SQL tables
+    #
+    # - We're not deleting rpki.conf if it was modified
+    #
+    # - We're not deleting apache.{cer,key}
+    #
+    # Not really sure what to do about these.  To the extent that
+    # I understand the theory on FreeBSD (which seems to be less
+    # carefully worked out than on Debian, even though i've been
+    # using FreeBSD longer), we're just supposed to leave these
+    # for the user to clean up.
+
     ;;
 
 *)

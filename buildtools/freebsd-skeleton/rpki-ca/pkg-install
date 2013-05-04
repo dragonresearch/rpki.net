@@ -54,7 +54,7 @@ POST-INSTALL)
 	END {
 	    for (i in cmd)
 	        if (!found[i])
-		    print cmd[i] "\texec" i;
+		    print cmd[i] "\texec " i;
 	}' |
     /usr/bin/crontab -u root -
 

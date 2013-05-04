@@ -41,9 +41,9 @@ POST-INSTALL)
     /usr/bin/crontab -l -u root 2>/dev/null |
     /usr/bin/awk -v t=`/usr/bin/hexdump -n 2 -e '"%u\n"' /dev/random` '
         BEGIN {
-	    cmd["exec /usr/local/libexec/rpkigui-import-routes"] = sprintf("%2u */2 * * *", t % 60);
-	    cmd["exec /usr/local/libexec/rpkigui-check-expired"] =          "@daily      ";
-	    cmd["exec /usr/local/sbin/rpkic update_bpki"       ] =          "30 3 * * *  ";
+	    cmd["/usr/local/libexec/rpkigui-import-routes"] = sprintf("%2u */2 * * *", t % 60);
+	    cmd["/usr/local/libexec/rpkigui-check-expired"] =          "@daily      ";
+	    cmd["/usr/local/sbin/rpkic update_bpki"       ] =          "30 3 * * *  ";
 	}
 	{
 	    print;
@@ -54,7 +54,7 @@ POST-INSTALL)
 	END {
 	    for (i in cmd)
 	        if (!found[i])
-		    print cmd[i] "\t" i;
+		    print cmd[i] "\texec" i;
 	}' |
     /usr/bin/crontab -u root -
 

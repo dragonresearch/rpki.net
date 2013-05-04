@@ -4,33 +4,46 @@ case $2 in
 
 DEINSTALL)
 
+    /usr/bin/crontab -l -u root 2>/dev/null |
+    /usr/bin/awk '
+        BEGIN {
+	    empty = 1;
+	}
+	$0 !~ "/usr/local/libexec/rpkigui-import-routes" &&
+	$0 !~ "/usr/local/libexec/rpkigui-check-expired" &&
+	$0 !~ "/usr/local/sbin/rpkic update_bpki" {
+	    empty = 0;
+	    print | "/usr/bin/crontab -u root -";
+	}
+	END {
+	    if (empty)
+		system("/usr/bin/crontab -u root -r");
+	}'
+
     # Clean up BPKI files.  These are all stored in SQL anyway, no great loss.
 
-    rm -f /usr/local/share/rpki/ca.cer
-    rm -f /usr/local/share/rpki/irbe.cer
-    rm -f /usr/local/share/rpki/irdbd.cer
-    rm -f /usr/local/share/rpki/pubd.cer
-    rm -f /usr/local/share/rpki/pubd.key
-    rm -f /usr/local/share/rpki/rpkid.cer
-    rm -f /usr/local/share/rpki/rpkid.key
+    /bin/rm -f /usr/local/share/rpki/ca.cer
+    /bin/rm -f /usr/local/share/rpki/irbe.cer
+    /bin/rm -f /usr/local/share/rpki/irdbd.cer
+    /bin/rm -f /usr/local/share/rpki/pubd.cer
+    /bin/rm -f /usr/local/share/rpki/pubd.key
+    /bin/rm -f /usr/local/share/rpki/rpkid.cer
+    /bin/rm -f /usr/local/share/rpki/rpkid.key
 
     # If we were automatically dropping SQL databases, this would be
     # where we'd want to record what databases to drop.
-
-    # If we had cron jobs installed, this is where we'd get rid of
-    # them (or maybe before whacking the BPKI files).
 
     # Clean up what we did to Apache.
 
     /usr/local/libexec/rpkigui-apache-conf-gen --freebsd --remove --verbose
 
-    # Clean up configuration file
+    # Clean up configuration file.
 
-    if cmp -s /usr/local/etc/rpki.conf.sample /usr/local/etc/rpki.conf
+    if /usr/bin/cmp -s /usr/local/etc/rpki.conf.sample /usr/local/etc/rpki.conf
     then
-	rm -f /usr/local/etc/rpki.conf
+	/bin/rm -f /usr/local/etc/rpki.conf
     fi
-    rm -f /usr/local/etc/rpki.conf.sample
+    /bin/rm -f /usr/local/etc/rpki.conf.sample
 
     ;;
 

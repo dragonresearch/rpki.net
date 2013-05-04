@@ -9,8 +9,8 @@ POST-INSTALL)
 
     /usr/local/libexec/rpkigui-apache-conf-gen --freebsd --install --verbose
 
-    hostname=`hostname`
-    handle=`hostname | sed 's/[.]/_/g'`
+    hostname=`/bin/hostname`
+    handle=`/bin/hostname | /usr/bin/sed 's/[.]/_/g'`
     /usr/local/sbin/rpki-confgen			\
 	--read-xml /usr/local/etc/rpki/rpki-confgen.xml \
 	--autoconf					\
@@ -23,18 +23,40 @@ POST-INSTALL)
 
     if test ! -f /usr/local/etc/rpki.conf
     then
-	cp -p /usr/local/etc/rpki.conf.sample /usr/local/etc/rpki.conf
+	/bin/cp -p /usr/local/etc/rpki.conf.sample /usr/local/etc/rpki.conf
     fi
 
-    install -o root -g wheel -d /usr/local/share/rpki/publication
+    /usr/bin/install -o root -g wheel -d /usr/local/share/rpki/publication
 
-    rpki-sql-setup
-    rpki-manage syncdb --noinput
-    rpki-manage migrate app
+    /usr/local/sbin/rpki-sql-setup
+    /usr/local/sbin/rpki-manage syncdb --noinput
+    /usr/local/sbin/rpki-manage migrate app
 
-    rpkic initialize_server_bpki
+    /usr/local/sbin/rpkic initialize_server_bpki
 
-    # We should be setting up a crontab here, but debug the rest of this first.
+    # We should be setting up crontab to run as user rpkid, but we
+    # don't have any of the rest of the code running as user rpkid yet
+    # either, so run this as root too for now.
+
+    /usr/bin/crontab -l -u root 2>/dev/null |
+    /usr/bin/awk -v t=`/usr/bin/hexdump -n 2 -e '"%u\n"' /dev/random` '
+        BEGIN {
+	    cmd["/usr/local/libexec/rpkigui-import-routes"] = sprintf("%2u */2 * * *", t % 60);
+	    cmd["/usr/local/libexec/rpkigui-check-expired"] =          "@daily      ";
+	    cmd["/usr/local/sbin/rpkic update_bpki"       ] =          "30 3 * * *  ";
+	}
+	{
+	    print;
+	    for (i in cmd)
+	        if ($0 ~ i)
+		    found[i] = $0;
+	}
+	END {
+	    for (i in cmd)
+	        if (!found[i])
+		    print cmd[i] "\t" i;
+	}' |
+    /usr/bin/crontab -u root -
 
     ;;
 

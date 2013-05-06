@@ -249,3 +249,50 @@ install-bpki:
 # entertaining.  Might be ok to run them all as user rpkid eventually.
 install-cron:
 	@true
+
+# Code for setting up and tearing down cron jobs using the crontab(1)
+# program.  We don't use this on all platforms, but we do use it on
+# more than one, so it's broken out here as common code.
+#
+# CRONTAB_USER really should be rpkid, but we don't have the rest of
+# the package set up for that yet, so run it as root for now.
+
+CRONTAB_USER = root
+
+install-cron-using-crontab:
+	@crontab -l -u ${CRONTAB_USER} 2>/dev/null |						\
+	 awk -v t=`hexdump -n 2 -e '"%u\n"' /dev/urandom` '					\
+	     BEGIN {										\
+		 cmd["${libexecdir}/rpkigui-import-routes"] = sprintf("%2u */2 * * *", t % 60);	\
+		 cmd["${libexecdir}/rpkigui-check-expired"] =          "@daily      ";		\
+		 cmd["${sbindir}/rpkic update_bpki"       ] =          "30 3 * * *  ";		\
+	     }											\
+	     {											\
+		 print;										\
+		 for (i in cmd)									\
+		     if ($$0 ~ i)								\
+			 found[i] = $$0;							\
+	     }											\
+	     END {										\
+		 for (i in cmd)									\
+		     if (!found[i])								\
+			 print cmd[i] "\texec " i;						\
+	     }' |										\
+	 crontab -u ${CRONTAB_USER} -
+
+uninstall-cron-using-crontab:
+	@crontab -l -u ${CRONTAB_USER} 2>/dev/null |			\
+	 awk '								\
+	     BEGIN {							\
+		empty = 1;						\
+	     }								\
+	     $$0 !~ "${libexecdir}/rpkigui-import-routes" &&		\
+	     $$0 !~ "${libexecdir}/rpkigui-check-expired" &&		\
+	     $$0 !~ "${sbindir}/rpkic update_bpki" {			\
+		empty = 0;						\
+		print | "/usr/bin/crontab -u ${CRONTAB_USER} -";	\
+	     }								\
+	     END {							\
+		if (empty)						\
+		    system("/usr/bin/crontab -u ${CRONTAB_USER} -r");	\
+	     }'

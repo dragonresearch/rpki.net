@@ -81,6 +81,24 @@ vhost = '''\
 ''' % dict(rpki.autoconf.__dict__,
            fqdn = fqdn)
 
+class Guess(object):
+
+  @classmethod
+  def dispatch(cls, args):
+    if sys.platform.startswith("freebsd"):
+      return FreeBSD(args)
+    if sys.platform.startswith("darwin"):
+      return Darwin(args)
+    try:
+      issue = open("/etc/issue", "r").read().split()[0]
+    except:
+      issue = None
+    if issue in ("Debian", "Ubunutu"):
+      return Debian(args)
+    if issue in ("Fedora", "CentOS"):
+      return Redhat(args)
+    raise NotImplementedError("Can't guess what to do with Apache on this platform, sorry")
+
 class Abstract(object):
 
   apache_cer  = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.cer")
@@ -207,24 +225,6 @@ class Abstract(object):
     self.remove()
     self.unlink(self.apache_conf)
     self.del_certs()
-
-class Guess(Abstract):
-
-  @classmethod
-  def dispatch(cls, args):
-    if sys.platform.startswith("freebsd"):
-      return FreeBSD(args)
-    if sys.platform.startswith("darwin"):
-      return Darwin(args)
-    try:
-      issue = open("/etc/issue", "r").read().split()[0]
-    except:
-      issue = None
-    if issue in ("Debian", "Ubunutu"):
-      return Debian(args)
-    if issue in ("Fedora", "CentOS"):
-      return Redhat(args)
-    raise NotImplementedError("Can't guess what to do with Apache on this platform, sorry")
 
 class FreeBSD(Abstract):
 

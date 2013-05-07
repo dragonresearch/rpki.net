@@ -427,6 +427,7 @@ have_pyyaml=no
 have_vobject=no
 have_django_south=no
 have_acceptable_django_south=no
+have_argparse=no
 
 if test "x$PYTHON" != "x"
 then
@@ -497,6 +498,13 @@ then
 		have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [[0, 7, 5]] else 'yes'"`
 		AC_MSG_RESULT([$have_acceptable_django_south])
 	fi
+
+	AC_MSG_CHECKING([for argparse])
+	if $PYTHON -c 'import argparse' 2>/dev/null
+	then
+		have_argparse=yes
+	fi
+	AC_MSG_RESULT([$have_argparse])
 fi
 
 ok=yes
@@ -537,12 +545,17 @@ case $enable_ca_tools in
 		if test $have_vobject = no
 		then
 			ok=no
-			AC_MSG_WARN([The RPKI CA GUI requires the Python vobject module])
+			AC_MSG_WARN([The RPKI CA GUI requires the Python vobject module.])
 		fi
 		if test $have_acceptable_django_south = no
 		then
 			ok=no
 			AC_MSG_WARN([The RPKI CA tools require Django South 0.7.5 or higher.])
+		fi
+		if test $have_argparse = no
+		then
+			ok=no
+			AC_MSG_WARN([The RPKI CA tools require the Python argparse module.])
 		fi
 		#
 		# This should be the last test in this group, so that failures get the --disable-ca-tools warning.

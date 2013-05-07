@@ -537,6 +537,11 @@ case $enable_ca_tools in
 			ok=no
 			AC_MSG_WARN([I can't find Python.h.  Python sources are required to build the CA tools.])
 		fi
+		if test $have_lxml = no
+		then
+			ok=no
+			AC_MSG_WARN([The RPKI tools require the Python LXML module.])
+		fi
 		if test $have_acceptable_django = no
 		then
 			ok=no

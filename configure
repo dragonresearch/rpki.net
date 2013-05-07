@@ -4731,6 +4731,12 @@ case $enable_ca_tools in
 			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: I can't find Python.h.  Python sources are required to build the CA tools." >&5
 $as_echo "$as_me: WARNING: I can't find Python.h.  Python sources are required to build the CA tools." >&2;}
 		fi
+		if test $have_lxml = no
+		then
+			ok=no
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI tools require the Python LXML module." >&5
+$as_echo "$as_me: WARNING: The RPKI tools require the Python LXML module." >&2;}
+		fi
 		if test $have_acceptable_django = no
 		then
 			ok=no

@@ -247,8 +247,14 @@ install-bpki:
 # want run under the same user IDs either, so what with having to use
 # /usr/bin/crontab on some platforms, this should be entirely too
 # entertaining.  Might be ok to run them all as user rpkid eventually.
-install-cron:
-	@true
+#
+# We really should be running exactly the same cron setup/teardown
+# code here as we do in platform-specific post-installation scripts,
+# but for now we just use crontab(1) here on all platforms.
+
+install-cron: install-cron-using-crontab
+
+uninstall deinstall:: uninstall-cron-using-crontab
 
 # Code for setting up and tearing down cron jobs using the crontab(1)
 # program.  We don't use this on all platforms, but we do use it on

@@ -86,20 +86,17 @@ def Guess(args):
   Guess what platform this is and dispatch to platform constructor.
   """
 
-  if sys.platform.startswith("freebsd"):
+  import platform
+  system = platform.system()
+  if system == "FreeBSD":
     return FreeBSD(args)
-  if sys.platform.startswith("darwin"):
+  if system == "Darwin":
     return Darwin(args)
-  if sys.platform.startswith("linux"):
-    issue = None
-    try:
-      with open("/etc/issue", "r") as f:
-        issue = f.read().split()[0]
-    except:
-      pass
-    if issue in ("Debian", "Ubunutu"):
+  if system == "Linux":
+    distro = platform.linux_distribution()[0].downcase()
+    if distro in ("debian", "ubunutu"):
       return Debian(args)
-    if issue in ("Fedora", "CentOS"):
+    if distro in ("fedora", "centos"):
       return Redhat(args)
   raise NotImplementedError("Can't guess what platform this is, sorry")
 

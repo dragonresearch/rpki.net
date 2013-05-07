@@ -81,25 +81,32 @@ vhost = '''\
 ''' % dict(rpki.autoconf.__dict__,
            fqdn = fqdn)
 
-class Guess(object):
+def Guess(args):
+  """
+  Guess what platform this is and dispatch to platform constructor.
+  """
 
-  @classmethod
-  def dispatch(cls, args):
-    if sys.platform.startswith("freebsd"):
-      return FreeBSD(args)
-    if sys.platform.startswith("darwin"):
-      return Darwin(args)
+  if sys.platform.startswith("freebsd"):
+    return FreeBSD(args)
+  if sys.platform.startswith("darwin"):
+    return Darwin(args)
+  if sys.platform.startswith("linux"):
+    issue = None
     try:
-      issue = open("/etc/issue", "r").read().split()[0]
+      with open("/etc/issue", "r") as f:
+        issue = f.read().split()[0]
     except:
-      issue = None
+      pass
     if issue in ("Debian", "Ubunutu"):
       return Debian(args)
     if issue in ("Fedora", "CentOS"):
       return Redhat(args)
-    raise NotImplementedError("Can't guess what to do with Apache on this platform, sorry")
+  raise NotImplementedError("Can't guess what platform this is, sorry")
 
-class Abstract(object):
+class Platform(object):
+  """
+  Abstract base class representing an operating system platform.
+  """
 
   apache_cer  = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.cer")
   apache_key  = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.key")
@@ -108,10 +115,6 @@ class Abstract(object):
   apache_conf_sample = apache_conf + ".sample"  
 
   apache_conf_preface = None
-
-  @classmethod
-  def dispatch(cls, args):
-    return cls(args)
 
   def __init__(self, args):
     self.args = args
@@ -226,7 +229,10 @@ class Abstract(object):
     self.unlink(self.apache_conf)
     self.del_certs()
 
-class FreeBSD(Abstract):
+class FreeBSD(Platform):
+  """
+  FreeBSD.
+  """
 
   # On FreeBSD we have to ask httpd what version it is before we know
   # where to put files or what to call the service.  In FreeBSD's makefiles,
@@ -259,7 +265,10 @@ class FreeBSD(Abstract):
   def restart(self):
     self.run("service", self.apache_name, "restart")
 
-class Debian(Abstract):
+class Debian(Platform):
+  """
+  Debian and related platforms like Ubuntu.
+  """
 
   apache_conf_target = "/etc/apache2/sites-available/rpki"
 
@@ -268,7 +277,7 @@ class Debian(Abstract):
 
   def add_certs(self):
     if not os.path.exists(self.snake_oil_cer) or not os.path.exists(self.snake_oil_key):
-      return Abstract.add_certs(self)
+      return Platform.add_certs(self)
     if not os.path.exists(self.apache_cer):
       self.unlink(self.apache_cer)
       os.symlink(self.snake_oil_cer, self.apache_cer)
@@ -286,12 +295,19 @@ class Debian(Abstract):
   def restart(self):
     self.run("service", "apache2", "restart")
 
-class NIY(Abstract):
+class NIY(Platform):
   def __init__(self, args):
     raise NotImplementedError("Platform %s not implemented yet, sorry" % self.__class__.__name__)
 
-class Redhat(NIY): pass
-class Darwin(NIY): pass
+class Redhat(NIY):
+  """
+  Redhat family of Linux distributions (Fedora, CentOS).
+  """
+
+class Darwin(NIY):
+  """
+  Mac OS X (aka Darwin).
+  """
 
 def main():
   """
@@ -336,7 +352,7 @@ def main():
   args = parser.parse_args()
 
   try:
-    args.platform.dispatch(args)
+    args.platform(args)
   except Exception, e:
     sys.exit(str(e))
 

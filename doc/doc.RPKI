@@ -11,21 +11,31 @@ interface more convenient.
 
 ***** Download *****
 
+Full source code is available, as are binary packages for a few platforms.
+
+**** Ubuntu 12.04 LTS ****
+
+[[http://download.rpki.net/Ubuntu_Packages/|Binary packages for Ubuntu 12.04
+LTS]] are generated automatically when new code is checked in to the Subversion
+repository.
+
+**** FreeBSD ****
+
+FreeBSD ports are generated automatically when new code is checked in to the
+Subversion repository.
+
+**** Source code ****
+
+For all other platforms, or if you want to build yourself on one of the above
+platforms, you need to download the source code.
+
 The recommended way to obtain the source code is via subversion. To download,
 do:
 
   $ svn checkout http://subvert-rpki.hactrn.net/trunk/
 
-Nightly snapshots are also available from http://download.rpki.net/ as xz-
+Code snapshots are also available from http://download.rpki.net/ as xz-
 compressed tarballs.
-
-We also have binary packages for a few platforms:
-
-* Ubuntu
-* FreeBSD
-
-At the moment, binary packages are generated manually, so the source code may
-be more recent.
 
 ***** Installation *****
 

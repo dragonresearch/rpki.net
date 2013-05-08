@@ -32,7 +32,7 @@ but if you run into trouble you may want to review this list to confirm that
 the right packages have been installed.
 
 Some of the relying party tools and most of the CA tools are written in Python.
-Note that the Python code requires Python version 2.5, 2.6, or 2.7.
+Note that the Python code requires Python version 2.6 or 2.7.
 
 On some platforms (particularly MacOSX) the simplest way to install some of the
 Python packages may be the "easy_install" or "pip" tools that comes with
@@ -114,6 +114,14 @@ Packages you will need:
   o FreeBSD: /usr/ports/deskutils/py-vobject (py27-vobject)
   o Ubuntu: python-vobject
 
+* Several programs (more as time goes on) use the Python argparse module. This
+  module is part of the Python standard library as of Python 2.7, but you may
+  need to install it separately if you're stuck with Python 2.6. Don't do this
+  unless you must. In cases where this is necessary, you'll probably need to
+  use pip:
+
+    $ python -c 'import argparse' 2>/dev/null || sudo pip install argparse
+
 * http://pyyaml.org/. Several of the test programs use PyYAML to parse a YAML
   description of a simulated allocation hierarchy to test.
 
@@ -149,18 +157,6 @@ Packages you will need:
     Instead, install a recent version using easy_install or pip:
 
       pip install South>=0.7.6
-
-* ftp://ftp.porcupine.org/pub/security/chrootuid1.3.tar.gz or later. This isn't
-  needed on all platforms, but on systems without a usable system chroot
-  program, you'll need this if you're going to set up rcynic to run in a chroot
-  jail (recommended). At present, all GNU/Linux systems will require this,
-  because the chroot program, while present, is broken in mysterious ways on
-  some of them and we haven't figured out a reliable autoconf test for the
-  usable versions.
-
-  o FreeBSD: not needed (but it's in /usr/ports/security/chrootuid if you
-    really want it for some reason)
-  o Ubuntu: chrootuid
 
 ***** Configure and build *****
 

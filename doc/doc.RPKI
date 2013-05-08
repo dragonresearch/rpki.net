@@ -15,9 +15,8 @@ Full source code is available, as are binary packages for a few platforms.
 
 **** Ubuntu 12.04 LTS ****
 
-[[http://download.rpki.net/Ubuntu_Packages/|Binary packages for Ubuntu 12.04
-LTS]] are generated automatically when new code is checked in to the Subversion
-repository.
+Binary packages for Ubuntu 12.04 LTS are generated automatically when new code
+is checked in to the Subversion repository.
 
 **** FreeBSD ****
 

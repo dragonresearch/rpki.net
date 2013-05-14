@@ -2199,7 +2199,6 @@ static char x509_object_get_key_usage__doc__[] =
 static PyObject *
 x509_object_get_key_usage(x509_object *self)
 {
-  BIT_STRING_BITNAME *bit_name;
   ASN1_BIT_STRING *ext = NULL;
   PyObject *result = NULL;
   PyObject *token = NULL;
@@ -2246,7 +2245,6 @@ static char x509_object_set_key_usage__doc__[] =
 static PyObject *
 x509_object_set_key_usage(x509_object *self, PyObject *args)
 {
-  BIT_STRING_BITNAME *bit_name;
   ASN1_BIT_STRING *ext = NULL;
   PyObject *iterable = NULL;
   PyObject *critical = Py_True;
@@ -7443,7 +7441,6 @@ static char pkcs10_object_get_key_usage__doc__[] =
 static PyObject *
 pkcs10_object_get_key_usage(pkcs10_object *self)
 {
-  BIT_STRING_BITNAME *bit_name;
   ASN1_BIT_STRING *ext = NULL;
   PyObject *result = NULL;
   PyObject *token = NULL;
@@ -7490,7 +7487,6 @@ static char pkcs10_object_set_key_usage__doc__[] =
 static PyObject *
 pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
 {
-  BIT_STRING_BITNAME *bit_name;
   ASN1_BIT_STRING *ext = NULL;
   PyObject *iterable = NULL;
   PyObject *critical = Py_True;

@@ -426,7 +426,8 @@ class allocation(object):
       pubd_server_port           = str(self.pubd.pubd_port),
       publication_rsync_server   = "localhost:%s" % self.pubd.rsync_port,
       bpki_servers_directory     = self.path(),
-      publication_base_directory = self.path("publication"))
+      publication_base_directory = self.path("publication"),
+      shared_sql_password        = "fnord")
     
     r.update(config_overrides)
 

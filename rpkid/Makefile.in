@@ -220,13 +220,25 @@ install-postconf: \
 install-user:
 	@true
 
-install-conf: ${DESTDIR}${sysconfdir}/rpki.conf
+# We used to play the FreeBSD game of copying rpki.conf.sample to
+# rpki.conf on install and removing rpki.conf if it's identical to
+# rpki.conf.sample in uninstall, but that turns out to work poorly
+# with generated passwords.  So now we copy rpki.conf.sample if and
+# only if rpki.conf does not exist, and we leave removal of rpki.conf
+# for the user to deal with.  This in turn leaves us with a different
+# problem of how to upgrade rpki.conf, but at least in the FreeBSD
+# universe we're supposed to leave that problem for the user.
 
-${DESTDIR}${sysconfdir}/rpki.conf: ${DESTDIR}${sysconfdir}/rpki.conf.sample
-	cp -p ${DESTDIR}${sysconfdir}/rpki.conf.sample $@
+install-conf:
+	if test -f ${DESTDIR}${sysconfdir}/rpki.conf; \
+	then \
+	    true; \
+	else \
+	    cp -p ${DESTDIR}${sysconfdir}/rpki.conf.sample ${DESTDIR}${sysconfdir}/rpki.conf; \
+	fi
 
 uninstall deinstall::
-	if cmp -s ${DESTDIR}${sysconfdir}/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample; then rm -f ${DESTDIR}${sysconfdir}/rpki.conf; else true; fi
+#	if cmp -s ${DESTDIR}${sysconfdir}/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample; then rm -f ${DESTDIR}${sysconfdir}/rpki.conf; else true; fi
 	rm -f ${DESTDIR}${sysconfdir}/rpki.conf.sample
 
 install-apache:

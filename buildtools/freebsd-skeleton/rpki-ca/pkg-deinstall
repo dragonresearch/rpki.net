@@ -37,11 +37,14 @@ DEINSTALL)
 
     /usr/local/libexec/rpkigui-apache-conf-gen --freebsd --remove --verbose
 
-    # Clean up configuration file.
+    # This is where we'd remove rpki.conf if it were identical to
+    # rpki.conf.sample and if we didn't have to worry about things
+    # like SQL passwords.  As it is, we always leave rpki.conf for the
+    # user to delete.
 
-    if /usr/bin/cmp -s /usr/local/etc/rpki.conf.sample /usr/local/etc/rpki.conf
+    if test -f /usr/local/etc/rpki.conf
     then
-	/bin/rm -f /usr/local/etc/rpki.conf
+	echo "Please remove /usr/local/etc/rpki.conf manually if you're really deinstalling."
     fi
     /bin/rm -f /usr/local/etc/rpki.conf.sample
 

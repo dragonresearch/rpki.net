@@ -1,0 +1,51 @@
+****** Installation Using FreeBSD Ports ******
+
+Port skeletons are available for FreeBSD from download.rpki.net. To use these,
+you need to download the port skeletons then run them using your favorite
+FreeBSD port installation tool.
+
+***** Manual Download *****
+
+To download the port skeletons manually and install from them, do something
+like this:
+
+  for port in rpki-rp rpki-ca
+  do
+    fetch http://download.rpki.net/FreeBSD_Packages/${port}-port.tgz
+    tar xf ${port}-port.tgz
+    cd ${port}
+    make install
+    cd ..
+    rm -rf ${port}
+  done
+
+To upgrade, perform the same steps.
+
+After performing initial installation, you should customize the default
+rpki.conf for your environment as necessary. In particular, you want to change
+handle and rpkid_server_host. There are obsessively detailed instructions.
+
+  emacs /usr/local/etc/rpki.conf
+
+Again, you want to change handle and rpkid_server_host at the minimum.
+
+***** Automated Download and Install with portmaster *****
+
+There's a script you can use to automate the download steps above and perform
+the updates using portmaster. First, download the script:
+
+  fetch http://download.rpki.net/FreeBSD_Packages/rpki-portmaster.sh
+
+Then, to install or upgrade, just execute the script:
+
+  sh rpki-portmaster.sh
+
+As with manual download (above) you should customize rpki.conf after initial
+installation.
+
+***** Automated Download and Install with portupgrade *****
+
+In theory, it should be possible to perform the same kind of automation using
+portupgrade as the script mentioned above performs using portmaster. We haven't
+yet figured out the steps to configure portupgrade to do this. When we do,
+we'll post that information here; if you do first, please tell us.

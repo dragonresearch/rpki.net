@@ -47,7 +47,9 @@ class Option(object):
     return len(self.name)
 
   def to_xml(self):
-    x = Element("option", name = self.name, value = self.value)
+    x = Element("option", name = self.name)
+    if self.value is not None:
+      x.set("value", self.value)
     for d in self.doc:
       SubElement(x, "doc").text = "\n" + xml8_wrapper.fill(d) + "\n" + space6
     return x
@@ -56,11 +58,18 @@ class Option(object):
     f.write("\n%s::" % self.name)
     for d in self.doc:
       f.write("\n%s\n" % item_wrapper.fill(d))
+    if self.value is None:
+      f.write("\n%s\n" % item_wrapper.fill("No default value"))
+    else:
+      f.write("\n%s\n" % item_wrapper.fill("Default: %s" % self.value))
 
   def to_conf(self, f, width):
     for d in self.doc:
       f.write("\n%s\n" % conf_wrapper.fill(d))
-    f.write("\n%-*s = %s\n" % (width, self.name, self.value))
+    if self.value is None:
+      f.write("\n#%-*s = ???\n" % (width - 1, self.name))
+    else:
+      f.write("\n%-*s = %s\n" % (width, self.name, self.value))
 
 class Section(object):
 
@@ -204,11 +213,16 @@ for o, a in opts:
     ElementTree(x).write(a, pretty_print = True, encoding = "us-ascii")
 
   elif o == "--write-wiki":
-    with open(a, "w") as f:
-      for i, section in enumerate(sections):
-        if i:
-          f.write("\f\n")
-        section.to_wiki(f)
+    if "%" in a:
+      for section in sections:
+        with open(a % section.name, "w") as f:
+          section.to_wiki(f)
+    else:
+      with open(a, "w") as f:
+        for i, section in enumerate(sections):
+          if i:
+            f.write("\f\n")
+          section.to_wiki(f)
 
   elif o == "--write-conf":
     with open(a, "w") as f:

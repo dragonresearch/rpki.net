@@ -24,8 +24,7 @@
 
   <section name = "myrpki">
 
-    <option name  = "handle"
-            value = "@HANDLE@">
+    <option name  = "handle">
       <doc>
         Handle naming hosted resource-holding entity (&lt;self/&gt;) represented
         by this myrpki instance.  Syntax is an identifier (ASCII letters,
@@ -52,8 +51,7 @@
       </doc>
     </option>
 
-    <option name  = "rpkid_server_host"
-            value = "rpkid.example.org">
+    <option name  = "rpkid_server_host">
       <doc>
         DNS hostname for rpkid.  Must be publicly reachable to be useful.
       </doc>
@@ -93,8 +91,7 @@
       </doc>
     </option>
 
-    <option name  = "pubd_server_host"
-            value = "pubd.example.org">
+    <option name  = "pubd_server_host">
       <doc>
         DNS hostname for pubd, if you're running it.  Must be publicly
         reachable to be useful.
@@ -109,8 +106,7 @@
       </doc>
     </option>
 
-    <option name  = "pubd_contact_info"
-            value = "repo-man@rpki.example.org">
+    <option name  = "pubd_contact_info">
       <doc>
         Contact information to include in offers of repository service.
         This only matters when we're running pubd.  This should be a human
@@ -260,8 +256,7 @@
       </doc>
     </option>
 
-    <option name  = "shared_sql_password"
-            value = "fnord">
+    <option name  = "shared_sql_password">
       <doc>
         If you're comfortable with having all of the databases use the same
         MySQL password, set that value here.  You should use a locally
@@ -738,8 +733,7 @@
       </doc>
     </option>
 
-    <option name  = "secret-key"
-	    value = "">
+    <option name  = "secret-key">
       <doc>
 	Site-specific secret key for Django.
       </doc>

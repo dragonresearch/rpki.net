@@ -45,7 +45,27 @@ installation.
 
 ***** Automated Download and Install with portupgrade *****
 
-In theory, it should be possible to perform the same kind of automation using
-portupgrade as the script mentioned above performs using portmaster. We haven't
-yet figured out the steps to configure portupgrade to do this. When we do,
-we'll post that information here; if you do first, please tell us.
+There's a script you can use to automate the download steps above and perform
+the updates using portupgrade. First, download the script:
+
+  fetch http://download.rpki.net/FreeBSD_Packages/rpki-portupgrade.sh
+
+Next, you will need to add information about the RPKI ports to two variables in
+/usr/local/etc/pkgtools.conf before portupgrade will know how to deal with
+these ports:
+
+  EXTRA_CATEGORIES = [
+      'rpki',
+  ]
+
+  ALT_INDEX = [
+      ENV['PORTSDIR'] + '/INDEX.rpki',
+  ]
+
+Once you have completed these steps, you can just execute the script to install
+or upgrade the RPKI code:
+
+  sh rpki-portupgrade.sh
+
+As with manual download (above) you should customize rpki.conf after initial
+installation.

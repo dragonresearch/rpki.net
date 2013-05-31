@@ -119,22 +119,35 @@ by                 $Id$
     for o in self.options:
       o.to_conf(f, width)
 
+# We use clunky getopt instead of shiny argparse because ordering of
+# operations matters here, and most options may be repeated.  No doubt
+# there's a way to do this with argparse, but it's not obvious that
+# it's worth the time it would take to figure it out.
+
 sections = []
 section_map = None
 option_map = None
 ident = None
 
-opts, argv = getopt.getopt(sys.argv[1:], "",
-                           ["read-xml=",
-                            "write-xml=",
-                            "write-wiki=",
-                            "write-conf=",
-                            "set=",
-                            "pwgen=",
-                            "autoconf"])
+try:
+  opts, argv = getopt.getopt(sys.argv[1:], "h",
+                             ["help",
+                              "read-xml=",
+                              "write-xml=",
+                              "write-wiki=",
+                              "write-conf=",
+                              "set=",
+                              "pwgen=",
+                              "autoconf"])
+except getopt.GetoptError, e:
+  sys.exit("%s: %s" % (sys.argv[0], e))
+
 for o, a in opts:
 
-  if o == "--read-xml":
+  if o in ("-h", "--help"):
+    sys.exit("Use the Source, Luke")
+
+  elif o == "--read-xml":
     option_map = None
     root = ElementTree(file = a).getroot()
     ident = root.get("ident")
@@ -210,4 +223,4 @@ for o, a in opts:
         section.to_conf(f, width)
 
 if argv:
-  sys.exit("Unexpected arguments %s" % argv)
+  sys.exit("%s: Unexpected argument%s: %s" % (sys.argv[0], "" if len(argv) == 1 else "s", " ".join(argv)))

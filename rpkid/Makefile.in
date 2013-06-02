@@ -40,11 +40,16 @@ SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.
 
 POW_SO = rpki/POW/_POW.so
 
-all:: rpki/autoconf.py ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py
+all:: rpki/autoconf.py setup_autoconf.py rpki/relaxng.py myrpki.rng rpki/sql_schemas.py ${POW_SO} build/stamp
 
-${POW_SO}: ext/POW.c setup.py setup_autoconf.py
-	${PYTHON} setup.py build_ext
+.FORCE:
+
+${POW_SO}: .FORCE setup_autoconf.py
 	${PYTHON} setup.py build_ext --inplace
+
+build/stamp: .FORCE setup_autoconf.py
+	${PYTHON} setup.py build
+	touch $@
 
 clean::
 	rm -rf ${POW_SO} build dist

@@ -43,6 +43,7 @@ POW_SO = rpki/POW/_POW.so
 all:: rpki/autoconf.py ${POW_SO} rpki/relaxng.py myrpki.rng rpki/sql_schemas.py
 
 ${POW_SO}: ext/POW.c setup.py setup_autoconf.py
+	${PYTHON} setup.py build_ext
 	${PYTHON} setup.py build_ext --inplace
 
 clean::

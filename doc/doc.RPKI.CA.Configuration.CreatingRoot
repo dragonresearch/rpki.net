@@ -1,0 +1,69 @@
+****** Creating an RPKI Root Certificate ******
+
+rootd does not create RPKI root certificates automatically. If you're running
+your own root, you have to do this yourself. The usual method of doing this is
+to use the OpenSSL command line tool. The exact details will depend on which
+resources you need to put in the root certificate, the URIs for your
+publication server, and so forth, but the general form looks something like
+this:
+
+  [req]
+  default_bits            = 2048
+  default_md              = sha256
+  distinguished_name      = req_dn
+  prompt                  = no
+  encrypt_key             = no
+
+  [req_dn]
+  CN                      = Testbed RPKI root certificate
+
+  [x509v3_extensions]
+  basicConstraints        = critical,CA:true
+  subjectKeyIdentifier    = hash
+  keyUsage                = critical,keyCertSign,cRLSign
+  subjectInfoAccess       = @sia
+  certificatePolicies     = critical,1.3.6.1.5.5.7.14.2
+  sbgp-autonomousSysNum   = critical,@rfc3779_asns
+  sbgp-ipAddrBlock        = critical,@rfc3997_addrs
+
+  [sia]
+  1.3.6.1.5.5.7.48.5;URI  = rsync://example.org/rpki/root/
+  1.3.6.1.5.5.7.48.10;URI = rsync://example.org/rpki/root/root.mft
+
+  [rfc3779_asns]
+  AS.0 = 64496-64511
+  AS.1 = 65536-65551
+
+  [rfc3997_addrs]
+  IPv4.0 = 192.0.2.0/24
+  IPv4.1 = 198.51.100.0/24
+  IPv4.2 = 203.0.113.0/24
+  IPv6.0 = 2001:0DB8::/32
+
+Assuming you save this configuration in a file root.conf, you can use it to
+generate a root certificate as follows:
+
+  openssl req                     \
+          -new                    \
+          -x509                   \
+          -newkey rsa:2048        \
+          -config root.conf       \
+          -keyout root.key        \
+          -days 1825              \
+          -outform DER            \
+          -out root.cer           \
+          -set_serial 1           \
+          -extensions x509v3_extensions
+
+You may want to shorten the five year expiration time (1825 days), which is a
+bit long. It is a root certificate, so a long expiration is not unusual.
+
+You must copy the generated root.cer to the publication directory as defined in
+rpki.conf:
+
+  rpki-root-cert          = ${myrpki::publication_base_directory}/root.cer
+
+To create a TAL format trust anchor locator use the make-tal.sh script from
+`$top/rcynic:
+
+  $top/rcynic/make-tal.sh  rsync://example.org/rpki/root/root.cer  root.cer

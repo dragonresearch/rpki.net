@@ -64,6 +64,6 @@ rpki.conf:
   rpki-root-cert          = ${myrpki::publication_base_directory}/root.cer
 
 To create a TAL format trust anchor locator use the make-tal.sh script from
-`$top/rcynic:
+$top/rcynic:
 
   $top/rcynic/make-tal.sh  rsync://example.org/rpki/root/root.cer  root.cer

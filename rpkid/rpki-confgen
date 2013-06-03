@@ -107,13 +107,12 @@ class Section(object):
       o.to_wiki(f)
 
   def to_conf(self, f, width):
-    f.write('''
-################################################################################
-
-[''' + self.name + ''']
-''')
-    for d in self.doc:
-      f.write("\n%s\n" % conf_wrapper.fill(d))
+    f.write("\n" + "#" * 78 + "\n\n[" + self.name + "]\n")
+    if self.doc:
+      f.write("\n##")
+      for i, d in enumerate(self.doc):
+        f.write("%s\n%s\n" % ("" if i == 0 else "#", conf_wrapper.fill(d)))
+      f.write("##\n")
     for o in self.options:
       o.to_conf(f, width)
 

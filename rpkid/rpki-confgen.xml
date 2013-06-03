@@ -340,6 +340,13 @@
 
   <section name = "rpkid">
 
+    <doc>
+      rpkid's default config file is the system `rpkid.conf` file.
+      Start rpkid with `-c filename` to choose a different config
+      file.  All options are in the section `[rpkid]`.  BPKI
+      Certificates and keys may be in either DER or PEM format.
+    </doc>
+
     <option name  = "sql-database"
             value = "${myrpki::rpkid_sql_database}">
       <doc>
@@ -387,8 +394,10 @@
     <option name  = "bpki-ta"
             value = "${myrpki::bpki_servers_directory}/ca.cer">
       <doc>
-        Where rpkid should look for the BPKI trust anchor.  Don't change
-        this unless you really know what you are doing.
+        Where rpkid should look for the BPKI trust anchor.  All BPKI
+	certificate verification within rpkid traces back to this
+	trust anchor.  Don't change this unless you really know what
+	you are doing.
       </doc>
     </option>
 
@@ -430,6 +439,19 @@
 
   <section name = "irdbd">
 
+    <doc>
+      irdbd's default configuration file is the system `rpki.conf` file.
+      Start irdbd with `-c filename` to choose a different configuration
+      file.  All options are in the section `[irdbd]`.
+    </doc>
+
+    <doc>
+      Since irdbd is part of the back-end system, it has direct access to
+      the back-end's SQL database, and thus is able to pull its own BPKI
+      configuration directly from the database, and thus needs a bit less
+      configuration than the other daemons.
+    </doc>
+
     <option name  = "sql-database"
             value = "${myrpki::irdbd_sql_database}">
       <doc>
@@ -465,9 +487,23 @@
       </doc>
     </option>
 
+    <option name  = "startup-message">
+      <doc>
+	String to log on startup, useful when debugging a collection
+	of irdbd instances at once.
+      </doc>
+    </option>
+
   </section>
 
   <section name = "pubd">
+
+    <doc>
+      pubd's default configuration file is the system `rpki.conf`
+      file.  Start pubd with `-c filename` to choose a different
+      configuration file.  All options are in the section `[pubd]`.
+      BPKI certificates and keys may be either DER or PEM format.
+    </doc>
 
     <option name  = "sql-database"
             value = "${myrpki::pubd_sql_database}">
@@ -520,8 +556,10 @@
     <option name  = "bpki-ta"
             value = "${myrpki::bpki_servers_directory}/ca.cer">
       <doc>
-        Where pubd should look for the BPKI trust anchor.  Don't change
-        this unless you really know what you are doing.
+        Where pubd should look for the BPKI trust anchor.  All BPKI
+	certificate verification within pubd traces back to this
+	trust anchor.  Don't change this unless you really know what
+	you are doing.
       </doc>
     </option>
 
@@ -554,23 +592,52 @@
   </section>
 
   <section name = "rootd">
+
     <doc>
       You don't need to run rootd unless you're IANA, are certifying
       private address space, or are an RIR which refuses to accept IANA as
       the root of the public address hierarchy.
     </doc>
+
     <doc>
-      Ok, if that wasn't enough to scare you off: rootd is a kludge, and
-      needs to be rewritten, or, better, merged into rpkid.  It does a
-      number of things wrong, and requires far too many configuration
-      parameters.  You have been warned....
+      Ok, if that wasn't enough to scare you off: rootd is a mess, and
+      needs to be rewritten, or, better, merged into rpkid.  It
+      doesn't use the publication protocol, and it requires far too
+      many configuration parameters.
+    </doc>
+
+    <doc>
+      rootd was originally intended to be a very simple program which
+      simplified rpkid enormously by moving one specific task (acting
+      as the root CA of an RPKI certificate hierarchy) out of rpkid.
+      As the specifications and code (mostly the latter) have evolved,
+      however, this task has become more complicated, and rootd would
+      have to become much more complicated to keep up.
+    </doc>
+    
+    <doc>
+      Don't run rootd unless you're sure that you need to do so.
+    </doc>
+
+    <doc>
+      Still think you need to run rootd?  OK, but remember, you have
+      been warned....
+    </doc>
+
+    <doc>
+      rootd's default configuration file is the system `rpki.conf` file.
+      Start rootd with `-c filename` to choose a different configuration
+      file.  All options are in the section `[rootd]`.  Certificates and
+      keys may be in either DER or PEM format.
     </doc>
 
     <option name  = "bpki-ta"
             value = "${myrpki::bpki_servers_directory}/ca.cer">
       <doc>
-        BPKI trust anchor.  Don't change this unless you really know what
-        you are doing.
+        Where rootd should look for the BPKI trust anchor.  All BPKI
+	certificate verification within rootd traces back to this
+	trust anchor.  Don't change this unless you really know what
+	you are doing.
       </doc>
     </option>
 
@@ -601,8 +668,9 @@
     <option name  = "child-bpki-cert"
             value = "${myrpki::bpki_servers_directory}/child.cer">
       <doc>
-        BPKI certificate for rootd's one and only up-down child.  Don't
-        change this unless you really know what you are doing.
+        BPKI certificate for rootd's one and only up-down child (RPKI
+	engine to which rootd issues an RPKI certificate).  Don't
+	change this unless you really know what you are doing.
       </doc>
     </option>
 
@@ -624,7 +692,8 @@
             value = "${myrpki::publication_base_directory}">
       <doc>
         Where rootd should write its output.  Yes, rootd should be using
-        pubd instead of publishing directly, but it doesn't.
+        pubd instead of publishing directly, but it doesn't.  This
+        needs to match pubd's configuration.
       </doc>
     </option>
 
@@ -707,6 +776,7 @@
   </section>
 
   <section name = "web_portal">
+
     <doc>
       Glue to allow the Django application to pull user configuration
       from this file rather than directly editing settings.py.
@@ -742,6 +812,7 @@
   </section>
 
   <section name = "autoconf">
+
     <doc>
       rpki-confgen --autoconf records the current autoconf settings
       here, so that other options can refer to them.  The section name

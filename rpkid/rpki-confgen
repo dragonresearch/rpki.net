@@ -55,13 +55,13 @@ class Option(object):
     return x
 
   def to_wiki(self, f):
-    f.write("\n%s::" % self.name)
+    f.write("\n`%s`:: [=#%s]" % (self.name, self.name))
     for d in self.doc:
       f.write("\n%s\n" % item_wrapper.fill(d))
     if self.value is None:
-      f.write("\n%s\n" % item_wrapper.fill("No default value"))
+      f.write("\n%s\n" % item_wrapper.fill("No default value."))
     else:
-      f.write("\n%s\n" % item_wrapper.fill("Default: %s" % self.value))
+      f.write("\n%s\n" % item_wrapper.fill("Default: {{{%s}}}" % self.value))
 
   def to_conf(self, f, width):
     for d in self.doc:
@@ -110,8 +110,8 @@ Generated from ''' + ident + '''
 by                 $Id$
 }}}
 
-= ![''' + self.name + '''] section =
-''')
+= ![%s] section = #%s
+''' % (self.name, self.name))
     for d in self.doc:
       f.write("\n%s\n" % text_wrapper.fill(d))
     for o in self.options:

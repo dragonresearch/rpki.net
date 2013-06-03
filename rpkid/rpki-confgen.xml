@@ -819,29 +819,25 @@
       "autoconf" is magic, don't change it.
     </doc>
 
-    <option name = "bindir"
-	    value = "${bindir}">
+    <option name = "bindir">
       <doc>
 	Usually /usr/bin or /usr/local/bin.
       </doc>
     </option>
     
-    <option name = "datarootdir"
-	    value = "${datarootdir}">
+    <option name = "datarootdir">
       <doc>
 	Usually /usr/share or /usr/local/share.
       </doc>
     </option>
 
-    <option name = "sbindir"
-	    value = "${sbindir}">
+    <option name = "sbindir">
       <doc>
 	Usually /usr/sbin or /usr/local/sbin.
       </doc>
     </option>
 
-    <option name = "sysconfdir"
-	    value = "${sysconfdir}">
+    <option name = "sysconfdir">
       <doc>
 	Usually /etc or /usr/local/etc.
       </doc>

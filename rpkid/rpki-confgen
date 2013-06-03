@@ -101,17 +101,6 @@ class Section(object):
     return x
 
   def to_wiki(self, f):
-    f.write('''\
-{{{
-#!comment
-THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.
-
-Generated from ''' + ident + '''
-by                 $Id$
-}}}
-
-= ![%s] section = #%s
-''' % (self.name, self.name))
     for d in self.doc:
       f.write("\n%s\n" % text_wrapper.fill(d))
     for o in self.options:
@@ -128,6 +117,28 @@ by                 $Id$
     for o in self.options:
       o.to_conf(f, width)
 
+def wiki_header(f):
+  if toc is not None:
+    f.write("[[TracNav(%s)]]\n\n" % toc)
+  f.write('''\
+{{{
+#!comment
+THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.
+
+Generated from ''' + ident + '''
+            by $Id$
+}}}
+''')
+
+def conf_header(f):
+  f.write('''\
+# Automatically generated.  Edit as needed, but be careful of overwriting.
+#
+# Generated from ''' + ident + '''
+#             by $Id$
+''')
+
+
 # We use clunky getopt instead of shiny argparse because ordering of
 # operations matters here, and most options may be repeated.  No doubt
 # there's a way to do this with argparse, but it's not obvious that
@@ -137,6 +148,7 @@ sections = []
 section_map = None
 option_map = None
 ident = None
+toc = None
 
 try:
   opts, argv = getopt.getopt(sys.argv[1:], "h",
@@ -147,6 +159,7 @@ try:
                               "write-conf=",
                               "set=",
                               "pwgen=",
+                              "toc=",
                               "autoconf"])
 except getopt.GetoptError, e:
   sys.exit("%s: %s" % (sys.argv[0], e))
@@ -216,25 +229,26 @@ for o, a in opts:
     if "%" in a:
       for section in sections:
         with open(a % section.name, "w") as f:
+          wiki_header(f)
           section.to_wiki(f)
     else:
       with open(a, "w") as f:
         for i, section in enumerate(sections):
-          if i:
+          if i == 0:
+            wiki_header(f)
+          else:
             f.write("\f\n")
           section.to_wiki(f)
 
   elif o == "--write-conf":
     with open(a, "w") as f:
-      f.write('''\
-# Automatically generated.  Edit as needed, but be careful of overwriting.
-#
-# Generated from ''' + ident + '''
-# by             $Id$
-''')
+      conf_header(f)
       width = max(s.width for s in sections)
       for section in sections:
         section.to_conf(f, width)
+
+  elif o == "--toc":
+    toc = a
 
 if argv:
   sys.exit("%s: Unexpected argument%s: %s" % (sys.argv[0], "" if len(argv) == 1 else "s", " ".join(argv)))

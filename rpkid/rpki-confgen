@@ -101,6 +101,7 @@ class Section(object):
     return x
 
   def to_wiki(self, f):
+    f.write("\n= ![%s] section = #%s\n" % (self.name, self.name))
     for d in self.doc:
       f.write("\n%s\n" % text_wrapper.fill(d))
     for o in self.options:

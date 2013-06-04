@@ -1,3 +1,5 @@
+****** ![pubd] section ******
+
 pubd's default configuration file is the system rpki.conf file. Start pubd with
 -c filename to choose a different configuration file. All options are in the
 section [pubd]. BPKI certificates and keys may be either DER or PEM format.

@@ -1,3 +1,5 @@
+****** ![rootd] section ******
+
 You don't need to run rootd unless you're IANA, are certifying private address
 space, or are an RIR which refuses to accept IANA as the root of the public
 address hierarchy.

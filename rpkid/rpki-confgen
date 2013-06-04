@@ -55,13 +55,13 @@ class Option(object):
     return x
 
   def to_wiki(self, f):
-    f.write("\n`%s`:: [=#%s]" % (self.name, self.name))
+    f.write("\n== %s == #%s\n" % (self.name, self.name))
     for d in self.doc:
-      f.write("\n%s\n" % wiki_wrapper.fill(d))
+      f.write("\n%s\n" % text_wrapper.fill(d))
     if self.value is None:
-      f.write("\n%s\n" % wiki_wrapper.fill("No default value."))
+      f.write("\n%s\n" % text_wrapper.fill("No default value."))
     else:
-      f.write("\n  {{{\n  #!ini\n  %s = %s\n  }}}\n" % (self.name, self.value))
+      f.write("\n{{{\n#!ini\n%s = %s\n}}}\n" % (self.name, self.value))
 
   def to_conf(self, f, width):
     for i, d in enumerate(self.doc):
@@ -119,8 +119,9 @@ class Section(object):
 
 def wiki_header(f):
   if toc is not None:
-    f.write("[[TracNav(%s)]]\n\n" % toc)
-  f.write('''\
+    f.write("[[TracNav(%s)]]\n" % toc)
+  f.write('''
+[[PageOutline]]
 {{{
 #!comment
 THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.

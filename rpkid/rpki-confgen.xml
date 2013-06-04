@@ -2,8 +2,7 @@
   $Id$
   
   Documented option definitions for rpki-confgen to use in generating
-  rpki.conf and TracWiki documentation.  Most of this comes from
-  earlier example versions of rpki.conf.
+  rpki.conf and TracWiki documentation.
 
   Copyright (C) 2009-2013 Internet Systems Consortium ("ISC")
   
@@ -25,8 +24,8 @@
   <section name = "myrpki">
 
     <doc>
-      The `[myrpki]` section contains all the parameters that you
-      really need to configure.  The name `myrpki` is historical and
+      The "`[myrpki]`" section contains all the parameters that you
+      really need to configure.  The name "`myrpki`" is historical and
       may change in the future.
     </doc>
 
@@ -40,7 +39,7 @@
 	children will recognize as being you.
        </doc>
       <doc>
-        The `handle` option in the `[myrpki]` section specifies the
+        The "`handle`" option in the "`[myrpki]`" section specifies the
 	default handle for this installation.  Previous versions of
 	the CA tools required a separate configuration file, each with
 	its own handle setting, for each hosted entity.  The current
@@ -93,8 +92,8 @@
     <option name  = "irdbd_server_host"
             value = "localhost">
       <doc>
-        DNS hostname for irdbd, or `localhost`.  This should be
-        `localhost` unless you really know what you are doing.
+        DNS hostname for irdbd, or "`localhost`".  This should be
+        "`localhost`" unless you really know what you are doing.
       </doc>
     </option>
 
@@ -205,7 +204,7 @@
             value = "rpki">
       <doc>
         rsyncd module name corresponding to publication_base_directory.
-        This has to match the module you configured into rsyncd.conf.
+        This has to match the module you configured into `rsyncd.conf`.
         Leave this alone unless you have some need to change it.
       </doc>
     </option>
@@ -214,7 +213,7 @@
             value = "root">
       <doc>
         rsyncd module name corresponding to publication_root_cert_directory.
-        This has to match the module you configured into rsyncd.conf.
+        This has to match the module you configured into `rsyncd.conf`.
         Leave this alone unless you have some need to change it.
       </doc>
     </option>
@@ -381,8 +380,8 @@
 
     <doc>
       rpkid's default config file is the system `rpki.conf` file.
-      Start rpkid with `-c filename` to choose a different config
-      file.  All options are in the section `[rpkid]`.  BPKI
+      Start rpkid with "`-c filename`" to choose a different config
+      file.  All options are in the "`[rpkid]`" section.  BPKI
       Certificates and keys may be in either DER or PEM format.
     </doc>
 
@@ -479,9 +478,9 @@
   <section name = "irdbd">
 
     <doc>
-      irdbd's default configuration file is the system `rpki.conf` file.
-      Start irdbd with `-c filename` to choose a different configuration
-      file.  All options are in the section `[irdbd]`.
+      irdbd's default configuration file is the system `rpki.conf`
+      file.  Start irdbd with "`-c filename`" to choose a different
+      configuration file.  All options are in the "`[irdbd]`" section.
     </doc>
 
     <doc>
@@ -539,8 +538,8 @@
 
     <doc>
       pubd's default configuration file is the system `rpki.conf`
-      file.  Start pubd with `-c filename` to choose a different
-      configuration file.  All options are in the section `[pubd]`.
+      file.  Start pubd with "`-c filename`" to choose a different
+      configuration file.  All options are in the "`[pubd]`" section.
       BPKI certificates and keys may be either DER or PEM format.
     </doc>
 
@@ -664,10 +663,10 @@
     </doc>
 
     <doc>
-      rootd's default configuration file is the system `rpki.conf` file.
-      Start rootd with `-c filename` to choose a different configuration
-      file.  All options are in the section `[rootd]`.  Certificates and
-      keys may be in either DER or PEM format.
+      rootd's default configuration file is the system `rpki.conf`
+      file.  Start rootd with "`-c filename`" to choose a different
+      configuration file.  All options are in the "`[rootd]`" section.
+      Certificates and keys may be in either DER or PEM format.
     </doc>
 
     <option name  = "bpki-ta"

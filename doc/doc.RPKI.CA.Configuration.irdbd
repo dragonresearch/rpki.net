@@ -1,8 +1,8 @@
 ****** [irdbd] section ******
 
 irdbd's default configuration file is the system rpki.conf file. Start irdbd
-with -c filename to choose a different configuration file. All options are in
-the section [irdbd].
+with "-c filename" to choose a different configuration file. All options are in
+the "[irdbd]" section.
 
 Since irdbd is part of the back-end system, it has direct access to the back-
 end's SQL database, and thus is able to pull its own BPKI configuration

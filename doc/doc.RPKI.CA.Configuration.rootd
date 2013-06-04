@@ -19,8 +19,9 @@ Don't run rootd unless you're sure that you need to do so.
 Still think you need to run rootd? OK, but remember, you have been warned....
 
 rootd's default configuration file is the system rpki.conf file. Start rootd
-with -c filename to choose a different configuration file. All options are in
-the section [rootd]. Certificates and keys may be in either DER or PEM format.
+with "-c filename" to choose a different configuration file. All options are in
+the "[rootd]" section. Certificates and keys may be in either DER or PEM
+format.
 
 ***** bpki-ta *****
 

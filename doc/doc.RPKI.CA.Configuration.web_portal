@@ -1,0 +1,28 @@
+****** [web_portal] section ******
+
+Glue to allow the Django application to pull user configuration from this file
+rather than directly editing settings.py.
+
+***** sql-database *****
+
+SQL database name the web portal should use.
+
+  sql-database = ${myrpki::irdbd_sql_database}
+
+***** sql-username *****
+
+SQL user name the web portal should use.
+
+  sql-username = ${myrpki::irdbd_sql_username}
+
+***** sql-password *****
+
+SQL password the web portal should use.
+
+  sql-password = ${myrpki::irdbd_sql_password}
+
+***** secret-key *****
+
+Site-specific secret key for Django.
+
+No default value.

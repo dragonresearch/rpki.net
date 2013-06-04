@@ -111,6 +111,6 @@ run(os.path.join(ac_bindir, "rtr-origin"),
     os.path.join(ac_rcynic_dir, "data/authenticated"),
     cwd = os.path.join(ac_rcynic_dir, "rpki-rtr"))
 
-prog = os.path.join(ac_sbindir, "rpkigui-rcynic")
+prog = os.path.join(ac_libexecdir, "rpkigui-rcynic")
 if os.path.exists(prog):
   run(prog)

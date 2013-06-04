@@ -1,4 +1,4 @@
-****** ![rootd] section ******
+****** [rootd] section ******
 
 You don't need to run rootd unless you're IANA, are certifying private address
 space, or are an RIR which refuses to accept IANA as the root of the public
@@ -28,28 +28,28 @@ bpki-ta::
      certificate verification within rootd traces back to this trust
      anchor. Don't change this unless you really know what you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/ca.cer
+  bpki-ta = ${myrpki::bpki_servers_directory}/ca.cer
 
 rootd-bpki-crl::
 
      BPKI CRL. Don't change this unless you really know what you are
      doing.
 
-     Default: ${myrpki::bpki_servers_directory}/ca.crl
+  rootd-bpki-crl = ${myrpki::bpki_servers_directory}/ca.crl
 
 rootd-bpki-cert::
 
      rootd's own BPKI EE certificate. Don't change this unless you really
      know what you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/rootd.cer
+  rootd-bpki-cert = ${myrpki::bpki_servers_directory}/rootd.cer
 
 rootd-bpki-key::
 
      Private key corresponding to rootd's own BPKI EE certificate. Don't
      change this unless you really know what you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/rootd.key
+  rootd-bpki-key = ${myrpki::bpki_servers_directory}/rootd.key
 
 child-bpki-cert::
 
@@ -57,19 +57,19 @@ child-bpki-cert::
      to which rootd issues an RPKI certificate). Don't change this unless
      you really know what you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/child.cer
+  child-bpki-cert = ${myrpki::bpki_servers_directory}/child.cer
 
 server-host::
 
      Server host on which rootd should listen.
 
-     Default: ${myrpki::rootd_server_host}
+  server-host = ${myrpki::rootd_server_host}
 
 server-port::
 
      Server port on which rootd should listen.
 
-     Default: ${myrpki::rootd_server_port}
+  server-port = ${myrpki::rootd_server_port}
 
 rpki-root-dir::
 
@@ -77,71 +77,71 @@ rpki-root-dir::
      instead of publishing directly, but it doesn't. This needs to match
      pubd's configuration.
 
-     Default: ${myrpki::publication_base_directory}
+  rpki-root-dir = ${myrpki::publication_base_directory}
 
 rpki-base-uri::
 
      rsync URI corresponding to directory containing rootd's outputs.
 
-     Default: `rsync://${myrpki::publication_rsync_server}/${myrpki::publ
-     ication_rsync_module}/`
+  rpki-base-uri = rsync://${myrpki::publication_rsync_server}/${myrpki::
+  publication_rsync_module}/
 
 rpki-root-cert-uri::
 
      rsync URI for rootd's root (self-signed) RPKI certificate.
 
-     Default: `rsync://${myrpki::publication_rsync_server}/${myrpki::publ
-     ication_root_module}/root.cer`
+  rpki-root-cert-uri = rsync://${myrpki::publication_rsync_server}/${myrpki::
+  publication_root_module}/root.cer
 
 rpki-root-key::
 
      Private key corresponding to rootd's root RPKI certificate.
 
-     Default: ${myrpki::bpki_servers_directory}/root.key
+  rpki-root-key = ${myrpki::bpki_servers_directory}/root.key
 
 rpki-root-cert::
 
      Filename (as opposed to rsync URI) of rootd's root RPKI certificate.
 
-     Default: ${myrpki::publication_root_cert_directory}/root.cer
+  rpki-root-cert = ${myrpki::publication_root_cert_directory}/root.cer
 
 rpki-subject-pkcs10::
 
      Where rootd should stash a copy of the PKCS #10 request it gets from
      its one (and only) child
 
-     Default: ${myrpki::bpki_servers_directory}/rootd.subject.pkcs10
+  rpki-subject-pkcs10 = ${myrpki::bpki_servers_directory}/rootd.subject.pkcs10
 
 rpki-subject-lifetime::
 
      Lifetime of the one and only RPKI certificate rootd issues.
 
-     Default: 30d
+  rpki-subject-lifetime = 30d
 
 rpki-root-crl::
 
      Filename (relative to rootd-base-uri and rpki-root-dir) of the CRL
      for rootd's root RPKI certificate.
 
-     Default: root.crl
+  rpki-root-crl = root.crl
 
 rpki-root-manifest::
 
      Filename (relative to rootd-base-uri and rpki-root-dir) of the
      manifest for rootd's root RPKI certificate.
 
-     Default: root.mft
+  rpki-root-manifest = root.mft
 
 rpki-class-name::
 
      Up-down protocol class name for RPKI certificate rootd issues to its
      one (and only) child.
 
-     Default: ${myrpki::handle}
+  rpki-class-name = ${myrpki::handle}
 
 rpki-subject-cert::
 
      Filename (relative to rootd-base-uri and rpki-root-dir) of the one
      (and only) RPKI certificate rootd issues.
 
-     Default: ${myrpki::handle}.cer
+  rpki-subject-cert = ${myrpki::handle}.cer

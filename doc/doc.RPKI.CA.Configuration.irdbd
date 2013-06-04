@@ -1,4 +1,4 @@
-****** ![irdbd] section ******
+****** [irdbd] section ******
 
 irdbd's default configuration file is the system rpki.conf file. Start irdbd
 with -c filename to choose a different configuration file. All options are in
@@ -13,31 +13,31 @@ sql-database::
 
      MySQL database name for irdbd.
 
-     Default: ${myrpki::irdbd_sql_database}
+  sql-database = ${myrpki::irdbd_sql_database}
 
 sql-username::
 
      MySQL user name for irdbd.
 
-     Default: ${myrpki::irdbd_sql_username}
+  sql-username = ${myrpki::irdbd_sql_username}
 
 sql-password::
 
      MySQL password for irdbd.
 
-     Default: ${myrpki::irdbd_sql_password}
+  sql-password = ${myrpki::irdbd_sql_password}
 
 server-host::
 
      Host on which irdbd should listen for HTTP service requests.
 
-     Default: ${myrpki::irdbd_server_host}
+  server-host = ${myrpki::irdbd_server_host}
 
 server-port::
 
      Port on which irdbd should listen for HTTP service requests.
 
-     Default: ${myrpki::irdbd_server_port}
+  server-port = ${myrpki::irdbd_server_port}
 
 startup-message::
 

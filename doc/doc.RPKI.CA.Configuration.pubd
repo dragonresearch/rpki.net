@@ -1,4 +1,4 @@
-****** ![pubd] section ******
+****** [pubd] section ******
 
 pubd's default configuration file is the system rpki.conf file. Start pubd with
 -c filename to choose a different configuration file. All options are in the
@@ -8,19 +8,19 @@ sql-database::
 
      MySQL database name for pubd.
 
-     Default: ${myrpki::pubd_sql_database}
+  sql-database = ${myrpki::pubd_sql_database}
 
 sql-username::
 
      MySQL user name for pubd.
 
-     Default: ${myrpki::pubd_sql_username}
+  sql-username = ${myrpki::pubd_sql_username}
 
 sql-password::
 
      MySQL password for pubd.
 
-     Default: ${myrpki::pubd_sql_password}
+  sql-password = ${myrpki::pubd_sql_password}
 
 publication-base::
 
@@ -32,19 +32,19 @@ publication-base::
      the published objects so that relying parties can find and verify
      rpkid's published outputs.
 
-     Default: ${myrpki::publication_base_directory}
+  publication-base = ${myrpki::publication_base_directory}
 
 server-host::
 
      Host on which pubd should listen for HTTP service requests.
 
-     Default: ${myrpki::pubd_server_host}
+  server-host = ${myrpki::pubd_server_host}
 
 server-port::
 
      Port on which pubd should listen for HTTP service requests.
 
-     Default: ${myrpki::pubd_server_port}
+  server-port = ${myrpki::pubd_server_port}
 
 bpki-ta::
 
@@ -52,14 +52,14 @@ bpki-ta::
      certificate verification within pubd traces back to this trust
      anchor. Don't change this unless you really know what you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/ca.cer
+  bpki-ta = ${myrpki::bpki_servers_directory}/ca.cer
 
 pubd-cert::
 
      Where pubd should look for its own BPKI EE certificate. Don't change
      this unless you really know what you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/pubd.cer
+  pubd-cert = ${myrpki::bpki_servers_directory}/pubd.cer
 
 pubd-key::
 
@@ -67,7 +67,7 @@ pubd-key::
      BPKI EE certificate. Don't change this unless you really know what
      you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/pubd.key
+  pubd-key = ${myrpki::bpki_servers_directory}/pubd.key
 
 irbe-cert::
 
@@ -75,4 +75,4 @@ irbe-cert::
      certificate. Don't change this unless you really know what you are
      doing.
 
-     Default: ${myrpki::bpki_servers_directory}/irbe.cer
+  irbe-cert = ${myrpki::bpki_servers_directory}/irbe.cer

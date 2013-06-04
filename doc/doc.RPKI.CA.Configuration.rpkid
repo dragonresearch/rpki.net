@@ -1,4 +1,4 @@
-****** ![rpkid] section ******
+****** [rpkid] section ******
 
 rpkid's default config file is the system rpkid.conf file. Start rpkid with -
 c filename to choose a different config file. All options are in the section
@@ -8,31 +8,31 @@ sql-database::
 
      MySQL database name for rpkid.
 
-     Default: ${myrpki::rpkid_sql_database}
+  sql-database = ${myrpki::rpkid_sql_database}
 
 sql-username::
 
      MySQL user name for rpkid.
 
-     Default: ${myrpki::rpkid_sql_username}
+  sql-username = ${myrpki::rpkid_sql_username}
 
 sql-password::
 
      MySQL password for rpkid.
 
-     Default: ${myrpki::rpkid_sql_password}
+  sql-password = ${myrpki::rpkid_sql_password}
 
 server-host::
 
      Host on which rpkid should listen for HTTP service requests.
 
-     Default: ${myrpki::rpkid_server_host}
+  server-host = ${myrpki::rpkid_server_host}
 
 server-port::
 
      Port on which rpkid should listen for HTTP service requests.
 
-     Default: ${myrpki::rpkid_server_port}
+  server-port = ${myrpki::rpkid_server_port}
 
 irdb-url::
 
@@ -40,8 +40,7 @@ irdb-url::
      running on the same machine as rpkid, this can and probably should be
      a loopback URL, since nobody but rpkid needs to talk to irdbd.
 
-     Default: http://${myrpki::irdbd_server_host}:${myrpki::
-     irdbd_server_port}/
+  irdb-url = http://${myrpki::irdbd_server_host}:${myrpki::irdbd_server_port}/
 
 bpki-ta::
 
@@ -49,14 +48,14 @@ bpki-ta::
      certificate verification within rpkid traces back to this trust
      anchor. Don't change this unless you really know what you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/ca.cer
+  bpki-ta = ${myrpki::bpki_servers_directory}/ca.cer
 
 rpkid-cert::
 
      Where rpkid should look for its own BPKI EE certificate. Don't change
      this unless you really know what you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/rpkid.cer
+  rpkid-cert = ${myrpki::bpki_servers_directory}/rpkid.cer
 
 rpkid-key::
 
@@ -64,14 +63,14 @@ rpkid-key::
      BPKI EE certificate. Don't change this unless you really know what
      you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/rpkid.key
+  rpkid-key = ${myrpki::bpki_servers_directory}/rpkid.key
 
 irdb-cert::
 
      Where rpkid should look for irdbd's BPKI EE certificate. Don't change
      this unless you really know what you are doing.
 
-     Default: ${myrpki::bpki_servers_directory}/irdbd.cer
+  irdb-cert = ${myrpki::bpki_servers_directory}/irdbd.cer
 
 irbe-cert::
 
@@ -79,4 +78,4 @@ irbe-cert::
      certificate. Don't change this unless you really know what you are
      doing.
 
-     Default: ${myrpki::bpki_servers_directory}/irbe.cer
+  irbe-cert = ${myrpki::bpki_servers_directory}/irbe.cer

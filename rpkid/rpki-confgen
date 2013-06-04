@@ -61,7 +61,7 @@ class Option(object):
     if self.value is None:
       f.write("\n%s\n" % wiki_wrapper.fill("No default value."))
     else:
-      f.write("\n%s\n" % wiki_wrapper.fill("Default: {{{%s}}}" % self.value))
+      f.write("\n%s\n" % wiki_wrapper.fill("Default: `%s`" % self.value))
 
   def to_conf(self, f, width):
     for d in self.doc:

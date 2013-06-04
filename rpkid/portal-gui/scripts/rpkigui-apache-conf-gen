@@ -94,7 +94,7 @@ def Guess(args):
     return Darwin(args)
   if system == "Linux":
     distro = platform.linux_distribution()[0].lower()
-    if distro in ("debian", "ubunutu"):
+    if distro in ("debian", "ubuntu"):
       return Debian(args)
     if distro in ("fedora", "centos"):
       return Redhat(args)

@@ -1,39 +1,45 @@
-****** irdbd.conf ******
-
 irdbd's default configuration file is the system rpki.conf file. Start irdbd
-with "-c filename" to choose a different configuration file. All options are in
-the section "[irdbd]".
+with -c filename to choose a different configuration file. All options are in
+the section [irdbd].
 
 Since irdbd is part of the back-end system, it has direct access to the back-
 end's SQL database, and thus is able to pull its own BPKI configuration
 directly from the database, and thus needs a bit less configuration than the
 other daemons.
 
-Options:
+sql-database::
+
+     MySQL database name for irdbd.
+
+     Default: ${myrpki::irdbd_sql_database}
+
+sql-username::
+
+     MySQL user name for irdbd.
+
+     Default: ${myrpki::irdbd_sql_username}
+
+sql-password::
+
+     MySQL password for irdbd.
+
+     Default: ${myrpki::irdbd_sql_password}
+
+server-host::
+
+     Host on which irdbd should listen for HTTP service requests.
+
+     Default: ${myrpki::irdbd_server_host}
+
+server-port::
+
+     Port on which irdbd should listen for HTTP service requests.
+
+     Default: ${myrpki::irdbd_server_port}
 
 startup-message::
 
      String to log on startup, useful when debugging a collection of irdbd
      instances at once.
 
-sql-username::
-
-     Username to hand to MySQL when connecting to irdbd's database.
-
-sql-database::
-
-     MySQL's database name for irdbd's database.
-
-sql-password::
-
-     Password to hand to MySQL when connecting to irdbd's database.
-
-server-host::
-
-     Hostname or IP address on which to listen for HTTP connections.
-     Default is the wildcard address (IPv4 0.0.0.0, IPv6 ::), which should
-     work in most cases.
-
-server-port::
-
-     TCP port on which to listen for HTTP connections.
+     No default value.

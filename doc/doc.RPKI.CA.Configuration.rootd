@@ -1,159 +1,145 @@
-****** rootd.conf ******
+You don't need to run rootd unless you're IANA, are certifying private address
+space, or are an RIR which refuses to accept IANA as the root of the public
+address hierarchy.
 
-***** Caveat *****
+Ok, if that wasn't enough to scare you off: rootd is a mess, and needs to be
+rewritten, or, better, merged into rpkid. It doesn't use the publication
+protocol, and it requires far too many configuration parameters.
 
-rootd is, to be blunt about it, a mess. rootd was originally intended to be a
-very simple program which simplified rpkid enormously by moving one specific
-task (acting as the root CA of an RPKI certificate hierarchy) out of rpkid. As
-the specifications and code (mostly the latter) have evolved, however, this
-task has become more complicated, and rootd would have to become much more
-complicated to keep up. In particular, rootd does not speak the publication
-protocol, and requires far too many configuration parameters to work correctly.
-rootd is still useful as a test tool, where its shortcomings are largely hidden
-by automated generation of its configuration. Don't run rootd unless you're
-sure that you need to do so.
+rootd was originally intended to be a very simple program which simplified
+rpkid enormously by moving one specific task (acting as the root CA of an RPKI
+certificate hierarchy) out of rpkid. As the specifications and code (mostly the
+latter) have evolved, however, this task has become more complicated, and rootd
+would have to become much more complicated to keep up.
 
-OK, with that out of the way....
+Don't run rootd unless you're sure that you need to do so.
 
-***** Configuration *****
+Still think you need to run rootd? OK, but remember, you have been warned....
 
 rootd's default configuration file is the system rpki.conf file. Start rootd
-with "-c filename" to choose a different configuration file. All options are in
-the section "[rootd]". Certificates and keys may be in either DER or PEM
-format.
-
-Options:
+with -c filename to choose a different configuration file. All options are in
+the section [rootd]. Certificates and keys may be in either DER or PEM format.
 
 bpki-ta::
 
-     Name of file containing BPKI trust anchor. All BPKI certificate
-     validation in rootd traces back to this trust anchor.
+     Where rootd should look for the BPKI trust anchor. All BPKI
+     certificate verification within rootd traces back to this trust
+     anchor. Don't change this unless you really know what you are doing.
 
-rootd-bpki-cert::
-
-     Name of file containing rootd's own BPKI certificate.
-
-rootd-bpki-key::
-
-     Name of file containing RSA key corresponding to rootd-bpki-cert.
+     Default: ${myrpki::bpki_servers_directory}/ca.cer
 
 rootd-bpki-crl::
 
-     Name of file containing BPKI CRL that would cover rootd-bpki-cert had
-     it been revoked.
+     BPKI CRL. Don't change this unless you really know what you are
+     doing.
+
+     Default: ${myrpki::bpki_servers_directory}/ca.crl
+
+rootd-bpki-cert::
+
+     rootd's own BPKI EE certificate. Don't change this unless you really
+     know what you are doing.
+
+     Default: ${myrpki::bpki_servers_directory}/rootd.cer
+
+rootd-bpki-key::
+
+     Private key corresponding to rootd's own BPKI EE certificate. Don't
+     change this unless you really know what you are doing.
+
+     Default: ${myrpki::bpki_servers_directory}/rootd.key
 
 child-bpki-cert::
 
-     Name of file containing BPKI certificate for rootd's one and only
-     child (RPKI engine to which rootd issues an RPKI certificate).
+     BPKI certificate for rootd's one and only up-down child (RPKI engine
+     to which rootd issues an RPKI certificate). Don't change this unless
+     you really know what you are doing.
+
+     Default: ${myrpki::bpki_servers_directory}/child.cer
 
 server-host::
 
-     Hostname or IP address on which to listen for HTTP connections.
-     Default is localhost; don't change this unless you really know what
-     you are doing.
+     Server host on which rootd should listen.
+
+     Default: ${myrpki::rootd_server_host}
 
 server-port::
 
-     TCP port on which to listen for HTTP connections.
+     Server port on which rootd should listen.
 
-rpki-root-key::
-
-     Name of file containing RSA key to use in signing resource
-     certificates.
-
-rpki-root-cert::
-
-     Name of file containing self-signed RPKI certificate corresponding to
-     rpki-root-key.
+     Default: ${myrpki::rootd_server_port}
 
 rpki-root-dir::
 
-     Name of directory where rootd should write RPKI subject certificate,
-     manifest, and CRL. This needs to match pubd's configuration.
+     Where rootd should write its output. Yes, rootd should be using pubd
+     instead of publishing directly, but it doesn't. This needs to match
+     pubd's configuration.
 
-rpki-subject-cert::
+     Default: ${myrpki::publication_base_directory}
 
-     Name of file that rootd should use to save the one and only
-     certificate it issues. Default is "Child.cer".
+rpki-base-uri::
 
-rpki-root-crl::
+     rsync URI corresponding to directory containing rootd's outputs.
 
-     Name of file to which rootd should save its RPKI CRL. Default is
-     "Root.crl".
+     Default: `rsync://${myrpki::publication_rsync_server}/${myrpki::publ
+     ication_rsync_module}/`
 
-rpki-root-manifest::
+rpki-root-cert-uri::
 
-     Name of file to which rootd should save its RPKI manifest. Default is
-     "Root.mft".
+     rsync URI for rootd's root (self-signed) RPKI certificate.
+
+     Default: `rsync://${myrpki::publication_rsync_server}/${myrpki::publ
+     ication_root_module}/root.cer`
+
+rpki-root-key::
+
+     Private key corresponding to rootd's root RPKI certificate.
+
+     Default: ${myrpki::bpki_servers_directory}/root.key
+
+rpki-root-cert::
+
+     Filename (as opposed to rsync URI) of rootd's root RPKI certificate.
+
+     Default: ${myrpki::publication_root_cert_directory}/root.cer
 
 rpki-subject-pkcs10::
 
-     Name of file that rootd should use when saving a copy of the received
-     PKCS #10 request for a resource certificate. Default is
-     "Child.pkcs10".
+     Where rootd should stash a copy of the PKCS #10 request it gets from
+     its one (and only) child
 
-***** Creating a root certificate *****
+     Default: ${myrpki::bpki_servers_directory}/rootd.subject.pkcs10
 
-rootd does not create the RPKI root certificate, you have to do that yourself.
-The usual way of doing this is to use the OpenSSL command line tool. The exact
-details will depend on which resources you want in the root certificate, the
-URIs for your publication server, and so forth, but the general form looks
-something like this:
+rpki-subject-lifetime::
 
-  [req]
-  default_bits            = 2048
-  default_md              = sha256
-  distinguished_name      = req_dn
-  prompt                  = no
-  encrypt_key             = no
+     Lifetime of the one and only RPKI certificate rootd issues.
 
-  [req_dn]
-  CN                      = Testbed RPKI root certificate
+     Default: 30d
 
-  [x509v3_extensions]
-  basicConstraints        = critical,CA:true
-  subjectKeyIdentifier    = hash
-  keyUsage                = critical,keyCertSign,cRLSign
-  subjectInfoAccess       = @sia
-  certificatePolicies     = critical,1.3.6.1.5.5.7.14.2
-  sbgp-autonomousSysNum   = critical,@rfc3779_asns
-  sbgp-ipAddrBlock        = critical,@rfc3997_addrs
+rpki-root-crl::
 
-  [sia]
-  1.3.6.1.5.5.7.48.5;URI  = rsync://example.org/rpki/
-  1.3.6.1.5.5.7.48.10;URI = rsync://example.org/rpki/root.mft
+     Filename (relative to rootd-base-uri and rpki-root-dir) of the CRL
+     for rootd's root RPKI certificate.
 
-  [rfc3779_asns]
-  AS.0 = 64496-64511
-  AS.1 = 65536-65551
+     Default: root.crl
 
-  [rfc3997_addrs]
-  IPv4.0 = 192.0.2.0/24
-  IPv4.1 = 198.51.100.0/24
-  IPv4.2 = 203.0.113.0/24
-  IPv6.0 = 2001:0DB8::/32
+rpki-root-manifest::
 
-Assuming you save this configuration in a file "root.conf", you can use it to
-generate a root certificate as follows:
+     Filename (relative to rootd-base-uri and rpki-root-dir) of the
+     manifest for rootd's root RPKI certificate.
 
-  $ openssl genrsa -out root.key 2048
-  $ openssl req -new -config root.conf -out root.req -key root.key
-  $ openssl x509 -req -sha256             \
-          -signkey root.key -in root.req  \
-          -outform DER -out root.cer      \
-          -extfile root.conf -extensions x509v3_extensions \
-          -days 1825
+     Default: root.mft
 
-You may want to shorten the five year expire time (1825 days), which is a bit
-long. It is a root certificate, so a longer expire is not unusual.
+rpki-class-name::
 
-The generated root.cer must be copied to the publication directory as defined
-in rpki.conf,
+     Up-down protocol class name for RPKI certificate rootd issues to its
+     one (and only) child.
 
-  rpki-root-cert                  = ${myrpki::publication_base_directory}/
-  root.cer
+     Default: ${myrpki::handle}
 
-To create a TAL format trust anchor locator use
+rpki-subject-cert::
 
-  $ $top/rcynic/make-tal.sh <rsync URI of root.cer> <local copy of root.cer>
+     Filename (relative to rootd-base-uri and rpki-root-dir) of the one
+     (and only) RPKI certificate rootd issues.
+
+     Default: ${myrpki::handle}.cer

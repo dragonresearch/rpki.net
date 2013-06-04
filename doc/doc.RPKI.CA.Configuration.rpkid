@@ -1,60 +1,80 @@
-****** rpkid.conf ******
-
-rpkid's default config file is the system rpkid.conf file. Start rpkid with "-
-c filename" to choose a different config file. All options are in the section "
-[rpkid]". Certificates and keys may be in either DER or PEM format.
-
-Options:
-
-startup-message::
-
-     String to log on startup, useful when debugging a collection of rpkid
-     instances at once.
-
-sql-username::
-
-     Username to hand to MySQL when connecting to rpkid's database.
+rpkid's default config file is the system rpkid.conf file. Start rpkid with -
+c filename to choose a different config file. All options are in the section
+[rpkid]. BPKI Certificates and keys may be in either DER or PEM format.
 
 sql-database::
 
-     MySQL's database name for rpkid's database.
+     MySQL database name for rpkid.
+
+     Default: ${myrpki::rpkid_sql_database}
+
+sql-username::
+
+     MySQL user name for rpkid.
+
+     Default: ${myrpki::rpkid_sql_username}
 
 sql-password::
 
-     Password to hand to MySQL when connecting to rpkid's database.
+     MySQL password for rpkid.
 
-bpki-ta::
-
-     Name of file containing BPKI trust anchor. All BPKI certificate
-     verification within rpkid traces back to this trust anchor.
-
-rpkid-cert::
-
-     Name of file containing rpkid's own BPKI EE certificate.
-
-rpkid-key::
-
-     Name of file containing RSA key corresponding to rpkid-cert.
-
-irbe-cert::
-
-     Name of file containing BPKI certificate used by IRBE (rpkic, GUI)
-     when talking to rpkid.
-
-irdb-cert::
-
-     Name of file containing BPKI certificate used by irdbd.
-
-irdb-url::
-
-     Service URL for irdbd. Must be a http:// URL.
+     Default: ${myrpki::rpkid_sql_password}
 
 server-host::
 
-     Hostname or IP address on which to listen for HTTP connections.
-     Default is the wildcard address (IPv4 0.0.0.0, IPv6 ::), which should
-     work in most cases.
+     Host on which rpkid should listen for HTTP service requests.
+
+     Default: ${myrpki::rpkid_server_host}
 
 server-port::
 
-     TCP port on which to listen for HTTP connections.
+     Port on which rpkid should listen for HTTP service requests.
+
+     Default: ${myrpki::rpkid_server_port}
+
+irdb-url::
+
+     HTTP service URL rpkid should use to contact irdbd. If irdbd is
+     running on the same machine as rpkid, this can and probably should be
+     a loopback URL, since nobody but rpkid needs to talk to irdbd.
+
+     Default: http://${myrpki::irdbd_server_host}:${myrpki::
+     irdbd_server_port}/
+
+bpki-ta::
+
+     Where rpkid should look for the BPKI trust anchor. All BPKI
+     certificate verification within rpkid traces back to this trust
+     anchor. Don't change this unless you really know what you are doing.
+
+     Default: ${myrpki::bpki_servers_directory}/ca.cer
+
+rpkid-cert::
+
+     Where rpkid should look for its own BPKI EE certificate. Don't change
+     this unless you really know what you are doing.
+
+     Default: ${myrpki::bpki_servers_directory}/rpkid.cer
+
+rpkid-key::
+
+     Where rpkid should look for the private key corresponding to its own
+     BPKI EE certificate. Don't change this unless you really know what
+     you are doing.
+
+     Default: ${myrpki::bpki_servers_directory}/rpkid.key
+
+irdb-cert::
+
+     Where rpkid should look for irdbd's BPKI EE certificate. Don't change
+     this unless you really know what you are doing.
+
+     Default: ${myrpki::bpki_servers_directory}/irdbd.cer
+
+irbe-cert::
+
+     Where rpkid should look for the back-end control client's BPKI EE
+     certificate. Don't change this unless you really know what you are
+     doing.
+
+     Default: ${myrpki::bpki_servers_directory}/irbe.cer

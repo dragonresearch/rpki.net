@@ -1,52 +1,76 @@
-****** pubd.conf ******
-
 pubd's default configuration file is the system rpki.conf file. Start pubd with
-"-c filename" to choose a different configuration file. All options are in the
-section "[pubd]". Certificates and keys may be either DER or PEM format.
-
-Options:
-
-sql-username::
-
-     Username to hand to MySQL when connecting to pubd's database.
+-c filename to choose a different configuration file. All options are in the
+section [pubd]. BPKI certificates and keys may be either DER or PEM format.
 
 sql-database::
 
-     MySQL's database name for pubd's database.
+     MySQL database name for pubd.
+
+     Default: ${myrpki::pubd_sql_database}
+
+sql-username::
+
+     MySQL user name for pubd.
+
+     Default: ${myrpki::pubd_sql_username}
 
 sql-password::
 
-     Password to hand to MySQL when connecting to pubd's database.
+     MySQL password for pubd.
 
-bpki-ta::
-
-     Name of file containing master BPKI trust anchor for pubd. All BPKI
-     validation in pubd traces back to this trust anchor.
-
-irbe-cert::
-
-     Name of file containing BPKI certificate used by IRBE (rpkic, GUI)
-     when talking to pubd.
-
-pubd-cert::
-
-     Name of file containing BPKI certificate used by pubd.
-
-pubd-key::
-
-     Name of file containing RSA key corresponding to pubd-cert.
-
-server-host::
-
-     Hostname or IP address on which to listen for HTTP connections.
-     Default is the wildcard address (IPv4 0.0.0.0, IPv6 ::), which should
-     work in most cases.
-
-server-port::
-
-     TCP port on which to listen for HTTP connections.
+     Default: ${myrpki::pubd_sql_password}
 
 publication-base::
 
-     Path to base of filesystem tree where pubd should store publishable
-     objects. Default is publication/.
+     Root of directory tree where pubd should write out published data.
+     You need to configure this, and the configuration should match up
+     with the directory where you point rsyncd. Neither pubd nor rsyncd
+     much cares -where- you tell them to put this stuff, the important
+     thing is that the rsync URIs in generated certificates match up with
+     the published objects so that relying parties can find and verify
+     rpkid's published outputs.
+
+     Default: ${myrpki::publication_base_directory}
+
+server-host::
+
+     Host on which pubd should listen for HTTP service requests.
+
+     Default: ${myrpki::pubd_server_host}
+
+server-port::
+
+     Port on which pubd should listen for HTTP service requests.
+
+     Default: ${myrpki::pubd_server_port}
+
+bpki-ta::
+
+     Where pubd should look for the BPKI trust anchor. All BPKI
+     certificate verification within pubd traces back to this trust
+     anchor. Don't change this unless you really know what you are doing.
+
+     Default: ${myrpki::bpki_servers_directory}/ca.cer
+
+pubd-cert::
+
+     Where pubd should look for its own BPKI EE certificate. Don't change
+     this unless you really know what you are doing.
+
+     Default: ${myrpki::bpki_servers_directory}/pubd.cer
+
+pubd-key::
+
+     Where pubd should look for the private key corresponding to its own
+     BPKI EE certificate. Don't change this unless you really know what
+     you are doing.
+
+     Default: ${myrpki::bpki_servers_directory}/pubd.key
+
+irbe-cert::
+
+     Where pubd should look for the back-end control client's BPKI EE
+     certificate. Don't change this unless you really know what you are
+     doing.
+
+     Default: ${myrpki::bpki_servers_directory}/irbe.cer

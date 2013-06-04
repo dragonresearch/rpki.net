@@ -7,9 +7,10 @@ configuration file, but for most uses this is unnecessarily complicated. The
 recommended approach is to use a single configuration file, and to put all of
 the parameters that a normal user might need to change into a single section of
 that configuration file, then reference these common settings from the program-
-specific sections of the configuration file via macro expansion. The
-configuration file parser supports a limited version of the macro facility used
-in OpenSSL's configuration parser. An expression such as
+specific sections of the configuration file via macro expansion.
+
+The configuration file parser supports a limited version of the macro facility
+used in OpenSSL's configuration parser. An expression such as
 
   foo = ${bar::baz}
 

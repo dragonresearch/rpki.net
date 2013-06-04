@@ -24,14 +24,13 @@ import textwrap
 
 from lxml.etree import Element, SubElement, ElementTree
 
-space2 = " " * 2
 space4 = " " * 4
 space6 = " " * 6
 space8 = " " * 8
+star78 = "*" * 78
 
-text_wrapper = textwrap.TextWrapper()
+wiki_wrapper = textwrap.TextWrapper()
 conf_wrapper = textwrap.TextWrapper(initial_indent = "# ", subsequent_indent = "# ")
-wiki_wrapper = textwrap.TextWrapper(initial_indent = space2, subsequent_indent = space2)
 xml6_wrapper = textwrap.TextWrapper(initial_indent = space6, subsequent_indent = space6)
 xml8_wrapper = textwrap.TextWrapper(initial_indent = space8, subsequent_indent = space8)
 
@@ -57,9 +56,9 @@ class Option(object):
   def to_wiki(self, f):
     f.write("\n== %s == #%s\n" % (self.name, self.name))
     for d in self.doc:
-      f.write("\n%s\n" % text_wrapper.fill(d))
+      f.write("\n%s\n" % wiki_wrapper.fill(d))
     if self.value is None:
-      f.write("\n%s\n" % text_wrapper.fill("No default value."))
+      f.write("\n%s\n" % wiki_wrapper.fill("No default value."))
     else:
       f.write("\n{{{\n#!ini\n%s = %s\n}}}\n" % (self.name, self.value))
 
@@ -103,7 +102,7 @@ class Section(object):
   def to_wiki(self, f):
     f.write("\n= [%s] section = #%s\n" % (self.name, self.name))
     for d in self.doc:
-      f.write("\n%s\n" % text_wrapper.fill(d))
+      f.write("\n%s\n" % wiki_wrapper.fill(d))
     for o in self.options:
       o.to_wiki(f)
 
@@ -118,27 +117,30 @@ class Section(object):
       o.to_conf(f, width)
 
 def wiki_header(f):
+  f.write("\n".join((
+    "{{{",
+    "#!comment",
+    "",
+    star78,
+    "THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.",
+    "",
+    "Generated from " + ident,
+    "            by $Id$",
+    star78,
+    "",
+    "}}}",
+    "")))
   if toc is not None:
     f.write("[[TracNav(%s)]]\n" % toc)
-  f.write('''
-[[PageOutline]]
-{{{
-#!comment
-THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.
-
-Generated from ''' + ident + '''
-            by $Id$
-}}}
-''')
+  f.write("[[PageOutline]]\n")
 
 def conf_header(f):
-  f.write('''\
-# Automatically generated.  Edit as needed, but be careful of overwriting.
-#
-# Generated from ''' + ident + '''
-#             by $Id$
-''')
-
+  f.write("\n".join((
+    "# Automatically generated.  Edit as needed, but be careful of overwriting.",
+    "#",
+    "# Generated from " + ident,
+    "#             by $Id$",
+    "")))
 
 # We use clunky getopt instead of shiny argparse because ordering of
 # operations matters here, and most options may be repeated.  No doubt

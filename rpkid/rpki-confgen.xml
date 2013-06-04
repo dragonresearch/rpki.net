@@ -380,7 +380,7 @@
   <section name = "rpkid">
 
     <doc>
-      rpkid's default config file is the system `rpkid.conf` file.
+      rpkid's default config file is the system `rpki.conf` file.
       Start rpkid with `-c filename` to choose a different config
       file.  All options are in the section `[rpkid]`.  BPKI
       Certificates and keys may be in either DER or PEM format.

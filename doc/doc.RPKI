@@ -9,37 +9,12 @@ anonymous access at http://subvert-rpki.hactrn.net/.
 If you just want to browse the code you might find the Trac source code browser
 interface more convenient.
 
-***** Download *****
+***** Download and Install *****
 
 Full source code is available, as are binary packages for a few platforms.
 
-**** Ubuntu 12.04 LTS ****
-
-Binary packages for Ubuntu 12.04 LTS are generated automatically when new code
-is checked in to the Subversion repository.
-
-**** FreeBSD ****
-
-FreeBSD ports are generated automatically when new code is checked in to the
-Subversion repository.
-
-**** Source code ****
-
-For all other platforms, or if you want to build yourself on one of the above
-platforms, you need to download the source code.
-
-The recommended way to obtain the source code is via subversion. To download,
-do:
-
-  $ svn checkout http://subvert-rpki.hactrn.net/trunk/
-
-Code snapshots are also available from http://download.rpki.net/ as xz-
-compressed tarballs.
-
-***** Installation *****
-
-See the installation instructions for how to install the code once you've
-downloaded it.
+See the installation instructions for how to download the code and install it
+once you've downloaded it.
 
 ***** Relying Party Tools *****
 

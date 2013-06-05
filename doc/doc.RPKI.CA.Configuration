@@ -1,6 +1,63 @@
-****** Configuring the RPKI CA tools ******
+****** Configuring the RPKI CA tools: rpki.conf ******
 
-This section describes the configuration file syntax and settings.
+This section describes rpki.conf, the the configuration file for the RPKI CA
+tools.
+
+The first subsection is a quick summary of the options you're most likely to
+need to configure (or at least check) for a basic setup.
+
+The rest of this section contains a more complete reference to the
+configuration file and some of the things you might need to do with it if your
+needs are more complex.
+
+There are a lot of configuration options, but in most cases you will never have
+to touch more than a few of them. Keep reading, and don't panic.
+
+***** Quick guide to the most common configuration options *****
+
+This subsection describes only a handful of rpki.conf configuration options.
+These are the ones you'll need to set, or at least check, as part of initial
+installation. In general, the installation process will have already set sane
+values for these, but you may need to a few of them depending on exactly what
+you're doing.
+
+The location of rpki.conf varies depending on the operating system you're
+running and how you installed the software. Unless you did something unusual
+during installation, it's either /etc/rpki.conf or /usr/local/etc/rpki.conf.
+
+All of the configuration options you're most likely to need to change are in
+the ![myrpki] section of rpki.conf, which is discussed in much greater detail
+elsewhere.
+
+* You need to check the setting of rpkid_server_host. The installation process
+  sets this to the fully-qualified DNS hostname of the server on which you
+  installed the code, but if you use a service-specific DNS name for RPKI
+  service you will need to change this option to match that service name.
+
+  rpkid_server_host               = rpkid.example.org
+
+* You need to set the value of run_pubd to reflect whether you intend to run
+  your own RPKI publication server and rsync server.
+
+  run_pubd                        = false
+
+     or
+
+  run_pubd                        = true
+
+* If you are running your own RPKI publication server, you need to check the
+  setting of pubd_server_host. The installation process sets this to the fully-
+  qualified DNS hostname of the server on which you installed the code, but if
+  you use a service-specific DNS name for RPKI publication service you will
+  need to change this option to match that service name.
+
+  pubd_server_host                = pubd.example.org
+
+There are many other configuration options, but setting the above correctly
+should suffice to get you started with the default configuration. Read on for
+details if you need to know more, otherwise go to next steps.
+
+***** Configuration file syntax *****
 
 Each of the programs that make up the RPKI tookit can potentially take its own
 configuration file, but for most uses this is unnecessarily complicated. The

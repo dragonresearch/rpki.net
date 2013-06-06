@@ -4909,6 +4909,9 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
  * Check a trust anchor.  Yes, we trust it, by definition, but it
  * still needs to conform to the certificate profile, the
  * self-signature must be correct, etcetera.
+ *
+ * Ownership of the TA certificate object passes to this function when
+ * called (ie, freeing "x" is our responsibility).
  */
 static int check_ta(rcynic_ctx_t *rc, X509 *x, const uri_t *uri,
 		    const path_t *path1, const path_t *path2,
@@ -4919,14 +4922,19 @@ static int check_ta(rcynic_ctx_t *rc, X509 *x, const uri_t *uri,
 
   assert(rc && x && uri && path1 && path2);
 
+  if (x == NULL)
+    return 1;
+
   if ((wsk = walk_ctx_stack_new()) == NULL) {
     logmsg(rc, log_sys_err, "Couldn't allocate walk context stack");
+    X509_free(x);
     return 0;
   }
 
   if ((w = walk_ctx_stack_push(wsk, x, NULL)) == NULL) {
     logmsg(rc, log_sys_err, "Couldn't push walk context stack");
     walk_ctx_stack_free(wsk);
+    X509_free(x);
     return 0;
   }
 
@@ -4957,36 +4965,216 @@ static int check_ta(rcynic_ctx_t *rc, X509 *x, const uri_t *uri,
 
 
 
+
+/**
+ * Check a trust anchor read from a local file.
+ */
+static int check_ta_cer(rcynic_ctx_t *rc,
+			const char *fn)
+
+{
+  path_t path1, path2;
+  unsigned long hash;
+  X509 *x = NULL;
+  uri_t uri;
+  int i;
+
+  assert(rc && fn);
+
+  logmsg(rc, log_telemetry, "Processing trust anchor from file %s", fn);
+
+  if (strlen(fn) >= sizeof(path1.s)) {
+    logmsg(rc, log_usage_err, "Trust anchor path name too long %s", fn);
+    return 0;
+  }
+  strcpy(path1.s, fn);
+  filename_to_uri(&uri, path1.s);
+
+  if ((x = read_cert(&path1, NULL)) == NULL) {
+    log_validation_status(rc, &uri, unreadable_trust_anchor, object_generation_null);
+    return 1;
+  }
+
+  hash = X509_subject_name_hash(x);
+
+  for (i = 0; i < INT_MAX; i++) {
+    if (snprintf(path2.s, sizeof(path2.s), "%s%lx.%d.cer",
+		 rc->new_authenticated.s, hash, i) >= sizeof(path2.s)) {
+      logmsg(rc, log_sys_err,
+	     "Couldn't construct path name for trust anchor %s", path1.s);
+      goto lose;
+    }
+    if (access(path2.s, F_OK))
+      break;
+  }
+  if (i == INT_MAX) {
+    logmsg(rc, log_sys_err, "Couldn't find a free name for trust anchor %s", path1.s);
+    goto lose;
+  }
+
+  return check_ta(rc, x, &uri, &path1, &path2, object_generation_null);
+
+ lose:
+  X509_free(x);
+  return 0;
+}
+
+
+
 /**
  * Read a trust anchor from disk and compare with known public key.
+ *
  * NB: EVP_PKEY_cmp() returns 1 for match, not 0 like every other
  * xyz_cmp() function in the entire OpenSSL library.  Go figure.
  */
-static X509 *read_ta(rcynic_ctx_t *rc,
-		     const uri_t *uri,
-		     const path_t *path,
-		     const EVP_PKEY *pkey,
-		     object_generation_t generation)
+static int check_ta_tal_1(rcynic_ctx_t *rc,
+			  const uri_t *uri,
+			  const path_t *path2,
+			  const EVP_PKEY *pkey,
+			  object_generation_t generation)
 
 {
+  const path_t *prefix = NULL;
   EVP_PKEY *xpkey = NULL;
   X509 *x = NULL;
-  int match = 0;
+  path_t path1;
+  int ret = 0;
 
-  if ((x = read_cert(path, NULL)) == NULL || (xpkey = X509_get_pubkey(x)) == NULL) {
-    log_validation_status(rc, uri, unreadable_trust_anchor, generation);
-  } else {
-    match = EVP_PKEY_cmp(pkey, xpkey) == 1;
-    if (!match)
-      log_validation_status(rc, uri, trust_anchor_key_mismatch, generation);
+  switch (generation) {
+  case object_generation_current:
+    prefix = &rc->unauthenticated;
+    break;
+  case object_generation_backup:
+    prefix = &rc->old_authenticated;
+    break;
+  default:
+    goto done;
   }
 
+  if (!uri_to_filename(rc, uri, &path1, prefix)) {
+    log_validation_status(rc, uri, unreadable_trust_anchor_locator, generation);
+    goto done;
+  }
+
+  if ((x = read_cert(&path1, NULL)) == NULL || (xpkey = X509_get_pubkey(x)) == NULL) {
+    log_validation_status(rc, uri, unreadable_trust_anchor, generation);
+    goto done;
+  }
+
+  if (EVP_PKEY_cmp(pkey, xpkey) != 1) {
+    log_validation_status(rc, uri, trust_anchor_key_mismatch, generation);
+    goto done;
+  }
+
+  ret = check_ta(rc, x, uri, &path1, path2, generation);
+  x = NULL;
+
+ done:
+  if (!ret)
+    log_validation_status(rc, uri, object_rejected, generation);
   EVP_PKEY_free(xpkey);
-  if (match)
-    return x;
-  log_validation_status(rc, uri, object_rejected, generation);
   X509_free(x);
-  return NULL;
+  return ret;
+}
+
+/**
+ * Check a trust anchor read from a trust anchor locator (TAL).
+ */
+static int check_ta_tal(rcynic_ctx_t *rc,
+			const char *fn)
+
+{
+  EVP_PKEY *pkey = NULL;
+  BIO *bio = NULL;
+  path_t path2;
+  int ret = 1;
+  uri_t uri;
+
+  assert(rc && fn);
+
+  logmsg(rc, log_telemetry, "Processing trust anchor locator from file %s", fn);
+
+  bio = BIO_new_file(fn, "r");
+  if (!bio || BIO_gets(bio, uri.s, sizeof(uri.s)) <= 0) {
+    filename_to_uri(&uri, fn);
+    log_validation_status(rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
+    goto done;
+  }
+
+  uri.s[strcspn(uri.s, " \t\r\n")] = '\0';
+
+  if (!uri_to_filename(rc, &uri, &path2, &rc->new_authenticated)) {
+    log_validation_status(rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
+    goto done;
+  }
+
+  if (!endswith(uri.s, ".cer")) {
+    log_validation_status(rc, &uri, malformed_tal_uri, object_generation_null);
+    goto done;
+  }
+
+  bio = BIO_push(BIO_new(BIO_f_linebreak()), bio);
+  bio = BIO_push(BIO_new(BIO_f_base64()), bio);
+  if (bio)
+    pkey = d2i_PUBKEY_bio(bio, NULL);
+  if (!pkey) {
+    log_validation_status(rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
+    goto done;
+  }
+
+  logmsg(rc, log_telemetry, "Processing trust anchor from URI %s", uri.s);
+
+  rsync_file(rc, &uri);
+  while (sk_rsync_ctx_t_num(rc->rsync_queue) > 0)
+    rsync_mgr(rc);
+
+  ret = (check_ta_tal_1(rc, &uri, &path2, pkey, object_generation_current) ||
+	 check_ta_tal_1(rc, &uri, &path2, pkey, object_generation_backup));
+
+ done:
+  EVP_PKEY_free(pkey);  
+  BIO_free_all(bio);
+  return ret;
+}
+
+/**
+ * Check a directory of trust anchors and trust anchor locators.
+ */
+static int check_ta_dir(rcynic_ctx_t *rc,
+			const char *dn)
+{
+  DIR *dir = NULL;
+  struct dirent *d;
+  path_t path;
+  int ok = 1;
+
+  assert(rc && dn);
+
+  if ((dir = opendir(dn)) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't open trust anchor directory %s: %s",
+	   dn, strerror(errno));
+    ok = 0;
+  }
+
+  while (ok && (d = readdir(dir)) != NULL) {
+    if (d->d_type != DT_REG && d->d_type != DT_LNK)
+      continue;
+    if (snprintf(path.s, sizeof(path.s), "%s/%s", dn, d->d_name) >= sizeof(path.s)) {
+      logmsg(rc, log_data_err, "Pathname %s/%s too long", dn, d->d_name);
+      ok = 0;
+    } else if (endswith(path.s, ".cer")) {
+      ok = check_ta_cer(rc, path.s);
+    } else if (endswith(path.s, ".tal")) {
+      ok = check_ta_tal(rc, path.s);
+    } else {
+      logmsg(rc, log_verbose, "Skipping non-trust-anchor %s", path.s);
+    }
+  }
+
+  if (dir != NULL)
+    closedir(dir);
+
+  return ok;
 }
 
 
@@ -5114,17 +5302,16 @@ int main(int argc, char *argv[])
   int opt_jitter = 0, use_syslog = 0, use_stderr = 0, syslog_facility = 0;
   int opt_syslog = 0, opt_stderr = 0, opt_level = 0, prune = 1;
   int opt_auth = 0, opt_unauth = 0, keep_lockfile = 0;
-  char *cfg_file = "rcynic.conf";
   char *lockfile = NULL, *xmlfile = NULL;
-  int c, i, j, ret = 1, jitter = 600, lockfd = -1;
+  char *cfg_file = "rcynic.conf";
+  int c, i, ret = 1, jitter = 600, lockfd = -1;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
   CONF *cfg_handle = NULL;
   time_t start = 0, finish;
-  unsigned long hash;
   rcynic_ctx_t rc;
   unsigned delay;
   long eline = 0;
-  BIO *bio = NULL;
+  path_t ta_dir;
 
   memset(&rc, 0, sizeof(rc));
 
@@ -5160,6 +5347,8 @@ int main(int argc, char *argv[])
 
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
+
+  memset(&ta_dir, 0, sizeof(&ta_dir));
 
   while ((c = getopt(argc, argv, "a:c:l:sej:u:Vx:")) > 0) {
     switch (c) {
@@ -5253,6 +5442,10 @@ int main(int argc, char *argv[])
     else if (!opt_unauth &&
 	     !name_cmp(val->name, "unauthenticated") &&
 	     !set_directory(&rc, &rc.unauthenticated, val->value, 1))
+      goto done;
+
+    else if (!name_cmp(val->name, "trust-anchor-directory") &&
+	     !set_directory(&rc, &ta_dir, val->value, 0))
       goto done;
 
     else if (!name_cmp(val->name, "rsync-timeout") &&
@@ -5438,7 +5631,9 @@ int main(int argc, char *argv[])
     goto done;
 
   if (!access(rc.new_authenticated.s, F_OK)) {
-    logmsg(&rc, log_sys_err, "Timestamped output directory %s already exists!  Clock went backwards?", rc.new_authenticated.s);
+    logmsg(&rc, log_sys_err,
+	   "Timestamped output directory %s already exists!  Clock went backwards?",
+	   rc.new_authenticated.s);
     goto done;
   }
 
@@ -5450,132 +5645,24 @@ int main(int argc, char *argv[])
 
   for (i = 0; i < sk_CONF_VALUE_num(cfg_section); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
-    object_generation_t generation = object_generation_null;
-    path_t path1, path2;
-    uri_t uri;
-    X509 *x = NULL;
 
     assert(val && val->name && val->value);
 
     if (!name_cmp(val->name, "trust-anchor-uri-with-key") ||
 	!name_cmp(val->name, "indirect-trust-anchor")) {
-      /*
-       * Obsolete syntax.  If you're reading this comment because you
-       * had an old rcynic.conf and got this error message:
-       *
-       * "indirect-trust-anchor" is exactly the same as
-       * "trust-anchor-locator", the name was changed to settle a
-       * terminology fight in the IETF SIDR WG.
-       *
-       * "trust-anchor-uri-with-key" is semantically identical to
-       * "trust-anchor-locator" (and was the original form of this
-       * mechanism), but the syntax and local file format is
-       * different.
-       *
-       * If you're seeing this error, you should just obtain current
-       * TAL files.   Also see the "make-tal.sh" script.
-       */
       logmsg(&rc, log_usage_err,
 	     "Directive \"%s\" is obsolete -- please use \"trust-anchor-locator\" instead",
 	     val->name);
       goto done;
     }
 
-    if (!name_cmp(val->name, "trust-anchor")) {
-      /*
-       * Local file trust anchor method.
-       */
-      logmsg(&rc, log_telemetry, "Processing trust anchor from local file %s", val->value);
-      if (strlen(val->value) >= sizeof(path1.s)) {
-	logmsg(&rc, log_usage_err, "Trust anchor path name too long %s", val->value);
-	goto done;
-      }
-      strcpy(path1.s, val->value);
-      filename_to_uri(&uri, path1.s);
-      if ((x = read_cert(&path1, NULL)) == NULL) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor, generation);
-	continue;
-      }
-      hash = X509_subject_name_hash(x);
-      for (j = 0; j < INT_MAX; j++) {
-	if (snprintf(path2.s, sizeof(path2.s), "%s%lx.%d.cer",
-		     rc.new_authenticated.s, hash, j) >= sizeof(path2.s)) {
-	  logmsg(&rc, log_sys_err,
-		 "Couldn't construct path name for trust anchor %s", path1.s);
-	  goto done;
-	}
-	if (access(path2.s, F_OK))
-	  break;
-      }
-      if (j == INT_MAX) {
-	logmsg(&rc, log_sys_err, "Couldn't find a free name for trust anchor %s", path1.s);
-	goto done;
-      }
-    }
-
-    if (!name_cmp(val->name, "trust-anchor-locator")) {
-      /*
-       * Trust anchor locator (URI + public key) method.
-       */
-      EVP_PKEY *pkey = NULL;
-      char *fn;
-      path_t path3;
-
-      fn = val->value;
-      bio = BIO_new_file(fn, "r");
-      if (!bio || BIO_gets(bio, uri.s, sizeof(uri.s)) <= 0) {
-	filename_to_uri(&uri, fn);
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
-	BIO_free(bio);
-	bio = NULL;
-	continue;
-      }
-      uri.s[strcspn(uri.s, " \t\r\n")] = '\0';
-      bio = BIO_push(BIO_new(BIO_f_linebreak()), bio);
-      bio = BIO_push(BIO_new(BIO_f_base64()), bio);
-      if (!uri_to_filename(&rc, &uri, &path1, &rc.unauthenticated) ||
-	  !uri_to_filename(&rc, &uri, &path2, &rc.new_authenticated) ||
-	  !uri_to_filename(&rc, &uri, &path3, &rc.old_authenticated)) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
-	BIO_free_all(bio);
-	bio = NULL;
-	continue;
-      }
-      if (!endswith(uri.s, ".cer")) {
-	log_validation_status(&rc, &uri, malformed_tal_uri, object_generation_null);
-	BIO_free_all(bio);
-	bio = NULL;
-	continue;
-      }
-      logmsg(&rc, log_telemetry, "Processing trust anchor from URI %s", uri.s);
-      rsync_file(&rc, &uri);
-      while (sk_rsync_ctx_t_num(rc.rsync_queue) > 0)
-	rsync_mgr(&rc);
-      if (bio)
-	pkey = d2i_PUBKEY_bio(bio, NULL);
-      BIO_free_all(bio);
-      bio = NULL;
-      if (!pkey) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
-	continue;
-      }
-      generation = object_generation_current;
-      if ((x = read_ta(&rc, &uri, &path1, pkey, generation)) == NULL) {
-	generation = object_generation_backup;
-	path1 = path3;
-	x = read_ta(&rc, &uri, &path1, pkey, generation);
-      }
-      EVP_PKEY_free(pkey);
-      if (!x)
-	continue;
-    }
-
-    if (!x)
-      continue;
-
-    if (!check_ta(&rc, x, &uri, &path1, &path2, generation))
+    if ((!name_cmp(val->name, "trust-anchor")         && !check_ta_cer(&rc, val->value)) ||
+	(!name_cmp(val->name, "trust-anchor-locator") && !check_ta_tal(&rc, val->value)))
       goto done;
   }
+
+  if (*ta_dir.s != '\0' && !check_ta_dir(&rc, ta_dir.s))
+    goto done;
 
   if (!finalize_directories(&rc))
     goto done;
@@ -5604,7 +5691,6 @@ int main(int argc, char *argv[])
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);
   CONF_modules_free();
-  BIO_free(bio);
   EVP_cleanup();
   ERR_free_strings();
   if (rc.rsync_program)

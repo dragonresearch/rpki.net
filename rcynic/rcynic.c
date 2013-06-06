@@ -486,8 +486,8 @@ static const char * const rsync_state_label[] = { RSYNC_STATES NULL };
  */
 typedef struct rsync_ctx {
   uri_t uri;
-  void (*handler)(rcynic_ctx_t *, const struct rsync_ctx *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *);
-  STACK_OF(walk_ctx_t) *wsk;
+  void (*handler)(rcynic_ctx_t *, const struct rsync_ctx *, const rsync_status_t, const uri_t *, void *);
+  void *cookie;
   rsync_state_t state;
   enum {
     rsync_problem_none,		/* Must be first */
@@ -520,8 +520,8 @@ DECLARE_STACK_OF(rsync_history_t)
  * Deferred task.
  */
 typedef struct task {
-  void (*handler)(rcynic_ctx_t *, STACK_OF(walk_ctx_t) *);
-  STACK_OF(walk_ctx_t) *wsk;
+  void (*handler)(rcynic_ctx_t *, void *);
+  void *cookie;
 } task_t;
 
 DECLARE_STACK_OF(task_t)
@@ -2102,8 +2102,8 @@ static int rsync_count_running(const rcynic_ctx_t *);
  * Add a task to the task queue.
  */
 static int task_add(const rcynic_ctx_t *rc,
-		    void (*handler)(rcynic_ctx_t *, STACK_OF(walk_ctx_t) *),
-		    STACK_OF(walk_ctx_t) *wsk)
+		    void (*handler)(rcynic_ctx_t *, void *),
+		    void *cookie)
 {
   task_t *t = malloc(sizeof(*t));
 
@@ -2115,7 +2115,7 @@ static int task_add(const rcynic_ctx_t *rc,
     return 0;
 
   t->handler = handler;
-  t->wsk = wsk;
+  t->cookie = cookie;
 
   if (sk_task_t_push(rc->task_queue, t))
     return 1;
@@ -2132,7 +2132,7 @@ static void task_run_q(rcynic_ctx_t *rc)
   task_t *t;
   assert(rc && rc->task_queue);
   while ((t = sk_task_t_shift(rc->task_queue)) != NULL) {
-    t->handler(rc, t->wsk);
+    t->handler(rc, t->cookie);
     free(t);
   }
 }
@@ -2358,7 +2358,7 @@ static void rsync_run(rcynic_ctx_t *rc,
   if (rsync_history_uri(rc, &ctx->uri)) {
     logmsg(rc, log_verbose, "Late rsync cache hit for %s", ctx->uri.s);
     if (ctx->handler)
-      ctx->handler(rc, ctx, rsync_status_done, &ctx->uri, ctx->wsk);
+      ctx->handler(rc, ctx, rsync_status_done, &ctx->uri, ctx->cookie);
     (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
     free(ctx);
     return;
@@ -2456,7 +2456,7 @@ static void rsync_run(rcynic_ctx_t *rc,
     logmsg(rc, log_verbose, "Subprocess %u started, queued %d, runable %d, running %d, max %d, URI %s",
 	   (unsigned) ctx->pid, sk_rsync_ctx_t_num(rc->rsync_queue), rsync_count_runable(rc), rsync_count_running(rc), rc->max_parallel_fetches, ctx->uri.s);
     if (ctx->handler)
-      ctx->handler(rc, ctx, rsync_status_pending, &ctx->uri, ctx->wsk);
+      ctx->handler(rc, ctx, rsync_status_pending, &ctx->uri, ctx->cookie);
     return;
 
   }
@@ -2469,7 +2469,7 @@ static void rsync_run(rcynic_ctx_t *rc,
   if (rc->rsync_queue && ctx)
     (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
   if (ctx && ctx->handler)
-    ctx->handler(rc, ctx, rsync_status_failed, &ctx->uri, ctx->wsk);
+    ctx->handler(rc, ctx, rsync_status_failed, &ctx->uri, ctx->cookie);
   if (ctx->pid > 0) {
     (void) kill(ctx->pid, SIGKILL);
     ctx->pid = 0;
@@ -2694,7 +2694,7 @@ static void rsync_mgr(rcynic_ctx_t *rc)
 			  object_generation_null);
     rsync_history_add(rc, ctx, rsync_status);
     if (ctx->handler)
-      ctx->handler(rc, ctx, rsync_status, &ctx->uri, ctx->wsk);
+      ctx->handler(rc, ctx, rsync_status, &ctx->uri, ctx->cookie);
     (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
     free(ctx);
     ctx = NULL;
@@ -2807,8 +2807,8 @@ static void rsync_mgr(rcynic_ctx_t *rc)
  */
 static void rsync_init(rcynic_ctx_t *rc,
 		       const uri_t *uri,
-		       STACK_OF(walk_ctx_t) *wsk,
-		       void (*handler)(rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
+		       void *cookie,
+		       void (*handler)(rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, void *))
 {
   rsync_ctx_t *ctx = NULL;
 
@@ -2817,34 +2817,34 @@ static void rsync_init(rcynic_ctx_t *rc,
   if (!rc->run_rsync) {
     logmsg(rc, log_verbose, "rsync disabled, skipping %s", uri->s);
     if (handler)
-      handler(rc, NULL, rsync_status_skipped, uri, wsk);
+      handler(rc, NULL, rsync_status_skipped, uri, cookie);
     return;
   }
 
   if (rsync_history_uri(rc, uri)) {
     logmsg(rc, log_verbose, "rsync cache hit for %s", uri->s);
     if (handler)
-      handler(rc, NULL, rsync_status_done, uri, wsk);
+      handler(rc, NULL, rsync_status_done, uri, cookie);
     return;
   }
 
   if ((ctx = malloc(sizeof(*ctx))) == NULL) {
     logmsg(rc, log_sys_err, "malloc(rsync_ctxt_t) failed");
     if (handler)
-      handler(rc, NULL, rsync_status_failed, uri, wsk);
+      handler(rc, NULL, rsync_status_failed, uri, cookie);
     return;
   }
 
   memset(ctx, 0, sizeof(*ctx));
   ctx->uri = *uri;
   ctx->handler = handler;
-  ctx->wsk = wsk;
+  ctx->cookie = cookie;
   ctx->fd = -1;
 
   if (!sk_rsync_ctx_t_push(rc->rsync_queue, ctx)) {
     logmsg(rc, log_sys_err, "Couldn't push rsync state object onto queue, punting %s", ctx->uri.s);
     if (handler)
-      handler(rc, ctx, rsync_status_failed, uri, wsk);
+      handler(rc, ctx, rsync_status_failed, uri, cookie);
     free(ctx);
     return;
   }
@@ -2870,11 +2870,11 @@ static void rsync_file(rcynic_ctx_t *rc,
  */
 static void rsync_tree(rcynic_ctx_t *rc,
 		       const uri_t *uri,
-		       STACK_OF(walk_ctx_t) *wsk,
-		       void (*handler)(rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
+		       void *cookie,
+		       void (*handler)(rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, void *))
 {
   assert(endswith(uri->s, "/"));
-  rsync_init(rc, uri, wsk, handler);
+  rsync_init(rc, uri, cookie, handler);
 }
 
 
@@ -4731,7 +4731,7 @@ static void check_ghostbuster(rcynic_ctx_t *rc,
 
 
 
-static void walk_cert(rcynic_ctx_t *, STACK_OF(walk_ctx_t) *);
+static void walk_cert(rcynic_ctx_t *, void *);
 
 /**
  * rsync callback for fetching SIA tree.
@@ -4740,8 +4740,9 @@ static void rsync_sia_callback(rcynic_ctx_t *rc,
 			       const rsync_ctx_t *ctx,
 			       const rsync_status_t status,
 			       const uri_t *uri,
-			       STACK_OF(walk_ctx_t) *wsk)
+			       void *cookie)
 {
+  STACK_OF(walk_ctx_t) *wsk = cookie;
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
 
   assert(rc && wsk);
@@ -4794,8 +4795,9 @@ static void rsync_sia_callback(rcynic_ctx_t *rc,
  * we just ignore them.  Other objects are either certificates or
  * CMS-signed objects of one kind or another.
  */
-static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
+static void walk_cert(rcynic_ctx_t *rc, void *cookie)
 {
+  STACK_OF(walk_ctx_t) *wsk = cookie;
   const unsigned char *hash = NULL;
   object_generation_t generation;
   size_t hashlen;

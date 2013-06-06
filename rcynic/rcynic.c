@@ -299,6 +299,7 @@ static const struct {
   QW(tainted_by_stale_manifest,		"Tainted by stale manifest")	    \
   QW(tainted_by_not_being_in_manifest,	"Tainted by not being in manifest") \
   QW(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	    \
+  QW(trust_anchor_skipped,		"Trust anchor skipped")		    \
   QW(unknown_object_type_skipped,	"Unknown object type skipped")	    \
   QW(uri_too_long,			"URI too long")			    \
   QW(wrong_cms_si_signature_algorithm,	"Wrong CMS SI signature algorithm") \
@@ -525,6 +526,15 @@ typedef struct task {
 } task_t;
 
 DECLARE_STACK_OF(task_t)
+
+/**
+ * Trust anchor locator (TAL) fetch context.
+ */
+typedef struct tal_ctx {
+  uri_t uri;
+  path_t path;
+  EVP_PKEY *pkey;
+} tal_ctx_t;
 
 /**
  * Extended context for verify callbacks.  This is a wrapper around
@@ -2335,6 +2345,39 @@ static int rsync_count_runable(const rcynic_ctx_t *rc)
 }
 
 /**
+ * Call rsync context handler, if one is set.
+ */
+static void rsync_call_handler(rcynic_ctx_t *rc,
+			       rsync_ctx_t *ctx,
+			       const rsync_status_t status)
+{
+  if (!ctx)
+    return;
+
+  switch (status) {
+
+  case rsync_status_pending:
+  case rsync_status_done:
+    break;
+
+  case rsync_status_failed:
+    log_validation_status(rc, &ctx->uri, rsync_transfer_failed, object_generation_null);
+    break;
+
+  case rsync_status_timed_out:
+    log_validation_status(rc, &ctx->uri, rsync_transfer_timed_out, object_generation_null);
+    break;
+
+  case rsync_status_skipped:
+    log_validation_status(rc, &ctx->uri, rsync_transfer_skipped, object_generation_null);
+    break;
+  }
+
+  if (ctx->handler)
+    ctx->handler(rc, ctx, status, &ctx->uri, ctx->cookie);
+}
+
+/**
  * Run an rsync process.
  */
 static void rsync_run(rcynic_ctx_t *rc,
@@ -2357,8 +2400,7 @@ static void rsync_run(rcynic_ctx_t *rc,
 
   if (rsync_history_uri(rc, &ctx->uri)) {
     logmsg(rc, log_verbose, "Late rsync cache hit for %s", ctx->uri.s);
-    if (ctx->handler)
-      ctx->handler(rc, ctx, rsync_status_done, &ctx->uri, ctx->cookie);
+    rsync_call_handler(rc, ctx, rsync_status_done);
     (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
     free(ctx);
     return;
@@ -2455,8 +2497,7 @@ static void rsync_run(rcynic_ctx_t *rc,
       ctx->deadline = time(0) + rc->rsync_timeout;
     logmsg(rc, log_verbose, "Subprocess %u started, queued %d, runable %d, running %d, max %d, URI %s",
 	   (unsigned) ctx->pid, sk_rsync_ctx_t_num(rc->rsync_queue), rsync_count_runable(rc), rsync_count_running(rc), rc->max_parallel_fetches, ctx->uri.s);
-    if (ctx->handler)
-      ctx->handler(rc, ctx, rsync_status_pending, &ctx->uri, ctx->cookie);
+    rsync_call_handler(rc, ctx, rsync_status_pending);
     return;
 
   }
@@ -2468,8 +2509,7 @@ static void rsync_run(rcynic_ctx_t *rc,
     (void) close(pipe_fds[1]);
   if (rc->rsync_queue && ctx)
     (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
-  if (ctx && ctx->handler)
-    ctx->handler(rc, ctx, rsync_status_failed, &ctx->uri, ctx->cookie);
+  rsync_call_handler(rc, ctx, rsync_status_failed);
   if (ctx->pid > 0) {
     (void) kill(ctx->pid, SIGKILL);
     ctx->pid = 0;
@@ -2693,8 +2733,7 @@ static void rsync_mgr(rcynic_ctx_t *rc)
 			  rsync_status_to_mib_counter(rsync_status),
 			  object_generation_null);
     rsync_history_add(rc, ctx, rsync_status);
-    if (ctx->handler)
-      ctx->handler(rc, ctx, rsync_status, &ctx->uri, ctx->cookie);
+    rsync_call_handler(rc, ctx, rsync_status);
     (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
     free(ctx);
     ctx = NULL;
@@ -2843,8 +2882,7 @@ static void rsync_init(rcynic_ctx_t *rc,
 
   if (!sk_rsync_ctx_t_push(rc->rsync_queue, ctx)) {
     logmsg(rc, log_sys_err, "Couldn't push rsync state object onto queue, punting %s", ctx->uri.s);
-    if (handler)
-      handler(rc, ctx, rsync_status_failed, uri, cookie);
+    rsync_call_handler(rc, ctx, rsync_status_failed);
     free(ctx);
     return;
   }
@@ -2856,13 +2894,16 @@ static void rsync_init(rcynic_ctx_t *rc,
 }
 
 /**
- * rsync a single file (trust anchor, CRL, manifest, ROA, whatever).
+ * rsync a trust anchor.
  */
-static void rsync_file(rcynic_ctx_t *rc,
-		       const uri_t *uri)
+static void rsync_ta(rcynic_ctx_t *rc,
+		     const uri_t *uri,
+		     tal_ctx_t *tctx,
+		     void (*handler)(rcynic_ctx_t *, const rsync_ctx_t *,
+				     const rsync_status_t, const uri_t *, void *))
 {
-  assert(!endswith(uri->s, "/"));
-  rsync_init(rc, uri, NULL, NULL);
+  assert(endswith(uri->s, ".cer"));
+  rsync_init(rc, uri, tctx, handler);
 }
 
 /**
@@ -2870,11 +2911,12 @@ static void rsync_file(rcynic_ctx_t *rc,
  */
 static void rsync_tree(rcynic_ctx_t *rc,
 		       const uri_t *uri,
-		       void *cookie,
-		       void (*handler)(rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, void *))
+		       STACK_OF(walk_ctx_t) *wsk,
+		       void (*handler)(rcynic_ctx_t *, const rsync_ctx_t *,
+				       const rsync_status_t, const uri_t *, void *))
 {
   assert(endswith(uri->s, "/"));
-  rsync_init(rc, uri, cookie, handler);
+  rsync_init(rc, uri, wsk, handler);
 }
 
 
@@ -4747,38 +4789,22 @@ static void rsync_sia_callback(rcynic_ctx_t *rc,
 
   assert(rc && wsk);
 
-  switch (status) {
-
-  case rsync_status_pending:
-    if (rsync_count_runable(rc) >= rc->max_parallel_fetches)
-      return;
-
-    if ((wsk = walk_ctx_stack_clone(wsk)) == NULL) {
-      logmsg(rc, log_sys_err, "walk_ctx_stack_clone() failed, probably memory exhaustion, blundering onwards without forking stack");
-      return;
-    }
-
-    walk_ctx_stack_pop(wsk);
+  if (status != rsync_status_pending) {
+    w->state++;
     task_add(rc, walk_cert, wsk);
     return;
-
-  case rsync_status_failed:
-    log_validation_status(rc, uri, rsync_transfer_failed, object_generation_null);
-    break;
-
-  case rsync_status_timed_out:
-    log_validation_status(rc, uri, rsync_transfer_timed_out, object_generation_null);
-    break;
-
-  case rsync_status_skipped:
-    log_validation_status(rc, uri, rsync_transfer_skipped, object_generation_null);
-    break;
-
-  case rsync_status_done:
-    break;
   }
 
-  w->state++;
+  if (rsync_count_runable(rc) >= rc->max_parallel_fetches)
+    return;
+
+  if ((wsk = walk_ctx_stack_clone(wsk)) == NULL) {
+    logmsg(rc, log_sys_err,
+	   "walk_ctx_stack_clone() failed, probably memory exhaustion, blundering onwards without forking stack");
+    return;
+  }
+
+  walk_ctx_stack_pop(wsk);
   task_add(rc, walk_cert, wsk);
 }
 
@@ -4954,19 +4980,11 @@ static int check_ta(rcynic_ctx_t *rc, X509 *x, const uri_t *uri,
   }
 
   log_validation_status(rc, uri, object_accepted, generation);
-
   task_add(rc, walk_cert, wsk);
-
-  while (sk_task_t_num(rc->task_queue) > 0 || sk_rsync_ctx_t_num(rc->rsync_queue) > 0) {
-    task_run_q(rc);
-    rsync_mgr(rc);
-  }
-
   return 1;
 }
 
 
-
 
 /**
  * Check a trust anchor read from a local file.
@@ -4994,7 +5012,7 @@ static int check_ta_cer(rcynic_ctx_t *rc,
 
   if ((x = read_cert(&path1, NULL)) == NULL) {
     log_validation_status(rc, &uri, unreadable_trust_anchor, object_generation_null);
-    return 1;
+    goto lose;
   }
 
   hash = X509_subject_name_hash(x);
@@ -5017,6 +5035,7 @@ static int check_ta_cer(rcynic_ctx_t *rc,
   return check_ta(rc, x, &uri, &path1, &path2, object_generation_null);
 
  lose:
+  log_validation_status(rc, &uri, trust_anchor_skipped, object_generation_null);
   X509_free(x);
   return 0;
 }
@@ -5024,22 +5043,42 @@ static int check_ta_cer(rcynic_ctx_t *rc,
 
 
 /**
+ * Allocate a new tal_ctx_t.
+ */
+static tal_ctx_t *tal_ctx_t_new(void)
+{
+  tal_ctx_t *tctx = malloc(sizeof(*tctx));
+  if (tctx)
+    memset(tctx, 0, sizeof(*tctx));
+  return tctx;
+}
+
+/**
+ * Free a tal_ctx_t.
+ */
+static void tal_ctx_t_free(tal_ctx_t *tctx)
+{
+  if (tctx) {
+    EVP_PKEY_free(tctx->pkey);
+    free(tctx);
+  }
+}
+
+/**
  * Read a trust anchor from disk and compare with known public key.
  *
  * NB: EVP_PKEY_cmp() returns 1 for match, not 0 like every other
  * xyz_cmp() function in the entire OpenSSL library.  Go figure.
  */
-static int check_ta_tal_1(rcynic_ctx_t *rc,
-			  const uri_t *uri,
-			  const path_t *path2,
-			  const EVP_PKEY *pkey,
-			  object_generation_t generation)
+static int check_ta_tal_callback_1(rcynic_ctx_t *rc,
+				   const tal_ctx_t *tctx,
+				   object_generation_t generation)
 
 {
   const path_t *prefix = NULL;
-  EVP_PKEY *xpkey = NULL;
+  EVP_PKEY *pkey = NULL;
   X509 *x = NULL;
-  path_t path1;
+  path_t path;
   int ret = 0;
 
   switch (generation) {
@@ -5053,30 +5092,53 @@ static int check_ta_tal_1(rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (!uri_to_filename(rc, uri, &path1, prefix)) {
-    log_validation_status(rc, uri, unreadable_trust_anchor_locator, generation);
+  if (!uri_to_filename(rc, &tctx->uri, &path, prefix)) {
+    log_validation_status(rc, &tctx->uri, unreadable_trust_anchor_locator, generation);
     goto done;
   }
 
-  if ((x = read_cert(&path1, NULL)) == NULL || (xpkey = X509_get_pubkey(x)) == NULL) {
-    log_validation_status(rc, uri, unreadable_trust_anchor, generation);
+  if ((x = read_cert(&path, NULL)) == NULL || (pkey = X509_get_pubkey(x)) == NULL) {
+    log_validation_status(rc, &tctx->uri, unreadable_trust_anchor, generation);
     goto done;
   }
 
-  if (EVP_PKEY_cmp(pkey, xpkey) != 1) {
-    log_validation_status(rc, uri, trust_anchor_key_mismatch, generation);
+  if (EVP_PKEY_cmp(tctx->pkey, pkey) != 1) {
+    log_validation_status(rc, &tctx->uri, trust_anchor_key_mismatch, generation);
     goto done;
   }
 
-  ret = check_ta(rc, x, uri, &path1, path2, generation);
+  ret = check_ta(rc, x, &tctx->uri, &path, &tctx->path, generation);
   x = NULL;
 
  done:
   if (!ret)
-    log_validation_status(rc, uri, object_rejected, generation);
-  EVP_PKEY_free(xpkey);
+    log_validation_status(rc, &tctx->uri, object_rejected, generation);
+  EVP_PKEY_free(pkey);
   X509_free(x);
   return ret;
+}
+
+/**
+ * rsync callback for fetching a TAL.
+ */
+static void rsync_tal_callback(rcynic_ctx_t *rc,
+			       const rsync_ctx_t *ctx,
+			       const rsync_status_t status,
+			       const uri_t *uri,
+			       void *cookie)
+{
+  tal_ctx_t *tctx = cookie;
+
+  assert(rc && tctx);
+
+  if (status == rsync_status_pending)
+    return;
+
+  if (!check_ta_tal_callback_1(rc, tctx, object_generation_current) &&
+      !check_ta_tal_callback_1(rc, tctx, object_generation_backup))
+    log_validation_status(rc, &tctx->uri, trust_anchor_skipped, object_generation_null);
+
+  tal_ctx_t_free(tctx);
 }
 
 /**
@@ -5086,55 +5148,55 @@ static int check_ta_tal(rcynic_ctx_t *rc,
 			const char *fn)
 
 {
-  EVP_PKEY *pkey = NULL;
+  tal_ctx_t *tctx = NULL;
   BIO *bio = NULL;
-  path_t path2;
   int ret = 1;
-  uri_t uri;
 
   assert(rc && fn);
 
   logmsg(rc, log_telemetry, "Processing trust anchor locator from file %s", fn);
 
+  if ((tctx = tal_ctx_t_new()) == NULL) {
+    logmsg(rc, log_sys_err, "malloc(tal_ctxt_t) failed");
+    goto done;
+  }
+
   bio = BIO_new_file(fn, "r");
-  if (!bio || BIO_gets(bio, uri.s, sizeof(uri.s)) <= 0) {
-    filename_to_uri(&uri, fn);
-    log_validation_status(rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
+  if (!bio || BIO_gets(bio, tctx->uri.s, sizeof(tctx->uri.s)) <= 0) {
+    uri_t furi;
+    filename_to_uri(&furi, fn);
+    log_validation_status(rc, &furi, unreadable_trust_anchor_locator, object_generation_null);
     goto done;
   }
 
-  uri.s[strcspn(uri.s, " \t\r\n")] = '\0';
+  tctx->uri.s[strcspn(tctx->uri.s, " \t\r\n")] = '\0';
 
-  if (!uri_to_filename(rc, &uri, &path2, &rc->new_authenticated)) {
-    log_validation_status(rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
+  if (!uri_to_filename(rc, &tctx->uri, &tctx->path, &rc->new_authenticated)) {
+    log_validation_status(rc, &tctx->uri, unreadable_trust_anchor_locator, object_generation_null);
     goto done;
   }
 
-  if (!endswith(uri.s, ".cer")) {
-    log_validation_status(rc, &uri, malformed_tal_uri, object_generation_null);
+  if (!endswith(tctx->uri.s, ".cer")) {
+    log_validation_status(rc, &tctx->uri, malformed_tal_uri, object_generation_null);
     goto done;
   }
 
   bio = BIO_push(BIO_new(BIO_f_linebreak()), bio);
   bio = BIO_push(BIO_new(BIO_f_base64()), bio);
   if (bio)
-    pkey = d2i_PUBKEY_bio(bio, NULL);
-  if (!pkey) {
-    log_validation_status(rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
+    tctx->pkey = d2i_PUBKEY_bio(bio, NULL);
+  if (!tctx->pkey) {
+    log_validation_status(rc, &tctx->uri, unreadable_trust_anchor_locator, object_generation_null);
     goto done;
   }
 
-  logmsg(rc, log_telemetry, "Processing trust anchor from URI %s", uri.s);
+  logmsg(rc, log_telemetry, "Processing trust anchor from URI %s", tctx->uri.s);
 
-  rsync_file(rc, &uri);
-  while (sk_rsync_ctx_t_num(rc->rsync_queue) > 0)
-    rsync_mgr(rc);
-
-  ret = (check_ta_tal_1(rc, &uri, &path2, pkey, object_generation_current) ||
-	 check_ta_tal_1(rc, &uri, &path2, pkey, object_generation_backup));
+  rsync_ta(rc, &tctx->uri, tctx, rsync_tal_callback);
+  tctx = NULL;			/* Control has passed */
 
  done:
-  EVP_PKEY_free(pkey);  
+  tal_ctx_t_free(tctx);
   BIO_free_all(bio);
   return ret;
 }
@@ -5665,6 +5727,13 @@ int main(int argc, char *argv[])
 
   if (*ta_dir.s != '\0' && !check_ta_dir(&rc, ta_dir.s))
     goto done;
+
+  while (sk_task_t_num(rc.task_queue) > 0 || sk_rsync_ctx_t_num(rc.rsync_queue) > 0) {
+    task_run_q(&rc);
+    rsync_mgr(&rc);
+  }
+
+  logmsg(&rc, log_telemetry, "Event loop done, beginning final output and cleanup");
 
   if (!finalize_directories(&rc))
     goto done;

@@ -1731,12 +1731,14 @@ static int finalize_directories(const rcynic_ctx_t *rc)
 
   memset(&g, 0, sizeof(g));
 
-  if (real_new.s[0] && glob(path.s, 0, 0, &g) == 0)
+  if (real_new.s[0] && glob(path.s, 0, 0, &g) == 0) {
     for (i = 0; i < g.gl_pathc; i++)
       if (realpath(g.gl_pathv[i], path.s) &&
 	  strcmp(path.s, real_old.s) && 
 	  strcmp(path.s, real_new.s))
 	rm_rf(&path);
+    globfree(&g);
+  }
 
   return 1;
 }

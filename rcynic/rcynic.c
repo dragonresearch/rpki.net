@@ -1275,7 +1275,7 @@ validation_status_sprout(validation_status_t **node,
   *needs_balancing = 0;
   return *node;
 
-#undef AVL_DEBUG
+#undef AVL_MSG
 }
 
 /**

@@ -55,6 +55,14 @@ name(s) of one or more RPKI trust anchors or trust anchor locators.
 * To specify a trust anchor locator (TAL), use the trust-anchor-locator
   directive to name a local file containing the trust anchor locator.
 
+* To specify a directory containing trust anchors or trust anchor locators, use
+  the trust-anchor-directory directive to name the directory. Files in the
+  specified directory with names ending in ".cer" will be processed as trust
+  anchors, while files with names ending in ".tal" will be processed as trust
+  anchor locators.
+
+You may use a combination of these methods if necessary.
+
 Trust anchors are represented as DER-formatted X.509 self-signed certificate
 objects, but in practice trust anchor locators are more common, as they reduce
 the amount of locally configured data to the bare minimum and allow the trust

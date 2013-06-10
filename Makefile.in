@@ -1,5 +1,7 @@
 # $Id$
 
+PYTHON = @PYTHON@
+
 abs_top_builddir = @abs_top_builddir@
 
 SUBDIRS = @TOP_LEVEL_SUBDIRS@
@@ -7,6 +9,8 @@ SUBDIRS = @TOP_LEVEL_SUBDIRS@
 default: all
 
 test:: all
+
+all:: VERSION
 
 all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
@@ -21,3 +25,8 @@ distclean clean::
 
 distclean::
 	rm -rf Makefile config.log config.status
+
+VERSION: .FORCE
+	${PYTHON} buildtools/make-version.py
+
+.FORCE:

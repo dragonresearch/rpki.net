@@ -17,7 +17,7 @@ integration with the Django-based GUI interface.
 
 $Id$
 
-Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -54,6 +54,7 @@ import rpki.exceptions
 import rpki.left_right
 import rpki.x509
 import rpki.async
+import rpki.version
 
 from rpki.cli import Cmd, BadCommandSyntax
 
@@ -743,3 +744,14 @@ class main(Cmd):
       raise BadCommandSyntax("This command takes no arguments")
 
     self.zoo.clear_all_sql_cms_replay_protection()
+
+
+  def do_version(self, arg):
+    """
+    Show current software version number.
+    """
+
+    if arg:
+      raise BadCommandSyntax("This command takes no arguments")
+
+    print rpki.version.VERSION

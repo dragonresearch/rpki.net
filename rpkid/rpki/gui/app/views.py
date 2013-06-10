@@ -28,6 +28,7 @@ import cStringIO
 import csv
 import logging
 
+from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render, redirect
 from django.utils.http import urlquote
@@ -1253,12 +1254,22 @@ def user_edit(request, pk):
 
 
 class AlertListView(ListView):
+    # this nonsense is required to decorate CBVs
+    @method_decorator(handle_required)
+    def dispatch(*args, **kwargs):
+        return super(AlertDeleteView, self).dispatch(*args, **kwargs)
+
     def get_queryset(self, **kwargs):
         conf = self.request.session['handle']
         return conf.alerts.all()
 
 
 class AlertDetailView(DetailView):
+    # this nonsense is required to decorate CBVs
+    @method_decorator(handle_required)
+    def dispatch(*args, **kwargs):
+        return super(AlertDeleteView, self).dispatch(*args, **kwargs)
+
     def get_queryset(self, **kwargs):
         conf = self.request.session['handle']
         return conf.alerts.all()
@@ -1273,6 +1284,11 @@ class AlertDetailView(DetailView):
 
 class AlertDeleteView(DeleteView):
     success_url = reverse_lazy('alert-list')
+
+    # this nonsense is required to decorate CBVs
+    @method_decorator(handle_required)
+    def dispatch(*args, **kwargs):
+        return super(AlertDeleteView, self).dispatch(*args, **kwargs)
 
     def get_queryset(self, **kwargs):
         conf = self.request.session['handle']

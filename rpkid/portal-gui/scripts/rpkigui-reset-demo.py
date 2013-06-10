@@ -26,7 +26,8 @@ setup()
 
 import sys
 
-from rpki.irdb.models import ROARequest, GhostbusterRequest, ResourceHolderCA
+from rpki.gui.app.models import Conf
+from rpki.irdb.models import ROARequest, GhostbusterRequest
 from rpki.gui.app.glue import list_received_resources
 
 for n in xrange(1, 33):
@@ -35,5 +36,5 @@ for n in xrange(1, 33):
     for cls in (ROARequest, GhostbusterRequest):
         cls.objects.filter(issuer__handle=username).delete()
     print '... updating resource certificate cache'
-    conf = ResourceHolderCA.objects.get(handle=username)
+    conf = Conf.objects.get(handle=username)
     list_received_resources(sys.stdout, conf)

@@ -173,14 +173,7 @@ ${RCYNIC_CONF_FILE}:
 	@echo >>$@.tmp 'jitter			= 600'
 	@echo >>$@.tmp 'use-syslog		= true'
 	@echo >>$@.tmp 'log-level		= log_usage_err'
-	@cd sample-trust-anchors; \
-	 j=1; \
-	 for i in *.tal; \
-	 do \
-	    ${INSTALL} -p -m 444 "$$i" "${RCYNIC_TA_DIR}/$$i"; \
-	    echo >>$@.tmp "trust-anchor-locator.$$j	= ${RCYNIC_CONF_TA_DIR}/$$i"; \
-	    j=$$((j+1)); \
-         done
+	@echo >>$@.tmp 'trust-anchor-directory	= ${RCYNIC_CONF_TA_DIR}'
 	@chmod 444 $@.tmp
 	@mv -f $@.tmp $@
 

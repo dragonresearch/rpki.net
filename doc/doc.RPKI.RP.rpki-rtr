@@ -6,44 +6,47 @@ rtr-origin depends on rcynic to collect and validate the RPKI data. rtr-
 origin's's job is to serve up that data in a lightweight format suitable for
 routers that want to do prefix origin authentication.
 
-To use rtr-origin, you need to do two things beyond setting up rcynic:
+To use rtr-origin, you need to do two things beyond just running rcynic:
 
-  1. You need to set up post-processing of rcynic's output into the data files
-     used by rtr-origin, and
+  1. You need to post-process rcynic's output into the data files used by rtr-
+     origin. The rcynic-cron script handles this automatically, so the default
+     installation should already be taking care of this for you.
   2. You need to set up a listener for the rtr-origin server, using the
-     generated data files.
+     generated data files. The platform-specific packages for FreeBSD and
+     Ubuntu automatically set up a plain TCP listener, but you will have to do
+     something on other platforms, or if you're using a transport protocol
+     other than plain TCP.
 
 ***** Post-processing rcynic's output *****
 
 rtr-origin is designed to do the translation from raw RPKI data into the rpki-
 rtr protocol only once. It does this by pre-computing the answers to all the
 queries it is willing to answer for a given data set, and storing them on disk.
-rtr-origin's --cronjob mode handles this.
+rtr-origin's --cronjob mode handles this computation.
 
 To set this up, add an invocation of rtr-origin --cronjob to the cron job
-you're already running to run rcynic. In --cronjob rtr-origin, needs write
-access to a directory where it can store pre-digested versions of the data it
-pulls from rcynic.
+you're already running to run rcynic. As mentioned above, if you're running the
+rcynic-cron script, this is already being done for you automatically, so you
+don't need to do anything. If you've written your own cron script, you'll need
+to add something like this to your script:
+
+  cd /var/rcynic/rpki-rtr
+  /usr/local/bin/rtr-origin --cronjob /var/rcynic/data/authenticated
+
+In --cronjob mode, rtr-origin, needs write access to a directory where it can
+store pre-digested versions of the data it pulls from rcynic. In the example
+above, the directory /var/rcynic/rpki-rtr should be writable by the user ID
+that is executing the cron script.
 
 rtr-origin creates a collection of data files, as well as a subdirectory in
 which each instance of the program running in --server mode can write a PF_UNIX
 socket file. At present, rtr-origin creates these files under the directory in
-which you run it.
+which you run it, hence the cd command shown above.
 
-So, assuming that rtr-origin is installed in /usr/local/bin, that rcynic writes
-its data files under /var/rcynic/data/authenticated, and you want rtr-origin to
-write its datafiles to /var/rpki-rtr, you'd add something like the following to
-your cronjob:
-
-  cd /var/rpki-rtr
-  /usr/local/bin/rtr-origin --cronjob /var/rcynic/data/authenticated
-
-See the instructions for setting up a cron job for an example of how to run
-rcynic and rtr-origin together in a single cron job.
-
-You should make sure that rtr-origin runs at least once before attempting to
-configure --server mode. Nothing terrible will happen if you don't do this, but
---server invocations started before the first --cronjob run may behave oddly.
+You should make sure that rtr-origin --cronjob runs at least once before
+attempting to configure --server mode. Nothing terrible will happen if you
+don't do this, but --server invocations started before the first --cronjob run
+may behave oddly.
 
 ***** Setting up the rpki-rtr server *****
 
@@ -54,8 +57,7 @@ inetd, xinetd, sshd, or pretty much anything -- rtr-origin doesn't really care,
 it just reads from stdin and writes to stdout.
 
 --server mode should be run as a non-privileged user (it is read-only for a
-reason). You may want to set up a separate UNIX userid for this purpose so that
-you can give that user its own home directory and ssh configuration files.
+reason). You may want to set up a separate UNIX userid for this purpose.
 
 --server mode takes an optional argument specifying the path to its data
 directory; if you omit this argument, it uses the directory in in which you run
@@ -63,7 +65,7 @@ it.
 
 The details of how you set up a listener for this vary depending on the network
 protocol and the operating system on which you run it. Here are two examples,
-one for running under inetd, the other for running under sshd.
+one for running under inetd on FreeBSD, the other for running under sshd.
 
 **** Running rtr-origin --server under inetd ****
 
@@ -86,7 +88,7 @@ To run under inetd, you need to:
   1. Add the service line to /etc/inetd.conf:
 
   rpki-rtr stream tcp nowait nobody /usr/local/bin/rtr-origin rtr-origin --
-  server /var/rpki-rtr
+  server /var/rcynic/rpki-rtr
 
      This assumes that you want the server to run as user "nobody", which
      is generally a safe choice, or you could create a new non-priviledged
@@ -114,11 +116,11 @@ To run rtr-origin under sshd, you need to:
      have a normal shell, instead you should configure its shell to be the
      server (/usr/local/bin/rtr-origin or wherever you've installed it on your
      system) and its home directory to be the rpki-rtr data directory (/var/
-     rpki-rtr or whatever you're using). If you're using passwords to
+     rcynic/rpki-rtr or whatever you're using). If you're using passwords to
      authenticate instead of ssh keys (not recommended) you will always need to
      set the password(s) here when configuring the userid(s).
   2. Configure the .ssh/authorized_keys file for your clients; if you're using
-     the example values given above, this would be /var/rpki-rtr/.ssh/
+     the example values given above, this would be /var/rcynic/rpki-rtr/.ssh/
      authorized_keys. You can have multiple ssh clients using different keys
      all logging in as the same ssh user, you just have to list all of the ssh
      keys here. You may want to consider using a command= parameter in the key
@@ -131,7 +133,7 @@ To run rtr-origin under sshd, you need to:
      authorized_keys file regardless of what other user accounts might
      exist on the machine:
 
-  AuthorizedKeysFile /var/rpki-rtr/.ssh/authorized_keys
+  AuthorizedKeysFile /var/rcynic/rpki-rtr/.ssh/authorized_keys
 
      There's a sample sshd.conf in the source directory. You will have to
      modify it to suit your environment. The most important part is the

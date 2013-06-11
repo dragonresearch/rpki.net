@@ -1,62 +1,70 @@
 ****** RPKI Relying Party Tools ******
 
-This collection of tools implements the "relying party" role of the RPKI
-system, that is, the entity which retrieves RPKI objects from repositories,
-validates them, and uses the result of that validation process as input to
-other processes, such as BGP security.
+these tools implements the "relying party" role of the RPKI system, that is,
+the entity which retrieves RPKI objects from repositories, validates them, and
+uses the result of that validation process as input to other processes, such as
+BGP security.
 
 See the CA tools for programs to help you generate RPKI objects, if you need to
 do that.
 
-***** Overview of the tools *****
+The RP main tools are `rcynic` and `rtr-origin`, each of which is discussed
+below.
 
-Here's a brief summary of the current relying party tools.
+The installation process sets up everything you need for a basic RPKI
+validation installation. You will, however, need to think at least briefly
+about which RPKI trust anchors you are using, and may need to change these from
+the defaults.
 
-**** rcynic ****
+The installation process sets up a cron job running running [#rcynic-
+cron|`rcynic-cron` as user "rcynic" once per hour at a randomly-selected
+minute.
+
+***** rcynic *****
 
 rcynic is the primary validation tool. It does the actual work of RPKI
 validation: checking syntax, signatures, expiration times, and conformance to
 the profiles for RPKI objects. The other relying party programs take rcynic's
 output as their input.
 
-See the instructions for setting up and running rcynic.
+The installation process sets up a basic rcynic configuration. See the rcynic
+documentation if you need to know more.
 
-**** rcynic-html ****
+See the discussion of trust anchors.
 
-rcynic-html is a post-processor which converts rcyic's XML status output into a
-set of HTML pages displaying status and history.
-
-**** rcynic-cron ****
-
-rcynic-cron is a small script to run the most common set of relying party tools
-under cron. See the discussion of running relying party tools under cron for
-further details.
-
-**** rtr-origin ****
+***** rtr-origin *****
 
 rtr-origin is an implementation of the rpki-rtr protocol, using rcynic's output
 as its data source. rtr-origin includes the rpki-rtr server, a test client, and
 a utiltity for examining the content of the database rtr-origin generates from
 the data supplied by rcynic.
 
-See the instructions for setting up rtr-origin for further details.
+See the rtr-origin documentation for further details.
 
-**** roa-to-irr ****
+***** rcynic-cron *****
 
-roa-to-irr is an experimental program for converting RPKI ROA data into IRR
-data. Some operators have established procedures that depend heavily on IRR, so
-being able to distribute validated RPKI data via IRR is somewhat useful to
-these operators.
+rcynic-cron is a small script to run the most common set of relying party tools
+under cron. See the discussion of running relying party tools under cron for
+further details.
 
-Opinions vary regarding exactly what the RPSL corresponding to a particular set
-of ROAs should look like, so roa-to-irr is currently experimental code at best.
-Operators who really care about this may well end up writing their own ROA to
-IRR conversion tools.
+***** Selecting trust anchors *****
 
-roa-to-irr expects its output to be piped to the irr_rpsl_submit program.
+As in any PKI system, validation in the RPKI system requires a set of "trust
+anchors" to use as a starting point when checking certificate chains. By
+definition, trust anchors can only be selected by you, the relying party.
 
-roa-to-irr isn't really documented (yet?). If you care, see the code.
+As with most other PKI software, we supply a default set of trust anchors which
+you are welcome to use if they suit your needs. These are installed as part of
+the normal installation process, so if you don't do anything, you'll get these.
+You can, however, override this if you need something different; see the rcynic
+documentation for details.
 
-**** Utilities ****
+Remember: It's only a trust anchor if you trust it. We can't make that decision
+for you.
 
-You may also find some of the RPKI utility programs useful.
+Also note that, at least for now, ARIN's trust anchor locator is absent from
+the default set of trust anchors. This is not an accident: it's the direct
+result of a deliberate policy decision by ARIN to require anyone using their
+trust anchor to jump through legal hoops. If you have a problem with this,
+complain to ARIN. If and when ARIN changes this policy, we will be happy to
+include their trust anchor locator along with those of the other RIRs.

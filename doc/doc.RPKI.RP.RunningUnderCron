@@ -1,0 +1,65 @@
+****** Running relying party tools under cron ******
+
+rcynic is the primary relying party tool, and it's designed to run under the
+cron daemon. Consequently, most of the other tools are also designed to run
+under the cron daemon, so that they can make use of rcynic's output immediately
+after rcynic finishes a validation run.
+
+rcynic-cron runs the basic set of relying party tools (rcynic, rcynic-html, and
+`rtr-origin --cronjob`); if this suffices for your purposes, you don't need to
+do anything else. This section is a discussion of alternative approaches.
+
+Which tools you want to run depends on how you intend to use the relying party
+tools. Here we assume a typical case in which you want to gather and validate
+RPKI data and feed the results to routers using the rpki-rtr protocol. We also
+assume that everything has been installed in the default locations.
+
+The exact sequence for invoking rcynic itself varies depending both on whether
+you're using a chroot jail or not and on the platform on which you're running
+rcynic, as the chroot utilities on different platforms behave slightly
+differently. Using a chroot jail used to be the default for rcynic, but it
+turned out that many users found the setup involved to be too complex.
+
+If you're not using rcynic-cron, it's probably simplest to generate a short
+shell script which calls the tools you want in the correct order, so that's
+what we show here.
+
+Once you've written this script, install it in your crontab, running at some
+appropriate interval: perhaps hourly, or perhaps every six hours, depending on
+your needs. You should run it at least once per day, and probably should not
+run it more frequently than once per hour unless you really know what you are
+doing. Please do NOT just arrange for the script to run on the hour, instead
+pick some random minute value within the hour as the start time for your
+script, to help spread the load on the repository servers.
+
+On FreeBSD or MacOSX, this script might look like this:
+
+  #!/bin/sh -
+  /usr/sbin/chroot -u rcynic -g rcynic /var/rcynic /bin/rcynic -c /etc/
+  rcynic.conf || exit
+  /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /usr/local/www/data/
+  rcynic
+  cd /var/rcynic/rpki-rtr
+  /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
+  data/authenticated'
+
+This assumes that you have done
+
+  mkdir /var/rcynic/rpki-rtr
+  chown rcynic /var/rcynic/rpki-rtr
+
+On GNU/Linux systems, the script might look like this if you use the chrootuid
+program:
+
+  #!/bin/sh -
+  /usr/bin/chrootuid /var/rcynic rcynic /bin/rcynic -c /etc/rcynic.conf || exit
+  /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /var/www/rcynic
+  cd /var/rcynic/rpki-rtr
+  /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
+  data/authenticated'
+
+If you use the chroot program instead of chrootuid, change the line that
+invokes rcynic to:
+
+  /usr/sbin/chroot --userspec rcynic:rcynic /var/rcynic /bin/rcynic -c /etc/
+  rcynic.conf || exit

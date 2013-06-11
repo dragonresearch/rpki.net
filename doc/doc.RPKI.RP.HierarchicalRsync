@@ -1,0 +1,95 @@
+****** Running a hierarchical rsync configuration ******
+
+Having every relying party on the Internet contact every publication service is
+not terribly efficient. In many cases, it may make more sense to use a
+hierarchical configuration in which a few "gatherer" relying parties contact
+the publication servers directly, while a collection of other relying parties
+get their raw data from the gatherers.
+
+  Note
+      The relying parties in this configuration still perform their own
+      validation, they just let the gatherers do the work of collecting the
+      unvalidated data for them.
+
+A gatherer in a configuration like this would look just like a stand-alone
+relying party as discussed above. The only real difference is that a gatherer
+must also make its unauthenticated data collection available to other relying
+parties. Assuming the standard configuration, this will be the directory /var/
+rcynic/data/unauthenticated and its subdirectories.
+
+There are two slightly different ways to do this with rsync:
+
+  1. Via unauthenticated rsync, by configuring an rsyncd.conf "module", or
+  2. Via rsync over a secure transport protocol such as ssh.
+
+Since the downstream relying party performs its own validation in any case,
+either of these will work, but using a secure transport such as ssh makes it
+easier to track problems back to their source if a downstream relying party
+concludes that it's been receiving bad data.
+
+Script for a downstream relying party using ssh might look like this:
+
+  #!/bin/sh -
+
+  PATH=/usr/bin:/bin:/usr/local/bin
+  umask 022
+  eval `/usr/bin/ssh-agent -s` >/dev/null
+  /usr/bin/ssh-add /root/rpki_ssh_id_rsa 2>&1 | /bin/fgrep -v 'Identity added:'
+  hosts='larry.example.org moe.example.org curly.example.org'
+  for host in $hosts
+  do
+    /usr/bin/rsync --archive --update --safe-links rpkisync@${host}:/var/
+  rcynic/data/unauthenticated/ /var/rcynic/data/unauthenticated.${host}/
+  done
+  eval `/usr/bin/ssh-agent -s -k` >/dev/null
+  for host in $hosts
+  do
+    /usr/sbin/chroot -u rcynic -g rcynic /var/rcynic /bin/rcynic -c /etc/
+  rcynic.conf -u /data/unauthenticated.${host}
+    /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /usr/local/www/
+  data/rcynic.${host}
+  done
+  cd /var/rcynic/rpki-rtr
+  /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
+  data/authenticated'
+
+where /root/rpki_ssh_id_rsa is an SSH private key authorized to log in as user
+"rpkisync" on the gatherer machines. If you want to lock this down a little
+tighter, you could use ssh's command="..." mechanism as described in the sshd
+documentation to restrict the rpkisync user so that it can only run this one
+rsync command.
+
+If you prefer to use insecure rsync, perhaps to avoid allowing the downstream
+relying parties any sort of login access at all on the gatherer machines, the
+configuration would look more like this:
+
+  #!/bin/sh -
+
+  PATH=/usr/bin:/bin:/usr/local/bin
+  umask 022
+  hosts='larry.example.org moe.example.org curly.example.org'
+  for host in $hosts
+  do
+    /usr/bin/rsync --archive --update --safe-links rsync://${host}/
+  unauthenticated/ /var/rcynic/data/unauthenticated.${host}/
+  done
+  for host in $hosts
+  do
+    /usr/sbin/chroot -u rcynic -g rcynic /var/rcynic /bin/rcynic -c /etc/
+  rcynic.conf -u /data/unauthenticated.${host}
+    /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /usr/local/www/
+  data/rcynic.${host}
+  done
+  cd /var/rcynic/rpki-rtr
+  /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
+  data/authenticated'
+
+where "unauthenticated" here is an rsync module pointing at /var/rcynic/data/
+unauthenticated on each of the gatherer machines. Configuration for such a
+module would look like:
+
+  [unauthenticated]
+      read only           = yes
+      transfer logging    = yes
+      path                = /var/rcynic/data/unauthenticated
+      comment             = Unauthenticated RPKI data

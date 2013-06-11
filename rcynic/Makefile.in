@@ -171,6 +171,7 @@ ${RCYNIC_CONF_FILE}:
 	@echo >>$@.tmp 'unauthenticated		= ${RCYNIC_CONF_DATA}/unauthenticated'
 	@echo >>$@.tmp 'xml-summary		= ${RCYNIC_CONF_DATA}/rcynic.xml'
 	@echo >>$@.tmp 'jitter			= 600'
+	@echo >>$@.tmp 'max-parallel-fetches	= 8'
 	@echo >>$@.tmp 'use-syslog		= true'
 	@echo >>$@.tmp 'log-level		= log_usage_err'
 	@echo >>$@.tmp 'trust-anchor-directory	= ${RCYNIC_CONF_TA_DIR}'

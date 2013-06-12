@@ -1238,19 +1238,27 @@ class client_channel(pdu_channel):
     Set up TCP connection and start listening for first PDU.
     """
     blather("[Starting raw TCP connection to %s:%s]" % (host, port))
-    for ai in socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_STREAM):
-      af, socktype, proto, cn, sa = ai
-      try:
-        s = socket.socket(af, socktype, proto)
-      except:
-        continue
-      try:
-        s.connect(sa)
-      except:
-        s.close()
-        continue
-      return cls(sock = s, proc = None, killsig = None)
-    sys.exit("Couldn't connect to host %s port %s" % (host, port))
+    try:
+      addrinfo = socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except socket.error, e:
+      blather("[socket.getaddrinfo() failed: %s]" % e)
+    else:
+      for ai in addrinfo:
+        af, socktype, proto, cn, sa = ai
+        blather("[Trying addr %s port %s]" % sa[:2])
+        try:
+          s = socket.socket(af, socktype, proto)
+        except socket.error, e:
+          blather("[socket.socket() failed: %s]" % e)
+          continue
+        try:
+          s.connect(sa)
+        except socket.error, e:
+          blather("[socket.connect() failed: %s]" % e)
+          s.close()
+          continue
+        return cls(sock = s, proc = None, killsig = None)
+    sys.exit(1)
 
   @classmethod
   def loopback(cls):

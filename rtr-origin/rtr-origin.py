@@ -1238,7 +1238,10 @@ class client_channel(pdu_channel):
     Set up TCP connection and start listening for first PDU.
     """
     blather("[Starting raw TCP connection to %s:%s]" % (host, port))
-    s = socket.socket()
+    if ":" in host:
+      s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)      
+    else:
+      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)    
     s.connect((host, int(port)))
     return cls(sock = s, proc = None, killsig = None)
 

@@ -23,8 +23,23 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-import sys, os, struct, time, glob, socket, fcntl, signal, syslog, errno
-import asyncore, asynchat, subprocess, traceback, getopt, bisect, random
+import sys
+import os
+import struct
+import time
+import glob
+import socket
+import fcntl
+import signal
+import syslog
+import errno
+import asyncore
+import asynchat
+import subprocess
+import traceback
+import getopt
+import bisect
+import random
 
 # Debugging only, should be False in production
 disable_incrementals = False
@@ -1570,6 +1585,79 @@ def server_main(argv):
       kickme.cleanup()
 
 
+def listener_tcp_main(argv):
+  """
+  Simple plain-TCP listener.  Listens on a specified TCP port, upon
+  reciving a connection, forks the process and starts child executing
+  at server_main().
+
+  First argument (required) is numeric port number.
+
+  Second argument (optional) is directory, like --server.
+
+  NB: plain-TCP is completely insecure.  We only implement this
+  because it's all that the routers currently support.  In theory, we
+  will all be running TCP-AO in the future, at which point this will
+  go away.
+  """
+
+  # Perhaps we should daemonize?  Deal with that later.
+
+  if len(argv) > 2:
+    sys.exit("Unexpected arguments: %r" % (argv,))
+  try:
+    port = int(argv[0])
+  except:
+    sys.exit("Couldn't parse port number on which to listen")
+  if len(argv) > 1:
+    try:
+      os.chdir(argv[1])
+    except OSError, e:
+      sys.exit(e)
+  listener = None
+  try:
+    listener = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+    listener.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+  except:
+    if listener is not None:
+      listener.close()
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)    
+  listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+  try:
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+  except AttributeError:
+    pass
+  listener.bind(("", port))
+  listener.listen(5)
+  blather("[Listening]")
+  while True:
+    s, ai = listener.accept()
+    blather("[Received connection from %r]" % (ai,))
+    pid = os.fork()
+    if pid == 0:
+      os.dup2(s.fileno(), 0)
+      os.dup2(s.fileno(), 1)
+      s.close()
+      #os.closerange(3, os.sysconf("SC_OPEN_MAX"))
+      global log_tag
+      log_tag = "rtr-origin/server" + hostport_tag()
+      syslog.closelog()
+      syslog.openlog(log_tag, syslog.LOG_PID, syslog_facility)
+      server_main(())
+      sys.exit()
+    else:
+      blather("[Spawned server %d]" % pid)
+      try:
+        while True:
+          pid, status = os.waitpid(0, os.WNOHANG)
+          if pid:
+            blather("[Server %s exited]" % pid)
+          else:
+            break
+      except:
+        pass
+
+
 def client_main(argv):
   """
   Toy client, intended only for debugging.
@@ -1827,6 +1915,7 @@ main_dispatch = {
   "client"              : client_main,
   "server"              : server_main,
   "show"                : show_main,
+  "listener_tcp"        : listener_tcp_main,
   "bgpdump_convert"     : bgpdump_convert_main,
   "bgpdump_select"      : bgpdump_select_main,
   "bgpdump_server"      : bgpdump_server_main }

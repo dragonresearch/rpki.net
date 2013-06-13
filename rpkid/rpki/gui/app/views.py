@@ -1256,8 +1256,8 @@ def user_edit(request, pk):
 class AlertListView(ListView):
     # this nonsense is required to decorate CBVs
     @method_decorator(handle_required)
-    def dispatch(*args, **kwargs):
-        return super(AlertDeleteView, self).dispatch(*args, **kwargs)
+    def dispatch(self, request, *args, **kwargs):
+        return super(AlertListView, self).dispatch(request, *args, **kwargs)
 
     def get_queryset(self, **kwargs):
         conf = self.request.session['handle']
@@ -1267,8 +1267,8 @@ class AlertListView(ListView):
 class AlertDetailView(DetailView):
     # this nonsense is required to decorate CBVs
     @method_decorator(handle_required)
-    def dispatch(*args, **kwargs):
-        return super(AlertDeleteView, self).dispatch(*args, **kwargs)
+    def dispatch(self, request, *args, **kwargs):
+        return super(AlertDetailView, self).dispatch(request, *args, **kwargs)
 
     def get_queryset(self, **kwargs):
         conf = self.request.session['handle']
@@ -1287,8 +1287,8 @@ class AlertDeleteView(DeleteView):
 
     # this nonsense is required to decorate CBVs
     @method_decorator(handle_required)
-    def dispatch(*args, **kwargs):
-        return super(AlertDeleteView, self).dispatch(*args, **kwargs)
+    def dispatch(self, request, *args, **kwargs):
+        return super(AlertDeleteView, self).dispatch(request, *args, **kwargs)
 
     def get_queryset(self, **kwargs):
         conf = self.request.session['handle']

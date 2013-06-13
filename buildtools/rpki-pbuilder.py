@@ -70,6 +70,7 @@ if not os.path.exists(dsc):
         if fn != "trunk":
             os.unlink(os.path.join("..", fn))
     run("rm", "-rf", "debian")
+    run("python", "buildtools/make-version.py")
     run("python", "buildtools/build-ubuntu-ports.py")
     run("dpkg-buildpackage", "-S", "-us", "-uc", "-rfakeroot")
 

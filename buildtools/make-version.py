@@ -27,15 +27,24 @@
 #
 # I did say this was a kludge.
 
+# One could argue that we should be throwing a fatal error when we
+# can't determine the version, rather than just issuing a warning and
+# writing a version of "Unknown".  Maybe later.
+
 import subprocess
+import sys
+
+unknown = "Unknown"
 
 try:
   v = subprocess.Popen(("svnversion", "-c"), stdout = subprocess.PIPE).communicate()[0]
-except:
-  v = "Unknown"
+  err = None
+except Exception, e:
+  v = unknown
+  err = e
 
-if any(s in v for s in ("Unversioned", "Uncommitted", "Unknown")):
-  v = "Unknown"
+if any(s in v for s in ("Unversioned", "Uncommitted", unknown)):
+  v = unknown
 else:
   v = "0." + v.strip().split(":")[-1].translate(None, "SMP")
 
@@ -43,6 +52,15 @@ try:
   old = open("VERSION", "r").read().strip()
 except:
   old = None
+
+if err is not None and (old is None or old == unknown):
+  sys.stderr.write("Warning: No saved version and svnversion failed: %s\n" % err)
+
+if v == unknown:
+  if old is not None and old != unknown:
+    v = old
+  else:
+    sys.stderr.write("Warning: Could not determine software version\n")
 
 if old is None or v != old:
   with open("VERSION", "w") as f:

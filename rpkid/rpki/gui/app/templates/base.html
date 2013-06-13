@@ -4,7 +4,7 @@
 <html lang="en">
   <head>
     <meta name='Content-Type' content='text/html; charset=UTF-8'>
-    <title>{% block title %}RPKI{% endblock %}</title>
+    <title>{% block title %}RPKI {% if request.session.handle %}: {{ request.session.handle }}{% endif %}{% endblock %}</title>
     {% block head %}{% endblock %}
     <link rel="stylesheet" href="{{ STATIC_URL }}css/bootstrap.min.css" media="screen">
     <style type="text/css">

@@ -1606,7 +1606,7 @@ def server_main(argv):
 def listener_tcp_main(argv):
   """
   Simple plain-TCP listener.  Listens on a specified TCP port, upon
-  reciving a connection, forks the process and starts child executing
+  receiving a connection, forks the process and starts child executing
   at server_main().
 
   First argument (required) is numeric port number.
@@ -1624,7 +1624,7 @@ def listener_tcp_main(argv):
   if len(argv) > 2:
     sys.exit("Unexpected arguments: %r" % (argv,))
   try:
-    port = int(argv[0])
+    port = int(argv[0]) if argv[0].isdigit() else socket.getservbyname(argv[0], "tcp")
   except:
     sys.exit("Couldn't parse port number on which to listen")
   if len(argv) > 1:
@@ -1647,7 +1647,7 @@ def listener_tcp_main(argv):
     pass
   listener.bind(("", port))
   listener.listen(5)
-  blather("[Listening]")
+  blather("[Listening on port %s]" % port)
   while True:
     s, ai = listener.accept()
     blather("[Received connection from %r]" % (ai,))

@@ -1,4 +1,5 @@
 {% load url from future %}
+{% load app_extras %}
 
 <!DOCTYPE HTML>
 <html lang="en">
@@ -17,7 +18,7 @@
     <div class="container">
       <div class="navbar navbar-inverse navbar-fixed-top">
 	<div class="navbar-inner">
-	  <a class="brand" href="#">rpki.net</a>
+	  <a class="brand" href="#">rpki.net {% rpki_version %}</a>
 	  <ul class='nav'>
 	    <li class="active">
 	      <a href="#">Home</a>
@@ -28,6 +29,8 @@
 	    <li class="divider-vertical"></li>
 	    <li><a href="{% url "rpki.gui.views.logout" %}">Log Out</a></li>
 	  {% endif %}
+	  </ul>
+	  <ul class="nav pull-right">
 	    <li><a href="https://trac.rpki.net/wiki/doc/RPKI/CA/UI/GUI">Help</a></li>
 	  </ul>
 	</div>

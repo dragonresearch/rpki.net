@@ -50,3 +50,9 @@ def alert_count(conf):
     else:
         css_class = 'badge-default'
     return u'<span class="badge %s">%d</span>' % (css_class, unread)
+
+
+@register.simple_tag
+def rpki_version():
+    import rpki.version
+    return rpki.version.VERSION

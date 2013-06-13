@@ -36,7 +36,7 @@ from django import http
 from django.core.urlresolvers import reverse, reverse_lazy
 from django.contrib.auth.models import User
 from django.views.generic import DetailView, ListView, DeleteView
-from django.core.paginator import Paginator
+from django.core.paginator import Paginator, InvalidPage
 from django.forms.formsets import formset_factory, BaseFormSet
 import django.db.models
 from django.contrib import messages
@@ -946,7 +946,11 @@ def route_view(request):
     page = request.GET.get('page', 1)
 
     paginator = Paginator(conf.routes, count)
-    routes = paginator.page(page)
+    try:
+        routes = paginator.page(page)
+    except InvalidPage:
+        # page was empty, or page number was invalid
+        routes = []
     ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
     return render(request, 'app/routes_view.html',
                   {'routes': routes, 'timestamp': ts})

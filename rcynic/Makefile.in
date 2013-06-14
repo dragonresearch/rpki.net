@@ -160,8 +160,12 @@ install-directory-ownership: ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
 install-rcynic-conf: ${RCYNIC_CONF_FILE}
 
 ${RCYNIC_CONF_FILE}:
+	@echo
+	@echo Found no ${RCYNIC_CONF_FILE}, creating basic config and installing default trust anchor locators.
+	@echo You might want to edit this.
+	@echo
 	${INSTALL} -v -d ${RCYNIC_TA_DIR}
-	@echo Found no ${RCYNIC_CONF_FILE}, creating sample config.  You might want to edit this.
+	${INSTALL} -v -p -m 444 sample-trust-anchors/*.tal ${RCYNIC_TA_DIR}
 	@echo > $@.tmp '# Basic rcynic configuration file with default trust anchors.'
 	@echo >>$@.tmp '# See documentation for details.'
 	@echo >>$@.tmp ''

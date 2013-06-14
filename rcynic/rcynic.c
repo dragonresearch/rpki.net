@@ -567,6 +567,7 @@ struct rcynic_ctx {
   int allow_digest_mismatch, allow_crl_digest_mismatch;
   int allow_nonconformant_name, allow_ee_without_signedObject;
   int allow_1024_bit_ee_key, allow_wrong_cms_si_attributes;
+  int rsync_early;
   unsigned max_select_time;
   validation_status_t *validation_status_in_waiting;
   validation_status_t *validation_status_root;
@@ -1929,9 +1930,7 @@ static void walk_ctx_loop_init(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 
   assert(rc && wsk && w && w->state == walk_state_ready);
 
-  assert(!w->manifest);
-
-  if (!check_manifest(rc, wsk)) {
+  if (!w->manifest && !check_manifest(rc, wsk)) {
     /*
      * Simple failure to find a manifest doesn't get here.  This is
      * for manifest failures that cause us to reject all of this
@@ -4446,6 +4445,37 @@ static int check_manifest(rcynic_ctx_t *rc,
 
 
 /**
+ * Check whether we need to rsync a particular tree.  This depends on
+ * the setting of rc->rsync_early, whether we have a valid manifest on
+ * file, and whether that manifest is stale yet.
+ */
+static int rsync_needed(rcynic_ctx_t *rc,
+			STACK_OF(walk_ctx_t) *wsk)
+{
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  int needed;
+
+  assert(rc && wsk && w);
+
+  needed = (rc->rsync_early ||
+	    !check_manifest(rc, wsk) ||
+	    w->manifest == NULL ||
+	    X509_cmp_current_time(w->manifest->nextUpdate) < 0);
+
+  if (needed && w->manifest != NULL) {
+    /*
+     * Mark some flavor of "recheck_manifest" counter here?
+     */
+    Manifest_free(w->manifest);
+    w->manifest = NULL;
+  }
+
+  return needed;
+}
+
+
+
+/**
  * Extract a ROA prefix from the ASN.1 bitstring encoding.
  */
 static int extract_roa_prefix(const ROAIPAddress *ra,
@@ -4868,8 +4898,13 @@ static void walk_cert(rcynic_ctx_t *rc, void *cookie)
 
     case walk_state_rsync:
 
-      rsync_tree(rc, &w->certinfo.sia, wsk, rsync_sia_callback);
-      return;
+      if (rsync_needed(rc, wsk)) {
+	rsync_tree(rc, &w->certinfo.sia, wsk, rsync_sia_callback);
+	return;
+      }
+      log_validation_status(rc, &w->certinfo.sia, rsync_transfer_skipped, object_generation_null);
+      w->state++;
+      continue;
 
     case walk_state_ready:
 
@@ -5402,6 +5437,7 @@ int main(int argc, char *argv[])
   rc.run_rsync = 1;
   rc.rsync_timeout = 300;
   rc.max_select_time = 30;
+  rc.rsync_early = 1;
 
 #define QQ(x,y)   rc.priority[x] = y;
   LOG_LEVELS;
@@ -5620,6 +5656,10 @@ int main(int argc, char *argv[])
 	     !configure_boolean(&rc, &rc.allow_wrong_cms_si_attributes, val->value))
       goto done;
 
+    else if (!name_cmp(val->name, "rsync-early") &&
+	     !configure_boolean(&rc, &rc.rsync_early, val->value))
+      goto done;
+
     /*
      * Ugly, but the easiest way to handle all these strings.
      */
@@ -5740,7 +5780,25 @@ int main(int argc, char *argv[])
   if (!finalize_directories(&rc))
     goto done;
 
-  if (prune && rc.run_rsync &&
+  /*
+   * For the moment we disable pruning when rsync_early is disabled.
+   * This isn't right, but fixing that would require:
+   *
+   * - refactoring rsync_history_add()
+   *
+   * - adding a "MIB counter" cached_manifest (or something like that)
+   *   indicating that we skipped a transfer because we already had a
+   *   valid cached manifest, and
+   *
+   * - rewriting things that currently call rsync_history_uri() to
+   *   know that cached_manifest doesn't mean we rsynched the URI.
+   *
+   * Or maybe we just need to rewrite prune_unauthenticated() to look
+   * in the validation_status database instead of the rsync_history
+   * database?  Dunno yet.
+   */
+
+  if (prune && rc.run_rsync && rc.rsync_early &&
       !prune_unauthenticated(&rc, &rc.unauthenticated,
 			     strlen(rc.unauthenticated.s))) {
     logmsg(&rc, log_sys_err, "Trouble pruning old unauthenticated data");

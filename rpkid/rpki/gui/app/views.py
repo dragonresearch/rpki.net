@@ -542,9 +542,10 @@ def get_covered_routes(rng, max_prefixlen, asn):
 
     """
 
+    # find all routes that match or are completed covered by the proposed new roa
     qs = RouteOrigin.objects.filter(
-        prefix_min__lte=rng.max,
-        prefix_max__gte=rng.min
+        prefix_min__gte=rng.min,
+        prefix_max__lte=rng.max
     )
     routes = []
     for route in qs:

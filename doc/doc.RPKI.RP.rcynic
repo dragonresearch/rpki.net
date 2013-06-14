@@ -458,6 +458,28 @@ Values: true or false.
 
 Default: false
 
+**** rsync-early ****
+
+Whether to force rsync to run even when we have a valid manifest for a
+particular publication point and its nextUpdate time has not yet passed.
+
+This is an experimental feature, and currently defaults to true, which is the
+old behavior (running rsync regardless of whether we have a valid cached
+manifest). This default may change once we have more experience with rcynic's
+behavior when run with this option set to false.
+
+Skipping the rsync fetch when we already have a valid cached manifest can
+significantly reduce the total number of rsync connections we need to make, and
+significantly reduce the load each validator places on the authoritative
+publication servers. As with any caching scheme, however, there are some
+potential problems involved with not fetching the latest data, and we don't yet
+have enough experience with this option to know how this will play out in
+practice, which is why this is still considered experimental.
+
+Values: true or false
+
+Default: true (but may change in the future)
+
 **** trust-anchor ****
 
 Specify one RPKI trust anchor, represented as a local file containing an X.509

@@ -1433,6 +1433,26 @@ validation_status_find(validation_status_t *node,
 }
 
 /**
+ * Check whether we have a validation status entry corresponding to a
+ * given filename.  This is intended for use during pruning the
+ * unauthenticated tree, so it only checks the current generation.
+ */
+static int
+validation_status_find_filename(const rcynic_ctx_t *rc,
+				const char *filename)
+{
+  uri_t uri;
+
+  if (strlen(filename) + SIZEOF_RSYNC >= sizeof(uri.s))
+    return 0;
+
+  strcpy(uri.s, SCHEME_RSYNC);
+  strcat(uri.s, filename);
+
+  return validation_status_find(rc->validation_status_root, &uri, object_generation_current) != NULL;
+}
+
+/**
  * Figure out whether we already have a good copy of an object.  This
  * is a little more complicated than it sounds, because we might have
  * failed the current generation and accepted the backup due to having
@@ -2181,24 +2201,6 @@ static rsync_history_t *rsync_history_uri(const rcynic_ctx_t *rc,
 }
 
 /**
- * Check whether the local filename representation of a particular URI
- * has been cached.
- */
-static int rsync_history_uri_filename(const rcynic_ctx_t *rc,
-				      const char *filename)
-{
-  uri_t uri;
-
-  if (strlen(filename) + SIZEOF_RSYNC >= sizeof(uri.s))
-    return 0;
-
-  strcpy(uri.s, SCHEME_RSYNC);
-  strcat(uri.s, filename);
-
-  return rsync_history_uri(rc, &uri) != NULL;
-}
-
-/**
  * Record that we've already attempted to synchronize a particular
  * rsync URI.
  */
@@ -2941,7 +2943,7 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
   assert(len >= baselen && len < sizeof(path.s));
   need_slash = name->s[len - 1] != '/';
 
-  if (rsync_history_uri_filename(rc, name->s + baselen)) {
+  if (validation_status_find_filename(rc, name->s + baselen)) {
     logmsg(rc, log_debug, "prune: cache hit for %s, not cleaning", name->s);
     return 1;
   }
@@ -2982,7 +2984,7 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
 	goto done;
       continue;
     default:
-      if (rsync_history_uri_filename(rc, path.s + baselen)) {
+      if (validation_status_find_filename(rc, path.s + baselen)) {
 	logmsg(rc, log_debug, "prune: cache hit %s", path.s);
 	continue;
       }
@@ -5780,25 +5782,7 @@ int main(int argc, char *argv[])
   if (!finalize_directories(&rc))
     goto done;
 
-  /*
-   * For the moment we disable pruning when rsync_early is disabled.
-   * This isn't right, but fixing that would require:
-   *
-   * - refactoring rsync_history_add()
-   *
-   * - adding a "MIB counter" cached_manifest (or something like that)
-   *   indicating that we skipped a transfer because we already had a
-   *   valid cached manifest, and
-   *
-   * - rewriting things that currently call rsync_history_uri() to
-   *   know that cached_manifest doesn't mean we rsynched the URI.
-   *
-   * Or maybe we just need to rewrite prune_unauthenticated() to look
-   * in the validation_status database instead of the rsync_history
-   * database?  Dunno yet.
-   */
-
-  if (prune && rc.run_rsync && rc.rsync_early &&
+  if (prune && rc.run_rsync &&
       !prune_unauthenticated(&rc, &rc.unauthenticated,
 			     strlen(rc.unauthenticated.s))) {
     logmsg(&rc, log_sys_err, "Trouble pruning old unauthenticated data");

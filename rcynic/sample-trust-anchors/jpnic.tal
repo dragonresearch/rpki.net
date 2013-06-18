@@ -1,4 +1,4 @@
-rsync://rpki01.nic.ad.jp/repository/jpnic-ta-02_cert.der
+rsync://rpki01.nic.ad.jp/repository/jpnic-ta-02_cert.cer
 
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApEdswbLGIGoJEwi+GMxg
 6gSbTrjmoTtjcfMIbhqz4ZBGchsnF06lZnlDlOnZ+HgBQOha/oqF5H0H36kW8SaE

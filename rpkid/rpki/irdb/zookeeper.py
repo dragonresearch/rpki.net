@@ -22,6 +22,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import os
 import copy
+import types
 import rpki.config
 import rpki.cli
 import rpki.sundial
@@ -455,6 +456,30 @@ class Zookeeper(object):
       ca.generate_crl()
       ca.save()
 
+
+  @django.db.transaction.commit_on_success
+  def synchronize_bpki(self):
+    """
+    Synchronize BPKI updates.  At the moment this just means pushing
+    BSC certificates out to rpkid.  This is separate from
+    .update_bpki() because this requires rpkid to be running and none
+    of the other BPKI update stuff does; there may be circumstances
+    under which it makes sense to do the rest of the BPKI update and
+    allow this to fail with a warning.
+    """
+
+    updates = tuple(
+      rpki.left_right.bsc_elt.make_pdu(
+        action = "set",
+        tag = "%s__%s" % (bsc.issuer.handle, bsc.handle),
+        self_handle = bsc.issuer.handle,
+        bsc_handle = bsc.handle,
+        signing_cert = bsc.certificate,
+        signing_cert_crl = bsc.issuer.latest_crl)
+      for bsc in rpki.irdb.BSC.objects.all())
+
+    if updates:
+      self.check_error_report(self.call_rpkid(updates))
 
   @django.db.transaction.commit_on_success
   def configure_child(self, filename, child_handle = None, valid_until = None):
@@ -961,6 +986,11 @@ class Zookeeper(object):
     rpkid = self.server_ca.ee_certificates.get(purpose = "rpkid")
     irbe  = self.server_ca.ee_certificates.get(purpose = "irbe")
 
+    if len(pdus) == 1 and isinstance(pdus[0], types.GeneratorType):
+      pdus = tuple(pdus[0])
+    elif len(pdus) == 1 and isinstance(pdus[0], (tuple, list)):
+      pdus = pdus[0]
+
     call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
       proto       = rpki.left_right,
       client_key  = irbe.private_key,
@@ -1039,14 +1069,14 @@ class Zookeeper(object):
     misconfiguration, it should suffice
     """
 
-    self.call_rpkid(*[rpki.left_right.self_elt.make_pdu(action = "set", self_handle = ca.handle,
-                                                        clear_replay_protection = "yes")
-                      for ca in rpki.irdb.ResourceHolderCA.objects.all()])
+    self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_handle = ca.handle,
+                                                      clear_replay_protection = "yes")
+                    for ca in rpki.irdb.ResourceHolderCA.objects.all())
     if self.run_pubd:
-      self.call_pubd(*[rpki.publication.client_elt.make_pdu(action = "set",
-                                                            client_handle = client.handle,
-                                                            clear_replay_protection = "yes")
-                       for client in self.server_ca.clients.all()])
+      self.call_pubd(rpki.publication.client_elt.make_pdu(action = "set",
+                                                          client_handle = client.handle,
+                                                          clear_replay_protection = "yes")
+                     for client in self.server_ca.clients.all())
 
 
   def call_pubd(self, *pdus):
@@ -1065,6 +1095,11 @@ class Zookeeper(object):
 
     pubd = self.server_ca.ee_certificates.get(purpose = "pubd")
     irbe = self.server_ca.ee_certificates.get(purpose = "irbe")
+
+    if len(pdus) == 1 and isinstance(pdus[0], types.GeneratorType):
+      pdus = tuple(pdus[0])
+    elif len(pdus) == 1 and isinstance(pdus[0], (tuple, list)):
+      pdus = pdus[0]
 
     call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
       proto       = rpki.publication,
@@ -1249,7 +1284,7 @@ class Zookeeper(object):
 
     if rpkid_query:
       rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(action = "list", tag = "bsc", self_handle = ca.handle))
-      rpkid_reply = self.call_rpkid(*rpkid_query)
+      rpkid_reply = self.call_rpkid(rpkid_query)
       bsc_pdus = dict((x.bsc_handle, x)
                       for x in rpkid_reply
                       if isinstance(x, rpki.left_right.bsc_elt) and x.action == "list")
@@ -1400,7 +1435,7 @@ class Zookeeper(object):
     # If we changed anything, ship updates off to rpkid
 
     if rpkid_query:
-      rpkid_reply = self.call_rpkid(*rpkid_query)
+      rpkid_reply = self.call_rpkid(rpkid_query)
       bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
       if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
         bsc_req = bsc_pdus[bsc_handle].pkcs10_request
@@ -1459,7 +1494,7 @@ class Zookeeper(object):
     # If we changed anything, ship updates off to pubd
 
     if pubd_query:
-      pubd_reply = self.call_pubd(*pubd_query)
+      pubd_reply = self.call_pubd(pubd_query)
       self.check_error_report(pubd_reply)
 
 
@@ -1482,5 +1517,5 @@ class Zookeeper(object):
                    for handle in (self_handles - ca_handles)]
 
     if rpkid_query:
-      rpkid_reply = self.call_rpkid(*rpkid_query)
+      rpkid_reply = self.call_rpkid(rpkid_query)
       self.check_error_report(rpkid_reply)

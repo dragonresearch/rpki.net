@@ -261,6 +261,10 @@ class main(Cmd):
       raise BadCommandSyntax("This command takes no arguments")
     self.zoo.update_bpki()
     self.zoo.write_bpki_files()
+    try:
+      self.zoo.synchronize_bpki()
+    except Exception, e:
+      print "Couldn't push updated BSCs into rpkid: %s" % e
 
 
   def do_configure_child(self, arg):

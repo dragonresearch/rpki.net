@@ -82,10 +82,10 @@ def run(name):
     print "Problem starting %s, pid %s" % (name, proc.pid)
 
 
-if cfg.getboolean("start_rpkid", cfg.getboolean("run_rpkid", False)):
+if cfg.getboolean("start_irdbd", cfg.getboolean("run_rpkid", False)):
   run("irdbd")
 
-if cfg.getboolean("start_irdbd", cfg.getboolean("run_rpkid", False)):
+if cfg.getboolean("start_rpkid", cfg.getboolean("run_rpkid", False)):
   run("rpkid")
 
 if cfg.getboolean("start_pubd",  cfg.getboolean("run_pubd",  False)):

@@ -381,8 +381,13 @@ class main(object):
         cb()
 
     completion = rpki.rpkid_tasks.CompletionHandler(done)
-    for s in rpki.left_right.self_elt.sql_fetch_all(self):
-      s.schedule_cron_tasks(completion)
+    try:
+      selves = rpki.left_right.self_elt.sql_fetch_all(self)
+    except Exception, e:
+      rpki.log.warn("Error pulling self_elts from SQL, maybe SQL server is down? (%s)" % e)
+    else:
+      for s in selves:
+        s.schedule_cron_tasks(completion)
     nothing_queued = completion.count == 0
 
     assert self.use_internal_cron or self.cron_timeout is None

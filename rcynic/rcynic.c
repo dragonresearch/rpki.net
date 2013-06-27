@@ -2591,7 +2591,11 @@ static int rsync_construct_select(const rcynic_ctx_t *rc,
     }
   }
 
-  if (when && when < now + rc->max_select_time)
+  if (!when)
+    tv->tv_sec = rc->max_select_time;
+  else if (when < now)
+    tv->tv_sec = 0;
+  else if (when < now + rc->max_select_time)
     tv->tv_sec = when - now;
   else
     tv->tv_sec = rc->max_select_time;
@@ -2770,6 +2774,11 @@ static void rsync_mgr(rcynic_ctx_t *rc)
    */
 
   n = rsync_construct_select(rc, now, &rfds, &tv);
+
+  if (n > 0 && tv.tv_sec)
+    logmsg(rc, log_verbose, "Waiting up to %u seconds for rsync, queued %d, runable %d, running %d, max %d",
+	   tv.tv_sec, sk_rsync_ctx_t_num(rc->rsync_queue), rsync_count_runable(rc),
+	   rsync_count_running(rc), rc->max_parallel_fetches);
 
   if (n > 0) {
 #if 0

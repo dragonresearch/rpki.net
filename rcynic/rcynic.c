@@ -294,6 +294,7 @@ static const struct {
   QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
   QW(rsync_partial_transfer,		"rsync partial transfer")	    \
   QW(rsync_transfer_skipped,		"rsync transfer skipped")	    \
+  QW(skipped_because_not_in_manifest,	"Skipped because not in manifest")  \
   QW(stale_crl_or_manifest,		"Stale CRL or manifest")	    \
   QW(tainted_by_stale_crl,		"Tainted by stale CRL")		    \
   QW(tainted_by_stale_manifest,		"Tainted by stale manifest")	    \
@@ -4944,15 +4945,16 @@ static void walk_cert(rcynic_ctx_t *rc, void *cookie)
 	continue;			/* CRLs and manifests checked elsewhere */
       }
 
+      if (hash == NULL && !rc->allow_object_not_in_manifest) {
+	log_validation_status(rc, &uri, skipped_because_not_in_manifest, generation);
+	walk_ctx_loop_next(rc, wsk);
+	continue;
+      }
+
       if (hash == NULL)
 	log_validation_status(rc, &uri, tainted_by_not_being_in_manifest, generation);
       else if (w->stale_manifest)
 	log_validation_status(rc, &uri, tainted_by_stale_manifest, generation);
-
-      if (hash == NULL && !rc->allow_object_not_in_manifest) {
-	walk_ctx_loop_next(rc, wsk);
-	continue;
-      }
 
       if (endswith(uri.s, ".roa")) {
 	check_roa(rc, wsk, &uri, hash, hashlen);
@@ -5446,7 +5448,6 @@ int main(int argc, char *argv[])
   rc.allow_stale_manifest = 1;
   rc.allow_digest_mismatch = 1;
   rc.allow_crl_digest_mismatch = 1;
-  rc.allow_object_not_in_manifest = 1;
   rc.allow_nonconformant_name = 1;
   rc.allow_ee_without_signedObject = 1;
   rc.allow_1024_bit_ee_key = 1;

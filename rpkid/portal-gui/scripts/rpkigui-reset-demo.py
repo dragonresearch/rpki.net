@@ -35,6 +35,7 @@ for n in xrange(1, 33):
     print 'removing objects for ' + username
     for cls in (ROARequest, GhostbusterRequest):
         cls.objects.filter(issuer__handle=username).delete()
-    print '... updating resource certificate cache'
     conf = Conf.objects.get(handle=username)
+    conf.clear_alerts()
+    print '... updating resource certificate cache'
     list_received_resources(sys.stdout, conf)

@@ -197,6 +197,9 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
         )
         return notify_emails
 
+    def clear_alerts(self):
+        self.alerts.all().delete()
+
 
     class Meta:
         proxy = True

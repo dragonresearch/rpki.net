@@ -1,0 +1,21 @@
+{% extends "app/app_base.html" %}
+{% load url from future %}
+
+{% block content %}
+<div class='page-header'>
+  <h1>Delete all alerts</h1>
+</div>
+
+<div class="row-fluid">
+  <div class="alert">
+    Please confirm that you would like to delete all alerts.
+  </div>
+  <form method="POST">
+    {% csrf_token %}
+    <div class="form-actions">
+      <button class="btn btn-danger" type="submit"><i class="icon-trash"></i> Delete All</button>
+      <a class="btn" href="{% url "alert-list" %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

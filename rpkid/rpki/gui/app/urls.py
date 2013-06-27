@@ -22,6 +22,7 @@ urlpatterns = patterns(
     '',
     (r'^$', views.dashboard),
     url(r'^alert/$', views.AlertListView.as_view(), name='alert-list'),
+    url(r'^alert/clear_all$', views.alert_clear_all, name='alert-clear-all'),
     url(r'^alert/(?P<pk>\d+)/$', views.AlertDetailView.as_view(),
         name='alert-detail'),
     url(r'^alert/(?P<pk>\d+)/delete$', views.AlertDeleteView.as_view(),

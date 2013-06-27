@@ -1298,3 +1298,17 @@ class AlertDeleteView(DeleteView):
     def get_queryset(self, **kwargs):
         conf = self.request.session['handle']
         return conf.alerts.all()
+
+
+@handle_required
+def alert_clear_all(request):
+    """Clear all alerts associated with the current resource holder."""
+    if request.method == 'POST':
+        form = forms.Empty(request.POST, request.FILES)
+        if form.is_valid():
+            # delete alerts
+            request.session['handle'].clear_alerts()
+            return redirect('alert-list')
+    else:
+        form = forms.Empty()
+    return render(request, 'app/alert_confirm_clear.html', {'form': form})

@@ -393,9 +393,13 @@ Default: false
 Allow use of otherwise valid objects which are not listed in the manifest. This
 is not supposed to happen, but is probably harmless.
 
+Enabling this does, however, often result in noisier logs, as it increases the
+chance that rcynic will attempt to validate data which a CA removed from the
+manifest but did not completely remove and revoke from the repository.
+
 Values: true or false
 
-Default: true
+Default: false
 
 **** allow-digest-mismatch ****
 

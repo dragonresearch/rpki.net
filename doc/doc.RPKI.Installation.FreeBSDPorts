@@ -19,8 +19,6 @@ like this:
     rm -rf ${port}
   done
 
-To upgrade, perform the same steps.
-
 After performing initial installation, you should customize the default
 rpki.conf for your environment as necessary. In particular, you want to change
 handle and rpkid_server_host. There are obsessively detailed instructions.
@@ -28,6 +26,27 @@ handle and rpkid_server_host. There are obsessively detailed instructions.
   emacs /usr/local/etc/rpki.conf
 
 Again, you want to change handle and rpkid_server_host at the minimum.
+
+To upgrade, you can perform almost the same steps, but the FreeBSD ports
+system, which doesn't really know about upgrades, will require you to use the
+deinstall and reinstall operations instead of plain install:
+
+  for port in rpki-rp rpki-ca
+  do
+    fetch http://download.rpki.net/FreeBSD_Packages/${port}-port.tgz
+    tar xf ${port}-port.tgz
+    cd ${port}
+    make deinstall
+    make reinstall
+    cd ..
+    rm -rf ${port}
+  done
+
+After an upgrade, you may want to check the newly-installed /usr/local/etc/
+rpki.conf.sample against your existing /usr/local/etc/rpki.conf in case any
+important options have changed. We generally try to keep options stable between
+versions, and provide sane defaults where we can, but if you've done a lot of
+customization to your rpki.conf you will want to keep track of this.
 
 ***** Automated Download and Install with portmaster *****
 

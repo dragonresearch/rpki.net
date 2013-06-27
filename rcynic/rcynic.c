@@ -304,9 +304,9 @@ static const struct {
   QW(uri_too_long,			"URI too long")			    \
   QW(wrong_cms_si_signature_algorithm,	"Wrong CMS SI signature algorithm") \
   QW(wrong_cms_si_digest_algorithm,	"Wrong CMS SI digest algorithm")    \
-  QG(current_cert_recheck,		"Certificate rechecked")	    \
   QG(non_rsync_uri_in_extension,	"Non-rsync URI in extension")	    \
   QG(object_accepted,			"Object accepted")		    \
+  QG(rechecking_object,			"Rechecking object")		    \
   QG(rsync_transfer_succeeded,		"rsync transfer succeeded")	    \
   QG(validation_ok,			"OK")
 
@@ -1489,7 +1489,7 @@ static int skip_checking_this_object(rcynic_ctx_t *rc,
   if (v != NULL && validation_status_get_code(v, object_accepted))
     return 1;
 
-  log_validation_status(rc, uri, current_cert_recheck, generation);
+  log_validation_status(rc, uri, rechecking_object, generation);
   logmsg(rc, log_telemetry, "Rechecking %s", uri->s);
   return 0;
 }
@@ -4447,6 +4447,25 @@ static int check_manifest(rcynic_ctx_t *rc,
 
 
 /**
+ * Mark CRL or manifest that we're rechecking so XML report makes more sense.
+ */
+static void rsync_needed_mark_recheck(rcynic_ctx_t *rc,
+				      const uri_t *uri)
+{
+  validation_status_t *v = NULL;
+
+  if (uri->s[0] != '\0')
+    v = validation_status_find(rc->validation_status_root,
+			       uri, object_generation_current);
+
+  if (v) {
+    validation_status_set_code(v, stale_crl_or_manifest, 0);
+    log_validation_status(rc, uri, rechecking_object,
+			  object_generation_current);
+  }
+}
+
+/**
  * Check whether we need to rsync a particular tree.  This depends on
  * the setting of rc->rsync_early, whether we have a valid manifest on
  * file, and whether that manifest is stale yet.
@@ -4465,9 +4484,8 @@ static int rsync_needed(rcynic_ctx_t *rc,
 	    X509_cmp_current_time(w->manifest->nextUpdate) < 0);
 
   if (needed && w->manifest != NULL) {
-    /*
-     * Mark some flavor of "recheck_manifest" counter here?
-     */
+    rsync_needed_mark_recheck(rc, &w->certinfo.manifest);
+    rsync_needed_mark_recheck(rc, &w->certinfo.crldp);
     Manifest_free(w->manifest);
     w->manifest = NULL;
   }

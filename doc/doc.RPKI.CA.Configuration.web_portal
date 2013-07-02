@@ -26,3 +26,15 @@ SQL password the web portal should use.
 Site-specific secret key for Django.
 
 No default value.
+
+***** allowed-hosts *****
+
+Name of virtual host that runs the Django GUI, if this is not the same as the
+system hostname. Django's security code wants to know the name of the virtual
+host on which Django is running, and will fail when it thinks it's running on a
+disallowed host.
+
+If you get an error like "Invalid HTTP_HOST header (you may need to set
+ALLOWED_HOSTS)", you will need to set this option.
+
+No default value.

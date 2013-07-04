@@ -627,7 +627,7 @@ then
 		use_install_layout=$enable_python_install_layout
 		;;
 	auto)
-		use_install_layout=$looks_like_debian
+		use_install_layout=no
 		;;
 	*)
 		use_install_layout=yes

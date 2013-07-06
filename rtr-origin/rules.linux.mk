@@ -19,7 +19,7 @@ ${DESTDIR}/etc/xinetd.d/rpki-rtr:
 	    print "    protocol       = tcp"; \
 	    print "    port           = ${RPKI_RTR_PORT}"; \
 	    print "    wait           = no"; \
-	    print "    user           = nobody"; \
+	    print "    user           = rpkirtr"; \
 	    print "    server         = /usr/bin/rtr-origin"; \
 	    print "    server_args    = --server /var/rcynic/rpki-rtr"; \
 	    print "}"; \

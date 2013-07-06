@@ -18,7 +18,7 @@ install-listener: .FORCE
 	@if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp[ 	]" /etc/inetd.conf; \
 	then \
 	    echo "You already have an inetd.conf entry for rpki-rtr on TCPv4, so I will use it."; \
-	elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"; \
+	elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp	nowait	rpkirtr	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"; \
 	then \
 	    echo "Added rpki-rtr for TCPv4 to /etc/inetd.conf."; \
 	else \
@@ -28,7 +28,7 @@ install-listener: .FORCE
 	@if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp6[ 	]" /etc/inetd.conf; \
 	then \
 	    echo "You already have an inetd.conf entry for rpki-rtr on TCPv6, so I will use it."; \
-	elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp6	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"; \
+	elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp6	nowait	rpkirtr	/usr/local/bin/rtr-origin	rtr-origin --server /var/rcynic/rpki-rtr"; \
 	then \
 	    echo "Added rpki-rtr for TCPv6 to /etc/inetd.conf."; \
 	else \

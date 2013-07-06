@@ -54,11 +54,15 @@ RCYNIC_CONF_DATA	= @RCYNIC_CONF_DATA@
 RCYNIC_CONF_TA_DIR	= @RCYNIC_CONF_TA_DIR@
 RCYNIC_USER		= rcynic
 RCYNIC_GROUP		= rcynic
-NOBODY_USER		= nobody
+RPKIRTR_USER		= rpkirtr
 RCYNIC_GECOS		= RPKI Validation System
 RCYNIC_STATIC_RSYNC	= @RCYNIC_STATIC_RSYNC@
 RCYNIC_HTML_DIR		= @RCYNIC_HTML_DIR@
 RCYNIC_CRON_USER	= @RCYNIC_CRON_USER@
+RPKIRTR_USER		= rpkirtr
+RPKIRTR_GROUP		= rpkirtr
+RPKIRTR_GECOS		= RPKI router server
+RPKIRTR_MODE		= 775
 
 SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status rcynic-cron
 
@@ -155,7 +159,8 @@ ${RCYNIC_DIRS} ${DESTDIR}${bindir} ${DESTDIR}${sysconfdir}:
 
 install-directory-ownership: ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
 	chown ${RCYNIC_USER}:${RCYNIC_GROUP} ${RCYNIC_DATA_DIR} ${RCYNIC_RPKI_RTR_DIR}
-	chown ${NOBODY_USER}:${RCYNIC_GROUP} ${RCYNIC_RPKI_RTR_DIR}/sockets
+	chown ${RPKIRTR_USER}:${RCYNIC_GROUP} ${RCYNIC_RPKI_RTR_DIR}/sockets
+	chmod ${RPKIRTR_MODE} ${RCYNIC_RPKI_RTR_DIR}/sockets
 
 install-rcynic-conf: ${RCYNIC_CONF_FILE}
 

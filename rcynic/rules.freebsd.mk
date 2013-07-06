@@ -12,14 +12,36 @@ install-user-and-group: .FORCE
 	    echo "Please create it, then try again."; \
 	    exit 1; \
 	fi
+	@if /usr/sbin/pw groupshow "${RPKIRTR_GROUP}" 2>/dev/null; \
+	then \
+	    echo "You already have a group \"${RPKIRTR_GROUP}\", so I will use it."; \
+	elif /usr/sbin/pw groupadd ${RPKIRTR_GROUP}; \
+	then \
+	    echo "Added group \"${RPKIRTR_GROUP}\"."; \
+	else \
+	    echo "Adding group \"${RPKIRTR_GROUP}\" failed..."; \
+	    echo "Please create it, then try again."; \
+	    exit 1; \
+	fi
 	@if /usr/sbin/pw usershow "${RCYNIC_USER}" 2>/dev/null; \
 	then \
 	    echo "You already have a user \"${RCYNIC_USER}\", so I will use it."; \
-	elif /usr/sbin/pw useradd ${RCYNIC_USER} -g ${RCYNIC_GROUP} -h - -d /nonexistant -s /usr/sbin/nologin -c "${RCYNIC_GECOS}"; \
+	elif /usr/sbin/pw useradd ${RCYNIC_USER} -g ${RCYNIC_GROUP} -h - -d /nonexistant -s /usr/sbin/nologin -c "${RCYNIC_GECOS}" -G "${RPKIRTR_GROUP}"; \
 	then \
 	    echo "Added user \"${RCYNIC_USER}\"."; \
 	else \
 	    echo "Adding user \"${RCYNIC_USER}\" failed..."; \
+	    echo "Please create it, then try again."; \
+	    exit 1; \
+	fi
+	@if /usr/sbin/pw usershow "${RPKIRTR_USER}" 2>/dev/null; \
+	then \
+	    echo "You already have a user \"${RPKIRTR_USER}\", so I will use it."; \
+	elif /usr/sbin/pw useradd ${RPKIRTR_USER} -g ${RPKIRTR_GROUP} -h - -d /nonexistant -s /usr/sbin/nologin -c "${RPKIRTR_GECOS}"; \
+	then \
+	    echo "Added user \"${RPKIRTR_USER}\"."; \
+	else \
+	    echo "Adding user \"${RPKIRTR_USER}\" failed..."; \
 	    echo "Please create it, then try again."; \
 	    exit 1; \
 	fi

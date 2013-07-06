@@ -5,26 +5,36 @@
 
 set -e
 
-setup_rcynic_ownership() {
-    install -o rcynic -g rcynic -d /var/rcynic/data /var/rcynic/rpki-rtr /var/rcynic/rpki-rtr
-    if test -d /var/www
-    then
-	install -o rcynic -g rcynic -d /var/www/rcynic
-    fi
-}
-
-setup_rcynic_user() {
-    if ! getent passwd rcynic >/dev/null
-    then
-	useradd -g rcynic -M -N -d /var/rcynic -s /sbin/nologin -c "RPKI validation system" rcynic
-    fi
-}
-
-setup_rcynic_group() {
+setup_groups() {
     if ! getent group rcynic >/dev/null
     then
 	groupadd rcynic
     fi
+    if ! getent group rpkirtr >/dev/null
+    then
+	groupadd rpkirtr
+    fi
+}
+
+setup_users() {
+    if ! getent passwd rcynic >/dev/null
+    then
+	useradd -g rcynic -M -N -d /var/rcynic -s /sbin/nologin -c "RPKI validation system" rcynic
+    fi
+    if ! getent passwd rpkirtr >/dev/null
+    then
+	useradd -g rpkirtr -M -N -d /var/rcynic/rpki-rtr -s /sbin/nologin -c "RPKI router server" rpkirtr
+    fi
+    usermod -a -G rpkirtr rcynic
+}
+
+setup_directories() {
+    install -o rcynic -g rcynic -d /var/rcynic/data /var/rcynic/rpki-rtr
+    if test -d /var/www
+    then
+	install -o rcynic -g rcynic -d /var/www/rcynic
+    fi
+    install -o rpkirtr -g rcynic -m 775 -d /var/rcynic/rpki-rtr/sockets
 }
 
 # We want to pick a *random* minute for rcynic to run, to spread load
@@ -39,7 +49,7 @@ setup_rcynic_cron() {
     fi
 }
 
-setup_rpki_rtr_listener() {
+setup_rpkirtr_listener() {
     if test -f /var/run/xinetd.pid
     then
 	kill -HUP `cat /var/run/xinetd.pid`
@@ -61,11 +71,11 @@ setup_rpki_rtr_listener() {
 
 case "$1" in
     configure)
-	setup_rcynic_group
-	setup_rcynic_user
-	setup_rcynic_ownership
+	setup_groups
+	setup_users
+	setup_directories
 	setup_rcynic_cron
-	setup_rpki_rtr_listener
+	setup_rpkirtr_listener
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

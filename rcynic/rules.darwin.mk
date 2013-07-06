@@ -36,6 +36,41 @@ install-user-and-group: .FORCE
 	    echo "Please create it, then try again."; \
 	    exit 1; \
 	fi
+	@if /usr/bin/dscl . -read "/Groups/${RPKIRTR_GROUP}" >/dev/null 2>&1; \
+	then \
+	    echo "You already have a group \"${RPKIRTR_GROUP}\", so I will use it."; \
+	elif gid="$$(/usr/bin/dscl . -list /Groups PrimaryGroupID | /usr/bin/awk 'BEGIN {gid = 501} $$2 >= gid {gid = 1 + $$2} END {print gid}')" && \
+	    /usr/bin/dscl . -create "/Groups/${RPKIRTR_GROUP}" && \
+	    /usr/bin/dscl . -create "/Groups/${RPKIRTR_GROUP}" RealName "${RPKIRTR_GECOS}" && \
+	    /usr/bin/dscl . -create "/Groups/${RPKIRTR_GROUP}" PrimaryGroupID "$$gid" && \
+	    /usr/bin/dscl . -create "/Groups/${RPKIRTR_GROUP}" GeneratedUID "$$(/usr/bin/uuidgen)" && \
+	    /usr/bin/dscl . -create "/Groups/${RPKIRTR_GROUP}" Password "*"; \
+	then \
+	    echo "Added group \"${RPKIRTR_GROUP}\"."; \
+	else \
+	    echo "Adding group \"${RPKIRTR_GROUP}\" failed..."; \
+	    echo "Please create it, then try again."; \
+	    exit 1; \
+	fi; \
+	if /usr/bin/dscl . -read "/Users/${RPKIRTR_USER}" >/dev/null 2>&1; \
+	then \
+	    echo "You already have a user \"${RPKIRTR_USER}\", so I will use it."; \
+	elif uid="$$(/usr/bin/dscl . -list /Users UniqueID | /usr/bin/awk 'BEGIN {uid = 501} $$2 >= uid {uid = 1 + $$2} END {print uid}')" && \
+	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" && \
+	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" UserShell "/usr/bin/false" && \
+	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" RealName "${RPKIRTR_GECOS}" && \
+	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" UniqueID "$$uid" && \
+	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" PrimaryGroupID "$$gid" && \
+	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" NFSHomeDirectory "/var/empty" && \
+	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" GeneratedUID "$$(/usr/bin/uuidgen)" && \
+	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" Password "*"; \
+	then \
+	    echo "Added user \"${RPKIRTR_USER}\"."; \
+	else \
+	    echo "Adding user \"${RPKIRTR_USER}\" failed..."; \
+	    echo "Please create it, then try again."; \
+	    exit 1; \
+	fi
 
 
 install-shared-libraries: .FORCE

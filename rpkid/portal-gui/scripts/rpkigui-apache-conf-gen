@@ -20,15 +20,30 @@ import os
 import re
 import sys
 import socket
+import urllib2
 import argparse
+import platform
+import textwrap
 import subprocess
 import rpki.autoconf
 
 fqdn = socket.getfqdn()
 
 vhost = '''\
+#
+# By default, this configuration assumes that you use name-based
+# virtual hosting.  If that's not what you want, you may need
+# to change this.
+#
 <VirtualHost *:443>
 
+  #
+  # By default, we enable an HTTPS virtual host on this machine's
+  # fully qualified domain name.  This works for simple
+  # configurations, but if you're running a more complex Apache
+  # configuration or want to run the GUI on a different hostname,
+  # you may need to change this.
+  #
   ServerName          %(fqdn)s
 
   #
@@ -38,42 +53,73 @@ vhost = '''\
   %(WSGI_DAEMON_PROCESS)s
   %(WSGI_PROCESS_GROUP)s
 
+  #
+  # Allow access to our WSGI directory.
+  #
   <Directory %(datarootdir)s/rpki/wsgi>
     Order deny,allow
     Allow from all
   </Directory>
 
   #
-  # Defines the URL to the portal-gui
+  # Define the URL to the RPKI GUI
   #
   WSGIScriptAlias /       %(datarootdir)s/rpki/wsgi/rpki.wsgi
 
+  #
+  # Allow access to static content (icons, etc).
+  #
   <Directory %(datarootdir)s/rpki/media>
     Order deny,allow
     Allow from all
   </Directory>
 
+  #
+  # Add the aliases Django expects for static content.
+  #
   Alias   /media/         %(datarootdir)s/rpki/media/
   Alias   /site_media/    %(datarootdir)s/rpki/media/
 
+  #
+  # Allow access to the directory where rcynic-html writes
+  # its output files.
+  #
   <Directory %(RCYNIC_HTML_DIR)s>
     Order deny,allow
     Allow from all
   </Directory>
 
-  # Leave the trailing slash off the URL, otherwise /rcynic is swallowed by the
-  # WSGIScriptAlias
+  #
+  # Add alias pointing to rcynic-html's output files.
+  #
+  # If for some reason you need to change this, be careful to leave
+  # the trailing slash off the URL, otherwise /rcynic will be
+  # swallowed by the WSGIScriptAlias
+  #
   Alias   /rcynic         %(RCYNIC_HTML_DIR)s/
 
-  # Redirect to the dashboard when someone hits the bare vhost
+  #
+  # Redirect to the GUI dashboard when someone hits the bare vhost.
+  #
   RedirectMatch   ^/$     /rpki/
 
+  #
   # Enable HTTPS
+  #
   SSLEngine on
+
+  #
+  # Specify HTTPS server certificate and key files for this virtual host.
+  # This should suffice for simple configurations, but if you're running
+  # a more complex Apache configuration you may need to change or remove
+  # these lines.
+  #
   SSLCertificateFile     %(sysconfdir)s/rpki/apache.cer
   SSLCertificateKeyFile  %(sysconfdir)s/rpki/apache.key
 
+  #
   # Take pity on users running Internet Exploder
+  #
   BrowserMatch "MSIE [2-6]"  ssl-unclean-shutdown nokeepalive downgrade-1.0 force-response-1.0
   BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
 
@@ -86,7 +132,6 @@ def Guess(args):
   Guess what platform this is and dispatch to platform constructor.
   """
 
-  import platform
   system = platform.system()
   if system == "FreeBSD":
     return FreeBSD(args)
@@ -183,6 +228,20 @@ class Platform(object):
       self.apache_cer, self.apache_key, self.apache_key))
     os.chmod(self.apache_key, 0600)
 
+  @property
+  def too_complex(self):
+    return textwrap.dedent('''\
+      # It looks like you already have HTTPS enabled in your
+      # Apache configuration, which makes your configuration too
+      # complex for us to enable support for the RPKI GUI automatically.
+      #
+      # To enable support, take a look at %s
+      # and copy what you need from that file into %s,
+      # paying attention to the comments which mark the bits that
+      # you might (or might not) need to change or omit, depending
+      # on the details of your particular Apache configuration.
+      ''' % (self.apache_conf_sample, self.apache_conf))
+
   def install(self):
     with open(self.apache_conf_sample, "w") as f:
       self.log("Writing %s" % f.name)
@@ -191,9 +250,15 @@ class Platform(object):
       f.write(vhost)
     if not os.path.exists(self.apache_conf):
       self.unlink(self.apache_conf)
-      self.log("Linking %s to %s" % (
-        self.apache_conf, self.apache_conf_sample))
-      os.link(self.apache_conf_sample, self.apache_conf)
+      with open(self.apache_conf, "w") as f:
+        self.log("Writing %s" % f.name)
+        if self.test_url("https://%s/" % fqdn):
+          f.write(self.too_complex)
+          sys.stdout.write(self.too_complex)
+        else:
+          if self.apache_conf_preface is not None and not self.test_tcp("localhost", 443):
+            f.write(self.apache_conf_preface)
+          f.write(vhost)
     if not os.path.exists(self.apache_conf_target):
       self.unlink(self.apache_conf_target)
       self.log("Symlinking %s to %s" % (
@@ -226,6 +291,32 @@ class Platform(object):
     self.unlink(self.apache_conf)
     self.del_certs()
 
+  @staticmethod
+  def test_url(url = "https://localhost/"):
+    try:
+      urllib2.urlopen(url).close()
+    except IOError:
+      return False
+    else:
+      return True
+
+  @staticmethod
+  def test_tcp(host = "localhost", port = 443, family = socket.AF_UNSPEC, proto = socket.SOCK_STREAM):
+    try:
+      addrinfo = socket.getaddrinfo(host, port, family, proto)
+    except socket.error:
+      return False
+    for af, socktype, proto, canon, sa in addrinfo:
+      try:
+        s = socket.socket(af, socktype, proto)
+        s.connect(sa)
+        s.close()
+      except socket.error:
+        continue
+      else:
+        return True
+    return False
+    
 class FreeBSD(Platform):
   """
   FreeBSD.
@@ -253,11 +344,16 @@ class FreeBSD(Platform):
   def apache_conf_target(self):
     return "/usr/local/etc/%s/Includes/rpki.conf" % self.apache_name
 
-  apache_conf_preface = '''\
-        Listen [::]:443
-        Listen 0.0.0.0:443
-        NameVirtualHost *:443
-        ''' + "\n"
+  apache_conf_preface = textwrap.dedent('''\
+    # These directives tell Apache to listen on the HTTPS port
+    # and to enable name-based virtual hosting.  If you already
+    # have HTTPS enabled elsewhere in your configuration, you may
+    # need to remove these.
+
+    Listen [::]:443
+    Listen 0.0.0.0:443
+    NameVirtualHost *:443
+    ''')
 
   def restart(self):
     self.run("service", self.apache_name, "restart")

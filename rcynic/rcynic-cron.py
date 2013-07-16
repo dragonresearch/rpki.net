@@ -96,11 +96,6 @@ if want_chroot:
 else:
   run(os.path.join(ac_bindir, "rcynic"), "-c", os.path.join(ac_sysconfdir, "rcynic.conf"))
 
-if ac_rcynic_html_dir and os.path.exists(os.path.dirname(ac_rcynic_html_dir)):
-  run(os.path.join(ac_bindir, "rcynic-html"),
-      os.path.join(ac_rcynic_dir, "data/rcynic.xml"),
-      ac_rcynic_html_dir)
-
 run(os.path.join(ac_bindir, "rtr-origin"),
     "--cronjob", 
     os.path.join(ac_rcynic_dir, "data/authenticated"),
@@ -109,3 +104,8 @@ run(os.path.join(ac_bindir, "rtr-origin"),
 prog = os.path.join(ac_libexecdir, "rpkigui-rcynic")
 if os.path.exists(prog):
   run(prog)
+
+if ac_rcynic_html_dir and os.path.exists(os.path.dirname(ac_rcynic_html_dir)):
+  run(os.path.join(ac_bindir, "rcynic-html"),
+      os.path.join(ac_rcynic_dir, "data/rcynic.xml"),
+      ac_rcynic_html_dir)

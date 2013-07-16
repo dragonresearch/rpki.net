@@ -587,7 +587,8 @@ fi
 
 if test "x$RRDTOOL" = "x"
 then
-	AC_MSG_WARN([rrdtool missing, so rcynic-html won't be able to draw graphs.])
+	ok=no
+	AC_MSG_WARN([rcynic-html requires rrdtool.])
 fi
 
 if test $use_rcynic_jail = no && test "X$RSYNC" = "X"

@@ -21,11 +21,6 @@ PERFORMANCE OF THIS SOFTWARE.
 # Locking code here works like FreeBSD's lockf(1) utility given -k and
 # -t 0 options, which is both the sanest and simplest combination for
 # our purposes.  In theory this is portable to any Unix-like system.
-#
-# At some point we might want to implement the chroot() and setuid()
-# functionality here rather than using this mess of platform-specific
-# external programs.  I don't have time to write and debug that today,
-# but it might well be simpler and more portable.
 
 import os
 import sys

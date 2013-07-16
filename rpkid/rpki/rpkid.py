@@ -186,35 +186,43 @@ class main(object):
 
     rpki.log.trace()
 
-    q_types = tuple(type(q_pdu) for q_pdu in q_pdus)
+    try:
+      q_types = tuple(type(q_pdu) for q_pdu in q_pdus)
 
-    expected_pdu_count = kwargs.pop("expected_pdu_count", None)
-    assert len(kwargs) == 0
+      expected_pdu_count = kwargs.pop("expected_pdu_count", None)
+      assert len(kwargs) == 0
 
-    q_msg = rpki.left_right.msg.query()
-    q_msg.extend(q_pdus)
-    q_der = rpki.left_right.cms_msg().wrap(q_msg, self.rpkid_key, self.rpkid_cert)
+      q_msg = rpki.left_right.msg.query()
+      q_msg.extend(q_pdus)
+      q_der = rpki.left_right.cms_msg().wrap(q_msg, self.rpkid_key, self.rpkid_cert)
 
-    def unwrap(r_der):
-      r_cms = rpki.left_right.cms_msg(DER = r_der)
-      r_msg = r_cms.unwrap((self.bpki_ta, self.irdb_cert))
-      self.irdbd_cms_timestamp = r_cms.check_replay(self.irdbd_cms_timestamp, self.irdb_url)
-      if not r_msg.is_reply() or not all(type(r_pdu) in q_types for r_pdu in r_msg):
-        raise rpki.exceptions.BadIRDBReply(
-          "Unexpected response to IRDB query: %s" % r_cms.pretty_print_content())
-      if expected_pdu_count is not None and len(r_msg) != expected_pdu_count:
-        assert isinstance(expected_pdu_count, (int, long))
-        raise rpki.exceptions.BadIRDBReply(
-          "Expected exactly %d PDU%s from IRDB: %s" % (
-          expected_pdu_count, "" if expected_pdu_count == 1 else "s",
-          r_cms.pretty_print_content()))
-      callback(r_msg)
+      def unwrap(r_der):
+        try:
+          r_cms = rpki.left_right.cms_msg(DER = r_der)
+          r_msg = r_cms.unwrap((self.bpki_ta, self.irdb_cert))
+          self.irdbd_cms_timestamp = r_cms.check_replay(self.irdbd_cms_timestamp, self.irdb_url)
+          if not r_msg.is_reply() or not all(type(r_pdu) in q_types for r_pdu in r_msg):
+            raise rpki.exceptions.BadIRDBReply(
+              "Unexpected response to IRDB query: %s" % r_cms.pretty_print_content())
+          if expected_pdu_count is not None and len(r_msg) != expected_pdu_count:
+            assert isinstance(expected_pdu_count, (int, long))
+            raise rpki.exceptions.BadIRDBReply(
+              "Expected exactly %d PDU%s from IRDB: %s" % (
+              expected_pdu_count, "" if expected_pdu_count == 1 else "s",
+              r_cms.pretty_print_content()))
+          callback(r_msg)
+        except Exception, e:
+          errback(e)
 
-    rpki.http.client(
-      url          = self.irdb_url,
-      msg          = q_der,
-      callback     = unwrap,
-      errback      = errback)
+      rpki.http.client(
+        url          = self.irdb_url,
+        msg          = q_der,
+        callback     = unwrap,
+        errback      = errback)
+
+    except Exception, e:
+      errback(e)
+
 
   def irdb_query_child_resources(self, self_handle, child_handle, callback, errback):
     """

@@ -240,7 +240,8 @@ class UpdateChildrenTask(AbstractTask):
 
   def do_child(self):
     if self.child_certs:
-      self.gctx.irdb_query_child_resources(self.child.self.self_handle, self.child.child_handle, self.got_resources, self.lose)
+      self.gctx.irdb_query_child_resources(self.child.self.self_handle, self.child.child_handle,
+                                           self.got_resources, self.lose)
     else:
       self.iterator()
 
@@ -259,7 +260,9 @@ class UpdateChildrenTask(AbstractTask):
           new_resources = old_resources & irdb_resources & ca_detail.latest_ca_cert.get_3779resources()
 
           if new_resources.empty():
-            rpki.log.debug("Resources shrank to the null set, revoking and withdrawing child %s certificate SKI %s" % (self.child.child_handle, child_cert.cert.gSKI()))
+            rpki.log.debug("Resources shrank to the null set, "
+                           "revoking and withdrawing child %s certificate SKI %s" % (
+              self.child.child_handle, child_cert.cert.gSKI()))
             child_cert.revoke(publisher = self.publisher)
             ca_detail.generate_crl(publisher = self.publisher)
             ca_detail.generate_manifest(publisher = self.publisher)
@@ -268,11 +271,15 @@ class UpdateChildrenTask(AbstractTask):
                                                   irdb_resources.valid_until > self.now and
                                                   old_resources.valid_until != irdb_resources.valid_until):
 
-            rpki.log.debug("Need to reissue child %s certificate SKI %s" % (self.child.child_handle, child_cert.cert.gSKI()))
+            rpki.log.debug("Need to reissue child %s certificate SKI %s" % (
+              self.child.child_handle, child_cert.cert.gSKI()))
             if old_resources != new_resources:
-              rpki.log.debug("Child %s SKI %s resources changed: old %s new %s" % (self.child.child_handle, child_cert.cert.gSKI(), old_resources, new_resources))
+              rpki.log.debug("Child %s SKI %s resources changed: old %s new %s" % (
+                self.child.child_handle, child_cert.cert.gSKI(), old_resources, new_resources))
             if old_resources.valid_until != irdb_resources.valid_until:
-              rpki.log.debug("Child %s SKI %s validity changed: old %s new %s" % (self.child.child_handle, child_cert.cert.gSKI(), old_resources.valid_until, irdb_resources.valid_until))
+              rpki.log.debug("Child %s SKI %s validity changed: old %s new %s" % (
+                self.child.child_handle, child_cert.cert.gSKI(),
+                old_resources.valid_until, irdb_resources.valid_until))
 
             new_resources.valid_until = irdb_resources.valid_until
             child_cert.reissue(
@@ -282,9 +289,14 @@ class UpdateChildrenTask(AbstractTask):
 
           elif old_resources.valid_until < self.now:
             rpki.log.debug("Child %s certificate SKI %s has expired: cert.valid_until %s, irdb.valid_until %s"
-                           % (self.child.child_handle, child_cert.cert.gSKI(), old_resources.valid_until, irdb_resources.valid_until))
+                           % (self.child.child_handle, child_cert.cert.gSKI(),
+                              old_resources.valid_until, irdb_resources.valid_until))
             child_cert.sql_delete()
-            self.publisher.withdraw(cls = rpki.publication.certificate_elt, uri = child_cert.uri, obj = child_cert.cert, repository = ca.parent.repository)
+            self.publisher.withdraw(
+              cls = rpki.publication.certificate_elt,
+              uri = child_cert.uri,
+              obj = child_cert.cert,
+              repository = ca.parent.repository)
             ca_detail.generate_manifest(publisher = self.publisher)
 
     except (SystemExit, rpki.async.ExitNow):

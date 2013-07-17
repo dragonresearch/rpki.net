@@ -214,7 +214,7 @@ class main(object):
       issuer              = self.rpki_root_cert,
       serial              = self.crl_number,
       thisUpdate          = now,
-      nextUpdate          = now + self.rpki_subject_lifetime,
+      nextUpdate          = now + self.rpki_subject_regen,
       revokedCertificates = self.revoked)
     rpki.log.debug("Writing CRL %s" % os.path.join(self.rpki_root_dir, self.rpki_root_crl))
     f = open(os.path.join(self.rpki_root_dir, self.rpki_root_crl), "wb")
@@ -238,7 +238,7 @@ class main(object):
     manifest = rpki.x509.SignedManifest.build(
       serial         = self.crl_number,
       thisUpdate     = now,
-      nextUpdate     = now + self.rpki_subject_lifetime,
+      nextUpdate     = now + self.rpki_subject_regen,
       names_and_objs = manifest_content,
       keypair        = manifest_keypair,
       certs          = manifest_cert)

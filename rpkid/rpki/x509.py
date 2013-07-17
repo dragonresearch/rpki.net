@@ -233,6 +233,7 @@ class DER_object(object):
       setattr(self, a, None)
     self.filename = None
     self.timestamp = None
+    self.failures = 0
 
   def __init__(self, **kw):
     """
@@ -287,19 +288,26 @@ class DER_object(object):
     """
     if self.filename is None:
       return
-    filename = self.filename
-    timestamp = os.stat(self.filename).st_mtime
-    if self.timestamp is None or self.timestamp < timestamp:
-      rpki.log.debug("Updating %s, timestamp %s" % (filename, rpki.sundial.datetime.fromtimestamp(timestamp)))
-      f = open(filename, "rb")
-      value = f.read()
-      f.close()
-      if self.pem_converter.looks_like_PEM(value):
-        value = self.pem_converter.to_DER(value)
-      self.clear()
-      self.DER = value
-      self.filename = filename
-      self.timestamp = timestamp
+    try:
+      filename = self.filename
+      timestamp = os.stat(self.filename).st_mtime
+      if self.timestamp is None or self.timestamp < timestamp:
+        rpki.log.debug("Updating %s, timestamp %s" % (filename, rpki.sundial.datetime.fromtimestamp(timestamp)))
+        f = open(filename, "rb")
+        value = f.read()
+        f.close()
+        if self.pem_converter.looks_like_PEM(value):
+          value = self.pem_converter.to_DER(value)
+        self.clear()
+        self.DER = value
+        self.filename = filename
+        self.timestamp = timestamp
+    except (IOError, OSError), e:
+      self.failures += 1
+      if self.failures % 100 == 1:
+        rpki.log.warn("Could not auto_update %r (failures %d): %s" % (self, self.failures, e))
+    else:
+      self.failures = 0
 
   def check(self):
     """

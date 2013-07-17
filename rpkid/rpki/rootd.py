@@ -381,7 +381,7 @@ class main(object):
     self.rpki_subject_cert       = self.cfg.get("rpki-subject-cert",  "child.cer")
     self.rpki_subject_pkcs10     = self.cfg.get("rpki-subject-pkcs10", "child.pkcs10")
 
-    self.rpki_subject_lifetime   = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-lifetime", "30d"))
+    self.rpki_subject_lifetime   = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-lifetime", "8w"))
     self.rpki_subject_regen      = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-regen", self.rpki_subject_lifetime.convert_to_seconds() / 2))
 
     self.include_bpki_crl        = self.cfg.getboolean("include-bpki-crl", False)

@@ -1279,6 +1279,10 @@ class CMS_object(DER_object):
         raise rpki.exceptions.CMSCertHasExpired("CMS certificate has expired", "%s (%s)" % (
           x.getSubject(), x.hSKI()))
 
+    for c in crls:
+      if c.getNextUpdate() < now:
+        rpki.log.warn("Stale BPKI CMS CRL (%s %s %s)" % (c.getNextUpdate(), c.getIssuer(), c.hAKI()))
+
     try:
       content = cms.verify(store)
     except (rpki.async.ExitNow, SystemExit):

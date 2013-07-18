@@ -2777,7 +2777,7 @@ static void rsync_mgr(rcynic_ctx_t *rc)
 
   if (n > 0 && tv.tv_sec)
     logmsg(rc, log_verbose, "Waiting up to %u seconds for rsync, queued %d, runable %d, running %d, max %d",
-	   tv.tv_sec, sk_rsync_ctx_t_num(rc->rsync_queue), rsync_count_runable(rc),
+	   (unsigned) tv.tv_sec, sk_rsync_ctx_t_num(rc->rsync_queue), rsync_count_runable(rc),
 	   rsync_count_running(rc), rc->max_parallel_fetches);
 
   if (n > 0) {

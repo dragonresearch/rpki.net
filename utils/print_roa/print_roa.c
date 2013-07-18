@@ -161,10 +161,13 @@ static ROA *read_roa(const char *filename, const int print_cms, const int print_
 	  ASN1_TYPE *so = sk_ASN1_TYPE_value(xa->value.set, 0);
 	  switch (so->type) {
 	  case V_ASN1_UTCTIME:
-	    printf(" [signingTime(U) %s]", so->value.utctime->data);
+	    printf(" [signingTime(U) %s%s]",
+		   so->value.utctime->data[0] < '5' ? "20" : "19",
+		   so->value.utctime->data);
 	    break;
 	  case  V_ASN1_GENERALIZEDTIME:
-	    printf(" [signingTime(G) %s]", so->value.generalizedtime->data);
+	    printf(" [signingTime(G) %s]",
+		   so->value.generalizedtime->data);
 	    break;
 	  }
 	}

@@ -461,11 +461,11 @@ class Zookeeper(object):
   def synchronize_bpki(self):
     """
     Synchronize BPKI updates.  At the moment this just means pushing
-    BSC certificates out to rpkid.  This is separate from
-    .update_bpki() because this requires rpkid to be running and none
-    of the other BPKI update stuff does; there may be circumstances
-    under which it makes sense to do the rest of the BPKI update and
-    allow this to fail with a warning.
+    BSC certificates out to rpkid and a BPKI CRL to pubd.  This is
+    separate from .update_bpki() because this requires rpkid to be
+    running and none of the other BPKI update stuff does; there may be
+    circumstances under which it makes sense to do the rest of the
+    BPKI update and allow this to fail with a warning.
     """
 
     updates = tuple(
@@ -480,6 +480,12 @@ class Zookeeper(object):
 
     if updates:
       self.check_error_report(self.call_rpkid(updates))
+
+    if self.run_pubd:
+      self.check_error_report(self.call_pubd(rpki.publication.config_elt.make_pdu(
+        action = "set",
+        bpki_crl = self.server_ca.latest_crl)))
+
 
   @django.db.transaction.commit_on_success
   def configure_child(self, filename, child_handle = None, valid_until = None):

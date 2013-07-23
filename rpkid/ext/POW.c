@@ -79,7 +79,7 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* $Id: rcynic.c 4613 2012-07-30 23:24:15Z sra $ */
+/* $Id$ */
 
 #define	PY_SSIZE_T_CLEAN 1
 #include <Python.h>

@@ -518,6 +518,18 @@ class DER_object(object):
     except:                             # pylint: disable=W0702
       return uri
 
+  def __getstate__(self):
+    """
+    Pickling protocol -- pickle the DER encoding.
+    """
+    return self.get_DER()
+
+  def __setstate__(self, state):
+    """
+    Pickling protocol -- unpickle the DER encoding.
+    """
+    self.set(DER = state)
+
 class X509(DER_object):
   """
   X.509 certificates.

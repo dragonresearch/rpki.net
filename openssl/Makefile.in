@@ -38,6 +38,8 @@ openssl-${VERSION}/apps/openssl: openssl-${VERSION}/libcrypto.a openssl-${VERSIO
 	cd openssl-${VERSION}; mv -fv disabled/${OPENSSL_SO_GLOB} .
 	cd openssl-${VERSION}; rmdir disabled
 
+openssl-${VERSION}/libcrypto.a openssl-${VERSION}/libssl.a: build_libs
+
 build_tests build_tools: openssl-${VERSION}/apps/openssl
 	cd openssl-${VERSION}; ${MAKE} $@
 

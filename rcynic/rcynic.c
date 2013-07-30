@@ -294,6 +294,7 @@ static const struct {
   QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
   QW(rsync_partial_transfer,		"rsync partial transfer")	    \
   QW(rsync_transfer_skipped,		"rsync transfer skipped")	    \
+  QW(sia_extension_missing_from_ee,	"SIA extension missing from EE")    \
   QW(skipped_because_not_in_manifest,	"Skipped because not in manifest")  \
   QW(stale_crl_or_manifest,		"Stale CRL or manifest")	    \
   QW(tainted_by_stale_crl,		"Tainted by stale CRL")		    \
@@ -3699,7 +3700,9 @@ static int check_x509(rcynic_ctx_t *rc,
   } else if (certinfo->ca || !rc->allow_ee_without_signedObject) {
     log_validation_status(rc, uri, sia_extension_missing, generation);
     goto done;
-  }
+  } else {
+    log_validation_status(rc, uri, sia_extension_missing_from_ee, generation);
+  } 
 
   if (certinfo->signedobject.s[0] && strcmp(uri->s, certinfo->signedobject.s))
     log_validation_status(rc, uri, bad_signed_object_uri, generation);

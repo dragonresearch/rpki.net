@@ -192,42 +192,39 @@ def initialize_database(db_name = "rp-sqlite.db",
   db.text_factory = str
 
   cur = db.cursor()
-  cur.execute("PRAGMA foreign_keys = on")
+  cur.executescript('''
+        PRAGMA foreign_keys = on;
 
-  cur.execute('''
-              CREATE TABLE object (
+        CREATE TABLE object (
                 id INTEGER PRIMARY KEY NOT NULL,
                 der BLOB NOT NULL,
                 fn2 TEXT NOT NULL,
                 ski BLOB,
                 aki BLOB,
-                UNIQUE (der))
-              ''')
+                inherits BOOLEAN NOT NULL,
+                UNIQUE (der));
 
-  cur.execute('''
-              CREATE TABLE uri (
+        CREATE TABLE uri (
                 id INTEGER NOT NULL,
                 uri TEXT NOT NULL,
                 UNIQUE (uri),
                 FOREIGN KEY (id) REFERENCES object(id)
                         ON DELETE CASCADE
-                        ON UPDATE CASCADE)
-              ''')
+                        ON UPDATE CASCADE);
 
-  cur.execute("CREATE INDEX uri_index ON uri(id)")
+        CREATE INDEX uri_index ON uri(id);
 
-  cur.execute('''
-              CREATE TABLE range (
+        CREATE TABLE range (
                 id INTEGER NOT NULL,
                 min RangeVal NOT NULL,
                 max RangeVal NOT NULL,
                 UNIQUE (id, min, max),
                 FOREIGN KEY (id) REFERENCES object(id)
                         ON DELETE CASCADE
-                        ON UPDATE CASCADE)
-              ''')
+                        ON UPDATE CASCADE);
 
-  cur.execute("CREATE INDEX range_index ON range(min, max)")
+        CREATE INDEX range_index ON range(min, max);
+        ''')
 
   nobj = 0
 
@@ -246,10 +243,13 @@ def initialize_database(db_name = "rp-sqlite.db",
 
       nobj += 1
 
+      inherits = False
+
       if fn2 == "crl":
         ski = None
         aki = buffer(obj.get_AKI())
         cer = None
+        bag = None
 
       else:
         if fn2 == "cer":
@@ -261,13 +261,15 @@ def initialize_database(db_name = "rp-sqlite.db",
           aki = buffer(cer.get_AKI())
         except:
           aki = None
+        bag = cer.get_3779resources()
+        inherits = bag.asn.inherit or bag.v4.inherit or bag.v6.inherit
 
       der = buffer(obj.get_DER())
       uri = "rsync://" + fn[len(rcynic_root) + 1:]
 
       try:
-        cur.execute("INSERT INTO object (der, fn2, ski, aki) VALUES (?, ?, ?, ?)",
-                    (der, fn2, ski, aki))
+        cur.execute("INSERT INTO object (der, fn2, ski, aki, inherits) VALUES (?, ?, ?, ?, ?)",
+                    (der, fn2, ski, aki, inherits))
         rowid = cur.lastrowid
 
       except sqlite3.IntegrityError:
@@ -277,8 +279,7 @@ def initialize_database(db_name = "rp-sqlite.db",
         assert len(rows) == 1
 
       else:
-        if cer is not None:
-          bag = cer.get_3779resources()
+        if bag is not None:
           for rset in (bag.asn, bag.v4, bag.v6):
             if rset is not None:
               cur.executemany("REPLACE INTO range (id, min, max) VALUES (?, ?, ?)",

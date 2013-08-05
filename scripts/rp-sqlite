@@ -54,19 +54,23 @@ def main():
 
 
 def test(cur):
-  print "Testing"
-  print
-  print "Looking for range that should include adrilankha and psg again"
-  for r in find_by_ip_range(cur, "147.28.0.19", "147.28.0.62"):
-    print r, r.uris
-  print
-  print "Looking for range that should include adrilankha"
-  for r in find_by_ip_range(cur, "147.28.0.19", "147.28.0.19"):
-    print r, r.uris
-  print
-  print "Looking for range that should include ASN 3130"
-  for r in find_by_as_range(cur, 3130, 3130):
-    print r, r.uris
+  print "Testing range functions"
+  for fn2 in [None] + fn2map.keys():
+    if fn2 is not None:
+      print
+      print "Restricting search to type", fn2
+    print
+    print "Looking for range that should include adrilankha and psg again"
+    for r in find_by_range(cur, "147.28.0.19", "147.28.0.62", fn2):
+      print r, r.uris
+    print
+    print "Looking for range that should include adrilankha"
+    for r in find_by_range(cur, "147.28.0.19", "147.28.0.19", fn2):
+      print r, r.uris
+    print
+    print "Looking for range that should include ASN 3130"
+    for r in find_by_range(cur, 3130, 3130, fn2):
+      print r, r.uris
   print
   print "Moving on to resource sets"
   for expr in ("147.28.0.19-147.28.0.62",
@@ -80,6 +84,11 @@ def test(cur):
     print "Trying", expr
     for r in find_by_resource_bag(cur, rpki.resource_set.resource_bag.from_str(expr)):
       print r, r.uris
+    for fn2 in fn2map:
+      print
+      print "Trying", fn2, expr
+      for r in find_by_resource_bag(cur, rpki.resource_set.resource_bag.from_str(expr), fn2):
+        print r, r.uris
     
 
 def find_by_ski(cur, ski, fn2 = None):
@@ -107,27 +116,23 @@ def find_by_aki(cur, aki, fn2 = None):
 # A and B do not overlap if either A.min > B.max or A.max < B.min;
 # therefore they do overlap if A.min <= B.max and A.max >= B.min.
 
-
-def find_by_as_range(cur, as_min, as_max, fn2 = None):
+def find_by_range(cur, range_min, range_max = None, fn2 = None):
+  if range_max is None:
+    range_max = range_min
+  if isinstance(range_min, (str, unicode)):
+    range_min = long(range_min) if range_min.isdigit() else rpki.POW.IPAddress(range_min)
+  if isinstance(range_max, (str, unicode)):
+    range_max = long(range_max) if range_max.isdigit() else rpki.POW.IPAddress(range_max)
+  assert isinstance(range_min, (int, long, rpki.POW.IPAddress))
+  assert isinstance(range_max, (int, long, rpki.POW.IPAddress))
   return find_results(cur, fn2,
                       """
                       SELECT object.id, fn2, der
                       FROM object, range
                       WHERE ? <= max AND ? >= min AND object.id = range.id
                       """,
-                      as_min,
-                      as_max)
-
-
-def find_by_ip_range(cur, ip_min, ip_max, fn2 = None):
-  return find_results(cur, fn2,
-                      """
-                      SELECT object.id, fn2, der
-                      FROM object, range
-                      WHERE ? <= max AND ? >= min AND object.id = range.id
-                      """,
-                      rpki.POW.IPAddress(ip_min),
-                      rpki.POW.IPAddress(ip_max))
+                      range_min,
+                      range_max)
 
 
 def find_by_resource_bag(cur, bag, fn2 = None):
@@ -146,7 +151,6 @@ def find_by_resource_bag(cur, bag, fn2 = None):
     SELECT object.id, fn2, der
     FROM object, range
     WHERE object.id = range.id AND (%s)
-    GROUP BY object.id
     """ % (" OR ".join(qset))
     ] + aset))
 
@@ -156,6 +160,7 @@ def find_results(cur, fn2, query, *args):
     assert fn2 in fn2map
     query += " AND fn2 = ?"
     args = args + (fn2,)
+  query += " GROUP BY object.id"
   results = []
   cur.execute(query, args)
   selections = cur.fetchall()

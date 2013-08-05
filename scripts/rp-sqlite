@@ -40,24 +40,18 @@ fn2map = dict(cer = rpki.x509.X509,
               roa = rpki.x509.ROA,
               gbr = rpki.x509.Ghostbuster)
 
+sqlite3.register_adapter(rpki.POW.IPAddress,
+                         lambda x: buffer("_" + x.toBytes()))
+
+sqlite3.register_converter("RangeVal",
+                           lambda s: long(s) if s.isdigit() else rpki.POW.IPAddress.fromBytes(s[1:]))
+
+
 def main():
   db, cur = initialize_database()
   test(cur)
   db.close()
 
-sqlite3.register_adapter(rpki.POW.IPAddress, lambda x: buffer(x.toBytes()))
-
-#sqlite3.register_converter("IPAddress", rpki.POW.IPAddress.fromBytes)
-
-def RangeVal_converter(s):
-  if s.isdigit():
-    v = long(s)
-  else:
-    v = rpki.POW.IPAddress.fromBytes(s)
-  print "+ %r => %r" % (s, v)
-  return v
-
-sqlite3.register_converter("RangeVal", RangeVal_converter)
 
 def test(cur):
   print "Testing"
@@ -87,6 +81,7 @@ def test(cur):
     for r in find_by_resource_bag(cur, rpki.resource_set.resource_bag.from_str(expr)):
       print r, r.uris
     
+
 def find_by_ski(cur, ski, fn2 = None):
   return find_results(cur, fn2,
                       """
@@ -95,6 +90,7 @@ def find_by_ski(cur, ski, fn2 = None):
                       WHERE ski = ?
                       """,
                       buffer(ski))
+
 
 def find_by_aki(cur, aki, fn2 = None):
   return find_results(cur, fn2,
@@ -105,10 +101,12 @@ def find_by_aki(cur, aki, fn2 = None):
                       """,
                       buffer(aki))
 
+
 # It's easiest to understand overlap conditions by understanding
 # non-overlap then inverting and and applying De Morgan's law.  Ranges
 # A and B do not overlap if either A.min > B.max or A.max < B.min;
 # therefore they do overlap if A.min <= B.max and A.max >= B.min.
+
 
 def find_by_as_range(cur, as_min, as_max, fn2 = None):
   return find_results(cur, fn2,
@@ -120,6 +118,7 @@ def find_by_as_range(cur, as_min, as_max, fn2 = None):
                       as_min,
                       as_max)
 
+
 def find_by_ip_range(cur, ip_min, ip_max, fn2 = None):
   return find_results(cur, fn2,
                       """
@@ -130,31 +129,26 @@ def find_by_ip_range(cur, ip_min, ip_max, fn2 = None):
                       rpki.POW.IPAddress(ip_min),
                       rpki.POW.IPAddress(ip_max))
 
+
 def find_by_resource_bag(cur, bag, fn2 = None):
+  assert bag.asn or bag.v4 or bag.v6
   qset = []
   aset = []
-
-  assert bag.asn or bag.v4 or bag.v6
-
   for rset in (bag.asn, bag.v4, bag.v6):
     if rset:
       for r in rset:
         qset.append("(? <= max AND ? >= min)")
         aset.append(r.min)
         aset.append(r.max)
-    
-  q = """
-      SELECT object.id, fn2, der
-      FROM object, range
-      WHERE object.id = range.id AND (%s)
-      GROUP BY object.id
-      """ % (" OR ".join(qset))
-
-  if False:
-    print "+ query:", q
-    print "+ args: ", repr(aset)
-
-  return find_results(*([cur, fn2, q] + aset))
+  return find_results(*([
+    cur, fn2,
+    """
+    SELECT object.id, fn2, der
+    FROM object, range
+    WHERE object.id = range.id AND (%s)
+    GROUP BY object.id
+    """ % (" OR ".join(qset))
+    ] + aset))
 
 
 def find_results(cur, fn2, query, *args):

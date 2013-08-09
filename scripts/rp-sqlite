@@ -58,6 +58,10 @@ def test(rpdb):
   parse_yaml(rpdb)
 
   print
+  print "Looking for certificates without AKI"
+  for r in rpdb.find_by_aki(None, "cer"):
+    print r, r.uris
+  print
   print "Testing range functions"
   for fn2 in fn2s:
     if fn2 is not None:
@@ -134,7 +138,7 @@ def parse_yaml(rpdb, fn = "rp-sqlite.yaml"):
     if len(obj) == 1:
       obj = obj.pop()
     else:
-      raise RuntimeError("Policy entry must name a unique object using SKI, URI, or both (%r, %r, %r)" % (
+      raise RuntimeError("Constraint entry must name a unique object using SKI, URI, or both (%r, %r, %r)" % (
         ski, uri, obj))
 
     print "URI:", uri
@@ -306,10 +310,16 @@ class RPDB(object):
 
 
   def find_by_ski(self, ski, fn2 = None):
-    return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE ski = ?", [buffer(ski)])
+    if ski is None:
+      return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE ski IS NULL", [])
+    else:
+      return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE ski = ?", [buffer(ski)])
 
   def find_by_aki(self, aki, fn2 = None):
-    return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE aki = ?", [buffer(aki)])
+    if aki is None:
+      return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE aki IS NULL", [])
+    else:
+      return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE aki = ?", [buffer(aki)])
 
   def find_by_uri(self, uri):
     return self._find_results(None, "SELECT object.id, fn2, der FROM object, uri WHERE uri.uri = ? AND object.id = uri.id", [uri])

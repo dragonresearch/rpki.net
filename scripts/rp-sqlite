@@ -164,6 +164,31 @@ def parse_yaml(rpdb, fn = "rp-sqlite.yaml"):
     print "Add:", new_resources - old_resources
     print "Sub:", old_resources - new_resources
 
+  # See draft-ietf-sidr-ltamgmt-08.txt for real processing details, but overview:
+  #
+  # - Process constraints file as above to determine list of target
+  #   certificates (2.1).  May need to add more fields to YAML hash
+  #   for things like CP, CRLDP, etc, although I'm not entirely sure
+  #   yet which of those it really makes sense to tweak via
+  #   constraints.
+  #
+  # - Use resources from selected target certificates to determine
+  #   which additional certificates we need to reissue to remove those
+  #   resources (2.2, "perforation").  In theory we already have SQL
+  #   that will just locate all of these for us.
+  #
+  # - Figure out which trust anchors to process (2.3, TA
+  #   re-parenting); we can look in SQL for NULL AKI, but that's just
+  #   a hint, we either have to verify that rcynic accepted those TAs
+  #   or we have to look at the TALs.  Looking at TALs is probably
+  #   easier.
+  #
+  # At some point we probably need to parse the constraints file into
+  # Constraints objects or something like that, except that we may
+  # really need something more general that will accomodate
+  # perforation and TA reparenting as well.  Figure out and refactor
+  # as we go along, most likely.
+
 
 class RPDB(object):
   """
@@ -311,13 +336,13 @@ class RPDB(object):
 
   def find_by_ski(self, ski, fn2 = None):
     if ski is None:
-      return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE ski IS NULL", [])
+      return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE ski IS NULL")
     else:
       return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE ski = ?", [buffer(ski)])
 
   def find_by_aki(self, aki, fn2 = None):
     if aki is None:
-      return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE aki IS NULL", [])
+      return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE aki IS NULL")
     else:
       return self._find_results(fn2, "SELECT id, fn2, der FROM object WHERE aki = ?", [buffer(aki)])
 
@@ -367,7 +392,9 @@ class RPDB(object):
       aset)
 
 
-  def _find_results(self, fn2, query, args):
+  def _find_results(self, fn2, query, args = None):
+    if args is None:
+      args = []
     if fn2 is not None:
       assert fn2 in self.fn2map
       query += " AND fn2 = ?"

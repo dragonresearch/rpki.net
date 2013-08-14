@@ -16,27 +16,37 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-# Preliminary script to work out what's involved in building an
-# SQLite3 database of RP objects.  We haven't bothered with this until
-# now in rcynic, because we mostly just walk the filesystem tree, but
-# LTA and some of the ideas Tim is playing with require a lot of
-# lookups based on things that are not the URIs we use as filenames,
-# so some kind of indexing may become necessary.  Given the complexity
-# of building any kind of real index over RFC 3779 resources,
-# otherwise fine lightweight tools like the Python shelve library
-# probably won't cut it here, and I don't want to add a dependency on
-# MySQL on the RP side (yet?), so let's see what we can do with SQLite3.
-
 import os
 import sys
 import yaml
 import glob
+import time
 import base64
+import socket
 import sqlite3
 import weakref
 import rpki.POW
 import rpki.x509
+import rpki.sundial
 import rpki.resource_set
+
+# Lots of icky global variables, clean this up later.
+
+tals = {}
+constraints = None
+
+serial = long(time.time()) << 32
+
+ltakey = None
+ltacer = None
+
+ltauri = "rsync://localhost/lta"
+ltasia = ltauri + "/"
+ltaaia = ltauri + ".cer"
+ltamft = ltauri + "/lta.mft"
+ltacrl = ltauri + "/lta.crl"
+
+# Teach SQLite3 about our data types.
 
 sqlite3.register_adapter(rpki.POW.IPAddress,
                          lambda x: buffer("_" + x.toBytes()))
@@ -44,64 +54,30 @@ sqlite3.register_adapter(rpki.POW.IPAddress,
 sqlite3.register_converter("RangeVal",
                            lambda s: long(s) if s.isdigit() else rpki.POW.IPAddress.fromBytes(s[1:]))
 
-sqlite3.register_adapter(rpki.x509.X501DN,
-                         str)
+sqlite3.register_adapter(rpki.x509.X501DN, str)
+
 
 def main():
+  print "Parsing YAML"
+  parse_yaml()
+  print
+  print "Creating CA"
+  create_ca()
+  print
+  print "Creating DB"
   rpdb = RPDB()
+  print
+  print "Loading DB"
   rpdb.load()
-  test(rpdb)
+  print
+  print "Initializing nochain attributes"
+  rpdb.initialize_chains()
+  print
+  print "Processing targets"
+  process_targets(rpdb)
+  print
+  print "Closing DB"
   rpdb.close()
-
-def test(rpdb):
-  fn2s = [None] + rpdb.fn2map.keys()
-
-  print
-  print "Testing YAML parsing"
-  parse_yaml(rpdb)
-
-  build_chains(rpdb)
-
-  print
-  print "Looking for certificates without AKI"
-  for r in rpdb.find_by_aki(None, "cer"):
-    print r, r.uris
-  print
-  print "Testing range functions"
-  for fn2 in fn2s:
-    if fn2 is not None:
-      print
-      print "Restricting search to type", fn2
-    print
-    print "Looking for range that should include adrilankha and psg again"
-    for r in rpdb.find_by_range("147.28.0.19", "147.28.0.62", fn2):
-      print r, r.uris
-    print
-    print "Looking for range that should include adrilankha"
-    for r in rpdb.find_by_range("147.28.0.19", "147.28.0.19", fn2):
-      print r, r.uris
-    print
-    print "Looking for range that should include ASN 3130"
-    for r in rpdb.find_by_range(3130, 3130, fn2):
-      print r, r.uris
-  print
-  print "Moving on to resource sets"
-  for fn2 in fn2s:
-    if fn2 is not None:
-      print
-      print "Restricting search to type", fn2
-    for expr in ("147.28.0.19-147.28.0.62",
-                 "3130",
-                 "2001:418:1::19/128",
-                 "147.28.0.19-147.28.0.62,198.180.150.50/32",
-                 "3130,147.28.0.19-147.28.0.62,198.180.150.50/32",
-                 "2001:418:1::62/128,198.180.150.50/32,2001:418:8006::50/128",
-                 "147.28.0.19-147.28.0.62,2001:418:1::19/128,2001:418:1::62/128,198.180.150.50/32,2001:418:8006::50/128"):
-      print
-      print "Trying", expr
-      for r in rpdb.find_by_resource_bag(rpki.resource_set.resource_bag.from_str(expr), fn2):
-        print r, r.uris
-
 
 def parse_xki(s):
   """
@@ -124,110 +100,78 @@ def parse_xki(s):
   return b
 
 
-tals = {}
+def create_ca():
+  global serial
+  global ltakey
+  global ltacer
+  fn = "rcynic-lta.key"
+  if os.path.exists(fn):
+    ltakey = rpki.x509.RSA(Auto_file = fn)
+  else:
+    ltakey = rpki.x509.RSA.generate(quiet = True)
+    with os.fdopen(os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0400), "w") as f:
+      f.write(ltakey.get_PEM())
+  ltacer = rpki.x509.X509.self_certify(
+    keypair     = ltakey,
+    subject_key = ltakey.get_RSApublic(),
+    serial      = serial,
+    sia         = (ltasia, ltamft, None),
+    notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 7),
+    resources   = rpki.resource_set.resource_bag.from_str("0-4294967295,0.0.0.0/0,::/0"))
+  with open("rcynic-lta.cer", "wb") as f:
+    f.write(ltacer.get_DER())
 
-def parse_tals(tal_directory):
+
+def parse_yaml(fn = "rcynic-lta.yaml"):
   global tals
-  for fn in glob.iglob(os.path.join(tal_directory, "*.tal")):
+  global constraints
+  y = yaml.safe_load(open(fn, "r"))
+  constraints = y["constraints"]
+  for fn in glob.iglob(os.path.join(y["tal-directory"], "*.tal")):
     with open(fn, "r") as f:
       uri = f.readline().strip()
       key = rpki.x509.RSApublic(Base64 = f.read())
       tals[uri] = key
 
 
-def build_chains(rpdb):
-  for uri, key in tals.iteritems():
-    cer = rpdb.find_by_uri(uri)[0]
-    if cer.getPublicKey() == key:
-      cer.nochain = False
-    else:
-      print "TAL public key mismatch for %s, skipping: %s %s" % (uri, key.hSKI(), cer.hSKI())
-  before = after = None
-  while before is None or before != after:
-    before = after
-    rpdb.cur.execute(
-      """
-      UPDATE object SET nochain = 0
-      WHERE aki || issuer IN (SELECT ski || subject FROM object WHERE fn2 = 'cer' AND nochain = 0)
-      """)
-    rpdb.cur.execute("SELECT SUM(nochain) FROM object")
-    after = rpdb.cur.fetchone()[0]
-  rpdb.db.commit()
+def process_targets(rpdb):
+  for y in constraints:
+    found = rpdb.find_by_ski_or_uri(parse_xki(y["ski"]) if "ski" in y else None,
+                                    y.get("uri", None))
 
+    if len(found) != 1:
+      if found:
+        print "Constraint entry matched multiple objects, skipping (%s %s %r)" % (
+          y.get("ski", ""), y.get("uri", ""), found)
+      else:
+        print "Constraint entry matched nothing, skipping (%s %s)" % (
+          y.get("ski", ""), y.get("uri", ""))
+      continue
 
-def parse_yaml(rpdb, fn = "rcynic-lta.yaml"):
-  yy = yaml.safe_load(open(fn, "r"))
-
-  parse_tals(yy["tal-directory"])
-
-  for y in yy["constraints"]:
-
-    ski = None
-    uri = None
-    obj = set()
-
-    print
-
-    if "ski" in y:
-      ski = parse_xki(y["ski"])
-      obj.update(rpdb.find_by_ski(ski))
-    if "uri" in y:
-      uri = y["uri"]
-      obj.update(rpdb.find_by_uri(uri))
-    if len(obj) == 1:
-      obj = obj.pop()
-    else:
-      raise RuntimeError("Constraint entry must name a unique object using SKI, URI, or both (%r, %r, %r)" % (
-        ski, uri, obj))
-
-    print "URI:", uri
-    print "SKI:", " ".join("%02X" % ord(c) for c in ski), "(" + y["ski"] + ")"
+    obj = found.pop()
 
     new_resources = old_resources = obj.get_3779resources()
 
     if "set" in y:
       new_resources = rpki.resource_set.resource_bag.from_str(y["set"])
-
     if "add" in y:
       new_resources = new_resources | rpki.resource_set.resource_bag.from_str(y["add"]) 
-
     if "sub" in y:
       new_resources = new_resources - rpki.resource_set.resource_bag.from_str(y["sub"])
 
-    if new_resources == old_resources:
-      print "No resource change, skipping"
-      continue
-
+    print "SKI:", obj.hSKI()
+    print "URI:", obj.uri
     print "Old:", old_resources
     print "New:", new_resources
     print "Add:", new_resources - old_resources
     print "Sub:", old_resources - new_resources
 
-  # See draft-ietf-sidr-ltamgmt-08.txt for real processing details, but overview:
-  #
-  # - Process constraints file as above to determine list of target
-  #   certificates (2.1).  May need to add more fields to YAML hash
-  #   for things like CP, CRLDP, etc, although I'm not entirely sure
-  #   yet which of those it really makes sense to tweak via
-  #   constraints.
-  #
-  # - Use resources from selected target certificates to determine
-  #   which additional certificates we need to reissue to remove those
-  #   resources (2.2, "perforation").  In theory we already have SQL
-  #   that will just locate all of these for us.
-  #
-  # - Figure out which trust anchors to process (2.3, TA
-  #   re-parenting); we can look in SQL for NULL AKI, but that's just
-  #   a hint, we either have to verify that rcynic accepted those TAs
-  #   or we have to look at the TALs.  Looking at TALs is probably
-  #   easier.
-  #
-  # At some point we probably need to parse the constraints file into
-  # Constraints objects or something like that, except that we may
-  # really need something more general that will accomodate
-  # perforation and TA reparenting as well.  Figure out and refactor
-  # as we go along, most likely.
+    obj.original = True
+    obj.target = True
 
+    rpdb.add_para(obj, new_resources)
+
+    # Continue from paragraph three of 4.2.2 ("target processing")
 
 class DER_object_mixin(object):
   """
@@ -297,24 +241,21 @@ class RPDB(object):
                 roa = ROA,
                 gbr = Ghostbuster)
 
-  def __init__(self, db_name = "rcynic-lta.db", delete_old_db = True):
+  mapfn2 = dict((v, k) for k, v in fn2map.iteritems())
 
-    if delete_old_db:
-      try:
-        os.unlink(db_name)
-      except:
-        pass
 
-    exists = os.path.exists(db_name)
+  def __init__(self, db_name = "rcynic-lta.db"):
+
+    try:
+      os.unlink(db_name)
+    except:
+      pass
 
     self.db = sqlite3.connect(db_name, detect_types = sqlite3.PARSE_DECLTYPES)
     self.db.text_factory = str
     self.cur = self.db.cursor()
 
     self.cache = weakref.WeakValueDictionary()
-
-    if exists:
-      return
 
     self.cur.executescript('''
           PRAGMA foreign_keys = on;
@@ -327,7 +268,6 @@ class RPDB(object):
                   aki BLOB,
                   issuer TEXT,
                   subject TEXT,
-                  inherits  BOOLEAN NOT NULL,
                   nochain   BOOLEAN NOT NULL DEFAULT 1,
                   original  BOOLEAN NOT NULL DEFAULT 0,
                   para      BOOLEAN NOT NULL DEFAULT 0,
@@ -355,6 +295,7 @@ class RPDB(object):
 
           CREATE INDEX range_index ON range(min, max);
           ''')
+
 
   def load(self,
            rcynic_root = os.path.expanduser("~/rpki/subvert-rpki.hactrn.net/trunk/"
@@ -400,14 +341,13 @@ class RPDB(object):
           issuer = cer.getIssuer()
           subject = cer.getSubject()
 
-        inherits = bag is not None and (bag.asn.inherit or bag.v4.inherit or bag.v6.inherit)
-
         der = buffer(obj.get_DER())
         uri = "rsync://" + fn[len(rcynic_root) + 1:]
 
         try:
-          self.cur.execute("INSERT INTO object (der, fn2, ski, aki, inherits, issuer, subject) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                           (der, fn2, ski, aki, inherits, issuer, subject))
+          self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject) "
+                           "VALUES (?, ?, ?, ?, ?, ?)",
+                           (der, fn2, ski, aki, issuer, subject))
           rowid = self.cur.lastrowid
 
         except sqlite3.IntegrityError:
@@ -434,7 +374,113 @@ class RPDB(object):
     if spinner:
       sys.stderr.write("done.\n")
 
+
+  def add_para(self, obj, resources):
+    """
+    As far as I can tell at the moment, we only generate
+    paracertificates for CA certificates, never for EE certificates.
+
+    At present, ROAs are the only signed objects that specify
+    resources explictly rather than using inheritance, and EE
+    certificates for ROAs are supposed to be an exact match for the
+    address resources in the ROA anyway, so this is likely not a
+    serious restriction, at least for now.
+
+    Fixing this, if it's a problem, would require extending POW.c to
+    allow us to whack the certificate(s) bundled into a CMS object.
+    There's no documentation on how we would even do that, although I
+    suspect that the OpenSSL library routine CMS_set1_signers_certs()
+    might do the trick.  Ignore for now.
+    """
+
+    assert isinstance(obj, X509)
+
+    global serial
+    serial += 1
+
+    pow = obj.get_POW()
+
+    x = rpki.POW.X509()
+
+    x.setVersion(               pow.getVersion())
+    x.setSubject(               pow.getSubject())
+    x.setNotBefore(             pow.getNotBefore())
+    x.setNotAfter(              pow.getNotAfter())
+    x.setPublicKey(             pow.getPublicKey())
+    x.setSKI(                   pow.getSKI())
+    x.setBasicConstraints(      pow.getBasicConstraints())
+    x.setKeyUsage(              pow.getKeyUsage())
+    x.setCertificatePolicies(   pow.getCertificatePolicies())
+    x.setSIA(                  *pow.getSIA())
+
+    x.setIssuer(                ltacer.get_POW().getIssuer())
+    x.setAKI(                   ltacer.get_POW().getSKI())
+    x.setAIA(                   (ltaaia,))
+    x.setCRLDP(                 (ltacrl,))
+
+    x.setSerial(                serial)
+    x.setRFC3779(
+      asn  = ((r.min, r.max) for r in resources.asn),
+      ipv4 = ((r.min, r.max) for r in resources.v4),
+      ipv6 = ((r.min, r.max) for r in resources.v6))
+
+    x.sign(ltakey.get_POW(), rpki.POW.SHA256_DIGEST)
+    cer = X509(POW = x)
+
+    ski = buffer(cer.get_SKI())
+    aki = buffer(cer.get_AKI())
+    bag = cer.get_3779resources()
+    issuer = cer.getIssuer()
+    subject = cer.getSubject()
+    der = buffer(cer.get_DER())
+    uri = ltasia + cer.gSKI() + ".cer"
+
+    self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para) "
+                     "VALUES (?, 'cer', ?, ?, ?, ?, 1)",
+                     (der, ski, aki, issuer, subject))
+    rowid = self.cur.lastrowid
+
+    for rset in (bag.asn, bag.v4, bag.v6):
+      if rset is not None:
+        self.cur.executemany("REPLACE INTO range (id, min, max) VALUES (?, ?, ?)",
+                             ((rowid, i.min, i.max) for i in rset))
+
+    self.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)",
+                     (rowid, uri))
+
+    self.db.commit()
+
+    return self.find_by_id(rowid)
+
+
   object_fields = " object.id, fn2, der, nochain, original, para, target "
+
+
+  def find_by_id(self, rowid):
+    return self._find_results(None, "SELECT" + self.object_fields + "FROM object WHERE id = ?", [rowid])
+
+  def find_by_ski_or_uri(self, ski, uri):
+    if not ski and not uri:
+      return []
+    elif ski and uri:
+      return self._find_results(
+        None,
+        "SELECT" + self.object_fields + "FROM object, uri " +
+        "WHERE para = 0 AND ski = ? AND uri.uri = ? AND object.id = uri.id",
+        [buffer(ski), uri])
+    elif ski:
+      return self._find_results(
+        None,
+        "SELECT" + self.object_fields + "FROM object " +
+        "WHERE para = 0 AND ski = ?",
+        [buffer(ski)])
+    else:
+      return self._find_results(
+        None,
+        "SELECT" + self.object_fields + "FROM object, uri " +
+        "WHERE para = 0 AND uri.uri = ? AND object.id = uri.id",
+        [uri])
+
 
   def find_by_ski(self, ski, fn2 = None):
     if ski is None:
@@ -450,11 +496,17 @@ class RPDB(object):
 
 
   def find_products(self, aki, issuer, fn2 = None):
-    return self._find_results(fn2, "SELECT" + self.object_fields + "FROM object WHERE aki = ? AND issuer = ?", [buffer(aki), issuer])
+    return self._find_results(fn2,
+                              "SELECT" + self.object_fields +
+                              "FROM object WHERE aki = ? AND issuer = ?",
+                              [buffer(aki), issuer])
 
 
   def find_by_uri(self, uri):
-    return self._find_results(None, "SELECT" + self.object_fields + "FROM object, uri WHERE uri.uri = ? AND object.id = uri.id", [uri])
+    return self._find_results(None,
+                              "SELECT" + self.object_fields +
+                              "FROM object, uri WHERE uri.uri = ? AND object.id = uri.id",
+                              [uri])
 
   # It's easiest to understand overlap conditions by understanding
   # non-overlap then inverting and and applying De Morgan's law.  Ranges
@@ -538,6 +590,71 @@ class RPDB(object):
   def close(self):
     self.cur.close()
     self.db.close()
+
+
+  def initialize_chains(self):
+    for uri, key in tals.iteritems():
+      cer = self.find_by_uri(uri)[0]
+      if cer.getPublicKey() == key:
+        cer.nochain = False
+      else:
+        print "TAL public key mismatch for %s, skipping: %s %s" % (uri, key.hSKI(), cer.hSKI())
+    before = after = None
+    while before is None or before != after:
+      before = after
+      self.cur.execute(
+        """
+        UPDATE object SET nochain = 0
+        WHERE aki || issuer IN (SELECT ski || subject FROM object WHERE fn2 = 'cer' AND nochain = 0)
+        """)
+      self.cur.execute("SELECT SUM(nochain) FROM object")
+      after = self.cur.fetchone()[0]
+    self.db.commit()
+
+
+def test(rpdb):
+  fn2s = [None] + rpdb.fn2map.keys()
+
+  print
+  print "Looking for certificates without AKI"
+  for r in rpdb.find_by_aki(None, "cer"):
+    print r, r.uris
+  print
+  print "Testing range functions"
+  for fn2 in fn2s:
+    if fn2 is not None:
+      print
+      print "Restricting search to type", fn2
+    print
+    print "Looking for range that should include adrilankha and psg again"
+    for r in rpdb.find_by_range("147.28.0.19", "147.28.0.62", fn2):
+      print r, r.uris
+    print
+    print "Looking for range that should include adrilankha"
+    for r in rpdb.find_by_range("147.28.0.19", "147.28.0.19", fn2):
+      print r, r.uris
+    print
+    print "Looking for range that should include ASN 3130"
+    for r in rpdb.find_by_range(3130, 3130, fn2):
+      print r, r.uris
+  print
+  print "Moving on to resource sets"
+  for fn2 in fn2s:
+    if fn2 is not None:
+      print
+      print "Restricting search to type", fn2
+    for expr in ("147.28.0.19-147.28.0.62",
+                 "3130",
+                 "2001:418:1::19/128",
+                 "147.28.0.19-147.28.0.62,198.180.150.50/32",
+                 "3130,147.28.0.19-147.28.0.62,198.180.150.50/32",
+                 "2001:418:1::62/128,198.180.150.50/32,2001:418:8006::50/128",
+                 "147.28.0.19-147.28.0.62,2001:418:1::19/128,2001:418:1::62/128,198.180.150.50/32,2001:418:8006::50/128"):
+      print
+      print "Trying", expr
+      for r in rpdb.find_by_resource_bag(rpki.resource_set.resource_bag.from_str(expr), fn2):
+        print r, r.uris
+
 
 
 if __name__ == "__main__":

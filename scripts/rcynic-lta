@@ -69,9 +69,10 @@ def main():
   print
   print "Loading DB"
   rpdb.load()
-  print
-  print "Initializing nochain attributes"
-  rpdb.initialize_chains()
+  if False:
+    print
+    print "Initializing nochain attributes"
+    rpdb.initialize_chains()
   print
   print "Processing targets"
   process_targets(rpdb)
@@ -179,21 +180,25 @@ def process_ancestors(rpdb):
   for target in rpdb.find_targets():
     target_resources = target.get_3779resources()
     print
-    print "Target %r resources %s" % (target, target_resources)
+    print "Target %r" % target
+    #print "Resources", str(target_resources)
     child = target
     while child.get_AKI() is not None:
-      parent = rpdb.find_parent(child)
-      print "Parent %r" % parent
-      if len(parent) > 1:
-        for p in parent:
-          print "nochain %s original %s para %s target %s" % (p.nochain, p.original, p.para, p.target)
-          #print p.get_POW().pprint()
-        parent = [p for p in parent if p.para]
-        print parent
-      assert len(parent) == 1
-      parent = parent[0]
+      parents = rpdb.find_parent(child)
+      print "Parents %r" % parents
+      if len(parents) == 1:
+        parent_to_modify = parent_to_follow = parents[0]
+      elif len(parents) == 2:
+        parents.sort(key = lambda p: p.para)
+        parent_to_modify = parents[1]
+        parent_to_follow = parents[0]
+      else:
+        assert len(parents) in (1, 2)
+      print "Same %s, modify %r, follow %r" % (parent_to_modify == parent_to_follow,
+                                               parent_to_modify,   parent_to_follow)
+      assert not parent_to_follow.para
       # ...
-      child = parent
+      child = parent_to_follow
 
 
 class DER_object_mixin(object):
@@ -293,7 +298,7 @@ class RPDB(object):
                   aki BLOB,
                   issuer TEXT,
                   subject TEXT,
-                  nochain   BOOLEAN NOT NULL DEFAULT 1,
+                  nochain   BOOLEAN NOT NULL DEFAULT 0,
                   original  BOOLEAN NOT NULL DEFAULT 0,
                   para      BOOLEAN NOT NULL DEFAULT 0,
                   target    BOOLEAN NOT NULL DEFAULT 0,
@@ -321,11 +326,11 @@ class RPDB(object):
           CREATE INDEX range_index ON range(min, max);
           ''')
 
+  # Note that we need to read the authenticated tree, not the
+  # unauthenticated tree, as the draft says it assumes that its input
+  # certificates have already passed some kind of validation.
 
-  def load(self,
-           rcynic_root = os.path.expanduser("~/rpki/subvert-rpki.hactrn.net/trunk/"
-                                            "rcynic/rcynic-data/unauthenticated"),
-           spinner = 100):
+  def load(self, rcynic_root = os.path.expanduser("~/rpki/subvert-rpki.hactrn.net/trunk/rcynic/rcynic-data/authenticated"), spinner = 100):
 
     nobj = 0
 

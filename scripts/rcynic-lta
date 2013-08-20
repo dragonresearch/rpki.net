@@ -179,9 +179,10 @@ def process_targets(rpdb):
 def process_ancestors(rpdb):
   for target in rpdb.find_targets():
     target_resources = target.get_3779resources()
-    print
-    print "Target %r" % target
-    #print "Resources", str(target_resources)
+    if True:
+      print
+      print "Target %r" % target
+      #print "Resources", str(target_resources)
     child = target
     while child.get_AKI() is not None:
       parents = rpdb.find_parent(child)
@@ -194,10 +195,22 @@ def process_ancestors(rpdb):
         parent_to_follow = parents[0]
       else:
         assert len(parents) in (1, 2)
-      print "Same %s, modify %r, follow %r" % (parent_to_modify == parent_to_follow,
-                                               parent_to_modify,   parent_to_follow)
+      if True:
+        print "Same %s, modify %r, follow %r" % (parent_to_modify == parent_to_follow,
+                                                 parent_to_modify,   parent_to_follow)
       assert not parent_to_follow.para
-      # ...
+      old_resources = parent_to_modify.get_3779resources()
+      new_resources = old_resources - target_resources
+      if False:
+        print "Old:", old_resources
+        print "New:", new_resources
+      if True:
+        print "Add:", new_resources - old_resources
+        print "Sub:", old_resources - new_resources
+
+      parent_to_modify.original = True
+      rpdb.add_para(parent_to_modify, new_resources)
+
       child = parent_to_follow
 
 
@@ -464,6 +477,9 @@ class RPDB(object):
     subject = cer.getSubject()
     der = buffer(cer.get_DER())
     uri = ltasia + cer.gSKI() + ".cer"
+
+    if obj.para:
+      self.cur.execute("DELETE FROM object WHERE id = ?", (obj.rowid,))
 
     self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para) "
                      "VALUES (?, 'cer', ?, ?, ?, ?, 1)",

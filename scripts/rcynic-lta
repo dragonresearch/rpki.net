@@ -80,6 +80,9 @@ def main():
   print "Processing ancestors"
   process_ancestors(rpdb)
   print
+  print "Processing tree"
+  process_tree(rpdb)
+  print
   print "Closing DB"
   rpdb.close()
 
@@ -176,6 +179,18 @@ def process_targets(rpdb):
 
     rpdb.add_para(obj, new_resources)
 
+# Not really sure what to do about the conflict detection requirement
+# in the last paragraph of 4.2.3.  I think it stems at least in part
+# from the rather arbitrary way that the draft mixes user control with
+# required side effects.  I guess one could detect the cases that this
+# paragraph talks about by checking for an existing paracertificate
+# before for every node during ancestor processing, and doing some
+# kind of set operation like:
+#
+#    ((original_ancestor ^ para_ancestor) & target) != null
+#
+# Ignore for now, I think, until the rest of this is working.
+
 def process_ancestors(rpdb):
   for target in rpdb.find_targets():
     target_resources = target.get_3779resources()
@@ -212,6 +227,13 @@ def process_ancestors(rpdb):
       rpdb.add_para(parent_to_modify, new_resources)
 
       child = parent_to_follow
+
+
+def process_tree(rpdb):
+  for target in rpdb.find_targets():
+    
+    # CONTINUE HERE
+    raise NotImplementedError
 
 
 class DER_object_mixin(object):

@@ -339,6 +339,20 @@ typedef struct {
   STACK_OF(X509_EXTENSION) *exts;
 } pkcs10_object;
 
+/*
+ * Wrapper for OpenSSL's X509_STORE_CTX, so that we can pass a Python
+ * callback method through to the C callback function.  X509_STORE_CTX
+ * *must* be the first element of this structure, so that the ugly
+ * (but safe, according to the C language definition) cast will work
+ * to convert a pointer to the X509_STORE_CTX back to a pointer to our
+ * larger structure.
+ */
+
+typedef struct {
+  X509_STORE_CTX ctx;           /* Must be first */
+  PyObject *cb;                 /* Python callback */
+} X509_STORE_CTX_with_Python_callback;
+
 
 
 /*
@@ -631,6 +645,10 @@ x509_object_helper_get_name(X509_NAME *name, int format)
   Py_XDECREF(result);
   return NULL;
 }
+
+/*
+ * Perhaps x509_helper_sequence_to_stack() should take an iterable rather than just a sequence?
+ */
 
 static STACK_OF(X509) *
 x509_helper_sequence_to_stack(PyObject *x509_sequence)
@@ -3541,9 +3559,136 @@ x509_store_object_add_crl(x509_store_object *self, PyObject *args)
   return NULL;
 }
 
+static char x509_store_object_verify__doc__[] =
+  "Verify an X509 certificate object using this certificate store.\n"
+  "\n"
+  "The \"certificate\" parameter is the certificate to verify, and\n"
+  "should be an X509 object.\n"
+  "\n"
+  "the \"untrusted\" parameter should be a sequence of X509 objects which\n"
+  "will be added to the set of untrusted certificates from which OpenSSL\n"
+  "will attempt to build a chain to a trusted certificate.\n"
+  "\n"
+  "The \"callback\" parameter is a callable Python object which takes two\n"
+  "arguments, the \"ok\" value from the OpenSSL callback, and the code\n"
+  "returned by X509_STORE_CTX_get_error(ctx); both of these are integers.\n"
+  "This interface may be replaced at some point in the future by something\n"
+  "that exposes more of the X509_STORE_CTX state.\n" 
+  "\n"
+  "The \"crl_check\", \"crl_check_all\", and \"ignore_critical\" arguments\n"
+  "are boolean flags corresponding to X509_V_FLAG_CRL_CHECK,\n"
+  "X509_V_FLAG_CRL_CHECK_ALL, and X509_V_FLAG_IGNORE_CRITICAL\",\n"
+  "respectively.\n"
+  "\n"
+  "The return value is currently a 3-element tuple consisting of:\n"
+  "\n"
+  "  * The numeric return value from X509_verify_cert()\n"
+  "  * The numeric error code value from the X509_STORE_CTX\n"
+  "  * The numeric error_depth value from the X509_STORE_CTX\n"
+  "\n"
+  "Other values may added to this tuple later, if needed.\n"
+  ;
+
+/*
+ *
+ * I suspect that the right thing here would be to make a Python
+ * object containing X509_STORE_CTX, initialize it in
+ * x509_store_object_verify(), pass it as the second argument to the
+ * callback, and return it along with X509_verify_cert()'s numeric
+ * return value as the results from x509_store_object_verify().  But
+ * that would be a lot of work, and we may not really need all that.
+ *
+ * Also, we might want to support X509_V_FLAG_USE_CHECK_TIME and
+ * X509_V_FLAG_EXPLICIT_POLICY, but let's stick to simple stuff until
+ * we have the Python callback code working.
+ */
+
+static int 
+x509_store_object_verify_cb(int ok, X509_STORE_CTX *ctx)
+{
+  X509_STORE_CTX_with_Python_callback *pctx = (X509_STORE_CTX_with_Python_callback *) ctx;
+  int code = X509_STORE_CTX_get_error(ctx);
+  PyObject *arglist = NULL;
+  PyObject *result = NULL;
+
+  arglist = Py_BuildValue("(ii)", ok, code);
+  result = PyObject_CallObject(pctx->cb, arglist);
+
+  ok = result == NULL ? -1 : PyObject_IsTrue(result);
+
+  Py_XDECREF(arglist);
+  Py_XDECREF(result);
+  return ok;
+}
+
+
+static PyObject *
+x509_store_object_verify(x509_store_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"certificate", "untrusted", "callback",
+                           "crl_check", "crl_check_all", "ignore_critical", NULL};
+  PyObject *x509_sequence = Py_None;
+  PyObject *callback = Py_None;
+  PyObject *flag_CRL_CHECK = Py_False;
+  PyObject *flag_CRL_CHECK_ALL = Py_False;
+  PyObject *flag_IGNORE_CRITICAL = Py_False;
+  X509_STORE_CTX_with_Python_callback pctx;
+  x509_object *x509 = NULL;
+  STACK_OF(X509) *x509_stack = NULL;
+  PyObject *result = NULL;
+  int ok, initialized = 0;
+  unsigned long flags;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OOOOO", kwlist,
+                                   &POW_X509_Type, &x509, &x509_sequence, &callback,
+                                   &flag_CRL_CHECK, &flag_CRL_CHECK_ALL, &flag_IGNORE_CRITICAL))
+    goto error;
+
+  if (callback != Py_None && !PyCallable_Check(callback))
+    lose("\"callback\" argument is not callable");
+
+  if ((x509_stack = x509_helper_sequence_to_stack(x509_sequence)) == NULL)
+    goto error;
+
+  flags = X509_V_FLAG_X509_STRICT;
+  if (PyObject_IsTrue(flag_CRL_CHECK))
+    flags |= X509_V_FLAG_CRL_CHECK;
+  if (PyObject_IsTrue(flag_CRL_CHECK_ALL))
+    flags |= X509_V_FLAG_CRL_CHECK_ALL;
+  if (PyObject_IsTrue(flag_IGNORE_CRITICAL))
+    flags |= X509_V_FLAG_IGNORE_CRITICAL;
+
+  X509_STORE_CTX_init(&pctx.ctx, self->store, x509->x509, x509_stack);
+  pctx.cb = callback;
+  Py_XINCREF(pctx.cb);
+  initialized = 1;
+
+  X509_VERIFY_PARAM_set_flags(pctx.ctx.param, flags);
+
+  if (pctx.cb != Py_None)
+    X509_STORE_CTX_set_verify_cb(&pctx.ctx, x509_store_object_verify_cb);
+
+  ok = X509_verify_cert(&pctx.ctx) == 1;
+
+  /*
+   * I don't like this return convention very much, but let's get
+   * callbacks working before messing with this.
+   */
+  result = Py_BuildValue("(iii)", ok, pctx.ctx.error, pctx.ctx.error_depth);
+
+ error:                          /* fall through */
+  sk_X509_free(x509_stack);
+  if (initialized) {
+    X509_STORE_CTX_cleanup(&pctx.ctx);
+    Py_XDECREF(pctx.cb);
+  }
+  return result;
+}
+
 static struct PyMethodDef x509_store_object_methods[] = {
   Define_Method(addTrust,       x509_store_object_add_trust,            METH_VARARGS),
   Define_Method(addCrl,         x509_store_object_add_crl,              METH_VARARGS),
+  Define_Method(verify,         x509_store_object_verify,               METH_KEYWORDS),
   {NULL}
 };
 

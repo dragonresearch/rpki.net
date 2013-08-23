@@ -69,43 +69,13 @@ def base64_with_linebreaks(der):
   n = len(b)
   return "\n" + "\n".join(b[i : min(i + 64, n)] for i in xrange(0, n, 64)) + "\n"
 
-class PEM_converter(object):
+def looks_like_PEM(text):
   """
-  Convert between DER and PEM encodings for various kinds of ASN.1 data.
+  Guess whether text looks like a PEM encoding.
   """
 
-  def __init__(self, kind):    # "CERTIFICATE", "RSA PRIVATE KEY", ...
-    """
-    Initialize PEM_converter.
-    """
-    self.b = "-----BEGIN %s-----" % kind
-    self.e = "-----END %s-----"   % kind
-
-  def looks_like_PEM(self, text):
-    """
-    Guess whether text looks like a PEM encoding.
-    """
-    b = text.find(self.b)
-    return b >= 0 and text.find(self.e) > b + len(self.b)
-
-  def to_DER(self, pem):
-    """
-    Convert from PEM to DER.
-    """
-    lines = [line.strip() for line in pem.splitlines(0)]
-    while lines and lines.pop(0) != self.b:
-      pass
-    while lines and lines.pop(-1) != self.e:
-      pass
-    if not lines:
-      raise rpki.exceptions.EmptyPEM("Could not find PEM in:\n%s" % pem)
-    return base64.b64decode("".join(lines))
-
-  def to_PEM(self, der):
-    """
-    Convert from DER to PEM.
-    """
-    return self.b + base64_with_linebreaks(der) + self.e + "\n"
+  i = text.find("-----BEGIN ")
+  return i >= 0 and text.find("\n-----END ", i) > i
 
 def first_rsync_uri(xia):
   """
@@ -207,17 +177,28 @@ class DER_object(object):
   Virtual class to hold a generic DER object.
   """
 
-  ## Formats supported in this object
-  formats = ("DER",)
+  ## @var formats
+  # Formats supported in this object.  This is kind of redundant now
+  # that we're down to a single ASN.1 package and everything supports
+  # the same DER and POW formats, it's mostly historical baggage from
+  # the days when we had three different ASN.1 encoders, each with its
+  # own low-level Python object format.  Clean up, some day.
+  formats = ("DER", "POW")
 
-  ## PEM converter for this object
-  pem_converter = None
+  ## @var POW_class
+  # Class of underlying POW object.  Concrete subclasses must supply this.
+  POW_class = None
 
-  ## Other attributes that self.clear() should whack
+  ## Other attributes that self.clear() should whack.
   other_clear = ()
 
   ## @var DER
-  ## DER value of this object
+  # DER value of this object
+  DER = None
+
+  ## @var failure_threshold
+  # Rate-limiting interval between whines about Auto_update objects.
+  failure_threshold = rpki.sundial.timedelta(minutes = 5)
 
   def empty(self):
     """
@@ -233,7 +214,7 @@ class DER_object(object):
       setattr(self, a, None)
     self.filename = None
     self.timestamp = None
-    self.failures = 0
+    self.lastfail = None
 
   def __init__(self, **kw):
     """
@@ -261,7 +242,7 @@ class DER_object(object):
         return
       if name == "PEM":
         self.clear()
-        self.DER = self.pem_converter.to_DER(kw[name])
+        self._set_PEM(kw[name])
         return
       if name == "Base64":
         self.clear()
@@ -275,10 +256,11 @@ class DER_object(object):
         f = open(kw[name], "rb")
         value = f.read()
         f.close()
-        if name == "PEM_file" or (name == "Auto_file" and self.pem_converter.looks_like_PEM(value)):
-          value = self.pem_converter.to_DER(value)
         self.clear()
-        self.DER = value
+        if name == "PEM_file" or (name == "Auto_file" and looks_like_PEM(value)):
+          self._set_PEM(value)
+        else:
+          self.DER = value
         return
     raise rpki.exceptions.DERObjectConversionError("Can't honor conversion request %r" % (kw,))
   
@@ -296,25 +278,35 @@ class DER_object(object):
         f = open(filename, "rb")
         value = f.read()
         f.close()
-        if self.pem_converter.looks_like_PEM(value):
-          value = self.pem_converter.to_DER(value)
         self.clear()
-        self.DER = value
+        if looks_like_PEM(value):
+          self._set_PEM(value)
+        else:
+          self.DER = value
         self.filename = filename
         self.timestamp = timestamp
     except (IOError, OSError), e:
-      self.failures += 1
-      if self.failures % 100 == 1:
+      now = rpki.sundial.now()
+      if self.lastfail is None or now > self.lastfail + self.failure_threshold:
         rpki.log.warn("Could not auto_update %r (failures %d): %s" % (self, self.failures, e))
+      self.lastfail = now
     else:
-      self.failures = 0
+      self.failures = None
 
   def check(self):
     """
     Perform basic checks on a DER object.
     """
-    assert not self.empty()
     self.check_auto_update()
+    assert not self.empty()
+
+  def _set_PEM(self, pem):
+    """
+    Set the POW value of this object based on a PEM input value.
+    Subclasses may need to override this.
+    """
+    assert self.empty()
+    self.POW = self.POW_class.pemRead(pem)
 
   def get_DER(self):
     """
@@ -337,7 +329,7 @@ class DER_object(object):
     """
     Get the PEM representation of this object.
     """
-    return self.pem_converter.to_PEM(self.get_DER())
+    return self.get_POW().pemWrite()
 
   def __cmp__(self, other):
     """
@@ -541,9 +533,8 @@ class X509(DER_object):
   have to care about this implementation nightmare.
   """
 
-  formats = ("DER", "POW")
-  pem_converter = PEM_converter("CERTIFICATE")
-  
+  POW_class = rpki.POW.X509
+
   def get_DER(self):
     """
     Get the DER value of this certificate.
@@ -838,8 +829,7 @@ class PKCS10(DER_object):
   Class to hold a PKCS #10 request.
   """
 
-  formats = ("DER", "POW")
-  pem_converter = PEM_converter("CERTIFICATE REQUEST")
+  POW_class = rpki.POW.PKCS10
 
   ## @var expected_ca_keyUsage
   # KeyUsage extension flags expected for CA requests.
@@ -1030,10 +1020,9 @@ class RSA(DER_object):
   """
   Class to hold an RSA key pair.
   """
-
-  formats = ("DER", "POW")
-  pem_converter = PEM_converter("RSA PRIVATE KEY")
   
+  POW_class = rpki.POW.Asymmetric
+
   def get_DER(self):
     """
     Get the DER value of this keypair.
@@ -1054,6 +1043,19 @@ class RSA(DER_object):
     if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.Asymmetric.derReadPrivate(self.get_DER())
     return self.POW
+
+  def get_PEM(self):
+    """
+    Get the PEM representation of this keypair.
+    """
+    return self.get_POW().pemWritePrivate()
+
+  def _set_PEM(self, pem):
+    """
+    Set the POW value of this keypair from a PEM string.
+    """
+    assert self.empty()
+    self.POW = self.POW_class.pemReadPrivate(pem)
 
   @classmethod
   def generate(cls, keylength = 2048, quiet = False):
@@ -1089,10 +1091,9 @@ class RSApublic(DER_object):
   """
   Class to hold an RSA public key.
   """
-
-  formats = ("DER", "POW")
-  pem_converter = PEM_converter("RSA PUBLIC KEY")
   
+  POW_class = rpki.POW.Asymmetric
+
   def get_DER(self):
     """
     Get the DER value of this public key.
@@ -1113,6 +1114,19 @@ class RSApublic(DER_object):
     if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.Asymmetric.derReadPublic(self.get_DER())
     return self.POW
+
+  def get_PEM(self):
+    """
+    Get the PEM representation of this public key.
+    """
+    return self.get_POW().pemWritePublic()
+
+  def _set_PEM(self, pem):
+    """
+    Set the POW value of this public key from a PEM string.
+    """
+    assert self.empty()
+    self.POW = self.POW_class.pemReadPublic(pem)
 
   def get_SKI(self):
     """
@@ -1135,9 +1149,7 @@ class CMS_object(DER_object):
   Abstract class to hold a CMS object.
   """
 
-  formats = ("DER", "POW")
   econtent_oid = POWify_OID("id-data")
-  pem_converter = PEM_converter("CMS")
   POW_class = rpki.POW.CMS
 
   ## @var dump_on_verify_failure
@@ -1473,7 +1485,6 @@ class SignedManifest(DER_CMS_object):
   Class to hold a signed manifest.
   """
 
-  pem_converter = PEM_converter("RPKI MANIFEST")
   econtent_oid = POWify_OID("id-ct-rpkiManifest")
   POW_class = rpki.POW.Manifest
   
@@ -1519,7 +1530,6 @@ class ROA(DER_CMS_object):
   Class to hold a signed ROA.
   """
 
-  pem_converter = PEM_converter("ROUTE ORIGIN ATTESTATION")
   econtent_oid = POWify_OID("id-ct-routeOriginAttestation")
   POW_class = rpki.POW.ROA
 
@@ -1741,7 +1751,6 @@ class Ghostbuster(Wrapped_CMS_object):
   managed by the back-end.
   """
 
-  pem_converter = PEM_converter("GHOSTBUSTERS RECORD")
   econtent_oid = POWify_OID("id-ct-rpkiGhostbusters")
 
   def encode(self):
@@ -1773,10 +1782,9 @@ class CRL(DER_object):
   """
   Class to hold a Certificate Revocation List.
   """
-
-  formats = ("DER", "POW")
-  pem_converter = PEM_converter("X509 CRL")
   
+  POW_class = rpki.POW.CRL
+
   def get_DER(self):
     """
     Get the DER value of this CRL.

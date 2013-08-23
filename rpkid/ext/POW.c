@@ -4622,6 +4622,17 @@ asymmetric_object_pem_read_private_helper(PyTypeObject *type, BIO *bio, char *pa
  * because of optional the PEM password, so we just code the two PEM
  * read cases for private keys directly.  Other than the passphrase,
  * code is pretty much the same as the generic functions.
+ *
+ * It turns out that OpenSSL is moving away from its old raw PKCS #1.5
+ * private key format in favor of PKCS #8.  This makes sense, but it
+ * leaves us with a minor mess to track.  Many OpenSSL functions that
+ * originally expected PKCS #1.5 now also accept PKCS #8, so there's
+ * no tearing hurry about this, but at some point we might want to
+ * switch to writing PKCS #8.  It looks like this would be relatively
+ * straightforward: see functions i2d_PKCS8PrivateKey_bio() and
+ * PEM_write_bio_PKCS8PrivateKey(), and note that PKCS #8 supports
+ * encrypted private keys in DER format, so the DER methods should
+ * take a passphrase argument as the PEM methods do.
  */
 
 static char asymmetric_object_pem_read_private__doc__[] =

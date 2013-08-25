@@ -646,46 +646,41 @@ x509_object_helper_get_name(X509_NAME *name, int format)
   return NULL;
 }
 
-/*
- * Perhaps x509_helper_sequence_to_stack() should take an iterable rather than just a sequence?
- */
-
 static STACK_OF(X509) *
-x509_helper_sequence_to_stack(PyObject *x509_sequence)
+x509_helper_iterable_to_stack(PyObject *iterable)
 {
-  x509_object *x509obj = NULL;
-  STACK_OF(X509) *x509_stack = NULL;
-  int size = 0, i = 0;
+  STACK_OF(X509) *stack = NULL;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
 
-  if (x509_sequence != Py_None && !PySequence_Check(x509_sequence))
-    lose_type_error("Inapropriate type");
-
-  if ((x509_stack = sk_X509_new_null()) == NULL)
+  if ((stack = sk_X509_new_null()) == NULL)
     lose_no_memory();
 
-  if (x509_sequence != Py_None) {
-    size = PySequence_Size(x509_sequence);
+  if (iterable != Py_None) {
 
-    for (i = 0; i < size; i++) {
-      if ((x509obj = (x509_object*) PySequence_GetItem(x509_sequence, i)) == NULL)
-        goto error;
+    if ((iterator = PyObject_GetIter(iterable)) == NULL)
+      goto error;
 
-      if (!POW_X509_Check(x509obj))
+    while ((item = PyIter_Next(iterator)) != NULL) {
+
+      if (!POW_X509_Check(item))
         lose_type_error("Inapropriate type");
 
-      if (!sk_X509_push(x509_stack, x509obj->x509))
+      if (!sk_X509_push(stack, ((x509_object *) item)->x509))
         lose("Couldn't add X509 object to stack");
 
-      Py_XDECREF(x509obj);
-      x509obj = NULL;
+      Py_XDECREF(item);
+      item = NULL;
     }
   }
 
-  return x509_stack;
+  Py_XDECREF(iterator);
+  return stack;
 
  error:
-  sk_X509_free(x509_stack);
-  Py_XDECREF(x509obj);
+  Py_XDECREF(iterator);
+  Py_XDECREF(item);
+  sk_X509_free(stack);
   return NULL;
 }
 
@@ -2534,7 +2529,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
     if (PyString_Check(asn_arg)) {
 
       if (strcmp(PyString_AsString(asn_arg), "inherit"))
-        lose_type_error("ASID must be sequence of range pairs, or \"inherit\"");
+        lose_type_error("ASID must be an iterable that returns range pairs, or the string \"inherit\"");
 
       if (!v3_asid_add_inherit(asid, V3_ASID_ASNUM))
         lose_no_memory();
@@ -2615,7 +2610,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
       if (PyString_Check(*argp)) {
 
         if (strcmp(PyString_AsString(*argp), "inherit"))
-          lose_type_error("Argument must be sequence of range pairs, or \"inherit\"");
+          lose_type_error("Argument must be an iterable that returns range pairs, or the string \"inherit\"");
 
         if (!v3_addr_add_inherit(addr, ip_type->afi, NULL))
           lose_no_memory();
@@ -2643,7 +2638,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
           if (addr_b->type != ip_type ||
               addr_e->type != ip_type ||
               memcmp(addr_b->address, addr_e->address, ip_type->length) > 0)
-            lose("IPAddrBlock must be sequence of address pairs, or \"inherit\"");
+            lose("Address range must be two-element sequence of IPAddress objects in ascending order");
 
           if (!v3_addr_add_range(addr, ip_type->afi, NULL, addr_b->address, addr_e->address))
             lose_openssl_error("Couldn't add range to IPAddrBlock");
@@ -2878,7 +2873,7 @@ static char x509_object_set_sia__doc__[] =
   "Each of these should be an iterable which returns URIs.\n"
   "\n"
   "None is acceptable as an alternate way of specifying an empty\n"
-  "sequence of URIs for a particular argument.\n"
+  "collection of URIs for a particular argument.\n"
   ;
 
 static PyObject *
@@ -2910,7 +2905,7 @@ x509_object_set_sia(x509_object *self, PyObject *args, PyObject *kwds)
   /*
    * This is going to want refactoring, because it's ugly, because we
    * want to reuse code for AIA, and because it'd be nice to support a
-   * single URI as an abbreviation for a sequence containing one URI.
+   * single URI as an abbreviation for a collection containing one URI.
    */
 
   for (i = 0; i < 3; i++) {
@@ -3700,8 +3695,8 @@ x509_store_ctx_object_dealloc(x509_store_ctx_object *self)
 static char x509_store_ctx_object_verify__doc__[] =
   "Verify an X509 certificate object using this certificate store context.\n"
   "\n"
-  "Optional second argument is a sequence of untrusted certificates to be\n"
-  "used to build a chain to the trust anchor.\n"
+  "Optional second argument is an iterable that supplies untrusted certificates\n"
+  "to be considered when building a chain to the trust anchor.\n"
   "\n"
   "This method returns the numeric return value from X509_verify_cert().\n"
   ;
@@ -3718,7 +3713,7 @@ x509_store_ctx_object_verify(x509_store_ctx_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "O!|O", &POW_X509_Type, &x509, &chain))
     goto error;
 
-  if ((stack = x509_helper_sequence_to_stack(chain)) == NULL)
+  if (chain != Py_None && (stack = x509_helper_iterable_to_stack(chain)) == NULL)
     goto error;
 
   Py_XINCREF(x509);
@@ -5663,16 +5658,17 @@ cms_object_sign_helper(cms_object *self,
                        BIO *bio,
                        x509_object *signcert,
                        asymmetric_object *signkey,
-                       PyObject *x509_sequence,
-                       PyObject *crl_sequence,
+                       PyObject *x509_iterable,
+                       PyObject *crl_iterable,
                        char *oid,
                        unsigned flags)                       
 {
-  crl_object *crlobj = NULL;
   STACK_OF(X509) *x509_stack = NULL;
-  int i, n, ok = 0;
-  CMS_ContentInfo *cms = NULL;
   ASN1_OBJECT *econtent_type = NULL;
+  CMS_ContentInfo *cms = NULL;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  int i, n, ok = 0;
 
   ENTERING(cms_object_sign_helper);
 
@@ -5681,7 +5677,7 @@ cms_object_sign_helper(cms_object *self,
   flags &= CMS_NOCERTS | CMS_NOATTR;
   flags |= CMS_BINARY | CMS_NOSMIMECAP | CMS_PARTIAL | CMS_USE_KEYID;
 
-  if ((x509_stack = x509_helper_sequence_to_stack(x509_sequence)) == NULL)
+  if ((x509_stack = x509_helper_iterable_to_stack(x509_iterable)) == NULL)
     goto error;
 
   assert_no_unhandled_openssl_errors();
@@ -5706,31 +5702,23 @@ cms_object_sign_helper(cms_object *self,
 
   assert_no_unhandled_openssl_errors();
 
-  if (crl_sequence != Py_None) {
+  if (crl_iterable != Py_None) {
 
-    if (!PySequence_Check(crl_sequence))
-      lose_type_error("Inapropriate type");
+    if ((iterator = PyObject_GetIter(crl_iterable)) == NULL)
+      goto error;
 
-    n = PySequence_Size(crl_sequence);
+    while ((item = PyIter_Next(iterator)) != NULL) {
 
-    for (i = 0; i < n; i++) {
-
-      if ((crlobj = (crl_object *) PySequence_GetItem(crl_sequence, i)) == NULL)
-        goto error;
-
-      if (!POW_CRL_Check(crlobj))
+      if (!POW_CRL_Check(item))
         lose_type_error("Inappropriate type");
 
-      if (!crlobj->crl)
-        lose("CRL object with null CRL field!");
-
-      if (!CMS_add1_crl(cms, crlobj->crl))
+      if (!CMS_add1_crl(cms, ((crl_object *) item)->crl))
         lose_openssl_error("Couldn't add CRL to CMS");
 
       assert_no_unhandled_openssl_errors();
 
-      Py_XDECREF(crlobj);
-      crlobj = NULL;
+      Py_XDECREF(item);
+      item = NULL;
     }
   }
 
@@ -5749,7 +5737,8 @@ cms_object_sign_helper(cms_object *self,
   CMS_ContentInfo_free(cms);
   sk_X509_free(x509_stack);
   ASN1_OBJECT_free(econtent_type);
-  Py_XDECREF(crlobj);
+  Py_XDECREF(iterator);
+  Py_XDECREF(item);
 
   return ok;
 }
@@ -5765,10 +5754,10 @@ static char cms_object_sign__doc__[] =
   "\n"
   "The \"data\" parameter should be the message to be signed, a string.\n"
   "\n"
-  "The optional \"certs\" parameter should be a sequence of X509 objects\n"
+  "The optional \"certs\" parameter should be an iterable supplying X509 objects\n"
   "to be included in the signed message.\n"
   "\n"
-  "The optional \"crls\" parameter should be a sequence of CRL objects\n"
+  "The optional \"crls\" parameter should be an iterable supplying CRL objects\n"
   "to be included in the signed message.\n"
   "\n"
   "The optional \"eContentType\" parameter should be an Object Identifier\n"
@@ -5786,8 +5775,8 @@ cms_object_sign(cms_object *self, PyObject *args)
 {
   asymmetric_object *signkey = NULL;
   x509_object *signcert = NULL;
-  PyObject *x509_sequence = Py_None;
-  PyObject *crl_sequence = Py_None;
+  PyObject *x509_iterable = Py_None;
+  PyObject *crl_iterable = Py_None;
   char *buf = NULL, *oid = NULL;
   Py_ssize_t len;
   unsigned flags = 0;
@@ -5800,8 +5789,8 @@ cms_object_sign(cms_object *self, PyObject *args)
                         &POW_X509_Type, &signcert,
                         &POW_Asymmetric_Type, &signkey,
                         &buf, &len,
-                        &x509_sequence,
-                        &crl_sequence,
+                        &x509_iterable,
+                        &crl_iterable,
                         &oid,
                         &flags))
     goto error;
@@ -5814,7 +5803,7 @@ cms_object_sign(cms_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if (!cms_object_sign_helper(self, bio, signcert, signkey,
-                              x509_sequence, crl_sequence, oid, flags))
+                              x509_iterable, crl_iterable, oid, flags))
     lose_openssl_error("Couldn't sign CMS object");
 
   assert_no_unhandled_openssl_errors();
@@ -5835,7 +5824,7 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[] = {"store", "certs", "flags", NULL};
   x509_store_object *store = NULL;
-  PyObject *certs_sequence = Py_None;
+  PyObject *certs_iterable = Py_None;
   STACK_OF(X509) *certs_stack = NULL;
   unsigned flags = 0, ok = 0;
   BIO *bio = NULL;
@@ -5843,7 +5832,7 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
   ENTERING(cms_object_verify_helper);
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OI", kwlist,
-                                   &POW_X509Store_Type, &store, &certs_sequence, &flags))
+                                   &POW_X509Store_Type, &store, &certs_iterable, &flags))
     goto error;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
@@ -5854,8 +5843,8 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
   flags &= (CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY |
             CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY);
 
-  if (certs_sequence != Py_None &&
-      (certs_stack = x509_helper_sequence_to_stack(certs_sequence)) == NULL)
+  if (certs_iterable != Py_None &&
+      (certs_stack = x509_helper_iterable_to_stack(certs_iterable)) == NULL)
     goto error;
 
   assert_no_unhandled_openssl_errors();
@@ -6562,8 +6551,8 @@ manifest_object_set_algorithm(manifest_object *self, PyObject *args)
 static char manifest_object_add_files__doc__[] =
   "Add a collection of <filename, hash> pairs to this manifest.\n"
   "\n"
-  "The \"iterable\" parameter should be an iterable object, each element\n"
-  "of which is a two-element sequence; the first element of this sequence\n"
+  "The \"iterable\" parameter should be an iterable object supplying\n"
+  "returning two-element sequences; the first element of each sequence\n"
   "should be the filename (a text string), the second element should be the\n"
   "hash (a binary string).\n"
   ;
@@ -6686,8 +6675,8 @@ manifest_object_sign(manifest_object *self, PyObject *args)
 {
   asymmetric_object *signkey = NULL;
   x509_object *signcert = NULL;
-  PyObject *x509_sequence = Py_None;
-  PyObject *crl_sequence = Py_None;
+  PyObject *x509_iterable = Py_None;
+  PyObject *crl_iterable = Py_None;
   char *oid = NULL;
   unsigned flags = 0;
   BIO *bio = NULL;
@@ -6698,8 +6687,8 @@ manifest_object_sign(manifest_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "O!O!|OOsI",
                         &POW_X509_Type, &signcert,
                         &POW_Asymmetric_Type, &signkey,
-                        &x509_sequence,
-                        &crl_sequence,
+                        &x509_iterable,
+                        &crl_iterable,
                         &oid,
                         &flags))
     goto error;
@@ -6715,7 +6704,7 @@ manifest_object_sign(manifest_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if (!cms_object_sign_helper(&self->cms, bio, signcert, signkey,
-                              x509_sequence, crl_sequence, oid, flags))
+                              x509_iterable, crl_iterable, oid, flags))
     lose_openssl_error("Couldn't sign manifest");
 
   assert_no_unhandled_openssl_errors();
@@ -7318,8 +7307,8 @@ roa_object_sign(roa_object *self, PyObject *args)
 {
   asymmetric_object *signkey = NULL;
   x509_object *signcert = NULL;
-  PyObject *x509_sequence = Py_None;
-  PyObject *crl_sequence = Py_None;
+  PyObject *x509_iterable = Py_None;
+  PyObject *crl_iterable = Py_None;
   char *oid = NULL;
   unsigned flags = 0;
   BIO *bio = NULL;
@@ -7330,8 +7319,8 @@ roa_object_sign(roa_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "O!O!|OOsI",
                         &POW_X509_Type, &signcert,
                         &POW_Asymmetric_Type, &signkey,
-                        &x509_sequence,
-                        &crl_sequence,
+                        &x509_iterable,
+                        &crl_iterable,
                         &oid,
                         &flags))
     goto error;
@@ -7347,7 +7336,7 @@ roa_object_sign(roa_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if (!cms_object_sign_helper(&self->cms, bio, signcert, signkey,
-                              x509_sequence, crl_sequence, oid, flags))
+                              x509_iterable, crl_iterable, oid, flags))
     lose_openssl_error("Couldn't sign ROA");
 
   assert_no_unhandled_openssl_errors();
@@ -8152,7 +8141,7 @@ static char pkcs10_object_set_sia__doc__[] =
   "Each of these should be an iterable which returns URIs.\n"
   "\n"
   "None is acceptable as an alternate way of specifying an empty\n"
-  "sequence of URIs for a particular argument.\n"
+  "collection of URIs for a particular argument.\n"
   ;
 
 static PyObject *

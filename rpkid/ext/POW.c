@@ -3643,6 +3643,24 @@ x509_store_ctx_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNU
   return NULL;
 }
 
+static int 
+x509_store_ctx_object_verify_cb(int ok, X509_STORE_CTX *ctx)
+{
+  x509_store_ctx_object *self = X509_STORE_CTX_get_ex_data(ctx, x509_store_ctx_ex_data_idx);
+  PyObject *arglist = NULL;
+  PyObject *result = NULL;
+
+  if (self->cb != Py_None) {
+    arglist = Py_BuildValue("(iO)", ok, self);
+    result = PyObject_CallObject(self->cb, arglist);
+    ok = result == NULL ? -1 : PyObject_IsTrue(result);
+  }
+
+  Py_XDECREF(arglist);
+  Py_XDECREF(result);
+  return ok;
+}
+
 static int
 x509_store_ctx_object_init(x509_store_ctx_object *self, PyObject *args, PyObject *kwds)
 {
@@ -3660,6 +3678,8 @@ x509_store_ctx_object_init(x509_store_ctx_object *self, PyObject *args, PyObject
   if (!X509_STORE_CTX_set_ex_data(self->ctx, x509_store_ctx_ex_data_idx, self))
     lose_openssl_error("Couldn't set X509_STORE_CTX ex_data");
 
+  X509_VERIFY_PARAM_set_flags(self->ctx->param, X509_V_FLAG_X509_STRICT);
+  X509_STORE_CTX_set_verify_cb(self->ctx, x509_store_ctx_object_verify_cb);
   return 0;
 
  error:
@@ -3670,113 +3690,48 @@ static void
 x509_store_ctx_object_dealloc(x509_store_ctx_object *self)
 {
   ENTERING(x509_store_ctx_object_dealloc);
-  Py_XDECREF(self->cb);
   if (self->initialized)
     X509_STORE_CTX_cleanup(self->ctx);
   X509_STORE_CTX_free(self->ctx);
+  Py_XDECREF(self->cb);
   self->ob_type->tp_free((PyObject*) self);
 }
 
 static char x509_store_ctx_object_verify__doc__[] =
   "Verify an X509 certificate object using this certificate store context.\n"
   "\n"
-  "The \"certificate\" parameter is the certificate to verify, and\n"
-  "should be an X509 object.\n"
-  "\n"
-  "the \"untrusted\" parameter should be a sequence of X509 objects which\n"
-  "will be added to the set of untrusted certificates from which OpenSSL\n"
-  "will attempt to build a chain to a trusted certificate.\n"
-  "\n"
-  "The \"callback\" parameter is a callable Python object which receives two\n"
-  "arguments, the integer \"ok\" value from the OpenSSL callback, and the\n"
-  "X509StoreCTX.  The return value from the callback is interpreted as a\n"
-  "boolean value: anything which evaluates to True will be interpreted as\n"
-  "allowing whatever the callback reported, while anything evaluating to False\n"
-  "will be interpreted as disallowing whatever the callback reported.\n"
-  "\n"
-  "The \"crl_check\", \"crl_check_all\", and \"ignore_critical\" arguments\n"
-  "are boolean flags corresponding to X509_V_FLAG_CRL_CHECK,\n"
-  "X509_V_FLAG_CRL_CHECK_ALL, and X509_V_FLAG_IGNORE_CRITICAL\",\n"
-  "respectively.\n"
+  "Optional second argument is a sequence of untrusted certificates to be\n"
+  "used to build a chain to the trust anchor.\n"
   "\n"
   "This method returns the numeric return value from X509_verify_cert().\n"
   ;
 
-static int 
-x509_store_ctx_object_verify_cb(int ok, X509_STORE_CTX *ctx)
-{
-  x509_store_ctx_object *self = X509_STORE_CTX_get_ex_data(ctx, x509_store_ctx_ex_data_idx);
-  PyObject *arglist = NULL;
-  PyObject *result = NULL;
-
-  arglist = Py_BuildValue("(iO)", ok, self);
-  result = PyObject_CallObject(self->cb, arglist);
-
-  ok = result == NULL ? -1 : PyObject_IsTrue(result);
-
-  Py_XDECREF(arglist);
-  Py_XDECREF(result);
-  return ok;
-}
-
 static PyObject *
-x509_store_ctx_object_verify(x509_store_ctx_object *self, PyObject *args, PyObject *kwds)
+x509_store_ctx_object_verify(x509_store_ctx_object *self, PyObject *args)
 {
-  static char *kwlist[] = {"certificate", "untrusted", "callback",
-                           "crl_check", "crl_check_all", "ignore_critical", NULL};
-  PyObject *x509_sequence = Py_None;
-  PyObject *callback = Py_None;
-  PyObject *flag_CRL_CHECK = Py_False;
-  PyObject *flag_CRL_CHECK_ALL = Py_False;
-  PyObject *flag_IGNORE_CRITICAL = Py_False;
+  STACK_OF(X509) *stack = NULL;
   x509_object *x509 = NULL;
-  STACK_OF(X509) *x509_stack = NULL;
-  PyObject *old_callback = NULL;
+  PyObject *chain = Py_None;
   PyObject *result = NULL;
-  unsigned long flags;
   int ok;
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OOOOO", kwlist,
-                                   &POW_X509_Type, &x509, &x509_sequence, &callback,
-                                   &flag_CRL_CHECK, &flag_CRL_CHECK_ALL, &flag_IGNORE_CRITICAL))
+  if (!PyArg_ParseTuple(args, "O!|O", &POW_X509_Type, &x509, &chain))
     goto error;
 
-  if (callback != Py_None && !PyCallable_Check(callback))
-    lose("\"callback\" argument is not callable");
-
-  if ((x509_stack = x509_helper_sequence_to_stack(x509_sequence)) == NULL)
+  if ((stack = x509_helper_sequence_to_stack(chain)) == NULL)
     goto error;
 
-  flags = X509_V_FLAG_X509_STRICT;
-  if (PyObject_IsTrue(flag_CRL_CHECK))
-    flags |= X509_V_FLAG_CRL_CHECK;
-  if (PyObject_IsTrue(flag_CRL_CHECK_ALL))
-    flags |= X509_V_FLAG_CRL_CHECK_ALL;
-  if (PyObject_IsTrue(flag_IGNORE_CRITICAL))
-    flags |= X509_V_FLAG_IGNORE_CRITICAL;
-
+  Py_XINCREF(x509);
+  Py_XINCREF(chain);
   X509_STORE_CTX_set_cert(self->ctx, x509->x509);
-
-  if (x509_stack)
-    X509_STORE_CTX_set_chain(self->ctx, x509_stack);
-
-  X509_VERIFY_PARAM_set_flags(self->ctx->param, flags);
-
-  if (callback != Py_None) {
-    old_callback = self->cb;
-    self->cb = callback;
-    Py_XINCREF(callback);
-  }
-
-  if (self->cb != Py_None)
-    X509_STORE_CTX_set_verify_cb(self->ctx, x509_store_ctx_object_verify_cb);
+  X509_STORE_CTX_set_chain(self->ctx, stack);
 
   ok = X509_verify_cert(self->ctx);
 
-  if (callback != Py_None) {
-    self->cb = old_callback;
-    Py_XDECREF(callback);
-  }
+  X509_STORE_CTX_set_chain(self->ctx, NULL);
+  X509_STORE_CTX_set_cert(self->ctx, NULL);
+  Py_XDECREF(chain);
+  Py_XDECREF(x509);
 
   if (ok < 0)
     lose_openssl_error("X509_verify_cert() returned exception");
@@ -3784,8 +3739,39 @@ x509_store_ctx_object_verify(x509_store_ctx_object *self, PyObject *args, PyObje
   result = Py_BuildValue("i", ok);
 
  error:                          /* fall through */
-  sk_X509_free(x509_stack);
+  sk_X509_free(stack);
   return result;
+}
+
+static char x509_store_ctx_object_set_callback__doc__[] =
+  "Set validation callback for this X509StoreCTX.\n"
+  "The callback  is a callable Python object which receives two\n"
+  "arguments, the integer \"ok\" value from the OpenSSL callback, and the\n"
+  "X509StoreCTX.  The return value from the callback is interpreted as a\n"
+  "boolean value: anything which evaluates to True will be interpreted as\n"
+  "allowing whatever the callback reported, while anything evaluating to False\n"
+  "will be interpreted as disallowing whatever the callback reported.\n"
+  ;
+
+static PyObject *
+x509_store_ctx_object_set_callback(x509_store_ctx_object *self, PyObject *args)
+{
+  PyObject *cb = Py_None;
+
+  if (!PyArg_ParseTuple(args, "O", &cb))
+    goto error;
+
+  if (cb != Py_None && !PyCallable_Check(cb))
+    lose("Object is not callable");
+
+  Py_XDECREF(self->cb);
+  self->cb = cb;
+  Py_XINCREF(self->cb);
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
 }
 
 static char x509_store_ctx_object_get_error__doc__[] =
@@ -3798,6 +3784,16 @@ x509_store_ctx_object_get_error (x509_store_ctx_object *self)
   return Py_BuildValue("i", X509_STORE_CTX_get_error(self->ctx));
 }
 
+static char x509_store_ctx_object_get_error_string__doc__[] =
+  "Extract verification error code from this X509StoreCTX.\n"
+  ;
+
+static PyObject*
+x509_store_ctx_object_get_error_string (x509_store_ctx_object *self)
+{
+  return Py_BuildValue("s", X509_verify_cert_error_string(X509_STORE_CTX_get_error(self->ctx)));
+}
+
 static char x509_store_ctx_object_get_error_depth__doc__[] =
   "Extract verification error depth from this X509StoreCTX.\n"
   ;
@@ -3808,22 +3804,147 @@ x509_store_ctx_object_get_error_depth (x509_store_ctx_object *self)
   return Py_BuildValue("i", X509_STORE_CTX_get_error_depth(self->ctx));
 }
 
-/*
- * See (omnibus) man page for X509_STORE_CTX_get_error() for other
- * query methods we might want to expose.
- */
+static PyObject*
+x509_store_ctx_object_get_flag_helper (x509_store_ctx_object *self, unsigned long flag)
+{
+  if ((X509_VERIFY_PARAM_get_flags(self->ctx->param) & flag) != 0)
+    Py_RETURN_TRUE;
+  else
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+x509_store_ctx_object_set_flag_helper (x509_store_ctx_object *self, unsigned long flag, PyObject *args)
+{
+  PyObject *value = NULL;
+  int ok;
+
+  if (!PyArg_ParseTuple(args, "O", &value))
+    goto error;
+
+  if (PyObject_IsTrue(value))
+    ok = X509_VERIFY_PARAM_set_flags(self->ctx->param, flag);
+  else
+    ok = X509_VERIFY_PARAM_clear_flags(self->ctx->param, flag);
+
+  if (!ok)
+    lose_openssl_error("Couldn't set X509_VERIFY_PARAM flag");
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char x509_store_ctx_object_get_crl_check__doc__[] =
+  "Get state of X509_V_FLAG_CRL_CHECK flag from this X509StoreCTX.\n"
+  ;
+
+static PyObject*
+x509_store_ctx_object_get_crl_check (x509_store_ctx_object *self)
+{
+  return x509_store_ctx_object_get_flag_helper(self, X509_V_FLAG_CRL_CHECK);
+}
+
+static char x509_store_ctx_object_set_crl_check__doc__[] =
+  "Set state of X509_V_FLAG_CRL_CHECK flag from this X509StoreCTX.\n"
+  ;
+
+static PyObject*
+x509_store_ctx_object_set_crl_check (x509_store_ctx_object *self, PyObject *args)
+{
+  return x509_store_ctx_object_set_flag_helper(self, X509_V_FLAG_CRL_CHECK, args);
+}
+
+static char x509_store_ctx_object_get_crl_check_all__doc__[] =
+  "Get state of X509_V_FLAG_CRL_CHECK_ALL flag from this X509StoreCTX.\n"
+  ;
+
+static PyObject*
+x509_store_ctx_object_get_crl_check_all (x509_store_ctx_object *self)
+{
+  return x509_store_ctx_object_get_flag_helper(self, X509_V_FLAG_CRL_CHECK_ALL);
+}
+
+static char x509_store_ctx_object_set_crl_check_all__doc__[] =
+  "Set state of X509_V_FLAG_CRL_CHECK_ALL flag from this X509StoreCTX.\n"
+  ;
+
+static PyObject*
+x509_store_ctx_object_set_crl_check_all (x509_store_ctx_object *self, PyObject *args)
+{
+  return x509_store_ctx_object_set_flag_helper(self, X509_V_FLAG_CRL_CHECK_ALL, args);
+}
+
+static char x509_store_ctx_object_get_ignore_critical__doc__[] =
+  "Get state of X509_V_FLAG_IGNORE_CRITICAL flag from this X509StoreCTX.\n"
+  ;
+
+static PyObject*
+x509_store_ctx_object_get_ignore_critical (x509_store_ctx_object *self)
+{
+  return x509_store_ctx_object_get_flag_helper(self, X509_V_FLAG_IGNORE_CRITICAL);
+}
+
+static char x509_store_ctx_object_set_ignore_critical__doc__[] =
+  "Set state of X509_V_FLAG_IGNORE_CRITICAL flag from this X509StoreCTX.\n"
+  ;
+
+static PyObject*
+x509_store_ctx_object_set_ignore_critical (x509_store_ctx_object *self, PyObject *args)
+{
+  return x509_store_ctx_object_set_flag_helper(self, X509_V_FLAG_IGNORE_CRITICAL, args);
+}
+
+static char x509_store_ctx_object_set_policy__doc__[] =
+  "Set this X509StoreCTX to require a specified certificate policy.\n"
+  ;
+
+static PyObject*
+x509_store_ctx_object_set_policy (x509_store_ctx_object *self, PyObject *args)
+{
+  ASN1_OBJECT *policy = NULL;
+  char *oid = NULL;
+
+  if (!PyArg_ParseTuple(args, "s", &oid))
+    goto error;
+  
+  if ((policy = OBJ_txt2obj(oid, 1)) == NULL)
+    lose_openssl_error("Couldn't parse OID");
+
+  if (!X509_VERIFY_PARAM_set_flags(self->ctx->param, X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY))
+    lose_openssl_error("Couldn't set policy flags");
+
+  if (!X509_VERIFY_PARAM_add0_policy(self->ctx->param, policy))
+    lose_openssl_error("Couldn't set policy");
+
+  Py_RETURN_NONE;
+
+ error:
+  ASN1_OBJECT_free(policy);
+  return NULL;
+}
 
 /*
- * We might want to support X509_V_FLAG_USE_CHECK_TIME and
- * X509_V_FLAG_EXPLICIT_POLICY, but let's stick to simple stuff until
- * we have the Python callback code working.
+ * See (omnibus) man page for X509_STORE_CTX_get_error() for other
+ * query methods we might want to expose.  Someday we might want to
+ * support X509_V_FLAG_USE_CHECK_TIME too.
  */
 
 static struct PyMethodDef x509_store_ctx_object_methods[] = {
-  Define_Method(verify,         x509_store_ctx_object_verify,               METH_KEYWORDS),
-  Define_Method(getError,       x509_store_ctx_object_get_error,            METH_NOARGS),
-  Define_Method(getErrorDepth,  x509_store_ctx_object_get_error_depth,      METH_NOARGS),
-  {NULL}
+  Define_Method(verify,		    x509_store_ctx_object_verify,               METH_VARARGS),
+  Define_Method(setCallback,	    x509_store_ctx_object_set_callback,		METH_VARARGS),
+  Define_Method(getError,	    x509_store_ctx_object_get_error,            METH_NOARGS),
+  Define_Method(getErrorString,	    x509_store_ctx_object_get_error_string,	METH_NOARGS),
+  Define_Method(getErrorDepth,	    x509_store_ctx_object_get_error_depth,      METH_NOARGS),
+  Define_Method(getCRLCheck,	    x509_store_ctx_object_get_crl_check,	METH_NOARGS),
+  Define_Method(setCRLCheck,	    x509_store_ctx_object_set_crl_check,	METH_VARARGS),
+  Define_Method(getCRLCheckAll,	    x509_store_ctx_object_get_crl_check_all,    METH_NOARGS),
+  Define_Method(setCRLCheckAll,     x509_store_ctx_object_set_crl_check_all,    METH_VARARGS),
+  Define_Method(getIgnoreCritical,  x509_store_ctx_object_get_ignore_critical, 	METH_NOARGS),
+  Define_Method(setIgnoreCritical,  x509_store_ctx_object_set_ignore_critical, 	METH_VARARGS),
+  Define_Method(setPolicy,	    x509_store_ctx_object_set_policy,		METH_VARARGS),
+ {NULL}
 };
 
 static char POW_X509StoreCTX_Type__doc__[] =
@@ -8590,6 +8711,53 @@ init_POW(void)
   Define_Integer_Constant(CMS_NO_SIGNER_CERT_VERIFY);
   Define_Integer_Constant(CMS_NO_ATTR_VERIFY);
   Define_Integer_Constant(CMS_NO_CONTENT_VERIFY);
+
+  /* X509 validation error codes */
+  Define_Integer_Constant(X509_V_OK);
+  Define_Integer_Constant(X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT);
+  Define_Integer_Constant(X509_V_ERR_UNABLE_TO_GET_CRL);
+  Define_Integer_Constant(X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE);
+  Define_Integer_Constant(X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE);
+  Define_Integer_Constant(X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY);
+  Define_Integer_Constant(X509_V_ERR_CERT_SIGNATURE_FAILURE);
+  Define_Integer_Constant(X509_V_ERR_CRL_SIGNATURE_FAILURE);
+  Define_Integer_Constant(X509_V_ERR_CERT_NOT_YET_VALID);
+  Define_Integer_Constant(X509_V_ERR_CERT_HAS_EXPIRED);
+  Define_Integer_Constant(X509_V_ERR_CRL_NOT_YET_VALID);
+  Define_Integer_Constant(X509_V_ERR_CRL_HAS_EXPIRED);
+  Define_Integer_Constant(X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD);
+  Define_Integer_Constant(X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD);
+  Define_Integer_Constant(X509_V_ERR_ERROR_IN_CRL_LAST_UPDATE_FIELD);
+  Define_Integer_Constant(X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD);
+  Define_Integer_Constant(X509_V_ERR_OUT_OF_MEM);
+  Define_Integer_Constant(X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT);
+  Define_Integer_Constant(X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN);
+  Define_Integer_Constant(X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY);
+  Define_Integer_Constant(X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE);
+  Define_Integer_Constant(X509_V_ERR_CERT_CHAIN_TOO_LONG);
+  Define_Integer_Constant(X509_V_ERR_CERT_REVOKED);
+  Define_Integer_Constant(X509_V_ERR_INVALID_CA);
+  Define_Integer_Constant(X509_V_ERR_PATH_LENGTH_EXCEEDED);
+  Define_Integer_Constant(X509_V_ERR_INVALID_PURPOSE);
+  Define_Integer_Constant(X509_V_ERR_CERT_UNTRUSTED);
+  Define_Integer_Constant(X509_V_ERR_CERT_REJECTED);
+  Define_Integer_Constant(X509_V_ERR_SUBJECT_ISSUER_MISMATCH);
+  Define_Integer_Constant(X509_V_ERR_AKID_SKID_MISMATCH);
+  Define_Integer_Constant(X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH);
+  Define_Integer_Constant(X509_V_ERR_KEYUSAGE_NO_CERTSIGN);
+  Define_Integer_Constant(X509_V_ERR_UNABLE_TO_GET_CRL_ISSUER);
+  Define_Integer_Constant(X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION);
+  Define_Integer_Constant(X509_V_ERR_KEYUSAGE_NO_CRL_SIGN);
+  Define_Integer_Constant(X509_V_ERR_UNHANDLED_CRITICAL_CRL_EXTENSION);
+  Define_Integer_Constant(X509_V_ERR_INVALID_NON_CA);
+  Define_Integer_Constant(X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED);
+  Define_Integer_Constant(X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE);
+  Define_Integer_Constant(X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED);
+  Define_Integer_Constant(X509_V_ERR_INVALID_EXTENSION);
+  Define_Integer_Constant(X509_V_ERR_INVALID_POLICY_EXTENSION);
+  Define_Integer_Constant(X509_V_ERR_NO_EXPLICIT_POLICY);
+  Define_Integer_Constant(X509_V_ERR_UNNESTED_RESOURCE);
+  Define_Integer_Constant(X509_V_ERR_APPLICATION_VERIFICATION);
 
 #undef Define_Integer_Constant
 

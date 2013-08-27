@@ -3585,7 +3585,7 @@ x509_store_object_set_callback (x509_store_object *self, PyObject *args)
     lose("Object is not callable");
 
   Py_XDECREF(self->cb);
-  self->cb = cb;
+  self->cb = cb == Py_None ? NULL : cb;
   Py_XINCREF(self->cb);
 
   Py_RETURN_NONE;
@@ -3708,21 +3708,14 @@ static int
 x509_store_ctx_object_verify_cb(int ok, X509_STORE_CTX *ctx)
 {
   x509_store_ctx_object *self = X509_STORE_CTX_get_ex_data(ctx, x509_store_ctx_ex_data_idx);
-  x509_store_object *store = NULL;
   PyObject *arglist = NULL;
   PyObject *result = NULL;
 
-  if (self == NULL || (PyObject *) self == Py_None)
-    return ok;
-
-  store = self->store;
-
-  if (store == NULL || (PyObject *) store == Py_None ||
-      store->cb == NULL || (PyObject *) store->cb == Py_None)
+  if (self == NULL || self->store == NULL || self->store->cb == NULL)
     return ok;
 
   arglist = Py_BuildValue("(iO)", ok, self);
-  result = PyObject_CallObject(store->cb, arglist);
+  result = PyObject_CallObject(self->store->cb, arglist);
 
   ok = result == NULL ? -1 : PyObject_IsTrue(result);
 
@@ -3742,8 +3735,7 @@ x509_store_ctx_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNU
     goto error;
 
   self->ctx = NULL;
-  self->store = (x509_store_object *) Py_None;
-  Py_XINCREF(self->store);
+  self->store = NULL;
   return (PyObject *) self;    
 
  error:
@@ -3769,7 +3761,7 @@ x509_store_ctx_object_init(x509_store_ctx_object *self, PyObject *args, GCC_UNUS
     lose_openssl_error("Couldn't set X509_STORE_CTX ex_data");
 
   Py_XDECREF(self->store);
-  self->store = store;
+  self->store = ((PyObject *) store == Py_None) ? NULL : store;
   Py_XINCREF(self->store);
 
   X509_VERIFY_PARAM_set_flags(self->ctx->param, X509_V_FLAG_X509_STRICT);

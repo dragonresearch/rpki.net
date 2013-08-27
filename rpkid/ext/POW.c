@@ -3863,6 +3863,64 @@ x509_store_ctx_object_get_error_depth (x509_store_ctx_object *self)
   return Py_BuildValue("i", X509_STORE_CTX_get_error_depth(self->ctx));
 }
 
+static char x509_store_ctx_object_get_current_certificate__doc__[] =
+  "Extract the certificate which caused the current validation error,\n"
+  "or None if no certificate is relevant.\n"
+  ;
+
+static PyObject *
+x509_store_ctx_object_get_current_certificate (x509_store_ctx_object *self)
+{
+  X509 *x = X509_STORE_CTX_get_current_cert(self->ctx);
+  x509_object *obj = NULL;
+
+  if (x == NULL)
+    Py_RETURN_NONE;
+
+  if ((x = X509_dup(x)) == NULL)
+    lose_no_memory();
+
+  if ((obj = (x509_object *) x509_object_new(&POW_X509_Type, NULL, NULL)) == NULL)
+    goto error;
+
+  X509_free(obj->x509);
+  obj->x509 = x;
+  return (PyObject *) obj;
+
+ error:
+  Py_XDECREF(obj);
+  X509_free(x);
+  return NULL;
+}
+
+/*
+ * This needs renaming and refactoring, but not today.
+ */
+static PyObject *cms_object_helper_get_cert(void *cert);
+
+static char x509_store_ctx_object_get_chain__doc__[] =
+  "Extract certificate chain from X509StoreCTX.  If validation\n"
+  "completed succesfully, this is the complete validation chain;\n"
+  "otherwise, the returned chain may be invalid or incomplete.\n"
+  ;
+
+static PyObject *
+x509_store_ctx_object_get_chain (x509_store_ctx_object *self)
+{
+  STACK_OF(X509) *chain = NULL;
+  PyObject *result = NULL;
+
+  if ((chain = X509_STORE_CTX_get1_chain(self->ctx)) == NULL)
+    lose_openssl_error("X509_STORE_CTX_get1_chain() failed");
+  
+  result = stack_to_tuple_helper(CHECKED_PTR_OF(STACK_OF(X509), chain),
+                                 cms_object_helper_get_cert);
+
+ error:                         /* fall through */
+  sk_X509_pop_free(chain, X509_free);
+  return result;
+}
+
 /*
  * For some reason, there are no methods for the policy mechanism for
  * X509_STORE, only for X509_STORE_CTX.  Presumably we can whack these
@@ -3916,10 +3974,13 @@ x509_store_ctx_object_set_policy (x509_store_ctx_object *self, PyObject *args)
  */
 
 static struct PyMethodDef x509_store_ctx_object_methods[] = {
-  Define_Method(verify,		    x509_store_ctx_object_verify,               METH_VARARGS),
-  Define_Method(getError,	    x509_store_ctx_object_get_error,            METH_NOARGS),
-  Define_Method(getErrorString,	    x509_store_ctx_object_get_error_string,	METH_NOARGS),
-  Define_Method(getErrorDepth,	    x509_store_ctx_object_get_error_depth,      METH_NOARGS),
+  Define_Method(verify,                 x509_store_ctx_object_verify,                   METH_VARARGS),
+  Define_Method(getError,               x509_store_ctx_object_get_error,                METH_NOARGS),
+  Define_Method(getErrorString,         x509_store_ctx_object_get_error_string,         METH_NOARGS),
+  Define_Method(getErrorDepth,          x509_store_ctx_object_get_error_depth,          METH_NOARGS),
+  Define_Method(getCurrentCertificate,  x509_store_ctx_object_get_current_certificate,  METH_NOARGS),
+  Define_Method(getChain,               x509_store_ctx_object_get_chain,                METH_NOARGS),
+
 #if IMPLEMENT_X509StoreCTX_POLICY
   Define_Method(setPolicy,	    x509_store_ctx_object_set_policy,		METH_VARARGS),
 #endif

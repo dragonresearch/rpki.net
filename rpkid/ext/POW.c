@@ -3781,6 +3781,12 @@ x509_store_ctx_object_dealloc(x509_store_ctx_object *self)
   self->ob_type->tp_free((PyObject*) self);
 }
 
+static PyObject *
+x509_store_ctx_object_get_store (x509_store_ctx_object *self, GCC_UNUSED void *closure)
+{
+  return Py_BuildValue("O", self->store == NULL ? Py_None : (PyObject *) self->store);
+}
+
 static char x509_store_ctx_object_verify__doc__[] =
   "Verify an X509 certificate object using this certificate store context.\n"
   "\n"
@@ -3920,6 +3926,11 @@ static struct PyMethodDef x509_store_ctx_object_methods[] = {
  {NULL}
 };
 
+static PyGetSetDef x509_store_ctx_object_getsetters[] = {
+  {"store",     (getter) x509_store_ctx_object_get_store},
+  {NULL}
+};
+
 static char POW_X509StoreCTX_Type__doc__[] =
   "This class holds the OpenSSL certificate store context objects used\n"
   "in certificate verification.\n"
@@ -3958,7 +3969,7 @@ static PyTypeObject POW_X509StoreCTX_Type = {
   0,                                        /* tp_iternext */
   x509_store_ctx_object_methods,            /* tp_methods */
   0,                                        /* tp_members */
-  0,                                        /* tp_getset */
+  x509_store_ctx_object_getsetters,         /* tp_getset */
   0,                                        /* tp_base */
   0,                                        /* tp_dict */
   0,                                        /* tp_descr_get */

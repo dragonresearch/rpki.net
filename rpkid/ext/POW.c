@@ -307,13 +307,13 @@ typedef struct {
 typedef struct {
   PyObject_HEAD
   X509_STORE *store;
+  PyObject *cb;
 } x509_store_object;
 
 typedef struct {
   PyObject_HEAD
   X509_STORE_CTX *ctx;
-  PyObject *cb;
-  int initialized;
+  x509_store_object *store;
 } x509_store_ctx_object;
 
 typedef struct {
@@ -3488,10 +3488,17 @@ x509_store_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED 
 
   ENTERING(x509_store_object_new);
 
-  if ((self = (x509_store_object *) type->tp_alloc(type, 0)) != NULL &&
-      (self->store = X509_STORE_new()) != NULL)
-    return (PyObject *) self;
+  if ((self = (x509_store_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
 
+  if ((self->store = X509_STORE_new()) == NULL)
+    lose_no_memory();
+
+  self->cb = Py_None;
+  Py_XINCREF(self->cb);
+  return (PyObject *) self;
+
+ error:
   Py_XDECREF(self);
   return NULL;
 }
@@ -3501,6 +3508,7 @@ x509_store_object_dealloc(x509_store_object *self)
 {
   ENTERING(x509_store_object_dealloc);
   X509_STORE_free(self->store);
+  Py_XDECREF(self->cb);
   self->ob_type->tp_free((PyObject*) self);
 }
 
@@ -3554,9 +3562,90 @@ x509_store_object_add_crl(x509_store_object *self, PyObject *args)
   return NULL;
 }
 
+static char x509_store_object_set_callback__doc__[] =
+  "Set validation callback for this X509Store.\n"
+  "\n"
+  "The callback  is a callable Python object which receives two\n"
+  "arguments, the integer \"ok\" value from the OpenSSL callback, and a\n"
+  "X509StoreCTX.  The return value from the callback is interpreted as a\n"
+  "boolean value: anything which evaluates to True will be interpreted as\n"
+  "allowing whatever the callback reported, while anything evaluating to False\n"
+  "will be interpreted as disallowing whatever the callback reported.\n"
+  ;
+
+static PyObject *
+x509_store_object_set_callback (x509_store_object *self, PyObject *args)
+{
+  PyObject *cb = Py_None;
+
+  if (!PyArg_ParseTuple(args, "O", &cb))
+    goto error;
+
+  if (cb != Py_None && !PyCallable_Check(cb))
+    lose("Object is not callable");
+
+  Py_XDECREF(self->cb);
+  self->cb = cb;
+  Py_XINCREF(self->cb);
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char x509_store_object_set_flags__doc__[] =
+  "Set validation flags for this X509Store.\n"
+  "\n"
+  "Argument is an integer containing bit flags to set.\n"
+  ;
+
+static PyObject *
+x509_store_object_set_flags (x509_store_object *self, PyObject *args)
+{
+  unsigned long flags;
+
+  if (!PyArg_ParseTuple(args, "k", &flags))
+    goto error;
+
+  if (!X509_VERIFY_PARAM_set_flags(self->store->param, flags))
+    lose_openssl_error("X509_VERIFY_PARAM_set_flags() failed");
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char x509_store_object_clear_flags__doc__[] =
+  "Clear validation flags for this X509Store.\n"
+  "\n"
+  "Argument is an integer containing bit flags to clear.\n"
+  ;
+
+static PyObject *
+x509_store_object_clear_flags (x509_store_object *self, PyObject *args)
+{
+  unsigned long flags;
+
+  if (!PyArg_ParseTuple(args, "k", &flags))
+    goto error;
+
+  if (!X509_VERIFY_PARAM_clear_flags(self->store->param, flags))
+    lose_openssl_error("X509_VERIFY_PARAM_clear_flags() failed");
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
 static struct PyMethodDef x509_store_object_methods[] = {
   Define_Method(addTrust,       x509_store_object_add_trust,            METH_VARARGS),
   Define_Method(addCrl,         x509_store_object_add_crl,              METH_VARARGS),
+  Define_Method(setCallback,	x509_store_object_set_callback,         METH_VARARGS),
+  Define_Method(setFlags,	x509_store_object_set_flags,            METH_VARARGS),
+  Define_Method(clearFlags,	x509_store_object_clear_flags,          METH_VARARGS),
   {NULL}
 };
 
@@ -3615,6 +3704,33 @@ static PyTypeObject POW_X509Store_Type = {
  * X509StoreCTX object.
  */
 
+static int 
+x509_store_ctx_object_verify_cb(int ok, X509_STORE_CTX *ctx)
+{
+  x509_store_ctx_object *self = X509_STORE_CTX_get_ex_data(ctx, x509_store_ctx_ex_data_idx);
+  x509_store_object *store = NULL;
+  PyObject *arglist = NULL;
+  PyObject *result = NULL;
+
+  if (self == NULL || (PyObject *) self == Py_None)
+    return ok;
+
+  store = self->store;
+
+  if (store == NULL || (PyObject *) store == Py_None ||
+      store->cb == NULL || (PyObject *) store->cb == Py_None)
+    return ok;
+
+  arglist = Py_BuildValue("(iO)", ok, self);
+  result = PyObject_CallObject(store->cb, arglist);
+
+  ok = result == NULL ? -1 : PyObject_IsTrue(result);
+
+  Py_XDECREF(arglist);
+  Py_XDECREF(result);
+  return ok;
+}
+
 static PyObject *
 x509_store_ctx_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
 {
@@ -3625,12 +3741,9 @@ x509_store_ctx_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNU
   if ((self = (x509_store_ctx_object *) type->tp_alloc(type, 0)) == NULL)
     goto error;
 
-  if ((self->ctx = X509_STORE_CTX_new()) == NULL)
-    lose_no_memory();
-
-  self->initialized = 0;
-  self->cb = Py_None;
-  Py_XINCREF(self->cb);
+  self->ctx = NULL;
+  self->store = (x509_store_object *) Py_None;
+  Py_XINCREF(self->store);
   return (PyObject *) self;    
 
  error:
@@ -3638,40 +3751,26 @@ x509_store_ctx_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNU
   return NULL;
 }
 
-static int 
-x509_store_ctx_object_verify_cb(int ok, X509_STORE_CTX *ctx)
-{
-  x509_store_ctx_object *self = X509_STORE_CTX_get_ex_data(ctx, x509_store_ctx_ex_data_idx);
-  PyObject *arglist = NULL;
-  PyObject *result = NULL;
-
-  if (self->cb != Py_None) {
-    arglist = Py_BuildValue("(iO)", ok, self);
-    result = PyObject_CallObject(self->cb, arglist);
-    ok = result == NULL ? -1 : PyObject_IsTrue(result);
-  }
-
-  Py_XDECREF(arglist);
-  Py_XDECREF(result);
-  return ok;
-}
-
 static int
-x509_store_ctx_object_init(x509_store_ctx_object *self, PyObject *args, PyObject *kwds)
+x509_store_ctx_object_init(x509_store_ctx_object *self, PyObject *args, GCC_UNUSED PyObject *kwds)
 {
-  static char *kwlist[] = {"store", NULL};
-  x509_store_object *store = NULL;
+  x509_store_object *store = (x509_store_object *) Py_None;
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O!", kwlist, &POW_X509Store_Type, &store))
+  if (!PyArg_ParseTuple(args, "|O!", &POW_X509Store_Type, &store))
     goto error;
+
+  if ((self->ctx = X509_STORE_CTX_new()) == NULL)
+    lose_no_memory();
 
   if (!X509_STORE_CTX_init(self->ctx, store ? store->store : NULL, NULL, NULL))
     lose_openssl_error("Couldn't initialize X509_STORE_CTX");
 
-  self->initialized = 1;
-
   if (!X509_STORE_CTX_set_ex_data(self->ctx, x509_store_ctx_ex_data_idx, self))
     lose_openssl_error("Couldn't set X509_STORE_CTX ex_data");
+
+  Py_XDECREF(self->store);
+  self->store = store;
+  Py_XINCREF(self->store);
 
   X509_VERIFY_PARAM_set_flags(self->ctx->param, X509_V_FLAG_X509_STRICT);
   X509_STORE_CTX_set_verify_cb(self->ctx, x509_store_ctx_object_verify_cb);
@@ -3685,10 +3784,8 @@ static void
 x509_store_ctx_object_dealloc(x509_store_ctx_object *self)
 {
   ENTERING(x509_store_ctx_object_dealloc);
-  if (self->initialized)
-    X509_STORE_CTX_cleanup(self->ctx);
   X509_STORE_CTX_free(self->ctx);
-  Py_XDECREF(self->cb);
+  Py_XDECREF(self->store);
   self->ob_type->tp_free((PyObject*) self);
 }
 
@@ -3738,37 +3835,6 @@ x509_store_ctx_object_verify(x509_store_ctx_object *self, PyObject *args)
   return result;
 }
 
-static char x509_store_ctx_object_set_callback__doc__[] =
-  "Set validation callback for this X509StoreCTX.\n"
-  "The callback  is a callable Python object which receives two\n"
-  "arguments, the integer \"ok\" value from the OpenSSL callback, and the\n"
-  "X509StoreCTX.  The return value from the callback is interpreted as a\n"
-  "boolean value: anything which evaluates to True will be interpreted as\n"
-  "allowing whatever the callback reported, while anything evaluating to False\n"
-  "will be interpreted as disallowing whatever the callback reported.\n"
-  ;
-
-static PyObject *
-x509_store_ctx_object_set_callback(x509_store_ctx_object *self, PyObject *args)
-{
-  PyObject *cb = Py_None;
-
-  if (!PyArg_ParseTuple(args, "O", &cb))
-    goto error;
-
-  if (cb != Py_None && !PyCallable_Check(cb))
-    lose("Object is not callable");
-
-  Py_XDECREF(self->cb);
-  self->cb = cb;
-  Py_XINCREF(self->cb);
-
-  Py_RETURN_NONE;
-
- error:
-  return NULL;
-}
-
 static char x509_store_ctx_object_get_error__doc__[] =
   "Extract verification error code from this X509StoreCTX.\n"
   ;
@@ -3799,97 +3865,20 @@ x509_store_ctx_object_get_error_depth (x509_store_ctx_object *self)
   return Py_BuildValue("i", X509_STORE_CTX_get_error_depth(self->ctx));
 }
 
-static PyObject*
-x509_store_ctx_object_get_flag_helper (x509_store_ctx_object *self, unsigned long flag)
-{
-  if ((X509_VERIFY_PARAM_get_flags(self->ctx->param) & flag) != 0)
-    Py_RETURN_TRUE;
-  else
-    Py_RETURN_FALSE;
-}
+/*
+ * For some reason, there are no methods for the policy mechanism for
+ * X509_STORE, only for X509_STORE_CTX.  Presumably we can whack these
+ * anyway using the X509_VERIFY_PARAM_*() calls, the question is
+ * whether there's a good reason for this omission.
+ *
+ * For the moment, I'm just going to leave the policy stuff
+ * unimplemented, until we figure out whether it belongs in X509Store
+ * or X509StoreCTX.
+ */
 
-static PyObject*
-x509_store_ctx_object_set_flag_helper (x509_store_ctx_object *self, unsigned long flag, PyObject *args)
-{
-  PyObject *value = NULL;
-  int ok;
+#define IMPLEMENT_X509StoreCTX_POLICY 0
 
-  if (!PyArg_ParseTuple(args, "O", &value))
-    goto error;
-
-  if (PyObject_IsTrue(value))
-    ok = X509_VERIFY_PARAM_set_flags(self->ctx->param, flag);
-  else
-    ok = X509_VERIFY_PARAM_clear_flags(self->ctx->param, flag);
-
-  if (!ok)
-    lose_openssl_error("Couldn't set X509_VERIFY_PARAM flag");
-
-  Py_RETURN_NONE;
-
- error:
-  return NULL;
-}
-
-static char x509_store_ctx_object_get_crl_check__doc__[] =
-  "Get state of X509_V_FLAG_CRL_CHECK flag from this X509StoreCTX.\n"
-  ;
-
-static PyObject*
-x509_store_ctx_object_get_crl_check (x509_store_ctx_object *self)
-{
-  return x509_store_ctx_object_get_flag_helper(self, X509_V_FLAG_CRL_CHECK);
-}
-
-static char x509_store_ctx_object_set_crl_check__doc__[] =
-  "Set state of X509_V_FLAG_CRL_CHECK flag from this X509StoreCTX.\n"
-  ;
-
-static PyObject*
-x509_store_ctx_object_set_crl_check (x509_store_ctx_object *self, PyObject *args)
-{
-  return x509_store_ctx_object_set_flag_helper(self, X509_V_FLAG_CRL_CHECK, args);
-}
-
-static char x509_store_ctx_object_get_crl_check_all__doc__[] =
-  "Get state of X509_V_FLAG_CRL_CHECK_ALL flag from this X509StoreCTX.\n"
-  ;
-
-static PyObject*
-x509_store_ctx_object_get_crl_check_all (x509_store_ctx_object *self)
-{
-  return x509_store_ctx_object_get_flag_helper(self, X509_V_FLAG_CRL_CHECK_ALL);
-}
-
-static char x509_store_ctx_object_set_crl_check_all__doc__[] =
-  "Set state of X509_V_FLAG_CRL_CHECK_ALL flag from this X509StoreCTX.\n"
-  ;
-
-static PyObject*
-x509_store_ctx_object_set_crl_check_all (x509_store_ctx_object *self, PyObject *args)
-{
-  return x509_store_ctx_object_set_flag_helper(self, X509_V_FLAG_CRL_CHECK_ALL, args);
-}
-
-static char x509_store_ctx_object_get_ignore_critical__doc__[] =
-  "Get state of X509_V_FLAG_IGNORE_CRITICAL flag from this X509StoreCTX.\n"
-  ;
-
-static PyObject*
-x509_store_ctx_object_get_ignore_critical (x509_store_ctx_object *self)
-{
-  return x509_store_ctx_object_get_flag_helper(self, X509_V_FLAG_IGNORE_CRITICAL);
-}
-
-static char x509_store_ctx_object_set_ignore_critical__doc__[] =
-  "Set state of X509_V_FLAG_IGNORE_CRITICAL flag from this X509StoreCTX.\n"
-  ;
-
-static PyObject*
-x509_store_ctx_object_set_ignore_critical (x509_store_ctx_object *self, PyObject *args)
-{
-  return x509_store_ctx_object_set_flag_helper(self, X509_V_FLAG_IGNORE_CRITICAL, args);
-}
+#if IMPLEMENT_X509StoreCTX_POLICY
 
 static char x509_store_ctx_object_set_policy__doc__[] =
   "Set this X509StoreCTX to require a specified certificate policy.\n"
@@ -3920,6 +3909,8 @@ x509_store_ctx_object_set_policy (x509_store_ctx_object *self, PyObject *args)
   return NULL;
 }
 
+#endif /* IMPLEMENT_X509StoreCTX_POLICY */
+
 /*
  * See (omnibus) man page for X509_STORE_CTX_get_error() for other
  * query methods we might want to expose.  Someday we might want to
@@ -3928,17 +3919,12 @@ x509_store_ctx_object_set_policy (x509_store_ctx_object *self, PyObject *args)
 
 static struct PyMethodDef x509_store_ctx_object_methods[] = {
   Define_Method(verify,		    x509_store_ctx_object_verify,               METH_VARARGS),
-  Define_Method(setCallback,	    x509_store_ctx_object_set_callback,		METH_VARARGS),
   Define_Method(getError,	    x509_store_ctx_object_get_error,            METH_NOARGS),
   Define_Method(getErrorString,	    x509_store_ctx_object_get_error_string,	METH_NOARGS),
   Define_Method(getErrorDepth,	    x509_store_ctx_object_get_error_depth,      METH_NOARGS),
-  Define_Method(getCRLCheck,	    x509_store_ctx_object_get_crl_check,	METH_NOARGS),
-  Define_Method(setCRLCheck,	    x509_store_ctx_object_set_crl_check,	METH_VARARGS),
-  Define_Method(getCRLCheckAll,	    x509_store_ctx_object_get_crl_check_all,    METH_NOARGS),
-  Define_Method(setCRLCheckAll,     x509_store_ctx_object_set_crl_check_all,    METH_VARARGS),
-  Define_Method(getIgnoreCritical,  x509_store_ctx_object_get_ignore_critical, 	METH_NOARGS),
-  Define_Method(setIgnoreCritical,  x509_store_ctx_object_set_ignore_critical, 	METH_VARARGS),
+#if IMPLEMENT_X509StoreCTX_POLICY
   Define_Method(setPolicy,	    x509_store_ctx_object_set_policy,		METH_VARARGS),
+#endif
  {NULL}
 };
 
@@ -8701,6 +8687,21 @@ init_POW(void)
   Define_Integer_Constant(CMS_NO_ATTR_VERIFY);
   Define_Integer_Constant(CMS_NO_CONTENT_VERIFY);
 
+  /* X509 validation flags */
+  Define_Integer_Constant(X509_V_FLAG_CB_ISSUER_CHECK);
+  Define_Integer_Constant(X509_V_FLAG_USE_CHECK_TIME);
+  Define_Integer_Constant(X509_V_FLAG_CRL_CHECK);
+  Define_Integer_Constant(X509_V_FLAG_CRL_CHECK_ALL);
+  Define_Integer_Constant(X509_V_FLAG_IGNORE_CRITICAL);
+  Define_Integer_Constant(X509_V_FLAG_X509_STRICT);
+  Define_Integer_Constant(X509_V_FLAG_ALLOW_PROXY_CERTS);
+  Define_Integer_Constant(X509_V_FLAG_POLICY_CHECK);
+  Define_Integer_Constant(X509_V_FLAG_EXPLICIT_POLICY);
+  Define_Integer_Constant(X509_V_FLAG_INHIBIT_ANY);
+  Define_Integer_Constant(X509_V_FLAG_INHIBIT_MAP);
+  Define_Integer_Constant(X509_V_FLAG_NOTIFY_POLICY);
+  Define_Integer_Constant(X509_V_FLAG_CHECK_SS_SIGNATURE);
+  
   /* X509 validation error codes */
   Define_Integer_Constant(X509_V_OK);
   Define_Integer_Constant(X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT);

@@ -3746,7 +3746,7 @@ x509_store_ctx_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNU
 static int
 x509_store_ctx_object_init(x509_store_ctx_object *self, PyObject *args, GCC_UNUSED PyObject *kwds)
 {
-  x509_store_object *store = (x509_store_object *) Py_None;
+  x509_store_object *store = NULL;
 
   if (!PyArg_ParseTuple(args, "|O!", &POW_X509Store_Type, &store))
     goto error;
@@ -3761,7 +3761,7 @@ x509_store_ctx_object_init(x509_store_ctx_object *self, PyObject *args, GCC_UNUS
     lose_openssl_error("Couldn't set X509_STORE_CTX ex_data");
 
   Py_XDECREF(self->store);
-  self->store = ((PyObject *) store == Py_None) ? NULL : store;
+  self->store = store;
   Py_XINCREF(self->store);
 
   X509_VERIFY_PARAM_set_flags(self->ctx->param, X509_V_FLAG_X509_STRICT);

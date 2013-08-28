@@ -34,6 +34,7 @@ import rpki.resource_set
 
 tals = {}
 constraints = None
+rcynic_root = None
 
 serial = long(time.time()) << 32
 
@@ -69,10 +70,9 @@ def main():
   print
   print "Loading DB"
   rpdb.load()
-  if False:
-    print
-    print "Initializing nochain attributes"
-    rpdb.initialize_chains()
+  print
+  print "Validating DB"
+  rpdb.validate()
   print
   print "Processing targets"
   process_targets(rpdb)
@@ -132,8 +132,10 @@ def create_ca():
 def parse_yaml(fn = "rcynic-lta.yaml"):
   global tals
   global constraints
+  global rcynic_root
   y = yaml.safe_load(open(fn, "r"))
   constraints = y["constraints"]
+  rcynic_root = y["rcynic-root"]
   for fn in glob.iglob(os.path.join(y["tal-directory"], "*.tal")):
     with open(fn, "r") as f:
       uri = f.readline().strip()
@@ -333,7 +335,7 @@ class RPDB(object):
                   aki BLOB,
                   issuer TEXT,
                   subject TEXT,
-                  nochain   BOOLEAN NOT NULL DEFAULT 0,
+                  nochain   BOOLEAN NOT NULL DEFAULT 1,
                   original  BOOLEAN NOT NULL DEFAULT 0,
                   para      BOOLEAN NOT NULL DEFAULT 0,
                   target    BOOLEAN NOT NULL DEFAULT 0,
@@ -361,11 +363,8 @@ class RPDB(object):
           CREATE INDEX range_index ON range(min, max);
           ''')
 
-  # Note that we need to read the authenticated tree, not the
-  # unauthenticated tree, as the draft says it assumes that its input
-  # certificates have already passed some kind of validation.
 
-  def load(self, rcynic_root = os.path.expanduser("~/rpki/subvert-rpki.hactrn.net/trunk/rcynic/rcynic-data/authenticated"), spinner = 100):
+  def load(self, spinner = 100):
 
     nobj = 0
 
@@ -666,24 +665,99 @@ class RPDB(object):
     self.db.close()
 
 
-  def initialize_chains(self):
+  def validate(self, spinner = 100):
+
+    # SQL queries here could be tighter: use subject and issuer in addition to SKI and AKI,
+    # and don't retrieve certificates and CRLs twice.
+
+    class Verifier(rpki.POW.X509StoreCTX):
+      def verify_callback(self, ok):
+        return ok or self.getError() in (rpki.POW.X509_V_ERR_UNNESTED_RESOURCE,
+                                           rpki.POW.X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
+
+    nobj = 0
+    spin = 0
+    skip = 0
+
+    store = rpki.POW.X509Store()
+    store.setFlags(rpki.POW.X509_V_FLAG_CRL_CHECK_ALL)
+    store.setContextClass(Verifier)
+
+    issuers = []
+
     for uri, key in tals.iteritems():
       cer = self.find_by_uri(uri)[0]
       if cer.getPublicKey() == key:
         cer.nochain = False
+        issuers.append(cer)
       else:
         print "TAL public key mismatch for %s, skipping: %s %s" % (uri, key.hSKI(), cer.hSKI())
-    before = after = None
-    while before is None or before != after:
-      before = after
-      self.cur.execute(
-        """
-        UPDATE object SET nochain = 0
-        WHERE aki || issuer IN (SELECT ski || subject FROM object WHERE fn2 = 'cer' AND nochain = 0)
-        """)
-      self.cur.execute("SELECT SUM(nochain) FROM object")
-      after = self.cur.fetchone()[0]
-    self.db.commit()
+
+    while issuers:
+      issuer = issuers.pop(0)
+      store.addTrust(issuer.get_POW())
+      nobj += 1
+
+      if spinner:
+        spin += 1
+        sys.stderr.write("\r%s %d (%d)...\r" % ("|\\-/"[spin & 3], nobj, skip))
+
+      for crl in self.find_by_aki(issuer.get_SKI(), "crl"):
+        if not crl.nochain:
+          skip += 1
+          continue
+        if crl.get_POW().verify(issuer.getPublicKey().get_POW()):
+          nobj += 1
+          crl.nochain = False
+          store.addCrl(crl.get_POW())
+        else:
+          print "CRL didn't verify: CRL %s (%s), issuer %s (%s)" % (
+            crl.uri, crl.hAKI(), issuer.uri, issuer.hSKI())
+
+      for cer in self.find_by_aki(issuer.get_SKI(), "cer"):
+        if not cer.nochain:
+          skip += 1
+          continue
+        ctx = store.verify(cer.get_POW())
+        if not ctx.getError():
+          nobj += 1
+          cer.nochain = False
+          issuers.append(cer)
+        else:
+          print "Certificate didn't verify: subject %s (%s), issuer %s (%s), reason %r" % (
+            cer.uri, cer.hAKI(), issuer.uri, issuer.hSKI(), ctx.getErrorString())
+
+      for obj in self.find_by_aki(issuer.get_SKI()):
+        if isinstance(obj, (X509, CRL)):
+          continue
+        if not obj.nochain:
+          skip += 1
+          continue
+        try:
+          for cer in obj.get_POW().certs():
+            ctx = store.verify(cer)
+            if ctx.getError():
+              print "CMS object certificate didn't verify: subject %s (%s), issuer %s (%s), reason %r" % (
+                obj.uri, ":".join(("%02X" % ord(i) for i in cer.getAKI())),
+                issuer.uri, issuer.hSKI(), ctx.getErrorString())
+              raise RuntimeError
+        except RuntimeError:
+          continue
+        try:
+          obj.get_POW().verify(store, flags = rpki.POW.CMS_NO_SIGNER_CERT_VERIFY)
+        except rpki.POW.OpenSSLError:
+          print "CMS object didn't verify: subject %s, issuer %s" % (obj.uri, issuer.uri)
+        else:
+          nobj += 1
+          obj.nochain = False
+
+    if spinner:
+      sys.stderr.write("\r= %d objects.\n" % nobj)
+
+    # Maybe we should just delete anything with nochain still set from
+    # SQL now that we're done validating?  I think all later steps
+    # tell us to ignore it, so would be simpler if this really is a
+    # one-shot database.
 
 
 def test(rpdb):

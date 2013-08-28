@@ -3737,7 +3737,7 @@ x509_store_object_verify(x509_store_object *self, PyObject *args)
 
   sk_X509_free(stack);
 
-  if (ok < 0 && PyErr_Occurred())
+  if (PyErr_Occurred())
     goto error;
 
   if (ok < 0)

@@ -3828,7 +3828,7 @@ x509_store_ctx_object_verify_cb(int ok, X509_STORE_CTX *ctx)
   if ((result = PyObject_CallMethod(self, method_name, "i", ok)) == NULL)
     return -1;
 
-  ok = result == NULL ? -1 : PyObject_IsTrue(result);
+  ok = PyObject_IsTrue(result);
   Py_XDECREF(result);
   return ok;
 }

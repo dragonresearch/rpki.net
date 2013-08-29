@@ -287,6 +287,17 @@ class SignedManifest    (rpki.x509.SignedManifest,  DER_object_mixin): pass
 class ROA               (rpki.x509.ROA,             DER_object_mixin): pass
 class Ghostbuster       (rpki.x509.Ghostbuster,     DER_object_mixin): pass
 
+class VerifyContextNoRFC3779(rpki.POW.X509StoreCTX):
+  """
+  Provide callback for OpenSSL certificate verification.  Ignores RFC
+  3779 nesting errors and warnings about self-signed TA certificates.
+  """
+
+  def verify_callback(self, ok):
+    return ok or self.getError() in (rpki.POW.X509_V_ERR_UNNESTED_RESOURCE,
+                                     rpki.POW.X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
+
+
 class RPDB(object):
   """
   Relying party database.
@@ -664,18 +675,13 @@ class RPDB(object):
 
   def validate(self, spinner = 100):
 
-    class Verifier(rpki.POW.X509StoreCTX):
-      def verify_callback(self, ok):
-        return ok or self.getError() in (rpki.POW.X509_V_ERR_UNNESTED_RESOURCE,
-                                         rpki.POW.X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
-
     spin = 0
     seen = set()
     start = rpki.sundial.now()
 
     store = rpki.POW.X509Store()
     store.setFlags(rpki.POW.X509_V_FLAG_CRL_CHECK_ALL)
-    store.setContextClass(Verifier)
+    store.setContextClass(VerifyContextNoRFC3779)
 
     issuers = []
 
@@ -714,7 +720,7 @@ class RPDB(object):
       self.cur.execute(query + "fn2 = 'cer'", args)
       cers = self.cur.fetchall()
 
-      self.cur.execute(query + "fn2 != 'crl' AND fn2 != 'cer'", args)
+      self.cur.execute(query + "fn2 <> 'crl' AND fn2 <> 'cer'", args)
       objs = self.cur.fetchall()
       
       for rowid, der in crls:
@@ -752,51 +758,6 @@ class RPDB(object):
 
     #self.cur.execute("DELETE FROM object WHERE nochain = 1")
     self.db.commit()
-
-
-def test(rpdb):
-  fn2s = [None] + rpdb.fn2map.keys()
-
-  print
-  print "Looking for certificates without AKI"
-  for r in rpdb.find_by_aki(None, "cer"):
-    print r, r.uris
-  print
-  print "Testing range functions"
-  for fn2 in fn2s:
-    if fn2 is not None:
-      print
-      print "Restricting search to type", fn2
-    print
-    print "Looking for range that should include adrilankha and psg again"
-    for r in rpdb.find_by_range("147.28.0.19", "147.28.0.62", fn2):
-      print r, r.uris
-    print
-    print "Looking for range that should include adrilankha"
-    for r in rpdb.find_by_range("147.28.0.19", "147.28.0.19", fn2):
-      print r, r.uris
-    print
-    print "Looking for range that should include ASN 3130"
-    for r in rpdb.find_by_range(3130, 3130, fn2):
-      print r, r.uris
-  print
-  print "Moving on to resource sets"
-  for fn2 in fn2s:
-    if fn2 is not None:
-      print
-      print "Restricting search to type", fn2
-    for expr in ("147.28.0.19-147.28.0.62",
-                 "3130",
-                 "2001:418:1::19/128",
-                 "147.28.0.19-147.28.0.62,198.180.150.50/32",
-                 "3130,147.28.0.19-147.28.0.62,198.180.150.50/32",
-                 "2001:418:1::62/128,198.180.150.50/32,2001:418:8006::50/128",
-                 "147.28.0.19-147.28.0.62,2001:418:1::19/128,2001:418:1::62/128,198.180.150.50/32,2001:418:8006::50/128"):
-      print
-      print "Trying", expr
-      for r in rpdb.find_by_resource_bag(rpki.resource_set.resource_bag.from_str(expr), fn2):
-        print r, r.uris
-
 
 
 if __name__ == "__main__":

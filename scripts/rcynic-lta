@@ -664,13 +664,10 @@ class RPDB(object):
 
   def validate(self, spinner = 100):
 
-    # SQL queries here could be tighter: use subject and issuer in addition to SKI and AKI,
-    # and don't retrieve certificates and CRLs twice.
-
     class Verifier(rpki.POW.X509StoreCTX):
       def verify_callback(self, ok):
         return ok or self.getError() in (rpki.POW.X509_V_ERR_UNNESTED_RESOURCE,
-                                           rpki.POW.X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
+                                         rpki.POW.X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
 
     spin = 0
     seen = set()
@@ -695,8 +692,6 @@ class RPDB(object):
           seen.add(rowid)
           self.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
           issuers.append(cer)
-
-    #self.db.commit()
 
     while issuers:
       issuer = issuers.pop(0)
@@ -751,8 +746,6 @@ class RPDB(object):
           self.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
         except (RuntimeError, rpki.POW.OpenSSLError):
           pass
-
-      #self.db.commit()
 
     if spinner:
       sys.stderr.write("\r= %d objects in %s.\n" % (len(seen), rpki.sundial.now() - start))

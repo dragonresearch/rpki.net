@@ -32,9 +32,9 @@ import rpki.resource_set
 
 # Lots of icky global variables, clean this up later.
 
-tals = {}
-constraints = None
-rcynic_root = None
+tal_directory = None
+constraints   = None
+rcynic_root   = None
 
 serial = long(time.time()) << 32
 
@@ -130,17 +130,13 @@ def create_ca():
 
 
 def parse_yaml(fn = "rcynic-lta.yaml"):
-  global tals
+  global tal_directory
   global constraints
   global rcynic_root
   y = yaml.safe_load(open(fn, "r"))
+  tal_directory = y["tal-directory"]
   constraints = y["constraints"]
   rcynic_root = y["rcynic-root"]
-  for fn in glob.iglob(os.path.join(y["tal-directory"], "*.tal")):
-    with open(fn, "r") as f:
-      uri = f.readline().strip()
-      key = rpki.x509.RSApublic(Base64 = f.read())
-      tals[uri] = key
 
 
 def process_targets(rpdb):
@@ -366,6 +362,7 @@ class RPDB(object):
 
   def load(self, spinner = 100):
 
+    start = rpki.sundial.now()
     nobj = 0
 
     for root, dirs, files in os.walk(rcynic_root):
@@ -379,7 +376,7 @@ class RPDB(object):
           continue
 
         if spinner and nobj % spinner == 0:
-          sys.stderr.write("\r%s %d..." % ("|\\-/"[(nobj/spinner) & 3], nobj))
+          sys.stderr.write("\r%s %d %s..." % ("|\\-/"[(nobj/spinner) & 3], nobj, rpki.sundial.now() - start))
 
         nobj += 1
 
@@ -431,7 +428,7 @@ class RPDB(object):
                          (rowid, uri))
 
     if spinner:
-      sys.stderr.write("\r= %d objects, committing..." % nobj)
+      sys.stderr.write("\r= %d objects in %s, committing..." % (nobj, rpki.sundial.now() - start))
 
     self.db.commit()
 
@@ -675,9 +672,9 @@ class RPDB(object):
         return ok or self.getError() in (rpki.POW.X509_V_ERR_UNNESTED_RESOURCE,
                                            rpki.POW.X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
 
-    nobj = 0
     spin = 0
-    skip = 0
+    seen = set()
+    start = rpki.sundial.now()
 
     store = rpki.POW.X509Store()
     store.setFlags(rpki.POW.X509_V_FLAG_CRL_CHECK_ALL)
@@ -685,79 +682,83 @@ class RPDB(object):
 
     issuers = []
 
-    for uri, key in tals.iteritems():
-      cer = self.find_by_uri(uri)[0]
-      if cer.getPublicKey() == key:
-        cer.nochain = False
-        issuers.append(cer)
-      else:
-        print "TAL public key mismatch for %s, skipping: %s %s" % (uri, key.hSKI(), cer.hSKI())
+    for fn in glob.iglob(os.path.join(tal_directory, "*.tal")):
+      with open(fn, "r") as f:
+        uri = f.readline().strip()
+        key = rpki.POW.Asymmetric.derReadPublic(base64.b64decode(f.read()))
+      self.cur.execute("SELECT id, der FROM object WHERE nochain = 1 AND fn2 = 'cer' AND ski = ?",
+                       (buffer(key.calculateSKI()),))
+      for rowid, der in self.cur.fetchall():
+        assert rowid not in seen
+        cer = rpki.POW.X509.derRead(der)
+        if cer.getPublicKey().derWritePublic() == key.derWritePublic():
+          seen.add(rowid)
+          self.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
+          issuers.append(cer)
+
+    #self.db.commit()
 
     while issuers:
       issuer = issuers.pop(0)
-      store.addTrust(issuer.get_POW())
-      nobj += 1
+      issuer_key = issuer.getPublicKey()
+      store.addTrust(issuer)
 
       if spinner:
         spin += 1
-        sys.stderr.write("\r%s %d (%d)...\r" % ("|\\-/"[spin & 3], nobj, skip))
+        sys.stderr.write("\r%s %d %s...\r" % ("|\\-/"[spin & 3], len(seen), rpki.sundial.now() - start))
 
-      for crl in self.find_by_aki(issuer.get_SKI(), "crl"):
-        if not crl.nochain:
-          skip += 1
-          continue
-        if crl.get_POW().verify(issuer.getPublicKey().get_POW()):
-          nobj += 1
-          crl.nochain = False
-          store.addCrl(crl.get_POW())
-        else:
-          print "CRL didn't verify: CRL %s (%s), issuer %s (%s)" % (
-            crl.uri, crl.hAKI(), issuer.uri, issuer.hSKI())
+      # Do all the queries up front, as it may be a little faster than
+      # interleaving queries and updates.
 
-      for cer in self.find_by_aki(issuer.get_SKI(), "cer"):
-        if not cer.nochain:
-          skip += 1
-          continue
-        ctx = store.verify(cer.get_POW())
+      query = "SELECT id, der FROM object WHERE nochain = 1 AND aki = ? AND issuer = ? AND "
+      args  = (buffer(issuer.getSKI()), rpki.x509.X501DN.from_POW(issuer.getSubject()))
+
+      self.cur.execute(query + "fn2 = 'crl'", args)
+      crls = self.cur.fetchall()
+
+      self.cur.execute(query + "fn2 = 'cer'", args)
+      cers = self.cur.fetchall()
+
+      self.cur.execute(query + "fn2 != 'crl' AND fn2 != 'cer'", args)
+      objs = self.cur.fetchall()
+      
+      for rowid, der in crls:
+        assert rowid not in seen
+        crl = rpki.POW.CRL.derRead(der)
+        if crl.verify(issuer_key):
+          seen.add(rowid)
+          self.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
+          store.addCrl(crl)
+
+      for rowid, der in cers:
+        assert rowid not in seen
+        cer = rpki.POW.X509.derRead(der)
+        ctx = store.verify(cer)
         if not ctx.getError():
-          nobj += 1
-          cer.nochain = False
+          seen.add(rowid)
+          self.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
           issuers.append(cer)
-        else:
-          print "Certificate didn't verify: subject %s (%s), issuer %s (%s), reason %r" % (
-            cer.uri, cer.hAKI(), issuer.uri, issuer.hSKI(), ctx.getErrorString())
 
-      for obj in self.find_by_aki(issuer.get_SKI()):
-        if isinstance(obj, (X509, CRL)):
-          continue
-        if not obj.nochain:
-          skip += 1
-          continue
+      for rowid, der in objs:
+        assert rowid not in seen
+        obj = rpki.POW.CMS.derRead(der)
         try:
-          for cer in obj.get_POW().certs():
-            ctx = store.verify(cer)
-            if ctx.getError():
-              print "CMS object certificate didn't verify: subject %s (%s), issuer %s (%s), reason %r" % (
-                obj.uri, ":".join(("%02X" % ord(i) for i in cer.getAKI())),
-                issuer.uri, issuer.hSKI(), ctx.getErrorString())
+          for cer in obj.certs():
+            if store.verify(cer).getError():
               raise RuntimeError
-        except RuntimeError:
-          continue
-        try:
-          obj.get_POW().verify(store, flags = rpki.POW.CMS_NO_SIGNER_CERT_VERIFY)
-        except rpki.POW.OpenSSLError:
-          print "CMS object didn't verify: subject %s, issuer %s" % (obj.uri, issuer.uri)
-        else:
-          nobj += 1
-          obj.nochain = False
+          obj.verify(store, flags = rpki.POW.CMS_NO_SIGNER_CERT_VERIFY)
+          seen.add(rowid)
+          self.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
+        except (RuntimeError, rpki.POW.OpenSSLError):
+          pass
+
+      #self.db.commit()
 
     if spinner:
-      sys.stderr.write("\r= %d objects.\n" % nobj)
+      sys.stderr.write("\r= %d objects in %s.\n" % (len(seen), rpki.sundial.now() - start))
 
-    # Maybe we should just delete anything with nochain still set from
-    # SQL now that we're done validating?  I think all later steps
-    # tell us to ignore it, so would be simpler if this really is a
-    # one-shot database.
+    #self.cur.execute("DELETE FROM object WHERE nochain = 1")
+    self.db.commit()
 
 
 def test(rpdb):

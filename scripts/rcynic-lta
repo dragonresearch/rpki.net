@@ -324,7 +324,6 @@ class Verifier(object):
     self.store.setContextClass(VerifyContextNoRFC3779)
 
     self.spin = 0
-    self.seen = set()
     self.start = rpki.sundial.now()
 
     for fn in glob.iglob(os.path.join(tal_directory, "*.tal")):
@@ -335,15 +334,13 @@ class Verifier(object):
           "SELECT id, der FROM object WHERE nochain = 1 AND fn2 = 'cer' AND ski = ?",
           (buffer(key.calculateSKI()),))
       for rowid, der in self.rpdb.cur.fetchall():
-        assert rowid not in self.seen
         cer = rpki.POW.X509.derRead(der)
         if cer.getPublicKey().derWritePublic() == key.derWritePublic():
-          self.seen.add(rowid)
           self.rpdb.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
           self.walk_tree(cer, rowid)
 
     sys.stderr.write("\r= %d objects in %s, committing..." % (
-        len(self.seen), rpki.sundial.now() - self.start))
+        (self.counter + 1) / 2, rpki.sundial.now() - self.start))
 
     #self.rpdb.cur.execute("DELETE FROM object WHERE nochain = 1")
     self.rpdb.db.commit()
@@ -353,7 +350,7 @@ class Verifier(object):
 
   def query(self, where, args):
     self.rpdb.cur.execute(
-        "SELECT id, der FROM object WHERE nochain = 1 AND aki = ? AND issuer = ? AND" + where,
+        "SELECT id, der FROM object WHERE nochain = 1 AND aki = ? AND issuer = ? AND " + where,
         args)
     return self.rpdb.cur.fetchall()
 
@@ -373,30 +370,26 @@ class Verifier(object):
 
       self.spin += 1
       sys.stderr.write("\r%s %d %s...\r" % ("|\\-/"[self.spin & 3],
-                                            len(self.seen),
+                                            (self.counter + 1) / 2,
                                             rpki.sundial.now() - self.start))
 
       args  = (buffer(issuer.getSKI()), rpki.x509.X501DN.from_POW(issuer.getSubject()))
 
       for rowid, der in self.query("fn2 = 'crl'", args):
-        assert rowid not in self.seen
         crl = rpki.POW.CRL.derRead(der)
         if crl.verify(issuer_key):
-          self.seen.add(rowid)
           self.rpdb.cur.execute(
               "UPDATE object SET nochain = 0, left_paren = ?, right_paren = ? WHERE id = ?",
               (self.next_counter(), self.next_counter(), rowid))
           self.store.addCrl(crl)
 
       for rowid, der in self.query("fn2 <> 'crl' AND fn2 <> 'cer'", args):
-        assert rowid not in self.seen
         obj = rpki.POW.CMS.derRead(der)
         try:
           for cer in obj.certs():
             if self.store.verify(cer).getError():
               raise RuntimeError
           obj.verify(self.store, flags = rpki.POW.CMS_NO_SIGNER_CERT_VERIFY)
-          self.seen.add(rowid)
           self.rpdb.cur.execute(
               "UPDATE object SET nochain = 0, left_paren = ?, right_paren = ? WHERE id = ?",
               (self.next_counter(), self.next_counter(), rowid))
@@ -404,11 +397,9 @@ class Verifier(object):
           pass
 
       for rowid, der in self.query("fn2 = 'cer'", args):
-        assert rowid not in self.seen
         cer = rpki.POW.X509.derRead(der)
         ctx = self.store.verify(cer)
         if not ctx.getError():
-          self.seen.add(rowid)
           self.walk_tree(cer, rowid)
 
       self.rpdb.cur.execute(

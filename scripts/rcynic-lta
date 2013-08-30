@@ -281,11 +281,20 @@ class DER_object_mixin(object):
   @target.setter
   def target(self, value): self._update_bool("target", value)
 
-class X509              (rpki.x509.X509,            DER_object_mixin): pass
-class CRL               (rpki.x509.CRL,             DER_object_mixin): pass
-class SignedManifest    (rpki.x509.SignedManifest,  DER_object_mixin): pass
-class ROA               (rpki.x509.ROA,             DER_object_mixin): pass
-class Ghostbuster       (rpki.x509.Ghostbuster,     DER_object_mixin): pass
+class X509              (rpki.x509.X509,            DER_object_mixin):
+    pass
+
+class CRL               (rpki.x509.CRL,             DER_object_mixin):
+    pass
+
+class SignedManifest    (rpki.x509.SignedManifest,  DER_object_mixin):
+    pass
+
+class ROA               (rpki.x509.ROA,             DER_object_mixin):
+    pass
+
+class Ghostbuster       (rpki.x509.Ghostbuster,     DER_object_mixin):
+    pass
 
 class VerifyContextNoRFC3779(rpki.POW.X509StoreCTX):
   """
@@ -296,6 +305,115 @@ class VerifyContextNoRFC3779(rpki.POW.X509StoreCTX):
   def verify_callback(self, ok):
     return ok or self.getError() in (rpki.POW.X509_V_ERR_UNNESTED_RESOURCE,
                                      rpki.POW.X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
+
+
+class Verifier(object):
+  """
+  Perform X.509 and CMS validation checks and store markers indicating
+  shape of the resulting tree in SQL.
+  """
+
+  # http://mikehillyer.com/articles/managing-hierarchical-data-in-mysql/
+
+  def __init__(self, rpdb):
+    self.rpdb = rpdb
+    self.counter = 0
+
+    self.store = rpki.POW.X509Store()
+    self.store.setFlags(rpki.POW.X509_V_FLAG_CRL_CHECK_ALL)
+    self.store.setContextClass(VerifyContextNoRFC3779)
+
+    self.spin = 0
+    self.seen = set()
+    self.start = rpki.sundial.now()
+
+    for fn in glob.iglob(os.path.join(tal_directory, "*.tal")):
+      with open(fn, "r") as f:
+        uri = f.readline().strip()
+        key = rpki.POW.Asymmetric.derReadPublic(base64.b64decode(f.read()))
+      self.rpdb.cur.execute(
+          "SELECT id, der FROM object WHERE nochain = 1 AND fn2 = 'cer' AND ski = ?",
+          (buffer(key.calculateSKI()),))
+      for rowid, der in self.rpdb.cur.fetchall():
+        assert rowid not in self.seen
+        cer = rpki.POW.X509.derRead(der)
+        if cer.getPublicKey().derWritePublic() == key.derWritePublic():
+          self.seen.add(rowid)
+          self.rpdb.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
+          self.walk_tree(cer, rowid)
+
+    sys.stderr.write("\r= %d objects in %s, committing..." % (
+        len(self.seen), rpki.sundial.now() - self.start))
+
+    #self.rpdb.cur.execute("DELETE FROM object WHERE nochain = 1")
+    self.rpdb.db.commit()
+
+    sys.stderr.write("done.\n")
+
+
+  def query(self, where, args):
+    self.rpdb.cur.execute(
+        "SELECT id, der FROM object WHERE nochain = 1 AND aki = ? AND issuer = ? AND" + where,
+        args)
+    return self.rpdb.cur.fetchall()
+
+
+  def next_counter(self):
+    self.counter += 1
+    return self.counter
+
+
+  def walk_tree(self, issuer, issuer_id):
+      issuer_key = issuer.getPublicKey()
+      self.store.addTrust(issuer)
+
+      self.rpdb.cur.execute(
+          "UPDATE object SET nochain = 0, left_paren = ? WHERE id = ?",
+          (self.next_counter(), issuer_id))
+
+      self.spin += 1
+      sys.stderr.write("\r%s %d %s...\r" % ("|\\-/"[self.spin & 3],
+                                            len(self.seen),
+                                            rpki.sundial.now() - self.start))
+
+      args  = (buffer(issuer.getSKI()), rpki.x509.X501DN.from_POW(issuer.getSubject()))
+
+      for rowid, der in self.query("fn2 = 'crl'", args):
+        assert rowid not in self.seen
+        crl = rpki.POW.CRL.derRead(der)
+        if crl.verify(issuer_key):
+          self.seen.add(rowid)
+          self.rpdb.cur.execute(
+              "UPDATE object SET nochain = 0, left_paren = ?, right_paren = ? WHERE id = ?",
+              (self.next_counter(), self.next_counter(), rowid))
+          self.store.addCrl(crl)
+
+      for rowid, der in self.query("fn2 <> 'crl' AND fn2 <> 'cer'", args):
+        assert rowid not in self.seen
+        obj = rpki.POW.CMS.derRead(der)
+        try:
+          for cer in obj.certs():
+            if self.store.verify(cer).getError():
+              raise RuntimeError
+          obj.verify(self.store, flags = rpki.POW.CMS_NO_SIGNER_CERT_VERIFY)
+          self.seen.add(rowid)
+          self.rpdb.cur.execute(
+              "UPDATE object SET nochain = 0, left_paren = ?, right_paren = ? WHERE id = ?",
+              (self.next_counter(), self.next_counter(), rowid))
+        except (RuntimeError, rpki.POW.OpenSSLError):
+          pass
+
+      for rowid, der in self.query("fn2 = 'cer'", args):
+        assert rowid not in self.seen
+        cer = rpki.POW.X509.derRead(der)
+        ctx = self.store.verify(cer)
+        if not ctx.getError():
+          self.seen.add(rowid)
+          self.walk_tree(cer, rowid)
+
+      self.rpdb.cur.execute(
+          "UPDATE object SET right_paren = ? WHERE id = ?",
+          (self.next_counter(), issuer_id))
 
 
 class RPDB(object):
@@ -346,6 +464,8 @@ class RPDB(object):
                   original  BOOLEAN NOT NULL DEFAULT 0,
                   para      BOOLEAN NOT NULL DEFAULT 0,
                   target    BOOLEAN NOT NULL DEFAULT 0,
+                  left_paren INTEGER,
+                  right_paren INTEGER,
                   UNIQUE (der));
 
           CREATE TABLE uri (
@@ -673,91 +793,8 @@ class RPDB(object):
     self.db.close()
 
 
-  def validate(self, spinner = 100):
-
-    spin = 0
-    seen = set()
-    start = rpki.sundial.now()
-
-    store = rpki.POW.X509Store()
-    store.setFlags(rpki.POW.X509_V_FLAG_CRL_CHECK_ALL)
-    store.setContextClass(VerifyContextNoRFC3779)
-
-    issuers = []
-
-    for fn in glob.iglob(os.path.join(tal_directory, "*.tal")):
-      with open(fn, "r") as f:
-        uri = f.readline().strip()
-        key = rpki.POW.Asymmetric.derReadPublic(base64.b64decode(f.read()))
-      self.cur.execute("SELECT id, der FROM object WHERE nochain = 1 AND fn2 = 'cer' AND ski = ?",
-                       (buffer(key.calculateSKI()),))
-      for rowid, der in self.cur.fetchall():
-        assert rowid not in seen
-        cer = rpki.POW.X509.derRead(der)
-        if cer.getPublicKey().derWritePublic() == key.derWritePublic():
-          seen.add(rowid)
-          self.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
-          issuers.append(cer)
-
-    while issuers:
-      issuer = issuers.pop(0)
-      issuer_key = issuer.getPublicKey()
-      store.addTrust(issuer)
-
-      if spinner:
-        spin += 1
-        sys.stderr.write("\r%s %d %s...\r" % ("|\\-/"[spin & 3], len(seen), rpki.sundial.now() - start))
-
-      # Do all the queries up front, as it may be a little faster than
-      # interleaving queries and updates.
-
-      query = "SELECT id, der FROM object WHERE nochain = 1 AND aki = ? AND issuer = ? AND "
-      args  = (buffer(issuer.getSKI()), rpki.x509.X501DN.from_POW(issuer.getSubject()))
-
-      self.cur.execute(query + "fn2 = 'crl'", args)
-      crls = self.cur.fetchall()
-
-      self.cur.execute(query + "fn2 = 'cer'", args)
-      cers = self.cur.fetchall()
-
-      self.cur.execute(query + "fn2 <> 'crl' AND fn2 <> 'cer'", args)
-      objs = self.cur.fetchall()
-      
-      for rowid, der in crls:
-        assert rowid not in seen
-        crl = rpki.POW.CRL.derRead(der)
-        if crl.verify(issuer_key):
-          seen.add(rowid)
-          self.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
-          store.addCrl(crl)
-
-      for rowid, der in cers:
-        assert rowid not in seen
-        cer = rpki.POW.X509.derRead(der)
-        ctx = store.verify(cer)
-        if not ctx.getError():
-          seen.add(rowid)
-          self.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
-          issuers.append(cer)
-
-      for rowid, der in objs:
-        assert rowid not in seen
-        obj = rpki.POW.CMS.derRead(der)
-        try:
-          for cer in obj.certs():
-            if store.verify(cer).getError():
-              raise RuntimeError
-          obj.verify(store, flags = rpki.POW.CMS_NO_SIGNER_CERT_VERIFY)
-          seen.add(rowid)
-          self.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
-        except (RuntimeError, rpki.POW.OpenSSLError):
-          pass
-
-    if spinner:
-      sys.stderr.write("\r= %d objects in %s.\n" % (len(seen), rpki.sundial.now() - start))
-
-    #self.cur.execute("DELETE FROM object WHERE nochain = 1")
-    self.db.commit()
+  def validate(self):
+    Verifier(self)
 
 
 if __name__ == "__main__":

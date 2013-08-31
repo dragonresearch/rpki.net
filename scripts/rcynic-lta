@@ -177,54 +177,33 @@ def process_targets(rpdb):
 
     rpdb.add_para(obj, new_resources)
 
-# Not really sure what to do about the conflict detection requirement
-# in the last paragraph of 4.2.3.  I think it stems at least in part
-# from the rather arbitrary way that the draft mixes user control with
-# required side effects.  I guess one could detect the cases that this
-# paragraph talks about by checking for an existing paracertificate
-# before for every node during ancestor processing, and doing some
-# kind of set operation like:
-#
-#    ((original_ancestor ^ para_ancestor) & target) != null
-#
-# Ignore for now, I think, until the rest of this is working.
 
 def process_ancestors(rpdb):
+
   for target in rpdb.find_targets():
-    target_resources = target.get_3779resources()
+
+    target_resources = target.resources
+
     if True:
       print
       print "Target %r" % target
-      #print "Resources", str(target_resources)
-    child = target
-    while child.get_AKI() is not None:
-      parents = rpdb.find_parent(child)
-      print "Parents %r" % parents
-      if len(parents) == 1:
-        parent_to_modify = parent_to_follow = parents[0]
-      elif len(parents) == 2:
-        parents.sort(key = lambda p: p.para)
-        parent_to_modify = parents[1]
-        parent_to_follow = parents[0]
-      else:
-        assert len(parents) in (1, 2)
+
+    if False:
+      print "Resources", str(target_resources)
+
+    for ancestor in rpdb.find_ancestors(target):
+
       if True:
-        print "Same %s, modify %r, follow %r" % (parent_to_modify == parent_to_follow,
-                                                 parent_to_modify,   parent_to_follow)
-      assert not parent_to_follow.para
-      old_resources = parent_to_modify.get_3779resources()
+        print "Ancestor %r, para-ancestor %r" % (ancestor, ancestor.para_obj)
+
+      old_resources = ancestor.resources if ancestor.para_obj is None else ancestor.para_obj.resources
       new_resources = old_resources - target_resources
+
       if False:
-        print "Old:", old_resources
-        print "New:", new_resources
-      if True:
         print "Add:", new_resources - old_resources
         print "Sub:", old_resources - new_resources
 
-      parent_to_modify.original = True
-      rpdb.add_para(parent_to_modify, new_resources)
-
-      child = parent_to_follow
+      rpdb.add_para(ancestor, new_resources)
 
 
 def process_tree(rpdb):
@@ -240,16 +219,47 @@ class DER_object_mixin(object):
   rpki.x509.DER_object.
   """
 
-  _rpdb     = None
-  _rowid    = None
-  _nochain  = True
-  _original = False
-  _para     = False
-  _target   = False
+  _rpdb         = None
+  _rowid        = None
+  _nochain      = True
+  _original     = False
+  _para         = False
+  _target       = False
+  _left         = None
+  _right        = None
+  _para_id      = None
+  _orig_id      = None
 
   @property
   def rowid(self):
     return self._rowid
+
+  @property
+  def left(self):
+    return self._left
+
+  @property
+  def right(self):
+    return self._right
+
+  @property
+  def resources(self):
+    return self.get_3779resources()
+
+  @property
+  def para_obj(self):
+    return None if self._para_id is None else self._rpdb.find_by_id(self._para_id)
+
+  @para_obj.setter
+  def para_obj(self, value):
+    assert value is None
+    if self._para_id is not None:
+      self._rpdb.cur.execute("DELETE FROM object WHERE id = ?", (self._para_id,))
+      self._para_id = None
+
+  @property
+  def orig_obj(self):
+    return None if self._orig_id is None else self._rpdb.find_by_id(self._orig_id)
 
   def _update_bool(self, name, value):
     assert self._rpdb is not None and self._rowid is not None and isinstance(value, bool)
@@ -258,28 +268,37 @@ class DER_object_mixin(object):
     self._rpdb.db.commit()
 
   @property
-  def nochain(self): return self._nochain
+  def nochain(self):
+    return self._nochain
 
   @nochain.setter
-  def nochain(self, value): self._update_bool("nochain", value)
+  def nochain(self, value):
+    self._update_bool("nochain", value)
     
   @property
-  def original(self): return self._original
+  def original(self):
+    return self._original
 
   @original.setter
-  def original(self, value): self._update_bool("original", value)
+  def original(self, value):
+    self._update_bool("original", value)
 
   @property
-  def para(self): return self._para
+  def para(self):
+    return self._para
 
   @para.setter
-  def para(self, value): self._update_bool("para", value)
+  def para(self, value):
+    self._update_bool("para", value)
 
   @property
-  def target(self): return self._target
+  def target(self):
+    return self._target
 
   @target.setter
-  def target(self, value): self._update_bool("target", value)
+  def target(self, value):
+    self._update_bool("target", value)
+
 
 class X509              (rpki.x509.X509,            DER_object_mixin):
     pass
@@ -331,13 +350,20 @@ class Verifier(object):
         uri = f.readline().strip()
         key = rpki.POW.Asymmetric.derReadPublic(base64.b64decode(f.read()))
       self.rpdb.cur.execute(
-          "SELECT id, der FROM object WHERE nochain = 1 AND fn2 = 'cer' AND ski = ?",
-          (buffer(key.calculateSKI()),))
+        "SELECT id, der FROM object WHERE nochain = 1 AND fn2 = 'cer' AND ski = ?",
+        (buffer(key.calculateSKI()),))
       for rowid, der in self.rpdb.cur.fetchall():
         cer = rpki.POW.X509.derRead(der)
         if cer.getPublicKey().derWritePublic() == key.derWritePublic():
           self.rpdb.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
           self.walk_tree(cer, rowid)
+        else:
+          sys.stderr.write("TAL public key mismatch for %s\n" % uri)
+
+    self.rpdb.cur.execute(
+      "SELECT object.id, uri FROM object, uri WHERE uri.id = object.id AND nochain = 1")
+    for rowid, uri in self.rpdb.cur.fetchall():
+      sys.stderr.write("Unchained %s\n" % uri)
 
     sys.stderr.write("\r= %d objects in %s, committing..." % (
         (self.counter + 1) / 2, rpki.sundial.now() - self.start))
@@ -365,8 +391,8 @@ class Verifier(object):
       self.store.addTrust(issuer)
 
       self.rpdb.cur.execute(
-          "UPDATE object SET nochain = 0, left_paren = ? WHERE id = ?",
-          (self.next_counter(), issuer_id))
+        "UPDATE object SET nochain = 0, left_ = ? WHERE id = ?",
+        (self.next_counter(), issuer_id))
 
       self.spin += 1
       sys.stderr.write("\r%s %d %s...\r" % ("|\\-/"[self.spin & 3],
@@ -379,32 +405,42 @@ class Verifier(object):
         crl = rpki.POW.CRL.derRead(der)
         if crl.verify(issuer_key):
           self.rpdb.cur.execute(
-              "UPDATE object SET nochain = 0, left_paren = ?, right_paren = ? WHERE id = ?",
-              (self.next_counter(), self.next_counter(), rowid))
+            "UPDATE object SET nochain = 0, left_ = ?, right_ = ? WHERE id = ?",
+            (self.next_counter(), self.next_counter(), rowid))
           self.store.addCrl(crl)
+        else:
+          sys.stderr.write("CRL check failed for %s\n" % " ".join(self.rpdb.find_uris(rowid)))
 
       for rowid, der in self.query("fn2 <> 'crl' AND fn2 <> 'cer'", args):
         obj = rpki.POW.CMS.derRead(der)
         try:
           for cer in obj.certs():
-            if self.store.verify(cer).getError():
-              raise RuntimeError
+            ctx = self.store.verify(cer)
+            if ctx.getError():
+              raise RuntimeError(ctx.getErrorString())
           obj.verify(self.store, flags = rpki.POW.CMS_NO_SIGNER_CERT_VERIFY)
           self.rpdb.cur.execute(
-              "UPDATE object SET nochain = 0, left_paren = ?, right_paren = ? WHERE id = ?",
-              (self.next_counter(), self.next_counter(), rowid))
-        except (RuntimeError, rpki.POW.OpenSSLError):
-          pass
+            "UPDATE object SET nochain = 0, left_ = ?, right_ = ? WHERE id = ?",
+            (self.next_counter(), self.next_counter(), rowid))
+        except RuntimeError, e:
+          sys.stderr.write("Certificate check failed for %s: %s\n" % (
+            " ".join(self.rpdb.find_uris(rowid)), e))
+        except POW.OpenSSLError, e:
+          sys.stderr.write("CMS check failed for %s: %s\n" % (
+            " ".join(self.rpdb.find_uris(rowid)), e))
 
       for rowid, der in self.query("fn2 = 'cer'", args):
         cer = rpki.POW.X509.derRead(der)
         ctx = self.store.verify(cer)
         if not ctx.getError():
           self.walk_tree(cer, rowid)
+        else:
+          sys.stderr.write("Certificate check failed for %s: %s\n" % (
+            " ".join(self.rpdb.find_uris(rowid)), ctx.getErrorString()))
 
       self.rpdb.cur.execute(
-          "UPDATE object SET right_paren = ? WHERE id = ?",
-          (self.next_counter(), issuer_id))
+        "UPDATE object SET right_ = ? WHERE id = ?",
+        (self.next_counter(), issuer_id))
 
 
 class RPDB(object):
@@ -424,8 +460,8 @@ class RPDB(object):
 
   mapfn2 = dict((v, k) for k, v in fn2map.iteritems())
 
-  object_fields = " object.id, fn2, der, nochain, original, para, target "
-
+  object_fields = " %s " % ", ".join("object.%s" % field for field in (
+    "id", "fn2", "der", "nochain", "original", "para", "target", "left_", "right_", "para_id", "orig_id"))
 
   def __init__(self, db_name = "rcynic-lta.db"):
 
@@ -444,39 +480,47 @@ class RPDB(object):
           PRAGMA foreign_keys = on;
 
           CREATE TABLE object (
-                  id INTEGER PRIMARY KEY NOT NULL,
-                  der BLOB NOT NULL,
-                  fn2 TEXT NOT NULL,
-                  ski BLOB,
-                  aki BLOB,
-                  issuer TEXT,
-                  subject TEXT,
-                  nochain   BOOLEAN NOT NULL DEFAULT 1,
-                  original  BOOLEAN NOT NULL DEFAULT 0,
-                  para      BOOLEAN NOT NULL DEFAULT 0,
-                  target    BOOLEAN NOT NULL DEFAULT 0,
-                  left_paren INTEGER,
-                  right_paren INTEGER,
-                  UNIQUE (der));
+                  id            INTEGER PRIMARY KEY NOT NULL,
+                  der           BLOB NOT NULL,
+                  fn2           TEXT NOT NULL,
+                  ski           BLOB,
+                  aki           BLOB,
+                  issuer        TEXT,
+                  subject       TEXT,
+                  nochain       BOOLEAN NOT NULL DEFAULT 1,
+                  original      BOOLEAN NOT NULL DEFAULT 0,
+                  para          BOOLEAN NOT NULL DEFAULT 0,
+                  target        BOOLEAN NOT NULL DEFAULT 0,
+                  left_    INTEGER,
+                  right_   INTEGER,
+                  para_id       INTEGER
+                                REFERENCES object(id)
+                                ON DELETE SET NULL
+                                ON UPDATE SET NULL,
+                  orig_id       INTEGER
+                                REFERENCES object(id)
+                                ON DELETE CASCADE
+                                ON UPDATE CASCADE,
+                  UNIQUE        (der));
 
           CREATE TABLE uri (
-                  id INTEGER NOT NULL,
-                  uri TEXT NOT NULL,
-                  UNIQUE (uri),
-                  FOREIGN KEY (id) REFERENCES object(id)
-                          ON DELETE CASCADE
-                          ON UPDATE CASCADE);
+                  id            INTEGER NOT NULL
+                                REFERENCES object(id)
+                                ON DELETE CASCADE
+                                ON UPDATE CASCADE,
+                  uri           TEXT NOT NULL,
+                  UNIQUE        (uri));
 
           CREATE INDEX uri_index ON uri(id);
 
           CREATE TABLE range (
-                  id INTEGER NOT NULL,
-                  min RangeVal NOT NULL,
-                  max RangeVal NOT NULL,
-                  UNIQUE (id, min, max),
-                  FOREIGN KEY (id) REFERENCES object(id)
-                          ON DELETE CASCADE
-                          ON UPDATE CASCADE);
+                  id            INTEGER NOT NULL
+                                REFERENCES object(id)
+                                ON DELETE CASCADE
+                                ON UPDATE CASCADE,
+                  min           RangeVal NOT NULL,
+                  max           RangeVal NOT NULL,
+                  UNIQUE        (id, min, max));
 
           CREATE INDEX range_index ON range(min, max);
           ''')
@@ -578,6 +622,26 @@ class RPDB(object):
 
     assert isinstance(obj, X509)
 
+    # As currently used, obj could be a paracert or an original cert.
+    # We want links between the two using object.para_id and
+    # object.orig_id, but we also want to check for resource overlaps
+    # that would indicate overlapping constraints.
+    #
+    # I think we want to change the lookup so we always get the
+    # original cert (which probably happens anyway once we're using
+    # the tree-structured SQL lookups, as we're not copying those
+    # markers to paracerts), then we can just check for an existing
+    # paracert.
+
+    assert not obj.para
+
+    if obj.para_obj is not None:
+      changed = obj.resources ^ obj.para_obj.resources
+      if not (changed & resources).empty():
+        raise Blarg
+
+    obj.para_obj = None
+
     global serial
     serial += 1
 
@@ -618,29 +682,34 @@ class RPDB(object):
     der = buffer(cer.get_DER())
     uri = ltasia + cer.gSKI() + ".cer"
 
-    if obj.para:
-      self.cur.execute("DELETE FROM object WHERE id = ?", (obj.rowid,))
-
-    self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para) "
-                     "VALUES (?, 'cer', ?, ?, ?, ?, 1)",
-                     (der, ski, aki, issuer, subject))
+    self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para, orig_id) "
+                     "VALUES (?, 'cer', ?, ?, ?, ?, 1, ?)",
+                     (der, ski, aki, issuer, subject, obj.rowid))
     rowid = self.cur.lastrowid
 
-    for rset in (bag.asn, bag.v4, bag.v6):
-      if rset is not None:
-        self.cur.executemany("REPLACE INTO range (id, min, max) VALUES (?, ?, ?)",
-                             ((rowid, i.min, i.max) for i in rset))
+    self.cur.execute("UPDATE object SET para_id = ?, original = 1 WHERE id = ?", (rowid, obj.rowid))
+    obj._para_id = rowid
+
+    # Not sure if we really want this index pointing to paracerts
+    # anymore with the new scheme, but leave it for now.
+
+    if True:
+      for rset in (bag.asn, bag.v4, bag.v6):
+        if rset is not None:
+          self.cur.executemany("REPLACE INTO range (id, min, max) VALUES (?, ?, ?)",
+                               ((rowid, i.min, i.max) for i in rset))
 
     self.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)",
                      (rowid, uri))
 
     self.db.commit()
 
-    return self.find_by_id(rowid)
-
 
   def find_by_id(self, rowid):
-    return self._find_results(None, "SELECT" + self.object_fields + "FROM object WHERE id = ?", [rowid])
+    r = self._find_results(None, "SELECT" + self.object_fields + "FROM object WHERE id = ?", [rowid])
+    assert len(r) < 2
+    return r[0] if r else None
+
 
   def find_by_ski_or_uri(self, ski, uri):
     if not ski and not uri:
@@ -744,6 +813,23 @@ class RPDB(object):
       aset)
 
 
+  def find_ancestors(self, target):
+    return self._find_results(
+      None,
+      """
+      SELECT %s from object, object AS child
+      WHERE object.left_  < child.left_
+      AND   object.right_ > child.right_
+      AND   child.id = ?
+      """ % self.object_fields,
+      [target.rowid])
+
+
+  def find_uris(self, rowid):
+    self.cur.execute("SELECT uri FROM uri WHERE id = ?", (rowid,))
+    return [u[0] for u in self.cur.fetchall()]
+
+
   def _find_results(self, fn2, query, args = None):
     if args is None:
       args = []
@@ -755,14 +841,18 @@ class RPDB(object):
     results = []
     self.cur.execute(query, args)
     selections = self.cur.fetchall()
-    for rowid, fn2, der, nochain, original, para, target in selections:
+    for rowid, fn2, der, nochain, original, para, target, left, right, para_id, orig_id in selections:
       if rowid in self.cache:
         obj = self.cache[rowid]
-        assert obj.rowid == rowid
+        assert obj._rowid == rowid
+        assert obj._left == left
+        assert obj._right == right
         assert obj._nochain == nochain
         assert obj._original == original
         assert obj._para == para
         assert obj._target == target
+        assert obj._para_id == para_id, "Assertion failure: obj._para_id %s para_id %s" % (obj._para_id, para_id)
+        assert obj._orig_id == orig_id, "Assertion failure: obj._orig_id %s orig_id %s" % (obj._orig_id, orig_id)
       else:
         obj = self.fn2map[fn2](DER = der)
         self.cur.execute("SELECT uri FROM uri WHERE id = ?", (rowid,))
@@ -770,10 +860,14 @@ class RPDB(object):
         obj.uri = obj.uris[0] if len(obj.uris) == 1 else None
         obj._rpdb     = self
         obj._rowid    = rowid
+        obj._left     = left
+        obj._right    = right
         obj._nochain  = nochain
         obj._original = original
         obj._para     = para
         obj._target   = target
+        obj._para_id  = para_id
+        obj._orig_id  = orig_id
         self.cache[rowid] = obj
       results.append(obj)
     return results
@@ -789,4 +883,15 @@ class RPDB(object):
 
 
 if __name__ == "__main__":
-  main()
+  #profile = None
+  profile = "rcynic-lta.prof"
+  if profile:
+    import cProfile
+    prof = cProfile.Profile()
+    try:
+      prof.runcall(main)
+    finally:
+      prof.dump_stats(profile)
+      sys.stderr.write("Dumped profile data to %s\n" % profile)
+  else:
+    main()

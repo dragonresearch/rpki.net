@@ -129,53 +129,68 @@ def create_ca():
     f.write(ltacer.get_DER())
 
 
+class Constraint(object):
+
+  def __init__(self, y):
+    self.ski = parse_xki(y["ski"]) if "ski" in y else None
+    self.uri = y.get("uri", None)
+    self.set = rpki.resource_set.resource_bag.from_str(y["set"]) if "set" in y else None
+    self.add = rpki.resource_set.resource_bag.from_str(y.get("add", "")) 
+    self.sub = rpki.resource_set.resource_bag.from_str(y.get("sub", ""))
+    self.rpdb = None
+    self.rowid = None
+
+  def find(self, rpdb):
+    if self.rpdb is None:
+      self.rpdb = rpdb
+      found = rpdb.find_by_ski_or_uri(self.ski, self.uri)
+      if len(found) == 0:
+        print "Constraint entry matched nothing (%s %s)" % (ski, uri)
+      elif len(found) > 1:
+        print "Constraint entry matched multiple objects, skipping (%s %s %r)" % (ski, uri, found)
+      else:
+        self.rowid = found[0].rowid
+        self.rpdb = rpdb
+    return self.orig_obj
+
+  @property
+  def orig_obj(self):
+    return None if self.rpdb is None else self.rpdb.find_by_id(self.rowid)
+
+  @property
+  def para_obj(self):
+    return None if self.rpdb is None else self.rpdb.find_by_id(self.rowid).para_obj
+
+  @property
+  def original_resources(self):
+    obj = self.orig_obj
+    return rpki.resource_set.resource_bag() if obj is None else obj.get_3779resources()
+
+  @property
+  def constrained_resources(self):
+    r = self.original_resources if self.set is None else self.set
+    r |= self.add
+    r -= self.sub
+    return r
+
+
 def parse_yaml(fn = "rcynic-lta.yaml"):
   global tal_directory
   global constraints
   global rcynic_root
   y = yaml.safe_load(open(fn, "r"))
   tal_directory = y["tal-directory"]
-  constraints = y["constraints"]
   rcynic_root = y["rcynic-root"]
+  constraints = [Constraint(yy) for yy in y["constraints"]]
 
 
 def process_targets(rpdb):
-  for y in constraints:
-    found = rpdb.find_by_ski_or_uri(parse_xki(y["ski"]) if "ski" in y else None,
-                                    y.get("uri", None))
-
-    if len(found) != 1:
-      if found:
-        print "Constraint entry matched multiple objects, skipping (%s %s %r)" % (
-          y.get("ski", ""), y.get("uri", ""), found)
-      else:
-        print "Constraint entry matched nothing, skipping (%s %s)" % (
-          y.get("ski", ""), y.get("uri", ""))
-      continue
-
-    obj = found.pop()
-
-    new_resources = old_resources = obj.get_3779resources()
-
-    if "set" in y:
-      new_resources = rpki.resource_set.resource_bag.from_str(y["set"])
-    if "add" in y:
-      new_resources = new_resources | rpki.resource_set.resource_bag.from_str(y["add"]) 
-    if "sub" in y:
-      new_resources = new_resources - rpki.resource_set.resource_bag.from_str(y["sub"])
-
-    if False:
-      print "SKI:", obj.hSKI()
-      print "URI:", obj.uri
-      print "Old:", old_resources
-      print "New:", new_resources
-      print "Add:", new_resources - old_resources
-      print "Sub:", old_resources - new_resources
-
-    obj.original = True
-    obj.target = True
-
-    rpdb.add_para(obj, new_resources)
+  for constraint in constraints:
+    obj = constraint.find(rpdb)
+    if obj is not None:
+      obj.original = True
+      obj.target = True
+      rpdb.add_para(obj, constraint.constrained_resources)
 
 
 def process_ancestors(rpdb):
@@ -209,6 +224,25 @@ def process_ancestors(rpdb):
 def process_tree(rpdb):
   for target in rpdb.find_targets():
     
+    # I'm still having a really hard time reading 4.2.4, but my
+    # current interpretation is:
+    #
+    #  for each resource block mentioned in constraints file:
+    #    for every cert in db which is NOT the target of that constraint:
+    #      remove the resource block from that certificate
+    #
+    # What I don't understand at all is why this is specified in terms
+    # of iterations over children of TAs.  Does the ordering matter?
+    # What is the voodoo about not sorting the collection?  Yearg.
+    #
+    # Our constraints file differs from BBN's in that we allow
+    # subtraction of resources as well as addition.  This seriously
+    # confuses the issue given all the hidden assumptions in BBN's
+    # text.  I -think- the interpretation would be that any resource
+    # explictly mentioned in a constraint (whether by adding it or by
+    # subtracting it) now belongs to the LTA and should not appear in
+    # any certificate not directly issued by the LTA.
+
     # CONTINUE HERE
     raise NotImplementedError
 

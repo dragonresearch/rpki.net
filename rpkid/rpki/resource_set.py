@@ -714,6 +714,9 @@ class resource_bag(object):
     """
     return not self.asn and not self.v4 and not self.v6
 
+  def __nonzero__(self):
+    return not self.empty()
+
   def __eq__(self, other):
     return self.asn == other.asn and \
            self.v4 == other.v4 and \

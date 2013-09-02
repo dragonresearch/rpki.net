@@ -134,7 +134,7 @@ class Constraint(object):
   def __init__(self, y):
     self.ski = parse_xki(y["ski"]) if "ski" in y else None
     self.uri = y.get("uri", None)
-    self.set = rpki.resource_set.resource_bag.from_str(y["set"]) if "set" in y else None
+    self.set = rpki.resource_set.resource_bag.from_str(y.get("set", ""))
     self.add = rpki.resource_set.resource_bag.from_str(y.get("add", "")) 
     self.sub = rpki.resource_set.resource_bag.from_str(y.get("sub", ""))
     self.rpdb = None
@@ -168,10 +168,14 @@ class Constraint(object):
 
   @property
   def constrained_resources(self):
-    r = self.original_resources if self.set is None else self.set
+    r =  self.set or self.original_resources
     r |= self.add
     r -= self.sub
     return r
+
+  @property
+  def mentioned_resources(self):
+    return self.set | self.add | self.sub
 
 
 def parse_yaml(fn = "rcynic-lta.yaml"):
@@ -188,63 +192,24 @@ def process_targets(rpdb):
   for constraint in constraints:
     obj = constraint.find(rpdb)
     if obj is not None:
-      obj.original = True
       obj.target = True
       rpdb.add_para(obj, constraint.constrained_resources)
 
 
 def process_ancestors(rpdb):
-
   for target in rpdb.find_targets():
-
     target_resources = target.resources
-
-    if True:
-      print
-      print "Target %r" % target
-
-    if False:
-      print "Resources", str(target_resources)
-
     for ancestor in rpdb.find_ancestors(target):
-
-      if True:
-        print "Ancestor %r, para-ancestor %r" % (ancestor, ancestor.para_obj)
-
-      old_resources = ancestor.resources if ancestor.para_obj is None else ancestor.para_obj.resources
-      new_resources = old_resources - target_resources
-
-      if False:
-        print "Add:", new_resources - old_resources
-        print "Sub:", old_resources - new_resources
-
-      rpdb.add_para(ancestor, new_resources)
+      rpdb.add_para(ancestor, ancestor.para_resources - target_resources)
 
 
 def process_tree(rpdb):
-  for target in rpdb.find_targets():
-    
-    # I'm still having a really hard time reading 4.2.4, but my
-    # current interpretation is:
-    #
-    #  for each resource block mentioned in constraints file:
-    #    for every cert in db which is NOT the target of that constraint:
-    #      remove the resource block from that certificate
-    #
-    # What I don't understand at all is why this is specified in terms
-    # of iterations over children of TAs.  Does the ordering matter?
-    # What is the voodoo about not sorting the collection?  Yearg.
-    #
-    # Our constraints file differs from BBN's in that we allow
-    # subtraction of resources as well as addition.  This seriously
-    # confuses the issue given all the hidden assumptions in BBN's
-    # text.  I -think- the interpretation would be that any resource
-    # explictly mentioned in a constraint (whether by adding it or by
-    # subtracting it) now belongs to the LTA and should not appear in
-    # any certificate not directly issued by the LTA.
-
-    # CONTINUE HERE
-    raise NotImplementedError
+  for constraint in constraints:
+    mentioned_resources = constraint.mentioned_resources
+    if mentioned_resources:
+      for obj in rpdb.find_by_resource_bag(mentioned_resources, "cer"):
+        if not obj.target:
+          rpdb.add_para(obj, obj.resources - mentioned_resources)
 
 
 class DER_object_mixin(object):
@@ -281,6 +246,10 @@ class DER_object_mixin(object):
     return self.get_3779resources()
 
   @property
+  def para_resources(self):
+    return self.resources if self.para_obj is None else self.para_obj.resources
+
+  @property
   def para_obj(self):
     return None if self._para_id is None else self._rpdb.find_by_id(self._para_id)
 
@@ -299,7 +268,7 @@ class DER_object_mixin(object):
     assert self._rpdb is not None and self._rowid is not None and isinstance(value, bool)
     self._rpdb.cur.execute("UPDATE object SET %s = ? WHERE id = ?" % name, (value, self._rowid))
     setattr(self, "_" + name, value)
-    self._rpdb.db.commit()
+    #self._rpdb.db.commit()
 
   @property
   def nochain(self):
@@ -723,20 +692,11 @@ class RPDB(object):
 
     self.cur.execute("UPDATE object SET para_id = ?, original = 1 WHERE id = ?", (rowid, obj.rowid))
     obj._para_id = rowid
+    obj._original = True
 
-    # Not sure if we really want this index pointing to paracerts
-    # anymore with the new scheme, but leave it for now.
+    self.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, uri))
 
-    if True:
-      for rset in (bag.asn, bag.v4, bag.v6):
-        if rset is not None:
-          self.cur.executemany("REPLACE INTO range (id, min, max) VALUES (?, ?, ?)",
-                               ((rowid, i.min, i.max) for i in rset))
-
-    self.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)",
-                     (rowid, uri))
-
-    self.db.commit()
+    #self.db.commit()
 
 
   def find_by_id(self, rowid):

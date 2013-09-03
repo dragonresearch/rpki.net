@@ -31,6 +31,8 @@ RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 CONFIGURE_ARGS= --disable-ca-tools
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
+MAKE_JOBS_UNSAFE= yes
+
 # rcynic's Makefile constructs an rcynic.conf for us if it doesn't
 # find one already installed.  This turns out to be exactly what
 # FreeBSD's rules want us to install as rcynic.conf.sample, so we

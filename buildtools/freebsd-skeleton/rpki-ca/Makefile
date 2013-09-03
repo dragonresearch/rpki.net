@@ -16,6 +16,8 @@ USE_APACHE_RUN= 22+
 
 USE_RC_SUBR=	rpki-ca
 
+MAKE_JOBS_UNSAFE= yes
+
 # For OpenSSL, not needed otherwise
 USE_PERL5_BUILD=yes
 

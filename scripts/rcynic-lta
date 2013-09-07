@@ -21,6 +21,7 @@ import sys
 import yaml
 import glob
 import time
+import shutil
 import base64
 import socket
 import sqlite3
@@ -34,7 +35,10 @@ import rpki.resource_set
 
 tal_directory = None
 constraints   = None
-rcynic_root   = None
+rcynic_input  = None
+rcynic_output = None
+tals          = None
+keyfile       = None
 
 serial = long(time.time()) << 32
 
@@ -46,6 +50,9 @@ ltasia = ltauri + "/"
 ltaaia = ltauri + ".cer"
 ltamft = ltauri + "/lta.mft"
 ltacrl = ltauri + "/lta.crl"
+
+cer_delta = rpki.sundial.timedelta(days = 7)
+crl_delta = rpki.sundial.timedelta(hours = 1)
 
 # Teach SQLite3 about our data types.
 
@@ -62,11 +69,14 @@ def main():
   print "Parsing YAML"
   parse_yaml()
   print
-  print "Creating CA"
-  create_ca()
+  print "Parsing TALs"
+  parse_tals()
   print
   print "Creating DB"
   rpdb = RPDB()
+  print
+  print "Creating CA"
+  create_ca(rpdb)
   print
   print "Loading DB"
   rpdb.load()
@@ -80,8 +90,23 @@ def main():
   print "Processing ancestors"
   process_ancestors(rpdb)
   print
-  print "Processing tree"
-  process_tree(rpdb)
+  print "Processing trees"
+  process_trees(rpdb)
+  print
+  print "Re-parenting TAs"
+  re_parent_tas(rpdb)
+  print
+  print "Generating CRL and manifest"
+  generate_crl_and_manifest(rpdb)
+  print
+  print "Committing final changes to DB"
+  rpdb.commit()
+  print
+  print "Linking source tree"
+  link_tree()
+  print
+  print "Dumping para-objects"
+  rpdb.dump_paras()
   print
   print "Closing DB"
   rpdb.close()
@@ -107,26 +132,30 @@ def parse_xki(s):
   return b
 
 
-def create_ca():
+def create_ca(rpdb):
   global serial
   global ltakey
   global ltacer
-  fn = "rcynic-lta.key"
-  if os.path.exists(fn):
-    ltakey = rpki.x509.RSA(Auto_file = fn)
+  if os.path.exists(keyfile):
+    ltakey = rpki.x509.RSA(Auto_file = keyfile)
   else:
     ltakey = rpki.x509.RSA.generate(quiet = True)
-    with os.fdopen(os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0400), "w") as f:
+    with os.fdopen(os.open(keyfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0400), "w") as f:
       f.write(ltakey.get_PEM())
-  ltacer = rpki.x509.X509.self_certify(
+  cer = X509.self_certify(
+    cn          = "%s LTA Root Certificate" % socket.getfqdn(),
     keypair     = ltakey,
     subject_key = ltakey.get_RSApublic(),
     serial      = serial,
     sia         = (ltasia, ltamft, None),
-    notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 7),
+    notAfter    = rpki.sundial.now() + cer_delta,
     resources   = rpki.resource_set.resource_bag.from_str("0-4294967295,0.0.0.0/0,::/0"))
-  with open("rcynic-lta.cer", "wb") as f:
-    f.write(ltacer.get_DER())
+  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, nochain, para) "
+                   "VALUES (?, 'cer', ?, NULL, ?, ?, 0, 1)",
+                   (buffer(cer.get_DER()), buffer(cer.get_SKI()), cer.getIssuer(), cer.getSubject()))
+  rowid = rpdb.cur.lastrowid
+  rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltaaia))
+  ltacer = rpdb.find_by_id(rowid)
 
 
 class Constraint(object):
@@ -137,38 +166,18 @@ class Constraint(object):
     self.set = rpki.resource_set.resource_bag.from_str(y.get("set", ""))
     self.add = rpki.resource_set.resource_bag.from_str(y.get("add", "")) 
     self.sub = rpki.resource_set.resource_bag.from_str(y.get("sub", ""))
-    self.rpdb = None
-    self.rowid = None
 
   def find(self, rpdb):
-    if self.rpdb is None:
-      self.rpdb = rpdb
-      found = rpdb.find_by_ski_or_uri(self.ski, self.uri)
-      if len(found) == 0:
-        print "Constraint entry matched nothing (%s %s)" % (ski, uri)
-      elif len(found) > 1:
-        print "Constraint entry matched multiple objects, skipping (%s %s %r)" % (ski, uri, found)
-      else:
-        self.rowid = found[0].rowid
-        self.rpdb = rpdb
-    return self.orig_obj
+    found = rpdb.find_by_ski_or_uri(self.ski, self.uri)
+    if len(found) == 0:
+      print "Constraint entry matched nothing (%s %s)" % (ski, uri)
+    elif len(found) > 1:
+      print "Constraint entry matched multiple objects, skipping (%s %s %r)" % (ski, uri, found)
+    else:
+      return found[0]
 
-  @property
-  def orig_obj(self):
-    return None if self.rpdb is None else self.rpdb.find_by_id(self.rowid)
-
-  @property
-  def para_obj(self):
-    return None if self.rpdb is None else self.rpdb.find_by_id(self.rowid).para_obj
-
-  @property
-  def original_resources(self):
-    obj = self.orig_obj
-    return rpki.resource_set.resource_bag() if obj is None else obj.get_3779resources()
-
-  @property
-  def constrained_resources(self):
-    r =  self.set or self.original_resources
+  def constrained_resources(self, obj):
+    r =  self.set or obj.get_3779resources()
     r |= self.add
     r -= self.sub
     return r
@@ -181,11 +190,24 @@ class Constraint(object):
 def parse_yaml(fn = "rcynic-lta.yaml"):
   global tal_directory
   global constraints
-  global rcynic_root
+  global rcynic_input
+  global rcynic_output
+  global keyfile
   y = yaml.safe_load(open(fn, "r"))
   tal_directory = y["tal-directory"]
-  rcynic_root = y["rcynic-root"]
+  rcynic_input  = y["rcynic-input"]
+  rcynic_output = y["rcynic-output"]
+  keyfile       = y["keyfile"]
   constraints = [Constraint(yy) for yy in y["constraints"]]
+
+def parse_tals():
+  global tals
+  tals = {}
+  for fn in glob.iglob(os.path.join(tal_directory, "*.tal")):
+    with open(fn, "r") as f:
+      uri = f.readline().strip()
+      key = rpki.POW.Asymmetric.derReadPublic(base64.b64decode(f.read()))
+      tals[uri] = key
 
 
 def process_targets(rpdb):
@@ -193,23 +215,93 @@ def process_targets(rpdb):
     obj = constraint.find(rpdb)
     if obj is not None:
       obj.target = True
-      rpdb.add_para(obj, constraint.constrained_resources)
+      rpdb.add_para(obj, constraint.constrained_resources(obj))
 
 
 def process_ancestors(rpdb):
   for target in rpdb.find_targets():
     target_resources = target.resources
     for ancestor in rpdb.find_ancestors(target):
-      rpdb.add_para(ancestor, ancestor.para_resources - target_resources)
+      resources = ancestor.para_resources - target_resources
+      if resources:
+        rpdb.add_para(ancestor, resources)
 
 
-def process_tree(rpdb):
+def process_trees(rpdb):
   for constraint in constraints:
     mentioned_resources = constraint.mentioned_resources
     if mentioned_resources:
       for obj in rpdb.find_by_resource_bag(mentioned_resources, "cer"):
         if not obj.target:
           rpdb.add_para(obj, obj.resources - mentioned_resources)
+
+
+def re_parent_tas(rpdb):
+  for uri, key in tals.iteritems():
+    for ta in rpdb.find_by_ski_or_uri(key.calculateSKI(), uri):
+      if ta.para_obj is None:
+        rpdb.add_para(ta, ta.resources)
+
+
+def generate_crl_and_manifest(rpdb):
+  thisUpdate = rpki.sundial.now()
+  nextUpdate = thisUpdate + crl_delta
+  serial     = long(time.time())
+  issuer     = ltacer.getSubject()
+  aki        = buffer(ltacer.get_SKI())
+
+  crl = CRL.generate(
+    keypair             = ltakey,
+    issuer              = ltacer,
+    serial              = serial,
+    thisUpdate          = thisUpdate,
+    nextUpdate          = nextUpdate,
+    revokedCertificates = ())
+
+  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, nochain, para) "
+                   "VALUES (?, 'crl', NULL, ?, ?, NULL, 0, 1)",
+                   (buffer(crl.get_DER()), aki, issuer))
+  rowid = rpdb.cur.lastrowid
+  rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltacrl))
+  crl = rpdb.find_by_id(rowid)
+
+  key = rpki.x509.RSA.generate(quiet = True)
+
+  cer = ltacer.issue(
+    keypair     = ltakey,
+    subject_key = key.get_RSApublic(),
+    serial      = serial,
+    sia         = (None, None, ltamft),
+    aia         = ltaaia,
+    crldp       = ltacrl,
+    resources   = rpki.resource_set.resource_bag.from_inheritance(),
+    notAfter    = ltacer.getNotAfter(),
+    is_ca       = False)
+
+  mft = rpki.x509.SignedManifest.build(
+    serial         = serial,
+    thisUpdate     = thisUpdate,
+    nextUpdate     = nextUpdate,
+    names_and_objs = [(obj.uri, obj) for obj in rpdb.find_by_aki(ltacer.get_SKI())],
+    keypair        = key,
+    certs          = cer)
+
+  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, nochain, para) "
+                   "VALUES (?, 'mft', ?, ?, ?, ?, 0, 1)",
+                   (buffer(mft.get_DER()), buffer(cer.get_SKI()), aki, issuer, cer.getSubject()))
+  rowid = rpdb.cur.lastrowid
+  rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltamft))
+
+
+def link_tree():
+  sroot = os.path.abspath(rcynic_input)
+  droot = os.path.abspath(rcynic_output)
+  shutil.rmtree(droot, ignore_errors = True)
+  for sdir, dirs, files in os.walk(sroot):
+    ddir = droot + sdir[len(sroot):]
+    os.makedirs(ddir)
+    for fn in files:
+      os.link(os.path.join(sdir, fn), os.path.join(ddir, fn))
 
 
 class DER_object_mixin(object):
@@ -348,10 +440,7 @@ class Verifier(object):
     self.spin = 0
     self.start = rpki.sundial.now()
 
-    for fn in glob.iglob(os.path.join(tal_directory, "*.tal")):
-      with open(fn, "r") as f:
-        uri = f.readline().strip()
-        key = rpki.POW.Asymmetric.derReadPublic(base64.b64decode(f.read()))
+    for uri, key in tals.iteritems():
       self.rpdb.cur.execute(
         "SELECT id, der FROM object WHERE nochain = 1 AND fn2 = 'cer' AND ski = ?",
         (buffer(key.calculateSKI()),))
@@ -494,8 +583,8 @@ class RPDB(object):
                   original      BOOLEAN NOT NULL DEFAULT 0,
                   para          BOOLEAN NOT NULL DEFAULT 0,
                   target        BOOLEAN NOT NULL DEFAULT 0,
-                  left_    INTEGER,
-                  right_   INTEGER,
+                  left_         INTEGER,
+                  right_        INTEGER,
                   para_id       INTEGER
                                 REFERENCES object(id)
                                 ON DELETE SET NULL
@@ -534,7 +623,7 @@ class RPDB(object):
     start = rpki.sundial.now()
     nobj = 0
 
-    for root, dirs, files in os.walk(rcynic_root):
+    for root, dirs, files in os.walk(rcynic_input):
       for fn in files:
         fn = os.path.join(root, fn)
         fn2 = os.path.splitext(fn)[1][1:]
@@ -572,7 +661,7 @@ class RPDB(object):
           subject = cer.getSubject()
 
         der = buffer(obj.get_DER())
-        uri = "rsync://" + fn[len(rcynic_root) + 1:]
+        uri = "rsync://" + fn[len(rcynic_input) + 1:]
 
         try:
           self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject) "
@@ -685,8 +774,8 @@ class RPDB(object):
     der = buffer(cer.get_DER())
     uri = ltasia + cer.gSKI() + ".cer"
 
-    self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para, orig_id) "
-                     "VALUES (?, 'cer', ?, ?, ?, ?, 1, ?)",
+    self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para, nochain, orig_id) "
+                     "VALUES (?, 'cer', ?, ?, ?, ?, 1, 0, ?)",
                      (der, ski, aki, issuer, subject, obj.rowid))
     rowid = self.cur.lastrowid
 
@@ -697,6 +786,18 @@ class RPDB(object):
     self.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, uri))
 
     #self.db.commit()
+
+
+  def dump_paras(self):
+    rsync = "rsync://"
+    for obj in self.find_paras():
+      assert obj.uri.startswith(rsync)
+      fn = os.path.join(rcynic_output, obj.uri[len(rsync):])
+      dn = os.path.dirname(fn)
+      if not os.path.exists(dn):
+        os.makedirs(dn)
+      with open(fn, "wb") as f:
+        f.write(obj.get_DER())
 
 
   def find_by_id(self, rowid):
@@ -743,6 +844,10 @@ class RPDB(object):
   def find_targets(self, fn2 = None):
     return self._find_results(fn2,
                               "SELECT" + self.object_fields + "FROM object WHERE target <> 0 AND nochain = 0")
+
+  def find_paras(self, fn2 = None):
+    return self._find_results(fn2,
+                              "SELECT" + self.object_fields + "FROM object WHERE para <> 0 AND nochain = 0")
 
   def find_parent(self, child):
     return self._find_results(None,
@@ -867,7 +972,12 @@ class RPDB(object):
     return results
 
 
+  def commit(self):
+    self.db.commit()
+
+
   def close(self):
+    self.commit()
     self.cur.close()
     self.db.close()
 

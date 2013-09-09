@@ -84,7 +84,7 @@ POST-INSTALL)
     else
 	echo "Setting up rcynic's crontab to run rcynic-cron script"
 	/usr/bin/awk -v t=`/usr/bin/hexdump -n 2 -e '"%u\n"' /dev/random` '
-            BEGIN {printf "%u * * * *\texec  /usr/local/bin/rcynic-cron\n", t % 60}' |
+            BEGIN {printf "MAILTO=root\n%u * * * *\texec  /usr/local/bin/rcynic-cron\n", t % 60}' |
 	/usr/bin/crontab -u rcynic -
     fi
     echo "Setting up rpki-rtr listener under inetd"

@@ -44,7 +44,7 @@ setup_rcynic_cron() {
     if test "X`crontab -l -u rcynic 2>/dev/null`" = "X"
     then
 	awk -v t=`hexdump -n 2 -e '"%u\n"' /dev/urandom` '
-            BEGIN {printf "%u * * * *\texec /usr/bin/rcynic-cron\n", t % 60}' |
+            BEGIN {printf "MAILTO=root\n%u * * * *\texec /usr/bin/rcynic-cron\n", t % 60}' |
 	crontab -u rcynic -
     fi
 }

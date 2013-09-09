@@ -229,7 +229,7 @@ install-crontab: .FORCE
          else \
 	     echo "Setting up ${RCYNIC_CRON_USER}'s crontab to run rcynic-cron script"; \
 	     ${AWK} -v t=`hexdump -n 2 -e '"%u\n"' /dev/random` '\
-		 BEGIN {printf "%u * * * *\texec ${bindir}/rcynic-cron\n", t % 60}' | \
+		 BEGIN {printf "MAILTO=root\n%u * * * *\texec ${bindir}/rcynic-cron\n", t % 60}' | \
 	     /usr/bin/crontab -u ${RCYNIC_CRON_USER} -; \
 	 fi
 

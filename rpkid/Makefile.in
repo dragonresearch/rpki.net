@@ -117,7 +117,7 @@ test all-tests parse-test profile yamltest yamlconf:: all
 	cd tests; $(MAKE) $@
 
 tags: Makefile
-	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name sql_schemas.py | etags -
+	find . -type d -name build -prune -o -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name sql_schemas.py -print | etags -
 
 lint:
 	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc rpki/*.py rpki/irdb/*.py *.py tests/*.py

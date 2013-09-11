@@ -443,16 +443,16 @@ class Zookeeper(object):
                   rpki.irdb.Client,
                   rpki.irdb.Repository):
       for obj in model.objects.all():
-        self.log("Regenerating certificate %s" % obj.certificate.getSubject())
+        self.log("Regenerating BPKI certificate %s" % obj.certificate.getSubject())
         obj.avow()
         obj.save()
 
-    self.log("Regenerating Server CRL")
+    self.log("Regenerating Server BPKI CRL")
     self.server_ca.generate_crl()
     self.server_ca.save()
     
     for ca in rpki.irdb.ResourceHolderCA.objects.all():
-      self.log("Regenerating CRL for %s" % ca.handle)
+      self.log("Regenerating BPKI CRL for Resource Holder %s" % ca.handle)
       ca.generate_crl()
       ca.save()
 
@@ -460,31 +460,90 @@ class Zookeeper(object):
   @django.db.transaction.commit_on_success
   def synchronize_bpki(self):
     """
-    Synchronize BPKI updates.  At the moment this just means pushing
-    BSC certificates out to rpkid and a BPKI CRL to pubd.  This is
-    separate from .update_bpki() because this requires rpkid to be
-    running and none of the other BPKI update stuff does; there may be
-    circumstances under which it makes sense to do the rest of the
-    BPKI update and allow this to fail with a warning.
+    Synchronize BPKI updates.  This is separate from .update_bpki()
+    because this requires rpkid to be running and none of the other
+    BPKI update stuff does; there may be circumstances under which it
+    makes sense to do the rest of the BPKI update and allow this to
+    fail with a warning.
     """
 
-    updates = tuple(
-      rpki.left_right.bsc_elt.make_pdu(
-        action = "set",
-        tag = "%s__%s" % (bsc.issuer.handle, bsc.handle),
-        self_handle = bsc.issuer.handle,
-        bsc_handle = bsc.handle,
-        signing_cert = bsc.certificate,
-        signing_cert_crl = bsc.issuer.latest_crl)
-      for bsc in rpki.irdb.BSC.objects.all())
+    if self.run_rpkid:
+      updates = []
 
-    if updates:
-      self.check_error_report(self.call_rpkid(updates))
+      updates.extend(
+        rpki.left_right.self_elt.make_pdu(
+          action = "set",
+          tag = "%s__self" % ca.handle,
+          self_handle = ca.handle,
+          bpki_cert = ca.certificate)
+        for ca in rpki.irdb.ResourceHolderCA.objects.all())
+
+      updates.extend(
+        rpki.left_right.bsc_elt.make_pdu(
+          action = "set",
+          tag = "%s__bsc__%s" % (bsc.issuer.handle, bsc.handle),
+          self_handle = bsc.issuer.handle,
+          bsc_handle = bsc.handle,
+          signing_cert = bsc.certificate,
+          signing_cert_crl = bsc.issuer.latest_crl)
+        for bsc in rpki.irdb.BSC.objects.all())
+
+      updates.extend(
+        rpki.left_right.repository_elt.make_pdu(
+          action = "set",
+          tag = "%s__repository__%s" % (repository.issuer.handle, repository.handle),
+          self_handle = repository.issuer.handle,
+          repository_handle = repository.handle,
+          bpki_cert = repository.certificate)
+        for repository in rpki.irdb.Repository.objects.all())
+
+      updates.extend(
+        rpki.left_right.parent_elt.make_pdu(
+          action = "set",
+          tag = "%s__parent__%s" % (parent.issuer.handle, parent.handle),
+          self_handle = parent.issuer.handle,
+          parent_handle = parent.handle,
+          bpki_cms_cert = parent.certificate)
+        for parent in rpki.irdb.Parent.objects.all())
+          
+      updates.extend(
+        rpki.left_right.parent_elt.make_pdu(
+          action = "set",
+          tag = "%s__rootd" % rootd.issuer.handle,
+          self_handle = rootd.issuer.handle,
+          parent_handle = rootd.issuer.handle,
+          bpki_cms_cert = rootd.certificate)
+        for rootd in rpki.irdb.Rootd.objects.all())
+
+      updates.extend(
+        rpki.left_right.child_elt.make_pdu(
+          action = "set",
+          tag = "%s__child__%s" % (child.issuer.handle, child.handle),
+          self_handle = child.issuer.handle,
+          child_handle = child.handle,
+          bpki_cert = child.certificate)
+        for child in rpki.irdb.Child.objects.all())
+
+      if updates:
+        self.check_error_report(self.call_rpkid(updates))
 
     if self.run_pubd:
-      self.check_error_report(self.call_pubd(rpki.publication.config_elt.make_pdu(
-        action = "set",
-        bpki_crl = self.server_ca.latest_crl)))
+      updates = []
+
+      updates.append(
+        rpki.publication.config_elt.make_pdu(
+          action = "set",
+          bpki_crl = self.server_ca.latest_crl))
+
+      updates.extend(
+        rpki.publication.client_elt.make_pdu(
+          action = "set",
+          client_handle = client.handle,
+          bpki_cert = client.certificate)
+        for client in self.server_ca.clients.all())
+
+      if updates:
+        self.check_error_report(self.call_pubd(updates))
 
 
   @django.db.transaction.commit_on_success

@@ -264,7 +264,7 @@ class main(Cmd):
     try:
       self.zoo.synchronize_bpki()
     except Exception, e:
-      print "Couldn't push updated BSCs into rpkid: %s" % e
+      print "Couldn't push updated BPKI material into daemons: %s" % e
 
 
   def do_configure_child(self, arg):

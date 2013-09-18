@@ -10,7 +10,7 @@ class Migration(SchemaMigration):
     def forwards(self, orm):
 
         # Changing field 'ResourceCert.conf'
-        db.alter_column('app_resourcecert', 'conf_id', self.gf('django.db.models.fields.related.ForeignKey')(default=None, to=orm['irdb.ResourceHolderCA']))
+        db.alter_column('app_resourcecert', 'conf_id', self.gf('django.db.models.fields.related.ForeignKey')(to=orm['irdb.ResourceHolderCA']))
 
     def backwards(self, orm):
 

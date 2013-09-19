@@ -162,7 +162,7 @@ class ROAPrefix(models.Model):
     def as_roa_prefix(self):
         "Return value as a rpki.resource_set.roa_prefix_ip object."
         rng = self.as_resource_range()
-        return self.roa_cls(rng.prefix_min, rng.prefixlen(), self.max_length)
+        return self.roa_cls(rng.min, rng.prefixlen(), self.max_length)
 
     def __unicode__(self):
         p = self.as_resource_range()

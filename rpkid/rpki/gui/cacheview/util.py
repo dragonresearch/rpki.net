@@ -267,6 +267,11 @@ def process_cache(root, xml_file):
     # Delete all objects that have zero validation status elements.
     models.RepositoryObject.objects.annotate(num_statuses=django.db.models.Count('statuses')).filter(num_statuses=0).delete()
 
+    # ROAPrefixV* objects are M2M so they are not automatically deleted when
+    # their ROA object disappears
+    models.ROAPrefixV4.objects.annotate(num_roas=django.db.models.Count('roas')).filter(num_roas=0).delete()
+    models.ROAPrefixV6.objects.annotate(num_roas=django.db.models.Count('roas')).filter(num_roas=0).delete()
+
 
 @transaction.commit_on_success
 def process_labels(xml_file):

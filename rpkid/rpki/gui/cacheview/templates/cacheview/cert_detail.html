@@ -8,8 +8,11 @@ Resource Certificate Detail
 
 <h2>RFC3779 Resources</h2>
 
-<table>
+<table class='table table-striped'>
+  <thead>
     <tr><th>AS Ranges</th><th>IP Ranges</th></tr>
+  </thead>
+  <tbody>
     <tr>
         <td style='text-align:left;vertical-align:top'>
             <ul class='compact'>
@@ -26,6 +29,7 @@ Resource Certificate Detail
             </ul>
         </td>
     </tr>
+  </tbody>
 </table>
 
 <div class='section'>
@@ -36,15 +40,18 @@ Resource Certificate Detail
     <li>
 <h3>Ghostbusters</h3>
 
-<table>
-    <tr><th>Name</th><th>Valid</th><th>Until</th></tr>
+<table class='table table-striped'>
+  <thead>
+    <tr><th>Name</th><th>Expires</th></tr>
+  </thead>
+  <tbody>
 
 {% for g in object.ghostbusters.all %}
     <tr class='{{ g.status_id }}'>
         <td><a href="{{ g.get_absolute_url }}">{{ g }}</a></td>
-        <td>{{ g.is_valid }}</td>
         <td>{{ g.not_after }}</td>
     </tr>
+  </tbody>
 {% endfor %}
 
 </table>
@@ -53,37 +60,41 @@ Resource Certificate Detail
 {% if object.roas.all %}
         <li>
 <h3>ROAs</h3>
-<table>
-    <tr><th>Prefix</th><th>AS</th><th>Valid</th><th>Until</th></tr>
+<table class='table table-striped'>
+  <thead>
+    <tr><th>#</th><th>Prefix</th><th>AS</th><th>Expires</th></tr>
+  </thead>
+  <tbody>
     {% for roa in object.roas.all %}
     {% for pfx in roa.prefixes.all %}
     <tr class='{{ roa.status_id }}'>
+        <td><a href="{{ roa.get_absolute_url }}">#</a></td>
         <td>{{ pfx }}</td>
         <td>{{ roa.asid }}</td>
-        <td><a href="{{ roa.get_absolute_url }}">{{ roa.is_valid }}</a></td>
         <td>{{ roa.not_after }}</td>
     </tr>
     {% endfor %}
     {% endfor %}
+  </tbody>
 </table>
 {% endif %}
 
 {% if object.children.all %}
 <li>
 <h3>Children</h3>
-<table>
-    <tr><th>Name</th><th>SIA</th><th>Valid</th><th>Until</th><th>Ghostbuster</th></tr>
+<table class='table table-striped'>
+  <thead>
+    <tr><th>Name</th><th>Expires</th></tr>
+  </thead>
+  <tbody>
 
     {% for child in object.children.all %}
     <tr class='{{ child.status_id }}'>
         <td><a href="{{ child.get_absolute_url }}">{{ child.name }}</a></td>
-        <td>{{ child.sia }}</td>
-        <td>{{ child.is_valid }}</td>
         <td>{{ child.not_after }}</td>
-        <td><a href="{{ child.ghostbusters.all.0.get_absolute_url }}">{{ child.ghostbusters.all.0 }}</a></td>
     </tr>
     {% endfor %}
-
+  </tbody>
 </table>
 {% endif %}
 

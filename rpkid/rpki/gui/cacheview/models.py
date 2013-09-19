@@ -19,6 +19,7 @@ from datetime import datetime
 import time
 
 from django.db import models
+from django.core.urlresolvers import reverse
 
 import rpki.resource_set
 import rpki.gui.models
@@ -116,7 +117,7 @@ class SignedObject(models.Model):
         return bad, else if there are any warn status, return warn, else return good.
         """
         for x in reversed(kinds):
-            if self.statuses.filter(generation=generations_dict['current'], status__kind=x[0]):
+            if self.repo.statuses.filter(generation=generations_dict['current'], status__kind=x[0]):
                 return x[1]
         return None  # should not happen
 
@@ -134,9 +135,8 @@ class Cert(SignedObject):
     issuer = models.ForeignKey('self', related_name='children', null=True)
     sia = models.CharField(max_length=255)
 
-    @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.cacheview.views.cert_detail', [str(self.pk)])
+        return reverse('cert-detail', args=[str(self.pk)])
 
     def get_cert_chain(self):
         """Return a list containing the complete certificate chain for this
@@ -203,9 +203,8 @@ class ROA(SignedObject):
     prefixes_v6 = models.ManyToManyField(ROAPrefixV6, related_name='roas')
     issuer = models.ForeignKey('Cert', related_name='roas')
 
-    @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.cacheview.views.roa_detail', [str(self.pk)])
+        return reverse('roa-detail', args=[str(self.pk)])
 
     class Meta:
         ordering = ('asid',)
@@ -221,9 +220,9 @@ class Ghostbuster(SignedObject):
     telephone = TelephoneField(blank=True, null=True)
     issuer = models.ForeignKey('Cert', related_name='ghostbusters')
 
-    @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.cacheview.views.ghostbuster_detail', [str(self.pk)])
+        # note that ghostbuster-detail is different from gbr-detail! sigh
+        return reverse('ghostbuster-detail', args=[str(self.pk)])
 
     def __unicode__(self):
         if self.full_name:

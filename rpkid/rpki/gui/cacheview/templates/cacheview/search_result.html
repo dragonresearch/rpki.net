@@ -2,7 +2,9 @@
 
 {% block content %}
 
-<h1>Search Results</h1>
+<div class='page-header'>
+  <h1>Search Results <small>{{ resource }}</small></h1>
+</div>
 
 <h2>Matching Resource Certificates</h2>
 {% if certs %}
@@ -17,15 +19,24 @@
 
 <h2>Matching ROAs</h2>
 {% if roas %}
-<ul>
+<table class='table table-striped'>
+  <thead>
+    <tr>
+      <th>#</th><th>Prefix</th><th>AS</th>
+    </tr>
+  </thead>
+  <tbody>
 {% for roa in roas %}
-<li><a href="{{ roa.get_absolute_url }}">{{ roa }}</a>
+<tr>
+  <td><a href="{{ roa.get_absolute_url }}">#</a></td>
+  <td>{{ roa.prefixes.all.0 }}</td>
+  <td>{{ roa.asid }}</td>
+</tr>
 {% endfor %}
-</ul>
+</tbody>
+</table>
 {% else %}
 <p>none</p>
 {% endif %}
-
-<p><a href="{% url rpki.gui.cacheview.views.search_view %}">new search</a>
 
 {% endblock %}

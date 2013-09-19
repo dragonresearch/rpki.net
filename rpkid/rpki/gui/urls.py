@@ -28,7 +28,7 @@ urlpatterns = patterns(
     #(r'^admin/', include(admin.site.urls)),
 
     (r'^api/', include('rpki.gui.api.urls')),
-    #(r'^cacheview/', include('rpki.gui.cacheview.urls')),
+    (r'^cacheview/', include('rpki.gui.cacheview.urls')),
     (r'^rpki/', include('rpki.gui.app.urls')),
 
     (r'^accounts/login/$', 'rpki.gui.views.login'),

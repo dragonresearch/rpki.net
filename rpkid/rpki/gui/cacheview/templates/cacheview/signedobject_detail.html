@@ -1,38 +1,55 @@
 {% extends "cacheview/cacheview_base.html" %}
 
 {% block content %}
+<div class='page-header'>
 <h1>{% block title %}Signed Object Detail{% endblock %}</h1>
+</div>
+
+<h2>Cert Info</h2>
+<table class='table table-striped'>
+    <tr><td>Subject Name</td><td>{{ object.name }}</td></tr>
+    <tr><td>SKI</td><td>{{ object.keyid }}</td></tr>
+    {% if object.sia %}
+    <tr><td>SIA</td><td>{{ object.sia }}</td></tr>
+    {% endif %}
+    <tr><td>Not Before</td><td>{{ object.not_before }}</td></tr>
+    <tr><td>Not After</td><td>{{ object.not_after }}</td></tr>
+</table>
 
 <h2>Metadata</h2>
 
-<table>
-    <tr><td>URI</td><td>{{ object.uri }}</td></tr>
+<table class='table table-striped'>
+    <tr><td>URI</td><td>{{ object.repo.uri }}</td></tr>
     <tr><td>Last Modified</td><td>{{ object.mtime_as_datetime|date:"DATETIME_FORMAT" }}</td></tr>
 </table>
 
-<h3>Validation Status</h3>
-<table>
+<h2>Validation Status</h2>
+<table class='table table-striped'>
+  <thead>
     <tr><th>Timestamp</th><th>Generation</th><th>Status</th></tr>
-    {% for status in object.statuses.all %}
+  </thead>
+  <tbody>
+    {% for status in object.repo.statuses.all %}
     <tr class="{{ status.status.get_kind_display }}"><td>{{ status.timestamp }}</td><td>{{ status.get_generation_display }}</td><td>{{ status.status.status }}</td></tr>
     {% endfor %}
+  </tbody>
 </table>
 
 <h2>X.509 Certificate Chain</h2>
 
-<table>
-    <tr><th>Depth</th><th>Name</th><th>SIA</th><th>Valid</th><th>Until</th><th>Ghostbuster</th></tr>
+<table class='table table-striped'>
+  <thead>
+    <tr><th>Depth</th><th>Name</th></tr>
+  </thead>
+  <tbody>
 
 {% for cert in chain %}
 <tr class='{{ cert.1.status_id }}'>
     <td>{{ cert.0 }}</td>
     <td><a href="{{ cert.1.get_absolute_url }}">{{ cert.1.name }}</a></td>
-    <td>{{ cert.1.sia }}</td>
-    <td>{{ cert.1.is_valid }}</td>
-    <td>{{ cert.1.not_after }}</td>
-    <td><a href="{{ cert.1.ghostbusters.all.0.get_absolute_url }}">{{ cert.1.ghostbusters.all.0 }}</a></td>
 </tr>
 {% endfor %}
+</tbody>
 
 </table>
 

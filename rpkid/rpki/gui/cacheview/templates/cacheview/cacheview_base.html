@@ -1,17 +1,10 @@
 {% extends "base.html" %}
-
-{% block css %}
-.good	{ background-color: #77ff77 }
-.warn	{ background-color: yellow }
-.bad	{ background-color: #ff5500 }
-.section { border-width:thin; border-style:solid; border-color:black; margin-top:1em; padding:1em }
-{% endblock %}
+{% load url from future %}
 
 {% block sidebar %}
-<ul class='compact'>
-    <li><a href="/cacheview/search">resource search</a>
-    <li><a href="/cacheview/query">roa search</a>
-    <li><a href="/rpki/">rpki dashboard</a>
-</ul>
+<form method='post' action='{% url 'res-search' %}'>
+  {% csrf_token %}
+  <input type='text' id='id_resource' name='resource' placeholder='prefix or AS'>
+  <button type='submit'>Search</button>
+</form>
 {% endblock %}
-

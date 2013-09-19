@@ -1,0 +1,26 @@
+{% extends "cacheview/cacheview_base.html" %}
+
+{% block content %}
+<div class='page-header'>
+  <h1>Browse Global RPKI</h1>
+</div>
+
+<table class="table table-striped">
+	<thead>
+		<tr>
+			<th>Name</th>
+			<th>Expires</th>
+			<th>URI</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for r in roots %}
+		<tr>
+		  <td><a href="{{ r.get_absolute_url }}">{{ r.name }}</a></td>
+		    <td>{{ r.not_after }}</td>
+		    <td>{{ r.repo.uri }}</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% endblock content %}

@@ -126,35 +126,127 @@ LABEL_CACHE = {}
 # published by the local rpkid
 uris = {}
 
+dispatch = {
+    'rcynic_certificate': rcynic_cert,
+    'rcynic_roa': rcynic_roa,
+    'rcynic_ghostbuster': rcynic_gbr
+}
 
-def save_statuses(inst, statuses):
+model_class = {
+    'rcynic_certificate': models.Cert,
+    'rcynic_roa': models.ROA,
+    'rcynic_ghostbuster': models.Ghostbuster
+}
+
+
+def save_statuses(statuses):
+    if not statuses:
+        return
+
+    repo, created = models.RepositoryObject.objects.get_or_create(
+        uri=statuses[-1].uri
+    )
+
     valid = False
     for vs in statuses:
         timestamp = datetime.fromXMLtime(vs.timestamp).to_sql()
         status = LABEL_CACHE[vs.status]
         g = models.generations_dict[vs.generation] if vs.generation else None
-        inst.statuses.create(generation=g, timestamp=timestamp, status=status)
+        repo.statuses.create(generation=g, timestamp=timestamp, status=status)
         valid = valid or status is object_accepted
 
     # if this object is in our interest set, update with the current validation
     # status
-    if inst.uri in uris:
-        x, y, z, q = uris[inst.uri]
-        uris[inst.uri] = x, y, valid, inst
+    if repo.uri in uris:
+        x, y, z, q = uris[repo.uri]
+        uris[repo.uri] = x, y, valid, repo
+
+    # object_accepted is always last, when present
+    vs = statuses[-1]
+    cls = model_class[vs.file_class.__name__]
+    # find the instance of the signedobject subclass that is associated with
+    # this repo instance (may be empty when not accepted)
+    inst_qs = cls.objects.filter(repo=repo)
+
+    if valid:
+        logger.debug('processing %s' % vs.filename)
+
+        if not inst_qs:
+            inst = cls(repo=repo)
+        else:
+            inst = inst_qs[0]
+
+        # determine if the object is changed/new
+        mtime = os.stat(vs.filename)[8]
+        if mtime != inst.mtime:
+            inst.mtime = mtime
+            try:
+                obj = vs.obj  # causes object to be lazily loaded
+            except Exception, e:
+                logger.warning('Caught %s while processing %s: %s' % (
+                    type(e), vs.filename, e))
+                return
+
+            inst.not_before = obj.notBefore.to_sql()
+            inst.not_after = obj.notAfter.to_sql()
+            inst.name = obj.subject
+            inst.keyid = obj.ski
+
+            # look up signing cert
+            if obj.issuer == obj.subject:
+                # self-signed cert (TA)
+                assert(isinstance(inst, models.Cert))
+                inst.issuer = None
+            else:
+                # if an object has moved in the repository, the entry for
+                # the old location will still be in the database, but
+                # without any object_accepted in its validtion status
+                qs = models.Cert.objects.filter(
+                    keyid=obj.aki,
+                    name=obj.issuer,
+                    repo__statuses__status=object_accepted
+                )
+                ncerts = len(qs)
+                if ncerts == 0:
+                    logger.warning('unable to find signing cert with ski=%s (%s)' % (obj.aki, obj.issuer))
+                    return
+                else:
+                    if ncerts > 1:
+                        # multiple matching certs, all of which are valid
+                        logger.warning('Found multiple certs matching ski=%s sn=%s' % (obj.aki, obj.issuer))
+                        for c in qs:
+                            logger.warning(c.repo.uri)
+                    # just use the first match
+                    inst.issuer = qs[0]
+
+            try:
+                # do object-specific tasks
+                dispatch[vs.file_class.__name__](obj, inst)
+
+                inst.save()  # don't require a save in the dispatch methods
+
+                # for the root cert, we can't set inst.issuer = inst until
+                # after inst.save() has been called.
+                if inst.issuer is None:
+                    inst.issuer = inst
+                    inst.save()
+            except:
+                logger.error('caught exception while processing rcynic_object:\n'
+                                'vs=' + repr(vs) + '\nobj=' + repr(obj))
+                # .show() writes to stdout
+                obj.show()
+                raise
+        else:
+            logger.debug('object is unchanged')
+
+    else:
+        # remove any data for this object if it was previously accepted
+        # see https://trac.rpki.net/ticket/588#comment:28
+        inst_qs.delete()
 
 
 @transaction.commit_on_success
 def process_cache(root, xml_file):
-    dispatch = {
-        'rcynic_certificate': rcynic_cert,
-        'rcynic_roa': rcynic_roa,
-        'rcynic_ghostbuster': rcynic_gbr
-    }
-    model_class = {
-        'rcynic_certificate': models.Cert,
-        'rcynic_roa': models.ROA,
-        'rcynic_ghostbuster': models.Ghostbuster
-    }
 
     last_uri = None
     statuses = []
@@ -165,99 +257,16 @@ def process_cache(root, xml_file):
     logger.info('updating validation status')
     for vs in rcynic_xml_iterator(root, xml_file):
         if vs.uri != last_uri:
-            if statuses:
-                obj, created = models.RepositoryObject.objects.get_or_create(uri=last_uri)
-                save_statuses(obj, statuses)
+            save_statuses(statuses)
 
             statuses = []
             last_uri = vs.uri
 
         statuses.append(vs)
 
-        if vs.status == 'object_accepted':
-            logger.debug('processing %s' % vs.filename)
-
-            cls = model_class[vs.file_class.__name__]
-            q = cls.objects.filter(repo__uri=vs.uri)
-            if not q:
-                repo, created = models.RepositoryObject.objects.get_or_create(uri=vs.uri)
-                inst = cls(repo=repo)
-            else:
-                inst = q[0]
-
-            # determine if the object is changed/new
-            mtime = os.stat(vs.filename)[8]
-            if mtime != inst.mtime:
-                inst.mtime = mtime
-                try:
-                    obj = vs.obj  # causes object to be lazily loaded
-                except Exception, e:
-                    logger.warning('Caught %s while processing %s: %s' % (
-                        type(e), vs.filename, e))
-                    continue
-
-                inst.not_before = obj.notBefore.to_sql()
-                inst.not_after = obj.notAfter.to_sql()
-                inst.name = obj.subject
-                inst.keyid = obj.ski
-
-                # look up signing cert
-                if obj.issuer == obj.subject:
-                    # self-signed cert (TA)
-                    assert(isinstance(inst, models.Cert))
-                    inst.issuer = None
-                else:
-                    # if an object has moved in the repository, the entry for
-                    # the old location will still be in the database, but
-                    # without any object_accepted in its validtion status
-                    qs = models.Cert.objects.filter(
-                        keyid=obj.aki,
-                        name=obj.issuer,
-                        repo__statuses__status=object_accepted
-                    )
-                    ncerts = len(qs)
-                    if ncerts == 0:
-                        logger.warning('unable to find signing cert with ski=%s (%s)' % (obj.aki, obj.issuer))
-                        continue
-                    else:
-                        if ncerts > 1:
-                            # multiple matching certs, all of which are valid
-                            logger.warning('Found multiple certs matching ski=%s sn=%s' % (obj.aki, obj.issuer))
-                            for c in qs:
-                                logger.warning(c.repo.uri)
-                        # just use the first match
-                        inst.issuer = qs[0]
-
-                try:
-                    # do object-specific tasks
-                    dispatch[vs.file_class.__name__](obj, inst)
-
-                    inst.save()  # don't require a save in the dispatch methods
-
-                    # for the root cert, we can't set inst.issuer = inst until
-                    # after inst.save() has been called.
-                    if inst.issuer is None:
-                        inst.issuer = inst
-                        inst.save()
-                except:
-                    logger.error('caught exception while processing rcynic_object:\n'
-                                 'vs=' + repr(vs) + '\nobj=' + repr(obj))
-                    # .show() writes to stdout
-                    obj.show()
-                    raise
-            else:
-                logger.debug('object is unchanged')
-
-            # insert the saved validation statuses now that the object has been
-            # created.
-            #save_statuses(inst.repo, statuses)
-            #statuses = []
-
     # process any left over statuses for an object that was not ultimately
     # accepted
-    if statuses:
-        obj, created = models.RepositoryObject.objects.get_or_create(uri=last_uri)
-        save_statuses(obj, statuses)
+    save_statuses(statuses)
 
     # garbage collection
     # remove all objects which have no ValidationStatus references, which

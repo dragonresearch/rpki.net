@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2013  SPARTA, Inc. a Parsons Company
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND SPARTA DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL SPARTA BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+__version__ = '$Id$'
+
+import sys
+import optparse
+
+from rpki.gui.script_util import setup
+setup()
+
+from rpki.gui.routeview import models as rv
+from rpki.resource_set import resource_range_ip
+
+parser = optparse.OptionParser(
+    usage='%prog [options] PREFIX',
+    description='query the rpki web portal database for routes covering a '
+    'prefix specified as an argument, and display the validity and covering '
+    'ROAs for each route',
+    version=__version__,
+)
+options, args = parser.parse_args()
+
+if len(args) == 0:
+    print 'error: Specify an address/prefix'
+    sys.exit(1)
+
+# allow bare IP addresses
+if '/' not in args[0]:
+    args[0] = args[0] + '/32'
+
+r = resource_range_ip.parse_str(args[0])
+
+qs = rv.RouteOrigin.objects.filter(
+    prefix_min__lte=r.min,
+    prefix_max__gte=r.max
+)
+
+for route in qs:
+    print route.as_resource_range(), route.asn, route.status
+    for pfx in route.roa_prefixes:
+        for roa in pfx.roas.all():
+            print '    ', pfx.as_roa_prefix(), roa.asid, roa.repo.uri

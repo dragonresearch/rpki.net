@@ -11,6 +11,11 @@ WWW=		http://rpki.net/
 GNU_CONFIGURE=  yes
 USE_PYTHON=	2.7+
 USE_GNOME=      libxml2 libxslt
+USE_APACHE_RUN= 22+
+
+SUB_FILES=	pkg-install
+SUB_LIST=	APACHE_VERSION=${APACHE_VERSION}
+PLIST_SUB=	APACHE_VERSION=${APACHE_VERSION}
 
 # For OpenSSL, not needed otherwise
 USE_PERL5_BUILD=yes
@@ -28,7 +33,7 @@ RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 
 # Just want relying party tools, try to use system OpenSSL if we can.
 
-CONFIGURE_ARGS= --disable-ca-tools
+CONFIGURE_ARGS= --disable-ca-tools APACHE_VERSION=${APACHE_VERSION}
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
 MAKE_JOBS_UNSAFE= yes

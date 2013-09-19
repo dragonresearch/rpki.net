@@ -114,7 +114,7 @@ etc/rcynic.conf.sample
   f.write('''\
 @dirrm etc/rpki/trust-anchors
 @dirrmtry etc/rpki
-@dirrm www/apache22/data/rcynic
+@dirrm www/apache%%APACHE_VERSION%%/data/rcynic
 @cwd /
 @dirrm var/rcynic/data
 @dirrm var/rcynic/rpki-rtr/sockets

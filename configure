@@ -662,6 +662,7 @@ CPPFLAGS
 LDFLAGS
 CFLAGS
 CC
+APACHE_VERSION
 RCYNIC_DIR
 host_os
 host_vendor
@@ -730,6 +731,7 @@ enable_rpki_rtr
 host_alias
 target_alias
 RCYNIC_DIR
+APACHE_VERSION
 CC
 CFLAGS
 LDFLAGS
@@ -1371,6 +1373,9 @@ Optional Packages:
 Some influential environment variables:
   RCYNIC_DIR  Where to put output files from rcynic and rtr-origin; also
               controls jail location for --enable-rcynic-jail
+  APACHE_VERSION
+              Version of Apache httpd, mostly used on FreeBSD where it
+              determines some of the directory names
   CC          C compiler command
   CFLAGS      C compiler flags
   LDFLAGS     linker flags, e.g. -L<lib dir> if you have libraries in a
@@ -2456,6 +2461,7 @@ if test "${enable_python_install_layout+set}" = set; then :
 else
   enable_python_install_layout=auto
 fi
+
 
 
 
@@ -4412,6 +4418,39 @@ fi
 
 RCYNIC_DIR='${DESTDIR}'"${rcynic_base_dir}"
 
+# APACHE_VERSION is another "precious" argument to this script.  It
+# mostly matters on FreeBSD, where most things involving Apache encode
+# the Apache version number into their filenames.
+#
+# If we can't figure out the version number, we assume 2.2 and hope
+# for the best; at some point we may need to do better than this.
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking Apache version" >&5
+$as_echo_n "checking Apache version... " >&6; }
+
+if test "X$APACHE_VERSION" = "X"
+then
+	for apachectl in /usr/local/sbin/apachectl /usr/sbin/apachectl
+	do
+		if test -x $apachectl
+		then
+			APACHE_VERSION=`$apachectl -v | sed -n 's=^Server version: Apache/\([0-9]*\)\.\([0-9]*\)\..*$=\1\2=p'`
+			break
+		fi
+	done
+fi
+
+if test "X$APACHE_VERSION" = "X"
+then
+	APACHE_VERSION="22"
+	msg='not found, defaulting to 2.2'
+else
+	msg=`echo $APACHE_VERSION | sed 's=.=&.=`
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $msg" >&5
+$as_echo "$msg" >&6; }
+
 # Figure out whether to run rcynic in a chroot jail, which determines
 # a bunch of other settings.
 
@@ -4530,7 +4569,7 @@ esac
 
 case $host_os in
 	freebsd*)
-		RCYNIC_HTML_DIR='/usr/local/www/apache22/data/rcynic'
+		RCYNIC_HTML_DIR="/usr/local/www/apache${APACHE_VERSION}/data/rcynic"
 		;;
 	linux*)
 		if test -d /var/www/html

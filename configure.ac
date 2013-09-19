@@ -42,6 +42,7 @@ AC_ARG_ENABLE([wsgi_daemon_mode],	[AS_HELP_STRING([--enable-wsgi-daemon-mode=use
 AC_ARG_ENABLE([python_install_layout],	[AS_HELP_STRING([--enable-python-install-layout=layout],  [Specify Python --install-layout])],		  [], [enable_python_install_layout=auto])
 
 AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rtr-origin; also controls jail location for --enable-rcynic-jail])
+AC_ARG_VAR([APACHE_VERSION],		[Version of Apache httpd, mostly used on FreeBSD where it determines some of the directory names])
 
 # Obsolete options.  If you know of a better way to handle this, tell me.
 
@@ -255,6 +256,37 @@ fi
 
 RCYNIC_DIR='${DESTDIR}'"${rcynic_base_dir}"
 
+# APACHE_VERSION is another "precious" argument to this script.  It
+# mostly matters on FreeBSD, where most things involving Apache encode
+# the Apache version number into their filenames.
+#
+# If we can't figure out the version number, we assume 2.2 and hope
+# for the best; at some point we may need to do better than this.
+
+AC_MSG_CHECKING([Apache version])
+
+if test "X$APACHE_VERSION" = "X"
+then
+	for apachectl in /usr/local/sbin/apachectl /usr/sbin/apachectl
+	do
+		if test -x $apachectl
+		then
+			APACHE_VERSION=`$apachectl -v | sed -n 's=^Server version: Apache/\([[0-9]]*\)\.\([[0-9]]*\)\..*$=\1\2=p'`
+			break
+		fi
+	done
+fi
+
+if test "X$APACHE_VERSION" = "X"
+then
+	APACHE_VERSION="22"
+	msg='not found, defaulting to 2.2'
+else
+	msg=`echo $APACHE_VERSION | sed 's=.=&.=`
+fi
+
+AC_MSG_RESULT([$msg])
+
 # Figure out whether to run rcynic in a chroot jail, which determines
 # a bunch of other settings.
 
@@ -369,7 +401,7 @@ AC_SUBST_FILE(RPKID_MAKE_RULES)
 
 case $host_os in
 	freebsd*)
-		RCYNIC_HTML_DIR='/usr/local/www/apache22/data/rcynic'
+		RCYNIC_HTML_DIR="/usr/local/www/apache${APACHE_VERSION}/data/rcynic"
 		;;
 	linux*)
 		if test -d /var/www/html

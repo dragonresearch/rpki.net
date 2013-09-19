@@ -42,7 +42,7 @@ RUN_DEPENDS+=	${APACHE_PKGNAMEPREFIX}mod_wsgi>3:${PORTSDIR}/www/mod_wsgi3
 # Try to use system OpenSSL if we can.
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
-CONFIGURE_ARGS= --disable-target-installation --disable-rp-tools
+CONFIGURE_ARGS= --disable-target-installation --disable-rp-tools APACHE_VERSION=${APACHE_VERSION}
 
 pre-install:
 	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} PRE-INSTALL

@@ -29,7 +29,7 @@ import rpki.autoconf
 
 fqdn = socket.getfqdn()
 
-vhost = '''\
+vhost_template = """\
 #
 # By default, this configuration assumes that you use name-based
 # virtual hosting.  If that's not what you want, you may need
@@ -57,8 +57,7 @@ vhost = '''\
   # Allow access to our WSGI directory.
   #
   <Directory %(datarootdir)s/rpki/wsgi>
-    Order deny,allow
-    Allow from all
+%(allow)s
   </Directory>
 
   #
@@ -70,8 +69,7 @@ vhost = '''\
   # Allow access to static content (icons, etc).
   #
   <Directory %(datarootdir)s/rpki/media>
-    Order deny,allow
-    Allow from all
+%(allow)s
   </Directory>
 
   #
@@ -85,8 +83,7 @@ vhost = '''\
   # its output files.
   #
   <Directory %(RCYNIC_HTML_DIR)s>
-    Order deny,allow
-    Allow from all
+%(allow)s
   </Directory>
 
   #
@@ -124,8 +121,16 @@ vhost = '''\
   BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
 
 </VirtualHost>
-''' % dict(rpki.autoconf.__dict__,
-           fqdn = fqdn)
+"""
+
+allow_22_template = '''
+    Order deny,allow
+    Allow from all\
+'''
+
+allow_24_template = '''
+    Require all granted\
+'''
 
 def Guess(args):
   """
@@ -228,6 +233,15 @@ class Platform(object):
       self.apache_cer, self.apache_key, self.apache_key))
     os.chmod(self.apache_key, 0600)
 
+  _vhost = None
+
+  @property
+  def vhost(self):
+    if self._vhost is None:
+      allow = allow_22_template if self.args.apache_version <= 22 else allow_24_template
+      self._vhost = vhost_template % dict(rpki.autoconf.__dict__, fqdn = fqdn, allow = allow)
+    return self._vhost
+
   @property
   def too_complex(self):
     return textwrap.dedent('''\
@@ -247,7 +261,7 @@ class Platform(object):
       self.log("Writing %s" % f.name)
       if self.apache_conf_preface is not None:
         f.write(self.apache_conf_preface)
-      f.write(vhost)
+      f.write(self.vhost)
     if not os.path.exists(self.apache_conf):
       self.unlink(self.apache_conf)
       with open(self.apache_conf, "w") as f:
@@ -258,7 +272,7 @@ class Platform(object):
         else:
           if self.apache_conf_preface is not None and not self.test_tcp("localhost", 443):
             f.write(self.apache_conf_preface)
-          f.write(vhost)
+          f.write(self.vhost)
     if not os.path.exists(self.apache_conf_target):
       self.unlink(self.apache_conf_target)
       self.log("Symlinking %s to %s" % (
@@ -333,27 +347,32 @@ class FreeBSD(Platform):
   @property
   def apache_name(self):
     if self._apache_name is None:
-      try:
-        self._apache_name = "apache%s%s" % re.search("^Server version: Apache/(\\d+)\\.(\\d+)",
-                                                     subprocess.check_output(("httpd", "-V"))).groups()
-      except:
-        raise RuntimeError("Couldn't deduce Apache version number")
+      self._apache_name = "apache%s" % self.args.apache_version
     return self._apache_name
 
   @property
   def apache_conf_target(self):
     return "/usr/local/etc/%s/Includes/rpki.conf" % self.apache_name
 
-  apache_conf_preface = textwrap.dedent('''\
-    # These directives tell Apache to listen on the HTTPS port
-    # and to enable name-based virtual hosting.  If you already
-    # have HTTPS enabled elsewhere in your configuration, you may
-    # need to remove these.
+  _apache_conf_preface = None
 
-    Listen [::]:443
-    Listen 0.0.0.0:443
-    NameVirtualHost *:443
-    ''')
+  @property
+  def apache_conf_preface(self):
+    if self._apache_conf_preface is None:
+      self._apache_conf_preface = textwrap.dedent('''\
+        # These directives tell Apache to listen on the HTTPS port
+        # and to enable name-based virtual hosting.  If you already
+        # have HTTPS enabled elsewhere in your configuration, you may
+        # need to remove these.
+
+        Listen [::]:443
+        Listen 0.0.0.0:443
+        ''')
+      if self.args.apache_version <= 22:
+        self._apache_conf_preface += textwrap.dedent('''\
+          NameVirtualHost *:443
+          ''')
+    return self._apache_conf_preface
 
   def restart(self):
     self.run("service", self.apache_name, "restart")
@@ -414,6 +433,9 @@ def main():
 
   parser.add_argument("-v", "--verbose",
                       help = "whistle while you work", action = "store_true")
+  parser.add_argument("--apache-version",
+                      help = "Apache version (default " + rpki.autoconf.APACHE_VERSION + ")",
+                      type = int,             default =  rpki.autoconf.APACHE_VERSION)
 
   group1.add_argument("--freebsd",
                       help = "configure for FreeBSD",

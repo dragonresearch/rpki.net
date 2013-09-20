@@ -256,9 +256,9 @@ class ROARequest(forms.Form):
             if max_prefixlen < r.prefixlen():
                 raise forms.ValidationError(
                     'max prefix length must be greater than or equal to the prefix length')
-            if max_prefixlen > r.datum_type.bits:
+            if max_prefixlen > r.min.bits:
                 raise forms.ValidationError, \
-                        'max prefix length (%d) is out of range for IP version (%d)' % (max_prefixlen, r.datum_type.bits)
+                        'max prefix length (%d) is out of range for IP version (%d)' % (max_prefixlen, r.min.bits)
             self.cleaned_data['max_prefixlen'] = str(max_prefixlen)
         return self.cleaned_data
 

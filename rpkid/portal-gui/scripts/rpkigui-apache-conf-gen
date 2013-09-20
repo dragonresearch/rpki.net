@@ -400,6 +400,10 @@ class Debian(Platform):
   def enable(self):
     self.run("a2enmod", "ssl")
     self.run("a2ensite", "rpki")
+    #
+    # In light of BREACH and CRIME attacks, mod_deflate is looking
+    # like a bad idea, so make sure it's off.
+    self.run("a2dismod", "deflate")
 
   def disable(self):
     self.run("a2dissite", "rpki")

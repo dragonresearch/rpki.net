@@ -49,8 +49,18 @@ qs = rv.RouteOrigin.objects.filter(
     prefix_max__gte=r.max
 )
 
+
+def validity_marker(route, roa, roa_prefix):
+    "Return + if the roa would cause the route to be accepted, or - if not"
+    # we already know the ROA covers this route because they are returned
+    # from RouteOrigin.roas, so just check the ASN and max prefix length
+    return '-' if (roa.asid == 0 or route.asn != roa.asid or
+                   route.prefixlen > roa_prefix.max_length) else '+'
+
+# xxx.xxx.xxx.xxx/xx-xx is 22 characters
 for route in qs:
     print route.as_resource_range(), route.asn, route.status
     for pfx in route.roa_prefixes:
         for roa in pfx.roas.all():
-            print '    ', pfx.as_roa_prefix(), roa.asid, roa.repo.uri
+            print validity_marker(route, roa, pfx), pfx.as_roa_prefix(), roa.asid, roa.repo.uri
+    print

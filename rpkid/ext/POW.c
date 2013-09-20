@@ -1276,6 +1276,7 @@ ipaddress_object_number_binary_helper(binaryfunc function, PyObject *arg1, PyObj
       (obj1 = PyNumber_Long(arg1)) == NULL ||
       (obj2 = PyNumber_Long(arg2)) == NULL) {
     result = (ipaddress_object *) Py_NotImplemented;
+    Py_INCREF(result);
     goto error;
   }
 
@@ -1314,7 +1315,7 @@ ipaddress_object_number_long(PyObject *arg)
   ENTERING(ipaddress_object_number_long);
 
   if (!POW_IPAddress_Check(arg))
-    return Py_NotImplemented;
+    return Py_INCREF(Py_NotImplemented), Py_NotImplemented;
 
   return _PyLong_FromByteArray(addr->address, addr->type->length, 0, 0);
 }

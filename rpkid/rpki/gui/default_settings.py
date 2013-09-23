@@ -103,9 +103,20 @@ SECRET_KEY = get_secret_key()
 # See https://docs.djangoproject.com/en/1.5/ref/settings/#allowed-hosts
 # for details on why you might need this.
 def get_allowed_hosts():
-    allowed_hosts = rpki_config.multiget("allowed-hosts")
-    allowed_hosts.append(socket.getfqdn())
-    return allowed_hosts
+    allowed_hosts = set(rpki_config.multiget("allowed-hosts"))
+    allowed_hosts.add(socket.getfqdn())
+    try:
+        import netifaces
+        for interface in netifaces.interfaces():
+            addresses = netifaces.ifaddresses(interface)
+            for af in (netifaces.AF_INET, netifaces.AF_INET6):
+                if af in addresses:
+                    for address in addresses[af]:
+                        if "addr" in address:
+                            allowed_hosts.add(address["addr"])
+    except ImportError:
+        pass
+    return list(allowed_hosts)
 
 ALLOWED_HOSTS = get_allowed_hosts()
 

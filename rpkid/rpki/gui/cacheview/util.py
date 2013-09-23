@@ -177,8 +177,16 @@ def save_statuses(statuses):
         else:
             inst = inst_qs[0]
 
-        # determine if the object is changed/new
-        mtime = os.stat(vs.filename)[stat.ST_MTIME]
+        try:
+            # determine if the object is changed/new
+            mtime = os.stat(vs.filename)[stat.ST_MTIME]
+        except OSError as e:
+            logger.error('unable to stat %s: %s %s' % (
+                vs.filename, type(e), e))
+            # treat as if missing from rcynic.xml
+            inst.delete()
+            return
+
         if mtime != inst.mtime:
             inst.mtime = mtime
             try:

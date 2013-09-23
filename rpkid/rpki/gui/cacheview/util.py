@@ -24,6 +24,7 @@ import time
 import vobject
 import logging
 import os
+import stat
 from socket import getfqdn
 from cStringIO import StringIO
 
@@ -177,7 +178,7 @@ def save_statuses(statuses):
             inst = inst_qs[0]
 
         # determine if the object is changed/new
-        mtime = os.stat(vs.filename)[8]
+        mtime = os.stat(vs.filename)[stat.ST_MTIME]
         if mtime != inst.mtime:
             inst.mtime = mtime
             try:

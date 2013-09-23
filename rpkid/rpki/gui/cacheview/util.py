@@ -47,6 +47,13 @@ def rcynic_cert(cert, obj):
 
     # object must be saved for the related manager methods below to work
     obj.save()
+
+    # for the root cert, we can't set inst.issuer = inst until
+    # after inst.save() has been called.
+    if obj.issuer is None:
+        obj.issuer = obj
+        obj.save()
+
     # resources can change when a cert is updated
     obj.asns.clear()
     obj.addresses.clear()
@@ -120,6 +127,7 @@ def rcynic_gbr(gbr, obj):
     obj.email_address = vcard.email.value if hasattr(vcard, 'email') else None
     obj.telephone = vcard.tel.value if hasattr(vcard, 'tel') else None
     obj.organization = vcard.org.value[0] if hasattr(vcard, 'org') else None
+    obj.save()
 
 LABEL_CACHE = {}
 
@@ -140,125 +148,111 @@ model_class = {
 }
 
 
-def save_statuses(statuses):
-    if not statuses:
-        return
-
-    repo, created = models.RepositoryObject.objects.get_or_create(
-        uri=statuses[-1].uri
-    )
-
-    valid = False
-    for vs in statuses:
-        timestamp = datetime.fromXMLtime(vs.timestamp).to_sql()
-        status = LABEL_CACHE[vs.status]
-        g = models.generations_dict[vs.generation] if vs.generation else None
-        repo.statuses.create(generation=g, timestamp=timestamp, status=status)
-        valid = valid or status is object_accepted
+def save_status(repo, vs):
+    timestamp = datetime.fromXMLtime(vs.timestamp).to_sql()
+    status = LABEL_CACHE[vs.status]
+    g = models.generations_dict[vs.generation] if vs.generation else None
+    repo.statuses.create(generation=g, timestamp=timestamp, status=status)
 
     # if this object is in our interest set, update with the current validation
     # status
     if repo.uri in uris:
         x, y, z, q = uris[repo.uri]
+        valid = z or (status is object_accepted)  # don't clobber previous True value
         uris[repo.uri] = x, y, valid, repo
 
-    # object_accepted is always last, when present
-    vs = statuses[-1]
+    if status is not object_accepted:
+        return
+
     cls = model_class[vs.file_class.__name__]
     # find the instance of the signedobject subclass that is associated with
     # this repo instance (may be empty when not accepted)
     inst_qs = cls.objects.filter(repo=repo)
 
-    if valid:
-        logger.debug('processing %s' % vs.filename)
+    logger.debug('processing %s' % vs.filename)
 
-        if not inst_qs:
-            inst = cls(repo=repo)
-        else:
-            inst = inst_qs[0]
+    if not inst_qs:
+        inst = cls(repo=repo)
+        logger.debug('object not found in db, creating new object cls=%s id=%s' % (
+            cls,
+            id(inst)
+        ))
+    else:
+        inst = inst_qs[0]
 
+    try:
+        # determine if the object is changed/new
+        mtime = os.stat(vs.filename)[stat.ST_MTIME]
+    except OSError as e:
+        logger.error('unable to stat %s: %s %s' % (
+            vs.filename, type(e), e))
+        # treat as if missing from rcynic.xml
+        # use inst_qs rather than deleting inst so that we don't raise an
+        # exception for newly created objects (inst_qs will be empty)
+        inst_qs.delete()
+        return
+
+    if mtime != inst.mtime:
+        inst.mtime = mtime
         try:
-            # determine if the object is changed/new
-            mtime = os.stat(vs.filename)[stat.ST_MTIME]
-        except OSError as e:
-            logger.error('unable to stat %s: %s %s' % (
-                vs.filename, type(e), e))
-            # treat as if missing from rcynic.xml
-            inst.delete()
+            obj = vs.obj  # causes object to be lazily loaded
+        except Exception, e:
+            logger.warning('Caught %s while processing %s: %s' % (
+                type(e), vs.filename, e))
             return
 
-        if mtime != inst.mtime:
-            inst.mtime = mtime
-            try:
-                obj = vs.obj  # causes object to be lazily loaded
-            except Exception, e:
-                logger.warning('Caught %s while processing %s: %s' % (
-                    type(e), vs.filename, e))
-                return
+        inst.not_before = obj.notBefore.to_sql()
+        inst.not_after = obj.notAfter.to_sql()
+        inst.name = obj.subject
+        inst.keyid = obj.ski
 
-            inst.not_before = obj.notBefore.to_sql()
-            inst.not_after = obj.notAfter.to_sql()
-            inst.name = obj.subject
-            inst.keyid = obj.ski
-
-            # look up signing cert
-            if obj.issuer == obj.subject:
-                # self-signed cert (TA)
-                assert(isinstance(inst, models.Cert))
-                inst.issuer = None
-            else:
-                # if an object has moved in the repository, the entry for
-                # the old location will still be in the database, but
-                # without any object_accepted in its validtion status
-                qs = models.Cert.objects.filter(
-                    keyid=obj.aki,
-                    name=obj.issuer,
-                    repo__statuses__status=object_accepted
-                )
-                ncerts = len(qs)
-                if ncerts == 0:
-                    logger.warning('unable to find signing cert with ski=%s (%s)' % (obj.aki, obj.issuer))
-                    return
-                else:
-                    if ncerts > 1:
-                        # multiple matching certs, all of which are valid
-                        logger.warning('Found multiple certs matching ski=%s sn=%s' % (obj.aki, obj.issuer))
-                        for c in qs:
-                            logger.warning(c.repo.uri)
-                    # just use the first match
-                    inst.issuer = qs[0]
-
-            try:
-                # do object-specific tasks
-                dispatch[vs.file_class.__name__](obj, inst)
-
-                inst.save()  # don't require a save in the dispatch methods
-
-                # for the root cert, we can't set inst.issuer = inst until
-                # after inst.save() has been called.
-                if inst.issuer is None:
-                    inst.issuer = inst
-                    inst.save()
-            except:
-                logger.error('caught exception while processing rcynic_object:\n'
-                                'vs=' + repr(vs) + '\nobj=' + repr(obj))
-                # .show() writes to stdout
-                obj.show()
-                raise
+        # look up signing cert
+        if obj.issuer == obj.subject:
+            # self-signed cert (TA)
+            assert(isinstance(inst, models.Cert))
+            inst.issuer = None
         else:
-            logger.debug('object is unchanged')
+            # if an object has moved in the repository, the entry for
+            # the old location will still be in the database, but
+            # without any object_accepted in its validtion status
+            qs = models.Cert.objects.filter(
+                keyid=obj.aki,
+                name=obj.issuer,
+                repo__statuses__status=object_accepted
+            )
+            ncerts = len(qs)
+            if ncerts == 0:
+                logger.warning('unable to find signing cert with ski=%s (%s)' % (obj.aki, obj.issuer))
+                return
+            else:
+                if ncerts > 1:
+                    # multiple matching certs, all of which are valid
+                    logger.warning('Found multiple certs matching ski=%s sn=%s' % (obj.aki, obj.issuer))
+                    for c in qs:
+                        logger.warning(c.repo.uri)
+                # just use the first match
+                inst.issuer = qs[0]
 
+        try:
+            # do object-specific tasks
+            dispatch[vs.file_class.__name__](obj, inst)
+        except:
+            logger.error('caught exception while processing rcynic_object:\n'
+                            'vs=' + repr(vs) + '\nobj=' + repr(obj))
+            # .show() writes to stdout
+            obj.show()
+            raise
+
+        logger.debug('object saved id=%s' % id(inst))
     else:
-        # remove any data for this object if it was previously accepted
-        # see https://trac.rpki.net/ticket/588#comment:28
-        inst_qs.delete()
+        logger.debug('object is unchanged')
 
 
 @transaction.commit_on_success
 def process_cache(root, xml_file):
 
     last_uri = None
-    statuses = []
+    repo = None
 
     logger.info('clearing validation statuses')
     models.ValidationStatus.objects.all().delete()
@@ -266,16 +260,9 @@ def process_cache(root, xml_file):
     logger.info('updating validation status')
     for vs in rcynic_xml_iterator(root, xml_file):
         if vs.uri != last_uri:
-            save_statuses(statuses)
-
-            statuses = []
+            repo, created = models.RepositoryObject.objects.get_or_create(uri=vs.uri)
             last_uri = vs.uri
-
-        statuses.append(vs)
-
-    # process any left over statuses for an object that was not ultimately
-    # accepted
-    save_statuses(statuses)
+        save_status(repo, vs)
 
     # garbage collection
     # remove all objects which have no ValidationStatus references, which
@@ -285,10 +272,20 @@ def process_cache(root, xml_file):
     # Delete all objects that have zero validation status elements.
     models.RepositoryObject.objects.annotate(num_statuses=django.db.models.Count('statuses')).filter(num_statuses=0).delete()
 
+    # Delete all SignedObject instances that were not accepted.  There may
+    # exist rows for objects that were previously accepted.
+    # See https://trac.rpki.net/ticket/588#comment:30
+    #
+    # We have to do this here rather than in save_status() because the
+    # <validation_status/> elements are not guaranteed to be consecutive for a
+    # given URI.  see https://trac.rpki.net/ticket/625#comment:5
+    models.SignedObject.objects.exclude(repo__statuses__status=object_accepted).delete()
+
     # ROAPrefixV* objects are M2M so they are not automatically deleted when
     # their ROA object disappears
     models.ROAPrefixV4.objects.annotate(num_roas=django.db.models.Count('roas')).filter(num_roas=0).delete()
     models.ROAPrefixV6.objects.annotate(num_roas=django.db.models.Count('roas')).filter(num_roas=0).delete()
+    logger.info('done with garbage collection')
 
 
 @transaction.commit_on_success

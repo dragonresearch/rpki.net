@@ -4445,7 +4445,7 @@ then
 	APACHE_VERSION="22"
 	msg='not found, defaulting to 2.2'
 else
-	msg=`echo $APACHE_VERSION | sed 's=.=&.=`
+	msg=`echo $APACHE_VERSION | sed 's=.=&.='`
 fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $msg" >&5

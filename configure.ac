@@ -282,7 +282,7 @@ then
 	APACHE_VERSION="22"
 	msg='not found, defaulting to 2.2'
 else
-	msg=`echo $APACHE_VERSION | sed 's=.=&.=`
+	msg=`echo $APACHE_VERSION | sed 's=.=&.='`
 fi
 
 AC_MSG_RESULT([$msg])

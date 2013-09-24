@@ -16,7 +16,9 @@ USE_APACHE_RUN= 22+
 
 USE_RC_SUBR=	rpki-ca
 
+# Disable a couple of recent whoopie cushions in the FreeBSD ports system
 MAKE_JOBS_UNSAFE= yes
+NO_STAGE	= yes
 
 # For OpenSSL, not needed otherwise
 USE_PERL5_BUILD=yes

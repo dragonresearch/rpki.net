@@ -36,7 +36,9 @@ RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 CONFIGURE_ARGS= --disable-ca-tools APACHE_VERSION=${APACHE_VERSION}
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
+# Disable a couple of recent whoopie cushions in the FreeBSD ports system
 MAKE_JOBS_UNSAFE= yes
+NO_STAGE	= yes
 
 # rcynic's Makefile constructs an rcynic.conf for us if it doesn't
 # find one already installed.  This turns out to be exactly what

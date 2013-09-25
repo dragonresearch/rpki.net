@@ -27,6 +27,7 @@ POST-INSTALL)
     fi
 
     /usr/bin/install -o root -g wheel -d /usr/local/share/rpki/publication
+    /usr/bin/install -o www  -g www   -d /usr/local/share/rpki/python-eggs
 
     /usr/local/sbin/rpki-sql-setup
     /usr/local/sbin/rpki-manage syncdb --noinput

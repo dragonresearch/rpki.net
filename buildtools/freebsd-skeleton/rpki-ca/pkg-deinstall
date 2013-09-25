@@ -30,6 +30,10 @@ DEINSTALL)
     /bin/rm -f /usr/local/share/rpki/rpkid.cer
     /bin/rm -f /usr/local/share/rpki/rpkid.key
 
+    # Clean up unpacked Python eggs.
+
+    /bin/rm -rf /usr/local/share/rpki/python-eggs
+
     # If we were automatically dropping SQL databases, this would be
     # where we'd want to record what databases to drop.
 
@@ -63,9 +67,8 @@ POST-DEINSTALL)
     #
     # Not really sure what to do about these.  To the extent that
     # I understand the theory on FreeBSD (which seems to be less
-    # carefully worked out than on Debian, even though i've been
-    # using FreeBSD longer), we're just supposed to leave these
-    # for the user to clean up.
+    # carefully worked out than on Debian), we're just supposed to
+    # leave these for the user to clean up.
 
     ;;
 

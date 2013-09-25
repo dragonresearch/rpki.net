@@ -32,14 +32,15 @@ fi
 
 # Put the user option stuff up front.
 
-AC_ARG_WITH([system_openssl],		[AS_HELP_STRING([--with-system-openssl],		  [Link against system copy of OpenSSL])],        [], [with_system_openssl=auto])
-AC_ARG_ENABLE([rcynic_jail],		[AS_HELP_STRING([--enable-rcynic-jail],			  [Run rcynic in chroot jail])],                  [], [enable_rcynic_jail=no])
-AC_ARG_ENABLE([openssl_asm],		[AS_HELP_STRING([--disable-openssl-asm],		  [Don't let OpenSSL build assembler code])],     [], [enable_openssl_asm=auto])
-AC_ARG_ENABLE([ca_tools],		[AS_HELP_STRING([--disable-ca-tools],			  [Don't build any of the CA tools])],            [], [enable_ca_tools=yes])
-AC_ARG_ENABLE([rp_tools],		[AS_HELP_STRING([--disable-rp-tools],			  [Don't build any of the relying party tools])], [], [enable_rp_tools=yes])
-AC_ARG_ENABLE([target_installation],	[AS_HELP_STRING([--disable-target-installation],	  [Don't perform final target installation])],    [], [enable_target_installation=yes])
-AC_ARG_ENABLE([wsgi_daemon_mode],	[AS_HELP_STRING([--enable-wsgi-daemon-mode=user[:group]], [Run the web portal as a separate process])],   [], [enable_wsgi_daemon_mode=no])
-AC_ARG_ENABLE([python_install_layout],	[AS_HELP_STRING([--enable-python-install-layout=layout],  [Specify Python --install-layout])],		  [], [enable_python_install_layout=auto])
+AC_ARG_WITH([system_openssl],		[AS_HELP_STRING([--with-system-openssl],			[Link against system copy of OpenSSL])],        [], [with_system_openssl=auto])
+AC_ARG_ENABLE([rcynic_jail],		[AS_HELP_STRING([--enable-rcynic-jail],				[Run rcynic in chroot jail])],                  [], [enable_rcynic_jail=no])
+AC_ARG_ENABLE([openssl_asm],		[AS_HELP_STRING([--disable-openssl-asm],			[Don't let OpenSSL build assembler code])],     [], [enable_openssl_asm=auto])
+AC_ARG_ENABLE([ca_tools],		[AS_HELP_STRING([--disable-ca-tools],				[Don't build any of the CA tools])],            [], [enable_ca_tools=yes])
+AC_ARG_ENABLE([rp_tools],		[AS_HELP_STRING([--disable-rp-tools],				[Don't build any of the relying party tools])], [], [enable_rp_tools=yes])
+AC_ARG_ENABLE([target_installation],	[AS_HELP_STRING([--disable-target-installation],		[Don't perform final target installation])],    [], [enable_target_installation=yes])
+AC_ARG_ENABLE([wsgi_daemon_mode],	[AS_HELP_STRING([--enable-wsgi-daemon-mode=user[[:group]]],	[Run the web portal as a separate process])],   [], [enable_wsgi_daemon_mode=no])
+AC_ARG_ENABLE([python_install_layout],	[AS_HELP_STRING([--enable-python-install-layout=layout],	[Specify Python --install-layout])],		[], [enable_python_install_layout=auto])
+AC_ARG_ENABLE([wsgi_python_egg_cache],  [AS_HELP_STRING([--enable-wsgi-python-egg-cache=dir[[:user]]],	[Set up PYTHON_EGG_CACHE in wsgi wrapper])],	[], [enable_wsgi_python_egg_cache=auto])
 
 AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rtr-origin; also controls jail location for --enable-rcynic-jail])
 AC_ARG_VAR([APACHE_VERSION],		[Version of Apache httpd, mostly used on FreeBSD where it determines some of the directory names])
@@ -305,7 +306,7 @@ case $enable_rcynic_jail in
 		RCYNIC_JAIL_DIRS='${RCYNIC_DIR}/bin ${RCYNIC_DIR}/dev ${RCYNIC_DIR}/etc'
 		if test "X$host_os" = "Xlinux"
 		then
-			RCYNIC_JAIL_DIRS="RCYNIC_JAIL_DIRS "'${RCYNIC_DIR}/lib ${RCYNIC_DIR}/lib64 ${RCYNIC_DIR}/usr/lib'
+			RCYNIC_JAIL_DIRS="$RCYNIC_JAIL_DIRS "'${RCYNIC_DIR}/lib ${RCYNIC_DIR}/lib64 ${RCYNIC_DIR}/usr/lib'
 		fi
 		;;
 	no)
@@ -678,6 +679,57 @@ then
 	AC_SUBST(SETUP_PY_INSTALL_LAYOUT)
 fi
 
+# Figure out whether we're going to want a PYTHON_EGG_CACHE directory.
+# This is mostly just a pass through to rpkigui-apache-confgen and rpki.wsgi
+# via rpki.autoconf.
+
+AC_MSG_CHECKING([whether we need rpki.wgi to use a Python egg cache])
+
+save_IFS="$IFS"
+IFS=':' read WSGI_PYTHON_EGG_CACHE_DIR WSGI_PYTHON_EGG_CACHE_USER <<_EOF
+$enable_wsgi_python_egg_cache
+_EOF
+IFS="$save_IFS"
+
+if test "X$WSGI_PYTHON_EGG_CACHE_DIR" = "Xauto"
+then
+	case $host_os in
+	freebsd*)	WSGI_PYTHON_EGG_CACHE_DIR=yes;;
+	*)		WSGI_PYTHON_EGG_CACHE_DIR=no;;
+	esac
+fi
+
+case $WSGI_PYTHON_EGG_CACHE_DIR in
+yes)
+	WSGI_PYTHON_EGG_CACHE_DIR='${datarootdir}/rpki/python-eggs'
+	;;
+no)
+	WSGI_PYTHON_EGG_CACHE_DIR=''
+	;;
+esac
+
+if test "X$WSGI_PYTHON_EGG_CACHE_DIR" != "X" &&
+   test "X$WSGI_PYTHON_EGG_CACHE_USER" = "X"
+then
+	case $host_os in
+	freebsd*)	WSGI_PYTHON_EGG_CACHE_USER="www";;
+	linux*)		WSGI_PYTHON_EGG_CACHE_USER="www-data";;
+	esac
+fi
+
+AC_SUBST(WSGI_PYTHON_EGG_CACHE_DIR)
+AC_SUBST(WSGI_PYTHON_EGG_CACHE_USER)
+
+if test "X$WSGI_PYTHON_EGG_CACHE_DIR" = "X"
+then
+	AC_MSG_RESULT([no])
+elif test "X$WSGI_PYTHON_EGG_CACHE_USER" != "X"
+then
+	AC_MSG_RESULT([$WSGI_PYTHON_EGG_CACHE_DIR (user $WSGI_PYTHON_EGG_CACHE_USER)])
+else
+	AC_MSG_RESULT([$WSGI_PYTHON_EGG_CACHE_DIR])
+fi
+
 # Figure out which parts of this package we have to build.
 
 			      TOP_LEVEL_SUBDIRS="h"
@@ -759,22 +811,28 @@ fi
 
 if test $build_ca_tools = yes
 then
-	if test "$enable_wsgi_daemon_mode" != no
-	then
-		if test "$enable_wsgi_daemon_mode" = yes; then
-			AC_MSG_ERROR([You must specify the user to run the wsgi process as with --enable-wsgi-daemon-mode=USER])
-		fi
-		save_IFS="$IFS"
-		IFS=':' read user group <<_EOF
+	AC_CONFIG_FILES([rpkid/Makefile
+			 rpkid/tests/Makefile
+			 rpkid/portal-gui/Makefile])
+fi
+
+if test $build_ca_tools = yes &&
+   test "X$enable_wsgi_daemon_mode" = "Xyes"
+then
+	AC_MSG_ERROR([You must specify the user to run the wsgi process as with --enable-wsgi-daemon-mode=USER])
+fi
+
+if test $build_ca_tools = yes &&
+   test "X$enable_wsgi_daemon_mode" != "Xno"
+then
+	save_IFS="$IFS"
+	IFS=':' read user group <<_EOF
 $enable_wsgi_daemon_mode
 _EOF
-		IFS="$save_IFS"
-		AC_SUBST(WSGI_DAEMON_PROCESS, "WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}")
-		AC_SUBST(WSGI_PROCESS_GROUP, "WSGIProcessGroup rpkigui")
-		AC_MSG_RESULT([running mod_wsgi in daemon mode with user "$user" and group "${group:-default}"])
-	fi
-
-	AC_CONFIG_FILES([rpkid/Makefile rpkid/tests/Makefile rpkid/portal-gui/Makefile])
+	IFS="$save_IFS"
+	AC_SUBST(WSGI_DAEMON_PROCESS, "WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}")
+	AC_SUBST(WSGI_PROCESS_GROUP, "WSGIProcessGroup rpkigui")
+	AC_MSG_RESULT([running mod_wsgi in daemon mode with user "$user" and group "${group:-default}"])
 fi
 
 # Now that we're finally done with all the conditional changes to

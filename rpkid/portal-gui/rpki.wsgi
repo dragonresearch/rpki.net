@@ -22,7 +22,8 @@ import os
 import rpki.autoconf
 
 os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.default_settings'
-# needed for local_settings.py
+
+# Needed for local_settings.py
 sys.path.insert(1, rpki.autoconf.sysconfdir + '/rpki')
 
 # Kludge to disable use of setproctitle in rpki.log.  For reasons
@@ -31,6 +32,12 @@ sys.path.insert(1, rpki.autoconf.sysconfdir + '/rpki')
 # it works fine in other processes on the same system.  Not yet sure
 # what this is about, just disable setproctitle in WSGI case for now.
 os.environ['DISABLE_SETPROCTITLE'] = 'yes'
+
+# Kludge to set PYTHON_EGG_CACHE, mostly for FreeBSD where the ports
+# system installs Python eggs in their zipped format and expects each
+# user application to unpack them into its own egg cache.
+if not os.environ.get('PYTHON_EGG_CACHE') and rpki.autoconf.WSGI_PYTHON_EGG_CACHE_DIR:
+    os.environ['PYTHON_EGG_CACHE'] = rpki.autoconf.WSGI_PYTHON_EGG_CACHE_DIR
 
 import django.core.handlers.wsgi
 application = django.core.handlers.wsgi.WSGIHandler()

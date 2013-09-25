@@ -28,10 +28,12 @@ abs_top_srcdir	= @abs_top_srcdir@
 abs_top_builddir= @abs_top_builddir@
 srcdir          = @srcdir@
 
-WSGI_DAEMON_PROCESS	= @WSGI_DAEMON_PROCESS@
-WSGI_PROCESS_GROUP	= @WSGI_PROCESS_GROUP@
-RCYNIC_HTML_DIR		= @RCYNIC_HTML_DIR@
-APACHE_VERSION		= @APACHE_VERSION@
+WSGI_DAEMON_PROCESS		= @WSGI_DAEMON_PROCESS@
+WSGI_PROCESS_GROUP		= @WSGI_PROCESS_GROUP@
+RCYNIC_HTML_DIR			= @RCYNIC_HTML_DIR@
+APACHE_VERSION			= @APACHE_VERSION@
+WSGI_PYTHON_EGG_CACHE_DIR	= @WSGI_PYTHON_EGG_CACHE_DIR@
+WSGI_PYTHON_EGG_CACHE_USER	= @WSGI_PYTHON_EGG_CACHE_USER@
 
 RPKID_INSTALL_TARGETS	= @RPKID_INSTALL_TARGETS@
 
@@ -186,21 +188,23 @@ clean::
 	rm -f examples/rpki.conf
 
 rpki/autoconf.py: Makefile
-	@echo 'Generating $@';					\
-	(echo '# Automatically generated.  DO NOT EDIT.';	\
-	 echo ;							\
-	 echo 'bindir         = "${bindir}"';			\
-	 echo 'datarootdir    = "${datarootdir}"';		\
-	 echo 'localstatedir  = "${localstatedir}"';		\
-	 echo 'sbindir        = "${sbindir}"';			\
-	 echo 'sharedstatedir = "${sharedstatedir}"';		\
-	 echo 'sysconfdir     = "${sysconfdir}"';		\
-	 echo 'libexecdir     = "${libexecdir}"';		\
-	 echo ;							\
-	 echo 'WSGI_DAEMON_PROCESS = "${WSGI_DAEMON_PROCESS}"';	\
-	 echo 'WSGI_PROCESS_GROUP  = "${WSGI_PROCESS_GROUP}"';	\
-	 echo 'RCYNIC_HTML_DIR     = "${RCYNIC_HTML_DIR}"';	\
-	 echo 'APACHE_VERSION      = "${APACHE_VERSION}"';	\
+	@echo 'Generating $@';							\
+	(echo '# Automatically generated.  DO NOT EDIT.';			\
+	 echo ;									\
+	 echo 'bindir	      = "${bindir}"';					\
+	 echo 'datarootdir    = "${datarootdir}"';				\
+	 echo 'localstatedir  = "${localstatedir}"';				\
+	 echo 'sbindir	      = "${sbindir}"';					\
+	 echo 'sharedstatedir = "${sharedstatedir}"';				\
+	 echo 'sysconfdir     = "${sysconfdir}"';				\
+	 echo 'libexecdir     = "${libexecdir}"';				\
+	 echo ;									\
+	 echo 'WSGI_DAEMON_PROCESS	    = "${WSGI_DAEMON_PROCESS}"';	\
+	 echo 'WSGI_PROCESS_GROUP	    = "${WSGI_PROCESS_GROUP}"';		\
+	 echo 'RCYNIC_HTML_DIR		    = "${RCYNIC_HTML_DIR}"';		\
+	 echo 'APACHE_VERSION		    = "${APACHE_VERSION}"';		\
+	 echo 'WSGI_PYTHON_EGG_CACHE_DIR    = "${WSGI_PYTHON_EGG_CACHE_DIR}"';	\
+	 echo 'WSGI_PYTHON_EGG_CACHE_USER   = "${WSGI_PYTHON_EGG_CACHE_USER}"';	\
 	) > $@
 
 clean::
@@ -219,14 +223,27 @@ clean::
 	rm -f setup_autoconf.py setup_autoconf.pyc
 
 install-postconf: \
-	install-user install-conf install-apache install-mysql install-django install-bpki install-cron
+	install-user install-egg-cache install-conf install-apache install-mysql install-django install-bpki install-cron
 
 # This should create user "rpkid" and group "rpkid", but as we have
 # not yet tested our ability to run in such a configuration, this
 # would be a little premature.  Can steal Makefile code for this from
 # rcynic when we're ready to do something with it.
+
 install-user:
 	@true
+
+# This is only necessary on some platforms (currently FreeBSD,
+# due to shortcomings in the way that Python eggs are installed
+# as system libraries).
+
+install-egg-cache:
+	@if test 'X${WSGI_PYTHON_EGG_CACHE_DIR}' != X && test ! -d '${WSGI_PYTHON_EGG_CACHE_DIR}'; then \
+		mkdir -v '${WSGI_PYTHON_EGG_CACHE_DIR}'; \
+		if test 'X${WSGI_PYTHON_EGG_CACHE_USER}' != X; then \
+			chown '${WSGI_PYTHON_EGG_CACHE_USER}' '${WSGI_PYTHON_EGG_CACHE_DIR}'; \
+		fi; \
+	fi
 
 # We used to play the FreeBSD game of copying rpki.conf.sample to
 # rpki.conf on install and removing rpki.conf if it's identical to

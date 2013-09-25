@@ -626,6 +626,8 @@ WSGI_DAEMON_PROCESS
 OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 TOP_LEVEL_SUBDIRS
+WSGI_PYTHON_EGG_CACHE_USER
+WSGI_PYTHON_EGG_CACHE_DIR
 SETUP_PY_INSTALL_LAYOUT
 RPKID_INSTALL_TARGETS
 RTR_ORIGIN_INSTALL_TARGETS
@@ -723,6 +725,7 @@ enable_rp_tools
 enable_target_installation
 enable_wsgi_daemon_mode
 enable_python_install_layout
+enable_wsgi_python_egg_cache
 enable_python
 enable_django
 enable_rpki_rtr
@@ -1357,10 +1360,12 @@ Optional Features:
   --disable-rp-tools      Don't build any of the relying party tools
   --disable-target-installation
                           Don't perform final target installation
-  --enable-wsgi-daemon-mode=user:group
+  --enable-wsgi-daemon-mode=user[:group]
                           Run the web portal as a separate process
   --enable-python-install-layout=layout
                           Specify Python --install-layout
+  --enable-wsgi-python-egg-cache=dir[:user]
+                          Set up PYTHON_EGG_CACHE in wsgi wrapper
   --disable-python        (Obsolete, do not use)
   --disable-django        (Obsolete, do not use)
   --disable-rpki-rtr      (Obsolete, do not use)
@@ -2460,6 +2465,13 @@ if test "${enable_python_install_layout+set}" = set; then :
   enableval=$enable_python_install_layout;
 else
   enable_python_install_layout=auto
+fi
+
+# Check whether --enable-wsgi_python_egg_cache was given.
+if test "${enable_wsgi_python_egg_cache+set}" = set; then :
+  enableval=$enable_wsgi_python_egg_cache;
+else
+  enable_wsgi_python_egg_cache=auto
 fi
 
 
@@ -4470,7 +4482,7 @@ case $enable_rcynic_jail in
 		RCYNIC_JAIL_DIRS='${RCYNIC_DIR}/bin ${RCYNIC_DIR}/dev ${RCYNIC_DIR}/etc'
 		if test "X$host_os" = "Xlinux"
 		then
-			RCYNIC_JAIL_DIRS="RCYNIC_JAIL_DIRS "'${RCYNIC_DIR}/lib ${RCYNIC_DIR}/lib64 ${RCYNIC_DIR}/usr/lib'
+			RCYNIC_JAIL_DIRS="$RCYNIC_JAIL_DIRS "'${RCYNIC_DIR}/lib ${RCYNIC_DIR}/lib64 ${RCYNIC_DIR}/usr/lib'
 		fi
 		;;
 	no)
@@ -4891,6 +4903,61 @@ $as_echo "$use_install_layout $SETUP_PY_INSTALL_LAYOUT" >&6; }
 
 fi
 
+# Figure out whether we're going to want a PYTHON_EGG_CACHE directory.
+# This is mostly just a pass through to rpkigui-apache-confgen and rpki.wsgi
+# via rpki.autoconf.
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether we need rpki.wgi to use a Python egg cache" >&5
+$as_echo_n "checking whether we need rpki.wgi to use a Python egg cache... " >&6; }
+
+save_IFS="$IFS"
+IFS=':' read WSGI_PYTHON_EGG_CACHE_DIR WSGI_PYTHON_EGG_CACHE_USER <<_EOF
+$enable_wsgi_python_egg_cache
+_EOF
+IFS="$save_IFS"
+
+if test "X$WSGI_PYTHON_EGG_CACHE_DIR" = "Xauto"
+then
+	case $host_os in
+	freebsd*)	WSGI_PYTHON_EGG_CACHE_DIR=yes;;
+	*)		WSGI_PYTHON_EGG_CACHE_DIR=no;;
+	esac
+fi
+
+case $WSGI_PYTHON_EGG_CACHE_DIR in
+yes)
+	WSGI_PYTHON_EGG_CACHE_DIR='${datarootdir}/rpki/python-eggs'
+	;;
+no)
+	WSGI_PYTHON_EGG_CACHE_DIR=''
+	;;
+esac
+
+if test "X$WSGI_PYTHON_EGG_CACHE_DIR" != "X" &&
+   test "X$WSGI_PYTHON_EGG_CACHE_USER" = "X"
+then
+	case $host_os in
+	freebsd*)	WSGI_PYTHON_EGG_CACHE_USER="www";;
+	linux*)		WSGI_PYTHON_EGG_CACHE_USER="www-data";;
+	esac
+fi
+
+
+
+
+if test "X$WSGI_PYTHON_EGG_CACHE_DIR" = "X"
+then
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+elif test "X$WSGI_PYTHON_EGG_CACHE_USER" != "X"
+then
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $WSGI_PYTHON_EGG_CACHE_DIR (user $WSGI_PYTHON_EGG_CACHE_USER)" >&5
+$as_echo "$WSGI_PYTHON_EGG_CACHE_DIR (user $WSGI_PYTHON_EGG_CACHE_USER)" >&6; }
+else
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $WSGI_PYTHON_EGG_CACHE_DIR" >&5
+$as_echo "$WSGI_PYTHON_EGG_CACHE_DIR" >&6; }
+fi
+
 # Figure out which parts of this package we have to build.
 
 			      TOP_LEVEL_SUBDIRS="h"
@@ -4971,26 +5038,30 @@ fi
 
 if test $build_ca_tools = yes
 then
-	if test "$enable_wsgi_daemon_mode" != no
-	then
-		if test "$enable_wsgi_daemon_mode" = yes; then
-			as_fn_error $? "You must specify the user to run the wsgi process as with --enable-wsgi-daemon-mode=USER" "$LINENO" 5
-		fi
-		save_IFS="$IFS"
-		IFS=':' read user group <<_EOF
-$enable_wsgi_daemon_mode
-_EOF
-		IFS="$save_IFS"
-		WSGI_DAEMON_PROCESS="WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}"
-
-		WSGI_PROCESS_GROUP="WSGIProcessGroup rpkigui"
-
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: running mod_wsgi in daemon mode with user \"$user\" and group \"${group:-default}\"" >&5
-$as_echo "running mod_wsgi in daemon mode with user \"$user\" and group \"${group:-default}\"" >&6; }
-	fi
-
 	ac_config_files="$ac_config_files rpkid/Makefile rpkid/tests/Makefile rpkid/portal-gui/Makefile"
 
+fi
+
+if test $build_ca_tools = yes &&
+   test "X$enable_wsgi_daemon_mode" = "Xyes"
+then
+	as_fn_error $? "You must specify the user to run the wsgi process as with --enable-wsgi-daemon-mode=USER" "$LINENO" 5
+fi
+
+if test $build_ca_tools = yes &&
+   test "X$enable_wsgi_daemon_mode" != "Xno"
+then
+	save_IFS="$IFS"
+	IFS=':' read user group <<_EOF
+$enable_wsgi_daemon_mode
+_EOF
+	IFS="$save_IFS"
+	WSGI_DAEMON_PROCESS="WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}"
+
+	WSGI_PROCESS_GROUP="WSGIProcessGroup rpkigui"
+
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: running mod_wsgi in daemon mode with user \"$user\" and group \"${group:-default}\"" >&5
+$as_echo "running mod_wsgi in daemon mode with user \"$user\" and group \"${group:-default}\"" >&6; }
 fi
 
 # Now that we're finally done with all the conditional changes to

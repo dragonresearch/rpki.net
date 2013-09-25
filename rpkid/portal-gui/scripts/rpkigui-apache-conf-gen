@@ -132,6 +132,15 @@ allow_24_template = '''
     Require all granted\
 '''
 
+name_virtual_host_template = '''\
+#
+# In most cases we want to use name-based virtual hosting.  If this causes
+# problems with your existing Apache configuration, try commenting out this line.
+#
+NameVirtualHost *:443
+
+'''
+
 def Guess(args):
   """
   Guess what platform this is and dispatch to platform constructor.
@@ -161,7 +170,7 @@ class Platform(object):
   apache_conf = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.conf")
   apache_conf_sample = apache_conf + ".sample"  
 
-  apache_conf_preface = None
+  apache_conf_preface = ""
 
   def __init__(self, args):
     self.args = args
@@ -243,6 +252,10 @@ class Platform(object):
     return self._vhost
 
   @property
+  def name_virtual_host(self):
+    return name_virtual_host_template if self.args.apache_version <= 22 else ""
+
+  @property
   def too_complex(self):
     return textwrap.dedent('''\
       # It looks like you already have HTTPS enabled in your
@@ -259,8 +272,8 @@ class Platform(object):
   def install(self):
     with open(self.apache_conf_sample, "w") as f:
       self.log("Writing %s" % f.name)
-      if self.apache_conf_preface is not None:
-        f.write(self.apache_conf_preface)
+      f.write(self.apache_conf_preface)
+      f.write(self.name_virtual_host)
       f.write(self.vhost)
     if not os.path.exists(self.apache_conf):
       self.unlink(self.apache_conf)
@@ -270,8 +283,9 @@ class Platform(object):
           f.write(self.too_complex)
           sys.stdout.write(self.too_complex)
         else:
-          if self.apache_conf_preface is not None and not self.test_tcp("localhost", 443):
+          if not self.test_tcp("localhost", 443):
             f.write(self.apache_conf_preface)
+            f.write(self.name_virtual_host)
           f.write(self.vhost)
     if not os.path.exists(self.apache_conf_target):
       self.unlink(self.apache_conf_target)
@@ -354,25 +368,15 @@ class FreeBSD(Platform):
   def apache_conf_target(self):
     return "/usr/local/etc/%s/Includes/rpki.conf" % self.apache_name
 
-  _apache_conf_preface = None
+  apache_conf_preface = textwrap.dedent('''\
+    # These directives tell Apache to listen on the HTTPS port
+    # and to enable name-based virtual hosting.  If you already
+    # have HTTPS enabled elsewhere in your configuration, you may
+    # need to remove these.
 
-  @property
-  def apache_conf_preface(self):
-    if self._apache_conf_preface is None:
-      self._apache_conf_preface = textwrap.dedent('''\
-        # These directives tell Apache to listen on the HTTPS port
-        # and to enable name-based virtual hosting.  If you already
-        # have HTTPS enabled elsewhere in your configuration, you may
-        # need to remove these.
-
-        Listen [::]:443
-        Listen 0.0.0.0:443
-        ''')
-      if self.args.apache_version <= 22:
-        self._apache_conf_preface += textwrap.dedent('''\
-          NameVirtualHost *:443
-          ''')
-    return self._apache_conf_preface
+    Listen [::]:443
+    Listen 0.0.0.0:443
+    ''')
 
   def restart(self):
     self.run("service", self.apache_name, "restart")

@@ -263,6 +263,10 @@ RCYNIC_DIR='${DESTDIR}'"${rcynic_base_dir}"
 #
 # If we can't figure out the version number, we assume 2.2 and hope
 # for the best; at some point we may need to do better than this.
+#
+# apachectl sometimes whines about ulimits, so we discard its stderr.
+# If you're reading this because this test is misbehaving, well,
+# try not discarding stderr.
 
 AC_MSG_CHECKING([Apache version])
 
@@ -272,7 +276,7 @@ then
 	do
 		if test -x $apachectl
 		then
-			APACHE_VERSION=`$apachectl -v | sed -n 's=^Server version: Apache/\([[0-9]]*\)\.\([[0-9]]*\)\..*$=\1\2=p'`
+			APACHE_VERSION=`$apachectl -v 2>/dev/null | sed -n 's=^Server version: Apache/\([[0-9]]*\)\.\([[0-9]]*\)\..*$=\1\2=p'`
 			break
 		fi
 	done

@@ -43,9 +43,14 @@ ip_version_choices = ((4, "IPv4"), (6, "IPv6"))
 ca_certificate_lifetime = rpki.sundial.timedelta(days = 3652)
 
 ## @var crl_interval
-# Expected interval between BPKI CRL updates
 
-crl_interval = rpki.sundial.timedelta(days = 1)
+# Expected interval between BPKI CRL updates.  This should be a little
+# longer than the real regeneration cycle, so that the old CRL will
+# not go stale while we're generating the new one.  Eg, if we
+# regenerate daily, an interval of 24 hours is too short, but 25 hours
+# would be OK, as would 24 hours and 30 minutes.
+
+crl_interval = rpki.sundial.timedelta(hours = 25)
 
 ## @var ee_certificate_lifetime
 # Lifetime for a BPKI EE certificate.

@@ -98,7 +98,14 @@ def parse_text(f):
             asns = set()
             last_prefix = prefix
 
-        asns.add(int(origin_as))
+        try:
+            asns.add(int(origin_as))
+        except ValueError as err:
+            logger.warning('\n'.join(
+                ['unable to parse origin AS: ' + origin_as],
+                ['ValueError: ' + str(err)]
+                ['route entry was: ' + row],
+            ))
 
     logger.info('Committing...')
     cursor.execute('COMMIT')

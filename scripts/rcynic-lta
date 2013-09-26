@@ -16,6 +16,23 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
+########################################################################
+#
+#                        DANGER WILL ROBINSON
+#
+# This is a PROTOTYPE of a local trust anchor mechanism.  At the
+# moment, it DOES NOT WORK by any sane standard of measurement.  It
+# produces output, but there is no particular reason to believe said
+# output is useful, and fairly good reason to believe that it is not.
+#
+# With luck, this may eventually mutate into something useful.  For
+# now, just leave it alone unless you really know what you are doing,
+# in which case, on your head be it.
+#
+#                         YOU HAVE BEEN WARNED
+#
+########################################################################
+
 import os
 import sys
 import yaml

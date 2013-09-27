@@ -7,6 +7,7 @@ Standards-Version: 3.9.3
 Homepage: http://trac.rpki.net/
 Vcs-Svn: http://subvert-rpki.hactrn.net/
 Vcs-Browser: http://trac.rpki.net/browser
+X-Python-Version: 2.7
 
 Package: rpki-rp
 Architecture: any

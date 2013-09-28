@@ -8,17 +8,15 @@ BGP security.
 See the CA tools for programs to help you generate RPKI objects, if you need to
 do that.
 
-The RP main tools are `rcynic` and `rtr-origin`, each of which is discussed
-below.
+The RP main tools are rcynic and rtr-origin, each of which is discussed below.
 
 The installation process sets up everything you need for a basic RPKI
 validation installation. You will, however, need to think at least briefly
 about which RPKI trust anchors you are using, and may need to change these from
 the defaults.
 
-The installation process sets up a cron job running running [#rcynic-
-cron|`rcynic-cron` as user "rcynic" once per hour at a randomly-selected
-minute.
+The installation process sets up a cron job running running rcynic-cron as user
+"rcynic" once per hour at a randomly-selected minute.
 
 ***** rcynic *****
 

@@ -15,7 +15,7 @@ The CA tools have a few additional dependencies, described below.
 
 Note that initial development of this code has been on FreeBSD, so installation
 will probably be easiest on FreeBSD. We do, however, test on other platforms,
-such as Fedora, Ubuntu, and MacOSX.
+such as Fedora, Ubuntu, Debian, and MacOSX.
 
 ***** Downloading the Source Code *****
 
@@ -56,7 +56,7 @@ Packages you will need:
 
     # /usr/ports/lang/python27 (python)
 
-  o Ubuntu:
+  o Debian & Ubuntu:
 
     # python
     # python-dev
@@ -69,7 +69,7 @@ Packages you will need:
 
   o FreeBSD: /usr/ports/devel/py-lxml (py27-lxml)
   o Fedora: python-lxml.i386
-  o Ubuntu:
+  o Debian & Ubuntu:
 
     # python-lxml
     # libxml2-utils
@@ -87,7 +87,7 @@ Packages you will need:
     # /usr/ports/databases/mysql55-server (mysql55-server)
     # /usr/ports/databases/mysql55-client (mysql55-client)
 
-  o Ubuntu:
+  o Debian & Ubuntu:
 
     # mysql-client
     # mysql-server
@@ -97,12 +97,13 @@ Packages you will need:
 
   o FreeBSD: /usr/ports/databases/py-MySQLdb (py27-MySQLdb)
   o Fedora: MySQL-python.i386
-  o Ubuntu: python-mysqldb
+  o Debian & Ubuntu: python-mysqldb
 
 * http://www.djangoproject.com/, the Django web user interface toolkit. The GUI
   interface to the CA tools requires this. Django 1.4 is required.
 
   o FreeBSD: /usr/ports/www/py-django (py27-django)
+  o Debian: python-django
   o Ubuntu: Do not use the python-django package (Django 1.3.1) in 12.04 LTS,
     as it is known not to work.
     Instead, install a recent version using easy_install or pip:
@@ -113,7 +114,7 @@ Packages you will need:
   The GUI uses this to parse the payload of RPKI Ghostbuster objects.
 
   o FreeBSD: /usr/ports/deskutils/py-vobject (py27-vobject)
-  o Ubuntu: python-vobject
+  o Debian & Ubuntu: python-vobject
 
 * Several programs (more as time goes on) use the Python argparse module. This
   module is part of the Python standard library as of Python 2.7, but you may
@@ -127,13 +128,13 @@ Packages you will need:
   description of a simulated allocation hierarchy to test.
 
   o FreeBSD: /usr/ports/devel/py-yaml (py27-yaml)
-  o Ubuntu: python-yaml
+  o Debian & Ubuntu: python-yaml
 
 * http://xmlsoft.org/XSLT/. Some of the test code uses xsltproc, from the Gnome
   LibXSLT package.
 
   o FreeBSD: /usr/ports/textproc/libxslt (libxslt)
-  o Ubuntu: xsltproc
+  o Debian & Ubuntu: xsltproc
 
 * http://www.rrdtool.org/. The relying party tools use this to generate
   graphics which you may find useful in monitoring the behavior of your
@@ -141,18 +142,19 @@ Packages you will need:
   won't be able to generate those graphics.
 
   o FreeBSD: /usr/ports/databases/rrdtool (rrdtool)
-  o Ubuntu: rrdtool
+  o Debian & Ubuntu: rrdtool
 
 * http://www.freshports.org/www/mod_wsgi3/ If you intend to run the GUI with
   wsgi, its default configuration, you will need to install mod_wsgi v3
 
   o FreeBSD: /usr/ports/www/mod_wsgi3 (app22-mod_wsgi)
-  o Ubuntu: libapache2-mod-wsgi
+  o Debian & Ubuntu: libapache2-mod-wsgi
 
 * http://south.aeracode.org/ Django South 0.7.6 or later. This tool is used to
   ease the pain of changes to the web portal database schema.
 
   o FreeBSD: /usr/ports/databases/py-south (py27-south)
+  o Debian: python-django-south
   o Ubuntu: Do not use the python-django-south 0.7.3 package in 12.04 LTS, as
     it is known not to work.
     Instead, install a recent version using easy_install or pip:
@@ -241,7 +243,7 @@ listed here for completeness.
   notably Graphviz, pdfLaTeX, and Ghostscript.
 
   o FreeBSD: /usr/ports/devel/doxygen
-  o Ubuntu: doxygen
+  o Debian & Ubuntu: doxygen
 
 * http://www.mbayer.de/html2text/. The documentation build process uses
   xsltproc and html2text to dump flat text versions of a few critical

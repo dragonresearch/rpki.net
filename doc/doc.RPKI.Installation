@@ -3,10 +3,11 @@
 There are a few different ways to install the RPKI code, depending on what the
 platform on which you're trying to install.
 
-* On Ubuntu 12.04 LTS, you can use Ubuntu binary packages.
+* On Ubuntu 12.04 LTS ("Precise Pangolin") or Debian 7 ("Wheezy"), you can use
+  Debian binary packages.
 
-     At present we only generate binary packages for 12.04 LTS
-     ("precise"). This may change in the future.
+     At present we only generate binary packages for Precise Pangolin and
+     Wheezy. This may change in the future.
 
 * On FreeBSD, you can use FreeBSD ports.
 

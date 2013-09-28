@@ -16,7 +16,7 @@ VirtualHost it is configured in, otherwise it will fail to operate.
 * mod_ssl
 * mod_wsgi 3 or later
 
-***** Ubuntu *****
+***** Debian & Ubuntu *****
 
 First, you need to install apache and enable SSL. Run the following commands in
 a shell as root:

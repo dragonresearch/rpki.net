@@ -12,9 +12,9 @@ To use rtr-origin, you need to do two things beyond just running rcynic:
      origin. The rcynic-cron script handles this automatically, so the default
      installation should already be taking care of this for you.
   2. You need to set up a listener for the rtr-origin server, using the
-     generated data files. The platform-specific packages for FreeBSD and
-     Ubuntu automatically set up a plain TCP listener, but you will have to do
-     something on other platforms, or if you're using a transport protocol
+     generated data files. The platform-specific packages for FreeBSD, Debian,
+     and Ubuntu automatically set up a plain TCP listener, but you will have to
+     do something on other platforms, or if you're using a transport protocol
      other than plain TCP.
 
 ***** Post-processing rcynic's output *****

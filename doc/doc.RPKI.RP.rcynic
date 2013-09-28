@@ -23,9 +23,9 @@ goes well, this should "just work".
 
 rcynic has the ability to do all of its work in a chroot jail. This used to be
 the default configuration, but integrating this properly with platform-specific
-packaging systems (FreeBSD ports, Ubuntu apt-get, etc) proved impractical. You
-can still get this behavior if you need it, by installing from source and using
-the --enable-rcynic-jail option to ./configure.
+packaging systems (FreeBSD ports, apt-get on Ubuntu or Debian, etc) proved
+impractical. You can still get this behavior if you need it, by installing from
+source and using the --enable-rcynic-jail option to ./configure.
 
 The default configuration set up by make install and the various packaging
 systems will run rcynic under cron using the rcynic-cron wrapper script. See

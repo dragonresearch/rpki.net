@@ -21,15 +21,16 @@ import sys
 import time
 import fcntl
 import errno
+import socket
 import subprocess
 
-debug = False
+debug  = False
+upload = socket.getfqdn() == "build-u.rpki.net"
 
 def run(*args, **kwargs):
     if debug:
-        log("Would have run %r %r" % (args, kwargs))
-    else:
-        subprocess.check_call(args, **kwargs)
+        log("Running %r %r" % (args, kwargs))
+    subprocess.check_call(args, **kwargs)
 
 def log(msg):
     # Maybe this should go to syslog instead, but this works for now.
@@ -44,6 +45,9 @@ apt_tree = os.path.expanduser("~/repository/")
 ubu_tree = os.path.join(apt_tree, "ubuntu/")
 deb_tree = os.path.join(apt_tree, "debian/")
 srv_path = "aptbot@download.rpki.net:/usr/local/www/data/download.rpki.net/APT/"
+ubu_env  = dict(os.environ,
+                OTHERMIRROR = "deb http://download.rpki.net/APT/ubuntu precise main")
+deb_env  = os.environ
 
 try:
     lock = os.open(lockfile, os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
@@ -57,7 +61,7 @@ run("svn", "--quiet", "update")
 
 version = subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1]
 
-if not version.isdigit():
+if not version.isdigit() and not debug:
     sys.exit("Sources don't look pristine, not building (%r)" % version)
 
 version = "0." + version
@@ -74,44 +78,44 @@ if not os.path.exists(dsc):
     run("python", "buildtools/build-ubuntu-ports.py")
     run("dpkg-buildpackage", "-S", "-us", "-uc", "-rfakeroot")
 
-env = dict(os.environ,
-           OTHERMIRROR = "deb http://download.rpki.net/APT/ubuntu precise main")
+for dist, tree, env in (("precise", ubu_tree, ubu_env),
+                        ("wheezy",  deb_tree, deb_env)):
 
-for dist, arch, tag in (("precise", "amd64", ""),
-                        ("precise", "i386",  "-i386")):
+    for arch, tag in (("amd64", ""), ("i386",  "-i386")):
 
-    basedir = os.path.expanduser("~/pbuilder/%s%s-base.tgz" % (dist, tag))
-    result  = os.path.expanduser("~/pbuilder/%s%s_result" % (dist, tag))
-    changes = os.path.join(result, "rpki_%s_%s.changes" % (version, arch))
-    
-    # Update the build environment if it's been more than a week since
-    # we last did that.  If this turns out to be error-prone, we might
-    # want to put it in a cron job of its own so it doesn't crash the
-    # normal cycle, but let's try it this way for a start.
-    #
-    if time.time() > os.stat(basedir).st_mtime + (7 * 24 * 60 * 60):
-        log("Updating build environment %s %s" % (dist, arch))
-        run("pbuilder-dist", dist, arch, "update",
-            env = env)
+        basedir = os.path.expanduser("~/pbuilder/%s%s-base.tgz" % (dist, tag))
+        result  = os.path.expanduser("~/pbuilder/%s%s_result" % (dist, tag))
+        changes = os.path.join(result, "rpki_%s_%s.changes" % (version, arch))
 
-    if not os.path.exists(changes):
-        # The need for --ignore=wrongdistribution may indicate
-        # something I'm doing wrong in hack-debian-changelog.py,
-        # revisit that later.  For now, just whack with a stick.
+        # Update the build environment if it's been more than a week since
+        # we last did that.  If this turns out to be error-prone, we might
+        # want to put it in a cron job of its own so it doesn't crash the
+        # normal cycle, but let's try it this way for a start.
         #
-        log("Building binary packages %s %s %s" % (dist, arch, version))
-        for fn in os.listdir(result):
-            os.unlink(os.path.join(result, fn))
-        run("pbuilder-dist", dist, arch, "build", dsc,
-            env = env)
-        run("reprepro", "--ignore=wrongdistribution", "include", dist, changes,
-            cwd = ubu_tree)
+        if time.time() > os.stat(basedir).st_mtime + (7 * 24 * 60 * 60):
+            log("Updating build environment %s %s" % (dist, arch))
+            run("pbuilder-dist", dist, arch, "update",
+                env = env)
 
-run("rsync", "-ai4",
-    "--ignore-existing",
-    apt_tree, srv_path)
-run("rsync", "-ai4",
-    "--exclude", "HEADER.html",
-    "--exclude", "HEADER.css",
-    "--delete", "--delete-delay",
-    apt_tree, srv_path)
+        if not os.path.exists(changes):
+            # The need for --ignore=wrongdistribution may indicate
+            # something I'm doing wrong in hack-debian-changelog.py,
+            # revisit that later.  For now, just whack with a stick.
+            #
+            log("Building binary packages %s %s %s" % (dist, arch, version))
+            for fn in os.listdir(result):
+                os.unlink(os.path.join(result, fn))
+            run("pbuilder-dist", dist, arch, "build", dsc,
+                env = env)
+            run("reprepro", "--ignore=wrongdistribution", "include", dist, changes,
+                cwd = tree)
+
+if upload:
+    run("rsync", "-ai4",
+        "--ignore-existing",
+        apt_tree, srv_path)
+    run("rsync", "-ai4",
+        "--exclude", "HEADER.html",
+        "--exclude", "HEADER.css",
+        "--delete", "--delete-delay",
+        apt_tree, srv_path)

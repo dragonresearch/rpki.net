@@ -1,0 +1,53 @@
+- ski: B8:14:5D:13:53:7D:AE:6E:E2:E3:95:84:A8:99:EB:7D:1A:7D:E5:DF
+  uri: rsync://repo0.rpki.net/rpki/root.cer
+  add: 10.0.0.44/32
+
+- ski: A2:B3:2A:99:20:07:7A:E9:A4:9F:3F:02:F2:32:F9:3D:54:F8:7E:78
+  uri: rsync://repo0.rpki.net/rpki/root/iana.cer
+  sub: 10.0.0.0/8
+
+- ski: 3NYgwt_HYV91MeCGLWdUL4uq65M
+  uri: rsync://repo0.rpki.net/rpki/root/iana/5/3NYgwt_HYV91MeCGLWdUL4uq65M.cer
+  add: 10.0.0.0/8
+
+- ski: 3YFTaQOUkPQfhckX_ikYzy0mR9s
+  uri: rsync://repo0.rpki.net/rpki/root/iana/5/3YFTaQOUkPQfhckX_ikYzy0mR9s.cer
+
+- ski: 7ew1d5WFCSfhd8lnpmjwOohS_DQ
+  uri: rsync://repo0.rpki.net/rpki/root/iana/5/7ew1d5WFCSfhd8lnpmjwOohS_DQ.cer
+
+- ski: PWxDsvUgDdeloE3eQfceV8vbIyg
+  uri: rsync://repo0.rpki.net/rpki/root/iana/5/PWxDsvUgDdeloE3eQfceV8vbIyg.cer
+
+- ski: WnOFfpqobEKxzmvddJue3PXsEIQ
+  uri: rsync://repo0.rpki.net/rpki/root/iana/5/WnOFfpqobEKxzmvddJue3PXsEIQ.cer
+
+- ski: m6TQTKwKYyVva-Yq__I-Zz25Vns
+  uri: rsync://repo0.rpki.net/rpki/root/iana/5/m6TQTKwKYyVva-Yq__I-Zz25Vns.cer
+
+- ski: 8U5wQ47aZuuOXYPGX5BPvlcTfNg
+  uri: rsync://repo0.rpki.net/rpki/root/iana/ripe/8/8U5wQ47aZuuOXYPGX5BPvlcTfNg.cer
+
+- ski: bccxGl4Xl4ur3nd1fwQ-1QIwtNA
+  uri: rsync://repo0.rpki.net/rpki/root/iana/ripe/8/bccxGl4Xl4ur3nd1fwQ-1QIwtNA.cer
+
+- ski: zbXifbEkZNmOVhYZTCZFfLPxhjM
+  uri: rsync://repo0.rpki.net/rpki/root/iana/ripe/8/zbXifbEkZNmOVhYZTCZFfLPxhjM.cer
+
+- ski: XYjTToHopYme-hlwgUyUyYRD_VQ
+  uri: rsync://repo0.rpki.net/rpki/root/iana/arin/6/XYjTToHopYme-hlwgUyUyYRD_VQ.cer
+
+- ski: _3I3i3uVmnliCinb2STR2MaxuU8
+  uri: rsync://repo0.rpki.net/rpki/root/iana/arin/6/_3I3i3uVmnliCinb2STR2MaxuU8.cer
+
+- ski: qdtoqOMCNSOdYuNNC7ya3dUaPl4
+  uri: rsync://repo0.rpki.net/rpki/root/iana/arin/6/qdtoqOMCNSOdYuNNC7ya3dUaPl4.cer
+
+- ski: yq4x9MteoM0DQYTh6NLbbmf--QY
+  uri: rsync://repo0.rpki.net/rpki/root/iana/arin/6/yq4x9MteoM0DQYTh6NLbbmf--QY.cer
+
+- ski: j2TDGclJnZ7mXpZCQJS0cfkOL34
+  uri: rsync://repo0.rpki.net/rpki/root/iana/apnic/7/j2TDGclJnZ7mXpZCQJS0cfkOL34.cer
+
+- ski: yRk89OOx4yyJHJ6Z1JLLnk0_oDc
+  uri: rsync://repo0.rpki.net/rpki/root/iana/apnic/7/yRk89OOx4yyJHJ6Z1JLLnk0_oDc.cer

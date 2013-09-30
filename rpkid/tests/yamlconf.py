@@ -201,6 +201,12 @@ class allocation(object):
       self.crl_interval = rpki.sundial.timedelta.parse(y["crl_interval"]).convert_to_seconds()
     if "regen_margin" in y:
       self.regen_margin = rpki.sundial.timedelta.parse(y["regen_margin"]).convert_to_seconds()
+    if "ghostbusters" in y:
+      self.ghostbusters = y.get("ghostbusters")
+    elif "ghostbuster" in y:
+      self.ghostbusters = [y.get("ghostbuster")]
+    else:
+      self.ghostbusters = []
     self.roa_requests = [roa_request.parse(r) for r in y.get("roa_request", ())]
     for r in self.roa_requests:
       if r.v4:
@@ -307,6 +313,17 @@ class allocation(object):
         f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
                     for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
 
+  def dump_ghostbusters(self, fn):
+    if self.ghostbusters:
+      path = self.path(fn)
+      if not quiet:
+        print "Writing", path
+      with open(path, "w") as f:
+        for i, g in enumerate(self.ghostbusters):
+          if i > 0:
+            f.write("\n")
+          f.write(g)
+          
   @property
   def pubd(self):
     s = self
@@ -742,6 +759,7 @@ def body():
     d.dump_asns("%s.asns.csv" % d.name)
     d.dump_prefixes("%s.prefixes.csv" % d.name)
     d.dump_roas("%s.roas.csv" % d.name)
+    d.dump_ghostbusters("%s.ghostbusters.vcard" % d.name)
 
     if not d.is_hosted:
       if not quiet:

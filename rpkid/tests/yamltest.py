@@ -725,13 +725,16 @@ try:
           progs.append(d.run_pubd())
           progs.append(d.run_rsyncd())
 
-    print
-    print "Giving daemons time to start up"
-    time.sleep(20)
-    assert all(p.poll() is None for p in progs)
+    if synchronize or not skip_config:
+
+      print
+      print "Giving daemons time to start up"
+      time.sleep(20)
+      assert all(p.poll() is None for p in progs)
 
     if skip_config:
 
+      print
       print "Skipping configure_*, you'll have to do that yourself if needed"
 
     else:

@@ -1,0 +1,25 @@
+rcynic-input:
+  /u/sra/rpki/subvert-rpki.hactrn.net/trunk/rcynic/rcynic-data/unauthenticated
+
+rcynic-output:
+  /u/sra/rpki/subvert-rpki.hactrn.net/trunk/rcynic/rcynic-data/lta-unauthenticated
+
+tal-directory:
+  /u/sra/rpki/subvert-rpki.hactrn.net/trunk/rcynic/sample-trust-anchors
+
+keyfile:
+  /u/sra/rpki/subvert-rpki.hactrn.net/trunk/scripts/rcynic-lta.key
+
+constraints:
+
+  - ski: B8:14:5D:13:53:7D:AE:6E:E2:E3:95:84:A8:99:EB:7D:1A:7D:E5:DF
+    uri: rsync://repo0.rpki.net/rpki/root.cer
+    add: 10.0.0.44/32
+
+  - ski: A2:B3:2A:99:20:07:7A:E9:A4:9F:3F:02:F2:32:F9:3D:54:F8:7E:78
+    uri: rsync://repo0.rpki.net/rpki/root/iana.cer
+    sub: 10.0.0.0/8
+
+  - ski: 3NYgwt_HYV91MeCGLWdUL4uq65M
+    uri: rsync://repo0.rpki.net/rpki/root/iana/5/3NYgwt_HYV91MeCGLWdUL4uq65M.cer
+    add: 10.0.0.0/8

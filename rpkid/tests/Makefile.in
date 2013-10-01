@@ -72,6 +72,9 @@ yamlconf:
 	@echo
 	${PYTHON} yamltest.py --skip_config --synchronize ${YAMLCONF_CONFIG}
 
+yamltest-resume yamlconf-resume:
+	${PYTHON} yamltest.py --skip_config ${YAMLCONF_CONFIG}
+
 yamlconf-profile:
 	rm -rf yamltest.dir rcynic-data
 	${PYTHON} sql-cleaner.py

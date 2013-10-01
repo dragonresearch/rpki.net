@@ -2093,7 +2093,6 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
       self, ca_detail, ca_detail.state))
 
     if regenerate:
-      assert ca_detail.state == 'active'
       self.generate(publisher = publisher, fast = fast)
 
     rpki.log.debug("Withdrawing %r %s and revoking its EE cert" % (self, uri))

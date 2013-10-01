@@ -75,8 +75,13 @@ class revoke_pdu(rpki.up_down.revoke_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
     rpki.log.debug("Revocation requested for SKI %s" % self.ski)
     subject_cert = rootd.get_subject_cert()
-    if subject_cert is None or subject_cert.gSKI() != self.ski:
+    if subject_cert is None:
+      rpki.log.debug("No subject certificate, nothing to revoke")
       raise rpki.exceptions.NotInDatabase
+    if subject_cert.gSKI() != self.ski:
+      rpki.log.debug("Subject certificate has different SKI %s, not revoking" % subject_cert.gSKI())
+      raise rpki.exceptions.NotInDatabase
+    rpki.log.debug("Revoking certificate %s" % self.ski)
     now = rpki.sundial.now()
     rootd.revoke_subject_cert(now)
     rootd.del_subject_cert()
@@ -87,6 +92,11 @@ class revoke_pdu(rpki.up_down.revoke_pdu):
     r_msg.payload.ski = self.ski
     callback()
 
+class error_response_pdu(rpki.up_down.error_response_pdu):
+  exceptions = rpki.up_down.error_response_pdu.exceptions.copy()
+  exceptions[rpki.exceptions.ClassNameUnknown, revoke_pdu] = 1301
+  exceptions[rpki.exceptions.NotInDatabase,    revoke_pdu] = 1302
+
 class message_pdu(rpki.up_down.message_pdu):
 
   name2type = {
@@ -96,9 +106,11 @@ class message_pdu(rpki.up_down.message_pdu):
     "issue_response"  : rpki.up_down.issue_response_pdu,
     "revoke"          : revoke_pdu,
     "revoke_response" : rpki.up_down.revoke_response_pdu,
-    "error_response"  : rpki.up_down.error_response_pdu }
+    "error_response"  : error_response_pdu }
 
   type2name = dict((v, k) for k, v in name2type.items())
+
+  error_pdu_type = error_response_pdu
 
   def log_query(self, child):
     """
@@ -171,12 +183,15 @@ class main(object):
       self.set_subject_pkcs10(new_pkcs10)
       if subject_cert is not None:
         rpki.log.debug("PKCS #10 changed, regenerating subject certificate")
+        self.revoke_subject_cert(now)
         subject_cert = None
     if subject_cert is not None and subject_cert.getNotAfter() <= now + self.rpki_subject_regen:
       rpki.log.debug("Subject certificate has reached expiration threshold, regenerating")
+      self.revoke_subject_cert(now)
       subject_cert = None
     if subject_cert is not None and self.root_newer_than_subject():
       rpki.log.debug("Root certificate has changed, regenerating subject")
+      self.revoke_subject_cert(now)
       subject_cert = None
     self.get_root_cert()
     if subject_cert is not None:
@@ -209,6 +224,8 @@ class main(object):
     subject_cert = self.get_subject_cert()
     self.next_serial_number()
     self.next_crl_number()
+    while self.revoked and self.revoked[0][1] + 2 * self.rpki_subject_regen < now:
+      del self.revoked[0]
     crl = rpki.x509.CRL.generate(
       keypair             = self.rpki_root_key,
       issuer              = self.rpki_root_cert,

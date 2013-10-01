@@ -539,16 +539,36 @@ class error_response_pdu(base_elt):
     2001 : "Internal Server Error - Request not performed" }
 
   exceptions = {
-    rpki.exceptions.NoActiveCA : 1202 }
+    rpki.exceptions.NoActiveCA                          : 1202,
+    (rpki.exceptions.ClassNameUnknown, revoke_pdu)      : 1301,
+    rpki.exceptions.ClassNameUnknown                    : 1201,
+    (rpki.exceptions.NotInDatabase, revoke_pdu)         : 1302 }
 
-  def __init__(self, exception = None):
+  def __init__(self, exception = None, request_payload = None):
     """
     Initialize an error_response PDU from an exception object.
     """
     base_elt.__init__(self)
     if exception is not None:
-      self.status = self.exceptions.get(type(exception), 2001)
+      rpki.log.debug("Constructing up-down error response from exception %s" % exception)
+      exception_type = type(exception)
+      request_type = None if request_payload is None else type(request_payload)
+      rpki.log.debug("Constructing up-down error response: exception_type %s, request_type %s" % (
+        exception_type, request_type))
+      if False:
+        self.status = self.exceptions.get((exception_type, request_type),
+                                          self.exceptions.get(exception_type,
+                                                              2001))
+      else:
+        self.status = self.exceptions.get((exception_type, request_type))
+        if self.status is None:
+          rpki.log.debug("No request-type-specific match, trying exception match")
+          self.status = self.exceptions.get(exception_type)
+        if self.status is None:
+          rpki.log.debug("No exception match either, defaulting")
+          self.status = 2001
       self.description = str(exception)
+      rpki.log.debug("Chosen status code: %s" % self.status)
 
   def endElement(self, stack, name, text):
     """
@@ -605,6 +625,8 @@ class message_pdu(base_elt):
     "error_response"  : error_response_pdu }
 
   type2name = dict((v, k) for k, v in name2type.items())
+
+  error_pdu_type = error_response_pdu
 
   def toXML(self):
     """
@@ -674,7 +696,7 @@ class message_pdu(base_elt):
     r_msg = message_pdu()
     r_msg.sender = self.recipient
     r_msg.recipient = self.sender
-    r_msg.payload = error_response_pdu(exception)
+    r_msg.payload = self.error_pdu_type(exception, self.payload)
     r_msg.type = self.type2name[type(r_msg.payload)]
     return r_msg
 

@@ -283,7 +283,6 @@ class DER_object_mixin(object):
   _rpdb         = None
   _rowid        = None
   _para         = False
-  _target       = False
   _para_id      = None
   _orig_id      = None
 
@@ -327,14 +326,6 @@ class DER_object_mixin(object):
   @para.setter
   def para(self, value):
     self._update_bool("para", value)
-
-  @property
-  def target(self):
-    return self._target
-
-  @target.setter
-  def target(self, value):
-    self._update_bool("target", value)
 
 
 class X509              (rpki.x509.X509,            DER_object_mixin):
@@ -380,7 +371,7 @@ class RPDB(object):
   mapfn2 = dict((v, k) for k, v in fn2map.iteritems())
 
   object_fields = " %s " % ", ".join("object.%s" % field for field in (
-    "id", "fn2", "der", "para", "target", "para_id", "orig_id"))
+    "id", "fn2", "der", "para", "para_id", "orig_id"))
 
   def __init__(self, db_name = "rcynic-lta.db"):
 
@@ -407,7 +398,8 @@ class RPDB(object):
           CREATE TABLE object (
                 id              INTEGER PRIMARY KEY NOT NULL,
                 der             BLOB NOT NULL,
-                fn2             TEXT NOT NULL,
+                fn2             TEXT NOT NULL
+                                CHECK (fn2 IN ('cer', 'crl', 'mft', 'roa', 'gbr')),
                 subject         INTEGER
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
@@ -417,7 +409,6 @@ class RPDB(object):
                                 ON DELETE RESTRICT
                                 ON UPDATE RESTRICT,
                 para            BOOLEAN NOT NULL DEFAULT 0,
-                target          BOOLEAN NOT NULL DEFAULT 0,
                 para_id         INTEGER
                                 REFERENCES object(id)
                                 ON DELETE SET NULL
@@ -496,22 +487,20 @@ class RPDB(object):
         der = buffer(obj.get_DER())
         uri = "rsync://" + fn[len(rcynic_input) + 1:]
 
-        subject_id = None if ski is None else self.find_keyname(subject, ski)
-        issuer_id  = None if aki is None else self.find_keyname(issuer,  aki)
+        self.cur.execute("SELECT id FROM object WHERE der = ?", (der,))
+        r = self.cur.fetchone()
 
-        try:
-          self.cur.execute("INSERT INTO object (der, fn2, subject, issuer) "
-                           "VALUES (?, ?, ?, ?)",
+        if r is not None:
+          rowid = r[0]
+
+        else:
+          subject_id = None if ski is None else self.find_keyname(subject, ski)
+          issuer_id = self.find_keyname(issuer,  aki)
+
+          self.cur.execute("INSERT INTO object (der, fn2, subject, issuer) VALUES (?, ?, ?, ?)",
                            (der, fn2, subject_id, issuer_id))
           rowid = self.cur.lastrowid
 
-        except sqlite3.IntegrityError, e:
-          self.cur.execute("SELECT id FROM object WHERE der = ? AND fn2 = ?", (der, fn2))
-          rows = self.cur.fetchall()
-          rowid = rows[0][0]
-          assert len(rows) == 1
-
-        else:
           if bag is not None:
             for rset in (bag.asn, bag.v4, bag.v6):
               if rset is not None:
@@ -693,10 +682,6 @@ class RPDB(object):
                                 "WHERE keyname.keyid = ?",
                                 [buffer(aki)])
 
-  def find_targets(self, fn2 = None):
-    return self._find_results(fn2,
-                              "SELECT" + self.object_fields + "FROM object WHERE target <> 0")
-
   def find_paras(self, fn2 = None):
     return self._find_results(fn2,
                               "SELECT" + self.object_fields + "FROM object WHERE para <> 0")
@@ -764,16 +749,6 @@ class RPDB(object):
       aset)
 
 
-  def find_ancestors(self, target):
-    return self._find_results(
-      None,
-      """
-      SELECT %s from object, object AS child
-      WHERE child.id = ?
-      """ % self.object_fields,
-      [target.rowid])
-
-
   def find_uris(self, rowid):
     self.cur.execute("SELECT uri FROM uri WHERE id = ?", (rowid,))
     return [u[0] for u in self.cur.fetchall()]
@@ -790,12 +765,11 @@ class RPDB(object):
     results = []
     self.cur.execute(query, args)
     selections = self.cur.fetchall()
-    for rowid, fn2, der, para, target, para_id, orig_id in selections:
+    for rowid, fn2, der, para, para_id, orig_id in selections:
       if rowid in self.cache:
         obj = self.cache[rowid]
         assert obj._rowid == rowid
         assert obj._para == para
-        assert obj._target == target
         assert obj._para_id == para_id, "Assertion failure: obj._para_id %s para_id %s" % (obj._para_id, para_id)
         assert obj._orig_id == orig_id, "Assertion failure: obj._orig_id %s orig_id %s" % (obj._orig_id, orig_id)
       else:
@@ -806,7 +780,6 @@ class RPDB(object):
         obj._rpdb     = self
         obj._rowid    = rowid
         obj._para     = para
-        obj._target   = target
         obj._para_id  = para_id
         obj._orig_id  = orig_id
         self.cache[rowid] = obj

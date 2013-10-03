@@ -1,5 +1,5 @@
 rcynic-input:
-  /u/sra/rpki/subvert-rpki.hactrn.net/trunk/rcynic/rcynic-data/unauthenticated
+  /u/sra/rpki/subvert-rpki.hactrn.net/trunk/rcynic/rcynic-data/authenticated
 
 rcynic-output:
   /u/sra/rpki/subvert-rpki.hactrn.net/trunk/rcynic/rcynic-data/lta-unauthenticated
@@ -10,16 +10,27 @@ tal-directory:
 keyfile:
   /u/sra/rpki/subvert-rpki.hactrn.net/trunk/scripts/rcynic-lta.key
 
+shared-strings:
+
+  - &GB1 |
+    BEGIN:VCARD
+    VERSION:4.0
+    FN:R0
+    ORG:Organizational Entity
+    ADR;TYPE=WORK:;;42 Twisty Passage;Deep Cavern;WA;98666;U.S.A.
+    TEL;TYPE=VOICE,TEXT,WORK;VALUE=uri:tel:+1-666-555-1212
+    TEL;TYPE=FAX,WORK;VALUE=uri:tel:+1-666-555-1213
+    EMAIL:human@example.com
+    END:VCARD
+
 constraints:
 
-  - ski: B8:14:5D:13:53:7D:AE:6E:E2:E3:95:84:A8:99:EB:7D:1A:7D:E5:DF
-    uri: rsync://repo0.rpki.net/rpki/root.cer
-    add: 10.0.0.44/32
+  - prefix:             10.0.0.0/8
+    roa:                { asn: 666, maxlen: 16 }
+    ghostbuster:        *GB1
 
-  - ski: A2:B3:2A:99:20:07:7A:E9:A4:9F:3F:02:F2:32:F9:3D:54:F8:7E:78
-    uri: rsync://repo0.rpki.net/rpki/root/iana.cer
-    sub: 10.0.0.0/8
+  - prefix:             192.168.0.0/16
 
-  - ski: 3NYgwt_HYV91MeCGLWdUL4uq65M
-    uri: rsync://repo0.rpki.net/rpki/root/iana/5/3NYgwt_HYV91MeCGLWdUL4uq65M.cer
-    add: 10.0.0.0/8
+  - asn:                666
+    ghostbuster:        *GB1
+    #router-cert:       { ski: "B8:14:5D:13:53:7D:AE:6E:E2:E3:95:84:A8:99:EB:7D:1A:7D:E5:DF" }

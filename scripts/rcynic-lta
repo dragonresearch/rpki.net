@@ -71,6 +71,8 @@ ltacrl = ltauri + "/lta.crl"
 cer_delta = rpki.sundial.timedelta(days = 7)
 crl_delta = rpki.sundial.timedelta(hours = 1)
 
+all_mentioned_resources = rpki.resource_set.resource_bag()
+
 # Teach SQLite3 about our data types.
 
 sqlite3.register_adapter(rpki.POW.IPAddress,
@@ -97,18 +99,15 @@ def main():
   print
   print "Loading DB"
   rpdb.load()
+
   print
-  print "Validating DB"
-  rpdb.validate()
+  print "Compute resources we need to prune from input forest"
+  compute_all_mentioned_resources()
+
   print
-  print "Processing targets"
-  process_targets(rpdb)
-  print
-  print "Processing ancestors"
-  process_ancestors(rpdb)
-  print
-  print "Processing trees"
-  process_trees(rpdb)
+  print "Processing deletions"
+  process_constraint_deletions(rpdb)
+
   print
   print "Re-parenting TAs"
   re_parent_tas(rpdb)
@@ -119,34 +118,11 @@ def main():
   print "Committing final changes to DB"
   rpdb.commit()
   print
-  print "Linking source tree"
-  link_tree()
-  print
   print "Dumping para-objects"
   rpdb.dump_paras()
   print
   print "Closing DB"
   rpdb.close()
-
-def parse_xki(s):
-  """
-  Parse text form of an SKI or AKI.  We accept two encodings:
-  colon-delimited hexadecimal, and URL-safe Base64.  The former is
-  what OpenSSL prints in its text representation of SKI and AKI
-  extensions; the latter is the g(SKI) value that some RPKI CA engines
-  (including rpkid) use when constructing filenames.
-
-  In either case, we check that the decoded result contains the right
-  number of octets to be a SHA-1 hash.
-  """
-
-  if ":" in s:
-    b = "".join(chr(int(c, 16)) for c in s.split(":"))
-  else:
-    b = base64.urlsafe_b64decode(s + ("=" * (4 - len(s) % 4)))  
-  if len(b) != 20:
-    raise RuntimeError("Bad length for SHA1 xKI value: %r" % s)
-  return b
 
 
 def create_ca(rpdb):
@@ -167,8 +143,8 @@ def create_ca(rpdb):
     sia         = (ltasia, ltamft, None),
     notAfter    = rpki.sundial.now() + cer_delta,
     resources   = rpki.resource_set.resource_bag.from_str("0-4294967295,0.0.0.0/0,::/0"))
-  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, nochain, para) "
-                   "VALUES (?, 'cer', ?, NULL, ?, ?, 0, 1)",
+  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para) "
+                   "VALUES (?, 'cer', ?, NULL, ?, ?, 1)",
                    (buffer(cer.get_DER()), buffer(cer.get_SKI()), cer.getIssuer(), cer.getSubject()))
   rowid = rpdb.cur.lastrowid
   rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltaaia))
@@ -177,31 +153,28 @@ def create_ca(rpdb):
 
 class Constraint(object):
 
+  roa_asn             = None
+  roa_maxlen          = None
+  router_cert_key     = None
+  router_cert_subject = None
+
   def __init__(self, y):
-    self.ski = parse_xki(y["ski"]) if "ski" in y else None
-    self.uri = y.get("uri", None)
-    self.set = rpki.resource_set.resource_bag.from_str(y.get("set", ""))
-    self.add = rpki.resource_set.resource_bag.from_str(y.get("add", "")) 
-    self.sub = rpki.resource_set.resource_bag.from_str(y.get("sub", ""))
+    self.prefixes    = rpki.resource_set.resource_bag.from_str(str(y.get("prefix", "")))
+    self.asns        = rpki.resource_set.resource_bag.from_str(str(y.get("asn", "")))
+    self.ghostbuster = y.get("ghostbuster")
 
-  def find(self, rpdb):
-    found = rpdb.find_by_ski_or_uri(self.ski, self.uri)
-    if len(found) == 0:
-      print "Constraint entry matched nothing (%s %s)" % (ski, uri)
-    elif len(found) > 1:
-      print "Constraint entry matched multiple objects, skipping (%s %s %r)" % (ski, uri, found)
-    else:
-      return found[0]
+    if "roa" in y:
+      self.roa_asn    = long(y["roa"]["asn"])
+      if "maxlen" in y["roa"]:
+        self.roa_maxlen = long(y["roa"]["maxlen"])
 
-  def constrained_resources(self, obj):
-    r =  self.set or obj.get_3779resources()
-    r |= self.add
-    r -= self.sub
-    return r
+    if "router-cert" in y:
+      self.router_cert_key     = y["router-cert"]["key"]
+      self.router_cert_subject = y["router-cert"]["subject"]
 
   @property
   def mentioned_resources(self):
-    return self.set | self.add | self.sub
+    return self.prefixes | self.asns
 
 
 def parse_yaml(fn = "rcynic-lta.yaml"):
@@ -217,6 +190,7 @@ def parse_yaml(fn = "rcynic-lta.yaml"):
   keyfile       = y["keyfile"]
   constraints = [Constraint(yy) for yy in y["constraints"]]
 
+
 def parse_tals():
   global tals
   tals = {}
@@ -227,37 +201,22 @@ def parse_tals():
       tals[uri] = key
 
 
-def process_targets(rpdb):
+def compute_all_mentioned_resources():
+  global all_mentioned_resources
   for constraint in constraints:
-    obj = constraint.find(rpdb)
-    if obj is not None:
-      obj.target = True
-      rpdb.add_para(obj, constraint.constrained_resources(obj))
+    all_mentioned_resources |= constraint.mentioned_resources
 
 
-def process_ancestors(rpdb):
-  for target in rpdb.find_targets():
-    target_resources = target.resources
-    for ancestor in rpdb.find_ancestors(target):
-      resources = ancestor.para_resources - target_resources
-      if resources:
-        rpdb.add_para(ancestor, resources)
-
-
-def process_trees(rpdb):
-  for constraint in constraints:
-    mentioned_resources = constraint.mentioned_resources
-    if mentioned_resources:
-      for obj in rpdb.find_by_resource_bag(mentioned_resources, "cer"):
-        if not obj.target:
-          rpdb.add_para(obj, obj.resources - mentioned_resources)
+def process_constraint_deletions(rpdb):
+  for obj in rpdb.find_by_resource_bag(all_mentioned_resources):
+    rpdb.add_para(obj, obj.resources - all_mentioned_resources)
 
 
 def re_parent_tas(rpdb):
   for uri, key in tals.iteritems():
     for ta in rpdb.find_by_ski_or_uri(key.calculateSKI(), uri):
       if ta.para_obj is None:
-        rpdb.add_para(ta, ta.resources)
+        rpdb.add_para(ta, ta.resources - all_mentioned_resources)
 
 
 def generate_crl_and_manifest(rpdb):
@@ -275,8 +234,8 @@ def generate_crl_and_manifest(rpdb):
     nextUpdate          = nextUpdate,
     revokedCertificates = ())
 
-  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, nochain, para) "
-                   "VALUES (?, 'crl', NULL, ?, ?, NULL, 0, 1)",
+  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para) "
+                   "VALUES (?, 'crl', NULL, ?, ?, NULL, 1)",
                    (buffer(crl.get_DER()), aki, issuer))
   rowid = rpdb.cur.lastrowid
   rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltacrl))
@@ -303,22 +262,11 @@ def generate_crl_and_manifest(rpdb):
     keypair        = key,
     certs          = cer)
 
-  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, nochain, para) "
-                   "VALUES (?, 'mft', ?, ?, ?, ?, 0, 1)",
+  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para) "
+                   "VALUES (?, 'mft', ?, ?, ?, ?, 1)",
                    (buffer(mft.get_DER()), buffer(cer.get_SKI()), aki, issuer, cer.getSubject()))
   rowid = rpdb.cur.lastrowid
   rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltamft))
-
-
-def link_tree():
-  sroot = os.path.abspath(rcynic_input)
-  droot = os.path.abspath(rcynic_output)
-  shutil.rmtree(droot, ignore_errors = True)
-  for sdir, dirs, files in os.walk(sroot):
-    ddir = droot + sdir[len(sroot):]
-    os.makedirs(ddir)
-    for fn in files:
-      os.link(os.path.join(sdir, fn), os.path.join(ddir, fn))
 
 
 class DER_object_mixin(object):
@@ -329,26 +277,14 @@ class DER_object_mixin(object):
 
   _rpdb         = None
   _rowid        = None
-  _nochain      = True
-  _original     = False
   _para         = False
   _target       = False
-  _left         = None
-  _right        = None
   _para_id      = None
   _orig_id      = None
 
   @property
   def rowid(self):
     return self._rowid
-
-  @property
-  def left(self):
-    return self._left
-
-  @property
-  def right(self):
-    return self._right
 
   @property
   def resources(self):
@@ -378,22 +314,6 @@ class DER_object_mixin(object):
     self._rpdb.cur.execute("UPDATE object SET %s = ? WHERE id = ?" % name, (value, self._rowid))
     setattr(self, "_" + name, value)
     #self._rpdb.db.commit()
-
-  @property
-  def nochain(self):
-    return self._nochain
-
-  @nochain.setter
-  def nochain(self, value):
-    self._update_bool("nochain", value)
-    
-  @property
-  def original(self):
-    return self._original
-
-  @original.setter
-  def original(self, value):
-    self._update_bool("original", value)
 
   @property
   def para(self):
@@ -437,121 +357,6 @@ class VerifyContextNoRFC3779(rpki.POW.X509StoreCTX):
     return ok or self.getError() in (rpki.POW.X509_V_ERR_UNNESTED_RESOURCE,
                                      rpki.POW.X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
 
-
-class Verifier(object):
-  """
-  Perform X.509 and CMS validation checks and store markers indicating
-  shape of the resulting tree in SQL.
-  """
-
-  # http://mikehillyer.com/articles/managing-hierarchical-data-in-mysql/
-
-  def __init__(self, rpdb):
-    self.rpdb = rpdb
-    self.counter = 0
-
-    self.store = rpki.POW.X509Store()
-    self.store.setFlags(rpki.POW.X509_V_FLAG_CRL_CHECK_ALL)
-    self.store.setContextClass(VerifyContextNoRFC3779)
-
-    self.spin = 0
-    self.start = rpki.sundial.now()
-
-    for uri, key in tals.iteritems():
-      self.rpdb.cur.execute(
-        "SELECT id, der FROM object WHERE nochain = 1 AND fn2 = 'cer' AND ski = ?",
-        (buffer(key.calculateSKI()),))
-      for rowid, der in self.rpdb.cur.fetchall():
-        cer = rpki.POW.X509.derRead(der)
-        if cer.getPublicKey().derWritePublic() == key.derWritePublic():
-          self.rpdb.cur.execute("UPDATE object SET nochain = 0 WHERE id = ?", (rowid,))
-          self.walk_tree(cer, rowid)
-        else:
-          sys.stderr.write("TAL public key mismatch for %s\n" % uri)
-
-    self.rpdb.cur.execute(
-      "SELECT object.id, uri FROM object, uri WHERE uri.id = object.id AND nochain = 1")
-    for rowid, uri in self.rpdb.cur.fetchall():
-      sys.stderr.write("Unchained %s\n" % uri)
-
-    sys.stderr.write("\r= %d objects in %s, committing..." % (
-        (self.counter + 1) / 2, rpki.sundial.now() - self.start))
-
-    #self.rpdb.cur.execute("DELETE FROM object WHERE nochain = 1")
-    self.rpdb.db.commit()
-
-    sys.stderr.write("done.\n")
-
-
-  def query(self, where, args):
-    self.rpdb.cur.execute(
-        "SELECT id, der FROM object WHERE nochain = 1 AND aki = ? AND issuer = ? AND " + where,
-        args)
-    return self.rpdb.cur.fetchall()
-
-
-  def next_counter(self):
-    self.counter += 1
-    return self.counter
-
-
-  def walk_tree(self, issuer, issuer_id):
-      issuer_key = issuer.getPublicKey()
-      self.store.addTrust(issuer)
-
-      self.rpdb.cur.execute(
-        "UPDATE object SET nochain = 0, left_ = ? WHERE id = ?",
-        (self.next_counter(), issuer_id))
-
-      self.spin += 1
-      sys.stderr.write("\r%s %d %s...\r" % ("|\\-/"[self.spin & 3],
-                                            (self.counter + 1) / 2,
-                                            rpki.sundial.now() - self.start))
-
-      args  = (buffer(issuer.getSKI()), rpki.x509.X501DN.from_POW(issuer.getSubject()))
-
-      for rowid, der in self.query("fn2 = 'crl'", args):
-        crl = rpki.POW.CRL.derRead(der)
-        if crl.verify(issuer_key):
-          self.rpdb.cur.execute(
-            "UPDATE object SET nochain = 0, left_ = ?, right_ = ? WHERE id = ?",
-            (self.next_counter(), self.next_counter(), rowid))
-          self.store.addCrl(crl)
-        else:
-          sys.stderr.write("CRL check failed for %s\n" % " ".join(self.rpdb.find_uris(rowid)))
-
-      for rowid, der in self.query("fn2 <> 'crl' AND fn2 <> 'cer'", args):
-        obj = rpki.POW.CMS.derRead(der)
-        try:
-          for cer in obj.certs():
-            ctx = self.store.verify(cer)
-            if ctx.getError():
-              raise RuntimeError(ctx.getErrorString())
-          obj.verify(self.store, flags = rpki.POW.CMS_NO_SIGNER_CERT_VERIFY)
-          self.rpdb.cur.execute(
-            "UPDATE object SET nochain = 0, left_ = ?, right_ = ? WHERE id = ?",
-            (self.next_counter(), self.next_counter(), rowid))
-        except RuntimeError, e:
-          sys.stderr.write("Certificate check failed for %s: %s\n" % (
-            " ".join(self.rpdb.find_uris(rowid)), e))
-        except POW.OpenSSLError, e:
-          sys.stderr.write("CMS check failed for %s: %s\n" % (
-            " ".join(self.rpdb.find_uris(rowid)), e))
-
-      for rowid, der in self.query("fn2 = 'cer'", args):
-        cer = rpki.POW.X509.derRead(der)
-        ctx = self.store.verify(cer)
-        if not ctx.getError():
-          self.walk_tree(cer, rowid)
-        else:
-          sys.stderr.write("Certificate check failed for %s: %s\n" % (
-            " ".join(self.rpdb.find_uris(rowid)), ctx.getErrorString()))
-
-      self.rpdb.cur.execute(
-        "UPDATE object SET right_ = ? WHERE id = ?",
-        (self.next_counter(), issuer_id))
-
-
 class RPDB(object):
   """
   Relying party database.
@@ -570,7 +375,7 @@ class RPDB(object):
   mapfn2 = dict((v, k) for k, v in fn2map.iteritems())
 
   object_fields = " %s " % ", ".join("object.%s" % field for field in (
-    "id", "fn2", "der", "nochain", "original", "para", "target", "left_", "right_", "para_id", "orig_id"))
+    "id", "fn2", "der", "para", "target", "para_id", "orig_id"))
 
   def __init__(self, db_name = "rcynic-lta.db"):
 
@@ -596,12 +401,8 @@ class RPDB(object):
                   aki           BLOB,
                   issuer        TEXT,
                   subject       TEXT,
-                  nochain       BOOLEAN NOT NULL DEFAULT 1,
-                  original      BOOLEAN NOT NULL DEFAULT 0,
                   para          BOOLEAN NOT NULL DEFAULT 0,
                   target        BOOLEAN NOT NULL DEFAULT 0,
-                  left_         INTEGER,
-                  right_        INTEGER,
                   para_id       INTEGER
                                 REFERENCES object(id)
                                 ON DELETE SET NULL
@@ -712,44 +513,37 @@ class RPDB(object):
 
 
   def add_para(self, obj, resources):
-    """
-    As far as I can tell at the moment, we only generate
-    paracertificates for CA certificates, never for EE certificates.
 
-    At present, ROAs are the only signed objects that specify
-    resources explictly rather than using inheritance, and EE
-    certificates for ROAs are supposed to be an exact match for the
-    address resources in the ROA anyway, so this is likely not a
-    serious restriction, at least for now.
-
-    Fixing this, if it's a problem, would require extending POW.c to
-    allow us to whack the certificate(s) bundled into a CMS object.
-    There's no documentation on how we would even do that, although I
-    suspect that the OpenSSL library routine CMS_set1_signers_certs()
-    might do the trick.  Ignore for now.
-    """
+    # At least some of the following is probably wrong at this point.
+    # Under the new scheme we're going to need to generate signed
+    # objects too.
+    #
+    # As far as I can tell at the moment, we only generate
+    # paracertificates for CA certificates, never for EE certificates.
+    #
+    # At present, ROAs are the only signed objects that specify
+    # resources explictly rather than using inheritance, and EE
+    # certificates for ROAs are supposed to be an exact match for the
+    # address resources in the ROA anyway, so this is likely not a
+    # serious restriction, at least for now.
+    #
+    # Fixing this, if it's a problem, would require extending POW.c to
+    # allow us to whack the certificate(s) bundled into a CMS object.
+    # There's no documentation on how we would even do that, although
+    # I suspect that the OpenSSL library routine
+    # CMS_set1_signers_certs() might do the trick.  Ignore for now.
 
     assert isinstance(obj, X509)
-
-    # As currently used, obj could be a paracert or an original cert.
-    # We want links between the two using object.para_id and
-    # object.orig_id, but we also want to check for resource overlaps
-    # that would indicate overlapping constraints.
-    #
-    # I think we want to change the lookup so we always get the
-    # original cert (which probably happens anyway once we're using
-    # the tree-structured SQL lookups, as we're not copying those
-    # markers to paracerts), then we can just check for an existing
-    # paracert.
 
     assert not obj.para
 
     if obj.para_obj is not None:
-      changed = obj.resources ^ obj.para_obj.resources
-      if not (changed & resources).empty():
-        raise Blarg
+      resources &= obj.para_obj.resources
 
     obj.para_obj = None
+
+    if not resources:
+      return
 
     global serial
     serial += 1
@@ -791,14 +585,13 @@ class RPDB(object):
     der = buffer(cer.get_DER())
     uri = ltasia + cer.gSKI() + ".cer"
 
-    self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para, nochain, orig_id) "
-                     "VALUES (?, 'cer', ?, ?, ?, ?, 1, 0, ?)",
+    self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para, orig_id) "
+                     "VALUES (?, 'cer', ?, ?, ?, ?, 1, ?)",
                      (der, ski, aki, issuer, subject, obj.rowid))
     rowid = self.cur.lastrowid
 
-    self.cur.execute("UPDATE object SET para_id = ?, original = 1 WHERE id = ?", (rowid, obj.rowid))
+    self.cur.execute("UPDATE object SET para_id = ? WHERE id = ?", (rowid, obj.rowid))
     obj._para_id = rowid
-    obj._original = True
 
     self.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, uri))
 
@@ -806,6 +599,7 @@ class RPDB(object):
 
 
   def dump_paras(self):
+    shutil.rmtree(rcynic_output, ignore_errors = True)
     rsync = "rsync://"
     for obj in self.find_paras():
       assert obj.uri.startswith(rsync)
@@ -860,11 +654,11 @@ class RPDB(object):
 
   def find_targets(self, fn2 = None):
     return self._find_results(fn2,
-                              "SELECT" + self.object_fields + "FROM object WHERE target <> 0 AND nochain = 0")
+                              "SELECT" + self.object_fields + "FROM object WHERE target <> 0")
 
   def find_paras(self, fn2 = None):
     return self._find_results(fn2,
-                              "SELECT" + self.object_fields + "FROM object WHERE para <> 0 AND nochain = 0")
+                              "SELECT" + self.object_fields + "FROM object WHERE para <> 0")
 
   def find_parent(self, child):
     return self._find_results(None,
@@ -934,9 +728,7 @@ class RPDB(object):
       None,
       """
       SELECT %s from object, object AS child
-      WHERE object.left_  < child.left_
-      AND   object.right_ > child.right_
-      AND   child.id = ?
+      WHERE child.id = ?
       """ % self.object_fields,
       [target.rowid])
 
@@ -957,14 +749,10 @@ class RPDB(object):
     results = []
     self.cur.execute(query, args)
     selections = self.cur.fetchall()
-    for rowid, fn2, der, nochain, original, para, target, left, right, para_id, orig_id in selections:
+    for rowid, fn2, der, para, target, para_id, orig_id in selections:
       if rowid in self.cache:
         obj = self.cache[rowid]
         assert obj._rowid == rowid
-        assert obj._left == left
-        assert obj._right == right
-        assert obj._nochain == nochain
-        assert obj._original == original
         assert obj._para == para
         assert obj._target == target
         assert obj._para_id == para_id, "Assertion failure: obj._para_id %s para_id %s" % (obj._para_id, para_id)
@@ -976,10 +764,6 @@ class RPDB(object):
         obj.uri = obj.uris[0] if len(obj.uris) == 1 else None
         obj._rpdb     = self
         obj._rowid    = rowid
-        obj._left     = left
-        obj._right    = right
-        obj._nochain  = nochain
-        obj._original = original
         obj._para     = para
         obj._target   = target
         obj._para_id  = para_id
@@ -999,8 +783,25 @@ class RPDB(object):
     self.db.close()
 
 
-  def validate(self):
-    Verifier(self)
+def parse_xki(s):
+  """
+  Parse text form of an SKI or AKI.  We accept two encodings:
+  colon-delimited hexadecimal, and URL-safe Base64.  The former is
+  what OpenSSL prints in its text representation of SKI and AKI
+  extensions; the latter is the g(SKI) value that some RPKI CA engines
+  (including rpkid) use when constructing filenames.
+
+  In either case, we check that the decoded result contains the right
+  number of octets to be a SHA-1 hash.
+  """
+
+  if ":" in s:
+    b = "".join(chr(int(c, 16)) for c in s.split(":"))
+  else:
+    b = base64.urlsafe_b64decode(s + ("=" * (4 - len(s) % 4)))  
+  if len(b) != 20:
+    raise RuntimeError("Bad length for SHA1 xKI value: %r" % s)
+  return b
 
 
 if __name__ == "__main__":
@@ -1016,3 +817,4 @@ if __name__ == "__main__":
       sys.stderr.write("Dumped profile data to %s\n" % profile)
   else:
     main()
+

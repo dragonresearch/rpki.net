@@ -65,13 +65,16 @@ class x509(object):
     else:
       self.pow = rpki.POW.X509.derRead(text)
 
-    self.extensions = dict((e[0], e[2]) for e in (self.pow.getExtension(i) for i in xrange(self.pow.countExtensions())))
 
-    if "subjectKeyIdentifier" in self.extensions:
-      self.ski = ":".join(["%02X" % ord(i) for i in self.extensions.get("subjectKeyIdentifier")[1:]])
+    try:
+      self.ski = ":".join(["%02X" % ord(i) for i in self.pow.getSKI()])
+    except:
+      pass
 
-    if "authorityKeyIdentifier" in self.extensions:
-      self.aki = ":".join(["%02X" % ord(i) for i in self.extensions.get("authorityKeyIdentifier")[3:]])
+    try:
+      self.aki = ":".join(["%02X" % ord(i) for i in self.pow.getAKI()])      
+    except:
+      pass
 
     self.subject = self.canonize(self.pow.getSubject())
     self.issuer  = self.canonize(self.pow.getIssuer())
@@ -83,10 +86,15 @@ class x509(object):
 
   def canonize(self, name):
 
-    if self.cn_only and len(name) == 1 and name[0][0] == "CN":
-      return name[0][1]
-    else:
-      return "".join("/%s=%s" % n for n in name)
+    # Probably should just use rpki.x509.X501DN class here.
+
+    try:
+      if self.cn_only and name[0][0][0] == "2.5.4.3":
+        return name[0][0][1]
+    except:
+      pass
+
+    return name
 
   def set_node(self, node):
 

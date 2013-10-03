@@ -143,9 +143,10 @@ def create_ca(rpdb):
     sia         = (ltasia, ltamft, None),
     notAfter    = rpki.sundial.now() + cer_delta,
     resources   = rpki.resource_set.resource_bag.from_str("0-4294967295,0.0.0.0/0,::/0"))
-  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para) "
-                   "VALUES (?, 'cer', ?, NULL, ?, ?, 1)",
-                   (buffer(cer.get_DER()), buffer(cer.get_SKI()), cer.getIssuer(), cer.getSubject()))
+  subject_id = rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
+  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer, para) "
+                   "VALUES (?, 'cer', ?, ?, 1)",
+                   (buffer(cer.get_DER()), subject_id, subject_id))
   rowid = rpdb.cur.lastrowid
   rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltaaia))
   ltacer = rpdb.find_by_id(rowid)
@@ -234,9 +235,11 @@ def generate_crl_and_manifest(rpdb):
     nextUpdate          = nextUpdate,
     revokedCertificates = ())
 
-  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para) "
-                   "VALUES (?, 'crl', NULL, ?, ?, NULL, 1)",
-                   (buffer(crl.get_DER()), aki, issuer))
+  issuer_id = rpdb.find_keyname(issuer, aki)
+
+  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer, para) "
+                   "VALUES (?, 'crl', NULL, ?, 1)",
+                   (buffer(crl.get_DER()), issuer_id))
   rowid = rpdb.cur.lastrowid
   rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltacrl))
   crl = rpdb.find_by_id(rowid)
@@ -262,9 +265,11 @@ def generate_crl_and_manifest(rpdb):
     keypair        = key,
     certs          = cer)
 
-  rpdb.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para) "
-                   "VALUES (?, 'mft', ?, ?, ?, ?, 1)",
-                   (buffer(mft.get_DER()), buffer(cer.get_SKI()), aki, issuer, cer.getSubject()))
+  subject_id = rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
+
+  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer, para) "
+                   "VALUES (?, 'mft', ?, ?, 1)",
+                   (buffer(mft.get_DER()), subject_id, issuer_id))
   rowid = rpdb.cur.lastrowid
   rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltamft))
 
@@ -393,46 +398,54 @@ class RPDB(object):
     self.cur.executescript('''
           PRAGMA foreign_keys = on;
 
+          CREATE TABLE keyname (
+                id              INTEGER PRIMARY KEY NOT NULL,
+                name            TEXT NOT NULL,
+                keyid           BLOB NOT NULL,
+                UNIQUE          (name, keyid));
+
           CREATE TABLE object (
-                  id            INTEGER PRIMARY KEY NOT NULL,
-                  der           BLOB NOT NULL,
-                  fn2           TEXT NOT NULL,
-                  ski           BLOB,
-                  aki           BLOB,
-                  issuer        TEXT,
-                  subject       TEXT,
-                  para          BOOLEAN NOT NULL DEFAULT 0,
-                  target        BOOLEAN NOT NULL DEFAULT 0,
-                  para_id       INTEGER
+                id              INTEGER PRIMARY KEY NOT NULL,
+                der             BLOB NOT NULL,
+                fn2             TEXT NOT NULL,
+                subject         INTEGER
+                                REFERENCES keyname(id)
+                                ON DELETE RESTRICT
+                                ON UPDATE RESTRICT,
+                issuer          INTEGER NOT NULL
+                                REFERENCES keyname(id)
+                                ON DELETE RESTRICT
+                                ON UPDATE RESTRICT,
+                para            BOOLEAN NOT NULL DEFAULT 0,
+                target          BOOLEAN NOT NULL DEFAULT 0,
+                para_id         INTEGER
                                 REFERENCES object(id)
                                 ON DELETE SET NULL
                                 ON UPDATE SET NULL,
-                  orig_id       INTEGER
+                orig_id         INTEGER
                                 REFERENCES object(id)
                                 ON DELETE CASCADE
                                 ON UPDATE CASCADE,
-                  UNIQUE        (der));
+                UNIQUE          (der),
+                CHECK           ((subject IS NULL) == (fn2 == 'crl')));
 
           CREATE TABLE uri (
-                  id            INTEGER NOT NULL
+                id              INTEGER NOT NULL
                                 REFERENCES object(id)
                                 ON DELETE CASCADE
                                 ON UPDATE CASCADE,
-                  uri           TEXT NOT NULL,
-                  UNIQUE        (uri));
-
-          CREATE INDEX uri_index ON uri(id);
+                uri             TEXT NOT NULL,
+                UNIQUE          (uri));
 
           CREATE TABLE range (
-                  id            INTEGER NOT NULL
+                id              INTEGER NOT NULL
                                 REFERENCES object(id)
                                 ON DELETE CASCADE
                                 ON UPDATE CASCADE,
-                  min           RangeVal NOT NULL,
-                  max           RangeVal NOT NULL,
-                  UNIQUE        (id, min, max));
+                min             RangeVal NOT NULL,
+                max             RangeVal NOT NULL,
+                UNIQUE          (id, min, max));
 
-          CREATE INDEX range_index ON range(min, max);
           ''')
 
 
@@ -469,25 +482,30 @@ class RPDB(object):
             cer = obj
           else:
             cer = rpki.x509.X509(POW = obj.get_POW().certs()[0])
-          ski = buffer(cer.get_SKI())
-          try:
-            aki = buffer(cer.get_AKI())
-          except:
-            aki = None
-          bag = cer.get_3779resources()
           issuer = cer.getIssuer()
           subject = cer.getSubject()
+          ski = buffer(cer.get_SKI())
+          aki = cer.get_AKI()
+          if aki is None:
+            assert subject == issuer
+            aki = ski
+          else:
+            aki = buffer(aki)
+          bag = cer.get_3779resources()
 
         der = buffer(obj.get_DER())
         uri = "rsync://" + fn[len(rcynic_input) + 1:]
 
+        subject_id = None if ski is None else self.find_keyname(subject, ski)
+        issuer_id  = None if aki is None else self.find_keyname(issuer,  aki)
+
         try:
-          self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject) "
-                           "VALUES (?, ?, ?, ?, ?, ?)",
-                           (der, fn2, ski, aki, issuer, subject))
+          self.cur.execute("INSERT INTO object (der, fn2, subject, issuer) "
+                           "VALUES (?, ?, ?, ?)",
+                           (der, fn2, subject_id, issuer_id))
           rowid = self.cur.lastrowid
 
-        except sqlite3.IntegrityError:
+        except sqlite3.IntegrityError, e:
           self.cur.execute("SELECT id FROM object WHERE der = ? AND fn2 = ?", (der, fn2))
           rows = self.cur.fetchall()
           rowid = rows[0][0]
@@ -585,9 +603,12 @@ class RPDB(object):
     der = buffer(cer.get_DER())
     uri = ltasia + cer.gSKI() + ".cer"
 
-    self.cur.execute("INSERT INTO object (der, fn2, ski, aki, issuer, subject, para, orig_id) "
-                     "VALUES (?, 'cer', ?, ?, ?, ?, 1, ?)",
-                     (der, ski, aki, issuer, subject, obj.rowid))
+    subject_id = self.find_keyname(subject, ski)
+    issuer_id  = self.find_keyname(issuer,  aki)
+
+    self.cur.execute("INSERT INTO object (der, fn2, subject, issuer, para, orig_id) "
+                     "VALUES (?, 'cer', ?, ?, 1, ?)",
+                     (der, subject_id, issuer_id, obj.rowid))
     rowid = self.cur.lastrowid
 
     self.cur.execute("UPDATE object SET para_id = ? WHERE id = ?", (rowid, obj.rowid))
@@ -611,6 +632,18 @@ class RPDB(object):
         f.write(obj.get_DER())
 
 
+  def find_keyname(self, name, keyid):
+    keys = (name, buffer(keyid))
+    self.cur.execute("SELECT id FROM keyname WHERE name = ? AND keyid = ?", keys)
+    result = self.cur.fetchone()
+    if result is None:
+      self.cur.execute("INSERT INTO keyname (name, keyid) VALUES (?, ?)", keys)
+      result = self.cur.lastrowid
+    else:
+      result = result[0]
+    #print "keyname %s >> %s %r" % (result, base64.urlsafe_b64encode(keyid).rstrip("="), name)
+    return result
+
   def find_by_id(self, rowid):
     r = self._find_results(None, "SELECT" + self.object_fields + "FROM object WHERE id = ?", [rowid])
     assert len(r) < 2
@@ -623,8 +656,11 @@ class RPDB(object):
     elif ski and uri:
       return self._find_results(
         None,
-        "SELECT" + self.object_fields + "FROM object, uri " +
-        "WHERE para = 0 AND ski = ? AND uri.uri = ? AND object.id = uri.id",
+        "SELECT" + self.object_fields +
+        "FROM object " +
+        "JOIN uri ON object.id = uri.id " +
+        "JOIN keyname ON object.subject = keyname.id " +
+        "WHERE object.para = 0 AND keyname.keyid = ? AND uri.uri = ?",
         [buffer(ski), uri])
     elif ski:
       return self._find_results(
@@ -650,7 +686,12 @@ class RPDB(object):
     if aki is None:
       return self._find_results(fn2, "SELECT" + self.object_fields + "FROM object WHERE aki IS NULL")
     else:
-      return self._find_results(fn2, "SELECT" + self.object_fields + "FROM object WHERE aki = ?", [buffer(aki)])
+      return self._find_results(fn2,
+                                "SELECT" + self.object_fields +
+                                "FROM object " +
+                                "JOIN keyname ON object.issuer = keyname.id " +
+                                "WHERE keyname.keyid = ?",
+                                [buffer(aki)])
 
   def find_targets(self, fn2 = None):
     return self._find_results(fn2,

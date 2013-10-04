@@ -144,8 +144,8 @@ def create_ca(rpdb):
     notAfter    = rpki.sundial.now() + cer_delta,
     resources   = rpki.resource_set.resource_bag.from_str("0-4294967295,0.0.0.0/0,::/0"))
   subject_id = rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
-  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer, para) "
-                   "VALUES (?, 'cer', ?, ?, 1)",
+  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer) "
+                   "VALUES (?, 'cer', ?, ?)",
                    (buffer(cer.get_DER()), subject_id, subject_id))
   rowid = rpdb.cur.lastrowid
   rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltaaia))
@@ -237,8 +237,8 @@ def generate_crl_and_manifest(rpdb):
 
   issuer_id = rpdb.find_keyname(issuer, aki)
 
-  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer, para) "
-                   "VALUES (?, 'crl', NULL, ?, 1)",
+  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer) "
+                   "VALUES (?, 'crl', NULL, ?)",
                    (buffer(crl.get_DER()), issuer_id))
   rowid = rpdb.cur.lastrowid
   rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltacrl))
@@ -267,8 +267,8 @@ def generate_crl_and_manifest(rpdb):
 
   subject_id = rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
 
-  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer, para) "
-                   "VALUES (?, 'mft', ?, ?, 1)",
+  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer) "
+                   "VALUES (?, 'mft', ?, ?)",
                    (buffer(mft.get_DER()), subject_id, issuer_id))
   rowid = rpdb.cur.lastrowid
   rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltamft))
@@ -282,7 +282,7 @@ class DER_object_mixin(object):
 
   _rpdb         = None
   _rowid        = None
-  _para         = False
+  _original     = True
   _para_id      = None
   _orig_id      = None
 
@@ -313,19 +313,9 @@ class DER_object_mixin(object):
   def orig_obj(self):
     return None if self._orig_id is None else self._rpdb.find_by_id(self._orig_id)
 
-  def _update_bool(self, name, value):
-    assert self._rpdb is not None and self._rowid is not None and isinstance(value, bool)
-    self._rpdb.cur.execute("UPDATE object SET %s = ? WHERE id = ?" % name, (value, self._rowid))
-    setattr(self, "_" + name, value)
-    #self._rpdb.db.commit()
-
   @property
-  def para(self):
-    return self._para
-
-  @para.setter
-  def para(self, value):
-    self._update_bool("para", value)
+  def original(self):
+    return self._original
 
 
 class X509              (rpki.x509.X509,            DER_object_mixin):
@@ -343,15 +333,6 @@ class ROA               (rpki.x509.ROA,             DER_object_mixin):
 class Ghostbuster       (rpki.x509.Ghostbuster,     DER_object_mixin):
     pass
 
-class VerifyContextNoRFC3779(rpki.POW.X509StoreCTX):
-  """
-  Provide callback for OpenSSL certificate verification.  Ignores RFC
-  3779 nesting errors and warnings about self-signed TA certificates.
-  """
-
-  def verify_callback(self, ok):
-    return ok or self.getError() in (rpki.POW.X509_V_ERR_UNNESTED_RESOURCE,
-                                     rpki.POW.X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
 
 class RPDB(object):
   """
@@ -369,9 +350,6 @@ class RPDB(object):
                 gbr = Ghostbuster)
 
   mapfn2 = dict((v, k) for k, v in fn2map.iteritems())
-
-  object_fields = " %s " % ", ".join("object.%s" % field for field in (
-    "id", "fn2", "der", "para", "para_id", "orig_id"))
 
   def __init__(self, db_name = "rcynic-lta.db"):
 
@@ -408,7 +386,7 @@ class RPDB(object):
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
                                 ON UPDATE RESTRICT,
-                para            BOOLEAN NOT NULL DEFAULT 0,
+                original        BOOLEAN NOT NULL DEFAULT 0,
                 para_id         INTEGER
                                 REFERENCES object(id)
                                 ON DELETE SET NULL
@@ -497,7 +475,7 @@ class RPDB(object):
           subject_id = None if ski is None else self.find_keyname(subject, ski)
           issuer_id = self.find_keyname(issuer,  aki)
 
-          self.cur.execute("INSERT INTO object (der, fn2, subject, issuer) VALUES (?, ?, ?, ?)",
+          self.cur.execute("INSERT INTO object (der, fn2, subject, issuer, original) VALUES (?, ?, ?, ?, 1)",
                            (der, fn2, subject_id, issuer_id))
           rowid = self.cur.lastrowid
 
@@ -542,7 +520,7 @@ class RPDB(object):
 
     assert isinstance(obj, X509)
 
-    assert not obj.para
+    assert obj.original
 
     if obj.para_obj is not None:
       resources &= obj.para_obj.resources
@@ -595,8 +573,8 @@ class RPDB(object):
     subject_id = self.find_keyname(subject, ski)
     issuer_id  = self.find_keyname(issuer,  aki)
 
-    self.cur.execute("INSERT INTO object (der, fn2, subject, issuer, para, orig_id) "
-                     "VALUES (?, 'cer', ?, ?, 1, ?)",
+    self.cur.execute("INSERT INTO object (der, fn2, subject, issuer, orig_id) "
+                     "VALUES (?, 'cer', ?, ?, ?)",
                      (der, subject_id, issuer_id, obj.rowid))
     rowid = self.cur.lastrowid
 
@@ -633,8 +611,9 @@ class RPDB(object):
     #print "keyname %s >> %s %r" % (result, base64.urlsafe_b64encode(keyid).rstrip("="), name)
     return result
 
+
   def find_by_id(self, rowid):
-    r = self._find_results(None, "SELECT" + self.object_fields + "FROM object WHERE id = ?", [rowid])
+    r = self._find_results(None, "WHERE id = ?", [rowid])
     assert len(r) < 2
     return r[0] if r else None
 
@@ -645,64 +624,63 @@ class RPDB(object):
     elif ski and uri:
       return self._find_results(
         None,
-        "SELECT" + self.object_fields +
-        "FROM object " +
-        "JOIN uri ON object.id = uri.id " +
-        "JOIN keyname ON object.subject = keyname.id " +
-        "WHERE object.para = 0 AND keyname.keyid = ? AND uri.uri = ?",
+        """
+        JOIN uri ON object.id = uri.id
+        JOIN keyname ON object.subject = keyname.id
+        WHERE object.original <> 0 AND keyname.keyid = ? AND uri.uri = ?""",
         [buffer(ski), uri])
     elif ski:
       return self._find_results(
         None,
-        "SELECT" + self.object_fields + "FROM object " +
-        "WHERE para = 0 AND ski = ?",
+        """
+        JOIN keyname ON object.subject = keyname.id
+        WHERE object.original <> 0 AND keyname.keyid = ?""",
         [buffer(ski)])
     else:
       return self._find_results(
         None,
-        "SELECT" + self.object_fields + "FROM object, uri " +
-        "WHERE para = 0 AND uri.uri = ? AND object.id = uri.id",
+        """
+        JOIN uri ON object.id = uri.id
+        WHERE object.original <> 0 AND uri.uri = ?""",
         [uri])
 
 
   def find_by_ski(self, ski, fn2 = None):
     if ski is None:
-      return self._find_results(fn2, "SELECT" + self.object_fields + "FROM object WHERE ski IS NULL")
+      return self._find_results(fn2,
+                                """
+                                JOIN keyname ON object.subject = keyname.id
+                                WHERE keyname.keyid IS NULL
+                                """)
     else:
-      return self._find_results(fn2, "SELECT" + self.object_fields + "FROM object WHERE ski = ?", [buffer(ski)])
+      return self._find_results(fn2,
+                                """
+                                JOIN keyname ON object.subject = keyname.id
+                                WHERE ski = ?""",
+                                [buffer(ski)])
 
   def find_by_aki(self, aki, fn2 = None):
     if aki is None:
-      return self._find_results(fn2, "SELECT" + self.object_fields + "FROM object WHERE aki IS NULL")
+      return self._find_results(fn2,
+                                """
+                                JOIN keyname on object.issuer = keyname.id
+                                WHERE keyname.keyid IS NULL""")
     else:
       return self._find_results(fn2,
-                                "SELECT" + self.object_fields +
-                                "FROM object " +
-                                "JOIN keyname ON object.issuer = keyname.id " +
-                                "WHERE keyname.keyid = ?",
+                                """
+                                JOIN keyname ON object.issuer = keyname.id
+                                WHERE keyname.keyid = ?""",
                                 [buffer(aki)])
 
   def find_paras(self, fn2 = None):
-    return self._find_results(fn2,
-                              "SELECT" + self.object_fields + "FROM object WHERE para <> 0")
-
-  def find_parent(self, child):
-    return self._find_results(None,
-                              "SELECT" + self.object_fields + "FROM object WHERE subject = ? AND SKI = ?",
-                              [child.getIssuer(), buffer(child.get_AKI())])
-
-
-  def find_products(self, aki, issuer, fn2 = None):
-    return self._find_results(fn2,
-                              "SELECT" + self.object_fields +
-                              "FROM object WHERE aki = ? AND issuer = ?",
-                              [buffer(aki), issuer])
+    return self._find_results(fn2, "WHERE original = 0")
 
 
   def find_by_uri(self, uri):
     return self._find_results(None,
-                              "SELECT" + self.object_fields +
-                              "FROM object, uri WHERE uri.uri = ? AND object.id = uri.id",
+                              """
+                              JOIN uri ON object.id = uri.id
+                              WHERE uri.uri = ?""",
                               [uri])
 
   # It's easiest to understand overlap conditions by understanding
@@ -722,10 +700,8 @@ class RPDB(object):
     return self._find_results(
       fn2,
       """
-      SELECT %s
-      FROM object, range
-      WHERE ? <= max AND ? >= min AND object.id = range.id
-      """ % self.object_fields,
+      JOIN range ON object.id = range.id
+      WHERE ? <= range.max AND ? >= range.min""",
       [range_min, range_max])
 
 
@@ -742,10 +718,9 @@ class RPDB(object):
     return self._find_results(
       fn2,
       """
-      SELECT %s
-      FROM object, range
-      WHERE object.id = range.id AND (%s)
-      """ % (self.object_fields, " OR ".join(qset)),
+      JOIN range ON object.id = range.id
+      WHERE
+      """ + (" OR ".join(qset)),
       aset)
 
 
@@ -754,6 +729,9 @@ class RPDB(object):
     return [u[0] for u in self.cur.fetchall()]
 
 
+  object_fields = ", ".join("object.%s" % field for field in (
+    "id", "fn2", "der", "original", "para_id", "orig_id"))
+
   def _find_results(self, fn2, query, args = None):
     if args is None:
       args = []
@@ -761,15 +739,15 @@ class RPDB(object):
       assert fn2 in self.fn2map
       query += " AND fn2 = ?"
       args.append(fn2)
-    query += " GROUP BY object.id"
+    query = "SELECT %s FROM object %s GROUP BY object.id" % (self.object_fields, query)
     results = []
     self.cur.execute(query, args)
     selections = self.cur.fetchall()
-    for rowid, fn2, der, para, para_id, orig_id in selections:
+    for rowid, fn2, der, original, para_id, orig_id in selections:
       if rowid in self.cache:
         obj = self.cache[rowid]
         assert obj._rowid == rowid
-        assert obj._para == para
+        assert obj._original == original
         assert obj._para_id == para_id, "Assertion failure: obj._para_id %s para_id %s" % (obj._para_id, para_id)
         assert obj._orig_id == orig_id, "Assertion failure: obj._orig_id %s orig_id %s" % (obj._orig_id, orig_id)
       else:
@@ -779,7 +757,7 @@ class RPDB(object):
         obj.uri = obj.uris[0] if len(obj.uris) == 1 else None
         obj._rpdb     = self
         obj._rowid    = rowid
-        obj._para     = para
+        obj._original = original
         obj._para_id  = para_id
         obj._orig_id  = orig_id
         self.cache[rowid] = obj

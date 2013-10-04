@@ -283,6 +283,7 @@ class DER_object_mixin(object):
   _rpdb         = None
   _rowid        = None
   _original     = True
+
   _para_id      = None
   _orig_id      = None
 
@@ -300,18 +301,18 @@ class DER_object_mixin(object):
 
   @property
   def para_obj(self):
-    return None if self._para_id is None else self._rpdb.find_by_id(self._para_id)
+    return self._rpdb.find_by_id(self._para_id)
 
   @para_obj.setter
   def para_obj(self, value):
-    assert value is None
+    assert value is None and self.original
     if self._para_id is not None:
       self._rpdb.cur.execute("DELETE FROM object WHERE id = ?", (self._para_id,))
       self._para_id = None
 
   @property
   def orig_obj(self):
-    return None if self._orig_id is None else self._rpdb.find_by_id(self._orig_id)
+    return self._rpdb.find_by_id(self._orig_id)
 
   @property
   def original(self):
@@ -397,7 +398,9 @@ class RPDB(object):
                                 ON DELETE CASCADE
                                 ON UPDATE CASCADE,
                 UNIQUE          (der),
-                CHECK           ((subject IS NULL) == (fn2 == 'crl')));
+                CHECK           ((subject IS NULL) == (fn2 == 'crl')),
+                CHECK           (original <> 0 OR para_id IS NULL),
+                CHECK           (original =  0 OR orig_id IS NULL));
 
           CREATE TABLE uri (
                 id              INTEGER NOT NULL
@@ -492,23 +495,28 @@ class RPDB(object):
     if spinner:
       sys.stderr.write("\r= %d objects in %s.\n" % (nobj, rpki.sundial.now() - start))
 
-    self.cur.execute("UPDATE object SET depth = 0 WHERE subject = issuer")
+    self.cur.execute("UPDATE object SET depth = 0 WHERE subject = issuer AND original <> 0")
 
-    for depth in xrange(500):
-      self.cur.execute("SELECT COUNT(*) FROM object WHERE depth IS NULL")
+    for depth in xrange(1, 500):
+
+      self.cur.execute("SELECT COUNT(*) FROM object WHERE depth IS NULL AND original <> 0")
       if self.cur.fetchone()[0] == 0:
         break
+
       if spinner:
-        sys.stderr.write("\rSetting depth markers %d..." % (depth + 1))
+        sys.stderr.write("\rSetting depth %d..." % depth)
+
       self.cur.execute("""
                        UPDATE object SET depth = ?
-                       WHERE issuer IN (SELECT subject FROM object WHERE depth = ?)
-                       AND depth IS NULL
+                       WHERE depth IS NULL
+                       AND   original <> 0
+                       AND   issuer IN (SELECT subject FROM object WHERE depth = ?)
                        """,
-                       (depth + 1, depth))
+                       (depth, depth - 1))
+
     else:
       if spinner:
-        sys.stderr.write("\rGiving up on depth markers after reaching absurd depth %s")
+        sys.stderr.write("\rSetting depth %d is absurd, giving up, " % depth)
 
     if spinner:
       sys.stderr.write("\nCommitting...")
@@ -635,6 +643,8 @@ class RPDB(object):
 
 
   def find_by_id(self, rowid):
+    if rowid is None:
+      return None
     r = self._find_results(None, "WHERE id = ?", [rowid])
     assert len(r) < 2
     return r[0] if r else None

@@ -378,6 +378,7 @@ class RPDB(object):
                 der             BLOB NOT NULL,
                 fn2             TEXT NOT NULL
                                 CHECK (fn2 IN ('cer', 'crl', 'mft', 'roa', 'gbr')),
+                depth           INTEGER,
                 subject         INTEGER
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
@@ -489,7 +490,27 @@ class RPDB(object):
                          (rowid, uri))
 
     if spinner:
-      sys.stderr.write("\r= %d objects in %s, committing..." % (nobj, rpki.sundial.now() - start))
+      sys.stderr.write("\r= %d objects in %s.\n" % (nobj, rpki.sundial.now() - start))
+
+    self.cur.execute("UPDATE object SET depth = 0 WHERE subject = issuer")
+
+    for depth in xrange(500):
+      self.cur.execute("SELECT COUNT(*) FROM object WHERE depth IS NULL")
+      if self.cur.fetchone()[0] == 0:
+        break
+      if spinner:
+        sys.stderr.write("\rSetting depth markers %d..." % (depth + 1))
+      self.cur.execute("""
+                       UPDATE object SET depth = ?
+                       WHERE issuer IN (SELECT subject FROM object WHERE depth = ?)
+                       """,
+                       (depth + 1, depth))
+    else:
+      if spinner:
+        sys.stderr.write("\rGiving up on depth markers after reaching absurd depth %s")
+
+    if spinner:
+      sys.stderr.write("\nCommitting...")
 
     self.db.commit()
 

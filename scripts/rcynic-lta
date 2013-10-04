@@ -503,6 +503,7 @@ class RPDB(object):
       self.cur.execute("""
                        UPDATE object SET depth = ?
                        WHERE issuer IN (SELECT subject FROM object WHERE depth = ?)
+                       AND depth IS NULL
                        """,
                        (depth + 1, depth))
     else:

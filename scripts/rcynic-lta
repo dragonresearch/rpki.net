@@ -48,31 +48,6 @@ import rpki.x509
 import rpki.sundial
 import rpki.resource_set
 
-# Lots of icky global variables, clean this up later.
-
-tal_directory = None
-constraints   = None
-rcynic_input  = None
-rcynic_output = None
-tals          = None
-keyfile       = None
-
-serial = long(time.time()) << 32
-
-ltakey = None
-ltacer = None
-
-ltauri = "rsync://localhost/lta"
-ltasia = ltauri + "/"
-ltaaia = ltauri + ".cer"
-ltamft = ltauri + "/lta.mft"
-ltacrl = ltauri + "/lta.crl"
-
-cer_delta = rpki.sundial.timedelta(days = 7)
-crl_delta = rpki.sundial.timedelta(hours = 1)
-
-all_mentioned_resources = rpki.resource_set.resource_bag()
-
 # Teach SQLite3 about our data types.
 
 sqlite3.register_adapter(rpki.POW.IPAddress,
@@ -84,70 +59,227 @@ sqlite3.register_converter("RangeVal",
 sqlite3.register_adapter(rpki.x509.X501DN, str)
 
 
-def main():
-  print "Parsing YAML"
-  parse_yaml()
-  print
-  print "Parsing TALs"
-  parse_tals()
-  print
-  print "Creating DB"
-  rpdb = RPDB()
-  print
-  print "Creating CA"
-  create_ca(rpdb)
-  print
-  print "Loading DB"
-  rpdb.load()
+class main(object):
 
-  print
-  print "Compute resources we need to prune from input forest"
-  compute_all_mentioned_resources()
+  tal_directory = None
+  constraints   = None
+  rcynic_input  = None
+  rcynic_output = None
+  tals          = None
+  keyfile       = None
 
-  print
-  print "Processing deletions"
-  process_constraint_deletions(rpdb)
+  ltakey = None
+  ltacer = None
 
-  print
-  print "Re-parenting TAs"
-  re_parent_tas(rpdb)
-  print
-  print "Generating CRL and manifest"
-  generate_crl_and_manifest(rpdb)
-  print
-  print "Committing final changes to DB"
-  rpdb.commit()
-  print
-  print "Dumping para-objects"
-  rpdb.dump_paras()
-  print
-  print "Closing DB"
-  rpdb.close()
+  ltauri = "rsync://localhost/lta"
+  ltasia = ltauri + "/"
+  ltaaia = ltauri + ".cer"
+  ltamft = ltauri + "/lta.mft"
+  ltacrl = ltauri + "/lta.crl"
+
+  cer_delta = rpki.sundial.timedelta(days = 7)
+  crl_delta = rpki.sundial.timedelta(hours = 1)
+
+  all_mentioned_resources = rpki.resource_set.resource_bag()
 
 
-def create_ca(rpdb):
-  global serial
-  global ltakey
-  global ltacer
-  if os.path.exists(keyfile):
-    ltakey = rpki.x509.RSA(Auto_file = keyfile)
-  else:
-    ltakey = rpki.x509.RSA.generate(quiet = True)
-    with os.fdopen(os.open(keyfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0400), "w") as f:
-      f.write(ltakey.get_PEM())
-  cer = X509.self_certify(
-    cn          = "%s LTA Root Certificate" % socket.getfqdn(),
-    keypair     = ltakey,
-    subject_key = ltakey.get_RSApublic(),
-    serial      = serial,
-    sia         = (ltasia, ltamft, None),
-    notAfter    = rpki.sundial.now() + cer_delta,
-    resources   = rpki.resource_set.resource_bag.from_str("0-4294967295,0.0.0.0/0,::/0"))
-  subject_id = rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
-  rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
-                   "VALUES (?, 'cer', ?, ?, ?)",
-                   (buffer(cer.get_DER()), subject_id, subject_id, ltaaia))
-  ltacer = rpdb.find_outgoing_by_id(rpdb.cur.lastrowid)
+  def __init__(self):
+    print "Parsing YAML"
+    self.parse_yaml()
+    print
+    print "Parsing TALs"
+    self.parse_tals()
+    print
+    print "Creating DB"
+    self.rpdb = RPDB()
+    print
+    print "Creating CA"
+    self.create_ca()
+    print
+    print "Loading DB"
+    self.rpdb.load(self.rcynic_input)
+    print
+    print "Compute resources we need to prune from input forest"
+    self.compute_all_mentioned_resources()
+    print
+    print "Processing deletions"
+    self.process_constraint_deletions()
+    print
+    print "Re-parenting TAs"
+    self.re_parent_tas()
+    print
+    print "Generating CRL and manifest"
+    self.generate_crl_and_manifest()
+    print
+    print "Committing final changes to DB"
+    self.rpdb.commit()
+    print
+    print "Dumping para-objects"
+    self.rpdb.dump_paras(self.rcynic_output)
+    print
+    print "Closing DB"
+    self.rpdb.close()
+
+
+  def create_ca(self):
+    self.serial = Serial()
+    if os.path.exists(self.keyfile):
+      self.ltakey = rpki.x509.RSA(Auto_file = self.keyfile)
+    else:
+      self.ltakey = rpki.x509.RSA.generate(quiet = True)
+      with os.fdopen(os.open(keyfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0400), "w") as f:
+        f.write(self.ltakey.get_PEM())
+    cer = X509.self_certify(
+      cn          = "%s LTA Root Certificate" % socket.getfqdn(),
+      keypair     = self.ltakey,
+      subject_key = self.ltakey.get_RSApublic(),
+      serial      = self.serial(),
+      sia         = (self.ltasia, self.ltamft, None),
+      notAfter    = rpki.sundial.now() + self.cer_delta,
+      resources   = rpki.resource_set.resource_bag.from_str("0-4294967295,0.0.0.0/0,::/0"))
+    subject_id = self.rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
+    self.rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
+                          "VALUES (?, 'cer', ?, ?, ?)",
+                          (buffer(cer.get_DER()), subject_id, subject_id, self.ltaaia))
+    self.ltacer = self.rpdb.find_outgoing_by_id(self.rpdb.cur.lastrowid)
+
+
+  def parse_yaml(self, fn = "rcynic-lta.yaml"):
+    y = yaml.safe_load(open(fn, "r"))
+    self.tal_directory = y["tal-directory"]
+    self.rcynic_input  = y["rcynic-input"]
+    self.rcynic_output = y["rcynic-output"]
+    self.keyfile       = y["keyfile"]
+    self.constraints = [Constraint(yy) for yy in y["constraints"]]
+
+
+  def parse_tals(self):
+    self.tals = {}
+    for fn in glob.iglob(os.path.join(self.tal_directory, "*.tal")):
+      with open(fn, "r") as f:
+        uri = f.readline().strip()
+        key = rpki.POW.Asymmetric.derReadPublic(base64.b64decode(f.read()))
+        self.tals[uri] = key
+
+
+  def compute_all_mentioned_resources(self):
+    for constraint in self.constraints:
+      self.all_mentioned_resources |= constraint.mentioned_resources
+
+
+  def process_constraint_deletions(self):
+    for obj in self.rpdb.find_by_resource_bag(self.all_mentioned_resources):
+      self.add_para(obj, obj.resources - self.all_mentioned_resources)
+
+
+  def re_parent_tas(self):
+    for uri, key in self.tals.iteritems():
+      for ta in self.rpdb.find_by_ski_or_uri(key.calculateSKI(), uri):
+        if ta.para_obj is None:
+          self.add_para(ta, ta.resources - self.all_mentioned_resources)
+
+
+  def add_para(self, obj, resources):
+    return self.rpdb.add_para(
+      obj       = obj,
+      resources = resources,
+      serial    = self.serial,
+      ltacer    = self.ltacer,
+      ltasia    = self.ltasia,
+      ltaaia    = self.ltaaia,
+      ltamft    = self.ltamft,
+      ltacrl    = self.ltacrl,
+      ltakey    = self.ltakey)
+
+
+  def generate_crl_and_manifest(self):
+    thisUpdate = rpki.sundial.now()
+    nextUpdate = thisUpdate + self.crl_delta
+    serial     = self.serial()
+    issuer     = self.ltacer.getSubject()
+    aki        = buffer(self.ltacer.get_SKI())
+
+    crl = CRL.generate(
+      keypair             = self.ltakey,
+      issuer              = self.ltacer,
+      serial              = serial,
+      thisUpdate          = thisUpdate,
+      nextUpdate          = nextUpdate,
+      revokedCertificates = ())
+
+    issuer_id = self.rpdb.find_keyname(issuer, aki)
+
+    self.rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
+                          "VALUES (?, 'crl', NULL, ?, ?)",
+                          (buffer(crl.get_DER()), issuer_id, self.ltacrl))
+    crl = self.rpdb.find_outgoing_by_id(self.rpdb.cur.lastrowid)
+
+    key = rpki.x509.RSA.generate(quiet = True)
+
+    cer = self.ltacer.issue(
+      keypair     = self.ltakey,
+      subject_key = key.get_RSApublic(),
+      serial      = serial,
+      sia         = (None, None, self.ltamft),
+      aia         = self.ltaaia,
+      crldp       = self.ltacrl,
+      resources   = rpki.resource_set.resource_bag.from_inheritance(),
+      notAfter    = self.ltacer.getNotAfter(),
+      is_ca       = False)
+
+    # Temporary kludge, need more general solution but that requires
+    # more refactoring than I feel like doing this late in the day.
+    #
+    self.rpdb.cur.execute("SELECT fn2, der, uri FROM outgoing WHERE issuer = ?", (self.ltacer.rowid,))
+    names_and_objs = [(uri, self.rpdb.fn2map[fn2](DER = der)) for fn2, der, uri in self.rpdb.cur.fetchall()]
+
+    mft = rpki.x509.SignedManifest.build(
+      serial         = serial,
+      thisUpdate     = thisUpdate,
+      nextUpdate     = nextUpdate,
+      names_and_objs = names_and_objs,
+      keypair        = key,
+      certs          = cer)
+
+    subject_id = self.rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
+
+    self.rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
+                          "VALUES (?, 'mft', ?, ?, ?)",
+                          (buffer(mft.get_DER()), subject_id, issuer_id, self.ltamft))
+
+
+  @staticmethod
+  def parse_xki(s):
+    """
+    Parse text form of an SKI or AKI.  We accept two encodings:
+    colon-delimited hexadecimal, and URL-safe Base64.  The former is
+    what OpenSSL prints in its text representation of SKI and AKI
+    extensions; the latter is the g(SKI) value that some RPKI CA engines
+    (including rpkid) use when constructing filenames.
+
+    In either case, we check that the decoded result contains the right
+    number of octets to be a SHA-1 hash.
+    """
+
+    if ":" in s:
+      b = "".join(chr(int(c, 16)) for c in s.split(":"))
+    else:
+      b = base64.urlsafe_b64decode(s + ("=" * (4 - len(s) % 4)))  
+    if len(b) != 20:
+      raise RuntimeError("Bad length for SHA1 xKI value: %r" % s)
+    return b
+
+
+
+class Serial(object):
+
+  def __init__(self):
+    self.value = long(time.time()) << 32
+
+  def __call__(self):
+    self.value += 1
+    return self.value
+
 
 
 class Constraint(object):
@@ -174,104 +306,6 @@ class Constraint(object):
   @property
   def mentioned_resources(self):
     return self.prefixes | self.asns
-
-
-def parse_yaml(fn = "rcynic-lta.yaml"):
-  global tal_directory
-  global constraints
-  global rcynic_input
-  global rcynic_output
-  global keyfile
-  y = yaml.safe_load(open(fn, "r"))
-  tal_directory = y["tal-directory"]
-  rcynic_input  = y["rcynic-input"]
-  rcynic_output = y["rcynic-output"]
-  keyfile       = y["keyfile"]
-  constraints = [Constraint(yy) for yy in y["constraints"]]
-
-
-def parse_tals():
-  global tals
-  tals = {}
-  for fn in glob.iglob(os.path.join(tal_directory, "*.tal")):
-    with open(fn, "r") as f:
-      uri = f.readline().strip()
-      key = rpki.POW.Asymmetric.derReadPublic(base64.b64decode(f.read()))
-      tals[uri] = key
-
-
-def compute_all_mentioned_resources():
-  global all_mentioned_resources
-  for constraint in constraints:
-    all_mentioned_resources |= constraint.mentioned_resources
-
-
-def process_constraint_deletions(rpdb):
-  for obj in rpdb.find_by_resource_bag(all_mentioned_resources):
-    rpdb.add_para(obj, obj.resources - all_mentioned_resources)
-
-
-def re_parent_tas(rpdb):
-  for uri, key in tals.iteritems():
-    for ta in rpdb.find_by_ski_or_uri(key.calculateSKI(), uri):
-      if ta.para_obj is None:
-        rpdb.add_para(ta, ta.resources - all_mentioned_resources)
-
-
-def generate_crl_and_manifest(rpdb):
-  thisUpdate = rpki.sundial.now()
-  nextUpdate = thisUpdate + crl_delta
-  serial     = long(time.time())
-  issuer     = ltacer.getSubject()
-  aki        = buffer(ltacer.get_SKI())
-
-  crl = CRL.generate(
-    keypair             = ltakey,
-    issuer              = ltacer,
-    serial              = serial,
-    thisUpdate          = thisUpdate,
-    nextUpdate          = nextUpdate,
-    revokedCertificates = ())
-
-  issuer_id = rpdb.find_keyname(issuer, aki)
-
-  rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
-                   "VALUES (?, 'crl', NULL, ?, ?)",
-                   (buffer(crl.get_DER()), issuer_id, ltacrl))
-  crl = rpdb.find_outgoing_by_id(rpdb.cur.lastrowid)
-
-  key = rpki.x509.RSA.generate(quiet = True)
-
-  cer = ltacer.issue(
-    keypair     = ltakey,
-    subject_key = key.get_RSApublic(),
-    serial      = serial,
-    sia         = (None, None, ltamft),
-    aia         = ltaaia,
-    crldp       = ltacrl,
-    resources   = rpki.resource_set.resource_bag.from_inheritance(),
-    notAfter    = ltacer.getNotAfter(),
-    is_ca       = False)
-
-  # Temporary kludge, need more general solution but that requires
-  # more refactoring than I feel like doing this late in the day.
-  #
-  rpdb.cur.execute("SELECT fn2, der, uri FROM outgoing WHERE issuer = ?", (ltacer.rowid,))
-  names_and_objs = [(uri, rpdb.fn2map[fn2](DER = der)) for fn2, der, uri in rpdb.cur.fetchall()]
-
-  mft = rpki.x509.SignedManifest.build(
-    serial         = serial,
-    thisUpdate     = thisUpdate,
-    nextUpdate     = nextUpdate,
-    names_and_objs = names_and_objs,
-    keypair        = key,
-    certs          = cer)
-
-  subject_id = rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
-
-  rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
-                   "VALUES (?, 'mft', ?, ?, ?)",
-                   (buffer(mft.get_DER()), subject_id, issuer_id, ltamft))
 
 
 class DER_object_mixin(object):
@@ -453,7 +487,7 @@ class RPDB(object):
           ''')
 
 
-  def load(self, spinner = 100):
+  def load(self, rcynic_input, spinner = 100):
 
     start = rpki.sundial.now()
     nobj = 0
@@ -557,7 +591,7 @@ class RPDB(object):
       sys.stderr.write("done.\n")
 
 
-  def add_para(self, obj, resources):
+  def add_para(self, obj, resources, serial, ltacer, ltasia, ltaaia, ltamft, ltacrl, ltakey):
 
     # At least some of the following is probably wrong at this point.
     # Under the new scheme we're going to need to generate signed
@@ -590,9 +624,6 @@ class RPDB(object):
     if not resources:
       return
 
-    global serial
-    serial += 1
-
     pow = obj.get_POW()
 
     x = rpki.POW.X509()
@@ -613,7 +644,7 @@ class RPDB(object):
     x.setAIA(                   (ltaaia,))
     x.setCRLDP(                 (ltacrl,))
 
-    x.setSerial(                serial)
+    x.setSerial(                serial())
     x.setRFC3779(
       asn  = ((r.min, r.max) for r in resources.asn),
       ipv4 = ((r.min, r.max) for r in resources.v4),
@@ -645,7 +676,7 @@ class RPDB(object):
     #self.db.commit()
 
 
-  def dump_paras(self):
+  def dump_paras(self, rcynic_output):
     shutil.rmtree(rcynic_output, ignore_errors = True)
     rsync = "rsync://"
     self.cur.execute("SELECT der, uri FROM outgoing")
@@ -656,7 +687,7 @@ class RPDB(object):
       if not os.path.exists(dn):
         os.makedirs(dn)
       with open(fn, "wb") as f:
-        print ">> Writing", f.name
+        #print ">> Writing", f.name
         f.write(der)
 
 
@@ -805,28 +836,6 @@ class RPDB(object):
     self.commit()
     self.cur.close()
     self.db.close()
-
-
-def parse_xki(s):
-  """
-  Parse text form of an SKI or AKI.  We accept two encodings:
-  colon-delimited hexadecimal, and URL-safe Base64.  The former is
-  what OpenSSL prints in its text representation of SKI and AKI
-  extensions; the latter is the g(SKI) value that some RPKI CA engines
-  (including rpkid) use when constructing filenames.
-
-  In either case, we check that the decoded result contains the right
-  number of octets to be a SHA-1 hash.
-  """
-
-  if ":" in s:
-    b = "".join(chr(int(c, 16)) for c in s.split(":"))
-  else:
-    b = base64.urlsafe_b64decode(s + ("=" * (4 - len(s) % 4)))  
-  if len(b) != 20:
-    raise RuntimeError("Bad length for SHA1 xKI value: %r" % s)
-  return b
-
 
 if __name__ == "__main__":
   #profile = None

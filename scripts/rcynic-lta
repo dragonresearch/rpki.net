@@ -298,23 +298,24 @@ class DER_object_mixin(object):
     try:
       self._para_id
     except AttributeError:
-      self._rpdb.cur.execute("SELECT id FROM outgoing WHERE original = ?", (self.rowid,))
-      r = self._rpdb.cur.fetchone()
-      if r is None:
-        return None
-      self._para_id = r[0]
+      self._rpdb.cur.execute("SELECT replacement FROM incoming WHERE id = ?", (self.rowid,))
+      self._para_id = self._rpdb.cur.fetchone()[0]
     return self._rpdb.find_outgoing_by_id(self._para_id)
 
   @para_obj.setter
   def para_obj(self, value):
-    assert value is None and self.original
-    try:
-      self._para_id
-    except AttributeError:
-      pass
+    assert self.original
+    if value  is None:
+      self._rpdb.cur.execute("DELETE FROM outgoing WHERE id IN (SELECT replacement FROM incoming WHERE id = ?)",
+                             (self.rowid,))
+      try:
+        del self._para_id
+      except AttributeError:
+        pass
     else:
-      self._rpdb.cur.execute("DELETE FROM outgoing WHERE id = ?", (self.rowid,))
-      del self._para_id
+      assert isinstance(value.rowid, int)
+      self._rpdb.cur.execute("UPDATE incoming SET replacement = ? WHERE id = ?", (value.rowid, self.rowid))
+      self._para_id = value.rowid
 
   @property
   def orig_obj(self):
@@ -322,7 +323,7 @@ class DER_object_mixin(object):
     try:
       self._orig_id
     except AttributeError:
-      self._rpdb.cur.execute("SELECT original FROM outgoing WHERE id = ?", (self.rowid,))
+      self._rpdb.cur.execute("SELECT id FROM incoming WHERE replacement = ?", (self.rowid,))
       r = self._rpdb.cur.fetchone()
       if r is None:
         return None
@@ -409,6 +410,10 @@ class RPDB(object):
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
                                 ON UPDATE RESTRICT,
+                replacement     INTEGER
+                                REFERENCES outgoing(id)
+                                ON DELETE SET NULL
+                                ON UPDATE SET NULL,
                 UNIQUE          (der),
                 CHECK           ((subject IS NULL) == (fn2 == 'crl')));
 
@@ -426,12 +431,7 @@ class RPDB(object):
                 issuer          INTEGER
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
-                                ON UPDATE RESTRICT,
-                original        INTEGER
-                                REFERENCES incoming(id)
-                                ON DELETE CASCADE
-                                ON UPDATE CASCADE,
-                CHECK           (original IS NOT NULL OR der IS NOT NULL));
+                                ON UPDATE RESTRICT);
 
           CREATE TABLE uri (
                 id              INTEGER NOT NULL
@@ -633,9 +633,14 @@ class RPDB(object):
     subject_id = self.find_keyname(subject, ski)
     issuer_id  = self.find_keyname(issuer,  aki)
 
-    self.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, original, uri) "
-                     "VALUES (?, 'cer', ?, ?, ?, ?)",
-                     (der, subject_id, issuer_id, obj.rowid, uri))
+    self.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
+                     "VALUES (?, 'cer', ?, ?, ?)",
+                     (der, subject_id, issuer_id, uri))
+    rowid = self.cur.lastrowid
+    self.cur.execute("UPDATE incoming SET replacement = ? WHERE id = ?",
+                     (rowid, obj.rowid))
+
+    # Fix up _orig_id and _para_id here?  Maybe later.
 
     #self.db.commit()
 

@@ -144,12 +144,10 @@ def create_ca(rpdb):
     notAfter    = rpki.sundial.now() + cer_delta,
     resources   = rpki.resource_set.resource_bag.from_str("0-4294967295,0.0.0.0/0,::/0"))
   subject_id = rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
-  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer) "
-                   "VALUES (?, 'cer', ?, ?)",
-                   (buffer(cer.get_DER()), subject_id, subject_id))
-  rowid = rpdb.cur.lastrowid
-  rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltaaia))
-  ltacer = rpdb.find_by_id(rowid)
+  rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
+                   "VALUES (?, 'cer', ?, ?, ?)",
+                   (buffer(cer.get_DER()), subject_id, subject_id, ltaaia))
+  ltacer = rpdb.find_outgoing_by_id(rpdb.cur.lastrowid)
 
 
 class Constraint(object):
@@ -237,12 +235,10 @@ def generate_crl_and_manifest(rpdb):
 
   issuer_id = rpdb.find_keyname(issuer, aki)
 
-  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer) "
-                   "VALUES (?, 'crl', NULL, ?)",
-                   (buffer(crl.get_DER()), issuer_id))
-  rowid = rpdb.cur.lastrowid
-  rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltacrl))
-  crl = rpdb.find_by_id(rowid)
+  rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
+                   "VALUES (?, 'crl', NULL, ?, ?)",
+                   (buffer(crl.get_DER()), issuer_id, ltacrl))
+  crl = rpdb.find_outgoing_by_id(rpdb.cur.lastrowid)
 
   key = rpki.x509.RSA.generate(quiet = True)
 
@@ -257,21 +253,25 @@ def generate_crl_and_manifest(rpdb):
     notAfter    = ltacer.getNotAfter(),
     is_ca       = False)
 
+  # Temporary kludge, need more general solution but that requires
+  # more refactoring than I feel like doing this late in the day.
+  #
+  rpdb.cur.execute("SELECT fn2, der, uri FROM outgoing WHERE issuer = ?", (ltacer.rowid,))
+  names_and_objs = [(uri, rpdb.fn2map[fn2](DER = der)) for fn2, der, uri in rpdb.cur.fetchall()]
+
   mft = rpki.x509.SignedManifest.build(
     serial         = serial,
     thisUpdate     = thisUpdate,
     nextUpdate     = nextUpdate,
-    names_and_objs = [(obj.uri, obj) for obj in rpdb.find_by_aki(ltacer.get_SKI())],
+    names_and_objs = names_and_objs,
     keypair        = key,
     certs          = cer)
 
   subject_id = rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
 
-  rpdb.cur.execute("INSERT INTO object (der, fn2, subject, issuer) "
-                   "VALUES (?, 'mft', ?, ?)",
-                   (buffer(mft.get_DER()), subject_id, issuer_id))
-  rowid = rpdb.cur.lastrowid
-  rpdb.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, ltamft))
+  rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
+                   "VALUES (?, 'mft', ?, ?, ?)",
+                   (buffer(mft.get_DER()), subject_id, issuer_id, ltamft))
 
 
 class DER_object_mixin(object):
@@ -284,12 +284,50 @@ class DER_object_mixin(object):
   _rowid        = None
   _original     = True
 
-  _para_id      = None
-  _orig_id      = None
-
   @property
   def rowid(self):
     return self._rowid
+
+  @property
+  def original(self):
+    return self._original
+
+  @property
+  def para_obj(self):
+    assert self.original
+    try:
+      self._para_id
+    except AttributeError:
+      self._rpdb.cur.execute("SELECT id FROM outgoing WHERE original = ?", (self.rowid,))
+      r = self._rpdb.cur.fetchone()
+      if r is None:
+        return None
+      self._para_id = r[0]
+    return self._rpdb.find_outgoing_by_id(self._para_id)
+
+  @para_obj.setter
+  def para_obj(self, value):
+    assert value is None and self.original
+    try:
+      self._para_id
+    except AttributeError:
+      pass
+    else:
+      self._rpdb.cur.execute("DELETE FROM outgoing WHERE id = ?", (self.rowid,))
+      del self._para_id
+
+  @property
+  def orig_obj(self):
+    assert not self.original
+    try:
+      self._orig_id
+    except AttributeError:
+      self._rpdb.cur.execute("SELECT original FROM outgoing WHERE id = ?", (self.rowid,))
+      r = self._rpdb.cur.fetchone()
+      if r is None:
+        return None
+      self._orig_id = r[0]
+    return self._rpdb.find_incoming_by_id(self._orig_id)
 
   @property
   def resources(self):
@@ -298,25 +336,6 @@ class DER_object_mixin(object):
   @property
   def para_resources(self):
     return self.resources if self.para_obj is None else self.para_obj.resources
-
-  @property
-  def para_obj(self):
-    return self._rpdb.find_by_id(self._para_id)
-
-  @para_obj.setter
-  def para_obj(self, value):
-    assert value is None and self.original
-    if self._para_id is not None:
-      self._rpdb.cur.execute("DELETE FROM object WHERE id = ?", (self._para_id,))
-      self._para_id = None
-
-  @property
-  def orig_obj(self):
-    return self._rpdb.find_by_id(self._orig_id)
-
-  @property
-  def original(self):
-    return self._original
 
 
 class X509              (rpki.x509.X509,            DER_object_mixin):
@@ -363,7 +382,8 @@ class RPDB(object):
     self.db.text_factory = str
     self.cur = self.db.cursor()
 
-    self.cache = weakref.WeakValueDictionary()
+    self.incoming_cache = weakref.WeakValueDictionary()
+    self.outgoing_cache = weakref.WeakValueDictionary()
 
     self.cur.executescript('''
           PRAGMA foreign_keys = on;
@@ -374,12 +394,13 @@ class RPDB(object):
                 keyid           BLOB NOT NULL,
                 UNIQUE          (name, keyid));
 
-          CREATE TABLE object (
+          CREATE TABLE incoming (
                 id              INTEGER PRIMARY KEY NOT NULL,
                 der             BLOB NOT NULL,
                 fn2             TEXT NOT NULL
                                 CHECK (fn2 IN ('cer', 'crl', 'mft', 'roa', 'gbr')),
                 depth           INTEGER,
+                deleted         INTEGER NOT NULL DEFAULT 0,
                 subject         INTEGER
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
@@ -388,23 +409,33 @@ class RPDB(object):
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
                                 ON UPDATE RESTRICT,
-                original        BOOLEAN NOT NULL DEFAULT 0,
-                para_id         INTEGER
-                                REFERENCES object(id)
-                                ON DELETE SET NULL
-                                ON UPDATE SET NULL,
-                orig_id         INTEGER
-                                REFERENCES object(id)
+                UNIQUE          (der),
+                CHECK           ((subject IS NULL) == (fn2 == 'crl')));
+
+          CREATE TABLE outgoing (
+                id              INTEGER PRIMARY KEY NOT NULL,
+                der             BLOB,
+                key             BLOB,
+                fn2             TEXT NOT NULL
+                                CHECK (fn2 IN ('cer', 'crl', 'mft', 'roa', 'gbr')),
+                uri             TEXT,
+                subject         INTEGER
+                                REFERENCES keyname(id)
+                                ON DELETE RESTRICT
+                                ON UPDATE RESTRICT,
+                issuer          INTEGER
+                                REFERENCES keyname(id)
+                                ON DELETE RESTRICT
+                                ON UPDATE RESTRICT,
+                original        INTEGER
+                                REFERENCES incoming(id)
                                 ON DELETE CASCADE
                                 ON UPDATE CASCADE,
-                UNIQUE          (der),
-                CHECK           ((subject IS NULL) == (fn2 == 'crl')),
-                CHECK           (original <> 0 OR para_id IS NULL),
-                CHECK           (original =  0 OR orig_id IS NULL));
+                CHECK           (original IS NOT NULL OR der IS NOT NULL));
 
           CREATE TABLE uri (
                 id              INTEGER NOT NULL
-                                REFERENCES object(id)
+                                REFERENCES incoming(id)
                                 ON DELETE CASCADE
                                 ON UPDATE CASCADE,
                 uri             TEXT NOT NULL,
@@ -412,7 +443,7 @@ class RPDB(object):
 
           CREATE TABLE range (
                 id              INTEGER NOT NULL
-                                REFERENCES object(id)
+                                REFERENCES incoming(id)
                                 ON DELETE CASCADE
                                 ON UPDATE CASCADE,
                 min             RangeVal NOT NULL,
@@ -469,7 +500,7 @@ class RPDB(object):
         der = buffer(obj.get_DER())
         uri = "rsync://" + fn[len(rcynic_input) + 1:]
 
-        self.cur.execute("SELECT id FROM object WHERE der = ?", (der,))
+        self.cur.execute("SELECT id FROM incoming WHERE der = ?", (der,))
         r = self.cur.fetchone()
 
         if r is not None:
@@ -479,7 +510,7 @@ class RPDB(object):
           subject_id = None if ski is None else self.find_keyname(subject, ski)
           issuer_id = self.find_keyname(issuer,  aki)
 
-          self.cur.execute("INSERT INTO object (der, fn2, subject, issuer, original) VALUES (?, ?, ?, ?, 1)",
+          self.cur.execute("INSERT INTO incoming (der, fn2, subject, issuer) VALUES (?, ?, ?, ?)",
                            (der, fn2, subject_id, issuer_id))
           rowid = self.cur.lastrowid
 
@@ -495,11 +526,11 @@ class RPDB(object):
     if spinner:
       sys.stderr.write("\r= %d objects in %s.\n" % (nobj, rpki.sundial.now() - start))
 
-    self.cur.execute("UPDATE object SET depth = 0 WHERE subject = issuer AND original <> 0")
+    self.cur.execute("UPDATE incoming SET depth = 0 WHERE subject = issuer")
 
     for depth in xrange(1, 500):
 
-      self.cur.execute("SELECT COUNT(*) FROM object WHERE depth IS NULL AND original <> 0")
+      self.cur.execute("SELECT COUNT(*) FROM incoming WHERE depth IS NULL")
       if self.cur.fetchone()[0] == 0:
         break
 
@@ -507,10 +538,9 @@ class RPDB(object):
         sys.stderr.write("\rSetting depth %d..." % depth)
 
       self.cur.execute("""
-                       UPDATE object SET depth = ?
+                       UPDATE incoming SET depth = ?
                        WHERE depth IS NULL
-                       AND   original <> 0
-                       AND   issuer IN (SELECT subject FROM object WHERE depth = ?)
+                       AND   issuer IN (SELECT subject FROM incoming WHERE depth = ?)
                        """,
                        (depth, depth - 1))
 
@@ -603,15 +633,9 @@ class RPDB(object):
     subject_id = self.find_keyname(subject, ski)
     issuer_id  = self.find_keyname(issuer,  aki)
 
-    self.cur.execute("INSERT INTO object (der, fn2, subject, issuer, orig_id) "
-                     "VALUES (?, 'cer', ?, ?, ?)",
-                     (der, subject_id, issuer_id, obj.rowid))
-    rowid = self.cur.lastrowid
-
-    self.cur.execute("UPDATE object SET para_id = ? WHERE id = ?", (rowid, obj.rowid))
-    obj._para_id = rowid
-
-    self.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)", (rowid, uri))
+    self.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, original, uri) "
+                     "VALUES (?, 'cer', ?, ?, ?, ?)",
+                     (der, subject_id, issuer_id, obj.rowid, uri))
 
     #self.db.commit()
 
@@ -619,14 +643,16 @@ class RPDB(object):
   def dump_paras(self):
     shutil.rmtree(rcynic_output, ignore_errors = True)
     rsync = "rsync://"
-    for obj in self.find_paras():
-      assert obj.uri.startswith(rsync)
-      fn = os.path.join(rcynic_output, obj.uri[len(rsync):])
+    self.cur.execute("SELECT der, uri FROM outgoing")
+    for der, uri in self.cur.fetchall():
+      assert uri.startswith(rsync)
+      fn = os.path.join(rcynic_output, uri[len(rsync):])
       dn = os.path.dirname(fn)
       if not os.path.exists(dn):
         os.makedirs(dn)
       with open(fn, "wb") as f:
-        f.write(obj.get_DER())
+        print ">> Writing", f.name
+        f.write(der)
 
 
   def find_keyname(self, name, keyid):
@@ -638,80 +664,60 @@ class RPDB(object):
       result = self.cur.lastrowid
     else:
       result = result[0]
-    #print "keyname %s >> %s %r" % (result, base64.urlsafe_b64encode(keyid).rstrip("="), name)
     return result
 
 
-  def find_by_id(self, rowid):
+  def find_incoming_by_id(self, rowid):
     if rowid is None:
       return None
+    if rowid in self.incoming_cache:
+      return self.incoming_cache[rowid]
     r = self._find_results(None, "WHERE id = ?", [rowid])
     assert len(r) < 2
     return r[0] if r else None
 
 
+  def find_outgoing_by_id(self, rowid):
+    if rowid is None:
+      return None
+    if rowid in self.outgoing_cache:
+      return self.outgoing_cache[rowid]
+    self.cur.execute("SELECT fn2, der, key, uri FROM outgoing WHERE id = ?", (rowid,))
+    r = self.cur.fetchone()
+    if r is None:
+      return None
+    fn2, der, key, uri = r
+    obj = self.fn2map[fn2]() if der is None else self.fn2map[fn2](DER = der)
+    obj._rpdb     = self
+    obj._rowid    = rowid
+    obj._original = False
+    obj.uri = uri
+    obj.uris = [] if uri is None else [uri]
+    self.outgoing_cache[rowid] = obj
+    return obj
+
+
   def find_by_ski_or_uri(self, ski, uri):
     if not ski and not uri:
       return []
-    elif ski and uri:
-      return self._find_results(
-        None,
-        """
-        JOIN uri ON object.id = uri.id
-        JOIN keyname ON object.subject = keyname.id
-        WHERE object.original <> 0 AND keyname.keyid = ? AND uri.uri = ?""",
-        [buffer(ski), uri])
-    elif ski:
-      return self._find_results(
-        None,
-        """
-        JOIN keyname ON object.subject = keyname.id
-        WHERE object.original <> 0 AND keyname.keyid = ?""",
-        [buffer(ski)])
-    else:
-      return self._find_results(
-        None,
-        """
-        JOIN uri ON object.id = uri.id
-        WHERE object.original <> 0 AND uri.uri = ?""",
-        [uri])
-
-
-  def find_by_ski(self, ski, fn2 = None):
-    if ski is None:
-      return self._find_results(fn2,
-                                """
-                                JOIN keyname ON object.subject = keyname.id
-                                WHERE keyname.keyid IS NULL
-                                """)
-    else:
-      return self._find_results(fn2,
-                                """
-                                JOIN keyname ON object.subject = keyname.id
-                                WHERE ski = ?""",
-                                [buffer(ski)])
-
-  def find_by_aki(self, aki, fn2 = None):
-    if aki is None:
-      return self._find_results(fn2,
-                                """
-                                JOIN keyname on object.issuer = keyname.id
-                                WHERE keyname.keyid IS NULL""")
-    else:
-      return self._find_results(fn2,
-                                """
-                                JOIN keyname ON object.issuer = keyname.id
-                                WHERE keyname.keyid = ?""",
-                                [buffer(aki)])
-
-  def find_paras(self, fn2 = None):
-    return self._find_results(fn2, "WHERE original = 0")
+    j = []
+    w = []
+    a = []
+    if ski:
+      j.append("JOIN keyname ON incoming.subject = keyname.id")
+      w.append("keyname.keyid = ?")
+      a.append(buffer(ski))
+    if uri:
+      j.append("JOIN uri ON incoming.id = uri.id")
+      w.append("uri.uri = ?")
+      a.append(uri)
+    return self._find_results(None, "%s WHERE %s" % (" ".join(j), " AND ".join(w)), a)
 
 
   def find_by_uri(self, uri):
     return self._find_results(None,
                               """
-                              JOIN uri ON object.id = uri.id
+                              JOIN uri ON incoming.id = uri.id
                               WHERE uri.uri = ?""",
                               [uri])
 
@@ -732,7 +738,7 @@ class RPDB(object):
     return self._find_results(
       fn2,
       """
-      JOIN range ON object.id = range.id
+      JOIN range ON incoming.id = range.id
       WHERE ? <= range.max AND ? >= range.min""",
       [range_min, range_max])
 
@@ -750,19 +756,13 @@ class RPDB(object):
     return self._find_results(
       fn2,
       """
-      JOIN range ON object.id = range.id
+      JOIN range ON incoming.id = range.id
       WHERE
       """ + (" OR ".join(qset)),
       aset)
 
 
-  def find_uris(self, rowid):
-    self.cur.execute("SELECT uri FROM uri WHERE id = ?", (rowid,))
-    return [u[0] for u in self.cur.fetchall()]
-
-
-  object_fields = ", ".join("object.%s" % field for field in (
-    "id", "fn2", "der", "original", "para_id", "orig_id"))
+  incoming_fields = ", ".join("incoming.%s" % field for field in ("id", "fn2", "der"))
 
   def _find_results(self, fn2, query, args = None):
     if args is None:
@@ -771,17 +771,14 @@ class RPDB(object):
       assert fn2 in self.fn2map
       query += " AND fn2 = ?"
       args.append(fn2)
-    query = "SELECT %s FROM object %s GROUP BY object.id" % (self.object_fields, query)
+    query = "SELECT %s FROM incoming %s GROUP BY incoming.id" % (self.incoming_fields, query)
     results = []
     self.cur.execute(query, args)
     selections = self.cur.fetchall()
-    for rowid, fn2, der, original, para_id, orig_id in selections:
-      if rowid in self.cache:
-        obj = self.cache[rowid]
-        assert obj._rowid == rowid
-        assert obj._original == original
-        assert obj._para_id == para_id, "Assertion failure: obj._para_id %s para_id %s" % (obj._para_id, para_id)
-        assert obj._orig_id == orig_id, "Assertion failure: obj._orig_id %s orig_id %s" % (obj._orig_id, orig_id)
+    for rowid, fn2, der in selections:
+      if rowid in self.incoming_cache:
+        obj = self.incoming_cache[rowid]
+        assert obj._rowid == rowid and obj.original
       else:
         obj = self.fn2map[fn2](DER = der)
         self.cur.execute("SELECT uri FROM uri WHERE id = ?", (rowid,))
@@ -789,10 +786,8 @@ class RPDB(object):
         obj.uri = obj.uris[0] if len(obj.uris) == 1 else None
         obj._rpdb     = self
         obj._rowid    = rowid
-        obj._original = original
-        obj._para_id  = para_id
-        obj._orig_id  = orig_id
-        self.cache[rowid] = obj
+        obj._original = True
+        self.incoming_cache[rowid] = obj
       results.append(obj)
     return results
 

@@ -91,7 +91,7 @@ class main(object):
     self.parse_tals()
     print
     print "Creating DB"
-    self.rpdb = RPDB()
+    self.rpdb = RPDB(self.db_name)
     print
     print "Creating CA"
     self.create_ca()
@@ -129,7 +129,7 @@ class main(object):
       self.ltakey = rpki.x509.RSA.generate(quiet = True)
       with os.fdopen(os.open(keyfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0400), "w") as f:
         f.write(self.ltakey.get_PEM())
-    cer = X509.self_certify(
+    cer = OutgoingX509.self_certify(
       cn          = "%s LTA Root Certificate" % socket.getfqdn(),
       keypair     = self.ltakey,
       subject_key = self.ltakey.get_RSApublic(),
@@ -146,6 +146,7 @@ class main(object):
 
   def parse_yaml(self, fn = "rcynic-lta.yaml"):
     y = yaml.safe_load(open(fn, "r"))
+    self.db_name       = y["db-name"]
     self.tal_directory = y["tal-directory"]
     self.rcynic_input  = y["rcynic-input"]
     self.rcynic_output = y["rcynic-output"]
@@ -199,7 +200,7 @@ class main(object):
     issuer     = self.ltacer.getSubject()
     aki        = buffer(self.ltacer.get_SKI())
 
-    crl = CRL.generate(
+    crl = OutgoingCRL.generate(
       keypair             = self.ltakey,
       issuer              = self.ltacer,
       serial              = serial,
@@ -231,9 +232,10 @@ class main(object):
     # more refactoring than I feel like doing this late in the day.
     #
     self.rpdb.cur.execute("SELECT fn2, der, uri FROM outgoing WHERE issuer = ?", (self.ltacer.rowid,))
-    names_and_objs = [(uri, self.rpdb.fn2map[fn2](DER = der)) for fn2, der, uri in self.rpdb.cur.fetchall()]
+    names_and_objs = [(uri, OutgoingObject.create(rpdb = self.rpdb, rowid = None, fn2 = fn2, der = der, uri = uri))
+                      for fn2, der, uri in self.rpdb.cur.fetchall()]
 
-    mft = rpki.x509.SignedManifest.build(
+    mft = OutgoingSignedManifest.build(
       serial         = serial,
       thisUpdate     = thisUpdate,
       nextUpdate     = nextUpdate,
@@ -308,37 +310,60 @@ class Constraint(object):
     return self.prefixes | self.asns
 
 
-class DER_object_mixin(object):
+class BaseObject(object):
   """
   Mixin to add some SQL-related methods to classes derived from
   rpki.x509.DER_object.
   """
 
-  _rpdb         = None
-  _rowid        = None
-  _original     = True
+  _rpdb   = None
+  _rowid  = None
+  _fn2    = None
+  _fn2map = None
+  _uris   = None
 
   @property
   def rowid(self):
     return self._rowid
 
   @property
-  def original(self):
-    return self._original
+  def resources(self):
+    return self.get_3779resources()
+
+  @property
+  def para_resources(self):
+    return self.resources if self.para_obj is None else self.para_obj.resources
+
+  @property
+  def fn2(self):
+    return self._fn2
+
+  @property
+  def uris(self):
+    return self._uris
+
+  @property
+  def uri(self):
+    return self._uris[0] if len(self._uris) == 1 else None
+
+  @classmethod
+  def setfn2map(cls, **map):
+    cls._fn2map = map
+    for k, v in map.iteritems():
+      v._fn2 = k
+
+
+class IncomingObject(BaseObject):
 
   @property
   def para_obj(self):
-    assert self.original
-    try:
-      self._para_id
-    except AttributeError:
+    if getattr(self, "_para_id", None) is None:
       self._rpdb.cur.execute("SELECT replacement FROM incoming WHERE id = ?", (self.rowid,))
       self._para_id = self._rpdb.cur.fetchone()[0]
     return self._rpdb.find_outgoing_by_id(self._para_id)
 
   @para_obj.setter
   def para_obj(self, value):
-    assert self.original
     if value  is None:
       self._rpdb.cur.execute("DELETE FROM outgoing WHERE id IN (SELECT replacement FROM incoming WHERE id = ?)",
                              (self.rowid,))
@@ -351,62 +376,72 @@ class DER_object_mixin(object):
       self._rpdb.cur.execute("UPDATE incoming SET replacement = ? WHERE id = ?", (value.rowid, self.rowid))
       self._para_id = value.rowid
 
+  @classmethod
+  def fromFile(cls, fn):
+    return cls._fn2map[os.path.splitext(fn)[1][1:]](DER_file = fn)
+
+  @classmethod
+  def create(cls, rpdb, rowid, fn2, der, uris):
+    self = cls._fn2map[fn2](DER = der)
+    self._uris = uris
+    self._rpdb = rpdb
+    self._rowid = rowid
+    return self
+
+
+class OutgoingObject(BaseObject):
+  
   @property
   def orig_obj(self):
-    assert not self.original
-    try:
-      self._orig_id
-    except AttributeError:
+    if getattr(self, "_orig_id", None) is None:
       self._rpdb.cur.execute("SELECT id FROM incoming WHERE replacement = ?", (self.rowid,))
       r = self._rpdb.cur.fetchone()
-      if r is None:
-        return None
-      self._orig_id = r[0]
+      self._orig_id = None if r is None else r[0]
     return self._rpdb.find_incoming_by_id(self._orig_id)
 
-  @property
-  def resources(self):
-    return self.get_3779resources()
+  @classmethod
+  def create(cls, rpdb, rowid, fn2, der, uri):
+    self = cls._fn2map[fn2]()
+    if der is not None:
+      self.set(DER = der)
+    self._rpdb = rpdb
+    self._rowid = rowid
+    self._uris = [] if uri is None else [uri]
+    return self
 
-  @property
-  def para_resources(self):
-    return self.resources if self.para_obj is None else self.para_obj.resources
 
 
-class X509              (rpki.x509.X509,            DER_object_mixin):
-    pass
+class IncomingX509              (rpki.x509.X509,            IncomingObject): pass
+class IncomingCRL               (rpki.x509.CRL,             IncomingObject): pass
+class IncomingSignedManifest    (rpki.x509.SignedManifest,  IncomingObject): pass
+class IncomingROA               (rpki.x509.ROA,             IncomingObject): pass
+class IncomingGhostbuster       (rpki.x509.Ghostbuster,     IncomingObject): pass
 
-class CRL               (rpki.x509.CRL,             DER_object_mixin):
-    pass
+class OutgoingX509              (rpki.x509.X509,            OutgoingObject): pass
+class OutgoingCRL               (rpki.x509.CRL,             OutgoingObject): pass
+class OutgoingSignedManifest    (rpki.x509.SignedManifest,  OutgoingObject): pass
+class OutgoingROA               (rpki.x509.ROA,             OutgoingObject): pass
+class OutgoingGhostbuster       (rpki.x509.Ghostbuster,     OutgoingObject): pass
 
-class SignedManifest    (rpki.x509.SignedManifest,  DER_object_mixin):
-    pass
+IncomingObject.setfn2map(cer = IncomingX509,
+                         crl = IncomingCRL,
+                         mft = IncomingSignedManifest,
+                         roa = IncomingROA,
+                         gbr = IncomingGhostbuster)
 
-class ROA               (rpki.x509.ROA,             DER_object_mixin):
-    pass
-
-class Ghostbuster       (rpki.x509.Ghostbuster,     DER_object_mixin):
-    pass
+OutgoingObject.setfn2map(cer = OutgoingX509,
+                         crl = OutgoingCRL,
+                         mft = OutgoingSignedManifest,
+                         roa = OutgoingROA,
+                         gbr = OutgoingGhostbuster)
 
 
 class RPDB(object):
   """
   Relying party database.
-
-  For now just wire in the database name and rcynic root, fix this
-  later if overall approach seems usable.  Might even end up just
-  being an in-memory SQL database, who knows?
   """
 
-  fn2map = dict(cer = X509,
-                crl = CRL,
-                mft = SignedManifest,
-                roa = ROA,
-                gbr = Ghostbuster)
-
-  mapfn2 = dict((v, k) for k, v in fn2map.iteritems())
-
-  def __init__(self, db_name = "rcynic-lta.db"):
+  def __init__(self, db_name):
 
     try:
       os.unlink(db_name)
@@ -495,11 +530,13 @@ class RPDB(object):
     for root, dirs, files in os.walk(rcynic_input):
       for fn in files:
         fn = os.path.join(root, fn)
-        fn2 = os.path.splitext(fn)[1][1:]
 
         try:
-          obj = self.fn2map[fn2](DER_file = fn)
+          obj = IncomingObject.fromFile(fn)
         except:
+          if spinner:
+            sys.stderr.write("\r")
+          sys.stderr.write("Couldn't read %s, skipping\n" % fn)
           continue
 
         if spinner and nobj % spinner == 0:
@@ -507,7 +544,7 @@ class RPDB(object):
 
         nobj += 1
 
-        if fn2 == "crl":
+        if obj.fn2 == "crl":
           ski = None
           aki = buffer(obj.get_AKI())
           cer = None
@@ -516,7 +553,7 @@ class RPDB(object):
           subject = None
 
         else:
-          if fn2 == "cer":
+          if obj.fn2 == "cer":
             cer = obj
           else:
             cer = rpki.x509.X509(POW = obj.get_POW().certs()[0])
@@ -545,7 +582,7 @@ class RPDB(object):
           issuer_id = self.find_keyname(issuer,  aki)
 
           self.cur.execute("INSERT INTO incoming (der, fn2, subject, issuer) VALUES (?, ?, ?, ?)",
-                           (der, fn2, subject_id, issuer_id))
+                           (der, obj.fn2, subject_id, issuer_id))
           rowid = self.cur.lastrowid
 
           if bag is not None:
@@ -593,28 +630,7 @@ class RPDB(object):
 
   def add_para(self, obj, resources, serial, ltacer, ltasia, ltaaia, ltamft, ltacrl, ltakey):
 
-    # At least some of the following is probably wrong at this point.
-    # Under the new scheme we're going to need to generate signed
-    # objects too.
-    #
-    # As far as I can tell at the moment, we only generate
-    # paracertificates for CA certificates, never for EE certificates.
-    #
-    # At present, ROAs are the only signed objects that specify
-    # resources explictly rather than using inheritance, and EE
-    # certificates for ROAs are supposed to be an exact match for the
-    # address resources in the ROA anyway, so this is likely not a
-    # serious restriction, at least for now.
-    #
-    # Fixing this, if it's a problem, would require extending POW.c to
-    # allow us to whack the certificate(s) bundled into a CMS object.
-    # There's no documentation on how we would even do that, although
-    # I suspect that the OpenSSL library routine
-    # CMS_set1_signers_certs() might do the trick.  Ignore for now.
-
-    assert isinstance(obj, X509)
-
-    assert obj.original
+    assert isinstance(obj, IncomingX509)
 
     if obj.para_obj is not None:
       resources &= obj.para_obj.resources
@@ -651,7 +667,7 @@ class RPDB(object):
       ipv6 = ((r.min, r.max) for r in resources.v6))
 
     x.sign(ltakey.get_POW(), rpki.POW.SHA256_DIGEST)
-    cer = X509(POW = x)
+    cer = OutgoingX509(POW = x)
 
     ski = buffer(cer.get_SKI())
     aki = buffer(cer.get_AKI())
@@ -723,12 +739,7 @@ class RPDB(object):
     if r is None:
       return None
     fn2, der, key, uri = r
-    obj = self.fn2map[fn2]() if der is None else self.fn2map[fn2](DER = der)
-    obj._rpdb     = self
-    obj._rowid    = rowid
-    obj._original = False
-    obj.uri = uri
-    obj.uris = [] if uri is None else [uri]
+    obj = OutgoingObject.create(rpdb = self, rowid = rowid, fn2 = fn2, der = der, uri = uri)
     self.outgoing_cache[rowid] = obj
     return obj
 
@@ -804,7 +815,6 @@ class RPDB(object):
     if args is None:
       args = []
     if fn2 is not None:
-      assert fn2 in self.fn2map
       query += " AND fn2 = ?"
       args.append(fn2)
     query = "SELECT %s FROM incoming %s GROUP BY incoming.id" % (self.incoming_fields, query)
@@ -814,15 +824,11 @@ class RPDB(object):
     for rowid, fn2, der in selections:
       if rowid in self.incoming_cache:
         obj = self.incoming_cache[rowid]
-        assert obj._rowid == rowid and obj.original
+        assert obj.rowid == rowid
       else:
-        obj = self.fn2map[fn2](DER = der)
         self.cur.execute("SELECT uri FROM uri WHERE id = ?", (rowid,))
-        obj.uris = [u[0] for u in self.cur.fetchall()]
-        obj.uri = obj.uris[0] if len(obj.uris) == 1 else None
-        obj._rpdb     = self
-        obj._rowid    = rowid
-        obj._original = True
+        uris = [u[0] for u in self.cur.fetchall()]
+        obj = IncomingObject.create(rpdb = self, rowid = rowid, fn2 = fn2, der = der, uris = uris)
         self.incoming_cache[rowid] = obj
       results.append(obj)
     return results

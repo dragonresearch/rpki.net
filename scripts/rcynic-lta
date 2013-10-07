@@ -320,7 +320,7 @@ class BaseObject(object):
   _rowid  = None
   _fn2    = None
   _fn2map = None
-  _uris   = None
+  _uri    = None
 
   @property
   def rowid(self):
@@ -339,12 +339,8 @@ class BaseObject(object):
     return self._fn2
 
   @property
-  def uris(self):
-    return self._uris
-
-  @property
   def uri(self):
-    return self._uris[0] if len(self._uris) == 1 else None
+    return self._uri
 
   @classmethod
   def setfn2map(cls, **map):
@@ -381,9 +377,9 @@ class IncomingObject(BaseObject):
     return cls._fn2map[os.path.splitext(fn)[1][1:]](DER_file = fn)
 
   @classmethod
-  def create(cls, rpdb, rowid, fn2, der, uris):
+  def create(cls, rpdb, rowid, fn2, der, uri):
     self = cls._fn2map[fn2](DER = der)
-    self._uris = uris
+    self._uri = uri
     self._rpdb = rpdb
     self._rowid = rowid
     return self
@@ -406,7 +402,7 @@ class OutgoingObject(BaseObject):
       self.set(DER = der)
     self._rpdb = rpdb
     self._rowid = rowid
-    self._uris = [] if uri is None else [uri]
+    self._uri = uri
     return self
 
 
@@ -469,6 +465,7 @@ class RPDB(object):
                 der             BLOB NOT NULL,
                 fn2             TEXT NOT NULL
                                 CHECK (fn2 IN ('cer', 'crl', 'mft', 'roa', 'gbr')),
+                uri             TEXT NOT NULL,
                 depth           INTEGER,
                 deleted         INTEGER NOT NULL DEFAULT 0,
                 subject         INTEGER
@@ -501,14 +498,6 @@ class RPDB(object):
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
                                 ON UPDATE RESTRICT);
-
-          CREATE TABLE uri (
-                id              INTEGER NOT NULL
-                                REFERENCES incoming(id)
-                                ON DELETE CASCADE
-                                ON UPDATE CASCADE,
-                uri             TEXT NOT NULL,
-                UNIQUE          (uri));
 
           CREATE TABLE range (
                 id              INTEGER NOT NULL
@@ -581,8 +570,8 @@ class RPDB(object):
           subject_id = None if ski is None else self.find_keyname(subject, ski)
           issuer_id = self.find_keyname(issuer,  aki)
 
-          self.cur.execute("INSERT INTO incoming (der, fn2, subject, issuer) VALUES (?, ?, ?, ?)",
-                           (der, obj.fn2, subject_id, issuer_id))
+          self.cur.execute("INSERT INTO incoming (der, fn2, subject, issuer, uri) VALUES (?, ?, ?, ?, ?)",
+                           (der, obj.fn2, subject_id, issuer_id, uri))
           rowid = self.cur.lastrowid
 
           if bag is not None:
@@ -590,9 +579,6 @@ class RPDB(object):
               if rset is not None:
                 self.cur.executemany("REPLACE INTO range (id, min, max) VALUES (?, ?, ?)",
                                      ((rowid, i.min, i.max) for i in rset))
-
-        self.cur.execute("INSERT INTO uri (id, uri) VALUES (?, ?)",
-                         (rowid, uri))
 
     if spinner:
       sys.stderr.write("\r= %d objects in %s.\n" % (nobj, rpki.sundial.now() - start))
@@ -747,26 +733,18 @@ class RPDB(object):
   def find_by_ski_or_uri(self, ski, uri):
     if not ski and not uri:
       return []
-    j = []
+    j = ""
     w = []
     a = []
     if ski:
-      j.append("JOIN keyname ON incoming.subject = keyname.id")
+      j = "JOIN keyname ON incoming.subject = keyname.id"
       w.append("keyname.keyid = ?")
       a.append(buffer(ski))
     if uri:
-      j.append("JOIN uri ON incoming.id = uri.id")
-      w.append("uri.uri = ?")
+      w.append("incoming.uri = ?")
       a.append(uri)
-    return self._find_results(None, "%s WHERE %s" % (" ".join(j), " AND ".join(w)), a)
+    return self._find_results(None, "%s WHERE %s" % (j, " AND ".join(w)), a)
 
-
-  def find_by_uri(self, uri):
-    return self._find_results(None,
-                              """
-                              JOIN uri ON incoming.id = uri.id
-                              WHERE uri.uri = ?""",
-                              [uri])
 
   # It's easiest to understand overlap conditions by understanding
   # non-overlap then inverting and and applying De Morgan's law.  Ranges
@@ -809,26 +787,22 @@ class RPDB(object):
       aset)
 
 
-  incoming_fields = ", ".join("incoming.%s" % field for field in ("id", "fn2", "der"))
-
   def _find_results(self, fn2, query, args = None):
     if args is None:
       args = []
     if fn2 is not None:
       query += " AND fn2 = ?"
       args.append(fn2)
-    query = "SELECT %s FROM incoming %s GROUP BY incoming.id" % (self.incoming_fields, query)
+    query = "SELECT incoming.id, incoming.fn2, incoming.der, incoming.uri FROM incoming " + query
     results = []
     self.cur.execute(query, args)
     selections = self.cur.fetchall()
-    for rowid, fn2, der in selections:
+    for rowid, fn2, der, uri in selections:
       if rowid in self.incoming_cache:
         obj = self.incoming_cache[rowid]
         assert obj.rowid == rowid
       else:
-        self.cur.execute("SELECT uri FROM uri WHERE id = ?", (rowid,))
-        uris = [u[0] for u in self.cur.fetchall()]
-        obj = IncomingObject.create(rpdb = self, rowid = rowid, fn2 = fn2, der = der, uris = uris)
+        obj = IncomingObject.create(rpdb = self, rowid = rowid, fn2 = fn2, der = der, uri = uri)
         self.incoming_cache[rowid] = obj
       results.append(obj)
     return results

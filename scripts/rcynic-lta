@@ -123,12 +123,7 @@ class main(object):
 
   def create_ca(self):
     self.serial = Serial()
-    if os.path.exists(self.keyfile):
-      self.ltakey = rpki.x509.RSA(Auto_file = self.keyfile)
-    else:
-      self.ltakey = rpki.x509.RSA.generate(quiet = True)
-      with os.fdopen(os.open(keyfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0400), "w") as f:
-        f.write(self.ltakey.get_PEM())
+    self.ltakey = rpki.x509.RSA.generate(quiet = True)
     cer = OutgoingX509.self_certify(
       cn          = "%s LTA Root Certificate" % socket.getfqdn(),
       keypair     = self.ltakey,
@@ -138,9 +133,10 @@ class main(object):
       notAfter    = rpki.sundial.now() + self.cer_delta,
       resources   = rpki.resource_set.resource_bag.from_str("0-4294967295,0.0.0.0/0,::/0"))
     subject_id = self.rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
-    self.rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
-                          "VALUES (?, 'cer', ?, ?, ?)",
-                          (buffer(cer.get_DER()), subject_id, subject_id, self.ltaaia))
+    self.rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri, key) "
+                          "VALUES (?, 'cer', ?, ?, ?, ?)",
+                          (buffer(cer.get_DER()), subject_id, subject_id, self.ltaaia,
+                           buffer(self.ltakey.get_DER())))
     self.ltacer = self.rpdb.find_outgoing_by_id(self.rpdb.cur.lastrowid)
 
 
@@ -245,9 +241,9 @@ class main(object):
 
     subject_id = self.rpdb.find_keyname(cer.getSubject(), cer.get_SKI())
 
-    self.rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
-                          "VALUES (?, 'mft', ?, ?, ?)",
-                          (buffer(mft.get_DER()), subject_id, issuer_id, self.ltamft))
+    self.rpdb.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri, key) "
+                          "VALUES (?, 'mft', ?, ?, ?, ?)",
+                          (buffer(mft.get_DER()), subject_id, issuer_id, self.ltamft, buffer(key.get_DER())))
 
 
   @staticmethod
@@ -481,6 +477,7 @@ class RPDB(object):
                                 ON DELETE SET NULL
                                 ON UPDATE SET NULL,
                 UNIQUE          (der),
+                UNIQUE          (subject, issuer),
                 CHECK           ((subject IS NULL) == (fn2 == 'crl')));
 
           CREATE TABLE outgoing (
@@ -489,15 +486,18 @@ class RPDB(object):
                 key             BLOB,
                 fn2             TEXT NOT NULL
                                 CHECK (fn2 IN ('cer', 'crl', 'mft', 'roa', 'gbr')),
-                uri             TEXT,
+                uri             TEXT NOT NULL,
                 subject         INTEGER
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
                                 ON UPDATE RESTRICT,
-                issuer          INTEGER
+                issuer          INTEGER NOT NULL
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
-                                ON UPDATE RESTRICT);
+                                ON UPDATE RESTRICT,
+                UNIQUE          (subject, issuer),
+                CHECK           ((key     IS NULL) == (fn2 == 'crl')),
+                CHECK           ((subject IS NULL) == (fn2 == 'crl')));
 
           CREATE TABLE range (
                 id              INTEGER NOT NULL
@@ -663,12 +663,17 @@ class RPDB(object):
     der = buffer(cer.get_DER())
     uri = ltasia + cer.gSKI() + ".cer"
 
+    # This will want to change when we start generating replacement keys for everything.
+    # This should really be a keypair, not just a public key, same comment.
+    #
+    key = buffer(pow.getPublicKey().derWritePublic())
+
     subject_id = self.find_keyname(subject, ski)
     issuer_id  = self.find_keyname(issuer,  aki)
 
-    self.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri) "
-                     "VALUES (?, 'cer', ?, ?, ?)",
-                     (der, subject_id, issuer_id, uri))
+    self.cur.execute("INSERT INTO outgoing (der, fn2, subject, issuer, uri, key) "
+                     "VALUES (?, 'cer', ?, ?, ?, ?)",
+                     (der, subject_id, issuer_id, uri, key))
     rowid = self.cur.lastrowid
     self.cur.execute("UPDATE incoming SET replacement = ? WHERE id = ?",
                      (rowid, obj.rowid))

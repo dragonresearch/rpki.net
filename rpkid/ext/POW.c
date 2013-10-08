@@ -5643,11 +5643,100 @@ asymmetric_params_object_generate_ec(PyTypeObject *type, PyObject *args, PyObjec
   return NULL;
 }
 
+static char asymmetric_params_object_generate_dh__doc__[] =
+  "Generate a new set of DH parameters.\n"
+  "\n"
+  "Optional argument prime_length is length of the DH prime parameter\n"
+  "to use, in bits; if not specified, the default is 2048 bits.\n"
+  "\n"
+  "Be warned that generating DH parameters with a 2048-bit prime may\n"
+  "take a ridiculously long time.\n"
+  ;
+
+static PyObject *
+asymmetric_params_object_generate_dh(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"prime_length", NULL};
+  asymmetric_params_object *self = NULL;
+  EVP_PKEY_CTX *ctx = NULL;
+  int prime_length = 2048;
+  int ok = 0;
+
+  ENTERING(asymmetric_params_object_generate_dh);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|i", kwlist, &prime_length))
+    goto error;
+
+  if ((self = (asymmetric_params_object *) asymmetric_params_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if ((ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DH, NULL)) == NULL ||
+      EVP_PKEY_paramgen_init(ctx) <= 0 ||
+      EVP_PKEY_CTX_set_dh_paramgen_prime_len(ctx, prime_length) <= 0 ||
+      EVP_PKEY_paramgen(ctx, &self->pkey) <= 0)
+    lose_openssl_error("Couldn't generate key parameters");
+
+  ok = 1;
+
+ error:
+  EVP_PKEY_CTX_free(ctx);
+
+  if (ok)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static char asymmetric_params_object_generate_dsa__doc__[] =
+  "Generate a new set of DSA parameters.\n"
+  "\n"
+  "Optional argument key_length is the length of the key to generate, in bits;\n"
+  "if not specified, the default is 2048 bits."
+  ;
+
+static PyObject *
+asymmetric_params_object_generate_dsa(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"key_length", NULL};
+  asymmetric_params_object *self = NULL;
+  EVP_PKEY_CTX *ctx = NULL;
+  int key_length = 2048;
+  int ok = 0;
+
+  ENTERING(asymmetric_params_object_generate_dsa);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|i", kwlist, &key_length))
+    goto error;
+
+  if ((self = (asymmetric_params_object *) asymmetric_params_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if ((ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, NULL)) == NULL ||
+      EVP_PKEY_paramgen_init(ctx) <= 0 ||
+      EVP_PKEY_CTX_set_dsa_paramgen_bits(ctx, key_length) <= 0 ||
+      EVP_PKEY_paramgen(ctx, &self->pkey) <= 0)
+    lose_openssl_error("Couldn't generate key parameters");
+
+  ok = 1;
+
+ error:
+  EVP_PKEY_CTX_free(ctx);
+
+  if (ok)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
 static struct PyMethodDef asymmetric_params_object_methods[] = {
   Define_Method(pemWrite,               asymmetric_params_object_pem_write,             METH_NOARGS),
   Define_Class_Method(pemRead,          asymmetric_params_object_pem_read,              METH_VARARGS),
   Define_Class_Method(pemReadFile,      asymmetric_params_object_pem_read_file,         METH_VARARGS),
   Define_Class_Method(generateEC,       asymmetric_params_object_generate_ec,		METH_KEYWORDS),
+  Define_Class_Method(generateDH,	asymmetric_params_object_generate_dh,           METH_KEYWORDS),
+  Define_Class_Method(generateDSA,	asymmetric_params_object_generate_dsa,          METH_KEYWORDS),
   {NULL}
 };
 

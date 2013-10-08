@@ -228,7 +228,9 @@ class main(object):
     # more refactoring than I feel like doing this late in the day.
     #
     self.rpdb.cur.execute("SELECT fn2, der, uri FROM outgoing WHERE issuer = ?", (self.ltacer.rowid,))
-    names_and_objs = [(uri, OutgoingObject.create(rpdb = self.rpdb, rowid = None, fn2 = fn2, der = der, uri = uri))
+    names_and_objs = [(uri, OutgoingObject.create(fn2 = fn2, der = der, uri = uri,
+                                                  rpdb = None, rowid = None,
+                                                  subject_id = None, issuer_id = None))
                       for fn2, der, uri in self.rpdb.cur.fetchall()]
 
     mft = OutgoingSignedManifest.build(
@@ -312,11 +314,13 @@ class BaseObject(object):
   rpki.x509.DER_object.
   """
 
-  _rpdb   = None
-  _rowid  = None
-  _fn2    = None
-  _fn2map = None
-  _uri    = None
+  _rpdb         = None
+  _rowid        = None
+  _fn2          = None
+  _fn2map       = None
+  _uri          = None
+  _subject_id   = None
+  _issuer_id    = None
 
   @property
   def rowid(self):
@@ -343,6 +347,18 @@ class BaseObject(object):
     cls._fn2map = map
     for k, v in map.iteritems():
       v._fn2 = k
+
+  @classmethod
+  def create(cls, rpdb, rowid, fn2, der, uri, subject_id, issuer_id):
+    self = cls._fn2map[fn2]()
+    if der is not None:
+      self.set(DER = der)
+    self._rpdb = rpdb
+    self._rowid = rowid
+    self._uri = uri
+    self._subject_id = subject_id
+    self._issuer_id = issuer_id
+    return self
 
 
 class IncomingObject(BaseObject):
@@ -373,14 +389,17 @@ class IncomingObject(BaseObject):
     return cls._fn2map[os.path.splitext(fn)[1][1:]](DER_file = fn)
 
   @classmethod
-  def create(cls, rpdb, rowid, fn2, der, uri):
-    self = cls._fn2map[fn2](DER = der)
-    self._uri = uri
-    self._rpdb = rpdb
-    self._rowid = rowid
-    return self
+  def create(cls, rpdb, rowid, fn2, der, uri, subject_id, issuer_id):
+    assert der is not None
+    return super(IncomingObject, cls).create(rpdb, rowid, fn2, der, uri, subject_id, issuer_id)
 
+  @property
+  def issuer(self):
+    if self._issuer_id is None or self._issuer_id == self._subject_id:
+      return None
+    return self._rpdb.find_incoming_by_id(self._issuer_id)
 
+    
 class OutgoingObject(BaseObject):
   
   @property
@@ -390,17 +409,6 @@ class OutgoingObject(BaseObject):
       r = self._rpdb.cur.fetchone()
       self._orig_id = None if r is None else r[0]
     return self._rpdb.find_incoming_by_id(self._orig_id)
-
-  @classmethod
-  def create(cls, rpdb, rowid, fn2, der, uri):
-    self = cls._fn2map[fn2]()
-    if der is not None:
-      self.set(DER = der)
-    self._rpdb = rpdb
-    self._rowid = rowid
-    self._uri = uri
-    return self
-
 
 
 class IncomingX509              (rpki.x509.X509,            IncomingObject): pass
@@ -463,7 +471,9 @@ class RPDB(object):
                                 CHECK (fn2 IN ('cer', 'crl', 'mft', 'roa', 'gbr')),
                 uri             TEXT NOT NULL,
                 depth           INTEGER,
-                deleted         INTEGER NOT NULL DEFAULT 0,
+                disposition     TEXT NOT NULL
+                                DEFAULT 'keep'
+                                CHECK (disposition IN ('keep', 'delete', 'replace')),
                 subject         INTEGER
                                 REFERENCES keyname(id)
                                 ON DELETE RESTRICT
@@ -725,12 +735,13 @@ class RPDB(object):
       return None
     if rowid in self.outgoing_cache:
       return self.outgoing_cache[rowid]
-    self.cur.execute("SELECT fn2, der, key, uri FROM outgoing WHERE id = ?", (rowid,))
+    self.cur.execute("SELECT fn2, der, key, uri, subject, issuer FROM outgoing WHERE id = ?", (rowid,))
     r = self.cur.fetchone()
     if r is None:
       return None
-    fn2, der, key, uri = r
-    obj = OutgoingObject.create(rpdb = self, rowid = rowid, fn2 = fn2, der = der, uri = uri)
+    fn2, der, key, uri, subject_id, issuer_id = r
+    obj = OutgoingObject.create(rpdb = self, rowid = rowid, fn2 = fn2, der = der, uri = uri,
+                                subject_id = subject_id, issuer_id = issuer_id)
     self.outgoing_cache[rowid] = obj
     return obj
 
@@ -798,16 +809,19 @@ class RPDB(object):
     if fn2 is not None:
       query += " AND fn2 = ?"
       args.append(fn2)
-    query = "SELECT incoming.id, incoming.fn2, incoming.der, incoming.uri FROM incoming " + query
     results = []
-    self.cur.execute(query, args)
-    selections = self.cur.fetchall()
-    for rowid, fn2, der, uri in selections:
+    self.cur.execute("""SELECT incoming.id, incoming.fn2,
+                               incoming.der, incoming.uri,
+                               incoming.subject, incoming.issuer
+                        FROM incoming
+                     """ + query, args)
+    for rowid, fn2, der, uri, subject_id, issuer_id in self.cur.fetchall():
       if rowid in self.incoming_cache:
         obj = self.incoming_cache[rowid]
         assert obj.rowid == rowid
       else:
-        obj = IncomingObject.create(rpdb = self, rowid = rowid, fn2 = fn2, der = der, uri = uri)
+        obj = IncomingObject.create(rpdb = self, rowid = rowid, fn2 = fn2, der = der, uri = uri,
+                                    subject_id = subject_id, issuer_id = issuer_id)
         self.incoming_cache[rowid] = obj
       results.append(obj)
     return results

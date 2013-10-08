@@ -126,9 +126,6 @@ define	GCC_UNUSED
  */
 #define MAX_ASN1_INTEGER_LEN    20
 
-/* Asymmetric ciphers */
-#define RSA_CIPHER            1
-
 /* Digests */
 #define MD5_DIGEST            2
 #define SHA_DIGEST            3
@@ -142,9 +139,8 @@ define	GCC_UNUSED
 #define LONGNAME_FORMAT       2
 #define OIDNAME_FORMAT        3
 
-/* Output format */
-#define PEM_FORMAT            1
-#define DER_FORMAT            2
+/* AsymmetricParam EC curves */
+#define EC_P256_CURVE         NID_X9_62_prime256v1
 
 /* Object check functions */
 #define POW_X509_Check(op)              PyObject_TypeCheck(op, &POW_X509_Type)
@@ -152,6 +148,7 @@ define	GCC_UNUSED
 #define POW_X509StoreCTX_Check(op)      PyObject_TypeCheck(op, &POW_X509StoreCTX_Type)
 #define POW_CRL_Check(op)               PyObject_TypeCheck(op, &POW_CRL_Type)
 #define POW_Asymmetric_Check(op)        PyObject_TypeCheck(op, &POW_Asymmetric_Type)
+#define POW_AsymmetricParams_Check(op)	PyObject_TypeCheck(op, &POW_AsymmetricParams_Type)
 #define POW_Digest_Check(op)            PyObject_TypeCheck(op, &POW_Digest_Type)
 #define POW_CMS_Check(op)               PyObject_TypeCheck(op, &POW_CMS_Type)
 #define POW_IPAddress_Check(op)         PyObject_TypeCheck(op, &POW_IPAddress_Type)
@@ -283,6 +280,7 @@ static PyTypeObject
   POW_X509StoreCTX_Type,
   POW_CRL_Type,
   POW_Asymmetric_Type,
+  POW_AsymmetricParams_Type,
   POW_Digest_Type,
   POW_CMS_Type,
   POW_IPAddress_Type,
@@ -327,6 +325,11 @@ typedef struct {
   PyObject_HEAD
   EVP_PKEY *pkey;
 } asymmetric_object;
+
+typedef struct {
+  PyObject_HEAD
+  EVP_PKEY *pkey;
+} asymmetric_params_object;
 
 typedef struct {
   PyObject_HEAD
@@ -5319,24 +5322,56 @@ asymmetric_object_generate_rsa(PyTypeObject *type, PyObject *args, PyObject *kwd
   if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
     goto error;
 
-  if ((ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL)) == NULL ||
-      EVP_PKEY_keygen_init(ctx) <= 0 ||
-      EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, key_size) <= 0)
-    lose_openssl_error("Couldn't initialize EVP_PKEY_CTX");
-
   /*
-   * We should set RSA_F4 for drill, but it's the default so not urgent.
-   * Looks like the call is 
-   *   int EVP_PKEY_CTX_set_rsa_keygen_pubexp(EVP_PKEY_CTX *ctx, BIGNUM *pubexp);
-   * while RSA_F4 is a plain C long integer, so would need to make a bignum (sigh),
-   * which is probably BN_new()/BN_set_word()/BN_free().
+   * Explictly setting RSA_F4 would be tedious, as it requires messing
+   * about with bignums, and F4 is the default, so we leave it alone.
+   * In case this ever changes, the required sequence would be:
+   * BN_new(), BN_set_word(), EVP_PKEY_CTX_set_rsa_keygen_pubexp(),
+   * BN_free().
    */
 
-  EVP_PKEY_free(self->pkey);
-  self->pkey = NULL;
-
-  if (EVP_PKEY_keygen(ctx, &self->pkey) <= 0)
+  if ((ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL)) == NULL ||
+      EVP_PKEY_keygen_init(ctx) <= 0 ||
+      EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, key_size) <= 0 ||
+      EVP_PKEY_keygen(ctx, &self->pkey) <= 0)
     lose_openssl_error("Couldn't generate new RSA key");
+
+  ok = 1;
+
+ error:
+  EVP_PKEY_CTX_free(ctx);
+
+  if (ok)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static char asymmetric_object_generate_from_params__doc__[] =
+  "Generate a new keypair using an AsymmetricParams object.\n"
+  ;
+
+static PyObject *
+asymmetric_object_generate_from_params(PyTypeObject *type, PyObject *args)
+{
+  asymmetric_params_object *params = NULL;
+  asymmetric_object *self = NULL;
+  EVP_PKEY_CTX *ctx = NULL;
+  int ok = 0;
+
+  ENTERING(asymmetric_object_generate_from_params);
+
+  if (!PyArg_ParseTuple(args, "O!", &POW_AsymmetricParams_Type, &params))
+    goto error;
+
+  if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if ((ctx = EVP_PKEY_CTX_new(params->pkey, NULL)) == NULL ||
+      EVP_PKEY_keygen_init(ctx) <= 0 ||
+      EVP_PKEY_keygen(ctx, &self->pkey) <= 0)
+    lose_openssl_error("Couldn't generate new key");
 
   ok = 1;
 
@@ -5395,14 +5430,12 @@ static struct PyMethodDef asymmetric_object_methods[] = {
   Define_Class_Method(derReadPrivate,     asymmetric_object_der_read_private,           METH_VARARGS),
   Define_Class_Method(derReadPrivateFile, asymmetric_object_der_read_private_file,      METH_VARARGS),
   Define_Class_Method(generateRSA,        asymmetric_object_generate_rsa,               METH_KEYWORDS),
+  Define_Class_Method(generateFromParams, asymmetric_object_generate_from_params,       METH_VARARGS),
   {NULL}
 };
 
 static char POW_Asymmetric_Type__doc__[] =
   "Container for OpenSSL's EVP_PKEY asymmetric key classes.\n"
-  "\n"
-  "At the moment the only supported algorithm is RSA, but that will\n"
-  "likely change, as BGPSEC will require EC-DSA.\n"
   "\n"
   LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
   ;
@@ -5447,6 +5480,223 @@ static PyTypeObject POW_Asymmetric_Type = {
   (initproc) asymmetric_object_init,     /* tp_init */
   0,                                     /* tp_alloc */
   asymmetric_object_new,                 /* tp_new */
+};
+
+
+
+/*
+ * AsymmetricParams object.
+ */
+
+static PyObject *
+asymmetric_params_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
+{
+  asymmetric_params_object *self = NULL;
+
+  ENTERING(asymmetric_params_object_new);
+
+  if ((self = (asymmetric_params_object *) type->tp_alloc(type, 0)) == NULL)
+    goto error;
+
+  self->pkey = NULL;
+
+  return (PyObject *) self;
+
+ error:
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static int
+asymmetric_params_object_init(asymmetric_params_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {NULL};
+
+  ENTERING(asymmetric_params_object_init);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist))
+    goto error;
+
+  return 0;
+
+ error:
+  return -1;
+}
+
+static void
+asymmetric_params_object_dealloc(asymmetric_params_object *self)
+{
+  ENTERING(asymmetric_params_object_dealloc);
+  EVP_PKEY_free(self->pkey);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
+static PyObject *
+asymmetric_params_object_pem_read_helper(PyTypeObject *type, BIO *bio)
+{
+  asymmetric_params_object *self = NULL;
+
+  ENTERING(asymmetric_params_object_pem_read_helper);
+
+  if ((self = (asymmetric_params_object *) asymmetric_params_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if (!PEM_read_bio_Parameters(bio, &self->pkey))
+    lose_openssl_error("Couldn't load PEM encoded key parameters");
+
+  return (PyObject *) self;
+
+ error:
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static char asymmetric_params_object_pem_read__doc__[] =
+  "Read PEM-encoded key parameters from a string.\n"
+  ;
+
+static PyObject *
+asymmetric_params_object_pem_read(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(asymmetric_params_object_pem_read);
+  return read_from_string_helper(asymmetric_params_object_pem_read_helper, type, args);
+}
+
+static char asymmetric_params_object_pem_read_file__doc__[] =
+  "Read PEM-encoded key parameters from a file.\n"
+  ;
+
+static PyObject *
+asymmetric_params_object_pem_read_file(PyTypeObject *type, PyObject *args)
+{
+  ENTERING(asymmetric_params_object_pem_read_file);
+  return read_from_file_helper(asymmetric_params_object_pem_read_helper, type, args);
+}
+
+static char asymmetric_params_object_pem_write__doc__[] =
+  "Return the PEM encoding of this set of key parameters, as a string.\n"
+  ;
+
+static PyObject *
+asymmetric_params_object_pem_write(asymmetric_params_object *self)
+{
+  const EVP_CIPHER *evp_method = NULL;
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(asymmetric_params_object_pem_write);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (PEM_write_bio_Parameters(bio, self->pkey) <= 0)
+    lose_openssl_error("Unable to write key parameters");
+
+  result = BIO_to_PyString_helper(bio);
+
+ error:                         /* Fall through */
+  BIO_free(bio);
+  return result;
+}
+
+static char asymmetric_params_object_generate_ec__doc__[] =
+  "Generate a new set of EC parameters.\n"
+  "\n"
+  "Optional argument curve is a numeric code representing the curve to use;\n"
+  "if not specified, the default is P-256."
+  ;
+
+static PyObject *
+asymmetric_params_object_generate_ec(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"curve", NULL};
+  asymmetric_params_object *self = NULL;
+  EVP_PKEY_CTX *ctx = NULL;
+  int curve = NID_X9_62_prime256v1;
+  int ok = 0;
+
+  ENTERING(asymmetric_params_object_generate_ec);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|i", kwlist, &curve))
+    goto error;
+
+  if ((self = (asymmetric_params_object *) asymmetric_params_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if ((ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL)) == NULL ||
+      EVP_PKEY_paramgen_init(ctx) <= 0 ||
+      EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, curve) <= 0 ||
+      EVP_PKEY_paramgen(ctx, &self->pkey) <= 0)
+    lose_openssl_error("Couldn't generate key parameters");
+
+  ok = 1;
+
+ error:
+  EVP_PKEY_CTX_free(ctx);
+
+  if (ok)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
+static struct PyMethodDef asymmetric_params_object_methods[] = {
+  Define_Method(pemWrite,               asymmetric_params_object_pem_write,             METH_NOARGS),
+  Define_Class_Method(pemRead,          asymmetric_params_object_pem_read,              METH_VARARGS),
+  Define_Class_Method(pemReadFile,      asymmetric_params_object_pem_read_file,         METH_VARARGS),
+  Define_Class_Method(generateEC,       asymmetric_params_object_generate_ec,		METH_KEYWORDS),
+  {NULL}
+};
+
+static char POW_AsymmetricParams_Type__doc__[] =
+  "Container for OpenSSL's EVP_PKEY asymmetric key parameter classes.\n"
+  "\n"
+  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
+  ;
+
+static PyTypeObject POW_AsymmetricParams_Type = {
+  PyObject_HEAD_INIT(0)
+  0,                                     /* ob_size */
+  "rpki.POW.AsymmetricParams",           /* tp_name */
+  sizeof(asymmetric_params_object),      /* tp_basicsize */
+  0,                                     /* tp_itemsize */
+  (destructor)asymmetric_params_object_dealloc, /* tp_dealloc */
+  0,                                     /* tp_print */
+  0,                                     /* tp_getattr */
+  0,                                     /* tp_setattr */
+  0,                                     /* tp_compare */
+  0,                                     /* tp_repr */
+  0,                                     /* tp_as_number */
+  0,                                     /* tp_as_sequence */
+  0,                                     /* tp_as_mapping */
+  0,                                     /* tp_hash */
+  0,                                     /* tp_call */
+  0,                                     /* tp_str */
+  0,                                     /* tp_getattro */
+  0,                                     /* tp_setattro */
+  0,                                     /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+  POW_AsymmetricParams_Type__doc__,      /* tp_doc */
+  0,                                     /* tp_traverse */
+  0,                                     /* tp_clear */
+  0,                                     /* tp_richcompare */
+  0,                                     /* tp_weaklistoffset */
+  0,                                     /* tp_iter */
+  0,                                     /* tp_iternext */
+  asymmetric_params_object_methods,      /* tp_methods */
+  0,                                     /* tp_members */
+  0,                                     /* tp_getset */
+  0,                                     /* tp_base */
+  0,                                     /* tp_dict */
+  0,                                     /* tp_descr_get */
+  0,                                     /* tp_descr_set */
+  0,                                     /* tp_dictoffset */
+  (initproc) asymmetric_params_object_init, /* tp_init */
+  0,                                     /* tp_alloc */
+  asymmetric_params_object_new,          /* tp_new */
 };
 
 
@@ -8789,6 +9039,7 @@ init_POW(void)
   Define_Class(POW_X509StoreCTX_Type);
   Define_Class(POW_CRL_Type);
   Define_Class(POW_Asymmetric_Type);
+  Define_Class(POW_AsymmetricParams_Type);
   Define_Class(POW_Digest_Type);
   Define_Class(POW_CMS_Type);
   Define_Class(POW_IPAddress_Type);
@@ -8816,9 +9067,6 @@ init_POW(void)
   Define_Integer_Constant(LONGNAME_FORMAT);
   Define_Integer_Constant(SHORTNAME_FORMAT);
   Define_Integer_Constant(OIDNAME_FORMAT);
-
-  /* Asymmetric ciphers */
-  Define_Integer_Constant(RSA_CIPHER);
 
   /* Message digests */
   Define_Integer_Constant(MD5_DIGEST);
@@ -8898,6 +9146,9 @@ init_POW(void)
   Define_Integer_Constant(X509_V_ERR_NO_EXPLICIT_POLICY);
   Define_Integer_Constant(X509_V_ERR_UNNESTED_RESOURCE);
   Define_Integer_Constant(X509_V_ERR_APPLICATION_VERIFICATION);
+
+  /* AsymmetricParam EC curve codes */
+  Define_Integer_Constant(EC_P256_CURVE);
 
 #undef Define_Integer_Constant
 

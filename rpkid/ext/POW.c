@@ -4931,50 +4931,22 @@ asymmetric_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED 
 static int
 asymmetric_object_init(asymmetric_object *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = {"cipher", "key_size", NULL};
-  int cipher_type = RSA_CIPHER, key_size = 2048;
-  EVP_PKEY_CTX *ctx = NULL;
-  int ok = 0;
+  static char *kwlist[] = {NULL};
 
   ENTERING(asymmetric_object_init);
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ii", kwlist, &cipher_type, &key_size))
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist))
     goto error;
 
   /*
-   * This silliness is necessary until we move this to an RSA-specific class method.
-   */
-  if (cipher_type != RSA_CIPHER)
-    lose("unsupported cipher");
-
-  if ((ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL)) == NULL ||
-      EVP_PKEY_keygen_init(ctx) <= 0 ||
-      EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, key_size) <= 0)
-    lose_openssl_error("Couldn't initialize EVP_PKEY_CTX");
-
-  /*
-   * Should set RSA_F4 for drill, although I think it's the default now.
-   * Looks like the call is 
-   *   int EVP_PKEY_CTX_set_rsa_keygen_pubexp(EVP_PKEY_CTX *ctx, BIGNUM *pubexp);
-   * while RSA_F4 is a plain C long integer, so would need to make a bignum (sigh),
-   * which is probably BN_new()/BN_set_word()/BN_free().
+   * We used to take arguments to generate an RSA key, but that's
+   * now in the .generateRSA() class method.
    */
 
-  EVP_PKEY_free(self->pkey);
-  self->pkey = NULL;
-
-  if (EVP_PKEY_keygen(ctx, &self->pkey) <= 0)
-    lose_openssl_error("Couldn't generate new RSA key");
-
-  ok = 1;
+  return 0;
 
  error:
-  EVP_PKEY_CTX_free(ctx);
-
-  if (ok)
-    return 0;
-  else
-    return -1;
+  return -1;
 }
 
 static void
@@ -5323,6 +5295,61 @@ asymmetric_object_der_write_public(asymmetric_object *self)
   return result;
 }
 
+static char asymmetric_object_generate_rsa__doc__[] =
+  "Generate a new RSA keypair.\n"
+  "\n"
+  "Optional argument key_size is the desired key size, in bits;\n"
+  "if not specified, the default is 2048."
+  ;
+
+static PyObject *
+asymmetric_object_generate_rsa(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"key_size", NULL};
+  asymmetric_object *self = NULL;
+  EVP_PKEY_CTX *ctx = NULL;
+  int key_size = 2048;
+  int ok = 0;
+
+  ENTERING(asymmetric_object_generate_rsa);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|i", kwlist, &key_size))
+    goto error;
+
+  if ((self = (asymmetric_object *) asymmetric_object_new(type, NULL, NULL)) == NULL)
+    goto error;
+
+  if ((ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL)) == NULL ||
+      EVP_PKEY_keygen_init(ctx) <= 0 ||
+      EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, key_size) <= 0)
+    lose_openssl_error("Couldn't initialize EVP_PKEY_CTX");
+
+  /*
+   * We should set RSA_F4 for drill, but it's the default so not urgent.
+   * Looks like the call is 
+   *   int EVP_PKEY_CTX_set_rsa_keygen_pubexp(EVP_PKEY_CTX *ctx, BIGNUM *pubexp);
+   * while RSA_F4 is a plain C long integer, so would need to make a bignum (sigh),
+   * which is probably BN_new()/BN_set_word()/BN_free().
+   */
+
+  EVP_PKEY_free(self->pkey);
+  self->pkey = NULL;
+
+  if (EVP_PKEY_keygen(ctx, &self->pkey) <= 0)
+    lose_openssl_error("Couldn't generate new RSA key");
+
+  ok = 1;
+
+ error:
+  EVP_PKEY_CTX_free(ctx);
+
+  if (ok)
+    return (PyObject *) self;
+
+  Py_XDECREF(self);
+  return NULL;
+}
+
 static char asymmetric_object_calculate_ski__doc__[] =
   "Calculate SKI value for this key.\n"
   "\n"
@@ -5367,6 +5394,7 @@ static struct PyMethodDef asymmetric_object_methods[] = {
   Define_Class_Method(pemReadPrivateFile, asymmetric_object_pem_read_private_file,      METH_VARARGS),
   Define_Class_Method(derReadPrivate,     asymmetric_object_der_read_private,           METH_VARARGS),
   Define_Class_Method(derReadPrivateFile, asymmetric_object_der_read_private_file,      METH_VARARGS),
+  Define_Class_Method(generateRSA,        asymmetric_object_generate_rsa,               METH_KEYWORDS),
   {NULL}
 };
 

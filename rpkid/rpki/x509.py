@@ -1011,7 +1011,7 @@ class insecure_debug_only_rsa_key_generator(object):
     try:
       v = rpki.POW.Asymmetric.derReadPrivate(self.db[k])
     except KeyError:
-      v = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, 2048)
+      v = rpki.POW.Asymmetric.generateRSA(2048)
       self.db[k] = v.derWritePrivate()
     self.keyno += 1
     return v
@@ -1067,7 +1067,7 @@ class RSA(DER_object):
     if generate_insecure_debug_only_rsa_key is not None:
       return cls(POW = generate_insecure_debug_only_rsa_key())
     else:
-      return cls(POW = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, keylength))
+      return cls(POW = rpki.POW.Asymmetric.generateRSA(keylength))
 
   def get_public_DER(self):
     """

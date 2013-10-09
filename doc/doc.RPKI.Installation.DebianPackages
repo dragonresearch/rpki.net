@@ -55,7 +55,7 @@ aptitude should also work.
 
 ***** Upgrading *****
 
-Once you've performced the steps above you should be able to upgrade to newer
+Once you've performed the steps above you should be able to upgrade to newer
 version of the code using the normal APT upgrade process, eg:
 
   sudo apt-get update

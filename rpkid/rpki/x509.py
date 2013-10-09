@@ -288,10 +288,10 @@ class DER_object(object):
     except (IOError, OSError), e:
       now = rpki.sundial.now()
       if self.lastfail is None or now > self.lastfail + self.failure_threshold:
-        rpki.log.warn("Could not auto_update %r (failures %d): %s" % (self, self.failures, e))
+        rpki.log.warn("Could not auto_update %r (last failure %s): %s" % (self, self.lastfail, e))
       self.lastfail = now
     else:
-      self.failures = None
+      self.lastfail = None
 
   def check(self):
     """

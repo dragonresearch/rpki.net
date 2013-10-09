@@ -67,6 +67,14 @@ rpki.conf:
 
   rpki-root-cert          = ${myrpki::publication_base_directory}/root.cer
 
+You must place the generated root.key in a safe location where it is readable
+by rootd but not accessible to the outside world, then you need to tell rootd
+where to find it by setting the appropriate variable in rpki.conf. The
+directory where the daemons keep their BPKI keys and certificates should be
+suitable for this:
+
+  rpki-root-key           = ${myrpki::bpki_servers_directory}/root.key
+
 To create a TAL format trust anchor locator use the make-tal.sh script from
 $top/rcynic:
 

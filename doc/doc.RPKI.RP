@@ -1,6 +1,6 @@
 ****** RPKI Relying Party Tools ******
 
-these tools implements the "relying party" role of the RPKI system, that is,
+These tools implements the "relying party" role of the RPKI system, that is,
 the entity which retrieves RPKI objects from repositories, validates them, and
 uses the result of that validation process as input to other processes, such as
 BGP security.

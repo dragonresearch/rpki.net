@@ -169,13 +169,22 @@ class main(object):
       candidates = self.rpdb.find_by_resource_bag(constraint.mentioned_resources)
       candidates.sort(reverse = True, key = lambda candidate: candidate.depth)
       deepest = max(candidate.depth for candidate in candidates)
+
+      # It's possible that the right answer to selecting the deepest
+      # match here is the query we already have supplemented by a
+      # HAVING clause that picks out just the rows with maximum depth
+      # out of the result produced by the SELECT.  Not sure yet, and
+      # may take a bit of doing to work that into the rpdb.find_...()
+      # code, but seems like the right general approach in SQL terms
+
       print
       print "Constraint:", repr(constraint)
       print "Resources: ", constraint.mentioned_resources
       for i, candidate in enumerate(candidates):
-        print " Candidate #%d id %d depth %d deepest %s name %s uri %s" % (
-          i, candidate.rowid, candidate.depth, candidate.depth == deepest,
-          candidate.subject_name, candidate.uri)
+        if candidate.depth == deepest:
+          print " Candidate #%d id %d depth %d deepest %s resources %s uri %s" % (
+            i, candidate.rowid, candidate.depth, candidate.depth == deepest,
+            candidate.resources, candidate.uri)
 
   def compute_all_mentioned_resources(self):
     for constraint in self.constraints:

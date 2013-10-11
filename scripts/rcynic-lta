@@ -98,8 +98,13 @@ class main(object):
     print
     print "Loading DB"
     self.rpdb.load(self.rcynic_input)
+
     print
-    print "Compute resources we need to prune from input forest"
+    print "Computing where to place new resources"
+    self.compute_changed_locations()
+
+    print
+    print "Computing resources we need to prune from input forest"
     self.compute_all_mentioned_resources()
     print
     print "Processing deletions"
@@ -158,6 +163,19 @@ class main(object):
         key = rpki.POW.Asymmetric.derReadPublic(base64.b64decode(f.read()))
         self.tals[uri] = key
 
+
+  def compute_changed_locations(self):
+    for constraint in self.constraints:
+      candidates = self.rpdb.find_by_resource_bag(constraint.mentioned_resources)
+      candidates.sort(reverse = True, key = lambda candidate: candidate.depth)
+      deepest = max(candidate.depth for candidate in candidates)
+      print
+      print "Constraint:", repr(constraint)
+      print "Resources: ", constraint.mentioned_resources
+      for i, candidate in enumerate(candidates):
+        print " Candidate #%d id %d depth %d deepest %s name %s uri %s" % (
+          i, candidate.rowid, candidate.depth, candidate.depth == deepest,
+          candidate.subject_name, candidate.uri)
 
   def compute_all_mentioned_resources(self):
     for constraint in self.constraints:
@@ -294,6 +312,12 @@ class Constraint(object):
     self.asns        = rpki.resource_set.resource_bag.from_str(str(y.get("asn", "")))
     self.ghostbuster = y.get("ghostbuster")
 
+    # Mostly for debugging, although maybe we'd be better off just
+    # having properties that pulled stuff out of YAML on the fly.
+    # Dunno yet.
+
+    self.y = y 
+
     if "roa" in y:
       self.roa_asn    = long(y["roa"]["asn"])
       if "maxlen" in y["roa"]:
@@ -302,6 +326,9 @@ class Constraint(object):
     if "router-cert" in y:
       self.router_cert_key     = y["router-cert"]["key"]
       self.router_cert_subject = y["router-cert"]["subject"]
+
+  def __repr__(self):
+    return "<%s:%s %r>" % (self.__class__.__module__, self.__class__.__name__, self.y)
 
   @property
   def mentioned_resources(self):
@@ -360,8 +387,18 @@ class BaseObject(object):
     self._issuer_id = issuer_id
     return self
 
+  @property
+  def subject_name(self):
+    return self._rpdb.find_keyname_by_id(self._subject_id)[0]
+
+  @property
+  def issuer_name(self):
+    return self._rpdb.find_keyname_by_id(self._subject_id)[0]
+
 
 class IncomingObject(BaseObject):
+
+  _depth = None
 
   @property
   def para_obj(self):
@@ -389,9 +426,15 @@ class IncomingObject(BaseObject):
     return cls._fn2map[os.path.splitext(fn)[1][1:]](DER_file = fn)
 
   @classmethod
-  def create(cls, rpdb, rowid, fn2, der, uri, subject_id, issuer_id):
+  def create(cls, rpdb, rowid, fn2, der, uri, subject_id, issuer_id, depth = None):
     assert der is not None
-    return super(IncomingObject, cls).create(rpdb, rowid, fn2, der, uri, subject_id, issuer_id)
+    self = super(IncomingObject, cls).create(rpdb, rowid, fn2, der, uri, subject_id, issuer_id)
+    self._depth = depth
+    return self
+
+  @property
+  def depth(self):
+    return self._depth
 
   @property
   def issuer(self):
@@ -720,6 +763,12 @@ class RPDB(object):
     return result
 
 
+  def find_keyname_by_id(self, rowid):
+    self.cur.execute("SELECT name, keyid FROM keyname WHERE id = ?", (rowid,))
+    result = self.cur.fetchone()
+    return (None, None) if result is None else result
+
+
   def find_incoming_by_id(self, rowid):
     if rowid is None:
       return None
@@ -810,18 +859,20 @@ class RPDB(object):
       query += " AND fn2 = ?"
       args.append(fn2)
     results = []
-    self.cur.execute("""SELECT incoming.id, incoming.fn2,
+    self.cur.execute("""SELECT DISTINCT
+                               incoming.id, incoming.fn2,
                                incoming.der, incoming.uri,
-                               incoming.subject, incoming.issuer
+                               incoming.subject, incoming.issuer,
+                               incoming.depth
                         FROM incoming
                      """ + query, args)
-    for rowid, fn2, der, uri, subject_id, issuer_id in self.cur.fetchall():
+    for rowid, fn2, der, uri, subject_id, issuer_id, depth in self.cur.fetchall():
       if rowid in self.incoming_cache:
         obj = self.incoming_cache[rowid]
         assert obj.rowid == rowid
       else:
         obj = IncomingObject.create(rpdb = self, rowid = rowid, fn2 = fn2, der = der, uri = uri,
-                                    subject_id = subject_id, issuer_id = issuer_id)
+                                    subject_id = subject_id, issuer_id = issuer_id, depth = depth)
         self.incoming_cache[rowid] = obj
       results.append(obj)
     return results

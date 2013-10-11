@@ -1,3 +1,6 @@
+db-name:
+  /u/sra/rpki/subvert-rpki.hactrn.net/trunk/scripts/rcynic-lta.db
+
 rcynic-input:
   /u/sra/rpki/subvert-rpki.hactrn.net/trunk/rcynic/rcynic-data/authenticated
 

@@ -168,23 +168,22 @@ class main(object):
     for constraint in self.constraints:
       candidates = self.rpdb.find_by_resource_bag(constraint.mentioned_resources)
       candidates.sort(reverse = True, key = lambda candidate: candidate.depth)
-      deepest = max(candidate.depth for candidate in candidates)
-
-      # It's possible that the right answer to selecting the deepest
-      # match here is the query we already have supplemented by a
-      # HAVING clause that picks out just the rows with maximum depth
-      # out of the result produced by the SELECT.  Not sure yet, and
-      # may take a bit of doing to work that into the rpdb.find_...()
-      # code, but seems like the right general approach in SQL terms
-
       print
       print "Constraint:", repr(constraint)
       print "Resources: ", constraint.mentioned_resources
       for i, candidate in enumerate(candidates):
-        if candidate.depth == deepest:
-          print " Candidate #%d id %d depth %d deepest %s resources %s uri %s" % (
-            i, candidate.rowid, candidate.depth, candidate.depth == deepest,
-            candidate.resources, candidate.uri)
+        print " Candidate #%d id %d depth %d name %s uri %s" % (
+          i, candidate.rowid,
+          candidate.depth,
+          candidate.subject_name,
+          candidate.uri)
+        if constraint.mentioned_resources <= candidate.resources:
+          print " Matched"
+          #print " Constraint resources:", constraint.mentioned_resources
+          #print " Candidate resources: ", candidate.resources
+          break
+      else:
+        print " No match"
 
   def compute_all_mentioned_resources(self):
     for constraint in self.constraints:
@@ -363,10 +362,6 @@ class BaseObject(object):
     return self._rowid
 
   @property
-  def resources(self):
-    return self.get_3779resources()
-
-  @property
   def para_resources(self):
     return self.resources if self.para_obj is None else self.para_obj.resources
 
@@ -463,17 +458,42 @@ class OutgoingObject(BaseObject):
     return self._rpdb.find_incoming_by_id(self._orig_id)
 
 
-class IncomingX509              (rpki.x509.X509,            IncomingObject): pass
-class IncomingCRL               (rpki.x509.CRL,             IncomingObject): pass
-class IncomingSignedManifest    (rpki.x509.SignedManifest,  IncomingObject): pass
-class IncomingROA               (rpki.x509.ROA,             IncomingObject): pass
-class IncomingGhostbuster       (rpki.x509.Ghostbuster,     IncomingObject): pass
+class BaseX509(rpki.x509.X509):
 
-class OutgoingX509              (rpki.x509.X509,            OutgoingObject): pass
-class OutgoingCRL               (rpki.x509.CRL,             OutgoingObject): pass
-class OutgoingSignedManifest    (rpki.x509.SignedManifest,  OutgoingObject): pass
-class OutgoingROA               (rpki.x509.ROA,             OutgoingObject): pass
-class OutgoingGhostbuster       (rpki.x509.Ghostbuster,     OutgoingObject): pass
+  @property
+  def resources(self):
+    return self.get_3779resources()
+
+
+class BaseCRL(rpki.x509.CRL):
+
+  @property
+  def resources(self):
+    return None
+
+
+class CommonCMS(object):
+
+  @property
+  def resources(self):
+    return rpki.x509.X509(POW = self.get_POW().certs()[0]).get_3779resources()
+
+
+class BaseSignedManifest        (rpki.x509.SignedManifest,      CommonCMS): pass
+class BaseROA                   (rpki.x509.ROA,                 CommonCMS): pass
+class BaseGhostbuster           (rpki.x509.Ghostbuster,         CommonCMS): pass
+
+class IncomingX509              (BaseX509,            IncomingObject): pass
+class IncomingCRL               (BaseCRL,             IncomingObject): pass
+class IncomingSignedManifest    (BaseSignedManifest,  IncomingObject): pass
+class IncomingROA               (BaseROA,             IncomingObject): pass
+class IncomingGhostbuster       (BaseGhostbuster,     IncomingObject): pass
+
+class OutgoingX509              (BaseX509,            OutgoingObject): pass
+class OutgoingCRL               (BaseCRL,             OutgoingObject): pass
+class OutgoingSignedManifest    (BaseSignedManifest,  OutgoingObject): pass
+class OutgoingROA               (BaseROA,             OutgoingObject): pass
+class OutgoingGhostbuster       (BaseGhostbuster,     OutgoingObject): pass
 
 IncomingObject.setfn2map(cer = IncomingX509,
                          crl = IncomingCRL,

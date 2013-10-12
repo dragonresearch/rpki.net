@@ -253,11 +253,12 @@ class main(object):
     # Temporary kludge, need more general solution but that requires
     # more refactoring than I feel like doing this late in the day.
     #
-    self.rpdb.cur.execute("SELECT fn2, der, uri FROM outgoing WHERE issuer = ?", (self.ltacer.rowid,))
     names_and_objs = [(uri, OutgoingObject.create(fn2 = fn2, der = der, uri = uri,
                                                   rpdb = None, rowid = None,
                                                   subject_id = None, issuer_id = None))
-                      for fn2, der, uri in self.rpdb.cur.fetchall()]
+                      for fn2, der, uri in
+                      self.rpdb.cur.execute("SELECT fn2, der, uri FROM outgoing WHERE issuer = ?",
+                                            (self.ltacer.rowid,))]
 
     mft = OutgoingSignedManifest.build(
       serial         = serial,
@@ -768,8 +769,7 @@ class RPDB(object):
   def dump_paras(self, rcynic_output):
     shutil.rmtree(rcynic_output, ignore_errors = True)
     rsync = "rsync://"
-    self.cur.execute("SELECT der, uri FROM outgoing")
-    for der, uri in self.cur.fetchall():
+    for der, uri in self.cur.execute("SELECT der, uri FROM outgoing"):
       assert uri.startswith(rsync)
       fn = os.path.join(rcynic_output, uri[len(rsync):])
       dn = os.path.dirname(fn)
@@ -888,14 +888,15 @@ class RPDB(object):
       query += " AND fn2 = ?"
       args.append(fn2)
     results = []
-    self.cur.execute("""SELECT DISTINCT
-                               incoming.id, incoming.fn2,
-                               incoming.der, incoming.uri,
-                               incoming.subject, incoming.issuer,
-                               incoming.depth
-                        FROM incoming
-                     """ + query, args)
-    for rowid, fn2, der, uri, subject_id, issuer_id, depth in self.cur.fetchall():
+    for rowid, fn2, der, uri, subject_id, issuer_id, depth in self.cur.execute(
+          '''
+          SELECT DISTINCT
+                incoming.id, incoming.fn2,
+                incoming.der, incoming.uri,
+                incoming.subject, incoming.issuer,
+                incoming.depth
+          FROM incoming
+          ''' + query, args):
       if rowid in self.incoming_cache:
         obj = self.incoming_cache[rowid]
         assert obj.rowid == rowid

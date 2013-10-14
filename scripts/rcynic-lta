@@ -98,11 +98,9 @@ class main(object):
     print
     print "Loading DB"
     self.rpdb.load(self.rcynic_input)
-
     print
     print "Computing where to place new resources"
     self.compute_changed_locations()
-
     print
     print "Computing resources we need to prune from input forest"
     self.compute_all_mentioned_resources()

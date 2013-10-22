@@ -150,7 +150,7 @@ class main(object):
     self.rcynic_input  = y["rcynic-input"]
     self.rcynic_output = y["rcynic-output"]
     self.keyfile       = y["keyfile"]
-    self.constraints = [Constraint(yy) for yy in y["constraints"]]
+    self.constraints = [Constraint(c) for c in y["constraints"]]
 
 
   def parse_tals(self):
@@ -307,32 +307,62 @@ class Serial(object):
 
 
 
+class ConstrainedROA(object):
+
+  def __init__(self, constraint, y):
+    self.constraint = constraint
+    self.asn = long(y["asn"])
+    self.maxlen = long(y["maxlen"]) if "maxlen" in y else None
+
+  def add(self):
+    raise NotImplementedError
+
+class ConstrainedGBR(object):
+
+  def __init__(self, constraint, y):
+    self.constraint = constraint
+    self.vcard = y
+
+  def add(self):
+    raise NotImplementedError
+
+class ConstrainedRTR(object):
+
+  def __init__(self, constraint, y):
+    self.constraint = constraint
+    self.key = y["key"]
+    self.subject = y["subject"]
+
+  def add(self):
+    raise NotImplementedError
+
 class Constraint(object):
 
-  roa_asn             = None
-  roa_maxlen          = None
-  router_cert_key     = None
-  router_cert_subject = None
+  dispatch = dict(roa = ConstrainedROA,
+                  gbr = ConstrainedGBR,
+                  rtr = ConstrainedRTR)
 
   def __init__(self, y):
-    self.prefixes    = rpki.resource_set.resource_bag.from_str(str(y.get("prefix", "")))
-    self.asns        = rpki.resource_set.resource_bag.from_str(str(y.get("asn", "")))
-    self.ghostbuster = y.get("ghostbuster")
+    self.y = y          # Mostly for debugging.  I think.
+    self.prefixes = rpki.resource_set.resource_bag.from_str(str(y.get("prefix", "")))
+    self.asns     = rpki.resource_set.resource_bag.from_str(str(y.get("asn", "")))
+    drop = y.get("drop", ())
+    self.drop_roas = "all" in drop or "roas" in drop
+    self.drop_gbrs = "all" in drop or "gbrs" in drop
+    self.drop_rtrs = "all" in drop or "rtrs" in drop
+    self.adds = []
+    for a in y.get("add", ()):
+      if not isinstance(a, dict) or len(a) != 1:
+        raise ValueError("Expected single-entry mapping, got " + repr(a))
+      k, v = a.items()[0]
+      self.adds.append(self.dispatch[k](self, v))
 
-    # Mostly for debugging, although maybe we'd be better off just
-    # having properties that pulled stuff out of YAML on the fly.
-    # Dunno yet.
+  def drop(self):
+    raise NotImplementedError
 
-    self.y = y 
-
-    if "roa" in y:
-      self.roa_asn    = long(y["roa"]["asn"])
-      if "maxlen" in y["roa"]:
-        self.roa_maxlen = long(y["roa"]["maxlen"])
-
-    if "router-cert" in y:
-      self.router_cert_key     = y["router-cert"]["key"]
-      self.router_cert_subject = y["router-cert"]["subject"]
+  def add(self):
+    for a in self.adds:
+      a.add()
 
   def __repr__(self):
     return "<%s:%s %r>" % (self.__class__.__module__, self.__class__.__name__, self.y)

@@ -342,14 +342,21 @@ class Constraint(object):
                   gbr = ConstrainedGBR,
                   rtr = ConstrainedRTR)
 
+  drop_keywords = ("roas", "gbrs", "rtrs")
+
   def __init__(self, y):
     self.y = y          # Mostly for debugging.  I think.
     self.prefixes = rpki.resource_set.resource_bag.from_str(str(y.get("prefix", "")))
     self.asns     = rpki.resource_set.resource_bag.from_str(str(y.get("asn", "")))
-    drop = y.get("drop", ())
-    self.drop_roas = "all" in drop or "roas" in drop
-    self.drop_gbrs = "all" in drop or "gbrs" in drop
-    self.drop_rtrs = "all" in drop or "rtrs" in drop
+    drop = y.get("drop", [])
+    if isinstance(drop, str):
+      drop = [drop]
+    if "all" in drop:
+      drop = self.drop_keywords
+    elif not all(d in self.drop_keywords for d in drop):
+      raise ValueError("Unexpected drop keyword %r" % drop)
+    for d in self.drop_keywords:
+      setattr(self, "drop_" + d, d in drop)
     self.adds = []
     for a in y.get("add", ()):
       if not isinstance(a, dict) or len(a) != 1:

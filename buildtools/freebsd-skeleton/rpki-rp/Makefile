@@ -28,7 +28,9 @@ BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
 BUILD_DEPENDS+= rsync>0:${PORTSDIR}/net/rsync
 RUN_DEPENDS+=   rsync>0:${PORTSDIR}/net/rsync
 
-# For rcynic-html
+# Needed at build to keep ./configure from complaining;
+# used at runtime by rcynic-html.
+BUILD_DEPENDS+=	rrdtool>0:${PORTSDIR}/databases/rrdtool
 RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 
 # Just want relying party tools, try to use system OpenSSL if we can.

@@ -329,7 +329,7 @@ class ConstrainedROA(ConstrainedObject):
     assert self.asn is not None
     for candidate in candidates:
       if isinstance(candidate, IncomingX509) and self.constraint.mentioned_resources <= candidate.resources:
-        print "Should add ROA %s %s under candidate %s (depth %s resources %s)" % (
+        print "Should add ROA %s %s\nunder candidate %s (depth %s resources %s)" % (
           self.asn, self.constraint.prefixes, candidate.subject_name, candidate.depth, candidate.resources)
         break
 
@@ -340,14 +340,17 @@ class ConstrainedGBR(ConstrainedObject):
     self.vcard = y
 
   def drop(self, candidates):
-    raise NotImplementedError
+    for candidate in candidates:
+      if isinstance(candidate, IncomingX509) and self.constraint.mentioned_resources == candidate.resources:
+        print "Think I should drop GBRs directly under %r" % candidate
 
   def add(self, candidates):
     assert self.vcard is not None
     for candidate in candidates:
       if isinstance(candidate, IncomingX509) and self.constraint.mentioned_resources <= candidate.resources:
-        print "Should add GBR %s under candidate %s (depth %s resources %s)" % (
-          self.vcard, candidate.subject_name, candidate.depth, candidate.resources)
+        print "Should add GBR\n%s\nunder candidate %s (depth %s resources %s)" % (
+          "\n".join((" " * 4) + line for line in self.vcard.splitlines()),
+          candidate.subject_name, candidate.depth, candidate.resources)
         break
 
 class ConstrainedRTR(ConstrainedObject):
@@ -361,7 +364,11 @@ class ConstrainedRTR(ConstrainedObject):
     raise NotImplementedError
 
   def drop(self, candidates):
-    raise NotImplementedError
+    for candidate in candidates:
+      if isinstance(candidate, IncomingX509) and not candidate.is_CA() and \
+         self.constraint.mentioned_resources == candidate.resources and \
+         (self.subject is None or candidate.getSubject() == self.subject):
+        print "Think I should drop RTR certificate %r" % candidate
 
 class Constraint(object):
 

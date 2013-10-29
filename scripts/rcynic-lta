@@ -99,11 +99,8 @@ class main(object):
     print "Loading DB"
     self.rpdb.load(self.rcynic_input)
     print
-    print "Computing where to place new resources"
-    self.compute_changed_locations()
-    print
-    print "Computing resources we need to prune from input forest"
-    self.compute_all_mentioned_resources()
+    print "Processing adds and drops"
+    self.process_add_drop()
     print
     print "Processing deletions"
     self.process_constraint_deletions()
@@ -162,30 +159,33 @@ class main(object):
         self.tals[uri] = key
 
 
-  def compute_changed_locations(self):
+  @staticmethod
+  def show_candidates(constraint, candidates):
+    print
+    print "Constraint:", repr(constraint)
+    print "Resources: ", constraint.mentioned_resources
+    for i, candidate in enumerate(candidates):
+      print " Candidate #%d id %d depth %d name %s uri %s" % (
+        i, candidate.rowid,
+        candidate.depth,
+        candidate.subject_name,
+        candidate.uri)
+      if constraint.mentioned_resources <= candidate.resources:
+        print " Matched"
+        #print " Constraint resources:", constraint.mentioned_resources
+        #print " Candidate resources: ", candidate.resources
+        break
+    else:
+      print " No match"
+
+
+  def process_add_drop(self):
     for constraint in self.constraints:
       candidates = self.rpdb.find_by_resource_bag(constraint.mentioned_resources)
       candidates.sort(reverse = True, key = lambda candidate: candidate.depth)
-      print
-      print "Constraint:", repr(constraint)
-      print "Resources: ", constraint.mentioned_resources
-      for i, candidate in enumerate(candidates):
-        print " Candidate #%d id %d depth %d name %s uri %s" % (
-          i, candidate.rowid,
-          candidate.depth,
-          candidate.subject_name,
-          candidate.uri)
-        if constraint.mentioned_resources <= candidate.resources:
-          print " Matched"
-          #print " Constraint resources:", constraint.mentioned_resources
-          #print " Candidate resources: ", candidate.resources
-          break
-      else:
-        print " No match"
-
-  def compute_all_mentioned_resources(self):
-    for constraint in self.constraints:
-      self.all_mentioned_resources |= constraint.mentioned_resources
+      #self.show_candidates(constraint, candidates)
+      constraint.drop(candidates)
+      constraint.add(candidates)
 
 
   def process_constraint_deletions(self):
@@ -307,12 +307,9 @@ class Serial(object):
 
 
 class ConstrainedObject(object):
-
-  def add(self):
-    raise NotImplementedError
-
-  def drop(self, constraint):
-    raise NotImplementedError
+  # I keep expecting the classes derived from this to have some common
+  # methods, but so far it hasn't happened.  Clean up eventually if not.
+  pass
 
 class ConstrainedROA(ConstrainedObject):
 
@@ -321,11 +318,37 @@ class ConstrainedROA(ConstrainedObject):
     self.asn    = long(y["asn"])    if y is not None                   else None
     self.maxlen = long(y["maxlen"]) if y is not None and "maxlen" in y else None
 
+  def drop(self, candidates):
+    for candidate in candidates:
+      if isinstance(candidate, IncomingROA) and \
+         self.constraint.mentioned_resources == candidate.resources and \
+         (self.asn is None or self.asn == candidate.get_POW().getASID()):
+        print "Think I should drop ROA %r" % candidate
+
+  def add(self, candidates):
+    assert self.asn is not None
+    for candidate in candidates:
+      if isinstance(candidate, IncomingX509) and self.constraint.mentioned_resources <= candidate.resources:
+        print "Should add ROA %s %s under candidate %s (depth %s resources %s)" % (
+          self.asn, self.constraint.prefixes, candidate.subject_name, candidate.depth, candidate.resources)
+        break
+
 class ConstrainedGBR(ConstrainedObject):
 
   def __init__(self, constraint, y):
     self.constraint = constraint
     self.vcard = y
+
+  def drop(self, candidates):
+    raise NotImplementedError
+
+  def add(self, candidates):
+    assert self.vcard is not None
+    for candidate in candidates:
+      if isinstance(candidate, IncomingX509) and self.constraint.mentioned_resources <= candidate.resources:
+        print "Should add GBR %s under candidate %s (depth %s resources %s)" % (
+          self.vcard, candidate.subject_name, candidate.depth, candidate.resources)
+        break
 
 class ConstrainedRTR(ConstrainedObject):
 
@@ -333,6 +356,12 @@ class ConstrainedRTR(ConstrainedObject):
     self.constraint = constraint
     self.key     = y["key"]     if y is not None else None
     self.subject = y["subject"] if y is not None else None
+
+  def add(self, candidates):
+    raise NotImplementedError
+
+  def drop(self, candidates):
+    raise NotImplementedError
 
 class Constraint(object):
 
@@ -348,30 +377,31 @@ class Constraint(object):
     self.init_adds( y.get("add",  ()))
 
   def init_drops(self, drops):
-    self.drops = []
     if drops == "all":
-      self.drops.extend(d(self, None) for d in self.dispatch.itervalues())
+      self.drops = tuple(d(self, None) for d in self.dispatch.itervalues())
     else:
-      for d in (drops if isinstance(drops, (list, tuple)) else (drops,)):
+      dd = []
+      for d in (drops if isinstance(drops, (list, tuple)) else [drops]):
         if isinstance(d, str):
-          self.drops.append(self.dispatch[d[:-1]](self, None))
+          dd.append(self.dispatch[d[:-1]](self, None))
         elif isinstance(d, dict) and len(d) == 1:
-          self.drops.append(self.dispatch[d.keys()[0]](self, d.values()[0]))
+          dd.append(self.dispatch[d.keys()[0]](self, d.values()[0]))
         else:
           raise ValueError("Unexpected drop clause " + repr(drops))
+      self.drops = tuple(dd)
 
   def init_adds(self, adds):
     if not all(isinstance(a, dict) and len(a) == 1 for a in adds):
       raise ValueError("Expected list of single-entry mappings, got " + repr(adds))
     self.adds = tuple(self.dispatch[a.keys()[0]](self, a.values()[0]) for a in adds)
 
-  def drop(self):
+  def drop(self, candidates):
     for d in self.drops:
-      d.drop()
+      d.drop(candidates)
 
-  def add(self):
+  def add(self, candidates):
     for a in self.adds:
-      a.add()
+      a.add(candidates)
 
   def __repr__(self):
     return "<%s:%s %r>" % (self.__class__.__module__, self.__class__.__name__, self.y)

@@ -180,6 +180,12 @@ class main(object):
 
 
   def process_add_drop(self):
+    #
+    # We probably need to create the output root before running this,
+    # otherwise there's a chance that an "add" constraint will yield
+    # no viable candidate parent.  Not likely to happen with current
+    # test setup where several of our roots claim 0/0.
+    #
     for constraint in self.constraints:
       candidates = self.rpdb.find_by_resource_bag(constraint.mentioned_resources)
       candidates.sort(reverse = True, key = lambda candidate: candidate.depth)
@@ -574,7 +580,7 @@ class BaseX509(rpki.x509.X509):
     return r
 
   def find_children(self, fn2 = None):
-    return self._rpdb._find_results(fn2, "WHERE issuer = ?", (self.subject_id,))
+    return self._rpdb._find_results(fn2, "WHERE issuer = ?", [self.subject_id])
 
 
 class BaseCRL(rpki.x509.CRL):
@@ -958,9 +964,9 @@ class RPDB(object):
 
 
   # It's easiest to understand overlap conditions by understanding
-  # non-overlap then inverting and and applying De Morgan's law.  Ranges
-  # A and B do not overlap if either A.min > B.max or A.max < B.min;
-  # therefore they do overlap if A.min <= B.max and A.max >= B.min.
+  # non-overlap then inverting and and applying De Morgan's law.
+  # Ranges A and B do not overlap if: A.min >  B.max or  B.min >  A.max;
+  # therefore A and B do overlap if:  A.min <= B.max and B.min <= A.max.
 
   def find_by_range(self, range_min, range_max = None, fn2 = None):
     if range_max is None:
@@ -971,12 +977,10 @@ class RPDB(object):
       range_max = long(range_max) if range_max.isdigit() else rpki.POW.IPAddress(range_max)
     assert isinstance(range_min, (int, long, rpki.POW.IPAddress))
     assert isinstance(range_max, (int, long, rpki.POW.IPAddress))
-    return self._find_results(
-      fn2,
-      """
-      JOIN range ON incoming.id = range.id
-      WHERE ? <= range.max AND ? >= range.min""",
-      [range_min, range_max])
+    return self._find_results(fn2,
+                              "JOIN range ON incoming.id = range.id "
+                              "WHERE ? <= range.max AND ? >= range.min",
+                              [range_min, range_max])
 
 
   def find_by_resource_bag(self, bag, fn2 = None):

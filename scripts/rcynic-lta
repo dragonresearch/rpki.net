@@ -323,7 +323,8 @@ class ConstrainedROA(ConstrainedObject):
       if isinstance(candidate, IncomingROA) and \
          self.constraint.mentioned_resources == candidate.resources and \
          (self.asn is None or self.asn == candidate.get_POW().getASID()):
-        print "Should drop ROA %r" % candidate
+        print "Dropping ROA %r" % candidate
+        candidate.disposition = "delete"
 
   def add(self, candidates):
     assert self.asn is not None
@@ -342,7 +343,10 @@ class ConstrainedGBR(ConstrainedObject):
   def drop(self, candidates):
     for candidate in candidates:
       if isinstance(candidate, IncomingX509) and self.constraint.mentioned_resources == candidate.resources:
-        print "Should drop GBRs directly under %r" % candidate
+        print "Dropping GBRs directly under %r" % candidate
+        for gbr in candidate.find_children("gbr"):
+          print "Dropping GBR %r" % gbr
+          gbr.disposition = "delete"
 
   def add(self, candidates):
     assert self.vcard is not None
@@ -368,7 +372,8 @@ class ConstrainedRTR(ConstrainedObject):
       if isinstance(candidate, IncomingX509) and not candidate.is_ca and \
          self.constraint.mentioned_resources == candidate.resources and \
          (self.subject is None or candidate.getSubject() == self.subject):
-        print "Should drop RTR certificate %r" % candidate
+        print "Dropping RTR certificate %r" % candidate
+        candidate.disposition = "delete"
 
 class Constraint(object):
 
@@ -467,8 +472,16 @@ class BaseObject(object):
     return self
 
   @property
+  def subject_id(self):
+    return self._subject_id
+
+  @property
   def subject_name(self):
     return self._rpdb.find_keyname_by_id(self._subject_id)[0]
+
+  @property
+  def issuer_id(self):
+    return self._issuer_id
 
   @property
   def issuer_name(self):
@@ -479,6 +492,7 @@ class IncomingObject(BaseObject):
 
   _depth = None
   _is_ca = False
+  _disposition = None
 
   @property
   def para_obj(self):
@@ -500,6 +514,18 @@ class IncomingObject(BaseObject):
       assert isinstance(value.rowid, int)
       self._rpdb.cur.execute("UPDATE incoming SET replacement = ? WHERE id = ?", (value.rowid, self.rowid))
       self._para_id = value.rowid
+
+  @property
+  def disposition(self):
+    if self._disposition is None:
+       self._disposition = self._rpdb.cur.execute("SELECT disposition FROM incoming "
+                                                  "WHERE id = ?", (self.rowid,)).fetchone()[0]
+    return self._disposition
+
+  @disposition.setter
+  def disposition(self, value):
+    self._rpdb.cur.execute("UPDATE incoming SET disposition = ? WHERE id = ?", (value, self.rowid))
+    self._disposition = value
 
   @classmethod
   def fromFile(cls, fn):
@@ -546,6 +572,9 @@ class BaseX509(rpki.x509.X509):
     r = self.get_3779resources()
     r.valid_until = None
     return r
+
+  def find_children(self, fn2 = None):
+    return self._rpdb._find_results(fn2, "WHERE issuer = ?", (self.subject_id,))
 
 
 class BaseCRL(rpki.x509.CRL):

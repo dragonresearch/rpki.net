@@ -323,7 +323,7 @@ class ConstrainedROA(ConstrainedObject):
       if isinstance(candidate, IncomingROA) and \
          self.constraint.mentioned_resources == candidate.resources and \
          (self.asn is None or self.asn == candidate.get_POW().getASID()):
-        print "Think I should drop ROA %r" % candidate
+        print "Should drop ROA %r" % candidate
 
   def add(self, candidates):
     assert self.asn is not None
@@ -342,7 +342,7 @@ class ConstrainedGBR(ConstrainedObject):
   def drop(self, candidates):
     for candidate in candidates:
       if isinstance(candidate, IncomingX509) and self.constraint.mentioned_resources == candidate.resources:
-        print "Think I should drop GBRs directly under %r" % candidate
+        print "Should drop GBRs directly under %r" % candidate
 
   def add(self, candidates):
     assert self.vcard is not None
@@ -365,10 +365,10 @@ class ConstrainedRTR(ConstrainedObject):
 
   def drop(self, candidates):
     for candidate in candidates:
-      if isinstance(candidate, IncomingX509) and not candidate.is_CA() and \
+      if isinstance(candidate, IncomingX509) and not candidate.is_ca and \
          self.constraint.mentioned_resources == candidate.resources and \
          (self.subject is None or candidate.getSubject() == self.subject):
-        print "Think I should drop RTR certificate %r" % candidate
+        print "Should drop RTR certificate %r" % candidate
 
 class Constraint(object):
 
@@ -478,6 +478,7 @@ class BaseObject(object):
 class IncomingObject(BaseObject):
 
   _depth = None
+  _is_ca = False
 
   @property
   def para_obj(self):
@@ -505,15 +506,20 @@ class IncomingObject(BaseObject):
     return cls._fn2map[os.path.splitext(fn)[1][1:]](DER_file = fn)
 
   @classmethod
-  def create(cls, rpdb, rowid, fn2, der, uri, subject_id, issuer_id, depth = None):
+  def create(cls, rpdb, rowid, fn2, der, uri, subject_id, issuer_id, depth = None, is_ca = False):
     assert der is not None
     self = super(IncomingObject, cls).create(rpdb, rowid, fn2, der, uri, subject_id, issuer_id)
     self._depth = depth
+    self._is_ca = is_ca
     return self
 
   @property
   def depth(self):
     return self._depth
+
+  @property
+  def is_ca(self):
+    return self._is_ca
 
   @property
   def issuer(self):
@@ -537,7 +543,9 @@ class BaseX509(rpki.x509.X509):
 
   @property
   def resources(self):
-    return self.get_3779resources()
+    r = self.get_3779resources()
+    r.valid_until = None
+    return r
 
 
 class BaseCRL(rpki.x509.CRL):
@@ -551,7 +559,9 @@ class CommonCMS(object):
 
   @property
   def resources(self):
-    return rpki.x509.X509(POW = self.get_POW().certs()[0]).get_3779resources()
+    r = rpki.x509.X509(POW = self.get_POW().certs()[0]).get_3779resources()
+    r.valid_until = None
+    return r
 
 
 class BaseSignedManifest        (rpki.x509.SignedManifest,      CommonCMS): pass
@@ -618,6 +628,7 @@ class RPDB(object):
                                 CHECK (fn2 IN ('cer', 'crl', 'mft', 'roa', 'gbr')),
                 uri             TEXT NOT NULL,
                 depth           INTEGER,
+                is_ca           BOOLEAN NOT NULL DEFAULT 0,
                 disposition     TEXT NOT NULL
                                 DEFAULT 'keep'
                                 CHECK (disposition IN ('keep', 'delete', 'replace')),
@@ -697,6 +708,7 @@ class RPDB(object):
           bag = None
           issuer = obj.getIssuer()
           subject = None
+          is_ca = False
 
         else:
           if obj.fn2 == "cer":
@@ -713,6 +725,7 @@ class RPDB(object):
           else:
             aki = buffer(aki)
           bag = cer.get_3779resources()
+          is_ca = cer.is_CA()
 
         der = buffer(obj.get_DER())
         uri = "rsync://" + fn[len(rcynic_input) + 1:]
@@ -727,8 +740,9 @@ class RPDB(object):
           subject_id = None if ski is None else self.find_keyname(subject, ski)
           issuer_id = self.find_keyname(issuer,  aki)
 
-          self.cur.execute("INSERT INTO incoming (der, fn2, subject, issuer, uri) VALUES (?, ?, ?, ?, ?)",
-                           (der, obj.fn2, subject_id, issuer_id, uri))
+          self.cur.execute("INSERT INTO incoming (der, fn2, subject, issuer, uri, is_ca) "
+                           "VALUES (?, ?, ?, ?, ?, ?)",
+                           (der, obj.fn2, subject_id, issuer_id, uri, is_ca))
           rowid = self.cur.lastrowid
 
           if bag is not None:
@@ -962,13 +976,13 @@ class RPDB(object):
       query += " AND fn2 = ?"
       args.append(fn2)
     results = []
-    for rowid, fn2, der, uri, subject_id, issuer_id, depth in self.cur.execute(
+    for rowid, fn2, der, uri, subject_id, issuer_id, depth, is_ca in self.cur.execute(
           '''
           SELECT DISTINCT
                 incoming.id, incoming.fn2,
                 incoming.der, incoming.uri,
                 incoming.subject, incoming.issuer,
-                incoming.depth
+                incoming.depth, incoming.is_ca
           FROM incoming
           ''' + query, args):
       if rowid in self.incoming_cache:
@@ -976,7 +990,8 @@ class RPDB(object):
         assert obj.rowid == rowid
       else:
         obj = IncomingObject.create(rpdb = self, rowid = rowid, fn2 = fn2, der = der, uri = uri,
-                                    subject_id = subject_id, issuer_id = issuer_id, depth = depth)
+                                    subject_id = subject_id, issuer_id = issuer_id, depth = depth,
+                                    is_ca = is_ca)
         self.incoming_cache[rowid] = obj
       results.append(obj)
     return results

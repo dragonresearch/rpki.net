@@ -39,6 +39,10 @@ common:
 
 constraints:
 
+  # Need something for a drop test, sorry Randy
+  - prefix: 147.28.224.0/19
+    drop:   roas
+
   - prefix: 10.0.0.0/8
     add:    [ { roa: { asn: 666, maxlen: 16 }},  *GBR-1 ]
 

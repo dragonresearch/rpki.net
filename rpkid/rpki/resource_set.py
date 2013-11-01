@@ -788,6 +788,14 @@ class resource_bag(object):
       s += "V6: %s" % self.v6
     return s
 
+  def __iter__(self):
+    for r in self.asn:
+      yield r
+    for r in self.v4:
+      yield r
+    for r in self.v6:
+      yield r
+
 # Sadly, there are enough differences between RFC 3779 and the data
 # structures in the latest proposed ROA format that we can't just use
 # the RFC 3779 code for ROAs.  So we need a separate set of classes

@@ -3597,7 +3597,8 @@ static int check_x509(rcynic_ctx_t *rc,
   certinfo->uri = *uri;
   certinfo->generation = generation;
 
-  if (ASN1_INTEGER_cmp(X509_get_serialNumber(x), asn1_zero) <= 0) {
+  if (ASN1_INTEGER_cmp(X509_get_serialNumber(x), asn1_zero) <= 0 ||
+      ASN1_INTEGER_cmp(X509_get_serialNumber(x), asn1_twenty_octets) > 0) {
     log_validation_status(rc, uri, bad_certificate_serial_number, generation);
     goto done;
   }

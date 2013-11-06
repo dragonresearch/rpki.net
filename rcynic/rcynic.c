@@ -268,6 +268,7 @@ static const struct {
   QB(roa_resources_malformed,		"ROA resources malformed")	    \
   QB(rsync_transfer_failed,		"rsync transfer failed")	    \
   QB(rsync_transfer_timed_out,		"rsync transfer timed out")	    \
+  QB(safi_not_allowed,			"SAFI not allowed")		    \
   QB(sia_cadirectory_uri_missing,	"SIA caDirectory URI missing")	    \
   QB(sia_extension_missing,		"SIA extension missing")	    \
   QB(sia_manifest_uri_missing,		"SIA manifest URI missing")	    \
@@ -275,6 +276,7 @@ static const struct {
   QB(ski_public_key_mismatch,		"SKI public key mismatch")	    \
   QB(trust_anchor_key_mismatch,		"Trust anchor key mismatch")	    \
   QB(trust_anchor_with_crldp,		"Trust anchor can't have CRLDP")    \
+  QB(unknown_afi,			"Unknown AFI")			    \
   QB(unknown_openssl_verify_error,	"Unknown OpenSSL verify error")	    \
   QB(unreadable_trust_anchor,		"Unreadable trust anchor")	    \
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
@@ -3574,8 +3576,8 @@ static int check_x509(rcynic_ctx_t *rc,
   STACK_OF(DIST_POINT) *crldp = NULL;
   BASIC_CONSTRAINTS *bc = NULL;
   hashbuf_t ski_hashbuf;
-  unsigned ski_hashlen;
-  int ok, crit, loc, ex_count, ret = 0;
+  unsigned ski_hashlen, afi;
+  int i, ok, crit, loc, ex_count, ret = 0;
 
   assert(rc && wsk && w && uri && x && w->cert);
 
@@ -3805,6 +3807,18 @@ static int check_x509(rcynic_ctx_t *rc,
 	sk_IPAddressFamily_num(x->rfc3779_addr) == 0) {
       log_validation_status(rc, uri, bad_ipaddrblocks, generation);
       goto done;
+    }
+    for (i = 0; i < sk_IPAddressFamily_num(x->rfc3779_addr); i++) {
+      IPAddressFamily *f = sk_IPAddressFamily_value(x->rfc3779_addr, i);
+      afi = v3_addr_get_afi(f);
+      if (afi != IANA_AFI_IPV4 && afi != IANA_AFI_IPV6) {
+	log_validation_status(rc, uri, unknown_afi, generation);
+	goto done;
+      }
+      if (f->addressFamily->length != 2) {
+	log_validation_status(rc, uri, safi_not_allowed, generation);
+	goto done;
+      }
     }
   }
 

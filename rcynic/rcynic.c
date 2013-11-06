@@ -264,6 +264,7 @@ static const struct {
   QB(object_rejected,			"Object rejected")		    \
   QB(rfc3779_inheritance_required,	"RFC 3779 inheritance required")    \
   QB(roa_contains_bad_afi_value,	"ROA contains bad AFI value")	    \
+  QB(roa_max_prefixlen_too_short,	"ROA maxPrefixlen too short")	    \
   QB(roa_resource_not_in_ee,		"ROA resource not in EE")	    \
   QB(roa_resources_malformed,		"ROA resources malformed")	    \
   QB(rsync_transfer_failed,		"rsync transfer failed")	    \
@@ -4530,12 +4531,13 @@ static int rsync_needed(rcynic_ctx_t *rc,
 static int extract_roa_prefix(const ROAIPAddress *ra,
 			      const unsigned afi,
 			      unsigned char *addr,
-			      unsigned *prefixlen)
+			      unsigned *prefixlen,
+			      unsigned *max_prefixlen)
 {
   unsigned length;
   long maxlen;
 
-  assert(addr && prefixlen && ra);
+  assert(ra && addr && prefixlen && max_prefixlen);
 
   maxlen = ASN1_INTEGER_get(ra->maxLength);
 
@@ -4558,8 +4560,8 @@ static int extract_roa_prefix(const ROAIPAddress *ra,
   }
 
   memset(addr + ra->IPAddress->length, 0, length - ra->IPAddress->length);
-
   *prefixlen = (ra->IPAddress->length * 8) - (ra->IPAddress->flags & 7);
+  *max_prefixlen = ra->maxLength ? (unsigned) maxlen : *prefixlen;
 
   return 1;
 }
@@ -4583,7 +4585,7 @@ static int check_roa_1(rcynic_ctx_t *rc,
   ROA *roa = NULL;
   X509 *x = NULL;
   int i, j, result = 0;
-  unsigned afi, *safi = NULL, safi_, prefixlen;
+  unsigned afi, *safi = NULL, safi_, prefixlen, max_prefixlen;
   ROAIPAddressFamily *rf;
   ROAIPAddress *ra;
 
@@ -4636,9 +4638,13 @@ static int check_roa_1(rcynic_ctx_t *rc,
     for (j = 0; j < sk_ROAIPAddress_num(rf->addresses); j++) {
       ra = sk_ROAIPAddress_value(rf->addresses, j);
       if (!ra ||
-	  !extract_roa_prefix(ra, afi, addrbuf, &prefixlen) ||
+	  !extract_roa_prefix(ra, afi, addrbuf, &prefixlen, &max_prefixlen) ||
 	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen)) {
 	log_validation_status(rc, uri, roa_resources_malformed, generation);
+	goto error;
+      }
+      if (max_prefixlen < prefixlen) {
+	log_validation_status(rc, uri, roa_max_prefixlen_too_short, generation);
 	goto error;
       }
     }

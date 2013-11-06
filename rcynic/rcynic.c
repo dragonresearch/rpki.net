@@ -223,6 +223,7 @@ static const struct {
   QB(bad_public_key,			"Bad public key")		    \
   QB(bad_roa_asID,			"Bad ROA asID")			    \
   QB(bad_certificate_serial_number,	"Bad certificate serialNumber")	    \
+  QB(bad_manifest_number,		"Bad manifestNumber")		    \
   QB(certificate_bad_signature,		"Bad certificate signature")	    \
   QB(certificate_failed_validation,	"Certificate failed validation")    \
   QB(cms_econtent_decode_error,		"CMS eContent decode error")	    \
@@ -255,7 +256,6 @@ static const struct {
   QB(manifest_lists_missing_object,	"Manifest lists missing object")    \
   QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
   QB(missing_resources,			"Missing resources")		    \
-  QB(negative_manifest_number,		"Negative manifestNumber")	    \
   QB(nonconformant_asn1_time_value,	"Nonconformant ASN.1 time value")   \
   QB(nonconformant_public_key_algorithm,"Nonconformant public key algorithm")\
   QB(nonconformant_signature_algorithm,	"Nonconformant signature algorithm")\
@@ -4298,8 +4298,9 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
       goto done;
   }
 
-  if (ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_zero) < 0) {
-    log_validation_status(rc, uri, negative_manifest_number, generation);
+  if (ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_zero) < 0 ||
+      ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_twenty_octets) > 0) {
+    log_validation_status(rc, uri, bad_manifest_number, generation);
     goto done;
   }
 

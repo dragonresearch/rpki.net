@@ -5533,7 +5533,7 @@ int main(int argc, char *argv[])
 
   if (!(asn1_zero          = s2i_ASN1_INTEGER(NULL, "0x0")) ||
       !(asn1_four_octets   = s2i_ASN1_INTEGER(NULL, "0xFFFFFFFF")) ||
-      !(asn1_twenty_octets = s2i_ASN1_INTEGER(NULL, "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")) ||
+      !(asn1_twenty_octets = s2i_ASN1_INTEGER(NULL, "0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")) ||
       !(NID_binary_signing_time = OBJ_create("1.2.840.113549.1.9.16.2.46",
 					    "id-aa-binarySigningTime",
 					    "id-aa-binarySigningTime"))) {

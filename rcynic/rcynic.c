@@ -253,6 +253,7 @@ static const struct {
   QB(malformed_roa_addressfamily,       "Malformed ROA addressFamily")	    \
   QB(malformed_tal_uri,			"Malformed TAL URI")		    \
   QB(manifest_carepository_mismatch,	"Manifest caRepository mismatch")   \
+  QB(manifest_interval_overruns_cert,   "Manifest interval overruns certificate") \
   QB(manifest_lists_missing_object,	"Manifest lists missing object")    \
   QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
   QB(missing_resources,			"Missing resources")		    \
@@ -3262,6 +3263,22 @@ static int check_allowed_time_encoding(ASN1_TIME *t)
   return 0;
 }
 
+/**
+ * Compare ASN1_TIME values.
+ */
+static int asn1_time_cmp(ASN1_TIME *t1, ASN1_TIME *t2)
+{
+  ASN1_GENERALIZEDTIME *g1 = ASN1_TIME_to_generalizedtime(t1, NULL);
+  ASN1_GENERALIZEDTIME *g2 = ASN1_TIME_to_generalizedtime(t2, NULL);
+
+  int cmp = ASN1_STRING_cmp(g1, g2);
+
+  ASN1_GENERALIZEDTIME_free(g1);
+  ASN1_GENERALIZEDTIME_free(g2);
+
+  return cmp;
+}
+
 
 
 /**
@@ -4311,6 +4328,12 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
     log_validation_status(rc, uri, stale_crl_or_manifest, generation);
     if (!rc->allow_stale_manifest)
       goto done;
+  }
+
+  if (asn1_time_cmp(manifest->thisUpdate, X509_get_notBefore(x)) < 0 ||
+      asn1_time_cmp(manifest->nextUpdate, X509_get_notAfter(x))  > 0) {
+    log_validation_status(rc, uri, manifest_interval_overruns_cert, generation);
+    goto done;
   }
 
   if (ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_zero) < 0 ||

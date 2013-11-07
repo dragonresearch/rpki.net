@@ -3794,7 +3794,7 @@ static int check_x509(rcynic_ctx_t *rc,
 
   if (X509_get_ext_by_NID(x, NID_ext_key_usage, -1) >= 0) {
     ex_count--;
-    if (certinfo->ca) {
+    if (certinfo->ca || !endswith(uri->s, ".cer")) {
       log_validation_status(rc, uri, inappropriate_eku_extension, generation);
       goto done;
     }

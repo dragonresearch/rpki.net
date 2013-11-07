@@ -4011,6 +4011,36 @@ static int check_x509(rcynic_ctx_t *rc,
 }
 
 /**
+ * Extract one datum from a CMS_SignerInfo.
+ */
+static void *extract_si_datum(CMS_SignerInfo *si,
+			      int *n,
+			      const int optional,
+			      const int nid,
+			      const int asn1_type)
+{
+  int i = CMS_signed_get_attr_by_NID(si, nid, -1);
+  void *result = NULL;
+  X509_ATTRIBUTE *a;
+
+  assert(si && n);
+
+  if (i < 0 && optional)
+    return NULL;
+
+  if (i >= 0 &&
+      CMS_signed_get_attr_by_NID(si, nid, i) < 0 &&
+      (a = CMS_signed_get_attr(si, i)) != NULL &&
+      X509_ATTRIBUTE_count(a) == 1 &&
+      (result = X509_ATTRIBUTE_get0_data(a, 0, asn1_type, NULL)) != NULL)
+    --*n;
+  else
+    *n = -1;
+
+  return result;
+}
+
+/**
  * Check a signed CMS object.
  */
 static int check_cms(rcynic_ctx_t *rc,
@@ -4039,7 +4069,6 @@ static int check_cms(rcynic_ctx_t *rc,
   STACK_OF(X509_CRL) *crls = NULL;
   X509_ALGOR *signature_alg = NULL, *digest_alg = NULL;
   ASN1_OBJECT *oid = NULL;
-  X509_ATTRIBUTE *si_contentType = NULL;
   hashbuf_t hashbuf;
   X509 *x = NULL;
   certinfo_t certinfo_;
@@ -4117,23 +4146,18 @@ static int check_cms(rcynic_ctx_t *rc,
 
   i = CMS_signed_get_attr_count(si);
 
-  if (CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1) >= 0)
-    --i;
+  (void) extract_si_datum(si, &i, 1, NID_pkcs9_signingTime,   V_ASN1_UTCTIME);
+  (void) extract_si_datum(si, &i, 1, NID_binary_signing_time, V_ASN1_INTEGER);
+  oid =  extract_si_datum(si, &i, 0, NID_pkcs9_contentType,   V_ASN1_OBJECT);
+  (void) extract_si_datum(si, &i, 0, NID_pkcs9_messageDigest, V_ASN1_OCTET_STRING);
 
-  if (CMS_signed_get_attr_by_NID(si, NID_binary_signing_time, -1) >= 0)
-    --i;
-
-  si_contentType = CMS_signed_get_attr(si, CMS_signed_get_attr_by_NID(si, NID_pkcs9_contentType, -1));
-
-  if (i != 2 || si_contentType == NULL ||
-      CMS_signed_get_attr_by_NID(si, NID_pkcs9_messageDigest, -1) < 0) {
+  if (i != 0) {
     log_validation_status(rc, uri, bad_cms_si_signed_attributes, generation);
     if (!rc->allow_wrong_cms_si_attributes)
       goto error;
   }
 
-  if ((oid = X509_ATTRIBUTE_get0_data(si_contentType, 0, V_ASN1_OBJECT, NULL)) == NULL ||
-      oid_cmp(oid, expected_eContentType, expected_eContentType_len)) {
+  if (oid_cmp(oid, expected_eContentType, expected_eContentType_len)) {
     log_validation_status(rc, uri, bad_cms_si_contenttype, generation);
     goto error;
   }

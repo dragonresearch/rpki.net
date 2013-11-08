@@ -931,6 +931,7 @@ class axfr_set(prefix_set):
   def parse_bgpdump_rib_dump(cls, filename):
     assert os.path.basename(filename).startswith("ribs.")
     self = cls()
+    self.serial = None
     for line in cls.read_bgpdump(filename):
       try:
         pfx = prefix.from_bgpdump(line, rib_dump = True)
@@ -938,6 +939,8 @@ class axfr_set(prefix_set):
         continue
       self.append(pfx)
       self.serial = pfx.timestamp
+    if self.serial is None:
+      sys.exit("Failed to parse anything useful from %s" % filename)
     self.sort()
     for i in xrange(len(self) - 2, -1, -1):
       if self[i] == self[i + 1]:

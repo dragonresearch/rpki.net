@@ -46,8 +46,14 @@
  * Read manifest (CMS object) in DER format.
  *
  * NB: When invoked this way, CMS_verify() does -not- verify, it just decodes the ASN.1.
+ *
+ * OK, this does more than just reading the CMS.  Refactor or rename, someday.
  */
-static const Manifest *read_manifest(const char *filename, const int print_cms, const int print_manifest, const int print_signerinfo)
+
+static const Manifest *read_manifest(const char *filename,
+				     const int print_cms,
+				     const int print_manifest,
+				     const int print_signerinfo)
 {
   CMS_ContentInfo *cms = NULL;
   const ASN1_OBJECT *oid = NULL;
@@ -103,14 +109,6 @@ static const Manifest *read_manifest(const char *filename, const int print_cms, 
     sk_X509_CRL_pop_free(crls, X509_CRL_free);
   }
 
-  if (print_cms) {
-    if ((b = BIO_new(BIO_s_fd())) == NULL)
-      goto done;
-    BIO_set_fd(b, 1, BIO_NOCLOSE);
-    CMS_ContentInfo_print_ctx(b, cms, 0, NULL);
-    BIO_free(b);
-  }
-
   if ((b = BIO_new(BIO_s_mem())) == NULL ||
       CMS_verify(cms, NULL, NULL, NULL, b, CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY) <= 0 ||
       (m = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), b, NULL)) == NULL)
@@ -142,7 +140,18 @@ static const Manifest *read_manifest(const char *filename, const int print_cms, 
     }
 
     if (X509_cmp_current_time(m->nextUpdate) < 0)
-      printf("MANIFEST HAS EXPIRED\n");
+      printf("MANIFEST IS STALE\n");
+  }
+
+  if (print_cms) {
+    if (print_manifest)
+      printf("\n");
+    fflush(stdout);
+    if ((b = BIO_new(BIO_s_fd())) == NULL)
+      goto done;
+    BIO_set_fd(b, 1, BIO_NOCLOSE);
+    CMS_ContentInfo_print_ctx(b, cms, 0, NULL);
+    BIO_free(b);
   }
 
  done:
@@ -158,14 +167,25 @@ static const Manifest *read_manifest(const char *filename, const int print_cms, 
  */
 int main (int argc, char *argv[])
 {
-  int result = 0;
+  int result = 0, print_cms = 0, c;
+  char *jane = argv[0];
+
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
-  if (argc < 2) {
-    fprintf(stderr, "usage: %s manifest [manifest...]\n", argv[0]);
-    return 1;
+
+  while ((c = getopt(argc, argv, "c")) != -1) {
+    switch (c) {
+    case 'c':
+      print_cms = 1;
+      break;
+    case '?':
+    default:
+      fprintf(stderr, "usage: %s [-c] manifest [manifest...]\n", jane);
+      return 1;
+    }
   }
-  while (--argc > 0)
-    result |=  read_manifest(*++argv, 0, 1, 1) == NULL;
+
+  while (argc-- > 0)
+    result |=  read_manifest(*argv++, print_cms, 1, 1) == NULL;
   return result;
 }

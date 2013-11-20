@@ -120,8 +120,16 @@ static void addr_expand(unsigned char *addr,
  * Read ROA (CMS object) in DER format.
  *
  * NB: When invoked this way, CMS_verify() does -not- verify, it just decodes the ASN.1.
+ *
+ * Well, OK, this function has evolved to doing a lot more than just
+ * reading the object.  Refactor or at least rename, someday.
  */
-static ROA *read_roa(const char *filename, const int print_cms, const int print_roa, const int print_signerinfo, const int print_brief, const int print_signingtime)
+static ROA *read_roa(const char *filename,
+		     const int print_cms,
+		     const int print_roa,
+		     const int print_signerinfo,
+		     const int print_brief,
+		     const int print_signingtime)
 {
   unsigned char addr[ADDR_RAW_BUF_LEN];
   CMS_ContentInfo *cms = NULL;
@@ -176,14 +184,6 @@ static ROA *read_roa(const char *filename, const int print_cms, const int print_
     }
     sk_X509_pop_free(certs, X509_free);
     sk_X509_CRL_pop_free(crls, X509_CRL_free);
-  }
-
-  if (print_cms) {
-    if ((b = BIO_new(BIO_s_fd())) == NULL)
-      goto done;
-    BIO_set_fd(b, 1, BIO_NOCLOSE);
-    CMS_ContentInfo_print_ctx(b, cms, 0, NULL);
-    BIO_free(b);
   }
 
   if ((b = BIO_new(BIO_s_mem())) == NULL ||
@@ -281,6 +281,17 @@ static ROA *read_roa(const char *filename, const int print_cms, const int print_
       printf("\n");
   }
 
+  if (print_cms) {
+    if (print_roa)
+      printf("\n");
+    fflush(stdout);
+    if ((b = BIO_new(BIO_s_fd())) == NULL)
+      goto done;
+    BIO_set_fd(b, 1, BIO_NOCLOSE);
+    CMS_ContentInfo_print_ctx(b, cms, 0, NULL);
+    BIO_free(b);
+  }
+
  done:
   if (ERR_peek_error())
     ERR_print_errors_fp(stderr);
@@ -296,24 +307,27 @@ static ROA *read_roa(const char *filename, const int print_cms, const int print_
  */
 int main (int argc, char *argv[])
 {
-  int result = 0, brief = 0, signingtime = 0, c;
+  int result = 0, print_brief = 0, print_signingtime = 0, print_cms = 0, c;
   char *jane = argv[0];
   ROA *r;
 
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  while ((c = getopt(argc, argv, "bs")) != -1) {
+  while ((c = getopt(argc, argv, "bcs")) != -1) {
     switch (c) {
     case 'b':
-      brief = 1;
+      print_brief = 1;
+      break;
+    case 'c':
+      print_cms = 1;
       break;
     case 's':
-      signingtime = 1;
+      print_signingtime = 1;
       break;
     case '?':
     default:
-      fprintf(stderr, "usage: %s [-b] [-s] ROA [ROA...]\n", jane);
+      fprintf(stderr, "usage: %s [-b] [-c] [-s] ROA [ROA...]\n", jane);
       return 1;
     }
   }
@@ -322,7 +336,7 @@ int main (int argc, char *argv[])
   argv += optind;
 
   while (argc-- > 0) {
-    r = read_roa(*argv++, 0, 1, !brief, brief, signingtime);
+    r = read_roa(*argv++, print_cms, 1, !print_brief, print_brief, print_signingtime);
     result |=  r == NULL;
     ROA_free(r);
   }

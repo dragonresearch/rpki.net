@@ -41,7 +41,9 @@ Usage:
 print_rpki_manifest prettyprints the content of a manifest. It does NOT attempt
 to verify the signature. Usage:
 
-  $ print_rpki_manifest manifest [manifest...]
+  $ print_rpki_manifest [-c] manifest [manifest...]
+
+-c Print text representation of entire CMS blob
 
 ***** print_roa *****
 
@@ -50,9 +52,11 @@ signature.
 
 Usage:
 
-  $ print_roa [-b] [-s] ROA [ROA...]
+  $ print_roa [-b] [-c] [-s] ROA [ROA...]
 
 -b Brief mode (only show ASN and prefix)
+
+-c Print text representation of entire CMS blob
 
 -s Show CMS signingTime
 

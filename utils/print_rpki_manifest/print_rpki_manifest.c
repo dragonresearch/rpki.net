@@ -59,13 +59,14 @@ static const Manifest *read_manifest(const char *filename,
   const ASN1_OBJECT *oid = NULL;
   const Manifest *m = NULL;
   char buf[512];
-  BIO *b;
+  BIO *b = NULL;
   int i, j;
 
   if ((b = BIO_new_file(filename, "r")) == NULL ||
       (cms = d2i_CMS_bio(b, NULL)) == NULL)
     goto done;
   BIO_free(b);
+  b = NULL;
 
   if (print_signerinfo) {
     STACK_OF(CMS_SignerInfo) *signerInfos = CMS_get0_SignerInfos(cms);
@@ -113,6 +114,8 @@ static const Manifest *read_manifest(const char *filename,
       CMS_verify(cms, NULL, NULL, NULL, b, CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY) <= 0 ||
       (m = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), b, NULL)) == NULL)
     goto done;
+  BIO_free(b);
+  b = NULL;
 
   if (print_manifest) {
 
@@ -152,6 +155,7 @@ static const Manifest *read_manifest(const char *filename,
     BIO_set_fd(b, 1, BIO_NOCLOSE);
     CMS_ContentInfo_print_ctx(b, cms, 0, NULL);
     BIO_free(b);
+    b = NULL;
   }
 
  done:

@@ -136,13 +136,14 @@ static ROA *read_roa(const char *filename,
   const ASN1_OBJECT *oid = NULL;
   ROA *r = NULL;
   char buf[512];
-  BIO *b;
+  BIO *b = NULL;
   int i, j, k, n;
 
   if ((b = BIO_new_file(filename, "r")) == NULL ||
       (cms = d2i_CMS_bio(b, NULL)) == NULL)
     goto done;
   BIO_free(b);
+  b = NULL;
 
   if (print_signerinfo) {
     STACK_OF(CMS_SignerInfo) *signerInfos = CMS_get0_SignerInfos(cms);
@@ -190,6 +191,8 @@ static ROA *read_roa(const char *filename,
       CMS_verify(cms, NULL, NULL, NULL, b, CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY) <= 0 ||
       (r = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), b, NULL)) == NULL)
     goto done;
+  BIO_free(b);
+  b = NULL;
 
   if (print_roa) {
 
@@ -290,6 +293,7 @@ static ROA *read_roa(const char *filename,
     BIO_set_fd(b, 1, BIO_NOCLOSE);
     CMS_ContentInfo_print_ctx(b, cms, 0, NULL);
     BIO_free(b);
+    b = NULL;
   }
 
  done:

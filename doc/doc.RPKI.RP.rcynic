@@ -536,7 +536,7 @@ rcynic-html will write a collection of HTML and image files to the specified
 output directory, along with a set of RRD databases. rcynic-html will create
 the output directory if necessary.
 
-rcynic-html requires rrdtool, a specialized database and graphing engine
+rcynic-html requires `rrdtool`, a specialized database and graphing engine
 designed for this sort of work. You can run rcynic-html without rrdtool by
 giving it the --no-show-graphs option, but the result won't be as useful.
 
@@ -552,9 +552,9 @@ binary option:
 
 rcynic.xsl was an earlier attempt at the same kind of HTML display as rcynic-
 html. XSLT was a convenient language for our initial attempts at this, but as
-the processing got more and more complex, the speed and flexibility
-restrictions of XSLT became prohibitive. If for some reason XSLT works better
-in your environment than Python, you might find this stylesheet to be a useful
+the processing got more and more complex, it became obvious that we needed a
+general purpose programming language. If for some reason XSLT works better in
+your environment than Python, you might find this stylesheet to be a useful
 starting point, but be warned that it's significantly slower than rcynic-html,
 lacks many features, and is no longer under development.
 
@@ -579,3 +579,44 @@ Usage:
   $ validation_status rcynic.xml
   $ validation_status rcynic.xml | fgrep rpki.misbehaving.org
   $ validation_status rcynic.xml | fgrep object_rejected
+
+**** rcynic-svn ****
+
+rcynic-svn is a tool for archiving rcynic's results in a Subversion repository.
+rcynic-svn is not integrated into rcynic-cron, because this is not something
+that every relying party is going to want to do. However, for relying parties
+who want to analyze rcynic's output over a long period of time, rcynic-svn may
+provide a useful starting point starting point.
+
+To use rcynic-svn, you first must set up a Subversion repository and check out
+a working directory:
+
+  $ svnadmin create /some/where/safe/rpki-archive
+  $ svn co file:///some/where/safe/rpki-archive /some/where/else/rpki-archive
+
+The name can be anything you like, in this example we call it "rpki-archive".
+The above sequence creates the repository, then checks out an empty working
+directory /some/where/else/rpki-archive.
+
+The repository does not need to be on the same machine as the working
+directory, but it probably should be for simplicity unless you have some strong
+need to put it elsewhere.
+
+Once you have the repository and working directory set up, you need to arrange
+for rcynic-svn to be run after each rcynic run whose results you want to
+archive. One way to do this would be to run rcynic-svn in the same cron job as
+rcynic-cron, immediately after rcynic-cron and specifying the same lock file
+that rcynic-cron uses.
+
+Sample usage, assuming that rcynic's data is in the usual place:
+
+  $ rcynic-svn --lockfile /var/rcynic/data/lock   \
+          /var/rcynic/data/authenticated          \
+          /var/rcynic/data/unauthenticated        \
+          /var/rcynic/data/rcynic.xml             \
+          /some/where/else/rpki-archive
+
+where the last argument is the name of the Subversion working directory and the
+other arguments are the names of those portions of rcynic's output which you
+wish to archive. Generally, the above set (authenticated, unauthenticated, and
+rcynic.xml) are the ones you want, but feel free to experiment.

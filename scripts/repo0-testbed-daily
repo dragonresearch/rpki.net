@@ -1,0 +1,19 @@
+#!/bin/sh -
+# $Id: daily 602 2013-06-02 18:00:25Z sra $
+
+home=/home/sra/rpki.testbed
+
+exec >>$home/logs/daily.log 2>&1
+
+set -x
+
+date
+
+cd $home
+
+/usr/local/sbin/rpkic update_bpki
+
+/usr/local/bin/svn update
+/usr/local/bin/svn add --force .
+/usr/local/bin/svn ci --message 'Daily auto update'
+/usr/local/bin/svn update

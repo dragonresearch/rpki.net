@@ -1,0 +1,96 @@
+#!/bin/sh -
+# $Id: weekly 756 2013-11-21 22:54:28Z sra $
+#
+# Run weekly periodic IR back-end tasks.
+
+home=/home/sra/rpki.testbed
+
+top=/home/sra/subvert-rpki.hactrn.net/trunk
+
+exec >>$home/logs/weekly.log 2>&1
+set -x
+date
+
+export OPENSSL_CONF=/dev/null 
+for openssl in $top/openssl/openssl/apps/openssl /usr/local/bin/openssl
+do
+    test -x $openssl && break
+done
+
+## Download all input files.  See the fetch script for the current
+## list of files, but for a long time now it's been:
+##
+##    http://www.iana.org/assignments/as-numbers/as-numbers.xml
+##    http://www.iana.org/assignments/ipv4-address-space/ipv4-address-space.xml
+##    http://www.iana.org/assignments/ipv6-unicast-address-assignments/ipv6-unicast-address-assignments.xml
+##    ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.aut-num.gz
+##    ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz
+##    ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inet6num.gz
+##    ftp://ftp.ripe.net/pub/stats/ripencc/membership/alloclist.txt
+##    ftp://ftp.apnic.net/public/stats/apnic/delegated-apnic-extended-latest
+##
+## Along with an ARIN bulkwhois dump which we get under a research NDA
+## and retrieve via a mechanism that I'm not going to describe here.
+
+/bin/sh -x $home/scripts/fetch
+
+## Process ARIN data first -- we need erx.csv, which comes from ARIN.
+
+cd $home/arin
+/usr/local/bin/unzip -p arin_db.zip arin_db.xml |
+/usr/local/bin/python $top/scripts/arin-to-csv.py
+/usr/local/bin/python $top/scripts/translate-handles.py asns.csv prefixes.csv
+
+## Process IANA data, now that we have erx.csv.
+
+cd $home/iana
+/usr/local/bin/python $top/scripts/iana-to-csv.py
+
+## Process APNIC data.
+
+cd $home/apnic
+/usr/local/bin/python $top/scripts/apnic-to-csv.py
+/usr/local/bin/python $top/scripts/translate-handles.py asns.csv prefixes.csv
+
+## Process RIPE data.  RIPE's database is a horror, the less said
+## about it the better.
+##
+## Somewhere along the line we seem to have stopped even trying to
+## generate the ASN database for RIPE, not sure why.  I've restored it
+## here, guess we'll find out if there was a reason why we disabled it.
+
+cd $home/ripe
+/usr/local/bin/python $top/scripts/ripe-asns-to-csv.py 
+/usr/bin/awk -f $top/scripts/ripe-prefixes-to-csv.awk alloclist.txt |
+/bin/cat extra-prefixes.csv - |
+/usr/bin/sort -uo prefixes.csv
+/usr/local/bin/python $top/scripts/translate-handles.py asns.csv prefixes.csv
+/usr/bin/sort -uo prefixes.csv prefixes.csv
+
+## Not yet doing anything for AfriNIC, LACNIC, or Legacy.
+
+## Generate root certificate.  This is a lot simpler now that we're pretending to be the One True Root.
+
+cd $home/root
+$openssl req -new -x509 -days 90 -set_serial $(/bin/date -u +%s) -config root.conf -out root.cer -key root.key -outform DER
+/bin/cp -fp root.cer root.cer.dup &&
+/bin/mv -f root.cer.dup /home/pubd/publication/root.cer
+
+## Whack all the files into subversion.
+
+cd $home
+/usr/local/bin/svn update
+/usr/local/bin/svn add --force .
+/usr/local/bin/svn ci --message 'Weekly auto update'
+/usr/local/bin/svn update
+
+## Feed all the new data into the IRDB.
+
+for entity in iana afrinic apnic arin lacnic legacy ripe
+do
+  for resource in asns prefixes
+  do
+    /bin/test -r $entity/$resource.csv &&
+    /usr/local/sbin/rpkic --identity $entity load_$resource $entity/$resource.csv
+  done
+done

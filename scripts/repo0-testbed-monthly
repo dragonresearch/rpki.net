@@ -1,0 +1,22 @@
+#!/bin/sh -
+# $Id: monthly 602 2013-06-02 18:00:25Z sra $
+
+home=/home/sra/rpki.testbed
+
+exec >>$home/logs/monthly.log 2>&1
+
+set -x
+
+date
+
+cd $home
+
+for identity in iana afrinic apnic arin lacnic legacy ripe
+do
+    /usr/local/sbin/rpkic -i $identity renew_all_children
+done
+
+/usr/local/bin/svn update
+/usr/local/bin/svn add --force .
+/usr/local/bin/svn ci --message 'Monthly auto update'
+/usr/local/bin/svn update

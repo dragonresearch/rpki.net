@@ -5,12 +5,12 @@ actual RPKI validation. Most of the other relying party tools just use rcynic's
 output.
 
 The name is short for "cynical rsync", because rcynic's task involves an
-interleaved process of rsync retrieval and validation.
+interleaved process of rsync retrieval and RPKI validation.
 
 This code was developed on FreeBSD, and has been tested most heavily on FreeBSD
-versions 6-STABLE through 8-STABLE. It is also known to run work on Ubuntu
-(12.04 LTS) and Mac OS X (Snow Leopard). In theory it should run on any
-reasonably POSIX-like system. As far as we know rcynic does not use any
+versions 6-STABLE through 8-STABLE. It is also known to work on Ubuntu (12.04
+LTS), Debian (Wheezy) and Mac OS X (Snow Leopard). In theory it should run on
+any reasonably POSIX-like system. As far as we know, rcynic does not use any
 seriously non-portable features, but neither have we done a POSIX reference
 manual lookup for every function call. Please report any portability problems.
 
@@ -23,7 +23,7 @@ goes well, this should "just work".
 
 rcynic has the ability to do all of its work in a chroot jail. This used to be
 the default configuration, but integrating this properly with platform-specific
-packaging systems (FreeBSD ports, apt-get on Ubuntu or Debian, etc) proved
+packaging systems (FreeBSD ports, apt-get on Ubuntu and Debian, etc) proved
 impractical. You can still get this behavior if you need it, by installing from
 source and using the --enable-rcynic-jail option to ./configure.
 
@@ -43,21 +43,23 @@ rcynic stores its database using filenames derived from the RPKI rsync URIs at
 which the data are published.
 
 All configuration is via an OpenSSL-style configuration file, except for
-selection of the name of the configuration file itself. A few of the parameters
+selection of the name of the configuration file itself. A few other parameters
 can also be set from the command line. The default name for the configuration
 is "rcynic.conf"; you can override this with the -c option on the command line.
-The config file uses OpenSSL's config file syntax, and you can set OpenSSL
-library configuration paramaters (eg, "engine" settings) in the config file as
-well. rcynic's own configuration parameters are in a section called "[rcynic]".
+The configuration file uses OpenSSL's configuration file syntax, and you can
+set OpenSSL library configuration paramaters (eg, "engine" settings) in the
+config file as well. rcynic's own configuration parameters are in a section
+called "[rcynic]".
 
 Most configuration parameters are optional and have defaults which should do
 something reasonable if you are running rcynic in a test directory. If you're
-running rcynic as a system progran, perhaps under cron, you'll want to set
-additional parameters to tell rcynic where to find its data and where to write
-its output (the installation process sets these parameters for you). The
-configuration file itself, however, is not optional. In order for rcynic to do
-anything useful, your configuration file MUST tell rcynic where to find one or
-more RPKI trust anchors or trust anchor locators.
+running rcynic as a system program, perhaps under cron via the rcynic-cron
+script, you'll want to set additional parameters to tell rcynic where to find
+its data and where to write its output (the installation process sets these
+parameters for you). The configuration file itself, however, is not optional.
+In order for rcynic to do anything useful, your configuration file MUST at
+minimum tell rcynic where to find one or more RPKI trust anchors or trust
+anchor locators (TALs).
 
 **** Trust anchors ****
 
@@ -92,9 +94,10 @@ technically correct, may not be useful.
 See the make-tal.sh script in this directory if you need to generate your own
 TAL file for a trust anchor.
 
-As of this writing, there still is no global trust anchor for the RPKI system,
-so you have to provide separate trust anchors for each Regional Internet
-Registry (RIR) which is publishing RPKI data:
+As of this writing, there still is no single global trust anchor for the RPKI
+system, so you have to provide separate trust anchors for each Regional
+Internet Registry (RIR) which is publishing RPKI data. The installation process
+installs the ones it knows about.
 
 Example of a minimal config file specifying nothing but trust anchor locators:
 
@@ -127,7 +130,7 @@ unauthenticated::
 authenticated::
 
      Data which rcynic has checked. This is the real output of the
-     process.
+     validation process.
 
 authenticated is really a symbolic link to a directory with a name of the form
 "authenticated.<timestamp>", where <timestamp> is an ISO 8601 timestamp like
@@ -137,7 +140,7 @@ process completes. The intent is that authenticated always points to the most
 recent usable validation results, so that programs which use rcynic's output
 don't need to worry about whether an rcynic run is in progress.
 
-rynic installs trust anchors specified via the trust-anchor-locator directive
+rcynic installs trust anchors specified via the trust-anchor-locator directive
 in the unauthenticated tree just like any other fetched object, and copies them
 into the authenticated trees just like any other object once they pass rcynic's
 checks.
@@ -150,7 +153,7 @@ same values that OpenSSL's c_hash Perl script would produce. The reason for
 this naming scheme is that these trust anchors, by definition, are not fetched
 automatically, and thus do not really have publication URIs in the sense that
 every other object in these trees do. So rcynic uses a naming scheme which
-insures
+insures:
 
 * that each trust anchor has a unique name within the output tree and
 
@@ -167,7 +170,7 @@ anchor-locator directives, respectively.
 
 **** Logging levels ****
 
-rcynic has its own system of logging levels, similar to what syslog() uses but
+rcynic has its own system of logging levels, similar to what syslog() uses, but
 customized to the specific task rcynic performs.
 
 log_sys_err   Error from operating system or library
@@ -241,10 +244,8 @@ with unreachable repositories. Used improperly, this option can generate
 excessive load on repositories, cause synchronization to be interrupted by
 firewalls, and generally creates create a public nuisance. Use with caution.
 
-As of this writing, values in the range 2-4 are reasonably safe. At least one
-RIR currently refuses service at settings above 4, and another RIR appears to
-be running some kind of firewall that silently blocks connections when it
-thinks decides that the connection rate is excessive.
+As of this writing, values in the range 2-4 are reasonably safe. Values above
+10 have been known to cause problems.
 
 rcynic can't really detect all of the possible problems created by excessive
 values of this parameter, but if rcynic's report shows that both successful
@@ -321,7 +322,7 @@ specified in number of seconds. rcynic will pick a random number within the
 interval from zero to this value, and will delay for that many seconds on
 startup. The purpose of this is to spread the load from large numbers of rcynic
 clients all running under cron with synchronized clocks, in particular to avoid
-hammering the RPKI rsync servers into the ground at midnight UTC.
+hammering the global RPKI rsync servers into the ground at midnight UTC.
 
 Default: 600
 
@@ -339,7 +340,7 @@ Default: no lock
 Enable output of a per-host summary at the end of an rcynic run in XML format.
 
 Value: filename to which XML summary should be written; "-" will send XML
-summary to stdout.
+summary to standard output.
 
 Default: no XML summary.
 
@@ -426,8 +427,14 @@ Default: true
 **** allow-non-self-signed-trust-anchor ****
 
 Experimental. Attempts to work around OpenSSL's strong preference for self-
-signed trust anchors. Do not even consider enabling this unless you are
-intimately familiar with X.509 and really know what you are doing.
+signed trust anchors.
+
+We're not going to explain this one in any further detail. If you really want
+to know what it does, Use The Source.
+
+Do not even consider enabling this option unless you are intimately familiar
+with both X.509 and the internals of OpenSSL's X509_verify_cert() function and
+really know what you are doing.
 
 Values: true or false.
 
@@ -435,15 +442,15 @@ Default: false
 
 **** run-rsync ****
 
-Whether to run rsync to fetch data. You don't want to change this except when
-building complex topologies where rcynic running on one set of machines acts as
-aggregators for another set of validators. A large ISP might want to build such
-a topology so that they could have a local validation cache in each POP while
-minimizing load on the global repository system and maintaining some degree of
-internal consistancy between POPs. In such cases, one might want the rcynic
-instances in the POPs to validate data fetched from the aggregators via an
-external process, without the POP rcynic instances attempting to fetch anything
-themselves.
+Whether to run rsync to fetch data. You don't generally want to change this
+except when building complex topologies where rcynic running on one set of
+machines acts as aggregators for another set of validators. A large ISP might
+want to build such a topology so that they could have a local validation cache
+in each POP while minimizing load on the global repository system and
+maintaining some degree of internal consistancy between POPs. In such cases,
+one might want the rcynic instances in the POPs to validate data fetched from
+the aggregators via an external process, without the POP rcynic instances
+attempting to fetch anything themselves.
 
 Values: true or false.
 
@@ -474,7 +481,7 @@ behavior when run with this option set to false.
 
 Skipping the rsync fetch when we already have a valid cached manifest can
 significantly reduce the total number of rsync connections we need to make, and
-significantly reduce the load each validator places on the authoritative
+significantly reduce the load that each validator places on the authoritative
 publication servers. As with any caching scheme, however, there are some
 potential problems involved with not fetching the latest data, and we don't yet
 have enough experience with this option to know how this will play out in
@@ -493,10 +500,13 @@ No default.
 
 **** trust-anchor-locator ****
 
-Specify one RPKI trust anchor, represented as a local file containing an rsync
-URI and the RSA public key of the X.509 object specified by the URI. First line
-of the file is the URI, remainder is the public key in Base64 encoded DER
-format. Value of this option is the pathname of the file.
+Specify one RPKI trust anchor locator, represented as a local file in the
+format specified in RFC-6490. This a simple text format containing an rsync URI
+and the RSA public key of the X.509 object specified by the URI; the first line
+of the file is the URI, the remainder is the public key in Base64 encoded DER
+format.
+
+Value of this option is the pathname of the file.
 
 No default.
 
@@ -550,13 +560,15 @@ binary option:
 
 **** rcynic.xsl ****
 
-rcynic.xsl was an earlier attempt at the same kind of HTML display as rcynic-
-html. XSLT was a convenient language for our initial attempts at this, but as
-the processing got more and more complex, it became obvious that we needed a
-general purpose programming language. If for some reason XSLT works better in
-your environment than Python, you might find this stylesheet to be a useful
-starting point, but be warned that it's significantly slower than rcynic-html,
-lacks many features, and is no longer under development.
+rcynic.xsl was an earlier attempt at the same kind of HTML output as rcynic-
+html generates. XSLT was a convenient language for our initial attempts at
+this, but as the processing involved got more complex, it became obvious that
+we needed a general purpose programming language.
+
+If for some reason XSLT works better in your environment than Python, you might
+find this stylesheet to be a useful starting point, but be warned that it's
+significantly slower than rcynic-html, lacks many features, and is no longer
+under development.
 
 **** rcynic-text ****
 

@@ -92,7 +92,7 @@ parser.add_argument("--verbatim", action = "store_true", help = \
                     False means map the current authenticated/ tree in
                     rcynic's output to a stable authenticated/ subtree
                     in the subversion repository, with file and
-                    directory anmes from the command line shorted to
+                    directory names from the command line shorted to
                     their last component.
                     """)
 

@@ -1,16 +1,16 @@
 ****** rpki-rtr ******
 
-rtr-origin is an implementation of the rpki-rtr protocol.
+rtr-origin is an implementation of the "RPKI-router" protocol (RFC-6810).
 
-rtr-origin depends on rcynic to collect and validate the RPKI data. rtr-
+rtr-origin depends on `rcynic` to collect and validate the RPKI data. rtr-
 origin's's job is to serve up that data in a lightweight format suitable for
 routers that want to do prefix origin authentication.
 
 To use rtr-origin, you need to do two things beyond just running rcynic:
 
-  1. You need to post-process rcynic's output into the data files used by rtr-
-     origin. The rcynic-cron script handles this automatically, so the default
-     installation should already be taking care of this for you.
+  1. You need to post-process `rcynic`'s output into the data files used by
+     rtr-origin. The rcynic-cron script handles this automatically, so the
+     default installation should already be taking care of this for you.
   2. You need to set up a listener for the rtr-origin server, using the
      generated data files. The platform-specific packages for FreeBSD, Debian,
      and Ubuntu automatically set up a plain TCP listener, but you will have to
@@ -111,7 +111,7 @@ To run rtr-origin under sshd, you need to:
 
   Subsystem rpki-rtr /usr/local/bin/rtr-origin
 
-  1. Configure the userid(s) you expect ssh clients to use to connect to the
+  1. Configure the userid(s) you expect SSH clients to use to connect to the
      server. For operational use you almost certainly do NOT want this user to
      have a normal shell, instead you should configure its shell to be the
      server (/usr/local/bin/rtr-origin or wherever you've installed it on your
@@ -121,14 +121,14 @@ To run rtr-origin under sshd, you need to:
      set the password(s) here when configuring the userid(s).
   2. Configure the .ssh/authorized_keys file for your clients; if you're using
      the example values given above, this would be /var/rcynic/rpki-rtr/.ssh/
-     authorized_keys. You can have multiple ssh clients using different keys
-     all logging in as the same ssh user, you just have to list all of the ssh
+     authorized_keys. You can have multiple SSH clients using different keys
+     all logging in as the same SSH user, you just have to list all of the SSH
      keys here. You may want to consider using a command= parameter in the key
-     line (see the sshd(8) man page) to lock down the ssh keys listed here so
+     line (see the sshd(8) man page) to lock down the SSH keys listed here so
      that they can only be used to run the rpki-rtr service.
 
      If you're running a separate sshd for this purpose, you might also
-     want to add an AuthorizedKeysFile entry pointing at this
+     want to add an !AuthorizedKeysFile entry pointing at this
      authorized_keys file so that the server will only use this
      authorized_keys file regardless of what other user accounts might
      exist on the machine:
@@ -156,7 +156,7 @@ running the rpki-rtr link over an unsecured TCP connection.
 rtr-origin has two other modes which might be useful for debugging:
 
   1. --client mode implements a dumb client program for this protocol, over
-     ssh, raw TCP, or by invoking --server mode directly in a subprocess. The
+     SSH, raw TCP, or by invoking --server mode directly in a subprocess. The
      output is not expected to be useful except for debugging. Either run it
      locally where you run the cron job, or run it anywhere on the net, as in
 

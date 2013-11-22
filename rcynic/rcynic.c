@@ -213,6 +213,7 @@ static const struct {
   QB(aki_extension_missing,		"AKI extension missing")	    \
   QB(aki_extension_wrong_format,	"AKI extension is wrong format")    \
   QB(bad_asidentifiers,			"Bad ASIdentifiers extension")	    \
+  QB(bad_certificate_policy,		"Bad certificate policy")	    \
   QB(bad_cms_econtenttype,		"Bad CMS eContentType")		    \
   QB(bad_cms_si_contenttype,		"Bad CMS SI ContentType")	    \
   QB(bad_cms_signer_infos,		"Bad CMS signerInfos")		    \
@@ -245,7 +246,6 @@ static const struct {
   QB(malformed_aia_extension,		"Malformed AIA extension")	    \
   QB(malformed_sia_extension,		"Malformed SIA extension")	    \
   QB(malformed_basic_constraints,	"Malformed basicConstraints")	    \
-  QB(malformed_certificate_policy,	"Malformed certificate policy")	    \
   QB(malformed_trust_anchor,		"Malformed trust anchor")	    \
   QB(malformed_cadirectory_uri,		"Malformed caDirectory URI")	    \
   QB(malformed_crldp_extension,		"Malformed CRDLP extension")	    \
@@ -296,6 +296,7 @@ static const struct {
   QW(multiple_rsync_uris_in_extension,  "Multiple rsync URIs in extension") \
   QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
   QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
+  QW(policy_qualifier_cps,		"Policy Qualifier CPS")		\
   QW(rsync_partial_transfer,		"rsync partial transfer")	    \
   QW(rsync_transfer_skipped,		"rsync transfer skipped")	    \
   QW(sia_extension_missing_from_ee,	"SIA extension missing from EE")    \
@@ -3834,11 +3835,21 @@ static int check_x509(rcynic_ctx_t *rc,
   }
 
   if ((policies = X509_get_ext_d2i(x, NID_certificate_policies, &crit, NULL)) != NULL) {
+    POLICYQUALINFO *qualifier = NULL;
+    POLICYINFO *policy = NULL;
     ex_count--;
-    if (!crit || sk_POLICYINFO_num(policies) != 1) {
-      log_validation_status(rc, uri, malformed_certificate_policy, generation);
+    if (!crit || sk_POLICYINFO_num(policies) != 1 ||
+	(policy = sk_POLICYINFO_value(policies, 0)) == NULL ||
+	OBJ_obj2nid(policy->policyid) != NID_cp_ipAddr_asNumber ||
+	sk_POLICYQUALINFO_num(policy->qualifiers) > 1 ||
+	(sk_POLICYQUALINFO_num(policy->qualifiers) == 1 &&
+	 ((qualifier = sk_POLICYQUALINFO_value(policy->qualifiers, 0)) == NULL ||
+	  OBJ_obj2nid(qualifier->pqualid) != NID_id_qt_cps))) {
+      log_validation_status(rc, uri, bad_certificate_policy, generation);
       goto done;
     }
+    if (qualifier)
+      log_validation_status(rc, uri, policy_qualifier_cps, generation);
   }
 
   if (!X509_EXTENSION_get_critical(X509_get_ext(x, X509_get_ext_by_NID(x, NID_key_usage, -1))) ||

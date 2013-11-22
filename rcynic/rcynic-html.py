@@ -37,6 +37,7 @@ opt = {
   "refresh"                     : 1800,
   "show-problems"               : True,
   "show-graphs"                 : True,
+  "show-object-counts"          : True,
   "update-rrds"                 : True,
   "png-height"                  : 190,
   "png-width"                   : 1350,
@@ -584,6 +585,31 @@ class HTML(object):
         td.text = str(count)
     return table
 
+  def object_count_table(self, session):
+    table = self.BodyElement("table", rules = "all", border = "1")
+    thead = SubElement(table, "thead")
+    tbody = SubElement(table, "tbody")
+    tfoot = SubElement(table, "tfoot")
+    fn2s  = [fn2 for fn2 in session.fn2s if fn2 is not None]
+    total = dict((fn2, 0) for fn2 in fn2s)
+    for hostname in session.hostnames:
+      tr = SubElement(tbody, "tr")
+      SubElement(tr, "td").text = hostname
+      for fn2 in fn2s:
+        td = SubElement(tr, "td")
+        count = sum(uri.endswith(fn2) for uri in session.hosts[hostname].uris)
+        total[fn2] += count
+        if count > 0:
+          td.text = str(count)
+    trhead = SubElement(thead, "tr")
+    trfoot = SubElement(tfoot, "tr")
+    SubElement(trhead, "th").text = "Repository"
+    SubElement(trfoot, "td").text = "Total"
+    for fn2 in fn2s:
+      SubElement(trhead, "th").text = fn2
+      SubElement(trfoot, "td").text = str(total[fn2])
+    return table
+
   def detail_table(self, records):
     if records:
       table = self.BodyElement("table", rules = "all", border = "1")
@@ -632,6 +658,12 @@ def main():
   html = HTML("rcynic summary", "index")
   html.BodyElement("h2").text = "Grand totals for all repositories"
   html.counter_table(session.get_sum, Label.get_count)
+  if opt["show-object-counts"]:
+    html.BodyElement("br")
+    html.BodyElement("hr")
+    html.BodyElement("br")
+    html.BodyElement("h2").text = "Current total object counts (distinct URIs)"
+    html.object_count_table(session)
   for hostname in session.hostnames:
     html.BodyElement("br")
     html.BodyElement("hr")

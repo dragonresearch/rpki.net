@@ -580,54 +580,88 @@ struct rcynic_ctx {
   log_level_t log_level;
   X509_STORE *x509_store;
 };
+
+
+
+/*
+ * Handle NIDs we wish OpenSSL knew about.  This is carefully (we
+ * hope) written to do nothing at all for any NID that OpenSSL knows
+ * about; the intent is just to add definitions for things OpenSSL
+ * doesn't know about yet.  Of necessity, this is a bit gross, since
+ * it confounds runtime static variables with predefined macro names,
+ * but we try to put all the magic associated with this in one place.
+ *
+ * In the long run it might be cleaner to generate this with a trivial
+ * script and put the result in a shared .h file, but this will do for
+ * the moment.
+ */
+
+#ifndef    NID_ad_rpkiManifest
+static int NID_ad_rpkiManifest;
+#endif
+
+#ifndef    NID_ad_signedObject
+static int NID_ad_signedObject;
+#endif
+
+#ifndef    NID_ct_ROA
+static int NID_ct_ROA;
+#endif
+
+#ifndef    NID_ct_rpkiManifest
+static int NID_ct_rpkiManifest;
+#endif
+
+#ifndef    NID_ct_rpkiGhostbusters
+static int NID_ct_rpkiGhostbusters;
+#endif
+
+#ifndef	   NID_cp_ipAddr_asNumber
+static int NID_cp_ipAddr_asNumber;
+#endif
+
+/**
+ * Missing NIDs, if any.
+ */
+static const struct {
+  int *nid;
+  const char *oid;
+  const char *sn;
+  const char *ln;
+} missing_nids[] = {
+
+#ifndef NID_ad_rpkiManifest
+  {&NID_ad_rpkiManifest, "1.3.6.1.5.5.7.48.10", "id-ad-rpkiManifest", "RPKI Manifest"},
+#endif
+
+#ifndef NID_ad_signedObject
+  {&NID_ad_signedObject, "1.3.6.1.5.5.7.48.11", "id-ad-signedObject", "Signed Object"},
+#endif
+
+#ifndef NID_ct_ROA
+  {&NID_ct_ROA, "1.2.840.113549.1.9.16.1.24", "id-ct-routeOriginAttestation", "ROA eContent"},
+#endif
+
+#ifndef NID_ct_rpkiManifest
+  {&NID_ct_rpkiManifest, "1.2.840.113549.1.9.16.1.26", "id-ct-rpkiManifest", "RPKI Manifest eContent"},
+#endif
+
+#ifndef NID_ct_rpkiGhostbusters
+  {&NID_ct_rpkiGhostbusters, "1.2.840.113549.1.9.16.1.35", "id-ct-rpkiGhostbusters", "RPKI Ghostbusters eContent"},
+#endif
+
+#ifndef NID_cp_ipAddr_asNumber
+  {&NID_cp_ipAddr_asNumber, "1.3.6.1.5.5.7.14.2", "id-cp-ipAddr-asNumber", "RPKI Certificate Policy"}
+#endif
+
+};
+
 
 
 /**
  * Subversion ID data.
  */
 static const char svn_id[] = "$Id$";
-
-/*
- * ASN.1 Object identifiers in form suitable for use with oid_cmp()
- */
-
-/** 1.3.6.1.5.5.7.48.2 */
-static const unsigned char id_ad_caIssuers[] =
-  {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
-
-/** 1.3.6.1.5.5.7.48.5 */
-static const unsigned char id_ad_caRepository[] =
-  {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
-
-/** 1.3.6.1.5.5.7.48.10 */
-static const unsigned char id_ad_rpkiManifest[] =
-  {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xa};
-
-/** 1.3.6.1.5.5.7.48.11 */
-static const unsigned char id_ad_signedObject[] =
-  {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xb};
-
-/** 1.2.840.113549.1.9.16.1.24 */
-static const unsigned char id_ct_routeOriginAttestation[] =
-  {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x18};
-
-/** 1.2.840.113549.1.9.16.1.26 */
-static const unsigned char id_ct_rpkiManifest[] =
-  {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x1a};
-
-/** 1.2.840.113549.1.9.16.1.35 */
-static const unsigned char id_ct_rpkiGhostbusters[] =
-  {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x23};
-
-/** 2.16.840.1.101.3.4.2.1 */
-static const unsigned char id_sha256[] =
-  {0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01};
-
-/**
- * RPKI certificate policy OID in form suitable for use with
- * X509_VERIFY_PARAM_add0_policy().
- */
-static const char rpki_policy_oid[] = "1.3.6.1.5.5.7.14.2";
 
 /**
  * Suffix we use temporarily during the symlink shuffle.  Could be
@@ -651,6 +685,26 @@ static const char authenticated_symlink_suffix[] = ".new";
 
 static const ASN1_INTEGER *asn1_zero, *asn1_four_octets, *asn1_twenty_octets;
 static int NID_binary_signing_time;
+
+
+
+/**
+ * Handle missing NIDs.
+ */
+static int
+create_missing_nids(void)
+{
+  int i;
+
+  for (i = 0; i < (int) (sizeof(missing_nids) / sizeof(*missing_nids)); i++)
+    if ((*missing_nids[i].nid = OBJ_txt2nid(missing_nids[i].oid)) == NID_undef &&
+        (*missing_nids[i].nid = OBJ_create(missing_nids[i].oid,
+                                           missing_nids[i].sn,
+                                           missing_nids[i].ln)) == NID_undef)
+      return 0;
+
+  return 1;
+}
 
 
 
@@ -1038,18 +1092,6 @@ static int uri_to_filename(const rcynic_ctx_t *rc,
   }
 
   return 1;
-}
-
-/**
- * OID comparison.
- */
-static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_t oidlen)
-{
-  assert(obj != NULL && oid != NULL);
-  if (obj->length != oidlen)
-    return obj->length - oidlen;
-  else
-    return memcmp(obj->data, oid, oidlen);
 }
 
 /**
@@ -3143,20 +3185,19 @@ static int extract_access_uri(rcynic_ctx_t *rc,
 			      const uri_t *uri,
 			      const object_generation_t generation,
 			      const AUTHORITY_INFO_ACCESS *xia,
-			      const unsigned char *oid,
-			      const int oidlen,
+			      const int nid,
 			      uri_t *result,
 			      int *count)
 {
   int i;
 
-  assert(rc && uri && xia && oid && result && count);
+  assert(rc && uri && xia && result && count);
 
   for (i = 0; i < sk_ACCESS_DESCRIPTION_num(xia); i++) {
     ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(xia, i);
     if (a == NULL || a->location->type != GEN_URI)
       return 0;
-    if (oid_cmp(a->method, oid, oidlen))
+    if (OBJ_obj2nid(a->method) != nid)
       continue;
     ++*count;
     if (!is_rsync((char *) a->location->d.uniformResourceIdentifier->data))
@@ -3674,8 +3715,7 @@ static int check_x509(rcynic_ctx_t *rc,
   if ((aia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
     int n_caIssuers = 0;
     ex_count--;
-    if (!extract_access_uri(rc, uri, generation, aia,
-			    id_ad_caIssuers, sizeof(id_ad_caIssuers),
+    if (!extract_access_uri(rc, uri, generation, aia, NID_ad_ca_issuers,
 			    &certinfo->aia, &n_caIssuers) ||
 	!certinfo->aia.s[0] ||
 	sk_ACCESS_DESCRIPTION_num(aia) != n_caIssuers) {
@@ -3698,12 +3738,12 @@ static int check_x509(rcynic_ctx_t *rc,
     int got_caDirectory,     got_rpkiManifest,     got_signedObject;
     int   n_caDirectory = 0,   n_rpkiManifest = 0,   n_signedObject = 0;
     ex_count--;
-    ok = (extract_access_uri(rc, uri, generation, sia, id_ad_caRepository,
-			     sizeof(id_ad_caRepository), &certinfo->sia, &n_caDirectory) &&
-	  extract_access_uri(rc, uri, generation, sia, id_ad_rpkiManifest,
-			     sizeof(id_ad_rpkiManifest), &certinfo->manifest, &n_rpkiManifest) &&
-	  extract_access_uri(rc, uri, generation, sia, id_ad_signedObject,
-			     sizeof(id_ad_signedObject), &certinfo->signedobject, &n_signedObject));
+    ok = (extract_access_uri(rc, uri, generation, sia, NID_caRepository,
+			     &certinfo->sia, &n_caDirectory) &&
+	  extract_access_uri(rc, uri, generation, sia, NID_ad_rpkiManifest,
+			     &certinfo->manifest, &n_rpkiManifest) &&
+	  extract_access_uri(rc, uri, generation, sia, NID_ad_signedObject,
+			     &certinfo->signedobject, &n_signedObject));
     got_caDirectory  = certinfo->sia.s[0]          != '\0';
     got_rpkiManifest = certinfo->manifest.s[0]     != '\0';
     got_signedObject = certinfo->signedobject.s[0] != '\0';
@@ -3988,7 +4028,7 @@ static int check_x509(rcynic_ctx_t *rc,
 
   X509_VERIFY_PARAM_set_flags(rctx.ctx.param, flags);
 
-  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
+  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_nid2obj(NID_cp_ipAddr_asNumber));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
     log_validation_status(rc, uri, certificate_failed_validation, generation);
@@ -4054,12 +4094,10 @@ static int check_cms(rcynic_ctx_t *rc,
 		     BIO *bio,
 		     const unsigned char *hash,
 		     const size_t hashlen,
-		     const unsigned char *expected_eContentType,
-		     const size_t expected_eContentType_len,
+		     const int expected_eContentType_nid,
 		     const int require_inheritance,
 		     const object_generation_t generation)
 {
-  const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(CMS_SignerInfo) *signer_infos = NULL;
   CMS_ContentInfo *cms = NULL;
   CMS_SignerInfo *si = NULL;
@@ -4074,7 +4112,7 @@ static int check_cms(rcynic_ctx_t *rc,
   certinfo_t certinfo_;
   int i, result = 0;
 
-  assert(rc && wsk && uri && path && prefix && expected_eContentType);
+  assert(rc && wsk && uri && path && prefix);
 
   if (!certinfo)
     certinfo = &certinfo_;
@@ -4097,9 +4135,7 @@ static int check_cms(rcynic_ctx_t *rc,
       goto error;
   }
 
-  if (!(eContentType = CMS_get0_eContentType(cms)) ||
-      oid_cmp(eContentType, expected_eContentType,
-	      expected_eContentType_len)) {
+  if (OBJ_obj2nid(CMS_get0_eContentType(cms)) != expected_eContentType_nid) {
     log_validation_status(rc, uri, bad_cms_econtenttype, generation);
     goto error;
   }
@@ -4157,7 +4193,7 @@ static int check_cms(rcynic_ctx_t *rc,
       goto error;
   }
 
-  if (oid_cmp(oid, expected_eContentType, expected_eContentType_len)) {
+  if (OBJ_obj2nid(oid) != expected_eContentType_nid) {
     log_validation_status(rc, uri, bad_cms_si_contenttype, generation);
     goto error;
   }
@@ -4330,7 +4366,7 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
   }
 
   if (!check_cms(rc, wsk, uri, path, prefix, &cms, &x, certinfo, bio, NULL, 0,
-		 id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest), 1, generation))
+		 NID_ct_rpkiManifest, 1, generation))
     goto done;
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
@@ -4366,8 +4402,7 @@ static Manifest *check_manifest_1(rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (manifest->fileHashAlg == NULL ||
-      oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256))) {
+  if (OBJ_obj2nid(manifest->fileHashAlg) != NID_sha256) {
     log_validation_status(rc, uri, nonconformant_digest_algorithm, generation);
     goto done;
   }
@@ -4644,8 +4679,7 @@ static int check_roa_1(rcynic_ctx_t *rc,
   }
 
   if (!check_cms(rc, wsk, uri, path, prefix, &cms, &x, NULL, bio, NULL, 0,
-		 id_ct_routeOriginAttestation, sizeof(id_ct_routeOriginAttestation), 
-		 0, generation))
+		 NID_ct_ROA, 0, generation))
     goto error;
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
@@ -4841,8 +4875,7 @@ static int check_ghostbuster_1(rcynic_ctx_t *rc,
 #endif
 
   if (!check_cms(rc, wsk, uri, path, prefix, &cms, &x, NULL, bio, NULL, 0,
-		 id_ct_rpkiGhostbusters, sizeof(id_ct_rpkiGhostbusters),
-		 1, generation))
+		 NID_ct_rpkiGhostbusters, 1, generation))
     goto error;
 
 #if 0
@@ -5551,6 +5584,11 @@ int main(int argc, char *argv[])
 
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
+
+  if (!create_missing_nids()) {
+    logmsg(&rc, log_sys_err, "Couldn't initialize missing OIDs!");
+    goto done;
+  }
 
   memset(&ta_dir, 0, sizeof(&ta_dir));
 

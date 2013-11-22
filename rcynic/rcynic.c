@@ -216,6 +216,7 @@ static const struct {
   QB(bad_certificate_policy,		"Bad certificate policy")	    \
   QB(bad_cms_econtenttype,		"Bad CMS eContentType")		    \
   QB(bad_cms_si_contenttype,		"Bad CMS SI ContentType")	    \
+  QB(bad_cms_signer,			"Bad CMS signer")		    \
   QB(bad_cms_signer_infos,		"Bad CMS signerInfos")		    \
   QB(bad_crl,				"Bad CRL")			    \
   QB(bad_ipaddrblocks,			"Bad IPAddrBlocks extension")	    \
@@ -4116,6 +4117,7 @@ static int check_cms(rcynic_ctx_t *rc,
   X509_NAME *si_issuer = NULL;
   ASN1_INTEGER *si_serial = NULL;
   STACK_OF(X509_CRL) *crls = NULL;
+  STACK_OF(X509) *certs = NULL;
   X509_ALGOR *signature_alg = NULL, *digest_alg = NULL;
   ASN1_OBJECT *oid = NULL;
   hashbuf_t hashbuf;
@@ -4175,6 +4177,13 @@ static int check_cms(rcynic_ctx_t *rc,
 
   if (x == NULL) {
     log_validation_status(rc, uri, cms_signer_missing, generation);
+    goto error;
+  }
+
+  if ((certs = CMS_get1_certs(cms)) == NULL ||
+      sk_X509_num(certs) != 1 ||
+      X509_cmp(x, sk_X509_value(certs, 0))) {
+    log_validation_status(rc, uri, bad_cms_signer, generation);
     goto error;
   }
 
@@ -4246,6 +4255,7 @@ static int check_cms(rcynic_ctx_t *rc,
  error:
   CMS_ContentInfo_free(cms);
   sk_X509_CRL_pop_free(crls, X509_CRL_free);
+  sk_X509_pop_free(certs, X509_free);
 
   return result;
 }

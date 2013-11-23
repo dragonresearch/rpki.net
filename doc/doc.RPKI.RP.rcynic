@@ -430,7 +430,7 @@ Experimental. Attempts to work around OpenSSL's strong preference for self-
 signed trust anchors.
 
 We're not going to explain this one in any further detail. If you really want
-to know what it does, Use The Source.
+to know what it does, Use The Source, Luke.
 
 Do not even consider enabling this option unless you are intimately familiar
 with both X.509 and the internals of OpenSSL's X509_verify_cert() function and

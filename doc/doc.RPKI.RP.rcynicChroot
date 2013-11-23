@@ -38,6 +38,14 @@ vendors or due to hidden use of dynamic loading by other libraries at runtime.
 Once again, the Makefiles attempt to do the correct thing for your environment
 if they know what it is, but they might get it wrong.
 
+You may also find that the dynamic loader looks in a different place than you
+(and the Makefiles) would expect when running within the chroot jail. For
+example, you might think that library /usr/local/lib/libfoo.so being installed
+into a jail named /var/rcynic should go into /var/rcynic/usr/local/lib/
+libfoo.so, but we've seen cases where the dynamic loader ended up expecting to
+find it in /var/rcynic/lib/libfoo.so. Getting this right may require a bit of
+trial and error.
+
 You'll need a chroot wrapper program. As mentioned above, rcynic-cron can act
 as that wrapper program; if this works for you, we recommend it, because it
 works the same way on all platforms and doesn't require additional external

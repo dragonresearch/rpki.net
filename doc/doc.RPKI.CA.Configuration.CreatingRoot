@@ -43,8 +43,13 @@ this:
 Assuming you save this configuration in a file root.conf, you can use it to
 generate a root certificate as follows:
 
+  #!/bin/sh -
+
+  # Generate the root key if it doesn't already exist.
+  test -f root.key ||
   openssl genrsa -out root.key 2048
 
+  # Generate the root certificate.
   openssl req                     \
           -new                    \
           -x509                   \
@@ -79,6 +84,16 @@ To create a TAL format trust anchor locator use the make-tal.sh script from
 $top/rcynic:
 
   $top/rcynic/make-tal.sh  rsync://example.org/rpki/root/root.cer  root.cer
+
+Note that, like any certificate, the root.cer you just generated will expire
+eventually. Either you need to remember to regenerate it before that happens,
+or you need to set up a cron job to do that for you automatically. Running the
+above shell script (really, just the openssl req command) should suffice to
+regenerate root.cer; remember to copy the updated root.cer to the publication
+directory.
+
+Regenerating the certificate does not require regenerating the TAL unless you
+change the key or URL.
 
 ***** Converting an existing RSA key from PKCS #8 format *****
 

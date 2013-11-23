@@ -5205,6 +5205,7 @@ static int check_ta_cer(rcynic_ctx_t *rc,
   filename_to_uri(&uri, path1.s);
 
   if ((x = read_cert(&path1, NULL)) == NULL) {
+    logmsg(rc, log_usage_err, "Couldn't read trust anchor from file %s", fn);
     log_validation_status(rc, &uri, unreadable_trust_anchor, object_generation_null);
     goto lose;
   }
@@ -5356,6 +5357,10 @@ static int check_ta_tal(rcynic_ctx_t *rc,
   }
 
   bio = BIO_new_file(fn, "r");
+
+  if (!bio)
+    logmsg(rc, log_usage_err, "Couldn't open trust anchor locator file %s", fn);
+
   if (!bio || BIO_gets(bio, tctx->uri.s, sizeof(tctx->uri.s)) <= 0) {
     uri_t furi;
     filename_to_uri(&furi, fn);

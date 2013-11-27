@@ -816,8 +816,7 @@ fi
 if test $build_ca_tools = yes
 then
 	AC_CONFIG_FILES([rpkid/Makefile
-			 rpkid/tests/Makefile
-			 rpkid/portal-gui/Makefile])
+			 rpkid/tests/Makefile])
 fi
 
 if test $build_ca_tools = yes &&

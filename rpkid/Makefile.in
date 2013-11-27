@@ -1,7 +1,5 @@
 # $Id$
 
-SUBDIRS		= portal-gui
-
 PYTHON		= @PYTHON@
 TRANG		= @TRANG@
 
@@ -167,9 +165,6 @@ docs: dot eps png html pdf
 distclean:: clean docclean
 	cd tests; ${MAKE} $@
 	rm -f TAGS Makefile
-
-all install clean test distclean deinstall uninstall::
-	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
 all:: examples/rpki.conf
 

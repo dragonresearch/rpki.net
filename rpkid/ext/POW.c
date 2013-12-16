@@ -5582,7 +5582,6 @@ static char asymmetric_params_object_pem_write__doc__[] =
 static PyObject *
 asymmetric_params_object_pem_write(asymmetric_params_object *self)
 {
-  const EVP_CIPHER *evp_method = NULL;
   PyObject *result = NULL;
   BIO *bio = NULL;
 
@@ -6173,7 +6172,7 @@ cms_object_sign_helper(cms_object *self,
   CMS_ContentInfo *cms = NULL;
   PyObject *iterator = NULL;
   PyObject *item = NULL;
-  int i, n, ok = 0;
+  int ok = 0;
 
   ENTERING(cms_object_sign_helper);
 

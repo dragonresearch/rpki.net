@@ -55,8 +55,14 @@ def run(*cmd, **kwargs):
     os._exit(1)
   else:
     status = os.waitpid(pid, 0)[1]
-    if status != 0:
-      sys.exit("Program %s exited with status %s" % (" ".join(cmd), status))
+    if status == 0:
+      return
+    elif os.WIFSIGNALED(status):
+      sys.exit("Process %s exited with signal %s" % (" ".join(cmd), os.WTERMSIG(status)))
+    elif os.WIFEXITED(status):
+      sys.exit("Program %s exited with status %s" % (" ".join(cmd), os.WEXITSTATUS(status)))
+    else:
+      sys.exit("Program %s exited for unknown reason %s" % (" ".join(cmd), status))
 
 want_chroot = False
 

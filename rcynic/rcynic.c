@@ -1627,55 +1627,45 @@ static int set_directory(const rcynic_ctx_t *rc, path_t *out, const char *in, co
 }
 
 /**
+ * Test whether a filesystem path points to a directory.
+ */
+static int is_directory(const path_t *name)
+{
+  struct stat st;
+
+  assert(name);
+  return lstat(name->s, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+/**
  * Remove a directory tree, like rm -rf.
  */
 static int rm_rf(const path_t *name)
 {
   path_t path;
   struct dirent *d;
-  size_t len;
   DIR *dir;
-  int ret = 0, need_slash;
+  int ret = 0;
 
   assert(name);
-  len = strlen(name->s);
-  assert(len > 0 && len < sizeof(path.s));
-  need_slash = name->s[len - 1] != '/';
 
-  if (rmdir(name->s) == 0)
-    return 1;
-
-  switch (errno) {
-  case ENOENT:
-    return 1;
-  case ENOTEMPTY:
-    break;
-  default:
-    return 0;
-  }
+  if (!is_directory(name))
+    return unlink(name->s) == 0;
 
   if ((dir = opendir(name->s)) == NULL)
     return 0;
 
   while ((d = readdir(dir)) != NULL) {
-    if (d->d_name[0] == '.' && (d->d_name[1] == '\0' || (d->d_name[1] == '.' && d->d_name[2] == '\0')))
+    if (!strcmp(d->d_name, ".") || !strcmp(d->d_name, ".."))
       continue;
-    if (len + strlen(d->d_name) + need_slash >= sizeof(path.s))
+    if (snprintf(path.s, sizeof(path.s), "%s/%s", name->s, d->d_name) >= sizeof(path.s))
       goto done;
-    strcpy(path.s, name->s);
-    if (need_slash)
-      strcat(path.s, "/");
-    strcat(path.s, d->d_name);
-    switch (d->d_type) {
-    case DT_DIR:
-      if (!rm_rf(&path))
-	goto done;
+    if (unlink(path.s) == 0)
       continue;
-    default:
-      if (unlink(path.s) < 0)
-	goto done;
+    else if (rm_rf(&path))
       continue;
-    }
+    else
+      goto done;      
   }
 
   ret = rmdir(name->s) == 0;
@@ -1719,7 +1709,7 @@ static int construct_directory_names(rcynic_ctx_t *rc)
   if (!set_directory(rc, &rc->old_authenticated, rc->authenticated.s, 1))
     return 0;
 
-  if (lstat(rc->authenticated.s, &st) == 0 && (st.st_mode & S_IFDIR) != 0 &&
+  if (lstat(rc->authenticated.s, &st) == 0 && S_ISDIR((st.st_mode)) &&
       strlen(rc->authenticated.s) + sizeof(".old") < sizeof(p.s)) {
     p = rc->authenticated;
     strcat(p.s, ".old");
@@ -1727,7 +1717,7 @@ static int construct_directory_names(rcynic_ctx_t *rc)
     (void) rename(rc->authenticated.s, p.s);
   }
 
-  if (lstat(rc->authenticated.s, &st) == 0 && (st.st_mode & S_IFDIR) != 0) {
+  if (lstat(rc->authenticated.s, &st) == 0 && S_ISDIR(st.st_mode)) {
     logmsg(rc, log_usage_err,
 	   "Existing %s directory is in the way, please remove it",
 	   rc->authenticated.s);
@@ -1848,7 +1838,7 @@ static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
 						     const uri_t *uri)
 {
   STACK_OF(OPENSSL_STRING) *result = NULL;
-  path_t path;
+  path_t dpath, fpath;
   const path_t *prefix = NULL;
   DIR *dir = NULL;
   struct dirent *d;
@@ -1867,14 +1857,20 @@ static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (!uri_to_filename(rc, uri, &path, prefix) ||
-      (dir = opendir(path.s)) == NULL || 
+  if (!uri_to_filename(rc, uri, &dpath, prefix) ||
+      (dir = opendir(dpath.s)) == NULL || 
       (result = sk_OPENSSL_STRING_new(uri_cmp)) == NULL)
     goto done;
 
   while ((d = readdir(dir)) != NULL)
-    if (d->d_type != DT_DIR && !sk_OPENSSL_STRING_push_strdup(result, d->d_name))
+    if (snprintf(fpath.s, sizeof(fpath.s), "%s/%s", dpath.s, d->d_name) >= sizeof(fpath.s)) {
+      logmsg(rc, log_data_err, "Local path name %s/%s too long", dpath.s, d->d_name);
       goto done;
+    }
+    else if (!is_directory(&fpath) && !sk_OPENSSL_STRING_push_strdup(result, d->d_name)) {
+      logmsg(rc, log_sys_err, "sk_OPENSSL_STRING_push_strdup() failed, probably memory exhaustion");
+      goto done;
+    }
 
   ok = 1;
 
@@ -2993,71 +2989,53 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
 {
   path_t path;
   struct dirent *d;
-  size_t len;
   DIR *dir;
-  int need_slash;
+  const char *slash;
 
-  assert(rc && name && baselen > 0);
-  len = strlen(name->s);
-  assert(len >= baselen && len < sizeof(path.s));
-  need_slash = name->s[len - 1] != '/';
+  assert(rc && name && baselen > 0 && strlen(name->s) >= baselen);
 
-  if (validation_status_find_filename(rc, name->s + baselen)) {
-    logmsg(rc, log_debug, "prune: cache hit for %s, not cleaning", name->s);
-    return 1;
-  }
-
-  if (rmdir(name->s) == 0) {
-    logmsg(rc, log_debug, "prune: removed %s", name->s);
-    return 1;
-  }
-
-  switch (errno) {
-  case ENOENT:
-    logmsg(rc, log_debug, "prune: nonexistant %s", name->s);
-    return 1;
-  case ENOTEMPTY:
-    break;
-  default:
-    logmsg(rc, log_debug, "prune: other error %s: %s", name->s, strerror(errno));
+  if (!is_directory(name)) {
+    logmsg(rc, log_usage_err, "prune: %s is not a directory", name->s);
     return 0;
   }
 
-  if ((dir = opendir(name->s)) == NULL)
+  if ((dir = opendir(name->s)) == NULL) {
+    logmsg(rc, log_sys_err, "prune: opendir() failed on %s: %s", name->s, strerror(errno));
     return 0;
+  }
+
+  slash = endswith(name->s, "/") ? "" : "/";
 
   while ((d = readdir(dir)) != NULL) {
-    if (d->d_name[0] == '.' && (d->d_name[1] == '\0' || (d->d_name[1] == '.' && d->d_name[2] == '\0')))
+    if (!strcmp(d->d_name, ".") || !strcmp(d->d_name, ".."))
       continue;
-    if (len + strlen(d->d_name) + need_slash >= sizeof(path)) {
-      logmsg(rc, log_debug, "prune: %s%s%s too long", name->s, (need_slash ? "/" : ""), d->d_name);
+   
+    if (snprintf(path.s, sizeof(path.s), "%s%s%s", name->s, slash, d->d_name) >= sizeof(path.s)) {
+      logmsg(rc, log_debug, "prune: %s%s%s too long", name->s, slash, d->d_name);
       goto done;
     }
-    strcpy(path.s, name->s);
-    if (need_slash)
-      strcat(path.s, "/");
-    strcat(path.s, d->d_name);
-    switch (d->d_type) {
-    case DT_DIR:
-      if (!prune_unauthenticated(rc, &path, baselen))
-	goto done;
+   
+    if (validation_status_find_filename(rc, path.s + baselen)) {
+      logmsg(rc, log_debug, "prune: cache hit %s", path.s);
       continue;
-    default:
-      if (validation_status_find_filename(rc, path.s + baselen)) {
-	logmsg(rc, log_debug, "prune: cache hit %s", path.s);
-	continue;
-      }
-      if (unlink(path.s) < 0) {
-	logmsg(rc, log_debug, "prune: removing %s failed: %s", path.s, strerror(errno));
-	goto done;
-      }
+    }
+   
+    if (unlink(path.s) == 0) {
       logmsg(rc, log_debug, "prune: removed %s", path.s);
       continue;
     }
+
+    if (prune_unauthenticated(rc, &path, baselen))
+      continue;
+
+    logmsg(rc, log_sys_err, "prune: removing %s failed: %s", path.s, strerror(errno));
+    goto done;
   }
 
-  if (rmdir(name->s) < 0 && errno != ENOTEMPTY)
-    logmsg(rc, log_debug, "prune: couldn't remove %s: %s", name->s, strerror(errno));
+  if (rmdir(name->s) == 0)
+    logmsg(rc, log_debug, "prune: removed %s", name->s);
+  else if (errno != ENOTEMPTY)
+    logmsg(rc, log_sys_err, "prune: couldn't remove %s: %s", name->s, strerror(errno));
 
  done:
   closedir(dir);
@@ -5409,35 +5387,35 @@ static int check_ta_dir(rcynic_ctx_t *rc,
   DIR *dir = NULL;
   struct dirent *d;
   path_t path;
-  int ok = 1;
+  int is_cer, is_tal;
 
   assert(rc && dn);
 
   if ((dir = opendir(dn)) == NULL) {
     logmsg(rc, log_sys_err, "Couldn't open trust anchor directory %s: %s",
 	   dn, strerror(errno));
-    ok = 0;
+    return 0;
   }
 
-  while (ok && (d = readdir(dir)) != NULL) {
-    if (d->d_type != DT_REG && d->d_type != DT_LNK)
-      continue;
+  while ((d = readdir(dir)) != NULL) {
     if (snprintf(path.s, sizeof(path.s), "%s/%s", dn, d->d_name) >= sizeof(path.s)) {
       logmsg(rc, log_data_err, "Pathname %s/%s too long", dn, d->d_name);
-      ok = 0;
-    } else if (endswith(path.s, ".cer")) {
-      ok = check_ta_cer(rc, path.s);
-    } else if (endswith(path.s, ".tal")) {
-      ok = check_ta_tal(rc, path.s);
-    } else {
-      logmsg(rc, log_verbose, "Skipping non-trust-anchor %s", path.s);
+      break;
     }
+    is_cer = endswith(path.s, ".cer");
+    is_tal = endswith(path.s, ".tal");
+    if (is_cer && !check_ta_cer(rc, path.s))
+      break;
+    if (is_tal && !check_ta_tal(rc, path.s))
+      break;
+    if (!is_cer && !is_tal)
+      logmsg(rc, log_verbose, "Skipping non-trust-anchor %s", path.s);
   }
 
   if (dir != NULL)
     closedir(dir);
 
-  return ok;
+  return !d;;
 }
 
 

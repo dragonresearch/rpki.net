@@ -189,6 +189,9 @@ int main (int argc, char *argv[])
     }
   }
 
+  argc -= optind;
+  argv += optind;
+
   while (argc-- > 0)
     result |=  read_manifest(*argv++, print_cms, 1, 1) == NULL;
   return result;

@@ -116,88 +116,60 @@ class SundialField(django.db.models.DateTimeField):
     else:
       return value
 
-###
 
-# Kludge to work around Django 1.2 problem.
-#
-# This should be a simple abstract base class DERField which we then
-# subclass with trivial customization for specific kinds of DER
-# objects.  Sadly, subclassing of user defined field classes doesn't
-# work in Django 1.2 with the django.db.models.SubfieldBase metaclass,
-# so instead we fake it by defining methods externally and defining
-# each concrete class as a direct subclass of django.db.models.Field.
-#
-# The bug has been fixed in Django 1.3, so we can revert this to the
-# obvious form once we're ready to require Django 1.3 or later.  The
-# fix may have been backported to the 1.2 branch, but trying to test
-# for it is likely more work than just working around it.
-#
-# See https://code.djangoproject.com/ticket/10728 for details.
+class DERField(django.db.models.Field):
+  """
+  Field types for DER objects.
+  """
 
-def DERField_init(self, *args, **kwargs):
-  kwargs["serialize"] = False
-  kwargs["blank"] = True
-  kwargs["default"] = None
-  django.db.models.Field.__init__(self, *args, **kwargs)
-
-def DERField_db_type(self, connection):
-  if connection.settings_dict['ENGINE'] == "django.db.backends.posgresql":
-    return "bytea"
-  else:
-    return "BLOB"
-
-def DERField_to_python(self, value):
-  assert value is None or isinstance(value, (self.rpki_type, str))
-  if isinstance(value, str):
-    return self.rpki_type(DER = value)
-  else:
-    return value
-
-def DERField_get_prep_value(self, value):
-  assert value is None or isinstance(value, (self.rpki_type, str))
-  if isinstance(value, self.rpki_type):
-    return value.get_DER()
-  else:
-    return value
-
-def DERField(cls):
-  cls.__init__       = DERField_init
-  cls.db_type        = DERField_db_type
-  cls.to_python      = DERField_to_python
-  cls.get_prep_value = DERField_get_prep_value
-  return cls
-
-@DERField
-class CertificateField(django.db.models.Field):
   __metaclass__ = django.db.models.SubfieldBase
+
+  def __init__(self, *args, **kwargs):
+    kwargs["serialize"] = False
+    kwargs["blank"] = True
+    kwargs["default"] = None
+    django.db.models.Field.__init__(self, *args, **kwargs)
+
+  def db_type(self, connection):
+    if connection.settings_dict['ENGINE'] == "django.db.backends.posgresql":
+      return "bytea"
+    else:
+      return "BLOB"
+
+  def to_python(self, value):
+    assert value is None or isinstance(value, (self.rpki_type, str))
+    if isinstance(value, str):
+      return self.rpki_type(DER = value)
+    else:
+      return value
+
+  def get_prep_value(self, value):
+    assert value is None or isinstance(value, (self.rpki_type, str))
+    if isinstance(value, self.rpki_type):
+      return value.get_DER()
+    else:
+      return value
+
+class CertificateField(DERField):
   description   = "X.509 certificate"
   rpki_type     = rpki.x509.X509
 
-@DERField
-class RSAKeyField(django.db.models.Field):
-  __metaclass__ = django.db.models.SubfieldBase
+class RSAKeyField(DERField):
   description   = "RSA keypair"
   rpki_type     = rpki.x509.RSA
 
-@DERField
-class CRLField(django.db.models.Field):
-  __metaclass__ = django.db.models.SubfieldBase
+class CRLField(DERField):
   description   = "Certificate Revocation List"
   rpki_type     = rpki.x509.CRL
 
-@DERField
-class PKCS10Field(django.db.models.Field):
-  __metaclass__ = django.db.models.SubfieldBase
+class PKCS10Field(DERField):
   description   = "PKCS #10 certificate request"
   rpki_type     = rpki.x509.PKCS10
 
-@DERField
-class SignedReferralField(django.db.models.Field):
-  __metaclass__ = django.db.models.SubfieldBase
+class SignedReferralField(DERField):
   description   = "CMS signed object containing XML"
   rpki_type     = rpki.x509.SignedReferral
 
-###
 
 # Custom managers
 

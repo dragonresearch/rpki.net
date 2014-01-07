@@ -1455,6 +1455,15 @@ class Wrapped_CMS_object(CMS_object):
     self.decode(CMS_object.extract(self))
     return self.get_content()
 
+  def extract_if_needed(self):
+    """
+    Extract inner content if needed.  See caveats for .extract(), do
+    not use unless you really know what you are doing.
+    """
+
+    if self.content is None:
+      self.extract()
+
   def _sign(self, cert, keypair, certs, crls, flags):
     """
     Internal method to call POW to do CMS signature.  This is split
@@ -1564,10 +1573,7 @@ class ROA(DER_CMS_object):
     """
     msg = DER_CMS_object.tracking_data(self, uri)
     try:
-      try:
-        self.get_POW().getVersion()
-      except rpki.POW.NotVerifiedError:
-        self.extract()
+      self.extract_if_needed()
       asn = self.get_POW().getASID()
       text = []
       for prefixes in self.get_POW().getPrefixes():

@@ -585,7 +585,6 @@ class main(Cmd):
 
     for child in self.zoo.resource_ca.children.all():
       resources = child.resource_bag
-
       print "Child:", child.handle
       if resources.asn:
         print "  ASN:", resources.asn
@@ -595,11 +594,37 @@ class main(Cmd):
         print " IPv6:", resources.v6
 
 
+  def do_show_roa_requests(self, arg):
+    """
+    Show ROA requests.
+    """
+
+    if arg:
+      raise BadCommandSyntax("This command takes no arguments")
+
+    for roa_request in self.zoo.resource_ca.roa_requests.all():
+      prefixes = roa_request.roa_prefix_bag
+      print "ASN:  ", roa_request.asn
+      if prefixes.v4:
+        print " IPv4:", prefixes.v4
+      if prefixes.v6:
+        print " IPv6:", prefixes.v6
+
+
+  def do_show_ghostbuster_requests(self, arg):
+    """
+    Show Ghostbuster requests.
+    """
+
+    if arg:
+      raise BadCommandSyntax("This command takes no arguments")
+
+    for ghostbuster_request in self.zoo.resource_ca.ghostbuster_requests.all():
+      print "Parent:", ghostbuster_request.parent or "*"
+      print ghostbuster_request.vcard
+
+
   # Other "show_" commands we should have.
-  #
-  # Peek in IRDB:
-  #   show_roa_requests
-  #   show_ghostbuster_requests
   #
   # Ask rpkid:
   #   show_received_resources

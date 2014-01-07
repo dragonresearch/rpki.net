@@ -595,6 +595,17 @@ class main(Cmd):
         print " IPv6:", resources.v6
 
 
+  # Other "show_" commands we should have.
+  #
+  # Peek in IRDB:
+  #   show_roa_requests
+  #   show_ghostbuster_requests
+  #
+  # Ask rpkid:
+  #   show_received_resources
+  #   show_published_objects
+
+
   def do_load_asns(self, arg):
     """
     Load ASNs into IRDB from CSV file.

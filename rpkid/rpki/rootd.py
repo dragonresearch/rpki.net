@@ -215,6 +215,7 @@ class main(object):
       aia         = self.rpki_root_cert_uri,
       crldp       = self.rpki_base_uri + self.rpki_root_crl,
       resources   = resources,
+      notBefore   = now,
       notAfter    = notAfter)
     self.set_subject_cert(subject_cert)
     self.generate_crl_and_manifest(now)
@@ -250,6 +251,7 @@ class main(object):
       aia         = self.rpki_root_cert_uri,
       crldp       = self.rpki_base_uri + self.rpki_root_crl,
       resources   = manifest_resources,
+      notBefore   = now,
       notAfter    = now + self.rpki_subject_lifetime,
       is_ca       = False)
     manifest = rpki.x509.SignedManifest.build(

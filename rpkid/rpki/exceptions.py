@@ -356,3 +356,8 @@ class PastNotAfter(RPKI_Exception):
   """
   Requested notAfter value is already in the past.
   """
+
+class NullValidityInterval(RPKI_Exception):
+  """
+  Requested validity interval is null.
+  """

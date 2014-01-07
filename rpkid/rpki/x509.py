@@ -605,7 +605,7 @@ class X509(DER_object):
     return self.getNotAfter() <= rpki.sundial.now()
 
   def issue(self, keypair, subject_key, serial, sia, aia, crldp, notAfter,
-            cn = None, resources = None, is_ca = True):
+            cn = None, resources = None, is_ca = True, notBefore = None):
     """
     Issue an RPKI certificate.
     """
@@ -619,6 +619,7 @@ class X509(DER_object):
       sia         = sia,
       aia         = aia,
       crldp       = crldp,
+      notBefore   = notBefore,
       notAfter    = notAfter,
       cn          = cn,
       resources   = resources,
@@ -629,7 +630,7 @@ class X509(DER_object):
 
   @classmethod
   def self_certify(cls, keypair, subject_key, serial, sia, notAfter,
-                   cn = None, resources = None):
+                   cn = None, resources = None, notBefore = None):
     """
     Generate a self-certified RPKI certificate.
     """
@@ -646,6 +647,7 @@ class X509(DER_object):
       sia         = sia,
       aia         = None,
       crldp       = None,
+      notBefore   = notBefore,
       notAfter    = notAfter,
       cn          = cn,
       resources   = resources,
@@ -656,7 +658,7 @@ class X509(DER_object):
 
   @classmethod
   def _issue(cls, keypair, subject_key, serial, sia, aia, crldp, notAfter,
-             cn, resources, is_ca, aki, issuer_name):
+             cn, resources, is_ca, aki, issuer_name, notBefore):
     """
     Common code to issue an RPKI certificate.
     """
@@ -664,11 +666,18 @@ class X509(DER_object):
     now = rpki.sundial.now()
     ski = subject_key.get_SKI()
 
+    if notBefore is None:
+      notBefore = now
+
     if cn is None:
       cn = "".join(("%02X" % ord(i) for i in ski))
 
     if now >= notAfter:
       raise rpki.exceptions.PastNotAfter("notAfter value %s is already in the past" % notAfter)
+
+    if notBefore >= notAfter:
+      raise rpki.exceptions.NullValidityInterval("notAfter value %s predates notBefore value %s" %
+                                                 (notAfter, notBefore))
 
     cert = rpki.POW.X509()
 
@@ -676,7 +685,7 @@ class X509(DER_object):
     cert.setSerial(serial)
     cert.setIssuer(issuer_name.get_POW())
     cert.setSubject(X501DN.from_cn(cn).get_POW())
-    cert.setNotBefore(now)
+    cert.setNotBefore(notBefore)
     cert.setNotAfter(notAfter)
     cert.setPublicKey(subject_key.get_POW())
     cert.setSKI(ski)

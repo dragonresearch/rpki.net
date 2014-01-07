@@ -624,11 +624,52 @@ class main(Cmd):
       print ghostbuster_request.vcard
 
 
-  # Other "show_" commands we should have.
-  #
-  # Ask rpkid:
-  #   show_received_resources
-  #   show_published_objects
+  def do_show_received_resources(self, arg):
+    """
+    Show resources received by this entity from its parent(s).
+    """
+
+    if arg:
+      raise BadCommandSyntax("This command takes no arguments")
+    
+    for pdu in self.zoo.call_rpkid(
+      rpki.left_right.list_received_resources_elt.make_pdu(self_handle = self.zoo.handle)):
+
+      print "Parent:     ", pdu.parent_handle
+      print "  notBefore:", pdu.notBefore
+      print "  notAfter: ", pdu.notAfter
+      print "  URI:      ", pdu.uri
+      print "  SIA URI:  ", pdu.sia_uri
+      print "  AIA URI:  ", pdu.aia_uri
+      print "  ASN:      ", pdu.asn
+      print "  IPv4:     ", pdu.ipv4
+      print "  IPv6:     ", pdu.ipv6
+
+
+  def do_show_published_objects(self, arg):
+    """
+    Show published objects.
+    """
+
+    # At least for now, we don't show the object itself, as this could
+    # be quite large and would require some pretty-printing code that
+    # we've not yet written.
+
+    if arg:
+      raise BadCommandSyntax("This command takes no arguments")
+
+    for pdu in self.zoo.call_rpkid(
+      rpki.left_right.list_published_objects_elt.make_pdu(self_handle = self.zoo.handle)):
+
+      child = pdu.child_handle
+
+      print "URI:    ", pdu.uri
+      if child is not None:
+        print "  Child:", child
+
+      # If we were trying to parse the published objects themselves,
+      # we'd use the filename suffix of pdu.uri to figure out what
+      # kind of Base64-encoded DER object is lurking in pdu.obj.
 
 
   def do_load_asns(self, arg):

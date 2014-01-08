@@ -1,55 +1,47 @@
+#!/usr/bin/env python
+
 """
 Test framework, using the same YAML test description format as
 smoketest.py, but using the rpkic.py tool to do all the back-end
 work.  Reads YAML file, generates .csv and .conf files, runs daemons
 and waits for one of them to exit.
-
-Much of the YAML handling code lifted from smoketest.py.
-
-Still to do:
-
-- Implement smoketest.py-style delta actions, that is, modify the
-  allocation database under control of the YAML file, dump out new
-  .csv files, and run rpkic.py again to feed resulting changes into
-  running daemons.
-
-$Id$
-
-Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-
-Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
 """
+
+# $Id$
+# 
+# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+# Much of the YAML handling code lifted from smoketest.py.
+# 
+# Still to do:
+# 
+# - Implement smoketest.py-style delta actions, that is, modify the
+#   allocation database under control of the YAML file, dump out new
+#   .csv files, and run rpkic.py again to feed resulting changes into
+#   running daemons.
+# 
 
 # pylint: disable=W0702,W0621
 
 import subprocess
 import re
 import os
-import getopt
+import argparse
 import sys
 import yaml
 import signal
@@ -320,12 +312,12 @@ class allocation(object):
     Write Autonomous System Numbers CSV file.
     """
     fn = "%s.asns.csv" % d.name
-    if not skip_config:
+    if not args.skip_config:
       f = self.csvout(fn)
       for k in self.kids:    
         f.writerows((k.name, a) for a in k.resources.asn)
       f.close()
-    if not stop_after_config:
+    if not args.stop_after_config:
       self.run_rpkic("load_asns", fn)
 
   def dump_prefixes(self):
@@ -333,12 +325,12 @@ class allocation(object):
     Write prefixes CSV file.
     """
     fn = "%s.prefixes.csv" % d.name
-    if not skip_config:
+    if not args.skip_config:
       f = self.csvout(fn)
       for k in self.kids:
         f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
       f.close()
-    if not stop_after_config:
+    if not args.stop_after_config:
       self.run_rpkic("load_prefixes", fn)
 
   def dump_roas(self):
@@ -346,13 +338,13 @@ class allocation(object):
     Write ROA CSV file.
     """
     fn = "%s.roas.csv" % d.name
-    if not skip_config:
+    if not args.skip_config:
       f = self.csvout(fn)
       for g1, r in enumerate(self.roa_requests):
         f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
                     for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
       f.close()
-    if not stop_after_config:
+    if not args.stop_after_config:
       self.run_rpkic("load_roa_requests", fn)
 
   def dump_ghostbusters(self):
@@ -361,7 +353,7 @@ class allocation(object):
     """
     if self.ghostbusters:
       fn = "%s.ghostbusters.vcard" % d.name
-      if not skip_config:
+      if not args.skip_config:
         path = self.path(fn)
         print "Writing", path
         f = open(path, "w")
@@ -370,7 +362,7 @@ class allocation(object):
             f.write("\n")
           f.write(g)
         f.close()
-      if not stop_after_config:
+      if not args.stop_after_config:
         self.run_rpkic("load_ghostbuster_requests", fn)
 
   @property
@@ -390,7 +382,7 @@ class allocation(object):
     """
     path = []
     s = self
-    if not flat_publication:
+    if not args.flat_publication:
       while not s.runs_pubd:
         path.append(s)
         s = s.parent
@@ -479,15 +471,15 @@ class allocation(object):
     cls.rpkic_counter += 10000
     return str(cls.rpkic_counter)
 
-  def run_rpkic(self, *args):
+  def run_rpkic(self, *argv):
     """
     Run rpkic for this entity.
     """
     cmd = [prog_rpkic, "-i", self.name, "-c", self.path("rpki.conf")]
-    if profile:
+    if args.profile:
       cmd.append("--profile")
       cmd.append(self.path("rpkic.%s.prof" % rpki.sundial.now()))
-    cmd.extend(str(a) for a in args if a is not None)
+    cmd.extend(str(a) for a in argv if a is not None)
     print 'Running "%s"' % " ".join(cmd)
     env = os.environ.copy()
     env["YAMLTEST_RPKIC_COUNTER"] = self.next_rpkic_counter()
@@ -500,7 +492,7 @@ class allocation(object):
     """
     basename = os.path.splitext(os.path.basename(prog))[0]
     cmd = [prog, "-d", "-c", self.path("rpki.conf")]
-    if profile and basename != "rootd":
+    if args.profile and basename != "rootd":
       cmd.append("--profile")
       cmd.append(self.path(basename + ".prof"))
     log = basename + ".log"
@@ -585,60 +577,39 @@ def create_root_certificate(db_root):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = None
-pidfile  = None
-keep_going = False
-skip_config = False
-flat_publication = False
-profile = False
-stop_after_config = False
-synchronize = False
-
-opts, argv = getopt.getopt(sys.argv[1:], "c:fhkp:?",
-                           ["config=", "flat_publication", "help",
-                            "keep_going", "pidfile=", "profile",
-                            "skip_config", "stop_after_config", "synchronize"])
-for o, a in opts:
-  if o in ("-h", "--help", "-?"):
-    print __doc__
-    sys.exit(0)
-  if o in ("-c", "--config"):
-    cfg_file = a
-  elif o in ("-f", "--flat_publication"):
-    flat_publication = True
-  elif o in ("-k", "--keep_going"):
-    keep_going = True
-  elif o in ("-p", "--pidfile"):
-    pidfile = a
-  elif o == "--skip_config":
-    skip_config = True
-  elif o == "--stop_after_config":
-    stop_after_config = True
-  elif o == "--synchronize":
-    synchronize = True
-  elif o == "--profile":
-    profile = True
-
-# We can't usefully process more than one YAML file at a time, so
-# whine if there's more than one argument left.
-
-if len(argv) > 1:
-  raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %r" % argv
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("-c", "--config",
+                    help = "configuration file")
+parser.add_argument("-f", "--flat_publication", action = "store_true",
+                    help = "disable hierarchical publication")
+parser.add_argument("-k", "--keep_going", action = "store_true",
+                    help = "keep going until all subprocesses exit")
+parser.add_argument("-p", "--pidfile",
+                    help = "save pid to this file")
+parser.add_argument("--skip_config", action = "store_true",
+                    help = "skip over configuration phase")
+parser.add_argument("--stop_after_config", action = "store_true",
+                    help = "stop after configuration phase")
+parser.add_argument("--synchronize", action = "store_true",
+                    help = "synchronize IRDB with daemons")
+parser.add_argument("--profile", action = "store_true",
+                    help = "enable profiling")
+parser.add_argument("yaml_file", type = argparse.FileType("r"),
+                    help = "YAML description of test network")
+args = parser.parse_args()
 
 try:
 
-  if pidfile is not None:
-    open(pidfile, "w").write("%s\n" % os.getpid())
+  if args.pidfile is not None:
+    open(args.pidfile, "w").write("%s\n" % os.getpid())
 
   rpki.log.init("yamltest", use_syslog = False)
-
-  yaml_file = argv[0] if argv else "smoketest.1.yaml"
 
   # Allow optional config file for this tool to override default
   # passwords: this is mostly so that I can show a complete working
   # example without publishing my own server's passwords.
 
-  cfg = rpki.config.parser(cfg_file, "yamltest", allow_missing = True)
+  cfg = rpki.config.parser(args.config, "yamltest", allow_missing = True)
 
   only_one_pubd = cfg.getboolean("only_one_pubd", True)
   allocation.base_port = cfg.getint("base_port", 4400)
@@ -651,7 +622,7 @@ try:
 
   # Start clean, maybe
 
-  if not skip_config:
+  if not args.skip_config:
     for root, dirs, files in os.walk(test_dir, topdown = False):
       for fn in files:
         os.unlink(os.path.join(root, fn))
@@ -662,13 +633,13 @@ try:
   # test layout and resource allocations.  Ignore subsequent YAML docs,
   # they're for smoketest.py, not this script.
 
-  db = allocation_db(yaml.safe_load_all(open(yaml_file)).next())
+  db = allocation_db(yaml.safe_load_all(args.yaml_file).next())
 
   # Show what we loaded
 
   #db.dump()
 
-  if skip_config:
+  if args.skip_config:
 
     print "Skipping pre-daemon configuration, assuming you already did that"
     
@@ -725,14 +696,14 @@ try:
           progs.append(d.run_pubd())
           progs.append(d.run_rsyncd())
 
-    if synchronize or not skip_config:
+    if args.synchronize or not args.skip_config:
 
       print
       print "Giving daemons time to start up"
       time.sleep(20)
       assert all(p.poll() is None for p in progs)
 
-    if skip_config:
+    if args.skip_config:
 
       print
       print "Skipping configure_*, you'll have to do that yourself if needed"
@@ -747,7 +718,7 @@ try:
         if d.is_root:
           assert not d.is_hosted
           d.run_rpkic("configure_publication_client",
-                      "--flat" if flat_publication else None,
+                      "--flat" if args.flat_publication else None,
                       d.path("%s.%s.repository-request.xml" % (d.name, d.name)))
           print
           d.run_rpkic("configure_repository",
@@ -762,7 +733,7 @@ try:
                       d.parent.path("%s.%s.parent-response.xml" % (d.parent.name, d.name)))
           print
           d.pubd.run_rpkic("configure_publication_client",
-                           "--flat" if flat_publication else None,
+                           "--flat" if args.flat_publication else None,
                            d.path("%s.%s.repository-request.xml" % (d.name, d.parent.name)))
           print
           d.run_rpkic("configure_repository",
@@ -773,7 +744,7 @@ try:
       print "Done with initial configuration"
       print
 
-    if synchronize:
+    if args.synchronize:
       print
       print "Synchronizing"
       print
@@ -781,7 +752,7 @@ try:
         if not d.is_hosted:
           d.run_rpkic("synchronize")
 
-    if synchronize or not skip_config:
+    if args.synchronize or not args.skip_config:
       print
       print "Loading CSV files"
       print
@@ -793,12 +764,12 @@ try:
 
     # Wait until something terminates.
 
-    if not stop_after_config or keep_going:
+    if not args.stop_after_config or args.keep_going:
       print
       print "Waiting for daemons to exit"
       signal.signal(signal.SIGCHLD, lambda *dont_care: None)
       while (any(p.poll() is None for p in progs)
-             if keep_going else
+             if args.keep_going else
              all(p.poll() is None for p in progs)):
         signal.pause()
 
@@ -810,7 +781,7 @@ try:
 
     signal.signal(signal.SIGCHLD, signal.SIG_DFL)
 
-    if profile:
+    if args.profile:
       how_long = 300
     else:
       how_long =  30
@@ -837,5 +808,5 @@ try:
       print "Program pid %d %r returned %d" % (p.pid, p, p.wait())
 
 finally:
-  if pidfile is not None:
-    os.unlink(pidfile)
+  if args.pidfile is not None:
+    os.unlink(args.pidfile)

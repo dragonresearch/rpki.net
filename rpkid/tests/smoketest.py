@@ -1,50 +1,34 @@
+#!/usr/bin/env python
+
 """
 Test framework to configure and drive a collection of rpkid.py and
-irdbd.py instances under control of a master script.
+old_irdbd.py instances under control of a master script.
 
-Usage: python smoketest.py [ { -c | --config } config_file ]
-                           [ { -h | --help } ]
-                           [ { -p | --profile } ]
-                           [ { -y | --yaml }   yaml_script ]
+yaml_file is a YAML description the tests to be run, and is intended
+to be implementation-agnostic.
 
-Default yaml_script is smoketest.yaml, override with -yaml option.
-
-yaml_script is a YAML file describing the tests to be run, and is
-intended to be implementation agnostic.
-
-config_file contains settings for various implementation-specific
-things that don't belong in yaml_script.
-
-$Id$
-
-Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-
-Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
+CONFIG contains settings for various implementation-specific
+things that don't belong in yaml_file.
 """
+
+# $Id$
+#
+# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 # pylint: disable=W0621
 
@@ -53,7 +37,7 @@ import yaml
 import subprocess
 import signal
 import time
-import getopt
+import argparse
 import sys
 import errno
 import rpki.resource_set
@@ -71,36 +55,22 @@ from rpki.mysql_import import MySQLdb
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = None
-yaml_script = None
-profile = False
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("-c", "--config",
+                    help = "configuration file")
+parser.add_argument("--profile", action = "store_true",
+                    help = "enable profiling")
+parser.add_argument("-y", action = "store_true",
+                    help = "ignored, present only for backwards compatability")
+parser.add_argument("yaml_file", type = argparse.FileType("r"),
+                    help = "YAML description of test network")
+args = parser.parse_args()
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:hpy:?", ["config=", "help", "profile", "yaml="])
-for o, a in opts:
-  if o in ("-h", "--help", "-?"):
-    print __doc__
-    sys.exit(0)
-  elif o in ("-c", "--config"):
-    cfg_file = a
-  elif o in ("-p", "--profile"):
-    profile = True
-  elif o in ("-y", "--yaml"):
-    yaml_script = a
-if argv:
-  print __doc__
-  raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
-
-cfg = rpki.config.parser(cfg_file, "smoketest", allow_missing = True)
+cfg = rpki.config.parser(args.config, "smoketest", allow_missing = True)
 
 # Load the YAML script early, so we can report errors ASAP
 
-if yaml_script is None:
-  yaml_script  = cfg.get("yaml_script", "smoketest.yaml")
-try:
-  yaml_script = [y for y in yaml.safe_load_all(open(yaml_script))]
-except Exception:
-  print __doc__
-  raise
+yaml_script = [y for y in yaml.safe_load_all(args.yaml_file)]
 
 # Define port allocator early, so we can use it while reading config
 
@@ -258,7 +228,7 @@ def main():
     rootd_process = subprocess.Popen((prog_python, prog_rootd, "-d", "-c", rootd_name + ".conf"))
 
     rpki.log.info("Starting pubd")
-    pubd_process = subprocess.Popen((prog_python, prog_pubd, "-d", "-c", pubd_name + ".conf") + (("-p", pubd_name + ".prof") if profile else ()))
+    pubd_process = subprocess.Popen((prog_python, prog_pubd, "-d", "-c", pubd_name + ".conf") + (("-p", pubd_name + ".prof") if args.profile else ()))
 
     rpki.log.info("Starting rsyncd")
     rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
@@ -800,7 +770,7 @@ class allocation(object):
     Run daemons for this entity.
     """
     rpki.log.info("Running daemons for %s" % self.name)
-    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-d", "-c", self.name + ".conf") + (("-p", self.name + ".prof") if profile else ()))
+    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-d", "-c", self.name + ".conf") + (("-p", self.name + ".prof") if args.profile else ()))
     self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "-d", "-c", self.name + ".conf"))
 
   def kill_daemons(self):

@@ -1,7 +1,7 @@
 """
 Make a normal program into a "daemon", like the 4.4BSD daemon(3) call.
 
-This quite follow either the 4.4BSD call or the Python 3.x library,
+This doesn't quite follow either the 4.4BSD call or the Python 3.x library,
 because it was written to fit into an existing package and I didn't
 want to drag in yet another external library just for this.
 

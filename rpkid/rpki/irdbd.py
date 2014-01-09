@@ -1,46 +1,30 @@
 """
 IR database daemon.
-
-Usage: python irdbd.py [ { -c | --config } configfile ]
-                       [ { -d | --debug } ]
-                       [ { -f | --foreground } ]
-                       [ { -h | --help } ]
-
-$Id$
-
-Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-
-Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
 """
+
+# $Id$
+# 
+# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import sys
 import os
 import time
-import getopt
+import argparse
 import urlparse
 import rpki.http
 import rpki.config
@@ -148,45 +132,35 @@ class main(object):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-    cfg_file = None
-    foreground = False
-    profile = None
-    use_syslog = True
+    parser = argparse.ArgumentParser(description = __doc__)
+    parser.add_argument("-c", "--config",
+                        help = "override default location of configuration file")
+    parser.add_argument("-d", "--debug", action = "store_true",
+                        help = "enable debugging mode")
+    parser.add_argument("-f", "--foreground", action = "store_true",
+                        help = "do not daemonize")
+    parser.add_argument("--pidfile",
+                        help = "override default location of pid file")
+    parser.add_argument("--profile",
+                        help = "enable profiling, saving data to PROFILE")
+    args = parser.parse_args()
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:dfhp:?",
-                               ["config=", "debug", "foreground", "help", "profile="])
-    for o, a in opts:
-      if o in ("-h", "--help", "-?"):
-        print __doc__
-        sys.exit(0)
-      if o in ("-c", "--config"):
-        cfg_file = a
-      elif o in ("-d", "--debug"):
-        use_syslog = False
-        foreground = True
-      elif o in ("-f", "--foreground"):
-        foreground = True
-      elif o in ("-p", "--profile"):
-        profile = a
-    if argv:
-      raise rpki.exceptions.CommandParseFailure("Unexpected arguments %s" % argv)
+    rpki.log.init("irdbd", use_syslog = not args.debug)
 
-    rpki.log.init("irdbd", use_syslog = use_syslog)
-
-    self.cfg = rpki.config.parser(cfg_file, "irdbd")
+    self.cfg = rpki.config.parser(args.config, "irdbd")
     self.cfg.set_global_flags()
 
-    if not foreground:
-      rpki.daemonize.daemon()
+    if not args.foreground and not args.debug:
+      rpki.daemonize.daemon(pidfile = args.pidfile)
 
-    if profile:
+    if args.profile:
       import cProfile
       prof = cProfile.Profile()
       try:
         prof.runcall(self.main)
       finally:
-        prof.dump_stats(profile)
-        rpki.log.info("Dumped profile data to %s" % profile)
+        prof.dump_stats(args.profile)
+        rpki.log.info("Dumped profile data to %s" % args.profile)
     else:
       self.main()
 

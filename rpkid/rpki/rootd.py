@@ -1,47 +1,31 @@
 """
-Trivial RPKI up-down protocol root server, for testing.  Not suitable
-for production use.  Overrides a bunch of method definitions from the
+Trivial RPKI up-down protocol root server.  Not recommended for
+production use.  Overrides a bunch of method definitions from the
 rpki.* classes in order to reuse as much code as possible.
-
-Usage: python rootd.py [ { -c | --config } configfile ]
-                       [ { -d | --debug } ]
-                       [ { -f | --foreground } ]
-                       [ { -h | --help } ]
-
-$Id$
-
-Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-
-Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
 """
+
+# $Id$
+# 
+# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import os
 import time
-import getopt
+import argparse
 import sys
 import rpki.resource_set
 import rpki.up_down
@@ -131,7 +115,8 @@ class main(object):
     self.rpki_root_cert = rpki.x509.X509(Auto_file = self.rpki_root_cert_file)
 
   def root_newer_than_subject(self):
-    return os.stat(self.rpki_root_cert_file).st_mtime > os.stat(os.path.join(self.rpki_root_dir, self.rpki_subject_cert)).st_mtime
+    return os.stat(self.rpki_root_cert_file).st_mtime > \
+           os.stat(os.path.join(self.rpki_root_dir, self.rpki_subject_cert)).st_mtime
 
   def get_subject_cert(self):
     filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
@@ -344,38 +329,29 @@ class main(object):
     self.serial_number = None
     self.crl_number = None
     self.revoked = []
-    self.foreground = False
     self.cms_timestamp = None
 
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-    self.cfg_file = None
-    use_syslog = True
+    parser = argparse.ArgumentParser(description = __doc__)
+    parser.add_argument("-c", "--config",
+                        help = "override default location of configuration file")
+    parser.add_argument("-d", "--debug", action = "store_true",
+                        help = "enable debugging mode")
+    parser.add_argument("-f", "--foreground", action = "store_true",
+                        help = "do not daemonize")
+    parser.add_argument("--pidfile",
+                        help = "override default location of pid file")
+    args = parser.parse_args()
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:dfh?", ["config=", "debug", "foreground", "help"])
-    for o, a in opts:
-      if o in ("-h", "--help", "-?"):
-        print __doc__
-        sys.exit(0)
-      elif o in ("-c", "--config"):
-        self.cfg_file = a
-      elif o in ("-d", "--debug"):
-        use_syslog = False
-        self.foreground = True
-      elif o in ("-f", "--foreground"):
-        self.foreground = True
+    rpki.log.init("rootd", use_syslog = not args.debug)
 
-    if argv:
-      raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
-
-    rpki.log.init("rootd", use_syslog = use_syslog)
-
-    self.cfg = rpki.config.parser(self.cfg_file, "rootd")
+    self.cfg = rpki.config.parser(args.config, "rootd")
     self.cfg.set_global_flags()
 
-    if not self.foreground:
-      rpki.daemonize.daemon()
+    if not args.foreground and not args.debug:
+      rpki.daemonize.daemon(pidfile = args.pidfile)
 
     self.bpki_ta                 = rpki.x509.X509(Auto_update = self.cfg.get("bpki-ta"))
     self.rootd_bpki_key          = rpki.x509.RSA( Auto_update = self.cfg.get("rootd-bpki-key"))

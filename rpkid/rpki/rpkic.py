@@ -1,36 +1,28 @@
 """
-This is a command line configuration and control tool for rpkid et al.
+Command line configuration and control tool for rpkid et al.
 
-Type "help" on the prompt, or run the program with the --help option for an
-overview of the available commands; type "help foo" for (more) detailed help
+Type "help" at the inernal prompt, or run the program with the --help option for
+an overview of the available commands; type "help foo" for (more) detailed help
 on the "foo" command.
-
-
-This program is a rewrite of the old myrpki program, replacing ten
-zillion XML and X.509 disk files and subprocess calls to the OpenSSL
-command line tool with SQL data and direct calls to the rpki.POW
-library.  This version abandons all pretense that this program might
-somehow work without rpki.POW, lxml, and Django installed, but since
-those packages are required for rpkid anyway, this seems like a small
-price to pay for major simplification of the code and better
-integration with the Django-based GUI interface.
-
-$Id$
-
-Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
 """
+
+# $Id$
+# 
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
 
 # NB: As of this writing, I'm trying really hard to avoid having this
 # program depend on a Django settings.py file.  This may prove to be a
@@ -41,6 +33,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import os
 import getopt
+import argparse
 import sys
 import time
 import rpki.config
@@ -74,32 +67,38 @@ class main(Cmd):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-    self.cfg_file = None
-    self.handle = None
-    profile = None
+    # We have to override argparse's default "help" mechanism so that
+    # we can add all the help stuff from our internal command
+    # processor.
 
-    opts, self.argv = getopt.getopt(sys.argv[1:], "c:hi:?",
-                                    ["config=", "help", "identity=", "profile="])
-    for o, a in opts:
-      if o in ("-c", "--config"):
-        self.cfg_file = a
-      elif o in ("-h", "--help", "-?"):
-        self.argv = ["help"]
-      elif o in ("-i", "--identity"):
-        self.handle = a
-      elif o == "--profile":
-        profile = a
+    parser = argparse.ArgumentParser(description = __doc__, add_help = False)
+    parser.add_argument("-c", "--config",
+                        help = "override default location of configuration file")
+    parser.add_argument("-h", "--help", action = "store_true",
+                        help = "show this help message and exit")
+    parser.add_argument("-i", "--identity", "--handle",
+                        help = "set initial entity handdle")
+    parser.add_argument("--profile",
+                        help = "enable profiling, saving data to PROFILE")
+    args, self.argv = parser.parse_known_args()
+
+    self.cfg_file = args.config
+    self.handle = args.identity
+
+    if args.help:
+      self.argv = ["help"]
+      parser.print_help()
 
     if self.argv and self.argv[0] == "help":
       Cmd.__init__(self, self.argv)
-    elif profile:
+    elif args.profile:
       import cProfile
       prof = cProfile.Profile()
       try:
         prof.runcall(self.main)
       finally:
-        prof.dump_stats(profile)
-        print "Dumped profile data to %s" % profile
+        prof.dump_stats(args.profile)
+        print "Dumped profile data to %s" % args.profile
     else:
       self.main()
 

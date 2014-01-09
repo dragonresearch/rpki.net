@@ -1,9 +1,3 @@
-"""
-Trivial RPKI up-down protocol root server.  Not recommended for
-production use.  Overrides a bunch of method definitions from the
-rpki.* classes in order to reuse as much code as possible.
-"""
-
 # $Id$
 # 
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
@@ -22,6 +16,12 @@ rpki.* classes in order to reuse as much code as possible.
 # OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
 # NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+"""
+Trivial RPKI up-down protocol root server.  Not recommended for
+production use.  Overrides a bunch of method definitions from the
+rpki.* classes in order to reuse as much code as possible.
+"""
 
 import os
 import time

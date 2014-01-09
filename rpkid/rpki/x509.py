@@ -1,46 +1,35 @@
+# $Id$
+# 
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 """
 One X.509 implementation to rule them all...
 
-...and in the darkness hide the twisty maze of partially overlapping
+...and in the darkness hide the twisty maze of partially-overlapping
 X.509 support packages in Python.
 
-There are several existing packages, none of which do quite what I
-need, due to age, lack of documentation, specialization, or lack of
-foresight on somebody's part (perhaps mine).  This module attempts to
-bring together the functionality I need in a way that hides at least
-some of the nasty details.  This involves a lot of format conversion.
-
-$Id$
-
-
-Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-
-
-Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
+Once upon a time we were using four separate partially-overlapping
+implementions of X.509 and related protocols.  Over the years this has
+collapsed down to one, but the interface module we built on top of the
+previous mess has itself become heavily embedded in the code base.  So
+this is a bit more complicated (not to mention baroque) than one might
+expect for a module that had grown in a saner fashion.  We clean up
+bits of it from time to time.  Some day this may all make sense.
 """
 
 import rpki.POW

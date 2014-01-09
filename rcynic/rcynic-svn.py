@@ -1,7 +1,3 @@
-"""
-Archive rcynic output in a Subversion repository.
-"""
-
 # $Id$
 #
 # Copyright (C) 2012 Internet Systems Consortium, Inc. ("ISC")
@@ -17,6 +13,10 @@ Archive rcynic output in a Subversion repository.
 # LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
+
+"""
+Archive rcynic output in a Subversion repository.
+"""
 
 import subprocess
 import argparse

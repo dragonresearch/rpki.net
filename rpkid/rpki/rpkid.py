@@ -1,7 +1,3 @@
-"""
-RPKI CA engine.
-"""
-
 # $Id$
 # 
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
@@ -20,6 +16,10 @@ RPKI CA engine.
 # OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
 # NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+"""
+RPKI CA engine.
+"""
 
 import os
 import time

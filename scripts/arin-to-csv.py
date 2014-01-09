@@ -1,6 +1,22 @@
+# $Id$
+# 
+# Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
 """
-Parse a WHOIS research dump and write out (just) the RPKI-relevant
-fields in myrpki-format CSV syntax.
+Parse an ARIN database research dump and write out (just) the
+RPKI-relevant fields in myrpki-format CSV syntax.
 
 NB: The input data for this script comes from ARIN under an agreement
 that allows research use but forbids redistribution, so if you think
@@ -10,25 +26,10 @@ Input format used to be RPSL WHOIS dump, but ARIN recently went Java,
 so we have to parse a 3.5GB XML "document".  Credit to Liza Daly for
 explaining the incantations needed to convince lxml to do this nicely,
 see: http://www.ibm.com/developerworks/xml/library/x-hiperfparse/
-
-$Id$
-
-Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
-
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, lxml.etree
+import sys
+import lxml.etree
 
 from rpki.csv_utils import csv_writer
 

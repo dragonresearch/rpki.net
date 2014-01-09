@@ -1,11 +1,3 @@
-"""
-Command line configuration and control tool for rpkid et al.
-
-Type "help" at the inernal prompt, or run the program with the --help option for
-an overview of the available commands; type "help foo" for (more) detailed help
-on the "foo" command.
-"""
-
 # $Id$
 # 
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
@@ -23,6 +15,14 @@ on the "foo" command.
 # OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
 # TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
+
+"""
+Command line configuration and control tool for rpkid et al.
+
+Type "help" at the inernal prompt, or run the program with the --help option for
+an overview of the available commands; type "help foo" for (more) detailed help
+on the "foo" command.
+"""
 
 # NB: As of this writing, I'm trying really hard to avoid having this
 # program depend on a Django settings.py file.  This may prove to be a

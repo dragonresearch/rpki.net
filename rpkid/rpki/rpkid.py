@@ -77,7 +77,7 @@ class main(object):
     self.cfg.set_global_flags()
 
     if not args.foreground and not args.debug:
-      rpki.daemonize.daemon(pidfile = pidfile)
+      rpki.daemonize.daemon(pidfile = args.pidfile)
 
     if self.profile:
       import cProfile

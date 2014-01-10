@@ -17,13 +17,13 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 """
-Render rcynic's XML output to basic (X)HTML with some rrdtool graphis.
+Render rcynic's XML output to basic (X)HTML with some rrdtool graphics.
 """
 
 import sys
 import urlparse
 import os
-import getopt
+import argparse
 import time
 import subprocess
 import copy
@@ -34,81 +34,47 @@ except ImportError:
   from xml.etree.ElementTree import (ElementTree, Element, SubElement, Comment)
 
 session = None
-
-opt = {
-  "refresh"                     : 1800,
-  "show-problems"               : True,
-  "show-graphs"                 : True,
-  "show-object-counts"          : True,
-  "update-rrds"                 : True,
-  "png-height"                  : 190,
-  "png-width"                   : 1350,
-  "svg-height"                  : 600,
-  "svg-width"                   : 1200,
-  "eps-height"                  : 0,
-  "eps-width"                   : 0 }
-
-try:
-  # Set from autoconf
-  opt["rrdtool-binary"] = ac_rrdtool_binary
-except NameError:
-  # Not set at all
-  opt["rrdtool-binary"] = "rrdtool"
-
-def usage(msg = 0):
-  f = sys.stderr if msg else sys.stdout
-  f.write("Usage: %s %s [options] input_file output_directory\n" % (sys.executable, sys.argv[0]))
-  f.write("Options:\n")
-  for i in sorted(opt):
-    if "_" not in i and not isinstance(opt[i], bool):
-      f.write("   --%-30s (%s)\n" % (i + " <value>", opt[i]))
-  for i in sorted(opt):
-    if "_" not in i and isinstance(opt[i], bool):
-      f.write("   --[no-]%-25s (--%s%s)\n" % (i, "" if opt[i] else "no-", i))
-  if msg:
-    f.write("\n")
-  sys.exit(msg)
+args = None
 
 def parse_options():
 
-  opts = ["help"]
-  for i in opt:
-    if isinstance(opt[i], bool):
-      opts.append(i)
-      opts.append("no-" + i)
-    else:
-      opts.append(i + "=")
+  global args
 
   try:
-    opts, argv = getopt.getopt(sys.argv[1:], "h?", opts)
-    for o, a in opts:
-      if o in ("-?", "-h", "--help"):
-        usage(0)
-      negated = o.startswith("--no-")
-      o = o[5:] if negated else o[2:]
-      if isinstance(opt[o], bool):
-        opt[o] = not negated
-      elif isinstance(opt[o], int):
-        opt[o] = int(a)
-      else:
-        opt[o] = a
-  except Exception, e:
-    usage("%s: %s" % (e.__class__.__name__, str(e)))
+    default_rrdtool_binary = ac_rrdtool_binary
+  except NameError:
+    default_rrdtool_binary = "rrdtool"
 
-  if len(argv) > 2:
-    usage("Unexpected arguments")
-
-  try:
-    opt["input_file"] = argv[0]
-    opt["output_directory"] = argv[1]
-  except IndexError:
-    usage("Missing required arguments")
-
-  if not os.path.isdir(opt["output_directory"]):
-    try:
-      os.makedirs(opt["output_directory"])
-    except OSError, e:
-      sys.exit("Couldn't create output directory: %s" % e)
+  parser = argparse.ArgumentParser(description = __doc__)
+  parser.add_argument("--refresh", type = int, default = 1800,
+                      help = "refresh interval for generated HTML")
+  parser.add_argument("--hide-problems", action = "store_true",
+                      help = "don't generate \"problems\" page")
+  parser.add_argument("--hide-graphs", action = "store_true",
+                      help = "don't generate graphs")
+  parser.add_argument("--hide-object-counts", action = "store_true",
+                      help = "don't display object counts")
+  parser.add_argument("--dont-update-rrds", action = "store_true",
+                      help = "don't add new data to RRD databases")
+  parser.add_argument("--png-height", type = int, default = 190,
+                      help = "height of PNG images")
+  parser.add_argument("--png-width", type = int, default = 1350,
+                      help = "width of PNG images")
+  parser.add_argument("--svg-height", type = int, default = 600,
+                      help = "height of SVG images")
+  parser.add_argument("--svg-width", type = int, default = 1200,
+                      help = "width of SVG images")
+  parser.add_argument("--eps-height", type = int, default = 0,
+                      help = "height of EPS images")
+  parser.add_argument("--eps-width", type = int, default = 0,
+                      help = "width of EPS images")
+  parser.add_argument("--rrdtool-binary", default = default_rrdtool_binary,
+                      help = "location of rrdtool binary")
+  parser.add_argument("input_file", type = argparse.FileType("r"),
+                      help = "XML input file")
+  parser.add_argument("output_directory",
+                      help = "output directory")
+  args = parser.parse_args()
 
 
 def parse_utc(s):
@@ -321,17 +287,15 @@ class Host(Problem_Mixin):
   def rrd_run(self, cmd):
     try:
       cmd = [str(i) for i in cmd]
-      cmd.insert(0, opt["rrdtool-binary"])
+      cmd.insert(0, args.rrdtool_binary)
       subprocess.check_call(cmd, stdout = open("/dev/null", "w"))
     except OSError, e:
-      usage("Problem running %s, perhaps you need to set --rrdtool-binary?  (%s)" % (
-        opt["rrdtool-binary"], e))
+      sys.exit("Problem running %s, perhaps you need to set --rrdtool-binary? (%s)" % (args.rrdtool_binary, e))
     except subprocess.CalledProcessError, e:
-      sys.exit("Failure running %s: %s" % (
-        opt["rrdtool-binary"], e))
+      sys.exit("Failure running %s: %s" % (args.rrdtool_binary, e))
 
   def rrd_update(self):
-    filename = os.path.join(opt["output_directory"], self.hostname) + ".rrd"
+    filename = os.path.join(args.output_directory, self.hostname) + ".rrd"
     if not os.path.exists(filename):
       cmd = ["create", filename, "--start", self.timestamp - 1, "--step", "3600"]
       cmd.extend(self.field_ds_specifiers())
@@ -341,24 +305,24 @@ class Host(Problem_Mixin):
                   "%s:%s" % (self.timestamp, ":".join(str(v) for v in self.field_values))])
 
   def rrd_graph(self, html):
-    filebase = os.path.join(opt["output_directory"], self.hostname)
+    filebase = os.path.join(args.output_directory, self.hostname)
     formats = [format for format in ("png", "svg", "eps")
-               if opt[format + "-width"] and opt[format + "-height"]]
+               if getattr(args, format + "_width") and getattr(args, format + "_height")]
     for period, start in self.graph_periods:
       for format in formats:
         cmds = [ "graph", "%s_%s.%s" % (filebase, period, format),
                  "--title", "%s last %s" % (self.hostname, period),
                  "--start", start,
-                 "--width", opt[format + "-width"],
-                 "--height", opt[format + "-height"],
+                 "--width",  getattr(args, format + "_width"),
+                 "--height", getattr(args, format + "_height"),
                  "--imgformat", format.upper() ]
         cmds.extend(self.graph_opts)
         cmds.extend(self.field_defs(filebase))
         cmds.extend(self.graph_cmds)
         self.rrd_run(cmds)
       img = Element("img", src = "%s_%s.png" % (self.hostname, period),
-                    width  = str(opt["png-width"]),
-                    height = str(opt["png-height"]))
+                    width  = str(args.png_width),
+                    height = str(args.png_height))
       if self.graph is None:
         self.graph = copy.copy(img)
       html.BodyElement("h2").text = "%s over last %s" % (self.hostname, period)
@@ -375,10 +339,7 @@ class Session(Problem_Mixin):
   def __init__(self):
     self.hosts = {}
 
-    if opt["input_file"] == "-":
-      self.root = ElementTree(file = sys.stdin).getroot()
-    else:
-      self.root = ElementTree(file = opt["input_file"]).getroot()
+    self.root = ElementTree(file = args.input_file).getroot()
 
     self.rcynic_version = self.root.get("rcynic-version")
     self.rcynic_date = self.root.get("date")
@@ -424,7 +385,7 @@ class Session(Problem_Mixin):
                for h in self.hosts.itervalues())
 
   def rrd_update(self):
-    if opt["update-rrds"]:
+    if not args.dont_update_rrds:
       for h in self.hosts.itervalues():
         h.rrd_update()
 
@@ -517,7 +478,7 @@ class HTML(object):
 
   def __init__(self, title, filebase):
 
-    self.filename = os.path.join(opt["output_directory"], filebase + ".html")
+    self.filename = os.path.join(args.output_directory, filebase + ".html")
 
     self.html = Element("html")
     self.html.append(Comment(" Generators:\n" + 
@@ -531,8 +492,8 @@ class HTML(object):
     SubElement(self.body, "h1").text = title
     SubElement(self.head, "style", type = "text/css").text = css
 
-    if opt["refresh"]:
-      SubElement(self.head, "meta", { "http-equiv" : "Refresh", "content" : str(opt["refresh"]) })
+    if args.refresh:
+      SubElement(self.head, "meta", { "http-equiv" : "Refresh", "content" : str(args.refresh) })
 
     hostwidth = max(len(hostname) for hostname in session.hostnames)
 
@@ -648,9 +609,9 @@ def main():
   for hostname in session.hostnames:
     html = HTML("Repository details for %s" % hostname, hostname)
     html.counter_table(session.hosts[hostname].get_counter, session.hosts[hostname].get_total)
-    if opt["show-graphs"]:
+    if not args.hide_graphs:
       session.hosts[hostname].rrd_graph(html)
-    if opt["show-problems"]:
+    if not args.hide_problems:
       html.BodyElement("h2").text = "Connection Problems"
       html.detail_table(session.hosts[hostname].connection_problems)
       html.BodyElement("h2").text = "Object Problems"
@@ -660,7 +621,7 @@ def main():
   html = HTML("rcynic summary", "index")
   html.BodyElement("h2").text = "Grand totals for all repositories"
   html.counter_table(session.get_sum, Label.get_count)
-  if opt["show-object-counts"]:
+  if not args.hide_object_counts:
     html.BodyElement("br")
     html.BodyElement("hr")
     html.BodyElement("br")
@@ -672,7 +633,7 @@ def main():
     html.BodyElement("br")
     html.BodyElement("h2").text = "Overview for repository %s" % hostname
     html.counter_table(session.hosts[hostname].get_counter, session.hosts[hostname].get_total)
-    if opt["show-graphs"]:
+    if not args.hide_graphs:
       html.BodyElement("br")
       html.BodyElement("a", href = "%s.html" % hostname).append(session.hosts[hostname].graph)
   html.close()

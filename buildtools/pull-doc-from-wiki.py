@@ -1,4 +1,20 @@
-#!/usr/bin/env python
+# $Id$
+# 
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2012  Internet Systems Consortium ("ISC")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
 
 """
 Pull HTML pages from a Trac Wiki, feed the useful bits to htmldoc and
@@ -7,34 +23,18 @@ html2text to generate PDF and flat text documentation.
 Assumes you're using the TracNav plugin for the Wiki pages, and uses
 the same list as the TracNav plugin does to determine the set of pages
 to convert and the order in which they appear in the PDF file.
-
-Most of the work of massaging the HTML is done using XSL transforms,
-because the template-driven style makes that easy.  There's probably
-some clever way to use lxml's XPath code to do the same thing in a
-more pythonic way with ElementTrees, but I already had the XSL
-transforms and there's a point of diminishing returns on this sort of
-thing.
 """
 
-# $Id$
-# 
-# Copyright (C) 2012  Internet Systems Consortium ("ISC")
-# 
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-# 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# Most of the work of massaging the HTML is done using XSL transforms,
+# because the template-driven style makes that easy.  There's probably
+# some clever way to use lxml's XPath code to do the same thing in a
+# more pythonic way with ElementTrees, but I already had the XSL
+# transforms and there's a point of diminishing returns on this sort of
+# thing.
 
 import sys
 import os
-import getopt
+import argparse
 import lxml.etree
 import urllib
 import urlparse
@@ -45,45 +45,33 @@ import tempfile
 
 def main():
 
-  base  = "https://trac.rpki.net"
-  toc   = base + "/wiki/doc/RPKI/TOC"
-  pdf   = "manual.pdf"
-  dir   = "."
-  h2trc = os.path.join(os.path.dirname(sys.argv[0]), "html2textrc")
+  base = "https://trac.rpki.net"
 
-  options = ["base_url=", "directory=", "help", "html2textrc", "pdf_file=", "toc="]
+  parser = argparse.ArgumentParser(description = __doc__)
+  parser.add_argument("-b", "--base_url",
+                      default = base,
+                      help = "base URL for documentation web site")
+  parser.add_argument("-t", "--toc",
+                      default = base + "/wiki/doc/RPKI/TOC",
+                      help = "table of contents URL")
+  parser.add_argument("-d", "--directory",
+                      default = ".",
+                      help = "output directory")
+  parser.add_argument("-p", "--pdf_file",
+                      default = "manual.pdf",
+                      help = "output PDF file")
+  parser.add_argument("-r", "--html2textrc",
+                      default = os.path.join(os.path.dirname(sys.argv[0]), "html2textrc"),
+                      help = "html2textrc rules file")
+  args = parser.parse_args()
 
-  def usage(msg = 0):
-    sys.stderr.write("Usage: %s %s\n" % (
-      sys.argv[0], " ".join("[--%s value]" % o[:-1] if o.endswith("=") else "[--%s]" % o
-                            for o in options)))
-    sys.stderr.write(__doc__)
-    sys.exit(msg)
-
-  opts, argv = getopt.getopt(sys.argv[1:], "b:d:hp:r:t:?", options)
-  for o, a in opts:
-    if o in ("-h", "--help", "-?"):
-      usage()
-    elif o in ("-b", "--base_url"):
-      base = a
-    elif o in ("-d", "--directory"):
-      dir = a
-    elif o in ("-p", "--pdf_file"):
-      pdf = a
-    elif o in ("-r", "--html2textrc"):
-      h2trc = a
-    elif o in ("-t", "--toc"):
-      toc = a
-  if argv:
-    usage("Unexpected arguments %s" % argv)
-
-  urls = str(xsl_get_toc(lxml.etree.parse(urllib.urlopen(toc)).getroot(),
-                         basename = repr(base))).splitlines()
+  urls = str(xsl_get_toc(lxml.etree.parse(urllib.urlopen(args.toc)).getroot(),
+                         basename = repr(args.base_url))).splitlines()
 
   assert all(urlparse.urlparse(url).path.startswith("/wiki/") for url in urls)
 
   htmldoc = subprocess.Popen(
-    ("htmldoc", "--book", "--title", "--outfile", pdf, "--format", "pdf",
+    ("htmldoc", "--book", "--title", "--outfile", args.pdf_file, "--format", "pdf",
      "--firstpage", "p1", "--size", "Universal", "--no-duplex",
      "--fontsize", "11.0", "--fontspacing", "1.1", "--headfootsize", "11.0",
      "--headingfont", "Helvetica", "--bodyfont", "Times", "--headfootfont", "Helvetica-Oblique",
@@ -96,7 +84,7 @@ def main():
   for url in urls:
     path = urlparse.urlparse(url).path
     page = xsl_get_page(lxml.etree.parse(urllib.urlopen(url)).getroot(),
-                        basename = repr(base),
+                        basename = repr(args.base_url),
                         path = repr(path))
 
     for img in page.xpath("//img | //object | //embed"): 
@@ -114,7 +102,7 @@ def main():
 
     page.write(htmldoc.stdin)
 
-    html2text = subprocess.Popen(("html2text", "-rcfile", h2trc, "-nobs", "-ascii"),
+    html2text = subprocess.Popen(("html2text", "-rcfile", args.html2textrc, "-nobs", "-ascii"),
                                  stdin = subprocess.PIPE,
                                  stdout = subprocess.PIPE)
     page.write(html2text.stdin)
@@ -126,7 +114,7 @@ def main():
     while lines and lines[0].isspace():
       del lines[0]
 
-    fn = os.path.join(dir, path[len("/wiki/"):].replace("/", "."))
+    fn = os.path.join(args.directory, path[len("/wiki/"):].replace("/", "."))
     f = open(fn, "w")
     want_blank = False
     for line in lines:
@@ -141,7 +129,7 @@ def main():
 
   htmldoc.stdin.close()
   htmldoc.wait()
-  sys.stderr.write("Wrote %s\n" % pdf)
+  sys.stderr.write("Wrote %s\n" % args.pdf_file)
 
   for png_fn in png_fns:
     os.unlink(png_fn)

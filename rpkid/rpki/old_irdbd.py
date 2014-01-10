@@ -20,8 +20,6 @@
 """
 IR database daemon.
 
-Usage: python irdbd.py [ { -c | --config } configfile ] [ { -h | --help } ]
-
 This is the old (pre-Django) version of irdbd, still used by smoketest
 and perhaps still useful as a minimal example.  This does NOT work with
 the GUI, rpkic, or any of the other more recent tools.
@@ -30,7 +28,7 @@ the GUI, rpkic, or any of the other more recent tools.
 import sys
 import os
 import time
-import getopt
+import argparse
 import urlparse
 import rpki.http
 import rpki.config
@@ -199,24 +197,16 @@ class main(object):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-    cfg_file = None
-    use_syslog = True
+    parser = argparse.ArgumentParser(description = __doc__)
+    parser.add_argument("-c", "--config",
+                        help = "override default location of configuration file")
+    parser.add_argument("-d", "--debug", action = "store_true",
+                        help = "enable debugging mode")
+    args = parser.parse_args()
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:dh?", ["config=", "debug", "help"])
-    for o, a in opts:
-      if o in ("-h", "--help", "-?"):
-        print __doc__
-        sys.exit(0)
-      if o in ("-c", "--config"):
-        cfg_file = a
-      elif o in ("-d", "--debug"):
-        use_syslog = False
-    if argv:
-      raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
+    rpki.log.init("irdbd", use_syslog = not args.debug)
 
-    rpki.log.init("irdbd", use_syslog = use_syslog)
-
-    self.cfg = rpki.config.parser(cfg_file, "irdbd")
+    self.cfg = rpki.config.parser(args.config, "irdbd")
 
     startup_msg = self.cfg.get("startup-message", "")
     if startup_msg:

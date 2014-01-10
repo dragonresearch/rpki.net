@@ -1,17 +1,19 @@
 # $Id$
 # 
-# Copyright (C) 2013 Internet Systems Consortium, Inc. ("ISC")
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2013  Internet Systems Consortium ("ISC")
 # 
-# Permission to use, copy, modify, and/or distribute this software for any
+# Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# copyright notices and this permission notice appear in all copies.
 # 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
 """
@@ -27,12 +29,7 @@ import sys
 import pwd
 import fcntl
 import errno
-import getopt
-
-def usage(result):
-  f = sys.stderr if result else sys.stdout
-  f.write("Usage: %s [--chroot] [--help]\n" % sys.argv[0])
-  sys.exit(result)
+import argparse
 
 def run(*cmd, **kwargs):
   chroot_this = kwargs.pop("chroot_this", False)
@@ -64,22 +61,14 @@ def run(*cmd, **kwargs):
     else:
       sys.exit("Program %s exited for unknown reason %s" % (" ".join(cmd), status))
 
-want_chroot = False
-
-opts, argv = getopt.getopt(sys.argv[1:], "h?", ["chroot", "help"])
-for o, a in opts:
-  if o in ("-?", "-h", "--help"):
-    usage(0)
-  elif o =="--chroot":
-    want_chroot = True
-
-if argv:
-  usage("Unexpected arguments: %r" % (argv,))
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("--chroot", action = "store_true", help = "run chrooted")
+args = parser.parse_args()
 
 we_are_root = os.getuid() == 0
 
-if want_chroot and not we_are_root:
-  usage("Only root can --chroot")
+if args.chroot and not we_are_root:
+  sys.exit("Only root can --chroot")
 
 try:
   pw = pwd.getpwnam(ac_rcynic_user)
@@ -97,7 +86,7 @@ except (IOError, OSError), e:
   else:
     sys.exit("Error %r opening lock %r" % (e.strerror, os.path.join(ac_rcynic_dir, "data/lock")))
 
-if want_chroot:
+if args.chroot:
   run("/bin/rcynic", "-c", "/etc/rcynic.conf", chroot_this = True)
 else:
   run(os.path.join(ac_bindir, "rcynic"), "-c", os.path.join(ac_sysconfdir, "rcynic.conf"))

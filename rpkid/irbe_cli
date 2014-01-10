@@ -34,6 +34,9 @@ __doc__ = """
 Command line IR back-end control program for rpkid and pubd.
 """
 
+# Command line processing of this program is too complex and
+# idiosyncratic to be worth trying to reimplement using argparse.
+
 import sys
 import getopt
 import textwrap

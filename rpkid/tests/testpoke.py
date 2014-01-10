@@ -1,89 +1,68 @@
 # $Id$
 # 
-# Copyright (C) 2010--2012  Internet Systems Consortium ("ISC")
-# 
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-# 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
-# 
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# copyright notices and this permission notice appear in all copies.
 # 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Trivial RPKI up-down protocol client, for testing.
 
 Configuration file is YAML to be compatable with APNIC rpki_poke.pl tool.
-
-Usage: python testpoke.py [ { -y | --yaml }    configfile ]
-                          [ { -r | --request } requestname ]
-                          [ { -d | --debug } ]
-                          [ { -h | --help } ]
-
-Default configuration file is testpoke.yaml, override with --yaml option.
 """
 
-import os, time, getopt, sys, yaml
-import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
-import rpki.http, rpki.config, rpki.exceptions
-import rpki.relaxng, rpki.oids, rpki.log, rpki.async
+import os
+import time
+import argparse
+import sys
+import yaml
+import rpki.resource_set
+import rpki.up_down
+import rpki.left_right
+import rpki.x509
+import rpki.http
+import rpki.config
+import rpki.exceptions
+import rpki.relaxng
+import rpki.oids
+import rpki.log
+import rpki.async
 
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-def usage(code):
-  print __doc__
-  sys.exit(code)
-
-yaml_file = "testpoke.yaml"
-yaml_cmd = None
-debug = False
-
-opts, argv = getopt.getopt(sys.argv[1:], "y:r:h?d", ["yaml=", "request=", "help", "debug"])
-for o, a in opts:
-  if o in ("-h", "--help", "-?"):
-    usage(0)
-  elif o in ("-y", "--yaml"):
-    yaml_file = a
-  elif o in ("-r", "--request"):
-    yaml_cmd = a
-  elif o in ("-d", "--debug"):
-    debug = True
-if argv:
-  usage(1)
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("-y", "--yaml", required = True, type = argparse.FileType("r"),
+                    help = "configuration file")
+parser.add_argument("-r", "--request",
+                    help = "request name")
+parser.add_argument("-d", "--debug",
+                    help = "enable debugging")
+args = parser.parse_args()
 
 rpki.log.init("testpoke")
 
-if debug:
+if args.debug:
   rpki.log.set_trace(True)
 
-f = open(yaml_file)
-yaml_data = yaml.load(f)
-f.close()
+yaml_data = yaml.load(args.yaml)
+
+yaml_cmd = args.request
 
 if yaml_cmd is None and len(yaml_data["requests"]) == 1:
   yaml_cmd = yaml_data["requests"].keys()[0]
-
-if yaml_cmd is None:
-  usage(1)
 
 yaml_req = yaml_data["requests"][yaml_cmd]
 
@@ -155,7 +134,7 @@ def do_revoke():
 dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 
 def fail(e):                            # pylint: disable=W0621
-  rpki.log.traceback(debug)
+  rpki.log.traceback(args.debug)
   sys.exit("Testpoke failed: %s" % e)
 
 cms_ta         = get_PEM("cms-ca-cert", rpki.x509.X509)

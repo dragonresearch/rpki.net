@@ -1,17 +1,19 @@
 # $Id$
 # 
-# Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2010--2012  Internet Systems Consortium ("ISC")
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# copyright notices and this permission notice appear in all copies.
 # 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
 """
@@ -30,40 +32,25 @@ import email.encoders
 import mailbox
 import rpki.POW
 import lxml.etree
-import getopt
+import argparse
 import sys
 import base64
 
-source_name = None
-destination_name = None
-mark_seen = False
-kill_seen = False
-unseen_only = False
-target_tag = "{http://www.apnic.net/specs/rescerts/up-down/}message"
-
-def usage(ok):
-  print "Usage: %s [--mark] [--kill] [--tag tag]] [--unseen] --input maildir --output mhfolder" % sys.argv[0]
-  print __doc__
-  sys.exit(0 if ok else 1)
-
-opts, argv = getopt.getopt(sys.argv[1:], "hi:kmo:t:u?", ["help", "input=", "kill", "mark", "output=", "tag=", "unseen"])
-for o, a in opts:
-  if o in ("-h", "--help", "-?"):
-    usage(ok = True)
-  elif o in ("-i", "--input"):
-    source_name = a
-  elif o in ("-m", "--mark"):
-    mark_seen = True
-  elif o in ("-k", "--kill"):
-    kill_seen = True
-  elif o in ("-o", "--output"):
-    destination_name = a
-  elif o in ("-t", "--tag"):
-    target_tag = a
-  elif o in ("-u", "--unseen"):
-    unseen_only = True
-if argv or source_name is None or destination_name is None:
-  usage(ok = False)
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("-i", "--input", required = True,
+                    help = "input Maildir")
+parser.add_argument("-m", "--mark", action = "store_true",
+                    help = "mark seen messages")
+parser.add_argument("-k", "--kill", action = "store_true",
+                    help = "kill seen messages")
+parser.add_argument("-o", "--output", required = True,
+                    help = "output MH folder")
+parser.add_argument("-t", "--tag",
+                    default = "{http://www.apnic.net/specs/rescerts/up-down/}message",
+                    help = "XML namespace tag for an input message")
+parser.add_argument("-u", "--unseen", action = "store_true",
+                    help = "only process unseen messages")
+args = parser.parse_args()
 
 def pprint_cert(b64):
   return rpki.POW.X509.derRead(base64.b64decode(b64)).pprint()
@@ -103,11 +90,11 @@ def fix_headers():
 destination = None
 source = None
 try:
-  destination = mailbox.MH(destination_name, factory = None, create = True)
-  source = mailbox.Maildir(source_name, factory = None)
+  destination = mailbox.MH(args.output, factory = None, create = True)
+  source = mailbox.Maildir(args.input, factory = None)
 
   for srckey, srcmsg in source.iteritems():
-    if unseen_only and "S" in srcmsg.get_flags():
+    if args.unseen and "S" in srcmsg.get_flags():
       continue
     assert not srcmsg.is_multipart() and srcmsg.get_content_type() == "application/x-rpki"
     payload = srcmsg.get_payload(decode = True)
@@ -115,7 +102,7 @@ try:
     txt = cms.verify(rpki.POW.X509Store(), None, rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY | rpki.POW.CMS_NO_ATTR_VERIFY | rpki.POW.CMS_NO_CONTENT_VERIFY)
     xml = lxml.etree.fromstring(txt)
     tag = xml.tag
-    if target_tag and tag != target_tag:
+    if args.tag and tag != args.tag:
       continue
     msg = email.mime.multipart.MIMEMultipart("related")
     msg["X-RPKI-Tag"] = tag
@@ -131,9 +118,9 @@ try:
     msg.epilogue = "\n"                 # Force trailing newline
     key = destination.add(msg)
     print "Added", key
-    if kill_seen:
+    if args.kill:
       del source[srckey]
-    elif mark_seen:
+    elif args.mark:
       srcmsg.set_subdir("cur")
       srcmsg.add_flag("S")
       source[srckey] = srcmsg

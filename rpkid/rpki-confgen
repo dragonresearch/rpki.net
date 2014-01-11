@@ -2,23 +2,25 @@
 
 # $Id$
 #
-# Copyright (C) 2013  Internet Systems Consortium ("ISC")
-#
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2013  Internet Systems Consortium ("ISC")
+# 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
 import os
 import sys
-import getopt
+import argparse
 import base64
 import textwrap
 
@@ -116,7 +118,7 @@ class Section(object):
     for o in self.options:
       o.to_conf(f, width)
 
-def wiki_header(f):
+def wiki_header(f, ident, toc):
   f.write("\n".join((
     "{{{",
     "#!comment",
@@ -134,7 +136,7 @@ def wiki_header(f):
     f.write("[[TracNav(%s)]]\n" % toc)
   f.write("[[PageOutline]]\n")
 
-def conf_header(f):
+def conf_header(f, ident):
   f.write("\n".join((
     "# Automatically generated.  Edit as needed, but be careful of overwriting.",
     "#",
@@ -142,78 +144,105 @@ def conf_header(f):
     "#             by $Id$",
     "")))
 
-# We use clunky getopt instead of shiny argparse because ordering of
-# operations matters here, and most options may be repeated.  No doubt
-# there's a way to do this with argparse, but it's not obvious that
-# it's worth the time it would take to figure it out.
 
-sections = []
-section_map = None
-option_map = None
-ident = None
-toc = None
+# http://stackoverflow.com/questions/9027028/argparse-argument-order
 
-try:
-  opts, argv = getopt.getopt(sys.argv[1:], "h",
-                             ["help",
-                              "read-xml=",
-                              "write-xml=",
-                              "write-wiki=",
-                              "write-conf=",
-                              "set=",
-                              "pwgen=",
-                              "toc=",
-                              "autoconf"])
-except getopt.GetoptError, e:
-  sys.exit("%s: %s" % (sys.argv[0], e))
+class CustomAction(argparse.Action):
+  def __call__(self, parser, namespace, values, option_string = None):
+    if not "ordered_args" in namespace:
+      namespace.ordered_args = []
+    namespace.ordered_args.append((self.dest, values))
 
-for o, a in opts:
+class CustomFlagAction(argparse.Action):
+  def __init__(self, option_strings, dest, default = None,
+               required = False, help = None):
+    super(CustomFlagAction, self).__init__(
+      option_strings = option_strings, dest = dest, nargs = 0,
+      const = None, default = default, required = required, help = help)
+  def __call__(self, parser, namespace, values, option_string = None):
+    if not "ordered_args" in namespace:
+      namespace.ordered_args = []
+    namespace.ordered_args.append((self.dest, None))
 
-  if o in ("-h", "--help"):
-    sys.exit("Use the Source, Luke")
 
-  elif o == "--read-xml":
-    option_map = None
-    root = ElementTree(file = a).getroot()
-    ident = root.get("ident")
-    sections.extend(Section.from_xml(x) for x in root)
-    option_map = {}
-    section_map = {}
-    for section in sections:
-      if section.name in section_map:
+class main(object):
+
+  def __init__(self):
+    self.sections = []
+    self.section_map = None
+    self.option_map = None
+    self.ident = None
+    self.toc = None
+
+    parser = argparse.ArgumentParser(description = __doc__)
+    parser.add_argument("--read-xml",   metavar = "FILE",  action = CustomAction,
+                        required = True, type = argparse.FileType("r"),
+                        help = "XML input file defining sections and options")
+    parser.add_argument("--write-xml",  metavar = "FILE",  action = CustomAction,
+                        help = "XML file to write")
+    parser.add_argument("--write-wiki", metavar = "FILE", action = CustomAction,
+                        help = "TracWiki file to write")
+    parser.add_argument("--write-conf", metavar = "FILE", action = CustomAction,
+                        help = "rpki.conf configuration file to write")
+    parser.add_argument("--set",        metavar = "VARVAL",    action = CustomAction,
+                        help = "variable setting in form \"VAR=VAL\"")
+    parser.add_argument("--pwgen",      metavar = "VAR",       action = CustomAction,
+                        help = "set variable to generated password")
+    parser.add_argument("--toc",        metavar = "TRACNAV",   action = CustomAction,
+                        help = "set TOC value to use with TracNav plugin")
+    parser.add_argument("--autoconf",   action = CustomFlagAction,
+                        help = "configure [autoconf] section")
+    args = parser.parse_args()
+
+    for cmd, arg in args.ordered_args:
+      getattr(self, "do_" + cmd)(arg)
+
+
+  def do_read_xml(self, arg):
+    self.option_map = None
+    root = ElementTree(file = arg).getroot()
+    self.ident = root.get("ident")
+    self.sections.extend(Section.from_xml(x) for x in root)
+    self.option_map = {}
+    self.section_map = {}
+    for section in self.sections:
+      if section.name in self.section_map:
         sys.exit("Duplicate section %s" % section.name)
-      section_map[section.name] = section
+      self.section_map[section.name] = section
       for option in section.options:
         name = (section.name, option.name)
-        if name in option_map:
+        if name in self.option_map:
           sys.exit("Duplicate option %s::%s" % name)
-        option_map[name] = option
+        self.option_map[name] = option
 
-  elif o == "--set":
+
+  def do_set(self, arg):
     try:
-      name, value = a.split("=", 1)
+      name, value = arg.split("=", 1)
       section, option = name.split("::")
     except ValueError:
       sys.exit("Couldn't parse --set specification \"%s\"" % a)
     name = (section, option)
-    if name not in option_map:
+    if name not in self.option_map:
       sys.exit("Couldn't find option %s::%s" % name)
-    option_map[name].value = value
+    self.option_map[name].value = value
 
-  elif o == "--pwgen":
+
+  def do_pwgen(self, arg):
     try:
-      section, option = a.split("::")
+      section, option = arg.split("::")
     except ValueError:
       sys.exit("Couldn't parse --pwgen specification \"%s\"" % a)
     name = (section, option)
-    if name not in option_map:
+    if name not in self.option_map:
       sys.exit("Couldn't find option %s::%s" % name)
-    option_map[name].value = base64.urlsafe_b64encode(os.urandom(66))
+    self.option_map[name].value = base64.urlsafe_b64encode(os.urandom(66))
 
-  elif o == "--autoconf":
+
+  def do_autoconf(self, ignored):
     try:
       import rpki.autoconf
-      for option in section_map["autoconf"].options:
+      for option in self.section_map["autoconf"].options:
         try:
           option.value = getattr(rpki.autoconf, option.name)
         except AttributeError:
@@ -223,35 +252,40 @@ for o, a in opts:
     except KeyError:
       sys.exit("Couldn't find autoconf section")
 
-  elif o == "--write-xml":
-    x = Element("configuration", ident = ident)
-    x.extend(s.to_xml() for s in sections)
-    ElementTree(x).write(a, pretty_print = True, encoding = "us-ascii")
 
-  elif o == "--write-wiki":
-    if "%" in a:
-      for section in sections:
-        with open(a % section.name, "w") as f:
-          wiki_header(f)
+  def do_write_xml(self, arg):
+    x = Element("configuration", ident = self.ident)
+    x.extend(s.to_xml() for s in self.sections)
+    ElementTree(x).write(arg, pretty_print = True, encoding = "us-ascii")
+
+
+  def do_write_wiki(self, arg):
+    if "%" in arg:
+      for section in self.sections:
+        with open(arg % section.name, "w") as f:
+          wiki_header(f, self.ident, self.toc)
           section.to_wiki(f)
     else:
-      with open(a, "w") as f:
-        for i, section in enumerate(sections):
+      with open(arg, "w") as f:
+        for i, section in enumerate(self.sections):
           if i == 0:
-            wiki_header(f)
+            wiki_header(f, self.ident, self.toc)
           else:
             f.write("\f\n")
           section.to_wiki(f)
 
-  elif o == "--write-conf":
-    with open(a, "w") as f:
-      conf_header(f)
-      width = max(s.width for s in sections)
-      for section in sections:
+
+  def do_write_conf(self, arg):
+    with open(arg, "w") as f:
+      conf_header(f, self.ident)
+      width = max(s.width for s in self.sections)
+      for section in self.sections:
         section.to_conf(f, width)
 
-  elif o == "--toc":
-    toc = a
 
-if argv:
-  sys.exit("%s: Unexpected argument%s: %s" % (sys.argv[0], "" if len(argv) == 1 else "s", " ".join(argv)))
+  def do_toc(self, arg):
+    self.toc = arg
+
+
+if __name__ == "__main__":
+  main()

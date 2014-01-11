@@ -27,7 +27,6 @@ import mailbox
 import sys
 import urlparse
 import os
-import getopt
 import datetime
 import subprocess
 import shelve

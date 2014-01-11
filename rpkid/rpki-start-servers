@@ -2,42 +2,31 @@
 
 # $Id$
 # 
-# Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
-# 
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-# 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
-# 
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# copyright notices and this permission notice appear in all copies.
 # 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-__doc__ = """
-Start servers, logging to files, looking at config file to figure out
-which servers the user wants started.
+"""
+Start servers, using config file to figure out which servers the user
+wants started.
 """
 
 import subprocess
 import os
-import getopt
+import argparse
 import sys
 import time
 import rpki.config
@@ -46,37 +35,29 @@ import rpki.autoconf
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = None
-debug    = False
-log_dir  = "."
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("-c", "--config",
+                    help = "override default location of configuration file")
+parser.add_argument("-d", "--debug", action = "store_true",
+                    help = "enable debugging")
+parser.add_argument("--logdir", default = ".",
+                    help = "where to write write log files when debugging")
+args = parser.parse_args()
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:dhp:?", ["config=", "debug" "help", "logdir="])
-for o, a in opts:
-  if o in ("-h", "--help", "-?"):
-    print __doc__
-    sys.exit(0)
-  elif o in ("-c", "--config"):
-    cfg_file = a
-  elif o in ("-d", "--debug"):
-    debug = True
-  elif o == "--logdir":
-    log_dir = a
-
-cfg = rpki.config.parser(cfg_file, "myrpki")
-
+cfg = rpki.config.parser(args.config, "myrpki")
 
 def run(name):
   # pylint: disable=E1103
   cmd = (os.path.join(rpki.autoconf.libexecdir, name), "-c", cfg.filename)
-  if debug:
+  if args.debug:
     proc = subprocess.Popen(cmd + ("-d",),
-                            stdout = open(os.path.join(log_dir, name + ".log"), "a"),
+                            stdout = open(os.path.join(args.logdir, name + ".log"), "a"),
                             stderr = subprocess.STDOUT)
   else:
     proc = subprocess.Popen(cmd)
-  if debug and proc.poll() is None:
+  if args.debug and proc.poll() is None:
     print "Started %s, pid %s" % (name, proc.pid)
-  elif not debug and proc.wait() == 0:
+  elif not args.debug and proc.wait() == 0:
     print "Started %s" % name
   else:
     print "Problem starting %s, pid %s" % (name, proc.pid)

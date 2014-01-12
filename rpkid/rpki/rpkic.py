@@ -49,7 +49,7 @@ import rpki.x509
 import rpki.async
 import rpki.version
 
-from rpki.cli import Cmd, BadCommandSyntax
+from rpki.cli import Cmd, BadCommandSyntax, parsecmd, cmdarg
 
 class BadPrefixSyntax(Exception):       "Bad prefix syntax."
 class CouldntTalkToDaemon(Exception):   "Couldn't talk to daemon."
@@ -57,63 +57,78 @@ class BadXMLMessage(Exception):         "Bad XML message."
 class PastExpiration(Exception):        "Expiration date has already passed."
 class CantRunRootd(Exception):          "Can't run rootd."
 
+module_doc = __doc__
+
 class main(Cmd):
 
   prompt = "rpkic> "
 
   completedefault = Cmd.filename_complete
 
+  # Top-level argparser, for stuff that one might want when starting
+  # up the interactive command loop.  Not sure -i belongs here, but 
+  # it's harmless so leave it here for the moment.
+
+  top_argparser = argparse.ArgumentParser(add_help = False)
+  top_argparser.add_argument("-c", "--config",
+                             help = "override default location of configuration file")
+  top_argparser.add_argument("-i", "--identity", "--handle",
+                             help = "set initial entity handdle")
+  top_argparser.add_argument("--profile",
+                             help = "enable profiling, saving data to PROFILE")
+
+  # Argparser for non-interactive commands (no command loop).
+
+  full_argparser = argparse.ArgumentParser(parents = [top_argparser],
+                                           description = module_doc)
+  argsubparsers = full_argparser.add_subparsers(title = "Commands", metavar = "")
+
   def __init__(self):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-    # We have to override argparse's default "help" mechanism so that
-    # we can add all the help stuff from our internal command
-    # processor.
+    # Try parsing just the arguments that make sense if we're
+    # going to be running an interactive command loop.  If that
+    # parses everything, we're interactive, otherwise, it's either
+    # a non-interactive command or a parse error, so we let the full
+    # parser sort that out for us.
 
-    parser = argparse.ArgumentParser(description = __doc__, add_help = False)
-    parser.add_argument("-c", "--config",
-                        help = "override default location of configuration file")
-    parser.add_argument("-h", "--help", action = "store_true",
-                        help = "show this help message and exit")
-    parser.add_argument("-i", "--identity", "--handle",
-                        help = "set initial entity handdle")
-    parser.add_argument("--profile",
-                        help = "enable profiling, saving data to PROFILE")
-    args, self.argv = parser.parse_known_args()
+    args, argv = self.top_argparser.parse_known_args()
+    self.interactive = not argv
+    if not self.interactive:
+      args = self.full_argparser.parse_args()
 
     self.cfg_file = args.config
     self.handle = args.identity
 
-    if args.help:
-      self.argv = ["help"]
-      parser.print_help()
-
-    if self.argv and self.argv[0] == "help":
-      Cmd.__init__(self, self.argv)
-    elif args.profile:
+    if args.profile:
       import cProfile
       prof = cProfile.Profile()
       try:
-        prof.runcall(self.main)
+        prof.runcall(self.main, args)
       finally:
         prof.dump_stats(args.profile)
         print "Dumped profile data to %s" % args.profile
     else:
-      self.main()
+      self.main(args)
 
-  def main(self):
+  def main(self, args):
     rpki.log.init("rpkic", use_syslog = False)
     self.read_config()
-    Cmd.__init__(self, self.argv)
-    if self.argv:
-      sys.exit(1 if self.last_command_failed else 0)
+    if self.interactive:
+      Cmd.__init__(self)
+    else:
+      args.func(self, args)
 
   def read_config(self):
     global rpki                         # pylint: disable=W0602
 
-    cfg = rpki.config.parser(self.cfg_file, "myrpki")
-    cfg.set_global_flags()
+    try:
+      cfg = rpki.config.parser(self.cfg_file, "myrpki")
+      cfg.set_global_flags()
+    except IOError, e:
+      sys.exit("%s: %s" % (e.strerror, e.filename))
+
     self.histfile = cfg.get("history_file", os.path.expanduser("~/.rpkic_history"))
     self.autosync = cfg.getboolean("autosync", True, section = "rpkic")
 
@@ -156,45 +171,70 @@ class main(Cmd):
 
     self.zoo = rpki.irdb.Zookeeper(cfg = cfg, handle = self.handle, logstream = sys.stdout)
 
-  def help_overview(self):
+
+  def do_help(self, arg):
     """
-    Show program __doc__ string.  Perhaps there's some clever way to
-    do this using the textwrap module, but for now something simple
-    and crude will suffice.
+    List available commands with "help" or detailed help with "help cmd".
     """
 
-    for line in __doc__.splitlines(True):
-      self.stdout.write(" " * 4 + line)
-    self.stdout.write("\n")
+    argv = arg.split()
+
+    if not argv:
+      #return self.full_argparser.print_help()
+      return self.print_topics(
+        self.doc_header,
+        sorted(set(name[3:] for name in self.get_names()
+                   if name.startswith("do_")
+                   and getattr(self, name).__doc__)),
+        15, 80)
+
+    try:
+      return getattr(self, "help_" + argv[0])()
+    except AttributeError:
+      pass
+
+    func = getattr(self, "do_" + argv[0], None)
+
+    try:
+      return func.argparser.print_help()
+    except AttributeError:
+      pass
+
+    try:
+      return self.stdout.write(func.__doc__ + "\n")
+    except AttributeError:
+      pass
+
+    self.stdout.write((self.nohelp + "\n") % arg)
+
 
   def irdb_handle_complete(self, manager, text, line, begidx, endidx):
     return [obj.handle for obj in manager.all() if obj.handle and obj.handle.startswith(text)]
 
 
-  def do_select_identity(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("handle", help = "new handle"))
+  def do_select_identity(self, args):
     """
     Select an identity handle for use with later commands.
     """
 
-    argv = arg.split()
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting handle of new selected entity")
-    self.zoo.reset_identity(argv[0])
+    self.zoo.reset_identity(args.handle)
 
   def complete_select_identity(self, *args):
     return self.irdb_handle_complete(rpki.irdb.ResourceHolderCA.objects, *args)
 
 
-  def do_initialize(self, arg):
+  @parsecmd(argsubparsers)
+  def do_initialize(self, args):
     """
-    Initialize an RPKI installation.  This command reads the
-    configuration file, creates the BPKI and EntityDB directories,
-    generates the initial BPKI certificates, and creates an XML file
-    describing the resource-holding aspect of this RPKI installation.
-    """
+    Initialize an RPKI installation.  DEPRECATED.
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
+    This command reads the configuration file, creates the BPKI and
+    EntityDB directories, generates the initial BPKI certificates, and
+    creates an XML file describing the resource-holding aspect of this
+    RPKI installation.
+    """
 
     rootd_case = self.zoo.run_rootd and self.zoo.handle == self.zoo.cfg.get("handle")
 
@@ -210,40 +250,39 @@ class main(Cmd):
     self.zoo.write_bpki_files()
 
 
-  def do_create_identity(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("handle", help = "handle of entity to create"))
+  def do_create_identity(self, args):
     """
-    Create a new resource-holding entity.  Argument is the handle of
-    the entity to create.  Returns XML file describing the new
-    resource holder.
+    Create a new resource-holding entity.
+
+    Returns XML file describing the new resource holder.
 
     This command is idempotent: calling it for a resource holder which
     already exists returns the existing identity.
     """
 
-    argv = arg.split()
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting handle of new entity")
-
-    self.zoo.reset_identity(argv[0])
+    self.zoo.reset_identity(args.handle)
 
     r = self.zoo.initialize_resource_bpki()
     r.save("%s.identity.xml" % self.zoo.handle, sys.stdout)
 
 
-  def do_initialize_server_bpki(self, arg):
+  @parsecmd(argsubparsers)
+  def do_initialize_server_bpki(self, args):
     """
-    Initialize server BPKI portion of an RPKI installation.  Reads
-    server configuration from configuration file and creates the
+    Initialize server BPKI portion of an RPKI installation.
+
+    Reads server configuration from configuration file and creates the
     server BPKI objects needed to start daemons.
     """
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
     self.zoo.initialize_server_bpki()
     self.zoo.write_bpki_files()
 
 
-  def do_update_bpki(self, arg):
+  @parsecmd(argsubparsers)
+  def do_update_bpki(self, args):
     """
     Update BPKI certificates.  Assumes an existing RPKI installation.
 
@@ -256,8 +295,6 @@ class main(Cmd):
     Most likely this should be run under cron.
     """
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
     self.zoo.update_bpki()
     self.zoo.write_bpki_files()
     try:
@@ -266,64 +303,59 @@ class main(Cmd):
       print "Couldn't push updated BPKI material into daemons: %s" % e
 
 
-  def do_configure_child(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("--child_handle", help = "override default handle for new child"),
+            cmdarg("--valid_until",  help = "override default validity interval"),
+            cmdarg("child_xml",      help = "XML file containing child's identity"))
+  def do_configure_child(self, args):
     """
-    Configure a new child of this RPKI entity, given the child's XML
-    identity file as an input.  This command extracts the child's data
-    from the XML, cross-certifies the child's resource-holding BPKI
-    certificate, and generates an XML file describing the relationship
-    between the child and this parent, including this parent's BPKI
-    data and up-down protocol service URI.
+    Configure a new child of this RPKI entity.
+
+    This command extracts the child's data from an XML input file,
+    cross-certifies the child's resource-holding BPKI certificate, and
+    generates an XML output file describing the relationship between
+    the child and this parent, including this parent's BPKI data and
+    up-down protocol service URI.
     """
 
-    child_handle = None
-    valid_until = None
-
-    opts, argv = getopt.getopt(arg.split(), "", ["child_handle=", "valid_until="])
-    for o, a in opts:
-      if o == "--child_handle":
-        child_handle = a
-      elif o == "--valid_until":
-        valid_until = a
-    
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting filename of child's identity XML")
-    r, child_handle = self.zoo.configure_child(argv[0], child_handle, valid_until)
+    r, child_handle = self.zoo.configure_child(args.child_xml, args.child_handle, args.valid_until)
     r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), sys.stdout)
     self.zoo.synchronize_ca()
 
 
-  def do_delete_child(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("child_handle", help = "handle of child to delete"))
+  def do_delete_child(self, args):
     """
     Delete a child of this RPKI entity.
     """
 
-    argv = arg.split()
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting handle of child to delete")
-
     try:
-      self.zoo.delete_child(argv[0])
+      self.zoo.delete_child(args.child_handle)
       self.zoo.synchronize_ca()
     except rpki.irdb.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Child.DoesNotExist:
-      print "No such child \"%s\"" % argv[0]
+      print "No such child \"%s\"" % args.child_handle
 
   def complete_delete_child(self, *args):
     return self.irdb_handle_complete(self.zoo.resource_ca.children, *args)
 
 
-  def do_configure_parent(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("--parent_handle", help = "override default handle for new parent"),
+            cmdarg("parent_xml",      help = "XML file containing parent's response"))
+  def do_configure_parent(self, args):
     """
-    Configure a new parent of this RPKI entity, given the output of
-    the parent's configure_child command as input.  This command reads
-    the parent's response XML, extracts the parent's BPKI and service
-    URI information, cross-certifies the parent's BPKI data into this
-    entity's BPKI, and checks for offers or referrals of publication
-    service.  If a publication offer or referral is present, we
-    generate a request-for-service message to that repository, in case
-    the user wants to avail herself of the referral or offer.
+    Configure a new parent of this RPKI entity.
+
+    This command reads the parent's response XML, extracts the
+    parent's BPKI and service URI information, cross-certifies the
+    parent's BPKI data into this entity's BPKI, and checks for offers
+    or referrals of publication service.  If a publication offer or
+    referral is present, we generate a request-for-service message to
+    that repository, in case the user wants to avail herself of the
+    referral or offer.
 
     We do NOT attempt automatic synchronization with rpkid at the
     completion of this command, because synchronization at this point
@@ -332,63 +364,53 @@ class main(Cmd):
     synchronize here, run the synchronize command yourself.
     """
 
-    parent_handle = None
-
-    opts, argv = getopt.getopt(arg.split(), "", ["parent_handle="])
-    for o, a in opts:
-      if o == "--parent_handle":
-        parent_handle = a
-
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting filename of parental response XML")
-    r, parent_handle = self.zoo.configure_parent(argv[0], parent_handle)
+    r, parent_handle = self.zoo.configure_parent(args.parent_xml, args.parent_handle)
     r.save("%s.%s.repository-request.xml" % (self.zoo.handle, parent_handle), sys.stdout)
 
 
-  def do_delete_parent(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("parent_handle", help = "handle of parent to delete"))
+  def do_delete_parent(self, args):
     """
     Delete a parent of this RPKI entity.
     """
 
-    argv = arg.split()
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting handle of parent to delete")
-
     try:
-      self.zoo.delete_parent(argv[0])
+      self.zoo.delete_parent(args.parent_handle)
       self.zoo.synchronize_ca()
     except rpki.irdb.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Parent.DoesNotExist:
-      print "No such parent \"%s\"" % argv[0]
+      print "No such parent \"%s\"" % args.parent_handle
 
   def complete_delete_parent(self, *args):
     return self.irdb_handle_complete(self.zoo.resource_ca.parents, *args)
 
 
-  def do_configure_root(self, arg):
+  @parsecmd(argsubparsers)
+  def do_configure_root(self, args):
     """
-    Configure the current resource holding identity as a root (ie,
-    configure it to talk to rootd as (one of) its parent(s).  Returns
-    repository request XML file like configure_parent does.
+    Configure the current resource holding identity as a root.
+
+    This configures rpkid to talk to rootd as (one of) its parent(s).
+    Returns repository request XML file like configure_parent does.
     """
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
     r = self.zoo.configure_rootd()
     if r is not None:
       r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
     self.zoo.write_bpki_files()
 
 
-  def do_delete_root(self, arg):
+  @parsecmd(argsubparsers)
+  def do_delete_root(self, args):
     """
-    Delete association with local RPKI root as parent of the current
-    entity (ie, tell this rpkid <self/> to stop talking to rootd).
+    Delete local RPKI root as parent of the current entity.
+
+    This tells the current rpkid identity (<self/>) to stop talking to
+    rootd.
     """
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
     try:
       self.zoo.delete_rootd()
       self.zoo.synchronize_ca()
@@ -398,28 +420,20 @@ class main(Cmd):
       print "No associated rootd"
 
 
-  def do_configure_publication_client(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("--flat",     help = "use flat publication scheme", action = "store_true"),
+            cmdarg("--sia_base", help = "override SIA base value"),
+            cmdarg("client_xml", help = "XML file containing client request"))
+  def do_configure_publication_client(self, args):
     """
-    Configure publication server to know about a new client, given the
-    client's request-for-service message as input.  This command reads
-    the client's request for service, cross-certifies the client's
-    BPKI data, and generates a response message containing the
-    repository's BPKI data and service URI.
+    Configure publication server to know about a new client.
+
+    This command reads the client's request for service,
+    cross-certifies the client's BPKI data, and generates a response
+    message containing the repository's BPKI data and service URI.
     """
 
-    sia_base = None
-    flat = False
-
-    opts, argv = getopt.getopt(arg.split(), "", ["flat", "sia_base="])
-    for o, a in opts:
-      if o == "--flat":
-        flat = True
-      elif o == "--sia_base":
-        sia_base = a
-    
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting filename for publication client request XML")
-    r, client_handle = self.zoo.configure_publication_client(argv[0], sia_base, flat)
+    r, client_handle = self.zoo.configure_publication_client(args.client_xml, args.sia_base, args.flat)
     r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
     try:
       self.zoo.synchronize_pubd()
@@ -427,80 +441,66 @@ class main(Cmd):
       pass
 
 
-  def do_delete_publication_client(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("client_handle", help = "handle of client to delete"))
+  def do_delete_publication_client(self, args):
     """
     Delete a publication client of this RPKI entity.
     """
 
-    argv = arg.split()
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting handle of client to delete")
     try:
-      self.zoo.delete_publication_client(argv[0])
+      self.zoo.delete_publication_client(args.client_handle)
       self.zoo.synchronize_pubd()
     except rpki.irdb.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Client.DoesNotExist:
-      print "No such client \"%s\"" % argv[0]
+      print "No such client \"%s\"" % args.client_handle
 
   def complete_delete_publication_client(self, *args):
     return self.irdb_handle_complete(self.zoo.server_ca.clients, *args)
 
 
-  def do_configure_repository(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("--parent_handle", help = "override default parent handle"),
+            cmdarg("repository_xml",  help = "XML file containing repository response"))
+  def do_configure_repository(self, args):
     """
-    Configure a publication repository for this RPKI entity, given the
-    repository's response to our request-for-service message as input.
-    This command reads the repository's response, extracts and
-    cross-certifies the BPKI data and service URI, and links the
-    repository data with the corresponding parent data in our local
-    database.
+    Configure a publication repository for this RPKI entity.
+
+    This command reads the repository's response to this entity's
+    request for publication service, extracts and cross-certifies the
+    BPKI data and service URI, and links the repository data with the
+    corresponding parent data in our local database.
     """
 
-    parent_handle = None
-
-    opts, argv = getopt.getopt(arg.split(), "", ["parent_handle="])
-    for o, a in opts:
-      if o == "--parent_handle":
-        parent_handle = a
-
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting filename for repository response XML")
-
-    self.zoo.configure_repository(argv[0], parent_handle)
+    self.zoo.configure_repository(args.repository_xml, args.parent_handle)
     self.zoo.synchronize_ca()
 
-  def do_delete_repository(self, arg):
+
+  @parsecmd(argsubparsers,
+            cmdarg("repository_handle", help = "handle of repository to delete"))
+  def do_delete_repository(self, args):
     """
     Delete a repository of this RPKI entity.
-
-    This should check that the XML file it's deleting really is a
-    repository, but doesn't, yet.
     """
 
-    argv = arg.split()
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting handle of repository to delete")
-
     try:
-      self.zoo.delete_repository(argv[0])
+      self.zoo.delete_repository(args.repository_handle)
       self.zoo.synchronize_ca()
     except rpki.irdb.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
     except rpki.irdb.Repository.DoesNotExist:
-      print "No such repository \"%s\"" % argv[0]
+      print "No such repository \"%s\"" % args.repository_handle
 
   def complete_delete_repository(self, *args):
     return self.irdb_handle_complete(self.zoo.resource_ca.repositories, *args)
 
 
-  def do_delete_identity(self, arg):
+  @parsecmd(argsubparsers)
+  def do_delete_identity(self, args):
     """
     Delete the current RPKI identity (rpkid <self/> object).
     """
-
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
 
     try:
       self.zoo.delete_self()
@@ -509,27 +509,15 @@ class main(Cmd):
       print "No such resource holder \"%s\"" % self.zoo.handle
 
 
-  def do_delete_self(self, arg):
-    print "This is a deprecated alias for the \"delete_identity\" command."
-    self.do_delete_identity(arg)
-
-
-  def do_renew_child(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("--valid_until", help = "override default new validity interval"),
+            cmdarg("child_handle",  help = "handle of child to renew"))
+  def do_renew_child(self, args):
     """
     Update validity period for one child entity.
     """
 
-    valid_until = None
-
-    opts, argv = getopt.getopt(arg.split(), "", ["valid_until"])
-    for o, a in opts:
-      if o == "--valid_until":
-        valid_until = a
-
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting handle of child to renew")
-
-    self.zoo.renew_children(argv[0], valid_until)
+    self.zoo.renew_children(args.child_handle, args.valid_until)
     self.zoo.synchronize_ca()
     if self.autosync:
       self.zoo.run_rpkid_now()
@@ -538,49 +526,36 @@ class main(Cmd):
     return self.irdb_handle_complete(self.zoo.resource_ca.children, *args)
 
 
-  def do_renew_all_children(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("--valid_until", help = "override default new validity interval"))
+  def do_renew_all_children(self, args):
     """
     Update validity period for all child entities.
     """
 
-    valid_until = None
-
-    opts, argv = getopt.getopt(arg.split(), "", ["valid_until"])
-    for o, a in opts:
-      if o == "--valid_until":
-        valid_until = a
-
-    if argv:
-      raise BadCommandSyntax("This command takes no arguments")
-
-    self.zoo.renew_children(None, valid_until)
+    self.zoo.renew_children(None, args.valid_until)
     self.zoo.synchronize_ca()
     if self.autosync:
       self.zoo.run_rpkid_now()
 
 
-  def do_load_prefixes(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("prefixes_csv", help = "CSV file listing prefixes"))
+  def do_load_prefixes(self, args):
     """
     Load prefixes into IRDB from CSV file.
     """
 
-    argv = arg.split()
-
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting filename of prefixes CSV")
-
-    self.zoo.load_prefixes(argv[0], True)
+    self.zoo.load_prefixes(args.prefixes_csv, True)
     if self.autosync:
       self.zoo.run_rpkid_now()
 
 
-  def do_show_child_resources(self, arg):
+  @parsecmd(argsubparsers)
+  def do_show_child_resources(self, args):
     """
     Show resources assigned to children.
     """
-
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
 
     for child in self.zoo.resource_ca.children.all():
       resources = child.resource_bag
@@ -593,13 +568,11 @@ class main(Cmd):
         print " IPv6:", resources.v6
 
 
-  def do_show_roa_requests(self, arg):
+  @parsecmd(argsubparsers)
+  def do_show_roa_requests(self, args):
     """
     Show ROA requests.
     """
-
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
 
     for roa_request in self.zoo.resource_ca.roa_requests.all():
       prefixes = roa_request.roa_prefix_bag
@@ -610,26 +583,22 @@ class main(Cmd):
         print " IPv6:", prefixes.v6
 
 
-  def do_show_ghostbuster_requests(self, arg):
+  @parsecmd(argsubparsers)
+  def do_show_ghostbuster_requests(self, args):
     """
     Show Ghostbuster requests.
     """
-
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
 
     for ghostbuster_request in self.zoo.resource_ca.ghostbuster_requests.all():
       print "Parent:", ghostbuster_request.parent or "*"
       print ghostbuster_request.vcard
 
 
-  def do_show_received_resources(self, arg):
+  @parsecmd(argsubparsers)
+  def do_show_received_resources(self, args):
     """
     Show resources received by this entity from its parent(s).
     """
-
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
     
     for pdu in self.zoo.call_rpkid(
       rpki.left_right.list_received_resources_elt.make_pdu(self_handle = self.zoo.handle)):
@@ -645,13 +614,11 @@ class main(Cmd):
       print "  IPv6:     ", pdu.ipv6
 
 
-  def do_show_published_objects(self, arg):
+  @parsecmd(argsubparsers)
+  def do_show_published_objects(self, args):
     """
     Show published objects.
     """
-
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
 
     for pdu in self.zoo.call_rpkid(
       rpki.left_right.list_published_objects_elt.make_pdu(self_handle = self.zoo.handle)):
@@ -665,52 +632,44 @@ class main(Cmd):
         print track, child
 
 
-  def do_load_asns(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("asns_csv", help = "CSV file listing ASNs"))
+  def do_load_asns(self, args):
     """
     Load ASNs into IRDB from CSV file.
     """
 
-    argv = arg.split()
-
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting filename of ASNs CSV")
-
-    self.zoo.load_asns(argv[0], True)
+    self.zoo.load_asns(args.asns_csv, True)
     if self.autosync:
       self.zoo.run_rpkid_now()
 
 
-  def do_load_roa_requests(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("roa_requests_csv", help = "CSV file listing ROA requests"))
+  def do_load_roa_requests(self, args):
     """
     Load ROA requests into IRDB from CSV file.
     """
 
-    argv = arg.split()
-
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting filename of ROAs CSV")
-
-    self.zoo.load_roa_requests(argv[0])
+    self.zoo.load_roa_requests(args.roa_requests_csv)
     if self.autosync:
       self.zoo.run_rpkid_now()
 
 
-  def do_load_ghostbuster_requests(self, arg):
+  @parsecmd(argsubparsers,
+            cmdarg("ghostbuster_requests", help = "file listing Ghostbuster requests as a sequence of VCards"))
+  def do_load_ghostbuster_requests(self, args):
     """
     Load Ghostbuster requests into IRDB from file.
     """
 
-    argv = arg.split()
-
-    if len(argv) != 1:
-      raise BadCommandSyntax("Expecting filename of Ghostbuster vCard(s)")
-
-    self.zoo.load_ghostbuster_requests(argv[0])
+    self.zoo.load_ghostbuster_requests(args.ghostbuster_requests)
     if self.autosync:
       self.zoo.run_rpkid_now()
 
 
-  def do_synchronize(self, arg):
+  @parsecmd(argsubparsers)
+  def do_synchronize(self, args):
     """
     Whack daemons to match IRDB.
 
@@ -718,13 +677,11 @@ class main(Cmd):
     in of other commands, haven't decided yet.
     """
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
-
     self.zoo.synchronize()
 
 
-  def do_force_publication(self, arg):
+  @parsecmd(argsubparsers)
+  def do_force_publication(self, args):
     """
     Whack rpkid to force (re)publication of everything.
 
@@ -734,13 +691,11 @@ class main(Cmd):
     it has not been able to publish.
     """
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
-
     self.zoo.publish_world_now()
 
 
-  def do_force_reissue(self, arg):
+  @parsecmd(argsubparsers)
+  def do_force_reissue(self, args):
     """
     Whack rpkid to force reissuance of everything.
 
@@ -750,82 +705,77 @@ class main(Cmd):
     rpkid from reissuing when it should have.
     """
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
-
     self.zoo.reissue()
 
 
-  def do_up_down_rekey(self, arg):
+  @parsecmd(argsubparsers)
+  def do_up_down_rekey(self, args):
     """
-    Initiate a "rekey" operation: tell rpkid to generate new keys for
-    each certificate issued to it via the up-down protocol.
+    Initiate a "rekey" operation.
 
-    This is the first stage of a key rollover operation.  You will
+    This tells rpkid to generate new keys for each certificate issued
+    to it via the up-down protocol.
+
+    Rekeying is the first stage of a key rollover operation.  You will
     need to follow it up later with a "revoke" operation to clean up
     the old keys
     """
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
-
     self.zoo.rekey()
 
 
-  def do_up_down_revoke(self, arg):
+  @parsecmd(argsubparsers)
+  def do_up_down_revoke(self, args):
     """
-    Initiate a "revoke" operation: tell rpkid to clean up old keys
-    formerly used by certificates issued to it via the up-down
-    protocol.
+    Initiate a "revoke" operation.
+
+    This tells rpkid to clean up old keys formerly used by
+    certificates issued to it via the up-down protocol.
 
     This is the cleanup stage of a key rollover operation.
     """
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
-
     self.zoo.revoke()
 
 
-  def do_revoke_forgotten(self, arg):
+  @parsecmd(argsubparsers)
+  def do_revoke_forgotten(self, args):
     """
-    Initiate a "revoke_forgotten" operation: tell rpkid to ask its
-    parent to revoke certificates for which rpkid does not know the
-    private keys.  This should never happen during ordinary operation,
-    but can happen if rpkid is misconfigured or its database has been
-    damaged, so we need a way to resynchronize rpkid with its parent
-    in such cases.  We could do this automatically, but as we don't
-    know the precise cause of the failure we don't know if it's
-    recoverable locally (eg, from an SQL backup), so we require a
-    manual trigger before discarding possibly-useful certificates.
-    """
+    Initiate a "revoke_forgotten" operation.
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
+    This tells rpkid to ask its parent to revoke certificates for
+    which rpkid does not know the private keys.
+
+    This should never happen during ordinary operation, but can happen
+    if rpkid is misconfigured or its database has been damaged, so we
+    need a way to resynchronize rpkid with its parent in such cases.
+    We could do this automatically, but as we don't know the precise
+    cause of the failure we don't know if it's recoverable locally
+    (eg, from an SQL backup), so we require a manual trigger before
+    discarding possibly-useful certificates.
+    """
 
     self.zoo.revoke_forgotten()
 
 
-  def do_clear_all_sql_cms_replay_protection(self, arg):
+  @parsecmd(argsubparsers)
+  def do_clear_all_sql_cms_replay_protection(self, args):
     """
-    Tell rpkid and pubd to clear replay protection for all SQL-based
-    entities.  This is a fairly blunt instrument, but as we don't
-    expect this to be necessary except in the case of gross
-    misconfiguration, it should suffice
-    """
+    Tell rpkid and pubd to clear replay protection.
 
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
+    This clears the replay protection timestamps stored in SQL for all
+    entities known to rpkid and pubd.  This is a fairly blunt
+    instrument, but as we don't expect this to be necessary except in
+    the case of gross misconfiguration, it should suffice
+    """
 
     self.zoo.clear_all_sql_cms_replay_protection()
 
 
-  def do_version(self, arg):
+  @parsecmd(argsubparsers)
+  def do_version(self, args):
     """
     Show current software version number.
     """
-
-    if arg:
-      raise BadCommandSyntax("This command takes no arguments")
 
     print rpki.version.VERSION

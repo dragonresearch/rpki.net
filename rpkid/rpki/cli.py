@@ -22,6 +22,7 @@ Utilities for writing command line tools.
 
 import cmd
 import glob
+import shlex
 import os.path
 import argparse
 import traceback
@@ -248,11 +249,6 @@ def parsecmd(subparsers, *arg_clauses):
   work and I'm not ready to get into that just yet.
   """
 
-  # We probably want to use a customized subclass of ArgumentParser to
-  # avoid the exit-on-error behavior.  We may also want to use something
-  # fancier than plain str.split() to split arguments.  Ignore all this
-  # for the moment, yak shaving.
-
   def decorate(func):
     assert func.__name__.startswith("do_")
     parser = NonExitingArgumentParser(description = func.__doc__,
@@ -266,7 +262,7 @@ def parsecmd(subparsers, *arg_clauses):
       subparser.add_argument(*positional, **keywords)
     subparser.set_defaults(func = func)
     def wrapped(self, arg):
-      return func(self, parser.parse_args(arg.split()))
+      return func(self, parser.parse_args(shlex.split(arg)))
     wrapped.argparser = parser
     wrapped.__doc__ = func.__doc__
     return wrapped

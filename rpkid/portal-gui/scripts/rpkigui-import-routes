@@ -21,6 +21,7 @@ import logging
 import time
 import random
 import signal
+import errno
 import atexit
 import fcntl
 import sys

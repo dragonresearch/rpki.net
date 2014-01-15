@@ -20,6 +20,11 @@ import optparse
 import logging
 import time
 import random
+import signal
+import atexit
+import fcntl
+import sys
+import os
 
 # configure django ORM
 from rpki.gui.script_util import setup
@@ -30,6 +35,11 @@ from rpki.gui.routeview.util import import_routeviews_dump
 
 class BadArgument(Exception):
     pass
+
+
+def timed_out(*ignored):
+    logging.info('timed out')
+    sys.exit(1)
 
 
 if __name__ == '__main__':
@@ -48,12 +58,18 @@ automatically.""")
     parser.add_option('-b', '--bgpdump', dest='bgpdump', metavar='PROG',
                       help='Specify path to bgdump binary')
     parser.add_option('-j', '--jitter', dest='jitter', type='int',
-                      help='Specify upper bound of startup delay [Default: %default]')
-    parser.set_defaults(debug=False, verbose=False, filetype='auto', jitter=0)
+                      help='Specify upper bound of startup delay, in seconds [Default: %default]')
+    parser.add_option('--lockfile', dest='lockfile',
+                      help='Set name of lock file; empty string disables locking [Default: %default]')
+    parser.add_option('--timeout', dest='timeout', type='int',
+                      help='Specify timeout for download and import, in seconds [Default: %default]')
+    parser.set_defaults(debug=False, verbose=False, filetype='auto', jitter=0,
+                        lockfile='/tmp/rpkigui-import-routes.lock', timeout=90*60)
     options, args = parser.parse_args()
 
     v = getattr(logging, options.log_level.upper())
     logging.basicConfig(level=v)
+    atexit.register(logging.shutdown)
     logging.info('logging level set to ' + logging.getLevelName(v))
 
     if options.bgpdump:
@@ -67,13 +83,32 @@ automatically.""")
         logging.info('jitter active, delaying startup for %d seconds' % delay)
         time.sleep(delay)
 
+    if options.lockfile:
+        try:
+            lock = os.open(options.lockfile, os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (IOError, OSError), e:
+            if e.errno == errno.EAGAIN:
+                logging.info('lock held by another process')
+                sys.exit(0)
+            else:
+                logging.exception(e)
+                sys.exit(1)
+
     try:
         if len(args) > 1:
             raise BadArgument('more than one filename specified')
+
+        if options.timeout > 0:
+            signal.signal(signal.SIGALRM, timed_out)
+            signal.setitimer(signal.ITIMER_REAL, options.timeout)
+
         import_routeviews_dump(*args)
+
+        if options.timeout > 0:
+            signal.setitimer(signal.ITIMER_REAL, 0)
 
     except Exception as e:
         logging.exception(e)
-        rc = 1
+        sys.exit(1)
 
-    logging.shutdown()

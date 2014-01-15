@@ -641,27 +641,32 @@ class main(Cmd):
     print "Self:       ", self.zoo.resource_ca.handle
     print "  notBefore:", self.zoo.resource_ca.certificate.getNotBefore()
     print "  notAfter: ", self.zoo.resource_ca.certificate.getNotAfter()
+    print "  Subject:  ", self.zoo.resource_ca.certificate.getSubject()
     print "  SKI:      ", self.zoo.resource_ca.certificate.hSKI()
     for bsc in self.zoo.resource_ca.bscs.all():
       print "BSC:        ", bsc.handle
       print "  notBefore:", bsc.certificate.getNotBefore()
       print "  notAfter: ", bsc.certificate.getNotAfter()
+      print "  Subject:  ", bsc.certificate.getSubject()
       print "  SKI:      ", bsc.certificate.hSKI()
     for parent in self.zoo.resource_ca.parents.all():
       print "Parent:     ", parent.handle
       print "  notBefore:", parent.certificate.getNotBefore()
       print "  notAfter: ", parent.certificate.getNotAfter()
+      print "  Subject:  ", parent.certificate.getSubject()
       print "  SKI:      ", parent.certificate.hSKI()
       print "  URL:      ", parent.service_uri
     for child in self.zoo.resource_ca.children.all():
       print "Child:      ", child.handle
       print "  notBefore:", child.certificate.getNotBefore()
       print "  notAfter: ", child.certificate.getNotAfter()
+      print "  Subject:  ", child.certificate.getSubject()
       print "  SKI:      ", child.certificate.hSKI()
     for repository in self.zoo.resource_ca.repositories.all():
       print "Repository: ", repository.handle
       print "  notBefore:", repository.certificate.getNotBefore()
       print "  notAfter: ", repository.certificate.getNotAfter()
+      print "  Subject:  ", repository.certificate.getSubject()
       print "  SKI:      ", repository.certificate.hSKI()
       print "  URL:      ", repository.service_uri
 

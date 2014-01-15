@@ -632,6 +632,40 @@ class main(Cmd):
         print track, child
 
 
+  @parsecmd(argsubparsers)
+  def do_show_bpki(self, args):
+    """
+    Show this entity's BPKI objects.
+    """
+
+    print "Self:       ", self.zoo.resource_ca.handle
+    print "  notBefore:", self.zoo.resource_ca.certificate.getNotBefore()
+    print "  notAfter: ", self.zoo.resource_ca.certificate.getNotAfter()
+    print "  SKI:      ", self.zoo.resource_ca.certificate.hSKI()
+    for bsc in self.zoo.resource_ca.bscs.all():
+      print "BSC:        ", bsc.handle
+      print "  notBefore:", bsc.certificate.getNotBefore()
+      print "  notAfter: ", bsc.certificate.getNotAfter()
+      print "  SKI:      ", bsc.certificate.hSKI()
+    for parent in self.zoo.resource_ca.parents.all():
+      print "Parent:     ", parent.handle
+      print "  notBefore:", parent.certificate.getNotBefore()
+      print "  notAfter: ", parent.certificate.getNotAfter()
+      print "  SKI:      ", parent.certificate.hSKI()
+      print "  URL:      ", parent.service_uri
+    for child in self.zoo.resource_ca.children.all():
+      print "Child:      ", child.handle
+      print "  notBefore:", child.certificate.getNotBefore()
+      print "  notAfter: ", child.certificate.getNotAfter()
+      print "  SKI:      ", child.certificate.hSKI()
+    for repository in self.zoo.resource_ca.repositories.all():
+      print "Repository: ", repository.handle
+      print "  notBefore:", repository.certificate.getNotBefore()
+      print "  notAfter: ", repository.certificate.getNotAfter()
+      print "  SKI:      ", repository.certificate.hSKI()
+      print "  URL:      ", repository.service_uri
+
+
   @parsecmd(argsubparsers,
             cmdarg("asns_csv", help = "CSV file listing ASNs"))
   def do_load_asns(self, args):

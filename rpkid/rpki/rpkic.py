@@ -32,7 +32,6 @@ on the "foo" command.
 # that we don't import such modules until we need them.
 
 import os
-import getopt
 import argparse
 import sys
 import time

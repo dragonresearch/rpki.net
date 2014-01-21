@@ -1,16 +1,18 @@
 /*
- * Copyright (C) 2008  American Registry for Internet Numbers ("ARIN")
- *
+ * Copyright (C) 2014  Dragon Research Labs ("DRL")
+ * Portions copyright (C) 2008  American Registry for Internet Numbers ("ARIN")
+ * 
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
- * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
- * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
- * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * copyright notices and this permission notice appear in all copies.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ARIN DISCLAIM ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+ * ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+ * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
@@ -28,6 +30,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <string.h>
+#include <getopt.h>
 
 #include <openssl/bio.h>
 #include <openssl/pem.h>
@@ -306,19 +309,40 @@ static ROA *read_roa(const char *filename,
 
 
 
+const static struct option longopts[] = {
+  { "brief",	   no_argument, NULL, 'b' },
+  { "print-cms",   no_argument, NULL, 'c' },
+  { "help",	   no_argument, NULL, 'h' },
+  { "signingtime", no_argument, NULL, 's' },
+  { NULL }
+};
+
+static int usage (const char *jane, const int code)
+{
+  FILE *out = code ? stderr : stdout;
+  int i;
+
+  fprintf(out, "usage: %s [options] ROA [ROA...]\n", jane);
+  fprintf(out, "options:\n");
+  for (i = 0; longopts[i].name != NULL; i++)
+    fprintf(out, "  -%c  --%s\n", longopts[i].val, longopts[i].name);
+
+  return code;
+}
+
 /*
  * Main program.
  */
 int main (int argc, char *argv[])
 {
   int result = 0, print_brief = 0, print_signingtime = 0, print_cms = 0, c;
-  char *jane = argv[0];
+  const char *jane = argv[0];
   ROA *r;
 
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  while ((c = getopt(argc, argv, "bcs")) != -1) {
+  while ((c = getopt_long(argc, argv, "bchs", longopts, NULL)) != -1) {
     switch (c) {
     case 'b':
       print_brief = 1;
@@ -329,15 +353,18 @@ int main (int argc, char *argv[])
     case 's':
       print_signingtime = 1;
       break;
-    case '?':
+    case 'h':
+      return usage(jane, 0);
     default:
-      fprintf(stderr, "usage: %s [-b] [-c] [-s] ROA [ROA...]\n", jane);
-      return 1;
+      return usage(jane, 1);
     }
   }
 
   argc -= optind;
   argv += optind;
+
+  if (argc == 0)
+    return usage(jane, 1);
 
   while (argc-- > 0) {
     r = read_roa(*argv++, print_cms, 1, !print_brief, print_brief, print_signingtime);

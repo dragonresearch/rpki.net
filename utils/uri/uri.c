@@ -1,16 +1,18 @@
 /*
- * Copyright (C) 2006--2008  American Registry for Internet Numbers ("ARIN")
- *
+ * Copyright (C) 2014  Dragon Research Labs ("DRL")
+ * Portions copyright (C) 2006--2008  American Registry for Internet Numbers ("ARIN")
+ * 
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
- * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
- * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
- * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * copyright notices and this permission notice appear in all copies.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ARIN DISCLAIM ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+ * ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+ * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
@@ -27,6 +29,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
+
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
@@ -131,7 +135,8 @@ static enum decode_errors decode_crldp(X509 *x, int verbose, int spaces)
   return err;
 }
 
-#define decode_xia(_x_, _v_, _s_, _tag_, _nid_, _oid_)  _decode_xia(_x_, _v_, _s_, _tag_, _nid_, _oid_, sizeof(_oid_))
+#define decode_xia(_x_, _v_, _s_, _tag_, _nid_, _oid_) \
+  _decode_xia(_x_, _v_, _s_, _tag_, _nid_, _oid_, sizeof(_oid_))
 
 static enum decode_errors _decode_xia(X509 *x,
 				      int verbose,
@@ -164,9 +169,34 @@ static enum decode_errors _decode_xia(X509 *x,
   return err;
 }
 
+
+
+const static struct option longopts[] = {
+  { "der",         no_argument, NULL, 'd' },
+  { "help",	   no_argument, NULL, 'h' },
+  { "pem",	   no_argument, NULL, 'p' },
+  { "spaces",      no_argument, NULL, 's' },
+  { "verbose",	   no_argument, NULL, 'v' },
+  { NULL }
+};
+
+static int usage (const char *jane, const int code)
+{
+  FILE *out = code ? stderr : stdout;
+  int i;
+
+  fprintf(out, "usage: %s [-p | -d] cert [cert...]\n", jane);
+  fprintf(out, "options:\n");
+  for (i = 0; longopts[i].name != NULL; i++)
+    fprintf(out, "  -%c  --%s\n", longopts[i].val, longopts[i].name);
+
+  return code;
+}
+
 int main(int argc, char *argv[])
 {
-  int c, format = 'd', spaces = 0, ret = 0, verbose = 0;
+  int c, format = 'd', spaces = 0, verbose = 0;
+  const char *jane = argv[0];
   X509 *x;
 
   OpenSSL_add_all_algorithms();
@@ -184,40 +214,35 @@ int main(int argc, char *argv[])
     case 's':
       spaces = 1;
       break;
+    case 'h':
+      return usage(jane, 0);
     default:
-      ret = 1;
+      return usage(jane, 1);
     }
   }
 
-  if (argc == optind)
-    ret = 1;
+  argc -= optind;
+  argv += optind;
 
-  if (ret != 0)
-    fprintf(stderr, "usage: %s [-p | -d] cert [cert...]\n", argv[0]);
+  if (argc == 0)
+    return usage(jane, 1);
 
-  if (ret == 0) {
-    argc -= optind;
-    argv += optind;
-
-    while (argc-- > 0) {
-      printf(spaces ? "%s" : "File: %s\n", *argv);
-      if ((x = read_cert(*argv++, format, verbose)) == NULL) {
-	printf("Couldn't read certificate, skipping\n");
-	continue;
-      }
-      decode_xia(x, verbose, spaces, "AIA:caIssuers",              NID_info_access,  id_ad_caIssuers);
-      decode_xia(x, verbose, spaces, "SIA:caRepository",           NID_sinfo_access, id_ad_caRepository);
-      decode_xia(x, verbose, spaces, "SIA:signedObjectRepository", NID_sinfo_access, id_ad_signedObjectRepository);
-      decode_xia(x, verbose, spaces, "SIA:rpkiManifest",           NID_sinfo_access, id_ad_rpkiManifest);
-      decode_xia(x, verbose, spaces, "SIA:signedObject",           NID_sinfo_access, id_ad_signedObject);
-      decode_crldp(x, verbose, spaces);
-      if (spaces)
-	putchar('\n');
-      X509_free(x);
+  while (argc-- > 0) {
+    printf(spaces ? "%s" : "File: %s\n", *argv);
+    if ((x = read_cert(*argv++, format, verbose)) == NULL) {
+      printf("Couldn't read certificate, skipping\n");
+      continue;
     }
+    decode_xia(x, verbose, spaces, "AIA:caIssuers",              NID_info_access,  id_ad_caIssuers);
+    decode_xia(x, verbose, spaces, "SIA:caRepository",           NID_sinfo_access, id_ad_caRepository);
+    decode_xia(x, verbose, spaces, "SIA:signedObjectRepository", NID_sinfo_access, id_ad_signedObjectRepository);
+    decode_xia(x, verbose, spaces, "SIA:rpkiManifest",           NID_sinfo_access, id_ad_rpkiManifest);
+    decode_xia(x, verbose, spaces, "SIA:signedObject",           NID_sinfo_access, id_ad_signedObject);
+    decode_crldp(x, verbose, spaces);
+    if (spaces)
+      putchar('\n');
+    X509_free(x);
   }
 
-  EVP_cleanup();
-  ERR_free_strings();
-  return ret;
+  return 0;
 }

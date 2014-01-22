@@ -51,6 +51,7 @@
 #include <utime.h>
 #include <glob.h>
 #include <sys/param.h>
+#include <getopt.h>
 
 #define SYSLOG_NAMES		/* defines CODE prioritynames[], facilitynames[] */
 #include <syslog.h>
@@ -5523,6 +5524,78 @@ static int write_xml_file(const rcynic_ctx_t *rc,
 
 
 /**
+ * Long options.
+ */
+#define OPTIONS								\
+  QA('a', "authenticated",	"root of authenticated data tree")	\
+  QA('c', "config",		"override default name of config file")	\
+  QF('h', "help",		"print this help message")		\
+  QA('j', "jitter",		"set jitter value")			\
+  QA('l', "log-level",		"set log level")			\
+  QA('u', "unauthenticated",	"root of unauthenticated data tree")	\
+  QF('e', "use-stderr",		"log to syslog")			\
+  QF('s', "use-syslog",		"log to stderr")			\
+  QF('V', "version",		"print program version")		\
+  QA('x', "xml-file",		"set XML output file location")
+
+const static struct option longopts[] = {
+  { "authenticated",	required_argument,	NULL, 'a' },
+  { "config",		required_argument,	NULL, 'c' },
+  { "help",		no_argument,		NULL, 'h' },
+  { "jitter",		required_argument,	NULL, 'j' },
+  { "log-level",	required_argument,	NULL, 'l' },
+  { "unauthenticated",	required_argument,	NULL, 'u' },
+  { "use-stderr",	no_argument,		NULL, 'e' },
+  { "use-syslog",	no_argument,		NULL, 's' },
+  { "version",		no_argument,		NULL, 'V' },
+  { "xml-file",		required_argument,	NULL, 'x' },
+  { NULL }
+};
+
+/**
+ * Wrapper around printf() to take arguments like logmsg().
+ * If C had closures, usage() would use them instead of this silliness.
+ */
+static void logmsg_printf(const rcynic_ctx_t *rc, 
+			  const log_level_t level, 
+			  const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  vprintf(fmt, ap);
+  putchar('\n');
+  va_end(ap);
+}
+
+/**
+ * Log usage message, either to stdout (for --help) or via logmsg().
+ */
+static void usage (const rcynic_ctx_t *rc, const char *jane)
+{
+  void (*log)(const rcynic_ctx_t *, const log_level_t, const char *, ...) = rc ? logmsg : logmsg_printf;
+  char left[80];
+
+  if (rc && !jane)
+    jane = rc->jane;
+
+  log(rc, log_usage_err, "usage: %s [options]", jane);
+  log(rc, log_usage_err, "options:");
+
+#define QF(_s_, _l_, _d_) \
+  (void) snprintf(left, sizeof(left), "-%c      --%-32s", _s_, _l_); \
+  log(rc, log_usage_err, "  %s%s", left, _d_);
+
+#define QA(_s_, _l_, _d_) \
+  (void) snprintf(left, sizeof(left), "-%c ARG  --%-32s", _s_, _l_ " ARG"); \
+  log(rc, log_usage_err, "  %s%s", left, _d_);
+
+  OPTIONS;
+
+#undef QA
+#undef QF
+}
+
+/**
  * Main program.  Parse command line, read config file, iterate over
  * trust anchors found via config file and do a tree walk for each
  * trust anchor.
@@ -5542,6 +5615,22 @@ int main(int argc, char *argv[])
   unsigned delay;
   long eline = 0;
   path_t ta_dir;
+
+#define QF(_s_, _l_, _d_) _s_,
+#define QA(_s_, _l_, _d_) _s_, ':',
+
+  const static char short_opts[] = { OPTIONS '\0' };
+
+#undef QA
+#undef QF
+
+#define QF(_s_, _l_, _d_) { _l_, no_argument,       NULL, _s_ },
+#define QA(_s_, _l_, _d_) { _l_, required_argument, NULL, _s_ },
+
+  static struct option long_opts[] = { OPTIONS { NULL } };
+
+#undef QA
+#undef QF
 
   memset(&rc, 0, sizeof(rc));
 
@@ -5585,7 +5674,9 @@ int main(int argc, char *argv[])
 
   memset(&ta_dir, 0, sizeof(&ta_dir));
 
-  while ((c = getopt(argc, argv, "a:c:l:sej:u:Vx:")) > 0) {
+  opterr = 0;
+
+  while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL)) > 0) {
     switch (c) {
     case 'a':
       opt_auth = 1;
@@ -5606,6 +5697,10 @@ int main(int argc, char *argv[])
     case 'e':
       use_stderr = opt_stderr = 1;
       break;
+    case 'h':
+      usage(NULL, rc.jane);
+      ret = 0;
+      goto done;
     case 'j':
       if (!configure_integer(&rc, &jitter, optarg))
 	goto done;
@@ -5624,9 +5719,7 @@ int main(int argc, char *argv[])
       xmlfile = strdup(optarg);
       break;
     default:
-      logmsg(&rc, log_usage_err,
-	     "usage: %s [-c configfile] [-s] [-e] [-l loglevel] [-j jitter] [-V]",
-	     rc.jane);
+      usage(&rc, NULL);
       goto done;
     }
   }
@@ -5730,7 +5823,9 @@ int main(int argc, char *argv[])
 			       facilitynames, val->value))
       goto done;
 
-    else if (!xmlfile && !name_cmp(val->name, "xml-summary"))
+    else if (!xmlfile &&
+	     (!name_cmp(val->name, "xml-file") ||
+	      !name_cmp(val->name, "xml-summary")))
       xmlfile = strdup(val->value);
 
     else if (!name_cmp(val->name, "allow-stale-crl") &&

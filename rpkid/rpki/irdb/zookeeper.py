@@ -1586,3 +1586,55 @@ class Zookeeper(object):
     if rpkid_query:
       rpkid_reply = self.call_rpkid(rpkid_query)
       self.check_error_report(rpkid_reply)
+
+
+  @django.db.transaction.commit_on_success
+  def add_ee_certificate_request(self, pkcs10, resources):
+    """
+    Check a PKCS #10 request to see if it complies with the
+    specification for a RPKI EE certificate; if it does, add an
+    EECertificateRequest for it to the IRDB.
+
+    Not yet sure what we want for update and delete semantics here, so
+    for the moment this is straight addition.  See methods like
+    .load_asns() and .load_prefixes() for other strategies.
+    """
+
+    pkcs10.check_valid_rpki(ee = True)
+    ee_request = self.resource_ca.ee_certificate_requests.create(
+      pkcs10      = pkcs10,
+      gski        = pkcs10.gSKI(),
+      valid_until = resources.valid_until)
+    for range in resources.asn:
+      ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))
+    for range in resources.v4:
+      ee_request.address_ranges.create(start_ip = str(range.min), end_ip = str(range.max), version = 4)
+    for range in resources.v6:
+      ee_request.address_ranges.create(start_ip = str(range.min), end_ip = str(range.max), version = 6)
+
+
+  def add_router_certificate_request(self, pkcs10, asn):
+    """
+    Check a PKCS #10 request to see if it complies with the
+    specification for a router certificate; if it does, create an EE
+    certificate request for it along with a specified ASN.
+    """
+
+    if isinstance(asn, (str, unicode)):
+      asn = long(asn)
+    if not isinstance(asn, (int, long)) or asn < 0 or  asn > 0xFFFFFFFF:
+      raise rpki.exceptions.BadAutonomousSystemNumber("Bad AutonomousSystem number: %s" % asn)
+
+    # This attempts to enforce draft-ietf-sidr-bgpsec-pki-profiles-06
+    # section 3.1.1.1, which may be a mistake, too early to tell.
+    cn, sn = pkcs10.getSubject().extract_cn_and_sn()
+    if not cn.startswith("ROUTER-") \
+       or len(cn) != 7 + 8          \
+       or not cn[7:].isalnum()      \
+       or int(cn[7:], 16) != asn    \
+       or not sn.isalnum()          \
+       or len(sn) != 8              \
+       or int(sn, 16) > 0xFFFFFFFF:
+      raise rpki.exceptions.BadX510DN("Subject name doesn't match router profile: %s" % pkcs10.getSubject())
+
+    raise NotImplementedError, "Not finished"

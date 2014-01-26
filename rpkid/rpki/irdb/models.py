@@ -581,10 +581,22 @@ class GhostbusterRequest(django.db.models.Model):
 
 class EECertificateRequest(ResourceSet):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "ee_certificate_requests")
-  router_id = django.db.models.BigIntegerField(null = True)
   pkcs10 = PKCS10Field()
   gski = django.db.models.CharField(max_length = 27)
-  
+
+  # At one point I had a router_id field here, but I don't think it
+  # serves any real purpose.  Put it back if I remember why I thought
+  # we needed it, but the current I-D has router-id encoded in teh
+  # subject name.
+
+  # Need subject name field here?  It's in the PKCS #10, but then so
+  # is the public key from which we generate the g(SKI); question is
+  # whether we need to use the subject name or just transport it.
+  #
+  # I guess we could have left-right XML attributes corresponding to
+  # X.509 commonName and serialNumber if necessary, question is whether
+  # this is necessary.
+
   def _select_resource_bag(self):
     ee_asn = rpki.irdb.EECertificateRequestASN.objects.raw("""
         SELECT *

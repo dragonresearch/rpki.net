@@ -161,6 +161,30 @@ class X501DN(object):
   def get_POW(self):
     return self.dn
 
+  def extract_cn_and_sn(self):
+    cn = None
+    sn = None
+
+    for rdn in self.dn:
+      if len(rdn) == 1 and len(rdn[0]) == 2:
+        oid = rpki.oids.safe_dotted2name(rdn[0][0])
+        val = rdn[0][1]
+        print "OID:", oid
+        print "Val:", val
+        if oid == "commonName" and cn is None:
+          cn = val
+          continue
+        if oid == "serialNumber" and sn is None:
+          sn = val
+          continue
+      raise rpki.exceptions.BadX510DN("Bad subject name: %s" % (self.dn,))
+
+    if cn is None:
+      raise rpki.exceptions.BadX510DN("Subject name is missing CN: %s" % (self.dn,))
+
+    return cn, sn
+
+
 class DER_object(object):
   """
   Virtual class to hold a generic DER object.
@@ -875,7 +899,13 @@ class PKCS10(DER_object):
     """
     return RSApublic(POW = self.get_POW().getPublicKey())
 
-  def check_valid_rpki(self):
+  def get_SKI(self):
+    """
+    Compute SKI for public key from this certification request.
+    """
+    return self.getPublicKey().get_SKI()
+
+  def check_valid_rpki(self, ee = False):
     """
     Check this certification request to see whether it's a valid
     request for an RPKI certificate.  This is broken out of the
@@ -890,18 +920,21 @@ class PKCS10(DER_object):
     RPKI profile only allows EKU for EE certificates.
     """
 
+    if ee:
+      raise NotImplementedError("Haven't written EE-certificate checking yet, oops")
+
     if not self.get_POW().verify():
-      raise rpki.exceptions.BadPKCS10("Signature check failed")
+      raise rpki.exceptions.BadPKCS10("PKCS #10 signature check failed")
 
     ver = self.get_POW().getVersion()
 
     if ver != 0:
-      raise rpki.exceptions.BadPKCS10("Bad version number %s" % ver)
+      raise rpki.exceptions.BadPKCS10("PKCS #10 request has bad version number %s" % ver)
 
     alg = rpki.oids.safe_dotted2name(self.get_POW().getSignatureAlgorithm())
 
     if alg != "sha256WithRSAEncryption":
-      raise rpki.exceptions.BadPKCS10("Bad signature algorithm %s" % alg)
+      raise rpki.exceptions.BadPKCS10("PKCS #10 request has bad signature algorithm %s" % alg)
 
     bc = self.get_POW().getBasicConstraints()
     
@@ -909,44 +942,44 @@ class PKCS10(DER_object):
       raise rpki.exceptions.BadPKCS10("Request for EE certificate not allowed here")
 
     if bc[1] is not None:
-      raise rpki.exceptions.BadPKCS10("basicConstraints must not specify Path Length")
+      raise rpki.exceptions.BadPKCS10("PKCS #10 basicConstraints must not specify Path Length")
 
     ku = self.get_POW().getKeyUsage()
 
     if ku is not None and self.expected_ca_keyUsage != ku:
-      raise rpki.exceptions.BadPKCS10("keyUsage doesn't match basicConstraints: %r" % ku)
+      raise rpki.exceptions.BadPKCS10("PKCS #10 keyUsage doesn't match basicConstraints: %r" % ku)
 
     if any(oid not in self.allowed_extensions
            for oid in self.get_POW().getExtensionOIDs()):
-      raise rpki.exceptions.BadExtension("Forbidden extension(s) in certificate request")
+      raise rpki.exceptions.BadExtension("Forbidden extension(s) in PKCS #10 certificate request")
 
     sias = self.get_POW().getSIA()
 
     if sias is None:
-      raise rpki.exceptions.BadPKCS10("Certificate request is missing SIA extension")
+      raise rpki.exceptions.BadPKCS10("PKCS #10 is missing SIA extension")
 
     caRepository, rpkiManifest, signedObject = sias
 
     if signedObject:
-      raise rpki.exceptions.BadPKCS10("CA certificate request has SIA id-ad-signedObject")
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request has SIA id-ad-signedObject")
 
     if not caRepository:
-      raise rpki.exceptions.BadPKCS10("Certificate request is missing SIA id-ad-caRepository")
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request is missing SIA id-ad-caRepository")
 
     if not any(uri.startswith("rsync://") for uri in caRepository):
-      raise rpki.exceptions.BadPKCS10("Certificate request SIA id-ad-caRepository contains no rsync URIs")
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-caRepository contains no rsync URIs")
 
     if not rpkiManifest:
-      raise rpki.exceptions.BadPKCS10("Certificate request is missing SIA id-ad-rpkiManifest")
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request is missing SIA id-ad-rpkiManifest")
       
     if not any(uri.startswith("rsync://") for uri in rpkiManifest):
-      raise rpki.exceptions.BadPKCS10("Certificate request SIA id-ad-rpkiManifest contains no rsync URIs")
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-rpkiManifest contains no rsync URIs")
 
     if any(uri.startswith("rsync://") and not uri.endswith("/") for uri in caRepository):
-      raise rpki.exceptions.BadPKCS10("Certificate request SIA id-ad-caRepository does not end with slash")
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-caRepository does not end with slash")
 
     if any(uri.startswith("rsync://") and uri.endswith("/") for uri in rpkiManifest):
-      raise rpki.exceptions.BadPKCS10("Certificate request SIA id-ad-rpkiManifest ends with slash")
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-rpkiManifest ends with slash")
 
   @classmethod
   def create(cls, keypair, exts = None, is_ca = False,

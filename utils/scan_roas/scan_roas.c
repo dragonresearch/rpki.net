@@ -288,7 +288,7 @@ int main (int argc, char *argv[])
 {
   int i, ok = 1;
 
-  if (argc == 2 && (strcmp(argv[1], "-h") || strcmp(argv[1], "--help")))
+  if (argc == 2 && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")))
     usage(argv[0], 0);
 
   if (argc < 2)

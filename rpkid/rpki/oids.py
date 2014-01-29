@@ -1,41 +1,61 @@
 # $Id$
 # 
-# Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# 
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-# 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
-# 
+# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# copyright notices and this permission notice appear in all copies.
 # 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 OID database.
 """
 
+def defoid(name, *numbers):
+  """
+  Define a new OID, including adding it to a few dictionaries and
+  making an entry for it in the rpki.oids module symbol table, so
+  other code can refer to it as an ordinary symbol.
+  """
+
+  assert all(isinstance(n, (int, long)) for n in numbers)
+
+  dotted = ".".join(str(n) for n in numbers)
+  name_ = name.replace("-", "_")
+
+  assert name_ not in globals()
+
+  global oid2name
+  oid2name[numbers] = name
+
+  globals()[name_] = dotted
+
+  global dotted2name
+  dotted2name[dotted] = name
+
+  global dotted2name_
+  dotted2name_[dotted] = name_
+
+  global name2dotted
+  name2dotted[name] = dotted
+  name2dotted[name_] = dotted
+
+
 ## @var oid2name
 # Mapping table of OIDs to conventional string names.
 
 oid2name = {
+  (1, 2, 840, 10045, 4, 3, 2)           : "ecdsa-with-SHA256",
   (1, 2, 840, 113549, 1, 1, 11)         : "sha256WithRSAEncryption",
   (1, 2, 840, 113549, 1, 1, 12)         : "sha384WithRSAEncryption",
   (1, 2, 840, 113549, 1, 1, 13)         : "sha512WithRSAEncryption",
@@ -51,11 +71,12 @@ oid2name = {
   (1, 3, 6, 1, 5, 5, 7, 1, 7)           : "sbgp-ipAddrBlock",
   (1, 3, 6, 1, 5, 5, 7, 1, 8)           : "sbgp-autonomousSysNum",
   (1, 3, 6, 1, 5, 5, 7, 14, 2)          : "id-cp-ipAddr-asNumber",
+  (1, 3, 6, 1, 5, 5, 7, 3, 666)         : "id-kp-bgpsec-router",        # {id-kp, 666} -- Real value not known yet
+  (1, 3, 6, 1, 5, 5, 7, 48, 10)         : "id-ad-rpkiManifest",
+  (1, 3, 6, 1, 5, 5, 7, 48, 11)         : "id-ad-signedObject",
   (1, 3, 6, 1, 5, 5, 7, 48, 2)          : "id-ad-caIssuers",
   (1, 3, 6, 1, 5, 5, 7, 48, 5)          : "id-ad-caRepository",
   (1, 3, 6, 1, 5, 5, 7, 48, 9)          : "id-ad-signedObjectRepository",
-  (1, 3, 6, 1, 5, 5, 7, 48, 10)         : "id-ad-rpkiManifest",
-  (1, 3, 6, 1, 5, 5, 7, 48, 11)         : "id-ad-signedObject",
   (2, 16, 840, 1, 101, 3, 4, 2, 1)      : "id-sha256",
   (2, 5, 29, 14)                        : "subjectKeyIdentifier",
   (2, 5, 29, 15)                        : "keyUsage",
@@ -65,14 +86,14 @@ oid2name = {
   (2, 5, 29, 32)                        : "certificatePolicies",
   (2, 5, 29, 35)                        : "authorityKeyIdentifier",
   (2, 5, 29, 37)                        : "extendedKeyUsage",
+  (2, 5, 4, 10)                         : "organizationName",
+  (2, 5, 4, 11)                         : "organizationalUnitName",
   (2, 5, 4, 3)                          : "commonName",
   (2, 5, 4, 5)                          : "serialNumber",
   (2, 5, 4, 6)                          : "countryName",
   (2, 5, 4, 7)                          : "localityName",
   (2, 5, 4, 8)                          : "stateOrProvinceName",
   (2, 5, 4, 9)                          : "streetAddress",
-  (2, 5, 4, 10)                         : "organizationName",
-  (2, 5, 4, 11)                         : "organizationalUnitName",
 }
 
 ## @var name2oid

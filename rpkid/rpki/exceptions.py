@@ -360,3 +360,8 @@ class BadAutonomousSystemNumber(RPKI_Exception):
   """
   Bad AutonomousSystem number.
   """
+
+class WrongEKU(RPKI_Exception):
+  """
+  Extended Key Usage extension does not match profile.
+  """

@@ -1425,14 +1425,14 @@ extension_set_sia(X509_EXTENSIONS **exts, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-extension_get_extended_key_usage(X509_EXTENSIONS **exts)
+extension_get_eku(X509_EXTENSIONS **exts)
 {
   EXTENDED_KEY_USAGE *ext = NULL;
   PyObject *result = NULL;
   PyObject *oid = NULL;
   int i;
 
-  ENTERING(extension_get_extended_key_usage);
+  ENTERING(extension_get_eku);
 
   POW_assert(exts);
 
@@ -1461,7 +1461,7 @@ extension_get_extended_key_usage(X509_EXTENSIONS **exts)
 }
 
 static PyObject *
-extension_set_extended_key_usage(X509_EXTENSIONS **exts, PyObject *args)
+extension_set_eku(X509_EXTENSIONS **exts, PyObject *args)
 {
   EXTENDED_KEY_USAGE *ext = NULL;
   PyObject *iterable = NULL;
@@ -1472,7 +1472,7 @@ extension_set_extended_key_usage(X509_EXTENSIONS **exts, PyObject *args)
   const char *txt;
   int ok = 0;
 
-  ENTERING(extension_set_extended_key_usage);
+  ENTERING(extension_set_eku);
 
   POW_assert(exts);
 
@@ -2814,19 +2814,19 @@ x509_object_set_key_usage(x509_object *self, PyObject *args)
   return extension_set_key_usage(x509_object_extension_helper(self), args);
 }
 
-static char x509_object_get_extended_key_usage__doc__[] =
+static char x509_object_get_eku__doc__[] =
   "Return a FrozenSet of object identifiers representing the\n"
   "ExtendedKeyUsage settings for this certificate, or None if\n"
   "the certificate has no ExtendedKeyUsage extension.\n"
   ;
 
 static PyObject *
-x509_object_get_extended_key_usage(x509_object *self)
+x509_object_get_eku(x509_object *self)
 {
-  return extension_get_extended_key_usage(x509_object_extension_helper(self));
+  return extension_get_eku(x509_object_extension_helper(self));
 }
 
-static char x509_object_set_extended_key_usage__doc__[] =
+static char x509_object_set_eku__doc__[] =
   "Set the ExtendedKeyUsage extension for this certificate.\n"
   "\n"
   "Argument \"iterable\" should be an iterable object which returns one or more\n"
@@ -2838,9 +2838,9 @@ static char x509_object_set_extended_key_usage__doc__[] =
   ;
 
 static PyObject *
-x509_object_set_extended_key_usage(x509_object *self, PyObject *args)
+x509_object_set_eku(x509_object *self, PyObject *args)
 {
-  return extension_set_extended_key_usage(x509_object_extension_helper(self), args);
+  return extension_set_eku(x509_object_extension_helper(self), args);
 }
 
 static char x509_object_get_rfc3779__doc__[] =
@@ -3720,8 +3720,8 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(setAKI,                 x509_object_set_aki,                    METH_VARARGS),
   Define_Method(getKeyUsage,            x509_object_get_key_usage,              METH_NOARGS),
   Define_Method(setKeyUsage,            x509_object_set_key_usage,              METH_VARARGS),
-  Define_Method(getExtendedKeyUsage,	x509_object_get_extended_key_usage,	METH_NOARGS),
-  Define_Method(setExtendedKeyUsage,	x509_object_set_extended_key_usage,	METH_VARARGS),
+  Define_Method(getEKU,                 x509_object_get_eku,                    METH_NOARGS),
+  Define_Method(setEKU,                 x509_object_set_eku,                    METH_VARARGS),
   Define_Method(getRFC3779,             x509_object_get_rfc3779,                METH_NOARGS),
   Define_Method(setRFC3779,             x509_object_set_rfc3779,                METH_KEYWORDS),
   Define_Method(getBasicConstraints,    x509_object_get_basic_constraints,      METH_NOARGS),
@@ -8566,19 +8566,19 @@ pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
   return extension_set_key_usage(pkcs10_object_extension_helper(self), args);
 }
 
-static char pkcs10_object_get_extended_key_usage__doc__[] =
+static char pkcs10_object_get_eku__doc__[] =
   "Return a FrozenSet of object identifiers representing the\n"
   "ExtendedKeyUsage settings for this PKCS #10 requst, or None if\n"
   "the request has no ExtendedKeyUsage extension.\n"
   ;
 
 static PyObject *
-pkcs10_object_get_extended_key_usage(pkcs10_object *self)
+pkcs10_object_get_eku(pkcs10_object *self)
 {
-  return extension_get_extended_key_usage(pkcs10_object_extension_helper(self));
+  return extension_get_eku(pkcs10_object_extension_helper(self));
 }
 
-static char pkcs10_object_set_extended_key_usage__doc__[] =
+static char pkcs10_object_set_eku__doc__[] =
   "Set the ExtendedKeyUsage extension for this PKCS #10 request.\n"
   "\n"
   "Argument \"iterable\" should be an iterable object which returns one or more\n"
@@ -8590,9 +8590,9 @@ static char pkcs10_object_set_extended_key_usage__doc__[] =
   ;
 
 static PyObject *
-pkcs10_object_set_extended_key_usage(pkcs10_object *self, PyObject *args)
+pkcs10_object_set_eku(pkcs10_object *self, PyObject *args)
 {
-  return extension_set_extended_key_usage(pkcs10_object_extension_helper(self), args);
+  return extension_set_eku(pkcs10_object_extension_helper(self), args);
 }
 
 static char pkcs10_object_get_basic_constraints__doc__[] =
@@ -8763,8 +8763,8 @@ static struct PyMethodDef pkcs10_object_methods[] = {
   Define_Method(pprint,                 pkcs10_object_pprint,                   METH_NOARGS),
   Define_Method(getKeyUsage,            pkcs10_object_get_key_usage,            METH_NOARGS),
   Define_Method(setKeyUsage,            pkcs10_object_set_key_usage,            METH_VARARGS),
-  Define_Method(getExtendedKeyUsage,	pkcs10_object_get_extended_key_usage,   METH_NOARGS),
-  Define_Method(setExtendedKeyUsage,	pkcs10_object_set_extended_key_usage,   METH_VARARGS),
+  Define_Method(getEKU,                 pkcs10_object_get_eku,                  METH_NOARGS),
+  Define_Method(setEKU,                 pkcs10_object_set_eku,                  METH_VARARGS),
   Define_Method(getBasicConstraints,    pkcs10_object_get_basic_constraints,    METH_NOARGS),
   Define_Method(setBasicConstraints,    pkcs10_object_set_basic_constraints,    METH_VARARGS),
   Define_Method(getSIA,                 pkcs10_object_get_sia,                  METH_NOARGS),

@@ -1589,7 +1589,7 @@ class Zookeeper(object):
 
 
   @django.db.transaction.commit_on_success
-  def add_ee_certificate_request(self, pkcs10, resources):
+  def add_ee_certificate_request(self, pkcs10, resources, kind = "ee"):
     """
     Check a PKCS #10 request to see if it complies with the
     specification for a RPKI EE certificate; if it does, add an
@@ -1600,7 +1600,7 @@ class Zookeeper(object):
     .load_asns() and .load_prefixes() for other strategies.
     """
 
-    pkcs10.check_valid_rpki(ee = True)
+    pkcs10.check_valid_rpki(kind = kind)
     ee_request = self.resource_ca.ee_certificate_requests.create(
       pkcs10      = pkcs10,
       gski        = pkcs10.gSKI(),
@@ -1613,28 +1613,40 @@ class Zookeeper(object):
       ee_request.address_ranges.create(start_ip = str(range.min), end_ip = str(range.max), version = 6)
 
 
-  def add_router_certificate_request(self, pkcs10, asn):
+  def add_router_certificate_request(self, pkcs10, *asns):
     """
     Check a PKCS #10 request to see if it complies with the
     specification for a router certificate; if it does, create an EE
     certificate request for it along with a specified ASN.
     """
 
-    if isinstance(asn, (str, unicode)):
-      asn = long(asn)
-    if not isinstance(asn, (int, long)) or asn < 0 or  asn > 0xFFFFFFFF:
-      raise rpki.exceptions.BadAutonomousSystemNumber("Bad AutonomousSystem number: %s" % asn)
+    asns = tuple(long(a) if isinstance(a, (str, unicode)) else a for a in asns)
+
+    if not asns or not all(isinstance(a, (int, long)) and a >= 0 and a <= 0xFFFFFFFF for a in asns):
+      raise rpki.exceptions.BadAutonomousSystemNumber("Bad AutonomousSystem number%s: %s" % (
+        "" if len(asns) == 1 else "s", ", ".join(repr(a) for a in asns)))
 
     # This attempts to enforce draft-ietf-sidr-bgpsec-pki-profiles-06
     # section 3.1.1.1, which may be a mistake, too early to tell.
+    #
+    # Upon further reading: this will have to go somewhere else,
+    # because the combination of draft-ietf-sidr-bgpsec-pki-profiles
+    # and RFC 6487 says that the subject-name-to-be can't be in the
+    # PKCS #10, it has to be carried separately like the ASNs.  Save
+    # this code, refactor once I figure out where this belongs.
+
     cn, sn = pkcs10.getSubject().extract_cn_and_sn()
-    if not cn.startswith("ROUTER-") \
-       or len(cn) != 7 + 8          \
-       or not cn[7:].isalnum()      \
-       or int(cn[7:], 16) != asn    \
-       or not sn.isalnum()          \
-       or len(sn) != 8              \
-       or int(sn, 16) > 0xFFFFFFFF:
+    if (not cn.startswith("ROUTER-") or
+        len(cn) != 7 + 8 or
+        not cn[7:].isalnum() or
+        int(cn[7:], 16) not in asns or
+        not sn.isalnum() or
+        len(sn) != 8 or
+        int(sn, 16) > 0xFFFFFFFF):
       raise rpki.exceptions.BadX510DN("Subject name doesn't match router profile: %s" % pkcs10.getSubject())
+
+    eku = pkcs10.getEKU()
+    if eku is None or rpki.oids.name2oid["id-kp-bgpsec-router"] not in eku:
+      raise rpki.exceptions.WrongEKU("Router certificate EKU not present in request")
 
     raise NotImplementedError, "Not finished"

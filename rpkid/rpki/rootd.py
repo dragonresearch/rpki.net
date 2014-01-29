@@ -49,7 +49,7 @@ class list_pdu(rpki.up_down.list_pdu):
 
 class issue_pdu(rpki.up_down.issue_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
-    self.pkcs10.check_valid_rpki()
+    self.pkcs10.check_valid_request_ca()
     r_msg.payload = rpki.up_down.issue_response_pdu()
     rootd.compose_response(r_msg, self.pkcs10)
     callback()

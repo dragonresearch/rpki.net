@@ -890,7 +890,41 @@ class PKCS10(DER_object):
     """
     return self.getPublicKey().get_SKI()
 
-  def check_valid_rpki(self, kind = "ca"):
+
+  def check_valid_request_common(self):
+    """
+    Common code for checking this certification requests to see
+    whether they conform to the RPKI certificate profile.
+
+    Throws an exception if the request isn't valid, so if this method
+    returns at all, the request is ok.
+
+    You probably don't want to call this directly, as it only performs
+    the checks that are common to all RPKI certificates.
+    """
+
+    if not self.get_POW().verify():
+      raise rpki.exceptions.BadPKCS10("PKCS #10 signature check failed")
+
+    ver = self.get_POW().getVersion()
+
+    if ver != 0:
+      raise rpki.exceptions.BadPKCS10("PKCS #10 request has bad version number %s" % ver)
+
+    ku = self.get_POW().getKeyUsage()
+
+    if ku is not None and self.expected_ca_keyUsage != ku:
+      raise rpki.exceptions.BadPKCS10("PKCS #10 keyUsage doesn't match profile: %r" % ku)
+
+    forbidden_extensions = self.get_POW().getExtensionOIDs() - self.allowed_extensions
+
+    if forbidden_extensions:
+      raise rpki.exceptions.BadExtension("Forbidden extension%s in PKCS #10 certificate request: %s" % (
+        "" if len(forbidden_extensions) == 1 else "s",
+        ", ".join(forbidden_extensions)))
+
+
+  def check_valid_request_ca(self):
     """
     Check this certification request to see whether it's a valid
     request for an RPKI certificate.  This is broken out of the
@@ -904,83 +938,83 @@ class PKCS10(DER_object):
     different kinds of certificates have gotten rather nasty.
     """
 
-    assert kind in ("ca", "ee", "router")
+    self.check_valid_request_common()
 
-    if not self.get_POW().verify():
-      raise rpki.exceptions.BadPKCS10("PKCS #10 signature check failed")
-
-    ver = self.get_POW().getVersion()
-
-    if ver != 0:
-      raise rpki.exceptions.BadPKCS10("PKCS #10 request has bad version number %s" % ver)
-
-    alg = self.get_POW().getSignatureAlgorithm()
-
-    if alg != (rpki.oids.ecdsa_with_SHA256 if kind == "router" else rpki.oids.sha256WithRSAEncryption):
-      raise rpki.exceptions.BadPKCS10("PKCS #10 request has bad signature algorithm %s" % alg)
-
-    bc = self.get_POW().getBasicConstraints()
-    
-    if kind == "ca":
-      if bc is None or not bc[0]:
-        raise rpki.exceptions.BadPKCS10("Request for EE certificate not allowed here")
-    else:
-      if bc is not None and bc[0]:
-        raise rpki.exceptions.BadPKCS10("Request for CA certificate not allowed here")
-        
-    if bc is not None and bc[1] is not None:
-      raise rpki.exceptions.BadPKCS10("PKCS #10 basicConstraints must not specify Path Length")
-
-    ku = self.get_POW().getKeyUsage()
-
-    if ku is not None and self.expected_ca_keyUsage != ku:
-      raise rpki.exceptions.BadPKCS10("PKCS #10 keyUsage doesn't match basicConstraints: %r" % ku)
-
-    eku = self.get_POW().getEKU()
-
-    if kind == "ca" and eku is not None:
-      raise rpki.exceptions.BadPKCS10("EKU not allowed in CA certificate PKCS #10")
-    elif kind == "router" and (eku is None or rpki.oids.id_kp_bgpsec_router not in eku):
-      raise rpki.exceptions.BadPKCS10("EKU required for router certificate PKCS #10")
-
-    if any(oid not in self.allowed_extensions
-           for oid in self.get_POW().getExtensionOIDs()):
-      raise rpki.exceptions.BadExtension("Forbidden extension(s) in PKCS #10 certificate request")
-
+    alg  = self.get_POW().getSignatureAlgorithm()
+    bc   = self.get_POW().getBasicConstraints()
+    eku  = self.get_POW().getEKU()
     sias = self.get_POW().getSIA()
 
-    if kind == "router":
+    if alg != rpki.oids.sha256WithRSAEncryption:
+      raise rpki.exceptions.BadPKCS10("PKCS #10 request has bad signature algorithm %s" % alg)
 
-      if sias is not None:
-        raise rpki.exceptions.BadPKCS10("router certificate PKCS #10 must not contain SIA extension")
+    if bc is None or not bc[0] or bc[1] is not None:
+      raise rpki.exceptions.BadPKCS10("PKCS #10 bad basicConstraints")
 
-    elif kind == "ca":
+    if eku is not None:
+      raise rpki.exceptions.BadPKCS10("EKU not allowed in CA certificate PKCS #10")
 
-      if sias is None:
-        raise rpki.exceptions.BadPKCS10("PKCS #10 is missing SIA extension")
+    if sias is None:
+      raise rpki.exceptions.BadPKCS10("PKCS #10 is missing SIA extension")
 
-      caRepository, rpkiManifest, signedObject = sias
+    caRepository, rpkiManifest, signedObject = sias
 
-      if signedObject:
-        raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request has SIA id-ad-signedObject")
+    if signedObject:
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request has SIA id-ad-signedObject")
 
-      if not caRepository:
-        raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request is missing SIA id-ad-caRepository")
+    if not caRepository:
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request is missing SIA id-ad-caRepository")
 
-      if not any(uri.startswith("rsync://") for uri in caRepository):
-        raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-caRepository contains no rsync URIs")
+    if not any(uri.startswith("rsync://") for uri in caRepository):
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-caRepository contains no rsync URIs")
 
-      if not rpkiManifest:
-        raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request is missing SIA id-ad-rpkiManifest")
+    if not rpkiManifest:
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request is missing SIA id-ad-rpkiManifest")
 
-      if not any(uri.startswith("rsync://") for uri in rpkiManifest):
-        raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-rpkiManifest contains no rsync URIs")
+    if not any(uri.startswith("rsync://") for uri in rpkiManifest):
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-rpkiManifest contains no rsync URIs")
 
-      if any(uri.startswith("rsync://") and not uri.endswith("/") for uri in caRepository):
-        raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-caRepository does not end with slash")
+    if any(uri.startswith("rsync://") and not uri.endswith("/") for uri in caRepository):
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-caRepository does not end with slash")
 
-      if any(uri.startswith("rsync://") and uri.endswith("/") for uri in rpkiManifest):
-        raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-rpkiManifest ends with slash")
+    if any(uri.startswith("rsync://") and uri.endswith("/") for uri in rpkiManifest):
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA certificate request SIA id-ad-rpkiManifest ends with slash")
+
+
+  def check_valid_request_router(self):
+    """
+    Check this certification request to see whether it's a valid
+    request for a BGPSEC router certificate.
+
+    Throws an exception if the request isn't valid, so if this method
+    returns at all, the request is ok.
+
+    draft-ietf-sidr-bgpsec-pki-profiles 3.2 says follow RFC 6487 3
+    except where explicitly overriden, and does not override for SIA.
+    But draft-ietf-sidr-bgpsec-pki-profiles also says that router
+    certificates don't get SIA, while RFC 6487 requires SIA.  So what
+    do we do with SIA in PKCS #10 for router certificates?
+    
+    For the moment, ignore it, but make sure we don't include it in
+    the certificate when we get to the code that generates that.
+    """
+
+    self.check_valid_request_common()
+
+    alg  = self.get_POW().getSignatureAlgorithm()
+    bc   = self.get_POW().getBasicConstraints()
+    eku  = self.get_POW().getEKU()
+    #sia = self.get_POW().getSIA()
+
+    if alg != rpki.oids.ecdsa_with_SHA256:
+      raise rpki.exceptions.BadPKCS10("PKCS #10 request has bad signature algorithm %s" % alg)
+
+    if bc is not None and (bc[0] or bc[1] is not None):
+      raise rpki.exceptions.BadPKCS10("PKCS #10 has bad basicConstraints for router")
+
+    if eku is None or rpki.oids.id_kp_bgpsec_router not in eku:
+      raise rpki.exceptions.BadPKCS10("PKCS #10 for router requires EKU")
+
 
   @classmethod
   def create(cls, keypair, exts = None, is_ca = False,

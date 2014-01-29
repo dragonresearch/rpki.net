@@ -1600,7 +1600,7 @@ class Zookeeper(object):
     .load_asns() and .load_prefixes() for other strategies.
     """
 
-    pkcs10.check_valid_rpki(kind = kind)
+    pkcs10.check_valid_request_ee(kind = kind)
     ee_request = self.resource_ca.ee_certificate_requests.create(
       pkcs10      = pkcs10,
       gski        = pkcs10.gSKI(),

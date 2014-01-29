@@ -586,7 +586,7 @@ class EECertificateRequest(ResourceSet):
 
   # At one point I had a router_id field here, but I don't think it
   # serves any real purpose.  Put it back if I remember why I thought
-  # we needed it, but the current I-D has router-id encoded in teh
+  # we needed it, but the current I-D has router-id encoded in the
   # subject name.
 
   # Need subject name field here?  It's in the PKCS #10, but then so
@@ -596,6 +596,12 @@ class EECertificateRequest(ResourceSet):
   # I guess we could have left-right XML attributes corresponding to
   # X.509 commonName and serialNumber if necessary, question is whether
   # this is necessary.
+
+  # Well, we need //some// way of storing the router-id, and the PKCS
+  # #10 doesn't contain a subject name, so we need an additional field.
+  # Question becomes whether user wants to control which AS is used
+  # in the router certificate's name in the rare case where there's
+  # more than one (AS aliasing, I gather).
 
   def _select_resource_bag(self):
     ee_asn = rpki.irdb.EECertificateRequestASN.objects.raw("""

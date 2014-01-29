@@ -78,20 +78,6 @@ def first_rsync_uri(xia):
         return uri
   return None
 
-def _find_xia_uri(extension, name):
-  """
-  Find a rsync URI in an SIA or AIA extension.
-  Returns the URI if found, otherwise None.
-  """
-  oid = rpki.oids.name2oid[name]
-
-  # extension may be None if the AIA is not present
-  if extension:
-    for method, location in extension:
-      if method == oid and location[0] == "uri" and location[1].startswith("rsync://"):
-        return location[1]
-  return None
-
 class X501DN(object):
   """
   Class to hold an X.501 Distinguished Name.
@@ -126,7 +112,7 @@ class X501DN(object):
   """
 
   def __str__(self):
-    return "".join("/" + "+".join("%s=%s" % (rpki.oids.safe_dotted2name(a[0]), a[1])
+    return "".join("/" + "+".join("%s=%s" % (rpki.oids.oid2name(a[0]), a[1])
                                   for a in rdn)
                    for rdn in self.dn)
 
@@ -148,7 +134,7 @@ class X501DN(object):
   def from_cn(cls, s):
     assert isinstance(s, (str, unicode))
     self = cls()
-    self.dn = (((rpki.oids.safe_name2dotted("commonName"), s),),)
+    self.dn = (((rpki.oids.commonName, s),),)
     return self
 
   @classmethod
@@ -167,14 +153,12 @@ class X501DN(object):
 
     for rdn in self.dn:
       if len(rdn) == 1 and len(rdn[0]) == 2:
-        oid = rpki.oids.safe_dotted2name(rdn[0][0])
+        oid = rdn[0][0]
         val = rdn[0][1]
-        print "OID:", oid
-        print "Val:", val
-        if oid == "commonName" and cn is None:
+        if oid == rpki.oids.commonName and cn is None:
           cn = val
           continue
-        if oid == "serialNumber" and sn is None:
+        if oid == rpki.oids.serialNumber and sn is None:
           sn = val
           continue
       raise rpki.exceptions.BadX510DN("Bad subject name: %s" % (self.dn,))
@@ -703,7 +687,7 @@ class X509(DER_object):
     cert.setPublicKey(subject_key.get_POW())
     cert.setSKI(ski)
     cert.setAKI(aki)
-    cert.setCertificatePolicies((POWify_OID("id-cp-ipAddr-asNumber"),))
+    cert.setCertificatePolicies((rpki.oids.id_cp_ipAddr_asNumber,))
 
     if crldp is not None:
       cert.setCRLDP((crldp,))
@@ -861,11 +845,11 @@ class PKCS10(DER_object):
   ## @var allowed_extensions
   # Extensions allowed by RPKI profile.
 
-  allowed_extensions = frozenset(rpki.oids.safe_name2dotted(name)
-                                 for name in ("basicConstraints",
-                                              "keyUsage",
-                                              "subjectInfoAccess",
-                                              "extendedKeyUsage"))
+  allowed_extensions = frozenset((rpki.oids.basicConstraints,
+                                  rpki.oids.keyUsage,
+                                  rpki.oids.subjectInfoAccess,
+                                  rpki.oids.extendedKeyUsage))
+
 
   def get_DER(self):
     """
@@ -930,9 +914,9 @@ class PKCS10(DER_object):
     if ver != 0:
       raise rpki.exceptions.BadPKCS10("PKCS #10 request has bad version number %s" % ver)
 
-    alg = rpki.oids.safe_dotted2name(self.get_POW().getSignatureAlgorithm())
+    alg = self.get_POW().getSignatureAlgorithm()
 
-    if alg != ("ecdsa-with-SHA256" if kind == "router" else "sha256WithRSAEncryption"):
+    if alg != (rpki.oids.ecdsa_with_SHA256 if kind == "router" else rpki.oids.sha256WithRSAEncryption):
       raise rpki.exceptions.BadPKCS10("PKCS #10 request has bad signature algorithm %s" % alg)
 
     bc = self.get_POW().getBasicConstraints()
@@ -956,7 +940,7 @@ class PKCS10(DER_object):
 
     if kind == "ca" and eku is not None:
       raise rpki.exceptions.BadPKCS10("EKU not allowed in CA certificate PKCS #10")
-    elif kind == "router" and (eku is None or rpki.oids.name2oid["id-kp-bgpsec-router"] not in eku):
+    elif kind == "router" and (eku is None or rpki.oids.id_kp_bgpsec_router not in eku):
       raise rpki.exceptions.BadPKCS10("EKU required for router certificate PKCS #10")
 
     if any(oid not in self.allowed_extensions
@@ -1182,22 +1166,13 @@ class RSApublic(DER_object):
     """
     return self.get_POW().calculateSKI()
 
-def POWify_OID(oid):
-  """
-  Utility function to convert tuple form of an OID to the
-  dotted-decimal string form that rpki.POW uses.
-  """
-  if isinstance(oid, str):
-    return POWify_OID(rpki.oids.name2oid[oid])
-  else:
-    return ".".join(str(i) for i in oid)
 
 class CMS_object(DER_object):
   """
   Abstract class to hold a CMS object.
   """
 
-  econtent_oid = POWify_OID("id-data")
+  econtent_oid = rpki.oids.id_data
   POW_class = rpki.POW.CMS
 
   ## @var dump_on_verify_failure
@@ -1542,7 +1517,7 @@ class SignedManifest(DER_CMS_object):
   Class to hold a signed manifest.
   """
 
-  econtent_oid = POWify_OID("id-ct-rpkiManifest")
+  econtent_oid = rpki.oids.id_ct_rpkiManifest
   POW_class = rpki.POW.Manifest
   
   def getThisUpdate(self):
@@ -1575,7 +1550,7 @@ class SignedManifest(DER_CMS_object):
     obj.setManifestNumber(serial)
     obj.setThisUpdate(thisUpdate)
     obj.setNextUpdate(nextUpdate)
-    obj.setAlgorithm(POWify_OID(rpki.oids.name2oid["id-sha256"]))
+    obj.setAlgorithm(rpki.oids.id_sha256)
     obj.addFiles(filelist)
 
     self = cls(POW = obj)
@@ -1587,7 +1562,7 @@ class ROA(DER_CMS_object):
   Class to hold a signed ROA.
   """
 
-  econtent_oid = POWify_OID("id-ct-routeOriginAttestation")
+  econtent_oid = rpki.oids.id_ct_routeOriginAttestation
   POW_class = rpki.POW.ROA
 
   @classmethod
@@ -1664,7 +1639,7 @@ class XML_CMS_object(Wrapped_CMS_object):
   Class to hold CMS-wrapped XML protocol data.
   """
 
-  econtent_oid = POWify_OID("id-ct-xml")
+  econtent_oid = rpki.oids.id_ct_xml
 
   ## @var dump_outbound_cms
   # If set, we write all outbound XML-CMS PDUs to disk, for debugging.
@@ -1805,7 +1780,7 @@ class Ghostbuster(Wrapped_CMS_object):
   managed by the back-end.
   """
 
-  econtent_oid = POWify_OID("id-ct-rpkiGhostbusters")
+  econtent_oid = rpki.oids.id_ct_rpkiGhostbusters
 
   def encode(self):
     """

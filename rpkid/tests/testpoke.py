@@ -36,7 +36,6 @@ import rpki.http
 import rpki.config
 import rpki.exceptions
 import rpki.relaxng
-import rpki.oids
 import rpki.log
 import rpki.async
 

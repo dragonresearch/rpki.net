@@ -1646,7 +1646,7 @@ class Zookeeper(object):
       raise rpki.exceptions.BadX510DN("Subject name doesn't match router profile: %s" % pkcs10.getSubject())
 
     eku = pkcs10.getEKU()
-    if eku is None or rpki.oids.name2oid["id-kp-bgpsec-router"] not in eku:
+    if eku is None or rpki.oids.id_kp_bgpsec_router not in eku:
       raise rpki.exceptions.WrongEKU("Router certificate EKU not present in request")
 
     raise NotImplementedError, "Not finished"

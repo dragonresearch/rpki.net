@@ -37,7 +37,6 @@ import rpki.exceptions
 import rpki.relaxng
 import rpki.sundial
 import rpki.log
-import rpki.oids
 import rpki.daemonize
 
 rootd = None

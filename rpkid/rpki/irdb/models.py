@@ -582,26 +582,15 @@ class GhostbusterRequest(django.db.models.Model):
 class EECertificateRequest(ResourceSet):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "ee_certificate_requests")
   pkcs10 = PKCS10Field()
-  gski = django.db.models.CharField(max_length = 27)
+  gski   = django.db.models.CharField(max_length = 27)
+  router_id = django.db.models.BigIntegerField(null = True)
 
-  # At one point I had a router_id field here, but I don't think it
-  # serves any real purpose.  Put it back if I remember why I thought
-  # we needed it, but the current I-D has router-id encoded in the
-  # subject name.
-
-  # Need subject name field here?  It's in the PKCS #10, but then so
-  # is the public key from which we generate the g(SKI); question is
-  # whether we need to use the subject name or just transport it.
+  # Subject name isn't allowed in the PKCS #10, so we need to carry
+  # either a subject name or a router-id as a separate field.
+  # Carrying subject name would be more flexible, but is also a swamp
+  # if we start allowing more than just CN and SN.
   #
-  # I guess we could have left-right XML attributes corresponding to
-  # X.509 commonName and serialNumber if necessary, question is whether
-  # this is necessary.
-
-  # Well, we need //some// way of storing the router-id, and the PKCS
-  # #10 doesn't contain a subject name, so we need an additional field.
-  # Question becomes whether user wants to control which AS is used
-  # in the router certificate's name in the rare case where there's
-  # more than one (AS aliasing, I gather).
+  # For the moment we just do router-id.
 
   def _select_resource_bag(self):
     ee_asn = rpki.irdb.EECertificateRequestASN.objects.raw("""

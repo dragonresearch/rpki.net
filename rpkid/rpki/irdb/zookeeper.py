@@ -1589,7 +1589,7 @@ class Zookeeper(object):
 
 
   @django.db.transaction.commit_on_success
-  def add_ee_certificate_request(self, pkcs10, resources, kind = "ee"):
+  def add_ee_certificate_request(self, pkcs10, resources):
     """
     Check a PKCS #10 request to see if it complies with the
     specification for a RPKI EE certificate; if it does, add an
@@ -1600,7 +1600,7 @@ class Zookeeper(object):
     .load_asns() and .load_prefixes() for other strategies.
     """
 
-    pkcs10.check_valid_request_ee(kind = kind)
+    pkcs10.check_valid_request_ee()
     ee_request = self.resource_ca.ee_certificate_requests.create(
       pkcs10      = pkcs10,
       gski        = pkcs10.gSKI(),
@@ -1613,12 +1613,20 @@ class Zookeeper(object):
       ee_request.address_ranges.create(start_ip = str(range.min), end_ip = str(range.max), version = 6)
 
 
-  def add_router_certificate_request(self, pkcs10, *asns):
+  @django.db.transaction.commit_on_success
+  def add_router_certificate_request(self, pkcs10, router_id, *asns, valid_until = None):
     """
     Check a PKCS #10 request to see if it complies with the
     specification for a router certificate; if it does, create an EE
-    certificate request for it along with a specified ASN.
+    certificate request for it along with a specified router-id and
+    ASN(s).
+
+    Not yet sure what we want for update and delete semantics here, so
+    for the moment this is straight addition.  See methods like
+    .load_asns() and .load_prefixes() for other strategies.
     """
+
+    pkcs10.check_valid_request_router()
 
     asns = tuple(long(a) if isinstance(a, (str, unicode)) else a for a in asns)
 
@@ -1626,27 +1634,20 @@ class Zookeeper(object):
       raise rpki.exceptions.BadAutonomousSystemNumber("Bad AutonomousSystem number%s: %s" % (
         "" if len(asns) == 1 else "s", ", ".join(repr(a) for a in asns)))
 
-    # This attempts to enforce draft-ietf-sidr-bgpsec-pki-profiles-06
-    # section 3.1.1.1, which may be a mistake, too early to tell.
-    #
-    # Upon further reading: this will have to go somewhere else,
-    # because the combination of draft-ietf-sidr-bgpsec-pki-profiles
-    # and RFC 6487 says that the subject-name-to-be can't be in the
-    # PKCS #10, it has to be carried separately like the ASNs.  Save
-    # this code, refactor once I figure out where this belongs.
+    asn_set = rpki.resource_set.resource_set_as()
+    asn_set.extend(rpki.resource_set.resource_range_as(a, a) for a in asns)
+    asn_set.canonize()
 
-    cn, sn = pkcs10.getSubject().extract_cn_and_sn()
-    if (not cn.startswith("ROUTER-") or
-        len(cn) != 7 + 8 or
-        not cn[7:].isalnum() or
-        int(cn[7:], 16) not in asns or
-        not sn.isalnum() or
-        len(sn) != 8 or
-        int(sn, 16) > 0xFFFFFFFF):
-      raise rpki.exceptions.BadX510DN("Subject name doesn't match router profile: %s" % pkcs10.getSubject())
+    if valid_until is None:
+      valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
+    elif valid_until < rpki.sundial.now():
+      raise PastExpiration, "Specified expiration date %s has already passed" % valid_until
 
-    eku = pkcs10.getEKU()
-    if eku is None or rpki.oids.id_kp_bgpsec_router not in eku:
-      raise rpki.exceptions.WrongEKU("Router certificate EKU not present in request")
+    ee_request = self.resource_ca.ee_certificate_requests.create(
+      pkcs10      = pkcs10,
+      gski        = pkcs10.gSKI(),
+      valid_until = valid_until,
+      router_id   = router_id)
 
-    raise NotImplementedError, "Not finished"
+    for range in asn_set:
+      ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))

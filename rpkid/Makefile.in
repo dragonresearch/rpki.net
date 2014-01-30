@@ -55,7 +55,7 @@ build/stamp: .FORCE setup_autoconf.py
 clean::
 	rm -rf ${POW_SO} build dist
 
-RNGS = left-right-schema.rng up-down-schema.rng publication-schema.rng myrpki.rng
+RNGS = left-right-schema.rng up-down-schema.rng publication-schema.rng myrpki.rng router-certificate-schema.rng
 
 rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS}
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS} >$@.tmp
@@ -72,6 +72,9 @@ publication-schema.rng: publication-schema.rnc
 
 myrpki.rng: myrpki.rnc
 	${TRANG} myrpki.rnc myrpki.rng
+
+router-certificate-schema.rng: router-certificate-schema.rnc
+	${TRANG} router-certificate-schema.rnc router-certificate-schema.rng
 
 rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py rpkid.sql pubd.sql
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp

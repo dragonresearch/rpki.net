@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  $Id: router-certificate-schema.rnc 4430 2012-04-17 16:00:14Z sra $
+  
+  RelaxNG Schema for BGPSEC router certificate interchange format.
+  
+  At least for now, this is a trivial encapsulation of a PKCS #10
+  request, a set (usually containing exactly one member) of autonomous
+  system numbers, and a router-id.  Be warned that this could change
+  radically by the time we have any real operational understanding of
+  how these things will be used, this is just our current best guess
+  to let us move forward on initial coding.
+  
+  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
+  run the compact syntax through trang to get XML syntax.
+  
+  Copyright (C) 2014  Dragon Research Labs ("DRL")
+  
+  Permission to use, copy, modify, and distribute this software for any
+  purpose with or without fee is hereby granted, provided that the above
+  copyright notice and this permission notice appear in all copies.
+  
+  THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
+  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+  AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
+  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+  PERFORMANCE OF THIS SOFTWARE.
+-->
+<grammar ns="http://www.hactrn.net/uris/rpki/router-certificate/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <define name="version">
+    <value>1</value>
+  </define>
+  <define name="base64">
+    <data type="base64Binary">
+      <param name="maxLength">512000</param>
+    </data>
+  </define>
+  <define name="router_id">
+    <data type="unsignedInt">
+      <param name="minExclusive">0</param>
+    </data>
+  </define>
+  <define name="asn_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,0-9]*</param>
+    </data>
+  </define>
+  <define name="timestamp">
+    <data type="dateTime">
+      <param name="pattern">.*Z</param>
+    </data>
+  </define>
+  <!-- Core PDU used in this schema. -->
+  <define name="router_certificate_request">
+    <element name="router_certificate_request">
+      <attribute name="router_id">
+        <ref name="router_id"/>
+      </attribute>
+      <attribute name="asn">
+        <ref name="asn_list"/>
+      </attribute>
+      <optional>
+        <attribute name="valid_until">
+          <ref name="timestamp"/>
+        </attribute>
+      </optional>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <start combine="choice">
+    <ref name="router_certificate_request"/>
+  </start>
+  <!-- Wrapper element to support multiple requests in a single document. -->
+  <start combine="choice">
+    <element name="router_certificate_requests">
+      <zeroOrMore>
+        <ref name="router_certificate_request"/>
+      </zeroOrMore>
+    </element>
+  </start>
+</grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  End:
+-->

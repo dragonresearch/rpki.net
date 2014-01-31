@@ -38,9 +38,7 @@
     </data>
   </define>
   <define name="router_id">
-    <data type="unsignedInt">
-      <param name="minExclusive">0</param>
-    </data>
+    <data type="unsignedInt"/>
   </define>
   <define name="asn_list">
     <data type="string">

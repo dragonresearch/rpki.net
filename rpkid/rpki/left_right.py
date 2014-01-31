@@ -1036,6 +1036,46 @@ class list_ghostbuster_requests_elt(rpki.xml_utils.text_elt, left_right_namespac
   def __repr__(self):
     return rpki.log.log_repr(self, self.self_handle, self.parent_handle)
 
+class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
+  """
+  <list_resources/> element.
+  """
+
+  element_name = "list_ee_certificate_requests"
+  attributes = ("self_handle", "tag", "gski", "valid_until", "asn", "ipv4", "ipv6", "router_id")
+  elements = ("pkcs10",)
+
+  pkcs10 = None
+
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.self_handle, self.gski, self.router_id, self.asn, self.ipv4, self.ipv6)
+
+  def startElement(self, stack, name, attrs):
+    """
+    Handle <list_ee_certificate_requests/> element.  This requires special
+    handling due to the data types of some of the attributes.
+    """
+    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
+    self.read_attrs(attrs)
+    if isinstance(self.valid_until, str):
+      self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
+    if self.asn is not None:
+      self.asn = rpki.resource_set.resource_set_as(self.asn)
+    if self.ipv4 is not None:
+      self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
+    if self.ipv6 is not None:
+      self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+
+  def toXML(self):
+    """
+    Generate <list_ee_certificate_requests/> element.  This requires special
+    handling due to the data types of some of the attributes.
+    """
+    elt = self.make_elt()
+    if isinstance(self.valid_until, int):
+      elt.set("valid_until", self.valid_until.toXMLtime())
+    return elt
+
 class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
   <list_published_objects/> element.
@@ -1165,6 +1205,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
               for x in (self_elt, child_elt, parent_elt, bsc_elt,
                         repository_elt, list_resources_elt,
                         list_roa_requests_elt, list_ghostbuster_requests_elt,
+                        list_ee_certificate_requests_elt,
                         list_published_objects_elt,
                         list_received_resources_elt, report_error_elt))
 

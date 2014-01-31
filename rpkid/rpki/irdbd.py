@@ -39,8 +39,9 @@ import rpki.daemonize
 class main(object):
 
   def handle_list_resources(self, q_pdu, r_msg):
-    child  = rpki.irdb.Child.objects.get(issuer__handle__exact = q_pdu.self_handle,
-                                         handle = q_pdu.child_handle)
+    child  = rpki.irdb.Child.objects.get(
+      issuer__handle__exact = q_pdu.self_handle,
+      handle = q_pdu.child_handle)
     resources = child.resource_bag
     r_pdu = rpki.left_right.list_resources_elt()
     r_pdu.tag = q_pdu.tag
@@ -82,6 +83,21 @@ class main(object):
       r_pdu.self_handle = q_pdu.self_handle
       r_pdu.parent_handle = q_pdu.parent_handle
       r_pdu.vcard = ghostbuster.vcard
+      r_msg.append(r_pdu)
+
+  def handle_list_ee_certificate_requests(self, q_pdu, r_msg):
+    for ee_req in rpki.irdb.EECertificateRequest.objects.filter(issuer__handle__exact = q_pdu.self_handle):
+      resource = ee_req.resource_bag
+      r_pdu = rpki.left_right.list_ee_certificate_requests_elt()
+      r_pdu.tag = q_pdu.tag
+      r_pdu.self_handle = q_pdu.self_handle
+      r_pdu.gski = ee_req.gski
+      r_pdu.valid_until = ee_req.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
+      r_pdu.asn = resources.asn
+      r_pdu.ipv4 = resources.v4
+      r_pdu.ipv6 = resources.v6
+      r_pdu.router_id = ee_req.router_id
+      r_pdu.pkcs10 = ee_req.pkcs10
       r_msg.append(r_pdu)
 
   def handler(self, query, path, cb):
@@ -219,9 +235,10 @@ class main(object):
     self.start_new_transaction = django.db.transaction.commit_manually(django.db.transaction.commit)
 
     self.dispatch_vector = {
-      rpki.left_right.list_resources_elt            : self.handle_list_resources,
-      rpki.left_right.list_roa_requests_elt         : self.handle_list_roa_requests,
-      rpki.left_right.list_ghostbuster_requests_elt : self.handle_list_ghostbuster_requests }
+      rpki.left_right.list_resources_elt               : self.handle_list_resources,
+      rpki.left_right.list_roa_requests_elt            : self.handle_list_roa_requests,
+      rpki.left_right.list_ghostbuster_requests_elt    : self.handle_list_ghostbuster_requests,
+      rpki.left_right.list_ee_certificate_requests_elt : self.handle_list_ee_certificate_requests}
 
     try:
       self.http_server_host = self.cfg.get("server-host", "")

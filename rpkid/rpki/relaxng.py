@@ -93,6 +93,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
     <ref name="list_ghostbuster_requests_query"/>
   </define>
   <define name="query_elt" combine="choice">
+    <ref name="list_ee_certificate_requests_query"/>
+  </define>
+  <define name="query_elt" combine="choice">
     <ref name="list_resources_query"/>
   </define>
   <define name="query_elt" combine="choice">
@@ -125,6 +128,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_ghostbuster_requests_reply"/>
+  </define>
+  <define name="reply_elt" combine="choice">
+    <ref name="list_ee_certificate_requests_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_published_objects_reply"/>
@@ -933,6 +939,53 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
       <ref name="self_handle"/>
       <ref name="parent_handle"/>
       <data type="string"/>
+    </element>
+  </define>
+  <!-- <list_ee_certificate_requests/> element -->
+  <define name="list_ee_certificate_requests_query">
+    <element name="list_ee_certificate_requests">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+    </element>
+  </define>
+  <define name="list_ee_certificate_requests_reply">
+    <element name="list_ee_certificate_requests">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+      <attribute name="gski">
+        <data type="token">
+          <param name="minLength">27</param>
+          <param name="maxLength">27</param>
+        </data>
+      </attribute>
+      <attribute name="valid_until">
+        <data type="dateTime">
+          <param name="pattern">.*Z</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="asn">
+          <ref name="asn_list"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="ipv4">
+          <ref name="ipv4_list"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="ipv6">
+          <ref name="ipv6_list"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="router_id">
+          <data type="unsignedInt"/>
+        </attribute>
+      </optional>
+      <element name="pkcs10">
+        <ref name="base64"/>
+      </element>
     </element>
   </define>
   <!-- <list_published_objects/> element -->
@@ -2300,9 +2353,7 @@ router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version=
     </data>
   </define>
   <define name="router_id">
-    <data type="unsignedInt">
-      <param name="minExclusive">0</param>
-    </data>
+    <data type="unsignedInt"/>
   </define>
   <define name="asn_list">
     <data type="string">

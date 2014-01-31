@@ -133,11 +133,15 @@ class main(object):
       r_msg.append(r_pdu)
 
 
-  handle_dispatch = {
-    rpki.left_right.list_resources_elt            : handle_list_resources,
-    rpki.left_right.list_roa_requests_elt         : handle_list_roa_requests,
-    rpki.left_right.list_ghostbuster_requests_elt : handle_list_ghostbuster_requests}
+  def handle_list_ee_certificate_requests(self, q_pdu, r_msg):
+    rpki.log.note("old_irdbd doesn't currently implement <list_ee_certificate_requests/>, ignoring")
 
+    
+  handle_dispatch = {
+    rpki.left_right.list_resources_elt               : handle_list_resources,
+    rpki.left_right.list_roa_requests_elt            : handle_list_roa_requests,
+    rpki.left_right.list_ghostbuster_requests_elt    : handle_list_ghostbuster_requests,
+    rpki.left_right.list_ee_certificate_requests_elt : handle_list_ee_certificate_requests }
 
   def handler(self, query, path, cb):
     try:

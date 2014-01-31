@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 4588 2012-07-06 19:43:56Z sra $
+  $Id: left-right-schema.rnc 5657 2014-01-31 05:50:52Z sra $
   
   RelaxNG Schema for RPKI left-right protocol.
   
@@ -2315,7 +2315,7 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
 ## Parsed RelaxNG router_certificate schema
 router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: router-certificate-schema.rnc 5655 2014-01-30 23:00:58Z sra $
+  $Id: router-certificate-schema.rnc 5657 2014-01-31 05:50:52Z sra $
   
   RelaxNG Schema for BGPSEC router certificate interchange format.
   

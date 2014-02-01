@@ -2,7 +2,7 @@
 
 ## @var rpkid
 ## SQL schema rpkid
-rpkid = '''-- $Id: rpkid.sql 3745 2011-03-27 00:21:57Z sra $
+rpkid = '''-- $Id: rpkid.sql 5659 2014-02-01 00:11:21Z sra $
 
 -- Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 --
@@ -37,6 +37,7 @@ rpkid = '''-- $Id: rpkid.sql 3745 2011-03-27 00:21:57Z sra $
 -- DROP TABLE commands must be in correct (reverse dependency) order
 -- to satisfy FOREIGN KEY constraints.
 
+DROP TABLE IF EXISTS ee_cert;
 DROP TABLE IF EXISTS ghostbuster;
 DROP TABLE IF EXISTS roa_prefix;
 DROP TABLE IF EXISTS roa;

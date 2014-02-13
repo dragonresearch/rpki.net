@@ -1092,7 +1092,10 @@ extension_get_key_usage(X509_EXTENSIONS **exts)
 
   ENTERING(extension_get_key_usage);
 
-  if (!exts || (ext = X509V3_get_d2i(*exts, NID_key_usage, NULL, NULL)) == NULL)
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_key_usage, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   if ((result = PyFrozenSet_New(NULL)) == NULL)
@@ -1132,7 +1135,7 @@ extension_set_key_usage(X509_EXTENSIONS **exts, PyObject *args)
   ENTERING(extension_set_key_usage);
 
   if (!exts)
-    lose_value_error("Object with no X509_EXTENSIONS");
+    goto error;
 
   if ((ext = ASN1_BIT_STRING_new()) == NULL)
     lose_no_memory();
@@ -1186,7 +1189,10 @@ extension_get_basic_constraints(X509_EXTENSIONS **exts)
 
   ENTERING(extension_get_basic_constraints);
 
-  if (!exts || (ext = X509V3_get_d2i(*exts, NID_basic_constraints, NULL, NULL)) == NULL)
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_basic_constraints, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   if (ext->pathlen == NULL)
@@ -1212,7 +1218,7 @@ extension_set_basic_constraints(X509_EXTENSIONS **exts, PyObject *args)
   ENTERING(extension_set_basic_constraints);
 
   if (!exts)
-    lose_value_error("Object with no X509_EXTENSIONS");
+    goto error;
 
   if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
     goto error;
@@ -1262,7 +1268,10 @@ extension_get_sia(X509_EXTENSIONS **exts)
 
   ENTERING(pkcs10_object_get_sia);
 
-  if (!exts || (ext = X509V3_get_d2i(*exts, NID_sinfo_access, NULL, NULL)) == NULL)
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_sinfo_access, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   /*
@@ -1354,7 +1363,7 @@ extension_set_sia(X509_EXTENSIONS **exts, PyObject *args, PyObject *kwds)
   ENTERING(extension_set_sia);
 
   if (!exts)
-    lose_value_error("Object with no X509_EXTENSIONS");
+    goto error;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist,
                                    &caRepository, &rpkiManifest, &signedObject))
@@ -1437,7 +1446,10 @@ extension_get_eku(X509_EXTENSIONS **exts)
 
   ENTERING(extension_get_eku);
 
-  if (!exts || (ext = X509V3_get_d2i(*exts, NID_ext_key_usage, NULL, NULL)) == NULL)
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_ext_key_usage, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   if ((result = PyFrozenSet_New(NULL)) == NULL)
@@ -1476,7 +1488,7 @@ extension_set_eku(X509_EXTENSIONS **exts, PyObject *args)
   ENTERING(extension_set_eku);
 
   if (!exts)
-    lose_value_error("Object with no X509_EXTENSIONS");
+    goto error;
 
   if ((ext = sk_ASN1_OBJECT_new_null()) == NULL)
     lose_no_memory();
@@ -1530,7 +1542,10 @@ extension_get_ski(X509_EXTENSIONS **exts)
 
   ENTERING(extension_get_ski);
 
-  if (!exts || (ext = X509V3_get_d2i(*exts, NID_subject_key_identifier, NULL, NULL)) == NULL)
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_subject_key_identifier, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   result = Py_BuildValue("s#", ASN1_STRING_data(ext),
@@ -1552,7 +1567,7 @@ extension_set_ski(X509_EXTENSIONS **exts, PyObject *args)
   ENTERING(extension_set_ski);
 
   if (!exts)
-    lose_value_error("Object with no X509_EXTENSIONS");
+    goto error;
 
   if (!PyArg_ParseTuple(args, "s#", &buf, &len))
     goto error;
@@ -1588,7 +1603,10 @@ extension_get_aki(X509_EXTENSIONS **exts)
 
   ENTERING(extension_get_aki);
 
-  if (!exts || (ext = X509V3_get_d2i(*exts, NID_authority_key_identifier, NULL, NULL)) == NULL)
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_authority_key_identifier, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid),
@@ -2314,8 +2332,8 @@ x509_object_extension_helper(x509_object *self)
 {
   if (self && self->x509 && self->x509->cert_info)
     return &self->x509->cert_info->extensions;
-  else
-    return NULL;
+  PyErr_SetString(PyExc_ValueError, "Can't find X509_EXTENSIONS in X509 object");
+  return NULL;
 }
 
 static char x509_object_get_public_key__doc__[] =
@@ -4507,8 +4525,8 @@ crl_object_extension_helper(crl_object *self)
 {
   if (self && self->crl && self->crl->crl)
     return &self->crl->crl->extensions;
-  else
-    return NULL;
+  PyErr_SetString(PyExc_ValueError, "Can't find X509_EXTENSIONS in CRL object");
+  return NULL;
 }
 
 static char crl_object_get_version__doc__[] =

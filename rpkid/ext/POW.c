@@ -403,6 +403,12 @@ typedef struct {
     goto error;                                                         \
   } while (0)
 
+#define lose_value_error(_msg_)                                         \
+  do {                                                                  \
+    PyErr_SetString(PyExc_ValueError, (_msg_));                         \
+    goto error;                                                         \
+  } while (0)
+
 #define lose_openssl_error(_msg_)                                       \
   do {                                                                  \
     set_openssl_exception(OpenSSLErrorObject, (_msg_), 0);              \
@@ -1086,9 +1092,7 @@ extension_get_key_usage(X509_EXTENSIONS **exts)
 
   ENTERING(extension_get_key_usage);
 
-  assert (exts);
-
-  if ((ext = X509V3_get_d2i(*exts, NID_key_usage, NULL, NULL)) == NULL)
+  if (!exts || (ext = X509V3_get_d2i(*exts, NID_key_usage, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   if ((result = PyFrozenSet_New(NULL)) == NULL)
@@ -1127,7 +1131,8 @@ extension_set_key_usage(X509_EXTENSIONS **exts, PyObject *args)
 
   ENTERING(extension_set_key_usage);
 
-  assert (exts);
+  if (!exts)
+    lose_value_error("Object with no X509_EXTENSIONS");
 
   if ((ext = ASN1_BIT_STRING_new()) == NULL)
     lose_no_memory();
@@ -1181,9 +1186,7 @@ extension_get_basic_constraints(X509_EXTENSIONS **exts)
 
   ENTERING(extension_get_basic_constraints);
 
-  POW_assert(exts);
-
-  if ((ext = X509V3_get_d2i(*exts, NID_basic_constraints, NULL, NULL)) == NULL)
+  if (!exts || (ext = X509V3_get_d2i(*exts, NID_basic_constraints, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   if (ext->pathlen == NULL)
@@ -1208,7 +1211,8 @@ extension_set_basic_constraints(X509_EXTENSIONS **exts, PyObject *args)
 
   ENTERING(extension_set_basic_constraints);
 
-  POW_assert(exts);
+  if (!exts)
+    lose_value_error("Object with no X509_EXTENSIONS");
 
   if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
     goto error;
@@ -1258,9 +1262,7 @@ extension_get_sia(X509_EXTENSIONS **exts)
 
   ENTERING(pkcs10_object_get_sia);
 
-  POW_assert(exts);
-
-  if ((ext = X509V3_get_d2i(*exts, NID_sinfo_access, NULL, NULL)) == NULL)
+  if (!exts || (ext = X509V3_get_d2i(*exts, NID_sinfo_access, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   /*
@@ -1351,7 +1353,8 @@ extension_set_sia(X509_EXTENSIONS **exts, PyObject *args, PyObject *kwds)
 
   ENTERING(extension_set_sia);
 
-  POW_assert(exts);
+  if (!exts)
+    lose_value_error("Object with no X509_EXTENSIONS");
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist,
                                    &caRepository, &rpkiManifest, &signedObject))
@@ -1434,9 +1437,7 @@ extension_get_eku(X509_EXTENSIONS **exts)
 
   ENTERING(extension_get_eku);
 
-  POW_assert(exts);
-
-  if ((ext = X509V3_get_d2i(*exts, NID_ext_key_usage, NULL, NULL)) == NULL)
+  if (!exts || (ext = X509V3_get_d2i(*exts, NID_ext_key_usage, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   if ((result = PyFrozenSet_New(NULL)) == NULL)
@@ -1474,7 +1475,8 @@ extension_set_eku(X509_EXTENSIONS **exts, PyObject *args)
 
   ENTERING(extension_set_eku);
 
-  POW_assert(exts);
+  if (!exts)
+    lose_value_error("Object with no X509_EXTENSIONS");
 
   if ((ext = sk_ASN1_OBJECT_new_null()) == NULL)
     lose_no_memory();
@@ -1528,9 +1530,7 @@ extension_get_ski(X509_EXTENSIONS **exts)
 
   ENTERING(extension_get_ski);
 
-  POW_assert(exts);
-
-  if ((ext = X509V3_get_d2i(*exts, NID_subject_key_identifier, NULL, NULL)) == NULL)
+  if (!exts || (ext = X509V3_get_d2i(*exts, NID_subject_key_identifier, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   result = Py_BuildValue("s#", ASN1_STRING_data(ext),
@@ -1551,7 +1551,8 @@ extension_set_ski(X509_EXTENSIONS **exts, PyObject *args)
 
   ENTERING(extension_set_ski);
 
-  POW_assert(exts);
+  if (!exts)
+    lose_value_error("Object with no X509_EXTENSIONS");
 
   if (!PyArg_ParseTuple(args, "s#", &buf, &len))
     goto error;
@@ -1587,9 +1588,7 @@ extension_get_aki(X509_EXTENSIONS **exts)
 
   ENTERING(extension_get_aki);
 
-  POW_assert(exts);
-
-  if ((ext = X509V3_get_d2i(*exts, NID_authority_key_identifier, NULL, NULL)) == NULL)
+  if (!exts || (ext = X509V3_get_d2i(*exts, NID_authority_key_identifier, NULL, NULL)) == NULL)
     Py_RETURN_NONE;
 
   result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid),

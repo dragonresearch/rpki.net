@@ -1038,7 +1038,7 @@ class list_ghostbuster_requests_elt(rpki.xml_utils.text_elt, left_right_namespac
 
 class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """
-  <list_resources/> element.
+  <list_ee_certificate_requests/> element.
   """
 
   element_name = "list_ee_certificate_requests"
@@ -1055,16 +1055,28 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
     Handle <list_ee_certificate_requests/> element.  This requires special
     handling due to the data types of some of the attributes.
     """
-    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-    self.read_attrs(attrs)
-    if isinstance(self.valid_until, str):
-      self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
-    if self.asn is not None:
-      self.asn = rpki.resource_set.resource_set_as(self.asn)
-    if self.ipv4 is not None:
-      self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
-    if self.ipv6 is not None:
-      self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+    if name not in self.elements:
+      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
+      self.read_attrs(attrs)
+      if isinstance(self.valid_until, str):
+        self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
+      if self.asn is not None:
+        self.asn = rpki.resource_set.resource_set_as(self.asn)
+      if self.ipv4 is not None:
+        self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
+      if self.ipv6 is not None:
+        self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+
+  def endElement(self, stack, name, text):
+    """
+    Handle <pkcs10/> sub-element.
+    """
+    assert len(self.elements) == 1
+    if name == self.elements[0]:
+      self.pkcs10 = rpki.x509.PKCS10(Base64 = text)
+    else:
+      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
+      stack.pop()
 
   def toXML(self):
     """
@@ -1072,6 +1084,8 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
     handling due to the data types of some of the attributes.
     """
     elt = self.make_elt()
+    for i in self.elements:
+      self.make_b64elt(elt, i, getattr(self, i, None))
     if isinstance(self.valid_until, int):
       elt.set("valid_until", self.valid_until.toXMLtime())
     return elt

@@ -55,6 +55,16 @@ myrpki_namespace      = "http://www.hactrn.net/uris/rpki/myrpki/"
 myrpki_version        = "2"
 myrpki_namespaceQName = "{" + myrpki_namespace + "}"
 
+# XML namespace and protocol version for router certificate requests.
+# We probably ought to be pulling this sort of thing from the schema,
+# with an assertion to make sure that we understand the current
+# protocol version number, but just copy what we did for myrpki until
+# I'm ready to rewrite the rpki.relaxng code.
+
+routercert_namespace      = "http://www.hactrn.net/uris/rpki/router-certificate/"
+routercert_version        = "1"
+routercert_namespaceQName = "{" + routercert_namespace + "}"
+
 myrpki_section = "myrpki"
 irdbd_section  = "irdbd"
 rpkid_section  = "rpkid"
@@ -1614,40 +1624,45 @@ class Zookeeper(object):
 
 
   @django.db.transaction.commit_on_success
-  def add_router_certificate_request(self, pkcs10, router_id, *asns, valid_until = None):
+  def add_router_certificate_request(self, router_certificate_request_xml, valid_until = None):
     """
-    Check a PKCS #10 request to see if it complies with the
+    Read XML file containing one or more router certificate requests,
+    attempt to add request(s) to IRDB.
+
+    Check each PKCS #10 request to see if it complies with the
     specification for a router certificate; if it does, create an EE
-    certificate request for it along with a specified router-id and
-    ASN(s).
-
-    Not yet sure what we want for update and delete semantics here, so
-    for the moment this is straight addition.  See methods like
-    .load_asns() and .load_prefixes() for other strategies.
+    certificate request for it along with the ASN resources and
+    router-ID supplied in the XML.
     """
 
-    pkcs10.check_valid_request_router()
+    xml = ElementTree(file = router_certificate_request_xml).getroot()
+    rpki.relaxng.router_certificate.assertValid(xml)
 
-    asns = tuple(long(a) if isinstance(a, (str, unicode)) else a for a in asns)
+    for req in xml.getiterator(routercert_namespaceQName + "router_certificate_request"):
 
-    if not asns or not all(isinstance(a, (int, long)) and a >= 0 and a <= 0xFFFFFFFF for a in asns):
-      raise rpki.exceptions.BadAutonomousSystemNumber("Bad AutonomousSystem number%s: %s" % (
-        "" if len(asns) == 1 else "s", ", ".join(repr(a) for a in asns)))
+      pkcs10 = rpki.x509.PKCS10(Base64 = req.text)
+      router_id = long(req.get("router_id"))
+      asns = req.get("asn")
+      if not valid_until:
+        valid_until = req.get("valid_until")
 
-    asn_set = rpki.resource_set.resource_set_as()
-    asn_set.extend(rpki.resource_set.resource_range_as(a, a) for a in asns)
-    asn_set.canonize()
+      if valid_until and isinstance(valid_until, (str, unicode)):
+        valid_until = rpki.sundial.datetime.fromXMLtime(valid_until)
 
-    if valid_until is None:
-      valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
-    elif valid_until < rpki.sundial.now():
-      raise PastExpiration, "Specified expiration date %s has already passed" % valid_until
+      if not valid_until:
+        valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
+      elif valid_until < rpki.sundial.now():
+        raise PastExpiration, "Specified expiration date %s has already passed" % valid_until
 
-    ee_request = self.resource_ca.ee_certificate_requests.create(
-      pkcs10      = pkcs10,
-      gski        = pkcs10.gSKI(),
-      valid_until = valid_until,
-      router_id   = router_id)
+      pkcs10.check_valid_request_router()
 
-    for range in asn_set:
-      ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))
+      gski = pkcs10.gSKI()
+
+      ee_request = self.resource_ca.ee_certificate_requests.create(
+        pkcs10 = pkcs10, gski = gski, valid_until = valid_until, router_id = router_id)
+
+      for range in asns:
+        ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))
+
+      self.log("Added Router certificate request g(SKI) %s router-id %d ASNs %s" % (
+        gski, router_id, asns))

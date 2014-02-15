@@ -705,6 +705,29 @@ class main(Cmd):
       self.zoo.run_rpkid_now()
 
 
+  @parsecmd(argsubparsers,
+            cmdarg("--valid_until",  help = "override default validity interval"),
+            cmdarg("router_certificate_request_xml", help = "file containing XML router certificate request"))
+  def do_add_router_certificate_request(self, args):
+    """
+    Load router certificate request(s) into IRDB from XML file.
+    """
+
+    self.zoo.add_router_certificate_request(args.router_certificate_request_xml, args.valid_until)
+    if self.autosync:
+      self.zoo.run_rpkid_now()
+
+  # Going to need some way to delete router certificate requests too.
+  # This probably means that we specify which request to delete by
+  # g(SKI), which means we need a g(SKI) completion function and a
+  # show method to display a table of g(SKI)s, router-ids, and
+  # valid_until values.
+  #
+  # What about updates?  Validity interval, change router-id, change
+  # ASNs.  Not sure what this looks like yet, blunder ahead with the
+  # core code while mulling over the UI.
+
+
   @parsecmd(argsubparsers)
   def do_synchronize(self, args):
     """

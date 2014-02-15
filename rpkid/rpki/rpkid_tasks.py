@@ -1,17 +1,19 @@
 # $Id$
 # 
-# Copyright (C) 2012-2013  Internet Systems Consortium ("ISC")
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2012--2013  Internet Systems Consortium ("ISC")
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# copyright notices and this permission notice appear in all copies.
 # 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
 """
@@ -26,6 +28,18 @@ import rpki.up_down
 import rpki.sundial
 import rpki.publication
 import rpki.exceptions
+
+task_classes = ()
+
+def queue_task(cls):
+  """
+  Class decorator to add a new task class to task_classes.
+  """
+
+  global task_classes
+  task_classes += (cls,)
+  return cls
+
 
 class CompletionHandler(object):
   """
@@ -136,6 +150,7 @@ class AbstractTask(object):
     pass
 
 
+@queue_task
 class PollParentTask(AbstractTask):
   """
   Run the regular client poll cycle with each of this self's
@@ -203,6 +218,7 @@ class PollParentTask(AbstractTask):
     self.parent_iterator()
 
 
+@queue_task
 class UpdateChildrenTask(AbstractTask):
   """
   Check for updated IRDB data for all of this self's children and
@@ -321,6 +337,7 @@ class UpdateChildrenTask(AbstractTask):
     self.exit()
 
 
+@queue_task
 class UpdateROAsTask(AbstractTask):
   """
   Generate or update ROAs for this self.
@@ -450,6 +467,7 @@ class UpdateROAsTask(AbstractTask):
     self.exit()
 
 
+@queue_task
 class UpdateGhostbustersTask(AbstractTask):
   """
   Generate or update Ghostbuster records for this self.
@@ -547,6 +565,8 @@ class UpdateGhostbustersTask(AbstractTask):
     rpki.log.warn("Could not fetch Ghostbuster record requests for %s, skipping: %s" % (self.self_handle, e))
     self.exit()
 
+
+@queue_task
 class RegenerateCRLsAndManifestsTask(AbstractTask):
   """
   Generate new CRLs and manifests as necessary for all of this self's
@@ -595,6 +615,8 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
     self.gctx.checkpoint()
     self.exit()
 
+
+@queue_task
 class CheckFailedPublication(AbstractTask):
   """
   Periodic check for objects we tried to publish but failed (eg, due

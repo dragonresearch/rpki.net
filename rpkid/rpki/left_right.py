@@ -362,13 +362,7 @@ class self_elt(data_elt):
     """
 
     if self.cron_tasks is None:
-      self.cron_tasks = (
-        rpki.rpkid_tasks.PollParentTask(self),
-        rpki.rpkid_tasks.UpdateChildrenTask(self),
-        rpki.rpkid_tasks.UpdateROAsTask(self),
-        rpki.rpkid_tasks.UpdateGhostbustersTask(self),
-        rpki.rpkid_tasks.RegenerateCRLsAndManifestsTask(self),
-        rpki.rpkid_tasks.CheckFailedPublication(self))
+      self.cron_tasks = tuple(task(self) for task in rpki.rpkid_tasks.task_classes)
 
     for task in self.cron_tasks:
       self.gctx.task_add(task)

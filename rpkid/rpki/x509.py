@@ -131,10 +131,14 @@ class X501DN(object):
     rpki.log.debug("++ %r %r" % (self, self.dn))
       
   @classmethod
-  def from_cn(cls, s):
-    assert isinstance(s, (str, unicode))
+  def from_cn(cls, cn, sn = None):
+    assert isinstance(cn, (str, unicode))
+    assert sn is None or isinstance(sn, (int, long)) or (isinstance(sn, (str, unicode)) and sn.isdigit())
     self = cls()
-    self.dn = (((rpki.oids.commonName, s),),)
+    if sn is not None:
+      self.dn = (((rpki.oids.commonName, cn),), ((rpki.oids.serialNumber, str(sn)),))
+    else:
+      self.dn = (((rpki.oids.commonName, cn),),)
     return self
 
   @classmethod
@@ -602,7 +606,8 @@ class X509(DER_object):
     return self.getNotAfter() <= rpki.sundial.now()
 
   def issue(self, keypair, subject_key, serial, sia, aia, crldp, notAfter,
-            cn = None, resources = None, is_ca = True, notBefore = None):
+            cn = None, resources = None, is_ca = True, notBefore = None,
+            sn = None):
     """
     Issue an RPKI certificate.
     """
@@ -619,6 +624,7 @@ class X509(DER_object):
       notBefore   = notBefore,
       notAfter    = notAfter,
       cn          = cn,
+      sn          = sn,
       resources   = resources,
       is_ca       = is_ca,
       aki         = self.get_SKI(),
@@ -627,7 +633,8 @@ class X509(DER_object):
 
   @classmethod
   def self_certify(cls, keypair, subject_key, serial, sia, notAfter,
-                   cn = None, resources = None, notBefore = None):
+                   cn = None, resources = None, notBefore = None,
+                   sn = None):
     """
     Generate a self-certified RPKI certificate.
     """
@@ -647,15 +654,16 @@ class X509(DER_object):
       notBefore   = notBefore,
       notAfter    = notAfter,
       cn          = cn,
+      sn          = sn,
       resources   = resources,
       is_ca       = True,
       aki         = ski,
-      issuer_name = X501DN.from_cn(cn))
+      issuer_name = X501DN.from_cn(cn, sn))
 
 
   @classmethod
   def _issue(cls, keypair, subject_key, serial, sia, aia, crldp, notAfter,
-             cn, resources, is_ca, aki, issuer_name, notBefore):
+             cn, sn, resources, is_ca, aki, issuer_name, notBefore):
     """
     Common code to issue an RPKI certificate.
     """
@@ -681,7 +689,7 @@ class X509(DER_object):
     cert.setVersion(2)
     cert.setSerial(serial)
     cert.setIssuer(issuer_name.get_POW())
-    cert.setSubject(X501DN.from_cn(cn).get_POW())
+    cert.setSubject(X501DN.from_cn(cn, sn).get_POW())
     cert.setNotBefore(notBefore)
     cert.setNotAfter(notAfter)
     cert.setPublicKey(subject_key.get_POW())
@@ -1052,14 +1060,16 @@ class PKCS10(DER_object):
 
   @classmethod
   def create(cls, keypair, exts = None, is_ca = False,
-             caRepository = None, rpkiManifest = None, signedObject = None):
+             caRepository = None, rpkiManifest = None, signedObject = None,
+             cn = None, sn = None):
     """
     Create a new request for a given keypair.
     """
 
     assert exts is None, "Old calling sequence to rpki.x509.PKCS10.create()"
 
-    cn = "".join(("%02X" % ord(i) for i in keypair.get_SKI()))
+    if cn is None:
+      cn = "".join(("%02X" % ord(i) for i in keypair.get_SKI()))
 
     if isinstance(caRepository, str):
       caRepository = (caRepository,)
@@ -1072,7 +1082,7 @@ class PKCS10(DER_object):
 
     req = rpki.POW.PKCS10()
     req.setVersion(0)
-    req.setSubject(X501DN.from_cn(cn).get_POW())
+    req.setSubject(X501DN.from_cn(cn, sn).get_POW())
     req.setPublicKey(keypair.get_POW())
 
     if is_ca:

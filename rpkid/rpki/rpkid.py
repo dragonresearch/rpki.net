@@ -249,6 +249,18 @@ class main(object):
 
     self.irdb_query(callback, errback, *q_pdus)
 
+  def irdb_query_ee_certificate_requests(self, self_handle, callback, errback):
+    """
+    Ask IRDB about self's EE certificate requests.
+    """
+
+    rpki.log.trace()
+
+    q_pdu = rpki.left_right.list_ee_certificate_requests_elt()
+    q_pdu.self_handle = self_handle
+
+    self.irdb_query(callback, errback, q_pdu)
+
   def left_right_handler(self, query, path, cb):
     """
     Process one left-right PDU.
@@ -869,6 +881,15 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     return self.latest_ca_cert.getNotAfter() <= rpki.sundial.now()
 
+  def covers(self, target):
+    """
+    Test whether this ca-detail covers a given set of resources.
+    """
+
+    assert not target.asn.inherit and not target.v4.inherit and not target.v6.inherit
+    me = self.latest_ca_cert.get_3779resources()
+    return target.asn <= me.asn and target.v4 <= me.v4 and target.v6  <= me.v6
+
   def activate(self, ca, cert, uri, callback, errback, predecessor = None):
     """
     Activate this ca_detail.
@@ -1090,10 +1111,14 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     self.sql_store()
     return self
 
-  def issue_ee(self, ca, resources, subject_key, sia):
+  def issue_ee(self, ca, resources, subject_key, sia,
+               cn = None, sn = None, notAfter = None):
     """
     Issue a new EE certificate.
     """
+
+    if notAfter is None:
+      notAfter = self.latest_ca_cert.getNotAfter()
 
     return self.latest_ca_cert.issue(
       keypair     = self.private_key_id,
@@ -1103,8 +1128,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       aia         = self.ca_cert_uri,
       crldp       = self.crl_uri,
       resources   = resources,
-      notAfter    = self.latest_ca_cert.getNotAfter(),
-      is_ca       = False)
+      notAfter    = notAfter,
+      is_ca       = False,
+      cn          = cn,
+      sn          = sn)
 
   def generate_manifest_cert(self):
     """
@@ -2114,6 +2141,213 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     ghostbuster_obj's ghostbuster.
     """
     return self.cert.gSKI() + ".gbr"
+
+
+class ee_cert_obj(rpki.sql.sql_persistent):
+  """
+  EE certificate (router certificate or generic).
+  """
+
+  sql_template = rpki.sql.template(
+    "ee_cert",
+    "ee_cert_id",
+    "self_id",
+    "ca_detail_id",
+    "ski",
+    ("cert", rpki.x509.X509),
+    ("published", rpki.sundial.datetime))
+
+  def __repr__(self):
+    return rpki.log.log_repr(self.cert.getSubject(), self.uri)
+
+  def __init__(self, gctx = None, self_id = None, ca_detail_id = None, cert = None):
+    rpki.sql.sql_persistent.__init__(self)
+    self.gctx = gctx
+    self.self_id = self_id
+    self.ca_detail_id = ca_detail_id
+    self.cert = cert
+    self.ski = None if cert is None else cert.get_SKI()
+    self.published = None
+    if self_id or ca_detail_id or cert:
+      self.sql_mark_dirty()
+
+  @property
+  @rpki.sql.cache_reference
+  def self(self):
+    """
+    Fetch self object to which this ee_cert_obj links.
+    """
+    return rpki.left_right.self_elt.sql_fetch(self.gctx, self.self_id)
+
+  @property
+  @rpki.sql.cache_reference
+  def ca_detail(self):
+    """
+    Fetch ca_detail object to which this ee_cert_obj links.
+    """
+    return rpki.rpkid.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
+
+  @ca_detail.deleter
+  def ca_detail(self):
+    try:
+      del self._ca_detail
+    except AttributeError:
+      pass
+
+  @property
+  def gski(self):
+    """
+    Calculate g(SKI), for ease of comparison with XML.
+
+    Although, really, one has to ask why we don't just store g(SKI)
+    in rpkid.sql instead of ski....
+    """
+    return base64.urlsafe_b64encode(self.ski).rstrip("=")
+
+  @gski.setter
+  def gski(self, val):
+    self.ski = base64.urlsafe_b64decode(s + ("=" * ((4 - len(s)) % 4)))
+
+  @property
+  def uri(self):
+    """
+    Return the publication URI for this ee_cert_obj.
+    """
+    return self.ca_detail.ca.sia_uri + self.uri_tail
+
+  @property
+  def uri_tail(self):
+    """
+    Return the tail (filename portion) of the publication URI for this
+    ee_cert_obj.
+    """
+    return self.cert.gSKI() + ".cer"
+
+  def revoke(self, publisher, generate_crl_and_manifest = True):
+    """
+    Revoke and withdraw an EE certificate.
+    """
+
+    ca_detail = self.ca_detail
+    ca = ca_detail.ca
+    rpki.log.debug("Revoking %r %r" % (self, self.uri))
+    revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
+    publisher.withdraw(cls = rpki.publication.certificate_elt,
+                       uri = self.uri,
+                       obj = self.cert,
+                       repository = ca.parent.repository)
+    self.gctx.sql.sweep()
+    self.sql_delete()
+    if generate_crl_and_manifest:
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
+
+  def reissue(self, publisher, resources = None, force = False):
+    """
+    Reissue an existing EE cert, reusing the public key.  If the EE
+    cert we would generate is identical to the one we already have, we
+    just return the one we already have.  If we have to revoke the old
+    EE cert when generating the new one, we have to generate a new
+    ee_cert_obj, so calling code that needs the updated ee_cert_obj
+    must use the return value from this method.
+    """
+
+    ca_detail = self.ca_detail
+    ca = ca_detail.ca
+    old_resources = self.cert.get_3779resources()
+
+    needed = False
+
+    if resources is None:
+      resources = old_resources
+
+    assert resources.valid_until is not None and old_resources.valid_until is not None
+
+    assert ca_detail.covers(resources)
+
+    if resources.valid_until != old_resources.valid_until:
+      rpki.log.debug("Validity changed for %r: old %s new %s" % (
+        self, old_resources.valid_until, resources.valid_until))
+      needed = True
+
+    if resources  != old_resources:
+      rpki.log.debug("Resources changed for %r: old %s new %s" % (
+        self, old_resources, resources))
+      needed = True
+
+    must_revoke = (old_resources.oversized(resources) or
+                   old_resources.valid_until > resources.valid_until)
+    if must_revoke:
+      rpki.log.debug("Must revoke any existing cert(s) for %r" % self)
+      needed = True
+
+    if not needed and force:
+      rpki.log.debug("No change needed for %r, forcing reissuance anyway" % self)
+      needed = True
+
+    if not needed:
+      rpki.log.debug("No change to %r" % self)
+      return self
+
+    if must_revoke:
+      for x in self.sql_fetch_where(self.gctx, "self_id = %s AND ca_detail_id = %s AND ski = %s",
+                                    (self.self_id, self.ca_detail_id, self.ski)):
+        rpki.log.debug("Revoking ee_cert %r" % x)
+        x.revoke(publisher = publisher)
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
+
+    return self.create(
+      ca_detail    = ca_detail,
+      subject_name = self.cert.getSubject(),
+      subject_key  = self.cert.getPublicKey(),
+      resources    = resources,
+      publisher    = publisher)
+
+  @classmethod
+  def create(cls, ca_detail, subject_name, subject_key, resources, publisher):
+    """
+    Generate a new certificate and stuff it in a new ee_cert_obj.
+    """
+
+    cn, sn = subject_name.get_cn_and_dn()
+    ca = ca_detail.ca
+
+    cert = ca_detail.issue_ee(
+      ca          = ca,
+      subject_key = subject_key,
+      sia         = None,
+      resources   = resources,
+      notAfter    = resources.valid_until,
+      cn          = cn,
+      sn          = sn)
+
+    self = cls(
+      gctx         = ca_detail.gctx,
+      self_id      = ca.self.self_id,
+      ca_detail_id = ca_detail.ca_detail_id,
+      cert         = cert)
+
+    publisher.publish(
+      cls        = rpki.publication.certificate_elt,
+      uri        = self.uri,
+      obj        = self.cert,
+      repository = ca.parent.repository,
+      handler    = self.published_callback)
+
+    ca_detail.generate_manifest(publisher = publisher)
+
+    rpki.log.debug("New ee_cert %r" % self)
+
+    return self
+
+  def published_callback(self, pdu):
+    """
+    Publication callback: check result and mark published.
+    """
+    pdu.raise_if_error()
+    self.published = None
+    self.sql_mark_dirty()
 
 
 class publication_queue(object):

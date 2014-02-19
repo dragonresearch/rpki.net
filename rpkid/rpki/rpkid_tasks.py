@@ -567,6 +567,94 @@ class UpdateGhostbustersTask(AbstractTask):
 
 
 @queue_task
+class UpdateEECertificatesTask(AbstractTask):
+  """
+  Generate or update EE certificates for this self.
+
+  Not yet sure what kind of scaling constraints this task might have,
+  so keeping it simple for initial version, we can optimize later.
+  """
+
+  def start(self):
+    rpki.log.trace()
+    self.gctx.checkpoint()
+    rpki.log.debug("Self %s[%d] updating EE certificates" % (self.self_handle, self.self_id))
+
+    self.gctx.irdb_query_ee_certificate_requests(self.self_handle,
+                                                 self.got_requests,
+                                                 self.get_requests_failed)
+
+  def got_requests(self, requests):
+
+    try:
+      self.gctx.checkpoint()
+      if self.gctx.sql.dirty:
+        rpki.log.warn("Unexpected dirty SQL cache, flushing")
+        self.gctx.sql.sweep()
+
+      publisher = rpki.rpkid.publication_queue()
+
+      existing = dict()
+      for ee in self.ee_certificates:
+        gski = ee.gski
+        if gski not in existing:
+          existing[gski] = set()
+        existing[gski].add(ee)
+
+      for req in requests:
+        ees = existing.pop(req.gski, ())
+        ca_details = self.find_covering_ca_details(resources)
+
+        for ee in ees:
+          if ee.ca_detail in ca_details:
+            rpki.log.debug("Updating existing EE certificate for %s %s" % (req.gski, resources))
+            ee.reissue(
+              resources = resources,
+              publisher = publisher)
+            ca_details.remove(ee.ca_detail)
+          else:
+            rpki.log.debug("Existing EE certificate for %s %s is no longer covered" % (req.gski, resources))
+            ee.revoke(publisher = publisher)
+
+        for ca_detail in ca_details:
+          rpki.log.debug("No existing EE certificate for %s %s" % (req.gski, resources))
+          rpki.rpkid.ee_cert_obj.create(
+            ca_detail    = ca_detail,
+            subject_name = req.pkcs10.getSubject(),
+            subject_key  = req.pkcs10.getPublicKey(),
+            resources    = resources,
+            publisher    = publisher)
+
+      # Anything left is an orphan
+      for ees in existing.values():
+        for ee in ees:
+          ee.revoke(publisher = publisher)
+
+      self.gctx.sql.sweep()
+
+      self.gctx.checkpoint()
+      publisher.call_pubd(self.exit, self.publication_failed)
+
+    except (SystemExit, rpki.async.ExitNow):
+      raise
+    except Exception, e:
+      rpki.log.traceback()
+      rpki.log.warn("Could not update EE certificates for %s, skipping: %s" % (self.self_handle, e))
+      self.exit()
+
+  def publication_failed(self, e):
+    rpki.log.traceback()
+    rpki.log.warn("Couldn't publish EE certificate updates for %s, skipping: %s" % (self.self_handle, e))
+    self.gctx.checkpoint()
+    self.exit()
+
+  def get_requests_failed(self, e):
+    rpki.log.traceback()
+    rpki.log.warn("Could not fetch EE certificate requests for %s, skipping: %s" % (self.self_handle, e))
+    self.exit()
+
+
+@queue_task
 class RegenerateCRLsAndManifestsTask(AbstractTask):
   """
   Generate new CRLs and manifests as necessary for all of this self's

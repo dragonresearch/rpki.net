@@ -205,6 +205,13 @@ class self_elt(data_elt):
     """
     return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
+  @property
+  def ee_certificates(self):
+    """
+    Fetch all EE certificate objects that link to this self object.
+    """
+    return rpki.rpkid.ee_cert_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
+
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
@@ -368,7 +375,27 @@ class self_elt(data_elt):
       self.gctx.task_add(task)
       completion.register(task)
 
+  def find_covering_ca_details(self, resources):
+    """
+    Return all active ca_detail_objs for this <self/> which cover a
+    particular set of resources.
 
+    If we expected there to be a large number of ca_detail_objs, we
+    could add index tables and write fancy SQL query to do this, but
+    for the expected common case where there are only one or two
+    active ca_detail_objs per <self/>, it's probably not worth it.  In
+    any case, this is an optimization we can leave for later.
+    """
+
+    results = set()
+    for parent in self.parents:
+      for ca in parent.cas:
+        for ca_detail in ca.active_ca_details:
+          if ca_detail.covers(resources):
+            results.add(ca_detail)
+    return results
+
+             
 class bsc_elt(data_elt):
   """
   <bsc/> (Business Signing Context) element.
@@ -1040,6 +1067,7 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
   elements = ("pkcs10",)
 
   pkcs10 = None
+  valid_until = None
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.self_handle, self.gski, self.router_id, self.asn, self.ipv4, self.ipv6)

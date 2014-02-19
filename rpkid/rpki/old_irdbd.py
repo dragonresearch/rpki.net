@@ -52,13 +52,18 @@ class main(object):
     r_pdu.child_handle = q_pdu.child_handle
 
     self.cur.execute(
-      "SELECT registrant_id, valid_until FROM registrant WHERE registry_handle = %s AND registrant_handle = %s",
+      """
+      SELECT registrant_id, valid_until
+      FROM registrant
+      WHERE registry_handle = %s AND registrant_handle = %s
+      """,
       (q_pdu.self_handle, q_pdu.child_handle))
 
     if self.cur.rowcount != 1:
-      raise rpki.exceptions.NotInDatabase, \
-            "This query should have produced a single exact match, something's messed up (rowcount = %d, self_handle = %s, child_handle = %s)" \
-            % (self.cur.rowcount, q_pdu.self_handle, q_pdu.child_handle)
+      raise rpki.exceptions.NotInDatabase(
+        "This query should have produced a single exact match, something's messed up"
+        " (rowcount = %d, self_handle = %s, child_handle = %s)"
+        % (self.cur.rowcount, q_pdu.self_handle, q_pdu.child_handle))
 
     registrant_id, valid_until = self.cur.fetchone()
 
@@ -66,17 +71,29 @@ class main(object):
 
     r_pdu.asn  = rpki.resource_set.resource_set_as.from_sql(
       self.cur,
-      "SELECT start_as, end_as FROM registrant_asn WHERE registrant_id = %s",
+      """
+      SELECT start_as, end_as
+      FROM registrant_asn
+      WHERE registrant_id = %s
+      """,
       (registrant_id,))
 
     r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(
       self.cur,
-      "SELECT start_ip, end_ip FROM registrant_net WHERE registrant_id = %s AND version = 4",
+      """
+      SELECT start_ip, end_ip
+      FROM registrant_net
+      WHERE registrant_id = %s AND version = 4
+      """,
       (registrant_id,))
 
     r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(
       self.cur,
-      "SELECT start_ip, end_ip FROM registrant_net WHERE registrant_id = %s AND version = 6",
+      """
+      SELECT start_ip, end_ip
+      FROM registrant_net
+      WHERE registrant_id = %s AND version = 6
+      """,
       (registrant_id,))
 
     r_msg.append(r_pdu)
@@ -85,7 +102,7 @@ class main(object):
   def handle_list_roa_requests(self, q_pdu, r_msg):
 
     self.cur.execute(
-      "SELECT roa_request_id, asn FROM roa_request WHERE roa_request_handle = %s",
+      "SELECT roa_request_id, asn FROM roa_request WHERE self_handle = %s",
       (q_pdu.self_handle,))
 
     for roa_request_id, asn in self.cur.fetchall():
@@ -97,12 +114,20 @@ class main(object):
 
       r_pdu.ipv4 = rpki.resource_set.roa_prefix_set_ipv4.from_sql(
         self.cur,
-        "SELECT prefix, prefixlen, max_prefixlen FROM roa_request_prefix WHERE roa_request_id = %s AND version = 4",
+        """
+        SELECT prefix, prefixlen, max_prefixlen
+        FROM roa_request_prefix
+        WHERE roa_request_id = %s AND version = 4
+        """,
         (roa_request_id,))
 
       r_pdu.ipv6 = rpki.resource_set.roa_prefix_set_ipv6.from_sql(
         self.cur,
-        "SELECT prefix, prefixlen, max_prefixlen FROM roa_request_prefix WHERE roa_request_id = %s AND version = 6",
+        """
+        SELECT prefix, prefixlen, max_prefixlen
+        FROM roa_request_prefix
+        WHERE roa_request_id = %s AND version = 6
+        """,
         (roa_request_id,))
 
       r_msg.append(r_pdu)
@@ -111,7 +136,11 @@ class main(object):
   def handle_list_ghostbuster_requests(self, q_pdu, r_msg):
 
     self.cur.execute(
-      "SELECT vcard  FROM ghostbuster_request WHERE self_handle = %s AND parent_handle = %s",
+      """
+      SELECT vcard
+      FROM ghostbuster_request
+      WHERE self_handle = %s AND parent_handle = %s
+      """,
       (q_pdu.self_handle, q_pdu.parent_handle))
 
     vcards = [result[0] for result in self.cur.fetchall()]
@@ -119,7 +148,11 @@ class main(object):
     if not vcards:
 
       self.cur.execute(
-        "SELECT vcard  FROM ghostbuster_request WHERE self_handle = %s AND parent_handle IS NULL",
+        """
+        SELECT vcard
+        FROM ghostbuster_request
+        WHERE self_handle = %s AND parent_handle IS NULL
+        """,
         (q_pdu.self_handle,))
 
       vcards = [result[0] for result in self.cur.fetchall()]
@@ -134,9 +167,54 @@ class main(object):
 
 
   def handle_list_ee_certificate_requests(self, q_pdu, r_msg):
-    rpki.log.note("old_irdbd doesn't currently implement <list_ee_certificate_requests/>, ignoring")
 
-    
+    self.cur.execute(
+      """
+      SELECT ee_certificate_id, gski, router_id, valid_until
+      FROM ee_certificate
+      WHERE self_handle = %s
+      """,
+      (q_pdu.self_handle,))
+
+    for ee_certificate_id, gski, router_id, valid_until in self.cur.fetchall():
+
+      r_pdu = rpki.left_right.ee_certificates_request_elt()
+      r_pdu.tag = q_pdu.tag
+      r_pdu.self_handle = q_pdu.self_handle
+      r_pdu.valid_until = valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
+      r_pdu.gski        = gski
+      r_pdu.router_id   = router_id
+
+      r_pdu.asn = rpki.resource_set.resource_set_as.from_sql(
+        self.cur,
+        """
+        SELECT start_as, end_as
+        FROM ee_certificate_asn
+        WHERE ee_certificate_id = %s
+        """,
+        (ee_certificate_id,))
+
+      r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(
+        self.cur,
+        """
+        SELECT start_ip, end_ip
+        FROM ee_certificate_net
+        WHERE ee_certificate_id = %s AND version = 4
+        """,
+        (ee_certificate_id,))
+
+      r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(
+        self.cur,
+        """
+        SELECT start_ip, end_ip
+        FROM ee_certificate_net
+        WHERE ee_certificate_id = %s AND version = 6
+        """,
+        (ee_certificate_id,))
+
+      r_msg.append(r_pdu)
+
+
   handle_dispatch = {
     rpki.left_right.list_resources_elt               : handle_list_resources,
     rpki.left_right.list_roa_requests_elt            : handle_list_roa_requests,

@@ -757,7 +757,7 @@ class allocation(object):
           cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
         cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until, registrant_id))
       for r in s.roa_requests:
-        cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (s.name, r.asn))
+        cur.execute("INSERT roa_request (self_handle, asn) VALUES (%s, %s)", (s.name, r.asn))
         roa_request_id = cur.lastrowid
         for version, prefix_set in ((4, r.v4), (6, r.v6)):
           if prefix_set:

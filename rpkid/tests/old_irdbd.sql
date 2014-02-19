@@ -42,6 +42,9 @@ DROP TABLE IF EXISTS registrant_net;
 DROP TABLE IF EXISTS registrant_asn;
 DROP TABLE IF EXISTS registrant;
 DROP TABLE IF EXISTS ghostbuster_request;
+DROP TABLE IF EXISTS ee_certificate_asn;
+DROP TABLE IF EXISTS ee_certificate_net;
+DROP TABLE IF EXISTS ee_certificate;
 
 CREATE TABLE registrant (
         registrant_id           SERIAL NOT NULL,
@@ -54,29 +57,29 @@ CREATE TABLE registrant (
 ) ENGINE=InnoDB;
 
 CREATE TABLE registrant_asn (
-        registrant_asn_id       SERIAL NOT NULL,
         start_as                BIGINT UNSIGNED NOT NULL,
         end_as                  BIGINT UNSIGNED NOT NULL,
         registrant_id           BIGINT UNSIGNED NOT NULL,
-        PRIMARY KEY             (registrant_asn_id),
+        PRIMARY KEY             (registrant_id, start_as, end_as),
         CONSTRAINT              registrant_asn_registrant_id
-        FOREIGN KEY             (registrant_id) REFERENCES registrant (registrant_id) ON DELETE CASCADE
+        FOREIGN KEY             (registrant_id) REFERENCES registrant (registrant_id)
+                                ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE registrant_net (
-        registrant_net_id       SERIAL NOT NULL,
         start_ip                VARCHAR(40) NOT NULL,
         end_ip                  VARCHAR(40) NOT NULL,
         version                 TINYINT UNSIGNED NOT NULL,
         registrant_id           BIGINT UNSIGNED NOT NULL,
-        PRIMARY KEY             (registrant_net_id),
+        PRIMARY KEY             (registrant_id, version, start_ip, end_ip),
         CONSTRAINT              registrant_net_registrant_id
-        FOREIGN KEY             (registrant_id) REFERENCES registrant (registrant_id) ON DELETE CASCADE
+        FOREIGN KEY             (registrant_id) REFERENCES registrant (registrant_id)
+                                ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE roa_request (
         roa_request_id          SERIAL NOT NULL,
-        roa_request_handle      VARCHAR(255) NOT NULL,
+        self_handle             VARCHAR(255) NOT NULL,
         asn                     BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (roa_request_id)
 ) ENGINE=InnoDB;
@@ -89,15 +92,47 @@ CREATE TABLE roa_request_prefix (
         roa_request_id          BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (roa_request_id, prefix, prefixlen, max_prefixlen),
         CONSTRAINT              roa_request_prefix_roa_request_id
-        FOREIGN KEY             (roa_request_id) REFERENCES roa_request (roa_request_id) ON DELETE CASCADE
+        FOREIGN KEY             (roa_request_id) REFERENCES roa_request (roa_request_id)
+                                ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE ghostbuster_request (
         ghostbuster_request_id  SERIAL NOT NULL,
-        self_handle             VARCHAR(40) NOT NULL,
-        parent_handle           VARCHAR(40),
+        self_handle             VARCHAR(255) NOT NULL,
+        parent_handle           VARCHAR(255),
         vcard                   LONGBLOB NOT NULL,
         PRIMARY KEY             (ghostbuster_request_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE ee_certificate (
+        ee_certificate_id       SERIAL NOT NULL,
+        self_handle             VARCHAR(255) NOT NULL,
+        gski                    VARCHAR(27) NOT NULL,
+        router_id               INT UNSIGNED,
+        valid_until             DATETIME NOT NULL,
+        PRIMARY KEY             (ee_certificate_id),
+        UNIQUE                  (self_handle, gski)
+) ENGINE=InnoDB;
+
+CREATE TABLE ee_certificate_asn (
+        start_as                BIGINT UNSIGNED NOT NULL,
+        end_as                  BIGINT UNSIGNED NOT NULL,
+        ee_certificate_id       BIGINT UNSIGNED NOT NULL,
+        PRIMARY KEY             (ee_certificate_id, start_as, end_as),
+        CONSTRAINT              ee_certificate_asn_ee_certificate_id
+        FOREIGN KEY             (ee_certificate_id) REFERENCES ee_certificate (ee_certificate_id)
+                                ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE ee_certificate_net (
+        version                 TINYINT UNSIGNED NOT NULL,
+        start_ip                VARCHAR(40) NOT NULL,
+        end_ip                  VARCHAR(40) NOT NULL,
+        ee_certificate_id       BIGINT UNSIGNED NOT NULL,
+        PRIMARY KEY             (ee_certificate_id, version, start_ip, end_ip),
+        CONSTRAINT              ee_certificate_net_ee_certificate_id
+        FOREIGN KEY             (ee_certificate_id) REFERENCES ee_certificate (ee_certificate_id)
+                                ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
 -- Local Variables:

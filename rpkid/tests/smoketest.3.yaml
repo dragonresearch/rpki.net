@@ -50,13 +50,20 @@ kids:
       - asn: 666
         ipv4: 10.3.0.0/23
 ---
-#- shell find publication -type f -name '*.roa' -print -exec ../../../utils/print_roa/print_roa {} \;
-#- shell find publication -type f -name '*.mft' -print -exec ../../../utils/print_manifest/print_manifest {} \;
+#- shell find publication -type f -name '*.roa'
+#        -print -exec ../../../utils/print_roa/print_roa {} \;
+#- shell find publication -type f -name '*.mft'
+#        -print -exec ../../../utils/print_manifest/print_manifest {} \;
 #---
-#- shell find publication -type f -name '*.roa' -print -exec ../../../utils/print_roa/print_roa {} \;
-#- shell find publication -type f -name '*.mft' -print -exec ../../../utils/print_manifest/print_manifest {} \;
+#- shell find publication -type f -name '*.roa'
+#        -print -exec ../../../utils/print_roa/print_roa {} \;
+#- shell find publication -type f -name '*.mft'
+#        -print -exec ../../../utils/print_manifest/print_manifest {} \;
 #---
-- shell set -x; rtr_origin=../../../rtr-origin/rtr-origin; $rtr_origin --cronjob rcynic-data/authenticated && $rtr_origin --show
+- shell set -x;
+  rtr_origin=../../../rtr-origin/rtr-origin;
+  $rtr_origin --cronjob rcynic-data/authenticated &&
+  $rtr_origin --show
 ---
 - name: Alice
   roa_request_del:
@@ -68,4 +75,7 @@ kids:
       ipv4: 192.0.2.0/30-32,192.0.2.32/32
       ipv6: 2002:0a00::/32-128
 ---
-- shell set -x; rtr_origin=../../../rtr-origin/rtr-origin; $rtr_origin --cronjob rcynic-data/authenticated && $rtr_origin --show
+- shell set -x;
+  rtr_origin=../../../rtr-origin/rtr-origin;
+  $rtr_origin --cronjob rcynic-data/authenticated &&
+  $rtr_origin --show

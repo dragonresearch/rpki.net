@@ -40,14 +40,21 @@ kids:
         roa_request:
           - asn: 42
             ipv4: 192.0.2.32/32
+        router_cert:
+          - router_id: 666
+            asn: 42
       - name: Bob
         ipv4: 192.0.2.44-192.0.2.100
     ipv4: 10.3.0.0/16
     roa_request:
       - asn: 666
         ipv4: 10.3.0.44/32
+
 ---
-- shell set -x; rtr_origin='python ../../../rtr-origin/rtr-origin.py'; $rtr_origin --cronjob rcynic-data/authenticated && $rtr_origin --show
+- shell set -x;
+  rtr_origin='python ../../../rtr-origin/rtr-origin.py';
+  $rtr_origin --cronjob rcynic-data/authenticated &&
+  $rtr_origin --show
 ---
 - name: R0
   rekey:
@@ -62,7 +69,10 @@ kids:
     - asn: 17
       ipv4: 10.3.0.1/32, 10.0.0.44/32
 ---
-- shell set -x; rtr_origin='python ../../../rtr-origin/rtr-origin.py'; $rtr_origin --cronjob rcynic-data/authenticated && $rtr_origin --show
+- shell set -x;
+  rtr_origin='python ../../../rtr-origin/rtr-origin.py';
+  $rtr_origin --cronjob rcynic-data/authenticated &&
+  $rtr_origin --show
 ---
 - sleep 30
 ---

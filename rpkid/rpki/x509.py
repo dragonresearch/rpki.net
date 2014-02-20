@@ -1061,7 +1061,7 @@ class PKCS10(DER_object):
   @classmethod
   def create(cls, keypair, exts = None, is_ca = False,
              caRepository = None, rpkiManifest = None, signedObject = None,
-             cn = None, sn = None):
+             cn = None, sn = None, eku = None):
     """
     Create a new request for a given keypair.
     """
@@ -1091,6 +1091,9 @@ class PKCS10(DER_object):
 
     if caRepository or rpkiManifest or signedObject:
       req.setSIA(caRepository, rpkiManifest, signedObject)
+
+    if eku:
+      req.setEKU(eku)
 
     req.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
     return cls(POW = req)

@@ -170,18 +170,19 @@ class main(object):
 
     self.cur.execute(
       """
-      SELECT ee_certificate_id, gski, router_id, valid_until
+      SELECT ee_certificate_id, pkcs10, gski, router_id, valid_until
       FROM ee_certificate
       WHERE self_handle = %s
       """,
       (q_pdu.self_handle,))
 
-    for ee_certificate_id, gski, router_id, valid_until in self.cur.fetchall():
+    for ee_certificate_id, pkcs10, gski, router_id, valid_until in self.cur.fetchall():
 
-      r_pdu = rpki.left_right.ee_certificates_request_elt()
+      r_pdu = rpki.left_right.list_ee_certificate_requests_elt()
       r_pdu.tag = q_pdu.tag
       r_pdu.self_handle = q_pdu.self_handle
       r_pdu.valid_until = valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
+      r_pdu.pkcs10      = rpki.x509.PKCS10(DER = pkcs10)
       r_pdu.gski        = gski
       r_pdu.router_id   = router_id
 

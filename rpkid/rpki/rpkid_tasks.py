@@ -601,22 +601,30 @@ class UpdateEECertificatesTask(AbstractTask):
           existing[gski] = set()
         existing[gski].add(ee)
 
+      ca_details = set()
+
       for req in requests:
         ees = existing.pop(req.gski, ())
-        ca_details = self.find_covering_ca_details(resources)
+        resources = rpki.resource_set.resource_bag(
+          asn         = req.asn,
+          v4          = req.ipv4,
+          v6          = req.ipv6,
+          valid_until = req.valid_until)
+        covering = self.find_covering_ca_details(resources)
+        ca_details.update(covering)
 
         for ee in ees:
-          if ee.ca_detail in ca_details:
+          if ee.ca_detail in covering:
             rpki.log.debug("Updating existing EE certificate for %s %s" % (req.gski, resources))
             ee.reissue(
               resources = resources,
               publisher = publisher)
-            ca_details.remove(ee.ca_detail)
+            covering.remove(ee.ca_detail)
           else:
             rpki.log.debug("Existing EE certificate for %s %s is no longer covered" % (req.gski, resources))
             ee.revoke(publisher = publisher)
 
-        for ca_detail in ca_details:
+        for ca_detail in covering:
           rpki.log.debug("No existing EE certificate for %s %s" % (req.gski, resources))
           rpki.rpkid.ee_cert_obj.create(
             ca_detail    = ca_detail,
@@ -628,7 +636,14 @@ class UpdateEECertificatesTask(AbstractTask):
       # Anything left is an orphan
       for ees in existing.values():
         for ee in ees:
+          ca_details.add(ee.ca_detail)
           ee.revoke(publisher = publisher)
+
+      self.gctx.sql.sweep()
+
+      for ca_detail in ca_details:
+        ca_detail.generate_crl(publisher = publisher)
+        ca_detail.generate_manifest(publisher = publisher)
 
       self.gctx.sql.sweep()
 

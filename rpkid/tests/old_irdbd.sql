@@ -107,6 +107,7 @@ CREATE TABLE ghostbuster_request (
 CREATE TABLE ee_certificate (
         ee_certificate_id       SERIAL NOT NULL,
         self_handle             VARCHAR(255) NOT NULL,
+        pkcs10                  LONGBLOB NOT NULL,
         gski                    VARCHAR(27) NOT NULL,
         router_id               INT UNSIGNED,
         valid_until             DATETIME NOT NULL,

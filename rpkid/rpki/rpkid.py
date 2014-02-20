@@ -27,6 +27,7 @@ import argparse
 import sys
 import re
 import random
+import base64
 import rpki.resource_set
 import rpki.up_down
 import rpki.left_right
@@ -847,6 +848,13 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
+  @property
+  def ee_certificates(self):
+    """
+    Fetch all EE certificate objects that link to this ca_detail.
+    """
+    return rpki.rpkid.ee_cert_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
+
   def unpublished_ghostbusters(self, when):
     """
     Fetch all unpublished Ghostbusters objects linked to this
@@ -1227,8 +1235,12 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
     self.crl_published = rpki.sundial.now()
     self.sql_mark_dirty()
-    publisher.publish(cls = rpki.publication.crl_elt, uri = self.crl_uri, obj = self.latest_crl, repository = parent.repository,
-                      handler = self.crl_published_callback)
+    publisher.publish(
+      cls        = rpki.publication.crl_elt,
+      uri        = self.crl_uri,
+      obj        = self.latest_crl,
+      repository = parent.repository,
+      handler    = self.crl_published_callback)
 
   def crl_published_callback(self, pdu):
     """
@@ -1265,6 +1277,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     objs.extend((c.uri_tail, c.cert) for c in self.child_certs)
     objs.extend((r.uri_tail, r.roa) for r in self.roas if r.roa is not None)
     objs.extend((g.uri_tail, g.ghostbuster) for g in self.ghostbusters)
+    objs.extend((e.uri_tail, e.cert) for e in self.ee_certificates)
 
     rpki.log.debug("Building manifest object %s" % uri)
     self.latest_manifest = rpki.x509.SignedManifest.build(
@@ -2310,7 +2323,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     Generate a new certificate and stuff it in a new ee_cert_obj.
     """
 
-    cn, sn = subject_name.get_cn_and_dn()
+    cn, sn = subject_name.extract_cn_and_sn()
     ca = ca_detail.ca
 
     cert = ca_detail.issue_ee(
@@ -2324,7 +2337,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
 
     self = cls(
       gctx         = ca_detail.gctx,
-      self_id      = ca.self.self_id,
+      self_id      = ca.parent.self.self_id,
       ca_detail_id = ca_detail.ca_detail_id,
       cert         = cert)
 

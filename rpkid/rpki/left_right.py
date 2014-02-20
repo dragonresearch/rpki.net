@@ -390,9 +390,9 @@ class self_elt(data_elt):
     results = set()
     for parent in self.parents:
       for ca in parent.cas:
-        for ca_detail in ca.active_ca_details:
-          if ca_detail.covers(resources):
-            results.add(ca_detail)
+        ca_detail = ca.active_ca_detail
+        if ca_detail is not None and ca_detail.covers(resources):
+          results.add(ca_detail)
     return results
 
              

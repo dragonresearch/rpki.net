@@ -375,6 +375,38 @@ class roa_request(object):
   def parse(cls, yaml):
     return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"))
     
+class router_cert(object):
+  """
+  Representation for a router_cert object.
+  """
+
+  def __init__(self, asn, router_id):
+    self.asn = rpki.resource_set.resource_set_as("".join(str(asn).split()))
+    self.router_id = router_id
+
+    rpki.log.warn("Code to generate ECDSA keys not written yet, generating RSA as hack for testing")
+    self.keypair = rpki.x509.RSA.generate()
+    self.pkcs10 = rpki.x509.PKCS10.create(
+      keypair = self.keypair,
+      cn      = "ROUTER-%d" % self.asn[0].min,
+      sn      = self.router_id,
+      eku     = (rpki.oids.id_kp_bgpsec_router,))
+    self.gski = self.pkcs10.gSKI()
+
+  def __eq__(self, other):
+    return self.asn == other.asn and self.router_id == other.router_id and self.gski == other.gski
+
+  def __hash__(self):
+    v6 = tuple(self.v6) if self.v6 is not None else None
+    return tuple(self.asn).__hash__() + router_id.__hash__() + self.gski.__hash__()
+
+  def __str__(self):
+    return "%s: %s: %s" % (self.asn, self.router_id, self.gski)
+
+  @classmethod
+  def parse(cls, yaml):
+    return cls(yaml.get("asn"), yaml.get("router_id"))
+
 class allocation_db(list):
   """
   Representation of all the entities and allocations in the test
@@ -485,6 +517,9 @@ class allocation(object):
         self.base.v4 |= r.v4.to_resource_set()
       if r.v6:
         self.base.v6 |= r.v6.to_resource_set()
+    self.router_certs = [router_cert.parse(y) for y in yaml.get("router_cert", ())]
+    for r in self.router_certs:
+      self.base.asn |= r.asn
     self.hosted_by = yaml.get("hosted_by")
     self.extra_conf = yaml.get("extra_conf", [])
     self.hosts = []
@@ -566,6 +601,20 @@ class allocation(object):
       r = roa_request.parse(y)
       if r in self.roa_requests:
         self.roa_requests.remove(r)
+    cb()
+
+  def apply_router_cert_add(self, yaml, cb):
+    for y in yaml:
+      r = router_cert.parse(y)
+      if r not in self.router_certs:
+        self.router_certs.append(r)
+    cb()
+
+  def apply_router_cert_del(self, yaml, cb):
+    for y in yaml:
+      r = router_cert.parse(y)
+      if r in self.router_certs:
+        self.router_certs.remove(r)
     cb()
 
   def apply_rekey(self, target, cb):
@@ -728,6 +777,10 @@ class allocation(object):
     cur.execute("DELETE FROM registrant_net")
     cur.execute("DELETE FROM roa_request_prefix")
     cur.execute("DELETE FROM roa_request")
+    cur.execute("DELETE FROM ee_certificate_asn")
+    cur.execute("DELETE FROM ee_certificate_net")
+    cur.execute("DELETE FROM ee_certificate")
+
     for s in [self] + self.hosts:
       for kid in s.kids:
         cur.execute("SELECT registrant_id FROM registrant WHERE registrant_handle = %s AND registry_handle = %s",
@@ -750,9 +803,18 @@ class allocation(object):
         roa_request_id = cur.lastrowid
         for version, prefix_set in ((4, r.v4), (6, r.v6)):
           if prefix_set:
-            cur.executemany("INSERT roa_request_prefix (roa_request_id, prefix, prefixlen, max_prefixlen, version) "
+            cur.executemany("INSERT roa_request_prefix "
+                            "(roa_request_id, prefix, prefixlen, max_prefixlen, version) "
                             "VALUES (%s, %s, %s, %s, %s)",
-                            ((roa_request_id, x.prefix, x.prefixlen, x.max_prefixlen, version) for x in prefix_set))
+                            ((roa_request_id, x.prefix, x.prefixlen, x.max_prefixlen, version)
+                             for x in prefix_set))
+      for r in s.router_certs:
+        cur.execute("INSERT ee_certificate (self_handle, pkcs10, gski, router_id, valid_until) "
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (s.name, r.pkcs10.get_DER(), r.gski, r.router_id, s.resources.valid_until))
+        ee_certificate_id = cur.lastrowid
+        cur.executemany("INSERT ee_certificate_asn (ee_certificate_id, start_as, end_as) VALUES (%s, %s, %s)",
+                        ((ee_certificate_id, a.min, a.max) for a in r.asn))
     db.close()
 
   def run_daemons(self):

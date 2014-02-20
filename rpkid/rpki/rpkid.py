@@ -2236,87 +2236,6 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     """
     return self.cert.gSKI() + ".cer"
 
-  def revoke(self, publisher, generate_crl_and_manifest = True):
-    """
-    Revoke and withdraw an EE certificate.
-    """
-
-    ca_detail = self.ca_detail
-    ca = ca_detail.ca
-    rpki.log.debug("Revoking %r %r" % (self, self.uri))
-    revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
-    publisher.withdraw(cls = rpki.publication.certificate_elt,
-                       uri = self.uri,
-                       obj = self.cert,
-                       repository = ca.parent.repository)
-    self.gctx.sql.sweep()
-    self.sql_delete()
-    if generate_crl_and_manifest:
-      ca_detail.generate_crl(publisher = publisher)
-      ca_detail.generate_manifest(publisher = publisher)
-
-  def reissue(self, publisher, resources = None, force = False):
-    """
-    Reissue an existing EE cert, reusing the public key.  If the EE
-    cert we would generate is identical to the one we already have, we
-    just return the one we already have.  If we have to revoke the old
-    EE cert when generating the new one, we have to generate a new
-    ee_cert_obj, so calling code that needs the updated ee_cert_obj
-    must use the return value from this method.
-    """
-
-    ca_detail = self.ca_detail
-    ca = ca_detail.ca
-    old_resources = self.cert.get_3779resources()
-
-    needed = False
-
-    if resources is None:
-      resources = old_resources
-
-    assert resources.valid_until is not None and old_resources.valid_until is not None
-
-    assert ca_detail.covers(resources)
-
-    if resources.valid_until != old_resources.valid_until:
-      rpki.log.debug("Validity changed for %r: old %s new %s" % (
-        self, old_resources.valid_until, resources.valid_until))
-      needed = True
-
-    if resources  != old_resources:
-      rpki.log.debug("Resources changed for %r: old %s new %s" % (
-        self, old_resources, resources))
-      needed = True
-
-    must_revoke = (old_resources.oversized(resources) or
-                   old_resources.valid_until > resources.valid_until)
-    if must_revoke:
-      rpki.log.debug("Must revoke any existing cert(s) for %r" % self)
-      needed = True
-
-    if not needed and force:
-      rpki.log.debug("No change needed for %r, forcing reissuance anyway" % self)
-      needed = True
-
-    if not needed:
-      rpki.log.debug("No change to %r" % self)
-      return self
-
-    if must_revoke:
-      for x in self.sql_fetch_where(self.gctx, "self_id = %s AND ca_detail_id = %s AND ski = %s",
-                                    (self.self_id, self.ca_detail_id, self.ski)):
-        rpki.log.debug("Revoking ee_cert %r" % x)
-        x.revoke(publisher = publisher)
-      ca_detail.generate_crl(publisher = publisher)
-      ca_detail.generate_manifest(publisher = publisher)
-
-    return self.create(
-      ca_detail    = ca_detail,
-      subject_name = self.cert.getSubject(),
-      subject_key  = self.cert.getPublicKey(),
-      resources    = resources,
-      publisher    = publisher)
-
   @classmethod
   def create(cls, ca_detail, subject_name, subject_key, resources, publisher):
     """
@@ -2348,11 +2267,103 @@ class ee_cert_obj(rpki.sql.sql_persistent):
       repository = ca.parent.repository,
       handler    = self.published_callback)
 
+    self.sql_store()
+
     ca_detail.generate_manifest(publisher = publisher)
 
     rpki.log.debug("New ee_cert %r" % self)
 
     return self
+
+  def revoke(self, publisher, generate_crl_and_manifest = True):
+    """
+    Revoke and withdraw an EE certificate.
+    """
+
+    ca_detail = self.ca_detail
+    ca = ca_detail.ca
+    rpki.log.debug("Revoking %r %r" % (self, self.uri))
+    revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
+    publisher.withdraw(cls = rpki.publication.certificate_elt,
+                       uri = self.uri,
+                       obj = self.cert,
+                       repository = ca.parent.repository)
+    self.gctx.sql.sweep()
+    self.sql_delete()
+    if generate_crl_and_manifest:
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
+
+  def reissue(self, publisher, resources = None, force = False):
+    """
+    Reissue an existing EE cert, reusing the public key.  If the EE
+    cert we would generate is identical to the one we already have, we
+    just return; if we need to reissue, we reuse this ee_cert_obj and
+    just update its contents, as the publication URI will not have
+    changed.
+    """
+
+    ca_detail = self.ca_detail
+    ca = ca_detail.ca
+    old_resources = self.cert.get_3779resources()
+
+    needed = False
+
+    if resources is None:
+      resources = old_resources
+
+    assert resources.valid_until is not None and old_resources.valid_until is not None
+
+    assert ca_detail.covers(resources)
+
+    if resources.valid_until != old_resources.valid_until:
+      rpki.log.debug("Validity changed for %r: old %s new %s" % (
+        self, old_resources.valid_until, resources.valid_until))
+      needed = True
+
+    if resources.asn != old_resources.asn or resources.v4 != old_resources.v4 or resources.v6 != old_resources.v6:
+      rpki.log.debug("Resources changed for %r: old %s new %s" % (
+        self, old_resources, resources))
+      needed = True
+
+    must_revoke = (old_resources.oversized(resources) or
+                   old_resources.valid_until > resources.valid_until)
+    if must_revoke:
+      rpki.log.debug("Must revoke existing cert(s) for %r" % self)
+      needed = True
+
+    if not needed and force:
+      rpki.log.debug("No change needed for %r, forcing reissuance anyway" % self)
+      needed = True
+
+    if not needed:
+      rpki.log.debug("No change to %r" % self)
+      return
+
+    if must_revoke:
+      revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
+      ca_detail.generate_crl(publisher = publisher)
+
+    cn, sn = self.cert.getSubject().extract_cn_and_sn()
+
+    self.cert = ca_detail.issue_ee(
+      ca          = ca,
+      subject_key = self.cert.getPublicKey(),
+      sia         = None,
+      resources   = resources,
+      notAfter    = resources.valid_until,
+      cn          = cn,
+      sn          = sn)
+
+    publisher.publish(
+      cls        = rpki.publication.certificate_elt,
+      uri        = self.uri,
+      obj        = self.cert,
+      repository = ca.parent.repository,
+      handler    = self.published_callback)
+
+    self.sql_store()
+    ca_detail.generate_manifest(publisher = publisher)
 
   def published_callback(self, pdu):
     """

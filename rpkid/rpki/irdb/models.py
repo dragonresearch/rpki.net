@@ -401,7 +401,7 @@ class EECertificate(Certificate):
       self.private_key = rpki.x509.RSA.generate(quiet = True)
     self.certificate = self.issuer.certify(
       subject_name      = self.subject_name,
-      subject_key       = self.private_key.get_RSApublic(),
+      subject_key       = self.private_key.get_public(),
       validity_interval = ee_certificate_lifetime,
       is_ca             = False)
 

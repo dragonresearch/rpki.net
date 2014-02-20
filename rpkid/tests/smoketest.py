@@ -134,6 +134,8 @@ pubd_pubd_cert = None
 
 pubd_last_cms_time = None
 
+ecdsa_params = None
+
 class CantRekeyYAMLLeaf(Exception):
   """
   Can't rekey YAML leaf.
@@ -380,12 +382,18 @@ class router_cert(object):
   Representation for a router_cert object.
   """
 
+  _ecparams = None
+
+  @classmethod
+  def ecparams(cls):
+    if cls._ecparams is None:
+       cls._ecparams = rpki.x509.KeyParams.generateEC()
+    return cls._ecparams
+
   def __init__(self, asn, router_id):
     self.asn = rpki.resource_set.resource_set_as("".join(str(asn).split()))
     self.router_id = router_id
-
-    rpki.log.warn("Code to generate ECDSA keys not written yet, generating RSA as hack for testing")
-    self.keypair = rpki.x509.RSA.generate()
+    self.keypair = rpki.x509.ECDSA.generate(self.ecparams())
     self.pkcs10 = rpki.x509.PKCS10.create(
       keypair = self.keypair,
       cn      = "ROUTER-%d" % self.asn[0].min,

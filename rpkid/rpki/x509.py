@@ -312,13 +312,25 @@ class DER_object(object):
   def get_DER(self):
     """
     Get the DER value of this object.
-
-    Subclasses will almost certainly override this method.
+    Subclasses may need to override this method.
     """
     self.check()
     if self.DER:
       return self.DER
+    if self.POW:
+      self.DER = self.POW.derWrite()
+      return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError("No conversion path to DER available")
+
+  def get_POW(self):
+    """
+    Get the rpki.POW value of this object.
+    Subclasses may need to override this method.
+    """
+    self.check()
+    if not self.POW:                    # pylint: disable=E0203
+      self.POW = self.POW_class.derRead(self.get_DER())
+    return self.POW
 
   def get_Base64(self):
     """
@@ -536,27 +548,6 @@ class X509(DER_object):
 
   POW_class = rpki.POW.X509
 
-  def get_DER(self):
-    """
-    Get the DER value of this certificate.
-    """
-    self.check()
-    if self.DER:
-      return self.DER
-    if self.POW:
-      self.DER = self.POW.derWrite()
-      return self.get_DER()
-    raise rpki.exceptions.DERObjectConversionError("No conversion path to DER available")
-
-  def get_POW(self):
-    """
-    Get the rpki.POW value of this certificate.
-    """
-    self.check()
-    if not self.POW:                    # pylint: disable=E0203
-      self.POW = rpki.POW.X509.derRead(self.get_DER())
-    return self.POW
-
   def getIssuer(self):
     """
     Get the issuer of this certificate.
@@ -591,7 +582,7 @@ class X509(DER_object):
     """
     Extract the public key from this certificate.
     """
-    return RSApublic(POW = self.get_POW().getPublicKey())
+    return PublicKey(POW = self.get_POW().getPublicKey())
 
   def get_SKI(self):
     """
@@ -757,7 +748,7 @@ class X509(DER_object):
       keypair = keypair,
       issuer_name = subject_name,
       subject_name = subject_name,
-      subject_key = keypair.get_RSApublic(),
+      subject_key = keypair.get_public(),
       serial = serial,
       now = now,
       notAfter = notAfter,
@@ -769,7 +760,7 @@ class X509(DER_object):
     """
     Issue a normal BPKI certificate.
     """
-    assert keypair.get_RSApublic() == self.getPublicKey()
+    assert keypair.get_public() == self.getPublicKey()
     return self._bpki_certify(
       keypair = keypair,
       issuer_name = self.getSubject(),
@@ -793,7 +784,7 @@ class X509(DER_object):
     if now is None:
       now = rpki.sundial.now()
 
-    issuer_key = keypair.get_RSApublic()
+    issuer_key = keypair.get_public()
 
     assert (issuer_key == subject_key) == (issuer_name == subject_name)
     assert is_ca or issuer_name != subject_name
@@ -890,7 +881,7 @@ class PKCS10(DER_object):
     """
     Extract the public key from this certification request.
     """
-    return RSApublic(POW = self.get_POW().getPublicKey())
+    return PublicKey(POW = self.get_POW().getPublicKey())
 
   def get_SKI(self):
     """
@@ -1129,9 +1120,10 @@ class insecure_debug_only_rsa_key_generator(object):
     self.keyno += 1
     return v
 
-class RSA(DER_object):
+
+class PrivateKey(DER_object):
   """
-  Class to hold an RSA key pair.
+  Class to hold a Public/Private key pair.
   """
   
   POW_class = rpki.POW.Asymmetric
@@ -1170,18 +1162,6 @@ class RSA(DER_object):
     assert self.empty()
     self.POW = self.POW_class.pemReadPrivate(pem)
 
-  @classmethod
-  def generate(cls, keylength = 2048, quiet = False):
-    """
-    Generate a new keypair.
-    """
-    if not quiet:
-      rpki.log.debug("Generating new %d-bit RSA key" % keylength)
-    if generate_insecure_debug_only_rsa_key is not None:
-      return cls(POW = generate_insecure_debug_only_rsa_key())
-    else:
-      return cls(POW = rpki.POW.Asymmetric.generateRSA(keylength))
-
   def get_public_DER(self):
     """
     Get the DER encoding of the public key from this keypair.
@@ -1194,15 +1174,15 @@ class RSA(DER_object):
     """
     return self.get_POW().calculateSKI()
 
-  def get_RSApublic(self):
+  def get_public(self):
     """
-    Convert the public key of this keypair into a RSApublic object.
+    Convert the public key of this keypair into a PublicKey object.
     """
-    return RSApublic(DER = self.get_public_DER())
+    return PublicKey(DER = self.get_public_DER())
 
-class RSApublic(DER_object):
+class PublicKey(DER_object):
   """
-  Class to hold an RSA public key.
+  Class to hold a public key.
   """
   
   POW_class = rpki.POW.Asymmetric
@@ -1247,6 +1227,56 @@ class RSApublic(DER_object):
     """
     return self.get_POW().calculateSKI()
 
+class KeyParams(DER_object):
+  """
+  Wrapper for OpenSSL's asymmetric key parameter classes.
+  """
+
+  POW_class = rpki.POW.AsymmetricParams
+
+  @classmethod
+  def generateEC(cls, curve = rpki.POW.EC_P256_CURVE):
+    return cls(POW = rpki.POW.AsymmetricParams.generateEC(curve = curve))
+
+class RSA(PrivateKey):
+  """
+  Class to hold an RSA key pair.
+  """
+
+  @classmethod
+  def generate(cls, keylength = 2048, quiet = False):
+    """
+    Generate a new keypair.
+    """
+    if not quiet:
+      rpki.log.debug("Generating new %d-bit RSA key" % keylength)
+    if generate_insecure_debug_only_rsa_key is not None:
+      return cls(POW = generate_insecure_debug_only_rsa_key())
+    else:
+      return cls(POW = rpki.POW.Asymmetric.generateRSA(keylength))
+
+class ECDSA(PrivateKey):
+  """
+  Class to hold an ECDSA key pair.
+  """
+
+  @classmethod
+  def generate(cls, params = None, quiet = False):
+    """
+    Generate a new keypair.
+    """
+
+    if params is None:
+      if not quiet:
+        rpki.log.debug("Generating new ECDSA key parameters")
+      params = KeyParams.generateEC()
+
+    assert isinstance(params, KeyParams)
+
+    if not quiet:
+      rpki.log.debug("Generating new ECDSA key")
+
+    return cls(POW = rpki.POW.Asymmetric.generateFromParams(params.get_POW()))
 
 class CMS_object(DER_object):
   """

@@ -229,7 +229,7 @@ class main(object):
     manifest_keypair = rpki.x509.RSA.generate()
     manifest_cert = self.rpki_root_cert.issue(
       keypair     = self.rpki_root_key,
-      subject_key = manifest_keypair.get_RSApublic(),
+      subject_key = manifest_keypair.get_public(),
       serial      = self.serial_number,
       sia         = (None, None, self.rpki_base_uri + self.rpki_root_manifest),
       aia         = self.rpki_root_cert_uri,

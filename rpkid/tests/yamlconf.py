@@ -467,7 +467,7 @@ class allocation(object):
 
     root_cert = rpki.x509.X509.self_certify(
       keypair     = root_key,
-      subject_key = root_key.get_RSApublic(),
+      subject_key = root_key.get_public(),
       serial      = 1,
       sia         = root_sia,
       notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
@@ -481,7 +481,7 @@ class allocation(object):
 
     with open(cleanpath(test_dir, "root.tal"), "w") as f:
       f.write("rsync://%s/root/root.cer\n\n%s" % (
-        self.rsync_server, root_key.get_RSApublic().get_Base64()))
+        self.rsync_server, root_key.get_public().get_Base64()))
 
   def mkdir(self, *path):
     path = self.path(*path)

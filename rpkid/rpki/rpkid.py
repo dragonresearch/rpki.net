@@ -766,10 +766,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     "ca_detail",
     "ca_detail_id",
     ("private_key_id",          rpki.x509.RSA),
-    ("public_key",              rpki.x509.RSApublic),
+    ("public_key",              rpki.x509.PublicKey),
     ("latest_ca_cert",          rpki.x509.X509),
     ("manifest_private_key_id", rpki.x509.RSA),
-    ("manifest_public_key",     rpki.x509.RSApublic),
+    ("manifest_public_key",     rpki.x509.PublicKey),
     ("latest_manifest_cert",    rpki.x509.X509),
     ("latest_manifest",         rpki.x509.SignedManifest),
     ("latest_crl",              rpki.x509.CRL),
@@ -1116,10 +1116,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     self.state = "pending"
 
     self.private_key_id = rpki.x509.RSA.generate()
-    self.public_key = self.private_key_id.get_RSApublic()
+    self.public_key = self.private_key_id.get_public()
 
     self.manifest_private_key_id = rpki.x509.RSA.generate()
-    self.manifest_public_key = self.manifest_private_key_id.get_RSApublic()
+    self.manifest_public_key = self.manifest_private_key_id.get_public()
 
     self.sql_store()
     return self
@@ -1875,7 +1875,7 @@ class roa_obj(rpki.sql.sql_persistent):
     self.cert = ca_detail.issue_ee(
       ca          = ca,
       resources   = resources,
-      subject_key = keypair.get_RSApublic(),
+      subject_key = keypair.get_public(),
       sia         = (None, None, self.uri_from_key(keypair)))
     self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
     self.published = rpki.sundial.now()
@@ -2070,7 +2070,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     self.cert = ca_detail.issue_ee(
       ca          = ca,
       resources   = resources,
-      subject_key = keypair.get_RSApublic(),
+      subject_key = keypair.get_public(),
       sia         = (None, None, self.uri_from_key(keypair)))
     self.ghostbuster = rpki.x509.Ghostbuster.build(self.vcard, keypair, (self.cert,))
     self.published = rpki.sundial.now()

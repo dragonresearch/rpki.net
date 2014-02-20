@@ -249,10 +249,6 @@ def main():
 
     def created_rpki_objects():
 
-      # Setup keys and certs and write YAML files for leaves
-      for a in db.leaves:
-        a.setup_yaml_leaf()
-
       # Set pubd's BPKI CRL
       set_pubd_crl(yaml_loop)
 
@@ -268,10 +264,6 @@ def main():
       a.run_cron(iterator)
 
     def run_yaml():
-
-      # Run all YAML clients
-      for a in db.leaves:
-        a.run_yaml()
 
       # Run rcynic to check results
       run_rcynic()
@@ -414,7 +406,6 @@ class allocation_db(list):
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     self.engines = [a for a in self if a.is_engine]
-    self.leaves = [a for a in self if a.is_leaf]
     for i, a in enumerate(self.engines):
       a.set_engine_number(i)
     for a in self:
@@ -585,9 +576,7 @@ class allocation(object):
         raise e
       cb()
 
-    if self.is_leaf:
-      raise CantRekeyYAMLLeaf, "Can't rekey YAML leaf %s, sorry" % self.name
-    elif target is None:
+    if target is None:
       rpki.log.info("Rekeying <self/> %s" % self.name)
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(
         action = "set", self_handle = self.name, rekey = "yes")], cb = done)
@@ -604,11 +593,7 @@ class allocation(object):
         raise e
       cb()
 
-    if self.is_leaf:
-      rpki.log.info("Attempting to revoke YAML leaf %s" % self.name)
-      subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "revoke"))
-      cb()
-    elif target is None:
+    if target is None:
       rpki.log.info("Revoking <self/> %s" % self.name)
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(
         action = "set", self_handle = self.name, revoke = "yes")], cb = done)
@@ -627,10 +612,6 @@ class allocation(object):
     if self.sia_base:           s += "  SIA: %s\n" % self.sia_base
     return s + "Until: %s\n" % self.resources.valid_until
 
-  @property
-  def is_leaf(self):
-    #return not self.kids and not self.roa_requests
-    return False
 
   @property
   def is_root(self):
@@ -638,7 +619,7 @@ class allocation(object):
 
   @property
   def is_twig(self):
-    return not self.is_leaf and not self.is_root
+    return not self.is_root
 
   @property
   def is_hosted(self):
@@ -646,7 +627,7 @@ class allocation(object):
 
   @property
   def is_engine(self):
-    return not self.is_leaf and not self.is_hosted
+    return not self.is_hosted
 
   def set_engine_number(self, n):
     """
@@ -673,16 +654,13 @@ class allocation(object):
     Create BPKI certificates for this entity.
     """
     rpki.log.info("Constructing BPKI keys and certs for %s" % self.name)
-    if self.is_leaf:
-      setup_bpki_cert_chain(self.name, ee = ("RPKI",))
-    else:
-      setup_bpki_cert_chain(name = self.name,
-                            ee = ("RPKI", "IRDB", "IRBE"),
-                            ca = ("SELF",))
-      self.rpkid_ta   = rpki.x509.X509(PEM_file = self.name + "-TA.cer")
-      self.irbe_key   = rpki.x509.RSA( PEM_file = self.name + "-IRBE.key")
-      self.irbe_cert  = rpki.x509.X509(PEM_file = self.name + "-IRBE.cer")
-      self.rpkid_cert = rpki.x509.X509(PEM_file = self.name + "-RPKI.cer")
+    setup_bpki_cert_chain(name = self.name,
+                          ee = ("RPKI", "IRDB", "IRBE"),
+                          ca = ("SELF",))
+    self.rpkid_ta   = rpki.x509.X509(PEM_file = self.name + "-TA.cer")
+    self.irbe_key   = rpki.x509.RSA( PEM_file = self.name + "-IRBE.key")
+    self.irbe_cert  = rpki.x509.X509(PEM_file = self.name + "-IRBE.cer")
+    self.rpkid_cert = rpki.x509.X509(PEM_file = self.name + "-RPKI.cer")
 
   def setup_conf_file(self):
     """
@@ -857,8 +835,6 @@ class allocation(object):
     if reverse:
       certifier = certificant
       certificant = self.name + "-SELF"
-    elif self.is_leaf:
-      certifier = self.name + "-TA"
     else:
       certifier = self.name + "-SELF"
     certfile = certifier + "-" + certificant + ".cer"
@@ -914,7 +890,7 @@ class allocation(object):
     #10 requests we get back when we tell rpkid to generate BSC keys.
     """
 
-    assert not self.is_hosted and not self.is_leaf
+    assert not self.is_hosted
 
     selves = [self] + self.hosts
 
@@ -961,7 +937,7 @@ class allocation(object):
           self_handle = s.name,
           child_handle = k.name,
           bsc_handle = "b",
-          bpki_cert = s.cross_certify(k.name + ("-TA" if k.is_leaf else "-SELF"))))
+          bpki_cert = s.cross_certify(k.name + "-SELF")))
 
       if s.is_root:
         rootd_cert = s.cross_certify(rootd_name + "-TA")

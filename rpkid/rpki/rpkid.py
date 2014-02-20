@@ -117,9 +117,14 @@ class main(object):
 
     # Icky hack to let Iain do some testing quickly, should go away
     # once we sort out whether we can make this change permanent.
+    #
+    # OK, the stuff to add router certificate support makes enough
+    # other changes that we're going to need a migration program in
+    # any case, so might as well throw the switch here too, or at
+    # least find out if it (still) works as expected.
 
     self.merge_publication_directories = self.cfg.getboolean("merge_publication_directories",
-                                                             False)
+                                                             True)
 
     self.use_internal_cron = self.cfg.getboolean("use-internal-cron", True)
 

@@ -21,8 +21,6 @@
 """
 Back up data from SQL databases, looking at config file to figure out
 which databases and what credentials to use with them.
-
-For the moment, this just writes all the SQL to stdout.
 """
 
 import subprocess
@@ -38,6 +36,9 @@ time.tzset()
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("-c", "--config",
                     help = "override default location of configuration file")
+parser.add_argument("-o", "--output",
+                    type = argparse.FileType("wb"), default = sys.stdout,
+                    help = "destination for SQL dump (default: stdout)")
 args = parser.parse_args()
 
 cfg = rpki.config.parser(args.config, "myrpki")
@@ -47,7 +48,8 @@ def dump(section):
     ("mysqldump", "--add-drop-database",
      "-u",  cfg.get("sql-username", section = section),
      "-p" + cfg.get("sql-password", section = section),
-     "-B",  cfg.get("sql-database", section = section)))
+     "-B",  cfg.get("sql-database", section = section)),
+    stdout = args.output)
 
 if cfg.getboolean("start_rpkid", False):
   dump("irdbd")

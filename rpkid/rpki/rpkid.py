@@ -1317,6 +1317,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       roa.regenerate(publisher, fast = True)
     for ghostbuster in self.ghostbusters:
       ghostbuster.regenerate(publisher, fast = True)
+    for ee_certificate in self.ee_certificates:
+      ee_certificate.reissue(publisher, force = True)
     for child_cert in self.child_certs:
       child_cert.reissue(self, publisher, force = True)
     self.gctx.sql.sweep()
@@ -1486,7 +1488,11 @@ class child_cert_obj(rpki.sql.sql_persistent):
     ca = ca_detail.ca
     rpki.log.debug("Revoking %r %r" % (self, self.uri))
     revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
-    publisher.withdraw(cls = rpki.publication.certificate_elt, uri = self.uri, obj = self.cert, repository = ca.parent.repository)
+    publisher.withdraw(
+      cls        = rpki.publication.certificate_elt,
+      uri        = self.uri,
+      obj        = self.cert,
+      repository = ca.parent.repository)
     self.gctx.sql.sweep()
     self.sql_delete()
     if generate_crl_and_manifest:
@@ -2294,7 +2300,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
       ca_detail.generate_crl(publisher = publisher)
       ca_detail.generate_manifest(publisher = publisher)
 
-  def reissue(self, publisher, resources = None, force = False):
+  def reissue(self, publisher, ca_detail = None, resources = None, force = False):
     """
     Reissue an existing EE cert, reusing the public key.  If the EE
     cert we would generate is identical to the one we already have, we
@@ -2303,18 +2309,28 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     changed.
     """
 
-    ca_detail = self.ca_detail
-    ca = ca_detail.ca
-    old_resources = self.cert.get_3779resources()
-
     needed = False
 
+    old_cert = self.cert
+
+    old_ca_detail = self.ca_detail
+    if ca_detail is None:
+      ca_detail = old_ca_detail
+
+    assert ca_detail.ca is old_ca_detail.ca
+
+    old_resources = old_cert.get_3779resources()
     if resources is None:
       resources = old_resources
 
     assert resources.valid_until is not None and old_resources.valid_until is not None
 
     assert ca_detail.covers(resources)
+
+    if ca_detail != self.ca_detail:
+      rpki.log.debug("ca_detail changed for %r: old %r new %r" % (
+        self, self.ca_detail, ca_detail))
+      needed = True
 
     if resources.valid_until != old_resources.valid_until:
       rpki.log.debug("Validity changed for %r: old %s new %s" % (
@@ -2340,14 +2356,10 @@ class ee_cert_obj(rpki.sql.sql_persistent):
       rpki.log.debug("No change to %r" % self)
       return
 
-    if must_revoke:
-      revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
-      ca_detail.generate_crl(publisher = publisher)
-
     cn, sn = self.cert.getSubject().extract_cn_and_sn()
 
     self.cert = ca_detail.issue_ee(
-      ca          = ca,
+      ca          = ca_detail.ca,
       subject_key = self.cert.getPublicKey(),
       sia         = None,
       resources   = resources,
@@ -2355,14 +2367,24 @@ class ee_cert_obj(rpki.sql.sql_persistent):
       cn          = cn,
       sn          = sn)
 
+    self.sql_mark_dirty()
+
     publisher.publish(
       cls        = rpki.publication.certificate_elt,
       uri        = self.uri,
       obj        = self.cert,
-      repository = ca.parent.repository,
+      repository = ca_detail.ca.parent.repository,
       handler    = self.published_callback)
 
-    self.sql_store()
+    if must_revoke:
+      revoked_cert_obj.revoke(cert = old_cert.cert, ca_detail = old_ca_detail)
+
+    self.gctx.sql.sweep()
+
+    if must_revoke:
+      ca_detail.generate_crl(publisher = publisher)
+      self.gctx.sql.sweep()
+
     ca_detail.generate_manifest(publisher = publisher)
 
   def published_callback(self, pdu):

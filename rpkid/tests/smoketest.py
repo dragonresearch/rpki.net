@@ -387,7 +387,7 @@ class router_cert(object):
   @classmethod
   def ecparams(cls):
     if cls._ecparams is None:
-       cls._ecparams = rpki.x509.KeyParams.generateEC()
+      cls._ecparams = rpki.x509.KeyParams.generateEC()
     return cls._ecparams
 
   def __init__(self, asn, router_id):

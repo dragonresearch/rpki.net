@@ -596,12 +596,12 @@ class EECertificateRequest(ResourceSet):
     ee_asn = rpki.irdb.EECertificateRequestASN.objects.raw("""
         SELECT *
         FROM irdb_eecertificaterequestasn
-        WHERE eecertificaterequest_id = %s
+        WHERE ee_certificate_request_id = %s
         """, [self.id])
-    ee_net = rpki.irdb.EECertificateRequestNET.objects.raw("""
+    ee_net = rpki.irdb.EECertificateRequestNet.objects.raw("""
         SELECT *
         FROM irdb_eecertificaterequestnet
-        WHERE eecertificaterequest_id = %s
+        WHERE ee_certificate_request_id = %s
         """, [self.id])
     return ee_asn, ee_net
 

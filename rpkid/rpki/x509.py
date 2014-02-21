@@ -1001,13 +1001,13 @@ class PKCS10(DER_object):
     bc  = self.get_POW().getBasicConstraints()
     sia = self.get_POW().getSIA()
 
+    caRepository, rpkiManifest, signedObject = sia or (None, None, None)
+
     if alg not in (rpki.oids.sha256WithRSAEncryption, rpki.oids.ecdsa_with_SHA256):
       raise rpki.exceptions.BadPKCS10("PKCS #10 has bad signature algorithm for EE: %s" % alg)
 
     if bc is not None and (bc[0] or bc[1] is not None):
       raise rpki.exceptions.BadPKCS10("PKCS #10 EE has bad basicConstraints")
-
-    caRepository, rpkiManifest, signedObject = sias or (None, None, None)
 
     if caRepository:
       raise rpki.exceptions.BadPKCS10("PKCS #10 EE must not have id-ad-caRepository")

@@ -1455,7 +1455,7 @@ extension_get_eku(X509_EXTENSIONS **exts)
   if ((result = PyFrozenSet_New(NULL)) == NULL)
     goto error;
 
-  for (i = 0; sk_ASN1_OBJECT_num(ext); i++) {
+  for (i = 0; i < sk_ASN1_OBJECT_num(ext); i++) {
     if ((oid = ASN1_OBJECT_to_PyString(sk_ASN1_OBJECT_value(ext, i))) == NULL ||
         PySet_Add(result, oid) < 0)
       goto error;

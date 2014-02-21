@@ -46,12 +46,14 @@ import sys
 import yaml
 import signal
 import time
+import lxml.etree
 import rpki.resource_set
 import rpki.sundial
 import rpki.config
 import rpki.log
 import rpki.csv_utils
 import rpki.x509
+import rpki.relaxng
 
 # Nasty regular expressions for parsing config files.  Sadly, while
 # the Python ConfigParser supports writing config files, it does so in
@@ -109,6 +111,45 @@ class roa_request(object):
     """
     return cls(y.get("asn"), y.get("ipv4"), y.get("ipv6"))
     
+    
+class router_cert(object):
+  """
+  Representation for a router_cert object.
+  """
+
+  _ecparams = None
+
+  @classmethod
+  def ecparams(cls):
+    if cls._ecparams is None:
+      cls._ecparams = rpki.x509.KeyParams.generateEC()
+    return cls._ecparams
+
+  def __init__(self, asn, router_id):
+    self.asn = rpki.resource_set.resource_set_as("".join(str(asn).split()))
+    self.router_id = router_id
+    self.keypair = rpki.x509.ECDSA.generate(self.ecparams())
+    self.pkcs10 = rpki.x509.PKCS10.create(
+      keypair = self.keypair,
+      cn      = "ROUTER-%d" % self.asn[0].min,
+      sn      = self.router_id,
+      eku     = (rpki.oids.id_kp_bgpsec_router,))
+    self.gski = self.pkcs10.gSKI()
+
+  def __eq__(self, other):
+    return self.asn == other.asn and self.router_id == other.router_id and self.gski == other.gski
+
+  def __hash__(self):
+    v6 = tuple(self.v6) if self.v6 is not None else None
+    return tuple(self.asn).__hash__() + router_id.__hash__() + self.gski.__hash__()
+
+  def __str__(self):
+    return "%s: %s: %s" % (self.asn, self.router_id, self.gski)
+
+  @classmethod
+  def parse(cls, yaml):
+    return cls(yaml.get("asn"), yaml.get("router_id"))
+
 class allocation_db(list):
   """
   Our allocation database.
@@ -207,6 +248,7 @@ class allocation(object):
     if "regen_margin" in yaml:
       self.regen_margin = rpki.sundial.timedelta.parse(yaml["regen_margin"]).convert_to_seconds()
     self.roa_requests = [roa_request.parse(y) for y in yaml.get("roa_request", yaml.get("route_origin", ()))]
+    self.router_certs = [router_cert.parse(y) for y in yaml.get("router_cert", ())]
     if "ghostbusters" in yaml:
       self.ghostbusters = yaml.get("ghostbusters")
     elif "ghostbuster" in yaml:
@@ -218,6 +260,8 @@ class allocation(object):
         self.base.v4 |= r.v4.to_resource_set()
       if r.v6:
         self.base.v6 |= r.v6.to_resource_set()
+    for r in self.router_certs:
+      self.base.asn |= r.asn
     self.hosted_by = yaml.get("hosted_by")
     self.hosts = []
     if not self.is_hosted:
@@ -364,6 +408,28 @@ class allocation(object):
         f.close()
       if not args.stop_after_config:
         self.run_rpkic("load_ghostbuster_requests", fn)
+
+  def dump_router_certificates(self):
+    """
+    Write EE certificates (router certificates, etc).
+    """
+    if self.router_certs:
+      fn = "%s.routercerts.xml" % d.name
+      if not args.skip_config:
+        path = self.path(fn)
+        print "Writing", path
+        xmlns = "{http://www.hactrn.net/uris/rpki/router-certificate/}"
+        xml = lxml.etree.Element(xmlns + "router_certificate_requests", version = "1")
+        for r in self.router_certs:
+          x = lxml.etree.SubElement(xml, xmlns + "router_certificate_request",
+                                    router_id   = str(r.router_id),
+                                    asn         = str(r.asn),
+                                    valid_until = str(self.resources.valid_until))
+          x.text = r.pkcs10.get_Base64()
+        rpki.relaxng.router_certificate.assertValid(xml)
+        lxml.etree.ElementTree(xml).write(path, pretty_print = True)
+      if not args.stop_after_config:
+        self.run_rpkic("add_router_certificate_request", fn)
 
   @property
   def pubd(self):
@@ -761,6 +827,7 @@ try:
         d.dump_prefixes()
         d.dump_roas()
         d.dump_ghostbusters()
+        d.dump_router_certificates()
 
     # Wait until something terminates.
 

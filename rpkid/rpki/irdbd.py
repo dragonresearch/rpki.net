@@ -87,7 +87,7 @@ class main(object):
 
   def handle_list_ee_certificate_requests(self, q_pdu, r_msg):
     for ee_req in rpki.irdb.EECertificateRequest.objects.filter(issuer__handle__exact = q_pdu.self_handle):
-      resource = ee_req.resource_bag
+      resources = ee_req.resource_bag
       r_pdu = rpki.left_right.list_ee_certificate_requests_elt()
       r_pdu.tag = q_pdu.tag
       r_pdu.self_handle = q_pdu.self_handle

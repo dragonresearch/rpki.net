@@ -1642,7 +1642,7 @@ class Zookeeper(object):
 
       pkcs10 = rpki.x509.PKCS10(Base64 = req.text)
       router_id = long(req.get("router_id"))
-      asns = req.get("asn")
+      asns = rpki.resource_set.resource_set_as(req.get("asn"))
       if not valid_until:
         valid_until = req.get("valid_until")
 
@@ -1656,13 +1656,11 @@ class Zookeeper(object):
 
       pkcs10.check_valid_request_router()
 
-      gski = pkcs10.gSKI()
-
       ee_request = self.resource_ca.ee_certificate_requests.create(
-        pkcs10 = pkcs10, gski = gski, valid_until = valid_until, router_id = router_id)
+        pkcs10      = pkcs10,
+        gski        = pkcs10.gSKI(),
+        valid_until = valid_until,
+        router_id   = router_id)
 
       for range in asns:
         ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))
-
-      self.log("Added Router certificate request g(SKI) %s router-id %d ASNs %s" % (
-        gski, router_id, asns))

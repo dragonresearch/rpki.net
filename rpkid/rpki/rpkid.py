@@ -616,7 +616,8 @@ class ca_obj(rpki.sql.sql_persistent):
     if ca_details:
       rpki.async.iterator(ca_details, loop, done)
     else:
-      rpki.log.warn("Existing resource class %s to %s from %s with no certificates, rekeying" % (rc.class_name, parent.self.self_handle, parent.parent_handle))
+      rpki.log.warn("Existing resource class %s to %s from %s with no certificates, rekeying" %
+                    (rc.class_name, parent.self.self_handle, parent.parent_handle))
       self.gctx.checkpoint()
       self.rekey(cb, eb)
 
@@ -1125,7 +1126,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     return self
 
   def issue_ee(self, ca, resources, subject_key, sia,
-               cn = None, sn = None, notAfter = None):
+               cn = None, sn = None, notAfter = None, eku = None):
     """
     Issue a new EE certificate.
     """
@@ -1144,7 +1145,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       notAfter    = notAfter,
       is_ca       = False,
       cn          = cn,
-      sn          = sn)
+      sn          = sn,
+      eku         = eku)
 
   def generate_manifest_cert(self):
     """
@@ -2248,7 +2250,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     return self.cert.gSKI() + ".cer"
 
   @classmethod
-  def create(cls, ca_detail, subject_name, subject_key, resources, publisher):
+  def create(cls, ca_detail, subject_name, subject_key, resources, publisher, eku = None):
     """
     Generate a new certificate and stuff it in a new ee_cert_obj.
     """
@@ -2263,7 +2265,8 @@ class ee_cert_obj(rpki.sql.sql_persistent):
       resources   = resources,
       notAfter    = resources.valid_until,
       cn          = cn,
-      sn          = sn)
+      sn          = sn,
+      eku         = eku)
 
     self = cls(
       gctx         = ca_detail.gctx,
@@ -2366,6 +2369,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     self.cert = ca_detail.issue_ee(
       ca          = ca_detail.ca,
       subject_key = self.cert.getPublicKey(),
+      eku         = self.cert.getEKU(),
       sia         = None,
       resources   = resources,
       notAfter    = resources.valid_until,

@@ -598,12 +598,14 @@ class X509(DER_object):
 
   def issue(self, keypair, subject_key, serial, sia, aia, crldp, notAfter,
             cn = None, resources = None, is_ca = True, notBefore = None,
-            sn = None):
+            sn = None, eku = None):
     """
     Issue an RPKI certificate.
     """
 
     assert aia is not None and crldp is not None
+
+    assert eku is None or not is_ca
 
     return self._issue(
       keypair     = keypair,
@@ -619,7 +621,8 @@ class X509(DER_object):
       resources   = resources,
       is_ca       = is_ca,
       aki         = self.get_SKI(),
-      issuer_name = self.getSubject())
+      issuer_name = self.getSubject(),
+      eku         = eku)
 
 
   @classmethod
@@ -649,12 +652,13 @@ class X509(DER_object):
       resources   = resources,
       is_ca       = True,
       aki         = ski,
-      issuer_name = X501DN.from_cn(cn, sn))
+      issuer_name = X501DN.from_cn(cn, sn),
+      eku         = None)
 
 
   @classmethod
   def _issue(cls, keypair, subject_key, serial, sia, aia, crldp, notAfter,
-             cn, sn, resources, is_ca, aki, issuer_name, notBefore):
+             cn, sn, resources, is_ca, aki, issuer_name, notBefore, eku):
     """
     Common code to issue an RPKI certificate.
     """
@@ -718,6 +722,10 @@ class X509(DER_object):
                 ((r.min, r.max) for r in resources.v4)),
         ipv6 = ("inherit" if resources.v6.inherit else
                 ((r.min, r.max) for r in resources.v6)))
+
+    if eku is not None:
+      assert not is_ca
+      cert.setEKU(eku)
 
     cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
 

@@ -2315,7 +2315,7 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
 ## Parsed RelaxNG router_certificate schema
 router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: router-certificate-schema.rnc 5657 2014-01-31 05:50:52Z sra $
+  $Id: router-certificate-schema.rnc 5680 2014-02-21 02:05:36Z sra $
   
   RelaxNG Schema for BGPSEC router certificate interchange format.
   

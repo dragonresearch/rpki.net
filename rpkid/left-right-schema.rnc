@@ -91,7 +91,7 @@ base64 = xsd:base64Binary { maxLength="512000" }
 # in this protocol, so they're turninging into handles.
 # Length restriction is a MySQL implementation issue.
 # Handles are case-insensitive (because SQL is, among other reasons).
-object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9]*" }
+object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9]+" }
 
 # URIs
 uri = xsd:anyURI { maxLength="4096" }
@@ -283,9 +283,9 @@ list_ee_certificate_requests_reply = element list_ee_certificate_requests {
   attribute asn  { asn_list }?,
   attribute ipv4 { ipv4_list }?,
   attribute ipv6 { ipv6_list }?,
-  attribute cn  { xsd:string { maxLength="64"     pattern="[\-0-9A-Za-z_ ]*" } }?,
-  attribute sn  { xsd:string { maxLength="64"     pattern="[0-9A-Fa-f]*"     } }?,
-  attribute eku { xsd:string { maxLength="512000" pattern="[.0-9,]*"         } }?,
+  attribute cn  { xsd:string { maxLength="64"     pattern="[\-0-9A-Za-z_ ]+" } }?,
+  attribute sn  { xsd:string { maxLength="64"     pattern="[0-9A-Fa-f]+"     } }?,
+  attribute eku { xsd:string { maxLength="512000" pattern="[.,0-9]+"         } }?,
   element pkcs10 { base64 }
 }
 
@@ -332,4 +332,6 @@ report_error_reply = element report_error {
 
 # Local Variables:
 # indent-tabs-mode: nil
+# comment-start: "# "
+# comment-start-skip: "#[ \t]*"
 # End:

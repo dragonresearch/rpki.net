@@ -129,9 +129,7 @@ class router_cert(object):
     self.asn = rpki.resource_set.resource_set_as("".join(str(asn).split()))
     self.router_id = router_id
     self.keypair = rpki.x509.ECDSA.generate(self.ecparams())
-    self.pkcs10 = rpki.x509.PKCS10.create(
-      keypair = self.keypair,
-      eku     = (rpki.oids.id_kp_bgpsec_router,))
+    self.pkcs10 = rpki.x509.PKCS10.create(keypair = self.keypair)
     self.gski = self.pkcs10.gSKI()
 
   def __eq__(self, other):

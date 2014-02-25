@@ -66,7 +66,7 @@ uri = attribute uri { uri_t }
 # Handles on remote objects (replaces passing raw SQL IDs).  NB:
 # Unlike the up-down protocol, handles in this protocol allow "/" as a
 # hierarchy delimiter.
-object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]*" }
+object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]+" }
 
 # <config/> element (use restricted to repository operator)
 # config_handle attribute, create, list, and destroy commands omitted deliberately, see code for details
@@ -144,4 +144,6 @@ report_error_reply = element report_error {
 
 # Local Variables:
 # indent-tabs-mode: nil
+# comment-start: "# "
+# comment-start-skip: "#[ \t]*"
 # End:

@@ -2369,7 +2369,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     self.cert = ca_detail.issue_ee(
       ca          = ca_detail.ca,
       subject_key = self.cert.getPublicKey(),
-      eku         = self.cert.getEKU(),
+      eku         = self.cert.get_EKU(),
       sia         = None,
       resources   = resources,
       notAfter    = resources.valid_until,

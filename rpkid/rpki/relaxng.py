@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 5657 2014-01-31 05:50:52Z sra $
+  $Id: left-right-schema.rnc 5682 2014-02-25 20:46:05Z sra $
   
   RelaxNG Schema for RPKI left-right protocol.
   
@@ -204,7 +204,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
   <define name="object_handle">
     <data type="string">
       <param name="maxLength">255</param>
-      <param name="pattern">[\-_A-Za-z0-9]*</param>
+      <param name="pattern">[\-_A-Za-z0-9]+</param>
     </data>
   </define>
   <!-- URIs -->
@@ -236,13 +236,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
     <data type="string">
       <param name="maxLength">512000</param>
       <param name="pattern">[\-,0-9/:a-fA-F]*</param>
-    </data>
-  </define>
-  <!-- OID list for Extended Key Usage (EKU) -->
-  <define name="eku_list">
-    <data type="string">
-      <param name="maxLength">512000</param>
-      <param name="pattern">[.0-9,]*</param>
     </data>
   </define>
   <!-- <self/> element -->
@@ -989,7 +982,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
         <attribute name="cn">
           <data type="string">
             <param name="maxLength">64</param>
-            <param name="pattern">[\-0-9A-Za-z_ ]*</param>
+            <param name="pattern">[\-0-9A-Za-z_ ]+</param>
           </data>
         </attribute>
       </optional>
@@ -997,7 +990,15 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
         <attribute name="sn">
           <data type="string">
             <param name="maxLength">64</param>
-            <param name="pattern">[0-9A-Fa-f]*</param>
+            <param name="pattern">[0-9A-Fa-f]+</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="eku">
+          <data type="string">
+            <param name="maxLength">512000</param>
+            <param name="pattern">[.,0-9]+</param>
           </data>
         </attribute>
       </optional>
@@ -1102,6 +1103,8 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
 <!--
   Local Variables:
   indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
   End:
 -->
 '''))
@@ -1488,7 +1491,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
   <define name="object_handle">
     <data type="string">
       <param name="maxLength">255</param>
-      <param name="pattern">[\-_A-Za-z0-9/]*</param>
+      <param name="pattern">[\-_A-Za-z0-9/]+</param>
     </data>
   </define>
   <!--
@@ -1944,6 +1947,8 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
 <!--
   Local Variables:
   indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
   End:
 -->
 '''))
@@ -1990,13 +1995,13 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
   <define name="object_handle">
     <data type="string">
       <param name="maxLength">255</param>
-      <param name="pattern">[\-_A-Za-z0-9]*</param>
+      <param name="pattern">[\-_A-Za-z0-9]+</param>
     </data>
   </define>
   <define name="pubd_handle">
     <data type="string">
       <param name="maxLength">255</param>
-      <param name="pattern">[\-_A-Za-z0-9/]*</param>
+      <param name="pattern">[\-_A-Za-z0-9/]+</param>
     </data>
   </define>
   <define name="uri">
@@ -2010,19 +2015,19 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
   <define name="asn_list">
     <data type="string">
       <param name="maxLength">512000</param>
-      <param name="pattern">[\-,0-9]*</param>
+      <param name="pattern">[\-,0-9]+</param>
     </data>
   </define>
   <define name="ipv4_list">
     <data type="string">
       <param name="maxLength">512000</param>
-      <param name="pattern">[\-,0-9/.]*</param>
+      <param name="pattern">[\-,0-9/.]+</param>
     </data>
   </define>
   <define name="ipv6_list">
     <data type="string">
       <param name="maxLength">512000</param>
-      <param name="pattern">[\-,0-9/:a-fA-F]*</param>
+      <param name="pattern">[\-,0-9/:a-fA-F]+</param>
     </data>
   </define>
   <define name="timestamp">
@@ -2325,6 +2330,8 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
 <!--
   Local Variables:
   indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
   End:
 -->
 '''))
@@ -2376,7 +2383,7 @@ router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version=
   <define name="asn_list">
     <data type="string">
       <param name="maxLength">512000</param>
-      <param name="pattern">[\-,0-9]*</param>
+      <param name="pattern">[0-9][\-,0-9]*</param>
     </data>
   </define>
   <define name="timestamp">
@@ -2428,6 +2435,8 @@ router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version=
 <!--
   Local Variables:
   indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
   End:
 -->
 '''))

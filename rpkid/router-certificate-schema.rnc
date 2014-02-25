@@ -31,7 +31,7 @@ default namespace = "http://www.hactrn.net/uris/rpki/router-certificate/"
 version         = "1"
 base64		= xsd:base64Binary { maxLength="512000" }
 router_id       = xsd:unsignedInt
-asn_list	= xsd:string       { maxLength="512000" pattern="[\-,0-9]*" }
+asn_list	= xsd:string       { maxLength="512000" pattern="[0-9][\-,0-9]*" }
 timestamp       = xsd:dateTime { pattern=".*Z" }
 
 # Core payload used in this schema.
@@ -59,4 +59,6 @@ start |= element router_certificate_requests {
 
 # Local Variables:
 # indent-tabs-mode: nil
+# comment-start: "# "
+# comment-start-skip: "#[ \t]*"
 # End:

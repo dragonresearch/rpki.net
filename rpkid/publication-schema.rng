@@ -126,7 +126,7 @@
   <define name="object_handle">
     <data type="string">
       <param name="maxLength">255</param>
-      <param name="pattern">[\-_A-Za-z0-9/]*</param>
+      <param name="pattern">[\-_A-Za-z0-9/]+</param>
     </data>
   </define>
   <!--
@@ -582,5 +582,7 @@
 <!--
   Local Variables:
   indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
   End:
 -->

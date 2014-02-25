@@ -133,10 +133,14 @@ class X501DN(object):
   @classmethod
   def from_cn(cls, cn, sn = None):
     assert isinstance(cn, (str, unicode))
-    assert sn is None or isinstance(sn, (int, long)) or (isinstance(sn, (str, unicode)) and sn.isdigit())
+    if isinstance(sn, (int, long)):
+      sn = "%08X" % sn
+    elif isinstance(sn, (str, unicode)):
+      assert all(c in "0123456789abcdefABCDEF" for c in sn)
+      sn = str(sn)
     self = cls()
     if sn is not None:
-      self.dn = (((rpki.oids.commonName, cn),), ((rpki.oids.serialNumber, str(sn)),))
+      self.dn = (((rpki.oids.commonName, cn),), ((rpki.oids.serialNumber, sn),))
     else:
       self.dn = (((rpki.oids.commonName, cn),),)
     return self
@@ -391,17 +395,21 @@ class DER_object(object):
 
   def get_AKI(self):
     """
-    Get the AKI extension from this object.  Only works for subclasses
-    that support getExtension().
+    Get the AKI extension from this object, if supported.
     """
     return self.get_POW().getAKI()
 
   def get_SKI(self):
     """
-    Get the SKI extension from this object.  Only works for subclasses
-    that support getExtension().
+    Get the SKI extension from this object, if supported.
     """
     return self.get_POW().getSKI()
+
+  def get_EKU(self):
+    """
+    Get the Extended Key Usage extension from this object, if supported.
+    """
+    return self.get_POW().getEKU()
 
   def get_SIA(self):
     """
@@ -1053,7 +1061,10 @@ class PKCS10(DER_object):
     if alg != rpki.oids.ecdsa_with_SHA256:
       raise rpki.exceptions.BadPKCS10("PKCS #10 has bad signature algorithm for router: %s" % alg)
 
-    if eku is None or rpki.oids.id_kp_bgpsec_router not in eku:
+    # Not really clear to me whether PKCS #10 should have EKU or not, so allow
+    # either, but insist that it be the right one if present.
+
+    if eku is not None and rpki.oids.id_kp_bgpsec_router not in eku:
       raise rpki.exceptions.BadPKCS10("PKCS #10 router must have EKU")
 
 

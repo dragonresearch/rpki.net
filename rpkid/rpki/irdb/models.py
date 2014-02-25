@@ -583,8 +583,8 @@ class EECertificateRequest(ResourceSet):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "ee_certificate_requests")
   pkcs10 = PKCS10Field()
   gski   = django.db.models.CharField(max_length = 27)
-  cn     = django.db-models.CharField(max_length = 64)
-  sn     = django.db-models.CharField(max_length = 64)
+  cn     = django.db.models.CharField(max_length = 64)
+  sn     = django.db.models.CharField(max_length = 64)
   eku    = django.db.models.TextField(null = True)
 
   def _select_resource_bag(self):

@@ -630,11 +630,11 @@ class UpdateEECertificatesTask(AbstractTask):
           rpki.log.debug("No existing EE certificate for %s %s" % (req.gski, resources))
           rpki.rpkid.ee_cert_obj.create(
             ca_detail    = ca_detail,
-            subject_name = req.pkcs10.getSubject(),
+            subject_name = rpki.x509.X501DN.from_cn(req.cn, req.dn),
             subject_key  = req.pkcs10.getPublicKey(),
             resources    = resources,
             publisher    = publisher,
-            eku          = eku)
+            eku          = req.eku or None)
 
       # Anything left is an orphan
       for ees in existing.values():

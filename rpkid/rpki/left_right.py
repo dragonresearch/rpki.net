@@ -1063,14 +1063,15 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
   """
 
   element_name = "list_ee_certificate_requests"
-  attributes = ("self_handle", "tag", "gski", "valid_until", "asn", "ipv4", "ipv6", "router_id")
+  attributes = ("self_handle", "tag", "gski", "valid_until", "asn", "ipv4", "ipv6", "cn", "sn", "eku")
   elements = ("pkcs10",)
 
   pkcs10 = None
   valid_until = None
+  eku = None
 
   def __repr__(self):
-    return rpki.log.log_repr(self, self.self_handle, self.gski, self.router_id, self.asn, self.ipv4, self.ipv6)
+    return rpki.log.log_repr(self, self.self_handle, self.gski, self.cn, self.sn, self.asn, self.ipv4, self.ipv6)
 
   def startElement(self, stack, name, attrs):
     """
@@ -1088,6 +1089,8 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
         self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
       if self.ipv6 is not None:
         self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+      if self.eku is not None:
+        self.eku = self.eku.split(",")
 
   def endElement(self, stack, name, text):
     """
@@ -1105,6 +1108,8 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
     Generate <list_ee_certificate_requests/> element.  This requires special
     handling due to the data types of some of the attributes.
     """
+    if isinstance(self.eku, (tuple, list)):
+      self.eku = ",".join(self.eku)
     elt = self.make_elt()
     for i in self.elements:
       self.make_b64elt(elt, i, getattr(self, i, None))

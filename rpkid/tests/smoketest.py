@@ -396,20 +396,20 @@ class router_cert(object):
     self.keypair = rpki.x509.ECDSA.generate(self.ecparams())
     self.pkcs10 = rpki.x509.PKCS10.create(
       keypair = self.keypair,
-      cn      = "ROUTER-%d" % self.asn[0].min,
-      sn      = self.router_id,
       eku     = (rpki.oids.id_kp_bgpsec_router,))
     self.gski = self.pkcs10.gSKI()
+    self.cn   = "ROUTER-%08x" % self.asn[0].min
+    self.sn   = "%08x" % self.router_id
 
   def __eq__(self, other):
-    return self.asn == other.asn and self.router_id == other.router_id and self.gski == other.gski
+    return self.asn == other.asn and self.sn == other.sn and self.gski == other.gski
 
   def __hash__(self):
     v6 = tuple(self.v6) if self.v6 is not None else None
-    return tuple(self.asn).__hash__() + router_id.__hash__() + self.gski.__hash__()
+    return tuple(self.asn).__hash__() + sn.__hash__() + self.gski.__hash__()
 
   def __str__(self):
-    return "%s: %s: %s" % (self.asn, self.router_id, self.gski)
+    return "%s: %s: %s" % (self.asn, self.cn, self.sn, self.gski)
 
   @classmethod
   def parse(cls, yaml):
@@ -817,9 +817,9 @@ class allocation(object):
                             ((roa_request_id, x.prefix, x.prefixlen, x.max_prefixlen, version)
                              for x in prefix_set))
       for r in s.router_certs:
-        cur.execute("INSERT ee_certificate (self_handle, pkcs10, gski, router_id, valid_until) "
-                    "VALUES (%s, %s, %s, %s, %s)",
-                    (s.name, r.pkcs10.get_DER(), r.gski, r.router_id, s.resources.valid_until))
+        cur.execute("INSERT ee_certificate (self_handle, pkcs10, gski, cn, sn, valid_until) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)",
+                    (s.name, r.pkcs10.get_DER(), r.gski, r.cn, r.sn, s.resources.valid_until))
         ee_certificate_id = cur.lastrowid
         cur.executemany("INSERT ee_certificate_asn (ee_certificate_id, start_as, end_as) VALUES (%s, %s, %s)",
                         ((ee_certificate_id, a.min, a.max) for a in r.asn))

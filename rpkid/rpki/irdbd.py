@@ -96,7 +96,9 @@ class main(object):
       r_pdu.asn = resources.asn
       r_pdu.ipv4 = resources.v4
       r_pdu.ipv6 = resources.v6
-      r_pdu.router_id = ee_req.router_id
+      r_pdu.cn = ee_req.cn
+      r_pdu.sn = ee_req.sn
+      r_pdu.eku = ee_req.eku
       r_pdu.pkcs10 = ee_req.pkcs10
       r_msg.append(r_pdu)
 

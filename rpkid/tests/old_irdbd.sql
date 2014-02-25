@@ -109,7 +109,9 @@ CREATE TABLE ee_certificate (
         self_handle             VARCHAR(255) NOT NULL,
         pkcs10                  LONGBLOB NOT NULL,
         gski                    VARCHAR(27) NOT NULL,
-        router_id               INT UNSIGNED,
+        cn                      VARCHAR(64),
+        sn                      VARCHAR(64),
+        eku                     TEXT,
         valid_until             DATETIME NOT NULL,
         PRIMARY KEY             (ee_certificate_id),
         UNIQUE                  (self_handle, gski)

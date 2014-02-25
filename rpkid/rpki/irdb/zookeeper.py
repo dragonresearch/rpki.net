@@ -1656,11 +1656,16 @@ class Zookeeper(object):
 
       pkcs10.check_valid_request_router()
 
+      cn = "ROUTER-%08x" % asns[0].min
+      sn = "%08x" % router_id
+
       ee_request = self.resource_ca.ee_certificate_requests.create(
         pkcs10      = pkcs10,
         gski        = pkcs10.gSKI(),
         valid_until = valid_until,
-        router_id   = router_id)
+        cn          = cn,
+        sn          = sn,
+        eku         = rpki.oids.id_kp_bgpsec_router)
 
       for range in asns:
         ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))

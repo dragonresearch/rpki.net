@@ -131,8 +131,6 @@ class router_cert(object):
     self.keypair = rpki.x509.ECDSA.generate(self.ecparams())
     self.pkcs10 = rpki.x509.PKCS10.create(
       keypair = self.keypair,
-      cn      = "ROUTER-%d" % self.asn[0].min,
-      sn      = self.router_id,
       eku     = (rpki.oids.id_kp_bgpsec_router,))
     self.gski = self.pkcs10.gSKI()
 
@@ -141,7 +139,7 @@ class router_cert(object):
 
   def __hash__(self):
     v6 = tuple(self.v6) if self.v6 is not None else None
-    return tuple(self.asn).__hash__() + router_id.__hash__() + self.gski.__hash__()
+    return tuple(self.asn).__hash__() + self.router_id.__hash__() + self.gski.__hash__()
 
   def __str__(self):
     return "%s: %s: %s" % (self.asn, self.router_id, self.gski)

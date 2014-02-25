@@ -238,6 +238,13 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
       <param name="pattern">[\-,0-9/:a-fA-F]*</param>
     </data>
   </define>
+  <!-- OID list for Extended Key Usage (EKU) -->
+  <define name="eku_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[.0-9,]*</param>
+    </data>
+  </define>
   <!-- <self/> element -->
   <define name="self_bool">
     <optional>
@@ -979,8 +986,19 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
         </attribute>
       </optional>
       <optional>
-        <attribute name="router_id">
-          <data type="unsignedInt"/>
+        <attribute name="cn">
+          <data type="string">
+            <param name="maxLength">64</param>
+            <param name="pattern">[\-0-9A-Za-z_ ]*</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="sn">
+          <data type="string">
+            <param name="maxLength">64</param>
+            <param name="pattern">[0-9A-Fa-f]*</param>
+          </data>
         </attribute>
       </optional>
       <element name="pkcs10">

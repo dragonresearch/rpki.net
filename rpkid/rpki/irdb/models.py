@@ -583,14 +583,9 @@ class EECertificateRequest(ResourceSet):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "ee_certificate_requests")
   pkcs10 = PKCS10Field()
   gski   = django.db.models.CharField(max_length = 27)
-  router_id = django.db.models.BigIntegerField(null = True)
-
-  # Subject name isn't allowed in the PKCS #10, so we need to carry
-  # either a subject name or a router-id as a separate field.
-  # Carrying subject name would be more flexible, but is also a swamp
-  # if we start allowing more than just CN and SN.
-  #
-  # For the moment we just do router-id.
+  cn     = django.db-models.CharField(max_length = 64)
+  sn     = django.db-models.CharField(max_length = 64)
+  eku    = django.db.models.TextField(null = True)
 
   def _select_resource_bag(self):
     ee_asn = rpki.irdb.EECertificateRequestASN.objects.raw("""

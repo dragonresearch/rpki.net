@@ -280,10 +280,12 @@ list_ee_certificate_requests_reply = element list_ee_certificate_requests {
   tag, self_handle,
   attribute gski { xsd:token { minLength="27" maxLength="27" } },
   attribute valid_until { xsd:dateTime { pattern=".*Z" } },
-  attribute asn { asn_list }?,
+  attribute asn  { asn_list }?,
   attribute ipv4 { ipv4_list }?,
   attribute ipv6 { ipv6_list }?,
-  attribute router_id { xsd:unsignedInt }?,
+  attribute cn  { xsd:string { maxLength="64"     pattern="[\-0-9A-Za-z_ ]*" } }?,
+  attribute sn  { xsd:string { maxLength="64"     pattern="[0-9A-Fa-f]*"     } }?,
+  attribute eku { xsd:string { maxLength="512000" pattern="[.0-9,]*"         } }?,
   element pkcs10 { base64 }
 }
 

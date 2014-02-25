@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: router-certificate-schema.rnc 5680 2014-02-21 02:05:36Z sra $
+  $Id: router-certificate-schema.rnc 5683 2014-02-25 23:04:11Z sra $
   
   RelaxNG Schema for BGPSEC router certificate interchange format.
   

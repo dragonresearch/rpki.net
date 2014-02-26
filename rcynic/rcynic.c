@@ -612,6 +612,10 @@ static int NID_ct_rpkiGhostbusters;
 static int NID_cp_ipAddr_asNumber;
 #endif
 
+#ifndef    NID_id_kp_bgpsec_router
+static int NID_id_kp_bgpsec_router;
+#endif
+
 /**
  * Missing NIDs, if any.
  */
@@ -643,7 +647,11 @@ static const struct {
 #endif
 
 #ifndef NID_cp_ipAddr_asNumber
-  {&NID_cp_ipAddr_asNumber, "1.3.6.1.5.5.7.14.2", "id-cp-ipAddr-asNumber", "RPKI Certificate Policy"}
+  {&NID_cp_ipAddr_asNumber, "1.3.6.1.5.5.7.14.2", "id-cp-ipAddr-asNumber", "RPKI Certificate Policy"},
+#endif
+
+#ifndef NID_id_kp_bgpsec_router
+  {&NID_id_kp_bgpsec_router,  "1.3.6.1.5.5.7.3.30", "id-kp-bgpsec-router", "BGPSEC Router Certificate"},
 #endif
 
 };
@@ -3603,10 +3611,11 @@ static int check_x509(rcynic_ctx_t *rc,
   STACK_OF(POLICYINFO) *policies = NULL;
   ASN1_BIT_STRING *ski_pubkey = NULL;
   STACK_OF(DIST_POINT) *crldp = NULL;
+  EXTENDED_KEY_USAGE *eku = NULL;
   BASIC_CONSTRAINTS *bc = NULL;
   hashbuf_t ski_hashbuf;
   unsigned ski_hashlen, afi;
-  int i, ok, crit, loc, ex_count, ret = 0;
+  int i, ok, crit, loc, ex_count, routercert = 0, ret = 0;
 
   assert(rc && wsk && w && uri && x && w->cert);
 
@@ -3704,6 +3713,16 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   }
 
+  if ((eku = X509_get_ext_d2i(x, NID_ext_key_usage, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (crit || certinfo->ca || !endswith(uri->s, ".cer") || sk_ASN1_OBJECT_num(eku) == 0) {
+      log_validation_status(rc, uri, inappropriate_eku_extension, generation);
+      goto done;
+    }
+    for (i = 0; i < sk_ASN1_OBJECT_num(eku); i++)
+      routercert |= OBJ_obj2nid(sk_ASN1_OBJECT_value(eku, i)) == NID_id_kp_bgpsec_router;
+  }
+
   if ((sia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
     int got_caDirectory,     got_rpkiManifest,     got_signedObject;
     int   n_caDirectory = 0,   n_rpkiManifest = 0,   n_signedObject = 0;
@@ -3731,7 +3750,7 @@ static int check_x509(rcynic_ctx_t *rc,
   } else if (certinfo->ca || !rc->allow_ee_without_signedObject) {
     log_validation_status(rc, uri, sia_extension_missing, generation);
     goto done;
-  } else {
+  } else if (!routercert) {
     log_validation_status(rc, uri, sia_extension_missing_from_ee, generation);
   } 
 
@@ -3829,14 +3848,6 @@ static int check_x509(rcynic_ctx_t *rc,
   }
   ex_count--;
 
-  if (X509_get_ext_by_NID(x, NID_ext_key_usage, -1) >= 0) {
-    ex_count--;
-    if (certinfo->ca || !endswith(uri->s, ".cer")) {
-      log_validation_status(rc, uri, inappropriate_eku_extension, generation);
-      goto done;
-    }
-  }
-
   if (x->rfc3779_addr) {
     ex_count--;
     if ((loc = X509_get_ext_by_NID(x, NID_sbgp_ipAddrBlock, -1)) < 0 ||
@@ -3898,8 +3909,8 @@ static int check_x509(rcynic_ctx_t *rc,
 	ok = BN_num_bits(subject_pkey->pkey.rsa->n) == 2048;
       break;
 
-    case NID_X9_62_id_ecPublicKey:	/* See draft-ietf-sidr-bgpsec-algs */
-      ok = !certinfo->ca;		/* All I know how to test for now */
+    case NID_X9_62_id_ecPublicKey:
+      ok = !certinfo->ca && routercert;
       break;
 
     default:
@@ -4026,6 +4037,7 @@ static int check_x509(rcynic_ctx_t *rc,
   sk_ACCESS_DESCRIPTION_pop_free(aia, ACCESS_DESCRIPTION_free);
   sk_DIST_POINT_pop_free(crldp, DIST_POINT_free);
   sk_POLICYINFO_pop_free(policies, POLICYINFO_free);
+  sk_ASN1_OBJECT_pop_free(eku, ASN1_OBJECT_free);
 
   return ret;
 }

@@ -2184,7 +2184,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     ("published", rpki.sundial.datetime))
 
   def __repr__(self):
-    return rpki.log.log_repr(self.cert.getSubject(), self.uri)
+    return rpki.log.log_repr(self, self.cert.getSubject(), self.uri)
 
   def __init__(self, gctx = None, self_id = None, ca_detail_id = None, cert = None):
     rpki.sql.sql_persistent.__init__(self)

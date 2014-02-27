@@ -182,7 +182,7 @@ static int usage (const char *jane, const int code)
   FILE *out = code ? stderr : stdout;
   int i;
 
-  fprintf(out, "usage: %s [options] ROA [ROA...]\n", jane);
+  fprintf(out, "usage: %s [options] manifest [manifest...]\n", jane);
   fprintf(out, "options:\n");
   for (i = 0; longopts[i].name != NULL; i++)
     fprintf(out, "  -%c  --%s\n", longopts[i].val, longopts[i].name);

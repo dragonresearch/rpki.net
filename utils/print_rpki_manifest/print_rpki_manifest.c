@@ -31,6 +31,7 @@
 #include <unistd.h>
 #include <getopt.h>
 
+#include <openssl/bn.h>
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
@@ -61,6 +62,8 @@ static const Manifest *read_manifest(const char *filename,
   CMS_ContentInfo *cms = NULL;
   const ASN1_OBJECT *oid = NULL;
   const Manifest *m = NULL;
+  char *mftnum = NULL;
+  BIGNUM *bn = NULL;
   char buf[512];
   BIO *b = NULL;
   int i, j;
@@ -131,7 +134,11 @@ static const Manifest *read_manifest(const char *filename,
       printf("version:        %ld\n", ASN1_INTEGER_get(m->version));
     else
       printf("version:        0 [Defaulted]\n");
-    printf("manifestNumber: %ld\n", ASN1_INTEGER_get(m->manifestNumber));
+
+    bn = ASN1_INTEGER_to_BN(m->manifestNumber, NULL);
+    mftnum = BN_bn2dec(bn);
+    printf("manifestNumber: %s\n", mftnum);
+
     printf("thisUpdate:     %s\n", m->thisUpdate->data);
     printf("nextUpdate:     %s\n", m->nextUpdate->data);
     OBJ_obj2txt(buf, sizeof(buf), m->fileHashAlg, 0);
@@ -165,6 +172,9 @@ static const Manifest *read_manifest(const char *filename,
   if (ERR_peek_error())
     ERR_print_errors_fp(stderr);
   BIO_free(b);
+  BN_free(bn);
+  if (mftnum)
+    OPENSSL_free(mftnum);
   CMS_ContentInfo_free(cms);
   return m;
 }

@@ -33,6 +33,7 @@
 #include <getopt.h>
 
 #include <openssl/bio.h>
+#include <openssl/bn.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
 #include <openssl/x509.h>
@@ -137,6 +138,8 @@ static ROA *read_roa(const char *filename,
   unsigned char addr[ADDR_RAW_BUF_LEN];
   CMS_ContentInfo *cms = NULL;
   const ASN1_OBJECT *oid = NULL;
+  char *asID = NULL;
+  BIGNUM *bn = NULL;
   ROA *r = NULL;
   char buf[512];
   BIO *b = NULL;
@@ -199,6 +202,9 @@ static ROA *read_roa(const char *filename,
 
   if (print_roa) {
 
+    bn = ASN1_INTEGER_to_BN(r->asID, NULL);
+    asID = BN_bn2dec(bn);
+
     if (print_brief) {
 
       if (print_signingtime) {
@@ -208,7 +214,7 @@ static ROA *read_roa(const char *filename,
 	printf("%s ", buffer);
       }
 
-      printf("%ld", ASN1_INTEGER_get(r->asID));
+      fputs(asID, stdout);
 
     } else {
 
@@ -221,7 +227,7 @@ static ROA *read_roa(const char *filename,
 	printf("version:        %ld\n", ASN1_INTEGER_get(r->version));
       else
 	printf("version:        0 [Defaulted]\n");
-      printf("asID:           %ld\n", ASN1_INTEGER_get(r->asID));
+      printf("asID:           %s\n", asID);
     }
 
     for (i = 0; i < sk_ROAIPAddressFamily_num(r->ipAddrBlocks); i++) {
@@ -303,6 +309,9 @@ static ROA *read_roa(const char *filename,
   if (ERR_peek_error())
     ERR_print_errors_fp(stderr);
   BIO_free(b);
+  BN_free(bn);
+  if (asID)
+    OPENSSL_free(asID);
   CMS_ContentInfo_free(cms);
   return r;
 }

@@ -20,14 +20,15 @@ USE_RC_SUBR=	rpki-ca
 MAKE_JOBS_UNSAFE= yes
 NO_STAGE	= yes
 
+# We depend on our own relying party code
+BUILD_DEPENDS+= rpki-rp>0:${PORTSDIR}/net/rpki-rp
+RUN_DEPENDS+=   rpki-rp>0:${PORTSDIR}/net/rpki-rp
+
 # For OpenSSL, not needed otherwise
 USE_PERL5_BUILD=yes
 
 # For building OpenSSL, not needed otherwise
 BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
-
-# Needed at build to keep ./configure from complaining.
-BUILD_DEPENDS+= rsync>0:${PORTSDIR}/net/rsync
 
 RPKID_DEPENDS=	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \
                 ${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb       \

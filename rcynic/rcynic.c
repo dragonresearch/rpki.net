@@ -5686,7 +5686,7 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  memset(&ta_dir, 0, sizeof(&ta_dir));
+  memset(&ta_dir, 0, sizeof(ta_dir));
 
   opterr = 0;
 

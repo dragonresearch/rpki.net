@@ -18,7 +18,7 @@ USE_RC_SUBR=	rpki-ca
 
 # Disable a couple of recent whoopie cushions in the FreeBSD ports system
 MAKE_JOBS_UNSAFE= yes
-NO_STAGE	= yes
+#NO_STAGE	= yes
 
 # We depend on our own relying party code
 BUILD_DEPENDS+= rpki-rp>0:${PORTSDIR}/net/rpki-rp

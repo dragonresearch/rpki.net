@@ -86,9 +86,9 @@ extract_signingTime(CMS_ContentInfo *cms, char *buffer, size_t buflen)
   switch (so->type) {
   case V_ASN1_UTCTIME:
     strcpy(buffer, (so->value.utctime->data[0] >= '5') ? "19" : "20");
-    return strncpy(buffer + 2, so->value.utctime->data, buflen - 3);
+    return strncpy(buffer + 2, (const char *) so->value.utctime->data, buflen - 3);
   case V_ASN1_GENERALIZEDTIME:
-    return strncpy(buffer, so->value.generalizedtime->data, buflen - 1);
+    return strncpy(buffer, (const char *) so->value.generalizedtime->data, buflen - 1);
   default:
     return NULL;
   }

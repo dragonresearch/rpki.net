@@ -1,21 +1,27 @@
-# Construct FreeBSD ports templates given the name of a Subversion
-# working directory.
-#
 # $Id$
 #
-# Copyright (C) 2012-2013  Internet Systems Consortium ("ISC")
-#
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2012-2013  Internet Systems Consortium ("ISC")
+# 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
+
+"""
+Construct FreeBSD port directories.
+
+This is a script because we need to generate package lists and update
+version numbers in the Makefiles.
+"""
 
 import sys
 import os
@@ -23,24 +29,30 @@ import subprocess
 import errno
 import glob
 import shutil
+import argparse
 
-try:
-  svndir = sys.argv[1]
-except IndexError:
-  sys.exit("Usage: %s subversion-working-directory" % sys.argv[0])
+def check_dir(s):
+  if not os.path.isdir(s):
+    raise argparse.ArgumentTypeError("%r is not a directory" % s)
+  return s
 
-if not os.path.isdir(svndir):
-  sys.exit("Usage: %s subversion-working-directory" % sys.argv[0])
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("--allow-dirty", action = "store_true",
+                    help = "don't insist on pristine subversion checkout")
+parser.add_argument("subversion-working-directory",
+                    type = check_dir, dest = "svndir",
+                    help = "directory containing subversion working tree")
+args = parser.parse_args()
 
-svnversion = subprocess.check_output(("svnversion", "-c", svndir)).strip().split(":")[-1]
+svnversion = subprocess.check_output(("svnversion", "-c", args.svndir)).strip().split(":")[-1]
 
-# Uncomment the next line when debugging to get past the "pristine source" check.
-svnversion = svnversion.translate(None, "M")
+if args.allow_dirty:
+  svnversion = svnversion.translate(None, "M")
 
 if not svnversion.isdigit():
   sys.exit("Sources don't look pristine, not building (%r)" % svnversion)
 
-branch  = os.path.basename(svndir.rstrip(os.path.sep))
+branch  = os.path.basename(args.svndir.rstrip(os.path.sep))
 
 if branch != "trunk" and (branch[:2] != "tk" or not branch[2:].isdigit()):
   sys.exit("Could not parse branch from working directory name, not building (%r)" % branch)
@@ -59,7 +71,7 @@ if os.path.isdir(portsdir_old):
 if os.path.isdir(portsdir):
   os.rename(portsdir, portsdir_old)
 
-shutil.copytree(os.path.join(svndir, "buildtools", "freebsd-skeleton"), portsdir)
+shutil.copytree(os.path.join(args.svndir, "buildtools", "freebsd-skeleton"), portsdir)
 
 if os.path.exists(os.path.join(portsdir_old, tarball)):
   os.link(os.path.join(portsdir_old, tarball), os.path.join(portsdir, tarball))

@@ -39,8 +39,7 @@ def check_dir(s):
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("--allow-dirty", action = "store_true",
                     help = "don't insist on pristine subversion checkout")
-parser.add_argument("subversion-working-directory",
-                    type = check_dir, dest = "svndir",
+parser.add_argument("svndir", metavar = "subversion-working-directory", type = check_dir,
                     help = "directory containing subversion working tree")
 args = parser.parse_args()
 

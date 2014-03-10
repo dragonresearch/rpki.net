@@ -1,4 +1,4 @@
-# Copyright (C) 2012, 2013  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2013, 2014  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -39,3 +39,10 @@ for n in xrange(1, 33):
     conf.clear_alerts()
     print '... updating resource certificate cache'
     list_received_resources(sys.stdout, conf)
+
+    # Remove delegated resources (see https://trac.rpki.net/ticket/544)
+    # Note that we do not remove the parent-child relationship, just the
+    # resources.
+    for child in conf.children():
+        child.asns.delete()
+        child.address_ranges.delete()

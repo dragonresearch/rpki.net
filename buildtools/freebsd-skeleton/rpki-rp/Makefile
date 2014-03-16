@@ -36,7 +36,7 @@ RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 
 # Just want relying party tools, try to use system OpenSSL if we can.
 
-CONFIGURE_ARGS= --disable-target-installation --disable-ca-tools APACHE_VERSION=${APACHE_VERSION}
+CONFIGURE_ARGS= --disable-target-installation --disable-runtime-dependencies --disable-ca-tools APACHE_VERSION=${APACHE_VERSION}
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
 # Disable parallel builds, they failed the last time I tried and we don't really need them

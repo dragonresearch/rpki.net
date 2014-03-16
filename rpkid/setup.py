@@ -26,10 +26,16 @@ except ImportError:
     "Fake autoconf object to let --help work without autoconf."
     sbindir = libexecdir = datarootdir = sysconfdir = CFLAGS = LDFLAGS = LIBS = ""
 
+try:
+  from rpki.version import VERSION
+
+except ImportError:
+  VERSION = "0.0"
+
 # pylint: disable=W0622
 
 setup(name              = "rpkitoolkit",
-      version           = "1.0",
+      version           = VERSION,
       description       = "RPKI Toolkit",
       license           = "BSD",
       url               = "http://rpki.net/",

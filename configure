@@ -726,6 +726,7 @@ enable_target_installation
 enable_wsgi_daemon_mode
 enable_python_install_layout
 enable_wsgi_python_egg_cache
+enable_runtime_dependencies
 enable_python
 enable_django
 enable_rpki_rtr
@@ -1366,6 +1367,8 @@ Optional Features:
                           Specify Python --install-layout
   --enable-wsgi-python-egg-cache=dir[:user]
                           Set up PYTHON_EGG_CACHE in wsgi wrapper
+  --disable-runtime-dependencies
+                          Don't enforce runtime dependencies
   --disable-python        (Obsolete, do not use)
   --disable-django        (Obsolete, do not use)
   --disable-rpki-rtr      (Obsolete, do not use)
@@ -2472,6 +2475,13 @@ if test "${enable_wsgi_python_egg_cache+set}" = set; then :
   enableval=$enable_wsgi_python_egg_cache;
 else
   enable_wsgi_python_egg_cache=auto
+fi
+
+# Check whether --enable-runtime_dependencies was given.
+if test "${enable_runtime_dependencies+set}" = set; then :
+  enableval=$enable_runtime_dependencies;
+else
+  enable_runtime_dependencies=yes
 fi
 
 
@@ -4233,6 +4243,20 @@ fi
 
 
 
+# See whether we need to check for dependencies that we only need at
+# runtime.  We do this by default when compiling from source to avoid
+# surprises after installation, but this just adds pain when building
+# binary packages within a platform framework which already handles
+# all the dependencies for us, so we need a way to turn it off.
+
+case $enable_runtime_dependencies in
+	yes|no)
+		;;
+	*)
+		as_fn_error $? "Unrecognized value for --enable-runtime-dependencies: $enable_runtime_dependencies" "$LINENO" 5
+		;;
+esac
+
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:
 # CMS and RFC 3779 support.  We also have to check whether the user
@@ -4528,11 +4552,7 @@ fi
 
 # Check whether to do "final target installation".  This means actions
 # that can only be done when installing a package, as opposed to when
-# building a package.  On FreeBSD this is sort of irrelevant, because
-# of the way package installs work when building from source, but on
-# Debian and Ubuntu, for example, there's a strict separation between
-# things that are done during package build and things that are done
-# by the binary package's {pre,post}inst scripts.
+# building a package.
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether to do final target installation on \"make install\"" >&5
 $as_echo_n "checking whether to do final target installation on \"make install\"... " >&6; }
@@ -4858,7 +4878,13 @@ fi
 
 if test $ok = no
 then
-	as_fn_error $? "Please correct the problems above then re-run this configuration script." "$LINENO" 5
+	if test $enable_runtime_dependencies = yes
+	then
+		as_fn_error $? "Please correct the problems above then re-run this configuration script." "$LINENO" 5
+	else
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Runtime dependency enforcement disabled, proceeding (at your own risk)" >&5
+$as_echo "$as_me: WARNING: Runtime dependency enforcement disabled, proceeding (at your own risk)" >&2;}
+	fi
 fi
 
 # Figure out whether we are on a Debian-derived system where we need

@@ -41,6 +41,7 @@ AC_ARG_ENABLE([target_installation],	[AS_HELP_STRING([--disable-target-installat
 AC_ARG_ENABLE([wsgi_daemon_mode],	[AS_HELP_STRING([--enable-wsgi-daemon-mode=user[[:group]]],	[Run the web portal as a separate process])],   [], [enable_wsgi_daemon_mode=no])
 AC_ARG_ENABLE([python_install_layout],	[AS_HELP_STRING([--enable-python-install-layout=layout],	[Specify Python --install-layout])],		[], [enable_python_install_layout=auto])
 AC_ARG_ENABLE([wsgi_python_egg_cache],  [AS_HELP_STRING([--enable-wsgi-python-egg-cache=dir[[:user]]],	[Set up PYTHON_EGG_CACHE in wsgi wrapper])],	[], [enable_wsgi_python_egg_cache=auto])
+AC_ARG_ENABLE([runtime_dependencies],	[AS_HELP_STRING([--disable-runtime-dependencies],		[Don't enforce runtime dependencies])],         [], [enable_runtime_dependencies=yes])
 
 AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rtr-origin; also controls jail location for --enable-rcynic-jail])
 AC_ARG_VAR([APACHE_VERSION],		[Version of Apache httpd, mostly used on FreeBSD where it determines some of the directory names])
@@ -137,6 +138,20 @@ AC_PATH_PROG([SORT], [sort])
 AC_PATH_PROG([RRDTOOL], [rrdtool])
 AC_PATH_PROG([TRANG], [trang], [\${abs_top_srcdir}/buildtools/trang-not-found])
 AC_PATH_PROG([RSYNC], [rsync])
+
+# See whether we need to check for dependencies that we only need at
+# runtime.  We do this by default when compiling from source to avoid
+# surprises after installation, but this just adds pain when building
+# binary packages within a platform framework which already handles
+# all the dependencies for us, so we need a way to turn it off.
+
+case $enable_runtime_dependencies in
+	yes|no)
+		;;
+	*)
+		AC_MSG_ERROR([Unrecognized value for --enable-runtime-dependencies: $enable_runtime_dependencies])
+		;;
+esac
 
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:
@@ -351,11 +366,7 @@ AC_SUBST(RCYNIC_STATIC_RSYNC)
 
 # Check whether to do "final target installation".  This means actions
 # that can only be done when installing a package, as opposed to when
-# building a package.  On FreeBSD this is sort of irrelevant, because
-# of the way package installs work when building from source, but on
-# Debian and Ubuntu, for example, there's a strict separation between
-# things that are done during package build and things that are done
-# by the binary package's {pre,post}inst scripts.
+# building a package.
 
 AC_MSG_CHECKING([whether to do final target installation on "make install"])
 
@@ -636,7 +647,12 @@ fi
 
 if test $ok = no
 then
-	AC_MSG_ERROR([Please correct the problems above then re-run this configuration script.])
+	if test $enable_runtime_dependencies = yes
+	then
+		AC_MSG_ERROR([Please correct the problems above then re-run this configuration script.])
+	else
+		AC_MSG_WARN([Runtime dependency enforcement disabled, proceeding (at your own risk)])
+	fi
 fi
 
 # Figure out whether we are on a Debian-derived system where we need

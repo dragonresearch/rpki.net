@@ -28,12 +28,13 @@ from datetime import datetime
 from rpki.resource_set import (resource_set_as, resource_set_ipv4,
                                resource_set_ipv6, resource_range_ipv4,
                                resource_range_ipv6)
-from rpki.left_right import list_received_resources_elt
+from rpki.left_right import list_received_resources_elt, report_error_elt
 from rpki.irdb.zookeeper import Zookeeper
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
 
 from django.contrib.auth.models import User
+from django.db.transaction import commit_on_success
 
 
 def ghostbuster_to_vcard(gbr):
@@ -65,6 +66,19 @@ def ghostbuster_to_vcard(gbr):
     return vcard.serialize()
 
 
+class LeftRightError(Exception):
+   """Class for wrapping report_error_elt errors from Zookeeper.call_rpkid().
+
+   It expects a single argument, which is the associated report_error_elt instance."""
+
+   def __str__(self):
+       return 'Error occurred while communicating with rpkid: handle=%s code=%s text=%s' % (
+           self.args[0].self_handle,
+           self.args[0].error_code,
+           self.args[0].error_text)
+
+
+@commit_on_success
 def list_received_resources(log, conf):
     """
     Query rpkid for this resource handle's received resources.
@@ -77,11 +91,19 @@ def list_received_resources(log, conf):
 
     z = Zookeeper(handle=conf.handle)
     pdus = z.call_rpkid(list_received_resources_elt.make_pdu(self_handle=conf.handle))
+    # pdus is sometimes None (see https://trac.rpki.net/ticket/681)
+    if pdus is None:
+        print >>log, 'error: call_rpkid() returned None for handle %s when fetching received resources' % conf.handle
+        return
 
     models.ResourceCert.objects.filter(conf=conf).delete()
 
     for pdu in pdus:
-        if isinstance(pdu, list_received_resources_elt):
+        if isinstance(pdu, report_error_elt):
+            # this will cause the db to be rolled back so the above delete()
+            # won't clobber existing resources
+            raise LeftRightError, pdu
+        elif isinstance(pdu, list_received_resources_elt):
             if pdu.parent_handle != conf.handle:
                 parent = models.Parent.objects.get(issuer=conf,
                                                    handle=pdu.parent_handle)

@@ -36,6 +36,7 @@
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
+#include <openssl/err.h>
 
 #ifndef FILENAME_MAX
 #define	FILENAME_MAX	1024

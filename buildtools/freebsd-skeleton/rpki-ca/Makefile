@@ -9,6 +9,7 @@ COMMENT=	rpki.net RPKI CA tools
 WWW=		http://rpki.net/
 
 GNU_CONFIGURE=  yes
+NO_MTREE=	yes
 USE_PYTHON=	2.7+
 USE_GNOME=      libxml2 libxslt
 USE_MYSQL=      server
@@ -16,18 +17,18 @@ USE_APACHE_RUN= 22+
 
 USE_RC_SUBR=	rpki-ca
 
-# Disable a couple of recent whoopie cushions in the FreeBSD ports system
+# Disable parallel builds, they failed last time I tried and we don't really need them
 MAKE_JOBS_UNSAFE= yes
-NO_STAGE	= yes
+
+# We depend on our own relying party code.  Perhaps this should require our own version number?
+BUILD_DEPENDS+= rpki-rp>0:${PORTSDIR}/net/rpki-rp
+RUN_DEPENDS+=   rpki-rp>0:${PORTSDIR}/net/rpki-rp
 
 # For OpenSSL, not needed otherwise
 USE_PERL5_BUILD=yes
 
 # For building OpenSSL, not needed otherwise
 BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
-
-# Needed at build to keep ./configure from complaining.
-BUILD_DEPENDS+= rsync>0:${PORTSDIR}/net/rsync
 
 RPKID_DEPENDS=	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \
                 ${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb       \
@@ -40,17 +41,14 @@ RPKID_DEPENDS=	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml          
 BUILD_DEPENDS+=	${RPKID_DEPENDS}
 RUN_DEPENDS+=	${RPKID_DEPENDS}
 
-RUN_DEPENDS+=	${APACHE_PKGNAMEPREFIX}mod_wsgi>3:${PORTSDIR}/www/mod_wsgi3
+RUN_DEPENDS+=	${APACHE_PKGNAMEPREFIX}mod_wsgi3>0:${PORTSDIR}/www/mod_wsgi3
 
 # Try to use system OpenSSL if we can.
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
-CONFIGURE_ARGS= --disable-target-installation --disable-rp-tools APACHE_VERSION=${APACHE_VERSION}
+CONFIGURE_ARGS= --disable-target-installation --disable-runtime-dependencies --disable-rp-tools APACHE_VERSION=${APACHE_VERSION}
 
 pre-install:
-	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} PRE-INSTALL
-
-post-install:
-	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} POST-INSTALL
+	@test -d ${STAGEDIR}${PREFIX}/etc/rc.d || mkdir -p ${STAGEDIR}${PREFIX}/etc/rc.d
 
 .include <bsd.port.mk>

@@ -9,6 +9,7 @@ COMMENT=	rpki.net RPKI relying party tools
 WWW=		http://rpki.net/
 
 GNU_CONFIGURE=  yes
+NO_MTREE=	yes
 USE_PYTHON=	2.7+
 USE_GNOME=      libxml2 libxslt
 USE_APACHE_RUN= 22+
@@ -35,37 +36,18 @@ RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
 
 # Just want relying party tools, try to use system OpenSSL if we can.
 
-CONFIGURE_ARGS= --disable-ca-tools APACHE_VERSION=${APACHE_VERSION}
+CONFIGURE_ARGS= --disable-target-installation --disable-ca-tools APACHE_VERSION=${APACHE_VERSION}
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 
-# Disable a couple of recent whoopie cushions in the FreeBSD ports system
+# Disable parallel builds, they failed the last time I tried and we don't really need them
 MAKE_JOBS_UNSAFE= yes
-#NO_STAGE	= yes
 
 # rcynic's Makefile constructs an rcynic.conf for us if it doesn't
 # find one already installed.  This turns out to be exactly what
-# FreeBSD's rules want us to install as rcynic.conf.sample, so we
-# shuffle things around a bit just before and just after installation
-# to make this all come out right.
-# 
-# If I ever teach rcynic to construct a .conf.sample file per the
-# FreeBSD way of doing things, this will need to change to match.
-
-pre-install:
-	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} PRE-INSTALL
-	@if test -f ${PREFIX}/etc/rcynic.conf; \
-	 then \
-	    ${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.real; \
-	 fi
+# FreeBSD's rules want us to install as rcynic.conf.sample, so we just
+# rename it.
 
 post-install:
-	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} POST-INSTALL
-	@if test -f ${PREFIX}/etc/rcynic.conf.real; \
-	 then \
-	    ${MV} -f ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample; \
-	    ${MV} -f ${PREFIX}/etc/rcynic.conf.real ${PREFIX}/etc/rcynic.conf; \
-	 else \
-	    ${CP} -p ${PREFIX}/etc/rcynic.conf ${PREFIX}/etc/rcynic.conf.sample; \
-	 fi
+	${MV} -vf ${STAGEDIR}${PREFIX}/etc/rcynic.conf ${STAGEDIR}${PREFIX}/etc/rcynic.conf.sample
 
 .include <bsd.port.mk>

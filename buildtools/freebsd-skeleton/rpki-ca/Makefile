@@ -9,6 +9,7 @@ COMMENT=	rpki.net RPKI CA tools
 WWW=		http://rpki.net/
 
 GNU_CONFIGURE=  yes
+NO_MTREE=	yes
 USE_PYTHON=	2.7+
 USE_GNOME=      libxml2 libxslt
 USE_MYSQL=      server
@@ -16,11 +17,10 @@ USE_APACHE_RUN= 22+
 
 USE_RC_SUBR=	rpki-ca
 
-# Disable a couple of recent whoopie cushions in the FreeBSD ports system
+# Disable parallel builds, they failed last time I tried and we don't really need them
 MAKE_JOBS_UNSAFE= yes
-#NO_STAGE	= yes
 
-# We depend on our own relying party code
+# We depend on our own relying party code.  Perhaps this should require our own version number?
 BUILD_DEPENDS+= rpki-rp>0:${PORTSDIR}/net/rpki-rp
 RUN_DEPENDS+=   rpki-rp>0:${PORTSDIR}/net/rpki-rp
 
@@ -49,9 +49,6 @@ CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"
 CONFIGURE_ARGS= --disable-target-installation --disable-rp-tools APACHE_VERSION=${APACHE_VERSION}
 
 pre-install:
-	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} PRE-INSTALL
-
-post-install:
-	PKG_PREFIX=${PREFIX} ${SH} ${PKGINSTALL} ${PKGNAME} POST-INSTALL
+	@test -d ${STAGEDIR}${PREFIX}/etc/rc.d || mkdir -p ${STAGEDIR}${PREFIX}/etc/rc.d
 
 .include <bsd.port.mk>

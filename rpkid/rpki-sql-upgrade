@@ -137,12 +137,9 @@ class Upgrade(object):
   available upgrade scripts into version order.
   """
 
-  glob = os.path.join(rpki.autoconf.datarootdir,
-                      "rpki", "upgrade-scripts",
-                      "upgrade-to-*.py")
-
   @classmethod
-  def load_all(cls):
+  def load_all(cls, dir):
+    cls.glob = os.path.join(dir, "upgrade-to-*.py")
     for fn in glob.iglob(cls.glob):
       yield cls(fn)
 
@@ -166,6 +163,9 @@ time.tzset()
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("-c", "--config",
                     help = "override default location of configuration file")
+parser.add_argument("--upgrade-scripts",
+                    default = os.path.join(rpki.autoconf.datarootdir, "rpki", "upgrade-scripts"),
+                    help = "override default location of upgrade scripts")
 parser.add_argument("-v", "--verbose",
                     action = "store_true",
                     help = "natter about whatever we're doing")
@@ -176,7 +176,7 @@ cfg = rpki.config.parser(args.config, "myrpki")
 rpkid_db = Database("rpkid")
 pubd_db  = Database("pubd")
 
-for upgrade in sorted(Upgrade.load_all()):
+for upgrade in sorted(Upgrade.load_all(args.update_scripts)):
   if upgrade.version > rpkid_db.version upgrade.version > pubd_db.version:
     upgrade.apply()
     rpkid_db.version = upgrade.version

@@ -21,9 +21,7 @@ Run upgrade scripts to drag installed version of RPKI-related SQL
 databases up to the current version.
 
 We ignore the IRDB, on the theory that the Django stuff can take care
-of itself, using South migrations if necessary.  We could use South
-for everything if we were to rewrit the rpkid and pubd databases using
-the Django ORM, but that's a big change.  Perhaps someday.
+of itself, using South migrations if necessary.
 """
 
 import os
@@ -31,10 +29,10 @@ import sys
 import time
 import glob
 import argparse
+import datetime
 import rpki.config
 import rpki.autoconf
 import rpki.version
-import rpki.sundial
 
 from rpki.mysql_import import MySQLdb, _mysql_exceptions
 
@@ -109,7 +107,7 @@ class Database(object):
     if self.enabled:
       cur = self.db.cursor()
       cur.execute("SELECT version FROM upgrade_version")
-      v = self.cur.fetchone()
+      v = cur.fetchone()
       cur.close()
       return Version(None if v is None else v[0])
     else:
@@ -120,7 +118,7 @@ class Database(object):
     if self.enabled and v > self.version:
       cur = self.db.cursor()
       cur.execute("DELETE FROM upgrade_version")
-      cur.execute("INSERT upgrade_version (version, updated) VALUES (%s, %s)", (v, sundial.datetime.now()))
+      cur.execute("INSERT upgrade_version (version, updated) VALUES (%s, %s)", (v, datetime.datetime.now()))
       cur.close()
       self.db.commit()
       if args.verbose:
@@ -128,6 +126,18 @@ class Database(object):
 
   def close(self):
     self.db.close()
+
+  def execute(self, *sql):
+    cur = self.db.cursor()
+    cur.execute(*sql)
+    cur.close()
+
+  def fetch(self, *sql):
+    cur = self.db.cursor()
+    cur.execute(*sql)
+    for row in cur.fetchall():
+      yield row
+    cur.close()
 
 class Upgrade(object):
   """
@@ -153,7 +163,7 @@ class Upgrade(object):
 
   def apply(self):
     if args.verbose:
-      print "Applying", fn
+      print "Applying", self.fn
     with open(self.fn, "r") as f:
       exec f
 
@@ -176,8 +186,8 @@ cfg = rpki.config.parser(args.config, "myrpki")
 rpkid_db = Database(cfg, "rpkid")
 pubd_db  = Database(cfg, "pubd")
 
-for upgrade in sorted(Upgrade.load_all(args.update_scripts)):
-  if upgrade.version > rpkid_db.version upgrade.version > pubd_db.version:
+for upgrade in sorted(Upgrade.load_all(args.upgrade_scripts)):
+  if upgrade.version > rpkid_db.version or upgrade.version > pubd_db.version:
     upgrade.apply()
     rpkid_db.version = upgrade.version
     pubd_db.version  = upgrade.version

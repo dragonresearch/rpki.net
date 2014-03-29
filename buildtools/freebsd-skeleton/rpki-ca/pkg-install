@@ -30,6 +30,7 @@ POST-INSTALL)
     /usr/bin/install -o www  -g www   -d /usr/local/share/rpki/python-eggs
 
     /usr/local/sbin/rpki-sql-setup
+    /usr/local/sbin/rpki-sql-upgrade --verbose
     /usr/local/sbin/rpki-manage syncdb --noinput
     /usr/local/sbin/rpki-manage migrate app
 

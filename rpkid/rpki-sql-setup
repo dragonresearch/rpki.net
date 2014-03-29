@@ -2,27 +2,35 @@
 
 # $Id$
 #
-# Copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
-#
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009-2013  Internet Systems Consortium ("ISC")
+# 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
+import os
 import sys
 import getpass
 import argparse
 import rpki.config
+import rpki.version
+import rpki.autoconf
 import rpki.sql_schemas
 
-from rpki.mysql_import import MySQLdb
+from rpki.mysql_import import MySQLdb, _mysql_exceptions
+
+ER_NO_SUCH_TABLE = 1146                 # See mysqld_ername.h
+
 
 class RootDB(object):
   """
@@ -58,12 +66,30 @@ class RootDB(object):
     if self.initialized:
       self.db.close()
 
+
 class UserDB(object):
   """
   Class to wrap MySQL access parameters for a particular database.
+
+  NB: The SQL definition for the upgrade_version table is embedded in
+  this class rather than being declared in any of the .sql files.
+  This is deliberate: nothing but the upgrade system should ever touch
+  this table, and it's simpler to keep everything in one place.
+
+  We have to be careful about SQL commits here, because CREATE TABLE
+  implies an automatic commit.  So presence of the magic table per se
+  isn't significant, only its content (or lack thereof).
   """
 
+  upgrade_version_table_schema = """
+    CREATE TABLE upgrade_version (
+      version   TEXT NOT NULL,
+      updated   DATETIME NOT NULL
+    ) ENGINE=InnoDB
+    """
+
   def __init__(self, name):
+    self.name = name
     self.database = cfg.get("sql-database", section = name)
     self.username = cfg.get("sql-username", section = name)
     self.password = cfg.get("sql-password", section = name)
@@ -72,39 +98,107 @@ class UserDB(object):
 
   def open(self):
     self.db = MySQLdb.connect(db = self.database, user = self.username, passwd = self.password)
+    self.db.autocommit(False)
     self.cur = self.db.cursor()
 
   def commit(self):
     self.db.commit()
 
   def close(self):
-    if self.db is not None:
-      self.db.close()
-      self.db = None
-      self.cur = None
+    self.db.commit()
+    self.db.close()
+    del self.db
+    del self.cur
 
   @property
   def exists_and_accessible(self):
     try:
-      db = MySQLdb.connect(db = self.database, user = self.username, passwd = self.password)
-      db.close()
-      return True
+      MySQLdb.connect(db = self.database, user = self.username, passwd = self.password).close()
     except:
       return False
+    else:
+      return True
+
+  @property
+  def uses_upgrade_version(self):
+    return self.name != "irdbd"
+
+  @property
+  def version(self):
+    try:
+      db.cur.execute("SELECT version FROM upgrade_version")
+      v = cur.fetchone()
+      return Version(None if v is None else v[0])
+    except _mysql_exceptions.ProgrammingError, e:
+      if e.args[0] != ER_NO_SUCH_TABLE:
+        raise
+      log("Creating upgrade_version table in %s" % self.name)
+      self.cur.execute(self.upgrade_version_table_schema)
+      return Version(None)
+
+  @version.setter
+  def version(self, v):
+    if v > self.version:
+      self.cur.execute("DELETE FROM upgrade_version")
+      self.cur.execute("INSERT upgrade_version (version, updated) VALUES (%s, %s)", (v, datetime.datetime.now()))
+      self.commit()
+      log("Updated %s to %s" % (self.name, v))
+
+  @property
+  def schema(self):
+    lines = []
+    for line in getattr(rpki.sql_schemas, self.name, "").splitlines():
+      line = " ".join(line.split())
+      if line and not line.startswith("--"):
+        lines.append(line)
+    return [statement.strip() for statement in " ".join(lines).rstrip(";").split(";") if statement.strip()]
 
 
-def read_schema(name):
+class Version(object):
   """
-  Convert an SQL file into a list of SQL statements.
+  A version number.  This is a class in its own right to force the
+  comparision and string I/O behavior we want.
   """
 
-  lines = []
-  for line in getattr(rpki.sql_schemas, name, "").splitlines():
-    line = " ".join(line.split())
-    if line and not line.startswith("--"):
-      lines.append(line)
+  def __init__(self, v):
+    if v is None:
+      v = "0.0"
+    self.v = tuple(v.lower().split("."))
 
-  return [statement.strip() for statement in " ".join(lines).rstrip(";").split(";") if statement.strip()]
+  def __str__(self):
+    return ".".join(self.v)
+
+  def __cmp__(self, other):
+    return cmp(self.v, other.v)
+
+
+class Upgrade(object):
+  """
+  One upgrade script.  Really, just its filename and the Version
+  object we parse from its filename, we don't need to read the script
+  itself except when applying it, but we do need to sort all the
+  available upgrade scripts into version order.
+  """
+
+  @classmethod
+  def load_all(cls, name, dir):
+    g = os.path.join(dir, "upgrade-%s-to-*.py" % name)
+    for fn in glob.iglob(g):
+      yield cls(g, fn)
+
+  def __init__(self, g, fn):
+    head, sep, tail = g.partition("*")
+    self.fn = fn
+    self.version = Version(fn[len(head):-len(tail)])
+
+  def __cmp__(self, other):
+    return cmp(self.version, other.version)
+
+  def apply(self):
+    log("Applying %s" % self.fn)
+    with open(self.fn, "r") as f:
+      exec f
+
 
 def do_drop(name):
   db = UserDB(name)
@@ -122,11 +216,12 @@ def do_create(name):
                    (db.password,))
   root.db.commit()
   db.open()
-  for statement in read_schema(name):
+  for statement in db.schema:
     if not statement.upper().startswith("DROP TABLE"):
       log(statement)
       db.cur.execute(statement)
-  db.commit()
+  if db.uses_upgrade_version:
+    db.version = current_version
   db.close()
 
 def do_script_drop(name):
@@ -150,6 +245,17 @@ def do_create_if_missing(name):
   if not db.exists_and_accessible:
     do_create(name)
 
+def do_apply_upgrades(name):
+  db = UserDB(name)
+  if db.uses_upgrade_version:
+    log("Current version of %s is %s" % (db.name, db.version))
+    for upgrade in sorted(Upgrade.load_all(name, args.upgrade_scripts)):
+      if upgrade.version > db.version:
+        upgrade.apply()
+        db.version = upgrade.version
+    db.version = current_version
+  db.close()
+
 def log(text):
   if args.verbose:
     print "#", text
@@ -165,6 +271,9 @@ parser.add_argument("-v", "--verbose",  action = "store_true",
                     help = "whistle while you work")
 parser.add_argument("--mysql-defaults",
                     help = "specify MySQL root access credentials via a configuration file")
+parser.add_argument("--upgrade-scripts",
+                    default = os.path.join(rpki.autoconf.datarootdir, "rpki", "upgrade-scripts"),
+                    help = "override default location of upgrade scripts")
 group.add_argument("--create",
                    action = "store_const", dest = "dispatch", const = do_create,
                    help = "create databases and load schemas")
@@ -183,18 +292,19 @@ group.add_argument("--fix-grants",
 group.add_argument("--create-if-missing",
                    action = "store_const", dest = "dispatch", const = do_create_if_missing,
                    help = "create databases and load schemas if they don't exist already")
+group.add_argument("--apply-upgrades",
+                   action = "store_const", dest = "dispatch", const = do_apply_upgrades,
+                   help = "apply upgrade scripts to existing databases")
 parser.set_defaults(dispatch = do_create_if_missing)
 args = parser.parse_args()
 
-cfg  = rpki.config.parser(args.config, "myrpki")
-root = RootDB(args.mysql_defaults)
 try:
-  if cfg.getboolean("start_irdbd", False):
-    args.dispatch("irdbd")
-  if cfg.getboolean("start_rpkid", False):
-    args.dispatch("rpkid")
-  if cfg.getboolean("start_pubd",  False):
-    args.dispatch("pubd")
+  cfg  = rpki.config.parser(args.config, "myrpki")
+  root = RootDB(args.mysql_defaults)
+  current_version = Version(rpki.version.VERSION)
+  for name in ("irdbd", "rpkid", "pubd"):
+    if cfg.getboolean("start_" + name, False):
+      args.dispatch(name)
   root.close()
 except Exception, e:
   sys.exit(str(e))

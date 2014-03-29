@@ -17,11 +17,11 @@
 """
 Upgrade RPKI SQL databases to schema expected by 0.5709.
 
-NB: This code is evaluated in the context of rpki-sql-update and has
-access to its global variables.
+This code is evaluated in the context of rpki-sql-setup's
+do_apply_upgrades() function and has access to its variables.
 """
 
-rpkid_db.execute("""
+db.cur.execute("""
     CREATE TABLE ee_cert (
             ee_cert_id              SERIAL NOT NULL,
             ski                     BINARY(20) NOT NULL,

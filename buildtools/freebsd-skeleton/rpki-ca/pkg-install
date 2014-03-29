@@ -29,8 +29,8 @@ POST-INSTALL)
     /usr/bin/install -o root -g wheel -d /usr/local/share/rpki/publication
     /usr/bin/install -o www  -g www   -d /usr/local/share/rpki/python-eggs
 
-    /usr/local/sbin/rpki-sql-setup
-    /usr/local/sbin/rpki-sql-upgrade --verbose
+    /usr/local/sbin/rpki-sql-setup --create-if-missing
+    /usr/local/sbin/rpki-sql-setup --apply-upgrades --verbose
     /usr/local/sbin/rpki-manage syncdb --noinput
     /usr/local/sbin/rpki-manage migrate app
 

@@ -20,8 +20,10 @@
 
 import os
 import sys
+import glob
 import getpass
 import argparse
+import datetime
 import rpki.config
 import rpki.version
 import rpki.autoconf
@@ -105,10 +107,13 @@ class UserDB(object):
     self.db.commit()
 
   def close(self):
-    self.db.commit()
-    self.db.close()
-    del self.db
-    del self.cur
+    if self.cur is not None:
+      self.cur.close()
+      self.cur = None
+    if self.db is not None:
+      self.db.commit()
+      self.db.close()
+      self.db = None
 
   @property
   def exists_and_accessible(self):
@@ -126,8 +131,8 @@ class UserDB(object):
   @property
   def version(self):
     try:
-      db.cur.execute("SELECT version FROM upgrade_version")
-      v = cur.fetchone()
+      self.cur.execute("SELECT version FROM upgrade_version")
+      v = self.cur.fetchone()
       return Version(None if v is None else v[0])
     except _mysql_exceptions.ProgrammingError, e:
       if e.args[0] != ER_NO_SUCH_TABLE:
@@ -248,13 +253,14 @@ def do_create_if_missing(name):
 def do_apply_upgrades(name):
   db = UserDB(name)
   if db.uses_upgrade_version:
+    db.open()
     log("Current version of %s is %s" % (db.name, db.version))
     for upgrade in sorted(Upgrade.load_all(name, args.upgrade_scripts)):
       if upgrade.version > db.version:
         upgrade.apply()
         db.version = upgrade.version
     db.version = current_version
-  db.close()
+    db.close()
 
 def log(text):
   if args.verbose:
@@ -307,4 +313,5 @@ try:
       args.dispatch(name)
   root.close()
 except Exception, e:
-  sys.exit(str(e))
+  #sys.exit(str(e))
+  raise

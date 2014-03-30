@@ -839,3 +839,14 @@ class main(Cmd):
     """
 
     print rpki.version.VERSION
+
+
+  @parsecmd(argsubparsers)
+  def do_list_self_handles(self, args):
+    """
+    List all <self/> handles in this rpkid instance.
+    """
+
+    for ca in rpki.irdb.ResourceHolderCA.objects.all():
+      print ca.handle
+

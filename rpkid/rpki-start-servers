@@ -42,6 +42,8 @@ parser.add_argument("-d", "--debug", action = "store_true",
                     help = "enable debugging")
 parser.add_argument("--logdir", default = ".",
                     help = "where to write write log files when debugging")
+parser.add_argument("--dont-apply-deferred-upgrades", action = "store_true",
+                    help = "don't apply deferred upgrade actions after starting daemons")
 args = parser.parse_args()
 
 cfg = rpki.config.parser(args.config, "myrpki")
@@ -74,3 +76,7 @@ if cfg.getboolean("start_pubd",  cfg.getboolean("run_pubd",  False)):
 
 if cfg.getboolean("start_rootd", cfg.getboolean("run_rootd", False)):
   run("rootd")
+
+if not args.dont_apply_deferred_upgrades:
+  os.execl(os.path.join(rpki.autoconf.sbindir, "rpki-sql-setup"),
+           "--apply-deferred-upgrades")

@@ -232,8 +232,9 @@ class Upgrade(object):
   def __cmp__(self, other):
     return cmp(self.version, other.version)
 
-  def apply(self):
-    log("Applying %s" % self.fn)
+  def apply(self, db):
+    # db is an argument here primarily so the script we exec can get at it
+    log("Applying %s to %s" % (self.fn, db.name))
     with open(self.fn, "r") as f:
       exec f
 
@@ -290,7 +291,7 @@ def do_apply_upgrades(name):
     log("Current version of %s is %s" % (db.name, db.version))
     for upgrade in upgrades:
       if upgrade.version > db.version:
-        upgrade.apply()
+        upgrade.apply(db)
         db.version = upgrade.version
     db.version = current_version
     db.close()

@@ -419,7 +419,7 @@ class Zookeeper(object):
 
     if self.run_rootd:
       try:
-        rootd = rpki.irdb.ResourceHolderCA.objects.get(handle = self.cfg.get("handle", section = myrpki_section)).rootd
+        rootd = rpki.irdb.ResourceHolderCA.objects.get(handle = self.handle).rootd
         writer(self.cfg.get("bpki-ta",         section = rootd_section), self.server_ca.certificate)
         writer(self.cfg.get("rootd-bpki-crl",  section = rootd_section), self.server_ca.latest_crl)
         writer(self.cfg.get("rootd-bpki-key",  section = rootd_section), rootd.private_key)
@@ -427,6 +427,8 @@ class Zookeeper(object):
         writer(self.cfg.get("child-bpki-cert", section = rootd_section), rootd.issuer.certificate)
       except rpki.irdb.ResourceHolderCA.DoesNotExist:
         self.log("rootd enabled but resource holding entity not yet configured, skipping rootd setup")
+      except rpki.irdb.Rootd.DoesNotExist:
+        self.log("rootd enabled but not yet configured, skipping rootd setup")
 
 
   @django.db.transaction.commit_on_success

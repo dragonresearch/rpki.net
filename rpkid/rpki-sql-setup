@@ -21,7 +21,6 @@
 import os
 import sys
 import glob
-import time
 import getpass
 import argparse
 import datetime
@@ -180,12 +179,12 @@ class UserDB(object):
     try:
       while True:
         self.cur.execute("SELECT id, script FROM deferred_upgrade ORDER BY id LIMIT 1")
-        row = cur.fetchone()
+        row = self.cur.fetchone()
         if row is None:
           break
         rowid, script = row
         yield script
-        self.cur.execute("DELETE FROM upgrade_version WHERE id = %s", (rowid,))
+        self.cur.execute("DELETE FROM deferred_upgrade WHERE id = %s", (rowid,))
         self.db.commit()
     except _mysql_exceptions.ProgrammingError, e:
       if e.args[0] != ER_NO_SUCH_TABLE:
@@ -300,9 +299,6 @@ def do_apply_deferred_upgrades(name):
   db = UserDB(name)
   db.open()
   for i, script in enumerate(db.deferred_upgrades):
-    if i == 0:
-      log("Pausing to let RPKI daemons start up")
-      time.sleep(10)
     log("Running deferred upgrade #%i for %s" % (i, name))
     exec script
   db.close()

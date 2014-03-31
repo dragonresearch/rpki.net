@@ -36,6 +36,9 @@ print """
 
 import subprocess, time
 
+print "Pausing to let RPKI daemons start up"
+time.sleep(10)
+
 handles = subprocess.check_output(("rpkic", "list_self_handles")).splitlines()
 
 for handle in handles:

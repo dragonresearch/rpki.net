@@ -40,6 +40,7 @@ print "Pausing to let RPKI daemons start up"
 time.sleep(10)
 
 def rpkic(cmd):
+  import subprocess
   subprocess.check_call(("rpkic", "-i", handle, cmd))
 
 handles = subprocess.check_output(("rpkic", "list_self_handles")).splitlines()

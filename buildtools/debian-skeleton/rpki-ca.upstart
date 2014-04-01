@@ -42,6 +42,8 @@ pre-start script
     fi
 end script
 
+post-start exec /usr/sbin/rpki-sql-setup --apply-deferred-upgrades
+
 post-stop script
     for i in rpkid pubd irdbd rootd
     do

@@ -17,6 +17,7 @@ rcvar=rpkica_enable
 required_files="/usr/local/etc/rpki.conf"
 
 start_cmd="rpkica_start"
+start_postcmd="rpkica_poststart"
 stop_cmd="rpkica_stop"
 
 load_rc_config $name
@@ -30,6 +31,11 @@ rpkica_start()
 	/usr/bin/install -m 755 -d $rpkica_pid_dir
 	/usr/local/sbin/rpki-start-servers
 	return 0
+}
+
+rpkica_poststart()
+{
+	/usr/local/sbin/rpki-sql-setup --apply-deferred-upgrades
 }
 
 rpkica_stop()

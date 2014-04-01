@@ -39,14 +39,27 @@ import subprocess, time
 print "Pausing to let RPKI daemons start up"
 time.sleep(10)
 
+def rpkic(cmd):
+  subprocess.check_call(("rpkic", "-i", handle, cmd))
+
 handles = subprocess.check_output(("rpkic", "list_self_handles")).splitlines()
 
 for handle in handles:
 
-  print "Forcing reissuance for", handle
-  subprocess.check_call(("rpkic", "-i", handle, "force_reissue"))
+  print "Processing", handle
 
-  print "Forcing publication for", handle
-  subprocess.check_call(("rpkic", "-i", handle, "force_publication"))
+  print "Asking parent to reissue with new key"
+  rpkic("up_down_rekey")
+
+  print "Asking parent to revoke old key"
+  rpkic("up_down_revoke")
+
+  print "Reissuing everything"
+  rpkic("force_reissue")
+
+  print "Forcing publication"
+  rpkic("force_publication")
+
+del rpkic
 
 ''')

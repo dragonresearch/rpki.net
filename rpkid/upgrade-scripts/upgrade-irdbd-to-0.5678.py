@@ -34,33 +34,32 @@ print """
         properly again.  Attempting to do this automatically...
 """
 
-import subprocess, time
+import time
+import os.path
+import subprocess
+import rpki.autoconf
+
+rpkic = os.path.join(rpki.autoconf.sbindir, "rpkic")
 
 print "Pausing to let RPKI daemons start up"
 time.sleep(10)
 
-def rpkic(cmd):
-  import subprocess
-  subprocess.check_call(("rpkic", "-i", handle, cmd))
-
-handles = subprocess.check_output(("rpkic", "list_self_handles")).splitlines()
+handles = subprocess.check_output((rpkic, "list_self_handles")).splitlines()
 
 for handle in handles:
 
   print "Processing", handle
 
   print "Asking parent to reissue with new key"
-  rpkic("up_down_rekey")
+  subprocess.check_call((rpkic, "-i", handle, "up_down_rekey"))
 
   print "Asking parent to revoke old key"
-  rpkic("up_down_revoke")
+  subprocess.check_call((rpkic, "-i", handle, "up_down_revoke"))
 
   print "Reissuing everything"
-  rpkic("force_reissue")
+  subprocess.check_call((rpkic, "-i", handle, "force_reissue"))
 
   print "Forcing publication"
-  rpkic("force_publication")
-
-del rpkic
+  subprocess.check_call((rpkic, "-i", handle, "force_publication"))
 
 ''')

@@ -34,8 +34,33 @@ print """
         properly again.  Attempting to do this automatically...
 """
 
+# General plan here:
+#
+# - Force parent to reissue, to whack SIA in cert issued to us.  Only
+#   mechanism available to us that will force this is an up-down
+#   rekey/revoke cycle, although it certainly seems that parent should
+#   reissue if we issue a new request with a different SIA.  Hmm.
+#   Investigate, but carry on for now.
+#
+# - Force reissuance of everything we've issued, to whack SIA and AIA
+#   of everything we're producing.
+#
+# - Do the revoke portion of the up-down rekey/revoke separately, to
+#   isolate the rest of this from errors caused by attmepting to
+#   withdraw certificates that might have already been withdrawn.
+#
+# - "Manually" (ie, Python code here) whack any all-numeric
+#   directories in our publication tree, as those are the ones that
+#   [5678] removed.
+#
+# - Force (re)publication of everything, just in case we accidently
+# - whacked something we still cared about.
+#
+# We include the occasional pause to let things settle between steps.
+
+import os
 import time
-import os.path
+import shutil
 import subprocess
 import rpki.autoconf
 
@@ -61,6 +86,19 @@ subprocess.check_call(argv)
 argv = [irbe_cli]
 for handle in handles:
   argv.extend(("self", "--self_handle", handle, "--action", "set", "--revoke"))
+subprocess.check_call(argv)
+
+deletions = []
+
+for root, dirs, files in os.walk(os.path.join(rpki.autoconf.datarootdir, "rpki", "publication")):
+  deletions.extend(os.path.join(root, d) for d in dirs if d.isdigit())
+
+for d in deletions:
+  shutil.rmtree(d, ignore_errors = True)
+
+argv = [irbe_cli]
+for handle in handles:
+  argv.extend(("self", "--self_handle", handle, "--action", "set", "--publish_world_now"))
 subprocess.check_call(argv)
 
 ''')

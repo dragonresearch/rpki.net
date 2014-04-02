@@ -87,10 +87,13 @@ subprocess.check_call(argv)
 
 time.sleep(5)
 
-argv = [irbe_cli]
+# Revoke can return failure when certificate being revoked has already
+# been withdrawn for other reasons.  This is harmless, except that it
+# causes batch mode irbe_cli to blow out without processing any other
+# revocations.  So we don't try to batch revocations.
+
 for handle in handles:
-  argv.extend(("self", "--self_handle", handle, "--action", "set", "--revoke"))
-subprocess.check_call(argv)
+  subprocess.check_call((irbe_cli, "self", "--self_handle", handle, "--action", "set", "--revoke"))
 
 deletions = []
 for top, dirs, files in os.walk(os.path.join(rpki.autoconf.datarootdir, "rpki", "publication")):

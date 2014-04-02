@@ -563,6 +563,11 @@ class ca_obj(rpki.sql.sql_persistent):
 
       else:
 
+        if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc_cert.cert_url.rsync():
+          rpki.log.debug("AIA changed: was %s now %s" % (ca_detail.ca_cert_uri, rc_cert.cert_url.rsync()))
+          ca_detail.ca_cert_uri = rc.cert_url.rsync()
+          ca_detail.sql_mark_dirty()
+
         if ca_detail.state in ("pending", "active"):
 
           if ca_detail.state == "pending":
@@ -585,16 +590,12 @@ class ca_obj(rpki.sql.sql_persistent):
               callback         = iterator,
               errback          = eb)
 
-        if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc.cert_url.rsync():
-          rpki.log.debug("AIA changed: was %s now %s" % (ca_detail.ca_cert_uri, rc.cert_url.rsync()))
-          ca_detail.ca_cert_uri = rc.cert_url.rsync()
-          ca_detail.sql_mark_dirty()
-
       iterator()
 
     def done():
       if cert_map:
-        rpki.log.warn("Unknown certificate SKI%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?"
+        rpki.log.warn("Unknown certificate SKI%s %s in resource class %s in list_response "
+                      "to %s from %s, maybe you want to \"revoke_forgotten\"?"
                       % ("" if len(cert_map) == 1 else "s",
                          ", ".join(c.cert.gSKI() for c in cert_map.values()),
                          rc.class_name, parent.self.self_handle, parent.parent_handle))
@@ -1831,6 +1832,10 @@ class roa_obj(rpki.sql.sql_persistent):
       rpki.log.debug("%r resources do not match EE, regenerating" % self)
       return self.regenerate(publisher = publisher, fast = fast)
 
+    if self.cert.get_AIA()[0] != ca_detail.ca_cert_uri:
+      rpki.log.debug("%r AIA changed, regenerating" % self)
+      return self.regenerate(publisher = publisher, fast = fast)
+
   def generate(self, publisher, fast = False):
     """
     Generate a ROA.
@@ -2065,6 +2070,10 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
 
     if rpki.sundial.now() > regen_time:
       rpki.log.debug("%r past threshold %s, regenerating" % (self, regen_time))
+      return self.regenerate(publisher = publisher, fast = fast)
+
+    if self.cert.get_AIA()[0] != self.ca_detail.ca_cert_uri:
+      rpki.log.debug("%r AIA changed, regenerating" % self)
       return self.regenerate(publisher = publisher, fast = fast)
 
   def generate(self, publisher, fast = False):
@@ -2356,6 +2365,11 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     if ca_detail != self.ca_detail:
       rpki.log.debug("ca_detail changed for %r: old %r new %r" % (
         self, self.ca_detail, ca_detail))
+      needed = True
+
+    if ca_detail.ca_cert_uri != old_cert.get_AIA()[0]:
+      rpki.log.debug("AIA changed for %r: old %s new %s" % (
+        self, old_cert.get_AIA()[0], ca_detail.ca_cert_uri))
       needed = True
 
     if resources.valid_until != old_resources.valid_until:

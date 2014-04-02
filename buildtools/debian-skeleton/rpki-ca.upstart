@@ -42,7 +42,10 @@ pre-start script
     fi
 end script
 
-post-start exec /usr/sbin/rpki-sql-setup --apply-deferred-upgrades
+post-start script
+    logger -is -t "$UPSTART_JOB" "Running deferred upgrades, this may take a little while"
+    /usr/sbin/rpki-sql-setup --apply-deferred-upgrades
+end script
 
 post-stop script
     for i in rpkid pubd irdbd rootd

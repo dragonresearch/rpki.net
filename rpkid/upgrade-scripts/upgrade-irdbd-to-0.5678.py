@@ -41,25 +41,28 @@ import rpki.autoconf
 
 rpkic = os.path.join(rpki.autoconf.sbindir, "rpkic")
 
-print "Pausing to let RPKI daemons start up"
-time.sleep(10)
-
 handles = subprocess.check_output((rpkic, "list_self_handles")).splitlines()
 
-for handle in handles:
+for i in (1, 2):
 
-  print "Processing", handle
+  print "Pass #%d" % i 
+  time.sleep(10)
 
-  print "Asking parent to reissue with new key"
-  subprocess.check_call((rpkic, "-i", handle, "up_down_rekey"))
+  for h in handles:
 
-  print "Asking parent to revoke old key"
-  subprocess.check_call((rpkic, "-i", handle, "up_down_revoke"))
+    print "Processing", h
 
-  print "Reissuing everything"
-  subprocess.check_call((rpkic, "-i", handle, "force_reissue"))
+    print "Asking parent to reissue with new key"
+    subprocess.check_call((rpkic, "-i", h, "up_down_rekey"))
 
-  print "Forcing publication"
-  subprocess.check_call((rpkic, "-i", handle, "force_publication"))
+    print "Asking parent to revoke old key"
+    subprocess.check_call((rpkic, "-i", h, "up_down_revoke"))
+    time.sleep(10)
+
+    print "Reissuing everything"
+    subprocess.check_call((rpkic, "-i", h, "force_reissue"))
+
+    print "Forcing publication"
+    subprocess.check_call((rpkic, "-i", h, "force_publication"))
 
 ''')

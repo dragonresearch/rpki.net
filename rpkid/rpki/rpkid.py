@@ -1434,7 +1434,12 @@ class child_cert_obj(rpki.sql.sql_persistent):
     ("published", rpki.sundial.datetime))
 
   def __repr__(self):
-    return rpki.log.log_repr(self, self.uri)
+    args = [self]
+    try:
+      args.append(self.uri)
+    except:
+      pass
+    return rpki.log.log_repr(*args)
 
   def __init__(self, gctx = None, child_id = None, ca_detail_id = None, cert = None):
     """

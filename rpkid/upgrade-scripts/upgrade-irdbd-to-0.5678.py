@@ -93,8 +93,8 @@ for handle in handles:
 subprocess.check_call(argv)
 
 deletions = []
-for root, dirs, files in os.walk(os.path.join(rpki.autoconf.datarootdir, "rpki", "publication")):
-  deletions.extend(os.path.join(root, d) for d in dirs if d.isdigit())
+for top, dirs, files in os.walk(os.path.join(rpki.autoconf.datarootdir, "rpki", "publication")):
+  deletions.extend(os.path.join(top, d) for d in dirs if d.isdigit())
 for d in deletions:
   shutil.rmtree(d, ignore_errors = True)
 

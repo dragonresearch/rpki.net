@@ -41,25 +41,23 @@ import rpki.autoconf
 
 time.sleep(10)
 
-rpkic = os.path.join(rpki.autoconf.sbindir, "rpkic")
+rpkic    = os.path.join(rpki.autoconf.sbindir, "rpkic")
+irbe_cli = os.path.join(rpki.autoconf.sbindir, "irbe_cli")
 
 handles = subprocess.check_output((rpkic, "list_self_handles")).splitlines()
 
+argv = [irbe_cli]
 for handle in handles:
+  argv.extend(("self", "--self_id", handle, "--action", "set",
+               "--rekey", "--reissue", "--run_now"))
+subprocess.check_call(argv)
 
-  print "Processing", handle
+time.sleep(10)
 
-  print "Asking parent to reissue with new key"
-  subprocess.check_call((rpkic, "-i", handle, "up_down_rekey"))
-
-  print "Asking parent to revoke old key"
-  subprocess.check_call((rpkic, "-i", handle, "up_down_revoke"))
-  time.sleep(10)
-
-  print "Reissuing everything"
-  subprocess.check_call((rpkic, "-i", handle, "force_reissue"))
-
-  print "Forcing publication"
-  subprocess.check_call((rpkic, "-i", handle, "force_publication"))
+argv = [irbe_cli]
+for handle in handles:
+  argv.extend(("self", "--self_id", handle, "--action", "set",
+               "--revoke", "--reissue", "--run_now", "--publish_world_now"))
+subprocess.check_call(argv)
 
 ''')

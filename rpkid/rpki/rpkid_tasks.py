@@ -274,6 +274,8 @@ class UpdateChildrenTask(AbstractTask):
         if ca_detail.state == "active":
           old_resources = child_cert.cert.get_3779resources()
           new_resources = old_resources & irdb_resources & ca_detail.latest_ca_cert.get_3779resources()
+          old_aia = child_cert.cert.get_AIA()
+          new_aia = ca_detail.ca_cert_uri
 
           if new_resources.empty():
             rpki.log.debug("Resources shrank to the null set, "
@@ -283,9 +285,11 @@ class UpdateChildrenTask(AbstractTask):
             ca_detail.generate_crl(publisher = self.publisher)
             ca_detail.generate_manifest(publisher = self.publisher)
 
-          elif old_resources != new_resources or (old_resources.valid_until < self.rsn and
-                                                  irdb_resources.valid_until > self.now and
-                                                  old_resources.valid_until != irdb_resources.valid_until):
+          elif (old_resources != new_resources or
+                old_aia != new_aia or
+                (old_resources.valid_until < self.rsn and
+                 irdb_resources.valid_until > self.now and
+                 old_resources.valid_until != irdb_resources.valid_until)):
 
             rpki.log.debug("Need to reissue child %s certificate SKI %s" % (
               self.child.child_handle, child_cert.cert.gSKI()))

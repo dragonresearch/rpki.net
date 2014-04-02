@@ -540,6 +540,7 @@ class ca_obj(rpki.sql.sql_persistent):
     sia_uri = self.construct_sia_uri(parent, rc)
     sia_uri_changed = self.sia_uri != sia_uri
     if sia_uri_changed:
+      rpki.log.debug("SIA changed: was %s now %s" % (self.sia_uri, sia_uri))
       self.sia_uri = sia_uri
       self.sql_mark_dirty()
 
@@ -583,6 +584,11 @@ class ca_obj(rpki.sql.sql_persistent):
               old_resources    = current_resources,
               callback         = iterator,
               errback          = eb)
+
+        if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc.cert_url.rsync():
+          rpki.log.debug("AIA changed: was %s now %s" % (ca_detail.ca_cert_uri, rc.cert_url.rsync()))
+          ca_detail.ca_cert_uri = rc.cert_url.rsync()
+          ca_detail.sql_mark_dirty()
 
       iterator()
 
@@ -1526,6 +1532,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
 
     old_resources = self.cert.get_3779resources()
     old_sia       = self.cert.get_SIA()
+    old_aia       = self.cert.get_AIA()
     old_ca_detail = self.ca_detail
 
     needed = False
@@ -1543,7 +1550,8 @@ class child_cert_obj(rpki.sql.sql_persistent):
       needed = True
 
     if resources.valid_until != old_resources.valid_until:
-      rpki.log.debug("Validity changed for %r: old %s new %s" % (self, old_resources.valid_until, resources.valid_until))
+      rpki.log.debug("Validity changed for %r: old %s new %s" % (
+        self, old_resources.valid_until, resources.valid_until))
       needed = True
 
     if sia != old_sia:
@@ -1552,6 +1560,10 @@ class child_cert_obj(rpki.sql.sql_persistent):
 
     if ca_detail != old_ca_detail:
       rpki.log.debug("Issuer changed for %r %s: old %r new %r" % (self, self.uri, old_ca_detail, ca_detail))
+      needed = True
+
+    if ca_detail.ca_cert_uri != old_aia:
+      rpki.log.debug("AIA changed for %r %s: old %r new %r" % (self, self.uri, old_aia, ca_detail.ca_cert_uri))
       needed = True
 
     must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until

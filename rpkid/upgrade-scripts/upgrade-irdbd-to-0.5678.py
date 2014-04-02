@@ -48,16 +48,19 @@ handles = subprocess.check_output((rpkic, "list_self_handles")).splitlines()
 
 argv = [irbe_cli]
 for handle in handles:
-  argv.extend(("self", "--self_handle", handle, "--action", "set",
-               "--rekey", "--reissue", "--run_now"))
+  argv.extend(("self", "--self_handle", handle, "--action", "set", "--rekey"))
 subprocess.check_call(argv)
 
 time.sleep(10)
 
 argv = [irbe_cli]
 for handle in handles:
-  argv.extend(("self", "--self_handle", handle, "--action", "set",
-               "--revoke", "--reissue", "--run_now", "--publish_world_now"))
+  argv.extend(("self", "--self_handle", handle, "--action", "set", "--reissue", "--run_now", "--publish_world_now"))
+subprocess.check_call(argv)
+
+argv = [irbe_cli]
+for handle in handles:
+  argv.extend(("self", "--self_handle", handle, "--action", "set", "--revoke"))
 subprocess.check_call(argv)
 
 ''')

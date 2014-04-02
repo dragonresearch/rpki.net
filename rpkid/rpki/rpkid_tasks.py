@@ -274,7 +274,7 @@ class UpdateChildrenTask(AbstractTask):
         if ca_detail.state == "active":
           old_resources = child_cert.cert.get_3779resources()
           new_resources = old_resources & irdb_resources & ca_detail.latest_ca_cert.get_3779resources()
-          old_aia = child_cert.cert.get_AIA()
+          old_aia = child_cert.cert.get_AIA()[0]
           new_aia = ca_detail.ca_cert_uri
 
           if new_resources.empty():

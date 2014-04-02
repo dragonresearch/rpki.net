@@ -598,6 +598,7 @@ class ca_obj(rpki.sql.sql_persistent):
                       % ("" if len(cert_map) == 1 else "s",
                          ", ".join(c.cert.gSKI() for c in cert_map.values()),
                          rc.class_name, parent.self.self_handle, parent.parent_handle))
+      self.gctx.sql.sweep()
       self.gctx.checkpoint()
       cb()
 
@@ -1532,7 +1533,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
 
     old_resources = self.cert.get_3779resources()
     old_sia       = self.cert.get_SIA()
-    old_aia       = self.cert.get_AIA()
+    old_aia       = self.cert.get_AIA()[0]
     old_ca_detail = self.ca_detail
 
     needed = False
@@ -1559,11 +1560,11 @@ class child_cert_obj(rpki.sql.sql_persistent):
       needed = True
 
     if ca_detail != old_ca_detail:
-      rpki.log.debug("Issuer changed for %r %s: old %r new %r" % (self, self.uri, old_ca_detail, ca_detail))
+      rpki.log.debug("Issuer changed for %r: old %r new %r" % (self, old_ca_detail, ca_detail))
       needed = True
 
     if ca_detail.ca_cert_uri != old_aia:
-      rpki.log.debug("AIA changed for %r %s: old %r new %r" % (self, self.uri, old_aia, ca_detail.ca_cert_uri))
+      rpki.log.debug("AIA changed for %r: old %r new %r" % (self, old_aia, ca_detail.ca_cert_uri))
       needed = True
 
     must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until

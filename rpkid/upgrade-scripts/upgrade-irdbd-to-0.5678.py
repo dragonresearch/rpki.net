@@ -80,8 +80,12 @@ time.sleep(10)
 
 argv = [irbe_cli]
 for handle in handles:
-  argv.extend(("self", "--self_handle", handle, "--action", "set", "--reissue", "--run_now", "--publish_world_now"))
+  argv.extend(("self", "--self_handle", handle, "--action", "set", "--reissue"))
+# Run this twice
 subprocess.check_call(argv)
+subprocess.check_call(argv)
+
+time.sleep(5)
 
 argv = [irbe_cli]
 for handle in handles:
@@ -89,10 +93,8 @@ for handle in handles:
 subprocess.check_call(argv)
 
 deletions = []
-
 for root, dirs, files in os.walk(os.path.join(rpki.autoconf.datarootdir, "rpki", "publication")):
   deletions.extend(os.path.join(root, d) for d in dirs if d.isdigit())
-
 for d in deletions:
   shutil.rmtree(d, ignore_errors = True)
 

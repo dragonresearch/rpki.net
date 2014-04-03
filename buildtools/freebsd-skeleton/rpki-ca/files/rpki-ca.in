@@ -17,7 +17,6 @@ rcvar=rpkica_enable
 required_files="/usr/local/etc/rpki.conf"
 
 start_cmd="rpkica_start"
-start_postcmd="rpkica_poststart"
 stop_cmd="rpkica_stop"
 
 load_rc_config $name

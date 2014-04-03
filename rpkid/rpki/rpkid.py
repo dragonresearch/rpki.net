@@ -565,7 +565,7 @@ class ca_obj(rpki.sql.sql_persistent):
 
         if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc_cert.cert_url.rsync():
           rpki.log.debug("AIA changed: was %s now %s" % (ca_detail.ca_cert_uri, rc_cert.cert_url.rsync()))
-          ca_detail.ca_cert_uri = rc.cert_url.rsync()
+          ca_detail.ca_cert_uri = rc_cert.cert_url.rsync()
           ca_detail.sql_mark_dirty()
 
         if ca_detail.state in ("pending", "active"):

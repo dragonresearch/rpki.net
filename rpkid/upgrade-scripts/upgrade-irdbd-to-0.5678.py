@@ -36,18 +36,8 @@ print """
 
 # General plan here:
 #
-# - Force parent to reissue, to whack SIA in cert issued to us.  Only
-#   mechanism available to us that will force this is an up-down
-#   rekey/revoke cycle, although it certainly seems that parent should
-#   reissue if we issue a new request with a different SIA.  Hmm.
-#   Investigate, but carry on for now.
-#
 # - Force reissuance of everything we've issued, to whack SIA and AIA
 #   of everything we're producing.
-#
-# - Do the revoke portion of the up-down rekey/revoke separately, to
-#   isolate the rest of this from errors caused by attmepting to
-#   withdraw certificates that might have already been withdrawn.
 #
 # - "Manually" (ie, Python code here) whack any all-numeric
 #   directories in our publication tree, as those are the ones that
@@ -73,32 +63,15 @@ handles = subprocess.check_output((rpkic, "list_self_handles")).splitlines()
 
 argv = [irbe_cli]
 for handle in handles:
-  argv.extend(("self", "--self_handle", handle, "--action", "set", "--rekey"))
-subprocess.check_call(argv)
-
-time.sleep(10)
-
-argv = [irbe_cli]
-for handle in handles:
   argv.extend(("self", "--self_handle", handle, "--action", "set", "--reissue"))
 # Run this twice
 subprocess.check_call(argv)
 subprocess.check_call(argv)
 
-time.sleep(5)
-
-# Revoke can return failure when certificate being revoked has already
-# been withdrawn for other reasons.  This is harmless, except that it
-# causes batch mode irbe_cli to blow out without processing any other
-# revocations.  So we don't try to batch revocations.
-
-for handle in handles:
-  subprocess.check_call((irbe_cli, "self", "--self_handle", handle, "--action", "set", "--revoke"))
-
-deletions = []
-for top, dirs, files in os.walk(os.path.join(rpki.autoconf.datarootdir, "rpki", "publication")):
-  deletions.extend(os.path.join(top, d) for d in dirs if d.isdigit())
-for d in deletions:
+for d in [os.path.join(top, d)
+          for top, dirs, files in os.walk(os.path.join(rpki.autoconf.datarootdir, "rpki", "publication"))
+          for d in dirs
+          if d.isdigit()]:
   shutil.rmtree(d, ignore_errors = True)
 
 argv = [irbe_cli]

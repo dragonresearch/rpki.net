@@ -73,11 +73,10 @@ class UserDB(object):
   """
   Class to wrap MySQL access parameters for a particular database.
 
-  NB: The SQL definitions for the upgrade_version and deferred_upgrade
-  tables are embedded in this class rather than being declared in any
-  of the .sql files.  This is deliberate: nothing but the upgrade
-  system should ever touch these tables, and it's simpler to keep
-  everything in one place.
+  NB: The SQL definitions for the upgrade_version table is embedded in
+  this class rather than being declared in any of the .sql files.
+  This is deliberate: nothing but the upgrade system should ever touch
+  this table, and it's simpler to keep everything in one place.
 
   We have to be careful about SQL commits here, because CREATE TABLE
   implies an automatic commit.  So presence of the magic table per se
@@ -88,15 +87,6 @@ class UserDB(object):
     CREATE TABLE upgrade_version (
       version   TEXT NOT NULL,
       updated   DATETIME NOT NULL
-    ) ENGINE=InnoDB
-    """
-
-  deferred_upgrade_table_schema = """
-    CREATE TABLE deferred_upgrade (
-      id        SERIAL NOT NULL,
-      script    TEXT NOT NULL,
-      added     DATETIME NOT NULL,
-      version   TEXT
     ) ENGINE=InnoDB
     """
 
@@ -160,35 +150,6 @@ class UserDB(object):
       if line and not line.startswith("--"):
         lines.append(line)
     return [statement.strip() for statement in " ".join(lines).rstrip(";").split(";") if statement.strip()]
-
-  def add_deferred_upgrade(self, script, version = None):
-    insert = "INSERT deferred_upgrade (script, added, version) VALUES (%s, %s, %s)"
-    values = (script, datetime.datetime.now(), version)
-    try:
-      self.cur.execute(insert, values)
-    except _mysql_exceptions.ProgrammingError, e:
-      if e.args[0] != ER_NO_SUCH_TABLE:
-        raise
-      log("Creating deferred_upgrade table in %s" % self.name)
-      self.cur.execute(self.deferred_upgrade_table_schema)
-      self.cur.execute(insert, values)
-    self.db.commit()
-
-  @property
-  def deferred_upgrades(self):
-    try:
-      while True:
-        self.cur.execute("SELECT id, script FROM deferred_upgrade ORDER BY id LIMIT 1")
-        row = self.cur.fetchone()
-        if row is None:
-          break
-        rowid, script = row
-        yield script
-        self.cur.execute("DELETE FROM deferred_upgrade WHERE id = %s", (rowid,))
-        self.db.commit()
-    except _mysql_exceptions.ProgrammingError, e:
-      if e.args[0] != ER_NO_SUCH_TABLE:
-        raise
 
 
 class Version(object):
@@ -295,14 +256,6 @@ def do_apply_upgrades(name):
     db.version = current_version
     db.close()
 
-def do_apply_deferred_upgrades(name):
-  db = UserDB(name)
-  db.open()
-  for i, script in enumerate(db.deferred_upgrades):
-    log("Running deferred upgrade #%i for %s" % (i, name))
-    exec script
-  db.close()
-
 def log(text):
   if args.verbose:
     print "#", text
@@ -342,9 +295,6 @@ group.add_argument("--create-if-missing",
 group.add_argument("--apply-upgrades",
                    action = "store_const", dest = "dispatch", const = do_apply_upgrades,
                    help = "apply upgrade scripts to existing databases")
-group.add_argument("--apply-deferred-upgrades",
-                   action = "store_const", dest = "dispatch", const = do_apply_deferred_upgrades,
-                   help = "apply upgrade scripts that were deferred until daemon startup")
 parser.set_defaults(dispatch = do_create_if_missing)
 args = parser.parse_args()
 

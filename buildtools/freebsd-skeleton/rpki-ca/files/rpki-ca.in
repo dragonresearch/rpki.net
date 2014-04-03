@@ -33,11 +33,6 @@ rpkica_start()
 	return 0
 }
 
-rpkica_poststart()
-{
-	/usr/local/sbin/rpki-sql-setup --apply-deferred-upgrades
-}
-
 rpkica_stop()
 {
 	for i in rpkid pubd irdbd rootd

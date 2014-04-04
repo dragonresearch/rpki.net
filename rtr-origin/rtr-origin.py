@@ -40,6 +40,8 @@ import traceback
 import getopt
 import bisect
 import random
+import base64
+
 
 # Debugging only, should be False in production
 disable_incrementals = False
@@ -310,7 +312,8 @@ class pdu_with_serial(pdu):
     Generate the wire format PDU.
     """
     if self._pdu is None:
-      self._pdu = self.header_struct.pack(self.version, self.pdu_type, self.nonce, self.header_struct.size, self.serial)
+      self._pdu = self.header_struct.pack(self.version, self.pdu_type, self.nonce,
+                                          self.header_struct.size, self.serial)
     return self._pdu
 
   def got_pdu(self, reader):
@@ -538,7 +541,8 @@ class prefix(pdu):
     
   def __str__(self):
     plm = "%s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen)
-    return "%s %8s  %-32s %s" % ("+" if self.announce else "-", self.asn, plm, ":".join(("%02X" % ord(b) for b in self.to_pdu())))
+    return "%s %8s  %-32s %s" % ("+" if self.announce else "-", self.asn, plm,
+                                 ":".join(("%02X" % ord(b) for b in self.to_pdu())))
 
   def show(self):
     blather("# Class:        %s" % self.__class__.__name__)
@@ -660,6 +664,86 @@ class ipv6_prefix(prefix):
   pdu_type = 6
   addr_type = v6addr
 
+class router_key(pdu):
+  """
+  Router Key PDU.
+  """
+
+  pdu_type = 9
+
+  header_struct = struct.Struct("!BBBxL20sL")
+
+  @classmethod
+  def from_text(cls, asnum, gski, key):
+    """
+    Construct a router key from its text form.
+    """
+
+    self = cls()
+    self.asn = long(asnum)
+    self.ski = base64.urlsafe_b64decode(gski + "=")
+    self.key = base64.b64decode(key)
+    self.announce = 1
+    self.check()
+    return self
+
+  def __str__(self):
+    return "%s %8s  %-32s %s" % ("+" if self.announce else "-", self.asn,
+                                 base64.urlsafe_b64encode(self.ski).rstrip("="),
+                                 ":".join(("%02X" % ord(b) for b in self.to_pdu())))
+
+  def consume(self, client):
+    """
+    Handle one incoming Router Key PDU
+    """
+
+    blather(self)
+    client.consume_routerkey(self)
+
+  def check(self):
+    """
+    Check attributes to make sure they're within range.
+    """
+
+    if self.announce not in (0, 1):
+      raise CorruptData("Announce value %d is neither zero nor one" % self.announce, pdu = self)
+    if len(self.ski) != 20:
+      raise CorruptData("Implausible SKI length %d" % len(self.ski), pdu = self)
+    pdulen = self.header_struct.size + len(self.key)
+    if len(self.to_pdu()) != pdulen:
+      raise CorruptData("Expected %d byte PDU, got %d" % (pdulen, len(self.to_pdu())), pdu = self)
+
+  def to_pdu(self, announce = None):
+    if announce is not None:
+      assert announce in (0, 1)
+    elif self._pdu is not None:
+      return self._pdu
+    pdulen = self.header_struct.size + len(self.key)
+    pdu = (self.header_struct.pack(self.version,
+                                   self.pdu_type, 
+                                   announce if announce is not None else self.announce,
+                                   pdulen,
+                                   self.ski,
+                                   self.asn)
+           + self.key)
+    if announce is None:
+      assert self._pdu is None
+      self._pdu = pdu
+    return pdu
+
+  def got_pdu(self, reader):
+    if not reader.ready():
+      return None
+    header = reader.get(self.header_struct.size)
+    version, pdu_type, self.announce, length, self.ski, self.asn = self.header_struct.unpack(header)
+    remaining = length - self.header_struct.size
+    if remaining <= 0:
+      raise CorruptData("Got PDU length %d, minimum is %d" % (length, self.header_struct.size + 1), pdu = self)
+    self.key = reader.get(remaining)
+    assert header + self.key == self.to_pdu()
+    return self
+
+
 class error_report(pdu):
   """
   Error Report PDU.
@@ -736,7 +820,10 @@ class error_report(pdu):
     if length != self.header_struct.size + self.string_struct.size * 2 + self.pdulen + self.errlen:
       raise CorruptData("Got PDU length %d, expected %d" % (
         length, self.header_struct.size + self.string_struct.size * 2 + self.pdulen + self.errlen))
-    assert header + self.to_counted_string(self.errpdu) + self.to_counted_string(self.errmsg.encode("utf8")) == self.to_pdu()
+    assert (header
+            + self.to_counted_string(self.errpdu)
+            + self.to_counted_string(self.errmsg.encode("utf8"))
+            == self.to_pdu())
     return self
 
   def serve(self, server):
@@ -750,19 +837,19 @@ class error_report(pdu):
       sys.exit(1)
 
 pdu.pdu_map = dict((p.pdu_type, p) for p in (ipv4_prefix, ipv6_prefix, serial_notify, serial_query, reset_query,
-                                             cache_response, end_of_data, cache_reset, error_report))
+                                             cache_response, end_of_data, cache_reset, router_key, error_report))
 
-class prefix_set(list):
+class pdu_set(list):
   """
-  Object representing a set of prefixes, that is, one versioned and
-  (theoretically) consistant set of prefixes extracted from rcynic's
-  output.
+  Object representing a set of PDUs, that is, one versioned and
+  (theoretically) consistant set of prefixes and router keys extracted
+  from rcynic's output.
   """
 
   @classmethod
   def _load_file(cls, filename):
     """
-    Low-level method to read prefix_set from a file.
+    Low-level method to read pdu_set from a file.
     """
     self = cls()
     f = open(filename, "rb")
@@ -783,28 +870,27 @@ class prefix_set(list):
     return ((a - b) % (1 << 32)) < (1 << 31)
 
 
-class axfr_set(prefix_set):
+class axfr_set(pdu_set):
   """
-  Object representing a complete set of prefixes, that is, one
-  versioned and (theoretically) consistant set of prefixes extracted
-  from rcynic's output, all with the announce field set.
+  Object representing a complete set of PDUs, that is, one versioned
+  and (theoretically) consistant set of prefixes and router
+  certificates extracted from rcynic's output, all with the announce
+  field set.
   """
-
-  xargs_count = 500
 
   @classmethod
   def parse_rcynic(cls, rcynic_dir):
     """
-    Parse ROAS fetched (and validated!) by rcynic to create a new
-    axfr_set.  We use the scan_roas utility to parse the ASN.1.  We
-    used to parse ROAs internally, but that made this program depend
-    on all of the complex stuff for building Python extensions, which
-    is way over the top for a relying party tool.
-
+    Parse ROAS and router certificates fetched (and validated!) by
+    rcynic to create a new axfr_set.  We use the scan_roas and
+    scan_routercerts utilities to parse the ASN.1, although we may go
+    back to parsing the files directly using the rpki.POW library code
+    some day.
     """
+
     self = cls()
     self.serial = timestamp.now()
-    roa_files = []
+
     try:
       p = subprocess.Popen((scan_roas, rcynic_dir), stdout = subprocess.PIPE)
       for line in p.stdout:
@@ -813,6 +899,24 @@ class axfr_set(prefix_set):
         self.extend(prefix.from_text(asn, addr) for addr in line[2:])
     except OSError, e:
       sys.exit("Could not run %s, check your $PATH variable? (%s)" % (scan_roas, e))
+
+    try:
+      p = subprocess.Popen((scan_routercerts, rcynic_dir), stdout = subprocess.PIPE)
+      for line in p.stdout:
+        line = line.split()
+        gski = line[0]
+        key  = line[-1]
+
+        # XXX
+        if False:
+          print "++ Got:   ", line
+          print "++ g(SKI):", gski
+          print "++ key:   ", key
+
+        self.extend(router_key.from_text(asn, gski, key) for asn in line[1:-1])
+    except OSError, e:
+      sys.exit("Could not run %s, check your $PATH variable? (%s)" % (scan_routercerts, e))
+
     self.sort()
     for i in xrange(len(self) - 2, -1, -1):
       if self[i] == self[i + 1]:
@@ -885,7 +989,7 @@ class axfr_set(prefix_set):
   def save_ixfr(self, other):
     """
     Comparing this axfr_set with an older one and write the resulting
-    ixfr_set to file with magic filename.  Since we store prefix_sets
+    ixfr_set to file with magic filename.  Since we store pdu_sets
     in sorted order, computing the difference is a trivial linear
     comparison.
     """
@@ -965,12 +1069,13 @@ class axfr_set(prefix_set):
           del self[i]
       self.serial = pfx.timestamp
 
-class ixfr_set(prefix_set):
+class ixfr_set(pdu_set):
   """
-  Object representing an incremental set of prefixes, that is, the
+  Object representing an incremental set of PDUs, that is, the
   differences between one versioned and (theoretically) consistant set
-  of prefixes extracted from rcynic's output and another, with the
-  announce fields set or cleared as necessary to indicate the changes.
+  of prefixes and router certificates extracted from rcynic's output
+  and another, with the announce fields set or cleared as necessary to
+  indicate the changes.
   """
 
   @classmethod
@@ -1355,6 +1460,19 @@ class client_channel(pdu_channel):
                 prefixlen       INTEGER NOT NULL,
                 max_prefixlen   INTEGER NOT NULL,
                 UNIQUE          (cache_id, asn, prefix, prefixlen, max_prefixlen))''')
+
+      cur.execute('''
+        CREATE TABLE routerkey (
+                cache_id        INTEGER NOT NULL
+                                REFERENCES cache(cache_id)
+                                ON DELETE CASCADE
+                                ON UPDATE CASCADE,
+                asn             INTEGER NOT NULL,
+                ski             TEXT NOT NULL,
+                key             TEXT NOT NULL,
+                UNIQUE          (cache_id, asn, ski),
+                UNIQUE          (cache_id, asn, key))''')
+
     cur.execute("SELECT cache_id, nonce, serial FROM cache WHERE host = ? AND port = ?",
                 (self.host, self.port))
     try:
@@ -1392,12 +1510,33 @@ class client_channel(pdu_channel):
     if self.sql:
       values = (self.cache_id, prefix.asn, str(prefix.prefix), prefix.prefixlen, prefix.max_prefixlen)
       if prefix.announce:
-        self.sql.execute("INSERT INTO prefix (cache_id, asn, prefix, prefixlen, max_prefixlen) VALUES (?, ?, ?, ?, ?)",
+        self.sql.execute("INSERT INTO prefix (cache_id, asn, prefix, prefixlen, max_prefixlen) "
+                         "VALUES (?, ?, ?, ?, ?)",
                          values)
       else:
         self.sql.execute("DELETE FROM prefix "
                          "WHERE cache_id = ? AND asn = ? AND prefix = ? AND prefixlen = ? AND max_prefixlen = ?",
                          values)
+
+
+  def consume_routerkey(self, routerkey):
+    """
+    Handle one Router Key PDU.
+    """
+
+    if self.sql:
+      values = (self.cache_id, routerkey.asn,
+                base64.urlsafe_b64encode(routerkey.ski).rstrip("="),
+                base64.b64encode(routerkey.key))
+      if routerkey.announce:
+        self.sql.execute("INSERT INTO routerkey (cache_id, asn, ski, key) "
+                         "VALUES (?, ?, ?, ?)",
+                         values)
+      else:
+        self.sql.execute("DELETE FROM routerkey "
+                         "WHERE cache_id = ? AND asn = ? AND (ski = ? OR key = ?)",
+                         values)
+
 
   def deliver_pdu(self, pdu):
     """
@@ -2039,6 +2178,17 @@ except NameError:
 # If that didn't work, use $PATH and hope for the best
 if not os.path.exists(scan_roas):
   scan_roas = "scan_roas"
+
+# Same thing for scan_routercerts
+try:
+  # Set from autoconf
+  scan_routercerts = ac_scan_routercerts
+except NameError:
+  # Source directory
+  scan_routercerts = os.path.normpath(os.path.join(sys.path[0], "..", "utils",
+                                                   "scan_routercerts", "scan_routercerts"))
+if not os.path.exists(scan_routercerts):
+  scan_routercerts = "scan_routercerts"
 
 force_zero_nonce = False
 

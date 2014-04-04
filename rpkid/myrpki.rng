@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 5683 2014-02-25 23:04:11Z sra $
+  $Id: myrpki.rnc 5746 2014-04-04 02:00:06Z sra $
   
-  RelaxNG Schema for MyRPKI XML messages.
+  RelaxNG schema for MyRPKI XML messages.
   
   This message protocol is on its way out, as we're in the process of
   moving on from the user interface model that produced it, but even

@@ -6,40 +6,26 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 5683 2014-02-25 23:04:11Z sra $
+  $Id: left-right-schema.rnc 5746 2014-04-04 02:00:06Z sra $
   
-  RelaxNG Schema for RPKI left-right protocol.
+  RelaxNG schema for RPKI left-right protocol.
   
-  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
-  run the compact syntax through trang to get XML syntax.
-  
-  Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
-  
-  Permission to use, copy, modify, and distribute this software for any
-  purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
-  
-  THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-  AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-  PERFORMANCE OF THIS SOFTWARE.
-  
-  Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
+  Copyright (C) 2012- -2014  Dragon Research Labs ("DRL")
+  Portions copyright (C) 2009- -2011  Internet Systems Consortium ("ISC")
+  Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
+  copyright notices and this permission notice appear in all copies.
   
-  THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-  AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-  PERFORMANCE OF THIS SOFTWARE.
+  THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+  WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+  ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+  CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+  OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+  NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+  WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 -->
 <grammar ns="http://www.hactrn.net/uris/rpki/left-right-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <!-- Top level PDU -->
@@ -1113,13 +1099,42 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
 ## Parsed RelaxNG up_down schema
 up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rnc 3913 2011-07-01 17:04:18Z sra $
+  $Id: up-down-schema.rnc 5746 2014-04-04 02:00:06Z sra $
   
-  RelaxNG Scheme for up-down protocol, extracted from
-  draft-ietf-sidr-rescerts-provisioning-10.txt.
+  RelaxNG schema for the up-down protocol, extracted from RFC 6492.
   
-  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
-  run the compact syntax through trang to get XML syntax.
+  Copyright (c) 2012 IETF Trust and the persons identified as authors
+  of the code.  All rights reserved.
+  
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+  
+  · Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+  
+  · Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in
+    the documentation and/or other materials provided with the
+    distribution.
+  
+  · Neither the name of Internet Society, IETF or IETF Trust, nor the
+    names of specific contributors, may be used to endorse or promote
+    products derived from this software without specific prior written
+    permission.
+  
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  “AS IS” AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  POSSIBILITY OF SUCH DAMAGE.
 -->
 <grammar ns="http://www.apnic.net/specs/rescerts/up-down/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <define name="resource_set_as">
@@ -1365,40 +1380,26 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encod
 ## Parsed RelaxNG publication schema
 publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 5683 2014-02-25 23:04:11Z sra $
+  $Id: publication-schema.rnc 5746 2014-04-04 02:00:06Z sra $
   
-  RelaxNG Schema for RPKI publication protocol.
+  RelaxNG schema for RPKI publication protocol.
   
-  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
-  run the compact syntax through trang to get XML syntax.
-  
-  Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
-  
-  Permission to use, copy, modify, and distribute this software for any
-  purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
-  
-  THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-  AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-  PERFORMANCE OF THIS SOFTWARE.
-  
-  Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
+  Copyright (C) 2012- -2014  Dragon Research Labs ("DRL")
+  Portions copyright (C) 2009- -2011  Internet Systems Consortium ("ISC")
+  Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
+  copyright notices and this permission notice appear in all copies.
   
-  THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-  AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-  PERFORMANCE OF THIS SOFTWARE.
+  THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+  WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+  ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+  CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+  OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+  NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+  WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 -->
 <grammar ns="http://www.hactrn.net/uris/rpki/publication-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <!-- Top level PDU -->
@@ -1957,9 +1958,9 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
 ## Parsed RelaxNG myrpki schema
 myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 5683 2014-02-25 23:04:11Z sra $
+  $Id: myrpki.rnc 5746 2014-04-04 02:00:06Z sra $
   
-  RelaxNG Schema for MyRPKI XML messages.
+  RelaxNG schema for MyRPKI XML messages.
   
   This message protocol is on its way out, as we're in the process of
   moving on from the user interface model that produced it, but even
@@ -2340,9 +2341,9 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
 ## Parsed RelaxNG router_certificate schema
 router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: router-certificate-schema.rnc 5683 2014-02-25 23:04:11Z sra $
+  $Id: router-certificate-schema.rnc 5746 2014-04-04 02:00:06Z sra $
   
-  RelaxNG Schema for BGPSEC router certificate interchange format.
+  RelaxNG schema for BGPSEC router certificate interchange format.
   
   At least for now, this is a trivial encapsulation of a PKCS #10
   request, a set (usually containing exactly one member) of autonomous
@@ -2350,9 +2351,6 @@ router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version=
   radically by the time we have any real operational understanding of
   how these things will be used, this is just our current best guess
   to let us move forward on initial coding.
-  
-  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
-  run the compact syntax through trang to get XML syntax.
   
   Copyright (C) 2014  Dragon Research Labs ("DRL")
   

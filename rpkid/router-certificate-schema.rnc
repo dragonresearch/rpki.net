@@ -1,6 +1,6 @@
 # $Id$
 #
-# RelaxNG Schema for BGPSEC router certificate interchange format.
+# RelaxNG schema for BGPSEC router certificate interchange format.
 #
 # At least for now, this is a trivial encapsulation of a PKCS #10
 # request, a set (usually containing exactly one member) of autonomous
@@ -8,9 +8,6 @@
 # radically by the time we have any real operational understanding of
 # how these things will be used, this is just our current best guess
 # to let us move forward on initial coding.
-# 
-# libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
-# run the compact syntax through trang to get XML syntax.
 #
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 #

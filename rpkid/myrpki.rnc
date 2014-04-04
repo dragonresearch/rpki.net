@@ -1,6 +1,6 @@
 # $Id$
 #
-# RelaxNG Schema for MyRPKI XML messages.
+# RelaxNG schema for MyRPKI XML messages.
 #
 # This message protocol is on its way out, as we're in the process of
 # moving on from the user interface model that produced it, but even

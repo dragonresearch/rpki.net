@@ -2,7 +2,7 @@
 
 ## @var rpkid
 ## SQL schema rpkid
-rpkid = '''-- $Id: rpkid.sql 3745 2011-03-27 00:21:57Z sra $
+rpkid = '''-- $Id: rpkid.sql 5753 2014-04-05 19:24:26Z sra $
 
 -- Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 --

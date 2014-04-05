@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 5746 2014-04-04 02:00:06Z sra $
+  $Id: left-right-schema.rnc 5753 2014-04-05 19:24:26Z sra $
   
   RelaxNG schema for RPKI left-right protocol.
   
@@ -1099,7 +1099,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
 ## Parsed RelaxNG up_down schema
 up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rnc 5748 2014-04-04 16:30:30Z sra $
+  $Id: up-down-schema.rnc 5753 2014-04-05 19:24:26Z sra $
   
   RelaxNG schema for the up-down protocol, extracted from RFC 6492.
   
@@ -1380,7 +1380,7 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encod
 ## Parsed RelaxNG publication schema
 publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 5746 2014-04-04 02:00:06Z sra $
+  $Id: publication-schema.rnc 5753 2014-04-05 19:24:26Z sra $
   
   RelaxNG schema for RPKI publication protocol.
   
@@ -1958,7 +1958,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
 ## Parsed RelaxNG myrpki schema
 myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 5746 2014-04-04 02:00:06Z sra $
+  $Id: myrpki.rnc 5753 2014-04-05 19:24:26Z sra $
   
   RelaxNG schema for MyRPKI XML messages.
   
@@ -2341,7 +2341,7 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
 ## Parsed RelaxNG router_certificate schema
 router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: router-certificate-schema.rnc 5746 2014-04-04 02:00:06Z sra $
+  $Id: router-certificate-schema.rnc 5753 2014-04-05 19:24:26Z sra $
   
   RelaxNG schema for BGPSEC router certificate interchange format.
   

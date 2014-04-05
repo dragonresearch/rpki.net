@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rnc 5748 2014-04-04 16:30:30Z sra $
+  $Id: up-down-schema.rnc 5753 2014-04-05 19:24:26Z sra $
   
   RelaxNG schema for the up-down protocol, extracted from RFC 6492.
   

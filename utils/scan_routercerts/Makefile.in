@@ -1,14 +1,8 @@
 # $Id$
 
-NAME = scan_roas
+NAME = scan_routercerts
 
 BIN = ${NAME}
-SRC = ${NAME}.c
-OBJ = ${NAME}.o
-
-CFLAGS = @CFLAGS@
-LDFLAGS = @LDFLAGS@
-LIBS = @LIBS@
 
 INSTALL		= @INSTALL@ -m 555 
 
@@ -27,19 +21,14 @@ libdir		= @libdir@
 abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
 
-all: ${BIN}
+all clean:
+	@true
 
-clean:
-	rm -rf ${BIN} ${OBJ} ${BIN}.dSYM
-
-${BIN}: ${SRC}
-	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} ${LIBS}
-
-ROA_DIR = ${abs_top_builddir}/rpkid/tests/smoketest.dir/publication
+ROUTERCERT_DIR = ${abs_top_builddir}/rpkid/tests/smoketest.dir/publication
 
 test: all
 	-date -u +'now:            %Y%m%d%H%M%SZ'
-	if test -d ${ROA_DIR}; then  ./${BIN} ${ROA_DIR} ; else :; fi
+	if test -d ${ROUTERCERT_DIR}; then ./${BIN} ; else :; fi
 
 install: all
 	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -d ${DESTDIR}${bindir}; fi

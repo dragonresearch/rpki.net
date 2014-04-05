@@ -401,7 +401,7 @@ class EECertificate(Certificate):
       self.private_key = rpki.x509.RSA.generate(quiet = True)
     self.certificate = self.issuer.certify(
       subject_name      = self.subject_name,
-      subject_key       = self.private_key.get_RSApublic(),
+      subject_key       = self.private_key.get_public(),
       validity_interval = ee_certificate_lifetime,
       is_ca             = False)
 
@@ -451,13 +451,52 @@ class BSC(Certificate):
   def __unicode__(self):
     return self.handle
 
-class Child(CrossCertification):
-  issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "children")
-  name = django.db.models.TextField(null = True, blank = True)
+class ResourceSet(django.db.models.Model):
   valid_until = SundialField()
+
+  class Meta:
+    abstract = True
 
   @property
   def resource_bag(self):
+    raw_asn, raw_net = self._select_resource_bag()
+    asns = rpki.resource_set.resource_set_as.from_django(
+      (a.start_as, a.end_as) for a in raw_asn)
+    ipv4 = rpki.resource_set.resource_set_ipv4.from_django(
+      (a.start_ip, a.end_ip) for a in raw_net if a.version == "IPv4")
+    ipv6 = rpki.resource_set.resource_set_ipv6.from_django(
+      (a.start_ip, a.end_ip) for a in raw_net if a.version == "IPv6")
+    return rpki.resource_set.resource_bag(
+      valid_until = self.valid_until, asn = asns, v4 = ipv4, v6 = ipv6)
+
+  # Writing of .setter method deferred until something needs it.
+
+class ResourceSetASN(django.db.models.Model):
+  start_as = django.db.models.BigIntegerField()
+  end_as = django.db.models.BigIntegerField()
+
+  class Meta:
+    abstract = True
+
+  def as_resource_range(self):
+    return rpki.resource_set.resource_range_as(self.start_as, self.end_as)
+
+class ResourceSetNet(django.db.models.Model):
+  start_ip = django.db.models.CharField(max_length = 40)
+  end_ip   = django.db.models.CharField(max_length = 40)
+  version = EnumField(choices = ip_version_choices)
+
+  class Meta:
+    abstract = True
+
+  def as_resource_range(self):
+    return rpki.resource_set.resource_range_ip.from_strings(self.start_ip, self.end_ip)
+
+class Child(CrossCertification, ResourceSet):
+  issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "children")
+  name = django.db.models.TextField(null = True, blank = True)
+
+  def _select_resource_bag(self):
     child_asn = rpki.irdb.ChildASN.objects.raw("""
         SELECT *
         FROM irdb_childasn
@@ -468,40 +507,19 @@ class Child(CrossCertification):
         FROM irdb_childnet
         WHERE child_id = %s
         """, [self.id]))
-    asns = rpki.resource_set.resource_set_as.from_django(
-      (a.start_as, a.end_as) for a in child_asn)
-    ipv4 = rpki.resource_set.resource_set_ipv4.from_django(
-      (a.start_ip, a.end_ip) for a in child_net if a.version == "IPv4")
-    ipv6 = rpki.resource_set.resource_set_ipv6.from_django(
-      (a.start_ip, a.end_ip) for a in child_net if a.version == "IPv6")
-    return rpki.resource_set.resource_bag(
-      valid_until = self.valid_until, asn = asns, v4 = ipv4, v6 = ipv6)
+    return child_asn, child_net
 
-  # Writing of .setter method deferred until something needs it.
-
-  # This shouldn't be necessary
   class Meta:
     unique_together = ("issuer", "handle")
 
-class ChildASN(django.db.models.Model):
+class ChildASN(ResourceSetASN):
   child = django.db.models.ForeignKey(Child, related_name = "asns")
-  start_as = django.db.models.BigIntegerField()
-  end_as = django.db.models.BigIntegerField()
-
-  def as_resource_range(self):
-    return rpki.resource_set.resource_range_as(self.start_as, self.end_as)
 
   class Meta:
     unique_together = ("child", "start_as", "end_as")
 
-class ChildNet(django.db.models.Model):
+class ChildNet(ResourceSetNet):
   child = django.db.models.ForeignKey(Child, related_name = "address_ranges")
-  start_ip = django.db.models.CharField(max_length = 40)
-  end_ip   = django.db.models.CharField(max_length = 40)
-  version = EnumField(choices = ip_version_choices)
-
-  def as_resource_range(self):
-    return rpki.resource_set.resource_range_ip.from_strings(self.start_ip, self.end_ip)
 
   class Meta:
     unique_together = ("child", "start_ip", "end_ip", "version")
@@ -560,6 +578,42 @@ class GhostbusterRequest(django.db.models.Model):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "ghostbuster_requests")
   parent = django.db.models.ForeignKey(Parent, related_name = "ghostbuster_requests", null = True)
   vcard = django.db.models.TextField()
+
+class EECertificateRequest(ResourceSet):
+  issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "ee_certificate_requests")
+  pkcs10 = PKCS10Field()
+  gski   = django.db.models.CharField(max_length = 27)
+  cn     = django.db.models.CharField(max_length = 64)
+  sn     = django.db.models.CharField(max_length = 64)
+  eku    = django.db.models.TextField(null = True)
+
+  def _select_resource_bag(self):
+    ee_asn = rpki.irdb.EECertificateRequestASN.objects.raw("""
+        SELECT *
+        FROM irdb_eecertificaterequestasn
+        WHERE ee_certificate_request_id = %s
+        """, [self.id])
+    ee_net = rpki.irdb.EECertificateRequestNet.objects.raw("""
+        SELECT *
+        FROM irdb_eecertificaterequestnet
+        WHERE ee_certificate_request_id = %s
+        """, [self.id])
+    return ee_asn, ee_net
+
+  class Meta:
+    unique_together = ("issuer", "gski")
+
+class EECertificateRequestASN(ResourceSetASN):
+  ee_certificate_request = django.db.models.ForeignKey(EECertificateRequest, related_name = "asns")
+
+  class Meta:
+    unique_together = ("ee_certificate_request", "start_as", "end_as")
+
+class EECertificateRequestNet(ResourceSetNet):
+  ee_certificate_request = django.db.models.ForeignKey(EECertificateRequest, related_name = "address_ranges")
+
+  class Meta:
+    unique_together = ("ee_certificate_request", "start_ip", "end_ip", "version")
 
 class Repository(CrossCertification):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "repositories")

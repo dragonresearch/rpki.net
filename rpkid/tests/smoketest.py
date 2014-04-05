@@ -134,6 +134,8 @@ pubd_pubd_cert = None
 
 pubd_last_cms_time = None
 
+ecdsa_params = None
+
 class CantRekeyYAMLLeaf(Exception):
   """
   Can't rekey YAML leaf.
@@ -228,7 +230,8 @@ def main():
     rootd_process = subprocess.Popen((prog_python, prog_rootd, "-d", "-c", rootd_name + ".conf"))
 
     rpki.log.info("Starting pubd")
-    pubd_process = subprocess.Popen((prog_python, prog_pubd, "-d", "-c", pubd_name + ".conf") + (("-p", pubd_name + ".prof") if args.profile else ()))
+    pubd_process = subprocess.Popen((prog_python, prog_pubd, "-d", "-c", pubd_name + ".conf") +
+                                    (("-p", pubd_name + ".prof") if args.profile else ()))
 
     rpki.log.info("Starting rsyncd")
     rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
@@ -248,10 +251,6 @@ def main():
 
     def created_rpki_objects():
 
-      # Setup keys and certs and write YAML files for leaves
-      for a in db.leaves:
-        a.setup_yaml_leaf()
-
       # Set pubd's BPKI CRL
       set_pubd_crl(yaml_loop)
 
@@ -267,10 +266,6 @@ def main():
       a.run_cron(iterator)
 
     def run_yaml():
-
-      # Run all YAML clients
-      for a in db.leaves:
-        a.run_yaml()
 
       # Run rcynic to check results
       run_rcynic()
@@ -382,6 +377,43 @@ class roa_request(object):
   def parse(cls, yaml):
     return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"))
     
+class router_cert(object):
+  """
+  Representation for a router_cert object.
+  """
+
+  _ecparams = None
+
+  @classmethod
+  def ecparams(cls):
+    if cls._ecparams is None:
+      cls._ecparams = rpki.x509.KeyParams.generateEC()
+    return cls._ecparams
+
+  def __init__(self, asn, router_id):
+    self.asn = rpki.resource_set.resource_set_as("".join(str(asn).split()))
+    self.router_id = router_id
+    self.keypair = rpki.x509.ECDSA.generate(self.ecparams())
+    self.pkcs10 = rpki.x509.PKCS10.create(keypair = self.keypair)
+    self.gski = self.pkcs10.gSKI()
+    self.cn   = "ROUTER-%08x" % self.asn[0].min
+    self.sn   = "%08x" % self.router_id
+    self.eku  = rpki.oids.id_kp_bgpsec_router
+
+  def __eq__(self, other):
+    return self.asn == other.asn and self.sn == other.sn and self.gski == other.gski
+
+  def __hash__(self):
+    v6 = tuple(self.v6) if self.v6 is not None else None
+    return tuple(self.asn).__hash__() + sn.__hash__() + self.gski.__hash__()
+
+  def __str__(self):
+    return "%s: %s: %s" % (self.asn, self.cn, self.sn, self.gski)
+
+  @classmethod
+  def parse(cls, yaml):
+    return cls(yaml.get("asn"), yaml.get("router_id"))
+
 class allocation_db(list):
   """
   Representation of all the entities and allocations in the test
@@ -413,7 +445,6 @@ class allocation_db(list):
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     self.engines = [a for a in self if a.is_engine]
-    self.leaves = [a for a in self if a.is_leaf]
     for i, a in enumerate(self.engines):
       a.set_engine_number(i)
     for a in self:
@@ -493,6 +524,9 @@ class allocation(object):
         self.base.v4 |= r.v4.to_resource_set()
       if r.v6:
         self.base.v6 |= r.v6.to_resource_set()
+    self.router_certs = [router_cert.parse(y) for y in yaml.get("router_cert", ())]
+    for r in self.router_certs:
+      self.base.asn |= r.asn
     self.hosted_by = yaml.get("hosted_by")
     self.extra_conf = yaml.get("extra_conf", [])
     self.hosts = []
@@ -576,6 +610,20 @@ class allocation(object):
         self.roa_requests.remove(r)
     cb()
 
+  def apply_router_cert_add(self, yaml, cb):
+    for y in yaml:
+      r = router_cert.parse(y)
+      if r not in self.router_certs:
+        self.router_certs.append(r)
+    cb()
+
+  def apply_router_cert_del(self, yaml, cb):
+    for y in yaml:
+      r = router_cert.parse(y)
+      if r in self.router_certs:
+        self.router_certs.remove(r)
+    cb()
+
   def apply_rekey(self, target, cb):
 
     def done(e):
@@ -584,14 +632,14 @@ class allocation(object):
         raise e
       cb()
 
-    if self.is_leaf:
-      raise CantRekeyYAMLLeaf, "Can't rekey YAML leaf %s, sorry" % self.name
-    elif target is None:
+    if target is None:
       rpki.log.info("Rekeying <self/> %s" % self.name)
-      self.call_rpkid([rpki.left_right.self_elt.make_pdu(action = "set", self_handle = self.name, rekey = "yes")], cb = done)
+      self.call_rpkid([rpki.left_right.self_elt.make_pdu(
+        action = "set", self_handle = self.name, rekey = "yes")], cb = done)
     else:
       rpki.log.info("Rekeying <parent/> %s %s" % (self.name, target))
-      self.call_rpkid([rpki.left_right.parent_elt.make_pdu(action = "set", self_handle = self.name, parent_handle = target, rekey = "yes")], cb = done)
+      self.call_rpkid([rpki.left_right.parent_elt.make_pdu(
+        action = "set", self_handle = self.name, parent_handle = target, rekey = "yes")], cb = done)
 
   def apply_revoke(self, target, cb):
 
@@ -601,16 +649,14 @@ class allocation(object):
         raise e
       cb()
 
-    if self.is_leaf:
-      rpki.log.info("Attempting to revoke YAML leaf %s" % self.name)
-      subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "revoke"))
-      cb()
-    elif target is None:
+    if target is None:
       rpki.log.info("Revoking <self/> %s" % self.name)
-      self.call_rpkid([rpki.left_right.self_elt.make_pdu(action = "set", self_handle = self.name, revoke = "yes")], cb = done)
+      self.call_rpkid([rpki.left_right.self_elt.make_pdu(
+        action = "set", self_handle = self.name, revoke = "yes")], cb = done)
     else:
       rpki.log.info("Revoking <parent/> %s %s" % (self.name, target))
-      self.call_rpkid([rpki.left_right.parent_elt.make_pdu(action = "set", self_handle = self.name, parent_handle = target, revoke = "yes")], cb = done)
+      self.call_rpkid([rpki.left_right.parent_elt.make_pdu(
+        action = "set", self_handle = self.name, parent_handle = target, revoke = "yes")], cb = done)
 
   def __str__(self):
     s = self.name + "\n"
@@ -622,10 +668,6 @@ class allocation(object):
     if self.sia_base:           s += "  SIA: %s\n" % self.sia_base
     return s + "Until: %s\n" % self.resources.valid_until
 
-  @property
-  def is_leaf(self):
-    #return not self.kids and not self.roa_requests
-    return False
 
   @property
   def is_root(self):
@@ -633,7 +675,7 @@ class allocation(object):
 
   @property
   def is_twig(self):
-    return not self.is_leaf and not self.is_root
+    return not self.is_root
 
   @property
   def is_hosted(self):
@@ -641,7 +683,7 @@ class allocation(object):
 
   @property
   def is_engine(self):
-    return not self.is_leaf and not self.is_hosted
+    return not self.is_hosted
 
   def set_engine_number(self, n):
     """
@@ -668,16 +710,13 @@ class allocation(object):
     Create BPKI certificates for this entity.
     """
     rpki.log.info("Constructing BPKI keys and certs for %s" % self.name)
-    if self.is_leaf:
-      setup_bpki_cert_chain(self.name, ee = ("RPKI",))
-    else:
-      setup_bpki_cert_chain(name = self.name,
-                            ee = ("RPKI", "IRDB", "IRBE"),
-                            ca = ("SELF",))
-      self.rpkid_ta   = rpki.x509.X509(PEM_file = self.name + "-TA.cer")
-      self.irbe_key   = rpki.x509.RSA( PEM_file = self.name + "-IRBE.key")
-      self.irbe_cert  = rpki.x509.X509(PEM_file = self.name + "-IRBE.cer")
-      self.rpkid_cert = rpki.x509.X509(PEM_file = self.name + "-RPKI.cer")
+    setup_bpki_cert_chain(name = self.name,
+                          ee = ("RPKI", "IRDB", "IRBE"),
+                          ca = ("SELF",))
+    self.rpkid_ta   = rpki.x509.X509(PEM_file = self.name + "-TA.cer")
+    self.irbe_key   = rpki.x509.RSA( PEM_file = self.name + "-IRBE.key")
+    self.irbe_cert  = rpki.x509.X509(PEM_file = self.name + "-IRBE.cer")
+    self.rpkid_cert = rpki.x509.X509(PEM_file = self.name + "-RPKI.cer")
 
   def setup_conf_file(self):
     """
@@ -745,24 +784,44 @@ class allocation(object):
     cur.execute("DELETE FROM registrant_net")
     cur.execute("DELETE FROM roa_request_prefix")
     cur.execute("DELETE FROM roa_request")
+    cur.execute("DELETE FROM ee_certificate_asn")
+    cur.execute("DELETE FROM ee_certificate_net")
+    cur.execute("DELETE FROM ee_certificate")
+
     for s in [self] + self.hosts:
       for kid in s.kids:
-        cur.execute("SELECT registrant_id FROM registrant WHERE registrant_handle = %s AND registry_handle = %s", (kid.name, s.name))
+        cur.execute("SELECT registrant_id FROM registrant WHERE registrant_handle = %s AND registry_handle = %s",
+                    (kid.name, s.name))
         registrant_id = cur.fetchone()[0]
         for as_range in kid.resources.asn:
-          cur.execute("INSERT registrant_asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)", (as_range.min, as_range.max, registrant_id))
+          cur.execute("INSERT registrant_asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)",
+                      (as_range.min, as_range.max, registrant_id))
         for v4_range in kid.resources.v4:
-          cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))
+          cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)",
+                      (v4_range.min, v4_range.max, registrant_id))
         for v6_range in kid.resources.v6:
-          cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
-        cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until, registrant_id))
+          cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)",
+                      (v6_range.min, v6_range.max, registrant_id))
+        cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s",
+                    (kid.resources.valid_until, registrant_id))
       for r in s.roa_requests:
-        cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (s.name, r.asn))
+        cur.execute("INSERT roa_request (self_handle, asn) VALUES (%s, %s)",
+                    (s.name, r.asn))
         roa_request_id = cur.lastrowid
         for version, prefix_set in ((4, r.v4), (6, r.v6)):
           if prefix_set:
-            cur.executemany("INSERT roa_request_prefix (roa_request_id, prefix, prefixlen, max_prefixlen, version) VALUES (%s, %s, %s, %s, %s)",
-                            ((roa_request_id, x.prefix, x.prefixlen, x.max_prefixlen, version) for x in prefix_set))
+            cur.executemany("INSERT roa_request_prefix "
+                            "(roa_request_id, prefix, prefixlen, max_prefixlen, version) "
+                            "VALUES (%s, %s, %s, %s, %s)",
+                            ((roa_request_id, x.prefix, x.prefixlen, x.max_prefixlen, version)
+                             for x in prefix_set))
+      for r in s.router_certs:
+        cur.execute("INSERT ee_certificate (self_handle, pkcs10, gski, cn, sn, eku, valid_until) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    (s.name, r.pkcs10.get_DER(), r.gski, r.cn, r.sn, r.eku, s.resources.valid_until))
+        ee_certificate_id = cur.lastrowid
+        cur.executemany("INSERT ee_certificate_asn (ee_certificate_id, start_as, end_as) VALUES (%s, %s, %s)",
+                        ((ee_certificate_id, a.min, a.max) for a in r.asn))
     db.close()
 
   def run_daemons(self):
@@ -770,7 +829,8 @@ class allocation(object):
     Run daemons for this entity.
     """
     rpki.log.info("Running daemons for %s" % self.name)
-    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-d", "-c", self.name + ".conf") + (("-p", self.name + ".prof") if args.profile else ()))
+    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-d", "-c", self.name + ".conf") +
+                                          (("-p", self.name + ".prof") if args.profile else ()))
     self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "-d", "-c", self.name + ".conf"))
 
   def kill_daemons(self):
@@ -844,8 +904,6 @@ class allocation(object):
     if reverse:
       certifier = certificant
       certificant = self.name + "-SELF"
-    elif self.is_leaf:
-      certifier = self.name + "-TA"
     else:
       certifier = self.name + "-SELF"
     certfile = certifier + "-" + certificant + ".cer"
@@ -901,7 +959,7 @@ class allocation(object):
     #10 requests we get back when we tell rpkid to generate BSC keys.
     """
 
-    assert not self.is_hosted and not self.is_leaf
+    assert not self.is_hosted
 
     selves = [self] + self.hosts
 
@@ -948,7 +1006,7 @@ class allocation(object):
           self_handle = s.name,
           child_handle = k.name,
           bsc_handle = "b",
-          bpki_cert = s.cross_certify(k.name + ("-TA" if k.is_leaf else "-SELF"))))
+          bpki_cert = s.cross_certify(k.name + "-SELF")))
 
       if s.is_root:
         rootd_cert = s.cross_certify(rootd_name + "-TA")
@@ -974,7 +1032,8 @@ class allocation(object):
           bpki_cms_cert = s.cross_certify(s.parent.name + "-SELF"),
           sender_name = s.name,
           recipient_name = s.parent.name,
-          peer_contact_uri = "http://localhost:%s/up-down/%s/%s" % (s.parent.get_rpki_port(), s.parent.name, s.name)))
+          peer_contact_uri = "http://localhost:%s/up-down/%s/%s" % (s.parent.get_rpki_port(),
+                                                                    s.parent.name, s.name)))
 
     def one():
       call_pubd(pubd_pdus, cb = two)
@@ -992,7 +1051,8 @@ class allocation(object):
         b = bsc_dict[s.name]
 
         rpki.log.info("Issuing BSC EE cert for %s" % s.name)
-        cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", s.name + "-RPKI.conf", "-extensions", "req_x509_ext", "-days", "30",
+        cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", s.name + "-RPKI.conf",
+               "-extensions", "req_x509_ext", "-days", "30",
                "-CA", s.name + "-SELF.cer", "-CAkey",    s.name + "-SELF.key", "-CAcreateserial", "-text")
         signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         signed = signer.communicate(input = b.pkcs10_request.get_PEM())
@@ -1248,8 +1308,8 @@ def set_pubd_crl(cb):
   updated whenever we update the CRL.
   """
   rpki.log.info("Setting pubd's BPKI CRL")
-  call_pubd([rpki.publication.config_elt.make_pdu(action = "set", bpki_crl = rpki.x509.CRL(Auto_file = pubd_name + "-TA.crl"))],
-            cb = lambda ignored: cb())
+  crl = rpki.x509.CRL(Auto_file = pubd_name + "-TA.crl")
+  call_pubd([rpki.publication.config_elt.make_pdu(action = "set", bpki_crl = crl)], cb = lambda ignored: cb())
 
 last_rcynic_run = None
 
@@ -1314,22 +1374,44 @@ bpki_cert_fmt_2 = '''\
 '''
 
 bpki_cert_fmt_3 = '''\
-%(openssl)s req -new -sha256 -key %(name)s-%(kind)s.key -out %(name)s-%(kind)s.req -config %(name)s-%(kind)s.conf &&
+%(openssl)s req -new \
+        -sha256 \
+        -key %(name)s-%(kind)s.key \
+        -out %(name)s-%(kind)s.req \
+        -config %(name)s-%(kind)s.conf &&
 touch %(name)s-%(kind)s.idx &&
 echo >%(name)s-%(kind)s.cnm 01 &&
 '''
 
 bpki_cert_fmt_4 = '''\
-%(openssl)s x509 -req -sha256 -in %(name)s-TA.req -out %(name)s-TA.cer -extfile %(name)s-TA.conf -extensions req_x509_ext -signkey %(name)s-TA.key -days 60 -text \
+%(openssl)s x509 -req -sha256 \
+        -in %(name)s-TA.req \
+        -out %(name)s-TA.cer \
+        -extfile %(name)s-TA.conf \
+        -extensions req_x509_ext \
+        -signkey %(name)s-TA.key \
+        -days 60 -text \
 '''
 
 bpki_cert_fmt_5 = ''' && \
-%(openssl)s x509 -req -sha256 -in %(name)s-%(kind)s.req -out %(name)s-%(kind)s.cer -extfile %(name)s-%(kind)s.conf -extensions req_x509_ext -days 30 -text \
-                     -CA %(name)s-TA.cer -CAkey %(name)s-TA.key -CAcreateserial \
+%(openssl)s x509 -req \
+        -sha256 \
+        -in %(name)s-%(kind)s.req \
+        -out %(name)s-%(kind)s.cer \
+        -extfile %(name)s-%(kind)s.conf \
+        -extensions req_x509_ext \
+        -days 30 \
+        -text \
+        -CA %(name)s-TA.cer \
+        -CAkey %(name)s-TA.key \
+        -CAcreateserial \
 '''
 
 bpki_cert_fmt_6 = ''' && \
-%(openssl)s ca -batch -gencrl -out %(name)s-%(kind)s.crl -config %(name)s-%(kind)s.conf \
+%(openssl)s ca -batch \
+        -gencrl \
+        -out %(name)s-%(kind)s.crl \
+        -config %(name)s-%(kind)s.conf \
 '''
 
 yaml_fmt_1 = '''---
@@ -1467,10 +1549,15 @@ authorityKeyIdentifier  = keyid:always
 basicConstraints        = critical,CA:true
 subjectKeyIdentifier    = hash
 keyUsage                = critical,keyCertSign,cRLSign
-subjectInfoAccess       = 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)sroot/,1.3.6.1.5.5.7.48.10;URI:%(rootd_sia)sroot/root.mft
+subjectInfoAccess       = @sia
 sbgp-autonomousSysNum   = critical,AS:0-4294967295
 sbgp-ipAddrBlock        = critical,IPv4:0.0.0.0/0,IPv6:0::/0
 certificatePolicies     = critical, @rpki_certificate_policy
+
+[sia]
+
+1.3.6.1.5.5.7.48.5;URI  = %(rootd_sia)sroot/
+1.3.6.1.5.5.7.48.10;URI = %(rootd_sia)sroot/root.mft
 
 [rpki_certificate_policy]
 
@@ -1484,10 +1571,20 @@ rootd_fmt_2 = '''\
 rootd_fmt_3 = '''\
 echo >%(rootd_name)s.tal %(rootd_sia)sroot.cer &&
 echo >>%(rootd_name)s.tal &&
-%(openssl)s rsa -pubout -in root.key | awk '!/-----(BEGIN|END)/' >>%(rootd_name)s.tal &&
-%(openssl)s req -new -sha256 -key root.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text -extensions req_x509_rpki_ext &&
-%(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out root.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_rpki_ext \
-                      -signkey root.key &&
+%(openssl)s rsa -pubout -in root.key |
+awk '!/-----(BEGIN|END)/' >>%(rootd_name)s.tal &&
+%(openssl)s req -new -text -sha256 \
+            -key root.key \
+            -out %(rootd_name)s.req \
+            -config %(rootd_name)s.conf \
+            -extensions req_x509_rpki_ext &&
+%(openssl)s x509 -req -sha256 \
+            -in %(rootd_name)s.req \
+            -out root.cer \
+            -outform DER \
+            -extfile %(rootd_name)s.conf \
+            -extensions req_x509_rpki_ext \
+            -signkey root.key &&
 ln -f root.cer %(rsyncd_dir)s
 '''
 

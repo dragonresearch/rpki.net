@@ -1,37 +1,23 @@
 # $Id$
 #
-# RelaxNG Schema for RPKI publication protocol.
+# RelaxNG schema for RPKI publication protocol.
 #
-# libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
-# run the compact syntax through trang to get XML syntax.
-#
-# Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
-#
+# Copyright (C) 2012--2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
-#
-# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
-#
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 default namespace = "http://www.hactrn.net/uris/rpki/publication-spec/"
 
@@ -44,10 +30,12 @@ start = element msg {
 }
 
 # PDUs allowed in a query
-query_elt = ( config_query | client_query | certificate_query | crl_query | manifest_query | roa_query | ghostbuster_query )
+query_elt = ( config_query | client_query | certificate_query | crl_query |
+              manifest_query | roa_query | ghostbuster_query )
 
 # PDUs allowed in a reply
-reply_elt = ( config_reply | client_reply | certificate_reply | crl_reply | manifest_reply | roa_reply | ghostbuster_reply | report_error_reply )
+reply_elt = ( config_reply | client_reply | certificate_reply | crl_reply |
+              manifest_reply | roa_reply | ghostbuster_reply | report_error_reply )
 
 # Tag attributes for bulk operations
 tag = attribute tag { xsd:token {maxLength="1024" } }
@@ -66,7 +54,7 @@ uri = attribute uri { uri_t }
 # Handles on remote objects (replaces passing raw SQL IDs).  NB:
 # Unlike the up-down protocol, handles in this protocol allow "/" as a
 # hierarchy delimiter.
-object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]*" }
+object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]+" }
 
 # <config/> element (use restricted to repository operator)
 # config_handle attribute, create, list, and destroy commands omitted deliberately, see code for details
@@ -144,4 +132,6 @@ report_error_reply = element report_error {
 
 # Local Variables:
 # indent-tabs-mode: nil
+# comment-start: "# "
+# comment-start-skip: "#[ \t]*"
 # End:

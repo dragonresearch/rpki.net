@@ -88,4 +88,6 @@ setup(name              = "rpkitoolkit",
                            (autoconf.datarootdir + "/rpki/media/js",
                             glob("rpki/gui/app/static/js/*")),
                            (autoconf.datarootdir + "/rpki/media/img",
-                            glob("rpki/gui/app/static/img/*"))])
+                            glob("rpki/gui/app/static/img/*")),
+                           (autoconf.datarootdir + "/rpki/upgrade-scripts",
+                            glob("upgrade-scripts/*"))])

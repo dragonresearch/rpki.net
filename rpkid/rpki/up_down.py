@@ -365,7 +365,7 @@ class issue_pdu(base_elt):
       raise rpki.exceptions.NotImplementedYet("req_* attributes not implemented yet, sorry")
 
     # Check the request
-    self.pkcs10.check_valid_rpki()
+    self.pkcs10.check_valid_request_ca()
     ca = child.ca_from_class_name(self.class_name)
     ca_detail = ca.active_ca_detail
     if ca_detail is None:

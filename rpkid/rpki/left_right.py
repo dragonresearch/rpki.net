@@ -205,6 +205,13 @@ class self_elt(data_elt):
     """
     return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
+  @property
+  def ee_certificates(self):
+    """
+    Fetch all EE certificate objects that link to this self object.
+    """
+    return rpki.rpkid.ee_cert_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
+
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
@@ -362,19 +369,33 @@ class self_elt(data_elt):
     """
 
     if self.cron_tasks is None:
-      self.cron_tasks = (
-        rpki.rpkid_tasks.PollParentTask(self),
-        rpki.rpkid_tasks.UpdateChildrenTask(self),
-        rpki.rpkid_tasks.UpdateROAsTask(self),
-        rpki.rpkid_tasks.UpdateGhostbustersTask(self),
-        rpki.rpkid_tasks.RegenerateCRLsAndManifestsTask(self),
-        rpki.rpkid_tasks.CheckFailedPublication(self))
+      self.cron_tasks = tuple(task(self) for task in rpki.rpkid_tasks.task_classes)
 
     for task in self.cron_tasks:
       self.gctx.task_add(task)
       completion.register(task)
 
+  def find_covering_ca_details(self, resources):
+    """
+    Return all active ca_detail_objs for this <self/> which cover a
+    particular set of resources.
 
+    If we expected there to be a large number of ca_detail_objs, we
+    could add index tables and write fancy SQL query to do this, but
+    for the expected common case where there are only one or two
+    active ca_detail_objs per <self/>, it's probably not worth it.  In
+    any case, this is an optimization we can leave for later.
+    """
+
+    results = set()
+    for parent in self.parents:
+      for ca in parent.cas:
+        ca_detail = ca.active_ca_detail
+        if ca_detail is not None and ca_detail.covers(resources):
+          results.add(ca_detail)
+    return results
+
+             
 class bsc_elt(data_elt):
   """
   <bsc/> (Business Signing Context) element.
@@ -1036,6 +1057,66 @@ class list_ghostbuster_requests_elt(rpki.xml_utils.text_elt, left_right_namespac
   def __repr__(self):
     return rpki.log.log_repr(self, self.self_handle, self.parent_handle)
 
+class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
+  """
+  <list_ee_certificate_requests/> element.
+  """
+
+  element_name = "list_ee_certificate_requests"
+  attributes = ("self_handle", "tag", "gski", "valid_until", "asn", "ipv4", "ipv6", "cn", "sn", "eku")
+  elements = ("pkcs10",)
+
+  pkcs10 = None
+  valid_until = None
+  eku = None
+
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.self_handle, self.gski, self.cn, self.sn, self.asn, self.ipv4, self.ipv6)
+
+  def startElement(self, stack, name, attrs):
+    """
+    Handle <list_ee_certificate_requests/> element.  This requires special
+    handling due to the data types of some of the attributes.
+    """
+    if name not in self.elements:
+      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
+      self.read_attrs(attrs)
+      if isinstance(self.valid_until, str):
+        self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
+      if self.asn is not None:
+        self.asn = rpki.resource_set.resource_set_as(self.asn)
+      if self.ipv4 is not None:
+        self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
+      if self.ipv6 is not None:
+        self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+      if self.eku is not None:
+        self.eku = self.eku.split(",")
+
+  def endElement(self, stack, name, text):
+    """
+    Handle <pkcs10/> sub-element.
+    """
+    assert len(self.elements) == 1
+    if name == self.elements[0]:
+      self.pkcs10 = rpki.x509.PKCS10(Base64 = text)
+    else:
+      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
+      stack.pop()
+
+  def toXML(self):
+    """
+    Generate <list_ee_certificate_requests/> element.  This requires special
+    handling due to the data types of some of the attributes.
+    """
+    if isinstance(self.eku, (tuple, list)):
+      self.eku = ",".join(self.eku)
+    elt = self.make_elt()
+    for i in self.elements:
+      self.make_b64elt(elt, i, getattr(self, i, None))
+    if isinstance(self.valid_until, int):
+      elt.set("valid_until", self.valid_until.toXMLtime())
+    return elt
+
 class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
   <list_published_objects/> element.
@@ -1069,6 +1150,8 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
                        for r in ca_detail.roas if r.roa is not None)
           r_msg.extend(self.make_reply(g.uri, g.ghostbuster)
                        for g in ca_detail.ghostbusters)          
+          r_msg.extend(self.make_reply(c.uri, c.cert)
+                       for c in ca_detail.ee_certificates)
     cb()
 
   def make_reply(self, uri, obj, child_handle = None):
@@ -1165,6 +1248,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
               for x in (self_elt, child_elt, parent_elt, bsc_elt,
                         repository_elt, list_resources_elt,
                         list_roa_requests_elt, list_ghostbuster_requests_elt,
+                        list_ee_certificate_requests_elt,
                         list_published_objects_elt,
                         list_received_resources_elt, report_error_elt))
 

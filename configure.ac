@@ -825,6 +825,7 @@ then
 			 utils/print_rpki_manifest/Makefile
 			 utils/print_roa/Makefile
 			 utils/scan_roas/Makefile
+			 utils/scan_routercerts/Makefile
 			 utils/uri/Makefile
 			 rtr-origin/Makefile])
 fi

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 4430 2012-04-17 16:00:14Z sra $
+  $Id: myrpki.rnc 5746 2014-04-04 02:00:06Z sra $
   
-  RelaxNG Schema for MyRPKI XML messages.
+  RelaxNG schema for MyRPKI XML messages.
   
   This message protocol is on its way out, as we're in the process of
   moving on from the user interface model that produced it, but even
@@ -38,13 +38,13 @@
   <define name="object_handle">
     <data type="string">
       <param name="maxLength">255</param>
-      <param name="pattern">[\-_A-Za-z0-9]*</param>
+      <param name="pattern">[\-_A-Za-z0-9]+</param>
     </data>
   </define>
   <define name="pubd_handle">
     <data type="string">
       <param name="maxLength">255</param>
-      <param name="pattern">[\-_A-Za-z0-9/]*</param>
+      <param name="pattern">[\-_A-Za-z0-9/]+</param>
     </data>
   </define>
   <define name="uri">
@@ -58,19 +58,19 @@
   <define name="asn_list">
     <data type="string">
       <param name="maxLength">512000</param>
-      <param name="pattern">[\-,0-9]*</param>
+      <param name="pattern">[\-,0-9]+</param>
     </data>
   </define>
   <define name="ipv4_list">
     <data type="string">
       <param name="maxLength">512000</param>
-      <param name="pattern">[\-,0-9/.]*</param>
+      <param name="pattern">[\-,0-9/.]+</param>
     </data>
   </define>
   <define name="ipv6_list">
     <data type="string">
       <param name="maxLength">512000</param>
-      <param name="pattern">[\-,0-9/:a-fA-F]*</param>
+      <param name="pattern">[\-,0-9/:a-fA-F]+</param>
     </data>
   </define>
   <define name="timestamp">
@@ -373,5 +373,7 @@
 <!--
   Local Variables:
   indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
   End:
 -->

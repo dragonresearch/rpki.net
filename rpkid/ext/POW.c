@@ -355,7 +355,7 @@ typedef struct {
 typedef struct {
   PyObject_HEAD
   X509_REQ *pkcs10;
-  STACK_OF(X509_EXTENSION) *exts;
+  X509_EXTENSIONS *exts;
 } pkcs10_object;
 
 
@@ -403,9 +403,15 @@ typedef struct {
     goto error;                                                         \
   } while (0)
 
+#define lose_value_error(_msg_)                                         \
+  do {                                                                  \
+    PyErr_SetString(PyExc_ValueError, (_msg_));                         \
+    goto error;                                                         \
+  } while (0)
+
 #define lose_openssl_error(_msg_)                                       \
   do {                                                                  \
-    set_openssl_exception(OpenSSLErrorObject, (_msg_));                 \
+    set_openssl_exception(OpenSSLErrorObject, (_msg_), 0);              \
     goto error;                                                         \
   } while (0)
 
@@ -417,19 +423,21 @@ typedef struct {
 
 #define assert_no_unhandled_openssl_errors()                            \
   do {                                                                  \
-    if (ERR_peek_error())                                               \
-      lose_openssl_error(assert_helper(__LINE__));                      \
+    if (ERR_peek_error()) {                                             \
+      set_openssl_exception(OpenSSLErrorObject, NULL, __LINE__);        \
+      goto error;                                                       \
+    }                                                                   \
   } while (0)
 
-static char *
-assert_helper(int line)
-{
-  static const char fmt[] = "Unhandled OpenSSL error at " __FILE__ ":%d!";
-  static char msg[sizeof(fmt) + 10];
-
-  snprintf(msg, sizeof(msg), fmt, line);
-  return msg;
-}
+#define POW_assert(_cond_)                                              \
+  do {                                                                  \
+    if (!(_cond_)) {                                                    \
+      (void) PyErr_Format(POWErrorObject,                               \
+                          "Assertion %s failed at " __FILE__ ":%d",     \
+                          #_cond_, __LINE__);                           \
+      goto error;                                                       \
+    }                                                                   \
+  } while (0)
 
 /*
  * Consolidate some tedious EVP-related switch statements.
@@ -451,10 +459,19 @@ evp_digest_factory(int digest_type)
 
 /*
  * Raise an exception with data pulled from the OpenSSL error stack.
- * Exception value is a tuple with some internal structure.  If a
- * string error message is supplied, that string is the first element
- * of the exception value tuple.  Remainder of exception value tuple
- * is zero or more tuples, each representing one error from the stack.
+ * Exception value is a tuple with some internal structure.
+ *
+ * If a string error message is supplied, that string is the first
+ * element of the exception value tuple.
+ *
+ * If a non-zero line number is supplied, a string listing this as an
+ * unhandled exception detected at that line will be the next element
+ * of the exception value tuple (or the first, if no error message was
+ * supplied).
+ *
+ * Remainder of exception value tuple is zero or more tuples, each
+ * representing one error from the stack.
+ *
  * Each error tuple contains six slots:
  * - the numeric error code
  * - string translation of numeric error code ("reason")
@@ -465,18 +482,26 @@ evp_digest_factory(int digest_type)
  */
 
 static void
-set_openssl_exception(PyObject *error_class, const char *msg)
+set_openssl_exception(PyObject *error_class, const char *msg, const int unhandled_line)
 {
-  PyObject *errors;
+  PyObject *errtuple = NULL;
+  PyObject *errlist = NULL;
   unsigned long err;
   const char *file;
   int line;
 
-  errors = PyList_New(0);
+  if ((errlist = PyList_New(0)) == NULL)
+    return;
 
   if (msg) {
-    PyObject *s = Py_BuildValue("s", msg);
-    (void) PyList_Append(errors, s);
+    PyObject *s = PyString_FromString(msg);
+    (void) PyList_Append(errlist, s);
+    Py_XDECREF(s);
+  }
+
+  if (unhandled_line) {
+    PyObject *s = PyString_FromFormat("Unhandled OpenSSL error at " __FILE__ ":%d!", unhandled_line);
+    (void) PyList_Append(errlist, s);
     Py_XDECREF(s);
   }
 
@@ -488,12 +513,15 @@ set_openssl_exception(PyObject *error_class, const char *msg)
                                 ERR_func_error_string(err),
                                 file,
                                 line);
-    (void) PyList_Append(errors, t);
+    (void) PyList_Append(errlist, t);
     Py_XDECREF(t);
   }
 
-  PyErr_SetObject(error_class, PyList_AsTuple(errors));
-  Py_XDECREF(errors);
+  if ((errtuple = PyList_AsTuple(errlist)) != NULL)
+    PyErr_SetObject(error_class, errtuple);
+
+  Py_XDECREF(errtuple);
+  Py_XDECREF(errlist);
 }
 
 static X509_NAME *
@@ -1043,6 +1071,589 @@ ASN1_OBJECT_to_PyString(const ASN1_OBJECT *oid)
 
  error:
   return result;
+}
+
+
+
+/*
+ * Extension functions.  Calling sequence here is a little weird,
+ * because it turns out that the simplest way to avoid massive
+ * duplication of code between classes is to work directly with
+ * X509_EXTENSIONS objects.
+ */
+
+static PyObject *
+extension_get_key_usage(X509_EXTENSIONS **exts)
+{
+  ASN1_BIT_STRING *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *token = NULL;
+  int bit = -1;
+
+  ENTERING(extension_get_key_usage);
+
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_key_usage, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if ((result = PyFrozenSet_New(NULL)) == NULL)
+    goto error;
+
+  for (bit = 0; key_usage_bit_names[bit] != NULL; bit++) {
+    if (ASN1_BIT_STRING_get_bit(ext, bit) &&
+        ((token = PyString_FromString(key_usage_bit_names[bit])) == NULL ||
+         PySet_Add(result, token) < 0))
+      goto error;
+    Py_XDECREF(token);
+    token = NULL;
+  }
+
+  ASN1_BIT_STRING_free(ext);
+  return result;
+
+ error:
+  ASN1_BIT_STRING_free(ext);
+  Py_XDECREF(token);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+static PyObject *
+extension_set_key_usage(X509_EXTENSIONS **exts, PyObject *args)
+{
+  ASN1_BIT_STRING *ext = NULL;
+  PyObject *iterable = NULL;
+  PyObject *critical = Py_True;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  const char *token;
+  int bit = -1;
+  int ok = 0;
+
+  ENTERING(extension_set_key_usage);
+
+  if (!exts)
+    goto error;
+
+  if ((ext = ASN1_BIT_STRING_new()) == NULL)
+    lose_no_memory();
+
+  if (!PyArg_ParseTuple(args, "O|O", &iterable, &critical) ||
+      (iterator = PyObject_GetIter(iterable)) == NULL)
+    goto error;
+
+  while ((item = PyIter_Next(iterator)) != NULL) {
+
+    if ((token = PyString_AsString(item)) == NULL)
+      goto error;
+
+    for (bit = 0; key_usage_bit_names[bit] != NULL; bit++)
+      if (!strcmp(token, key_usage_bit_names[bit]))
+        break;
+
+    if (key_usage_bit_names[bit] == NULL)
+      lose("Unrecognized KeyUsage token");
+
+    if (!ASN1_BIT_STRING_set_bit(ext, bit, 1))
+      lose_no_memory();
+
+    Py_XDECREF(item);
+    item = NULL;
+  }
+
+  if (!X509V3_add1_i2d(exts, NID_key_usage, ext,
+                       PyObject_IsTrue(critical),
+                       X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add KeyUsage extension to OpenSSL object");
+
+  ok = 1;
+
+ error:                         /* Fall through */
+  ASN1_BIT_STRING_free(ext);
+  Py_XDECREF(iterator);
+  Py_XDECREF(item);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static PyObject *
+extension_get_basic_constraints(X509_EXTENSIONS **exts)
+{
+  BASIC_CONSTRAINTS *ext = NULL;
+  PyObject *result = NULL;
+
+  ENTERING(extension_get_basic_constraints);
+
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_basic_constraints, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if (ext->pathlen == NULL)
+    result = Py_BuildValue("(NO)", PyBool_FromLong(ext->ca), Py_None);
+  else
+    result = Py_BuildValue("(Nl)", PyBool_FromLong(ext->ca), ASN1_INTEGER_get(ext->pathlen));
+
+ error:
+  BASIC_CONSTRAINTS_free(ext);
+  return result;
+}
+
+static PyObject *
+extension_set_basic_constraints(X509_EXTENSIONS **exts, PyObject *args)
+{
+  BASIC_CONSTRAINTS *ext = NULL;
+  PyObject *is_ca = NULL;
+  PyObject *pathlen_obj = Py_None;
+  PyObject *critical = Py_True;
+  long pathlen = -1;
+  int ok = 0;
+
+  ENTERING(extension_set_basic_constraints);
+
+  if (!exts)
+    goto error;
+
+  if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
+    goto error;
+
+  if (pathlen_obj != Py_None && (pathlen = PyInt_AsLong(pathlen_obj)) < 0)
+    lose_type_error("Bad pathLenConstraint value");
+
+  if ((ext = BASIC_CONSTRAINTS_new()) == NULL)
+    lose_no_memory();
+
+  ext->ca = PyObject_IsTrue(is_ca) ? 0xFF : 0;
+
+  if (pathlen_obj != Py_None &&
+      ((ext->pathlen == NULL && (ext->pathlen = ASN1_INTEGER_new()) == NULL) ||
+       !ASN1_INTEGER_set(ext->pathlen, pathlen)))
+    lose_no_memory();
+
+  if (!X509V3_add1_i2d(exts, NID_basic_constraints, ext,
+                       PyObject_IsTrue(critical), X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add BasicConstraints extension to OpenSSL object");
+
+  ok = 1;
+
+ error:
+  BASIC_CONSTRAINTS_free(ext);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static PyObject *
+extension_get_sia(X509_EXTENSIONS **exts)
+{
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *result_caRepository = NULL;
+  PyObject *result_rpkiManifest = NULL;
+  PyObject *result_signedObject = NULL;
+  int n_caRepository = 0;
+  int n_rpkiManifest = 0;
+  int n_signedObject = 0;
+  const char *uri;
+  PyObject *obj;
+  int i, nid;
+
+  ENTERING(pkcs10_object_get_sia);
+
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_sinfo_access, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  /*
+   * Easiest to do this in two passes, first pass just counts URIs.
+   */
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type != GEN_URI)
+      continue;
+    nid = OBJ_obj2nid(a->method);
+    if (nid == NID_caRepository) {
+      n_caRepository++;
+      continue;
+    }
+    if (nid == NID_rpkiManifest) {
+      n_rpkiManifest++;
+      continue;
+    }
+    if (nid == NID_signedObject) {
+      n_signedObject++;
+      continue;
+    }
+  }
+
+  if (((result_caRepository = PyTuple_New(n_caRepository)) == NULL) ||
+      ((result_rpkiManifest = PyTuple_New(n_rpkiManifest)) == NULL) ||
+      ((result_signedObject = PyTuple_New(n_signedObject)) == NULL))
+    goto error;
+
+  n_caRepository = n_rpkiManifest = n_signedObject = 0;
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
+    if (a->location->type != GEN_URI)
+      continue;
+    nid = OBJ_obj2nid(a->method);
+    uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+    if (nid == NID_caRepository) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_caRepository, n_caRepository++, obj);
+      continue;
+    }
+    if (nid == NID_rpkiManifest) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_rpkiManifest, n_rpkiManifest++, obj);
+      continue;
+    }
+    if (nid == NID_signedObject) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_signedObject, n_signedObject++, obj);
+      continue;
+    }
+  }
+
+  result = Py_BuildValue("(OOO)",
+                         result_caRepository,
+                         result_rpkiManifest,
+                         result_signedObject);
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  Py_XDECREF(result_caRepository);
+  Py_XDECREF(result_rpkiManifest);
+  Py_XDECREF(result_signedObject);
+  return result;
+}
+
+static PyObject *
+extension_set_sia(X509_EXTENSIONS **exts, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"caRepository", "rpkiManifest", "signedObject", NULL};
+  AUTHORITY_INFO_ACCESS *ext = NULL;
+  PyObject *caRepository = Py_None;
+  PyObject *rpkiManifest = Py_None;
+  PyObject *signedObject = Py_None;
+  PyObject *iterator = NULL;
+  ASN1_OBJECT *oid = NULL;
+  PyObject **pobj = NULL;
+  PyObject *item = NULL;
+  ACCESS_DESCRIPTION *a = NULL;
+  int i, nid = NID_undef, ok = 0;
+  Py_ssize_t urilen;
+  char *uri;
+
+  ENTERING(extension_set_sia);
+
+  if (!exts)
+    goto error;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist,
+                                   &caRepository, &rpkiManifest, &signedObject))
+    goto error;
+
+  if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
+    lose_no_memory();
+
+  /*
+   * This is going to want refactoring, because it's ugly, because we
+   * want to reuse code for AIA, and because it'd be nice to support a
+   * single URI as an abbreviation for a collection containing one URI.
+   */
+
+  for (i = 0; i < 3; i++) {
+    switch (i) {
+    case 0: pobj = &caRepository; nid = NID_caRepository; break;
+    case 1: pobj = &rpkiManifest; nid = NID_rpkiManifest; break;
+    case 2: pobj = &signedObject; nid = NID_signedObject; break;
+    }
+
+    if (*pobj == Py_None)
+      continue;
+
+    if ((oid = OBJ_nid2obj(nid)) == NULL)
+      lose_openssl_error("Couldn't find SIA accessMethod OID");
+
+    if ((iterator = PyObject_GetIter(*pobj)) == NULL)
+      goto error;
+
+    while ((item = PyIter_Next(iterator)) != NULL) {
+
+      if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
+        goto error;
+
+      if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
+          (a->method = OBJ_dup(oid)) == NULL ||
+          (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
+          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
+        lose_no_memory();
+
+      a->location->type = GEN_URI;
+
+      if (!sk_ACCESS_DESCRIPTION_push(ext, a))
+        lose_no_memory();
+
+      a = NULL;
+      Py_XDECREF(item);
+      item = NULL;
+    }
+
+    Py_XDECREF(iterator);
+    iterator = NULL;
+  }
+
+  if (!X509V3_add1_i2d(exts, NID_sinfo_access, ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add SIA extension to OpenSSL object");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_INFO_ACCESS_free(ext);
+  ACCESS_DESCRIPTION_free(a);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static PyObject *
+extension_get_eku(X509_EXTENSIONS **exts)
+{
+  EXTENDED_KEY_USAGE *ext = NULL;
+  PyObject *result = NULL;
+  PyObject *oid = NULL;
+  int i;
+
+  ENTERING(extension_get_eku);
+
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_ext_key_usage, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  if ((result = PyFrozenSet_New(NULL)) == NULL)
+    goto error;
+
+  for (i = 0; i < sk_ASN1_OBJECT_num(ext); i++) {
+    if ((oid = ASN1_OBJECT_to_PyString(sk_ASN1_OBJECT_value(ext, i))) == NULL ||
+        PySet_Add(result, oid) < 0)
+      goto error;
+    Py_XDECREF(oid);
+    oid = NULL;
+  }
+
+  sk_ASN1_OBJECT_pop_free(ext, ASN1_OBJECT_free);
+  return result;
+
+ error:
+  sk_ASN1_OBJECT_pop_free(ext, ASN1_OBJECT_free);
+  Py_XDECREF(oid);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+static PyObject *
+extension_set_eku(X509_EXTENSIONS **exts, PyObject *args)
+{
+  EXTENDED_KEY_USAGE *ext = NULL;
+  PyObject *iterable = NULL;
+  PyObject *critical = Py_False;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  ASN1_OBJECT *obj = NULL;
+  const char *txt;
+  int ok = 0;
+
+  ENTERING(extension_set_eku);
+
+  if (!exts)
+    goto error;
+
+  if ((ext = sk_ASN1_OBJECT_new_null()) == NULL)
+    lose_no_memory();
+
+  if (!PyArg_ParseTuple(args, "O|O", &iterable, &critical) ||
+      (iterator = PyObject_GetIter(iterable)) == NULL)
+    goto error;
+
+  while ((item = PyIter_Next(iterator)) != NULL) {
+
+    if ((txt = PyString_AsString(item)) == NULL)
+      goto error;
+
+    if ((obj = OBJ_txt2obj(txt, 1)) == NULL)
+      lose("Couldn't parse OID");
+    
+    if (!sk_ASN1_OBJECT_push(ext, obj))
+      lose_no_memory();
+
+    obj = NULL;
+    Py_XDECREF(item);
+    item = NULL;
+  }
+
+  if (sk_ASN1_OBJECT_num(ext) < 1)
+    lose("Empty ExtendedKeyUsage extension");
+
+  if (!X509V3_add1_i2d(exts, NID_ext_key_usage, ext,
+                       PyObject_IsTrue(critical),
+                       X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add ExtendedKeyUsage extension to OpenSSL object");
+
+  ok = 1;
+
+ error:                         /* Fall through */
+  sk_ASN1_OBJECT_pop_free(ext, ASN1_OBJECT_free);
+  Py_XDECREF(item);
+  Py_XDECREF(iterator);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static PyObject *
+extension_get_ski(X509_EXTENSIONS **exts)
+{
+  ASN1_OCTET_STRING *ext = NULL;
+  PyObject *result = NULL;
+
+  ENTERING(extension_get_ski);
+
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_subject_key_identifier, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  result = Py_BuildValue("s#", ASN1_STRING_data(ext),
+                         (Py_ssize_t) ASN1_STRING_length(ext));
+
+ error:                         /* Fall through */
+  ASN1_OCTET_STRING_free(ext);
+  return result;
+}
+
+static PyObject *
+extension_set_ski(X509_EXTENSIONS **exts, PyObject *args)
+{
+  ASN1_OCTET_STRING *ext = NULL;
+  const unsigned char *buf = NULL;
+  Py_ssize_t len;
+  int ok = 0;
+
+  ENTERING(extension_set_ski);
+
+  if (!exts)
+    goto error;
+
+  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
+    goto error;
+
+  if ((ext = ASN1_OCTET_STRING_new()) == NULL ||
+      !ASN1_OCTET_STRING_set(ext, buf, len))
+    lose_no_memory();
+
+  /*
+   * RFC 5280 says this MUST be non-critical.
+   */
+
+  if (!X509V3_add1_i2d(exts, NID_subject_key_identifier,
+                       ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add SKI extension to OpenSSL object");
+
+  ok = 1;
+
+ error:
+  ASN1_OCTET_STRING_free(ext);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static PyObject *
+extension_get_aki(X509_EXTENSIONS **exts)
+{
+  AUTHORITY_KEYID *ext = NULL;
+  PyObject *result = NULL;
+
+  ENTERING(extension_get_aki);
+
+  if (!exts)
+    goto error;
+
+  if ((ext = X509V3_get_d2i(*exts, NID_authority_key_identifier, NULL, NULL)) == NULL)
+    Py_RETURN_NONE;
+
+  result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid),
+                         (Py_ssize_t) ASN1_STRING_length(ext->keyid));
+
+ error:                         /* Fall through */
+  AUTHORITY_KEYID_free(ext);
+  return result;
+}
+
+static PyObject *
+extension_set_aki(X509_EXTENSIONS **exts, PyObject *args)
+{
+  AUTHORITY_KEYID *ext = NULL;
+  const unsigned char *buf = NULL;
+  Py_ssize_t len;
+  int ok = 0;
+
+  ENTERING(extension_set_aki);
+
+  assert (exts);
+
+  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
+    goto error;
+
+  if ((ext = AUTHORITY_KEYID_new()) == NULL ||
+      (ext->keyid == NULL && (ext->keyid = ASN1_OCTET_STRING_new()) == NULL) ||
+      !ASN1_OCTET_STRING_set(ext->keyid, buf, len))
+    lose_no_memory();
+
+  /*
+   * RFC 5280 says this MUST be non-critical.
+   */
+
+  if (!X509V3_add1_i2d(exts, NID_authority_key_identifier,
+                       ext, 0, X509V3_ADD_REPLACE))
+    lose_openssl_error("Couldn't add AKI extension to OpenSSL object");
+
+  ok = 1;
+
+ error:
+  AUTHORITY_KEYID_free(ext);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
 }
 
 
@@ -1716,6 +2327,15 @@ x509_object_der_write(x509_object *self)
   return result;
 }
 
+static X509_EXTENSIONS **
+x509_object_extension_helper(x509_object *self)
+{
+  if (self && self->x509 && self->x509->cert_info)
+    return &self->x509->cert_info->extensions;
+  PyErr_SetString(PyExc_ValueError, "Can't find X509_EXTENSIONS in X509 object");
+  return NULL;
+}
+
 static char x509_object_get_public_key__doc__[] =
   "Return the public key from this certificate object,\n"
   "as an Asymmetric object.\n"
@@ -2144,15 +2764,7 @@ static char x509_object_get_ski__doc__[] =
 static PyObject *
 x509_object_get_ski(x509_object *self)
 {
-  ENTERING(x509_object_get_ski);
-
-  (void) X509_check_ca(self->x509); /* Calls x509v3_cache_extensions() */
-
-  if (self->x509->skid == NULL)
-    Py_RETURN_NONE;
-  else
-    return Py_BuildValue("s#", ASN1_STRING_data(self->x509->skid),
-                         (Py_ssize_t) ASN1_STRING_length(self->x509->skid));
+  return extension_get_ski(x509_object_extension_helper(self));
 }
 
 static char x509_object_set_ski__doc__[] =
@@ -2162,37 +2774,7 @@ static char x509_object_set_ski__doc__[] =
 static PyObject *
 x509_object_set_ski(x509_object *self, PyObject *args)
 {
-  ASN1_OCTET_STRING *ext = NULL;
-  const unsigned char *buf = NULL;
-  Py_ssize_t len;
-  int ok = 0;
-
-  ENTERING(x509_object_set_ski);
-
-  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
-    goto error;
-
-  if ((ext = ASN1_OCTET_STRING_new()) == NULL ||
-      !ASN1_OCTET_STRING_set(ext, buf, len))
-    lose_no_memory();
-
-  /*
-   * RFC 5280 4.2.1.2 says this MUST be non-critical.
-   */
-
-  if (!X509_add1_ext_i2d(self->x509, NID_subject_key_identifier,
-                         ext, 0, X509V3_ADD_REPLACE))
-    lose_openssl_error("Couldn't add SKI extension to certificate");
-
-  ok = 1;
-
- error:
-  ASN1_OCTET_STRING_free(ext);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
+  return extension_set_ski(x509_object_extension_helper(self), args);
 }
 
 static char x509_object_get_aki__doc__[] =
@@ -2204,15 +2786,7 @@ static char x509_object_get_aki__doc__[] =
 static PyObject *
 x509_object_get_aki(x509_object *self)
 {
-  ENTERING(x509_object_get_aki);
-
-  (void) X509_check_ca(self->x509); /* Calls x509v3_cache_extensions() */
-
-  if (self->x509->akid == NULL || self->x509->akid->keyid == NULL)
-    Py_RETURN_NONE;
-  else
-    return Py_BuildValue("s#", ASN1_STRING_data(self->x509->akid->keyid),
-                         (Py_ssize_t) ASN1_STRING_length(self->x509->akid->keyid));
+  return extension_get_aki(x509_object_extension_helper(self));
 }
 
 static char x509_object_set_aki__doc__[] =
@@ -2225,38 +2799,7 @@ static char x509_object_set_aki__doc__[] =
 static PyObject *
 x509_object_set_aki(x509_object *self, PyObject *args)
 {
-  AUTHORITY_KEYID *ext = NULL;
-  const unsigned char *buf = NULL;
-  Py_ssize_t len;
-  int ok = 0;
-
-  ENTERING(x509_object_set_aki);
-
-  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
-    goto error;
-
-  if ((ext = AUTHORITY_KEYID_new()) == NULL ||
-      (ext->keyid == NULL && (ext->keyid = ASN1_OCTET_STRING_new()) == NULL) ||
-      !ASN1_OCTET_STRING_set(ext->keyid, buf, len))
-    lose_no_memory();
-
-  /*
-   * RFC 5280 4.2.1.1 says this MUST be non-critical.
-   */
-
-  if (!X509_add1_ext_i2d(self->x509, NID_authority_key_identifier,
-                         ext, 0, X509V3_ADD_REPLACE))
-    lose_openssl_error("Couldn't add AKI extension to certificate");
-
-  ok = 1;
-
- error:
-  AUTHORITY_KEYID_free(ext);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
+  return extension_set_aki(x509_object_extension_helper(self), args);
 }
 
 static char x509_object_get_key_usage__doc__[] =
@@ -2268,36 +2811,7 @@ static char x509_object_get_key_usage__doc__[] =
 static PyObject *
 x509_object_get_key_usage(x509_object *self)
 {
-  ASN1_BIT_STRING *ext = NULL;
-  PyObject *result = NULL;
-  PyObject *token = NULL;
-  int bit = -1;
-
-  ENTERING(x509_object_get_key_usage);
-
-  if ((ext = X509_get_ext_d2i(self->x509, NID_key_usage, NULL, NULL)) == NULL)
-    Py_RETURN_NONE;
-
-  if ((result = PyFrozenSet_New(NULL)) == NULL)
-    goto error;
-
-  for (bit = 0; key_usage_bit_names[bit] != NULL; bit++) {
-    if (ASN1_BIT_STRING_get_bit(ext, bit) &&
-        ((token = PyString_FromString(key_usage_bit_names[bit])) == NULL ||
-         PySet_Add(result, token) < 0))
-      goto error;
-    Py_XDECREF(token);
-    token = NULL;
-  }
-
-  ASN1_BIT_STRING_free(ext);
-  return result;
-
- error:
-  ASN1_BIT_STRING_free(ext);
-  Py_XDECREF(token);
-  Py_XDECREF(result);
-  return NULL;
+  return extension_get_key_usage(x509_object_extension_helper(self));
 }
 
 static char x509_object_set_key_usage__doc__[] =
@@ -2314,59 +2828,36 @@ static char x509_object_set_key_usage__doc__[] =
 static PyObject *
 x509_object_set_key_usage(x509_object *self, PyObject *args)
 {
-  ASN1_BIT_STRING *ext = NULL;
-  PyObject *iterable = NULL;
-  PyObject *critical = Py_True;
-  PyObject *iterator = NULL;
-  PyObject *token = NULL;
-  const char *t;
-  int bit = -1;
-  int ok = 0;
+  return extension_set_key_usage(x509_object_extension_helper(self), args);
+}
 
-  ENTERING(x509_object_set_key_usage);
+static char x509_object_get_eku__doc__[] =
+  "Return a FrozenSet of object identifiers representing the\n"
+  "ExtendedKeyUsage settings for this certificate, or None if\n"
+  "the certificate has no ExtendedKeyUsage extension.\n"
+  ;
 
-  if ((ext = ASN1_BIT_STRING_new()) == NULL)
-    lose_no_memory();
+static PyObject *
+x509_object_get_eku(x509_object *self)
+{
+  return extension_get_eku(x509_object_extension_helper(self));
+}
 
-  if (!PyArg_ParseTuple(args, "O|O", &iterable, &critical) ||
-      (iterator = PyObject_GetIter(iterable)) == NULL)
-    goto error;
+static char x509_object_set_eku__doc__[] =
+  "Set the ExtendedKeyUsage extension for this certificate.\n"
+  "\n"
+  "Argument \"iterable\" should be an iterable object which returns one or more\n"
+  "object identifiers.\n"
+  "\n"
+  "Optional argument \"critical\" is a boolean indicating whether the extension\n"
+  "should be marked as critical or not.  RFC 6487 4.8.5 says this extension\n"
+  "MUST NOT be marked as non-critical when used, so the default is False.\n"
+  ;
 
-  while ((token = PyIter_Next(iterator)) != NULL) {
-
-    if ((t = PyString_AsString(token)) == NULL)
-      goto error;
-
-    for (bit = 0; key_usage_bit_names[bit] != NULL; bit++)
-      if (!strcmp(t, key_usage_bit_names[bit]))
-        break;
-
-    if (key_usage_bit_names[bit] == NULL)
-      lose("Unrecognized KeyUsage token");
-
-    if (!ASN1_BIT_STRING_set_bit(ext, bit, 1))
-      lose_no_memory();
-
-    Py_XDECREF(token);
-    token = NULL;
-  }
-
-  if (!X509_add1_ext_i2d(self->x509, NID_key_usage, ext,
-                         PyObject_IsTrue(critical),
-                         X509V3_ADD_REPLACE))
-    lose_openssl_error("Couldn't add KeyUsage extension to certificate");
-
-  ok = 1;
-
- error:                         /* Fall through */
-  ASN1_BIT_STRING_free(ext);
-  Py_XDECREF(iterator);
-  Py_XDECREF(token);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
+static PyObject *
+x509_object_set_eku(x509_object *self, PyObject *args)
+{
+  return extension_set_eku(x509_object_extension_helper(self), args);
 }
 
 static char x509_object_get_rfc3779__doc__[] =
@@ -2745,21 +3236,7 @@ static char x509_object_get_basic_constraints__doc__[] =
 static PyObject *
 x509_object_get_basic_constraints(x509_object *self)
 {
-  BASIC_CONSTRAINTS *ext = NULL;
-  PyObject *result;
-
-  ENTERING(x509_object_get_basic_constraints);
-
-  if ((ext = X509_get_ext_d2i(self->x509, NID_basic_constraints, NULL, NULL)) == NULL)
-    Py_RETURN_NONE;
-
-  if (ext->pathlen == NULL)
-    result = Py_BuildValue("(NO)", PyBool_FromLong(ext->ca), Py_None);
-  else
-    result = Py_BuildValue("(Nl)", PyBool_FromLong(ext->ca), ASN1_INTEGER_get(ext->pathlen));
-
-  BASIC_CONSTRAINTS_free(ext);
-  return result;
+  return extension_get_basic_constraints(x509_object_extension_helper(self));
 }
 
 static char x509_object_set_basic_constraints__doc__[] =
@@ -2780,44 +3257,7 @@ static char x509_object_set_basic_constraints__doc__[] =
 static PyObject *
 x509_object_set_basic_constraints(x509_object *self, PyObject *args)
 {
-  BASIC_CONSTRAINTS *ext = NULL;
-  PyObject *is_ca = NULL;
-  PyObject *pathlen_obj = Py_None;
-  PyObject *critical = Py_True;
-  long pathlen = -1;
-  int ok = 0;
-
-  ENTERING(x509_object_set_basic_constraints);
-
-  if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
-    goto error;
-
-  if (pathlen_obj != Py_None && (pathlen = PyInt_AsLong(pathlen_obj)) < 0)
-    lose_type_error("Bad pathLenConstraint value");
-
-  if ((ext = BASIC_CONSTRAINTS_new()) == NULL)
-    lose_no_memory();
-
-  ext->ca = PyObject_IsTrue(is_ca) ? 0xFF : 0;
-
-  if (pathlen_obj != Py_None &&
-      ((ext->pathlen == NULL && (ext->pathlen = ASN1_INTEGER_new()) == NULL) ||
-       !ASN1_INTEGER_set(ext->pathlen, pathlen)))
-    lose_no_memory();
-
-  if (!X509_add1_ext_i2d(self->x509, NID_basic_constraints,
-                         ext, PyObject_IsTrue(critical), X509V3_ADD_REPLACE))
-    lose_openssl_error("Couldn't add BasicConstraints extension to certificate");
-
-  ok = 1;
-
- error:
-  BASIC_CONSTRAINTS_free(ext);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
+  return extension_set_basic_constraints(x509_object_extension_helper(self), args);
 }
 
 static char x509_object_get_sia__doc__[] =
@@ -2837,90 +3277,7 @@ static char x509_object_get_sia__doc__[] =
 static PyObject *
 x509_object_get_sia(x509_object *self)
 {
-  AUTHORITY_INFO_ACCESS *ext = NULL;
-  PyObject *result = NULL;
-  PyObject *result_caRepository = NULL;
-  PyObject *result_rpkiManifest = NULL;
-  PyObject *result_signedObject = NULL;
-  int n_caRepository = 0;
-  int n_rpkiManifest = 0;
-  int n_signedObject = 0;
-  const char *uri;
-  PyObject *obj;
-  int i, nid;
-
-  ENTERING(x509_object_get_sia);
-
-  if ((ext = X509_get_ext_d2i(self->x509, NID_sinfo_access, NULL, NULL)) == NULL)
-    Py_RETURN_NONE;
-
-  /*
-   * Easiest to do this in two passes, first pass just counts URIs.
-   */
-
-  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
-    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
-    if (a->location->type != GEN_URI)
-      continue;
-    nid = OBJ_obj2nid(a->method);
-    if (nid == NID_caRepository) {
-      n_caRepository++;
-      continue;
-    }
-    if (nid == NID_rpkiManifest) {
-      n_rpkiManifest++;
-      continue;
-    }
-    if (nid == NID_signedObject) {
-      n_signedObject++;
-      continue;
-    }
-  }
-
-  if (((result_caRepository = PyTuple_New(n_caRepository)) == NULL) ||
-      ((result_rpkiManifest = PyTuple_New(n_rpkiManifest)) == NULL) ||
-      ((result_signedObject = PyTuple_New(n_signedObject)) == NULL))
-    goto error;
-
-  n_caRepository = n_rpkiManifest = n_signedObject = 0;
-
-  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
-    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
-    if (a->location->type != GEN_URI)
-      continue;
-    nid = OBJ_obj2nid(a->method);
-    uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
-    if (nid == NID_caRepository) {
-      if ((obj = PyString_FromString(uri)) == NULL)
-        goto error;
-      PyTuple_SET_ITEM(result_caRepository, n_caRepository++, obj);
-      continue;
-    }
-    if (nid == NID_rpkiManifest) {
-      if ((obj = PyString_FromString(uri)) == NULL)
-        goto error;
-      PyTuple_SET_ITEM(result_rpkiManifest, n_rpkiManifest++, obj);
-      continue;
-    }
-    if (nid == NID_signedObject) {
-      if ((obj = PyString_FromString(uri)) == NULL)
-        goto error;
-      PyTuple_SET_ITEM(result_signedObject, n_signedObject++, obj);
-      continue;
-    }
-  }
-
-  result = Py_BuildValue("(OOO)",
-                         result_caRepository,
-                         result_rpkiManifest,
-                         result_signedObject);
-
- error:
-  AUTHORITY_INFO_ACCESS_free(ext);
-  Py_XDECREF(result_caRepository);
-  Py_XDECREF(result_rpkiManifest);
-  Py_XDECREF(result_signedObject);
-  return result;
+  return extension_get_sia(x509_object_extension_helper(self));
 }
 
 static char x509_object_set_sia__doc__[] =
@@ -2935,91 +3292,7 @@ static char x509_object_set_sia__doc__[] =
 static PyObject *
 x509_object_set_sia(x509_object *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = {"caRepository", "rpkiManifest", "signedObject", NULL};
-  AUTHORITY_INFO_ACCESS *ext = NULL;
-  PyObject *caRepository = Py_None;
-  PyObject *rpkiManifest = Py_None;
-  PyObject *signedObject = Py_None;
-  PyObject *iterator = NULL;
-  ASN1_OBJECT *oid = NULL;
-  PyObject **pobj = NULL;
-  PyObject *item = NULL;
-  ACCESS_DESCRIPTION *a = NULL;
-  int i, nid = NID_undef, ok = 0;
-  Py_ssize_t urilen;
-  char *uri;
-
-  ENTERING(x509_object_set_sia);
-
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist,
-                                   &caRepository, &rpkiManifest, &signedObject))
-    goto error;
-
-  if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
-    lose_no_memory();
-
-  /*
-   * This is going to want refactoring, because it's ugly, because we
-   * want to reuse code for AIA, and because it'd be nice to support a
-   * single URI as an abbreviation for a collection containing one URI.
-   */
-
-  for (i = 0; i < 3; i++) {
-    switch (i) {
-    case 0: pobj = &caRepository; nid = NID_caRepository; break;
-    case 1: pobj = &rpkiManifest; nid = NID_rpkiManifest; break;
-    case 2: pobj = &signedObject; nid = NID_signedObject; break;
-    }
-
-    if (*pobj == Py_None)
-      continue;
-
-    if ((oid = OBJ_nid2obj(nid)) == NULL)
-      lose_openssl_error("Couldn't find SIA accessMethod OID");
-
-    if ((iterator = PyObject_GetIter(*pobj)) == NULL)
-      goto error;
-
-    while ((item = PyIter_Next(iterator)) != NULL) {
-
-      if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
-        goto error;
-
-      if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
-          (a->method = OBJ_dup(oid)) == NULL ||
-          (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
-          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
-        lose_no_memory();
-
-      a->location->type = GEN_URI;
-
-      if (!sk_ACCESS_DESCRIPTION_push(ext, a))
-        lose_no_memory();
-
-      a = NULL;
-      Py_XDECREF(item);
-      item = NULL;
-    }
-
-    Py_XDECREF(iterator);
-    iterator = NULL;
-  }
-
-  if (!X509_add1_ext_i2d(self->x509, NID_sinfo_access, ext, 0, X509V3_ADD_REPLACE))
-    lose_openssl_error("Couldn't add SIA extension to certificate");
-
-  ok = 1;
-
- error:
-  AUTHORITY_INFO_ACCESS_free(ext);
-  ACCESS_DESCRIPTION_free(a);
-  Py_XDECREF(item);
-  Py_XDECREF(iterator);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
+  return extension_set_sia(x509_object_extension_helper(self), args, kwds);
 }
 
 static char x509_object_get_aia__doc__[] =
@@ -3464,6 +3737,8 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(setAKI,                 x509_object_set_aki,                    METH_VARARGS),
   Define_Method(getKeyUsage,            x509_object_get_key_usage,              METH_NOARGS),
   Define_Method(setKeyUsage,            x509_object_set_key_usage,              METH_VARARGS),
+  Define_Method(getEKU,                 x509_object_get_eku,                    METH_NOARGS),
+  Define_Method(setEKU,                 x509_object_set_eku,                    METH_VARARGS),
   Define_Method(getRFC3779,             x509_object_get_rfc3779,                METH_NOARGS),
   Define_Method(setRFC3779,             x509_object_set_rfc3779,                METH_KEYWORDS),
   Define_Method(getBasicConstraints,    x509_object_get_basic_constraints,      METH_NOARGS),
@@ -4245,6 +4520,15 @@ crl_object_der_read_file(PyTypeObject *type, PyObject *args)
   return read_from_file_helper(crl_object_der_read_helper, type, args);
 }
 
+static X509_EXTENSIONS **
+crl_object_extension_helper(crl_object *self)
+{
+  if (self && self->crl && self->crl->crl)
+    return &self->crl->crl->extensions;
+  PyErr_SetString(PyExc_ValueError, "Can't find X509_EXTENSIONS in CRL object");
+  return NULL;
+}
+
 static char crl_object_get_version__doc__[] =
   "return the version number of this CRL.\n"
   ;
@@ -4617,7 +4901,7 @@ crl_object_sign(crl_object *self, PyObject *args)
 }
 
 static char crl_object_verify__doc__[] =
-  "Verifie this CRL's signature.\n"
+  "Verify this CRL's signature.\n"
   "\n"
   "The check is performed using OpenSSL's X509_CRL_verify() function.\n"
   "\n"
@@ -4700,22 +4984,7 @@ static char crl_object_get_aki__doc__[] =
 static PyObject *
 crl_object_get_aki(crl_object *self)
 {
-  AUTHORITY_KEYID *ext = X509_CRL_get_ext_d2i(self->crl, NID_authority_key_identifier, NULL, NULL);
-  int empty = (ext == NULL || ext->keyid == NULL);
-  PyObject *result = NULL;
-
-  ENTERING(crl_object_get_aki);
-
-  if (!empty)
-    result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid),
-                           (Py_ssize_t) ASN1_STRING_length(ext->keyid));
-
-  AUTHORITY_KEYID_free(ext);
-
-  if (empty)
-    Py_RETURN_NONE;
-  else
-    return result;
+  return extension_get_aki(crl_object_extension_helper(self));
 }
 
 static char crl_object_set_aki__doc__[] =
@@ -4727,34 +4996,7 @@ static char crl_object_set_aki__doc__[] =
 static PyObject *
 crl_object_set_aki(crl_object *self, PyObject *args)
 {
-  AUTHORITY_KEYID *ext = NULL;
-  const unsigned char *buf = NULL;
-  Py_ssize_t len;
-  int ok = 0;
-
-  ENTERING(crl_object_set_aki);
-
-  if (!PyArg_ParseTuple(args, "s#", &buf, &len))
-    goto error;
-
-  if ((ext = AUTHORITY_KEYID_new()) == NULL ||
-      (ext->keyid = ASN1_OCTET_STRING_new()) == NULL ||
-      !ASN1_OCTET_STRING_set(ext->keyid, buf, len))
-    lose_no_memory();
-
-  if (!X509_CRL_add1_ext_i2d(self->crl, NID_authority_key_identifier,
-                             ext, 0, X509V3_ADD_REPLACE))
-    lose_openssl_error("Couldn't add AKI extension to CRL");
-
-  ok = 1;
-
- error:
-  AUTHORITY_KEYID_free(ext);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
+  return extension_set_aki(crl_object_extension_helper(self), args);
 }
 
 static char crl_object_get_crl_number__doc__[] =
@@ -8073,6 +8315,12 @@ pkcs10_object_der_write(pkcs10_object *self)
   return result;
 }
 
+static X509_EXTENSIONS **
+pkcs10_object_extension_helper(pkcs10_object *self)
+{
+  return &self->exts;
+}
+
 static char pkcs10_object_get_public_key__doc__[] =
   "Return the public key from this PKCS#10 request, as an Asymmetric\n"
   "object.\n"
@@ -8315,36 +8563,7 @@ static char pkcs10_object_get_key_usage__doc__[] =
 static PyObject *
 pkcs10_object_get_key_usage(pkcs10_object *self)
 {
-  ASN1_BIT_STRING *ext = NULL;
-  PyObject *result = NULL;
-  PyObject *token = NULL;
-  int bit = -1;
-
-  ENTERING(pkcs10_object_get_key_usage);
-
-  if ((ext = X509V3_get_d2i(self->exts, NID_key_usage, NULL, NULL)) == NULL)
-    Py_RETURN_NONE;
-
-  if ((result = PyFrozenSet_New(NULL)) == NULL)
-    goto error;
-
-  for (bit = 0; key_usage_bit_names[bit] != NULL; bit++) {
-    if (ASN1_BIT_STRING_get_bit(ext, bit) &&
-        ((token = PyString_FromString(key_usage_bit_names[bit])) == NULL ||
-         PySet_Add(result, token) < 0))
-      goto error;
-    Py_XDECREF(token);
-    token = NULL;
-  }
-
-  ASN1_BIT_STRING_free(ext);
-  return result;
-
- error:
-  ASN1_BIT_STRING_free(ext);
-  Py_XDECREF(token);
-  Py_XDECREF(result);
-  return NULL;
+  return extension_get_key_usage(pkcs10_object_extension_helper(self));
 }
 
 static char pkcs10_object_set_key_usage__doc__[] =
@@ -8361,59 +8580,36 @@ static char pkcs10_object_set_key_usage__doc__[] =
 static PyObject *
 pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
 {
-  ASN1_BIT_STRING *ext = NULL;
-  PyObject *iterable = NULL;
-  PyObject *critical = Py_True;
-  PyObject *iterator = NULL;
-  PyObject *token = NULL;
-  const char *t;
-  int bit = -1;
-  int ok = 0;
+  return extension_set_key_usage(pkcs10_object_extension_helper(self), args);
+}
 
-  ENTERING(pkcs10_object_set_key_usage);
+static char pkcs10_object_get_eku__doc__[] =
+  "Return a FrozenSet of object identifiers representing the\n"
+  "ExtendedKeyUsage settings for this PKCS #10 requst, or None if\n"
+  "the request has no ExtendedKeyUsage extension.\n"
+  ;
 
-  if ((ext = ASN1_BIT_STRING_new()) == NULL)
-    lose_no_memory();
+static PyObject *
+pkcs10_object_get_eku(pkcs10_object *self)
+{
+  return extension_get_eku(pkcs10_object_extension_helper(self));
+}
 
-  if (!PyArg_ParseTuple(args, "O|O", &iterable, &critical) ||
-      (iterator = PyObject_GetIter(iterable)) == NULL)
-    goto error;
+static char pkcs10_object_set_eku__doc__[] =
+  "Set the ExtendedKeyUsage extension for this PKCS #10 request.\n"
+  "\n"
+  "Argument \"iterable\" should be an iterable object which returns one or more\n"
+  "object identifiers.\n"
+  "\n"
+  "Optional argument \"critical\" is a boolean indicating whether the extension\n"
+  "should be marked as critical or not.  RFC 6487 4.8.5 says this extension\n"
+  "MUST NOT be marked as non-critical when used, so the default is False.\n"
+  ;
 
-  while ((token = PyIter_Next(iterator)) != NULL) {
-
-    if ((t = PyString_AsString(token)) == NULL)
-      goto error;
-
-    for (bit = 0; key_usage_bit_names[bit] != NULL; bit++)
-      if (!strcmp(t, key_usage_bit_names[bit]))
-        break;
-
-    if (key_usage_bit_names[bit] == NULL)
-      lose("Unrecognized KeyUsage token");
-
-    if (!ASN1_BIT_STRING_set_bit(ext, bit, 1))
-      lose_no_memory();
-
-    Py_XDECREF(token);
-    token = NULL;
-  }
-
-  if (!X509V3_add1_i2d(&self->exts, NID_key_usage, ext,
-                       PyObject_IsTrue(critical),
-                       X509V3_ADD_REPLACE))
-    lose_openssl_error("Couldn't add KeyUsage extension to certificate");
-
-  ok = 1;
-
- error:                         /* Fall through */
-  ASN1_BIT_STRING_free(ext);
-  Py_XDECREF(iterator);
-  Py_XDECREF(token);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
+static PyObject *
+pkcs10_object_set_eku(pkcs10_object *self, PyObject *args)
+{
+  return extension_set_eku(pkcs10_object_extension_helper(self), args);
 }
 
 static char pkcs10_object_get_basic_constraints__doc__[] =
@@ -8431,21 +8627,7 @@ static char pkcs10_object_get_basic_constraints__doc__[] =
 static PyObject *
 pkcs10_object_get_basic_constraints(pkcs10_object *self)
 {
-  BASIC_CONSTRAINTS *ext = NULL;
-  PyObject *result;
-
-  ENTERING(pkcs10_object_get_basic_constraints);
-
-  if ((ext = X509V3_get_d2i(self->exts, NID_basic_constraints, NULL, NULL)) == NULL)
-    Py_RETURN_NONE;
-
-  if (ext->pathlen == NULL)
-    result = Py_BuildValue("(NO)", PyBool_FromLong(ext->ca), Py_None);
-  else
-    result = Py_BuildValue("(Nl)", PyBool_FromLong(ext->ca), ASN1_INTEGER_get(ext->pathlen));
-
-  BASIC_CONSTRAINTS_free(ext);
-  return result;
+  return extension_get_basic_constraints(pkcs10_object_extension_helper(self));
 }
 
 static char pkcs10_object_set_basic_constraints__doc__[] =
@@ -8467,44 +8649,7 @@ static char pkcs10_object_set_basic_constraints__doc__[] =
 static PyObject *
 pkcs10_object_set_basic_constraints(pkcs10_object *self, PyObject *args)
 {
-  BASIC_CONSTRAINTS *ext = NULL;
-  PyObject *is_ca = NULL;
-  PyObject *pathlen_obj = Py_None;
-  PyObject *critical = Py_True;
-  long pathlen = -1;
-  int ok = 0;
-
-  ENTERING(pkcs10_object_set_basic_constraints);
-
-  if (!PyArg_ParseTuple(args, "O|OO", &is_ca, &pathlen_obj, &critical))
-    goto error;
-
-  if (pathlen_obj != Py_None && (pathlen = PyInt_AsLong(pathlen_obj)) < 0)
-    lose_type_error("Bad pathLenConstraint value");
-
-  if ((ext = BASIC_CONSTRAINTS_new()) == NULL)
-    lose_no_memory();
-
-  ext->ca = PyObject_IsTrue(is_ca) ? 0xFF : 0;
-
-  if (pathlen_obj != Py_None &&
-      ((ext->pathlen == NULL && (ext->pathlen = ASN1_INTEGER_new()) == NULL) ||
-       !ASN1_INTEGER_set(ext->pathlen, pathlen)))
-    lose_no_memory();
-
-  if (!X509V3_add1_i2d(&self->exts, NID_basic_constraints, ext,
-                       PyObject_IsTrue(critical), X509V3_ADD_REPLACE))
-    lose_openssl_error("Couldn't add BasicConstraints extension to certificate");
-
-  ok = 1;
-
- error:
-  BASIC_CONSTRAINTS_free(ext);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
+  return extension_set_basic_constraints(pkcs10_object_extension_helper(self), args);
 }
 
 static char pkcs10_object_get_sia__doc__[] =
@@ -8521,90 +8666,7 @@ static char pkcs10_object_get_sia__doc__[] =
 static PyObject *
 pkcs10_object_get_sia(pkcs10_object *self)
 {
-  AUTHORITY_INFO_ACCESS *ext = NULL;
-  PyObject *result = NULL;
-  PyObject *result_caRepository = NULL;
-  PyObject *result_rpkiManifest = NULL;
-  PyObject *result_signedObject = NULL;
-  int n_caRepository = 0;
-  int n_rpkiManifest = 0;
-  int n_signedObject = 0;
-  const char *uri;
-  PyObject *obj;
-  int i, nid;
-
-  ENTERING(pkcs10_object_get_sia);
-
-  if ((ext = X509V3_get_d2i(self->exts, NID_sinfo_access, NULL, NULL)) == NULL)
-    Py_RETURN_NONE;
-
-  /*
-   * Easiest to do this in two passes, first pass just counts URIs.
-   */
-
-  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
-    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
-    if (a->location->type != GEN_URI)
-      continue;
-    nid = OBJ_obj2nid(a->method);
-    if (nid == NID_caRepository) {
-      n_caRepository++;
-      continue;
-    }
-    if (nid == NID_rpkiManifest) {
-      n_rpkiManifest++;
-      continue;
-    }
-    if (nid == NID_signedObject) {
-      n_signedObject++;
-      continue;
-    }
-  }
-
-  if (((result_caRepository = PyTuple_New(n_caRepository)) == NULL) ||
-      ((result_rpkiManifest = PyTuple_New(n_rpkiManifest)) == NULL) ||
-      ((result_signedObject = PyTuple_New(n_signedObject)) == NULL))
-    goto error;
-
-  n_caRepository = n_rpkiManifest = n_signedObject = 0;
-
-  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
-    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
-    if (a->location->type != GEN_URI)
-      continue;
-    nid = OBJ_obj2nid(a->method);
-    uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
-    if (nid == NID_caRepository) {
-      if ((obj = PyString_FromString(uri)) == NULL)
-        goto error;
-      PyTuple_SET_ITEM(result_caRepository, n_caRepository++, obj);
-      continue;
-    }
-    if (nid == NID_rpkiManifest) {
-      if ((obj = PyString_FromString(uri)) == NULL)
-        goto error;
-      PyTuple_SET_ITEM(result_rpkiManifest, n_rpkiManifest++, obj);
-      continue;
-    }
-    if (nid == NID_signedObject) {
-      if ((obj = PyString_FromString(uri)) == NULL)
-        goto error;
-      PyTuple_SET_ITEM(result_signedObject, n_signedObject++, obj);
-      continue;
-    }
-  }
-
-  result = Py_BuildValue("(OOO)",
-                         result_caRepository,
-                         result_rpkiManifest,
-                         result_signedObject);
-
- error:
-  AUTHORITY_INFO_ACCESS_free(ext);
-  Py_XDECREF(result_caRepository);
-  Py_XDECREF(result_rpkiManifest);
-  Py_XDECREF(result_signedObject);
-  return result;
+  return extension_get_sia(pkcs10_object_extension_helper(self));
 }
 
 static char pkcs10_object_set_sia__doc__[] =
@@ -8619,91 +8681,9 @@ static char pkcs10_object_set_sia__doc__[] =
   ;
 
 static PyObject *
-pkcs10_object_set_sia(pkcs10_object *self, PyObject *args)
+pkcs10_object_set_sia(pkcs10_object *self, PyObject *args, PyObject *kwds)
 {
-  AUTHORITY_INFO_ACCESS *ext = NULL;
-  PyObject *caRepository = NULL;
-  PyObject *rpkiManifest = NULL;
-  PyObject *signedObject = NULL;
-  PyObject *iterator = NULL;
-  ASN1_OBJECT *oid = NULL;
-  PyObject **pobj = NULL;
-  PyObject *item = NULL;
-  ACCESS_DESCRIPTION *a = NULL;
-  int i, nid = NID_undef, ok = 0;
-  Py_ssize_t urilen;
-  char *uri;
-
-  ENTERING(pkcs10_object_set_sia);
-
-  if (!PyArg_ParseTuple(args, "OOO", &caRepository, &rpkiManifest, &signedObject))
-    goto error;
-
-  if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
-    lose_no_memory();
-
-  /*
-   * This is going to want refactoring, because it's ugly, because we
-   * want to reuse code for AIA, and because it'd be nice to support a
-   * single URI as an abbreviation for a sequence containing one URI.
-   */
-
-  for (i = 0; i < 3; i++) {
-    switch (i) {
-    case 0: pobj = &caRepository; nid = NID_caRepository; break;
-    case 1: pobj = &rpkiManifest; nid = NID_rpkiManifest; break;
-    case 2: pobj = &signedObject; nid = NID_signedObject; break;
-    }
-
-    if (*pobj == Py_None)
-      continue;
-
-    if ((oid = OBJ_nid2obj(nid)) == NULL)
-      lose_openssl_error("Couldn't find SIA accessMethod OID");
-
-    if ((iterator = PyObject_GetIter(*pobj)) == NULL)
-      goto error;
-
-    while ((item = PyIter_Next(iterator)) != NULL) {
-
-      if (PyString_AsStringAndSize(item, &uri, &urilen) < 0)
-        goto error;
-
-      if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
-          (a->method = OBJ_dup(oid)) == NULL ||
-          (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
-          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
-        lose_no_memory();
-
-      a->location->type = GEN_URI;
-
-      if (!sk_ACCESS_DESCRIPTION_push(ext, a))
-        lose_no_memory();
-
-      a = NULL;
-      Py_XDECREF(item);
-      item = NULL;
-    }
-
-    Py_XDECREF(iterator);
-    iterator = NULL;
-  }
-
-  if (!X509V3_add1_i2d(&self->exts, NID_sinfo_access, ext, 0, X509V3_ADD_REPLACE))
-    lose_openssl_error("Couldn't add SIA extension to certificate");
-
-  ok = 1;
-
- error:
-  AUTHORITY_INFO_ACCESS_free(ext);
-  ACCESS_DESCRIPTION_free(a);
-  Py_XDECREF(item);
-  Py_XDECREF(iterator);
-
-  if (ok)
-    Py_RETURN_NONE;
-  else
-    return NULL;
+  return extension_set_sia(pkcs10_object_extension_helper(self), args, kwds);
 }
 
 static char pkcs10_object_get_signature_algorithm__doc__[] =
@@ -8800,10 +8780,12 @@ static struct PyMethodDef pkcs10_object_methods[] = {
   Define_Method(pprint,                 pkcs10_object_pprint,                   METH_NOARGS),
   Define_Method(getKeyUsage,            pkcs10_object_get_key_usage,            METH_NOARGS),
   Define_Method(setKeyUsage,            pkcs10_object_set_key_usage,            METH_VARARGS),
+  Define_Method(getEKU,                 pkcs10_object_get_eku,                  METH_NOARGS),
+  Define_Method(setEKU,                 pkcs10_object_set_eku,                  METH_VARARGS),
   Define_Method(getBasicConstraints,    pkcs10_object_get_basic_constraints,    METH_NOARGS),
   Define_Method(setBasicConstraints,    pkcs10_object_set_basic_constraints,    METH_VARARGS),
   Define_Method(getSIA,                 pkcs10_object_get_sia,                  METH_NOARGS),
-  Define_Method(setSIA,                 pkcs10_object_set_sia,                  METH_VARARGS),
+  Define_Method(setSIA,                 pkcs10_object_set_sia,                  METH_KEYWORDS),
   Define_Method(getSignatureAlgorithm,  pkcs10_object_get_signature_algorithm,  METH_NOARGS),
   Define_Method(getExtensionOIDs,       pkcs10_object_get_extension_oids,       METH_NOARGS),
   Define_Class_Method(pemRead,          pkcs10_object_pem_read,                 METH_VARARGS),

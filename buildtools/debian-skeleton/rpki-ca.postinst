@@ -48,7 +48,8 @@ setup_rpki_conf() {
 }
 
 setup_mysql() {
-    rpki-sql-setup --mysql-defaults /etc/mysql/debian.cnf
+    rpki-sql-setup --create-if-missing --mysql-defaults /etc/mysql/debian.cnf
+    rpki-sql-setup --apply-upgrades --verbose
 }
 
 setup_bpki() {

@@ -1,39 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 4588 2012-07-06 19:43:56Z sra $
+  $Id: left-right-schema.rnc 5746 2014-04-04 02:00:06Z sra $
   
-  RelaxNG Schema for RPKI left-right protocol.
+  RelaxNG schema for RPKI left-right protocol.
   
-  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
-  run the compact syntax through trang to get XML syntax.
-  
-  Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
-  
-  Permission to use, copy, modify, and distribute this software for any
-  purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
-  
-  THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-  AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-  PERFORMANCE OF THIS SOFTWARE.
-  
-  Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
+  Copyright (C) 2012- -2014  Dragon Research Labs ("DRL")
+  Portions copyright (C) 2009- -2011  Internet Systems Consortium ("ISC")
+  Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
+  copyright notices and this permission notice appear in all copies.
   
-  THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-  AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-  PERFORMANCE OF THIS SOFTWARE.
+  THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+  WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+  ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+  CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+  OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+  NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+  WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 -->
 <grammar ns="http://www.hactrn.net/uris/rpki/left-right-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <!-- Top level PDU -->
@@ -87,6 +73,9 @@
     <ref name="list_ghostbuster_requests_query"/>
   </define>
   <define name="query_elt" combine="choice">
+    <ref name="list_ee_certificate_requests_query"/>
+  </define>
+  <define name="query_elt" combine="choice">
     <ref name="list_resources_query"/>
   </define>
   <define name="query_elt" combine="choice">
@@ -119,6 +108,9 @@
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_ghostbuster_requests_reply"/>
+  </define>
+  <define name="reply_elt" combine="choice">
+    <ref name="list_ee_certificate_requests_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_published_objects_reply"/>
@@ -192,7 +184,7 @@
   <define name="object_handle">
     <data type="string">
       <param name="maxLength">255</param>
-      <param name="pattern">[\-_A-Za-z0-9]*</param>
+      <param name="pattern">[\-_A-Za-z0-9]+</param>
     </data>
   </define>
   <!-- URIs -->
@@ -929,6 +921,72 @@
       <data type="string"/>
     </element>
   </define>
+  <!-- <list_ee_certificate_requests/> element -->
+  <define name="list_ee_certificate_requests_query">
+    <element name="list_ee_certificate_requests">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+    </element>
+  </define>
+  <define name="list_ee_certificate_requests_reply">
+    <element name="list_ee_certificate_requests">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+      <attribute name="gski">
+        <data type="token">
+          <param name="minLength">27</param>
+          <param name="maxLength">27</param>
+        </data>
+      </attribute>
+      <attribute name="valid_until">
+        <data type="dateTime">
+          <param name="pattern">.*Z</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="asn">
+          <ref name="asn_list"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="ipv4">
+          <ref name="ipv4_list"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="ipv6">
+          <ref name="ipv6_list"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="cn">
+          <data type="string">
+            <param name="maxLength">64</param>
+            <param name="pattern">[\-0-9A-Za-z_ ]+</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="sn">
+          <data type="string">
+            <param name="maxLength">64</param>
+            <param name="pattern">[0-9A-Fa-f]+</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="eku">
+          <data type="string">
+            <param name="maxLength">512000</param>
+            <param name="pattern">[.,0-9]+</param>
+          </data>
+        </attribute>
+      </optional>
+      <element name="pkcs10">
+        <ref name="base64"/>
+      </element>
+    </element>
+  </define>
   <!-- <list_published_objects/> element -->
   <define name="list_published_objects_query">
     <element name="list_published_objects">
@@ -1025,5 +1083,7 @@
 <!--
   Local Variables:
   indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
   End:
 -->

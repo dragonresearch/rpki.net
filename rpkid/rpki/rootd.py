@@ -37,7 +37,6 @@ import rpki.exceptions
 import rpki.relaxng
 import rpki.sundial
 import rpki.log
-import rpki.oids
 import rpki.daemonize
 
 rootd = None
@@ -50,7 +49,7 @@ class list_pdu(rpki.up_down.list_pdu):
 
 class issue_pdu(rpki.up_down.issue_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
-    self.pkcs10.check_valid_rpki()
+    self.pkcs10.check_valid_request_ca()
     r_msg.payload = rpki.up_down.issue_response_pdu()
     rootd.compose_response(r_msg, self.pkcs10)
     callback()
@@ -230,7 +229,7 @@ class main(object):
     manifest_keypair = rpki.x509.RSA.generate()
     manifest_cert = self.rpki_root_cert.issue(
       keypair     = self.rpki_root_key,
-      subject_key = manifest_keypair.get_RSApublic(),
+      subject_key = manifest_keypair.get_public(),
       serial      = self.serial_number,
       sia         = (None, None, self.rpki_base_uri + self.rpki_root_manifest),
       aia         = self.rpki_root_cert_uri,

@@ -350,3 +350,18 @@ class NullValidityInterval(RPKI_Exception):
   """
   Requested validity interval is null.
   """
+
+class BadX510DN(RPKI_Exception):
+  """
+  X.510 distinguished name does not match profile.
+  """
+
+class BadAutonomousSystemNumber(RPKI_Exception):
+  """
+  Bad AutonomousSystem number.
+  """
+
+class WrongEKU(RPKI_Exception):
+  """
+  Extended Key Usage extension does not match profile.
+  """

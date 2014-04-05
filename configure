@@ -5062,7 +5062,7 @@ fi
 
 if test $build_rp_tools = yes
 then
-	ac_config_files="$ac_config_files rcynic/Makefile utils/Makefile utils/find_roa/Makefile utils/hashdir/Makefile utils/print_rpki_manifest/Makefile utils/print_roa/Makefile utils/scan_roas/Makefile utils/uri/Makefile rtr-origin/Makefile"
+	ac_config_files="$ac_config_files rcynic/Makefile utils/Makefile utils/find_roa/Makefile utils/hashdir/Makefile utils/print_rpki_manifest/Makefile utils/print_roa/Makefile utils/scan_roas/Makefile utils/scan_routercerts/Makefile utils/uri/Makefile rtr-origin/Makefile"
 
 fi
 
@@ -5819,6 +5819,7 @@ do
     "utils/print_rpki_manifest/Makefile") CONFIG_FILES="$CONFIG_FILES utils/print_rpki_manifest/Makefile" ;;
     "utils/print_roa/Makefile") CONFIG_FILES="$CONFIG_FILES utils/print_roa/Makefile" ;;
     "utils/scan_roas/Makefile") CONFIG_FILES="$CONFIG_FILES utils/scan_roas/Makefile" ;;
+    "utils/scan_routercerts/Makefile") CONFIG_FILES="$CONFIG_FILES utils/scan_routercerts/Makefile" ;;
     "utils/uri/Makefile") CONFIG_FILES="$CONFIG_FILES utils/uri/Makefile" ;;
     "rtr-origin/Makefile") CONFIG_FILES="$CONFIG_FILES rtr-origin/Makefile" ;;
     "rpkid/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/Makefile" ;;

@@ -49,150 +49,372 @@ kids:
         ipv4: 10.3.0.44/32
 
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   rekey:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
+
 - name: R0
   revoke:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - sleep 30
 
-
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   rekey:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   revoke:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - sleep 30
 
-
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   rekey:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   revoke:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - sleep 30
 
-
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   rekey:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   revoke:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - sleep 30
 
-
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   rekey:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   revoke:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - sleep 30
 
-
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   rekey:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   revoke:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - sleep 30
 
-
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   rekey:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   revoke:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - sleep 30
 
-
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   rekey:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   revoke:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - sleep 30
 
-
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   rekey:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   revoke:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - sleep 30
 
-
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   rekey:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - name: R0
   revoke:
 - sleep 10
+
 ---
-- shell sleep 1; dir=rcynic.`date +%s`.data; mkdir $dir; cd rcynic-data; pax -rwl . ../$dir; find . -type f -name '*.cer' | sort | xargs ../../../../utils/uri/uri -s >../${dir%.data}.uris; sleep 1
+- shell sleep 1;
+  dir=rcynic.`date +%s`.data; mkdir $dir;
+  cd rcynic-data;
+  pax -rwl . ../$dir; find . -type f -name '*.cer' |
+  sort |
+  xargs ../../../../utils/uri/uri -s
+  >../${dir%.data}.uris;
+  sleep 1
 - sleep 30

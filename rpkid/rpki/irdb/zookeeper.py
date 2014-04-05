@@ -1671,3 +1671,12 @@ class Zookeeper(object):
 
       for range in asns:
         ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))
+
+
+  @django.db.transaction.commit_on_success
+  def delete_router_certificate_request(self, gski):
+    """
+    Delete a router certificate request from this RPKI entity.
+    """
+
+    self.resource_ca.ee_certificate_requests.get(gski = gski).delete()

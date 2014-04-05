@@ -717,12 +717,37 @@ class main(Cmd):
     if self.autosync:
       self.zoo.run_rpkid_now()
 
-  # Going to need some way to delete router certificate requests too.
-  # This probably means that we specify which request to delete by
-  # g(SKI), which means we need a g(SKI) completion function and a
-  # show method to display a table of g(SKI)s, router-ids, and
-  # valid_until values.
-  #
+  @parsecmd(argsubparsers,
+            cmdarg("gski", help = "g(SKI) of router certificate request to delete"))
+  def do_delete_router_certificate_request(self, args):
+    """
+    Delete a router certificate request from the IRDB.
+    """
+
+    try:
+      self.zoo.delete_router_certificate_request(args.gski)
+      if self.autosync:
+        self.zoo.run_rpkid_now()
+    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+      print "No such resource holder \"%s\"" % self.zoo.handle
+    except rpki.irdb.EECertificateRequest.DoesNotExist:
+      print "No certificate request matching g(SKI) \"%s\"" % args.gski
+
+  def complete_delete_router_certificate_request(self, text, line, begidx, endidx):
+    return [obj.gski for obj in self.zoo.resource_ca.ee_certificate_requests.all()
+            if obj.gski and obj.gski.startswith(text)]
+
+
+  @parsecmd(argsubparsers)
+  def do_show_router_certificate_requests(self, args):
+    """
+    Show this entity's router certificate requests.
+    """
+
+    for req in self.zoo.resource_ca.ee_certificate_requests.all():
+      print "%s  %s  %s  %s" % (req.gski, req.valid_until, req.cn, req.sn)
+
+
   # What about updates?  Validity interval, change router-id, change
   # ASNs.  Not sure what this looks like yet, blunder ahead with the
   # core code while mulling over the UI.

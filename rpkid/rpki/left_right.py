@@ -1150,6 +1150,8 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
                        for r in ca_detail.roas if r.roa is not None)
           r_msg.extend(self.make_reply(g.uri, g.ghostbuster)
                        for g in ca_detail.ghostbusters)          
+          r_msg.extend(self.make_reply(c.uri, c.cert)
+                       for c in ca_detail.ee_certificates)
     cb()
 
   def make_reply(self, uri, obj, child_handle = None):

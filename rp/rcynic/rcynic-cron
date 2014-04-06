@@ -37,13 +37,13 @@ def run(*cmd, **kwargs):
   pid = os.fork()
   if pid == 0:
     if chroot_this:
-      os.chdir(ac_rcynic_dir)
+      os.chdir(rpki.autoconf.rcynic_dir)
     elif cwd is not None:
       os.chdir(cwd)
     if we_are_root:
       os.initgroups(pw.pw_name, pw.pw_gid)
     if chroot_this:
-      os.chroot(ac_rcynic_dir)
+      os.chroot(rpki.autoconf.rcynic_dir)
     if we_are_root:
       os.setgid(pw.pw_gid)
       os.setuid(pw.pw_uid)
@@ -71,12 +71,12 @@ if args.chroot and not we_are_root:
   sys.exit("Only root can --chroot")
 
 try:
-  pw = pwd.getpwnam(ac_rcynic_user)
+  pw = pwd.getpwnam(rpki.autoconf.rcynic_user)
 except KeyError:
-  sys.exit("Could not find passwd entry for user %s" % ac_rcynic_user)
+  sys.exit("Could not find passwd entry for user %s" % rpki.autoconf.rcynic_user)
 
 try:
-  lock = os.open(os.path.join(ac_rcynic_dir, "data/lock"), os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
+  lock = os.open(os.path.join(rpki.autoconf.rcynic_dir, "data/lock"), os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
   fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
   if we_are_root:
     os.fchown(lock, pw.pw_uid, pw.pw_gid)
@@ -84,23 +84,23 @@ except (IOError, OSError), e:
   if e.errno == errno.EAGAIN:
     sys.exit(0)                         # Another instance of this script is already running, exit silently
   else:
-    sys.exit("Error %r opening lock %r" % (e.strerror, os.path.join(ac_rcynic_dir, "data/lock")))
+    sys.exit("Error %r opening lock %r" % (e.strerror, os.path.join(rpki.autoconf.rcynic_dir, "data/lock")))
 
 if args.chroot:
   run("/bin/rcynic", "-c", "/etc/rcynic.conf", chroot_this = True)
 else:
-  run(os.path.join(ac_bindir, "rcynic"), "-c", os.path.join(ac_sysconfdir, "rcynic.conf"))
+  run(os.path.join(rpki.autoconf.bindir, "rcynic"), "-c", os.path.join(rpki.autoconf.sysconfdir, "rcynic.conf"))
 
-run(os.path.join(ac_bindir, "rtr-origin"),
+run(os.path.join(rpki.autoconf.bindir, "rtr-origin"),
     "--cronjob", 
-    os.path.join(ac_rcynic_dir, "data/authenticated"),
-    cwd = os.path.join(ac_rcynic_dir, "rpki-rtr"))
+    os.path.join(rpki.autoconf.rcynic_dir, "data/authenticated"),
+    cwd = os.path.join(rpki.autoconf.rcynic_dir, "rpki-rtr"))
 
-prog = os.path.join(ac_libexecdir, "rpkigui-rcynic")
+prog = os.path.join(rpki.autoconf.libexecdir, "rpkigui-rcynic")
 if os.path.exists(prog):
   run(prog)
 
-if ac_rcynic_html_dir and os.path.exists(os.path.dirname(ac_rcynic_html_dir)):
-  run(os.path.join(ac_bindir, "rcynic-html"),
-      os.path.join(ac_rcynic_dir, "data/rcynic.xml"),
-      ac_rcynic_html_dir)
+if rpki.autoconf.rcynic_html_dir and os.path.exists(os.path.dirname(rpki.autoconf.rcynic_html_dir)):
+  run(os.path.join(rpki.autoconf.bindir, "rcynic-html"),
+      os.path.join(rpki.autoconf.rcynic_dir, "data/rcynic.xml"),
+      rpki.autoconf.rcynic_html_dir)

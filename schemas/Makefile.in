@@ -1,0 +1,66 @@
+# $Id$
+
+PYTHON		= @PYTHON@
+TRANG		= @TRANG@
+
+CFLAGS		= @CFLAGS@
+LDFLAGS		= @LDFLAGS@ @POW_LDFLAGS@
+LIBS		= @LIBS@
+
+INSTALL		= @INSTALL@ -m 555 
+
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+datarootdir	= @datarootdir@
+datadir		= @datadir@
+localstatedir	= @localstatedir@
+sharedstatedir	= @sharedstatedir@
+sysconfdir	= @sysconfdir@
+bindir		= @bindir@
+sbindir		= @sbindir@
+libexecdir	= @libexecdir@
+sysconfdir	= @sysconfdir@
+
+abs_builddir	= @abs_builddir@
+abs_top_srcdir	= @abs_top_srcdir@
+abs_top_builddir= @abs_top_builddir@
+srcdir          = @srcdir@
+
+all:: ${abs_top_srcdir}/rpki/relaxng.py ${abs_top_srcdir}/rpki/sql_schemas.py
+
+install clean test distclean deinstall uninstall::
+	@true
+
+RNGS =  relaxng/left-right-schema.rng		\
+	relaxng/up-down-schema.rng		\
+	relaxng/publication-schema.rng		\
+	relaxng/myrpki.rng			\
+	relaxng/router-certificate-schema.rng
+
+SQLS =	sql/rpkid.sql sql/pubd.sql
+
+${abs_top_srcdir}/rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS}
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS} >$@.tmp
+	mv $@.tmp $@
+
+${abs_top_srcdir}/rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py ${SQLS}
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
+	mv $@.tmp $@
+
+relaxng/left-right-schema.rng: relaxng/left-right-schema.rnc
+	${TRANG} relaxng/left-right-schema.rnc relaxng/left-right-schema.rng
+
+relaxng/up-down-schema.rng: relaxng/up-down-schema.rnc
+	${TRANG} relaxng/up-down-schema.rnc relaxng/up-down-schema.rng
+
+relaxng/publication-schema.rng: relaxng/publication-schema.rnc
+	${TRANG} relaxng/publication-schema.rnc relaxng/publication-schema.rng
+
+relaxng/myrpki.rng: relaxng/myrpki.rnc
+	${TRANG} relaxng/myrpki.rnc relaxng/myrpki.rng
+
+relaxng/router-certificate-schema.rng: relaxng/router-certificate-schema.rnc
+	${TRANG} relaxng/router-certificate-schema.rnc relaxng/router-certificate-schema.rng
+
+dont-run-trang:
+	touch relaxng/*.rng

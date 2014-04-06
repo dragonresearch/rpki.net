@@ -1,8 +1,6 @@
 # $Id$
 
-BASE		= rtr-origin
-SRC		= ${BASE}.py
-BIN		= ${BASE}
+BIN		= rtr-origin
 
 INSTALL		= @INSTALL@
 PYTHON		= @PYTHON@
@@ -30,10 +28,8 @@ RPKI_RTR_PORT	= 43779
 SCAN_ROAS	= ${bindir}/scan_roas
 
 
-all: ${BIN}
-
-clean:
-	rm -f ${BIN}
+all clean test::
+	@true
 
 install: all ${RTR_ORIGIN_INSTALL_TARGETS}
 
@@ -47,14 +43,6 @@ deinstall uninstall:
 distclean: clean
 	rm -rf current sockets *.ax *.ix.*
 	rm -f Makefile
-
-${BIN} : ${SRC}
-	AC_PYTHON_INTERPRETER='${PYTHON}' AC_SCAN_ROAS='${SCAN_ROAS}' \
-	${PYTHON} ${abs_top_srcdir}/buildtools/make-rcynic-script.py <${SRC} >$@
-	chmod a+x $@
-
-test:
-	@true
 
 .FORCE:
 

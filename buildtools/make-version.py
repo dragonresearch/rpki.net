@@ -63,7 +63,7 @@ if v == unknown:
     sys.stderr.write("Warning: Could not determine software version\n")
 
 if old is None or v != old:
+  with open("rpki/version.py", "w") as f:
+    f.write("VERSION = \"%s\"\n" % v)
   with open("VERSION", "w") as f:
     f.write(v + "\n")
-  with open("rpkid/rpki/version.py", "w") as f:
-    f.write("VERSION = \"%s\"\n" % v)

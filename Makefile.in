@@ -1,16 +1,38 @@
 # $Id$
 
-PYTHON = @PYTHON@
+CFLAGS		= @CFLAGS@
+LDFLAGS		= @LDFLAGS@ @POW_LDFLAGS@
+LIBS		= @LIBS@
 
-abs_top_builddir = @abs_top_builddir@
+PYTHON		= @PYTHON@
+INSTALL		= @INSTALL@ -m 555 
 
-SUBDIRS = @TOP_LEVEL_SUBDIRS@
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+datarootdir	= @datarootdir@
+datadir		= @datadir@
+localstatedir	= @localstatedir@
+sharedstatedir	= @sharedstatedir@
+sysconfdir	= @sysconfdir@
+bindir		= @bindir@
+sbindir		= @sbindir@
+libexecdir	= @libexecdir@
+sysconfdir	= @sysconfdir@
+
+abs_builddir	= @abs_builddir@
+abs_top_srcdir	= @abs_top_srcdir@
+abs_top_builddir= @abs_top_builddir@
+srcdir          = @srcdir@
+
+SUBDIRS		= @TOP_LEVEL_SUBDIRS@
+
+SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
 
 default: all
 
 test:: all
 
-all:: VERSION
+all:: VERSION rpki/autoconf.py setup_autoconf.py
 
 all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
@@ -30,3 +52,59 @@ VERSION: .FORCE
 	${PYTHON} buildtools/make-version.py
 
 .FORCE:
+
+rpki/autoconf.py: Makefile
+	@echo 'Generating $@';							\
+	(echo '# Automatically generated.  DO NOT EDIT.';			\
+	 echo ;									\
+	 echo 'bindir	      = "${bindir}"';					\
+	 echo 'datarootdir    = "${datarootdir}"';				\
+	 echo 'localstatedir  = "${localstatedir}"';				\
+	 echo 'sbindir	      = "${sbindir}"';					\
+	 echo 'sharedstatedir = "${sharedstatedir}"';				\
+	 echo 'sysconfdir     = "${sysconfdir}"';				\
+	 echo 'libexecdir     = "${libexecdir}"';				\
+	 echo ;									\
+	 echo 'WSGI_DAEMON_PROCESS	    = "${WSGI_DAEMON_PROCESS}"';	\
+	 echo 'WSGI_PROCESS_GROUP	    = "${WSGI_PROCESS_GROUP}"';		\
+	 echo 'RCYNIC_HTML_DIR		    = "${RCYNIC_HTML_DIR}"';		\
+	 echo 'APACHE_VERSION		    = "${APACHE_VERSION}"';		\
+	 echo 'WSGI_PYTHON_EGG_CACHE_DIR    = "${WSGI_PYTHON_EGG_CACHE_DIR}"';	\
+	 echo 'WSGI_PYTHON_EGG_CACHE_USER   = "${WSGI_PYTHON_EGG_CACHE_USER}"';	\
+	) > $@
+
+clean::
+	rm -f rpki/autoconf.py
+
+setup_autoconf.py: rpki/autoconf.py
+	@echo 'Generating $@';					\
+	(cat rpki/autoconf.py;					\
+	 echo ;							\
+	 echo 'CFLAGS         = """${CFLAGS}"""';               \
+	 echo 'LDFLAGS        = """${LDFLAGS}"""';              \
+	 echo 'LIBS           = """${LIBS}"""';                 \
+	) > $@
+
+clean::
+	rm -f setup_autoconf.py setup_autoconf.pyc
+
+SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
+
+POW_SO	= rpki/POW/_POW.so
+
+all:: setup_autoconf.py ${POW_SO} build/stamp
+
+.FORCE:
+
+${POW_SO}: .FORCE setup_autoconf.py
+	${PYTHON} setup.py build_ext --inplace
+
+build/stamp: .FORCE setup_autoconf.py
+	${PYTHON} setup.py build
+	touch $@
+
+clean::
+	rm -rf ${POW_SO} build dist
+
+clean::
+	find . -type f -name '*.py[co]' -delete

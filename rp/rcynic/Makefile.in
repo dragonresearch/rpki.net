@@ -65,11 +65,11 @@ RPKIRTR_USER		= rpkirtr
 
 SCRIPTS = rcynic-text rcynic-html rcynic-svn validation_status rcynic-cron
 
-all: ${BIN} ${SCRIPTS} ${RCYNIC_STATIC_RSYNC}
+all: ${BIN} ${RCYNIC_STATIC_RSYNC}
 
 clean:
 	if test -r static-rsync/Makefile; then cd static-rsync; ${MAKE} $@; fi
-	rm -f ${BIN} ${OBJS} ${SCRIPTS}
+	rm -f ${BIN} ${OBJS}
 
 ${OBJ}: ${SRC} ${GEN}
 
@@ -79,39 +79,6 @@ ${BIN}: ${OBJS}
 ${GEN}: ${SRC}
 	${PYTHON} ${abs_top_srcdir}/buildtools/defstack.py ${SRC} >$@.tmp
 	mv $@.tmp $@
-
-COMPILE_PYTHON = \
-	AC_PYTHON_INTERPRETER='${PYTHON}' \
-	AC_RRDTOOL_BINARY='${RRDTOOL}' \
-	${PYTHON} ${abs_top_srcdir}/buildtools/make-rcynic-script.py <$? >$@; \
-	chmod 755 $@
-
-COMPILE_PYTHON_CRON = \
-	AC_PYTHON_INTERPRETER='${PYTHON}' \
-	AC_RCYNIC_USER='${RCYNIC_USER}' \
-	AC_RCYNIC_DIR='${RCYNIC_DIR}' \
-	AC_bindir='${bindir}' \
-	AC_sbindir='${sbindir}' \
-	AC_sysconfdir='${sysconfdir}' \
-	AC_libexecdir='${libexecdir}' \
-	AC_RCYNIC_HTML_DIR='${RCYNIC_HTML_DIR}' \
-	${PYTHON} ${abs_top_srcdir}/buildtools/make-rcynic-script.py <$? >$@; \
-	chmod 755 $@
-
-rcynic-text: rcynic-text.py
-	${COMPILE_PYTHON}
-
-rcynic-html: rcynic-html.py
-	${COMPILE_PYTHON}
-
-rcynic-svn: rcynic-svn.py
-	${COMPILE_PYTHON}
-
-validation_status: validation_status.py
-	${COMPILE_PYTHON}
-
-rcynic-cron: rcynic-cron.py
-	${COMPILE_PYTHON_CRON}
 
 tags: TAGS
 

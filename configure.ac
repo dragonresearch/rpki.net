@@ -9,7 +9,7 @@ AC_INIT([rpkitools], [1.0])
 
 dnl AC_REVISION([$Revision$])
 
-AC_CONFIG_SRCDIR([rcynic/rcynic.c])
+AC_CONFIG_SRCDIR([rp/rcynic/rcynic.c])
 AC_CONFIG_AUX_DIR([buildtools])
 
 # I'm not sure we should really be using the $host_* variables as we
@@ -383,34 +383,34 @@ AC_MSG_RESULT([$enable_target_installation])
 # rcynic jail setup is complicated enough that it's simplest to have
 # different rule sets for different platforms.  Icky, but....
 # rpki-rtr isn't as complicated, but has similar issues, same hack.
-# rpkid isn't as complicated either, but same hack.
+# ca isn't as complicated either, but same hack.
 
 case $host_os in
 	darwin*)
-		RCYNIC_MAKE_RULES='rcynic/rules.darwin.mk'
-		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.darwin.mk'
-		RPKID_MAKE_RULES='rpkid/rules.darwin.mk'
+		RCYNIC_MAKE_RULES='rp/rcynic/rules.darwin.mk'
+		RTR_ORIGIN_MAKE_RULES='rp/rtr-origin/rules.darwin.mk'
+		CA_MAKE_RULES='ca/rules.darwin.mk'
 		;;
 	freebsd*)
-		RCYNIC_MAKE_RULES='rcynic/rules.freebsd.mk'
-		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.freebsd.mk'
-		RPKID_MAKE_RULES='rpkid/rules.freebsd.mk'
+		RCYNIC_MAKE_RULES='rp/rcynic/rules.freebsd.mk'
+		RTR_ORIGIN_MAKE_RULES='rp/rtr-origin/rules.freebsd.mk'
+		CA_MAKE_RULES='ca/rules.freebsd.mk'
 		;;
 	linux*)
-		RCYNIC_MAKE_RULES='rcynic/rules.linux.mk'
-		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.linux.mk'
-		RPKID_MAKE_RULES='rpkid/rules.linux.mk'
+		RCYNIC_MAKE_RULES='rp/rcynic/rules.linux.mk'
+		RTR_ORIGIN_MAKE_RULES='rp/rtr-origin/rules.linux.mk'
+		CA_MAKE_RULES='ca/rules.linux.mk'
 		;;
 	*)
-		RCYNIC_MAKE_RULES='rcynic/rules.unknown.mk'
-		RTR_ORIGIN_MAKE_RULES='rtr-origin/rules.unknown.mk'
-		RPKID_MAKE_RULES='rpkid/rules.unknown.mk'
+		RCYNIC_MAKE_RULES='rp/rcynic/rules.unknown.mk'
+		RTR_ORIGIN_MAKE_RULES='rp/rtr-origin/rules.unknown.mk'
+		CA_MAKE_RULES='ca/rules.unknown.mk'
 		;;
 esac
 
 AC_SUBST_FILE(RCYNIC_MAKE_RULES)
 AC_SUBST_FILE(RTR_ORIGIN_MAKE_RULES)
-AC_SUBST_FILE(RPKID_MAKE_RULES)
+AC_SUBST_FILE(CA_MAKE_RULES)
 
 # Where to put HTML files is similarly platform dependent, we have to know.
 # rcynic-cron will skip generating HTML files if it has no place to put them.
@@ -441,7 +441,7 @@ AC_SUBST(RCYNIC_HTML_DIR)
 
 RCYNIC_INSTALL_TARGETS='install-always'
 RTR_ORIGIN_INSTALL_TARGETS='install-always'
-RPKID_INSTALL_TARGETS='install-always'
+CA_INSTALL_TARGETS='install-always'
 
 if test $use_rcynic_jail = yes
 then
@@ -452,12 +452,12 @@ if test $enable_target_installation = yes
 then
 	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-postconf"
 	RTR_ORIGIN_INSTALL_TARGETS="$RTR_ORIGIN_INSTALL_TARGETS install-postconf"
-	RPKID_INSTALL_TARGETS="$RPKID_INSTALL_TARGETS install-postconf"
+	CA_INSTALL_TARGETS="$CA_INSTALL_TARGETS install-postconf"
 fi
 
 AC_SUBST(RCYNIC_INSTALL_TARGETS)
 AC_SUBST(RTR_ORIGIN_INSTALL_TARGETS)
-AC_SUBST(RPKID_INSTALL_TARGETS)
+AC_SUBST(CA_INSTALL_TARGETS)
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If
@@ -754,18 +754,14 @@ fi
 
 			      TOP_LEVEL_SUBDIRS="h"
 test $build_openssl  = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
-test $build_rp_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils rtr-origin"
-test $build_ca_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
+test $build_rp_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rp"
+test $build_ca_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS ca"
 
 AC_SUBST(TOP_LEVEL_SUBDIRS)
 
 AC_CONFIG_FILES([Makefile
-		 h/Makefile])
-
-if test "X$RCYNIC_STATIC_RSYNC" != "X"
-then
-	AC_CONFIG_FILES([rcynic/static-rsync/Makefile])
-fi
+		 h/Makefile
+		 schemas/Makefile])
 
 # OpenSSL has its own build system that bears no relationship to
 # anything but itself, and our use of it is a bit weird, so this is a
@@ -818,22 +814,17 @@ fi
 
 if test $build_rp_tools = yes
 then
-	AC_CONFIG_FILES([rcynic/Makefile
-			 utils/Makefile
-			 utils/find_roa/Makefile
-			 utils/hashdir/Makefile
-			 utils/print_rpki_manifest/Makefile
-			 utils/print_roa/Makefile
-			 utils/scan_roas/Makefile
-			 utils/scan_routercerts/Makefile
-			 utils/uri/Makefile
-			 rtr-origin/Makefile])
+	AC_CONFIG_FILES([rp/Makefile
+			 rp/rcynic/Makefile
+			 rp/rcynic/static-rsync/Makefile
+			 rp/utils/Makefile
+			 rp/rtr-origin/Makefile])
 fi
 
 if test $build_ca_tools = yes
 then
-	AC_CONFIG_FILES([rpkid/Makefile
-			 rpkid/tests/Makefile])
+	AC_CONFIG_FILES([ca/Makefile
+			 ca/tests/Makefile])
 fi
 
 if test $build_ca_tools = yes &&

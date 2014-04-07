@@ -25,22 +25,19 @@ BINS		= find_roa hashdir print_rpki_manifest print_roa scan_roas uri
 
 SCRIPTS		= scan_routercerts
 
-all: ${BINS}
+all:: ${BINS}
 
-clean:
+clean::
 	rm -rf ${BINS} *.o *.dSYM
 
-test:
-	@true
-
-install: all
+install:: all
 	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -d ${DESTDIR}${bindir}; fi
 	${INSTALL} ${BINS} ${SCRIPTS} ${DESTDIR}${bindir}
 
-deinstall uninstall:
+deinstall uninstall::
 	for i in ${BINS} ${SCRIPTS}; do rm -f ${DESTDIR}${bindir}/$$i; done
 
-distclean: clean
+distclean:: clean
 	rm -f Makefile
 
 find_roa: find_roa.c
@@ -60,3 +57,26 @@ scan_roas: scan_roas.c
 
 uri: uri.c
 	${CC} ${CFLAGS} -o $@ uri.c ${LDFLAGS} ${LIBS}
+
+# Tests
+
+RSYNC_AUTH_DIR	= ${abs_top_builddir}/rp/rcynic/rcynic-data/authenticated
+HASHDIR_OUTPUT	= hashed-pem-dir
+TARGET_PREFIXES	= 10.3.0.44 10.2.0.6 10.0.0.0/24
+
+test:: ${BINS} ${SCRIPTS}
+	if test -d ${RSYNC_AUTH_DIR}; \
+	then \
+	    rm -rf ${HASHDIR_OUTPUT} ; \
+	    mkdir  ${HASHDIR_OUTPUT} ; \
+	    ./hashdir  ${RSYNC_AUTH_DIR} ${HASHDIR_OUTPUT}; \
+	    ./find_roa ${RSYNC_AUTH_DIR} ${TARGET_PREFIXES} ; \
+	    date -u +'now:            %Y%m%d%H%M%SZ' || : ; \
+	    find ${RSYNC_AUTH_DIR} -type f -name '*.roa' -print -exec ./print_roa           {} \; ; \
+	    find ${RSYNC_AUTH_DIR} -type f -name '*.mft' -print -exec ./print_rpki_manifest {} \; ; \
+	    ./scan_roas        ${RSYNC_AUTH_DIR} ; \
+	    ./scan_routercerts ${RSYNC_AUTH_DIR} ; \
+	fi
+
+clean::
+	rm -rf ${HASHDIR_OUTPUT}

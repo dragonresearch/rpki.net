@@ -1,5 +1,5 @@
-#!/usr/local/bin/python
-
+#!/usr/bin/env python
+#
 # $Id$
 #
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")

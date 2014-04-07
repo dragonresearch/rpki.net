@@ -31,6 +31,9 @@ all:: ${abs_top_srcdir}/rpki/relaxng.py ${abs_top_srcdir}/rpki/sql_schemas.py
 install clean test distclean deinstall uninstall::
 	@true
 
+distclean::
+	rm -f Makefile
+
 RNGS =  relaxng/left-right-schema.rng		\
 	relaxng/up-down-schema.rng		\
 	relaxng/publication-schema.rng		\

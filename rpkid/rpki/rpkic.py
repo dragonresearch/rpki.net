@@ -38,7 +38,6 @@ import time
 import rpki.config
 import rpki.sundial
 import rpki.log
-import rpki.oids
 import rpki.http
 import rpki.resource_set
 import rpki.relaxng
@@ -706,6 +705,54 @@ class main(Cmd):
       self.zoo.run_rpkid_now()
 
 
+  @parsecmd(argsubparsers,
+            cmdarg("--valid_until",  help = "override default validity interval"),
+            cmdarg("router_certificate_request_xml", help = "file containing XML router certificate request"))
+  def do_add_router_certificate_request(self, args):
+    """
+    Load router certificate request(s) into IRDB from XML file.
+    """
+
+    self.zoo.add_router_certificate_request(args.router_certificate_request_xml, args.valid_until)
+    if self.autosync:
+      self.zoo.run_rpkid_now()
+
+  @parsecmd(argsubparsers,
+            cmdarg("gski", help = "g(SKI) of router certificate request to delete"))
+  def do_delete_router_certificate_request(self, args):
+    """
+    Delete a router certificate request from the IRDB.
+    """
+
+    try:
+      self.zoo.delete_router_certificate_request(args.gski)
+      if self.autosync:
+        self.zoo.run_rpkid_now()
+    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+      print "No such resource holder \"%s\"" % self.zoo.handle
+    except rpki.irdb.EECertificateRequest.DoesNotExist:
+      print "No certificate request matching g(SKI) \"%s\"" % args.gski
+
+  def complete_delete_router_certificate_request(self, text, line, begidx, endidx):
+    return [obj.gski for obj in self.zoo.resource_ca.ee_certificate_requests.all()
+            if obj.gski and obj.gski.startswith(text)]
+
+
+  @parsecmd(argsubparsers)
+  def do_show_router_certificate_requests(self, args):
+    """
+    Show this entity's router certificate requests.
+    """
+
+    for req in self.zoo.resource_ca.ee_certificate_requests.all():
+      print "%s  %s  %s  %s" % (req.gski, req.valid_until, req.cn, req.sn)
+
+
+  # What about updates?  Validity interval, change router-id, change
+  # ASNs.  Not sure what this looks like yet, blunder ahead with the
+  # core code while mulling over the UI.
+
+
   @parsecmd(argsubparsers)
   def do_synchronize(self, args):
     """
@@ -817,3 +864,14 @@ class main(Cmd):
     """
 
     print rpki.version.VERSION
+
+
+  @parsecmd(argsubparsers)
+  def do_list_self_handles(self, args):
+    """
+    List all <self/> handles in this rpkid instance.
+    """
+
+    for ca in rpki.irdb.ResourceHolderCA.objects.all():
+      print ca.handle
+

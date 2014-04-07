@@ -30,7 +30,6 @@ We also provide some basic set operations (union, intersection, etc).
 
 import re
 import math
-import rpki.oids
 import rpki.exceptions
 import rpki.POW
 

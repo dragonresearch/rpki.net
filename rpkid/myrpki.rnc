@@ -1,6 +1,6 @@
 # $Id$
 #
-# RelaxNG Schema for MyRPKI XML messages.
+# RelaxNG schema for MyRPKI XML messages.
 #
 # This message protocol is on its way out, as we're in the process of
 # moving on from the user interface model that produced it, but even
@@ -29,13 +29,13 @@ default namespace = "http://www.hactrn.net/uris/rpki/myrpki/"
 version         = "2"
 
 base64		= xsd:base64Binary { maxLength="512000" }
-object_handle	= xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9]*" }
-pubd_handle     = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]*" }
+object_handle	= xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9]+" }
+pubd_handle     = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]+" }
 uri		= xsd:anyURI { maxLength="4096" }
 asn             = xsd:positiveInteger
-asn_list	= xsd:string { maxLength="512000" pattern="[\-,0-9]*" }
-ipv4_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/.]*" }
-ipv6_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]*" }
+asn_list	= xsd:string { maxLength="512000" pattern="[\-,0-9]+" }
+ipv4_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/.]+" }
+ipv6_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]+" }
 timestamp       = xsd:dateTime { pattern=".*Z" }
 
 # Message formate used between configure_resources and
@@ -159,4 +159,6 @@ start |= element referral {
 
 # Local Variables:
 # indent-tabs-mode: nil
+# comment-start: "# "
+# comment-start-skip: "#[ \t]*"
 # End:

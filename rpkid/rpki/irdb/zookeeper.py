@@ -55,6 +55,16 @@ myrpki_namespace      = "http://www.hactrn.net/uris/rpki/myrpki/"
 myrpki_version        = "2"
 myrpki_namespaceQName = "{" + myrpki_namespace + "}"
 
+# XML namespace and protocol version for router certificate requests.
+# We probably ought to be pulling this sort of thing from the schema,
+# with an assertion to make sure that we understand the current
+# protocol version number, but just copy what we did for myrpki until
+# I'm ready to rewrite the rpki.relaxng code.
+
+routercert_namespace      = "http://www.hactrn.net/uris/rpki/router-certificate/"
+routercert_version        = "1"
+routercert_namespaceQName = "{" + routercert_namespace + "}"
+
 myrpki_section = "myrpki"
 irdbd_section  = "irdbd"
 rpkid_section  = "rpkid"
@@ -409,7 +419,7 @@ class Zookeeper(object):
 
     if self.run_rootd:
       try:
-        rootd = rpki.irdb.ResourceHolderCA.objects.get(handle = self.cfg.get("handle", section = myrpki_section)).rootd
+        rootd = rpki.irdb.ResourceHolderCA.objects.get(handle = self.handle).rootd
         writer(self.cfg.get("bpki-ta",         section = rootd_section), self.server_ca.certificate)
         writer(self.cfg.get("rootd-bpki-crl",  section = rootd_section), self.server_ca.latest_crl)
         writer(self.cfg.get("rootd-bpki-key",  section = rootd_section), rootd.private_key)
@@ -417,6 +427,8 @@ class Zookeeper(object):
         writer(self.cfg.get("child-bpki-cert", section = rootd_section), rootd.issuer.certificate)
       except rpki.irdb.ResourceHolderCA.DoesNotExist:
         self.log("rootd enabled but resource holding entity not yet configured, skipping rootd setup")
+      except rpki.irdb.Rootd.DoesNotExist:
+        self.log("rootd enabled but not yet configured, skipping rootd setup")
 
 
   @django.db.transaction.commit_on_success
@@ -1586,3 +1598,85 @@ class Zookeeper(object):
     if rpkid_query:
       rpkid_reply = self.call_rpkid(rpkid_query)
       self.check_error_report(rpkid_reply)
+
+
+  @django.db.transaction.commit_on_success
+  def add_ee_certificate_request(self, pkcs10, resources):
+    """
+    Check a PKCS #10 request to see if it complies with the
+    specification for a RPKI EE certificate; if it does, add an
+    EECertificateRequest for it to the IRDB.
+
+    Not yet sure what we want for update and delete semantics here, so
+    for the moment this is straight addition.  See methods like
+    .load_asns() and .load_prefixes() for other strategies.
+    """
+
+    pkcs10.check_valid_request_ee()
+    ee_request = self.resource_ca.ee_certificate_requests.create(
+      pkcs10      = pkcs10,
+      gski        = pkcs10.gSKI(),
+      valid_until = resources.valid_until)
+    for range in resources.asn:
+      ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))
+    for range in resources.v4:
+      ee_request.address_ranges.create(start_ip = str(range.min), end_ip = str(range.max), version = 4)
+    for range in resources.v6:
+      ee_request.address_ranges.create(start_ip = str(range.min), end_ip = str(range.max), version = 6)
+
+
+  @django.db.transaction.commit_on_success
+  def add_router_certificate_request(self, router_certificate_request_xml, valid_until = None):
+    """
+    Read XML file containing one or more router certificate requests,
+    attempt to add request(s) to IRDB.
+
+    Check each PKCS #10 request to see if it complies with the
+    specification for a router certificate; if it does, create an EE
+    certificate request for it along with the ASN resources and
+    router-ID supplied in the XML.
+    """
+
+    xml = ElementTree(file = router_certificate_request_xml).getroot()
+    rpki.relaxng.router_certificate.assertValid(xml)
+
+    for req in xml.getiterator(routercert_namespaceQName + "router_certificate_request"):
+
+      pkcs10 = rpki.x509.PKCS10(Base64 = req.text)
+      router_id = long(req.get("router_id"))
+      asns = rpki.resource_set.resource_set_as(req.get("asn"))
+      if not valid_until:
+        valid_until = req.get("valid_until")
+
+      if valid_until and isinstance(valid_until, (str, unicode)):
+        valid_until = rpki.sundial.datetime.fromXMLtime(valid_until)
+
+      if not valid_until:
+        valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
+      elif valid_until < rpki.sundial.now():
+        raise PastExpiration, "Specified expiration date %s has already passed" % valid_until
+
+      pkcs10.check_valid_request_router()
+
+      cn = "ROUTER-%08x" % asns[0].min
+      sn = "%08x" % router_id
+
+      ee_request = self.resource_ca.ee_certificate_requests.create(
+        pkcs10      = pkcs10,
+        gski        = pkcs10.gSKI(),
+        valid_until = valid_until,
+        cn          = cn,
+        sn          = sn,
+        eku         = rpki.oids.id_kp_bgpsec_router)
+
+      for range in asns:
+        ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))
+
+
+  @django.db.transaction.commit_on_success
+  def delete_router_certificate_request(self, gski):
+    """
+    Delete a router certificate request from this RPKI entity.
+    """
+
+    self.resource_ca.ee_certificate_requests.get(gski = gski).delete()

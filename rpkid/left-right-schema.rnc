@@ -1,37 +1,23 @@
 # $Id$
 #
-# RelaxNG Schema for RPKI left-right protocol.
+# RelaxNG schema for RPKI left-right protocol.
 #
-# libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
-# run the compact syntax through trang to get XML syntax.
-#
-# Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
-#
+# Copyright (C) 2012--2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
-#
-# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
-#
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 default namespace = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -51,6 +37,7 @@ query_elt |= child_query
 query_elt |= repository_query
 query_elt |= list_roa_requests_query
 query_elt |= list_ghostbuster_requests_query
+query_elt |= list_ee_certificate_requests_query
 query_elt |= list_resources_query
 query_elt |= list_published_objects_query
 query_elt |= list_received_resources_query
@@ -64,6 +51,7 @@ reply_elt |= repository_reply
 reply_elt |= list_resources_reply
 reply_elt |= list_roa_requests_reply
 reply_elt |= list_ghostbuster_requests_reply
+reply_elt |= list_ee_certificate_requests_reply
 reply_elt |= list_published_objects_reply
 reply_elt |= list_received_resources_reply
 reply_elt |= report_error_reply
@@ -89,7 +77,7 @@ base64 = xsd:base64Binary { maxLength="512000" }
 # in this protocol, so they're turninging into handles.
 # Length restriction is a MySQL implementation issue.
 # Handles are case-insensitive (because SQL is, among other reasons).
-object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9]*" }
+object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9]+" }
 
 # URIs
 uri = xsd:anyURI { maxLength="4096" }
@@ -268,6 +256,25 @@ list_ghostbuster_requests_reply = element list_ghostbuster_requests {
   xsd:string
 }
 
+# <list_ee_certificate_requests/> element
+
+list_ee_certificate_requests_query = element list_ee_certificate_requests {
+  tag, self_handle
+}
+
+list_ee_certificate_requests_reply = element list_ee_certificate_requests {
+  tag, self_handle,
+  attribute gski { xsd:token { minLength="27" maxLength="27" } },
+  attribute valid_until { xsd:dateTime { pattern=".*Z" } },
+  attribute asn  { asn_list }?,
+  attribute ipv4 { ipv4_list }?,
+  attribute ipv6 { ipv6_list }?,
+  attribute cn  { xsd:string { maxLength="64"     pattern="[\-0-9A-Za-z_ ]+" } }?,
+  attribute sn  { xsd:string { maxLength="64"     pattern="[0-9A-Fa-f]+"     } }?,
+  attribute eku { xsd:string { maxLength="512000" pattern="[.,0-9]+"         } }?,
+  element pkcs10 { base64 }
+}
+
 # <list_published_objects/> element
 
 list_published_objects_query = element list_published_objects {
@@ -311,4 +318,6 @@ report_error_reply = element report_error {
 
 # Local Variables:
 # indent-tabs-mode: nil
+# comment-start: "# "
+# comment-start-skip: "#[ \t]*"
 # End:

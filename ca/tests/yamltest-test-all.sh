@@ -43,9 +43,9 @@ do
   do
     sleep 30
     date
-    ../../rcynic/rcynic
-    ../../rcynic/rcynic-text rcynic.xml
-    ../../utils/scan_roas/scan_roas rcynic-data/authenticated
+    ../../rp/rcynic/rcynic
+    ../../rp/rcynic/rcynic-text rcynic.xml
+    ../../rp/utils/scan_roas rcynic-data/authenticated
     date
     echo "$title"
   done

@@ -43,7 +43,7 @@ RNGS =  relaxng/left-right-schema.rng		\
 SQLS =	sql/rpkid.sql sql/pubd.sql
 
 ${abs_top_srcdir}/rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS}
-	${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py ${RNGS} >$@.tmp
+	cd relaxng; ${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py *.rng >$@.tmp
 	mv $@.tmp $@
 
 ${abs_top_srcdir}/rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py ${SQLS}

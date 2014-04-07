@@ -4576,22 +4576,22 @@ $as_echo "$enable_target_installation" >&6; }
 case $host_os in
 	darwin*)
 		RCYNIC_MAKE_RULES='rp/rcynic/rules.darwin.mk'
-		RTR_ORIGIN_MAKE_RULES='rp/rtr-origin/rules.darwin.mk'
+		RTR_ORIGIN_MAKE_RULES='rp/rpki-rtr/rules.darwin.mk'
 		CA_MAKE_RULES='ca/rules.darwin.mk'
 		;;
 	freebsd*)
 		RCYNIC_MAKE_RULES='rp/rcynic/rules.freebsd.mk'
-		RTR_ORIGIN_MAKE_RULES='rp/rtr-origin/rules.freebsd.mk'
+		RTR_ORIGIN_MAKE_RULES='rp/rpki-rtr/rules.freebsd.mk'
 		CA_MAKE_RULES='ca/rules.freebsd.mk'
 		;;
 	linux*)
 		RCYNIC_MAKE_RULES='rp/rcynic/rules.linux.mk'
-		RTR_ORIGIN_MAKE_RULES='rp/rtr-origin/rules.linux.mk'
+		RTR_ORIGIN_MAKE_RULES='rp/rpki-rtr/rules.linux.mk'
 		CA_MAKE_RULES='ca/rules.linux.mk'
 		;;
 	*)
 		RCYNIC_MAKE_RULES='rp/rcynic/rules.unknown.mk'
-		RTR_ORIGIN_MAKE_RULES='rp/rtr-origin/rules.unknown.mk'
+		RTR_ORIGIN_MAKE_RULES='rp/rpki-rtr/rules.unknown.mk'
 		CA_MAKE_RULES='ca/rules.unknown.mk'
 		;;
 esac
@@ -5056,7 +5056,7 @@ fi
 
 if test $build_rp_tools = yes
 then
-	ac_config_files="$ac_config_files rp/Makefile rp/rcynic/Makefile rp/rcynic/static-rsync/Makefile rp/utils/Makefile rp/rtr-origin/Makefile"
+	ac_config_files="$ac_config_files rp/Makefile rp/rcynic/Makefile rp/rcynic/static-rsync/Makefile rp/utils/Makefile rp/rpki-rtr/Makefile"
 
 fi
 
@@ -5810,7 +5810,7 @@ do
     "rp/rcynic/Makefile") CONFIG_FILES="$CONFIG_FILES rp/rcynic/Makefile" ;;
     "rp/rcynic/static-rsync/Makefile") CONFIG_FILES="$CONFIG_FILES rp/rcynic/static-rsync/Makefile" ;;
     "rp/utils/Makefile") CONFIG_FILES="$CONFIG_FILES rp/utils/Makefile" ;;
-    "rp/rtr-origin/Makefile") CONFIG_FILES="$CONFIG_FILES rp/rtr-origin/Makefile" ;;
+    "rp/rpki-rtr/Makefile") CONFIG_FILES="$CONFIG_FILES rp/rpki-rtr/Makefile" ;;
     "ca/Makefile") CONFIG_FILES="$CONFIG_FILES ca/Makefile" ;;
     "ca/tests/Makefile") CONFIG_FILES="$CONFIG_FILES ca/tests/Makefile" ;;
 

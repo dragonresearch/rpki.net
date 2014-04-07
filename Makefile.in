@@ -97,3 +97,12 @@ ${POW_SO}: .FORCE setup_autoconf.py
 build/stamp: .FORCE setup_autoconf.py
 	${PYTHON} setup.py build
 	touch $@
+
+lint:
+	find rpki -name '*.py' | xargs pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc
+
+tags: Makefile
+	find rpki rp ca schemas -type f \
+		\( -name '*.[ch] -o -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) \
+		! -name relaxng.py ! -name sql_schemas.py -print | \
+	etags -

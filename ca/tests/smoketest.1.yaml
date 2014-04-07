@@ -52,7 +52,7 @@ kids:
 
 ---
 - shell set -x;
-  rtr_origin='python ../../../rtr-origin/rtr-origin.py';
+  rtr_origin='python ../../../rp/rpki-rtr/rtr-origin.py';
   $rtr_origin --cronjob rcynic-data/authenticated &&
   $rtr_origin --show
 ---
@@ -70,7 +70,7 @@ kids:
       ipv4: 10.3.0.1/32, 10.0.0.44/32
 ---
 - shell set -x;
-  rtr_origin='python ../../../rtr-origin/rtr-origin.py';
+  rtr_origin='python ../../../rp/rpki-rtr/rtr-origin.py';
   $rtr_origin --cronjob rcynic-data/authenticated &&
   $rtr_origin --show
 ---

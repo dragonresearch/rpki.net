@@ -70,8 +70,8 @@ roa_request:
 ---
 - shell set -x;
   find publication -type f -name '*.roa'
-       -print -exec ../../../utils/print_roa/print_roa {} \;
+       -print -exec ../../../rp/utils/print_roa {} \;
        ;
-  rtr_origin=../../../rtr-origin/rtr-origin;
+  rtr_origin=../../../rp/rpki-rtr/rtr-origin;
   $rtr_origin --cronjob rcynic-data/authenticated &&
   $rtr_origin --show

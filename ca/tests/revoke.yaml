@@ -54,7 +54,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -67,7 +67,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 
@@ -81,7 +81,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - sleep 30
@@ -92,7 +92,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -105,7 +105,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -118,7 +118,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - sleep 30
@@ -129,7 +129,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -142,7 +142,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -155,7 +155,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - sleep 30
@@ -166,7 +166,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -179,7 +179,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -192,7 +192,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - sleep 30
@@ -203,7 +203,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -216,7 +216,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -229,7 +229,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - sleep 30
@@ -240,7 +240,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -253,7 +253,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -266,7 +266,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - sleep 30
@@ -277,7 +277,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -290,7 +290,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -303,7 +303,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - sleep 30
@@ -314,7 +314,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -327,7 +327,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -340,7 +340,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - sleep 30
@@ -351,7 +351,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -364,7 +364,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -377,7 +377,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - sleep 30
@@ -388,7 +388,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -401,7 +401,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - name: R0
@@ -414,7 +414,7 @@ kids:
   cd rcynic-data;
   pax -rwl . ../$dir; find . -type f -name '*.cer' |
   sort |
-  xargs ../../../../utils/uri/uri -s
+  xargs ../../../../rp/utils/uri -s
   >../${dir%.data}.uris;
   sleep 1
 - sleep 30

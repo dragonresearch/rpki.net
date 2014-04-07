@@ -2655,6 +2655,28 @@ x509_object_set_issuer(x509_object *self, PyObject *args)
   return  NULL;
 }
 
+static char x509_object_get_issuer_hash__doc__[] =
+  "Return the OpenSSL \"name hash\" for this certificate's issuer name.\n"
+  ;
+
+static PyObject *
+x509_object_get_issuer_hash(x509_object *self)
+{
+  ENTERING(x509_object_get_issuer_hash);
+  return Py_BuildValue("k", X509_NAME_hash(X509_get_issuer_name(self->x509)));
+}
+
+static char x509_object_get_subject_hash__doc__[] =
+  "Return the OpenSSL \"name hash\" for this certificate's subject name.\n"
+  ;
+
+static PyObject *
+x509_object_get_subject_hash(x509_object *self)
+{
+  ENTERING(x509_object_get_subject_hash);
+  return Py_BuildValue("k", X509_NAME_hash(X509_get_subject_name(self->x509)));
+}
+
 static char x509_object_get_not_before__doc__[] =
   "Return this certificate's \"notBefore\" value as a datetime.\n"
   ;
@@ -3682,10 +3704,6 @@ x509_object_set_certificate_policies(x509_object *self, PyObject *args)
     return NULL;
 }
 
-/*
- * May want EKU handlers eventually, skip for now.
- */
-
 static char x509_object_pprint__doc__[] =
   "Return a pretty-printed rendition of this certificate.\n"
   ;
@@ -3751,6 +3769,8 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(setCRLDP,               x509_object_set_crldp,                  METH_VARARGS),
   Define_Method(getCertificatePolicies, x509_object_get_certificate_policies,   METH_NOARGS),
   Define_Method(setCertificatePolicies, x509_object_set_certificate_policies,   METH_VARARGS),
+  Define_Method(getIssuerHash,          x509_object_get_issuer_hash,            METH_NOARGS),
+  Define_Method(getSubjectHash,         x509_object_get_subject_hash,           METH_NOARGS),
   Define_Class_Method(pemRead,          x509_object_pem_read,                   METH_VARARGS),
   Define_Class_Method(pemReadFile,      x509_object_pem_read_file,              METH_VARARGS),
   Define_Class_Method(derRead,          x509_object_der_read,                   METH_VARARGS),
@@ -4623,6 +4643,17 @@ crl_object_set_issuer(crl_object *self, PyObject *args)
   return NULL;
 }
 
+static char crl_object_get_issuer_hash__doc__[] =
+  "Return the OpenSSL \"name hash\" for this CRL's issuer name.\n"
+  ;
+
+static PyObject *
+crl_object_get_issuer_hash(crl_object *self)
+{
+  ENTERING(crl_object_get_issuer_hash);
+  return Py_BuildValue("k", X509_NAME_hash(X509_CRL_get_issuer(self->crl)));
+}
+
 /*
  * NB: OpenSSL is confused about the name of this field, probably for
  * backwards compatability with some ancient mistake.  What RFC 5280
@@ -5094,6 +5125,7 @@ static struct PyMethodDef crl_object_methods[] = {
   Define_Method(setAKI,                 crl_object_set_aki,             METH_VARARGS),
   Define_Method(getCRLNumber,           crl_object_get_crl_number,      METH_NOARGS),
   Define_Method(setCRLNumber,           crl_object_set_crl_number,      METH_VARARGS),
+  Define_Method(getIssuerHash,          crl_object_get_issuer_hash,     METH_NOARGS),
   Define_Class_Method(pemRead,          crl_object_pem_read,            METH_VARARGS),
   Define_Class_Method(pemReadFile,      crl_object_pem_read_file,       METH_VARARGS),
   Define_Class_Method(derRead,          crl_object_der_read,            METH_VARARGS),
@@ -8736,10 +8768,6 @@ pkcs10_object_get_extension_oids(pkcs10_object *self)
   Py_XDECREF(oid);
   return NULL;  
 }
-
-/*
- * May want EKU handlers eventually, skip for now.
- */
 
 static char pkcs10_object_pprint__doc__[] =
   "Return a pretty-printed rendition of this PKCS#10 request.\n"

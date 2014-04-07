@@ -78,4 +78,18 @@ urlpatterns = patterns(
     (r'^user/create$', views.user_create),
     (r'^user/(?P<pk>\d+)/delete$', views.user_delete),
     (r'^user/(?P<pk>\d+)/edit$', views.user_edit),
+
+    url(r'^user/password/reset/$', 
+        'django.contrib.auth.views.password_reset', 
+        #{'post_reset_redirect' : '/user/password/reset/done/'},
+        {'extra_context': {'form_title': 'Password Reset'}},
+        name="password_reset"),
+    (r'^user/password/reset/done/$',
+        'django.contrib.auth.views.password_reset_done'),
+    url(r'^user/password/reset/(?P<uidb36>[0-9A-Za-z]+)-(?P<token>.+)/$', 
+        'django.contrib.auth.views.password_reset_confirm', 
+        #{'post_reset_redirect' : '/user/password/done/'},
+        name="password_reset_confirm"),
+    (r'^user/password/done/$', 
+        'django.contrib.auth.views.password_reset_complete'),
 )

@@ -2,11 +2,11 @@
 
 import lxml.etree
 
-## @var left_right
-## Parsed RelaxNG left_right schema
-left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+## @var relaxng/left_right
+## Parsed RelaxNG relaxng/left_right schema
+relaxng/left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 5753 2014-04-05 19:24:26Z sra $
+  $Id: left-right-schema.rnc 5757 2014-04-05 22:42:12Z sra $
   
   RelaxNG schema for RPKI left-right protocol.
   
@@ -1095,11 +1095,11 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
 -->
 '''))
 
-## @var up_down
-## Parsed RelaxNG up_down schema
-up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+## @var relaxng/up_down
+## Parsed RelaxNG relaxng/up_down schema
+relaxng/up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rnc 5753 2014-04-05 19:24:26Z sra $
+  $Id: up-down-schema.rnc 5757 2014-04-05 22:42:12Z sra $
   
   RelaxNG schema for the up-down protocol, extracted from RFC 6492.
   
@@ -1376,11 +1376,11 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encod
 -->
 '''))
 
-## @var publication
-## Parsed RelaxNG publication schema
-publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+## @var relaxng/publication
+## Parsed RelaxNG relaxng/publication schema
+relaxng/publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 5753 2014-04-05 19:24:26Z sra $
+  $Id: publication-schema.rnc 5757 2014-04-05 22:42:12Z sra $
   
   RelaxNG schema for RPKI publication protocol.
   
@@ -1954,11 +1954,11 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
 -->
 '''))
 
-## @var myrpki
-## Parsed RelaxNG myrpki schema
-myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+## @var relaxng/myrpki
+## Parsed RelaxNG relaxng/myrpki schema
+relaxng/myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 5753 2014-04-05 19:24:26Z sra $
+  $Id: myrpki.rnc 5757 2014-04-05 22:42:12Z sra $
   
   RelaxNG schema for MyRPKI XML messages.
   
@@ -2337,11 +2337,11 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
 -->
 '''))
 
-## @var router_certificate
-## Parsed RelaxNG router_certificate schema
-router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+## @var relaxng/router_certificate
+## Parsed RelaxNG relaxng/router_certificate schema
+relaxng/router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: router-certificate-schema.rnc 5753 2014-04-05 19:24:26Z sra $
+  $Id: router-certificate-schema.rnc 5757 2014-04-05 22:42:12Z sra $
   
   RelaxNG schema for BGPSEC router certificate interchange format.
   

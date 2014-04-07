@@ -2,7 +2,7 @@
 
 ## @var rpkid
 ## SQL schema rpkid
-rpkid = '''-- $Id: rpkid.sql 5753 2014-04-05 19:24:26Z sra $
+rpkid = '''-- $Id: rpkid.sql 5757 2014-04-05 22:42:12Z sra $
 
 -- Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 --
@@ -256,7 +256,7 @@ CREATE TABLE ee_cert (
 
 ## @var pubd
 ## SQL schema pubd
-pubd = '''-- $Id: pubd.sql 3465 2010-10-07 00:59:39Z sra $
+pubd = '''-- $Id: pubd.sql 5757 2014-04-05 22:42:12Z sra $
 
 -- Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 --

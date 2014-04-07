@@ -4990,7 +4990,7 @@ fi
 
 # Figure out which parts of this package we have to build.
 
-			      TOP_LEVEL_SUBDIRS="h"
+			      TOP_LEVEL_SUBDIRS="h schemas"
 test $build_openssl  = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
 test $build_rp_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rp"
 test $build_ca_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS ca"

@@ -42,8 +42,9 @@ export:
 	tar czf subvert-rpki.hactrn.net-$$(date +%Y.%m.%d).tar.gz subvert-rpki.hactrn.net
 	rm -rf subvert-rpki.hactrn.net
 
-distclean clean::
-	rm -rf build autom4te.cache
+clean distclean::
+	rm -rf build autom4te.cache rpki/autoconf.py setup_autoconf.py setup_autoconf.pyc ${POW_SO} build dist
+	find . -type f -name '*.py[co]' -delete
 
 distclean::
 	rm -rf Makefile config.log config.status
@@ -73,9 +74,6 @@ rpki/autoconf.py: Makefile
 	 echo 'WSGI_PYTHON_EGG_CACHE_USER   = "${WSGI_PYTHON_EGG_CACHE_USER}"';	\
 	) > $@
 
-clean::
-	rm -f rpki/autoconf.py
-
 setup_autoconf.py: rpki/autoconf.py
 	@echo 'Generating $@';					\
 	(cat rpki/autoconf.py;					\
@@ -84,9 +82,6 @@ setup_autoconf.py: rpki/autoconf.py
 	 echo 'LDFLAGS        = """${LDFLAGS}"""';              \
 	 echo 'LIBS           = """${LIBS}"""';                 \
 	) > $@
-
-clean::
-	rm -f setup_autoconf.py setup_autoconf.pyc
 
 SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
 
@@ -102,9 +97,3 @@ ${POW_SO}: .FORCE setup_autoconf.py
 build/stamp: .FORCE setup_autoconf.py
 	${PYTHON} setup.py build
 	touch $@
-
-clean::
-	rm -rf ${POW_SO} build dist
-
-clean::
-	find . -type f -name '*.py[co]' -delete

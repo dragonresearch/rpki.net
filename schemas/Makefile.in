@@ -47,7 +47,7 @@ ${abs_top_srcdir}/rpki/relaxng.py: ${abs_top_srcdir}/buildtools/make-relaxng.py 
 	mv $@.tmp $@
 
 ${abs_top_srcdir}/rpki/sql_schemas.py: ${abs_top_srcdir}/buildtools/make-sql-schemas.py ${SQLS}
-	${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
+	cd sql; ${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
 	mv $@.tmp $@
 
 relaxng/left-right-schema.rng: relaxng/left-right-schema.rnc

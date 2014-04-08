@@ -24,35 +24,125 @@ abs_top_srcdir	= @abs_top_srcdir@
 abs_top_builddir= @abs_top_builddir@
 srcdir          = @srcdir@
 
-SUBDIRS		= @TOP_LEVEL_SUBDIRS@
+OPENSSL_TARGET	= @OPENSSL_TARGET@
+RP_TARGET	= @RP_TARGET@
+CA_TARGET	= @CA_TARGET@
 
 SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
 
+POW_SO		= rpki/POW/_POW.so
+
+# Generic targets.  The macros are to deal with ./configure options.
+
 default: all
 
-test:: all
+all: VERSION rpki/autoconf.py setup_autoconf.py ${RP_TARGET}-all ${CA_TARGET}-all 
 
-all:: VERSION rpki/autoconf.py setup_autoconf.py
+clean: ${RP_TARGET}-clean ${CA_TARGET}-clean 
+	rm -rf build dist autom4te.cache rpki/autoconf.py setup_autoconf.py setup_autoconf.pyc
 
-all install clean test distclean deinstall uninstall::
-	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
+test: all ${RP_TARGET}-test ${CA_TARGET}-test 
 
-export:
-	svn export http://subvert-rpki.hactrn.net/
-	tar czf subvert-rpki.hactrn.net-$$(date +%Y.%m.%d).tar.gz subvert-rpki.hactrn.net
-	rm -rf subvert-rpki.hactrn.net
+distclean: clean ${RP_TARGET}-distclean ${CA_TARGET}-distclean 
+	rm -f Makefile config.log config.status
 
-clean distclean::
-	rm -rf build autom4te.cache rpki/autoconf.py setup_autoconf.py setup_autoconf.pyc ${POW_SO} build dist
+install: ${RP_TARGET}-install ${CA_TARGET}-install 
+
+deinstall: ${RP_TARGET}-deinstall ${CA_TARGET}-deinstall 
+
+uninstall: deinstall
+
+# Harmless do-nothing targets to simplify the macro-based mess above.
+
+noop-all noop-clean noop-test noop-distclean noop-install noop-deinstall:
+	@true
+
+# Targets for the RP package.  This includes the libraries, thus the bulk
+# of the code, although some of it won't run without dependencies and setup
+# that only come with the CA package.
+
+rp-all:		h-all schemas-all ${OPENSSL_TARGET}-all rpki-all
+	cd rp; ${MAKE} all
+
+rp-clean:	${OPENSSL_TARGET}-clean rpki-clean
+	cd rp; ${MAKE} clean
+
+rp-test:	${OPENSSL_TARGET}-test rpki-test
+	cd rp; ${MAKE} test
+
+rp-distclean:	${OPENSSL_TARGET}-distclean rpki-distclean
+	cd rp; ${MAKE} distclean
+
+rp-install:	rpki-install
+	cd rp; ${MAKE} install
+
+rp-deinstall:	rpki-deinstall
+	cd rp; ${MAKE} deinstall
+
+
+# Targets for the CA package.
+
+ca-all:
+	cd ca; ${MAKE} all
+
+ca-clean:
+	cd ca; ${MAKE} clean
+
+ca-test:
+	cd ca; ${MAKE} test
+
+ca-distclean:
+	cd ca; ${MAKE} distclean
+
+ca-install:
+	cd ca; ${MAKE} install
+
+ca-deinstall:
+	cd ca; ${MAKE} deinstall
+
+# Supporting targets.  First pass on a lot of this is going to look
+# very silly, will simplify after this is working.
+
+h-all:
+	cd h; ${MAKE} all
+
+schemas-all:
+	cd schemas; ${MAKE} all
+
+openssl-all:
+	cd openssl; ${MAKE} all
+
+openssl-clean:
+	cd openssl; ${MAKE} clean
+
+openssl-test:
+	cd openssl; ${MAKE} test
+
+openssl-distclean:
+	cd openssl; ${MAKE} distclean
+
+
+rpki-all: setup_autoconf.py ${POW_SO} build/stamp
+
+rpki-clean:
+	rm -rf build dist ${POW_SO}
 	find . -type f -name '*.py[co]' -delete
 
-distclean::
-	rm -rf Makefile config.log config.status
+rpki-test: unit-tests
+
+rpki-distclean:
+	@true
+
+rpki-install:
+	@false
+
+rpki-deinstall:
+	@false
+
+###
 
 VERSION: .FORCE
 	${PYTHON} buildtools/make-version.py
-
-.FORCE:
 
 rpki/autoconf.py: Makefile
 	@echo 'Generating $@';							\
@@ -85,10 +175,6 @@ setup_autoconf.py: rpki/autoconf.py
 
 SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
 
-POW_SO	= rpki/POW/_POW.so
-
-all:: setup_autoconf.py ${POW_SO} build/stamp
-
 .FORCE:
 
 ${POW_SO}: .FORCE setup_autoconf.py
@@ -97,6 +183,10 @@ ${POW_SO}: .FORCE setup_autoconf.py
 build/stamp: .FORCE setup_autoconf.py
 	${PYTHON} setup.py build
 	touch $@
+
+unit-tests: all
+	@echo Running unit tests
+	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD ${PYTHON} $$i; done
 
 lint:
 	find rpki -name '*.py' | xargs pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc

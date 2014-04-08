@@ -752,12 +752,13 @@ fi
 
 # Figure out which parts of this package we have to build.
 
-			      TOP_LEVEL_SUBDIRS="h schemas"
-test $build_openssl  = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
-test $build_rp_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rp"
-test $build_ca_tools = yes && TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS ca"
+if test $build_openssl  = yes; then OPENSSL_TARGET=openssl; else OPENSSL_TARGET=noop; fi
+if test $build_rp_tools = yes; then      RP_TARGET=rp;	    else      RP_TARGET=noop; fi
+if test $build_ca_tools = yes; then      CA_TARGET=ca;	    else      CA_TARGET=noop; fi
 
-AC_SUBST(TOP_LEVEL_SUBDIRS)
+AC_SUBST(OPENSSL_TARGET)
+AC_SUBST(RP_TARGET)
+AC_SUBST(CA_TARGET)
 
 AC_CONFIG_FILES([Makefile
 		 h/Makefile

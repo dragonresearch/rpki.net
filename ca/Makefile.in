@@ -41,7 +41,6 @@ clean::
 install:: ${CA_INSTALL_TARGETS}
 
 install-always:: all
-	${PYTHON} setup.py install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
 	@echo
 	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
 	@echo
@@ -50,7 +49,6 @@ install-always:: all
 
 uninstall deinstall::
 	-${libexecdir}/rpkigui-apache-conf-gen --remove --verbose
-	xargs rm -fv <installed
 
 distclean::
 	rm -f installed

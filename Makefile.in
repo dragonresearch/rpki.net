@@ -29,6 +29,7 @@ RP_TARGET	= @RP_TARGET@
 CA_TARGET	= @CA_TARGET@
 
 SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
+SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
 
 POW_SO		= rpki/POW/_POW.so
 
@@ -98,12 +99,10 @@ rpki-distclean:
 	@true
 
 rpki-install:
-	@false
+	${PYTHON} setup.py install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
 
 rpki-deinstall:
-	@false
-
-###
+	xargs rm -fv <installed
 
 VERSION: .FORCE
 	${PYTHON} buildtools/make-version.py
@@ -135,9 +134,9 @@ setup_autoconf.py: rpki/autoconf.py
 	 echo 'CFLAGS         = """${CFLAGS}"""';               \
 	 echo 'LDFLAGS        = """${LDFLAGS}"""';              \
 	 echo 'LIBS           = """${LIBS}"""';                 \
+	 echo 'RP_TARGET      = """${RP_TARGET}"""';		\
+	 echo 'CA_TARGET      = """${CA_TARGET}"""';		\
 	) > $@
-
-SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
 
 .FORCE:
 

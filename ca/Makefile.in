@@ -53,15 +53,7 @@ uninstall deinstall::
 distclean::
 	rm -f installed
 
-relaxng:
-	cd tests; $(MAKE) protocol-samples
-	xmllint --noout --relaxng ../schemas/relaxng/left-right-schema.rng  tests/left-right-protocol-samples/*.xml
-	xmllint --noout --relaxng ../schemas/relaxng/up-down-schema.rng     tests/up-down-protocol-samples/*.xml
-	xmllint --noout --relaxng ../schemas/relaxng/publication-schema.rng tests/publication-protocol-samples/*.xml
-
-all-tests:: relaxng
-
-test all-tests parse-test profile yamltest yamlconf:: all
+test all-tests relaxng parse-test profile yamltest yamlconf:: all
 	cd tests; $(MAKE) $@
 
 distclean:: clean

@@ -22,6 +22,13 @@ publication-protocol-samples/.stamp: publication-protocol-samples.xml split-prot
 	xsltproc --param verbose 0 --stringparam dir publication-protocol-samples split-protocol-samples.xsl publication-protocol-samples.xml
 	touch $@
 
+relaxng: protocol-samples
+	xmllint --noout --relaxng ../../schemas/relaxng/left-right-schema.rng  left-right-protocol-samples/*.xml
+	xmllint --noout --relaxng ../../schemas/relaxng/up-down-schema.rng     up-down-protocol-samples/*.xml
+	xmllint --noout --relaxng ../../schemas/relaxng/publication-schema.rng publication-protocol-samples/*.xml
+
+all-tests:: relaxng
+
 parse-test: protocol-samples
 	${PYTHON} xml-parse-test.py
 

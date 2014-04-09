@@ -32,97 +32,61 @@ SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
 
 POW_SO		= rpki/POW/_POW.so
 
-# Generic targets.  The macros are to deal with ./configure options.
-
 default: all
 
-all: VERSION rpki/autoconf.py setup_autoconf.py ${RP_TARGET}-all ${CA_TARGET}-all 
+all: VERSION rpki/autoconf.py setup_autoconf.py
 
-clean: ${RP_TARGET}-clean ${CA_TARGET}-clean 
+clean: 
 	rm -rf build dist autom4te.cache rpki/autoconf.py setup_autoconf.py setup_autoconf.pyc
 
-test: all ${RP_TARGET}-test ${CA_TARGET}-test 
+test: all
 
-distclean: clean ${RP_TARGET}-distclean ${CA_TARGET}-distclean 
+distclean: clean
 	rm -f Makefile config.log config.status
-
-install: ${RP_TARGET}-install ${CA_TARGET}-install 
-
-deinstall: ${RP_TARGET}-deinstall ${CA_TARGET}-deinstall 
 
 uninstall: deinstall
 
-# Harmless do-nothing targets to simplify the macro-based mess above.
+all:		${RP_TARGET}-all	${CA_TARGET}-all 
+clean:		${RP_TARGET}-clean	${CA_TARGET}-clean 
+test:		${RP_TARGET}-test	${CA_TARGET}-test 
+distclean:	${RP_TARGET}-distclean	${CA_TARGET}-distclean 
+install:	${RP_TARGET}-install	${CA_TARGET}-install 
+deinstall:	${RP_TARGET}-deinstall	${CA_TARGET}-deinstall
+
+rp-all:	    	${OPENSSL_TARGET}-all		rpki-all
+rp-clean:	${OPENSSL_TARGET}-clean		rpki-clean
+rp-test:	${OPENSSL_TARGET}-test		rpki-test
+rp-distclean:	${OPENSSL_TARGET}-distclean	rpki-distclean
+rp-install:					rpki-install
+rp-deinstall:					rpki-deinstall
+
+rp-all:			; cd rp;	${MAKE} all
+rp-clean:		; cd rp;	${MAKE} clean
+rp-test:		; cd rp;	${MAKE} test
+rp-distclean:		; cd rp;	${MAKE} distclean
+rp-install:		; cd rp;	${MAKE} install
+rp-deinstall:		; cd rp;	${MAKE} deinstall
+
+ca-all:			; cd ca;	${MAKE} all
+ca-clean:		; cd ca;	${MAKE} clean
+ca-test:		; cd ca;	${MAKE} test
+ca-distclean:		; cd ca;	${MAKE} distclean
+ca-install:		; cd ca;	${MAKE} install
+ca-deinstall:		; cd ca;	${MAKE} deinstall
+
+openssl-all:		; cd openssl;	${MAKE} all
+openssl-clean:		; cd openssl;	${MAKE} clean
+openssl-test:		; cd openssl;	${MAKE} test
+openssl-distclean:	; cd openssl;	${MAKE} distclean
 
 noop-all noop-clean noop-test noop-distclean noop-install noop-deinstall:
 	@true
 
-# Targets for the RP package.  This includes the libraries, thus the bulk
-# of the code, although some of it won't run without dependencies and setup
-# that only come with the CA package.
-
-rp-all:		h-all schemas-all ${OPENSSL_TARGET}-all rpki-all
-	cd rp; ${MAKE} all
-
-rp-clean:	${OPENSSL_TARGET}-clean rpki-clean
-	cd rp; ${MAKE} clean
-
-rp-test:	${OPENSSL_TARGET}-test rpki-test
-	cd rp; ${MAKE} test
-
-rp-distclean:	${OPENSSL_TARGET}-distclean rpki-distclean
-	cd rp; ${MAKE} distclean
-
-rp-install:	rpki-install
-	cd rp; ${MAKE} install
-
-rp-deinstall:	rpki-deinstall
-	cd rp; ${MAKE} deinstall
-
-
-# Targets for the CA package.
-
-ca-all:
-	cd ca; ${MAKE} all
-
-ca-clean:
-	cd ca; ${MAKE} clean
-
-ca-test:
-	cd ca; ${MAKE} test
-
-ca-distclean:
-	cd ca; ${MAKE} distclean
-
-ca-install:
-	cd ca; ${MAKE} install
-
-ca-deinstall:
-	cd ca; ${MAKE} deinstall
-
-# Supporting targets.  First pass on a lot of this is going to look
-# very silly, will simplify after this is working.
-
-h-all:
+rpki-prereqs:
 	cd h; ${MAKE} all
-
-schemas-all:
 	cd schemas; ${MAKE} all
 
-openssl-all:
-	cd openssl; ${MAKE} all
-
-openssl-clean:
-	cd openssl; ${MAKE} clean
-
-openssl-test:
-	cd openssl; ${MAKE} test
-
-openssl-distclean:
-	cd openssl; ${MAKE} distclean
-
-
-rpki-all: setup_autoconf.py ${POW_SO} build/stamp
+rpki-all: setup_autoconf.py rpki-prereqs ${POW_SO} build/stamp
 
 rpki-clean:
 	rm -rf build dist ${POW_SO}

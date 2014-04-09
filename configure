@@ -5022,7 +5022,7 @@ if test $build_ca_tools = yes; then      CA_TARGET=ca;	    else      CA_TARGET=n
 
 
 
-ac_config_files="$ac_config_files Makefile h/Makefile schemas/Makefile"
+ac_config_files="$ac_config_files Makefile"
 
 
 # OpenSSL has its own build system that bears no relationship to
@@ -5832,8 +5832,6 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
-    "h/Makefile") CONFIG_FILES="$CONFIG_FILES h/Makefile" ;;
-    "schemas/Makefile") CONFIG_FILES="$CONFIG_FILES schemas/Makefile" ;;
     "openssl/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/Makefile" ;;
     "openssl/tests/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/tests/Makefile" ;;
     "rp/Makefile") CONFIG_FILES="$CONFIG_FILES rp/Makefile" ;;

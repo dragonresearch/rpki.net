@@ -770,9 +770,7 @@ AC_SUBST(OPENSSL_TARGET)
 AC_SUBST(RP_TARGET)
 AC_SUBST(CA_TARGET)
 
-AC_CONFIG_FILES([Makefile
-		 h/Makefile
-		 schemas/Makefile])
+AC_CONFIG_FILES([Makefile])
 
 # OpenSSL has its own build system that bears no relationship to
 # anything but itself, and our use of it is a bit weird, so this is a

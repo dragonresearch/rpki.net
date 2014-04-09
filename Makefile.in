@@ -6,6 +6,7 @@ LIBS		= @LIBS@
 
 PYTHON		= @PYTHON@
 INSTALL		= @INSTALL@ -m 555 
+TRANG		= @TRANG@
 
 prefix		= @prefix@
 exec_prefix	= @exec_prefix@
@@ -39,6 +40,15 @@ SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
 SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
 
 POW_SO		= rpki/POW/_POW.so
+
+RNGS =	schemas/relaxng/left-right-schema.rng		\
+	schemas/relaxng/up-down-schema.rng		\
+	schemas/relaxng/publication-schema.rng		\
+	schemas/relaxng/myrpki.rng			\
+	schemas/relaxng/router-certificate-schema.rng
+
+SQLS =	schemas/sql/rpkid.sql				\
+	schemas/sql/pubd.sql
 
 default: all
 
@@ -83,20 +93,26 @@ ca-deinstall:		; cd ca;	${MAKE} deinstall
 noop-all noop-clean noop-test noop-distclean noop-install noop-deinstall:
 	@true
 
-rpki-prereqs:
-	cd h; ${MAKE} all
-	cd schemas; ${MAKE} all
-
-rpki-all: setup_autoconf.py rpki-prereqs ${POW_SO} build/stamp
+rpki-all:					\
+	setup_autoconf.py			\
+	${RNGS}					\
+	${abs_top_srcdir}/h/rpki/sk_manifest.h	\
+	${abs_top_srcdir}/h/rpki/sk_roa.h	\
+	${abs_top_srcdir}/rpki/relaxng.py	\
+	${abs_top_srcdir}/rpki/sql_schemas.py	\
+	${POW_SO}				\
+	build/stamp
 
 rpki-clean:
-	rm -rf build dist ${POW_SO}
+	rm -rf build dist ${POW_SO} h/rpki/*.h.tmp rpki/*.py.tmp
 	find . -type f -name '*.py[co]' -delete
 
-rpki-test: unit-tests
+rpki-test: all
+	@echo Running unit tests
+	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD ${PYTHON} $$i; done
 
 rpki-distclean:
-	rm installed
+	rm -f installed
 
 rpki-install:
 	${PYTHON} setup.py install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
@@ -147,9 +163,36 @@ build/stamp: .FORCE setup_autoconf.py
 	${PYTHON} setup.py build
 	touch $@
 
-unit-tests: all
-	@echo Running unit tests
-	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD ${PYTHON} $$i; done
+${abs_top_srcdir}/h/rpki/sk_manifest.h: ${abs_top_srcdir}/h/rpki/manifest.h
+	${PYTHON} buildtools/defstack.py h/rpki/manifest.h >$@.tmp
+	mv $@.tmp $@
+
+${abs_top_srcdir}/h/rpki/sk_roa.h: ${abs_top_srcdir}/h/rpki/roa.h
+	${PYTHON} buildtools/defstack.py h/rpki/roa.h >$@.tmp
+	mv $@.tmp $@
+
+${abs_top_srcdir}/rpki/relaxng.py: buildtools/make-relaxng.py ${RNGS}
+	cd schemas/relaxng; ${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py *.rng >$@.tmp
+	mv $@.tmp $@
+
+${abs_top_srcdir}/rpki/sql_schemas.py: buildtools/make-sql-schemas.py ${SQLS}
+	cd schemas/sql; ${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
+	mv $@.tmp $@
+
+schemas/relaxng/left-right-schema.rng: schemas/relaxng/left-right-schema.rnc
+	${TRANG} schemas/relaxng/left-right-schema.rnc schemas/relaxng/left-right-schema.rng
+
+schemas/relaxng/up-down-schema.rng: schemas/relaxng/up-down-schema.rnc
+	${TRANG} schemas/relaxng/up-down-schema.rnc schemas/relaxng/up-down-schema.rng
+
+schemas/relaxng/publication-schema.rng: schemas/relaxng/publication-schema.rnc
+	${TRANG} schemas/relaxng/publication-schema.rnc schemas/relaxng/publication-schema.rng
+
+schemas/relaxng/myrpki.rng: schemas/relaxng/myrpki.rnc
+	${TRANG} schemas/relaxng/myrpki.rnc schemas/relaxng/myrpki.rng
+
+schemas/relaxng/router-certificate-schema.rng: schemas/relaxng/router-certificate-schema.rnc
+	${TRANG} schemas/relaxng/router-certificate-schema.rnc schemas/relaxng/router-certificate-schema.rng
 
 lint:
 	find rpki -name '*.py' | xargs pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc

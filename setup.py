@@ -44,8 +44,16 @@ setup_args = dict(
   license       = "BSD",
   url           = "http://rpki.net/",
   cmdclass      = {"build_scripts"   : setup_extensions.build_scripts,
-                   "install_scripts" : setup_extensions.install_scripts},
-  packages      = ["rpki",
+                   "install_scripts" : setup_extensions.install_scripts})
+
+# If and when we start using setup.py to install RP scripts or start
+# trying to separate RP and CA modules in the rpki package tree, we'll
+# need to do something about sharing "packages", "scripts", etc.
+# Write that code when we need it.
+
+if autoconf.RP_TARGET == "rp":
+  setup_args.update(
+    packages    = ["rpki",
                    "rpki.POW",
                    "rpki.irdb",
                    "rpki.gui",
@@ -53,20 +61,18 @@ setup_args = dict(
                    "rpki.gui.cacheview",
                    "rpki.gui.api",
                    "rpki.gui.routeview"],
-  ext_modules   = [Extension("rpki.POW._POW", ["ext/POW.c"], 
+    ext_modules = [Extension("rpki.POW._POW", ["ext/POW.c"], 
                              extra_compile_args =  autoconf.CFLAGS.split(),
                              extra_link_args    = (autoconf.LDFLAGS + " " +
                                                    autoconf.LIBS).split())],
-  package_data  = {"rpki.gui.app" :
-                   ["migrations/*.py",
-                    "static/*/*",
-                    "templates/*.html",
-                    "templates/*/*.html",
-                    "templatetags/*.py"],
-                   "rpki.gui.cacheview" :
-                   ["templates/*/*.html"]})
-
-# Add rp stuff here too, eventually.
+    package_data = {"rpki.gui.app" :
+                    ["migrations/*.py",
+                     "static/*/*",
+                     "templates/*.html",
+                     "templates/*/*.html",
+                     "templatetags/*.py"],
+                    "rpki.gui.cacheview" :
+                    ["templates/*/*.html"]})
 
 if autoconf.CA_TARGET == "ca":
   setup_args.update(

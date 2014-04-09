@@ -96,7 +96,7 @@ rpki-clean:
 rpki-test: unit-tests
 
 rpki-distclean:
-	@true
+	rm installed
 
 rpki-install:
 	${PYTHON} setup.py install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed

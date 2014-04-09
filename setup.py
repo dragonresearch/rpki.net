@@ -26,7 +26,8 @@ try:
 except ImportError:
   class autoconf:
     "Fake autoconf object to let --help work without autoconf."
-    sbindir = libexecdir = datarootdir = sysconfdir = CFLAGS = LDFLAGS = LIBS = ""
+    sbindir = libexecdir = datarootdir = sysconfdir = ""
+    CFLAGS = LDFLAGS = LIBS = CA_TARGET = RP_TARGET = ""
 
 try:
   from rpki.version import VERSION

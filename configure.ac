@@ -153,109 +153,157 @@ case $enable_runtime_dependencies in
 		;;
 esac
 
+# Figure out whether we want RP tools, CA tools, or both
+
+AC_MSG_CHECKING([whether user wants the RP tools])
+case $enable_rp_tools in
+     yes|no)
+		build_rp_tools=$enable_rp_tools
+		;;
+     *)
+		AC_MSG_ERROR([Unrecognized value for --enable-rp-tools: $enable_rp_tools])
+		;;
+esac
+AC_MSG_RESULT([$build_rp_tools])
+
+AC_MSG_CHECKING([whether user wants the CA tools])
+case $enable_ca_tools in
+     yes|no)
+		build_ca_tools=$enable_ca_tools
+		;;
+     *)
+		AC_MSG_ERROR([Unrecognized value for --enable-ca-tools: $enable_ca_tools])
+		;;
+esac
+AC_MSG_RESULT([$build_ca_tools])
+
+if test $build_rp_tools = no && test $build_ca_tools = no
+then
+	AC_MSG_ERROR([Building with neither RP tools nor CA tools makes no sense])
+fi
+
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:
 # CMS and RFC 3779 support.  We also have to check whether the user
 # has an opinion on all this.  In the "auto" case (no
 # --with-system-openssl option specified in any form), we may need to
 # check a platform-specific location (eg, /usr/local on FreeBSD).
+#
+# At this point all of the C code is in the RP tools package, so we can
+# skip all this if we're just building the CA tools.
 
-old_CFLAGS="$CFLAGS"
-old_LDFLAGS="$LDFLAGS"
-
-case $with_system_openssl in
-	yes|auto)
-		if test $CFLAGS_or_LDFLAGS_were_set = no
-		then
-			case $host_os in
-			freebsd*)
-				CFLAGS="-I/usr/local/include $CFLAGS"
-				LDFLAGS="-L/usr/local/lib $LDFLAGS"
-				;;
-			esac
-		fi
-		;;
-	no|/usr)
-		:
-		;;
-
-	*)
-		CFLAGS="-I$with_system_openssl/include $CFLAGS"
-		LDFLAGS="-L$with_system_openssl/lib $LDFLAGS"
-esac
-
-case $with_system_openssl in
-	no)
-		have_usable_openssl=no
-		;;
-	*)
-		AC_CHECK_LIB([crypto], [v3_addr_validate_path],
-				       [system_openssl_has_rfc3779=yes],
-				       [system_openssl_has_rfc3779=no])
-
-		AC_CHECK_LIB([crypto], [CMS_verify],
-				       [system_openssl_has_cms=yes],
-				       [system_openssl_has_cms=no])
-
-		if test $system_openssl_has_rfc3779 = yes && test $system_openssl_has_cms = yes
-		then
-			have_usable_openssl=yes
-		else
-			have_usable_openssl=no
-		fi
-esac
-
-case $with_system_openssl in
-     yes)
-		build_openssl=no
-		if test $have_usable_openssl = no
-		then
-			AC_MSG_ERROR([Can't find OpenSSL crypto library with CMS and RFC 3779 support, try --with-system-openssl=/path/to/openssl])
-		fi
-		;;
-     no)
-		build_openssl=yes
-		;;
-     auto)
-		if test $have_usable_openssl = no
-		then
-			build_openssl=yes
-		else
-			build_openssl=no
-		fi
-		;;
-     *)
-		build_openssl=no
-		if test $have_usable_openssl = no
-		then
-			AC_MSG_ERROR([Can't find OpenSSL crypto library with CMS and RFC 3779 support in $with_system_openssl])
-		fi
-esac
-
-if test $build_openssl = yes
+if test $build_rp_tools = no
 then
-	CFLAGS="$old_CFLAGS"
-	LDFLAGS="$old_LDFLAGS"
-fi
 
-case $enable_openssl_asm in
-     yes|no)
-		build_openssl_asm=$enable_openssl_asm
-		;;
-     auto)
-		case $host in
-			x86_64-*-linux*)
-				build_openssl_asm=no
+	build_openssl=no
+
+else
+
+	old_CFLAGS="$CFLAGS"
+	old_LDFLAGS="$LDFLAGS"
+
+	case $with_system_openssl in
+		yes|auto)
+			if test $CFLAGS_or_LDFLAGS_were_set = no
+			then
+				case $host_os in
+				freebsd*)
+					CFLAGS="-I/usr/local/include $CFLAGS"
+					LDFLAGS="-L/usr/local/lib $LDFLAGS"
+					;;
+				esac
+			fi
+			;;
+		no|/usr)
+			:
+			;;
+
+		*)
+			CFLAGS="-I$with_system_openssl/include $CFLAGS"
+			LDFLAGS="-L$with_system_openssl/lib $LDFLAGS"
+	esac
+
+	case $with_system_openssl in
+		no)
+			have_usable_openssl=no
+			;;
+		*)
+			AC_CHECK_LIB([crypto], [v3_addr_validate_path],
+					       [system_openssl_has_rfc3779=yes],
+					       [system_openssl_has_rfc3779=no])
+
+			AC_CHECK_LIB([crypto], [CMS_verify],
+					       [system_openssl_has_cms=yes],
+					       [system_openssl_has_cms=no])
+
+			AC_MSG_CHECKING([whether system OpenSSL library is usable])
+			if test $system_openssl_has_rfc3779 = yes && test $system_openssl_has_cms = yes
+			then
+				have_usable_openssl=yes
+			else
+				have_usable_openssl=no
+			fi
+			AC_MSG_RESULT([$have_usable_openssl])
+	esac
+
+	AC_MSG_CHECKING([whether we need to build a private copy of OpenSSL])
+	case $with_system_openssl in
+	     yes)
+			build_openssl=no
+			if test $have_usable_openssl = no
+			then
+				AC_MSG_ERROR([Can't find OpenSSL crypto library with CMS and RFC 3779 support, try --with-system-openssl=/path/to/openssl])
+			fi
+			;;
+	     no)
+			build_openssl=yes
+			;;
+	     auto)
+			if test $have_usable_openssl = no
+			then
+				build_openssl=yes
+			else
+				build_openssl=no
+			fi
+			;;
+	     *)
+			build_openssl=no
+			if test $have_usable_openssl = no
+			then
+				AC_MSG_ERROR([Can't find OpenSSL crypto library with CMS and RFC 3779 support in $with_system_openssl])
+			fi
+	esac
+	AC_MSG_RESULT([$build_openssl])
+
+	build_openssl_asm=undefined
+
+	if test $build_openssl = yes
+	then
+		CFLAGS="$old_CFLAGS"
+		LDFLAGS="$old_LDFLAGS"
+
+		AC_MSG_CHECKING([whether to enable assembly code in OpenSSL])
+		case $enable_openssl_asm in
+		     yes|no)
+				build_openssl_asm=$enable_openssl_asm
 				;;
-			*)
-				build_openssl_asm=yes
+		     auto)
+				case $host in
+					x86_64-*-linux*)
+						build_openssl_asm=no
+						;;
+					*)
+						build_openssl_asm=yes
+						;;
+				esac
 				;;
-		esac
-		;;
-     *)
-		AC_MSG_ERROR([Unrecognized value for --enable-openssl-asm: $enable_openssl_asm])
-		;;
-esac     
+		     *)
+				AC_MSG_ERROR([Unrecognized value for --enable-openssl-asm: $enable_openssl_asm])
+				;;
+		esac     
+		AC_MSG_RESULT([$enable_openssl_asm])
+	fi
+fi
 
 # RCYNIC_DIR is a "precious" argument variable to this script (see
 # autoconf doc), which means that autoconf is careful with whatever
@@ -415,6 +463,7 @@ AC_SUBST_FILE(CA_MAKE_RULES)
 # Where to put HTML files is similarly platform dependent, we have to know.
 # rcynic-cron will skip generating HTML files if it has no place to put them.
 
+AC_MSG_CHECKING([where rcynic-html output should go])
 case $host_os in
 	freebsd*)
 		RCYNIC_HTML_DIR="/usr/local/www/apache${APACHE_VERSION}/data/rcynic"
@@ -433,6 +482,7 @@ case $host_os in
 		RCYNIC_HTML_DIR=''
 		;;
 esac
+AC_MSG_RESULT([$RCYNIC_HTML_DIR])
 
 AC_SUBST(RCYNIC_HTML_DIR)
 
@@ -464,190 +514,150 @@ AC_SUBST(CA_INSTALL_TARGETS)
 # we do have Python, we need to check for required packages and
 # versions.
 
-have_python=no
-have_acceptable_python=no
-have_python_h=no
-have_django=no
-have_acceptable_django=no
-have_lxml=no
-have_mysqldb=no
-have_pyyaml=no
-have_vobject=no
-have_django_south=no
-have_acceptable_django_south=no
-have_argparse=no
-
-if test "x$PYTHON" != "x"
+if test "x$PYTHON" = "x"
 then
-	have_python=yes
-
-	AC_MSG_CHECKING([for Python version 2.6 or higher])
-	have_acceptable_python=`$PYTHON -c 'import sys; print "yes" if sys.version_info[[0]] == 2 and sys.version_info[[1]] >= 6 else "no"'`
-	AC_MSG_RESULT([$have_acceptable_python])
-
-	AC_MSG_CHECKING([distutils to find out where Python.h should be])
-	python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
-	AC_MSG_RESULT([$python_h])
-
-	AC_CHECK_HEADER([$python_h], [have_python_h=yes], [have_python_h=no])
-
-	AC_MSG_CHECKING([for lxml.etree])
-	if $PYTHON -c 'import lxml.etree' 2>/dev/null
-	then
-		have_lxml=yes
-	fi
-	AC_MSG_RESULT([$have_lxml])
-
-	AC_MSG_CHECKING([for MySQLdb])
-	if $PYTHON -c 'import MySQLdb' 2>/dev/null
-	then
-		have_mysqldb=yes
-	fi
-	AC_MSG_RESULT([$have_mysqldb])
-
-	AC_MSG_CHECKING([for Django])
-	if $PYTHON -c 'import django' 2>/dev/null
-	then
-		have_django="yes"
-	fi
-	AC_MSG_RESULT([$have_django])
-
-	if test $have_django = yes
-	then
-		AC_MSG_CHECKING([for Django 1.3.7 or higher])
-		have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3, 7) else 'yes'"`
-		AC_MSG_RESULT([$have_acceptable_django])
-	fi
-
-	AC_MSG_CHECKING([for PyYAML])
-	if $PYTHON -c 'import yaml' 2>/dev/null
-	then
-		have_pyyaml=yes
-	fi
-	AC_MSG_RESULT([$have_pyyaml])
-
-	AC_MSG_CHECKING([for vobject])
-	if $PYTHON -c 'import vobject' 2>/dev/null
-	then
-		have_vobject=yes
-	fi
-	AC_MSG_RESULT([$have_vobject])
-
-	AC_MSG_CHECKING([for Django South])
-	if $PYTHON -c 'import south' 2>/dev/null
-	then
-		have_django_south=yes
-	fi
-	AC_MSG_RESULT([$have_django_south])
-
-	if test $have_django_south = yes
-	then
-		AC_MSG_CHECKING([for Django South 0.7.5 or later])
-		have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [[0, 7, 5]] else 'yes'"`
-		AC_MSG_RESULT([$have_acceptable_django_south])
-	fi
-
-	AC_MSG_CHECKING([for argparse])
-	if $PYTHON -c 'import argparse' 2>/dev/null
-	then
-		have_argparse=yes
-	fi
-	AC_MSG_RESULT([$have_argparse])
+	AC_MSG_ERROR([I can't find a Python binary at all, this isn't going to work.  Perhaps you need to set PATH?])
 fi
 
-ok=yes
+AC_MSG_CHECKING([for Python version 2.6 or higher])
+have_acceptable_python=`$PYTHON -c 'import sys; print "yes" if sys.version_info[[0]] == 2 and sys.version_info[[1]] >= 6 else "no"'`
+AC_MSG_RESULT([$have_acceptable_python])
 
-if test $have_python = no
+AC_MSG_CHECKING([distutils to find out where Python.h should be])
+python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
+AC_MSG_RESULT([$python_h])
+
+AC_CHECK_HEADER([$python_h], [have_python_h=yes], [have_python_h=no])
+
+AC_MSG_CHECKING([for lxml.etree])
+if $PYTHON -c 'import lxml.etree' 2>/dev/null; then have_lxml=yes; else have_lxml=no; fi
+AC_MSG_RESULT([$have_lxml])
+
+AC_MSG_CHECKING([for MySQLdb])
+if $PYTHON -c 'import MySQLdb' 2>/dev/null; then have_mysqldb=yes; else have_mysqldb=no; fi
+AC_MSG_RESULT([$have_mysqldb])
+
+AC_MSG_CHECKING([for Django])
+if $PYTHON -c 'import django' 2>/dev/null; then have_django=yes; else have_django=no; fi
+AC_MSG_RESULT([$have_django])
+
+if test $have_django = yes
 then
-	ok=no
-	AC_MSG_WARN([I can't find a Python binary, perhaps you need to set PATH?])
+	AC_MSG_CHECKING([for Django 1.3.7 or higher])
+	have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3, 7) else 'yes'"`
+	AC_MSG_RESULT([$have_acceptable_django])
+else
+	have_acceptable_django=no
 fi
+
+AC_MSG_CHECKING([for PyYAML])
+if $PYTHON -c 'import yaml' 2>/dev/null; then have_pyyaml=yes; else have_pyyaml=no; fi
+AC_MSG_RESULT([$have_pyyaml])
+
+AC_MSG_CHECKING([for vobject])
+if $PYTHON -c 'import vobject' 2>/dev/null; then have_vobject=yes; else have_vobject=no; fi
+AC_MSG_RESULT([$have_vobject])
+
+AC_MSG_CHECKING([for Django South])
+if $PYTHON -c 'import south' 2>/dev/null; then have_django_south=yes; else have_django_south=no; fi
+AC_MSG_RESULT([$have_django_south])
+
+if test $have_django_south = yes
+then
+	AC_MSG_CHECKING([for Django South 0.7.5 or later])
+	have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [[0, 7, 5]] else 'yes'"`
+	AC_MSG_RESULT([$have_acceptable_django_south])
+else
+	have_acceptable_django_south=no
+fi
+
+AC_MSG_CHECKING([for argparse])
+if $PYTHON -c 'import argparse' 2>/dev/null; then have_argparse=yes; else have_argparse=no; fi
+AC_MSG_RESULT([$have_argparse])
+
+# Warnings and dependency errors.  Exit on fatal errors deferred until
+# the very end of this, so we can warn the user about all known
+# problems in a single pass.  Errors that prevent build or basic
+# installation are always fatal; errors that prevent proper operation
+# at runtime or during post-installation setup can be converted to
+# warnings by --disable-runtime-dependencies.
+
+build_ok=yes
+runtime_ok=yes
 
 if test $have_acceptable_python = no
 then
-	ok=no
+	runtime_ok=no
 	AC_MSG_WARN([The RPKI code requires Python version 2.x, for x = 6 or higher.])
 fi
 
-case $enable_rp_tools in
-     yes)	build_rp_tools=yes
-     		;;
-     no)	build_rp_tools=no
-     		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-rp-tools: $enable_rp_tools])
-     		;;
-esac
-
-case $enable_ca_tools in
-     yes)	build_ca_tools=yes
-		if test $have_python_h = no
-		then
-			ok=no
-			AC_MSG_WARN([I can't find Python.h.  Python sources are required to build the CA tools.])
-		fi
-		if test $have_lxml = no
-		then
-			ok=no
-			AC_MSG_WARN([The RPKI tools require the Python LXML module.])
-		fi
-		if test $have_acceptable_django = no
-		then
-			ok=no
-			AC_MSG_WARN([The RPKI CA tools require Django 1.3.7 or higher.])
-		fi
-		if test $have_vobject = no
-		then
-			ok=no
-			AC_MSG_WARN([The RPKI CA GUI requires the Python vobject module.])
-		fi
-		if test $have_acceptable_django_south = no
-		then
-			ok=no
-			AC_MSG_WARN([The RPKI CA tools require Django South 0.7.5 or higher.])
-		fi
-		if test $have_argparse = no
-		then
-			ok=no
-			AC_MSG_WARN([The RPKI CA tools require the Python argparse module.])
-		fi
-		#
-		# This should be the last test in this group, so that failures get the --disable-ca-tools warning.
-		#
-		if test $ok = no
-		then
-			AC_MSG_WARN([If you do not wish to install the RPKI CA tools, please specify --disable-ca-tools as an argument to this configure script.])
-		fi
-		;;
-     no)	build_ca_tools=no
-		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-ca-tools: $enable_ca_tools]);;
-esac
-
-if test $build_ca_tools = yes && test $have_pyyaml = no
+if test $build_rp_tools = yes
 then
-	AC_MSG_WARN([PyYAML missing, so "make test" will not work properly.])
+	if test $have_python_h = no
+	then
+		build_ok=no
+		AC_MSG_WARN([I can't find Python.h.  Python sources are required to build the RP tools.])
+	fi
+	if test "x$RRDTOOL" = "x"
+	then
+		runtime_ok=no
+		AC_MSG_WARN([rcynic-html requires rrdtool.])
+	fi
+	if test $use_rcynic_jail = no && test "X$RSYNC" = "X"
+	then
+		runtime_ok=no
+		AC_MSG_WARN([The RPKI relying party tools require rsync.])
+	fi
 fi
 
-if test "x$XSLTPROC" = "x"
+if test $build_ca_tools = yes
 then
-	AC_MSG_WARN([xsltproc missing, so "make test" will not work properly.])
+	if test $have_lxml = no
+	then
+		runtime_ok=no
+		AC_MSG_WARN([The RPKI tools require the Python LXML module.])
+	fi
+	if test $have_acceptable_django = no
+	then
+		runtime_ok=no
+		AC_MSG_WARN([The RPKI CA tools require Django 1.3.7 or higher.])
+	fi
+	if test $have_vobject = no
+	then
+		runtime_ok=no
+		AC_MSG_WARN([The RPKI CA GUI requires the Python vobject module.])
+	fi
+	if test $have_acceptable_django_south = no
+	then
+		runtime_ok=no
+		AC_MSG_WARN([The RPKI CA tools require Django South 0.7.5 or higher.])
+	fi
+	if test $have_argparse = no
+	then
+		runtime_ok=no
+		AC_MSG_WARN([The RPKI CA tools require the Python argparse module.])
+	fi
+	if test $have_pyyaml = no
+	then
+		AC_MSG_WARN([PyYAML missing, so "make test" will not work properly.])
+	fi
+	if test "x$XSLTPROC" = "x"
+	then
+		AC_MSG_WARN([xsltproc missing, so "make test" will not work properly.])
+	fi
 fi
 
-if test "x$RRDTOOL" = "x"
+if test $build_ok = no || test $runtime_ok = no
 then
-	ok=no
-	AC_MSG_WARN([rcynic-html requires rrdtool.])
-fi
-
-if test $use_rcynic_jail = no && test "X$RSYNC" = "X"
-then
-	ok=no
-	AC_MSG_WARN([The RPKI relying party tools require rsync.])
-fi
-
-if test $ok = no
-then
-	if test $enable_runtime_dependencies = yes
+	if test $build_rp_tools = yes
+	then
+		AC_MSG_WARN([If you do not wish to install the RPKI RP tools, please specify --disable-rp-tools as an argument to this configure script.])
+	fi
+	if test $build_ca_tools = yes
+	then
+		AC_MSG_WARN([If you do not wish to install the RPKI CA tools, please specify --disable-ca-tools as an argument to this configure script.])
+	fi
+	if test $build_ok = no || test $enable_runtime_dependencies = yes
 	then
 		AC_MSG_ERROR([Please correct the problems above then re-run this configuration script.])
 	else
@@ -750,7 +760,7 @@ else
 	AC_MSG_RESULT([$WSGI_PYTHON_EGG_CACHE_DIR])
 fi
 
-# Figure out which parts of this package we have to build.
+# Tell the Makefiles and setup.py which parts of this package we've decided to build.
 
 if test $build_openssl  = yes; then OPENSSL_TARGET=openssl; else OPENSSL_TARGET=noop; fi
 if test $build_rp_tools = yes; then      RP_TARGET=rp;	    else      RP_TARGET=noop; fi
@@ -770,7 +780,8 @@ AC_CONFIG_FILES([Makefile
 
 if test $build_openssl = yes
 then
-	AC_CONFIG_FILES([openssl/Makefile openssl/tests/Makefile])
+	AC_CONFIG_FILES([openssl/Makefile
+			 openssl/tests/Makefile])
 
 	AC_MSG_CHECKING([what configuration target to use when building OpenSSL])
 	case $host in
@@ -828,23 +839,27 @@ then
 			 ca/tests/Makefile])
 fi
 
-if test $build_ca_tools = yes &&
-   test "X$enable_wsgi_daemon_mode" = "Xyes"
+if test $build_ca_tools = yes
 then
-	AC_MSG_ERROR([You must specify the user to run the wsgi process as with --enable-wsgi-daemon-mode=USER])
-fi
-
-if test $build_ca_tools = yes &&
-   test "X$enable_wsgi_daemon_mode" != "Xno"
-then
-	save_IFS="$IFS"
-	IFS=':' read user group <<_EOF
+	case $enable_wsgi_daemon_mode in
+	no)
+		;;
+	yes)
+		AC_MSG_ERROR([You must specify the user to run the wsgi process as with --enable-wsgi-daemon-mode=USER])
+		;;
+	*)
+		AC_MSG_CHECKING([how to run mod_wsgi daemon mode])
+		save_IFS="$IFS"
+		IFS=':'
+		read user group <<_EOF
 $enable_wsgi_daemon_mode
 _EOF
-	IFS="$save_IFS"
-	AC_SUBST(WSGI_DAEMON_PROCESS, "WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}")
-	AC_SUBST(WSGI_PROCESS_GROUP, "WSGIProcessGroup rpkigui")
-	AC_MSG_RESULT([running mod_wsgi in daemon mode with user "$user" and group "${group:-default}"])
+		IFS="$save_IFS"
+		AC_SUBST(WSGI_DAEMON_PROCESS, "WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}")
+		AC_SUBST(WSGI_PROCESS_GROUP, "WSGIProcessGroup rpkigui")
+		AC_MSG_RESULT([with user "$user" and group "${group:-default}"])
+		;;
+	esac
 fi
 
 # Now that we're finally done with all the conditional changes to

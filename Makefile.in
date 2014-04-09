@@ -54,19 +54,17 @@ distclean: clean
 
 uninstall: deinstall
 
-all:		${RP_TARGET}-all	${CA_TARGET}-all 
-clean:		${RP_TARGET}-clean	${CA_TARGET}-clean 
-test:		${RP_TARGET}-test	${CA_TARGET}-test 
-distclean:	${RP_TARGET}-distclean	${CA_TARGET}-distclean 
-install:	${RP_TARGET}-install	${CA_TARGET}-install 
-deinstall:	${RP_TARGET}-deinstall	${CA_TARGET}-deinstall
+all:	    	${OPENSSL_TARGET}-all		rpki-all	${RP_TARGET}-all	${CA_TARGET}-all 
+clean:		${OPENSSL_TARGET}-clean		rpki-clean	${RP_TARGET}-clean	${CA_TARGET}-clean 
+test:		${OPENSSL_TARGET}-test		rpki-test	${RP_TARGET}-test	${CA_TARGET}-test 
+distclean:	${OPENSSL_TARGET}-distclean	rpki-distclean	${RP_TARGET}-distclean	${CA_TARGET}-distclean 
+install:					rpki-install	${RP_TARGET}-install	${CA_TARGET}-install 
+deinstall:					rpki-deinstall	${RP_TARGET}-deinstall	${CA_TARGET}-deinstall
 
-rp-all:	    	${OPENSSL_TARGET}-all		rpki-all
-rp-clean:	${OPENSSL_TARGET}-clean		rpki-clean
-rp-test:	${OPENSSL_TARGET}-test		rpki-test
-rp-distclean:	${OPENSSL_TARGET}-distclean	rpki-distclean
-rp-install:					rpki-install
-rp-deinstall:					rpki-deinstall
+openssl-all:		; cd openssl;	${MAKE} all
+openssl-clean:		; cd openssl;	${MAKE} clean
+openssl-test:		; cd openssl;	${MAKE} test
+openssl-distclean:	; cd openssl;	${MAKE} distclean
 
 rp-all:			; cd rp;	${MAKE} all
 rp-clean:		; cd rp;	${MAKE} clean
@@ -81,11 +79,6 @@ ca-test:		; cd ca;	${MAKE} test
 ca-distclean:		; cd ca;	${MAKE} distclean
 ca-install:		; cd ca;	${MAKE} install
 ca-deinstall:		; cd ca;	${MAKE} deinstall
-
-openssl-all:		; cd openssl;	${MAKE} all
-openssl-clean:		; cd openssl;	${MAKE} clean
-openssl-test:		; cd openssl;	${MAKE} test
-openssl-distclean:	; cd openssl;	${MAKE} distclean
 
 noop-all noop-clean noop-test noop-distclean noop-install noop-deinstall:
 	@true

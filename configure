@@ -4259,43 +4259,86 @@ case $enable_runtime_dependencies in
 		;;
 esac
 
+# Figure out whether we want RP tools, CA tools, or both
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether user wants the RP tools" >&5
+$as_echo_n "checking whether user wants the RP tools... " >&6; }
+case $enable_rp_tools in
+     yes|no)
+		build_rp_tools=$enable_rp_tools
+		;;
+     *)
+		as_fn_error $? "Unrecognized value for --enable-rp-tools: $enable_rp_tools" "$LINENO" 5
+		;;
+esac
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $build_rp_tools" >&5
+$as_echo "$build_rp_tools" >&6; }
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether user wants the CA tools" >&5
+$as_echo_n "checking whether user wants the CA tools... " >&6; }
+case $enable_ca_tools in
+     yes|no)
+		build_ca_tools=$enable_ca_tools
+		;;
+     *)
+		as_fn_error $? "Unrecognized value for --enable-ca-tools: $enable_ca_tools" "$LINENO" 5
+		;;
+esac
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $build_ca_tools" >&5
+$as_echo "$build_ca_tools" >&6; }
+
+if test $build_rp_tools = no && test $build_ca_tools = no
+then
+	as_fn_error $? "Building with neither RP tools nor CA tools makes no sense" "$LINENO" 5
+fi
+
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:
 # CMS and RFC 3779 support.  We also have to check whether the user
 # has an opinion on all this.  In the "auto" case (no
 # --with-system-openssl option specified in any form), we may need to
 # check a platform-specific location (eg, /usr/local on FreeBSD).
+#
+# At this point all of the C code is in the RP tools package, so we can
+# skip all this if we're just building the CA tools.
 
-old_CFLAGS="$CFLAGS"
-old_LDFLAGS="$LDFLAGS"
+if test $build_rp_tools = no
+then
 
-case $with_system_openssl in
-	yes|auto)
-		if test $CFLAGS_or_LDFLAGS_were_set = no
-		then
-			case $host_os in
-			freebsd*)
-				CFLAGS="-I/usr/local/include $CFLAGS"
-				LDFLAGS="-L/usr/local/lib $LDFLAGS"
-				;;
-			esac
-		fi
-		;;
-	no|/usr)
-		:
-		;;
+	build_openssl=no
 
-	*)
-		CFLAGS="-I$with_system_openssl/include $CFLAGS"
-		LDFLAGS="-L$with_system_openssl/lib $LDFLAGS"
-esac
+else
 
-case $with_system_openssl in
-	no)
-		have_usable_openssl=no
-		;;
-	*)
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for v3_addr_validate_path in -lcrypto" >&5
+	old_CFLAGS="$CFLAGS"
+	old_LDFLAGS="$LDFLAGS"
+
+	case $with_system_openssl in
+		yes|auto)
+			if test $CFLAGS_or_LDFLAGS_were_set = no
+			then
+				case $host_os in
+				freebsd*)
+					CFLAGS="-I/usr/local/include $CFLAGS"
+					LDFLAGS="-L/usr/local/lib $LDFLAGS"
+					;;
+				esac
+			fi
+			;;
+		no|/usr)
+			:
+			;;
+
+		*)
+			CFLAGS="-I$with_system_openssl/include $CFLAGS"
+			LDFLAGS="-L$with_system_openssl/lib $LDFLAGS"
+	esac
+
+	case $with_system_openssl in
+		no)
+			have_usable_openssl=no
+			;;
+		*)
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for v3_addr_validate_path in -lcrypto" >&5
 $as_echo_n "checking for v3_addr_validate_path in -lcrypto... " >&6; }
 if ${ac_cv_lib_crypto_v3_addr_validate_path+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -4338,7 +4381,7 @@ else
 fi
 
 
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for CMS_verify in -lcrypto" >&5
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for CMS_verify in -lcrypto" >&5
 $as_echo_n "checking for CMS_verify in -lcrypto... " >&6; }
 if ${ac_cv_lib_crypto_CMS_verify+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -4381,65 +4424,80 @@ else
 fi
 
 
-		if test $system_openssl_has_rfc3779 = yes && test $system_openssl_has_cms = yes
-		then
-			have_usable_openssl=yes
-		else
-			have_usable_openssl=no
-		fi
-esac
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether system OpenSSL library is usable" >&5
+$as_echo_n "checking whether system OpenSSL library is usable... " >&6; }
+			if test $system_openssl_has_rfc3779 = yes && test $system_openssl_has_cms = yes
+			then
+				have_usable_openssl=yes
+			else
+				have_usable_openssl=no
+			fi
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_usable_openssl" >&5
+$as_echo "$have_usable_openssl" >&6; }
+	esac
 
-case $with_system_openssl in
-     yes)
-		build_openssl=no
-		if test $have_usable_openssl = no
-		then
-			as_fn_error $? "Can't find OpenSSL crypto library with CMS and RFC 3779 support, try --with-system-openssl=/path/to/openssl" "$LINENO" 5
-		fi
-		;;
-     no)
-		build_openssl=yes
-		;;
-     auto)
-		if test $have_usable_openssl = no
-		then
-			build_openssl=yes
-		else
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether we need to build a private copy of OpenSSL" >&5
+$as_echo_n "checking whether we need to build a private copy of OpenSSL... " >&6; }
+	case $with_system_openssl in
+	     yes)
 			build_openssl=no
-		fi
-		;;
-     *)
-		build_openssl=no
-		if test $have_usable_openssl = no
-		then
-			as_fn_error $? "Can't find OpenSSL crypto library with CMS and RFC 3779 support in $with_system_openssl" "$LINENO" 5
-		fi
-esac
+			if test $have_usable_openssl = no
+			then
+				as_fn_error $? "Can't find OpenSSL crypto library with CMS and RFC 3779 support, try --with-system-openssl=/path/to/openssl" "$LINENO" 5
+			fi
+			;;
+	     no)
+			build_openssl=yes
+			;;
+	     auto)
+			if test $have_usable_openssl = no
+			then
+				build_openssl=yes
+			else
+				build_openssl=no
+			fi
+			;;
+	     *)
+			build_openssl=no
+			if test $have_usable_openssl = no
+			then
+				as_fn_error $? "Can't find OpenSSL crypto library with CMS and RFC 3779 support in $with_system_openssl" "$LINENO" 5
+			fi
+	esac
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $build_openssl" >&5
+$as_echo "$build_openssl" >&6; }
 
-if test $build_openssl = yes
-then
-	CFLAGS="$old_CFLAGS"
-	LDFLAGS="$old_LDFLAGS"
-fi
+	build_openssl_asm=undefined
 
-case $enable_openssl_asm in
-     yes|no)
-		build_openssl_asm=$enable_openssl_asm
-		;;
-     auto)
-		case $host in
-			x86_64-*-linux*)
-				build_openssl_asm=no
+	if test $build_openssl = yes
+	then
+		CFLAGS="$old_CFLAGS"
+		LDFLAGS="$old_LDFLAGS"
+
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether to enable assembly code in OpenSSL" >&5
+$as_echo_n "checking whether to enable assembly code in OpenSSL... " >&6; }
+		case $enable_openssl_asm in
+		     yes|no)
+				build_openssl_asm=$enable_openssl_asm
 				;;
-			*)
-				build_openssl_asm=yes
+		     auto)
+				case $host in
+					x86_64-*-linux*)
+						build_openssl_asm=no
+						;;
+					*)
+						build_openssl_asm=yes
+						;;
+				esac
+				;;
+		     *)
+				as_fn_error $? "Unrecognized value for --enable-openssl-asm: $enable_openssl_asm" "$LINENO" 5
 				;;
 		esac
-		;;
-     *)
-		as_fn_error $? "Unrecognized value for --enable-openssl-asm: $enable_openssl_asm" "$LINENO" 5
-		;;
-esac
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $enable_openssl_asm" >&5
+$as_echo "$enable_openssl_asm" >&6; }
+	fi
+fi
 
 # RCYNIC_DIR is a "precious" argument variable to this script (see
 # autoconf doc), which means that autoconf is careful with whatever
@@ -4605,6 +4663,8 @@ esac
 # Where to put HTML files is similarly platform dependent, we have to know.
 # rcynic-cron will skip generating HTML files if it has no place to put them.
 
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking where rcynic-html output should go" >&5
+$as_echo_n "checking where rcynic-html output should go... " >&6; }
 case $host_os in
 	freebsd*)
 		RCYNIC_HTML_DIR="/usr/local/www/apache${APACHE_VERSION}/data/rcynic"
@@ -4623,6 +4683,8 @@ case $host_os in
 		RCYNIC_HTML_DIR=''
 		;;
 esac
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $RCYNIC_HTML_DIR" >&5
+$as_echo "$RCYNIC_HTML_DIR" >&6; }
 
 
 
@@ -4654,36 +4716,24 @@ fi
 # we do have Python, we need to check for required packages and
 # versions.
 
-have_python=no
-have_acceptable_python=no
-have_python_h=no
-have_django=no
-have_acceptable_django=no
-have_lxml=no
-have_mysqldb=no
-have_pyyaml=no
-have_vobject=no
-have_django_south=no
-have_acceptable_django_south=no
-have_argparse=no
-
-if test "x$PYTHON" != "x"
+if test "x$PYTHON" = "x"
 then
-	have_python=yes
+	as_fn_error $? "I can't find a Python binary at all, this isn't going to work.  Perhaps you need to set PATH?" "$LINENO" 5
+fi
 
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Python version 2.6 or higher" >&5
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Python version 2.6 or higher" >&5
 $as_echo_n "checking for Python version 2.6 or higher... " >&6; }
-	have_acceptable_python=`$PYTHON -c 'import sys; print "yes" if sys.version_info[0] == 2 and sys.version_info[1] >= 6 else "no"'`
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_acceptable_python" >&5
+have_acceptable_python=`$PYTHON -c 'import sys; print "yes" if sys.version_info[0] == 2 and sys.version_info[1] >= 6 else "no"'`
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_acceptable_python" >&5
 $as_echo "$have_acceptable_python" >&6; }
 
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking distutils to find out where Python.h should be" >&5
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking distutils to find out where Python.h should be" >&5
 $as_echo_n "checking distutils to find out where Python.h should be... " >&6; }
-	python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $python_h" >&5
+python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $python_h" >&5
 $as_echo "$python_h" >&6; }
 
-	as_ac_Header=`$as_echo "ac_cv_header_$python_h" | $as_tr_sh`
+as_ac_Header=`$as_echo "ac_cv_header_$python_h" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$python_h" "$as_ac_Header" "$ac_includes_default"
 if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
   have_python_h=yes
@@ -4693,194 +4743,166 @@ fi
 
 
 
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for lxml.etree" >&5
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for lxml.etree" >&5
 $as_echo_n "checking for lxml.etree... " >&6; }
-	if $PYTHON -c 'import lxml.etree' 2>/dev/null
-	then
-		have_lxml=yes
-	fi
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_lxml" >&5
+if $PYTHON -c 'import lxml.etree' 2>/dev/null; then have_lxml=yes; else have_lxml=no; fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_lxml" >&5
 $as_echo "$have_lxml" >&6; }
 
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for MySQLdb" >&5
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for MySQLdb" >&5
 $as_echo_n "checking for MySQLdb... " >&6; }
-	if $PYTHON -c 'import MySQLdb' 2>/dev/null
-	then
-		have_mysqldb=yes
-	fi
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_mysqldb" >&5
+if $PYTHON -c 'import MySQLdb' 2>/dev/null; then have_mysqldb=yes; else have_mysqldb=no; fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_mysqldb" >&5
 $as_echo "$have_mysqldb" >&6; }
 
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django" >&5
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django" >&5
 $as_echo_n "checking for Django... " >&6; }
-	if $PYTHON -c 'import django' 2>/dev/null
-	then
-		have_django="yes"
-	fi
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_django" >&5
+if $PYTHON -c 'import django' 2>/dev/null; then have_django=yes; else have_django=no; fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_django" >&5
 $as_echo "$have_django" >&6; }
 
-	if test $have_django = yes
-	then
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django 1.3.7 or higher" >&5
+if test $have_django = yes
+then
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django 1.3.7 or higher" >&5
 $as_echo_n "checking for Django 1.3.7 or higher... " >&6; }
-		have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3, 7) else 'yes'"`
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_acceptable_django" >&5
+	have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3, 7) else 'yes'"`
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_acceptable_django" >&5
 $as_echo "$have_acceptable_django" >&6; }
-	fi
+else
+	have_acceptable_django=no
+fi
 
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for PyYAML" >&5
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for PyYAML" >&5
 $as_echo_n "checking for PyYAML... " >&6; }
-	if $PYTHON -c 'import yaml' 2>/dev/null
-	then
-		have_pyyaml=yes
-	fi
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_pyyaml" >&5
+if $PYTHON -c 'import yaml' 2>/dev/null; then have_pyyaml=yes; else have_pyyaml=no; fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_pyyaml" >&5
 $as_echo "$have_pyyaml" >&6; }
 
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for vobject" >&5
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for vobject" >&5
 $as_echo_n "checking for vobject... " >&6; }
-	if $PYTHON -c 'import vobject' 2>/dev/null
-	then
-		have_vobject=yes
-	fi
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_vobject" >&5
+if $PYTHON -c 'import vobject' 2>/dev/null; then have_vobject=yes; else have_vobject=no; fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_vobject" >&5
 $as_echo "$have_vobject" >&6; }
 
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django South" >&5
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django South" >&5
 $as_echo_n "checking for Django South... " >&6; }
-	if $PYTHON -c 'import south' 2>/dev/null
-	then
-		have_django_south=yes
-	fi
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_django_south" >&5
+if $PYTHON -c 'import south' 2>/dev/null; then have_django_south=yes; else have_django_south=no; fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_django_south" >&5
 $as_echo "$have_django_south" >&6; }
 
-	if test $have_django_south = yes
-	then
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django South 0.7.5 or later" >&5
-$as_echo_n "checking for Django South 0.7.5 or later... " >&6; }
-		have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [0, 7, 5] else 'yes'"`
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_acceptable_django_south" >&5
-$as_echo "$have_acceptable_django_south" >&6; }
-	fi
-
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for argparse" >&5
-$as_echo_n "checking for argparse... " >&6; }
-	if $PYTHON -c 'import argparse' 2>/dev/null
-	then
-		have_argparse=yes
-	fi
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_argparse" >&5
-$as_echo "$have_argparse" >&6; }
-fi
-
-ok=yes
-
-if test $have_python = no
+if test $have_django_south = yes
 then
-	ok=no
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: I can't find a Python binary, perhaps you need to set PATH?" >&5
-$as_echo "$as_me: WARNING: I can't find a Python binary, perhaps you need to set PATH?" >&2;}
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django South 0.7.5 or later" >&5
+$as_echo_n "checking for Django South 0.7.5 or later... " >&6; }
+	have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [0, 7, 5] else 'yes'"`
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_acceptable_django_south" >&5
+$as_echo "$have_acceptable_django_south" >&6; }
+else
+	have_acceptable_django_south=no
 fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for argparse" >&5
+$as_echo_n "checking for argparse... " >&6; }
+if $PYTHON -c 'import argparse' 2>/dev/null; then have_argparse=yes; else have_argparse=no; fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_argparse" >&5
+$as_echo "$have_argparse" >&6; }
+
+# Warnings and dependency errors.  Exit on fatal errors deferred until
+# the very end of this, so we can warn the user about all known
+# problems in a single pass.  Errors that prevent build or basic
+# installation are always fatal; errors that prevent proper operation
+# at runtime or during post-installation setup can be converted to
+# warnings by --disable-runtime-dependencies.
+
+build_ok=yes
+runtime_ok=yes
 
 if test $have_acceptable_python = no
 then
-	ok=no
+	runtime_ok=no
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI code requires Python version 2.x, for x = 6 or higher." >&5
 $as_echo "$as_me: WARNING: The RPKI code requires Python version 2.x, for x = 6 or higher." >&2;}
 fi
 
-case $enable_rp_tools in
-     yes)	build_rp_tools=yes
-     		;;
-     no)	build_rp_tools=no
-     		;;
-     *)		as_fn_error $? "Unrecognized value for --enable-rp-tools: $enable_rp_tools" "$LINENO" 5
-     		;;
-esac
-
-case $enable_ca_tools in
-     yes)	build_ca_tools=yes
-		if test $have_python_h = no
-		then
-			ok=no
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: I can't find Python.h.  Python sources are required to build the CA tools." >&5
-$as_echo "$as_me: WARNING: I can't find Python.h.  Python sources are required to build the CA tools." >&2;}
-		fi
-		if test $have_lxml = no
-		then
-			ok=no
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI tools require the Python LXML module." >&5
-$as_echo "$as_me: WARNING: The RPKI tools require the Python LXML module." >&2;}
-		fi
-		if test $have_acceptable_django = no
-		then
-			ok=no
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django 1.3.7 or higher." >&5
-$as_echo "$as_me: WARNING: The RPKI CA tools require Django 1.3.7 or higher." >&2;}
-		fi
-		if test $have_vobject = no
-		then
-			ok=no
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA GUI requires the Python vobject module." >&5
-$as_echo "$as_me: WARNING: The RPKI CA GUI requires the Python vobject module." >&2;}
-		fi
-		if test $have_acceptable_django_south = no
-		then
-			ok=no
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django South 0.7.5 or higher." >&5
-$as_echo "$as_me: WARNING: The RPKI CA tools require Django South 0.7.5 or higher." >&2;}
-		fi
-		if test $have_argparse = no
-		then
-			ok=no
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require the Python argparse module." >&5
-$as_echo "$as_me: WARNING: The RPKI CA tools require the Python argparse module." >&2;}
-		fi
-		#
-		# This should be the last test in this group, so that failures get the --disable-ca-tools warning.
-		#
-		if test $ok = no
-		then
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: If you do not wish to install the RPKI CA tools, please specify --disable-ca-tools as an argument to this configure script." >&5
-$as_echo "$as_me: WARNING: If you do not wish to install the RPKI CA tools, please specify --disable-ca-tools as an argument to this configure script." >&2;}
-		fi
-		;;
-     no)	build_ca_tools=no
-		;;
-     *)		as_fn_error $? "Unrecognized value for --enable-ca-tools: $enable_ca_tools" "$LINENO" 5;;
-esac
-
-if test $build_ca_tools = yes && test $have_pyyaml = no
+if test $build_rp_tools = yes
 then
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: PyYAML missing, so \"make test\" will not work properly." >&5
-$as_echo "$as_me: WARNING: PyYAML missing, so \"make test\" will not work properly." >&2;}
-fi
-
-if test "x$XSLTPROC" = "x"
-then
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: xsltproc missing, so \"make test\" will not work properly." >&5
-$as_echo "$as_me: WARNING: xsltproc missing, so \"make test\" will not work properly." >&2;}
-fi
-
-if test "x$RRDTOOL" = "x"
-then
-	ok=no
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: rcynic-html requires rrdtool." >&5
+	if test $have_python_h = no
+	then
+		build_ok=no
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: I can't find Python.h.  Python sources are required to build the RP tools." >&5
+$as_echo "$as_me: WARNING: I can't find Python.h.  Python sources are required to build the RP tools." >&2;}
+	fi
+	if test "x$RRDTOOL" = "x"
+	then
+		runtime_ok=no
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: rcynic-html requires rrdtool." >&5
 $as_echo "$as_me: WARNING: rcynic-html requires rrdtool." >&2;}
-fi
-
-if test $use_rcynic_jail = no && test "X$RSYNC" = "X"
-then
-	ok=no
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI relying party tools require rsync." >&5
+	fi
+	if test $use_rcynic_jail = no && test "X$RSYNC" = "X"
+	then
+		runtime_ok=no
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI relying party tools require rsync." >&5
 $as_echo "$as_me: WARNING: The RPKI relying party tools require rsync." >&2;}
+	fi
 fi
 
-if test $ok = no
+if test $build_ca_tools = yes
 then
-	if test $enable_runtime_dependencies = yes
+	if test $have_lxml = no
+	then
+		runtime_ok=no
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI tools require the Python LXML module." >&5
+$as_echo "$as_me: WARNING: The RPKI tools require the Python LXML module." >&2;}
+	fi
+	if test $have_acceptable_django = no
+	then
+		runtime_ok=no
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django 1.3.7 or higher." >&5
+$as_echo "$as_me: WARNING: The RPKI CA tools require Django 1.3.7 or higher." >&2;}
+	fi
+	if test $have_vobject = no
+	then
+		runtime_ok=no
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA GUI requires the Python vobject module." >&5
+$as_echo "$as_me: WARNING: The RPKI CA GUI requires the Python vobject module." >&2;}
+	fi
+	if test $have_acceptable_django_south = no
+	then
+		runtime_ok=no
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django South 0.7.5 or higher." >&5
+$as_echo "$as_me: WARNING: The RPKI CA tools require Django South 0.7.5 or higher." >&2;}
+	fi
+	if test $have_argparse = no
+	then
+		runtime_ok=no
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require the Python argparse module." >&5
+$as_echo "$as_me: WARNING: The RPKI CA tools require the Python argparse module." >&2;}
+	fi
+	if test $have_pyyaml = no
+	then
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: PyYAML missing, so \"make test\" will not work properly." >&5
+$as_echo "$as_me: WARNING: PyYAML missing, so \"make test\" will not work properly." >&2;}
+	fi
+	if test "x$XSLTPROC" = "x"
+	then
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: xsltproc missing, so \"make test\" will not work properly." >&5
+$as_echo "$as_me: WARNING: xsltproc missing, so \"make test\" will not work properly." >&2;}
+	fi
+fi
+
+if test $build_ok = no || test $runtime_ok = no
+then
+	if test $build_rp_tools = yes
+	then
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: If you do not wish to install the RPKI RP tools, please specify --disable-rp-tools as an argument to this configure script." >&5
+$as_echo "$as_me: WARNING: If you do not wish to install the RPKI RP tools, please specify --disable-rp-tools as an argument to this configure script." >&2;}
+	fi
+	if test $build_ca_tools = yes
+	then
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: If you do not wish to install the RPKI CA tools, please specify --disable-ca-tools as an argument to this configure script." >&5
+$as_echo "$as_me: WARNING: If you do not wish to install the RPKI CA tools, please specify --disable-ca-tools as an argument to this configure script." >&2;}
+	fi
+	if test $build_ok = no || test $enable_runtime_dependencies = yes
 	then
 		as_fn_error $? "Please correct the problems above then re-run this configuration script." "$LINENO" 5
 	else
@@ -4990,7 +5012,7 @@ else
 $as_echo "$WSGI_PYTHON_EGG_CACHE_DIR" >&6; }
 fi
 
-# Figure out which parts of this package we have to build.
+# Tell the Makefiles and setup.py which parts of this package we've decided to build.
 
 if test $build_openssl  = yes; then OPENSSL_TARGET=openssl; else OPENSSL_TARGET=noop; fi
 if test $build_rp_tools = yes; then      RP_TARGET=rp;	    else      RP_TARGET=noop; fi
@@ -5069,26 +5091,31 @@ then
 
 fi
 
-if test $build_ca_tools = yes &&
-   test "X$enable_wsgi_daemon_mode" = "Xyes"
+if test $build_ca_tools = yes
 then
-	as_fn_error $? "You must specify the user to run the wsgi process as with --enable-wsgi-daemon-mode=USER" "$LINENO" 5
-fi
-
-if test $build_ca_tools = yes &&
-   test "X$enable_wsgi_daemon_mode" != "Xno"
-then
-	save_IFS="$IFS"
-	IFS=':' read user group <<_EOF
+	case $enable_wsgi_daemon_mode in
+	no)
+		;;
+	yes)
+		as_fn_error $? "You must specify the user to run the wsgi process as with --enable-wsgi-daemon-mode=USER" "$LINENO" 5
+		;;
+	*)
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking how to run mod_wsgi daemon mode" >&5
+$as_echo_n "checking how to run mod_wsgi daemon mode... " >&6; }
+		save_IFS="$IFS"
+		IFS=':'
+		read user group <<_EOF
 $enable_wsgi_daemon_mode
 _EOF
-	IFS="$save_IFS"
-	WSGI_DAEMON_PROCESS="WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}"
+		IFS="$save_IFS"
+		WSGI_DAEMON_PROCESS="WSGIDaemonProcess rpkigui user=$user ${group:+group=}${group} display-name=%{GROUP}"
 
-	WSGI_PROCESS_GROUP="WSGIProcessGroup rpkigui"
+		WSGI_PROCESS_GROUP="WSGIProcessGroup rpkigui"
 
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: running mod_wsgi in daemon mode with user \"$user\" and group \"${group:-default}\"" >&5
-$as_echo "running mod_wsgi in daemon mode with user \"$user\" and group \"${group:-default}\"" >&6; }
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: with user \"$user\" and group \"${group:-default}\"" >&5
+$as_echo "with user \"$user\" and group \"${group:-default}\"" >&6; }
+		;;
+	esac
 fi
 
 # Now that we're finally done with all the conditional changes to

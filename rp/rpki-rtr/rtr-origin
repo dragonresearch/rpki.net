@@ -898,7 +898,7 @@ class axfr_set(pdu_set):
         asn = line[1]
         self.extend(prefix.from_text(asn, addr) for addr in line[2:])
     except OSError, e:
-      sys.exit("Could not run %s, check your $PATH variable? (%s)" % (scan_roas, e))
+      sys.exit("Could not run %s: %s" % (scan_roas, e))
 
     try:
       p = subprocess.Popen((scan_routercerts, rcynic_dir), stdout = subprocess.PIPE)
@@ -908,7 +908,7 @@ class axfr_set(pdu_set):
         key  = line[-1]
         self.extend(router_key.from_text(asn, gski, key) for asn in line[1:-1])
     except OSError, e:
-      sys.exit("Could not run %s, check your $PATH variable? (%s)" % (scan_routercerts, e))
+      sys.exit("Could not run %s: %s" % (scan_routercerts, e))
 
     self.sort()
     for i in xrange(len(self) - 2, -1, -1):
@@ -2160,19 +2160,8 @@ def bgpdump_server_main(argv):
   except KeyboardInterrupt:
     sys.exit(0)
 
-# Figure out where the scan_roas utility program is today
-for scan_roas in (os.path.join(rpki.autoconf.bindir, "scan_roas"),
-                  os.path.normpath(os.path.join(sys.path[0], "..", "utils", "scan_roas")),
-                  "scan_roas"):
-  if os.path.exists(scan_roas):
-    break
-
-# Same for scan_routercerts
-for scan_routercerts in (os.path.join(rpki.autoconf.bindir, "scan_routercerts"),
-                         os.path.normpath(os.path.join(sys.path[0], "..", "utils", "scan_routercerts")),
-                         "scan_routercerts"):
-  if os.path.exists(scan_routercerts):
-    break
+scan_roas        = os.path.join(rpki.autoconf.bindir, "scan_roas")
+scan_routercerts = os.path.join(rpki.autoconf.bindir, "scan_routercerts")
 
 force_zero_nonce = False
 
@@ -2195,6 +2184,10 @@ def usage(msg = None):
   f.write("\n")
   f.write("where options are zero or more of:\n")
   f.write("\n")
+  f.write("--scan-roas        /path/to/scan_roas\n")
+  f.write("\n")
+  f.write("--scan-routercerts /path/to/scan_routercerts\n")
+  f.write("\n")
   f.write("--syslog facility.warning_priority[.info_priority]\n")
   f.write("\n")
   f.write("--zero-nonce\n")
@@ -2216,7 +2209,8 @@ if __name__ == "__main__":
 
   syslog_facility, syslog_warning, syslog_info = syslog.LOG_DAEMON, syslog.LOG_WARNING, syslog.LOG_INFO
 
-  opts, argv = getopt.getopt(sys.argv[1:], "hs:z?", ["help", "syslog=", "zero-nonce"] + main_dispatch.keys())
+  opts, argv = getopt.getopt(sys.argv[1:], "hs:z?", ["help", "scan-roas=", "scan-routercerts=",
+                                                     "syslog=", "zero-nonce"] + main_dispatch.keys())
   for o, a in opts:
     if o in ("-h", "--help", "-?"):
       usage()
@@ -2232,6 +2226,10 @@ if __name__ == "__main__":
           raise ValueError
       except:
         usage("Bad value specified for --syslog option")
+    elif o == "--scan-roas":
+      scan_roas = a
+    elif o == "--scan-routercerts":
+      scan_routercerts = a
     elif len(o) > 2 and o[2:] in main_dispatch:
       if mode is not None:
         sys.exit("Conflicting modes specified")

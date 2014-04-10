@@ -62,7 +62,7 @@ kids:
 #---
 - shell set -x;
   rtr_origin=../../../rp/rpki-rtr/rtr-origin;
-  $rtr_origin --cronjob rcynic-data/authenticated &&
+  $rtr_origin --scan-roas ../../../rp/utils/scan_roas --scan-routercerts ../../../rp/utils/scan_routercerts --cronjob rcynic-data/authenticated &&
   $rtr_origin --show
 ---
 - name: Alice
@@ -77,5 +77,5 @@ kids:
 ---
 - shell set -x;
   rtr_origin=../../../rp/rpki-rtr/rtr-origin;
-  $rtr_origin --cronjob rcynic-data/authenticated &&
+  $rtr_origin --scan-roas ../../../rp/utils/scan_roas --scan-routercerts ../../../rp/utils/scan_routercerts --cronjob rcynic-data/authenticated &&
   $rtr_origin --show

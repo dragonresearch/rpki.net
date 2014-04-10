@@ -23,7 +23,7 @@ abs_top_builddir = @abs_top_builddir@
 
 BINS		= find_roa hashdir print_rpki_manifest print_roa scan_roas uri
 
-SCRIPTS		= scan_routercerts
+SCRIPTS		= scan_routercerts find-roa-expiration
 
 all:: ${BINS}
 

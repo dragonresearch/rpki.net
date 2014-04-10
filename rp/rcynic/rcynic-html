@@ -29,6 +29,7 @@ import argparse
 import time
 import subprocess
 import copy
+import rpki.autoconf
 
 try:
   from lxml.etree            import (ElementTree, Element, SubElement, Comment)
@@ -43,7 +44,7 @@ def parse_options():
   global args
 
   try:
-    default_rrdtool_binary = rpki.autoconf.rrdtool_binary
+    default_rrdtool_binary = rpki.autoconf.RRDTOOL
   except NameError:
     default_rrdtool_binary = "rrdtool"
 

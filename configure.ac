@@ -403,6 +403,12 @@ AC_SUBST(RCYNIC_CRON_USER)
 
 AC_MSG_RESULT([$use_rcynic_jail])
 
+# Perhaps there should be a way to set these, but for now just
+# wire them in here so at least they're consistent in all Makefiles.
+
+AC_SUBST(RCYNIC_USER,  [rcynic])
+AC_SUBST(RCYNIC_GROUP, [rcynic])
+
 if test $use_rcynic_jail = yes && test "X$LD_STATIC_FLAG" != "X"
 then
 	RCYNIC_STATIC_RSYNC='static-rsync/rsync'

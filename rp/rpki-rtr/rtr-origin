@@ -41,7 +41,7 @@ import getopt
 import bisect
 import random
 import base64
-
+import rpki.autoconf
 
 # Debugging only, should be False in production
 disable_incrementals = False
@@ -2161,27 +2161,18 @@ def bgpdump_server_main(argv):
     sys.exit(0)
 
 # Figure out where the scan_roas utility program is today
-try:
-  # Set from autoconf
-  scan_roas = rpki.autoconf.scan_roas
-except NameError:
-  # Source directory
-  scan_roas = os.path.normpath(os.path.join(sys.path[0], "..", "utils",
-                                            "scan_roas", "scan_roas"))
-# If that didn't work, use $PATH and hope for the best
-if not os.path.exists(scan_roas):
-  scan_roas = "scan_roas"
+for scan_roas in (os.path.join(rpki.autoconf.bindir, "scan_roas"),
+                  os.path.normpath(os.path.join(sys.path[0], "..", "utils", "scan_roas")),
+                  "scan_roas"):
+  if os.path.exists(scan_roas):
+    break
 
-# Same thing for scan_routercerts
-try:
-  # Set from autoconf
-  scan_routercerts = rpki.autoconf.scan_routercerts
-except NameError:
-  # Source directory
-  scan_routercerts = os.path.normpath(os.path.join(sys.path[0], "..", "utils",
-                                                   "scan_routercerts", "scan_routercerts"))
-if not os.path.exists(scan_routercerts):
-  scan_routercerts = "scan_routercerts"
+# Same for scan_routercerts
+for scan_routercerts in (os.path.join(rpki.autoconf.bindir, "scan_routercerts"),
+                         os.path.normpath(os.path.join(sys.path[0], "..", "utils", "scan_routercerts")),
+                         "scan_routercerts"):
+  if os.path.exists(scan_routercerts):
+    break
 
 force_zero_nonce = False
 

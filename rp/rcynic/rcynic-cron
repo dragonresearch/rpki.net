@@ -1,0 +1,110 @@
+#!/usr/bin/env python
+#
+# $Id$
+# 
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2013  Internet Systems Consortium ("ISC")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+"""
+Cron job for rcynic and rtr-origin in stock configuration.
+
+Locking code here works like FreeBSD's lockf(1) utility given -k and
+-t 0 options, which is both the sanest and simplest combination for
+our purposes.  In theory this is portable to any Unix-like system.
+"""
+
+import os
+import sys
+import pwd
+import fcntl
+import errno
+import argparse
+import rpki.autoconf
+
+def run(*cmd, **kwargs):
+  chroot_this = kwargs.pop("chroot_this", False)
+  cwd = kwargs.pop("cwd", None)
+  pid = os.fork()
+  if pid == 0:
+    if chroot_this:
+      os.chdir(rpki.autoconf.RCYNIC_DIR)
+    elif cwd is not None:
+      os.chdir(cwd)
+    if we_are_root:
+      os.initgroups(pw.pw_name, pw.pw_gid)
+    if chroot_this:
+      os.chroot(rpki.autoconf.RCYNIC_DIR)
+    if we_are_root:
+      os.setgid(pw.pw_gid)
+      os.setuid(pw.pw_uid)
+    os.closerange(3, os.sysconf("SC_OPEN_MAX"))
+    os.execvp(cmd[0], cmd)
+    os._exit(1)
+  else:
+    status = os.waitpid(pid, 0)[1]
+    if status == 0:
+      return
+    elif os.WIFSIGNALED(status):
+      sys.exit("Process %s exited with signal %s" % (" ".join(cmd), os.WTERMSIG(status)))
+    elif os.WIFEXITED(status):
+      sys.exit("Program %s exited with status %s" % (" ".join(cmd), os.WEXITSTATUS(status)))
+    else:
+      sys.exit("Program %s exited for unknown reason %s" % (" ".join(cmd), status))
+
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("--chroot", action = "store_true", help = "run chrooted")
+args = parser.parse_args()
+
+we_are_root = os.getuid() == 0
+
+if args.chroot and not we_are_root:
+  sys.exit("Only root can --chroot")
+
+try:
+  pw = pwd.getpwnam(rpki.autoconf.RCYNIC_USER)
+except KeyError:
+  sys.exit("Could not find passwd entry for user %s" % rpki.autoconf.RCYNIC_USER)
+
+try:
+  lock = os.open(os.path.join(rpki.autoconf.RCYNIC_DIR, "data/lock"),
+                 os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
+  fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+  if we_are_root:
+    os.fchown(lock, pw.pw_uid, pw.pw_gid)
+except (IOError, OSError), e:
+  if e.errno == errno.EAGAIN:
+    sys.exit(0)                         # Another instance of this script is already running, exit silently
+  else:
+    sys.exit("Error %r opening lock %r" % (e.strerror, os.path.join(rpki.autoconf.RCYNIC_DIR, "data/lock")))
+
+if args.chroot:
+  run("/bin/rcynic", "-c", "/etc/rcynic.conf", chroot_this = True)
+else:
+  run(os.path.join(rpki.autoconf.bindir, "rcynic"), "-c", os.path.join(rpki.autoconf.sysconfdir, "rcynic.conf"))
+
+run(os.path.join(rpki.autoconf.bindir, "rtr-origin"),
+    "--cronjob", 
+    os.path.join(rpki.autoconf.RCYNIC_DIR, "data/authenticated"),
+    cwd = os.path.join(rpki.autoconf.RCYNIC_DIR, "rpki-rtr"))
+
+prog = os.path.join(rpki.autoconf.libexecdir, "rpkigui-rcynic")
+if os.path.exists(prog):
+  run(prog)
+
+if rpki.autoconf.RCYNIC_HTML_DIR and os.path.exists(os.path.dirname(rpki.autoconf.RCYNIC_HTML_DIR)):
+  run(os.path.join(rpki.autoconf.bindir, "rcynic-html"),
+      os.path.join(rpki.autoconf.RCYNIC_DIR, "data/rcynic.xml"),
+      rpki.autoconf.RCYNIC_HTML_DIR)

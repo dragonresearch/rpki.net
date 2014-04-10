@@ -1,0 +1,196 @@
+# $Id$
+
+PYTHON		= @PYTHON@
+TRANG		= @TRANG@
+
+CFLAGS		= @CFLAGS@
+LDFLAGS		= @LDFLAGS@ @POW_LDFLAGS@
+LIBS		= @LIBS@
+
+INSTALL		= @INSTALL@ -m 555 
+
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+datarootdir	= @datarootdir@
+datadir		= @datadir@
+localstatedir	= @localstatedir@
+sharedstatedir	= @sharedstatedir@
+sysconfdir	= @sysconfdir@
+bindir		= @bindir@
+sbindir		= @sbindir@
+libexecdir	= @libexecdir@
+sysconfdir	= @sysconfdir@
+
+abs_builddir	= @abs_builddir@
+abs_top_srcdir	= @abs_top_srcdir@
+abs_top_builddir= @abs_top_builddir@
+srcdir          = @srcdir@
+
+WSGI_DAEMON_PROCESS		= @WSGI_DAEMON_PROCESS@
+WSGI_PROCESS_GROUP		= @WSGI_PROCESS_GROUP@
+RCYNIC_HTML_DIR			= @RCYNIC_HTML_DIR@
+APACHE_VERSION			= @APACHE_VERSION@
+WSGI_PYTHON_EGG_CACHE_DIR	= @WSGI_PYTHON_EGG_CACHE_DIR@
+WSGI_PYTHON_EGG_CACHE_USER	= @WSGI_PYTHON_EGG_CACHE_USER@
+
+CA_INSTALL_TARGETS	= @CA_INSTALL_TARGETS@
+
+clean::
+	cd tests; $(MAKE) $@
+
+install:: ${CA_INSTALL_TARGETS}
+
+install-always:: all
+	@echo
+	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
+	@echo
+	${INSTALL} examples/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample
+	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/publication
+
+uninstall deinstall::
+	-${libexecdir}/rpkigui-apache-conf-gen --remove --verbose
+
+distclean::
+	rm -f installed
+
+test all-tests relaxng parse-test profile yamltest yamlconf:: all
+	cd tests; $(MAKE) $@
+
+distclean:: clean
+	cd tests; ${MAKE} $@
+	rm -f Makefile
+
+all:: examples/rpki.conf
+
+examples/rpki.conf: ${abs_top_srcdir}/rpki/autoconf.py rpki-confgen rpki-confgen.xml
+	${PYTHON} rpki-confgen \
+		--read-xml rpki-confgen.xml \
+		--autoconf \
+		--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'` \
+		--set myrpki::rpkid_server_host=`hostname -f` \
+		--set myrpki::pubd_server_host=`hostname -f` \
+		--pwgen myrpki::shared_sql_password \
+		--pwgen web_portal::secret-key \
+		--write-conf $@
+
+clean::
+	rm -f examples/rpki.conf
+
+install-postconf: \
+	install-user install-egg-cache install-conf install-apache install-mysql install-django install-bpki install-cron
+
+# This should create user "rpkid" and group "rpkid", but as we have
+# not yet tested our ability to run in such a configuration, this
+# would be a little premature.  Can steal Makefile code for this from
+# rcynic when we're ready to do something with it.
+
+install-user:
+	@true
+
+# This is only necessary on some platforms (currently FreeBSD,
+# due to shortcomings in the way that Python eggs are installed
+# as system libraries).
+
+install-egg-cache:
+	@if test 'X${WSGI_PYTHON_EGG_CACHE_DIR}' != X && test ! -d '${WSGI_PYTHON_EGG_CACHE_DIR}'; then \
+		mkdir -v '${WSGI_PYTHON_EGG_CACHE_DIR}'; \
+		if test 'X${WSGI_PYTHON_EGG_CACHE_USER}' != X; then \
+			chown '${WSGI_PYTHON_EGG_CACHE_USER}' '${WSGI_PYTHON_EGG_CACHE_DIR}'; \
+		fi; \
+	fi
+
+# We used to play the FreeBSD game of copying rpki.conf.sample to
+# rpki.conf on install and removing rpki.conf if it's identical to
+# rpki.conf.sample in uninstall, but that turns out to work poorly
+# with generated passwords.  So now we copy rpki.conf.sample if and
+# only if rpki.conf does not exist, and we leave removal of rpki.conf
+# for the user to deal with.  This in turn leaves us with a different
+# problem of how to upgrade rpki.conf, but at least in the FreeBSD
+# universe we're supposed to leave that problem for the user.
+
+install-conf:
+	if test -f ${DESTDIR}${sysconfdir}/rpki.conf; \
+	then \
+	    true; \
+	else \
+	    cp -p ${DESTDIR}${sysconfdir}/rpki.conf.sample ${DESTDIR}${sysconfdir}/rpki.conf; \
+	fi
+
+uninstall deinstall::
+#	if cmp -s ${DESTDIR}${sysconfdir}/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample; then rm -f ${DESTDIR}${sysconfdir}/rpki.conf; else true; fi
+	rm -f ${DESTDIR}${sysconfdir}/rpki.conf.sample
+
+install-apache:
+	${libexecdir}/rpkigui-apache-conf-gen --install --verbose
+
+install-mysql:
+	${sbindir}/rpki-sql-setup --create-if-missing
+	${sbindir}/rpki-sql-setup --apply-upgrades --verbose
+
+install-django:
+	${sbindir}/rpki-manage syncdb --noinput
+	${sbindir}/rpki-manage migrate app
+
+install-bpki:
+	${sbindir}/rpkic initialize_server_bpki
+
+# This needs to set up crontab entries for rpkigui-check-expired,
+# rpkigui-import-routes, and rpkic update_bpki.  They probably don't
+# want run under the same user IDs either, so what with having to use
+# /usr/bin/crontab on some platforms, this should be entirely too
+# entertaining.  Might be ok to run them all as user rpkid eventually.
+#
+# We really should be running exactly the same cron setup/teardown
+# code here as we do in platform-specific post-installation scripts,
+# but for now we just use crontab(1) here on all platforms.
+
+install-cron: install-cron-using-crontab
+
+uninstall deinstall:: uninstall-cron-using-crontab
+
+# Code for setting up and tearing down cron jobs using the crontab(1)
+# program.  We don't use this on all platforms, but we do use it on
+# more than one, so it's broken out here as common code.
+#
+# CRONTAB_USER really should be rpkid, but we don't have the rest of
+# the package set up for that yet, so run it as root for now.
+
+CRONTAB_USER = root
+
+install-cron-using-crontab:
+	@crontab -l -u ${CRONTAB_USER} 2>/dev/null |						\
+	 awk -v t=`hexdump -n 2 -e '"%u\n"' /dev/urandom` '					\
+	     BEGIN {										\
+		 cmd["${libexecdir}/rpkigui-import-routes"] = sprintf("%2u */2 * * *", t % 60);	\
+		 cmd["${libexecdir}/rpkigui-check-expired"] =          "@daily      ";		\
+		 cmd["${sbindir}/rpkic update_bpki"       ] =          "30 3 * * *  ";		\
+	     }											\
+	     {											\
+		 print;										\
+		 for (i in cmd)									\
+		     if ($$0 ~ i)								\
+			 found[i] = $$0;							\
+	     }											\
+	     END {										\
+		 for (i in cmd)									\
+		     if (!found[i])								\
+			 print cmd[i] "\texec " i;						\
+	     }' |										\
+	 crontab -u ${CRONTAB_USER} -
+
+uninstall-cron-using-crontab:
+	@crontab -l -u ${CRONTAB_USER} 2>/dev/null |			\
+	 awk '								\
+	     BEGIN {							\
+		empty = 1;						\
+	     }								\
+	     $$0 !~ "${libexecdir}/rpkigui-import-routes" &&		\
+	     $$0 !~ "${libexecdir}/rpkigui-check-expired" &&		\
+	     $$0 !~ "${sbindir}/rpkic update_bpki" {			\
+		empty = 0;						\
+		print | "/usr/bin/crontab -u ${CRONTAB_USER} -";	\
+	     }								\
+	     END {							\
+		if (empty)						\
+		    system("/usr/bin/crontab -u ${CRONTAB_USER} -r");	\
+	     }'

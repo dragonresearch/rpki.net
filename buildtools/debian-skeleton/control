@@ -15,6 +15,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, python (>= 2.7), rrdtool, rsync, xi
 Description: rpki.net relying party tools
  "Relying party" validation tools from the rpki.net toolkit.
  See the online documentation at http://rpki.net/.
+Replaces: rpki-ca (<= 0.5767)
 
 Package: rpki-ca
 Architecture: any

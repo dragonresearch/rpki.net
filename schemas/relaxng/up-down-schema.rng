@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  $Id: up-down-schema.rnc 5757 2014-04-05 22:42:12Z sra $
+  
+  RelaxNG schema for the up-down protocol, extracted from RFC 6492.
+  
+  Copyright (c) 2012 IETF Trust and the persons identified as authors
+  of the code.  All rights reserved.
+  
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+  
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+  
+  * Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in
+    the documentation and/or other materials provided with the
+    distribution.
+  
+  * Neither the name of Internet Society, IETF or IETF Trust, nor the
+    names of specific contributors, may be used to endorse or promote
+    products derived from this software without specific prior written
+    permission.
+  
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  POSSIBILITY OF SUCH DAMAGE.
+-->
+<grammar ns="http://www.apnic.net/specs/rescerts/up-down/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <define name="resource_set_as">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,0-9]*</param>
+    </data>
+  </define>
+  <define name="resource_set_ip4">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,/.0-9]*</param>
+    </data>
+  </define>
+  <define name="resource_set_ip6">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,/:0-9a-fA-F]*</param>
+    </data>
+  </define>
+  <define name="class_name">
+    <data type="token">
+      <param name="minLength">1</param>
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <define name="ski">
+    <data type="token">
+      <param name="minLength">27</param>
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <define name="label">
+    <data type="token">
+      <param name="minLength">1</param>
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <define name="cert_url">
+    <data type="string">
+      <param name="minLength">10</param>
+      <param name="maxLength">4096</param>
+    </data>
+  </define>
+  <define name="base64_binary">
+    <data type="base64Binary">
+      <param name="minLength">4</param>
+      <param name="maxLength">512000</param>
+    </data>
+  </define>
+  <start>
+    <element name="message">
+      <attribute name="version">
+        <data type="positiveInteger">
+          <param name="maxInclusive">1</param>
+        </data>
+      </attribute>
+      <attribute name="sender">
+        <ref name="label"/>
+      </attribute>
+      <attribute name="recipient">
+        <ref name="label"/>
+      </attribute>
+      <ref name="payload"/>
+    </element>
+  </start>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>list</value>
+    </attribute>
+    <ref name="list_request"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>list_response</value>
+    </attribute>
+    <ref name="list_response"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>issue</value>
+    </attribute>
+    <ref name="issue_request"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>issue_response</value>
+    </attribute>
+    <ref name="issue_response"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>revoke</value>
+    </attribute>
+    <ref name="revoke_request"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>revoke_response</value>
+    </attribute>
+    <ref name="revoke_response"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>error_response</value>
+    </attribute>
+    <ref name="error_response"/>
+  </define>
+  <define name="list_request">
+    <empty/>
+  </define>
+  <define name="list_response">
+    <zeroOrMore>
+      <ref name="class"/>
+    </zeroOrMore>
+  </define>
+  <define name="class">
+    <element name="class">
+      <attribute name="class_name">
+        <ref name="class_name"/>
+      </attribute>
+      <attribute name="cert_url">
+        <ref name="cert_url"/>
+      </attribute>
+      <attribute name="resource_set_as">
+        <ref name="resource_set_as"/>
+      </attribute>
+      <attribute name="resource_set_ipv4">
+        <ref name="resource_set_ip4"/>
+      </attribute>
+      <attribute name="resource_set_ipv6">
+        <ref name="resource_set_ip6"/>
+      </attribute>
+      <attribute name="resource_set_notafter">
+        <data type="dateTime"/>
+      </attribute>
+      <optional>
+        <attribute name="suggested_sia_head">
+          <data type="anyURI">
+            <param name="maxLength">1024</param>
+            <param name="pattern">rsync://.+</param>
+          </data>
+        </attribute>
+      </optional>
+      <zeroOrMore>
+        <element name="certificate">
+          <attribute name="cert_url">
+            <ref name="cert_url"/>
+          </attribute>
+          <optional>
+            <attribute name="req_resource_set_as">
+              <ref name="resource_set_as"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="req_resource_set_ipv4">
+              <ref name="resource_set_ip4"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="req_resource_set_ipv6">
+              <ref name="resource_set_ip6"/>
+            </attribute>
+          </optional>
+          <ref name="base64_binary"/>
+        </element>
+      </zeroOrMore>
+      <element name="issuer">
+        <ref name="base64_binary"/>
+      </element>
+    </element>
+  </define>
+  <define name="issue_request">
+    <element name="request">
+      <attribute name="class_name">
+        <ref name="class_name"/>
+      </attribute>
+      <optional>
+        <attribute name="req_resource_set_as">
+          <ref name="resource_set_as"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="req_resource_set_ipv4">
+          <ref name="resource_set_ip4"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="req_resource_set_ipv6">
+          <ref name="resource_set_ip6"/>
+        </attribute>
+      </optional>
+      <ref name="base64_binary"/>
+    </element>
+  </define>
+  <define name="issue_response">
+    <ref name="class"/>
+  </define>
+  <define name="revoke_request">
+    <ref name="revocation"/>
+  </define>
+  <define name="revoke_response">
+    <ref name="revocation"/>
+  </define>
+  <define name="revocation">
+    <element name="key">
+      <attribute name="class_name">
+        <ref name="class_name"/>
+      </attribute>
+      <attribute name="ski">
+        <ref name="ski"/>
+      </attribute>
+    </element>
+  </define>
+  <define name="error_response">
+    <element name="status">
+      <data type="positiveInteger">
+        <param name="maxInclusive">9999</param>
+      </data>
+    </element>
+    <zeroOrMore>
+      <element name="description">
+        <attribute name="xml:lang">
+          <data type="language"/>
+        </attribute>
+        <data type="string">
+          <param name="maxLength">1024</param>
+        </data>
+      </element>
+    </zeroOrMore>
+  </define>
+</grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
+  End:
+-->

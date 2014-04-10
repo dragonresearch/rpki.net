@@ -22,6 +22,7 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 import fileinput
+import os.path
 import sys
 import re
 
@@ -76,7 +77,9 @@ token = None
 for line in fileinput.input():
 
   if token is None:
-    token = "".join(c if c.isalnum() else "_" for c in fileinput.filename().upper())
+    path = fileinput.filename().split(os.path.sep)
+    path = os.path.join(path[-2], path[-1]) if len(path) > 1 else path[-1]
+    token = "".join(c if c.isalnum() else "_" for c in path.upper())
     sys.stdout.write(header.replace("%", token))
 
   if "DECLARE_STACK_OF" in line:

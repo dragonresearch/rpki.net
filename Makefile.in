@@ -1,32 +1,212 @@
 # $Id$
 
-PYTHON = @PYTHON@
+CFLAGS		= @CFLAGS@
+LDFLAGS		= @LDFLAGS@ @POW_LDFLAGS@
+LIBS		= @LIBS@
 
-abs_top_builddir = @abs_top_builddir@
+PYTHON		= @PYTHON@
+INSTALL		= @INSTALL@ -m 555 
+TRANG		= @TRANG@
 
-SUBDIRS = @TOP_LEVEL_SUBDIRS@
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+datarootdir	= @datarootdir@
+datadir		= @datadir@
+localstatedir	= @localstatedir@
+sharedstatedir	= @sharedstatedir@
+sysconfdir	= @sysconfdir@
+bindir		= @bindir@
+sbindir		= @sbindir@
+libexecdir	= @libexecdir@
+sysconfdir	= @sysconfdir@
+
+abs_builddir	= @abs_builddir@
+abs_top_srcdir	= @abs_top_srcdir@
+abs_top_builddir= @abs_top_builddir@
+srcdir          = @srcdir@
+
+OPENSSL_TARGET	= @OPENSSL_TARGET@
+RP_TARGET	= @RP_TARGET@
+CA_TARGET	= @CA_TARGET@
+
+WSGI_DAEMON_PROCESS		= @WSGI_DAEMON_PROCESS@
+WSGI_PROCESS_GROUP		= @WSGI_PROCESS_GROUP@
+RCYNIC_DIR			= @RCYNIC_DIR@
+RCYNIC_USER			= @RCYNIC_USER@
+RCYNIC_GROUP			= @RCYNIC_GROUP@
+RCYNIC_HTML_DIR			= @RCYNIC_HTML_DIR@
+RRDTOOL				= @RRDTOOL@
+APACHE_VERSION			= @APACHE_VERSION@
+WSGI_PYTHON_EGG_CACHE_DIR	= @WSGI_PYTHON_EGG_CACHE_DIR@
+WSGI_PYTHON_EGG_CACHE_USER	= @WSGI_PYTHON_EGG_CACHE_USER@
+
+SETUP_PY_INSTALL_LAYOUT = @SETUP_PY_INSTALL_LAYOUT@
+SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.argv[1] else ""' '${DESTDIR}'`
+
+POW_SO		= rpki/POW/_POW.so
+
+RNGS =	schemas/relaxng/left-right-schema.rng		\
+	schemas/relaxng/up-down-schema.rng		\
+	schemas/relaxng/publication-schema.rng		\
+	schemas/relaxng/myrpki.rng			\
+	schemas/relaxng/router-certificate-schema.rng
+
+SQLS =	schemas/sql/rpkid.sql				\
+	schemas/sql/pubd.sql
 
 default: all
 
-test:: all
+all: VERSION rpki/autoconf.py setup_autoconf.py
 
-all:: VERSION
+clean: 
+	rm -rf build dist autom4te.cache rpki/autoconf.py setup_autoconf.py setup_autoconf.pyc
 
-all install clean test distclean deinstall uninstall::
-	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
+test: all
 
-export:
-	svn export http://subvert-rpki.hactrn.net/
-	tar czf subvert-rpki.hactrn.net-$$(date +%Y.%m.%d).tar.gz subvert-rpki.hactrn.net
-	rm -rf subvert-rpki.hactrn.net
+distclean: clean
+	rm -f Makefile config.log config.status
 
-distclean clean::
-	rm -rf build autom4te.cache
+uninstall: deinstall
 
-distclean::
-	rm -rf Makefile config.log config.status
+all:	    	${OPENSSL_TARGET}-all		rpki-all	${RP_TARGET}-all	${CA_TARGET}-all 
+clean:		${OPENSSL_TARGET}-clean		rpki-clean	${RP_TARGET}-clean	${CA_TARGET}-clean 
+test:		${OPENSSL_TARGET}-test		rpki-test	${RP_TARGET}-test	${CA_TARGET}-test 
+distclean:	${OPENSSL_TARGET}-distclean	rpki-distclean	${RP_TARGET}-distclean	${CA_TARGET}-distclean 
+install:					rpki-install	${RP_TARGET}-install	${CA_TARGET}-install 
+deinstall:					rpki-deinstall	${RP_TARGET}-deinstall	${CA_TARGET}-deinstall
+
+openssl-all:		; cd openssl;	${MAKE} all
+openssl-clean:		; cd openssl;	${MAKE} clean
+openssl-test:		; cd openssl;	${MAKE} test
+openssl-distclean:	; cd openssl;	${MAKE} distclean
+
+rp-all:			; cd rp;	${MAKE} all
+rp-clean:		; cd rp;	${MAKE} clean
+rp-test:		; cd rp;	${MAKE} test
+rp-distclean:		; cd rp;	${MAKE} distclean
+rp-install:		; cd rp;	${MAKE} install
+rp-deinstall:		; cd rp;	${MAKE} deinstall
+
+ca-all:			; cd ca;	${MAKE} all
+ca-clean:		; cd ca;	${MAKE} clean
+ca-test:		; cd ca;	${MAKE} test
+ca-distclean:		; cd ca;	${MAKE} distclean
+ca-install:		; cd ca;	${MAKE} install
+ca-deinstall:		; cd ca;	${MAKE} deinstall
+
+noop-all noop-clean noop-test noop-distclean noop-install noop-deinstall:
+	@true
+
+rpki-all:					\
+	setup_autoconf.py			\
+	${RNGS}					\
+	${abs_top_srcdir}/h/rpki/sk_manifest.h	\
+	${abs_top_srcdir}/h/rpki/sk_roa.h	\
+	${abs_top_srcdir}/rpki/relaxng.py	\
+	${abs_top_srcdir}/rpki/sql_schemas.py	\
+	${POW_SO}				\
+	build/stamp
+
+rpki-clean:
+	rm -rf build dist ${POW_SO} h/rpki/*.h.tmp rpki/*.py.tmp
+	find . -type f -name '*.py[co]' -delete
+
+rpki-test: all
+	@echo Running unit tests
+	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD ${PYTHON} $$i; done
+
+rpki-distclean:
+	rm -f installed
+
+rpki-install:
+	${PYTHON} setup.py install ${SETUP_PY_ROOT} ${SETUP_PY_INSTALL_LAYOUT} --record installed
+
+rpki-deinstall:
+	xargs rm -fv <installed
 
 VERSION: .FORCE
 	${PYTHON} buildtools/make-version.py
 
+rpki/autoconf.py: Makefile
+	@echo 'Generating $@';							\
+	(echo '# Automatically generated.  DO NOT EDIT.';			\
+	 echo ;									\
+	 echo 'bindir	      = "${bindir}"';					\
+	 echo 'datarootdir    = "${datarootdir}"';				\
+	 echo 'localstatedir  = "${localstatedir}"';				\
+	 echo 'sbindir	      = "${sbindir}"';					\
+	 echo 'sharedstatedir = "${sharedstatedir}"';				\
+	 echo 'sysconfdir     = "${sysconfdir}"';				\
+	 echo 'libexecdir     = "${libexecdir}"';				\
+	 echo ;									\
+	 echo 'WSGI_DAEMON_PROCESS	    = "${WSGI_DAEMON_PROCESS}"';	\
+	 echo 'WSGI_PROCESS_GROUP	    = "${WSGI_PROCESS_GROUP}"';		\
+	 echo 'RCYNIC_DIR		    = "${RCYNIC_DIR}"';			\
+	 echo 'RCYNIC_USER		    = "${RCYNIC_USER}"';		\
+	 echo 'RCYNIC_GROUP		    = "${RCYNIC_GROUP}"';		\
+	 echo 'RCYNIC_HTML_DIR		    = "${RCYNIC_HTML_DIR}"';		\
+	 echo 'RRDTOOL			    = "${RRDTOOL}"';			\
+	 echo 'APACHE_VERSION		    = "${APACHE_VERSION}"';		\
+	 echo 'WSGI_PYTHON_EGG_CACHE_DIR    = "${WSGI_PYTHON_EGG_CACHE_DIR}"';	\
+	 echo 'WSGI_PYTHON_EGG_CACHE_USER   = "${WSGI_PYTHON_EGG_CACHE_USER}"';	\
+	) > $@
+
+setup_autoconf.py: rpki/autoconf.py
+	@echo 'Generating $@';					\
+	(cat rpki/autoconf.py;					\
+	 echo ;							\
+	 echo 'CFLAGS         = """${CFLAGS}"""';               \
+	 echo 'LDFLAGS        = """${LDFLAGS}"""';              \
+	 echo 'LIBS           = """${LIBS}"""';                 \
+	 echo 'RP_TARGET      = """${RP_TARGET}"""';		\
+	 echo 'CA_TARGET      = """${CA_TARGET}"""';		\
+	) > $@
+
 .FORCE:
+
+${POW_SO}: .FORCE setup_autoconf.py
+	${PYTHON} setup.py build_ext --inplace
+
+build/stamp: .FORCE setup_autoconf.py
+	${PYTHON} setup.py build
+	touch $@
+
+${abs_top_srcdir}/h/rpki/sk_manifest.h: ${abs_top_srcdir}/h/rpki/manifest.h
+	${PYTHON} buildtools/defstack.py h/rpki/manifest.h >$@.tmp
+	mv $@.tmp $@
+
+${abs_top_srcdir}/h/rpki/sk_roa.h: ${abs_top_srcdir}/h/rpki/roa.h
+	${PYTHON} buildtools/defstack.py h/rpki/roa.h >$@.tmp
+	mv $@.tmp $@
+
+${abs_top_srcdir}/rpki/relaxng.py: buildtools/make-relaxng.py ${RNGS}
+	cd schemas/relaxng; ${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py *.rng >$@.tmp
+	mv $@.tmp $@
+
+${abs_top_srcdir}/rpki/sql_schemas.py: buildtools/make-sql-schemas.py ${SQLS}
+	cd schemas/sql; ${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
+	mv $@.tmp $@
+
+schemas/relaxng/left-right-schema.rng: schemas/relaxng/left-right-schema.rnc
+	${TRANG} schemas/relaxng/left-right-schema.rnc schemas/relaxng/left-right-schema.rng
+
+schemas/relaxng/up-down-schema.rng: schemas/relaxng/up-down-schema.rnc
+	${TRANG} schemas/relaxng/up-down-schema.rnc schemas/relaxng/up-down-schema.rng
+
+schemas/relaxng/publication-schema.rng: schemas/relaxng/publication-schema.rnc
+	${TRANG} schemas/relaxng/publication-schema.rnc schemas/relaxng/publication-schema.rng
+
+schemas/relaxng/myrpki.rng: schemas/relaxng/myrpki.rnc
+	${TRANG} schemas/relaxng/myrpki.rnc schemas/relaxng/myrpki.rng
+
+schemas/relaxng/router-certificate-schema.rng: schemas/relaxng/router-certificate-schema.rnc
+	${TRANG} schemas/relaxng/router-certificate-schema.rnc schemas/relaxng/router-certificate-schema.rng
+
+lint:
+	find rpki -name '*.py' | xargs pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc
+
+tags: Makefile
+	find rpki rp ca schemas -type f \
+		\( -name '*.[ch] -o -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) \
+		! -name relaxng.py ! -name sql_schemas.py -print | \
+	etags -

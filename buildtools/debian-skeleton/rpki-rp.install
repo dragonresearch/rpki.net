@@ -2,4 +2,5 @@ etc/rcynic.conf
 etc/rpki/trust-anchors
 etc/xinetd.d/rpki-rtr
 usr/bin
+usr/lib/python2.7
 var/rcynic

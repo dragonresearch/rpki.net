@@ -51,4 +51,18 @@ CONFIGURE_ARGS= --disable-target-installation --disable-runtime-dependencies --d
 pre-install:
 	@test -d ${STAGEDIR}${PREFIX}/etc/rc.d || mkdir -p ${STAGEDIR}${PREFIX}/etc/rc.d
 
+# Kludge to cope with setup.py insisting on including egg info every
+# time it is called, which creates a problem for the way we use it.
+#
+# The real solution for this would be for the FreeBSD port system to
+# grow up and let us build multiple binary packages from a single
+# port, at which point this kludge will no longer be necessary (and
+# this port will merge with rpki-rp).
+#
+# Until that glorious day, just whack the egg info, which should be a
+# duplicate of the one that rpki-rp installs.
+
+post-install:
+	find ${STAGEDIR} -name '*.egg-info' -delete
+
 .include <bsd.port.mk>

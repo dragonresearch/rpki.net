@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  $Id: router-certificate-schema.rnc 5757 2014-04-05 22:42:12Z sra $
+  
+  RelaxNG schema for BGPSEC router certificate interchange format.
+  
+  At least for now, this is a trivial encapsulation of a PKCS #10
+  request, a set (usually containing exactly one member) of autonomous
+  system numbers, and a router-id.  Be warned that this could change
+  radically by the time we have any real operational understanding of
+  how these things will be used, this is just our current best guess
+  to let us move forward on initial coding.
+  
+  Copyright (C) 2014  Dragon Research Labs ("DRL")
+  
+  Permission to use, copy, modify, and distribute this software for any
+  purpose with or without fee is hereby granted, provided that the above
+  copyright notice and this permission notice appear in all copies.
+  
+  THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
+  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+  AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
+  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+  PERFORMANCE OF THIS SOFTWARE.
+-->
+<grammar ns="http://www.hactrn.net/uris/rpki/router-certificate/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <define name="version">
+    <value>1</value>
+  </define>
+  <define name="base64">
+    <data type="base64Binary">
+      <param name="maxLength">512000</param>
+    </data>
+  </define>
+  <define name="router_id">
+    <data type="unsignedInt"/>
+  </define>
+  <define name="asn_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[0-9][\-,0-9]*</param>
+    </data>
+  </define>
+  <define name="timestamp">
+    <data type="dateTime">
+      <param name="pattern">.*Z</param>
+    </data>
+  </define>
+  <!-- Core payload used in this schema. -->
+  <define name="payload">
+    <attribute name="router_id">
+      <ref name="router_id"/>
+    </attribute>
+    <attribute name="asn">
+      <ref name="asn_list"/>
+    </attribute>
+    <optional>
+      <attribute name="valid_until">
+        <ref name="timestamp"/>
+      </attribute>
+    </optional>
+    <ref name="base64"/>
+  </define>
+  <!--
+    We allow two forms, one with a wrapper to allow multiple requests in
+    a single file, one without for brevity; the version attribute goes
+    in the outermost element in either case.
+  -->
+  <start combine="choice">
+    <element name="router_certificate_request">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <ref name="payload"/>
+    </element>
+  </start>
+  <start combine="choice">
+    <element name="router_certificate_requests">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <zeroOrMore>
+        <element name="router_certificate_request">
+          <ref name="payload"/>
+        </element>
+      </zeroOrMore>
+    </element>
+  </start>
+</grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
+  End:
+-->

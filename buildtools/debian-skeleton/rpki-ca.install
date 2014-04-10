@@ -1,4 +1,4 @@
 etc/rpki/rpki-confgen.xml
-usr/lib
+usr/lib/rpki
 usr/sbin
-usr/share
+usr/share/rpki

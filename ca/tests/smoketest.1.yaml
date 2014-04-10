@@ -1,0 +1,89 @@
+# $Id$
+# 
+# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+name:           RIR
+crl_interval:   5m
+regen_margin:   2m
+valid_for:      2d
+kids:
+  - name: R0
+    ghostbuster: |
+      BEGIN:VCARD
+      VERSION:4.0
+      FN:R0
+      ORG:Organizational Entity
+      ADR;TYPE=WORK:;;42 Twisty Passage;Deep Cavern;WA;98666;U.S.A.
+      TEL;TYPE=VOICE,TEXT,WORK;VALUE=uri:tel:+1-666-555-1212
+      TEL;TYPE=FAX,WORK;VALUE=uri:tel:+1-666-555-1213
+      EMAIL:human@example.com
+      END:VCARD
+    kids:
+      - name: Alice
+        ipv4: 192.0.2.1-192.0.2.33
+        asn:  64533
+        roa_request:
+          - asn: 42
+            ipv4: 192.0.2.32/32
+        router_cert:
+          - router_id: 666
+            asn: 42
+      - name: Bob
+        ipv4: 192.0.2.44-192.0.2.100
+    ipv4: 10.3.0.0/16
+    roa_request:
+      - asn: 666
+        ipv4: 10.3.0.44/32
+
+---
+- shell set -x;
+  rtr_origin='../../../rp/rpki-rtr/rtr-origin';
+  $rtr_origin --scan-roas ../../../rp/utils/scan_roas --scan-routercerts ../../../rp/utils/scan_routercerts --cronjob rcynic-data/authenticated &&
+  $rtr_origin --show
+---
+- name: R0
+  rekey:
+---
+- name: R0
+  revoke:
+---
+- name: Alice
+  valid_add:   10
+- name: R0
+  roa_request_add:
+    - asn: 17
+      ipv4: 10.3.0.1/32, 10.0.0.44/32
+---
+- shell set -x;
+  rtr_origin='../../../rp/rpki-rtr/rtr-origin';
+  $rtr_origin --scan-roas ../../../rp/utils/scan_roas --scan-routercerts ../../../rp/utils/scan_routercerts --cronjob rcynic-data/authenticated &&
+  $rtr_origin --show
+---
+- sleep 30
+---
+- sleep 30
+---
+- sleep 30
+---
+- sleep 30
+---
+- sleep 30
+---
+- sleep 30
+---
+- sleep 30

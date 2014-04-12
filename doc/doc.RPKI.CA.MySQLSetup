@@ -37,7 +37,7 @@ tool, as follows:
   mysql> GRANT all ON rpki_database.* TO rpki_user@localhost IDENTIFIED BY
   'rpki_password';
   mysql> USE rpki_database;
-  mysql> SOURCE $top/rpkid/rpkid.sql;
+  mysql> SOURCE $top/schemas/sql/rpkid.sql;
   mysql> COMMIT;
   mysql> quit
 
@@ -51,7 +51,7 @@ If you are running pubd and are doing manual SQL setup, you'll also have to do:
   mysql> GRANT all ON pubd_database.* TO pubd_user@localhost IDENTIFIED BY
   'pubd_password';
   mysql> USE pubd_database;
-  mysql> SOURCE $top/rpkid/pubd.sql;
+  mysql> SOURCE $top/schemas/sql/pubd.sql;
   mysql> COMMIT;
   mysql> quit
 

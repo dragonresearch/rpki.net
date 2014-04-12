@@ -81,9 +81,9 @@ suitable for this:
   rpki-root-key           = ${myrpki::bpki_servers_directory}/root.key
 
 To create a TAL format trust anchor locator use the make-tal.sh script from
-$top/rcynic:
+$top/rp/rcynic:
 
-  $top/rcynic/make-tal.sh  rsync://example.org/rpki/root/root.cer  root.cer
+  $top/rp/rcynic/make-tal.sh  rsync://example.org/rpki/root/root.cer  root.cer
 
 Note that, like any certificate, the root.cer you just generated will expire
 eventually. Either you need to remember to regenerate it before that happens,

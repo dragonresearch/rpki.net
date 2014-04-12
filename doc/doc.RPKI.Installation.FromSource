@@ -194,10 +194,10 @@ run some basic regression tests.
 
 Some of the tests for the CA tools require MySQL databases to store their data.
 To set up all the databases that the tests will need, run the SQL commands in
-rpkid/tests/smoketest.setup.sql. The MySQL command line client is usually the
+ca/tests/smoketest.setup.sql. The MySQL command line client is usually the
 easiest way to do this, eg:
 
-  $ cd $top/rpkid
+  $ cd $top/ca
   $ mysql -u root -p <tests/smoketest.setup.sql
 
 To run the tests, run "make test":
@@ -206,9 +206,9 @@ To run the tests, run "make test":
   $ make test
 
 To run a more extensive set of tests on the CA tool, run "make all-tests" in
-the rpkid/ directory:
+the ca/ directory:
 
-  $ cd $top/rpkid
+  $ cd $top/ca
   $ make all-tests
 
 If nothing explodes, your installation is probably ok. Any Python backtraces in

@@ -6597,6 +6597,35 @@ cms_object_sign(cms_object *self, PyObject *args)
     return NULL;
 }
 
+#define DONT_VERIFY_ANYTHING    \
+  (CMS_NOCRL |                  \
+   CMS_NO_SIGNER_CERT_VERIFY |  \
+   CMS_NO_ATTR_VERIFY |         \
+   CMS_NO_CONTENT_VERIFY)
+
+static BIO *
+cms_object_extract_without_verifying_helper(cms_object *self)
+{
+  BIO *bio = NULL;
+  int ok = 0;
+
+  ENTERING(cms_object_extract_without_verifying_helper);
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    lose_no_memory();
+
+  if (CMS_verify(self->cms, NULL, NULL, NULL, bio, DONT_VERIFY_ANYTHING) <= 0)
+    lose_openssl_error("Couldn't parse CMS message");
+
+  return bio;
+
+ error:
+  BIO_free(bio);
+  return NULL;
+}
+
+#undef DONT_VERIFY_ANYTHING
+
 static BIO *
 cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
 {
@@ -6672,6 +6701,27 @@ cms_object_verify(cms_object *self, PyObject *args, PyObject *kwds)
   ENTERING(cms_object_verify);
 
   if ((bio = cms_object_verify_helper(self, args, kwds)) != NULL)
+    result = BIO_to_PyString_helper(bio);
+
+  BIO_free(bio);
+  return result;
+}
+
+static char cms_object_extract_without_verifying__doc__[] =
+  "Extract content from a CMS object without attempting CMS verification.\n"
+  "\n"
+  "NEVER USE THIS METHOD ON AN UNVERIFIED CMS OBJECT!\n"
+  ;
+
+static PyObject *
+cms_object_extract_without_verifying(cms_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+
+  ENTERING(cms_object_extract_without_verifying);
+
+  if ((bio = cms_object_extract_without_verifying_helper(self)) != NULL)
     result = BIO_to_PyString_helper(bio);
 
   BIO_free(bio);
@@ -6834,19 +6884,20 @@ cms_object_crls(cms_object *self)
 }
 
 static struct PyMethodDef cms_object_methods[] = {
-  Define_Method(pemWrite,               cms_object_pem_write,           METH_NOARGS),
-  Define_Method(derWrite,               cms_object_der_write,           METH_NOARGS),
-  Define_Method(sign,                   cms_object_sign,                METH_VARARGS),
-  Define_Method(verify,                 cms_object_verify,              METH_KEYWORDS),
-  Define_Method(eContentType,           cms_object_eContentType,        METH_NOARGS),
-  Define_Method(signingTime,            cms_object_signingTime,         METH_NOARGS),
-  Define_Method(pprint,                 cms_object_pprint,              METH_NOARGS),
-  Define_Method(certs,                  cms_object_certs,               METH_NOARGS),
-  Define_Method(crls,                   cms_object_crls,                METH_NOARGS),
-  Define_Class_Method(pemRead,          cms_object_pem_read,            METH_VARARGS),
-  Define_Class_Method(pemReadFile,      cms_object_pem_read_file,       METH_VARARGS),
-  Define_Class_Method(derRead,          cms_object_der_read,            METH_VARARGS),
-  Define_Class_Method(derReadFile,      cms_object_der_read_file,       METH_VARARGS),
+  Define_Method(pemWrite,                       cms_object_pem_write,                   METH_NOARGS),
+  Define_Method(derWrite,                       cms_object_der_write,                   METH_NOARGS),
+  Define_Method(sign,                           cms_object_sign,                        METH_VARARGS),
+  Define_Method(verify,                         cms_object_verify,                      METH_KEYWORDS),
+  Define_Method(extractWithoutVerifying,        cms_object_extract_without_verifying,   METH_NOARGS),
+  Define_Method(eContentType,                   cms_object_eContentType,                METH_NOARGS),
+  Define_Method(signingTime,                    cms_object_signingTime,                 METH_NOARGS),
+  Define_Method(pprint,                         cms_object_pprint,                      METH_NOARGS),
+  Define_Method(certs,                          cms_object_certs,                       METH_NOARGS),
+  Define_Method(crls,                           cms_object_crls,                        METH_NOARGS),
+  Define_Class_Method(pemRead,                  cms_object_pem_read,                    METH_VARARGS),
+  Define_Class_Method(pemReadFile,              cms_object_pem_read_file,               METH_VARARGS),
+  Define_Class_Method(derRead,                  cms_object_der_read,                    METH_VARARGS),
+  Define_Class_Method(derReadFile,              cms_object_der_read_file,               METH_VARARGS),
   {NULL}
 };
 
@@ -6940,6 +6991,38 @@ manifest_object_verify(manifest_object *self, PyObject *args, PyObject *kwds)
 
   if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
     goto error;
+
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest))
+    lose_openssl_error("Couldn't decode manifest");
+
+  ok = 1;
+
+ error:
+  BIO_free(bio);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+static char manifest_object_extract_without_verifying__doc__[] =
+  "Extract manifest payload from CMS wrapper without attempting CMS verification.\n"
+  "\n"
+  "NEVER USE THIS METHOD ON AN UNVERIFIED MANIFEST!\n"
+  ;
+
+static PyObject *
+manifest_object_extract_without_verifying(manifest_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+  int ok = 0;
+
+  ENTERING(manifest_object_extract_without_verifying);
+
+  if ((bio = cms_object_extract_without_verifying_helper(&self->cms)) != NULL)
+    result = BIO_to_PyString_helper(bio);
 
   if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest))
     lose_openssl_error("Couldn't decode manifest");
@@ -7469,24 +7552,25 @@ manifest_object_sign(manifest_object *self, PyObject *args)
 }
 
 static struct PyMethodDef manifest_object_methods[] = {
-  Define_Method(getVersion,             manifest_object_get_version,            METH_NOARGS),
-  Define_Method(setVersion,             manifest_object_set_version,            METH_VARARGS),
-  Define_Method(getManifestNumber,      manifest_object_get_manifest_number,    METH_NOARGS),
-  Define_Method(setManifestNumber,      manifest_object_set_manifest_number,    METH_VARARGS),
-  Define_Method(getThisUpdate,          manifest_object_get_this_update,        METH_NOARGS),
-  Define_Method(setThisUpdate,          manifest_object_set_this_update,        METH_VARARGS),
-  Define_Method(getNextUpdate,          manifest_object_get_next_update,        METH_NOARGS),
-  Define_Method(setNextUpdate,          manifest_object_set_next_update,        METH_VARARGS),
-  Define_Method(getAlgorithm,           manifest_object_get_algorithm,          METH_NOARGS),
-  Define_Method(setAlgorithm,           manifest_object_set_algorithm,          METH_VARARGS),
-  Define_Method(getFiles,               manifest_object_get_files,              METH_NOARGS),
-  Define_Method(addFiles,               manifest_object_add_files,              METH_VARARGS),
-  Define_Method(sign,                   manifest_object_sign,                   METH_VARARGS),
-  Define_Method(verify,                 manifest_object_verify,                 METH_KEYWORDS),
-  Define_Class_Method(pemRead,          manifest_object_pem_read,               METH_VARARGS),
-  Define_Class_Method(pemReadFile,      manifest_object_pem_read_file,          METH_VARARGS),
-  Define_Class_Method(derRead,          manifest_object_der_read,               METH_VARARGS),
-  Define_Class_Method(derReadFile,      manifest_object_der_read_file,          METH_VARARGS),
+  Define_Method(getVersion,			manifest_object_get_version,                    METH_NOARGS),
+  Define_Method(setVersion,			manifest_object_set_version,                    METH_VARARGS),
+  Define_Method(getManifestNumber,		manifest_object_get_manifest_number,            METH_NOARGS),
+  Define_Method(setManifestNumber,		manifest_object_set_manifest_number,            METH_VARARGS),
+  Define_Method(getThisUpdate,			manifest_object_get_this_update,                METH_NOARGS),
+  Define_Method(setThisUpdate,			manifest_object_set_this_update,                METH_VARARGS),
+  Define_Method(getNextUpdate,			manifest_object_get_next_update,                METH_NOARGS),
+  Define_Method(setNextUpdate,			manifest_object_set_next_update,                METH_VARARGS),
+  Define_Method(getAlgorithm,			manifest_object_get_algorithm,                  METH_NOARGS),
+  Define_Method(setAlgorithm,			manifest_object_set_algorithm,                  METH_VARARGS),
+  Define_Method(getFiles,			manifest_object_get_files,                      METH_NOARGS),
+  Define_Method(addFiles,			manifest_object_add_files,                      METH_VARARGS),
+  Define_Method(sign,				manifest_object_sign,                           METH_VARARGS),
+  Define_Method(verify,				manifest_object_verify,                         METH_KEYWORDS),
+  Define_Method(extractWithoutVerifying,	manifest_object_extract_without_verifying,      METH_NOARGS),
+  Define_Class_Method(pemRead,			manifest_object_pem_read,                       METH_VARARGS),
+  Define_Class_Method(pemReadFile,		manifest_object_pem_read_file,                  METH_VARARGS),
+  Define_Class_Method(derRead,			manifest_object_der_read,                       METH_VARARGS),
+  Define_Class_Method(derReadFile,		manifest_object_der_read_file,                  METH_VARARGS),
   {NULL}
 };
 
@@ -7581,6 +7665,39 @@ roa_object_verify(roa_object *self, PyObject *args, PyObject *kwds)
   if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
     goto error;
   
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa))
+    lose_openssl_error("Couldn't decode ROA");
+
+  ok = 1;
+
+ error:
+  BIO_free(bio);
+
+  if (ok)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
+
+
+static char roa_object_extract_without_verifying__doc__[] =
+  "Extract ROA payload from CMS wrapper without attempting CMS verification.\n"
+  "\n"
+  "NEVER USE THIS METHOD ON AN UNVERIFIED ROA!\n"
+  ;
+
+static PyObject *
+roa_object_extract_without_verifying(roa_object *self)
+{
+  PyObject *result = NULL;
+  BIO *bio = NULL;
+  int ok = 0;
+
+  ENTERING(roa_object_extract_without_verifying);
+
+  if ((bio = cms_object_extract_without_verifying_helper(&self->cms)) != NULL)
+    result = BIO_to_PyString_helper(bio);
+
   if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa))
     lose_openssl_error("Couldn't decode ROA");
 
@@ -8101,18 +8218,19 @@ roa_object_sign(roa_object *self, PyObject *args)
 }
 
 static struct PyMethodDef roa_object_methods[] = {
-  Define_Method(getVersion,             roa_object_get_version,         METH_NOARGS),
-  Define_Method(setVersion,             roa_object_set_version,         METH_VARARGS),
-  Define_Method(getASID,                roa_object_get_asid,            METH_NOARGS),
-  Define_Method(setASID,                roa_object_set_asid,            METH_VARARGS),
-  Define_Method(getPrefixes,            roa_object_get_prefixes,        METH_NOARGS),
-  Define_Method(setPrefixes,            roa_object_set_prefixes,        METH_KEYWORDS),
-  Define_Method(sign,                   roa_object_sign,                METH_VARARGS),
-  Define_Method(verify,                 roa_object_verify,              METH_KEYWORDS),
-  Define_Class_Method(pemRead,          roa_object_pem_read,            METH_VARARGS),
-  Define_Class_Method(pemReadFile,      roa_object_pem_read_file,       METH_VARARGS),
-  Define_Class_Method(derRead,          roa_object_der_read,            METH_VARARGS),
-  Define_Class_Method(derReadFile,      roa_object_der_read_file,       METH_VARARGS),
+  Define_Method(getVersion,                     roa_object_get_version,                 METH_NOARGS),
+  Define_Method(setVersion,                     roa_object_set_version,                 METH_VARARGS),
+  Define_Method(getASID,                        roa_object_get_asid,                    METH_NOARGS),
+  Define_Method(setASID,                        roa_object_set_asid,                    METH_VARARGS),
+  Define_Method(getPrefixes,                    roa_object_get_prefixes,                METH_NOARGS),
+  Define_Method(setPrefixes,                    roa_object_set_prefixes,                METH_KEYWORDS),
+  Define_Method(sign,                           roa_object_sign,                        METH_VARARGS),
+  Define_Method(verify,                         roa_object_verify,                      METH_KEYWORDS),
+  Define_Method(extractWithoutVerifying,        roa_object_extract_without_verifying,   METH_NOARGS),
+  Define_Class_Method(pemRead,                  roa_object_pem_read,                    METH_VARARGS),
+  Define_Class_Method(pemReadFile,              roa_object_pem_read_file,               METH_VARARGS),
+  Define_Class_Method(derRead,                  roa_object_der_read,                    METH_VARARGS),
+  Define_Class_Method(derReadFile,              roa_object_der_read_file,               METH_VARARGS),
   {NULL}
 };
 

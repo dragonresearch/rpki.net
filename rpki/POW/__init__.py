@@ -1,4 +1,5 @@
-from _POW import *
+from rpki.POW._POW import *
+from rpki.POW._POW import __doc__
 
 # Set callback to let POW construct rpki.sundial.datetime objects
 

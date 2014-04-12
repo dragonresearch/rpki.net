@@ -164,14 +164,8 @@ static char pow_module__doc__ [] =
   "Wrappers\" package.  It has been extensively modified since then, to add\n"
   "support for things needed for the RPKI protocols, to upgrade the code\n"
   "to use modern (circa Python 2.7) classes, and to remove code not\n"
-  "needed for RPKI.\n"
+  "needed for RPKI work.\n"
   ;
-
-#define LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION \
-  "The documentation for this class used to provide a nice example of how\n" \
-  "to use the class.  Sadly, most of what was in that example is now\n" \
-  "obsolete due to recent or impending API changes.  Once the new API is\n" \
-  "stable, this documentation should be rewritten to provide such examples.\n"
 
 /*
  * Handle NIDs we wish OpenSSL knew about.  This is carefully (we
@@ -1082,6 +1076,11 @@ ASN1_OBJECT_to_PyString(const ASN1_OBJECT *oid)
  * X509_EXTENSIONS objects.
  */
 
+#define EXTENSION_GET_KEY_USAGE__DOC__                                  \
+  "Return a FrozenSet of strings representing the KeyUsage settings\n"  \
+  "for this object, or None if the object has no KeyUsage\n"            \
+  "extension.  The bits have the same names as in RFC 5280.\n"
+
 static PyObject *
 extension_get_key_usage(X509_EXTENSIONS **exts)
 {
@@ -1119,6 +1118,14 @@ extension_get_key_usage(X509_EXTENSIONS **exts)
   Py_XDECREF(result);
   return NULL;
 }
+
+#define EXTENSION_SET_KEY_USAGE__DOC__							\
+  "Argument \"iterable\" should be an iterable object which returns zero or more\n"     \
+  "strings naming bits to be enabled.  The bits have the same names as in RFC 5280.\n"  \
+  "\n"                                                                                  \
+  "Optional argument \"critical\" is a boolean indicating whether the extension\n"      \
+  "should be marked as critical or not.  RFC 5280 4.2.1.3 says this extension SHOULD\n" \
+  "be marked as critical when used, so the default is True.\n"
 
 static PyObject *
 extension_set_key_usage(X509_EXTENSIONS **exts, PyObject *args)
@@ -1181,6 +1188,14 @@ extension_set_key_usage(X509_EXTENSIONS **exts, PyObject *args)
     return NULL;
 }
 
+#define EXTENSION_GET_BASIC_CONSTRAINTS__DOC__                                  \
+  "If there is no BasicConstraints extension, this method returns None.\n"      \
+  "\n"                                                                          \
+  "Otherwise, this method returns a two-element tuple.  The first element\n"    \
+  "of the tuple is a boolean representing the extension's cA value; the\n"      \
+  "second element of the tuple is either an integer representing the\n"         \
+  "pathLenConstraint value or None if there is no pathLenConstraint.\n"
+
 static PyObject *
 extension_get_basic_constraints(X509_EXTENSIONS **exts)
 {
@@ -1204,6 +1219,18 @@ extension_get_basic_constraints(X509_EXTENSIONS **exts)
   BASIC_CONSTRAINTS_free(ext);
   return result;
 }
+
+#define EXTENSION_SET_BASIC_CONSTRAINTS__DOC__                                  \
+  "First argument \"ca\" is a boolean indicating whether the certificate\n"     \
+  "is a CA certificate or not.\n"                                               \
+  "\n"                                                                          \
+  "Optional second argument \"pathLenConstraint\" is a non-negative integer\n"  \
+  "specifying the pathLenConstraint value for this certificate; this value\n"   \
+  "may only be set for CA certificates."                                        \
+  "\n"                                                                          \
+  "Optional third argument \"critical\" specifies whether the extension\n"      \
+  "should be marked as critical.  RFC 5280 4.2.1.9 requires that CA\n"          \
+  "certificates mark this extension as critical, so the default is True.\n"
 
 static PyObject *
 extension_set_basic_constraints(X509_EXTENSIONS **exts, PyObject *args)
@@ -1250,6 +1277,16 @@ extension_set_basic_constraints(X509_EXTENSIONS **exts, PyObject *args)
   else
     return NULL;
 }
+
+#define	EXTENSION_GET_SIA__DOC__                                                \
+  "If there is no SIA extension, this method returns None.\n"                   \
+  "\n"                                                                          \
+  "Otherwise, it returns a tuple containing three values:\n"                    \
+  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"              \
+  "Each of these values is a tuple of strings, representing an ordered\n"       \
+  "sequence of URIs.  Any or all of these sequences may be empty.\n"            \
+  "\n"                                                                          \
+  "Any other accessMethods are ignored, as are any non-URI accessLocations.\n"
 
 static PyObject *
 extension_get_sia(X509_EXTENSIONS **exts)
@@ -1342,6 +1379,14 @@ extension_get_sia(X509_EXTENSIONS **exts)
   Py_XDECREF(result_signedObject);
   return result;
 }
+
+#define EXTENSION_SET_SIA__DOC__                                        \
+  "This method Takes three arguments:\n"                                \
+  "\"caRepository\", \"rpkiManifest\", and \"signedObject\".\n"         \
+  "Each of these should be an iterable which returns URIs.\n"           \
+  "\n"                                                                  \
+  "None is acceptable as an alternate way of specifying an empty\n"     \
+  "collection of URIs for a particular argument.\n"
 
 static PyObject *
 extension_set_sia(X509_EXTENSIONS **exts, PyObject *args, PyObject *kwds)
@@ -1436,6 +1481,11 @@ extension_set_sia(X509_EXTENSIONS **exts, PyObject *args, PyObject *kwds)
     return NULL;
 }
 
+#define EXTENSION_GET_EKU__DOC__                                                \
+  "Return a FrozenSet of object identifiers representing the\n"                 \
+  "ExtendedKeyUsage settings for this object, or None if the object\n"          \
+  "has no ExtendedKeyUsage extension.\n"
+
 static PyObject *
 extension_get_eku(X509_EXTENSIONS **exts)
 {
@@ -1472,6 +1522,14 @@ extension_get_eku(X509_EXTENSIONS **exts)
   Py_XDECREF(result);
   return NULL;
 }
+
+#define EXTENSION_SET_EKU__DOC__                                                        \
+  "Argument \"iterable\" should be an iterable object which returns one or more\n"      \
+  "object identifiers.\n"                                                               \
+  "\n"                                                                                  \
+  "Optional argument \"critical\" is a boolean indicating whether the extension\n"      \
+  "should be marked as critical or not.  RFC 6487 4.8.5 says this extension\n"          \
+  "MUST NOT be marked as non-critical when used, so the default is False.\n"
 
 static PyObject *
 extension_set_eku(X509_EXTENSIONS **exts, PyObject *args)
@@ -1534,6 +1592,10 @@ extension_set_eku(X509_EXTENSIONS **exts, PyObject *args)
     return NULL;
 }
 
+#define EXTENSION_GET_SKI__DOC__                                        \
+  "Return the Subject Key Identifier (SKI) value for this object,\n"    \
+  "or None if the object has no SKI extension.\n"
+
 static PyObject *
 extension_get_ski(X509_EXTENSIONS **exts)
 {
@@ -1555,6 +1617,9 @@ extension_get_ski(X509_EXTENSIONS **exts)
   ASN1_OCTET_STRING_free(ext);
   return result;
 }
+
+#define EXTENSION_SET_SKI__DOC__                                                \
+  "Set the Subject Key Identifier (SKI) value for this object.\n"
 
 static PyObject *
 extension_set_ski(X509_EXTENSIONS **exts, PyObject *args)
@@ -1595,6 +1660,11 @@ extension_set_ski(X509_EXTENSIONS **exts, PyObject *args)
     return NULL;
 }
 
+#define EXTENSION_GET_AKI__DOC__                                                \
+  "Return the Authority Key Identifier (AKI) keyid value for this object,\n"    \
+  "or None if the object  has no AKI extension or has an AKI extension with\n"  \
+  "no keyIdentifier value.\n"
+
 static PyObject *
 extension_get_aki(X509_EXTENSIONS **exts)
 {
@@ -1616,6 +1686,12 @@ extension_get_aki(X509_EXTENSIONS **exts)
   AUTHORITY_KEYID_free(ext);
   return result;
 }
+
+#define EXTENSION_SET_AKI__DOC__                                                \
+  "Set the Authority Key Identifier (AKI) value for this object.\n"             \
+  "\n"                                                                          \
+  "We only support the keyIdentifier method, as that's the only form\n"         \
+  "which is legal for RPKI certificates.\n"
 
 static PyObject *
 extension_set_aki(X509_EXTENSIONS **exts, PyObject *args)
@@ -2024,7 +2100,7 @@ ipaddress_object_number_invert(ipaddress_object *self)
 }
 
 static char ipaddress_object_copy__doc__[] =
-  ""
+  "Copy an IPAddress object.\n"
   ;
 
 static PyObject *
@@ -2779,8 +2855,7 @@ x509_object_clear_extensions(x509_object *self)
 }
 
 static char x509_object_get_ski__doc__[] =
-  "Return the Subject Key Identifier (SKI) value for this\n"
-  "certificate, or None if the certificate has no SKI extension.\n"
+  EXTENSION_GET_SKI__DOC__
   ;
 
 static PyObject *
@@ -2790,7 +2865,7 @@ x509_object_get_ski(x509_object *self)
 }
 
 static char x509_object_set_ski__doc__[] =
-  "Set the Subject Key Identifier (SKI) value for this certificate.\n"
+  EXTENSION_SET_SKI__DOC__
   ;
 
 static PyObject *
@@ -2800,9 +2875,7 @@ x509_object_set_ski(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_aki__doc__[] =
-  "Return the Authority Key Identifier (AKI) keyid value for this\n"
-  "certificate, or None if the certificate has no AKI extension or has an\n"
-  "AKI extension with no keyIdentifier value.\n"
+  EXTENSION_GET_AKI__DOC__
   ;
 
 static PyObject *
@@ -2812,10 +2885,7 @@ x509_object_get_aki(x509_object *self)
 }
 
 static char x509_object_set_aki__doc__[] =
-  "Set the Authority Key Identifier (AKI) value for this certificate.\n"
-  "\n"
-  "We only support the keyIdentifier method, as that's the only form\n"
-  "which is legal for RPKI certificates.\n"
+  EXTENSION_SET_AKI__DOC__
   ;
 
 static PyObject *
@@ -2825,9 +2895,7 @@ x509_object_set_aki(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_key_usage__doc__[] =
-  "Return a FrozenSet of strings representing the KeyUsage\n"
-  "settings for this certificate, or None if the certificate has no\n"
-  "KeyUsage extension.  The bits have the same names as in RFC 5280.\n"
+  EXTENSION_GET_KEY_USAGE__DOC__
   ;
 
 static PyObject *
@@ -2839,12 +2907,7 @@ x509_object_get_key_usage(x509_object *self)
 static char x509_object_set_key_usage__doc__[] =
   "Set the KeyUsage extension for this certificate.\n"
   "\n"
-  "Argument \"iterable\" should be an iterable object which returns zero or more\n"
-  "strings naming bits to be enabled.  The bits have the same names as in RFC 5280.\n"
-  "\n"
-  "Optional argument \"critical\" is a boolean indicating whether the extension\n"
-  "should be marked as critical or not.  RFC 5280 4.2.1.3 says this extension SHOULD\n"
-  "be marked as critical when used, so the default is True.\n"
+  EXTENSION_SET_KEY_USAGE__DOC__
   ;
 
 static PyObject *
@@ -2854,9 +2917,7 @@ x509_object_set_key_usage(x509_object *self, PyObject *args)
 }
 
 static char x509_object_get_eku__doc__[] =
-  "Return a FrozenSet of object identifiers representing the\n"
-  "ExtendedKeyUsage settings for this certificate, or None if\n"
-  "the certificate has no ExtendedKeyUsage extension.\n"
+  EXTENSION_GET_EKU__DOC__
   ;
 
 static PyObject *
@@ -2868,12 +2929,7 @@ x509_object_get_eku(x509_object *self)
 static char x509_object_set_eku__doc__[] =
   "Set the ExtendedKeyUsage extension for this certificate.\n"
   "\n"
-  "Argument \"iterable\" should be an iterable object which returns one or more\n"
-  "object identifiers.\n"
-  "\n"
-  "Optional argument \"critical\" is a boolean indicating whether the extension\n"
-  "should be marked as critical or not.  RFC 6487 4.8.5 says this extension\n"
-  "MUST NOT be marked as non-critical when used, so the default is False.\n"
+  EXTENSION_SET_EKU__DOC__
   ;
 
 static PyObject *
@@ -2887,9 +2943,14 @@ static char x509_object_get_rfc3779__doc__[] =
   "\n"
   "Return value is a three-element tuple: the first element is the ASN\n"
   "resources, the second is the IPv4 resources, the third is the IPv6\n"
-  "resources.  Each of these elements in turn is either the string\n"
-  "\"inherit\" or a tuple representing a set of ranges of ASNs or IP\n"
-  "addresses.\n"
+  "resources.  Each of these elements in turn can be:\n"
+  "\n"
+  "* None, if this certificate contains no resources of this kind;\n"
+  "\n"
+  "* the string \"inherit\", if this certificate inherits this kind\n"
+  "  of resources from its  issuer; or\n"
+  "\n"
+  "* a tuple representing a set of ranges of ASNs or IP addresses.\n"
   "\n"
   "Each range is a two-element tuple, respectively representing the low\n"
   "and high ends of the range, inclusive.  ASN ranges are represented by\n"
@@ -3246,13 +3307,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
 static char x509_object_get_basic_constraints__doc__[] =
   "Return BasicConstraints for this certificate.\n"
   "\n"
-  "If this certificate has no BasicConstraints extension, this method\n"
-  "returns None.\n"
-  "\n"
-  "Otherwise, this method returns a two-element tuple.  The first element\n"
-  "of the tuple is a boolean representing the extension's cA value; the\n"
-  "second element of the tuple is either an integer representing the\n"
-  "pathLenConstraint value or None if there is no pathLenConstraint.\n"
+  EXTENSION_GET_BASIC_CONSTRAINTS__DOC__
   ;
 
 static PyObject *
@@ -3264,16 +3319,7 @@ x509_object_get_basic_constraints(x509_object *self)
 static char x509_object_set_basic_constraints__doc__[] =
   "Set BasicConstraints for this certificate.\n"
   "\n"
-  "First argument \"ca\" is a boolean indicating whether the certificate\n"
-  "is a CA certificate or not.\n"
-  "\n"
-  "Optional second argument \"pathLenConstraint\" is a non-negative integer\n"
-  "specifying the pathLenConstraint value for this certificate; this value\n"
-  "may only be set for CA certificates."
-  "\n"
-  "Optional third argument \"critical\" specifies whether the extension\n"
-  "should be marked as critical.  RFC 5280 4.2.1.9 requires that CA\n"
-  "certificates mark this extension as critical, so the default is True.\n"
+  EXTENSION_SET_BASIC_CONSTRAINTS__DOC__
   ;
 
 static PyObject *
@@ -3285,15 +3331,7 @@ x509_object_set_basic_constraints(x509_object *self, PyObject *args)
 static char x509_object_get_sia__doc__[] =
   "Get SIA values for this certificate.\n"
   "\n"
-  "If the certificate has no SIA extension, this method returns None.\n"
-  "\n"
-  "Otherwise, it returns a tuple containing three values:\n"
-  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
-  "Each of these values is a tuple of strings, representing an ordered\n"
-  "sequence of URIs.  Any or all of these sequences may be empty.\n"
-  "\n"
-  "Any other accessMethods are ignored, as are any non-URI\n"
-  "accessLocations.\n"
+  EXTENSION_GET_SIA__DOC__
   ;
 
 static PyObject *
@@ -3303,12 +3341,9 @@ x509_object_get_sia(x509_object *self)
 }
 
 static char x509_object_set_sia__doc__[] =
-  "Set SIA values for this certificate.  Takes three arguments:\n"
-  "\"caRepository\", \"rpkiManifest\", and \"signedObject\".\n"
-  "Each of these should be an iterable which returns URIs.\n"
+  "Set SIA values for this certificate.\n"
   "\n"
-  "None is acceptable as an alternate way of specifying an empty\n"
-  "collection of URIs for a particular argument.\n"
+  EXTENSION_SET_SIA__DOC__
   ;
 
 static PyObject *
@@ -3324,8 +3359,7 @@ static char x509_object_get_aia__doc__[] =
   "\n"  
   "Otherwise, this returns a sequence of caIssuers URIs.\n"
   "\n"
-  "Any other accessMethods are ignored, as are any non-URI\n"
-  "accessLocations.\n"
+  "Any other accessMethods are ignored, as are any non-URI accessLocations.\n"
   ;
 
 static PyObject *
@@ -3779,9 +3813,7 @@ static struct PyMethodDef x509_object_methods[] = {
 };
 
 static char POW_X509_Type__doc__[] =
-  "This class represents an X.509 certificate.\n"
-  "\n"
-  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
+  "This class represents an X.509v3 certificate.\n"
   ;
 
 static PyTypeObject POW_X509_Type = {
@@ -4062,8 +4094,6 @@ static struct PyMethodDef x509_store_object_methods[] = {
 static char POW_X509Store_Type__doc__[] =
   "This class holds the OpenSSL certificate store objects used in CMS\n"
   "and certificate verification.\n"
-  "\n"
-  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
   ;
 
 static PyTypeObject POW_X509Store_Type = {
@@ -4206,7 +4236,7 @@ x509_store_ctx_object_get_error (x509_store_ctx_object *self)
 }
 
 static char x509_store_ctx_object_get_error_string__doc__[] =
-  "Extract verification error code from this X509StoreCTX.\n"
+  "Extract verification error string from this X509StoreCTX.\n"
   ;
 
 static PyObject*
@@ -4336,7 +4366,7 @@ static struct PyMethodDef x509_store_ctx_object_methods[] = {
   Define_Method(getChain,               x509_store_ctx_object_get_chain,                METH_NOARGS),
 
 #if IMPLEMENT_X509StoreCTX_POLICY
-  Define_Method(setPolicy,	    x509_store_ctx_object_set_policy,		METH_VARARGS),
+  Define_Method(setPolicy,              x509_store_ctx_object_set_policy,		METH_VARARGS),
 #endif
  {NULL}
 };
@@ -4355,7 +4385,7 @@ static char POW_X509StoreCTX_Type__doc__[] =
   "If you need to see OpenSSL's verification callbacks, you can do so\n"
   "by subclassing X509StoreCTX and attaching your subclass to an X509Store\n"
   "object using X509Store.setContextClass().  Your subclass should provide\n"
-  "a .verify_callback() method, wich should expect to receive one argument:\n"
+  "a .verify_callback() method, which should expect to receive one argument:\n"
   "the integer \"ok\" value passed by OpenSSL's verification callbacks.\n"
   "\n"
   "The return value from your .verify_callback() method will be is interpreted\n"
@@ -4550,7 +4580,7 @@ crl_object_extension_helper(crl_object *self)
 }
 
 static char crl_object_get_version__doc__[] =
-  "return the version number of this CRL.\n"
+  "Return the version number of this CRL.\n"
   ;
 
 static PyObject *
@@ -5007,9 +5037,7 @@ crl_object_der_write(crl_object *self)
 }
 
 static char crl_object_get_aki__doc__[] =
-  "Return the Authority Key Identifier (AKI) keyid value for\n"
-  "this CRL, or None if the CRL has no AKI extension\n"
-  "or has an AKI extension with no keyIdentifier value.\n"
+  EXTENSION_GET_AKI__DOC__
   ;
 
 static PyObject *
@@ -5019,9 +5047,7 @@ crl_object_get_aki(crl_object *self)
 }
 
 static char crl_object_set_aki__doc__[] =
-  "Set the Authority Key Identifier (AKI) value for this\n"
-  "CRL.   We only support the keyIdentifier method, as that's\n"
-  "the only form which is legal for RPKI certificates.\n"
+  EXTENSION_SET_AKI__DOC__
   ;
 
 static PyObject *
@@ -5330,6 +5356,12 @@ asymmetric_object_pem_read_private_file(PyTypeObject *type, PyObject *args)
   BIO_free(bio);
   return result;
 }
+
+/*
+ * Used to be only PEM format private keys had passphrases, but with PKCS #8
+ * that's not really true anymore.  We may need to extend the API here to allow
+ * passphrases for DER private keys as well.
+ */
 
 static PyObject *
 asymmetric_object_der_read_private_helper(PyTypeObject *type, BIO *bio)
@@ -5710,8 +5742,6 @@ static struct PyMethodDef asymmetric_object_methods[] = {
 
 static char POW_Asymmetric_Type__doc__[] =
   "Container for OpenSSL's EVP_PKEY asymmetric key classes.\n"
-  "\n"
-  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
   ;
 
 static PyTypeObject POW_Asymmetric_Type = {
@@ -6015,8 +6045,6 @@ static struct PyMethodDef asymmetric_params_object_methods[] = {
 
 static char POW_AsymmetricParams_Type__doc__[] =
   "Container for OpenSSL's EVP_PKEY asymmetric key parameter classes.\n"
-  "\n"
-  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
   ;
 
 static PyTypeObject POW_AsymmetricParams_Type = {
@@ -6626,6 +6654,23 @@ cms_object_extract_without_verifying_helper(cms_object *self)
 
 #undef DONT_VERIFY_ANYTHING
 
+#define CMS_OBJECT_VERIFY_HELPER__DOC__                                         \
+  "\n"                                                                          \
+  "The \"store\" parameter is an X509Store object, the trusted certificate\n"   \
+  "store to use in verification.\n"                                             \
+  "\n"                                                                          \
+  "The optional \"certs\" parameter is a set of certificates to search\n"       \
+  "for the signer's certificate.\n"                                             \
+  "\n"                                                                          \
+  "The optional \"flags\" parameter is an integer of bit flags,\n"              \
+  "containing zero or more of the following:\n"                                 \
+  "\n"                                                                          \
+  "  * CMS_NOINTERN\n"                                                          \
+  "  * CMS_NOCRL\n"                                                             \
+  "  * CMS_NO_SIGNER_CERT_VERIFY\n"                                             \
+  "  * CMS_NO_ATTR_VERIFY\n"                                                    \
+  "  * CMS_NO_CONTENT_VERIFY\n"
+
 static BIO *
 cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
 {
@@ -6676,20 +6721,9 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
 static char cms_object_verify__doc__[] =
   "Verify this CMS message against a trusted certificate store.\n"
   "\n"
-  "The \"store\" parameter is an X509Store object, the trusted certificate\n"
-  "store to use in verification.\n"
+  CMS_OBJECT_VERIFY_HELPER__DOC__
   "\n"
-  "The optional \"certs\" parameter is a set of certificates to search\n"
-  "for the signer's certificate.\n"
-  "\n"
-  "The optional \"flags\" parameter is an integer of bit flags,\n"
-  "containing zero or more of the following:\n"
-  "\n"
-  "  * CMS_NOINTERN\n"
-  "  * CMS_NOCRL\n"
-  "  * CMS_NO_SIGNER_CERT_VERIFY\n"
-  "  * CMS_NO_ATTR_VERIFY\n"
-  "  * CMS_NO_CONTENT_VERIFY\n"
+  "Return value is the decoded CMS content, as a Python string.\n"
   ;
 
 static PyObject *
@@ -6831,9 +6865,9 @@ cms_object_pprint(cms_object *self)
 }
 
 static char cms_object_certs__doc__[] =
-  "Return any certificates embedded in this CMS message, as a\n"
-  "tuple of X509 objects.   This tuple will be empty if the message\n"
-  "wrapper contains no certificates.\n"
+  "Return any certificates embedded in this CMS message, as a sequence\n"
+  "of X509 objects.   This sequence will be empty if the message wrapper\n"
+  "contains no certificates.\n"
   ;
 
 static PyObject *
@@ -6858,8 +6892,8 @@ cms_object_certs(cms_object *self)
 }
 
 static char cms_object_crls__doc__[] =
-  "Return any CRLs embedded in this CMS message, as a tuple of\n"
-  "CRL objects.  This tuple will be empty if the message contains no CRLs.\n"
+  "Return any CRLs embedded in this CMS message, as a sequence of CRL objects.\n"
+  "This sequence will be empty if the message contains no CRLs.\n"
   ;
 
 static PyObject *
@@ -6978,7 +7012,9 @@ manifest_object_dealloc(manifest_object *self)
 }
 
 static char manifest_object_verify__doc__[] =
-  "Verify this manifest.  See the CMS class's .verify() method for details.\n"
+  "Verify this manifest against a trusted certificate store.\n"
+  "\n"
+  CMS_OBJECT_VERIFY_HELPER__DOC__
   ;
 
 static PyObject *
@@ -7651,7 +7687,9 @@ roa_object_dealloc(roa_object *self)
 }
 
 static char roa_object_verify__doc__[] =
-  "Verify this ROA.   See CMS.verify() for details.\n"
+  "Verify this ROA against a trusted certificate store.\n"
+  "\n"
+  CMS_OBJECT_VERIFY_HELPER__DOC__
   ;
 
 static PyObject *
@@ -8705,9 +8743,7 @@ pkcs10_object_set_subject(pkcs10_object *self, PyObject *args)
 }
 
 static char pkcs10_object_get_key_usage__doc__[] =
-  "Return a FrozenSet of strings representing the KeyUsage settings for\n"
-  "this PKCS#10 request, or None if the request has no KeyUsage\n"
-  "extension.  The bits have the same names as in RFC 5280.\n"
+  EXTENSION_GET_KEY_USAGE__DOC__
   ;
 
 static PyObject *
@@ -8719,12 +8755,7 @@ pkcs10_object_get_key_usage(pkcs10_object *self)
 static char pkcs10_object_set_key_usage__doc__[] =
   "Set the KeyUsage extension for this PKCS#10 request.\n"
   "\n"
-  "Argument \"iterable\" should be an iterable object which returns zero or more\n"
-  "strings naming bits to be enabled.  The bits have the same names as in RFC 5280.\n"
-  "\n"
-  "Optional argument \"critical\" is a boolean indicating whether the extension\n"
-  "should be marked as critical or not.  RFC 5280 4.2.1.3 says this extension SHOULD\n"
-  "be marked as critical when used, so the default is True.\n"
+  EXTENSION_SET_KEY_USAGE__DOC__
   ;
 
 static PyObject *
@@ -8734,9 +8765,7 @@ pkcs10_object_set_key_usage(pkcs10_object *self, PyObject *args)
 }
 
 static char pkcs10_object_get_eku__doc__[] =
-  "Return a FrozenSet of object identifiers representing the\n"
-  "ExtendedKeyUsage settings for this PKCS #10 requst, or None if\n"
-  "the request has no ExtendedKeyUsage extension.\n"
+  EXTENSION_GET_EKU__DOC__
   ;
 
 static PyObject *
@@ -8748,12 +8777,7 @@ pkcs10_object_get_eku(pkcs10_object *self)
 static char pkcs10_object_set_eku__doc__[] =
   "Set the ExtendedKeyUsage extension for this PKCS #10 request.\n"
   "\n"
-  "Argument \"iterable\" should be an iterable object which returns one or more\n"
-  "object identifiers.\n"
-  "\n"
-  "Optional argument \"critical\" is a boolean indicating whether the extension\n"
-  "should be marked as critical or not.  RFC 6487 4.8.5 says this extension\n"
-  "MUST NOT be marked as non-critical when used, so the default is False.\n"
+  EXTENSION_SET_EKU__DOC__
   ;
 
 static PyObject *
@@ -8765,13 +8789,7 @@ pkcs10_object_set_eku(pkcs10_object *self, PyObject *args)
 static char pkcs10_object_get_basic_constraints__doc__[] =
   "Return BasicConstraints value for this PKCS#10 request.\n"
   "\n"
-  "If this request has no BasicConstraints extension, this method returns\n"
-  "None.\n"
-  "\n"
-  "Otherwise, this method returns a two-element tuple.  The first element\n"
-  "of the tuple is a boolean representing the extension's cA value; the\n"
-  "second element of the tuple is either an integer representing\n"
-  "thepathLenConstraint value or None if there is no pathLenConstraint.\n"
+  EXTENSION_GET_BASIC_CONSTRAINTS__DOC__
   ;
 
 static PyObject *
@@ -8783,17 +8801,7 @@ pkcs10_object_get_basic_constraints(pkcs10_object *self)
 static char pkcs10_object_set_basic_constraints__doc__[] =
   "Set BasicConstraints value for this PKCS#10 request.\n"
   "\n"
-  "First argument \"ca\" is a boolean indicating whether the request\n"
-  "is for a CA certificate or not.\n"
-  "\n"
-  "Optional second argument \"pathLenConstraint\" is None or a\n"
-  "non-negative integer specifying the pathLenConstraint value for this\n"
-  "certificate.  Per RFC 5280, this value may only be set to an integer\n"
-  "value for CA certificates."
-  "\n"
-  "Optional third argument \"critical\" specifies whether the extension\n"
-  "should be marked as critical.  RFC 5280 4.2.1.9 requires that CA\n"
-  "certificates mark this extension as critical, so the default is True.\n"
+  EXTENSION_SET_BASIC_CONSTRAINTS__DOC__
   ;
 
 static PyObject *
@@ -8805,12 +8813,7 @@ pkcs10_object_set_basic_constraints(pkcs10_object *self, PyObject *args)
 static char pkcs10_object_get_sia__doc__[] =
   "Return the SIA values for this PKCS#10 request.\n"
   "\n"
-  "If this request has no SIA extension, this method returns None.\n"
-  "\n"
-  "Otherwise, this returns a tuple containing three sequences:\n"
-  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"
-  "Any other accessMethods are ignored, as are any non-URI\n"
-  "accessLocations.\n"
+  EXTENSION_GET_SIA__DOC__
   ;
 
 static PyObject *
@@ -8822,12 +8825,7 @@ pkcs10_object_get_sia(pkcs10_object *self)
 static char pkcs10_object_set_sia__doc__[] =
   "Set SIA values for this PKCS#10 request.\n"
   "\n"
-  "Takes three arguments: caRepository, rpkiManifest, and signedObject.\n"
-  "\n"
-  "Each of these should be an iterable which returns URIs.\n"
-  "\n"
-  "None is acceptable as an alternate way of specifying an empty\n"
-  "collection of URIs for a particular argument.\n"
+  EXTENSION_SET_SIA__DOC__
   ;
 
 static PyObject *
@@ -8943,8 +8941,6 @@ static struct PyMethodDef pkcs10_object_methods[] = {
 
 static char POW_PKCS10_Type__doc__[] =
   "This class represents a PKCS#10 request.\n"
-  "\n"
-  LAME_DISCLAIMER_IN_ALL_CLASS_DOCUMENTATION
   ;
 
 static PyTypeObject POW_PKCS10_Type = {

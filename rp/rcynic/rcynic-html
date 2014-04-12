@@ -43,11 +43,6 @@ def parse_options():
 
   global args
 
-  try:
-    default_rrdtool_binary = rpki.autoconf.RRDTOOL
-  except NameError:
-    default_rrdtool_binary = "rrdtool"
-
   parser = argparse.ArgumentParser(description = __doc__)
   parser.add_argument("--refresh", type = int, default = 1800,
                       help = "refresh interval for generated HTML")
@@ -71,7 +66,7 @@ def parse_options():
                       help = "height of EPS images")
   parser.add_argument("--eps-width", type = int, default = 0,
                       help = "width of EPS images")
-  parser.add_argument("--rrdtool-binary", default = default_rrdtool_binary,
+  parser.add_argument("--rrdtool-binary", default = rpki.autoconf.RRDTOOL,
                       help = "location of rrdtool binary")
   parser.add_argument("input_file", type = argparse.FileType("r"),
                       help = "XML input file")

@@ -21,8 +21,8 @@ Usage:
 
 -v Verbose mode
 
-The utils/uri directory also includes a few experimental AWK scripts to post-
-process the program's output in various ways.
+The rp/utils directory in the source tree also includes a few experimental AWK
+scripts to post-process the uri program's output in various ways.
 
 ***** hashdir *****
 

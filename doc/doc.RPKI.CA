@@ -185,7 +185,7 @@ irdbd is part of the IR back-end system, and shares its SQL database with rpkic
 and the web interface.
 
 The package actually includes a second implementation of irdbd, used only for
-testing: rpkid/tests/old_irdbd is a mininmal implementation, used only by
+testing: ca/tests/old_irdbd is a mininmal implementation, used only by
 smoketest, which itself constitues a fairly complete (if rather strange) IRBE
 implementatation. Ordinarly you won't care about this, but if for some reason
 you need to write your own irdbd implementation, you might find it easier to

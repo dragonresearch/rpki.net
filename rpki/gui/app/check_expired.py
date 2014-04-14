@@ -159,6 +159,19 @@ def notify_expired(expire_days=14, from_email=None):
     t = now - datetime.timedelta(hours=12)  # 12 hours
     stale_timestamps = Timestamp.objects.filter(ts__lte=t)
 
+    # Warn the server admins when data may be out of date
+    if stale_timestamps:
+        errs = StringIO()
+        errs.write('Warning!  Stale data from external sources on host %s.\n' % (host,))
+        errs.write('data source    : last import\n')
+        for obj in stale_timestamps:
+            errs.write('%-15s: %s\n' % (obj.name, obj.ts))
+        errs.write('\n')
+        send_email('stale RPKI data on ' + host,
+                   errs.getvalue(),
+                   from_email,
+                   ['root'])
+
     # if not arguments are given, query all resource holders
     qs = Conf.objects.all()
 
@@ -171,14 +184,6 @@ def notify_expired(expire_days=14, from_email=None):
             raise NetworkError('Error while talking to rpkid: %s' % e)
 
         errs = StringIO()
-
-        # Warn the resource holder admins when data may be out of date
-        if stale_timestamps:
-            errs.write('Warning!  Stale data from external sources.\n')
-            errs.write('data source    : last import\n')
-            for obj in stale_timestamps:
-                errs.write('%-15s: %s\n' % (obj.name, obj.ts))
-            errs.write('\n')
 
         check_cert(h.handle, h, errs)
 

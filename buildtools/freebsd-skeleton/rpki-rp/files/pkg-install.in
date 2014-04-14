@@ -60,7 +60,7 @@ POST-INSTALL)
 	if ! test -d $dir
 	then
 	    echo "Creating $dir"
-	    /usr/bin/install -o rcynic -g rcynic -d /var/rcynic
+	    /usr/bin/install -o rcynic -g rcynic -d $dir
 	fi
     done
     if ! test -d /var/rcynic/rpki-rtr/sockets

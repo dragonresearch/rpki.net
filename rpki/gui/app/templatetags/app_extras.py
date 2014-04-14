@@ -1,4 +1,5 @@
 from django import template
+from rpki.gui.app.models import Conf
 
 register = template.Library()
 
@@ -37,6 +38,10 @@ def severity_class(severity):
 
 @register.simple_tag
 def alert_count(conf):
+    import types
+    # convert string handle to Conf object automatically
+    if isinstance(conf, types.UnicodeType):
+        conf = Conf.objects.get(handle=conf)
     qs = conf.alerts.filter(seen=False)
     unread = len(qs)
     if unread:

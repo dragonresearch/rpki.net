@@ -68,6 +68,16 @@ def superuser_required(f):
     return _wrapped
 
 
+def get_conf(user, handle):
+    """return the Conf object for 'handle'.
+    user is a request.user object to use enforce ACLs."""
+    if user.is_superuser:
+        qs = models.Conf.objects.all()
+    else:
+        qs = models.Conf.objects.filter(confacl__user=user)
+    return qs.get(handle=handle)
+
+
 def handle_required(f):
     """Decorator for view functions which require the user to be logged in and
     a resource handle selected for the session.
@@ -83,7 +93,7 @@ def handle_required(f):
                 conf = models.Conf.objects.filter(confacl__user=request.user)
 
             if conf.count() == 1:
-                request.session['handle'] = conf[0]
+                request.session['handle'] = conf[0].handle
             elif conf.count() == 0:
                 return render(request, 'app/conf_empty.html', {})
             else:
@@ -118,7 +128,7 @@ def generic_import(request, queryset, configure, form_class=None,
         specified URL.
 
     """
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     if form_class is None:
         form_class = forms.ImportForm
     if request.method == 'POST':
@@ -159,7 +169,7 @@ def generic_import(request, queryset, configure, form_class=None,
 
 @handle_required
 def dashboard(request):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
 
     used_asns = range_list.RangeList()
 
@@ -261,11 +271,11 @@ def conf_select(request):
     handle = request.GET['handle']
     next_url = request.GET.get('next', reverse(dashboard))
     if request.user.is_superuser:
-        request.session['handle'] = get_object_or_404(models.Conf, handle=handle)
+        request.session['handle'] = get_object_or_404(models.Conf, handle=handle).handle
     else:
         request.session['handle'] = get_object_or_404(
             models.Conf, confacl__user=request.user, handle=handle
-        )
+        ).handle
     return http.HttpResponseRedirect(next_url)
 
 
@@ -288,7 +298,7 @@ def serve_xml(content, basename, ext='xml'):
 @handle_required
 def conf_export(request):
     """Return the identity.xml for the current handle."""
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     z = Zookeeper(handle=conf.handle)
     xml = z.generate_identity()
     return serve_xml(str(xml), '%s.identity' % conf.handle)
@@ -297,7 +307,7 @@ def conf_export(request):
 @handle_required
 def export_asns(request):
     """Export CSV file containing ASN allocations to children."""
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     s = cStringIO.StringIO()
     csv_writer = csv.writer(s, delimiter=' ')
     for childasn in ChildASN.objects.filter(child__issuer=conf):
@@ -307,7 +317,7 @@ def export_asns(request):
 
 @handle_required
 def import_asns(request):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     if request.method == 'POST':
         form = forms.ImportCSVForm(request.POST, request.FILES)
         if form.is_valid():
@@ -332,7 +342,7 @@ def import_asns(request):
 @handle_required
 def export_prefixes(request):
     """Export CSV file containing ASN allocations to children."""
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     s = cStringIO.StringIO()
     csv_writer = csv.writer(s, delimiter=' ')
     for childnet in ChildNet.objects.filter(child__issuer=conf):
@@ -342,7 +352,7 @@ def export_prefixes(request):
 
 @handle_required
 def import_prefixes(request):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     if request.method == 'POST':
         form = forms.ImportCSVForm(request.POST, request.FILES)
         if form.is_valid():
@@ -366,19 +376,20 @@ def import_prefixes(request):
 
 @handle_required
 def parent_import(request):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     return generic_import(request, conf.parents, Zookeeper.configure_parent)
 
 
 @handle_required
 def parent_detail(request, pk):
+    conf = get_conf(request.user, request.session['handle'])
     return render(request, 'app/parent_detail.html', {
-        'object': get_object_or_404(request.session['handle'].parents, pk=pk)})
+        'object': get_object_or_404(conf.parents, pk=pk)})
 
 
 @handle_required
 def parent_delete(request, pk):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     obj = get_object_or_404(conf.parents, pk=pk)  # confirm permission
     log = request.META['wsgi.errors']
     if request.method == 'POST':
@@ -400,7 +411,7 @@ def parent_delete(request, pk):
 @handle_required
 def parent_export(request, pk):
     """Export XML repository request for a given parent."""
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     parent = get_object_or_404(conf.parents, pk=pk)
     z = Zookeeper(handle=conf.handle)
     xml = z.generate_repository_request(parent)
@@ -409,14 +420,14 @@ def parent_export(request, pk):
 
 @handle_required
 def child_import(request):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     return generic_import(request, conf.children, Zookeeper.configure_child)
 
 
 @handle_required
 def child_add_prefix(request, pk):
     logstream = request.META['wsgi.errors']
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     child = get_object_or_404(conf.children, pk=pk)
     if request.method == 'POST':
         form = forms.AddNetForm(request.POST, child=child)
@@ -437,7 +448,7 @@ def child_add_prefix(request, pk):
 @handle_required
 def child_add_asn(request, pk):
     logstream = request.META['wsgi.errors']
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     child = get_object_or_404(conf.children, pk=pk)
     if request.method == 'POST':
         form = forms.AddASNForm(request.POST, child=child)
@@ -455,7 +466,8 @@ def child_add_asn(request, pk):
 
 @handle_required
 def child_detail(request, pk):
-    child = get_object_or_404(request.session['handle'].children, pk=pk)
+    conf = get_conf(request.user, request.session['handle'])
+    child = get_object_or_404(conf.children, pk=pk)
     return render(request, 'app/child_detail.html', {'object': child})
 
 
@@ -463,7 +475,7 @@ def child_detail(request, pk):
 def child_edit(request, pk):
     """Edit the end validity date for a resource handle's child."""
     log = request.META['wsgi.errors']
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     child = get_object_or_404(conf.children.all(), pk=pk)
     form_class = forms.ChildForm(child)
     if request.method == 'POST':
@@ -495,7 +507,7 @@ def child_response(request, pk):
     to send back to the client.
 
     """
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     child = get_object_or_404(models.Child, issuer=conf, pk=pk)
     z = Zookeeper(handle=conf.handle)
     xml = z.generate_parental_response(child)
@@ -506,7 +518,7 @@ def child_response(request, pk):
 @handle_required
 def child_delete(request, pk):
     logstream = request.META['wsgi.errors']
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     child = get_object_or_404(conf.children, pk=pk)
     if request.method == 'POST':
         form = forms.Empty(request.POST)
@@ -526,7 +538,7 @@ def child_delete(request, pk):
 
 @handle_required
 def roa_detail(request, pk):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     obj = get_object_or_404(conf.roas, pk=pk)
     return render(request, 'app/roa_detail.html', {'object': obj})
 
@@ -582,7 +594,7 @@ def roa_create(request):
 
     """
 
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     if request.method == 'POST':
         form = forms.ROARequest(request.POST, request.FILES, conf=conf)
         if form.is_valid():
@@ -657,7 +669,7 @@ def roa_create_multi(request):
 
     """
 
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     if request.method == 'GET':
         init = []
         for x in request.GET.getlist('roa'):
@@ -707,7 +719,7 @@ def roa_create_confirm(request):
     request.  It is responsible for updating the IRDB.
 
     """
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     log = request.META['wsgi.errors']
     if request.method == 'POST':
         form = forms.ROARequestConfirm(request.POST, request.FILES)
@@ -736,7 +748,7 @@ def roa_create_multi_confirm(request):
     request.  It is responsible for updating the IRDB.
 
     """
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     log = request.META['wsgi.errors']
     if request.method == 'POST':
         formset = formset_factory(forms.ROARequestConfirm, extra=0)(request.POST, request.FILES)
@@ -769,7 +781,7 @@ def roa_delete(request, pk):
 
     """
 
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     roa = get_object_or_404(conf.roas, pk=pk)
     if request.method == 'POST':
         roa.delete()
@@ -813,7 +825,7 @@ def roa_delete(request, pk):
 
 @handle_required
 def roa_clone(request, pk):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     roa = get_object_or_404(conf.roas, pk=pk)
     return redirect(
         reverse(roa_create_multi) + "?roa=" + str(roa.prefixes.all()[0].as_roa_prefix())
@@ -851,7 +863,7 @@ def roa_export(request):
     # FIXME: remove when Zookeeper can do this
     f = cStringIO.StringIO()
     csv_writer = csv.writer(f, delimiter=' ')
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     # each roa prefix gets a unique group so rpkid will issue separate roas
     for group, roapfx in enumerate(ROARequestPrefix.objects.filter(roa_request__issuer=conf)):
         csv_writer.writerow([str(roapfx.as_roa_prefix()), roapfx.roa_request.asn, '%s-%d' % (conf.handle, group)])
@@ -862,12 +874,13 @@ def roa_export(request):
 
 class GhostbusterDetailView(DetailView):
     def get_queryset(self):
-        return self.request.session['handle'].ghostbusters
+	conf = get_conf(self.request.user, self.request.session['handle'])
+        return conf.ghostbusters
 
 
 @handle_required
 def ghostbuster_delete(request, pk):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     logstream = request.META['wsgi.errors']
     obj = get_object_or_404(conf.ghostbusters, pk=pk)
     if request.method == 'POST':
@@ -887,7 +900,7 @@ def ghostbuster_delete(request, pk):
 
 @handle_required
 def ghostbuster_create(request):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     logstream = request.META['wsgi.errors']
     if request.method == 'POST':
         form = forms.GhostbusterRequestForm(request.POST, request.FILES,
@@ -906,7 +919,7 @@ def ghostbuster_create(request):
 
 @handle_required
 def ghostbuster_edit(request, pk):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     obj = get_object_or_404(conf.ghostbusters, pk=pk)
     logstream = request.META['wsgi.errors']
     if request.method == 'POST':
@@ -930,8 +943,8 @@ def refresh(request):
     Query rpkid, update the db, and redirect back to the dashboard.
 
     """
-    glue.list_received_resources(request.META['wsgi.errors'],
-                                 request.session['handle'])
+    conf = get_conf(request.user, request.session['handle'])
+    glue.list_received_resources(request.META['wsgi.errors'], conf)
     return http.HttpResponseRedirect(reverse(dashboard))
 
 
@@ -942,7 +955,7 @@ def route_view(request):
     listed in received certificates.
 
     """
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     count = request.GET.get('count', 25)
     page = request.GET.get('page', 1)
 
@@ -995,7 +1008,7 @@ def route_suggest(request):
 
 @handle_required
 def repository_detail(request, pk):
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     return render(request,
                   'app/repository_detail.html',
                   {'object': get_object_or_404(conf.repositories, pk=pk)})
@@ -1004,7 +1017,7 @@ def repository_detail(request, pk):
 @handle_required
 def repository_delete(request, pk):
     log = request.META['wsgi.errors']
-    conf = request.session['handle']
+    conf = get_conf(request.user, request.session['handle'])
     # Ensure the repository being deleted belongs to the current user.
     obj = get_object_or_404(models.Repository, issuer=conf, pk=pk)
     if request.method == 'POST':
@@ -1265,7 +1278,7 @@ class AlertListView(ListView):
         return super(AlertListView, self).dispatch(request, *args, **kwargs)
 
     def get_queryset(self, **kwargs):
-        conf = self.request.session['handle']
+        conf = get_conf(self.request.user, self.request.session['handle'])
         return conf.alerts.all()
 
 
@@ -1276,7 +1289,7 @@ class AlertDetailView(DetailView):
         return super(AlertDetailView, self).dispatch(request, *args, **kwargs)
 
     def get_queryset(self, **kwargs):
-        conf = self.request.session['handle']
+        conf = get_conf(self.request.user, self.request.session['handle'])
         return conf.alerts.all()
 
     def get_object(self, **kwargs):
@@ -1296,7 +1309,7 @@ class AlertDeleteView(DeleteView):
         return super(AlertDeleteView, self).dispatch(request, *args, **kwargs)
 
     def get_queryset(self, **kwargs):
-        conf = self.request.session['handle']
+        conf = get_conf(self.request.user, self.request.session['handle'])
         return conf.alerts.all()
 
 
@@ -1307,7 +1320,8 @@ def alert_clear_all(request):
         form = forms.Empty(request.POST, request.FILES)
         if form.is_valid():
             # delete alerts
-            request.session['handle'].clear_alerts()
+            conf = get_conf(request.user, request.session['handle'])
+            conf.clear_alerts()
             return redirect('alert-list')
     else:
         form = forms.Empty()

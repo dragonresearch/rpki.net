@@ -1,5 +1,5 @@
 # Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
-# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2014  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above

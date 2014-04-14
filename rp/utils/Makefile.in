@@ -23,8 +23,6 @@ abs_top_builddir = @abs_top_builddir@
 
 BINS		= find_roa hashdir print_rpki_manifest print_roa scan_roas uri
 
-SCRIPTS		= scan_routercerts find-roa-expiration
-
 all:: ${BINS}
 
 clean::
@@ -32,10 +30,10 @@ clean::
 
 install:: all
 	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -d ${DESTDIR}${bindir}; fi
-	${INSTALL} ${BINS} ${SCRIPTS} ${DESTDIR}${bindir}
+	${INSTALL} ${BINS} ${DESTDIR}${bindir}
 
 deinstall uninstall::
-	for i in ${BINS} ${SCRIPTS}; do rm -f ${DESTDIR}${bindir}/$$i; done
+	for i in ${BINS}; do rm -f ${DESTDIR}${bindir}/$$i; done
 
 distclean:: clean
 	rm -f Makefile
@@ -64,7 +62,7 @@ RSYNC_AUTH_DIR	= ${abs_top_builddir}/rp/rcynic/rcynic-data/authenticated
 HASHDIR_OUTPUT	= hashed-pem-dir
 TARGET_PREFIXES	= 10.3.0.44 10.2.0.6 10.0.0.0/24
 
-test:: ${BINS} ${SCRIPTS}
+test:: ${BINS}
 	if test -d ${RSYNC_AUTH_DIR}; \
 	then \
 	    rm -rf ${HASHDIR_OUTPUT} ; \

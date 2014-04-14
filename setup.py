@@ -46,10 +46,7 @@ setup_args = dict(
   cmdclass      = {"build_scripts"   : setup_extensions.build_scripts,
                    "install_scripts" : setup_extensions.install_scripts})
 
-# If and when we start using setup.py to install RP scripts or start
-# trying to separate RP and CA modules in the rpki package tree, we'll
-# need to do something about sharing "packages", "scripts", etc.
-# Write that code when we need it.
+scripts         = []
 
 if autoconf.RP_TARGET == "rp":
   setup_args.update(
@@ -74,9 +71,32 @@ if autoconf.RP_TARGET == "rp":
                     "rpki.gui.cacheview" :
                     ["templates/*/*.html"]})
 
+  scripts      += [(autoconf.bindir,
+                    ["rp/rcynic/rcynic-text",
+                     "rp/rcynic/rcynic-html",
+                     "rp/rcynic/rcynic-svn",
+                     "rp/rcynic/validation_status",
+                     "rp/rcynic/rcynic-cron",
+                     "rp/rpki-rtr/rtr-origin",
+                     "rp/utils/scan_routercerts",
+                     "rp/utils/find-roa-expiration"])]
+
 if autoconf.CA_TARGET == "ca":
   setup_args.update(
-    scripts     = [(autoconf.sbindir,
+    data_files  = [(autoconf.sysconfdir  + "/rpki",
+                    ["ca/rpki-confgen.xml"]),
+                   (autoconf.datarootdir + "/rpki/wsgi",
+                    ["ca/rpki.wsgi"]),
+                   (autoconf.datarootdir + "/rpki/media/css",
+                    glob("rpki/gui/app/static/css/*")),
+                   (autoconf.datarootdir + "/rpki/media/js",
+                    glob("rpki/gui/app/static/js/*")),
+                   (autoconf.datarootdir + "/rpki/media/img",
+                    glob("rpki/gui/app/static/img/*")),
+                   (autoconf.datarootdir + "/rpki/upgrade-scripts",
+                    glob("ca/upgrade-scripts/*"))])
+
+  scripts      += [(autoconf.sbindir,
                     ["ca/rpkic",
                      "ca/rpki-confgen",
                      "ca/rpki-start-servers",
@@ -93,18 +113,7 @@ if autoconf.CA_TARGET == "ca":
                      "ca/rpkigui-import-routes",
                      "ca/rpkigui-check-expired",
                      "ca/rpkigui-rcynic",
-                     "ca/rpkigui-apache-conf-gen"])],
-    data_files  = [(autoconf.sysconfdir  + "/rpki",
-                    ["ca/rpki-confgen.xml"]),
-                   (autoconf.datarootdir + "/rpki/wsgi",
-                    ["ca/rpki.wsgi"]),
-                   (autoconf.datarootdir + "/rpki/media/css",
-                    glob("rpki/gui/app/static/css/*")),
-                   (autoconf.datarootdir + "/rpki/media/js",
-                    glob("rpki/gui/app/static/js/*")),
-                   (autoconf.datarootdir + "/rpki/media/img",
-                    glob("rpki/gui/app/static/img/*")),
-                   (autoconf.datarootdir + "/rpki/upgrade-scripts",
-                    glob("ca/upgrade-scripts/*"))])
+                     "ca/rpkigui-apache-conf-gen"])]
 
+setup_args.update(scripts = scripts)
 setup(**setup_args)

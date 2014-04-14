@@ -1,6 +1,6 @@
 # $Id$
 
-install-always: install-binary
+install-always:
 
 install-postconf: install-listener
 

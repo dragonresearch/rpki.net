@@ -65,7 +65,7 @@ def check_expire(conf, errs):
         if not obj_set:
             # since the <list_received_resources/> output is cached, this can
             # occur if the cache is out of date as well..
-            errs.write("Unable to locate rescert in rcynic cache: handle=%s uri=%s not_after=%s\n" % (conf.handle, cert.uri, cert.not_after))
+            #errs.write("Unable to locate rescert in rcynic cache: handle=%s uri=%s not_after=%s\n" % (conf.handle, cert.uri, cert.not_after))
             continue
         obj = obj_set[0]
         msg = []

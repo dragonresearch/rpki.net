@@ -45,7 +45,7 @@ parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("-b", "--brief", action = "store_true", help = "show only ASN and prefix(es)")
 parser.add_argument("-c", "--cms", action = "store_true", help = "print text representation of entire CMS blob")
 parser.add_argument("-s", "--signing-time", action = "store_true", help = "show SigningTime in brief mode")
-parser.add_argument("roas", nargs = "+", type = ROA.derReadFile, help = "name of output directory to create")
+parser.add_argument("roas", nargs = "+", type = ROA.derReadFile, help = "ROA(s) to print")
 args = parser.parse_args()
 
 for roa in args.roas:

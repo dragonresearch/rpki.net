@@ -1,0 +1,52 @@
+#!/usr/bin/env python
+#
+# $Id$
+# 
+# Copyright (C) 2014 Dragon Research Labs ("DRL")
+# 
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+"""
+Pretty-print the content of a manifest.  Does NOT attempt to verify the
+signature.
+"""
+
+import os
+import sys
+import argparse
+import rpki.POW
+import rpki.oids
+
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("-c", "--cms", action = "store_true", help = "print text representation of entire CMS blob")
+parser.add_argument("manifests", nargs = "+", type = rpki.POW.Manifest.derReadFile, help = "manifest(s) to print")
+args = parser.parse_args()
+
+for mft in args.manifests:
+  mft.extractWithoutVerifying()
+  print "Manifest Version:", mft.getVersion()
+  print "SigningTime:     ", mft.signingTime()
+  print "Number:          ", mft.getManifestNumber()
+  print "thisUpdate:      ", mft.getThisUpdate()
+  print "nextUpdate:      ", mft.getNextUpdate()
+  print "fileHashAlg:     ", rpki.oids.oid2name(mft.getAlgorithm())
+  for i, fah in enumerate(mft.getFiles()):
+    name, hash = fah
+    print "fileList[%3d]:    %s %s" % (i, ":".join(("%02X" % ord(h) for h in hash)), name)
+  if args.cms:
+    print mft.pprint()
+    for cer in mft.certs():
+      print cer.pprint()
+    for crl in mft.crls():
+      print crl.pprint()
+  print

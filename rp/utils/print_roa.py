@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+#
+# $Id$
+# 
+# Copyright (C) 2014 Dragon Research Labs ("DRL")
+# 
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+"""
+Pretty-print the content of a ROA.  Does NOT attempt to verify the
+signature.
+"""
+
+import os
+import sys
+import argparse
+import rpki.POW
+
+class ROA(rpki.POW.ROA):
+
+  @staticmethod
+  def _format_prefix(prefix):
+    if prefix[2] is None or prefix[1] == prefix[2]:
+      return "%s/%d" % (prefix[0], prefix[1])
+    else:
+      return "%s/%d-%d" % (prefix[0], prefix[1], prefix[2])
+
+  def parse(self):
+    self.extractWithoutVerifying()
+    v4, v6 = self.getPrefixes()
+    self.v4_prefixes = [self._format_prefix(p) for p in (v4 or ())]
+    self.v6_prefixes = [self._format_prefix(p) for p in (v6 or ())]
+
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("-b", "--brief", action = "store_true", help = "show only ASN and prefix(es)")
+parser.add_argument("-c", "--cms", action = "store_true", help = "print text representation of entire CMS blob")
+parser.add_argument("-s", "--signing-time", action = "store_true", help = "show SigningTime in brief mode")
+parser.add_argument("roas", nargs = "+", type = ROA.derReadFile, help = "name of output directory to create")
+args = parser.parse_args()
+
+for roa in args.roas:
+  roa.parse()
+  if args.brief:
+    if args.signing_time:
+      print roa.signingTime(),
+    print roa.getASID(), " ".join(roa.v4_prefixes + roa.v6_prefixes)
+  else:
+    print "ROA Version:   ", roa.getVersion()
+    print "SigningTime:   ", roa.signingTime()
+    print "asID:          ", roa.getASID()
+    if roa.v4_prefixes:
+      print " addressFamily:", 1
+      for p in roa.v4_prefixes:
+        print "     IPAddress:", p
+    if roa.v6_prefixes:
+      print " addressFamily:", 2
+      for p in roa.v6_prefixes:
+        print "     IPAddress:", p
+    if args.cms:
+      print roa.pprint()
+      for cer in roa.certs():
+        print cer.pprint()
+      for crl in roa.crls():
+        print crl.pprint()
+    print

@@ -1,0 +1,71 @@
+#!/usr/bin/env python
+#
+# $Id$
+# 
+# Copyright (C) 2014 Dragon Research Labs ("DRL")
+# 
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+"""
+Extract URIs from the SIA, AIA, and CRLDP extensions of one or more
+X.509v3 certificates.
+
+Input files must be in DER format and may be either X.509v3 certificates
+or CMS objects which contain X.509v3 certificates in the CMS wrapper.
+"""
+
+import os
+import argparse
+import rpki.POW
+
+class Certificate(object):
+
+  @staticmethod
+  def first_rsync(uris):
+    if uris is not None:
+      for uri in uris:
+        if uri.startswith("rsync://"):
+          return uri
+    return None
+
+  def __init__(self, fn):
+    try:
+      x = rpki.POW.X509.derReadFile(fn)
+    except:
+      try:
+        cms = rpki.POW.CMS.derReadFile(fn)
+        cms.extractWithoutVerifying()
+        x = cms.getCerts()[0]
+      except:
+        raise ValueError
+    sia = x.getSIA() or (None, None, None)
+    self.fn = fn
+    self.uris = (
+      ("AIA:caIssuers",    self.first_rsync(x.getAIA())),
+      ("SIA:caRepository", self.first_rsync(sia[0])),
+      ("SIA:rpkiManifest", self.first_rsync(sia[1])),
+      ("SIA:signedObject", self.first_rsync(sia[2])),
+      ("CRLDP",            self.first_rsync(x.getCRLDP())))
+
+  def __str__(self):
+    words = [self.fn] if args.single_line else ["File: " + self.fn]
+    words.extend(" %s: %s" % (tag, uri) for tag, uri in self.uris if uri is not None)
+    return ("" if args.single_line else "\n").join(words)
+
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("-s", "--single-line", action = "store_true", help = "single output line per object")
+parser.add_argument("certs", nargs = "+", type = Certificate, help = "RPKI objects to examine")
+args = parser.parse_args()
+
+for cert in args.certs:
+  print cert

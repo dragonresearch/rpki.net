@@ -17,7 +17,8 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 """
-Replacement for old C-based find_roa program.  Write real doc later.
+Searches authenticated result tree from an rcynic run for ROAs
+matching specified prefixes.
 """
 
 import os

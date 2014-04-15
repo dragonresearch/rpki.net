@@ -1,0 +1,67 @@
+#!/usr/bin/env python
+#
+# $Id$
+# 
+# Copyright (C) 2014 Dragon Research Labs ("DRL")
+# 
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+"""
+Copies an authenticated result tree from an rcynic run into the format
+expected by most OpenSSL-based programs: a collection of "PEM" format
+files with names in the form that OpenSSL's -CApath lookup routines
+expect.  This can be useful for validating RPKI objects which are not
+distributed as part of the repository system.
+"""
+
+import os
+import sys
+import argparse
+import rpki.POW
+
+def check_dir(s):
+  if os.path.isdir(s):
+    return os.path.abspath(s)
+  else:
+    raise argparse.ArgumentTypeError("%r is not a directory" % s)
+
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("-v", "--verbose", action = "store_true", help = "whistle while you work")
+parser.add_argument("rcynic_dir", type = check_dir, help = "rcynic authenticated output directory")
+parser.add_argument("output_dir", help = "name of output directory to create")
+args = parser.parse_args()
+
+if not os.path.isdir(args.output_dir):
+  os.makedirs(args.output_dir)
+
+for root, dirs, files in os.walk(args.rcynic_dir):
+  for ifn in files:
+    ifn = os.path.join(root, ifn)
+    if ifn.endswith(".cer"):
+      obj = rpki.POW.X509.derReadFile(ifn)
+      fmt = "%08x.%%d" % obj.getSubjectHash()
+    elif ifn.endswith(".crl"):
+      obj = rpki.POW.CRL.derReadFile(ifn)
+      fmt = "%08x.r%%d" % obj.getIssuerHash()
+    else:
+      continue
+    for i in xrange(1000000):
+      ofn = os.path.join(args.output_dir, fmt % i)
+      if not os.path.exists(ofn):
+        with open(ofn, "w") as f:
+          f.write(obj.pemWrite())
+          if args.verbose:
+            print ofn, "<=", ifn
+        break
+    else:
+      sys.exit("No path name available for %s (%s)" % (ifn, ofn))

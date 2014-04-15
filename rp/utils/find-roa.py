@@ -102,17 +102,26 @@ class ROA(rpki.POW.ROA):
 
   def __str__(self):
     prefixes = " ".join(self.formatted_prefixes)
-    return "ASN %s prefix(es) %s" % (self.getASID(), prefixes)
+    plural = "es" if " " in prefixes else ""
+    if args.show_inception:
+      return "signingTime %s ASN %s prefix%s %s" % (self.signingTime(), self.getASID(), plural, prefixes)
+    else:
+      return "ASN %s prefix%s %s" % (self.getASID(), plural, prefixes)
 
   def show(self):
-    print "%s %s" % (self, self.uri if args.show_uris else self.fn)
+    print "%s %s" % (self, self.fn if args.show_filenames else self.uri)
 
   def show_expiration(self):
     print self
     x = self.certs()[0]
+    fn = self.fn
     uri = self.uri
     while uri is not None:
-      print x.getNotAfter(), uri
+      name = fn if args.show_filenames else uri
+      if args.show_inception:
+        print "notBefore", x.getNotBefore(), "notAfter", x.getNotAfter(), name
+      else:
+        print x.getNotAfter(), name
       for uri in x.getAIA() or ():
         if uri.startswith("rsync://"):
           break
@@ -127,20 +136,25 @@ class ROA(rpki.POW.ROA):
 
 
 parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("--match-maxlength", action = "store_true", help = "pay attention to maxLength values")
-parser.add_argument("--show-expirations", action = "store_true", help = "show ROA chain expiration dates")
-parser.add_argument("--show-uris", action = "store_true", help = "show URIs instead of filenames")
+parser.add_argument("-a", "--all", action = "store_true", help = "show all ROAs, do no prefix matching at all")
+parser.add_argument("-m", "--match-maxlength", action = "store_true", help = "pay attention to maxLength values")
+parser.add_argument("-e", "--show-expiration", action = "store_true", help = "show ROA chain expiration dates")
+parser.add_argument("-f", "--show-filenames", action = "store_true", help = "show filenames instead of URIs")
+parser.add_argument("-i", "--show-inception", action = "store_true", help = "show inception dates")
 parser.add_argument("rcynic_dir", type = check_dir, help = "rcynic authenticated output directory")
-parser.add_argument("prefixes", type = Prefix, nargs = "+", help = "ROA prefix(es) to match")
+parser.add_argument("prefixes", type = Prefix, nargs = "*", help = "ROA prefix(es) to match")
 args = parser.parse_args()
 
+# If there's some way to automate this in the parser, I don't know what it is, so just catch it here.
+if args.all != (not args.prefixes):
+  parser.error("--all and prefix list are mutually exclusive")
 
 for root, dirs, files in os.walk(args.rcynic_dir):
   for fn in files:
     if fn.endswith(".roa"):
       roa = ROA.parse(os.path.join(root, fn))
-      if any(prefix.matches(roa) for prefix in args.prefixes):
-        if args.show_expirations:
+      if args.all or any(prefix.matches(roa) for prefix in args.prefixes):
+        if args.show_expiration:
           roa.show_expiration()
         else:
           roa.show()

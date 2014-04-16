@@ -49,6 +49,8 @@ ubu_env  = dict(os.environ,
                 OTHERMIRROR = "deb http://download.rpki.net/APT/ubuntu precise main")
 deb_env  = os.environ
 
+log("Starting")
+
 try:
     lock = os.open(lockfile, os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -111,6 +113,7 @@ for dist, tree, env in (("precise", ubu_tree, ubu_env),
                 cwd = tree)
 
 if upload:
+    log("Synching repository to server")
     run("rsync", "-ai4",
         "--ignore-existing",
         apt_tree, srv_path)
@@ -119,3 +122,5 @@ if upload:
         "--exclude", "HEADER.css",
         "--delete", "--delete-delay",
         apt_tree, srv_path)
+
+log("Done")

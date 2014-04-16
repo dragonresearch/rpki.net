@@ -1,0 +1,63 @@
+#!/usr/bin/env python
+#
+# $Id$
+# 
+# Copyright (C) 2014 Dragon Research Labs ("DRL")
+# 
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+"""
+Search an authenticated result tree from an rcynic run for ROAs, and
+prints out the signing time, ASN, and prefixes for each ROA, one ROA
+per line.
+"""
+
+import os
+import argparse
+import rpki.POW
+
+def check_dir(d):
+  if not os.path.isdir(d):
+    raise argparse.ArgumentTypeError("%r is not a directory" % d)
+  return d
+
+class ROA(rpki.POW.ROA):
+
+  @classmethod
+  def parse(cls, fn):
+    self = cls.derReadFile(fn)
+    self.extractWithoutVerifying()
+    return self
+
+  @property
+  def prefixes(self):
+    v4, v6 = self.getPrefixes()
+    for prefix, length, maxlength in (v4 or ()) + (v6 or ()):
+      if maxlength is None or length == maxlength:
+        yield "%s/%d" % (prefix, length)
+      else:
+        yield "%s/%d-%d" % (prefix, length, maxlength)
+
+  def __str__(self):
+    return "%s %s %s" % (self.signingTime(), self.getASID(), " ".join(self.prefixes))
+
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("rcynic_dir", nargs = "+", type = check_dir,
+                    help = "rcynic authenticated output directory")
+args = parser.parse_args()
+
+for rcynic_dir in args.rcynic_dir:
+  for root, dirs, files in os.walk(rcynic_dir):
+    for fn in files:
+      if fn.endswith(".roa"):
+        print ROA.parse(os.path.join(root, fn))

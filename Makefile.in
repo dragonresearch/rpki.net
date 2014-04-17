@@ -207,6 +207,6 @@ lint:
 
 tags: Makefile
 	find rpki rp ca schemas -type f \
-		\( -name '*.[ch] -o -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) \
+		\( -name '*.[ch]' -o -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) \
 		! -name relaxng.py ! -name sql_schemas.py -print | \
 	etags -

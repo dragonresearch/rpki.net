@@ -49,6 +49,17 @@ ubu_env  = dict(os.environ,
                 OTHERMIRROR = "deb http://download.rpki.net/APT/ubuntu precise main")
 deb_env  = os.environ
 
+# Getting this to work right also required adding:
+#
+#   DEBBUILDOPTS="-b"
+#
+# to /etc/pbuilderrc; without this, reprepro (eventually, a year after
+# we set this up) started failing to incorporate some of the built
+# packages, because the regenerated source packages had different
+# checksums than the ones loaded initially.  See:
+#
+# http://stackoverflow.com/questions/21563872/reprepro-complains-about-the-generated-pbuilder-debian-tar-gz-archive-md5
+
 log("Starting")
 
 try:

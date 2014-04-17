@@ -70,32 +70,6 @@ class Timestamp(int):
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self))
 
 
-class ipaddr(object):
-  """
-  IP addresses.
-  """
-
-  def __init__(self, string = None, value = None):
-    assert (string is None) != (value is None)
-    if string is not None:
-      value = socket.inet_pton(self.af, string)
-    assert len(value) == self.size
-    self.value = value
-
-  def __str__(self):
-    return socket.inet_ntop(self.af, self.value)
-
-  def __cmp__(self, other):
-    return cmp(self.value, other.value)
-
-class v4addr(ipaddr):
-  af = socket.AF_INET
-  size = 4
-
-class v6addr(ipaddr):
-  af = socket.AF_INET6
-  size = 16
-
 def read_current():
   """
   Read current serial number and nonce.  Return None for both if
@@ -578,7 +552,7 @@ class PrefixPDU(PDU):
     self = cls()
     self.asn = long(asnum)
     p, l = addr.split("/")
-    self.prefix = self.addr_type(string = p)
+    self.prefix = rpki.POW.IPAddress(p)
     if "-" in l:
       self.prefixlen, self.max_prefixlen = tuple(int(i) for i in l.split("-"))
     else:
@@ -597,8 +571,7 @@ class PrefixPDU(PDU):
     cls = IPv6PrefixPDU if address.version == 6 else IPv4PrefixPDU
     self = cls()
     self.asn = asnum
-    # Kludge: Should just use IPAddress, coersion here is historical
-    self.prefix = self.addr_type(str(address))
+    self.prefix = address
     self.prefixlen = length
     self.max_prefixlen = length if maxlength is None else maxlength
     self.announce = 1
@@ -633,11 +606,13 @@ class PrefixPDU(PDU):
 
     if self.announce not in (0, 1):
       raise CorruptData("Announce value %d is neither zero nor one" % self.announce, pdu = self)
-    if self.prefixlen < 0 or self.prefixlen > self.addr_type.size * 8:
+    if self.prefix.bits != self.address_byte_count * 8:
+      raise CorruptData("IP address length %d does not match expectation" % self.prefix.bits, pdu = self)
+    if self.prefixlen < 0 or self.prefixlen > self.prefix.bits:
       raise CorruptData("Implausible prefix length %d" % self.prefixlen, pdu = self)
-    if self.max_prefixlen < self.prefixlen or self.max_prefixlen > self.addr_type.size * 8:
+    if self.max_prefixlen < self.prefixlen or self.max_prefixlen > self.prefix.bits:
       raise CorruptData("Implausible max prefix length %d" % self.max_prefixlen, pdu = self)
-    pdulen = self.header_struct.size + self.addr_type.size + self.asnum_struct.size
+    pdulen = self.header_struct.size + self.prefix.bits/8 + self.asnum_struct.size
     if len(self.to_pdu()) != pdulen:
       raise CorruptData("Expected %d byte PDU, got %d" % (pdulen, len(self.to_pdu())), pdu = self)
 
@@ -650,11 +625,11 @@ class PrefixPDU(PDU):
       assert announce in (0, 1)
     elif self._pdu is not None:
       return self._pdu
-    pdulen = self.header_struct.size + self.addr_type.size + self.asnum_struct.size
+    pdulen = self.header_struct.size + self.prefix.bits/8 + self.asnum_struct.size
     pdu = (self.header_struct.pack(self.version, self.pdu_type, pdulen,
                                    announce if announce is not None else self.announce,
                                    self.prefixlen, self.max_prefixlen) +
-           self.prefix.value +
+           self.prefix.toBytes() +
            self.asnum_struct.pack(self.asn))
     if announce is None:
       assert self._pdu is None
@@ -665,12 +640,12 @@ class PrefixPDU(PDU):
     if not reader.ready():
       return None
     b1 = reader.get(self.header_struct.size)
-    b2 = reader.get(self.addr_type.size)
+    b2 = reader.get(self.address_byte_count)
     b3 = reader.get(self.asnum_struct.size)
     version, pdu_type, length, self.announce, self.prefixlen, self.max_prefixlen = self.header_struct.unpack(b1)
     if length != len(b1) + len(b2) + len(b3):
       raise CorruptData("Got PDU length %d, expected %d" % (length, len(b1) + len(b2) + len(b3)), pdu = self)
-    self.prefix = self.addr_type(value = b2)
+    self.prefix = rpki.POW.IPAddress.fromBytes(b2)
     self.asn = self.asnum_struct.unpack(b3)[0]
     assert b1 + b2 + b3 == self.to_pdu()
     return self
@@ -686,7 +661,7 @@ class PrefixPDU(PDU):
       self = cls()
       self.timestamp = Timestamp(fields[1])
       p, l = fields[5].split("/")
-      self.prefix = self.addr_type(p)
+      self.prefix = rpki.POW.IPAddress(p)
       self.prefixlen = self.max_prefixlen = int(l)
 
       # Withdrawals don't have AS paths, so be careful
@@ -726,7 +701,7 @@ class IPv4PrefixPDU(PrefixPDU):
   """
 
   pdu_type = 4
-  addr_type = v4addr
+  address_byte_count = 4
 
 @wire_pdu
 class IPv6PrefixPDU(PrefixPDU):
@@ -735,7 +710,7 @@ class IPv6PrefixPDU(PrefixPDU):
   """
 
   pdu_type = 6
-  addr_type = v6addr
+  address_byte_count = 16
 
 @wire_pdu
 class RouterKeyPDU(PDU):

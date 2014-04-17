@@ -41,7 +41,8 @@ import getopt
 import bisect
 import random
 import base64
-import rpki.autoconf
+import rpki.POW
+import rpki.oids
 
 # Debugging only, should be False in production
 disable_incrementals = False
@@ -526,6 +527,7 @@ class prefix(pdu):
     """
     Construct a prefix from its text form.
     """
+
     cls = ipv6_prefix if ":" in addr else ipv4_prefix
     self = cls()
     self.asn = long(asnum)
@@ -539,6 +541,24 @@ class prefix(pdu):
     self.check()
     return self
     
+  @staticmethod
+  def from_roa(asnum, prefix_tuple):
+    """
+    Construct a prefix from a ROA.
+    """
+
+    address, length, maxlength = prefix_tuple
+    cls = ipv6_prefix if address.version == 6 else ipv4_prefix
+    self = cls()
+    self.asn = asnum
+    # Kludge: Should just use IPAddress, coersion here is historical
+    self.prefix = self.addr_type(str(address))
+    self.prefixlen = length
+    self.max_prefixlen = length if maxlength is None else maxlength
+    self.announce = 1
+    self.check()
+    return self
+
   def __str__(self):
     plm = "%s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen)
     return "%s %8s  %-32s %s" % ("+" if self.announce else "-", self.asn, plm,
@@ -683,6 +703,20 @@ class router_key(pdu):
     self.asn = long(asnum)
     self.ski = base64.urlsafe_b64decode(gski + "=")
     self.key = base64.b64decode(key)
+    self.announce = 1
+    self.check()
+    return self
+
+  @classmethod
+  def from_certificate(cls, asnum, ski, key):
+    """
+    Construct a router key from a certificate.
+    """
+
+    self = cls()
+    self.asn = asnum
+    self.ski = ski
+    self.key = key
     self.announce = 1
     self.check()
     return self
@@ -839,6 +873,42 @@ class error_report(pdu):
 pdu.pdu_map = dict((p.pdu_type, p) for p in (ipv4_prefix, ipv6_prefix, serial_notify, serial_query, reset_query,
                                              cache_response, end_of_data, cache_reset, router_key, error_report))
 
+
+class ROA(rpki.POW.ROA):
+  """
+  Minor additions to rpki.POW.ROA.
+  """
+
+  @classmethod
+  def derReadFile(cls, fn):
+    self = super(ROA, cls).derReadFile(fn)
+    self.extractWithoutVerifying()
+    return self
+
+  @property
+  def prefixes(self):
+    v4, v6 = self.getPrefixes()
+    if v4 is not None:
+      for p in v4:
+        yield p
+    if v6 is not None:
+      for p in v6:
+        yield p
+
+class X509(rpki.POW.X509):
+  """
+  Minor additions to rpki.POW.X509.
+  """
+
+  @property
+  def asns(self):
+    resources = self.getRFC3779()
+    if resources is not None and resources[0] is not None:
+      for min_asn, max_asn in resources[0]:
+        for asn in xrange(min_asn, max_asn + 1):
+          yield asn
+
+
 class pdu_set(list):
   """
   Object representing a set of PDUs, that is, one versioned and
@@ -882,33 +952,58 @@ class axfr_set(pdu_set):
   def parse_rcynic(cls, rcynic_dir):
     """
     Parse ROAS and router certificates fetched (and validated!) by
-    rcynic to create a new axfr_set.  We use the scan_roas and
-    scan_routercerts utilities to parse the ASN.1, although we may go
-    back to parsing the files directly using the rpki.POW library code
-    some day.
+    rcynic to create a new axfr_set.
+
+    In normal operation, we use os.walk() and the rpki.POW library to
+    parse these data directly, but we can, if so instructed, use
+    external programs instead, for testing, simulation, or to provide
+    a way to inject local data.
+
+    At some point the ability to parse these data from external
+    programs may move to a separate constructor function, so that we
+    can make this one a bit simpler and faster.
     """
 
     self = cls()
     self.serial = timestamp.now()
 
-    try:
-      p = subprocess.Popen((scan_roas, rcynic_dir), stdout = subprocess.PIPE)
-      for line in p.stdout:
-        line = line.split()
-        asn = line[1]
-        self.extend(prefix.from_text(asn, addr) for addr in line[2:])
-    except OSError, e:
-      sys.exit("Could not run %s: %s" % (scan_roas, e))
+    if scan_roas is None or scan_routercerts is None:
+      for root, dirs, files in os.walk(rcynic_dir):
+        for fn in files:
+          if scan_roas is None and fn.endswith(".roa"):
+            roa = ROA.derReadFile(os.path.join(root, fn))
+            asn = roa.getASID()
+            self.extend(prefix.from_roa(asn, roa_prefix)
+                        for roa_prefix in roa.prefixes)
+          if scan_routercerts is None and fn.endswith(".cer"):
+            x = X509.derReadFile(os.path.join(root, fn))
+            eku = x.getEKU()
+            if eku is not None and rpki.oids.id_kp_bgpsec_router in eku:
+              ski = x.getSKI()
+              key = x.getPublicKey().derWritePublic()
+              self.extend(router_key.from_certificate(asn, ski, key) 
+                          for asn in x.asns)
 
-    try:
-      p = subprocess.Popen((scan_routercerts, rcynic_dir), stdout = subprocess.PIPE)
-      for line in p.stdout:
-        line = line.split()
-        gski = line[0]
-        key  = line[-1]
-        self.extend(router_key.from_text(asn, gski, key) for asn in line[1:-1])
-    except OSError, e:
-      sys.exit("Could not run %s: %s" % (scan_routercerts, e))
+    if scan_roas is not None:
+      try:
+        p = subprocess.Popen((scan_roas, rcynic_dir), stdout = subprocess.PIPE)
+        for line in p.stdout:
+          line = line.split()
+          asn = line[1]
+          self.extend(prefix.from_text(asn, addr) for addr in line[2:])
+      except OSError, e:
+        sys.exit("Could not run %s: %s" % (scan_roas, e))
+
+    if scan_routercerts is not None:
+      try:
+        p = subprocess.Popen((scan_routercerts, rcynic_dir), stdout = subprocess.PIPE)
+        for line in p.stdout:
+          line = line.split()
+          gski = line[0]
+          key  = line[-1]
+          self.extend(router_key.from_text(asn, gski, key) for asn in line[1:-1])
+      except OSError, e:
+        sys.exit("Could not run %s: %s" % (scan_routercerts, e))
 
     self.sort()
     for i in xrange(len(self) - 2, -1, -1):
@@ -2160,9 +2255,8 @@ def bgpdump_server_main(argv):
   except KeyboardInterrupt:
     sys.exit(0)
 
-scan_roas        = os.path.join(rpki.autoconf.bindir, "scan_roas")
-scan_routercerts = os.path.join(rpki.autoconf.bindir, "scan_routercerts")
-
+scan_roas        = None
+scan_routercerts = None
 force_zero_nonce = False
 
 kickme_dir  = "sockets"

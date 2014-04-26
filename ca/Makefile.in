@@ -35,6 +35,8 @@ WSGI_PYTHON_EGG_CACHE_USER	= @WSGI_PYTHON_EGG_CACHE_USER@
 
 CA_INSTALL_TARGETS	= @CA_INSTALL_TARGETS@
 
+all:: examples/rpki.conf
+
 clean::
 	cd tests; $(MAKE) $@
 
@@ -59,8 +61,6 @@ test all-tests relaxng parse-test profile yamltest yamlconf:: all
 distclean:: clean
 	cd tests; ${MAKE} $@
 	rm -f Makefile
-
-all:: examples/rpki.conf
 
 examples/rpki.conf: ${abs_top_srcdir}/rpki/autoconf.py rpki-confgen rpki-confgen.xml
 	${PYTHON} rpki-confgen \

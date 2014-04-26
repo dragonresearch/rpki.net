@@ -476,10 +476,6 @@ typedef enum {
 typedef enum { RSYNC_STATES RSYNC_STATE_T_MAX } rsync_state_t;
 #undef	QQ
 
-#define QQ(x)	#x ,
-static const char * const rsync_state_label[] = { RSYNC_STATES NULL };
-#undef	QQ
-
 /**
  * Context for asyncronous rsync.
  */
@@ -2606,12 +2602,6 @@ static int rsync_construct_select(const rcynic_ctx_t *rc,
   FD_ZERO(rfds);
 
   for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
-
-#if 0
-    logmsg(rc, log_debug, "+++ ctx[%d] pid %d fd %d state %s started %lu deadline %lu",
-	   i, ctx->pid, ctx->fd, rsync_state_label[ctx->state],
-	   (unsigned long) ctx->started, (unsigned long) ctx->deadline);
-#endif
 
     switch (ctx->state) {
 
@@ -5538,7 +5528,7 @@ static int write_xml_file(const rcynic_ctx_t *rc,
 
 
 /**
- * Long options.
+ * Long options, with help.
  */
 #define OPTIONS								\
   QA('a', "authenticated",	"root of authenticated data tree")	\
@@ -5552,19 +5542,6 @@ static int write_xml_file(const rcynic_ctx_t *rc,
   QF('V', "version",		"print program version")		\
   QA('x', "xml-file",		"set XML output file location")
 
-const static struct option longopts[] = {
-  { "authenticated",	required_argument,	NULL, 'a' },
-  { "config",		required_argument,	NULL, 'c' },
-  { "help",		no_argument,		NULL, 'h' },
-  { "jitter",		required_argument,	NULL, 'j' },
-  { "log-level",	required_argument,	NULL, 'l' },
-  { "unauthenticated",	required_argument,	NULL, 'u' },
-  { "use-stderr",	no_argument,		NULL, 'e' },
-  { "use-syslog",	no_argument,		NULL, 's' },
-  { "version",		no_argument,		NULL, 'V' },
-  { "xml-file",		required_argument,	NULL, 'x' },
-  { NULL }
-};
 
 /**
  * Wrapper around printf() to take arguments like logmsg().

@@ -1,6 +1,6 @@
 /*
  * Automatically generated, do not edit.
- * Generator $Id: defstack.py 4878 2012-11-15 22:13:53Z sra $
+ * Generator $Id: defstack.py 5784 2014-04-10 22:56:47Z sra $
  */
 
 #ifndef __RCYNIC_C__DEFSTACK_H__

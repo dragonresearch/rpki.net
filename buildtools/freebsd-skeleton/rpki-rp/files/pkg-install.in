@@ -98,9 +98,21 @@ POST-INSTALL)
         echo "Adding rpki-rtr to /etc/services failed, please fix this, then try again."
         exit 1
     fi
+    if /usr/bin/egrep -q "^rpki-rtr[ 	]+stream[ 	]+tcp6?[ 	].+rtr-origin" /etc/inetd.conf
+    then
+	echo "You have entries in /etc/inetd.conf for the old rpki-rtr implementation; these will not work anymore, so I will delete them."
+	if /usr/bin/egrep -v "^rpki-rtr[ 	]+stream[ 	]+tcp6?[ 	].+rtr-origin" /etc/inetd.conf >/etc/inetd.conf.tmp.$$
+	then
+	    /bin/mv /etc/inetd.conf.tmp.$$ /etc/inetd.conf
+	else
+	    /bin/rm -f /etc/inetd.conf.tmp.$$
+	    echo "Removing old rpki-rtr entries from /etc/inetd.conf failed, please remove them manually, then try again."
+	    exit 1
+	fi
+    fi
     if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp[ 	]" /etc/inetd.conf
     then
-        echo "You already have an inetd.conf entry for rpki-rtr on TCPv4, so I will use it."
+        echo "You already have an /etc/inetd.conf entry for rpki-rtr on TCPv4, so I will use it."
     elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp	nowait	rpkirtr	/usr/local/bin/rpki-rtr	rpki-rtr server /var/rcynic/rpki-rtr"
     then
         echo "Added rpki-rtr for TCPv4 to /etc/inetd.conf."
@@ -110,7 +122,7 @@ POST-INSTALL)
     fi
     if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp6[ 	]" /etc/inetd.conf
     then
-        echo "You already have an inetd.conf entry for rpki-rtr on TCPv6, so I will use it."
+        echo "You already have an /etc/inetd.conf entry for rpki-rtr on TCPv6, so I will use it."
     elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp6	nowait	rpkirtr	/usr/local/bin/rpki-rtr	rpki-rtr server /var/rcynic/rpki-rtr"
     then
         echo "Added rpki-rtr for TCPv6 to /etc/inetd.conf."

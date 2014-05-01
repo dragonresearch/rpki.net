@@ -23,8 +23,9 @@ Database generator for RPKI-RTR server (RFC 6810 et sequalia).
 import os
 import sys
 import glob
-import base64
 import socket
+import base64
+import random
 import logging
 import subprocess
 import rpki.POW
@@ -337,7 +338,20 @@ class AXFRSet(PDUSet):
       if i != self.filename():
         os.unlink(i)
 
-  def mark_current(self):
+  @staticmethod
+  def new_nonce(force_zero_nonce):
+    """
+    Create and return a new nonce value.
+    """
+
+    if force_zero_nonce:
+      return 0
+    try:
+      return int(random.SystemRandom().getrandbits(16))
+    except NotImplementedError:
+      return int(random.getrandbits(16))
+
+  def mark_current(self, force_zero_nonce = False):
     """
     Save current serial number and nonce, creating new nonce if
     necessary.  Creating a new nonce triggers cleanup of old state, as
@@ -348,7 +362,7 @@ class AXFRSet(PDUSet):
     old_serial, nonce = rpki.rpki_rtr.server.read_current(self.version)
     if old_serial is None or self.seq_ge(old_serial, self.serial):
       logging.debug("Creating new nonce and deleting stale data")
-      nonce = rpki.rpki_rtr.server.new_nonce()
+      nonce = self.new_nonce(force_zero_nonce)
       self.destroy_old_data()
     rpki.rpki_rtr.server.write_current(self.serial, nonce, self.version)
 
@@ -465,22 +479,13 @@ def kick_all(serial):
 
 def cronjob_main(args):
   """
-  Run this mode right after rcynic to do the real work of groveling
-  through the ROAs that rcynic collects and translating that data into
-  the form used in the rpki-router protocol.  This mode prepares both
-  full dumps (AXFR) and incremental dumps against a specific prior
-  version (IXFR).  [Terminology here borrowed from DNS, as is much of
-  the protocol design.]  Finally, this mode kicks any active servers,
-  so that they can notify their clients that a new version is
-  available.
-
-  Run this in the directory where you want to write its output files,
-  which should also be the directory in which you run this program in
-  --server mode.
-
-  This mode takes one argument on the command line, which specifies
-  the directory name of rcynic's authenticated output tree (normally
-  $somewhere/rcynic-data/authenticated/).
+  Run this right after running rcynic to wade through the ROAs and
+  router certificates that rcynic collects and translate that data
+  into the form used in the rpki-router protocol.  Output is an
+  updated database containing both full dumps (AXFR) and incremental
+  dumps against a specific prior version (IXFR).  After updating the
+  database, kicks any active servers, so that they can notify their
+  clients that a new version is available.
   """
 
   if args.rpki_rtr_dir:
@@ -514,7 +519,7 @@ def cronjob_main(args):
     for axfr in glob.iglob("*.ax.v%d" % version):
       if axfr != pdus.filename():
         pdus.save_ixfr(rpki.rpki_rtr.generator.AXFRSet.load(axfr))
-    pdus.mark_current()
+    pdus.mark_current(args.force_zero_nonce)
 
     logging.debug("# New serial is %d (%s)", pdus.serial, pdus.serial)
 
@@ -531,11 +536,7 @@ def cronjob_main(args):
 
 def show_main(args):
   """
-  Display dumps created by --cronjob mode in textual form.
-  Intended only for debugging.
-
-  This mode takes no command line arguments.  Run it in the directory
-  where you ran --cronjob mode.
+  Display current rpki-rtr server database in textual form.
   """
 
   if args.rpki_rtr_dir:
@@ -564,6 +565,7 @@ def argparse_setup(subparsers):
   subparser.set_defaults(func = cronjob_main, default_log_to = "syslog")
   subparser.add_argument("--scan-roas", help = "specify an external scan_roas program")
   subparser.add_argument("--scan-routercerts", help = "specify an external scan_routercerts program")
+  subparser.add_argument("--force_zero_nonce", action = "store_true", help = "force nonce value of zero")
   subparser.add_argument("rcynic_dir", help = "directory containing validated rcynic output tree")
   subparser.add_argument("rpki_rtr_dir", nargs = "?", help = "directory containing RPKI-RTR database")
 

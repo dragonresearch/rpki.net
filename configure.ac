@@ -43,7 +43,7 @@ AC_ARG_ENABLE([python_install_layout],	[AS_HELP_STRING([--enable-python-install-
 AC_ARG_ENABLE([wsgi_python_egg_cache],  [AS_HELP_STRING([--enable-wsgi-python-egg-cache=dir[[:user]]],	[Set up PYTHON_EGG_CACHE in wsgi wrapper])],	[], [enable_wsgi_python_egg_cache=auto])
 AC_ARG_ENABLE([runtime_dependencies],	[AS_HELP_STRING([--disable-runtime-dependencies],		[Don't enforce runtime dependencies])],         [], [enable_runtime_dependencies=yes])
 
-AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rtr-origin; also controls jail location for --enable-rcynic-jail])
+AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rpki-rtr; also controls jail location for --enable-rcynic-jail])
 AC_ARG_VAR([APACHE_VERSION],		[Version of Apache httpd, mostly used on FreeBSD where it determines some of the directory names])
 
 # Obsolete options.  If you know of a better way to handle this, tell me.

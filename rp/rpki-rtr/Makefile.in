@@ -1,6 +1,6 @@
 # $Id$
 
-BIN		= rtr-origin
+BIN		= rpki-rtr
 
 INSTALL		= @INSTALL@
 PYTHON		= @PYTHON@

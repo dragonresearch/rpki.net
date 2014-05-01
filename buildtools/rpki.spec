@@ -82,7 +82,7 @@ exit 0
 %{_bindir}/rcynic-html
 %{_bindir}/rcynic-svn
 %{_bindir}/rcynic-text
-%{_bindir}/rtr-origin
+%{_bindir}/rpki-rtr
 %{_bindir}/scan_roas
 %{_bindir}/validation_status
 %config %{_sysconfdir}/rcynic.conf

@@ -19,7 +19,7 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 """
-Cron job for rcynic and rtr-origin in stock configuration.
+Cron job for rcynic and rpki-rtr in stock configuration.
 
 Locking code here works like FreeBSD's lockf(1) utility given -k and
 -t 0 options, which is both the sanest and simplest combination for
@@ -95,8 +95,8 @@ if args.chroot:
 else:
   run(os.path.join(rpki.autoconf.bindir, "rcynic"), "-c", os.path.join(rpki.autoconf.sysconfdir, "rcynic.conf"))
 
-run(os.path.join(rpki.autoconf.bindir, "rtr-origin"),
-    "--cronjob", 
+run(os.path.join(rpki.autoconf.bindir, "rpki-rtr"),
+    "cronjob", 
     os.path.join(rpki.autoconf.RCYNIC_DIR, "data/authenticated"),
     cwd = os.path.join(rpki.autoconf.RCYNIC_DIR, "rpki-rtr"))
 

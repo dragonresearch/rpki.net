@@ -52,9 +52,9 @@ kids:
 
 ---
 - shell set -x;
-  rtr_origin='../../../rp/rpki-rtr/rtr-origin';
-  $rtr_origin --scan-roas ../../../rp/utils/scan_roas --scan-routercerts ../../../rp/utils/scan_routercerts --cronjob rcynic-data/authenticated &&
-  $rtr_origin --show
+  rpki_rtr='../../../rp/rpki-rtr/rpki-rtr';
+  $rpki_rtr cronjob rcynic-data/authenticated &&
+  $rpki_rtr show
 ---
 - name: R0
   rekey:
@@ -70,9 +70,9 @@ kids:
       ipv4: 10.3.0.1/32, 10.0.0.44/32
 ---
 - shell set -x;
-  rtr_origin='../../../rp/rpki-rtr/rtr-origin';
-  $rtr_origin --scan-roas ../../../rp/utils/scan_roas --scan-routercerts ../../../rp/utils/scan_routercerts --cronjob rcynic-data/authenticated &&
-  $rtr_origin --show
+  rpki_rtr='../../../rp/rpki-rtr/rpki-rtr';
+  $rpki_rtr cronjob rcynic-data/authenticated &&
+  $rpki_rtr show
 ---
 - sleep 30
 ---

@@ -479,35 +479,7 @@ class ClientChannel(rpki.rpki_rtr.channels.PDUChannel):
 
 def client_main(args):
   """
-  Toy client, intended only for debugging.
-
-  This program takes one or more arguments.  The first argument
-  determines what kind of connection it should open to the server, the
-  remaining arguments are connection details specific to this
-  particular type of connection.
-
-  If the first argument is "loopback", the client will run a copy of
-  the server directly in a subprocess, and communicate with it via a
-  PF_UNIX socket pair.  This sub-mode takes no further arguments.
-
-  If the first argument is "ssh", the client will attempt to run ssh
-  in as subprocess to connect to the server using the ssh subsystem
-  mechanism as specified for this protocol.  The remaining arguments
-  should be a hostname (or IP address in a form acceptable to ssh) and
-  a TCP port number.
-
-  If the first argument is "tcp", the client will attempt to open a
-  direct (and completely insecure!) TCP connection to the server.
-  The remaining arguments should be a hostname (or IP address) and
-  a TCP port number.
-
-  If the first argument is "tls", the client will attempt to open a
-  TLS connection to the server.  The remaining arguments should be a
-  hostname (or IP address) and a TCP port number.
-
-  An optional final name is the name of a file containing a SQLite
-  database in which to store the received table.  If specified, this
-  database will be created if missing.
+  Test client, intended primarily for debugging.
   """
 
   logging.debug("[Startup]")

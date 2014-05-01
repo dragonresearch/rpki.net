@@ -52,6 +52,7 @@ if autoconf.RP_TARGET == "rp":
   setup_args.update(
     packages    = ["rpki",
                    "rpki.POW",
+                   "rpki.rpki_rtr",
                    "rpki.irdb",
                    "rpki.gui",
                    "rpki.gui.app",
@@ -77,7 +78,7 @@ if autoconf.RP_TARGET == "rp":
                      "rp/rcynic/rcynic-svn",
                      "rp/rcynic/validation_status",
                      "rp/rcynic/rcynic-cron",
-                     "rp/rpki-rtr/rtr-origin",
+                     "rp/rpki-rtr/rpki-rtr",
                      "rp/utils/scan_routercerts",
                      "rp/utils/find-roa-expiration"])]
 

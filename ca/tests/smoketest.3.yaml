@@ -61,9 +61,9 @@ kids:
 #        -print -exec ../../../rp/utils/print_manifest {} \;
 #---
 - shell set -x;
-  rtr_origin=../../../rp/rpki-rtr/rtr-origin;
-  $rtr_origin --scan-roas ../../../rp/utils/scan_roas --scan-routercerts ../../../rp/utils/scan_routercerts --cronjob rcynic-data/authenticated &&
-  $rtr_origin --show
+  rpki_rtr=../../../rp/rpki-rtr/rpki-rtr;
+  $rpki_rtr cronjob rcynic-data/authenticated &&
+  $rpki_rtr show
 ---
 - name: Alice
   roa_request_del:
@@ -76,6 +76,6 @@ kids:
       ipv6: 2002:0a00::/32-128
 ---
 - shell set -x;
-  rtr_origin=../../../rp/rpki-rtr/rtr-origin;
-  $rtr_origin --scan-roas ../../../rp/utils/scan_roas --scan-routercerts ../../../rp/utils/scan_routercerts --cronjob rcynic-data/authenticated &&
-  $rtr_origin --show
+  rpki_rtr=../../../rp/rpki-rtr/rpki-rtr;
+  $rpki_rtr cronjob rcynic-data/authenticated &&
+  $rpki_rtr show

@@ -18,65 +18,6 @@
 # TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-"""
-RPKI-Router protocol implementation.  See RFC 6810 et sequalia in fine
-RFC and Internet-Draft repositories near you.
-"""
-
-import os
-import sys
-import time
-import logging
-import logging.handlers
-import argparse
-
-from rpki.rpki_rtr.server    import argparse_setup as argparse_setup_server
-from rpki.rpki_rtr.client    import argparse_setup as argparse_setup_client
-from rpki.rpki_rtr.generator import argparse_setup as argparse_setup_generator
-
-class Formatter(logging.Formatter):
-
-  converter = time.gmtime
-
-  def format(self, record):
-    if getattr(record, "connection", None) is None:
-      record.connection = ""
-    return super(Formatter, self).format(record)
-
-  def formatException(self, ei):
-    if args.debug:
-      return super(Formatter, self).formatException(ei)
-    else:
-      return str(ei[1])
-
-os.environ["TZ"] = "UTC"
-time.tzset()
-
-argparser = argparse.ArgumentParser(description = __doc__)
-argparser.add_argument("--debug", action = "store_true", help = "debugging mode")
-argparser.add_argument("--log-level", default = logging.DEBUG,
-                       choices = ("debug", "info", "warning", "error", "critical"),
-                       type = lambda s: int(getattr(logging, s.upper())))
-argparser.add_argument("--log-to",
-                       choices = ("syslog", "stderr"))
-subparsers = argparser.add_subparsers(title = "Commands", metavar = "", dest = "mode")
-argparse_setup_server(subparsers)
-argparse_setup_client(subparsers)
-argparse_setup_generator(subparsers)
-args = argparser.parse_args()
-
-fmt = "rpki-rtr/" + args.mode + "%(connection)s[%(process)d] %(message)s"
-
-if (args.log_to or args.default_log_to) == "stderr":
-  handler = logging.StreamHandler()
-  fmt = "%(asctime)s " + fmt
-elif os.path.exists("/dev/log"):
-  handler = logging.handlers.SysLogHandler("/dev/log")
-else:
-  handler = logging.handlers.SysLogHandler()
-
-handler.setFormatter(Formatter(fmt, "%Y-%m-%dT%H:%M:%SZ"))
-logging.root.addHandler(handler)
-logging.root.setLevel(args.log_level)
-
-sys.exit(args.func(args))
+if __name__ == "__main__":
+  from rpki.rpki_rtr.main import main
+  main()

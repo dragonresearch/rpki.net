@@ -21,7 +21,7 @@ ${DESTDIR}/etc/xinetd.d/rpki-rtr:
 	    print "    wait           = no"; \
 	    print "    user           = rpkirtr"; \
 	    print "    server         = ${bindir}/${BIN}"; \
-	    print "    server_args    = --server /var/rcynic/rpki-rtr"; \
+	    print "    server_args    = server /var/rcynic/rpki-rtr"; \
 	    print "}"; \
 	}' >xinetd.rpki-rtr
 	${INSTALL} -d ${DESTDIR}/etc/xinetd.d

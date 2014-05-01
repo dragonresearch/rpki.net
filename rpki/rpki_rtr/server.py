@@ -24,7 +24,6 @@ import os
 import sys
 import errno
 import socket
-import random
 import logging
 import asyncore
 import rpki.POW
@@ -186,19 +185,6 @@ def write_current(serial, nonce, version):
   with open(tmpfn, "w") as f:
     f.write("%d %d\n" % (serial, nonce))
   os.rename(tmpfn, curfn)
-
-
-def new_nonce(force_zero_nonce = False):
-  """
-  Create and return a new nonce value.
-  """
-
-  if force_zero_nonce:
-    return 0
-  try:
-    return int(random.SystemRandom().getrandbits(16))
-  except NotImplementedError:
-    return int(random.getrandbits(16))
 
 
 class FileProducer(object):
@@ -477,32 +463,9 @@ def server_main(args):
   """
   Implement the server side of the rpkk-router protocol.  Other than
   one PF_UNIX socket inode, this doesn't write anything to disk, so it
-  can be run with minimal privileges.  Most of the hard work has
-  already been done in --cronjob mode, so all that this mode has to do
-  is serve up the results.
-
-  In production use this server should run under sshd.  The subsystem
-  mechanism in sshd does not allow us to pass arguments on the command
-  line, so setting this up might require a wrapper script, but in
-  production use you will probably want to lock down the public key
-  used to authenticate the ssh session so that it can only run this
-  one command, in which case you can just specify the full command
-  including any arguments in the authorized_keys file.
-
-  Unless you do something special, sshd will have this program running
-  in whatever it thinks is the home directory associated with the
-  username given in the ssh prototocol setup, so it may be easiest to
-  set this up so that the home directory sshd puts this program into
-  is the one where --cronjob left its files for this mode to pick up.
-
-  This mode must be run in the directory where you ran --cronjob mode.
-
-  This mode takes one optional argument: if provided, the argument is
-  the name of a directory to which the program should chdir() on
-  startup; this may simplify setup when running under inetd.
-
-  The server is event driven, so everything interesting happens in the
-  channel classes.
+  can be run with minimal privileges.  Most of the work has already
+  been done by the database generator, so all this server has to do is
+  pass the results along to a client.
   """
 
   logger = logging.LoggerAdapter(logging.root, dict(connection = _hostport_tag()))
@@ -514,9 +477,6 @@ def server_main(args):
       os.chdir(args.rpki_rtr_dir)
     except OSError, e:
       sys.exit(e)
-
-  if args.force_zero_nonce:
-    logger.warning("--force_zero_nonce not implemented at the moment, ignoring")
 
   kickme = None
   try:
@@ -532,18 +492,10 @@ def server_main(args):
 
 def listener_main(args):
   """
-  Simple plain-TCP listener.  Listens on a specified TCP port, upon
-  receiving a connection, forks the process and starts child executing
-  at server_main().
-
-  First argument (required) is numeric port number.
-
-  Second argument (optional) is directory, like --server.
-
-  NB: plain-TCP is completely insecure.  We only implement this
-  because it's all that the routers currently support.  In theory, we
-  will all be running TCP-AO in the future, at which point this will
-  go away.
+  Totally insecure TCP listener for rpki-rtr protocol.  We only
+  implement this because it's all that the routers currently support.
+  In theory, we will all be running TCP-AO in the future, at which
+  point this listener will go away or become a TCP-AO listener.
   """
 
   # Perhaps we should daemonize?  Deal with that later.
@@ -579,12 +531,6 @@ def listener_main(args):
       os.dup2(s.fileno(), 1)            # pylint: disable=E1103
       s.close()
       #os.closerange(3, os.sysconf("SC_OPEN_MAX"))
-      #
-      logging.warning("Should be reconfiguring logging here, but we're lame")
-      #global log_tag
-      #log_tag = "rtr-origin/server" + rpki.rpki_rtr.server.hostport_tag()
-      #syslog.closelog()
-      #syslog.openlog(log_tag, syslog.LOG_PID, syslog_facility)
       server_main(())
       sys.exit()
     else:
@@ -608,7 +554,6 @@ def argparse_setup(subparsers):
   subparser = subparsers.add_parser("server", description = server_main.__doc__,
                                     help = "RPKI-RTR protocol server")
   subparser.set_defaults(func = server_main, default_log_to = "syslog")
-  subparser.add_argument("--force_zero_nonce", action = "store_true", help = "force nonce value of zero")
   subparser.add_argument("rpki_rtr_dir", nargs = "?", help = "directory containing RPKI-RTR database")
 
   subparser = subparsers.add_parser("listener", description = listener_main.__doc__,

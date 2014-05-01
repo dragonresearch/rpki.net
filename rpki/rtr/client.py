@@ -29,14 +29,14 @@ import signal
 import logging
 import asyncore
 import subprocess
-import rpki.rpki_rtr.pdus
-import rpki.rpki_rtr.channels
+import rpki.rtr.pdus
+import rpki.rtr.channels
 
-from rpki.rpki_rtr.pdus import ResetQueryPDU, SerialQueryPDU
-from rpki.rpki_rtr.channels import Timestamp
+from rpki.rtr.pdus     import ResetQueryPDU, SerialQueryPDU
+from rpki.rtr.channels import Timestamp
 
 
-class PDU(rpki.rpki_rtr.pdus.PDU):
+class PDU(rpki.rtr.pdus.PDU):
   """
   Object representing a generic PDU in the rpki-router protocol.
   Real PDUs are subclasses of this class.
@@ -51,11 +51,11 @@ class PDU(rpki.rpki_rtr.pdus.PDU):
     logging.debug(self)
 
 
-clone_pdu = rpki.rpki_rtr.pdus.clone_pdu_root(PDU)
+clone_pdu = rpki.rtr.pdus.clone_pdu_root(PDU)
 
 
 @clone_pdu
-class SerialNotifyPDU(rpki.rpki_rtr.pdus.SerialNotifyPDU):
+class SerialNotifyPDU(rpki.rtr.pdus.SerialNotifyPDU):
   """
   Serial Notify PDU.
   """
@@ -78,7 +78,7 @@ class SerialNotifyPDU(rpki.rpki_rtr.pdus.SerialNotifyPDU):
 
 
 @clone_pdu
-class CacheResponsePDU(rpki.rpki_rtr.pdus.CacheResponsePDU):
+class CacheResponsePDU(rpki.rtr.pdus.CacheResponsePDU):
   """
   Cache Response PDU.
   """
@@ -94,7 +94,7 @@ class CacheResponsePDU(rpki.rpki_rtr.pdus.CacheResponsePDU):
       client.cache_reset()
 
 @clone_pdu
-class EndOfDataPDUv0(rpki.rpki_rtr.pdus.EndOfDataPDUv0):
+class EndOfDataPDUv0(rpki.rtr.pdus.EndOfDataPDUv0):
   """
   End of Data PDU, protocol version 0.
   """
@@ -108,7 +108,7 @@ class EndOfDataPDUv0(rpki.rpki_rtr.pdus.EndOfDataPDUv0):
     client.end_of_data(self.version, self.serial, self.nonce, self.refresh, self.retry, self.expire)
 
 @clone_pdu
-class EndOfDataPDUv1(rpki.rpki_rtr.pdus.EndOfDataPDUv1):
+class EndOfDataPDUv1(rpki.rtr.pdus.EndOfDataPDUv1):
   """
   End of Data PDU, protocol version 1.
   """
@@ -123,7 +123,7 @@ class EndOfDataPDUv1(rpki.rpki_rtr.pdus.EndOfDataPDUv1):
 
 
 @clone_pdu
-class CacheResetPDU(rpki.rpki_rtr.pdus.CacheResetPDU):
+class CacheResetPDU(rpki.rtr.pdus.CacheResetPDU):
   """
   Cache reset PDU.
   """
@@ -138,7 +138,7 @@ class CacheResetPDU(rpki.rpki_rtr.pdus.CacheResetPDU):
     client.push_pdu(ResetQueryPDU(version = client.version))
 
 
-class PrefixPDU(rpki.rpki_rtr.pdus.PrefixPDU):
+class PrefixPDU(rpki.rtr.pdus.PrefixPDU):
   """
   Object representing one prefix.  This corresponds closely to one PDU
   in the rpki-router protocol, so closely that we use lexical ordering
@@ -159,7 +159,7 @@ class PrefixPDU(rpki.rpki_rtr.pdus.PrefixPDU):
 
 
 @clone_pdu
-class IPv4PrefixPDU(PrefixPDU, rpki.rpki_rtr.pdus.IPv4PrefixPDU):
+class IPv4PrefixPDU(PrefixPDU, rpki.rtr.pdus.IPv4PrefixPDU):
   """
   IPv4 flavor of a prefix.
   """
@@ -167,7 +167,7 @@ class IPv4PrefixPDU(PrefixPDU, rpki.rpki_rtr.pdus.IPv4PrefixPDU):
   pass
 
 @clone_pdu
-class IPv6PrefixPDU(PrefixPDU, rpki.rpki_rtr.pdus.IPv6PrefixPDU):
+class IPv6PrefixPDU(PrefixPDU, rpki.rtr.pdus.IPv6PrefixPDU):
   """
   IPv6 flavor of a prefix.
   """
@@ -175,7 +175,7 @@ class IPv6PrefixPDU(PrefixPDU, rpki.rpki_rtr.pdus.IPv6PrefixPDU):
   pass
 
 @clone_pdu
-class RouterKeyPDU(rpki.rpki_rtr.pdus.RouterKeyPDU):
+class RouterKeyPDU(rpki.rtr.pdus.RouterKeyPDU):
   """
   Router Key PDU.
   """
@@ -189,7 +189,7 @@ class RouterKeyPDU(rpki.rpki_rtr.pdus.RouterKeyPDU):
     client.consume_routerkey(self)
 
 
-class ClientChannel(rpki.rpki_rtr.channels.PDUChannel):
+class ClientChannel(rpki.rtr.channels.PDUChannel):
   """
   Client protocol engine, handles upcalls from PDUChannel.
   """
@@ -484,7 +484,7 @@ def client_main(args):
 
   logging.debug("[Startup]")
 
-  constructor = getattr(rpki.rpki_rtr.client.ClientChannel, args.protocol)
+  constructor = getattr(rpki.rtr.client.ClientChannel, args.protocol)
 
   client = None
   try:

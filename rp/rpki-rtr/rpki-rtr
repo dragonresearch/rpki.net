@@ -19,5 +19,5 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 if __name__ == "__main__":
-  from rpki.rpki_rtr.main import main
+  from rpki.rtr.main import main
   main()

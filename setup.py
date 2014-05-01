@@ -38,7 +38,7 @@ except ImportError:
 # pylint: disable=W0622
 
 setup_args = dict(
-  name          = "rpkitoolkit",
+  name          = "rpki",
   version       = VERSION,
   description   = "RPKI Toolkit",
   license       = "BSD",
@@ -48,11 +48,15 @@ setup_args = dict(
 
 scripts         = []
 
+# I keep forgetting to update the packages list here.  Could we
+# automate this by looking for __init__.py files in the rpki/ tree?
+# Might have to filter out some rpki.gui.app subdirs.
+
 if autoconf.RP_TARGET == "rp":
   setup_args.update(
     packages    = ["rpki",
                    "rpki.POW",
-                   "rpki.rpki_rtr",
+                   "rpki.rtr",
                    "rpki.irdb",
                    "rpki.gui",
                    "rpki.gui.app",

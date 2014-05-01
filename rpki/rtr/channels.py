@@ -28,7 +28,7 @@ import errno
 import logging
 import asyncore
 import asynchat
-import rpki.rpki_rtr.pdus
+import rpki.rtr.pdus
 
 
 class Timestamp(int):
@@ -121,10 +121,10 @@ class ReadBuffer(object):
     """
 
     if self.version is not None and version != self.version:
-      raise rpki.rpki_rtr.pdus.CorruptData(
+      raise rpki.rtr.pdus.CorruptData(
         "Received PDU version %d, expected %d" % (version, self.version))
-    if self.version is None and version not in rpki.rpki_rtr.pdus.PDU.version_map:
-      raise rpki.rpki_rtr.pdus.UnsupportedProtocolVersion(
+    if self.version is None and version not in rpki.rtr.pdus.PDU.version_map:
+      raise rpki.rtr.pdus.UnsupportedProtocolVersion(
         "Received PDU version %d, known versions %s" % (version, ", ".PDU.version_map.iterkeys()))
     self.version = version
 
@@ -140,7 +140,7 @@ class PDUChannel(asynchat.async_chat, object):
   def __init__(self, root_pdu_class, sock = None):
     asynchat.async_chat.__init__(self, sock)            # Old-style class, can't use super()
     self.reader = ReadBuffer()
-    assert issubclass(root_pdu_class, rpki.rpki_rtr.pdus.PDU)
+    assert issubclass(root_pdu_class, rpki.rtr.pdus.PDU)
     self.root_pdu_class = root_pdu_class
 
   @property
@@ -161,7 +161,7 @@ class PDUChannel(asynchat.async_chat, object):
       while p is not None:
         self.deliver_pdu(p)
         p = self.root_pdu_class.read_pdu(self.reader)
-    except rpki.rpki_rtr.pdus.PDUException, e:
+    except rpki.rtr.pdus.PDUException, e:
       self.push_pdu(e.make_error_report(version = self.version))
       self.close_when_done()
     else:

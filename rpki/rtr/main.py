@@ -22,15 +22,14 @@ RFC and Internet-Draft repositories near you.
 """
 
 import os
-import sys
 import time
 import logging
 import logging.handlers
 import argparse
 
-from rpki.rpki_rtr.server    import argparse_setup as argparse_setup_server
-from rpki.rpki_rtr.client    import argparse_setup as argparse_setup_client
-from rpki.rpki_rtr.generator import argparse_setup as argparse_setup_generator
+from rpki.rtr.server    import argparse_setup as argparse_setup_server
+from rpki.rtr.client    import argparse_setup as argparse_setup_client
+from rpki.rtr.generator import argparse_setup as argparse_setup_generator
 
 class Formatter(logging.Formatter):
 

@@ -28,12 +28,12 @@ import logging
 import asyncore
 import rpki.POW
 import rpki.oids
-import rpki.rpki_rtr.pdus
-import rpki.rpki_rtr.channels
+import rpki.rtr.pdus
+import rpki.rtr.channels
 
-from rpki.rpki_rtr.pdus import (clone_pdu_root,
-                                CacheResponsePDU, EndOfDataPDU, CacheResetPDU, CacheResponsePDU,
-                                EndOfDataPDU, CacheResetPDU, CacheResetPDU, SerialNotifyPDU)
+from rpki.rtr.pdus import (clone_pdu_root,
+                           CacheResponsePDU, EndOfDataPDU, CacheResetPDU, CacheResponsePDU,
+                           EndOfDataPDU, CacheResetPDU, CacheResetPDU, SerialNotifyPDU)
 
 
 # Disable incremental updates.  Debugging only, should be False in production.
@@ -44,7 +44,7 @@ kickme_dir  = "sockets"
 kickme_base = os.path.join(kickme_dir, "kickme")
 
 
-class PDU(rpki.rpki_rtr.pdus.PDU):
+class PDU(rpki.rtr.pdus.PDU):
   """
   Generic server PDU.
   """
@@ -79,7 +79,7 @@ clone_pdu = clone_pdu_root(PDU)
 
 
 @clone_pdu
-class SerialQueryPDU(PDU, rpki.rpki_rtr.pdus.SerialQueryPDU):
+class SerialQueryPDU(PDU, rpki.rtr.pdus.SerialQueryPDU):
   """
   Serial Query PDU.
   """
@@ -114,7 +114,7 @@ class SerialQueryPDU(PDU, rpki.rpki_rtr.pdus.SerialQueryPDU):
 
 
 @clone_pdu
-class ResetQueryPDU(PDU, rpki.rpki_rtr.pdus.ResetQueryPDU):
+class ResetQueryPDU(PDU, rpki.rtr.pdus.ResetQueryPDU):
   """
   Reset Query PDU.
   """
@@ -139,7 +139,7 @@ class ResetQueryPDU(PDU, rpki.rpki_rtr.pdus.ResetQueryPDU):
 
 
 @clone_pdu
-class ErrorReportPDU(rpki.rpki_rtr.pdus.ErrorReportPDU):
+class ErrorReportPDU(rpki.rtr.pdus.ErrorReportPDU):
   """
   Error Report PDU.
   """
@@ -200,7 +200,7 @@ class FileProducer(object):
     return self.handle.read(self.buffersize)
 
 
-class ServerWriteChannel(rpki.rpki_rtr.channels.PDUChannel):
+class ServerWriteChannel(rpki.rtr.channels.PDUChannel):
   """
   Kludge to deal with ssh's habit of sometimes (compile time option)
   invoking us with two unidirectional pipes instead of one
@@ -236,7 +236,7 @@ class ServerWriteChannel(rpki.rpki_rtr.channels.PDUChannel):
         raise
 
 
-class ServerChannel(rpki.rpki_rtr.channels.PDUChannel):
+class ServerChannel(rpki.rtr.channels.PDUChannel):
   """
   Server protocol engine, handles upcalls from PDUChannel to
   implement protocol logic.
@@ -480,8 +480,8 @@ def server_main(args):
 
   kickme = None
   try:
-    server = rpki.rpki_rtr.server.ServerChannel(logger = logger)
-    kickme = rpki.rpki_rtr.server.KickmeChannel(server = server)
+    server = rpki.rtr.server.ServerChannel(logger = logger)
+    kickme = rpki.rtr.server.KickmeChannel(server = server)
     asyncore.loop(timeout = None)
   except KeyboardInterrupt:
     sys.exit(0)

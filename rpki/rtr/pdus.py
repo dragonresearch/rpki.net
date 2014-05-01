@@ -98,6 +98,7 @@ def clone_pdu_root(root_pdu_class):
       for pdu_type, pdu_class in pdu_map.items():
         if pdu_class in cls.__bases__:
           pdu_map[pdu_type] = cls
+    return cls
 
   return decorator
 

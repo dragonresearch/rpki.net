@@ -37,10 +37,6 @@ from rpki.rtr.channels import Timestamp
 
 
 class PDU(rpki.rtr.pdus.PDU):
-  """
-  Object representing a generic PDU in the rpki-router protocol.
-  Real PDUs are subclasses of this class.
-  """
 
   def consume(self, client):
     """
@@ -56,9 +52,6 @@ clone_pdu = rpki.rtr.pdus.clone_pdu_root(PDU)
 
 @clone_pdu
 class SerialNotifyPDU(rpki.rtr.pdus.SerialNotifyPDU):
-  """
-  Serial Notify PDU.
-  """
 
   def consume(self, client):
     """
@@ -79,9 +72,6 @@ class SerialNotifyPDU(rpki.rtr.pdus.SerialNotifyPDU):
 
 @clone_pdu
 class CacheResponsePDU(rpki.rtr.pdus.CacheResponsePDU):
-  """
-  Cache Response PDU.
-  """
 
   def consume(self, client):
     """
@@ -95,9 +85,6 @@ class CacheResponsePDU(rpki.rtr.pdus.CacheResponsePDU):
 
 @clone_pdu
 class EndOfDataPDUv0(rpki.rtr.pdus.EndOfDataPDUv0):
-  """
-  End of Data PDU, protocol version 0.
-  """
 
   def consume(self, client):
     """
@@ -109,9 +96,6 @@ class EndOfDataPDUv0(rpki.rtr.pdus.EndOfDataPDUv0):
 
 @clone_pdu
 class EndOfDataPDUv1(rpki.rtr.pdus.EndOfDataPDUv1):
-  """
-  End of Data PDU, protocol version 1.
-  """
 
   def consume(self, client):
     """
@@ -124,9 +108,6 @@ class EndOfDataPDUv1(rpki.rtr.pdus.EndOfDataPDUv1):
 
 @clone_pdu
 class CacheResetPDU(rpki.rtr.pdus.CacheResetPDU):
-  """
-  Cache reset PDU.
-  """
 
   def consume(self, client):
     """
@@ -160,18 +141,14 @@ class PrefixPDU(rpki.rtr.pdus.PrefixPDU):
 
 @clone_pdu
 class IPv4PrefixPDU(PrefixPDU, rpki.rtr.pdus.IPv4PrefixPDU):
-  """
-  IPv4 flavor of a prefix.
-  """
-
   pass
 
 @clone_pdu
 class IPv6PrefixPDU(PrefixPDU, rpki.rtr.pdus.IPv6PrefixPDU):
-  """
-  IPv6 flavor of a prefix.
-  """
+  pass
 
+@clone_pdu
+class ErrorReportPDU(PDU, rpki.rtr.pdus.ErrorReportPDU):
   pass
 
 @clone_pdu

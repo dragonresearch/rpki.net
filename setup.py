@@ -77,14 +77,20 @@ if autoconf.RP_TARGET == "rp":
                     ["templates/*/*.html"]})
 
   scripts      += [(autoconf.bindir,
-                    ["rp/rcynic/rcynic-text",
+                    ["rp/rcynic/rcynic-cron",
                      "rp/rcynic/rcynic-html",
                      "rp/rcynic/rcynic-svn",
+                     "rp/rcynic/rcynic-text",
                      "rp/rcynic/validation_status",
-                     "rp/rcynic/rcynic-cron",
                      "rp/rpki-rtr/rpki-rtr",
+                     "rp/utils/find-roa-expiration",
+                     "rp/utils/find_roa",
+                     "rp/utils/hashdir",
+                     "rp/utils/print_roa",
+                     "rp/utils/print_rpki_manifest",
+                     "rp/utils/scan_roas",
                      "rp/utils/scan_routercerts",
-                     "rp/utils/find-roa-expiration"])]
+                     "rp/utils/uri"])]
 
 if autoconf.CA_TARGET == "ca":
   setup_args.update(

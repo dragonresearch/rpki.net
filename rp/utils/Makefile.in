@@ -1,11 +1,5 @@
 # $Id$
 
-CFLAGS		= @CFLAGS@
-LDFLAGS		= @LDFLAGS@
-LIBS		= @LIBS@
-
-INSTALL		= @INSTALL@ -m 555 
-
 prefix		= @prefix@
 exec_prefix	= @exec_prefix@
 datarootdir	= @datarootdir@
@@ -21,40 +15,11 @@ libdir		= @libdir@
 abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
 
-BINS		= find_roa hashdir print_rpki_manifest print_roa scan_roas uri
-
-all:: ${BINS}
-
-clean::
-	rm -rf ${BINS} *.o *.dSYM
-
-install:: all
-	if test -d ${DESTDIR}${bindir} ; then :; else ${INSTALL} -d ${DESTDIR}${bindir}; fi
-	${INSTALL} ${BINS} ${DESTDIR}${bindir}
-
-deinstall uninstall::
-	for i in ${BINS}; do rm -f ${DESTDIR}${bindir}/$$i; done
+all clean install einstall uninstall::
+	@true
 
 distclean:: clean
 	rm -f Makefile
-
-find_roa: find_roa.c
-	${CC} ${CFLAGS} -o $@ find_roa.c ${LDFLAGS} ${LIBS}
-
-hashdir: hashdir.c
-	${CC} ${CFLAGS} -o $@ hashdir.c ${LDFLAGS} ${LIBS}
-
-print_roa: print_roa.c
-	${CC} ${CFLAGS} -o $@ print_roa.c ${LDFLAGS} ${LIBS}
-
-print_rpki_manifest: print_rpki_manifest.c
-	${CC} ${CFLAGS} -o $@ print_rpki_manifest.c ${LDFLAGS} ${LIBS}
-
-scan_roas: scan_roas.c
-	${CC} ${CFLAGS} -o $@ scan_roas.c ${LDFLAGS} ${LIBS}
-
-uri: uri.c
-	${CC} ${CFLAGS} -o $@ uri.c ${LDFLAGS} ${LIBS}
 
 # Tests
 
@@ -62,7 +27,7 @@ RSYNC_AUTH_DIR	= ${abs_top_builddir}/rp/rcynic/rcynic-data/authenticated
 HASHDIR_OUTPUT	= hashed-pem-dir
 TARGET_PREFIXES	= 10.3.0.44 10.2.0.6 10.0.0.0/24
 
-test:: ${BINS}
+test::
 	if test -d ${RSYNC_AUTH_DIR}; \
 	then \
 	    rm -rf ${HASHDIR_OUTPUT} ; \

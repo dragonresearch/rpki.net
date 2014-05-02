@@ -500,11 +500,7 @@ def listener_main(args):
 
   # Perhaps we should daemonize?  Deal with that later.
 
-  if args.rpki_rtr_dir:
-    try:
-      os.chdir(args.rpki_rtr_dir)
-    except OSError, e:
-      sys.exit(e)
+  # server_main() handles args.rpki_rtr_dir.
 
   listener = None
   try:
@@ -531,7 +527,7 @@ def listener_main(args):
       os.dup2(s.fileno(), 1)            # pylint: disable=E1103
       s.close()
       #os.closerange(3, os.sysconf("SC_OPEN_MAX"))
-      server_main(())
+      server_main(args)
       sys.exit()
     else:
       logging.debug("[Spawned server %d]", pid)

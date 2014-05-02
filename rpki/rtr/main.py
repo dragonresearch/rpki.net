@@ -22,6 +22,7 @@ RFC and Internet-Draft repositories near you.
 """
 
 import os
+import sys
 import time
 import logging
 import logging.handlers
@@ -30,6 +31,7 @@ import argparse
 from rpki.rtr.server    import argparse_setup as argparse_setup_server
 from rpki.rtr.client    import argparse_setup as argparse_setup_client
 from rpki.rtr.generator import argparse_setup as argparse_setup_generator
+
 
 class Formatter(logging.Formatter):
 
@@ -55,6 +57,12 @@ def main():
   os.environ["TZ"] = "UTC"
   time.tzset()
 
+  if "rpki.rtr.bgpdump" in sys.modules:
+    from rpki.rtr.bgpdump import argparse_setup as argparse_setup_bgpdump
+  else:
+    def argparse_setup_bgpdump(ignored):
+      pass
+
   argparser = argparse.ArgumentParser(description = __doc__)
   argparser.add_argument("--debug", action = "store_true", help = "debugging mode")
   argparser.add_argument("--log-level", default = logging.DEBUG,
@@ -66,6 +74,7 @@ def main():
   argparse_setup_server(subparsers)
   argparse_setup_client(subparsers)
   argparse_setup_generator(subparsers)
+  argparse_setup_bgpdump(subparsers)
   args = argparser.parse_args()
 
   fmt = "rpki-rtr/" + args.mode + "%(connection)s[%(process)d] %(message)s"

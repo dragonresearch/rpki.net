@@ -1050,6 +1050,10 @@ create_missing_nids(void)
   return 1;
 }
 
+/*
+ * Convert an OpenSSL OID to a Python string.
+ */
+
 static PyObject *
 ASN1_OBJECT_to_PyString(const ASN1_OBJECT *oid)
 {
@@ -1065,6 +1069,28 @@ ASN1_OBJECT_to_PyString(const ASN1_OBJECT *oid)
 
  error:
   return result;
+}
+
+/*
+ * RFC 5480 2.1.1 requires EC keys to use namedCurve rather than
+ * specificCurve.  For some reason OpenSSL defaults to specificCurve,
+ * and there's no function in the high-level API to change this.  So
+ * this is icky, but I don't see how to do better without API support.
+ *
+ * This can be called on any EVP_PKEY, but only whacks EC keys, so the
+ * rest of the code can just call this and not worry about what kind
+ * of key it has.
+ */
+
+static void
+whack_ec_key_to_namedCurve(EVP_PKEY *pkey)
+{
+  ENTERING(whack_ec_key_to_namedCurve);
+
+  if (pkey != NULL && pkey->type == EVP_PKEY_EC && pkey->pkey.ptr != NULL) {
+    EC_KEY *ec_key = EVP_PKEY_get0(pkey);
+    EC_KEY_set_asn1_flag(ec_key, OPENSSL_EC_NAMED_CURVE);
+  }
 }
 
 
@@ -2430,6 +2456,8 @@ x509_object_get_public_key(x509_object *self)
 
   if ((asym->pkey = X509_get_pubkey(self->x509)) == NULL)
     lose_openssl_error("Couldn't extract public key from certificate");
+
+  whack_ec_key_to_namedCurve(asym->pkey);
 
   return (PyObject *) asym;
 
@@ -5273,6 +5301,8 @@ asymmetric_object_pem_read_private_helper(PyTypeObject *type, BIO *bio, char *pa
   if (!PEM_read_bio_PrivateKey(bio, &self->pkey, NULL, pass))
     lose_openssl_error("Couldn't load private key");
 
+  whack_ec_key_to_namedCurve(self->pkey);
+
   return (PyObject *) self;
 
  error:
@@ -5376,6 +5406,8 @@ asymmetric_object_der_read_private_helper(PyTypeObject *type, BIO *bio)
   if (!d2i_PrivateKey_bio(bio, &self->pkey))
     lose_openssl_error("Couldn't load private key");
 
+  whack_ec_key_to_namedCurve(self->pkey);
+
   return (PyObject *) self;
 
  error:
@@ -5419,6 +5451,8 @@ asymmetric_object_pem_read_public_helper(PyTypeObject *type, BIO *bio)
   if (!PEM_read_bio_PUBKEY(bio, &self->pkey, NULL, NULL))
     lose_openssl_error("Couldn't load public key");
 
+  whack_ec_key_to_namedCurve(self->pkey);
+
   return (PyObject *) self;
 
  error:
@@ -5438,6 +5472,8 @@ asymmetric_object_der_read_public_helper(PyTypeObject *type, BIO *bio)
 
   if (!d2i_PUBKEY_bio(bio, &self->pkey))
     lose_openssl_error("Couldn't load public key");
+
+  whack_ec_key_to_namedCurve(self->pkey);
 
   return (PyObject *) self;
 
@@ -5678,6 +5714,8 @@ asymmetric_object_generate_from_params(PyTypeObject *type, PyObject *args)
       EVP_PKEY_keygen_init(ctx) <= 0 ||
       EVP_PKEY_keygen(ctx, &self->pkey) <= 0)
     lose_openssl_error("Couldn't generate new key");
+
+  whack_ec_key_to_namedCurve(self->pkey);
 
   ok = 1;
 
@@ -8527,6 +8565,8 @@ pkcs10_object_get_public_key(pkcs10_object *self)
 
   if ((asym->pkey = X509_REQ_get_pubkey(self->pkcs10)) == NULL)
     lose_openssl_error("Couldn't extract public key from PKCS#10 request");
+
+  whack_ec_key_to_namedCurve(asym->pkey);
 
   return (PyObject *) asym;
 

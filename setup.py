@@ -83,7 +83,6 @@ if autoconf.RP_TARGET == "rp":
                      "rp/rcynic/rcynic-text",
                      "rp/rcynic/validation_status",
                      "rp/rpki-rtr/rpki-rtr",
-                     "rp/utils/find-roa-expiration",
                      "rp/utils/find_roa",
                      "rp/utils/hashdir",
                      "rp/utils/print_roa",

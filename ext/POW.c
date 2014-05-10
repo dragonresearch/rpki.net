@@ -1085,12 +1085,14 @@ ASN1_OBJECT_to_PyString(const ASN1_OBJECT *oid)
 static void
 whack_ec_key_to_namedCurve(EVP_PKEY *pkey)
 {
+  EC_KEY *ec_key;
+
   ENTERING(whack_ec_key_to_namedCurve);
 
-  if (pkey != NULL && pkey->type == EVP_PKEY_EC && pkey->pkey.ptr != NULL) {
-    EC_KEY *ec_key = EVP_PKEY_get0(pkey);
+  if (pkey != NULL &&
+      EVP_PKEY_id(pkey) == EVP_PKEY_EC &&
+      (ec_key = EVP_PKEY_get0(pkey)) != NULL)
     EC_KEY_set_asn1_flag(ec_key, OPENSSL_EC_NAMED_CURVE);
-  }
 }
 
 

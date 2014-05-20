@@ -45,7 +45,7 @@ class Certificate(object):
       try:
         cms = rpki.POW.CMS.derReadFile(fn)
         cms.extractWithoutVerifying()
-        x = cms.getCerts()[0]
+        x = cms.certs()[0]
       except:
         raise ValueError
     sia = x.getSIA() or (None, None, None)

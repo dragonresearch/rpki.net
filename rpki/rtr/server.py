@@ -519,7 +519,10 @@ def listener_main(args):
   listener.listen(5)
   logging.debug("[Listening on port %s]", args.port)
   while True:
-    s, ai = listener.accept()
+    try:
+      s, ai = listener.accept()
+    except KeyboardInterrupt:
+      sys.exit(0)
     logging.debug("[Received connection from %r]", ai)
     pid = os.fork()
     if pid == 0:
@@ -531,15 +534,15 @@ def listener_main(args):
       sys.exit()
     else:
       logging.debug("[Spawned server %d]", pid)
-      try:
-        while True:
+      while True:
+        try:
           pid, status = os.waitpid(0, os.WNOHANG) # pylint: disable=W0612
           if pid:
             logging.debug("[Server %s exited]", pid)
-          else:
-            break
-      except:                           # pylint: disable=W0702
-        pass
+            continue
+        except:                           # pylint: disable=W0702
+          pass
+        break
 
 
 def argparse_setup(subparsers):

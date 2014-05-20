@@ -353,7 +353,7 @@ class self_elt(data_elt):
     """
     Find a self object based on its self_handle.
     """
-    return cls.sql_fetch_where1(gctx, "self_handle = %s", self_handle)
+    return cls.sql_fetch_where1(gctx, "self_handle = %s", (self_handle,))
 
   def serve_fetch_all(self):
     """

@@ -335,7 +335,7 @@ class sql_persistent(object):
       if self.sql_debug:
         rpki.log.debug("sql_delete(%r, %r)" % (self.sql_template.delete, id))
       self.sql_delete_hook()
-      self.gctx.sql.execute(self.sql_template.delete, id)
+      self.gctx.sql.execute(self.sql_template.delete, (id,))
       key = (self.__class__, id)
       if self.gctx.sql.cache.get(key) == self:
         del self.gctx.sql.cache[key]

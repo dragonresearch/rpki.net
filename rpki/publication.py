@@ -170,7 +170,7 @@ class client_elt(control_elt):
     Find the client object on which a get, set, or destroy method
     should operate, or which would conflict with a create method.
     """
-    return self.sql_fetch_where1(self.gctx, "client_handle = %s", self.client_handle)
+    return self.sql_fetch_where1(self.gctx, "client_handle = %s", (self.client_handle,))
 
   def serve_fetch_all(self):
     """

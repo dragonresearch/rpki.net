@@ -310,8 +310,10 @@ class main(object):
       if match is None:
         raise rpki.exceptions.BadContactURL, "Bad URL path received in up_down_handler(): %s" % path
       self_handle, child_handle = match.groups()
-      child = rpki.left_right.child_elt.sql_fetch_where1(self, "self.self_handle = %s AND child.child_handle = %s AND child.self_id = self.self_id",
-                                                         (self_handle, child_handle), "self")
+      child = rpki.left_right.child_elt.sql_fetch_where1(self,
+                                                         "self.self_handle = %s AND child.child_handle = %s AND child.self_id = self.self_id",
+                                                         (self_handle, child_handle),
+                                                         "self")
       if child is None:
         raise rpki.exceptions.ChildNotFound, "Could not find child %s of self %s in up_down_handler()" % (child_handle, self_handle)
       child.serve_up_down(query, done)

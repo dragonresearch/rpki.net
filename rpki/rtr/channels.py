@@ -37,8 +37,7 @@ class Timestamp(int):
   """
 
   def __new__(cls, t):
-    # http://stackoverflow.com/questions/7471255/pythons-super-and-new-confused-me
-    #return int.__new__(cls, t)
+    # __new__() is a static method, not a class method, hence the odd calling sequence.
     return super(Timestamp, cls).__new__(cls, t)
 
   @classmethod

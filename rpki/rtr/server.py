@@ -31,9 +31,7 @@ import rpki.oids
 import rpki.rtr.pdus
 import rpki.rtr.channels
 
-from rpki.rtr.pdus import (clone_pdu_root,
-                           CacheResponsePDU, EndOfDataPDU, CacheResetPDU, CacheResponsePDU,
-                           EndOfDataPDU, CacheResetPDU, CacheResetPDU, SerialNotifyPDU)
+from rpki.rtr.pdus import (clone_pdu_root, CacheResponsePDU, EndOfDataPDU, CacheResetPDU, SerialNotifyPDU)
 
 
 # Disable incremental updates.  Debugging only, should be False in production.
@@ -63,7 +61,10 @@ class PDU(rpki.rtr.pdus.PDU):
     server.push_file(f)
     server.push_pdu(EndOfDataPDU(version = server.version,
                                  serial  = server.current_serial,
-                                 nonce   = server.current_nonce))
+                                 nonce   = server.current_nonce,
+                                 refresh = server.refresh,
+                                 retry   = server.retry,
+                                 expire  = server.expire))
 
   def send_nodata(self, server):
     """
@@ -103,7 +104,10 @@ class SerialQueryPDU(PDU, rpki.rtr.pdus.SerialQueryPDU):
                                        nonce   = server.current_nonce))
       server.push_pdu(EndOfDataPDU(version = server.version,
                                    serial  = server.current_serial,
-                                   nonce   = server.current_nonce))
+                                   nonce   = server.current_nonce,
+                                   refresh = server.refresh,
+                                   retry   = server.retry,
+                                   expire  = server.expire))
     elif disable_incrementals:
       server.push_pdu(CacheResetPDU(version = server.version))
     else:
@@ -242,7 +246,7 @@ class ServerChannel(rpki.rtr.channels.PDUChannel):
   implement protocol logic.
   """
 
-  def __init__(self, logger):
+  def __init__(self, logger, refresh, retry, expire):
     """
     Set up stdin and stdout as connection and start listening for
     first PDU.
@@ -252,6 +256,9 @@ class ServerChannel(rpki.rtr.channels.PDUChannel):
     self.init_file_dispatcher(sys.stdin.fileno())
     self.writer = ServerWriteChannel()
     self.logger = logger
+    self.refresh = refresh
+    self.retry = retry
+    self.expire = expire
     self.get_serial()
     self.start_new_pdu()
 
@@ -480,7 +487,7 @@ def server_main(args):
 
   kickme = None
   try:
-    server = rpki.rtr.server.ServerChannel(logger = logger)
+    server = rpki.rtr.server.ServerChannel(logger = logger, refresh = args.refresh, retry = args.retry, expire = args.expire)
     kickme = rpki.rtr.server.KickmeChannel(server = server)
     asyncore.loop(timeout = None)
   except KeyboardInterrupt:
@@ -550,13 +557,34 @@ def argparse_setup(subparsers):
   Set up argparse stuff for commands in this module.
   """
 
+  # These could have been lambdas, but doing it this way results in
+  # more useful error messages on argparse failures.
+
+  def refresh(v):
+    return rpki.rtr.pdus.valid_refresh(int(v))
+
+  def retry(v):
+    return rpki.rtr.pdus.valid_retry(int(v))
+
+  def expire(v):
+    return rpki.rtr.pdus.valid_expire(int(v))
+
+  # Some duplication of arguments here, not enough to be worth huge
+  # effort to clean up, worry about it later in any case.
+
   subparser = subparsers.add_parser("server", description = server_main.__doc__,
                                     help = "RPKI-RTR protocol server")
   subparser.set_defaults(func = server_main, default_log_to = "syslog")
+  subparser.add_argument("--refresh", type = refresh, help = "override default refresh timer")
+  subparser.add_argument("--retry",   type = retry,   help = "override default retry timer")
+  subparser.add_argument("--expire",  type = expire,  help = "override default expire timer")
   subparser.add_argument("rpki_rtr_dir", nargs = "?", help = "directory containing RPKI-RTR database")
 
   subparser = subparsers.add_parser("listener", description = listener_main.__doc__,
                                     help = "TCP listener for RPKI-RTR protocol server")
   subparser.set_defaults(func = listener_main, default_log_to = "syslog")
-  subparser.add_argument("port", type = int, help = "TCP port on which to listen")
+  subparser.add_argument("--refresh", type = refresh, help = "override default refresh timer")
+  subparser.add_argument("--retry",   type = retry,   help = "override default retry timer")
+  subparser.add_argument("--expire",  type = expire,  help = "override default expire timer")
+  subparser.add_argument("port",      type = int,     help = "TCP port on which to listen")
   subparser.add_argument("rpki_rtr_dir", nargs = "?", help = "directory containing RPKI-RTR database")

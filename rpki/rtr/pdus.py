@@ -316,6 +316,33 @@ def EndOfDataPDU(version, *args, **kwargs):
   raise NotImplementedError
 
 
+# Min, max, and default values, from the current RFC 6810 bis I-D.
+# Putting these here lets us keep them all in one place, and use them
+# in our client API for both protocol versions even though they can
+# only be set in the protocol in version 1.
+
+default_refresh = 3600
+
+def valid_refresh(refresh):
+  if not isinstance(refresh, int) or refresh < 120 or refresh > 86400:
+    raise ValueError
+  return refresh
+
+default_retry = 600
+
+def valid_retry(retry):
+  if not isinstance(retry, int) or retry < 120 or retry > 7200:
+    raise ValueError
+  return retry
+
+default_expire = 7200
+
+def valid_expire(expire):
+  if not isinstance(expire, int) or expire < 600 or expire > 172800:
+    raise ValueError
+  return expire
+
+
 @wire_pdu_only(0)
 class EndOfDataPDUv0(PDUWithSerial):
   """
@@ -324,14 +351,11 @@ class EndOfDataPDUv0(PDUWithSerial):
 
   pdu_type = 7
 
-  # Default values, from the current RFC 6810 bis I-D.
-  # Putting these here lets us use them in our client API for both
-  # protocol versions, even though they can only be set in the
-  # protocol in version 1.
-
-  refresh = 3600
-  retry   =  600
-  expire  = 7200
+  def __init__(self, version, serial = None, nonce = None, refresh = None, retry = None, expire = None):
+    super(EndOfDataPDUv0, self).__init__(version, serial, nonce)
+    self.refresh = valid_refresh(default_refresh if refresh is None else refresh)
+    self.retry   = valid_retry(  default_retry   if retry   is None else retry)
+    self.expire  = valid_expire( default_expire  if expire  is None else expire)
 
 
 @wire_pdu_only(1)
@@ -341,24 +365,6 @@ class EndOfDataPDUv1(EndOfDataPDUv0):
   """
 
   header_struct = struct.Struct("!BBHLLLLL")
-
-  def __init__(self, version, serial = None, nonce = None, refresh = None, retry = None, expire = None):
-    super(EndOfDataPDUv1, self).__init__(version)
-    if serial is not None:
-      assert isinstance(serial, int)
-      self.serial = serial
-    if nonce is not None:
-      assert isinstance(nonce, int)
-      self.nonce = nonce
-    if refresh is not None:
-      assert isinstance(refresh, int)
-      self.refresh = refresh
-    if retry is not None:
-      assert isinstance(retry, int)
-      self.retry = retry
-    if expire is not None:
-      assert isinstance(expire, int)
-      self.expire = expire
 
   def __str__(self):
     return "[%s, serial #%d nonce %d refresh %d retry %d expire %d]" % (

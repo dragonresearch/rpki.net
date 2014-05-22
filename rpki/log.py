@@ -66,32 +66,31 @@ use_setproctitle = True
 
 proctitle_extra = os.path.basename(os.getcwd())
 
-def init(ident = "rpki", flags = syslog.LOG_PID, facility = syslog.LOG_DAEMON, use_syslog = None, log_file = sys.stderr, tag_log_lines = True):
+def init(ident = "rpki", use_syslog = True):
   """
   Initialize logging system.
   """
 
-  # If caller didn't say whether to use syslog, use log file if user supplied one, otherwise use syslog
-
-  if use_syslog is None:
-    use_syslog = log_file is sys.stderr
-
   logger.use_syslog = use_syslog
-  logger.tag_log_lines = tag_log_lines
 
   if use_syslog:
-    syslog.openlog(ident, flags, facility)
+    syslog.openlog(ident, syslog.LOG_PID, syslog.LOG_DAEMON)
 
   else:
     logger.tag = ident
     logger.pid = os.getpid()
-    logger.log_file = log_file
 
   if ident and have_setproctitle and use_setproctitle:
     if proctitle_extra:
       setproctitle.setproctitle("%s (%s)" % (ident, proctitle_extra))
     else:
       setproctitle.setproctitle(ident)
+
+# rpki.http.log_method() knows about the rpki.log.logger class, and
+# will require cleanup when this changes.  For that case, we may want
+# to use the log() function/method from Python logging package, since
+# it lets us pass a level value; we'd default the severity to DEBUG,
+# but allow that to be overriden, producing the effect we have now.
 
 class logger(object):
   """
@@ -101,7 +100,6 @@ class logger(object):
   use_syslog = True
   tag = ""
   pid = 0
-  log_file = sys.stderr
 
   def __init__(self, priority):
     self.priority = priority
@@ -109,18 +107,15 @@ class logger(object):
   def __call__(self, message):
     if self.use_syslog:
       syslog.syslog(self.priority, message)
-    elif self.tag_log_lines:
-      self.log_file.write("%s %s[%d]: %s\n" % (time.strftime("%F %T"), self.tag, self.pid, message))
-      self.log_file.flush()
     else:
-      self.log_file.write(message + "\n")
-      self.log_file.flush()
+      sys.stderr.write("%s %s[%d]: %s\n" % (time.strftime("%F %T"), self.tag, self.pid, message))
+      sys.stderr.flush()
 
-error = logger(syslog.LOG_ERR)
-warn  = logger(syslog.LOG_WARNING)
-note  = logger(syslog.LOG_NOTICE)
-info  = logger(syslog.LOG_INFO)
-debug = logger(syslog.LOG_DEBUG)
+error = logger(syslog.LOG_ERR)          # logging.ERROR
+warn  = logger(syslog.LOG_WARNING)      # logging.WARNING
+note  = logger(syslog.LOG_NOTICE)       # logging.INFO, since there is no logging.NOTICE
+info  = logger(syslog.LOG_INFO)         # logging.INFO
+debug = logger(syslog.LOG_DEBUG)        # logging.DEBUG
 
 
 def set_trace(enable):

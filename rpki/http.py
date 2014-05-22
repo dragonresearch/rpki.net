@@ -28,6 +28,7 @@ import asynchat
 import urlparse
 import sys
 import random
+import logging
 import rpki.async
 import rpki.sundial
 import rpki.x509
@@ -279,13 +280,25 @@ class http_response(http_message):
   def __repr__(self):
     return rpki.log.log_repr(self, self.code, self.reason)
 
-def log_method(self, msg, logger = rpki.log.debug):
+# This probably ought to be using logging.LoggerAdapter or some such,
+# and the level check should be converted to whatever the natural
+# thing is with the logging package, but for now just preserve the old
+# structure for now while transitioning from our homegrown logging
+# code to Python logging package.
+#
+# So it turns out that, as used in the current code, all invocations
+# of this are either with the default logging.DEBUG or with
+# logging.WARNING, we don't use any other settings.  This suggets that
+# we could clean up this mess and get rid of the extra argument just
+# by providing two methods instead of one, assuming that the
+# LoggingAdapter doesn't just solve the whole problem for us.
+
+def log_method(self, msg, level = logging.DEBUG):
   """
   Logging method used in several different classes.
   """
-  assert isinstance(logger, rpki.log.logger)
-  if debug_http or logger is not rpki.log.debug:
-    logger("%r: %s" % (self, msg))
+  if debug_http or level > logging.DEBUG:
+    logging.log(level, "%r: %s",  self, msg)
 
 def addr_to_string(addr):
   """
@@ -459,7 +472,7 @@ class http_stream(asynchat.async_chat):
       raise
     rpki.log.traceback()
     if etype is not rpki.exceptions.HTTPClientAborted:
-      self.log("Closing due to error", rpki.log.warn)
+      self.log("Closing due to error", logging.WARNING)
       self.close()
 
   def handle_timeout(self):
@@ -607,7 +620,7 @@ class http_listener(asyncore.dispatcher):
       self.bind(sockaddr)
       self.listen(5)
     except Exception, e:
-      self.log("Couldn't set up HTTP listener: %s" % e, rpki.log.warn)
+      self.log("Couldn't set up HTTP listener: %s" % e, logging.WARNING)
       rpki.log.traceback()
       self.close()
     for h in handlers:
@@ -634,7 +647,7 @@ class http_listener(asyncore.dispatcher):
     """
     if sys.exc_info()[0] in (SystemExit, rpki.async.ExitNow):
       raise
-    self.log("Error in HTTP listener", rpki.log.warn)
+    self.log("Error in HTTP listener", logging.WARNING)
     rpki.log.traceback()
 
 class http_client(http_stream):
@@ -803,7 +816,7 @@ class http_client(http_stream):
     """
     bad = self.state not in ("idle", "closing")
     if bad:
-      self.log("Timeout while in state %s" % self.state, rpki.log.warn)
+      self.log("Timeout while in state %s" % self.state, logging.WARNING)
     http_stream.handle_timeout(self)
     if bad:
       try:
@@ -819,7 +832,7 @@ class http_client(http_stream):
     down the connection and pass back the exception.
     """
     eclass, edata = sys.exc_info()[0:2]
-    self.log("Error on HTTP client connection %s:%s %s %s" % (self.host, self.port, eclass, edata), rpki.log.warn)
+    self.log("Error on HTTP client connection %s:%s %s %s" % (self.host, self.port, eclass, edata), logging.WARNING)
     http_stream.handle_error(self)
     self.queue.return_result(self, edata, detach = True)
 
@@ -899,7 +912,7 @@ class http_queue(object):
     """
 
     if client is not self.client:
-      self.log("Wrong client trying to return result.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result, rpki.log.warn)
+      self.log("Wrong client trying to return result.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result, logging.WARNING)
       return
 
     if detach:
@@ -909,7 +922,7 @@ class http_queue(object):
       req = self.queue.pop(0)
       self.log("Dequeuing request %r" % req)
     except IndexError:
-      self.log("No caller.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result, rpki.log.warn)
+      self.log("No caller.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result, logging.WARNING)
       return
 
     assert isinstance(result, http_response) or isinstance(result, Exception)
@@ -925,7 +938,7 @@ class http_queue(object):
 
     if isinstance(result, Exception):
       try:
-        self.log("Returning exception %r to caller: %s" % (result, result), rpki.log.warn)
+        self.log("Returning exception %r to caller: %s" % (result, result), logging.WARNING)
         req.errback(result)
       except (rpki.async.ExitNow, SystemExit):
         raise
@@ -936,7 +949,7 @@ class http_queue(object):
         # traceback so that it will be somewhat obvious that something
         # really bad happened.
         #
-        self.log("Exception in exception callback", rpki.log.warn)
+        self.log("Exception in exception callback", logging.WARNING)
         rpki.log.traceback(True)
 
     self.log("Queue: %r" % self.queue)

@@ -21,10 +21,11 @@
 Logging facilities for RPKI libraries.
 """
 
-import syslog
-import sys
 import os
+import sys
 import time
+import logging
+import logging.handlers
 import traceback as tb
 
 try:
@@ -71,14 +72,31 @@ def init(ident = "rpki", use_syslog = True):
   Initialize logging system.
   """
 
-  logger.use_syslog = use_syslog
+  # This will want tweaking after basic conversion to logging package
+  # is finished.  For now, keep it simple.
+  #
+  # Should also support LoggingAdapters, rotating log files,
+  # configurable log levels, and other forms of entertainment.
 
-  if use_syslog:
-    syslog.openlog(ident, syslog.LOG_PID, syslog.LOG_DAEMON)
+  format = ident + "[%(process)d] %(message)s"
+  if not use_syslog:
+    format = "%(asctime)s " + format
 
+  formatter = logging.Formatter(format, "%Y-%m-%dT%H:%M:%SZ")
+  formatter.converter = time.gmtime
+
+  if not use_syslog:
+    handler = logging.StreamHandler()
+  elif os.path.exists("/dev/log"):
+    handler = logging.handlers.SysLogHandler("/dev/log")
   else:
-    logger.tag = ident
-    logger.pid = os.getpid()
+    handler = logging.handlers.SysLogHandler()
+
+  handler.setFormatter(formatter)
+  logging.root.addHandler(handler)
+
+  #logging.root.setLevel(args.log_level)
+  logging.root.setLevel(logging.DEBUG)
 
   if ident and have_setproctitle and use_setproctitle:
     if proctitle_extra:
@@ -86,36 +104,14 @@ def init(ident = "rpki", use_syslog = True):
     else:
       setproctitle.setproctitle(ident)
 
-# rpki.http.log_method() knows about the rpki.log.logger class, and
-# will require cleanup when this changes.  For that case, we may want
-# to use the log() function/method from Python logging package, since
-# it lets us pass a level value; we'd default the severity to DEBUG,
-# but allow that to be overriden, producing the effect we have now.
 
-class logger(object):
-  """
-  Closure for logging.
-  """
+# Temporary hack during transition.  In the long run, other modules
+# should call the logging system directly.  I think.
 
-  use_syslog = True
-  tag = ""
-  pid = 0
-
-  def __init__(self, priority):
-    self.priority = priority
-
-  def __call__(self, message):
-    if self.use_syslog:
-      syslog.syslog(self.priority, message)
-    else:
-      sys.stderr.write("%s %s[%d]: %s\n" % (time.strftime("%F %T"), self.tag, self.pid, message))
-      sys.stderr.flush()
-
-error = logger(syslog.LOG_ERR)          # logging.ERROR
-warn  = logger(syslog.LOG_WARNING)      # logging.WARNING
-note  = logger(syslog.LOG_NOTICE)       # logging.INFO, since there is no logging.NOTICE
-info  = logger(syslog.LOG_INFO)         # logging.INFO
-debug = logger(syslog.LOG_DEBUG)        # logging.DEBUG
+error = logging.error
+warn  = logging.warning
+info  = logging.info
+debug = logging.debug
 
 
 def set_trace(enable):

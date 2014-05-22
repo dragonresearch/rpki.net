@@ -339,7 +339,7 @@ def cmd_echo(cb, *words):
   """
   Echo some text to the log.
   """
-  rpki.log.note(" ".join(words))
+  rpki.log.info(" ".join(words))
   cb()
 
 ## @var cmds

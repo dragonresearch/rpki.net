@@ -336,20 +336,19 @@ class main(object):
     parser = argparse.ArgumentParser(description = __doc__)
     parser.add_argument("-c", "--config",
                         help = "override default location of configuration file")
-    parser.add_argument("-d", "--debug", action = "store_true",
-                        help = "enable debugging mode")
     parser.add_argument("-f", "--foreground", action = "store_true",
                         help = "do not daemonize")
     parser.add_argument("--pidfile",
                         help = "override default location of pid file")
+    rpki.log.argparse_setup(parser)
     args = parser.parse_args()
 
-    rpki.log.init("rootd", use_syslog = not args.debug)
+    rpki.log.init("rootd", args)
 
     self.cfg = rpki.config.parser(args.config, "rootd")
     self.cfg.set_global_flags()
 
-    if not args.foreground and not args.debug:
+    if not args.foreground:
       rpki.daemonize.daemon(pidfile = args.pidfile)
 
     self.bpki_ta                 = rpki.x509.X509(Auto_update = self.cfg.get("bpki-ta"))

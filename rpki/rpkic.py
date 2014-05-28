@@ -111,7 +111,7 @@ class main(Cmd):
       self.main(args)
 
   def main(self, args):
-    rpki.log.init("rpkic", use_syslog = False)
+    rpki.log.init("rpkic")
     self.read_config()
     if self.interactive:
       Cmd.__init__(self)

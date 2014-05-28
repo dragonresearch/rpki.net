@@ -317,7 +317,7 @@ class getaddrinfo(object):
 
 if __name__ == "__main__":
 
-  rpki.log.init("test-adns", use_syslog = False)
+  rpki.log.init("test-adns")
   print "Some adns tests may take a minute or two, please be patient"
 
   class test_getaddrinfo(object):

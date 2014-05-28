@@ -48,9 +48,9 @@ cfg = rpki.config.parser(args.config, "myrpki")
 
 def run(name):
   # pylint: disable=E1103
-  cmd = (os.path.join(rpki.autoconf.libexecdir, name), "-c", cfg.filename)
+  cmd = (os.path.join(rpki.autoconf.libexecdir, name), "--config", cfg.filename)
   if args.debug:
-    proc = subprocess.Popen(cmd + ("-d",),
+    proc = subprocess.Popen(cmd + ("--foreground", "--log-stderr"),
                             stdout = open(os.path.join(args.logdir, name + ".log"), "a"),
                             stderr = subprocess.STDOUT)
   else:

@@ -553,7 +553,7 @@ class allocation(object):
     representing the running daemon.
     """
     basename = os.path.splitext(os.path.basename(prog))[0]
-    cmd = [prog, "-d", "-c", self.path("rpki.conf")]
+    cmd = [prog, "--foreground", "--log-stderr", "--config", self.path("rpki.conf")]
     if args.profile and basename != "rootd":
       cmd.append("--profile")
       cmd.append(self.path(basename + ".prof"))
@@ -665,7 +665,7 @@ try:
   if args.pidfile is not None:
     open(args.pidfile, "w").write("%s\n" % os.getpid())
 
-  rpki.log.init("yamltest", use_syslog = False)
+  rpki.log.init("yamltest")
 
   # Allow optional config file for this tool to override default
   # passwords: this is mostly so that I can show a complete working

@@ -60,24 +60,23 @@ class main(object):
     parser = argparse.ArgumentParser(description = __doc__)
     parser.add_argument("-c", "--config",
                         help = "override default location of configuration file")
-    parser.add_argument("-d", "--debug", action = "store_true",
-                        help = "enable debugging mode")
     parser.add_argument("-f", "--foreground", action = "store_true",
                         help = "do not daemonize")
     parser.add_argument("--pidfile",
                         help = "override default location of pid file")
     parser.add_argument("--profile",
                         help = "enable profiling, saving data to PROFILE")
+    rpki.log.argparse_setup(parser)
     args = parser.parse_args()
 
     self.profile = args.profile
 
-    rpki.log.init("rpkid", use_syslog = not args.debug)
+    rpki.log.init("rpkid", args)
 
     self.cfg = rpki.config.parser(args.config, "rpkid")
     self.cfg.set_global_flags()
 
-    if not args.foreground and not args.debug:
+    if not args.foreground:
       rpki.daemonize.daemon(pidfile = args.pidfile)
 
     if self.profile:

@@ -26,6 +26,7 @@ import sys
 import time
 import logging
 import logging.handlers
+import argparse
 import traceback as tb
 
 try:
@@ -67,36 +68,101 @@ use_setproctitle = True
 
 proctitle_extra = os.path.basename(os.getcwd())
 
-def init(ident = "rpki", use_syslog = True):
+def argparse_setup(parser):
+  """
+  Set up argparse stuff for functionality in this module.
+
+  Default logging destination is syslog, but also see rpki.log.init().
+  """
+
+  class RotatingFile(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string = None):
+      setattr(namespace, self.dest, values[0])
+      setattr(namespace, self.dest + "_maxBytes",    int(values[1]))
+      setattr(namespace, self.dest + "_backupCount", int(values[2]))
+      if len(values) > 3:
+        raise ValueError
+
+  class TimedRotatingFile(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string = None):
+      setattr(namespace, self.dest, values[0])
+      setattr(namespace, self.dest + "_interval",    int(values[1]))
+      setattr(namespace, self.dest + "_backupCount", int(values[2]))
+      if len(values) > 3:
+        raise ValueError
+
+  parser.add_argument("--log-level", default = logging.DEBUG,
+                      choices = ("debug", "info", "warning", "error", "critical"),
+                      type = lambda s: int(getattr(logging, s.upper())),
+                      help = "how verbosely to log")
+  group = parser.add_mutually_exclusive_group()
+  group.add_argument("--log-syslog", nargs = "?", default = "daemon",
+                     choices = sorted(logging.handlers.SysLogHandler.facility_names.keys()),
+                     help = "send logging to syslog")
+  group.add_argument("--log-stderr", dest = "log_stream", action = "store_const", const = sys.stderr,
+                     help = "send logging to standard error")
+  group.add_argument("--log-stdout", dest = "log_stream", action = "store_const", const = sys.stdout,
+                     help = "send logging to standard output")
+  group.add_argument("--log-file",
+                     help = "send logging to a plain old file")
+  group.add_argument("--log-rotating-file", action = RotatingFile,
+                     nargs = 3, metavar = ("FILENAME", "KBYTES", "COUNT"),
+                     help = "send logging to rotating file")
+  group.add_argument("--log-timed-rotating-file", action = TimedRotatingFile,
+                     nargs = 3, metavar = ("FILENAME", "HOURS", "COUNT"),
+                     help = "send logging to timed rotating file")
+
+
+def init(ident = "rpki", args = argparse.Namespace(log_level = logging.DEBUG, log_stream = sys.stderr)):
   """
   Initialize logging system.
+
+  Default logging destination is syslog if "args" is specified, stderr otherwise.
   """
 
-  # This will want tweaking after basic conversion to logging package
-  # is finished.  For now, keep it simple.
-  #
-  # Should also support LoggingAdapters, rotating log files,
-  # configurable log levels, and other forms of entertainment.
+  assert isinstance(args, argparse.Namespace)
 
-  format = ident + "[%(process)d] %(message)s"
-  if not use_syslog:
+  if args.log_stream:
+    handler = logging.StreamHandler(stream = args.log_stream)
+
+  elif args.log_file:
+    handler = logging.FileHandler(filename = args.log_file)
+
+  elif args.log_rotating_file:
+    handler = logging.handlers.RotatingFileHandler(
+      filename = args.log_rotating_file,
+      maxBytes = args.log_rotating_file_maxBytes,
+      backupCount = args.log_rotating_file_backupCount)
+
+  elif args.log_timed_rotating_file:
+    handler = logging.handlers.TimedRotatingFileHandler(
+      filename = args.log_timed_rotating_file,
+      interval = args.log_timed_rotating_file_interval,
+      backupCount = args.log_timed_rotating_file_backupCount)
+
+  elif args.log_syslog:
+    handler = logging.handlers.SysLogHandler(
+      address = "/dev/log" if os.path.exists("/dev/log") else ("localhost", logging.handlers.SYSLOG_UDP_PORT),
+      facility = args.log_syslog)
+
+  else:
+    raise ValueError
+  
+  format = ident + "[%(process)d]: %(message)s"
+  if not isinstance(handler, logging.handlers.SysLogHandler):
     format = "%(asctime)s " + format
 
-  formatter = logging.Formatter(format, "%Y-%m-%dT%H:%M:%SZ")
+  # At some point we will probably want our own subclass of
+  # logging.Formatter so we can support LoggingAdapters with extra
+  # fields, but this suffices for the moment.
+
+  formatter = logging.Formatter(format, "%Y-%m-%d %H:%M:%S")
   formatter.converter = time.gmtime
-
-  if not use_syslog:
-    handler = logging.StreamHandler()
-  elif os.path.exists("/dev/log"):
-    handler = logging.handlers.SysLogHandler("/dev/log")
-  else:
-    handler = logging.handlers.SysLogHandler()
-
   handler.setFormatter(formatter)
-  logging.root.addHandler(handler)
 
-  #logging.root.setLevel(args.log_level)
-  logging.root.setLevel(logging.DEBUG)
+  root_logger = logging.getLogger()
+  root_logger.addHandler(handler)
+  root_logger.setLevel(args.log_level)
 
   if ident and have_setproctitle and use_setproctitle:
     if proctitle_extra:

@@ -34,6 +34,7 @@ RPKI "publication" protocol.
 
 import os
 import errno
+import logging
 import rpki.resource_set
 import rpki.x509
 import rpki.sql
@@ -44,6 +45,8 @@ import rpki.up_down
 import rpki.relaxng
 import rpki.sundial
 import rpki.log
+
+logger = logging.getLogger(__name__)
 
 class publication_namespace(object):
   """
@@ -247,7 +250,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Publish an object.
     """
-    rpki.log.info("Publishing %s" % self.payload.tracking_data(self.uri))
+    logger.info("Publishing %s" % self.payload.tracking_data(self.uri))
     filename = self.uri_to_filename()
     filename_tmp = filename + ".tmp"
     dirname = os.path.dirname(filename)
@@ -262,7 +265,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Withdraw an object, then recursively delete empty directories.
     """
-    rpki.log.info("Withdrawing %s" % self.uri)
+    logger.info("Withdrawing %s" % self.uri)
     filename = self.uri_to_filename()
     try:
       os.remove(filename)

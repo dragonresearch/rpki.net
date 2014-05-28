@@ -25,6 +25,7 @@ rpki.* classes in order to reuse as much code as possible.
 
 import os
 import time
+import logging
 import argparse
 import sys
 import rpki.resource_set
@@ -38,6 +39,8 @@ import rpki.relaxng
 import rpki.sundial
 import rpki.log
 import rpki.daemonize
+
+logger = logging.getLogger(__name__)
 
 rootd = None
 
@@ -56,15 +59,15 @@ class issue_pdu(rpki.up_down.issue_pdu):
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
-    rpki.log.debug("Revocation requested for SKI %s" % self.ski)
+    logger.debug("Revocation requested for SKI %s" % self.ski)
     subject_cert = rootd.get_subject_cert()
     if subject_cert is None:
-      rpki.log.debug("No subject certificate, nothing to revoke")
+      logger.debug("No subject certificate, nothing to revoke")
       raise rpki.exceptions.NotInDatabase
     if subject_cert.gSKI() != self.ski:
-      rpki.log.debug("Subject certificate has different SKI %s, not revoking" % subject_cert.gSKI())
+      logger.debug("Subject certificate has different SKI %s, not revoking" % subject_cert.gSKI())
       raise rpki.exceptions.NotInDatabase
-    rpki.log.debug("Revoking certificate %s" % self.ski)
+    logger.debug("Revoking certificate %s" % self.ski)
     now = rpki.sundial.now()
     rootd.revoke_subject_cert(now)
     rootd.del_subject_cert()
@@ -99,7 +102,7 @@ class message_pdu(rpki.up_down.message_pdu):
     """
     Log query we're handling.
     """
-    rpki.log.info("Serving %s query" % self.type)
+    logger.info("Serving %s query" % self.type)
 
 class sax_handler(rpki.up_down.sax_handler):
   pdu = message_pdu
@@ -110,7 +113,7 @@ class cms_msg(rpki.up_down.cms_msg):
 class main(object):
 
   def get_root_cert(self):
-    rpki.log.debug("Read root cert %s" % self.rpki_root_cert_file)
+    logger.debug("Read root cert %s" % self.rpki_root_cert_file)
     self.rpki_root_cert = rpki.x509.X509(Auto_file = self.rpki_root_cert_file)
 
   def root_newer_than_subject(self):
@@ -121,39 +124,39 @@ class main(object):
     filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
     try:
       x = rpki.x509.X509(Auto_file = filename)
-      rpki.log.debug("Read subject cert %s" % filename)
+      logger.debug("Read subject cert %s" % filename)
       return x
     except IOError:
       return None
 
   def set_subject_cert(self, cert):
     filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
-    rpki.log.debug("Writing subject cert %s, SKI %s" % (filename, cert.hSKI()))
+    logger.debug("Writing subject cert %s, SKI %s" % (filename, cert.hSKI()))
     f = open(filename, "wb")
     f.write(cert.get_DER())
     f.close()
 
   def del_subject_cert(self):
     filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
-    rpki.log.debug("Deleting subject cert %s" % filename)
+    logger.debug("Deleting subject cert %s" % filename)
     os.remove(filename)
 
   def get_subject_pkcs10(self):
     try:
       x = rpki.x509.PKCS10(Auto_file = self.rpki_subject_pkcs10)
-      rpki.log.debug("Read subject PKCS #10 %s" % self.rpki_subject_pkcs10)
+      logger.debug("Read subject PKCS #10 %s" % self.rpki_subject_pkcs10)
       return x
     except IOError:
       return None
 
   def set_subject_pkcs10(self, pkcs10):
-    rpki.log.debug("Writing subject PKCS #10 %s" % self.rpki_subject_pkcs10)
+    logger.debug("Writing subject PKCS #10 %s" % self.rpki_subject_pkcs10)
     f = open(self.rpki_subject_pkcs10, "wb")
     f.write(pkcs10.get_DER())
     f.close()
 
   def del_subject_pkcs10(self):
-    rpki.log.debug("Deleting subject PKCS #10 %s" % self.rpki_subject_pkcs10)
+    logger.debug("Deleting subject PKCS #10 %s" % self.rpki_subject_pkcs10)
     try:
       os.remove(self.rpki_subject_pkcs10)
     except OSError:
@@ -166,15 +169,15 @@ class main(object):
     if new_pkcs10 is not None and new_pkcs10 != old_pkcs10:
       self.set_subject_pkcs10(new_pkcs10)
       if subject_cert is not None:
-        rpki.log.debug("PKCS #10 changed, regenerating subject certificate")
+        logger.debug("PKCS #10 changed, regenerating subject certificate")
         self.revoke_subject_cert(now)
         subject_cert = None
     if subject_cert is not None and subject_cert.getNotAfter() <= now + self.rpki_subject_regen:
-      rpki.log.debug("Subject certificate has reached expiration threshold, regenerating")
+      logger.debug("Subject certificate has reached expiration threshold, regenerating")
       self.revoke_subject_cert(now)
       subject_cert = None
     if subject_cert is not None and self.root_newer_than_subject():
-      rpki.log.debug("Root certificate has changed, regenerating subject")
+      logger.debug("Root certificate has changed, regenerating subject")
       self.revoke_subject_cert(now)
       subject_cert = None
     self.get_root_cert()
@@ -182,11 +185,11 @@ class main(object):
       return subject_cert
     pkcs10 = old_pkcs10 if new_pkcs10 is None else new_pkcs10
     if pkcs10 is None:
-      rpki.log.debug("No PKCS #10 request, can't generate subject certificate yet")
+      logger.debug("No PKCS #10 request, can't generate subject certificate yet")
       return None
     resources = self.rpki_root_cert.get_3779resources()
     notAfter = now + self.rpki_subject_lifetime
-    rpki.log.info("Generating subject cert %s with resources %s, expires %s" % (
+    logger.info("Generating subject cert %s with resources %s, expires %s" % (
       self.rpki_base_uri + self.rpki_subject_cert, resources, notAfter))
     req_key = pkcs10.getPublicKey()
     req_sia = pkcs10.get_SIA()
@@ -218,7 +221,7 @@ class main(object):
       thisUpdate          = now,
       nextUpdate          = now + self.rpki_subject_regen,
       revokedCertificates = self.revoked)
-    rpki.log.debug("Writing CRL %s" % os.path.join(self.rpki_root_dir, self.rpki_root_crl))
+    logger.debug("Writing CRL %s" % os.path.join(self.rpki_root_dir, self.rpki_root_crl))
     f = open(os.path.join(self.rpki_root_dir, self.rpki_root_crl), "wb")
     f.write(crl.get_DER())
     f.close()
@@ -245,7 +248,7 @@ class main(object):
       names_and_objs = manifest_content,
       keypair        = manifest_keypair,
       certs          = manifest_cert)
-    rpki.log.debug("Writing manifest %s" % os.path.join(self.rpki_root_dir, self.rpki_root_manifest))
+    logger.debug("Writing manifest %s" % os.path.join(self.rpki_root_dir, self.rpki_root_manifest))
     f = open(os.path.join(self.rpki_root_dir, self.rpki_root_manifest), "wb")
     f.write(manifest.get_DER())
     f.close()

@@ -37,6 +37,8 @@ try:
 except ImportError:
   pass
 
+logger = logging.getLogger(__name__)
+
 ## @var enable_trace
 # Whether call tracing is enabled.
 
@@ -171,15 +173,6 @@ def init(ident = "rpki", args = argparse.Namespace(log_level = logging.DEBUG, lo
       setproctitle.setproctitle(ident)
 
 
-# Temporary hack during transition.  In the long run, other modules
-# should call the logging system directly.  I think.
-
-error = logging.error
-warn  = logging.warning
-info  = logging.info
-debug = logging.debug
-
-
 def set_trace(enable):
   """
   Enable or disable call tracing.
@@ -191,11 +184,14 @@ def set_trace(enable):
 def trace():
   """
   Execution trace -- where are we now, and whence came we here?
+
+  At this point we might be better off using logging's built in
+  support (pathname, lineno, etc) rather than this ancient hack.
   """
 
   if enable_trace:
     bt = tb.extract_stack(limit = 3)
-    return debug("[%s() at %s:%d from %s:%d]" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
+    return logger.debug("[%s() at %s:%d from %s:%d]" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
 
 def traceback(do_it = None):
   """
@@ -209,6 +205,11 @@ def traceback(do_it = None):
   theory that (a) assertion failures are programming errors by
   definition, and (b) it's often hard to figure out what's triggering
   a particular assertion failure without the backtrace.
+
+  The logger calls here are arguably wrong, as they use the rpki.log
+  module's logger object rather than the calling module's logger.
+  Might need to fix this some day, need to think about what the API
+  for this should be (just take the logger to use as an argument?).
   """
 
   if do_it is None:
@@ -219,11 +220,11 @@ def traceback(do_it = None):
 
   if do_it or isinstance(e, AssertionError):
     bt = tb.extract_stack(limit = 3)
-    error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
+    logger.error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
     bt = tb.format_exc()
     assert bt is not None, "Apparently I'm still not using the right test for null backtrace"
     for line in bt.splitlines():
-      warn(line)
+      logger.warning(line)
 
 def log_repr(obj, *tokens):
   """
@@ -245,7 +246,7 @@ def log_repr(obj, *tokens):
         s = str(token)
       except:
         s = "???"
-        debug("Failed to generate repr() string for object of type %r" % type(token))
+        logger.debug("Failed to generate repr() string for object of type %r" % type(token))
         traceback()
       if s:
         words.append(s)

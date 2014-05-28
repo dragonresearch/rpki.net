@@ -22,6 +22,7 @@ RPKI "up-down" protocol.
 """
 
 import base64
+import logging
 import lxml.etree
 import rpki.resource_set
 import rpki.x509
@@ -29,6 +30,8 @@ import rpki.exceptions
 import rpki.log
 import rpki.xml_utils
 import rpki.relaxng
+
+logger = logging.getLogger(__name__)
 
 xmlns = "http://www.apnic.net/specs/rescerts/up-down/"
 
@@ -246,17 +249,17 @@ class list_pdu(base_elt):
       r_msg.payload = list_response_pdu()
 
       if irdb_resources.valid_until < rpki.sundial.now():
-        rpki.log.debug("Child %s's resources expired %s" % (child.child_handle, irdb_resources.valid_until))
+        logger.debug("Child %s's resources expired %s" % (child.child_handle, irdb_resources.valid_until))
       else:
         for parent in child.parents:
           for ca in parent.cas:
             ca_detail = ca.active_ca_detail
             if not ca_detail:
-              rpki.log.debug("No active ca_detail, can't issue to %s" % child.child_handle)
+              logger.debug("No active ca_detail, can't issue to %s" % child.child_handle)
               continue
             resources = ca_detail.latest_ca_cert.get_3779resources() & irdb_resources
             if resources.empty():
-              rpki.log.debug("No overlap between received resources and what child %s should get ([%s], [%s])" % (child.child_handle, ca_detail.latest_ca_cert.get_3779resources(), irdb_resources))
+              logger.debug("No overlap between received resources and what child %s should get ([%s], [%s])" % (child.child_handle, ca_detail.latest_ca_cert.get_3779resources(), irdb_resources))
               continue
             rc = class_elt()
             rc.class_name = str(ca.ca_id)
@@ -280,7 +283,7 @@ class list_pdu(base_elt):
     Send a "list" query to parent.
     """
     try:
-      rpki.log.info('Sending "list" request to parent %s' % parent.parent_handle)
+      logger.info('Sending "list" request to parent %s' % parent.parent_handle)
       parent.query_up_down(cls(), cb, eb)
     except (rpki.async.ExitNow, SystemExit):
       raise
@@ -437,7 +440,7 @@ class issue_pdu(base_elt):
       is_ca = True,
       caRepository = ca.sia_uri,
       rpkiManifest = ca_detail.manifest_uri)
-    rpki.log.info('Sending "issue" request to parent %s' % parent.parent_handle)
+    logger.info('Sending "issue" request to parent %s' % parent.parent_handle)
     parent.query_up_down(self, callback, errback)
 
 class issue_response_pdu(class_response_syntax):
@@ -506,7 +509,7 @@ class revoke_pdu(revoke_syntax):
     self = cls()
     self.class_name = ca.parent_resource_class
     self.ski = gski
-    rpki.log.info('Sending "revoke" request for SKI %s to parent %s' % (gski, parent.parent_handle))
+    logger.info('Sending "revoke" request for SKI %s to parent %s' % (gski, parent.parent_handle))
     parent.query_up_down(self, cb, eb)
 
 class revoke_response_pdu(revoke_syntax):
@@ -544,10 +547,10 @@ class error_response_pdu(base_elt):
     """
     base_elt.__init__(self)
     if exception is not None:
-      rpki.log.debug("Constructing up-down error response from exception %s" % exception)
+      logger.debug("Constructing up-down error response from exception %s" % exception)
       exception_type = type(exception)
       request_type = None if request_payload is None else type(request_payload)
-      rpki.log.debug("Constructing up-down error response: exception_type %s, request_type %s" % (
+      logger.debug("Constructing up-down error response: exception_type %s, request_type %s" % (
         exception_type, request_type))
       if False:
         self.status = self.exceptions.get((exception_type, request_type),
@@ -556,13 +559,13 @@ class error_response_pdu(base_elt):
       else:
         self.status = self.exceptions.get((exception_type, request_type))
         if self.status is None:
-          rpki.log.debug("No request-type-specific match, trying exception match")
+          logger.debug("No request-type-specific match, trying exception match")
           self.status = self.exceptions.get(exception_type)
         if self.status is None:
-          rpki.log.debug("No exception match either, defaulting")
+          logger.debug("No exception match either, defaulting")
           self.status = 2001
       self.description = str(exception)
-      rpki.log.debug("Chosen status code: %s" % self.status)
+      logger.debug("Chosen status code: %s" % self.status)
 
   def endElement(self, stack, name, text):
     """
@@ -681,7 +684,7 @@ class message_pdu(base_elt):
     """
     Log query we're handling.  Separate method so rootd can override.
     """
-    rpki.log.info("Serving %s query from child %s [sender %s, recipient %s]" % (self.type, child.child_handle, self.sender, self.recipient))
+    logger.info("Serving %s query from child %s [sender %s, recipient %s]" % (self.type, child.child_handle, self.sender, self.recipient))
 
   def serve_error(self, exception):
     """

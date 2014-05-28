@@ -28,6 +28,7 @@ the GUI, rpkic, or any of the other more recent tools.
 import sys
 import os
 import time
+import logging
 import argparse
 import urlparse
 import rpki.http
@@ -40,6 +41,8 @@ import rpki.log
 import rpki.x509
 
 from rpki.mysql_import import MySQLdb
+
+logger = logging.getLogger(__name__)
 
 class main(object):
 
@@ -296,7 +299,7 @@ class main(object):
 
     startup_msg = self.cfg.get("startup-message", "")
     if startup_msg:
-      rpki.log.info(startup_msg)
+      logger.info(startup_msg)
 
     self.cfg.set_global_flags()
 

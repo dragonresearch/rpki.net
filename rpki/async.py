@@ -18,13 +18,16 @@
 Utilities for event-driven programming.
 """
 
-import asyncore
-import signal
-import traceback
 import gc
 import sys
+import signal
+import logging
+import asyncore
+import traceback
 import rpki.log
 import rpki.sundial
+
+logger = logging.getLogger(__name__)
 
 ExitNow = asyncore.ExitNow
 
@@ -66,7 +69,7 @@ class iterator(object):
     except (ExitNow, SystemExit):
       raise
     except Exception:
-      rpki.log.debug("Problem constructing iterator for %r" % (iterable,))
+      logger.debug("Problem constructing iterator for %r" % (iterable,))
       raise
     self.doit()
 
@@ -130,7 +133,7 @@ class timer(object):
     """
     if self.gc_debug:
       bt = traceback.extract_stack(limit = 3)
-      rpki.log.debug("%s from %s:%d" % (msg, bt[0][0], bt[0][1]))
+      logger.debug("%s from %s:%d" % (msg, bt[0][0], bt[0][1]))
 
   def set(self, when):
     """
@@ -153,7 +156,7 @@ class timer(object):
 
   if gc_debug:
     def __del__(self):
-      rpki.log.debug("Deleting %r" % self)
+      logger.debug("Deleting %r" % self)
 
   def cancel(self):
     """
@@ -203,19 +206,19 @@ class timer(object):
     while timer_queue and now >= timer_queue[0].when:
       t = timer_queue.pop(0)
       if cls.run_debug:
-        rpki.log.debug("Running %r" % t)
+        logger.debug("Running %r" % t)
       try:
         if t.handler is not None:
           t.handler()
         else:
-          rpki.log.warn("Timer %r expired with no handler set" % t)
+          logger.warning("Timer %r expired with no handler set" % t)
       except (ExitNow, SystemExit):
         raise
       except Exception, e:
         if t.errback is not None:
           t.errback(e)
         else:
-          rpki.log.error("Unhandled exception from timer %r: %s" % (t, e))
+          logger.error("Unhandled exception from timer %r: %s" % (t, e))
           rpki.log.traceback()
 
   def __repr__(self):
@@ -291,14 +294,14 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
       while asyncore.socket_map or timer_queue:
         t = timer.seconds_until_wakeup()
         if debug_event_timing:
-          rpki.log.debug("Dismissing to asyncore.poll(), t = %s, q = %r" % (t, timer_queue))
+          logger.debug("Dismissing to asyncore.poll(), t = %s, q = %r" % (t, timer_queue))
         asyncore.poll(t, asyncore.socket_map)
         timer.runq()
         if timer.gc_debug:
           gc.collect()
           if gc.garbage:
             for i in gc.garbage:
-              rpki.log.debug("GC-cycle %r" % i)
+              logger.debug("GC-cycle %r" % i)
             del gc.garbage[:]
     except ExitNow:
       break
@@ -306,15 +309,15 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
       raise
     except ValueError, e:
       if str(e) == "filedescriptor out of range in select()":
-        rpki.log.error("Something is badly wrong, select() thinks we gave it a bad file descriptor.")
-        rpki.log.error("Content of asyncore.socket_map:")
+        logger.error("Something is badly wrong, select() thinks we gave it a bad file descriptor.")
+        logger.error("Content of asyncore.socket_map:")
         for fd in sorted(asyncore.socket_map.iterkeys()):
-          rpki.log.error("  fd %s obj %r" % (fd, asyncore.socket_map[fd]))
-        rpki.log.error("Not safe to continue due to risk of spin loop on select().  Exiting.")
+          logger.error("  fd %s obj %r" % (fd, asyncore.socket_map[fd]))
+        logger.error("Not safe to continue due to risk of spin loop on select().  Exiting.")
         sys.exit(1)
-      rpki.log.error("event_loop() exited with exception %r, this is not supposed to happen, restarting" % e)
+      logger.error("event_loop() exited with exception %r, this is not supposed to happen, restarting" % e)
     except Exception, e:
-      rpki.log.error("event_loop() exited with exception %r, this is not supposed to happen, restarting" % e)
+      logger.error("event_loop() exited with exception %r, this is not supposed to happen, restarting" % e)
     else:
       break
     finally:
@@ -392,9 +395,9 @@ class gc_summary(object):
     """
     Collect and log GC state for this period, reset timer.
     """
-    rpki.log.debug("gc_summary: Running gc.collect()")
+    logger.debug("gc_summary: Running gc.collect()")
     gc.collect()
-    rpki.log.debug("gc_summary: Summarizing (threshold %d)" % self.threshold)
+    logger.debug("gc_summary: Summarizing (threshold %d)" % self.threshold)
     total = {}
     tuples = {}
     for g in gc.get_objects():
@@ -403,18 +406,18 @@ class gc_summary(object):
       if isinstance(g, tuple):
         k = ", ".join(type(x).__name__ for x in g)
         tuples[k] = tuples.get(k, 0) + 1
-    rpki.log.debug("gc_summary: Sorting result")
+    logger.debug("gc_summary: Sorting result")
     total = total.items()
     total.sort(reverse = True, key = lambda x: x[1])
     tuples = tuples.items()
     tuples.sort(reverse = True, key = lambda x: x[1])
-    rpki.log.debug("gc_summary: Object type counts in descending order")
+    logger.debug("gc_summary: Object type counts in descending order")
     for name, count in total:
       if count > self.threshold:
-        rpki.log.debug("gc_summary: %8d %s" % (count, name))
-    rpki.log.debug("gc_summary: Tuple content type signature counts in descending order")
+        logger.debug("gc_summary: %8d %s" % (count, name))
+    logger.debug("gc_summary: Tuple content type signature counts in descending order")
     for types, count in tuples:
       if count > self.threshold:
-        rpki.log.debug("gc_summary: %8d (%s)" % (count, types))
-    rpki.log.debug("gc_summary: Scheduling next cycle")
+        logger.debug("gc_summary: %8d (%s)" % (count, types))
+    logger.debug("gc_summary: Scheduling next cycle")
     self.timer.set(self.interval)

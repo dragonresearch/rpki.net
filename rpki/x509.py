@@ -39,6 +39,7 @@ import os
 import subprocess
 import email.mime.application
 import email.utils
+import logging
 import mailbox
 import time
 import rpki.exceptions
@@ -48,6 +49,8 @@ import rpki.sundial
 import rpki.log
 import rpki.async
 import rpki.relaxng
+
+logger = logging.getLogger(__name__)
 
 def base64_with_linebreaks(der):
   """
@@ -127,8 +130,8 @@ class X501DN(object):
       import traceback
       for chunk in traceback.format_stack(limit = 5):
         for line in chunk.splitlines():
-          rpki.log.debug("== %s" % line)
-    rpki.log.debug("++ %r %r" % (self, self.dn))
+          logger.debug("== %s" % line)
+    logger.debug("++ %r %r" % (self, self.dn))
       
   @classmethod
   def from_cn(cls, cn, sn = None):
@@ -279,7 +282,7 @@ class DER_object(object):
       filename = self.filename
       timestamp = os.stat(self.filename).st_mtime
       if self.timestamp is None or self.timestamp < timestamp:
-        rpki.log.debug("Updating %s, timestamp %s" % (filename, rpki.sundial.datetime.fromtimestamp(timestamp)))
+        logger.debug("Updating %s, timestamp %s" % (filename, rpki.sundial.datetime.fromtimestamp(timestamp)))
         f = open(filename, "rb")
         value = f.read()
         f.close()
@@ -293,7 +296,7 @@ class DER_object(object):
     except (IOError, OSError), e:
       now = rpki.sundial.now()
       if self.lastfail is None or now > self.lastfail + self.failure_threshold:
-        rpki.log.warn("Could not auto_update %r (last failure %s): %s" % (self, self.lastfail, e))
+        logger.warning("Could not auto_update %r (last failure %s): %s" % (self, self.lastfail, e))
       self.lastfail = now
     else:
       self.lastfail = None
@@ -1126,7 +1129,7 @@ class insecure_debug_only_rsa_key_generator(object):
       self.filename = filename
       self.db = dbm_du_jour.open(filename, "c")
     except:
-      rpki.log.warn("insecure_debug_only_rsa_key_generator initialization FAILED, hack inoperative")
+      logger.warning("insecure_debug_only_rsa_key_generator initialization FAILED, hack inoperative")
       raise
 
   def __call__(self):
@@ -1268,7 +1271,7 @@ class RSA(PrivateKey):
     Generate a new keypair.
     """
     if not quiet:
-      rpki.log.debug("Generating new %d-bit RSA key" % keylength)
+      logger.debug("Generating new %d-bit RSA key" % keylength)
     if generate_insecure_debug_only_rsa_key is not None:
       return cls(POW = generate_insecure_debug_only_rsa_key())
     else:
@@ -1287,13 +1290,13 @@ class ECDSA(PrivateKey):
 
     if params is None:
       if not quiet:
-        rpki.log.debug("Generating new ECDSA key parameters")
+        logger.debug("Generating new ECDSA key parameters")
       params = KeyParams.generateEC()
 
     assert isinstance(params, KeyParams)
 
     if not quiet:
-      rpki.log.debug("Generating new ECDSA key")
+      logger.debug("Generating new ECDSA key")
 
     return cls(POW = rpki.POW.Asymmetric.generateFromParams(params.get_POW()))
 
@@ -1383,7 +1386,7 @@ class CMS_object(DER_object):
       raise
     except Exception:
       if self.print_on_der_error:
-        rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %r" %
+        logger.debug("Problem parsing DER CMS message, might not really be DER: %r" %
                        self.get_DER())
       raise rpki.exceptions.UnparsableCMSDER
 
@@ -1396,10 +1399,10 @@ class CMS_object(DER_object):
 
     if self.debug_cms_certs:
       for x in certs:
-        rpki.log.debug("Received CMS cert issuer %s subject %s SKI %s" % (
+        logger.debug("Received CMS cert issuer %s subject %s SKI %s" % (
           x.getIssuer(), x.getSubject(), x.hSKI()))
       for c in crls:
-        rpki.log.debug("Received CMS CRL issuer %r" % (c.getIssuer(),))
+        logger.debug("Received CMS CRL issuer %r" % (c.getIssuer(),))
 
     store = rpki.POW.X509Store()
 
@@ -1409,7 +1412,7 @@ class CMS_object(DER_object):
 
     for x in X509.normalize_chain(ta):
       if self.debug_cms_certs:
-        rpki.log.debug("CMS trusted cert issuer %s subject %s SKI %s" % (
+        logger.debug("CMS trusted cert issuer %s subject %s SKI %s" % (
           x.getIssuer(), x.getSubject(), x.hSKI()))
       if x.getNotAfter() < now:
         raise rpki.exceptions.TrustedCMSCertHasExpired("Trusted CMS certificate has expired",
@@ -1424,7 +1427,7 @@ class CMS_object(DER_object):
 
     if trusted_ee:
       if self.debug_cms_certs:
-        rpki.log.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (
+        logger.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (
           trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI()))
       if len(certs) > 1 or (len(certs) == 1 and
                             (certs[0].getSubject() != trusted_ee.getSubject() or
@@ -1446,7 +1449,7 @@ class CMS_object(DER_object):
         if self.require_crls:
           raise rpki.exceptions.MissingCMSCRL
         else:
-          rpki.log.warn("MISSING CMS CRL!  Ignoring per self.require_crls setting")
+          logger.warning("MISSING CMS CRL!  Ignoring per self.require_crls setting")
       if len(crls) > 1 and not self.allow_extra_crls:
         raise rpki.exceptions.UnexpectedCMSCRLs("Unexpected CRLs", *("%s (%s)" % (
           c.getIssuer(), c.hAKI()) for c in crls))
@@ -1458,7 +1461,7 @@ class CMS_object(DER_object):
 
     for c in crls:
       if c.getNextUpdate() < now:
-        rpki.log.warn("Stale BPKI CMS CRL (%s %s %s)" % (c.getNextUpdate(), c.getIssuer(), c.hAKI()))
+        logger.warning("Stale BPKI CMS CRL (%s %s %s)" % (c.getNextUpdate(), c.getIssuer(), c.hAKI()))
 
     try:
       content = cms.verify(store)
@@ -1470,9 +1473,9 @@ class CMS_object(DER_object):
           dbg = self.dumpasn1()
         else:
           dbg = cms.pprint()
-        rpki.log.warn("CMS verification failed, dumping ASN.1 (%d octets):" % len(self.get_DER()))
+        logger.warning("CMS verification failed, dumping ASN.1 (%d octets):" % len(self.get_DER()))
         for line in dbg.splitlines():
-          rpki.log.warn(line)
+          logger.warning(line)
       raise rpki.exceptions.CMSVerificationFailed("CMS verification failed")
 
     return content
@@ -1526,10 +1529,10 @@ class CMS_object(DER_object):
       crls = (crls,)
 
     if self.debug_cms_certs:
-      rpki.log.debug("Signing with cert issuer %s subject %s SKI %s" % (
+      logger.debug("Signing with cert issuer %s subject %s SKI %s" % (
         cert.getIssuer(), cert.getSubject(), cert.hSKI()))
       for i, c in enumerate(certs):
-        rpki.log.debug("Additional cert %d issuer %s subject %s SKI %s" % (
+        logger.debug("Additional cert %d issuer %s subject %s SKI %s" % (
           i, c.getIssuer(), c.getSubject(), c.hSKI()))
 
     self._sign(cert.get_POW(),
@@ -1761,7 +1764,7 @@ class DeadDrop(object):
       self.warned = False
     except Exception, e:
       if not self.warned:
-        rpki.log.warn("Could not write to mailbox %s: %s" % (self.name, e))
+        logger.warning("Could not write to mailbox %s: %s" % (self.name, e))
         self.warned = True
 
 class XML_CMS_object(Wrapped_CMS_object):
@@ -1824,9 +1827,9 @@ class XML_CMS_object(Wrapped_CMS_object):
     try:
       self.schema.assertValid(self.get_content())
     except lxml.etree.DocumentInvalid:
-      rpki.log.error("PDU failed schema check")
+      logger.error("PDU failed schema check")
       for line in self.pretty_print_content().splitlines():
-        rpki.log.warn(line)
+        logger.warning(line)
       raise
 
   def dump_to_disk(self, prefix):

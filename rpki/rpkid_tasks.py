@@ -21,6 +21,7 @@ rpkid task objects.  Split out from rpki.left_right and rpki.rpkid
 because interactions with rpkid scheduler were getting too complicated.
 """
 
+import logging
 import rpki.log
 import rpki.rpkid
 import rpki.async
@@ -28,6 +29,8 @@ import rpki.up_down
 import rpki.sundial
 import rpki.publication
 import rpki.exceptions
+
+logger = logging.getLogger(__name__)
 
 task_classes = ()
 
@@ -58,7 +61,7 @@ class CompletionHandler(object):
 
   def register(self, task):
     if self.debug:
-      rpki.log.debug("Completion handler %r registering task %r" % (self, task))
+      logger.debug("Completion handler %r registering task %r" % (self, task))
     self.tasks.add(task)
     task.register_completion(self.done)
 
@@ -66,13 +69,13 @@ class CompletionHandler(object):
     try:
       self.tasks.remove(task)
     except KeyError:
-      rpki.log.warn("Completion handler %r called with unregistered task %r, blundering onwards" % (self, task))
+      logger.warning("Completion handler %r called with unregistered task %r, blundering onwards" % (self, task))
     else:
       if self.debug:
-        rpki.log.debug("Completion handler %r called with registered task %r" % (self, task))
+        logger.debug("Completion handler %r called with registered task %r" % (self, task))
     if not self.tasks:
       if self.debug:
-        rpki.log.debug("Completion handler %r finished, calling %r" % (self, self.cb))
+        logger.debug("Completion handler %r finished, calling %r" % (self, self.cb))
       self.cb()
 
   @property
@@ -127,11 +130,11 @@ class AbstractTask(object):
   def __call__(self):
     self.due_date = rpki.sundial.now() + self.timeslice
     if self.continuation is None:
-      rpki.log.debug("Running task %r" % self)
+      logger.debug("Running task %r" % self)
       self.clear()
       self.start()
     else:
-      rpki.log.debug("Restarting task %r at %r" % (self, self.continuation))
+      logger.debug("Restarting task %r at %r" % (self, self.continuation))
       continuation = self.continuation
       self.continuation = None
       continuation()
@@ -166,7 +169,7 @@ class PollParentTask(AbstractTask):
   def start(self):
     rpki.log.trace()
     self.gctx.checkpoint()
-    rpki.log.debug("Self %s[%d] polling parents" % (self.self_handle, self.self_id))
+    logger.debug("Self %s[%d] polling parents" % (self.self_handle, self.self_id))
     rpki.async.iterator(self.parents, self.parent_loop, self.exit)
 
   def parent_loop(self, parent_iterator, parent):
@@ -181,7 +184,7 @@ class PollParentTask(AbstractTask):
 
   def list_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Couldn't get resource class list from parent %r, skipping: %s (%r)" % (
+    logger.warning("Couldn't get resource class list from parent %r, skipping: %s (%r)" % (
       self.parent, e, e))
     self.parent_iterator()
 
@@ -197,12 +200,12 @@ class PollParentTask(AbstractTask):
 
   def class_update_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Couldn't update class, skipping: %s" % e)
+    logger.warning("Couldn't update class, skipping: %s" % e)
     self.class_iterator()
 
   def class_create_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Couldn't create class, skipping: %s" % e)
+    logger.warning("Couldn't create class, skipping: %s" % e)
     self.class_iterator()
 
   def class_done(self):
@@ -237,7 +240,7 @@ class UpdateChildrenTask(AbstractTask):
   def start(self):
     rpki.log.trace()
     self.gctx.checkpoint()
-    rpki.log.debug("Self %s[%d] updating children" % (self.self_handle, self.self_id))
+    logger.debug("Self %s[%d] updating children" % (self.self_handle, self.self_id))
     self.now = rpki.sundial.now()
     self.rsn = self.now + rpki.sundial.timedelta(seconds = self.regen_margin)
     self.publisher = rpki.rpkid.publication_queue()
@@ -263,7 +266,7 @@ class UpdateChildrenTask(AbstractTask):
 
   def lose(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Couldn't update child %r, skipping: %s" % (self.child, e))
+    logger.warning("Couldn't update child %r, skipping: %s" % (self.child, e))
     self.iterator()
 
   def got_resources(self, irdb_resources):
@@ -278,7 +281,7 @@ class UpdateChildrenTask(AbstractTask):
           new_aia = ca_detail.ca_cert_uri
 
           if new_resources.empty():
-            rpki.log.debug("Resources shrank to the null set, "
+            logger.debug("Resources shrank to the null set, "
                            "revoking and withdrawing child %s certificate SKI %s" % (
               self.child.child_handle, child_cert.cert.gSKI()))
             child_cert.revoke(publisher = self.publisher)
@@ -291,13 +294,13 @@ class UpdateChildrenTask(AbstractTask):
                  irdb_resources.valid_until > self.now and
                  old_resources.valid_until != irdb_resources.valid_until)):
 
-            rpki.log.debug("Need to reissue child %s certificate SKI %s" % (
+            logger.debug("Need to reissue child %s certificate SKI %s" % (
               self.child.child_handle, child_cert.cert.gSKI()))
             if old_resources != new_resources:
-              rpki.log.debug("Child %s SKI %s resources changed: old %s new %s" % (
+              logger.debug("Child %s SKI %s resources changed: old %s new %s" % (
                 self.child.child_handle, child_cert.cert.gSKI(), old_resources, new_resources))
             if old_resources.valid_until != irdb_resources.valid_until:
-              rpki.log.debug("Child %s SKI %s validity changed: old %s new %s" % (
+              logger.debug("Child %s SKI %s validity changed: old %s new %s" % (
                 self.child.child_handle, child_cert.cert.gSKI(),
                 old_resources.valid_until, irdb_resources.valid_until))
 
@@ -308,7 +311,7 @@ class UpdateChildrenTask(AbstractTask):
               publisher = self.publisher)
 
           elif old_resources.valid_until < self.now:
-            rpki.log.debug("Child %s certificate SKI %s has expired: cert.valid_until %s, irdb.valid_until %s"
+            logger.debug("Child %s certificate SKI %s has expired: cert.valid_until %s, irdb.valid_until %s"
                            % (self.child.child_handle, child_cert.cert.gSKI(),
                               old_resources.valid_until, irdb_resources.valid_until))
             child_cert.sql_delete()
@@ -336,7 +339,7 @@ class UpdateChildrenTask(AbstractTask):
 
   def publication_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
+    logger.warning("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
 
@@ -358,17 +361,17 @@ class UpdateROAsTask(AbstractTask):
     rpki.log.trace()
     self.gctx.checkpoint()
     self.gctx.sql.sweep()
-    rpki.log.debug("Self %s[%d] updating ROAs" % (self.self_handle, self.self_id))
+    logger.debug("Self %s[%d] updating ROAs" % (self.self_handle, self.self_id))
 
-    rpki.log.debug("Issuing query for ROA requests")
+    logger.debug("Issuing query for ROA requests")
     self.gctx.irdb_query_roa_requests(self.self_handle, self.got_roa_requests, self.roa_requests_failed)
 
   def got_roa_requests(self, roa_requests):
     self.gctx.checkpoint()
-    rpki.log.debug("Received response to query for ROA requests")
+    logger.debug("Received response to query for ROA requests")
 
     if self.gctx.sql.dirty:
-      rpki.log.warn("Unexpected dirty SQL cache, flushing")
+      logger.warning("Unexpected dirty SQL cache, flushing")
       self.gctx.sql.sweep()
 
     roas = {}
@@ -392,15 +395,15 @@ class UpdateROAsTask(AbstractTask):
     for roa_request in roa_requests:
       k = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
       if k in seen:
-        rpki.log.warn("Skipping duplicate ROA request %r" % roa_request)
+        logger.warning("Skipping duplicate ROA request %r" % roa_request)
       else:
         seen.add(k)
         roa = roas.pop(k, None)
         if roa is None:
           roa = rpki.rpkid.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
-          rpki.log.debug("Created new %r" % roa)
+          logger.debug("Created new %r" % roa)
         else:
-          rpki.log.debug("Found existing %r" % roa)
+          logger.debug("Found existing %r" % roa)
         self.updates.append(roa)
 
     self.orphans.extend(roas.itervalues())
@@ -423,10 +426,10 @@ class UpdateROAsTask(AbstractTask):
     except (SystemExit, rpki.async.ExitNow):
       raise
     except rpki.exceptions.NoCoveringCertForROA:
-      rpki.log.warn("No covering certificate for %r, skipping" % roa)
+      logger.warning("No covering certificate for %r, skipping" % roa)
     except Exception, e:
       rpki.log.traceback()
-      rpki.log.warn("Could not update %r, skipping: %s" % (roa, e))
+      logger.warning("Could not update %r, skipping: %s" % (roa, e))
     self.count += 1
     if self.overdue:
       self.publish(lambda: self.postpone(iterator))
@@ -436,9 +439,9 @@ class UpdateROAsTask(AbstractTask):
   def publish(self, done):
     if not self.publisher.empty():
       for ca_detail in self.ca_details:
-        rpki.log.debug("Generating new CRL for %r" % ca_detail)
+        logger.debug("Generating new CRL for %r" % ca_detail)
         ca_detail.generate_crl(publisher = self.publisher)
-        rpki.log.debug("Generating new manifest for %r" % ca_detail)
+        logger.debug("Generating new manifest for %r" % ca_detail)
         ca_detail.generate_manifest(publisher = self.publisher)
     self.ca_details.clear()
     self.gctx.sql.sweep()
@@ -447,7 +450,7 @@ class UpdateROAsTask(AbstractTask):
 
   def publication_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
+    logger.warning("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
 
@@ -460,14 +463,14 @@ class UpdateROAsTask(AbstractTask):
         raise
       except Exception, e:
         rpki.log.traceback()
-        rpki.log.warn("Could not revoke %r: %s" % (roa, e))
+        logger.warning("Could not revoke %r: %s" % (roa, e))
     self.gctx.sql.sweep()
     self.gctx.checkpoint()
     self.publish(self.exit)
 
   def roa_requests_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Could not fetch ROA requests for %s, skipping: %s" % (self.self_handle, e))
+    logger.warning("Could not fetch ROA requests for %s, skipping: %s" % (self.self_handle, e))
     self.exit()
 
 
@@ -486,7 +489,7 @@ class UpdateGhostbustersTask(AbstractTask):
   def start(self):
     rpki.log.trace()
     self.gctx.checkpoint()
-    rpki.log.debug("Self %s[%d] updating Ghostbuster records" % (self.self_handle, self.self_id))
+    logger.debug("Self %s[%d] updating Ghostbuster records" % (self.self_handle, self.self_id))
 
     self.gctx.irdb_query_ghostbuster_requests(self.self_handle,
                                             (p.parent_handle for p in self.parents),
@@ -498,7 +501,7 @@ class UpdateGhostbustersTask(AbstractTask):
     try:
       self.gctx.checkpoint()
       if self.gctx.sql.dirty:
-        rpki.log.warn("Unexpected dirty SQL cache, flushing")
+        logger.warning("Unexpected dirty SQL cache, flushing")
         self.gctx.sql.sweep()
 
       ghostbusters = {}
@@ -518,11 +521,11 @@ class UpdateGhostbustersTask(AbstractTask):
 
       for ghostbuster_request in ghostbuster_requests:
         if ghostbuster_request.parent_handle not in parents:
-          rpki.log.warn("Unknown parent_handle %r in Ghostbuster request, skipping" % ghostbuster_request.parent_handle)
+          logger.warning("Unknown parent_handle %r in Ghostbuster request, skipping" % ghostbuster_request.parent_handle)
           continue
         k = (ghostbuster_request.parent_handle, ghostbuster_request.vcard)
         if k in seen:
-          rpki.log.warn("Skipping duplicate Ghostbuster request %r" % ghostbuster_request)
+          logger.warning("Skipping duplicate Ghostbuster request %r" % ghostbuster_request)
           continue
         seen.add(k)
         for ca in parents[ghostbuster_request.parent_handle].cas:
@@ -531,9 +534,9 @@ class UpdateGhostbustersTask(AbstractTask):
             ghostbuster = ghostbusters.pop((ca_detail.ca_detail_id, ghostbuster_request.vcard), None)
             if ghostbuster is None:
               ghostbuster = rpki.rpkid.ghostbuster_obj(self.gctx, self.self_id, ca_detail.ca_detail_id, ghostbuster_request.vcard)
-              rpki.log.debug("Created new %r for %r" % (ghostbuster, ghostbuster_request.parent_handle))
+              logger.debug("Created new %r for %r" % (ghostbuster, ghostbuster_request.parent_handle))
             else:
-              rpki.log.debug("Found existing %r for %s" % (ghostbuster, ghostbuster_request.parent_handle))
+              logger.debug("Found existing %r for %s" % (ghostbuster, ghostbuster_request.parent_handle))
             ghostbuster.update(publisher = publisher, fast = True)
             ca_details.add(ca_detail)
 
@@ -555,18 +558,18 @@ class UpdateGhostbustersTask(AbstractTask):
       raise
     except Exception, e:
       rpki.log.traceback()
-      rpki.log.warn("Could not update Ghostbuster records for %s, skipping: %s" % (self.self_handle, e))
+      logger.warning("Could not update Ghostbuster records for %s, skipping: %s" % (self.self_handle, e))
       self.exit()
 
   def publication_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Couldn't publish Ghostbuster updates for %s, skipping: %s" % (self.self_handle, e))
+    logger.warning("Couldn't publish Ghostbuster updates for %s, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
 
   def ghostbuster_requests_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Could not fetch Ghostbuster record requests for %s, skipping: %s" % (self.self_handle, e))
+    logger.warning("Could not fetch Ghostbuster record requests for %s, skipping: %s" % (self.self_handle, e))
     self.exit()
 
 
@@ -582,7 +585,7 @@ class UpdateEECertificatesTask(AbstractTask):
   def start(self):
     rpki.log.trace()
     self.gctx.checkpoint()
-    rpki.log.debug("Self %s[%d] updating EE certificates" % (self.self_handle, self.self_id))
+    logger.debug("Self %s[%d] updating EE certificates" % (self.self_handle, self.self_id))
 
     self.gctx.irdb_query_ee_certificate_requests(self.self_handle,
                                                  self.got_requests,
@@ -593,7 +596,7 @@ class UpdateEECertificatesTask(AbstractTask):
     try:
       self.gctx.checkpoint()
       if self.gctx.sql.dirty:
-        rpki.log.warn("Unexpected dirty SQL cache, flushing")
+        logger.warning("Unexpected dirty SQL cache, flushing")
         self.gctx.sql.sweep()
 
       publisher = rpki.rpkid.publication_queue()
@@ -619,17 +622,17 @@ class UpdateEECertificatesTask(AbstractTask):
 
         for ee in ees:
           if ee.ca_detail in covering:
-            rpki.log.debug("Updating existing EE certificate for %s %s" % (req.gski, resources))
+            logger.debug("Updating existing EE certificate for %s %s" % (req.gski, resources))
             ee.reissue(
               resources = resources,
               publisher = publisher)
             covering.remove(ee.ca_detail)
           else:
-            rpki.log.debug("Existing EE certificate for %s %s is no longer covered" % (req.gski, resources))
+            logger.debug("Existing EE certificate for %s %s is no longer covered" % (req.gski, resources))
             ee.revoke(publisher = publisher)
 
         for ca_detail in covering:
-          rpki.log.debug("No existing EE certificate for %s %s" % (req.gski, resources))
+          logger.debug("No existing EE certificate for %s %s" % (req.gski, resources))
           rpki.rpkid.ee_cert_obj.create(
             ca_detail    = ca_detail,
             subject_name = rpki.x509.X501DN.from_cn(req.cn, req.sn),
@@ -659,18 +662,18 @@ class UpdateEECertificatesTask(AbstractTask):
       raise
     except Exception, e:
       rpki.log.traceback()
-      rpki.log.warn("Could not update EE certificates for %s, skipping: %s" % (self.self_handle, e))
+      logger.warning("Could not update EE certificates for %s, skipping: %s" % (self.self_handle, e))
       self.exit()
 
   def publication_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Couldn't publish EE certificate updates for %s, skipping: %s" % (self.self_handle, e))
+    logger.warning("Couldn't publish EE certificate updates for %s, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
 
   def get_requests_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Could not fetch EE certificate requests for %s, skipping: %s" % (self.self_handle, e))
+    logger.warning("Could not fetch EE certificate requests for %s, skipping: %s" % (self.self_handle, e))
     self.exit()
 
 
@@ -690,7 +693,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
   def start(self):
     rpki.log.trace()
     self.gctx.checkpoint()
-    rpki.log.debug("Self %s[%d] regenerating CRLs and manifests" % (self.self_handle, self.self_id))
+    logger.debug("Self %s[%d] regenerating CRLs and manifests" % (self.self_handle, self.self_id))
 
     now = rpki.sundial.now()
     crl_interval = rpki.sundial.timedelta(seconds = self.crl_interval)
@@ -711,7 +714,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
           raise
         except Exception, e:
           rpki.log.traceback()
-          rpki.log.warn("Couldn't regenerate CRLs and manifests for CA %r, skipping: %s" % (ca, e))
+          logger.warning("Couldn't regenerate CRLs and manifests for CA %r, skipping: %s" % (ca, e))
 
     self.gctx.checkpoint()
     self.gctx.sql.sweep()
@@ -719,7 +722,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
 
   def lose(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Couldn't publish updated CRLs and manifests for self %r, skipping: %s" % (self.self_handle, e))
+    logger.warning("Couldn't publish updated CRLs and manifests for self %r, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
 
@@ -745,6 +748,6 @@ class CheckFailedPublication(AbstractTask):
 
   def publication_failed(self, e):
     rpki.log.traceback()
-    rpki.log.warn("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
+    logger.warning("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()

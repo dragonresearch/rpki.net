@@ -23,8 +23,11 @@ ConfigParser module.
 """
 
 import ConfigParser
+import logging
 import os
 import re
+
+logger = logging.getLogger(__name__)
 
 ## @var default_filename
 # Default name of config file if caller doesn't specify one explictly.
@@ -252,14 +255,14 @@ class parser(object):
     try:
       rpki.x509.XML_CMS_object.dump_outbound_cms = rpki.x509.DeadDrop(self.get("dump_outbound_cms"))
     except OSError, e:
-      rpki.log.warn("Couldn't initialize mailbox %s: %s" % (self.get("dump_outbound_cms"), e))
+      logger.warning("Couldn't initialize mailbox %s: %s" % (self.get("dump_outbound_cms"), e))
     except ConfigParser.NoOptionError:
       pass
 
     try:
       rpki.x509.XML_CMS_object.dump_inbound_cms = rpki.x509.DeadDrop(self.get("dump_inbound_cms"))
     except OSError, e:
-      rpki.log.warn("Couldn't initialize mailbox %s: %s" % (self.get("dump_inbound_cms"), e))
+      logger.warning("Couldn't initialize mailbox %s: %s" % (self.get("dump_inbound_cms"), e))
     except ConfigParser.NoOptionError:
       pass
 
@@ -298,4 +301,4 @@ class parser(object):
     except ConfigParser.NoOptionError:
       pass
     except:
-      rpki.log.warn("insecure-debug-only-rsa-key-db configured but initialization failed, check for corrupted database file")
+      logger.warning("insecure-debug-only-rsa-key-db configured but initialization failed, check for corrupted database file")

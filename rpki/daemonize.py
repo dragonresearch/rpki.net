@@ -62,7 +62,10 @@ import sys
 import os
 import atexit
 import signal
+import logging
 import rpki.log
+
+logger = logging.getLogger(__name__)
 
 # Does default_pid_directory need to be autoconf-configurable?
 
@@ -130,4 +133,4 @@ def daemon(nochdir = False, noclose = False, pidfile = None):
     f.write("%d\n" % os.getpid())
     f.close()
   except IOError, e:
-    rpki.log.warn("Couldn't write PID file %s: %s" % (pidfile, e.strerror))
+    logger.warning("Couldn't write PID file %s: %s" % (pidfile, e.strerror))

@@ -21,6 +21,7 @@
 RPKI "left-right" protocol.
 """
 
+import logging
 import rpki.resource_set
 import rpki.x509
 import rpki.sql
@@ -34,6 +35,8 @@ import rpki.log
 import rpki.publication
 import rpki.async
 import rpki.rpkid_tasks
+
+logger = logging.getLogger(__name__)
 
 ## @var enforce_strict_up_down_xml_sender
 # Enforce strict checking of XML "sender" field in up-down protocol
@@ -334,7 +337,7 @@ class self_elt(data_elt):
     """
     Handle a left-right run_now action for this self.
     """
-    rpki.log.debug("Forced immediate run of periodic actions for self %s[%d]" % (
+    logger.debug("Forced immediate run of periodic actions for self %s[%d]" % (
       self.self_handle, self.self_id))
     completion = rpki.rpkid_tasks.CompletionHandler(cb)
     self.schedule_cron_tasks(completion)
@@ -550,7 +553,7 @@ class repository_elt(data_elt):
         handlers = {}
 
       for q_pdu in q_msg:
-        rpki.log.info("Sending %s %s to pubd" % (q_pdu.action, q_pdu.uri))
+        logger.info("Sending %s %s to pubd" % (q_pdu.action, q_pdu.uri))
 
       bsc = self.bsc
       q_der = rpki.publication.cms_msg().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
@@ -558,14 +561,14 @@ class repository_elt(data_elt):
 
       def done(r_der):
         try:
-          rpki.log.debug("Received response from pubd")
+          logger.debug("Received response from pubd")
           r_cms = rpki.publication.cms_msg(DER = r_der)
           r_msg = r_cms.unwrap(bpki_ta_path)
           r_cms.check_replay_sql(self, self.peer_contact_uri)
           for r_pdu in r_msg:
             handler = handlers.get(r_pdu.tag, self.default_pubd_handler)
             if handler:
-              rpki.log.debug("Calling pubd handler %r" % handler)
+              logger.debug("Calling pubd handler %r" % handler)
               handler(r_pdu)
           if len(q_msg) != len(r_msg):
             raise rpki.exceptions.BadPublicationReply, "Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg)
@@ -575,7 +578,7 @@ class repository_elt(data_elt):
         except Exception, e:
           errback(e)
 
-      rpki.log.debug("Sending request to pubd")
+      logger.debug("Sending request to pubd")
       rpki.http.client(
         url          = self.peer_contact_uri,
         msg          = q_der,
@@ -714,7 +717,7 @@ class parent_elt(data_elt):
     """
 
     def loop(iterator, ski):
-      rpki.log.debug("Asking parent %r to revoke class %r, SKI %s" % (self, rc_name, ski))
+      logger.debug("Asking parent %r to revoke class %r, SKI %s" % (self, rc_name, ski))
       q_pdu = rpki.up_down.revoke_pdu()
       q_pdu.class_name = rc_name
       q_pdu.ski = ski
@@ -767,7 +770,7 @@ class parent_elt(data_elt):
       self.serve_revoke_forgotten(done, fail)
 
     def fail(e):
-      rpki.log.warn("Trouble getting parent to revoke certificates, blundering onwards: %s" % e)
+      logger.warning("Trouble getting parent to revoke certificates, blundering onwards: %s" % e)
       done()
 
     def done():

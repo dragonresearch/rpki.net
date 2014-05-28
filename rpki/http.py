@@ -36,6 +36,8 @@ import rpki.exceptions
 import rpki.log
 import rpki.POW
 
+logger = logging.getLogger(__name__)
+
 ## @var rpki_content_type
 # HTTP content type used for all RPKI messages.
 rpki_content_type = "application/x-rpki"
@@ -978,7 +980,7 @@ def client(msg, url, callback, errback):
     raise rpki.exceptions.BadClientURL, "Unusable URL %s" % url
 
   if debug_http:
-    rpki.log.debug("Contacting %s" % url)
+    logger.debug("Contacting %s" % url)
 
   request = http_request(
     cmd                 = "POST",
@@ -992,7 +994,7 @@ def client(msg, url, callback, errback):
   hostport = (u.hostname or "localhost", u.port or default_tcp_port)
 
   if debug_http:
-    rpki.log.debug("Created request %r for %s" % (request, addr_to_string(hostport)))
+    logger.debug("Created request %r for %s" % (request, addr_to_string(hostport)))
   if hostport not in client_queues:
     client_queues[hostport] = http_queue(hostport)
   client_queues[hostport].request(request)
@@ -1001,7 +1003,7 @@ def client(msg, url, callback, errback):
   # pending I/O events, in case connections have closed.
 
   if debug_http:
-    rpki.log.debug("Scheduling connection startup for %r" % request)
+    logger.debug("Scheduling connection startup for %r" % request)
   rpki.async.event_defer(client_queues[hostport].restart)
 
 def server(handlers, port, host = ""):

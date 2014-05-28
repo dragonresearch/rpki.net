@@ -22,10 +22,11 @@ Basic asynchronous DNS code, using asyncore and Bob Halley's excellent
 dnspython package.
 """
 
-import asyncore
-import socket
-import time
 import sys
+import time
+import socket
+import logging
+import asyncore
 import rpki.async
 import rpki.sundial
 import rpki.log
@@ -39,6 +40,8 @@ except ImportError:
     sys.exit(0)
   else:
     raise
+
+logger = logging.getLogger(__name__)
 
 ## @var resolver
 # Resolver object, shared by everything using this module
@@ -66,7 +69,7 @@ for ns in resolver.nameservers:
     continue
   except Exception:
     pass
-  rpki.log.error("Couldn't parse nameserver address %r" % ns)
+  logger.error("Couldn't parse nameserver address %r" % ns)
 
 class dispatcher(asyncore.dispatcher):
   """

@@ -37,6 +37,7 @@ import yaml
 import subprocess
 import signal
 import time
+import logging
 import argparse
 import sys
 import errno
@@ -51,6 +52,8 @@ import rpki.publication
 import rpki.async
 
 from rpki.mysql_import import MySQLdb
+
+logger = logging.getLogger(__name__)
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -157,7 +160,7 @@ def main():
   """
 
   rpki.log.init(smoketest_name)
-  rpki.log.info("Starting")
+  logger.info("Starting")
 
   pubd_process = None
   rootd_process = None
@@ -167,7 +170,7 @@ def main():
   irdb_sql = mangle_sql(irdb_sql_file)
   pubd_sql = mangle_sql(pub_sql_file)
 
-  rpki.log.info("Initializing test directory")
+  logger.info("Initializing test directory")
 
   # Connect to test directory, creating it if necessary
   try:
@@ -198,16 +201,16 @@ def main():
         else:
           raise
 
-  rpki.log.info("Reading master YAML configuration")
+  logger.info("Reading master YAML configuration")
   y = yaml_script.pop(0)
   
-  rpki.log.info("Constructing internal allocation database")
+  logger.info("Constructing internal allocation database")
   db = allocation_db(y)
 
-  rpki.log.info("Constructing BPKI keys and certs for rootd")
+  logger.info("Constructing BPKI keys and certs for rootd")
   setup_bpki_cert_chain(rootd_name, ee = ("RPKI",))
 
-  rpki.log.info("Constructing BPKI keys and certs for pubd")
+  logger.info("Constructing BPKI keys and certs for pubd")
   setup_bpki_cert_chain(pubd_name, ee = ("PUBD", "IRBE"))
 
 
@@ -226,14 +229,14 @@ def main():
 
   try:
 
-    rpki.log.info("Starting rootd")
+    logger.info("Starting rootd")
     rootd_process = subprocess.Popen((prog_python, prog_rootd, "--foreground", "--log-stderr", "--config", rootd_name + ".conf"))
 
-    rpki.log.info("Starting pubd")
+    logger.info("Starting pubd")
     pubd_process = subprocess.Popen((prog_python, prog_pubd, "--foreground", "--log-stderr", "--config", pubd_name + ".conf") +
                                     (("-p", pubd_name + ".prof") if args.profile else ()))
 
-    rpki.log.info("Starting rsyncd")
+    logger.info("Starting rsyncd")
     rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
 
     # Start rpkid and irdbd instances
@@ -259,7 +262,7 @@ def main():
       # This is probably where we should be updating expired BPKI
       # objects, particular CRLs
 
-      rpki.log.info("Running cron for all RPKI engines")
+      logger.info("Running cron for all RPKI engines")
       rpki.async.iterator(db.engines, run_cron, run_yaml)
 
     def run_cron(iterator, a):
@@ -272,10 +275,10 @@ def main():
 
       # Apply next delta if we have one; otherwise, we're done.
       if yaml_script:
-        rpki.log.info("Applying deltas")
+        logger.info("Applying deltas")
         db.apply_delta(yaml_script.pop(0), apply_delta_done)
       else:
-        rpki.log.info("No more deltas to apply, done")
+        logger.info("No more deltas to apply, done")
         rpki.async.exit_event_loop()
 
     def apply_delta_done():
@@ -287,22 +290,22 @@ def main():
       # Loop until we run out of control YAML
       yaml_loop()
 
-    rpki.log.info("Sleeping %d seconds while daemons start up" % startup_delay)
+    logger.info("Sleeping %d seconds while daemons start up" % startup_delay)
     rpki.async.timer(start).set(rpki.sundial.timedelta(seconds = startup_delay))
     rpki.async.event_loop()
 
     # At this point we have gone into event-driven code.
 
-    rpki.log.info("Event loop exited normally")
+    logger.info("Event loop exited normally")
 
   except Exception, e:
 
-    rpki.log.info("Event loop exited with an exception: %r" % e)
+    logger.info("Event loop exited with an exception: %r" % e)
     rpki.log.traceback()
 
   finally:
 
-    rpki.log.info("Cleaning up")
+    logger.info("Cleaning up")
     for a in db.engines:
       a.kill_daemons()
     for proc, name in ((rootd_process,  "rootd"),
@@ -310,20 +313,20 @@ def main():
                        (rsyncd_process, "rsyncd")):
       # pylint: disable=E1103
       if proc is not None and proc.poll() is None:
-        rpki.log.info("Killing %s, pid %s" % (name, proc.pid))
+        logger.info("Killing %s, pid %s" % (name, proc.pid))
         try:
           proc.terminate()
         except OSError:
           pass
       if proc is not None:
-        rpki.log.info("Daemon %s, pid %s exited with code %s" % (name, proc.pid, proc.wait()))
+        logger.info("Daemon %s, pid %s exited with code %s" % (name, proc.pid, proc.wait()))
 
 def cmd_sleep(cb, interval):
   """
   Set an alarm, then wait for it to go off.
   """
   howlong = rpki.sundial.timedelta.parse(interval)
-  rpki.log.info("Sleeping %r" % howlong)
+  logger.info("Sleeping %r" % howlong)
   rpki.async.timer(cb).set(howlong)
 
 def cmd_shell(cb, *cmd):
@@ -332,14 +335,14 @@ def cmd_shell(cb, *cmd):
   """
   cmd = " ".join(cmd)
   status = subprocess.call(cmd, shell = True)
-  rpki.log.info("Shell command returned status %d" % status)
+  logger.info("Shell command returned status %d" % status)
   cb()
 
 def cmd_echo(cb, *words):
   """
   Echo some text to the log.
   """
-  rpki.log.info(" ".join(words))
+  logger.info(" ".join(words))
   cb()
 
 ## @var cmds
@@ -546,7 +549,7 @@ class allocation(object):
     Apply deltas to this entity.
     """
 
-    rpki.log.info("Applying delta: %s" % yaml)
+    logger.info("Applying delta: %s" % yaml)
 
     def loop(iterator, kv):
       if kv[0] == "name":
@@ -633,11 +636,11 @@ class allocation(object):
       cb()
 
     if target is None:
-      rpki.log.info("Rekeying <self/> %s" % self.name)
+      logger.info("Rekeying <self/> %s" % self.name)
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(
         action = "set", self_handle = self.name, rekey = "yes")], cb = done)
     else:
-      rpki.log.info("Rekeying <parent/> %s %s" % (self.name, target))
+      logger.info("Rekeying <parent/> %s %s" % (self.name, target))
       self.call_rpkid([rpki.left_right.parent_elt.make_pdu(
         action = "set", self_handle = self.name, parent_handle = target, rekey = "yes")], cb = done)
 
@@ -650,11 +653,11 @@ class allocation(object):
       cb()
 
     if target is None:
-      rpki.log.info("Revoking <self/> %s" % self.name)
+      logger.info("Revoking <self/> %s" % self.name)
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(
         action = "set", self_handle = self.name, revoke = "yes")], cb = done)
     else:
-      rpki.log.info("Revoking <parent/> %s %s" % (self.name, target))
+      logger.info("Revoking <parent/> %s %s" % (self.name, target))
       self.call_rpkid([rpki.left_right.parent_elt.make_pdu(
         action = "set", self_handle = self.name, parent_handle = target, revoke = "yes")], cb = done)
 
@@ -709,7 +712,7 @@ class allocation(object):
     """
     Create BPKI certificates for this entity.
     """
-    rpki.log.info("Constructing BPKI keys and certs for %s" % self.name)
+    logger.info("Constructing BPKI keys and certs for %s" % self.name)
     setup_bpki_cert_chain(name = self.name,
                           ee = ("RPKI", "IRDB", "IRBE"),
                           ca = ("SELF",))
@@ -722,7 +725,7 @@ class allocation(object):
     """
     Write config files for this entity.
     """
-    rpki.log.info("Writing config files for %s" % self.name)
+    logger.info("Writing config files for %s" % self.name)
     assert self.rpki_port is not None
     d = { "my_name"      : self.name,
           "irdb_db_name" : self.irdb_db_name,
@@ -741,7 +744,7 @@ class allocation(object):
     """
     Set up this entity's IRDB.
     """
-    rpki.log.info("Setting up MySQL for %s" % self.name)
+    logger.info("Setting up MySQL for %s" % self.name)
     db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass,
                          conv = sql_conversions)
     cur = db.cursor()
@@ -775,7 +778,7 @@ class allocation(object):
     once during setup, then do it again every time we apply a delta to
     this entity.
     """
-    rpki.log.info("Updating MySQL data for IRDB %s" % self.name)
+    logger.info("Updating MySQL data for IRDB %s" % self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass,
                          conv = sql_conversions)
     cur = db.cursor()
@@ -828,7 +831,7 @@ class allocation(object):
     """
     Run daemons for this entity.
     """
-    rpki.log.info("Running daemons for %s" % self.name)
+    logger.info("Running daemons for %s" % self.name)
     self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "--foreground", "--log-stderr", "--config", self.name + ".conf") +
                                           (("--profile", self.name + ".prof") if args.profile else ()))
     self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "--foreground", "--log-stderr", "--config", self.name + ".conf"))
@@ -841,13 +844,13 @@ class allocation(object):
     for proc, name in ((self.rpkid_process, "rpkid"),
                        (self.irdbd_process, "irdbd")):
       if proc is not None and proc.poll() is None:
-        rpki.log.info("Killing daemon %s pid %s for %s" % (name, proc.pid, self.name))
+        logger.info("Killing daemon %s pid %s for %s" % (name, proc.pid, self.name))
         try:
           proc.terminate()
         except OSError:
           pass
       if proc is not None:
-        rpki.log.info("Daemon %s pid %s for %s exited with code %s" % (
+        logger.info("Daemon %s pid %s for %s exited with code %s" % (
           name, proc.pid, self.name, proc.wait()))
 
   def call_rpkid(self, pdus, cb):
@@ -859,10 +862,10 @@ class allocation(object):
     of this happens with the hosting RPKI daemon.
     """
 
-    rpki.log.info("Calling rpkid for %s" % self.name)
+    logger.info("Calling rpkid for %s" % self.name)
 
     if self.is_hosted:
-      rpki.log.info("rpkid %s is hosted by rpkid %s, switching" % (self.name, self.hosted_by.name))
+      logger.info("rpkid %s is hosted by rpkid %s, switching" % (self.name, self.hosted_by.name))
       self = self.hosted_by
       assert not self.is_hosted
 
@@ -874,14 +877,14 @@ class allocation(object):
     q_der = q_cms.wrap(q_msg, self.irbe_key, self.irbe_cert)
     q_url = "http://localhost:%d/left-right" % self.rpki_port
 
-    rpki.log.debug(q_cms.pretty_print_content())
+    logger.debug(q_cms.pretty_print_content())
 
     def done(r_der):
-      rpki.log.info("Callback from rpkid %s" % self.name)
+      logger.info("Callback from rpkid %s" % self.name)
       r_cms = rpki.left_right.cms_msg(DER = r_der)
       r_msg = r_cms.unwrap((self.rpkid_ta, self.rpkid_cert))
       self.last_cms_time = r_cms.check_replay(self.last_cms_time, q_url)
-      rpki.log.debug(r_cms.pretty_print_content())
+      logger.debug(r_cms.pretty_print_content())
       assert r_msg.is_reply
       for r_pdu in r_msg:
         assert not isinstance(r_pdu, rpki.left_right.report_error_elt)
@@ -908,7 +911,7 @@ class allocation(object):
       certifier = self.name + "-SELF"
     certfile = certifier + "-" + certificant + ".cer"
 
-    rpki.log.info("Cross certifying %s into %s's BPKI (%s)" % (certificant, certifier, certfile))
+    logger.info("Cross certifying %s into %s's BPKI (%s)" % (certificant, certifier, certfile))
 
     child = rpki.x509.X509(Auto_file = certificant + ".cer")
     parent = rpki.x509.X509(Auto_file = certifier + ".cer")
@@ -941,9 +944,9 @@ class allocation(object):
     f.write(x.get_PEM())
     f.close()
 
-    rpki.log.debug("Cross certified %s:" % certfile)
-    rpki.log.debug("  Issuer  %s [%s]" % (x.getIssuer(),  x.hAKI()))
-    rpki.log.debug("  Subject %s [%s]" % (x.getSubject(), x.hSKI()))
+    logger.debug("Cross certified %s:" % certfile)
+    logger.debug("  Issuer  %s [%s]" % (x.getIssuer(),  x.hAKI()))
+    logger.debug("  Subject %s [%s]" % (x.getSubject(), x.hSKI()))
     return x
 
   def create_rpki_objects(self, cb):
@@ -964,7 +967,7 @@ class allocation(object):
     selves = [self] + self.hosts
 
     for i, s in enumerate(selves):
-      rpki.log.info("Creating RPKI objects for [%d] %s" % (i, s.name))
+      logger.info("Creating RPKI objects for [%d] %s" % (i, s.name))
 
     rpkid_pdus = []
     pubd_pdus = []
@@ -1050,18 +1053,18 @@ class allocation(object):
       for s in selves:
         b = bsc_dict[s.name]
 
-        rpki.log.info("Issuing BSC EE cert for %s" % s.name)
+        logger.info("Issuing BSC EE cert for %s" % s.name)
         cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", s.name + "-RPKI.conf",
                "-extensions", "req_x509_ext", "-days", "30",
                "-CA", s.name + "-SELF.cer", "-CAkey",    s.name + "-SELF.key", "-CAcreateserial", "-text")
         signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         signed = signer.communicate(input = b.pkcs10_request.get_PEM())
         if not signed[0]:
-          rpki.log.warn(signed[1])
+          logger.warning(signed[1])
           raise CouldntIssueBSCEECertificate, "Couldn't issue BSC EE certificate"
         s.bsc_ee = rpki.x509.X509(PEM = signed[0])
         s.bsc_crl = rpki.x509.CRL(PEM_file = s.name + "-SELF.crl")
-        rpki.log.info("BSC EE cert for %s SKI %s" % (s.name, s.bsc_ee.hSKI()))
+        logger.info("BSC EE cert for %s SKI %s" % (s.name, s.bsc_ee.hSKI()))
 
         bsc_pdus.append(rpki.left_right.bsc_elt.make_pdu(
           action = "set",
@@ -1094,7 +1097,7 @@ class allocation(object):
     """
 
     if not os.path.exists(self.name + ".key"):
-      rpki.log.info("Generating RPKI key for %s" % self.name)
+      logger.info("Generating RPKI key for %s" % self.name)
       subprocess.check_call((prog_openssl, "genrsa", "-out", self.name + ".key", "2048" ),
                             stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
     ski = rpki.x509.RSA(PEM_file = self.name + ".key").gSKI()
@@ -1107,7 +1110,7 @@ class allocation(object):
     self.cross_certify(self.parent.name + "-SELF")
     self.cross_certify(parent_host + "-TA")
 
-    rpki.log.info("Writing leaf YAML for %s" % self.name)
+    logger.info("Writing leaf YAML for %s" % self.name)
     f = open(self.name + ".yaml", "w")
     f.write(yaml_fmt_1 % {
       "parent_name"  : self.parent.name,
@@ -1124,7 +1127,7 @@ class allocation(object):
     Trigger cron run for this engine.
     """
 
-    rpki.log.info("Running cron for %s" % self.name)
+    logger.info("Running cron for %s" % self.name)
 
     assert self.rpki_port is not None
 
@@ -1146,10 +1149,10 @@ class allocation(object):
     error, but only issue a warning when issue fails.
     """
 
-    rpki.log.info("Running YAML for %s" % self.name)
+    logger.info("Running YAML for %s" % self.name)
     subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "list"))
     if subprocess.call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "issue")) != 0:
-      rpki.log.warn("YAML issue command failed for %s, continuing" % self.name)
+      logger.warning("YAML issue command failed for %s, continuing" % self.name)
 
 def setup_bpki_cert_chain(name, ee = (), ca = ()):
   """
@@ -1183,7 +1186,7 @@ def setup_rootd(rpkid, rootd_yaml):
   Write the config files for rootd.
   """
   rpkid.cross_certify(rootd_name + "-TA", reverse = True)
-  rpki.log.info("Writing config files for %s" % rootd_name)
+  logger.info("Writing config files for %s" % rootd_name)
   d = { "rootd_name" : rootd_name,
         "rootd_port" : rootd_port,
         "rpkid_name" : rpkid.name,
@@ -1205,7 +1208,7 @@ def setup_rcynic():
   """
   Write the config file for rcynic.
   """
-  rpki.log.info("Config file for rcynic")
+  logger.info("Config file for rcynic")
   d = { "rcynic_name" : rcynic_name,
         "rootd_name"  : rootd_name,
         "rootd_sia"   : rootd_sia }
@@ -1217,7 +1220,7 @@ def setup_rsyncd():
   """
   Write the config file for rsyncd.
   """
-  rpki.log.info("Config file for rsyncd")
+  logger.info("Config file for rsyncd")
   d = { "rsyncd_name"   : rsyncd_name,
         "rsyncd_port"   : rsyncd_port,
         "rsyncd_module" : rsyncd_module,
@@ -1230,7 +1233,7 @@ def setup_publication(pubd_sql):
   """
   Set up publication daemon.
   """
-  rpki.log.info("Configure publication daemon")
+  logger.info("Configure publication daemon")
   publication_dir = os.getcwd() + "/publication"
   assert rootd_sia.startswith("rsync://")
   global rsyncd_dir
@@ -1272,27 +1275,27 @@ def call_pubd(pdus, cb):
   Send a publication message to publication daemon and return the
   response.
   """
-  rpki.log.info("Calling pubd")
+  logger.info("Calling pubd")
   q_msg = rpki.publication.msg.query(*pdus)
   q_cms = rpki.publication.cms_msg()
   q_der = q_cms.wrap(q_msg, pubd_irbe_key, pubd_irbe_cert)
   q_url = "http://localhost:%d/control" % pubd_port
 
-  rpki.log.debug(q_cms.pretty_print_content())
+  logger.debug(q_cms.pretty_print_content())
 
   def call_pubd_cb(r_der):
     global pubd_last_cms_time
     r_cms = rpki.publication.cms_msg(DER = r_der)
     r_msg = r_cms.unwrap((pubd_ta, pubd_pubd_cert))
     pubd_last_cms_time = r_cms.check_replay(pubd_last_cms_time, q_url)
-    rpki.log.debug(r_cms.pretty_print_content())
+    logger.debug(r_cms.pretty_print_content())
     assert r_msg.is_reply
     for r_pdu in r_msg:
       assert not isinstance(r_pdu, rpki.publication.report_error_elt)
     cb(r_msg)
 
   def call_pubd_eb(e):
-    rpki.log.warn("Problem calling pubd: %s" % e)
+    logger.warning("Problem calling pubd: %s" % e)
     rpki.log.traceback()
 
   rpki.http.client(
@@ -1307,7 +1310,7 @@ def set_pubd_crl(cb):
   publication daemon starts talking to its clients, and must be
   updated whenever we update the CRL.
   """
-  rpki.log.info("Setting pubd's BPKI CRL")
+  logger.info("Setting pubd's BPKI CRL")
   crl = rpki.x509.CRL(Auto_file = pubd_name + "-TA.crl")
   call_pubd([rpki.publication.config_elt.make_pdu(action = "set", bpki_crl = crl)], cb = lambda ignored: cb())
 
@@ -1317,7 +1320,7 @@ def run_rcynic():
   """
   Run rcynic to see whether what was published makes sense.
   """
-  rpki.log.info("Running rcynic")
+  logger.info("Running rcynic")
   env = os.environ.copy()
   env["TZ"] = ""
   global last_rcynic_run

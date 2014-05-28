@@ -23,6 +23,7 @@ RPKI publication engine.
 
 import os
 import time
+import logging
 import argparse
 import sys
 import re
@@ -37,6 +38,8 @@ import rpki.relaxng
 import rpki.log
 import rpki.publication
 import rpki.daemonize
+
+logger = logging.getLogger(__name__)
 
 class main(object):
   """
@@ -79,14 +82,14 @@ class main(object):
         prof.runcall(self.main)
       finally:
         prof.dump_stats(self.profile)
-        rpki.log.info("Dumped profile data to %s" % self.profile)
+        logger.info("Dumped profile data to %s" % self.profile)
     else:
       self.main()
 
   def main(self):
 
     if self.profile:
-      rpki.log.info("Running in profile mode with output to %s" % self.profile)
+      logger.info("Running in profile mode with output to %s" % self.profile)
 
     self.sql = rpki.sql.session(self.cfg)
 

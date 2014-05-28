@@ -24,6 +24,7 @@ IR database daemon.
 import sys
 import os
 import time
+import logging
 import argparse
 import urlparse
 import rpki.http
@@ -35,6 +36,8 @@ import rpki.left_right
 import rpki.log
 import rpki.x509
 import rpki.daemonize
+
+logger = logging.getLogger(__name__)
 
 class main(object):
 
@@ -177,7 +180,7 @@ class main(object):
         prof.runcall(self.main)
       finally:
         prof.dump_stats(args.profile)
-        rpki.log.info("Dumped profile data to %s" % args.profile)
+        logger.info("Dumped profile data to %s" % args.profile)
     else:
       self.main()
 
@@ -188,7 +191,7 @@ class main(object):
 
     startup_msg = self.cfg.get("startup-message", "")
     if startup_msg:
-      rpki.log.info(startup_msg)
+      logger.info(startup_msg)
 
     # Do -not- turn on DEBUG here except for short-lived tests,
     # otherwise irdbd will eventually run out of memory and crash.

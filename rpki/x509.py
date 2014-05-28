@@ -1514,8 +1514,6 @@ class CMS_object(DER_object):
     Sign and wrap inner content.
     """
 
-    rpki.log.trace()
-
     if isinstance(certs, X509):
       cert = certs
       certs = ()
@@ -1844,7 +1842,6 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
     Wrap an XML PDU in CMS and return its DER encoding.
     """
-    rpki.log.trace()
     if self.saxify is None:
       self.set_content(msg)
     else:

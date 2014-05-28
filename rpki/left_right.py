@@ -220,7 +220,6 @@ class self_elt(data_elt):
     """
     Extra server actions for self_elt.
     """
-    rpki.log.trace()
     actions = []
     if q_pdu.rekey:
       actions.append(self.serve_rekey)
@@ -244,7 +243,6 @@ class self_elt(data_elt):
     """
     Handle a left-right rekey action for this self.
     """
-    rpki.log.trace()
     def loop(iterator, parent):
       parent.serve_rekey(iterator, eb)
     rpki.async.iterator(self.parents, loop, cb)
@@ -253,7 +251,6 @@ class self_elt(data_elt):
     """
     Handle a left-right revoke action for this self.
     """
-    rpki.log.trace()
     def loop(iterator, parent):
       parent.serve_revoke(iterator, eb)
     rpki.async.iterator(self.parents, loop, cb)
@@ -262,7 +259,6 @@ class self_elt(data_elt):
     """
     Handle a left-right reissue action for this self.
     """
-    rpki.log.trace()
     def loop(iterator, parent):
       parent.serve_reissue(iterator, eb)
     rpki.async.iterator(self.parents, loop, cb)
@@ -271,7 +267,6 @@ class self_elt(data_elt):
     """
     Handle a left-right revoke_forgotten action for this self.
     """
-    rpki.log.trace()
     def loop(iterator, parent):
       parent.serve_revoke_forgotten(iterator, eb)
     rpki.async.iterator(self.parents, loop, cb)
@@ -280,7 +275,6 @@ class self_elt(data_elt):
     """
     Handle a left-right clear_replay_protection action for this self.
     """
-    rpki.log.trace()
     def loop(iterator, obj):
       obj.serve_clear_replay_protection(iterator, eb)
     rpki.async.iterator(self.parents + self.children + self.repositories, loop, cb)
@@ -289,7 +283,6 @@ class self_elt(data_elt):
     """
     Extra cleanup actions when destroying a self_elt.
     """
-    rpki.log.trace()
     def loop(iterator, parent):
       parent.delete(iterator)
     rpki.async.iterator(self.parents, loop, cb)
@@ -542,8 +535,6 @@ class repository_elt(data_elt):
     """
 
     try:
-      rpki.log.trace()
-
       self.gctx.sql.sweep()
 
       if not q_msg:
@@ -796,8 +787,6 @@ class parent_elt(data_elt):
     Client code for sending one up-down query PDU to this parent.
     """
 
-    rpki.log.trace()
-
     bsc = self.bsc
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
@@ -948,8 +937,6 @@ class child_elt(data_elt):
     Outer layer of server handling for one up-down PDU from this child.
     """
 
-    rpki.log.trace()
-
     bsc = self.bsc
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
@@ -982,7 +969,7 @@ class child_elt(data_elt):
     except rpki.exceptions.NoActiveCA, data:
       done(q_msg.serve_error(data))
     except Exception, e:
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       done(q_msg.serve_error(e))
 
 class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
@@ -1266,7 +1253,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
 
       def fail(e):
         if not isinstance(e, rpki.exceptions.NotFound):
-          rpki.log.traceback()
+          rpki.log.traceback(logger)
         r_msg.append(report_error_elt.from_exception(
           e, self_handle = q_pdu.self_handle, tag = q_pdu.tag))
         cb(r_msg)

@@ -53,9 +53,6 @@ args = parser.parse_args()
 
 rpki.log.init("testpoke")
 
-if args.debug:
-  rpki.log.set_trace(True)
-
 yaml_data = yaml.load(args.yaml)
 
 yaml_cmd = args.request
@@ -133,7 +130,7 @@ def do_revoke():
 dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 
 def fail(e):                            # pylint: disable=W0621
-  rpki.log.traceback(args.debug)
+  rpki.log.traceback(logger, args.debug)
   sys.exit("Testpoke failed: %s" % e)
 
 cms_ta         = get_PEM("cms-ca-cert", rpki.x509.X509)

@@ -137,13 +137,12 @@ class main(object):
     def done(body):
       cb(200, body = body)
 
-    rpki.log.trace()
     try:
       self.handler_common(query, None, done, (self.bpki_ta, self.irbe_cert))
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
   client_url_regexp = re.compile("/client/([-A-Z0-9_/]+)$", re.I)
@@ -156,7 +155,6 @@ class main(object):
     def done(body):
       cb(200, body = body)
 
-    rpki.log.trace()
     try:
       match = self.client_url_regexp.search(path)
       if match is None:
@@ -172,5 +170,5 @@ class main(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       cb(500, reason = "Could not process PDU: %s" % e)

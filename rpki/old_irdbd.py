@@ -256,14 +256,14 @@ class main(object):
             raise
 
           except Exception, e:
-            rpki.log.traceback()
+            rpki.log.traceback(logger)
             r_msg.append(rpki.left_right.report_error_elt.from_exception(e, q_pdu.self_handle, q_pdu.tag))
 
       except (rpki.async.ExitNow, SystemExit):
         raise
 
       except Exception, e:
-        rpki.log.traceback()
+        rpki.log.traceback(logger)
         r_msg.append(rpki.left_right.report_error_elt.from_exception(e))
 
       cb(200, body = rpki.left_right.cms_msg().wrap(r_msg, self.irdbd_key, self.irdbd_cert))
@@ -272,7 +272,7 @@ class main(object):
       raise
 
     except Exception, e:
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
 
       # We only get here in cases where we couldn't or wouldn't generate
       # <report_error/>, so just return HTTP failure.

@@ -472,7 +472,7 @@ class http_stream(asynchat.async_chat):
     etype = sys.exc_info()[0]
     if etype in (SystemExit, rpki.async.ExitNow):
       raise
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     if etype is not rpki.exceptions.HTTPClientAborted:
       self.log("Closing due to error", logging.WARNING)
       self.close()
@@ -553,7 +553,7 @@ class http_server(http_stream):
       except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception, e:
-        rpki.log.traceback()
+        rpki.log.traceback(logger)
         self.send_error(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
     else:
       self.send_error(code = error[0], reason = error[1])
@@ -623,7 +623,7 @@ class http_listener(asyncore.dispatcher):
       self.listen(5)
     except Exception, e:
       self.log("Couldn't set up HTTP listener: %s" % e, logging.WARNING)
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       self.close()
     for h in handlers:
       self.log("Handling %s" % h[0])
@@ -650,7 +650,7 @@ class http_listener(asyncore.dispatcher):
     if sys.exc_info()[0] in (SystemExit, rpki.async.ExitNow):
       raise
     self.log("Error in HTTP listener", logging.WARNING)
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
 
 class http_client(http_stream):
   """
@@ -952,7 +952,7 @@ class http_queue(object):
         # really bad happened.
         #
         self.log("Exception in exception callback", logging.WARNING)
-        rpki.log.traceback(True)
+        rpki.log.traceback(logger, True)
 
     self.log("Queue: %r" % self.queue)
 

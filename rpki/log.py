@@ -39,11 +39,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-## @var enable_trace
-# Whether call tracing is enabled.
-
-enable_trace = False
-
 ## @var show_python_ids
 # Whether __repr__() methods should show Python id numbers
 
@@ -80,7 +75,7 @@ def argparse_setup(parser):
   class RotatingFile(argparse.Action):
     def __call__(self, parser, namespace, values, option_string = None):
       setattr(namespace, self.dest, values[0])
-      setattr(namespace, self.dest + "_maxBytes",    int(values[1]))
+      setattr(namespace, self.dest + "_maxBytes",    int(values[1]) * 1024)
       setattr(namespace, self.dest + "_backupCount", int(values[2]))
       if len(values) > 3:
         raise ValueError
@@ -173,27 +168,7 @@ def init(ident = "rpki", args = argparse.Namespace(log_level = logging.DEBUG, lo
       setproctitle.setproctitle(ident)
 
 
-def set_trace(enable):
-  """
-  Enable or disable call tracing.
-  """
-
-  global enable_trace
-  enable_trace = enable
-
-def trace():
-  """
-  Execution trace -- where are we now, and whence came we here?
-
-  At this point we might be better off using logging's built in
-  support (pathname, lineno, etc) rather than this ancient hack.
-  """
-
-  if enable_trace:
-    bt = tb.extract_stack(limit = 3)
-    return logger.debug("[%s() at %s:%d from %s:%d]" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
-
-def traceback(do_it = None):
+def traceback(trace_logger, do_it = None):
   """
   Consolidated backtrace facility with a bit of extra info.  Argument
   specifies whether or not to log the traceback (some modules and
@@ -206,10 +181,14 @@ def traceback(do_it = None):
   definition, and (b) it's often hard to figure out what's triggering
   a particular assertion failure without the backtrace.
 
-  The logger calls here are arguably wrong, as they use the rpki.log
-  module's logger object rather than the calling module's logger.
-  Might need to fix this some day, need to think about what the API
-  for this should be (just take the logger to use as an argument?).
+  logging.exception() doesn't do quite what we want here, or we'd just
+  use that.  In particular, logging.exception() puts the entire
+  traceback (or, rather, the portion that it choses to print) into a
+  single log message, and is pretty much tied to that model because
+  its getting the exception data from one log record.  This doesn't
+  work well with syslog, which has a maximum record size.  Maybe the
+  real answer here is just that we shouldn't attempt to backtrace when
+  logging via syslog, but, for now, keep using our old hack.
   """
 
   if do_it is None:
@@ -220,11 +199,11 @@ def traceback(do_it = None):
 
   if do_it or isinstance(e, AssertionError):
     bt = tb.extract_stack(limit = 3)
-    logger.error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
+    trace_logger.error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
     bt = tb.format_exc()
     assert bt is not None, "Apparently I'm still not using the right test for null backtrace"
     for line in bt.splitlines():
-      logger.warning(line)
+      trace_logger.warning(line)
 
 def log_repr(obj, *tokens):
   """
@@ -247,7 +226,7 @@ def log_repr(obj, *tokens):
       except:
         s = "???"
         logger.debug("Failed to generate repr() string for object of type %r" % type(token))
-        traceback()
+        traceback(logger)
       if s:
         words.append(s)
 

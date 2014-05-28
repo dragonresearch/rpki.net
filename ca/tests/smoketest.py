@@ -301,7 +301,7 @@ def main():
   except Exception, e:
 
     logger.info("Event loop exited with an exception: %r" % e)
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
 
   finally:
 
@@ -631,7 +631,7 @@ class allocation(object):
 
     def done(e):
       if isinstance(e, Exception):
-        rpki.log.traceback()
+        rpki.log.traceback(logger)
         raise e
       cb()
 
@@ -648,7 +648,7 @@ class allocation(object):
 
     def done(e):
       if isinstance(e, Exception):
-        rpki.log.traceback()
+        rpki.log.traceback(logger)
         raise e
       cb()
 
@@ -1296,7 +1296,7 @@ def call_pubd(pdus, cb):
 
   def call_pubd_eb(e):
     logger.warning("Problem calling pubd: %s" % e)
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
 
   rpki.http.client(
     url          = q_url,

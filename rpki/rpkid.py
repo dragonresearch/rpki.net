@@ -168,8 +168,6 @@ class main(object):
     Perform an IRDB callback query.
     """
 
-    rpki.log.trace()
-
     try:
       q_types = tuple(type(q_pdu) for q_pdu in q_pdus)
 
@@ -213,8 +211,6 @@ class main(object):
     Ask IRDB about a child's resources.
     """
 
-    rpki.log.trace()
-
     q_pdu = rpki.left_right.list_resources_elt()
     q_pdu.self_handle = self_handle
     q_pdu.child_handle = child_handle
@@ -233,8 +229,6 @@ class main(object):
     Ask IRDB about self's ROA requests.
     """
 
-    rpki.log.trace()
-
     q_pdu = rpki.left_right.list_roa_requests_elt()
     q_pdu.self_handle = self_handle
 
@@ -244,8 +238,6 @@ class main(object):
     """
     Ask IRDB about self's ghostbuster record requests.
     """
-
-    rpki.log.trace()
 
     q_pdus = []
 
@@ -262,8 +254,6 @@ class main(object):
     Ask IRDB about self's EE certificate requests.
     """
 
-    rpki.log.trace()
-
     q_pdu = rpki.left_right.list_ee_certificate_requests_elt()
     q_pdu.self_handle = self_handle
 
@@ -273,8 +263,6 @@ class main(object):
     """
     Process one left-right PDU.
     """
-
-    rpki.log.trace()
 
     def done(r_msg):
       reply = rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert)
@@ -291,7 +279,7 @@ class main(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
   up_down_url_regexp = re.compile("/up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
@@ -300,8 +288,6 @@ class main(object):
     """
     Process one up-down PDU.
     """
-
-    rpki.log.trace()
 
     def done(reply):
       self.sql.sweep()
@@ -325,7 +311,7 @@ class main(object):
       logger.warning(str(e))
       cb(400, reason = str(e))
     except Exception, e:
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       cb(400, reason = "Could not process PDU: %s" % e)
 
   def checkpoint(self, force = False):
@@ -372,8 +358,6 @@ class main(object):
     """
     Periodic tasks.
     """
-
-    rpki.log.trace()
 
     now = rpki.sundial.now()
 
@@ -678,7 +662,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
 
     def lose(e):
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       logger.warning("Could not delete CA %r, skipping: %s" % (self, e))
       callback()
 
@@ -724,8 +708,6 @@ class ca_obj(rpki.sql.sql_persistent):
     the new ca_detail.
     """
 
-    rpki.log.trace()
-
     parent = self.parent
     old_detail = self.active_ca_detail
     new_detail = ca_detail_obj.create(self)
@@ -749,8 +731,6 @@ class ca_obj(rpki.sql.sql_persistent):
     Revoke deprecated ca_detail objects associated with this CA, or
     all ca_details associated with this CA if revoke_all is set.
     """
-
-    rpki.log.trace()
 
     def loop(iterator, ca_detail):
       ca_detail.revoke(cb = iterator, eb = eb)

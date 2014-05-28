@@ -167,7 +167,6 @@ class PollParentTask(AbstractTask):
     self.class_iterator = None
 
   def start(self):
-    rpki.log.trace()
     self.gctx.checkpoint()
     logger.debug("Self %s[%d] polling parents" % (self.self_handle, self.self_id))
     rpki.async.iterator(self.parents, self.parent_loop, self.exit)
@@ -183,7 +182,7 @@ class PollParentTask(AbstractTask):
     rpki.async.iterator(r_msg.payload.classes, self.class_loop, self.class_done)
 
   def list_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Couldn't get resource class list from parent %r, skipping: %s (%r)" % (
       self.parent, e, e))
     self.parent_iterator()
@@ -199,12 +198,12 @@ class PollParentTask(AbstractTask):
       ca.check_for_updates(self.parent, rc, class_iterator, self.class_update_failed)
 
   def class_update_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Couldn't update class, skipping: %s" % e)
     self.class_iterator()
 
   def class_create_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Couldn't create class, skipping: %s" % e)
     self.class_iterator()
 
@@ -238,7 +237,6 @@ class UpdateChildrenTask(AbstractTask):
     self.child_certs = None
 
   def start(self):
-    rpki.log.trace()
     self.gctx.checkpoint()
     logger.debug("Self %s[%d] updating children" % (self.self_handle, self.self_id))
     self.now = rpki.sundial.now()
@@ -265,7 +263,7 @@ class UpdateChildrenTask(AbstractTask):
       self.iterator()
 
   def lose(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Couldn't update child %r, skipping: %s" % (self.child, e))
     self.iterator()
 
@@ -338,7 +336,7 @@ class UpdateChildrenTask(AbstractTask):
     self.publisher.call_pubd(self.exit, self.publication_failed)
 
   def publication_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
@@ -358,7 +356,6 @@ class UpdateROAsTask(AbstractTask):
     self.count = None
 
   def start(self):
-    rpki.log.trace()
     self.gctx.checkpoint()
     self.gctx.sql.sweep()
     logger.debug("Self %s[%d] updating ROAs" % (self.self_handle, self.self_id))
@@ -428,7 +425,7 @@ class UpdateROAsTask(AbstractTask):
     except rpki.exceptions.NoCoveringCertForROA:
       logger.warning("No covering certificate for %r, skipping" % roa)
     except Exception, e:
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       logger.warning("Could not update %r, skipping: %s" % (roa, e))
     self.count += 1
     if self.overdue:
@@ -449,7 +446,7 @@ class UpdateROAsTask(AbstractTask):
     self.publisher.call_pubd(done, self.publication_failed)
 
   def publication_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
@@ -462,14 +459,14 @@ class UpdateROAsTask(AbstractTask):
       except (SystemExit, rpki.async.ExitNow):
         raise
       except Exception, e:
-        rpki.log.traceback()
+        rpki.log.traceback(logger)
         logger.warning("Could not revoke %r: %s" % (roa, e))
     self.gctx.sql.sweep()
     self.gctx.checkpoint()
     self.publish(self.exit)
 
   def roa_requests_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Could not fetch ROA requests for %s, skipping: %s" % (self.self_handle, e))
     self.exit()
 
@@ -487,7 +484,6 @@ class UpdateGhostbustersTask(AbstractTask):
   """
 
   def start(self):
-    rpki.log.trace()
     self.gctx.checkpoint()
     logger.debug("Self %s[%d] updating Ghostbuster records" % (self.self_handle, self.self_id))
 
@@ -557,18 +553,18 @@ class UpdateGhostbustersTask(AbstractTask):
     except (SystemExit, rpki.async.ExitNow):
       raise
     except Exception, e:
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       logger.warning("Could not update Ghostbuster records for %s, skipping: %s" % (self.self_handle, e))
       self.exit()
 
   def publication_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Couldn't publish Ghostbuster updates for %s, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
 
   def ghostbuster_requests_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Could not fetch Ghostbuster record requests for %s, skipping: %s" % (self.self_handle, e))
     self.exit()
 
@@ -583,7 +579,6 @@ class UpdateEECertificatesTask(AbstractTask):
   """
 
   def start(self):
-    rpki.log.trace()
     self.gctx.checkpoint()
     logger.debug("Self %s[%d] updating EE certificates" % (self.self_handle, self.self_id))
 
@@ -661,18 +656,18 @@ class UpdateEECertificatesTask(AbstractTask):
     except (SystemExit, rpki.async.ExitNow):
       raise
     except Exception, e:
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       logger.warning("Could not update EE certificates for %s, skipping: %s" % (self.self_handle, e))
       self.exit()
 
   def publication_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Couldn't publish EE certificate updates for %s, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
 
   def get_requests_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Could not fetch EE certificate requests for %s, skipping: %s" % (self.self_handle, e))
     self.exit()
 
@@ -691,7 +686,6 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
   """
 
   def start(self):
-    rpki.log.trace()
     self.gctx.checkpoint()
     logger.debug("Self %s[%d] regenerating CRLs and manifests" % (self.self_handle, self.self_id))
 
@@ -713,7 +707,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
         except (SystemExit, rpki.async.ExitNow):
           raise
         except Exception, e:
-          rpki.log.traceback()
+          rpki.log.traceback(logger)
           logger.warning("Couldn't regenerate CRLs and manifests for CA %r, skipping: %s" % (ca, e))
 
     self.gctx.checkpoint()
@@ -721,7 +715,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
     publisher.call_pubd(self.exit, self.lose)
 
   def lose(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Couldn't publish updated CRLs and manifests for self %r, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()
@@ -735,7 +729,6 @@ class CheckFailedPublication(AbstractTask):
   """
 
   def start(self):
-    rpki.log.trace()
     publisher = rpki.rpkid.publication_queue()
     for parent in self.parents:
       for ca in parent.cas:
@@ -747,7 +740,7 @@ class CheckFailedPublication(AbstractTask):
     publisher.call_pubd(self.exit, self.publication_failed)
 
   def publication_failed(self, e):
-    rpki.log.traceback()
+    rpki.log.traceback(logger)
     logger.warning("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
     self.gctx.checkpoint()
     self.exit()

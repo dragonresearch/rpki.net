@@ -669,7 +669,7 @@ class message_pdu(base_elt):
       callback(r_msg)
 
     def lose(e):
-      rpki.log.traceback()
+      rpki.log.traceback(logger)
       callback(self.serve_error(e))
 
     try:

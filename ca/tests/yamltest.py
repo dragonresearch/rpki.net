@@ -553,7 +553,7 @@ class allocation(object):
     representing the running daemon.
     """
     basename = os.path.splitext(os.path.basename(prog))[0]
-    cmd = [prog, "--foreground", "--log-stderr", "--config", self.path("rpki.conf")]
+    cmd = [prog, "--foreground", "--log-stderr", "--log-level", "debug", "--config", self.path("rpki.conf")]
     if args.profile and basename != "rootd":
       cmd.append("--profile")
       cmd.append(self.path(basename + ".prof"))

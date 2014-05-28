@@ -77,18 +77,14 @@ def argparse_setup(parser):
       setattr(namespace, self.dest, values[0])
       setattr(namespace, self.dest + "_maxBytes",    int(values[1]) * 1024)
       setattr(namespace, self.dest + "_backupCount", int(values[2]))
-      if len(values) > 3:
-        raise ValueError
 
   class TimedRotatingFile(argparse.Action):
     def __call__(self, parser, namespace, values, option_string = None):
       setattr(namespace, self.dest, values[0])
       setattr(namespace, self.dest + "_interval",    int(values[1]))
       setattr(namespace, self.dest + "_backupCount", int(values[2]))
-      if len(values) > 3:
-        raise ValueError
 
-  parser.add_argument("--log-level", default = logging.DEBUG,
+  parser.add_argument("--log-level", default = logging.WARNING,
                       choices = ("debug", "info", "warning", "error", "critical"),
                       type = lambda s: int(getattr(logging, s.upper())),
                       help = "how verbosely to log")

@@ -230,10 +230,10 @@ def main():
   try:
 
     logger.info("Starting rootd")
-    rootd_process = subprocess.Popen((prog_python, prog_rootd, "--foreground", "--log-stderr", "--config", rootd_name + ".conf"))
+    rootd_process = subprocess.Popen((prog_python, prog_rootd, "--foreground", "--log-stdout", "--log-level", "debug", "--config", rootd_name + ".conf"))
 
     logger.info("Starting pubd")
-    pubd_process = subprocess.Popen((prog_python, prog_pubd, "--foreground", "--log-stderr", "--config", pubd_name + ".conf") +
+    pubd_process = subprocess.Popen((prog_python, prog_pubd, "--foreground", "--log-stdout", "--log-level", "debug", "--config", pubd_name + ".conf") +
                                     (("-p", pubd_name + ".prof") if args.profile else ()))
 
     logger.info("Starting rsyncd")
@@ -832,9 +832,9 @@ class allocation(object):
     Run daemons for this entity.
     """
     logger.info("Running daemons for %s" % self.name)
-    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "--foreground", "--log-stderr", "--config", self.name + ".conf") +
+    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "--foreground", "--log-stdout", "--log-level", "debug", "--config", self.name + ".conf") +
                                           (("--profile", self.name + ".prof") if args.profile else ()))
-    self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "--foreground", "--log-stderr", "--config", self.name + ".conf"))
+    self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "--foreground", "--log-stdout", "--log-level", "debug", "--config", self.name + ".conf"))
 
   def kill_daemons(self):
     """

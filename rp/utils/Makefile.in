@@ -25,7 +25,7 @@ distclean:: clean
 
 RSYNC_AUTH_DIR	= ${abs_top_builddir}/rp/rcynic/rcynic-data/authenticated
 HASHDIR_OUTPUT	= hashed-pem-dir
-TARGET_PREFIXES	= 10.3.0.44 10.2.0.6 10.0.0.0/24
+TARGET_PREFIXES	= 10.3.0.44/32 10.2.0.6/32 10.0.0.0/24
 
 test::
 	if test -d ${RSYNC_AUTH_DIR}; \

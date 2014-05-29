@@ -669,7 +669,7 @@ class message_pdu(base_elt):
       callback(r_msg)
 
     def lose(e):
-      rpki.log.traceback(logger)
+      logger.exception("Unhandled exception serving child %r", child)
       callback(self.serve_error(e))
 
     try:

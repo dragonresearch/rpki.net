@@ -969,7 +969,7 @@ class child_elt(data_elt):
     except rpki.exceptions.NoActiveCA, data:
       done(q_msg.serve_error(data))
     except Exception, e:
-      rpki.log.traceback(logger)
+      logger.exception("Unhandled exception serving up-down request from %r", self)
       done(q_msg.serve_error(e))
 
 class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
@@ -1253,7 +1253,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
 
       def fail(e):
         if not isinstance(e, rpki.exceptions.NotFound):
-          rpki.log.traceback(logger)
+          logger.exception("Unhandled exception serving left-right PDU %r", q_pdu)
         r_msg.append(report_error_elt.from_exception(
           e, self_handle = q_pdu.self_handle, tag = q_pdu.tag))
         cb(r_msg)

@@ -142,7 +142,7 @@ class main(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      rpki.log.traceback(logger)
+      logger.exception("Unhandled exception processing control query, path %r", path)
       cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
   client_url_regexp = re.compile("/client/([-A-Z0-9_/]+)$", re.I)
@@ -170,5 +170,5 @@ class main(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      rpki.log.traceback(logger)
+      logger.exception("Unhandled exception processing client query, path %r", path)
       cb(500, reason = "Could not process PDU: %s" % e)

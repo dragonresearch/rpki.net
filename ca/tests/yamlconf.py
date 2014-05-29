@@ -34,6 +34,7 @@ import os
 import sys
 import yaml
 import time
+import logging
 import argparse
 import subprocess
 import lxml.etree
@@ -672,7 +673,7 @@ def main():
   quiet = args.quiet
   yaml_file = args.yaml_file
 
-  rpki.log.init("yamlconf")
+  rpki.log.init("yamlconf", argparse.Namespace(log_level = logging.DEBUG, log_stream = sys.stdout))
 
   # Allow optional config file for this tool to override default
   # passwords: this is mostly so that I can show a complete working

@@ -277,8 +277,8 @@ class main(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      rpki.log.traceback(logger)
-      return cb(400, reason = "Could not process PDU: %s" % e)
+      logger.exception("Problem decoding PDU")
+      return cb(400, reason = "Could not decode PDU: %s" % e)
 
     def done(r_msg):
       cb(200, body = cms_msg().wrap(
@@ -290,13 +290,13 @@ class main(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      rpki.log.traceback(logger)
       try:
+        logger.exception("Exception serving up-down request %r", q_msg)
         done(q_msg.serve_error(e))
       except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception, e:
-        rpki.log.traceback(logger)
+        logger.exception("Exception while generating error report")
         cb(500, reason = "Could not process PDU: %s" % e)
 
 

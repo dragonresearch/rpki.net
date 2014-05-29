@@ -218,8 +218,7 @@ class timer(object):
         if t.errback is not None:
           t.errback(e)
         else:
-          logger.error("Unhandled exception from timer %r: %s" % (t, e))
-          rpki.log.traceback(logger)
+          logger.exception("Unhandled exception from timer %r", t)
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.when, repr(self.handler))

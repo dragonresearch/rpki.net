@@ -125,7 +125,7 @@ class main(object):
       except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception, e:
-        rpki.log.traceback(logger)
+        logger.exception("Exception while handling HTTP request")
         if q_pdu is None:
           r_msg.append(rpki.left_right.report_error_elt.from_exception(e))
         else:
@@ -135,7 +135,7 @@ class main(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      rpki.log.traceback(logger)
+      logger.exception("Unhandled exception while processing HTTP request")
       cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
   def dispatch(self, q_pdu, r_msg):

@@ -65,6 +65,51 @@ use_setproctitle = True
 
 proctitle_extra = os.path.basename(os.getcwd())
 
+
+class Formatter(object):
+  """
+  Reimplementation (easier than subclassing in this case) of
+  logging.Formatter.
+
+  It turns out that the logging code only cares about this class's
+  .format(record) method, everything else is internal; so long as
+  .format() converts a record into a properly formatted string, the
+  logging code is happy.
+
+  So, rather than mess around with dynamically constructing and
+  deconstructing and tweaking format strings and ten zillion options
+  we don't use, we just provide our own implementation that supports
+  what we do need.
+  """
+
+  converter = time.gmtime
+
+  def __init__(self, ident, handler):
+    self.ident = ident
+    self.is_syslog = isinstance(handler, logging.handlers.SysLogHandler)
+
+  def format(self, record):
+    return "".join(self.coformat(record)).rstrip("\n")
+
+  def coformat(self, record):
+    if not self.is_syslog:
+      yield time.strftime("%Y-%m-%d %H:%M:%S ", time.gmtime(record.created))
+    yield "%s[%d]: " % (self.ident, record.process)
+    try:
+      yield repr(record.context) + " "
+    except AttributeError:
+      pass
+    yield record.getMessage()
+    if record.exc_info:
+      if self.is_syslog or not enable_tracebacks:
+        lines = tb.format_exception_only(record.exc_info[0], record.exc_info[1])
+        lines.insert(0, ": ")
+      else:
+        lines = tb.format_exception(record.exc_info[0], record.exc_info[1], record.exc_info[2])
+        lines.insert(0, "\n")
+      for line in lines:
+        yield line
+
 def argparse_setup(parser):
   """
   Set up argparse stuff for functionality in this module.
@@ -109,7 +154,7 @@ def argparse_setup(parser):
                      help = "send logging to timed rotating file")
 
 
-def init(ident = "rpki", args = argparse.Namespace(log_level = logging.DEBUG, log_stream = sys.stderr)):
+def init(ident = "rpki", args = argparse.Namespace(log_level = logging.WARNING, log_stream = sys.stderr)):
   """
   Initialize logging system.
 
@@ -143,18 +188,8 @@ def init(ident = "rpki", args = argparse.Namespace(log_level = logging.DEBUG, lo
 
   else:
     raise ValueError
-  
-  format = ident + "[%(process)d]: %(message)s"
-  if not isinstance(handler, logging.handlers.SysLogHandler):
-    format = "%(asctime)s " + format
 
-  # At some point we will probably want our own subclass of
-  # logging.Formatter so we can support LoggingAdapters with extra
-  # fields, but this suffices for the moment.
-
-  formatter = logging.Formatter(format, "%Y-%m-%d %H:%M:%S")
-  formatter.converter = time.gmtime
-  handler.setFormatter(formatter)
+  handler.setFormatter(Formatter(ident, handler))
 
   root_logger = logging.getLogger()
   root_logger.addHandler(handler)
@@ -166,43 +201,6 @@ def init(ident = "rpki", args = argparse.Namespace(log_level = logging.DEBUG, lo
     else:
       setproctitle.setproctitle(ident)
 
-
-def traceback(trace_logger, do_it = None):
-  """
-  Consolidated backtrace facility with a bit of extra info.  Argument
-  specifies whether or not to log the traceback (some modules and
-  classes have their own controls for this, this lets us provide a
-  unified interface).  If no argument is specified, we use the global
-  default value rpki.log.enable_tracebacks.
-
-  Assertion failures generate backtraces unconditionally, on the
-  theory that (a) assertion failures are programming errors by
-  definition, and (b) it's often hard to figure out what's triggering
-  a particular assertion failure without the backtrace.
-
-  logging.exception() doesn't do quite what we want here, or we'd just
-  use that.  In particular, logging.exception() puts the entire
-  traceback (or, rather, the portion that it choses to print) into a
-  single log message, and is pretty much tied to that model because
-  its getting the exception data from one log record.  This doesn't
-  work well with syslog, which has a maximum record size.  Maybe the
-  real answer here is just that we shouldn't attempt to backtrace when
-  logging via syslog, but, for now, keep using our old hack.
-  """
-
-  if do_it is None:
-    do_it = enable_tracebacks
-
-  e = sys.exc_info()[1]
-  assert e is not None, "rpki.log.traceback() called without valid trace on stack!  This should not happen."
-
-  if do_it or isinstance(e, AssertionError):
-    bt = tb.extract_stack(limit = 3)
-    trace_logger.error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
-    bt = tb.format_exc()
-    assert bt is not None, "Apparently I'm still not using the right test for null backtrace"
-    for line in bt.splitlines():
-      trace_logger.warning(line)
 
 def log_repr(obj, *tokens):
   """

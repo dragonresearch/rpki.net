@@ -282,26 +282,6 @@ class http_response(http_message):
   def __repr__(self):
     return rpki.log.log_repr(self, self.code, self.reason)
 
-# This probably ought to be using logging.LoggerAdapter or some such,
-# and the level check should be converted to whatever the natural
-# thing is with the logging package, but for now just preserve the old
-# structure for now while transitioning from our homegrown logging
-# code to Python logging package.
-#
-# So it turns out that, as used in the current code, all invocations
-# of this are either with the default logging.DEBUG or with
-# logging.WARNING, we don't use any other settings.  This suggets that
-# we could clean up this mess and get rid of the extra argument just
-# by providing two methods instead of one, assuming that the
-# LoggingAdapter doesn't just solve the whole problem for us.
-
-def log_method(self, msg, level = logging.DEBUG):
-  """
-  Logging method used in several different classes.
-  """
-  if debug_http or level > logging.DEBUG:
-    logging.log(level, "%r: %s",  self, msg)
-
 def addr_to_string(addr):
   """
   Convert socket addr tuple to printable string.  Assumes 2-element
@@ -320,8 +300,6 @@ class http_stream(asynchat.async_chat):
   Virtual class representing an HTTP message stream.
   """
 
-  log = log_method
-
   def __repr__(self):
     status = ["connected"] if self.connected else []
     try:
@@ -331,6 +309,7 @@ class http_stream(asynchat.async_chat):
     return rpki.log.log_repr(self, *status)
 
   def __init__(self, sock = None):
+    self.logger = logging.LoggerAdapter(logger, dict(context = self))
     asynchat.async_chat.__init__(self, sock)
     self.buffer = []
     self.timer = rpki.async.timer(self.handle_timeout)
@@ -352,10 +331,10 @@ class http_stream(asynchat.async_chat):
     it.
     """
     if self.timeout is not None:
-      self.log("Setting timeout %s" % self.timeout)
+      self.logger.debug("Setting timeout %s" % self.timeout)
       self.timer.set(self.timeout)
     else:
-      self.log("Clearing timeout")
+      self.logger.debug("Clearing timeout")
       self.timer.cancel()
 
   def collect_incoming_data(self, data):
@@ -414,7 +393,7 @@ class http_stream(asynchat.async_chat):
     the process of exiting the chunk decoder.
     """
     n = int(self.get_buffer().partition(";")[0], 16)
-    self.log("Chunk length %s" % n)
+    self.logger.debug("Chunk length %s" % n)
     if n:
       self.chunk_handler = self.chunk_body
       self.set_terminator(n)
@@ -428,7 +407,7 @@ class http_stream(asynchat.async_chat):
     body of a chunked message (sic).  Save it, and prepare to move on
     to the next chunk.
     """
-    self.log("Chunk body")
+    self.logger.debug("Chunk body")
     self.msg.body += self.buffer
     self.buffer = []
     self.chunk_handler = self.chunk_discard_crlf
@@ -439,7 +418,7 @@ class http_stream(asynchat.async_chat):
     Consume the CRLF that terminates a chunk, reinitialize chunk
     decoder to be ready for the next chunk.
     """
-    self.log("Chunk CRLF")
+    self.logger.debug("Chunk CRLF")
     s = self.get_buffer()
     assert s == "", "%r: Expected chunk CRLF, got '%s'" % (self, s)
     self.chunk_handler = self.chunk_header
@@ -449,7 +428,7 @@ class http_stream(asynchat.async_chat):
     Consume chunk trailer, which should be empty, then (finally!) exit
     the chunk decoder and hand complete message off to the application.
     """
-    self.log("Chunk trailer")
+    self.logger.debug("Chunk trailer")
     s = self.get_buffer()
     assert s == "", "%r: Expected end of chunk trailers, got '%s'" % (self, s)
     self.chunk_handler = None
@@ -472,16 +451,15 @@ class http_stream(asynchat.async_chat):
     etype = sys.exc_info()[0]
     if etype in (SystemExit, rpki.async.ExitNow):
       raise
-    rpki.log.traceback(logger)
     if etype is not rpki.exceptions.HTTPClientAborted:
-      self.log("Closing due to error", logging.WARNING)
+      self.logger.exception("Closing due to error")
       self.close()
 
   def handle_timeout(self):
     """
     Inactivity timer expired, close connection with prejudice.
     """
-    self.log("Timeout, closing")
+    self.logger.debug("Timeout, closing")
     self.close()
 
   def handle_close(self):
@@ -489,7 +467,7 @@ class http_stream(asynchat.async_chat):
     Wrapper around asynchat connection close handler, so that we can
     log the event, cancel timer, and so forth.
     """
-    self.log("Close event in HTTP stream handler")
+    self.logger.debug("Close event in HTTP stream handler")
     self.timer.cancel()
     asynchat.async_chat.handle_close(self)
 
@@ -510,7 +488,7 @@ class http_server(http_stream):
     self.handlers = handlers
     http_stream.__init__(self, sock = sock)
     self.expect_close = not want_persistent_server
-    self.log("Starting")
+    self.logger.debug("Starting")
 
   def handle_no_content_length(self):
     """
@@ -536,7 +514,7 @@ class http_server(http_stream):
     Content-Type, look for a handler, and if everything looks right,
     pass the message body, path, and a reply callback to the handler.
     """
-    self.log("Received request %r" % self.msg)
+    self.logger.debug("Received request %r" % self.msg)
     if not self.msg.persistent:
       self.expect_close = True
     handler = self.find_handler(self.msg.path)
@@ -553,7 +531,7 @@ class http_server(http_stream):
       except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception, e:
-        rpki.log.traceback(logger)
+        self.logger.exception("Unhandled exception while handling HTTP request")
         self.send_error(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
     else:
       self.send_error(code = error[0], reason = error[1])
@@ -577,7 +555,7 @@ class http_server(http_stream):
     listen for next message; otherwise, queue up a close event for
     this stream so it will shut down once the reply has been sent.
     """
-    self.log("Sending response %s %s" % (code, reason))
+    self.logger.debug("Sending response %s %s" % (code, reason))
     if code >= 400:
       self.expect_close = True
     msg = http_response(code = code, reason = reason, body = body,
@@ -585,19 +563,17 @@ class http_server(http_stream):
                         Connection = "Close" if self.expect_close else "Keep-Alive")
     self.push(msg.format())
     if self.expect_close:
-      self.log("Closing")
+      self.logger.debug("Closing")
       self.timer.cancel()
       self.close_when_done()
     else:      
-      self.log("Listening for next message")
+      self.logger.debug("Listening for next message")
       self.restart()
 
 class http_listener(asyncore.dispatcher):
   """
   Listener for incoming HTTP connections.
   """
-
-  log = log_method
 
   def __repr__(self):
     try:
@@ -607,6 +583,7 @@ class http_listener(asyncore.dispatcher):
     return rpki.log.log_repr(self, *status)
 
   def __init__(self, handlers, addrinfo):
+    self.logger = logging.LoggerAdapter(logger, dict(context = self))
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
     try:
@@ -622,11 +599,10 @@ class http_listener(asyncore.dispatcher):
       self.bind(sockaddr)
       self.listen(5)
     except Exception, e:
-      self.log("Couldn't set up HTTP listener: %s" % e, logging.WARNING)
-      rpki.log.traceback(logger)
+      self.logger.exception("Couldn't set up HTTP listener")
       self.close()
     for h in handlers:
-      self.log("Handling %s" % h[0])
+      self.logger.debug("Handling %s" % h[0])
 
   def handle_accept(self):
     """
@@ -635,12 +611,12 @@ class http_listener(asyncore.dispatcher):
     """
     try:
       s, c = self.accept()
-      self.log("Accepting connection from %s" % addr_to_string(c))
+      self.logger.debug("Accepting connection from %s" % addr_to_string(c))
       http_server(sock = s, handlers = self.handlers)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      self.log("Unable to accept connection: %s" % e)
+      self.logger.debug("Unable to accept connection: %s" % e)
       self.handle_error()
 
   def handle_error(self):
@@ -649,8 +625,7 @@ class http_listener(asyncore.dispatcher):
     """
     if sys.exc_info()[0] in (SystemExit, rpki.async.ExitNow):
       raise
-    self.log("Error in HTTP listener", logging.WARNING)
-    rpki.log.traceback(logger)
+    self.logger.exception("Error in HTTP listener")
 
 class http_client(http_stream):
   """
@@ -670,8 +645,8 @@ class http_client(http_stream):
   state = None
 
   def __init__(self, queue, hostport):
-    self.log("Creating new connection to %s" % addr_to_string(hostport))
     http_stream.__init__(self)
+    self.logger.debug("Creating new connection to %s" % addr_to_string(hostport))
     self.queue = queue
     self.host = hostport[0]
     self.port = hostport[1]
@@ -683,14 +658,14 @@ class http_client(http_stream):
     Create socket and request a connection.
     """
     if not use_adns:
-      self.log("Not using ADNS")
+      self.logger.debug("Not using ADNS")
       self.gotaddrinfo([(socket.AF_INET, self.host)])
     elif self.host == "localhost":
-      self.log("Bypassing DNS for localhost")
+      self.logger.debug("Bypassing DNS for localhost")
       self.gotaddrinfo(localhost_addrinfo())
     else:
       families = supported_address_families(enable_ipv6_clients)
-      self.log("Starting ADNS lookup for %s in families %r" % (self.host, families))
+      self.logger.debug("Starting ADNS lookup for %s in families %r" % (self.host, families))
       rpki.adns.getaddrinfo(self.gotaddrinfo, self.dns_error, self.host, families)
 
   def dns_error(self, e):
@@ -706,7 +681,7 @@ class http_client(http_stream):
     """
     try:
       self.af, self.address = random.choice(addrinfo)
-      self.log("Connecting to AF %s host %s port %s addr %s" % (self.af, self.host, self.port, self.address))
+      self.logger.debug("Connecting to AF %s host %s port %s addr %s" % (self.af, self.host, self.port, self.address))
       self.create_socket(self.af, socket.SOCK_STREAM)
       self.connect((self.address, self.port))
       if self.addr is None:
@@ -721,7 +696,7 @@ class http_client(http_stream):
     """
     Asyncore says socket has connected.
     """
-    self.log("Socket connected")
+    self.logger.debug("Socket connected")
     self.set_state("idle")
     assert self.queue.client is self
     self.queue.send_request()
@@ -730,7 +705,7 @@ class http_client(http_stream):
     """
     Set HTTP client connection state.
     """
-    self.log("State transition %s => %s" % (self.state, state))
+    self.logger.debug("State transition %s => %s" % (self.state, state))
     self.state = state
 
   def handle_no_content_length(self):
@@ -746,7 +721,7 @@ class http_client(http_stream):
     """
     Queue up request message and kickstart connection.
     """
-    self.log("Sending request %r" % msg)
+    self.logger.debug("Sending request %r" % msg)
     assert self.state == "idle", "%r: state should be idle, is %s" % (self, self.state)
     self.set_state("request-sent")
     msg.headers["Connection"] = "Close" if self.expect_close else "Keep-Alive"
@@ -763,7 +738,7 @@ class http_client(http_stream):
     arrange for the stream to shut down.
     """
 
-    self.log("Message received, state %s" % self.state)
+    self.logger.debug("Message received, state %s" % self.state)
 
     if not self.msg.persistent:
       self.expect_close = True
@@ -771,16 +746,16 @@ class http_client(http_stream):
     if self.state != "request-sent":
       if self.state == "closing":
         assert not self.msg.body
-        self.log("Ignoring empty response received while closing")
+        self.logger.debug("Ignoring empty response received while closing")
         return
       raise rpki.exceptions.HTTPUnexpectedState, "%r received message while in unexpected state %s" % (self, self.state)
 
     if self.expect_close:
-      self.log("Closing")
+      self.logger.debug("Closing")
       self.set_state("closing")
       self.close_when_done()
     else:
-      self.log("Idling")
+      self.logger.debug("Idling")
       self.set_state("idle")
       self.update_timeout()
 
@@ -803,7 +778,7 @@ class http_client(http_stream):
     sent, signal the error.
     """
     http_stream.handle_close(self)
-    self.log("State %s" % self.state)
+    self.logger.debug("State %s" % self.state)
     if self.get_terminator() is None:
       self.handle_body()
     elif self.state == "request-sent":
@@ -818,7 +793,7 @@ class http_client(http_stream):
     """
     bad = self.state not in ("idle", "closing")
     if bad:
-      self.log("Timeout while in state %s" % self.state, logging.WARNING)
+      self.logger.warning("Timeout while in state %s" % self.state)
     http_stream.handle_timeout(self)
     if bad:
       try:
@@ -834,7 +809,7 @@ class http_client(http_stream):
     down the connection and pass back the exception.
     """
     eclass, edata = sys.exc_info()[0:2]
-    self.log("Error on HTTP client connection %s:%s %s %s" % (self.host, self.port, eclass, edata), logging.WARNING)
+    self.logger.warning("Error on HTTP client connection %s:%s %s %s" % (self.host, self.port, eclass, edata))
     http_stream.handle_error(self)
     self.queue.return_result(self, edata, detach = True)
 
@@ -845,22 +820,21 @@ class http_queue(object):
   stream itself, this class provides a slightly higher-level API.
   """
 
-  log = log_method
-
   def __repr__(self):
     return rpki.log.log_repr(self, addr_to_string(self.hostport))
 
   def __init__(self, hostport):
+    self.logger = logging.LoggerAdapter(logger, dict(context = self))
     self.hostport = hostport
     self.client = None
-    self.log("Created")
+    self.logger.debug("Created")
     self.queue = []
 
   def request(self, *requests):
     """
     Append http_request object(s) to this queue.
     """
-    self.log("Adding requests %r" % requests)
+    self.logger.debug("Adding requests %r" % requests)
     self.queue.extend(requests)
 
   def restart(self):
@@ -875,13 +849,13 @@ class http_queue(object):
     try:
       if self.client is None:
         self.client = http_client(self, self.hostport)
-        self.log("Attached client %r" % self.client)
+        self.logger.debug("Attached client %r" % self.client)
         self.client.start()
       elif self.client.state == "idle":
-        self.log("Sending request to existing client %r" % self.client)
+        self.logger.debug("Sending request to existing client %r" % self.client)
         self.send_request()
       else:
-        self.log("Client %r exists in state %r" % (self.client, self.client.state))
+        self.logger.debug("Client %r exists in state %r" % (self.client, self.client.state))
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
@@ -902,7 +876,7 @@ class http_queue(object):
     conditions.
     """
     if client_ is self.client:
-      self.log("Detaching client %r" % client_)
+      self.logger.debug("Detaching client %r" % client_)
       self.client = None
 
   def return_result(self, client, result, detach = False): # pylint: disable=W0621
@@ -914,7 +888,7 @@ class http_queue(object):
     """
 
     if client is not self.client:
-      self.log("Wrong client trying to return result.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result, logging.WARNING)
+      self.logger.warning("Wrong client trying to return result.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result)
       return
 
     if detach:
@@ -922,16 +896,16 @@ class http_queue(object):
 
     try:
       req = self.queue.pop(0)
-      self.log("Dequeuing request %r" % req)
+      self.logger.debug("Dequeuing request %r" % req)
     except IndexError:
-      self.log("No caller.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result, logging.WARNING)
+      self.logger.warning("No caller.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result)
       return
 
     assert isinstance(result, http_response) or isinstance(result, Exception)
 
     if isinstance(result, http_response):
       try:
-        self.log("Returning result %r to caller" % result)
+        self.logger.debug("Returning result %r to caller" % result)
         req.callback(result.body)
       except (rpki.async.ExitNow, SystemExit):
         raise
@@ -940,21 +914,14 @@ class http_queue(object):
 
     if isinstance(result, Exception):
       try:
-        self.log("Returning exception %r to caller: %s" % (result, result), logging.WARNING)
+        self.logger.warning("Returning exception %r to caller: %s" % (result, result))
         req.errback(result)
       except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception:
-        #
-        # If we get here, we may have lost the event chain.  Not
-        # obvious what we can do about it at this point, but force a
-        # traceback so that it will be somewhat obvious that something
-        # really bad happened.
-        #
-        self.log("Exception in exception callback", logging.WARNING)
-        rpki.log.traceback(logger, True)
+        self.logger.exception("Exception in exception callback, may have lost event chain")
 
-    self.log("Queue: %r" % self.queue)
+    self.logger.debug("Queue: %r" % self.queue)
 
     if self.queue:
       self.restart()

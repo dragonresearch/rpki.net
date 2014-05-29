@@ -130,7 +130,6 @@ def do_revoke():
 dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 
 def fail(e):                            # pylint: disable=W0621
-  rpki.log.traceback(logger, args.debug)
   sys.exit("Testpoke failed: %s" % e)
 
 cms_ta         = get_PEM("cms-ca-cert", rpki.x509.X509)

@@ -432,7 +432,7 @@ class msg(rpki.xml_utils.msg, publication_namespace):
 
       def fail(e):
         if not isinstance(e, rpki.exceptions.NotFound):
-          rpki.log.traceback(logger)
+          logger.exception("Exception processing PDU %r", q_pdu)
         r_msg.append(report_error_elt.from_exception(e, q_pdu.tag))
         cb(r_msg)
 

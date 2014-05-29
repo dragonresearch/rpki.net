@@ -279,7 +279,7 @@ class main(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      rpki.log.traceback(logger)
+      logger.exception("Unhandled exception serving left-right request")
       cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
   up_down_url_regexp = re.compile("/up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
@@ -311,7 +311,7 @@ class main(object):
       logger.warning(str(e))
       cb(400, reason = str(e))
     except Exception, e:
-      rpki.log.traceback(logger)
+      logger.exception("Unhandled exception processing up-down request")
       cb(400, reason = "Could not process PDU: %s" % e)
 
   def checkpoint(self, force = False):
@@ -662,8 +662,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
 
     def lose(e):
-      rpki.log.traceback(logger)
-      logger.warning("Could not delete CA %r, skipping: %s" % (self, e))
+      logger.exception("Could not delete CA %r, skipping", self)
       callback()
 
     def done():

@@ -159,7 +159,7 @@ def main():
   Main program.
   """
 
-  rpki.log.init(smoketest_name)
+  rpki.log.init(smoketest_name, argparse.Namespace(log_level = logging.DEBUG, log_stream = sys.stdout))
   logger.info("Starting")
 
   pubd_process = None
@@ -299,12 +299,9 @@ def main():
     logger.info("Event loop exited normally")
 
   except Exception, e:
-
-    logger.info("Event loop exited with an exception: %r" % e)
-    rpki.log.traceback(logger)
+    logger.exception("Event loop exited with an exception")
 
   finally:
-
     logger.info("Cleaning up")
     for a in db.engines:
       a.kill_daemons()
@@ -631,7 +628,7 @@ class allocation(object):
 
     def done(e):
       if isinstance(e, Exception):
-        rpki.log.traceback(logger)
+        logger.exception("Exception while rekeying %s", self.name)
         raise e
       cb()
 
@@ -648,7 +645,7 @@ class allocation(object):
 
     def done(e):
       if isinstance(e, Exception):
-        rpki.log.traceback(logger)
+        logger.exception("Exception while revoking %s", self.name)
         raise e
       cb()
 
@@ -1295,8 +1292,7 @@ def call_pubd(pdus, cb):
     cb(r_msg)
 
   def call_pubd_eb(e):
-    logger.warning("Problem calling pubd: %s" % e)
-    rpki.log.traceback(logger)
+    logger.exception("Problem calling pubd")
 
   rpki.http.client(
     url          = q_url,

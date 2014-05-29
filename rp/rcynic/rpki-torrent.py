@@ -4,11 +4,11 @@
 #
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -130,7 +130,7 @@ def generator_main():
   client = TransmissionClient()
 
   client.remove_torrents(z.torrent_name)
-  
+
   download_dir = client.get_session().download_dir
   torrent_dir = os.path.join(download_dir, z.torrent_name)
   torrent_file = os.path.join(cfg.zip_dir, z.torrent_name + ".torrent")

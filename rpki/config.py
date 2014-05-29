@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -255,14 +255,14 @@ class parser(object):
     try:
       rpki.x509.XML_CMS_object.dump_outbound_cms = rpki.x509.DeadDrop(self.get("dump_outbound_cms"))
     except OSError, e:
-      logger.warning("Couldn't initialize mailbox %s: %s" % (self.get("dump_outbound_cms"), e))
+      logger.warning("Couldn't initialize mailbox %s: %s", self.get("dump_outbound_cms"), e)
     except ConfigParser.NoOptionError:
       pass
 
     try:
       rpki.x509.XML_CMS_object.dump_inbound_cms = rpki.x509.DeadDrop(self.get("dump_inbound_cms"))
     except OSError, e:
-      logger.warning("Couldn't initialize mailbox %s: %s" % (self.get("dump_inbound_cms"), e))
+      logger.warning("Couldn't initialize mailbox %s: %s", self.get("dump_inbound_cms"), e)
     except ConfigParser.NoOptionError:
       pass
 

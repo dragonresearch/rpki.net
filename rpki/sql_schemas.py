@@ -162,7 +162,7 @@ CREATE TABLE child (
         self_id                 BIGINT UNSIGNED NOT NULL,
         bsc_id                  BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (child_id),
-        CONSTRAINT              child_bsc_id 
+        CONSTRAINT              child_bsc_id
         FOREIGN KEY             (bsc_id) REFERENCES bsc (bsc_id) ON DELETE CASCADE,
         CONSTRAINT              child_self_id
         FOREIGN KEY             (self_id) REFERENCES self (self_id) ON DELETE CASCADE,

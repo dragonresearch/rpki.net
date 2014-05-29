@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -69,7 +69,7 @@ class iterator(object):
     except (ExitNow, SystemExit):
       raise
     except Exception:
-      logger.debug("Problem constructing iterator for %r" % (iterable,))
+      logger.debug("Problem constructing iterator for %s", repr(iterable))
       raise
     self.doit()
 
@@ -133,7 +133,7 @@ class timer(object):
     """
     if self.gc_debug:
       bt = traceback.extract_stack(limit = 3)
-      logger.debug("%s from %s:%d" % (msg, bt[0][0], bt[0][1]))
+      logger.debug("%s from %s:%d", msg, bt[0][0], bt[0][1])
 
   def set(self, when):
     """
@@ -156,7 +156,7 @@ class timer(object):
 
   if gc_debug:
     def __del__(self):
-      logger.debug("Deleting %r" % self)
+      logger.debug("Deleting %r", self)
 
   def cancel(self):
     """
@@ -206,12 +206,12 @@ class timer(object):
     while timer_queue and now >= timer_queue[0].when:
       t = timer_queue.pop(0)
       if cls.run_debug:
-        logger.debug("Running %r" % t)
+        logger.debug("Running %r", t)
       try:
         if t.handler is not None:
           t.handler()
         else:
-          logger.warning("Timer %r expired with no handler set" % t)
+          logger.warning("Timer %r expired with no handler set", t)
       except (ExitNow, SystemExit):
         raise
       except Exception, e:
@@ -293,14 +293,14 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
       while asyncore.socket_map or timer_queue:
         t = timer.seconds_until_wakeup()
         if debug_event_timing:
-          logger.debug("Dismissing to asyncore.poll(), t = %s, q = %r" % (t, timer_queue))
+          logger.debug("Dismissing to asyncore.poll(), t = %s, q = %r", t, timer_queue)
         asyncore.poll(t, asyncore.socket_map)
         timer.runq()
         if timer.gc_debug:
           gc.collect()
           if gc.garbage:
             for i in gc.garbage:
-              logger.debug("GC-cycle %r" % i)
+              logger.debug("GC-cycle %r", i)
             del gc.garbage[:]
     except ExitNow:
       break
@@ -311,12 +311,12 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
         logger.error("Something is badly wrong, select() thinks we gave it a bad file descriptor.")
         logger.error("Content of asyncore.socket_map:")
         for fd in sorted(asyncore.socket_map.iterkeys()):
-          logger.error("  fd %s obj %r" % (fd, asyncore.socket_map[fd]))
+          logger.error("  fd %s obj %r", fd, asyncore.socket_map[fd])
         logger.error("Not safe to continue due to risk of spin loop on select().  Exiting.")
         sys.exit(1)
-      logger.error("event_loop() exited with exception %r, this is not supposed to happen, restarting" % e)
+      logger.exception("event_loop() exited with exception %r, this is not supposed to happen, restarting")
     except Exception, e:
-      logger.error("event_loop() exited with exception %r, this is not supposed to happen, restarting" % e)
+      logger.exception("event_loop() exited with exception %r, this is not supposed to happen, restarting")
     else:
       break
     finally:
@@ -367,7 +367,7 @@ class sync_wrapper(object):
         raise
       except Exception, e:
         self.eb(e)
-      
+
     event_defer(thunk)
     event_loop()
     if self.err is None:
@@ -396,7 +396,7 @@ class gc_summary(object):
     """
     logger.debug("gc_summary: Running gc.collect()")
     gc.collect()
-    logger.debug("gc_summary: Summarizing (threshold %d)" % self.threshold)
+    logger.debug("gc_summary: Summarizing (threshold %d)", self.threshold)
     total = {}
     tuples = {}
     for g in gc.get_objects():
@@ -413,10 +413,10 @@ class gc_summary(object):
     logger.debug("gc_summary: Object type counts in descending order")
     for name, count in total:
       if count > self.threshold:
-        logger.debug("gc_summary: %8d %s" % (count, name))
+        logger.debug("gc_summary: %8d %s", count, name)
     logger.debug("gc_summary: Tuple content type signature counts in descending order")
     for types, count in tuples:
       if count > self.threshold:
-        logger.debug("gc_summary: %8d (%s)" % (count, types))
+        logger.debug("gc_summary: %8d (%s)", count, types)
     logger.debug("gc_summary: Scheduling next cycle")
     self.timer.set(self.interval)

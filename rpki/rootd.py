@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -27,7 +27,6 @@ import os
 import time
 import logging
 import argparse
-import sys
 import rpki.resource_set
 import rpki.up_down
 import rpki.left_right
@@ -59,15 +58,15 @@ class issue_pdu(rpki.up_down.issue_pdu):
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
-    logger.debug("Revocation requested for SKI %s" % self.ski)
+    logger.debug("Revocation requested for SKI %s", self.ski)
     subject_cert = rootd.get_subject_cert()
     if subject_cert is None:
       logger.debug("No subject certificate, nothing to revoke")
       raise rpki.exceptions.NotInDatabase
     if subject_cert.gSKI() != self.ski:
-      logger.debug("Subject certificate has different SKI %s, not revoking" % subject_cert.gSKI())
+      logger.debug("Subject certificate has different SKI %s, not revoking", subject_cert.gSKI())
       raise rpki.exceptions.NotInDatabase
-    logger.debug("Revoking certificate %s" % self.ski)
+    logger.debug("Revoking certificate %s", self.ski)
     now = rpki.sundial.now()
     rootd.revoke_subject_cert(now)
     rootd.del_subject_cert()
@@ -102,7 +101,7 @@ class message_pdu(rpki.up_down.message_pdu):
     """
     Log query we're handling.
     """
-    logger.info("Serving %s query" % self.type)
+    logger.info("Serving %s query", self.type)
 
 class sax_handler(rpki.up_down.sax_handler):
   pdu = message_pdu
@@ -113,7 +112,7 @@ class cms_msg(rpki.up_down.cms_msg):
 class main(object):
 
   def get_root_cert(self):
-    logger.debug("Read root cert %s" % self.rpki_root_cert_file)
+    logger.debug("Read root cert %s", self.rpki_root_cert_file)
     self.rpki_root_cert = rpki.x509.X509(Auto_file = self.rpki_root_cert_file)
 
   def root_newer_than_subject(self):
@@ -124,39 +123,39 @@ class main(object):
     filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
     try:
       x = rpki.x509.X509(Auto_file = filename)
-      logger.debug("Read subject cert %s" % filename)
+      logger.debug("Read subject cert %s", filename)
       return x
     except IOError:
       return None
 
   def set_subject_cert(self, cert):
     filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
-    logger.debug("Writing subject cert %s, SKI %s" % (filename, cert.hSKI()))
+    logger.debug("Writing subject cert %s, SKI %s", filename, cert.hSKI())
     f = open(filename, "wb")
     f.write(cert.get_DER())
     f.close()
 
   def del_subject_cert(self):
     filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
-    logger.debug("Deleting subject cert %s" % filename)
+    logger.debug("Deleting subject cert %s", filename)
     os.remove(filename)
 
   def get_subject_pkcs10(self):
     try:
       x = rpki.x509.PKCS10(Auto_file = self.rpki_subject_pkcs10)
-      logger.debug("Read subject PKCS #10 %s" % self.rpki_subject_pkcs10)
+      logger.debug("Read subject PKCS #10 %s", self.rpki_subject_pkcs10)
       return x
     except IOError:
       return None
 
   def set_subject_pkcs10(self, pkcs10):
-    logger.debug("Writing subject PKCS #10 %s" % self.rpki_subject_pkcs10)
+    logger.debug("Writing subject PKCS #10 %s", self.rpki_subject_pkcs10)
     f = open(self.rpki_subject_pkcs10, "wb")
     f.write(pkcs10.get_DER())
     f.close()
 
   def del_subject_pkcs10(self):
-    logger.debug("Deleting subject PKCS #10 %s" % self.rpki_subject_pkcs10)
+    logger.debug("Deleting subject PKCS #10 %s", self.rpki_subject_pkcs10)
     try:
       os.remove(self.rpki_subject_pkcs10)
     except OSError:
@@ -189,8 +188,8 @@ class main(object):
       return None
     resources = self.rpki_root_cert.get_3779resources()
     notAfter = now + self.rpki_subject_lifetime
-    logger.info("Generating subject cert %s with resources %s, expires %s" % (
-      self.rpki_base_uri + self.rpki_subject_cert, resources, notAfter))
+    logger.info("Generating subject cert %s with resources %s, expires %s",
+                self.rpki_base_uri + self.rpki_subject_cert, resources, notAfter)
     req_key = pkcs10.getPublicKey()
     req_sia = pkcs10.get_SIA()
     self.next_serial_number()
@@ -221,8 +220,9 @@ class main(object):
       thisUpdate          = now,
       nextUpdate          = now + self.rpki_subject_regen,
       revokedCertificates = self.revoked)
-    logger.debug("Writing CRL %s" % os.path.join(self.rpki_root_dir, self.rpki_root_crl))
-    f = open(os.path.join(self.rpki_root_dir, self.rpki_root_crl), "wb")
+    fn = os.path.join(self.rpki_root_dir, self.rpki_root_crl)
+    logger.debug("Writing CRL %s", fn)
+    f = open(fn, "wb")
     f.write(crl.get_DER())
     f.close()
     manifest_content = [(self.rpki_root_crl, crl)]
@@ -248,8 +248,9 @@ class main(object):
       names_and_objs = manifest_content,
       keypair        = manifest_keypair,
       certs          = manifest_cert)
-    logger.debug("Writing manifest %s" % os.path.join(self.rpki_root_dir, self.rpki_root_manifest))
-    f = open(os.path.join(self.rpki_root_dir, self.rpki_root_manifest), "wb")
+    fn = os.path.join(self.rpki_root_dir, self.rpki_root_manifest)
+    logger.debug("Writing manifest %s", fn)
+    f = open(fn, "wb")
     f.write(manifest.get_DER())
     f.close()
 

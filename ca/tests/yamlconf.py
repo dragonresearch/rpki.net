@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -108,7 +108,7 @@ class roa_request(object):
   @classmethod
   def parse(cls, y):
     return cls(y.get("asn"), y.get("ipv4"), y.get("ipv6"))
-    
+
 class router_cert(object):
   """
   Representation for a router_cert object.
@@ -328,7 +328,7 @@ class allocation(object):
 
   def dump_asns(self, fn):
     with self.csvout(fn) as f:
-      for k in self.kids:    
+      for k in self.kids:
         f.writerows((k.name, a) for a in k.resources.asn)
 
   def dump_prefixes(self, fn):
@@ -352,7 +352,7 @@ class allocation(object):
           if i > 0:
             f.write("\n")
           f.write(g)
-          
+
   def dump_router_certificates(self, fn):
     if self.router_certs:
       path = self.path(fn)
@@ -423,7 +423,7 @@ class allocation(object):
       pubd_server_host          = self.pubd.hostname,
       pubd_server_port          = str(self.pubd.pubd_port),
       publication_rsync_server  = self.rsync_server)
-    
+
     if loopback:
       r.update(
         irdbd_sql_database      = self.irdb_name,
@@ -582,7 +582,7 @@ def pre_django_sql_setup(needed):
     if mysql_rootpass:
       db = MySQLdb.connect(user = mysql_rootuser, passwd = mysql_rootpass)
     else:
-      db = MySQLdb.connect(user = mysql_rootuser)  
+      db = MySQLdb.connect(user = mysql_rootuser)
     cur = db.cursor()
     for database in needed:
       try:
@@ -611,7 +611,7 @@ def pre_django_sql_setup(needed):
       cur.execute("SET foreign_key_checks = 0")
       for table in tables:
         cur.execute("DROP TABLE %s" % table)
-      cur.execute("SET foreign_key_checks = 1")  
+      cur.execute("SET foreign_key_checks = 1")
 
   cur.close()
   db.commit()
@@ -711,7 +711,7 @@ def main():
   for k in ("rpkid_sql_password", "irdbd_sql_password", "pubd_sql_password",
             "rpkid_sql_username", "irdbd_sql_username", "pubd_sql_username"):
     if cfg.has_option(k):
-      config_overrides[k] = cfg.get(k) 
+      config_overrides[k] = cfg.get(k)
 
   if args.profile:
     import cProfile

@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -28,7 +28,7 @@ for name in ("rpkid", "irdbd", "pubd"):
 
   username = cfg.get("%s_sql_username" % name, name[:4])
   password = cfg.get("%s_sql_password" % name, "fnord")
-  
+
   schema = []
   for line in getattr(rpki.sql_schemas, name, "").splitlines():
     schema.extend(line.partition("--")[0].split())
@@ -52,7 +52,7 @@ for name in ("rpkid", "irdbd", "pubd"):
     cur.execute("SET foreign_key_checks = 0")
     for table in tables:
       cur.execute("DROP TABLE %s" % table)
-    cur.execute("SET foreign_key_checks = 1")  
+    cur.execute("SET foreign_key_checks = 1")
 
     for statement in schema:
       cur.execute(statement)

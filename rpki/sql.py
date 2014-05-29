@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2009-2013  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -13,13 +13,13 @@
 # LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
-# 
+#
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -134,7 +134,7 @@ class session(object):
     """
     for s in self.dirty.copy():
       #if s.sql_cache_debug:
-      logger.debug("Sweeping (%s) %r" % ("deleting" if s.sql_deleted else "storing", s))
+      logger.debug("Sweeping (%s) %r", "deleting" if s.sql_deleted else "storing", s)
       if s.sql_deleted:
         s.sql_delete()
       else:
@@ -245,7 +245,7 @@ class sql_persistent(object):
     if where is None:
       assert args is None and also_from is None
       if cls.sql_debug:
-        logger.debug("sql_fetch_where(%r)" % cls.sql_template.select)
+        logger.debug("sql_fetch_where(%r)", cls.sql_template.select)
       gctx.sql.execute(cls.sql_template.select)
     else:
       query = cls.sql_template.select
@@ -253,7 +253,7 @@ class sql_persistent(object):
         query += "," + also_from
       query += " WHERE " + where
       if cls.sql_debug:
-        logger.debug("sql_fetch_where(%r, %r)" % (query, args))
+        logger.debug("sql_fetch_where(%r, %r)", query, args)
       gctx.sql.execute(query, args)
     results = []
     for row in gctx.sql.fetchall():
@@ -282,7 +282,7 @@ class sql_persistent(object):
     Mark this object as needing to be written back to SQL.
     """
     if self.sql_cache_debug and not self.sql_is_dirty:
-      logger.debug("Marking %r SQL dirty" % self)
+      logger.debug("Marking %r SQL dirty", self)
     self.gctx.sql.dirty.add(self)
 
   def sql_mark_clean(self):
@@ -290,7 +290,7 @@ class sql_persistent(object):
     Mark this object as not needing to be written back to SQL.
     """
     if self.sql_cache_debug and self.sql_is_dirty:
-      logger.debug("Marking %r SQL clean" % self)
+      logger.debug("Marking %r SQL clean", self)
     self.gctx.sql.dirty.discard(self)
 
   @property
@@ -314,14 +314,14 @@ class sql_persistent(object):
     args = self.sql_encode()
     if not self.sql_in_db:
       if self.sql_debug:
-        logger.debug("sql_store(%r, %r)" % (self.sql_template.insert, args))
+        logger.debug("sql_store(%r, %r)", self.sql_template.insert, args)
       self.gctx.sql.execute(self.sql_template.insert, args)
       setattr(self, self.sql_template.index, self.gctx.sql.lastrowid())
       self.gctx.sql.cache[(self.__class__, self.gctx.sql.lastrowid())] = self
       self.sql_insert_hook()
     else:
       if self.sql_debug:
-        logger.debug("sql_store(%r, %r)" % (self.sql_template.update, args))
+        logger.debug("sql_store(%r, %r)", self.sql_template.update, args)
       self.gctx.sql.execute(self.sql_template.update, args)
       self.sql_update_hook()
     key = (self.__class__, getattr(self, self.sql_template.index))
@@ -336,7 +336,7 @@ class sql_persistent(object):
     if self.sql_in_db:
       id = getattr(self, self.sql_template.index) # pylint: disable=W0622
       if self.sql_debug:
-        logger.debug("sql_delete(%r, %r)" % (self.sql_template.delete, id))
+        logger.debug("sql_delete(%r, %r)", self.sql_template.delete, id)
       self.sql_delete_hook()
       self.gctx.sql.execute(self.sql_template.delete, (id,))
       key = (self.__class__, id)
@@ -382,7 +382,7 @@ class sql_persistent(object):
     Customization hook.
     """
     pass
-  
+
   def sql_update_hook(self):
     """
     Customization hook.

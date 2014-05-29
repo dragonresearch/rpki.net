@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -249,17 +249,18 @@ class list_pdu(base_elt):
       r_msg.payload = list_response_pdu()
 
       if irdb_resources.valid_until < rpki.sundial.now():
-        logger.debug("Child %s's resources expired %s" % (child.child_handle, irdb_resources.valid_until))
+        logger.debug("Child %s's resources expired %s", child.child_handle, irdb_resources.valid_until)
       else:
         for parent in child.parents:
           for ca in parent.cas:
             ca_detail = ca.active_ca_detail
             if not ca_detail:
-              logger.debug("No active ca_detail, can't issue to %s" % child.child_handle)
+              logger.debug("No active ca_detail, can't issue to %s", child.child_handle)
               continue
             resources = ca_detail.latest_ca_cert.get_3779resources() & irdb_resources
             if resources.empty():
-              logger.debug("No overlap between received resources and what child %s should get ([%s], [%s])" % (child.child_handle, ca_detail.latest_ca_cert.get_3779resources(), irdb_resources))
+              logger.debug("No overlap between received resources and what child %s should get ([%s], [%s])",
+                           child.child_handle, ca_detail.latest_ca_cert.get_3779resources(), irdb_resources)
               continue
             rc = class_elt()
             rc.class_name = str(ca.ca_id)
@@ -283,7 +284,7 @@ class list_pdu(base_elt):
     Send a "list" query to parent.
     """
     try:
-      logger.info('Sending "list" request to parent %s' % parent.parent_handle)
+      logger.info('Sending "list" request to parent %s', parent.parent_handle)
       parent.query_up_down(cls(), cb, eb)
     except (rpki.async.ExitNow, SystemExit):
       raise
@@ -311,7 +312,7 @@ class class_response_syntax(base_elt):
     self.classes.append(c)
     stack.append(c)
     c.startElement(stack, name, attrs)
-      
+
   def toXML(self):
     """Generate payload of "list_response" and "issue_response" PDUs."""
     return [c.toXML() for c in self.classes]
@@ -440,7 +441,7 @@ class issue_pdu(base_elt):
       is_ca = True,
       caRepository = ca.sia_uri,
       rpkiManifest = ca_detail.manifest_uri)
-    logger.info('Sending "issue" request to parent %s' % parent.parent_handle)
+    logger.info('Sending "issue" request to parent %s', parent.parent_handle)
     parent.query_up_down(self, callback, errback)
 
 class issue_response_pdu(class_response_syntax):
@@ -474,7 +475,7 @@ class revoke_pdu(revoke_syntax):
   """
   Up-Down protocol "revoke" PDU.
   """
-    
+
   def get_SKI(self):
     """
     Convert g(SKI) encoding from PDU back to raw SKI.
@@ -509,7 +510,7 @@ class revoke_pdu(revoke_syntax):
     self = cls()
     self.class_name = ca.parent_resource_class
     self.ski = gski
-    logger.info('Sending "revoke" request for SKI %s to parent %s' % (gski, parent.parent_handle))
+    logger.info('Sending "revoke" request for SKI %s to parent %s', gski, parent.parent_handle)
     parent.query_up_down(self, cb, eb)
 
 class revoke_response_pdu(revoke_syntax):
@@ -547,15 +548,14 @@ class error_response_pdu(base_elt):
     """
     base_elt.__init__(self)
     if exception is not None:
-      logger.debug("Constructing up-down error response from exception %s" % exception)
+      logger.debug("Constructing up-down error response from exception %s", exception)
       exception_type = type(exception)
       request_type = None if request_payload is None else type(request_payload)
-      logger.debug("Constructing up-down error response: exception_type %s, request_type %s" % (
-        exception_type, request_type))
+      logger.debug("Constructing up-down error response: exception_type %s, request_type %s",
+                   exception_type, request_type)
       if False:
         self.status = self.exceptions.get((exception_type, request_type),
-                                          self.exceptions.get(exception_type,
-                                                              2001))
+                                          self.exceptions.get(exception_type, 2001))
       else:
         self.status = self.exceptions.get((exception_type, request_type))
         if self.status is None:
@@ -565,7 +565,7 @@ class error_response_pdu(base_elt):
           logger.debug("No exception match either, defaulting")
           self.status = 2001
       self.description = str(exception)
-      logger.debug("Chosen status code: %s" % self.status)
+      logger.debug("Chosen status code: %s", self.status)
 
   def endElement(self, stack, name, text):
     """
@@ -684,7 +684,7 @@ class message_pdu(base_elt):
     """
     Log query we're handling.  Separate method so rootd can override.
     """
-    logger.info("Serving %s query from child %s [sender %s, recipient %s]" % (self.type, child.child_handle, self.sender, self.recipient))
+    logger.info("Serving %s query from child %s [sender %s, recipient %s]", self.type, child.child_handle, self.sender, self.recipient)
 
   def serve_error(self, exception):
     """

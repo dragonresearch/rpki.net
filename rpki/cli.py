@@ -1,12 +1,12 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2010--2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -40,6 +40,7 @@ class ExitArgparse(Exception):
   "Exit method from ArgumentParser."
 
   def __init__(self, message = None, status = 0):
+    super(ExitArgparse, self).__init__()
     self.message = message
     self.status = status
 
@@ -62,7 +63,7 @@ class Cmd(cmd.Cmd):
     cmd.Cmd.__init__(self)
     if argv:
       self.onecmd(" ".join(argv))
-    else:      
+    else:
       self.cmdloop_with_history()
 
   def onecmd(self, line):
@@ -229,7 +230,7 @@ def parsecmd(subparsers, *arg_clauses):
   intended to handle parsing for the entire program on the command line.
 
   arg_clauses is a series of defarg() invocations defining arguments to be parsed
-  by the argparse code. 
+  by the argparse code.
 
   The decorator will use arg_clauses to construct two separate argparse parser
   instances: one will be attached to the global parser as a subparser, the

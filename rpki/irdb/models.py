@@ -1,12 +1,12 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2011--2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -24,7 +24,7 @@ to be usable by command line programs and other scripts, not just
 Django GUI code, so be careful.
 """
 
-# pylint: disable=W0232
+# pylint: disable=W0232,C1001
 
 import django.db.models
 import rpki.x509
@@ -389,7 +389,7 @@ class ServerRevocation(Revocation):
 
 class ResourceHolderRevocation(Revocation):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "revocations")
-  
+
 class EECertificate(Certificate):
   private_key = RSAKeyField()
 
@@ -637,10 +637,10 @@ class Client(CrossCertification):
 
 # for Django South -- these are just simple subclasses
 add_introspection_rules([],
-                        ('^rpki\.irdb\.models\.CertificateField',
-                         '^rpki\.irdb\.models\.CRLField',
-                         '^rpki\.irdb\.models\.EnumField',
-                         '^rpki\.irdb\.models\.HandleField',
-                         '^rpki\.irdb\.models\.RSAKeyField',
-                         '^rpki\.irdb\.models\.SignedReferralField',
-                         '^rpki\.irdb\.models\.SundialField'))
+                        (r'^rpki\.irdb\.models\.CertificateField',
+                         r'^rpki\.irdb\.models\.CRLField',
+                         r'^rpki\.irdb\.models\.EnumField',
+                         r'^rpki\.irdb\.models\.HandleField',
+                         r'^rpki\.irdb\.models\.RSAKeyField',
+                         r'^rpki\.irdb\.models\.SignedReferralField',
+                         r'^rpki\.irdb\.models\.SundialField'))

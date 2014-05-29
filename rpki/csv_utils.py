@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -49,7 +49,7 @@ class csv_reader(object):
     self.filename = filename
     self.columns = columns
     self.min_columns = min_columns
-    self.comment_characters = comment_characters 
+    self.comment_characters = comment_characters
     self.file = open(filename, "r")
 
   def __iter__(self):

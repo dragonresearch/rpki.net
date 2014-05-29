@@ -1,12 +1,12 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -20,7 +20,7 @@
 Management code for the IRDB.
 """
 
-# pylint: disable=W0612
+# pylint: disable=W0612,C0325
 
 import os
 import copy
@@ -44,8 +44,6 @@ from lxml.etree import (Element, SubElement, ElementTree,
                         tostring as ElementToString)
 
 from rpki.csv_utils import csv_reader
-
-
 
 # XML namespace and protocol version for OOB setup protocol.  The name
 # is historical and may change before we propose this as the basis for
@@ -80,7 +78,6 @@ class BadXMLMessage(Exception):         "Bad XML message."
 class PastExpiration(Exception):        "Expiration date has already passed."
 class CantRunRootd(Exception):          "Can't run rootd."
 
-
 
 def B64Element(e, tag, obj, **kwargs):
   """
@@ -134,8 +131,6 @@ class PEM_writer(object):
     if tempname != filename:
       os.rename(tempname, filename)
     self.wrote.add(filename)
-
-
 
 
 def etree_read(filename):
@@ -192,10 +187,9 @@ class etree_wrapper(object):
 
   @property
   def file(self):
-    from cStringIO import StringIO 
+    from cStringIO import StringIO
     return StringIO(ElementToString(self.etree))
 
-
 
 class Zookeeper(object):
 
@@ -464,7 +458,7 @@ class Zookeeper(object):
     self.log("Regenerating Server BPKI CRL")
     self.server_ca.generate_crl()
     self.server_ca.save()
-    
+
     for ca in rpki.irdb.ResourceHolderCA.objects.all():
       self.log("Regenerating BPKI CRL for Resource Holder %s" % ca.handle)
       ca.generate_crl()
@@ -519,7 +513,7 @@ class Zookeeper(object):
           parent_handle = parent.handle,
           bpki_cms_cert = parent.certificate)
         for parent in rpki.irdb.Parent.objects.all())
-          
+
       updates.extend(
         rpki.left_right.parent_elt.make_pdu(
           action = "set",
@@ -786,7 +780,7 @@ class Zookeeper(object):
     if sia_base is None:
       self.log("Don't know where to nest this client, defaulting to top-level")
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client.get("handle"))
-      
+
     if not sia_base.startswith("rsync://"):
       raise BadXMLMessage("Malformed sia_base parameter %r, should start with 'rsync://'" % sia_base)
 
@@ -1219,7 +1213,7 @@ class Zookeeper(object):
     to whack everything into sync should call this when they're done,
     but be warned that this can be slow with a lot of CAs.
 
-    Any arguments given are handles of CAs which should be poked with a 
+    Any arguments given are handles of CAs which should be poked with a
     <self run_now="yes"/> operation.
     """
 
@@ -1617,12 +1611,12 @@ class Zookeeper(object):
       pkcs10      = pkcs10,
       gski        = pkcs10.gSKI(),
       valid_until = resources.valid_until)
-    for range in resources.asn:
-      ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))
-    for range in resources.v4:
-      ee_request.address_ranges.create(start_ip = str(range.min), end_ip = str(range.max), version = 4)
-    for range in resources.v6:
-      ee_request.address_ranges.create(start_ip = str(range.min), end_ip = str(range.max), version = 6)
+    for r in resources.asn:
+      ee_request.asns.create(start_as = str(r.min), end_as = str(r.max))
+    for r in resources.v4:
+      ee_request.address_ranges.create(start_ip = str(r.min), end_ip = str(r.max), version = 4)
+    for r in resources.v6:
+      ee_request.address_ranges.create(start_ip = str(r.min), end_ip = str(r.max), version = 6)
 
 
   @django.db.transaction.commit_on_success
@@ -1669,8 +1663,8 @@ class Zookeeper(object):
         sn          = sn,
         eku         = rpki.oids.id_kp_bgpsec_router)
 
-      for range in asns:
-        ee_request.asns.create(start_as = str(range.min), end_as = str(range.max))
+      for r in asns:
+        ee_request.asns.create(start_as = str(r.min), end_as = str(r.max))
 
 
   @django.db.transaction.commit_on_success

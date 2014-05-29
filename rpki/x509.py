@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -126,13 +126,8 @@ class X501DN(object):
     return rpki.log.log_repr(self, str(self))
 
   def _debug(self):
-    if False:
-      import traceback
-      for chunk in traceback.format_stack(limit = 5):
-        for line in chunk.splitlines():
-          logger.debug("== %s" % line)
-    logger.debug("++ %r %r" % (self, self.dn))
-      
+    logger.debug("++ %r %r", self, self.dn)
+
   @classmethod
   def from_cn(cls, cn, sn = None):
     assert isinstance(cn, (str, unicode))
@@ -271,7 +266,7 @@ class DER_object(object):
           self.DER = value
         return
     raise rpki.exceptions.DERObjectConversionError("Can't honor conversion request %r" % (kw,))
-  
+
   def check_auto_update(self):
     """
     Check for updates to a DER object that auto-updates from a file.
@@ -282,7 +277,8 @@ class DER_object(object):
       filename = self.filename
       timestamp = os.stat(self.filename).st_mtime
       if self.timestamp is None or self.timestamp < timestamp:
-        logger.debug("Updating %s, timestamp %s" % (filename, rpki.sundial.datetime.fromtimestamp(timestamp)))
+        logger.debug("Updating %s, timestamp %s",
+                     filename, rpki.sundial.datetime.fromtimestamp(timestamp))
         f = open(filename, "rb")
         value = f.read()
         f.close()
@@ -296,7 +292,7 @@ class DER_object(object):
     except (IOError, OSError), e:
       now = rpki.sundial.now()
       if self.lastfail is None or now > self.lastfail + self.failure_threshold:
-        logger.warning("Could not auto_update %r (last failure %s): %s" % (self, self.lastfail, e))
+        logger.warning("Could not auto_update %r (last failure %s): %s", self, self.lastfail, e)
       self.lastfail = now
     else:
       self.lastfail = None
@@ -1051,7 +1047,7 @@ class PKCS10(DER_object):
     But draft-ietf-sidr-bgpsec-pki-profiles also says that router
     certificates don't get SIA, while RFC 6487 requires SIA.  So what
     do we do with SIA in PKCS #10 for router certificates?
-    
+
     For the moment, ignore it, but make sure we don't include it in
     the certificate when we get to the code that generates that.
     """
@@ -1147,7 +1143,7 @@ class PrivateKey(DER_object):
   """
   Class to hold a Public/Private key pair.
   """
-  
+
   POW_class = rpki.POW.Asymmetric
 
   def get_DER(self):
@@ -1206,7 +1202,7 @@ class PublicKey(DER_object):
   """
   Class to hold a public key.
   """
-  
+
   POW_class = rpki.POW.Asymmetric
 
   def get_DER(self):
@@ -1271,7 +1267,7 @@ class RSA(PrivateKey):
     Generate a new keypair.
     """
     if not quiet:
-      logger.debug("Generating new %d-bit RSA key" % keylength)
+      logger.debug("Generating new %d-bit RSA key", keylength)
     if generate_insecure_debug_only_rsa_key is not None:
       return cls(POW = generate_insecure_debug_only_rsa_key())
     else:
@@ -1331,17 +1327,17 @@ class CMS_object(DER_object):
   # and CRLs should be uncondtionally mandatory in such cases.
 
   require_crls = False
-  
+
   ## @var allow_extra_certs
   # Set this to True to allow CMS messages to contain CA certificates.
 
   allow_extra_certs = False
-  
+
   ## @var allow_extra_crls
   # Set this to True to allow CMS messages to contain multiple CRLs.
 
   allow_extra_crls = False
-  
+
   ## @var print_on_der_error
   # Set this to True to log alleged DER when we have trouble parsing
   # it, in case it's really a Perl backtrace or something.
@@ -1386,8 +1382,8 @@ class CMS_object(DER_object):
       raise
     except Exception:
       if self.print_on_der_error:
-        logger.debug("Problem parsing DER CMS message, might not really be DER: %r" %
-                       self.get_DER())
+        logger.debug("Problem parsing DER CMS message, might not really be DER: %r",
+                     self.get_DER())
       raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:
@@ -1399,10 +1395,10 @@ class CMS_object(DER_object):
 
     if self.debug_cms_certs:
       for x in certs:
-        logger.debug("Received CMS cert issuer %s subject %s SKI %s" % (
-          x.getIssuer(), x.getSubject(), x.hSKI()))
+        logger.debug("Received CMS cert issuer %s subject %s SKI %s",
+                     x.getIssuer(), x.getSubject(), x.hSKI())
       for c in crls:
-        logger.debug("Received CMS CRL issuer %r" % (c.getIssuer(),))
+        logger.debug("Received CMS CRL issuer %r", c.getIssuer())
 
     store = rpki.POW.X509Store()
 
@@ -1412,8 +1408,8 @@ class CMS_object(DER_object):
 
     for x in X509.normalize_chain(ta):
       if self.debug_cms_certs:
-        logger.debug("CMS trusted cert issuer %s subject %s SKI %s" % (
-          x.getIssuer(), x.getSubject(), x.hSKI()))
+        logger.debug("CMS trusted cert issuer %s subject %s SKI %s",
+                     x.getIssuer(), x.getSubject(), x.hSKI())
       if x.getNotAfter() < now:
         raise rpki.exceptions.TrustedCMSCertHasExpired("Trusted CMS certificate has expired",
                                                        "%s (%s)" % (x.getSubject(), x.hSKI()))
@@ -1427,8 +1423,8 @@ class CMS_object(DER_object):
 
     if trusted_ee:
       if self.debug_cms_certs:
-        logger.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (
-          trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI()))
+        logger.debug("Trusted CMS EE cert issuer %s subject %s SKI %s",
+                     trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI())
       if len(certs) > 1 or (len(certs) == 1 and
                             (certs[0].getSubject() != trusted_ee.getSubject() or
                              certs[0].getPublicKey() != trusted_ee.getPublicKey())):
@@ -1461,7 +1457,7 @@ class CMS_object(DER_object):
 
     for c in crls:
       if c.getNextUpdate() < now:
-        logger.warning("Stale BPKI CMS CRL (%s %s %s)" % (c.getNextUpdate(), c.getIssuer(), c.hAKI()))
+        logger.warning("Stale BPKI CMS CRL (%s %s %s)", c.getNextUpdate(), c.getIssuer(), c.hAKI())
 
     try:
       content = cms.verify(store)
@@ -1473,7 +1469,7 @@ class CMS_object(DER_object):
           dbg = self.dumpasn1()
         else:
           dbg = cms.pprint()
-        logger.warning("CMS verification failed, dumping ASN.1 (%d octets):" % len(self.get_DER()))
+        logger.warning("CMS verification failed, dumping ASN.1 (%d octets):", len(self.get_DER()))
         for line in dbg.splitlines():
           logger.warning(line)
       raise rpki.exceptions.CMSVerificationFailed("CMS verification failed")
@@ -1527,11 +1523,11 @@ class CMS_object(DER_object):
       crls = (crls,)
 
     if self.debug_cms_certs:
-      logger.debug("Signing with cert issuer %s subject %s SKI %s" % (
-        cert.getIssuer(), cert.getSubject(), cert.hSKI()))
+      logger.debug("Signing with cert issuer %s subject %s SKI %s",
+                   cert.getIssuer(), cert.getSubject(), cert.hSKI())
       for i, c in enumerate(certs):
-        logger.debug("Additional cert %d issuer %s subject %s SKI %s" % (
-          i, c.getIssuer(), c.getSubject(), c.hSKI()))
+        logger.debug("Additional cert %d issuer %s subject %s SKI %s",
+                     i, c.getIssuer(), c.getSubject(), c.hSKI())
 
     self._sign(cert.get_POW(),
                keypair.get_POW(),
@@ -1619,7 +1615,7 @@ class Wrapped_CMS_object(CMS_object):
     cms = self.POW_class()
     cms.sign(cert, keypair, self.encode(), certs, crls, self.econtent_oid, flags)
     self.POW = cms
-  
+
 
 class DER_CMS_object(CMS_object):
   """
@@ -1650,7 +1646,7 @@ class SignedManifest(DER_CMS_object):
 
   econtent_oid = rpki.oids.id_ct_rpkiManifest
   POW_class = rpki.POW.Manifest
-  
+
   def getThisUpdate(self):
     """
     Get thisUpdate value from this manifest.
@@ -1762,7 +1758,7 @@ class DeadDrop(object):
       self.warned = False
     except Exception, e:
       if not self.warned:
-        logger.warning("Could not write to mailbox %s: %s" % (self.name, e))
+        logger.warning("Could not write to mailbox %s: %s", self.name, e)
         self.warned = True
 
 class XML_CMS_object(Wrapped_CMS_object):
@@ -1885,7 +1881,7 @@ class XML_CMS_object(Wrapped_CMS_object):
   def check_replay_sql(self, obj, *context):
     """
     Like .check_replay() but gets recorded timestamp from
-    "last_cms_timestamp" field of an SQL object and stores the new 
+    "last_cms_timestamp" field of an SQL object and stores the new
     timestamp back in that same field.
     """
     obj.last_cms_timestamp = self.check_replay(obj.last_cms_timestamp, *context)
@@ -1941,7 +1937,7 @@ class CRL(DER_object):
   """
   Class to hold a Certificate Revocation List.
   """
-  
+
   POW_class = rpki.POW.CRL
 
   def get_DER(self):

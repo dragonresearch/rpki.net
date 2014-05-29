@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -712,7 +712,7 @@ class resource_bag(object):
            self.valid_until == other.valid_until
 
   def __ne__(self, other):
-    return not (self == other)
+    return not (self == other)          # pylint: disable=C0325
 
   def intersection(self, other):
     """
@@ -1044,7 +1044,7 @@ class roa_prefix_bag(object):
     return self.v4 == other.v4 and self.v6 == other.v6
 
   def __ne__(self, other):
-    return not (self == other)
+    return not (self == other)          # pylint: disable=C0325
 
 
 # Test suite for set operations.

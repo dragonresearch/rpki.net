@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -114,7 +114,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     """
     where = "%s.self_id = self.self_id and self.self_handle = %%s" % self.element_name
     return self.sql_fetch_where(self.gctx, where, (self.self_handle,), "self")
-  
+
   def serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Hook to do _handle => _id translation before saving.
@@ -330,8 +330,8 @@ class self_elt(data_elt):
     """
     Handle a left-right run_now action for this self.
     """
-    logger.debug("Forced immediate run of periodic actions for self %s[%d]" % (
-      self.self_handle, self.self_id))
+    logger.debug("Forced immediate run of periodic actions for self %s[%d]",
+                 self.self_handle, self.self_id)
     completion = rpki.rpkid_tasks.CompletionHandler(cb)
     self.schedule_cron_tasks(completion)
     assert completion.count > 0
@@ -391,12 +391,12 @@ class self_elt(data_elt):
           results.add(ca_detail)
     return results
 
-             
+
 class bsc_elt(data_elt):
   """
   <bsc/> (Business Signing Context) element.
   """
-  
+
   element_name = "bsc"
   attributes = ("action", "tag", "self_handle", "bsc_handle", "key_type", "hash_alg", "key_length")
   elements = ("signing_cert", "signing_cert_crl", "pkcs10_request")
@@ -544,7 +544,7 @@ class repository_elt(data_elt):
         handlers = {}
 
       for q_pdu in q_msg:
-        logger.info("Sending %s %s to pubd" % (q_pdu.action, q_pdu.uri))
+        logger.info("Sending %s %s to pubd", q_pdu.action, q_pdu.uri)
 
       bsc = self.bsc
       q_der = rpki.publication.cms_msg().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
@@ -559,7 +559,7 @@ class repository_elt(data_elt):
           for r_pdu in r_msg:
             handler = handlers.get(r_pdu.tag, self.default_pubd_handler)
             if handler:
-              logger.debug("Calling pubd handler %r" % handler)
+              logger.debug("Calling pubd handler %r", handler)
               handler(r_pdu)
           if len(q_msg) != len(r_msg):
             raise rpki.exceptions.BadPublicationReply("Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg))
@@ -708,7 +708,7 @@ class parent_elt(data_elt):
     """
 
     def loop(iterator, ski):
-      logger.debug("Asking parent %r to revoke class %r, SKI %s" % (self, rc_name, ski))
+      logger.debug("Asking parent %r to revoke class %r, SKI %s", self, rc_name, ski)
       q_pdu = rpki.up_down.revoke_pdu()
       q_pdu.class_name = rc_name
       q_pdu.ski = ski
@@ -761,7 +761,7 @@ class parent_elt(data_elt):
       self.serve_revoke_forgotten(done, fail)
 
     def fail(e):
-      logger.warning("Trouble getting parent to revoke certificates, blundering onwards: %s" % e)
+      logger.warning("Trouble getting parent to revoke certificates, blundering onwards: %s", e)
       done()
 
     def done():
@@ -1139,7 +1139,7 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
           r_msg.extend(self.make_reply(r.uri, r.roa)
                        for r in ca_detail.roas if r.roa is not None)
           r_msg.extend(self.make_reply(g.uri, g.ghostbuster)
-                       for g in ca_detail.ghostbusters)          
+                       for g in ca_detail.ghostbusters)
           r_msg.extend(self.make_reply(c.uri, c.cert)
                        for c in ca_detail.ee_certificates)
     cb()

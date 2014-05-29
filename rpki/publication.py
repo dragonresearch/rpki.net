@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -13,13 +13,13 @@
 # LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
-# 
+#
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -250,7 +250,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Publish an object.
     """
-    logger.info("Publishing %s" % self.payload.tracking_data(self.uri))
+    logger.info("Publishing %s", self.payload.tracking_data(self.uri))
     filename = self.uri_to_filename()
     filename_tmp = filename + ".tmp"
     dirname = os.path.dirname(filename)
@@ -265,7 +265,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Withdraw an object, then recursively delete empty directories.
     """
-    logger.info("Withdrawing %s" % self.uri)
+    logger.info("Withdrawing %s", self.uri)
     filename = self.uri_to_filename()
     try:
       os.remove(filename)
@@ -305,7 +305,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     Construct a publication PDU.
     """
     assert cls.payload_type is not None and type(obj) is cls.payload_type
-    return cls.make_pdu(action = "publish", uri = uri, payload = obj, tag = tag)      
+    return cls.make_pdu(action = "publish", uri = uri, payload = obj, tag = tag)
 
   @classmethod
   def make_withdraw(cls, uri, obj, tag = None):
@@ -336,7 +336,7 @@ class crl_elt(publication_object_elt):
 
   element_name = "crl"
   payload_type = rpki.x509.CRL
-  
+
 class manifest_elt(publication_object_elt):
   """
   <manifest/> element.

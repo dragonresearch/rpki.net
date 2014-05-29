@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -22,11 +22,10 @@ RPKI publication engine.
 """
 
 import os
+import re
 import time
 import logging
 import argparse
-import sys
-import re
 import rpki.resource_set
 import rpki.up_down
 import rpki.x509
@@ -82,14 +81,14 @@ class main(object):
         prof.runcall(self.main)
       finally:
         prof.dump_stats(self.profile)
-        logger.info("Dumped profile data to %s" % self.profile)
+        logger.info("Dumped profile data to %s", self.profile)
     else:
       self.main()
 
   def main(self):
 
     if self.profile:
-      logger.info("Running in profile mode with output to %s" % self.profile)
+      logger.info("Running in profile mode with output to %s", self.profile)
 
     self.sql = rpki.sql.session(self.cfg)
 

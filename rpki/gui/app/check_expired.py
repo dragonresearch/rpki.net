@@ -111,7 +111,7 @@ def check_child_certs(conf, errs):
     pdus = z.call_rpkid(req)
     for pdu in pdus:
         if isinstance(pdu, report_error_elt):
-            logger.error("rpkid reported an error: %s" % pdu.error_code)
+            logger.error("rpkid reported an error: %s", pdu.error_code)
         elif isinstance(pdu, list_published_objects_elt):
             if pdu.uri.endswith('.cer'):
                 cert = X509()

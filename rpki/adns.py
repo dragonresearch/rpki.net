@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2010--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2003--2007, 2009, 2010 Nominum, Inc. ("NOMINUM")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND NOMINUM DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -61,7 +61,7 @@ nameservers = []
 for ns in resolver.nameservers:
   try:
     nameservers.append((socket.AF_INET, dns.ipv4.inet_aton(ns)))
-    continue          
+    continue
   except Exception:
     pass
   try:
@@ -69,7 +69,7 @@ for ns in resolver.nameservers:
     continue
   except Exception:
     pass
-  logger.error("Couldn't parse nameserver address %r" % ns)
+  logger.error("Couldn't parse nameserver address %r", ns)
 
 class dispatcher(asyncore.dispatcher):
   """
@@ -120,7 +120,7 @@ class query(object):
     if isinstance(qname, (str, unicode)):
       qname = dns.name.from_text(qname)
     if isinstance(qtype, str):
-      qtype = dns.rdatatype.from_text(qtype)   
+      qtype = dns.rdatatype.from_text(qtype)
     if isinstance(qclass, str):
       qclass = dns.rdataclass.from_text(qclass)
     assert qname.is_absolute()

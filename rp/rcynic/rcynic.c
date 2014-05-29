@@ -2,11 +2,11 @@
  * Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
  * Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
  * Portions copyright (C) 2006--2008  American Registry for Internet Numbers ("ARIN")
- * 
+ *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notices and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -803,8 +803,8 @@ static const char *time_to_string(timestamp_t *ts, const time_t *t)
 
 #ifdef __GNUC__
 
-static void logmsg(const rcynic_ctx_t *rc, 
-		   const log_level_t level, 
+static void logmsg(const rcynic_ctx_t *rc,
+		   const log_level_t level,
 		   const char *fmt, ...)
      __attribute__ ((format (printf, 3, 4)));
 #endif
@@ -812,8 +812,8 @@ static void logmsg(const rcynic_ctx_t *rc,
 /**
  * Logging.
  */
-static void vlogmsg(const rcynic_ctx_t *rc, 
-		    const log_level_t level, 
+static void vlogmsg(const rcynic_ctx_t *rc,
+		    const log_level_t level,
 		    const char *fmt,
 		    va_list ap)
 {
@@ -839,8 +839,8 @@ static void vlogmsg(const rcynic_ctx_t *rc,
 /**
  * Logging.
  */
-static void logmsg(const rcynic_ctx_t *rc, 
-		   const log_level_t level, 
+static void logmsg(const rcynic_ctx_t *rc,
+		   const log_level_t level,
 		   const char *fmt, ...)
 {
   va_list ap;
@@ -894,7 +894,7 @@ static int configure_logmsg(rcynic_ctx_t *rc, const char *name)
 /**
  * Configure syslog.
  */
-static int configure_syslog(const rcynic_ctx_t *rc, 
+static int configure_syslog(const rcynic_ctx_t *rc,
 			    int *result,
 			    const CODE *table,
 			    const char *name)
@@ -948,7 +948,7 @@ static int configure_integer(const rcynic_ctx_t *rc,
   assert(rc && result && val);
 
   res = strtol(val, &p, 10);
-  
+
   if (*val != '\0' && *p == '\0') {
     *result = (int) res;
     return 1;
@@ -971,7 +971,7 @@ static int configure_unsigned_integer(const rcynic_ctx_t *rc,
   assert(rc && result && val);
 
   res = strtoul(val, &p, 10);
-  
+
   if (*val != '\0' && *p == '\0') {
     *result = (unsigned) res;
     return 1;
@@ -1065,7 +1065,7 @@ static int uri_to_filename(const rcynic_ctx_t *rc,
 
   u = uri->s + SIZEOF_RSYNC;
   n = strlen(u);
-  
+
   if (u[0] == '/' || u[0] == '.' || strstr(u, "/../") ||
       (n >= 3 && !strcmp(u + n - 3, "/.."))) {
     logmsg(rc, log_data_err, "Dangerous URI %s, not converting to filename", uri->s);
@@ -1101,7 +1101,7 @@ static int FileAndHash_name_cmp(const FileAndHash * const *a, const FileAndHash 
 /**
  * Get value of code in a validation_status_t.
  */
-static int validation_status_get_code(const validation_status_t *v, 
+static int validation_status_get_code(const validation_status_t *v,
 				      const mib_counter_t code)
 {
   assert(v && code < MIB_COUNTER_T_MAX);
@@ -1111,7 +1111,7 @@ static int validation_status_get_code(const validation_status_t *v,
 /**
  * Set value of code in a validation_status_t.
  */
-static void validation_status_set_code(validation_status_t *v, 
+static void validation_status_set_code(validation_status_t *v,
 				       const mib_counter_t code,
 				       int value)
 {
@@ -1508,7 +1508,7 @@ validation_status_find_filename(const rcynic_ctx_t *rc,
  * that the caller doesn't need to concern itself with why we thought
  * the check was necessary.
  */
-static int skip_checking_this_object(rcynic_ctx_t *rc, 
+static int skip_checking_this_object(rcynic_ctx_t *rc,
 				     const uri_t *uri,
 				     const object_generation_t generation)
 {
@@ -1524,7 +1524,7 @@ static int skip_checking_this_object(rcynic_ctx_t *rc,
     logmsg(rc, log_telemetry, "Checking %s", uri->s);
     return 0;
   }
-  
+
   if (generation != object_generation_current)
     return 1;
 
@@ -1659,7 +1659,7 @@ static int rm_rf(const path_t *name)
     else if (rm_rf(&path))
       continue;
     else
-      goto done;      
+      goto done;
   }
 
   ret = rmdir(name->s) == 0;
@@ -1776,7 +1776,7 @@ static int finalize_directories(const rcynic_ctx_t *rc)
       dir = real_old.s;
     else
       dir++;
-    
+
     (void) symlink(dir, path.s);
   }
 
@@ -1789,7 +1789,7 @@ static int finalize_directories(const rcynic_ctx_t *rc)
   if (real_new.s[0] && glob(path.s, 0, 0, &g) == 0) {
     for (i = 0; i < g.gl_pathc; i++)
       if (realpath(g.gl_pathv[i], path.s) &&
-	  strcmp(path.s, real_old.s) && 
+	  strcmp(path.s, real_old.s) &&
 	  strcmp(path.s, real_new.s))
 	rm_rf(&path);
     globfree(&g);
@@ -1852,7 +1852,7 @@ static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
   }
 
   if (!uri_to_filename(rc, uri, &dpath, prefix) ||
-      (dir = opendir(dpath.s)) == NULL || 
+      (dir = opendir(dpath.s)) == NULL ||
       (result = sk_OPENSSL_STRING_new(uri_cmp)) == NULL)
     goto done;
 
@@ -2131,7 +2131,7 @@ static STACK_OF(walk_ctx_t) *walk_ctx_stack_clone(STACK_OF(walk_ctx_t) *old_wsk)
  * Extract certificate stack from walk context stack.  Returns a newly
  * created STACK_OF(X509) pointing to the existing cert objects.
  *
- * NB: This is a shallow copy, so use sk_X509_free() to free it, not 
+ * NB: This is a shallow copy, so use sk_X509_free() to free it, not
  * sk_X509_pop_free().
  */
 static STACK_OF(X509) *walk_ctx_stack_certs(const rcynic_ctx_t *rc,
@@ -2997,17 +2997,17 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
   while ((d = readdir(dir)) != NULL) {
     if (!strcmp(d->d_name, ".") || !strcmp(d->d_name, ".."))
       continue;
-   
+
     if (snprintf(path.s, sizeof(path.s), "%s%s%s", name->s, slash, d->d_name) >= sizeof(path.s)) {
       logmsg(rc, log_debug, "prune: %s%s%s too long", name->s, slash, d->d_name);
       goto done;
     }
-   
+
     if (validation_status_find_filename(rc, path.s + baselen)) {
       logmsg(rc, log_debug, "prune: cache hit %s", path.s);
       continue;
     }
-   
+
     if (unlink(path.s) == 0) {
       logmsg(rc, log_debug, "prune: removed %s", path.s);
       continue;
@@ -3069,7 +3069,7 @@ static void *read_file_with_hash(const path_t *filename,
   if (hash != NULL) {
     memset(hash, 0, sizeof(*hash));
     BIO_gets(b, (char *) hash, sizeof(hash->h));
-  }    
+  }
 
  error:
   BIO_free_all(b);
@@ -3175,7 +3175,7 @@ static int extract_access_uri(rcynic_ctx_t *rc,
     else if (result->s[0])
       log_validation_status(rc, uri, multiple_rsync_uris_in_extension, generation);
     else
-      strcpy(result->s, (char *) a->location->d.uniformResourceIdentifier->data);      
+      strcpy(result->s, (char *) a->location->d.uniformResourceIdentifier->data);
   }
   return 1;
 }
@@ -3263,7 +3263,7 @@ static int check_allowed_time_encoding(ASN1_TIME *t)
 
   case V_ASN1_UTCTIME:
     return t->length == sizeof("yymmddHHMMSSZ") - 1;
-    
+
   case  V_ASN1_GENERALIZEDTIME:
     return (t->length == sizeof("yyyymmddHHMMSSZ") - 1 &&
 	    strcmp("205", (char *) t->data) <= 0);
@@ -3446,7 +3446,7 @@ static X509_CRL *check_crl(rcynic_ctx_t *rc,
       log_validation_status(rc, uri, backup_thisupdate_newer_than_current, object_generation_current);
 
     if (num_cmp > 0 && (!g_old || !g_new || date_cmp > 0))
-      result = old_crl;      
+      result = old_crl;
     else
       result = new_crl;
 
@@ -3466,7 +3466,7 @@ static X509_CRL *check_crl(rcynic_ctx_t *rc,
 
   if (result != new_crl)
     X509_CRL_free(new_crl);
-    
+
   if (result != old_crl)
     X509_CRL_free(old_crl);
 
@@ -3742,7 +3742,7 @@ static int check_x509(rcynic_ctx_t *rc,
     goto done;
   } else if (!routercert) {
     log_validation_status(rc, uri, sia_extension_missing_from_ee, generation);
-  } 
+  }
 
   if (certinfo->signedobject.s[0] && strcmp(uri->s, certinfo->signedobject.s))
     log_validation_status(rc, uri, bad_signed_object_uri, generation);
@@ -3885,7 +3885,7 @@ static int check_x509(rcynic_ctx_t *rc,
   if (ok) {
     ASN1_OBJECT *algorithm;
 
-    (void) X509_PUBKEY_get0_param(&algorithm, NULL, NULL, NULL, X509_get_X509_PUBKEY(x));      
+    (void) X509_PUBKEY_get0_param(&algorithm, NULL, NULL, NULL, X509_get_X509_PUBKEY(x));
 
     switch (OBJ_obj2nid(algorithm)) {
 
@@ -4479,7 +4479,7 @@ static int check_manifest(rcynic_ctx_t *rc,
 
   else if (!old_manifest)
     result = new_manifest;
-  
+
   else {
     int num_cmp = ASN1_INTEGER_cmp(old_manifest->manifestNumber, new_manifest->manifestNumber);
     int date_cmp = ASN1_STRING_cmp(old_manifest->thisUpdate, new_manifest->thisUpdate);
@@ -4531,7 +4531,7 @@ static int check_manifest(rcynic_ctx_t *rc,
 
   if ((!result || result != new_manifest) && !access(new_path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_current);
-  
+
   if (!result && !access(old_path.s, F_OK))
     log_validation_status(rc, uri, object_rejected, object_generation_backup);
 
@@ -5014,7 +5014,7 @@ static void walk_cert(rcynic_ctx_t *rc, void *cookie)
 	w->state = walk_state_done;
 	continue;
       }
-      
+
       if (!w->certinfo.manifest.s[0]) {
 	log_validation_status(rc, &w->certinfo.uri, sia_manifest_uri_missing, w->certinfo.generation);
 	w->state = walk_state_done;
@@ -5082,7 +5082,7 @@ static void walk_cert(rcynic_ctx_t *rc, void *cookie)
 	  walk_ctx_loop_next(rc, wsk);
 	continue;
       }
-      
+
       log_validation_status(rc, &uri, unknown_object_type_skipped, object_generation_null);
       walk_ctx_loop_next(rc, wsk);
       continue;
@@ -5429,7 +5429,7 @@ static int write_xml_file(const rcynic_ctx_t *rc,
 
   if (xmlfile == NULL)
     return 1;
-  
+
   use_stdout = !strcmp(xmlfile, "-");
 
   logmsg(rc, log_telemetry, "Writing XML summary to %s",
@@ -5547,8 +5547,8 @@ static int write_xml_file(const rcynic_ctx_t *rc,
  * Wrapper around printf() to take arguments like logmsg().
  * If C had closures, usage() would use them instead of this silliness.
  */
-static void logmsg_printf(const rcynic_ctx_t *rc, 
-			  const log_level_t level, 
+static void logmsg_printf(const rcynic_ctx_t *rc,
+			  const log_level_t level,
 			  const char *fmt, ...)
 {
   va_list ap;
@@ -5729,7 +5729,7 @@ int main(int argc, char *argv[])
     logmsg(&rc, log_sys_err, "Couldn't create CONF opbject");
     goto done;
   }
-  
+
   if (NCONF_load(cfg_handle, cfg_file, &eline) <= 0) {
     if (eline <= 0)
       logmsg(&rc, log_usage_err, "Couldn't load config file %s", cfg_file);
@@ -5935,7 +5935,7 @@ int main(int argc, char *argv[])
     delay %= jitter;
     logmsg(&rc, log_telemetry, "Delaying %u seconds before startup", delay);
     while (delay > 0)
-      delay = sleep(delay);      
+      delay = sleep(delay);
   }
 
   if (lockfile &&

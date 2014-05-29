@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -14,18 +14,18 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 #
-# Some code borrowed from 
+# Some code borrowed from
 #   http://www.jejik.com/articles/2007/02/a_simple_unix_linux_daemon_in_python/
-# 
+#
 # (which was explicitly placed in public domain by its author), and from
-# 
+#
 #   /usr/src/lib/libc/gen/daemon.c
-# 
+#
 # (the libc implementation of daemon(3) on FreeBSD), so:
-# 
+#
 # Portions copyright (c) 1990, 1993
 #        The Regents of the University of California.  All rights reserved.
-# 
+#
 #   Redistribution and use in source and binary forms, with or without
 #   modification, are permitted provided that the following conditions
 #   are met:
@@ -37,7 +37,7 @@
 #   4. Neither the name of the University nor the names of its contributors
 #      may be used to endorse or promote products derived from this software
 #      without specific prior written permission.
-# 
+#
 #   THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
 #   ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 #   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -58,12 +58,11 @@ because it was written to fit into an existing package and I didn't
 want to drag in yet another external library just for this.
 """
 
-import sys
 import os
+import sys
 import atexit
 import signal
 import logging
-import rpki.log
 
 logger = logging.getLogger(__name__)
 
@@ -95,18 +94,18 @@ def daemon(nochdir = False, noclose = False, pidfile = None):
 
   old_sighup_action = signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
-  try: 
-    pid = os.fork() 
-  except OSError, e: 
+  try:
+    pid = os.fork()
+  except OSError, e:
     sys.exit("fork() failed: %d (%s)" % (e.errno, e.strerror))
   else:
     if pid > 0:
       os._exit(0)
-	
-  if not nochdir:
-    os.chdir("/") 
 
-  os.setsid() 
+  if not nochdir:
+    os.chdir("/")
+
+  os.setsid()
 
   if not noclose:
     sys.stdout.flush()
@@ -133,4 +132,4 @@ def daemon(nochdir = False, noclose = False, pidfile = None):
     f.write("%d\n" % os.getpid())
     f.close()
   except IOError, e:
-    logger.warning("Couldn't write PID file %s: %s" % (pidfile, e.strerror))
+    logger.warning("Couldn't write PID file %s: %s", pidfile, e.strerror)

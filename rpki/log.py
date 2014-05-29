@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -163,6 +163,8 @@ def init(ident = "rpki", args = argparse.Namespace(log_level = logging.WARNING, 
 
   assert isinstance(args, argparse.Namespace)
 
+  # pylint: disable=E1103
+
   if args.log_stream:
     handler = logging.StreamHandler(stream = args.log_stream)
 
@@ -222,8 +224,7 @@ def log_repr(obj, *tokens):
         s = str(token)
       except:
         s = "???"
-        logger.debug("Failed to generate repr() string for object of type %r" % type(token))
-        traceback(logger)
+        logger.exception("Failed to generate repr() string for object of type %r", type(token))
       if s:
         words.append(s)
 

@@ -22,7 +22,6 @@ Client implementation for the RPKI-RTR protocol (RFC 6810 et sequalia).
 
 import os
 import sys
-import time
 import base64
 import socket
 import signal

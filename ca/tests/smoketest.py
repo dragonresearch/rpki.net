@@ -16,11 +16,11 @@ things that don't belong in yaml_file.
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -203,7 +203,7 @@ def main():
 
   logger.info("Reading master YAML configuration")
   y = yaml_script.pop(0)
-  
+
   logger.info("Constructing internal allocation database")
   db = allocation_db(y)
 
@@ -290,7 +290,7 @@ def main():
       # Loop until we run out of control YAML
       yaml_loop()
 
-    logger.info("Sleeping %d seconds while daemons start up" % startup_delay)
+    logger.info("Sleeping %d seconds while daemons start up", startup_delay)
     rpki.async.timer(start).set(rpki.sundial.timedelta(seconds = startup_delay))
     rpki.async.event_loop()
 
@@ -323,7 +323,7 @@ def cmd_sleep(cb, interval):
   Set an alarm, then wait for it to go off.
   """
   howlong = rpki.sundial.timedelta.parse(interval)
-  logger.info("Sleeping %r" % howlong)
+  logger.info("Sleeping %r", howlong)
   rpki.async.timer(cb).set(howlong)
 
 def cmd_shell(cb, *cmd):
@@ -332,7 +332,7 @@ def cmd_shell(cb, *cmd):
   """
   cmd = " ".join(cmd)
   status = subprocess.call(cmd, shell = True)
-  logger.info("Shell command returned status %d" % status)
+  logger.info("Shell command returned status %d", status)
   cb()
 
 def cmd_echo(cb, *words):
@@ -376,7 +376,7 @@ class roa_request(object):
   @classmethod
   def parse(cls, yaml):
     return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"))
-    
+
 class router_cert(object):
   """
   Representation for a router_cert object.
@@ -546,7 +546,7 @@ class allocation(object):
     Apply deltas to this entity.
     """
 
-    logger.info("Applying delta: %s" % yaml)
+    logger.info("Applying delta: %s", yaml)
 
     def loop(iterator, kv):
       if kv[0] == "name":
@@ -633,7 +633,7 @@ class allocation(object):
       cb()
 
     if target is None:
-      logger.info("Rekeying <self/> %s" % self.name)
+      logger.info("Rekeying <self/> %s", self.name)
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(
         action = "set", self_handle = self.name, rekey = "yes")], cb = done)
     else:
@@ -650,7 +650,7 @@ class allocation(object):
       cb()
 
     if target is None:
-      logger.info("Revoking <self/> %s" % self.name)
+      logger.info("Revoking <self/> %s", self.name)
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(
         action = "set", self_handle = self.name, revoke = "yes")], cb = done)
     else:
@@ -709,7 +709,7 @@ class allocation(object):
     """
     Create BPKI certificates for this entity.
     """
-    logger.info("Constructing BPKI keys and certs for %s" % self.name)
+    logger.info("Constructing BPKI keys and certs for %s", self.name)
     setup_bpki_cert_chain(name = self.name,
                           ee = ("RPKI", "IRDB", "IRBE"),
                           ca = ("SELF",))
@@ -722,7 +722,7 @@ class allocation(object):
     """
     Write config files for this entity.
     """
-    logger.info("Writing config files for %s" % self.name)
+    logger.info("Writing config files for %s", self.name)
     assert self.rpki_port is not None
     d = { "my_name"      : self.name,
           "irdb_db_name" : self.irdb_db_name,
@@ -741,7 +741,7 @@ class allocation(object):
     """
     Set up this entity's IRDB.
     """
-    logger.info("Setting up MySQL for %s" % self.name)
+    logger.info("Setting up MySQL for %s", self.name)
     db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass,
                          conv = sql_conversions)
     cur = db.cursor()
@@ -775,7 +775,7 @@ class allocation(object):
     once during setup, then do it again every time we apply a delta to
     this entity.
     """
-    logger.info("Updating MySQL data for IRDB %s" % self.name)
+    logger.info("Updating MySQL data for IRDB %s", self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass,
                          conv = sql_conversions)
     cur = db.cursor()
@@ -828,7 +828,7 @@ class allocation(object):
     """
     Run daemons for this entity.
     """
-    logger.info("Running daemons for %s" % self.name)
+    logger.info("Running daemons for %s", self.name)
     self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "--foreground", "--log-stdout", "--log-level", "debug", "--config", self.name + ".conf") +
                                           (("--profile", self.name + ".prof") if args.profile else ()))
     self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "--foreground", "--log-stdout", "--log-level", "debug", "--config", self.name + ".conf"))
@@ -859,7 +859,7 @@ class allocation(object):
     of this happens with the hosting RPKI daemon.
     """
 
-    logger.info("Calling rpkid for %s" % self.name)
+    logger.info("Calling rpkid for %s", self.name)
 
     if self.is_hosted:
       logger.info("rpkid %s is hosted by rpkid %s, switching" % (self.name, self.hosted_by.name))
@@ -877,7 +877,7 @@ class allocation(object):
     logger.debug(q_cms.pretty_print_content())
 
     def done(r_der):
-      logger.info("Callback from rpkid %s" % self.name)
+      logger.info("Callback from rpkid %s", self.name)
       r_cms = rpki.left_right.cms_msg(DER = r_der)
       r_msg = r_cms.unwrap((self.rpkid_ta, self.rpkid_cert))
       self.last_cms_time = r_cms.check_replay(self.last_cms_time, q_url)
@@ -941,7 +941,7 @@ class allocation(object):
     f.write(x.get_PEM())
     f.close()
 
-    logger.debug("Cross certified %s:" % certfile)
+    logger.debug("Cross certified %s:", certfile)
     logger.debug("  Issuer  %s [%s]" % (x.getIssuer(),  x.hAKI()))
     logger.debug("  Subject %s [%s]" % (x.getSubject(), x.hSKI()))
     return x
@@ -1050,7 +1050,7 @@ class allocation(object):
       for s in selves:
         b = bsc_dict[s.name]
 
-        logger.info("Issuing BSC EE cert for %s" % s.name)
+        logger.info("Issuing BSC EE cert for %s", s.name)
         cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", s.name + "-RPKI.conf",
                "-extensions", "req_x509_ext", "-days", "30",
                "-CA", s.name + "-SELF.cer", "-CAkey",    s.name + "-SELF.key", "-CAcreateserial", "-text")
@@ -1094,7 +1094,7 @@ class allocation(object):
     """
 
     if not os.path.exists(self.name + ".key"):
-      logger.info("Generating RPKI key for %s" % self.name)
+      logger.info("Generating RPKI key for %s", self.name)
       subprocess.check_call((prog_openssl, "genrsa", "-out", self.name + ".key", "2048" ),
                             stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
     ski = rpki.x509.RSA(PEM_file = self.name + ".key").gSKI()
@@ -1107,7 +1107,7 @@ class allocation(object):
     self.cross_certify(self.parent.name + "-SELF")
     self.cross_certify(parent_host + "-TA")
 
-    logger.info("Writing leaf YAML for %s" % self.name)
+    logger.info("Writing leaf YAML for %s", self.name)
     f = open(self.name + ".yaml", "w")
     f.write(yaml_fmt_1 % {
       "parent_name"  : self.parent.name,
@@ -1124,7 +1124,7 @@ class allocation(object):
     Trigger cron run for this engine.
     """
 
-    logger.info("Running cron for %s" % self.name)
+    logger.info("Running cron for %s", self.name)
 
     assert self.rpki_port is not None
 
@@ -1146,10 +1146,10 @@ class allocation(object):
     error, but only issue a warning when issue fails.
     """
 
-    logger.info("Running YAML for %s" % self.name)
+    logger.info("Running YAML for %s", self.name)
     subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "list"))
     if subprocess.call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "issue")) != 0:
-      logger.warning("YAML issue command failed for %s, continuing" % self.name)
+      logger.warning("YAML issue command failed for %s, continuing", self.name)
 
 def setup_bpki_cert_chain(name, ee = (), ca = ()):
   """
@@ -1183,7 +1183,7 @@ def setup_rootd(rpkid, rootd_yaml):
   Write the config files for rootd.
   """
   rpkid.cross_certify(rootd_name + "-TA", reverse = True)
-  logger.info("Writing config files for %s" % rootd_name)
+  logger.info("Writing config files for %s", rootd_name)
   d = { "rootd_name" : rootd_name,
         "rootd_port" : rootd_port,
         "rpkid_name" : rpkid.name,

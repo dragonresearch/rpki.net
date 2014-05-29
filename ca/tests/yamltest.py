@@ -8,15 +8,15 @@ and waits for one of them to exit.
 """
 
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -27,14 +27,14 @@ and waits for one of them to exit.
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 # Much of the YAML handling code lifted from smoketest.py.
-# 
+#
 # Still to do:
-# 
+#
 # - Implement smoketest.py-style delta actions, that is, modify the
 #   allocation database under control of the YAML file, dump out new
 #   .csv files, and run rpkic.py again to feed resulting changes into
 #   running daemons.
-# 
+#
 
 # pylint: disable=W0702,W0621
 
@@ -111,8 +111,8 @@ class roa_request(object):
     Parse a ROA request from YAML format.
     """
     return cls(y.get("asn"), y.get("ipv4"), y.get("ipv6"))
-    
-    
+
+
 class router_cert(object):
   """
   Representation for a router_cert object.
@@ -355,7 +355,7 @@ class allocation(object):
     fn = "%s.asns.csv" % d.name
     if not args.skip_config:
       f = self.csvout(fn)
-      for k in self.kids:    
+      for k in self.kids:
         f.writerows((k.name, a) for a in k.resources.asn)
       f.close()
     if not args.stop_after_config:
@@ -483,7 +483,7 @@ class allocation(object):
       bpki_servers_directory     = self.path(),
       publication_base_directory = self.path("publication"),
       shared_sql_password        = "fnord")
-    
+
     r.update(config_overrides)
 
     f = open(self.path("rpki.conf"), "w")
@@ -565,7 +565,7 @@ class allocation(object):
                          stderr = subprocess.STDOUT)
     print 'Running %s for %s: pid %d process %r' % (" ".join(cmd), self.name, p.pid, p)
     return p
-  
+
   def run_rpkid(self):
     """
     Run rpkid.
@@ -705,7 +705,7 @@ try:
   if args.skip_config:
 
     print "Skipping pre-daemon configuration, assuming you already did that"
-    
+
   else:
 
     # Set up each entity in our test, create publication directories,

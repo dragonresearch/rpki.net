@@ -1,12 +1,12 @@
 # $Id$
-# 
+#
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -47,7 +47,7 @@ import rpki.x509
 import rpki.async
 import rpki.version
 
-from rpki.cli import Cmd, BadCommandSyntax, parsecmd, cmdarg
+from rpki.cli import Cmd, parsecmd, cmdarg
 
 class BadPrefixSyntax(Exception):       "Bad prefix syntax."
 class CouldntTalkToDaemon(Exception):   "Couldn't talk to daemon."
@@ -64,7 +64,7 @@ class main(Cmd):
   completedefault = Cmd.filename_complete
 
   # Top-level argparser, for stuff that one might want when starting
-  # up the interactive command loop.  Not sure -i belongs here, but 
+  # up the interactive command loop.  Not sure -i belongs here, but
   # it's harmless so leave it here for the moment.
 
   top_argparser = argparse.ArgumentParser(add_help = False)
@@ -82,6 +82,7 @@ class main(Cmd):
   argsubparsers = full_argparser.add_subparsers(title = "Commands", metavar = "")
 
   def __init__(self):
+
     os.environ["TZ"] = "UTC"
     time.tzset()
 
@@ -597,7 +598,7 @@ class main(Cmd):
     """
     Show resources received by this entity from its parent(s).
     """
-    
+
     for pdu in self.zoo.call_rpkid(
       rpki.left_right.list_received_resources_elt.make_pdu(self_handle = self.zoo.handle)):
 

@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -21,7 +21,6 @@
 IR database daemon.
 """
 
-import sys
 import os
 import time
 import logging
@@ -180,7 +179,7 @@ class main(object):
         prof.runcall(self.main)
       finally:
         prof.dump_stats(args.profile)
-        logger.info("Dumped profile data to %s" % args.profile)
+        logger.info("Dumped profile data to %s", args.profile)
     else:
       self.main()
 
@@ -215,9 +214,9 @@ class main(object):
       INSTALLED_APPS = ("rpki.irdb",),)
 
     import rpki.irdb                    # pylint: disable=W0621
-    
+
     # Entirely too much fun with read-only access to transactional databases.
-    # 
+    #
     # http://stackoverflow.com/questions/3346124/how-do-i-force-django-to-ignore-any-caches-and-reload-data
     # http://devblog.resolversystems.com/?p=439
     # http://groups.google.com/group/django-users/browse_thread/thread/e25cec400598c06d
@@ -247,7 +246,7 @@ class main(object):
     try:
       self.http_server_host = self.cfg.get("server-host", "")
       self.http_server_port = self.cfg.getint("server-port")
-    except:
+    except:         # pylint: disable=W0702
       #
       # Backwards compatibility, remove this eventually.
       #

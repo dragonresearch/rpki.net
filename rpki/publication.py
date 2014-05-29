@@ -67,7 +67,7 @@ class control_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_
     need to make sure that this PDU arrived via the control channel.
     """
     if self.client is not None:
-      raise rpki.exceptions.BadQuery, "Control query received on client channel"
+      raise rpki.exceptions.BadQuery("Control query received on client channel")
     rpki.xml_utils.data_elt.serve_dispatch(self, r_msg, cb, eb)
 
 class config_elt(control_elt):
@@ -227,11 +227,11 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     # pylint: disable=E0203
     try:
       if self.client is None:
-        raise rpki.exceptions.BadQuery, "Client query received on control channel"
+        raise rpki.exceptions.BadQuery("Client query received on control channel")
       dispatch = { "publish"  : self.serve_publish,
                    "withdraw" : self.serve_withdraw }
       if self.action not in dispatch:
-        raise rpki.exceptions.BadQuery, "Unexpected query: action %s" % self.action
+        raise rpki.exceptions.BadQuery("Unexpected query: action %s" % self.action)
       self.client.check_allowed_uri(self.uri)
       dispatch[self.action]()
       r_pdu = self.__class__()
@@ -271,7 +271,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
       os.remove(filename)
     except OSError, e:
       if e.errno == errno.ENOENT:
-        raise rpki.exceptions.NoObjectAtURI, "No object published at %s" % self.uri
+        raise rpki.exceptions.NoObjectAtURI("No object published at %s" % self.uri)
       else:
         raise
     min_path_len = len(self.gctx.publication_base.rstrip("/"))
@@ -289,14 +289,14 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     Convert a URI to a local filename.
     """
     if not self.uri.startswith("rsync://"):
-      raise rpki.exceptions.BadURISyntax, self.uri
+      raise rpki.exceptions.BadURISyntax(self.uri)
     path = self.uri.split("/")[3:]
     if not self.gctx.publication_multimodule:
       del path[0]
     path.insert(0, self.gctx.publication_base.rstrip("/"))
     filename = "/".join(path)
     if "/../" in filename or filename.endswith("/.."):
-      raise rpki.exceptions.BadURISyntax, filename
+      raise rpki.exceptions.BadURISyntax(filename)
     return filename
 
   @classmethod
@@ -402,9 +402,9 @@ class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):
     """
     t = rpki.exceptions.__dict__.get(self.error_code)
     if isinstance(t, type) and issubclass(t, rpki.exceptions.RPKI_Exception):
-      raise t, getattr(self, "text", None)
+      raise t(getattr(self, "text", None))
     else:
-      raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % self
+      raise rpki.exceptions.BadPublicationReply("Unexpected response from pubd: %s" % self)
 
 class msg(rpki.xml_utils.msg, publication_namespace):
   """
@@ -425,7 +425,7 @@ class msg(rpki.xml_utils.msg, publication_namespace):
     Serve one msg PDU.
     """
     if not self.is_query():
-      raise rpki.exceptions.BadQuery, "Message type is not query"
+      raise rpki.exceptions.BadQuery("Message type is not query")
     r_msg = self.__class__.reply()
 
     def loop(iterator, q_pdu):

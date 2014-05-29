@@ -185,7 +185,7 @@ class resource_range_ip(resource_range):
       if cls is resource_range_ip and a.version == 6:
         cls = resource_range_ipv6
       return cls.make_prefix(a, int(r.group(2)))
-    raise rpki.exceptions.BadIPResource, 'Bad IP resource "%s"' % (x)
+    raise rpki.exceptions.BadIPResource('Bad IP resource "%s"' % x)
 
   @classmethod
   def make_prefix(cls, prefix, prefixlen):
@@ -879,7 +879,7 @@ class roa_prefix(object):
     r = re_prefix.match(x)
     if r:
       return cls(rpki.POW.IPAddress(r.group(1)), int(r.group(2)))
-    raise rpki.exceptions.BadROAPrefix, 'Bad ROA prefix "%s"' % (x)
+    raise rpki.exceptions.BadROAPrefix('Bad ROA prefix "%s"' % x)
 
 class roa_prefix_ipv4(roa_prefix):
   """

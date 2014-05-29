@@ -231,7 +231,7 @@ class timedelta(pydatetime.timedelta):
         d["seconds"] += d.pop("years") * cls.years_to_seconds
         return cls(**d)
       else:
-        raise ParseFailure, "Couldn't parse timedelta %r" % (arg,)
+        raise ParseFailure("Couldn't parse timedelta %r" % (arg,))
 
   def convert_to_seconds(self):
     """

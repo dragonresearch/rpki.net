@@ -61,9 +61,9 @@ class csv_reader(object):
         continue
       fields = line.split()
       if self.min_columns is not None and len(fields) < self.min_columns:
-        raise BadCSVSyntax, "%s:%d: Not enough columns in line %r" % (self.filename, line_number, line)
+        raise BadCSVSyntax("%s:%d: Not enough columns in line %r" % (self.filename, line_number, line))
       if self.columns is not None and len(fields) > self.columns:
-        raise BadCSVSyntax, "%s:%d: Too many  columns in line %r" % (self.filename, line_number, line)
+        raise BadCSVSyntax("%s:%d: Too many  columns in line %r" % (self.filename, line_number, line))
       if self.columns is not None and len(fields) < self.columns:
         fields += tuple(None for i in xrange(self.columns - len(fields)))
       yield fields

@@ -239,7 +239,7 @@ class rcynic_xml_iterator(object):
     if uri.startswith(self.base_uri):
       return uri[len(self.base_uri):]
     else:
-      raise NotRsyncURI, "Not an rsync URI %r" % uri
+      raise NotRsyncURI("Not an rsync URI %r" % uri)
 
   def __iter__(self):
     for validation_status in ElementTree(file=self.xml_file).getroot().getiterator("validation_status"):

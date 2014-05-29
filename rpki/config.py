@@ -170,7 +170,7 @@ class parser(object):
     if isinstance(v, str):
       v = v.lower()
       if v not in self.cfg._boolean_states:
-        raise ValueError, "Not a boolean: %s" % v
+        raise ValueError("Not a boolean: %s" % v)
       v = self.cfg._boolean_states[v]
     return v
 

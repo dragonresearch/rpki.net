@@ -339,8 +339,8 @@ class data_elt(base_elt):
 
     oops = self.serve_fetch_one_maybe()
     if oops is not None:
-      raise rpki.exceptions.DuplicateObject, "Object already exists: %r[%r] %r[%r]" % (self, getattr(self, self.element_name + "_handle"),
-                                                                                       oops, getattr(oops, oops.element_name + "_handle"))
+      raise rpki.exceptions.DuplicateObject("Object already exists: %r[%r] %r[%r]" % (self, getattr(self, self.element_name + "_handle"),
+                                                                                      oops, getattr(oops, oops.element_name + "_handle")))
 
     self.serve_pre_save_hook(self, r_pdu, one, eb)
 
@@ -412,7 +412,7 @@ class data_elt(base_elt):
                  "list"    : self.serve_list,
                  "destroy" : self.serve_destroy }
     if self.action not in dispatch:
-      raise rpki.exceptions.BadQuery, "Unexpected query: action %s" % self.action
+      raise rpki.exceptions.BadQuery("Unexpected query: action %s" % self.action)
     dispatch[self.action](r_msg, cb, eb)
   
   def unimplemented_control(self, *controls):
@@ -421,7 +421,7 @@ class data_elt(base_elt):
     """
     unimplemented = [x for x in controls if getattr(self, x, False)]
     if unimplemented:
-      raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(unimplemented)
+      raise rpki.exceptions.NotImplementedYet("Unimplemented control %s" % ", ".join(unimplemented))
 
 class msg(list):
   """

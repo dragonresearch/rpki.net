@@ -274,7 +274,7 @@ class main(object):
       q_msg = q_cms.unwrap((self.bpki_ta, self.irbe_cert))
       self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp, path)
       if not q_msg.is_query():
-        raise rpki.exceptions.BadQuery, "Message type is not query"
+        raise rpki.exceptions.BadQuery("Message type is not query")
       q_msg.serve_top_level(self, done)
     except (rpki.async.ExitNow, SystemExit):
       raise
@@ -296,14 +296,14 @@ class main(object):
     try:
       match = self.up_down_url_regexp.search(path)
       if match is None:
-        raise rpki.exceptions.BadContactURL, "Bad URL path received in up_down_handler(): %s" % path
+        raise rpki.exceptions.BadContactURL("Bad URL path received in up_down_handler(): %s" % path)
       self_handle, child_handle = match.groups()
       child = rpki.left_right.child_elt.sql_fetch_where1(self,
                                                          "self.self_handle = %s AND child.child_handle = %s AND child.self_id = self.self_id",
                                                          (self_handle, child_handle),
                                                          "self")
       if child is None:
-        raise rpki.exceptions.ChildNotFound, "Could not find child %s of self %s in up_down_handler()" % (child_handle, self_handle)
+        raise rpki.exceptions.ChildNotFound("Could not find child %s of self %s in up_down_handler()" % (child_handle, self_handle))
       child.serve_up_down(query, done)
     except (rpki.async.ExitNow, SystemExit):
       raise
@@ -510,7 +510,7 @@ class ca_obj(rpki.sql.sql_persistent):
     if not sia_uri or not sia_uri.startswith(parent.sia_base):
       sia_uri = parent.sia_base
     if not sia_uri.endswith("/"):
-      raise rpki.exceptions.BadURISyntax, "SIA URI must end with a slash: %s" % sia_uri
+      raise rpki.exceptions.BadURISyntax("SIA URI must end with a slash: %s" % sia_uri)
     # With luck this can go away sometime soon.
     if self.gctx.merge_publication_directories:
       return sia_uri
@@ -1869,7 +1869,7 @@ class roa_obj(rpki.sql.sql_persistent):
       logger.debug("Keeping old ca_detail for ROA %r" % self)
 
     if ca_detail is None:
-      raise rpki.exceptions.NoCoveringCertForROA, "Could not find a certificate covering %r" % self
+      raise rpki.exceptions.NoCoveringCertForROA("Could not find a certificate covering %r" % self)
 
     logger.debug("Using new ca_detail %r for ROA %r, ca_detail_state %s" % (
       ca_detail, self, ca_detail.state))

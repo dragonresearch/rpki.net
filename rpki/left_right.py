@@ -129,7 +129,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
       if getattr(self, id_name, None) is None:
         x = elt.serve_fetch_handle(self.gctx, self.self_id, getattr(q_pdu, tag + "_handle"))
         if x is None:
-          raise rpki.exceptions.HandleTranslationError, "Could not translate %r %s_handle" % (self, tag)
+          raise rpki.exceptions.HandleTranslationError("Could not translate %r %s_handle" % (self, tag))
         setattr(self, id_name, getattr(x, id_name))
     cb()
 
@@ -562,7 +562,7 @@ class repository_elt(data_elt):
               logger.debug("Calling pubd handler %r" % handler)
               handler(r_pdu)
           if len(q_msg) != len(r_msg):
-            raise rpki.exceptions.BadPublicationReply, "Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg)
+            raise rpki.exceptions.BadPublicationReply("Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg))
           callback()
         except (rpki.async.ExitNow, SystemExit):
           raise
@@ -789,10 +789,10 @@ class parent_elt(data_elt):
 
     bsc = self.bsc
     if bsc is None:
-      raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
+      raise rpki.exceptions.BSCNotFound("Could not find BSC %s" % self.bsc_id)
 
     if bsc.signing_cert is None:
-      raise rpki.exceptions.BSCNotReady, "BSC %r[%s] is not yet usable" % (bsc.bsc_handle, bsc.bsc_id)
+      raise rpki.exceptions.BSCNotReady("BSC %r[%s] is not yet usable" % (bsc.bsc_handle, bsc.bsc_id))
 
     q_msg = rpki.up_down.message_pdu.make_query(
       payload = q_pdu,
@@ -911,10 +911,10 @@ class child_elt(data_elt):
     Fetch the CA corresponding to an up-down class_name.
     """
     if not class_name.isdigit():
-      raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % class_name
+      raise rpki.exceptions.BadClassNameSyntax("Bad class name %s" % class_name)
     ca = rpki.rpkid.ca_obj.sql_fetch(self.gctx, long(class_name))
     if ca is None:
-      raise rpki.exceptions.ClassNameUnknown, "Unknown class name %s" % class_name
+      raise rpki.exceptions.ClassNameUnknown("Unknown class name %s" % class_name)
     parent = ca.parent
     if self.self_id != parent.self_id:
       raise rpki.exceptions.ClassNameMismatch(
@@ -939,7 +939,7 @@ class child_elt(data_elt):
 
     bsc = self.bsc
     if bsc is None:
-      raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
+      raise rpki.exceptions.BSCNotFound("Could not find BSC %s" % self.bsc_id)
     q_cms = rpki.up_down.cms_msg(DER = query)
     q_msg = q_cms.unwrap((self.gctx.bpki_ta,
                           self.self.bpki_cert,
@@ -949,7 +949,7 @@ class child_elt(data_elt):
     q_cms.check_replay_sql(self, "child", self.child_handle)
     q_msg.payload.gctx = self.gctx
     if enforce_strict_up_down_xml_sender and q_msg.sender != self.child_handle:
-      raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender
+      raise rpki.exceptions.BadSender("Unexpected XML sender %s" % q_msg.sender)
     self.gctx.sql.sweep()
 
     def done(r_msg):

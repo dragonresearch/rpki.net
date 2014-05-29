@@ -239,7 +239,7 @@ class main(object):
         q_msg = rpki.left_right.cms_msg(DER = query).unwrap((self.bpki_ta, self.rpkid_cert))
 
         if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
-          raise rpki.exceptions.BadQuery, "Unexpected %r PDU" % q_msg
+          raise rpki.exceptions.BadQuery("Unexpected %r PDU" % q_msg)
 
         for q_pdu in q_msg:
 
@@ -248,7 +248,7 @@ class main(object):
             try:
               h = self.handle_dispatch[type(q_pdu)]
             except KeyError:
-              raise rpki.exceptions.BadQuery, "Unexpected %r PDU" % q_pdu
+              raise rpki.exceptions.BadQuery("Unexpected %r PDU" % q_pdu)
             else:
               h(self, q_pdu, r_msg)
 

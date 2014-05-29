@@ -1058,7 +1058,7 @@ class allocation(object):
         signed = signer.communicate(input = b.pkcs10_request.get_PEM())
         if not signed[0]:
           logger.warning(signed[1])
-          raise CouldntIssueBSCEECertificate, "Couldn't issue BSC EE certificate"
+          raise CouldntIssueBSCEECertificate("Couldn't issue BSC EE certificate")
         s.bsc_ee = rpki.x509.X509(PEM = signed[0])
         s.bsc_crl = rpki.x509.CRL(PEM_file = s.name + "-SELF.crl")
         logger.info("BSC EE cert for %s SKI %s" % (s.name, s.bsc_ee.hSKI()))

@@ -203,7 +203,7 @@ class http_message(object):
     Parse HTTP version, raise an exception if we can't.
     """
     if version[:5] != "HTTP/":
-      raise rpki.exceptions.HTTPBadVersion, "Couldn't parse version %s" % version
+      raise rpki.exceptions.HTTPBadVersion("Couldn't parse version %s" % version)
     self.version = tuple(int(i) for i in version[5:].split("."))
 
   @property
@@ -748,7 +748,7 @@ class http_client(http_stream):
         assert not self.msg.body
         self.logger.debug("Ignoring empty response received while closing")
         return
-      raise rpki.exceptions.HTTPUnexpectedState, "%r received message while in unexpected state %s" % (self, self.state)
+      raise rpki.exceptions.HTTPUnexpectedState("%r received message while in unexpected state %s" % (self, self.state))
 
     if self.expect_close:
       self.logger.debug("Closing")
@@ -782,7 +782,7 @@ class http_client(http_stream):
     if self.get_terminator() is None:
       self.handle_body()
     elif self.state == "request-sent":
-      raise rpki.exceptions.HTTPClientAborted, "HTTP request aborted by close event"
+      raise rpki.exceptions.HTTPClientAborted("HTTP request aborted by close event")
     else:
       self.queue.detach(self)
 
@@ -944,7 +944,7 @@ def client(msg, url, callback, errback):
       u.params   != "" or
       u.query    != "" or
       u.fragment != ""):
-    raise rpki.exceptions.BadClientURL, "Unusable URL %s" % url
+    raise rpki.exceptions.BadClientURL("Unusable URL %s" % url)
 
   if debug_http:
     logger.debug("Contacting %s" % url)

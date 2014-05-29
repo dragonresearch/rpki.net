@@ -150,7 +150,7 @@ def etree_read(filename):
     if i.tag.startswith(myrpki_namespaceQName):
       i.tag = i.tag[len(myrpki_namespaceQName):]
     else:
-      raise BadXMLMessage, "XML tag %r is not in namespace %r" % (i.tag, myrpki_namespace)
+      raise BadXMLMessage("XML tag %r is not in namespace %r" % (i.tag, myrpki_namespace))
   return e
 
 
@@ -221,7 +221,7 @@ class Zookeeper(object):
     self.run_rootd = cfg.getboolean("run_rootd", section = myrpki_section)
 
     if self.run_rootd and (not self.run_pubd or not self.run_rpkid):
-      raise CantRunRootd, "Can't run rootd unless also running rpkid and pubd"
+      raise CantRunRootd("Can't run rootd unless also running rpkid and pubd")
 
     self.default_repository = cfg.get("default_repository", "", section = myrpki_section)
     self.pubd_contact_info = cfg.get("pubd_contact_info", "", section = myrpki_section)
@@ -581,7 +581,7 @@ class Zookeeper(object):
     else:
       valid_until = rpki.sundial.datetime.fromXMLtime(valid_until)
       if valid_until < rpki.sundial.now():
-        raise PastExpiration, "Specified new expiration time %s has passed" % valid_until
+        raise PastExpiration("Specified new expiration time %s has passed" % valid_until)
 
     self.log("Child calls itself %r, we call it %r" % (c.get("handle"), child_handle))
 
@@ -758,7 +758,7 @@ class Zookeeper(object):
         referral_cms = rpki.x509.SignedReferral(Base64 = auth.text)
         referral_xml = referral_cms.unwrap(ta = (referrer.certificate, self.server_ca.certificate))
         if rpki.x509.X509(Base64 = referral_xml.text) != client_ta:
-          raise BadXMLMessage, "Referral trust anchor does not match"
+          raise BadXMLMessage("Referral trust anchor does not match")
         sia_base = referral_xml.get("authorized_sia_base")
       except rpki.irdb.Client.DoesNotExist:
         self.log("We have no record of the client (%s) alleged to have made this referral" % auth.get("referrer"))
@@ -788,7 +788,7 @@ class Zookeeper(object):
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client.get("handle"))
       
     if not sia_base.startswith("rsync://"):
-      raise BadXMLMessage, "Malformed sia_base parameter %r, should start with 'rsync://'" % sia_base
+      raise BadXMLMessage("Malformed sia_base parameter %r, should start with 'rsync://'" % sia_base)
 
     client_handle = "/".join(sia_base.rstrip("/").split("/")[4:])
 
@@ -902,7 +902,7 @@ class Zookeeper(object):
     else:
       valid_until = rpki.sundial.datetime.fromXMLtime(valid_until)
       if valid_until < rpki.sundial.now():
-        raise PastExpiration, "Specified new expiration time %s has passed" % valid_until
+        raise PastExpiration("Specified new expiration time %s has passed" % valid_until)
 
     self.log("New validity date %s" % valid_until)
 
@@ -1654,7 +1654,7 @@ class Zookeeper(object):
       if not valid_until:
         valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
       elif valid_until < rpki.sundial.now():
-        raise PastExpiration, "Specified expiration date %s has already passed" % valid_until
+        raise PastExpiration("Specified expiration date %s has already passed" % valid_until)
 
       pkcs10.check_valid_request_router()
 

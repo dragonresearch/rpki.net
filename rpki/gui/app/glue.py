@@ -102,7 +102,7 @@ def list_received_resources(log, conf):
         if isinstance(pdu, report_error_elt):
             # this will cause the db to be rolled back so the above delete()
             # won't clobber existing resources
-            raise LeftRightError, pdu
+            raise LeftRightError(pdu)
         elif isinstance(pdu, list_received_resources_elt):
             if pdu.parent_handle != conf.handle:
                 parent = models.Parent.objects.get(issuer=conf,

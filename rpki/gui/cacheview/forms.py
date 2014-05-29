@@ -30,19 +30,19 @@ class SearchForm(forms.Form):
         asn = self.cleaned_data.get('asn')
         addr = self.cleaned_data.get('addr')
         if (asn and addr) or ((not asn) and (not addr)):
-            raise forms.ValidationError, 'Please specify either an AS or IP range, not both'
+            raise forms.ValidationError('Please specify either an AS or IP range, not both')
 
         if asn:
             try:
                 resource_range_as.parse_str(asn)
             except ValueError:
-                raise forms.ValidationError, 'invalid AS range'
+                raise forms.ValidationError('invalid AS range')
 
         if addr:
             #try:
             parse_ipaddr(addr)
             #except BadIPResource:
-            #    raise forms.ValidationError, 'invalid IP address range/prefix'
+            #    raise forms.ValidationError('invalid IP address range/prefix')
 
         return self.cleaned_data
 

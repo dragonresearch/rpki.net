@@ -226,9 +226,9 @@ class sql_persistent(object):
     elif len(results) == 1:
       return results[0]
     else:
-      raise rpki.exceptions.DBConsistancyError, \
-            "Database contained multiple matches for %s where %s: %r" % \
-            (cls.__name__, where % tuple(repr(a) for a in args), results)
+      raise rpki.exceptions.DBConsistancyError(
+        "Database contained multiple matches for %s where %s: %r" %
+        (cls.__name__, where % tuple(repr(a) for a in args), results))
 
   @classmethod
   def sql_fetch_all(cls, gctx):

@@ -158,11 +158,11 @@ class main(object):
     try:
       match = self.client_url_regexp.search(path)
       if match is None:
-        raise rpki.exceptions.BadContactURL, "Bad path: %s" % path
+        raise rpki.exceptions.BadContactURL("Bad path: %s" % path)
       client_handle = match.group(1)
       client = rpki.publication.client_elt.sql_fetch_where1(self, "client_handle = %s", (client_handle,))
       if client is None:
-        raise rpki.exceptions.ClientNotFound, "Could not find client %s" % client_handle
+        raise rpki.exceptions.ClientNotFound("Could not find client %s" % client_handle)
       config = rpki.publication.config_elt.fetch(self)
       if config is None or config.bpki_crl is None:
         raise rpki.exceptions.CMSCRLNotSet

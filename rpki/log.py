@@ -72,6 +72,10 @@ def argparse_setup(parser):
   Default logging destination is syslog, but also see rpki.log.init().
   """
 
+  class LogLevel(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string = None):
+      setattr(namespace, self.dest, getattr(logging, values.upper()))
+
   class RotatingFile(argparse.Action):
     def __call__(self, parser, namespace, values, option_string = None):
       setattr(namespace, self.dest, values[0])
@@ -84,9 +88,8 @@ def argparse_setup(parser):
       setattr(namespace, self.dest + "_interval",    int(values[1]))
       setattr(namespace, self.dest + "_backupCount", int(values[2]))
 
-  parser.add_argument("--log-level", default = logging.WARNING,
+  parser.add_argument("--log-level", default = logging.WARNING, action = LogLevel,
                       choices = ("debug", "info", "warning", "error", "critical"),
-                      type = lambda s: int(getattr(logging, s.upper())),
                       help = "how verbosely to log")
   group = parser.add_mutually_exclusive_group()
   group.add_argument("--log-syslog", nargs = "?", default = "daemon",

@@ -83,6 +83,7 @@ class main(Cmd):
 
   def __init__(self):
 
+    Cmd.__init__(self)
     os.environ["TZ"] = "UTC"
     time.tzset()
 
@@ -115,7 +116,7 @@ class main(Cmd):
     rpki.log.init("rpkic")
     self.read_config()
     if self.interactive:
-      Cmd.__init__(self)
+      self.cmdloop_with_history()
     else:
       args.func(self, args)
 

@@ -59,13 +59,6 @@ class Cmd(cmd.Cmd):
 
   last_command_failed = False
 
-  def __init__(self, argv = None):
-    cmd.Cmd.__init__(self)
-    if argv:
-      self.onecmd(" ".join(argv))
-    else:
-      self.cmdloop_with_history()
-
   def onecmd(self, line):
     """
     Wrap error handling around cmd.Cmd.onecmd().  Might want to do

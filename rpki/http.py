@@ -610,14 +610,16 @@ class http_listener(asyncore.dispatcher):
     stream for it and pass along all of our handler data.
     """
     try:
-      s, c = self.accept()
-      self.logger.debug("Accepting connection from %s", addr_to_string(c))
-      http_server(sock = s, handlers = self.handlers)
+      res =  self.accept()
+      if res is None:
+        raise
+      sock, addr = res
+      self.logger.debug("Accepting connection from %s", addr_to_string(addr))
+      http_server(sock = sock, handlers = self.handlers)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception:
-      self.logger.exception("Unable to accept connection: %s")
-      self.handle_error()
+      self.logger.exception("Unable to accept connection")
 
   def handle_error(self):
     """

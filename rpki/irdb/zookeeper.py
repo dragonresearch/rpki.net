@@ -26,14 +26,11 @@ import os
 import copy
 import types
 import rpki.config
-import rpki.cli
 import rpki.sundial
-import rpki.log
 import rpki.oids
 import rpki.http
 import rpki.resource_set
 import rpki.relaxng
-import rpki.exceptions
 import rpki.left_right
 import rpki.x509
 import rpki.async

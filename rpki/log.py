@@ -157,7 +157,7 @@ def argparse_setup(parser, default_thunk = None):
       namespace.log_handler = lambda: logging.handlers.WatchedFileHandler(filename = values)
 
   group.add_argument("--log-file", action = WatchedFileAction,
-                     help = "send logging to a file, reopening if newsyslog rotates it away")
+                     help = "send logging to a file, reopening if rotated away")
 
   class RotatingFileAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string = None):
@@ -172,7 +172,7 @@ def argparse_setup(parser, default_thunk = None):
 
   class TimedRotatingFileAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string = None):
-      namespace.log_handler = logging.handlers.RotatingFileHandler(
+      namespace.log_handler = lambda: logging.handlers.TimedRotatingFileHandler(
         filename    = values[0],
         interval    = int(values[1]),
         backupCount = int(values[2]),

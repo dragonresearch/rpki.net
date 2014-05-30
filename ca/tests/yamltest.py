@@ -554,15 +554,13 @@ class allocation(object):
     representing the running daemon.
     """
     basename = os.path.splitext(os.path.basename(prog))[0]
-    cmd = [prog, "--foreground", "--log-stderr", "--log-level", "debug", "--config", self.path("rpki.conf")]
+    cmd = [prog, "--foreground", "--log-level", "debug",
+           "--log-file", self.path(basename + ".log"),
+           "--config",   self.path("rpki.conf")]
     if args.profile and basename != "rootd":
-      cmd.append("--profile")
-      cmd.append(self.path(basename + ".prof"))
-    log = basename + ".log"
-    p = subprocess.Popen(cmd,
-                         cwd = self.path(),
-                         stdout = open(self.path(log), "w"),
-                         stderr = subprocess.STDOUT)
+      cmd.extend((
+           "--profile",  self.path(basename + ".prof")))
+    p = subprocess.Popen(cmd, cwd = self.path())
     print 'Running %s for %s: pid %d process %r' % (" ".join(cmd), self.name, p.pid, p)
     return p
 

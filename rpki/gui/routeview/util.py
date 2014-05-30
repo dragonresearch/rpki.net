@@ -189,7 +189,7 @@ def import_routeviews_dump(filename=DEFAULT_URL, filetype='auto'):
         bname = os.path.basename(unquote(u.path))
         tmpname = os.path.join('/tmp', bname)
 
-        logger.info("Downloading %s to %s" % (filename, tmpname))
+        logger.info("Downloading %s to %s", filename, tmpname)
         if os.path.exists(tmpname):
             os.remove(tmpname)
         # filename is replaced with a local filename containing cached copy of
@@ -206,7 +206,7 @@ def import_routeviews_dump(filename=DEFAULT_URL, filetype='auto'):
             filetype = 'mrt'
         else:
             raise UnknownInputType('unable to automatically determine input file type')
-        logging.info('Detected import format as "%s"' % filetype)
+        logging.info('Detected import format as "%s"', filetype)
 
     pipe = None
     if filename.endswith('.bz2'):
@@ -233,4 +233,4 @@ def import_routeviews_dump(filename=DEFAULT_URL, filetype='auto'):
     else:
         input_file.close()
 
-    logger.info('Elapsed time %d secs' % (time.time() - start_time))
+    logger.info('Elapsed time %d secs', (time.time() - start_time))

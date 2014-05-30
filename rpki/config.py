@@ -195,6 +195,7 @@ class parser(object):
     its data is less silly than the available alternatives.
     """
 
+    # pylint: disable=W0621
     import rpki.http
     import rpki.x509
     import rpki.sql

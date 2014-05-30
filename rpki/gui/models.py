@@ -67,8 +67,8 @@ add_introspection_rules(
     [
         ([IPv4AddressField, IPv6AddressField], [], {})
     ],
-    ['^rpki\.gui\.models\.IPv4AddressField',
-     '^rpki\.gui\.models\.IPv6AddressField']
+    [r'^rpki\.gui\.models\.IPv4AddressField',
+     r'^rpki\.gui\.models\.IPv6AddressField']
 )
 
 

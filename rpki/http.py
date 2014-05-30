@@ -613,7 +613,7 @@ class http_listener(asyncore.dispatcher):
       res =  self.accept()
       if res is None:
         raise
-      sock, addr = res
+      sock, addr = res                  # pylint: disable=W0633
       self.logger.debug("Accepting connection from %s", addr_to_string(addr))
       http_server(sock = sock, handlers = self.handlers)
     except (rpki.async.ExitNow, SystemExit):

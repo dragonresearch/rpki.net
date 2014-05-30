@@ -570,7 +570,7 @@ def get_covered_routes(rng, max_prefixlen, asn):
             # if the route was previously unknown (no covering
             # ROAs), then:
             # if the AS matches, it is valid, otherwise invalid
-            if (route.asn != 0 and route.asn == asn and route.prefixlen <= max_prefixlen):
+            if route.asn != 0 and route.asn == asn and route.prefixlen <= max_prefixlen:
                 route.newstatus = 'valid'
             else:
                 route.newstatus = 'invalid'
@@ -874,7 +874,7 @@ def roa_export(request):
 
 class GhostbusterDetailView(DetailView):
     def get_queryset(self):
-	conf = get_conf(self.request.user, self.request.session['handle'])
+        conf = get_conf(self.request.user, self.request.session['handle'])
         return conf.ghostbusters
 
 

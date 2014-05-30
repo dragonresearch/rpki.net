@@ -33,7 +33,7 @@ class TelephoneField(models.CharField):
             kwargs['max_length'] = 40
         models.CharField.__init__(self, **kwargs)
 
-add_introspection_rules([], ['^rpki\.gui\.app\.models\.TelephoneField'])
+add_introspection_rules([], [r'^rpki\.gui\.app\.models\.TelephoneField'])
 
 
 class Parent(rpki.irdb.models.Parent):

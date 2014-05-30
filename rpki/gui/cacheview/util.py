@@ -64,7 +64,7 @@ def rcynic_cert(cert, obj):
         obj.asns.add(*obj.issuer.asns.all())
     else:
         for asr in cert.resources.asn:
-            logger.debug('processing %s' % asr)
+            logger.debug('processing %s', asr)
 
             attrs = {'min': asr.min, 'max': asr.max}
             q = models.ASRange.objects.filter(**attrs)
@@ -86,7 +86,7 @@ def rcynic_cert(cert, obj):
             addr_obj.add(*parentset)
         else:
             for rng in addrset:
-                logger.debug('processing %s' % rng)
+                logger.debug('processing %s', rng)
 
                 attrs = {'prefix_min': rng.min, 'prefix_max': rng.max}
                 q = cls.objects.filter(**attrs)
@@ -169,14 +169,12 @@ def save_status(repo, vs):
     # this repo instance (may be empty when not accepted)
     inst_qs = cls.objects.filter(repo=repo)
 
-    logger.debug('processing %s' % vs.filename)
+    logger.debug('processing %s', vs.filename)
 
     if not inst_qs:
         inst = cls(repo=repo)
-        logger.debug('object not found in db, creating new object cls=%s id=%s' % (
-            cls,
-            id(inst)
-        ))
+        logger.debug('object not found in db, creating new object cls=%s id=%s',
+                     cls, id(inst))
     else:
         inst = inst_qs[0]
 
@@ -184,8 +182,8 @@ def save_status(repo, vs):
         # determine if the object is changed/new
         mtime = os.stat(vs.filename)[stat.ST_MTIME]
     except OSError as e:
-        logger.error('unable to stat %s: %s %s' % (
-            vs.filename, type(e), e))
+        logger.error('unable to stat %s: %s %s',
+                     vs.filename, type(e), e)
         # treat as if missing from rcynic.xml
         # use inst_qs rather than deleting inst so that we don't raise an
         # exception for newly created objects (inst_qs will be empty)
@@ -197,8 +195,8 @@ def save_status(repo, vs):
         try:
             obj = vs.obj  # causes object to be lazily loaded
         except Exception, e:
-            logger.warning('Caught %s while processing %s: %s' % (
-                type(e), vs.filename, e))
+            logger.warning('Caught %s while processing %s: %s',
+                           type(e), vs.filename, e)
             return
 
         inst.not_before = obj.notBefore.to_sql()
@@ -209,7 +207,7 @@ def save_status(repo, vs):
         # look up signing cert
         if obj.issuer == obj.subject:
             # self-signed cert (TA)
-            assert(isinstance(inst, models.Cert))
+            assert isinstance(inst, models.Cert)
             inst.issuer = None
         else:
             # if an object has moved in the repository, the entry for
@@ -222,12 +220,12 @@ def save_status(repo, vs):
             )
             ncerts = len(qs)
             if ncerts == 0:
-                logger.warning('unable to find signing cert with ski=%s (%s)' % (obj.aki, obj.issuer))
+                logger.warning('unable to find signing cert with ski=%s (%s)', obj.aki, obj.issuer)
                 return
             else:
                 if ncerts > 1:
                     # multiple matching certs, all of which are valid
-                    logger.warning('Found multiple certs matching ski=%s sn=%s' % (obj.aki, obj.issuer))
+                    logger.warning('Found multiple certs matching ski=%s sn=%s', obj.aki, obj.issuer)
                     for c in qs:
                         logger.warning(c.repo.uri)
                 # just use the first match
@@ -243,7 +241,7 @@ def save_status(repo, vs):
             obj.show()
             raise
 
-        logger.debug('object saved id=%s' % id(inst))
+        logger.debug('object saved id=%s', id(inst))
     else:
         logger.debug('object is unchanged')
 
@@ -293,7 +291,7 @@ def process_labels(xml_file):
     logger.info('updating labels...')
 
     for label, kind, desc in label_iterator(xml_file):
-        logger.debug('label=%s kind=%s desc=%s' % (label, kind, desc))
+        logger.debug('label=%s kind=%s desc=%s', label, kind, desc)
         if kind:
             q = models.ValidationLabel.objects.filter(label=label)
             if not q:
@@ -337,7 +335,7 @@ def fetch_published_objects():
                 # objects which were valid and are no longer valid
                 pass
         elif isinstance(pdu, rpki.left_right.report_error_elt):
-            logging.error('rpkid reported an error: %s' % pdu.error_code)
+            logging.error('rpkid reported an error: %s', pdu.error_code)
 
 
 class Handle(object):
@@ -429,4 +427,4 @@ def import_rcynic_xml(root=default_root, logfile=default_logfile):
     rpki.gui.app.timestamp.update('rcynic_import')
 
     stop = time.time()
-    logger.info('elapsed time %d seconds.' % (stop - start))
+    logger.info('elapsed time %d seconds.', (stop - start))

@@ -589,13 +589,13 @@ class http_listener(asyncore.dispatcher):
     try:
       af, socktype, proto, canonname, sockaddr = addrinfo # pylint: disable=W0612
       self.create_socket(af, socktype)
-      self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+      self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       try:
-        self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
       except AttributeError:
         pass
       if have_ipv6 and af == socket.AF_INET6:
-        self.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
       self.bind(sockaddr)
       self.listen(5)
     except Exception:

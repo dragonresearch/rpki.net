@@ -196,6 +196,8 @@ def init(ident = None, args = None):
   Default logging destination is stderr if "args" is not specified.
   """
 
+  # pylint: disable=E1103
+
   if ident is None:
     ident = os.path.basename(sys.argv[0])
 

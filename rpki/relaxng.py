@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 5757 2014-04-05 22:42:12Z sra $
+  $Id: left-right-schema.rnc 5845 2014-05-29 22:31:15Z sra $
   
   RelaxNG schema for RPKI left-right protocol.
   
@@ -1482,7 +1482,7 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
 ## Parsed RelaxNG publication schema
 publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 5757 2014-04-05 22:42:12Z sra $
+  $Id: publication-schema.rnc 5845 2014-05-29 22:31:15Z sra $
   
   RelaxNG schema for RPKI publication protocol.
   

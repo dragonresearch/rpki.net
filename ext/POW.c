@@ -6661,7 +6661,6 @@ static BIO *
 cms_object_extract_without_verifying_helper(cms_object *self)
 {
   BIO *bio = NULL;
-  int ok = 0;
 
   ENTERING(cms_object_extract_without_verifying_helper);
 

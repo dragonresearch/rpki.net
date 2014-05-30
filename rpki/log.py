@@ -110,87 +110,100 @@ class Formatter(object):
       for line in lines:
         yield line
 
-def argparse_setup(parser):
+
+def argparse_setup(parser, default_thunk = None):
   """
   Set up argparse stuff for functionality in this module.
 
-  Default logging destination is syslog, but also see rpki.log.init().
+  Default logging destination is syslog, but you can change this
+  by setting default_thunk to a callable which takes no arguments
+  and which returns a instance of a logging.Handler subclass.
+
+  Also see rpki.log.init().
   """
 
-  class LogLevel(argparse.Action):
+  class LogLevelAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string = None):
       setattr(namespace, self.dest, getattr(logging, values.upper()))
 
-  class RotatingFile(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string = None):
-      setattr(namespace, self.dest, values[0])
-      setattr(namespace, self.dest + "_maxBytes",    int(values[1]) * 1024)
-      setattr(namespace, self.dest + "_backupCount", int(values[2]))
-
-  class TimedRotatingFile(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string = None):
-      setattr(namespace, self.dest, values[0])
-      setattr(namespace, self.dest + "_interval",    int(values[1]))
-      setattr(namespace, self.dest + "_backupCount", int(values[2]))
-
-  parser.add_argument("--log-level", default = logging.WARNING, action = LogLevel,
+  parser.add_argument("--log-level", default = logging.WARNING, action = LogLevelAction,
                       choices = ("debug", "info", "warning", "error", "critical"),
                       help = "how verbosely to log")
+
   group = parser.add_mutually_exclusive_group()
-  group.add_argument("--log-syslog", nargs = "?", default = "daemon",
+
+  syslog_address = "/dev/log" if os.path.exists("/dev/log") else ("localhost", logging.handlers.SYSLOG_UDP_PORT)
+
+  class SyslogAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string = None):
+      namespace.log_handler = lambda: logging.handlers.SysLogHandler(address = syslog_address, facility = values)
+
+  group.add_argument("--log-syslog", nargs = "?", const = "daemon", action = SyslogAction,
                      choices = sorted(logging.handlers.SysLogHandler.facility_names.keys()),
                      help = "send logging to syslog")
-  group.add_argument("--log-stderr", dest = "log_stream", action = "store_const", const = sys.stderr,
+
+  class StreamAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string = None):
+      namespace.log_handler = lambda: logging.StreamHandler(stream = self.const)
+
+  group.add_argument("--log-stderr", nargs = 0, action = StreamAction, const = sys.stderr,
                      help = "send logging to standard error")
-  group.add_argument("--log-stdout", dest = "log_stream", action = "store_const", const = sys.stdout,
+
+  group.add_argument("--log-stdout", nargs = 0, action = StreamAction, const = sys.stdout,
                      help = "send logging to standard output")
-  group.add_argument("--log-file",
-                     help = "send logging to a plain old file")
-  group.add_argument("--log-rotating-file", action = RotatingFile,
+
+  class WatchedFileAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string = None):
+      namespace.log_handler = lambda: logging.handlers.WatchedFileHandler(filename = values)
+
+  group.add_argument("--log-file", action = WatchedFileAction,
+                     help = "send logging to a file, reopening if newsyslog rotates it away")
+
+  class RotatingFileAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string = None):
+      namespace.log_handler = lambda: logging.handlers.RotatingFileHandler(
+        filename    = values[0],
+        maxBytes    = int(values[1]) * 1024,
+        backupCount = int(values[2]))
+
+  group.add_argument("--log-rotating-file", action = RotatingFileAction,
                      nargs = 3, metavar = ("FILENAME", "KBYTES", "COUNT"),
                      help = "send logging to rotating file")
-  group.add_argument("--log-timed-rotating-file", action = TimedRotatingFile,
+
+  class TimedRotatingFileAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string = None):
+      namespace.log_handler = logging.handlers.RotatingFileHandler(
+        filename    = values[0],
+        interval    = int(values[1]),
+        backupCount = int(values[2]),
+        when        = "H",
+        utc         = True)
+
+  group.add_argument("--log-timed-rotating-file", action = TimedRotatingFileAction,
                      nargs = 3, metavar = ("FILENAME", "HOURS", "COUNT"),
                      help = "send logging to timed rotating file")
 
+  if default_thunk is None:
+    default_thunk = lambda: logging.handlers.SysLogHandler(address = syslog_address, facility = "daemon")
 
-def init(ident = "rpki", args = argparse.Namespace(log_level = logging.WARNING, log_stream = sys.stderr)):
+  parser.set_defaults(log_handler = default_thunk)
+
+
+def init(ident = None, args = None):
   """
   Initialize logging system.
 
-  Default logging destination is syslog if "args" is specified, stderr otherwise.
+  Default logging destination is stderr if "args" is not specified.
   """
 
-  assert isinstance(args, argparse.Namespace)
+  if ident is None:
+    ident = os.path.basename(sys.argv[0])
 
-  # pylint: disable=E1103
+  if args is None:
+    args = argparse.Namespace(log_level   = logging.WARNING,
+                              log_handler = logging.StreamHandler)
 
-  if args.log_stream:
-    handler = logging.StreamHandler(stream = args.log_stream)
-
-  elif args.log_file:
-    handler = logging.FileHandler(filename = args.log_file)
-
-  elif args.log_rotating_file:
-    handler = logging.handlers.RotatingFileHandler(
-      filename = args.log_rotating_file,
-      maxBytes = args.log_rotating_file_maxBytes,
-      backupCount = args.log_rotating_file_backupCount)
-
-  elif args.log_timed_rotating_file:
-    handler = logging.handlers.TimedRotatingFileHandler(
-      filename = args.log_timed_rotating_file,
-      interval = args.log_timed_rotating_file_interval,
-      backupCount = args.log_timed_rotating_file_backupCount)
-
-  elif args.log_syslog:
-    handler = logging.handlers.SysLogHandler(
-      address = "/dev/log" if os.path.exists("/dev/log") else ("localhost", logging.handlers.SYSLOG_UDP_PORT),
-      facility = args.log_syslog)
-
-  else:
-    raise ValueError
-
+  handler = args.log_handler()
   handler.setFormatter(Formatter(ident, handler))
 
   root_logger = logging.getLogger()

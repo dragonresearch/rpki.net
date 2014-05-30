@@ -159,7 +159,8 @@ def main():
   Main program.
   """
 
-  rpki.log.init(smoketest_name, argparse.Namespace(log_level = logging.DEBUG, log_stream = sys.stdout))
+  rpki.log.init(smoketest_name, argparse.Namespace(log_level   = logging.DEBUG,
+                                                   log_handler = lambda: logging.StreamHandler(sys.stdout)))
   logger.info("Starting")
 
   pubd_process = None

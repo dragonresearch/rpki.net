@@ -666,7 +666,8 @@ try:
   if args.pidfile is not None:
     open(args.pidfile, "w").write("%s\n" % os.getpid())
 
-  rpki.log.init("yamltest", argparse.Namespace(log_level = logging.DEBUG, log_stream = sys.stdout))
+  rpki.log.init("yamltest", argparse.Namespace(log_level   = logging.DEBUG,
+                                               log_handler = lambda: logging.StreamHandler(sys.stdout)))
 
   # Allow optional config file for this tool to override default
   # passwords: this is mostly so that I can show a complete working

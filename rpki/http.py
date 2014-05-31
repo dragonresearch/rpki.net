@@ -555,7 +555,7 @@ class http_server(http_stream):
     listen for next message; otherwise, queue up a close event for
     this stream so it will shut down once the reply has been sent.
     """
-    self.logger.debug("Sending response %s %s" % (code, reason))
+    self.logger.debug("Sending response %s %s", code, reason)
     if code >= 400:
       self.expect_close = True
     msg = http_response(code = code, reason = reason, body = body,
@@ -667,7 +667,7 @@ class http_client(http_stream):
       self.gotaddrinfo(localhost_addrinfo())
     else:
       families = supported_address_families(enable_ipv6_clients)
-      self.logger.debug("Starting ADNS lookup for %s in families %r" % (self.host, families))
+      self.logger.debug("Starting ADNS lookup for %s in families %r", self.host, families)
       rpki.adns.getaddrinfo(self.gotaddrinfo, self.dns_error, self.host, families)
 
   def dns_error(self, e):
@@ -683,7 +683,7 @@ class http_client(http_stream):
     """
     try:
       self.af, self.address = random.choice(addrinfo)
-      self.logger.debug("Connecting to AF %s host %s port %s addr %s" % (self.af, self.host, self.port, self.address))
+      self.logger.debug("Connecting to AF %s host %s port %s addr %s", self.af, self.host, self.port, self.address)
       self.create_socket(self.af, socket.SOCK_STREAM)
       self.connect((self.address, self.port))
       if self.addr is None:
@@ -707,7 +707,7 @@ class http_client(http_stream):
     """
     Set HTTP client connection state.
     """
-    self.logger.debug("State transition %s => %s" % (self.state, state))
+    self.logger.debug("State transition %s => %s", self.state, state)
     self.state = state
 
   def handle_no_content_length(self):
@@ -811,7 +811,7 @@ class http_client(http_stream):
     down the connection and pass back the exception.
     """
     eclass, edata = sys.exc_info()[0:2]
-    self.logger.warning("Error on HTTP client connection %s:%s %s %s" % (self.host, self.port, eclass, edata))
+    self.logger.warning("Error on HTTP client connection %s:%s %s %s", self.host, self.port, eclass, edata)
     http_stream.handle_error(self)
     self.queue.return_result(self, edata, detach = True)
 
@@ -857,7 +857,7 @@ class http_queue(object):
         self.logger.debug("Sending request to existing client %r", self.client)
         self.send_request()
       else:
-        self.logger.debug("Client %r exists in state %r" % (self.client, self.client.state))
+        self.logger.debug("Client %r exists in state %r", self.client, self.client.state)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
@@ -916,7 +916,7 @@ class http_queue(object):
 
     if isinstance(result, Exception):
       try:
-        self.logger.warning("Returning exception %r to caller: %s" % (result, result))
+        self.logger.warning("Returning exception %r to caller: %s", result, result)
         req.errback(result)
       except (rpki.async.ExitNow, SystemExit):
         raise

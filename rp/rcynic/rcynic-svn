@@ -24,7 +24,6 @@ import subprocess
 import argparse
 import datetime
 import fcntl
-import glob
 import os
 
 try:
@@ -43,34 +42,34 @@ mime_types = (
   ("gbr",  "application/rpki-ghostbusters"))
 
 
-def run(*cmd, **kwargs):
+def run(*argv, **kwargs):
   """
   Run a program, displaying timing data when appropriate.
   """
 
-  t = datetime.datetime.utcnow()
-  subprocess.check_call(cmd, **kwargs)
+  _t0 = datetime.datetime.utcnow()
+  subprocess.check_call(argv, **kwargs)
   if args.show_timing:
-    now = datetime.datetime.utcnow()
-    print now, (now - t), " ".join(cmd)
+    _t1 = datetime.datetime.utcnow()
+    print _t1, (_t1 - _t0), " ".join(argv)
 
 
-def runxml(*cmd):
+def runxml(*argv):
   """
 
   Run a program which produces XML output, displaying timing data when
   appropriate and returning an ElementTree constructed from the
   program's output.
   """
-  t = datetime.datetime.utcnow()
-  p = subprocess.Popen(cmd, stdout = subprocess.PIPE)
+  _t0 = datetime.datetime.utcnow()
+  p = subprocess.Popen(argv, stdout = subprocess.PIPE)
   x = ElementTree(file = p.stdout)
   s = p.wait()
   if s:
-    raise subprocess.CalledProcessError(s, cmd[0])
+    raise subprocess.CalledProcessError(s, argv[0])
   if args.show_timing:
-    now = datetime.datetime.utcnow()
-    print now, (now - t), " ".join(cmd)
+    _t1 = datetime.datetime.utcnow()
+    print _t1, (_t1 - _t0), " ".join(argv)
   return x
 
 
@@ -188,5 +187,5 @@ run("svn", "commit", "--quiet", "--message", "Auto update.", args.working_direct
 run("svn", "update", "--quiet", args.working_directory)
 
 if args.show_timing:
-  now = datetime.datetime.utcnow()
-  print now, now - t0, "total runtime"
+  t1 = datetime.datetime.utcnow()
+  print t1, t1 - t0, "total runtime"

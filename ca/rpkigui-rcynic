@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
     v = getattr(logging, options.log_level.upper())
     logging.basicConfig(level=v)
-    logging.info('log level set to %s' % logging.getLevelName(v))
+    logging.info('log level set to %s', logging.getLevelName(v))
 
     import_rcynic_xml(options.root, options.logfile)
 

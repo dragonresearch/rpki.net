@@ -17,7 +17,6 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 import os
-import re
 import sys
 import socket
 import urllib2
@@ -168,7 +167,7 @@ class Platform(object):
   apache_key  = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.key")
 
   apache_conf = os.path.join(rpki.autoconf.sysconfdir, "rpki", "apache.conf")
-  apache_conf_sample = apache_conf + ".sample"  
+  apache_conf_sample = apache_conf + ".sample"
 
   apache_conf_preface = ""
 
@@ -305,7 +304,7 @@ class Platform(object):
   def remove(self):
     try:
       same = open(self.apache_conf, "r").read() == open(self.apache_conf_sample, "r").read()
-    except:
+    except:                             # pylint: disable=W0702
       same = False
     self.unlink(self.apache_conf_sample)
     if same:
@@ -334,7 +333,7 @@ class Platform(object):
       addrinfo = socket.getaddrinfo(host, port, family, proto)
     except socket.error:
       return False
-    for af, socktype, proto, canon, sa in addrinfo:
+    for af, socktype, proto, canon, sa in addrinfo: # pylint: disable=W0612
       try:
         s = socket.socket(af, socktype, proto)
         s.connect(sa)
@@ -344,7 +343,7 @@ class Platform(object):
       else:
         return True
     return False
-    
+
 class FreeBSD(Platform):
   """
   FreeBSD.
@@ -353,7 +352,7 @@ class FreeBSD(Platform):
   # On FreeBSD we have to ask httpd what version it is before we know
   # where to put files or what to call the service.  In FreeBSD's makefiles,
   # this value is called APACHE_VERSION, and is calculated thusly:
-  # 
+  #
   # httpd -V | sed  -ne 's/^Server version: Apache\/\([0-9]\)\.\([0-9]*\).*/\1\2/p'
 
   _apache_name = None
@@ -417,6 +416,7 @@ class Debian(Platform):
 
 class NIY(Platform):
   def __init__(self, args):
+    super(NIY, self).__init__(args)
     raise NotImplementedError("Platform %s not implemented yet, sorry" % self.__class__.__name__)
 
 class Redhat(NIY):

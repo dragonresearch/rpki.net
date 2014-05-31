@@ -14,6 +14,8 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
+# pylint: disable=E0602
+
 """
 Upgrade RPKI SQL databases to schema expected by 0.5709.
 

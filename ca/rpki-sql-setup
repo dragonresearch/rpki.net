@@ -4,11 +4,11 @@
 #
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009-2013  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -116,7 +116,7 @@ class UserDB(object):
   def exists_and_accessible(self):
     try:
       MySQLdb.connect(db = self.database, user = self.username, passwd = self.password).close()
-    except:
+    except:                             # pylint: disable=W0702
       return False
     else:
       return True
@@ -179,13 +179,13 @@ class Upgrade(object):
   """
 
   @classmethod
-  def load_all(cls, name, dir):
-    g = os.path.join(dir, "upgrade-%s-to-*.py" % name)
+  def load_all(cls, name, dn):
+    g = os.path.join(dn, "upgrade-%s-to-*.py" % name)
     for fn in glob.iglob(g):
       yield cls(g, fn)
 
   def __init__(self, g, fn):
-    head, sep, tail = g.partition("*")
+    head, sep, tail = g.partition("*")  # pylint: disable=W0612
     self.fn = fn
     self.version = Version(fn[len(head):-len(tail)])
 
@@ -196,7 +196,7 @@ class Upgrade(object):
     # db is an argument here primarily so the script we exec can get at it
     log("Applying %s to %s" % (self.fn, db.name))
     with open(self.fn, "r") as f:
-      exec f
+      exec f                            # pylint: disable=W0122
 
 
 def do_drop(name):
@@ -302,10 +302,10 @@ try:
   cfg  = rpki.config.parser(args.config, "myrpki")
   root = RootDB(args.mysql_defaults)
   current_version = Version(rpki.version.VERSION)
-  for name in ("irdbd", "rpkid", "pubd"):
-    if cfg.getboolean("start_" + name, False):
-      args.dispatch(name)
+  for program_name in ("irdbd", "rpkid", "pubd"):
+    if cfg.getboolean("start_" + program_name, False):
+      args.dispatch(program_name)
   root.close()
 except Exception, e:
-  #sys.exit(str(e))
-  raise
+  #raise
+  sys.exit(str(e))

@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 #
 # $Id$
-# 
+#
 # Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -134,7 +134,7 @@ class Validation_Status(object):
   @property
   def is_backup(self):
     return self.generation == "backup"
-  
+
   @property
   def is_problem(self):
     return self.label.mood != "good"
@@ -156,7 +156,7 @@ class Validation_Status(object):
     return not self.label.code.startswith("rsync_transfer_")
 
 class Problem_Mixin(object):
-  
+
   @property
   def connection_problems(self):
     result = [v for v in self.validation_status if v.is_connection_problem]
@@ -246,9 +246,9 @@ class Host(Problem_Mixin):
     # differently to indicate how succesful transfer was.  Intent is
     # that exactly one of these be defined for every value in elapsed.
 
-    "CDEF:success=failed,UNKN,elapsed,IF",
-    "CDEF:failure=connections,1,EQ,failed,*,elapsed,UNKN,IF",
-    "CDEF:partial=connections,1,NE,failed,*,elapsed,UNKN,IF",
+    r"CDEF:success=failed,UNKN,elapsed,IF",
+    r"CDEF:failure=connections,1,EQ,failed,*,elapsed,UNKN,IF",
+    r"CDEF:partial=connections,1,NE,failed,*,elapsed,UNKN,IF",
 
     # Show connection timing first, as color-coded semi-transparent
     # areas with opaque borders.  Intent is to make the colors stand
@@ -256,27 +256,27 @@ class Host(Problem_Mixin):
     # handled via an alpha channel (fourth octet of color code).  We
     # draw this stuff first so that later lines can overwrite it.
 
-    "AREA:success#00FF0080:Sync time (success)",
-    "AREA:partial#FFA50080:Sync time (partial failure)",
-    "AREA:failure#FF000080:Sync time (total failure)",
+    r"AREA:success#00FF0080:Sync time (success)",
+    r"AREA:partial#FFA50080:Sync time (partial failure)",
+    r"AREA:failure#FF000080:Sync time (total failure)",
 
-    "LINE1:success#00FF00",             # Green
-    "LINE1:partial#FFA500",             # Orange
-    "LINE1:failure#FF0000",             # Red
+    r"LINE1:success#00FF00",             # Green
+    r"LINE1:partial#FFA500",             # Orange
+    r"LINE1:failure#FF0000",             # Red
 
     # Now show object counts, as a simple black line.
 
-    "LINE1:objects#000000:Objects",     # Black
+    r"LINE1:objects#000000:Objects",     # Black
 
     # Add averages over period to chart legend.
 
-    "VDEF:avg_elapsed=elapsed,AVERAGE",
-    "VDEF:avg_connections=connections,AVERAGE",
-    "VDEF:avg_objects=objects,AVERAGE",
-    "COMMENT:\j",
-    "GPRINT:avg_elapsed:Average sync time (seconds)\: %5.2lf",
-    "GPRINT:avg_connections:Average connection count\: %5.2lf",
-    "GPRINT:avg_objects:Average object count\: %5.2lf" )
+    r"VDEF:avg_elapsed=elapsed,AVERAGE",
+    r"VDEF:avg_connections=connections,AVERAGE",
+    r"VDEF:avg_objects=objects,AVERAGE",
+    r"COMMENT:\j",
+    r"GPRINT:avg_elapsed:Average sync time (seconds)\: %5.2lf",
+    r"GPRINT:avg_connections:Average connection count\: %5.2lf",
+    r"GPRINT:avg_objects:Average object count\: %5.2lf" )
 
   graph_periods = (("week",  "-1w"),
                    ("month", "-31d"),
@@ -303,6 +303,7 @@ class Host(Problem_Mixin):
                   "%s:%s" % (self.timestamp, ":".join(str(v) for v in self.field_values))])
 
   def rrd_graph(self, html):
+    # pylint: disable=W0622
     filebase = os.path.join(args.output_directory, self.hostname)
     formats = [format for format in ("png", "svg", "eps")
                if getattr(args, format + "_width") and getattr(args, format + "_height")]
@@ -331,7 +332,7 @@ class Host(Problem_Mixin):
       svg_html.BodyElement("img", src = "%s_%s.svg" % (self.hostname, period))
       svg_html.close()
 
-  
+
 class Session(Problem_Mixin):
 
   def __init__(self):
@@ -479,7 +480,7 @@ class HTML(object):
     self.filename = os.path.join(args.output_directory, filebase + ".html")
 
     self.html = Element("html")
-    self.html.append(Comment(" Generators:\n" + 
+    self.html.append(Comment(" Generators:\n" +
                              "  " + session.rcynic_version + "\n" +
                              "  $Id$\n"))
     self.head = SubElement(self.html, "head")
@@ -546,7 +547,7 @@ class HTML(object):
         td.text = str(count)
     return table
 
-  def object_count_table(self, session):
+  def object_count_table(self, session): # pylint: disable=W0621
     table = self.BodyElement("table", rules = "all", border = "1")
     thead = SubElement(table, "thead")
     tbody = SubElement(table, "tbody")
@@ -595,7 +596,7 @@ class HTML(object):
 def main():
 
   global session
-  
+
   os.putenv("TZ", "UTC")
   time.tzset()
 

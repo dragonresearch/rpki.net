@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 #
 # $Id$
-# 
+#
 # Copyright (C) 2012 Internet Systems Consortium, Inc. ("ISC")
-# 
+#
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -88,7 +88,7 @@ class Session(object):
     hostnames = sorted(hostname for hostname in self.hosts if hostname is not None)
     hostwidth = max(len(hostname) for hostname in hostnames + ["Hostname"])
     separator = "+-%s-+-%s-+" % (
-      "-" * hostwidth, 
+      "-" * hostwidth,
       "-+-".join("-" * label.width for label in visible))
     print separator
     for i in xrange(max(len(label.lines) for label in visible)):

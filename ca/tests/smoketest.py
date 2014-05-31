@@ -35,7 +35,6 @@ things that don't belong in yaml_file.
 import os
 import yaml
 import subprocess
-import signal
 import time
 import logging
 import argparse
@@ -311,13 +310,13 @@ def main():
                        (rsyncd_process, "rsyncd")):
       # pylint: disable=E1103
       if proc is not None and proc.poll() is None:
-        logger.info("Killing %s, pid %s" % (name, proc.pid))
+        logger.info("Killing %s, pid %s", name, proc.pid)
         try:
           proc.terminate()
         except OSError:
           pass
       if proc is not None:
-        logger.info("Daemon %s, pid %s exited with code %s" % (name, proc.pid, proc.wait()))
+        logger.info("Daemon %s, pid %s exited with code %s", name, proc.pid, proc.wait())
 
 def cmd_sleep(cb, interval):
   """
@@ -405,11 +404,10 @@ class router_cert(object):
     return self.asn == other.asn and self.sn == other.sn and self.gski == other.gski
 
   def __hash__(self):
-    v6 = tuple(self.v6) if self.v6 is not None else None
-    return tuple(self.asn).__hash__() + sn.__hash__() + self.gski.__hash__()
+    return tuple(self.asn).__hash__() + self.cn.__hash__() + self.sn.__hash__() + self.gski.__hash__()
 
   def __str__(self):
-    return "%s: %s: %s" % (self.asn, self.cn, self.sn, self.gski)
+    return "%s: %s,%s: %s" % (self.asn, self.cn, self.sn, self.gski)
 
   @classmethod
   def parse(cls, yaml):
@@ -638,7 +636,7 @@ class allocation(object):
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(
         action = "set", self_handle = self.name, rekey = "yes")], cb = done)
     else:
-      logger.info("Rekeying <parent/> %s %s" % (self.name, target))
+      logger.info("Rekeying <parent/> %s %s", self.name, target)
       self.call_rpkid([rpki.left_right.parent_elt.make_pdu(
         action = "set", self_handle = self.name, parent_handle = target, rekey = "yes")], cb = done)
 
@@ -655,7 +653,7 @@ class allocation(object):
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(
         action = "set", self_handle = self.name, revoke = "yes")], cb = done)
     else:
-      logger.info("Revoking <parent/> %s %s" % (self.name, target))
+      logger.info("Revoking <parent/> %s %s", self.name, target)
       self.call_rpkid([rpki.left_right.parent_elt.make_pdu(
         action = "set", self_handle = self.name, parent_handle = target, revoke = "yes")], cb = done)
 
@@ -842,14 +840,14 @@ class allocation(object):
     for proc, name in ((self.rpkid_process, "rpkid"),
                        (self.irdbd_process, "irdbd")):
       if proc is not None and proc.poll() is None:
-        logger.info("Killing daemon %s pid %s for %s" % (name, proc.pid, self.name))
+        logger.info("Killing daemon %s pid %s for %s", name, proc.pid, self.name)
         try:
           proc.terminate()
         except OSError:
           pass
       if proc is not None:
-        logger.info("Daemon %s pid %s for %s exited with code %s" % (
-          name, proc.pid, self.name, proc.wait()))
+        logger.info("Daemon %s pid %s for %s exited with code %s",
+                    name, proc.pid, self.name, proc.wait())
 
   def call_rpkid(self, pdus, cb):
     """
@@ -863,7 +861,7 @@ class allocation(object):
     logger.info("Calling rpkid for %s", self.name)
 
     if self.is_hosted:
-      logger.info("rpkid %s is hosted by rpkid %s, switching" % (self.name, self.hosted_by.name))
+      logger.info("rpkid %s is hosted by rpkid %s, switching", self.name, self.hosted_by.name)
       self = self.hosted_by
       assert not self.is_hosted
 
@@ -909,7 +907,7 @@ class allocation(object):
       certifier = self.name + "-SELF"
     certfile = certifier + "-" + certificant + ".cer"
 
-    logger.info("Cross certifying %s into %s's BPKI (%s)" % (certificant, certifier, certfile))
+    logger.info("Cross certifying %s into %s's BPKI (%s)", certificant, certifier, certfile)
 
     child = rpki.x509.X509(Auto_file = certificant + ".cer")
     parent = rpki.x509.X509(Auto_file = certifier + ".cer")
@@ -943,8 +941,8 @@ class allocation(object):
     f.close()
 
     logger.debug("Cross certified %s:", certfile)
-    logger.debug("  Issuer  %s [%s]" % (x.getIssuer(),  x.hAKI()))
-    logger.debug("  Subject %s [%s]" % (x.getSubject(), x.hSKI()))
+    logger.debug("  Issuer  %s [%s]", x.getIssuer(),  x.hAKI())
+    logger.debug("  Subject %s [%s]", x.getSubject(), x.hSKI())
     return x
 
   def create_rpki_objects(self, cb):
@@ -965,7 +963,7 @@ class allocation(object):
     selves = [self] + self.hosts
 
     for i, s in enumerate(selves):
-      logger.info("Creating RPKI objects for [%d] %s" % (i, s.name))
+      logger.info("Creating RPKI objects for [%d] %s", i, s.name)
 
     rpkid_pdus = []
     pubd_pdus = []
@@ -1062,7 +1060,7 @@ class allocation(object):
           raise CouldntIssueBSCEECertificate("Couldn't issue BSC EE certificate")
         s.bsc_ee = rpki.x509.X509(PEM = signed[0])
         s.bsc_crl = rpki.x509.CRL(PEM_file = s.name + "-SELF.crl")
-        logger.info("BSC EE cert for %s SKI %s" % (s.name, s.bsc_ee.hSKI()))
+        logger.info("BSC EE cert for %s SKI %s", s.name, s.bsc_ee.hSKI())
 
         bsc_pdus.append(rpki.left_right.bsc_elt.make_pdu(
           action = "set",

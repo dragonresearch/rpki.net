@@ -81,7 +81,7 @@ automatically.""")
             delay = random.SystemRandom().randint(0, options.jitter)
         except NotImplementedError:
             delay = random.randint(0, options.jitter)
-        logging.info('jitter active, delaying startup for %d seconds' % delay)
+        logging.info('jitter active, delaying startup for %d seconds', delay)
         time.sleep(delay)
 
     if options.lockfile:

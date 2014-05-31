@@ -133,7 +133,6 @@ class router_cert(object):
     return self.asn == other.asn and self.router_id == other.router_id and self.gski == other.gski
 
   def __hash__(self):
-    v6 = tuple(self.v6) if self.v6 is not None else None
     return tuple(self.asn).__hash__() + self.router_id.__hash__() + self.gski.__hash__()
 
   def __str__(self):

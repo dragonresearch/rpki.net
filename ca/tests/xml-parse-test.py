@@ -50,7 +50,7 @@ def test(fileglob, rng, sax_handler, encoding, tester = None):
       print "<!-- Output -->"
       print lxml.etree.tostring(elt_out, pretty_print = True, encoding = encoding, xml_declaration = True)
     rng.assertValid(elt_out)
-    if (tester):
+    if tester:
       tester(elt_in, elt_out, handler.result)
     if verbose:
       print

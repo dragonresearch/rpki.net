@@ -4,11 +4,11 @@
 #
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2013  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -155,7 +155,7 @@ class CustomAction(argparse.Action):
 
 class CustomFlagAction(argparse.Action):
   def __init__(self, option_strings, dest, default = None,
-               required = False, help = None):
+               required = False, help = None): # pylint: disable=W0622
     super(CustomFlagAction, self).__init__(
       option_strings = option_strings, dest = dest, nargs = 0,
       const = None, default = default, required = required, help = help)
@@ -221,7 +221,7 @@ class main(object):
       name, value = arg.split("=", 1)
       section, option = name.split("::")
     except ValueError:
-      sys.exit("Couldn't parse --set specification \"%s\"" % a)
+      sys.exit("Couldn't parse --set specification \"%s\"" % arg)
     name = (section, option)
     if name not in self.option_map:
       sys.exit("Couldn't find option %s::%s" % name)
@@ -232,7 +232,7 @@ class main(object):
     try:
       section, option = arg.split("::")
     except ValueError:
-      sys.exit("Couldn't parse --pwgen specification \"%s\"" % a)
+      sys.exit("Couldn't parse --pwgen specification \"%s\"" % arg)
     name = (section, option)
     if name not in self.option_map:
       sys.exit("Couldn't find option %s::%s" % name)

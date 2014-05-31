@@ -202,8 +202,11 @@ schemas/relaxng/myrpki.rng: schemas/relaxng/myrpki.rnc
 schemas/relaxng/router-certificate-schema.rng: schemas/relaxng/router-certificate-schema.rnc
 	${TRANG} schemas/relaxng/router-certificate-schema.rnc schemas/relaxng/router-certificate-schema.rng
 
+# Eg: PYLINT_FLAGS='--disable=W0311'
+
 lint:
-	find rpki -name '*.py' | xargs pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc
+	{ find rpki rp ca -name '*.py' -print; find rp ca -type f -perm -1 -print | xargs grep -El '^#!.+python'; } | \
+	sort -u | xargs pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc ${PYLINT_FLAGS}
 
 tags: Makefile
 	find rpki rp ca schemas -type f \

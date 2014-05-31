@@ -24,53 +24,66 @@ Start servers, using config file to figure out which servers the user
 wants started.
 """
 
-import subprocess
 import os
-import argparse
 import sys
 import time
+import argparse
+import subprocess
 import rpki.config
 import rpki.autoconf
+
+from logging.handlers import SysLogHandler
 
 os.environ["TZ"] = "UTC"
 time.tzset()
 
+def non_negative_integer(s):
+  if int(s) < 0:
+    raise ValueError
+  return s
+
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("-c", "--config",
                     help = "override default location of configuration file")
-parser.add_argument("-d", "--debug", action = "store_true",
-                    help = "enable debugging")
-parser.add_argument("--logdir", default = ".",
-                    help = "where to write write log files when debugging")
+parser.add_argument("--log-directory", default = ".",
+                    help = "where to write write log files when not using syslog")
+parser.add_argument("--log-backup-count", default = "7", type = non_negative_integer,
+                    help = "keep this many old log files when rotating")
+parser.add_argument("--log-level", default = "warning",
+                    choices = ("debug", "info", "warning", "error", "critical"),
+                    help = "how verbosely to log")
+group = parser.add_mutually_exclusive_group()
+group.add_argument("--log-file", action = "store_true",
+                   help = "log to files, reopening if rotated away")
+group.add_argument("--log-rotating-file-kbytes",type = non_negative_integer,
+                   help = "log to files, rotating after this many kbytes")
+group.add_argument("--log-rotating-file-hours", type = non_negative_integer,
+                   help = "log to files, rotating after this many hours")
+group.add_argument("--log-syslog", default = "daemon", nargs = "?",
+                   choices = sorted(SysLogHandler.facility_names.keys()),
+                   help = "log syslog")
 args = parser.parse_args()
 
 cfg = rpki.config.parser(args.config, "myrpki")
 
-def run(name):
-  # pylint: disable=E1103
-  cmd = (os.path.join(rpki.autoconf.libexecdir, name), "--config", cfg.filename)
-  if args.debug:
-    proc = subprocess.Popen(cmd + ("--foreground", "--log-stderr"),
-                            stdout = open(os.path.join(args.logdir, name + ".log"), "a"),
-                            stderr = subprocess.STDOUT)
-  else:
+def run(name, old_flag = None):
+  if cfg.getboolean("start_" + name, cfg.getboolean("run_" + name if old_flag is None else old_flag, False)):
+    # pylint: disable=E1103
+    log_file = os.path.join(args.log_directory, name + ".log")
+    cmd = (os.path.join(rpki.autoconf.libexecdir, name), "--config", cfg.filename, "--log-level", args.log_level)
+    if args.log_file:
+      cmd += ("--log-file", log_file)
+    elif args.log_rotating_file_kbytes:
+      cmd += ("--log-rotating-file", log_file, args.log_rotating_file_kbytes, args.log_backup_count)
+    elif args.log_rotating_file_hours:
+      cmd += ("--log-timed-rotating-file", log_file, args.log_rotating_file_hours, args.log_backup_count)
+    else:
+      cmd += ("--log-syslog", args.log_syslog)
     proc = subprocess.Popen(cmd)
-  if args.debug and proc.poll() is None:
-    print "Started %s, pid %s" % (name, proc.pid)
-  elif not args.debug and proc.wait() == 0:
-    print "Started %s" % name
-  else:
-    print "Problem starting %s, pid %s" % (name, proc.pid)
+    if proc.wait() != 0:
+      sys.exit("Problem starting %s, pid %s" % (name, proc.pid))
 
-
-if cfg.getboolean("start_irdbd", cfg.getboolean("run_rpkid", False)):
-  run("irdbd")
-
-if cfg.getboolean("start_rpkid", cfg.getboolean("run_rpkid", False)):
-  run("rpkid")
-
-if cfg.getboolean("start_pubd",  cfg.getboolean("run_pubd",  False)):
-  run("pubd")
-
-if cfg.getboolean("start_rootd", cfg.getboolean("run_rootd", False)):
-  run("rootd")
+run("irdbd", "run_rpkid")
+run("rpkid")
+run("pubd")
+run("rootd")

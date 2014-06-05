@@ -42,10 +42,6 @@ logger = logging.getLogger(__name__)
 # HTTP content type used for all RPKI messages.
 rpki_content_type = "application/x-rpki"
 
-## @var debug_http
-# Verbose chatter about HTTP streams.
-debug_http = False
-
 ## @var want_persistent_client
 # Whether we want persistent HTTP client streams, when server also supports them.
 want_persistent_client = False
@@ -295,10 +291,14 @@ def addr_to_string(addr):
     return "%s.%d" % (addr[0], addr[1])
   raise TypeError
 
+@rpki.log.class_logger(logger)
 class http_stream(asynchat.async_chat):
   """
   Virtual class representing an HTTP message stream.
   """
+
+  # Keep pylint happy; @class_logger overwrites this.
+  logger = None
 
   def __repr__(self):
     status = ["connected"] if self.connected else []
@@ -309,7 +309,7 @@ class http_stream(asynchat.async_chat):
     return rpki.log.log_repr(self, *status)
 
   def __init__(self, sock = None):
-    self.logger = logging.LoggerAdapter(logger, dict(context = self))
+    self.logger = logging.LoggerAdapter(self.logger, dict(context = self))
     asynchat.async_chat.__init__(self, sock)
     self.buffer = []
     self.timer = rpki.async.timer(self.handle_timeout)
@@ -471,6 +471,7 @@ class http_stream(asynchat.async_chat):
     self.timer.cancel()
     asynchat.async_chat.handle_close(self)
 
+@rpki.log.class_logger(logger)
 class http_server(http_stream):
   """
   HTTP server stream.
@@ -570,6 +571,7 @@ class http_server(http_stream):
       self.logger.debug("Listening for next message")
       self.restart()
 
+@rpki.log.class_logger(logger)
 class http_listener(asyncore.dispatcher):
   """
   Listener for incoming HTTP connections.
@@ -583,7 +585,7 @@ class http_listener(asyncore.dispatcher):
     return rpki.log.log_repr(self, *status)
 
   def __init__(self, handlers, addrinfo):
-    self.logger = logging.LoggerAdapter(logger, dict(context = self))
+    self.logger = logging.LoggerAdapter(self.logger, dict(context = self))
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
     try:
@@ -629,6 +631,7 @@ class http_listener(asyncore.dispatcher):
       raise
     self.logger.exception("Error in HTTP listener")
 
+@rpki.log.class_logger(logger)
 class http_client(http_stream):
   """
   HTTP client stream.
@@ -815,6 +818,7 @@ class http_client(http_stream):
     http_stream.handle_error(self)
     self.queue.return_result(self, edata, detach = True)
 
+@rpki.log.class_logger(logger)
 class http_queue(object):
   """
   Queue of pending HTTP requests for a single destination.  This class
@@ -826,7 +830,7 @@ class http_queue(object):
     return rpki.log.log_repr(self, addr_to_string(self.hostport))
 
   def __init__(self, hostport):
-    self.logger = logging.LoggerAdapter(logger, dict(context = self))
+    self.logger = logging.LoggerAdapter(self.logger, dict(context = self))
     self.hostport = hostport
     self.client = None
     self.logger.debug("Created")
@@ -948,8 +952,7 @@ def client(msg, url, callback, errback):
       u.fragment != ""):
     raise rpki.exceptions.BadClientURL("Unusable URL %s" % url)
 
-  if debug_http:
-    logger.debug("Contacting %s", url)
+  logger.debug("Contacting %s", url)
 
   request = http_request(
     cmd                 = "POST",
@@ -962,8 +965,7 @@ def client(msg, url, callback, errback):
 
   hostport = (u.hostname or "localhost", u.port or default_tcp_port)
 
-  if debug_http:
-    logger.debug("Created request %r for %s", request, addr_to_string(hostport))
+  logger.debug("Created request %r for %s", request, addr_to_string(hostport))
   if hostport not in client_queues:
     client_queues[hostport] = http_queue(hostport)
   client_queues[hostport].request(request)
@@ -971,8 +973,7 @@ def client(msg, url, callback, errback):
   # Defer connection attempt until after we've had time to process any
   # pending I/O events, in case connections have closed.
 
-  if debug_http:
-    logger.debug("Scheduling connection startup for %r", request)
+  logger.debug("Scheduling connection startup for %r", request)
   rpki.async.event_defer(client_queues[hostport].restart)
 
 def server(handlers, port, host = ""):

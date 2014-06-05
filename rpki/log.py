@@ -219,6 +219,21 @@ def init(ident = None, args = None):
       setproctitle.setproctitle(ident)
 
 
+def class_logger(module_logger, attribute = "logger"):
+  """
+  Class decorator to add a class-level Logger object as a class
+  attribute.  This allows control of debugging messages at the class
+  level rather than just the module level.
+
+  This decorator takes the module logger as an argument.
+  """
+
+  def decorator(cls):
+    setattr(cls, attribute, module_logger.getChild(cls.__name__))
+    return cls
+  return decorator
+
+
 def log_repr(obj, *tokens):
   """
   Constructor for __repr__() strings, handles suppression of Python

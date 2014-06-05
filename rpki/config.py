@@ -120,20 +120,19 @@ class parser(object):
     """
     Parse OpenSSL-style foo.0, foo.1, ... subscripted options.
 
-    Returns a list of values matching the specified option name.
+    Returns iteration of values matching the specified option name.
     """
 
     matches = []
     if section is None:
       section = self.default_section
     if self.cfg.has_option(section, option):
-      matches.append((-1, self.get(option, section = section)))
-    for key in self.cfg.options(section):
-      s = key.rsplit(".", 1)
-      if len(s) == 2 and s[0] == option and s[1].isdigit():
-        matches.append((int(s[1]), self.get(option, section = section)))
+      yield self.cfg.get(section, option)
+    option += "."
+    matches = [o for o in self.cfg.options(section) if o.startswith(option) and o[len(option):].isdigit()]
     matches.sort()
-    return [match[1] for match in matches]
+    for option in matches:
+      yield self.cfg.get(section, option)
 
   _regexp = re.compile("\\${(.*?)::(.*?)}")
 
@@ -203,10 +202,12 @@ class parser(object):
     import rpki.log
     import rpki.daemonize
 
-    try:
-      rpki.http.debug_http = self.getboolean("debug_http")
-    except ConfigParser.NoOptionError:
-      pass
+    for line in self.multiget("configure_logger"):
+      try:
+        name, level = line.split()
+        logging.getLogger(name).setLevel(getattr(logging, level.upper()))
+      except Exception, e:
+        logger.warning("Could not process configure_logger line %r: %s", line, e)
 
     try:
       rpki.http.want_persistent_client = self.getboolean("want_persistent_client")

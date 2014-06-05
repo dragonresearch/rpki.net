@@ -167,7 +167,7 @@ def notify_expired(expire_days=14, from_email=None):
         for obj in stale_timestamps:
             errs.write('%-15s: %s\n' % (obj.name, obj.ts))
         errs.write('\n')
-        send_email('stale RPKI data on ' + host,
+        send_mail('stale RPKI data on ' + host,
                    errs.getvalue(),
                    from_email,
                    ['root'])

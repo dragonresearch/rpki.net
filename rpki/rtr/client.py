@@ -248,7 +248,7 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
     return cls(sock = s[1],
                proc = subprocess.Popen(argv, stdin = s[0], stdout = s[0], close_fds = True),
                killsig = signal.SIGINT,
-               host = host, port = port, version = version)
+               host = host or "none", port = port or "none", version = version)
 
   @classmethod
   def tls(cls, host, port, version):
@@ -271,7 +271,7 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
                killsig = signal.SIGKILL,
                host = host, port = port, version = version)
 
-  def setup_sql(self, sqlname):
+  def setup_sql(self, sqlname, reset_session):
     """
     Set up an SQLite database to contain the table we receive.  If
     necessary, we will create the database.
@@ -319,12 +319,16 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
                 key             TEXT NOT NULL,
                 UNIQUE          (cache_id, asn, ski),
                 UNIQUE          (cache_id, asn, key))''')
-
+    elif reset_session:
+      cur.execute("DELETE FROM cache WHERE host = ? and port = ?", (self.host, self.port))
     cur.execute("SELECT cache_id, version, nonce, serial, refresh, retry, expire, updated "
                 "FROM cache WHERE host = ? AND port = ?",
                 (self.host, self.port))
     try:
       self.cache_id, version, self.nonce, self.serial, refresh, retry, expire, updated = cur.fetchone()
+      if version is not None and self.version is not None and version != self.version:
+        cur.execute("DELETE FROM cache WHERE host = ? and port = ?", (self.host, self.port))
+        raise TypeError                 # Simulate lookup failure case
       if version is not None:
         self.version = version
       if refresh is not None:
@@ -461,7 +465,7 @@ def client_main(args):
   try:
     client = constructor(host = args.host, port = args.port, version = args.force_version)
     if args.sql_database:
-      client.setup_sql(args.sql_database)
+      client.setup_sql(args.sql_database, args.reset_session)
 
     polled = client.updated
     wakeup = None
@@ -515,6 +519,7 @@ def argparse_setup(subparsers):
   subparser.set_defaults(func = client_main, default_log_to = "stderr")
   subparser.add_argument("--sql-database", help = "filename for sqlite3 database of client state")
   subparser.add_argument("--force-version", type = int, choices = PDU.version_map, help = "force specific protocol version")
+  subparser.add_argument("--reset-session", action = "store_true", help = "reset any existing session found in sqlite3 database")
   subparser.add_argument("protocol", choices = ("loopback", "tcp", "ssh", "tls"), help = "connection protocol")
   subparser.add_argument("host", nargs = "?", help = "server host")
   subparser.add_argument("port", nargs = "?", help = "server port")

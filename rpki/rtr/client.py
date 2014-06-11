@@ -181,16 +181,18 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
   expire   = rpki.rtr.pdus.default_expire
   updated  = Timestamp(0)
 
-  def __init__(self, sock, proc, killsig, host, port):
+  def __init__(self, sock, proc, killsig, host, port, version):
     self.killsig = killsig
     self.proc = proc
     self.host = host
     self.port = port
     super(ClientChannel, self).__init__(sock = sock, root_pdu_class = PDU)
+    if version is not None:
+      self.version = version
     self.start_new_pdu()
 
   @classmethod
-  def ssh(cls, host, port):
+  def ssh(cls, host, port, version):
     """
     Set up ssh connection and start listening for first PDU.
     """
@@ -202,10 +204,10 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
                proc = subprocess.Popen(argv, executable = "/usr/bin/ssh",
                                        stdin = s[0], stdout = s[0], close_fds = True),
                killsig = signal.SIGKILL,
-               host = host, port = port)
+               host = host, port = port, version = version)
 
   @classmethod
-  def tcp(cls, host, port):
+  def tcp(cls, host, port, version):
     """
     Set up TCP connection and start listening for first PDU.
     """
@@ -231,11 +233,11 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
           s.close()
           continue
         return cls(sock = s, proc = None, killsig = None,
-                   host = host, port = port)
+                   host = host, port = port, version = version)
     sys.exit(1)
 
   @classmethod
-  def loopback(cls, host, port):
+  def loopback(cls, host, port, version):
     """
     Set up loopback connection and start listening for first PDU.
     """
@@ -246,10 +248,10 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
     return cls(sock = s[1],
                proc = subprocess.Popen(argv, stdin = s[0], stdout = s[0], close_fds = True),
                killsig = signal.SIGINT,
-               host = host, port = port)
+               host = host, port = port, version = version)
 
   @classmethod
-  def tls(cls, host, port):
+  def tls(cls, host, port, version):
     """
     Set up TLS connection and start listening for first PDU.
 
@@ -267,7 +269,7 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
     return cls(sock = s[1],
                proc = subprocess.Popen(argv, stdin = s[0], stdout = s[0], close_fds = True),
                killsig = signal.SIGKILL,
-               host = host, port = port)
+               host = host, port = port, version = version)
 
   def setup_sql(self, sqlname):
     """
@@ -457,7 +459,7 @@ def client_main(args):
 
   client = None
   try:
-    client = constructor(args.host, args.port)
+    client = constructor(host = args.host, port = args.port, version = args.force_version)
     if args.sql_database:
       client.setup_sql(args.sql_database)
 
@@ -512,6 +514,7 @@ def argparse_setup(subparsers):
                                     help = "Test client for RPKI-RTR protocol")
   subparser.set_defaults(func = client_main, default_log_to = "stderr")
   subparser.add_argument("--sql-database", help = "filename for sqlite3 database of client state")
+  subparser.add_argument("--force-version", type = int, choices = PDU.version_map, help = "force specific protocol version")
   subparser.add_argument("protocol", choices = ("loopback", "tcp", "ssh", "tls"), help = "connection protocol")
   subparser.add_argument("host", nargs = "?", help = "server host")
   subparser.add_argument("port", nargs = "?", help = "server port")

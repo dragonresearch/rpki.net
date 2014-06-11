@@ -24,6 +24,7 @@ import os
 import sys
 import errno
 import socket
+import signal
 import logging
 import asyncore
 import rpki.POW
@@ -490,9 +491,11 @@ def server_main(args):
     server = rpki.rtr.server.ServerChannel(logger = logger, refresh = args.refresh, retry = args.retry, expire = args.expire)
     kickme = rpki.rtr.server.KickmeChannel(server = server)
     asyncore.loop(timeout = None)
+    signal.signal(signal.SIGINT, signal.SIG_IGN) # Theorized race condition
   except KeyboardInterrupt:
     sys.exit(0)
   finally:
+    signal.signal(signal.SIGINT, signal.SIG_IGN) # Observed race condition
     if kickme is not None:
       kickme.cleanup()
 

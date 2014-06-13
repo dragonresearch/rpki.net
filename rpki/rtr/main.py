@@ -28,10 +28,6 @@ import logging
 import logging.handlers
 import argparse
 
-from rpki.rtr.server    import argparse_setup as argparse_setup_server
-from rpki.rtr.client    import argparse_setup as argparse_setup_client
-from rpki.rtr.generator import argparse_setup as argparse_setup_generator
-
 
 class Formatter(logging.Formatter):
 
@@ -56,6 +52,10 @@ def main():
 
   os.environ["TZ"] = "UTC"
   time.tzset()
+
+  from rpki.rtr.server    import argparse_setup as argparse_setup_server
+  from rpki.rtr.client    import argparse_setup as argparse_setup_client
+  from rpki.rtr.generator import argparse_setup as argparse_setup_generator
 
   if "rpki.rtr.bgpdump" in sys.modules:
     from rpki.rtr.bgpdump import argparse_setup as argparse_setup_bgpdump

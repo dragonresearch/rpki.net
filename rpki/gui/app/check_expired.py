@@ -170,7 +170,7 @@ def notify_expired(expire_days=14, from_email=None):
         send_mail('stale RPKI data on ' + host,
                    errs.getvalue(),
                    from_email,
-                   ['root'])
+                   ['root@' + host])
 
     # if not arguments are given, query all resource holders
     qs = Conf.objects.all()

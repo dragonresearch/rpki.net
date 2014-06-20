@@ -46,8 +46,8 @@ print '''\
 '''
 
 print yaml.dump(dict(name         = root,
-                     crl_interval = "5m",
-                     regen_margin = "2m",
-                     valid_for    = "2d",
+                     crl_interval = "1h",
+                     regen_margin = "20m",
+                     valid_for    = "1y",
                      kids         = [kid(n + 1) for n in xrange(200)]))
 

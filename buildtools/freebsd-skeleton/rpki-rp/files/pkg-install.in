@@ -57,27 +57,15 @@ POST-INSTALL)
     fi
     for dir in /var/rcynic/data /var/rcynic/rpki-rtr
     do
-	if ! test -d $dir
-	then
-	    echo "Creating $dir"
-	    /usr/bin/install -o rcynic -g rcynic -d $dir
-	fi
+	/usr/bin/install -o rcynic -g rcynic -d $dir
     done
-    if ! test -d /var/rcynic/rpki-rtr/sockets
-    then
-	echo "Creating /var/rcynic/rpki-rtr/sockets"
-	/usr/bin/install -o rpkirtr -g rcynic -m 775 -d /var/rcynic/rpki-rtr/sockets
-    fi
+    /usr/bin/install -o rpkirtr -g rcynic -m 775 -d /var/rcynic/rpki-rtr/sockets
     if test ! -f /usr/local/etc/rcynic.conf
     then
 	/bin/cp -p /usr/local/etc/rcynic.conf.sample /usr/local/etc/rcynic.conf
     fi
     htmldir=/usr/local/www/apache%%APACHE_VERSION%%/data/rcynic
-    if ! test -d $htmldir
-    then
-        echo "Creating $htmldir"
-        /usr/bin/install -o rcynic -g rcynic -d $htmldir
-    fi
+    /usr/bin/install -o rcynic -g rcynic -d $htmldir
     if test "X`/usr/bin/crontab -l -u rcynic 2>/dev/null`" != "X"
     then
 	echo "rcynic user already has a crontab, leaving it alone"

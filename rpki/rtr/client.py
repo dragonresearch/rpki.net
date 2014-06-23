@@ -200,7 +200,10 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
     Set up ssh connection and start listening for first PDU.
     """
 
-    argv = ("ssh", "-p", port, "-s", host, "rpki-rtr")
+    if args.port is None:
+      argv = ("ssh", "-s", args.host, "rpki-rtr")
+    else:
+      argv = ("ssh", "-p", args.port, "-s", args.host, "rpki-rtr")
     logging.debug("[Running ssh: %s]", " ".join(argv))
     s = socket.socketpair()
     return cls(sock = s[1],
@@ -214,9 +217,9 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
     Set up TCP connection and start listening for first PDU.
     """
 
-    logging.debug("[Starting raw TCP connection to %s:%s]", host, port)
+    logging.debug("[Starting raw TCP connection to %s:%s]", args.host, args.port)
     try:
-      addrinfo = socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+      addrinfo = socket.getaddrinfo(args.host, args.port, socket.AF_UNSPEC, socket.SOCK_STREAM)
     except socket.error, e:
       logging.debug("[socket.getaddrinfo() failed: %s]", e)
     else:
@@ -264,7 +267,7 @@ class ClientChannel(rpki.rtr.channels.PDUChannel):
     for such purposes this week).
     """
 
-    argv = ("openssl", "s_client", "-tls1", "-quiet", "-connect", "%s:%s" % (host, port))
+    argv = ("openssl", "s_client", "-tls1", "-quiet", "-connect", "%s:%s" % (args.host, args.port))
     logging.debug("[Running: %s]", " ".join(argv))
     s = socket.socketpair()
     return cls(sock = s[1],

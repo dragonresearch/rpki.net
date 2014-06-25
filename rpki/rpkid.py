@@ -1262,7 +1262,9 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     if nextUpdate is None:
       nextUpdate = now + crl_interval
 
-    if self.latest_manifest_cert is None or self.latest_manifest_cert.getNotAfter() < nextUpdate:
+    if (self.latest_manifest_cert is None or
+        (self.latest_manifest_cert.getNotAfter() < nextUpdate and
+         self.latest_manifest_cert.getNotAfter() < self.latest_ca_cert.getNotAfter())):
       logger.debug("Generating EE certificate for %s", uri)
       self.generate_manifest_cert()
       logger.debug("Latest CA cert notAfter %s, new %s EE notAfter %s",
@@ -1796,11 +1798,15 @@ class roa_obj(rpki.sql.sql_persistent):
       logger.debug("ca_detail associated with %r not active (state %s), regenerating", self, ca_detail.state)
       return self.regenerate(publisher = publisher, fast = fast)
 
+    now = rpki.sundial.now()
     regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self.regen_margin)
 
-    if rpki.sundial.now() > regen_time:
+    if now > regen_time and self.cert.getNotAfter() < ca_detail.latest_ca_cert.getNotAfter():
       logger.debug("%r past threshold %s, regenerating", self, regen_time)
       return self.regenerate(publisher = publisher, fast = fast)
+
+    if now > regen_time:
+      logger.warning("%r is past threshold %s but so is issuer %r, can't regenerate", self, regen_time, ca_detail)
 
     ca_resources = ca_detail.latest_ca_cert.get_3779resources()
     ee_resources = self.cert.get_3779resources()
@@ -2047,11 +2053,15 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
       logger.debug("Ghostbuster record doesn't exist, generating")
       return self.generate(publisher = publisher, fast = fast)
 
+    now = rpki.sundial.now()
     regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self.regen_margin)
 
-    if rpki.sundial.now() > regen_time:
+    if now > regen_time and self.cert.getNotAfter() < self.ca_detail.latest_ca_cert.getNotAfter():
       logger.debug("%r past threshold %s, regenerating", self, regen_time)
       return self.regenerate(publisher = publisher, fast = fast)
+
+    if now > regen_time:
+      logger.warning("%r is past threshold %s but so is issuer %r, can't regenerate", self, regen_time, self.ca_detail)
 
     if self.cert.get_AIA()[0] != self.ca_detail.ca_cert_uri:
       logger.debug("%r AIA changed, regenerating", self)

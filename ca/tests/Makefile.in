@@ -6,9 +6,7 @@ abs_top_builddir = @abs_top_builddir@
 all: protocol-samples
 
 clean:
-	rm -rf smoketest.dir left-right-protocol-samples publication-protocol-samples yamltest.dir rcynic.xml rcynic-data
-
-protocol-samples: left-right-protocol-samples/.stamp publication-protocol-samples/.stamp
+	rm -rf smoketest.dir left-right-protocol-samples publication-protocol-samples rrdp-samples yamltest.dir rcynic.xml rcynic-data
 
 left-right-protocol-samples/.stamp: left-right-protocol-samples.xml split-protocol-samples.xsl 
 	rm -rf left-right-protocol-samples
@@ -16,16 +14,31 @@ left-right-protocol-samples/.stamp: left-right-protocol-samples.xml split-protoc
 	xsltproc --param verbose 0 --stringparam dir left-right-protocol-samples split-protocol-samples.xsl left-right-protocol-samples.xml
 	touch $@
 
+left-right-relaxng: left-right-protocol-samples/.stamp
+	xmllint --noout --relaxng ../../schemas/relaxng/left-right-schema.rng  left-right-protocol-samples/*.xml
+
 publication-protocol-samples/.stamp: publication-protocol-samples.xml split-protocol-samples.xsl 
 	rm -rf publication-protocol-samples
 	mkdir  publication-protocol-samples
 	xsltproc --param verbose 0 --stringparam dir publication-protocol-samples split-protocol-samples.xsl publication-protocol-samples.xml
 	touch $@
 
-relaxng: protocol-samples
-	xmllint --noout --relaxng ../../schemas/relaxng/left-right-schema.rng  left-right-protocol-samples/*.xml
-	xmllint --noout --relaxng ../../schemas/relaxng/up-down-schema.rng     up-down-protocol-samples/*.xml
+publication-relaxng: publication-protocol-samples/.stamp
 	xmllint --noout --relaxng ../../schemas/relaxng/publication-schema.rng publication-protocol-samples/*.xml
+
+rrdp-samples/.stamp: rrdp-samples.xml split-protocol-samples.xsl 
+	rm -rf rrdp-samples
+	mkdir  rrdp-samples
+	xsltproc --param verbose 0 --stringparam dir rrdp-samples split-protocol-samples.xsl rrdp-samples.xml
+	touch $@
+
+rrdp-relaxng: rrdp-samples/.stamp
+	xmllint --noout --relaxng ../../schemas/relaxng/rrdp.rng               rrdp-samples/*.xml
+
+up-down-relaxng:
+	xmllint --noout --relaxng ../../schemas/relaxng/up-down-schema.rng     up-down-protocol-samples/*.xml
+
+relaxng: up-down-relaxng left-right-relaxng publication-relaxng rrdp-relaxng
 
 all-tests:: relaxng
 

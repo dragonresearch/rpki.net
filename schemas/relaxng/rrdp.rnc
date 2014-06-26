@@ -1,0 +1,118 @@
+# $Id$
+#
+# RelaxNG schema for RPKI Repository Delta Protocol (RRDP).
+#
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+default namespace = "http://www.ripe.net/rpki/rrdp"
+
+# I find the use of "version" for both the protocol version and the database version
+# unncessarily confusing, so I'd prefer "serial" for the latter.  For the moment,
+# I'm keeping the attribute names as in Tim's document and just using "serial" for
+# the data type.
+#
+# The xsd:string types here are me being lazy in the initial version.
+# We should also think about length limits for all of these types.
+
+version = xsd:positiveInteger { maxInclusive="1" }
+serial  = xsd:nonNegativeInteger
+uri     = xsd:anyURI
+uuid    = xsd:string
+sha256  = xsd:string
+base64  = xsd:base64Binary
+index   = xsd:positiveInteger
+
+# Notification file: lists current snapshots and deltas
+#
+# We want to get rid of the multiple segment thing from Tim's original
+# specification.  I think this means that the multiple
+# <snapshot-segment/> elements collapse down to a single snapshot, the
+# attributes of which probably float up to the <snapshot/> element.
+# Or maybe we just require exactly one snapshot-segment element; it's
+# a bit verbose, but leaves an easy way to change our minds later,
+# and it's XML so who's going to notice one more element?
+#
+# Specify as in the -01 draft for the moment, simplify later.
+
+start |= element msg {
+  attribute version { version },
+  attribute type { "notification" },
+  element notification {
+    attribute session_id { uuid },
+    attribute current_version { serial },
+    element snapshot {
+      attribute version { serial },
+      element snapshot-segment {
+        attribute uri { uri },
+	attribute hash { sha256 }
+      }+
+    },
+    element deltas {
+      element delta-segment {
+        attribute from { serial },
+	attribute to { serial },
+        attribute uri { uri },
+	attribute hash { sha256 }
+      }+
+    }?
+  }
+}
+
+# If we're getting rid of multiple snapshot segments, I think the
+# index attributes go away.
+#
+# -01 is a bit vague on <publish/> and <withdraw/> elements:
+# Zero-or-more? One-or-more? Does "exact copy" include using the
+# publication protocol's XML namespace instead of RRDP's?  Tag
+# attribute allowed?  Wing it for now.
+
+# Snapshot segment: think DNS AXFR.
+
+start |= element msg {
+  attribute version { version },
+  attribute type { "snapshot" },
+  element snapshot {
+    attribute session_id { uuid },
+    attribute repository_version { serial },
+    attribute index { index },
+    element publish { attribute uri { uri }, base64 }*
+  }
+}
+
+# Delta segment: think DNS IXFR.
+
+# -01 doesn't say whether <delta/> is zero-or-more or one-or-more.
+
+start |= element msg {
+  attribute version { version },
+  attribute type { "deltas" },
+  element deltas {
+    attribute session_id { uuid },
+    attribute from { serial },
+    attribute to { serial },
+    attribute index { index },
+    element delta {
+      attribute version { serial },
+      ( element publish { attribute uri { uri }, base64 } |
+	element withdraw { attribute uri { uri } } )*
+    }*
+  }
+}
+
+# Local Variables:
+# indent-tabs-mode: nil
+# comment-start: "# "
+# comment-start-skip: "#[ \t]*"
+# End:

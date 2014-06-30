@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 5845 2014-05-29 22:31:15Z sra $
+  $Id: left-right-schema.rnc 5876 2014-06-26 19:00:12Z sra $
   
   RelaxNG schema for RPKI left-right protocol.
   
@@ -1099,7 +1099,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
 ## Parsed RelaxNG myrpki schema
 myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 5757 2014-04-05 22:42:12Z sra $
+  $Id: myrpki.rnc 5876 2014-06-26 19:00:12Z sra $
   
   RelaxNG schema for MyRPKI XML messages.
   
@@ -1482,7 +1482,7 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
 ## Parsed RelaxNG publication schema
 publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 5845 2014-05-29 22:31:15Z sra $
+  $Id: publication-schema.rnc 5876 2014-06-26 19:00:12Z sra $
   
   RelaxNG schema for RPKI publication protocol.
   
@@ -2060,7 +2060,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
 ## Parsed RelaxNG router_certificate schema
 router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: router-certificate-schema.rnc 5757 2014-04-05 22:42:12Z sra $
+  $Id: router-certificate-schema.rnc 5876 2014-06-26 19:00:12Z sra $
   
   RelaxNG schema for BGPSEC router certificate interchange format.
   
@@ -2162,7 +2162,7 @@ router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version=
 ## Parsed RelaxNG rrdp schema
 rrdp = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: rrdp.rnc 5875 2014-06-26 17:48:53Z sra $
+  $Id: rrdp.rnc 5877 2014-06-30 15:48:47Z sra $
   
   RelaxNG schema for RPKI Repository Delta Protocol (RRDP).
   
@@ -2181,15 +2181,6 @@ rrdp = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding
   PERFORMANCE OF THIS SOFTWARE.
 -->
 <grammar ns="http://www.ripe.net/rpki/rrdp" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
-  <!--
-    I find the use of "version" for both the protocol version and the database version
-    unncessarily confusing, so I'd prefer "serial" for the latter.  For the moment,
-    I'm keeping the attribute names as in Tim's document and just using "serial" for
-    the data type.
-    
-    The xsd:string types here are me being lazy in the initial version.
-    We should also think about length limits for all of these types.
-  -->
   <define name="version">
     <data type="positiveInteger">
       <param name="maxInclusive">1</param>
@@ -2202,168 +2193,115 @@ rrdp = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding
     <data type="anyURI"/>
   </define>
   <define name="uuid">
-    <data type="string"/>
+    <data type="string">
+      <param name="pattern">[\-0-9a-fA-F]+</param>
+    </data>
   </define>
-  <define name="sha256">
-    <data type="string"/>
+  <define name="hash">
+    <data type="string">
+      <param name="pattern">[0-9a-fA-F]+</param>
+    </data>
   </define>
   <define name="base64">
     <data type="base64Binary"/>
   </define>
-  <define name="index">
-    <data type="positiveInteger"/>
-  </define>
-  <!--
-    Notification file: lists current snapshots and deltas
-    
-    We want to get rid of the multiple segment thing from Tim's original
-    specification.  I think this means that the multiple
-    <snapshot-segment/> elements collapse down to a single snapshot, the
-    attributes of which probably float up to the <snapshot/> element.
-    Or maybe we just require exactly one snapshot-segment element; it's
-    a bit verbose, but leaves an easy way to change our minds later,
-    and it's XML so who's going to notice one more element?
-    
-    Specify as in the -01 draft for the moment, simplify later.
-  -->
+  <!-- Notification file: lists current snapshots and deltas -->
   <start combine="choice">
-    <element name="msg">
+    <element name="notification">
       <attribute name="version">
         <ref name="version"/>
       </attribute>
-      <attribute name="type">
-        <value>notification</value>
+      <attribute name="session_id">
+        <ref name="uuid"/>
       </attribute>
-      <element name="notification">
-        <attribute name="session_id">
-          <ref name="uuid"/>
-        </attribute>
-        <attribute name="current_version">
-          <ref name="serial"/>
-        </attribute>
-        <element name="snapshot">
-          <attribute name="version">
-            <ref name="serial"/>
-          </attribute>
-          <oneOrMore>
-            <element name="snapshot-segment">
-              <attribute name="uri">
-                <ref name="uri"/>
-              </attribute>
-              <attribute name="hash">
-                <ref name="sha256"/>
-              </attribute>
-            </element>
-          </oneOrMore>
-        </element>
-        <optional>
-          <element name="deltas">
-            <oneOrMore>
-              <element name="delta-segment">
-                <attribute name="from">
-                  <ref name="serial"/>
-                </attribute>
-                <attribute name="to">
-                  <ref name="serial"/>
-                </attribute>
-                <attribute name="uri">
-                  <ref name="uri"/>
-                </attribute>
-                <attribute name="hash">
-                  <ref name="sha256"/>
-                </attribute>
-              </element>
-            </oneOrMore>
-          </element>
-        </optional>
-      </element>
-    </element>
-  </start>
-  <!--
-    If we're getting rid of multiple snapshot segments, I think the
-    index attributes go away.
-    
-    -01 is a bit vague on <publish/> and <withdraw/> elements:
-    Zero-or-more? One-or-more? Does "exact copy" include using the
-    publication protocol's XML namespace instead of RRDP's?  Tag
-    attribute allowed?  Wing it for now.
-  -->
-  <!-- Snapshot segment: think DNS AXFR. -->
-  <start combine="choice">
-    <element name="msg">
-      <attribute name="version">
-        <ref name="version"/>
-      </attribute>
-      <attribute name="type">
-        <value>snapshot</value>
+      <attribute name="serial">
+        <ref name="serial"/>
       </attribute>
       <element name="snapshot">
-        <attribute name="session_id">
-          <ref name="uuid"/>
+        <attribute name="uri">
+          <ref name="uri"/>
         </attribute>
-        <attribute name="repository_version">
-          <ref name="serial"/>
+        <attribute name="hash">
+          <ref name="hash"/>
         </attribute>
-        <attribute name="index">
-          <ref name="index"/>
-        </attribute>
-        <zeroOrMore>
-          <element name="publish">
-            <attribute name="uri">
-              <ref name="uri"/>
-            </attribute>
-            <ref name="base64"/>
-          </element>
-        </zeroOrMore>
       </element>
+      <oneOrMore>
+        <element name="delta">
+          <attribute name="from">
+            <ref name="serial"/>
+          </attribute>
+          <attribute name="to">
+            <ref name="serial"/>
+          </attribute>
+          <attribute name="uri">
+            <ref name="uri"/>
+          </attribute>
+          <attribute name="hash">
+            <ref name="hash"/>
+          </attribute>
+        </element>
+      </oneOrMore>
+    </element>
+  </start>
+  <!-- Snapshot segment: think DNS AXFR. -->
+  <start combine="choice">
+    <element name="snapshot">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="session_id">
+        <ref name="uuid"/>
+      </attribute>
+      <attribute name="serial">
+        <ref name="serial"/>
+      </attribute>
+      <zeroOrMore>
+        <element name="publish">
+          <attribute name="uri">
+            <ref name="uri"/>
+          </attribute>
+          <ref name="base64"/>
+        </element>
+      </zeroOrMore>
     </element>
   </start>
   <!-- Delta segment: think DNS IXFR. -->
-  <!-- -01 doesn't say whether <delta/> is zero-or-more or one-or-more. -->
   <start combine="choice">
-    <element name="msg">
+    <element name="deltas">
       <attribute name="version">
         <ref name="version"/>
       </attribute>
-      <attribute name="type">
-        <value>deltas</value>
+      <attribute name="session_id">
+        <ref name="uuid"/>
       </attribute>
-      <element name="deltas">
-        <attribute name="session_id">
-          <ref name="uuid"/>
-        </attribute>
-        <attribute name="from">
-          <ref name="serial"/>
-        </attribute>
-        <attribute name="to">
-          <ref name="serial"/>
-        </attribute>
-        <attribute name="index">
-          <ref name="index"/>
-        </attribute>
-        <zeroOrMore>
-          <element name="delta">
-            <attribute name="version">
-              <ref name="serial"/>
-            </attribute>
-            <zeroOrMore>
-              <choice>
-                <element name="publish">
-                  <attribute name="uri">
-                    <ref name="uri"/>
-                  </attribute>
-                  <ref name="base64"/>
-                </element>
-                <element name="withdraw">
-                  <attribute name="uri">
-                    <ref name="uri"/>
-                  </attribute>
-                </element>
-              </choice>
-            </zeroOrMore>
-          </element>
-        </zeroOrMore>
-      </element>
+      <attribute name="from">
+        <ref name="serial"/>
+      </attribute>
+      <attribute name="to">
+        <ref name="serial"/>
+      </attribute>
+      <oneOrMore>
+        <element name="delta">
+          <attribute name="serial">
+            <ref name="serial"/>
+          </attribute>
+          <oneOrMore>
+            <choice>
+              <element name="publish">
+                <attribute name="uri">
+                  <ref name="uri"/>
+                </attribute>
+                <ref name="base64"/>
+              </element>
+              <element name="withdraw">
+                <attribute name="uri">
+                  <ref name="uri"/>
+                </attribute>
+              </element>
+            </choice>
+          </oneOrMore>
+        </element>
+      </oneOrMore>
     </element>
   </start>
 </grammar>
@@ -2380,7 +2318,7 @@ rrdp = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding
 ## Parsed RelaxNG up_down schema
 up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rnc 5757 2014-04-05 22:42:12Z sra $
+  $Id: up-down-schema.rnc 5876 2014-06-26 19:00:12Z sra $
   
   RelaxNG schema for the up-down protocol, extracted from RFC 6492.
   

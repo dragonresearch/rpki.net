@@ -40,7 +40,7 @@ start |= element notification {
     attribute to   { serial },
     attribute uri  { uri },
     attribute hash { hash }
-  }+
+  }*
 }
 
 # Snapshot segment: think DNS AXFR.

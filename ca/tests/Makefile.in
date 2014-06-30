@@ -3,7 +3,8 @@
 PYTHON = @PYTHON@
 abs_top_builddir = @abs_top_builddir@
 
-all: protocol-samples
+all:
+	@true
 
 clean:
 	rm -rf smoketest.dir left-right-protocol-samples publication-protocol-samples rrdp-samples yamltest.dir rcynic.xml rcynic-data
@@ -42,7 +43,7 @@ relaxng: up-down-relaxng left-right-relaxng publication-relaxng rrdp-relaxng
 
 all-tests:: relaxng
 
-parse-test: protocol-samples
+parse-test: left-right-protocol-samples publication-protocol-samples
 	${PYTHON} xml-parse-test.py
 
 all-tests:: parse-test

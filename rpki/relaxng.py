@@ -2162,7 +2162,7 @@ router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version=
 ## Parsed RelaxNG rrdp schema
 rrdp = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: rrdp.rnc 5877 2014-06-30 15:48:47Z sra $
+  $Id: rrdp.rnc 5879 2014-06-30 16:08:27Z sra $
   
   RelaxNG schema for RPKI Repository Delta Protocol (RRDP).
   
@@ -2225,7 +2225,7 @@ rrdp = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding
           <ref name="hash"/>
         </attribute>
       </element>
-      <oneOrMore>
+      <zeroOrMore>
         <element name="delta">
           <attribute name="from">
             <ref name="serial"/>
@@ -2240,7 +2240,7 @@ rrdp = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding
             <ref name="hash"/>
           </attribute>
         </element>
-      </oneOrMore>
+      </zeroOrMore>
     </element>
   </start>
   <!-- Snapshot segment: think DNS AXFR. -->

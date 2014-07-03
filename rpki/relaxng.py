@@ -1534,15 +1534,11 @@ publication_control = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version
   </start>
   <!-- PDUs allowed in a query -->
   <define name="query_elt">
-    <choice>
-      <ref name="config_query"/>
-      <ref name="client_query"/>
-    </choice>
+    <ref name="client_query"/>
   </define>
   <!-- PDUs allowed in a reply -->
   <define name="reply_elt">
     <choice>
-      <ref name="config_reply"/>
       <ref name="client_reply"/>
       <ref name="report_error_reply"/>
     </choice>
@@ -1586,59 +1582,6 @@ publication_control = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version
       <param name="maxLength">255</param>
       <param name="pattern">[\-_A-Za-z0-9/]+</param>
     </data>
-  </define>
-  <!--
-    <config/> element
-    config_handle attribute, create, list, and destroy commands omitted deliberately, see code for details
-  -->
-  <define name="config_payload">
-    <optional>
-      <element name="bpki_crl">
-        <ref name="base64"/>
-      </element>
-    </optional>
-  </define>
-  <define name="config_query" combine="choice">
-    <element name="config">
-      <attribute name="action">
-        <value>set</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="config_payload"/>
-    </element>
-  </define>
-  <define name="config_reply" combine="choice">
-    <element name="config">
-      <attribute name="action">
-        <value>set</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-    </element>
-  </define>
-  <define name="config_query" combine="choice">
-    <element name="config">
-      <attribute name="action">
-        <value>get</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-    </element>
-  </define>
-  <define name="config_reply" combine="choice">
-    <element name="config">
-      <attribute name="action">
-        <value>get</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="config_payload"/>
-    </element>
   </define>
   <!-- <client/> element -->
   <define name="client_handle">

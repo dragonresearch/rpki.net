@@ -618,6 +618,15 @@
       </doc>
     </option>
 
+    <option name  = "pubd-crl"
+            value = "${myrpki::bpki_servers_directory}/ca.crl">
+      <doc>
+        Where pubd should look for the CRL covering its own BPKI EE
+        certificate.  Don't change this unless you really know what
+        you are doing.
+      </doc>
+    </option>
+
     <option name  = "irbe-cert"
             value = "${myrpki::bpki_servers_directory}/irbe.cer">
       <doc>

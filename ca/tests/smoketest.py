@@ -248,15 +248,10 @@ def main():
     # the code until final exit is all closures.
 
     def start():
-      rpki.async.iterator(db.engines, create_rpki_objects, created_rpki_objects)
+      rpki.async.iterator(db.engines, create_rpki_objects, yaml_loop)
 
     def create_rpki_objects(iterator, a):
       a.create_rpki_objects(iterator)
-
-    def created_rpki_objects():
-
-      # Set pubd's BPKI CRL
-      set_pubd_crl(yaml_loop)
 
     def yaml_loop():
 
@@ -1320,17 +1315,6 @@ def call_pubd(pdus, cb):
     callback     = call_pubd_cb,
     errback      = call_pubd_eb)
 
-def set_pubd_crl(cb):
-  """
-  Whack publication daemon's bpki_crl.  This must be configured before
-  publication daemon starts talking to its clients, and must be
-  updated whenever we update the CRL.
-  """
-
-  logger.info("Setting pubd's BPKI CRL")
-  crl = rpki.x509.CRL(Auto_file = pubd_name + "-TA.crl")
-  call_pubd([rpki.publication_control.config_elt.make_pdu(action = "set", bpki_crl = crl)], cb = lambda ignored: cb())
-
 last_rcynic_run = None
 
 def run_rcynic():
@@ -1640,6 +1624,7 @@ sql-database            = %(pubd_db_name)s
 sql-username            = %(pubd_db_user)s
 sql-password            = %(pubd_db_pass)s
 bpki-ta                 = %(pubd_name)s-TA.cer
+pubd-crl                = %(pubd_name)s-TA.crl
 pubd-cert               = %(pubd_name)s-PUBD.cer
 pubd-key                = %(pubd_name)s-PUBD.key
 irbe-cert               = %(pubd_name)s-IRBE.cer

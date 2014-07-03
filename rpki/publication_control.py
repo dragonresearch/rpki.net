@@ -59,71 +59,7 @@ class publication_control_namespace(object):
   nsmap = { None : xmlns }
 
 
-class control_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_control_namespace):
-  """
-  Virtual class for control channel objects.
-  """
-
-  pass
-
-
-class config_elt(control_elt):
-  """
-  <config/> element.  This is a little weird because there should
-  never be more than one row in the SQL config table, but we have to
-  put the BPKI CRL somewhere and SQL is the least bad place available.
-
-  So we reuse a lot of the SQL machinery, but we nail config_id at 1,
-  we don't expose it in the XML protocol, and we only support the get
-  and set actions.
-  """
-
-  attributes = ("action", "tag")
-  element_name = "config"
-  elements = ("bpki_crl",)
-
-  sql_template = rpki.sql.template(
-    "config",
-    "config_id",
-    ("bpki_crl", rpki.x509.CRL))
-
-  wired_in_config_id = 1
-
-  def startElement(self, stack, name, attrs):
-    """
-    StartElement() handler for config object.  This requires special
-    handling because of the weird way we treat config_id.
-    """
-    control_elt.startElement(self, stack, name, attrs)
-    self.config_id = self.wired_in_config_id
-
-  @classmethod
-  def fetch(cls, gctx):
-    """
-    Fetch the config object from SQL.  This requires special handling
-    because of the weird way we treat config_id.
-    """
-    return cls.sql_fetch(gctx, cls.wired_in_config_id)
-
-  def serve_set(self, r_msg, cb, eb):
-    """
-    Handle a set action.  This requires special handling because
-    config doesn't support the create method.
-    """
-    if self.sql_fetch(self.gctx, self.config_id) is None:
-      control_elt.serve_create(self, r_msg, cb, eb)
-    else:
-      control_elt.serve_set(self, r_msg, cb, eb)
-
-  def serve_fetch_one_maybe(self):
-    """
-    Find the config object on which a get or set method should
-    operate.
-    """
-    return self.sql_fetch(self.gctx, self.config_id)
-
-
-class client_elt(control_elt):
+class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_control_namespace):
   """
   <client/> element.
   """
@@ -240,7 +176,7 @@ class msg(rpki.xml_utils.msg, publication_control_namespace):
 
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
-  pdus = dict((x.element_name, x) for x in (config_elt, client_elt, report_error_elt))
+  pdus = dict((x.element_name, x) for x in (client_elt, report_error_elt))
 
   def serve_top_level(self, gctx, cb):
     """

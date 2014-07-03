@@ -97,6 +97,7 @@ class main(object):
     self.irbe_cert = rpki.x509.X509(Auto_update = self.cfg.get("irbe-cert"))
     self.pubd_cert = rpki.x509.X509(Auto_update = self.cfg.get("pubd-cert"))
     self.pubd_key  = rpki.x509.RSA( Auto_update = self.cfg.get("pubd-key"))
+    self.pubd_crl  = rpki.x509.CRL( Auto_update = self.cfg.get("pubd-crl"))
 
     self.http_server_host = self.cfg.get("server-host", "")
     self.http_server_port = self.cfg.getint("server-port")
@@ -144,7 +145,7 @@ class main(object):
     def done(r_msg):
       self.sql.sweep()
       cb(code = 200,
-         body = rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, config.bpki_crl))
+         body = rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, self.pubd_crl))
 
     try:
       match = self.client_url_regexp.search(path)
@@ -154,9 +155,6 @@ class main(object):
       client = rpki.publication_control.client_elt.sql_fetch_where1(self, "client_handle = %s", (client_handle,))
       if client is None:
         raise rpki.exceptions.ClientNotFound("Could not find client %s" % client_handle)
-      config = rpki.publication_control.config_elt.fetch(self)
-      if config is None or config.bpki_crl is None:
-        raise rpki.exceptions.CMSCRLNotSet
       q_cms = rpki.publication.cms_msg(DER = query)
       q_msg = q_cms.unwrap((self.bpki_ta, client.bpki_cert, client.bpki_glue))
       q_cms.check_replay_sql(client, client.client_handle)

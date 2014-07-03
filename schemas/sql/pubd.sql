@@ -19,16 +19,8 @@
 
 -- SQL objects needed by pubd.py.
 
--- The config table is weird because it only has one row.
-
 DROP TABLE IF EXISTS client;
 DROP TABLE IF EXISTS config;
-
-CREATE TABLE config (
-        config_id               SERIAL NOT NULL,
-        bpki_crl                LONGBLOB,
-        PRIMARY KEY             (config_id)
-) ENGINE=InnoDB;
 
 CREATE TABLE client (
         client_id               SERIAL NOT NULL,

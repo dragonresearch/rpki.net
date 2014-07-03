@@ -536,11 +536,6 @@ class Zookeeper(object):
     if self.run_pubd:
       updates = []
 
-      updates.append(
-        rpki.publication_control.config_elt.make_pdu(
-          action = "set",
-          bpki_crl = self.server_ca.latest_crl))
-
       updates.extend(
         rpki.publication_control.client_elt.make_pdu(
           action = "set",
@@ -1529,12 +1524,6 @@ class Zookeeper(object):
 
     if not self.run_pubd:
       return
-
-    # Make sure that pubd's BPKI CRL is up to date.
-
-    self.call_pubd(rpki.publication_control.config_elt.make_pdu(
-      action = "set",
-      bpki_crl = self.server_ca.latest_crl))
 
     # See what pubd already has on file
 

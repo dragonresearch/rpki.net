@@ -30,10 +30,10 @@ start = element msg {
 }
 
 # PDUs allowed in a query
-query_elt = ( config_query | client_query )
+query_elt = client_query
 
 # PDUs allowed in a reply
-reply_elt = ( config_reply | client_reply | report_error_reply )
+reply_elt = ( client_reply | report_error_reply )
 
 # Tag attributes for bulk operations
 tag = attribute tag { xsd:token {maxLength="1024" } }
@@ -53,16 +53,6 @@ uri = attribute uri { uri_t }
 # Unlike the up-down protocol, handles in this protocol allow "/" as a
 # hierarchy delimiter.
 object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]+" }
-
-# <config/> element
-# config_handle attribute, create, list, and destroy commands omitted deliberately, see code for details
-
-config_payload = (element bpki_crl { base64 }?)
-
-config_query |= element config { attribute action { "set" }, tag?, config_payload }
-config_reply |= element config { attribute action { "set" }, tag? }
-config_query |= element config { attribute action { "get" }, tag? }
-config_reply |= element config { attribute action { "get" }, tag?, config_payload }
 
 # <client/> element
 

@@ -35,6 +35,7 @@ import rpki.left_right
 import rpki.x509
 import rpki.async
 import rpki.irdb
+import rpki.publication_control
 import django.db.transaction
 
 from lxml.etree import (Element, SubElement, ElementTree,
@@ -536,12 +537,12 @@ class Zookeeper(object):
       updates = []
 
       updates.append(
-        rpki.publication.config_elt.make_pdu(
+        rpki.publication_control.config_elt.make_pdu(
           action = "set",
           bpki_crl = self.server_ca.latest_crl))
 
       updates.extend(
-        rpki.publication.client_elt.make_pdu(
+        rpki.publication_control.client_elt.make_pdu(
           action = "set",
           client_handle = client.handle,
           bpki_cert = client.certificate)
@@ -1143,9 +1144,9 @@ class Zookeeper(object):
                                                       clear_replay_protection = "yes")
                     for ca in rpki.irdb.ResourceHolderCA.objects.all())
     if self.run_pubd:
-      self.call_pubd(rpki.publication.client_elt.make_pdu(action = "set",
-                                                          client_handle = client.handle,
-                                                          clear_replay_protection = "yes")
+      self.call_pubd(rpki.publication_control.client_elt.make_pdu(action = "set",
+                                                                  client_handle = client.handle,
+                                                                  clear_replay_protection = "yes")
                      for client in self.server_ca.clients.all())
 
 
@@ -1172,7 +1173,7 @@ class Zookeeper(object):
       pdus = pdus[0]
 
     call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
-      proto       = rpki.publication,
+      proto       = rpki.publication_control,
       client_key  = irbe.private_key,
       client_cert = irbe.certificate,
       server_ta   = self.server_ca.certificate,
@@ -1189,11 +1190,11 @@ class Zookeeper(object):
     throw exceptions as needed.
     """
 
-    if any(isinstance(pdu, (rpki.left_right.report_error_elt, rpki.publication.report_error_elt)) for pdu in pdus):
+    if any(isinstance(pdu, (rpki.left_right.report_error_elt, rpki.publication_control.report_error_elt)) for pdu in pdus):
       for pdu in pdus:
         if isinstance(pdu, rpki.left_right.report_error_elt):
           self.log("rpkid reported failure: %s" % pdu.error_code)
-        elif isinstance(pdu, rpki.publication.report_error_elt):
+        elif isinstance(pdu, rpki.publication_control.report_error_elt):
           self.log("pubd reported failure: %s" % pdu.error_code)
         else:
           continue
@@ -1531,14 +1532,14 @@ class Zookeeper(object):
 
     # Make sure that pubd's BPKI CRL is up to date.
 
-    self.call_pubd(rpki.publication.config_elt.make_pdu(
+    self.call_pubd(rpki.publication_control.config_elt.make_pdu(
       action = "set",
       bpki_crl = self.server_ca.latest_crl))
 
     # See what pubd already has on file
 
-    pubd_reply = self.call_pubd(rpki.publication.client_elt.make_pdu(action = "list"))
-    client_pdus = dict((x.client_handle, x) for x in pubd_reply if isinstance(x, rpki.publication.client_elt))
+    pubd_reply = self.call_pubd(rpki.publication_control.client_elt.make_pdu(action = "list"))
+    client_pdus = dict((x.client_handle, x) for x in pubd_reply if isinstance(x, rpki.publication_control.client_elt))
     pubd_query = []
 
     # Check all clients
@@ -1550,7 +1551,7 @@ class Zookeeper(object):
       if (client_pdu is None or
           client_pdu.base_uri != client.sia_base or
           client_pdu.bpki_cert != client.certificate):
-        pubd_query.append(rpki.publication.client_elt.make_pdu(
+        pubd_query.append(rpki.publication_control.client_elt.make_pdu(
           action = "create" if client_pdu is None else "set",
           client_handle = client.handle,
           bpki_cert = client.certificate,
@@ -1558,7 +1559,7 @@ class Zookeeper(object):
 
     # Delete any unknown clients
 
-    pubd_query.extend(rpki.publication.client_elt.make_pdu(
+    pubd_query.extend(rpki.publication_control.client_elt.make_pdu(
             action = "destroy", client_handle = p) for p in client_pdus)
 
     # If we changed anything, ship updates off to pubd

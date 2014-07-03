@@ -28,8 +28,14 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-import glob, lxml.etree, lxml.sax
-import rpki.up_down, rpki.left_right, rpki.publication, rpki.relaxng
+import glob
+import lxml.etree
+import lxml.sax
+import rpki.up_down
+import rpki.left_right
+import rpki.publication
+import rpki.publication_control
+import rpki.relaxng
 
 verbose = False
 
@@ -88,17 +94,17 @@ def lr_tester(elt_in, elt_out, msg):
 def pp_tester(elt_in, elt_out, msg):
   assert isinstance(msg, rpki.publication.msg)
   for obj in msg:
-    if isinstance(obj, rpki.publication.client_elt):
+    if isinstance(obj, rpki.publication.publish_elt):
+      pprint(((obj.payload,          "Publish object"),))
+    if isinstance(obj, rpki.publication.withdraw_elt):
+      pprint(((None,                 "Withdraw object"),))
+
+def pc_tester(elt_in, elt_out, msg):
+  assert isinstance(msg, rpki.publication_control.msg)
+  for obj in msg:
+    if isinstance(obj, rpki.publication_control.client_elt):
       pprint(((obj.bpki_cert,         "BPKI cert"),
               (obj.bpki_glue,         "BPKI glue")))
-    if isinstance(obj, rpki.publication.certificate_elt):
-      pprint(((obj.payload,         "RPKI cert"),))
-    if isinstance(obj, rpki.publication.crl_elt):
-      pprint(((obj.payload,         "RPKI CRL"),))
-    if isinstance(obj, rpki.publication.manifest_elt):
-      pprint(((obj.payload,          "RPKI manifest"),))
-    if isinstance(obj, rpki.publication.roa_elt):
-      pprint(((obj.payload,          "ROA"),))
 
 test(fileglob = "up-down-protocol-samples/*.xml",
      rng = rpki.relaxng.up_down,
@@ -117,3 +123,9 @@ test(fileglob = "publication-protocol-samples/*.xml",
      sax_handler = rpki.publication.sax_handler,
      encoding = "us-ascii",
      tester = pp_tester)
+
+test(fileglob = "publication-control-protocol-samples/*.xml",
+     rng = rpki.relaxng.publication_control,
+     sax_handler = rpki.publication_control.sax_handler,
+     encoding = "us-ascii",
+     tester = pc_tester)

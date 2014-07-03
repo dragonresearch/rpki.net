@@ -19,7 +19,7 @@
 # NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-default namespace = "http://www.hactrn.net/uris/rpki/publication-spec/"
+default namespace = "http://www.hactrn.net/uris/rpki/publication-control/"
 
 # Top level PDU
 
@@ -30,12 +30,10 @@ start = element msg {
 }
 
 # PDUs allowed in a query
-query_elt = ( config_query | client_query | certificate_query | crl_query |
-              manifest_query | roa_query | ghostbuster_query )
+query_elt = ( config_query | client_query )
 
 # PDUs allowed in a reply
-reply_elt = ( config_reply | client_reply | certificate_reply | crl_reply |
-              manifest_reply | roa_reply | ghostbuster_reply | report_error_reply )
+reply_elt = ( config_reply | client_reply | report_error_reply )
 
 # Tag attributes for bulk operations
 tag = attribute tag { xsd:token {maxLength="1024" } }
@@ -56,7 +54,7 @@ uri = attribute uri { uri_t }
 # hierarchy delimiter.
 object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]+" }
 
-# <config/> element (use restricted to repository operator)
+# <config/> element
 # config_handle attribute, create, list, and destroy commands omitted deliberately, see code for details
 
 config_payload = (element bpki_crl { base64 }?)
@@ -66,7 +64,7 @@ config_reply |= element config { attribute action { "set" }, tag? }
 config_query |= element config { attribute action { "get" }, tag? }
 config_reply |= element config { attribute action { "get" }, tag?, config_payload }
 
-# <client/> element (use restricted to repository operator)
+# <client/> element
 
 client_handle = attribute client_handle { object_handle }
 
@@ -84,41 +82,6 @@ client_query |= element client { attribute action { "list" },    tag? }
 client_reply |= element client { attribute action { "list" },    tag?, client_handle, client_payload }
 client_query |= element client { attribute action { "destroy" }, tag?, client_handle }
 client_reply |= element client { attribute action { "destroy" }, tag?, client_handle }
-
-# <certificate/> element
-
-certificate_query |= element certificate { attribute action { "publish" }, tag?, uri, base64 }
-certificate_reply |= element certificate { attribute action { "publish" }, tag?, uri }
-certificate_query |= element certificate { attribute action { "withdraw" }, tag?, uri }
-certificate_reply |= element certificate { attribute action { "withdraw" }, tag?, uri }
-
-# <crl/> element
-
-crl_query |= element crl { attribute action { "publish" }, tag?, uri, base64 }
-crl_reply |= element crl { attribute action { "publish" }, tag?, uri }
-crl_query |= element crl { attribute action { "withdraw" }, tag?, uri }
-crl_reply |= element crl { attribute action { "withdraw" }, tag?, uri }
-
-# <manifest/> element
-
-manifest_query |= element manifest { attribute action { "publish" }, tag?, uri, base64 }
-manifest_reply |= element manifest { attribute action { "publish" }, tag?, uri }
-manifest_query |= element manifest { attribute action { "withdraw" }, tag?, uri }
-manifest_reply |= element manifest { attribute action { "withdraw" }, tag?, uri }
-
-# <roa/> element
-
-roa_query |= element roa { attribute action { "publish" }, tag?, uri, base64 }
-roa_reply |= element roa { attribute action { "publish" }, tag?, uri }
-roa_query |= element roa { attribute action { "withdraw" }, tag?, uri }
-roa_reply |= element roa { attribute action { "withdraw" }, tag?, uri }
-
-# <ghostbuster/> element
-
-ghostbuster_query |= element ghostbuster { attribute action { "publish" }, tag?, uri, base64 }
-ghostbuster_reply |= element ghostbuster { attribute action { "publish" }, tag?, uri }
-ghostbuster_query |= element ghostbuster { attribute action { "withdraw" }, tag?, uri }
-ghostbuster_reply |= element ghostbuster { attribute action { "withdraw" }, tag?, uri }
 
 # <report_error/> element
 

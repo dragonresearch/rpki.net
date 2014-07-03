@@ -312,16 +312,18 @@ class self_elt(data_elt):
       for ca in parent.cas:
         ca_detail = ca.active_ca_detail
         if ca_detail is not None:
-          q_msg.append(rpki.publication.crl_elt.make_publish(
+          q_msg.append(rpki.publication.publish_elt.make(
             ca_detail.crl_uri, ca_detail.latest_crl))
-          q_msg.append(rpki.publication.manifest_elt.make_publish(
+          q_msg.append(rpki.publication.publish_elt.make(
             ca_detail.manifest_uri, ca_detail.latest_manifest))
-          q_msg.extend(rpki.publication.certificate_elt.make_publish(
+          q_msg.extend(rpki.publication.publish_elt.make(
             c.uri, c.cert) for c in ca_detail.child_certs)
-          q_msg.extend(rpki.publication.roa_elt.make_publish(
+          q_msg.extend(rpki.publication.publish_elt.make(
             r.uri, r.roa) for r in ca_detail.roas if r.roa is not None)
-          q_msg.extend(rpki.publication.ghostbuster_elt.make_publish(
+          q_msg.extend(rpki.publication.publish_elt.make(
             g.uri, g.ghostbuster) for g in ca_detail.ghostbusters)
+          q_msg.extend(rpki.publication.publish_elt.make(
+            c.uri, c.cert) for c in ca_detail.ee_certificates)
       parent.repository.call_pubd(iterator, eb, q_msg)
 
     rpki.async.iterator(self.parents, loop, cb)
@@ -544,7 +546,7 @@ class repository_elt(data_elt):
         handlers = {}
 
       for q_pdu in q_msg:
-        logger.info("Sending %s %s to pubd", q_pdu.action, q_pdu.uri)
+        logger.info("Sending %r to pubd", q_pdu)
 
       bsc = self.bsc
       q_der = rpki.publication.cms_msg().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)

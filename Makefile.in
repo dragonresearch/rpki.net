@@ -45,11 +45,12 @@ SETUP_PY_ROOT = `${PYTHON} -c 'import sys; print "--root " + sys.argv[1] if sys.
 
 POW_SO		= rpki/POW/_POW.so
 
-RNGS =	schemas/relaxng/left-right-schema.rng		\
-	schemas/relaxng/up-down-schema.rng		\
-	schemas/relaxng/publication-schema.rng		\
+RNGS =	schemas/relaxng/left-right.rng			\
+	schemas/relaxng/up-down.rng			\
+	schemas/relaxng/publication.rng			\
+	schemas/relaxng/publication-control.rng		\
 	schemas/relaxng/myrpki.rng			\
-	schemas/relaxng/router-certificate-schema.rng	\
+	schemas/relaxng/router-certificate.rng		\
 	schemas/relaxng/rrdp.rng
 
 SQLS =	schemas/sql/rpkid.sql				\
@@ -188,20 +189,23 @@ ${abs_top_srcdir}/rpki/sql_schemas.py: buildtools/make-sql-schemas.py ${SQLS}
 	cd schemas/sql; ${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
 	mv $@.tmp $@
 
-schemas/relaxng/left-right-schema.rng: schemas/relaxng/left-right-schema.rnc
-	${TRANG} schemas/relaxng/left-right-schema.rnc schemas/relaxng/left-right-schema.rng
+schemas/relaxng/left-right.rng: schemas/relaxng/left-right.rnc
+	${TRANG} schemas/relaxng/left-right.rnc schemas/relaxng/left-right.rng
 
-schemas/relaxng/up-down-schema.rng: schemas/relaxng/up-down-schema.rnc
-	${TRANG} schemas/relaxng/up-down-schema.rnc schemas/relaxng/up-down-schema.rng
+schemas/relaxng/up-down.rng: schemas/relaxng/up-down.rnc
+	${TRANG} schemas/relaxng/up-down.rnc schemas/relaxng/up-down.rng
 
-schemas/relaxng/publication-schema.rng: schemas/relaxng/publication-schema.rnc
-	${TRANG} schemas/relaxng/publication-schema.rnc schemas/relaxng/publication-schema.rng
+schemas/relaxng/publication.rng: schemas/relaxng/publication.rnc
+	${TRANG} schemas/relaxng/publication.rnc schemas/relaxng/publication.rng
+
+schemas/relaxng/publication-control.rng: schemas/relaxng/publication-control.rnc
+	${TRANG} schemas/relaxng/publication-control.rnc schemas/relaxng/publication-control.rng
 
 schemas/relaxng/myrpki.rng: schemas/relaxng/myrpki.rnc
 	${TRANG} schemas/relaxng/myrpki.rnc schemas/relaxng/myrpki.rng
 
-schemas/relaxng/router-certificate-schema.rng: schemas/relaxng/router-certificate-schema.rnc
-	${TRANG} schemas/relaxng/router-certificate-schema.rnc schemas/relaxng/router-certificate-schema.rng
+schemas/relaxng/router-certificate.rng: schemas/relaxng/router-certificate.rnc
+	${TRANG} schemas/relaxng/router-certificate.rnc schemas/relaxng/router-certificate.rng
 
 schemas/relaxng/rrdp.rng: schemas/relaxng/rrdp.rnc
 	${TRANG} schemas/relaxng/rrdp.rnc schemas/relaxng/rrdp.rng

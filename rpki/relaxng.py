@@ -1478,9 +1478,9 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
 -->
 '''))
 
-## @var publication
-## Parsed RelaxNG publication schema
-publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+## @var publication_control
+## Parsed RelaxNG publication_control schema
+publication_control = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: publication-schema.rnc 5876 2014-06-26 19:00:12Z sra $
   
@@ -1503,7 +1503,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
   WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 -->
-<grammar ns="http://www.hactrn.net/uris/rpki/publication-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+<grammar ns="http://www.hactrn.net/uris/rpki/publication-control/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <!-- Top level PDU -->
   <start>
     <element name="msg">
@@ -1537,11 +1537,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
     <choice>
       <ref name="config_query"/>
       <ref name="client_query"/>
-      <ref name="certificate_query"/>
-      <ref name="crl_query"/>
-      <ref name="manifest_query"/>
-      <ref name="roa_query"/>
-      <ref name="ghostbuster_query"/>
     </choice>
   </define>
   <!-- PDUs allowed in a reply -->
@@ -1549,11 +1544,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
     <choice>
       <ref name="config_reply"/>
       <ref name="client_reply"/>
-      <ref name="certificate_reply"/>
-      <ref name="crl_reply"/>
-      <ref name="manifest_reply"/>
-      <ref name="roa_reply"/>
-      <ref name="ghostbuster_reply"/>
       <ref name="report_error_reply"/>
     </choice>
   </define>
@@ -1598,7 +1588,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
     </data>
   </define>
   <!--
-    <config/> element (use restricted to repository operator)
+    <config/> element
     config_handle attribute, create, list, and destroy commands omitted deliberately, see code for details
   -->
   <define name="config_payload">
@@ -1650,7 +1640,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
       <ref name="config_payload"/>
     </element>
   </define>
-  <!-- <client/> element (use restricted to repository operator) -->
+  <!-- <client/> element -->
   <define name="client_handle">
     <attribute name="client_handle">
       <ref name="object_handle"/>
@@ -1795,12 +1785,152 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
       <ref name="client_handle"/>
     </element>
   </define>
-  <!-- <certificate/> element -->
-  <define name="certificate_query" combine="choice">
-    <element name="certificate">
-      <attribute name="action">
-        <value>publish</value>
+  <!-- <report_error/> element -->
+  <define name="error">
+    <data type="token">
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <define name="report_error_reply">
+    <element name="report_error">
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <attribute name="error_code">
+        <ref name="error"/>
       </attribute>
+      <optional>
+        <data type="string">
+          <param name="maxLength">512000</param>
+        </data>
+      </optional>
+    </element>
+  </define>
+</grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
+  End:
+-->
+'''))
+
+## @var publication
+## Parsed RelaxNG publication schema
+publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  $Id: publication-schema.rnc 5876 2014-06-26 19:00:12Z sra $
+  
+  RelaxNG schema for RPKI publication protocol, from current I-D.
+  
+  Copyright (c) 2014 IETF Trust and the persons identified as authors
+  of the code.  All rights reserved.
+  
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+  
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+  
+  * Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in
+    the documentation and/or other materials provided with the
+    distribution.
+  
+  * Neither the name of Internet Society, IETF or IETF Trust, nor the
+    names of specific contributors, may be used to endorse or promote
+    products derived from this software without specific prior written
+    permission.
+  
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  POSSIBILITY OF SUCH DAMAGE.
+-->
+<grammar ns="http://www.hactrn.net/uris/rpki/publication-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!-- This is version 3 of the protocol. -->
+  <define name="version">
+    <value>3</value>
+  </define>
+  <!-- Top level PDU is either a query or a reply. -->
+  <start>
+    <element name="msg">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <choice>
+        <group>
+          <attribute name="type">
+            <value>query</value>
+          </attribute>
+          <zeroOrMore>
+            <ref name="query_elt"/>
+          </zeroOrMore>
+        </group>
+        <group>
+          <attribute name="type">
+            <value>reply</value>
+          </attribute>
+          <zeroOrMore>
+            <ref name="reply_elt"/>
+          </zeroOrMore>
+        </group>
+      </choice>
+    </element>
+  </start>
+  <!-- PDUs allowed in  queries and replies. -->
+  <define name="query_elt">
+    <choice>
+      <ref name="publish_query"/>
+      <ref name="withdraw_query"/>
+    </choice>
+  </define>
+  <define name="reply_elt">
+    <choice>
+      <ref name="publish_reply"/>
+      <ref name="withdraw_reply"/>
+      <ref name="report_error_reply"/>
+    </choice>
+  </define>
+  <!-- Tag attributes for bulk operations. -->
+  <define name="tag">
+    <attribute name="tag">
+      <data type="token">
+        <param name="maxLength">1024</param>
+      </data>
+    </attribute>
+  </define>
+  <!-- Base64 encoded DER stuff. -->
+  <define name="base64">
+    <data type="base64Binary"/>
+  </define>
+  <!-- Publication URIs. -->
+  <define name="uri">
+    <attribute name="uri">
+      <data type="anyURI">
+        <param name="maxLength">4096</param>
+      </data>
+    </attribute>
+  </define>
+  <!-- Error codes. -->
+  <define name="error">
+    <data type="token">
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <!-- <publish/> element -->
+  <define name="publish_query" combine="choice">
+    <element name="publish">
       <optional>
         <ref name="tag"/>
       </optional>
@@ -1808,217 +1938,25 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
       <ref name="base64"/>
     </element>
   </define>
-  <define name="certificate_reply" combine="choice">
-    <element name="certificate">
-      <attribute name="action">
-        <value>publish</value>
-      </attribute>
+  <define name="publish_reply" combine="choice">
+    <element name="publish">
       <optional>
         <ref name="tag"/>
       </optional>
       <ref name="uri"/>
     </element>
   </define>
-  <define name="certificate_query" combine="choice">
-    <element name="certificate">
-      <attribute name="action">
-        <value>withdraw</value>
-      </attribute>
+  <!-- <withdraw/> element -->
+  <define name="withdraw_query" combine="choice">
+    <element name="withdraw">
       <optional>
         <ref name="tag"/>
       </optional>
       <ref name="uri"/>
     </element>
   </define>
-  <define name="certificate_reply" combine="choice">
-    <element name="certificate">
-      <attribute name="action">
-        <value>withdraw</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <!-- <crl/> element -->
-  <define name="crl_query" combine="choice">
-    <element name="crl">
-      <attribute name="action">
-        <value>publish</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-      <ref name="base64"/>
-    </element>
-  </define>
-  <define name="crl_reply" combine="choice">
-    <element name="crl">
-      <attribute name="action">
-        <value>publish</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <define name="crl_query" combine="choice">
-    <element name="crl">
-      <attribute name="action">
-        <value>withdraw</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <define name="crl_reply" combine="choice">
-    <element name="crl">
-      <attribute name="action">
-        <value>withdraw</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <!-- <manifest/> element -->
-  <define name="manifest_query" combine="choice">
-    <element name="manifest">
-      <attribute name="action">
-        <value>publish</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-      <ref name="base64"/>
-    </element>
-  </define>
-  <define name="manifest_reply" combine="choice">
-    <element name="manifest">
-      <attribute name="action">
-        <value>publish</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <define name="manifest_query" combine="choice">
-    <element name="manifest">
-      <attribute name="action">
-        <value>withdraw</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <define name="manifest_reply" combine="choice">
-    <element name="manifest">
-      <attribute name="action">
-        <value>withdraw</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <!-- <roa/> element -->
-  <define name="roa_query" combine="choice">
-    <element name="roa">
-      <attribute name="action">
-        <value>publish</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-      <ref name="base64"/>
-    </element>
-  </define>
-  <define name="roa_reply" combine="choice">
-    <element name="roa">
-      <attribute name="action">
-        <value>publish</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <define name="roa_query" combine="choice">
-    <element name="roa">
-      <attribute name="action">
-        <value>withdraw</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <define name="roa_reply" combine="choice">
-    <element name="roa">
-      <attribute name="action">
-        <value>withdraw</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <!-- <ghostbuster/> element -->
-  <define name="ghostbuster_query" combine="choice">
-    <element name="ghostbuster">
-      <attribute name="action">
-        <value>publish</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-      <ref name="base64"/>
-    </element>
-  </define>
-  <define name="ghostbuster_reply" combine="choice">
-    <element name="ghostbuster">
-      <attribute name="action">
-        <value>publish</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <define name="ghostbuster_query" combine="choice">
-    <element name="ghostbuster">
-      <attribute name="action">
-        <value>withdraw</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <ref name="uri"/>
-    </element>
-  </define>
-  <define name="ghostbuster_reply" combine="choice">
-    <element name="ghostbuster">
-      <attribute name="action">
-        <value>withdraw</value>
-      </attribute>
+  <define name="withdraw_reply" combine="choice">
+    <element name="withdraw">
       <optional>
         <ref name="tag"/>
       </optional>
@@ -2026,11 +1964,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
     </element>
   </define>
   <!-- <report_error/> element -->
-  <define name="error">
-    <data type="token">
-      <param name="maxLength">1024</param>
-    </data>
-  </define>
   <define name="report_error_reply">
     <element name="report_error">
       <optional>

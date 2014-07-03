@@ -36,6 +36,7 @@ import rpki.exceptions
 import rpki.relaxng
 import rpki.log
 import rpki.publication
+import rpki.publication_control
 import rpki.daemonize
 
 logger = logging.getLogger(__name__)
@@ -110,39 +111,28 @@ class main(object):
       handlers = (("/control", self.control_handler),
                   ("/client/", self.client_handler)))
 
-  def handler_common(self, query, client, cb, certs, crl = None):
-    """
-    Common PDU handler code.
-    """
-
-    def done(r_msg):
-      reply = rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, crl)
-      self.sql.sweep()
-      cb(reply)
-
-    q_cms = rpki.publication.cms_msg(DER = query)
-    q_msg = q_cms.unwrap(certs)
-    if client is None:
-      self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp, "control")
-    else:
-      q_cms.check_replay_sql(client, client.client_handle)
-    q_msg.serve_top_level(self, client, done)
 
   def control_handler(self, query, path, cb):
     """
     Process one PDU from the IRBE.
     """
 
-    def done(body):
-      cb(200, body = body)
+    def done(r_msg):
+      self.sql.sweep()
+      cb(code = 200,
+         body = rpki.publication_control.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert))
 
     try:
-      self.handler_common(query, None, done, (self.bpki_ta, self.irbe_cert))
+      q_cms = rpki.publication_control.cms_msg(DER = query)
+      q_msg = q_cms.unwrap((self.bpki_ta, self.irbe_cert))
+      self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp, "control")
+      q_msg.serve_top_level(self, done)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
       logger.exception("Unhandled exception processing control query, path %r", path)
-      cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
+      cb(code = 500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
+
 
   client_url_regexp = re.compile("/client/([-A-Z0-9_/]+)$", re.I)
 
@@ -151,23 +141,29 @@ class main(object):
     Process one PDU from a client.
     """
 
-    def done(body):
-      cb(200, body = body)
+    def done(r_msg):
+      self.sql.sweep()
+      cb(code = 200,
+         body = rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, config.bpki_crl))
 
     try:
       match = self.client_url_regexp.search(path)
       if match is None:
         raise rpki.exceptions.BadContactURL("Bad path: %s" % path)
       client_handle = match.group(1)
-      client = rpki.publication.client_elt.sql_fetch_where1(self, "client_handle = %s", (client_handle,))
+      client = rpki.publication_control.client_elt.sql_fetch_where1(self, "client_handle = %s", (client_handle,))
       if client is None:
         raise rpki.exceptions.ClientNotFound("Could not find client %s" % client_handle)
-      config = rpki.publication.config_elt.fetch(self)
+      config = rpki.publication_control.config_elt.fetch(self)
       if config is None or config.bpki_crl is None:
         raise rpki.exceptions.CMSCRLNotSet
-      self.handler_common(query, client, done, (self.bpki_ta, client.bpki_cert, client.bpki_glue), config.bpki_crl)
+      q_cms = rpki.publication.cms_msg(DER = query)
+      q_msg = q_cms.unwrap((self.bpki_ta, client.bpki_cert, client.bpki_glue))
+      q_cms.check_replay_sql(client, client.client_handle)
+      q_msg.serve_top_level(self, client, done)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
       logger.exception("Unhandled exception processing client query, path %r", path)
-      cb(500, reason = "Could not process PDU: %s" % e)
+      cb(code = 500,
+         reason = "Could not process PDU: %s" % e)

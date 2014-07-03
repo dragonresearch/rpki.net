@@ -74,9 +74,9 @@ def get_PEM_chain(name, cert = None):
   if cert is not None:
     chain.append(cert)
   if name in yaml_data:
-    chain.extend([rpki.x509.X509(PEM = x) for x in yaml_data[name]])
+    chain.extend(rpki.x509.X509(PEM = x) for x in yaml_data[name])
   elif name + "-file" in yaml_data:
-    chain.extend([rpki.x509.X509(PEM_file = x) for x in yaml_data[name + "-file"]])
+    chain.extend(rpki.x509.X509(PEM_file = x) for x in yaml_data[name + "-file"])
   return chain
 
 def query_up_down(q_pdu):

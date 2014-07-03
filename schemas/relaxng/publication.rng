@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  $Id: publication-schema.rnc 5876 2014-06-26 19:00:12Z sra $
+  
+  RelaxNG schema for RPKI publication protocol, from current I-D.
+  
+  Copyright (c) 2014 IETF Trust and the persons identified as authors
+  of the code.  All rights reserved.
+  
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+  
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+  
+  * Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in
+    the documentation and/or other materials provided with the
+    distribution.
+  
+  * Neither the name of Internet Society, IETF or IETF Trust, nor the
+    names of specific contributors, may be used to endorse or promote
+    products derived from this software without specific prior written
+    permission.
+  
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  POSSIBILITY OF SUCH DAMAGE.
+-->
+<grammar ns="http://www.hactrn.net/uris/rpki/publication-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!-- This is version 3 of the protocol. -->
+  <define name="version">
+    <value>3</value>
+  </define>
+  <!-- Top level PDU is either a query or a reply. -->
+  <start>
+    <element name="msg">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <choice>
+        <group>
+          <attribute name="type">
+            <value>query</value>
+          </attribute>
+          <zeroOrMore>
+            <ref name="query_elt"/>
+          </zeroOrMore>
+        </group>
+        <group>
+          <attribute name="type">
+            <value>reply</value>
+          </attribute>
+          <zeroOrMore>
+            <ref name="reply_elt"/>
+          </zeroOrMore>
+        </group>
+      </choice>
+    </element>
+  </start>
+  <!-- PDUs allowed in  queries and replies. -->
+  <define name="query_elt">
+    <choice>
+      <ref name="publish_query"/>
+      <ref name="withdraw_query"/>
+    </choice>
+  </define>
+  <define name="reply_elt">
+    <choice>
+      <ref name="publish_reply"/>
+      <ref name="withdraw_reply"/>
+      <ref name="report_error_reply"/>
+    </choice>
+  </define>
+  <!-- Tag attributes for bulk operations. -->
+  <define name="tag">
+    <attribute name="tag">
+      <data type="token">
+        <param name="maxLength">1024</param>
+      </data>
+    </attribute>
+  </define>
+  <!-- Base64 encoded DER stuff. -->
+  <define name="base64">
+    <data type="base64Binary"/>
+  </define>
+  <!-- Publication URIs. -->
+  <define name="uri">
+    <attribute name="uri">
+      <data type="anyURI">
+        <param name="maxLength">4096</param>
+      </data>
+    </attribute>
+  </define>
+  <!-- Error codes. -->
+  <define name="error">
+    <data type="token">
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <!-- <publish/> element -->
+  <define name="publish_query" combine="choice">
+    <element name="publish">
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="publish_reply" combine="choice">
+    <element name="publish">
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <!-- <withdraw/> element -->
+  <define name="withdraw_query" combine="choice">
+    <element name="withdraw">
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="withdraw_reply" combine="choice">
+    <element name="withdraw">
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <!-- <report_error/> element -->
+  <define name="report_error_reply">
+    <element name="report_error">
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <attribute name="error_code">
+        <ref name="error"/>
+      </attribute>
+      <optional>
+        <data type="string">
+          <param name="maxLength">512000</param>
+        </data>
+      </optional>
+    </element>
+  </define>
+</grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
+  End:
+-->

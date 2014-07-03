@@ -309,7 +309,6 @@ class UpdateChildrenTask(AbstractTask):
                          old_resources.valid_until, irdb_resources.valid_until)
             child_cert.sql_delete()
             self.publisher.withdraw(
-              cls = rpki.publication.certificate_elt,
               uri = child_cert.uri,
               obj = child_cert.cert,
               repository = ca.parent.repository)

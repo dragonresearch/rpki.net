@@ -295,7 +295,7 @@ def bgpdump_server_main(args):
   rpki.rtr.server.read_current = clock.read_current
 
   try:
-    server = rpki.rtr.server.ServerChannel(logger = logger)
+    server = rpki.rtr.server.ServerChannel(logger = logger, refresh = args.refresh, retry = args.retry, expire = args.expire)
     old_serial = server.get_serial()
     logger.debug("[Starting at serial %d (%s)]", old_serial, old_serial)
     while clock:

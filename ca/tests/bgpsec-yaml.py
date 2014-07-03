@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # $Id$
-# 
+#
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 #
 # Permission to use, copy, modify, and distribute this software for any
@@ -28,7 +28,7 @@ import yaml
 
 root = "Root"
 
-def kid(n):
+def kid(n):			# pylint: disable=W0621
   name = "ISP-%03d" % n
   ipv4 = "10.%d.0.0/16" % n
   asn  = n

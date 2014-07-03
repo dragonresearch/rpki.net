@@ -208,7 +208,7 @@ class class_elt(base_elt):
     elt = self.make_elt("class", "class_name", "cert_url", "resource_set_as",
                         "resource_set_ipv4", "resource_set_ipv6",
                         "resource_set_notafter", "suggested_sia_head")
-    elt.extend([i.toXML() for i in self.certs])
+    elt.extend(i.toXML() for i in self.certs)
     self.make_b64elt(elt, "issuer", self.issuer)
     return elt
 

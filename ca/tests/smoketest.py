@@ -47,7 +47,7 @@ import rpki.http
 import rpki.log
 import rpki.left_right
 import rpki.config
-import rpki.publication
+import rpki.publication_control
 import rpki.async
 
 from rpki.mysql_import import MySQLdb
@@ -80,6 +80,7 @@ def allocate_port():
   """
   Allocate a TCP port number.
   """
+
   global base_port
   p = base_port
   base_port += 1
@@ -322,6 +323,7 @@ def cmd_sleep(cb, interval):
   """
   Set an alarm, then wait for it to go off.
   """
+
   howlong = rpki.sundial.timedelta.parse(interval)
   logger.info("Sleeping %r", howlong)
   rpki.async.timer(cb).set(howlong)
@@ -330,6 +332,7 @@ def cmd_shell(cb, *cmd):
   """
   Run a shell command.
   """
+
   cmd = " ".join(cmd)
   status = subprocess.call(cmd, shell = True)
   logger.info("Shell command returned status %d", status)
@@ -339,6 +342,7 @@ def cmd_echo(cb, *words):
   """
   Echo some text to the log.
   """
+
   logger.info(" ".join(words))
   cb()
 
@@ -478,6 +482,7 @@ class allocation_db(list):
     """
     Print content of the database.
     """
+
     for a in self:
       print a
 
@@ -498,6 +503,7 @@ class allocation(object):
     """
     Initialize one entity and insert it into the database.
     """
+
     db.append(self)
     self.name = yaml["name"]
     self.parent = parent
@@ -534,6 +540,7 @@ class allocation(object):
     """
     Compute the transitive resource closure.
     """
+
     resources = self.base
     for kid in self.kids:
       resources |= kid.closure()
@@ -688,6 +695,7 @@ class allocation(object):
     """
     Set the engine number for this entity.
     """
+
     self.irdb_db_name = "irdb%d" % n
     self.irdb_port    = allocate_port()
     self.rpki_db_name = "rpki%d" % n
@@ -697,6 +705,7 @@ class allocation(object):
     """
     Get rpki port to use for this entity.
     """
+
     if self.is_hosted:
       assert self.hosted_by.rpki_port is not None
       return self.hosted_by.rpki_port
@@ -708,6 +717,7 @@ class allocation(object):
     """
     Create BPKI certificates for this entity.
     """
+
     logger.info("Constructing BPKI keys and certs for %s", self.name)
     setup_bpki_cert_chain(name = self.name,
                           ee = ("RPKI", "IRDB", "IRBE"),
@@ -721,6 +731,7 @@ class allocation(object):
     """
     Write config files for this entity.
     """
+
     logger.info("Writing config files for %s", self.name)
     assert self.rpki_port is not None
     d = { "my_name"      : self.name,
@@ -740,6 +751,7 @@ class allocation(object):
     """
     Set up this entity's IRDB.
     """
+
     logger.info("Setting up MySQL for %s", self.name)
     db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass,
                          conv = sql_conversions)
@@ -774,6 +786,7 @@ class allocation(object):
     once during setup, then do it again every time we apply a delta to
     this entity.
     """
+
     logger.info("Updating MySQL data for IRDB %s", self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass,
                          conv = sql_conversions)
@@ -827,6 +840,7 @@ class allocation(object):
     """
     Run daemons for this entity.
     """
+
     logger.info("Running daemons for %s", self.name)
     self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "--foreground", "--log-stdout", "--log-level", "debug", "--config", self.name + ".conf") +
                                           (("--profile", self.name + ".prof") if args.profile else ()))
@@ -836,6 +850,7 @@ class allocation(object):
     """
     Kill daemons for this entity.
     """
+
     # pylint: disable=E1103
     for proc, name in ((self.rpkid_process, "rpkid"),
                        (self.irdbd_process, "irdbd")):
@@ -985,7 +1000,7 @@ class allocation(object):
         bsc_handle = "b",
         generate_keypair = True))
 
-      pubd_pdus.append(rpki.publication.client_elt.make_pdu(
+      pubd_pdus.append(rpki.publication_control.client_elt.make_pdu(
         action = "create",
         client_handle = s.client_handle,
         base_uri = s.sia_base,
@@ -1154,6 +1169,7 @@ def setup_bpki_cert_chain(name, ee = (), ca = ()):
   """
   Build a set of BPKI certificates.
   """
+
   s = "exec >/dev/null 2>&1\n"
   #s = "set -x\n"
   for kind in ("TA",) + ee + ca:
@@ -1181,6 +1197,7 @@ def setup_rootd(rpkid, rootd_yaml):
   """
   Write the config files for rootd.
   """
+
   rpkid.cross_certify(rootd_name + "-TA", reverse = True)
   logger.info("Writing config files for %s", rootd_name)
   d = { "rootd_name" : rootd_name,
@@ -1204,6 +1221,7 @@ def setup_rcynic():
   """
   Write the config file for rcynic.
   """
+
   logger.info("Config file for rcynic")
   d = { "rcynic_name" : rcynic_name,
         "rootd_name"  : rootd_name,
@@ -1216,6 +1234,7 @@ def setup_rsyncd():
   """
   Write the config file for rsyncd.
   """
+
   logger.info("Config file for rsyncd")
   d = { "rsyncd_name"   : rsyncd_name,
         "rsyncd_port"   : rsyncd_port,
@@ -1229,6 +1248,7 @@ def setup_publication(pubd_sql):
   """
   Set up publication daemon.
   """
+
   logger.info("Configure publication daemon")
   publication_dir = os.getcwd() + "/publication"
   assert rootd_sia.startswith("rsync://")
@@ -1268,12 +1288,13 @@ def setup_publication(pubd_sql):
 
 def call_pubd(pdus, cb):
   """
-  Send a publication message to publication daemon and return the
-  response.
+  Send a publication control message to publication daemon and return
+  the response.
   """
+
   logger.info("Calling pubd")
-  q_msg = rpki.publication.msg.query(*pdus)
-  q_cms = rpki.publication.cms_msg()
+  q_msg = rpki.publication_control.msg.query(*pdus)
+  q_cms = rpki.publication_control.cms_msg()
   q_der = q_cms.wrap(q_msg, pubd_irbe_key, pubd_irbe_cert)
   q_url = "http://localhost:%d/control" % pubd_port
 
@@ -1281,13 +1302,13 @@ def call_pubd(pdus, cb):
 
   def call_pubd_cb(r_der):
     global pubd_last_cms_time
-    r_cms = rpki.publication.cms_msg(DER = r_der)
+    r_cms = rpki.publication_control.cms_msg(DER = r_der)
     r_msg = r_cms.unwrap((pubd_ta, pubd_pubd_cert))
     pubd_last_cms_time = r_cms.check_replay(pubd_last_cms_time, q_url)
     logger.debug(r_cms.pretty_print_content())
     assert r_msg.is_reply
     for r_pdu in r_msg:
-      assert not isinstance(r_pdu, rpki.publication.report_error_elt)
+      assert not isinstance(r_pdu, rpki.publication_control.report_error_elt)
     cb(r_msg)
 
   def call_pubd_eb(e):
@@ -1305,9 +1326,10 @@ def set_pubd_crl(cb):
   publication daemon starts talking to its clients, and must be
   updated whenever we update the CRL.
   """
+
   logger.info("Setting pubd's BPKI CRL")
   crl = rpki.x509.CRL(Auto_file = pubd_name + "-TA.crl")
-  call_pubd([rpki.publication.config_elt.make_pdu(action = "set", bpki_crl = crl)], cb = lambda ignored: cb())
+  call_pubd([rpki.publication_control.config_elt.make_pdu(action = "set", bpki_crl = crl)], cb = lambda ignored: cb())
 
 last_rcynic_run = None
 
@@ -1315,6 +1337,7 @@ def run_rcynic():
   """
   Run rcynic to see whether what was published makes sense.
   """
+
   logger.info("Running rcynic")
   env = os.environ.copy()
   env["TZ"] = ""
@@ -1330,6 +1353,7 @@ def mangle_sql(filename):
   """
   Mangle an SQL file into a sequence of SQL statements.
   """
+
   words = []
   f = open(filename)
   for line in f:

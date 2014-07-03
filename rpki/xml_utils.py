@@ -460,7 +460,7 @@ class msg(list):
     Generate top-level PDU.
     """
     elt = lxml.etree.Element("{%s}msg" % (self.xmlns), nsmap = self.nsmap, version = str(self.version), type = self.type)
-    elt.extend([i.toXML() for i in self])
+    elt.extend(i.toXML() for i in self)
     return elt
 
   @classmethod

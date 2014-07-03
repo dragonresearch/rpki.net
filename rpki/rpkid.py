@@ -933,8 +933,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     repository = ca.parent.repository
     handler = False if allow_failure else None
     for child_cert in self.child_certs:
-      publisher.withdraw(cls = rpki.publication.certificate_elt,
-                         uri = child_cert.uri,
+      publisher.withdraw(uri = child_cert.uri,
                          obj = child_cert.cert,
                          repository = repository,
                          handler = handler)
@@ -948,8 +947,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     except AttributeError:
       latest_manifest = None
     if latest_manifest is not None:
-      publisher.withdraw(cls = rpki.publication.manifest_elt,
-                         uri = self.manifest_uri,
+      publisher.withdraw(uri = self.manifest_uri,
                          obj = self.latest_manifest,
                          repository = repository,
                          handler = handler)
@@ -958,8 +956,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     except AttributeError:
       latest_crl = None
     if latest_crl is not None:
-      publisher.withdraw(cls = rpki.publication.crl_elt,
-                         uri = self.crl_uri,
+      publisher.withdraw(uri = self.crl_uri,
                          obj = self.latest_crl,
                          repository = repository,
                          handler = handler)
@@ -1188,7 +1185,6 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     child_cert.published = rpki.sundial.now()
     child_cert.sql_store()
     publisher.publish(
-      cls = rpki.publication.certificate_elt,
       uri = child_cert.uri,
       obj = child_cert.cert,
       repository = ca.parent.repository,
@@ -1232,7 +1228,6 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     self.crl_published = rpki.sundial.now()
     self.sql_mark_dirty()
     publisher.publish(
-      cls        = rpki.publication.crl_elt,
       uri        = self.crl_uri,
       obj        = self.latest_crl,
       repository = parent.repository,
@@ -1290,8 +1285,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
     self.manifest_published = rpki.sundial.now()
     self.sql_mark_dirty()
-    publisher.publish(cls = rpki.publication.manifest_elt,
-                      uri = uri,
+    publisher.publish(uri = uri,
                       obj = self.latest_manifest,
                       repository = parent.repository,
                       handler = self.manifest_published_callback)
@@ -1361,8 +1355,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
          self.crl_published is not None and \
          self.crl_published < stale:
       logger.debug("Retrying publication for %s", self.crl_uri)
-      publisher.publish(cls = rpki.publication.crl_elt,
-                        uri = self.crl_uri,
+      publisher.publish(uri = self.crl_uri,
                         obj = self.latest_crl,
                         repository = repository,
                         handler = self.crl_published_callback)
@@ -1371,8 +1364,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
          self.manifest_published is not None and \
          self.manifest_published < stale:
       logger.debug("Retrying publication for %s", self.manifest_uri)
-      publisher.publish(cls = rpki.publication.manifest_elt,
-                        uri = self.manifest_uri,
+      publisher.publish(uri = self.manifest_uri,
                         obj = self.latest_manifest,
                         repository = repository,
                         handler = self.manifest_published_callback)
@@ -1386,7 +1378,6 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     for child_cert in self.unpublished_child_certs(stale):
       logger.debug("Retrying publication for %s", child_cert)
       publisher.publish(
-        cls = rpki.publication.certificate_elt,
         uri = child_cert.uri,
         obj = child_cert.cert,
         repository = repository,
@@ -1395,7 +1386,6 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     for roa in self.unpublished_roas(stale):
       logger.debug("Retrying publication for %s", roa)
       publisher.publish(
-        cls = rpki.publication.roa_elt,
         uri = roa.uri,
         obj = roa.roa,
         repository = repository,
@@ -1404,7 +1394,6 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     for ghostbuster in self.unpublished_ghostbusters(stale):
       logger.debug("Retrying publication for %s", ghostbuster)
       publisher.publish(
-        cls = rpki.publication.ghostbuster_elt,
         uri = ghostbuster.uri,
         obj = ghostbuster.ghostbuster,
         repository = repository,
@@ -1492,7 +1481,6 @@ class child_cert_obj(rpki.sql.sql_persistent):
     logger.debug("Revoking %r %r", self, self.uri)
     revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
     publisher.withdraw(
-      cls        = rpki.publication.certificate_elt,
       uri        = self.uri,
       obj        = self.cert,
       repository = ca.parent.repository)
@@ -1895,7 +1883,6 @@ class roa_obj(rpki.sql.sql_persistent):
 
     logger.debug("Generating %r URI %s", self, self.uri)
     publisher.publish(
-      cls = rpki.publication.roa_elt,
       uri = self.uri,
       obj = self.roa,
       repository = ca.parent.repository,
@@ -1942,7 +1929,8 @@ class roa_obj(rpki.sql.sql_persistent):
 
     logger.debug("Withdrawing %r %s and revoking its EE cert", self, uri)
     rpki.rpkid.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
-    publisher.withdraw(cls = rpki.publication.roa_elt, uri = uri, obj = roa,
+    publisher.withdraw(uri = uri,
+                       obj = roa,
                        repository = ca_detail.ca.parent.repository,
                        handler = False if allow_failure else None)
 
@@ -2098,7 +2086,6 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
 
     logger.debug("Generating Ghostbuster record %r", self.uri)
     publisher.publish(
-      cls = rpki.publication.ghostbuster_elt,
       uri = self.uri,
       obj = self.ghostbuster,
       repository = ca.parent.repository,
@@ -2144,7 +2131,8 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
 
     logger.debug("Withdrawing %r %s and revoking its EE cert", self, uri)
     rpki.rpkid.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
-    publisher.withdraw(cls = rpki.publication.ghostbuster_elt, uri = uri, obj = ghostbuster,
+    publisher.withdraw(uri = uri,
+                       obj = ghostbuster,
                        repository = ca_detail.ca.parent.repository,
                        handler = False if allow_failure else None)
 
@@ -2293,7 +2281,6 @@ class ee_cert_obj(rpki.sql.sql_persistent):
       cert         = cert)
 
     publisher.publish(
-      cls        = rpki.publication.certificate_elt,
       uri        = self.uri,
       obj        = self.cert,
       repository = ca.parent.repository,
@@ -2316,8 +2303,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     ca = ca_detail.ca
     logger.debug("Revoking %r %r", self, self.uri)
     revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
-    publisher.withdraw(cls = rpki.publication.certificate_elt,
-                       uri = self.uri,
+    publisher.withdraw(uri = self.uri,
                        obj = self.cert,
                        repository = ca.parent.repository)
     self.gctx.sql.sweep()
@@ -2402,7 +2388,6 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     self.sql_mark_dirty()
 
     publisher.publish(
-      cls        = rpki.publication.certificate_elt,
       uri        = self.uri,
       obj        = self.cert,
       repository = ca_detail.ca.parent.repository,
@@ -2457,8 +2442,7 @@ class publication_queue(object):
       self.repositories[rid] = repository
       self.msgs[rid] = rpki.publication.msg.query()
     if self.replace and uri in self.uris:
-      logger.debug("Removing publication duplicate <%s %r %r>",
-                   self.uris[uri].action, self.uris[uri].uri, self.uris[uri].payload)
+      logger.debug("Removing publication duplicate %r", self.uris[uri])
       self.msgs[rid].remove(self.uris.pop(uri))
     pdu = make_pdu(uri = uri, obj = obj)
     if handler is not None:
@@ -2468,11 +2452,11 @@ class publication_queue(object):
     if self.replace:
       self.uris[uri] = pdu
 
-  def publish(self,  cls, uri, obj, repository, handler = None):
-    return self._add(     uri, obj, repository, handler, cls.make_publish)
+  def publish(self,  uri, obj, repository, handler = None):
+    return self._add(uri, obj, repository, handler, rpki.publication.publish_elt.make)
 
-  def withdraw(self, cls, uri, obj, repository, handler = None):
-    return self._add(     uri, obj, repository, handler, cls.make_withdraw)
+  def withdraw(self, uri, obj, repository, handler = None):
+    return self._add(uri, obj, repository, handler, rpki.publication.withdraw_elt.make)
 
   def call_pubd(self, cb, eb):
     def loop(iterator, rid):

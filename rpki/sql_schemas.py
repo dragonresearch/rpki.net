@@ -2,7 +2,7 @@
 
 ## @var rpkid
 ## SQL schema rpkid
-rpkid = '''-- $Id: rpkid.sql 5845 2014-05-29 22:31:15Z sra $
+rpkid = '''-- $Id: rpkid.sql 5881 2014-07-03 16:55:02Z sra $
 
 -- Copyright (C) 2012--2014  Dragon Research Labs ("DRL")
 -- Portions copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
@@ -245,7 +245,7 @@ CREATE TABLE ee_cert (
 
 ## @var pubd
 ## SQL schema pubd
-pubd = '''-- $Id: pubd.sql 5757 2014-04-05 22:42:12Z sra $
+pubd = '''-- $Id: pubd.sql 5881 2014-07-03 16:55:02Z sra $
 
 -- Copyright (C) 2012--2014  Dragon Research Labs ("DRL")
 -- Portions copyright (C) 2009--2010  Internet Systems Consortium ("ISC")

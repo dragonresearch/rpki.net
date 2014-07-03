@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 5876 2014-06-26 19:00:12Z sra $
+  $Id: left-right.rnc 5881 2014-07-03 16:55:02Z sra $
   
   RelaxNG schema for RPKI left-right protocol.
   
@@ -1482,7 +1482,7 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
 ## Parsed RelaxNG publication_control schema
 publication_control = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 5876 2014-06-26 19:00:12Z sra $
+  $Id: publication-control.rnc 5881 2014-07-03 16:55:02Z sra $
   
   RelaxNG schema for RPKI publication protocol.
   
@@ -1820,7 +1820,7 @@ publication_control = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version
 ## Parsed RelaxNG publication schema
 publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 5876 2014-06-26 19:00:12Z sra $
+  $Id: publication.rnc 5881 2014-07-03 16:55:02Z sra $
   
   RelaxNG schema for RPKI publication protocol, from current I-D.
   
@@ -1993,7 +1993,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
 ## Parsed RelaxNG router_certificate schema
 router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: router-certificate-schema.rnc 5876 2014-06-26 19:00:12Z sra $
+  $Id: router-certificate.rnc 5881 2014-07-03 16:55:02Z sra $
   
   RelaxNG schema for BGPSEC router certificate interchange format.
   
@@ -2251,7 +2251,7 @@ rrdp = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding
 ## Parsed RelaxNG up_down schema
 up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rnc 5876 2014-06-26 19:00:12Z sra $
+  $Id: up-down.rnc 5881 2014-07-03 16:55:02Z sra $
   
   RelaxNG schema for the up-down protocol, extracted from RFC 6492.
   

@@ -23,6 +23,7 @@ RPKI publication engine.
 
 import os
 import re
+import uuid
 import time
 import logging
 import argparse
@@ -165,3 +166,89 @@ class main(object):
       logger.exception("Unhandled exception processing client query, path %r", path)
       cb(code = 500,
          reason = "Could not process PDU: %s" % e)
+
+
+class session_obj(rpki.sql.sql_persistent):
+  """
+  An RRDP session.
+  """
+
+  # We probably need additional columns or an additional table to
+  # handle cleanup of old serial numbers.  Not sure quite what these
+  # would look like, other than that the SQL datatypes are probably
+  # BIGINT and DATETIME.  Maybe a table to track time at which we
+  # retired a particular serial number, or, to save us the arithmetic,
+  # the corresponding cleanup time?
+
+  sql_template = rpki.sql.template(
+    "session",
+    "session_id",
+    "uuid",
+    "serial")
+
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.uuid, self.serial)
+
+  @classmethod
+  def fetch(cls, gctx):
+    """
+    Fetch the one and only session, creating it if necessary.
+    """
+
+    self = cls.sql_fetch(gctx, 1)
+    if self is None:
+      self = cls()
+      self.gctx = gctx
+      self.session_id = 1
+      self.uuid = uuid.uuid4()
+      self.serial = 1
+      self.sql_store()
+    return self
+
+  @property
+  @rpki.sql.cache_reference
+  def objects(self):
+    return object_obj.sql_fetch_where(self.gctx, "session_id = %s", (self.session_id))
+
+  def next_serial_number(self):
+    """
+    Bump serial number
+    """
+
+    self.serial += 1
+    self.sql_mark_dirty()
+    return self.serial
+
+  # More methods when I know what they look like
+
+
+class object_obj(rpki.sql.sql_persistent):
+  """
+  A published object.
+  """
+
+  sql_template = rpki.sql.template(
+    "object",
+    "object_id",
+    "uri",
+    "hash",
+    "payload",
+    "published",
+    "withdrawn")
+
+  uri       = None
+  published = None
+  withdrawn = None
+
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.uri, self.published, self.withdrawn)
+
+  @property
+  @rpki.sql.cache_reference
+  def session(self):
+    return session_obj.sql_fetch(self.gctx, self.session_id)
+
+  @property
+  @rpki.sql.cache_reference
+  def client(self):
+    return rpki.publication_control.client_elt.sql_fetch(self.gctx, self.client_id)

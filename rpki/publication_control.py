@@ -83,6 +83,14 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_c
   bpki_glue = None
   last_cms_timestamp = None
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.client_handle, self.base_uri)
+
+  @property
+  @rpki.sql.cache_reference
+  def objects(self):
+    return rpki.pubd.object_obj.sql_fetch_where(self.gctx, "client_id = %s", (self.client_id,))
+
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Extra server actions for client_elt.

@@ -86,6 +86,7 @@ class resource_range_as(resource_range):
     """
     Convert a resource_range_as to string format.
     """
+
     if self.min == self.max:
       return str(self.min)
     else:
@@ -96,6 +97,7 @@ class resource_range_as(resource_range):
     """
     Parse ASN resource range from text (eg, XML attributes).
     """
+
     r = re_asn_range.match(x)
     if r:
       return cls(long(r.group(1)), long(r.group(2)))
@@ -107,6 +109,7 @@ class resource_range_as(resource_range):
     """
     Construct ASN range from strings.
     """
+
     if b is None:
       b = a
     return cls(long(a), long(b))
@@ -133,6 +136,7 @@ class resource_range_ip(resource_range):
     prefix.  Returns prefix length if it can, otherwise raises
     MustBePrefix exception.
     """
+
     mask = self.min ^ self.max
     if self.min & mask != 0:
       raise rpki.exceptions.MustBePrefix
@@ -154,6 +158,7 @@ class resource_range_ip(resource_range):
     the logic in one place.  This property is useful primarily in
     context where catching an exception isn't practical.
     """
+
     try:
       self.prefixlen()
       return True
@@ -164,6 +169,7 @@ class resource_range_ip(resource_range):
     """
     Convert a resource_range_ip to string format.
     """
+
     try:
       return str(self.min) + "/" + str(self.prefixlen())
     except rpki.exceptions.MustBePrefix:
@@ -174,6 +180,7 @@ class resource_range_ip(resource_range):
     """
     Parse IP address range or prefix from text (eg, XML attributes).
     """
+
     r = re_address_range.match(x)
     if r:
       return cls.from_strings(r.group(1), r.group(2))
@@ -192,6 +199,7 @@ class resource_range_ip(resource_range):
     """
     Construct a resource range corresponding to a prefix.
     """
+
     assert isinstance(prefix, rpki.POW.IPAddress) and isinstance(prefixlen, (int, long))
     assert prefixlen >= 0 and prefixlen <= prefix.bits, "Nonsensical prefix length: %s" % prefixlen
     mask = (1 << (prefix.bits - prefixlen)) - 1
@@ -203,6 +211,7 @@ class resource_range_ip(resource_range):
     Chop up a resource_range_ip into ranges that can be represented as
     prefixes.
     """
+
     try:
       self.prefixlen()
       result.append(self)
@@ -226,6 +235,7 @@ class resource_range_ip(resource_range):
     """
     Construct IP address range from strings.
     """
+
     if b is None:
       b = a
     a = rpki.POW.IPAddress(a)
@@ -300,6 +310,7 @@ class resource_set(list):
     """
     Initialize a resource_set.
     """
+
     list.__init__(self)
     if isinstance(ini, (int, long)):
       ini = str(ini)
@@ -317,6 +328,7 @@ class resource_set(list):
     """
     Whack this resource_set into canonical form.
     """
+
     assert not self.inherit or len(self) == 0
     if not self.canonical:
       self.sort()
@@ -339,6 +351,7 @@ class resource_set(list):
     """
     Wrapper around list.append() (q.v.) to reset canonical flag.
     """
+
     list.append(self, item)
     self.canonical = False
 
@@ -346,6 +359,7 @@ class resource_set(list):
     """
     Wrapper around list.extend() (q.v.) to reset canonical flag.
     """
+
     list.extend(self, item)
     self.canonical = False
 
@@ -353,6 +367,7 @@ class resource_set(list):
     """
     Convert a resource_set to string format.
     """
+
     if self.inherit:
       return inherit_token
     else:
@@ -428,6 +443,7 @@ class resource_set(list):
     """
     Set intersection for resource sets.
     """
+
     return self._comm(other)[2]
 
   __and__ = intersection
@@ -436,6 +452,7 @@ class resource_set(list):
     """
     Set difference for resource sets.
     """
+
     return self._comm(other)[0]
 
   __sub__ = difference
@@ -444,6 +461,7 @@ class resource_set(list):
     """
     Set symmetric difference (XOR) for resource sets.
     """
+
     com = self._comm(other)
     return com[0] | com[1]
 
@@ -453,6 +471,7 @@ class resource_set(list):
     """
     Set membership test for resource sets.
     """
+
     assert not self.inherit
     self.canonize()
     if not self:
@@ -479,6 +498,7 @@ class resource_set(list):
     """
     Test whether self is a subset (possibly improper) of other.
     """
+
     for i in self:
       if not other.contains(i):
         return False
@@ -490,6 +510,7 @@ class resource_set(list):
     """
     Test whether self is a superset (possibly improper) of other.
     """
+
     return other.issubset(self)
 
   __ge__ = issuperset
@@ -506,6 +527,7 @@ class resource_set(list):
     we can't know the answer here.  This is also consistent with __nonzero__
     which returns True for inherit sets, and False for empty sets.
     """
+
     return self.inherit or other.inherit or list.__ne__(self, other)
 
   def __eq__(self, other):
@@ -516,6 +538,7 @@ class resource_set(list):
     Tests whether or not this set is empty.  Note that sets with the inherit
     bit set are considered non-empty, despite having zero length.
     """
+
     return self.inherit or len(self)
 
   @classmethod
@@ -553,6 +576,7 @@ class resource_set(list):
     a backwards compatability wrapper, real functionality is now part
     of the range classes.
     """
+
     return cls.range_type.parse_str(s)
 
 class resource_set_as(resource_set):
@@ -577,6 +601,7 @@ class resource_set_ip(resource_set):
     """
     Convert from a resource set to a ROA prefix set.
     """
+
     prefix_ranges = []
     for r in self:
       r.chop_into_prefixes(prefix_ranges)
@@ -632,6 +657,7 @@ class resource_bag(object):
     """
     True iff self is oversized with respect to other.
     """
+
     return not self.asn.issubset(other.asn) or \
            not self.v4.issubset(other.v4) or \
            not self.v6.issubset(other.v6)
@@ -640,6 +666,7 @@ class resource_bag(object):
     """
     True iff self is undersized with respect to other.
     """
+
     return not other.asn.issubset(self.asn) or \
            not other.v4.issubset(self.v4) or \
            not other.v6.issubset(self.v6)
@@ -650,6 +677,7 @@ class resource_bag(object):
     Build a resource bag that just inherits everything from its
     parent.
     """
+
     self = cls()
     self.asn = resource_set_as()
     self.v4 = resource_set_ipv4()
@@ -665,6 +693,7 @@ class resource_bag(object):
     Parse a comma-separated text string into a resource_bag.  Not
     particularly efficient, fix that if and when it becomes an issue.
     """
+
     asns = []
     v4s  = []
     v6s  = []
@@ -689,6 +718,7 @@ class resource_bag(object):
     temporary: in the long run, we should be using rpki.POW.IPAddress
     rather than long here.
     """
+
     asn = inherit_token if resources[0] == "inherit" else [resource_range_as(  r[0], r[1]) for r in resources[0] or ()]
     v4  = inherit_token if resources[1] == "inherit" else [resource_range_ipv4(r[0], r[1]) for r in resources[1] or ()]
     v6  = inherit_token if resources[2] == "inherit" else [resource_range_ipv6(r[0], r[1]) for r in resources[2] or ()]
@@ -700,6 +730,7 @@ class resource_bag(object):
     """
     True iff all resource sets in this bag are empty.
     """
+
     return not self.asn and not self.v4 and not self.v6
 
   def __nonzero__(self):
@@ -719,6 +750,7 @@ class resource_bag(object):
     Compute intersection with another resource_bag.  valid_until
     attribute (if any) inherits from self.
     """
+
     return self.__class__(self.asn & other.asn,
                           self.v4  & other.v4,
                           self.v6  & other.v6,
@@ -731,6 +763,7 @@ class resource_bag(object):
     Compute union with another resource_bag.  valid_until attribute
     (if any) inherits from self.
     """
+
     return self.__class__(self.asn | other.asn,
                           self.v4  | other.v4,
                           self.v6  | other.v6,
@@ -743,6 +776,7 @@ class resource_bag(object):
     Compute difference against another resource_bag.  valid_until
     attribute (if any) inherits from self
     """
+
     return self.__class__(self.asn - other.asn,
                           self.v4  - other.v4,
                           self.v6  - other.v6,
@@ -755,6 +789,7 @@ class resource_bag(object):
     Compute symmetric difference against another resource_bag.
     valid_until attribute (if any) inherits from self
     """
+
     return self.__class__(self.asn ^ other.asn,
                           self.v4  ^ other.v4,
                           self.v6  ^ other.v6,
@@ -816,6 +851,7 @@ class roa_prefix(object):
     Initialize a ROA prefix.  max_prefixlen is optional and defaults
     to prefixlen.  max_prefixlen must not be smaller than prefixlen.
     """
+
     if max_prefixlen is None:
       max_prefixlen = prefixlen
     assert max_prefixlen >= prefixlen, "Bad max_prefixlen: %d must not be shorter than %d" % (max_prefixlen, prefixlen)
@@ -828,6 +864,7 @@ class roa_prefix(object):
     Compare two ROA prefix objects.  Comparision is based on prefix,
     prefixlen, and max_prefixlen, in that order.
     """
+
     assert self.__class__ is other.__class__
     return (cmp(self.prefix,        other.prefix)    or
             cmp(self.prefixlen,     other.prefixlen) or
@@ -837,6 +874,7 @@ class roa_prefix(object):
     """
     Convert a ROA prefix to string format.
     """
+
     if self.prefixlen == self.max_prefixlen:
       return str(self.prefix) + "/" + str(self.prefixlen)
     else:
@@ -848,24 +886,28 @@ class roa_prefix(object):
     object.  This is an irreversable transformation because it loses
     the max_prefixlen attribute, nothing we can do about that.
     """
+
     return self.range_type.make_prefix(self.prefix, self.prefixlen)
 
   def min(self):
     """
     Return lowest address covered by prefix.
     """
+
     return self.prefix
 
   def max(self):
     """
     Return highest address covered by prefix.
     """
+
     return self.prefix | ((1 << (self.prefix.bits - self.prefixlen)) - 1)
 
   def to_POW_roa_tuple(self):
     """
     Convert a resource_range_ip to rpki.POW.ROA.setPrefixes() format.
     """
+
     return self.prefix, self.prefixlen, self.max_prefixlen
 
   @classmethod
@@ -873,6 +915,7 @@ class roa_prefix(object):
     """
     Parse ROA prefix from text (eg, an XML attribute).
     """
+
     r = re_prefix_with_maxlen.match(x)
     if r:
       return cls(rpki.POW.IPAddress(r.group(1)), int(r.group(2)), int(r.group(3)))
@@ -910,6 +953,7 @@ class roa_prefix_set(list):
     """
     Initialize a ROA prefix set.
     """
+
     list.__init__(self)
     if isinstance(ini, str) and len(ini):
       self.extend(self.parse_str(s) for s in ini.split(","))
@@ -923,6 +967,7 @@ class roa_prefix_set(list):
     """
     Convert a ROA prefix set to string format.
     """
+
     return ",".join(str(x) for x in self)
 
   @classmethod
@@ -931,6 +976,7 @@ class roa_prefix_set(list):
     Parse ROA prefix from text (eg, an XML attribute).
     This method is a backwards compatability shim.
     """
+
     return cls.prefix_type.parse_str(s)
 
   def to_resource_set(self):
@@ -942,6 +988,7 @@ class roa_prefix_set(list):
     a more efficient way to do this, but start by getting the output
     right before worrying about making it fast or pretty.
     """
+
     r = self.resource_set_type()
     s = self.resource_set_type()
     s.append(None)
@@ -982,6 +1029,7 @@ class roa_prefix_set(list):
     """
     Convert ROA prefix set to form used by rpki.POW.ROA.setPrefixes().
     """
+
     if self:
       return tuple(a.to_POW_roa_tuple() for a in self)
     else:

@@ -88,6 +88,7 @@ class dispatcher(asyncore.dispatcher):
     """
     Receive a packet, hand it off to query class callback.
     """
+
     wire, from_address = self.recvfrom(self.bufsize)
     self.cb(self.af, from_address[0], from_address[1], wire)
 
@@ -95,18 +96,21 @@ class dispatcher(asyncore.dispatcher):
     """
     Pass errors to query class errback.
     """
+
     self.eb(sys.exc_info()[1])
 
   def handle_connect(self):
     """
     Quietly ignore UDP "connection" events.
     """
+
     pass
 
   def writable(self):
     """
     We don't need to hear about UDP socket becoming writable.
     """
+
     return False
 
 
@@ -138,6 +142,7 @@ class query(object):
     query; if we find an answer there, just return it.  Otherwise
     start the network query.
     """
+
     if resolver.cache:
       answer = resolver.cache.get((self.qname, self.qtype, self.qclass))
     else:
@@ -161,6 +166,7 @@ class query(object):
     Outer loop.  If we haven't got a response yet and still have
     nameservers to check, start inner loop.  Otherwise, we're done.
     """
+
     self.timer.cancel()
     if self.response is None and self.nameservers:
       self.iterator = rpki.async.iterator(self.nameservers[:], self.loop2, self.done2)
@@ -172,6 +178,7 @@ class query(object):
     Inner loop.  Send query to next nameserver in our list, unless
     we've hit the overall timeout for this query.
     """
+
     self.timer.cancel()
     try:
       timeout = resolver._compute_timeout(self.start)
@@ -191,6 +198,7 @@ class query(object):
     """
     No answer from nameserver, move on to next one (inner loop).
     """
+
     self.response = None
     self.iterator()
 
@@ -200,6 +208,7 @@ class query(object):
     error, handle as if we've timed out on this nameserver; otherwise,
     pass error back to caller.
     """
+
     self.timer.cancel()
     if isinstance(e, socket.error):
       self.response = None
@@ -215,6 +224,7 @@ class query(object):
     we're done, otherwise handle error appropriately and move on to
     next nameserver.
     """
+
     sender = (af, dns.inet.inet_pton(af, from_host))
     if from_port != resolver.port or sender not in self.nameservers:
       return
@@ -240,6 +250,7 @@ class query(object):
     while before starting the cycle again, unless we've hit the
     timeout threshold for the whole query.
     """
+
     if self.response is None and self.nameservers:
       try:
         delay = rpki.sundial.timedelta(seconds = min(resolver._compute_timeout(self.start), self.backoff))
@@ -256,6 +267,7 @@ class query(object):
     """
     Shut down our timer and sockets.
     """
+
     self.timer.cancel()
     for s in self.sockets.itervalues():
       s.close()
@@ -264,6 +276,7 @@ class query(object):
     """
     Something bad happened.  Clean up, then pass error back to caller.
     """
+
     self.cleanup()
     self.eb(self, e)
 
@@ -273,6 +286,7 @@ class query(object):
     pass it back to caller; if we got an error, pass the appropriate
     exception back to caller.
     """
+
     self.cleanup()
     try:
       if not self.nameservers:

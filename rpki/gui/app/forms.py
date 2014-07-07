@@ -52,6 +52,7 @@ class GhostbusterRequestForm(forms.ModelForm):
     Generate a ModelForm with the subset of parents for the current
     resource handle.
     """
+
     # override default form field
     parent = forms.ModelChoiceField(queryset=None, required=False,
             help_text='Specify specific parent, or none for all parents')
@@ -86,6 +87,7 @@ class GhostbusterRequestForm(forms.ModelForm):
 
 class ImportForm(forms.Form):
     """Form used for uploading parent/child identity xml files."""
+
     handle = forms.CharField(required=False,
                              widget=forms.TextInput(attrs={'class': 'xlarge'}),
                              help_text='Optional.  Your name for this entity, or blank to accept name in XML')
@@ -101,6 +103,7 @@ class ImportRepositoryForm(forms.Form):
 
 class ImportClientForm(forms.Form):
     """Form used for importing publication client requests."""
+
     xml = forms.FileField(label='XML file')
 
 
@@ -137,6 +140,7 @@ class UserCreateForm(forms.Form):
 
 class UserEditForm(forms.Form):
     """Form for editing a user."""
+
     email = forms.CharField()
     pw = forms.CharField(widget=forms.PasswordInput, label='Password',
                          required=False)
@@ -185,8 +189,8 @@ class ROARequest(forms.Form):
         """Takes an optional `conf` keyword argument specifying the user that
         is creating the ROAs.  It is used for validating that the prefix the
         user entered is currently allocated to that user.
-
         """
+
         conf = kwargs.pop('conf', None)
         kwargs['auto_id'] = False
         super(ROARequest, self).__init__(*args, **kwargs)
@@ -199,8 +203,8 @@ class ROARequest(forms.Form):
         rpki.resource_set.resource_range_ip object.
 
         If there is no mask provided, assume the closest classful mask.
-
         """
+
         prefix = self.cleaned_data.get('prefix')
         if '/' not in prefix:
             p = IPAddress(prefix)
@@ -296,7 +300,6 @@ class AddASNForm(forms.Form):
     Returns a forms.Form subclass which verifies that the entered ASN range
     does not overlap with a previous allocation to the specified child, and
     that the ASN range is within the range allocated to the parent.
-
     """
 
     asns = forms.CharField(
@@ -335,8 +338,8 @@ class AddNetForm(forms.Form):
     Returns a forms.Form subclass which validates that the entered address
     range is within the resources allocated to the parent, and does not overlap
     with what is already allocated to the specified child.
-
     """
+
     address_range = forms.CharField(
         help_text='CIDR or range',
         widget=forms.TextInput(attrs={'autofocus': 'true'})
@@ -383,7 +386,6 @@ def ChildForm(instance):
     This is roughly based on the equivalent ModelForm, but uses Form as a base
     class so that selection boxes for the AS and Prefixes can be edited in a
     single form.
-
     """
 
     class _wrapped(forms.Form):
@@ -401,11 +403,13 @@ def ChildForm(instance):
 
 class Empty(forms.Form):
     """Stub form for views requiring confirmation."""
+
     pass
 
 
 class ResourceHolderForm(forms.Form):
     """form for editing ACL on Conf objects."""
+
     users = forms.ModelMultipleChoiceField(
         queryset=User.objects.all(),
         help_text='users allowed to mange this resource holder'
@@ -413,7 +417,8 @@ class ResourceHolderForm(forms.Form):
 
 
 class ResourceHolderCreateForm(forms.Form):
-    """form for creating new resource holdres."""
+    """form for creating new resource holders."""
+
     handle = forms.CharField(max_length=30)
     parent = forms.ModelChoiceField(
         required=False,

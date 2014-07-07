@@ -29,6 +29,7 @@ def cert_chain(obj):
     """
     returns an iterator covering all certs from the root cert down to the EE.
     """
+
     chain = [obj]
     while obj != obj.issuer:
         obj = obj.issuer

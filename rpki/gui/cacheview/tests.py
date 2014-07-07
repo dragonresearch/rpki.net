@@ -12,6 +12,7 @@ class SimpleTest(TestCase):
         """
         Tests that 1 + 1 always equals 2.
         """
+
         self.failUnlessEqual(1 + 1, 2)
 
 __test__ = {"doctest": """

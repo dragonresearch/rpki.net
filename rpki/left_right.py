@@ -67,6 +67,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     """
     Fetch self object to which this object links.
     """
+
     return self_elt.sql_fetch(self.gctx, self.self_id)
 
   @property
@@ -75,12 +76,14 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     """
     Return BSC object to which this object links.
     """
+
     return bsc_elt.sql_fetch(self.gctx, self.bsc_id)
 
   def make_reply_clone_hook(self, r_pdu):
     """
     Set handles when cloning, including _id -> _handle translation.
     """
+
     if r_pdu.self_handle is None:
       r_pdu.self_handle = self.self_handle
     for tag, elt in self.handles:
@@ -97,6 +100,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     """
     Find an object based on its handle.
     """
+
     return cls.sql_fetch_where1(gctx, cls.element_name + "_handle = %s AND self_id = %s", (handle, self_id))
 
   def serve_fetch_one_maybe(self):
@@ -104,6 +108,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     Find the object on which a get, set, or destroy method should
     operate, or which would conflict with a create method.
     """
+
     where = "%s.%s_handle = %%s AND %s.self_id = self.self_id AND self.self_handle = %%s" % ((self.element_name,) * 3)
     args = (getattr(self, self.element_name + "_handle"), self.self_handle)
     return self.sql_fetch_where1(self.gctx, where, args, "self")
@@ -112,6 +117,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     """
     Find the objects on which a list method should operate.
     """
+
     where = "%s.self_id = self.self_id and self.self_handle = %%s" % self.element_name
     return self.sql_fetch_where(self.gctx, where, (self.self_handle,), "self")
 
@@ -124,6 +130,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     operations, self is the pre-existing object from SQL and q_pdu is
     the set request received from the the IRBE.
     """
+
     for tag, elt in self.handles:
       id_name = tag + "_id"
       if getattr(self, id_name, None) is None:
@@ -171,6 +178,7 @@ class self_elt(data_elt):
     """
     Fetch all BSC objects that link to this self object.
     """
+
     return bsc_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   @property
@@ -178,6 +186,7 @@ class self_elt(data_elt):
     """
     Fetch all repository objects that link to this self object.
     """
+
     return repository_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   @property
@@ -185,6 +194,7 @@ class self_elt(data_elt):
     """
     Fetch all parent objects that link to this self object.
     """
+
     return parent_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   @property
@@ -192,6 +202,7 @@ class self_elt(data_elt):
     """
     Fetch all child objects that link to this self object.
     """
+
     return child_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   @property
@@ -199,6 +210,7 @@ class self_elt(data_elt):
     """
     Fetch all ROA objects that link to this self object.
     """
+
     return rpki.rpkid.roa_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   @property
@@ -206,6 +218,7 @@ class self_elt(data_elt):
     """
     Fetch all Ghostbuster record objects that link to this self object.
     """
+
     return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   @property
@@ -213,6 +226,7 @@ class self_elt(data_elt):
     """
     Fetch all EE certificate objects that link to this self object.
     """
+
     return rpki.rpkid.ee_cert_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
 
@@ -220,6 +234,7 @@ class self_elt(data_elt):
     """
     Extra server actions for self_elt.
     """
+
     actions = []
     if q_pdu.rekey:
       actions.append(self.serve_rekey)
@@ -243,6 +258,7 @@ class self_elt(data_elt):
     """
     Handle a left-right rekey action for this self.
     """
+
     def loop(iterator, parent):
       parent.serve_rekey(iterator, eb)
     rpki.async.iterator(self.parents, loop, cb)
@@ -251,6 +267,7 @@ class self_elt(data_elt):
     """
     Handle a left-right revoke action for this self.
     """
+
     def loop(iterator, parent):
       parent.serve_revoke(iterator, eb)
     rpki.async.iterator(self.parents, loop, cb)
@@ -259,6 +276,7 @@ class self_elt(data_elt):
     """
     Handle a left-right reissue action for this self.
     """
+
     def loop(iterator, parent):
       parent.serve_reissue(iterator, eb)
     rpki.async.iterator(self.parents, loop, cb)
@@ -267,6 +285,7 @@ class self_elt(data_elt):
     """
     Handle a left-right revoke_forgotten action for this self.
     """
+
     def loop(iterator, parent):
       parent.serve_revoke_forgotten(iterator, eb)
     rpki.async.iterator(self.parents, loop, cb)
@@ -275,6 +294,7 @@ class self_elt(data_elt):
     """
     Handle a left-right clear_replay_protection action for this self.
     """
+
     def loop(iterator, obj):
       obj.serve_clear_replay_protection(iterator, eb)
     rpki.async.iterator(self.parents + self.children + self.repositories, loop, cb)
@@ -283,6 +303,7 @@ class self_elt(data_elt):
     """
     Extra cleanup actions when destroying a self_elt.
     """
+
     def loop(iterator, parent):
       parent.delete(iterator)
     rpki.async.iterator(self.parents, loop, cb)
@@ -332,6 +353,7 @@ class self_elt(data_elt):
     """
     Handle a left-right run_now action for this self.
     """
+
     logger.debug("Forced immediate run of periodic actions for self %s[%d]",
                  self.self_handle, self.self_id)
     completion = rpki.rpkid_tasks.CompletionHandler(cb)
@@ -344,6 +366,7 @@ class self_elt(data_elt):
     Find the self object upon which a get, set, or destroy action
     should operate, or which would conflict with a create method.
     """
+
     return self.serve_fetch_handle(self.gctx, None, self.self_handle)
 
   @classmethod
@@ -351,6 +374,7 @@ class self_elt(data_elt):
     """
     Find a self object based on its self_handle.
     """
+
     return cls.sql_fetch_where1(gctx, "self_handle = %s", (self_handle,))
 
   def serve_fetch_all(self):
@@ -359,6 +383,7 @@ class self_elt(data_elt):
     This is different from the list action for all other objects,
     where list only works within a given self_id context.
     """
+
     return self.sql_fetch_all(self.gctx)
 
   def schedule_cron_tasks(self, completion):
@@ -430,6 +455,7 @@ class bsc_elt(data_elt):
     """
     Fetch all repository objects that link to this BSC object.
     """
+
     return repository_elt.sql_fetch_where(self.gctx, "bsc_id = %s", (self.bsc_id,))
 
   @property
@@ -437,6 +463,7 @@ class bsc_elt(data_elt):
     """
     Fetch all parent objects that link to this BSC object.
     """
+
     return parent_elt.sql_fetch_where(self.gctx, "bsc_id = %s", (self.bsc_id,))
 
   @property
@@ -444,6 +471,7 @@ class bsc_elt(data_elt):
     """
     Fetch all child objects that link to this BSC object.
     """
+
     return child_elt.sql_fetch_where(self.gctx, "bsc_id = %s", (self.bsc_id,))
 
   def serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb):
@@ -451,6 +479,7 @@ class bsc_elt(data_elt):
     Extra server actions for bsc_elt -- handle key generation.  For
     now this only allows RSA with SHA-256.
     """
+
     if q_pdu.generate_keypair:
       assert q_pdu.key_type in (None, "rsa") and q_pdu.hash_alg in (None, "sha256")
       self.private_key_id = rpki.x509.RSA.generate(keylength = q_pdu.key_length or 2048)
@@ -494,12 +523,14 @@ class repository_elt(data_elt):
     """
     Fetch all parent objects that link to this repository object.
     """
+
     return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Extra server actions for repository_elt.
     """
+
     actions = []
     if q_pdu.clear_replay_protection:
       actions.append(self.serve_clear_replay_protection)
@@ -511,6 +542,7 @@ class repository_elt(data_elt):
     """
     Handle a left-right clear_replay_protection action for this repository.
     """
+
     self.last_cms_timestamp = None
     self.sql_mark_dirty()
     cb()
@@ -520,6 +552,7 @@ class repository_elt(data_elt):
     """
     Default handler for publication response PDUs.
     """
+
     pdu.raise_if_error()
 
   def call_pubd(self, callback, errback, q_msg, handlers = None):
@@ -626,6 +659,7 @@ class parent_elt(data_elt):
     """
     Fetch repository object to which this parent object links.
     """
+
     return repository_elt.sql_fetch(self.gctx, self.repository_id)
 
   @property
@@ -633,12 +667,14 @@ class parent_elt(data_elt):
     """
     Fetch all CA objects that link to this parent object.
     """
+
     return rpki.rpkid.ca_obj.sql_fetch_where(self.gctx, "parent_id = %s", (self.parent_id,))
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Extra server actions for parent_elt.
     """
+
     actions = []
     if q_pdu.rekey:
       actions.append(self.serve_rekey)
@@ -658,6 +694,7 @@ class parent_elt(data_elt):
     """
     Handle a left-right rekey action for this parent.
     """
+
     def loop(iterator, ca):
       ca.rekey(iterator, eb)
     rpki.async.iterator(self.cas, loop, cb)
@@ -666,6 +703,7 @@ class parent_elt(data_elt):
     """
     Handle a left-right revoke action for this parent.
     """
+
     def loop(iterator, ca):
       ca.revoke(cb = iterator, eb = eb)
     rpki.async.iterator(self.cas, loop, cb)
@@ -674,6 +712,7 @@ class parent_elt(data_elt):
     """
     Handle a left-right reissue action for this parent.
     """
+
     def loop(iterator, ca):
       ca.reissue(cb = iterator, eb = eb)
     rpki.async.iterator(self.cas, loop, cb)
@@ -682,6 +721,7 @@ class parent_elt(data_elt):
     """
     Handle a left-right clear_replay_protection action for this parent.
     """
+
     self.last_cms_timestamp = None
     self.sql_mark_dirty()
     cb()
@@ -862,6 +902,7 @@ class child_elt(data_elt):
     """
     Fetch all child_cert objects that link to this child object.
     """
+
     return rpki.rpkid.child_cert_obj.fetch(self.gctx, self, ca_detail, ski, unique)
 
   @property
@@ -869,6 +910,7 @@ class child_elt(data_elt):
     """
     Fetch all child_cert objects that link to this child object.
     """
+
     return self.fetch_child_certs()
 
   @property
@@ -876,12 +918,14 @@ class child_elt(data_elt):
     """
     Fetch all parent objects that link to self object to which this child object links.
     """
+
     return parent_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Extra server actions for child_elt.
     """
+
     actions = []
     if q_pdu.reissue:
       actions.append(self.serve_reissue)
@@ -895,6 +939,7 @@ class child_elt(data_elt):
     """
     Handle a left-right reissue action for this child.
     """
+
     publisher = rpki.rpkid.publication_queue()
     for child_cert in self.child_certs:
       child_cert.reissue(child_cert.ca_detail, publisher, force = True)
@@ -904,6 +949,7 @@ class child_elt(data_elt):
     """
     Handle a left-right clear_replay_protection action for this child.
     """
+
     self.last_cms_timestamp = None
     self.sql_mark_dirty()
     cb()
@@ -912,6 +958,7 @@ class child_elt(data_elt):
     """
     Fetch the CA corresponding to an up-down class_name.
     """
+
     if not class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax("Bad class name %s" % class_name)
     ca = rpki.rpkid.ca_obj.sql_fetch(self.gctx, long(class_name))
@@ -928,6 +975,7 @@ class child_elt(data_elt):
     """
     Extra server actions when destroying a child_elt.
     """
+
     publisher = rpki.rpkid.publication_queue()
     for child_cert in self.child_certs:
       child_cert.revoke(publisher = publisher,
@@ -991,6 +1039,7 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
     Handle <list_resources/> element.  This requires special handling
     due to the data types of some of the attributes.
     """
+
     assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
     if isinstance(self.valid_until, str):
@@ -1007,6 +1056,7 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
     Generate <list_resources/> element.  This requires special
     handling due to the data types of some of the attributes.
     """
+
     elt = self.make_elt()
     if isinstance(self.valid_until, int):
       elt.set("valid_until", self.valid_until.toXMLtime())
@@ -1025,6 +1075,7 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
     Handle <list_roa_requests/> element.  This requires special handling
     due to the data types of some of the attributes.
     """
+
     assert name == "list_roa_requests", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
     if self.ipv4 is not None:
@@ -1070,6 +1121,7 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
     Handle <list_ee_certificate_requests/> element.  This requires special
     handling due to the data types of some of the attributes.
     """
+
     if name not in self.elements:
       assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
@@ -1088,6 +1140,7 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
     """
     Handle <pkcs10/> sub-element.
     """
+
     assert len(self.elements) == 1
     if name == self.elements[0]:
       self.pkcs10 = rpki.x509.PKCS10(Base64 = text)
@@ -1100,6 +1153,7 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
     Generate <list_ee_certificate_requests/> element.  This requires special
     handling due to the data types of some of the attributes.
     """
+
     if isinstance(self.eku, (tuple, list)):
       self.eku = ",".join(self.eku)
     elt = self.make_elt()
@@ -1130,6 +1184,7 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
     misnomer here, there's no action attribute and no dispatch, we
     just dump every published object for the specified <self/> and return.
     """
+
     for parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents:
       for ca in parent.cas:
         ca_detail = ca.active_ca_detail
@@ -1150,6 +1205,7 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
     """
     Generate one reply PDU.
     """
+
     r_pdu = self.make_pdu(tag = self.tag, self_handle = self.self_handle,
                           uri = uri, child_handle = child_handle)
     r_pdu.obj = obj.get_Base64()
@@ -1174,6 +1230,7 @@ class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace)
     just dump a bunch of data about every certificate issued to us by
     one of our parents, then return.
     """
+
     for parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents:
       for ca in parent.cas:
         ca_detail = ca.active_ca_detail
@@ -1185,6 +1242,7 @@ class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace)
     """
     Generate one reply PDU.
     """
+
     resources = cert.get_3779resources()
     return self.make_pdu(
       tag = self.tag,
@@ -1218,6 +1276,7 @@ class report_error_elt(rpki.xml_utils.text_elt, left_right_namespace):
     """
     Generate a <report_error/> element from an exception.
     """
+
     self = cls()
     self.self_handle = self_handle
     self.tag = tag

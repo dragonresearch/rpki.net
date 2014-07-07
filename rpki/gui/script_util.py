@@ -28,6 +28,7 @@ def setup():
     """
     Configure Django enough to use the ORM.
     """
+
     cfg = config.parser(section='web_portal')
     # INSTALLED_APPS doesn't seem necessary so long as you are only accessing
     # existing tables.

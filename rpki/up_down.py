@@ -51,6 +51,7 @@ class base_elt(object):
     Some elements have no attributes and we only care about their
     text content.
     """
+
     pass
 
   def endElement(self, stack, name, text):
@@ -59,12 +60,14 @@ class base_elt(object):
 
     If we don't need to do anything else, just pop the stack.
     """
+
     stack.pop()
 
   def make_elt(self, name, *attrs):
     """
     Construct a element, copying over a set of attributes.
     """
+
     elt = lxml.etree.Element("{%s}%s" % (xmlns, name), nsmap=nsmap)
     for key in attrs:
       val = getattr(self, key, None)
@@ -76,6 +79,7 @@ class base_elt(object):
     """
     Construct a sub-element with Base64 text content.
     """
+
     if value is not None and not value.empty():
       lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = value.get_Base64()
 
@@ -83,12 +87,14 @@ class base_elt(object):
     """
     Default PDU handler to catch unexpected types.
     """
+
     raise rpki.exceptions.BadQuery("Unexpected query type %s" % q_msg.type)
 
   def check_response(self):
     """
     Placeholder for response checking.
     """
+
     pass
 
 class multi_uri(list):
@@ -100,6 +106,7 @@ class multi_uri(list):
     """
     Initialize a set of URIs, which includes basic some syntax checking.
     """
+
     list.__init__(self)
     if isinstance(ini, (list, tuple)):
       self[:] = ini
@@ -115,12 +122,14 @@ class multi_uri(list):
     """
     Convert a multi_uri back to a string representation.
     """
+
     return ",".join(self)
 
   def rsync(self):
     """
     Find first rsync://... URI in self.
     """
+
     for s in self:
       if s.startswith("rsync://"):
         return s
@@ -135,6 +144,7 @@ class certificate_elt(base_elt):
     """
     Handle attributes of <certificate/> element.
     """
+
     assert name == "certificate", "Unexpected name %s, stack %s" % (name, stack)
     self.cert_url = multi_uri(attrs["cert_url"])
     self.req_resource_set_as   = rpki.resource_set.resource_set_as(attrs.get("req_resource_set_as"))
@@ -145,6 +155,7 @@ class certificate_elt(base_elt):
     """
     Handle text content of a <certificate/> element.
     """
+
     assert name == "certificate", "Unexpected name %s, stack %s" % (name, stack)
     self.cert = rpki.x509.X509(Base64 = text)
     stack.pop()
@@ -153,6 +164,7 @@ class certificate_elt(base_elt):
     """
     Generate a <certificate/> element.
     """
+
     elt = self.make_elt("certificate", "cert_url",
                         "req_resource_set_as", "req_resource_set_ipv4", "req_resource_set_ipv6")
     elt.text = self.cert.get_Base64()
@@ -169,6 +181,7 @@ class class_elt(base_elt):
     """
     Initialize class_elt.
     """
+
     base_elt.__init__(self)
     self.certs = []
 
@@ -176,6 +189,7 @@ class class_elt(base_elt):
     """
     Handle <class/> elements and their children.
     """
+
     if name == "certificate":
       cert = certificate_elt()
       self.certs.append(cert)
@@ -195,6 +209,7 @@ class class_elt(base_elt):
     """
     Handle <class/> elements and their children.
     """
+
     if name == "issuer":
       self.issuer = rpki.x509.X509(Base64 = text)
     else:
@@ -205,6 +220,7 @@ class class_elt(base_elt):
     """
     Generate a <class/> element.
     """
+
     elt = self.make_elt("class", "class_name", "cert_url", "resource_set_as",
                         "resource_set_ipv4", "resource_set_ipv6",
                         "resource_set_notafter", "suggested_sia_head")
@@ -216,6 +232,7 @@ class class_elt(base_elt):
     """
     Build a resource_bag from from this <class/> element.
     """
+
     return rpki.resource_set.resource_bag(self.resource_set_as,
                                           self.resource_set_ipv4,
                                           self.resource_set_ipv6,
@@ -225,6 +242,7 @@ class class_elt(base_elt):
     """
     Set resources of this class element from a resource_bag.
     """
+
     self.resource_set_as   = bag.asn
     self.resource_set_ipv4 = bag.v4
     self.resource_set_ipv6 = bag.v6
@@ -236,7 +254,10 @@ class list_pdu(base_elt):
   """
 
   def toXML(self):
-    """Generate (empty) payload of "list" PDU."""
+    """
+    Generate (empty) payload of "list" PDU.
+    """
+
     return []
 
   def serve_pdu(self, q_msg, r_msg, child, callback, errback):
@@ -283,6 +304,7 @@ class list_pdu(base_elt):
     """
     Send a "list" query to parent.
     """
+
     try:
       logger.info('Sending "list" request to parent %s', parent.parent_handle)
       parent.query_up_down(cls(), cb, eb)
@@ -300,6 +322,7 @@ class class_response_syntax(base_elt):
     """
     Initialize class_response_syntax.
     """
+
     base_elt.__init__(self)
     self.classes = []
 
@@ -307,6 +330,7 @@ class class_response_syntax(base_elt):
     """
     Handle "list_response" and "issue_response" PDUs.
     """
+
     assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
     c = class_elt()
     self.classes.append(c)
@@ -314,13 +338,17 @@ class class_response_syntax(base_elt):
     c.startElement(stack, name, attrs)
 
   def toXML(self):
-    """Generate payload of "list_response" and "issue_response" PDUs."""
+    """
+    Generate payload of "list_response" and "issue_response" PDUs.
+    """
+
     return [c.toXML() for c in self.classes]
 
 class list_response_pdu(class_response_syntax):
   """
   Up-Down protocol "list_response" PDU.
   """
+
   pass
 
 class issue_pdu(base_elt):
@@ -332,6 +360,7 @@ class issue_pdu(base_elt):
     """
     Handle "issue" PDU.
     """
+
     assert name == "request", "Unexpected name %s, stack %s" % (name, stack)
     self.class_name = attrs["class_name"]
     self.req_resource_set_as   = rpki.resource_set.resource_set_as(attrs.get("req_resource_set_as"))
@@ -342,6 +371,7 @@ class issue_pdu(base_elt):
     """
     Handle "issue" PDU.
     """
+
     assert name == "request", "Unexpected name %s, stack %s" % (name, stack)
     self.pkcs10 = rpki.x509.PKCS10(Base64 = text)
     stack.pop()
@@ -350,6 +380,7 @@ class issue_pdu(base_elt):
     """
     Generate payload of "issue" PDU.
     """
+
     elt = self.make_elt("request", "class_name", "req_resource_set_as",
                         "req_resource_set_ipv4", "req_resource_set_ipv6")
     elt.text = self.pkcs10.get_Base64()
@@ -433,6 +464,7 @@ class issue_pdu(base_elt):
     """
     Send an "issue" request to parent associated with ca.
     """
+
     assert ca_detail is not None and ca_detail.state in ("pending", "active")
     self = cls()
     self.class_name = ca.parent_resource_class
@@ -454,6 +486,7 @@ class issue_response_pdu(class_response_syntax):
     Check whether this looks like a reasonable issue_response PDU.
     XML schema should be tighter for this response.
     """
+
     if len(self.classes) != 1 or len(self.classes[0].certs) != 1:
       raise rpki.exceptions.BadIssueResponse
 
@@ -463,12 +496,18 @@ class revoke_syntax(base_elt):
   """
 
   def startElement(self, stack, name, attrs):
-    """Handle "revoke" PDU."""
+    """
+    Handle "revoke" PDU.
+    """
+
     self.class_name = attrs["class_name"]
     self.ski = attrs["ski"]
 
   def toXML(self):
-    """Generate payload of "revoke" PDU."""
+    """
+    Generate payload of "revoke" PDU.
+    """
+
     return [self.make_elt("key", "class_name", "ski")]
 
 class revoke_pdu(revoke_syntax):
@@ -480,6 +519,7 @@ class revoke_pdu(revoke_syntax):
     """
     Convert g(SKI) encoding from PDU back to raw SKI.
     """
+
     return base64.urlsafe_b64decode(self.ski + "=")
 
   def serve_pdu(self, q_msg, r_msg, child, cb, eb):
@@ -506,6 +546,7 @@ class revoke_pdu(revoke_syntax):
     """
     Send a "revoke" request for certificate(s) named by gski to parent associated with ca.
     """
+
     parent = ca.parent
     self = cls()
     self.class_name = ca.parent_resource_class
@@ -546,6 +587,7 @@ class error_response_pdu(base_elt):
     """
     Initialize an error_response PDU from an exception object.
     """
+
     base_elt.__init__(self)
     if exception is not None:
       logger.debug("Constructing up-down error response from exception %s", exception)
@@ -571,6 +613,7 @@ class error_response_pdu(base_elt):
     """
     Handle "error_response" PDU.
     """
+
     if name == "status":
       code = int(text)
       if code not in self.codes:
@@ -587,6 +630,7 @@ class error_response_pdu(base_elt):
     """
     Generate payload of "error_response" PDU.
     """
+
     assert self.status in self.codes
     elt = self.make_elt("status")
     elt.text = str(self.status)
@@ -603,6 +647,7 @@ class error_response_pdu(base_elt):
     Handle an error response.  For now, just raise an exception,
     perhaps figure out something more clever to do later.
     """
+
     raise rpki.exceptions.UpstreamError(self.codes[self.status])
 
 class message_pdu(base_elt):
@@ -629,6 +674,7 @@ class message_pdu(base_elt):
     """
     Generate payload of message PDU.
     """
+
     elt = self.make_elt("message", "version", "sender", "recipient", "type")
     elt.extend(self.payload.toXML())
     return elt
@@ -641,6 +687,7 @@ class message_pdu(base_elt):
     attribute, so after some basic checks we have to instantiate the
     right class object to handle whatever kind of PDU this is.
     """
+
     assert name == "message", "Unexpected name %s, stack %s" % (name, stack)
     assert self.version == int(attrs["version"])
     self.sender = attrs["sender"]
@@ -653,6 +700,7 @@ class message_pdu(base_elt):
     """
     Convert a message PDU to a string.
     """
+
     return lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "UTF-8")
 
   def serve_top_level(self, child, callback):
@@ -684,12 +732,14 @@ class message_pdu(base_elt):
     """
     Log query we're handling.  Separate method so rootd can override.
     """
+
     logger.info("Serving %s query from child %s [sender %s, recipient %s]", self.type, child.child_handle, self.sender, self.recipient)
 
   def serve_error(self, exception):
     """
     Generate an error_response message PDU.
     """
+
     r_msg = message_pdu()
     r_msg.sender = self.recipient
     r_msg.recipient = self.sender
@@ -702,6 +752,7 @@ class message_pdu(base_elt):
     """
     Construct one message PDU.
     """
+
     assert not cls.type2name[type(payload)].endswith("_response")
     if sender is None:
       sender = "tweedledee"

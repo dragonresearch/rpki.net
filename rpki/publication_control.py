@@ -87,7 +87,6 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_c
     return rpki.log.log_repr(self, self.client_handle, self.base_uri)
 
   @property
-  @rpki.sql.cache_reference
   def objects(self):
     return rpki.pubd.object_obj.sql_fetch_where(self.gctx, "client_id = %s", (self.client_id,))
 
@@ -95,6 +94,7 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_c
     """
     Extra server actions for client_elt.
     """
+
     actions = []
     if q_pdu.clear_replay_protection:
       actions.append(self.serve_clear_replay_protection)
@@ -106,6 +106,7 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_c
     """
     Handle a clear_replay_protection action for this client.
     """
+
     self.last_cms_timestamp = None
     self.sql_mark_dirty()
     cb()
@@ -115,18 +116,21 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_c
     Find the client object on which a get, set, or destroy method
     should operate, or which would conflict with a create method.
     """
+
     return self.sql_fetch_where1(self.gctx, "client_handle = %s", (self.client_handle,))
 
   def serve_fetch_all(self):
     """
     Find client objects on which a list method should operate.
     """
+
     return self.sql_fetch_all(self.gctx)
 
   def check_allowed_uri(self, uri):
     """
     Make sure that a target URI is within this client's allowed URI space.
     """
+
     if not uri.startswith(self.base_uri):
       raise rpki.exceptions.ForbiddenURI
 
@@ -147,6 +151,7 @@ class report_error_elt(rpki.xml_utils.text_elt, publication_control_namespace):
     """
     Generate a <report_error/> element from an exception.
     """
+
     self = cls()
     self.tag = tag
     self.error_code = e.__class__.__name__
@@ -166,6 +171,7 @@ class report_error_elt(rpki.xml_utils.text_elt, publication_control_namespace):
     """
     Raise exception associated with this <report_error/> PDU.
     """
+
     t = rpki.exceptions.__dict__.get(self.error_code)
     if isinstance(t, type) and issubclass(t, rpki.exceptions.RPKI_Exception):
       raise t(getattr(self, "text", None))
@@ -190,6 +196,7 @@ class msg(rpki.xml_utils.msg, publication_control_namespace):
     """
     Serve one msg PDU.
     """
+
     if not self.is_query():
       raise rpki.exceptions.BadQuery("Message type is not query")
     r_msg = self.__class__.reply()

@@ -42,8 +42,8 @@ class IPv6AddressField(models.Field):
         """
         Note that we add a custom conversion to encode long values as hex
         strings in SQL statements.  See settings.get_conv() for details.
-
         """
+
         return value.toBytes()
 
 
@@ -82,6 +82,7 @@ class Prefix(models.Model):
         """
         Returns the prefix as a rpki.resource_set.resource_range_ip object.
         """
+
         return self.range_cls(self.prefix_min, self.prefix_max)
 
     @property
@@ -96,6 +97,7 @@ class Prefix(models.Model):
     def __unicode__(self):
         """This method may be overridden by subclasses.  The default
         implementation calls get_prefix_display(). """
+
         return self.get_prefix_display()
 
     class Meta:

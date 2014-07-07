@@ -58,6 +58,7 @@ class ValidationLabel(models.Model):
     Represents a specific error condition defined in the rcynic XML
     output file.
     """
+
     label = models.CharField(max_length=79, db_index=True, unique=True)
     status = models.CharField(max_length=255)
     kind = models.PositiveSmallIntegerField(choices=kinds)
@@ -70,6 +71,7 @@ class RepositoryObject(models.Model):
     """
     Represents a globally unique RPKI repository object, specified by its URI.
     """
+
     uri = models.URLField(unique=True, db_index=True)
 
 generations = list(enumerate(('current', 'backup')))
@@ -89,6 +91,7 @@ class SignedObject(models.Model):
     The signing certificate is ommitted here in order to give a proper
     value for the 'related_name' attribute.
     """
+
     repo = models.ForeignKey(RepositoryObject, related_name='cert', unique=True)
 
     # on-disk file modification time
@@ -108,6 +111,7 @@ class SignedObject(models.Model):
         """
         convert the local timestamp to UTC and convert to a datetime object
         """
+
         return datetime.utcfromtimestamp(self.mtime + time.timezone)
 
     def status_id(self):
@@ -116,6 +120,7 @@ class SignedObject(models.Model):
         The selector is chosen based on the current generation only.  If there is any bad status,
         return bad, else if there are any warn status, return warn, else return good.
         """
+
         for x in reversed(kinds):
             if self.repo.statuses.filter(generation=generations_dict['current'], status__kind=x[0]):
                 return x[1]
@@ -129,6 +134,7 @@ class Cert(SignedObject):
     """
     Object representing a resource certificate.
     """
+
     addresses = models.ManyToManyField(AddressRange, related_name='certs')
     addresses_v6 = models.ManyToManyField(AddressRangeV6, related_name='certs')
     asns = models.ManyToManyField(ASRange, related_name='certs')
@@ -141,6 +147,7 @@ class Cert(SignedObject):
     def get_cert_chain(self):
         """Return a list containing the complete certificate chain for this
         certificate."""
+
         cert = self
         x = [cert]
         while cert != cert.issuer:
@@ -180,6 +187,7 @@ class ROAPrefixV4(ROAPrefix, rpki.gui.models.PrefixV4):
     @property
     def routes(self):
         """return all routes covered by this roa prefix"""
+
         return RouteOrigin.objects.filter(prefix_min__gte=self.prefix_min,
                                           prefix_max__lte=self.prefix_max)
 

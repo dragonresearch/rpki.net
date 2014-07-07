@@ -131,6 +131,7 @@ class timer(object):
     """
     Debug logging.
     """
+
     if self.gc_debug:
       bt = traceback.extract_stack(limit = 3)
       logger.debug("%s from %s:%d", msg, bt[0][0], bt[0][1])
@@ -140,6 +141,7 @@ class timer(object):
     Set a timer.  Argument can be a datetime, to specify an absolute
     time, or a timedelta, to specify an offset time.
     """
+
     if self.gc_debug:
       self.trace("Setting %r to %r" % (self, when))
     if isinstance(when, rpki.sundial.timedelta):
@@ -162,6 +164,7 @@ class timer(object):
     """
     Cancel a timer, if it was set.
     """
+
     if self.gc_debug:
       self.trace("Canceling %r" % self)
     try:
@@ -174,6 +177,7 @@ class timer(object):
     """
     Test whether this timer is currently set.
     """
+
     return self in timer_queue
 
   def set_handler(self, handler):
@@ -184,12 +188,14 @@ class timer(object):
     bound method to an object in a class representing a network
     connection).
     """
+
     self.handler = handler
 
   def set_errback(self, errback):
     """
     Set a timer's errback.  Like set_handler(), for errbacks.
     """
+
     self.errback = errback
 
   @classmethod
@@ -202,6 +208,7 @@ class timer(object):
     called, so that even if new events keep getting scheduled, we'll
     return to the I/O loop reasonably quickly.
     """
+
     now = rpki.sundial.now()
     while timer_queue and now >= timer_queue[0].when:
       t = timer_queue.pop(0)
@@ -233,6 +240,7 @@ class timer(object):
     the same units (argh!), and we're not doing anything that
     hair-triggered, so rounding up is simplest.
     """
+
     if not timer_queue:
       return None
     now = rpki.sundial.now()
@@ -251,6 +259,7 @@ class timer(object):
     queue content, but this way we can notify subclasses that provide
     their own cancel() method.
     """
+
     while timer_queue:
       timer_queue.pop(0).cancel()
 
@@ -258,12 +267,14 @@ def _raiseExitNow(signum, frame):
   """
   Signal handler for event_loop().
   """
+
   raise ExitNow
 
 def exit_event_loop():
   """
   Force exit from event_loop().
   """
+
   raise ExitNow
 
 def event_defer(handler, delay = rpki.sundial.timedelta(seconds = 0)):
@@ -271,6 +282,7 @@ def event_defer(handler, delay = rpki.sundial.timedelta(seconds = 0)):
   Use a near-term (default: zero interval) timer to schedule an event
   to run after letting the I/O system have a turn.
   """
+
   timer(handler).set(delay)
 
 ## @var debug_event_timing
@@ -282,6 +294,7 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
   """
   Replacement for asyncore.loop(), adding timer and signal support.
   """
+
   old_signal_handlers = {}
   while True:
     save_sigs = len(old_signal_handlers) == 0
@@ -346,6 +359,7 @@ class sync_wrapper(object):
     Wrapped code has requested normal termination.  Store result, and
     exit the event loop.
     """
+
     self.res = res
     raise ExitNow
 
@@ -354,6 +368,7 @@ class sync_wrapper(object):
     Wrapped code raised an exception.  Store exception data, then exit
     the event loop.
     """
+
     exc_info = sys.exc_info()
     self.err = exc_info if exc_info[1] is err else err
     raise ExitNow
@@ -394,6 +409,7 @@ class gc_summary(object):
     """
     Collect and log GC state for this period, reset timer.
     """
+
     logger.debug("gc_summary: Running gc.collect()")
     gc.collect()
     logger.debug("gc_summary: Summarizing (threshold %d)", self.threshold)

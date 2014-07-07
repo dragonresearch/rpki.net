@@ -101,6 +101,7 @@ class message_pdu(rpki.up_down.message_pdu):
     """
     Log query we're handling.
     """
+
     logger.info("Serving %s query", self.type)
 
 class sax_handler(rpki.up_down.sax_handler):

@@ -67,6 +67,7 @@ def cleanpath(*names):
   """
   Construct normalized pathnames.
   """
+
   return os.path.normpath(os.path.join(*names))
 
 # Pathnames for various things we need
@@ -110,6 +111,7 @@ class roa_request(object):
     """
     Parse a ROA request from YAML format.
     """
+
     return cls(y.get("asn"), y.get("ipv4"), y.get("ipv6"))
 
 
@@ -180,6 +182,7 @@ class allocation_db(list):
     """
     Show contents of allocation database.
     """
+
     for a in self:
       a.dump()
 
@@ -210,6 +213,7 @@ class allocation(object):
     """
     Allocate a TCP port.
     """
+
     cls.base_port += 1
     return cls.base_port
 
@@ -221,6 +225,7 @@ class allocation(object):
     Allocate an engine number, mostly used to construct MySQL database
     names.
     """
+
     cls.base_engine += 1
     return cls.base_engine
 
@@ -275,6 +280,7 @@ class allocation(object):
     Compute resource closure of this node and its children, to avoid a
     lot of tedious (and error-prone) duplication in the YAML file.
     """
+
     resources = self.base
     for kid in self.kids:
       resources |= kid.closure()
@@ -285,6 +291,7 @@ class allocation(object):
     """
     Show content of this allocation node.
     """
+
     print str(self)
 
   def __str__(self):
@@ -309,6 +316,7 @@ class allocation(object):
     """
     Is this the root node?
     """
+
     return self.parent is None
 
   @property
@@ -316,6 +324,7 @@ class allocation(object):
     """
     Is this entity hosted?
     """
+
     return self.hosted_by is not None
 
   @property
@@ -323,18 +332,21 @@ class allocation(object):
     """
     Does this entity run a pubd?
     """
+
     return self.is_root or not (self.is_hosted or only_one_pubd)
 
   def path(self, *names):
     """
     Construct pathnames in this entity's test directory.
     """
+
     return cleanpath(test_dir, self.host.name, *names)
 
   def csvout(self, fn):
     """
     Open and log a CSV output file.
     """
+
     path = self.path(fn)
     print "Writing", path
     return rpki.csv_utils.csv_writer(path)
@@ -343,6 +355,7 @@ class allocation(object):
     """
     Construct service URL for this node's parent.
     """
+
     return "http://localhost:%d/up-down/%s/%s" % (self.parent.host.rpkid_port,
                                                   self.parent.name,
                                                   self.name)
@@ -351,6 +364,7 @@ class allocation(object):
     """
     Write Autonomous System Numbers CSV file.
     """
+
     fn = "%s.asns.csv" % d.name
     if not args.skip_config:
       f = self.csvout(fn)
@@ -364,6 +378,7 @@ class allocation(object):
     """
     Write prefixes CSV file.
     """
+
     fn = "%s.prefixes.csv" % d.name
     if not args.skip_config:
       f = self.csvout(fn)
@@ -377,6 +392,7 @@ class allocation(object):
     """
     Write ROA CSV file.
     """
+
     fn = "%s.roas.csv" % d.name
     if not args.skip_config:
       f = self.csvout(fn)
@@ -391,6 +407,7 @@ class allocation(object):
     """
     Write Ghostbusters vCard file.
     """
+
     if self.ghostbusters:
       fn = "%s.ghostbusters.vcard" % d.name
       if not args.skip_config:
@@ -409,6 +426,7 @@ class allocation(object):
     """
     Write EE certificates (router certificates, etc).
     """
+
     if self.router_certs:
       fn = "%s.routercerts.xml" % d.name
       if not args.skip_config:
@@ -432,6 +450,7 @@ class allocation(object):
     """
     Walk up tree until we find somebody who runs pubd.
     """
+
     s = self
     while not s.runs_pubd:
       s = s.parent
@@ -442,6 +461,7 @@ class allocation(object):
     """
     Work out what pubd configure_publication_client will call us.
     """
+
     path = []
     s = self
     if not args.flat_publication:
@@ -537,6 +557,7 @@ class allocation(object):
     """
     Run rpkic for this entity.
     """
+
     cmd = [prog_rpkic, "-i", self.name, "-c", self.path("rpki.conf")]
     if args.profile:
       cmd.append("--profile")
@@ -552,6 +573,7 @@ class allocation(object):
     Start a Python daemon and return a subprocess.Popen object
     representing the running daemon.
     """
+
     basename = os.path.splitext(os.path.basename(prog))[0]
     cmd = [prog, "--foreground", "--log-level", "debug",
            "--log-file", self.path(basename + ".log"),
@@ -567,30 +589,35 @@ class allocation(object):
     """
     Run rpkid.
     """
+
     return self.run_python_daemon(prog_rpkid)
 
   def run_irdbd(self):
     """
     Run irdbd.
     """
+
     return self.run_python_daemon(prog_irdbd)
 
   def run_pubd(self):
     """
     Run pubd.
     """
+
     return self.run_python_daemon(prog_pubd)
 
   def run_rootd(self):
     """
     Run rootd.
     """
+
     return self.run_python_daemon(prog_rootd)
 
   def run_rsyncd(self):
     """
     Run rsyncd.
     """
+
     p = subprocess.Popen(("rsync", "--daemon", "--no-detach", "--config", "rsyncd.conf"),
                          cwd = self.path())
     print "Running rsyncd for %s: pid %d process %r" % (self.name, p.pid, p)

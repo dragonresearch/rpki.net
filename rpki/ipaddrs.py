@@ -61,6 +61,7 @@ class v4addr(long):
     """
     Construct a v4addr object.
     """
+
     if isinstance(x, unicode):
       x = x.encode("ascii")
     if isinstance(x, str):
@@ -72,6 +73,7 @@ class v4addr(long):
     """
     Convert a v4addr object to a raw byte string.
     """
+
     return struct.pack("!I", long(self))
 
   @classmethod
@@ -79,12 +81,14 @@ class v4addr(long):
     """
     Convert from a raw byte string to a v4addr object.
     """
+
     return cls(struct.unpack("!I", x)[0])
 
   def __str__(self):
     """
     Convert a v4addr object to string format.
     """
+
     return socket.inet_ntop(socket.AF_INET, self.to_bytes())
 
 class v6addr(long):
@@ -101,6 +105,7 @@ class v6addr(long):
     """
     Construct a v6addr object.
     """
+
     if isinstance(x, unicode):
       x = x.encode("ascii")
     if isinstance(x, str):
@@ -112,6 +117,7 @@ class v6addr(long):
     """
     Convert a v6addr object to a raw byte string.
     """
+
     return struct.pack("!QQ", long(self) >> 64, long(self) & 0xFFFFFFFFFFFFFFFF)
 
   @classmethod
@@ -119,6 +125,7 @@ class v6addr(long):
     """
     Convert from a raw byte string to a v6addr object.
     """
+
     x = struct.unpack("!QQ", x)
     return cls((x[0] << 64) | x[1])
 
@@ -126,12 +133,14 @@ class v6addr(long):
     """
     Convert a v6addr object to string format.
     """
+
     return socket.inet_ntop(socket.AF_INET6, self.to_bytes())
 
 def parse(s):
   """
   Parse a string as either an IPv4 or IPv6 address, and return object of appropriate class.
   """
+
   if isinstance(s, unicode):
     s = s.encode("ascii")
   return v6addr(s) if ":" in s else v4addr(s)

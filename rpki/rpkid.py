@@ -318,6 +318,7 @@ class main(object):
     Record that we were still alive when we got here, by resetting
     keepalive timer.
     """
+
     if force or self.cron_timeout is not None:
       self.cron_timeout = rpki.sundial.now() + self.cron_keepalive
 
@@ -325,6 +326,7 @@ class main(object):
     """
     Add a task to the scheduler task queue, unless it's already queued.
     """
+
     if task not in self.task_queue:
       logger.debug("Adding %r to task queue", task)
       self.task_queue.append(task)
@@ -339,6 +341,7 @@ class main(object):
     queue (we don't want to run it directly, as that could eventually
     blow out our call stack).
     """
+
     try:
       self.task_current = self.task_queue.pop(0)
     except IndexError:
@@ -350,6 +353,7 @@ class main(object):
     """
     Run first task on the task queue, unless one is running already.
     """
+
     if self.task_current is None:
       self.task_next()
 
@@ -446,6 +450,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     Fetch parent object to which this CA object links.
     """
+
     return rpki.left_right.parent_elt.sql_fetch(self.gctx, self.parent_id)
 
   @property
@@ -453,6 +458,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     Fetch all ca_detail objects that link to this CA object.
     """
+
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s", (self.ca_id,))
 
   @property
@@ -460,6 +466,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     Fetch the pending ca_details for this CA, if any.
     """
+
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'pending'", (self.ca_id,))
 
   @property
@@ -467,6 +474,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     Fetch the active ca_detail for this CA, if any.
     """
+
     return ca_detail_obj.sql_fetch_where1(self.gctx, "ca_id = %s AND state = 'active'", (self.ca_id,))
 
   @property
@@ -474,6 +482,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     Fetch deprecated ca_details for this CA, if any.
     """
+
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'deprecated'", (self.ca_id,))
 
   @property
@@ -481,6 +490,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     Fetch active and deprecated ca_details for this CA, if any.
     """
+
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND (state = 'active' OR state = 'deprecated')", (self.ca_id,))
 
   @property
@@ -488,6 +498,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     Fetch revoked ca_details for this CA, if any.
     """
+
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'revoked'", (self.ca_id,))
 
   @property
@@ -496,7 +507,7 @@ class ca_obj(rpki.sql.sql_persistent):
     Fetch ca_details which are candidates for consideration when
     processing an up-down issue_response PDU.
     """
-    #return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'", (self.ca_id,))
+
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state != 'revoked'", (self.ca_id,))
 
   def construct_sia_uri(self, parent, rc):
@@ -542,7 +553,8 @@ class ca_obj(rpki.sql.sql_persistent):
 
       if rc_cert is None:
 
-        logger.warning("SKI %s in resource class %s is in database but missing from list_response to %s from %s, maybe parent certificate went away?",
+        logger.warning("SKI %s in resource class %s is in database but missing from list_response to %s from %s, "
+                       "maybe parent certificate went away?",
                        ca_detail.public_key.gSKI(), rc.class_name, parent.self.self_handle, parent.parent_handle)
         publisher = publication_queue()
         ca_detail.delete(ca = ca_detail.ca, publisher = publisher)
@@ -677,6 +689,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     Allocate a certificate serial number.
     """
+
     self.last_issued_sn += 1
     self.sql_mark_dirty()
     return self.last_issued_sn
@@ -685,6 +698,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     Allocate a manifest serial number.
     """
+
     self.last_manifest_sn += 1
     self.sql_mark_dirty()
     return self.last_manifest_sn
@@ -693,6 +707,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     Allocate a CRL serial number.
     """
+
     self.last_crl_sn += 1
     self.sql_mark_dirty()
     return self.last_crl_sn
@@ -783,6 +798,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Extra assertions for SQL decode of a ca_detail_obj.
     """
+
     rpki.sql.sql_persistent.sql_decode(self, vals)
     assert self.public_key is None or self.private_key_id is None or self.public_key.get_DER() == self.private_key_id.get_public_DER()
     assert self.manifest_public_key is None or self.manifest_private_key_id is None or self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
@@ -793,12 +809,14 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Fetch CA object to which this ca_detail links.
     """
+
     return ca_obj.sql_fetch(self.gctx, self.ca_id)
 
   def fetch_child_certs(self, child = None, ski = None, unique = False, unpublished = None):
     """
     Fetch all child_cert objects that link to this ca_detail.
     """
+
     return rpki.rpkid.child_cert_obj.fetch(self.gctx, child, self, ski, unique, unpublished)
 
   @property
@@ -806,6 +824,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Fetch all child_cert objects that link to this ca_detail.
     """
+
     return self.fetch_child_certs()
 
   def unpublished_child_certs(self, when):
@@ -813,6 +832,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     Fetch all unpublished child_cert objects linked to this ca_detail
     with attempted publication dates older than when.
     """
+
     return self.fetch_child_certs(unpublished = when)
 
   @property
@@ -820,6 +840,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Fetch all revoked_cert objects that link to this ca_detail.
     """
+
     return revoked_cert_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
   @property
@@ -827,6 +848,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Fetch all ROA objects that link to this ca_detail.
     """
+
     return rpki.rpkid.roa_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
   def unpublished_roas(self, when):
@@ -834,6 +856,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     Fetch all unpublished ROA objects linked to this ca_detail with
     attempted publication dates older than when.
     """
+
     return rpki.rpkid.roa_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s AND published IS NOT NULL and published < %s", (self.ca_detail_id, when))
 
   @property
@@ -841,6 +864,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Fetch all Ghostbuster objects that link to this ca_detail.
     """
+
     return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
   @property
@@ -848,6 +872,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Fetch all EE certificate objects that link to this ca_detail.
     """
+
     return rpki.rpkid.ee_cert_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
   def unpublished_ghostbusters(self, when):
@@ -855,6 +880,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     Fetch all unpublished Ghostbusters objects linked to this
     ca_detail with attempted publication dates older than when.
     """
+
     return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s AND published IS NOT NULL and published < %s", (self.ca_detail_id, when))
 
   @property
@@ -862,6 +888,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Return publication URI for this ca_detail's CRL.
     """
+
     return self.ca.sia_uri + self.crl_uri_tail
 
   @property
@@ -869,6 +896,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Return tail (filename portion) of publication URI for this ca_detail's CRL.
     """
+
     return self.public_key.gSKI() + ".crl"
 
   @property
@@ -876,12 +904,14 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Return publication URI for this ca_detail's manifest.
     """
+
     return self.ca.sia_uri + self.public_key.gSKI() + ".mft"
 
   def has_expired(self):
     """
     Return whether this ca_detail's certificate has expired.
     """
+
     return self.latest_ca_cert.getNotAfter() <= rpki.sundial.now()
 
   def covers(self, target):
@@ -1237,6 +1267,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Check result of CRL publication.
     """
+
     pdu.raise_if_error()
     self.crl_published = None
     self.sql_mark_dirty()
@@ -1294,6 +1325,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     Check result of manifest publication.
     """
+
     pdu.raise_if_error()
     self.manifest_published = None
     self.sql_mark_dirty()
@@ -1425,6 +1457,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """
     Initialize a child_cert_obj.
     """
+
     rpki.sql.sql_persistent.__init__(self)
     self.gctx = gctx
     self.child_id = child_id
@@ -1440,6 +1473,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """
     Fetch child object to which this child_cert object links.
     """
+
     return rpki.left_right.child_elt.sql_fetch(self.gctx, self.child_id)
 
   @property
@@ -1448,6 +1482,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """
     Fetch ca_detail object to which this child_cert object links.
     """
+
     return ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
 
   @ca_detail.deleter
@@ -1462,6 +1497,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """
     Return the tail (filename) portion of the URI for this child_cert.
     """
+
     return self.cert.gSKI() + ".cer"
 
   @property
@@ -1469,6 +1505,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """
     Return the publication URI for this child_cert.
     """
+
     return self.ca_detail.ca.sia_uri + self.uri_tail
 
   def revoke(self, publisher, generate_crl_and_manifest = True):
@@ -1613,6 +1650,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """
     Publication callback: check result and mark published.
     """
+
     pdu.raise_if_error()
     self.published = None
     self.sql_mark_dirty()
@@ -1637,6 +1675,7 @@ class revoked_cert_obj(rpki.sql.sql_persistent):
     """
     Initialize a revoked_cert_obj.
     """
+
     rpki.sql.sql_persistent.__init__(self)
     self.gctx = gctx
     self.serial = serial
@@ -1652,6 +1691,7 @@ class revoked_cert_obj(rpki.sql.sql_persistent):
     """
     Fetch ca_detail object to which this revoked_cert_obj links.
     """
+
     return ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
 
   @classmethod
@@ -1659,6 +1699,7 @@ class revoked_cert_obj(rpki.sql.sql_persistent):
     """
     Revoke a certificate.
     """
+
     return cls(
       serial       = cert.getSerial(),
       expires      = cert.getNotAfter(),
@@ -1700,6 +1741,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     Fetch ca_detail object to which this roa_obj links.
     """
+
     return rpki.rpkid.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
 
   @ca_detail.deleter
@@ -1713,6 +1755,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     Extra SQL fetch actions for roa_obj -- handle prefix lists.
     """
+
     for version, datatype, attribute in ((4, rpki.resource_set.roa_prefix_set_ipv4, "ipv4"),
                                          (6, rpki.resource_set.roa_prefix_set_ipv6, "ipv6")):
       setattr(self, attribute, datatype.from_sql(
@@ -1727,6 +1770,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     Extra SQL insert actions for roa_obj -- handle prefix lists.
     """
+
     for version, prefix_set in ((4, self.ipv4), (6, self.ipv6)):
       if prefix_set:
         self.gctx.sql.executemany(
@@ -1741,6 +1785,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     Extra SQL delete actions for roa_obj -- handle prefix lists.
     """
+
     self.gctx.sql.execute("DELETE FROM roa_prefix WHERE roa_id = %s", (self.roa_id,))
 
   def __repr__(self):
@@ -1946,6 +1991,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     Reissue ROA associated with this roa_obj.
     """
+
     if self.ca_detail is None:
       self.generate(publisher = publisher, fast = fast)
     else:
@@ -1955,6 +2001,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     Return publication URI for a public key.
     """
+
     return self.ca_detail.ca.sia_uri + key.gSKI() + ".roa"
 
   @property
@@ -1962,6 +2009,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     Return the publication URI for this roa_obj's ROA.
     """
+
     return self.ca_detail.ca.sia_uri + self.uri_tail
 
   @property
@@ -1970,6 +2018,7 @@ class roa_obj(rpki.sql.sql_persistent):
     Return the tail (filename portion) of the publication URI for this
     roa_obj's ROA.
     """
+
     return self.cert.gSKI() + ".roa"
 
 
@@ -2012,6 +2061,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     """
     Fetch self object to which this ghostbuster_obj links.
     """
+
     return rpki.left_right.self_elt.sql_fetch(self.gctx, self.self_id)
 
   @property
@@ -2020,6 +2070,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     """
     Fetch ca_detail object to which this ghostbuster_obj links.
     """
+
     return rpki.rpkid.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
 
   def __init__(self, gctx = None, self_id = None, ca_detail_id = None, vcard = None):
@@ -2097,6 +2148,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     """
     Check publication result.
     """
+
     pdu.raise_if_error()
     self.published = None
     self.sql_mark_dirty()
@@ -2148,6 +2200,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     """
     Reissue Ghostbuster associated with this ghostbuster_obj.
     """
+
     if self.ghostbuster is None:
       self.generate(publisher = publisher, fast = fast)
     else:
@@ -2157,6 +2210,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     """
     Return publication URI for a public key.
     """
+
     return self.ca_detail.ca.sia_uri + key.gSKI() + ".gbr"
 
   @property
@@ -2164,6 +2218,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     """
     Return the publication URI for this ghostbuster_obj's ghostbuster.
     """
+
     return self.ca_detail.ca.sia_uri + self.uri_tail
 
   @property
@@ -2172,6 +2227,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     Return the tail (filename portion) of the publication URI for this
     ghostbuster_obj's ghostbuster.
     """
+
     return self.cert.gSKI() + ".gbr"
 
 
@@ -2209,6 +2265,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     """
     Fetch self object to which this ee_cert_obj links.
     """
+
     return rpki.left_right.self_elt.sql_fetch(self.gctx, self.self_id)
 
   @property
@@ -2217,6 +2274,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     """
     Fetch ca_detail object to which this ee_cert_obj links.
     """
+
     return rpki.rpkid.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
 
   @ca_detail.deleter
@@ -2234,6 +2292,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     Although, really, one has to ask why we don't just store g(SKI)
     in rpkid.sql instead of ski....
     """
+
     return base64.urlsafe_b64encode(self.ski).rstrip("=")
 
   @gski.setter
@@ -2245,6 +2304,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     """
     Return the publication URI for this ee_cert_obj.
     """
+
     return self.ca_detail.ca.sia_uri + self.uri_tail
 
   @property
@@ -2253,6 +2313,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     Return the tail (filename portion) of the publication URI for this
     ee_cert_obj.
     """
+
     return self.cert.gSKI() + ".cer"
 
   @classmethod
@@ -2408,6 +2469,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     """
     Publication callback: check result and mark published.
     """
+
     pdu.raise_if_error()
     self.published = None
     self.sql_mark_dirty()

@@ -99,6 +99,7 @@ class csv_writer(object):
     """
     Close this writer.
     """
+
     if self.file is not None:
       self.file.close()
       self.file = None
@@ -109,4 +110,5 @@ class csv_writer(object):
     """
     Fake inheritance from whatever object csv.writer deigns to give us.
     """
+
     return getattr(self.writer, attr)

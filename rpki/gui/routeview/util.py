@@ -179,8 +179,8 @@ def import_routeviews_dump(filename=DEFAULT_URL, filetype='auto'):
         filename [optional]: the full path to the downloaded file to parse
 
         filetype [optional]: 'text' or 'mrt'
-
     """
+
     start_time = time.time()
 
     if filename.startswith('http://'):

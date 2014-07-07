@@ -120,16 +120,16 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
     def parents(self):
         """Simulates irdb.models.Parent.objects, but returns app.models.Parent
         proxy objects.
-
         """
+
         return Parent.objects.filter(issuer=self)
 
     @property
     def children(self):
         """Simulates irdb.models.Child.objects, but returns app.models.Child
         proxy objects.
-
         """
+
         return Child.objects.filter(issuer=self)
 
     @property
@@ -148,8 +148,8 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
     def routes(self):
         """Return all IPv4 routes covered by RPKI certs issued to this resource
         holder.
-
         """
+
         # build a Q filter to select all RouteOrigin objects covered by
         # prefixes in the resource holder's certificates
         q = models.Q()
@@ -162,8 +162,8 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
     def routes_v6(self):
         """Return all IPv6 routes covered by RPKI certs issued to this resource
         holder.
-
         """
+
         # build a Q filter to select all RouteOrigin objects covered by
         # prefixes in the resource holder's certificates
         q = models.Q()
@@ -174,6 +174,7 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
 
     def send_alert(self, subject, message, from_email, severity=Alert.INFO):
         """Store an alert for this resource holder."""
+
         self.alerts.create(subject=subject, text=message, severity=severity)
 
         send_mail(
@@ -189,8 +190,8 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
 
         Contact emails are extract from any ghostbuster requests, and any
         linked user accounts.
-
         """
+
         notify_emails = [gbr.email_address for gbr in self.ghostbusters if gbr.email_address]
         notify_emails.extend(
             [acl.user.email for acl in ConfACL.objects.filter(conf=self) if acl.user.email]
@@ -209,7 +210,6 @@ class ResourceCert(models.Model):
     """Represents a resource certificate.
 
     This model is used to cache the output of <list_received_resources/>.
-
     """
 
     # Handle to which this cert was issued
@@ -237,6 +237,7 @@ class ResourceCert(models.Model):
     def get_cert_chain(self):
         """Return a list containing the complete certificate chain for this
         certificate."""
+
         cert = self
         x = [cert]
         while cert.issuer:
@@ -410,7 +411,6 @@ class RouteOriginV6(rpki.gui.routeview.models.RouteOriginV6):
 class ConfACL(models.Model):
     """Stores access control for which users are allowed to manage a given
     resource handle.
-
     """
 
     conf = models.ForeignKey(Conf)

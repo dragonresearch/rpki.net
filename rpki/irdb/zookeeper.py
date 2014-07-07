@@ -151,7 +151,6 @@ class etree_wrapper(object):
   """
   Wrapper for ETree objects so we can return them as function results
   without requiring the caller to understand much about them.
-
   """
 
   def __init__(self, e, msg = None, debug = False):

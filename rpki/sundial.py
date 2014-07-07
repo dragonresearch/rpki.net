@@ -51,6 +51,7 @@ def now():
   """
   Get current timestamp.
   """
+
   return datetime.utcnow()
 
 class ParseFailure(Exception):
@@ -69,6 +70,7 @@ class datetime(pydatetime.datetime):
     Convert to seconds from epoch (like time.time()).  Conversion
     method is a bit silly, but avoids time module timezone whackiness.
     """
+
     return int(self.strftime("%s"))
 
   @classmethod
@@ -76,6 +78,7 @@ class datetime(pydatetime.datetime):
     """
     Convert from XML time representation.
     """
+
     if x is None:
       return None
     else:
@@ -85,6 +88,7 @@ class datetime(pydatetime.datetime):
     """
     Convert to XML time representation.
     """
+
     return self.strftime("%Y-%m-%dT%H:%M:%SZ")
 
   def __str__(self):
@@ -96,6 +100,7 @@ class datetime(pydatetime.datetime):
     Convert a datetime.datetime object into this subclass.  This is
     whacky due to the weird constructors for datetime.
     """
+
     return cls.combine(x.date(), x.time())
 
   def to_datetime(self):
@@ -104,6 +109,7 @@ class datetime(pydatetime.datetime):
     shouldn't be necessary, but convincing SQL interfaces to use
     subclasses of datetime can be hard.
     """
+
     return pydatetime.datetime(year = self.year, month = self.month, day = self.day,
                                hour = self.hour, minute = self.minute, second = self.second,
                                microsecond = 0, tzinfo = None)
@@ -115,6 +121,7 @@ class datetime(pydatetime.datetime):
     Convert from the format OpenSSL's command line tool uses into this
     subclass.  May require rewriting if we run into locale problems.
     """
+
     if x.startswith("notBefore=") or x.startswith("notAfter="):
       x = x.partition("=")[2]
     return cls.strptime(x, "%b %d %H:%M:%S %Y GMT")
@@ -124,24 +131,28 @@ class datetime(pydatetime.datetime):
     """
     Convert from SQL storage format.
     """
+
     return cls.from_datetime(x)
 
   def to_sql(self):
     """
     Convert to SQL storage format.
     """
+
     return self.to_datetime()
 
   def later(self, other):
     """
     Return the later of two timestamps.
     """
+
     return other if other > self else self
 
   def earlier(self, other):
     """
     Return the earlier of two timestamps.
     """
+
     return other if other < self else self
 
   def __add__(self, y):  return _cast(pydatetime.datetime.__add__(self, y))
@@ -216,6 +227,7 @@ class timedelta(pydatetime.timedelta):
     """
     Parse text into a timedelta object.
     """
+
     if not isinstance(arg, str):
       return cls(seconds = arg)
     elif arg.isdigit():
@@ -237,6 +249,7 @@ class timedelta(pydatetime.timedelta):
     """
     Convert a timedelta interval to seconds.
     """
+
     return self.days * 24 * 60 * 60 + self.seconds
 
   @classmethod
@@ -244,6 +257,7 @@ class timedelta(pydatetime.timedelta):
     """
     Convert a datetime.timedelta object into this subclass.
     """
+
     return cls(days = x.days, seconds = x.seconds, microseconds = x.microseconds)
 
   def __abs__(self):          return _cast(pydatetime.timedelta.__abs__(self))
@@ -264,6 +278,7 @@ def _cast(x):
   """
   Cast result of arithmetic operations back into correct subtype.
   """
+
   if isinstance(x, pydatetime.datetime):
     return datetime.from_datetime(x)
   if isinstance(x, pydatetime.timedelta):

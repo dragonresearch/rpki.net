@@ -41,8 +41,8 @@ def check_cert(handle, p, errs):
 
     The displayed object name defaults to the class name, but can be overridden
     using the `object_name` argument.
-
     """
+
     t = p.certificate.getNotAfter()
     if t <= expire_time:
         e = 'expired' if t <= now else 'will expire'
@@ -102,8 +102,8 @@ def check_expire(conf, errs):
 def check_child_certs(conf, errs):
     """Fetch the list of published objects from rpkid, and inspect the issued
     resource certs (uri ending in .cer).
-
     """
+
     z = Zookeeper(handle=conf.handle)
     req = list_published_objects_elt.make_pdu(action="list",
                                               tag="list_published_objects",
@@ -139,8 +139,8 @@ def notify_expired(expire_days=14, from_email=None):
     expire_days: the number of days ahead of today to warn
 
     from_email: set the From: address for the email
-
     """
+
     global expire_time  # so i don't have to pass it around
     global now
 

@@ -310,8 +310,8 @@ def fetch_published_objects():
     """Query rpkid for all objects published by local users, and look up the
     current validation status of each object.  The validation status is used
     later to send alerts for objects which have transitioned to invalid.
-
     """
+
     logger.info('querying for published objects')
 
     handles = [conf.handle for conf in Conf.objects.all()]
@@ -353,7 +353,6 @@ class Handle(object):
 def notify_invalid():
     """Send email alerts to the addresses registered in ghostbuster records for
     any invalid objects that were published by users of this system.
-
     """
 
     logger.info('sending notifications for invalid objects')

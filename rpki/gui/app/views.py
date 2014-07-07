@@ -71,6 +71,7 @@ def superuser_required(f):
 def get_conf(user, handle):
     """return the Conf object for 'handle'.
     user is a request.user object to use enforce ACLs."""
+
     if user.is_superuser:
         qs = models.Conf.objects.all()
     else:
@@ -81,8 +82,8 @@ def get_conf(user, handle):
 def handle_required(f):
     """Decorator for view functions which require the user to be logged in and
     a resource handle selected for the session.
-
     """
+
     @login_required
     @tls_required
     def wrapped_fn(request, *args, **kwargs):
@@ -126,8 +127,8 @@ def generic_import(request, queryset, configure, form_class=None,
         if None (default), the user will be redirected to the detail page for
         the imported object.  Otherwise, the user will be redirected to the
         specified URL.
-
     """
+
     conf = get_conf(request.user, request.session['handle'])
     if form_class is None:
         form_class = forms.ImportForm
@@ -251,6 +252,7 @@ def dashboard(request):
 @login_required
 def conf_list(request, **kwargs):
     """Allow the user to select a handle."""
+
     log = request.META['wsgi.errors']
     next_url = request.GET.get('next', reverse(dashboard))
     if request.user.is_superuser:
@@ -266,6 +268,7 @@ def conf_list(request, **kwargs):
 @login_required
 def conf_select(request):
     """Change the handle for the current session."""
+
     if not 'handle' in request.GET:
         return redirect(conf_list)
     handle = request.GET['handle']
@@ -288,8 +291,8 @@ def serve_xml(content, basename, ext='xml'):
     `basename` is the prefix to specify for the XML filename.
 
     `csv` is the type (default: xml)
-
     """
+
     resp = http.HttpResponse(content, mimetype='application/%s' % ext)
     resp['Content-Disposition'] = 'attachment; filename=%s.%s' % (basename, ext)
     return resp
@@ -298,6 +301,7 @@ def serve_xml(content, basename, ext='xml'):
 @handle_required
 def conf_export(request):
     """Return the identity.xml for the current handle."""
+
     conf = get_conf(request.user, request.session['handle'])
     z = Zookeeper(handle=conf.handle)
     xml = z.generate_identity()
@@ -307,6 +311,7 @@ def conf_export(request):
 @handle_required
 def export_asns(request):
     """Export CSV file containing ASN allocations to children."""
+
     conf = get_conf(request.user, request.session['handle'])
     s = cStringIO.StringIO()
     csv_writer = csv.writer(s, delimiter=' ')
@@ -342,6 +347,7 @@ def import_asns(request):
 @handle_required
 def export_prefixes(request):
     """Export CSV file containing ASN allocations to children."""
+
     conf = get_conf(request.user, request.session['handle'])
     s = cStringIO.StringIO()
     csv_writer = csv.writer(s, delimiter=' ')
@@ -411,6 +417,7 @@ def parent_delete(request, pk):
 @handle_required
 def parent_export(request, pk):
     """Export XML repository request for a given parent."""
+
     conf = get_conf(request.user, request.session['handle'])
     parent = get_object_or_404(conf.parents, pk=pk)
     z = Zookeeper(handle=conf.handle)
@@ -474,6 +481,7 @@ def child_detail(request, pk):
 @handle_required
 def child_edit(request, pk):
     """Edit the end validity date for a resource handle's child."""
+
     log = request.META['wsgi.errors']
     conf = get_conf(request.user, request.session['handle'])
     child = get_object_or_404(conf.children.all(), pk=pk)
@@ -505,8 +513,8 @@ def child_response(request, pk):
     """
     Export the XML file containing the output of the configure_child
     to send back to the client.
-
     """
+
     conf = get_conf(request.user, request.session['handle'])
     child = get_object_or_404(models.Child, issuer=conf, pk=pk)
     z = Zookeeper(handle=conf.handle)
@@ -551,7 +559,6 @@ def get_covered_routes(rng, max_prefixlen, asn):
     A "newstatus" attribute is monkey-patched on the RouteOrigin objects which
     can be used in the template.  "status" remains the current validation
     status of the object.
-
     """
 
     # find all routes that match or are completed covered by the proposed new roa
@@ -591,7 +598,6 @@ def roa_create(request):
 
     Doesn't use the generic create_object() form because we need to
     create both the ROARequest and ROARequestPrefix objects.
-
     """
 
     conf = get_conf(request.user, request.session['handle'])
@@ -628,7 +634,6 @@ def roa_create(request):
 class ROARequestFormSet(BaseFormSet):
     """There is no way to pass arbitrary keyword arguments to the form
     constructor, so we have to override BaseFormSet to allow it.
-
     """
     def __init__(self, *args, **kwargs):
         self.conf = kwargs.pop('conf')
@@ -666,7 +671,6 @@ def roa_create_multi(request):
         ?roa=1.1.1.1-2.2.2.2,42
 
     The ASN may optionally be omitted.
-
     """
 
     conf = get_conf(request.user, request.session['handle'])
@@ -717,8 +721,8 @@ def roa_create_multi(request):
 def roa_create_confirm(request):
     """This function is called when the user confirms the creation of a ROA
     request.  It is responsible for updating the IRDB.
-
     """
+
     conf = get_conf(request.user, request.session['handle'])
     log = request.META['wsgi.errors']
     if request.method == 'POST':
@@ -746,8 +750,8 @@ def roa_create_confirm(request):
 def roa_create_multi_confirm(request):
     """This function is called when the user confirms the creation of a ROA
     request.  It is responsible for updating the IRDB.
-
     """
+
     conf = get_conf(request.user, request.session['handle'])
     log = request.META['wsgi.errors']
     if request.method == 'POST':
@@ -778,7 +782,6 @@ def roa_delete(request, pk):
 
     Uses a form for double confirmation, displaying how the route
     validation status may change as a result.
-
     """
 
     conf = get_conf(request.user, request.session['handle'])
@@ -835,6 +838,7 @@ def roa_clone(request, pk):
 @handle_required
 def roa_import(request):
     """Import CSV containing ROA declarations."""
+
     if request.method == 'POST':
         form = forms.ImportCSVForm(request.POST, request.FILES)
         if form.is_valid():
@@ -860,6 +864,7 @@ def roa_import(request):
 @handle_required
 def roa_export(request):
     """Export CSV containing ROA declarations."""
+
     # FIXME: remove when Zookeeper can do this
     f = cStringIO.StringIO()
     csv_writer = csv.writer(f, delimiter=' ')
@@ -941,8 +946,8 @@ def ghostbuster_edit(request, pk):
 def refresh(request):
     """
     Query rpkid, update the db, and redirect back to the dashboard.
-
     """
+
     conf = get_conf(request.user, request.session['handle'])
     glue.list_received_resources(request.META['wsgi.errors'], conf)
     return http.HttpResponseRedirect(reverse(dashboard))
@@ -953,8 +958,8 @@ def route_view(request):
     """
     Display a list of global routing table entries which match resources
     listed in received certificates.
-
     """
+
     conf = get_conf(request.user, request.session['handle'])
     count = request.GET.get('count', 25)
     page = request.GET.get('page', 1)
@@ -972,6 +977,7 @@ def route_view(request):
 
 def route_detail(request, pk):
     """Show a list of ROAs that match a given IPv4 route."""
+
     route = get_object_or_404(models.RouteOrigin, pk=pk)
     # when running rootd, viewing the 0.0.0.0/0 route will cause a fetch of all
     # roas, so we paginate here, even though in the general case the number of
@@ -989,8 +995,8 @@ def route_suggest(request):
     """Handles POSTs from the route view and redirects to the ROA creation
     page based on selected route objects.  The form should contain elements of
     the form "pk-NUM" where NUM is the RouteOrigin object id.
-
     """
+
     if request.method == 'POST':
         routes = []
         for pk in request.POST.iterkeys():
@@ -1040,6 +1046,7 @@ def repository_delete(request, pk):
 @handle_required
 def repository_import(request):
     """Import XML response file from repository operator."""
+
     return generic_import(request,
                           models.Repository.objects,
                           Zookeeper.configure_repository,
@@ -1094,8 +1101,8 @@ def client_import(request):
 def client_export(request, pk):
     """Return the XML file resulting from a configure_publication_client
     request.
-
     """
+
     client = get_object_or_404(models.Client, pk=pk)
     z = Zookeeper()
     xml = z.generate_repository_response(client)
@@ -1107,6 +1114,7 @@ def client_export(request, pk):
 @superuser_required
 def resource_holder_list(request):
     """Display a list of all the RPKI handles managed by this server."""
+
     return render(request, 'app/resource_holder_list.html', {
         'object_list': models.Conf.objects.all()
     })
@@ -1115,6 +1123,7 @@ def resource_holder_list(request):
 @superuser_required
 def resource_holder_edit(request, pk):
     """Display a list of all the RPKI handles managed by this server."""
+
     conf = get_object_or_404(models.Conf, pk=pk)
     if request.method == 'POST':
         form = forms.ResourceHolderForm(request.POST, request.FILES)
@@ -1221,6 +1230,7 @@ def user_create(request):
 @superuser_required
 def user_list(request):
     """Display a list of all the RPKI handles managed by this server."""
+
     return render(request, 'app/user_list.html', {
         'object_list': User.objects.all()
     })
@@ -1316,6 +1326,7 @@ class AlertDeleteView(DeleteView):
 @handle_required
 def alert_clear_all(request):
     """Clear all alerts associated with the current resource holder."""
+
     if request.method == 'POST':
         form = forms.Empty(request.POST, request.FILES)
         if form.is_valid():

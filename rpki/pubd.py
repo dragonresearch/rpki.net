@@ -107,6 +107,8 @@ class main(object):
 
     self.publication_multimodule = self.cfg.getboolean("publication-multimodule", False)
 
+    self.session = session_obj.fetch(self)
+
     rpki.http.server(
       host     = self.http_server_host,
       port     = self.http_server_port,
@@ -183,8 +185,12 @@ class session_obj(rpki.sql.sql_persistent):
   sql_template = rpki.sql.template(
     "session",
     "session_id",
-    "uuid",
-    "serial")
+    "uuid")
+
+  ## @var expiration_interval
+  # How long to wait after retiring a snapshot before purging it from the database. 
+
+  expiration_interval = rpki.sundial.timedelta(hours = 6)
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.uuid, self.serial)
@@ -201,27 +207,118 @@ class session_obj(rpki.sql.sql_persistent):
       self.gctx = gctx
       self.session_id = 1
       self.uuid = uuid.uuid4()
-      self.serial = 1
       self.sql_store()
     return self
 
   @property
-  @rpki.sql.cache_reference
   def objects(self):
-    return object_obj.sql_fetch_where(self.gctx, "session_id = %s", (self.session_id))
+    return object_obj.sql_fetch_where(self.gctx, "session_id = %s", (self.session_id,))
 
-  def next_serial_number(self):
+  @property
+  def snapshots(self):
+    return snapshot_obj.sql_fetch_where(self.gctx, "session_id = %s", (self.session_id,))
+
+  @property
+  def current_snapshot(self):
+    return snapshot_obj.sql_fetch_where1(self.gctx,
+                                         "session_id = %s AND activated IS NOT NULL AND expires IS NULL",
+                                         (self.session_id,))
+
+  def new_snapshot(self):
+    return snapshot_obj.create(self)
+
+  def add_snapshot(self, new_snapshot):
+    now = rpki.sundial.now()
+    old_snapshot = self.current_snapshot
+    if old_snapshot is not None:
+      old_snapshot.expires = now + self.expiration_interval
+      old_snapshot.sql_store()
+    new_snapshot.activated = now
+    new_snapshot.sql_store()
+
+  def expire_snapshots(self):
+    for snapshot in snapshot_obj.sql_fetch_where(self.gctx,
+                                                 "session_id = %s AND expires IS NOT NULL AND expires < %s",
+                                                 (self.session_id, rpki.sundial.now())):
+      snapshot.sql_delete()
+
+
+class snapshot_obj(rpki.sql.sql_persistent):
+  """
+  An RRDP session snapshot.
+  """
+
+  sql_template = rpki.sql.template(
+    "snapshot",
+    "snapshot_id",
+    ("activated", rpki.sundial.datetime),
+    ("expires", rpki.sundial.datetime),
+    "session_id")
+
+  @property
+  @rpki.sql.cache_reference
+  def session(self):
+    return session_obj.sql_fetch(self.gctx, self.session_id)
+
+  @classmethod
+  def create(cls, session):
+    self = cls()
+    self.gctx = session.gctx
+    self.session_id = session.session_id
+    self.activated = None
+    self.expires = None
+    self.sql_store()
+    return self
+
+  @property
+  def serial(self):
     """
-    Bump serial number
+    I know that using an SQL ID for any other purpose is usually a bad
+    idea, but in this case it has exactly the right properties, and we
+    really do want both the autoincrement behavior and the foreign key
+    behavior to tie to the snapshot serial numbers.  So risk it.
+
+    Well, OK, only almost the right properties.  auto-increment
+    probably does not back up if we ROLLBACK, which could leave gaps
+    in the sequence.  So may need to rework this.  Ignore for now.
     """
 
-    self.serial += 1
-    self.sql_mark_dirty()
-    return self.serial
+    return self.snapshot_id
 
-  # More methods when I know what they look like
+  def publish(self, client, obj, uri):
+
+    # Still a bit confused as to what we should do here.  The
+    # overwrite <publish/> with another <publish/> model doens't
+    # really match the IXFR model.  Current proposal is an attribute
+    # on <publish/> to say that this is an overwrite, haven't
+    # implemented that yet.  Would need to push knowledge of when
+    # we're overwriting all the way from rpkid code that decides to
+    # write each kind of object.  In most cases it looks like we
+    # already know, a priori, might be a few corner cases.
+
+    # Temporary kludge
+    if True:
+      try:
+        self.withdraw(client, uri)
+      except rpki.exceptions.NoObjectAtURI:
+        logger.debug("Withdrew %s", uri)
+      else:
+        logger.debug("No prior %s", uri)
+
+    logger.debug("Publishing %s", uri)
+    return object_obj.create(client, self, obj, uri)
+
+  def withdraw(self, client, uri):
+    obj = object_obj.sql_fetch_where1(self.gctx,
+                                      "session_id = %s AND client_id = %s AND withdrawn_snapshot_id IS NULL AND uri = %s",
+                                      (self.session_id, client.client_id, uri))
+    if obj is None:
+      raise rpki.exceptions.NoObjectAtURI("No object published at %s" % uri)
+    logger.debug("Withdrawing %s", uri)
+    obj.delete(self)
 
 
+    
 class object_obj(rpki.sql.sql_persistent):
   """
   A published object.
@@ -233,15 +330,13 @@ class object_obj(rpki.sql.sql_persistent):
     "uri",
     "hash",
     "payload",
-    "published",
-    "withdrawn")
-
-  uri       = None
-  published = None
-  withdrawn = None
+    "published_snapshot_id",
+    "withdrawn_snapshot_id",
+    "client_id",
+    "session_id")
 
   def __repr__(self):
-    return rpki.log.log_repr(self, self.uri, self.published, self.withdrawn)
+    return rpki.log.log_repr(self, self.uri, self.published_snapshot_id, self.withdrawn_snapshot_id)
 
   @property
   @rpki.sql.cache_reference
@@ -252,3 +347,23 @@ class object_obj(rpki.sql.sql_persistent):
   @rpki.sql.cache_reference
   def client(self):
     return rpki.publication_control.client_elt.sql_fetch(self.gctx, self.client_id)
+
+  @classmethod
+  def create(cls, client, snapshot, obj, uri):
+    self = cls()
+    self.gctx = snapshot.gctx
+    self.uri = uri
+    self.payload = obj
+    self.hash = rpki.x509.sha256(obj.get_Base64())
+    logger.debug("Computed hash %s of %r", self.hash.encode("hex"), obj)
+    self.published_snapshot_id = snapshot.snapshot_id
+    self.withdrawn_snapshot_id = None
+    self.session_id = snapshot.session_id
+    self.client_id = client.client_id
+    self.sql_mark_dirty()
+    return self
+
+  def delete(self, snapshot):
+    self.withdrawn_snapshot_id = snapshot.snapshot_id
+    #self.sql_mark_dirty()
+    self.sql_store()

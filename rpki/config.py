@@ -141,6 +141,7 @@ class parser(object):
     Replacement function for indirect variable substitution.
     This is intended for use with re.subn().
     """
+
     section, option = m.group(1, 2)
     if section == "ENV":
       return os.getenv(option, "")
@@ -151,6 +152,7 @@ class parser(object):
     """
     Get an option, perhaps with a default value.
     """
+
     if section is None:
       section = self.default_section
     if default is not None and not self.cfg.has_option(section, option):
@@ -165,6 +167,7 @@ class parser(object):
     """
     Get a boolean option, perhaps with a default value.
     """
+
     v = self.get(option, default, section)
     if isinstance(v, str):
       v = v.lower()
@@ -177,12 +180,14 @@ class parser(object):
     """
     Get an integer option, perhaps with a default value.
     """
+
     return int(self.get(option, default, section))
 
   def getlong(self, option, default = None, section = None):
     """
     Get a long integer option, perhaps with a default value.
     """
+
     return long(self.get(option, default, section))
 
   def set_global_flags(self):

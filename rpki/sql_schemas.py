@@ -245,7 +245,7 @@ CREATE TABLE ee_cert (
 
 ## @var pubd
 ## SQL schema pubd
-pubd = '''-- $Id: pubd.sql 5883 2014-07-03 19:21:31Z sra $
+pubd = '''-- $Id: pubd.sql 5884 2014-07-04 00:37:08Z sra $
 
 -- Copyright (C) 2012--2014  Dragon Research Labs ("DRL")
 -- Portions copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
@@ -270,8 +270,9 @@ pubd = '''-- $Id: pubd.sql 5883 2014-07-03 19:21:31Z sra $
 -- to satisfy FOREIGN KEY constraints.
 
 DROP TABLE IF EXISTS object;
-DROP TABLE IF EXISTS client;
+DROP TABLE IF EXISTS snapshot;
 DROP TABLE IF EXISTS session;
+DROP TABLE IF EXISTS client;
 
 -- An old table that should just be flushed if present at all.
 
@@ -291,27 +292,39 @@ CREATE TABLE client (
 CREATE TABLE session (
         session_id              SERIAL NOT NULL,
         uuid                    VARCHAR(36) NOT NULL,
-        serial                  BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (session_id),
         UNIQUE                  (uuid)
+) ENGINE=InnoDB;
+
+CREATE TABLE snapshot (
+        snapshot_id             SERIAL NOT NULL,
+        activated               DATETIME,
+        expires                 DATETIME,
+        session_id              BIGINT UNSIGNED NOT NULL,
+        PRIMARY KEY             (snapshot_id),
+        CONSTRAINT              snapshot_session_id
+        FOREIGN KEY             (session_id) REFERENCES session (session_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE object (
         object_id               SERIAL NOT NULL,
         uri                     VARCHAR(255) NOT NULL,
-        hash                    CHAR(32) BINARY NOT NULL,
+        hash                    BINARY(32) NOT NULL,
         payload                 LONGBLOB NOT NULL,
-        published               BIGINT UNSIGNED NOT NULL,
-        withdrawn               BIGINT UNSIGNED,
+        published_snapshot_id   BIGINT UNSIGNED,
+        withdrawn_snapshot_id   BIGINT UNSIGNED,
         client_id               BIGINT UNSIGNED NOT NULL,
         session_id              BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (object_id),
+        CONSTRAINT              object_published_snapshot_id
+        FOREIGN KEY             (published_snapshot_id) REFERENCES snapshot (snapshot_id) ON DELETE SET NULL,
+        CONSTRAINT              object_withdrawn_snapshot_id
+        FOREIGN KEY             (withdrawn_snapshot_id) REFERENCES snapshot (snapshot_id) ON DELETE CASCADE,
         CONSTRAINT              object_client_id
         FOREIGN KEY             (client_id) REFERENCES client (client_id) ON DELETE CASCADE,
         CONSTRAINT              object_session_id
         FOREIGN KEY             (session_id) REFERENCES session (session_id) ON DELETE CASCADE,
-        UNIQUE                  (uri),
-        UNIQUE                  (hash)
+        UNIQUE                  (session_id, hash)
 ) ENGINE=InnoDB;
 
 -- Local Variables:

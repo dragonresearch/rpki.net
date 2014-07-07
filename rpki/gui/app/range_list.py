@@ -70,6 +70,7 @@ class RangeList(list):
     def difference(self, other):
         """Return a RangeList object which contains ranges in this object which
         are not in "other"."""
+
         it = iter(other)
 
         try:
@@ -85,6 +86,7 @@ class RangeList(list):
             def V(v):
                 """convert the integer value to the appropriate type for this
                 range"""
+
                 return x.__class__.datum_type(v)
 
             try:

@@ -53,6 +53,7 @@ class rcynic_object(object):
     Print a bunch of object attributes, quietly ignoring any that
     might be missing.
     """
+
     for a in attrs:
       try:
         print "%s: %s" % (a.capitalize(), getattr(self, a))
@@ -63,6 +64,7 @@ class rcynic_object(object):
     """
     Print common object attributes.
     """
+
     self.show_attrs("filename", "uri", "status", "timestamp")
 
 class rcynic_certificate(rcynic_object):
@@ -91,6 +93,7 @@ class rcynic_certificate(rcynic_object):
     """
     Print certificate attributes.
     """
+
     rcynic_object.show(self)
     self.show_attrs("notBefore", "notAfter", "aia_uri", "sia_directory_uri", "resources")
 
@@ -128,6 +131,7 @@ class rcynic_roa(rcynic_object):
     """
     Print ROA attributes.
     """
+
     rcynic_object.show(self)
     self.show_attrs("notBefore", "notAfter", "aia_uri", "resources", "asID")
     if self.prefix_sets:

@@ -93,6 +93,7 @@ TIME_ZONE = select_tz()
 def get_secret_key():
     """Retrieve the secret-key value from rpki.conf or generate a random value
     if it is not present."""
+
     d = string.letters + string.digits
     val = ''.join([random.choice(d) for _ in range(50)])
     return rpki_config.get('secret-key', val)

@@ -16,7 +16,6 @@
 """
 This file contains code that interfaces between the django views implementing
 the portal gui and the rpki.* modules.
-
 """
 
 from __future__ import with_statement
@@ -39,6 +38,7 @@ from django.db.transaction import commit_on_success
 
 def ghostbuster_to_vcard(gbr):
     """Convert a GhostbusterRequest object into a vCard object."""
+
     import vobject
 
     vcard = vobject.vCard()
@@ -86,7 +86,6 @@ def list_received_resources(log, conf):
     The semantics are to clear the entire table and populate with the list of
     certs received.  Other models should not reference the table directly with
     foreign keys.
-
     """
 
     z = Zookeeper(handle=conf.handle)

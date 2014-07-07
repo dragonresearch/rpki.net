@@ -57,6 +57,7 @@ def base64_with_linebreaks(der):
   Encode DER (really, anything) as Base64 text, with linebreaks to
   keep the result (sort of) readable.
   """
+
   b = base64.b64encode(der)
   n = len(b)
   return "\n" + "\n".join(b[i : min(i + 64, n)] for i in xrange(0, n, 64)) + "\n"
@@ -80,6 +81,27 @@ def first_rsync_uri(xia):
       if uri.startswith("rsync://"):
         return uri
   return None
+
+def sha1(bytes):
+  """
+  Calculate SHA-1 digest of some data.
+  Convenience wrapper around rpki.POW.Digest class.
+  """
+
+  d = rpki.POW.Digest(rpki.POW.SHA1_DIGEST)
+  d.update(bytes)
+  return d.digest()
+
+def sha256(bytes):
+  """
+  Calculate SHA-256 digest of some data.
+  Convenience wrapper around rpki.POW.Digest class.
+  """
+
+  d = rpki.POW.Digest(rpki.POW.SHA256_DIGEST)
+  d.update(bytes)
+  return d.digest()
+
 
 class X501DN(object):
   """
@@ -207,12 +229,14 @@ class DER_object(object):
     """
     Test whether this object is empty.
     """
+
     return all(getattr(self, a, None) is None for a in self.formats)
 
   def clear(self):
     """
     Make this object empty.
     """
+
     for a in self.formats + self.other_clear:
       setattr(self, a, None)
     self.filename = None
@@ -223,6 +247,7 @@ class DER_object(object):
     """
     Initialize a DER_object.
     """
+
     self.clear()
     if len(kw):
       self.set(**kw)
@@ -271,6 +296,7 @@ class DER_object(object):
     """
     Check for updates to a DER object that auto-updates from a file.
     """
+
     if self.filename is None:
       return
     try:
@@ -301,6 +327,7 @@ class DER_object(object):
     """
     Perform basic checks on a DER object.
     """
+
     self.check_auto_update()
     assert not self.empty()
 
@@ -309,6 +336,7 @@ class DER_object(object):
     Set the POW value of this object based on a PEM input value.
     Subclasses may need to override this.
     """
+
     assert self.empty()
     self.POW = self.POW_class.pemRead(pem)
 
@@ -317,6 +345,7 @@ class DER_object(object):
     Get the DER value of this object.
     Subclasses may need to override this method.
     """
+
     self.check()
     if self.DER:
       return self.DER
@@ -330,6 +359,7 @@ class DER_object(object):
     Get the rpki.POW value of this object.
     Subclasses may need to override this method.
     """
+
     self.check()
     if not self.POW:                    # pylint: disable=E0203
       self.POW = self.POW_class.derRead(self.get_DER())
@@ -339,18 +369,21 @@ class DER_object(object):
     """
     Get the Base64 encoding of the DER value of this object.
     """
+
     return base64_with_linebreaks(self.get_DER())
 
   def get_PEM(self):
     """
     Get the PEM representation of this object.
     """
+
     return self.get_POW().pemWrite()
 
   def __cmp__(self, other):
     """
     Compare two DER-encoded objects.
     """
+
     if self is None and other is None:
       return 0
     elif self is None:
@@ -367,6 +400,7 @@ class DER_object(object):
     Return hexadecimal string representation of SKI for this object.
     Only work for subclasses that implement get_SKI().
     """
+
     ski = self.get_SKI()
     return ":".join(("%02X" % ord(i) for i in ski)) if ski else ""
 
@@ -375,6 +409,7 @@ class DER_object(object):
     Calculate g(SKI) for this object.  Only work for subclasses
     that implement get_SKI().
     """
+
     return base64.urlsafe_b64encode(self.get_SKI()).rstrip("=")
 
   def hAKI(self):
@@ -382,6 +417,7 @@ class DER_object(object):
     Return hexadecimal string representation of AKI for this
     object.  Only work for subclasses that implement get_AKI().
     """
+
     aki = self.get_AKI()
     return ":".join(("%02X" % ord(i) for i in aki)) if aki else ""
 
@@ -390,24 +426,28 @@ class DER_object(object):
     Calculate g(AKI) for this object.  Only work for subclasses
     that implement get_AKI().
     """
+
     return base64.urlsafe_b64encode(self.get_AKI()).rstrip("=")
 
   def get_AKI(self):
     """
     Get the AKI extension from this object, if supported.
     """
+
     return self.get_POW().getAKI()
 
   def get_SKI(self):
     """
     Get the SKI extension from this object, if supported.
     """
+
     return self.get_POW().getSKI()
 
   def get_EKU(self):
     """
     Get the Extended Key Usage extension from this object, if supported.
     """
+
     return self.get_POW().getEKU()
 
   def get_SIA(self):
@@ -415,6 +455,7 @@ class DER_object(object):
     Get the SIA extension from this object.  Only works for subclasses
     that support getSIA().
     """
+
     return self.get_POW().getSIA()
 
   def get_sia_directory_uri(self):
@@ -422,6 +463,7 @@ class DER_object(object):
     Get SIA directory (id-ad-caRepository) URI from this object.
     Only works for subclasses that support getSIA().
     """
+
     sia = self.get_POW().getSIA()
     return None if sia is None else first_rsync_uri(sia[0])
 
@@ -430,6 +472,7 @@ class DER_object(object):
     Get SIA manifest (id-ad-rpkiManifest) URI from this object.
     Only works for subclasses that support getSIA().
     """
+
     sia = self.get_POW().getSIA()
     return None if sia is None else first_rsync_uri(sia[1])
 
@@ -438,6 +481,7 @@ class DER_object(object):
     Get SIA object (id-ad-signedObject) URI from this object.
     Only works for subclasses that support getSIA().
     """
+
     sia = self.get_POW().getSIA()
     return None if sia is None else first_rsync_uri(sia[2])
 
@@ -446,6 +490,7 @@ class DER_object(object):
     Get the SIA extension from this object.  Only works for subclasses
     that support getAIA().
     """
+
     return self.get_POW().getAIA()
 
   def get_aia_uri(self):
@@ -453,6 +498,7 @@ class DER_object(object):
     Get AIA (id-ad-caIssuers) URI from this object.
     Only works for subclasses that support getAIA().
     """
+
     return first_rsync_uri(self.get_POW().getAIA())
 
   def get_basicConstraints(self):
@@ -460,6 +506,7 @@ class DER_object(object):
     Get the basicConstraints extension from this object.  Only works
     for subclasses that support getExtension().
     """
+
     return self.get_POW().getBasicConstraints()
 
   def is_CA(self):
@@ -467,6 +514,7 @@ class DER_object(object):
     Return True if and only if object has the basicConstraints
     extension and its cA value is true.
     """
+
     basicConstraints = self.get_basicConstraints()
     return basicConstraints is not None and basicConstraints[0]
 
@@ -474,6 +522,7 @@ class DER_object(object):
     """
     Get RFC 3779 resources as rpki.resource_set objects.
     """
+
     resources = rpki.resource_set.resource_bag.from_POW_rfc3779(self.get_POW().getRFC3779())
     try:
       resources.valid_until = self.getNotAfter()
@@ -486,12 +535,14 @@ class DER_object(object):
     """
     Convert from SQL storage format.
     """
+
     return cls(DER = x)
 
   def to_sql(self):
     """
     Convert to SQL storage format.
     """
+
     return self.get_DER()
 
   def dumpasn1(self):
@@ -522,11 +573,11 @@ class DER_object(object):
     provide more information, but should make sure to include at least
     this information at the start of the tracking line.
     """
+
     try:
-      d = rpki.POW.Digest(rpki.POW.SHA1_DIGEST)
-      d.update(self.get_DER())
-      return "%s %s %s" % (uri, self.creation_timestamp,
-                           "".join(("%02X" % ord(b) for b in d.digest())))
+      return "%s %s %s" % (uri,
+                           self.creation_timestamp,
+                           "".join(("%02X" % ord(b) for b in sha1(self.get_DER()))))
     except:                             # pylint: disable=W0702
       return uri
 
@@ -534,12 +585,14 @@ class DER_object(object):
     """
     Pickling protocol -- pickle the DER encoding.
     """
+
     return self.get_DER()
 
   def __setstate__(self, state):
     """
     Pickling protocol -- unpickle the DER encoding.
     """
+
     self.set(DER = state)
 
 class X509(DER_object):
@@ -559,48 +612,56 @@ class X509(DER_object):
     """
     Get the issuer of this certificate.
     """
+
     return X501DN.from_POW(self.get_POW().getIssuer())
 
   def getSubject(self):
     """
     Get the subject of this certificate.
     """
+
     return X501DN.from_POW(self.get_POW().getSubject())
 
   def getNotBefore(self):
     """
     Get the inception time of this certificate.
     """
+
     return self.get_POW().getNotBefore()
 
   def getNotAfter(self):
     """
     Get the expiration time of this certificate.
     """
+
     return self.get_POW().getNotAfter()
 
   def getSerial(self):
     """
     Get the serial number of this certificate.
     """
+
     return self.get_POW().getSerial()
 
   def getPublicKey(self):
     """
     Extract the public key from this certificate.
     """
+
     return PublicKey(POW = self.get_POW().getPublicKey())
 
   def get_SKI(self):
     """
     Get the SKI extension from this object.
     """
+
     return self.get_POW().getSKI()
 
   def expired(self):
     """
     Test whether this certificate has expired.
     """
+
     return self.getNotAfter() <= rpki.sundial.now()
 
   def issue(self, keypair, subject_key, serial, sia, aia, crldp, notAfter,
@@ -743,6 +804,7 @@ class X509(DER_object):
     """
     Issue a BPKI certificate with values taking from an existing certificate.
     """
+
     return self.bpki_certify(
       keypair = keypair,
       subject_name = source_cert.getSubject(),
@@ -759,6 +821,7 @@ class X509(DER_object):
     """
     Issue a self-signed BPKI CA certificate.
     """
+
     return cls._bpki_certify(
       keypair = keypair,
       issuer_name = subject_name,
@@ -775,6 +838,7 @@ class X509(DER_object):
     """
     Issue a normal BPKI certificate.
     """
+
     assert keypair.get_public() == self.getPublicKey()
     return self._bpki_certify(
       keypair = keypair,
@@ -833,6 +897,7 @@ class X509(DER_object):
     allowed cases.  So this method allows X509, None, lists, and
     tuples, and returns a tuple of X509 objects.
     """
+
     if isinstance(chain, cls):
       chain = (chain,)
     return tuple(x for x in chain if x is not None)
@@ -842,6 +907,7 @@ class X509(DER_object):
     """
     Time at which this object was created.
     """
+
     return self.getNotBefore()
 
 class PKCS10(DER_object):
@@ -869,6 +935,7 @@ class PKCS10(DER_object):
     """
     Get the DER value of this certification request.
     """
+
     self.check()
     if self.DER:
       return self.DER
@@ -881,6 +948,7 @@ class PKCS10(DER_object):
     """
     Get the rpki.POW value of this certification request.
     """
+
     self.check()
     if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.PKCS10.derRead(self.get_DER())
@@ -890,18 +958,21 @@ class PKCS10(DER_object):
     """
     Extract the subject name from this certification request.
     """
+
     return X501DN.from_POW(self.get_POW().getSubject())
 
   def getPublicKey(self):
     """
     Extract the public key from this certification request.
     """
+
     return PublicKey(POW = self.get_POW().getPublicKey())
 
   def get_SKI(self):
     """
     Compute SKI for public key from this certification request.
     """
+
     return self.getPublicKey().get_SKI()
 
 
@@ -1150,6 +1221,7 @@ class PrivateKey(DER_object):
     """
     Get the DER value of this keypair.
     """
+
     self.check()
     if self.DER:
       return self.DER
@@ -1162,6 +1234,7 @@ class PrivateKey(DER_object):
     """
     Get the rpki.POW value of this keypair.
     """
+
     self.check()
     if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.Asymmetric.derReadPrivate(self.get_DER())
@@ -1171,12 +1244,14 @@ class PrivateKey(DER_object):
     """
     Get the PEM representation of this keypair.
     """
+
     return self.get_POW().pemWritePrivate()
 
   def _set_PEM(self, pem):
     """
     Set the POW value of this keypair from a PEM string.
     """
+
     assert self.empty()
     self.POW = self.POW_class.pemReadPrivate(pem)
 
@@ -1184,18 +1259,21 @@ class PrivateKey(DER_object):
     """
     Get the DER encoding of the public key from this keypair.
     """
+
     return self.get_POW().derWritePublic()
 
   def get_SKI(self):
     """
     Calculate the SKI of this keypair.
     """
+
     return self.get_POW().calculateSKI()
 
   def get_public(self):
     """
     Convert the public key of this keypair into a PublicKey object.
     """
+
     return PublicKey(DER = self.get_public_DER())
 
 class PublicKey(DER_object):
@@ -1209,6 +1287,7 @@ class PublicKey(DER_object):
     """
     Get the DER value of this public key.
     """
+
     self.check()
     if self.DER:
       return self.DER
@@ -1221,6 +1300,7 @@ class PublicKey(DER_object):
     """
     Get the rpki.POW value of this public key.
     """
+
     self.check()
     if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.Asymmetric.derReadPublic(self.get_DER())
@@ -1230,12 +1310,14 @@ class PublicKey(DER_object):
     """
     Get the PEM representation of this public key.
     """
+
     return self.get_POW().pemWritePublic()
 
   def _set_PEM(self, pem):
     """
     Set the POW value of this public key from a PEM string.
     """
+
     assert self.empty()
     self.POW = self.POW_class.pemReadPublic(pem)
 
@@ -1243,6 +1325,7 @@ class PublicKey(DER_object):
     """
     Calculate the SKI of this public key.
     """
+
     return self.get_POW().calculateSKI()
 
 class KeyParams(DER_object):
@@ -1266,6 +1349,7 @@ class RSA(PrivateKey):
     """
     Generate a new keypair.
     """
+
     if not quiet:
       logger.debug("Generating new %d-bit RSA key", keylength)
     if generate_insecure_debug_only_rsa_key is not None:
@@ -1348,6 +1432,7 @@ class CMS_object(DER_object):
     """
     Get the DER value of this CMS_object.
     """
+
     self.check()
     if self.DER:
       return self.DER
@@ -1360,6 +1445,7 @@ class CMS_object(DER_object):
     """
     Get the rpki.POW value of this CMS_object.
     """
+
     self.check()
     if not self.POW:                    # pylint: disable=E0203
       self.POW = self.POW_class.derRead(self.get_DER())
@@ -1369,6 +1455,7 @@ class CMS_object(DER_object):
     """
     Extract signingTime from CMS signed attributes.
     """
+
     return self.get_POW().signingTime()
 
   def verify(self, ta):
@@ -1540,6 +1627,7 @@ class CMS_object(DER_object):
     """
     Time at which this object was created.
     """
+
     return self.get_signingTime()
 
 
@@ -1561,6 +1649,7 @@ class Wrapped_CMS_object(CMS_object):
     """
     Get the inner content of this Wrapped_CMS_object.
     """
+
     if self.content is None:
       raise rpki.exceptions.CMSContentNotSet("Inner content of CMS object %r is not set" % self)
     return self.content
@@ -1569,6 +1658,7 @@ class Wrapped_CMS_object(CMS_object):
     """
     Set the (inner) content of this Wrapped_CMS_object, clearing the wrapper.
     """
+
     self.clear()
     self.content = content
 
@@ -1651,12 +1741,14 @@ class SignedManifest(DER_CMS_object):
     """
     Get thisUpdate value from this manifest.
     """
+
     return self.get_POW().getThisUpdate()
 
   def getNextUpdate(self):
     """
     Get nextUpdate value from this manifest.
     """
+
     return self.get_POW().getNextUpdate()
 
   @classmethod
@@ -1667,9 +1759,7 @@ class SignedManifest(DER_CMS_object):
 
     filelist = []
     for name, obj in names_and_objs:
-      d = rpki.POW.Digest(rpki.POW.SHA256_DIGEST)
-      d.update(obj.get_DER())
-      filelist.append((name.rpartition("/")[2], d.digest()))
+      filelist.append((name.rpartition("/")[2], sha256(obj.get_DER())))
     filelist.sort(key = lambda x: x[0])
 
     obj = cls.POW_class()
@@ -1697,6 +1787,7 @@ class ROA(DER_CMS_object):
     """
     Build a ROA.
     """
+
     ipv4 = ipv4.to_POW_roa_tuple() if ipv4 else None
     ipv6 = ipv6.to_POW_roa_tuple() if ipv6 else None
     obj = cls.POW_class()
@@ -1712,6 +1803,7 @@ class ROA(DER_CMS_object):
     Return a string containing data we want to log when tracking how
     objects move through the RPKI system.
     """
+
     msg = DER_CMS_object.tracking_data(self, uri)
     try:
       self.extract_if_needed()
@@ -1794,6 +1886,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
     Encode inner content for signing.
     """
+
     return lxml.etree.tostring(self.get_content(),
                                pretty_print = True,
                                encoding = self.encoding,
@@ -1803,12 +1896,14 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
     Decode XML and set inner content.
     """
+
     self.content = lxml.etree.fromstring(xml)
 
   def pretty_print_content(self):
     """
     Pretty print XML content of this message.
     """
+
     return lxml.etree.tostring(self.get_content(),
                                pretty_print = True,
                                encoding = self.encoding,
@@ -1818,6 +1913,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
     Handle XML RelaxNG schema check.
     """
+
     try:
       self.schema.assertValid(self.get_content())
     except lxml.etree.DocumentInvalid:
@@ -1830,6 +1926,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
     Write DER of current message to disk, for debugging.
     """
+
     f = open(prefix + rpki.sundial.now().isoformat() + "Z.cms", "wb")
     f.write(self.get_DER())
     f.close()
@@ -1838,6 +1935,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
     Wrap an XML PDU in CMS and return its DER encoding.
     """
+
     if self.saxify is None:
       self.set_content(msg)
     else:
@@ -1853,6 +1951,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
     Unwrap a CMS-wrapped XML PDU and return Python objects.
     """
+
     if self.dump_inbound_cms:
       self.dump_inbound_cms.dump(self)
     self.verify(ta)
@@ -1869,6 +1968,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     timestamp.  Raises an exception if the recorded timestamp is more
     recent, otherwise returns the new timestamp.
     """
+
     new_timestamp = self.get_signingTime()
     if timestamp is not None and timestamp > new_timestamp:
       if context:
@@ -1884,6 +1984,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     "last_cms_timestamp" field of an SQL object and stores the new
     timestamp back in that same field.
     """
+
     obj.last_cms_timestamp = self.check_replay(obj.last_cms_timestamp, *context)
     obj.sql_mark_dirty()
 
@@ -1913,6 +2014,7 @@ class Ghostbuster(Wrapped_CMS_object):
     Encode inner content for signing.  At the moment we're treating
     the VCard as an opaque byte string, so no encoding needed here.
     """
+
     return self.get_content()
 
   def decode(self, vcard):
@@ -1920,6 +2022,7 @@ class Ghostbuster(Wrapped_CMS_object):
     Decode XML and set inner content.  At the moment we're treating
     the VCard as an opaque byte string, so no encoding needed here.
     """
+
     self.content = vcard
 
   @classmethod
@@ -1927,6 +2030,7 @@ class Ghostbuster(Wrapped_CMS_object):
     """
     Build a Ghostbuster record.
     """
+
     self = cls()
     self.set_content(vcard)
     self.sign(keypair, certs)
@@ -1944,6 +2048,7 @@ class CRL(DER_object):
     """
     Get the DER value of this CRL.
     """
+
     self.check()
     if self.DER:
       return self.DER
@@ -1956,6 +2061,7 @@ class CRL(DER_object):
     """
     Get the rpki.POW value of this CRL.
     """
+
     self.check()
     if not self.POW:                    # pylint: disable=E0203
       self.POW = rpki.POW.CRL.derRead(self.get_DER())
@@ -1965,24 +2071,28 @@ class CRL(DER_object):
     """
     Get thisUpdate value from this CRL.
     """
+
     return self.get_POW().getThisUpdate()
 
   def getNextUpdate(self):
     """
     Get nextUpdate value from this CRL.
     """
+
     return self.get_POW().getNextUpdate()
 
   def getIssuer(self):
     """
     Get issuer value of this CRL.
     """
+
     return X501DN.from_POW(self.get_POW().getIssuer())
 
   def getCRLNumber(self):
     """
     Get CRL Number value for this CRL.
     """
+
     return self.get_POW().getCRLNumber()
 
   @classmethod
@@ -1990,6 +2100,7 @@ class CRL(DER_object):
     """
     Generate a new CRL.
     """
+
     crl = rpki.POW.CRL()
     crl.setVersion(version)
     crl.setIssuer(issuer.getSubject().get_POW())
@@ -2006,6 +2117,7 @@ class CRL(DER_object):
     """
     Time at which this object was created.
     """
+
     return self.getThisUpdate()
 
 ## @var uri_dispatch_map
@@ -2024,4 +2136,5 @@ def uri_dispatch(uri):
   """
   Return the Python class object corresponding to a given URI.
   """
+
   return uri_dispatch_map[os.path.splitext(uri)[1]]

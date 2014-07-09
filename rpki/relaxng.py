@@ -1806,29 +1806,30 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
     <value>3</value>
   </define>
   <!-- Top level PDU is either a query or a reply. -->
-  <start>
+  <start combine="choice">
     <element name="msg">
       <attribute name="version">
         <ref name="version"/>
       </attribute>
-      <choice>
-        <group>
-          <attribute name="type">
-            <value>query</value>
-          </attribute>
-          <zeroOrMore>
-            <ref name="query_elt"/>
-          </zeroOrMore>
-        </group>
-        <group>
-          <attribute name="type">
-            <value>reply</value>
-          </attribute>
-          <zeroOrMore>
-            <ref name="reply_elt"/>
-          </zeroOrMore>
-        </group>
-      </choice>
+      <attribute name="type">
+        <value>query</value>
+      </attribute>
+      <zeroOrMore>
+        <ref name="query_elt"/>
+      </zeroOrMore>
+    </element>
+  </start>
+  <start combine="choice">
+    <element name="msg">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="type">
+        <value>reply</value>
+      </attribute>
+      <zeroOrMore>
+        <ref name="reply_elt"/>
+      </zeroOrMore>
     </element>
   </start>
   <!-- PDUs allowed in  queries and replies. -->
@@ -1865,6 +1866,14 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
       </data>
     </attribute>
   </define>
+  <!-- Digest of objects being withdrawn -->
+  <define name="hash">
+    <attribute name="hash">
+      <data type="string">
+        <param name="pattern">[0-9a-fA-F]+</param>
+      </data>
+    </attribute>
+  </define>
   <!-- Error codes. -->
   <define name="error">
     <data type="token">
@@ -1872,16 +1881,19 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
     </data>
   </define>
   <!-- <publish/> element -->
-  <define name="publish_query" combine="choice">
+  <define name="publish_query">
     <element name="publish">
       <optional>
         <ref name="tag"/>
       </optional>
       <ref name="uri"/>
+      <optional>
+        <ref name="hash"/>
+      </optional>
       <ref name="base64"/>
     </element>
   </define>
-  <define name="publish_reply" combine="choice">
+  <define name="publish_reply">
     <element name="publish">
       <optional>
         <ref name="tag"/>
@@ -1890,15 +1902,16 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
     </element>
   </define>
   <!-- <withdraw/> element -->
-  <define name="withdraw_query" combine="choice">
+  <define name="withdraw_query">
     <element name="withdraw">
       <optional>
         <ref name="tag"/>
       </optional>
       <ref name="uri"/>
+      <ref name="hash"/>
     </element>
   </define>
-  <define name="withdraw_reply" combine="choice">
+  <define name="withdraw_reply">
     <element name="withdraw">
       <optional>
         <ref name="tag"/>
@@ -2162,24 +2175,35 @@ rrdp = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding
             <ref name="serial"/>
           </attribute>
           <oneOrMore>
-            <choice>
-              <element name="publish">
-                <attribute name="uri">
-                  <ref name="uri"/>
-                </attribute>
-                <ref name="base64"/>
-              </element>
-              <element name="withdraw">
-                <attribute name="uri">
-                  <ref name="uri"/>
-                </attribute>
-              </element>
-            </choice>
+            <ref name="delta_element"/>
           </oneOrMore>
         </element>
       </oneOrMore>
     </element>
   </start>
+  <define name="delta_element" combine="choice">
+    <element name="publish">
+      <attribute name="uri">
+        <ref name="uri"/>
+      </attribute>
+      <optional>
+        <attribute name="hash">
+          <ref name="hash"/>
+        </attribute>
+      </optional>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="delta_element" combine="choice">
+    <element name="withdraw">
+      <attribute name="uri">
+        <ref name="uri"/>
+      </attribute>
+      <attribute name="hash">
+        <ref name="hash"/>
+      </attribute>
+    </element>
+  </define>
 </grammar>
 <!--
   Local Variables:

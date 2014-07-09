@@ -312,42 +312,38 @@ class self_elt(data_elt):
   def serve_publish_world_now(self, cb, eb):
     """
     Handle a left-right publish_world_now action for this self.
-
-    The publication stuff needs refactoring, right now publication is
-    interleaved with local operations in a way that forces far too
-    many bounces through the task system for any complex update.  The
-    whole thing ought to be rewritten to queue up outgoing publication
-    PDUs and only send them when we're all done or when we need to
-    force publication at a particular point in a multi-phase operation.
-
-    Once that reorganization has been done, this method should be
-    rewritten to reuse the low-level publish() methods that each
-    object will have...but we're not there yet.  So, for now, we just
-    do this via brute force.  Think of it as a trial version to see
-    whether we've identified everything that needs to be republished
-    for this operation.
     """
 
+    publisher = rpki.rpkid.publication_queue()
+
     def loop(iterator, parent):
-      q_msg = rpki.publication.msg.query()
+      repo = parent.repository
       for ca in parent.cas:
         ca_detail = ca.active_ca_detail
         if ca_detail is not None:
-          q_msg.append(rpki.publication.publish_elt.make(
-            ca_detail.crl_uri, ca_detail.latest_crl))
-          q_msg.append(rpki.publication.publish_elt.make(
-            ca_detail.manifest_uri, ca_detail.latest_manifest))
-          q_msg.extend(rpki.publication.publish_elt.make(
-            c.uri, c.cert) for c in ca_detail.child_certs)
-          q_msg.extend(rpki.publication.publish_elt.make(
-            r.uri, r.roa) for r in ca_detail.roas if r.roa is not None)
-          q_msg.extend(rpki.publication.publish_elt.make(
-            g.uri, g.ghostbuster) for g in ca_detail.ghostbusters)
-          q_msg.extend(rpki.publication.publish_elt.make(
-            c.uri, c.cert) for c in ca_detail.ee_certificates)
-      parent.repository.call_pubd(iterator, eb, q_msg)
+          publisher.queue(
+            uri = ca_detail.crl_uri, new_obj = ca_detail.latest_crl, repository = repo)
+          publisher.queue(
+            uri = ca_detail.manifest_uri, new_obj = ca_detail.latest_manifest, repository = repo)
+          for c in ca_detail.child_certs:
+            publisher.queue(
+              uri = c.uri, new_obj = c.cert, repository = repo)
+          for r in ca_detail.roas:
+            if r.roa is not None:
+              publisher.queue(
+                uri = r.uri, new_obj = r.roa, repository = repo)
+          for g in ca_detail.ghostbusters:
+            publisher.queue(
+              uri = g.uri, new_obj = g.ghostbuster, repository = repo)
+          for c in ca_detail.ee_certificates:
+            publisher.queue(
+              uri = c.uri, new_obj = c.cert, repository = repo)
+      iterator()
 
-    rpki.async.iterator(self.parents, loop, cb)
+    def done():
+      publisher.call_pubd(cb, eb)
+
+    rpki.async.iterator(self.parents, loop, done)
 
   def serve_run_now(self, cb, eb):
     """

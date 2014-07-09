@@ -43,29 +43,30 @@
     <value>3</value>
   </define>
   <!-- Top level PDU is either a query or a reply. -->
-  <start>
+  <start combine="choice">
     <element name="msg">
       <attribute name="version">
         <ref name="version"/>
       </attribute>
-      <choice>
-        <group>
-          <attribute name="type">
-            <value>query</value>
-          </attribute>
-          <zeroOrMore>
-            <ref name="query_elt"/>
-          </zeroOrMore>
-        </group>
-        <group>
-          <attribute name="type">
-            <value>reply</value>
-          </attribute>
-          <zeroOrMore>
-            <ref name="reply_elt"/>
-          </zeroOrMore>
-        </group>
-      </choice>
+      <attribute name="type">
+        <value>query</value>
+      </attribute>
+      <zeroOrMore>
+        <ref name="query_elt"/>
+      </zeroOrMore>
+    </element>
+  </start>
+  <start combine="choice">
+    <element name="msg">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="type">
+        <value>reply</value>
+      </attribute>
+      <zeroOrMore>
+        <ref name="reply_elt"/>
+      </zeroOrMore>
     </element>
   </start>
   <!-- PDUs allowed in  queries and replies. -->
@@ -102,6 +103,14 @@
       </data>
     </attribute>
   </define>
+  <!-- Digest of objects being withdrawn -->
+  <define name="hash">
+    <attribute name="hash">
+      <data type="string">
+        <param name="pattern">[0-9a-fA-F]+</param>
+      </data>
+    </attribute>
+  </define>
   <!-- Error codes. -->
   <define name="error">
     <data type="token">
@@ -109,16 +118,19 @@
     </data>
   </define>
   <!-- <publish/> element -->
-  <define name="publish_query" combine="choice">
+  <define name="publish_query">
     <element name="publish">
       <optional>
         <ref name="tag"/>
       </optional>
       <ref name="uri"/>
+      <optional>
+        <ref name="hash"/>
+      </optional>
       <ref name="base64"/>
     </element>
   </define>
-  <define name="publish_reply" combine="choice">
+  <define name="publish_reply">
     <element name="publish">
       <optional>
         <ref name="tag"/>
@@ -127,15 +139,16 @@
     </element>
   </define>
   <!-- <withdraw/> element -->
-  <define name="withdraw_query" combine="choice">
+  <define name="withdraw_query">
     <element name="withdraw">
       <optional>
         <ref name="tag"/>
       </optional>
       <ref name="uri"/>
+      <ref name="hash"/>
     </element>
   </define>
-  <define name="withdraw_reply" combine="choice">
+  <define name="withdraw_reply">
     <element name="withdraw">
       <optional>
         <ref name="tag"/>

@@ -68,20 +68,20 @@
        </publish>
      </delta>
      <delta serial="2">
-       <withdraw uri="http://host.example/foo/bar/cer1.cer"/>
+       <withdraw uri="http://host.example/foo/bar/cer1.cer" hash="deadf00d"/>
        <publish uri="http://host.example/foo/bar/cer2.cer">
          MIIE+jCCA+KgAwIBAgIBDTANBgkqhkiG9w0BAQsFADAzMTEw
          h8zeHoFVu6ghRPy5dbOA4akX/KG6b8XIx0iwPYdLiDbdWFbt
          jRBODAxN0U2NkE5RTkxNzJFNDYxMkQ4Q0Y0QzgzRjIzOERFM
        </publish>
-       <publish uri="http://host.example/foo/bar/cer3.cer">
+       <publish uri="http://host.example/foo/bar/cer3.cer" hash="deadf00d">
          MIIE+jCCA+KgAwIBAgIBDTANBgkqhkiG9w0BAQsFADAzMTEw
          h8zeHoFVu6ghRPy5dbOA4akX/KG6b8XIx0iwPYdLiDbdWFbt
          jRBODAxN0U2NkE5RTkxNzJFNDYxMkQ4Q0Y0QzgzRjIzOERFM
        </publish>
      </delta>
      <delta serial="3">
-       <withdraw uri="http://host.example/foo/bar/cer2.cer"/>
+       <withdraw uri="http://host.example/foo/bar/cer2.cer" hash="deadf00d"/>
      </delta>
    </deltas>
 

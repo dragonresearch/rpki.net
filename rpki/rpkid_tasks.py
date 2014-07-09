@@ -308,9 +308,9 @@ class UpdateChildrenTask(AbstractTask):
                          self.child.child_handle, child_cert.cert.gSKI(),
                          old_resources.valid_until, irdb_resources.valid_until)
             child_cert.sql_delete()
-            self.publisher.withdraw(
+            self.publisher.queue(
               uri = child_cert.uri,
-              obj = child_cert.cert,
+              old_obj = child_cert.cert,
               repository = ca.parent.repository)
             ca_detail.generate_manifest(publisher = self.publisher)
 

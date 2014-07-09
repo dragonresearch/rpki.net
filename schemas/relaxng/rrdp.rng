@@ -124,24 +124,35 @@
             <ref name="serial"/>
           </attribute>
           <oneOrMore>
-            <choice>
-              <element name="publish">
-                <attribute name="uri">
-                  <ref name="uri"/>
-                </attribute>
-                <ref name="base64"/>
-              </element>
-              <element name="withdraw">
-                <attribute name="uri">
-                  <ref name="uri"/>
-                </attribute>
-              </element>
-            </choice>
+            <ref name="delta_element"/>
           </oneOrMore>
         </element>
       </oneOrMore>
     </element>
   </start>
+  <define name="delta_element" combine="choice">
+    <element name="publish">
+      <attribute name="uri">
+        <ref name="uri"/>
+      </attribute>
+      <optional>
+        <attribute name="hash">
+          <ref name="hash"/>
+        </attribute>
+      </optional>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="delta_element" combine="choice">
+    <element name="withdraw">
+      <attribute name="uri">
+        <ref name="uri"/>
+      </attribute>
+      <attribute name="hash">
+        <ref name="hash"/>
+      </attribute>
+    </element>
+  </define>
 </grammar>
 <!--
   Local Variables:

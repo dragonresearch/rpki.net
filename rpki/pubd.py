@@ -188,7 +188,7 @@ class session_obj(rpki.sql.sql_persistent):
     "uuid")
 
   ## @var expiration_interval
-  # How long to wait after retiring a snapshot before purging it from the database. 
+  # How long to wait after retiring a snapshot before purging it from the database.
 
   expiration_interval = rpki.sundial.timedelta(hours = 6)
 
@@ -318,7 +318,7 @@ class snapshot_obj(rpki.sql.sql_persistent):
     obj.delete(self)
 
 
-    
+
 class object_obj(rpki.sql.sql_persistent):
   """
   A published object.

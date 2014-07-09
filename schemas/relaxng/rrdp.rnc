@@ -61,9 +61,19 @@ start |= element deltas {
   attribute to         { serial },
   element delta {
     attribute serial   { serial },
-    ( element publish  { attribute uri { uri }, base64 } |
-      element withdraw { attribute uri { uri }         } )+
+    delta_element+
   }+
+}
+
+delta_element |= element publish  {
+  attribute uri  { uri },
+  attribute hash { hash }?,
+  base64
+}
+
+delta_element |= element withdraw {
+  attribute uri  { uri },
+  attribute hash { hash }
 }
 
 # Local Variables:

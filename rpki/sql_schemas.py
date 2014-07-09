@@ -245,7 +245,7 @@ CREATE TABLE ee_cert (
 
 ## @var pubd
 ## SQL schema pubd
-pubd = '''-- $Id: pubd.sql 5884 2014-07-04 00:37:08Z sra $
+pubd = '''-- $Id: pubd.sql 5887 2014-07-07 23:13:35Z sra $
 
 -- Copyright (C) 2012--2014  Dragon Research Labs ("DRL")
 -- Portions copyright (C) 2009--2010  Internet Systems Consortium ("ISC")

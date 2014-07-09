@@ -82,24 +82,24 @@ def first_rsync_uri(xia):
         return uri
   return None
 
-def sha1(bytes):
+def sha1(data):
   """
   Calculate SHA-1 digest of some data.
   Convenience wrapper around rpki.POW.Digest class.
   """
 
   d = rpki.POW.Digest(rpki.POW.SHA1_DIGEST)
-  d.update(bytes)
+  d.update(data)
   return d.digest()
 
-def sha256(bytes):
+def sha256(data):
   """
   Calculate SHA-256 digest of some data.
   Convenience wrapper around rpki.POW.Digest class.
   """
 
   d = rpki.POW.Digest(rpki.POW.SHA256_DIGEST)
-  d.update(bytes)
+  d.update(data)
   return d.digest()
 
 

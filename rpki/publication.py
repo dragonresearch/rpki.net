@@ -49,11 +49,15 @@ class base_publication_elt(rpki.xml_utils.base_elt, publication_namespace):
   Base element for publication protocol.  Publish and withdraw PDUs subclass this.
   """
 
-  attributes = ("tag", "uri")
+  attributes = ("tag", "uri", "hash")
+
+  tag = None
+  uri = None
+  hash = None
   payload = None
 
   def __repr__(self):
-    return rpki.log.log_repr(self, self.uri, self.payload)
+    return rpki.log.log_repr(self, self.tag, self.uri, self.hash, self.payload)
 
   def serve_dispatch(self, r_msg, snapshot, cb, eb):
     """
@@ -138,15 +142,6 @@ class publish_elt(base_publication_elt):
       f.write(self.payload.get_DER())
     os.rename(filename_tmp, filename)
 
-  @classmethod
-  def make(cls, uri, obj, tag = None):
-    """
-    Construct a publication PDU.
-    """
-
-    assert isinstance(obj, rpki.x509.uri_dispatch(uri))
-    return cls.make_pdu(uri = uri, payload = obj, tag = tag)
-
 
 class withdraw_elt(base_publication_elt):
 
@@ -176,15 +171,6 @@ class withdraw_elt(base_publication_elt):
         break
       else:
         dirname = os.path.dirname(dirname)
-
-  @classmethod
-  def make(cls, uri, obj, tag = None):
-    """
-    Construct a withdrawal PDU.
-    """
-
-    assert isinstance(obj, rpki.x509.uri_dispatch(uri))
-    return cls.make_pdu(uri = uri, tag = tag)
 
 
 class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: rrdp.rnc 5879 2014-06-30 16:08:27Z sra $
+  $Id: rrdp.rnc 5888 2014-07-09 05:39:54Z sra $
   
   RelaxNG schema for RPKI Repository Delta Protocol (RRDP).
   

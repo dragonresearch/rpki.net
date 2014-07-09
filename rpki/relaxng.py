@@ -1763,7 +1763,7 @@ publication_control = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version
 ## Parsed RelaxNG publication schema
 publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication.rnc 5881 2014-07-03 16:55:02Z sra $
+  $Id: publication.rnc 5888 2014-07-09 05:39:54Z sra $
   
   RelaxNG schema for RPKI publication protocol, from current I-D.
   
@@ -2051,7 +2051,7 @@ router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version=
 ## Parsed RelaxNG rrdp schema
 rrdp = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: rrdp.rnc 5879 2014-06-30 16:08:27Z sra $
+  $Id: rrdp.rnc 5888 2014-07-09 05:39:54Z sra $
   
   RelaxNG schema for RPKI Repository Delta Protocol (RRDP).
   

@@ -337,6 +337,7 @@ class sync_wrapper(object):
 
   res = None
   err = None
+  fin = False
 
   def __init__(self, func):
     self.func = func
@@ -347,6 +348,8 @@ class sync_wrapper(object):
     exit the event loop.
     """
     self.res = res
+    self.fin = True
+    logger.debug("%r callback with result %r", self, self.res)
     raise ExitNow
 
   def eb(self, err):
@@ -356,6 +359,8 @@ class sync_wrapper(object):
     """
     exc_info = sys.exc_info()
     self.err = exc_info if exc_info[1] is err else err
+    self.fin = True
+    logger.debug("%r errback with exception %r", self, self.err)
     raise ExitNow
 
   def __call__(self, *args, **kwargs):
@@ -370,6 +375,8 @@ class sync_wrapper(object):
 
     event_defer(thunk)
     event_loop()
+    if not self.fin:
+      logger.warning("%r event_loop terminated without callback or errback", self)
     if self.err is None:
       return self.res
     elif isinstance(self.err, tuple):

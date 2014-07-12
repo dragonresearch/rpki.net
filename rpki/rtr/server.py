@@ -324,7 +324,7 @@ class ServerChannel(rpki.rtr.channels.PDUChannel):
     old_serial = self.current_serial
     return old_serial != self.get_serial()
 
-  def notify(self, data = None):
+  def notify(self, data = None, force = False):
     """
     Cronjob instance kicked us: check whether our serial number has
     changed, and send a notify message if so.
@@ -335,7 +335,7 @@ class ServerChannel(rpki.rtr.channels.PDUChannel):
     whether we care about a particular change set or not.
     """
 
-    if self.check_serial():
+    if force or self.check_serial():
       self.push_pdu(SerialNotifyPDU(version = self.version,
                                     serial  = self.current_serial,
                                     nonce   = self.current_nonce))

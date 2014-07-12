@@ -56,17 +56,21 @@ class ReplayClock(object):
     self.timestamps = dict((v, sorted(set(Timestamp(int(f.split(".")[0]))
                                           for f in glob.iglob("*.ax.v%d" % v))))
                            for v in rpki.rtr.pdus.PDU.version_map)
-    self.offset = min(t[0] for t in self.timestamps.itervalues()) - Timestamp.now()
-    self.nonce = rpki.rtr.generator.new_nonce()
+    self.epoch =  min(t[0] for t in self.timestamps.itervalues())
+    self.offset = self.epoch - Timestamp.now()
+    self.nonce = rpki.rtr.generator.AXFRSet.new_nonce(0)
 
   def __nonzero__(self):
     return sum(len(t) for t in self.timestamps.itervalues()) > 0
 
   def now(self):
-    return Timestamp.now(self.offset)
+    now = Timestamp.now(self.offset)
+    return now
 
   def read_current(self, version):
     now = self.now()
+    if version is None:
+      return self.epoch, self.nonce
     while len(self.timestamps[version]) > 1 and now >= self.timestamps[version][1]:
       del self.timestamps[version][0]
     return self.timestamps[version][0], self.nonce
@@ -120,7 +124,7 @@ def server_main(args):
       new_serial = server.get_serial()
       if old_serial != new_serial:
         logger.debug("[Serial bumped from %d (%s) to %d (%s)]", old_serial, old_serial, new_serial, new_serial)
-        server.notify()
+        server.notify(force = True)
         old_serial = new_serial
       asyncore.loop(timeout = clock.siesta(), count = 1)
   except KeyboardInterrupt:

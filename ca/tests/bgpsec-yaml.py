@@ -56,7 +56,7 @@ class Kid(object):
 
 kids = [Kid(n + 1) for n in xrange(200)]
 
-shell_fmt = "shell set -x; ../../../rp/rpki-rtr/rpki-rtr cronjob rcynic-data/authenticated && tar %svf rpki-rtr.tar *.[ai]x.v*"
+shell_fmt = "shell set -x; ../../../rp/rpki-rtr/rpki-rtr cronjob rcynic-data/authenticated && tar %svf rpki-rtr.tar *.[ai]x*.v*"
 shell_first = shell_fmt % "c"
 shell_next  = shell_fmt % "u"
 

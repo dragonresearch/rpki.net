@@ -163,6 +163,8 @@ def main():
                                                    log_handler = lambda: logging.StreamHandler(sys.stdout)))
   logger.info("Starting")
 
+  rpki.http.http_client.timeout = rpki.sundial.timedelta(hours = 1)
+
   pubd_process = None
   rootd_process = None
   rsyncd_process = None
@@ -382,6 +384,9 @@ class router_cert(object):
   """
 
   _ecparams = None
+  _keypair  = None
+  _pkcs10   = None
+  _gski     = None
 
   @classmethod
   def ecparams(cls):
@@ -392,18 +397,33 @@ class router_cert(object):
   def __init__(self, asn, router_id):
     self.asn = rpki.resource_set.resource_set_as("".join(str(asn).split()))
     self.router_id = router_id
-    self.keypair = rpki.x509.ECDSA.generate(self.ecparams())
-    self.pkcs10 = rpki.x509.PKCS10.create(keypair = self.keypair)
-    self.gski = self.pkcs10.gSKI()
     self.cn   = "ROUTER-%08x" % self.asn[0].min
     self.sn   = "%08x" % self.router_id
     self.eku  = rpki.oids.id_kp_bgpsec_router
 
+  @property
+  def keypair(self):
+    if self._keypair is None:
+       self._keypair = rpki.x509.ECDSA.generate(self.ecparams())
+    return self._keypair
+
+  @property
+  def pkcs10(self):
+    if self._pkcs10 is None:
+      self._pkcs10 = rpki.x509.PKCS10.create(keypair = self.keypair)
+    return self._pkcs10
+
+  @property
+  def gski(self):
+    if self._gski is None:
+      self._gski = self.pkcs10.gSKI()
+    return self._gski
+
   def __eq__(self, other):
-    return self.asn == other.asn and self.sn == other.sn and self.gski == other.gski
+    return self.asn == other.asn and self.sn == other.sn
 
   def __hash__(self):
-    return tuple(self.asn).__hash__() + self.cn.__hash__() + self.sn.__hash__() + self.gski.__hash__()
+    return tuple(self.asn).__hash__() + self.cn.__hash__() + self.sn.__hash__()
 
   def __str__(self):
     return "%s: %s,%s: %s" % (self.asn, self.cn, self.sn, self.gski)

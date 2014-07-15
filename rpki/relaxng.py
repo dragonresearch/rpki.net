@@ -1837,12 +1837,14 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
     <choice>
       <ref name="publish_query"/>
       <ref name="withdraw_query"/>
+      <ref name="list_query"/>
     </choice>
   </define>
   <define name="reply_elt">
     <choice>
       <ref name="publish_reply"/>
       <ref name="withdraw_reply"/>
+      <ref name="list_reply"/>
       <ref name="report_error_reply"/>
     </choice>
   </define>
@@ -1917,6 +1919,23 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
         <ref name="tag"/>
       </optional>
       <ref name="uri"/>
+    </element>
+  </define>
+  <!-- <list/> element -->
+  <define name="list_query">
+    <element name="list">
+      <optional>
+        <ref name="tag"/>
+      </optional>
+    </element>
+  </define>
+  <define name="list_reply">
+    <element name="list">
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="hash"/>
     </element>
   </define>
   <!-- <report_error/> element -->

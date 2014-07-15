@@ -62,7 +62,7 @@ CREATE TABLE snapshot (
 CREATE TABLE object (
         object_id               SERIAL NOT NULL,
         uri                     VARCHAR(255) NOT NULL,
-        hash                    BINARY(32) NOT NULL,
+        hash                    CHAR(64) NOT NULL,
         payload                 LONGBLOB NOT NULL,
         published_snapshot_id   BIGINT UNSIGNED,
         withdrawn_snapshot_id   BIGINT UNSIGNED,

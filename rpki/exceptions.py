@@ -288,6 +288,16 @@ class NoObjectAtURI(RPKI_Exception):
   No object published at specified URI.
   """
 
+class ExistingObjectAtURI(RPKI_Exception):
+  """
+  An object has already been published at specified URI.
+  """
+
+class DifferentObjectAtURI(RPKI_Exception):
+  """
+  An object with a different hash exists at specified URI.
+  """
+
 class CMSContentNotSet(RPKI_Exception):
   """
   Inner content of a CMS_object has not been set.  If object is known

@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 
 
 class publication_namespace(object):
-
   xmlns = "http://www.hactrn.net/uris/rpki/publication-spec/"
   nsmap = { None : xmlns }
 
@@ -103,6 +102,9 @@ class base_publication_elt(rpki.xml_utils.base_elt, publication_namespace):
 
 
 class publish_elt(base_publication_elt):
+  """
+  <publish/> element.
+  """
 
   element_name = "publish"
 
@@ -132,7 +134,7 @@ class publish_elt(base_publication_elt):
     """
 
     logger.info("Publishing %s", self.payload.tracking_data(self.uri))
-    snapshot.publish(self.client, self.payload, self.uri)
+    snapshot.publish(self.client, self.payload, self.uri, self.hash)
     filename = self.uri_to_filename()
     filename_tmp = filename + ".tmp"
     dirname = os.path.dirname(filename)
@@ -144,6 +146,9 @@ class publish_elt(base_publication_elt):
 
 
 class withdraw_elt(base_publication_elt):
+  """
+  <withdraw/> element.
+  """
 
   element_name = "withdraw"
 
@@ -153,7 +158,7 @@ class withdraw_elt(base_publication_elt):
     """
 
     logger.info("Withdrawing %s", self.uri)
-    snapshot.withdraw(self.client, self.uri)
+    snapshot.withdraw(self.client, self.uri, self.hash)
     filename = self.uri_to_filename()
     try:
       os.remove(filename)
@@ -171,6 +176,24 @@ class withdraw_elt(base_publication_elt):
         break
       else:
         dirname = os.path.dirname(dirname)
+
+
+class list_elt(base_publication_elt):
+  """
+  <list/> element.
+  """
+
+  def serve_dispatch(self, r_msg, snapshot, cb, eb):
+    """
+    Action dispatch handler.
+    """
+
+    for obj in self.client.published_objects:
+      r_pdu = self.__class__()
+      r_pdu.tag = self.tag
+      r_pdu.uri = obj.uri
+      r_pdu.hash = obj.hash
+      r_msg.append(r_pdu)
 
 
 class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):

@@ -58,8 +58,8 @@ start |= element msg {
 
 # PDUs allowed in  queries and replies.
 
-query_elt = publish_query | withdraw_query
-reply_elt = publish_reply | withdraw_reply | report_error_reply
+query_elt = publish_query | withdraw_query | list_query
+reply_elt = publish_reply | withdraw_reply | list_reply | report_error_reply
 
 # Tag attributes for bulk operations.
 
@@ -90,6 +90,11 @@ publish_reply = element publish { tag?, uri }
 
 withdraw_query = element withdraw { tag?, uri, hash }
 withdraw_reply = element withdraw { tag?, uri }
+
+# <list/> element
+
+list_query = element list { tag? }
+list_reply = element list { tag?, uri, hash }
 
 # <report_error/> element
 

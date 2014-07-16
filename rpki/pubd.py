@@ -110,6 +110,7 @@ class main(object):
     self.publication_multimodule = self.cfg.getboolean("publication-multimodule", False)
 
     self.rrdp_expiration_interval = rpki.sundial.timedelta.parse(self.cfg.get("rrdp-expiration-interval", "6h"))
+    self.rrdp_uri_base = self.cfg.get("rrdp-uri-base")
     self.rrdp_publication_base = self.cfg.get("rrdp-publication-base", "rrdp-publication/")
 
     self.session = session_obj.fetch(self)
@@ -227,7 +228,7 @@ class session_obj(rpki.sql.sql_persistent):
   def new_snapshot(self):
     return snapshot_obj.create(self)
 
-  def add_snapshot(self, new_snapshot):
+  def activate_snapshot(self, new_snapshot):
     now = rpki.sundial.now()
     old_snapshot = self.current_snapshot
     if old_snapshot is not None:
@@ -241,6 +242,66 @@ class session_obj(rpki.sql.sql_persistent):
                                                  "session_id = %s AND expires IS NOT NULL AND expires < %s",
                                                  (self.session_id, rpki.sundial.now())):
       snapshot.sql_delete()
+
+  def write_notification(self):
+    """
+    Write current notification file to disk.
+    """
+
+    serial = self.current_shapshot.serial
+    fn = "%s/notification.xml" % self.uuid
+
+    xml = Element(rrdp_namespace + "notification",
+                  version = rrdp_version,
+                  session_id = uuid,
+                  serial = serial)
+
+    SubElement(xml, rrdp_namespace + "snapshot",
+               uri = "%s/%s/snapshot/%d.xml" % (self.rrdp_uri_base, self.uuid, serial),
+               hash = um_where_do_we_store_this)
+
+    for delta in some_sql_query_here():
+      SubElement(xml, rrdp_namespace + "delta",
+                 from = delta.from_serial,
+                 to = delta.to_serial,
+                 uri = delta.uri,
+                 hash = delta.hash)
+
+    rpki.relaxng.rrdp.assertValid(xml)
+    tn = os.path.join(self.rrdp_publication_base, fn + ".%s.tmp" % os.getpid())
+    if not os.path.isdir(os.path.dirname(tn)):
+      os.makedirs(os.path.dirname(tn))
+    ElementTree(xml).write(tn)
+    os.rename(tn, os.path.join(self.rrdp_publication_base, fn))
+
+
+  def write_snapshot(self):
+    """
+    Write current RRDP snapshot to disk.
+    """
+
+    serial = self.current_shapshot.serial
+    fn = "%s/snapshot/%d.xml" % (self.uuid, serial)
+
+    if os.path.exists(os.path.join(self.rrdp_publication_base, fn)):
+      logger.warning("Snapshot %s already exists, this is suprising, not regenerating")
+      return
+
+    xml = Element(rrdp_namespace + "snapshot", version = rrdp_version, session_id = uuid, serial = serial)
+
+    for obj in object_obj.sql_fetch_where(self.gctx, "session_id = %s AND withdrawn_snapshot_id IS NULL",
+                                          (self.session_id,)):
+      se = SubElement(xml, rrdp_namespace + "publish", uri = obj.uri)
+      se.text = "\n" + obj.get_Base64()
+      se.tail = "\n"
+
+    rpki.relaxng.rrdp.assertValid(xml)
+
+    tn = os.path.join(self.rrdp_publication_base, fn + ".%s.tmp" % os.getpid())
+    if not os.path.isdir(os.path.dirname(tn)):
+      os.makedirs(os.path.dirname(tn))
+    ElementTree(xml).write(tn)
+    os.rename(tn, os.path.join(self.rrdp_publication_base, fn))
 
 
 class snapshot_obj(rpki.sql.sql_persistent):
@@ -341,7 +402,7 @@ class object_obj(rpki.sql.sql_persistent):
     self.gctx = snapshot.gctx
     self.uri = uri
     self.payload = obj
-    self.hash = rpki.x509.sha256(obj.get_Base64()).encode("hex")
+    self.hash = rpki.x509.sha256(obj.get_DER()).encode("hex")
     logger.debug("Computed hash %s of %r", self.hash, obj)
     self.published_snapshot_id = snapshot.snapshot_id
     self.withdrawn_snapshot_id = None

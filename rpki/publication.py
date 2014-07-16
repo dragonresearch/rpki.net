@@ -286,7 +286,7 @@ class msg(rpki.xml_utils.msg, publication_namespace):
         fail(e)
 
     def done():
-      gctx.session.add_snapshot(snapshot)
+      gctx.session.activate_snapshot(snapshot)
       cb(r_msg)
 
     rpki.async.iterator(self, loop, done)

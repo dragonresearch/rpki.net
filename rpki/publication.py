@@ -58,25 +58,6 @@ class base_publication_elt(rpki.xml_utils.base_elt, publication_namespace):
   def __repr__(self):
     return rpki.log.log_repr(self, self.tag, self.uri, self.hash, self.payload)
 
-  def serve_dispatch(self, r_msg, snapshot, cb, eb):
-    """
-    Action dispatch handler.
-    """
-
-    try:
-      self.client.check_allowed_uri(self.uri)
-      self.serve_action(snapshot)
-      r_pdu = self.__class__()
-      r_pdu.tag = self.tag
-      r_pdu.uri = self.uri
-      r_msg.append(r_pdu)
-      cb()
-    except rpki.exceptions.NoObjectAtURI, e:
-      # This can happen when we're cleaning up from a prior mess, so
-      # we generate a <report_error/> PDU then carry on.
-      r_msg.append(report_error_elt.from_exception(e, self.tag))
-      cb()
-
   def uri_to_filename(self):
     """
     Convert a URI to a local filename.
@@ -128,13 +109,13 @@ class publish_elt(base_publication_elt):
       elt.text = self.payload.get_Base64()
     return elt
 
-  def serve_action(self, snapshot):
+  def serve_action(self, delta):
     """
     Publish an object.
     """
 
     logger.info("Publishing %s", self.payload.tracking_data(self.uri))
-    snapshot.publish(self.client, self.payload, self.uri, self.hash)
+    delta.publish(self.client, self.payload, self.uri, self.hash)
     filename = self.uri_to_filename()
     filename_tmp = filename + ".tmp"
     dirname = os.path.dirname(filename)
@@ -152,13 +133,13 @@ class withdraw_elt(base_publication_elt):
 
   element_name = "withdraw"
 
-  def serve_action(self, snapshot):
+  def serve_action(self, delta):
     """
     Withdraw an object, then recursively delete empty directories.
     """
 
     logger.info("Withdrawing %s", self.uri)
-    snapshot.withdraw(self.client, self.uri, self.hash)
+    delta.withdraw(self.client, self.uri, self.hash)
     filename = self.uri_to_filename()
     try:
       os.remove(filename)
@@ -183,17 +164,7 @@ class list_elt(base_publication_elt):
   <list/> element.
   """
 
-  def serve_dispatch(self, r_msg, snapshot, cb, eb):
-    """
-    Action dispatch handler.
-    """
-
-    for obj in self.client.published_objects:
-      r_pdu = self.__class__()
-      r_pdu.tag = self.tag
-      r_pdu.uri = obj.uri
-      r_pdu.hash = obj.hash
-      r_msg.append(r_pdu)
+  pass
 
 
 class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):
@@ -256,40 +227,6 @@ class msg(rpki.xml_utils.msg, publication_namespace):
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
   pdus = dict((x.element_name, x) for x in (publish_elt, withdraw_elt, report_error_elt))
-
-  def serve_top_level(self, gctx, client, cb):
-    """
-    Serve one msg PDU.
-    """
-
-    if not self.is_query():
-      raise rpki.exceptions.BadQuery("Message type is not query")
-    r_msg = self.__class__.reply()
-    snapshot = gctx.session.new_snapshot() if len(self) > 0 else None
-
-    def loop(iterator, q_pdu):
-
-      def fail(e):
-        if not isinstance(e, rpki.exceptions.NotFound):
-          logger.exception("Exception processing PDU %r", q_pdu)
-        r_msg.append(report_error_elt.from_exception(e, q_pdu.tag))
-        snapshot.sql_delete()
-        cb(r_msg)
-
-      try:
-        q_pdu.gctx = gctx
-        q_pdu.client = client
-        q_pdu.serve_dispatch(r_msg, snapshot, iterator, fail)
-      except (rpki.async.ExitNow, SystemExit):
-        raise
-      except Exception, e:
-        fail(e)
-
-    def done():
-      gctx.session.activate_snapshot(snapshot)
-      cb(r_msg)
-
-    rpki.async.iterator(self, loop, done)
 
 
 class sax_handler(rpki.xml_utils.sax_handler):

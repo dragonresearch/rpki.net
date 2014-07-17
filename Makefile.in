@@ -216,8 +216,10 @@ lint:
 	{ find rpki rp ca -name '*.py' -print; find rp ca -type f -perm -1 -print | xargs grep -El '^#!.+python'; } | \
 	sort -u | xargs pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc ${PYLINT_FLAGS}
 
-tags: Makefile
+tags: Makefile .FORCE
 	find rpki rp ca schemas -type f \
 		\( -name '*.[ch]' -o -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) \
 		! -name relaxng.py ! -name sql_schemas.py -print | \
 	etags -
+
+.FORCE:

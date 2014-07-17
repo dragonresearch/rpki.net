@@ -2539,7 +2539,7 @@ class publication_queue(object):
       logger.debug("Removing publication duplicate %r", self.uris[uri])
       self.msgs[rid].remove(self.uris.pop(uri))
 
-    hash = None if old_obj is None else rpki.x509.sha256(old_obj.get_Base64()).encode("hex")
+    hash = None if old_obj is None else rpki.x509.sha256(old_obj.get_DER()).encode("hex")
 
     if new_obj is None:
       pdu = rpki.publication.withdraw_elt.make_pdu(uri = uri, hash = hash)

@@ -52,11 +52,19 @@ class base_publication_elt(rpki.xml_utils.base_elt, publication_namespace):
 
   tag = None
   uri = None
+  der = None
   hash = None
-  payload = None
+  
+  _payload = None
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.tag, self.uri, self.hash, self.payload)
+
+  @property
+  def payload(self):
+    if self._payload is None and self.der is not None:
+      self._payload = rpki.x509.uri_dispatch(self.uri)(DER = self.der)
+    return self._payload
 
   def uri_to_filename(self):
     """
@@ -96,7 +104,7 @@ class publish_elt(base_publication_elt):
 
     assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
     if text:
-      self.payload = rpki.x509.uri_dispatch(self.uri)(Base64 = text)
+      self.der = text.decode("base64")
     stack.pop()
 
   def toXML(self):
@@ -105,8 +113,8 @@ class publish_elt(base_publication_elt):
     """
 
     elt = self.make_elt()
-    if self.payload != None:
-      elt.text = self.payload.get_Base64()
+    if self.der is not None:
+      elt.text = self.der.encode("base64")
     return elt
 
   def serve_action(self, delta):
@@ -115,14 +123,14 @@ class publish_elt(base_publication_elt):
     """
 
     logger.info("Publishing %s", self.payload.tracking_data(self.uri))
-    delta.publish(self.client, self.payload, self.uri, self.hash)
+    delta.publish(self.client, self.der, self.uri, self.hash)
     filename = self.uri_to_filename()
     filename_tmp = filename + ".tmp"
     dirname = os.path.dirname(filename)
     if not os.path.isdir(dirname):
       os.makedirs(dirname)
     with open(filename_tmp, "wb") as f:
-      f.write(self.payload.get_DER())
+      f.write(self.der)
     os.rename(filename_tmp, filename)
 
 

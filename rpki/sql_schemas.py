@@ -315,8 +315,8 @@ CREATE TABLE delta (
 CREATE TABLE object (
         object_id               SERIAL NOT NULL,
         uri                     VARCHAR(255) NOT NULL,
+        der                     LONGBLOB NOT NULL,
         hash                    CHAR(64) NOT NULL,
-        payload                 LONGBLOB NOT NULL,
         client_id               BIGINT UNSIGNED NOT NULL,
         session_id              BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (object_id),

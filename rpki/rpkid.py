@@ -2544,7 +2544,7 @@ class publication_queue(object):
     if new_obj is None:
       pdu = rpki.publication.withdraw_elt.make_pdu(uri = uri, hash = hash)
     else:
-      pdu = rpki.publication.publish_elt.make_pdu( uri = uri, hash = hash, payload = new_obj)
+      pdu = rpki.publication.publish_elt.make_pdu( uri = uri, hash = hash, der = new_obj.get_DER())
 
     if handler is not None:
       self.handlers[id(pdu)] = handler

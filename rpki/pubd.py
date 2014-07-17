@@ -306,7 +306,7 @@ class session_obj(rpki.sql.sql_persistent):
     xml.text = "\n"
     for obj in self.objects:
       DERSubElement(xml, rrdp_xmlns + "publish",
-                    der = obj.payload,
+                    der = obj.der,
                     uri = obj.uri)
     rpki.relaxng.rrdp.assertValid(xml)
     self.snapshot = ElementToString(xml, pretty_print = True)
@@ -401,14 +401,14 @@ class delta_obj(rpki.sql.sql_persistent):
     del self.deltas
     self.sql_mark_dirty()
 
-  def publish(self, client, obj, uri, hash):
+  def publish(self, client, der, uri, hash):
     if hash is not None:
       self.withdraw(client, uri, hash)
     elif object_obj.current_object_at_uri(client, self, uri) is not None:
       raise rpki.exceptions.ExistingObjectAtURI("Object already published at %s" % uri)
     logger.debug("Publishing %s", uri)
-    object_obj.create(client, self, obj, uri)
-    se = DERSubElement(self.deltas[0], rrdp_xmlns + "publish", obj.get_DER(), uri = uri)
+    object_obj.create(client, self, der, uri)
+    se = DERSubElement(self.deltas[0], rrdp_xmlns + "publish", der = der, uri = uri)
     if hash is not None:
       se.set("hash", hash)
     rpki.relaxng.rrdp.assertValid(self.deltas)
@@ -434,8 +434,8 @@ class object_obj(rpki.sql.sql_persistent):
     "object",
     "object_id",
     "uri",
+    "der",
     "hash",
-    "payload",
     "client_id",
     "session_id")
 
@@ -453,13 +453,13 @@ class object_obj(rpki.sql.sql_persistent):
     return rpki.publication_control.client_elt.sql_fetch(self.gctx, self.client_id)
 
   @classmethod
-  def create(cls, client, delta, obj, uri):
+  def create(cls, client, delta, der, uri):
     self = cls()
     self.gctx = delta.gctx
     self.uri = uri
-    self.payload = obj.get_DER()
-    self.hash = rpki.x509.sha256(self.payload).encode("hex")
-    logger.debug("Computed hash %s for %r", self.hash, obj)
+    self.der = der
+    self.hash = rpki.x509.sha256(der).encode("hex")
+    logger.debug("Computed hash %s for %s", self.hash, self.uri)
     self.session_id = delta.session_id
     self.client_id = client.client_id
     self.sql_mark_dirty()

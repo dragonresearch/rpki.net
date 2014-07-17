@@ -305,7 +305,7 @@ class session_obj(rpki.sql.sql_persistent):
                   serial = str(self.serial))
     xml.text = "\n"
     for obj in self.objects:
-      DERSubElement(xml, rrdp_xmlns + "publish", nsmap = rrdp_nsmap,
+      DERSubElement(xml, rrdp_xmlns + "publish",
                     der = obj.payload,
                     uri = obj.uri)
     rpki.relaxng.rrdp.assertValid(xml)
@@ -337,11 +337,11 @@ class session_obj(rpki.sql.sql_persistent):
                   version = rrdp_version,
                   session_id = self.uuid,
                   serial = str(self.serial))
-    SubElement(xml, rrdp_xmlns + "snapshot", nsmap = rrdp_nsmap,
+    SubElement(xml, rrdp_xmlns + "snapshot",
                uri = "%s/%s/snapshot/%d.xml" % (self.gctx.rrdp_uri_base, self.uuid, self.serial),
                hash = self.hash)
     for delta in self.deltas:
-      se = SubElement(xml, rrdp_xmlns + "delta", nsmap = rrdp_nsmap,
+      se = SubElement(xml, rrdp_xmlns + "delta",
                       to = str(delta.serial),
                       uri = "%s/%s" % (self.gctx.rrdp_uri_base, delta.fn),
                       hash =  delta.hash)
@@ -391,7 +391,7 @@ class delta_obj(rpki.sql.sql_persistent):
                           version =  rrdp_version,
                           session_id = session.uuid)
     self.deltas.set("from", str(self.serial - 1))
-    SubElement(self.deltas, rrdp_xmlns + "delta", nsmap = rrdp_nsmap, serial = str(self.serial)).text = "\n"
+    SubElement(self.deltas, rrdp_xmlns + "delta", serial = str(self.serial)).text = "\n"
     return self
 
   def activate(self):
@@ -408,7 +408,7 @@ class delta_obj(rpki.sql.sql_persistent):
       raise rpki.exceptions.ExistingObjectAtURI("Object already published at %s" % uri)
     logger.debug("Publishing %s", uri)
     object_obj.create(client, self, obj, uri)
-    se = DERSubElement(self.deltas[0], rrdp_xmlns + "publish", obj.get_DER(), nsmap = rrdp_nsmap, uri = uri)
+    se = DERSubElement(self.deltas[0], rrdp_xmlns + "publish", obj.get_DER(), uri = uri)
     if hash is not None:
       se.set("hash", hash)
     rpki.relaxng.rrdp.assertValid(self.deltas)
@@ -421,7 +421,7 @@ class delta_obj(rpki.sql.sql_persistent):
       raise rpki.exceptions.DifferentObjectAtURI("Found different object at %s (old %s, new %s)" % (uri, obj.hash, hash))
     logger.debug("Withdrawing %s", uri)
     obj.delete(self)
-    SubElement(self.deltas[0], rrdp_xmlns + "withdraw", nsmap = rrdp_nsmap, uri = uri, hash = hash).tail = "\n"
+    SubElement(self.deltas[0], rrdp_xmlns + "withdraw", uri = uri, hash = hash).tail = "\n"
     rpki.relaxng.rrdp.assertValid(self.deltas)
 
 

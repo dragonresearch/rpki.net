@@ -414,8 +414,10 @@ class allocation(object):
       if not args.skip_config:
         path = self.path(fn)
         print "Writing", path
-        xmlns = "{http://www.hactrn.net/uris/rpki/router-certificate/}"
-        xml = lxml.etree.Element(xmlns + "router_certificate_requests", version = "1")
+        xmlns = rpki.relaxng.router_certificate.xmlns
+        xml = lxml.etree.Element(xmlns + "router_certificate_requests",
+                                 version = rpki.relaxng.router_certificate.version,
+                                 nsmap = rpki.relaxng.router_certificate.nsmap)
         for r in self.router_certs:
           x = lxml.etree.SubElement(xml, xmlns + "router_certificate_request",
                                     router_id   = str(r.router_id),

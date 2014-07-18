@@ -1,32 +1,21 @@
 # $Id$
 # 
-# Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
-# 
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-# 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
-# 
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-# 
-# THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# copyright notices and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Script to generate rpki/relaxng.py.
@@ -34,27 +23,30 @@ Script to generate rpki/relaxng.py.
 
 import sys
 
-format_1 = """\
+header = """\
 # Automatically generated, do not edit.
 
-import lxml.etree
+from rpki.relaxng_parser import RelaxNGParser
 """
 
-format_2 = """\
+format = """
 ## @var %(name)s
 ## Parsed RelaxNG %(name)s schema
-%(name)s = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''%(rng)s'''))
+%(name)s = RelaxNGParser(r'''%(rng)s''')
 """
 
-def filename_to_symbol(s):
+footer = """
+del RelaxNGParser
+"""
+
+def symbol(s):
   for suffix in (".rng", "-schema"):
     if s.endswith(suffix):
       s = s[:-len(suffix)]
   return s.replace("-", "_")
 
-print format_1
-
-for filename in sys.argv[1:]:
-  print format_2 % {
-    "name" : filename_to_symbol(filename),
-    "rng"  : open(filename).read() }
+sys.stdout.write(header)
+for fn in sys.argv[1:]:
+  with open(fn, "r") as f:
+    sys.stdout.write(format % dict(name = symbol(fn), rng = f.read()))
+sys.stdout.write(footer)

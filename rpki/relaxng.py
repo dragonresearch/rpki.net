@@ -1,10 +1,10 @@
 # Automatically generated, do not edit.
 
-import lxml.etree
+from rpki.relaxng_parser import RelaxNGParser
 
 ## @var left_right
 ## Parsed RelaxNG left_right schema
-left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: left-right-schema.rnc 5845 2014-05-29 22:31:15Z sra $
   
@@ -28,6 +28,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
   WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 -->
 <grammar ns="http://www.hactrn.net/uris/rpki/left-right-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <define name="version">
+    <value>1</value>
+  </define>
   <!-- Top level PDU -->
   <start>
     <element name="msg">
@@ -1093,11 +1096,11 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" en
   comment-start-skip: "#[ \t]*"
   End:
 -->
-'''))
+''')
 
 ## @var myrpki
 ## Parsed RelaxNG myrpki schema
-myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+myrpki = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: myrpki.rnc 5757 2014-04-05 22:42:12Z sra $
   
@@ -1476,11 +1479,11 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encodi
   comment-start-skip: "#[ \t]*"
   End:
 -->
-'''))
+''')
 
 ## @var publication
 ## Parsed RelaxNG publication schema
-publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+publication = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: publication-schema.rnc 5845 2014-05-29 22:31:15Z sra $
   
@@ -1504,6 +1507,9 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
   WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 -->
 <grammar ns="http://www.hactrn.net/uris/rpki/publication-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <define name="version">
+    <value>1</value>
+  </define>
   <!-- Top level PDU -->
   <start>
     <element name="msg">
@@ -2054,11 +2060,11 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" e
   comment-start-skip: "#[ \t]*"
   End:
 -->
-'''))
+''')
 
 ## @var router_certificate
 ## Parsed RelaxNG router_certificate schema
-router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+router_certificate = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: router-certificate-schema.rnc 5757 2014-04-05 22:42:12Z sra $
   
@@ -2156,11 +2162,11 @@ router_certificate = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version=
   comment-start-skip: "#[ \t]*"
   End:
 -->
-'''))
+''')
 
 ## @var up_down
 ## Parsed RelaxNG up_down schema
-up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encoding="UTF-8"?>
+up_down = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: up-down-schema.rnc 5757 2014-04-05 22:42:12Z sra $
   
@@ -2437,5 +2443,6 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring(r'''<?xml version="1.0" encod
   comment-start-skip: "#[ \t]*"
   End:
 -->
-'''))
+''')
 
+del RelaxNGParser

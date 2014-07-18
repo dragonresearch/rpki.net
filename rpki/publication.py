@@ -53,8 +53,8 @@ class publication_namespace(object):
   XML namespace parameters for publication protocol.
   """
 
-  xmlns = "http://www.hactrn.net/uris/rpki/publication-spec/"
-  nsmap = { None : xmlns }
+  xmlns = rpki.relaxng.publication.xmlns
+  nsmap = rpki.relaxng.publication.nsmap
 
 class control_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_namespace):
   """
@@ -413,7 +413,7 @@ class msg(rpki.xml_utils.msg, publication_namespace):
 
   ## @var version
   # Protocol version
-  version = 1
+  version = int(rpki.relaxng.publication.version)
 
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
@@ -457,7 +457,8 @@ class sax_handler(rpki.xml_utils.sax_handler):
 
   pdu = msg
   name = "msg"
-  version = "1"
+  version = rpki.relaxng.publication.version
+
 
 class cms_msg(rpki.x509.XML_CMS_object):
   """

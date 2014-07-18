@@ -48,8 +48,8 @@ class left_right_namespace(object):
   XML namespace parameters for left-right protocol.
   """
 
-  xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
-  nsmap = { None : xmlns }
+  xmlns = rpki.relaxng.left_right.xmlns
+  nsmap = rpki.relaxng.left_right.nsmap
 
 class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_namespace):
   """
@@ -1230,7 +1230,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
 
   ## @var version
   # Protocol version
-  version = 1
+  version = int(rpki.relaxng.left_right.version)
 
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
@@ -1278,7 +1278,7 @@ class sax_handler(rpki.xml_utils.sax_handler):
 
   pdu = msg
   name = "msg"
-  version = "1"
+  version = rpki.relaxng.left_right.version
 
 class cms_msg(rpki.x509.XML_CMS_object):
   """

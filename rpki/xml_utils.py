@@ -187,7 +187,7 @@ class base_elt(object):
     """
     XML element constructor.
     """
-    elt = lxml.etree.Element("{%s}%s" % (self.xmlns, self.element_name), nsmap = self.nsmap)
+    elt = lxml.etree.Element(self.xmlns + self.element_name, nsmap = self.nsmap)
     for key in self.attributes:
       val = getattr(self, key, None)
       if val is not None:
@@ -202,7 +202,7 @@ class base_elt(object):
     Constructor for Base64-encoded subelement.
     """
     if value is not None and not value.empty():
-      lxml.etree.SubElement(elt, "{%s}%s" % (self.xmlns, name), nsmap = self.nsmap).text = value.get_Base64()
+      lxml.etree.SubElement(elt, self.xmlns + name, nsmap = self.nsmap).text = value.get_Base64()
 
   def __str__(self):
     """
@@ -459,7 +459,7 @@ class msg(list):
     """
     Generate top-level PDU.
     """
-    elt = lxml.etree.Element("{%s}msg" % (self.xmlns), nsmap = self.nsmap, version = str(self.version), type = self.type)
+    elt = lxml.etree.Element(self.xmlns + "msg", nsmap = self.nsmap, version = str(self.version), type = self.type)
     elt.extend([i.toXML() for i in self])
     return elt
 

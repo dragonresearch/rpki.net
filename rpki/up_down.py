@@ -33,9 +33,8 @@ import rpki.relaxng
 
 logger = logging.getLogger(__name__)
 
-xmlns = "http://www.apnic.net/specs/rescerts/up-down/"
-
-nsmap = { None : xmlns }
+xmlns = rpki.relaxng.up_down.xmlns
+nsmap = rpki.relaxng.up_down.nsmap
 
 class base_elt(object):
   """
@@ -65,7 +64,7 @@ class base_elt(object):
     """
     Construct a element, copying over a set of attributes.
     """
-    elt = lxml.etree.Element("{%s}%s" % (xmlns, name), nsmap=nsmap)
+    elt = lxml.etree.Element(xmlns + name, nsmap = nsmap)
     for key in attrs:
       val = getattr(self, key, None)
       if val is not None:
@@ -77,7 +76,7 @@ class base_elt(object):
     Construct a sub-element with Base64 text content.
     """
     if value is not None and not value.empty():
-      lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = value.get_Base64()
+      lxml.etree.SubElement(elt, xmlns + name, nsmap = nsmap).text = value.get_Base64()
 
   def serve_pdu(self, q_msg, r_msg, child, callback, errback):
     """

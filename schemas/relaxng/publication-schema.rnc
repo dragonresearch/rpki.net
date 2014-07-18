@@ -21,6 +21,8 @@
 
 default namespace = "http://www.hactrn.net/uris/rpki/publication-spec/"
 
+version = "1"
+
 # Top level PDU
 
 start = element msg {

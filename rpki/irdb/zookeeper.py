@@ -47,9 +47,8 @@ from rpki.csv_utils import csv_reader
 # is historical and may change before we propose this as the basis for
 # a standard.
 
-myrpki_namespace      = "http://www.hactrn.net/uris/rpki/myrpki/"
-myrpki_version        = "2"
-myrpki_namespaceQName = "{" + myrpki_namespace + "}"
+myrpki_xmlns   = rpki.relaxng.myrpki.xmlns
+myrpki_version = rpki.relaxng.myrpki.version
 
 # XML namespace and protocol version for router certificate requests.
 # We probably ought to be pulling this sort of thing from the schema,
@@ -57,9 +56,8 @@ myrpki_namespaceQName = "{" + myrpki_namespace + "}"
 # protocol version number, but just copy what we did for myrpki until
 # I'm ready to rewrite the rpki.relaxng code.
 
-routercert_namespace      = "http://www.hactrn.net/uris/rpki/router-certificate/"
-routercert_version        = "1"
-routercert_namespaceQName = "{" + routercert_namespace + "}"
+routercert_xmlns   = rpki.relaxng.router_certificate.xmlns
+routercert_version = rpki.relaxng.router_certificate.version
 
 myrpki_section = "myrpki"
 irdbd_section  = "irdbd"
@@ -140,10 +138,10 @@ def etree_read(filename):
   e = ElementTree(file = filename).getroot()
   rpki.relaxng.myrpki.assertValid(e)
   for i in e.getiterator():
-    if i.tag.startswith(myrpki_namespaceQName):
-      i.tag = i.tag[len(myrpki_namespaceQName):]
+    if i.tag.startswith(myrpki_xmlns):
+      i.tag = i.tag[len(myrpki_xmlns):]
     else:
-      raise BadXMLMessage("XML tag %r is not in namespace %r" % (i.tag, myrpki_namespace))
+      raise BadXMLMessage("XML tag %r is not in namespace %r" % (i.tag, myrpki_xmlns[1:-1]))
   return e
 
 
@@ -159,8 +157,8 @@ class etree_wrapper(object):
     e.set("version", myrpki_version)
     for i in e.getiterator():
       if i.tag[0] != "{":
-        i.tag = myrpki_namespaceQName + i.tag
-      assert i.tag.startswith(myrpki_namespaceQName)
+        i.tag = myrpki_xmlns + i.tag
+      assert i.tag.startswith(myrpki_xmlns)
     if debug:
       print ElementToString(e)
     rpki.relaxng.myrpki.assertValid(e)
@@ -615,7 +613,7 @@ class Zookeeper(object):
       proposed_sia_base = repo.sia_base + child.handle + "/"
       referral_cert, created = rpki.irdb.Referral.objects.get_or_certify(issuer = self.resource_ca)
       auth = rpki.x509.SignedReferral()
-      auth.set_content(B64Element(None, myrpki_namespaceQName + "referral", child.ta,
+      auth.set_content(B64Element(None, myrpki_xmlns + "referral", child.ta,
                                   version = myrpki_version,
                                   authorized_sia_base = proposed_sia_base))
       auth.schema_check()
@@ -1620,7 +1618,7 @@ class Zookeeper(object):
     xml = ElementTree(file = router_certificate_request_xml).getroot()
     rpki.relaxng.router_certificate.assertValid(xml)
 
-    for req in xml.getiterator(routercert_namespaceQName + "router_certificate_request"):
+    for req in xml.getiterator(routercert_xmlns + "router_certificate_request"):
 
       pkcs10 = rpki.x509.PKCS10(Base64 = req.text)
       router_id = long(req.get("router_id"))

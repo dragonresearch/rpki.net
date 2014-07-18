@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 
 
 class publication_namespace(object):
-  xmlns = "http://www.hactrn.net/uris/rpki/publication-spec/"
-  nsmap = { None : xmlns }
+  xmlns = rpki.relaxng.publication.xmlns
+  nsmap = rpki.relaxng.publication.nsmap
 
 
 class base_publication_elt(rpki.xml_utils.base_elt, publication_namespace):
@@ -230,7 +230,7 @@ class msg(rpki.xml_utils.msg, publication_namespace):
 
   ## @var version
   # Protocol version
-  version = 3
+  version = int(rpki.relaxng.publication.version)
 
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
@@ -244,7 +244,7 @@ class sax_handler(rpki.xml_utils.sax_handler):
 
   pdu = msg
   name = "msg"
-  version = "3"
+  version = rpki.relaxng.publication.version
 
 
 class cms_msg(rpki.x509.XML_CMS_object):

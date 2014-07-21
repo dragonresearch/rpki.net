@@ -126,8 +126,6 @@ class main(object):
 
     self.publication_base = self.cfg.get("publication-base", "publication/")
 
-    self.publication_multimodule = self.cfg.getboolean("publication-multimodule", False)
-
     self.rrdp_uri_base = self.cfg.get("rrdp-uri-base", "http://%s/" % socket.getfqdn())
     self.rrdp_expiration_interval = rpki.sundial.timedelta.parse(self.cfg.get("rrdp-expiration-interval", "6h"))
     self.rrdp_publication_base = self.cfg.get("rrdp-publication-base", "rrdp-publication/")
@@ -210,17 +208,32 @@ class main(object):
           if not isinstance(e, rpki.exceptions.NotFound):
             logger.exception("Exception processing PDU %r", q_pdu)
           r_msg.append(rpki.publication.report_error_elt.from_exception(e, q_pdu.tag))
-          delta.sql_delete()
           failed = True
       #
-      # Need to check "failed" flag here?
+      # This isn't really right as long as we're using SQL autocommit
       #
-      delta.activate()
-      self.sql.sweep()
-      self.session.generate_snapshot()
-      self.session.write_snapshot()
-      self.session.write_deltas()
-      self.session.write_notification()
+      if failed:
+        # This should SQL rollback
+        #
+        # Under current scheme I don't think delta is in SQL yet so this may be wrong
+        delta.sql_delete()
+      else:
+        delta.activate()
+        self.sql.sweep()
+        self.session.generate_snapshot()
+
+        # Should SQL commit here
+
+        # These could be merged, and perhaps should be.
+        self.session.write_snapshot()
+        self.session.write_deltas()
+        self.session.write_notification()
+
+        # Somewhere around here is also where we should finally write
+        # stuff out to rsync store, now that SQL is the publication
+        # database of record.  This may require doing the filesystem
+        # updates from the delta, but that should be straightforward.
+
       cb(code = 200,
          body = rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, self.pubd_crl))
     except (rpki.async.ExitNow, SystemExit):
@@ -229,6 +242,20 @@ class main(object):
       logger.exception("Unhandled exception processing client query, path %r", path)
       cb(code = 500,
          reason = "Could not process PDU: %s" % e)
+
+  def uri_to_filename(self, uri):
+    """
+    Convert a URI to a local filename.
+    """
+
+    if not uri.startswith("rsync://"):
+      raise rpki.exceptions.BadURISyntax(uri)
+    path = uri.split("/")[4:]
+    path.insert(0, self.publication_base.rstrip("/"))
+    filename = "/".join(path)
+    if "/../" in filename or filename.endswith("/.."):
+      raise rpki.exceptions.BadURISyntax(filename)
+    return filename
 
 
 class session_obj(rpki.sql.sql_persistent):

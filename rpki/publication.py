@@ -66,25 +66,9 @@ class base_publication_elt(rpki.xml_utils.base_elt, publication_namespace):
       self._payload = rpki.x509.uri_dispatch(self.uri)(DER = self.der)
     return self._payload
 
-  def uri_to_filename(self):
-    """
-    Convert a URI to a local filename.
-    """
-
-    if not self.uri.startswith("rsync://"):
-      raise rpki.exceptions.BadURISyntax(self.uri)
-    path = self.uri.split("/")[3:]
-    if not self.gctx.publication_multimodule:
-      del path[0]
-    path.insert(0, self.gctx.publication_base.rstrip("/"))
-    filename = "/".join(path)
-    if "/../" in filename or filename.endswith("/.."):
-      raise rpki.exceptions.BadURISyntax(filename)
-    return filename
-
   def raise_if_error(self):
     """
-    No-op, since this is not a <report_error/> PDU.
+    No-op unless this is a <report_error/> PDU.
     """
 
     pass
@@ -124,7 +108,9 @@ class publish_elt(base_publication_elt):
 
     logger.info("Publishing %s", self.payload.tracking_data(self.uri))
     delta.publish(self.client, self.der, self.uri, self.hash)
-    filename = self.uri_to_filename()
+
+    # The rest of this shouldn't happen until after the SQL commit
+    filename = self.gctx.uri_to_filename(self.uri)
     filename_tmp = filename + ".tmp"
     dirname = os.path.dirname(filename)
     if not os.path.isdir(dirname):
@@ -148,7 +134,9 @@ class withdraw_elt(base_publication_elt):
 
     logger.info("Withdrawing %s", self.uri)
     delta.withdraw(self.client, self.uri, self.hash)
-    filename = self.uri_to_filename()
+
+    # The rest of this shouldn't happen until after the SQL commit
+    filename = self.gctx.uri_to_filename(self.uri)
     try:
       os.remove(filename)
     except OSError, e:
@@ -216,11 +204,13 @@ class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):
     Raise exception associated with this <report_error/> PDU.
     """
 
-    t = rpki.exceptions.__dict__.get(self.error_code)
-    if isinstance(t, type) and issubclass(t, rpki.exceptions.RPKI_Exception):
-      raise t(getattr(self, "text", None))
-    else:
-      raise rpki.exceptions.BadPublicationReply("Unexpected response from pubd: %s" % self)
+    try:
+      e = getattr(rpki.exceptions, self.error_code)
+      if issubclass(e, rpki.exceptions.RPKI_Exception):
+        raise e(getattr(self, "text", None))
+    except (TypeError, AttributeError):
+      pass
+    raise rpki.exceptions.BadPublicationReply("Unexpected response from pubd: %s" % self)
 
 
 class msg(rpki.xml_utils.msg, publication_namespace):

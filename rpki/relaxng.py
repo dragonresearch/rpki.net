@@ -6,7 +6,7 @@ from rpki.relaxng_parser import RelaxNGParser
 ## Parsed RelaxNG left_right schema
 left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right.rnc 5881 2014-07-03 16:55:02Z sra $
+  $Id: left-right.rnc 5903 2014-07-18 17:08:13Z sra $
   
   RelaxNG schema for RPKI left-right protocol.
   
@@ -1485,7 +1485,7 @@ myrpki = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 ## Parsed RelaxNG publication_control schema
 publication_control = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-control.rnc 5883 2014-07-03 19:21:31Z sra $
+  $Id: publication-control.rnc 5903 2014-07-18 17:08:13Z sra $
   
   RelaxNG schema for RPKI publication protocol.
   

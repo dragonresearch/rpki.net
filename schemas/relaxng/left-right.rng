@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right.rnc 5881 2014-07-03 16:55:02Z sra $
+  $Id: left-right.rnc 5903 2014-07-18 17:08:13Z sra $
   
   RelaxNG schema for RPKI left-right protocol.
   

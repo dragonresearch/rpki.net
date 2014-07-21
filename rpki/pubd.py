@@ -46,10 +46,9 @@ from lxml.etree import Element, SubElement, tostring as ElementToString
 logger = logging.getLogger(__name__)
 
 
-# Temporary, these should come from the schema or something
-rrdp_xmlns   = "{http://www.ripe.net/rpki/rrdp}"
+rrdp_xmlns   = rpki.relaxng.rrdp.xmlns
+rrdp_nsmap   = rpki.relaxng.rrdp.nsmap
 rrdp_version = "1"
-rrdp_nsmap   = { None : rrdp_xmlns[1:-1] }
 
 
 def DERSubElement(elt, name, der, attrib = None, **kwargs):

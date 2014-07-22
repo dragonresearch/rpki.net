@@ -27,31 +27,51 @@ import lxml.etree
 import argparse
 import os
 
-parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("rrdp_snapshot",
-                    help = "RRDP snapshot file")
-parser.add_argument("rcynic_tree", nargs = "?", default = "unauthenticated",
-                    help = "directory tree in which to write extracted RPKI objects")
-args = parser.parse_args()
+class Tags(object):
+  def __init__(self, *tags):
+    for tag in tags:
+      setattr(self, tag, rpki.relaxng.rrdp.xmlns + tag)
 
-xml = lxml.etree.ElementTree(file = args.rrdp_snapshot).getroot()
-rpki.relaxng.rrdp.assertValid(xml)
-assert xml.tag == rpki.relaxng.rrdp.xmlns + "snapshot"
+tags = Tags("notification", "deltas", "delta", "snapshot", "publish", "withdraw")
 
-if not os.path.isdir(args.rcynic_tree):
-  os.makedirs(args.rcynic_tree)
+class main(object):
 
-print "Unpacking version %s session %s serial %s" % (
-  xml.get("version"), xml.get("session_id"), xml.get("serial"))
+  def __init__(self):
 
-for elt in xml:
-  assert elt.tag == rpki.relaxng.rrdp.xmlns + "publish"
-  uri = elt.get("uri")
-  print " ", uri
-  assert uri.startswith("rsync://")
-  fn = os.path.join(args.rcynic_tree, uri[len("rsync://"):])
-  dn = os.path.dirname(fn)
-  if not os.path.isdir(dn):
-    os.makedirs(dn)
-  with open(fn, "wb") as f:
-    f.write(elt.text.decode("base64"))
+    parser = argparse.ArgumentParser(description = __doc__)
+    parser.add_argument("--rcynic-tree", default = "rcynic-data/unauthenticated",
+                        help = "directory tree in which to write extracted RPKI objects")
+    parser.add_argument("rrdp_file", nargs = "+",
+                        help = "RRDP snapshot or deltas file")
+    self.args = parser.parse_args()
+
+    if not os.path.isdir(self.args.rcynic_tree):
+      os.makedirs(self.args.rcynic_tree)
+
+    for rrdp_file in self.args.rrdp_file:
+      xml = lxml.etree.ElementTree(file = rrdp_file).getroot()
+      rpki.relaxng.rrdp.assertValid(xml)
+      getattr(self, xml.tag[len(rpki.relaxng.rrdp.xmlns):])(xml)
+
+
+  def snapshot(self, xml):
+    assert xml.tag == tags.snapshot
+
+    print "Unpacking version %s session %s serial %s" % (
+      xml.get("version"), xml.get("session_id"), xml.get("serial"))
+
+    for elt in xml:
+      assert elt.tag == tags.publish
+      uri = elt.get("uri")
+      print " ", uri
+      assert uri.startswith("rsync://")
+      fn = os.path.join(self.args.rcynic_tree, uri[len("rsync://"):])
+      dn = os.path.dirname(fn)
+      if not os.path.isdir(dn):
+        os.makedirs(dn)
+      with open(fn, "wb") as f:
+        f.write(elt.text.decode("base64"))
+
+
+if __name__ == "__main__":
+  main()

@@ -428,9 +428,10 @@ class delta_obj(rpki.sql.sql_persistent):
     self.sql_mark_dirty()
 
   def publish(self, client, der, uri, hash):
-    if hash is not None:
-      self.withdraw(client, uri, hash)
-    elif object_obj.current_object_at_uri(client, self, uri) is not None:
+    obj = object_obj.current_object_at_uri(client, self, uri)
+    if obj is not None and obj.hash == hash:
+      obj.delete(self)
+    elif obj is not None:
       raise rpki.exceptions.ExistingObjectAtURI("Object already published at %s" % uri)
     logger.debug("Publishing %s", uri)
     object_obj.create(client, self, der, uri)

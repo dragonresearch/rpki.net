@@ -46,15 +46,13 @@ rootd = None
 class list_pdu(rpki.up_down.list_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
     r_msg.payload = rpki.up_down.list_response_pdu()
-    rootd.compose_response(r_msg)
-    callback()
+    rootd.compose_response(r_msg, callback, errback)
 
 class issue_pdu(rpki.up_down.issue_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
     self.pkcs10.check_valid_request_ca()
     r_msg.payload = rpki.up_down.issue_response_pdu()
-    rootd.compose_response(r_msg, self.pkcs10)
-    callback()
+    rootd.compose_response(r_msg, callback, errback, self.pkcs10)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
@@ -68,14 +66,15 @@ class revoke_pdu(rpki.up_down.revoke_pdu):
       raise rpki.exceptions.NotInDatabase
     logger.debug("Revoking certificate %s", self.ski)
     now = rpki.sundial.now()
+    pubd_msg = rpki.publication.msg.query()
     rootd.revoke_subject_cert(now)
     rootd.del_subject_cert()
     rootd.del_subject_pkcs10()
-    rootd.generate_crl_and_manifest(now)
+    rootd.generate_crl_and_manifest(now, pubd_msg)
     r_msg.payload = rpki.up_down.revoke_response_pdu()
     r_msg.payload.class_name = self.class_name
     r_msg.payload.ski = self.ski
-    callback()
+    rootd.call_pubd(callback, errback, pubd_msg)
 
 class error_response_pdu(rpki.up_down.error_response_pdu):
   exceptions = rpki.up_down.error_response_pdu.exceptions.copy()
@@ -84,24 +83,18 @@ class error_response_pdu(rpki.up_down.error_response_pdu):
 
 class message_pdu(rpki.up_down.message_pdu):
 
-  name2type = {
-    "list"            : list_pdu,
-    "list_response"   : rpki.up_down.list_response_pdu,
-    "issue"           : issue_pdu,
-    "issue_response"  : rpki.up_down.issue_response_pdu,
-    "revoke"          : revoke_pdu,
-    "revoke_response" : rpki.up_down.revoke_response_pdu,
-    "error_response"  : error_response_pdu }
+  name2type = dict(
+    rpki.up_down.message_pdu.name2type,
+    list            = list_pdu,
+    issue           = issue_pdu,
+    revoke          = revoke_pdu,
+    error_response  = error_response_pdu)
 
-  type2name = dict((v, k) for k, v in name2type.items())
+  type2name = dict((v, k) for k, v in name2type.iteritems())
 
   error_pdu_type = error_response_pdu
 
   def log_query(self, child):
-    """
-    Log query we're handling.
-    """
-
     logger.info("Serving %s query", self.type)
 
 class sax_handler(rpki.up_down.sax_handler):
@@ -116,9 +109,11 @@ class main(object):
     logger.debug("Read root cert %s", self.rpki_root_cert_file)
     self.rpki_root_cert = rpki.x509.X509(Auto_file = self.rpki_root_cert_file)
 
+
   def root_newer_than_subject(self):
     return os.stat(self.rpki_root_cert_file).st_mtime > \
            os.stat(os.path.join(self.rpki_root_dir, self.rpki_subject_cert)).st_mtime
+
 
   def get_subject_cert(self):
     filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
@@ -129,17 +124,19 @@ class main(object):
     except IOError:
       return None
 
+
   def set_subject_cert(self, cert):
     filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
     logger.debug("Writing subject cert %s, SKI %s", filename, cert.hSKI())
-    f = open(filename, "wb")
-    f.write(cert.get_DER())
-    f.close()
+    with open(filename, "wb") as f:
+      f.write(cert.get_DER())
+
 
   def del_subject_cert(self):
     filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
     logger.debug("Deleting subject cert %s", filename)
     os.remove(filename)
+
 
   def get_subject_pkcs10(self):
     try:
@@ -149,11 +146,12 @@ class main(object):
     except IOError:
       return None
 
+
   def set_subject_pkcs10(self, pkcs10):
     logger.debug("Writing subject PKCS #10 %s", self.rpki_subject_pkcs10)
-    f = open(self.rpki_subject_pkcs10, "wb")
-    f.write(pkcs10.get_DER())
-    f.close()
+    with open(self.rpki_subject_pkcs10, "wb") as f:
+      f.write(pkcs10.get_DER())
+
 
   def del_subject_pkcs10(self):
     logger.debug("Deleting subject PKCS #10 %s", self.rpki_subject_pkcs10)
@@ -162,9 +160,11 @@ class main(object):
     except OSError:
       pass
 
+
   def issue_subject_cert_maybe(self, new_pkcs10):
     now = rpki.sundial.now()
     subject_cert = self.get_subject_cert()
+    hash = None if subject_cert is None else rpki.x509.sha256(subject_cert.get_DER()).encode("hex")
     old_pkcs10 = self.get_subject_pkcs10()
     if new_pkcs10 is not None and new_pkcs10 != old_pkcs10:
       self.set_subject_pkcs10(new_pkcs10)
@@ -182,11 +182,11 @@ class main(object):
       subject_cert = None
     self.get_root_cert()
     if subject_cert is not None:
-      return subject_cert
+      return subject_cert, None
     pkcs10 = old_pkcs10 if new_pkcs10 is None else new_pkcs10
     if pkcs10 is None:
       logger.debug("No PKCS #10 request, can't generate subject certificate yet")
-      return None
+      return None, None
     resources = self.rpki_root_cert.get_3779resources()
     notAfter = now + self.rpki_subject_lifetime
     logger.info("Generating subject cert %s with resources %s, expires %s",
@@ -205,10 +205,16 @@ class main(object):
       notBefore   = now,
       notAfter    = notAfter)
     self.set_subject_cert(subject_cert)
-    self.generate_crl_and_manifest(now)
-    return subject_cert
+    pubd_msg = rpki.publication.msg.query()
+    pubd_msg.append(rpki.publication.publish_elt.make_pdu(
+      uri = self.rpki_base_uri + self.rpki_subject_cert,
+      hash = hash,
+      der = subject_cert.get_DER()))
+    self.generate_crl_and_manifest(now, pubd_msg)
+    return subject_cert, pubd_msg
 
-  def generate_crl_and_manifest(self, now):
+
+  def generate_crl_and_manifest(self, now, pubd_msg):
     subject_cert = self.get_subject_cert()
     self.next_serial_number()
     self.next_crl_number()
@@ -222,10 +228,19 @@ class main(object):
       nextUpdate          = now + self.rpki_subject_regen,
       revokedCertificates = self.revoked)
     fn = os.path.join(self.rpki_root_dir, self.rpki_root_crl)
+    try:
+      with open(fn, "rb") as f:
+        hash = rpki.x509.sha256(f.read()).encode("hex")
+      logger.debug("Old CRL hash %s", hash)
+    except IOError:
+      hash = None
     logger.debug("Writing CRL %s", fn)
-    f = open(fn, "wb")
-    f.write(crl.get_DER())
-    f.close()
+    with open(fn, "wb") as f:
+      f.write(crl.get_DER())
+    pubd_msg.append(rpki.publication.publish_elt.make_pdu(
+      uri = self.rpki_base_uri + self.rpki_root_crl,
+      hash = hash,
+      der = crl.get_DER()))
     manifest_content = [(self.rpki_root_crl, crl)]
     if subject_cert is not None:
       manifest_content.append((self.rpki_subject_cert, subject_cert))
@@ -250,16 +265,27 @@ class main(object):
       keypair        = manifest_keypair,
       certs          = manifest_cert)
     fn = os.path.join(self.rpki_root_dir, self.rpki_root_manifest)
+    try:
+      with open(fn, "rb") as f:
+        hash = rpki.x509.sha256(f.read()).encode("hex")
+      logger.debug("Old manifest hash %s", hash)
+    except IOError:
+      hash = None
     logger.debug("Writing manifest %s", fn)
-    f = open(fn, "wb")
-    f.write(manifest.get_DER())
-    f.close()
+    with open(fn, "wb") as f:
+      f.write(manifest.get_DER())
+    pubd_msg.append(rpki.publication.publish_elt.make_pdu(
+      uri = self.rpki_base_uri + self.rpki_root_manifest,
+      hash = hash,
+      der = manifest.get_DER()))
+
 
   def revoke_subject_cert(self, now):
     self.revoked.append((self.get_subject_cert().getSerial(), now))
 
-  def compose_response(self, r_msg, pkcs10 = None):
-    subject_cert = self.issue_subject_cert_maybe(pkcs10)
+
+  def compose_response(self, r_msg, callback, errback, pkcs10 = None):
+    subject_cert, pubd_msg = self.issue_subject_cert_maybe(pkcs10)
     rc = rpki.up_down.class_elt()
     rc.class_name = self.rpki_class_name
     rc.cert_url = rpki.up_down.multi_uri(self.rpki_root_cert_uri)
@@ -270,6 +296,48 @@ class main(object):
       rc.certs.append(rpki.up_down.certificate_elt())
       rc.certs[0].cert_url = rpki.up_down.multi_uri(self.rpki_base_uri + self.rpki_subject_cert)
       rc.certs[0].cert = subject_cert
+    self.call_pubd(callback, errback, pubd_msg)
+
+
+  def call_pubd(self, callback, errback, q_msg):
+
+    try:
+      if not q_msg:
+        return callback()
+
+      for q_pdu in q_msg:
+        logger.info("Sending %r to pubd", q_pdu)
+
+      q_der = rpki.publication.cms_msg().wrap(q_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl)
+
+      def done(r_der):
+        try:
+          logger.debug("Received response from pubd")
+          r_cms = rpki.publication.cms_msg(DER = r_der)
+          r_msg = r_cms.unwrap(self.bpki_ta)
+          r_cms.check_replay_sql(self, self.peer_contact_uri)
+          for r_pdu in r_msg:
+            r_pdu.raise_if_error()
+          if len(q_msg) > len(r_msg):
+            raise rpki.exceptions.BadPublicationReply("Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg))
+          callback()
+        except (rpki.async.ExitNow, SystemExit):
+          raise
+        except Exception, e:
+          errback(e)
+
+      logger.debug("Sending request to pubd")
+      rpki.http.client(
+        url          = self.pubd_contact_uri,
+        msg          = q_der,
+        callback     = done,
+        errback      = errback)
+
+    except (rpki.async.ExitNow, SystemExit):
+      raise
+    except Exception, e:
+      errback(e)
+
 
   def up_down_handler(self, query, path, cb):
     try:
@@ -356,6 +424,18 @@ class main(object):
     if not args.foreground:
       rpki.daemonize.daemon(pidfile = args.pidfile)
 
+    # This mess could use a rewrite, not so much for the code that
+    # reads the variables themselves as for the twisty maze of ten
+    # zillion configuration parameters that nobody ever touches but
+    # which must be set by the rpki.conf template in order for any of
+    # this to work properly.
+
+    # Still need to add .pubd_contac_uri and fix the target filenames
+    # for all the stuff we used to write in place instead of having
+    # pubd do it.
+
+    # Still need to write RPKI root cert.
+
     self.bpki_ta                 = rpki.x509.X509(Auto_update = self.cfg.get("bpki-ta"))
     self.rootd_bpki_key          = rpki.x509.RSA( Auto_update = self.cfg.get("rootd-bpki-key"))
     self.rootd_bpki_cert         = rpki.x509.X509(Auto_update = self.cfg.get("rootd-bpki-cert"))
@@ -384,6 +464,16 @@ class main(object):
 
     self.include_bpki_crl        = self.cfg.getboolean("include-bpki-crl", False)
 
-    rpki.http.server(host     = self.http_server_host,
-                     port     = self.http_server_port,
-                     handlers = self.up_down_handler)
+    # Somewhere about here we want to ask pubd about things we might
+    # have published previously, and might want to whack them or store
+    # their hashes for later update.  We could use usual callback
+    # mechanism, or just rpki.async.async_wrapper(rpki.http.caller())
+    # as we probably don't want to be doing anything else until this
+    # is done.
+    #
+    # Begs question of what happens if rootd comes up before pubd.
+    # Might need a startup delay here.
+
+    rpki.http.server(host        = self.http_server_host,
+                     port        = self.http_server_port,
+                     handlers    = self.up_down_handler)

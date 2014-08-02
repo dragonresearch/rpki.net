@@ -656,16 +656,16 @@ class message_pdu(base_elt):
 
   version = 1
 
-  name2type = {
-    "list"            : list_pdu,
-    "list_response"   : list_response_pdu,
-    "issue"           : issue_pdu,
-    "issue_response"  : issue_response_pdu,
-    "revoke"          : revoke_pdu,
-    "revoke_response" : revoke_response_pdu,
-    "error_response"  : error_response_pdu }
+  name2type = dict(
+    list            = list_pdu,
+    list_response   = list_response_pdu,
+    issue           = issue_pdu,
+    issue_response  = issue_response_pdu,
+    revoke          = revoke_pdu,
+    revoke_response = revoke_response_pdu,
+    error_response  = error_response_pdu)
 
-  type2name = dict((v, k) for k, v in name2type.items())
+  type2name = dict((v, k) for k, v in name2type.iteritems())
 
   error_pdu_type = error_response_pdu
 

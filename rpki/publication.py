@@ -160,7 +160,7 @@ class list_elt(base_publication_elt):
   <list/> element.
   """
 
-  pass
+  element_name = "list"
 
 
 class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):

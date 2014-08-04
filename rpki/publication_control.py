@@ -138,6 +138,13 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_c
     if not uri.startswith(self.base_uri):
       raise rpki.exceptions.ForbiddenURI
 
+  def raise_if_error(self):
+    """
+    No-op, because this isn't a <report_error/> PDU.
+    """
+
+    pass
+
 
 class report_error_elt(rpki.xml_utils.text_elt, publication_control_namespace):
   """

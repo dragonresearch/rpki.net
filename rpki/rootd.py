@@ -105,37 +105,29 @@ class cms_msg(rpki.up_down.cms_msg):
 
 class main(object):
 
-  def get_root_cert(self):
-    logger.debug("Read root cert %s", self.rpki_root_cert_file)
-    self.rpki_root_cert = rpki.x509.X509(Auto_file = self.rpki_root_cert_file)
-
 
   def root_newer_than_subject(self):
-    return os.stat(self.rpki_root_cert_file).st_mtime > \
-           os.stat(os.path.join(self.rpki_root_dir, self.rpki_subject_cert)).st_mtime
+    return self.rpki_root_cert.mtime > os.stat(self.rpki_subject_cert_file).st_mtime
 
 
   def get_subject_cert(self):
-    filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
     try:
-      x = rpki.x509.X509(Auto_file = filename)
-      logger.debug("Read subject cert %s", filename)
+      x = rpki.x509.X509(Auto_file = self.rpki_subject_cert_file)
+      logger.debug("Read subject cert %s", self.rpki_subject_cert_file)
       return x
     except IOError:
       return None
 
 
   def set_subject_cert(self, cert):
-    filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
-    logger.debug("Writing subject cert %s, SKI %s", filename, cert.hSKI())
-    with open(filename, "wb") as f:
+    logger.debug("Writing subject cert %s, SKI %s", self.rpki_subject_cert_file, cert.hSKI())
+    with open(self.rpki_subject_cert_file, "wb") as f:
       f.write(cert.get_DER())
 
 
   def del_subject_cert(self):
-    filename = os.path.join(self.rpki_root_dir, self.rpki_subject_cert)
-    logger.debug("Deleting subject cert %s", filename)
-    os.remove(filename)
+    logger.debug("Deleting subject cert %s", self.rpki_subject_cert_file)
+    os.remove(self.rpki_subject_cert_file)
 
 
   def get_subject_pkcs10(self):
@@ -180,7 +172,6 @@ class main(object):
       logger.debug("Root certificate has changed, regenerating subject")
       self.revoke_subject_cert(now)
       subject_cert = None
-    self.get_root_cert()
     if subject_cert is not None:
       return subject_cert, None
     pkcs10 = old_pkcs10 if new_pkcs10 is None else new_pkcs10
@@ -190,7 +181,7 @@ class main(object):
     resources = self.rpki_root_cert.get_3779resources()
     notAfter = now + self.rpki_subject_lifetime
     logger.info("Generating subject cert %s with resources %s, expires %s",
-                self.rpki_base_uri + self.rpki_subject_cert, resources, notAfter)
+                self.rpki_subject_cert_uri, resources, notAfter)
     req_key = pkcs10.getPublicKey()
     req_sia = pkcs10.get_SIA()
     self.next_serial_number()
@@ -200,14 +191,14 @@ class main(object):
       serial      = self.serial_number,
       sia         = req_sia,
       aia         = self.rpki_root_cert_uri,
-      crldp       = self.rpki_base_uri + self.rpki_root_crl,
+      crldp       = self.rpki_root_crl_uri,
       resources   = resources,
       notBefore   = now,
       notAfter    = notAfter)
     self.set_subject_cert(subject_cert)
     pubd_msg = rpki.publication.msg.query()
     pubd_msg.append(rpki.publication.publish_elt.make_pdu(
-      uri = self.rpki_base_uri + self.rpki_subject_cert,
+      uri = self.rpki_subject_cert_uri,
       hash = hash,
       der = subject_cert.get_DER()))
     self.generate_crl_and_manifest(now, pubd_msg)
@@ -227,32 +218,26 @@ class main(object):
       thisUpdate          = now,
       nextUpdate          = now + self.rpki_subject_regen,
       revokedCertificates = self.revoked)
-    fn = os.path.join(self.rpki_root_dir, self.rpki_root_crl)
-    try:
-      with open(fn, "rb") as f:
-        hash = rpki.x509.sha256(f.read()).encode("hex")
-      logger.debug("Old CRL hash %s", hash)
-    except IOError:
-      hash = None
-    logger.debug("Writing CRL %s", fn)
-    with open(fn, "wb") as f:
+    hash = self.read_hash_maybe(self.rpki_root_crl_file)
+    logger.debug("Writing CRL %s", self.rpki_root_crl_file)
+    with open(self.rpki_root_crl_file, "wb") as f:
       f.write(crl.get_DER())
     pubd_msg.append(rpki.publication.publish_elt.make_pdu(
-      uri = self.rpki_base_uri + self.rpki_root_crl,
+      uri = self.rpki_root_crl_uri,
       hash = hash,
       der = crl.get_DER()))
-    manifest_content = [(self.rpki_root_crl, crl)]
+    manifest_content = [(os.path.basename(self.rpki_root_crl_uri), crl)]
     if subject_cert is not None:
-      manifest_content.append((self.rpki_subject_cert, subject_cert))
+      manifest_content.append((os.path.basename(self.rpki_subject_cert_uri), subject_cert))
     manifest_resources = rpki.resource_set.resource_bag.from_inheritance()
     manifest_keypair = rpki.x509.RSA.generate()
     manifest_cert = self.rpki_root_cert.issue(
       keypair     = self.rpki_root_key,
       subject_key = manifest_keypair.get_public(),
       serial      = self.serial_number,
-      sia         = (None, None, self.rpki_base_uri + self.rpki_root_manifest),
+      sia         = (None, None, self.rpki_root_manifest_uri),
       aia         = self.rpki_root_cert_uri,
-      crldp       = self.rpki_base_uri + self.rpki_root_crl,
+      crldp       = self.rpki_root_crl_uri,
       resources   = manifest_resources,
       notBefore   = now,
       notAfter    = now + self.rpki_subject_lifetime,
@@ -264,20 +249,34 @@ class main(object):
       names_and_objs = manifest_content,
       keypair        = manifest_keypair,
       certs          = manifest_cert)
-    fn = os.path.join(self.rpki_root_dir, self.rpki_root_manifest)
-    try:
-      with open(fn, "rb") as f:
-        hash = rpki.x509.sha256(f.read()).encode("hex")
-      logger.debug("Old manifest hash %s", hash)
-    except IOError:
-      hash = None
-    logger.debug("Writing manifest %s", fn)
-    with open(fn, "wb") as f:
+    hash = self.read_hash_maybe(self.rpki_root_manifest_file)
+    logger.debug("Writing manifest %s", self.rpki_root_manifest_file)
+    with open(self.rpki_root_manifest_file, "wb") as f:
       f.write(manifest.get_DER())
     pubd_msg.append(rpki.publication.publish_elt.make_pdu(
-      uri = self.rpki_base_uri + self.rpki_root_manifest,
+      uri = self.rpki_root_manifest_uri,
       hash = hash,
       der = manifest.get_DER()))
+    hash = rpki.x509.sha256(self.rpki_root_cert.get_DER()).encode("hex")
+    if hash != self.rpki_root_cert_hash:
+      pubd_msg.append(rpki.publication.publish_elt.make_pdu(
+        uri = self.rpki_root_cert_uri,
+        hash = self.rpki_root_cert_hash,
+        der = self.rpki_root_cert.get_DER()))
+      self.rpki_root_cert_hash = hash
+
+
+  @staticmethod
+  def read_hash_maybe(fn):
+    """
+    Return hash of an existing object, or None.
+    """
+
+    try:
+      with open(fn, "rb") as f:
+        return rpki.x509.sha256(f.read()).encode("hex")
+    except IOError:
+      return None
 
 
   def revoke_subject_cert(self, now):
@@ -294,7 +293,7 @@ class main(object):
     r_msg.payload.classes.append(rc)
     if subject_cert is not None:
       rc.certs.append(rpki.up_down.certificate_elt())
-      rc.certs[0].cert_url = rpki.up_down.multi_uri(self.rpki_base_uri + self.rpki_subject_cert)
+      rc.certs[0].cert_url = rpki.up_down.multi_uri(self.rpki_subject_cert_uri)
       rc.certs[0].cert = subject_cert
     self.call_pubd(callback, errback, pubd_msg)
 
@@ -314,8 +313,8 @@ class main(object):
         try:
           logger.debug("Received response from pubd")
           r_cms = rpki.publication.cms_msg(DER = r_der)
-          r_msg = r_cms.unwrap(self.bpki_ta)
-          r_cms.check_replay_sql(self, self.peer_contact_uri)
+          r_msg = r_cms.unwrap((self.bpki_ta, self.pubd_bpki_cert))
+          self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_contact_uri)
           for r_pdu in r_msg:
             r_pdu.raise_if_error()
           if len(q_msg) > len(r_msg):
@@ -343,7 +342,7 @@ class main(object):
     try:
       q_cms = cms_msg(DER = query)
       q_msg = q_cms.unwrap((self.bpki_ta, self.child_bpki_cert))
-      self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, path)
+      self.rpkid_cms_timestamp = q_cms.check_replay(self.rpkid_cms_timestamp, path)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
@@ -373,7 +372,7 @@ class main(object):
   def next_crl_number(self):
     if self.crl_number is None:
       try:
-        crl = rpki.x509.CRL(DER_file = os.path.join(self.rpki_root_dir, self.rpki_root_crl))
+        crl = rpki.x509.CRL(DER_file = self.rpki_root_crl_file)
         self.crl_number = crl.getCRLNumber()
       except:                           # pylint: disable=W0702
         self.crl_number = 0
@@ -397,11 +396,11 @@ class main(object):
     global rootd
     rootd = self                        # Gross, but simpler than what we'd have to do otherwise
 
-    self.rpki_root_cert = None
     self.serial_number = None
     self.crl_number = None
     self.revoked = []
-    self.cms_timestamp = None
+    self.rpkid_cms_timestamp = None
+    self.pubd_cms_timestamp = None
 
     os.environ["TZ"] = "UTC"
     time.tzset()
@@ -424,55 +423,39 @@ class main(object):
     if not args.foreground:
       rpki.daemonize.daemon(pidfile = args.pidfile)
 
-    # This mess could use a rewrite, not so much for the code that
-    # reads the variables themselves as for the twisty maze of ten
-    # zillion configuration parameters that nobody ever touches but
-    # which must be set by the rpki.conf template in order for any of
-    # this to work properly.
-
-    # Still need to add .pubd_contac_uri and fix the target filenames
-    # for all the stuff we used to write in place instead of having
-    # pubd do it.
-
-    # Still need to write RPKI root cert.
-
     self.bpki_ta                 = rpki.x509.X509(Auto_update = self.cfg.get("bpki-ta"))
     self.rootd_bpki_key          = rpki.x509.RSA( Auto_update = self.cfg.get("rootd-bpki-key"))
     self.rootd_bpki_cert         = rpki.x509.X509(Auto_update = self.cfg.get("rootd-bpki-cert"))
     self.rootd_bpki_crl          = rpki.x509.CRL( Auto_update = self.cfg.get("rootd-bpki-crl"))
     self.child_bpki_cert         = rpki.x509.X509(Auto_update = self.cfg.get("child-bpki-cert"))
+    self.pubd_bpki_cert          = rpki.x509.X509(Auto_update = self.cfg.get("pubd-bpki-cert"))
 
     self.http_server_host        = self.cfg.get("server-host", "")
     self.http_server_port        = self.cfg.getint("server-port")
 
-    self.rpki_class_name         = self.cfg.get("rpki-class-name", "wombat")
+    self.rpki_class_name         = self.cfg.get("rpki-class-name")
 
-    self.rpki_root_dir           = self.cfg.get("rpki-root-dir")
-    self.rpki_base_uri           = self.cfg.get("rpki-base-uri", "rsync://" + self.rpki_class_name + ".invalid/")
+    self.rpki_root_key           = rpki.x509.RSA( Auto_update = self.cfg.get("rpki-root-key-file"))
+    self.rpki_root_cert          = rpki.x509.X509(Auto_update = self.cfg.get("rpki-root-cert-file"))
+    self.rpki_root_cert_uri      = self.cfg.get("rpki-root-cert-uri")
+    self.rpki_root_cert_hash     = None
 
-    self.rpki_root_key           = rpki.x509.RSA(Auto_update = self.cfg.get("rpki-root-key"))
-    self.rpki_root_cert_file     = self.cfg.get("rpki-root-cert")
-    self.rpki_root_cert_uri      = self.cfg.get("rpki-root-cert-uri", self.rpki_base_uri + "root.cer")
+    self.rpki_root_manifest_file = self.cfg.get("rpki-root-manifest-file")
+    self.rpki_root_manifest_uri  = self.cfg.get("rpki-root-manifest-uri")
 
-    self.rpki_root_manifest      = self.cfg.get("rpki-root-manifest", "root.mft")
-    self.rpki_root_crl           = self.cfg.get("rpki-root-crl",      "root.crl")
-    self.rpki_subject_cert       = self.cfg.get("rpki-subject-cert",  "child.cer")
-    self.rpki_subject_pkcs10     = self.cfg.get("rpki-subject-pkcs10", "child.pkcs10")
+    self.rpki_root_crl_file      = self.cfg.get("rpki-root-crl-file")
+    self.rpki_root_crl_uri       = self.cfg.get("rpki-root-crl-uri")
 
+    self.rpki_subject_cert_file  = self.cfg.get("rpki-subject-cert-file")
+    self.rpki_subject_cert_uri   = self.cfg.get("rpki-subject-cert-uri")
+    self.rpki_subject_pkcs10     = self.cfg.get("rpki-subject-pkcs10-file")
     self.rpki_subject_lifetime   = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-lifetime", "8w"))
-    self.rpki_subject_regen      = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-regen", self.rpki_subject_lifetime.convert_to_seconds() / 2))
+    self.rpki_subject_regen      = rpki.sundial.timedelta.parse(self.cfg.get("rpki-subject-regen",
+                                                                             self.rpki_subject_lifetime.convert_to_seconds() / 2))
 
     self.include_bpki_crl        = self.cfg.getboolean("include-bpki-crl", False)
 
-    # Somewhere about here we want to ask pubd about things we might
-    # have published previously, and might want to whack them or store
-    # their hashes for later update.  We could use usual callback
-    # mechanism, or just rpki.async.async_wrapper(rpki.http.caller())
-    # as we probably don't want to be doing anything else until this
-    # is done.
-    #
-    # Begs question of what happens if rootd comes up before pubd.
-    # Might need a startup delay here.
+    self.pubd_contact_uri        = self.cfg.get("pubd-contact-uri")
 
     rpki.http.server(host        = self.http_server_host,
                      port        = self.http_server_port,

@@ -221,7 +221,7 @@ def main():
     a.setup_bpki_certs()
 
   setup_publication(pubd_sql)
-  setup_rootd(db.root, y.get("rootd", {}))
+  setup_rootd(db.root, y.get("rootd", {}), db)
   setup_rsyncd()
   setup_rcynic()
 
@@ -250,10 +250,17 @@ def main():
     # the code until final exit is all closures.
 
     def start():
-      rpki.async.iterator(db.engines, create_rpki_objects, yaml_loop)
+      rpki.async.iterator(db.engines, create_rpki_objects, create_pubd_objects)
 
     def create_rpki_objects(iterator, a):
       a.create_rpki_objects(iterator)
+
+    def create_pubd_objects():
+      call_pubd([rpki.publication_control.client_elt.make_pdu(action = "create",
+                                                              client_handle = db.root.client_handle + "-" + rootd_name,
+                                                              base_uri = rootd_sia,
+                                                              bpki_cert = cross_certify(rootd_name + "-TA", pubd_name + "-TA"))],
+                cb = lambda ignored: yaml_loop())
 
     def yaml_loop():
 
@@ -749,13 +756,13 @@ class allocation(object):
 
     logger.info("Writing config files for %s", self.name)
     assert self.rpki_port is not None
-    d = { "my_name"      : self.name,
-          "irdb_db_name" : self.irdb_db_name,
-          "irdb_db_pass" : irdb_db_pass,
-          "irdb_port"    : self.irdb_port,
-          "rpki_db_name" : self.rpki_db_name,
-          "rpki_db_pass" : rpki_db_pass,
-          "rpki_port"    : self.rpki_port }
+    d = dict(my_name      = self.name,
+             irdb_db_name = self.irdb_db_name,
+             irdb_db_pass = irdb_db_pass,
+             irdb_port    = self.irdb_port,
+             rpki_db_name = self.rpki_db_name,
+             rpki_db_pass = rpki_db_pass,
+             rpki_port    = self.rpki_port)
     f = open(self.name + ".conf", "w")
     f.write(conf_fmt_1 % d)
     for line in self.extra_conf:
@@ -935,45 +942,7 @@ class allocation(object):
       certificant = self.name + "-SELF"
     else:
       certifier = self.name + "-SELF"
-    certfile = certifier + "-" + certificant + ".cer"
-
-    logger.info("Cross certifying %s into %s's BPKI (%s)", certificant, certifier, certfile)
-
-    child = rpki.x509.X509(Auto_file = certificant + ".cer")
-    parent = rpki.x509.X509(Auto_file = certifier + ".cer")
-    keypair = rpki.x509.RSA(Auto_file = certifier + ".key")
-    serial_file = certifier + ".srl"
-
-    now = rpki.sundial.now()
-    notAfter = now + rpki.sundial.timedelta(days = 30)
-
-    try:
-      f = open(serial_file, "r")
-      serial = f.read()
-      f.close()
-      serial = int(serial.splitlines()[0], 16)
-    except IOError:
-      serial = 1
-
-    x = parent.bpki_cross_certify(
-      keypair = keypair,
-      source_cert = child,
-      serial = serial,
-      notAfter = notAfter,
-      now = now)
-
-    f = open(serial_file, "w")
-    f.write("%02x\n" % (serial + 1))
-    f.close()
-
-    f = open(certfile, "w")
-    f.write(x.get_PEM())
-    f.close()
-
-    logger.debug("Cross certified %s:", certfile)
-    logger.debug("  Issuer  %s [%s]", x.getIssuer(),  x.hAKI())
-    logger.debug("  Subject %s [%s]", x.getSubject(), x.hSKI())
-    return x
+    return cross_certify(certificant, certifier)
 
   def create_rpki_objects(self, cb):
     """
@@ -992,13 +961,11 @@ class allocation(object):
 
     selves = [self] + self.hosts
 
-    for i, s in enumerate(selves):
-      logger.info("Creating RPKI objects for [%d] %s", i, s.name)
-
     rpkid_pdus = []
     pubd_pdus = []
 
-    for s in selves:
+    for i, s in enumerate(selves):
+      logger.info("Creating RPKI objects for [%d] %s", i, s.name)
 
       rpkid_pdus.append(rpki.left_right.self_elt.make_pdu(
         action = "create",
@@ -1188,17 +1155,18 @@ def setup_bpki_cert_chain(name, ee = (), ca = ()):
   s = "exec >/dev/null 2>&1\n"
   #s = "set -x\n"
   for kind in ("TA",) + ee + ca:
-    d = { "name"    : name,
-          "kind"    : kind,
-          "ca"      : "false" if kind in ee else "true",
-          "openssl" : prog_openssl }
+    d = dict(name    = name,
+             kind    = kind,
+             ca      = "false" if kind in ee else "true",
+             openssl = prog_openssl)
     f = open("%(name)s-%(kind)s.conf" % d, "w")
     f.write(bpki_cert_fmt_1 % d)
     f.close()
     if not os.path.exists("%(name)s-%(kind)s.key" % d):
       s += bpki_cert_fmt_2 % d
     s += bpki_cert_fmt_3 % d
-  d = { "name" : name, "openssl" : prog_openssl }
+  d = dict(name    = name,
+           openssl = prog_openssl)
   s += bpki_cert_fmt_4 % d
   for kind in ee + ca:
     d["kind"] =  kind
@@ -1208,20 +1176,24 @@ def setup_bpki_cert_chain(name, ee = (), ca = ()):
     s += bpki_cert_fmt_6 % d
   subprocess.check_call(s, shell = True)
 
-def setup_rootd(rpkid, rootd_yaml):
+def setup_rootd(rpkid, rootd_yaml, db):
   """
   Write the config files for rootd.
   """
 
   rpkid.cross_certify(rootd_name + "-TA", reverse = True)
+  cross_certify(pubd_name + "-TA", rootd_name + "-TA")
   logger.info("Writing config files for %s", rootd_name)
-  d = { "rootd_name" : rootd_name,
-        "rootd_port" : rootd_port,
-        "rpkid_name" : rpkid.name,
-        "rootd_sia"  : rootd_sia,
-        "rsyncd_dir" : rsyncd_dir,
-        "openssl"    : prog_openssl,
-        "lifetime"   : rootd_yaml.get("lifetime", "30d") }
+  d = dict(rootd_name   = rootd_name,
+           rootd_port   = rootd_port,
+           rpkid_name   = rpkid.name,
+           pubd_name    = pubd_name,
+           rootd_sia    = rootd_sia,
+           rsyncd_dir   = rsyncd_dir,
+           openssl      = prog_openssl,
+           lifetime     = rootd_yaml.get("lifetime", "30d"),
+           pubd_port    = pubd_port,
+           rootd_handle = db.root.client_handle + "-" + rootd_name)
   f = open(rootd_name + ".conf", "w")
   f.write(rootd_fmt_1 % d)
   f.close()
@@ -1238,9 +1210,9 @@ def setup_rcynic():
   """
 
   logger.info("Config file for rcynic")
-  d = { "rcynic_name" : rcynic_name,
-        "rootd_name"  : rootd_name,
-        "rootd_sia"   : rootd_sia }
+  d = dict(rcynic_name = rcynic_name,
+           rootd_name  = rootd_name,
+           rootd_sia   = rootd_sia)
   f = open(rcynic_name + ".conf", "w")
   f.write(rcynic_fmt_1 % d)
   f.close()
@@ -1251,10 +1223,10 @@ def setup_rsyncd():
   """
 
   logger.info("Config file for rsyncd")
-  d = { "rsyncd_name"   : rsyncd_name,
-        "rsyncd_port"   : rsyncd_port,
-        "rsyncd_module" : rsyncd_module,
-        "rsyncd_dir"    : rsyncd_dir }
+  d = dict(rsyncd_name   = rsyncd_name,
+           rsyncd_port   = rsyncd_port,
+           rsyncd_module = rsyncd_module,
+           rsyncd_dir    = rsyncd_dir)
   f = open(rsyncd_name + ".conf", "w")
   f.write(rsyncd_fmt_1 % d)
   f.close()
@@ -1283,12 +1255,12 @@ def setup_publication(pubd_sql):
       if "DROP TABLE IF EXISTS" not in sql.upper():
         raise
   db.close()
-  d = { "pubd_name"    : pubd_name,
-        "pubd_port"    : pubd_port,
-        "pubd_db_name" : pubd_db_name,
-        "pubd_db_user" : pubd_db_user,
-        "pubd_db_pass" : pubd_db_pass,
-        "pubd_dir"     : rsyncd_dir }
+  d = dict(pubd_name    = pubd_name,
+           pubd_port    = pubd_port,
+           pubd_db_name = pubd_db_name,
+           pubd_db_user = pubd_db_user,
+           pubd_db_pass = pubd_db_pass,
+           pubd_dir     = rsyncd_dir)
   f = open(pubd_name + ".conf", "w")
   f.write(pubd_fmt_1 % d)
   f.close()
@@ -1323,7 +1295,7 @@ def call_pubd(pdus, cb):
     logger.debug(r_cms.pretty_print_content())
     assert r_msg.is_reply
     for r_pdu in r_msg:
-      assert not isinstance(r_pdu, rpki.publication_control.report_error_elt)
+      r_pdu.raise_if_error()
     cb(r_msg)
 
   def call_pubd_eb(e):
@@ -1334,6 +1306,48 @@ def call_pubd(pdus, cb):
     msg          = q_der,
     callback     = call_pubd_cb,
     errback      = call_pubd_eb)
+
+
+def cross_certify(certificant, certifier):
+  """
+  Cross-certify and return the resulting certificate.
+  """
+
+  certfile = certifier + "-" + certificant + ".cer"
+
+  logger.info("Cross certifying %s into %s's BPKI (%s)", certificant, certifier, certfile)
+
+  child = rpki.x509.X509(Auto_file = certificant + ".cer")
+  parent = rpki.x509.X509(Auto_file = certifier + ".cer")
+  keypair = rpki.x509.RSA(Auto_file = certifier + ".key")
+  serial_file = certifier + ".srl"
+
+  now = rpki.sundial.now()
+  notAfter = now + rpki.sundial.timedelta(days = 30)
+
+  try:
+    with open(serial_file, "r") as f:
+      serial = int(f.read().splitlines()[0], 16)
+  except IOError:
+    serial = 1
+
+  x = parent.bpki_cross_certify(
+    keypair = keypair,
+    source_cert = child,
+    serial = serial,
+    notAfter = notAfter,
+    now = now)
+
+  with open(serial_file, "w") as f:
+    f.write("%02x\n" % (serial + 1))
+
+  with open(certfile, "w") as f:
+    f.write(x.get_PEM())
+
+  logger.debug("Cross certified %s:", certfile)
+  logger.debug("  Issuer  %s [%s]", x.getIssuer(),  x.hAKI())
+  logger.debug("  Subject %s [%s]", x.getSubject(), x.hSKI())
+  return x
 
 last_rcynic_run = None
 
@@ -1533,24 +1547,28 @@ rootd-bpki-cert         = %(rootd_name)s-RPKI.cer
 rootd-bpki-key          = %(rootd_name)s-RPKI.key
 rootd-bpki-crl          = %(rootd_name)s-TA.crl
 child-bpki-cert         = %(rootd_name)s-TA-%(rpkid_name)s-SELF.cer
+pubd-bpki-cert          = %(rootd_name)s-TA-%(pubd_name)s-TA.cer
 
 server-port             = %(rootd_port)s
 
-rpki-root-dir           = %(rsyncd_dir)sroot
-rpki-base-uri           = %(rootd_sia)sroot/
+rpki-class-name         = trunk
+
+pubd-contact-uri        = http://localhost:%(pubd_port)d/client/%(rootd_handle)s
+
+rpki-root-cert-file     = root.cer
 rpki-root-cert-uri      = %(rootd_sia)sroot.cer
+rpki-root-key-file      = root.key
 
-rpki-root-key           = root.key
-rpki-root-cert          = root.cer
-
-rpki-subject-pkcs10     = %(rootd_name)s.subject.pkcs10
+rpki-subject-cert-file  = trunk.cer
+rpki-subject-cert-uri   = %(rootd_sia)sroot/trunk.cer
+rpki-subject-pkcs10-file= trunk.p10
 rpki-subject-lifetime   = %(lifetime)s
 
-rpki-root-crl           = root.crl
-rpki-root-manifest      = root.mft
+rpki-root-crl-file      = root.crl
+rpki-root-crl-uri       = %(rootd_sia)sroot/root.crl
 
-rpki-class-name         = trunk
-rpki-subject-cert       = trunk.cer
+rpki-root-manifest-file = root.mft
+rpki-root-manifest-uri  = %(rootd_sia)sroot/root.mft
 
 include-bpki-crl        = yes
 enable_tracebacks       = yes
@@ -1610,8 +1628,7 @@ awk '!/-----(BEGIN|END)/' >>%(rootd_name)s.tal &&
             -outform DER \
             -extfile %(rootd_name)s.conf \
             -extensions req_x509_rpki_ext \
-            -signkey root.key &&
-ln -f root.cer %(rsyncd_dir)s
+            -signkey root.key
 '''
 
 rcynic_fmt_1 = '''\

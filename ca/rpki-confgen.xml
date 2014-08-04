@@ -647,10 +647,9 @@
     </doc>
 
     <doc>
-      Ok, if that wasn't enough to scare you off: rootd is a mess, and
-      needs to be rewritten, or, better, merged into rpkid.  It
-      doesn't use the publication protocol, and it requires far too
-      many configuration parameters.
+      Ok, if that wasn't enough to scare you off: rootd is a mess,
+      needs to be rewritten, or, better, merged into rpkid, and
+      requires far too many configuration parameters.
     </doc>
 
     <doc>
@@ -735,16 +734,14 @@
       </doc>
     </option>
 
-    <option name  = "rpki-root-dir"
-            value = "${myrpki::publication_base_directory}">
+    <option name  = "rpki_data_dir"
+            value = "${myrpki::bpki_servers_directory}">
       <doc>
-        Where rootd should write its output.  Yes, rootd should be using
-        pubd instead of publishing directly, but it doesn't.  This
-        needs to match pubd's configuration.
+        Directory where rootd should store its RPKI data files.
       </doc>
     </option>
 
-    <option name  = "rpki-base-uri"
+    <option name  = "rpki_base_uri"
             value = "rsync://${myrpki::publication_rsync_server}/${myrpki::publication_rsync_module}/">
       <doc>
         rsync URI corresponding to directory containing rootd's outputs.
@@ -758,23 +755,52 @@
       </doc>
     </option>
 
-    <option name  = "rpki-root-key"
-            value = "${myrpki::bpki_servers_directory}/root.key">
-      <doc>
-        Private key corresponding to rootd's root RPKI certificate.
-      </doc>
-    </option>
-
-    <option name  = "rpki-root-cert"
-            value = "${myrpki::publication_root_cert_directory}/root.cer">
+    <option name  = "rpki-root-cert-file"
+            value = "${rootd::rpki_data_dir}/root.cer">
       <doc>
         Filename (as opposed to rsync URI) of rootd's root RPKI
         certificate.
       </doc>
     </option>
 
-    <option name  = "rpki-subject-pkcs10"
-            value = "${myrpki::bpki_servers_directory}/rootd.subject.pkcs10">
+    <option name  = "rpki-root-key-file"
+            value = "${rootd::rpki_data_dir}/root.key">
+      <doc>
+        Private key corresponding to rootd's root RPKI certificate.
+      </doc>
+    </option>
+
+    <option name  = "rpki-root-crl-uri"
+            value = "${rootd::rpki_base_uri}/root.crl">
+      <doc>
+        URI of the CRL for rootd's root RPKI certificate.
+      </doc>
+    </option>
+
+    <option name  = "rpki-root-crl-file"
+            value = "${rootd::rpki_data_dir}/root.crl">
+      <doc>
+        Filename of the CRL for rootd's root RPKI certificate.
+      </doc>
+    </option>
+
+    <option name  = "rpki-root-manifest-uri"
+            value = "${rootd::rpki_base_uri}/root.mft">
+      <doc>
+        URI of the manifest for rootd's root RPKI certificate.
+      </doc>
+    </option>
+
+    <option name  = "rpki-root-manifest-file"
+            value = "${rootd::rpki_data_dir}/root.mft">
+      <doc>
+        Filename (relative to rootd-base-uri and rpki-root-dir) of the
+        manifest for rootd's root RPKI certificate.
+      </doc>
+    </option>
+
+    <option name  = "rpki-subject-pkcs10-file"
+            value = "${rootd::rpki_data_dir}/subject.pkcs10">
       <doc>
         Where rootd should stash a copy of the PKCS #10 request it gets
         from its one (and only) child
@@ -788,22 +814,6 @@
       </doc>
     </option>
 
-    <option name  = "rpki-root-crl"
-            value = "root.crl">
-      <doc>
-        Filename (relative to rootd-base-uri and rpki-root-dir) of the CRL
-        for rootd's root RPKI certificate.
-      </doc>
-    </option>
-
-    <option name  = "rpki-root-manifest"
-            value = "root.mft">
-      <doc>
-        Filename (relative to rootd-base-uri and rpki-root-dir) of the
-        manifest for rootd's root RPKI certificate.
-      </doc>
-    </option>
-
     <option name  = "rpki-class-name"
             value = "${myrpki::handle}">
       <doc>
@@ -812,11 +822,17 @@
       </doc>
     </option>
 
-    <option name  = "rpki-subject-cert"
-            value = "${myrpki::handle}.cer">
+    <option name  = "rpki-subject-cert-uri"
+            value = "${rootd::rpki_base_uri}/${myrpki::handle}.cer">
       <doc>
-        Filename (relative to rootd-base-uri and rpki-root-dir) of the one
-        (and only) RPKI certificate rootd issues.
+        URI of the one (and only) RPKI certificate rootd issues.
+      </doc>
+    </option>
+
+    <option name  = "rpki-subject-cert-file"
+            value = "${rootd::rpki_data_dir}/${myrpki::handle}.cer">
+      <doc>
+        Filename of the one (and only) RPKI certificate rootd issues.
       </doc>
     </option>
 

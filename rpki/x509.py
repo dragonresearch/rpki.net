@@ -323,6 +323,14 @@ class DER_object(object):
     else:
       self.lastfail = None
 
+  @property
+  def mtime(self):
+    """
+    Retrieve os.stat().st_mtime for auto-update files.
+    """
+
+    return os.stat(self.filename).st_mtime
+
   def check(self):
     """
     Perform basic checks on a DER object.
@@ -1396,7 +1404,7 @@ class CMS_object(DER_object):
   ## @var debug_cms_certs
   # Set this to True to log a lot of chatter about CMS certificates.
 
-  debug_cms_certs = False
+  debug_cms_certs = True
 
   ## @var dump_using_dumpasn1
   # Set this to use external dumpasn1 program, which is prettier and

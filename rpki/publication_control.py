@@ -90,10 +90,6 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_c
   def objects(self):
     return rpki.pubd.object_obj.sql_fetch_where(self.gctx, "client_id = %s", (self.client_id,))
 
-  @property
-  def published_object(self):
-    return rpki.pubd.object_obj.sql_fetch_where(self.gctx, "client_id = %s AND withdrawn_snapshot_id IS NULL", (self.client_id,))
-
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Extra server actions for client_elt.

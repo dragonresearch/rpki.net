@@ -70,11 +70,11 @@ class revoke_pdu(rpki.up_down.revoke_pdu):
     rootd.revoke_subject_cert(now)
     rootd.del_subject_cert()
     rootd.del_subject_pkcs10()
-    rootd.generate_crl_and_manifest(now, pubd_msg)
     r_msg.payload = rpki.up_down.revoke_response_pdu()
     r_msg.payload.class_name = self.class_name
     r_msg.payload.ski = self.ski
-    rootd.call_pubd(callback, errback, pubd_msg)
+    rootd.generate_crl_and_manifest(now, pubd_msg)
+    rootd.publish(callback, errback, pubd_msg)
 
 class error_response_pdu(rpki.up_down.error_response_pdu):
   exceptions = rpki.up_down.error_response_pdu.exceptions.copy()
@@ -295,14 +295,38 @@ class main(object):
       rc.certs.append(rpki.up_down.certificate_elt())
       rc.certs[0].cert_url = rpki.up_down.multi_uri(self.rpki_subject_cert_uri)
       rc.certs[0].cert = subject_cert
-    self.call_pubd(callback, errback, pubd_msg)
+    self.publish(callback, errback, pubd_msg)
+
+
+  def publish(self, callback, errback, q_msg):
+
+    def done(r_msg):
+      if len(q_msg) != len(r_msg):
+        raise rpki.exceptions.BadPublicationReply("Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg))
+      callback()
+
+    def fix_hashes(r_msg):
+      published_hash = dict((r_pdu.uri, r_pdu.hash) for r_pdu in r_msg)
+      for q_pdu in q_msg:
+        if q_pdu.hash is None and published_hash.get(q_pdu.uri) is not None:
+          logger.debug("Updating hash of %r to %s from previously published data", q_pdu, published_hash[q_pdu.uri])
+          q_pdu.hash = published_hash[q_pdu.uri]
+      self.call_pubd(done, errback, q_msg)
+
+    if not q_msg:
+      callback()
+    elif all(q_pdu.hash is not None for q_pdu in q_msg):
+      self.call_pubd(done, errback, q_msg)
+    else:
+      logger.debug("Some publication PDUs are missing hashes, checking...")
+      self.call_pubd(fix_hashes, errback, rpki.publication.msg.query(rpki.publication.list_elt()))
 
 
   def call_pubd(self, callback, errback, q_msg):
 
     try:
       if not q_msg:
-        return callback()
+        return callback(())
 
       for q_pdu in q_msg:
         logger.info("Sending %r to pubd", q_pdu)
@@ -317,9 +341,7 @@ class main(object):
           self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_contact_uri)
           for r_pdu in r_msg:
             r_pdu.raise_if_error()
-          if len(q_msg) > len(r_msg):
-            raise rpki.exceptions.BadPublicationReply("Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg))
-          callback()
+          callback(r_msg)
         except (rpki.async.ExitNow, SystemExit):
           raise
         except Exception, e:

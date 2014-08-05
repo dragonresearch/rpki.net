@@ -183,10 +183,11 @@ class main(object):
       r_msg = q_msg.__class__.reply()
       delta = self.session.new_delta()
       failed = False
+      did_something = False
       for q_pdu in q_msg:
         try:
           if isinstance(q_pdu, rpki.publication.list_elt):
-            for obj in client.published_objects:
+            for obj in client.objects:
               r_pdu = q_pdu.__class__()
               r_pdu.tag = q_pdu.tag
               r_pdu.uri = obj.uri
@@ -201,6 +202,7 @@ class main(object):
             r_pdu.tag = q_pdu.tag
             r_pdu.uri = q_pdu.uri
             r_msg.append(r_pdu)
+            did_something = True
         except (rpki.async.ExitNow, SystemExit):
           raise
         except Exception, e:
@@ -211,7 +213,7 @@ class main(object):
       #
       # This isn't really right as long as we're using SQL autocommit
       #
-      if failed:
+      if failed or not did_something:
         # This should SQL rollback
         #
         # Under current scheme I don't think delta is in SQL yet so this may be wrong

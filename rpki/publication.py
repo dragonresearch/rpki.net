@@ -224,7 +224,7 @@ class msg(rpki.xml_utils.msg, publication_namespace):
 
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
-  pdus = dict((x.element_name, x) for x in (publish_elt, withdraw_elt, report_error_elt))
+  pdus = dict((x.element_name, x) for x in (publish_elt, withdraw_elt, list_elt, report_error_elt))
 
 
 class sax_handler(rpki.xml_utils.sax_handler):

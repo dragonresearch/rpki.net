@@ -186,33 +186,10 @@
       </doc>
     </option>
 
-    <option name  = "publication_root_cert_directory"
-            value = "${myrpki::publication_base_directory}.root">
-      <doc>
-        Root of local directory tree where rootd (sigh) should write out
-        published data.  This is just like publication_base_directory, but
-        rootd is too dumb to use pubd and needs its own directory in
-        which to write one certificate, one CRL, and one manifest.
-        Neither rootd nor rsyncd much cares //where// you tell them to put
-        this stuff, the important thing is that the rsync URIs in
-        generated certificates match up with the published objects so that
-        relying parties can find and verify rootd's published outputs.
-      </doc>
-    </option>
-
     <option name  = "publication_rsync_module"
             value = "rpki">
       <doc>
         rsyncd module name corresponding to publication_base_directory.
-        This has to match the module you configured into `rsyncd.conf`.
-        Leave this alone unless you have some need to change it.
-      </doc>
-    </option>
-
-    <option name  = "publication_root_module"
-            value = "root">
-      <doc>
-        rsyncd module name corresponding to publication_root_cert_directory.
         This has to match the module you configured into `rsyncd.conf`.
         Leave this alone unless you have some need to change it.
       </doc>
@@ -720,6 +697,14 @@
       </doc>
     </option>
 
+    <option name  = "pubd-bpki-cert"
+            value = "${myrpki::bpki_servers_directory}/pubd.cer">
+      <doc>
+        BPKI certificate for pubd.  Don't change this unless you
+	really know what you are doing.
+      </doc>
+    </option>
+
     <option name  = "server-host"
             value = "${myrpki::rootd_server_host}">
       <doc>
@@ -737,19 +722,23 @@
     <option name  = "rpki_data_dir"
             value = "${myrpki::bpki_servers_directory}">
       <doc>
-        Directory where rootd should store its RPKI data files.
+        Directory where rootd should store its RPKI data files.  This
+        is only used to construct other variables, rootd itself
+        doesn't read it.
       </doc>
     </option>
 
     <option name  = "rpki_base_uri"
-            value = "rsync://${myrpki::publication_rsync_server}/${myrpki::publication_rsync_module}/">
+            value = "rsync://${myrpki::publication_rsync_server}/${myrpki::publication_rsync_module}/${myrpki::handle}-root/root">
       <doc>
-        rsync URI corresponding to directory containing rootd's outputs.
+        rsync URI corresponding to directory containing rootd's
+        outputs.  This is only used to construct other variables,
+        rootd itself doesn't read it.
       </doc>
     </option>
 
     <option name  = "rpki-root-cert-uri"
-            value = "rsync://${myrpki::publication_rsync_server}/${myrpki::publication_root_module}/root.cer">
+            value = "${rootd::rpki_base_uri}.cer">
       <doc>
         rsync URI for rootd's root (self-signed) RPKI certificate.
       </doc>
@@ -758,8 +747,7 @@
     <option name  = "rpki-root-cert-file"
             value = "${rootd::rpki_data_dir}/root.cer">
       <doc>
-        Filename (as opposed to rsync URI) of rootd's root RPKI
-        certificate.
+        Filename of rootd's root RPKI certificate.
       </doc>
     </option>
 
@@ -794,8 +782,7 @@
     <option name  = "rpki-root-manifest-file"
             value = "${rootd::rpki_data_dir}/root.mft">
       <doc>
-        Filename (relative to rootd-base-uri and rpki-root-dir) of the
-        manifest for rootd's root RPKI certificate.
+        Filename of the manifest for rootd's root RPKI certificate.
       </doc>
     </option>
 
@@ -833,6 +820,13 @@
             value = "${rootd::rpki_data_dir}/${myrpki::handle}.cer">
       <doc>
         Filename of the one (and only) RPKI certificate rootd issues.
+      </doc>
+    </option>
+
+    <option name  = "pubd-contact-uri"
+	    value = "http://${myrpki::pubd_server_host}:${myrpki::pubd_server_port}/client/${myrpki::handle}-root">
+      <doc>
+	URI at which rootd should contact pubd for service.
       </doc>
     </option>
 

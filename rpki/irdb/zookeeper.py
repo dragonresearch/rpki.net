@@ -1543,6 +1543,23 @@ class Zookeeper(object):
           bpki_cert = client.certificate,
           base_uri = client.sia_base))
 
+    # rootd instances are also a weird sort of client
+
+    for rootd in rpki.irdb.Rootd.objects.all():
+
+      client_handle = rootd.issuer.handle + "-root"
+      client_pdu = client_pdus.pop(client_handle, None)
+      sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client_handle)
+
+      if (client_pdu is None or
+          client_pdu.base_uri != sia_base or
+          client_pdu.bpki_cert != rootd.issuer.certificate):
+        pubd_query.append(rpki.publication_control.client_elt.make_pdu(
+          action = "create" if client_pdu is None else "set",
+          client_handle = client_handle,
+          bpki_cert = rootd.issuer.certificate,
+          base_uri = sia_base))
+
     # Delete any unknown clients
 
     pubd_query.extend(rpki.publication_control.client_elt.make_pdu(

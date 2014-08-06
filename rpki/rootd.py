@@ -337,7 +337,7 @@ class main(object):
         try:
           logger.debug("Received response from pubd")
           r_cms = rpki.publication.cms_msg(DER = r_der)
-          r_msg = r_cms.unwrap((self.bpki_ta, self.pubd_bpki_cert))
+          r_msg = r_cms.unwrap(self.bpki_ta)
           self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_contact_uri)
           for r_pdu in r_msg:
             r_pdu.raise_if_error()

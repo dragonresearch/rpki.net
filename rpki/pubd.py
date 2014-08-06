@@ -181,9 +181,8 @@ class main(object):
       if not q_msg.is_query():
         raise rpki.exceptions.BadQuery("Message type is not query")
       r_msg = q_msg.__class__.reply()
-      delta = self.session.new_delta()
+      delta = None
       failed = False
-      did_something = False
       for q_pdu in q_msg:
         try:
           if isinstance(q_pdu, rpki.publication.list_elt):
@@ -194,6 +193,8 @@ class main(object):
               r_pdu.hash = obj.hash
               r_msg.append(r_pdu)
           else:
+            if delta is None and not failed:
+              delta = self.session.new_delta()
             q_pdu.gctx = self
             q_pdu.client = client
             q_pdu.client.check_allowed_uri(q_pdu.uri)
@@ -202,7 +203,6 @@ class main(object):
             r_pdu.tag = q_pdu.tag
             r_pdu.uri = q_pdu.uri
             r_msg.append(r_pdu)
-            did_something = True
         except (rpki.async.ExitNow, SystemExit):
           raise
         except Exception, e:
@@ -210,15 +210,16 @@ class main(object):
             logger.exception("Exception processing PDU %r", q_pdu)
           r_msg.append(rpki.publication.report_error_elt.from_exception(e, q_pdu.tag))
           failed = True
+          if delta is not None:
+            delta.sql_delete()
+            self.session.serial -= 1
+            self.session.sql_mark_dirty()
       #
-      # This isn't really right as long as we're using SQL autocommit
+      # This isn't really right as long as we're using SQL autocommit;
+      # there should be an SQL ROLLBACK somewhere if anything above fails.
       #
-      if failed or not did_something:
-        # This should SQL rollback
-        #
-        # Under current scheme I don't think delta is in SQL yet so this may be wrong
-        delta.sql_delete()
-      else:
+      if delta is not None:
+        assert not failed
         delta.activate()
         self.sql.sweep()
         self.session.generate_snapshot()

@@ -367,10 +367,9 @@ class allocation(object):
 
     fn = "%s.asns.csv" % d.name
     if not args.skip_config:
-      f = self.csvout(fn)
-      for k in self.kids:
-        f.writerows((k.name, a) for a in k.resources.asn)
-      f.close()
+      with self.csvout(fn) as f:
+        for k in self.kids:
+          f.writerows((k.name, a) for a in k.resources.asn)
     if not args.stop_after_config:
       self.run_rpkic("load_asns", fn)
 
@@ -381,10 +380,9 @@ class allocation(object):
 
     fn = "%s.prefixes.csv" % d.name
     if not args.skip_config:
-      f = self.csvout(fn)
-      for k in self.kids:
-        f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
-      f.close()
+      with self.csvout(fn) as f:
+        for k in self.kids:
+          f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
     if not args.stop_after_config:
       self.run_rpkic("load_prefixes", fn)
 
@@ -395,11 +393,10 @@ class allocation(object):
 
     fn = "%s.roas.csv" % d.name
     if not args.skip_config:
-      f = self.csvout(fn)
-      for g1, r in enumerate(self.roa_requests):
-        f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
-                    for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
-      f.close()
+      with self.csvout(fn) as f:
+        for g1, r in enumerate(self.roa_requests):
+          f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
+                      for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
     if not args.stop_after_config:
       self.run_rpkic("load_roa_requests", fn)
 
@@ -413,12 +410,8 @@ class allocation(object):
       if not args.skip_config:
         path = self.path(fn)
         print "Writing", path
-        f = open(path, "w")
-        for i, g in enumerate(self.ghostbusters):
-          if i:
-            f.write("\n")
-          f.write(g)
-        f.close()
+        with open(path, "w") as f:
+          f.write("\n".join(self.ghostbusters))
       if not args.stop_after_config:
         self.run_rpkic("load_ghostbuster_requests", fn)
 
@@ -507,22 +500,20 @@ class allocation(object):
 
     r.update(config_overrides)
 
-    f = open(self.path("rpki.conf"), "w")
-    f.write("# Automatically generated, do not edit\n")
-    print "Writing", f.name
+    with open(self.path("rpki.conf"), "w") as f:
+      f.write("# Automatically generated, do not edit\n")
+      print "Writing", f.name
 
-    section = None
-    for line in open(cleanpath(rpkid_dir, "examples/rpki.conf")):
-      m = section_regexp.match(line)
-      if m:
-        section = m.group(1)
-      m = variable_regexp.match(line)
-      option = m.group(1) if m and section == "myrpki" else None
-      if option and option in r:
-        line = "%s = %s\n" % (option, r[option])
-      f.write(line)
-
-    f.close()
+      section = None
+      for line in open(cleanpath(rpkid_dir, "examples/rpki.conf")):
+        m = section_regexp.match(line)
+        if m:
+          section = m.group(1)
+        m = variable_regexp.match(line)
+        option = m.group(1) if m and section == "myrpki" else None
+        if option and option in r:
+          line = "%s = %s\n" % (option, r[option])
+        f.write(line)
 
   def dump_rsyncd(self):
     """
@@ -530,25 +521,24 @@ class allocation(object):
     """
 
     if self.runs_pubd:
-      f = open(self.path("rsyncd.conf"), "w")
-      print "Writing", f.name
-      f.writelines(s + "\n" for s in
-                   ("# Automatically generated, do not edit",
-                    "port         = %d"           % self.rsync_port,
-                    "address      = localhost",
-                    "[rpki]",
-                    "log file     = rsyncd.log",
-                    "read only    = yes",
-                    "use chroot   = no",
-                    "path         = %s"           % self.path("publication"),
-                    "comment      = RPKI test",
-                    "[root]",
-                    "log file     = rsyncd_root.log",
-                    "read only    = yes",
-                    "use chroot   = no",
-                    "path         = %s"           % self.path("publication.root"),
-                    "comment      = RPKI test root"))
-      f.close()
+      with open(self.path("rsyncd.conf"), "w") as f:
+        print "Writing", f.name
+        f.writelines(s + "\n" for s in
+                     ("# Automatically generated, do not edit",
+                      "port         = %d"           % self.rsync_port,
+                      "address      = localhost",
+                      "[rpki]",
+                      "log file     = rsyncd.log",
+                      "read only    = yes",
+                      "use chroot   = no",
+                      "path         = %s"           % self.path("publication"),
+                      "comment      = RPKI test",
+                      "[root]",
+                      "log file     = rsyncd_root.log",
+                      "read only    = yes",
+                      "use chroot   = no",
+                      "path         = %s"           % self.path("publication.root"),
+                      "comment      = RPKI test root"))
 
   @classmethod
   def next_rpkic_counter(cls):
@@ -636,9 +626,9 @@ def create_root_certificate(db_root):
 
   root_key = rpki.x509.RSA.generate(quiet = True)
 
-  root_uri = "rsync://localhost:%d/rpki/" % db_root.pubd.rsync_port
+  root_uri = "rsync://localhost:%d/rpki/%s-root/root" % (db_root.pubd.rsync_port, db_root.name)
 
-  root_sia = (root_uri, root_uri + "root.mft", None)
+  root_sia = (root_uri + "/", root_uri + "/root.mft", None)
 
   root_cert = rpki.x509.X509.self_certify(
     keypair     = root_key,
@@ -648,18 +638,15 @@ def create_root_certificate(db_root):
     notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
     resources   = root_resources)
 
-  f = open(db_root.path("publication.root/root.cer"), "wb")
-  f.write(root_cert.get_DER())
-  f.close()
+  with open(db_root.path("root.cer"), "wb") as f:
+    f.write(root_cert.get_DER())
 
-  f = open(db_root.path("root.key"), "wb")
-  f.write(root_key.get_DER())
-  f.close()
+  with open(db_root.path("root.key"), "wb") as f:
+    f.write(root_key.get_DER())
 
-  f = open(os.path.join(test_dir, "root.tal"), "w")
-  f.write("rsync://localhost:%d/root/root.cer\n\n" % db_root.pubd.rsync_port)
-  f.write(root_key.get_public().get_Base64())
-  f.close()
+  with open(os.path.join(test_dir, "root.tal"), "w") as f:
+    f.write(root_uri + ".cer\n\n")
+    f.write(root_key.get_public().get_Base64())
 
 
 

@@ -530,15 +530,15 @@ class allocation(object):
       notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
       resources   = root_resources)
 
-    with open(self.path("publication.root", "root.cer"), "wb") as f:
+    with open(self.path("root.cer"), "wb") as f:
       f.write(root_cert.get_DER())
 
     with open(self.path("root.key"), "wb") as f:
       f.write(root_key.get_DER())
 
     with open(cleanpath(test_dir, "root.tal"), "w") as f:
-      f.write("rsync://%s/root/root.cer\n\n%s" % (
-        self.rsync_server, root_key.get_public().get_Base64()))
+      f.write("rsync://%s/root/root.cer\n\n" % self.rsync_server)
+      f.write(root_key.get_public().get_Base64())
 
   def mkdir(self, *path):
     path = self.path(*path)

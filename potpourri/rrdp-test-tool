@@ -120,7 +120,7 @@ class main(object):
       raise RuntimeError("Can't apply deltas: current %s old %s new %s" % (cur, old, new))
     for i, delta in enumerate(xml.iterchildren(tags.delta)):
       serial = int(delta.get("serial"))
-      print " Delta %3d serial %ds" % (i, serial)
+      print " Delta %3d serial %d" % (i, serial)
       if cur != serial - 1:
         raise RuntimeError("Can't apply delta: current %s delta serial %s" % (cur, serial))
       for j, elt in enumerate(delta.iterchildren(tags.withdraw)):

@@ -337,7 +337,7 @@ class main(object):
         try:
           logger.debug("Received response from pubd")
           r_cms = rpki.publication.cms_msg(DER = r_der)
-          r_msg = r_cms.unwrap(self.bpki_ta)
+          r_msg = r_cms.unwrap((self.bpki_ta, self.pubd_bpki_cert))
           self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_contact_uri)
           for r_pdu in r_msg:
             r_pdu.raise_if_error()
@@ -450,7 +450,11 @@ class main(object):
     self.rootd_bpki_cert         = rpki.x509.X509(Auto_update = self.cfg.get("rootd-bpki-cert"))
     self.rootd_bpki_crl          = rpki.x509.CRL( Auto_update = self.cfg.get("rootd-bpki-crl"))
     self.child_bpki_cert         = rpki.x509.X509(Auto_update = self.cfg.get("child-bpki-cert"))
-    self.pubd_bpki_cert          = rpki.x509.X509(Auto_update = self.cfg.get("pubd-bpki-cert"))
+
+    if self.cfg.has_option("pubd-bpki-cert"):
+      self.pubd_bpki_cert        = rpki.x509.X509(Auto_update = self.cfg.get("pubd-bpki-cert"))
+    else:
+      self.pubd_bpki_cert        = None
 
     self.http_server_host        = self.cfg.get("server-host", "")
     self.http_server_port        = self.cfg.getint("server-port")

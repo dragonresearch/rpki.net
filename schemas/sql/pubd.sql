@@ -47,7 +47,7 @@ CREATE TABLE session (
         session_id              SERIAL NOT NULL,
         uuid                    VARCHAR(36) NOT NULL,
         serial                  BIGINT UNSIGNED NOT NULL,
-        snapshot                TEXT,
+        snapshot                LONGTEXT,
         hash                    CHAR(64),
         PRIMARY KEY             (session_id),
         UNIQUE                  (uuid)
@@ -56,7 +56,7 @@ CREATE TABLE session (
 CREATE TABLE delta (
         delta_id                SERIAL NOT NULL,
         serial                  BIGINT UNSIGNED NOT NULL,
-        xml                     TEXT NOT NULL,
+        xml                     LONGTEXT NOT NULL,
         hash                    CHAR(64) NOT NULL,
         expires                 DATETIME NOT NULL,
         session_id              BIGINT UNSIGNED NOT NULL,

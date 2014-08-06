@@ -697,11 +697,10 @@
       </doc>
     </option>
 
-    <option name  = "pubd-bpki-cert"
-            value = "${myrpki::bpki_servers_directory}/pubd.cer">
+    <option name  = "pubd-bpki-cert">
       <doc>
-        BPKI certificate for pubd.  Don't change this unless you
-	really know what you are doing.
+        BPKI certificate for pubd.  Don't set this unless you really
+	know what you are doing.
       </doc>
     </option>
 

@@ -226,9 +226,13 @@ class main(object):
 
         # Should SQL commit here
 
-        # These could be merged, and perhaps should be.
-        self.session.write_snapshot()
+        # These could be merged, and perhaps should be, among other
+        # reasons because we need to do something about expiring old
+        # deltas and deleting old XML files, and it's probably easier
+        # to avoid race conditions if we do this all in one place.
+
         self.session.write_deltas()
+        self.session.write_snapshot()
         self.session.write_notification()
 
         # Somewhere around here is also where we should finally write

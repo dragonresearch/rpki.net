@@ -46,10 +46,10 @@ def dataglob(pattern):
   return glob.iglob(os.path.join(("smoketest.dir" if args.use_smoketest else "yamltest.dir/RIR"), pattern))
 
 def snapshot_to_serial(fn):
-  return os.path.splitext(os.path.basename(fn))[0]
+  return int(os.path.splitext(os.path.basename(fn))[0])
 
 def delta_to_serial(fn):
-  return os.path.splitext(os.path.basename(fn))[0].split("-")[1]
+  return int(os.path.splitext(os.path.basename(fn))[0].split("-")[1])
 
 top = os.path.expanduser("~/rpki/subvert-rpki.hactrn.net/branches/tk705")
 
@@ -84,8 +84,8 @@ else:
   time.sleep(args.delay)
   yamltest.terminate()
 
-snapshots = dict((int(snapshot_to_serial(fn)), fn) for fn in dataglob("rrdp-publication/*/snapshot/*.xml"))
-deltas    = dict((int(delta_to_serial(fn)),    fn) for fn in dataglob("rrdp-publication/*/deltas/*.xml"))
+snapshots = dict((snapshot_to_serial(fn), fn) for fn in dataglob("rrdp-publication/snapshot/*/*.xml"))
+deltas    = dict((delta_to_serial(fn),    fn) for fn in dataglob("rrdp-publication/deltas/*/*.xml"))
 
 for snapshot in sorted(snapshots):
 

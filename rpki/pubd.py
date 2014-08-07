@@ -347,7 +347,7 @@ class session_obj(rpki.sql.sql_persistent):
     Write current session snapshot to disk.
     """
 
-    self.write_rrdp_file("%s/snapshot/%s.xml" % (self.uuid, self.serial), self.snapshot)
+    self.write_rrdp_file("snapshot/%s/%s.xml" % (self.uuid, self.serial), self.snapshot)
 
   def write_deltas(self):
     """
@@ -367,7 +367,7 @@ class session_obj(rpki.sql.sql_persistent):
                   session_id = self.uuid,
                   serial = str(self.serial))
     SubElement(xml, rrdp_xmlns + "snapshot",
-               uri = "%s/%s/snapshot/%d.xml" % (self.gctx.rrdp_uri_base, self.uuid, self.serial),
+               uri = "%s/snapshot/%s/%d.xml" % (self.gctx.rrdp_uri_base, self.uuid, self.serial),
                hash = self.hash)
     for delta in self.deltas:
       se = SubElement(xml, rrdp_xmlns + "delta",
@@ -376,7 +376,7 @@ class session_obj(rpki.sql.sql_persistent):
                       hash =  delta.hash)
       se.set("from", str(delta.serial - 1))
     rpki.relaxng.rrdp.assertValid(xml)
-    self.write_rrdp_file("%s/notification.xml" % self.uuid,
+    self.write_rrdp_file("notification/%s.xml" % self.uuid,
                          ElementToString(xml, pretty_print = True),
                          overwrite = True)
 
@@ -402,7 +402,7 @@ class delta_obj(rpki.sql.sql_persistent):
 
   @property
   def fn(self):
-    return "%s/deltas/%s-%s.xml" % (self.session.uuid, self.serial - 1, self.serial)
+    return "deltas/%s/%s-%s.xml" % (self.session.uuid, self.serial - 1, self.serial)
 
   @classmethod
   def create(cls, session):

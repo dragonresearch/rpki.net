@@ -1,7 +1,7 @@
 PORTNAME=	rpki-ca
 PORTVERSION=	0.%(SVNVERSION)s
 CATEGORIES=	net
-MASTER_SITES=	http://download.rpki.net/
+MASTER_SITES=	%(MASTER_SITE)s
 DISTFILES=	rpki-%(SVNBRANCH)s-r%(SVNVERSION)s.tar.xz
 WRKSRC=         ${WRKDIR}/rpki-%(SVNBRANCH)s-r%(SVNVERSION)s
 MAINTAINER=	sra@hactrn.net

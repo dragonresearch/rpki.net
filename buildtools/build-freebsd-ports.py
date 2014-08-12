@@ -23,36 +23,40 @@ This is a script because we need to generate package lists and update
 version numbers in the Makefiles.
 """
 
-import sys
 import os
 import re
-import subprocess
-import errno
+import sys
 import glob
+import errno
 import shutil
 import argparse
+import subprocess
 
 def check_dir(s):
   if not os.path.isdir(s):
     raise argparse.ArgumentTypeError("%r is not a directory" % s)
   return s
 
-parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("--allow-dirty", action = "store_true",
-                    help = "don't insist on pristine subversion checkout")
+parser = argparse.ArgumentParser(description = __doc__,
+                                 formatter_class = argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("--local-dist", action = "store_true",
+                    help = "generate local distribution from subversion working tree (implies --make-package)")
 parser.add_argument("--make-package", action = "store_true",
                     help = "build binary package")
 parser.add_argument("--no-clean", action = "store_true",
                     help = "don't clean port after staging etc (implies --no-tarball)")
 parser.add_argument("--no-tarball", action = "store_true",
                     help = "don't create tarball of generated port")
+parser.add_argument("--portsdir", type = os.path.abspath,
+                    default = os.path.abspath("freebsd-ports"),
+                    help = "where to build FreeBSD port trees")
 parser.add_argument("svndir", metavar = "subversion-working-directory", type = check_dir,
                     help = "directory containing subversion working tree")
 args = parser.parse_args()
 
 svnversion = subprocess.check_output(("svnversion", "-c", args.svndir)).strip().split(":")[-1]
 
-if args.allow_dirty:
+if args.local_dist:
   svnversion = svnversion.translate(None, "M")
 
 if not svnversion.isdigit():
@@ -66,53 +70,56 @@ if branch != "trunk" and (branch[:2] != "tk" or not branch[2:].isdigit()):
 version = "0." + svnversion
 tarname = "rpki-%s-r%s" % (branch, svnversion)
 tarball = tarname + ".tar.xz"
-url     = "http://download.rpki.net/" + tarball
 
-portsdir = os.path.abspath("freebsd-ports")
-portsdir_old = portsdir + ".old"
+portsdir_old = args.portsdir + ".old"
 
-# Could perhaps use distutils.sysconfig.get_python_lib() instead of
-# this regexp hack, but would be just as complicated in its own way,
-# so just go with this for the moment.
+if os.path.isdir(portsdir_old):
+  shutil.rmtree(portsdir_old)
+
+if os.path.isdir(args.portsdir):
+  os.rename(args.portsdir, portsdir_old)
+
+shutil.copytree(os.path.join(args.svndir, "buildtools", "freebsd-skeleton"), args.portsdir)
+
+if args.local_dist:
+  subprocess.check_call(("svn", "export", args.svndir, os.path.join(args.portsdir, tarname)))
+  subprocess.check_call(("tar", "cJvvf", tarball, tarname), cwd = args.portsdir)
+  shutil.rmtree(os.path.join(args.portsdir, tarname))
+elif os.path.exists(os.path.join(portsdir_old, tarball)):
+  os.link(os.path.join(portsdir_old, tarball), os.path.join(args.portsdir, tarball))
+elif os.path.exists(os.path.join("/usr/ports/distfiles", tarball)):
+  shutil.copy(os.path.join("/usr/ports/distfiles", tarball), os.path.join(args.portsdir, tarball))
+
+if os.path.isdir(portsdir_old):
+  shutil.rmtree(portsdir_old)
+
+if args.make_package or args.local_dist:
+  pkgdir = os.path.join(args.portsdir, "packages")
+  os.mkdir(pkgdir)
 
 py_lib     = re.compile(r"^lib/python\d+\.\d+")
 py_sitelib = re.compile(r"^lib/python\d+\.\d+/site-packages")
 
-if os.path.isdir(portsdir_old):
-  shutil.rmtree(portsdir_old)
+if args.local_dist:
+  master_site = "file://" + args.portsdir + "/"
+else:
+  master_site = "http://download.rpki.net/"
 
-if os.path.isdir(portsdir):
-  os.rename(portsdir, portsdir_old)
-
-shutil.copytree(os.path.join(args.svndir, "buildtools", "freebsd-skeleton"), portsdir)
-
-if os.path.exists(os.path.join(portsdir_old, tarball)):
-  os.link(os.path.join(portsdir_old, tarball), os.path.join(portsdir, tarball))
-elif os.path.exists(os.path.join("/usr/ports/distfiles", tarball)):
-  shutil.copy(os.path.join("/usr/ports/distfiles", tarball), os.path.join(portsdir, tarball))
-
-if os.path.isdir(portsdir_old):
-  shutil.rmtree(portsdir_old)
-
-if args.make_package:
-  pkgdir = os.path.join(portsdir, "packages")
-  os.mkdir(pkgdir)
-
-formatdict = dict(SVNVERSION = svnversion, SVNBRANCH  = branch)
+formatdict = dict(SVNVERSION = svnversion, SVNBRANCH = branch, MASTER_SITE = master_site)
 
 keepdirs = ("usr", "etc", "bin", "var", "lib", "libexec", "sbin", "share", "etc/rc.d", "%%PYTHON_SITELIBDIR%%")
 
 for port in ("rpki-rp", "rpki-ca"):
 
-  base = os.path.join(portsdir, port)
+  base = os.path.join(args.portsdir, port)
   stage = os.path.join(base, "work", "stage")
-  fn = os.path.join(portsdir, port, "Makefile")
+  fn = os.path.join(args.portsdir, port, "Makefile")
   with open(fn, "r") as f:
     template = f.read()
   with open(fn, "w") as f:
     f.write(template % formatdict)
 
-  subprocess.check_call(("make", "makesum", "stage", "DISTDIR=" + portsdir), cwd = base)
+  subprocess.check_call(("make", "makesum", "stage", "DISTDIR=" + args.portsdir), cwd = base)
 
   with open(os.path.join(base, "pkg-plist"), "w") as f:
     usr_local = None
@@ -135,11 +142,11 @@ for port in ("rpki-rp", "rpki-ca"):
       if dn and dn not in keepdirs and not py_lib.match(dn):
         f.write("@dirrm %s\n" % dn)
 
-  if args.make_package:
-    subprocess.check_call(("make", "clean", "package", "PKGREPOSITORY=" + pkgdir), cwd = base)
+  if args.make_package or args.local_dist:
+    subprocess.check_call(("make", "clean", "package", "DISTDIR=" + args.portsdir, "PKGREPOSITORY=" + pkgdir), cwd = base)
 
   if not args.no_clean:
     subprocess.check_call(("make", "clean"), cwd = base)
 
   if not args.no_tarball and not args.no_clean:
-    subprocess.check_call(("tar", "czf", "%s-port.tgz" % port, port), cwd = portsdir)
+    subprocess.check_call(("tar", "czf", "%s-port.tgz" % port, port), cwd = args.portsdir)

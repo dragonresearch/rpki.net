@@ -29,6 +29,50 @@ import rpki.autoconf
 fqdn = socket.getfqdn()
 
 vhost_template = """\
+
+#
+# Stuff that should be visible with both HTTP and HTTPS is (now)
+# outside the vhost block (see if this works properly...).
+#
+
+#
+# Allow access to the directory where rcynic-html writes
+# its output files.
+#
+<Directory              %(RCYNIC_HTML_DIR)s>
+%(allow)s
+</Directory>
+
+#
+# Add alias pointing to rcynic-html's output files.
+#
+# If for some reason you need to change this, be careful to leave
+# the trailing slash off the URL, otherwise /rcynic will be
+# swallowed by the WSGIScriptAlias
+#
+Alias   /rcynic         %(RCYNIC_HTML_DIR)s/
+
+#
+# Allow access to the directory where pubd writes RRDP files.
+#
+<Directory              %(datarootdir)s/rpki/rrdp-publication/>
+%(allow)s
+</Directory>
+
+#
+# Add alias pointing to pubd's RRD output files.
+#
+Alias   /rrdp           %(datarootdir)s/rpki/rrdp-publication/
+
+#
+# RRDP "notification" file needs a short expiration: this is
+# a critical part of how RRDP interacts with HTTP caching.
+#
+<LocationMatch          ^/rrdp/updates[.]xml$>
+  ExpiresActive         on
+  ExpiresDefault        "access plus 5 minutes"
+</LocationMatch>
+
 #
 # By default, this configuration assumes that you use name-based
 # virtual hosting.  If that's not what you want, you may need
@@ -78,23 +122,6 @@ vhost_template = """\
   Alias   /site_media/    %(datarootdir)s/rpki/media/
 
   #
-  # Allow access to the directory where rcynic-html writes
-  # its output files.
-  #
-  <Directory %(RCYNIC_HTML_DIR)s>
-%(allow)s
-  </Directory>
-
-  #
-  # Add alias pointing to rcynic-html's output files.
-  #
-  # If for some reason you need to change this, be careful to leave
-  # the trailing slash off the URL, otherwise /rcynic will be
-  # swallowed by the WSGIScriptAlias
-  #
-  Alias   /rcynic         %(RCYNIC_HTML_DIR)s/
-
-  #
   # Redirect to the GUI dashboard when someone hits the bare vhost.
   #
   RedirectMatch   ^/$     /rpki/
@@ -102,7 +129,7 @@ vhost_template = """\
   #
   # Enable HTTPS
   #
-  SSLEngine on
+  SSLEngine               on
 
   #
   # Specify HTTPS server certificate and key files for this virtual host.
@@ -402,6 +429,7 @@ class Debian(Platform):
 
   def enable(self):
     self.run("a2enmod", "ssl")
+    self.run("a2enmod", "expires")
     self.run("a2ensite", "rpki")
     #
     # In light of BREACH and CRIME attacks, mod_deflate is looking

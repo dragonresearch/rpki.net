@@ -186,6 +186,20 @@
       </doc>
     </option>
 
+    <option name  = "rrdp_publication_base_directory"
+            value = "${autoconf::datarootdir}/rpki/rrdp-publication">
+      <doc>
+        Root of local directory tree where pubd should write out RRDP
+        files.  You need to configure this, and the configuration
+        should match up with the directory where you point the web
+        server (usually Apache) that serves the RRDP files.  Neither
+        pubd nor Apache much cares //where// you tell it to put this
+        stuff, the important thing is that all the URIs match up so
+        that relying parties can find and verify rpkid's published
+        outputs.
+      </doc>
+    </option>
+
     <option name  = "publication_rsync_module"
             value = "rpki">
       <doc>
@@ -551,6 +565,20 @@
         thing is that the rsync URIs in generated certificates match up
         with the published objects so that relying parties can find and
         verify rpkid's published outputs.
+      </doc>
+    </option>
+
+    <option name  = "rrdp-publication-base"
+	    value = "${myrpki::rrdp_publication_base_directory}">
+      <doc>
+        Root of local directory tree where pubd should write out RRDP
+        files.  You need to configure this, and the configuration
+        should match up with the directory where you point the web
+        server (usually Apache) that serves the RRDP files.  Neither
+        pubd nor Apache much cares //where// you tell it to put this
+        stuff, the important thing is that all the URIs match up so
+        that relying parties can find and verify rpkid's published
+        outputs.
       </doc>
     </option>
 

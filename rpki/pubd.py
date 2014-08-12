@@ -125,9 +125,11 @@ class main(object):
 
     self.publication_base = self.cfg.get("publication-base", "publication/")
 
-    self.rrdp_uri_base = self.cfg.get("rrdp-uri-base", "http://%s/" % socket.getfqdn())
+    self.rrdp_uri_base = self.cfg.get("rrdp-uri-base",
+                                      "http://%s/rrdp/" % socket.getfqdn())
     self.rrdp_expiration_interval = rpki.sundial.timedelta.parse(self.cfg.get("rrdp-expiration-interval", "6h"))
-    self.rrdp_publication_base = self.cfg.get("rrdp-publication-base", "rrdp-publication/")
+    self.rrdp_publication_base = self.cfg.get("rrdp-publication-base",
+                                              "rrdp-publication/")
 
     self.session = session_obj.fetch(self)
 
@@ -136,6 +138,10 @@ class main(object):
       port     = self.http_server_port,
       handlers = (("/control", self.control_handler),
                   ("/client/", self.client_handler)))
+
+
+  def rrdp_filename_to_uri(self, fn):
+    return "%s/%s" % (self.rrdp_uri_base.rstrip("/"), fn)
 
 
   def control_handler(self, query, path, cb):
@@ -346,12 +352,20 @@ class session_obj(rpki.sql.sql_persistent):
     self.hash = rpki.x509.sha256(self.snapshot).encode("hex")
     self.sql_store()
 
+  @property
+  def snapshot_fn(self):
+    return "%s/snapshot/%s.xml" % (self.uuid, self.serial)
+
+  @property
+  def notification_fn(self):
+    return "updates.xml"
+
   def write_snapshot(self):
     """
     Write current session snapshot to disk.
     """
 
-    self.write_rrdp_file("snapshot/%s/%s.xml" % (self.uuid, self.serial), self.snapshot)
+    self.write_rrdp_file(self.snapshot_fn, self.snapshot)
 
   def write_deltas(self):
     """
@@ -371,16 +385,16 @@ class session_obj(rpki.sql.sql_persistent):
                   session_id = self.uuid,
                   serial = str(self.serial))
     SubElement(xml, rrdp_xmlns + "snapshot",
-               uri = "%s/snapshot/%s/%d.xml" % (self.gctx.rrdp_uri_base, self.uuid, self.serial),
+               uri = self.gctx.rrdp_filename_to_uri(self.snapshot_fn),
                hash = self.hash)
     for delta in self.deltas:
       se = SubElement(xml, rrdp_xmlns + "delta",
                       to = str(delta.serial),
-                      uri = "%s/%s" % (self.gctx.rrdp_uri_base, delta.fn),
+                      uri = self.gctx.rrdp_filename_to_uri(delta.fn),
                       hash =  delta.hash)
       se.set("from", str(delta.serial - 1))
     rpki.relaxng.rrdp.assertValid(xml)
-    self.write_rrdp_file("notification/%s.xml" % self.uuid,
+    self.write_rrdp_file(self.notification_fn,
                          ElementToString(xml, pretty_print = True),
                          overwrite = True)
 
@@ -406,7 +420,7 @@ class delta_obj(rpki.sql.sql_persistent):
 
   @property
   def fn(self):
-    return "deltas/%s/%s-%s.xml" % (self.session.uuid, self.serial - 1, self.serial)
+    return "%s/deltas/%s-%s.xml" % (self.session.uuid, self.serial - 1, self.serial)
 
   @classmethod
   def create(cls, session):

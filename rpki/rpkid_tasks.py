@@ -115,6 +115,7 @@ class AbstractTask(object):
     self.completions.append(completion)
 
   def exit(self):
+    self.self.gctx.sql.sweep()
     while self.completions:
       self.completions.pop(0)(self)
     self.clear()
@@ -122,6 +123,7 @@ class AbstractTask(object):
     self.self.gctx.task_next()
 
   def postpone(self, continuation):
+    self.self.gctx.sql.sweep()
     self.continuation = continuation
     self.due_date = None
     self.self.gctx.task_add(self)

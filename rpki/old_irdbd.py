@@ -30,7 +30,7 @@ import time
 import logging
 import argparse
 import urlparse
-import rpki.http
+import rpki.http_simple
 import rpki.config
 import rpki.resource_set
 import rpki.relaxng
@@ -226,7 +226,7 @@ class main(object):
     rpki.left_right.list_ghostbuster_requests_elt    : handle_list_ghostbuster_requests,
     rpki.left_right.list_ee_certificate_requests_elt : handle_list_ee_certificate_requests }
 
-  def handler(self, query, path, cb):
+  def handler(self, request, q_der):
     try:
 
       self.db.ping(True)
@@ -235,7 +235,7 @@ class main(object):
 
       try:
 
-        q_msg = rpki.left_right.cms_msg(DER = query).unwrap((self.bpki_ta, self.rpkid_cert))
+        q_msg = rpki.left_right.cms_msg(DER = q_der).unwrap((self.bpki_ta, self.rpkid_cert))
 
         if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
           raise rpki.exceptions.BadQuery("Unexpected %r PDU" % q_msg)
@@ -251,28 +251,19 @@ class main(object):
             else:
               h(self, q_pdu, r_msg)
 
-          except (rpki.async.ExitNow, SystemExit):
-            raise
-
           except Exception, e:
             logger.exception("Exception serving PDU %r", q_pdu)
             r_msg.append(rpki.left_right.report_error_elt.from_exception(e, q_pdu.self_handle, q_pdu.tag))
-
-      except (rpki.async.ExitNow, SystemExit):
-        raise
 
       except Exception, e:
         logger.exception("Exception decoding query")
         r_msg.append(rpki.left_right.report_error_elt.from_exception(e))
 
-      cb(200, body = rpki.left_right.cms_msg().wrap(r_msg, self.irdbd_key, self.irdbd_cert))
-
-    except (rpki.async.ExitNow, SystemExit):
-      raise
+      request.send_cms_response(rpki.left_right.cms_msg().wrap(r_msg, self.irdbd_key, self.irdbd_cert))
 
     except Exception, e:
       logger.exception("Unhandled exception, returning HTTP failure")
-      cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
+      request.send_error(500, "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
 
   def __init__(self):
@@ -319,6 +310,6 @@ class main(object):
            u.query    == "" and \
            u.fragment == ""
 
-    rpki.http.server(host         = u.hostname or "localhost",
-                     port         = u.port or 443,
-                     handlers     = ((u.path, self.handler),))
+    rpki.http_simple.server(host         = u.hostname or "localhost",
+                            port         = u.port or 443,
+                            handlers     = ((u.path, self.handler),))

@@ -32,10 +32,14 @@
 XML utilities.
 """
 
+import logging
 import xml.sax
 import lxml.sax
 import lxml.etree
 import rpki.exceptions
+
+logger = logging.getLogger(__name__)
+
 
 class sax_handler(xml.sax.handler.ContentHandler):
   """
@@ -435,14 +439,10 @@ class data_elt(base_elt):
     Action dispatch handler.
     """
 
-    dispatch = { "create"  : self.serve_create,
-                 "set"     : self.serve_set,
-                 "get"     : self.serve_get,
-                 "list"    : self.serve_list,
-                 "destroy" : self.serve_destroy }
-    if self.action not in dispatch:
+    method = getattr(self, "serve_" + self.action, None)
+    if method is None:
       raise rpki.exceptions.BadQuery("Unexpected query: action %s" % self.action)
-    dispatch[self.action](r_msg, cb, eb)
+    method(r_msg, cb, eb)
 
   def unimplemented_control(self, *controls):
     """

@@ -1,32 +1,21 @@
 # $Id$
 #
-# Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-#
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
-#
+# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
+# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 RPKI publication control protocol.
@@ -208,26 +197,25 @@ class msg(rpki.xml_utils.msg, publication_control_namespace):
       raise rpki.exceptions.BadQuery("Message type is not query")
     r_msg = self.__class__.reply()
 
-    def loop(iterator, q_pdu):
+    for q_pdu in self:
+
+      def next():
+        # Relic of asynch I/O structure, clean up eventually
+        pass
 
       def fail(e):
         if not isinstance(e, rpki.exceptions.NotFound):
           logger.exception("Exception processing PDU %r", q_pdu)
         r_msg.append(report_error_elt.from_exception(e, q_pdu.tag))
-        cb(r_msg)
+        return cb(r_msg)
 
       try:
         q_pdu.gctx = gctx
-        q_pdu.serve_dispatch(r_msg, iterator, fail)
-      except (rpki.async.ExitNow, SystemExit):
-        raise
+        q_pdu.serve_dispatch(r_msg, next, fail)
       except Exception, e:
-        fail(e)
+        return fail(e)
 
-    def done():
-      cb(r_msg)
-
-    rpki.async.iterator(self, loop, done)
+    return cb(r_msg)
 
 
 class sax_handler(rpki.xml_utils.sax_handler):

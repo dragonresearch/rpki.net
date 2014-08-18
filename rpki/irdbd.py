@@ -26,7 +26,7 @@ import time
 import logging
 import argparse
 import urlparse
-import rpki.http
+import rpki.http_simple
 import rpki.config
 import rpki.resource_set
 import rpki.relaxng
@@ -104,7 +104,7 @@ class main(object):
       r_pdu.pkcs10 = ee_req.pkcs10
       r_msg.append(r_pdu)
 
-  def handler(self, query, path, cb):
+  def handler(self, request, q_der):
     try:
       q_pdu = None
       r_msg = rpki.left_right.msg.reply()
@@ -114,15 +114,13 @@ class main(object):
       serverCA = rpki.irdb.ServerCA.objects.get()
       rpkid = serverCA.ee_certificates.get(purpose = "rpkid")
       try:
-        q_cms = rpki.left_right.cms_msg(DER = query)
+        q_cms = rpki.left_right.cms_msg(DER = q_der)
         q_msg = q_cms.unwrap((serverCA.certificate, rpkid.certificate))
-        self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, path)
+        self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, request.path)
         if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
           raise rpki.exceptions.BadQuery("Unexpected %r PDU" % q_msg)
         for q_pdu in q_msg:
           self.dispatch(q_pdu, r_msg)
-      except (rpki.async.ExitNow, SystemExit):
-        raise
       except Exception, e:
         logger.exception("Exception while handling HTTP request")
         if q_pdu is None:
@@ -130,12 +128,10 @@ class main(object):
         else:
           r_msg.append(rpki.left_right.report_error_elt.from_exception(e, q_pdu.self_handle, q_pdu.tag))
       irdbd = serverCA.ee_certificates.get(purpose = "irdbd")
-      cb(200, body = rpki.left_right.cms_msg().wrap(r_msg, irdbd.private_key, irdbd.certificate))
-    except (rpki.async.ExitNow, SystemExit):
-      raise
+      request.send_cms_response(rpki.left_right.cms_msg().wrap(r_msg, irdbd.private_key, irdbd.certificate))
     except Exception, e:
       logger.exception("Unhandled exception while processing HTTP request")
-      cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))
+      request.send_error(500, "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
   def dispatch(self, q_pdu, r_msg):
     try:
@@ -261,7 +257,7 @@ class main(object):
 
     self.cms_timestamp = None
 
-    rpki.http.server(
+    rpki.http_simple.server(
       host     = self.http_server_host,
       port     = self.http_server_port,
       handlers = self.handler)

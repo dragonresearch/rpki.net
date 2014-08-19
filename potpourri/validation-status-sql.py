@@ -60,23 +60,20 @@ if creating:
   db.executescript('''
     CREATE TABLE sessions (
           id              INTEGER PRIMARY KEY NOT NULL,
-          session         DATETIME NOT NULL,
-          UNIQUE          (session));
+          session         DATETIME UNIQUE NOT NULL,
+          filename        TEXT UNIQUE);
 
     CREATE TABLE uris (
           id              INTEGER PRIMARY KEY NOT NULL,
-          uri             TEXT NOT NULL,
-          UNIQUE          (uri));
+          uri             TEXT UNIQUE NOT NULL);
 
     CREATE TABLE codes (
           id              INTEGER PRIMARY KEY NOT NULL,
-          code            TEXT NOT NULL,
-          UNIQUE          (code));
+          code            TEXT UNIQUE NOT NULL);
 
     CREATE TABLE generations (
           id              INTEGER PRIMARY KEY NOT NULL,
-          generation      TEXT,
-          UNIQUE          (generation));
+          generation      TEXT UNIQUE);
 
     CREATE TABLE events (
           id              INTEGER PRIMARY KEY NOT NULL,
@@ -108,9 +105,10 @@ def string_id(table, value):
     return db.execute("INSERT INTO %s (%s) VALUES (?)" % (table, field), (value,)).lastrowid
 
 
-def parse_xml(xml):
+def parse_xml(xml, fn = None):
   try:
-    session_id = db.execute("INSERT INTO sessions (session) VALUES (datetime(?))", (xml.get("date"),)).lastrowid
+    session_id = db.execute("INSERT INTO sessions (session, filename) VALUES (datetime(?), ?)",
+                            (xml.get("date"), fn)).lastrowid
   except sqlite3.IntegrityError:
     return
 
@@ -125,9 +123,11 @@ def parse_xml(xml):
 
 
 def parse_tarball(fn):
+  if db.execute("SELECT filename FROM sessions WHERE filename = ?", (fn,)).fetchone():
+    return
   print "Processing", fn
-  parse_xml(lxml.etree.ElementTree(
-    file = subprocess.Popen(("tar", "Oxf", fn, args.path_within_tarball), stdout = subprocess.PIPE).stdout).getroot())
+  pipe = subprocess.Popen(("tar", "Oxf", fn, args.path_within_tarball), stdout = subprocess.PIPE).stdout
+  parse_xml(lxml.etree.ElementTree(file = pipe).getroot(), fn)
 
 
 if args.mailbox:

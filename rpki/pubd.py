@@ -115,7 +115,7 @@ class main(object):
     if self.profile:
       logger.info("Running in profile mode with output to %s", self.profile)
 
-    self.sql = rpki.sql.session(self.cfg)
+    self.sql = rpki.sql.session(self.cfg, autocommit = False)
 
     self.bpki_ta   = rpki.x509.X509(Auto_update = self.cfg.get("bpki-ta"))
     self.irbe_cert = rpki.x509.X509(Auto_update = self.cfg.get("irbe-cert"))
@@ -152,9 +152,17 @@ class main(object):
     Process one PDU from the IRBE.
     """
 
+    # This is still structured with callbacks as if it were
+    # asynchronous, because a lot of the grunt work is done by code in
+    # rpki.xml_utils.  If and when we get around to re-writing the
+    # left-right and publication-control protocols to use lxml.etree
+    # directly, most of the rpki.xml_utils code will go away, but for
+    # the moment it's simplest to preserve the weird calling sequences.
+
     def done(r_msg):
-      self.sql.sweep()
+      self.sql.commit()
       request.send_cms_response(rpki.publication_control.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert))
+      self.sql.commit()
 
     try:
       q_cms = rpki.publication_control.cms_msg(DER = q_der)
@@ -218,17 +226,13 @@ class main(object):
             delta.sql_delete()
             self.session.serial -= 1
             self.session.sql_mark_dirty()
-      #
-      # This isn't really right as long as we're using SQL autocommit;
-      # there should be an SQL ROLLBACK somewhere if anything above fails.
-      #
+
       if delta is not None:
         assert not failed
         delta.activate()
         self.sql.sweep()
         self.session.generate_snapshot()
-
-        # Should SQL commit here
+        self.sql.commit()
 
         # These could be merged, and perhaps should be, among other
         # reasons because we need to do something about expiring old
@@ -245,10 +249,13 @@ class main(object):
         # updates from the delta, but that should be straightforward.
 
       request.send_cms_response(rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, self.pubd_crl))
+      self.sql.commit()
 
     except Exception, e:
       logger.exception("Unhandled exception processing client query, path %r", request.path)
+      self.sql.rollback()
       request.send_error(500, "Could not process PDU: %s" % e)
+
 
   def uri_to_filename(self, uri):
     """

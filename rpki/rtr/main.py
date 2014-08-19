@@ -65,9 +65,9 @@ def main():
 
   argparser = argparse.ArgumentParser(description = __doc__)
   argparser.add_argument("--debug", action = "store_true", help = "debugging mode")
-  argparser.add_argument("--log-level", default = logging.DEBUG,
+  argparser.add_argument("--log-level", default = "debug",
                          choices = ("debug", "info", "warning", "error", "critical"),
-                         type = lambda s: int(getattr(logging, s.upper())))
+                         type = lambda s: s.lower())
   argparser.add_argument("--log-to",
                          choices = ("syslog", "stderr"))
   subparsers = argparser.add_subparsers(title = "Commands", metavar = "", dest = "mode")
@@ -89,6 +89,6 @@ def main():
 
   handler.setFormatter(Formatter(args.debug, fmt, "%Y-%m-%dT%H:%M:%SZ"))
   logging.root.addHandler(handler)
-  logging.root.setLevel(args.log_level)
+  logging.root.setLevel(int(getattr(logging, args.log_level.upper())))
 
   return args.func(args)

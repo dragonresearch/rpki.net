@@ -56,11 +56,12 @@ class session(object):
 
   ping_threshold = rpki.sundial.timedelta(seconds = 60)
 
-  def __init__(self, cfg):
+  def __init__(self, cfg, autocommit = True):
 
     self.username = cfg.get("sql-username")
     self.database = cfg.get("sql-database")
     self.password = cfg.get("sql-password")
+    self.autocommit = autocommit
 
     self.conv = MySQLdb.converters.conversions.copy()
     self.conv.update({
@@ -78,7 +79,7 @@ class session(object):
                               passwd = self.password,
                               conv   = self.conv)
     self.cur = self.db.cursor()
-    self.db.autocommit(True)
+    self.db.autocommit(self.autocommit)
     self.timestamp = rpki.sundial.now()
 
   def close(self):
@@ -113,6 +114,31 @@ class session(object):
   def lastrowid(self):
     return self.cur.lastrowid
 
+  def commit(self):
+    """
+    Sweep cache, then commit SQL.
+    """
+
+    self.sweep()
+    logger.debug("Executing SQL COMMIT")
+    self.db.commit()
+
+  def rollback(self):
+    """
+    SQL rollback, then clear cache and dirty cache.
+
+    NB: We have no way of clearing other references to cached objects,
+    so if you call this method you MUST forget any state that might
+    cause you to retain such references.  This is probably tricky, and
+    is itself a good argument for switching to something like the
+    Django ORM's @commit_on_success semantics, but we do what we can.
+    """
+
+    logger.debug("Executing SQL ROLLBACK, discarding SQL cache and dirty set")
+    self.db.rollback()
+    self.dirty.clear()
+    self.cache.clear()
+
   def cache_clear(self):
     """
     Clear the SQL object cache.  Shouldn't be necessary now that the
@@ -136,7 +162,6 @@ class session(object):
     """
 
     for s in self.dirty.copy():
-      #if s.sql_cache_debug:
       logger.debug("Sweeping (%s) %r", "deleting" if s.sql_deleted else "storing", s)
       if s.sql_deleted:
         s.sql_delete()

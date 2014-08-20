@@ -2,7 +2,7 @@
 
 # $Id$
 #
-# Copyright (C) 2013-2014 2014  Dragon Research Labs ("DRL")
+# Copyright (C) 2013-2014 Dragon Research Labs ("DRL")
 # Portions copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any

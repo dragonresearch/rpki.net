@@ -68,7 +68,7 @@ class Parser(object):
       self.parse_xml()
     if self.parsed > 1:
       sys.stderr.write("\n")
-    db.close()
+    self.db.close()
 
 
   def init_sql(self):

@@ -245,3 +245,11 @@ class cms_msg(rpki.x509.XML_CMS_object):
   encoding = "us-ascii"
   schema = rpki.relaxng.publication
   saxify = sax_handler.saxify
+
+class cms_msg_no_sax(cms_msg):
+  """
+  Transition kludge: varient of cms_msg (q.v.) with SAX parsing disabled.
+  If and when we ditch SAX entirely, this will become cms_msg.
+  """
+
+  saxify = None

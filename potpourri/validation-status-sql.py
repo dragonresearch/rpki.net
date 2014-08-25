@@ -132,10 +132,10 @@ class Parser(object):
       return
     xml = self.read_xml()
     with self.db:
-      session_id = self.db.execute("INSERT INTO sessions (session, handle) VALUES (datetime(?), ?)",
+      session_id = self.db.execute("INSERT INTO sessions (session, handle) VALUES (strftime('%s', ?), ?)",
                                    (xml.get("date"), self.handle)).lastrowid
       self.db.executemany("INSERT INTO events (session_id, timestamp, generation_id, code_id, uri_id) "
-                          "VALUES (?, datetime(?), ?, ?, ?)",
+                          "VALUES (?, strftime('%s', ?), ?, ?, ?)",
                           ((session_id,
                             x.get("timestamp"),
                             self.string_id("generations", x.get("generation")),

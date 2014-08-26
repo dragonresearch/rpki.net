@@ -101,24 +101,6 @@ class publish_elt(base_publication_elt):
       elt.text = self.der.encode("base64")
     return elt
 
-  def serve_action(self, delta):
-    """
-    Publish an object.
-    """
-
-    logger.info("Publishing %s", self.payload.tracking_data(self.uri))
-    delta.publish(self.client, self.der, self.uri, self.hash)
-
-    # The rest of this shouldn't happen until after the SQL commit
-    filename = self.gctx.uri_to_filename(self.uri)
-    filename_tmp = filename + ".tmp"
-    dirname = os.path.dirname(filename)
-    if not os.path.isdir(dirname):
-      os.makedirs(dirname)
-    with open(filename_tmp, "wb") as f:
-      f.write(self.der)
-    os.rename(filename_tmp, filename)
-
 
 class withdraw_elt(base_publication_elt):
   """
@@ -126,33 +108,6 @@ class withdraw_elt(base_publication_elt):
   """
 
   element_name = "withdraw"
-
-  def serve_action(self, delta):
-    """
-    Withdraw an object, then recursively delete empty directories.
-    """
-
-    logger.info("Withdrawing %s", self.uri)
-    delta.withdraw(self.client, self.uri, self.hash)
-
-    # The rest of this shouldn't happen until after the SQL commit
-    filename = self.gctx.uri_to_filename(self.uri)
-    try:
-      os.remove(filename)
-    except OSError, e:
-      if e.errno == errno.ENOENT:
-        raise rpki.exceptions.NoObjectAtURI("No object published at %s" % self.uri)
-      else:
-        raise
-    min_path_len = len(self.gctx.publication_base.rstrip("/"))
-    dirname = os.path.dirname(filename)
-    while len(dirname) > min_path_len:
-      try:
-        os.rmdir(dirname)
-      except OSError:
-        break
-      else:
-        dirname = os.path.dirname(dirname)
 
 
 class list_elt(base_publication_elt):
@@ -177,18 +132,6 @@ class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.error_code, self.error_text)
-
-  @classmethod
-  def from_exception(cls, e, tag = None):
-    """
-    Generate a <report_error/> element from an exception.
-    """
-
-    self = cls()
-    self.tag = tag
-    self.error_code = e.__class__.__name__
-    self.error_text = str(e)
-    return self
 
   def __str__(self):
     s = ""

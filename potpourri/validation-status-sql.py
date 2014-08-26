@@ -63,11 +63,13 @@ class Parser(object):
     self.args = args
     self.init_sql()
     self.init_hook()
+    self.index1()
     self.parsed = 1
     for self.current, self.iterval in enumerate(self.iterator, 1):
       self.parse_xml()
     if self.parsed > 1:
       sys.stderr.write("\n")
+    self.index2()
     self.db.close()
 
 
@@ -75,52 +77,74 @@ class Parser(object):
     creating = not os.path.exists(self.args.database)
     self.db = sqlite3.connect(self.args.database)
     self.db.text_factory = str
-    self.db.execute("PRAGMA foreign_keys = on")
+    self.db.executescript('''
+      PRAGMA foreign_keys  = off;
+      PRAGMA synchronous   = off;
+      PRAGMA count_changes = off;
+      ''')
 
     if creating:
       self.db.executescript('''
         CREATE TABLE sessions (
-              id              INTEGER PRIMARY KEY NOT NULL,
-              session         DATETIME UNIQUE NOT NULL,
-              handle          TEXT UNIQUE NOT NULL);
+              session_id      INTEGER PRIMARY KEY NOT NULL,
+              session         DATETIME NOT NULL,
+              handle          TEXT NOT NULL
+        );
 
         CREATE TABLE uris (
-              id              INTEGER PRIMARY KEY NOT NULL,
-              uri             TEXT UNIQUE NOT NULL);
+              uri_id          INTEGER PRIMARY KEY NOT NULL,
+              uri             TEXT NOT NULL
+        );
 
         CREATE TABLE codes (
-              id              INTEGER PRIMARY KEY NOT NULL,
-              code            TEXT UNIQUE NOT NULL);
+              code_id         INTEGER PRIMARY KEY NOT NULL,
+              code            TEXT NOT NULL
+        );
 
         CREATE TABLE generations (
-              id              INTEGER PRIMARY KEY NOT NULL,
-              generation      TEXT UNIQUE);
+              generation_id   INTEGER PRIMARY KEY NOT NULL,
+              generation      TEXT NOT NULL
+        );
 
         CREATE TABLE events (
               id              INTEGER PRIMARY KEY NOT NULL,
               timestamp       DATETIME NOT NULL,
-              session_id      INTEGER NOT NULL REFERENCES sessions(id)    ON DELETE RESTRICT ON UPDATE RESTRICT,
-              generation_id   INTEGER NOT NULL REFERENCES generations(id) ON DELETE RESTRICT ON UPDATE RESTRICT,
-              code_id         INTEGER NOT NULL REFERENCES codes(id)       ON DELETE RESTRICT ON UPDATE RESTRICT,
-              uri_id          INTEGER NOT NULL REFERENCES uris(id)        ON DELETE RESTRICT ON UPDATE RESTRICT,
-              UNIQUE          (timestamp, generation_id, code_id, uri_id));
+              session_id      INTEGER NOT NULL REFERENCES sessions    (session_id)      ON DELETE RESTRICT ON UPDATE RESTRICT,
+              generation_id   INTEGER NOT NULL REFERENCES generations (generation_id)   ON DELETE RESTRICT ON UPDATE RESTRICT,
+              code_id         INTEGER NOT NULL REFERENCES codes       (code_id)         ON DELETE RESTRICT ON UPDATE RESTRICT,
+              uri_id          INTEGER NOT NULL REFERENCES uris        (uri_id)          ON DELETE RESTRICT ON UPDATE RESTRICT
+        );
 
         CREATE VIEW status AS
-             SELECT events.id, handle, session, timestamp, generation, uri, code
-             FROM events
-             JOIN sessions    ON sessions.id    = events.session_id
-             JOIN uris        ON uris.id        = events.uri_id
-             JOIN codes       ON codes.id       = events.code_id
-             JOIN generations ON generations.id = events.generation_id;
+             SELECT id, handle, session, timestamp, generation, code, uri
+             FROM               events
+             NATURAL JOIN       sessions
+             NATURAL JOIN       uris
+             NATURAL JOIN       codes
+             NATURAL JOIN       generations;
         ''')
+
+
+  def index1(self):
+    self.db.executescript('''
+      CREATE UNIQUE INDEX IF NOT EXISTS sessions_index         ON sessions     (session);
+      CREATE UNIQUE INDEX IF NOT EXISTS handles_index          ON sessions     (handle);
+      CREATE UNIQUE INDEX IF NOT EXISTS uris_index             ON uris         (uri);
+      CREATE UNIQUE INDEX IF NOT EXISTS codes_index            ON codes        (code);
+      CREATE UNIQUE INDEX IF NOT EXISTS generations_index      ON generations  (generation);
+      ''')
+
+
+  def index2(self):
+    self.db.executescript('''
+      CREATE UNIQUE INDEX IF NOT EXISTS events_index           ON events       (uri_id, timestamp, code_id, generation_id);
+      ''')
+
 
   def string_id(self, table, value):
     field = table.rstrip("s")
     try:
-      if value is None:
-        return self.db.execute("SELECT id FROM %s WHERE %s IS NULL" % (table, field)).fetchone()[0]
-      else:
-        return self.db.execute("SELECT id FROM %s WHERE %s = ?" % (table, field), (value,)).fetchone()[0]
+      return self.db.execute("SELECT %s_id FROM %s WHERE %s = ?" % (field, table, field), (value,)).fetchone()[0]
     except:
       return self.db.execute("INSERT INTO %s (%s) VALUES (?)" % (table, field), (value,)).lastrowid
 
@@ -132,13 +156,13 @@ class Parser(object):
       return
     xml = self.read_xml()
     with self.db:
-      session_id = self.db.execute("INSERT INTO sessions (session, handle) VALUES (datetime(?), ?)",
+      session_id = self.db.execute("INSERT INTO sessions (session, handle) VALUES (strftime('%s', ?), ?)",
                                    (xml.get("date"), self.handle)).lastrowid
       self.db.executemany("INSERT INTO events (session_id, timestamp, generation_id, code_id, uri_id) "
-                          "VALUES (?, datetime(?), ?, ?, ?)",
+                          "VALUES (?, strftime('%s', ?), ?, ?, ?)",
                           ((session_id,
                             x.get("timestamp"),
-                            self.string_id("generations", x.get("generation")),
+                            self.string_id("generations", x.get("generation", "none")),
                             self.string_id("codes",       x.get("status")),
                             self.string_id("uris",        x.text.strip()))
                            for x in xml.findall("validation_status")))

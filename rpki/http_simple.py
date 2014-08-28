@@ -62,6 +62,14 @@ class HTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   def log_message(self, *args):
     logger.info(*args, extra = dict(context = "%s:%s" % self.client_address))
 
+  def send_error(self, code, message = None):
+    # BaseHTTPRequestHandler.send_error() generates HTML error messages,
+    # which we don't want, so we override the method to suppress this.
+    self.send_response(code, message)
+    self.send_header("Content-Type", rpki_content_type)
+    self.send_header("Connection", "close")
+    self.end_headers()
+
 
 def server(handlers, port, host = ""):
   """

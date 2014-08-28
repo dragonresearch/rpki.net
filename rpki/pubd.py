@@ -470,10 +470,13 @@ class delta_obj(rpki.sql.sql_persistent):
 
   def publish(self, client, der, uri, hash):
     obj = object_obj.current_object_at_uri(client, self, uri)
-    if obj is not None and obj.hash == hash:
-      obj.delete(self)
-    elif obj is not None:
-      raise rpki.exceptions.ExistingObjectAtURI("Object already published at %s" % uri)
+    if obj is not None:
+      if obj.hash == hash:
+        obj.delete(self)
+      elif hash is None:
+        raise rpki.exceptions.ExistingObjectAtURI("Object already published at %s" % uri)
+      else:
+        raise rpki.exceptions.DifferentObjectAtURI("Found different object at %s (old %s, new %s)" % (uri, obj.hash, hash))
     logger.debug("Publishing %s", uri)
     object_obj.create(client, self, der, uri)
     se = DERSubElement(self.deltas[0], rrdp_tag_publish, der = der, uri = uri)

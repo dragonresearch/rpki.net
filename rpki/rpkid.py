@@ -2530,6 +2530,8 @@ class publication_queue(object):
     assert old_obj is None or isinstance(old_obj, rpki.x509.uri_dispatch(uri))
     assert new_obj is None or isinstance(new_obj, rpki.x509.uri_dispatch(uri))
 
+    logger.debug("Queuing publication action: uri %s, old %r, new %r", uri, old_obj, new_obj)
+
     rid = id(repository)
     if rid not in self.repositories:
       self.repositories[rid] = repository
@@ -2537,9 +2539,13 @@ class publication_queue(object):
 
     if self.replace and uri in self.uris:
       logger.debug("Removing publication duplicate %r", self.uris[uri])
-      self.msgs[rid].remove(self.uris.pop(uri))
-
-    hash = None if old_obj is None else rpki.x509.sha256(old_obj.get_DER()).encode("hex")
+      old_pdu = self.uris.pop(uri)
+      self.msgs[rid].remove(old_pdu)
+      hash = old_pdu.hash
+    elif old_obj is None:
+      hash = None 
+    else:
+      hash = rpki.x509.sha256(old_obj.get_DER()).encode("hex")
 
     if new_obj is None:
       pdu = rpki.publication.withdraw_elt.make_pdu(uri = uri, hash = hash)

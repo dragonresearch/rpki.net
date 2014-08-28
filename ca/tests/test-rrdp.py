@@ -32,6 +32,7 @@ parser.add_argument("--use-smoketest", action = "store_true")
 parser.add_argument("--yaml-file", default = "smoketest.2.yaml")
 parser.add_argument("--delay", type = int, default = 300)
 parser.add_argument("--exhaustive", action = "store_true")
+parser.add_argument("--skip-daemons", action = "store_true")
 args = parser.parse_args()
 
 def log(msg):
@@ -73,7 +74,9 @@ with open("rcynic-rrdp.conf", "w") as f:
   else:
     f.write("trust-anchor = yamltest.dir/RIR/publication/RIR-root/root.cer\n")
 
-if args.use_smoketest:
+if args.skip_daemons:
+  log("--skip-daemons specified, so running neither smoketest nor yamltest")
+elif args.use_smoketest:
   run("python", "smoketest.py", args.yaml_file)
 else:
   run("python", "sql-cleaner.py")
@@ -84,8 +87,8 @@ else:
   time.sleep(args.delay)
   yamltest.terminate()
 
-snapshots = dict((snapshot_to_serial(fn), fn) for fn in dataglob("rrdp-publication/snapshot/*/*.xml"))
-deltas    = dict((delta_to_serial(fn),    fn) for fn in dataglob("rrdp-publication/deltas/*/*.xml"))
+snapshots = dict((snapshot_to_serial(fn), fn) for fn in dataglob("rrdp-publication/*/snapshot/*.xml"))
+deltas    = dict((delta_to_serial(fn),    fn) for fn in dataglob("rrdp-publication/*/deltas/*.xml"))
 
 for snapshot in sorted(snapshots):
 

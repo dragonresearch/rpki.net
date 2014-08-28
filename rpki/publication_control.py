@@ -84,20 +84,9 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_c
     Extra server actions for client_elt.
     """
 
-    actions = []
     if q_pdu.clear_replay_protection:
-      actions.append(self.serve_clear_replay_protection)
-    def loop(iterator, action):
-      action(iterator, eb)
-    rpki.async.iterator(actions, loop, cb)
-
-  def serve_clear_replay_protection(self, cb, eb):
-    """
-    Handle a clear_replay_protection action for this client.
-    """
-
-    self.last_cms_timestamp = None
-    self.sql_mark_dirty()
+      self.last_cms_timestamp = None
+      self.sql_mark_dirty()
     cb()
 
   def serve_fetch_one_maybe(self):

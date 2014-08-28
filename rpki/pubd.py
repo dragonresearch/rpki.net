@@ -250,9 +250,10 @@ class main(object):
         delta.activate()
         self.sql.sweep()
         self.session.generate_snapshot()
+        self.session.expire_deltas()
         self.sql.commit()
-        self.session.write_rrdp_files()         # Still need to expire old deltas and delete old XML files.
-        delta.write_rsync()
+        self.session.synchronize_rrdp_files()
+        delta.update_rsync_files()
 
       request.send_cms_response(rpki.publication.cms_msg_no_sax().wrap(r_msg, self.pubd_key, self.pubd_cert, self.pubd_crl))
 
@@ -326,7 +327,7 @@ class session_obj(rpki.sql.sql_persistent):
     for delta in delta_obj.sql_fetch_where(self.gctx,
                                            "session_id = %s AND expires IS NOT NULL AND expires < %s",
                                            (self.session_id, rpki.sundial.now())):
-      delta.sql_delete()
+      delta.sql_mark_deleted()
 
   def write_rrdp_file(self, fn, text, overwrite = False):
     """
@@ -368,15 +369,19 @@ class session_obj(rpki.sql.sql_persistent):
   def notification_fn(self):
     return "updates.xml"
 
-  def write_rrdp_files(self):
+  def synchronize_rrdp_files(self):
     """
-    Write the current set of RRDP files to disk.
+    Write current RRDP files to disk, clean up old files and directories.
     """
+
+    current_filenames = set()
 
     for delta in self.deltas:
       self.write_rrdp_file(delta.fn, delta.xml)
+      current_filenames.add(delta.fn)
 
     self.write_rrdp_file(self.snapshot_fn, self.snapshot)
+    current_filenames.add(self.snapshot_fn)
 
     xml = Element(rrdp_tag_notification, nsmap = rrdp_nsmap,
                   version = rrdp_version,
@@ -395,6 +400,18 @@ class session_obj(rpki.sql.sql_persistent):
     self.write_rrdp_file(self.notification_fn,
                          ElementToString(xml, pretty_print = True),
                          overwrite = True)
+    current_filenames.add(self.notification_fn)
+
+    for root, dirs, files in os.walk(self.gctx.rrdp_publication_base, topdown = False):
+      for fn in files:
+        fn = os.path.join(root, fn)
+        if fn[len(self.gctx.rrdp_publication_base):].lstrip("/") not in current_filenames:
+          os.remove(fn)
+      for dn in dirs:
+        try:
+          os.rmdir(os.path.join(root, dn))
+        except OSError:
+          pass
 
 
 class delta_obj(rpki.sql.sql_persistent):
@@ -472,7 +489,7 @@ class delta_obj(rpki.sql.sql_persistent):
     SubElement(self.deltas[0], rrdp_tag_withdraw, uri = uri, hash = hash).tail = "\n"
     rpki.relaxng.rrdp.assertValid(self.deltas)
 
-  def write_rsync(self):
+  def update_rsync_files(self):
     min_path_len = len(self.gctx.publication_base.rstrip("/"))
     for pdu in self.deltas[0]:
       assert pdu.tag in (rrdp_tag_publish, rrdp_tag_withdraw)

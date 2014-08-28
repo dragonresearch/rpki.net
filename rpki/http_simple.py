@@ -60,8 +60,7 @@ class HTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     self.wfile.write(der)
 
   def log_message(self, *args):
-    # Might want to use LogAdapter for connection info here?
-    logger.info(*args)
+    logger.info(*args, extra = dict(context = "%s:%s" % self.client_address))
 
 
 def server(handlers, port, host = ""):

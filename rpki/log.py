@@ -96,7 +96,10 @@ class Formatter(object):
       yield time.strftime("%Y-%m-%d %H:%M:%S ", time.gmtime(record.created))
     yield "%s[%d]: " % (self.ident, record.process)
     try:
-      yield repr(record.context) + " "
+      if isinstance(record.context, (str, unicode)):
+        yield record.context + " "
+      else:
+        yield repr(record.context) + " "
     except AttributeError:
       pass
     yield record.getMessage()

@@ -50,8 +50,8 @@ Script for a downstream relying party using ssh might look like this:
   data/rcynic.${host}
   done
   cd /var/rcynic/rpki-rtr
-  /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
-  data/authenticated'
+  /usr/bin/su -m rcynic -c '/usr/local/bin/rpki-rtr cronjob /var/rcynic/data/
+  authenticated'
 
 where /root/rpki_ssh_id_rsa is an SSH private key authorized to log in as user
 "rpkisync" on the gatherer machines. If you want to lock this down a little
@@ -81,8 +81,8 @@ configuration would look more like this:
   data/rcynic.${host}
   done
   cd /var/rcynic/rpki-rtr
-  /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
-  data/authenticated'
+  /usr/bin/su -m rcynic -c '/usr/local/bin/rpki-rtr cronjob /var/rcynic/data/
+  authenticated'
 
 where "unauthenticated" here is an rsync module pointing at /var/rcynic/data/
 unauthenticated on each of the gatherer machines. Configuration for such a

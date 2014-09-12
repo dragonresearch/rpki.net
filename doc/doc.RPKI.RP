@@ -8,7 +8,7 @@ BGP security.
 See the CA tools for programs to help you generate RPKI objects, if you need to
 do that.
 
-The RP main tools are rcynic and rtr-origin, each of which is discussed below.
+The RP main tools are rcynic and rpki-rtr, each of which is discussed below.
 
 The installation process sets up everything you need for a basic RPKI
 validation installation. You will, however, need to think at least briefly
@@ -30,14 +30,14 @@ documentation if you need to know more.
 
 See the discussion of trust anchors.
 
-***** rtr-origin *****
+***** rpki-rtr *****
 
-rtr-origin is an implementation of the rpki-rtr protocol, using rcynic's output
-as its data source. rtr-origin includes the rpki-rtr server, a test client, and
-a utiltity for examining the content of the database rtr-origin generates from
-the data supplied by rcynic.
+rpki-rtr is an implementation of the rpki-rtr protocol, using rcynic's output
+as its data source. rpki-rtr includes the rpki-rtr server, a test client, and a
+utiltity for examining the content of the database rpki-rtr generates from the
+data supplied by rcynic.
 
-See the rtr-origin documentation for further details.
+See the rpki-rtr documentation for further details.
 
 ***** rcynic-cron *****
 

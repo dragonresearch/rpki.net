@@ -6,8 +6,8 @@ under the cron daemon, so that they can make use of rcynic's output immediately
 after rcynic finishes a validation run.
 
 rcynic-cron runs the basic set of relying party tools (rcynic, rcynic-html, and
-`rtr-origin --cronjob`); if this suffices for your purposes, you don't need to
-do anything else. This section is a discussion of alternative approaches.
+rpki-rtr cronjob); if this suffices for your purposes, you don't need to do
+anything else. This section is a discussion of alternative approaches.
 
 Which tools you want to run depends on how you intend to use the relying party
 tools. Here we assume a typical case in which you want to gather and validate
@@ -39,9 +39,8 @@ On FreeBSD or MacOSX, this script might look like this:
   rcynic.conf || exit
   /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /usr/local/www/data/
   rcynic
-  cd /var/rcynic/rpki-rtr
-  /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
-  data/authenticated'
+  /usr/bin/su -m rcynic -c '/usr/local/bin/rpki-rtr cronjob /var/rcynic/data/
+  authenticated /var/rcynic/rpki-rtr'
 
 This assumes that you have done
 
@@ -54,9 +53,8 @@ program:
   #!/bin/sh -
   /usr/bin/chrootuid /var/rcynic rcynic /bin/rcynic -c /etc/rcynic.conf || exit
   /var/rcynic/bin/rcynic-html /var/rcynic/data/rcynic.xml /var/www/rcynic
-  cd /var/rcynic/rpki-rtr
-  /usr/bin/su -m rcynic -c '/usr/local/bin/rtr-origin --cronjob /var/rcynic/
-  data/authenticated'
+  /usr/bin/su -m rcynic -c '/usr/local/bin/rpki-rtr cronjob /var/rcynic/data/
+  authenticated /var/rcynic/rpki-rtr'
 
 If you use the chroot program instead of chrootuid, change the line that
 invokes rcynic to:

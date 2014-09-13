@@ -349,7 +349,7 @@ class main(object):
 
     rpki.log.init("rootd", args)
 
-    self.cfg = rpki.config.parser(args.config, "rootd")
+    self.cfg = rpki.config.parser(set_filename = args.config, section = "rootd")
     self.cfg.set_global_flags()
 
     if not args.foreground:

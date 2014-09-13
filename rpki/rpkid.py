@@ -75,7 +75,7 @@ class main(object):
 
     rpki.log.init("rpkid", args)
 
-    self.cfg = rpki.config.parser(args.config, "rpkid")
+    self.cfg = rpki.config.parser(set_filename = args.config, section = "rpkid")
     self.cfg.set_global_flags()
 
     if not args.foreground:

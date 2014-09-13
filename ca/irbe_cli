@@ -305,7 +305,7 @@ for o, a in opts:
 if not argv:
   usage(1)
 
-cfg = rpki.config.parser(cfg_file, "irbe_cli")
+cfg = rpki.config.parser(set_filename = cfg_file, section = "irbe_cli")
 
 q_msg_left_right  = []
 q_msg_publication = []

@@ -124,7 +124,7 @@ class main(Cmd):
     global rpki                         # pylint: disable=W0602
 
     try:
-      cfg = rpki.config.parser(self.cfg_file, "myrpki")
+      cfg = rpki.config.parser(set_filename = self.cfg_file, section = "myrpki")
       cfg.set_global_flags()
     except IOError, e:
       sys.exit("%s: %s" % (e.strerror, e.filename))

@@ -539,14 +539,15 @@ class allocation(object):
     """
     Run rpkic for this entity.
     """
-    cmd = [prog_rpkic, "-i", self.name, "-c", self.path("rpki.conf")]
+    cmd = [prog_rpkic, "-i", self.name]
     if args.profile:
       cmd.append("--profile")
       cmd.append(self.path("rpkic.%s.prof" % rpki.sundial.now()))
     cmd.extend(str(a) for a in argv if a is not None)
     print 'Running "%s"' % " ".join(cmd)
     env = os.environ.copy()
-    env["YAMLTEST_RPKIC_COUNTER"] = self.next_rpkic_counter()
+    env.update(YAMLTEST_RPKIC_COUNTER = self.next_rpkic_counter(),
+               RPKI_CONF = self.path("rpki.conf"))
     subprocess.check_call(cmd, cwd = self.host.path(), env = env)
 
   def run_python_daemon(self, prog):
@@ -556,12 +557,13 @@ class allocation(object):
     """
     basename = os.path.splitext(os.path.basename(prog))[0]
     cmd = [prog, "--foreground", "--log-level", "debug",
-           "--log-file", self.path(basename + ".log"),
-           "--config",   self.path("rpki.conf")]
+           "--log-file", self.path(basename + ".log")]
     if args.profile and basename != "rootd":
       cmd.extend((
            "--profile",  self.path(basename + ".prof")))
-    p = subprocess.Popen(cmd, cwd = self.path())
+    env = os.environ.copy()
+    env.update(RPKI_CONF = self.path("rpki.conf"))
+    p = subprocess.Popen(cmd, cwd = self.path(), env = env)
     print 'Running %s for %s: pid %d process %r' % (" ".join(cmd), self.name, p.pid, p)
     return p
 
@@ -672,7 +674,7 @@ try:
   # passwords: this is mostly so that I can show a complete working
   # example without publishing my own server's passwords.
 
-  cfg = rpki.config.parser(args.config, "yamltest", allow_missing = True)
+  cfg = rpki.config.parser(set_filename = args.config, section = "yamltest", allow_missing = True)
 
   only_one_pubd = cfg.getboolean("only_one_pubd", True)
   allocation.base_port = cfg.getint("base_port", 4400)

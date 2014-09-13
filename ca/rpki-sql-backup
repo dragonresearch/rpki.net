@@ -41,7 +41,7 @@ parser.add_argument("-o", "--output",
                     help = "destination for SQL dump (default: stdout)")
 args = parser.parse_args()
 
-cfg = rpki.config.parser(args.config, "myrpki")
+cfg = rpki.config.parser(set_filename = args.config, section = "myrpki")
 
 for name in ("rpkid", "irdbd", "pubd"):
   if cfg.getboolean("start_" + name, False):

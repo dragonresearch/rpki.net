@@ -816,30 +816,18 @@
   <section name = "web_portal">
 
     <doc>
-      Glue to allow the Django application to pull user configuration
-      from this file rather than directly editing settings.py.
+      Glue to allow Django to pull user configuration from this file
+      rather than requiring the user to edit settings.py.
     </doc>
 
-    <option name  = "sql-database"
-            value = "${myrpki::irdbd_sql_database}">
-      <doc>
-        SQL database name the web portal should use.
-      </doc>
-    </option>
-
-    <option name  = "sql-username"
-            value = "${myrpki::irdbd_sql_username}">
-      <doc>
-        SQL user name the web portal should use.
-      </doc>
-    </option>
-
-    <option name  = "sql-password"
-            value = "${myrpki::irdbd_sql_password}">
-      <doc>
-        SQL password the web portal should use.
-      </doc>
-    </option>
+    <!--
+	We used to have SQL settings for the GUI here, but since
+	they're pretty much required to be identical to the ones for
+	irdbd at this point, the duplicate entries were just another
+	chance to misconfigure something, so I removed them.  Not yet
+	sure whether this was the right approach.  Too much historical
+	baggage in this file.
+      -->
 
     <option name  = "secret-key">
       <doc>

@@ -64,13 +64,13 @@ group.add_argument("--log-syslog", default = "daemon", nargs = "?",
                    help = "log syslog")
 args = parser.parse_args()
 
-cfg = rpki.config.parser(args.config, "myrpki")
+cfg = rpki.config.parser(set_filename = args.config, section = "myrpki")
 
 def run(name, old_flag = None):
   if cfg.getboolean("start_" + name, cfg.getboolean("run_" + name if old_flag is None else old_flag, False)):
     # pylint: disable=E1103
     log_file = os.path.join(args.log_directory, name + ".log")
-    cmd = (os.path.join(rpki.autoconf.libexecdir, name), "--config", cfg.filename, "--log-level", args.log_level)
+    cmd = (os.path.join(rpki.autoconf.libexecdir, name), "--log-level", args.log_level)
     if args.log_file:
       cmd += ("--log-file", log_file)
     elif args.log_rotating_file_kbytes:

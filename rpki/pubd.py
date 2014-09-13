@@ -68,7 +68,7 @@ class main(object):
 
     rpki.log.init("pubd", args)
 
-    self.cfg = rpki.config.parser(args.config, "pubd")
+    self.cfg = rpki.config.parser(set_filename = args.config, section = "pubd")
     self.cfg.set_global_flags()
 
     if not args.foreground:

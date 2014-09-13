@@ -68,7 +68,7 @@ parser.add_argument("yaml_file", type = argparse.FileType("r"),
                     help = "YAML description of test network")
 args = parser.parse_args()
 
-cfg = rpki.config.parser(args.config, "smoketest", allow_missing = True)
+cfg = rpki.config.parser(set_filename = args.config, section = "smoketest", allow_missing = True)
 
 # Load the YAML script early, so we can report errors ASAP
 

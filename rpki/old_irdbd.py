@@ -290,7 +290,7 @@ class main(object):
 
     rpki.log.init("irdbd", args)
 
-    self.cfg = rpki.config.parser(args.config, "irdbd")
+    self.cfg = rpki.config.parser(set_filename = args.config, section = "irdbd")
 
     startup_msg = self.cfg.get("startup-message", "")
     if startup_msg:

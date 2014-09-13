@@ -22,7 +22,7 @@ import subprocess
 import rpki.config
 from rpki.mysql_import import MySQLdb
 
-cfg = rpki.config.parser(None, "yamltest", allow_missing = True)
+cfg = rpki.config.parser(section = "yamltest", allow_missing = True)
 
 for name in ("rpkid", "irdbd", "pubd"):
 

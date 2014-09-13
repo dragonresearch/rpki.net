@@ -500,7 +500,7 @@ class allocation(object):
   def hire_zookeeper(self):
     assert not self.is_hosted
     self._zoo = rpki.irdb.Zookeeper(
-      cfg = rpki.config.parser(self.path("rpki.conf")),
+      cfg = rpki.config.parser(filename = self.path("rpki.conf")),
       logstream = None if quiet else sys.stdout)
 
   @property
@@ -681,7 +681,7 @@ def main():
   # passwords: this is mostly so that I can show a complete working
   # example without publishing my own server's passwords.
 
-  cfg = rpki.config.parser(args.config, "yamlconf", allow_missing = True)
+  cfg = rpki.config.parser(set_filename = args.config, section = "yamlconf", allow_missing = True)
   try:
     cfg.set_global_flags()
   except:

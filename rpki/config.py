@@ -45,10 +45,10 @@ try:
 except ImportError:
   default_dirname = None
 
-## @var default_envname
+## @var rpki_conf_envname
 # Name of environment variable containing config file name.
 
-default_envname = "RPKI_CONF"
+rpki_conf_envname = "RPKI_CONF"
 
 class parser(object):
   """
@@ -61,14 +61,35 @@ class parser(object):
 
   get-methods with default values and default section name.
 
-  If no filename is given to the constructor (filename = None), we
-  check for an environment variable naming the config file, then we
-  check for a default filename in the current directory, then finally
-  we check for a global config file if autoconf provided a directory
-  name to check.
+  If no filename is given to the constructor (filename and
+  set_filename both None), we check for an environment variable naming
+  the config file, then we check for a default filename in the current
+  directory, then finally we check for a global config file if
+  autoconf provided a directory name to check.
+
+  NB: In most cases, programs which accept configuration filenames on
+  their command lines should pass those filenames to us using
+  set_filename so that we can set the magic environment variable,
+  because constraints from some external libraries (principally
+  Django) sometimes require our own library code to look things up in
+  the configuration file without the knowledge of the controlling
+  program.  Setting the environment variable insures that everybody's
+  reading from the same script, as it were.
   """
 
-  def __init__(self, filename = None, section = None, allow_missing = False):
+  # Odd keyword-only calling sequence is a defense against old code
+  # that thinks it knows how __init__() handles positional arguments.
+
+  def __init__(self, **kwargs):
+    section       = kwargs.pop("section",       None)
+    allow_missing = kwargs.pop("allow_missing", False)
+    set_filename  = kwargs.pop("set_filename",  None)
+    filename      = kwargs.pop("filename",      set_filename)
+
+    assert not kwargs, "Unexpected keyword arguments: " + ", ".join("%s = %r" % kv for kv in kwargs.iteritems())
+
+    if set_filename is not None:
+      os.environ[rpki_conf_envname] = set_filename
 
     self.cfg = ConfigParser.RawConfigParser()
     self.default_section = section
@@ -77,11 +98,11 @@ class parser(object):
     if filename is not None:
       filenames.append(filename)
     else:
-      if default_envname in os.environ:
-        filenames.append(os.environ[default_envname])
+      if rpki_conf_envname in os.environ:
+        filenames.append(os.environ[rpki_conf_envname])
       filenames.append(default_filename)
       if default_dirname is not None:
-        filenames.append("%s/%s" % (default_dirname, default_filename))
+        filenames.append(os.path.join(default_dirname, default_filename))
 
     f = fn = None
 

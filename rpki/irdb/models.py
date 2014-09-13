@@ -84,7 +84,7 @@ class SignedReferralField(DERField):
 
 # Introspection rules for Django South
 
-field_classes = [SignedReferralField]
+field_classes = [HandleField, SignedReferralField]
 
 add_introspection_rules([(field_classes, [], {})],
                         [r"^rpki\.irdb\.models\." + cls.__name__

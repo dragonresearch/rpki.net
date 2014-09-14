@@ -491,11 +491,13 @@ class allocation(object):
   def syncdb(self):
     import django.core.management
     assert not self.is_hosted
-    django.core.management.call_command("syncdb",
-                                        database = self.irdb_name,
-                                        load_initial_data = False,
-                                        interactive = False,
-                                        verbosity = 0)
+    django.core.management.call_command(
+      "syncdb",
+      verbosity = 0,
+      database = self.irdb_name,
+      migrate = True,
+      load_initial_data = False,
+      interactive = False)
 
   def hire_zookeeper(self):
     assert not self.is_hosted
@@ -755,22 +757,13 @@ def body():
   pre_django_sql_setup(set(d.irdb_name for d in db if not d.is_hosted))
 
   # Now ready for fun with multiple databases in Django!
-
+  #
   # https://docs.djangoproject.com/en/1.4/topics/db/multi-db/
   # https://docs.djangoproject.com/en/1.4/topics/db/sql/
-
-  # This will probably need hacking to work with rpki.django_settings,
-  # rpki.db_router, and all the related new code, but let's get the
-  # kinks ironed out of the normal stuff before messing with this.
   #
-  # I suspect the correct strategy here will be to import
-  # rpki.django_settings and modify its DATABASES and DATABASE_ROUTERS
-  # settings, but we'll see.
-  #
-  # We will almost certainly have to run syncdb and migrate.  We may want
-  # our own private south database so we don't mess up anything else; that
-  # database might even be one of our outputs (ie, yamltest may need that
-  # too, and may end up generating its own when run without this).
+  # This program's use of the ORM is sufficiently different that it's
+  # not worth straining to use rpki.django_settings, so we just use
+  # Django's settings API directly.
 
   database_template = {
     "ENGINE"   : "django.db.backends.mysql",
@@ -780,8 +773,7 @@ def body():
     "PORT"     : "",
     "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}
 
-  databases = dict((d.irdb_name,
-                    dict(database_template, NAME = d.irdb_name))
+  databases = dict((d.irdb_name, dict(database_template, NAME = d.irdb_name))
                    for d in db if not d.is_hosted)
 
   databases["default"] = databases[db.root.irdb_name]
@@ -791,7 +783,7 @@ def body():
   settings.configure(
     DATABASES = databases,
     DATABASE_ROUTERS = ["rpki.irdb.router.DBContextRouter"],
-    INSTALLED_APPS = ("rpki.irdb",))
+    INSTALLED_APPS = ("rpki.irdb", "south"))
 
   import rpki.irdb
 

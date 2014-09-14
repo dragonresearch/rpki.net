@@ -547,8 +547,8 @@ class allocation(object):
       cmd.append(self.path("rpkic.%s.prof" % rpki.sundial.now()))
     cmd.extend(str(a) for a in argv if a is not None)
     print 'Running "%s"' % " ".join(cmd)
-    env = os.environ.copy()
-    env.update(YAMLTEST_RPKIC_COUNTER = self.next_rpkic_counter(),
+    env = dict(os.environ,
+               YAMLTEST_RPKIC_COUNTER = self.next_rpkic_counter(),
                RPKI_CONF = self.path("rpki.conf"))
     subprocess.check_call(cmd, cwd = self.host.path(), env = env)
 
@@ -576,15 +576,15 @@ class allocation(object):
       if not os.fork():
         os.environ["RPKI_CONF"] = self.path("rpki.conf")
         import django.core.management
-        django.core.management.call_command("syncdb", verbosity = verbosity, load_initial_data = False, migrate = True)
+        django.core.management.call_command("syncdb", migrate = True, verbosity = verbosity,
+                                            load_initial_data = False, interactive = False)
         sys.exit(0)
       if os.wait()[1]:
         raise RuntimeError("syncdb failed for %s" % self.name)
 
     else:
       cmd = (prog_rpki_manage, "syncdb", "--noinput", "--no-initial-data", "--migrate", "--verbosity", str(verbosity))
-      env = os.environ.copy()
-      env.update(RPKI_CONF = self.path("rpki.conf"))
+      env = dict(os.environ, RPKI_CONF = self.path("rpki.conf"))
       print 'Running "%s"' % " ".join(cmd)
       subprocess.check_call(cmd, cwd = self.host.path(), env = env)
 
@@ -600,8 +600,7 @@ class allocation(object):
     if args.profile and basename != "rootd":
       cmd.extend((
            "--profile",  self.path(basename + ".prof")))
-    env = os.environ.copy()
-    env.update(RPKI_CONF = self.path("rpki.conf"))
+    env = dict(os.environ, RPKI_CONF = self.path("rpki.conf"))
     p = subprocess.Popen(cmd, cwd = self.path(), env = env)
     print 'Running %s for %s: pid %d process %r' % (" ".join(cmd), self.name, p.pid, p)
     return p

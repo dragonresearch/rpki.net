@@ -232,11 +232,13 @@ def main():
   try:
 
     logger.info("Starting rootd")
-    rootd_process = subprocess.Popen((prog_python, prog_rootd, "--foreground", "--log-stdout", "--log-level", "debug", "--config", rootd_name + ".conf"))
+    rootd_process = subprocess.Popen((prog_python, prog_rootd, "--foreground", "--log-stdout", "--log-level", "debug"),
+                                     env = dict(os.environ, RPKI_CONF = rootd_name + ".conf"))
 
     logger.info("Starting pubd")
-    pubd_process = subprocess.Popen((prog_python, prog_pubd, "--foreground", "--log-stdout", "--log-level", "debug", "--config", pubd_name + ".conf") +
-                                    (("-p", pubd_name + ".prof") if args.profile else ()))
+    pubd_process = subprocess.Popen((prog_python, prog_pubd, "--foreground", "--log-stdout", "--log-level", "debug") +
+                                    (("-p", pubd_name + ".prof") if args.profile else ()),
+                                    env = dict(os.environ, RPKI_CONF = pubd_name + ".conf"))
 
     logger.info("Starting rsyncd")
     rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
@@ -848,9 +850,12 @@ class allocation(object):
     Run daemons for this entity.
     """
     logger.info("Running daemons for %s", self.name)
-    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "--foreground", "--log-stdout", "--log-level", "debug", "--config", self.name + ".conf") +
-                                          (("--profile", self.name + ".prof") if args.profile else ()))
-    self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "--foreground", "--log-stdout", "--log-level", "debug", "--config", self.name + ".conf"))
+    env = dict(os.environ, RPKI_CONF = self.name + ".conf")
+    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "--foreground", "--log-stdout", "--log-level", "debug") +
+                                          (("--profile", self.name + ".prof") if args.profile else ()),
+                                          env = env)
+    self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "--foreground", "--log-stdout", "--log-level", "debug"),
+                                          env = env)
 
   def kill_daemons(self):
     """

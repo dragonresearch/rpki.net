@@ -338,8 +338,6 @@ class main(object):
     time.tzset()
 
     parser = argparse.ArgumentParser(description = __doc__)
-    parser.add_argument("-c", "--config",
-                        help = "override default location of configuration file")
     parser.add_argument("-f", "--foreground", action = "store_true",
                         help = "do not daemonize")
     parser.add_argument("--pidfile",
@@ -349,7 +347,7 @@ class main(object):
 
     rpki.log.init("rootd", args)
 
-    self.cfg = rpki.config.parser(set_filename = args.config, section = "rootd")
+    self.cfg = rpki.config.parser(section = "rootd")
     self.cfg.set_global_flags()
 
     if not args.foreground:

@@ -153,8 +153,6 @@ class main(object):
     time.tzset()
 
     parser = argparse.ArgumentParser(description = __doc__)
-    parser.add_argument("-c", "--config",
-                        help = "override default location of configuration file")
     parser.add_argument("-f", "--foreground", action = "store_true",
                         help = "do not daemonize")
     parser.add_argument("--pidfile",
@@ -166,7 +164,7 @@ class main(object):
 
     rpki.log.init("irdbd", args)
 
-    self.cfg = rpki.config.parser(set_filename = args.config, section = "irdbd")
+    self.cfg = rpki.config.parser(section = "irdbd")
     self.cfg.set_global_flags()
 
     if not args.foreground:

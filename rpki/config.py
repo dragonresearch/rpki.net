@@ -32,18 +32,11 @@ logger = logging.getLogger(__name__)
 ## @var default_filename
 # Default name of config file if caller doesn't specify one explictly.
 
-default_filename = "rpki.conf"
-
-## @var default_dirname
-# Default name of directory to check for global config file, or None
-# if no global config file.  Autoconf-generated code may set this to a
-# non-None value during script startup.
-
 try:
   import rpki.autoconf
-  default_dirname = rpki.autoconf.sysconfdir
+  default_filename = os.path.join(rpki.autoconf.sysconfdir, "rpki.conf")
 except ImportError:
-  default_dirname = None
+  default_filename = None
 
 ## @var rpki_conf_envname
 # Name of environment variable containing config file name.
@@ -63,18 +56,16 @@ class parser(object):
 
   If no filename is given to the constructor (filename and
   set_filename both None), we check for an environment variable naming
-  the config file, then we check for a default filename in the current
-  directory, then finally we check for a global config file if
+  the config file, then finally we check for a global config file if
   autoconf provided a directory name to check.
 
-  NB: In most cases, programs which accept configuration filenames on
-  their command lines should pass those filenames to us using
-  set_filename so that we can set the magic environment variable,
-  because constraints from some external libraries (principally
-  Django) sometimes require our own library code to look things up in
-  the configuration file without the knowledge of the controlling
-  program.  Setting the environment variable insures that everybody's
-  reading from the same script, as it were.
+  NB: Programs which accept a configuration filename on the command
+  lines should pass that filename using set_filename so that we can
+  set the magic environment variable.  Constraints from some external
+  libraries (principally Django) sometimes require library code to
+  look things up in the configuration file without the knowledge of
+  the controlling program, but setting the environment variable
+  insures that everybody's reading from the same script, as it were.
   """
 
   # Odd keyword-only calling sequence is a defense against old code
@@ -94,32 +85,17 @@ class parser(object):
     self.cfg = ConfigParser.RawConfigParser()
     self.default_section = section
 
-    filenames = []
-    if filename is not None:
-      filenames.append(filename)
-    else:
-      if rpki_conf_envname in os.environ:
-        filenames.append(os.environ[rpki_conf_envname])
-      filenames.append(default_filename)
-      if default_dirname is not None:
-        filenames.append(os.path.join(default_dirname, default_filename))
+    self.filename = filename or os.getenv(rpki_conf_envname) or default_filename
 
-    f = fn = None
+    try:
+      with open(self.filename, "r") as f:
+        self.cfg.readfp(f)
+    except IOError:
+      if allow_missing:
+        self.filename = None
+      else:
+        raise
 
-    for fn in filenames:
-      try:
-        f = open(fn)
-        break
-      except IOError:
-        f = None
-
-    if f is not None:
-      self.filename = fn
-      self.cfg.readfp(f, fn)
-    elif allow_missing:
-      self.filename = None
-    else:
-      raise
 
   def has_section(self, section):
     """
@@ -127,6 +103,7 @@ class parser(object):
     """
 
     return self.cfg.has_section(section)
+
 
   def has_option(self, option, section = None):
     """
@@ -136,6 +113,7 @@ class parser(object):
     if section is None:
       section = self.default_section
     return self.cfg.has_option(section, option)
+
 
   def multiget(self, option, section = None):
     """
@@ -155,6 +133,7 @@ class parser(object):
     for option in matches:
       yield self.cfg.get(section, option)
 
+
   _regexp = re.compile("\\${(.*?)::(.*?)}")
 
   def _repl(self, m):
@@ -162,16 +141,19 @@ class parser(object):
     Replacement function for indirect variable substitution.
     This is intended for use with re.subn().
     """
+
     section, option = m.group(1, 2)
     if section == "ENV":
       return os.getenv(option, "")
     else:
       return self.cfg.get(section, option)
 
+
   def get(self, option, default = None, section = None):
     """
     Get an option, perhaps with a default value.
     """
+
     if section is None:
       section = self.default_section
     if default is not None and not self.cfg.has_option(section, option):
@@ -182,10 +164,12 @@ class parser(object):
       if not modified:
         return val
 
+
   def getboolean(self, option, default = None, section = None):
     """
     Get a boolean option, perhaps with a default value.
     """
+
     v = self.get(option, default, section)
     if isinstance(v, str):
       v = v.lower()
@@ -194,17 +178,22 @@ class parser(object):
       v = self.cfg._boolean_states[v]
     return v
 
+
   def getint(self, option, default = None, section = None):
     """
     Get an integer option, perhaps with a default value.
     """
+
     return int(self.get(option, default, section))
+
 
   def getlong(self, option, default = None, section = None):
     """
     Get a long integer option, perhaps with a default value.
     """
+
     return long(self.get(option, default, section))
+
 
   def set_global_flags(self):
     """

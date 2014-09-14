@@ -322,19 +322,22 @@ while argv:
   argv = q_pdu.client_getopt(argv[1:])
   q_msg.append(q_pdu)
 
-from django.conf import settings
+if True:
+  os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
 
-settings.configure(
-  DATABASES = { "default" : {
-    "ENGINE"   : "django.db.backends.mysql",
-    "NAME"     : cfg.get("sql-database", section = "irdbd"),
-    "USER"     : cfg.get("sql-username", section = "irdbd"),
-    "PASSWORD" : cfg.get("sql-password", section = "irdbd"),
-    "HOST"     : "",
-    "PORT"     : "",
-    "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
-  INSTALLED_APPS = ("rpki.irdb",),
-)
+else:
+  from django.conf import settings
+  settings.configure(
+    DATABASES = { "default" : {
+      "ENGINE"   : "django.db.backends.mysql",
+      "NAME"     : cfg.get("sql-database", section = "irdbd"),
+      "USER"     : cfg.get("sql-username", section = "irdbd"),
+      "PASSWORD" : cfg.get("sql-password", section = "irdbd"),
+      "HOST"     : "",
+      "PORT"     : "",
+      "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
+    INSTALLED_APPS = ("rpki.irdb",),
+  )
 
 import rpki.irdb
 

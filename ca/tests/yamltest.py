@@ -73,13 +73,14 @@ def cleanpath(*names):
 
 this_dir  = os.getcwd()
 test_dir  = cleanpath(this_dir, "yamltest.dir")
-rpkid_dir = cleanpath(this_dir, "..")
+ca_dir    = cleanpath(this_dir, "..")
 
-prog_rpkic   = cleanpath(rpkid_dir, "rpkic")
-prog_rpkid   = cleanpath(rpkid_dir, "rpkid")
-prog_irdbd   = cleanpath(rpkid_dir, "irdbd")
-prog_pubd    = cleanpath(rpkid_dir, "pubd")
-prog_rootd   = cleanpath(rpkid_dir, "rootd")
+prog_rpkic = cleanpath(ca_dir, "rpkic")
+prog_rpkid = cleanpath(ca_dir, "rpkid")
+prog_irdbd = cleanpath(ca_dir, "irdbd")
+prog_pubd  = cleanpath(ca_dir, "pubd")
+prog_rootd = cleanpath(ca_dir, "rootd")
+prog_rpki_manage  = cleanpath(ca_dir, "rpki-manage")
 
 class roa_request(object):
   """
@@ -129,7 +130,7 @@ class router_cert(object):
   def __init__(self, asn, router_id):
     self.asn = rpki.resource_set.resource_set_as("".join(str(asn).split()))
     self.router_id = router_id
-    self.keypair = rpki.x509.ECDSA.generate(self.ecparams())
+    self.keypair = rpki.x509.ECDSA.generate(params = self.ecparams(), quiet = True)
     self.pkcs10 = rpki.x509.PKCS10.create(keypair = self.keypair)
     self.gski = self.pkcs10.gSKI()
 
@@ -492,7 +493,7 @@ class allocation(object):
     print "Writing", f.name
 
     section = None
-    for line in open(cleanpath(rpkid_dir, "examples/rpki.conf")):
+    for line in open(cleanpath(ca_dir, "examples/rpki.conf")):
       m = section_regexp.match(line)
       if m:
         section = m.group(1)
@@ -539,6 +540,7 @@ class allocation(object):
     """
     Run rpkic for this entity.
     """
+
     cmd = [prog_rpkic, "-i", self.name]
     if args.profile:
       cmd.append("--profile")
@@ -550,11 +552,48 @@ class allocation(object):
                RPKI_CONF = self.path("rpki.conf"))
     subprocess.check_call(cmd, cwd = self.host.path(), env = env)
 
+  def syncdb(self):
+    """
+    Run whatever Django ORM commands are necessary to set up the
+    database this week.
+
+    This may end up moving back into rpkic as an explicit command, but
+    for the moment I'm assuming that production use handle this via
+    rpki-sql-setup and that we therefore must do it ourselves for
+    testing.  We'll see.
+    """
+
+    verbosity = 0                       # Set to 3 for copious output
+    use_management_api = False          # Set to use internal management API
+
+    # These are equivalent.  We probably want to use rpki-manage so we
+    # can show the user what's happening, but preserve both forms as a
+    # reference in case we want the internal form in rpki-sql-setup,
+    # in which case we might want the internal form here too after
+    # all.  Decisions, decisions.
+
+    if use_management_api:
+      if not os.fork():
+        os.environ["RPKI_CONF"] = self.path("rpki.conf")
+        import django.core.management
+        django.core.management.call_command("syncdb", verbosity = verbosity, load_initial_data = False, migrate = True)
+        sys.exit(0)
+      if os.wait()[1]:
+        raise RuntimeError("syncdb failed for %s" % self.name)
+
+    else:
+      cmd = (prog_rpki_manage, "syncdb", "--noinput", "--no-initial-data", "--migrate", "--verbosity", str(verbosity))
+      env = os.environ.copy()
+      env.update(RPKI_CONF = self.path("rpki.conf"))
+      print 'Running "%s"' % " ".join(cmd)
+      subprocess.check_call(cmd, cwd = self.host.path(), env = env)
+
   def run_python_daemon(self, prog):
     """
     Start a Python daemon and return a subprocess.Popen object
     representing the running daemon.
     """
+
     basename = os.path.splitext(os.path.basename(prog))[0]
     cmd = [prog, "--foreground", "--log-level", "debug",
            "--log-file", self.path(basename + ".log")]
@@ -637,8 +676,8 @@ def create_root_certificate(db_root):
   f.close()
 
 
-
-os.environ["TZ"] = "UTC"
+os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings",
+                  TZ = "UTC")
 time.tzset()
 
 parser = argparse.ArgumentParser(description = __doc__)
@@ -715,6 +754,7 @@ try:
 
     for d in db:
       if not d.is_hosted:
+        print "Initializing", d.name
         os.makedirs(d.path())
         d.dump_conf()
         if d.runs_pubd:
@@ -722,7 +762,9 @@ try:
           d.dump_rsyncd()
         if d.is_root:
           os.makedirs(d.path("publication.root"))
+        d.syncdb()
         d.run_rpkic("initialize_server_bpki")
+        print
 
     # Initialize resource holding BPKI and generate self-descriptor
     # for each entity.

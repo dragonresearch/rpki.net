@@ -81,6 +81,11 @@ class SignedReferralField(DERField):
   description   = "CMS signed object containing XML"
   rpki_type     = rpki.x509.SignedReferral
 
+# Alias to keep old rpki.gui migrations happy.  Would generating a new
+# schema migration for rpki.gui remove the need, or do we have to
+# preserve every old field class we've ever used forever?  Dunno.
+
+RSAKeyField = KeyField
 
 # Introspection rules for Django South
 

@@ -759,6 +759,19 @@ def body():
   # https://docs.djangoproject.com/en/1.4/topics/db/multi-db/
   # https://docs.djangoproject.com/en/1.4/topics/db/sql/
 
+  # This will probably need hacking to work with rpki.django_settings,
+  # rpki.db_router, and all the related new code, but let's get the
+  # kinks ironed out of the normal stuff before messing with this.
+  #
+  # I suspect the correct strategy here will be to import
+  # rpki.django_settings and modify its DATABASES and DATABASE_ROUTERS
+  # settings, but we'll see.
+  #
+  # We will almost certainly have to run syncdb and migrate.  We may want
+  # our own private south database so we don't mess up anything else; that
+  # database might even be one of our outputs (ie, yamltest may need that
+  # too, and may end up generating its own when run without this).
+
   database_template = {
     "ENGINE"   : "django.db.backends.mysql",
     "USER"     : config_overrides["irdbd_sql_username"],

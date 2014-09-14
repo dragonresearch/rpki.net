@@ -16,11 +16,6 @@
 This module contains utility functions for use in standalone scripts.
 """
 
-from django.conf import settings
-
-from rpki import config
-from rpki import autoconf
-
 __version__ = '$Id$'
 
 
@@ -28,16 +23,29 @@ def setup():
     """
     Configure Django enough to use the ORM.
     """
-    cfg = config.parser(section='web_portal')
-    # INSTALLED_APPS doesn't seem necessary so long as you are only accessing
-    # existing tables.
-    settings.configure(
-        DATABASES={
-            'default': {
-                'ENGINE': 'django.db.backends.mysql',
-                'NAME': cfg.get('sql-database'),
-                'USER': cfg.get('sql-username'),
-                'PASSWORD': cfg.get('sql-password'),
-            }
-        },
-    )
+
+    # In theory we no longer need to call settings.configure, which
+    # probably means this whole module can go away soon, but leave
+    # breadcrumbs for now.
+
+    if True:
+	os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
+
+    else:
+	from rpki import config
+	from rpki import autoconf
+	from django.conf import settings
+
+	cfg = config.parser(section='web_portal')
+	# INSTALLED_APPS doesn't seem necessary so long as you are only accessing
+	# existing tables.
+	settings.configure(
+	    DATABASES={
+		'default': {
+		    'ENGINE': 'django.db.backends.mysql',
+		    'NAME': cfg.get('sql-database'),
+		    'USER': cfg.get('sql-username'),
+		    'PASSWORD': cfg.get('sql-password'),
+		}
+	    },
+	)

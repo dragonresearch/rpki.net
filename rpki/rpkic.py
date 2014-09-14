@@ -132,19 +132,29 @@ class main(Cmd):
     self.histfile = cfg.get("history_file", os.path.expanduser("~/.rpkic_history"))
     self.autosync = cfg.getboolean("autosync", True, section = "rpkic")
 
-    from django.conf import settings
+    # This should go away now that we have rpki.django_settings, but
+    # let's get a verbose log with it present first to see what
+    # changes.
 
-    settings.configure(
-      DATABASES = { "default" : {
-        "ENGINE"   : "django.db.backends.mysql",
-        "NAME"     : cfg.get("sql-database", section = "irdbd"),
-        "USER"     : cfg.get("sql-username", section = "irdbd"),
-        "PASSWORD" : cfg.get("sql-password", section = "irdbd"),
-        "HOST"     : "",
-        "PORT"     : "",
-        "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
-      INSTALLED_APPS = ("rpki.irdb",),
-    )
+    use_south = True
+    setup_db  = False
+
+    if use_south:
+      os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
+
+    else:
+      from django.conf import settings
+      settings.configure(
+        DATABASES = { "default" : {
+          "ENGINE"   : "django.db.backends.mysql",
+          "NAME"     : cfg.get("sql-database", section = "irdbd"),
+          "USER"     : cfg.get("sql-username", section = "irdbd"),
+          "PASSWORD" : cfg.get("sql-password", section = "irdbd"),
+          "HOST"     : "",
+          "PORT"     : "",
+          "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
+        INSTALLED_APPS = ["rpki.irdb"])
+
 
     import rpki.irdb                    # pylint: disable=W0621
 
@@ -166,8 +176,12 @@ class main(Cmd):
     except rpki.config.ConfigParser.Error:
       pass
 
-    import django.core.management
-    django.core.management.call_command("syncdb", verbosity = 0, load_initial_data = False)
+    if setup_db:
+      import django.core.management
+      django.core.management.call_command("syncdb", verbosity = 3, load_initial_data = False)
+
+    if setup_db and use_south:
+        django.core.management.call_command("migrate", verbosity = 3)
 
     self.zoo = rpki.irdb.Zookeeper(cfg = cfg, handle = self.handle, logstream = sys.stdout)
 

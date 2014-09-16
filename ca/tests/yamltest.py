@@ -43,6 +43,7 @@ import re
 import os
 import logging
 import argparse
+import webbrowser
 import sys
 import yaml
 import signal
@@ -155,7 +156,7 @@ class allocation_db(list):
   def __init__(self, yaml):
     list.__init__(self)
     self.root = allocation(yaml, self)
-    assert self.root.is_root
+    assert self.root.is_root and not any(a.is_root for a in self if a is not self.root) and self[0] is self.root
     if self.root.crl_interval is None:
       self.root.crl_interval = 60 * 60
     if self.root.regen_margin is None:
@@ -707,6 +708,8 @@ parser.add_argument("--profile", action = "store_true",
                     help = "enable profiling")
 parser.add_argument("-g", "--run_gui", action = "store_true",
                     help = "enable GUI using django-admin runserver")
+parser.add_argument("--browser", action = "store_true",
+                    help = "create web browser tabs for GUI")
 parser.add_argument("yaml_file", type = argparse.FileType("r"),
                     help = "YAML description of test network")
 args = parser.parse_args()
@@ -887,7 +890,14 @@ try:
       print 'GUI user "root", password "fnord"'
       for d in db:
         if not d.is_hosted:
-          print "GUI URL http://127.0.0.1:%d/rpki/ for %s" % (8000 + d.engine, d.name)
+          url = "http://127.0.0.1:%d/rpki/" % (8000 + d.engine)
+          print "GUI URL", url, "for", d.name
+          if args.browser:
+            if d is db.root:
+              webbrowser.open_new(url)
+            else:
+              webbrowser.open_new_tab(url)
+            time.sleep(2)
 
     # Wait until something terminates.
 

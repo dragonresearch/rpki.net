@@ -34,6 +34,8 @@ import socket
 import rpki.POW
 from south.modelsinspector import add_introspection_rules
 
+from rpki.fields import EnumField, SundialField, CertificateField, DERField, KeyField, CRLField, PKCS10Field
+
 ## @var ip_version_choices
 # Choice argument for fields implementing IP version numbers.
 
@@ -61,11 +63,11 @@ ee_certificate_lifetime = rpki.sundial.timedelta(days = 60)
 
 ###
 
-# Field types
+# Field classes
 
 class HandleField(django.db.models.CharField):
   """
-  A handle field type.
+  A handle field class.  Replace this with SlugField?
   """
 
   description = 'A "handle" in one of the RPKI protocols'
@@ -74,104 +76,26 @@ class HandleField(django.db.models.CharField):
     kwargs["max_length"] = 120
     django.db.models.CharField.__init__(self, *args, **kwargs)
 
-class EnumField(django.db.models.PositiveSmallIntegerField):
-  """
-  An enumeration type that uses strings in Python and small integers
-  in SQL.
-  """
-
-  description = "An enumeration type"
-
-  __metaclass__ = django.db.models.SubfieldBase
-
-  def __init__(self, *args, **kwargs):
-    if isinstance(kwargs.get("choices"), (tuple, list)) and isinstance(kwargs["choices"][0], str):
-      kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
-    django.db.models.PositiveSmallIntegerField.__init__(self, *args, **kwargs)
-    self.enum_i2s = dict(self.flatchoices)
-    self.enum_s2i = dict((v, k) for k, v in self.flatchoices)
-
-  def to_python(self, value):
-    return self.enum_i2s.get(value, value)
-
-  def get_prep_value(self, value):
-    return self.enum_s2i.get(value, value)
-
-class SundialField(django.db.models.DateTimeField):
-  """
-  A field type for our customized datetime objects.
-  """
-
-  __metaclass__ = django.db.models.SubfieldBase
-
-  description = "A datetime type using our customized datetime objects"
-
-  def to_python(self, value):
-    if isinstance(value, rpki.sundial.pydatetime.datetime):
-      return rpki.sundial.datetime.from_datetime(
-        django.db.models.DateTimeField.to_python(self, value))
-    else:
-      return value
-
-  def get_prep_value(self, value):
-    if isinstance(value, rpki.sundial.datetime):
-      return value.to_datetime()
-    else:
-      return value
-
-
-class DERField(django.db.models.Field):
-  """
-  Field types for DER objects.
-  """
-
-  __metaclass__ = django.db.models.SubfieldBase
-
-  def __init__(self, *args, **kwargs):
-    kwargs["serialize"] = False
-    kwargs["blank"] = True
-    kwargs["default"] = None
-    django.db.models.Field.__init__(self, *args, **kwargs)
-
-  def db_type(self, connection):
-    if connection.settings_dict['ENGINE'] == "django.db.backends.posgresql":
-      return "bytea"
-    else:
-      return "BLOB"
-
-  def to_python(self, value):
-    assert value is None or isinstance(value, (self.rpki_type, str))
-    if isinstance(value, str):
-      return self.rpki_type(DER = value)
-    else:
-      return value
-
-  def get_prep_value(self, value):
-    assert value is None or isinstance(value, (self.rpki_type, str))
-    if isinstance(value, self.rpki_type):
-      return value.get_DER()
-    else:
-      return value
-
-class CertificateField(DERField):
-  description   = "X.509 certificate"
-  rpki_type     = rpki.x509.X509
-
-class RSAKeyField(DERField):
-  description   = "RSA keypair"
-  rpki_type     = rpki.x509.RSA
-
-class CRLField(DERField):
-  description   = "Certificate Revocation List"
-  rpki_type     = rpki.x509.CRL
-
-class PKCS10Field(DERField):
-  description   = "PKCS #10 certificate request"
-  rpki_type     = rpki.x509.PKCS10
 
 class SignedReferralField(DERField):
   description   = "CMS signed object containing XML"
   rpki_type     = rpki.x509.SignedReferral
+
+# Alias to keep old rpki.gui migrations happy.  Would generating a new
+# schema migration for rpki.gui remove the need, or do we have to
+# preserve every old field class we've ever used forever?  Dunno.
+
+RSAKeyField = KeyField
+
+# Introspection rules for Django South
+
+field_classes = [HandleField, SignedReferralField]
+
+add_introspection_rules([(field_classes, [], {})],
+                        [r"^rpki\.irdb\.models\." + cls.__name__
+                         for cls in field_classes])
+
+del field_classes
 
 
 # Custom managers
@@ -232,7 +156,7 @@ class ResourceHolderEEManager(CertificateManager):
 
 class CA(django.db.models.Model):
   certificate = CertificateField()
-  private_key = RSAKeyField()
+  private_key = KeyField()
   latest_crl = CRLField()
 
   # Might want to bring these into line with what rpkid does.  Current
@@ -392,7 +316,7 @@ class ResourceHolderRevocation(Revocation):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "revocations")
 
 class EECertificate(Certificate):
-  private_key = RSAKeyField()
+  private_key = KeyField()
 
   class Meta:
     abstract = True
@@ -635,13 +559,3 @@ class Client(CrossCertification):
   # This shouldn't be necessary
   class Meta:
     unique_together = ("issuer", "handle")
-
-# for Django South -- these are just simple subclasses
-add_introspection_rules([],
-                        (r'^rpki\.irdb\.models\.CertificateField',
-                         r'^rpki\.irdb\.models\.CRLField',
-                         r'^rpki\.irdb\.models\.EnumField',
-                         r'^rpki\.irdb\.models\.HandleField',
-                         r'^rpki\.irdb\.models\.RSAKeyField',
-                         r'^rpki\.irdb\.models\.SignedReferralField',
-                         r'^rpki\.irdb\.models\.SundialField'))

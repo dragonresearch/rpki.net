@@ -149,8 +149,6 @@ class main(object):
     time.tzset()
 
     parser = argparse.ArgumentParser(description = __doc__)
-    parser.add_argument("-c", "--config",
-                        help = "override default location of configuration file")
     parser.add_argument("-f", "--foreground", action = "store_true",
                         help = "do not daemonize")
     parser.add_argument("--pidfile",
@@ -162,7 +160,7 @@ class main(object):
 
     rpki.log.init("irdbd", args)
 
-    self.cfg = rpki.config.parser(args.config, "irdbd")
+    self.cfg = rpki.config.parser(section = "irdbd")
     self.cfg.set_global_flags()
 
     if not args.foreground:
@@ -181,34 +179,15 @@ class main(object):
 
   def main(self):
 
-    global rpki                         # pylint: disable=W0602
-    from django.conf import settings
-
     startup_msg = self.cfg.get("startup-message", "")
     if startup_msg:
       logger.info(startup_msg)
 
-    # Do -not- turn on DEBUG here except for short-lived tests,
-    # otherwise irdbd will eventually run out of memory and crash.
-    #
-    # If you must enable debugging, use django.db.reset_queries() to
-    # clear the query list manually, but it's probably better just to
-    # run with debugging disabled, since that's the expectation for
-    # production code.
-    #
-    # https://docs.djangoproject.com/en/dev/faq/models/#why-is-django-leaking-memory
+    # Now that we know which configuration file to use, it's OK to
+    # load modules that require Django's settings module.
 
-    settings.configure(
-      DATABASES = {
-        "default" : {
-          "ENGINE"   : "django.db.backends.mysql",
-          "NAME"     : self.cfg.get("sql-database"),
-          "USER"     : self.cfg.get("sql-username"),
-          "PASSWORD" : self.cfg.get("sql-password"),
-          "HOST"     : "",
-          "PORT"     : "" }},
-      INSTALLED_APPS = ("rpki.irdb",),)
-
+    os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
+    global rpki                         # pylint: disable=W0602
     import rpki.irdb                    # pylint: disable=W0621
 
     # Entirely too much fun with read-only access to transactional databases.

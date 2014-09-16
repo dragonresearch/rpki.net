@@ -21,7 +21,8 @@ import sys
 import os
 import rpki.autoconf
 
-os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.default_settings'
+os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings",
+		  RPKI_GUI_ENABLE        = "yes")
 
 # Needed for local_settings.py
 sys.path.insert(1, rpki.autoconf.sysconfdir + '/rpki')

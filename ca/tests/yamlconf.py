@@ -125,7 +125,7 @@ class router_cert(object):
   def __init__(self, asn, router_id):
     self.asn = rpki.resource_set.resource_set_as("".join(str(asn).split()))
     self.router_id = router_id
-    self.keypair = rpki.x509.ECDSA.generate(self.ecparams())
+    self.keypair = rpki.x509.ECDSA.generate(params = self.ecparams(), quiet = True)
     self.pkcs10 = rpki.x509.PKCS10.create(keypair = self.keypair)
     self.gski = self.pkcs10.gSKI()
 
@@ -491,16 +491,18 @@ class allocation(object):
   def syncdb(self):
     import django.core.management
     assert not self.is_hosted
-    django.core.management.call_command("syncdb",
-                                        database = self.irdb_name,
-                                        load_initial_data = False,
-                                        interactive = False,
-                                        verbosity = 0)
+    django.core.management.call_command(
+      "syncdb",
+      verbosity = 0,
+      database = self.irdb_name,
+      migrate = True,
+      load_initial_data = False,
+      interactive = False)
 
   def hire_zookeeper(self):
     assert not self.is_hosted
     self._zoo = rpki.irdb.Zookeeper(
-      cfg = rpki.config.parser(self.path("rpki.conf")),
+      cfg = rpki.config.parser(filename = self.path("rpki.conf")),
       logstream = None if quiet else sys.stdout)
 
   @property
@@ -681,7 +683,7 @@ def main():
   # passwords: this is mostly so that I can show a complete working
   # example without publishing my own server's passwords.
 
-  cfg = rpki.config.parser(args.config, "yamlconf", allow_missing = True)
+  cfg = rpki.config.parser(set_filename = args.config, section = "yamlconf", allow_missing = True)
   try:
     cfg.set_global_flags()
   except:
@@ -755,9 +757,13 @@ def body():
   pre_django_sql_setup(set(d.irdb_name for d in db if not d.is_hosted))
 
   # Now ready for fun with multiple databases in Django!
-
+  #
   # https://docs.djangoproject.com/en/1.4/topics/db/multi-db/
   # https://docs.djangoproject.com/en/1.4/topics/db/sql/
+  #
+  # This program's use of the ORM is sufficiently different that it's
+  # not worth straining to use rpki.django_settings, so we just use
+  # Django's settings API directly.
 
   database_template = {
     "ENGINE"   : "django.db.backends.mysql",
@@ -767,8 +773,7 @@ def body():
     "PORT"     : "",
     "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}
 
-  databases = dict((d.irdb_name,
-                    dict(database_template, NAME = d.irdb_name))
+  databases = dict((d.irdb_name, dict(database_template, NAME = d.irdb_name))
                    for d in db if not d.is_hosted)
 
   databases["default"] = databases[db.root.irdb_name]
@@ -778,7 +783,7 @@ def body():
   settings.configure(
     DATABASES = databases,
     DATABASE_ROUTERS = ["rpki.irdb.router.DBContextRouter"],
-    INSTALLED_APPS = ("rpki.irdb",))
+    INSTALLED_APPS = ("rpki.irdb", "south"))
 
   import rpki.irdb
 

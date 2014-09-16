@@ -43,6 +43,7 @@ import re
 import os
 import logging
 import argparse
+import webbrowser
 import sys
 import yaml
 import signal
@@ -74,13 +75,14 @@ def cleanpath(*names):
 
 this_dir  = os.getcwd()
 test_dir  = cleanpath(this_dir, "yamltest.dir")
-rpkid_dir = cleanpath(this_dir, "..")
+ca_dir    = cleanpath(this_dir, "..")
 
-prog_rpkic   = cleanpath(rpkid_dir, "rpkic")
-prog_rpkid   = cleanpath(rpkid_dir, "rpkid")
-prog_irdbd   = cleanpath(rpkid_dir, "irdbd")
-prog_pubd    = cleanpath(rpkid_dir, "pubd")
-prog_rootd   = cleanpath(rpkid_dir, "rootd")
+prog_rpkic = cleanpath(ca_dir, "rpkic")
+prog_rpkid = cleanpath(ca_dir, "rpkid")
+prog_irdbd = cleanpath(ca_dir, "irdbd")
+prog_pubd  = cleanpath(ca_dir, "pubd")
+prog_rootd = cleanpath(ca_dir, "rootd")
+prog_rpki_manage  = cleanpath(ca_dir, "rpki-manage")
 
 class roa_request(object):
   """
@@ -131,7 +133,7 @@ class router_cert(object):
   def __init__(self, asn, router_id):
     self.asn = rpki.resource_set.resource_set_as("".join(str(asn).split()))
     self.router_id = router_id
-    self.keypair = rpki.x509.ECDSA.generate(self.ecparams())
+    self.keypair = rpki.x509.ECDSA.generate(params = self.ecparams(), quiet = True)
     self.pkcs10 = rpki.x509.PKCS10.create(keypair = self.keypair)
     self.gski = self.pkcs10.gSKI()
 
@@ -156,7 +158,7 @@ class allocation_db(list):
   def __init__(self, yaml):
     list.__init__(self)
     self.root = allocation(yaml, self)
-    assert self.root.is_root
+    assert self.root.is_root and not any(a.is_root for a in self if a is not self.root) and self[0] is self.root
     if self.root.crl_interval is None:
       self.root.crl_interval = 60 * 60
     if self.root.regen_margin is None:
@@ -506,7 +508,7 @@ class allocation(object):
       print "Writing", f.name
 
       section = None
-      for line in open(cleanpath(rpkid_dir, "examples/rpki.conf")):
+      for line in open(cleanpath(ca_dir, "examples/rpki.conf")):
         m = section_regexp.match(line)
         if m:
           section = m.group(1)
@@ -551,15 +553,41 @@ class allocation(object):
     Run rpkic for this entity.
     """
 
-    cmd = [prog_rpkic, "-i", self.name, "-c", self.path("rpki.conf")]
+    cmd = [prog_rpkic, "-i", self.name]
     if args.profile:
       cmd.append("--profile")
       cmd.append(self.path("rpkic.%s.prof" % rpki.sundial.now()))
     cmd.extend(str(a) for a in argv if a is not None)
     print 'Running "%s"' % " ".join(cmd)
-    env = os.environ.copy()
-    env["YAMLTEST_RPKIC_COUNTER"] = self.next_rpkic_counter()
+    env = dict(os.environ,
+               YAMLTEST_RPKIC_COUNTER = self.next_rpkic_counter(),
+               RPKI_CONF = self.path("rpki.conf"))
     subprocess.check_call(cmd, cwd = self.host.path(), env = env)
+
+  def syncdb(self, run_gui):
+    """
+    Run whatever Django ORM commands are necessary to set up the
+    database this week.
+
+    This may end up moving back into rpkic as an explicit command, but
+    for the moment I'm assuming that production use handle this via
+    rpki-sql-setup and that we therefore must do it ourselves for
+    testing.  We'll see.
+    """
+
+    if not os.fork():
+      os.environ.update(RPKI_CONF = self.path("rpki.conf"),
+                        RPKI_GUI_ENABLE = "yes")
+      logging.getLogger().setLevel(logging.WARNING)
+      import django.core.management
+      django.core.management.call_command("syncdb", migrate = True, verbosity = 0,
+                                          load_initial_data = False, interactive = False)
+      from django.contrib.auth.models import User
+      User.objects.create_superuser("root", "root@example.org", "fnord")
+      sys.exit(0)
+
+    if os.wait()[1]:
+      raise RuntimeError("Django setup failed for %s" % self.name)
 
   def run_python_daemon(self, prog):
     """
@@ -569,13 +597,13 @@ class allocation(object):
 
     basename = os.path.splitext(os.path.basename(prog))[0]
     cmd = [prog, "--foreground", "--log-level", "debug",
-           "--log-file", self.path(basename + ".log"),
-           "--config",   self.path("rpki.conf")]
+           "--log-file", self.path(basename + ".log")]
     if args.profile and basename != "rootd":
       cmd.extend((
            "--profile",  self.path(basename + ".prof")))
-    p = subprocess.Popen(cmd, cwd = self.path())
-    print 'Running %s for %s: pid %d process %r' % (" ".join(cmd), self.name, p.pid, p)
+    env = dict(os.environ, RPKI_CONF = self.path("rpki.conf"))
+    p = subprocess.Popen(cmd, cwd = self.path(), env = env)
+    print "Running %s for %s: pid %d process %r" % (" ".join(cmd), self.name, p.pid, p)
     return p
 
   def run_rpkid(self):
@@ -616,6 +644,24 @@ class allocation(object):
     print "Running rsyncd for %s: pid %d process %r" % (self.name, p.pid, p)
     return p
 
+  def run_gui(self):
+    """
+    Start an instance of the RPKI GUI under the Django test server and
+    return a subprocess.Popen object representing the running daemon.
+    """
+
+    port = 8000 + self.engine
+    cmd = (prog_rpki_manage, "runserver", str(port))
+    env = dict(os.environ,
+               RPKI_CONF = self.path("rpki.conf"),
+               RPKI_DJANGO_DEBUG = "yes",
+               ALLOW_PLAIN_HTTP_FOR_TESTING = "I solemnly swear that I am not running this in production")
+    p = subprocess.Popen(cmd, cwd = self.path(), env = env,
+                         stdout = open(self.path("gui.log"), "w"), stderr = subprocess.STDOUT)
+    print "Running %s for %s: pid %d process %r" % (" ".join(cmd), self.name, p.pid, p)
+    return p
+
+
 def create_root_certificate(db_root):
 
   print "Creating rootd RPKI root certificate"
@@ -650,8 +696,10 @@ def create_root_certificate(db_root):
     f.write(root_key.get_public().get_Base64())
 
 
+logger = logging.getLogger(__name__)
 
-os.environ["TZ"] = "UTC"
+os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings",
+                  TZ = "UTC")
 time.tzset()
 
 parser = argparse.ArgumentParser(description = __doc__)
@@ -671,6 +719,10 @@ parser.add_argument("--synchronize", action = "store_true",
                     help = "synchronize IRDB with daemons")
 parser.add_argument("--profile", action = "store_true",
                     help = "enable profiling")
+parser.add_argument("-g", "--run_gui", action = "store_true",
+                    help = "enable GUI using django-admin runserver")
+parser.add_argument("--browser", action = "store_true",
+                    help = "create web browser tabs for GUI")
 parser.add_argument("yaml_file", type = argparse.FileType("r"),
                     help = "YAML description of test network")
 args = parser.parse_args()
@@ -687,7 +739,7 @@ try:
   # passwords: this is mostly so that I can show a complete working
   # example without publishing my own server's passwords.
 
-  cfg = rpki.config.parser(args.config, "yamltest", allow_missing = True)
+  cfg = rpki.config.parser(set_filename = args.config, section = "yamltest", allow_missing = True)
 
   only_one_pubd = cfg.getboolean("only_one_pubd", True)
   allocation.base_port = cfg.getint("base_port", 4400)
@@ -728,6 +780,7 @@ try:
 
     for d in db:
       if not d.is_hosted:
+        print "Initializing", d.name
         os.makedirs(d.path())
         d.dump_conf()
         if d.runs_pubd:
@@ -735,7 +788,9 @@ try:
           d.dump_rsyncd()
         if d.is_root:
           os.makedirs(d.path("publication.root"))
+        d.syncdb(args.run_gui)
         d.run_rpkic("initialize_server_bpki")
+        print
 
     # Initialize resource holding BPKI and generate self-descriptor
     # for each entity.
@@ -773,6 +828,8 @@ try:
         if d.runs_pubd:
           progs.append(d.run_pubd())
           progs.append(d.run_rsyncd())
+        if args.run_gui:
+          progs.append(d.run_gui())
 
     if args.synchronize or not args.skip_config:
 
@@ -840,6 +897,20 @@ try:
         d.dump_roas()
         d.dump_ghostbusters()
         d.dump_router_certificates()
+
+    if args.run_gui:
+      print
+      print 'GUI user "root", password "fnord"'
+      for d in db:
+        if not d.is_hosted:
+          url = "http://127.0.0.1:%d/rpki/" % (8000 + d.engine)
+          print "GUI URL", url, "for", d.name
+          if args.browser:
+            if d is db.root:
+              webbrowser.open_new(url)
+            else:
+              webbrowser.open_new_tab(url)
+            time.sleep(2)
 
     # Wait until something terminates.
 

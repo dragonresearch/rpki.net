@@ -43,7 +43,7 @@ for o, a in opts:
   if o in ("-c", "--config"):
     cfg_file = a
 
-cfg = rpki.config.parser(cfg_file, "myrpki")
+cfg = rpki.config.parser(filename = cfg_file, section = "myrpki")
 
 fix("irdbd", """
     CREATE TABLE ghostbuster_request (

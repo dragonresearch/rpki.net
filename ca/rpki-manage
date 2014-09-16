@@ -5,9 +5,20 @@ from django.core.management import execute_from_command_line
 
 # django-admin seems to have problems creating the superuser account when
 # $LANG is unset or is set to something totally incompatible with UTF-8.
-if os.environ.get('LANG') in (None, "", "C"):
-    os.environ['LANG'] = 'en_US.UTF-8'
 
-os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.default_settings'
+if os.environ.get("LANG") in (None, "", "C"):
+    os.environ["LANG"] = "en_US.UTF-8"
+
+# Where to find the Django settings module
+
+os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
+
+# We don't know whether we're being used to configure the GUI or not
+# (well, not without examining the specific command, which we'd like
+# to avoid).  Default to enabling the GUI so that such commands will
+# work, but allow the user to override via the environment variable.
+
+if not os.environ.get("RPKI_GUI_ENABLE"):
+    os.environ["RPKI_GUI_ENABLE"] = "yes"
 
 execute_from_command_line()

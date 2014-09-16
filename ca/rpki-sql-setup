@@ -54,7 +54,7 @@ class RootDB(object):
                                 user   = "root",
                                 passwd = getpass.getpass("Please enter your MySQL root password: "))
     else:
-      mysql_cfg = rpki.config.parser(self.mysql_defaults, "client")
+      mysql_cfg = rpki.config.parser(set_filename = self.mysql_defaults, section = "client")
       self.db = MySQLdb.connect(db     = "mysql",
                                 user   = mysql_cfg.get("user"),
                                 passwd = mysql_cfg.get("password"))
@@ -299,7 +299,7 @@ parser.set_defaults(dispatch = do_create_if_missing)
 args = parser.parse_args()
 
 try:
-  cfg  = rpki.config.parser(args.config, "myrpki")
+  cfg  = rpki.config.parser(set_filename = args.config, section = "myrpki")
   root = RootDB(args.mysql_defaults)
   current_version = Version(rpki.version.VERSION)
   for program_name in ("irdbd", "rpkid", "pubd"):

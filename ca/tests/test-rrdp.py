@@ -52,7 +52,7 @@ def snapshot_to_serial(fn):
 def delta_to_serial(fn):
   return int(os.path.splitext(os.path.basename(fn))[0].split("-")[1])
 
-top = os.path.expanduser("~/rpki/subvert-rpki.hactrn.net/branches/tk705")
+top = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..", ".."))
 
 rrdp_test_tool = os.path.join(top, "potpourri/rrdp-test-tool")
 rcynic         = os.path.join(top, "rp/rcynic/rcynic")

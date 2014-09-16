@@ -60,6 +60,8 @@ class main(object):
     self.task_queue = []
 
     parser = argparse.ArgumentParser(description = __doc__)
+    parser.add_argument("-c", "--config",
+                        help = "override default location of configuration file")
     parser.add_argument("-f", "--foreground", action = "store_true",
                         help = "do not daemonize")
     parser.add_argument("--pidfile",
@@ -73,7 +75,7 @@ class main(object):
 
     rpki.log.init("rpkid", args)
 
-    self.cfg = rpki.config.parser(section = "rpkid")
+    self.cfg = rpki.config.parser(set_filename = args.config, section = "rpkid")
     self.cfg.set_global_flags()
 
     if not args.foreground:

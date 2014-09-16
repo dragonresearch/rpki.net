@@ -272,6 +272,8 @@ class main(object):
     time.tzset()
 
     parser = argparse.ArgumentParser(description = __doc__)
+    parser.add_argument("-c", "--config",
+                        help = "override default location of configuration file")
     parser.add_argument("-f", "--foreground", action = "store_true",
                         help = "do not daemonize (ignored, old_irdbd never daemonizes)")
     rpki.log.argparse_setup(parser)
@@ -279,7 +281,7 @@ class main(object):
 
     rpki.log.init("irdbd", args)
 
-    self.cfg = rpki.config.parser(section = "irdbd")
+    self.cfg = rpki.config.parser(set_filename = args.config, section = "irdbd")
 
     startup_msg = self.cfg.get("startup-message", "")
     if startup_msg:

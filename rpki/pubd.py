@@ -93,6 +93,8 @@ class main(object):
     self.irbe_cms_timestamp = None
 
     parser = argparse.ArgumentParser(description = __doc__)
+    parser.add_argument("-c", "--config",
+                        help = "override default location of configuration file")
     parser.add_argument("-f", "--foreground", action = "store_true",
                         help = "do not daemonize")
     parser.add_argument("--pidfile",
@@ -106,7 +108,7 @@ class main(object):
 
     rpki.log.init("pubd", args)
 
-    self.cfg = rpki.config.parser(section = "pubd")
+    self.cfg = rpki.config.parser(set_filename = args.config, section = "pubd")
     self.cfg.set_global_flags()
 
     if not args.foreground:

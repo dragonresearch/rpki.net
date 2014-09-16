@@ -723,6 +723,8 @@ parser.add_argument("-g", "--run_gui", action = "store_true",
                     help = "enable GUI using django-admin runserver")
 parser.add_argument("--browser", action = "store_true",
                     help = "create web browser tabs for GUI")
+parser.add_argument("--notify-when-startup-complete", type = int,
+                    help = "send SIGUSR1 to this process when startup is complete")
 parser.add_argument("yaml_file", type = argparse.FileType("r"),
                     help = "YAML description of test network")
 args = parser.parse_args()
@@ -915,6 +917,10 @@ try:
     # Wait until something terminates.
 
     if not args.stop_after_config or args.keep_going:
+      if args.notify_when_startup_complete:
+        print
+        print "Sending SIGUSR1 to process", args.notify_when_startup_complete
+        os.kill(args.notify_when_startup_complete, signal.SIGUSR1)
       print
       print "Waiting for daemons to exit"
       signal.signal(signal.SIGCHLD, lambda *dont_care: None)

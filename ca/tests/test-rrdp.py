@@ -23,6 +23,7 @@ import os
 import sys
 import glob
 import time
+import signal
 import textwrap
 import argparse
 import subprocess 
@@ -30,7 +31,7 @@ import subprocess
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("--use-smoketest", action = "store_true")
 parser.add_argument("--yaml-file", default = "smoketest.2.yaml")
-parser.add_argument("--delay", type = int, default = 300)
+parser.add_argument("--delay", type = int, default = 30)
 parser.add_argument("--exhaustive", action = "store_true")
 parser.add_argument("--skip-daemons", action = "store_true")
 args = parser.parse_args()
@@ -80,9 +81,20 @@ elif args.use_smoketest:
   run("python", "smoketest.py", args.yaml_file)
 else:
   run("python", "sql-cleaner.py")
-  argv = ("python", "yamltest.py", args.yaml_file)
+  class GotSIGUSR1(Exception):
+    pass
+  def handle_sigusr1(signum, frame):
+    raise GotSIGUSR1
+  old_sigusr1 = signal.signal(signal.SIGUSR1, handle_sigusr1)
+  argv = ("python", "yamltest.py", args.yaml_file, "--notify-when-startup-complete", str(os.getpid()))
   log("Running: " + " ".join(argv))
   yamltest = subprocess.Popen(argv)
+  log("Waiting for SIGUSR1 from yamltest")
+  try:
+    while True:
+      signal.pause()
+  except GotSIGUSR1:
+    signal.signal(signal.SIGUSR1, old_sigusr1)
   log("Sleeping %s" % args.delay)
   time.sleep(args.delay)
   yamltest.terminate()

@@ -37,14 +37,19 @@ cfg = rpki.config.parser()
 
 # Do -not- turn on DEBUG here except for short-lived tests, otherwise
 # long-running programs like irdbd will eventually run out of memory
-# and crash.
+# and crash.  This is also why this is controlled by an environment
+# variable rather than by an rpki.conf setting: just because we want
+# debugging enabled in the GUI doesn't mean we want it in irdb.
 #
-# If you must enable debugging, use django.db.reset_queries() to
-# clear the query list manually, but it's probably better just to
-# run with debugging disabled, since that's the expectation for
-# production code.
+# If you must enable debugging, you may need to add code that uses
+# django.db.reset_queries() to clear the query list manually, but it's
+# probably better just to run with debugging disabled, since that's
+# the expectation for production code.
 #
 # https://docs.djangoproject.com/en/dev/faq/models/#why-is-django-leaking-memory
+
+if os.getenv("RPKI_DJANGO_DEBUG") == "yes":
+    DEBUG = True
 
 
 # Database configuration.  This is always enabled, and uses a database
@@ -171,6 +176,8 @@ if os.getenv("RPKI_GUI_ENABLE") == "yes":
     def get_allowed_hosts():
         allowed_hosts = set(cfg.multiget("allowed-hosts", section = "web_portal"))
         allowed_hosts.add(socket.getfqdn())
+        allowed_hosts.add("127.0.0.1")
+        allowed_hosts.add("::1")
         try:
             import netifaces
             for interface in netifaces.interfaces():

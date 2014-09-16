@@ -552,7 +552,7 @@ class allocation(object):
                RPKI_CONF = self.path("rpki.conf"))
     subprocess.check_call(cmd, cwd = self.host.path(), env = env)
 
-  def syncdb(self):
+  def syncdb(self, run_gui):
     """
     Run whatever Django ORM commands are necessary to set up the
     database this week.
@@ -563,30 +563,19 @@ class allocation(object):
     testing.  We'll see.
     """
 
-    verbosity = 0                       # Set to 3 for copious output
-    use_management_api = False          # Set to use internal management API
+    if not os.fork():
+      os.environ.update(RPKI_CONF = self.path("rpki.conf"),
+                        RPKI_GUI_ENABLE = "yes")
+      logging.getLogger().setLevel(logging.WARNING)
+      import django.core.management
+      django.core.management.call_command("syncdb", migrate = True, verbosity = 0,
+                                          load_initial_data = False, interactive = False)
+      from django.contrib.auth.models import User
+      User.objects.create_superuser("root", "root@example.org", "fnord")
+      sys.exit(0)
 
-    # These are equivalent.  We probably want to use rpki-manage so we
-    # can show the user what's happening, but preserve both forms as a
-    # reference in case we want the internal form in rpki-sql-setup,
-    # in which case we might want the internal form here too after
-    # all.  Decisions, decisions.
-
-    if use_management_api:
-      if not os.fork():
-        os.environ["RPKI_CONF"] = self.path("rpki.conf")
-        import django.core.management
-        django.core.management.call_command("syncdb", migrate = True, verbosity = verbosity,
-                                            load_initial_data = False, interactive = False)
-        sys.exit(0)
-      if os.wait()[1]:
-        raise RuntimeError("syncdb failed for %s" % self.name)
-
-    else:
-      cmd = (prog_rpki_manage, "syncdb", "--noinput", "--no-initial-data", "--migrate", "--verbosity", str(verbosity))
-      env = dict(os.environ, RPKI_CONF = self.path("rpki.conf"))
-      print 'Running "%s"' % " ".join(cmd)
-      subprocess.check_call(cmd, cwd = self.host.path(), env = env)
+    if os.wait()[1]:
+      raise RuntimeError("Django setup failed for %s" % self.name)
 
   def run_python_daemon(self, prog):
     """
@@ -602,7 +591,7 @@ class allocation(object):
            "--profile",  self.path(basename + ".prof")))
     env = dict(os.environ, RPKI_CONF = self.path("rpki.conf"))
     p = subprocess.Popen(cmd, cwd = self.path(), env = env)
-    print 'Running %s for %s: pid %d process %r' % (" ".join(cmd), self.name, p.pid, p)
+    print "Running %s for %s: pid %d process %r" % (" ".join(cmd), self.name, p.pid, p)
     return p
 
   def run_rpkid(self):
@@ -637,6 +626,24 @@ class allocation(object):
                          cwd = self.path())
     print "Running rsyncd for %s: pid %d process %r" % (self.name, p.pid, p)
     return p
+
+  def run_gui(self):
+    """
+    Start an instance of the RPKI GUI under the Django test server and
+    return a subprocess.Popen object representing the running daemon.
+    """
+
+    port = 8000 + self.engine
+    cmd = (prog_rpki_manage, "runserver", str(port))
+    env = dict(os.environ,
+               RPKI_CONF = self.path("rpki.conf"),
+               RPKI_DJANGO_DEBUG = "yes",
+               ALLOW_PLAIN_HTTP_FOR_TESTING = "I solemnly swear that I am not running this in production")
+    p = subprocess.Popen(cmd, cwd = self.path(), env = env,
+                         stdout = open(self.path("gui.log"), "w"), stderr = subprocess.STDOUT)
+    print "Running %s for %s: pid %d process %r" % (" ".join(cmd), self.name, p.pid, p)
+    return p
+
 
 def create_root_certificate(db_root):
 
@@ -675,6 +682,8 @@ def create_root_certificate(db_root):
   f.close()
 
 
+logger = logging.getLogger(__name__)
+
 os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings",
                   TZ = "UTC")
 time.tzset()
@@ -696,6 +705,8 @@ parser.add_argument("--synchronize", action = "store_true",
                     help = "synchronize IRDB with daemons")
 parser.add_argument("--profile", action = "store_true",
                     help = "enable profiling")
+parser.add_argument("-g", "--run_gui", action = "store_true",
+                    help = "enable GUI using django-admin runserver")
 parser.add_argument("yaml_file", type = argparse.FileType("r"),
                     help = "YAML description of test network")
 args = parser.parse_args()
@@ -761,7 +772,7 @@ try:
           d.dump_rsyncd()
         if d.is_root:
           os.makedirs(d.path("publication.root"))
-        d.syncdb()
+        d.syncdb(args.run_gui)
         d.run_rpkic("initialize_server_bpki")
         print
 
@@ -801,6 +812,8 @@ try:
         if d.runs_pubd:
           progs.append(d.run_pubd())
           progs.append(d.run_rsyncd())
+        if args.run_gui:
+          progs.append(d.run_gui())
 
     if args.synchronize or not args.skip_config:
 
@@ -868,6 +881,13 @@ try:
         d.dump_roas()
         d.dump_ghostbusters()
         d.dump_router_certificates()
+
+    if args.run_gui:
+      print
+      print 'GUI user "root", password "fnord"'
+      for d in db:
+        if not d.is_hosted:
+          print "GUI URL http://127.0.0.1:%d/rpki/ for %s" % (8000 + d.engine, d.name)
 
     # Wait until something terminates.
 

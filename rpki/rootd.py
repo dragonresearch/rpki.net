@@ -39,6 +39,8 @@ import rpki.sundial
 import rpki.log
 import rpki.daemonize
 
+from lxml.etree import Element, SubElement
+
 logger = logging.getLogger(__name__)
 
 rootd = None
@@ -66,7 +68,8 @@ class revoke_pdu(rpki.up_down.revoke_pdu):
       raise rpki.exceptions.NotInDatabase
     logger.debug("Revoking certificate %s", self.ski)
     now = rpki.sundial.now()
-    pubd_msg = rpki.publication.msg.query()
+    pubd_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
+                       type = "query", version = rpki.publication.version)
     rootd.revoke_subject_cert(now)
     rootd.del_subject_cert()
     rootd.del_subject_pkcs10()
@@ -196,11 +199,12 @@ class main(object):
       notBefore   = now,
       notAfter    = notAfter)
     self.set_subject_cert(subject_cert)
-    pubd_msg = rpki.publication.msg.query()
-    pubd_msg.append(rpki.publication.publish_elt.make_pdu(
-      uri = self.rpki_subject_cert_uri,
-      hash = hash,
-      der = subject_cert.get_DER()))
+    pubd_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
+                       type = "query", version = rpki.publication.version)
+    pdu = SubElement(pubd_msg, rpki.publication.tag_publish, uri = self.rpki_subject_cert_uri)
+    pdu.text = subject_cert.get_Base64()
+    if hash is not None:
+      pdu.set("hash", hash)
     self.generate_crl_and_manifest(now, pubd_msg)
     return subject_cert, pubd_msg
 
@@ -222,10 +226,10 @@ class main(object):
     logger.debug("Writing CRL %s", self.rpki_root_crl_file)
     with open(self.rpki_root_crl_file, "wb") as f:
       f.write(crl.get_DER())
-    pubd_msg.append(rpki.publication.publish_elt.make_pdu(
-      uri = self.rpki_root_crl_uri,
-      hash = hash,
-      der = crl.get_DER()))
+    pdu = SubElement(pubd_msg, rpki.publication.tag_publish, uri = self.rpki_root_crl_uri)
+    pdu.text = crl.get_Base64()
+    if hash is not None:
+      pdu.set("hash", hash)
     manifest_content = [(os.path.basename(self.rpki_root_crl_uri), crl)]
     if subject_cert is not None:
       manifest_content.append((os.path.basename(self.rpki_subject_cert_uri), subject_cert))
@@ -253,16 +257,16 @@ class main(object):
     logger.debug("Writing manifest %s", self.rpki_root_manifest_file)
     with open(self.rpki_root_manifest_file, "wb") as f:
       f.write(manifest.get_DER())
-    pubd_msg.append(rpki.publication.publish_elt.make_pdu(
-      uri = self.rpki_root_manifest_uri,
-      hash = hash,
-      der = manifest.get_DER()))
+    pdu = SubElement(pubd_msg, rpki.publication.tag_publish, uri = self.rpki_root_manifest_uri)
+    pdu.text = manifest.get_Base64()
+    if hash is not None:
+      pdu.set("hash", hash)
     hash = rpki.x509.sha256(self.rpki_root_cert.get_DER()).encode("hex")
     if hash != self.rpki_root_cert_hash:
-      pubd_msg.append(rpki.publication.publish_elt.make_pdu(
-        uri = self.rpki_root_cert_uri,
-        hash = self.rpki_root_cert_hash,
-        der = self.rpki_root_cert.get_DER()))
+      pdu = SubElement(pubd_msg, rpki.publication.tag_publish, uri = self.rpki_root_cert_uri)
+      pdu.text = self.rpki_root_cert.get_Base64()
+      if self.rpki_root_cert_hash is not None:
+        pdu.set("hash", self.rpki_root_cert_hash)
       self.rpki_root_cert_hash = hash
 
 
@@ -302,45 +306,46 @@ class main(object):
 
     def done(r_msg):
       if len(q_msg) != len(r_msg):
-        raise rpki.exceptions.BadPublicationReply("Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg))
+        raise rpki.exceptions.BadPublicationReply("Wrong number of response PDUs from pubd: sent %s, got %s" % (len(q_msg), len(r_msg)))
       callback()
 
     def fix_hashes(r_msg):
-      published_hash = dict((r_pdu.uri, r_pdu.hash) for r_pdu in r_msg)
+      published_hash = dict((r_pdu.get("uri"), r_pdu.get("hash")) for r_pdu in r_msg)
       for q_pdu in q_msg:
-        if q_pdu.hash is None and published_hash.get(q_pdu.uri) is not None:
-          logger.debug("Updating hash of %r to %s from previously published data", q_pdu, published_hash[q_pdu.uri])
-          q_pdu.hash = published_hash[q_pdu.uri]
+        if q_pdu.get("hash") is None and published_hash.get(q_pdu.get("uri")) is not None:
+          logger.debug("Updating hash of %s to %s from previously published data", q_pdu.get("uri"), published_hash[q_pdu.get("uri")])
+          q_pdu.set("hash", published_hash[q_pdu.get("uri")])
       self.call_pubd(done, errback, q_msg)
 
-    if not q_msg:
+    assert q_msg is None or len(q_msg) > 0
+
+    if q_msg is None:
       callback()
-    elif all(q_pdu.hash is not None for q_pdu in q_msg):
+    elif all(q_pdu.get("hash") is not None for q_pdu in q_msg):
       self.call_pubd(done, errback, q_msg)
     else:
       logger.debug("Some publication PDUs are missing hashes, checking...")
-      self.call_pubd(fix_hashes, errback, rpki.publication.msg.query(rpki.publication.list_elt()))
+      list_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
+                         type = "query", version = rpki.publication.version)
+      SubElement(list_msg, rpki.publication.tag_list)
+      self.call_pubd(fix_hashes, errback, list_msg)
 
 
   def call_pubd(self, callback, errback, q_msg):
 
     try:
-      if not q_msg:
-        return callback(())
-
       for q_pdu in q_msg:
-        logger.info("Sending %r to pubd", q_pdu)
+        logger.info("Sending %s to pubd", q_pdu.get("uri"))
 
-      q_der = rpki.publication.cms_msg().wrap(q_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl)
+      q_der = rpki.publication.cms_msg_no_sax().wrap(q_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl)
 
       def done(r_der):
         try:
           logger.debug("Received response from pubd")
-          r_cms = rpki.publication.cms_msg(DER = r_der)
+          r_cms = rpki.publication.cms_msg_no_sax(DER = r_der)
           r_msg = r_cms.unwrap((self.bpki_ta, self.pubd_bpki_cert))
           self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_contact_uri)
-          for r_pdu in r_msg:
-            r_pdu.raise_if_error()
+          rpki.publication.raise_if_error(r_msg)
           callback(r_msg)
         except (rpki.async.ExitNow, SystemExit):
           raise

@@ -51,22 +51,12 @@ rrdp_xmlns   = rpki.relaxng.rrdp.xmlns
 rrdp_nsmap   = rpki.relaxng.rrdp.nsmap
 rrdp_version = "1"
 
-pub_xmlns    = rpki.relaxng.publication.xmlns
-pub_nsmap    = rpki.relaxng.publication.nsmap
-pub_version  = rpki.relaxng.publication.version
-
 rrdp_tag_delta        = rrdp_xmlns + "delta"
 rrdp_tag_deltas       = rrdp_xmlns + "deltas"
 rrdp_tag_notification = rrdp_xmlns + "notification"
 rrdp_tag_publish      = rrdp_xmlns + "publish"
 rrdp_tag_snapshot     = rrdp_xmlns + "snapshot"
 rrdp_tag_withdraw     = rrdp_xmlns + "withdraw"
-
-pub_tag_msg           = pub_xmlns + "msg"
-pub_tag_list          = pub_xmlns + "list"
-pub_tag_publish       = pub_xmlns + "publish"
-pub_tag_withdraw      = pub_xmlns + "withdraw"
-pub_tag_report_error  = pub_xmlns + "report_error"
 
 
 def DERSubElement(elt, name, der, attrib = None, **kwargs):
@@ -210,22 +200,23 @@ class main(object):
       self.sql.commit()                 # commit the replay timestamp
       if q_msg.get("type") != "query":
         raise rpki.exceptions.BadQuery("Message type is %s, expected query" % q_msg.get("type"))
-      r_msg = Element(pub_tag_msg, nsmap = pub_nsmap, type = "reply", version = pub_version)
+      r_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
+                      type = "reply", version = rpki.publication.version)
       delta = None
       failed = False
       for q_pdu in q_msg:
         try:
-          if q_pdu.tag == pub_tag_list:
+          if q_pdu.tag == rpki.publication.tag_list:
             for obj in client.objects:
               r_pdu = SubElement(r_msg, q_pdu.tag, uri = obj.uri, hash = obj.hash)
               if q_pdu.get("tag") is not None:
                 r_pdu.set("tag", q_pdu.get("tag"))
           else:
-            assert q_pdu.tag in (pub_tag_publish, pub_tag_withdraw)
+            assert q_pdu.tag in (rpki.publication.tag_publish, rpki.publication.tag_withdraw)
             if delta is None:
               delta = self.session.new_delta()
             client.check_allowed_uri(q_pdu.get("uri"))
-            if q_pdu.tag == pub_tag_publish:
+            if q_pdu.tag == rpki.publication.tag_publish:
               der = q_pdu.text.decode("base64")
               logger.info("Publishing %s", rpki.x509.uri_dispatch(q_pdu.get("uri"))(DER = der).tracking_data(q_pdu.get("uri")))
               delta.publish(client, der, q_pdu.get("uri"), q_pdu.get("hash"))
@@ -237,7 +228,7 @@ class main(object):
               r_pdu.set("tag", q_pdu.get("tag"))
         except Exception, e:
           logger.exception("Exception processing PDU %r", q_pdu)
-          r_pdu = SubElement(r_msg, pub_tag_report_error, error_code = e.__class__.__name__)
+          r_pdu = SubElement(r_msg, rpki.publication.tag_report_error, error_code = e.__class__.__name__)
           r_pdu.text = str(e)
           if q_pdu.get("tag") is not None:
             r_pdu.set("tag", q_pdu.get("tag"))

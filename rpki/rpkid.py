@@ -42,7 +42,10 @@ import rpki.async
 import rpki.daemonize
 import rpki.rpkid_tasks
 
+from lxml.etree import Element, SubElement
+
 logger = logging.getLogger(__name__)
+
 
 class main(object):
   """
@@ -1282,7 +1285,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     Check result of CRL publication.
     """
 
-    pdu.raise_if_error()
+    rpki.publication.raise_if_error(pdu)
     self.crl_published = None
     self.sql_mark_dirty()
 
@@ -1342,7 +1345,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     Check result of manifest publication.
     """
 
-    pdu.raise_if_error()
+    rpki.publication.raise_if_error(pdu)
     self.manifest_published = None
     self.sql_mark_dirty()
 
@@ -1676,7 +1679,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     Publication callback: check result and mark published.
     """
 
-    pdu.raise_if_error()
+    rpki.publication.raise_if_error(pdu)
     self.published = None
     self.sql_mark_dirty()
 
@@ -1965,7 +1968,8 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     Check publication result.
     """
-    pdu.raise_if_error()
+
+    rpki.publication.raise_if_error(pdu)
     self.published = None
     self.sql_mark_dirty()
 
@@ -2174,7 +2178,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
     Check publication result.
     """
 
-    pdu.raise_if_error()
+    rpki.publication.raise_if_error(pdu)
     self.published = None
     self.sql_mark_dirty()
 
@@ -2496,7 +2500,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     Publication callback: check result and mark published.
     """
 
-    pdu.raise_if_error()
+    rpki.publication.raise_if_error(pdu)
     self.published = None
     self.sql_mark_dirty()
 
@@ -2532,31 +2536,37 @@ class publication_queue(object):
 
     logger.debug("Queuing publication action: uri %s, old %r, new %r", uri, old_obj, new_obj)
 
+    # id(repository) may need to change to repository.peer_contact_uri
+    # once we convert from our custom SQL cache to Django ORM.
+
     rid = id(repository)
     if rid not in self.repositories:
       self.repositories[rid] = repository
-      self.msgs[rid] = rpki.publication.msg.query()
+      self.msgs[rid] = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
+                               type = "query", version = rpki.publication.version)
 
     if self.replace and uri in self.uris:
       logger.debug("Removing publication duplicate %r", self.uris[uri])
       old_pdu = self.uris.pop(uri)
       self.msgs[rid].remove(old_pdu)
-      hash = old_pdu.hash
+      hash = old_pdu.get("hash")
     elif old_obj is None:
       hash = None 
     else:
       hash = rpki.x509.sha256(old_obj.get_DER()).encode("hex")
 
     if new_obj is None:
-      pdu = rpki.publication.withdraw_elt.make_pdu(uri = uri, hash = hash)
+      pdu = SubElement(self.msgs[rid], rpki.publication.tag_withdraw, uri = uri, hash = hash)
     else:
-      pdu = rpki.publication.publish_elt.make_pdu( uri = uri, hash = hash, der = new_obj.get_DER())
+      pdu = SubElement(self.msgs[rid], rpki.publication.tag_publish,  uri = uri)
+      pdu.text = new_obj.get_Base64()
+      if hash is not None:
+        pdu.set("hash", hash)
 
     if handler is not None:
-      self.handlers[id(pdu)] = handler
-      pdu.tag = id(pdu)
-
-    self.msgs[rid].append(pdu)
+      tag = str(id(pdu))
+      self.handlers[tag] = handler
+      pdu.set("tag", tag)
 
     if self.replace:
       self.uris[uri] = pdu

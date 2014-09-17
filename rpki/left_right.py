@@ -36,12 +36,16 @@ import rpki.publication
 import rpki.async
 import rpki.rpkid_tasks
 
+from lxml.etree import Element, SubElement
+
 logger = logging.getLogger(__name__)
+
 
 ## @var enforce_strict_up_down_xml_sender
 # Enforce strict checking of XML "sender" field in up-down protocol
 
 enforce_strict_up_down_xml_sender = False
+
 
 class left_right_namespace(object):
   """
@@ -543,52 +547,42 @@ class repository_elt(data_elt):
     self.sql_mark_dirty()
     cb()
 
-  @staticmethod
-  def default_pubd_handler(pdu):
-    """
-    Default handler for publication response PDUs.
-    """
 
-    pdu.raise_if_error()
-
-  def call_pubd(self, callback, errback, q_msg, handlers = None):
+  def call_pubd(self, callback, errback, q_msg, handlers = {}):
     """
     Send a message to publication daemon and return the response.
 
     As a convenience, attempting to send an empty message returns
     immediate success without sending anything.
 
-    Handlers is a dict of handler functions to process the response
+    handlers is a dict of handler functions to process the response
     PDUs.  If the tag value in the response PDU appears in the dict,
     the associated handler is called to process the PDU.  If no tag
-    matches, default_pubd_handler() is called.  A handler value of
-    False suppresses calling of the default handler.
+    matches, a default handler is called to check for errors; a
+    handler value of False suppresses calling of the default handler.
     """
 
     try:
       self.gctx.sql.sweep()
 
-      if not q_msg:
+      if len(q_msg) == 0:
         return callback()
-
-      if handlers is None:
-        handlers = {}
 
       for q_pdu in q_msg:
         logger.info("Sending %r to pubd", q_pdu)
 
       bsc = self.bsc
-      q_der = rpki.publication.cms_msg().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
+      q_der = rpki.publication.cms_msg_no_sax().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
       bpki_ta_path = (self.gctx.bpki_ta, self.self.bpki_cert, self.self.bpki_glue, self.bpki_cert, self.bpki_glue)
 
       def done(r_der):
         try:
           logger.debug("Received response from pubd")
-          r_cms = rpki.publication.cms_msg(DER = r_der)
+          r_cms = rpki.publication.cms_msg_no_sax(DER = r_der)
           r_msg = r_cms.unwrap(bpki_ta_path)
           r_cms.check_replay_sql(self, self.peer_contact_uri)
           for r_pdu in r_msg:
-            handler = handlers.get(r_pdu.tag, self.default_pubd_handler)
+            handler = handlers.get(r_pdu.get("tag"), rpki.publication.raise_if_error)
             if handler:
               logger.debug("Calling pubd handler %r", handler)
               handler(r_pdu)

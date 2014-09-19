@@ -39,6 +39,38 @@ import rpki.log
 logger = logging.getLogger(__name__)
 
 
+nsmap    = rpki.relaxng.publication_control.nsmap
+version  = rpki.relaxng.publication_control.version
+
+tag_msg           = rpki.relaxng.publication_control.xmlns + "msg"
+tag_client        = rpki.relaxng.publication_control.xmlns + "client"
+tag_bpki_cert     = rpki.relaxng.publication_control.xmlns + "bpki_cert"
+tag_bpki_glue     = rpki.relaxng.publication_control.xmlns + "bpki_glue"
+tag_report_error  = rpki.relaxng.publication_control.xmlns + "report_error"
+
+
+def raise_if_error(pdu):
+  """
+  Raise an appropriate error if this is a <report_error/> PDU.
+
+  As a convience, this will also accept a <msg/> PDU and raise an
+  appropriate error if it contains any <report_error/> PDUs.
+  """
+
+  if pdu.tag == tag_report_error:
+    code = pdu.get("error_code")
+    logger.debug("<report_error/> code %r", code)
+    e = getattr(rpki.exceptions, code, None)
+    if e is not None and issubclass(e, rpki.exceptions.RPKI_Exception):
+      raise e(pdu.text)
+    else:
+      raise rpki.exceptions.BadPublicationReply("Unexpected response from pubd: %r, %r" % (code, pdu))
+
+  if pdu.tag == tag_msg:
+    for p in pdu:
+      raise_if_error(p)
+
+
 class publication_control_namespace(object):
   """
   XML namespace parameters for publication control protocol.
@@ -157,7 +189,7 @@ class report_error_elt(rpki.xml_utils.text_elt, publication_control_namespace):
     Raise exception associated with this <report_error/> PDU.
     """
 
-    t = rpki.exceptions.__dict__.get(self.error_code)
+    t = getattr(rpki.exceptions, self.error_code, None)
     if isinstance(t, type) and issubclass(t, rpki.exceptions.RPKI_Exception):
       raise t(getattr(self, "text", None))
     else:
@@ -225,3 +257,13 @@ class cms_msg(rpki.x509.XML_CMS_object):
   encoding = "us-ascii"
   schema = rpki.relaxng.publication_control
   saxify = sax_handler.saxify
+
+
+class cms_msg_no_sax(cms_msg):
+  """
+  Class to hold a CMS-signed publication control PDU without legacy
+  SAX transcoding.  The name is a transition kludge, this class will
+  be renamed cms_msg once the SAX code goes away.
+  """
+
+  saxify = None

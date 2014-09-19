@@ -145,7 +145,8 @@ class main(object):
 
     global rpki                         # pylint: disable=W0602
 
-    os.environ["TZ"] = "UTC"
+    os.environ.update(TZ = "UTC",
+                      DJANGO_SETTINGS_MODULE = "rpki.django_settings")
     time.tzset()
 
     parser = argparse.ArgumentParser(description = __doc__)
@@ -188,7 +189,6 @@ class main(object):
     # Now that we know which configuration file to use, it's OK to
     # load modules that require Django's settings module.
 
-    os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
     global rpki                         # pylint: disable=W0602
     import rpki.irdb                    # pylint: disable=W0621
 

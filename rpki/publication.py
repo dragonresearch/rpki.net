@@ -35,6 +35,8 @@ import rpki.relaxng
 import rpki.sundial
 import rpki.log
 
+from lxml.etree import Element, SubElement
+
 logger = logging.getLogger(__name__)
 
 

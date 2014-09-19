@@ -564,23 +564,23 @@ class allocation(object):
                RPKI_CONF = self.path("rpki.conf"))
     subprocess.check_call(cmd, cwd = self.host.path(), env = env)
 
-  def syncdb(self, run_gui):
+  def syncdb(self):
     """
     Run whatever Django ORM commands are necessary to set up the
     database this week.
-
-    This may end up moving back into rpkic as an explicit command, but
-    for the moment I'm assuming that production use handle this via
-    rpki-sql-setup and that we therefore must do it ourselves for
-    testing.  We'll see.
     """
+
+    verbosity = 1
+
+    if verbosity > 0:
+      print "Running Django setup for", self.name
 
     if not os.fork():
       os.environ.update(RPKI_CONF = self.path("rpki.conf"),
                         RPKI_GUI_ENABLE = "yes")
       logging.getLogger().setLevel(logging.WARNING)
       import django.core.management
-      django.core.management.call_command("syncdb", migrate = True, verbosity = 0,
+      django.core.management.call_command("syncdb", migrate = True, verbosity = verbosity,
                                           load_initial_data = False, interactive = False)
       from django.contrib.auth.models import User
       User.objects.create_superuser("root", "root@example.org", "fnord")
@@ -790,7 +790,7 @@ try:
           d.dump_rsyncd()
         if d.is_root:
           os.makedirs(d.path("publication.root"))
-        d.syncdb(args.run_gui)
+        d.syncdb()
         d.run_rpkic("initialize_server_bpki")
         print
 

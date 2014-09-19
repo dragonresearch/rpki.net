@@ -220,7 +220,7 @@ def main():
   for a in db:
     a.setup_bpki_certs()
 
-  setup_publication(pubd_sql)
+  setup_publication(pubd_sql, db.root.irdb_db_name)
   setup_rootd(db.root, y.get("rootd", {}), db)
   setup_rsyncd()
   setup_rcynic()
@@ -1108,18 +1108,6 @@ class allocation(object):
     self.cross_certify(self.parent.name + "-SELF")
     self.cross_certify(parent_host + "-TA")
 
-    logger.info("Writing leaf YAML for %s", self.name)
-    f = open(self.name + ".yaml", "w")
-    f.write(yaml_fmt_1 % {
-      "parent_name"  : self.parent.name,
-      "parent_host"  : parent_host,
-      "my_name"      : self.name,
-      "http_port"    : self.parent.get_rpki_port(),
-      "class_name"   : 2 if self.parent.is_hosted else 1,
-      "sia"          : self.sia_base,
-      "ski"          : ski })
-    f.close()
-
   def run_cron(self, cb):
     """
     Trigger cron run for this engine.
@@ -1236,7 +1224,7 @@ def setup_rsyncd():
   f.write(rsyncd_fmt_1 % d)
   f.close()
 
-def setup_publication(pubd_sql):
+def setup_publication(pubd_sql, irdb_db_name):
   """
   Set up publication daemon.
   """
@@ -1265,7 +1253,9 @@ def setup_publication(pubd_sql):
            pubd_db_name = pubd_db_name,
            pubd_db_user = pubd_db_user,
            pubd_db_pass = pubd_db_pass,
-           pubd_dir     = rsyncd_dir)
+           pubd_dir     = rsyncd_dir,
+           irdb_db_name = irdb_db_name,
+           irdb_db_pass = irdb_db_pass)
   f = open(pubd_name + ".conf", "w")
   f.write(pubd_fmt_1 % d)
   f.close()
@@ -1459,88 +1449,57 @@ bpki_cert_fmt_6 = ''' && \
         -config %(name)s-%(kind)s.conf \
 '''
 
-yaml_fmt_1 = '''---
-version:                1
-posturl:                http://localhost:%(http_port)s/up-down/%(parent_name)s/%(my_name)s
-recipient-id:           "%(parent_name)s"
-sender-id:              "%(my_name)s"
-
-cms-cert-file:          %(my_name)s-RPKI.cer
-cms-key-file:           %(my_name)s-RPKI.key
-cms-ca-cert-file:       %(my_name)s-TA.cer
-cms-crl-file:           %(my_name)s-TA.crl
-cms-ca-certs-file:
-  -                     %(my_name)s-TA-%(parent_name)s-SELF.cer
-
-ssl-cert-file:          %(my_name)s-RPKI.cer
-ssl-key-file:           %(my_name)s-RPKI.key
-ssl-ca-cert-file:       %(my_name)s-TA.cer
-ssl-ca-certs-file:
-  -                     %(my_name)s-TA-%(parent_host)s-TA.cer
-
-# We're cheating here by hardwiring the class name
-
-requests:
-  list:
-    type:                       list
-  issue:
-    type:                       issue
-    class:                      %(class_name)s
-    sia:
-      -                         %(sia)s
-    cert-request-key-file:      %(my_name)s.key
-  revoke:
-    type:                       revoke
-    class:                      %(class_name)s
-    ski:                        %(ski)s
-'''
-
 conf_fmt_1 = '''\
 
 [irdbd]
 
-startup-message = This is %(my_name)s irdbd
+startup-message         = This is %(my_name)s irdbd
 
-sql-database    = %(irdb_db_name)s
-sql-username    = irdb
-sql-password    = %(irdb_db_pass)s
-bpki-ta         = %(my_name)s-TA.cer
-rpkid-cert      = %(my_name)s-RPKI.cer
-irdbd-cert      = %(my_name)s-IRDB.cer
-irdbd-key       = %(my_name)s-IRDB.key
-http-url        = http://localhost:%(irdb_port)d/
-enable_tracebacks = yes
+sql-database            = %(irdb_db_name)s
+sql-username            = irdb
+sql-password            = %(irdb_db_pass)s
+bpki-ta                 = %(my_name)s-TA.cer
+rpkid-cert              = %(my_name)s-RPKI.cer
+irdbd-cert              = %(my_name)s-IRDB.cer
+irdbd-key               = %(my_name)s-IRDB.key
+http-url                = http://localhost:%(irdb_port)d/
+enable_tracebacks       = yes
 
 [irbe_cli]
 
-rpkid-bpki-ta   = %(my_name)s-TA.cer
-rpkid-cert      = %(my_name)s-RPKI.cer
-rpkid-irbe-cert = %(my_name)s-IRBE.cer
-rpkid-irbe-key  = %(my_name)s-IRBE.key
-rpkid-url       = http://localhost:%(rpki_port)d/left-right
-enable_tracebacks = yes
+rpkid-bpki-ta           = %(my_name)s-TA.cer
+rpkid-cert              = %(my_name)s-RPKI.cer
+rpkid-irbe-cert         = %(my_name)s-IRBE.cer
+rpkid-irbe-key          = %(my_name)s-IRBE.key
+rpkid-url               = http://localhost:%(rpki_port)d/left-right
+enable_tracebacks       = yes
 
 [rpkid]
 
-startup-message = This is %(my_name)s rpkid
+startup-message         = This is %(my_name)s rpkid
 
-sql-database    = %(rpki_db_name)s
-sql-username    = rpki
-sql-password    = %(rpki_db_pass)s
+sql-database            = %(rpki_db_name)s
+sql-username            = rpki
+sql-password            = %(rpki_db_pass)s
 
-bpki-ta         = %(my_name)s-TA.cer
-rpkid-key       = %(my_name)s-RPKI.key
-rpkid-cert      = %(my_name)s-RPKI.cer
-irdb-cert       = %(my_name)s-IRDB.cer
-irbe-cert       = %(my_name)s-IRBE.cer
+bpki-ta                 = %(my_name)s-TA.cer
+rpkid-key               = %(my_name)s-RPKI.key
+rpkid-cert              = %(my_name)s-RPKI.cer
+irdb-cert               = %(my_name)s-IRDB.cer
+irbe-cert               = %(my_name)s-IRBE.cer
 
-irdb-url        = http://localhost:%(irdb_port)d/
+irdb-url                = http://localhost:%(irdb_port)d/
 
-server-host     = localhost
-server-port     = %(rpki_port)d
+server-host             = localhost
+server-port             = %(rpki_port)d
 
-use-internal-cron = false
-enable_tracebacks = yes
+use-internal-cron       = false
+enable_tracebacks       = yes
+
+[myrpki]
+start_rpkid             = yes
+start_irdbd             = yes
+start_pubd              = no
 '''
 
 rootd_fmt_1 = '''\
@@ -1610,7 +1569,7 @@ certificatePolicies     = critical, @rpki_certificate_policy
 
 [rpki_certificate_policy]
 
-policyIdentifier = 1.3.6.1.5.5.7.14.2
+policyIdentifier        = 1.3.6.1.5.5.7.14.2
 '''
 
 rootd_fmt_2 = '''\
@@ -1674,6 +1633,17 @@ server-host             = localhost
 server-port             = %(pubd_port)d
 publication-base        = %(pubd_dir)s
 enable_tracebacks       = yes
+
+[irdbd]
+
+sql-database            = %(irdb_db_name)s
+sql-username            = irdb
+sql-password            = %(irdb_db_pass)s
+
+[myrpki]
+start_rpkid             = no
+start_irdbd             = no
+start_pubd              = yes
 '''
 
 main()

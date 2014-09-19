@@ -24,11 +24,15 @@ the only sane text representation would just be the Base64 encoding of
 the DER and thus would add no value.
 """
 
+import logging
+
 from django.db import models
 from south.modelsinspector import add_introspection_rules
 
 import rpki.x509
 import rpki.sundial
+
+logger = logging.getLogger(__name__)
 
 
 class EnumField(models.PositiveSmallIntegerField):

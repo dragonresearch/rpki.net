@@ -36,110 +36,107 @@ import rpki.log
 import rpki.x509
 import rpki.daemonize
 
+from lxml.etree import Element, SubElement
+
 logger = logging.getLogger(__name__)
 
 class main(object):
 
   def handle_list_resources(self, q_pdu, r_msg):
+    self_handle  = q_pdu.get("self_handle")
+    child_handle = q_pdu.get("child_handle")
     child  = rpki.irdb.Child.objects.get(
-      issuer__handle__exact = q_pdu.self_handle,
-      handle = q_pdu.child_handle)
+      issuer__handle__exact = self_handle,
+      handle = child_handle)
     resources = child.resource_bag
-    r_pdu = rpki.left_right.list_resources_elt()
-    r_pdu.tag = q_pdu.tag
-    r_pdu.self_handle = q_pdu.self_handle
-    r_pdu.child_handle = q_pdu.child_handle
-    r_pdu.valid_until = child.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
-    r_pdu.asn = resources.asn
-    r_pdu.ipv4 = resources.v4
-    r_pdu.ipv6 = resources.v6
-    r_msg.append(r_pdu)
+    r_pdu = SubElement(r_msg, rpki.left_right.tag_list_resources, self_handle = self_handle, child_handle = child_handle,
+                       valid_until = child.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ"))
+    for k, v in (("asn",  resources.asn),
+                 ("ipv4", resources.v4),
+                 ("ipv6", resources.v6),
+                 ("tag",  q_pdu.get("tag"))):
+      if v:
+        r_pdu.set(k, str(v))
 
   def handle_list_roa_requests(self, q_pdu, r_msg):
+    self_handle = q_pdu.get("self_handle")
     for request in rpki.irdb.ROARequest.objects.raw("""
         SELECT irdb_roarequest.*
         FROM   irdb_roarequest, irdb_resourceholderca
         WHERE  irdb_roarequest.issuer_id = irdb_resourceholderca.id
         AND    irdb_resourceholderca.handle = %s
-        """, [q_pdu.self_handle]):
+        """, [self_handle]):
       prefix_bag = request.roa_prefix_bag
-      r_pdu = rpki.left_right.list_roa_requests_elt()
-      r_pdu.tag = q_pdu.tag
-      r_pdu.self_handle = q_pdu.self_handle
-      r_pdu.asn = request.asn
-      r_pdu.ipv4 = prefix_bag.v4
-      r_pdu.ipv6 = prefix_bag.v6
-      r_msg.append(r_pdu)
+      r_pdu = SubElement(r_msg, rpki.left_right.tag_list_roa_requests, self_handle = self_handle, asn = str(request.asn))
+      for k, v in (("ipv4", prefix_bag.v4),
+                   ("ipv6", prefix_bag.v6),
+                   ("tag",  q_pdu.get("tag"))):
+        if v:
+          r_pdu.set(k, str(v))
 
   def handle_list_ghostbuster_requests(self, q_pdu, r_msg):
+    self_handle   = q_pdu.get("self_handle")
+    parent_handle = q_pdu.get("parent_handle")
     ghostbusters = rpki.irdb.GhostbusterRequest.objects.filter(
-      issuer__handle__exact = q_pdu.self_handle,
-      parent__handle__exact = q_pdu.parent_handle)
+      issuer__handle__exact = self_handle,
+      parent__handle__exact = parent_handle)
     if ghostbusters.count() == 0:
       ghostbusters = rpki.irdb.GhostbusterRequest.objects.filter(
-        issuer__handle__exact = q_pdu.self_handle,
+        issuer__handle__exact = self_handle,
         parent = None)
     for ghostbuster in ghostbusters:
-      r_pdu = rpki.left_right.list_ghostbuster_requests_elt()
-      r_pdu.tag = q_pdu.tag
-      r_pdu.self_handle = q_pdu.self_handle
-      r_pdu.parent_handle = q_pdu.parent_handle
-      r_pdu.vcard = ghostbuster.vcard
-      r_msg.append(r_pdu)
+      r_pdu = SubElement(r_msg, q_pdu.tag, self_handle = self_handle, parent_handle = parent_handle)
+      if q_pdu.get("tag"):
+        r_pdu.set("tag", q_pdu.get("tag"))
+      r_pdu.text = ghostbuster.vcard
 
   def handle_list_ee_certificate_requests(self, q_pdu, r_msg):
-    for ee_req in rpki.irdb.EECertificateRequest.objects.filter(issuer__handle__exact = q_pdu.self_handle):
+    self_handle = q_pdu.get("self_handle")
+    for ee_req in rpki.irdb.EECertificateRequest.objects.filter(issuer__handle__exact = self_handle):
       resources = ee_req.resource_bag
-      r_pdu = rpki.left_right.list_ee_certificate_requests_elt()
-      r_pdu.tag = q_pdu.tag
-      r_pdu.self_handle = q_pdu.self_handle
-      r_pdu.gski = ee_req.gski
-      r_pdu.valid_until = ee_req.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
-      r_pdu.asn = resources.asn
-      r_pdu.ipv4 = resources.v4
-      r_pdu.ipv6 = resources.v6
-      r_pdu.cn = ee_req.cn
-      r_pdu.sn = ee_req.sn
-      r_pdu.eku = ee_req.eku
-      r_pdu.pkcs10 = ee_req.pkcs10
-      r_msg.append(r_pdu)
+      r_pdu = SubElement(r_msg, q_pdu.tag, self_handle = self_handle, gski = ee_req.gski,
+                         valid_until = ee_req.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                         cn = ee_req.cn, sn = ee_req.sn)
+      for k, v in (("asn",  resources.asn),
+                   ("ipv4", resources.v4),
+                   ("ipv6", resources.v6),
+                   ("eku",  ee_req.eku),
+                   ("tag",  q_pdu.get("tag"))):
+        if v:
+          r_pdu.set(k, str(v))
+      SubElement(r_pdu, rpki.left_right.tag_pkcs10).text = ee_req.pkcs10.get_Base64()
 
   def handler(self, request, q_der):
     try:
-      q_pdu = None
-      r_msg = rpki.left_right.msg.reply()
       from django.db import connection
       connection.cursor()           # Reconnect to mysqld if necessary
       self.start_new_transaction()
       serverCA = rpki.irdb.ServerCA.objects.get()
       rpkid = serverCA.ee_certificates.get(purpose = "rpkid")
-      try:
-        q_cms = rpki.left_right.cms_msg(DER = q_der)
-        q_msg = q_cms.unwrap((serverCA.certificate, rpkid.certificate))
-        self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, request.path)
-        if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
-          raise rpki.exceptions.BadQuery("Unexpected %r PDU" % q_msg)
-        for q_pdu in q_msg:
-          self.dispatch(q_pdu, r_msg)
-      except Exception, e:
-        logger.exception("Exception while handling HTTP request")
-        if q_pdu is None:
-          r_msg.append(rpki.left_right.report_error_elt.from_exception(e))
-        else:
-          r_msg.append(rpki.left_right.report_error_elt.from_exception(e, q_pdu.self_handle, q_pdu.tag))
       irdbd = serverCA.ee_certificates.get(purpose = "irdbd")
-      request.send_cms_response(rpki.left_right.cms_msg().wrap(r_msg, irdbd.private_key, irdbd.certificate))
+      q_cms = rpki.left_right.cms_msg_no_sax(DER = q_der)
+      q_msg = q_cms.unwrap((serverCA.certificate, rpkid.certificate))
+      self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, request.path)
+      if q_msg.get("type") != "query":
+        raise rpki.exceptions.BadQuery("Message type is %s, expected query" % q_msg.get("type"))
+      r_msg = Element(rpki.left_right.tag_msg, nsmap = rpki.left_right.nsmap,
+                      type = "reply", version = rpki.left_right.version)
+      try:
+        for q_pdu in q_msg:
+          getattr(self, "handle_" + q_pdu.tag[len(rpki.left_right.xmlns):])(q_pdu, r_msg)
+
+      except Exception, e:
+        logger.exception("Exception processing PDU %r", q_pdu)
+        r_pdu = SubElement(r_msg, rpki.left_right.tag_report_error, error_code = e.__class__.__name__)
+        r_pdu.text = str(e)
+        if q_pdu.get("tag") is not None:
+          r_pdu.set("tag", q_pdu.get("tag"))
+
+      request.send_cms_response(rpki.left_right.cms_msg_no_sax().wrap(r_msg, irdbd.private_key, irdbd.certificate))
+
     except Exception, e:
       logger.exception("Unhandled exception while processing HTTP request")
       request.send_error(500, "Unhandled exception %s: %s" % (e.__class__.__name__, e))
-
-  def dispatch(self, q_pdu, r_msg):
-    try:
-      handler = self.dispatch_vector[type(q_pdu)]
-    except KeyError:
-      raise rpki.exceptions.BadQuery("Unexpected %r PDU" % q_pdu)
-    else:
-      handler(q_pdu, r_msg)
 
   def __init__(self, **kwargs):
 
@@ -214,27 +211,8 @@ class main(object):
     import django.db.transaction
     self.start_new_transaction = django.db.transaction.commit_manually(django.db.transaction.commit)
 
-    self.dispatch_vector = {
-      rpki.left_right.list_resources_elt               : self.handle_list_resources,
-      rpki.left_right.list_roa_requests_elt            : self.handle_list_roa_requests,
-      rpki.left_right.list_ghostbuster_requests_elt    : self.handle_list_ghostbuster_requests,
-      rpki.left_right.list_ee_certificate_requests_elt : self.handle_list_ee_certificate_requests}
-
-    try:
-      self.http_server_host = self.cfg.get("server-host", "")
-      self.http_server_port = self.cfg.getint("server-port")
-    except:         # pylint: disable=W0702
-      #
-      # Backwards compatibility, remove this eventually.
-      #
-      u = urlparse.urlparse(self.cfg.get("http-url"))
-      if (u.scheme not in ("", "http") or
-          u.username is not None or
-          u.password is not None or
-          u.params or u.query or u.fragment):
-        raise
-      self.http_server_host = u.hostname
-      self.http_server_port = int(u.port)
+    self.http_server_host = self.cfg.get("server-host", "")
+    self.http_server_port = self.cfg.getint("server-port")
 
     self.cms_timestamp = None
 

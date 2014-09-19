@@ -41,6 +41,17 @@ from lxml.etree import Element, SubElement
 logger = logging.getLogger(__name__)
 
 
+xmlns   = rpki.relaxng.left_right.xmlns
+nsmap   = rpki.relaxng.left_right.nsmap
+version = rpki.relaxng.left_right.version
+
+tag_list_resources      = xmlns + "list_resources"
+tag_list_roa_requests   = xmlns + "list_roa_requests"
+tag_msg                 = xmlns + "msg"
+tag_pkcs10              = xmlns + "pkcs10"
+tag_report_error        = xmlns + "report_error"
+
+
 ## @var enforce_strict_up_down_xml_sender
 # Enforce strict checking of XML "sender" field in up-down protocol
 
@@ -1339,3 +1350,12 @@ class cms_msg(rpki.x509.XML_CMS_object):
   encoding = "us-ascii"
   schema = rpki.relaxng.left_right
   saxify = sax_handler.saxify
+
+class cms_msg_no_sax(cms_msg):
+  """
+  Class to hold a CMS-signed left-right PDU.
+
+  Name is a transition kludge: once we ditch SAX, this will become cms_msg.
+  """
+
+  saxify = None

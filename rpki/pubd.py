@@ -132,9 +132,10 @@ class main(object):
     Process one PDU from the IRBE.
     """
 
-    from django.db import transaction
+    from django.db import transaction, connection
 
     try:
+      connection.cursor()           # Reconnect to mysqld if necessary
       q_cms = rpki.publication_control.cms_msg_no_sax(DER = q_der)
       q_msg = q_cms.unwrap((self.bpki_ta, self.irbe_cert))
       self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp, "control")
@@ -220,9 +221,10 @@ class main(object):
     Process one PDU from a client.
     """
 
-    from django.db import transaction
+    from django.db import transaction, connection
 
     try:
+      connection.cursor()           # Reconnect to mysqld if necessary
       match = self.client_url_regexp.search(request.path)
       if match is None:
         raise rpki.exceptions.BadContactURL("Bad path: %s" % request.path)

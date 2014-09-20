@@ -783,3 +783,12 @@ class cms_msg(rpki.x509.XML_CMS_object):
   saxify = sax_handler.saxify
   allow_extra_certs = True
   allow_extra_crls = True
+
+class cms_msg_no_sax(cms_msg):
+  """
+  Class to hold a CMS-signed up-down PDU.
+
+  Name is a transition kludge: once we ditch SAX, this will become cms_msg.
+  """
+
+  saxify = None

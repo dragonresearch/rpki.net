@@ -24,14 +24,18 @@ rpki.* classes in order to reuse as much code as possible.
 """
 
 import os
+import sys
 import time
 import logging
+import httplib
 import argparse
+import urlparse
 import rpki.resource_set
 import rpki.up_down
 import rpki.left_right
 import rpki.x509
 import rpki.http
+import rpki.http_simple
 import rpki.config
 import rpki.exceptions
 import rpki.relaxng
@@ -272,10 +276,6 @@ class main(object):
 
   @staticmethod
   def read_hash_maybe(fn):
-    """
-    Return hash of an existing object, or None.
-    """
-
     try:
       with open(fn, "rb") as f:
         return rpki.x509.sha256(f.read()).encode("hex")
@@ -332,33 +332,26 @@ class main(object):
 
 
   def call_pubd(self, callback, errback, q_msg):
-
     try:
       for q_pdu in q_msg:
         logger.info("Sending %s to pubd", q_pdu.get("uri"))
-
       q_der = rpki.publication.cms_msg_no_sax().wrap(q_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl)
-
-      def done(r_der):
-        try:
-          logger.debug("Received response from pubd")
-          r_cms = rpki.publication.cms_msg_no_sax(DER = r_der)
-          r_msg = r_cms.unwrap((self.bpki_ta, self.pubd_bpki_cert))
-          self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_contact_uri)
-          rpki.publication.raise_if_error(r_msg)
-          callback(r_msg)
-        except (rpki.async.ExitNow, SystemExit):
-          raise
-        except Exception, e:
-          errback(e)
-
       logger.debug("Sending request to pubd")
-      rpki.http.client(
-        url          = self.pubd_contact_uri,
-        msg          = q_der,
-        callback     = done,
-        errback      = errback)
-
+      http = httplib.HTTPConnection(self.pubd_host, self.pubd_port)
+      http.request("POST", self.pubd_path, q_der, {"Content-Type" : rpki.http_simple.rpki_content_type})
+      r = http.getresponse()
+      if r.status != 200:
+        raise rpki.exceptions.HTTPRequestFailed("HTTP request to pubd failed with status %r reason %r" % (r.status, r.reason))
+      if r.getheader("Content-Type") != rpki.http_simple.rpki_content_type:
+        raise rpki.exceptions.HTTPRequestFailed("HTTP request to pubd failed, got Content-Type %r, expected %r" % (
+          r.getheader("Content-Type"), rpki.http_simple.rpki_content_type))
+      logger.debug("Received response from pubd")
+      r_der = r.read()
+      r_cms = rpki.publication.cms_msg_no_sax(DER = r_der)
+      r_msg = r_cms.unwrap((self.bpki_ta, self.pubd_bpki_cert))
+      self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_url)
+      rpki.publication.raise_if_error(r_msg)
+      callback(r_msg)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
@@ -486,7 +479,16 @@ class main(object):
 
     self.include_bpki_crl        = self.cfg.getboolean("include-bpki-crl", False)
 
-    self.pubd_contact_uri        = self.cfg.get("pubd-contact-uri")
+    self.pubd_url                = self.cfg.get("pubd-contact-uri")
+
+    u = urlparse.urlparse(self.pubd_url)
+    if u.scheme not in ("", "http") or u.username or u.password or u.params or u.query or u.fragment:
+      logger.error("Unusable URL %s", self.pubd_url)
+      sys.exit(1)
+
+    self.pubd_host               = u.hostname
+    self.pubd_port               = u.port or httplib.HTTP_PORT
+    self.pubd_path               = u.path
 
     rpki.http.server(host        = self.http_server_host,
                      port        = self.http_server_port,

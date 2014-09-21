@@ -1,5 +1,5 @@
 # $Id$
-
+#
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 #
 # Permission to use, copy, modify, and distribute this software for any
@@ -97,11 +97,10 @@ class BadContentType(Exception):
   "Wrong HTTP Content-Type"
 
 
-def client(url, query):
+def client(proto_cms_msg, client_key, client_cert, server_ta, server_cert, url, q_msg,
+           debug = False, replay_track = None, client_crl = None):
   """
-  Issue single a query and return the response.
-
-  Might want to add CMS processing here, not sure yet.
+  Issue single a query and return the response, handling all the CMS and XML goo.
   """
 
   u = urlparse.urlparse(url)
@@ -109,10 +108,14 @@ def client(url, query):
   if u.scheme not in ("", "http") or u.username or u.password or u.params or u.query or u.fragment:
     raise BadURL("Unusable URL %s", url)
 
+  q_cms = proto_cms_msg()
+  q_der = q_cms.wrap(q_msg, client_key, client_cert, client_crl)
+
+  if debug:
+    debug.write("<!-- Query -->\n" + q_cms.pretty_print_content() + "\n")
+
   http = httplib.HTTPConnection(u.hostname, u.port or httplib.HTTP_PORT)
-
-  http.request("POST", u.path, query, {"Content-Type" : rpki_content_type})
-
+  http.request("POST", u.path, q_der, {"Content-Type" : rpki_content_type})
   r = http.getresponse()
 
   if r.status != 200:
@@ -121,4 +124,14 @@ def client(url, query):
   if r.getheader("Content-Type") != rpki_content_type:
     raise BadContentType("HTTP Content-Type %r, expected %r" % (r.getheader("Content-Type"), rpki_content_type))
 
-  return r.read()
+  r_der = r.read()
+  r_cms = proto_cms_msg(DER = r_der)
+  r_msg = r_cms.unwrap((server_ta, server_cert))
+
+  if replay_track is not None:
+    replay_track.cms_timestamp = r_cms.check_replay(replay_track.cms_timestamp, url)
+
+  if debug:
+    debug.write("<!-- Reply -->\n" + r_cms.pretty_print_content() + "\n")
+
+  return r_msg

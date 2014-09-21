@@ -46,6 +46,16 @@ from lxml.etree import Element, SubElement
 logger = logging.getLogger(__name__)
 
 
+class ReplayTracker(object):
+  """
+  Stash for replay protection timestamps.
+  """
+
+  def __init__(self):
+    self.cms_timestamp = None
+
+
+
 class main(object):
 
 
@@ -248,11 +258,16 @@ class main(object):
   def call_pubd(self, q_msg):
     for q_pdu in q_msg:
       logger.info("Sending %s to pubd", q_pdu.get("uri"))
-    q_der = rpki.publication.cms_msg_no_sax().wrap(q_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl)
-    r_der = rpki.http_simple.client(self.pubd_url, q_der)
-    r_cms = rpki.publication.cms_msg_no_sax(DER = r_der)
-    r_msg = r_cms.unwrap((self.bpki_ta, self.pubd_bpki_cert))
-    self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_url)
+    r_msg = rpki.http_simple.client(
+      proto_cms_msg = rpki.publication.cms_msg_no_sax,
+      client_key    = self.rootd_bpki_key,
+      client_cert   = self.rootd_bpki_cert,
+      client_crl    = self.rootd_bpki_crl,
+      server_ta     = self.bpki_ta,
+      server_cert   = self.pubd_bpki_cert,
+      url           = self.pubd_url,
+      q_msg         = q_msg,
+      replay_track  = self.pubd_replay_tracker)
     rpki.publication.raise_if_error(r_msg)
     return r_msg
 
@@ -373,15 +388,11 @@ class main(object):
 
 
   def __init__(self):
-
-    global rootd
-    rootd = self                        # Gross, but simpler than what we'd have to do otherwise
-
     self.serial_number = None
     self.crl_number = None
     self.revoked = []
     self.rpkid_cms_timestamp = None
-    self.pubd_cms_timestamp = None
+    self.pubd_replay_tracker = ReplayTracker()
 
     os.environ["TZ"] = "UTC"
     time.tzset()

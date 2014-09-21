@@ -28,12 +28,11 @@ import types
 import rpki.config
 import rpki.sundial
 import rpki.oids
-import rpki.http
+import rpki.http_simple
 import rpki.resource_set
 import rpki.relaxng
 import rpki.left_right
 import rpki.x509
-import rpki.async
 import rpki.irdb
 import rpki.publication_control
 import django.db.transaction
@@ -189,9 +188,9 @@ class etree_wrapper(object):
 class Zookeeper(object):
 
   ## @var show_xml
-  # Whether to show XML for debugging
+  # If not None, a file-like object to which to prettyprint XML, for debugging.
 
-  show_xml = False
+  show_xml = None
 
   def __init__(self, cfg = None, handle = None, logstream = None):
 
@@ -1035,11 +1034,6 @@ class Zookeeper(object):
   def call_rpkid(self, *pdus):
     """
     Issue a call to rpkid, return result.
-
-    Implementation is a little silly, constructs a wrapper object,
-    invokes it once, then throws it away.  Hard to do better without
-    rewriting a bit of the HTTP code, as we want to be sure we're
-    using the current BPKI certificate and key objects.
     """
 
     url = "http://%s:%s/left-right" % (
@@ -1054,16 +1048,15 @@ class Zookeeper(object):
     elif len(pdus) == 1 and isinstance(pdus[0], (tuple, list)):
       pdus = pdus[0]
 
-    call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
-      proto       = rpki.left_right,
-      client_key  = irbe.private_key,
-      client_cert = irbe.certificate,
-      server_ta   = self.server_ca.certificate,
-      server_cert = rpkid.certificate,
-      url         = url,
-      debug       = self.show_xml))
-
-    return call_rpkid(*pdus)
+    return rpki.http_simple.client(
+      proto_cms_msg = rpki.left_right.cms_msg,
+      client_key    = irbe.private_key,
+      client_cert   = irbe.certificate,
+      server_ta     = self.server_ca.certificate,
+      server_cert   = rpkid.certificate,
+      url           = url,
+      q_msg         = rpki.left_right.msg.query(*pdus),
+      debug         = self.show_xml)
 
 
   def run_rpkid_now(self):
@@ -1145,11 +1138,6 @@ class Zookeeper(object):
   def call_pubd(self, *pdus):
     """
     Issue a call to pubd, return result.
-
-    Implementation is a little silly, constructs a wrapper object,
-    invokes it once, then throws it away.  Hard to do better without
-    rewriting a bit of the HTTP code, as we want to be sure we're
-    using the current BPKI certificate and key objects.
     """
 
     url = "http://%s:%s/control" % (
@@ -1164,16 +1152,15 @@ class Zookeeper(object):
     elif len(pdus) == 1 and isinstance(pdus[0], (tuple, list)):
       pdus = pdus[0]
 
-    call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
-      proto       = rpki.publication_control,
-      client_key  = irbe.private_key,
-      client_cert = irbe.certificate,
-      server_ta   = self.server_ca.certificate,
-      server_cert = pubd.certificate,
-      url         = url,
-      debug       = self.show_xml))
-
-    return call_pubd(*pdus)
+    return rpki.http_simple.client(
+      proto_cms_msg = rpki.publication_control.cms_msg,
+      client_key    = irbe.private_key,
+      client_cert   = irbe.certificate,
+      server_ta     = self.server_ca.certificate,
+      server_cert   = pubd.certificate,
+      url           = url,
+      q_msg         = rpki.publication_control.msg.query(*pdus),
+      debug         = self.show_xml)
 
 
   def check_error_report(self, pdus):

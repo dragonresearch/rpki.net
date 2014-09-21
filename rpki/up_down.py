@@ -31,10 +31,51 @@ import rpki.log
 import rpki.xml_utils
 import rpki.relaxng
 
+from lxml.etree import Element, SubElement
+
 logger = logging.getLogger(__name__)
 
-xmlns = rpki.relaxng.up_down.xmlns
-nsmap = rpki.relaxng.up_down.nsmap
+
+xmlns   = rpki.relaxng.up_down.xmlns
+nsmap   = rpki.relaxng.up_down.nsmap
+version = "1"
+
+tag_certificate = xmlns + "certificate"
+tag_class       = xmlns + "class"
+tag_description = xmlns + "description"
+tag_issuer      = xmlns + "issuer"
+tag_message     = xmlns + "message"
+tag_status      = xmlns + "status"
+
+
+error_response_codes = {
+  1101 : "Already processing request",
+  1102 : "Version number error",
+  1103 : "Unrecognised request type",
+  1201 : "Request - no such resource class",
+  1202 : "Request - no resources allocated in resource class",
+  1203 : "Request - badly formed certificate request",
+  1301 : "Revoke - no such resource class",
+  1302 : "Revoke - no such key",
+  2001 : "Internal Server Error - Request not performed" }
+
+
+def generate_error_response(r_pdu, status = 2001, description = None):
+  """
+  Generate an error response.  If STATUS is given, it specifies the
+  numeric code to use, otherwise we default to "internal error".
+  If DESCRIPTION is specified, we use it as the description, otherwise
+  we just use the default string associated with STATUS.
+  """
+
+  assert status in error_response_codes
+  del r_msg[:len(r_msg)]
+  r_msg.set("type", "error_response")
+  SubElement(r_msg, tag_status).text = str(status)
+  se = SubElement(r_msg, tag_description)
+  se.set("{http://www.w3.org/XML/1998/namespace}lang", "en-US")
+  se.text = str(description or error_response_codes[status])
+
 
 class base_elt(object):
   """
@@ -565,16 +606,7 @@ class error_response_pdu(base_elt):
   Up-Down protocol "error_response" PDU.
   """
 
-  codes = {
-    1101 : "Already processing request",
-    1102 : "Version number error",
-    1103 : "Unrecognised request type",
-    1201 : "Request - no such resource class",
-    1202 : "Request - no resources allocated in resource class",
-    1203 : "Request - badly formed certificate request",
-    1301 : "Revoke - no such resource class",
-    1302 : "Revoke - no such key",
-    2001 : "Internal Server Error - Request not performed" }
+  codes = error_response_codes
 
   exceptions = {
     rpki.exceptions.NoActiveCA                          : 1202,

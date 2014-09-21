@@ -18,9 +18,7 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
-Trivial RPKI up-down protocol root server.  Not recommended for
-production use.  Overrides a bunch of method definitions from the
-rpki.* classes in order to reuse as much code as possible.
+Trivial RPKI up-down protocol root server.
 """
 
 import os
@@ -47,68 +45,6 @@ from lxml.etree import Element, SubElement
 
 logger = logging.getLogger(__name__)
 
-rootd = None
-
-class list_pdu(rpki.up_down.list_pdu):
-  def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
-    r_msg.payload = rpki.up_down.list_response_pdu()
-    rootd.compose_response(r_msg, callback, errback)
-
-class issue_pdu(rpki.up_down.issue_pdu):
-  def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
-    self.pkcs10.check_valid_request_ca()
-    r_msg.payload = rpki.up_down.issue_response_pdu()
-    rootd.compose_response(r_msg, callback, errback, self.pkcs10)
-
-class revoke_pdu(rpki.up_down.revoke_pdu):
-  def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
-    logger.debug("Revocation requested for SKI %s", self.ski)
-    subject_cert = rootd.get_subject_cert()
-    if subject_cert is None:
-      logger.debug("No subject certificate, nothing to revoke")
-      raise rpki.exceptions.NotInDatabase
-    if subject_cert.gSKI() != self.ski:
-      logger.debug("Subject certificate has different SKI %s, not revoking", subject_cert.gSKI())
-      raise rpki.exceptions.NotInDatabase
-    logger.debug("Revoking certificate %s", self.ski)
-    now = rpki.sundial.now()
-    pubd_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
-                       type = "query", version = rpki.publication.version)
-    rootd.revoke_subject_cert(now)
-    rootd.del_subject_cert()
-    rootd.del_subject_pkcs10()
-    r_msg.payload = rpki.up_down.revoke_response_pdu()
-    r_msg.payload.class_name = self.class_name
-    r_msg.payload.ski = self.ski
-    rootd.generate_crl_and_manifest(now, pubd_msg)
-    rootd.publish(callback, errback, pubd_msg)
-
-class error_response_pdu(rpki.up_down.error_response_pdu):
-  exceptions = rpki.up_down.error_response_pdu.exceptions.copy()
-  exceptions[rpki.exceptions.ClassNameUnknown, revoke_pdu] = 1301
-  exceptions[rpki.exceptions.NotInDatabase,    revoke_pdu] = 1302
-
-class message_pdu(rpki.up_down.message_pdu):
-
-  name2type = dict(
-    rpki.up_down.message_pdu.name2type,
-    list            = list_pdu,
-    issue           = issue_pdu,
-    revoke          = revoke_pdu,
-    error_response  = error_response_pdu)
-
-  type2name = dict((v, k) for k, v in name2type.iteritems())
-
-  error_pdu_type = error_response_pdu
-
-  def log_query(self, child):
-    logger.info("Serving %s query", self.type)
-
-class sax_handler(rpki.up_down.sax_handler):
-  pdu = message_pdu
-
-class cms_msg(rpki.up_down.cms_msg):
-  saxify = sax_handler.saxify
 
 class main(object):
 
@@ -287,106 +223,141 @@ class main(object):
     self.revoked.append((self.get_subject_cert().getSerial(), now))
 
 
-  def compose_response(self, r_msg, callback, errback, pkcs10 = None):
-    subject_cert, pubd_msg = self.issue_subject_cert_maybe(pkcs10)
-    rc = rpki.up_down.class_elt()
-    rc.class_name = self.rpki_class_name
-    rc.cert_url = rpki.up_down.multi_uri(self.rpki_root_cert_uri)
-    rc.from_resource_bag(self.rpki_root_cert.get_3779resources())
-    rc.issuer = self.rpki_root_cert
-    r_msg.payload.classes.append(rc)
-    if subject_cert is not None:
-      rc.certs.append(rpki.up_down.certificate_elt())
-      rc.certs[0].cert_url = rpki.up_down.multi_uri(self.rpki_subject_cert_uri)
-      rc.certs[0].cert = subject_cert
-    self.publish(callback, errback, pubd_msg)
-
-
-  def publish(self, callback, errback, q_msg):
-
-    def done(r_msg):
-      if len(q_msg) != len(r_msg):
-        raise rpki.exceptions.BadPublicationReply("Wrong number of response PDUs from pubd: sent %s, got %s" % (len(q_msg), len(r_msg)))
-      callback()
-
-    def fix_hashes(r_msg):
-      published_hash = dict((r_pdu.get("uri"), r_pdu.get("hash")) for r_pdu in r_msg)
-      for q_pdu in q_msg:
-        if q_pdu.get("hash") is None and published_hash.get(q_pdu.get("uri")) is not None:
-          logger.debug("Updating hash of %s to %s from previously published data", q_pdu.get("uri"), published_hash[q_pdu.get("uri")])
-          q_pdu.set("hash", published_hash[q_pdu.get("uri")])
-      self.call_pubd(done, errback, q_msg)
-
-    assert q_msg is None or len(q_msg) > 0
-
+  def publish(self, q_msg):
     if q_msg is None:
-      callback()
-    elif all(q_pdu.get("hash") is not None for q_pdu in q_msg):
-      self.call_pubd(done, errback, q_msg)
-    else:
-      logger.debug("Some publication PDUs are missing hashes, checking...")
-      list_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
-                         type = "query", version = rpki.publication.version)
-      SubElement(list_msg, rpki.publication.tag_list)
-      self.call_pubd(fix_hashes, errback, list_msg)
+      return
+    assert len(q_msg) > 0
 
-
-  def call_pubd(self, callback, errback, q_msg):
-    try:
+    if not all(q_pdu.get("hash") is not None for q_pdu in q_msg):
+      logger.debug("Some publication PDUs are missing hashes, checking published data...")
+      q = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
+                  type = "query", version = rpki.publication.version)
+      SubElement(q, rpki.publication.tag_list)
+      published_hash = dict((r.get("uri"), r.get("hash")) for r in self.call_pubd(q))
       for q_pdu in q_msg:
-        logger.info("Sending %s to pubd", q_pdu.get("uri"))
-      q_der = rpki.publication.cms_msg_no_sax().wrap(q_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl)
-      logger.debug("Sending request to pubd")
-      http = httplib.HTTPConnection(self.pubd_host, self.pubd_port)
-      http.request("POST", self.pubd_path, q_der, {"Content-Type" : rpki.http_simple.rpki_content_type})
-      r = http.getresponse()
-      if r.status != 200:
-        raise rpki.exceptions.HTTPRequestFailed("HTTP request to pubd failed with status %r reason %r" % (r.status, r.reason))
-      if r.getheader("Content-Type") != rpki.http_simple.rpki_content_type:
-        raise rpki.exceptions.HTTPRequestFailed("HTTP request to pubd failed, got Content-Type %r, expected %r" % (
-          r.getheader("Content-Type"), rpki.http_simple.rpki_content_type))
-      logger.debug("Received response from pubd")
-      r_der = r.read()
-      r_cms = rpki.publication.cms_msg_no_sax(DER = r_der)
-      r_msg = r_cms.unwrap((self.bpki_ta, self.pubd_bpki_cert))
-      self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_url)
-      rpki.publication.raise_if_error(r_msg)
-      callback(r_msg)
-    except (rpki.async.ExitNow, SystemExit):
-      raise
-    except Exception, e:
-      errback(e)
+        q_uri = q_pdu.get("uri")
+        if q_pdu.get("hash") is None and published_hash.get(q_uri) is not None:
+          logger.debug("Updating hash of %s to %s from previously published data", q_uri, published_hash[q_uri])
+          q_pdu.set("hash", published_hash[q_uri])
+
+    r_msg = self.call_pubd(q_msg)
+    if len(q_msg) != len(r_msg):
+      raise rpki.exceptions.BadPublicationReply("Wrong number of response PDUs from pubd: sent %s, got %s" % (len(q_msg), len(r_msg)))
 
 
-  def up_down_handler(self, query, path, cb):
+  def call_pubd(self, q_msg):
+    for q_pdu in q_msg:
+      logger.info("Sending %s to pubd", q_pdu.get("uri"))
+    q_der = rpki.publication.cms_msg_no_sax().wrap(q_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl)
+    logger.debug("Sending request to pubd")
+    http = httplib.HTTPConnection(self.pubd_host, self.pubd_port)
+    http.request("POST", self.pubd_path, q_der, {"Content-Type" : rpki.http_simple.rpki_content_type})
+    r = http.getresponse()
+    if r.status != 200:
+      raise rpki.exceptions.HTTPRequestFailed("HTTP request to pubd failed with status %r reason %r" % (r.status, r.reason))
+    if r.getheader("Content-Type") != rpki.http_simple.rpki_content_type:
+      raise rpki.exceptions.HTTPRequestFailed("HTTP request to pubd failed, got Content-Type %r, expected %r" % (
+        r.getheader("Content-Type"), rpki.http_simple.rpki_content_type))
+    logger.debug("Received response from pubd")
+    r_der = r.read()
+    r_cms = rpki.publication.cms_msg_no_sax(DER = r_der)
+    r_msg = r_cms.unwrap((self.bpki_ta, self.pubd_bpki_cert))
+    self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_url)
+    rpki.publication.raise_if_error(r_msg)
+    return r_msg
+
+
+  def compose_response(self, r_msg, pkcs10 = None):
+    subject_cert, pubd_msg = self.issue_subject_cert_maybe(pkcs10)
+    bag = self.rpki_root_cert.get_3779resources()
+    rc = SubElement(r_msg, rpki.up_down.tag_class,
+                    class_name        = self.rpki_class_name,
+                    cert_url          = str(rpki.up_down.multi_uri(self.rpki_root_cert_uri)),
+                    resource_set_as   = str(bag.asn),
+                    resource_set_ipv4 = str(bag.v4),
+                    resource_set_ipv6 = str(bag.v6),
+                    resource_set_notafter = str(bag.valid_until))
+    if subject_cert is not None:
+      c = SubElement(rc, rpki.up_down.tag_certificate,
+                     cert_url = str(rpki.up_down.multi_uri(self.rpki_subject_cert_uri)))
+      c.text = subject_cert.get_Base64()
+    SubElement(rc, rpki.up_down.tag_issuer).text = self.rpki_root_cert.get_Base64()
+    self.publish(pubd_msg)
+
+
+  def handle_list(self, q_msg, r_msg):
+    self.compose_response(r_msg)
+
+
+  def handle_issue(self, q_msg, r_msg):
+    # This is where we'd check q_msg[0].get("class_name") if this weren't rootd.
+    self.compose_response(r_msg, rpki.x509.PKCS10(Base64 = q_msg[0].text))
+
+
+  def handle_revoke(self, q_msg, r_msg):
+    class_name = q_msg[0].get("class_name")
+    ski        = q_msg[0].get("ski")
+    logger.debug("Revocation requested for class %s SKI %s", class_name, ski)
+    subject_cert = self.get_subject_cert()
+    if subject_cert is None:
+      logger.debug("No subject certificate, nothing to revoke")
+      raise rpki.exceptions.NotInDatabase
+    if subject_cert.gSKI() != ski:
+      logger.debug("Subject certificate has different SKI %s, not revoking", subject_cert.gSKI())
+      raise rpki.exceptions.NotInDatabase
+    logger.debug("Revoking certificate %s", ski)
+    now = rpki.sundial.now()
+    pubd_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
+                       type = "query", version = rpki.publication.version)
+    self.revoke_subject_cert(now)
+    self.del_subject_cert()
+    self.del_subject_pkcs10()
+    SubElement(r_msg, q_msg[0].tag, class_name = class_name, ski = ski)
+    self.generate_crl_and_manifest(now, pubd_msg)
+    self.publish(pubd_msg)
+
+
+  # Need to do something about mapping exceptions to up-down error
+  # codes, right now everything shows up as "internal error".
+  #
+  #exceptions = {
+  #  rpki.exceptions.ClassNameUnknown                    : 1201,
+  #  rpki.exceptions.NoActiveCA                          : 1202,
+  #  (rpki.exceptions.ClassNameUnknown, revoke_pdu)      : 1301,
+  #  (rpki.exceptions.NotInDatabase,    revoke_pdu)      : 1302 }
+  #
+  # Might be that what we want here is a subclass of
+  # rpki.exceptions.RPKI_Exception which carries an extra data field
+  # for the up-down error code, so that we can add the correct code
+  # when we instantiate it.
+  #
+  # There are also a few that are also schema violations, which means
+  # we'd have to catch them before validating or pick them out of a
+  # message that failed validation or otherwise break current
+  # modularity.  Maybe an optional pre-validation check method hook in
+  # rpki.x509.XML_CMS_object which we can use to intercept such things?
+
+
+  def handler(self, request, q_der):
     try:
-      q_cms = cms_msg(DER = query)
+      q_cms = rpki.up_down.cms_msg_no_sax(DER = q_der)
       q_msg = q_cms.unwrap((self.bpki_ta, self.child_bpki_cert))
-      self.rpkid_cms_timestamp = q_cms.check_replay(self.rpkid_cms_timestamp, path)
-    except (rpki.async.ExitNow, SystemExit):
-      raise
-    except Exception, e:
-      logger.exception("Problem decoding PDU")
-      return cb(400, reason = "Could not decode PDU: %s" % e)
-
-    def done(r_msg):
-      cb(200, body = cms_msg().wrap(
-        r_msg, self.rootd_bpki_key, self.rootd_bpki_cert,
-        self.rootd_bpki_crl if self.include_bpki_crl else None))
-
-    try:
-      q_msg.serve_top_level(None, done)
-    except (rpki.async.ExitNow, SystemExit):
-      raise
-    except Exception, e:
+      q_type = q_msg.get("type")
+      logger.info("Serving %s query", q_type)
+      r_msg = Element(rpki.up_down.tag_message, nsmap = rpki.up_down.nsmap, version = rpki.up_down.version,
+                      sender  = q_msg.get("recipient"), recipient = q_msg.get("sender"), type = q_type + "_response")
       try:
-        logger.exception("Exception serving up-down request %r", q_msg)
-        done(q_msg.serve_error(e))
-      except (rpki.async.ExitNow, SystemExit):
-        raise
+        self.rpkid_cms_timestamp = q_cms.check_replay(self.rpkid_cms_timestamp, request.path)
+        getattr(self, "handle_" + q_type)(q_msg, r_msg)
       except Exception, e:
-        logger.exception("Exception while generating error report")
-        cb(500, reason = "Could not process PDU: %s" % e)
+        # Should catch specific exceptions here to give better error codes.
+        logger.exception("Exception processing up-down %s message", q_type)
+        rpki.up_down.generate_error_response(r_msg, description = e)
+      request.send_cms_response(rpki.up_down.cms_msg_no_sax().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert,
+                                                                   self.rootd_bpki_crl if self.include_bpki_crl else None))
+    except Exception, e:
+      logger.exception("Unhandled exception processing up-down message")
+      request.send_error(500, "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
 
   def next_crl_number(self):
@@ -490,6 +461,6 @@ class main(object):
     self.pubd_port               = u.port or httplib.HTTP_PORT
     self.pubd_path               = u.path
 
-    rpki.http.server(host        = self.http_server_host,
-                     port        = self.http_server_port,
-                     handlers    = self.up_down_handler)
+    rpki.http_simple.server(host     = self.http_server_host,
+                            port     = self.http_server_port,
+                            handlers = self.handler)

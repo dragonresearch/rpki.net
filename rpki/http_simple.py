@@ -20,6 +20,8 @@ need the full-blown rpki.http asynchronous code.
 """
 
 import logging
+import httplib
+import urlparse
 import BaseHTTPServer
 
 logger = logging.getLogger(__name__)
@@ -83,3 +85,40 @@ def server(handlers, port, host = ""):
     rpki_handlers = handlers
 
   BaseHTTPServer.HTTPServer((host, port), RequestHandler).serve_forever()
+
+
+class BadURL(Exception):
+  "Bad contact URL"
+
+class RequestFailed(Exception):
+  "HTTP returned failure"
+
+class BadContentType(Exception):
+  "Wrong HTTP Content-Type"
+
+
+def client(url, query):
+  """
+  Issue single a query and return the response.
+
+  Might want to add CMS processing here, not sure yet.
+  """
+
+  u = urlparse.urlparse(url)
+
+  if u.scheme not in ("", "http") or u.username or u.password or u.params or u.query or u.fragment:
+    raise BadURL("Unusable URL %s", url)
+
+  http = httplib.HTTPConnection(u.hostname, u.port or httplib.HTTP_PORT)
+
+  http.request("POST", u.path, query, {"Content-Type" : rpki_content_type})
+
+  r = http.getresponse()
+
+  if r.status != 200:
+    raise RequestFailed("HTTP request failed with status %r reason %r" % (r.status, r.reason))
+
+  if r.getheader("Content-Type") != rpki_content_type:
+    raise BadContentType("HTTP Content-Type %r, expected %r" % (r.getheader("Content-Type"), rpki_content_type))
+
+  return r.read()

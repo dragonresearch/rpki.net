@@ -249,17 +249,7 @@ class main(object):
     for q_pdu in q_msg:
       logger.info("Sending %s to pubd", q_pdu.get("uri"))
     q_der = rpki.publication.cms_msg_no_sax().wrap(q_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl)
-    logger.debug("Sending request to pubd")
-    http = httplib.HTTPConnection(self.pubd_host, self.pubd_port)
-    http.request("POST", self.pubd_path, q_der, {"Content-Type" : rpki.http_simple.rpki_content_type})
-    r = http.getresponse()
-    if r.status != 200:
-      raise rpki.exceptions.HTTPRequestFailed("HTTP request to pubd failed with status %r reason %r" % (r.status, r.reason))
-    if r.getheader("Content-Type") != rpki.http_simple.rpki_content_type:
-      raise rpki.exceptions.HTTPRequestFailed("HTTP request to pubd failed, got Content-Type %r, expected %r" % (
-        r.getheader("Content-Type"), rpki.http_simple.rpki_content_type))
-    logger.debug("Received response from pubd")
-    r_der = r.read()
+    r_der = rpki.http_simple.client(self.pubd_url, q_der)
     r_cms = rpki.publication.cms_msg_no_sax(DER = r_der)
     r_msg = r_cms.unwrap((self.bpki_ta, self.pubd_bpki_cert))
     self.pubd_cms_timestamp = r_cms.check_replay(self.pubd_cms_timestamp, self.pubd_url)
@@ -451,15 +441,6 @@ class main(object):
     self.include_bpki_crl        = self.cfg.getboolean("include-bpki-crl", False)
 
     self.pubd_url                = self.cfg.get("pubd-contact-uri")
-
-    u = urlparse.urlparse(self.pubd_url)
-    if u.scheme not in ("", "http") or u.username or u.password or u.params or u.query or u.fragment:
-      logger.error("Unusable URL %s", self.pubd_url)
-      sys.exit(1)
-
-    self.pubd_host               = u.hostname
-    self.pubd_port               = u.port or httplib.HTTP_PORT
-    self.pubd_path               = u.path
 
     rpki.http_simple.server(host     = self.http_server_host,
                             port     = self.http_server_port,

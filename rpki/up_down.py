@@ -60,7 +60,7 @@ error_response_codes = {
   2001 : "Internal Server Error - Request not performed" }
 
 
-def generate_error_response(r_pdu, status = 2001, description = None):
+def generate_error_response(r_msg, status = 2001, description = None):
   """
   Generate an error response.  If STATUS is given, it specifies the
   numeric code to use, otherwise we default to "internal error".
@@ -69,7 +69,7 @@ def generate_error_response(r_pdu, status = 2001, description = None):
   """
 
   assert status in error_response_codes
-  del r_msg[:len(r_msg)]
+  del r_msg[:]
   r_msg.set("type", "error_response")
   SubElement(r_msg, tag_status).text = str(status)
   se = SubElement(r_msg, tag_description)

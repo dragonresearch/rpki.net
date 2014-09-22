@@ -41,12 +41,11 @@ import sys
 import getopt
 import textwrap
 import rpki.left_right
-import rpki.http
+import rpki.http_simple
 import rpki.x509
 import rpki.config
 import rpki.log
 import rpki.publication
-import rpki.async
 
 pem_out = None
 
@@ -346,32 +345,23 @@ irbe = server_ca.ee_certificates.get(purpose = "irbe")
 
 if q_msg_left_right:
 
-  class left_right_proto(object):
-    cms_msg = left_right_cms_msg
-    msg     = left_right_msg
-
   rpkid = server_ca.ee_certificates.get(purpose = "rpkid")
 
   rpkid_url = "http://%s:%s/left-right/" % (
     cfg.get("server-host", section = "rpkid"),
     cfg.get("server-port", section = "rpkid"))
 
-  call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
-    proto       = left_right_proto,
-    client_key  = irbe.private_key,
-    client_cert = irbe.certificate,
-    server_ta   = server_ca.certificate,
-    server_cert = rpkid.certificate,
-    url         = rpkid_url,
-    debug       = verbose))
-
-  call_rpkid(*q_msg_left_right)
+  rpki.http_simple.client(
+    proto_cms_msg = left_right_cms_msg,
+    client_key    = irbe.private_key,
+    client_cert   = irbe.certificate,
+    server_ta     = server_ca.certificate,
+    server_cert   = rpkid.certificate,
+    url           = rpkid_url,
+    debug         = verbose,
+    q_msg         = left_right_msg(*q_msg_left_right))
 
 if q_msg_publication:
-
-  class publication_proto(object):
-    msg     = publication_msg
-    cms_msg = publication_cms_msg
 
   pubd = server_ca.ee_certificates.get(purpose = "pubd")
 
@@ -379,13 +369,12 @@ if q_msg_publication:
     cfg.get("server-host", section = "pubd"),
     cfg.get("server-port", section = "pubd"))
 
-  call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
-    proto       = publication_proto,
-    client_key  = irbe.private_key,
-    client_cert = irbe.certificate,
-    server_ta   = server_ca.certificate,
-    server_cert = pubd.certificate,
-    url         = pubd_url,
-    debug       = verbose))
-
-  call_pubd(*q_msg_publication)
+  rpki.http_simple.client(
+    proto_cms_msg = publication_cms_msg,
+    client_key    = irbe.private_key,
+    client_cert   = irbe.certificate,
+    server_ta     = server_ca.certificate,
+    server_cert   = pubd.certificate,
+    url           = pubd_url,
+    debug         = verbose,
+    q_msg         = publication_msg(*q_msg_publication))

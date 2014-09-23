@@ -28,7 +28,6 @@ def tls_required(f):
     Decorator which returns a 500 error if the connection is not
     secured with TLS (https).
     """
-    """
 
     def _tls_required(request, *args, **kwargs):
         if not request.is_secure() and not _allow_plain_http_for_testing:

@@ -21,6 +21,7 @@
 RPKI "left-right" protocol.
 """
 
+import base64
 import logging
 import rpki.resource_set
 import rpki.x509
@@ -983,45 +984,188 @@ class child_elt(data_elt):
                         generate_crl_and_manifest = True)
     publisher.call_pubd(cb, eb)
 
-  def serve_up_down(self, query, callback):
+
+  def up_down_handle_list(self, q_msg, r_msg, callback, errback):
+    """
+    Serve one up-down "list" PDU.
+    """
+
+    def got_resources(irdb_resources):
+
+      if irdb_resources.valid_until < rpki.sundial.now():
+        logger.debug("Child %s's resources expired %s", self.child_handle, irdb_resources.valid_until)
+      else:
+        for parent in self.parents:
+          for ca in parent.cas:
+            ca_detail = ca.active_ca_detail
+            if not ca_detail:
+              logger.debug("No active ca_detail, can't issue to %s", self.child_handle)
+              continue
+            resources = ca_detail.latest_ca_cert.get_3779resources() & irdb_resources
+            if resources.empty():
+              logger.debug("No overlap between received resources and what child %s should get ([%s], [%s])",
+                           self.child_handle, ca_detail.latest_ca_cert.get_3779resources(), irdb_resources)
+              continue
+            rc = SubElement(r_msg, rpki.up_down.tag_class,
+                            class_name = str(ca.ca_id),
+                            cert_url = ca_detail.ca_cert_uri,
+                            resource_set_as   = str(resources.asn),
+                            resource_set_ipv4 = str(resources.v4),
+                            resource_set_ipv6 = str(resources.v6),
+                            resource_set_notafter = str(resources.valid_until))
+            for child_cert in self.fetch_child_certs(ca_detail = ca_detail):
+              c = SubElement(rc, rpki.up_down.tag_certificate, cert_url = child_cert.uri)
+              c.text = child_cert.cert.get_Base64()
+            SubElement(rc, rpki.up_down.tag_issuer).text = ca_detail.latest_ca_cert.get_Base64()
+      callback()
+
+    self.gctx.irdb_query_child_resources(self.self.self_handle, self.child_handle, got_resources, errback)
+
+
+  def up_down_handle_issue(self, q_msg, r_msg, callback, errback):
+    """
+    Serve one issue request PDU.
+    """
+
+    def got_resources(irdb_resources):
+
+      def done():
+        rc = SubElement(r_msg, rpki.up_down.tag_class,
+                        class_name = class_name,
+                        cert_url = ca_detail.ca_cert_uri,
+                        resource_set_as   = str(resources.asn),
+                        resource_set_ipv4 = str(resources.v4),
+                        resource_set_ipv6 = str(resources.v6),
+                        resource_set_notafter = str(resources.valid_until))
+        c = SubElement(rc, rpki.up_down.tag_certificate, cert_url = child_cert.uri)
+        c.text = child_cert.cert.get_Base64()
+        SubElement(rc, rpki.up_down.tag_issuer).text = ca_detail.latest_ca_cert.get_Base64()
+        callback()
+
+      if irdb_resources.valid_until < rpki.sundial.now():
+        raise rpki.exceptions.IRDBExpired("IRDB entry for child %s expired %s" % (
+          self.child_handle, irdb_resources.valid_until))
+
+      resources = irdb_resources & ca_detail.latest_ca_cert.get_3779resources()
+      resources.valid_until = irdb_resources.valid_until
+      req_key = pkcs10.getPublicKey()
+      req_sia = pkcs10.get_SIA()
+      child_cert = self.fetch_child_certs(ca_detail = ca_detail, ski = req_key.get_SKI(), unique = True)
+
+      # Generate new cert or regenerate old one if necessary
+
+      publisher = rpki.rpkid.publication_queue()
+
+      if child_cert is None:
+        child_cert = ca_detail.issue(
+          ca          = ca,
+          child       = self,
+          subject_key = req_key,
+          sia         = req_sia,
+          resources   = resources,
+          publisher   = publisher)
+      else:
+        child_cert = child_cert.reissue(
+          ca_detail = ca_detail,
+          sia       = req_sia,
+          resources = resources,
+          publisher = publisher)
+
+      self.gctx.sql.sweep()
+      assert child_cert and child_cert.sql_in_db
+      publisher.call_pubd(done, errback)
+
+    req = q_msg[0]
+    assert req.tag == rpki.up_down.tag_request
+
+    # Subsetting not yet implemented, this is the one place where we
+    # have to handle it, by reporting that we're lame.
+
+    if any(req.get(a) for a in ("req_resource_set_as", "req_resource_set_ipv4", "req_resource_set_ipv6")):
+      raise rpki.exceptions.NotImplementedYet("req_* attributes not implemented yet, sorry")
+
+    class_name = req.get("class_name")
+    pkcs10 = rpki.x509.PKCS10(Base64 = req.text)
+    pkcs10.check_valid_request_ca()
+    ca = self.ca_from_class_name(class_name)
+    ca_detail = ca.active_ca_detail
+    if ca_detail is None:
+      raise rpki.exceptions.NoActiveCA("No active CA for class %r" % class_name)
+
+    self.gctx.irdb_query_child_resources(self.self.self_handle, self.child_handle, got_resources, errback)
+
+
+  def up_down_handle_revoke(self, q_msg, r_msg, callback, errback):
+    """
+    Serve one revoke request PDU.
+    """
+
+    def done():
+      SubElement(r_msg, key.tag, class_name = class_name, ski = key.get("ski"))
+      callback()
+    
+    key = q_msg[0]
+    assert key.tag == rpki.up_down.tag_key
+    class_name = key.get("class_name")
+    ski = base64.urlsafe_b64decode(key.get("ski") + "=")
+
+    publisher = rpki.rpkid.publication_queue()
+
+    ca = child.ca_from_class_name(class_name)
+    for ca_detail in ca.ca_details:
+      for child_cert in child.fetch_child_certs(ca_detail = ca_detail, ski = ski):
+        child_cert.revoke(publisher = publisher)
+
+    self.gctx.sql.sweep()
+    publisher.call_pubd(done, errback)
+
+
+  def serve_up_down(self, q_der, callback):
     """
     Outer layer of server handling for one up-down PDU from this child.
     """
 
+    def done():
+      callback(rpki.up_down.cms_msg_no_sax().wrap(r_msg, bsc.private_key_id,
+                                                  bsc.signing_cert, bsc.signing_cert_crl))
+
+    def lose(e, quiet = False):
+      logger.exception("Unhandled exception serving child %r", self)
+      rpki.up_down.generate_error_response(r_msg, description = e)
+      done()
+
     bsc = self.bsc
     if bsc is None:
       raise rpki.exceptions.BSCNotFound("Could not find BSC %s" % self.bsc_id)
-    q_cms = rpki.up_down.cms_msg(DER = query)
+    q_cms = rpki.up_down.cms_msg_no_sax(DER = q_der)
     q_msg = q_cms.unwrap((self.gctx.bpki_ta,
                           self.self.bpki_cert,
                           self.self.bpki_glue,
                           self.bpki_cert,
                           self.bpki_glue))
     q_cms.check_replay_sql(self, "child", self.child_handle)
-    q_msg.payload.gctx = self.gctx
-    if enforce_strict_up_down_xml_sender and q_msg.sender != self.child_handle:
-      raise rpki.exceptions.BadSender("Unexpected XML sender %s" % q_msg.sender)
+    q_type = q_msg.get("type")
+    logger.info("Serving %s query from child %s [sender %s, recipient %s]",
+                q_type, self.child_handle, q_msg.get("sender"), q_msg.get("recipient"))
+    if enforce_strict_up_down_xml_sender and q_msg.get("sender") != self.child_handle:
+      raise rpki.exceptions.BadSender("Unexpected XML sender %s" % q_msg.get("sender"))
     self.gctx.sql.sweep()
 
-    def done(r_msg):
-      #
-      # Exceptions from this point on are problematic, as we have no
-      # sane way of reporting errors in the error reporting mechanism.
-      # May require refactoring, ignore the issue for now.
-      #
-      reply = rpki.up_down.cms_msg().wrap(r_msg, bsc.private_key_id,
-                                          bsc.signing_cert, bsc.signing_cert_crl)
-      callback(reply)
+    r_msg = Element(rpki.up_down.tag_message, nsmap = rpki.up_down.nsmap, version = rpki.up_down.version,
+                    sender = q_msg.get("recipient"), recipient = q_msg.get("sender"), type = q_type + "_response")
 
     try:
-      q_msg.serve_top_level(self, done)
+      getattr(self, "up_down_handle_" + q_type)(q_msg, r_msg, done, lose)
+
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except rpki.exceptions.NoActiveCA, data:
-      done(q_msg.serve_error(data))
+
+    except rpki.exceptions.NoActiveCA, e:
+      lose(e, quiet = True)
+
     except Exception, e:
-      logger.exception("Unhandled exception serving up-down request from %r", self)
-      done(q_msg.serve_error(e))
+      lose(e)
+
 
 class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """

@@ -45,6 +45,7 @@ tag_class       = xmlns + "class"
 tag_description = xmlns + "description"
 tag_issuer      = xmlns + "issuer"
 tag_message     = xmlns + "message"
+tag_request     = xmlns + "request"
 tag_status      = xmlns + "status"
 
 
@@ -764,7 +765,8 @@ class message_pdu(base_elt):
     Log query we're handling.  Separate method so rootd can override.
     """
 
-    logger.info("Serving %s query from child %s [sender %s, recipient %s]", self.type, child.child_handle, self.sender, self.recipient)
+    logger.info("Serving %s query from child %s [sender %s, recipient %s]",
+                self.type, child.child_handle, self.sender, self.recipient)
 
   def serve_error(self, exception):
     """

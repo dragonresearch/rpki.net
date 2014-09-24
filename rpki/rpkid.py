@@ -286,14 +286,14 @@ class main(object):
 
   up_down_url_regexp = re.compile("/up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
 
-  def up_down_handler(self, query, path, cb):
+  def up_down_handler(self, q_der, path, cb):
     """
     Process one up-down PDU.
     """
 
-    def done(reply):
+    def done(r_der):
       self.sql.sweep()
-      cb(200, body = reply)
+      cb(200, body = r_der)
 
     try:
       match = self.up_down_url_regexp.search(path)
@@ -306,7 +306,7 @@ class main(object):
                                                          "self")
       if child is None:
         raise rpki.exceptions.ChildNotFound("Could not find child %s of self %s in up_down_handler()" % (child_handle, self_handle))
-      child.serve_up_down(query, done)
+      child.serve_up_down(q_der, done)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except (rpki.exceptions.ChildNotFound, rpki.exceptions.BadContactURL), e:

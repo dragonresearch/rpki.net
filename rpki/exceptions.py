@@ -375,3 +375,8 @@ class WrongEKU(RPKI_Exception):
   """
   Extended Key Usage extension does not match profile.
   """
+
+class UnexpectedUpDownResponse(RPKI_Exception):
+  """
+  Up-down message is not of the expected type.
+  """

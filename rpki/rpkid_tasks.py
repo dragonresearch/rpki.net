@@ -176,12 +176,12 @@ class PollParentTask(AbstractTask):
   def parent_loop(self, parent_iterator, parent):
     self.parent_iterator = parent_iterator
     self.parent = parent
-    rpki.up_down.list_pdu.query(parent, self.got_list, self.list_failed)
+    parent.up_down_list_query(self.got_list, self.list_failed)
 
   def got_list(self, r_msg):
     self.ca_map = dict((ca.parent_resource_class, ca) for ca in self.parent.cas)
     self.gctx.checkpoint()
-    rpki.async.iterator(r_msg.payload.classes, self.class_loop, self.class_done)
+    rpki.async.iterator(r_msg.getiterator(rpki.up_down.tag_class), self.class_loop, self.class_done)
 
   def list_failed(self, e):
     logger.exception("Couldn't get resource class list from parent %r, skipping", self.parent)
@@ -191,7 +191,7 @@ class PollParentTask(AbstractTask):
     self.gctx.checkpoint()
     self.class_iterator = class_iterator
     try:
-      ca = self.ca_map.pop(rc.class_name)
+      ca = self.ca_map.pop(rc.get("class_name"))
     except KeyError:
       rpki.rpkid.ca_obj.create(self.parent, rc, class_iterator, self.class_create_failed)
     else:

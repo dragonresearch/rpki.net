@@ -740,10 +740,11 @@ class parent_elt(data_elt):
     """
 
     def done(r_msg):
-      cb(dict((rc.class_name, set(c.cert.gSKI() for c in rc.certs))
-              for rc in r_msg.payload.classes))
-
-    rpki.up_down.list_pdu.query(self, done, eb)
+      cb(dict((rc.get("class_name"),
+               set(rpki.x509.X509(Base64 = c.text).gSKI()
+                   for c in rc.getiterator(rpki.up_down.tag_certificate)))
+              for rc in r_msg.getiterator(rpki.up_down.tag_class)))
+    self.up_down_list_query(done, eb)
 
 
   def revoke_skis(self, rc_name, skis_to_revoke, cb, eb):
@@ -752,12 +753,10 @@ class parent_elt(data_elt):
     """
 
     def loop(iterator, ski):
+      def revoked(r_pdu):
+        iterator()
       logger.debug("Asking parent %r to revoke class %r, SKI %s", self, rc_name, ski)
-      q_pdu = rpki.up_down.revoke_pdu()
-      q_pdu.class_name = rc_name
-      q_pdu.ski = ski
-      self.query_up_down(q_pdu, lambda r_pdu: iterator(), eb)
-
+      self.up_down_revoke_query(rc_name, ski, revoked, eb)
     rpki.async.iterator(skis_to_revoke, loop, cb)
 
 
@@ -826,7 +825,51 @@ class parent_elt(data_elt):
     self.delete(cb, delete_parent = False)
 
 
-  def query_up_down(self, q_pdu, cb, eb):
+  def _compose_up_down_query(self, query_type):
+    """
+    Compose top level element of an up-down query to this parent.
+    """
+
+    return Element(rpki.up_down.tag_message, nsmap = rpki.up_down.nsmap, version = rpki.up_down.version,
+                   sender  = self.sender_name, recipient = self.recipient_name, type = query_type)
+
+
+  def up_down_list_query(self, cb, eb):
+    """
+    Send an up-down list query to this parent.
+    """
+
+    q_msg = self._compose_up_down_query("list")
+    self.query_up_down(q_msg, cb, eb)
+
+
+  def up_down_issue_query(self, ca, ca_detail, cb, eb):
+    """
+    Send an up-down issue query to this parent.
+    """
+
+    pkcs10 = rpki.x509.PKCS10.create(
+      keypair      = ca_detail.private_key_id,
+      is_ca        = True,
+      caRepository = ca.sia_uri,
+      rpkiManifest = ca_detail.manifest_uri)
+    q_msg = self._compose_up_down_query("issue")
+    q_pdu = SubElement(q_msg, rpki.up_down.tag_request, class_name = ca.parent_resource_class)
+    q_pdu.text = pkcs10.get_Base64()
+    self.query_up_down(q_msg, cb, eb)
+
+
+  def up_down_revoke_query(self, class_name, ski, cb, eb):
+    """
+    Send an up-down revoke query to this parent.
+    """
+
+    q_msg = self._compose_up_down_query("revoke")
+    SubElement(q_msg, rpki.up_down.tag_key, class_name = class_name, ski = ski)
+    self.query_up_down(q_msg, cb, eb)
+
+
+  def query_up_down(self, q_msg, cb, eb):
     """
     Client code for sending one up-down query PDU to this parent.
     """
@@ -838,25 +881,21 @@ class parent_elt(data_elt):
     if bsc.signing_cert is None:
       raise rpki.exceptions.BSCNotReady("BSC %r[%s] is not yet usable" % (bsc.bsc_handle, bsc.bsc_id))
 
-    q_msg = rpki.up_down.message_pdu.make_query(
-      payload = q_pdu,
-      sender = self.sender_name,
-      recipient = self.recipient_name)
-
-    q_der = rpki.up_down.cms_msg().wrap(q_msg, bsc.private_key_id,
-                                        bsc.signing_cert,
-                                        bsc.signing_cert_crl)
+    q_der = rpki.up_down.cms_msg_no_sax().wrap(q_msg, bsc.private_key_id,
+                                               bsc.signing_cert,
+                                               bsc.signing_cert_crl)
 
     def unwrap(r_der):
       try:
-        r_cms = rpki.up_down.cms_msg(DER = r_der)
+        r_cms = rpki.up_down.cms_msg_no_sax(DER = r_der)
         r_msg = r_cms.unwrap((self.gctx.bpki_ta,
                               self.self.bpki_cert,
                               self.self.bpki_glue,
                               self.bpki_cms_cert,
                               self.bpki_cms_glue))
         r_cms.check_replay_sql(self, self.peer_contact_uri)
-        r_msg.payload.check_response()
+        rpki.up_down.check_response(r_msg, q_msg.get("type"))
+
       except (SystemExit, rpki.async.ExitNow):
         raise
       except Exception, e:
@@ -1131,7 +1170,7 @@ class child_elt(data_elt):
 
     def lose(e, quiet = False):
       logger.exception("Unhandled exception serving child %r", self)
-      rpki.up_down.generate_error_response(r_msg, description = e)
+      rpki.up_down.generate_error_response_from_exception(r_msg, e, q_type)
       done()
 
     bsc = self.bsc

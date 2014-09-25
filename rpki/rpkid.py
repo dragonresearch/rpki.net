@@ -119,17 +119,6 @@ class main(object):
 
     self.publication_kludge_base = self.cfg.get("publication-kludge-base", "publication/")
 
-    # Icky hack to let Iain do some testing quickly, should go away
-    # once we sort out whether we can make this change permanent.
-    #
-    # OK, the stuff to add router certificate support makes enough
-    # other changes that we're going to need a migration program in
-    # any case, so might as well throw the switch here too, or at
-    # least find out if it (still) works as expected.
-
-    self.merge_publication_directories = self.cfg.getboolean("merge_publication_directories",
-                                                             True)
-
     self.use_internal_cron = self.cfg.getboolean("use-internal-cron", True)
 
     self.initial_delay = random.randint(self.cfg.getint("initial-delay-min", 10),
@@ -519,16 +508,12 @@ class ca_obj(rpki.sql.sql_persistent):
     information and the parent's up-down protocol list_response PDU.
     """
 
-    sia_uri = rc.suggested_sia_head and rc.suggested_sia_head.rsync()
-    if not sia_uri or not sia_uri.startswith(parent.sia_base):
+    sia_uri = rc.get("suggested_sia_head", "")
+    if not sia_uri.startswith("rsync://") or not sia_uri.startswith(parent.sia_base):
       sia_uri = parent.sia_base
     if not sia_uri.endswith("/"):
       raise rpki.exceptions.BadURISyntax("SIA URI must end with a slash: %s" % sia_uri)
-    # With luck this can go away sometime soon.
-    if self.gctx.merge_publication_directories:
-      return sia_uri
-    else:
-      return sia_uri + str(self.ca_id) + "/"
+    return sia_uri
 
   def check_for_updates(self, parent, rc, cb, eb):
     """
@@ -545,29 +530,40 @@ class ca_obj(rpki.sql.sql_persistent):
       self.sia_uri = sia_uri
       self.sql_mark_dirty()
 
-    rc_resources = rc.to_resource_bag()
-    cert_map = dict((c.cert.get_SKI(), c) for c in rc.certs)
+    class_name = rc.get("class_name")
+
+    rc_resources = rpki.resource_set.resource_bag(
+      rc.get("resource_set_as"),
+      rc.get("resource_set_ipv4"),
+      rc.get("resource_set_ipv6"),
+      rc.get("resource_set_notafter"))
+
+    cert_map = {}
+    for c in rc.getiterator(rpki.up_down.tag_certificate):
+      x = rpki.x509.X509(Base64 = c.text)
+      u = rpki.up_down.multi_uri(c.get("cert_url")).rsync()
+      cert_map[x.gSKI()] = (x, u)
 
     def loop(iterator, ca_detail):
 
       self.gctx.checkpoint()
 
-      rc_cert = cert_map.pop(ca_detail.public_key.get_SKI(), None)
+      rc_cert, rc_cert_uri = cert_map.pop(ca_detail.public_key.gSKI(), (None, None))
 
       if rc_cert is None:
 
         logger.warning("SKI %s in resource class %s is in database but missing from list_response to %s from %s, "
                        "maybe parent certificate went away?",
-                       ca_detail.public_key.gSKI(), rc.class_name, parent.self.self_handle, parent.parent_handle)
+                       ca_detail.public_key.gSKI(), class_name, parent.self.self_handle, parent.parent_handle)
         publisher = publication_queue()
         ca_detail.delete(ca = ca_detail.ca, publisher = publisher)
         return publisher.call_pubd(iterator, eb)
 
       else:
 
-        if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc_cert.cert_url.rsync():
-          logger.debug("AIA changed: was %s now %s", ca_detail.ca_cert_uri, rc_cert.cert_url.rsync())
-          ca_detail.ca_cert_uri = rc_cert.cert_url.rsync()
+        if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc_cert_uri:
+          logger.debug("AIA changed: was %s now %s", ca_detail.ca_cert_uri, rc_cert_uri)
+          ca_detail.ca_cert_uri = rc_cert_uri
           ca_detail.sql_mark_dirty()
 
         if ca_detail.state in ("pending", "active"):
@@ -579,7 +575,7 @@ class ca_obj(rpki.sql.sql_persistent):
 
           if (ca_detail.state == "pending" or
               sia_uri_changed or
-              ca_detail.latest_ca_cert != rc_cert.cert or
+              ca_detail.latest_ca_cert != rc_cert or
               ca_detail.latest_ca_cert.getNotAfter() != rc_resources.valid_until or
               current_resources.undersized(rc_resources) or
               current_resources.oversized(rc_resources)):
@@ -597,9 +593,7 @@ class ca_obj(rpki.sql.sql_persistent):
     def done():
       if cert_map:
         logger.warning("Unknown certificate SKI%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?",
-                       "" if len(cert_map) == 1 else "s",
-                       ", ".join(c.cert.gSKI() for c in cert_map.values()),
-                       rc.class_name, parent.self.self_handle, parent.parent_handle)
+                       "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.self.self_handle, parent.parent_handle)
       self.gctx.sql.sweep()
       self.gctx.checkpoint()
       cb()
@@ -607,26 +601,25 @@ class ca_obj(rpki.sql.sql_persistent):
     ca_details = self.issue_response_candidate_ca_details
 
     if True:
-      skis_parent = set(x.cert.gSKI()
-                        for x in cert_map.itervalues())
+      skis_parent = set(cert_map)
       skis_me     = set(x.latest_ca_cert.gSKI()
                         for x in ca_details
                         if x.latest_ca_cert is not None)
       for ski in skis_parent & skis_me:
         logger.debug("Parent %s agrees that %s has SKI %s in resource class %s",
-                     parent.parent_handle, parent.self.self_handle, ski, rc.class_name)
+                     parent.parent_handle, parent.self.self_handle, ski, class_name)
       for ski in skis_parent - skis_me:
         logger.debug("Parent %s thinks %s has SKI %s in resource class %s but I don't think so",
-                     parent.parent_handle, parent.self.self_handle, ski, rc.class_name)
+                     parent.parent_handle, parent.self.self_handle, ski, class_name)
       for ski in skis_me - skis_parent:
         logger.debug("I think %s has SKI %s in resource class %s but parent %s doesn't think so",
-                     parent.self.self_handle, ski, rc.class_name, parent.parent_handle)
+                     parent.self.self_handle, ski, class_name, parent.parent_handle)
 
     if ca_details:
       rpki.async.iterator(ca_details, loop, done)
     else:
       logger.warning("Existing resource class %s to %s from %s with no certificates, rekeying",
-                     rc.class_name, parent.self.self_handle, parent.parent_handle)
+                     class_name, parent.self.self_handle, parent.parent_handle)
       self.gctx.checkpoint()
       self.rekey(cb, eb)
 
@@ -640,7 +633,7 @@ class ca_obj(rpki.sql.sql_persistent):
     self = cls()
     self.gctx = parent.gctx
     self.parent_id = parent.parent_id
-    self.parent_resource_class = rc.class_name
+    self.parent_resource_class = rc.get("class_name")
     self.sql_store()
     try:
       self.sia_uri = self.construct_sia_uri(parent, rc)
@@ -649,18 +642,18 @@ class ca_obj(rpki.sql.sql_persistent):
       raise
     ca_detail = ca_detail_obj.create(self)
 
-    def done(issue_response):
-      c = issue_response.payload.classes[0].certs[0]
-      logger.debug("CA %r received certificate %s", self, c.cert_url)
+    def done(r_msg):
+      c = r_msg[0][0]
+      logger.debug("CA %r received certificate %s", self, c.get("cert_url"))
       ca_detail.activate(
         ca       = self,
-        cert     = c.cert,
-        uri      = c.cert_url,
+        cert     = rpki.x509.X509(Base64 = c.text),
+        uri      = c.get("cert_url"),
         callback = cb,
         errback  = eb)
 
     logger.debug("Sending issue request to %r from %r", parent, self.create)
-    rpki.up_down.issue_pdu.query(parent, self, ca_detail, done, eb)
+    parent.up_down_issue_query(self, ca_detail, done, eb)
 
   def delete(self, parent, callback):
     """
@@ -727,19 +720,19 @@ class ca_obj(rpki.sql.sql_persistent):
     old_detail = self.active_ca_detail
     new_detail = ca_detail_obj.create(self)
 
-    def done(issue_response):
-      c = issue_response.payload.classes[0].certs[0]
-      logger.debug("CA %r received certificate %s", self, c.cert_url)
+    def done(r_msg):
+      c = r_msg[0][0]
+      logger.debug("CA %r received certificate %s", self, c.get("cert_url"))
       new_detail.activate(
         ca          = self,
-        cert        = c.cert,
-        uri         = c.cert_url,
+        cert        = rpki.x509.X509(Base64 = c.text),
+        uri         = c.get("cert_url"),
         predecessor = old_detail,
         callback    = cb,
         errback     = eb)
 
     logger.debug("Sending issue request to %r from %r", parent, self.rekey)
-    rpki.up_down.issue_pdu.query(parent, self, new_detail, done, eb)
+    parent.up_down_issue_query(self, new_detail, done, eb)
 
   def revoke(self, cb, eb, revoke_all = False):
     """
@@ -942,7 +935,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     publisher = publication_queue()
 
     self.latest_ca_cert = cert
-    self.ca_cert_uri = uri.rsync()
+    self.ca_cert_uri = uri
     self.generate_manifest_cert()
     self.state = "active"
     self.generate_crl(publisher = publisher)
@@ -1033,13 +1026,18 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
     ca = self.ca
     parent = ca.parent
+    class_name = ca.parent_resource_class
+    gski = self.latest_ca_cert.gSKI()
 
     def parent_revoked(r_msg):
 
-      if r_msg.payload.ski != self.latest_ca_cert.gSKI():
+      if r_msg[0].get("class_name") != class_name:
+        raise rpki.exceptions.ResourceClassMismatch
+
+      if r_msg[0].get("ski") != gski:
         raise rpki.exceptions.SKIMismatch
 
-      logger.debug("Parent revoked %s, starting cleanup", self.latest_ca_cert.gSKI())
+      logger.debug("Parent revoked %s, starting cleanup", gski)
 
       crl_interval = rpki.sundial.timedelta(seconds = parent.self.crl_interval)
 
@@ -1077,8 +1075,9 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       self.sql_mark_dirty()
       publisher.call_pubd(cb, eb)
 
-    logger.debug("Asking parent to revoke CA certificate %s", self.latest_ca_cert.gSKI())
-    rpki.up_down.revoke_pdu.query(ca, self.latest_ca_cert.gSKI(), parent_revoked, eb)
+    logger.debug("Asking parent to revoke CA certificate %s", gski)
+    parent.up_down_revoke_query(class_name, gski, parent_revoked, eb)
+
 
   def update(self, parent, ca, rc, sia_uri_changed, old_resources, callback, errback):
     """
@@ -1086,24 +1085,27 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     children of this ca_detail.
     """
 
-    def issued(issue_response):
-      c = issue_response.payload.classes[0].certs[0]
-      logger.debug("CA %r received certificate %s", self, c.cert_url)
+    def issued(r_msg):
+      c = r_msg[0][0]
+      cert = rpki.x509.X509(Base64 = c.text)
+      cert_url = c.get("cert_url")
+
+      logger.debug("CA %r received certificate %s", self, cert_url)
 
       if self.state == "pending":
         return self.activate(
           ca       = ca,
-          cert     = c.cert,
-          uri      = c.cert_url,
+          cert     = cert,
+          uri      = cert_url,
           callback = callback,
           errback  = errback)
 
-      validity_changed = self.latest_ca_cert is None or self.latest_ca_cert.getNotAfter() != c.cert.getNotAfter()
+      validity_changed = self.latest_ca_cert is None or self.latest_ca_cert.getNotAfter() != cert.getNotAfter()
 
       publisher = publication_queue()
 
-      if self.latest_ca_cert != c.cert:
-        self.latest_ca_cert = c.cert
+      if self.latest_ca_cert != cert:
+        self.latest_ca_cert = cert
         self.sql_mark_dirty()
         self.generate_manifest_cert()
         self.generate_crl(publisher = publisher)
@@ -1131,7 +1133,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       publisher.call_pubd(callback, errback)
 
     logger.debug("Sending issue request to %r from %r", parent, self.update)
-    rpki.up_down.issue_pdu.query(parent, ca, self, issued, errback)
+    parent.up_down_issue_query(ca, self, issued, errback)
+
 
   @classmethod
   def create(cls, ca):

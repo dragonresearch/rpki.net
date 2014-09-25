@@ -355,9 +355,8 @@ class main(object):
         self.rpkid_cms_timestamp = q_cms.check_replay(self.rpkid_cms_timestamp, request.path)
         getattr(self, "handle_" + q_type)(q_msg, r_msg)
       except Exception, e:
-        # Should catch specific exceptions here to give better error codes.
         logger.exception("Exception processing up-down %s message", q_type)
-        rpki.up_down.generate_error_response(r_msg, description = e)
+        rpki.up_down.generate_error_response_from_exception(r_msg, e, q_type)
       request.send_cms_response(rpki.up_down.cms_msg_no_sax().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert,
                                                                    self.rootd_bpki_crl if self.include_bpki_crl else None))
     except Exception, e:

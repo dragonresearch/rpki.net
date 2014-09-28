@@ -259,7 +259,7 @@ class Release(object):
         if not os.path.exists(fn):
             logging.info("Creating %s", fn)
             with open(fn, "w") as f:
-                for pkg in backports:
+                for pkg in self.backports:
                     f.write(dedent("""\
                         %-30s	Priority	optional
                         %-30s	Section		python

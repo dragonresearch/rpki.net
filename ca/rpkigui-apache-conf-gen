@@ -385,7 +385,7 @@ class Debian(Platform):
   Debian and related platforms like Ubuntu.
   """
 
-  apache_conf_target = "/etc/apache2/sites-available/rpki"
+  apache_conf_target = "/etc/apache2/sites-available/rpki.conf"
 
   snake_oil_cer = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
   snake_oil_key = "/etc/ssl/private/ssl-cert-snakeoil.key"

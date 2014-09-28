@@ -16,38 +16,58 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
+"""
+Debian/Ubuntu package build tool, based on pbuilder-dist and reprepro.
+"""
+
 import os
 import sys
 import time
 import fcntl
 import errno
 import socket
+import logging
+import argparse
 import subprocess
 
-debug  = False
+from textwrap import dedent
+
+#from apt_pkg import version_compare
+
+rpki_packages = ("rpki-rp", "rpki-ca")
+rpki_source_package = "rpki"
+
+parser = argparse.ArgumentParser(description = __doc__,
+                                 formatter_class = argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("--debug", action = "store_true",
+                    help = "enable debugging code")
+parser.add_argument("--update-build-after", type = int, default = 7 * 24 * 60 * 60,
+                    help = "interval (in seconds) after which we should update the pbuilder environment")
+parser.add_argument("--lockfile", default = os.path.expanduser("~/builder.lock"),
+                    help = "avoid collisions between multiple instances of this script")
+parser.add_argument("--keyring",  default = os.path.expanduser("~/.gnupg/pubring.gpg"),
+                    help = "PGP keyring")
+parser.add_argument("--svn-tree", default = os.path.expanduser("~/source/trunk/"),
+                    help = "subversion tree")
+parser.add_argument("--apt-tree", default = os.path.expanduser("~/repository/"),
+                    help = "reprepro repository")
+parser.add_argument("--srv-path", default = "aptbot@download.rpki.net:/usr/local/www/data/download.rpki.net/APT/",
+                    help = "upload destination")
+parser.add_argument("--source-format", default = "http://download.rpki.net/APT/%(distribution)s %(release)s main",
+                    help = "source.list format string")
+args = parser.parse_args()
+
+# Maybe logging should be conigurable too.  Later.
+
+logging.basicConfig(level = logging.INFO)
+
 upload = socket.getfqdn() == "build-u.rpki.net"
 
-def run(*args, **kwargs):
-    if debug:
-        log("Running %r %r" % (args, kwargs))
-    subprocess.check_call(args, **kwargs)
-
-def log(msg):
-    # Maybe this should go to syslog instead, but this works for now.
-    sys.stdout.write(time.strftime("%Y-%m-%dT%H:%M:%SZ ", time.gmtime()))
-    sys.stdout.write(msg)
-    sys.stdout.write("\n")
-    sys.stdout.flush()
-
-lockfile = os.path.expanduser("~/builder.lock")
-svn_tree = os.path.expanduser("~/source/trunk/")
-apt_tree = os.path.expanduser("~/repository/")
-ubu_tree = os.path.join(apt_tree, "ubuntu/")
-deb_tree = os.path.join(apt_tree, "debian/")
-srv_path = "aptbot@download.rpki.net:/usr/local/www/data/download.rpki.net/APT/"
-ubu_env  = dict(os.environ,
-                OTHERMIRROR = "deb http://download.rpki.net/APT/ubuntu precise main")
-deb_env  = os.environ
+def run(*cmd, **kwargs):
+    if args.debug:
+        #logging.info("Running %r %r", cmd, kwargs)
+        logging.info("Running %s", " ".join(cmd))
+    subprocess.check_call(cmd, **kwargs)
 
 # Getting this to work right also required adding:
 #
@@ -60,78 +80,229 @@ deb_env  = os.environ
 #
 # http://stackoverflow.com/questions/21563872/reprepro-complains-about-the-generated-pbuilder-debian-tar-gz-archive-md5
 
-log("Starting")
+logging.info("Starting")
 
 try:
-    lock = os.open(lockfile, os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
+    lock = os.open(args.lockfile, os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
 except (IOError, OSError), e:
-    sys.exit(0 if e.errno == errno.EAGAIN else "Error %r opening lock %r" % lockfile)
+    sys.exit(0 if e.errno == errno.EAGAIN else "Error %r opening lock %r" % args.lockfile)
 
-os.chdir(svn_tree)
+run("svn", "--quiet", "update", cwd = args.svn_tree)
 
-run("svn", "--quiet", "update")
+version = subprocess.check_output(("svnversion", "-c"), cwd = args.svn_tree).strip().split(":")[-1]
 
-version = subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1]
-
-if not version.isdigit() and not debug:
+if not version.isdigit() and not args.debug:
     sys.exit("Sources don't look pristine, not building (%r)" % version)
 
 version = "0." + version
 
-dsc = os.path.join(svn_tree, "..", "rpki_%s.dsc" % version)
+dsc_dir = os.path.abspath(os.path.join(args.svn_tree, ".."))
+dsc = os.path.join(dsc_dir, "rpki_%s.dsc" % version)
 
 if not os.path.exists(dsc):
-    log("Building source package %s" % version)
-    for fn in os.listdir(".."):
+    logging.info("Building source package %s", version)
+    for fn in os.listdir(dsc_dir):
         if fn != "trunk":
-            os.unlink(os.path.join("..", fn))
-    run("rm", "-rf", "debian")
-    run("python", "buildtools/make-version.py")
-    run("python", "buildtools/build-ubuntu-ports.py")
-    run("dpkg-buildpackage", "-S", "-us", "-uc", "-rfakeroot")
+            os.unlink(os.path.join(dsc_dir, fn))
+    run("rm", "-rf", "debian", cwd = args.svn_tree)
+    run("python", "buildtools/make-version.py", cwd = args.svn_tree)
+    run("python", "buildtools/build-ubuntu-ports.py", cwd = args.svn_tree)
+    run("dpkg-buildpackage", "-S", "-us", "-uc", "-rfakeroot", cwd = args.svn_tree)
 
-for dist, tree, env in (("precise", ubu_tree, ubu_env),
-                        ("wheezy",  deb_tree, deb_env)):
+if not os.path.isdir(args.apt_tree):
+    logging.info("Creating %s", args.apt_tree)
+    os.makedirs(args.apt_tree)
 
-    for arch, tag in (("amd64", ""), ("i386",  "-i386")):
+fn = os.path.join(args.apt_tree, "apt-gpg-key.asc")
+if not os.path.exists(fn):
+    logging.info("Creating %s", fn)
+    run("gpg", "--export", "--armor", "--keyring", args.keyring, stdout = open(fn, "w"))
 
-        basedir = os.path.expanduser("~/pbuilder/%s%s-base.tgz" % (dist, tag))
-        result  = os.path.expanduser("~/pbuilder/%s%s_result" % (dist, tag))
-        changes = os.path.join(result, "rpki_%s_%s.changes" % (version, arch))
+class Release(object):
 
-        # Update the build environment if it's been more than a week since
-        # we last did that.  If this turns out to be error-prone, we might
-        # want to put it in a cron job of its own so it doesn't crash the
-        # normal cycle, but let's try it this way for a start.
-        #
-        if time.time() > os.stat(basedir).st_mtime + (7 * 24 * 60 * 60):
-            log("Updating build environment %s %s" % (dist, arch))
-            run("pbuilder-dist", dist, arch, "update",
-                env = env)
+    architectures = dict(amd64 = "", i386 = "-i386")
 
-        if not os.path.exists(changes):
-            # The need for --ignore=wrongdistribution may indicate
-            # something I'm doing wrong in hack-debian-changelog.py,
-            # revisit that later.  For now, just whack with a stick.
-            #
-            log("Building binary packages %s %s %s" % (dist, arch, version))
-            for fn in os.listdir(result):
-                os.unlink(os.path.join(result, fn))
-            run("pbuilder-dist", dist, arch, "build", dsc,
-                env = env)
-            run("reprepro", "--ignore=wrongdistribution", "include", dist, changes,
-                cwd = tree)
+    releases = []
+    packages = {}
+
+    def __init__(self, release, distribution, *backports):
+        self.release = release
+        self.distribution = distribution
+        self.backports = backports
+        if backports:
+            self.env = dict(os.environ,
+                            OTHERMIRROR = "deb " + args.source_format  % dict(distribution = distribution, release = release))
+        else:
+            self.env = os.environ
+        self.releases.append(self)
+
+    @classmethod
+    def do_all_releases(cls):
+        for release in cls.releases:
+            release.setup_reprepro()
+        for release in cls.releases:
+            release.list_repository()
+        for release in cls.releases:
+            for release.arch, release.tag in cls.architectures.iteritems():
+                release.do_one_architecture()
+            del release.arch, release.tag
+
+    @staticmethod
+    def repokey(release, architecture, package):
+        return (release, architecture, package)
+
+    def list_repository(self):
+        cmd = ("reprepro", "list", self.release)
+        logging.info("Running %s", " ".join(cmd))
+        listing = subprocess.check_output(cmd, cwd = self.tree)
+        for line in listing.replace(":", " ").replace("|", " ").splitlines():
+            rel, comp, arch, pkg, ver = line.split()
+            key = (rel, arch, pkg)
+            assert key not in self.packages
+            self.packages[key] = ver
+
+    @property
+    def deb_in_repository(self):
+        return all(self.packages.get((self.release, self.arch, package)) == version
+                   for package in rpki_packages)
+
+    @property
+    def src_in_repository(self):
+        return self.packages.get((self.release, "source", rpki_source_package)) == version
+
+    @property
+    def tree(self):
+        return os.path.join(args.apt_tree, self.distribution, "")
+
+    @property
+    def basefile(self):
+        return os.path.expanduser("~/pbuilder/%s%s-base.tgz" % (self.release, self.tag))
+
+    @property
+    def result(self):
+        return os.path.expanduser("~/pbuilder/%s%s_result" % (self.release, self.tag))
+
+    @property
+    def changes(self):
+        return os.path.join(self.result, "rpki_%s_%s.changes" % (version, self.arch))
+
+    def do_one_architecture(self):
+        logging.info("Running build for %s %s %s", self.distribution, self.release, self.arch)
+
+        if not os.path.exists(self.basefile):
+            logging.info("Creating build environment %s %s", self.release, self.arch)
+            run("pbuilder-dist", self.release, self.arch, "create", env = self.env)
+
+        elif time.time() > os.stat(self.basefile).st_mtime + args.update_build_after:
+            logging.info("Updating build environment %s %s", self.release, self.arch)
+            run("pbuilder-dist", self.release, self.arch, "update", env = self.env)
+
+        if not os.path.exists(self.changes):
+            logging.info("Building binary packages %s %s %s", self.release, self.arch, version)
+            for fn in os.listdir(self.result):
+                os.unlink(os.path.join(self.result, fn))
+            run("pbuilder-dist", self.release, self.arch, "build", "--keyring", args.keyring, dsc, env = self.env)
+
+        if not self.deb_in_repository:
+            logging.info("Updating repository for %s %s %s", self.release, self.arch, version)
+            run("reprepro", "--ignore=wrongdistribution", "include", self.release, self.changes, cwd = self.tree)
+
+        if not self.src_in_repository:
+            logging.info("Updating repository for %s source %s", self.release, version)
+            run("reprepro", "--ignore=wrongdistribution", "includedsc", self.release, dsc, cwd = self.tree)
+
+    def setup_reprepro(self):
+
+        logging.info("Configuring reprepro for %s/%s", self.distribution, self.release)
+
+        dn = os.path.join(self.tree, "conf")
+        if not os.path.isdir(dn):
+            logging.info("Creating %s", dn)
+            os.makedirs(dn)
+
+        fn = os.path.join(self.tree, "conf", "distributions")
+        distributions = open(fn, "r").read() if os.path.exists(fn) else ""
+        if ("Codename: %s\n" % self.release) not in distributions:
+            logging.info("%s %s", "Editing" if distributions else "Creating", fn)
+            with open(fn, "w") as f:
+                if distributions:
+                    f.write(distributions)
+                    f.write("\n")
+                f.write(dedent("""\
+                        Origin: rpki.net
+                        Label: rpki.net %(distribution)s repository
+                        Codename: %(release)s
+                        Architectures: %(architectures)s source
+                        Components: main
+                        Description: rpki.net %(Distribution)s APT Repository
+                        SignWith: yes
+                        DebOverride: override.%(release)s
+                        DscOverride: override.%(release)s
+                        """ % dict(
+                            distribution = self.distribution,
+                            Distribution = self.distribution.capitalize(),
+                            architectures = " ".join(self.architectures),
+                            release = self.release)))
+
+        fn = os.path.join(self.tree, "conf", "options")
+        if not os.path.exists(fn):
+            logging.info("Creating %s", fn)
+            with open(fn, "w") as f:
+                f.write(dedent("""\
+                        verbose
+                        ask-passphrase
+                        basedir .
+                        """))
+
+        fn = os.path.join(self.tree, "conf", "override." + self.release)
+        if not os.path.exists(fn):
+            logging.info("Creating %s", fn)
+            with open(fn, "w") as f:
+                for pkg in self.backports:
+                    f.write(dedent("""\
+                        %-30s	Priority	optional
+                        %-30s	Section		python
+                        """ % (pkg, pkg)))
+                f.write(dedent("""\
+                        rpki-ca			Priority	extra
+                        rpki-ca			Section		net
+                        rpki-rp			Priority	extra
+                        rpki-rp			Section		net
+                        """))
+
+        fn = os.path.join(args.apt_tree, "rpki.%s.list" % self.release)
+        if not os.path.exists(fn):
+            logging.info("Creating %s", fn)
+            source = args.source_format % dict(distribution = self.distribution, release = self.release)
+            with open(fn, "w") as f:
+                f.write("deb %s\n" % source)
+                f.write("deb-src %s\n" % source)
+
+# At the moment, none of these distributions include South 1.1,
+# and only trusty includes Django 1.6.
+#
+# reprepro seems unable to cope with multipel packages with the same
+# name and version even when they really are different and are for
+# different releases.  Oh well, we didn't want to support precise
+# forever.
+
+Release("trusty", "ubuntu", "python-django-south")
+Release("wheezy", "debian", "python-django", "python-django-south")
+
+#Release("precise", "ubuntu", "python-django", "python-django-south")
+
+Release.do_all_releases()
 
 if upload:
-    log("Synching repository to server")
+    logging.info("Synching repository to server")
     run("rsync", "-ai4",
         "--ignore-existing",
-        apt_tree, srv_path)
+        args.apt_tree, args.srv_path)
     run("rsync", "-ai4",
         "--exclude", "HEADER.html",
         "--exclude", "HEADER.css",
         "--delete", "--delete-delay",
-        apt_tree, srv_path)
+        args.apt_tree, args.srv_path)
 
-log("Done")
+logging.info("Done")

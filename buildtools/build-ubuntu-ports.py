@@ -19,16 +19,14 @@
 """
 Set up for a Debian or Ubuntu package build.
 
-This is a script because we need to set the changelog, and some day
-we may need to do something about filtering specific files so we can
-use the same skeleton for both Ubuntu and Debian builds without
-requiring them to be identical.
-
-For now, though, this just copies the debian skeleton and creates a
-changelog.
+This is a script because we need to create the changelog.  Other than
+that, we just copy the Debian skeleton and optionally run the programs
+necessary to produce a test build (production builds are happened
+elsewhere, under pbuilder).
 """
 
 import subprocess
+import platform
 import argparse
 import shutil
 import sys
@@ -37,6 +35,8 @@ import os
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("-b", "--debuild", action = "store_true", help = "run debuild")
 parser.add_argument("-i", "--debi", action = "store_true", help = "run debi")
+parser.add_argument("-s", "--version-suffix", nargs = "?", const = platform.linux_distribution()[2],
+                    help = "suffix to add to version string")
 args = parser.parse_args()
 
 version = "0." + subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1]
@@ -51,8 +51,12 @@ shutil.copytree("buildtools/debian-skeleton", "debian", ignore = ignore_dot_svn)
 
 os.chmod("debian/rules", 0755)
 
-subprocess.check_call(("dch", "--create", "--package", "rpki", "--newversion",  version,
-                       "Version %s of https://subvert-rpki.hactrn.net/trunk/" % version),
+msg = "Version %s of https://subvert-rpki.hactrn.net/trunk/" % version
+
+if args.version_suffix:
+    version += "~" + args.version_suffix
+
+subprocess.check_call(("dch", "--create", "--package", "rpki", "--newversion",  version, msg),
                       env = dict(os.environ,
                                  EDITOR   = "true",
                                  VISUAL   = "true",

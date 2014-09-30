@@ -2,18 +2,20 @@
 #
 # $Id$
 #
-# Copyright (C) 2013 Internet Systems Consortium ("ISC")
-#
+# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2013  Internet Systems Consortium ("ISC")
+# 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# copyright notices and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
+# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
 """
@@ -31,8 +33,6 @@ import argparse
 import subprocess
 
 from textwrap import dedent
-
-#from apt_pkg import version_compare
 
 rpki_packages = ("rpki-rp", "rpki-ca")
 rpki_source_package = "rpki"
@@ -59,7 +59,8 @@ args = parser.parse_args()
 
 # Maybe logging should be conigurable too.  Later.
 
-logging.basicConfig(level = logging.INFO)
+logging.basicConfig(level = logging.INFO, timefmt = "%Y-%m-%dT%H:%M:%S",
+                    format = "%(asctime)s [%(process)d] %(levelname)s %(message)s")
 
 upload = socket.getfqdn() == "build-u.rpki.net"
 
@@ -79,6 +80,11 @@ def run(*cmd, **kwargs):
 # checksums than the ones loaded initially.  See:
 #
 # http://stackoverflow.com/questions/21563872/reprepro-complains-about-the-generated-pbuilder-debian-tar-gz-archive-md5
+#
+# Putting stuff in ~/.pbuilderrc didn't work with pbuilder-dist when I
+# tried it last year, this may just be that sudo isn't configured to
+# pass HOME through, thus pbuilder is looking for ~root/.pbuilderrc.
+# Worth trying again at some point but not all that critical.
 
 logging.info("Starting")
 
@@ -90,25 +96,14 @@ except (IOError, OSError), e:
 
 run("svn", "--quiet", "update", cwd = args.svn_tree)
 
-version = subprocess.check_output(("svnversion", "-c"), cwd = args.svn_tree).strip().split(":")[-1]
+source_version = subprocess.check_output(("svnversion", "-c"), cwd = args.svn_tree).strip().split(":")[-1]
 
-if not version.isdigit() and not args.debug:
-    sys.exit("Sources don't look pristine, not building (%r)" % version)
+if not source_version.isdigit() and not args.debug:
+    sys.exit("Sources don't look pristine, not building (%r)" % source_version)
 
-version = "0." + version
+source_version = "0." + source_version
 
 dsc_dir = os.path.abspath(os.path.join(args.svn_tree, ".."))
-dsc = os.path.join(dsc_dir, "rpki_%s.dsc" % version)
-
-if not os.path.exists(dsc):
-    logging.info("Building source package %s", version)
-    for fn in os.listdir(dsc_dir):
-        if fn != "trunk":
-            os.unlink(os.path.join(dsc_dir, fn))
-    run("rm", "-rf", "debian", cwd = args.svn_tree)
-    run("python", "buildtools/make-version.py", cwd = args.svn_tree)
-    run("python", "buildtools/build-ubuntu-ports.py", cwd = args.svn_tree)
-    run("dpkg-buildpackage", "-S", "-us", "-uc", "-rfakeroot", cwd = args.svn_tree)
 
 if not os.path.isdir(args.apt_tree):
     logging.info("Creating %s", args.apt_tree)
@@ -164,12 +159,20 @@ class Release(object):
 
     @property
     def deb_in_repository(self):
-        return all(self.packages.get((self.release, self.arch, package)) == version
+        return all(self.packages.get((self.release, self.arch, package)) == self.version
                    for package in rpki_packages)
 
     @property
     def src_in_repository(self):
-        return self.packages.get((self.release, "source", rpki_source_package)) == version
+        return self.packages.get((self.release, "source", rpki_source_package)) == self.version
+
+    @property
+    def version(self):
+        return source_version + "~" + self.release
+
+    @property
+    def dsc(self):
+        return os.path.join(dsc_dir, "rpki_%s.dsc" % self.version)
 
     @property
     def tree(self):
@@ -185,10 +188,20 @@ class Release(object):
 
     @property
     def changes(self):
-        return os.path.join(self.result, "rpki_%s_%s.changes" % (version, self.arch))
+        return os.path.join(self.result, "rpki_%s_%s.changes" % (self.version, self.arch))
 
     def do_one_architecture(self):
         logging.info("Running build for %s %s %s", self.distribution, self.release, self.arch)
+
+        if not os.path.exists(self.dsc):
+            logging.info("Building source package %s", self.version)
+            for fn in os.listdir(dsc_dir):
+                if fn != "trunk":
+                    os.unlink(os.path.join(dsc_dir, fn))
+            run("rm", "-rf", "debian", cwd = args.svn_tree)
+            run(sys.executable, "buildtools/make-version.py", cwd = args.svn_tree)
+            run(sys.executable, "buildtools/build-ubuntu-ports.py", "--version-suffix", self.release, cwd = args.svn_tree)
+            run("dpkg-buildpackage", "-S", "-us", "-uc", "-rfakeroot", cwd = args.svn_tree)
 
         if not os.path.exists(self.basefile):
             logging.info("Creating build environment %s %s", self.release, self.arch)
@@ -199,18 +212,18 @@ class Release(object):
             run("pbuilder-dist", self.release, self.arch, "update", env = self.env)
 
         if not os.path.exists(self.changes):
-            logging.info("Building binary packages %s %s %s", self.release, self.arch, version)
+            logging.info("Building binary packages %s %s %s", self.release, self.arch, self.version)
             for fn in os.listdir(self.result):
                 os.unlink(os.path.join(self.result, fn))
-            run("pbuilder-dist", self.release, self.arch, "build", "--keyring", args.keyring, dsc, env = self.env)
+            run("pbuilder-dist", self.release, self.arch, "build", "--keyring", args.keyring, self.dsc, env = self.env)
 
         if not self.deb_in_repository:
-            logging.info("Updating repository for %s %s %s", self.release, self.arch, version)
+            logging.info("Updating repository for %s %s %s", self.release, self.arch, self.version)
             run("reprepro", "--ignore=wrongdistribution", "include", self.release, self.changes, cwd = self.tree)
 
         if not self.src_in_repository:
-            logging.info("Updating repository for %s source %s", self.release, version)
-            run("reprepro", "--ignore=wrongdistribution", "includedsc", self.release, dsc, cwd = self.tree)
+            logging.info("Updating repository for %s source %s", self.release, self.version)
+            run("reprepro", "--ignore=wrongdistribution", "includedsc", self.release, self.dsc, cwd = self.tree)
 
     def setup_reprepro(self):
 
@@ -279,20 +292,17 @@ class Release(object):
                 f.write("deb %s\n" % source)
                 f.write("deb-src %s\n" % source)
 
-# At the moment, none of these distributions include South 1.1,
-# and only trusty includes Django 1.6.
-#
-# reprepro seems unable to cope with multipel packages with the same
-# name and version even when they really are different and are for
-# different releases.  Oh well, we didn't want to support precise
-# forever.
+# Finally, here's where we specify the distributions for which we're building.
 
 Release("trusty", "ubuntu", "python-django-south")
 Release("wheezy", "debian", "python-django", "python-django-south")
+Release("precise", "ubuntu", "python-django", "python-django-south")
 
-#Release("precise", "ubuntu", "python-django", "python-django-south")
+# Do all the real work.
 
 Release.do_all_releases()
+
+# Upload results, maybe.
 
 if upload:
     logging.info("Synching repository to server")

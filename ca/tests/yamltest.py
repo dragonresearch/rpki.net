@@ -428,6 +428,12 @@ class allocation(object):
         lxml.etree.ElementTree(xml).write(path, pretty_print = True)
       if not args.stop_after_config:
         self.run_rpkic("add_router_certificate_request", fn)
+      if not args.skip_config and args.store_router_private_keys:
+        path = self.path("%s.routercerts.keys" % d.name)
+        print "Writing", path
+	with open(path, "w") as f:
+	  for r in self.router_certs:
+	    f.write(r.keypair.get_PEM())
 
   @property
   def pubd(self):
@@ -656,6 +662,8 @@ parser.add_argument("--synchronize", action = "store_true",
                     help = "synchronize IRDB with daemons")
 parser.add_argument("--profile", action = "store_true",
                     help = "enable profiling")
+parser.add_argument("--store-router-private-keys", action = "store_true",
+                    help = "write generate router private keys to disk")
 parser.add_argument("yaml_file", type = argparse.FileType("r"),
                     help = "YAML description of test network")
 args = parser.parse_args()

@@ -967,14 +967,12 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
           <ref name="ipv6_list"/>
         </attribute>
       </optional>
-      <optional>
-        <attribute name="cn">
-          <data type="string">
-            <param name="maxLength">64</param>
-            <param name="pattern">[\-0-9A-Za-z_ ]+</param>
-          </data>
-        </attribute>
-      </optional>
+      <attribute name="cn">
+        <data type="string">
+          <param name="maxLength">64</param>
+          <param name="pattern">[\-0-9A-Za-z_ ]+</param>
+        </data>
+      </attribute>
       <optional>
         <attribute name="sn">
           <data type="string">

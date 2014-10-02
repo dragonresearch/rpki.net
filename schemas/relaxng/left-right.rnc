@@ -271,7 +271,7 @@ list_ee_certificate_requests_reply = element list_ee_certificate_requests {
   attribute asn  { asn_list }?,
   attribute ipv4 { ipv4_list }?,
   attribute ipv6 { ipv6_list }?,
-  attribute cn  { xsd:string { maxLength="64"     pattern="[\-0-9A-Za-z_ ]+" } }?,
+  attribute cn  { xsd:string { maxLength="64"     pattern="[\-0-9A-Za-z_ ]+" } },
   attribute sn  { xsd:string { maxLength="64"     pattern="[0-9A-Fa-f]+"     } }?,
   attribute eku { xsd:string { maxLength="512000" pattern="[.,0-9]+"         } }?,
   element pkcs10 { base64 }

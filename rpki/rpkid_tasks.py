@@ -358,7 +358,7 @@ class UpdateROAsTask(AbstractTask):
     logger.debug("Issuing query for ROA requests")
     self.gctx.irdb_query_roa_requests(self.self_handle, self.got_roa_requests, self.roa_requests_failed)
 
-  def got_roa_requests(self, roa_requests):
+  def got_roa_requests(self, r_msg):
     self.gctx.checkpoint()
     logger.debug("Received response to query for ROA requests")
 
@@ -384,15 +384,17 @@ class UpdateROAsTask(AbstractTask):
       else:
         self.orphans.append(roa)
 
-    for roa_request in roa_requests:
-      k = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
+    for r_pdu in r_msg:
+      k = (r_pdu.get("asn"), r_pdu.get("ipv4"), r_pdu.get("ipv6"))
       if k in seen:
-        logger.warning("Skipping duplicate ROA request %r", roa_request)
+        logger.warning("Skipping duplicate ROA request %r", r_pdu)
       else:
         seen.add(k)
         roa = roas.pop(k, None)
         if roa is None:
-          roa = rpki.rpkid.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
+          roa = rpki.rpkid.roa_obj(self.gctx, self.self_id, long(r_pdu.get("asn")),
+                                   rpki.resource_set.roa_prefix_set_ipv4(r_pdu.get("ipv4")),
+                                   rpki.resource_set.roa_prefix_set_ipv6(r_pdu.get("ipv6")))
           logger.debug("Created new %r", roa)
         else:
           logger.debug("Found existing %r", roa)
@@ -484,7 +486,7 @@ class UpdateGhostbustersTask(AbstractTask):
                                               self.got_ghostbuster_requests,
                                               self.ghostbuster_requests_failed)
 
-  def got_ghostbuster_requests(self, ghostbuster_requests):
+  def got_ghostbuster_requests(self, r_msg):
 
     try:
       self.gctx.checkpoint()
@@ -507,24 +509,24 @@ class UpdateGhostbustersTask(AbstractTask):
         else:
           ghostbusters[k] = ghostbuster
 
-      for ghostbuster_request in ghostbuster_requests:
-        if ghostbuster_request.parent_handle not in parents:
-          logger.warning("Unknown parent_handle %r in Ghostbuster request, skipping", ghostbuster_request.parent_handle)
+      for r_pdu in r_msg:
+        if r_pdu.get("parent_handle") not in parents:
+          logger.warning("Unknown parent_handle %r in Ghostbuster request, skipping", r_pdu.get("parent_handle"))
           continue
-        k = (ghostbuster_request.parent_handle, ghostbuster_request.vcard)
+        k = (r_pdu.get("parent_handle"), r_pdu.text)
         if k in seen:
-          logger.warning("Skipping duplicate Ghostbuster request %r", ghostbuster_request)
+          logger.warning("Skipping duplicate Ghostbuster request %r", r_pdu)
           continue
         seen.add(k)
-        for ca in parents[ghostbuster_request.parent_handle].cas:
+        for ca in parents[r_pdu.get("parent_handle")].cas:
           ca_detail = ca.active_ca_detail
           if ca_detail is not None:
-            ghostbuster = ghostbusters.pop((ca_detail.ca_detail_id, ghostbuster_request.vcard), None)
+            ghostbuster = ghostbusters.pop((ca_detail.ca_detail_id, r_pdu.text), None)
             if ghostbuster is None:
-              ghostbuster = rpki.rpkid.ghostbuster_obj(self.gctx, self.self_id, ca_detail.ca_detail_id, ghostbuster_request.vcard)
-              logger.debug("Created new %r for %r", ghostbuster, ghostbuster_request.parent_handle)
+              ghostbuster = rpki.rpkid.ghostbuster_obj(self.gctx, self.self_id, ca_detail.ca_detail_id, r_pdu.text)
+              logger.debug("Created new %r for %r", ghostbuster, r_pdu.get("parent_handle"))
             else:
-              logger.debug("Found existing %r for %s", ghostbuster, ghostbuster_request.parent_handle)
+              logger.debug("Found existing %r for %s", ghostbuster, r_pdu.get("parent_handle"))
             ghostbuster.update(publisher = publisher, fast = True)
             ca_details.add(ca_detail)
 
@@ -575,7 +577,7 @@ class UpdateEECertificatesTask(AbstractTask):
                                                  self.got_requests,
                                                  self.get_requests_failed)
 
-  def got_requests(self, requests):
+  def got_requests(self, r_msg):
 
     try:
       self.gctx.checkpoint()
@@ -594,39 +596,43 @@ class UpdateEECertificatesTask(AbstractTask):
 
       ca_details = set()
 
-      for req in requests:
-        ees = existing.pop(req.gski, ())
+      for r_pdu in r_msg:
+        gski = r_pdu.get("gski")
+        ees = existing.pop(gski, ())
         resources = rpki.resource_set.resource_bag(
-          asn         = req.asn,
-          v4          = req.ipv4,
-          v6          = req.ipv6,
-          valid_until = req.valid_until)
+          asn         = rpki.resource_set.resource_set_as(r_pdu.get("asn")),
+          v4          = rpki.resource_set.resource_set_ipv4(r_pdu.get("ipv4")),
+          v6          = rpki.resource_set.resource_set_ipv6(r_pdu.get("ipv6")),
+          valid_until = rpki.sundial.datetime.fromXMLtime(r_pdu.get("valid_until")))
         covering = self.find_covering_ca_details(resources)
         ca_details.update(covering)
 
         for ee in ees:
           if ee.ca_detail in covering:
             logger.debug("Updating existing EE certificate for %s %s",
-                         req.gski, resources)
+                         gski, resources)
             ee.reissue(
               resources = resources,
               publisher = publisher)
             covering.remove(ee.ca_detail)
           else:
             logger.debug("Existing EE certificate for %s %s is no longer covered",
-                         req.gski, resources)
+                         gski, resources)
             ee.revoke(publisher = publisher)
+
+        subject_name = rpki.x509.X501DN.from_cn(r_pdu.get("cn"), r_pdu.get("sn"))
+        subject_key  = rpki.x509.PKCS10(Base64 = r_pdu.text).getPublicKey()
 
         for ca_detail in covering:
           logger.debug("No existing EE certificate for %s %s",
-                       req.gski, resources)
+                       gski, resources)
           rpki.rpkid.ee_cert_obj.create(
             ca_detail    = ca_detail,
-            subject_name = rpki.x509.X501DN.from_cn(req.cn, req.sn),
-            subject_key  = req.pkcs10.getPublicKey(),
+            subject_name = subject_name,
+            subject_key  = subject_key,
             resources    = resources,
             publisher    = publisher,
-            eku          = req.eku or None)
+            eku          = r_pdu.eku or None)
 
       # Anything left is an orphan
       for ees in existing.values():

@@ -154,35 +154,34 @@ class main(object):
     else:
       logger.debug("Not using internal clock, start_cron() call ignored")
 
-  def irdb_query(self, callback, errback, *q_pdus, **kwargs):
+  @staticmethod
+  def _compose_left_right_query():
+    """
+    Compose top level element of a left-right query to irdbd.
+    """
+
+    return Element(rpki.left_right.tag_msg, nsmap = rpki.left_right.nsmap,
+                   type = "query", version = rpki.left_right.version)
+
+  def irdb_query(self, q_msg, callback, errback):
     """
     Perform an IRDB callback query.
     """
 
     try:
-      q_types = tuple(type(q_pdu) for q_pdu in q_pdus)
+      q_tags = set(q_pdu.tag for q_pdu in q_msg)
 
-      expected_pdu_count = kwargs.pop("expected_pdu_count", None)
-      assert len(kwargs) == 0
-
-      q_msg = rpki.left_right.msg.query()
-      q_msg.extend(q_pdus)
-      q_der = rpki.left_right.cms_msg().wrap(q_msg, self.rpkid_key, self.rpkid_cert)
+      q_der = rpki.left_right.cms_msg_no_sax().wrap(q_msg, self.rpkid_key, self.rpkid_cert)
 
       def unwrap(r_der):
         try:
-          r_cms = rpki.left_right.cms_msg(DER = r_der)
+          r_cms = rpki.left_right.cms_msg_no_sax(DER = r_der)
           r_msg = r_cms.unwrap((self.bpki_ta, self.irdb_cert))
           self.irdbd_cms_timestamp = r_cms.check_replay(self.irdbd_cms_timestamp, self.irdb_url)
-          if not r_msg.is_reply() or not all(type(r_pdu) in q_types for r_pdu in r_msg):
+          #rpki.left_right.check_response(r_msg)
+          if r_msg.get("type") != "reply" or not all(r_pdu.tag in q_tags for r_pdu in r_msg):
             raise rpki.exceptions.BadIRDBReply(
               "Unexpected response to IRDB query: %s" % r_cms.pretty_print_content())
-          if expected_pdu_count is not None and len(r_msg) != expected_pdu_count:
-            assert isinstance(expected_pdu_count, (int, long))
-            raise rpki.exceptions.BadIRDBReply(
-              "Expected exactly %d PDU%s from IRDB: %s" % (
-              expected_pdu_count, "" if expected_pdu_count == 1 else "s",
-              r_cms.pretty_print_content()))
           callback(r_msg)
         except Exception, e:
           errback(e)
@@ -202,53 +201,50 @@ class main(object):
     Ask IRDB about a child's resources.
     """
 
-    q_pdu = rpki.left_right.list_resources_elt()
-    q_pdu.self_handle = self_handle
-    q_pdu.child_handle = child_handle
+    q_msg = self._compose_left_right_query()
+    SubElement(q_msg, rpki.left_right.tag_list_resources,
+               self_handle = self_handle, child_handle = child_handle)
 
     def done(r_msg):
+      if len(r_msg) != 1:
+        raise rpki.exceptions.BadIRDBReply(
+          "Expected exactly one PDU from IRDB: %s" % r_cms.pretty_print_content())
       callback(rpki.resource_set.resource_bag(
-        asn         = r_msg[0].asn,
-        v4          = r_msg[0].ipv4,
-        v6          = r_msg[0].ipv6,
-        valid_until = r_msg[0].valid_until))
+        asn         = rpki.resource_set.resource_set_as(r_msg[0].get("asn")),
+        v4          = rpki.resource_set.resource_set_ipv4(r_msg[0].get("ipv4")),
+        v6          = rpki.resource_set.resource_set_ipv6(r_msg[0].get("ipv6")),
+        valid_until = rpki.sundial.datetime.fromXMLtime(r_msg[0].get("valid_until"))))
 
-    self.irdb_query(done, errback, q_pdu, expected_pdu_count = 1)
+    self.irdb_query(q_msg, done, errback)
 
   def irdb_query_roa_requests(self, self_handle, callback, errback):
     """
     Ask IRDB about self's ROA requests.
     """
 
-    q_pdu = rpki.left_right.list_roa_requests_elt()
-    q_pdu.self_handle = self_handle
-
-    self.irdb_query(callback, errback, q_pdu)
+    q_msg = self._compose_left_right_query()
+    SubElement(q_msg, rpki.left_right.tag_list_roa_requests, self_handle = self_handle)
+    self.irdb_query(q_msg, callback, errback)
 
   def irdb_query_ghostbuster_requests(self, self_handle, parent_handles, callback, errback):
     """
     Ask IRDB about self's ghostbuster record requests.
     """
 
-    q_pdus = []
-
+    q_msg = self._compose_left_right_query()
     for parent_handle in parent_handles:
-      q_pdu = rpki.left_right.list_ghostbuster_requests_elt()
-      q_pdu.self_handle = self_handle
-      q_pdu.parent_handle = parent_handle
-      q_pdus.append(q_pdu)
-
-    self.irdb_query(callback, errback, *q_pdus)
+      SubElement(q_msg, rpki.left_right.tag_list_ghostbuster_requests,
+                 self_handle = self_handle, parent_handle = parent_handle)
+    self.irdb_query(q_msg, callback, errback)
 
   def irdb_query_ee_certificate_requests(self, self_handle, callback, errback):
     """
     Ask IRDB about self's EE certificate requests.
     """
 
-    q_pdu = rpki.left_right.list_ee_certificate_requests_elt()
-    q_pdu.self_handle = self_handle
-
-    self.irdb_query(callback, errback, q_pdu)
+    q_msg = self._compose_left_right_query()
+    SubElement(q_msg, rpki.left_right.tag_list_ee_certificate_requests, self_handle = self_handle)
+    self.irdb_query(q_msg, callback, errback)
 
   def left_right_handler(self, query, path, cb):
     """

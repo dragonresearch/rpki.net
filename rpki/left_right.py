@@ -46,11 +46,20 @@ xmlns   = rpki.relaxng.left_right.xmlns
 nsmap   = rpki.relaxng.left_right.nsmap
 version = rpki.relaxng.left_right.version
 
-tag_list_resources      = xmlns + "list_resources"
-tag_list_roa_requests   = xmlns + "list_roa_requests"
-tag_msg                 = xmlns + "msg"
-tag_pkcs10              = xmlns + "pkcs10"
-tag_report_error        = xmlns + "report_error"
+tag_bsc                          = xmlns + "bsc"
+tag_child                        = xmlns + "child"
+tag_list_ee_certificate_requests = xmlns + "list_ee_certificate_requests"
+tag_list_ghostbuster_requests    = xmlns + "list_ghostbuster_requests"
+tag_list_published_objects       = xmlns + "list_published_objects"
+tag_list_received_resources      = xmlns + "list_received_resources"
+tag_list_resources               = xmlns + "list_resources"
+tag_list_roa_requests            = xmlns + "list_roa_requests"
+tag_msg                          = xmlns + "msg"
+tag_parent                       = xmlns + "parent"
+tag_pkcs10                       = xmlns + "pkcs10"
+tag_report_error                 = xmlns + "report_error"
+tag_repository                   = xmlns + "repository"
+tag_self                         = xmlns + "self"
 
 
 ## @var enforce_strict_up_down_xml_sender

@@ -102,6 +102,7 @@ if not source_version.isdigit() and not args.debug:
     sys.exit("Sources don't look pristine, not building (%r)" % source_version)
 
 source_version = "0." + source_version
+search_version = "_" + source_version + "~"
 
 dsc_dir = os.path.abspath(os.path.join(args.svn_tree, ".."))
 
@@ -196,7 +197,7 @@ class Release(object):
         if not os.path.exists(self.dsc):
             logging.info("Building source package %s", self.version)
             for fn in os.listdir(dsc_dir):
-                if fn != "trunk":
+                if fn != "trunk" and search_version not in fn:
                     os.unlink(os.path.join(dsc_dir, fn))
             run("rm", "-rf", "debian", cwd = args.svn_tree)
             run(sys.executable, "buildtools/make-version.py", cwd = args.svn_tree)

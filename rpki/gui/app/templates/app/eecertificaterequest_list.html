@@ -1,0 +1,29 @@
+{% extends "app/app_base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Router Certificate Requests</h1>
+</div>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>ASN</th>
+      <th>CN</th>
+      <th>SN</th>
+      <th>GSKI</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for obj in object_list %}
+    <tr>
+      <td>{{ obj.asns.all.0.start_as }}</td>
+      <td><a href="{% url 'router-detail' obj.pk %}" title="view router certificate request">{{ obj.cn }}</a></td>
+      <td>{{ obj.sn }}</td>
+      <td>{{ obj.gski }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock content %}

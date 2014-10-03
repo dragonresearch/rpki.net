@@ -440,3 +440,8 @@ class ResourceHolderCreateForm(forms.Form):
         if handle and parent and parent.children.filter(handle=handle).exists():
             raise forms.ValidationError('parent already has a child by that name')
         return self.cleaned_data
+
+
+class RouterCertificateRequestForm(forms.Form):
+    """form for uploading router cert request"""
+    xml = forms.FileField(label='XML file')

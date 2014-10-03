@@ -159,6 +159,28 @@
 </div><!-- /span -->
 </div><!-- /row -->
 
+<div class='row-fluid'>
+<div class='span6'>
+<div class='page-header'>
+<h1>Router Certificate Requests</h1>
+</div>
+<table class='table table-condensed table-striped'>
+<tr><th>SN</th><th>ASN</th><th>Valid Until</th></tr>
+{% for rtr in conf.router_certs %}
+<tr>
+  <td>{{ rtr.sn }}</td> <td>{{ rtr.asns.all.0.start_as }} </td>
+  <td>{{ rtr.valid_until }}</td>
+  <td>
+    <a class="btn btn-mini" href="{% url "router-detail" rtr.pk %}" title="View"><i class="icon-info-sign"></i></a>
+    <a class="btn btn-mini" href="{% url "router-delete" rtr.pk %}" title="Delete"><i class="icon-trash"></i></a>
+  </td>
+</tr>
+{% endfor %}
+</table>
+<a class="btn" href="{% url "router-import" %}"><i class="icon-plus-sign"></i> Import</a>
+</div>
+</div>
+
 <div class="row-fluid">
   <div class="span6">
     <div class="page-header">

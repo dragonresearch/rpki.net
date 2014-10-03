@@ -46,6 +46,10 @@ xmlns   = rpki.relaxng.left_right.xmlns
 nsmap   = rpki.relaxng.left_right.nsmap
 version = rpki.relaxng.left_right.version
 
+tag_bpki_cert                    = xmlns + "bpki_cert"
+tag_bpki_cms_cert                = xmlns + "bpki_cms_cert"
+tag_bpki_cms_glue                = xmlns + "bpki_cms_glue"
+tag_bpki_glue                    = xmlns + "bpki_glue"
 tag_bsc                          = xmlns + "bsc"
 tag_child                        = xmlns + "child"
 tag_list_ee_certificate_requests = xmlns + "list_ee_certificate_requests"
@@ -57,9 +61,12 @@ tag_list_roa_requests            = xmlns + "list_roa_requests"
 tag_msg                          = xmlns + "msg"
 tag_parent                       = xmlns + "parent"
 tag_pkcs10                       = xmlns + "pkcs10"
+tag_pkcs10_request               = xmlns + "pkcs10_request"
 tag_report_error                 = xmlns + "report_error"
 tag_repository                   = xmlns + "repository"
 tag_self                         = xmlns + "self"
+tag_signing_cert                 = xmlns + "signing_cert"
+tag_signing_cert_crl             = xmlns + "signing_cert_crl"
 
 
 ## @var enforce_strict_up_down_xml_sender

@@ -459,6 +459,26 @@ class Zookeeper(object):
       ca.save()
 
 
+  @staticmethod
+  def _compose_left_right_query():
+    """
+    Compose top level element of a left-right query.
+    """
+
+    return Element(rpki.left_right.tag_msg, nsmap = rpki.left_right.nsmap,
+                   type = "query", version = rpki.left_right.version)
+
+
+  @staticmethod
+  def _compose_publication_control_query():
+    """
+    Compose top level element of a publication-control query.
+    """
+
+    return Element(rpki.publication_control.tag_msg, nsmap = rpki.publication_control.nsmap,
+                   type = "query", version = rpki.publication_control.version)
+
+
   @django.db.transaction.commit_on_success
   def synchronize_bpki(self):
     """
@@ -470,77 +490,68 @@ class Zookeeper(object):
     """
 
     if self.run_rpkid:
-      updates = []
+      q_msg = self._compose_left_right_query()
 
-      updates.extend(
-        rpki.left_right.self_elt.make_pdu(
-          action = "set",
-          tag = "%s__self" % ca.handle,
-          self_handle = ca.handle,
-          bpki_cert = ca.certificate)
-        for ca in rpki.irdb.ResourceHolderCA.objects.all())
+      for ca in rpki.irdb.ResourceHolderCA.objects.all():
+        q_pdu = SubElement(q_msg, rpki.left_right.tag_self,
+                           action = "set",
+                           tag = "%s__self" % ca.handle,
+                           self_handle = ca.handle)
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = ca.certificate.get_Base64()
 
-      updates.extend(
-        rpki.left_right.bsc_elt.make_pdu(
-          action = "set",
-          tag = "%s__bsc__%s" % (bsc.issuer.handle, bsc.handle),
-          self_handle = bsc.issuer.handle,
-          bsc_handle = bsc.handle,
-          signing_cert = bsc.certificate,
-          signing_cert_crl = bsc.issuer.latest_crl)
-        for bsc in rpki.irdb.BSC.objects.all())
+      for bsc in rpki.irdb.BSC.objects.all():
+        q_pdu = SubElement(q_msg, rpki.left_right.tag_bsc,
+                           action = "set",
+                           tag = "%s__bsc__%s" % (bsc.issuer.handle, bsc.handle),
+                           self_handle = bsc.issuer.handle,
+                           bsc_handle = bsc.handle)
+        SubElement(q_pdu, rpki.left_right.tag_signing_cert).text = bsc.certificate.get_Base64()
+        SubElement(q_pdu, rpki.left_right.tag_signing_cert_crl).text = bsc.issuer.latest_crl.get_Base64()
 
-      updates.extend(
-        rpki.left_right.repository_elt.make_pdu(
-          action = "set",
-          tag = "%s__repository__%s" % (repository.issuer.handle, repository.handle),
-          self_handle = repository.issuer.handle,
-          repository_handle = repository.handle,
-          bpki_cert = repository.certificate)
-        for repository in rpki.irdb.Repository.objects.all())
+      for repository in rpki.irdb.Repository.objects.all():
+        q_pdu = SubElement(q_msg, rpki.left_right.tag_repository,
+                           action = "set",
+                           tag = "%s__repository__%s" % (repository.issuer.handle, repository.handle),
+                           self_handle = repository.issuer.handle,
+                           repository_handle = repository.handle)
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = repository.certificate.get_Base64()
 
-      updates.extend(
-        rpki.left_right.parent_elt.make_pdu(
-          action = "set",
-          tag = "%s__parent__%s" % (parent.issuer.handle, parent.handle),
-          self_handle = parent.issuer.handle,
-          parent_handle = parent.handle,
-          bpki_cms_cert = parent.certificate)
-        for parent in rpki.irdb.Parent.objects.all())
+      for parent in rpki.irdb.Parent.objects.all():
+        q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
+                           action = "set",
+                           tag = "%s__parent__%s" % (parent.issuer.handle, parent.handle),
+                           self_handle = parent.issuer.handle,
+                           parent_handle = parent.handle)
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = parent.certificate.get_Base64()
 
-      updates.extend(
-        rpki.left_right.parent_elt.make_pdu(
-          action = "set",
-          tag = "%s__rootd" % rootd.issuer.handle,
-          self_handle = rootd.issuer.handle,
-          parent_handle = rootd.issuer.handle,
-          bpki_cms_cert = rootd.certificate)
-        for rootd in rpki.irdb.Rootd.objects.all())
+      for rootd in rpki.irdb.Rootd.objects.all():
+        q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
+                           action = "set",
+                           tag = "%s__rootd" % rootd.issuer.handle,
+                           self_handle = rootd.issuer.handle,
+                           parent_handle = rootd.issuer.handle)
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = rootd.certificate.get_Base64()
 
-      updates.extend(
-        rpki.left_right.child_elt.make_pdu(
-          action = "set",
-          tag = "%s__child__%s" % (child.issuer.handle, child.handle),
-          self_handle = child.issuer.handle,
-          child_handle = child.handle,
-          bpki_cert = child.certificate)
-        for child in rpki.irdb.Child.objects.all())
+      for child in rpki.irdb.Child.objects.all():
+        q_pdu = SubElement(q_msg, rpki.left_right.tag_child,
+                           action = "set",
+                           tag = "%s__child__%s" % (child.issuer.handle, child.handle),
+                           self_handle = child.issuer.handle,
+                           child_handle = child.handle)
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = child.certificate.get_Base64()
 
-      if updates:
-        self.check_error_report(self.call_rpkid(updates))
+      if len(q_msg) > 0:
+        self.call_rpkid(q_msg)
 
     if self.run_pubd:
-      updates = []
+      q_msg = self._compose_publication_control_query()
 
-      updates.extend(
-        rpki.publication_control.client_elt.make_pdu(
-          action = "set",
-          client_handle = client.handle,
-          bpki_cert = client.certificate)
-        for client in self.server_ca.clients.all())
+      for client in self.server_ca.clients.all():
+        q_pdu = SubElement(q_msg, rpki.publication_control.tag_client, action = "set", client_handle = client.handle)
+        SubElement(q_pdu, rpki.publication_control.tag_bpki_cert).text = client.certificate.get_Base64()
 
-      if updates:
-        self.check_error_report(self.call_pubd(updates))
+      if len(q_msg) > 0:
+        self.call_pubd(q_msg)
 
 
   @django.db.transaction.commit_on_success
@@ -1031,7 +1042,7 @@ class Zookeeper(object):
         vcard = []
 
 
-  def call_rpkid(self, *pdus):
+  def call_rpkid(self, q_msg, suppress_error_check = False):
     """
     Issue a call to rpkid, return result.
     """
@@ -1043,20 +1054,29 @@ class Zookeeper(object):
     rpkid = self.server_ca.ee_certificates.get(purpose = "rpkid")
     irbe  = self.server_ca.ee_certificates.get(purpose = "irbe")
 
-    if len(pdus) == 1 and isinstance(pdus[0], types.GeneratorType):
-      pdus = tuple(pdus[0])
-    elif len(pdus) == 1 and isinstance(pdus[0], (tuple, list)):
-      pdus = pdus[0]
-
-    return rpki.http_simple.client(
-      proto_cms_msg = rpki.left_right.cms_msg,
+    r_msg = rpki.http_simple.client(
+      proto_cms_msg = rpki.left_right.cms_msg_no_sax,
       client_key    = irbe.private_key,
       client_cert   = irbe.certificate,
       server_ta     = self.server_ca.certificate,
       server_cert   = rpkid.certificate,
       url           = url,
-      q_msg         = rpki.left_right.msg.query(*pdus),
+      q_msg         = q_msg,
       debug         = self.show_xml)
+
+    if not suppress_error_check:
+      self.check_error_report(r_msg)
+
+    return r_msg
+
+
+  def _rpkid_self_control(self, *bools):
+    assert all(isinstance(b, str) for b in bools)
+    q_msg = self._compose_left_right_query()
+    q_pdu = SubElement(q_msg, rpki.left_right.tag_self, action = "set", self_handle = self.handle)
+    for b in bools:
+      q_pdu.set(b, "yes")
+    return self.call_rpkid(q_msg)
 
 
   def run_rpkid_now(self):
@@ -1068,8 +1088,7 @@ class Zookeeper(object):
     to force the object to be immediately issued.
     """
 
-    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
-      action = "set", self_handle = self.handle, run_now = "yes"))
+    return self._rpkid_self_control("run_now")
 
 
   def publish_world_now(self):
@@ -1077,8 +1096,7 @@ class Zookeeper(object):
     Poke rpkid to (re)publish everything for the current handle.
     """
 
-    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
-      action = "set", self_handle = self.handle, publish_world_now = "yes"))
+    return self._rpkid_self_control("publish_world_now")
 
 
   def reissue(self):
@@ -1086,8 +1104,8 @@ class Zookeeper(object):
     Poke rpkid to reissue everything for the current handle.
     """
 
-    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
-      action = "set", self_handle = self.handle, reissue = "yes"))
+    return self._rpkid_self_control("reissue")
+
 
   def rekey(self):
     """
@@ -1095,8 +1113,7 @@ class Zookeeper(object):
     handle.
     """
 
-    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
-      action = "set", self_handle = self.handle, rekey = "yes"))
+    return self._rpkid_self_control("rekey")
 
 
   def revoke(self):
@@ -1104,8 +1121,7 @@ class Zookeeper(object):
     Poke rpkid to revoke old RPKI keys for the current handle.
     """
 
-    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
-      action = "set", self_handle = self.handle, revoke = "yes"))
+    return self._rpkid_self_control("revoke")
 
 
   def revoke_forgotten(self):
@@ -1113,8 +1129,7 @@ class Zookeeper(object):
     Poke rpkid to revoke old forgotten RPKI keys for the current handle.
     """
 
-    self.call_rpkid(rpki.left_right.self_elt.make_pdu(
-      action = "set", self_handle = self.handle, revoke_forgotten = "yes"))
+    return self._rpkid_self_control("revoke_forgotten")
 
 
   def clear_all_sql_cms_replay_protection(self):
@@ -1122,20 +1137,25 @@ class Zookeeper(object):
     Tell rpkid and pubd to clear replay protection for all SQL-based
     entities.  This is a fairly blunt instrument, but as we don't
     expect this to be necessary except in the case of gross
-    misconfiguration, it should suffice
+    misconfiguration, it should suffice.
     """
 
-    self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_handle = ca.handle,
-                                                      clear_replay_protection = "yes")
-                    for ca in rpki.irdb.ResourceHolderCA.objects.all())
+    if self.run_rpkid:
+      q_msg = self._compose_left_right_query()
+      for ca in rpki.irdb.ResourceHolderCA.objects.all():
+        SubElement(q_msg, rpki.left_right.tag_self, action = "set",
+                   self_handle = ca.handle, clear_replay_protection = "yes")
+      self.call_rpkid(q_msg)
+
     if self.run_pubd:
-      self.call_pubd(rpki.publication_control.client_elt.make_pdu(action = "set",
-                                                                  client_handle = client.handle,
-                                                                  clear_replay_protection = "yes")
-                     for client in self.server_ca.clients.all())
+      q_msg = self._compose_publication_control_query()
+      for client in self.server_ca.clients.all():
+        SubElement(q_msg, rpki.publication_control.tag_client, action = "set",
+                   client_handle = client.handle, clear_reply_protection = "yes")
+      self.call_pubd(q_msg)
 
 
-  def call_pubd(self, *pdus):
+  def call_pubd(self, q_msg):
     """
     Issue a call to pubd, return result.
     """
@@ -1147,38 +1167,38 @@ class Zookeeper(object):
     pubd = self.server_ca.ee_certificates.get(purpose = "pubd")
     irbe = self.server_ca.ee_certificates.get(purpose = "irbe")
 
-    if len(pdus) == 1 and isinstance(pdus[0], types.GeneratorType):
-      pdus = tuple(pdus[0])
-    elif len(pdus) == 1 and isinstance(pdus[0], (tuple, list)):
-      pdus = pdus[0]
-
-    return rpki.http_simple.client(
-      proto_cms_msg = rpki.publication_control.cms_msg,
+    r_msg = rpki.http_simple.client(
+      proto_cms_msg = rpki.publication_control.cms_msg_no_sax,
       client_key    = irbe.private_key,
       client_cert   = irbe.certificate,
       server_ta     = self.server_ca.certificate,
       server_cert   = pubd.certificate,
       url           = url,
-      q_msg         = rpki.publication_control.msg.query(*pdus),
+      q_msg         = q_msg,
       debug         = self.show_xml)
 
+    self.check_error_report(r_msg)
+    return r_msg
 
-  def check_error_report(self, pdus):
+
+  def check_error_report(self, r_msg):
     """
     Check a response from rpkid or pubd for error_report PDUs, log and
     throw exceptions as needed.
     """
 
-    if any(isinstance(pdu, (rpki.left_right.report_error_elt, rpki.publication_control.report_error_elt)) for pdu in pdus):
-      for pdu in pdus:
-        if isinstance(pdu, rpki.left_right.report_error_elt):
-          self.log("rpkid reported failure: %s" % pdu.error_code)
-        elif isinstance(pdu, rpki.publication_control.report_error_elt):
-          self.log("pubd reported failure: %s" % pdu.error_code)
+    if any(r_pdu.tag in (rpki.left_right.tag_report_error,
+                         rpki.publication_control.tag_report_error)
+           for r_pdu in r_msg):
+      for r_pdu in r_msg:
+        if r_pdu.tag == rpki.left_right.tag_report_error:
+          self.log("rpkid reported failure: %s" % pdu.get("error_code"))
+        elif r_pdu.tag == rpki.publication_control.tag_report_error:
+          self.log("pubd reported failure: %s" % pdu.get("error_code"))
         else:
           continue
-        if pdu.error_text:
-          self.log(pdu.error_text)
+        if r_pdu.text:
+          self.log(r_pdu.text)
       raise CouldntTalkToDaemon
 
 
@@ -1270,20 +1290,35 @@ class Zookeeper(object):
 
     # See what rpkid already has on file for this entity.
 
-    rpkid_reply = self.call_rpkid(
-      rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = ca.handle),
-      rpki.left_right.bsc_elt.make_pdu(       action = "list", tag = "bsc",        self_handle = ca.handle),
-      rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = ca.handle),
-      rpki.left_right.parent_elt.make_pdu(    action = "list", tag = "parent",     self_handle = ca.handle),
-      rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = ca.handle))
+    q_msg = self._compose_left_right_query()
+    SubElement(q_msg, rpki.left_right.tag_self,       action = "get",  self_handle = ca.handle)
+    SubElement(q_msg, rpki.left_right.tag_bsc,        action = "list", self_handle = ca.handle)
+    SubElement(q_msg, rpki.left_right.tag_repository, action = "list", self_handle = ca.handle)
+    SubElement(q_msg, rpki.left_right.tag_parent,     action = "list", self_handle = ca.handle)
+    SubElement(q_msg, rpki.left_right.tag_child,      action = "list", self_handle = ca.handle)
 
-    self_pdu        = rpkid_reply[0]
-    bsc_pdus        = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
-    repository_pdus = dict((x.repository_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.repository_elt))
-    parent_pdus     = dict((x.parent_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.parent_elt))
-    child_pdus      = dict((x.child_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.child_elt))
+    r_msg = self.call_rpkid(q_msg, suppress_error_check = True)
 
-    rpkid_query = []
+    if r_msg[0].tag == rpki.left_right.tag_self:
+      self.check_error_report(r_msg)
+      self_pdu = r_msg[0]
+    else:
+      self_pdu = None
+
+    bsc_pdus        = dict((r_pdu.get("bsc_handle"), r_pdu)
+                           for r_pdu in r_msg
+                           if r_pdu.tag == rpki.left_right.tag_bsc)
+    repository_pdus = dict((r_pdu.get("repository_handle"), r_pdu)
+                           for r_pdu in r_msg
+                           if r_pdu.tag == rpki.left_right.tag_repository)
+    parent_pdus     = dict((r_pdu.get("parent_handle"), r_pdu)
+                           for r_pdu in r_msg
+                           if r_pdu.tag == rpki.left_right.tag_parent)
+    child_pdus      = dict((r_pdu.get("child_handle"), r_pdu)
+                           for r_pdu in r_msg
+                           if r_pdu.tag == rpki.left_right.tag_child)
+
+    q_msg = self._compose_left_right_query()
 
     self_cert, created = rpki.irdb.HostedCA.objects.get_or_certify(
       issuer = self.server_ca,
@@ -1291,73 +1326,67 @@ class Zookeeper(object):
 
     # There should be exactly one <self/> object per hosted entity, by definition
 
-    if (isinstance(self_pdu, rpki.left_right.report_error_elt) or
-        self_pdu.crl_interval != self_crl_interval or
-        self_pdu.regen_margin != self_regen_margin or
-        self_pdu.bpki_cert != self_cert.certificate):
-      rpkid_query.append(rpki.left_right.self_elt.make_pdu(
-        action = "create" if isinstance(self_pdu, rpki.left_right.report_error_elt) else "set",
-        tag = "self",
-        self_handle = ca.handle,
-        bpki_cert = ca.certificate,
-        crl_interval = self_crl_interval,
-        regen_margin = self_regen_margin))
+    if (self_pdu is None or
+        self_pdu.get("crl_interval") != str(self_crl_interval) or
+        self_pdu.get("regen_margin") != str(self_regen_margin) or
+        self_pdu.findtext(rpki.left_right.tag_bpki_cert, "").decode("base64") != self_cert.certificate.get_DER()):
+      q_pdu = SubElement(q_msg, rpki.left_right.tag_self,
+                         action = "create" if self_pdu is None else "set",
+                         tag = "self",
+                         self_handle = ca.handle,
+                         crl_interval = str(self_crl_interval),
+                         regen_margin = str(self_regen_margin))
+      SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = ca.certificate.get_Base64()
 
     # In general we only need one <bsc/> per <self/>.  BSC objects
     # are a little unusual in that the keypair and PKCS #10
-    # subelement is generated by rpkid, so complete setup requires
+    # subelement are generated by rpkid, so complete setup requires
     # two round trips.
 
     bsc_pdu = bsc_pdus.pop(bsc_handle, None)
 
-    if bsc_pdu is None:
-      rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
-        action = "create",
-        tag = "bsc",
-        self_handle = ca.handle,
-        bsc_handle = bsc_handle,
-        generate_keypair = "yes"))
+    if bsc_pdu is None or bsc_pdu.find(rpki.left_right.tag_pkcs10_request) is None:
+      SubElement(q_msg, rpki.left_right.tag_bsc,
+                 action = "create" if bsc_pdu is None else "set",
+                 tag = "bsc",
+                 self_handle = ca.handle,
+                 bsc_handle = bsc_handle,
+                 generate_keypair = "yes")
 
-    elif bsc_pdu.pkcs10_request is None:
-      rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
-        action = "set",
-        tag = "bsc",
-        self_handle = ca.handle,
-        bsc_handle = bsc_handle,
-        generate_keypair = "yes"))
-
-    rpkid_query.extend(rpki.left_right.bsc_elt.make_pdu(
-      action = "destroy", self_handle = ca.handle, bsc_handle = b) for b in bsc_pdus)
+    for bsc_handle in bsc_pdus:
+      SubElement(q_msg, rpki.left_right.tag_bsc,
+                 action = "destroy", self_handle = ca.handle, bsc_handle = bsc_handle)
 
     # If we've already got actions queued up, run them now, so we
     # can finish setting up the BSC before anything tries to use it.
 
-    if rpkid_query:
-      rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(action = "list", tag = "bsc", self_handle = ca.handle))
-      rpkid_reply = self.call_rpkid(rpkid_query)
-      bsc_pdus = dict((x.bsc_handle, x)
-                      for x in rpkid_reply
-                      if isinstance(x, rpki.left_right.bsc_elt) and x.action == "list")
+    if len(q_msg) > 0:
+      SubElement(q_msg, rpki.left_right.tag_bsc, action = "list", tag = "bsc", self_handle = ca.handle)
+      r_msg = self.call_rpkid(q_msg)
+      bsc_pdus = dict((r_pdu.get("bsc_handle"), r_pdu)
+                      for r_pdu in r_msg
+                      if r_pdu.tag == rpki.left_right.tag_bsc and r_pdu.get("action") == "list")
       bsc_pdu = bsc_pdus.pop(bsc_handle, None)
-      self.check_error_report(rpkid_reply)
 
-    rpkid_query = []
+    q_msg = self._compose_left_right_query()
 
-    assert bsc_pdu.pkcs10_request is not None
+    bsc_pkcs10 = bsc_pdu.find(rpki.left_right.tag_pkcs10_request)
+    assert bsc_pkcs10 is not None
 
     bsc, created = rpki.irdb.BSC.objects.get_or_certify(
       issuer = ca,
       handle = bsc_handle,
-      pkcs10 = bsc_pdu.pkcs10_request)
+      pkcs10 = rpki.x509.PKCS10(Base64 = bsc_pkcs10.text))
 
-    if bsc_pdu.signing_cert != bsc.certificate or bsc_pdu.signing_cert_crl != ca.latest_crl:
-      rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
-        action = "set",
-        tag = "bsc",
-        self_handle = ca.handle,
-        bsc_handle = bsc_handle,
-        signing_cert = bsc.certificate,
-        signing_cert_crl = ca.latest_crl))
+    if (bsc_pdu.findtext(rpki.left_right.tag_signing_cert,     "").decode("base64") != bsc.certificate.get_DER() or
+        bsc_pdu.findtext(rpki.left_right.tag_signing_cert_crl, "").decode("base64") != ca.latest_crl.get_DER()):
+      q_pdu = SubElement(q_msg, rpki.left_right.tag_bsc,
+                         action = "set",
+                         tag = "bsc",
+                         self_handle = ca.handle,
+                         bsc_handle = bsc_handle)
+      SubElement(q_pdu, rpki.left_right.tag_signing_cert).text = bsc.certificate.get_Base64()
+      SubElement(q_pdu, rpki.left_right.tag_signing_cert_crl).text = ca.latest_crl.get_Base64()
 
     # At present we need one <repository/> per <parent/>, not because
     # rpkid requires that, but because pubd does.  pubd probably should
@@ -1370,20 +1399,21 @@ class Zookeeper(object):
       repository_pdu = repository_pdus.pop(repository.handle, None)
 
       if (repository_pdu is None or
-          repository_pdu.bsc_handle != bsc_handle or
-          repository_pdu.peer_contact_uri != repository.service_uri or
-          repository_pdu.bpki_cert != repository.certificate):
-        rpkid_query.append(rpki.left_right.repository_elt.make_pdu(
-          action = "create" if repository_pdu is None else "set",
-          tag = repository.handle,
-          self_handle = ca.handle,
-          repository_handle = repository.handle,
-          bsc_handle = bsc_handle,
-          peer_contact_uri = repository.service_uri,
-          bpki_cert = repository.certificate))
+          repository_pdu.get("bsc_handle") != bsc_handle or
+          repository_pdu.get("peer_contact_uri") != repository.service_uri or
+          repository_pdu.findtext(rpki.left_right.tag_bpki_cert, "").decode("base64") != repository.certificate.get_DER()):
+        q_pdu = SubElement(q_msg, rpki.left_right.tag_repository,
+                           action = "create" if repository_pdu is None else "set",
+                           tag = repository.handle,
+                           self_handle = ca.handle,
+                           repository_handle = repository.handle,
+                           bsc_handle = bsc_handle,
+                           peer_contact_uri = repository.service_uri)
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = repository.certificate.get_Base64()
 
-    rpkid_query.extend(rpki.left_right.repository_elt.make_pdu(
-      action = "destroy", self_handle = ca.handle, repository_handle = r) for r in repository_pdus)
+    for repository_handle in repository_pdus:
+      SubElement(q_msg, rpki.left_right.tag_repository, action = "destroy",
+                 self_handle = ca.handle, repository_handle = repository_handle)
 
     # <parent/> setup code currently assumes 1:1 mapping between
     # <repository/> and <parent/>, and further assumes that the handles
@@ -1396,29 +1426,28 @@ class Zookeeper(object):
     for parent in ca.parents.all():
 
       try:
-
         parent_pdu = parent_pdus.pop(parent.handle, None)
 
         if (parent_pdu is None or
-            parent_pdu.bsc_handle != bsc_handle or
-            parent_pdu.repository_handle != parent.handle or
-            parent_pdu.peer_contact_uri != parent.service_uri or
-            parent_pdu.sia_base != parent.repository.sia_base or
-            parent_pdu.sender_name != parent.child_handle or
-            parent_pdu.recipient_name != parent.parent_handle or
-            parent_pdu.bpki_cms_cert != parent.certificate):
-          rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
-            action = "create" if parent_pdu is None else "set",
-            tag = parent.handle,
-            self_handle = ca.handle,
-            parent_handle = parent.handle,
-            bsc_handle = bsc_handle,
-            repository_handle = parent.handle,
-            peer_contact_uri = parent.service_uri,
-            sia_base = parent.repository.sia_base,
-            sender_name = parent.child_handle,
-            recipient_name = parent.parent_handle,
-            bpki_cms_cert = parent.certificate))
+            parent_pdu.get("bsc_handle") != bsc_handle or
+            parent_pdu.get("repository_handle") != parent.handle or
+            parent_pdu.get("peer_contact_uri") != parent.service_uri or
+            parent_pdu.get("sia_base") != parent.repository.sia_base or
+            parent_pdu.get("sender_name") != parent.child_handle or
+            parent_pdu.get("recipient_name") != parent.parent_handle or
+            parent_pdu.findtext(rpki.left_right.tag_bpki_cms_cert, "").decode("base64") != parent.certificate.get_DER()):
+          q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
+                             action = "create" if parent_pdu is None else "set",
+                             tag = parent.handle,
+                             self_handle = ca.handle,
+                             parent_handle = parent.handle,
+                             bsc_handle = bsc_handle,
+                             repository_handle = parent.handle,
+                             peer_contact_uri = parent.service_uri,
+                             sia_base = parent.repository.sia_base,
+                             sender_name = parent.child_handle,
+                             recipient_name = parent.parent_handle)
+          SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = parent.certificate.get_Base64()
 
       except rpki.irdb.Repository.DoesNotExist:
         pass
@@ -1428,31 +1457,32 @@ class Zookeeper(object):
       parent_pdu = parent_pdus.pop(ca.handle, None)
 
       if (parent_pdu is None or
-          parent_pdu.bsc_handle != bsc_handle or
-          parent_pdu.repository_handle != ca.handle or
-          parent_pdu.peer_contact_uri != ca.rootd.service_uri or
-          parent_pdu.sia_base != ca.rootd.repository.sia_base or
-          parent_pdu.sender_name != ca.handle or
-          parent_pdu.recipient_name != ca.handle or
-          parent_pdu.bpki_cms_cert != ca.rootd.certificate):
-        rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
-          action = "create" if parent_pdu is None else "set",
-          tag = ca.handle,
-          self_handle = ca.handle,
-          parent_handle = ca.handle,
-          bsc_handle = bsc_handle,
-          repository_handle = ca.handle,
-          peer_contact_uri = ca.rootd.service_uri,
-          sia_base = ca.rootd.repository.sia_base,
-          sender_name = ca.handle,
-          recipient_name = ca.handle,
-          bpki_cms_cert = ca.rootd.certificate))
+          parent_pdu.get("bsc_handle") != bsc_handle or
+          parent_pdu.get("repository_handle") != ca.handle or
+          parent_pdu.get("peer_contact_uri") != ca.rootd.service_uri or
+          parent_pdu.get("sia_base") != ca.rootd.repository.sia_base or
+          parent_pdu.get("sender_name") != ca.handle or
+          parent_pdu.get("recipient_name") != ca.handle or
+          parent_pdu.findtext(rpki.left_right.tag_bpki_cms_cert).decode("base64") != ca.rootd.certificate.get_DER()):
+        q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
+                           action = "create" if parent_pdu is None else "set",
+                           tag = ca.handle,
+                           self_handle = ca.handle,
+                           parent_handle = ca.handle,
+                           bsc_handle = bsc_handle,
+                           repository_handle = ca.handle,
+                           peer_contact_uri = ca.rootd.service_uri,
+                           sia_base = ca.rootd.repository.sia_base,
+                           sender_name = ca.handle,
+                           recipient_name = ca.handle)
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = ca.rootd.certificate.get_Base64()
 
     except rpki.irdb.Rootd.DoesNotExist:
       pass
 
-    rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
-      action = "destroy", self_handle = ca.handle, parent_handle = p) for p in parent_pdus)
+    for parent_handle in parent_pdus:
+      SubElement(q_msg, rpki.left_right.tag_parent, action = "destroy",
+                 self_handle = ca.handle, parent_handle = parent_handle)
 
     # Children are simpler than parents, because they call us, so no URL
     # to construct and figuring out what certificate to use is their
@@ -1463,33 +1493,29 @@ class Zookeeper(object):
       child_pdu = child_pdus.pop(child.handle, None)
 
       if (child_pdu is None or
-          child_pdu.bsc_handle != bsc_handle or
-          child_pdu.bpki_cert != child.certificate):
-        rpkid_query.append(rpki.left_right.child_elt.make_pdu(
-          action = "create" if child_pdu is None else "set",
-          tag = child.handle,
-          self_handle = ca.handle,
-          child_handle = child.handle,
-          bsc_handle = bsc_handle,
-          bpki_cert = child.certificate))
+          child_pdu.get("bsc_handle") != bsc_handle or
+          child_pdu.findtext(rpki.left_right.tag_bpki_cert).decode("base64") != child.certificate.get_DER()):
+        q_pdu = SubElement(q_msg, rpki.left_right.tag_child,
+                           action = "create" if child_pdu is None else "set",
+                           tag = child.handle,
+                           self_handle = ca.handle,
+                           child_handle = child.handle,
+                           bsc_handle = bsc_handle)
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = child.certificate.get_Base64()
 
-    rpkid_query.extend(rpki.left_right.child_elt.make_pdu(
-      action = "destroy", self_handle = ca.handle, child_handle = c) for c in child_pdus)
+    for child_handle in child_pdus:
+      SubElement(q_msg, rpki.left_right.tag_child, action = "destroy",
+                 self_handle = ca.handle, child_handle = child_handle)
 
     # If caller wants us to poke rpkid, add that to the very end of the message
 
     if poke:
-      rpkid_query.append(rpki.left_right.self_elt.make_pdu(
-        action = "set", self_handle = ca.handle, run_now = "yes"))
+      SubElement(q_msg, rpki.left_right.tag_self, action = "set", self_handle = ca.handle, run_now = "yes")
 
-    # If we changed anything, ship updates off to rpkid
+    # If we changed anything, ship updates off to rpkid.
 
-    if rpkid_query:
-      rpkid_reply = self.call_rpkid(rpkid_query)
-      bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
-      if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
-        bsc_req = bsc_pdus[bsc_handle].pkcs10_request
-      self.check_error_report(rpkid_reply)
+    if len(q_msg) > 0:
+      self.call_rpkid(q_msg)
 
 
   def synchronize_pubd_core(self):
@@ -1511,24 +1537,28 @@ class Zookeeper(object):
 
     # See what pubd already has on file
 
-    pubd_reply = self.call_pubd(rpki.publication_control.client_elt.make_pdu(action = "list"))
-    client_pdus = dict((x.client_handle, x) for x in pubd_reply if isinstance(x, rpki.publication_control.client_elt))
-    pubd_query = []
+    q_msg = self._compose_publication_control_query()
+    SubElement(q_msg, rpki.publication_control.tag_client, action = "list")
+    r_msg = self.call_pubd(q_msg)
+    client_pdus = dict((r_pdu.get("client_handle"), r_pdu)
+                       for r_pdu in r_msg)
 
     # Check all clients
+
+    q_msg = self._compose_publication_control_query()
 
     for client in self.server_ca.clients.all():
 
       client_pdu = client_pdus.pop(client.handle, None)
 
       if (client_pdu is None or
-          client_pdu.base_uri != client.sia_base or
-          client_pdu.bpki_cert != client.certificate):
-        pubd_query.append(rpki.publication_control.client_elt.make_pdu(
-          action = "create" if client_pdu is None else "set",
-          client_handle = client.handle,
-          bpki_cert = client.certificate,
-          base_uri = client.sia_base))
+          client_pdu.get("base_uri") != client.sia_base or
+          client_pdu.findtext(rpki.publication_control.tag_bpki_cert, "").decode("base64") != client.certificate.get_DER()):
+        q_pdu = SubElement(q_msg, rpki.publication_control.tag_client,
+                           action = "create" if client_pdu is None else "set",
+                           client_handle = client.handle,
+                           base_uri = client.sia_base)
+        SubElement(q_pdu, rpki.publication_control.tag_bpki_cert).text = client.certificate.get_Base64()
 
     # rootd instances are also a weird sort of client
 
@@ -1539,24 +1569,23 @@ class Zookeeper(object):
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client_handle)
 
       if (client_pdu is None or
-          client_pdu.base_uri != sia_base or
-          client_pdu.bpki_cert != rootd.issuer.certificate):
-        pubd_query.append(rpki.publication_control.client_elt.make_pdu(
-          action = "create" if client_pdu is None else "set",
-          client_handle = client_handle,
-          bpki_cert = rootd.issuer.certificate,
-          base_uri = sia_base))
+          client_pdu.get("base_uri") != sia_base or
+          client_pdu.findtext(rpki.publication_control.tag_bpki_cert, "").decode("base64") != rootd.issuer.certificate.get_DER()):
+        q_pdu = SubElement(q_msg, rpki.publication_control.tag_client,
+                           action = "create" if client_pdu is None else "set",
+                           client_handle = client_handle,
+                           base_uri = sia_base)
+        SubElement(q_pdu, rpki.publication_control.tag_bpki_cert).text = rootd.issuer.certificate.get_Base64()
 
     # Delete any unknown clients
 
-    pubd_query.extend(rpki.publication_control.client_elt.make_pdu(
-            action = "destroy", client_handle = p) for p in client_pdus)
+    for client_handle in client_pdus:
+      SubElement(q_msg, rpki.publication_control.tag_client, action = "destroy", client_handle = client_handle)
 
     # If we changed anything, ship updates off to pubd
 
-    if pubd_query:
-      pubd_reply = self.call_pubd(pubd_query)
-      self.check_error_report(pubd_reply)
+    if len(q_msg) > 0:
+      self.call_pubd(q_msg)
 
 
   def synchronize_rpkid_deleted_core(self):
@@ -1567,19 +1596,20 @@ class Zookeeper(object):
     inside a Django commit wrapper.
     """
 
-    rpkid_reply = self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "list"))
-    self.check_error_report(rpkid_reply)
+    q_msg = self._compose_left_right_query()
+    SubElement(q_msg, rpki.left_right.tag_self, action = "list")
+    self.call_rpkid(q_msg)
 
-    self_handles = set(s.self_handle for s in rpkid_reply)
+    self_handles = set(s.get("self_handle") for s in r_msg)
     ca_handles   = set(ca.handle for ca in rpki.irdb.ResourceHolderCA.objects.all())
     assert ca_handles <= self_handles
 
-    rpkid_query = [rpki.left_right.self_elt.make_pdu(action = "destroy", self_handle = handle)
-                   for handle in (self_handles - ca_handles)]
+    q_msg = self._compose_left_right_query()
+    for handle in (self_handles - ca_handles):
+      SubElement(q_msg, rpki.left_right.tag_self, action = "destroy", self_handle = handle)
 
-    if rpkid_query:
-      rpkid_reply = self.call_rpkid(rpkid_query)
-      self.check_error_report(rpkid_reply)
+    if len(q_msg) > 0:
+      self.call_rpkid(q_msg)
 
 
   @django.db.transaction.commit_on_success

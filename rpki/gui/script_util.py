@@ -29,6 +29,7 @@ def setup():
     # breadcrumbs for now.
 
     if True:
+        import os
 	os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
 
     else:

@@ -32,6 +32,7 @@ def setup():
 	os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
 
     else:
+	import django
 	from rpki import config
 	from rpki import autoconf
 	from django.conf import settings
@@ -46,6 +47,14 @@ def setup():
 		    'NAME': cfg.get('sql-database'),
 		    'USER': cfg.get('sql-username'),
 		    'PASSWORD': cfg.get('sql-password'),
-		}
+		},
 	    },
+	    MIDDLEWARE_CLASSES = (),
 	)
+	# Can't populate apps if we don't know what they are.  If this
+	# explodes with an AppRegistryNotReady exception, the above comment
+	# about not needing to set INSTALLED_APPS is no longer true and
+	# you'll need to fix that here.
+	if False and django.VERSION >= (1, 7):
+	    from django.apps import apps
+	    apps.populate(settings.INSTALLED_APPS)

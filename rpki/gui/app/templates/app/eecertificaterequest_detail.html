@@ -1,0 +1,33 @@
+{% extends "app/app_base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Router Certificate Request Detail <small>{{ object.cn }}</small></h1>
+</div>
+
+<div class="row-fluid">
+<table class="table">
+  <tr>
+    <th>CN</th><td> {{ object.cn }}</td>
+  </tr>
+  <tr>
+    <th>SN</th><td> {{ object.sn }}</td>
+  </tr>
+  <tr>
+    <th>SKI</th><td> {{ object.gski }}</td>
+  </tr>
+  <tr>
+    <th>ASN</th><td> {{ object.asns.all.0.start_as }}</td>
+  </tr>
+  <tr>
+    <th>Valid Until</th><td> {{ object.valid_until }} </td>
+  </tr>
+</table>
+
+{% block action %}
+<div class="row-fluid">
+<a class="btn btn-danger" title="delete this router certificate request" href="{% url "router-delete" object.pk %}"><i class="icon-trash"></i> Delete</a>
+</div>
+{% endblock %}
+
+{% endblock %}

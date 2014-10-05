@@ -143,6 +143,7 @@ class main(Cmd):
       os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
 
     else:
+      import django
       from django.conf import settings
       settings.configure(
         DATABASES = { "default" : {
@@ -153,8 +154,13 @@ class main(Cmd):
           "HOST"     : "",
           "PORT"     : "",
           "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
-        INSTALLED_APPS = ["rpki.irdb"])
+        INSTALLED_APPS = ("rpki.irdb",),
+        MIDDLEWARE_CLASSES = (),          # API change, feh
+      )
 
+      if django.VERSION >= (1, 7):        # API change, feh
+        from django.apps import apps
+        apps.populate(settings.INSTALLED_APPS)
 
     import rpki.irdb                    # pylint: disable=W0621
 

@@ -35,7 +35,7 @@ from django.utils.http import urlquote
 from django import http
 from django.core.urlresolvers import reverse, reverse_lazy
 from django.contrib.auth.models import User
-from django.views.generic import DetailView, ListView, DeleteView
+from django.views.generic import DetailView, ListView, DeleteView, FormView
 from django.core.paginator import Paginator, InvalidPage
 from django.forms.formsets import formset_factory, BaseFormSet
 import django.db.models
@@ -1337,3 +1337,79 @@ def alert_clear_all(request):
     else:
         form = forms.Empty()
     return render(request, 'app/alert_confirm_clear.html', {'form': form})
+
+
+
+class RouterListView(ListView):
+    template_name = 'app/eecertificaterequest_list.html'
+
+    @method_decorator(handle_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super(RouterListView, self).dispatch(request, *args, **kwargs)
+
+    def get_queryset(self, *args, **kwargs):
+        conf = get_conf(self.request.user, self.request.session['handle'])
+        return conf.router_certs.all()
+
+
+class RouterDetailView(DetailView):
+    template_name = 'app/eecertificaterequest_detail.html'
+
+    @method_decorator(handle_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super(RouterDetailView, self).dispatch(request, *args, **kwargs)
+
+    def get_queryset(self, *args, **kwargs):
+        conf = get_conf(self.request.user, self.request.session['handle'])
+        return conf.router_certs.all()
+
+
+class RouterDeleteView(DeleteView):
+    success_url = reverse_lazy(dashboard)
+    #template_name = 'app/eecertificaterequest_confirm_delete.html'
+    template_name = 'app/object_confirm_delete.html'
+
+    @method_decorator(handle_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super(RouterDeleteView, self).dispatch(request, *args, **kwargs)
+
+    def get_queryset(self, *args, **kwargs):
+        conf = get_conf(self.request.user, self.request.session['handle'])
+        return conf.router_certs.all()
+
+    def get_context_data(self, **kwargs):
+        kwargs['parent_template'] = 'app/eecertificaterequest_detail.html'
+        return super(RouterDeleteView, self).get_context_data(**kwargs)
+
+    def delete(self, request, *args, **kwargs):
+        # override the delete hook so that we can nudge rpkid after the object is gone
+        r = super(RouterDeleteView, self).delete(request, *args, **kwargs)
+        Zookeeper(handle=request.session['handle']).run_rpkid_now()
+        return r
+
+
+class RouterImportView(FormView):
+    form_class = forms.RouterCertificateRequestForm
+    success_url = reverse_lazy(dashboard)
+    template_name = 'app/app_form.html'
+
+    @method_decorator(handle_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super(RouterImportView, self).dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        conf = get_conf(self.request.user, self.request.session['handle'])
+	tmpf = NamedTemporaryFile(prefix='import', suffix='.xml',
+				  delete=False)
+	tmpf.write(form.cleaned_data['xml'].read())
+	tmpf.close()
+        z = Zookeeper(handle=conf.handle)
+        z.add_router_certificate_request(tmpf.name)
+        z.run_rpkid_now()
+        os.remove(tmpf.name)
+        return super(RouterImportView, self).form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        kwargs['form_title'] = 'Import Router Certificate Request'
+        kwargs['cancel_url'] = reverse(dashboard)
+        return super(RouterImportView, self).get_context_data(**kwargs)

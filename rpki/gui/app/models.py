@@ -24,6 +24,7 @@ import rpki.exceptions
 import rpki.irdb.models
 import rpki.gui.models
 import rpki.gui.routeview.models
+import rpki.oids
 from south.modelsinspector import add_introspection_rules
 
 
@@ -201,6 +202,12 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
     def clear_alerts(self):
         self.alerts.all().delete()
 
+
+    @property
+    def router_certs(self):
+        """returns a query set of all rpki router certs associated with this
+        resource holder."""
+        return self.ee_certificate_requests.filter(eku=rpki.oids.id_kp_bgpsec_router)
 
     class Meta:
         proxy = True

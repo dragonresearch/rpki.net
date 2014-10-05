@@ -325,6 +325,7 @@ if True:
   os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
 
 else:
+  import django
   from django.conf import settings
   settings.configure(
     DATABASES = { "default" : {
@@ -336,7 +337,11 @@ else:
       "PORT"     : "",
       "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
     INSTALLED_APPS = ("rpki.irdb",),
+    MIDDLEWARE_CLASSES = (),
   )
+  if django.VERSION >= (1, 7):
+    from django.apps import apps
+    apps.populate(settings.INSTALLED_APPS)
 
 import rpki.irdb
 

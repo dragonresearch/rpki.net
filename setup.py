@@ -58,6 +58,8 @@ if autoconf.RP_TARGET == "rp":
                    "rpki.POW",
                    "rpki.rtr",
                    "rpki.irdb",
+                   "rpki.pubdb",
+                   "rpki.rpkidb",
                    "rpki.gui",
                    "rpki.gui.app",
                    "rpki.gui.cacheview",

@@ -1,0 +1,4 @@
+Snapshot of work in progress on converting our existing databases into
+Django using South 1.0 migrations.  This will probably need rewriting
+to address changes in how we deal with Django settings and multiple
+databases, this snapshot is just to get it into the subversion archive.

@@ -186,6 +186,9 @@ class main(object):
   def main(self):
 
     global rpki                         # pylint: disable=W0602
+
+    import django
+
     from django.conf import settings
 
     startup_msg = self.cfg.get("startup-message", "")
@@ -211,7 +214,13 @@ class main(object):
           "PASSWORD" : self.cfg.get("sql-password"),
           "HOST"     : "",
           "PORT"     : "" }},
-      INSTALLED_APPS = ("rpki.irdb",),)
+      INSTALLED_APPS = ("rpki.irdb",),
+      MIDDLEWARE_CLASSES = (),          # API change, feh
+      )
+
+    if django.VERSION >= (1, 7):        # API change, feh
+      from django.apps import apps
+      apps.populate(settings.INSTALLED_APPS)
 
     import rpki.irdb                    # pylint: disable=W0621
 

@@ -773,12 +773,19 @@ def body():
 
   databases["default"] = databases[db.root.irdb_name]
 
+  import django
+
   from django.conf import settings
 
   settings.configure(
     DATABASES = databases,
     DATABASE_ROUTERS = ["rpki.irdb.router.DBContextRouter"],
+    MIDDLEWARE_CLASSES = (),
     INSTALLED_APPS = ("rpki.irdb",))
+
+  if django.VERSION >= (1, 7):        # API change, feh
+    from django.apps import apps
+    apps.populate(settings.INSTALLED_APPS)
 
   import rpki.irdb
 

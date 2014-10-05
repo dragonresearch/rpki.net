@@ -16,6 +16,8 @@
 This module contains utility functions for use in standalone scripts.
 """
 
+import django
+
 from django.conf import settings
 
 from rpki import config
@@ -40,4 +42,8 @@ def setup():
                 'PASSWORD': cfg.get('sql-password'),
             }
         },
+        MIDDLEWARE_CLASSES = (),
     )
+    if django.VERSION >= (1, 7):
+        from django.apps import apps
+        apps.populate(settings.INSTALLED_APPS)

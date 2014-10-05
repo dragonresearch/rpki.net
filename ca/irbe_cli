@@ -322,6 +322,8 @@ while argv:
   argv = q_pdu.client_getopt(argv[1:])
   q_msg.append(q_pdu)
 
+import django
+
 from django.conf import settings
 
 settings.configure(
@@ -334,7 +336,12 @@ settings.configure(
     "PORT"     : "",
     "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
   INSTALLED_APPS = ("rpki.irdb",),
+  MIDDLEWARE_CLASSES = (),
 )
+
+if django.VERSION >= (1, 7):
+  from django.apps import apps
+  apps.populate(settings.INSTALLED_APPS)
 
 import rpki.irdb
 

@@ -132,6 +132,8 @@ class main(Cmd):
     self.histfile = cfg.get("history_file", os.path.expanduser("~/.rpkic_history"))
     self.autosync = cfg.getboolean("autosync", True, section = "rpkic")
 
+    import django
+
     from django.conf import settings
 
     settings.configure(
@@ -144,7 +146,12 @@ class main(Cmd):
         "PORT"     : "",
         "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
       INSTALLED_APPS = ("rpki.irdb",),
+      MIDDLEWARE_CLASSES = (),          # API change, feh
     )
+
+    if django.VERSION >= (1, 7):        # API change, feh
+      from django.apps import apps
+      apps.populate(settings.INSTALLED_APPS)
 
     import rpki.irdb                    # pylint: disable=W0621
 

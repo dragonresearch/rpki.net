@@ -385,14 +385,19 @@ class Debian(Platform):
   Debian and related platforms like Ubuntu.
   """
 
-  # Wheezy chokes if the .conf filename suffix is present.
-  # Trusty chokes if the .conf filename suffix is absent.
-  # Precise didn't seem to care last I checked.
-  # This may require tweaks for future releases.
-
+  # Wheezy chokes if the .conf filename suffix is present.  Trusty
+  # chokes if the .conf filename suffix is absent.  Precise didn't
+  # seem to care last I checked.  I suspect that this will work out to
+  # be specific to particular releases rather than a case of Debian
+  # consistently doing it one way and Ubuntu consistently doing it the
+  # other, so probably best to handle this at runtime rather than with
+  # through the class system.
+  #
+  # If I'm wrong, well, restructure it when we figure that out.
+  #
   @property
   def apache_conf_target(self):
-    if platform.linux_release[0] == "debian":
+    if platform.linux_distribution()[0].lower() == "debian":
       return "/etc/apache2/sites-available/rpki"
     else:
       return "/etc/apache2/sites-available/rpki.conf"

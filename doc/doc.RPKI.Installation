@@ -3,8 +3,8 @@
 There are a few different ways to install the RPKI code, depending on what the
 platform on which you're trying to install.
 
-* On Ubuntu 12.04 LTS ("Precise Pangolin") or Debian 7 ("Wheezy"), you can use
-  Debian binary packages.
+* On Ubuntu 12.04 LTS ("Precise Pangolin"), Ubuntu 14.04 ("Trusty Tahir"), or
+  Debian 7 ("Wheezy"), you can use Debian binary packages.
 
      At present we only generate binary packages for Precise Pangolin and
      Wheezy. This may change in the future.

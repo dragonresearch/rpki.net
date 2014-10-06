@@ -385,7 +385,17 @@ class Debian(Platform):
   Debian and related platforms like Ubuntu.
   """
 
-  apache_conf_target = "/etc/apache2/sites-available/rpki.conf"
+  # Wheezy chokes if the .conf filename suffix is present.
+  # Trusty chokes if the .conf filename suffix is absent.
+  # Precise didn't seem to care last I checked.
+  # This may require tweaks for future releases.
+
+  @property
+  def apache_conf_target(self):
+    if platform.linux_release[0] == "debian":
+      return "/etc/apache2/sites-available/rpki"
+    else:
+      return "/etc/apache2/sites-available/rpki.conf"
 
   snake_oil_cer = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
   snake_oil_key = "/etc/ssl/private/ssl-cert-snakeoil.key"

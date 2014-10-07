@@ -389,7 +389,7 @@ class Debian(Platform):
 
   @property
   def distribution_version(self):
-    return [int(v) for v in platform.linux_distribution()[1].split(".")]
+    return tuple(int(v) for v in platform.linux_distribution()[1].split("."))
 
   # As of Wheezy, Debian still wants the configuration filename
   # without the .conf suffix.  Keep an eye on this, as it may change

@@ -78,7 +78,7 @@ case "$1" in
 
 	# Now remove the new stuff.
 
-	/usr/lib/rpki/rpkigui-apache-conf-gen --debian --remove --verbose
+	/usr/lib/rpki/rpkigui-apache-conf-gen --remove --verbose
 
 	;;
 

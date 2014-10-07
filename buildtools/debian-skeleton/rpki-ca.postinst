@@ -20,7 +20,7 @@ setup_rpkid_group() {
 }
 
 setup_apache() {
-    /usr/lib/rpki/rpkigui-apache-conf-gen --debian --install --verbose
+    /usr/lib/rpki/rpkigui-apache-conf-gen --install --verbose
 }
 
 setup_rpki_conf() {

@@ -152,8 +152,10 @@ def Guess(args):
     return Darwin(args)
   if system == "Linux":
     distro = platform.linux_distribution()[0].lower()
-    if distro in ("debian", "ubuntu"):
+    if distro == "debian":
       return Debian(args)
+    if distro == "ubuntu":
+      return Ubuntu(args)
     if distro in ("fedora", "centos"):
       return Redhat(args)
   raise NotImplementedError("Can't guess what platform this is, sorry")
@@ -385,22 +387,17 @@ class Debian(Platform):
   Debian and related platforms like Ubuntu.
   """
 
-  # Wheezy chokes if the .conf filename suffix is present.  Trusty
-  # chokes if the .conf filename suffix is absent.  Precise didn't
-  # seem to care last I checked.  I suspect that this will work out to
-  # be specific to particular releases rather than a case of Debian
-  # consistently doing it one way and Ubuntu consistently doing it the
-  # other, so probably best to handle this at runtime rather than with
-  # through the class system.
-  #
-  # If I'm wrong, well, restructure it when we figure that out.
+  @property
+  def distribution_version(self):
+    return [int(v) for v in platform.linux_distribution()[1].split(".")]
+
+  # As of Wheezy, Debian still wants the configuration filename
+  # without the .conf suffix.  Keep an eye on this, as it may change
+  # in future releases.
   #
   @property
   def apache_conf_target(self):
-    if platform.linux_distribution()[0].lower() == "debian":
-      return "/etc/apache2/sites-available/rpki"
-    else:
-      return "/etc/apache2/sites-available/rpki.conf"
+    return "/etc/apache2/sites-available/rpki"
 
   snake_oil_cer = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
   snake_oil_key = "/etc/ssl/private/ssl-cert-snakeoil.key"
@@ -428,6 +425,17 @@ class Debian(Platform):
 
   def restart(self):
     self.run("service", "apache2", "restart")
+
+class Ubuntu(Debian):
+  
+  # On Ubuntu, the filename must end in .conf on Trusty and must not
+  # end in .conf on Precise.
+  @property
+  def apache_conf_target(self):
+    if self.distribution_version >= (14, 0):
+      return "/etc/apache2/sites-available/rpki.conf"
+    else:
+      return "/etc/apache2/sites-available/rpki"
 
 class NIY(Platform):
   def __init__(self, args):
@@ -463,9 +471,12 @@ def main():
   group1.add_argument("--freebsd",
                       help = "configure for FreeBSD",
                       action = "store_const", dest = "platform", const = FreeBSD)
-  group1.add_argument("--debian", "--ubuntu",
-                      help = "configure for Debian/Ubuntu",
+  group1.add_argument("--debian",
+                      help = "configure for Debian",
                       action = "store_const", dest = "platform", const = Debian)
+  group1.add_argument("--ubuntu",
+                      help = "configure for Ubuntu",
+                      action = "store_const", dest = "platform", const = Ubuntu)
   group1.add_argument("--redhat", "--fedora", "--centos",
                       help = "configure for Redhat/Fedora/CentOS",
                       action = "store_const", dest = "platform", const = Redhat)

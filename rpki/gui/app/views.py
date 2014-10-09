@@ -596,7 +596,7 @@ def roa_create(request):
 
     conf = get_conf(request.user, request.session['handle'])
     if request.method == 'POST':
-        form = forms.ROARequest(request.POST, request.FILES, conf=conf)
+        form = forms.ROARequestFormFactory(conf)(request.POST, request.FILES)
         if form.is_valid():
             asn = form.cleaned_data.get('asn')
             rng = form._as_resource_range()  # FIXME calling "private" method
@@ -620,24 +620,9 @@ def roa_create(request):
         for s in ('asn', 'prefix'):
             if s in request.GET:
                 d[s] = request.GET[s]
-        form = forms.ROARequest(initial=d)
+        form = forms.ROARequestFormFactory(conf)(initial=d)
 
     return render(request, 'app/roarequest_form.html', {'form': form})
-
-
-class ROARequestFormSet(BaseFormSet):
-    """There is no way to pass arbitrary keyword arguments to the form
-    constructor, so we have to override BaseFormSet to allow it.
-
-    """
-    def __init__(self, *args, **kwargs):
-        self.conf = kwargs.pop('conf')
-        super(ROARequestFormSet, self).__init__(*args, **kwargs)
-
-    def _construct_forms(self):
-        self.forms = []
-        for i in xrange(self.total_form_count()):
-            self.forms.append(self._construct_form(i, conf=self.conf))
 
 
 def split_with_default(s):
@@ -681,11 +666,9 @@ def roa_create_multi(request):
                 v = []
                 rng.chop_into_prefixes(v)
                 init.extend([{'asn': asn, 'prefix': str(p)} for p in v])
-        formset = formset_factory(forms.ROARequest, formset=ROARequestFormSet,
-                                 can_delete=True)(initial=init, conf=conf)
+        formset = formset_factory(forms.ROARequestFormFactory(conf), can_delete=True)(initial=init)
     elif request.method == 'POST':
-        formset = formset_factory(forms.ROARequest, formset=ROARequestFormSet,
-                                  extra=0, can_delete=True)(request.POST, request.FILES, conf=conf)
+        formset = formset_factory(forms.ROARequestFormFactory(conf), extra=0, can_delete=True)(request.POST, request.FILES)
         if formset.is_valid():
             routes = []
             v = []

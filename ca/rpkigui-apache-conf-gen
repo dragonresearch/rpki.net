@@ -179,8 +179,10 @@ def Guess(args):
     return Darwin(args)
   if system == "Linux":
     distro = platform.linux_distribution()[0].lower()
-    if distro in ("debian", "ubuntu"):
+    if distro == "debian":
       return Debian(args)
+    if distro == "ubuntu":
+      return Ubuntu(args)
     if distro in ("fedora", "centos"):
       return Redhat(args)
   raise NotImplementedError("Can't guess what platform this is, sorry")
@@ -412,7 +414,17 @@ class Debian(Platform):
   Debian and related platforms like Ubuntu.
   """
 
-  apache_conf_target = "/etc/apache2/sites-available/rpki.conf"
+  @property
+  def distribution_version(self):
+    return tuple(int(v) for v in platform.linux_distribution()[1].split("."))
+
+  # As of Wheezy, Debian still wants the configuration filename
+  # without the .conf suffix.  Keep an eye on this, as it may change
+  # in future releases.
+  #
+  @property
+  def apache_conf_target(self):
+    return "/etc/apache2/sites-available/rpki"
 
   snake_oil_cer = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
   snake_oil_key = "/etc/ssl/private/ssl-cert-snakeoil.key"
@@ -441,6 +453,17 @@ class Debian(Platform):
 
   def restart(self):
     self.run("service", "apache2", "restart")
+
+class Ubuntu(Debian):
+  
+  # On Ubuntu, the filename must end in .conf on Trusty and must not
+  # end in .conf on Precise.
+  @property
+  def apache_conf_target(self):
+    if self.distribution_version >= (14, 0):
+      return "/etc/apache2/sites-available/rpki.conf"
+    else:
+      return "/etc/apache2/sites-available/rpki"
 
 class NIY(Platform):
   def __init__(self, args):
@@ -476,9 +499,12 @@ def main():
   group1.add_argument("--freebsd",
                       help = "configure for FreeBSD",
                       action = "store_const", dest = "platform", const = FreeBSD)
-  group1.add_argument("--debian", "--ubuntu",
-                      help = "configure for Debian/Ubuntu",
+  group1.add_argument("--debian",
+                      help = "configure for Debian",
                       action = "store_const", dest = "platform", const = Debian)
+  group1.add_argument("--ubuntu",
+                      help = "configure for Ubuntu",
+                      action = "store_const", dest = "platform", const = Ubuntu)
   group1.add_argument("--redhat", "--fedora", "--centos",
                       help = "configure for Redhat/Fedora/CentOS",
                       action = "store_const", dest = "platform", const = Redhat)

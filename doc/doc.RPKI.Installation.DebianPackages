@@ -17,15 +17,20 @@ You should only need to perform these steps once for any particular machine.
     wget -q -O - http://download.rpki.net/APT/apt-gpg-key.asc | sudo apt-key
     add -
 
-* Configure APT to use this repository (for Ubuntu systems):
+* Configure APT to use this repository (for Ubuntu Trusty systems):
 
     sudo wget -q -O /etc/apt/sources.list.d/rpki.list http://download.rpki.net/
-    APT/rpki.ubuntu.list
+    APT/rpki.trusty.list
 
-* Configure APT to use this repository (for Debian systems):
+* Configure APT to use this repository (for Ubuntu Precise systems):
 
     sudo wget -q -O /etc/apt/sources.list.d/rpki.list http://download.rpki.net/
-    APT/rpki.debian.list
+    APT/rpki.precise.list
+
+* Configure APT to use this repository (for Debian Wheezy systems):
+
+    sudo wget -q -O /etc/apt/sources.list.d/rpki.list http://download.rpki.net/
+    APT/rpki.wheezy.list
 
 ***** Installation Using APT Tools *****
 

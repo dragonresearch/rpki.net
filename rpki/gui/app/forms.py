@@ -52,7 +52,6 @@ class GhostbusterRequestForm(forms.ModelForm):
     Generate a ModelForm with the subset of parents for the current
     resource handle.
     """
-
     # override default form field
     parent = forms.ModelChoiceField(queryset=None, required=False,
             help_text='Specify specific parent, or none for all parents')
@@ -87,7 +86,6 @@ class GhostbusterRequestForm(forms.ModelForm):
 
 class ImportForm(forms.Form):
     """Form used for uploading parent/child identity xml files."""
-
     handle = forms.CharField(required=False,
                              widget=forms.TextInput(attrs={'class': 'xlarge'}),
                              help_text='Optional.  Your name for this entity, or blank to accept name in XML')
@@ -103,7 +101,6 @@ class ImportRepositoryForm(forms.Form):
 
 class ImportClientForm(forms.Form):
     """Form used for importing publication client requests."""
-
     xml = forms.FileField(label='XML file')
 
 
@@ -140,7 +137,6 @@ class UserCreateForm(forms.Form):
 
 class UserEditForm(forms.Form):
     """Form for editing a user."""
-
     email = forms.CharField()
     pw = forms.CharField(widget=forms.PasswordInput, label='Password',
                          required=False)
@@ -159,112 +155,117 @@ class UserEditForm(forms.Form):
         return self.cleaned_data
 
 
-class ROARequest(forms.Form):
-    """Form for entering a ROA request.
+def ROARequestFormFactory(conf):
+    """Returns a ROARequest form instance with conf embedded in the closure.
 
-    Handles both IPv4 and IPv6."""
+    This nonsense is necessary because formset_factory() doesn't allow passing
+    extra keyword arguments when it creates Form objects.  In order to do the
+    validation checks, we need to pass the Conf(ResourceHolderCA) into the
+    ROARequest form instance.
+    """
 
-    prefix = forms.CharField(
-        widget=forms.TextInput(attrs={
-            'autofocus': 'true', 'placeholder': 'Prefix',
-            'class': 'span4'
-        })
-    )
-    max_prefixlen = forms.CharField(
-        required=False,
-        widget=forms.TextInput(attrs={
-            'placeholder': 'Max len',
-            'class': 'span1'
-        })
-    )
-    asn = forms.IntegerField(
-        widget=forms.TextInput(attrs={
-            'placeholder': 'ASN',
-            'class': 'span1'
-        })
-    )
-    confirmed = forms.BooleanField(widget=forms.HiddenInput, required=False)
+    class Cls(forms.Form):
+	"""Form for entering a ROA request.
 
-    def __init__(self, *args, **kwargs):
-        """Takes an optional `conf` keyword argument specifying the user that
-        is creating the ROAs.  It is used for validating that the prefix the
-        user entered is currently allocated to that user.
-        """
+	Handles both IPv4 and IPv6."""
 
-        conf = kwargs.pop('conf', None)
-        kwargs['auto_id'] = False
-        super(ROARequest, self).__init__(*args, **kwargs)
-        self.conf = conf
-        self.inline = True
-        self.use_table = False
+	prefix = forms.CharField(
+	    widget=forms.TextInput(attrs={
+		'autofocus': 'true', 'placeholder': 'Prefix',
+		'class': 'span4'
+	    })
+	)
+	max_prefixlen = forms.CharField(
+	    required=False,
+	    widget=forms.TextInput(attrs={
+		'placeholder': 'Max len',
+		'class': 'span1'
+	    })
+	)
+	asn = forms.IntegerField(
+	    widget=forms.TextInput(attrs={
+		'placeholder': 'ASN',
+		'class': 'span1'
+	    })
+	)
+	confirmed = forms.BooleanField(widget=forms.HiddenInput, required=False)
 
-    def _as_resource_range(self):
-        """Convert the prefix in the form to a
-        rpki.resource_set.resource_range_ip object.
+	def __init__(self, *args, **kwargs):
+	    kwargs['auto_id'] = False
+	    super(Cls, self).__init__(*args, **kwargs)
+	    self.conf = conf  # conf is the arg to ROARequestFormFactory
+	    self.inline = True
+	    self.use_table = False
 
-        If there is no mask provided, assume the closest classful mask.
-        """
+	def _as_resource_range(self):
+	    """Convert the prefix in the form to a
+	    rpki.resource_set.resource_range_ip object.
 
-        prefix = self.cleaned_data.get('prefix')
-        if '/' not in prefix:
-            p = IPAddress(prefix)
+	    If there is no mask provided, assume the closest classful mask.
 
-            # determine the first nonzero bit starting from the lsb and
-            # subtract from the address size to find the closest classful
-            # mask that contains this single address
-            prefixlen = 0
-            while (p != 0) and (p & 1) == 0:
-                prefixlen = prefixlen + 1
-                p = p >> 1
-            mask = p.bits - (8 * (prefixlen / 8))
-            prefix = prefix + '/' + str(mask)
+	    """
+	    prefix = self.cleaned_data.get('prefix')
+	    if '/' not in prefix:
+		p = IPAddress(prefix)
 
-        return resource_range_ip.parse_str(prefix)
+		# determine the first nonzero bit starting from the lsb and
+		# subtract from the address size to find the closest classful
+		# mask that contains this single address
+		prefixlen = 0
+		while (p != 0) and (p & 1) == 0:
+		    prefixlen = prefixlen + 1
+		    p = p >> 1
+		mask = p.bits - (8 * (prefixlen / 8))
+		prefix = prefix + '/' + str(mask)
 
-    def clean_asn(self):
-        value = self.cleaned_data.get('asn')
-        if value < 0:
-            raise forms.ValidationError('AS must be a positive value or 0')
-        return value
+	    return resource_range_ip.parse_str(prefix)
 
-    def clean_prefix(self):
-        try:
-            r = self._as_resource_range()
-        except:
-            raise forms.ValidationError('invalid prefix')
+	def clean_asn(self):
+	    value = self.cleaned_data.get('asn')
+	    if value < 0:
+		raise forms.ValidationError('AS must be a positive value or 0')
+	    return value
 
-        manager = models.ResourceRangeAddressV4 if r.version == 4 else models.ResourceRangeAddressV6
-        if not manager.objects.filter(cert__conf=self.conf,
-                                      prefix_min__lte=r.min,
-                                      prefix_max__gte=r.max).exists():
-            raise forms.ValidationError('prefix is not allocated to you')
-        return str(r)
+	def clean_prefix(self):
+	    try:
+		r = self._as_resource_range()
+	    except:
+		raise forms.ValidationError('invalid prefix')
 
-    def clean_max_prefixlen(self):
-        v = self.cleaned_data.get('max_prefixlen')
-        if v:
-            if v[0] == '/':
-                v = v[1:]  # allow user to specify /24
-            try:
-                if int(v) < 0:
-                    raise forms.ValidationError('max prefix length must be positive or 0')
-            except ValueError:
-                raise forms.ValidationError('invalid integer value')
-        return v
+	    manager = models.ResourceRangeAddressV4 if r.version == 4 else models.ResourceRangeAddressV6
+	    if not manager.objects.filter(cert__conf=self.conf,
+					  prefix_min__lte=r.min,
+					  prefix_max__gte=r.max).exists():
+		raise forms.ValidationError('prefix is not allocated to you')
+	    return str(r)
 
-    def clean(self):
-        if 'prefix' in self.cleaned_data:
-            r = self._as_resource_range()
-            max_prefixlen = self.cleaned_data.get('max_prefixlen')
-            max_prefixlen = int(max_prefixlen) if max_prefixlen else r.prefixlen()
-            if max_prefixlen < r.prefixlen():
-                raise forms.ValidationError(
-                    'max prefix length must be greater than or equal to the prefix length')
-            if max_prefixlen > r.min.bits:
-                raise forms.ValidationError(
-                        'max prefix length (%d) is out of range for IP version (%d)' % (max_prefixlen, r.min.bits))
-            self.cleaned_data['max_prefixlen'] = str(max_prefixlen)
-        return self.cleaned_data
+	def clean_max_prefixlen(self):
+	    v = self.cleaned_data.get('max_prefixlen')
+	    if v:
+		if v[0] == '/':
+		    v = v[1:]  # allow user to specify /24
+		try:
+		    if int(v) < 0:
+			raise forms.ValidationError('max prefix length must be positive or 0')
+		except ValueError:
+		    raise forms.ValidationError('invalid integer value')
+	    return v
+
+	def clean(self):
+	    if 'prefix' in self.cleaned_data:
+		r = self._as_resource_range()
+		max_prefixlen = self.cleaned_data.get('max_prefixlen')
+		max_prefixlen = int(max_prefixlen) if max_prefixlen else r.prefixlen()
+		if max_prefixlen < r.prefixlen():
+		    raise forms.ValidationError(
+			'max prefix length must be greater than or equal to the prefix length')
+		if max_prefixlen > r.min.bits:
+		    raise forms.ValidationError(
+			    'max prefix length (%d) is out of range for IP version (%d)' % (max_prefixlen, r.min.bits))
+		self.cleaned_data['max_prefixlen'] = str(max_prefixlen)
+	    return self.cleaned_data
+
+    return Cls
 
 
 class ROARequestConfirm(forms.Form):
@@ -300,6 +301,7 @@ class AddASNForm(forms.Form):
     Returns a forms.Form subclass which verifies that the entered ASN range
     does not overlap with a previous allocation to the specified child, and
     that the ASN range is within the range allocated to the parent.
+
     """
 
     asns = forms.CharField(
@@ -338,8 +340,8 @@ class AddNetForm(forms.Form):
     Returns a forms.Form subclass which validates that the entered address
     range is within the resources allocated to the parent, and does not overlap
     with what is already allocated to the specified child.
-    """
 
+    """
     address_range = forms.CharField(
         help_text='CIDR or range',
         widget=forms.TextInput(attrs={'autofocus': 'true'})
@@ -386,6 +388,7 @@ def ChildForm(instance):
     This is roughly based on the equivalent ModelForm, but uses Form as a base
     class so that selection boxes for the AS and Prefixes can be edited in a
     single form.
+
     """
 
     class _wrapped(forms.Form):
@@ -403,13 +406,11 @@ def ChildForm(instance):
 
 class Empty(forms.Form):
     """Stub form for views requiring confirmation."""
-
     pass
 
 
 class ResourceHolderForm(forms.Form):
     """form for editing ACL on Conf objects."""
-
     users = forms.ModelMultipleChoiceField(
         queryset=User.objects.all(),
         help_text='users allowed to mange this resource holder'
@@ -417,8 +418,7 @@ class ResourceHolderForm(forms.Form):
 
 
 class ResourceHolderCreateForm(forms.Form):
-    """form for creating new resource holders."""
-
+    """form for creating new resource holdres."""
     handle = forms.CharField(max_length=30)
     parent = forms.ModelChoiceField(
         required=False,

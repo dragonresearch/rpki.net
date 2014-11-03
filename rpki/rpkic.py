@@ -47,6 +47,8 @@ import rpki.x509
 import rpki.async
 import rpki.version
 
+from lxml.etree import Element, SubElement
+
 from rpki.cli import Cmd, parsecmd, cmdarg
 
 class BadPrefixSyntax(Exception):       "Bad prefix syntax."
@@ -640,16 +642,18 @@ class main(Cmd):
     Show published objects.
     """
 
-    for pdu in self.zoo.call_rpkid(
-      rpki.left_right.list_published_objects_elt.make_pdu(self_handle = self.zoo.handle)):
+    q_msg = self.zoo._compose_left_right_query()
+    SubElement(q_msg, rpki.left_right.tag_list_published_objects, self_handle = self.zoo.handle)
 
-      track = rpki.x509.uri_dispatch(pdu.uri)(Base64 = pdu.obj).tracking_data(pdu.uri)
-      child = pdu.child_handle
+    for r_pdu in self.zoo.call_rpkid(q_msg):
+      uri = r_pdu.get("uri")
+      track = rpki.x509.uri_dispatch(uri)(Base64 = r_pdu.text).tracking_data(uri)
+      child_handle = r_pdu.get("child_handle")
 
-      if child is None:
+      if child_handle is None:
         print track
       else:
-        print track, child
+        print track, child_handle
 
 
   @parsecmd(argsubparsers)

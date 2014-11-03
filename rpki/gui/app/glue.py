@@ -66,18 +66,6 @@ def ghostbuster_to_vcard(gbr):
     return vcard.serialize()
 
 
-class LeftRightError(Exception):
-   """Class for wrapping report_error_elt errors from Zookeeper.call_rpkid().
-
-   It expects a single argument, which is the associated report_error_elt instance."""
-
-   def __str__(self):
-       return 'Error occurred while communicating with rpkid: handle=%s code=%s text=%s' % (
-           self.args[0].self_handle,
-           self.args[0].error_code,
-           self.args[0].error_text)
-
-
 @commit_on_success
 def list_received_resources(log, conf):
     """
@@ -98,34 +86,27 @@ def list_received_resources(log, conf):
     models.ResourceCert.objects.filter(conf=conf).delete()
 
     for pdu in pdus:
-        if isinstance(pdu, report_error_elt):
-            # this will cause the db to be rolled back so the above delete()
-            # won't clobber existing resources
-            raise LeftRightError(pdu)
-        elif isinstance(pdu, list_received_resources_elt):
-            if pdu.parent_handle != conf.handle:
-                parent = models.Parent.objects.get(issuer=conf,
-                                                   handle=pdu.parent_handle)
-            else:
-                # root cert, self-signed
-                parent = None
-
-            not_before = datetime.strptime(pdu.notBefore, "%Y-%m-%dT%H:%M:%SZ")
-            not_after = datetime.strptime(pdu.notAfter, "%Y-%m-%dT%H:%M:%SZ")
-
-            cert = models.ResourceCert.objects.create(
-                conf=conf, parent=parent, not_before=not_before,
-                not_after=not_after, uri=pdu.uri)
-
-            for asn in resource_set_as(pdu.asn):
-                cert.asn_ranges.create(min=asn.min, max=asn.max)
-
-            for rng in resource_set_ipv4(pdu.ipv4):
-                cert.address_ranges.create(prefix_min=rng.min,
-                                           prefix_max=rng.max)
-
-            for rng in resource_set_ipv6(pdu.ipv6):
-                cert.address_ranges_v6.create(prefix_min=rng.min,
-                                              prefix_max=rng.max)
+        if pdu.get("parent_handle") != conf.handle:
+            parent = models.Parent.objects.get(issuer=conf,
+                                               handle=pdu.get("parent_handle"))
         else:
-            print >>log, "error: unexpected pdu from rpkid type=%s" % type(pdu)
+            # root cert, self-signed
+            parent = None
+
+        not_before = datetime.strptime(pdu.get("notBefore"), "%Y-%m-%dT%H:%M:%SZ")
+        not_after = datetime.strptime(pdu.get("notAfter"), "%Y-%m-%dT%H:%M:%SZ")
+
+        cert = models.ResourceCert.objects.create(
+            conf=conf, parent=parent, not_before=not_before,
+            not_after=not_after, uri=pdu.get("uri"))
+
+        for asn in resource_set_as(pdu.get("asn")):
+            cert.asn_ranges.create(min=asn.min, max=asn.max)
+
+        for rng in resource_set_ipv4(pdu.get("ipv4")):
+            cert.address_ranges.create(prefix_min=rng.min,
+                                       prefix_max=rng.max)
+
+        for rng in resource_set_ipv6(pdu.get("ipv6")):
+            cert.address_ranges_v6.create(prefix_min=rng.min,
+                                          prefix_max=rng.max)

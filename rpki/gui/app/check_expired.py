@@ -25,9 +25,9 @@ from rpki.gui.cacheview.models import Cert
 from rpki.gui.app.models import Conf, ResourceCert, Timestamp, Alert
 from rpki.gui.app.glue import list_received_resources
 from rpki.irdb import Zookeeper
-from rpki.left_right import report_error_elt, list_published_objects_elt
 from rpki.x509 import X509
 
+from lxml.etree import Element, SubElement
 from django.core.mail import send_mail
 
 logger = logging.getLogger(__name__)
@@ -105,27 +105,24 @@ def check_child_certs(conf, errs):
     """
 
     z = Zookeeper(handle=conf.handle)
-    req = list_published_objects_elt.make_pdu(action="list",
-                                              tag="list_published_objects",
-                                              self_handle=conf.handle)
+    req = Element(rpki.left_right.tag_msg, nsmap=rpki.left_right.nsmap,
+                  type="query", version=rpki.left_right.version)
+    SubElement(req, rpki.left_right.tag_list_published_objects,
+               tag="list_published_objects", self_handle=conf.handle)
     pdus = z.call_rpkid(req)
     for pdu in pdus:
-        if isinstance(pdu, report_error_elt):
-            logger.error("rpkid reported an error: %s", pdu.error_code)
-        elif isinstance(pdu, list_published_objects_elt):
-            if pdu.uri.endswith('.cer'):
-                cert = X509()
-                cert.set(Base64=pdu.obj)
-                t = cert.getNotAfter()
-                if t <= expire_time:
-                    e = 'expired' if t <= now else 'will expire'
-                    errs.write("%(handle)s's rescert for Child %(child)s %(expire)s on %(date)s uri=%(uri)s subject=%(subject)s\n" % {
-                        'handle': conf.handle,
-                        'child': pdu.child_handle,
-                        'uri': pdu.uri,
-                        'subject': cert.getSubject(),
-                        'expire': e,
-                        'date': t})
+        if pdu.get("uri").endswith('.cer'):
+            cert = X509(Base64=pdu.text)
+            t = cert.getNotAfter()
+            if t <= expire_time:
+                e = 'expired' if t <= now else 'will expire'
+                errs.write("%(handle)s's rescert for Child %(child)s %(expire)s on %(date)s uri=%(uri)s subject=%(subject)s\n" % {
+                    'handle': conf.handle,
+                    'child': pdu.get("child_handle"),
+                    'uri': pdu.get("uri"),
+                    'subject': cert.getSubject(),
+                    'expire': e,
+                    'date': t})
 
 
 class NetworkError(Exception):

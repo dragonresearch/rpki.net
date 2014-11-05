@@ -27,11 +27,11 @@ from datetime import datetime
 from rpki.resource_set import (resource_set_as, resource_set_ipv4,
                                resource_set_ipv6, resource_range_ipv4,
                                resource_range_ipv6)
-from rpki.left_right import list_received_resources_elt, report_error_elt
 from rpki.irdb.zookeeper import Zookeeper
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
 
+from lxml.etree import Element, SubElement
 from django.contrib.auth.models import User
 from django.db.transaction import commit_on_success
 
@@ -77,7 +77,10 @@ def list_received_resources(log, conf):
     """
 
     z = Zookeeper(handle=conf.handle)
-    pdus = z.call_rpkid(list_received_resources_elt.make_pdu(self_handle=conf.handle))
+    req = Elements(rpki.left_right.tag_msg, nsmap=rpki.left_right.nsmap,
+                   type="query", version=rpki.left_right.version)
+    SubElement(req, rpki.left_right.tag_list_received_resources, self_handle=conf.handle)
+    pdus = z.call_rpkid(req)
     # pdus is sometimes None (see https://trac.rpki.net/ticket/681)
     if pdus is None:
         print >>log, 'error: call_rpkid() returned None for handle %s when fetching received resources' % conf.handle

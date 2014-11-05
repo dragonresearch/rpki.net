@@ -153,11 +153,15 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
 
         # build a Q filter to select all RouteOrigin objects covered by
         # prefixes in the resource holder's certificates
-        q = models.Q()
-        for p in ResourceRangeAddressV4.objects.filter(cert__conf=self):
-            q |= models.Q(prefix_min__gte=p.prefix_min,
+        prefixes = ResourceRangeAddressV4.objects.filter(cert__conf=self)
+        if prefixes:
+            q = models.Q()
+            for p in prefixes:
+                q |= models.Q(prefix_min__gte=p.prefix_min,
                           prefix_max__lte=p.prefix_max)
-        return RouteOrigin.objects.filter(q)
+            return RouteOrigin.objects.filter(q)
+        else:
+            return RouteOrigin.objects.none()
 
     @property
     def routes_v6(self):
@@ -167,11 +171,15 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
 
         # build a Q filter to select all RouteOrigin objects covered by
         # prefixes in the resource holder's certificates
-        q = models.Q()
-        for p in ResourceRangeAddressV6.objects.filter(cert__conf=self):
-            q |= models.Q(prefix_min__gte=p.prefix_min,
-                          prefix_max__lte=p.prefix_max)
-        return RouteOriginV6.objects.filter(q)
+        prefixes = ResourceRangeAddressV6.objects.filter(cert__conf=self)
+        if prefixes:
+            q = models.Q()
+            for p in ResourceRangeAddressV6.objects.filter(cert__conf=self):
+                q |= models.Q(prefix_min__gte=p.prefix_min,
+                            prefix_max__lte=p.prefix_max)
+            return RouteOriginV6.objects.filter(q)
+        else:
+            return RouteOriginV6.objects.none()
 
     def send_alert(self, subject, message, from_email, severity=Alert.INFO):
         """Store an alert for this resource holder."""

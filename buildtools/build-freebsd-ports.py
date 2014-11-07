@@ -83,8 +83,9 @@ shutil.copytree(os.path.join(args.svndir, "buildtools", "freebsd-skeleton"), arg
 
 if args.local_dist:
   subprocess.check_call(("svn", "export", args.svndir, os.path.join(args.portsdir, tarname)))
-  with open(os.path.join(args.portsdir, tarname, "VERSION"), "w") as f:
-    f.write(version + "\n")
+  for fn, fmt in (("VERSION", "%s\n"), ("rpki/version.py", "VERSION = \"%s\"\n")):
+    with open(os.path.join(args.portsdir, tarname, fn), "w") as f:
+      f.write(fmt % version)
   subprocess.check_call(("tar", "cJvvf", tarball, tarname), cwd = args.portsdir)
   shutil.rmtree(os.path.join(args.portsdir, tarname))
 elif os.path.exists(os.path.join(portsdir_old, tarball)):

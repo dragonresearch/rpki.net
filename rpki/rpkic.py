@@ -622,18 +622,20 @@ class main(Cmd):
     Show resources received by this entity from its parent(s).
     """
 
-    for pdu in self.zoo.call_rpkid(
-      rpki.left_right.list_received_resources_elt.make_pdu(self_handle = self.zoo.handle)):
+    q_msg = self.zoo._compose_left_right_query()
+    SubElement(q_msg, rpki.left_right.tag_list_received_resources, self_handle = self.zoo.handle)
 
-      print "Parent:     ", pdu.parent_handle
-      print "  notBefore:", pdu.notBefore
-      print "  notAfter: ", pdu.notAfter
-      print "  URI:      ", pdu.uri
-      print "  SIA URI:  ", pdu.sia_uri
-      print "  AIA URI:  ", pdu.aia_uri
-      print "  ASN:      ", pdu.asn
-      print "  IPv4:     ", pdu.ipv4
-      print "  IPv6:     ", pdu.ipv6
+    for r_pdu in self.zoo.call_rpkid(q_msg):
+
+      print "Parent:     ", r_pdu.get("parent_handle")
+      print "  notBefore:", r_pdu.get("notBefore")
+      print "  notAfter: ", r_pdu.get("notAfter")
+      print "  URI:      ", r_pdu.get("uri")
+      print "  SIA URI:  ", r_pdu.get("sia_uri")
+      print "  AIA URI:  ", r_pdu.get("aia_uri")
+      print "  ASN:      ", r_pdu.get("asn")
+      print "  IPv4:     ", r_pdu.get("ipv4")
+      print "  IPv6:     ", r_pdu.get("ipv6")
 
 
   @parsecmd(argsubparsers)

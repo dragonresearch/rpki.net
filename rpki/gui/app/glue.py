@@ -77,8 +77,8 @@ def list_received_resources(log, conf):
     """
 
     z = Zookeeper(handle=conf.handle)
-    req = Elements(rpki.left_right.tag_msg, nsmap=rpki.left_right.nsmap,
-                   type="query", version=rpki.left_right.version)
+    req = Element(rpki.left_right.tag_msg, nsmap=rpki.left_right.nsmap,
+                  type="query", version=rpki.left_right.version)
     SubElement(req, rpki.left_right.tag_list_received_resources, self_handle=conf.handle)
     pdus = z.call_rpkid(req)
     # pdus is sometimes None (see https://trac.rpki.net/ticket/681)

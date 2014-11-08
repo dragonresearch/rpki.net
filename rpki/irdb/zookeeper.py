@@ -1192,9 +1192,9 @@ class Zookeeper(object):
            for r_pdu in r_msg):
       for r_pdu in r_msg:
         if r_pdu.tag == rpki.left_right.tag_report_error:
-          self.log("rpkid reported failure: %s" % pdu.get("error_code"))
+          self.log("rpkid reported failure: %s" % r_pdu.get("error_code"))
         elif r_pdu.tag == rpki.publication_control.tag_report_error:
-          self.log("pubd reported failure: %s" % pdu.get("error_code"))
+          self.log("pubd reported failure: %s" % r_pdu.get("error_code"))
         else:
           continue
         if r_pdu.text:

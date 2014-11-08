@@ -2074,7 +2074,7 @@ router_certificate = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 ## Parsed RelaxNG rrdp schema
 rrdp = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: rrdp.rnc 5888 2014-07-09 05:39:54Z sra $
+  $Id: rrdp.rnc 6010 2014-11-08 18:01:58Z sra $
   
   RelaxNG schema for RPKI Repository Delta Protocol (RRDP).
   

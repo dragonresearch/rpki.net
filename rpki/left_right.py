@@ -346,6 +346,19 @@ class self_elt(data_elt):
     Handle a left-right publish_world_now action for this self.
     """
 
+    # This probably needs find out what's already published and
+    # compute the difference before attempting to make any changes.
+    # Just blindly overwriting doesn't work anymore, and probably
+    # never should have.
+
+    # The current loop doesn't appear to do anything asynchronous, so
+    # it could become a plain old for loop.  Polling all the
+    # repositories to find out what's published, however, will require
+    # talking to pubd(s).  This polling looks a lot like what we
+    # already do with publication_queue, might be worth generalizing
+    # since this probably is not the only place where we need recovery
+    # logic.  Which, hmm, suggests that we might need to refactor.
+
     publisher = rpki.rpkid.publication_queue()
 
     def loop(iterator, parent):

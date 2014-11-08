@@ -51,12 +51,6 @@ from lxml.etree import Element, SubElement
 
 from rpki.cli import Cmd, parsecmd, cmdarg
 
-class BadPrefixSyntax(Exception):       "Bad prefix syntax."
-class CouldntTalkToDaemon(Exception):   "Couldn't talk to daemon."
-class BadXMLMessage(Exception):         "Bad XML message."
-class PastExpiration(Exception):        "Expiration date has already passed."
-class CantRunRootd(Exception):          "Can't run rootd."
-
 module_doc = __doc__
 
 class main(Cmd):

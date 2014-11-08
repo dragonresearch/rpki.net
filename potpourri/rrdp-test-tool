@@ -33,7 +33,7 @@ class Tags(object):
     for tag in tags:
       setattr(self, tag, rpki.relaxng.rrdp.xmlns + tag)
 
-tags = Tags("notification", "deltas", "delta", "snapshot", "publish", "withdraw")
+tags = Tags("notification", "delta", "snapshot", "publish", "withdraw")
 
 class main(object):
 
@@ -51,7 +51,7 @@ class main(object):
     for rrdp_file in self.args.rrdp_file:
       xml = lxml.etree.ElementTree(file = rrdp_file).getroot()
       rpki.relaxng.rrdp.assertValid(xml)
-      getattr(self, xml.tag[len(rpki.relaxng.rrdp.xmlns):])(xml)
+      getattr(self, "handle_" + xml.tag[len(rpki.relaxng.rrdp.xmlns):])(xml)
 
   @property
   def serial_filename(self):
@@ -65,15 +65,15 @@ class main(object):
     with open(self.serial_filename, "w") as f:
       f.write("%s\n" % value)
 
-  def notification(self, xml):
+  def handle_notification(self, xml):
     print "Notification version %s session %s serial %s" % (
       xml.get("version"), xml.get("session_id"), xml.get("serial"))
     assert xml[0].tag == tags.snapshot
     print " Snapshot URI %s hash %s" % (
       xml[0].get("uri"), xml[0].get("hash"))
     for i, elt in enumerate(xml.iterchildren(tags.delta)):
-      print " Delta %3d from %6s to %6s URI %s hash %s" % (
-        i, elt.get("from"), elt.get("to"), elt.get("uri"), elt.get("hash"))
+      print " Delta %3d serial %6s URI %s hash %s" % (
+        i, elt.get("serial"), elt.get("uri"), elt.get("hash"))
 
   def uri_to_filename(self, uri):
     assert uri.startswith("rsync://")
@@ -102,7 +102,7 @@ class main(object):
       else:
         dn = os.path.dirname(dn)
 
-  def snapshot(self, xml):
+  def handle_snapshot(self, xml):
     print "Unpacking snapshot version %s session %s serial %6s" % (
       xml.get("version"), xml.get("session_id"), xml.get("serial"))
     for elt in xml.iterchildren(tags.publish):
@@ -110,33 +110,26 @@ class main(object):
       self.add_obj(elt.get("uri"), elt.text.decode("base64"))
     self.set_serial(xml.get("serial"))
 
-  def deltas(self, xml):
-    cur = int(self.get_serial())
-    old = int(xml.get("from"))
-    new = int(xml.get("to"))
-    print "Unpacking deltas version %s session %s from %s to %s" % (
-      xml.get("version"), xml.get("session_id"), old, new)
-    if cur != old:
-      raise RuntimeError("Can't apply deltas: current %s old %s new %s" % (cur, old, new))
-    for i, delta in enumerate(xml.iterchildren(tags.delta)):
-      serial = int(delta.get("serial"))
-      print " Delta %3d serial %d" % (i, serial)
-      if cur != serial - 1:
-        raise RuntimeError("Can't apply delta: current %s delta serial %s" % (cur, serial))
-      for j, elt in enumerate(delta.iterchildren(tags.withdraw)):
-        uri = elt.get("uri")
-        hash = elt.get("hash")
-        print "  %3d withdraw URI %s hash %s" % (j, uri, hash)
+  def handle_delta(self, xml):
+    old_serial = int(self.get_serial())
+    new_serial = int(xml.get("serial"))
+    print "Unpacking deltas version %s session %s serial %s" % (
+      xml.get("version"), xml.get("session_id"), new_serial)
+    if old_serial != new_serial - 1:
+      raise RuntimeError("Can't apply deltas: old serial %s new serial %s" % (old_serial, new_serial))
+    for i, elt in enumerate(xml.iterchildren(tags.withdraw)):
+      uri = elt.get("uri")
+      hash = elt.get("hash")
+      print "  %3d withdraw URI %s hash %s" % (i, uri, hash)
+      self.del_obj(uri, hash)
+    for i, elt in enumerate(xml.iterchildren(tags.publish)):
+      uri = elt.get("uri")
+      hash = elt.get("hash", None)
+      print "  %3d publish  URI %s hash %s" % (i, uri, hash)
+      if hash is not None:
         self.del_obj(uri, hash)
-      for j, elt in enumerate(delta.iterchildren(tags.publish)):
-        uri = elt.get("uri")
-        hash = elt.get("hash", None)
-        print "  %3d publish  URI %s hash %s" % (j, uri, hash)
-        if hash is not None:
-          self.del_obj(uri, hash)
-        self.add_obj(elt.get("uri"), elt.text.decode("base64"))
-      cur += 1
-      self.set_serial(cur)
+      self.add_obj(elt.get("uri"), elt.text.decode("base64"))
+    self.set_serial(new_serial)
 
 if __name__ == "__main__":
   main()

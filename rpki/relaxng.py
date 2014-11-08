@@ -2139,10 +2139,7 @@ rrdp = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       </element>
       <zeroOrMore>
         <element name="delta">
-          <attribute name="from">
-            <ref name="serial"/>
-          </attribute>
-          <attribute name="to">
+          <attribute name="serial">
             <ref name="serial"/>
           </attribute>
           <attribute name="uri">
@@ -2179,28 +2176,18 @@ rrdp = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   </start>
   <!-- Delta segment: think DNS IXFR. -->
   <start combine="choice">
-    <element name="deltas">
+    <element name="delta">
       <attribute name="version">
         <ref name="version"/>
       </attribute>
       <attribute name="session_id">
         <ref name="uuid"/>
       </attribute>
-      <attribute name="from">
-        <ref name="serial"/>
-      </attribute>
-      <attribute name="to">
+      <attribute name="serial">
         <ref name="serial"/>
       </attribute>
       <oneOrMore>
-        <element name="delta">
-          <attribute name="serial">
-            <ref name="serial"/>
-          </attribute>
-          <oneOrMore>
-            <ref name="delta_element"/>
-          </oneOrMore>
-        </element>
+        <ref name="delta_element"/>
       </oneOrMore>
     </element>
   </start>

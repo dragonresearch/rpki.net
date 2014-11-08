@@ -38,7 +38,6 @@ rrdp_nsmap   = rpki.relaxng.rrdp.nsmap
 rrdp_version = "1"
 
 rrdp_tag_delta        = rrdp_xmlns + "delta"
-rrdp_tag_deltas       = rrdp_xmlns + "deltas"
 rrdp_tag_notification = rrdp_xmlns + "notification"
 rrdp_tag_publish      = rrdp_xmlns + "publish"
 rrdp_tag_snapshot     = rrdp_xmlns + "snapshot"
@@ -83,6 +82,11 @@ class Session(models.Model):
   snapshot = models.TextField(blank = True)
   hash = models.CharField(max_length = 64, blank = True)
 
+  ## @var keep_all_rrdp_files
+  # Debugging flag to prevent expiration of old RRDP files.
+  # This simplifies debugging delta code.  Need for this
+  # may go away once RRDP is fully integrated into rcynic.
+  keep_all_rrdp_files = False
 
   def new_delta(self, expires):
     """
@@ -92,13 +96,11 @@ class Session(models.Model):
     delta = Delta(session = self,
                   serial = self.serial + 1,
                   expires = expires)
-    delta.deltas = Element(rrdp_tag_deltas,
-                           nsmap = rrdp_nsmap,
-                           version = rrdp_version,
-                           session_id = self.uuid)
-    delta.deltas.set("to",   str(delta.serial))
-    delta.deltas.set("from", str(delta.serial - 1))
-    SubElement(delta.deltas, rrdp_tag_delta, serial = str(delta.serial)).text = "\n"
+    delta.elt = Element(rrdp_tag_delta,
+                        nsmap = rrdp_nsmap,
+                        version = rrdp_version,
+                        session_id = self.uuid,
+                        serial = str(delta.serial))
     return delta
 
 
@@ -165,11 +167,10 @@ class Session(models.Model):
                uri = self._rrdp_filename_to_uri(self.snapshot_fn, rrdp_uri_base),
                hash = self.hash)
     for delta in self.delta_set.all():
-      se = SubElement(xml, rrdp_tag_delta,
-                      uri = self._rrdp_filename_to_uri(delta.fn, rrdp_uri_base),
-                      hash =  delta.hash)
-      se.set("to",   str(delta.serial))
-      se.set("from", str(delta.serial - 1))
+      SubElement(xml, rrdp_tag_delta,
+                 uri = self._rrdp_filename_to_uri(delta.fn, rrdp_uri_base),
+                 hash =  delta.hash,
+                 serial = str(delta.serial))
     rpki.relaxng.rrdp.assertValid(xml)
     return ElementToString(xml, pretty_print = True)
 
@@ -192,16 +193,17 @@ class Session(models.Model):
                           rrdp_publication_base, overwrite = True)
     current_filenames.add(self.notification_fn)
 
-    for root, dirs, files in os.walk(rrdp_publication_base, topdown = False):
-      for fn in files:
-        fn = os.path.join(root, fn)
-        if fn[len(rrdp_publication_base):].lstrip("/") not in current_filenames:
-          os.remove(fn)
-      for dn in dirs:
-        try:
-          os.rmdir(os.path.join(root, dn))
-        except OSError:
-          pass
+    if not self.keep_all_rrdp_files:
+      for root, dirs, files in os.walk(rrdp_publication_base, topdown = False):
+        for fn in files:
+          fn = os.path.join(root, fn)
+          if fn[len(rrdp_publication_base):].lstrip("/") not in current_filenames:
+            os.remove(fn)
+        for dn in dirs:
+          try:
+            os.rmdir(os.path.join(root, dn))
+          except OSError:
+            pass
 
 
 class Delta(models.Model):
@@ -226,12 +228,12 @@ class Delta(models.Model):
 
   @property
   def fn(self):
-    return "%s/deltas/%s-%s.xml" % (self.session.uuid, self.serial - 1, self.serial)
+    return "%s/deltas/%s.xml" % (self.session.uuid, self.serial)
 
 
   def activate(self):
-    rpki.relaxng.rrdp.assertValid(self.deltas)
-    self.xml = ElementToString(self.deltas, pretty_print = True)
+    rpki.relaxng.rrdp.assertValid(self.elt)
+    self.xml = ElementToString(self.elt, pretty_print = True)
     self.hash = rpki.x509.sha256(self.xml).encode("hex")
     self.save()
     self.session.serial += 1
@@ -252,10 +254,10 @@ class Delta(models.Model):
     logger.debug("Publishing %s", uri)
     PublishedObject.objects.create(session = self.session, client = client, der = der, uri = uri,
                                    hash = rpki.x509.sha256(der).encode("hex"))
-    se = DERSubElement(self.deltas[0], rrdp_tag_publish, der = der, uri = uri)
+    se = DERSubElement(self.elt, rrdp_tag_publish, der = der, uri = uri)
     if hash is not None:
       se.set("hash", hash)
-    rpki.relaxng.rrdp.assertValid(self.deltas)
+    rpki.relaxng.rrdp.assertValid(self.elt)
 
 
   def withdraw(self, client, uri, hash):
@@ -264,13 +266,13 @@ class Delta(models.Model):
       raise rpki.exceptions.DifferentObjectAtURI("Found different object at %s (old %s, new %s)" % (uri, obj.hash, hash))
     logger.debug("Withdrawing %s", uri)
     obj.delete()
-    SubElement(self.deltas[0], rrdp_tag_withdraw, uri = uri, hash = hash).tail = "\n"
-    rpki.relaxng.rrdp.assertValid(self.deltas)
+    SubElement(self.elt, rrdp_tag_withdraw, uri = uri, hash = hash).tail = "\n"
+    rpki.relaxng.rrdp.assertValid(self.elt)
 
 
   def update_rsync_files(self, publication_base):
     min_path_len = len(publication_base.rstrip("/"))
-    for pdu in self.deltas[0]:
+    for pdu in self.elt:
       assert pdu.tag in (rrdp_tag_publish, rrdp_tag_withdraw)
       fn = self._uri_to_filename(pdu.get("uri"), publication_base)
       if pdu.tag == rrdp_tag_publish:
@@ -295,7 +297,7 @@ class Delta(models.Model):
             break
           else:
             dn = os.path.dirname(dn)
-    del self.deltas
+    del self.elt
 
 
 class PublishedObject(models.Model):

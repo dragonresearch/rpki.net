@@ -34,6 +34,7 @@ parser.add_argument("--yaml-file", default = "smoketest.2.yaml")
 parser.add_argument("--delay", type = int, default = 30)
 parser.add_argument("--exhaustive", action = "store_true")
 parser.add_argument("--skip-daemons", action = "store_true")
+parser.add_argument("--dry-run", action = "store_true")
 args = parser.parse_args()
 
 def log(msg):
@@ -42,7 +43,8 @@ def log(msg):
 
 def run(*argv):
   log("Running: " + " ".join(argv))
-  subprocess.check_call(argv)
+  if not args.dry_run:
+    subprocess.check_call(argv)
 
 def dataglob(pattern):
   return glob.iglob(os.path.join(("smoketest.dir" if args.use_smoketest else "yamltest.dir/RIR"), pattern))
@@ -51,7 +53,7 @@ def snapshot_to_serial(fn):
   return int(os.path.splitext(os.path.basename(fn))[0])
 
 def delta_to_serial(fn):
-  return int(os.path.splitext(os.path.basename(fn))[0].split("-")[1])
+  return int(os.path.splitext(os.path.basename(fn))[0])
 
 top = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..", ".."))
 

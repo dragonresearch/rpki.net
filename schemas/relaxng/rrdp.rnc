@@ -36,10 +36,9 @@ start |= element notification {
     attribute hash { hash }
   },
   element delta {
-    attribute from { serial },
-    attribute to   { serial },
-    attribute uri  { uri },
-    attribute hash { hash }
+    attribute serial { serial },
+    attribute uri    { uri },
+    attribute hash   { hash }
   }*
 }
 
@@ -49,20 +48,19 @@ start |= element snapshot {
   attribute version    { version },
   attribute session_id { uuid },
   attribute serial     { serial },
-  element publish      { attribute uri { uri }, base64 }*
+  element publish      {
+    attribute uri { uri },
+    base64
+  }*
 }
 
 # Delta segment: think DNS IXFR.
 
-start |= element deltas {
+start |= element delta {
   attribute version    { version },
   attribute session_id { uuid },
-  attribute from       { serial },
-  attribute to         { serial },
-  element delta {
-    attribute serial   { serial },
-    delta_element+
-  }+
+  attribute serial     { serial },
+  delta_element+
 }
 
 delta_element |= element publish  {

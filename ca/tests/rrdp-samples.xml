@@ -29,12 +29,11 @@
     
   <!-- Notification file: lists current snapshots and deltas -->
 
-   <notification version="1" xmlns="http://www.ripe.net/rpki/rrdp" session_id="d9f6dc91-0394-40b9-9663-66aef4bb623a" serial="203">
+   <notification xmlns="http://www.ripe.net/rpki/rrdp" version="1" session_id="d9f6dc91-0394-40b9-9663-66aef4bb623a" serial="185">
      <snapshot uri="http://host.example/d9f6dc91-0394-40b9-9663-66aeb623a/snapshot/202.xml" hash="279b79fd8389e20585f26735ee70e0e4d4b8af23bb2e2e611c70e92d2433edea"/>
-     <delta from="156" to="183" uri="http://host.example/d9f6c91-0394-40b9-9663-66aeb623a/deltas/156/183.xml" hash="a2d56ec180f2dde2a46bf90565932e25829b852a0b43107d5de6e41394c29100"/>
-     <delta from="183" to="184" uri="http://host.example/d9f6c91-0394-40b9-9663-66aeb623a/deltas/183/184.xml" hash="a2d56ec180f2dde2a46b2e0565932e25829b852a0b43107d5de6e41394c29200"/>
-     <delta from="184" to="197" uri="http://host.example/d9f6c91-0394-40b9-9663-66aeb623a/deltas/184/197.xml" hash="a2d56ec180f2dde2a46b2e0565932e25829b852a0b43107d5de6e41394c29201"/>
-     <delta from="197" to="203" uri="http://host.example/d9f6c91-0394-40b9-9663-66aeb623a/deltas/197/203.xml" hash="a2d56ec180f2dde2a4f92e0565932e25829b852a0b43107d5de6e41394c29300"/>
+     <delta serial="183" uri="http://host.example/d9f6c91-0394-40b9-9663-66aeb623a/deltas/183.xml" hash="a2d56ec180f2dde2a46bf90565932e25829b852a0b43107d5de6e41394c29100"/>
+     <delta serial="184" uri="http://host.example/d9f6c91-0394-40b9-9663-66aeb623a/deltas/184.xml" hash="a2d56ec180f2dde2a46b2e0565932e25829b852a0b43107d5de6e41394c29200"/>
+     <delta serial="185" uri="http://host.example/d9f6c91-0394-40b9-9663-66aeb623a/deltas/185.xml" hash="a2d56ec180f2dde2a46b2e0565932e25829b852a0b43107d5de6e41394c29201"/>
    </notification>
 
    <!-- Snapshot segment: think DNS AXFR -->
@@ -59,30 +58,24 @@
 
    <!-- Delta segment: think DNS IXFR -->
 
-   <deltas version="1" xmlns="http://www.ripe.net/rpki/rrdp" session_id="d9f6dc91-0394-40b9-9663-66aef4bb623a" from="0" to="3">
-     <delta serial="1">
-       <publish uri="http://host.example/foo/bar/cer1.cer">
-         MIIE+jCCA+KgAwIBAgIBDTANBgkqhkiG9w0BAQsFADAzMTEw
-         jRBODAxN0U2NkE5RTkxNzJFNDYxMkQ4Q0Y0QzgzRjIzOERFM
-         h8zeHoFVu6ghRPy5dbOA4akX/KG6b8XIx0iwPYdLiDbdWFbt
-       </publish>
-     </delta>
-     <delta serial="2">
-       <withdraw uri="http://host.example/foo/bar/cer1.cer" hash="deadf00d"/>
-       <publish uri="http://host.example/foo/bar/cer2.cer">
-         MIIE+jCCA+KgAwIBAgIBDTANBgkqhkiG9w0BAQsFADAzMTEw
-         h8zeHoFVu6ghRPy5dbOA4akX/KG6b8XIx0iwPYdLiDbdWFbt
-         jRBODAxN0U2NkE5RTkxNzJFNDYxMkQ4Q0Y0QzgzRjIzOERFM
-       </publish>
-       <publish uri="http://host.example/foo/bar/cer3.cer" hash="deadf00d">
-         MIIE+jCCA+KgAwIBAgIBDTANBgkqhkiG9w0BAQsFADAzMTEw
-         h8zeHoFVu6ghRPy5dbOA4akX/KG6b8XIx0iwPYdLiDbdWFbt
-         jRBODAxN0U2NkE5RTkxNzJFNDYxMkQ4Q0Y0QzgzRjIzOERFM
-       </publish>
-     </delta>
-     <delta serial="3">
-       <withdraw uri="http://host.example/foo/bar/cer2.cer" hash="deadf00d"/>
-     </delta>
-   </deltas>
+   <delta version="1" xmlns="http://www.ripe.net/rpki/rrdp" session_id="d9f6dc91-0394-40b9-9663-66aef4bb623a" serial="3">
+     <publish uri="http://host.example/foo/bar/cer1.cer">
+       MIIE+jCCA+KgAwIBAgIBDTANBgkqhkiG9w0BAQsFADAzMTEw
+       jRBODAxN0U2NkE5RTkxNzJFNDYxMkQ4Q0Y0QzgzRjIzOERFM
+       h8zeHoFVu6ghRPy5dbOA4akX/KG6b8XIx0iwPYdLiDbdWFbt
+     </publish>
+     <withdraw uri="http://host.example/foo/bar/cer1.cer" hash="deadf00d"/>
+     <publish uri="http://host.example/foo/bar/cer2.cer">
+       MIIE+jCCA+KgAwIBAgIBDTANBgkqhkiG9w0BAQsFADAzMTEw
+       h8zeHoFVu6ghRPy5dbOA4akX/KG6b8XIx0iwPYdLiDbdWFbt
+       jRBODAxN0U2NkE5RTkxNzJFNDYxMkQ4Q0Y0QzgzRjIzOERFM
+     </publish>
+     <publish uri="http://host.example/foo/bar/cer3.cer" hash="deadf00d">
+       MIIE+jCCA+KgAwIBAgIBDTANBgkqhkiG9w0BAQsFADAzMTEw
+       h8zeHoFVu6ghRPy5dbOA4akX/KG6b8XIx0iwPYdLiDbdWFbt
+       jRBODAxN0U2NkE5RTkxNzJFNDYxMkQ4Q0Y0QzgzRjIzOERFM
+     </publish>
+     <withdraw uri="http://host.example/foo/bar/cer4.cer" hash="deadf00d"/>
+   </delta>
 
 </completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>

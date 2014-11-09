@@ -2527,13 +2527,16 @@ class publication_queue(object):
     if self.replace:
       self.uris = {}
 
-  def queue(self, uri, repository, handler = None, old_obj = None, new_obj = None):
+  def queue(self, uri, repository, handler = None,
+            old_obj = None, new_obj = None, old_hash = None):
 
-    assert old_obj is not None or new_obj is not None
+    assert old_obj is not None or new_obj is not None or old_hash is not None
+    assert old_obj is None or old_hash is None
     assert old_obj is None or isinstance(old_obj, rpki.x509.uri_dispatch(uri))
     assert new_obj is None or isinstance(new_obj, rpki.x509.uri_dispatch(uri))
 
-    logger.debug("Queuing publication action: uri %s, old %r, new %r", uri, old_obj, new_obj)
+    logger.debug("Queuing publication action: uri %s, old %r, new %r, hash %s",
+                 uri, old_obj, new_obj, old_hash)
 
     # id(repository) may need to change to repository.peer_contact_uri
     # once we convert from our custom SQL cache to Django ORM.
@@ -2549,6 +2552,8 @@ class publication_queue(object):
       old_pdu = self.uris.pop(uri)
       self.msgs[rid].remove(old_pdu)
       hash = old_pdu.get("hash")
+    elif old_hash is not None:
+      hash = old_hash
     elif old_obj is None:
       hash = None 
     else:

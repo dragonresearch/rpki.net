@@ -50,7 +50,7 @@ tag_withdraw      = rpki.relaxng.publication.xmlns + "withdraw"
 tag_report_error  = rpki.relaxng.publication.xmlns + "report_error"
 
 
-logger.warning("Horrible kludge: static RRDP URI for testing, this needs to be fixed")
+# Horrible kludge: static RRDP URI for testing, this needs to be fixed
 from socket import getfqdn
 rrdp_sia_uri_kludge = "http://%s/rrdp/notify.xml" % getfqdn()
 

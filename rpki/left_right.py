@@ -903,7 +903,8 @@ class parent_elt(data_elt):
       keypair      = ca_detail.private_key_id,
       is_ca        = True,
       caRepository = ca.sia_uri,
-      rpkiManifest = ca_detail.manifest_uri)
+      rpkiManifest = ca_detail.manifest_uri,
+      rpkiNotify   = rpki.publication.rrdp_sia_uri_kludge)
     q_msg = self._compose_up_down_query("issue")
     q_pdu = SubElement(q_msg, rpki.up_down.tag_request, class_name = ca.parent_resource_class)
     q_pdu.text = pkcs10.get_Base64()

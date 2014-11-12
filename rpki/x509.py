@@ -739,6 +739,10 @@ class X509(DER_object):
     Common code to issue an RPKI certificate.
     """
 
+    if not sia or len(sia) != 4 or not sia[3]:
+      logger.debug("Oops! _issue() sia: %r", sia)
+      log.show_stack(logger)
+
     now = rpki.sundial.now()
     ski = subject_key.get_SKI()
 
@@ -784,6 +788,7 @@ class X509(DER_object):
     assert sia is not None or not is_ca
 
     if sia is not None:
+      logger.debug("_issue() sia: %r", sia)
       caRepository, rpkiManifest, signedObject, rpkiNotify = sia
       cert.setSIA(
         (caRepository,) if isinstance(caRepository, str) else caRepository,

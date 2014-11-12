@@ -265,3 +265,17 @@ def log_repr(obj, *tokens):
     words.append(" at %#x" % id(obj))
 
   return "<" + " ".join(words) + ">"
+
+
+def show_stack(stack_logger = None):
+  """
+  Log a stack trace.
+  """
+
+  if stack_logger is None:
+    stack_logger = logger
+
+  for frame in tb.format_stack():
+    for line in frame.split("\n"):
+      if line:
+        stack_logger.debug("%s", line.rstrip())

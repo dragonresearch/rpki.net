@@ -1184,7 +1184,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       ca          = self.ca,
       resources   = resources,
       subject_key = self.manifest_public_key,
-      sia         = (None, None, self.manifest_uri))
+      sia         = (None, None, self.manifest_uri, rpki.publication.rrdp_sia_uri_kludge))
 
   def issue(self, ca, child, subject_key, sia, resources, publisher, child_cert = None):
     """
@@ -1948,7 +1948,7 @@ class roa_obj(rpki.sql.sql_persistent):
       ca          = ca,
       resources   = resources,
       subject_key = keypair.get_public(),
-      sia         = (None, None, self.uri_from_key(keypair)))
+      sia         = (None, None, self.uri_from_key(keypair), rpki.publication.rrdp_sia_uri_kludge))
     self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
     self.published = rpki.sundial.now()
     self.sql_store()
@@ -2158,7 +2158,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
       ca          = ca,
       resources   = resources,
       subject_key = keypair.get_public(),
-      sia         = (None, None, self.uri_from_key(keypair)))
+      sia         = (None, None, self.uri_from_key(keypair), rpki.publication.rrdp_sia_uri_kludge))
     self.ghostbuster = rpki.x509.Ghostbuster.build(self.vcard, keypair, (self.cert,))
     self.published = rpki.sundial.now()
     self.sql_store()

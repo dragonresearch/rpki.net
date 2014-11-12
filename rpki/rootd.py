@@ -189,7 +189,7 @@ class main(object):
       keypair     = self.rpki_root_key,
       subject_key = manifest_keypair.get_public(),
       serial      = self.serial_number,
-      sia         = (None, None, self.rpki_root_manifest_uri),
+      sia         = (None, None, self.rpki_root_manifest_uri, rpki.publication.rrdp_sia_uri_kludge),
       aia         = self.rpki_root_cert_uri,
       crldp       = self.rpki_root_crl_uri,
       resources   = manifest_resources,

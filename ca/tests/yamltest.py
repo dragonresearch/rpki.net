@@ -681,7 +681,8 @@ def create_root_certificate(db_root):
 
   root_uri = "rsync://localhost:%d/rpki/%s-root/root" % (db_root.pubd.rsync_port, db_root.name)
 
-  root_sia = (root_uri + "/", root_uri + "/root.mft", None)
+  from rpki.publication import rrdp_sia_uri_kludge
+  root_sia = (root_uri + "/", root_uri + "/root.mft", None, rrdp_sia_uri_kludge)
 
   root_cert = rpki.x509.X509.self_certify(
     keypair     = root_key,

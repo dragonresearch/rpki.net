@@ -30,12 +30,18 @@ import rpki.POW
 class Certificate(object):
 
   @staticmethod
-  def first_rsync(uris):
+  def first_whatever(uris, prefix):
     if uris is not None:
       for uri in uris:
-        if uri.startswith("rsync://"):
+        if uri.startswith(prefix):
           return uri
     return None
+
+  def first_rsync(self, uris):
+    return self.first_whatever(uris, "rsync://")
+
+  def first_http(self, uris):
+    return self.first_whatever(uris, "http://")
 
   def __init__(self, fn):
     try:
@@ -47,13 +53,14 @@ class Certificate(object):
         x = cms.certs()[0]
       except:
         raise ValueError
-    sia = x.getSIA() or (None, None, None)
+    sia = x.getSIA() or (None, None, None, None)
     self.fn = fn
     self.uris = (
       ("AIA:caIssuers",    self.first_rsync(x.getAIA())),
       ("SIA:caRepository", self.first_rsync(sia[0])),
       ("SIA:rpkiManifest", self.first_rsync(sia[1])),
       ("SIA:signedObject", self.first_rsync(sia[2])),
+      ("SIA:rpkiNotify",   self.first_http(sia[3])),
       ("CRLDP",            self.first_rsync(x.getCRLDP())))
 
   def __str__(self):

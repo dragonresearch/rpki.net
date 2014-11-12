@@ -83,6 +83,9 @@
 #define	SCHEME_RSYNC	("rsync://")
 #define	SIZEOF_RSYNC	(sizeof(SCHEME_RSYNC) - 1)
 
+#define SCHEME_HTTP	("http://")
+#define	SIZEOF_HTTP	(sizeof(SCHEME_HTTP) - 1)
+
 /**
  * Maximum length of a hostname.
  */
@@ -410,7 +413,7 @@ DECLARE_STACK_OF(validation_status_t)
 typedef struct certinfo {
   int ca, ta;
   object_generation_t generation;
-  uri_t uri, sia, aia, crldp, manifest, signedobject;
+  uri_t uri, sia, aia, crldp, manifest, signedobject, rrdpnotify;
 } certinfo_t;
 
 typedef struct rcynic_ctx rcynic_ctx_t;
@@ -592,6 +595,10 @@ static int NID_ad_rpkiManifest;
 static int NID_ad_signedObject;
 #endif
 
+#ifndef    NID_ad_rpkiNotify
+static int NID_ad_rpkiNotify;
+#endif
+
 #ifndef    NID_ct_ROA
 static int NID_ct_ROA;
 #endif
@@ -628,6 +635,10 @@ static const struct {
 
 #ifndef NID_ad_signedObject
   {&NID_ad_signedObject, "1.3.6.1.5.5.7.48.11", "id-ad-signedObject", "Signed Object"},
+#endif
+
+#ifndef NID_ad_rpkiNotify
+  {&NID_ad_rpkiNotify,   "1.3.6.1.5.5.7.48.13", "id-ad-rpkiNotify",   "RPKI RRDP Notification"},
 #endif
 
 #ifndef NID_ct_ROA
@@ -1040,6 +1051,14 @@ static int uri_cmp(const char * const *a, const char * const *b)
 static int is_rsync(const char *uri)
 {
   return uri && !strncmp(uri, SCHEME_RSYNC, SIZEOF_RSYNC);
+}
+
+/**
+ * Is string an http URI?
+ */
+static int is_http(const char *uri)
+{
+  return uri && !strncmp(uri, SCHEME_HTTP, SIZEOF_HTTP);
 }
 
 /**
@@ -3155,7 +3174,8 @@ static int extract_access_uri(rcynic_ctx_t *rc,
 			      const AUTHORITY_INFO_ACCESS *xia,
 			      const int nid,
 			      uri_t *result,
-			      int *count)
+			      int *count,
+			      int (*relevant)(const char *))
 {
   int i;
 
@@ -3168,9 +3188,9 @@ static int extract_access_uri(rcynic_ctx_t *rc,
     if (OBJ_obj2nid(a->method) != nid)
       continue;
     ++*count;
-    if (!is_rsync((char *) a->location->d.uniformResourceIdentifier->data))
-      log_validation_status(rc, uri, non_rsync_uri_in_extension, generation);
-    else if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length)
+    if (!relevant((char *) a->location->d.uniformResourceIdentifier->data))
+      continue;
+    if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length)
       log_validation_status(rc, uri, uri_too_long, generation);
     else if (result->s[0])
       log_validation_status(rc, uri, multiple_rsync_uris_in_extension, generation);
@@ -3685,7 +3705,7 @@ static int check_x509(rcynic_ctx_t *rc,
     int n_caIssuers = 0;
     ex_count--;
     if (!extract_access_uri(rc, uri, generation, aia, NID_ad_ca_issuers,
-			    &certinfo->aia, &n_caIssuers) ||
+			    &certinfo->aia, &n_caIssuers, is_rsync) ||
 	!certinfo->aia.s[0] ||
 	sk_ACCESS_DESCRIPTION_num(aia) != n_caIssuers) {
       log_validation_status(rc, uri, malformed_aia_extension, generation);
@@ -3715,18 +3735,21 @@ static int check_x509(rcynic_ctx_t *rc,
 
   if ((sia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
     int got_caDirectory,     got_rpkiManifest,     got_signedObject;
-    int   n_caDirectory = 0,   n_rpkiManifest = 0,   n_signedObject = 0;
+    int   n_caDirectory = 0,   n_rpkiManifest = 0,   n_signedObject = 0, n_rpkiNotify = 0;
     ex_count--;
     ok = (extract_access_uri(rc, uri, generation, sia, NID_caRepository,
-			     &certinfo->sia, &n_caDirectory) &&
+			     &certinfo->sia, &n_caDirectory, is_rsync) &&
 	  extract_access_uri(rc, uri, generation, sia, NID_ad_rpkiManifest,
-			     &certinfo->manifest, &n_rpkiManifest) &&
+			     &certinfo->manifest, &n_rpkiManifest, is_rsync) &&
 	  extract_access_uri(rc, uri, generation, sia, NID_ad_signedObject,
-			     &certinfo->signedobject, &n_signedObject));
+			     &certinfo->signedobject, &n_signedObject, is_rsync) &&
+	  extract_access_uri(rc, uri, generation, sia, NID_ad_rpkiNotify,
+			     &certinfo->rrdpnotify, &n_rpkiNotify, is_http));
     got_caDirectory  = certinfo->sia.s[0]          != '\0';
     got_rpkiManifest = certinfo->manifest.s[0]     != '\0';
     got_signedObject = certinfo->signedobject.s[0] != '\0';
-    ok &= sk_ACCESS_DESCRIPTION_num(sia) == n_caDirectory + n_rpkiManifest + n_signedObject;
+    ok &= (sk_ACCESS_DESCRIPTION_num(sia) ==
+	   n_caDirectory + n_rpkiManifest + n_signedObject + n_rpkiNotify);
     if (certinfo->ca)
       ok &=  got_caDirectory &&  got_rpkiManifest && !got_signedObject;
     else if (rc->allow_ee_without_signedObject)

@@ -170,6 +170,10 @@ static int NID_rpkiManifest;
 static int NID_signedObject;
 #endif
 
+#ifndef NID_rpkiNotify
+static int NID_rpkiNotify;
+#endif
+
 static const struct {
   int *nid;
   const char *oid;
@@ -182,7 +186,11 @@ static const struct {
 #endif
 
 #ifndef NID_signedObject
-  {&NID_signedObject, "1.3.6.1.5.5.7.48.11", "id-ad-signedObject", "Signed Object"}
+  {&NID_signedObject, "1.3.6.1.5.5.7.48.11", "id-ad-signedObject", "Signed Object"},
+#endif
+
+#ifndef NID_rpkiNotify
+  {&NID_rpkiNotify,   "1.3.6.1.5.5.7.48.13", "id-ad-rpkiNotify",   "RPKI RRDP Notification"},
 #endif
 
 };
@@ -1295,8 +1303,8 @@ extension_set_basic_constraints(X509_EXTENSIONS **exts, PyObject *args)
 #define	EXTENSION_GET_SIA__DOC__                                                \
   "If there is no SIA extension, this method returns None.\n"                   \
   "\n"                                                                          \
-  "Otherwise, it returns a tuple containing three values:\n"                    \
-  "caRepository URIs, rpkiManifest URIs, and signedObject URIs.\n"              \
+  "Otherwise, it returns a tuple containing four values:\n"                     \
+  "caRepository URIs, rpkiManifest URIs, signedObject, and rpkiNotify URIs.\n"  \
   "Each of these values is a tuple of strings, representing an ordered\n"       \
   "sequence of URIs.  Any or all of these sequences may be empty.\n"            \
   "\n"                                                                          \
@@ -1310,9 +1318,11 @@ extension_get_sia(X509_EXTENSIONS **exts)
   PyObject *result_caRepository = NULL;
   PyObject *result_rpkiManifest = NULL;
   PyObject *result_signedObject = NULL;
+  PyObject *result_rpkiNotify   = NULL;
   int n_caRepository = 0;
   int n_rpkiManifest = 0;
   int n_signedObject = 0;
+  int n_rpkiNotify   = 0;
   const char *uri;
   PyObject *obj;
   int i, nid;
@@ -1334,26 +1344,23 @@ extension_get_sia(X509_EXTENSIONS **exts)
     if (a->location->type != GEN_URI)
       continue;
     nid = OBJ_obj2nid(a->method);
-    if (nid == NID_caRepository) {
+    if (nid == NID_caRepository)
       n_caRepository++;
-      continue;
-    }
-    if (nid == NID_rpkiManifest) {
+    else if (nid == NID_rpkiManifest)
       n_rpkiManifest++;
-      continue;
-    }
-    if (nid == NID_signedObject) {
+    else if (nid == NID_signedObject)
       n_signedObject++;
-      continue;
-    }
+    else if (nid == NID_rpkiNotify)
+      n_rpkiNotify++;
   }
 
   if (((result_caRepository = PyTuple_New(n_caRepository)) == NULL) ||
       ((result_rpkiManifest = PyTuple_New(n_rpkiManifest)) == NULL) ||
-      ((result_signedObject = PyTuple_New(n_signedObject)) == NULL))
+      ((result_signedObject = PyTuple_New(n_signedObject)) == NULL) ||
+      ((result_rpkiNotify   = PyTuple_New(n_rpkiNotify))   == NULL))
     goto error;
 
-  n_caRepository = n_rpkiManifest = n_signedObject = 0;
+  n_caRepository = n_rpkiManifest = n_signedObject = n_rpkiNotify = 0;
 
   for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
     ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
@@ -1379,24 +1386,32 @@ extension_get_sia(X509_EXTENSIONS **exts)
       PyTuple_SET_ITEM(result_signedObject, n_signedObject++, obj);
       continue;
     }
+    if (nid == NID_rpkiNotify) {
+      if ((obj = PyString_FromString(uri)) == NULL)
+        goto error;
+      PyTuple_SET_ITEM(result_rpkiNotify, n_rpkiNotify++, obj);
+      continue;
+    }
   }
 
-  result = Py_BuildValue("(OOO)",
+  result = Py_BuildValue("(OOOO)",
                          result_caRepository,
                          result_rpkiManifest,
-                         result_signedObject);
+                         result_signedObject,
+                         result_rpkiNotify);
 
  error:
   AUTHORITY_INFO_ACCESS_free(ext);
   Py_XDECREF(result_caRepository);
   Py_XDECREF(result_rpkiManifest);
   Py_XDECREF(result_signedObject);
+  Py_XDECREF(result_rpkiNotify);
   return result;
 }
 
 #define EXTENSION_SET_SIA__DOC__                                        \
-  "This method Takes three arguments:\n"                                \
-  "\"caRepository\", \"rpkiManifest\", and \"signedObject\".\n"         \
+  "This method takes four arguments: \"caRepository\"\n,"               \
+  "\"rpkiManifest\", \"signedObject\", and \"rpkiNotify\".\n"           \
   "Each of these should be an iterable which returns URIs.\n"           \
   "\n"                                                                  \
   "None is acceptable as an alternate way of specifying an empty\n"     \
@@ -1405,11 +1420,12 @@ extension_get_sia(X509_EXTENSIONS **exts)
 static PyObject *
 extension_set_sia(X509_EXTENSIONS **exts, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = {"caRepository", "rpkiManifest", "signedObject", NULL};
+  static char *kwlist[] = {"caRepository", "rpkiManifest", "signedObject", "rpkiNotify", NULL};
   AUTHORITY_INFO_ACCESS *ext = NULL;
   PyObject *caRepository = Py_None;
   PyObject *rpkiManifest = Py_None;
   PyObject *signedObject = Py_None;
+  PyObject *rpkiNotify   = Py_None;
   PyObject *iterator = NULL;
   ASN1_OBJECT *oid = NULL;
   PyObject **pobj = NULL;
@@ -1424,8 +1440,8 @@ extension_set_sia(X509_EXTENSIONS **exts, PyObject *args, PyObject *kwds)
   if (!exts)
     goto error;
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist,
-                                   &caRepository, &rpkiManifest, &signedObject))
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOO", kwlist,
+                                   &caRepository, &rpkiManifest, &signedObject, &rpkiNotify))
     goto error;
 
   if ((ext = AUTHORITY_INFO_ACCESS_new()) == NULL)
@@ -1437,11 +1453,12 @@ extension_set_sia(X509_EXTENSIONS **exts, PyObject *args, PyObject *kwds)
    * single URI as an abbreviation for a collection containing one URI.
    */
 
-  for (i = 0; i < 3; i++) {
+  for (i = 0; i < 4; i++) {
     switch (i) {
     case 0: pobj = &caRepository; nid = NID_caRepository; break;
     case 1: pobj = &rpkiManifest; nid = NID_rpkiManifest; break;
     case 2: pobj = &signedObject; nid = NID_signedObject; break;
+    case 3: pobj = &rpkiNotify;   nid = NID_rpkiNotify;   break;
     }
 
     if (*pobj == Py_None)
@@ -1461,7 +1478,8 @@ extension_set_sia(X509_EXTENSIONS **exts, PyObject *args, PyObject *kwds)
       if ((a = ACCESS_DESCRIPTION_new()) == NULL ||
           (a->method = OBJ_dup(oid)) == NULL ||
           (a->location->d.uniformResourceIdentifier = ASN1_IA5STRING_new()) == NULL ||
-          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier, (unsigned char *) uri, urilen))
+          !ASN1_OCTET_STRING_set(a->location->d.uniformResourceIdentifier,
+                                 (unsigned char *) uri, urilen))
         lose_no_memory();
 
       a->location->type = GEN_URI;

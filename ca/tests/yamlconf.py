@@ -522,7 +522,7 @@ class allocation(object):
 
     root_uri = "rsync://%s/rpki/" % self.rsync_server
 
-    root_sia = (root_uri, root_uri + "root.mft", None)
+    root_sia = (root_uri, root_uri + "root.mft", None, rpki.publication.rrdp_sia_uri_kludge)
 
     root_cert = rpki.x509.X509.self_certify(
       keypair     = root_key,

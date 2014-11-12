@@ -139,7 +139,7 @@ class Session(models.Model):
 
   @property
   def notification_fn(self):
-    return "updates.xml"
+    return "notify.xml"
 
 
   @staticmethod

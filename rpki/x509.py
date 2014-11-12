@@ -784,11 +784,12 @@ class X509(DER_object):
     assert sia is not None or not is_ca
 
     if sia is not None:
-      caRepository, rpkiManifest, signedObject = sia
+      caRepository, rpkiManifest, signedObject, rpkiNotify = sia
       cert.setSIA(
         (caRepository,) if isinstance(caRepository, str) else caRepository,
         (rpkiManifest,) if isinstance(rpkiManifest, str) else rpkiManifest,
-        (signedObject,) if isinstance(signedObject, str) else signedObject)
+        (signedObject,) if isinstance(signedObject, str) else signedObject,
+        (rpkiNotify,)   if isinstance(rpkiNotify, str)   else rpkiNotify)
 
     if resources is not None:
       cert.setRFC3779(
@@ -1045,7 +1046,7 @@ class PKCS10(DER_object):
     if sias is None:
       raise rpki.exceptions.BadPKCS10("PKCS #10 CA SIA missing")
 
-    caRepository, rpkiManifest, signedObject = sias
+    caRepository, rpkiManifest, signedObject, rpkiNotify = sias
 
     if signedObject:
       raise rpki.exceptions.BadPKCS10("PKCS #10 CA SIA must not have id-ad-signedObject")
@@ -1095,7 +1096,7 @@ class PKCS10(DER_object):
     bc  = self.get_POW().getBasicConstraints()
     sia = self.get_POW().getSIA()
 
-    caRepository, rpkiManifest, signedObject = sia or (None, None, None)
+    caRepository, rpkiManifest, signedObject, rpkiNotify = sia or (None, None, None, None)
 
     if alg not in (rpki.oids.sha256WithRSAEncryption, rpki.oids.ecdsa_with_SHA256):
       raise rpki.exceptions.BadPKCS10("PKCS #10 has bad signature algorithm for EE: %s" % alg)
@@ -1149,7 +1150,7 @@ class PKCS10(DER_object):
   @classmethod
   def create(cls, keypair, exts = None, is_ca = False,
              caRepository = None, rpkiManifest = None, signedObject = None,
-             cn = None, sn = None, eku = None):
+             cn = None, sn = None, eku = None, rpkiNotify = None):
     """
     Create a new request for a given keypair.
     """
@@ -1168,6 +1169,9 @@ class PKCS10(DER_object):
     if isinstance(signedObject, str):
       signedObject = (signedObject,)
 
+    if isinstance(rpkiNotify, str):
+      rpkiNotify = (rpkiNotify,)
+
     req = rpki.POW.PKCS10()
     req.setVersion(0)
     req.setSubject(X501DN.from_cn(cn, sn).get_POW())
@@ -1177,8 +1181,8 @@ class PKCS10(DER_object):
       req.setBasicConstraints(True, None)
       req.setKeyUsage(cls.expected_ca_keyUsage)
 
-    if caRepository or rpkiManifest or signedObject:
-      req.setSIA(caRepository, rpkiManifest, signedObject)
+    if caRepository or rpkiManifest or signedObject or rpkiNotify:
+      req.setSIA(caRepository, rpkiManifest, signedObject, rpkiNotify)
 
     if eku:
       req.setEKU(eku)

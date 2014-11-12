@@ -410,7 +410,7 @@ DECLARE_STACK_OF(validation_status_t)
 typedef struct certinfo {
   int ca, ta;
   object_generation_t generation;
-  uri_t uri, sia, aia, crldp, manifest, signedobject, rpkinotify;
+  uri_t uri, sia, aia, crldp, manifest, signedobject;
 } certinfo_t;
 
 typedef struct rcynic_ctx rcynic_ctx_t;
@@ -3715,21 +3715,18 @@ static int check_x509(rcynic_ctx_t *rc,
 
   if ((sia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
     int got_caDirectory,     got_rpkiManifest,     got_signedObject;
-    int   n_caDirectory = 0,   n_rpkiManifest = 0,   n_signedObject = 0, n_rpkiNotify = 0;
+    int   n_caDirectory = 0,   n_rpkiManifest = 0,   n_signedObject = 0;
     ex_count--;
     ok = (extract_access_uri(rc, uri, generation, sia, NID_caRepository,
-			     &certinfo->sia, &n_caDirectory, is_rsync) &&
+			     &certinfo->sia, &n_caDirectory) &&
 	  extract_access_uri(rc, uri, generation, sia, NID_ad_rpkiManifest,
-			     &certinfo->manifest, &n_rpkiManifest, is_rsync) &&
+			     &certinfo->manifest, &n_rpkiManifest) &&
 	  extract_access_uri(rc, uri, generation, sia, NID_ad_signedObject,
-			     &certinfo->signedobject, &n_signedObject, is_rsync) &&
-	  extract_access_uri(rc, uri, generation, sia, NID_ad_rpkiNotify,
-			     &certinfo->rpkinotify, &n_rpkiNotify, is_http));
+			     &certinfo->signedobject, &n_signedObject));
     got_caDirectory  = certinfo->sia.s[0]          != '\0';
     got_rpkiManifest = certinfo->manifest.s[0]     != '\0';
     got_signedObject = certinfo->signedobject.s[0] != '\0';
-    ok &= (sk_ACCESS_DESCRIPTION_num(sia) ==
-	   n_caDirectory + n_rpkiManifest + n_signedObject + n_rpkiNotify);
+    ok &= sk_ACCESS_DESCRIPTION_num(sia) == n_caDirectory + n_rpkiManifest + n_signedObject;
     if (certinfo->ca)
       ok &=  got_caDirectory &&  got_rpkiManifest && !got_signedObject;
     else if (rc->allow_ee_without_signedObject)

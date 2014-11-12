@@ -22,13 +22,12 @@ stop_cmd="rpkica_stop"
 load_rc_config $name
 
 : ${rpkica_enable="NO"}
-
 : ${rpkica_pid_dir="/var/run/rpki"}
 
 rpkica_start()
 {
-	/usr/bin/install -m 755 -d $rpkica_pid_dir
-	/usr/local/sbin/rpki-start-servers
+	/usr/bin/install -m 755 -d ${rpkica_pid_dir}
+	/usr/local/sbin/rpki-start-servers ${rpkica_flags}
 	return 0
 }
 
@@ -36,9 +35,9 @@ rpkica_stop()
 {
 	for i in rpkid pubd irdbd rootd
 	do
-		if /bin/test -f $rpkica_pid_dir/$i.pid
+		if /bin/test -f ${rpkica_pid_dir}/${i}.pid
 		then
-			/bin/kill `/bin/cat $rpkica_pid_dir/$i.pid`
+			/bin/kill `/bin/cat ${rpkica_pid_dir}/${i}.pid`
 		fi
 	done
 	return 0

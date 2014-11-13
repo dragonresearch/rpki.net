@@ -82,6 +82,18 @@ def first_rsync_uri(xia):
         return uri
   return None
 
+def first_http_uri(xia):
+  """
+  Find first HTTP URI in a sequence of AIA or SIA URIs.
+  Returns the URI if found, otherwise None.
+  """
+
+  if xia is not None:
+    for uri in xia:
+      if uri.startswith("http://"):
+        return uri
+  return None
+
 def sha1(data):
   """
   Calculate SHA-1 digest of some data.
@@ -492,6 +504,15 @@ class DER_object(object):
 
     sia = self.get_POW().getSIA()
     return None if sia is None else first_rsync_uri(sia[2])
+
+  def get_sia_rrdp_notify(self):
+    """
+    Get SIA RRDP (id-ad-rpkiNotify) URI from this object.
+    Only works for subclasses that support getSIA().
+    """
+
+    sia = self.get_POW().getSIA()
+    return None if sia is None else first_http_uri(sia[3])
 
   def get_AIA(self):
     """

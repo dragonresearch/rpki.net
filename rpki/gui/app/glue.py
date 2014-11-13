@@ -30,6 +30,7 @@ from rpki.resource_set import (resource_set_as, resource_set_ipv4,
 from rpki.irdb.zookeeper import Zookeeper
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
+from rpki.left_right import nsmap, version, tag_msg, tag_list
 
 from lxml.etree import Element, SubElement
 from django.contrib.auth.models import User
@@ -77,9 +78,8 @@ def list_received_resources(log, conf):
     """
 
     z = Zookeeper(handle=conf.handle)
-    req = Element(rpki.left_right.tag_msg, nsmap=rpki.left_right.nsmap,
-                  type="query", version=rpki.left_right.version)
-    SubElement(req, rpki.left_right.tag_list_received_resources, self_handle=conf.handle)
+    req = Element(tag_msg, nsmap=nsmap, type="query", version=version)
+    SubElement(req, tag_list_received_resources, self_handle=conf.handle)
     pdus = z.call_rpkid(req)
     # pdus is sometimes None (see https://trac.rpki.net/ticket/681)
     if pdus is None:

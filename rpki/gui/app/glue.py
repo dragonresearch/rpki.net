@@ -30,7 +30,7 @@ from rpki.resource_set import (resource_set_as, resource_set_ipv4,
 from rpki.irdb.zookeeper import Zookeeper
 from rpki.gui.app import models
 from rpki.exceptions import BadIPResource
-from rpki.left_right import nsmap, version, tag_msg, tag_list
+from rpki.left_right import nsmap, version, tag_msg, tag_list_received_resources
 
 from lxml.etree import Element, SubElement
 from django.contrib.auth.models import User

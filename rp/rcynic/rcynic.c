@@ -3188,7 +3188,7 @@ static int extract_access_uri(rcynic_ctx_t *rc,
     if (OBJ_obj2nid(a->method) != nid)
       continue;
     ++*count;
-    if (!relevant((char *) a->location->d.uniformResourceIdentifier->data))
+    if (relevant && !relevant((char *) a->location->d.uniformResourceIdentifier->data))
       continue;
     if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length)
       log_validation_status(rc, uri, uri_too_long, generation);
@@ -3705,7 +3705,7 @@ static int check_x509(rcynic_ctx_t *rc,
     int n_caIssuers = 0;
     ex_count--;
     if (!extract_access_uri(rc, uri, generation, aia, NID_ad_ca_issuers,
-			    &certinfo->aia, &n_caIssuers, is_rsync) ||
+			    &certinfo->aia, &n_caIssuers, NULL) ||
 	!certinfo->aia.s[0] ||
 	sk_ACCESS_DESCRIPTION_num(aia) != n_caIssuers) {
       log_validation_status(rc, uri, malformed_aia_extension, generation);

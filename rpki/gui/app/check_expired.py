@@ -26,6 +26,7 @@ from rpki.gui.app.models import Conf, ResourceCert, Timestamp, Alert
 from rpki.gui.app.glue import list_received_resources
 from rpki.irdb import Zookeeper
 from rpki.x509 import X509
+from rpki.left_right import version, nsmap, tag_msg, tag_list_published_objects
 
 from lxml.etree import Element, SubElement
 from django.core.mail import send_mail
@@ -105,9 +106,8 @@ def check_child_certs(conf, errs):
     """
 
     z = Zookeeper(handle=conf.handle)
-    req = Element(rpki.left_right.tag_msg, nsmap=rpki.left_right.nsmap,
-                  type="query", version=rpki.left_right.version)
-    SubElement(req, rpki.left_right.tag_list_published_objects,
+    req = Element(tag_msg, nsmap=nsmap, type="query", version=version)
+    SubElement(req, tag_list_published_objects,
                tag="list_published_objects", self_handle=conf.handle)
     pdus = z.call_rpkid(req)
     for pdu in pdus:

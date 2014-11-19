@@ -193,7 +193,7 @@ class Zookeeper(object):
 
   show_xml = False
 
-  def __init__(self, cfg = None, handle = None, logstream = None):
+  def __init__(self, cfg = None, handle = None, logstream = None, disable_signal_handlers = False):
 
     if cfg is None:
       cfg = rpki.config.parser()
@@ -204,6 +204,7 @@ class Zookeeper(object):
     self.cfg = cfg
 
     self.logstream = logstream
+    self.disable_signal_handlers = disable_signal_handlers
 
     self.run_rpkid = cfg.getboolean("run_rpkid", section = myrpki_section)
     self.run_pubd  = cfg.getboolean("run_pubd", section = myrpki_section)
@@ -1059,14 +1060,16 @@ class Zookeeper(object):
     elif len(pdus) == 1 and isinstance(pdus[0], (tuple, list)):
       pdus = pdus[0]
 
-    call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
-      proto       = rpki.left_right,
-      client_key  = irbe.private_key,
-      client_cert = irbe.certificate,
-      server_ta   = self.server_ca.certificate,
-      server_cert = rpkid.certificate,
-      url         = url,
-      debug       = self.show_xml))
+    call_rpkid = rpki.async.sync_wrapper(
+      disable_signal_handlers = self.disable_signal_handlers,
+      func = rpki.http.caller(
+        proto       = rpki.left_right,
+        client_key  = irbe.private_key,
+        client_cert = irbe.certificate,
+        server_ta   = self.server_ca.certificate,
+        server_cert = rpkid.certificate,
+        url         = url,
+        debug       = self.show_xml))
 
     return call_rpkid(*pdus)
 
@@ -1169,14 +1172,16 @@ class Zookeeper(object):
     elif len(pdus) == 1 and isinstance(pdus[0], (tuple, list)):
       pdus = pdus[0]
 
-    call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
-      proto       = rpki.publication,
-      client_key  = irbe.private_key,
-      client_cert = irbe.certificate,
-      server_ta   = self.server_ca.certificate,
-      server_cert = pubd.certificate,
-      url         = url,
-      debug       = self.show_xml))
+    call_pubd = rpki.async.sync_wrapper(
+      disable_signal_handlers = self.disable_signal_handlers,
+      func = rpki.http.caller(
+        proto       = rpki.publication,
+        client_key  = irbe.private_key,
+        client_cert = irbe.certificate,
+        server_ta   = self.server_ca.certificate,
+        server_cert = pubd.certificate,
+        url         = url,
+        debug       = self.show_xml))
 
     return call_pubd(*pdus)
 

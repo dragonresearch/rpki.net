@@ -89,11 +89,8 @@ def list_received_resources(log, conf):
 
     """
 
-    z = Zookeeper(handle=conf.handle)
-    pdus = z.call_rpkid(
-        list_received_resources_elt.make_pdu(self_handle=conf.handle),
-        disable_signal_handlers=True
-    )
+    z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
+    pdus = z.call_rpkid(list_received_resources_elt.make_pdu(self_handle=conf.handle))
     # pdus is sometimes None (see https://trac.rpki.net/ticket/681)
     if pdus is None:
         print >>log, 'error: call_rpkid() returned None for handle %s when fetching received resources' % conf.handle

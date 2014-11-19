@@ -41,10 +41,10 @@ LOGGING = {
         },
     },
     'loggers': {
-        'django': {
-            'level': 'ERROR',
-            'handlers': ['stderr', 'mail_admins'],
-        },
+        #'django': {
+        #    'level': 'ERROR',
+        #    'handlers': ['stderr', 'mail_admins'],
+        #},
         'rpki.gui': {
             'level': 'WARNING',
             'handlers': ['stderr'],
@@ -55,6 +55,10 @@ LOGGING = {
             'level': 'DEBUG',
             'handlers': ['stderr'],
         },
+    },
+    'root': {
+        'level': 'WARNING',
+        'handlers': ['stderr', 'mail_admins'],
     },
 }
 

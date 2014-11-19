@@ -49,6 +49,12 @@ LOGGING = {
             'level': 'WARNING',
             'handlers': ['stderr'],
         },
+        'rpki.async': {
+            # enabled for tracking https://trac.rpki.net/ticket/681
+            # need to change this to WARNING once ticket is closed
+            'level': 'DEBUG',
+            'handlers': ['stderr'],
+        },
     },
 }
 

@@ -324,7 +324,7 @@ def import_asns(request):
             f = NamedTemporaryFile(prefix='asns', suffix='.csv', delete=False)
             f.write(request.FILES['csv'].read())
             f.close()
-            z = Zookeeper(handle=conf.handle)
+            z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
             z.load_asns(f.name)
             z.run_rpkid_now()
             os.unlink(f.name)
@@ -359,7 +359,7 @@ def import_prefixes(request):
             f = NamedTemporaryFile(prefix='prefixes', suffix='.csv', delete=False)
             f.write(request.FILES['csv'].read())
             f.close()
-            z = Zookeeper(handle=conf.handle)
+            z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
             z.load_prefixes(f.name)
             z.run_rpkid_now()
             os.unlink(f.name)
@@ -437,7 +437,11 @@ def child_add_prefix(request, pk):
             version = 'IPv%d' % r.version
             child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
                                         version=version)
-            Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
+            Zookeeper(
+		handle=conf.handle,
+		logstream=logstream,
+		disable_signal_handlers=True
+	    ).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = forms.AddNetForm(child=child)
@@ -456,7 +460,11 @@ def child_add_asn(request, pk):
             asns = form.cleaned_data.get('asns')
             r = resource_range_as.parse_str(asns)
             child.asns.create(start_as=r.min, end_as=r.max)
-            Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
+            Zookeeper(
+		handle=conf.handle,
+		logstream=logstream,
+		disable_signal_handlers=True
+	    ).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = forms.AddASNForm(child=child)
@@ -486,7 +494,11 @@ def child_edit(request, pk):
             # remove AS & prefixes that are not selected in the form
             models.ChildASN.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('as_ranges')).delete()
             models.ChildNet.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('address_ranges')).delete()
-            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
+            Zookeeper(
+		handle=conf.handle,
+		logstream=logstream,
+		disable_signal_handlers=True
+	    ).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = form_class(initial={
@@ -718,7 +730,7 @@ def roa_create_confirm(request):
             roa.prefixes.create(version=v, prefix=str(rng.min),
                                 prefixlen=rng.prefixlen(),
                                 max_prefixlen=max_prefixlen)
-            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
+            Zookeeper(handle=conf.handle, logstream=log, disable_signal_handlers=True).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(dashboard))
         # What should happen when the submission form isn't valid?  For now
         # just fall through and redirect back to the ROA creation form
@@ -748,7 +760,7 @@ def roa_create_multi_confirm(request):
                 roa.prefixes.create(version=v, prefix=str(rng.min),
                                     prefixlen=rng.prefixlen(),
                                     max_prefixlen=max_prefixlen)
-            Zookeeper(handle=conf.handle, logstream=log).run_rpkid_now()
+            Zookeeper(handle=conf.handle, logstream=log, disable_signal_handlers=True).run_rpkid_now()
             return redirect(dashboard)
         # What should happen when the submission form isn't valid?  For now
         # just fall through and redirect back to the ROA creation form
@@ -768,7 +780,7 @@ def roa_delete(request, pk):
     roa = get_object_or_404(conf.roas, pk=pk)
     if request.method == 'POST':
         roa.delete()
-        Zookeeper(handle=conf.handle).run_rpkid_now()
+        Zookeeper(handle=conf.handle, disable_signal_handlers=True).run_rpkid_now()
         return redirect(reverse(dashboard))
 
     ### Process GET ###
@@ -825,7 +837,7 @@ def roa_import(request):
             tmp = tempfile.NamedTemporaryFile(suffix='.csv', prefix='roas', delete=False)
             tmp.write(request.FILES['csv'].read())
             tmp.close()
-            z = Zookeeper(handle=request.session['handle'])
+            z = Zookeeper(handle=request.session['handle'], disable_signal_handlers=True)
             z.load_roa_requests(tmp.name)
             z.run_rpkid_now()
             os.unlink(tmp.name)
@@ -870,7 +882,7 @@ def ghostbuster_delete(request, pk):
         form = forms.Empty(request.POST, request.FILES)
         if form.is_valid():
             obj.delete()
-            Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
+            Zookeeper(handle=conf.handle, logstream=logstream, disable_signal_handlers=True).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.Empty(request.POST, request.FILES)
@@ -892,7 +904,7 @@ def ghostbuster_create(request):
             obj = form.save(commit=False)
             obj.vcard = glue.ghostbuster_to_vcard(obj)
             obj.save()
-            Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
+            Zookeeper(handle=conf.handle, logstream=logstream, disable_signal_handlers=True).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.GhostbusterRequestForm(conf=conf)
@@ -912,7 +924,7 @@ def ghostbuster_edit(request, pk):
             obj = form.save(commit=False)
             obj.vcard = glue.ghostbuster_to_vcard(obj)
             obj.save()
-            Zookeeper(handle=conf.handle, logstream=logstream).run_rpkid_now()
+            Zookeeper(handle=conf.handle, logstream=logstream, disable_signal_handlers=True).run_rpkid_now()
             return http.HttpResponseRedirect(reverse(dashboard))
     else:
         form = forms.GhostbusterRequestForm(conf=conf, instance=obj)
@@ -1356,7 +1368,7 @@ class RouterDeleteView(DeleteView):
     def delete(self, request, *args, **kwargs):
         # override the delete hook so that we can nudge rpkid after the object is gone
         r = super(RouterDeleteView, self).delete(request, *args, **kwargs)
-        Zookeeper(handle=request.session['handle']).run_rpkid_now()
+        Zookeeper(handle=request.session['handle'], disable_signal_handlers=True).run_rpkid_now()
         return r
 
 
@@ -1375,7 +1387,7 @@ class RouterImportView(FormView):
 				  delete=False)
 	tmpf.write(form.cleaned_data['xml'].read())
 	tmpf.close()
-        z = Zookeeper(handle=conf.handle)
+        z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
         z.add_router_certificate_request(tmpf.name)
         z.run_rpkid_now()
         os.remove(tmpf.name)

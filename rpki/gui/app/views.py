@@ -47,6 +47,7 @@ from rpki.resource_set import (resource_range_as, resource_range_ip,
                                roa_prefix_ipv4)
 from rpki import sundial
 import rpki.exceptions
+import rpki.csv_utils
 
 from rpki.gui.cacheview.models import ROA
 from rpki.gui.routeview.models import RouteOrigin
@@ -325,11 +326,25 @@ def import_asns(request):
             f.write(request.FILES['csv'].read())
             f.close()
             z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
-            z.load_asns(f.name)
-            z.run_rpkid_now()
-            os.unlink(f.name)
-            messages.success(request, 'Successfully imported AS delgations from CSV file.')
-            return redirect(dashboard)
+            try:
+                z.load_asns(
+                    f.name,
+                    ignore_missing_children=form.cleaned_data['ignore_missing_children']
+                )
+            except rpki.irdb.models.Child.DoesNotExist:
+                messages.error(
+                    request,
+                    'CSV file contains children not found in the IRDB'
+                )
+            except rpki.csv_utils.BadCSVSyntax as e:
+                messages.error(request,
+                               'CSV file has an invalid syntax: %s' % (e,))
+            else:
+                z.run_rpkid_now()
+                messages.success(request, 'Successfully imported AS delgations from CSV file.')
+                return redirect(dashboard)
+            finally:
+                os.unlink(f.name)
     else:
         form = forms.ImportCSVForm()
     return render(request, 'app/import_resource_form.html', {
@@ -360,11 +375,22 @@ def import_prefixes(request):
             f.write(request.FILES['csv'].read())
             f.close()
             z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
-            z.load_prefixes(f.name)
-            z.run_rpkid_now()
-            os.unlink(f.name)
-            messages.success(request, 'Successfully imported prefix delegations from CSV file.')
-            return redirect(dashboard)
+            try:
+                z.load_prefixes(
+                    f.name,
+                    ignore_missing_children=form.cleaned_data['ignore_missing_children']
+                )
+            except rpki.irdb.models.Child.DoesNotExist:
+                messages.error(request, 'CSV file contains children not found in the IRDB')
+            except rpki.csv_utils.BadCSVSyntax as e:
+                messages.error(request,
+                               'CSV file has an invalid syntax: %s' % (e,))
+            else:
+                z.run_rpkid_now()
+                messages.success(request, 'Successfully imported AS delgations from CSV file.')
+                return redirect(dashboard)
+            finally:
+                os.unlink(f.name)
     else:
         form = forms.ImportCSVForm()
     return render(request, 'app/import_resource_form.html', {
@@ -837,12 +863,19 @@ def roa_import(request):
             tmp = tempfile.NamedTemporaryFile(suffix='.csv', prefix='roas', delete=False)
             tmp.write(request.FILES['csv'].read())
             tmp.close()
-            z = Zookeeper(handle=request.session['handle'], disable_signal_handlers=True)
-            z.load_roa_requests(tmp.name)
-            z.run_rpkid_now()
-            os.unlink(tmp.name)
-            messages.success(request, 'Successfully imported ROAs.')
-            return redirect(dashboard)
+            z = Zookeeper(handle=request.session['handle'],
+                          disable_signal_handlers=True)
+            try:
+                z.load_roa_requests(tmp.name)
+            except rpki.csv_utils.BadCSVSyntax as e:
+                messages.error(request,
+                               'CSV has bad syntax: %s' % (e,))
+            else:
+                z.run_rpkid_now()
+                messages.success(request, 'Successfully imported ROAs.')
+                return redirect(dashboard)
+            finally:
+                os.unlink(tmp.name)
     else:
         form = forms.ImportCSVForm()
     return render(request, 'app/import_resource_form.html', {

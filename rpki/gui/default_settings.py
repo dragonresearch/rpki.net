@@ -46,6 +46,14 @@ LOGGING = {
             # need to change this to WARNING once ticket is closed
             'level': 'DEBUG',
         },
+	# The Django default LOGGING configuration disables propagate on these
+	# two loggers.  Re-enable propagate so they will hit our root logger.
+        'django.request': {
+           'propagate': True,
+        },
+        'django.security': {
+           'propagate': True,
+        },
     },
     'root': {
         'level': 'WARNING',

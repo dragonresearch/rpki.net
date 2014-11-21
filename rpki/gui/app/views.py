@@ -704,27 +704,24 @@ def roa_create_multi(request):
                 v = []
                 rng.chop_into_prefixes(v)
                 init.extend([{'asn': asn, 'prefix': str(p)} for p in v])
-        formset = formset_factory(forms.ROARequestFormFactory(conf), can_delete=True)(initial=init)
+	extra = 0 if init else 1
+        formset = formset_factory(forms.ROARequestFormFactory(conf), extra=extra)(initial=init)
     elif request.method == 'POST':
-        formset = formset_factory(forms.ROARequestFormFactory(conf), extra=0, can_delete=True)(request.POST, request.FILES)
+        formset = formset_factory(forms.ROARequestFormFactory(conf), extra=0)(request.POST, request.FILES)
         if formset.is_valid():
             routes = []
             v = []
-            # as of Django 1.4.5 we still can't use formset.cleaned_data
-            # because deleted forms are not excluded, which causes an
-            # AttributeError to be raised.
             for form in formset:
-                if hasattr(form, 'cleaned_data') and form.cleaned_data:  # exclude empty forms
-                    asn = form.cleaned_data.get('asn')
-                    rng = resource_range_ip.parse_str(form.cleaned_data.get('prefix'))
-                    max_prefixlen = int(form.cleaned_data.get('max_prefixlen'))
-                    # FIXME: This won't do the right thing in the event that a
-                    # route is covered by multiple ROAs created in the form.
-                    # You will see duplicate entries, each with a potentially
-                    # different validation status.
-                    routes.extend(get_covered_routes(rng, max_prefixlen, asn))
-                    v.append({'prefix': str(rng), 'max_prefixlen': max_prefixlen,
-                              'asn': asn})
+		asn = form.cleaned_data['asn']
+		rng = resource_range_ip.parse_str(form.cleaned_data['prefix'])
+		max_prefixlen = int(form.cleaned_data['max_prefixlen'])
+		# FIXME: This won't do the right thing in the event that a
+		# route is covered by multiple ROAs created in the form.
+		# You will see duplicate entries, each with a potentially
+		# different validation status.
+		routes.extend(get_covered_routes(rng, max_prefixlen, asn))
+		v.append({'prefix': str(rng), 'max_prefixlen': max_prefixlen,
+			  'asn': asn})
             # if there were no rows, skip the confirmation step
             if v:
                 formset = formset_factory(forms.ROARequestConfirm, extra=0)(initial=v)

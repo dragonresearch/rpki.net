@@ -27,6 +27,7 @@ from tempfile import NamedTemporaryFile
 import cStringIO
 import csv
 import logging
+import lxml.etree
 
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
@@ -146,19 +147,28 @@ def generic_import(request, queryset, configure, form_class=None,
             # expects it.
             if handle == '':
                 handle = None
-            # configure_repository returns None, so can't use tuple expansion
-            # here.  Unpack the tuple below if post_import_redirect is None.
-            r = configure(z, tmpf.name, handle)
-            # force rpkid run now
-            z.synchronize_ca(poke=True)
-            os.remove(tmpf.name)
-            if post_import_redirect:
-                url = post_import_redirect
+            try:
+		# configure_repository returns None, so can't use tuple expansion
+		# here.  Unpack the tuple below if post_import_redirect is None.
+		r = configure(z, tmpf.name, handle)
+            except lxml.etree.XMLSyntaxError as e:
+		logger.exception('caught XMLSyntaxError while parsing uploaded file')
+                messages.error(
+                    request,
+                    'The uploaded file has an invalid XML syntax'
+                )
             else:
-                _, handle = r
-                url = queryset.get(issuer=conf,
-                                   handle=handle).get_absolute_url()
-            return http.HttpResponseRedirect(url)
+		# force rpkid run now
+		z.synchronize_ca(poke=True)
+		if post_import_redirect:
+		    url = post_import_redirect
+		else:
+		    _, handle = r
+		    url = queryset.get(issuer=conf,
+				       handle=handle).get_absolute_url()
+		return http.HttpResponseRedirect(url)
+            finally:
+		os.remove(tmpf.name)
     else:
         form = form_class()
 

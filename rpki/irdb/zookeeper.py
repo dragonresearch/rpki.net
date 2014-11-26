@@ -192,7 +192,7 @@ class Zookeeper(object):
 
   show_xml = None
 
-  def __init__(self, cfg = None, handle = None, logstream = None):
+  def __init__(self, cfg = None, handle = None, logstream = None, disable_signal_handlers = False):
 
     if cfg is None:
       cfg = rpki.config.parser()
@@ -203,6 +203,7 @@ class Zookeeper(object):
     self.cfg = cfg
 
     self.logstream = logstream
+    self.disable_signal_handlers = disable_signal_handlers
 
     self.run_rpkid = cfg.getboolean("run_rpkid", section = myrpki_section)
     self.run_pubd  = cfg.getboolean("run_pubd", section = myrpki_section)
@@ -1066,7 +1067,6 @@ class Zookeeper(object):
 
     if not suppress_error_check:
       self.check_error_report(r_msg)
-
     return r_msg
 
 

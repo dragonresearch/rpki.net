@@ -106,6 +106,11 @@ class ImportClientForm(forms.Form):
 
 class ImportCSVForm(forms.Form):
     csv = forms.FileField(label='CSV file')
+    ignore_missing_children = forms.BooleanField(
+        label='Ignore missing children',
+        help_text='Discard data for children that are not currently in the IRDB',
+        required=False
+    )
 
 
 class UserCreateForm(forms.Form):

@@ -352,8 +352,9 @@ class sync_wrapper(object):
   err = None
   fin = False
 
-  def __init__(self, func):
+  def __init__(self, func, disable_signal_handlers = False):
     self.func = func
+    self.disable_signal_handlers = disable_signal_handlers
 
   def cb(self, res = None):
     """
@@ -389,7 +390,10 @@ class sync_wrapper(object):
         self.eb(e)
 
     event_defer(thunk)
-    event_loop()
+    if self.disable_signal_handlers:
+      event_loop(catch_signals = ())
+    else:
+      event_loop()
     if not self.fin:
       logger.warning("%r event_loop terminated without callback or errback", self)
     if self.err is None:

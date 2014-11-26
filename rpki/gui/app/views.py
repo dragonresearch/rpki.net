@@ -708,7 +708,10 @@ def roa_create_multi(request):
         formset = formset_factory(forms.ROARequestFormFactory(conf), extra=extra)(initial=init)
     elif request.method == 'POST':
         formset = formset_factory(forms.ROARequestFormFactory(conf), extra=0)(request.POST, request.FILES)
-        if formset.is_valid():
+	# We need to check .has_changed() because .is_valid() will return true
+	# if the user clicks the Preview button without filling in the blanks
+	# in the ROA form, leaving the form invalid from this view's POV.
+        if formset.has_changed() and formset.is_valid():
             routes = []
             v = []
             for form in formset:

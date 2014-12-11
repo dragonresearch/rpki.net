@@ -56,7 +56,7 @@ aptitude should also work.
 
 * If you changed anything in rpki.conf, you should restart the RPKI CA service:
 
-    sudo initctl restart rpki-ca
+    sudo service rpki-ca restart
 
 ***** Upgrading *****
 
@@ -69,4 +69,4 @@ version of the code using the normal APT upgrade process, eg:
 Or, if you only want to update the RPKI tools:
 
   sudo apt-get update
-  sudo apt-get upgrade
+  sudo apt-get upgrade rpki-ca rpki-rp

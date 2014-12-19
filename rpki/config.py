@@ -304,3 +304,8 @@ class parser(object):
       pass
     except:
       logger.warning("insecure-debug-only-rsa-key-db configured but initialization failed, check for corrupted database file")
+
+    try:
+      rpki.up_down.content_type = self.get("up_down_content_type")
+    except ConfigParser.NoOptionError:
+      pass

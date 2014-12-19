@@ -36,6 +36,16 @@ logger = logging.getLogger(__name__)
 xmlns = rpki.relaxng.up_down.xmlns
 nsmap = rpki.relaxng.up_down.nsmap
 
+## @var content_type
+# MIME content type to use when sending up-down queries.
+#content_type = "application/rpki-updown"
+content_type = "application/x-rpki"
+
+## @var allowed_content_types
+# MIME content types which we consider acceptable for incoming up-down
+# queries.
+allowed_content_types = ("application/rpki-updown", "application/x-rpki")
+
 class base_elt(object):
   """
   Generic PDU object.

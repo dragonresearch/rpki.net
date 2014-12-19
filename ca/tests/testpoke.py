@@ -105,7 +105,8 @@ def query_up_down(q_pdu):
     msg          = q_der,
     url          = yaml_data["posturl"],
     callback     = done,
-    errback      = fail)
+    errback      = fail,
+    content_type = rpki.up_down.content_type)
 
 def do_list():
   query_up_down(rpki.up_down.list_pdu())

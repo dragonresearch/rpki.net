@@ -821,10 +821,11 @@ class parent_elt(data_elt):
         cb(r_msg)
 
     rpki.http.client(
-      msg      = q_der,
-      url      = self.peer_contact_uri,
-      callback = unwrap,
-      errback  = eb)
+      msg          = q_der,
+      url          = self.peer_contact_uri,
+      callback     = unwrap,
+      errback      = eb,
+      content_type = rpki.up_down.content_type)
 
 class child_elt(data_elt):
   """

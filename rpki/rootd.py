@@ -385,4 +385,4 @@ class main(object):
 
     rpki.http.server(host     = self.http_server_host,
                      port     = self.http_server_port,
-                     handlers = self.up_down_handler)
+                     handlers = (("/", self.up_down_handler, rpki.up_down.allowed_content_types),))

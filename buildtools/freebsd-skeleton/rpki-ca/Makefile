@@ -8,9 +8,9 @@ MAINTAINER=	sra@hactrn.net
 COMMENT=	rpki.net RPKI CA tools
 WWW=		http://rpki.net/
 
+USES=		python:2.7+
 GNU_CONFIGURE=  yes
 NO_MTREE=	yes
-USE_PYTHON=	2.7+
 USE_GNOME=      libxml2 libxslt
 USE_MYSQL=      server
 USE_APACHE_RUN= 22+

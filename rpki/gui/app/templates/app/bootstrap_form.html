@@ -1,5 +1,5 @@
 {% if form.non_field_errors %}
-<div class="alert alert-block alert-error">
+<div class="alert alert-danger" role="alert">
   {{ form.non_field_errors }}
 </div>
 {% endif %}
@@ -7,19 +7,21 @@
 {% for field in form %}
 
 {% if field.is_hidden %}
-{{ field }}
+  {{ field }}
 {% else %}
-<div class="control-group {% if field.errors %}error{% endif %}">
-	<label class="control-label" for="{{ field.html_name }}">{{ field.label }}</label>
-  <div class="controls">
-    {{ field }}
-    {% if field.help_text %}
-    <span class="help-inline">{{ field.help_text }}</span>
-    {% endif %}
-    {% if field.errors %}
-    <span class="help-inline">{{ field.errors }}</span>
-    {% endif %}
-  </div>
+<div class="form-group {% if field.errors %}has-error{% endif %}">
+  <label class="control-label" for="{{ field.html_name }}">{{ field.label }}</label>
+
+  {{ field }}
+
+  {% if field.help_text %}
+  <span id="{{ field.html_html }}_helpBlock" class="help-block">{{ field.help_text }}</span>
+  {% endif %}
+
+  {% if field.errors %}
+  <span class="help-inline">{{ field.errors }}</span>
+  {% endif %}
+
 </div>
 {% endif %}
 

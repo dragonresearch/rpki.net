@@ -1,63 +1,37 @@
-{% load url from future %}
 {% load app_extras %}
 
 <!DOCTYPE HTML>
 <html lang="en">
   <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ STATIC_URL }}css/bootstrap.min.css">
+    <link href="{{ STATIC_URL }}css/bootstrap-theme.min.css" rel="stylesheet">
+
     <meta name='Content-Type' content='text/html; charset=UTF-8'>
+
     <title>{% block title %}RPKI {% if request.session.handle %}: {{ request.session.handle }}{% endif %}{% endblock %}</title>
     {% block head %}{% endblock %}
-    <link rel="stylesheet" href="{{ STATIC_URL }}css/bootstrap.min.css" media="screen">
+
     <link rel="icon" href="{{ STATIC_URL }}img/sui-riu.ico" type="image/x-icon">
     <link rel="shortcut icon" href="{{ STATIC_URL }}img/sui-riu.ico" type="image/x-icon">
-    <style type="text/css">
-      body { padding: 40px }
-    </style>
   </head>
+
   <body>
-
-    <!-- TOP BAR -->
-    <div class="container">
-      <div class="navbar navbar-inverse navbar-fixed-top">
-	<div class="navbar-inner">
-	  <a class="brand" href="#">rpki.net {% rpki_version %}</a>
-	  <ul class='nav'>
-	    <li class="active">
-	      <a href="#">Home</a>
-	    </li>
-	    <li class="divider-vertical"></li>
-	  {% if user.is_authenticated %}
-	    <li><p class="navbar-text">Logged in as {{ user }}</li>
-	    <li class="divider-vertical"></li>
-	    <li><a href="{% url "rpki.gui.views.logout" %}">Log Out</a></li>
-	  {% endif %}
-	  </ul>
-	  <ul class="nav pull-right">
-	    <li><a href="https://trac.rpki.net/wiki/doc/RPKI/CA/UI/GUI">Help</a></li>
-	  </ul>
-	</div>
-      </div>
-    </div><!-- topbar -->
-
     <div class="container-fluid">
-    <!-- MAIN CONTENT -->
-      <div class="row-fluid">
-	<div class="span2">
-	  {% block sidebar %}{% endblock %}
-	</div>
 
-	<div class="span10">
-	  {% if messages %}
-	  {% for message in messages %}
-	  {# this will break if there is more than one tag, but don't expect to use that feature #}
-	  <div class='alert alert-{{ message.tags }}'>
-	    {{ message }}
-	  </div>
-	  {% endfor %}
-	  {% endif %}
-	  {% block content %}{% endblock %}
-	</div>
-    </div>
+      {% if messages %}
+      {% for message in messages %}
+      {# this will break if there is more than one tag, but don't expect to use that feature #}
+      <div class='alert alert-{{ message.tags }}'>
+	{{ message }}
+      </div>
+      {% endfor %}
+      {% endif %}
 
+      {% block content %}{% endblock %}
+
+    </div><!-- /container -->
+    <script src="{{ STATIC_URL }}js/jquery-1.11.2.min.js"></script>
+    <script src="{{ STATIC_URL }}js/bootstrap.min.js"></script>
   </body>
 </html>

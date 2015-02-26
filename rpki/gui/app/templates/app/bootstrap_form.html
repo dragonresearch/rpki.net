@@ -10,18 +10,14 @@
   {{ field }}
 {% else %}
 <div class="form-group {% if field.errors %}has-error{% endif %}">
-  <label class="control-label" for="{{ field.html_name }}">{{ field.label }}</label>
-
+  <label class="control-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
   {{ field }}
-
   {% if field.help_text %}
   <span id="{{ field.html_html }}_helpBlock" class="help-block">{{ field.help_text }}</span>
   {% endif %}
-
   {% if field.errors %}
   <span class="help-inline">{{ field.errors }}</span>
   {% endif %}
-
 </div>
 {% endif %}
 

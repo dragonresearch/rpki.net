@@ -16,11 +16,13 @@ __version__ = '$Id$'
 
 import django.contrib.auth.views
 from rpki.gui.decorators import tls_required
+import rpki.gui.forms
 
 
 @tls_required
 def login(request, *args, **kwargs):
     "Wrapper around django.contrib.auth.views.login to force use of TLS."
+    kwargs['authentication_form'] = rpki.gui.forms.AuthenticationForm
     return django.contrib.auth.views.login(request, *args, **kwargs)
 
 

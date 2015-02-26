@@ -20,7 +20,7 @@ from rpki.gui.app import views
 
 urlpatterns = patterns(
     '',
-    (r'^$', 'rpki.gui.app.views.dashboard'),
+    url(r'^$', views.dashboard, name='dashboard'),
     url(r'^alert/$', views.AlertListView.as_view(), name='alert-list'),
     url(r'^alert/clear_all$', views.alert_clear_all, name='alert-clear-all'),
     url(r'^alert/(?P<pk>\d+)/$', views.AlertDetailView.as_view(),
@@ -71,7 +71,7 @@ urlpatterns = patterns(
     url(r'^roa/import$', views.roa_import, name='roa-import'),
     (r'^roa/(?P<pk>\d+)/delete$', 'rpki.gui.app.views.roa_delete'),
     url(r'^roa/(?P<pk>\d+)/clone$', views.roa_clone, name="roa-clone"),
-    (r'^route/$', 'rpki.gui.app.views.route_view'),
+    url(r'^route/$', views.route_view, name='route-view'),
     (r'^route/(?P<pk>\d+)/$', 'rpki.gui.app.views.route_detail'),
     url(r'^route/suggest$', views.route_suggest, name="suggest-roas"),
     url(r'^router/$', views.RouterListView.as_view(), name='router-list'),

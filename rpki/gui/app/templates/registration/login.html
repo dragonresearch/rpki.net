@@ -1,9 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-header">
-  <h1>Login</h1>
-</div>
 
 {% if form.errors %}
 <div class='alert alert-danger' role='alert'>
@@ -22,6 +19,6 @@
 
 </form>
 
-<a href="{% url "password_reset" %}">Forgot your password?</a>
+<p><a href="{% url "password_reset" %}">Forgot your password?</a></p>
 
 {% endblock %}

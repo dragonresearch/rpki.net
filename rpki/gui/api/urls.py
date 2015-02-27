@@ -16,7 +16,9 @@ __version__ = '$Id$'
 
 from django.conf.urls import patterns
 from rpki.gui.routeview.api import route_list
+from rpki.gui.cacheview.api import roa_list
 
 urlpatterns = patterns('',
     (r'^v1/route/$', route_list),
+    (r'^v1/roa/$', roa_list),
 )

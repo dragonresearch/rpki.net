@@ -2,14 +2,6 @@
 {% load bootstrap_pager %}
 {% load app_extras %}
 
-{% block sidebar_extra %}
-<li class="nav-header">BGP data updated</li>
-<li>IPv4: {{ timestamp.bgp_v4_import.isoformat }}</li>
-<li>IPv6: {{ timestamp.bgp_v6_import.isoformat }}</li>
-<li class="nav-header">rcynic cache updated</li>
-<li>{{ timestamp.rcynic_import.isoformat }}</li>
-{% endblock sidebar_extra %}
-
 {% block content %}
 
 <div class='page-header'>
@@ -18,13 +10,16 @@
 
 <p>
 This view shows currently advertised routes for the prefixes listed in resource certs received from RPKI parents.
+<p>
+BGP data from routeviews.org last updated {{ timestamp.bgp_v4_import.isoformat }}.<br/>
+RPKI data last updated {{ timestamp.rcynic_import.isoformat }}.
 
 <form method="POST" action="{% url "suggest-roas" %}">
   {% csrf_token %}
   <table class='table table-condensed'>
     <thead>
       <tr>
-	<th></th>
+	<th>#</th>
 	<th>Prefix</th>
 	<th>Origin AS</th>
 	<th>Validation Status</th>
@@ -37,10 +32,9 @@ This view shows currently advertised routes for the prefixes listed in resource 
 	<td>{{ r.get_prefix_display }}</td>
 	<td>{{ r.asn }}</td>
 	<td>
-	  {# {% validity_label r.status %} #}
-{# <a href='{% url "rpki.gui.app.views.route_detail" r.pk %}' title='display ROAs covering this prefix'><span class="glyphicon glyphicon-info-sign"></span></a> #}
+	  <span class="label label-{% validity_css_class r.status %}" data-toggle="popover" data-prefix="{{ r.get_prefix_display}}">{{ r.status }}</span>
 
-          <a tabindex="0" role="button" class="btn btn-success btn-sm" data-toggle="popover" data-trigger="focus" data-content="tbd" title="Covering ROAs">{{ r.status }} <span class="caret"></span></a>
+	  {# <a tabindex="0" role="button" class="btn btn-{% validity_css_class r.status %} btn-sm" data-toggle="popover" title="Covering ROAs" data-prefix="{{ r.get_prefix_display }}">{{ r.status }} <span class="caret"></span></a> #}
 	</td>
       </tr>
       {% endfor %}
@@ -54,3 +48,41 @@ This view shows currently advertised routes for the prefixes listed in resource 
 {% bootstrap_pager request routes %}
 
 {% endblock content %}
+
+{# loaded after js scripts #}
+{% block script %}
+<script>
+$('[data-toggle="popover"]').on('mouseenter', function () {
+    var po = $(this);
+
+    if ($(po).data('content') == null) {
+
+    $.getJSON("/api/v1/roa/", {"prefix": $(this).attr("data-prefix")}, function (data) {
+      var items = ['<table class="table table-default"><thead><tr><th>Prefix</th><th>Max Length</th><th>ASN</th></tr><tbody>'];
+      $.each(data, function(idx, obj) {
+	items.push('<tr><td>' + obj.prefix + '</td><td>' + obj.max_length + '</td><td>' + obj.asn + '</td></tr>');
+	})
+      items.push('</tbody></table>');
+
+      $(po).data('content', items.join(""));
+
+      $(po).popover({
+	'html': true,
+	'placement': 'right',
+	'trigger': 'manual',
+	});
+      $(po).popover('show');
+
+      })
+    } else {
+      $(po).popover('show');
+    }
+
+    })
+
+$('[data-toggle="popover"]').on('mouseout', function () {
+    $(this).popover('hide');
+    })
+
+</script>
+{% endblock %}

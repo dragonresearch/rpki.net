@@ -29,6 +29,17 @@ def validity_label(validity):
 
 
 @register.simple_tag
+def validity_css_class(validity):
+    "return the CSS class for the RPKI origin validation status"
+    s = {
+        'valid': 'success',
+        'invalid': 'danger',
+        'unknown': 'warning'
+    }
+    return s.get(validity, '')
+
+
+@register.simple_tag
 def severity_class(severity):
     css = {
         0: 'label-info',

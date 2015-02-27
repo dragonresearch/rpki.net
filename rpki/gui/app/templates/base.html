@@ -76,10 +76,7 @@
     </div><!-- /container -->
     <script src="{{ STATIC_URL }}js/jquery-1.11.2.min.js"></script>
     <script src="{{ STATIC_URL }}js/bootstrap.min.js"></script>
-    <script>
-      $(function () {
-        $('[data-toggle="popover"]').popover()
-      })
-    </script>
+    {# allow templates to include script snippets #}
+    {% block script %}{% endblock %}
   </body>
 </html>

@@ -1,5 +1,4 @@
 {% extends "app/app_base.html" %}
-{% load url from future %}
 {% load bootstrap_pager %}
 {% load app_extras %}
 
@@ -22,7 +21,7 @@ This view shows currently advertised routes for the prefixes listed in resource 
 
 <form method="POST" action="{% url "suggest-roas" %}">
   {% csrf_token %}
-  <table class='table table-striped table-condensed'>
+  <table class='table table-condensed'>
     <thead>
       <tr>
 	<th></th>
@@ -38,16 +37,18 @@ This view shows currently advertised routes for the prefixes listed in resource 
 	<td>{{ r.get_prefix_display }}</td>
 	<td>{{ r.asn }}</td>
 	<td>
-	  {% validity_label r.status %}
-	  <a href='{% url "rpki.gui.app.views.route_detail" r.pk %}' title='display ROAs covering this prefix'><i class="icon-info-sign"></i></a>
+	  {# {% validity_label r.status %} #}
+{# <a href='{% url "rpki.gui.app.views.route_detail" r.pk %}' title='display ROAs covering this prefix'><span class="glyphicon glyphicon-info-sign"></span></a> #}
+
+          <a tabindex="0" role="button" class="btn btn-success btn-sm" data-toggle="popover" data-trigger="focus" data-content="tbd" title="Covering ROAs">{{ r.status }} <span class="caret"></span></a>
 	</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <div class="form-actions">
-    <button type="submit" title="create ROAs for selected routes"><i class="icon-plus-sign"></i> Create ROAs</button>
-  </div>
+
+    <button type="submit" class="btn btn-default" title="create ROAs for selected routes"><span class="glyphicon glyphicon-plus-sign"></span> Create ROAs</button>
+
 </form>
 
 {% bootstrap_pager request routes %}

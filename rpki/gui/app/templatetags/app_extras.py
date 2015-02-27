@@ -15,9 +15,11 @@ def verbose_name_plural(qs):
     "Return the verbose name for the model class."
     return qs.model._meta.verbose_name_plural.capitalize()
 
+# map RPKI origin validation status to CSS class
 css = {
     'valid': 'label-success',
-    'invalid': 'label-important'
+    'invalid': 'label-danger',
+    'unknown': 'label-default'
 }
 
 

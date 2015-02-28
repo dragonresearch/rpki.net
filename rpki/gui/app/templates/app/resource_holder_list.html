@@ -1,5 +1,4 @@
 {% extends "app/app_base.html" %}
-{% load url from future %}
 
 {% block content %}
 <div class='page-header'>
@@ -24,14 +23,14 @@ Note that this is distinct from the
     <tr>
       <td>{{ conf.handle }}</td>
       <td>
-	<a class='btn btn-small' href='{% url "rpki.gui.app.views.resource_holder_edit" conf.pk %}' title="Edit"><i class="icon-edit"></i></a>
-	<a class='btn btn-small' href='{% url "rpki.gui.app.views.resource_holder_delete" conf.pk %}' title="Delete"><i class="icon-trash"></i></a>
+	<a class='btn btn-default btn-sm' role="button" href='{% url "rpki.gui.app.views.resource_holder_edit" conf.pk %}' title="Edit"><span class="glyphicon glyphicon-edit"></span></a>
+	<a class='btn btn-default btn-sm' role="button" href='{% url "rpki.gui.app.views.resource_holder_delete" conf.pk %}' title="Delete"><span class="glyphicon glyphicon-trash"></span></a>
       </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 
-<a class="btn" href="{% url "rpki.gui.app.views.resource_holder_create" %}"><i class="icon-plus-sign"></i> Create</a>
+<a class="btn btn-default" href="{% url "rpki.gui.app.views.resource_holder_create" %}"><span class="glyphicon glyphicon-plus-sign"></span> Create</a>
 {% endblock content %}
 {# vim: set ft=htmldjango: #}

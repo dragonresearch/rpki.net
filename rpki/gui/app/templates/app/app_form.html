@@ -11,9 +11,7 @@
 <form method="POST" action="" enctype="multipart/form-data" class="form-horizontal">
   {% csrf_token %}
   {% include "app/bootstrap_form.html" %}
-  <div class="form-actions">
-    <input class='btn btn-primary' type='submit' value='Save'>
-    <a class='btn' href="{{ cancel_url }}">Cancel</a>
-  </div>
+    <input class='btn btn-primary form-control' type='submit' value='Save'>
+    <a class='btn btn-default' role="button" href="{{ cancel_url }}">Cancel</a>
 </form>
 {% endblock %}

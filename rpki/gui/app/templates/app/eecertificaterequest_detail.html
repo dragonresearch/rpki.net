@@ -25,8 +25,8 @@
 </table>
 
 {% block action %}
-<div class="row-fluid">
-<a class="btn btn-danger" title="delete this router certificate request" href="{% url "router-delete" object.pk %}"><i class="icon-trash"></i> Delete</a>
+<div class="row">
+<a class="btn btn-danger" role="button" title="delete this router certificate request" href="{% url "router-delete" object.pk %}"><span class="glyphicon glyphicon-trash"></span> Delete</a>
 </div>
 {% endblock %}
 

@@ -1,5 +1,4 @@
 {% extends "app/app_base.html" %}
-{% load url from future %}
 
 {% block content %}
 <div class="page-header">
@@ -18,8 +17,8 @@
 </table>
 
 {% block action %}
-<a class="btn" href="{% url "client-export" object.pk %}" title="Download XML response to send to publication client"><i class="icon-download"></i> Export</a>
-<a class="btn" href="{% url "rpki.gui.app.views.client_delete" object.pk %}"><i class="icon-trash"></i> Delete</a>
+<a class="btn btn-default" role="button" href="{% url "client-export" object.pk %}" title="Download XML response to send to publication client"><span class="glyphicon glyphicon-download"></span> Export</a>
+<a class="btn btn-default" role="button" href="{% url "client-delete" object.pk %}"><span class="glyphicon glyphicon-trash"></span> Delete</a>
 {% endblock action %}
 
 {% endblock content %}

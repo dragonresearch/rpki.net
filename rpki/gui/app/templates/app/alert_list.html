@@ -1,5 +1,4 @@
 {% extends "app/app_base.html" %}
-{% load url from future %}
 
 {% block content %}
 <div class="page-header">
@@ -19,13 +18,13 @@
     <tr {% if not obj.seen %}style="font-weight: bold" {% endif %}class="{% if obj.severity == 1 %}warning{% endif %} {% if obj.severity == 2 %}error{% endif %}">
       <td>{# <input type="checkbox"> #}</td>
       <td>{{ obj.when }}</td>
-      <td><a href="{{ obj.get_absolute_url }}" title="view text of alert">{{ obj.subject }}</a></td>
+      <td><a href="{% url 'alert-detail' obj.pk %}" title="view text of alert">{{ obj.subject }}</a></td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 
-<div class='row-fluid'>
-  <a class="btn btn-danger" href="{% url 'alert-clear-all' %}"><i class='icon-trash'></i> Delete All</a>
+<div class='row'>
+  <a class="btn btn-danger" href="{% url 'alert-clear-all' %}"><span class='glyphicon glyphicon-trash'></span> Delete All</a>
 </div>
 {% endblock content %}

@@ -1,5 +1,4 @@
 {% extends "app/app_base.html" %}
-{% load url from future %}
 
 {% block content %}
 <div class='page-header'>
@@ -25,13 +24,13 @@ This page lists all user accounts in the web interface.  Note that this is disti
       <td>{{ user.username }}</td>
       <td>{{ user.email }}</td>
       <td>
-	<a class='btn btn-small' href='{% url "rpki.gui.app.views.user_edit" user.pk %}' title="Edit"><i class="icon-edit"></i></a>
-	<a class='btn btn-small' href='{% url "rpki.gui.app.views.user_delete" user.pk %}' title="Delete"><i class="icon-trash"></i></a>
+	<a class='btn btn-default btn-sm' href='{% url "rpki.gui.app.views.user_edit" user.pk %}' title="Edit"><span class="glyphicon glyphicon-edit"></i></a>
+	<a class='btn btn-default btn-sm' href='{% url "rpki.gui.app.views.user_delete" user.pk %}' title="Delete"><span class="glyphicon glyphicon-trash"></i></a>
       </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 
-<a class='btn' href="{% url "rpki.gui.app.views.user_create" %}" title="create a new locally hosted resource handle"><i class="icon-plus-sign"></i> Create</a>
+<a class='btn btn-default' role="button" href="{% url "rpki.gui.app.views.user_create" %}" title="create a new locally hosted resource handle"><span class="glyphicon glyphicon-plus-sign"></span> Create</a>
 {% endblock content %}

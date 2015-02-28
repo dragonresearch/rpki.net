@@ -1,5 +1,4 @@
 {% extends "app/app_base.html" %}
-{% load url from future %}
 
 {% block content %}
 <div class="page-header">
@@ -33,10 +32,10 @@
   </tr>
 </table>
 
-<div class='row-fluid'>
-  <div class='span6'>
+<div class='row'>
+  <div class='col-md-6'>
     <h3>Delegated Addresses</h3>
-    <ul class='unstyled'>
+    <ul class='list-unstyled'>
       {% for c in object.certs.all %}
       {% for a in c.address_ranges.all %}
       <li>{{ a }}</li>
@@ -47,9 +46,9 @@
       {% endfor %}
     </ul>
   </div>
-  <div class='span6'>
+  <div class='col-md-6'>
     <h3>Delegated ASNs</h3>
-    <ul class='unstyled'>
+    <ul class='list-unstyled'>
       {% for c in object.certs.all %}
       {% for a in c.asn_ranges.all %}
       <li>{{ a }}</li>
@@ -60,8 +59,8 @@
 </div>
 
 {% block action %}
-<a class='btn' href='{% url "rpki.gui.app.views.parent_export" object.pk %}' title='Download XML to send to repository operator'><i class="icon-download"></i> Export</a>
-<a class="btn" href="{% url "rpki.gui.app.views.parent_delete" object.pk %}" title="Delete this parent"><i class="icon-trash"></i> Delete</a>
+<a class='btn btn-default' role="button" href='{% url "rpki.gui.app.views.parent_export" object.pk %}' title='Download XML to send to repository operator'><span class="glyphicon glyphicon-download"></span> Export</a>
+<a class="btn btn-default" role="button" href="{% url "rpki.gui.app.views.parent_delete" object.pk %}" title="Delete this parent"><span class="glyphicon glyphicon-trash"></span> Delete</a>
 {% endblock action %}
 
 {% endblock content %}

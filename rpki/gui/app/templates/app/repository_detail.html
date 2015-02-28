@@ -1,5 +1,4 @@
 {% extends "app/app_base.html" %}
-{% load url from future %}
 
 {% block content %}
 <div class="page-header">
@@ -14,6 +13,6 @@
 </table>
 
 {% block action %}
-<a class="btn" href="{% url "rpki.gui.app.views.repository_delete" object.pk %}" title="Delete this repository"><i class="icon-trash"></i> Delete</a>
+<a class="btn btn-default" href="{% url "rpki.gui.app.views.repository_delete" object.pk %}" title="Delete this repository"><span class="glyphicon glyphicon-trash"></span> Delete</a>
 {% endblock action %}
 {% endblock content %}

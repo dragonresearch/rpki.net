@@ -1,11 +1,5 @@
 {% extends "app/app_base.html" %}
 
-{% block sidebar_extra %}
-  <li class="divider"></li>
-  <li><a href="{% url "rpki.gui.app.views.conf_export" %}" title="download XML identity to send to parent">
-    {#<i class="icon-download"></i> #}export identity</a></li>
-{% endblock sidebar_extra %}
-
 {% block content %}
 <div class='row'>
   <div class='col-md-6'>

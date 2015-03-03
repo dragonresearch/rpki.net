@@ -2,20 +2,18 @@
 
 {% block content %}
 <div class='page-title'>
-	<h1>{{ form_title }}</h1>
+  <h1>{{ form_title }}</h1>
 </div>
 
 <div class='alert alert-block'>
-	<h4>Warning!</h4>
-	<strong>Please confirm</strong> that you would like to delete this object.
+  <h4>Warning!</h4>
+  <strong>Please confirm</strong> that you would like to delete this object.
 </div>
 
 <form method='POST' action="">
-	{% csrf_token %}
-	{{ form }}
-	<div class="form-actions">
-		<input class='btn btn-danger' value='Delete' type='submit'>
-		<a class='btn' href="{{ cancel_url }}">Cancel</a>
-	</div>
+  {% csrf_token %}
+  {{ form }}
+  <input class='btn btn-danger form-control' value='Delete' type='submit'>
+  <a class='btn btn-default form-control' href="{{ cancel_url }}">Cancel</a>
 </form>
 {% endblock content %}

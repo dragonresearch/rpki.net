@@ -1,20 +1,15 @@
 {% extends "app/ghostbuster_detail.html" %}
 
 {% block extra %}
-
-<div class='alert-message block-message warning'>
-  <p>
+<div class='alert alert-block alert-danger'>
   <strong>Please confirm</strong> that you really want to delete by clicking Delete.
-
-  <div class='alert-actions'>
-    <form method='POST' action='{{ request.get_full_path }}'>
-      {% csrf_token %}
-      <input class='btn danger' type='submit' value='Delete' />
-      <a class='btn' href='{{ object.get_absolute_url }}'>Cancel</a>
-    </form>
-  </div>
 </div>
 
+<form method='POST' action='{{ request.get_full_path }}'>
+  {% csrf_token %}
+  <input class='btn btn-danger form-control' type='submit' value='Delete' />
+  <a class='btn btn-default form-control' href='{% url 'gbr-detail' object.pk %}'>Cancel</a>
+</form>
 {% endblock %}
 
 <!-- vim:set sw=2: -->

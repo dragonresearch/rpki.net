@@ -9,7 +9,7 @@
 
 <ul>
   {% for c in conf_list %}
-  <li><a href="{% url "rpki.gui.app.views.conf_select" %}?handle={{ c.handle }}&next={{ next_url }}">{{ c.handle }}</a></li>
+  <li><a href="{% url "select-conf" %}?handle={{ c.handle }}&next={{ next_url }}">{{ c.handle }}</a></li>
   {% endfor %}
 </ul>
 

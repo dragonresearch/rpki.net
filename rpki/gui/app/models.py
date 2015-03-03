@@ -106,10 +106,6 @@ class Alert(models.Model):
     subject = models.CharField(max_length=66)
     text = models.TextField()
 
-    @models.permalink
-    def get_absolute_url(self):
-        return ('alert-detail', [str(self.pk)])
-
 
 class Conf(rpki.irdb.models.ResourceHolderCA):
     """This is the center of the universe, also known as a place to

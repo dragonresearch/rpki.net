@@ -34,7 +34,6 @@ RPKI data last updated {{ timestamp.rcynic_import.isoformat }}.
 	<td>
 	  <span class="label label-{% validity_css_class r.status %}" data-toggle="popover" data-prefix="{{ r.get_prefix_display}}">{{ r.status }}</span>
 
-	  {# <a tabindex="0" role="button" class="btn btn-{% validity_css_class r.status %} btn-sm" data-toggle="popover" title="Covering ROAs" data-prefix="{{ r.get_prefix_display }}">{{ r.status }} <span class="caret"></span></a> #}
 	</td>
       </tr>
       {% endfor %}

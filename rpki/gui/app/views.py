@@ -39,7 +39,6 @@ from django.contrib.auth.models import User
 from django.views.generic import DetailView, ListView, DeleteView, FormView
 from django.core.paginator import Paginator, InvalidPage
 from django.forms.formsets import formset_factory, BaseFormSet
-import django.db.models
 from django.contrib import messages
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet, ROARequestPrefix
@@ -728,13 +727,24 @@ def roa_create_multi(request):
 		asn = form.cleaned_data['asn']
 		rng = resource_range_ip.parse_str(form.cleaned_data['prefix'])
 		max_prefixlen = int(form.cleaned_data['max_prefixlen'])
+                protect_children = form.cleaned_data['protect_children']
+
 		# FIXME: This won't do the right thing in the event that a
 		# route is covered by multiple ROAs created in the form.
 		# You will see duplicate entries, each with a potentially
 		# different validation status.
-		routes.extend(get_covered_routes(rng, max_prefixlen, asn))
+		covered = get_covered_routes(rng, max_prefixlen, asn)
+		routes.extend(covered)
 		v.append({'prefix': str(rng), 'max_prefixlen': max_prefixlen,
 			  'asn': asn})
+
+                if protect_children:
+                    for r in conf.child_routes.filter(pk__in=[c.pk for c in covered if c.newstatus == 'invalid']):
+                        rng = r.as_resource_range()
+                        v.append({'prefix': str(rng),
+                                    'max_prefixlen': rng.prefixlen,
+                                    'asn': r.asn})
+
             # if there were no rows, skip the confirmation step
             if v:
                 formset = formset_factory(forms.ROARequestConfirm, extra=0)(initial=v)

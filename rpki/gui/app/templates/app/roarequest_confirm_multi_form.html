@@ -1,5 +1,4 @@
 {% extends "app/app_base.html" %}
-{% load url from future %}
 {% load app_extras %}
 
 {% block content %}
@@ -9,17 +8,20 @@
 
 <div class='row-fluid'>
   <div class='span6'>
-    <div class='alert alert-block-message alert-warning'>
-      <p><strong>Please confirm</strong> that you would like to create the following ROA(s).
+    <div class='alert'>
+      <strong>Please confirm</strong> that you would like to create the following ROA(s).
       The accompanying table indicates how the validation status may change as a result.
     </div>
 
     <table class='table table-condensed table-striped'>
-      <tr>
-	<th>Prefix</th>
-	<th>Max Length</th>
-	<th>AS</th>
-      </tr>
+      <thead>
+	<tr>
+	  <th>Prefix</th>
+	  <th>Max Length</th>
+	  <th>AS</th>
+	</tr>
+      </thead>
+      <tbody>
       {% for roa in roas %}
       <tr>
 	<td>{{ roa.prefix }}</td>
@@ -27,6 +29,7 @@
 	<td>{{ roa.asn }}</td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
 
     <form method='POST' action='{% url "rpki.gui.app.views.roa_create_multi_confirm" %}'>
@@ -47,18 +50,22 @@
     <h2>Matched Routes</h2>
 
     <table class='table table-striped table-condensed'>
-      <tr>
-        <th>Prefix</th>
-        <th>Origin AS</th>
-        <th>Validation Status</th>
-      </tr>
+      <thead>
+	<tr>
+	  <th>Prefix</th>
+	  <th>Origin AS</th>
+	  <th>Validation Status</th>
+	</tr>
+      </thead>
+      <tbody>
       {% for r in routes %}
       <tr>
-        <td>{{ r.get_prefix_display }}</td>
-        <td>{{ r.asn }}</td>
+	<td>{{ r.get_prefix_display }}</td>
+	<td>{{ r.asn }}</td>
 	<td>{% validity_label r.newstatus %}</td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
   </div>
 

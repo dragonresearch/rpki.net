@@ -18,6 +18,7 @@ __version__ = '$Id$'
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
+from django.db.models import Q
 
 import rpki.resource_set
 import rpki.exceptions
@@ -64,6 +65,15 @@ class Child(rpki.irdb.models.Child):
     class Meta:
         proxy = True
         verbose_name_plural = 'children'
+
+    @property
+    def routes(self):
+        "Return a list of RouteOrigin objects (potentially) originated by this child."
+        query = Q()
+        for r in self.address_ranges.filter(version='IPv4'):
+            rng = r.as_resource_range()
+            query |= Q(prefix_min__gte=rng.min, prefix_max__lte=rng.max)
+        return RouteOrigin.objects.filter(query)
 
 
 class ChildASN(rpki.irdb.models.ChildASN):
@@ -130,8 +140,21 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
         """Simulates irdb.models.Child.objects, but returns app.models.Child
         proxy objects.
 
+        When running rootd, we need to exclude the Child object for self.
+
         """
-        return Child.objects.filter(issuer=self)
+        return Child.objects.filter(issuer=self).exclude(handle=self.handle)
+
+    @property
+    def child_routes(self):
+        """Return currently announced routes for prefixes covered by child
+        sub-allocations.
+        """
+        query = Q()
+        for pfx in ChildNet.objects.filter(child__issuer=self, version='IPv4'):
+            rng = pfx.as_resource_range()
+            query |= Q(prefix_min__gte=rng.min, prefix_max__lte=rng.max)
+        return RouteOrigin.objects.filter(query)
 
     @property
     def ghostbusters(self):

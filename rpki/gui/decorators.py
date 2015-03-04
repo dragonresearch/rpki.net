@@ -15,6 +15,7 @@
 __version__ = '$Id$'
 
 from django import http
+from django.conf import settings
 
 
 def tls_required(f):
@@ -23,9 +24,9 @@ def tls_required(f):
 
     """
     def _tls_required(request, *args, **kwargs):
-        if not request.is_secure():
-            return http.HttpResponseServerError(
-                'This resource may only be accessed securely via https',
-                content_type='text/plain')
-        return f(request, *args, **kwargs)
+        if settings.DEBUG or request.is_secure():
+            return f(request, *args, **kwargs)
+        return http.HttpResponseServerError(
+            'This resource may only be accessed securely via https',
+            content_type='text/plain')
     return _tls_required

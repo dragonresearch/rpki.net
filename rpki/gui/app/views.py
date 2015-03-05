@@ -40,6 +40,7 @@ from django.views.generic import DetailView, ListView, DeleteView, FormView
 from django.core.paginator import Paginator, InvalidPage
 from django.forms.formsets import formset_factory, BaseFormSet
 from django.contrib import messages
+from django.db.models import Q
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet, ROARequestPrefix
 from rpki.gui.app import models, forms, glue, range_list
@@ -631,7 +632,6 @@ def get_covered_routes(rng, max_prefixlen, asn):
 
     return routes
 
-
 @handle_required
 def roa_create(request):
     """Present the user with a form to create a ROA.
@@ -723,27 +723,51 @@ def roa_create_multi(request):
         if formset.has_changed() and formset.is_valid():
             routes = []
             v = []
+            query = Q()  # for matching routes
+            roas = []
             for form in formset:
 		asn = form.cleaned_data['asn']
 		rng = resource_range_ip.parse_str(form.cleaned_data['prefix'])
 		max_prefixlen = int(form.cleaned_data['max_prefixlen'])
                 protect_children = form.cleaned_data['protect_children']
 
-		# FIXME: This won't do the right thing in the event that a
-		# route is covered by multiple ROAs created in the form.
-		# You will see duplicate entries, each with a potentially
-		# different validation status.
-		covered = get_covered_routes(rng, max_prefixlen, asn)
-		routes.extend(covered)
+                roas.append((rng, max_prefixlen, asn, protect_children))
 		v.append({'prefix': str(rng), 'max_prefixlen': max_prefixlen,
 			  'asn': asn})
 
-                if protect_children:
-                    for r in conf.child_routes.filter(pk__in=[c.pk for c in covered if c.newstatus == 'invalid']):
-                        rng = r.as_resource_range()
+                query |= Q(prefix_min__gte=rng.min, prefix_max__lte=rng.max)
+
+            for rt in RouteOrigin.objects.filter(query):
+                status = rt.status  # cache the value
+                newstatus = status
+                if status == 'unknown':
+                    # possible change to valid or invalid
+                    for rng, max_prefixlen, asn, protect in roas:
+                        if rng.min <= rt.prefix_min and rng.max >= rt.prefix_max:
+                            # this route is covered
+                            if asn == rt.asn and rt.prefixlen <= max_prefixlen:
+                                newstatus = 'valid'
+                                break  # no need to continue for this route
+                            else:
+                                newstatus = 'invalid'
+                elif status == 'invalid':
+                    # possible change to valid
+                    for rng, max_prefixlen, asn, protect in roas:
+                        if rng.min <= rt.prefix_min and rng.max >= rt.prefix_max:
+                            # this route is covered
+                            if asn == rt.asn and rt.prefixlen <= max_prefixlen:
+                                newstatus = 'valid'
+                                break  # no need to continue for this route
+
+                if status != newstatus:
+                    if protect_children and newstatus == 'invalid' and conf.child_routes.filter(pk=rt.pk).exists():
+                        rng = rt.as_resource_range()
                         v.append({'prefix': str(rng),
                                     'max_prefixlen': rng.prefixlen,
-                                    'asn': r.asn})
+                                    'asn': rt.asn})
+                        newstatus = 'valid'
+                    rt.newstatus = newstatus  # I"M A MUHNKAY!!!
+                    routes.append(rt)
 
             # if there were no rows, skip the confirmation step
             if v:

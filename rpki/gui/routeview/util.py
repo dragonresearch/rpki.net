@@ -183,55 +183,61 @@ def import_routeviews_dump(filename=DEFAULT_URL, filetype='auto'):
 
     """
     start_time = time.time()
-
-    if filename.startswith('http://'):
-        #get filename from the basename of the URL
-        u = urlparse.urlparse(filename)
-        bname = os.path.basename(unquote(u.path))
-        tmpname = os.path.join(settings.DOWNLOAD_DIRECTORY, bname)
-
-        logger.info("Downloading %s to %s", filename, tmpname)
-        if os.path.exists(tmpname):
-            os.remove(tmpname)
-        # filename is replaced with a local filename containing cached copy of
-        # URL
-        filename, headers = urlretrieve(filename, tmpname)
-
-    if filetype == 'auto':
-        # try to determine input type from filename, based on the default
-        # filenames from archive.routeviews.org
-        bname = os.path.basename(filename)
-        if bname.startswith('oix-full-snapshot-latest'):
-            filetype = 'text'
-        elif bname.startswith('rib.'):
-            filetype = 'mrt'
-        else:
-            raise UnknownInputType('unable to automatically determine input file type')
-        logging.info('Detected import format as "%s"', filetype)
-
-    pipe = None
-    if filename.endswith('.bz2'):
-        bunzip = 'bunzip2'
-        logging.info('Decompressing input file on the fly...')
-        pipe = subprocess.Popen([bunzip, '--stdout', filename],
-                                stdout=subprocess.PIPE)
-        input_file = pipe.stdout
-    else:
-        input_file = open(filename)
+    tmpname = None
 
     try:
-        dispatch = {'text': parse_text, 'mrt': parse_mrt}
-        dispatch[filetype](input_file)
-    except KeyError:
-        raise UnknownInputType('"%s" is an unknown input file type' % filetype)
+        if filename.startswith('http://'):
+            #get filename from the basename of the URL
+            u = urlparse.urlparse(filename)
+            bname = os.path.basename(unquote(u.path))
+            tmpname = os.path.join(settings.DOWNLOAD_DIRECTORY, bname)
 
-    if pipe:
-        logging.debug('Waiting for child to exit...')
-        pipe.wait()
-        if pipe.returncode:
-            raise PipeFailed('Child exited code %d' % pipe.returncode)
+            logger.info("Downloading %s to %s", filename, tmpname)
+            if os.path.exists(tmpname):
+                os.remove(tmpname)
+            # filename is replaced with a local filename containing cached copy of
+            # URL
+            filename, headers = urlretrieve(filename, tmpname)
+
+        if filetype == 'auto':
+            # try to determine input type from filename, based on the default
+            # filenames from archive.routeviews.org
+            bname = os.path.basename(filename)
+            if bname.startswith('oix-full-snapshot-latest'):
+                filetype = 'text'
+            elif bname.startswith('rib.'):
+                filetype = 'mrt'
+            else:
+                raise UnknownInputType('unable to automatically determine input file type')
+            logging.info('Detected import format as "%s"', filetype)
+
         pipe = None
-    else:
-        input_file.close()
+        if filename.endswith('.bz2'):
+            bunzip = 'bunzip2'
+            logging.info('Decompressing input file on the fly...')
+            pipe = subprocess.Popen([bunzip, '--stdout', filename],
+                                    stdout=subprocess.PIPE)
+            input_file = pipe.stdout
+        else:
+            input_file = open(filename)
+
+        try:
+            dispatch = {'text': parse_text, 'mrt': parse_mrt}
+            dispatch[filetype](input_file)
+        except KeyError:
+            raise UnknownInputType('"%s" is an unknown input file type' % filetype)
+
+        if pipe:
+            logging.debug('Waiting for child to exit...')
+            pipe.wait()
+            if pipe.returncode:
+                raise PipeFailed('Child exited code %d' % pipe.returncode)
+            pipe = None
+        else:
+            input_file.close()
+    finally:
+        # make sure to always clean up the temp download file
+        if tmpname is not None:
+            os.unlink(tmpname)
 
     logger.info('Elapsed time %d secs', (time.time() - start_time))

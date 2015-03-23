@@ -43,6 +43,7 @@ def setup():
             }
         },
         MIDDLEWARE_CLASSES = (),
+        DOWNLOAD_DIRECTORY = cfg.get('download-directory', '/var/tmp'),
     )
     if django.VERSION >= (1, 7):
         from django.apps import apps

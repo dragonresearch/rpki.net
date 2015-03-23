@@ -25,6 +25,7 @@ import urlparse
 from urllib import urlretrieve, unquote
 
 from django.db import transaction, connection
+from django.conf import settings
 
 from rpki.resource_set import resource_range_ipv4, resource_range_ipv6
 from rpki.exceptions import BadIPResource
@@ -187,7 +188,7 @@ def import_routeviews_dump(filename=DEFAULT_URL, filetype='auto'):
         #get filename from the basename of the URL
         u = urlparse.urlparse(filename)
         bname = os.path.basename(unquote(u.path))
-        tmpname = os.path.join('/tmp', bname)
+        tmpname = os.path.join(settings.DOWNLOAD_DIRECTORY, bname)
 
         logger.info("Downloading %s to %s", filename, tmpname)
         if os.path.exists(tmpname):

@@ -39,7 +39,7 @@ class BadArgument(Exception):
 
 
 def timed_out(*ignored):
-    logging.info('timed out')
+    logging.error('timed out')
     sys.exit(1)
 
 

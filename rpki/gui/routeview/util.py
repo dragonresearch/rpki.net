@@ -216,7 +216,8 @@ def import_routeviews_dump(filename=DEFAULT_URL, filetype='auto'):
             bunzip = 'bunzip2'
             logging.info('Decompressing input file on the fly...')
             pipe = subprocess.Popen([bunzip, '--stdout', filename],
-                                    stdout=subprocess.PIPE)
+                                    stdout=subprocess.PIPE,
+                                    bufsize=-1)
             input_file = pipe.stdout
         else:
             input_file = open(filename)

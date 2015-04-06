@@ -51,11 +51,9 @@ from routeviews.org into the RPKI Web Portal database.  If the
 input file is a bzip2 compressed file, it will be decompressed
 automatically.""")
     parser.add_option('-t', '--type', dest='filetype', metavar='TYPE',
-                      help='Specify the input file type (auto, text, mrt) [Default: %default]')
+                      help='Specify the input file type (text, mrt) [Default: %default]')
     parser.add_option('-l', '--level', dest='log_level', default='ERROR',
                       help='Set logging level [Default: %default]')
-    parser.add_option('-u', '--bunzip2', dest='bunzip', metavar='PROG',
-                      help='Specify bunzip2 program to use')
     parser.add_option('-b', '--bgpdump', dest='bgpdump', metavar='PROG',
                       help='Specify path to bgdump binary')
     parser.add_option('-j', '--jitter', dest='jitter', type='int',
@@ -64,7 +62,7 @@ automatically.""")
                       help='Set name of lock file; empty string disables locking [Default: %default]')
     parser.add_option('--timeout', dest='timeout', type='int',
                       help='Specify timeout for download and import, in seconds [Default: %default]')
-    parser.set_defaults(debug=False, verbose=False, filetype='auto', jitter=0,
+    parser.set_defaults(debug=False, verbose=False, filetype='text', jitter=0,
                         lockfile='/tmp/rpkigui-import-routes.lock', timeout=90*60)
     options, args = parser.parse_args()
 
@@ -104,7 +102,7 @@ automatically.""")
             signal.signal(signal.SIGALRM, timed_out)
             signal.setitimer(signal.ITIMER_REAL, options.timeout)
 
-        import_routeviews_dump(*args)
+        import_routeviews_dump(*args, filetype=options.filetype)
 
         if options.timeout > 0:
             signal.setitimer(signal.ITIMER_REAL, 0)

@@ -6,7 +6,7 @@
 
 #version="1.0.0-stable-SNAP-$(date +%Y%m%d)"
 
-version="1.0.1m"
+version="1.0.2d"
 
 tarball="openssl-${version}.tar.gz"
 
@@ -15,7 +15,7 @@ case $version in
   *)      directory=source;;
 esac
 
-/usr/bin/fetch -m -p "ftp://ftp.openssl.org/${directory}/${tarball}" || exit
+/bin/test -f "${tarball}" || /usr/bin/fetch -m -p "ftp://ftp.openssl.org/${directory}/${tarball}" || exit
 
 /bin/rm -f openssl
 

@@ -112,7 +112,8 @@ for port in ("rpki-rp", "rpki-ca"):
   with open(fn, "w") as f:
     f.write(template % formatdict)
 
-  subprocess.check_call(("make", "makesum", "stage", "DISTDIR=" + portsdir), cwd = base)
+  subprocess.check_call(("make", "makesum", "stage", "DISTDIR=" + portsdir, "NO_DEPENDS=yes"),
+                        cwd = base)
 
   with open(os.path.join(base, "pkg-plist"), "w") as f:
     usr_local = None

@@ -32,7 +32,7 @@ BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
 
 RPKID_DEPENDS=	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \
                 ${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb       \
-                ${PYTHON_PKGNAMEPREFIX}django>=1.4:${PORTSDIR}/www/py-django14          \
+                ${PYTHON_PKGNAMEPREFIX}django14>=1.4:${PORTSDIR}/www/py-django14          \
                 ${PYTHON_PKGNAMEPREFIX}vobject>0:${PORTSDIR}/deskutils/py-vobject       \
                 ${PYTHON_PKGNAMEPREFIX}yaml>0:${PORTSDIR}/devel/py-yaml                 \
                 ${PYTHON_PKGNAMEPREFIX}netifaces>0:${PORTSDIR}/net/py-netifaces         \

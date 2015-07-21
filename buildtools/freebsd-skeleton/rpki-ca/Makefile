@@ -8,9 +8,9 @@ MAINTAINER=	sra@hactrn.net
 COMMENT=	rpki.net RPKI CA tools
 WWW=		http://rpki.net/
 
+USES=		python:2.7+
 GNU_CONFIGURE=  yes
 NO_MTREE=	yes
-USE_PYTHON=	2.7+
 USE_GNOME=      libxml2 libxslt
 USE_MYSQL=      server
 USE_APACHE_RUN= 22+
@@ -32,7 +32,7 @@ BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
 
 RPKID_DEPENDS=	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \
                 ${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb       \
-                ${PYTHON_PKGNAMEPREFIX}django>=1.3.7:${PORTSDIR}/www/py-django          \
+                ${PYTHON_PKGNAMEPREFIX}django14>=1.4:${PORTSDIR}/www/py-django14          \
                 ${PYTHON_PKGNAMEPREFIX}vobject>0:${PORTSDIR}/deskutils/py-vobject       \
                 ${PYTHON_PKGNAMEPREFIX}yaml>0:${PORTSDIR}/devel/py-yaml                 \
                 ${PYTHON_PKGNAMEPREFIX}netifaces>0:${PORTSDIR}/net/py-netifaces         \
@@ -41,7 +41,7 @@ RPKID_DEPENDS=	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml          
 BUILD_DEPENDS+=	${RPKID_DEPENDS}
 RUN_DEPENDS+=	${RPKID_DEPENDS}
 
-RUN_DEPENDS+=	${APACHE_PKGNAMEPREFIX}mod_wsgi3>0:${PORTSDIR}/www/mod_wsgi3
+RUN_DEPENDS+=	${APACHE_PKGNAMEPREFIX}mod_wsgi4>0:${PORTSDIR}/www/mod_wsgi4
 
 # Try to use system OpenSSL if we can.
 CONFIGURE_ENV=  CFLAGS="-I${LOCALBASE}/include" LDFLAGS="-L${LOCALBASE}/lib"

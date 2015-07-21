@@ -137,9 +137,8 @@ class main(object):
       host     = self.http_server_host,
       port     = self.http_server_port,
       handlers = (("/left-right", self.left_right_handler),
-                  ("/up-down/",   self.up_down_handler),
+                  ("/up-down/",   self.up_down_handler, rpki.up_down.allowed_content_types),
                   ("/cronjob",    self.cronjob_handler)))
-
 
   def start_cron(self):
     """

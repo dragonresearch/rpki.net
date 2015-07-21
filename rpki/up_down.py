@@ -35,10 +35,19 @@ from lxml.etree import Element, SubElement, tostring as ElementToString
 
 logger = logging.getLogger(__name__)
 
-
 xmlns   = rpki.relaxng.up_down.xmlns
 nsmap   = rpki.relaxng.up_down.nsmap
 version = "1"
+
+## @var content_type
+# MIME content type to use when sending up-down queries.
+#content_type = "application/rpki-updown"
+content_type = "application/x-rpki"
+
+## @var allowed_content_types
+# MIME content types which we consider acceptable for incoming up-down
+# queries.
+allowed_content_types = ("application/rpki-updown", "application/x-rpki")
 
 tag_certificate = xmlns + "certificate"
 tag_class       = xmlns + "class"

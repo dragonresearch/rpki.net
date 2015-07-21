@@ -38,9 +38,10 @@ import rpki.POW
 
 logger = logging.getLogger(__name__)
 
-## @var rpki_content_type
-# HTTP content type used for all RPKI messages.
-rpki_content_type = "application/x-rpki"
+## @var default_content_type
+# HTTP content type used for RPKI messages.
+# Can be overriden on a per-client or per-server basis.
+default_content_type = "application/x-rpki"
 
 ## @var want_persistent_client
 # Whether we want persistent HTTP client streams, when server also supports them.
@@ -511,6 +512,7 @@ class http_server(http_stream):
 
   def __init__(self, sock, handlers):
     self.handlers = handlers
+    self.received_content_type = None
     http_stream.__init__(self, sock = sock)
     self.expect_close = not want_persistent_server
     self.logger.debug("Starting")
@@ -529,10 +531,10 @@ class http_server(http_stream):
     Helper method to search self.handlers.
     """
 
-    for s, h in self.handlers:
-      if path.startswith(s):
-        return h
-    return None
+    for h in self.handlers:
+      if path.startswith(h[0]):
+        return h[1], h[2] if len(h) > 2 else (default_content_type,)
+    return None, None
 
   def handle_message(self):
     """
@@ -545,12 +547,13 @@ class http_server(http_stream):
     self.logger.debug("Received request %r", self.msg)
     if not self.msg.persistent:
       self.expect_close = True
-    handler = self.find_handler(self.msg.path)
+    handler, allowed_content_types = self.find_handler(self.msg.path)
+    self.received_content_type = self.msg.headers["Content-Type"]
     error = None
     if self.msg.cmd != "POST":
       error = 501, "No handler for method %s" % self.msg.cmd
-    elif self.msg.headers["Content-Type"] != rpki_content_type:
-      error = 415, "No handler for Content-Type %s" % self.headers["Content-Type"]
+    elif self.received_content_type not in allowed_content_types:
+      error = 415, "No handler for Content-Type %s" % self.received_content_type
     elif handler is None:
       error = 404, "No handler for URL %s" % self.msg.path
     if error is None:
@@ -590,7 +593,7 @@ class http_server(http_stream):
     if code >= 400:
       self.expect_close = True
     msg = http_response(code = code, reason = reason, body = body,
-                        Content_Type = rpki_content_type,
+                        Content_Type = self.received_content_type,
                         Connection = "Close" if self.expect_close else "Keep-Alive")
     self.push(msg.format())
     if self.expect_close:
@@ -982,7 +985,7 @@ class http_queue(object):
 # Map of (host, port) tuples to http_queue objects.
 client_queues = {}
 
-def client(msg, url, callback, errback):
+def client(msg, url, callback, errback, content_type = default_content_type):
   """
   Open client HTTP connection, send a message, set up callbacks to
   handle response.
@@ -1007,7 +1010,7 @@ def client(msg, url, callback, errback):
     callback            = callback,
     errback             = errback,
     Host                = u.hostname,
-    Content_Type        = rpki_content_type)
+    Content_Type        = content_type)
 
   hostport = (u.hostname or "localhost", u.port or default_tcp_port)
 

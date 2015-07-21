@@ -454,4 +454,4 @@ class main(object):
 
     rpki.http_simple.server(host     = self.http_server_host,
                             port     = self.http_server_port,
-                            handlers = (("/", self.up_down_handler, rpki.up_down.allowed_content_types),))
+                            handlers = (("/", self.handler, rpki.up_down.allowed_content_types),))

@@ -27,7 +27,7 @@ import BaseHTTPServer
 logger = logging.getLogger(__name__)
 
 
-rpki_content_type = "application/x-rpki"
+default_content_type = "application/x-rpki"
 
 
 class HTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
@@ -39,24 +39,23 @@ class HTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     try:
       content_type   = self.headers.get("Content-Type")
       content_length = self.headers.get("Content-Length")
-      if content_type != rpki_content_type:
-        self.send_error(415, "No handler for Content-Type %s" % content_type)
+      for h in self.rpki_handlers:
+        if self.path.startswith(h[0]):
+          break
       else:
-        for prefix, handler in self.rpki_handlers:
-          if self.path.startswith(prefix):
-            handler(self, (self.rfile.read()
-                           if content_length is None else
-                           self.rfile.read(int(content_length))))
-            break
-        else:
-          self.send_error(404, "No handler for path %s" % self.path)
+        self.send_error(404, "No handler for path %s" % self.path)
+      if content_type not in (h[2] if len(h) > 2 else (default_content_type,)):
+        self.send_error(415, "No handler for Content-Type %s" % content_type)
+      h[1](self, (self.rfile.read()
+                  if content_length is None else
+                  self.rfile.read(int(content_length))))
     except Exception, e:
       logger.exception("Unhandled exception")
       self.send_error(501, "Unhandled exception")
 
   def send_cms_response(self, der):
     self.send_response(200)
-    self.send_header("Content-Type", rpki_content_type)
+    self.send_header("Content-Type", default_content_type)
     self.send_header("Content-Length", str(len(der)))
     self.end_headers()
     self.wfile.write(der)
@@ -68,7 +67,7 @@ class HTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     # BaseHTTPRequestHandler.send_error() generates HTML error messages,
     # which we don't want, so we override the method to suppress this.
     self.send_response(code, message)
-    self.send_header("Content-Type", rpki_content_type)
+    self.send_header("Content-Type", default_content_type)
     self.send_header("Connection", "close")
     self.end_headers()
 
@@ -98,7 +97,7 @@ class BadContentType(Exception):
 
 
 def client(proto_cms_msg, client_key, client_cert, server_ta, server_cert, url, q_msg,
-           debug = False, replay_track = None, client_crl = None):
+           debug = False, replay_track = None, client_crl = None, content_type = default_content_type):
   """
   Issue single a query and return the response, handling all the CMS and XML goo.
   """
@@ -115,14 +114,14 @@ def client(proto_cms_msg, client_key, client_cert, server_ta, server_cert, url, 
     debug.write("<!-- Query -->\n" + q_cms.pretty_print_content() + "\n")
 
   http = httplib.HTTPConnection(u.hostname, u.port or httplib.HTTP_PORT)
-  http.request("POST", u.path, q_der, {"Content-Type" : rpki_content_type})
+  http.request("POST", u.path, q_der, {"Content-Type" : content_type})
   r = http.getresponse()
 
   if r.status != 200:
     raise RequestFailed("HTTP request failed with status %r reason %r" % (r.status, r.reason))
 
-  if r.getheader("Content-Type") != rpki_content_type:
-    raise BadContentType("HTTP Content-Type %r, expected %r" % (r.getheader("Content-Type"), rpki_content_type))
+  if r.getheader("Content-Type") != content_type:
+    raise BadContentType("HTTP Content-Type %r, expected %r" % (r.getheader("Content-Type"), content_type))
 
   r_der = r.read()
   r_cms = proto_cms_msg(DER = r_der)

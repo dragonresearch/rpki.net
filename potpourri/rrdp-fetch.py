@@ -33,7 +33,7 @@ class BadHash(Exception):
 
 def fetch(elt):
   uri = elt.get("uri")
-  hash = elt.get("hash")
+  hash = elt.get("hash").lower()
   print "Fetching", uri
 
   text = urlopen(uri).read()

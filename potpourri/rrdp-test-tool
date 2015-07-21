@@ -90,7 +90,7 @@ class main(object):
   def del_obj(self, uri, hash):
     fn = self.uri_to_filename(uri)
     with open(fn, "rb") as f:
-      if hash != rpki.x509.sha256(f.read()).encode("hex"):
+      if hash.lower() != rpki.x509.sha256(f.read()).encode("hex"):
         raise RuntimeError("Hash mismatch for URI %s" % uri)
     os.unlink(fn)
     dn = os.path.dirname(fn)

@@ -40,6 +40,32 @@ class Tags(object):
 tags = Tags("notification", "delta", "snapshot", "publish", "withdraw")
 
 
+class RSyncHandler(urllib2.BaseHandler):
+  """
+  Jam support for rsync:// URIs into urllib2 framework.
+  Very basic, probably not paranoid enough.
+  """
+
+  _n = 0
+
+  def rsync_open(self, req):
+    import subprocess, mimetools
+    u = req.get_full_url()
+    if u.endswith("/"):
+      raise urllib2.URLError("rsync directory URI not allowed")
+    t = "/tmp/rrdp-fetch-from-tal.%d.%d" % (os.getpid(), self._n)
+    self._n += 1
+    subprocess.check_call(("rsync", u, t))
+    h = mimetools.Message(open("/dev/null"))
+    h["Content-type"] = "text/plain"
+    h["Content-length"] = str(os.stat(t).st_size)
+    f = open(t, "rb")
+    os.unlink(t)
+    return urllib2.addinfourl(f, h, u)
+
+urllib2.install_opener(urllib2.build_opener(RSyncHandler))
+
+
 class main(object):
 
   def __init__(self):

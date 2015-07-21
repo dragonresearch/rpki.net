@@ -70,17 +70,25 @@ def looks_like_PEM(text):
   i = text.find("-----BEGIN ")
   return i >= 0 and text.find("\n-----END ", i) > i
 
+def first_uri_matching_prefix(xia, prefix):
+  """
+  Find first URI in a sequence of AIA or SIA URIs which matches a
+  particular prefix string.  Returns the URI if found, otherwise None.
+  """
+
+  if xia is not None:
+    for uri in xia:
+      if uri.startswith(prefix):
+        return uri
+  return None
+
 def first_rsync_uri(xia):
   """
   Find first rsync URI in a sequence of AIA or SIA URIs.
   Returns the URI if found, otherwise None.
   """
 
-  if xia is not None:
-    for uri in xia:
-      if uri.startswith("rsync://"):
-        return uri
-  return None
+  return first_uri_matching_prefix(xia, "rsync://")
 
 def first_http_uri(xia):
   """
@@ -88,11 +96,15 @@ def first_http_uri(xia):
   Returns the URI if found, otherwise None.
   """
 
-  if xia is not None:
-    for uri in xia:
-      if uri.startswith("http://"):
-        return uri
-  return None
+  return first_uri_matching_prefix(xia, "http://")
+
+def first_https_uri(xia):
+  """
+  Find first HTTPS URI in a sequence of AIA or SIA URIs.
+  Returns the URI if found, otherwise None.
+  """
+
+  return first_uri_matching_prefix(xia, "https://")
 
 def sha1(data):
   """
@@ -508,11 +520,12 @@ class DER_object(object):
   def get_sia_rrdp_notify(self):
     """
     Get SIA RRDP (id-ad-rpkiNotify) URI from this object.
+    We prefer HTTPS over HTTP if both are present.
     Only works for subclasses that support getSIA().
     """
 
     sia = self.get_POW().getSIA()
-    return None if sia is None else first_http_uri(sia[3])
+    return None if sia is None else first_https_uri(sia[3]) or first_http_uri(sia[3])
 
   def get_AIA(self):
     """

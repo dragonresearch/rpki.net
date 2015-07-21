@@ -42,13 +42,15 @@
       </thead>
       <tbody>
 	{% for pfx in roa_prefixes %}
+          {% for roa in pfx.roas.all %}
 	<tr>
 	  <td>{{ pfx.as_resource_range }}</td>
 	  <td>{{ pfx.max_length }}</td>
-	  <td>{{ pfx.roas.all.0.asid }}</td>
-	  <td>{{ pfx.roas.all.0.not_after }}</td>
-	  <td>{{ pfx.roas.all.0.repo.uri }}</td>
+	  <td>{{ roa.asid }}</td>
+	  <td>{{ roa.not_after }}</td>
+	  <td>{{ roa.repo.uri }}</td>
 	</tr>
+          {% endfor %}
 	{% endfor %}
       </tbody>
     </table>

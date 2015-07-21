@@ -22,9 +22,11 @@ import subprocess
 import time
 import logging
 import urlparse
+import bz2
 from urllib import urlretrieve, unquote
 
 from django.db import transaction, connection
+from django.conf import settings
 
 from rpki.resource_set import resource_range_ipv4, resource_range_ipv6
 from rpki.exceptions import BadIPResource
@@ -36,34 +38,118 @@ logger = logging.getLogger(__name__)
 # Eventually this can be retrived from rpki.conf
 DEFAULT_URL = 'http://archive.routeviews.org/oix-route-views/oix-full-snapshot-latest.dat.bz2'
 
-def parse_text(f):
-    last_prefix = None
-    cursor = connection.cursor()
-    range_class = resource_range_ipv4
+class ParseError(Exception): pass
+
+class RouteDumpParser(object):
+    """Base class for parsing various route dump formats."""
+
     table = 'routeview_routeorigin'
     sql = "INSERT INTO %s_new SET asn=%%s, prefix_min=%%s, prefix_max=%%s" % table
+    range_class = resource_range_ipv4
 
-    try:
-        logger.info('Dropping existing staging table...')
-        cursor.execute('DROP TABLE IF EXISTS %s_new' % table)
-    except _mysql_exceptions.Warning:
+    def __init__(self, path, *args, **kwargs):
+        self.path = path
+        self.cursor = connection.cursor()
+        self.last_prefix = None
+        self.asns = set()
+
+    def parse(self):
+        try:
+            logger.info('Dropping existing staging table...')
+            self.cursor.execute('DROP TABLE IF EXISTS %s_new' % self.table)
+        except _mysql_exceptions.Warning:
+            pass
+
+        logger.info('Creating staging table...')
+        self.cursor.execute('CREATE TABLE %(table)s_new LIKE %(table)s' % {'table': self.table})
+
+        logger.info('Disabling autocommit...')
+        self.cursor.execute('SET autocommit=0')
+
+        logger.info('Adding rows to table...')
+        for line in self.input:
+            try:
+                prefix, origin_as = self.parse_line(line)
+            except ParseError as e:
+                logger.warning('error while parsing line: {} ({})'.format(line, str(e)))
+                continue
+
+            # the output may contain multiple paths to the same origin.
+            # if this is the same prefix as the last entry, we don't need
+            # to validate it again.
+            #
+            # prefixes are sorted, but the origin_as is not, so we keep a set to
+            # avoid duplicates, and insert into the db once we've seen all the
+            # origin_as values for a given prefix
+            if prefix != self.last_prefix:
+                self.ins_routes()
+                self.last_prefix = prefix
+            self.asns.add(origin_as)
+
+        self.ins_routes() # process data from last line
+
+        logger.info('Committing...')
+        self.cursor.execute('COMMIT')
+
+        try:
+            logger.info('Dropping old table...')
+            self.cursor.execute('DROP TABLE IF EXISTS %s_old' % self.table)
+        except _mysql_exceptions.Warning:
+            pass
+
+        logger.info('Swapping staging table with live table...')
+        self.cursor.execute('RENAME TABLE %(table)s TO %(table)s_old, %(table)s_new TO %(table)s' % {'table': self.table})
+
+        self.cleanup()  # allow cleanup function to throw prior to COMMIT
+
+        transaction.commit_unless_managed()
+
+        logger.info('Updating timestamp metadata...')
+        rpki.gui.app.timestamp.update('bgp_v4_import')
+
+    def parse_line(self, row):
+        "Parse one line of input. Return a (prefix, origin_as) tuple."
+        return None
+
+    def cleanup(self):
         pass
 
-    logger.info('Creating staging table...')
-    cursor.execute('CREATE TABLE %(table)s_new LIKE %(table)s' % {'table': table})
+    def ins_routes(self):
+        # output routes for previous prefix
+        if self.last_prefix is not None:
+            try:
+                rng = self.range_class.parse_str(self.last_prefix)
+                rmin = long(rng.min)
+                rmax = long(rng.max)
+                self.cursor.executemany(self.sql, [(asn, rmin, rmax) for asn in self.asns])
+            except BadIPResource:
+                logger.warning('skipping bad prefix: ' + self.last_prefix)
+            self.asns = set() # reset
 
-    logger.info('Disabling autocommit...')
-    cursor.execute('SET autocommit=0')
 
-    logger.info('Adding rows to table...')
-    for row in itertools.islice(f, 5, None):
+class TextDumpParser(RouteDumpParser):
+    """Parses the RouteViews.org text dump."""
+
+    def __init__(self, *args, **kwargs):
+        super(TextDumpParser, self).__init__(*args, **kwargs)
+        if self.path.endswith('.bz2'):
+            logger.info('decompressing bz2 file')
+            self.file = bz2.BZ2File(self.path, buffering=4096)
+        else:
+            self.file = open(self.path, buffering=-1)
+        self.input = itertools.islice(self.file, 5, None)  # skip first 5 lines
+
+    def parse_line(self, row):
+        "Parse one line of input"
         cols = row.split()
 
         # index -1 is i/e/? for igp/egp
-        origin_as = cols[-2]
-        # FIXME: skip AS_SETs
-        if origin_as[0] == '{':
-            continue
+        try:
+            origin_as = int(cols[-2])
+        except IndexError:
+            raise ParseError('unexpected format')
+        except ValueError:
+            raise ParseError('bad AS value')
 
         prefix = cols[1]
 
@@ -77,85 +163,35 @@ def parse_text(f):
             s.append('assuming it should be %s' % prefix)
             logger.warning(' '.join(s))
 
-        # the output may contain multiple paths to the same origin.
-        # if this is the same prefix as the last entry, we don't need
-        # to validate it again.
-        #
-        # prefixes are sorted, but the origin_as is not, so we keep a set to
-        # avoid duplicates, and insert into the db once we've seen all the
-        # origin_as values for a given prefix
-        if prefix != last_prefix:
-            # output routes for previous prefix
-            if last_prefix is not None:
-                try:
-                    rng = range_class.parse_str(last_prefix)
-                    rmin = long(rng.min)
-                    rmax = long(rng.max)
-                    cursor.executemany(sql, [(asn, rmin, rmax) for asn in asns])
-                except BadIPResource:
-                    logger.warning('skipping bad prefix: ' + last_prefix)
+        return prefix, origin_as
 
-            asns = set()
-            last_prefix = prefix
-
-        try:
-            asns.add(int(origin_as))
-        except ValueError as err:
-            logger.warning('\n'.join(
-                ['unable to parse origin AS: ' + origin_as],
-                ['ValueError: ' + str(err)]
-                ['route entry was: ' + row],
-            ))
-
-    logger.info('Committing...')
-    cursor.execute('COMMIT')
-
-    try:
-        logger.info('Dropping old table...')
-        cursor.execute('DROP TABLE IF EXISTS %s_old' % table)
-    except _mysql_exceptions.Warning:
-        pass
-
-    logger.info('Swapping staging table with live table...')
-    cursor.execute('RENAME TABLE %(table)s TO %(table)s_old, %(table)s_new TO %(table)s' % {'table': table})
-
-    transaction.commit_unless_managed()
-
-    logger.info('Updating timestamp metadata...')
-    rpki.gui.app.timestamp.update('bgp_v4_import')
+    def cleanup(self):
+        self.file.close()
 
 
-def parse_mrt(f):
-    # filter input through bgpdump
-    pipe = subprocess.Popen(['bgpdump', '-m', '-v', '-'], stdin=f,
-                            stdout=subprocess.PIPE)
+class MrtDumpParser(RouteDumpParser):
+    def __init__(self, *args, **kwargs):
+        super(MrtDumpParser, self).__init__(*args, **kwargs)
+        # filter input through bgpdump
+        # bgpdump can decompress bz2 files directly, no need to do it here
+        self.pipe = subprocess.Popen(['bgpdump', '-m', '-v', self.path], stdout=subprocess.PIPE, bufsize=-1)
+        self.input = self.pipe.stdout
 
-    last_prefix = None
-    last_as = None
-    for e in pipe.stdout.readlines():
-        a = e.split('|')
+    def parse_line(self, row):
+        a = row.split('|')
         prefix = a[5]
         try:
             origin_as = int(a[6].split()[-1])
         except ValueError:
-            # skip AS_SETs
-            continue
+            raise ParseError('bad AS value')
 
-        if prefix != last_prefix:
-            last_prefix = prefix
-        elif last_as == origin_as:
-            continue
-        last_as = origin_as
+        return prefix, origin_as
 
-        asns = PREFIXES.get(prefix)
-        if not asns:
-            asns = set()
-            PREFIXES[prefix] = asns
-        asns.add(origin_as)
-
-    pipe.wait()
-    if pipe.returncode:
-        raise ProgException('bgpdump exited with code %d' % pipe.returncode)
+    def cleanup(self):
+        logger.info('waiting for child process to terminate')
+        self.pipe.wait()
+        if self.pipe.returncode:
+            raise PipeFailed('bgpdump exited with code %d' % self.pipe.returncode)
 
 
 class ProgException(Exception):
@@ -170,7 +206,7 @@ class PipeFailed(ProgException):
     pass
 
 
-def import_routeviews_dump(filename=DEFAULT_URL, filetype='auto'):
+def import_routeviews_dump(filename=DEFAULT_URL, filetype='text'):
     """Load the oix-full-snapshot-latest.bz2 from routeview.org into the
     rpki.gui.routeview database.
 
@@ -182,55 +218,31 @@ def import_routeviews_dump(filename=DEFAULT_URL, filetype='auto'):
     """
 
     start_time = time.time()
-
-    if filename.startswith('http://'):
-        #get filename from the basename of the URL
-        u = urlparse.urlparse(filename)
-        bname = os.path.basename(unquote(u.path))
-        tmpname = os.path.join('/tmp', bname)
-
-        logger.info("Downloading %s to %s", filename, tmpname)
-        if os.path.exists(tmpname):
-            os.remove(tmpname)
-        # filename is replaced with a local filename containing cached copy of
-        # URL
-        filename, headers = urlretrieve(filename, tmpname)
-
-    if filetype == 'auto':
-        # try to determine input type from filename, based on the default
-        # filenames from archive.routeviews.org
-        bname = os.path.basename(filename)
-        if bname.startswith('oix-full-snapshot-latest'):
-            filetype = 'text'
-        elif bname.startswith('rib.'):
-            filetype = 'mrt'
-        else:
-            raise UnknownInputType('unable to automatically determine input file type')
-        logging.info('Detected import format as "%s"', filetype)
-
-    pipe = None
-    if filename.endswith('.bz2'):
-        bunzip = 'bunzip2'
-        logging.info('Decompressing input file on the fly...')
-        pipe = subprocess.Popen([bunzip, '--stdout', filename],
-                                stdout=subprocess.PIPE)
-        input_file = pipe.stdout
-    else:
-        input_file = open(filename)
+    tmpname = None
 
     try:
-        dispatch = {'text': parse_text, 'mrt': parse_mrt}
-        dispatch[filetype](input_file)
-    except KeyError:
-        raise UnknownInputType('"%s" is an unknown input file type' % filetype)
+        if filename.startswith('http://'):
+            #get filename from the basename of the URL
+            u = urlparse.urlparse(filename)
+            bname = os.path.basename(unquote(u.path))
+            tmpname = os.path.join(settings.DOWNLOAD_DIRECTORY, bname)
 
-    if pipe:
-        logging.debug('Waiting for child to exit...')
-        pipe.wait()
-        if pipe.returncode:
-            raise PipeFailed('Child exited code %d' % pipe.returncode)
-        pipe = None
-    else:
-        input_file.close()
+            logger.info("Downloading %s to %s", filename, tmpname)
+            if os.path.exists(tmpname):
+                os.remove(tmpname)
+            # filename is replaced with a local filename containing cached copy of
+            # URL
+            filename, headers = urlretrieve(filename, tmpname)
+
+        try:
+            dispatch = {'text': TextDumpParser, 'mrt': MrtDumpParser}
+            dispatch[filetype](filename).parse()
+        except KeyError:
+            raise UnknownInputType('"%s" is an unknown input file type' % filetype)
+
+    finally:
+        # make sure to always clean up the temp download file
+        if tmpname is not None:
+            os.unlink(tmpname)
 
     logger.info('Elapsed time %d secs', (time.time() - start_time))

@@ -193,7 +193,7 @@ def ROARequestFormFactory(conf):
 		'class': 'span1'
 	    })
 	)
-	confirmed = forms.BooleanField(widget=forms.HiddenInput, required=False)
+	protect_children = forms.BooleanField(required=False)
 
 	def __init__(self, *args, **kwargs):
 	    kwargs['auto_id'] = False

@@ -2061,8 +2061,10 @@ static int walk_ctx_loop_this(const rcynic_ctx_t *rc,
   }
 
   if (name == NULL) {
-    logmsg(rc, log_sys_err, "Can't find a URI in walk context, this shouldn't happen: state %d, manifest_iteration %d, filename_iteration %d",
-	   (int) w->state, w->manifest_iteration, w->filename_iteration);
+    logmsg(rc, log_sys_err, 
+	   "Can't find a URI in walk context, this shouldn't happen: "
+	   "state %d, manifest_iteration %d, filename_iteration %d, manifest URI %s",
+	   (int) w->state, w->manifest_iteration, w->filename_iteration, w->certinfo.manifest.s);
     return 0;
   }
 

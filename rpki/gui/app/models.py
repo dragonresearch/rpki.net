@@ -18,6 +18,7 @@ __version__ = '$Id$'
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
+from django.db.models import Q
 
 import rpki.resource_set
 import rpki.exceptions
@@ -64,6 +65,15 @@ class Child(rpki.irdb.models.Child):
     class Meta:
         proxy = True
         verbose_name_plural = 'children'
+
+    @property
+    def routes(self):
+        "Return a list of RouteOrigin objects (potentially) originated by this child."
+        query = Q()
+        for r in self.address_ranges.filter(version='IPv4'):
+            rng = r.as_resource_range()
+            query |= Q(prefix_min__gte=rng.min, prefix_max__lte=rng.max)
+        return RouteOrigin.objects.filter(query)
 
 
 class ChildASN(rpki.irdb.models.ChildASN):
@@ -121,17 +131,30 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
     def parents(self):
         """Simulates irdb.models.Parent.objects, but returns app.models.Parent
         proxy objects.
-        """
 
+        """
         return Parent.objects.filter(issuer=self)
 
     @property
     def children(self):
         """Simulates irdb.models.Child.objects, but returns app.models.Child
         proxy objects.
-        """
 
-        return Child.objects.filter(issuer=self)
+        When running rootd, we need to exclude the Child object for self.
+
+        """
+        return Child.objects.filter(issuer=self).exclude(handle=self.handle)
+
+    @property
+    def child_routes(self):
+        """Return currently announced routes for prefixes covered by child
+        sub-allocations.
+        """
+        query = Q()
+        for pfx in ChildNet.objects.filter(child__issuer=self, version='IPv4'):
+            rng = pfx.as_resource_range()
+            query |= Q(prefix_min__gte=rng.min, prefix_max__lte=rng.max)
+        return RouteOrigin.objects.filter(query)
 
     @property
     def ghostbusters(self):
@@ -149,8 +172,8 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
     def routes(self):
         """Return all IPv4 routes covered by RPKI certs issued to this resource
         holder.
-        """
 
+        """
         # build a Q filter to select all RouteOrigin objects covered by
         # prefixes in the resource holder's certificates
         prefixes = ResourceRangeAddressV4.objects.filter(cert__conf=self)
@@ -167,8 +190,8 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
     def routes_v6(self):
         """Return all IPv6 routes covered by RPKI certs issued to this resource
         holder.
-        """
 
+        """
         # build a Q filter to select all RouteOrigin objects covered by
         # prefixes in the resource holder's certificates
         prefixes = ResourceRangeAddressV6.objects.filter(cert__conf=self)
@@ -183,7 +206,6 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
 
     def send_alert(self, subject, message, from_email, severity=Alert.INFO):
         """Store an alert for this resource holder."""
-
         self.alerts.create(subject=subject, text=message, severity=severity)
 
         send_mail(
@@ -199,8 +221,8 @@ class Conf(rpki.irdb.models.ResourceHolderCA):
 
         Contact emails are extract from any ghostbuster requests, and any
         linked user accounts.
-        """
 
+        """
         notify_emails = [gbr.email_address for gbr in self.ghostbusters if gbr.email_address]
         notify_emails.extend(
             [acl.user.email for acl in ConfACL.objects.filter(conf=self) if acl.user.email]
@@ -225,6 +247,7 @@ class ResourceCert(models.Model):
     """Represents a resource certificate.
 
     This model is used to cache the output of <list_received_resources/>.
+
     """
 
     # Handle to which this cert was issued
@@ -252,7 +275,6 @@ class ResourceCert(models.Model):
     def get_cert_chain(self):
         """Return a list containing the complete certificate chain for this
         certificate."""
-
         cert = self
         x = [cert]
         while cert.issuer:
@@ -426,6 +448,7 @@ class RouteOriginV6(rpki.gui.routeview.models.RouteOriginV6):
 class ConfACL(models.Model):
     """Stores access control for which users are allowed to manage a given
     resource handle.
+
     """
 
     conf = models.ForeignKey(Conf)

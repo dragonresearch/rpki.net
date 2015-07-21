@@ -27,6 +27,7 @@ from tempfile import NamedTemporaryFile
 import cStringIO
 import csv
 import logging
+import lxml.etree
 
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
@@ -38,8 +39,8 @@ from django.contrib.auth.models import User
 from django.views.generic import DetailView, ListView, DeleteView, FormView
 from django.core.paginator import Paginator, InvalidPage
 from django.forms.formsets import formset_factory, BaseFormSet
-import django.db.models
 from django.contrib import messages
+from django.db.models import Q
 
 from rpki.irdb import Zookeeper, ChildASN, ChildNet, ROARequestPrefix
 from rpki.gui.app import models, forms, glue, range_list
@@ -146,19 +147,28 @@ def generic_import(request, queryset, configure, form_class=None,
             # expects it.
             if handle == '':
                 handle = None
-            # configure_repository returns None, so can't use tuple expansion
-            # here.  Unpack the tuple below if post_import_redirect is None.
-            r = configure(z, tmpf.name, handle)
-            # force rpkid run now
-            z.synchronize_ca(poke=True)
-            os.remove(tmpf.name)
-            if post_import_redirect:
-                url = post_import_redirect
+            try:
+		# configure_repository returns None, so can't use tuple expansion
+		# here.  Unpack the tuple below if post_import_redirect is None.
+		r = configure(z, tmpf.name, handle)
+            except lxml.etree.XMLSyntaxError as e:
+		logger.exception('caught XMLSyntaxError while parsing uploaded file')
+                messages.error(
+                    request,
+                    'The uploaded file has an invalid XML syntax'
+                )
             else:
-                _, handle = r
-                url = queryset.get(issuer=conf,
-                                   handle=handle).get_absolute_url()
-            return http.HttpResponseRedirect(url)
+		# force rpkid run now
+		z.synchronize_ca(poke=True)
+		if post_import_redirect:
+		    url = post_import_redirect
+		else:
+		    _, handle = r
+		    url = queryset.get(issuer=conf,
+				       handle=handle).get_absolute_url()
+		return http.HttpResponseRedirect(url)
+            finally:
+		os.remove(tmpf.name)
     else:
         form = form_class()
 
@@ -622,7 +632,6 @@ def get_covered_routes(rng, max_prefixlen, asn):
 
     return routes
 
-
 @handle_required
 def roa_create(request):
     """Present the user with a form to create a ROA.
@@ -708,20 +717,58 @@ def roa_create_multi(request):
         formset = formset_factory(forms.ROARequestFormFactory(conf), extra=extra)(initial=init)
     elif request.method == 'POST':
         formset = formset_factory(forms.ROARequestFormFactory(conf), extra=0)(request.POST, request.FILES)
-        if formset.is_valid():
+	# We need to check .has_changed() because .is_valid() will return true
+	# if the user clicks the Preview button without filling in the blanks
+	# in the ROA form, leaving the form invalid from this view's POV.
+        if formset.has_changed() and formset.is_valid():
             routes = []
             v = []
+            query = Q()  # for matching routes
+            roas = []
             for form in formset:
 		asn = form.cleaned_data['asn']
 		rng = resource_range_ip.parse_str(form.cleaned_data['prefix'])
 		max_prefixlen = int(form.cleaned_data['max_prefixlen'])
-		# FIXME: This won't do the right thing in the event that a
-		# route is covered by multiple ROAs created in the form.
-		# You will see duplicate entries, each with a potentially
-		# different validation status.
-		routes.extend(get_covered_routes(rng, max_prefixlen, asn))
+                protect_children = form.cleaned_data['protect_children']
+
+                roas.append((rng, max_prefixlen, asn, protect_children))
 		v.append({'prefix': str(rng), 'max_prefixlen': max_prefixlen,
 			  'asn': asn})
+
+                query |= Q(prefix_min__gte=rng.min, prefix_max__lte=rng.max)
+
+            for rt in RouteOrigin.objects.filter(query):
+                status = rt.status  # cache the value
+                newstatus = status
+                if status == 'unknown':
+                    # possible change to valid or invalid
+                    for rng, max_prefixlen, asn, protect in roas:
+                        if rng.min <= rt.prefix_min and rng.max >= rt.prefix_max:
+                            # this route is covered
+                            if asn == rt.asn and rt.prefixlen <= max_prefixlen:
+                                newstatus = 'valid'
+                                break  # no need to continue for this route
+                            else:
+                                newstatus = 'invalid'
+                elif status == 'invalid':
+                    # possible change to valid
+                    for rng, max_prefixlen, asn, protect in roas:
+                        if rng.min <= rt.prefix_min and rng.max >= rt.prefix_max:
+                            # this route is covered
+                            if asn == rt.asn and rt.prefixlen <= max_prefixlen:
+                                newstatus = 'valid'
+                                break  # no need to continue for this route
+
+                if status != newstatus:
+                    if protect_children and newstatus == 'invalid' and conf.child_routes.filter(pk=rt.pk).exists():
+                        rng = rt.as_resource_range()
+                        v.append({'prefix': str(rng),
+                                    'max_prefixlen': rng.prefixlen,
+                                    'asn': rt.asn})
+                        newstatus = 'valid'
+                    rt.newstatus = newstatus  # I"M A MUHNKAY!!!
+                    routes.append(rt)
+
             # if there were no rows, skip the confirmation step
             if v:
                 formset = formset_factory(forms.ROARequestConfirm, extra=0)(initial=v)

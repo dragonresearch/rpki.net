@@ -15,24 +15,18 @@
 __version__ = '$Id$'
 
 from django import http
-from os import getenv
-
-
-# Don't set this in production, ever.  Really.  You have been warned.
-#
-_allow_plain_http_for_testing = getenv("ALLOW_PLAIN_HTTP_FOR_TESTING") == "I solemnly swear that I am not running this in production"
+from django.conf import settings
 
 
 def tls_required(f):
-    """
-    Decorator which returns a 500 error if the connection is not
-    secured with TLS (https).
-    """
+    """Decorator which returns a 500 error if the connection is not secured
+    with TLS (https).
 
+    """
     def _tls_required(request, *args, **kwargs):
-        if not request.is_secure() and not _allow_plain_http_for_testing:
-            return http.HttpResponseServerError(
-                'This resource may only be accessed securely via https',
-                content_type='text/plain')
-        return f(request, *args, **kwargs)
+        if settings.DEBUG or request.is_secure():
+            return f(request, *args, **kwargs)
+        return http.HttpResponseServerError(
+            'This resource may only be accessed securely via https',
+            content_type='text/plain')
     return _tls_required

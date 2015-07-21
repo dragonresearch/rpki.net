@@ -51,6 +51,7 @@ def setup():
 		},
 	    },
 	    MIDDLEWARE_CLASSES = (),
+	    DOWNLOAD_DIRECTORY = cfg.get('download-directory', '/var/tmp'),
 	)
 	# Can't populate apps if we don't know what they are.  If this
 	# explodes with an AppRegistryNotReady exception, the above comment

@@ -30,9 +30,12 @@ setup_users() {
 
 setup_directories() {
     install -o rcynic -g rcynic -d /var/rcynic/data /var/rcynic/rpki-rtr
-    if test -d /var/www
+    if test -d /var/www/html && test -d /var/www/rcynic && test ! -d /var/www/html/rcynic
     then
-	install -o rcynic -g rcynic -d /var/www/rcynic
+	mv /var/www/rcynic /var/www/html/rcynic
+    elif test -d /var/www/html
+    then
+	install -o rcynic -g rcynic -d /var/www/html/rcynic
     fi
     install -o rpkirtr -g rcynic -m 775 -d /var/rcynic/rpki-rtr/sockets
 }

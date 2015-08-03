@@ -1383,7 +1383,7 @@ Optional Packages:
   --with-system-openssl   Link against system copy of OpenSSL
 
 Some influential environment variables:
-  RCYNIC_DIR  Where to put output files from rcynic and rtr-origin; also
+  RCYNIC_DIR  Where to put output files from rcynic and rpki-rtr; also
               controls jail location for --enable-rcynic-jail
   APACHE_VERSION
               Version of Apache httpd, mostly used on FreeBSD where it
@@ -4680,14 +4680,7 @@ case $host_os in
 		RCYNIC_HTML_DIR="/usr/local/www/apache${APACHE_VERSION}/data/rcynic"
 		;;
 	linux*)
-		if test -d /var/www/html
-		then
-			# RHEL/CentOS
-			RCYNIC_HTML_DIR='/var/www/html/rcynic'
-		else
-			# Ubuntu
-			RCYNIC_HTML_DIR='/var/www/rcynic'
-		fi
+		RCYNIC_HTML_DIR='/var/www/html/rcynic'
 		;;
 	*)
 		RCYNIC_HTML_DIR=''

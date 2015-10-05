@@ -65,10 +65,10 @@ if autoconf.RP_TARGET == "rp":
                    "rpki.gui.cacheview",
                    "rpki.gui.api",
                    "rpki.gui.routeview"],
-    ext_modules = [Extension("rpki.POW._POW", ["ext/POW.c"], 
-                             extra_compile_args =  autoconf.CFLAGS.split(),
-                             extra_link_args    = (autoconf.LDFLAGS + " " +
-                                                   autoconf.LIBS).split())],
+    ext_modules = [Extension("rpki.POW._POW", ["ext/POW.c"],
+                             include_dirs       = [cflag[2:] for cflag in autoconf.CFLAGS.split() if cflag.startswith("-I")],
+                             extra_compile_args = [cflag for cflag in autoconf.CFLAGS.split() if not cflag.startswith("-I")],
+                             extra_link_args    = autoconf.LDFLAGS.split() + autoconf.LIBS.split())],
     package_data = {"rpki.gui.app" :
                     ["migrations/*.py",
                      "static/*/*",

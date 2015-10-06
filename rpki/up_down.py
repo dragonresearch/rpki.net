@@ -28,7 +28,6 @@ import rpki.resource_set
 import rpki.x509
 import rpki.exceptions
 import rpki.log
-import rpki.xml_utils
 import rpki.relaxng
 
 from lxml.etree import Element, SubElement, tostring as ElementToString

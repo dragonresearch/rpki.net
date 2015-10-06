@@ -145,6 +145,7 @@ class main(object):
                       type = "reply", version = rpki.publication_control.version)
 
       try:
+        q_pdu = None
         with transaction.atomic(using = "pubdb"):
 
           for q_pdu in q_msg:

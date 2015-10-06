@@ -28,7 +28,6 @@ import rpki.resource_set
 import rpki.x509
 import rpki.sql
 import rpki.exceptions
-import rpki.xml_utils
 import rpki.http
 import rpki.up_down
 import rpki.relaxng

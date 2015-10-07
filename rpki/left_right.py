@@ -1302,16 +1302,6 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
 
-  def startElement(self, stack, name, attrs):
-    """
-    Handle <list_resources/> element.  This requires special handling
-    due to the data types of some of the attributes.
-    """
-
-    assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
-    self.read_attrs(attrs)
-    self.fix_attribute_types()
-
   @classmethod
   def fromXML(cls, elt):
     """
@@ -1351,16 +1341,6 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
       self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4)
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
-
-  def startElement(self, stack, name, attrs):
-    """
-    Handle <list_roa_requests/> element.  This requires special handling
-    due to the data types of some of the attributes.
-    """
-
-    assert name == "list_roa_requests", "Unexpected name %s, stack %s" % (name, stack)
-    self.read_attrs(attrs)
-    self.fix_attribute_types()
 
   @classmethod
   def fromXML(self, elt):
@@ -1424,17 +1404,6 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
     if self.eku is not None:
       self.eku = self.eku.split(",")
 
-  def startElement(self, stack, name, attrs):
-    """
-    Handle <list_ee_certificate_requests/> element.  This requires special
-    handling due to the data types of some of the attributes.
-    """
-
-    if name not in self.elements:
-      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-      self.read_attrs(attrs)
-      self.fix_attribute_types()
-
   @classmethod
   def fromXML(cls, elt):
     """
@@ -1445,18 +1414,6 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
     self = super(list_ee_certificate_requests_elt, cls).fromXML(elt)
     self.fix_attribute_types()
     return self
-
-  def endElement(self, stack, name, text):
-    """
-    Handle <pkcs10/> sub-element.
-    """
-
-    assert len(self.elements) == 1
-    if name == self.elements[0]:
-      self.pkcs10 = rpki.x509.PKCS10(Base64 = text)
-    else:
-      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-      stack.pop()
 
   def toXML(self):
     """

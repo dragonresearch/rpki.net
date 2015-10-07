@@ -33,116 +33,11 @@ XML utilities.
 """
 
 import logging
-import xml.sax
-import lxml.sax
 import lxml.etree
 import rpki.exceptions
 
 logger = logging.getLogger(__name__)
 
-
-class sax_handler(xml.sax.handler.ContentHandler):
-  """
-  SAX handler for RPKI protocols.
-
-  This class provides some basic amenities for parsing protocol XML of
-  the kind we use in the RPKI protocols, including whacking all the
-  protocol element text into US-ASCII, simplifying accumulation of
-  text fields, and hiding some of the fun relating to XML namespaces.
-
-  General assumption: by the time this parsing code gets invoked, the
-  XML has already passed RelaxNG validation, so we only have to check
-  for errors that the schema can't catch, and we don't have to play as
-  many XML namespace games.
-  """
-
-  # .pdu, .name, and .version are provided by subclass
-
-  def __init__(self):
-    """
-    Initialize SAX handler.
-    """
-
-    xml.sax.handler.ContentHandler.__init__(self)
-    self.text = ""
-    self.stack = []
-
-  def startElementNS(self, name, qname, attrs):
-    """
-    Redirect startElementNS() events to startElement().
-    """
-
-    return self.startElement(name[1], attrs)
-
-  def endElementNS(self, name, qname):
-    """
-    Redirect endElementNS() events to endElement().
-    """
-
-    return self.endElement(name[1])
-
-  def characters(self, content):
-    """
-    Accumulate a chuck of element content (text).
-    """
-
-    self.text += content
-
-  def startElement(self, name, attrs):
-    """
-    Handle startElement() events.
-
-    We maintain a stack of nested elements under construction so that
-    we can feed events directly to the current element rather than
-    having to pass them through all the nesting elements.
-
-    If the stack is empty, this event is for the outermost element, so
-    we call a virtual method to create the corresponding object and
-    that's the object we'll be returning as our final result.
-    """
-
-    a = dict()
-    for k, v in attrs.items():
-      if isinstance(k, tuple):
-        if k == ("http://www.w3.org/XML/1998/namespace", "lang"):
-          k = "xml:lang"
-        else:
-          assert k[0] is None
-          k = k[1]
-      a[k.encode("ascii")] = v.encode("ascii")
-    if len(self.stack) == 0:
-      assert not hasattr(self, "result")
-      self.result = self.create_top_level(name, a)
-      self.stack.append(self.result)
-    self.stack[-1].startElement(self.stack, name, a)
-
-  def endElement(self, name):
-    """
-    Handle endElement() events.  Mostly this means handling any
-    accumulated element text.
-    """
-
-    text = self.text.encode("ascii").strip()
-    self.text = ""
-    self.stack[-1].endElement(self.stack, name, text)
-
-  @classmethod
-  def saxify(cls, elt):
-    """
-    Create a one-off SAX parser, parse an ETree, return the result.
-    """
-
-    self = cls()
-    lxml.sax.saxify(elt, self)
-    return self.result
-
-  def create_top_level(self, name, attrs):
-    """
-    Handle top-level PDU for this protocol.
-    """
-
-    assert name == self.name and attrs["version"] == self.version
-    return self.pdu()
 
 class base_elt(object):
   """
@@ -166,30 +61,11 @@ class base_elt(object):
   # Name of class attribute that tells us where to put text values, if any.
   text_attribute = None
 
-  def startElement(self, stack, name, attrs):
-    """
-    Default startElement() handler: just process attributes.
-    """
-
-    if name not in self.elements:
-      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-      self.read_attrs(attrs)
-
-  def endElement(self, stack, name, text):
-    """
-    Default endElement() handler: just pop the stack.
-    """
-
-    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-    stack.pop()
-
   @classmethod
   def fromXML(cls, elt):
     """
     First cut at non-SAX message unpacker.  This will probably change.
     """
-
-    logger.warning("base_elt(): Element %r (len %s)", elt, len(elt))
 
     self = cls()
 
@@ -215,8 +91,6 @@ class base_elt(object):
     # so kludge it for now.
 
     for b64 in elt:
-      # XXX
-      logger.warning("base_elt(): XML tag %r, XML namespace %r", b64.tag, self.xmlns)
       assert b64.tag.startswith(self.xmlns)
       ename = b64.tag[len(self.xmlns):]
       etype = self.elements[ename]
@@ -292,14 +166,6 @@ class text_elt(base_elt):
   Virtual base class for XML message elements that contain text.
   """
 
-  def endElement(self, stack, name, text):
-    """
-    Extract text from parsed XML.
-    """
-
-    base_elt.endElement(self, stack, name, text)
-    setattr(self, self.text_attribute, text)
-
   def toXML(self):
     """
     Insert text into generated XML.
@@ -314,21 +180,6 @@ class data_elt(base_elt):
   Virtual base class for PDUs that map to SQL objects.  These objects
   all implement the create/set/get/list/destroy action attribute.
   """
-
-  def endElement(self, stack, name, text):
-    """
-    Default endElement handler for SQL-based objects.  This assumes
-    that sub-elements are Base64-encoded using the sql_template
-    mechanism.
-    """
-
-    if name in self.elements:
-      elt_type = self.sql_template.map.get(name)
-      assert elt_type is not None, "Couldn't find element type for %s, stack %s" % (name, stack)
-      setattr(self, name, elt_type(Base64 = text))
-    else:
-      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-      stack.pop()
 
   def toXML(self):
     """
@@ -500,29 +351,6 @@ class msg(list):
   Generic top-level PDU.
   """
 
-  def startElement(self, stack, name, attrs):
-    """
-    Handle top-level PDU.
-    """
-
-    if name == "msg":
-      assert self.version == int(attrs["version"])
-      self.type = attrs["type"]
-    else:
-      elt = self.pdus[name]()
-      self.append(elt)
-      stack.append(elt)
-      elt.startElement(stack, name, attrs)
-
-  def endElement(self, stack, name, text):
-    """
-    Handle top-level PDU.
-    """
-
-    assert name == "msg", "Unexpected name %s, stack %s" % (name, stack)
-    assert len(stack) == 1
-    stack.pop()
-
   def __str__(self):
     """
     Convert msg object to string.
@@ -586,10 +414,7 @@ class msg(list):
     # This could be simplified by including the namespace name in the .pdus[] key.
 
     for sub in elt:
-      # XXX
-      logger.warning("msg(): XML tag %r, XML namespace %r", sub.tag, self.xmlns)
       assert sub.tag.startswith(self.xmlns)
       self.append(self.pdus[sub.tag[len(self.xmlns):]].fromXML(sub))
 
-    logger.warning("msg(): parsed %r", self)
     return self

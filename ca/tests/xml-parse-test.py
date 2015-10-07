@@ -30,7 +30,6 @@
 
 import glob
 import lxml.etree
-import lxml.sax
 import rpki.up_down
 import rpki.left_right
 import rpki.publication
@@ -39,25 +38,24 @@ import rpki.relaxng
 
 verbose = False
 
-def test(fileglob, rng, sax_handler, encoding, tester = None):
+def test(fileglob, rng, parser, encoding, tester = None):
   files = glob.glob(fileglob)
   files.sort()
   for f in files:
     print "<!--", f, "-->"
-    handler = sax_handler()
     elt_in = lxml.etree.parse(f).getroot()
     if verbose:
       print "<!-- Input -->"
       print lxml.etree.tostring(elt_in, pretty_print = True, encoding = encoding, xml_declaration = True)
     rng.assertValid(elt_in)
-    lxml.sax.saxify(elt_in, handler)
-    elt_out = handler.result.toXML()
+    parsed  = parser.fromXML(elt_in)
+    elt_out = parsed.toXML()
     if verbose:
       print "<!-- Output -->"
       print lxml.etree.tostring(elt_out, pretty_print = True, encoding = encoding, xml_declaration = True)
     rng.assertValid(elt_out)
     if tester:
-      tester(elt_in, elt_out, handler.result)
+      tester(elt_in, elt_out, parsed)
     if verbose:
       print
 
@@ -108,24 +106,24 @@ def pc_tester(elt_in, elt_out, msg):
 
 test(fileglob = "up-down-protocol-samples/*.xml",
      rng = rpki.relaxng.up_down,
-     sax_handler = rpki.up_down.sax_handler,
+     parser = rpki.up_down.msg,
      encoding = "utf-8",
      tester = ud_tester)
 
 test(fileglob = "left-right-protocol-samples/*.xml",
      rng = rpki.relaxng.left_right,
-     sax_handler = rpki.left_right.sax_handler,
+     parser = rpki.left_right.msg,
      encoding = "us-ascii",
      tester = lr_tester)
 
 test(fileglob = "publication-protocol-samples/*.xml",
      rng = rpki.relaxng.publication,
-     sax_handler = rpki.publication.sax_handler,
+     parser = rpki.publication.msg,
      encoding = "us-ascii",
      tester = pp_tester)
 
 test(fileglob = "publication-control-protocol-samples/*.xml",
      rng = rpki.relaxng.publication_control,
-     sax_handler = rpki.publication_control.sax_handler,
+     parser = rpki.publication_control.msg,
      encoding = "us-ascii",
      tester = pc_tester)

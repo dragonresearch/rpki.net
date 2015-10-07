@@ -56,6 +56,8 @@ class sax_handler(xml.sax.handler.ContentHandler):
   many XML namespace games.
   """
 
+  # .pdu, .name, and .version are provided by subclass
+
   def __init__(self):
     """
     Initialize SAX handler.
@@ -145,8 +147,7 @@ class sax_handler(xml.sax.handler.ContentHandler):
 class base_elt(object):
   """
   Virtual base class for XML message elements.  The left-right and
-  publication protocols use this.  At least for now, the up-down
-  protocol does not, due to different design assumptions.
+  publication_control protocols use this.
   """
 
   ## @var attributes
@@ -160,6 +161,10 @@ class base_elt(object):
   ## @var booleans
   # Boolean attributes (value "yes" or "no") for this element.
   booleans = ()
+
+  ## @var text_attribute
+  # Name of class attribute that tells us where to put text values, if any.
+  text_attribute = None
 
   def startElement(self, stack, name, attrs):
     """
@@ -177,6 +182,47 @@ class base_elt(object):
 
     assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
     stack.pop()
+
+  @classmethod
+  def fromXML(cls, elt):
+    """
+    First cut at non-SAX message unpacker.  This will probably change.
+    """
+
+    logger.warning("base_elt(): Element %r (len %s)", elt, len(elt))
+
+    self = cls()
+
+    for key in self.attributes:
+      val = elt.get(key, None)
+      if val is not None:
+        val = val.encode("ascii")
+        if val.isdigit() and not key.endswith("_handle"):
+          val = long(val)
+      setattr(self, key, val)
+    for key in self.booleans:
+      setattr(self, key, elt.get(key, False))
+
+    # This test could go in an extended method in text_elt.  Then
+    # again, perhaps spreading the logic in as many places as we
+    # possibly can is not really helping matters....
+
+    if self.text_attribute is not None:
+      setattr(self, self.text_attribute, elt.text)
+
+    # In the long run, we probably want the key for that to include
+    # the namespace, but that would break the current .toXML() code,
+    # so kludge it for now.
+
+    for b64 in elt:
+      # XXX
+      logger.warning("base_elt(): XML tag %r, XML namespace %r", b64.tag, self.xmlns)
+      assert b64.tag.startswith(self.xmlns)
+      ename = b64.tag[len(self.xmlns):]
+      etype = self.elements[ename]
+      setattr(self, ename, etype(Base64 = b64.text))
+
+    return self
 
   def toXML(self):
     """
@@ -245,10 +291,6 @@ class text_elt(base_elt):
   """
   Virtual base class for XML message elements that contain text.
   """
-
-  ## @var text_attribute
-  # Name of the class attribute that holds the text value.
-  text_attribute = None
 
   def endElement(self, stack, name, text):
     """
@@ -530,3 +572,24 @@ class msg(list):
     """
 
     return self.type == "reply"
+
+  @classmethod
+  def fromXML(cls, elt):
+    """
+    First cut at non-SAX message unpacker.  This will probably change.
+    """
+
+    assert cls.version == int(elt.get("version"))
+    self = cls()
+    self.type = elt.get("type")
+
+    # This could be simplified by including the namespace name in the .pdus[] key.
+
+    for sub in elt:
+      # XXX
+      logger.warning("msg(): XML tag %r, XML namespace %r", sub.tag, self.xmlns)
+      assert sub.tag.startswith(self.xmlns)
+      self.append(self.pdus[sub.tag[len(self.xmlns):]].fromXML(sub))
+
+    logger.warning("msg(): parsed %r", self)
+    return self

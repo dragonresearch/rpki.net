@@ -25,6 +25,7 @@ protocol itself.
 """
 
 import logging
+import collections
 import rpki.resource_set
 import rpki.x509
 import rpki.sql
@@ -87,8 +88,11 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_c
 
   element_name = "client"
   attributes = ("action", "tag", "client_handle", "base_uri")
-  elements = ("bpki_cert", "bpki_glue")
   booleans = ("clear_replay_protection",)
+
+  elements = collections.OrderedDict((
+    ("bpki_cert", rpki.x509.X509),
+    ("bpki_glue", rpki.x509.X509)))
 
   sql_template = rpki.sql.template(
     "client",
@@ -239,16 +243,6 @@ class msg(rpki.xml_utils.msg, publication_control_namespace):
     return cb(r_msg)
 
 
-class sax_handler(rpki.xml_utils.sax_handler):
-  """
-  SAX handler for publication control protocol.
-  """
-
-  pdu = msg
-  name = "msg"
-  version = rpki.relaxng.publication_control.version
-
-
 class cms_msg(rpki.x509.XML_CMS_object):
   """
   Class to hold a CMS-signed publication control PDU.
@@ -256,9 +250,9 @@ class cms_msg(rpki.x509.XML_CMS_object):
 
   encoding = "us-ascii"
   schema = rpki.relaxng.publication_control
-  saxify = sax_handler.saxify
+  saxify = msg.fromXML                  # Not really SAX anymore
 
-
+  
 class cms_msg_no_sax(cms_msg):
   """
   Class to hold a CMS-signed publication control PDU without legacy

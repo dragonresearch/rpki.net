@@ -23,6 +23,7 @@ RPKI "left-right" protocol.
 
 import base64
 import logging
+import collections
 import rpki.resource_set
 import rpki.x509
 import rpki.sql
@@ -179,9 +180,12 @@ class self_elt(data_elt):
 
   element_name = "self"
   attributes = ("action", "tag", "self_handle", "crl_interval", "regen_margin")
-  elements = ("bpki_cert", "bpki_glue")
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "revoke_forgotten",
               "clear_replay_protection")
+
+  elements = collections.OrderedDict((
+    ("bpki_cert", rpki.x509.X509),
+    ("bpki_glue", rpki.x509.X509)))
 
   sql_template = rpki.sql.template(
     "self",
@@ -489,8 +493,12 @@ class bsc_elt(data_elt):
 
   element_name = "bsc"
   attributes = ("action", "tag", "self_handle", "bsc_handle", "key_type", "hash_alg", "key_length")
-  elements = ("signing_cert", "signing_cert_crl", "pkcs10_request")
   booleans = ("generate_keypair",)
+
+  elements = collections.OrderedDict((
+    ("signing_cert", rpki.x509.X509),
+    ("signing_cert_crl", rpki.x509.CRL),
+    ("pkcs10_request", rpki.x509.PKCS10)))
 
   sql_template = rpki.sql.template(
     "bsc",
@@ -557,8 +565,11 @@ class repository_elt(data_elt):
 
   element_name = "repository"
   attributes = ("action", "tag", "self_handle", "repository_handle", "bsc_handle", "peer_contact_uri")
-  elements = ("bpki_cert", "bpki_glue")
   booleans = ("clear_replay_protection",)
+
+  elements = collections.OrderedDict((
+    ("bpki_cert", rpki.x509.X509),
+    ("bpki_glue", rpki.x509.X509)))
 
   sql_template = rpki.sql.template(
     "repository",
@@ -677,8 +688,11 @@ class parent_elt(data_elt):
   element_name = "parent"
   attributes = ("action", "tag", "self_handle", "parent_handle", "bsc_handle", "repository_handle",
                 "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
-  elements = ("bpki_cms_cert", "bpki_cms_glue")
   booleans = ("rekey", "reissue", "revoke", "revoke_forgotten", "clear_replay_protection")
+
+  elements = collections.OrderedDict((
+    ("bpki_cms_cert", rpki.x509.X509),
+    ("bpki_cms_glue", rpki.x509.X509)))
 
   sql_template = rpki.sql.template(
     "parent",
@@ -969,8 +983,11 @@ class child_elt(data_elt):
 
   element_name = "child"
   attributes = ("action", "tag", "self_handle", "child_handle", "bsc_handle")
-  elements = ("bpki_cert", "bpki_glue")
   booleans = ("reissue", "clear_replay_protection")
+
+  elements = collections.OrderedDict((
+    ("bpki_cert", rpki.x509.X509),
+    ("bpki_glue", rpki.x509.X509)))
 
   sql_template = rpki.sql.template(
     "child",
@@ -1271,14 +1288,11 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   def __repr__(self):
     return rpki.log.log_repr(self, self.self_handle, self.child_handle, self.asn, self.ipv4, self.ipv6)
 
-  def startElement(self, stack, name, attrs):
+  def fix_attribute_types(self):
     """
-    Handle <list_resources/> element.  This requires special handling
-    due to the data types of some of the attributes.
+    Fix data types for certain attributes.
     """
 
-    assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
-    self.read_attrs(attrs)
     if isinstance(self.valid_until, str):
       self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
     if self.asn is not None:
@@ -1287,6 +1301,27 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
       self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+
+  def startElement(self, stack, name, attrs):
+    """
+    Handle <list_resources/> element.  This requires special handling
+    due to the data types of some of the attributes.
+    """
+
+    assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
+    self.read_attrs(attrs)
+    self.fix_attribute_types()
+
+  @classmethod
+  def fromXML(cls, elt):
+    """
+    Handle <list_resources/> element.  This requires special handling
+    due to the data types of some of the attributes.
+    """
+
+    self = super(list_resources_elt, cls).fromXML(elt)
+    self.fix_attribute_types()
+    return self
 
   def toXML(self):
     """
@@ -1307,6 +1342,16 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
   element_name = "list_roa_requests"
   attributes = ("self_handle", "tag", "asn", "ipv4", "ipv6")
 
+  def fix_attribute_types(self):
+    """
+    Fix data types for certain attributes.
+    """
+
+    if self.ipv4 is not None:
+      self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4)
+    if self.ipv6 is not None:
+      self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
+
   def startElement(self, stack, name, attrs):
     """
     Handle <list_roa_requests/> element.  This requires special handling
@@ -1315,10 +1360,18 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
 
     assert name == "list_roa_requests", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
-    if self.ipv4 is not None:
-      self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4)
-    if self.ipv6 is not None:
-      self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
+    self.fix_attribute_types()
+
+  @classmethod
+  def fromXML(self, elt):
+    """
+    Handle <list_roa_requests/> element.  This requires special handling
+    due to the data types of some of the attributes.
+    """
+
+    self = super(list_roa_requests_elt, cls).fromXML(elt)
+    self.fix_attribute_types()
+    return self
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.self_handle, self.asn, self.ipv4, self.ipv6)
@@ -1344,7 +1397,9 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
 
   element_name = "list_ee_certificate_requests"
   attributes = ("self_handle", "tag", "gski", "valid_until", "asn", "ipv4", "ipv6", "cn", "sn", "eku")
-  elements = ("pkcs10",)
+
+  elements = collections.OrderedDict((
+    ("pkcs10", rpki.x509.PKCS10),))
 
   pkcs10 = None
   valid_until = None
@@ -1352,6 +1407,22 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.self_handle, self.gski, self.cn, self.sn, self.asn, self.ipv4, self.ipv6)
+
+  def fix_attribute_types(self):
+    """
+    Fix data types for certain attributes.
+    """
+
+    if isinstance(self.valid_until, str):
+      self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
+    if self.asn is not None:
+      self.asn = rpki.resource_set.resource_set_as(self.asn)
+    if self.ipv4 is not None:
+      self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
+    if self.ipv6 is not None:
+      self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+    if self.eku is not None:
+      self.eku = self.eku.split(",")
 
   def startElement(self, stack, name, attrs):
     """
@@ -1362,16 +1433,18 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
     if name not in self.elements:
       assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
-      if isinstance(self.valid_until, str):
-        self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
-      if self.asn is not None:
-        self.asn = rpki.resource_set.resource_set_as(self.asn)
-      if self.ipv4 is not None:
-        self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
-      if self.ipv6 is not None:
-        self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
-      if self.eku is not None:
-        self.eku = self.eku.split(",")
+      self.fix_attribute_types()
+
+  @classmethod
+  def fromXML(cls, elt):
+    """
+    Handle <list_ee_certificate_requests/> element.  This requires special
+    handling due to the data types of some of the attributes.
+    """
+
+    self = super(list_ee_certificate_requests_elt, cls).fromXML(elt)
+    self.fix_attribute_types()
+    return self
 
   def endElement(self, stack, name, text):
     """
@@ -1569,14 +1642,6 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
 
     rpki.async.iterator(self, loop, done)
 
-class sax_handler(rpki.xml_utils.sax_handler):
-  """
-  SAX handler for Left-Right protocol.
-  """
-
-  pdu = msg
-  name = "msg"
-  version = rpki.relaxng.left_right.version
 
 class cms_msg(rpki.x509.XML_CMS_object):
   """
@@ -1585,7 +1650,8 @@ class cms_msg(rpki.x509.XML_CMS_object):
 
   encoding = "us-ascii"
   schema = rpki.relaxng.left_right
-  saxify = sax_handler.saxify
+  saxify = msg.fromXML
+
 
 class cms_msg_no_sax(cms_msg):
   """

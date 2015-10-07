@@ -24,39 +24,7 @@ def setup():
     Configure Django enough to use the ORM.
     """
 
-    # In theory we no longer need to call settings.configure, which
-    # probably means this whole module can go away soon, but leave
-    # breadcrumbs for now.
+    import os
 
-    if True:
-        import os
-	os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings")
-
-    else:
-	import django
-	from rpki import config
-	from rpki import autoconf
-	from django.conf import settings
-
-	cfg = config.parser(section='web_portal')
-	# INSTALLED_APPS doesn't seem necessary so long as you are only accessing
-	# existing tables.
-	settings.configure(
-	    DATABASES={
-		'default': {
-		    'ENGINE': 'django.db.backends.mysql',
-		    'NAME': cfg.get('sql-database'),
-		    'USER': cfg.get('sql-username'),
-		    'PASSWORD': cfg.get('sql-password'),
-		},
-	    },
-	    MIDDLEWARE_CLASSES = (),
-	    DOWNLOAD_DIRECTORY = cfg.get('download-directory', '/var/tmp'),
-	)
-	# Can't populate apps if we don't know what they are.  If this
-	# explodes with an AppRegistryNotReady exception, the above comment
-	# about not needing to set INSTALLED_APPS is no longer true and
-	# you'll need to fix that here.
-	if False and django.VERSION >= (1, 7):
-	    from django.apps import apps
-	    apps.populate(settings.INSTALLED_APPS)
+    # If this doesn't work, try changing it to "rpki.django_settings.gui".
+    os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.irdb")

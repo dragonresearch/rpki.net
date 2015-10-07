@@ -576,24 +576,35 @@ class allocation(object):
     database this week.
     """
 
-    verbosity = 1
+    # Fork a sub-process for each syncdb/migrate run, because it's
+    # easier than figuring out how to change Django settings after
+    # initialization.
 
-    if verbosity > 0:
-      print "Running Django setup for", self.name
+    def sync_app(app, verbosity = 1):
 
-    if not os.fork():
-      os.environ.update(RPKI_CONF = self.path("rpki.conf"),
-                        RPKI_GUI_ENABLE = "yes")
-      logging.getLogger().setLevel(logging.WARNING)
-      import django.core.management
-      django.core.management.call_command("syncdb", migrate = True, verbosity = verbosity,
-                                          load_initial_data = False, interactive = False)
-      from django.contrib.auth.models import User
-      User.objects.create_superuser("root", "root@example.org", "fnord")
-      sys.exit(0)
+      if verbosity > 0:
+        print "Running Django setup for", self.name
 
-    if os.wait()[1]:
-      raise RuntimeError("Django setup failed for %s" % self.name)
+      pid = os.fork()
+
+      if pid == 0:
+        os.environ.update(RPKI_CONF = self.path("rpki.conf"),
+                          DJANGO_SETTINGS_MODULE = "rpki.django_settings." + app)
+        logging.getLogger().setLevel(logging.WARNING)
+        import django.core.management
+        django.core.management.call_command("syncdb", migrate = True, verbosity = verbosity,
+                                            load_initial_data = False, interactive = False)
+        if app in ("gui", "irdb"):
+          from django.contrib.auth.models import User
+          User.objects.create_superuser("root", "root@example.org", "fnord")
+        sys.exit(0)
+
+      else:
+        if os.waitpid(pid, 0)[1]:
+          raise RuntimeError("Django setup failed for %s %s" % (self.name, app))
+
+    for app in ("rpkid", "pubd", "gui"):
+      sync_app(app)
 
   def run_python_daemon(self, prog):
     """
@@ -705,7 +716,7 @@ def create_root_certificate(db_root):
 
 logger = logging.getLogger(__name__)
 
-os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings",
+os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.irdb",
                   TZ = "UTC")
 time.tzset()
 

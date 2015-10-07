@@ -52,7 +52,7 @@ class main(object):
   def __init__(self):
 
     os.environ.update(TZ = "UTC",
-                      DJANGO_SETTINGS_MODULE = "rpki.django_settings")
+                      DJANGO_SETTINGS_MODULE = "rpki.django_settings.pubd")
     time.tzset()
 
     self.irbe_cms_timestamp = None
@@ -146,7 +146,7 @@ class main(object):
 
       try:
         q_pdu = None
-        with transaction.atomic(using = "pubdb"):
+        with transaction.atomic():
 
           for q_pdu in q_msg:
             if q_pdu.tag != rpki.publication_control.tag_client:
@@ -240,7 +240,7 @@ class main(object):
                       type = "reply", version = rpki.publication.version)
       delta = None
       try:
-        with transaction.atomic(using = "pubdb"):
+        with transaction.atomic():
           for q_pdu in q_msg:
             if q_pdu.get("uri"):
               logger.info("Client %s request for %s", q_pdu.tag, q_pdu.get("uri"))

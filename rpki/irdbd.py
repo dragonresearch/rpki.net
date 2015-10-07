@@ -143,7 +143,7 @@ class main(object):
     global rpki                         # pylint: disable=W0602
 
     os.environ.update(TZ = "UTC",
-                      DJANGO_SETTINGS_MODULE = "rpki.django_settings")
+                      DJANGO_SETTINGS_MODULE = "rpki.django_settings.irdb")
     time.tzset()
 
     parser = argparse.ArgumentParser(description = __doc__)

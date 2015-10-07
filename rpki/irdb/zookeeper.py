@@ -270,7 +270,7 @@ class Zookeeper(object):
     return rpki.irdb.ServerCA.objects.get()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def initialize_server_bpki(self):
     """
     Initialize server BPKI portion of an RPKI installation.  Reads the
@@ -290,7 +290,7 @@ class Zookeeper(object):
       rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "pubd")
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def initialize_resource_bpki(self):
     """
     Initialize the resource-holding BPKI for an RPKI installation.
@@ -329,7 +329,7 @@ class Zookeeper(object):
     return etree_wrapper(e, msg = 'This is the "identity" file you will need to send to your parent')
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def delete_self(self):
     """
     Delete the ResourceHolderCA object corresponding to the current handle.
@@ -348,7 +348,7 @@ class Zookeeper(object):
       self.log("No such ResourceHolderCA \"%s\"" % self.handle)
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def configure_rootd(self):
 
     assert self.run_rpkid and self.run_pubd and self.run_rootd
@@ -420,7 +420,7 @@ class Zookeeper(object):
         self.log("rootd enabled but not yet configured, skipping rootd setup")
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def update_bpki(self):
     """
     Update BPKI certificates.  Assumes an existing RPKI installation.
@@ -480,7 +480,7 @@ class Zookeeper(object):
                    type = "query", version = rpki.publication_control.version)
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def synchronize_bpki(self):
     """
     Synchronize BPKI updates.  This is separate from .update_bpki()
@@ -555,7 +555,7 @@ class Zookeeper(object):
         self.call_pubd(q_msg)
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def configure_child(self, filename, child_handle = None, valid_until = None):
     """
     Configure a new child of this RPKI entity, given the child's XML
@@ -589,7 +589,7 @@ class Zookeeper(object):
     return self.generate_parental_response(child), child_handle
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def generate_parental_response(self, child):
     """
     Generate parental response XML.  Broken out of .configure_child()
@@ -637,7 +637,7 @@ class Zookeeper(object):
     return etree_wrapper(e, msg = "Send this file back to the child you just configured")
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def delete_child(self, child_handle):
     """
     Delete a child of this RPKI entity.
@@ -646,7 +646,7 @@ class Zookeeper(object):
     self.resource_ca.children.get(handle = child_handle).delete()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def configure_parent(self, filename, parent_handle = None):
     """
     Configure a new parent of this RPKI entity, given the output of
@@ -709,7 +709,7 @@ class Zookeeper(object):
     return etree_wrapper(e, msg = "This is the file to send to the repository operator")
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def delete_parent(self, parent_handle):
     """
     Delete a parent of this RPKI entity.
@@ -718,7 +718,7 @@ class Zookeeper(object):
     self.resource_ca.parents.get(handle = parent_handle).delete()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def delete_rootd(self):
     """
     Delete rootd associated with this RPKI entity.
@@ -727,7 +727,7 @@ class Zookeeper(object):
     self.resource_ca.rootd.delete()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def configure_publication_client(self, filename, sia_base = None, flat = False):
     """
     Configure publication server to know about a new client, given the
@@ -824,7 +824,7 @@ class Zookeeper(object):
     return etree_wrapper(e, msg = "Send this file back to the publication client you just configured")
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def delete_publication_client(self, client_handle):
     """
     Delete a publication client of this RPKI entity.
@@ -833,7 +833,7 @@ class Zookeeper(object):
     self.server_ca.clients.get(handle = client_handle).delete()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def configure_repository(self, filename, parent_handle = None):
     """
     Configure a publication repository for this RPKI entity, given the
@@ -871,7 +871,7 @@ class Zookeeper(object):
         turtle = turtle)
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def delete_repository(self, repository_handle):
     """
     Delete a repository of this RPKI entity.
@@ -880,7 +880,7 @@ class Zookeeper(object):
     self.resource_ca.repositories.get(handle = repository_handle).delete()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def renew_children(self, child_handle, valid_until = None):
     """
     Update validity period for one child entity or, if child_handle is
@@ -906,7 +906,7 @@ class Zookeeper(object):
       child.save()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def load_prefixes(self, filename, ignore_missing_children = False):
     """
     Whack IRDB to match prefixes.csv.
@@ -946,7 +946,7 @@ class Zookeeper(object):
     q.delete()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def load_asns(self, filename, ignore_missing_children = False):
     """
     Whack IRDB to match asns.csv.
@@ -981,7 +981,7 @@ class Zookeeper(object):
     q.delete()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def load_roa_requests(self, filename):
     """
     Whack IRDB to match roa.csv.
@@ -1022,7 +1022,7 @@ class Zookeeper(object):
           max_prefixlen = int(p.max_prefixlen))
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def load_ghostbuster_requests(self, filename, parent = None):
     """
     Whack IRDB to match ghostbusters.vcard.
@@ -1202,7 +1202,7 @@ class Zookeeper(object):
       raise CouldntTalkToDaemon
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def synchronize(self, *handles_to_poke):
     """
     Configure RPKI daemons with the data built up by the other
@@ -1220,7 +1220,7 @@ class Zookeeper(object):
     self.synchronize_rpkid_deleted_core()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def synchronize_ca(self, ca = None, poke = False):
     """
     Synchronize one CA.  Most commands which modify a CA should call
@@ -1232,7 +1232,7 @@ class Zookeeper(object):
     self.synchronize_rpkid_one_ca_core(ca, poke)
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def synchronize_deleted_ca(self):
     """
     Delete CAs which are present in rpkid's database but not in the
@@ -1242,7 +1242,7 @@ class Zookeeper(object):
     self.synchronize_rpkid_deleted_core()
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def synchronize_pubd(self):
     """
     Synchronize pubd.  Most commands which modify pubd should call this.
@@ -1612,7 +1612,7 @@ class Zookeeper(object):
       self.call_rpkid(q_msg)
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def add_ee_certificate_request(self, pkcs10, resources):
     """
     Check a PKCS #10 request to see if it complies with the
@@ -1637,7 +1637,7 @@ class Zookeeper(object):
       ee_request.address_ranges.create(start_ip = str(r.min), end_ip = str(r.max), version = 6)
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def add_router_certificate_request(self, router_certificate_request_xml, valid_until = None):
     """
     Read XML file containing one or more router certificate requests,
@@ -1685,7 +1685,7 @@ class Zookeeper(object):
         ee_request.asns.create(start_as = str(r.min), end_as = str(r.max))
 
 
-  @django.db.transaction.commit_on_success
+  @django.db.transaction.atomic
   def delete_router_certificate_request(self, gski):
     """
     Delete a router certificate request from this RPKI entity.

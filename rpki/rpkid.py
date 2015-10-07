@@ -2352,10 +2352,12 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     cn, sn = subject_name.extract_cn_and_sn()
     ca = ca_detail.ca
 
+    sia = (None, None, ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer", rpki.publication.rrdp_sia_uri_kludge)
+
     cert = ca_detail.issue_ee(
       ca          = ca,
       subject_key = subject_key,
-      sia         = None,
+      sia         = sia,
       resources   = resources,
       notAfter    = resources.valid_until,
       cn          = cn,
@@ -2467,7 +2469,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
       ca          = ca_detail.ca,
       subject_key = self.cert.getPublicKey(),
       eku         = self.cert.get_EKU(),
-      sia         = None,
+      sia         = (None, None, self.uri, rpki.publication.rrdp_sia_uri_kludge),
       resources   = resources,
       notAfter    = resources.valid_until,
       cn          = cn,

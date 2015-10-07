@@ -775,7 +775,7 @@ class X509(DER_object):
 
     if not sia or len(sia) != 4 or not sia[3]:
       logger.debug("Oops! _issue() sia: %r", sia)
-      log.show_stack(logger)
+      rpki.log.show_stack(logger)
 
     now = rpki.sundial.now()
     ski = subject_key.get_SKI()

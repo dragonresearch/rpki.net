@@ -621,7 +621,7 @@ class UpdateEECertificatesTask(AbstractTask):
             ee.revoke(publisher = publisher)
 
         subject_name = rpki.x509.X501DN.from_cn(r_pdu.get("cn"), r_pdu.get("sn"))
-        subject_key  = rpki.x509.PKCS10(Base64 = r_pdu.text).getPublicKey()
+        subject_key  = rpki.x509.PKCS10(Base64 = r_pdu[0].text).getPublicKey()
 
         for ca_detail in covering:
           logger.debug("No existing EE certificate for %s %s",
@@ -632,7 +632,7 @@ class UpdateEECertificatesTask(AbstractTask):
             subject_key  = subject_key,
             resources    = resources,
             publisher    = publisher,
-            eku          = r_pdu.eku or None)
+            eku          = r_pdu.get("eku", "").split(",") or None)
 
       # Anything left is an orphan
       for ees in existing.values():

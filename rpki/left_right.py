@@ -1282,36 +1282,17 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """
 
   element_name = "list_resources"
-  attributes = ("self_handle", "tag", "child_handle", "valid_until", "asn", "ipv4", "ipv6")
+
   valid_until = None
+
+  attributes = dict(valid_until = rpki.sundial.datetime.fromXMLtime,
+                    asn         = rpki.resource_set.resource_set_as,
+                    ipv4        = rpki.resource_set.resource_set_ipv4,
+                    ipv6        = rpki.resource_set.resource_set_ipv6)
+  attributes.update((_, None) for _ in ("self_handle", "tag", "child_handle"))
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.self_handle, self.child_handle, self.asn, self.ipv4, self.ipv6)
-
-  def fix_attribute_types(self):
-    """
-    Fix data types for certain attributes.
-    """
-
-    if isinstance(self.valid_until, str):
-      self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
-    if self.asn is not None:
-      self.asn = rpki.resource_set.resource_set_as(self.asn)
-    if self.ipv4 is not None:
-      self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
-    if self.ipv6 is not None:
-      self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
-
-  @classmethod
-  def fromXML(cls, elt):
-    """
-    Handle <list_resources/> element.  This requires special handling
-    due to the data types of some of the attributes.
-    """
-
-    self = super(list_resources_elt, cls).fromXML(elt)
-    self.fix_attribute_types()
-    return self
 
   def toXML(self):
     """
@@ -1330,28 +1311,11 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """
 
   element_name = "list_roa_requests"
-  attributes = ("self_handle", "tag", "asn", "ipv4", "ipv6")
 
-  def fix_attribute_types(self):
-    """
-    Fix data types for certain attributes.
-    """
-
-    if self.ipv4 is not None:
-      self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4)
-    if self.ipv6 is not None:
-      self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
-
-  @classmethod
-  def fromXML(self, elt):
-    """
-    Handle <list_roa_requests/> element.  This requires special handling
-    due to the data types of some of the attributes.
-    """
-
-    self = super(list_roa_requests_elt, cls).fromXML(elt)
-    self.fix_attribute_types()
-    return self
+  attributes = dict(asn  = rpki.resource_set.resource_set_as,
+                    ipv4 = rpki.resource_set.resource_set_ipv4,
+                    ipv6 = rpki.resource_set.resource_set_ipv6)
+  attributes.update((_, None) for _ in ("self_handle", "tag"))
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.self_handle, self.asn, self.ipv4, self.ipv6)
@@ -1376,7 +1340,13 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
   """
 
   element_name = "list_ee_certificate_requests"
-  attributes = ("self_handle", "tag", "gski", "valid_until", "asn", "ipv4", "ipv6", "cn", "sn", "eku")
+
+  attributes = dict(valid_until = rpki.sundial.datetime.fromXMLtime,
+                    asn         = rpki.resource_set.resource_set_as,
+                    ipv4        = rpki.resource_set.resource_set_ipv4,
+                    ipv6        = rpki.resource_set.resource_set_ipv6,
+                    eku         = lambda x: x.split(","))
+  attributes.update((_, None) for _ in ("self_handle", "tag", "gski", "cn", "sn"))
 
   elements = collections.OrderedDict((
     ("pkcs10", rpki.x509.PKCS10),))
@@ -1387,33 +1357,6 @@ class list_ee_certificate_requests_elt(rpki.xml_utils.base_elt, left_right_names
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.self_handle, self.gski, self.cn, self.sn, self.asn, self.ipv4, self.ipv6)
-
-  def fix_attribute_types(self):
-    """
-    Fix data types for certain attributes.
-    """
-
-    if isinstance(self.valid_until, str):
-      self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
-    if self.asn is not None:
-      self.asn = rpki.resource_set.resource_set_as(self.asn)
-    if self.ipv4 is not None:
-      self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
-    if self.ipv6 is not None:
-      self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
-    if self.eku is not None:
-      self.eku = self.eku.split(",")
-
-  @classmethod
-  def fromXML(cls, elt):
-    """
-    Handle <list_ee_certificate_requests/> element.  This requires special
-    handling due to the data types of some of the attributes.
-    """
-
-    self = super(list_ee_certificate_requests_elt, cls).fromXML(elt)
-    self.fix_attribute_types()
-    return self
 
   def toXML(self):
     """

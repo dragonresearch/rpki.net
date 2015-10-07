@@ -73,7 +73,9 @@ class base_elt(object):
       val = elt.get(key, None)
       if val is not None:
         val = val.encode("ascii")
-        if val.isdigit() and not key.endswith("_handle"):
+        if isinstance(self.attributes, dict) and self.attributes[key] is not None:
+          val = self.attributes[key](val)
+        elif val.isdigit() and not key.endswith("_handle"):
           val = long(val)
       setattr(self, key, val)
     for key in self.booleans:
@@ -109,14 +111,6 @@ class base_elt(object):
     """
     Template-driven attribute reader.
     """
-
-    for key in self.attributes:
-      val = attrs.get(key, None)
-      if isinstance(val, str) and val.isdigit() and not key.endswith("_handle"):
-        val = long(val)
-      setattr(self, key, val)
-    for key in self.booleans:
-      setattr(self, key, attrs.get(key, False))
 
   def make_elt(self):
     """

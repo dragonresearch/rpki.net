@@ -21,6 +21,5 @@ Python package, so humor it.
 
 # pylint: disable=W0401
 
-from rpki.irdb.models import *
 from rpki.irdb.zookeeper import Zookeeper
 from rpki.irdb.router import DBContextRouter, database

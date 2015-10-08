@@ -822,7 +822,6 @@ class X509(DER_object):
     assert sia is not None or not is_ca
 
     if sia is not None:
-      logger.debug("_issue() sia: %r", sia)
       caRepository, rpkiManifest, signedObject, rpkiNotify = sia
       cert.setSIA(
         (caRepository,) if isinstance(caRepository, str) else caRepository,

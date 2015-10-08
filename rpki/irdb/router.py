@@ -58,7 +58,7 @@ class DBContextRouter(object):
     else:
       return None
 
-  def allow_syncdb(self, db, model):
+  def allow_migrate(self, db, model):
     if db == self._database and model._meta.app_label == self._app:
       return True
     else:

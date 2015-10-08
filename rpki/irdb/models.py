@@ -405,12 +405,12 @@ class Child(CrossCertification, ResourceSet):
   name = django.db.models.TextField(null = True, blank = True)
 
   def _select_resource_bag(self):
-    child_asn = rpki.irdb.ChildASN.objects.raw("""
+    child_asn = rpki.irdb.models.ChildASN.objects.raw("""
         SELECT *
         FROM irdb_childasn
         WHERE child_id = %s
         """, [self.id])
-    child_net = list(rpki.irdb.ChildNet.objects.raw("""
+    child_net = list(rpki.irdb.models.ChildNet.objects.raw("""
         SELECT *
         FROM irdb_childnet
         WHERE child_id = %s
@@ -450,7 +450,7 @@ class ROARequest(django.db.models.Model):
 
   @property
   def roa_prefix_bag(self):
-    prefixes = list(rpki.irdb.ROARequestPrefix.objects.raw("""
+    prefixes = list(rpki.irdb.models.ROARequestPrefix.objects.raw("""
         SELECT *
         FROM irdb_roarequestprefix
         WHERE roa_request_id = %s
@@ -496,12 +496,12 @@ class EECertificateRequest(ResourceSet):
   eku    = django.db.models.TextField(null = True)
 
   def _select_resource_bag(self):
-    ee_asn = rpki.irdb.EECertificateRequestASN.objects.raw("""
+    ee_asn = rpki.irdb.models.EECertificateRequestASN.objects.raw("""
         SELECT *
         FROM irdb_eecertificaterequestasn
         WHERE ee_certificate_request_id = %s
         """, [self.id])
-    ee_net = rpki.irdb.EECertificateRequestNet.objects.raw("""
+    ee_net = rpki.irdb.models.EECertificateRequestNet.objects.raw("""
         SELECT *
         FROM irdb_eecertificaterequestnet
         WHERE ee_certificate_request_id = %s

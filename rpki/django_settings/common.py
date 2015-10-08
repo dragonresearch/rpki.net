@@ -61,6 +61,10 @@ if os.getenv("RPKI_DJANGO_DEBUG") == "yes":
 # we don't require South.
 
 
+# Silence whining about MIDDLEWARE_CLASSES
+
+MIDDLEWARE_CLASSES = ()
+
 # That would be it if we just need the ORM, but Django throws a hissy
 # fit if SECRET_KEY isn't set, whether we use it for anything or not.
 #

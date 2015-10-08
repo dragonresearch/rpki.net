@@ -119,9 +119,9 @@ class main(object):
                                               "rrdp-publication/")
 
     try:
-      self.session = rpki.pubdb.Session.objects.get()
-    except rpki.pubdb.Session.DoesNotExist:
-      self.session = rpki.pubdb.Session.objects.create(uuid = str(uuid.uuid4()), serial = 0)
+      self.session = rpki.pubdb.models.Session.objects.get()
+    except rpki.pubdb.models.Session.DoesNotExist:
+      self.session = rpki.pubdb.models.Session.objects.create(uuid = str(uuid.uuid4()), serial = 0)
 
     rpki.http_simple.server(
       host     = self.http_server_host,
@@ -163,9 +163,9 @@ class main(object):
 
             if action in ("get", "list"):
               if action == "get":
-                clients = rpki.pubdb.Client.objects.get(client_handle = client_handle),
+                clients = rpki.pubdb.models.Client.objects.get(client_handle = client_handle),
               else:
-                clients = rpki.pubdb.Client.objects.all()
+                clients = rpki.pubdb.models.Client.objects.all()
               for client in clients:
                 r_pdu = SubElement(r_msg, q_pdu.tag, action = action,
                                    client_handle = client.client_handle, base_uri = client.base_uri)
@@ -177,9 +177,9 @@ class main(object):
 
             if action in ("create", "set"):
               if action == "create":
-                client = rpki.pubdb.Client(client_handle = client_handle)
+                client = rpki.pubdb.models.Client(client_handle = client_handle)
               else:
-                client = rpki.pubdb.Client.objects.get(client_handle = client_handle)
+                client = rpki.pubdb.models.Client.objects.get(client_handle = client_handle)
               if q_pdu.get("base_uri"):
                 client.base_uri = q_pdu.get("base_uri")
               bpki_cert = q_pdu.find(rpki.publication_control.tag_bpki_cert)
@@ -199,7 +199,7 @@ class main(object):
                 r_pdu.set("tag", q_pdu.get("tag"))
 
             if action == "destroy":
-              rpki.pubdb.Client.objects.filter(client_handle = client_handle).delete()
+              rpki.pubdb.models.Client.objects.filter(client_handle = client_handle).delete()
               r_pdu = SubElement(r_msg, q_pdu.tag, action = action, client_handle = client_handle)
               if q_pdu.get("tag"):
                 r_pdu.set("tag", q_pdu.get("tag"))
@@ -232,7 +232,7 @@ class main(object):
       match = self.client_url_regexp.search(request.path)
       if match is None:
         raise rpki.exceptions.BadContactURL("Bad path: %s" % request.path)
-      client = rpki.pubdb.Client.objects.get(client_handle = match.group(1))
+      client = rpki.pubdb.models.Client.objects.get(client_handle = match.group(1))
       q_cms = rpki.publication.cms_msg_no_sax(DER = q_der)
       q_msg = q_cms.unwrap((self.bpki_ta, client.bpki_cert, client.bpki_glue))
       client.last_cms_timestamp = q_cms.check_replay(client.last_cms_timestamp, client.client_handle)

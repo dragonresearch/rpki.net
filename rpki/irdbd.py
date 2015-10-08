@@ -45,7 +45,7 @@ class main(object):
   def handle_list_resources(self, q_pdu, r_msg):
     self_handle  = q_pdu.get("self_handle")
     child_handle = q_pdu.get("child_handle")
-    child  = rpki.irdb.Child.objects.get(
+    child  = rpki.irdb.models.Child.objects.get(
       issuer__handle__exact = self_handle,
       handle = child_handle)
     resources = child.resource_bag
@@ -60,7 +60,7 @@ class main(object):
 
   def handle_list_roa_requests(self, q_pdu, r_msg):
     self_handle = q_pdu.get("self_handle")
-    for request in rpki.irdb.ROARequest.objects.raw("""
+    for request in rpki.irdb.models.ROARequest.objects.raw("""
         SELECT irdb_roarequest.*
         FROM   irdb_roarequest, irdb_resourceholderca
         WHERE  irdb_roarequest.issuer_id = irdb_resourceholderca.id
@@ -77,11 +77,11 @@ class main(object):
   def handle_list_ghostbuster_requests(self, q_pdu, r_msg):
     self_handle   = q_pdu.get("self_handle")
     parent_handle = q_pdu.get("parent_handle")
-    ghostbusters = rpki.irdb.GhostbusterRequest.objects.filter(
+    ghostbusters = rpki.irdb.models.GhostbusterRequest.objects.filter(
       issuer__handle__exact = self_handle,
       parent__handle__exact = parent_handle)
     if ghostbusters.count() == 0:
-      ghostbusters = rpki.irdb.GhostbusterRequest.objects.filter(
+      ghostbusters = rpki.irdb.models.GhostbusterRequest.objects.filter(
         issuer__handle__exact = self_handle,
         parent = None)
     for ghostbuster in ghostbusters:
@@ -92,7 +92,7 @@ class main(object):
 
   def handle_list_ee_certificate_requests(self, q_pdu, r_msg):
     self_handle = q_pdu.get("self_handle")
-    for ee_req in rpki.irdb.EECertificateRequest.objects.filter(issuer__handle__exact = self_handle):
+    for ee_req in rpki.irdb.models.EECertificateRequest.objects.filter(issuer__handle__exact = self_handle):
       resources = ee_req.resource_bag
       r_pdu = SubElement(r_msg, q_pdu.tag, self_handle = self_handle, gski = ee_req.gski,
                          valid_until = ee_req.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -111,7 +111,7 @@ class main(object):
       from django.db import connection
       connection.cursor()           # Reconnect to mysqld if necessary
       self.start_new_transaction()
-      serverCA = rpki.irdb.ServerCA.objects.get()
+      serverCA = rpki.irdb.models.ServerCA.objects.get()
       rpkid = serverCA.ee_certificates.get(purpose = "rpkid")
       irdbd = serverCA.ee_certificates.get(purpose = "irdbd")
       q_cms = rpki.left_right.cms_msg_no_sax(DER = q_der)

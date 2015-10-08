@@ -258,7 +258,7 @@ class Zookeeper(object):
 
     if self.handle is None:
       raise HandleNotSet
-    return rpki.irdb.ResourceHolderCA.objects.get(handle = self.handle)
+    return rpki.irdb.models.ResourceHolderCA.objects.get(handle = self.handle)
 
 
   @property
@@ -267,7 +267,7 @@ class Zookeeper(object):
     Get ServerCA object.
     """
 
-    return rpki.irdb.ServerCA.objects.get()
+    return rpki.irdb.models.ServerCA.objects.get()
 
 
   @django.db.transaction.atomic
@@ -279,15 +279,15 @@ class Zookeeper(object):
     """
 
     if self.run_rpkid or self.run_pubd:
-      server_ca, created = rpki.irdb.ServerCA.objects.get_or_certify()
-      rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "irbe")
+      server_ca, created = rpki.irdb.models.ServerCA.objects.get_or_certify()
+      rpki.irdb.models.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "irbe")
 
     if self.run_rpkid:
-      rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "rpkid")
-      rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "irdbd")
+      rpki.irdb.models.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "rpkid")
+      rpki.irdb.models.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "irdbd")
 
     if self.run_pubd:
-      rpki.irdb.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "pubd")
+      rpki.irdb.models.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "pubd")
 
 
   @django.db.transaction.atomic
@@ -304,7 +304,7 @@ class Zookeeper(object):
     resource-holding BPKI idenity if needed.
     """
 
-    resource_ca, created = rpki.irdb.ResourceHolderCA.objects.get_or_certify(handle = self.handle)
+    resource_ca, created = rpki.irdb.models.ResourceHolderCA.objects.get_or_certify(handle = self.handle)
     return self.generate_identity()
 
 
@@ -353,7 +353,7 @@ class Zookeeper(object):
 
     assert self.run_rpkid and self.run_pubd and self.run_rootd
 
-    rpki.irdb.Rootd.objects.get_or_certify(
+    rpki.irdb.models.Rootd.objects.get_or_certify(
       issuer = self.resource_ca,
       service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port", section = myrpki_section))
 
@@ -374,7 +374,7 @@ class Zookeeper(object):
       self.resource_ca.repositories.get(handle = self.handle)
       return None
 
-    except rpki.irdb.Repository.DoesNotExist:
+    except rpki.irdb.models.Repository.DoesNotExist:
       e = Element("repository", type = "offer", handle = self.handle, parent_handle = self.handle)
       B64Element(e, "bpki_client_ta", self.resource_ca.certificate)
       return etree_wrapper(e, msg = 'This is the "repository offer" file for you to use if you want to publish in your own repository')
@@ -408,15 +408,15 @@ class Zookeeper(object):
 
     if self.run_rootd:
       try:
-        rootd = rpki.irdb.ResourceHolderCA.objects.get(handle = self.handle).rootd
+        rootd = rpki.irdb.models.ResourceHolderCA.objects.get(handle = self.handle).rootd
         writer(self.cfg.get("bpki-ta",         section = rootd_section), self.server_ca.certificate)
         writer(self.cfg.get("rootd-bpki-crl",  section = rootd_section), self.server_ca.latest_crl)
         writer(self.cfg.get("rootd-bpki-key",  section = rootd_section), rootd.private_key)
         writer(self.cfg.get("rootd-bpki-cert", section = rootd_section), rootd.certificate)
         writer(self.cfg.get("child-bpki-cert", section = rootd_section), rootd.issuer.certificate)
-      except rpki.irdb.ResourceHolderCA.DoesNotExist:
+      except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
         self.log("rootd enabled but resource holding entity not yet configured, skipping rootd setup")
-      except rpki.irdb.Rootd.DoesNotExist:
+      except rpki.irdb.models.Rootd.DoesNotExist:
         self.log("rootd enabled but not yet configured, skipping rootd setup")
 
 
@@ -434,17 +434,17 @@ class Zookeeper(object):
     Most likely this should be run under cron.
     """
 
-    for model in (rpki.irdb.ServerCA,
-                  rpki.irdb.ResourceHolderCA,
-                  rpki.irdb.ServerEE,
-                  rpki.irdb.Referral,
-                  rpki.irdb.Rootd,
-                  rpki.irdb.HostedCA,
-                  rpki.irdb.BSC,
-                  rpki.irdb.Child,
-                  rpki.irdb.Parent,
-                  rpki.irdb.Client,
-                  rpki.irdb.Repository):
+    for model in (rpki.irdb.models.ServerCA,
+                  rpki.irdb.models.ResourceHolderCA,
+                  rpki.irdb.models.ServerEE,
+                  rpki.irdb.models.Referral,
+                  rpki.irdb.models.Rootd,
+                  rpki.irdb.models.HostedCA,
+                  rpki.irdb.models.BSC,
+                  rpki.irdb.models.Child,
+                  rpki.irdb.models.Parent,
+                  rpki.irdb.models.Client,
+                  rpki.irdb.models.Repository):
       for obj in model.objects.all():
         self.log("Regenerating BPKI certificate %s" % obj.certificate.getSubject())
         obj.avow()
@@ -454,7 +454,7 @@ class Zookeeper(object):
     self.server_ca.generate_crl()
     self.server_ca.save()
 
-    for ca in rpki.irdb.ResourceHolderCA.objects.all():
+    for ca in rpki.irdb.models.ResourceHolderCA.objects.all():
       self.log("Regenerating BPKI CRL for Resource Holder %s" % ca.handle)
       ca.generate_crl()
       ca.save()
@@ -493,14 +493,14 @@ class Zookeeper(object):
     if self.run_rpkid:
       q_msg = self._compose_left_right_query()
 
-      for ca in rpki.irdb.ResourceHolderCA.objects.all():
+      for ca in rpki.irdb.models.ResourceHolderCA.objects.all():
         q_pdu = SubElement(q_msg, rpki.left_right.tag_self,
                            action = "set",
                            tag = "%s__self" % ca.handle,
                            self_handle = ca.handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = ca.certificate.get_Base64()
 
-      for bsc in rpki.irdb.BSC.objects.all():
+      for bsc in rpki.irdb.models.BSC.objects.all():
         q_pdu = SubElement(q_msg, rpki.left_right.tag_bsc,
                            action = "set",
                            tag = "%s__bsc__%s" % (bsc.issuer.handle, bsc.handle),
@@ -509,7 +509,7 @@ class Zookeeper(object):
         SubElement(q_pdu, rpki.left_right.tag_signing_cert).text = bsc.certificate.get_Base64()
         SubElement(q_pdu, rpki.left_right.tag_signing_cert_crl).text = bsc.issuer.latest_crl.get_Base64()
 
-      for repository in rpki.irdb.Repository.objects.all():
+      for repository in rpki.irdb.models.Repository.objects.all():
         q_pdu = SubElement(q_msg, rpki.left_right.tag_repository,
                            action = "set",
                            tag = "%s__repository__%s" % (repository.issuer.handle, repository.handle),
@@ -517,7 +517,7 @@ class Zookeeper(object):
                            repository_handle = repository.handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = repository.certificate.get_Base64()
 
-      for parent in rpki.irdb.Parent.objects.all():
+      for parent in rpki.irdb.models.Parent.objects.all():
         q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
                            action = "set",
                            tag = "%s__parent__%s" % (parent.issuer.handle, parent.handle),
@@ -525,7 +525,7 @@ class Zookeeper(object):
                            parent_handle = parent.handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = parent.certificate.get_Base64()
 
-      for rootd in rpki.irdb.Rootd.objects.all():
+      for rootd in rpki.irdb.models.Rootd.objects.all():
         q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
                            action = "set",
                            tag = "%s__rootd" % rootd.issuer.handle,
@@ -533,7 +533,7 @@ class Zookeeper(object):
                            parent_handle = rootd.issuer.handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = rootd.certificate.get_Base64()
 
-      for child in rpki.irdb.Child.objects.all():
+      for child in rpki.irdb.models.Child.objects.all():
         q_pdu = SubElement(q_msg, rpki.left_right.tag_child,
                            action = "set",
                            tag = "%s__child__%s" % (child.issuer.handle, child.handle),
@@ -580,7 +580,7 @@ class Zookeeper(object):
 
     self.log("Child calls itself %r, we call it %r" % (c.get("handle"), child_handle))
 
-    child, created = rpki.irdb.Child.objects.get_or_certify(
+    child, created = rpki.irdb.models.Child.objects.get_or_certify(
       issuer = self.resource_ca,
       handle = child_handle,
       ta = rpki.x509.X509(Base64 = c.findtext("bpki_ta")),
@@ -611,7 +611,7 @@ class Zookeeper(object):
         repo = self.resource_ca.repositories.get(handle = self.default_repository)
       else:
         repo = self.resource_ca.repositories.get()
-    except rpki.irdb.Repository.DoesNotExist:
+    except rpki.irdb.models.Repository.DoesNotExist:
       repo = None
 
     if repo is None:
@@ -622,7 +622,7 @@ class Zookeeper(object):
 
     else:
       proposed_sia_base = repo.sia_base + child.handle + "/"
-      referral_cert, created = rpki.irdb.Referral.objects.get_or_certify(issuer = self.resource_ca)
+      referral_cert, created = rpki.irdb.models.Referral.objects.get_or_certify(issuer = self.resource_ca)
       auth = rpki.x509.SignedReferral()
       auth.set_content(B64Element(None, myrpki_xmlns + "referral", child.ta,
                                   version = myrpki_version,
@@ -681,7 +681,7 @@ class Zookeeper(object):
     self.log("Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle))
     self.log("Parent calls us %r" % p.get("child_handle"))
 
-    parent, created = rpki.irdb.Parent.objects.get_or_certify(
+    parent, created = rpki.irdb.models.Parent.objects.get_or_certify(
       issuer = self.resource_ca,
       handle = parent_handle,
       child_handle = p.get("child_handle"),
@@ -755,25 +755,25 @@ class Zookeeper(object):
         if rpki.x509.X509(Base64 = referral_xml.text) != client_ta:
           raise BadXMLMessage("Referral trust anchor does not match")
         sia_base = referral_xml.get("authorized_sia_base")
-      except rpki.irdb.Client.DoesNotExist:
+      except rpki.irdb.models.Client.DoesNotExist:
         self.log("We have no record of the client (%s) alleged to have made this referral" % auth.get("referrer"))
 
     if sia_base is None and client.get("type") == "offer":
       self.log("This looks like an offer, checking")
       try:
-        parent = rpki.irdb.ResourceHolderCA.objects.get(children__ta__exact = client_ta)
+        parent = rpki.irdb.models.ResourceHolderCA.objects.get(children__ta__exact = client_ta)
         if "/" in parent.repositories.get(ta = self.server_ca.certificate).client_handle:
           self.log("Client's parent is not top-level, this is not a valid offer")
         else:
           self.log("Found client and its parent, nesting")
           sia_base = "rsync://%s/%s/%s/%s/" % (self.rsync_server, self.rsync_module,
                                                  parent.handle, client.get("handle"))
-      except rpki.irdb.Repository.DoesNotExist:
+      except rpki.irdb.models.Repository.DoesNotExist:
         self.log("Found client's parent, but repository isn't set, this shouldn't happen!")
-      except rpki.irdb.ResourceHolderCA.DoesNotExist:
+      except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
         try:
-          rpki.irdb.Rootd.objects.get(issuer__certificate__exact = client_ta)
-        except rpki.irdb.Rootd.DoesNotExist:
+          rpki.irdb.models.Rootd.objects.get(issuer__certificate__exact = client_ta)
+        except rpki.irdb.models.Rootd.DoesNotExist:
           self.log("We don't host this client's parent, so we didn't make this offer")
         else:
           self.log("This client's parent is rootd")
@@ -792,7 +792,7 @@ class Zookeeper(object):
     self.log("Client calls itself %r, we call it %r" % (client.get("handle"), client_handle))
     self.log("Client says its parent handle is %r" % parent_handle)
 
-    client, created = rpki.irdb.Client.objects.get_or_certify(
+    client, created = rpki.irdb.models.Client.objects.get_or_certify(
       issuer = self.server_ca,
       handle = client_handle,
       parent_handle = parent_handle,
@@ -857,11 +857,11 @@ class Zookeeper(object):
       else:
         turtle = self.resource_ca.parents.get(handle = parent_handle)
 
-    except (rpki.irdb.Parent.DoesNotExist, rpki.irdb.Rootd.DoesNotExist):
+    except (rpki.irdb.models.Parent.DoesNotExist, rpki.irdb.models.Rootd.DoesNotExist):
       self.log("Could not find parent %r in our database" % parent_handle)
 
     else:
-      rpki.irdb.Repository.objects.get_or_certify(
+      rpki.irdb.models.Repository.objects.get_or_certify(
         issuer = self.resource_ca,
         handle = parent_handle,
         client_handle = r.get("client_handle"),
@@ -928,19 +928,19 @@ class Zookeeper(object):
       for handle, prefixes in grouped.iteritems():
         try:
           child = self.resource_ca.children.get(handle = handle)
-        except rpki.irdb.Child.DoesNotExist:
+        except rpki.irdb.models.Child.DoesNotExist:
           if not ignore_missing_children:
             raise
         else:
           for prefix in rset(",".join(prefixes)):
-            obj, created = rpki.irdb.ChildNet.objects.get_or_create(
+            obj, created = rpki.irdb.models.ChildNet.objects.get_or_create(
               child    = child,
               start_ip = str(prefix.min),
               end_ip   = str(prefix.max),
               version  = version)
             primary_keys.append(obj.pk)
 
-    q = rpki.irdb.ChildNet.objects
+    q = rpki.irdb.models.ChildNet.objects
     q = q.filter(child__issuer__exact = self.resource_ca)
     q = q.exclude(pk__in = primary_keys)
     q.delete()
@@ -964,18 +964,18 @@ class Zookeeper(object):
     for handle, asns in grouped.iteritems():
       try:
         child = self.resource_ca.children.get(handle = handle)
-      except rpki.irdb.Child.DoesNotExist:
+      except rpki.irdb.models.Child.DoesNotExist:
         if not ignore_missing_children:
           raise
       else:
         for asn in rpki.resource_set.resource_set_as(",".join(asns)):
-          obj, created = rpki.irdb.ChildASN.objects.get_or_create(
+          obj, created = rpki.irdb.models.ChildASN.objects.get_or_create(
             child    = child,
             start_as = str(asn.min),
             end_as   = str(asn.max))
           primary_keys.append(obj.pk)
 
-    q = rpki.irdb.ChildASN.objects
+    q = rpki.irdb.models.ChildASN.objects
     q = q.filter(child__issuer__exact = self.resource_ca)
     q = q.exclude(pk__in = primary_keys)
     q.delete()
@@ -1142,7 +1142,7 @@ class Zookeeper(object):
 
     if self.run_rpkid:
       q_msg = self._compose_left_right_query()
-      for ca in rpki.irdb.ResourceHolderCA.objects.all():
+      for ca in rpki.irdb.models.ResourceHolderCA.objects.all():
         SubElement(q_msg, rpki.left_right.tag_self, action = "set",
                    self_handle = ca.handle, clear_replay_protection = "yes")
       self.call_rpkid(q_msg)
@@ -1214,7 +1214,7 @@ class Zookeeper(object):
     <self run_now="yes"/> operation.
     """
 
-    for ca in rpki.irdb.ResourceHolderCA.objects.all():
+    for ca in rpki.irdb.models.ResourceHolderCA.objects.all():
       self.synchronize_rpkid_one_ca_core(ca, ca.handle in handles_to_poke)
     self.synchronize_pubd_core()
     self.synchronize_rpkid_deleted_core()
@@ -1320,7 +1320,7 @@ class Zookeeper(object):
 
     q_msg = self._compose_left_right_query()
 
-    self_cert, created = rpki.irdb.HostedCA.objects.get_or_certify(
+    self_cert, created = rpki.irdb.models.HostedCA.objects.get_or_certify(
       issuer = self.server_ca,
       hosted = ca)
 
@@ -1373,7 +1373,7 @@ class Zookeeper(object):
     bsc_pkcs10 = bsc_pdu.find(rpki.left_right.tag_pkcs10_request)
     assert bsc_pkcs10 is not None
 
-    bsc, created = rpki.irdb.BSC.objects.get_or_certify(
+    bsc, created = rpki.irdb.models.BSC.objects.get_or_certify(
       issuer = ca,
       handle = bsc_handle,
       pkcs10 = rpki.x509.PKCS10(Base64 = bsc_pkcs10.text))
@@ -1449,7 +1449,7 @@ class Zookeeper(object):
                              recipient_name = parent.parent_handle)
           SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = parent.certificate.get_Base64()
 
-      except rpki.irdb.Repository.DoesNotExist:
+      except rpki.irdb.models.Repository.DoesNotExist:
         pass
 
     try:
@@ -1477,7 +1477,7 @@ class Zookeeper(object):
                            recipient_name = ca.handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = ca.rootd.certificate.get_Base64()
 
-    except rpki.irdb.Rootd.DoesNotExist:
+    except rpki.irdb.models.Rootd.DoesNotExist:
       pass
 
     for parent_handle in parent_pdus:
@@ -1562,7 +1562,7 @@ class Zookeeper(object):
 
     # rootd instances are also a weird sort of client
 
-    for rootd in rpki.irdb.Rootd.objects.all():
+    for rootd in rpki.irdb.models.Rootd.objects.all():
 
       client_handle = rootd.issuer.handle + "-root"
       client_pdu = client_pdus.pop(client_handle, None)
@@ -1601,7 +1601,7 @@ class Zookeeper(object):
     self.call_rpkid(q_msg)
 
     self_handles = set(s.get("self_handle") for s in r_msg)
-    ca_handles   = set(ca.handle for ca in rpki.irdb.ResourceHolderCA.objects.all())
+    ca_handles   = set(ca.handle for ca in rpki.irdb.models.ResourceHolderCA.objects.all())
     assert ca_handles <= self_handles
 
     q_msg = self._compose_left_right_query()

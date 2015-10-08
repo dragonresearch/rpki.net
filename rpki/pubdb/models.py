@@ -249,7 +249,7 @@ class Delta(models.Model):
         raise rpki.exceptions.ExistingObjectAtURI("Object already published at %s" % uri)
       else:
         raise rpki.exceptions.DifferentObjectAtURI("Found different object at %s (old %s, new %s)" % (uri, obj.hash, hash))
-    except rpki.pubdb.PublishedObject.DoesNotExist:
+    except rpki.pubdb.models.PublishedObject.DoesNotExist:
       pass
     logger.debug("Publishing %s", uri)
     PublishedObject.objects.create(session = self.session, client = client, der = der, uri = uri,

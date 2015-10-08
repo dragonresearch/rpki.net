@@ -206,7 +206,7 @@ class main(Cmd):
     self.zoo.reset_identity(args.handle)
 
   def complete_select_identity(self, *args):
-    return self.irdb_handle_complete(rpki.irdb.ResourceHolderCA.objects, *args)
+    return self.irdb_handle_complete(rpki.irdb.models.ResourceHolderCA.objects, *args)
 
 
   @parsecmd(argsubparsers)
@@ -317,9 +317,9 @@ class main(Cmd):
     try:
       self.zoo.delete_child(args.child_handle)
       self.zoo.synchronize_ca()
-    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+    except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
-    except rpki.irdb.Child.DoesNotExist:
+    except rpki.irdb.models.Child.DoesNotExist:
       print "No such child \"%s\"" % args.child_handle
 
   def complete_delete_child(self, *args):
@@ -362,9 +362,9 @@ class main(Cmd):
     try:
       self.zoo.delete_parent(args.parent_handle)
       self.zoo.synchronize_ca()
-    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+    except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
-    except rpki.irdb.Parent.DoesNotExist:
+    except rpki.irdb.models.Parent.DoesNotExist:
       print "No such parent \"%s\"" % args.parent_handle
 
   def complete_delete_parent(self, *args):
@@ -398,9 +398,9 @@ class main(Cmd):
     try:
       self.zoo.delete_rootd()
       self.zoo.synchronize_ca()
-    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+    except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
-    except rpki.irdb.Rootd.DoesNotExist:
+    except rpki.irdb.models.Rootd.DoesNotExist:
       print "No associated rootd"
 
 
@@ -421,7 +421,7 @@ class main(Cmd):
     r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
     try:
       self.zoo.synchronize_pubd()
-    except rpki.irdb.Repository.DoesNotExist:
+    except rpki.irdb.models.Repository.DoesNotExist:
       pass
 
 
@@ -435,9 +435,9 @@ class main(Cmd):
     try:
       self.zoo.delete_publication_client(args.client_handle)
       self.zoo.synchronize_pubd()
-    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+    except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
-    except rpki.irdb.Client.DoesNotExist:
+    except rpki.irdb.models.Client.DoesNotExist:
       print "No such client \"%s\"" % args.client_handle
 
   def complete_delete_publication_client(self, *args):
@@ -471,9 +471,9 @@ class main(Cmd):
     try:
       self.zoo.delete_repository(args.repository_handle)
       self.zoo.synchronize_ca()
-    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+    except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
-    except rpki.irdb.Repository.DoesNotExist:
+    except rpki.irdb.models.Repository.DoesNotExist:
       print "No such repository \"%s\"" % args.repository_handle
 
   def complete_delete_repository(self, *args):
@@ -489,7 +489,7 @@ class main(Cmd):
     try:
       self.zoo.delete_self()
       self.zoo.synchronize_deleted_ca()
-    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+    except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
 
 
@@ -718,9 +718,9 @@ class main(Cmd):
       self.zoo.delete_router_certificate_request(args.gski)
       if self.autosync:
         self.zoo.run_rpkid_now()
-    except rpki.irdb.ResourceHolderCA.DoesNotExist:
+    except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
-    except rpki.irdb.EECertificateRequest.DoesNotExist:
+    except rpki.irdb.models.EECertificateRequest.DoesNotExist:
       print "No certificate request matching g(SKI) \"%s\"" % args.gski
 
   def complete_delete_router_certificate_request(self, text, line, begidx, endidx):
@@ -862,6 +862,6 @@ class main(Cmd):
     List all <self/> handles in this rpkid instance.
     """
 
-    for ca in rpki.irdb.ResourceHolderCA.objects.all():
+    for ca in rpki.irdb.models.ResourceHolderCA.objects.all():
       print ca.handle
 

@@ -39,7 +39,7 @@ os.environ['DISABLE_SETPROCTITLE'] = 'yes'
 if not os.environ.get('PYTHON_EGG_CACHE') and rpki.autoconf.WSGI_PYTHON_EGG_CACHE_DIR:
     os.environ['PYTHON_EGG_CACHE'] = rpki.autoconf.WSGI_PYTHON_EGG_CACHE_DIR
 
-import django.core.handlers.wsgi
-application = django.core.handlers.wsgi.WSGIHandler()
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
 
 # vim:ft=python

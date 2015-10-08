@@ -597,8 +597,7 @@ class allocation(object):
         django.setup()
 
         import django.core.management
-        #django.core.management.call_command("syncdb", migrate = True, verbosity = verbosity, load_initial_data = False, interactive = False)
-        django.core.management.call_command("migrate", verbosity = verbosity,
+        django.core.management.call_command("migrate", verbosity = verbosity, no_color = True,
                                             load_initial_data = False, interactive = False)
 
         if settings in ("gui", "irdb"):

@@ -778,12 +778,15 @@ def body():
 
   databases["default"] = databases[db.root.irdb_name]
 
+  import django
+  django.setup()
+
   from django.conf import settings
 
   settings.configure(
-    DATABASES = databases,
+    DATABASES        = databases,
     DATABASE_ROUTERS = ["rpki.irdb.router.DBContextRouter"],
-    INSTALLED_APPS = ("rpki.irdb", "south"))
+    INSTALLED_APPS   = ["rpki.irdb"])
 
   import rpki.irdb
 

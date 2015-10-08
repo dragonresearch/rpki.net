@@ -130,6 +130,9 @@ class main(Cmd):
 
     os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.irdb")
 
+    import django
+    django.setup()
+
     import rpki.irdb                    # pylint: disable=W0621
 
     try:
@@ -149,16 +152,6 @@ class main(Cmd):
         cfg.get("bpki_crl_interval", section = "rpkic"))
     except rpki.config.ConfigParser.Error:
       pass
-
-    # Need to figure out whether we really want rpkic setting up
-    # databases or not.  Defer until we've caught up to a current
-    # version of Django, are past the change from South to Django
-    # 1.7+'s migration scheme, and other potential complications.
-
-    if False:
-      import django.core.management
-      django.core.management.call_command("syncdb", verbosity = 3, load_initial_data = False)
-      django.core.management.call_command("migrate", verbosity = 3)
 
     self.zoo = rpki.irdb.Zookeeper(cfg = cfg, handle = self.handle, logstream = sys.stdout)
 

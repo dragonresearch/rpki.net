@@ -8,7 +8,7 @@ import os
 if os.environ.get("LANG") in (None, "", "C"):
     os.environ["LANG"] = "en_US.UTF-8"
 
-os.environ.setdefault(DJANGO_SETTINGS_MODULE = "rpki.django_settings.gui")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "rpki.django_settings.gui")
 
 from django.core.management import execute_from_command_line
 

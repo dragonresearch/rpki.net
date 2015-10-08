@@ -27,7 +27,6 @@ the DER and thus would add no value.
 import logging
 
 from django.db import models
-from south.modelsinspector import add_introspection_rules
 
 import rpki.x509
 import rpki.sundial
@@ -185,12 +184,3 @@ class ROAField(DERField):
 class GhostbusterField(DERField):
   description = "Ghostbuster Record"
   rpki_type   = rpki.x509.Ghostbuster
-
-
-field_classes = (EnumField, SundialField, BlobField, CertificateField, KeyField,
-                 CRLField, PKCS10Field, ManifestField, ROAField, GhostbusterField)
-
-add_introspection_rules([(field_classes, [], {})],
-                        [r"^rpki\.fields\." + cls.__name__ for cls in field_classes])
-
-del field_classes

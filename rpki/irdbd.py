@@ -186,8 +186,23 @@ class main(object):
     # Now that we know which configuration file to use, it's OK to
     # load modules that require Django's settings module.
 
+    import django
+    django.setup()
+
     global rpki                         # pylint: disable=W0602
     import rpki.irdb                    # pylint: disable=W0621
+
+    self.http_server_host = self.cfg.get("server-host", "")
+    self.http_server_port = self.cfg.getint("server-port")
+
+    self.cms_timestamp = None
+
+    rpki.http_simple.server(
+      host     = self.http_server_host,
+      port     = self.http_server_port,
+      handlers = self.handler)
+
+  def start_new_transaction(self):
 
     # Entirely too much fun with read-only access to transactional databases.
     #
@@ -209,14 +224,7 @@ class main(object):
     # the transaction isolation snapshot.
 
     import django.db.transaction
-    self.start_new_transaction = django.db.transaction.commit_manually(django.db.transaction.commit)
 
-    self.http_server_host = self.cfg.get("server-host", "")
-    self.http_server_port = self.cfg.getint("server-port")
-
-    self.cms_timestamp = None
-
-    rpki.http_simple.server(
-      host     = self.http_server_host,
-      port     = self.http_server_port,
-      handlers = self.handler)
+    with django.db.transaction.atomic():
+      #django.db.transaction.commit()
+      pass

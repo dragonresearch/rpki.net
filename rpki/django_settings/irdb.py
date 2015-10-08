@@ -34,9 +34,9 @@ DATABASES = dict(
                    USER     = cfg.get("sql-username", section = "irdbd"),
                    PASSWORD = cfg.get("sql-password", section = "irdbd")))
 
-# Apps.  See comment in .common re the "south" app.
+# Apps.
 
-INSTALLED_APPS.append("rpki.irdb")
+INSTALLED_APPS = ["rpki.irdb"]
 
 
 # Allow local site to override any setting above -- but if there's

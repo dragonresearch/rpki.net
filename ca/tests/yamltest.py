@@ -580,7 +580,7 @@ class allocation(object):
     # easier than figuring out how to change Django settings after
     # initialization.
 
-    def sync_app(app, verbosity = 1):
+    def sync_settings(settings, verbosity = 1):
 
       if verbosity > 0:
         print "Running Django setup for", self.name
@@ -588,23 +588,30 @@ class allocation(object):
       pid = os.fork()
 
       if pid == 0:
-        os.environ.update(RPKI_CONF = self.path("rpki.conf"),
-                          DJANGO_SETTINGS_MODULE = "rpki.django_settings." + app)
         logging.getLogger().setLevel(logging.WARNING)
+
+        os.environ.update(RPKI_CONF = self.path("rpki.conf"),
+                          DJANGO_SETTINGS_MODULE = "rpki.django_settings." + settings)
+
+        import django
+        django.setup()
+
         import django.core.management
-        django.core.management.call_command("syncdb", migrate = True, verbosity = verbosity,
+        #django.core.management.call_command("syncdb", migrate = True, verbosity = verbosity, load_initial_data = False, interactive = False)
+        django.core.management.call_command("migrate", verbosity = verbosity,
                                             load_initial_data = False, interactive = False)
-        if app in ("gui", "irdb"):
+
+        if settings in ("gui", "irdb"):
           from django.contrib.auth.models import User
           User.objects.create_superuser("root", "root@example.org", "fnord")
+
         sys.exit(0)
 
-      else:
-        if os.waitpid(pid, 0)[1]:
-          raise RuntimeError("Django setup failed for %s %s" % (self.name, app))
+      elif os.waitpid(pid, 0)[1]:
+        raise RuntimeError("Django setup failed for %s %s" % (self.name, settings))
 
-    for app in ("rpkid", "pubd", "gui"):
-      sync_app(app)
+    for settings in ("rpkid", "pubd", "gui"):
+      sync_settings(settings)
 
   def run_python_daemon(self, prog):
     """

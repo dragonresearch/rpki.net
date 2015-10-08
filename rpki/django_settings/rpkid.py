@@ -33,9 +33,9 @@ DATABASES = dict(
                    PASSWORD = cfg.get("sql-password", section = "rpkid")))
                                 
 
-# Apps -- see .common re "south" app.
+# Apps.
 
-INSTALLED_APPS.append("rpki.rpkidb")
+INSTALLED_APPS = ["rpki.rpkidb"]
 
 
 # Allow local site to override any setting above -- but if there's

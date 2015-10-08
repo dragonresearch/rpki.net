@@ -26,7 +26,6 @@ import rpki.irdb.models
 import rpki.gui.models
 import rpki.gui.routeview.models
 import rpki.oids
-from south.modelsinspector import add_introspection_rules
 
 
 class TelephoneField(models.CharField):
@@ -35,7 +34,7 @@ class TelephoneField(models.CharField):
             kwargs['max_length'] = 40
         models.CharField.__init__(self, **kwargs)
 
-add_introspection_rules([], [r'^rpki\.gui\.app\.models\.TelephoneField'])
+
 
 
 class Parent(rpki.irdb.models.Parent):

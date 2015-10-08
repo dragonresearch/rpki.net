@@ -33,9 +33,9 @@ DATABASES = dict(
                    PASSWORD = cfg.get("sql-password", section = "pubd")))
 
 
-# Apps -- see comment in .common re "south" app.
+# Apps.
 
-INSTALLED_APPS.append("rpki.pubdb")
+INSTALLED_APPS =  ["rpki.pubdb"]
 
 
 # Allow local site to override any setting above -- but if there's

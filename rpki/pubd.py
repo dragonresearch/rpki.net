@@ -95,6 +95,9 @@ class main(object):
     if self.profile:
       logger.info("Running in profile mode with output to %s", self.profile)
 
+    import django
+    django.setup()
+
     global rpki
     import rpki.pubdb
 

@@ -32,7 +32,6 @@ import rpki.sundial
 import rpki.resource_set
 import socket
 import rpki.POW
-from south.modelsinspector import add_introspection_rules
 
 from rpki.fields import EnumField, SundialField, CertificateField, DERField, KeyField, CRLField, PKCS10Field
 
@@ -80,22 +79,6 @@ class HandleField(django.db.models.CharField):
 class SignedReferralField(DERField):
   description   = "CMS signed object containing XML"
   rpki_type     = rpki.x509.SignedReferral
-
-# Alias to keep old rpki.gui migrations happy.  Would generating a new
-# schema migration for rpki.gui remove the need, or do we have to
-# preserve every old field class we've ever used forever?  Dunno.
-
-RSAKeyField = KeyField
-
-# Introspection rules for Django South
-
-field_classes = [HandleField, SignedReferralField]
-
-add_introspection_rules([(field_classes, [], {})],
-                        [r"^rpki\.irdb\.models\." + cls.__name__
-                         for cls in field_classes])
-
-del field_classes
 
 
 # Custom managers

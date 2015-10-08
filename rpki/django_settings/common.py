@@ -56,11 +56,10 @@ if os.getenv("RPKI_DJANGO_DEBUG") == "yes":
 # fragile, tedious to use, and generally more complex than we need,
 # because any given program is only going to be using one database.
 
-# Figure out which apps we're running.  Modules that import this add
-# others.  "south" will go away when we upgrade to Django 1.7+, at
-# which point we may leave this entirely for the importing modules.
 
-INSTALLED_APPS = ["south"]
+# Apps are also handled by the modules that import this one, now that
+# we don't require South.
+
 
 # That would be it if we just need the ORM, but Django throws a hissy
 # fit if SECRET_KEY isn't set, whether we use it for anything or not.

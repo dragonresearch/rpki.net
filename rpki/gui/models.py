@@ -22,7 +22,6 @@ from django.db import models
 
 import rpki.resource_set
 import rpki.POW
-from south.modelsinspector import add_introspection_rules
 
 
 class IPv6AddressField(models.Field):
@@ -62,14 +61,6 @@ class IPv4AddressField(models.Field):
 
     def get_db_prep_value(self, value, connection, prepared):
         return long(value)
-
-add_introspection_rules(
-    [
-        ([IPv4AddressField, IPv6AddressField], [], {})
-    ],
-    [r'^rpki\.gui\.models\.IPv4AddressField',
-     r'^rpki\.gui\.models\.IPv6AddressField']
-)
 
 
 class Prefix(models.Model):

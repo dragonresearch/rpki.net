@@ -99,6 +99,10 @@ class BlobField(models.Field):
   guidelines than actual rules.  But "BLOB" works.
 
   For anything else, we just use "BLOB" and hope for the best.
+
+  NB: This field type predates Django 1.6's BinaryField.  Probably
+  this should be retired in favor of BinaryField, but I'd have to
+  figure out what that does to field types that derive from this one.
   """
 
   __metaclass__ = models.SubfieldBase

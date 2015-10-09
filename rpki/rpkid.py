@@ -170,11 +170,11 @@ class main(object):
     try:
       q_tags = set(q_pdu.tag for q_pdu in q_msg)
 
-      q_der = rpki.left_right.cms_msg_no_sax().wrap(q_msg, self.rpkid_key, self.rpkid_cert)
+      q_der = rpki.left_right.cms_msg().wrap(q_msg, self.rpkid_key, self.rpkid_cert)
 
       def unwrap(r_der):
         try:
-          r_cms = rpki.left_right.cms_msg_no_sax(DER = r_der)
+          r_cms = rpki.left_right.cms_msg(DER = r_der)
           r_msg = r_cms.unwrap((self.bpki_ta, self.irdb_cert))
           self.irdbd_cms_timestamp = r_cms.check_replay(self.irdbd_cms_timestamp, self.irdb_url)
           #rpki.left_right.check_response(r_msg)
@@ -245,12 +245,55 @@ class main(object):
     SubElement(q_msg, rpki.left_right.tag_list_ee_certificate_requests, self_handle = self_handle)
     self.irdb_query(q_msg, callback, errback)
 
+  @property
+  def left_right_models(self):
+    """
+    Map element tag to rpkidb model.
+    """
+
+    try:
+      return self._left_right_models
+    except AttributeError:
+      import rpki.rpkidb.models
+      self._left_right_models = {
+        rpki.left_right.tag_self        : rpki.rpkidb.models.Self,
+        rpki.left_right.tag_bsc         : rpki.rpkidb.models.BSC,
+        rpki.left_right.tag_parent      : rpki.rpkidb.models.Parent,
+        rpki.left_right.tag_child       : rpki.rpkidb.models.Child,
+        rpki.left_right.tag_repository  : rpki.rpkidb.models.Repository }
+      return self._left_right_models
+
+  @property
+  def left_right_trivial_handlers(self):
+    """
+    Map element tag to bound handler methods for trivial PDU types.
+    """
+
+    try:
+      return self._left_right_trivial_handlers
+    except AttributeError:
+      self._left_right_trivial_handlers = {
+        tag_list_published_objects      : self.handle_list_published_objects,
+        tag_list_received_resources     : self.handle_list_received_resources }
+      return self._left_right_trivial_handlers
+
   def left_right_handler(self, query, path, cb):
     """
     Process one left-right PDU.
     """
 
+    # This handles five persistent classes (self, bsc, parent, child,
+    # repository) and two simple queries (list_published_objects and
+    # list_received_resources).  The former probably need to dispatch
+    # via methods to the corresponding model classes; the latter
+    # probably just become calls to ordinary methods of this
+    # (rpki.rpkid.main) class.
+    #
+    # Merge rpki.left_right.msg.serve_top_level() into this method,
+    # along with a generalization of rpki.pubd.main.control_handler().
+
     def done(r_msg):
+      r_msg = r_msg.toXML()
       reply = rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert)
       self.sql.sweep()
       cb(200, body = reply)
@@ -258,6 +301,7 @@ class main(object):
     try:
       q_cms = rpki.left_right.cms_msg(DER = query)
       q_msg = q_cms.unwrap((self.bpki_ta, self.irbe_cert))
+      q_msg = rpki.left_right.msg.fromXML(q_msg)
       self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp, path)
       if not q_msg.is_query():
         raise rpki.exceptions.BadQuery("Message type is not query")

@@ -1056,7 +1056,7 @@ class Zookeeper(object):
     irbe  = self.server_ca.ee_certificates.get(purpose = "irbe")
 
     r_msg = rpki.http_simple.client(
-      proto_cms_msg = rpki.left_right.cms_msg_no_sax,
+      proto_cms_msg = rpki.left_right.cms_msg,
       client_key    = irbe.private_key,
       client_cert   = irbe.certificate,
       server_ta     = self.server_ca.certificate,
@@ -1168,7 +1168,7 @@ class Zookeeper(object):
     irbe = self.server_ca.ee_certificates.get(purpose = "irbe")
 
     r_msg = rpki.http_simple.client(
-      proto_cms_msg = rpki.publication_control.cms_msg_no_sax,
+      proto_cms_msg = rpki.publication_control.cms_msg,
       client_key    = irbe.private_key,
       client_cert   = irbe.certificate,
       server_ta     = self.server_ca.certificate,

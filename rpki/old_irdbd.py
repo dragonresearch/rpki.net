@@ -235,7 +235,7 @@ class main(object):
 
       try:
 
-        q_msg = rpki.left_right.cms_msg(DER = q_der).unwrap((self.bpki_ta, self.rpkid_cert))
+        q_msg = rpki.left_right.cms_msg_saxify(DER = q_der).unwrap((self.bpki_ta, self.rpkid_cert))
 
         if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
           raise rpki.exceptions.BadQuery("Unexpected %r PDU" % q_msg)
@@ -259,7 +259,7 @@ class main(object):
         logger.exception("Exception decoding query")
         r_msg.append(rpki.left_right.report_error_elt.from_exception(e))
 
-      request.send_cms_response(rpki.left_right.cms_msg().wrap(r_msg, self.irdbd_key, self.irdbd_cert))
+      request.send_cms_response(rpki.left_right.cms_msg_saxify().wrap(r_msg, self.irdbd_key, self.irdbd_cert))
 
     except Exception, e:
       logger.exception("Unhandled exception, returning HTTP failure")

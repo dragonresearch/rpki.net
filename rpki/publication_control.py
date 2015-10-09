@@ -72,11 +72,9 @@ def raise_if_error(pdu):
       raise_if_error(p)
 
 
-class cms_msg_no_sax(rpki.x509.XML_CMS_object):
+class cms_msg(rpki.x509.XML_CMS_object):
   """
-  Class to hold a CMS-signed publication control PDU without legacy
-  SAX transcoding.  The name is a transition kludge, this class will
-  be renamed cms_msg once the SAX code goes away.
+  CMS-signed publication control PDU.
   """
 
   encoding = "us-ascii"

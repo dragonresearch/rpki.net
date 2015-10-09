@@ -259,7 +259,7 @@ class main(object):
     for q_pdu in q_msg:
       logger.info("Sending %s to pubd", q_pdu.get("uri"))
     r_msg = rpki.http_simple.client(
-      proto_cms_msg = rpki.publication.cms_msg_no_sax,
+      proto_cms_msg = rpki.publication.cms_msg,
       client_key    = self.rootd_bpki_key,
       client_cert   = self.rootd_bpki_cert,
       client_crl    = self.rootd_bpki_crl,
@@ -345,7 +345,7 @@ class main(object):
 
   def handler(self, request, q_der):
     try:
-      q_cms = rpki.up_down.cms_msg_no_sax(DER = q_der)
+      q_cms = rpki.up_down.cms_msg(DER = q_der)
       q_msg = q_cms.unwrap((self.bpki_ta, self.child_bpki_cert))
       q_type = q_msg.get("type")
       logger.info("Serving %s query", q_type)
@@ -357,8 +357,8 @@ class main(object):
       except Exception, e:
         logger.exception("Exception processing up-down %s message", q_type)
         rpki.up_down.generate_error_response_from_exception(r_msg, e, q_type)
-      request.send_cms_response(rpki.up_down.cms_msg_no_sax().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert,
-                                                                   self.rootd_bpki_crl if self.include_bpki_crl else None))
+      request.send_cms_response(rpki.up_down.cms_msg().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert,
+                                                            self.rootd_bpki_crl if self.include_bpki_crl else None))
     except Exception, e:
       logger.exception("Unhandled exception processing up-down message")
       request.send_error(500, "Unhandled exception %s: %s" % (e.__class__.__name__, e))

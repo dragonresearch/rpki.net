@@ -4,6 +4,7 @@ Django ORM models for rpkid.
 
 from __future__ import unicode_literals
 from django.db import models
+import rpki.left_right
 
 from rpki.fields import (EnumField, SundialField, BlobField,
                          CertificateField, KeyField, CRLField, PKCS10Field,
@@ -16,12 +17,20 @@ from rpki.fields import (EnumField, SundialField, BlobField,
 # gradually.  We may want to rethink this eventually, but that yak can
 # wait for its shave, particularly since disallowing null should be a
 # very simple change given migrations.
-
+#
+# At least for the moment, we use trivial custom managers on these
+# classes to provide a simple way of looking up objects from lxml
+# objects.  Rethink this later if it proves tedious.
 
 # "self" was a really bad name for this, but we weren't using Python
 # when we named it.  Perhaps "Tenant" would be a better name?  Even
 # means sort of the right thing, well, in French anyway.
 # Eventually rename in left-right too, I guess.
+
+class SelfManager(models.Manager):
+  def find_from_xml(self, elt):
+    assert elt.tag == rpki.left_right.tag_self
+    return self.get(self_handle = elt.get("self_handle"))
 
 class Self(models.Model):
   self_handle = models.SlugField(max_length = 255)
@@ -30,6 +39,12 @@ class Self(models.Model):
   regen_margin = models.BigIntegerField(null = True)
   bpki_cert = CertificateField(null = True)
   bpki_glue = CertificateField(null = True)
+  objects = SelfManager()
+
+class BSCManager(models.Manager):
+  def find_from_xml(self, elt):
+    assert elt.tag == rpki.left_right.tag_bsc
+    return self.get(self__self_handle = elt.get("self_handle"), bsc_handle = elt.get("bsc_handle"))
 
 class BSC(models.Model):
   bsc_handle = models.SlugField(max_length = 255)
@@ -39,8 +54,14 @@ class BSC(models.Model):
   signing_cert = CertificateField(null = True)
   signing_cert_crl = CRLField(null = True)
   self = models.ForeignKey(Self)
+  objects = BSCManager()
   class Meta:
     unique_together = ("self", "bsc_handle")
+
+class RepositoryManager(models.Manager):
+  def find_from_xml(self, elt):
+    assert elt.tag == rpki.left_right.tag_repository
+    return self.get(self__self_handle = elt.get("self_handle"), repository_handle = elt.get("repository_handle"))
 
 class Repository(models.Model):
   repository_handle = models.SlugField(max_length = 255)
@@ -50,8 +71,14 @@ class Repository(models.Model):
   last_cms_timestamp = SundialField(null = True)
   bsc = models.ForeignKey(BSC)
   self = models.ForeignKey(Self)
+  objects = RepositoryManager()
   class Meta:
     unique_together = ("self", "repository_handle")
+
+class ParentManager(models.Manager):
+  def find_from_xml(self, elt):
+    assert elt.tag == rpki.left_right.tag_parent
+    return self.get(self__self_handle = elt.get("self_handle"), parent_handle = elt.get("parent_handle"))
 
 class Parent(models.Model):
   parent_handle = models.SlugField(max_length = 255)
@@ -65,6 +92,7 @@ class Parent(models.Model):
   self = models.ForeignKey(Self)
   bsc = models.ForeignKey(BSC)
   repository = models.ForeignKey(Repository)
+  objects = ParentManager()
   class Meta:
     unique_together = ("self", "parent_handle")
 
@@ -93,6 +121,11 @@ class CADetail(models.Model):
   ca_cert_uri = models.TextField(null = True)
   ca = models.ForeignKey(CA)
 
+class ChildManager(models.Manager):
+  def find_from_xml(self, elt):
+    assert elt.tag == rpki.left_right.tag_child
+    return self.get(self__self_handle = elt.get("self_handle"), child_handle = elt.get("child_handle"))
+
 class Child(models.Model):
   child_handle = models.SlugField(max_length = 255)
   bpki_cert = CertificateField(null = True)
@@ -100,6 +133,7 @@ class Child(models.Model):
   last_cms_timestamp = SundialField(null = True)
   self = models.ForeignKey(Self)
   bsc = models.ForeignKey(BSC)
+  objects = ChildManager()
   class Meta:
     unique_together = ("self", "child_handle")
 

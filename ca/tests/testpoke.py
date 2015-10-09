@@ -84,11 +84,11 @@ def query_up_down(q_pdu):
     payload = q_pdu,
     sender = yaml_data["sender-id"],
     recipient = yaml_data["recipient-id"])
-  q_der = rpki.up_down.cms_msg().wrap(q_msg, cms_key, cms_certs, cms_crl)
+  q_der = rpki.up_down.cms_msg_saxify().wrap(q_msg, cms_key, cms_certs, cms_crl)
 
   def done(r_der):
     global last_cms_timestamp
-    r_cms = rpki.up_down.cms_msg(DER = r_der)
+    r_cms = rpki.up_down.cms_msg_saxify(DER = r_der)
     r_msg = r_cms.unwrap([cms_ta] + cms_ca_certs)
     last_cms_timestamp = r_cms.check_replay(last_cms_timestamp)
     print r_cms.pretty_print_content()

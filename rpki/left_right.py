@@ -646,13 +646,13 @@ class repository_elt(data_elt):
         logger.info("Sending %r to pubd", q_pdu)
 
       bsc = self.bsc
-      q_der = rpki.publication.cms_msg_no_sax().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
+      q_der = rpki.publication.cms_msg().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
       bpki_ta_path = (self.gctx.bpki_ta, self.self.bpki_cert, self.self.bpki_glue, self.bpki_cert, self.bpki_glue)
 
       def done(r_der):
         try:
           logger.debug("Received response from pubd")
-          r_cms = rpki.publication.cms_msg_no_sax(DER = r_der)
+          r_cms = rpki.publication.cms_msg(DER = r_der)
           r_msg = r_cms.unwrap(bpki_ta_path)
           r_cms.check_replay_sql(self, self.peer_contact_uri)
           for r_pdu in r_msg:
@@ -947,13 +947,13 @@ class parent_elt(data_elt):
     if bsc.signing_cert is None:
       raise rpki.exceptions.BSCNotReady("BSC %r[%s] is not yet usable" % (bsc.bsc_handle, bsc.bsc_id))
 
-    q_der = rpki.up_down.cms_msg_no_sax().wrap(q_msg, bsc.private_key_id,
-                                               bsc.signing_cert,
-                                               bsc.signing_cert_crl)
+    q_der = rpki.up_down.cms_msg().wrap(q_msg, bsc.private_key_id,
+                                        bsc.signing_cert,
+                                        bsc.signing_cert_crl)
 
     def unwrap(r_der):
       try:
-        r_cms = rpki.up_down.cms_msg_no_sax(DER = r_der)
+        r_cms = rpki.up_down.cms_msg(DER = r_der)
         r_msg = r_cms.unwrap((self.gctx.bpki_ta,
                               self.self.bpki_cert,
                               self.self.bpki_glue,
@@ -1235,8 +1235,8 @@ class child_elt(data_elt):
     """
 
     def done():
-      callback(rpki.up_down.cms_msg_no_sax().wrap(r_msg, bsc.private_key_id,
-                                                  bsc.signing_cert, bsc.signing_cert_crl))
+      callback(rpki.up_down.cms_msg().wrap(r_msg, bsc.private_key_id,
+                                           bsc.signing_cert, bsc.signing_cert_crl))
 
     def lose(e, quiet = False):
       logger.exception("Unhandled exception serving child %r", self)
@@ -1246,7 +1246,7 @@ class child_elt(data_elt):
     bsc = self.bsc
     if bsc is None:
       raise rpki.exceptions.BSCNotFound("Could not find BSC %s" % self.bsc_id)
-    q_cms = rpki.up_down.cms_msg_no_sax(DER = q_der)
+    q_cms = rpki.up_down.cms_msg(DER = q_der)
     q_msg = q_cms.unwrap((self.gctx.bpki_ta,
                           self.self.bpki_cert,
                           self.self.bpki_glue,
@@ -1545,19 +1545,8 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
 
 class cms_msg(rpki.x509.XML_CMS_object):
   """
-  Class to hold a CMS-signed left-right PDU.
+  CMS-signed left-right PDU.
   """
 
   encoding = "us-ascii"
   schema = rpki.relaxng.left_right
-  saxify = msg.fromXML
-
-
-class cms_msg_no_sax(cms_msg):
-  """
-  Class to hold a CMS-signed left-right PDU.
-
-  Name is a transition kludge: once we ditch SAX, this will become cms_msg.
-  """
-
-  saxify = None

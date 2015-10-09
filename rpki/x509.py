@@ -1986,10 +1986,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     Wrap an XML PDU in CMS and return its DER encoding.
     """
 
-    if self.saxify is None:
-      self.set_content(msg)
-    else:
-      self.set_content(msg.toXML())
+    self.set_content(msg)
     if self.check_outbound_schema:
       self.schema_check()
     self.sign(keypair, certs, crls)
@@ -2007,10 +2004,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     self.verify(ta)
     if self.check_inbound_schema:
       self.schema_check()
-    if self.saxify is None:
-      return self.get_content()
-    else:
-      return self.saxify(self.get_content()) # pylint: disable=E1102
+    return self.get_content()
 
   def check_replay(self, timestamp, *context):
     """
@@ -2038,17 +2032,9 @@ class XML_CMS_object(Wrapped_CMS_object):
     obj.last_cms_timestamp = self.check_replay(obj.last_cms_timestamp, *context)
     obj.sql_mark_dirty()
 
-  ## @var saxify
-  # SAX handler hook.  Subclasses can set this to a SAX handler, in
-  # which case .unwrap() will call it and return the result.
-  # Otherwise, .unwrap() just returns a verified element tree.
-
-  saxify = None
-
 class SignedReferral(XML_CMS_object):
   encoding = "us-ascii"
   schema = rpki.relaxng.myrpki
-  saxify = None
 
 class Ghostbuster(Wrapped_CMS_object):
   """

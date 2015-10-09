@@ -139,7 +139,7 @@ class main(object):
 
     try:
       connection.cursor()           # Reconnect to mysqld if necessary
-      q_cms = rpki.publication_control.cms_msg_no_sax(DER = q_der)
+      q_cms = rpki.publication_control.cms_msg(DER = q_der)
       q_msg = q_cms.unwrap((self.bpki_ta, self.irbe_cert))
       self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp, "control")
       if q_msg.get("type") != "query":
@@ -211,7 +211,7 @@ class main(object):
         if q_pdu.get("tag") is not None:
           r_pdu.set("tag", q_pdu.get("tag"))
 
-      request.send_cms_response(rpki.publication_control.cms_msg_no_sax().wrap(r_msg, self.pubd_key, self.pubd_cert))
+      request.send_cms_response(rpki.publication_control.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert))
 
     except Exception, e:
       logger.exception("Unhandled exception processing control query, path %r", request.path)
@@ -233,7 +233,7 @@ class main(object):
       if match is None:
         raise rpki.exceptions.BadContactURL("Bad path: %s" % request.path)
       client = rpki.pubdb.models.Client.objects.get(client_handle = match.group(1))
-      q_cms = rpki.publication.cms_msg_no_sax(DER = q_der)
+      q_cms = rpki.publication.cms_msg(DER = q_der)
       q_msg = q_cms.unwrap((self.bpki_ta, client.bpki_cert, client.bpki_glue))
       client.last_cms_timestamp = q_cms.check_replay(client.last_cms_timestamp, client.client_handle)
       client.save()
@@ -289,7 +289,7 @@ class main(object):
           self.session.synchronize_rrdp_files(self.rrdp_publication_base, self.rrdp_uri_base)
           delta.update_rsync_files(self.publication_base)
 
-      request.send_cms_response(rpki.publication.cms_msg_no_sax().wrap(r_msg, self.pubd_key, self.pubd_cert, self.pubd_crl))
+      request.send_cms_response(rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, self.pubd_crl))
 
     except Exception, e:
       logger.exception("Unhandled exception processing client query, path %r", request.path)

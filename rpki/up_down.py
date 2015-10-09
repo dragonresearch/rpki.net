@@ -158,11 +158,9 @@ def generate_error_response_from_exception(r_msg, e, q_type):
   generate_error_response(r_msg, code, e)
 
 
-class cms_msg_no_sax(rpki.x509.XML_CMS_object):
+class cms_msg(rpki.x509.XML_CMS_object):
   """
-  Class to hold a CMS-signed up-down PDU.
-
-  Name is a transition kludge: once we ditch SAX, this will become cms_msg.
+  CMS-signed up-down PDU.
   """
 
   encoding = "UTF-8"

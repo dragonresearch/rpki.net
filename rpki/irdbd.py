@@ -114,7 +114,7 @@ class main(object):
       serverCA = rpki.irdb.models.ServerCA.objects.get()
       rpkid = serverCA.ee_certificates.get(purpose = "rpkid")
       irdbd = serverCA.ee_certificates.get(purpose = "irdbd")
-      q_cms = rpki.left_right.cms_msg_no_sax(DER = q_der)
+      q_cms = rpki.left_right.cms_msg(DER = q_der)
       q_msg = q_cms.unwrap((serverCA.certificate, rpkid.certificate))
       self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, request.path)
       if q_msg.get("type") != "query":
@@ -132,7 +132,7 @@ class main(object):
         if q_pdu.get("tag") is not None:
           r_pdu.set("tag", q_pdu.get("tag"))
 
-      request.send_cms_response(rpki.left_right.cms_msg_no_sax().wrap(r_msg, irdbd.private_key, irdbd.certificate))
+      request.send_cms_response(rpki.left_right.cms_msg().wrap(r_msg, irdbd.private_key, irdbd.certificate))
 
     except Exception, e:
       logger.exception("Unhandled exception while processing HTTP request")

@@ -911,7 +911,7 @@ class allocation(object):
     assert self.rpki_port is not None
 
     q_msg = rpki.left_right.msg.query(*pdus)
-    q_cms = rpki.left_right.cms_msg()
+    q_cms = rpki.left_right.cms_msg_saxify()
     q_der = q_cms.wrap(q_msg, self.irbe_key, self.irbe_cert)
     q_url = "http://localhost:%d/left-right" % self.rpki_port
 
@@ -919,7 +919,7 @@ class allocation(object):
 
     def done(r_der):
       logger.info("Callback from rpkid %s", self.name)
-      r_cms = rpki.left_right.cms_msg(DER = r_der)
+      r_cms = rpki.left_right.cms_msg_saxify(DER = r_der)
       r_msg = r_cms.unwrap((self.rpkid_ta, self.rpkid_cert))
       self.last_cms_time = r_cms.check_replay(self.last_cms_time, q_url)
       logger.debug(r_cms.pretty_print_content())
@@ -1276,7 +1276,7 @@ def call_pubd(pdus, cb):
 
   logger.info("Calling pubd")
   q_msg = rpki.publication_control.msg.query(*pdus)
-  q_cms = rpki.publication_control.cms_msg()
+  q_cms = rpki.publication_control.cms_msg_saxify()
   q_der = q_cms.wrap(q_msg, pubd_irbe_key, pubd_irbe_cert)
   q_url = "http://localhost:%d/control" % pubd_port
 
@@ -1284,7 +1284,7 @@ def call_pubd(pdus, cb):
 
   def call_pubd_cb(r_der):
     global pubd_last_cms_time
-    r_cms = rpki.publication_control.cms_msg(DER = r_der)
+    r_cms = rpki.publication_control.cms_msg_saxify(DER = r_der)
     r_msg = r_cms.unwrap((pubd_ta, pubd_pubd_cert))
     pubd_last_cms_time = r_cms.check_replay(pubd_last_cms_time, q_url)
     logger.debug(r_cms.pretty_print_content())

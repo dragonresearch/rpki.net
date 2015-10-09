@@ -243,6 +243,7 @@ for i, key in enumerate(mb.iterkeys(), 1):
     session = shelf[key]
 
   else:
+    sys.stderr.write("%s..." % key)
     assert not mb[key].is_multipart()
     input = ElementTreeFromString(mb[key].get_payload())
     date = input.get("date")
@@ -276,9 +277,9 @@ if plot_all_hosts:
                             set()))
 
 else:
-  hostnames = ("rpki.apnic.net", "rpki.ripe.net", "localcert.ripe.net",
-               "repository.lacnic.net", "rpki.afrinic.net", "rpki.arin.net",
-               "arin.rpki.net", "repo0.rpki.net", "rgnet.rpki.net")
+  hostnames = ("rpki.apnic.net", "rpki.ripe.net", "repository.lacnic.net", "rpki.afrinic.net", "rpki.arin.net",
+               #"localcert.ripe.net", "arin.rpki.net", "repo0.rpki.net", "rgnet.rpki.net",
+               "ca0.rpki.net")
 
 plot_hosts(hostnames, [fmt.attr for fmt in Host.format if fmt.attr != "hostname"])
 

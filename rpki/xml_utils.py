@@ -326,10 +326,26 @@ class data_elt(base_elt):
     Action dispatch handler.
     """
 
+    # Transition hack: handle the .toXML() call for old handlers.
+
+    fake_r_msg = []
+
+    def fake_convert():
+      r_msg.extend(r_pdu.toXML() if isinstance(r_pdu, base_elt) else r_pdu
+                   for r_pdu in fake_r_msg)
+
+    def fake_cb():
+      fake_convert()
+      cb()
+
+    def fake_eb(e):
+      fake_convert()
+      eb(e)
+
     method = getattr(self, "serve_" + self.action, None)
     if method is None:
       raise rpki.exceptions.BadQuery("Unexpected query: action %s" % self.action)
-    method(r_msg, cb, eb)
+    method(fake_r_msg, fake_cb, fake_eb)
 
   def unimplemented_control(self, *controls):
     """
@@ -339,76 +355,3 @@ class data_elt(base_elt):
     unimplemented = [x for x in controls if getattr(self, x, False)]
     if unimplemented:
       raise rpki.exceptions.NotImplementedYet("Unimplemented control %s" % ", ".join(unimplemented))
-
-class msg(list):
-  """
-  Generic top-level PDU.
-  """
-
-  def __str__(self):
-    """
-    Convert msg object to string.
-    """
-
-    return lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
-
-  def toXML(self):
-    """
-    Generate top-level PDU.
-    """
-
-    elt = lxml.etree.Element(self.xmlns + "msg", nsmap = self.nsmap, version = str(self.version), type = self.type)
-    elt.extend(i.toXML() for i in self)
-    return elt
-
-  @classmethod
-  def query(cls, *args):
-    """
-    Create a query PDU.
-    """
-
-    self = cls(args)
-    self.type = "query"
-    return self
-
-  @classmethod
-  def reply(cls, *args):
-    """
-    Create a reply PDU.
-    """
-
-    self = cls(args)
-    self.type = "reply"
-    return self
-
-  def is_query(self):
-    """
-    Is this msg a query?
-    """
-
-    return self.type == "query"
-
-  def is_reply(self):
-    """
-    Is this msg a reply?
-    """
-
-    return self.type == "reply"
-
-  @classmethod
-  def fromXML(cls, elt):
-    """
-    First cut at non-SAX message unpacker.  This will probably change.
-    """
-
-    assert cls.version == int(elt.get("version"))
-    self = cls()
-    self.type = elt.get("type")
-
-    # This could be simplified by including the namespace name in the .pdus[] key.
-
-    for sub in elt:
-      assert sub.tag.startswith(self.xmlns)
-      self.append(self.pdus[sub.tag[len(self.xmlns):]].fromXML(sub))
-
-    return self

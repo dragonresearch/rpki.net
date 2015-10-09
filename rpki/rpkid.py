@@ -42,7 +42,7 @@ import rpki.async
 import rpki.daemonize
 import rpki.rpkid_tasks
 
-from lxml.etree import Element, SubElement
+from lxml.etree import Element, SubElement, tostring as ElementToString
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,12 @@ class main(object):
 
     if self.profile:
       logger.info("Running in profile mode with output to %s", self.profile)
+
+    import django
+    django.setup()
+
+    global rpki
+    import rpki.rpkidb
 
     self.sql = rpki.sql.session(self.cfg)
 
@@ -273,9 +279,91 @@ class main(object):
       return self._left_right_trivial_handlers
     except AttributeError:
       self._left_right_trivial_handlers = {
-        tag_list_published_objects      : self.handle_list_published_objects,
-        tag_list_received_resources     : self.handle_list_received_resources }
+        rpki.left_right.tag_list_published_objects      : self.handle_list_published_objects,
+        rpki.left_right.tag_list_received_resources     : self.handle_list_received_resources }
       return self._left_right_trivial_handlers
+
+  def handle_list_published_objects(self, q_pdu, r_msg):
+    """
+    <list_published_objects/> server.
+
+    This is written for the old SQL API, will need rewriting once we
+    switch rpkid to Django ORM.
+    """
+
+    logger.debug(".handle_list_published_objects() %s", ElementToString(q_pdu))
+
+    self_handle = q_pdu.get("self_handle")
+    msg_tag     = q_pdu.get("tag")
+
+    kw = dict(self_handle = self_handle)
+    if msg_tag is not None:
+      kw.update(tag = msg_tag)
+
+    for parent in rpki.left_right.self_elt.serve_fetch_handle(self, None, self_handle).parents:
+      for ca in parent.cas:
+        ca_detail = ca.active_ca_detail
+        if ca_detail is not None:
+
+          SubElement(r_msg, rpki.left_right.tag_list_published_objects,
+                     uri = ca_detail.crl_uri, **kw).text = ca_detail.latest_crl.get_Base64()
+
+          SubElement(r_msg, rpki.left_right.tag_list_published_objects,
+                     uri = ca_detail.manifest_uri, **kw).text = ca_detail.latest_manifest.get_Base64()
+
+          for c in ca_detail.child_certs:
+            SubElement(r_msg, rpki.left_right.tag_list_published_objects,
+                       uri = c.uri, child_handle = c.child.child_handle, **kw).text = c.cert.get_Base64()
+
+          for r in ca_detail.roas:
+            if r.roa is not None:
+              SubElement(r_msg, rpki.left_right.tag_list_published_objects,
+                         uri = r.uri, **kw).text = r.roa.get_Base64()
+
+          for g in ca_detail.ghostbusters:
+              SubElement(r_msg, rpki.left_right.tag_list_published_objects,
+                         uri = g.uri, **kw).text = g.ghostbuster.get_Base64()
+
+          for c in ca_detail.ee_certificates:
+              SubElement(r_msg, rpki.left_right.tag_list_published_objects,            
+                         uri = c.uri, **kw).text = c.cert.get_Base64()
+
+  def handle_list_received_resources(self, q_pdu, r_msg):
+    """
+    <list_received_resources/> server.
+
+    This is written for the old SQL API, will need rewriting once we
+    switch rpkid to Django ORM.
+    """
+
+    logger.debug(".handle_list_received_resources() %s", ElementToString(q_pdu))
+
+    self_handle = q_pdu.get("self_handle")
+    msg_tag     = q_pdu.get("tag")
+
+    for parent in rpki.left_right.self_elt.serve_fetch_handle(self, None, self_handle).parents:
+      for ca in parent.cas:
+        ca_detail = ca.active_ca_detail
+        if ca_detail is not None and ca_detail.latest_ca_cert is not None:
+
+          cert      = ca_detail.latest_ca_cert
+          resources = cert.get_3779resources()
+
+          r_pdu = SubElement(r_msg, rpki.left_right.tag_list_received_resources,
+                             self_handle        = self_handle,
+                             parent_handle      = parent.parent_handle,
+                             uri                = ca_detail.ca_cert_uri,
+                             notBefore          = str(cert.getNotBefore()),
+                             notAfter           = str(cert.getNotAfter()),
+                             sia_uri            = cert.get_sia_directory_uri(),
+                             aia_uri            = cert.get_aia_uri(),
+                             asn                = str(resources.asn),
+                             ipv4               = str(resources.v4),
+                             ipv6               = str(resources.v6))
+
+          if msg_tag is not None:
+            r_pdu.set("tag", msg_tag)
+
 
   def left_right_handler(self, query, path, cb):
     """
@@ -289,25 +377,71 @@ class main(object):
     # probably just become calls to ordinary methods of this
     # (rpki.rpkid.main) class.
     #
-    # Merge rpki.left_right.msg.serve_top_level() into this method,
-    # along with a generalization of rpki.pubd.main.control_handler().
-
-    def done(r_msg):
-      r_msg = r_msg.toXML()
-      reply = rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert)
-      self.sql.sweep()
-      cb(200, body = reply)
+    # Need to clone logic from rpki.pubd.main.control_handler().
 
     try:
       q_cms = rpki.left_right.cms_msg(DER = query)
       q_msg = q_cms.unwrap((self.bpki_ta, self.irbe_cert))
-      q_msg = rpki.left_right.msg.fromXML(q_msg)
+      r_msg = Element(rpki.left_right.tag_msg, nsmap = rpki.left_right.nsmap,
+                      type = "reply", version = rpki.left_right.version)
       self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp, path)
-      if not q_msg.is_query():
+
+      assert q_msg.tag.startswith(rpki.left_right.xmlns) and all(q_pdu.tag.startswith(rpki.left_right.xmlns) for q_pdu in q_msg)
+
+      if q_msg.get("version") != rpki.left_right.version:
+        raise rpki.exceptions.BadQuery("Unrecognized protocol version")
+
+      if q_msg.get("type") != "query":
         raise rpki.exceptions.BadQuery("Message type is not query")
-      q_msg.serve_top_level(self, done)
+
+      def done():
+        self.sql.sweep()
+        cb(200, body = rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert))
+
+      def loop(iterator, q_pdu):
+
+        def fail(e):
+          if not isinstance(e, rpki.exceptions.NotFound):
+            logger.exception("Unhandled exception serving left-right PDU %r", q_pdu)
+
+          # Compatability kludge
+          if isinstance(q_pdu, rpki.left_right.data_elt):
+            r_msg.append(rpki.left_right.report_error_elt.from_exception(
+              e, self_handle = q_pdu.self_handle, tag = q_pdu.tag).toXML())
+          else:
+            r_pdu = rpki.left_right.report_error_elt.from_exception(e, self_handle = q_pdu.get("self_handle"))
+            tag = q_pdu.get("tag")
+            if tag:
+              r_pdu.set("tag", tag)
+            r_msg.append(r_pdu.toXML())
+            
+          self.sql.sweep()
+
+          cb(200, body = rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert))
+
+        try:
+          if q_pdu.tag in self.left_right_trivial_handlers:
+            self.left_right_trivial_handlers[q_pdu.tag](q_pdu, r_msg)
+            iterator()
+          else:
+            q_map = { rpki.left_right.tag_self          : rpki.left_right.self_elt,
+                      rpki.left_right.tag_bsc           : rpki.left_right.bsc_elt,
+                      rpki.left_right.tag_parent        : rpki.left_right.parent_elt,
+                      rpki.left_right.tag_child         : rpki.left_right.child_elt,
+                      rpki.left_right.tag_repository    : rpki.left_right.repository_elt }
+            q_pdu = q_map[q_pdu.tag].fromXML(q_pdu)
+            q_pdu.gctx = self
+            q_pdu.serve_dispatch(r_msg, iterator, fail)
+        except (rpki.async.ExitNow, SystemExit):
+          raise
+        except Exception, e:
+          fail(e)
+
+      rpki.async.iterator(q_msg, loop, done)
+
     except (rpki.async.ExitNow, SystemExit):
       raise
+
     except Exception, e:
       logger.exception("Unhandled exception serving left-right request")
       cb(500, reason = "Unhandled exception %s: %s" % (e.__class__.__name__, e))

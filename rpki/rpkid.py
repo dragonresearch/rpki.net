@@ -406,15 +406,19 @@ class main(object):
 
           # Compatability kludge
           if isinstance(q_pdu, rpki.left_right.data_elt):
-            r_msg.append(rpki.left_right.report_error_elt.from_exception(
-              e, self_handle = q_pdu.self_handle, tag = q_pdu.tag).toXML())
+            error_self_handle = q_pdu.self_handle
+            error_tag         = q_pdu.tag
           else:
-            r_pdu = rpki.left_right.report_error_elt.from_exception(e, self_handle = q_pdu.get("self_handle"))
-            tag = q_pdu.get("tag")
-            if tag:
-              r_pdu.set("tag", tag)
-            r_msg.append(r_pdu.toXML())
-            
+            error_self_handle = q_pdu.get("self_handle")
+            error_tag         = q_pdu.get("tag")
+
+          r_pdu = SubElement(r_msg, rpki.left_right.tag_report_error, error_code = e.__class__.__name__)
+          r_pdu.text = str(e)
+          if error_tag is not None:
+            r_pdu.set("tag", error_tag)
+          if error_self_handle is not None:
+            r_pdu.set("self_handle", error_self_handle)
+
           self.sql.sweep()
 
           cb(200, body = rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert))

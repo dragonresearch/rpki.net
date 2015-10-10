@@ -32,12 +32,15 @@ from django.db import transaction
 import django.db.models
 
 import rpki
+import rpki.left_right
 import rpki.gui.app.timestamp
 from rpki.gui.app.models import Conf, Alert
 from rpki.gui.cacheview import models
 from rpki.rcynic import rcynic_xml_iterator, label_iterator
 from rpki.sundial import datetime
 from rpki.irdb.zookeeper import Zookeeper
+
+from lxml.etree import Element, SubElement
 
 logger = logging.getLogger(__name__)
 
@@ -315,18 +318,21 @@ def fetch_published_objects():
     logger.info('querying for published objects')
 
     handles = [conf.handle for conf in Conf.objects.all()]
-    req = [rpki.left_right.list_published_objects_elt.make_pdu(action='list', self_handle=h, tag=h) for h in handles]
+    q_msg = Element(rpki.left_right.tag_msg, nsmap = rpki.left_right.nsmap,
+                    type = "query", version = rpki.left_right.version)
+    for h in handles:
+        SubElement(q_msg, rpki.left_right.tag_list_published_objects, action="list", self_handle=h, tag=h)
     z = Zookeeper()
-    pdus = z.call_rpkid(*req)
-    for pdu in pdus:
-        if isinstance(pdu, rpki.left_right.list_published_objects_elt):
+    r_msg = z.call_rpkid(q_msg)
+    for r_pdu in r_msg:
+        if r_pdu.tag == rpki.left_right.tag_list_published_objects:
             # Look up the object in the rcynic cache
-            qs = models.RepositoryObject.objects.filter(uri=pdu.uri)
+            qs = models.RepositoryObject.objects.filter(uri=r_pdu.get("uri"))
             if qs:
                 # get the current validity state
                 valid = qs[0].statuses.filter(status=object_accepted).exists()
-                uris[pdu.uri] = (pdu.self_handle, valid, False, None)
-                logger.debug('adding ' + pdu.uri)
+                uris[r_pdu.get("uri")] = (r_pdu.get("self_handle"), valid, False, None)
+                logger.debug('adding %s', r_pdu.get("uri"))
             else:
                 # this object is not in the cache.  it was either published
                 # recently, or disappared previously.  if it disappeared
@@ -334,8 +340,8 @@ def fetch_published_objects():
                 # omit the uri from the list since we are interested only in
                 # objects which were valid and are no longer valid
                 pass
-        elif isinstance(pdu, rpki.left_right.report_error_elt):
-            logging.error('rpkid reported an error: %s', pdu.error_code)
+        elif r_pdu.tag == rpki.left_right.tag_report_error:
+            logging.error('rpkid reported an error: %s', r_pdu.get("error_code"))
 
 
 class Handle(object):

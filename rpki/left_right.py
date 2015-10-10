@@ -24,7 +24,7 @@ RPKI "left-right" protocol.
 import base64
 import logging
 import collections
-import rpki.resource_set
+
 import rpki.x509
 import rpki.sql
 import rpki.exceptions
@@ -81,9 +81,6 @@ class base_elt(rpki.sql.sql_persistent):
   These classes are being phased out in favor of Django ORM models.
   """
 
-  xmlns = rpki.relaxng.left_right.xmlns
-  nsmap = rpki.relaxng.left_right.nsmap
-
   handles = ()
   attributes = ()
   elements = ()
@@ -98,9 +95,7 @@ class base_elt(rpki.sql.sql_persistent):
 
   @classmethod
   def fromXML(cls, elt):
-
     self = cls()
-
     for key in self.attributes:
       val = elt.get(key, None)
       if val is not None:
@@ -112,29 +107,15 @@ class base_elt(rpki.sql.sql_persistent):
       setattr(self, key, val)
     for key in self.booleans:
       setattr(self, key, elt.get(key, False))
-
     if self.text_attribute is not None:
       setattr(self, self.text_attribute, elt.text)
-
-    # In the long run, we probably want the key for that to include
-    # the namespace, but that would break the current .toXML() code,
-    # so kludge it for now.
-
     for b64 in elt:
-      assert b64.tag.startswith(self.xmlns)
-      ename = b64.tag[len(self.xmlns):]
-      etype = self.elements[ename]
-      setattr(self, ename, etype(Base64 = b64.text))
-
+      assert b64.tag.startswith(xmlns)
+      setattr(self, b64.tag[len(xmlns):], self.elements[b64.tag](Base64 = b64.text))
     return self
 
   def toXML(self):
-    """
-    Default element generator for SQL-based objects.  This assumes
-    that sub-elements are Base64-encoded DER objects.
-    """
-
-    elt = Element(self.xmlns + self.element_name, nsmap = self.nsmap)
+    elt = Element(self.element_name, nsmap = nsmap)
     for key in self.attributes:
       val = getattr(self, key, None)
       if val is not None:
@@ -143,20 +124,16 @@ class base_elt(rpki.sql.sql_persistent):
       if getattr(self, key, False):
         elt.set(key, "yes")
     for name in self.elements:
-      value = getattr(self, name, None)
+      value = getattr(self, name[len(xmlns):], None)
       if value is not None and not value.empty():
-        SubElement(elt, self.xmlns + name, nsmap = self.nsmap).text = value.get_Base64()
+        SubElement(elt, name, nsmap = nsmap).text = value.get_Base64()
     return elt
 
   def make_reply(self, r_pdu = None):
-    """
-    Construct a reply PDU.
-    """
-
     if r_pdu is None:
       r_pdu = self.__class__()
       self.make_reply_clone_hook(r_pdu)
-      handle_name = self.element_name + "_handle"
+      handle_name = self.element_name[len(xmlns):] + "_handle"
       setattr(r_pdu, handle_name, getattr(self, handle_name, None))
     else:
       self.make_reply_clone_hook(r_pdu)
@@ -194,8 +171,9 @@ class base_elt(rpki.sql.sql_persistent):
 
     oops = self.serve_fetch_one_maybe()
     if oops is not None:
-      raise rpki.exceptions.DuplicateObject("Object already exists: %r[%r] %r[%r]" % (self, getattr(self, self.element_name + "_handle"),
-                                                                                      oops, getattr(oops, oops.element_name + "_handle")))
+      raise rpki.exceptions.DuplicateObject("Object already exists: %r[%r] %r[%r]" % (
+        self, getattr(self, self.element_name[len(xmlns):] + "_handle"),
+        oops, getattr(oops, oops.element_name[len(xmlns):] + "_handle")))
 
     self.serve_pre_save_hook(self, r_pdu, one, eb)
 
@@ -297,7 +275,8 @@ class base_elt(rpki.sql.sql_persistent):
 
   @classmethod
   def serve_fetch_handle(cls, gctx, self_id, handle):
-    return cls.sql_fetch_where1(gctx, cls.element_name + "_handle = %s AND self_id = %s", (handle, self_id))
+    name = cls.element_name[len(xmlns):]
+    return cls.sql_fetch_where1(gctx, name + "_handle = %s AND self_id = %s", (handle, self_id))
 
   def serve_fetch_one_maybe(self):
     """
@@ -305,8 +284,10 @@ class base_elt(rpki.sql.sql_persistent):
     operate, or which would conflict with a create method.
     """
 
-    where = "%s.%s_handle = %%s AND %s.self_id = self.self_id AND self.self_handle = %%s" % ((self.element_name,) * 3)
-    args = (getattr(self, self.element_name + "_handle"), self.self_handle)
+    name = self.element_name[len(xmlns):]
+    where = "%s.%s_handle = %%s AND %s.self_id = self.self_id AND self.self_handle = %%s" % (name, name, name)
+    args = (getattr(self, name + "_handle"), self.self_handle)
+    logger.debug(".serve_fetch_one_maybe() %s %s", args[0], args[1])
     return self.sql_fetch_where1(self.gctx, where, args, "self")
 
   def serve_fetch_all(self):
@@ -314,7 +295,8 @@ class base_elt(rpki.sql.sql_persistent):
     Find the objects on which a list method should operate.
     """
 
-    where = "%s.self_id = self.self_id and self.self_handle = %%s" % self.element_name
+    name = self.element_name[len(xmlns):]
+    where = "%s.self_id = self.self_id and self.self_handle = %%s" % name
     return self.sql_fetch_where(self.gctx, where, (self.self_handle,), "self")
 
   def serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb):
@@ -342,14 +324,14 @@ class self_elt(base_elt):
   <self/> element.
   """
 
-  element_name = "self"
+  element_name = xmlns + "self"
   attributes = ("action", "tag", "self_handle", "crl_interval", "regen_margin")
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "revoke_forgotten",
               "clear_replay_protection")
 
   elements = collections.OrderedDict((
-    ("bpki_cert", rpki.x509.X509),
-    ("bpki_glue", rpki.x509.X509)))
+    (tag_bpki_cert, rpki.x509.X509),
+    (tag_bpki_glue, rpki.x509.X509)))
 
   sql_template = rpki.sql.template(
     "self",
@@ -581,14 +563,14 @@ class bsc_elt(base_elt):
   <bsc/> (Business Signing Context) element.
   """
 
-  element_name = "bsc"
+  element_name = xmlns + "bsc"
   attributes = ("action", "tag", "self_handle", "bsc_handle", "key_type", "hash_alg", "key_length")
   booleans = ("generate_keypair",)
 
   elements = collections.OrderedDict((
-    ("signing_cert", rpki.x509.X509),
-    ("signing_cert_crl", rpki.x509.CRL),
-    ("pkcs10_request", rpki.x509.PKCS10)))
+    (tag_signing_cert,     rpki.x509.X509),
+    (tag_signing_cert_crl, rpki.x509.CRL),
+    (tag_pkcs10_request,   rpki.x509.PKCS10)))
 
   sql_template = rpki.sql.template(
     "bsc",
@@ -641,13 +623,13 @@ class repository_elt(base_elt):
   <repository/> element.
   """
 
-  element_name = "repository"
+  element_name = xmlns + "repository"
   attributes = ("action", "tag", "self_handle", "repository_handle", "bsc_handle", "peer_contact_uri")
   booleans = ("clear_replay_protection",)
 
   elements = collections.OrderedDict((
-    ("bpki_cert", rpki.x509.X509),
-    ("bpki_glue", rpki.x509.X509)))
+    (tag_bpki_cert, rpki.x509.X509),
+    (tag_bpki_glue, rpki.x509.X509)))
 
   sql_template = rpki.sql.template(
     "repository",
@@ -752,14 +734,14 @@ class parent_elt(base_elt):
   <parent/> element.
   """
 
-  element_name = "parent"
+  element_name = xmlns + "parent"
   attributes = ("action", "tag", "self_handle", "parent_handle", "bsc_handle", "repository_handle",
                 "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
   booleans = ("rekey", "reissue", "revoke", "revoke_forgotten", "clear_replay_protection")
 
   elements = collections.OrderedDict((
-    ("bpki_cms_cert", rpki.x509.X509),
-    ("bpki_cms_glue", rpki.x509.X509)))
+    (tag_bpki_cms_cert, rpki.x509.X509),
+    (tag_bpki_cms_glue, rpki.x509.X509)))
 
   sql_template = rpki.sql.template(
     "parent",
@@ -998,13 +980,13 @@ class child_elt(base_elt):
   <child/> element.
   """
 
-  element_name = "child"
+  element_name = xmlns + "child"
   attributes = ("action", "tag", "self_handle", "child_handle", "bsc_handle")
   booleans = ("reissue", "clear_replay_protection")
 
   elements = collections.OrderedDict((
-    ("bpki_cert", rpki.x509.X509),
-    ("bpki_glue", rpki.x509.X509)))
+    (tag_bpki_cert, rpki.x509.X509),
+    (tag_bpki_glue, rpki.x509.X509)))
 
   sql_template = rpki.sql.template(
     "child",
@@ -1214,7 +1196,7 @@ class child_elt(base_elt):
       callback(rpki.up_down.cms_msg().wrap(r_msg, bsc.private_key_id,
                                            bsc.signing_cert, bsc.signing_cert_crl))
 
-    def lose(e, quiet = False):
+    def lose(e):
       logger.exception("Unhandled exception serving child %r", self)
       rpki.up_down.generate_error_response_from_exception(r_msg, e, q_type)
       done()
@@ -1241,13 +1223,8 @@ class child_elt(base_elt):
 
     try:
       getattr(self, "up_down_handle_" + q_type)(q_msg, r_msg, done, lose)
-
     except (rpki.async.ExitNow, SystemExit):
       raise
-
-    except rpki.exceptions.NoActiveCA, e:
-      lose(e, quiet = True)
-
     except Exception, e:
       lose(e)
 

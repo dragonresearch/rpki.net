@@ -24,15 +24,10 @@ RPKI publication protocol.
 import os
 import errno
 import logging
-import rpki.resource_set
+
 import rpki.x509
-import rpki.sql
 import rpki.exceptions
-import rpki.http
-import rpki.up_down
 import rpki.relaxng
-import rpki.sundial
-import rpki.log
 
 from lxml.etree import Element, SubElement
 

@@ -26,15 +26,10 @@ protocol itself.
 
 import logging
 import collections
-import rpki.resource_set
+
 import rpki.x509
-import rpki.sql
 import rpki.exceptions
-import rpki.http
-import rpki.up_down
 import rpki.relaxng
-import rpki.sundial
-import rpki.log
 
 logger = logging.getLogger(__name__)
 

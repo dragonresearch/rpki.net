@@ -38,7 +38,6 @@ import time
 import rpki.config
 import rpki.sundial
 import rpki.log
-import rpki.http
 import rpki.resource_set
 import rpki.relaxng
 import rpki.exceptions

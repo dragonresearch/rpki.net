@@ -28,11 +28,10 @@ import logging
 import httplib
 import argparse
 import urlparse
+
 import rpki.resource_set
 import rpki.up_down
-import rpki.left_right
 import rpki.x509
-import rpki.http
 import rpki.http_simple
 import rpki.config
 import rpki.exceptions
@@ -40,6 +39,7 @@ import rpki.relaxng
 import rpki.sundial
 import rpki.log
 import rpki.daemonize
+import rpki.publication
 
 from lxml.etree import Element, SubElement
 

@@ -28,6 +28,7 @@ import random
 import base64
 import logging
 import argparse
+
 import rpki.resource_set
 import rpki.up_down
 import rpki.left_right
@@ -405,7 +406,7 @@ class main(object):
             logger.exception("Unhandled exception serving left-right PDU %r", q_pdu)
 
           # Compatability kludge
-          if isinstance(q_pdu, rpki.left_right.data_elt):
+          if isinstance(q_pdu, rpki.left_right.base_elt):
             error_self_handle = q_pdu.self_handle
             error_tag         = q_pdu.tag
           else:

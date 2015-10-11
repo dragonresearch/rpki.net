@@ -3,13 +3,20 @@ Django ORM models for rpkid.
 """
 
 from __future__ import unicode_literals
+
+import logging
+
 from django.db import models
+
 import rpki.left_right
 
 from rpki.fields import (EnumField, SundialField, BlobField,
                          CertificateField, KeyField, CRLField, PKCS10Field,
                          ManifestField, ROAField, GhostbusterField)
 
+from lxml.etree import Element, SubElement, tostring as ElementToString
+
+logger = logging.getLogger(__name__)
 
 # The objects available via the left-right protocol allow NULL values
 # in places we wouldn't otherwise (eg, bpki_cert fields), to support
@@ -17,20 +24,113 @@ from rpki.fields import (EnumField, SundialField, BlobField,
 # gradually.  We may want to rethink this eventually, but that yak can
 # wait for its shave, particularly since disallowing null should be a
 # very simple change given migrations.
+
+# The <self/> element was really badly named, but we weren't using
+# Python when we named it.  Perhaps <tenant/> would be a better name?
+# Would want to rename it in left-right too.
 #
-# At least for the moment, we use trivial custom managers on these
-# classes to provide a simple way of looking up objects from lxml
-# objects.  Rethink this later if it proves tedious.
+# To make things worse, <self/> elements are handled slightly
+# differently in many places, so there are a number of occurances of
+# "self" or "self_handle" as special case magic.  Feh.
+#
+# Cope for now, just be careful.
 
-# "self" was a really bad name for this, but we weren't using Python
-# when we named it.  Perhaps "Tenant" would be a better name?  Even
-# means sort of the right thing, well, in French anyway.
-# Eventually rename in left-right too, I guess.
+class XMLTemplate(object):
+  """
+  Encapsulate all the voodoo for transcoding between lxml and ORM.
+  """
 
-class SelfManager(models.Manager):
-  def find_from_xml(self, elt):
-    assert elt.tag == rpki.left_right.tag_self
-    return self.get(self_handle = elt.get("self_handle"))
+  # Type map to simplify declaration of Base64 sub-elements.
+
+  element_type = dict(bpki_cert        = rpki.x509.X509,
+                      bpki_glue        = rpki.x509.X509,
+                      bpki_cms_cert    = rpki.x509.X509,
+                      bpki_cms_glue    = rpki.x509.X509,
+                      pkcs10_request   = rpki.x509.PKCS10,
+                      signing_cert     = rpki.x509.X509,
+                      signing_cert_crl = rpki.x509.CRL)
+
+  def __init__(self, name, attributes = (), booleans = (), elements = (), handles = ()):
+    self.name       = name
+    self.handles    = handles
+    self.attributes = attributes
+    self.booleans   = booleans
+    self.elements   = elements
+    
+  def encode(self, obj):
+    """
+    Encode an ORM object as XML.
+    """
+
+    xml = Element(rpki.left_right.xmlns + self.name, nsmap = rpki.left_right.nsmap)
+    xml.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
+    for k in self.handles:
+      v = getattr(obj, k.xml.name)
+      if v is not None:
+        xml.set(k.xml.name + "_handle", getattr(v, k.xml.name + "_handle"))
+    for k in self.attributes:
+      v = getattr(obj, k)
+      if v is not None:
+        xml.set(k, str(v))
+    for k in self.booleans:
+      if getattr(obj, k):
+        xml.set(k, "yes")
+    for k in self.elements:
+      v = getattr(obj, k)
+      if v is not None and not v.empty():
+        SubElement(xml, rpki.left_right.xmlns + k).text = v.get_Base64()
+    return xml
+
+  def decode(self, obj, xml):
+    """
+    Decode XML into an ORM object.
+    """
+
+    assert xml.tag == rpki.left_right.xmlns + self.name
+    setattr(obj, self.name + "_handle", xml.get(self.name + "_handle"))
+    for k in self.handles:
+      v = xml.get(k.xml.name + "_handle")
+      if v is not None:
+        d = { k.xml.name + "_handle" : v }
+        if k.xml.name != "self":
+          d.update(self = obj.self)
+        setattr(obj, k.xml.name, k.objects.get(**d))
+    for k in self.attributes:
+      v = xml.get(k)
+      if v is not None:
+        v.encode("ascii")
+        if v.isdigit():
+          v = long(v)
+        setattr(obj, k, v)
+    for k in self.booleans:
+      v = xml.get(k)
+      if v is not None:
+        setattr(obj, k, v == "yes")
+    for k in self.elements:
+      v = xml.findtext(rpki.left_right.xmlns + k)
+      if v and v.strip():
+        setattr(obj, k, self.element_type[k](Base64 = v))
+
+
+class XMLManager(models.Manager):
+  """
+  Add a .xml_find() method which looks up the object corresponding to
+  the handles in an XML element.
+
+  This assumes that models which use it have an "xml" class attribute
+  holding an XMLTemplate object (above).
+  """
+
+  def xml_find(self, xml):
+    name = self.model.xml.name
+    assert xml.tag == rpki.left_right.xmlns + name
+    d = { name + "_handle" : xml.get(name + "_handle") }
+    if name != "self":
+      d.update(self__self_handle = xml.get("self_handle"))
+    return self.get(**d)
+
+
+# Models
 
 class Self(models.Model):
   self_handle = models.SlugField(max_length = 255)
@@ -39,12 +139,12 @@ class Self(models.Model):
   regen_margin = models.BigIntegerField(null = True)
   bpki_cert = CertificateField(null = True)
   bpki_glue = CertificateField(null = True)
-  objects = SelfManager()
+  objects = XMLManager()
 
-class BSCManager(models.Manager):
-  def find_from_xml(self, elt):
-    assert elt.tag == rpki.left_right.tag_bsc
-    return self.get(self__self_handle = elt.get("self_handle"), bsc_handle = elt.get("bsc_handle"))
+  xml = XMLTemplate(name       = "self",
+                    attributes = ("crl_interval", "regen_margin"),
+                    booleans   = ("use_hsm",),
+                    elements   = ("bpki_cert", "bpki_glue"))
 
 class BSC(models.Model):
   bsc_handle = models.SlugField(max_length = 255)
@@ -54,14 +154,14 @@ class BSC(models.Model):
   signing_cert = CertificateField(null = True)
   signing_cert_crl = CRLField(null = True)
   self = models.ForeignKey(Self)
-  objects = BSCManager()
+  objects = XMLManager()
+
   class Meta:
     unique_together = ("self", "bsc_handle")
 
-class RepositoryManager(models.Manager):
-  def find_from_xml(self, elt):
-    assert elt.tag == rpki.left_right.tag_repository
-    return self.get(self__self_handle = elt.get("self_handle"), repository_handle = elt.get("repository_handle"))
+  xml = XMLTemplate(name       = "bsc",
+                    handles    = (Self,),
+                    elements   = ("signing_cert", "signing_cert_crl", "pkcs10_request"))
 
 class Repository(models.Model):
   repository_handle = models.SlugField(max_length = 255)
@@ -71,14 +171,16 @@ class Repository(models.Model):
   last_cms_timestamp = SundialField(null = True)
   bsc = models.ForeignKey(BSC)
   self = models.ForeignKey(Self)
-  objects = RepositoryManager()
+  objects = XMLManager()
+
   class Meta:
     unique_together = ("self", "repository_handle")
 
-class ParentManager(models.Manager):
-  def find_from_xml(self, elt):
-    assert elt.tag == rpki.left_right.tag_parent
-    return self.get(self__self_handle = elt.get("self_handle"), parent_handle = elt.get("parent_handle"))
+  xml = XMLTemplate(name       = "repository",
+                    handles    = (Self, BSC),
+                    attributes = ("peer_contact_uri",),
+                    elements   = ("bpki_cert", "bpki_glue"))
+
 
 class Parent(models.Model):
   parent_handle = models.SlugField(max_length = 255)
@@ -92,9 +194,15 @@ class Parent(models.Model):
   self = models.ForeignKey(Self)
   bsc = models.ForeignKey(BSC)
   repository = models.ForeignKey(Repository)
-  objects = ParentManager()
+  objects = XMLManager()
+
   class Meta:
     unique_together = ("self", "parent_handle")
+
+  xml = XMLTemplate(name       = "parent",
+                    handles    = (Self, BSC, Repository),
+                    attributes = ("peer_contact_uri", "sia_base", "sender_name", "recipient_name"),
+                    elements   = ("bpki_cms_cert", "bpki_cms_glue"))
 
 class CA(models.Model):
   last_crl_sn = models.BigIntegerField()
@@ -121,11 +229,6 @@ class CADetail(models.Model):
   ca_cert_uri = models.TextField(null = True)
   ca = models.ForeignKey(CA)
 
-class ChildManager(models.Manager):
-  def find_from_xml(self, elt):
-    assert elt.tag == rpki.left_right.tag_child
-    return self.get(self__self_handle = elt.get("self_handle"), child_handle = elt.get("child_handle"))
-
 class Child(models.Model):
   child_handle = models.SlugField(max_length = 255)
   bpki_cert = CertificateField(null = True)
@@ -133,9 +236,14 @@ class Child(models.Model):
   last_cms_timestamp = SundialField(null = True)
   self = models.ForeignKey(Self)
   bsc = models.ForeignKey(BSC)
-  objects = ChildManager()
+  objects = XMLManager()
+
   class Meta:
     unique_together = ("self", "child_handle")
+
+  xml = XMLTemplate(name     = "child",
+                    handles  = (Self, BSC),
+                    elements = ("bpki_cert", "bpki_glue"))
 
 class ChildCert(models.Model):
   cert = CertificateField()

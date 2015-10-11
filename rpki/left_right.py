@@ -85,7 +85,6 @@ class base_elt(rpki.sql.sql_persistent):
   attributes = ()
   elements = ()
   booleans = ()
-  text_attribute = None
 
   self_id = None
   self_handle = None
@@ -107,8 +106,6 @@ class base_elt(rpki.sql.sql_persistent):
       setattr(self, key, val)
     for key in self.booleans:
       setattr(self, key, elt.get(key, False))
-    if self.text_attribute is not None:
-      setattr(self, self.text_attribute, elt.text)
     for b64 in elt:
       assert b64.tag.startswith(xmlns)
       setattr(self, b64.tag[len(xmlns):], self.elements[b64.tag](Base64 = b64.text))
@@ -439,12 +436,6 @@ class self_elt(base_elt):
     repositories = set()
     objects = dict()
 
-    def list_handler(r_pdu, repository):
-      rpki.publication.raise_if_error(r_pdu)
-      assert r_pdu.tag == rpki.publication.tag_list
-      assert r_pdu.get("uri") not in objects
-      objects[r_pdu.get("uri")] = (r_pdu.get("hash"), repository)
-
     def loop(iterator, parent):
       repository = parent.repository
       if repository.peer_contact_uri in repositories:
@@ -453,11 +444,14 @@ class self_elt(base_elt):
       q_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
                       type = "query", version = rpki.publication.version)
       SubElement(q_msg, rpki.publication.tag_list, tag = "list")
-      def handler(r_pdu):
-        list_handler(r_pdu, repository)
-      repository.call_pubd(iterator, eb, q_msg,
-                           handlers = dict(list = handler),
-                           length_check = False)
+      def list_handler(r_pdu):
+        rpki.publication.raise_if_error(r_pdu)
+        assert r_pdu.tag == rpki.publication.tag_list
+        assert r_pdu.get("uri") not in objects
+        objects[r_pdu.get("uri")] = (r_pdu.get("hash"), repository)
+      repository.call_pubd(iterator, eb,
+                           q_msg, length_check = False,
+                           handlers = dict(list = list_handler))
 
     def reconcile(uri, obj, repository):
       h, r = objects.pop(uri, (None, None))

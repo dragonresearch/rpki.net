@@ -387,7 +387,8 @@ class main(object):
                       type = "reply", version = rpki.left_right.version)
       self.irbe_cms_timestamp = q_cms.check_replay(self.irbe_cms_timestamp, path)
 
-      assert q_msg.tag.startswith(rpki.left_right.xmlns) and all(q_pdu.tag.startswith(rpki.left_right.xmlns) for q_pdu in q_msg)
+      assert q_msg.tag.startswith(rpki.left_right.xmlns)
+      assert all(q_pdu.tag.startswith(rpki.left_right.xmlns) for q_pdu in q_msg)
 
       if q_msg.get("version") != rpki.left_right.version:
         raise rpki.exceptions.BadQuery("Unrecognized protocol version")
@@ -404,7 +405,6 @@ class main(object):
         def fail(e):
           if not isinstance(e, rpki.exceptions.NotFound):
             logger.exception("Unhandled exception serving left-right PDU %r", q_pdu)
-
           # Compatability kludge
           if isinstance(q_pdu, rpki.left_right.base_elt):
             error_self_handle = q_pdu.self_handle
@@ -412,23 +412,21 @@ class main(object):
           else:
             error_self_handle = q_pdu.get("self_handle")
             error_tag         = q_pdu.get("tag")
-
           r_pdu = SubElement(r_msg, rpki.left_right.tag_report_error, error_code = e.__class__.__name__)
           r_pdu.text = str(e)
           if error_tag is not None:
             r_pdu.set("tag", error_tag)
           if error_self_handle is not None:
             r_pdu.set("self_handle", error_self_handle)
-
           self.sql.sweep()
-
           cb(200, body = rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert))
 
         try:
           if q_pdu.tag in self.left_right_trivial_handlers:
             self.left_right_trivial_handlers[q_pdu.tag](q_pdu, r_msg)
             iterator()
-          else:
+
+          elif True:                    # Old-style handlers
             q_map = { rpki.left_right.tag_self          : rpki.left_right.self_elt,
                       rpki.left_right.tag_bsc           : rpki.left_right.bsc_elt,
                       rpki.left_right.tag_parent        : rpki.left_right.parent_elt,
@@ -437,6 +435,33 @@ class main(object):
             q_pdu = q_map[q_pdu.tag].fromXML(q_pdu)
             q_pdu.gctx = self
             q_pdu.serve_dispatch(r_msg, iterator, fail)
+
+          else:                         # New-style handlers
+
+            # This will all need to go under an @atomic or equivalent
+            # with statement, just not quite sure where to put it yet.
+
+            action = q_pdu.get("action")
+            model  = self.left_right_models[q_pdu.tag]
+
+            if action in ("get", "list"):
+              for obj in model.objects.xml_list(q_pdu):
+                obj.xml_template.encode(obj, r_msg)
+
+            elif action == "destroy":
+              model.objects.xml_get_for_delete(q_pdu).delete()
+              obj.xml_template.acknowledge(obj, q_pdu, r_msg)
+
+            else:
+              assert action in ("create", "set")
+              obj = model.objects.xml_get_or_create(q_pdu)
+              obj.xml_template.decode(obj, q_pdu)
+
+              # Handle special actions here.
+
+              obj.save()
+              obj.xml_template.acknowledge(obj, q_pdu, r_msg)
+
         except (rpki.async.ExitNow, SystemExit):
           raise
         except Exception, e:

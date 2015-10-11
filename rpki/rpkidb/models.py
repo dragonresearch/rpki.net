@@ -56,79 +56,120 @@ class XMLTemplate(object):
     self.attributes = attributes
     self.booleans   = booleans
     self.elements   = elements
-    
-  def encode(self, obj):
+
+  def encode(self, obj, r_msg):
     """
     Encode an ORM object as XML.
     """
 
-    xml = Element(rpki.left_right.xmlns + self.name, nsmap = rpki.left_right.nsmap)
-    xml.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
-    for k in self.handles:
-      v = getattr(obj, k.xml.name)
+    r_pdu = SubElement(r_msg, rpki.left_right.xmlns + self.name, nsmap = rpki.left_right.nsmap)
+    r_pdu.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
+    if self.name != "self":
+      r_pdu.set("self_handle", getattr(obj, "self_handle"))
+    for h in self.handles:
+      k = h.xml_template.name
+      v = getattr(obj, k)
       if v is not None:
-        xml.set(k.xml.name + "_handle", getattr(v, k.xml.name + "_handle"))
+        r_pdu.set(k + "_handle", getattr(v, k + "_handle"))
     for k in self.attributes:
       v = getattr(obj, k)
       if v is not None:
-        xml.set(k, str(v))
+        r_pdu.set(k, str(v))
     for k in self.booleans:
       if getattr(obj, k):
-        xml.set(k, "yes")
+        r_pdu.set(k, "yes")
     for k in self.elements:
       v = getattr(obj, k)
       if v is not None and not v.empty():
-        SubElement(xml, rpki.left_right.xmlns + k).text = v.get_Base64()
-    return xml
+        SubElement(r_pdu, rpki.left_right.xmlns + k).text = v.get_Base64()
 
-  def decode(self, obj, xml):
+  def acknowledge(self, obj, q_pdu, r_msg):
+    """
+    Add an acknowledgement PDU in response to a create, set, or
+    destroy action.
+
+    This includes a bit of special-case code for BSC objects which has
+    to go somewhere; we could handle it via some kind method of
+    call-out to the BSC model, but it's not worth building a general
+    mechanism for one case, so we do it inline and have done.
+    """
+
+    assert q_pdu.tag == rpki.left_right.xmlns + self.name
+    r_pdu = SubElement(r_msg, rpki.left_right.xmlns + self.name, nsmap = rpki.left_right.nsmap)
+    r_pdu.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
+    if self.name != "self":
+      r_pdu.set("self_handle", getattr(obj, "self_handle"))
+    if self.name == "bsc" and q_pdu.get("action") != "destroy" and obj.pkcs11_request is not None:
+      assert not obj.pkcs11_request.empty()
+      SubElement(r_pdu, rpki.left_right.xmlns + "pkcs11_request").text = obj.pkcs11_request.get_Base64()
+
+  def decode(self, obj, q_pdu):
     """
     Decode XML into an ORM object.
     """
 
-    assert xml.tag == rpki.left_right.xmlns + self.name
-    setattr(obj, self.name + "_handle", xml.get(self.name + "_handle"))
-    for k in self.handles:
-      v = xml.get(k.xml.name + "_handle")
+    assert q_pdu.tag == rpki.left_right.xmlns + self.name
+    for h in self.handles:
+      k = h.xml_template.name
+      v = q_pdu.get(k + "_handle")
       if v is not None:
-        d = { k.xml.name + "_handle" : v }
-        if k.xml.name != "self":
-          d.update(self = obj.self)
-        setattr(obj, k.xml.name, k.objects.get(**d))
+        setattr(obj, k, h.objects.get(**{k + "_handle" : v, "self" : obj.self}))
     for k in self.attributes:
-      v = xml.get(k)
+      v = q_pdu.get(k)
       if v is not None:
         v.encode("ascii")
         if v.isdigit():
           v = long(v)
         setattr(obj, k, v)
     for k in self.booleans:
-      v = xml.get(k)
+      v = q_pdu.get(k)
       if v is not None:
         setattr(obj, k, v == "yes")
     for k in self.elements:
-      v = xml.findtext(rpki.left_right.xmlns + k)
+      v = q_pdu.findtext(rpki.left_right.xmlns + k)
       if v and v.strip():
         setattr(obj, k, self.element_type[k](Base64 = v))
 
 
 class XMLManager(models.Manager):
   """
-  Add a .xml_find() method which looks up the object corresponding to
-  the handles in an XML element.
+  Add a few methods which locate or create an object or objects
+  corresponding to the handles in an XML element, as appropriate.
 
   This assumes that models which use it have an "xml" class attribute
   holding an XMLTemplate object (above).
   """
 
-  def xml_find(self, xml):
-    name = self.model.xml.name
-    assert xml.tag == rpki.left_right.xmlns + name
+  def xml_get_or_create(self, xml):
+    name   = self.model.xml_template.name
+    action = xml.get("action")
+    assert xml.tag == rpki.left_right.xmlns + name and action in ("create", "set")
+    d = { name + "_handle" : xml.get(name + "_handle") }
+    if name != "self" and action == "create":
+      d["self"] = Self.objects.get(self_handle = xml.get("self_handle"))
+    elif name != "self":
+      d["self__self_handle"] = xml.get("self_handle")
+    return self.model(**d) if action == "create" else self.get(**d)
+
+  def xml_list(self, xml):
+    name   = self.model.xml_template.name
+    action = xml.get("action")
+    assert xml.tag == rpki.left_right.xmlns + name and action in ("get", "list")
+    d = {}
+    if action == "get":
+      d[name + "_handle"] = xml.get(name + "_handle")
+    if name != "self":
+      d["self__self_handle"] = xml.get("self_handle")
+    return self.filter(**d) if d else self.all()
+
+  def xml_get_for_delete(self, xml):
+    name   = self.model.xml_template.name
+    action = xml.get("action")
+    assert xml.tag == rpki.left_right.xmlns + name and action == "destroy"
     d = { name + "_handle" : xml.get(name + "_handle") }
     if name != "self":
-      d.update(self__self_handle = xml.get("self_handle"))
+      d["self__self_handle"] = xml.get("self_handle")
     return self.get(**d)
-
 
 # Models
 
@@ -141,10 +182,11 @@ class Self(models.Model):
   bpki_glue = CertificateField(null = True)
   objects = XMLManager()
 
-  xml = XMLTemplate(name       = "self",
-                    attributes = ("crl_interval", "regen_margin"),
-                    booleans   = ("use_hsm",),
-                    elements   = ("bpki_cert", "bpki_glue"))
+  xml_template = XMLTemplate(
+    name       = "self",
+    attributes = ("crl_interval", "regen_margin"),
+    booleans   = ("use_hsm",),
+    elements   = ("bpki_cert", "bpki_glue"))
 
 class BSC(models.Model):
   bsc_handle = models.SlugField(max_length = 255)
@@ -159,9 +201,9 @@ class BSC(models.Model):
   class Meta:
     unique_together = ("self", "bsc_handle")
 
-  xml = XMLTemplate(name       = "bsc",
-                    handles    = (Self,),
-                    elements   = ("signing_cert", "signing_cert_crl", "pkcs10_request"))
+  xml_template = XMLTemplate(
+    name       = "bsc",
+    elements   = ("signing_cert", "signing_cert_crl", "pkcs10_request"))
 
 class Repository(models.Model):
   repository_handle = models.SlugField(max_length = 255)
@@ -176,10 +218,11 @@ class Repository(models.Model):
   class Meta:
     unique_together = ("self", "repository_handle")
 
-  xml = XMLTemplate(name       = "repository",
-                    handles    = (Self, BSC),
-                    attributes = ("peer_contact_uri",),
-                    elements   = ("bpki_cert", "bpki_glue"))
+  xml_template = XMLTemplate(
+    name       = "repository",
+    handles    = (BSC,),
+    attributes = ("peer_contact_uri",),
+    elements   = ("bpki_cert", "bpki_glue"))
 
 
 class Parent(models.Model):
@@ -199,10 +242,11 @@ class Parent(models.Model):
   class Meta:
     unique_together = ("self", "parent_handle")
 
-  xml = XMLTemplate(name       = "parent",
-                    handles    = (Self, BSC, Repository),
-                    attributes = ("peer_contact_uri", "sia_base", "sender_name", "recipient_name"),
-                    elements   = ("bpki_cms_cert", "bpki_cms_glue"))
+  xml_template = XMLTemplate(
+    name       = "parent",
+    handles    = (BSC, Repository),
+    attributes = ("peer_contact_uri", "sia_base", "sender_name", "recipient_name"),
+    elements   = ("bpki_cms_cert", "bpki_cms_glue"))
 
 class CA(models.Model):
   last_crl_sn = models.BigIntegerField()
@@ -241,9 +285,10 @@ class Child(models.Model):
   class Meta:
     unique_together = ("self", "child_handle")
 
-  xml = XMLTemplate(name     = "child",
-                    handles  = (Self, BSC),
-                    elements = ("bpki_cert", "bpki_glue"))
+  xml_template = XMLTemplate(
+    name     = "child",
+    handles  = (BSC,),
+    elements = ("bpki_cert", "bpki_glue"))
 
 class ChildCert(models.Model):
   cert = CertificateField()

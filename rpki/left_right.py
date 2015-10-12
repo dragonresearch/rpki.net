@@ -156,26 +156,21 @@ class base_elt(rpki.sql.sql_persistent):
 
   def serve_create(self, r_msg, cb, eb):
     r_pdu = self.make_reply()
-
     def one():
       self.sql_store()
       setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
       self.serve_post_save_hook(self, r_pdu, two, eb)
-
     def two():
       r_msg.append(r_pdu)
       cb()
-
     oops = self.serve_fetch_one_maybe()
     if oops is not None:
       raise rpki.exceptions.DuplicateObject("Object already exists: %r[%r] %r[%r]" % (
         self, getattr(self, self.element_name[len(xmlns):] + "_handle"),
         oops, getattr(oops, oops.element_name[len(xmlns):] + "_handle")))
-
     self.serve_pre_save_hook(self, r_pdu, one, eb)
 
   def serve_set(self, r_msg, cb, eb):
-
     db_pdu = self.serve_fetch_one()
     r_pdu = self.make_reply()
     for a in db_pdu.sql_template.columns[1:]:
@@ -183,15 +178,12 @@ class base_elt(rpki.sql.sql_persistent):
       if v is not None:
         setattr(db_pdu, a, v)
     db_pdu.sql_mark_dirty()
-
     def one():
       db_pdu.sql_store()
       db_pdu.serve_post_save_hook(self, r_pdu, two, eb)
-
     def two():
       r_msg.append(r_pdu)
       cb()
-
     db_pdu.serve_pre_save_hook(self, r_pdu, one, eb)
 
   def serve_get(self, r_msg, cb, eb):
@@ -219,21 +211,16 @@ class base_elt(rpki.sql.sql_persistent):
 
   def serve_dispatch(self, r_msg, cb, eb):
     # Transition hack: handle the .toXML() call for old handlers.
-
     fake_r_msg = []
-
     def fake_convert():
       r_msg.extend(r_pdu.toXML() if isinstance(r_pdu, base_elt) else r_pdu
                    for r_pdu in fake_r_msg)
-
     def fake_cb():
       fake_convert()
       cb()
-
     def fake_eb(e):
       fake_convert()
       eb(e)
-
     method = getattr(self, "serve_" + self.action, None)
     if method is None:
       raise rpki.exceptions.BadQuery("Unexpected query: action %s" % self.action)
@@ -255,10 +242,6 @@ class base_elt(rpki.sql.sql_persistent):
     return bsc_elt.sql_fetch(self.gctx, self.bsc_id)
 
   def make_reply_clone_hook(self, r_pdu):
-    """
-    Set handles when cloning, including _id -> _handle translation.
-    """
-
     if r_pdu.self_handle is None:
       r_pdu.self_handle = self.self_handle
     for tag, elt in self.handles:
@@ -276,11 +259,6 @@ class base_elt(rpki.sql.sql_persistent):
     return cls.sql_fetch_where1(gctx, name + "_handle = %s AND self_id = %s", (handle, self_id))
 
   def serve_fetch_one_maybe(self):
-    """
-    Find the object on which a get, set, or destroy method should
-    operate, or which would conflict with a create method.
-    """
-
     name = self.element_name[len(xmlns):]
     where = "%s.%s_handle = %%s AND %s.self_id = self.self_id AND self.self_handle = %%s" % (name, name, name)
     args = (getattr(self, name + "_handle"), self.self_handle)
@@ -288,24 +266,12 @@ class base_elt(rpki.sql.sql_persistent):
     return self.sql_fetch_where1(self.gctx, where, args, "self")
 
   def serve_fetch_all(self):
-    """
-    Find the objects on which a list method should operate.
-    """
-
     name = self.element_name[len(xmlns):]
     where = "%s.self_id = self.self_id and self.self_handle = %%s" % name
     return self.sql_fetch_where(self.gctx, where, (self.self_handle,), "self")
 
   def serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """
-    Hook to do _handle => _id translation before saving.
-
-    self is always the object to be saved to SQL.  For create
-    operations, self and q_pdu are be the same object; for set
-    operations, self is the pre-existing object from SQL and q_pdu is
-    the set request received from the the IRBE.
-    """
-
+    # self is always the object to be saved to SQL.
     for tag, elt in self.handles:
       id_name = tag + "_id"
       if getattr(self, id_name, None) is None:

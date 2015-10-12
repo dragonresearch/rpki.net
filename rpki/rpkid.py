@@ -427,6 +427,7 @@ class main(object):
             iterator()
 
           elif True:                    # Old-style handlers
+
             q_map = { rpki.left_right.tag_self          : rpki.left_right.self_elt,
                       rpki.left_right.tag_bsc           : rpki.left_right.bsc_elt,
                       rpki.left_right.tag_parent        : rpki.left_right.parent_elt,
@@ -438,8 +439,24 @@ class main(object):
 
           else:                         # New-style handlers
 
-            # This will all need to go under an @atomic or equivalent
-            # with statement, just not quite sure where to put it yet.
+            # Notes on hooks in old code
+            #
+            # .serve_pre_save_hook(): used by all classes to do some
+            # kind of handle fixup which I think is now OBE.  Also
+            # used by BSC for key generation, because schema (and
+            # corresponding new model) don't allow NULL for private
+            # key or PKCS10 request, so either we have to relax the
+            # schema constraint or generate key before saving.
+            # (bsc)
+            #
+            # .serve_destroy_hook(): used by several objects to
+            # trigger revocation of related objects.  Will probably
+            # need to preserve this behavior.
+            # (self, parent, child)
+            #
+            # .serve_post_save_hook(): used to trigger various actions
+            # based on boolean attributes in XML.
+            # (self, repository, parent, child)
 
             action = q_pdu.get("action")
             model  = self.left_right_models[q_pdu.tag]
@@ -449,18 +466,21 @@ class main(object):
                 obj.xml_template.encode(obj, r_msg)
 
             elif action == "destroy":
-              model.objects.xml_get_for_delete(q_pdu).delete()
+              obj = model.objects.xml_get_for_delete(q_pdu)
+              obj.xml_pre_delete_hook()
+              obj.delete()
+              obj.xml_template.acknowledge(obj, q_pdu, r_msg)
+
+            elif action in ("create", "set"):
+              obj = model.objects.xml_get_or_create(q_pdu)
+              obj.xml_template.decode(obj, q_pdu)
+              obj.xml_pre_save_hook(q_pdu)
+              obj.save()
+              obj.xml_post_save_hook(q_pdu)
               obj.xml_template.acknowledge(obj, q_pdu, r_msg)
 
             else:
-              assert action in ("create", "set")
-              obj = model.objects.xml_get_or_create(q_pdu)
-              obj.xml_template.decode(obj, q_pdu)
-
-              # Handle special actions here.
-
-              obj.save()
-              obj.xml_template.acknowledge(obj, q_pdu, r_msg)
+              raise BadQuery
 
         except (rpki.async.ExitNow, SystemExit):
           raise

@@ -467,16 +467,31 @@ class main(object):
 
             elif action == "destroy":
               obj = model.objects.xml_get_for_delete(q_pdu)
-              obj.xml_pre_delete_hook()
+              try:
+                hook = obj.xml_pre_delete_hook
+              except AttributeError:
+                pass
+              else:
+                hook()
               obj.delete()
               obj.xml_template.acknowledge(obj, q_pdu, r_msg)
 
             elif action in ("create", "set"):
               obj = model.objects.xml_get_or_create(q_pdu)
               obj.xml_template.decode(obj, q_pdu)
-              obj.xml_pre_save_hook(q_pdu)
+              try:
+                hook = obj.xml_pre_save_hook
+              except AttributeError:
+                pass
+              else:
+                hook(q_pdu)
               obj.save()
-              obj.xml_post_save_hook(q_pdu)
+              try:
+                hook = obj.xml_post_save_hook
+              except AttributeError:
+                pass
+              else:
+                hook(q_pdu)
               obj.xml_template.acknowledge(obj, q_pdu, r_msg)
 
             else:

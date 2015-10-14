@@ -1725,6 +1725,163 @@ class EECert(models.Model):
   self = models.ForeignKey(Self, related_name = "ee_certs")
   ca_detail = models.ForeignKey(CADetail, related_name = "ee_certs")
 
+
+  @property
+  def gski(self):
+    """
+    Calculate g(SKI), for ease of comparison with XML.
+
+    Although, really, one has to ask why we don't just store g(SKI)
+    in rpkid.sql instead of ski....
+    """
+
+    return base64.urlsafe_b64encode(self.ski).rstrip("=")
+
+  @gski.setter
+  def gski(self, val):
+    self.ski = base64.urlsafe_b64decode(val + ("=" * ((4 - len(val)) % 4)))
+
+
+  @property
+  def uri(self):
+    """
+    Return the publication URI for this ee_cert_obj.
+    """
+
+    return self.ca_detail.ca.sia_uri + self.uri_tail
+
+
+  @property
+  def uri_tail(self):
+    """
+    Return the tail (filename portion) of the publication URI for this
+    ee_cert_obj.
+    """
+
+    return self.cert.gSKI() + ".cer"
+
+
+  @classmethod
+  def create(cls, ca_detail, subject_name, subject_key, resources, publisher, eku = None):
+    """
+    Generate a new EE certificate.
+    """
+
+    cn, sn = subject_name.extract_cn_and_sn()
+    ca = ca_detail.ca
+    sia = (None, None, ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer", rpki.publication.rrdp_sia_uri_kludge)
+    cert = ca_detail.issue_ee(
+      ca          = ca_detail.ca,
+      subject_key = subject_key,
+      sia         = sia,
+      resources   = resources,
+      notAfter    = resources.valid_until,
+      cn          = cn,
+      sn          = sn,
+      eku         = eku)
+    self = cls(self = ca_detail.ca.parent.self, ca_detail_id = ca_detail.ca_detail_id, cert = cert)
+    publisher.queue(
+      uri        = self.uri,
+      new_obj    = self.cert,
+      repository = ca_detail.ca.parent.repository,
+      handler    = self.published_callback)
+    self.save()
+    ca_detail.generate_manifest(publisher = publisher)
+    logger.debug("New ee_cert %r", self)
+    return self
+
+
+  def revoke(self, publisher, generate_crl_and_manifest = True):
+    """
+    Revoke and withdraw an EE certificate.
+    """
+
+    ca_detail = self.ca_detail
+    logger.debug("Revoking %r %r", self, self.uri)
+    RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
+    publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.parent.repository)
+    self.delete()
+    if generate_crl_and_manifest:
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
+
+
+  def reissue(self, publisher, ca_detail = None, resources = None, force = False):
+    """
+    Reissue an existing EE cert, reusing the public key.  If the EE
+    cert we would generate is identical to the one we already have, we
+    just return; if we need to reissue, we reuse this ee_cert_obj and
+    just update its contents, as the publication URI will not have
+    changed.
+    """
+
+    needed = False
+    old_cert = self.cert
+    old_ca_detail = self.ca_detail
+    if ca_detail is None:
+      ca_detail = old_ca_detail
+    assert ca_detail.ca is old_ca_detail.ca
+    old_resources = old_cert.get_3779resources()
+    if resources is None:
+      resources = old_resources
+    assert resources.valid_until is not None and old_resources.valid_until is not None
+    assert ca_detail.covers(resources)
+    if ca_detail != self.ca_detail:
+      logger.debug("ca_detail changed for %r: old %r new %r", self, self.ca_detail, ca_detail)
+      needed = True
+    if ca_detail.ca_cert_uri != old_cert.get_AIA()[0]:
+      logger.debug("AIA changed for %r: old %s new %s", self, old_cert.get_AIA()[0], ca_detail.ca_cert_uri)
+      needed = True
+    if resources.valid_until != old_resources.valid_until:
+      logger.debug("Validity changed for %r: old %s new %s", self, old_resources.valid_until, resources.valid_until)
+      needed = True
+    if resources.asn != old_resources.asn or resources.v4 != old_resources.v4 or resources.v6 != old_resources.v6:
+      logger.debug("Resources changed for %r: old %s new %s", self, old_resources, resources)
+      needed = True
+    must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until
+    if must_revoke:
+      logger.debug("Must revoke existing cert(s) for %r", self)
+      needed = True
+    if not needed and force:
+      logger.debug("No change needed for %r, forcing reissuance anyway", self)
+      needed = True
+    if not needed:
+      logger.debug("No change to %r", self)
+      return
+    cn, sn = self.cert.getSubject().extract_cn_and_sn()
+    self.cert = ca_detail.issue_ee(
+      ca          = ca_detail.ca,
+      subject_key = self.cert.getPublicKey(),
+      eku         = self.cert.get_EKU(),
+      sia         = (None, None, self.uri, rpki.publication.rrdp_sia_uri_kludge),
+      resources   = resources,
+      notAfter    = resources.valid_until,
+      cn          = cn,
+      sn          = sn)
+    self.save()
+    publisher.queue(
+      uri = self.uri,
+      old_obj = old_cert,
+      new_obj = self.cert,
+      repository = ca_detail.ca.parent.repository,
+      handler = self.published_callback)
+    if must_revoke:
+      RevokedCert.revoke(cert = old_cert.cert, ca_detail = old_ca_detail)
+      ca_detail.generate_crl(publisher = publisher)
+    ca_detail.generate_manifest(publisher = publisher)
+
+
+  def published_callback(self, pdu):
+    """
+    Publication callback: check result and mark published.
+    """
+
+    rpki.publication.raise_if_error(pdu)
+    self.published = None
+    self.save()
+
+
+
 class Ghostbuster(models.Model):
   vcard = models.TextField()
   cert = CertificateField()
@@ -1732,6 +1889,148 @@ class Ghostbuster(models.Model):
   published = SundialField(null = True)
   self = models.ForeignKey(Self, related_name = "ghostbusters")
   ca_detail = models.ForeignKey(CADetail, related_name = "ghostbusters")
+
+
+  def update(self, publisher, fast = False):
+    """
+    Bring this ghostbuster_obj up to date if necesssary.
+    """
+
+    if self.ghostbuster is None:
+      logger.debug("Ghostbuster record doesn't exist, generating")
+      return self.generate(publisher = publisher, fast = fast)
+
+    now = rpki.sundial.now()
+    regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self.regen_margin)
+
+    if now > regen_time and self.cert.getNotAfter() < self.ca_detail.latest_ca_cert.getNotAfter():
+      logger.debug("%r past threshold %s, regenerating", self, regen_time)
+      return self.regenerate(publisher = publisher, fast = fast)
+
+    if now > regen_time:
+      logger.warning("%r is past threshold %s but so is issuer %r, can't regenerate", self, regen_time, self.ca_detail)
+
+    if self.cert.get_AIA()[0] != self.ca_detail.ca_cert_uri:
+      logger.debug("%r AIA changed, regenerating", self)
+      return self.regenerate(publisher = publisher, fast = fast)
+
+
+  def generate(self, publisher, fast = False):
+    """
+    Generate a Ghostbuster record
+
+    Once we have the right covering certificate, we generate the
+    ghostbuster payload, generate a new EE certificate, use the EE
+    certificate to sign the ghostbuster payload, publish the result,
+    then throw away the private key for the EE cert.  This is modeled
+    after the way we handle ROAs.
+
+    If fast is set, we leave generating the new manifest for our
+    caller to handle, presumably at the end of a bulk operation.
+    """
+
+    resources = rpki.resource_set.resource_bag.from_inheritance()
+    keypair = rpki.x509.RSA.generate()
+    self.cert = self.ca_detail.issue_ee(
+      ca          = self.ca_detail.ca,
+      resources   = resources,
+      subject_key = keypair.get_public(),
+      sia         = (None, None, self.uri_from_key(keypair), rpki.publication.rrdp_sia_uri_kludge))
+    self.ghostbuster = rpki.x509.Ghostbuster.build(self.vcard, keypair, (self.cert,))
+    self.published = rpki.sundial.now()
+    self.save()
+    logger.debug("Generating Ghostbuster record %r", self.uri)
+    publisher.queue(
+      uri = self.uri,
+      new_obj = self.ghostbuster,
+      repository = self.ca_detail.ca.parent.repository,
+      handler = self.published_callback)
+    if not fast:
+      self.ca_detail.generate_manifest(publisher = publisher)
+
+
+  def published_callback(self, pdu):
+    """
+    Check publication result.
+    """
+
+    rpki.publication.raise_if_error(pdu)
+    self.published = None
+    self.save()
+
+
+  def revoke(self, publisher, regenerate = False, allow_failure = False, fast = False):
+    """
+    Withdraw Ghostbuster associated with this ghostbuster_obj.
+
+    In order to preserve make-before-break properties without
+    duplicating code, this method also handles generating a
+    replacement ghostbuster when requested.
+
+    If allow_failure is set, failing to withdraw the ghostbuster will not be
+    considered an error.
+
+    If fast is set, SQL actions will be deferred, on the assumption
+    that our caller will handle regenerating CRL and manifest and
+    flushing the SQL cache.
+    """
+
+    ca_detail = self.ca_detail
+    logger.debug("%s %r, ca_detail %r state is %s",
+                 "Regenerating" if regenerate else "Not regenerating",
+                 self, ca_detail, ca_detail.state)
+    if regenerate:
+      self.generate(publisher = publisher, fast = fast)
+    logger.debug("Withdrawing %r %s and revoking its EE cert", self, self.uri)
+    RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
+    publisher.queue(uri = self.uri,
+                    old_obj = self.ghostbuster,
+                    repository = ca_detail.ca.parent.repository,
+                    handler = False if allow_failure else None)
+    if not regenerate:
+      self.delete()
+    if not fast:
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
+
+
+  def regenerate(self, publisher, fast = False):
+    """
+    Reissue Ghostbuster associated with this ghostbuster_obj.
+    """
+
+    if self.ghostbuster is None:
+      self.generate(publisher = publisher, fast = fast)
+    else:
+      self.revoke(publisher = publisher, regenerate = True, fast = fast)
+
+
+  def uri_from_key(self, key):
+    """
+    Return publication URI for a public key.
+    """
+
+    return self.ca_detail.ca.sia_uri + key.gSKI() + ".gbr"
+
+
+  @property
+  def uri(self):
+    """
+    Return the publication URI for this ghostbuster_obj's ghostbuster.
+    """
+
+    return self.ca_detail.ca.sia_uri + self.uri_tail
+
+
+  @property
+  def uri_tail(self):
+    """
+    Return the tail (filename portion) of the publication URI for this
+    ghostbuster_obj's ghostbuster.
+    """
+
+    return self.cert.gSKI() + ".gbr"
+
 
 class RevokedCert(models.Model):
   serial = models.BigIntegerField()
@@ -1754,52 +2053,198 @@ class RevokedCert(models.Model):
 
 class ROA(models.Model):
   asn = models.BigIntegerField()
+  ipv4 = models.TextField(null = True)
+  ipv6 = models.TextField(null = True)
   cert = CertificateField()
   roa = ROAField()
   published = SundialField(null = True)
   self = models.ForeignKey(Self, related_name = "roas")
   ca_detail = models.ForeignKey(CADetail, related_name = "roas")
 
-  # Is there a good reason why we even bother with the ROAPrefix table
-  # or the asn field here?  It looks like we only use this data to
-  # store and reconstruct the complete resource set, which we already
-  # have present in the form of the signed ROA.  We pay a bit of
-  # overhead on this either way (SQL vs ASN.1) but since we have to
-  # store the complete ROA anyway, and since we don't allow it to be
-  # NULL, perhaps we can simplify this considerably by dropping the
-  # asn field and the ROAPrefix table completely.
-  #
-  # If we do need this stuff, see rpki.irdb.models.ROARequest.
-  #
-  # Compromise that might make sense: do store the prefix list, but in
-  # text form: it's what we're getting from XML in any case, and
-  # almost certainly faster to convert to and from resource_set than
-  # any of the other options here (no SQL, no ASN.1).
-  #
-  # The one query that we might someday want to be able to make in SQL
-  # rather than in Python to speed up processing for really big ROA
-  # sets is not on the ROAs anyway, it's on the covering certificates.
-  # In theory, for really big data sets, it might be worth setting up
-  # a secondary lookup table for resources which would let us use SQL
-  # to figure out which certificates cover a particular ROA request.
-  # But the SQL query would be so hideous to construct that we'd have
-  # to be desperate for it to be worthwhile.  Basically, for each
-  # prefix in a ROA prefix set, one would look for a covering range in
-  # the lookup table, then take the intersection of those results to
-  # see if any ca_detail matched all the criteria.  SQL would look
-  # something like:
-  #
-  #   SELECT x.ca_detail_id FROM x WHERE x.min <= prefix1.min AND x.max >= prefix1.max
-  #   INTERSECT
-  #   SELECT x.ca_detail_id FROM x WHERE x.min <= prefix2.min AND x.max >= prefix2.max
-  #   INTERSECT
-  #   SELECT x.ca_detail_id FROM x WHERE x.min <= prefix3.min AND x.max >= prefix3.max
-  #   ...;
+
+  def update(self, publisher, fast = False):
+    """
+    Bring ROA up to date if necesssary.
+    """
+
+    if self.roa is None:
+      logger.debug("%r doesn't exist, generating", self)
+      return self.generate(publisher = publisher, fast = fast)
+
+    if self.ca_detail is None:
+      logger.debug("%r has no associated ca_detail, generating", self)
+      return self.generate(publisher = publisher, fast = fast)
+
+    if self.ca_detail.state != "active":
+      logger.debug("ca_detail associated with %r not active (state %s), regenerating", self, self.ca_detail.state)
+      return self.regenerate(publisher = publisher, fast = fast)
+
+    now = rpki.sundial.now()
+    regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self.regen_margin)
+
+    if now > regen_time and self.cert.getNotAfter() < self.ca_detail.latest_ca_cert.getNotAfter():
+      logger.debug("%r past threshold %s, regenerating", self, regen_time)
+      return self.regenerate(publisher = publisher, fast = fast)
+
+    if now > regen_time:
+      logger.warning("%r is past threshold %s but so is issuer %r, can't regenerate", self, regen_time, self.ca_detail)
+
+    ca_resources = self.ca_detail.latest_ca_cert.get_3779resources()
+    ee_resources = self.cert.get_3779resources()
+
+    if ee_resources.oversized(ca_resources):
+      logger.debug("%r oversized with respect to CA, regenerating", self)
+      return self.regenerate(publisher = publisher, fast = fast)
+
+    v4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
+    v6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+
+    if ee_resources.v4 != v4 or ee_resources.v6 != v6:
+      logger.debug("%r resources do not match EE, regenerating", self)
+      return self.regenerate(publisher = publisher, fast = fast)
+
+    if self.cert.get_AIA()[0] != self.ca_detail.ca_cert_uri:
+      logger.debug("%r AIA changed, regenerating", self)
+      return self.regenerate(publisher = publisher, fast = fast)
 
 
-class ROAPrefix(models.Model):
-  prefix = models.CharField(max_length = 40)
-  prefixlen = models.SmallIntegerField()
-  max_prefixlen = models.SmallIntegerField()
-  version = models.SmallIntegerField()
-  roa = models.ForeignKey(ROA, related_name = "roa_prefixes")
+  def generate(self, publisher, fast = False):
+    """
+    Generate a ROA.
+
+    At present we have no way of performing a direct lookup from a
+    desired set of resources to a covering certificate, so we have to
+    search.  This could be quite slow if we have a lot of active
+    ca_detail objects.  Punt on the issue for now, revisit if
+    profiling shows this as a hotspot.
+
+    Once we have the right covering certificate, we generate the ROA
+    payload, generate a new EE certificate, use the EE certificate to
+    sign the ROA payload, publish the result, then throw away the
+    private key for the EE cert, all per the ROA specification.  This
+    implies that generating a lot of ROAs will tend to thrash
+    /dev/random, but there is not much we can do about that.
+
+    If fast is set, we leave generating the new manifest for our
+    caller to handle, presumably at the end of a bulk operation.
+    """
+
+    if self.ipv4 is None and self.ipv6 is None:
+      raise rpki.exceptions.EmptyROAPrefixList
+
+    v4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
+    v6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+
+    if self.ca_detail is not None and self.ca_detail.state == "active" and not self.ca_detail.has_expired():
+      logger.debug("Keeping old ca_detail %r for ROA %r", ca_detail, self)
+    else:
+      logger.debug("Searching for new ca_detail for ROA %r", self)
+      for ca_detail in CADetail.objects.filter(ca__parent__self = self.self, state = "active"):
+        resources = ca_detail.latest_ca_cert.get_3779resources()
+        if not ca_detail.has_expired() and v4.issubset(resources.v4) and v6.issubset(resources.v6):
+          break
+      else:
+        raise rpki.exceptions.NoCoveringCertForROA("Could not find a certificate covering %r" % self)
+      logger.debug("Using new ca_detail %r for ROA %r", ca_detail, self)
+      self.ca_detail = ca_detail
+
+    resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)
+    keypair = rpki.x509.RSA.generate()
+
+    self.cert = self.ca_detail.issue_ee(
+      ca          = self.ca_detail.ca,
+      resources   = resources,
+      subject_key = keypair.get_public(),
+      sia         = (None, None, self.uri_from_key(keypair), rpki.publication.rrdp_sia_uri_kludge))
+    self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
+    self.published = rpki.sundial.now()
+    self.save()
+
+    logger.debug("Generating %r URI %s", self, self.uri)
+    publisher.queue(uri = self.uri, new_obj = self.roa,
+                    repository = self.ca_detail.ca.parent.repository,
+                    handler = self.published_callback)
+    if not fast:
+      ca_detail.generate_manifest(publisher = publisher)
+
+
+  def published_callback(self, pdu):
+    """
+    Check publication result.
+    """
+
+    rpki.publication.raise_if_error(pdu)
+    self.published = None
+    self.save()
+
+
+  def revoke(self, publisher, regenerate = False, allow_failure = False, fast = False):
+    """
+    Withdraw ROA associated with this roa_obj.
+
+    In order to preserve make-before-break properties without
+    duplicating code, this method also handles generating a
+    replacement ROA when requested.
+
+    If allow_failure is set, failing to withdraw the ROA will not be
+    considered an error.
+
+    If fast is set, SQL actions will be deferred, on the assumption
+    that our caller will handle regenerating CRL and manifest and
+    flushing the SQL cache.
+    """
+
+    ca_detail = self.ca_detail
+    logger.debug("%s %r, ca_detail %r state is %s",
+                 "Regenerating" if regenerate else "Not regenerating",
+                 self, ca_detail, ca_detail.state)
+    if regenerate:
+      self.generate(publisher = publisher, fast = fast)
+    logger.debug("Withdrawing %r %s and revoking its EE cert", self, self.uri)
+    RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
+    publisher.queue(uri = self.uri, old_obj = self.roa,
+                    repository = ca_detail.ca.parent.repository,
+                    handler = False if allow_failure else None)
+    if not regenerate:
+      self.delete()
+    if not fast:
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
+
+
+  def regenerate(self, publisher, fast = False):
+    """
+    Reissue ROA associated with this roa_obj.
+    """
+
+    if self.ca_detail is None:
+      self.generate(publisher = publisher, fast = fast)
+    else:
+      self.revoke(publisher = publisher, regenerate = True, fast = fast)
+
+
+  def uri_from_key(self, key):
+    """
+    Return publication URI for a public key.
+    """
+
+    return self.ca_detail.ca.sia_uri + key.gSKI() + ".roa"
+
+
+  @property
+  def uri(self):
+    """
+    Return the publication URI for this roa_obj's ROA.
+    """
+
+    return self.ca_detail.ca.sia_uri + self.uri_tail
+
+
+  @property
+  def uri_tail(self):
+    """
+    Return the tail (filename portion) of the publication URI for this
+    roa_obj's ROA.
+    """
+
+    return self.cert.gSKI() + ".roa"

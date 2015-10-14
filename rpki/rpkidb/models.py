@@ -300,13 +300,13 @@ class Self(models.Model):
 
   def find_covering_ca_details(self, resources):
     """
-    Return all active ca_detail_objs for this <self/> which cover a
+    Return all active CADetails for this <self/> which cover a
     particular set of resources.
 
-    If we expected there to be a large number of ca_detail_objs, we
+    If we expected there to be a large number of CADetails, we
     could add index tables and write fancy SQL query to do this, but
     for the expected common case where there are only one or two
-    active ca_detail_objs per <self/>, it's probably not worth it.  In
+    active CADetails per <self/>, it's probably not worth it.  In
     any case, this is an optimization we can leave for later.
     """
 
@@ -646,14 +646,29 @@ class Parent(models.Model):
       content_type = rpki.up_down.content_type)
 
 
+  def construct_sia_uri(self, rc):
+    """
+    Construct the sia_uri value for a CA under this parent given
+    configured information and the parent's up-down protocol
+    list_response PDU.
+    """
+
+    sia_uri = rc.get("suggested_sia_head", "")
+    if not sia_uri.startswith("rsync://") or not sia_uri.startswith(self.sia_base):
+      sia_uri = self.sia_base
+    if not sia_uri.endswith("/"):
+      raise rpki.exceptions.BadURISyntax("SIA URI must end with a slash: %s" % sia_uri)
+    return sia_uri
+
+
 class CA(models.Model):
-  last_crl_sn = models.BigIntegerField()
-  last_manifest_sn = models.BigIntegerField()
+  last_crl_sn = models.BigIntegerField(default = 1)
+  last_manifest_sn = models.BigIntegerField(default = 1)
   next_manifest_update = SundialField(null = True)
   next_crl_update = SundialField(null = True)
-  last_issued_sn = models.BigIntegerField()
+  last_issued_sn = models.BigIntegerField(default = 1)
   sia_uri = models.TextField(null = True)
-  parent_resource_class = models.TextField(null = True)
+  parent_resource_class = models.TextField(null = True)                 # Not sure this should allow NULL
   parent = models.ForeignKey(Parent, related_name = "cas")
 
   # So it turns out that there's always a 1:1 mapping between the
@@ -666,6 +681,220 @@ class CA(models.Model):
   # response; if not present, we'd use parent's class_name as now,
   # otherwise we'd use the supplied class_name.
 
+  # ca_obj has a zillion properties encoding various specialized
+  # ca_detail queries.  ORM query syntax probably renders this OBE,
+  # but need to translate in existing code.
+  #
+  #def pending_ca_details(self):                  return self.ca_details.filter(state = "pending")
+  #def active_ca_detail(self):                    return self.ca_details.get(state = "active")
+  #def deprecated_ca_details(self):               return self.ca_details.filter(state = "deprecated")
+  #def active_or_deprecated_ca_details(self):     return self.ca_details.filter(state__in = ("active", "deprecated"))
+  #def revoked_ca_details(self):                  return self.ca_details.filter(state = "revoked")
+  #def issue_response_candidate_ca_details(self): return self.ca_details.exclude(state = "revoked")
+
+
+  def check_for_updates(self, parent, rc, cb, eb):
+    """
+    Parent has signaled continued existance of a resource class we
+    already knew about, so we need to check for an updated
+    certificate, changes in resource coverage, revocation and reissue
+    with the same key, etc.
+    """
+
+    sia_uri = parent.construct_sia_uri(rc)
+    sia_uri_changed = self.sia_uri != sia_uri
+    if sia_uri_changed:
+      logger.debug("SIA changed: was %s now %s", self.sia_uri, sia_uri)
+      self.sia_uri = sia_uri
+      self.sql_mark_dirty()
+    class_name = rc.get("class_name")
+    rc_resources = rpki.resource_set.resource_bag(
+      rc.get("resource_set_as"),
+      rc.get("resource_set_ipv4"),
+      rc.get("resource_set_ipv6"),
+      rc.get("resource_set_notafter"))
+    cert_map = {}
+    for c in rc.getiterator(rpki.up_down.tag_certificate):
+      x = rpki.x509.X509(Base64 = c.text)
+      u = rpki.up_down.multi_uri(c.get("cert_url")).rsync()
+      cert_map[x.gSKI()] = (x, u)
+    def loop(iterator, ca_detail):
+      rc_cert, rc_cert_uri = cert_map.pop(ca_detail.public_key.gSKI(), (None, None))
+      if rc_cert is None:
+        logger.warning("SKI %s in resource class %s is in database but missing from list_response to %s from %s, "
+                       "maybe parent certificate went away?",
+                       ca_detail.public_key.gSKI(), class_name, parent.self.self_handle, parent.parent_handle)
+        publisher = publication_queue()
+        ca_detail.destroy(ca = ca_detail.ca, publisher = publisher)
+        return publisher.call_pubd(iterator, eb)
+      if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc_cert_uri:
+        logger.debug("AIA changed: was %s now %s", ca_detail.ca_cert_uri, rc_cert_uri)
+        ca_detail.ca_cert_uri = rc_cert_uri
+        ca_detail.save()
+      if ca_detail.state not in ("pending", "active"):
+        return iterator()
+      if ca_detail.state == "pending":
+        current_resources = rpki.resource_set.resource_bag()
+      else:
+        current_resources = ca_detail.latest_ca_cert.get_3779resources()
+      if (ca_detail.state == "pending" or
+          sia_uri_changed or
+          ca_detail.latest_ca_cert != rc_cert or
+          ca_detail.latest_ca_cert.getNotAfter() != rc_resources.valid_until or
+          current_resources.undersized(rc_resources) or
+          current_resources.oversized(rc_resources)):
+        return ca_detail.update(
+          parent           = parent,
+          ca               = self,
+          rc               = rc,
+          sia_uri_changed  = sia_uri_changed,
+          old_resources    = current_resources,
+          callback         = iterator,
+          errback          = eb)
+      iterator()
+    def done():
+      if cert_map:
+        logger.warning("Unknown certificate SKI%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?",
+                       "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.self.self_handle, parent.parent_handle)
+      cb()
+    ca_details = self.ca_details.exclude(state = "revoked")
+    if ca_details:
+      rpki.async.iterator(ca_details, loop, done)
+    else:
+      logger.warning("Existing resource class %s to %s from %s with no certificates, rekeying",
+                     class_name, parent.self.self_handle, parent.parent_handle)
+      self.rekey(cb, eb)
+
+
+  # Called from exactly one place, in rpki.rpkid_tasks.PollParentTask.class_loop().
+  # Might want to refactor.
+
+  @classmethod
+  def create(cls, parent, rc, cb, eb):
+    """
+    Parent has signaled existance of a new resource class, so we need
+    to create and set up a corresponding CA object.
+    """
+
+    self = cls.objects.create(parent = parent,
+                              parent_resource_class = rc.get("class_name"),
+                              sia_uri = parent.construct_sia_uri(rc))
+    ca_detail = CADetail.create(self)
+    def done(r_msg):
+      c = r_msg[0][0]
+      logger.debug("CA %r received certificate %s", self, c.get("cert_url"))
+      ca_detail.activate(
+        ca       = self,
+        cert     = rpki.x509.X509(Base64 = c.text),
+        uri      = c.get("cert_url"),
+        callback = cb,
+        errback  = eb)
+    logger.debug("Sending issue request to %r from %r", parent, self.create)
+    parent.up_down_issue_query(self, ca_detail, done, eb)
+
+
+  # Was .delete()
+  def destroy(self, parent, callback):
+    """
+    The list of current resource classes received from parent does not
+    include the class corresponding to this CA, so we need to delete
+    it (and its little dog too...).
+
+    All certs published by this CA are now invalid, so need to
+    withdraw them, the CRL, and the manifest from the repository,
+    delete all child_cert and ca_detail records associated with this
+    CA, then finally delete this CA itself.
+    """
+
+    def lose(e):
+      logger.exception("Could not delete CA %r, skipping", self)
+      callback()
+    def done():
+      logger.debug("Deleting %r", self)
+      self.delete()
+      callback()
+    publisher = publication_queue()
+    for ca_detail in self.ca_details.all():
+      ca_detail.destroy(ca = self, publisher = publisher, allow_failure = True)
+    publisher.call_pubd(done, lose)
+
+
+  def next_serial_number(self):
+    """
+    Allocate a certificate serial number.
+    """
+
+    self.last_issued_sn += 1
+    self.save()
+    return self.last_issued_sn
+
+
+  def next_manifest_number(self):
+    """
+    Allocate a manifest serial number.
+    """
+
+    self.last_manifest_sn += 1
+    self.save()
+    return self.last_manifest_sn
+
+
+  def next_crl_number(self):
+    """
+    Allocate a CRL serial number.
+    """
+
+    self.last_crl_sn += 1
+    self.save()
+    return self.last_crl_sn
+
+
+  def rekey(self, cb, eb):
+    """
+    Initiate a rekey operation for this CA.  Generate a new keypair.
+    Request cert from parent using new keypair.  Mark result as our
+    active ca_detail.  Reissue all child certs issued by this CA using
+    the new ca_detail.
+    """
+
+    old_detail = self.ca_details.get(state = "active")
+    new_detail = CADetail.create(self)
+    def done(r_msg):
+      c = r_msg[0][0]
+      logger.debug("CA %r received certificate %s", self, c.get("cert_url"))
+      new_detail.activate(
+        ca          = self,
+        cert        = rpki.x509.X509(Base64 = c.text),
+        uri         = c.get("cert_url"),
+        predecessor = old_detail,
+        callback    = cb,
+        errback     = eb)
+    logger.debug("Sending issue request to %r from %r", self.parent, self.rekey)
+    self.parent.up_down_issue_query(self, new_detail, done, eb)
+
+
+  def revoke(self, cb, eb, revoke_all = False):
+    """
+    Revoke deprecated ca_detail objects associated with this CA, or
+    all ca_details associated with this CA if revoke_all is set.
+    """
+
+    def loop(iterator, ca_detail):
+      ca_detail.revoke(cb = iterator, eb = eb)
+    rpki.async.iterator(self.ca_details.all() if revoke_all else self.ca_details.filter(state = "deprecated"),
+                        loop, cb)
+
+
+  def reissue(self, cb, eb):
+    """
+    Reissue all current certificates issued by this CA.
+    """
+
+    ca_detail = self.ca_details.get(state = "active")
+    if ca_detail:
+      ca_detail.reissue(cb, eb)
+    else:
+      cb()
 
 
 class CADetail(models.Model):
@@ -682,6 +911,500 @@ class CADetail(models.Model):
   state = EnumField(choices = ("pending", "active", "deprecated", "revoked"))
   ca_cert_uri = models.TextField(null = True)
   ca = models.ForeignKey(CA, related_name = "ca_details")
+
+
+  # Like the old ca_obj class, the old ca_detail_obj class had ten
+  # zillion properties and methods encapsulating SQL queries.
+  # Translate as we go.
+
+
+  @property
+  def crl_uri(self):
+    """
+    Return publication URI for this ca_detail's CRL.
+    """
+
+    return self.ca.sia_uri + self.crl_uri_tail
+
+
+  @property
+  def crl_uri_tail(self):
+    """
+    Return tail (filename portion) of publication URI for this ca_detail's CRL.
+    """
+
+    return self.public_key.gSKI() + ".crl"
+
+
+  @property
+  def manifest_uri(self):
+    """
+    Return publication URI for this ca_detail's manifest.
+    """
+
+    return self.ca.sia_uri + self.public_key.gSKI() + ".mft"
+
+
+  def has_expired(self):
+    """
+    Return whether this ca_detail's certificate has expired.
+    """
+
+    return self.latest_ca_cert.getNotAfter() <= rpki.sundial.now()
+
+
+  def covers(self, target):
+    """
+    Test whether this ca-detail covers a given set of resources.
+    """
+
+    assert not target.asn.inherit and not target.v4.inherit and not target.v6.inherit
+    me = self.latest_ca_cert.get_3779resources()
+    return target.asn <= me.asn and target.v4 <= me.v4 and target.v6  <= me.v6
+
+
+  def activate(self, ca, cert, uri, callback, errback, predecessor = None):
+    """
+    Activate this ca_detail.
+    """
+
+    publisher = publication_queue()
+    self.latest_ca_cert = cert
+    self.ca_cert_uri = uri
+    self.generate_manifest_cert()
+    self.state = "active"
+    self.generate_crl(publisher = publisher)
+    self.generate_manifest(publisher = publisher)
+    self.save()
+    if predecessor is not None:
+      predecessor.state = "deprecated"
+      predecessor.save()
+      for child_cert in predecessor.child_certs.all():
+        child_cert.reissue(ca_detail = self, publisher = publisher)
+      for roa in predecessor.roas.all():
+        roa.regenerate(publisher = publisher)
+      for ghostbuster in predecessor.ghostbusters.all():
+        ghostbuster.regenerate(publisher = publisher)
+      predecessor.generate_crl(publisher = publisher)
+      predecessor.generate_manifest(publisher = publisher)
+    publisher.call_pubd(callback, errback)
+
+
+  def destroy(self, ca, publisher, allow_failure = False):
+    """
+    Delete this ca_detail and all of the certs it issued.
+
+    If allow_failure is true, we clean up as much as we can but don't
+    raise an exception.
+    """
+
+    repository = ca.parent.repository
+    handler = False if allow_failure else None
+    for child_cert in self.child_certs.all():
+      publisher.queue(uri = child_cert.uri, old_obj = child_cert.cert, repository = repository, handler = handler)
+      child_cert.delete()
+    for roa in self.roas.all():
+      roa.revoke(publisher = publisher, allow_failure = allow_failure, fast = True)
+    for ghostbuster in self.ghostbusters.all():
+      ghostbuster.revoke(publisher = publisher, allow_failure = allow_failure, fast = True)
+    if self.latest_manifest is not None:
+      publisher.queue(uri = self.manifest_uri, old_obj = self.latest_manifest, repository = repository, handler = handler)
+    if self.latest_crl is not None:
+      publisher.queue(uri = self.crl_uri, old_obj = self.latest_crl, repository = repository, handler = handler)
+    for cert in self.revoked_certs.all():     # + self.child_certs.all()
+      logger.debug("Deleting %r", cert)
+      cert.delete()
+    logger.debug("Deleting %r", self)
+    self.delete()
+
+  def revoke(self, cb, eb):
+    """
+    Request revocation of all certificates whose SKI matches the key
+    for this ca_detail.
+
+    Tasks:
+
+    - Request revocation of old keypair by parent.
+
+    - Revoke all child certs issued by the old keypair.
+
+    - Generate a final CRL, signed with the old keypair, listing all
+      the revoked certs, with a next CRL time after the last cert or
+      CRL signed by the old keypair will have expired.
+
+    - Generate a corresponding final manifest.
+
+    - Destroy old keypairs.
+
+    - Leave final CRL and manifest in place until their nextupdate
+      time has passed.
+    """
+
+    ca = self.ca
+    parent = ca.parent
+    class_name = ca.parent_resource_class
+    gski = self.latest_ca_cert.gSKI()
+
+    def parent_revoked(r_msg):
+      if r_msg[0].get("class_name") != class_name:
+        raise rpki.exceptions.ResourceClassMismatch
+      if r_msg[0].get("ski") != gski:
+        raise rpki.exceptions.SKIMismatch
+      logger.debug("Parent revoked %s, starting cleanup", gski)
+      crl_interval = rpki.sundial.timedelta(seconds = parent.self.crl_interval)
+      nextUpdate = rpki.sundial.now()
+      if self.latest_manifest is not None:
+        self.latest_manifest.extract_if_needed()
+        nextUpdate = nextUpdate.later(self.latest_manifest.getNextUpdate())
+      if self.latest_crl is not None:
+        nextUpdate = nextUpdate.later(self.latest_crl.getNextUpdate())
+      publisher = publication_queue()
+      for child_cert in self.child_certs.all():
+        nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
+        child_cert.revoke(publisher = publisher)
+      for roa in self.roas.all():
+        nextUpdate = nextUpdate.later(roa.cert.getNotAfter())
+        roa.revoke(publisher = publisher)
+      for ghostbuster in self.ghostbusters.all():
+        nextUpdate = nextUpdate.later(ghostbuster.cert.getNotAfter())
+        ghostbuster.revoke(publisher = publisher)
+      nextUpdate += crl_interval
+      self.generate_crl(publisher = publisher, nextUpdate = nextUpdate)
+      self.generate_manifest(publisher = publisher, nextUpdate = nextUpdate)
+      self.private_key_id = None
+      self.manifest_private_key_id = None
+      self.manifest_public_key = None
+      self.latest_manifest_cert = None
+      self.state = "revoked"
+      self.save()
+      publisher.call_pubd(cb, eb)
+    logger.debug("Asking parent to revoke CA certificate %s", gski)
+    parent.up_down_revoke_query(class_name, gski, parent_revoked, eb)
+
+
+  def update(self, parent, ca, rc, sia_uri_changed, old_resources, callback, errback):
+    """
+    Need to get a new certificate for this ca_detail and perhaps frob
+    children of this ca_detail.
+    """
+
+    def issued(r_msg):
+      c = r_msg[0][0]
+      cert = rpki.x509.X509(Base64 = c.text)
+      cert_url = c.get("cert_url")
+      logger.debug("CA %r received certificate %s", self, cert_url)
+      if self.state == "pending":
+        return self.activate(ca = ca, cert = cert, uri = cert_url, callback = callback, errback  = errback)
+      validity_changed = self.latest_ca_cert is None or self.latest_ca_cert.getNotAfter() != cert.getNotAfter()
+      publisher = publication_queue()
+      if self.latest_ca_cert != cert:
+        self.latest_ca_cert = cert
+        self.save()
+        self.generate_manifest_cert()
+        self.generate_crl(publisher = publisher)
+        self.generate_manifest(publisher = publisher)
+      new_resources = self.latest_ca_cert.get_3779resources()
+      if sia_uri_changed or old_resources.oversized(new_resources):
+        for child_cert in self.child_certs.all():
+          child_resources = child_cert.cert.get_3779resources()
+          if sia_uri_changed or child_resources.oversized(new_resources):
+            child_cert.reissue(ca_detail = self, resources = child_resources & new_resources, publisher = publisher)
+      if sia_uri_changed or validity_changed or old_resources.oversized(new_resources):
+        for roa in self.roas.all():
+          roa.update(publisher = publisher, fast = True)
+      if sia_uri_changed or validity_changed:
+        for ghostbuster in self.ghostbusters.all():
+          ghostbuster.update(publisher = publisher, fast = True)
+      publisher.call_pubd(callback, errback)
+    logger.debug("Sending issue request to %r from %r", parent, self.update)
+    parent.up_down_issue_query(ca, self, issued, errback)
+
+
+  @classmethod
+  def create(cls, ca):
+    """
+    Create a new ca_detail object for a specified CA.
+    """
+
+    cer_keypair = rpki.x509.RSA.generate()
+    mft_keypair = rpki.x509.RSA.generate()
+    return cls.objects.create(ca = ca, state = "pending",
+                              private_key_id          = cer_keypair, public_key          = cer_keypair.get_public(),
+                              manifest_private_key_id = mft_keypair, manifest_public_key = mft_keypair.get_public())
+
+
+  def issue_ee(self, ca, resources, subject_key, sia,
+               cn = None, sn = None, notAfter = None, eku = None):
+    """
+    Issue a new EE certificate.
+    """
+
+    if notAfter is None:
+      notAfter = self.latest_ca_cert.getNotAfter()
+    return self.latest_ca_cert.issue(
+      keypair     = self.private_key_id,
+      subject_key = subject_key,
+      serial      = ca.next_serial_number(),
+      sia         = sia,
+      aia         = self.ca_cert_uri,
+      crldp       = self.crl_uri,
+      resources   = resources,
+      notAfter    = notAfter,
+      is_ca       = False,
+      cn          = cn,
+      sn          = sn,
+      eku         = eku)
+
+
+  def generate_manifest_cert(self):
+    """
+    Generate a new manifest certificate for this ca_detail.
+    """
+
+    resources = rpki.resource_set.resource_bag.from_inheritance()
+    self.latest_manifest_cert = self.issue_ee(
+      ca          = self.ca,
+      resources   = resources,
+      subject_key = self.manifest_public_key,
+      sia         = (None, None, self.manifest_uri, rpki.publication.rrdp_sia_uri_kludge))
+
+
+  def issue(self, ca, child, subject_key, sia, resources, publisher, child_cert = None):
+    """
+    Issue a new certificate to a child.  Optional child_cert argument
+    specifies an existing child_cert object to update in place; if not
+    specified, we create a new one.  Returns the child_cert object
+    containing the newly issued cert.
+    """
+
+    self.check_failed_publication(publisher)
+    cert = self.latest_ca_cert.issue(
+      keypair     = self.private_key_id,
+      subject_key = subject_key,
+      serial      = ca.next_serial_number(),
+      aia         = self.ca_cert_uri,
+      crldp       = self.crl_uri,
+      sia         = sia,
+      resources   = resources,
+      notAfter    = resources.valid_until)
+    if child_cert is None:
+      old_cert = None
+      child_cert = ChildCert(child = child, ca_detail = self, cert = cert)
+      logger.debug("Created new child_cert %r", child_cert)
+    else:
+      old_cert = child_cert.cert
+      child_cert.cert = cert
+      child_cert.ca_detail = self
+      logger.debug("Reusing existing child_cert %r", child_cert)
+    child_cert.ski = cert.get_SKI()
+    child_cert.published = rpki.sundial.now()
+    child_cert.save()
+    publisher.queue(
+      uri = child_cert.uri,
+      old_obj = old_cert,
+      new_obj = child_cert.cert,
+      repository = ca.parent.repository,
+      handler = child_cert.published_callback)
+    self.generate_manifest(publisher = publisher)
+    return child_cert
+
+
+  def generate_crl(self, publisher, nextUpdate = None):
+    """
+    Generate a new CRL for this ca_detail.  At the moment this is
+    unconditional, that is, it is up to the caller to decide whether a
+    new CRL is needed.
+    """
+
+    self.check_failed_publication(publisher)
+    crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.self.crl_interval)
+    now = rpki.sundial.now()
+    if nextUpdate is None:
+      nextUpdate = now + crl_interval
+    certlist = []
+    for revoked_cert in self.revoked_certs.all():
+      if now > revoked_cert.expires + crl_interval:
+        revoked_cert.delete()
+      else:
+        certlist.append((revoked_cert.serial, revoked_cert.revoked))
+    certlist.sort()
+    old_crl = self.latest_crl
+    self.latest_crl = rpki.x509.CRL.generate(
+      keypair             = self.private_key_id,
+      issuer              = self.latest_ca_cert,
+      serial              = self.ca.next_crl_number(),
+      thisUpdate          = now,
+      nextUpdate          = nextUpdate,
+      revokedCertificates = certlist)
+    self.crl_published = now
+    self.save()
+    publisher.queue(
+      uri        = self.crl_uri,
+      old_obj    = old_crl,
+      new_obj    = self.latest_crl,
+      repository = self.ca.parent.repository,
+      handler    = self.crl_published_callback)
+
+
+  def crl_published_callback(self, pdu):
+    """
+    Check result of CRL publication.
+    """
+
+    rpki.publication.raise_if_error(pdu)
+    self.crl_published = None
+    self.save()
+
+
+  def generate_manifest(self, publisher, nextUpdate = None):
+    """
+    Generate a new manifest for this ca_detail.
+    """
+
+    self.check_failed_publication(publisher)
+
+    crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.self.crl_interval)
+    now = rpki.sundial.now()
+    uri = self.manifest_uri
+    if nextUpdate is None:
+      nextUpdate = now + crl_interval
+    if (self.latest_manifest_cert is None or
+        (self.latest_manifest_cert.getNotAfter() < nextUpdate and
+         self.latest_manifest_cert.getNotAfter() < self.latest_ca_cert.getNotAfter())):
+      logger.debug("Generating EE certificate for %s", uri)
+      self.generate_manifest_cert()
+      logger.debug("Latest CA cert notAfter %s, new %s EE notAfter %s",
+                   self.latest_ca_cert.getNotAfter(), uri, self.latest_manifest_cert.getNotAfter())
+    logger.debug("Constructing manifest object list for %s", uri)
+    objs = [(self.crl_uri_tail, self.latest_crl)]
+    objs.extend((c.uri_tail, c.cert)        for c in self.child_certs.all())
+    objs.extend((r.uri_tail, r.roa)         for r in self.roas.filter(roa__isnull = False))
+    objs.extend((g.uri_tail, g.ghostbuster) for g in self.ghostbusters.all())
+    objs.extend((e.uri_tail, e.cert)        for e in self.ee_certificates.all())
+    logger.debug("Building manifest object %s", uri)
+    old_manifest = self.latest_manifest
+    self.latest_manifest = rpki.x509.SignedManifest.build(
+      serial         = self.ca.next_manifest_number(),
+      thisUpdate     = now,
+      nextUpdate     = nextUpdate,
+      names_and_objs = objs,
+      keypair        = self.manifest_private_key_id,
+      certs          = self.latest_manifest_cert)
+    logger.debug("Manifest generation took %s", rpki.sundial.now() - now)
+    self.manifest_published = now
+    self.save()
+    publisher.queue(uri = uri,
+                    old_obj = old_manifest,
+                    new_obj = self.latest_manifest,
+                    repository = self.ca.parent.repository,
+                    handler = self.manifest_published_callback)
+
+
+  def manifest_published_callback(self, pdu):
+    """
+    Check result of manifest publication.
+    """
+
+    rpki.publication.raise_if_error(pdu)
+    self.manifest_published = None
+    self.save()
+
+
+  def reissue(self, cb, eb):
+    """
+    Reissue all current certificates issued by this ca_detail.
+    """
+
+    publisher = publication_queue()
+    self.check_failed_publication(publisher)
+    for roa in self.roas.all():
+      roa.regenerate(publisher, fast = True)
+    for ghostbuster in self.ghostbusters.all():
+      ghostbuster.regenerate(publisher, fast = True)
+    for ee_certificate in self.ee_certificates.all():
+      ee_certificate.reissue(publisher, force = True)
+    for child_cert in self.child_certs.all():
+      child_cert.reissue(self, publisher, force = True)
+    self.generate_manifest_cert()
+    self.save()
+    self.generate_crl(publisher = publisher)
+    self.generate_manifest(publisher = publisher)
+    self.save()
+    publisher.call_pubd(cb, eb)
+
+
+  def check_failed_publication(self, publisher, check_all = True):
+    """
+    Check for failed publication of objects issued by this ca_detail.
+
+    All publishable objects have timestamp fields recording time of
+    last attempted publication, and callback methods which clear these
+    timestamps once publication has succeeded.  Our task here is to
+    look for objects issued by this ca_detail which have timestamps
+    set (indicating that they have not been published) and for which
+    the timestamps are not very recent (for some definition of very
+    recent -- intent is to allow a bit of slack in case pubd is just
+    being slow).  In such cases, we want to retry publication.
+
+    As an optimization, we can probably skip checking other products
+    if manifest and CRL have been published, thus saving ourselves
+    several complex SQL queries.  Not sure yet whether this
+    optimization is worthwhile.
+
+    For the moment we check everything without optimization, because
+    it simplifies testing.
+
+    For the moment our definition of staleness is hardwired; this
+    should become configurable.
+    """
+
+    logger.debug("Checking for failed publication for %r", self)
+
+    stale = rpki.sundial.now() - rpki.sundial.timedelta(seconds = 60)
+    repository = self.ca.parent.repository
+    if self.latest_crl is not None and self.crl_published is not None and self.crl_published < stale:
+      logger.debug("Retrying publication for %s", self.crl_uri)
+      publisher.queue(uri = self.crl_uri,
+                      new_obj = self.latest_crl,
+                      repository = repository,
+                      handler = self.crl_published_callback)
+    if self.latest_manifest is not None and self.manifest_published is not None and self.manifest_published < stale:
+      logger.debug("Retrying publication for %s", self.manifest_uri)
+      publisher.queue(uri = self.manifest_uri,
+                      new_obj = self.latest_manifest,
+                      repository = repository,
+                      handler = self.manifest_published_callback)
+    if not check_all:
+      return
+    for child_cert in self.child_certs.filter(published__isnull = False, published__lt = stale):
+      logger.debug("Retrying publication for %s", child_cert)
+      publisher.queue(
+        uri = child_cert.uri,
+        new_obj = child_cert.cert,
+        repository = repository,
+        handler = child_cert.published_callback)
+    for roa in self.roas.filter(published__isnull = False, published__lt = stale):
+      logger.debug("Retrying publication for %s", roa)
+      publisher.queue(
+        uri = roa.uri,
+        new_obj = roa.roa,
+        repository = repository,
+        handler = roa.published_callback)
+    for ghostbuster in self.ghostbusters.filter(published__isnull = False, published__lt = stale):
+      logger.debug("Retrying publication for %s", ghostbuster)
+      publisher.queue(
+        uri = ghostbuster.uri,
+        new_obj = ghostbuster.ghostbuster,
+        repository = repository,
+        handler = ghostbuster.published_callback)
+    for ee_cert in self.ee_certs.filter(published__isnull = False, published__lt = stale):
+      logger.debug("Retrying publication for %s", ee_cert)
+      publisher.queue(
+        uri = ee_cert.uri,
+        new_obj = ee_cert.cert,
+        repository = repository,
+        handler = ee_cert.published_callback)
+
 
 class Child(models.Model):
   child_handle = models.SlugField(max_length = 255)
@@ -878,13 +1601,122 @@ class Child(models.Model):
       lose(e)
 
 
-
 class ChildCert(models.Model):
   cert = CertificateField()
   published = SundialField(null = True)
   ski = BlobField()
   child = models.ForeignKey(Child, related_name = "child_certs")
   ca_detail = models.ForeignKey(CADetail, related_name = "child_certs")
+
+
+  @property
+  def uri_tail(self):
+    """
+    Return the tail (filename) portion of the URI for this child_cert.
+    """
+
+    return self.cert.gSKI() + ".cer"
+
+
+  @property
+  def uri(self):
+    """
+    Return the publication URI for this child_cert.
+    """
+
+    return self.ca_detail.ca.sia_uri + self.uri_tail
+
+
+  def revoke(self, publisher, generate_crl_and_manifest = True):
+    """
+    Revoke a child cert.
+    """
+
+    ca_detail = self.ca_detail
+    logger.debug("Revoking %r %r", self, self.uri)
+    RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
+    publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.parent.repository)
+    self.delete()
+    if generate_crl_and_manifest:
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
+
+
+  def reissue(self, ca_detail, publisher, resources = None, sia = None, force = False):
+    """
+    Reissue an existing child cert, reusing the public key.  If the
+    child cert we would generate is identical to the one we already
+    have, we just return the one we already have.  If we have to
+    revoke the old child cert when generating the new one, we have to
+    generate a new child_cert_obj, so calling code that needs the
+    updated child_cert_obj must use the return value from this method.
+    """
+
+    ca = ca_detail.ca
+    child = self.child
+    old_resources = self.cert.get_3779resources()
+    old_sia       = self.cert.get_SIA()
+    old_aia       = self.cert.get_AIA()[0]
+    old_ca_detail = self.ca_detail
+    needed = False
+    if resources is None:
+      resources = old_resources
+    if sia is None:
+      sia = old_sia
+    assert resources.valid_until is not None and old_resources.valid_until is not None
+    if resources.asn != old_resources.asn or resources.v4 != old_resources.v4 or resources.v6 != old_resources.v6:
+      logger.debug("Resources changed for %r: old %s new %s", self, old_resources, resources)
+      needed = True
+    if resources.valid_until != old_resources.valid_until:
+      logger.debug("Validity changed for %r: old %s new %s",
+                   self, old_resources.valid_until, resources.valid_until)
+      needed = True
+    if sia != old_sia:
+      logger.debug("SIA changed for %r: old %r new %r", self, old_sia, sia)
+      needed = True
+    if ca_detail != old_ca_detail:
+      logger.debug("Issuer changed for %r: old %r new %r", self, old_ca_detail, ca_detail)
+      needed = True
+    if ca_detail.ca_cert_uri != old_aia:
+      logger.debug("AIA changed for %r: old %r new %r", self, old_aia, ca_detail.ca_cert_uri)
+      needed = True
+    must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until
+    if must_revoke:
+      logger.debug("Must revoke any existing cert(s) for %r", self)
+      needed = True
+    if not needed and force:
+      logger.debug("No change needed for %r, forcing reissuance anyway", self)
+      needed = True
+    if not needed:
+      logger.debug("No change to %r", self)
+      return self
+    if must_revoke:
+      for x in child.child_certs.filter(ca_detail = ca_detail, ski = self.ski):
+        logger.debug("Revoking child_cert %r", x)
+        x.revoke(publisher = publisher)
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
+    child_cert = ca_detail.issue(
+      ca          = ca,
+      child       = child,
+      subject_key = self.cert.getPublicKey(),
+      sia         = sia,
+      resources   = resources,
+      child_cert  = None if must_revoke else self,
+      publisher   = publisher)
+    logger.debug("New child_cert %r uri %s", child_cert, child_cert.uri)
+    return child_cert
+
+
+  def published_callback(self, pdu):
+    """
+    Publication callback: check result and mark published.
+    """
+
+    rpki.publication.raise_if_error(pdu)
+    self.published = None
+    self.save()
+
 
 class EECert(models.Model):
   ski = BlobField()
@@ -907,6 +1739,19 @@ class RevokedCert(models.Model):
   expires = SundialField()
   ca_detail = models.ForeignKey(CADetail, related_name = "revoked_certs")
 
+  @classmethod
+  def revoke(cls, cert, ca_detail):
+    """
+    Revoke a certificate.
+    """
+
+    return cls.objects.create(
+      serial    = cert.getSerial(),
+      expires   = cert.getNotAfter(),
+      revoked   = rpki.sundial.now(),
+      ca_detail = ca_detail)
+
+
 class ROA(models.Model):
   asn = models.BigIntegerField()
   cert = CertificateField()
@@ -914,6 +1759,43 @@ class ROA(models.Model):
   published = SundialField(null = True)
   self = models.ForeignKey(Self, related_name = "roas")
   ca_detail = models.ForeignKey(CADetail, related_name = "roas")
+
+  # Is there a good reason why we even bother with the ROAPrefix table
+  # or the asn field here?  It looks like we only use this data to
+  # store and reconstruct the complete resource set, which we already
+  # have present in the form of the signed ROA.  We pay a bit of
+  # overhead on this either way (SQL vs ASN.1) but since we have to
+  # store the complete ROA anyway, and since we don't allow it to be
+  # NULL, perhaps we can simplify this considerably by dropping the
+  # asn field and the ROAPrefix table completely.
+  #
+  # If we do need this stuff, see rpki.irdb.models.ROARequest.
+  #
+  # Compromise that might make sense: do store the prefix list, but in
+  # text form: it's what we're getting from XML in any case, and
+  # almost certainly faster to convert to and from resource_set than
+  # any of the other options here (no SQL, no ASN.1).
+  #
+  # The one query that we might someday want to be able to make in SQL
+  # rather than in Python to speed up processing for really big ROA
+  # sets is not on the ROAs anyway, it's on the covering certificates.
+  # In theory, for really big data sets, it might be worth setting up
+  # a secondary lookup table for resources which would let us use SQL
+  # to figure out which certificates cover a particular ROA request.
+  # But the SQL query would be so hideous to construct that we'd have
+  # to be desperate for it to be worthwhile.  Basically, for each
+  # prefix in a ROA prefix set, one would look for a covering range in
+  # the lookup table, then take the intersection of those results to
+  # see if any ca_detail matched all the criteria.  SQL would look
+  # something like:
+  #
+  #   SELECT x.ca_detail_id FROM x WHERE x.min <= prefix1.min AND x.max >= prefix1.max
+  #   INTERSECT
+  #   SELECT x.ca_detail_id FROM x WHERE x.min <= prefix2.min AND x.max >= prefix2.max
+  #   INTERSECT
+  #   SELECT x.ca_detail_id FROM x WHERE x.min <= prefix3.min AND x.max >= prefix3.max
+  #   ...;
+
 
 class ROAPrefix(models.Model):
   prefix = models.CharField(max_length = 40)

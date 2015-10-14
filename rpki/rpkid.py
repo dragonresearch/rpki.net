@@ -863,6 +863,8 @@ class ca_obj(rpki.sql.sql_persistent):
       self.gctx.checkpoint()
       self.rekey(cb, eb)
 
+  # Called from exactly one place, in rpki.rpkid_tasks.PollParentTask.class_loop().
+  # Probably want to refactor.
   @classmethod
   def create(cls, parent, rc, cb, eb):
     """
@@ -1093,7 +1095,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     attempted publication dates older than when.
     """
 
-    return rpki.rpkid.roa_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s AND published IS NOT NULL and published < %s", (self.ca_detail_id, when))
+    return rpki.rpkid.roa_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s AND published IS NOT NULL and published < %s",
+                                              (self.ca_detail_id, when))
 
   @property
   def ghostbusters(self):
@@ -1109,7 +1112,9 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     ca_detail with attempted publication dates older than when.
     """
 
-    return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s AND published IS NOT NULL and published < %s", (self.ca_detail_id, when))
+    return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx,
+                                                      "ca_detail_id = %s AND published IS NOT NULL and published < %s",
+                                                      (self.ca_detail_id, when))
 
   @property
   def ee_certificates(self):
@@ -1125,7 +1130,9 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     ca_detail with attempted publication dates older than when.
     """
 
-    return rpki.rpkid.ee_cert_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s AND published IS NOT NULL and published < %s", (self.ca_detail_id, when))
+    return rpki.rpkid.ee_cert_obj.sql_fetch_where(self.gctx,
+                                                  "ca_detail_id = %s AND published IS NOT NULL and published < %s",
+                                                  (self.ca_detail_id, when))
 
   @property
   def crl_uri(self):
@@ -1160,7 +1167,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
   def covers(self, target):
     """
-    Test whether this ca-detail covers a given set of resources.
+    Test whether this ca_detail covers a given set of resources.
     """
 
     assert not target.asn.inherit and not target.v4.inherit and not target.v6.inherit

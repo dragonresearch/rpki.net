@@ -1239,22 +1239,13 @@ def resource_holder_create(request):
             zk_child = Zookeeper(handle=handle, logstream=log)
             identity_xml = zk_child.initialize_resource_bpki()
             if parent:
-                # FIXME etree_wrapper should allow us to deal with file objects
-                t = NamedTemporaryFile(delete=False)
-                t.close()
-
-                identity_xml.save(t.name)
                 zk_parent = Zookeeper(handle=parent.handle, logstream=log)
-                parent_response, _ = zk_parent.configure_child(t.name)
-                parent_response.save(t.name)
+                parent_response, _ = zk_parent.configure_child(identity_xml)
                 zk_parent.synchronize_ca()
-                repo_req, _ = zk_child.configure_parent(t.name)
-                repo_req.save(t.name)
-                repo_resp, _ = zk_parent.configure_publication_client(t.name)
-                repo_resp.save(t.name)
+                repo_req, _ = zk_child.configure_parent(parent_response)
+                repo_resp, _ = zk_parent.configure_publication_client(repo_req)
                 zk_parent.synchronize_pubd()
-                zk_child.configure_repository(t.name)
-                os.remove(t.name)
+                zk_child.configure_repository(repo_resp)
             zk_child.synchronize_ca()
             return redirect(resource_holder_list)
     else:

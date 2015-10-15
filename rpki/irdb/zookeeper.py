@@ -128,13 +128,18 @@ class PEM_writer(object):
     self.wrote.add(filename)
 
 
-def etree_read(filename):
+def etree_read(filename_or_etree_wrapper):
   """
   Read an etree from a file, verifying then stripping XML namespace
-  cruft.
+  cruft.  As a convenience, we also accept an etree_wrapper object in
+  place of a filename, in which case we deepcopy the etree directly
+  from the etree_wrapper and there's no need for a file.
   """
 
-  e = ElementTree(file = filename).getroot()
+  if isinstance(filename_or_etree_wrapper, etree_wrapper):
+    e = copy.deepcopy(filename_or_etree_wrapper.etree)
+  else:
+    e = ElementTree(file = filename_or_etree_wrapper).getroot()
   rpki.relaxng.myrpki.assertValid(e)
   for i in e.getiterator():
     if i.tag.startswith(myrpki_xmlns):

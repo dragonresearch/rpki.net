@@ -47,6 +47,7 @@ from rpki.csv_utils import csv_reader
 # a standard.
 
 myrpki_xmlns   = rpki.relaxng.myrpki.xmlns
+myrpki_nsmap   = rpki.relaxng.myrpki.nsmap
 myrpki_version = rpki.relaxng.myrpki.version
 
 # XML namespace and protocol version for router certificate requests.
@@ -56,7 +57,42 @@ myrpki_version = rpki.relaxng.myrpki.version
 # I'm ready to rewrite the rpki.relaxng code.
 
 routercert_xmlns   = rpki.relaxng.router_certificate.xmlns
+routercert_nsmap   = rpki.relaxng.router_certificate.nsmap
 routercert_version = rpki.relaxng.router_certificate.version
+
+# XML tags for elements in the above
+
+tag_myrpki_identity             = myrpki_xmlns + "identity"
+tag_myrpki_bpki_ta              = myrpki_xmlns + "bpki_ta"
+tag_myrpki_repository           = myrpki_xmlns + "repository"
+tag_myrpki_bpki_client_ta       = myrpki_xmlns + "bpki_client_ta"
+tag_myrpki_bpki_ta              = myrpki_xmlns + "bpki_ta"
+tag_myrpki_parent               = myrpki_xmlns + "parent"
+tag_myrpki_bpki_resource_ta     = myrpki_xmlns + "bpki_resource_ta"
+tag_myrpki_bpki_child_ta        = myrpki_xmlns + "bpki_child_ta"
+tag_myrpki_repository           = myrpki_xmlns + "repository"
+tag_myrpki_referral             = myrpki_xmlns + "referral"
+tag_myrpki_repository           = myrpki_xmlns + "repository"
+tag_myrpki_authorization        = myrpki_xmlns + "authorization"
+tag_myrpki_contact_info         = myrpki_xmlns + "contact_info"
+tag_myrpki_repository           = myrpki_xmlns + "repository"
+tag_myrpki_authorization        = myrpki_xmlns + "authorization"
+tag_myrpki_bpki_resource_ta     = myrpki_xmlns + "bpki_resource_ta"
+tag_myrpki_repository           = myrpki_xmlns + "repository"
+tag_myrpki_authorization        = myrpki_xmlns + "authorization"
+tag_myrpki_contact_info         = myrpki_xmlns + "contact_info"
+tag_myrpki_bpki_client_ta       = myrpki_xmlns + "bpki_client_ta"
+tag_myrpki_bpki_client_ta       = myrpki_xmlns + "bpki_client_ta"
+tag_myrpki_authorization        = myrpki_xmlns + "authorization"
+tag_myrpki_repository           = myrpki_xmlns + "repository"
+tag_myrpki_bpki_server_ta       = myrpki_xmlns + "bpki_server_ta"
+tag_myrpki_bpki_client_ta       = myrpki_xmlns + "bpki_client_ta"
+tag_myrpki_contact_info         = myrpki_xmlns + "contact_info"
+tag_myrpki_bpki_server_ta       = myrpki_xmlns + "bpki_server_ta"
+
+tag_router_certificate_request  = routercert_xmlns + "router_certificate_request"
+
+# Configuration file section names
 
 myrpki_section = "myrpki"
 irdbd_section  = "irdbd"
@@ -128,7 +164,7 @@ class PEM_writer(object):
     self.wrote.add(filename)
 
 
-def etree_read(filename_or_etree_wrapper):
+def etree_read(filename_or_etree_wrapper, schema = rpki.relaxng.myrpki):
   """
   Read an etree from a file, verifying then stripping XML namespace
   cruft.  As a convenience, we also accept an etree_wrapper object in
@@ -140,12 +176,7 @@ def etree_read(filename_or_etree_wrapper):
     e = copy.deepcopy(filename_or_etree_wrapper.etree)
   else:
     e = ElementTree(file = filename_or_etree_wrapper).getroot()
-  rpki.relaxng.myrpki.assertValid(e)
-  for i in e.getiterator():
-    if i.tag.startswith(myrpki_xmlns):
-      i.tag = i.tag[len(myrpki_xmlns):]
-    else:
-      raise BadXMLMessage("XML tag %r is not in namespace %r" % (i.tag, myrpki_xmlns[1:-1]))
+  schema.assertValid(e)
   return e
 
 
@@ -155,17 +186,12 @@ class etree_wrapper(object):
   without requiring the caller to understand much about them.
   """
 
-  def __init__(self, e, msg = None, debug = False):
+  def __init__(self, e, msg = None, debug = False, schema = rpki.relaxng.myrpki):
     self.msg = msg
     e = copy.deepcopy(e)
-    e.set("version", myrpki_version)
-    for i in e.getiterator():
-      if i.tag[0] != "{":
-        i.tag = myrpki_xmlns + i.tag
-      assert i.tag.startswith(myrpki_xmlns)
     if debug:
       print ElementToString(e)
-    rpki.relaxng.myrpki.assertValid(e)
+    schema.assertValid(e)
     self.etree = e
 
   def __str__(self):
@@ -329,8 +355,9 @@ class Zookeeper(object):
     easier for the GUI this way.
     """
 
-    e = Element("identity", handle = self.handle)
-    B64Element(e, "bpki_ta", self.resource_ca.certificate)
+    e = Element(tag_myrpki_identity, nsmap = myrpki_nsmap, version = myrpki_version,
+                handle = self.handle)
+    B64Element(e, tag_myrpki_bpki_ta, self.resource_ca.certificate)
     return etree_wrapper(e, msg = 'This is the "identity" file you will need to send to your parent')
 
 
@@ -380,8 +407,9 @@ class Zookeeper(object):
       return None
 
     except rpki.irdb.models.Repository.DoesNotExist:
-      e = Element("repository", type = "offer", handle = self.handle, parent_handle = self.handle)
-      B64Element(e, "bpki_client_ta", self.resource_ca.certificate)
+      e = Element(tag_myrpki_repository, nsmap = myrpki_nsmap, version = myrpki_version,
+                  type = "offer", handle = self.handle, parent_handle = self.handle)
+      B64Element(e, tag_myrpki_bpki_client_ta, self.resource_ca.certificate)
       return etree_wrapper(e, msg = 'This is the "repository offer" file for you to use if you want to publish in your own repository')
 
 
@@ -588,7 +616,7 @@ class Zookeeper(object):
     child, created = rpki.irdb.models.Child.objects.get_or_certify(
       issuer = self.resource_ca,
       handle = child_handle,
-      ta = rpki.x509.X509(Base64 = c.findtext("bpki_ta")),
+      ta = rpki.x509.X509(Base64 = c.findtext(tag_myrpki_bpki_ta)),
       valid_until = valid_until)
 
     return self.generate_parental_response(child), child_handle
@@ -606,10 +634,11 @@ class Zookeeper(object):
       self.cfg.get("rpkid_server_port", section = myrpki_section),
       self.handle, child.handle)
 
-    e = Element("parent", parent_handle = self.handle, child_handle = child.handle,
+    e = Element(tag_myrpki_parent, nsmap = myrpki_nsmap, version = myrpki_version,
+                parent_handle = self.handle, child_handle = child.handle,
                 service_uri = service_uri, valid_until = str(child.valid_until))
-    B64Element(e, "bpki_resource_ta", self.resource_ca.certificate)
-    B64Element(e, "bpki_child_ta", child.ta)
+    B64Element(e, tag_myrpki_bpki_resource_ta, self.resource_ca.certificate)
+    B64Element(e, tag_myrpki_bpki_child_ta, child.ta)
 
     try:
       if self.default_repository:
@@ -623,21 +652,21 @@ class Zookeeper(object):
       self.log("Couldn't find any usable repositories, not giving referral")
 
     elif repo.handle == self.handle:
-      SubElement(e, "repository", type = "offer")
+      SubElement(e, tag_myrpki_repository, type = "offer")
 
     else:
       proposed_sia_base = repo.sia_base + child.handle + "/"
       referral_cert, created = rpki.irdb.models.Referral.objects.get_or_certify(issuer = self.resource_ca)
       auth = rpki.x509.SignedReferral()
-      auth.set_content(B64Element(None, myrpki_xmlns + "referral", child.ta,
+      auth.set_content(B64Element(None, tag_myrpki_referral, child.ta,
                                   version = myrpki_version,
                                   authorized_sia_base = proposed_sia_base))
       auth.schema_check()
       auth.sign(referral_cert.private_key, referral_cert.certificate, self.resource_ca.latest_crl)
 
-      r = SubElement(e, "repository", type = "referral")
-      B64Element(r, "authorization", auth, referrer = repo.client_handle)
-      SubElement(r, "contact_info")
+      r = SubElement(e, tag_myrpki_repository, type = "referral")
+      B64Element(r, tag_myrpki_authorization, auth, referrer = repo.client_handle)
+      SubElement(r, tag_myrpki_contact_info)
 
     return etree_wrapper(e, msg = "Send this file back to the child you just configured")
 
@@ -669,7 +698,7 @@ class Zookeeper(object):
     if parent_handle is None:
       parent_handle = p.get("parent_handle")
 
-    r = p.find("repository")
+    r = p.find(tag_myrpki_repository)
 
     repository_type = "none"
     referrer = None
@@ -679,7 +708,7 @@ class Zookeeper(object):
       repository_type = r.get("type")
 
     if repository_type == "referral":
-      a = r.find("authorization")
+      a = r.find(tag_myrpki_authorization)
       referrer = a.get("referrer")
       referral_authorization = rpki.x509.SignedReferral(Base64 = a.text)
 
@@ -692,7 +721,7 @@ class Zookeeper(object):
       child_handle = p.get("child_handle"),
       parent_handle = p.get("parent_handle"),
       service_uri = p.get("service_uri"),
-      ta = rpki.x509.X509(Base64 = p.findtext("bpki_resource_ta")),
+      ta = rpki.x509.X509(Base64 = p.findtext(tag_myrpki_bpki_resource_ta)),
       repository_type = repository_type,
       referrer = referrer,
       referral_authorization = referral_authorization)
@@ -705,12 +734,12 @@ class Zookeeper(object):
     Generate repository request for a given parent.
     """
 
-    e = Element("repository", handle = self.handle,
-                parent_handle = parent.handle, type = parent.repository_type)
+    e = Element(tag_myrpki_repository, nsmap = myrpki_nsmap, version = myrpki_version,
+                handle = self.handle, parent_handle = parent.handle, type = parent.repository_type)
     if parent.repository_type == "referral":
-      B64Element(e, "authorization", parent.referral_authorization, referrer = parent.referrer)
-      SubElement(e, "contact_info")
-    B64Element(e, "bpki_client_ta", self.resource_ca.certificate)
+      B64Element(e, tag_myrpki_authorization, parent.referral_authorization, referrer = parent.referrer)
+      SubElement(e, tag_myrpki_contact_info)
+    B64Element(e, tag_myrpki_bpki_client_ta, self.resource_ca.certificate)
     return etree_wrapper(e, msg = "This is the file to send to the repository operator")
 
 
@@ -744,7 +773,7 @@ class Zookeeper(object):
 
     client = etree_read(filename)
 
-    client_ta = rpki.x509.X509(Base64 = client.findtext("bpki_client_ta"))
+    client_ta = rpki.x509.X509(Base64 = client.findtext(tag_myrpki_bpki_client_ta))
 
     if sia_base is None and flat:
       self.log("Flat publication structure forced, homing client at top-level")
@@ -753,7 +782,7 @@ class Zookeeper(object):
     if sia_base is None and client.get("type") == "referral":
       self.log("This looks like a referral, checking")
       try:
-        auth = client.find("authorization")
+        auth = client.find(tag_myrpki_authorization)
         referrer = self.server_ca.clients.get(handle = auth.get("referrer"))
         referral_cms = rpki.x509.SignedReferral(Base64 = auth.text)
         referral_xml = referral_cms.unwrap(ta = (referrer.certificate, self.server_ca.certificate))
@@ -817,15 +846,16 @@ class Zookeeper(object):
       self.cfg.get("pubd_server_port", section = myrpki_section),
       client.handle)
 
-    e = Element("repository", type = "confirmed",
+    e = Element(tag_myrpki_repository, nsmap = myrpki_nsmap, version = myrpki_version,
+                type = "confirmed",
                 client_handle = client.handle,
                 parent_handle = client.parent_handle,
                 sia_base = client.sia_base,
                 service_uri = service_uri)
 
-    B64Element(e, "bpki_server_ta", self.server_ca.certificate)
-    B64Element(e, "bpki_client_ta", client.ta)
-    SubElement(e, "contact_info").text = self.pubd_contact_info
+    B64Element(e, tag_myrpki_bpki_server_ta, self.server_ca.certificate)
+    B64Element(e, tag_myrpki_bpki_client_ta, client.ta)
+    SubElement(e, tag_myrpki_contact_info).text = self.pubd_contact_info
     return etree_wrapper(e, msg = "Send this file back to the publication client you just configured")
 
 
@@ -872,7 +902,7 @@ class Zookeeper(object):
         client_handle = r.get("client_handle"),
         service_uri = r.get("service_uri"),
         sia_base = r.get("sia_base"),
-        ta = rpki.x509.X509(Base64 = r.findtext("bpki_server_ta")),
+        ta = rpki.x509.X509(Base64 = r.findtext(tag_myrpki_bpki_server_ta)),
         turtle = turtle)
 
 
@@ -1654,10 +1684,9 @@ class Zookeeper(object):
     router-ID supplied in the XML.
     """
 
-    xml = ElementTree(file = router_certificate_request_xml).getroot()
-    rpki.relaxng.router_certificate.assertValid(xml)
+    xml = etree_read(router_certificate_request_xml, schema = rpki.relaxng.router_certificate)
 
-    for req in xml.getiterator(routercert_xmlns + "router_certificate_request"):
+    for req in xml.getiterator(tag_router_certificate_request):
 
       pkcs10 = rpki.x509.PKCS10(Base64 = req.text)
       router_id = long(req.get("router_id"))

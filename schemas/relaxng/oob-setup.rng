@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- $Id: rpki-setup.rnc 3429 2015-10-14 23:46:50Z sra $ -->
+<grammar ns="http://www.hactrn.net/uris/rpki/rpki-setup/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <define name="version">
+    <value>1</value>
+  </define>
+  <define name="base64">
+    <data type="base64Binary">
+      <param name="maxLength">512000</param>
+    </data>
+  </define>
+  <define name="handle">
+    <data type="string">
+      <param name="maxLength">255</param>
+      <param name="pattern">[\-_A-Za-z0-9/]*</param>
+    </data>
+  </define>
+  <define name="uri">
+    <data type="anyURI">
+      <param name="maxLength">4096</param>
+    </data>
+  </define>
+  <define name="any">
+    <element>
+      <anyName/>
+      <zeroOrMore>
+        <attribute>
+          <anyName/>
+        </attribute>
+      </zeroOrMore>
+      <zeroOrMore>
+        <choice>
+          <ref name="any"/>
+          <text/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+  <define name="authorization_token">
+    <ref name="base64"/>
+  </define>
+  <define name="bpki_ta">
+    <ref name="base64"/>
+  </define>
+  <start combine="choice">
+    <element name="child_request">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="child_handle">
+        <ref name="handle"/>
+      </attribute>
+      <element name="child_bpki_ta">
+        <ref name="bpki_ta"/>
+      </element>
+    </element>
+  </start>
+  <start combine="choice">
+    <element name="parent_response">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="service_uri">
+        <ref name="uri"/>
+      </attribute>
+      <attribute name="child_handle">
+        <ref name="handle"/>
+      </attribute>
+      <attribute name="parent_handle">
+        <ref name="handle"/>
+      </attribute>
+      <element name="parent_bpki_ta">
+        <ref name="bpki_ta"/>
+      </element>
+      <optional>
+        <element name="offer">
+          <empty/>
+        </element>
+      </optional>
+      <zeroOrMore>
+        <element name="referral">
+          <attribute name="referrer">
+            <ref name="handle"/>
+          </attribute>
+          <optional>
+            <attribute name="contact_uri">
+              <ref name="uri"/>
+            </attribute>
+          </optional>
+          <ref name="authorization_token"/>
+        </element>
+      </zeroOrMore>
+    </element>
+  </start>
+  <start combine="choice">
+    <element name="publisher_request">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="publisher_handle">
+        <ref name="handle"/>
+      </attribute>
+      <element name="publisher_bpki_ta">
+        <ref name="bpki_ta"/>
+      </element>
+      <zeroOrMore>
+        <element name="referral">
+          <attribute name="referrer">
+            <ref name="handle"/>
+          </attribute>
+          <ref name="authorization_token"/>
+        </element>
+      </zeroOrMore>
+    </element>
+  </start>
+  <start combine="choice">
+    <element name="repository_response">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="service_uri">
+        <ref name="uri"/>
+      </attribute>
+      <attribute name="publisher_handle">
+        <ref name="handle"/>
+      </attribute>
+      <attribute name="sia_base">
+        <ref name="uri"/>
+      </attribute>
+      <optional>
+        <attribute name="rrdp_notification_uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
+      <element name="repository_bpki_ta">
+        <ref name="bpki_ta"/>
+      </element>
+    </element>
+  </start>
+  <start combine="choice">
+    <element name="authorization">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="authorized_sia_base">
+        <ref name="uri"/>
+      </attribute>
+      <ref name="bpki_ta"/>
+    </element>
+  </start>
+  <start combine="choice">
+    <element name="error">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="reason">
+        <choice>
+          <value>syntax-error</value>
+          <value>authentication-failure</value>
+          <value>refused</value>
+        </choice>
+      </attribute>
+      <optional>
+        <ref name="any"/>
+      </optional>
+    </element>
+  </start>
+</grammar>

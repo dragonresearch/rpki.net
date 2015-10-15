@@ -1,0 +1,68 @@
+# $Id: rpki-setup.rnc 3429 2015-10-14 23:46:50Z sra $
+
+default namespace = "http://www.hactrn.net/uris/rpki/rpki-setup/"
+
+version = "1"
+
+base64  = xsd:base64Binary { maxLength="512000" }
+handle  = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]*" }
+uri     = xsd:anyURI { maxLength="4096" }
+any     = element * { attribute * { text }*, ( any | text )* }
+
+authorization_token = base64
+bpki_ta = base64
+
+start |= element child_request {
+  attribute version { version },
+  attribute child_handle { handle },
+  element child_bpki_ta { bpki_ta }
+}
+
+start |= element parent_response {
+  attribute version { version },
+  attribute service_uri { uri },
+  attribute child_handle { handle },
+  attribute parent_handle { handle },
+  element parent_bpki_ta { bpki_ta },
+  element offer { empty }?,
+  element referral {
+    attribute referrer { handle },
+    attribute contact_uri { uri }?,
+    authorization_token
+  }*
+}
+
+start |= element publisher_request {
+  attribute version { version },
+  attribute publisher_handle { handle },
+  element publisher_bpki_ta { bpki_ta },
+  element referral {
+    attribute referrer { handle },
+    authorization_token
+  }*
+}
+
+start |= element repository_response {
+  attribute version { version },
+  attribute service_uri { uri },
+  attribute publisher_handle { handle },
+  attribute sia_base { uri },
+  attribute rrdp_notification_uri { uri }?,
+  element repository_bpki_ta { bpki_ta }
+}
+
+start |= element authorization {
+  attribute version { version },
+  attribute authorized_sia_base { uri },
+  bpki_ta
+}
+
+start |= element error {
+  attribute version { version },
+  attribute reason {
+    "syntax-error" |
+    "authentication-failure" |
+    "refused"
+  },
+  any?
+}

@@ -51,7 +51,8 @@ RNGS =	schemas/relaxng/left-right.rng			\
 	schemas/relaxng/publication-control.rng		\
 	schemas/relaxng/myrpki.rng			\
 	schemas/relaxng/router-certificate.rng		\
-	schemas/relaxng/rrdp.rng
+	schemas/relaxng/rrdp.rng			\
+	schemas/relaxng/oob-setup.rng
 
 SQLS =	schemas/sql/rpkid.sql				\
 	schemas/sql/pubd.sql
@@ -209,6 +210,9 @@ schemas/relaxng/router-certificate.rng: schemas/relaxng/router-certificate.rnc
 
 schemas/relaxng/rrdp.rng: schemas/relaxng/rrdp.rnc
 	${TRANG} schemas/relaxng/rrdp.rnc schemas/relaxng/rrdp.rng
+
+schemas/relaxng/oob-setup.rng: schemas/relaxng/oob-setup.rnc
+	${TRANG} schemas/relaxng/oob-setup.rnc schemas/relaxng/oob-setup.rng
 
 # Eg: PYLINT_FLAGS='--disable=W0311'
 

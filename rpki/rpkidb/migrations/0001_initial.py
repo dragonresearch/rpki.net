@@ -27,11 +27,11 @@ class Migration(migrations.Migration):
             name='CA',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('last_crl_sn', models.BigIntegerField()),
-                ('last_manifest_sn', models.BigIntegerField()),
+                ('last_crl_sn', models.BigIntegerField(default=1)),
+                ('last_manifest_sn', models.BigIntegerField(default=1)),
                 ('next_manifest_update', rpki.fields.SundialField(null=True)),
                 ('next_crl_update', rpki.fields.SundialField(null=True)),
-                ('last_issued_sn', models.BigIntegerField()),
+                ('last_issued_sn', models.BigIntegerField(default=1)),
                 ('sia_uri', models.TextField(null=True)),
                 ('parent_resource_class', models.TextField(null=True)),
             ],
@@ -52,7 +52,7 @@ class Migration(migrations.Migration):
                 ('manifest_published', rpki.fields.SundialField(null=True)),
                 ('state', rpki.fields.EnumField(choices=[(1, 'pending'), (2, 'active'), (3, 'deprecated'), (4, 'revoked')])),
                 ('ca_cert_uri', models.TextField(null=True)),
-                ('ca', models.ForeignKey(to='rpkidb.CA')),
+                ('ca', models.ForeignKey(related_name='ca_details', to='rpkidb.CA')),
             ],
         ),
         migrations.CreateModel(
@@ -63,7 +63,7 @@ class Migration(migrations.Migration):
                 ('bpki_cert', rpki.fields.CertificateField(default=None, serialize=False, null=True, blank=True)),
                 ('bpki_glue', rpki.fields.CertificateField(default=None, serialize=False, null=True, blank=True)),
                 ('last_cms_timestamp', rpki.fields.SundialField(null=True)),
-                ('bsc', models.ForeignKey(to='rpkidb.BSC')),
+                ('bsc', models.ForeignKey(related_name='children', to='rpkidb.BSC')),
             ],
         ),
         migrations.CreateModel(
@@ -73,8 +73,8 @@ class Migration(migrations.Migration):
                 ('cert', rpki.fields.CertificateField(default=None, serialize=False, blank=True)),
                 ('published', rpki.fields.SundialField(null=True)),
                 ('ski', rpki.fields.BlobField(default=None, serialize=False, blank=True)),
-                ('ca_detail', models.ForeignKey(to='rpkidb.CADetail')),
-                ('child', models.ForeignKey(to='rpkidb.Child')),
+                ('ca_detail', models.ForeignKey(related_name='child_certs', to='rpkidb.CADetail')),
+                ('child', models.ForeignKey(related_name='child_certs', to='rpkidb.Child')),
             ],
         ),
         migrations.CreateModel(
@@ -84,7 +84,7 @@ class Migration(migrations.Migration):
                 ('ski', rpki.fields.BlobField(default=None, serialize=False, blank=True)),
                 ('cert', rpki.fields.CertificateField(default=None, serialize=False, blank=True)),
                 ('published', rpki.fields.SundialField(null=True)),
-                ('ca_detail', models.ForeignKey(to='rpkidb.CADetail')),
+                ('ca_detail', models.ForeignKey(related_name='ee_certs', to='rpkidb.CADetail')),
             ],
         ),
         migrations.CreateModel(
@@ -95,7 +95,7 @@ class Migration(migrations.Migration):
                 ('cert', rpki.fields.CertificateField(default=None, serialize=False, blank=True)),
                 ('ghostbuster', rpki.fields.GhostbusterField(default=None, serialize=False, blank=True)),
                 ('published', rpki.fields.SundialField(null=True)),
-                ('ca_detail', models.ForeignKey(to='rpkidb.CADetail')),
+                ('ca_detail', models.ForeignKey(related_name='ghostbusters', to='rpkidb.CADetail')),
             ],
         ),
         migrations.CreateModel(
@@ -110,7 +110,7 @@ class Migration(migrations.Migration):
                 ('sender_name', models.TextField(null=True)),
                 ('recipient_name', models.TextField(null=True)),
                 ('last_cms_timestamp', rpki.fields.SundialField(null=True)),
-                ('bsc', models.ForeignKey(to='rpkidb.BSC')),
+                ('bsc', models.ForeignKey(related_name='parents', to='rpkidb.BSC')),
             ],
         ),
         migrations.CreateModel(
@@ -122,7 +122,7 @@ class Migration(migrations.Migration):
                 ('bpki_cert', rpki.fields.CertificateField(default=None, serialize=False, null=True, blank=True)),
                 ('bpki_glue', rpki.fields.CertificateField(default=None, serialize=False, null=True, blank=True)),
                 ('last_cms_timestamp', rpki.fields.SundialField(null=True)),
-                ('bsc', models.ForeignKey(to='rpkidb.BSC')),
+                ('bsc', models.ForeignKey(related_name='repositories', to='rpkidb.BSC')),
             ],
         ),
         migrations.CreateModel(
@@ -132,7 +132,7 @@ class Migration(migrations.Migration):
                 ('serial', models.BigIntegerField()),
                 ('revoked', rpki.fields.SundialField()),
                 ('expires', rpki.fields.SundialField()),
-                ('ca_detail', models.ForeignKey(to='rpkidb.CADetail')),
+                ('ca_detail', models.ForeignKey(related_name='revoked_certs', to='rpkidb.CADetail')),
             ],
         ),
         migrations.CreateModel(
@@ -140,21 +140,12 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
                 ('asn', models.BigIntegerField()),
+                ('ipv4', models.TextField(null=True)),
+                ('ipv6', models.TextField(null=True)),
                 ('cert', rpki.fields.CertificateField(default=None, serialize=False, blank=True)),
                 ('roa', rpki.fields.ROAField(default=None, serialize=False, blank=True)),
                 ('published', rpki.fields.SundialField(null=True)),
-                ('ca_detail', models.ForeignKey(to='rpkidb.CADetail')),
-            ],
-        ),
-        migrations.CreateModel(
-            name='ROAPrefix',
-            fields=[
-                ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('prefix', models.CharField(max_length=40)),
-                ('prefixlen', models.SmallIntegerField()),
-                ('max_prefixlen', models.SmallIntegerField()),
-                ('version', models.SmallIntegerField()),
-                ('roa', models.ForeignKey(to='rpkidb.ROA')),
+                ('ca_detail', models.ForeignKey(related_name='roas', to='rpkidb.CADetail')),
             ],
         ),
         migrations.CreateModel(
@@ -172,47 +163,47 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='roa',
             name='self',
-            field=models.ForeignKey(to='rpkidb.Self'),
+            field=models.ForeignKey(related_name='roas', to='rpkidb.Self'),
         ),
         migrations.AddField(
             model_name='repository',
             name='self',
-            field=models.ForeignKey(to='rpkidb.Self'),
+            field=models.ForeignKey(related_name='repositories', to='rpkidb.Self'),
         ),
         migrations.AddField(
             model_name='parent',
             name='repository',
-            field=models.ForeignKey(to='rpkidb.Repository'),
+            field=models.ForeignKey(related_name='parents', to='rpkidb.Repository'),
         ),
         migrations.AddField(
             model_name='parent',
             name='self',
-            field=models.ForeignKey(to='rpkidb.Self'),
+            field=models.ForeignKey(related_name='parents', to='rpkidb.Self'),
         ),
         migrations.AddField(
             model_name='ghostbuster',
             name='self',
-            field=models.ForeignKey(to='rpkidb.Self'),
+            field=models.ForeignKey(related_name='ghostbusters', to='rpkidb.Self'),
         ),
         migrations.AddField(
             model_name='eecert',
             name='self',
-            field=models.ForeignKey(to='rpkidb.Self'),
+            field=models.ForeignKey(related_name='ee_certs', to='rpkidb.Self'),
         ),
         migrations.AddField(
             model_name='child',
             name='self',
-            field=models.ForeignKey(to='rpkidb.Self'),
+            field=models.ForeignKey(related_name='children', to='rpkidb.Self'),
         ),
         migrations.AddField(
             model_name='ca',
             name='parent',
-            field=models.ForeignKey(to='rpkidb.Parent'),
+            field=models.ForeignKey(related_name='cas', to='rpkidb.Parent'),
         ),
         migrations.AddField(
             model_name='bsc',
             name='self',
-            field=models.ForeignKey(to='rpkidb.Self'),
+            field=models.ForeignKey(related_name='bscs', to='rpkidb.Self'),
         ),
         migrations.AlterUniqueTogether(
             name='repository',

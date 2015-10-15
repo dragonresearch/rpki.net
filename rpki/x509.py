@@ -2034,7 +2034,7 @@ class XML_CMS_object(Wrapped_CMS_object):
 
 class SignedReferral(XML_CMS_object):
   encoding = "us-ascii"
-  schema = rpki.relaxng.myrpki
+  schema = rpki.relaxng.oob_setup
 
 class Ghostbuster(Wrapped_CMS_object):
   """

@@ -552,12 +552,12 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       </attribute>
     </optional>
     <optional>
-      <element name="bpki_cms_cert">
+      <element name="bpki_cert">
         <ref name="base64"/>
       </element>
     </optional>
     <optional>
-      <element name="bpki_cms_glue">
+      <element name="bpki_glue">
         <ref name="base64"/>
       </element>
     </optional>
@@ -766,6 +766,11 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
     </optional>
     <optional>
       <ref name="bsc_handle"/>
+    </optional>
+    <optional>
+      <attribute name="rrdp_notification_uri">
+        <ref name="uri"/>
+      </attribute>
     </optional>
     <optional>
       <element name="bpki_cert">

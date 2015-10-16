@@ -47,8 +47,6 @@ nsmap   = rpki.relaxng.left_right.nsmap
 version = rpki.relaxng.left_right.version
 
 tag_bpki_cert                    = xmlns + "bpki_cert"
-tag_bpki_cms_cert                = xmlns + "bpki_cms_cert"
-tag_bpki_cms_glue                = xmlns + "bpki_cms_glue"
 tag_bpki_glue                    = xmlns + "bpki_glue"
 tag_bsc                          = xmlns + "bsc"
 tag_child                        = xmlns + "child"
@@ -584,7 +582,7 @@ class repository_elt(base_elt):
   """
 
   element_name = xmlns + "repository"
-  attributes = ("action", "tag", "self_handle", "repository_handle", "bsc_handle", "peer_contact_uri")
+  attributes = ("action", "tag", "self_handle", "repository_handle", "bsc_handle", "peer_contact_uri", "rrdp_notification_uri")
   booleans = ("clear_replay_protection",)
 
   elements = collections.OrderedDict((
@@ -608,6 +606,7 @@ class repository_elt(base_elt):
   bpki_cert = None
   bpki_glue = None
   last_cms_timestamp = None
+  rrdp_notification_uri = None
 
   def __repr__(self):
     return rpki.log.log_repr(self, self.repository_handle)
@@ -700,8 +699,8 @@ class parent_elt(base_elt):
   booleans = ("rekey", "reissue", "revoke", "revoke_forgotten", "clear_replay_protection")
 
   elements = collections.OrderedDict((
-    (tag_bpki_cms_cert, rpki.x509.X509),
-    (tag_bpki_cms_glue, rpki.x509.X509)))
+    (tag_bpki_cert, rpki.x509.X509),
+    (tag_bpki_glue, rpki.x509.X509)))
 
   sql_template = rpki.sql.template(
     "parent",
@@ -714,16 +713,16 @@ class parent_elt(base_elt):
     "sia_base",
     "sender_name",
     "recipient_name",
-    ("bpki_cms_cert", rpki.x509.X509),
-    ("bpki_cms_glue", rpki.x509.X509),
+    ("bpki_cert", rpki.x509.X509),
+    ("bpki_glue", rpki.x509.X509),
     ("last_cms_timestamp", rpki.sundial.datetime))
 
   handles = (("self", self_elt),
              ("bsc", bsc_elt),
              ("repository", repository_elt))
 
-  bpki_cms_cert = None
-  bpki_cms_glue = None
+  bpki_cert = None
+  bpki_glue = None
   last_cms_timestamp = None
 
   def __repr__(self):
@@ -883,7 +882,7 @@ class parent_elt(base_elt):
       is_ca        = True,
       caRepository = ca.sia_uri,
       rpkiManifest = ca_detail.manifest_uri,
-      rpkiNotify   = rpki.publication.rrdp_sia_uri_kludge)
+      rpkiNotify   = ca.parent.repository.rrdp_notification_uri)
     q_msg = self._compose_up_down_query("issue")
     q_pdu = SubElement(q_msg, rpki.up_down.tag_request, class_name = ca.parent_resource_class)
     q_pdu.text = pkcs10.get_Base64()
@@ -915,8 +914,8 @@ class parent_elt(base_elt):
         r_msg = r_cms.unwrap((self.gctx.bpki_ta,
                               self.self.bpki_cert,
                               self.self.bpki_glue,
-                              self.bpki_cms_cert,
-                              self.bpki_cms_glue))
+                              self.bpki_cert,
+                              self.bpki_glue))
         r_cms.check_replay_sql(self, self.peer_contact_uri)
         rpki.up_down.check_response(r_msg, q_msg.get("type"))
 

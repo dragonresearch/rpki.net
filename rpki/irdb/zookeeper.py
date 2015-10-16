@@ -537,7 +537,7 @@ class Zookeeper(object):
                            tag = "%s__parent__%s" % (parent.issuer.handle, parent.handle),
                            self_handle = parent.issuer.handle,
                            parent_handle = parent.handle)
-        SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = parent.certificate.get_Base64()
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = parent.certificate.get_Base64()
 
       for rootd in rpki.irdb.models.Rootd.objects.all():
         q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
@@ -545,7 +545,7 @@ class Zookeeper(object):
                            tag = "%s__rootd" % rootd.issuer.handle,
                            self_handle = rootd.issuer.handle,
                            parent_handle = rootd.issuer.handle)
-        SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = rootd.certificate.get_Base64()
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = rootd.certificate.get_Base64()
 
       for child in rpki.irdb.models.Child.objects.all():
         q_pdu = SubElement(q_msg, rpki.left_right.tag_child,
@@ -831,12 +831,16 @@ class Zookeeper(object):
       port = self.cfg.get("pubd_server_port", section = myrpki_section),
       handle = client.handle)
 
+    rrdp_uri = self.cfg.get("publication_rrdp_notification_uri", section = myrpki_section,
+                            default = "") or None
+
     e = Element(tag_oob_repository_response, nsmap = oob_nsmap, version = oob_version,
                 service_uri = service_uri,
                 publisher_handle = client.handle,
                 sia_base = client.sia_base)
 
-    # This is where we'd insert the rrdp_notification_uri attribute
+    if rrdp_uri is not None:
+      e.set("rrdp_notification_uri", rrdp_uri)
 
     B64Element(e, tag_oob_repository_bpki_ta, self.server_ca.certificate)
     return etree_wrapper(e, msg = "Send this file back to the publication client you just configured")
@@ -905,6 +909,7 @@ class Zookeeper(object):
       client_handle = x.get("publisher_handle"),
       service_uri = x.get("service_uri"),
       sia_base = x.get("sia_base"),
+      rrdp_notification_uri = x.get("rrdp_notification_uri"),
       ta = rpki.x509.X509(Base64 = x.findtext(tag_oob_repository_bpki_ta)),
       turtle = turtle)
 
@@ -1439,6 +1444,7 @@ class Zookeeper(object):
       if (repository_pdu is None or
           repository_pdu.get("bsc_handle") != bsc_handle or
           repository_pdu.get("peer_contact_uri") != repository.service_uri or
+          repository_pdu.get("rrdp_notification_uri") != repository.rrdp_notification_uri or
           repository_pdu.findtext(rpki.left_right.tag_bpki_cert, "").decode("base64") != repository.certificate.get_DER()):
         q_pdu = SubElement(q_msg, rpki.left_right.tag_repository,
                            action = "create" if repository_pdu is None else "set",
@@ -1447,6 +1453,8 @@ class Zookeeper(object):
                            repository_handle = repository.handle,
                            bsc_handle = bsc_handle,
                            peer_contact_uri = repository.service_uri)
+        if repository.rrdp_notification_uri:
+          q_pdu.set("rrdp_notification_uri", repository.rrdp_notification_uri)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = repository.certificate.get_Base64()
 
     for repository_handle in repository_pdus:
@@ -1473,7 +1481,7 @@ class Zookeeper(object):
             parent_pdu.get("sia_base") != parent.repository.sia_base or
             parent_pdu.get("sender_name") != parent.child_handle or
             parent_pdu.get("recipient_name") != parent.parent_handle or
-            parent_pdu.findtext(rpki.left_right.tag_bpki_cms_cert, "").decode("base64") != parent.certificate.get_DER()):
+            parent_pdu.findtext(rpki.left_right.tag_bpki_cert, "").decode("base64") != parent.certificate.get_DER()):
           q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
                              action = "create" if parent_pdu is None else "set",
                              tag = parent.handle,
@@ -1485,7 +1493,7 @@ class Zookeeper(object):
                              sia_base = parent.repository.sia_base,
                              sender_name = parent.child_handle,
                              recipient_name = parent.parent_handle)
-          SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = parent.certificate.get_Base64()
+          SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = parent.certificate.get_Base64()
 
       except rpki.irdb.models.Repository.DoesNotExist:
         pass
@@ -1501,7 +1509,7 @@ class Zookeeper(object):
           parent_pdu.get("sia_base") != ca.rootd.repository.sia_base or
           parent_pdu.get("sender_name") != ca.handle or
           parent_pdu.get("recipient_name") != ca.handle or
-          parent_pdu.findtext(rpki.left_right.tag_bpki_cms_cert).decode("base64") != ca.rootd.certificate.get_DER()):
+          parent_pdu.findtext(rpki.left_right.tag_bpki_cert).decode("base64") != ca.rootd.certificate.get_DER()):
         q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
                            action = "create" if parent_pdu is None else "set",
                            tag = ca.handle,
@@ -1513,7 +1521,7 @@ class Zookeeper(object):
                            sia_base = ca.rootd.repository.sia_base,
                            sender_name = ca.handle,
                            recipient_name = ca.handle)
-        SubElement(q_pdu, rpki.left_right.tag_bpki_cms_cert).text = ca.rootd.certificate.get_Base64()
+        SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = ca.rootd.certificate.get_Base64()
 
     except rpki.irdb.models.Rootd.DoesNotExist:
       pass

@@ -44,8 +44,6 @@ class XMLTemplate(object):
 
   element_type = dict(bpki_cert        = rpki.x509.X509,
                       bpki_glue        = rpki.x509.X509,
-                      bpki_cms_cert    = rpki.x509.X509,
-                      bpki_cms_glue    = rpki.x509.X509,
                       pkcs10_request   = rpki.x509.PKCS10,
                       signing_cert     = rpki.x509.X509,
                       signing_cert_crl = rpki.x509.CRL)
@@ -345,6 +343,7 @@ class BSC(models.Model):
 class Repository(models.Model):
   repository_handle = models.SlugField(max_length = 255)
   peer_contact_uri = models.TextField(null = True)
+  rrdp_notification_uri = models.TextField(null = True)
   bpki_cert = CertificateField(null = True)
   bpki_glue = CertificateField(null = True)
   last_cms_timestamp = SundialField(null = True)
@@ -358,7 +357,7 @@ class Repository(models.Model):
   xml_template = XMLTemplate(
     name       = "repository",
     handles    = (BSC,),
-    attributes = ("peer_contact_uri",),
+    attributes = ("peer_contact_uri", "rrdp_notification_uri"),
     elements   = ("bpki_cert", "bpki_glue"))
 
 
@@ -432,8 +431,8 @@ class Repository(models.Model):
 
 class Parent(models.Model):
   parent_handle = models.SlugField(max_length = 255)
-  bpki_cms_cert = CertificateField(null = True)
-  bpki_cms_glue = CertificateField(null = True)
+  bpki_cert = CertificateField(null = True)
+  bpki_glue = CertificateField(null = True)
   peer_contact_uri = models.TextField(null = True)
   sia_base = models.TextField(null = True)
   sender_name = models.TextField(null = True)
@@ -451,7 +450,7 @@ class Parent(models.Model):
     name       = "parent",
     handles    = (BSC, Repository),
     attributes = ("peer_contact_uri", "sia_base", "sender_name", "recipient_name"),
-    elements   = ("bpki_cms_cert", "bpki_cms_glue"))
+    elements   = ("bpki_cert", "bpki_glue"))
 
 
   def xml_pre_delete_hook(self, cb, eb):
@@ -594,7 +593,7 @@ class Parent(models.Model):
       is_ca        = True,
       caRepository = ca.sia_uri,
       rpkiManifest = ca_detail.manifest_uri,
-      rpkiNotify   = rpki.publication.rrdp_sia_uri_kludge)
+      rpkiNotify   = ca.parent.repository.rrdp_notification_uri)
     q_msg = self._compose_up_down_query("issue")
     q_pdu = SubElement(q_msg, rpki.up_down.tag_request, class_name = ca.parent_resource_class)
     q_pdu.text = pkcs10.get_Base64()
@@ -626,8 +625,8 @@ class Parent(models.Model):
         r_msg = r_cms.unwrap((self.gctx.bpki_ta,
                               self.self.bpki_cert,
                               self.self.bpki_glue,
-                              self.bpki_cms_cert,
-                              self.bpki_cms_glue))
+                              self.bpki_cert,
+                              self.bpki_glue))
         r_cms.check_replay_sql(self, self.peer_contact_uri)
         rpki.up_down.check_response(r_msg, q_msg.get("type"))
 
@@ -1166,7 +1165,7 @@ class CADetail(models.Model):
       ca          = self.ca,
       resources   = resources,
       subject_key = self.manifest_public_key,
-      sia         = (None, None, self.manifest_uri, rpki.publication.rrdp_sia_uri_kludge))
+      sia         = (None, None, self.manifest_uri, self.ca.parent.repository.rrdp_notification_uri))
 
 
   def issue(self, ca, child, subject_key, sia, resources, publisher, child_cert = None):
@@ -1769,7 +1768,7 @@ class EECert(models.Model):
 
     cn, sn = subject_name.extract_cn_and_sn()
     ca = ca_detail.ca
-    sia = (None, None, ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer", rpki.publication.rrdp_sia_uri_kludge)
+    sia = (None, None, ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer", ca_detail.ca.parent.repository.rrdp_notification_uri)
     cert = ca_detail.issue_ee(
       ca          = ca_detail.ca,
       subject_key = subject_key,
@@ -1853,7 +1852,7 @@ class EECert(models.Model):
       ca          = ca_detail.ca,
       subject_key = self.cert.getPublicKey(),
       eku         = self.cert.get_EKU(),
-      sia         = (None, None, self.uri, rpki.publication.rrdp_sia_uri_kludge),
+      sia         = (None, None, self.uri, ca_detail.ca.parent.repository.rrdp_notification_uri),
       resources   = resources,
       notAfter    = resources.valid_until,
       cn          = cn,
@@ -1935,7 +1934,7 @@ class Ghostbuster(models.Model):
       ca          = self.ca_detail.ca,
       resources   = resources,
       subject_key = keypair.get_public(),
-      sia         = (None, None, self.uri_from_key(keypair), rpki.publication.rrdp_sia_uri_kludge))
+      sia         = (None, None, self.uri_from_key(keypair), self.ca_detail.ca.parent.repository.rrdp_notification_uri))
     self.ghostbuster = rpki.x509.Ghostbuster.build(self.vcard, keypair, (self.cert,))
     self.published = rpki.sundial.now()
     self.save()
@@ -2155,7 +2154,7 @@ class ROA(models.Model):
       ca          = self.ca_detail.ca,
       resources   = resources,
       subject_key = keypair.get_public(),
-      sia         = (None, None, self.uri_from_key(keypair), rpki.publication.rrdp_sia_uri_kludge))
+      sia         = (None, None, self.uri_from_key(keypair), self.ca_detail.ca.parent.repository.rrdp_notification_uri))
     self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
     self.published = rpki.sundial.now()
     self.save()

@@ -162,8 +162,8 @@ parent_payload = (attribute peer_contact_uri { uri }?,
                   repository_handle?,
                   attribute sender_name { up_down_name }?,
                   attribute recipient_name { up_down_name }?,
-                  element bpki_cms_cert { base64 }?,
-                  element bpki_cms_glue { base64 }?)
+                  element bpki_cert { base64 }?,
+                  element bpki_glue { base64 }?)
 
 parent_query |= element parent { ctl_create,  self_handle, parent_handle, parent_bool, parent_payload }
 parent_reply |= element parent { ctl_create,  self_handle, parent_handle }
@@ -206,6 +206,7 @@ repository_bool = attribute clear_replay_protection { "yes" }?
 
 repository_payload = (attribute peer_contact_uri { uri }?,
                       bsc_handle?,
+                      attribute rrdp_notification_uri { uri }?,
                       element bpki_cert { base64 }?,
                       element bpki_glue { base64 }?)
 

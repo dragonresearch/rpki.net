@@ -226,4 +226,9 @@ tags: Makefile .FORCE
 		! -name relaxng.py ! -name sql_schemas.py -print | \
 	etags -
 
+# This isn't all that useful until SQL has been set up.  Might want to
+# hack up something using ca/rpki-confgen and ca/rpki-sql-setup.
+makemigrations:
+	for i in rpkid pubd irdb; do RPKI_CONF=ca/examples/rpki.conf ca/rpki-manage makemigrations --settings rpki.django_settings.$$i; done
+
 .FORCE:

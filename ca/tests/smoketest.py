@@ -1018,7 +1018,7 @@ class allocation(object):
             bsc_handle = "b",
             repository_handle = "r",
             sia_base = s.sia_base,
-            bpki_cms_cert = rootd_cert,
+            bpki_cert = rootd_cert,
             sender_name = s.name,
             recipient_name = "rootd",
             peer_contact_uri = "http://localhost:%s/" % rootd_port))
@@ -1030,7 +1030,7 @@ class allocation(object):
           bsc_handle = "b",
           repository_handle = "r",
           sia_base = s.sia_base,
-          bpki_cms_cert = s.cross_certify(s.parent.name + "-SELF"),
+          bpki_cert = s.cross_certify(s.parent.name + "-SELF"),
           sender_name = s.name,
           recipient_name = s.parent.name,
           peer_contact_uri = "http://localhost:%s/up-down/%s/%s" % (s.parent.get_rpki_port(),

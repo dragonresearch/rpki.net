@@ -208,6 +208,7 @@ class allocation(object):
   pubd_port     = -1
   rsync_port    = -1
   rootd_port    = -1
+  rrdp_port     = -1
   rpkic_counter = 0L
 
   @classmethod
@@ -274,6 +275,7 @@ class allocation(object):
     if self.runs_pubd:
       self.pubd_port  = self.allocate_port()
       self.rsync_port = self.allocate_port()
+      self.rrdp_port  = self.allocate_port()
     if self.is_root:
       self.rootd_port = self.allocate_port()
 
@@ -502,6 +504,7 @@ class allocation(object):
       pubd_server_host                  = "localhost",
       pubd_server_port                  = str(self.pubd.pubd_port),
       publication_rsync_server          = "localhost:%s" % self.pubd.rsync_port,
+      publication_rrdp_notification_uri = "http://localhost:%s/rrdp/notify.xml" % self.pubd.rrdp_port,
       bpki_servers_directory            = self.path(),
       publication_base_directory        = self.path("publication"),
       rrdp_publication_base_directory   = self.path("rrdp-publication"),
@@ -698,8 +701,9 @@ def create_root_certificate(db_root):
 
   root_uri = "rsync://localhost:%d/rpki/%s-root/root" % (db_root.pubd.rsync_port, db_root.name)
 
-  from rpki.publication import rrdp_sia_uri_kludge
-  root_sia = (root_uri + "/", root_uri + "/root.mft", None, rrdp_sia_uri_kludge)
+  rrdp_uri = "http://localhost:%s/rrdp/notify.xml" % db.root.pubd.rrdp_port
+
+  root_sia = (root_uri + "/", root_uri + "/root.mft", None, rrdp_uri)
 
   root_cert = rpki.x509.X509.self_certify(
     keypair     = root_key,

@@ -1435,7 +1435,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       ca          = self.ca,
       resources   = resources,
       subject_key = self.manifest_public_key,
-      sia         = (None, None, self.manifest_uri, rpki.publication.rrdp_sia_uri_kludge))
+      sia         = (None, None, self.manifest_uri, self.ca.parent.repository.rrdp_notification_uri))
 
   def issue(self, ca, child, subject_key, sia, resources, publisher, child_cert = None):
     """
@@ -2199,7 +2199,7 @@ class roa_obj(rpki.sql.sql_persistent):
       ca          = ca,
       resources   = resources,
       subject_key = keypair.get_public(),
-      sia         = (None, None, self.uri_from_key(keypair), rpki.publication.rrdp_sia_uri_kludge))
+      sia         = (None, None, self.uri_from_key(keypair), ca.parent.repository.rrdp_notification_uri))
     self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
     self.published = rpki.sundial.now()
     self.sql_store()
@@ -2409,7 +2409,7 @@ class ghostbuster_obj(rpki.sql.sql_persistent):
       ca          = ca,
       resources   = resources,
       subject_key = keypair.get_public(),
-      sia         = (None, None, self.uri_from_key(keypair), rpki.publication.rrdp_sia_uri_kludge))
+      sia         = (None, None, self.uri_from_key(keypair), ca.parent.repository.rrdp_notification_uri))
     self.ghostbuster = rpki.x509.Ghostbuster.build(self.vcard, keypair, (self.cert,))
     self.published = rpki.sundial.now()
     self.sql_store()
@@ -2604,7 +2604,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
     cn, sn = subject_name.extract_cn_and_sn()
     ca = ca_detail.ca
 
-    sia = (None, None, ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer", rpki.publication.rrdp_sia_uri_kludge)
+    sia = (None, None, ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer", ca.parent.repository.rrdp_notification_uri)
 
     cert = ca_detail.issue_ee(
       ca          = ca,
@@ -2721,7 +2721,7 @@ class ee_cert_obj(rpki.sql.sql_persistent):
       ca          = ca_detail.ca,
       subject_key = self.cert.getPublicKey(),
       eku         = self.cert.get_EKU(),
-      sia         = (None, None, self.uri, rpki.publication.rrdp_sia_uri_kludge),
+      sia         = (None, None, self.uri, ca_detail.ca.parent.repository.rrdp_notification_uri),
       resources   = resources,
       notAfter    = resources.valid_until,
       cn          = cn,

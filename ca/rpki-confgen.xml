@@ -217,6 +217,15 @@
       </doc>
     </option>
 
+    <option name  = "publication_rrdp_notification_uri"
+	    value = "https://${myrpki::pubd_server_host}/rrdp/notify.xml">
+
+      <doc>
+	URI for RRDP notification file.  In most cases this should be
+	a HTTPS URL for the notify.xml file on the publication server.
+      </doc>
+    </option>
+
     <option name  = "start_rpkid"
             value = "${myrpki::run_rpkid}">
       <doc>
@@ -854,6 +863,13 @@
 	    value = "http://${myrpki::pubd_server_host}:${myrpki::pubd_server_port}/client/${myrpki::handle}-root">
       <doc>
 	URI at which rootd should contact pubd for service.
+      </doc>
+    </option>
+
+    <option name  = "rrdp-notification-uri"
+	    value = "${myrpki::publication_rrdp_notification_uri">
+      <doc>
+	RRDP URI for inclusion in generated objects.
       </doc>
     </option>
 

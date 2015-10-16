@@ -71,6 +71,7 @@ CREATE TABLE repository (
         repository_id           SERIAL NOT NULL,
         repository_handle       VARCHAR(255) NOT NULL,
         peer_contact_uri        TEXT,
+        rrdp_notification_uri   TEXT,
         bpki_cert               LONGBLOB,
         bpki_glue               LONGBLOB,
         last_cms_timestamp      DATETIME,
@@ -87,8 +88,8 @@ CREATE TABLE repository (
 CREATE TABLE parent (
         parent_id               SERIAL NOT NULL,
         parent_handle           VARCHAR(255) NOT NULL,
-        bpki_cms_cert           LONGBLOB,
-        bpki_cms_glue           LONGBLOB,
+        bpki_cert               LONGBLOB,
+        bpki_glue               LONGBLOB,
         peer_contact_uri        TEXT,
         sia_base                TEXT,
         sender_name             TEXT,

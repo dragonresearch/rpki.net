@@ -528,6 +528,7 @@ class Repository(CrossCertification):
   client_handle = HandleField()
   service_uri = django.db.models.CharField(max_length = 255)
   sia_base = django.db.models.TextField()
+  rrdp_notification_uri = django.db.models.TextField(null = True)
   turtle = django.db.models.OneToOneField(Turtle, related_name = "repository")
 
   # This shouldn't be necessary

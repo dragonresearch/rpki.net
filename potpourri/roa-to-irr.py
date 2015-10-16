@@ -21,12 +21,15 @@ Generate IRR route and route6 objects from ROAs.
 """
 
 import os
-import socket
 import sys
 import argparse
 import errno
-import time
+
 import rpki.x509
+
+from socket     import gethostname
+from textwrap   import dedent
+from time       import time, strftime, gmtime, asctime
 
 args = None
 
@@ -57,20 +60,22 @@ class route(object):
     return result
 
   def __str__(self):
-    lines = (
-      "%-14s%s/%s" % (self.label, self.prefix, self.prefixlen),
-      "descr:        %s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen),
-      "origin:       AS%d" % self.asn,
-      "notify:       %s" % args.notify,
-      "mnt-by:       %s" % args.mnt_by,
-      "changed:      %s %s" % (args.changed_by, self.date),
-      "source:       %s" % args.source,
-      "override:     %s" % args.password if args.password is not None else None,
-      "")
-    return "\n".join(line for line in lines if line is not None)
+    lines = "\n" if args.email else ""
+    lines += dedent('''\
+      {self.label:<14s}{self.prefix}/{self.prefixlen}
+      descr:        {self.prefix}/{self.prefixlen}-{self.max_prefixlen}
+      origin:       AS{self.asn:d}
+      notify:       {args.notify}
+      mnt-by:       {args.mnt_by}
+      changed:      {args.changed_by} {self.date}
+      source:       {args.source}
+      ''').format(self = self, args = args)
+    if args.password is not None:
+      lines += "override:     {}\n".format(args.password)
+    return lines
 
   def write(self, output_directory):
-    name = "%s-%s-%s-AS%d-%s" % (self.prefix, self.prefixlen, self.max_prefixlen, self.asn, self.date)
+    name = "{0.prefix}-{0.prefixlen}-{0.max_prefixlen}-AS{0.asn:d}-{0.date}".format(self)
     with open(os.path.join(output_directory, name), "w") as f:
       f.write(str(self))
 
@@ -88,7 +93,7 @@ class route_list(list):
           uri = "rsync://" + path[len(rcynic_dir):].lstrip("/")
           roa = rpki.x509.ROA(DER_file = path)
           roa.extract()
-          assert roa.get_POW().getVersion() == 0, "ROA version is %d, expected 0" % roa.get_POW().getVersion()
+          assert roa.get_POW().getVersion() == 0, "ROA version is {:d}, expected 0".format(roa.get_POW().getVersion())
           asnum = roa.get_POW().getASID()
           notBefore = roa.get_POW().certs()[0].getNotBefore().strftime("%Y%m%d")
           v4, v6 = roa.get_POW().getPrefixes()
@@ -105,55 +110,52 @@ class route_list(list):
 
 def email_header(f):
   if args.email:
-    f.write("\n".join((
-      "From %s" % args.email_from,
-      "Date: %s" % time.strftime("%d %b %Y %T %z"),
-      "From: %s" % args.email_from,
-      "Subject: Fake email header to make irr_rpsl_submit happy",
-      "Message-Id: <%s.%s@%s>" % (os.getpid(), time.time(), socket.gethostname()),
-      "", "")))
+    now = time()
+    f.write(dedent('''\
+      From {from_} {ctime}
+      Date: {date}
+      From: {from_}
+      Subject: Fake email header to make irr_rpsl_submit happy
+      Message-Id: <{pid}.{seconds}@{hostname}>
+      ''').format(from_    = args.from_,
+                  ctime    = asctime(gmtime(now)),
+                  date     = strftime("%d %b %Y %T %z", gmtime(now)),
+                  pid      = os.getpid(),
+                  seconds  = now,
+                  hostname = gethostname()))
 
 def main():
 
   global args
-  whoami = "%s@%s" % (os.getlogin(), socket.gethostname())
+  whoami = "{}@{}".format(os.getlogin(), gethostname())
 
   parser = argparse.ArgumentParser(description = __doc__)
-  parser.add_argument("-c", "--changed_by", default = whoami,
-                      help = "override \"changed:\" value")
-  parser.add_argument("-f", "--from", dest = "email_from", default = whoami,
-                      help = "override \"from:\" header when using --email")
-  parser.add_argument("-m", "--mnt_by", default = "MAINT-RPKI",
-                      help = "override \"mnt-by:\" value")
-  parser.add_argument("-n", "--notify", default = whoami,
-                      help = "override \"notify:\" value")
-  parser.add_argument("-p", "--password",
-                      help = "specify \"override:\" password")
-  parser.add_argument("-s", "--source", default = "RPKI",
-                      help = "override \"source:\" value")
+  parser.add_argument("-c", "--changed_by",             default = whoami,               help = "override \"changed:\" value")
+  parser.add_argument("-f", "--from", dest="from_",     default = whoami,               help = "override \"from:\" header when using --email")
+  parser.add_argument("-m", "--mnt_by",                 default = "MAINT-RPKI",         help = "override \"mnt-by:\" value")
+  parser.add_argument("-n", "--notify",                 default = whoami,               help = "override \"notify:\" value")
+  parser.add_argument("-p", "--password",                                               help = "specify \"override:\" password")
+  parser.add_argument("-s", "--source",                 default = "RPKI",               help = "override \"source:\" value")
   group = parser.add_mutually_exclusive_group()
-  group.add_argument("-e", "--email", action = "store_true",
-                     help = "generate fake RFC 822 header suitable for piping to irr_rpsl_submit")
-  group.add_argument("-o", "--output",
-                     help = "write route and route6 objects to directory OUTPUT, one object per file")
-  parser.add_argument("authenticated_directory",
-                      help = "directory tree containing authenticated rcynic output")
+  group.add_argument("-e", "--email",                   action = "store_true",          help = "generate fake RFC 822 header suitable for piping to irr_rpsl_submit")
+  group.add_argument("-d", "--output-directory",                                        help = "write route and route6 objects to directory OUTPUT, one object per file")
+  parser.add_argument("authenticated_directory",                                        help = "directory tree containing authenticated rcynic output")
   args = parser.parse_args()
 
   if not os.path.isdir(args.authenticated_directory):
-    sys.exit("\"%s\" is not a directory" % args.authenticated_directory)
+    sys.exit('"{}" is not a directory'.format(args.authenticated_directory))
 
   routes = route_list(args.authenticated_directory)
 
-  if args.output:
-    if not os.path.isdir(args.output):
-      os.makedirs(args.output)
+  if args.output_directory:
+    if not os.path.isdir(args.output_directory):
+      os.makedirs(args.output_directory)
     for r in routes:
-      r.write(args.output)
+      r.write(args.output_directory)
   else:
     email_header(sys.stdout)
     for r in routes:
-      sys.stdout.write("%s\n" % r)
+      sys.stdout.write(str(r))
 
 if __name__ == "__main__":
   main()

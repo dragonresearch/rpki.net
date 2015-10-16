@@ -2,7 +2,7 @@
 
 ## @var rpkid
 ## SQL schema rpkid
-rpkid = '''-- $Id: rpkid.sql 5881 2014-07-03 16:55:02Z sra $
+rpkid = '''-- $Id: rpkid.sql 6120 2015-10-16 04:56:43Z sra $
 
 -- Copyright (C) 2012--2014  Dragon Research Labs ("DRL")
 -- Portions copyright (C) 2009--2011  Internet Systems Consortium ("ISC")

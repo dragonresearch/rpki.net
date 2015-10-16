@@ -19,7 +19,7 @@ This module contains configuration settings for Django libraries for
 the pubd program.
 """
 
-from .common import *
+from .common import *                   # pylint: disable=W0401
 
 __version__ = "$Id$"
 
@@ -43,6 +43,6 @@ INSTALLED_APPS =  ["rpki.pubdb"]
 # putting that configuration into rpki.conf and just adding code here
 # to read that configuration.
 try:
-    from local_settings import *
-except:
+    from local_settings import *        # pylint: disable=W0401,F0401
+except ImportError:
     pass

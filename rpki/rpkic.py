@@ -46,7 +46,7 @@ import rpki.x509
 import rpki.async
 import rpki.version
 
-from lxml.etree import Element, SubElement
+from lxml.etree import SubElement
 
 from rpki.cli import Cmd, parsecmd, cmdarg
 

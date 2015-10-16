@@ -39,19 +39,16 @@ class HTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     try:
       content_type   = self.headers.get("Content-Type")
       content_length = self.headers.get("Content-Length")
-      for h in self.rpki_handlers:
-        if self.path.startswith(h[0]):
-          break
-      else:
-        self.send_error(404, "No handler for path %s" % self.path)
-      if content_type not in (h[2] if len(h) > 2 else (default_content_type,)):
-        self.send_error(415, "No handler for Content-Type %s" % content_type)
-      h[1](self, (self.rfile.read()
-                  if content_length is None else
-                  self.rfile.read(int(content_length))))
+      for handler_path, handler, handler_content_type in self.rpki_handlers:
+        if self.path.startswith(handler_path) and content_type in handler_content_type:
+          return handler(self,
+                         self.rfile.read()
+                         if content_length is None else
+                         self.rfile.read(int(content_length)))
+      self.send_error(404, "No handler for path %s" % self.path)
     except Exception, e:
       logger.exception("Unhandled exception")
-      self.send_error(501, "Unhandled exception")
+      self.send_error(501, "Unhandled exception %s" % e)
 
   def send_cms_response(self, der):
     self.send_response(200)
@@ -77,8 +74,11 @@ def server(handlers, port, host = ""):
   Run an HTTP server and wait (forever) for connections.
   """
 
-  if not isinstance(handlers, (tuple, list)):
-    handlers = (("/", handlers),)
+  if isinstance(handlers, (tuple, list)):
+    handlers = tuple(h[:3] if len(h) > 2 else (h[0], h[1], default_content_type)
+                     for h in handlers)
+  else:
+    handlers = (("/", handlers, default_content_type),)
 
   class RequestHandler(HTTPRequestHandler):
     rpki_handlers = handlers

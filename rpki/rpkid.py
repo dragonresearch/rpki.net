@@ -108,8 +108,8 @@ class main(object):
     import django
     django.setup()
 
-    global rpki
-    import rpki.rpkidb
+    global rpki                         # pylint: disable=W0602
+    import rpki.rpkidb                  # pylint: disable=W0621
 
     self.sql = rpki.sql.session(self.cfg)
 
@@ -214,7 +214,7 @@ class main(object):
     def done(r_msg):
       if len(r_msg) != 1:
         raise rpki.exceptions.BadIRDBReply(
-          "Expected exactly one PDU from IRDB: %s" % r_cms.pretty_print_content())
+          "Expected exactly one PDU from IRDB: %s" % r_msg.pretty_print_content())
       callback(rpki.resource_set.resource_bag(
         asn         = rpki.resource_set.resource_set_as(r_msg[0].get("asn")),
         v4          = rpki.resource_set.resource_set_ipv4(r_msg[0].get("ipv4")),
@@ -261,7 +261,7 @@ class main(object):
     try:
       return self._left_right_models
     except AttributeError:
-      import rpki.rpkidb.models
+      import rpki.rpkidb.models         # pylint: disable=W0621
       self._left_right_models = {
         rpki.left_right.tag_self        : rpki.rpkidb.models.Self,
         rpki.left_right.tag_bsc         : rpki.rpkidb.models.BSC,
@@ -326,7 +326,7 @@ class main(object):
                          uri = g.uri, **kw).text = g.ghostbuster.get_Base64()
 
           for c in ca_detail.ee_certificates:
-              SubElement(r_msg, rpki.left_right.tag_list_published_objects,            
+              SubElement(r_msg, rpki.left_right.tag_list_published_objects,
                          uri = c.uri, **kw).text = c.cert.get_Base64()
 
   def handle_list_received_resources(self, q_pdu, r_msg):
@@ -495,7 +495,7 @@ class main(object):
               obj.xml_template.acknowledge(obj, q_pdu, r_msg)
 
             else:
-              raise BadQuery
+              raise rpki.exceptions.BadQuery
 
         except (rpki.async.ExitNow, SystemExit):
           raise
@@ -2804,21 +2804,21 @@ class publication_queue(object):
       logger.debug("Removing publication duplicate %r", self.uris[uri])
       old_pdu = self.uris.pop(uri)
       self.msgs[rid].remove(old_pdu)
-      hash = old_pdu.get("hash")
+      pdu_hash = old_pdu.get("hash")
     elif old_hash is not None:
-      hash = old_hash
+      pdu_hash = old_hash
     elif old_obj is None:
-      hash = None 
+      pdu_hash = None
     else:
-      hash = rpki.x509.sha256(old_obj.get_DER()).encode("hex")
+      pdu_hash = rpki.x509.sha256(old_obj.get_DER()).encode("hex")
 
     if new_obj is None:
-      pdu = SubElement(self.msgs[rid], rpki.publication.tag_withdraw, uri = uri, hash = hash)
+      pdu = SubElement(self.msgs[rid], rpki.publication.tag_withdraw, uri = uri, hash = pdu_hash)
     else:
       pdu = SubElement(self.msgs[rid], rpki.publication.tag_publish,  uri = uri)
       pdu.text = new_obj.get_Base64()
-      if hash is not None:
-        pdu.set("hash", hash)
+      if pdu_hash is not None:
+        pdu.set("hash", pdu_hash)
 
     if handler is not None:
       tag = str(id(pdu))

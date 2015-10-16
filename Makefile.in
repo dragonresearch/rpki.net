@@ -216,9 +216,9 @@ schemas/relaxng/oob-setup.rng: schemas/relaxng/oob-setup.rnc
 
 # Eg: PYLINT_FLAGS='--disable=W0311'
 
-lint:
-	{ find rpki rp ca -name '*.py' -print; find rp ca -type f -perm -1 -print | xargs grep -El '^#!.+python'; } | \
-	sort -u | xargs pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc ${PYLINT_FLAGS}
+lint: .FORCE
+	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc ${PYLINT_FLAGS} \
+		rpki `find rp ca -type f -perm -1 -print | xargs grep -El '^#!.+python'`
 
 tags: Makefile .FORCE
 	find rpki rp ca schemas -type f \

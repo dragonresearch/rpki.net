@@ -21,16 +21,14 @@
 RPKI "up-down" protocol.
 """
 
-import base64
 import logging
-import lxml.etree
 import rpki.resource_set
 import rpki.x509
 import rpki.exceptions
 import rpki.log
 import rpki.relaxng
 
-from lxml.etree import Element, SubElement, tostring as ElementToString
+from lxml.etree import SubElement, tostring as ElementToString
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +45,11 @@ content_type = "application/x-rpki"
 # MIME content types which we consider acceptable for incoming up-down
 # queries.
 allowed_content_types = ("application/rpki-updown", "application/x-rpki")
+
+## @var enforce_strict_up_down_xml_sender
+# Enforce strict checking of XML "sender" field in up-down protocol
+
+enforce_strict_up_down_xml_sender = False
 
 tag_certificate = xmlns + "certificate"
 tag_class       = xmlns + "class"
@@ -119,7 +122,7 @@ def check_response(r_msg, q_type):
     raise rpki.exceptions.UpstreamError(error_response_codes[int(r_msg.findtext(tag_status))])
 
   if r_type != q_type + "_response":
-    raise UnexpectedUpDownResponse
+    raise rpki.exceptions.UnexpectedUpDownResponse
 
   if r_type == "issue_response" and (len(r_msg) != 1 or len(r_msg[0]) != 2):
     logger.debug("Weird issue_response %r: len(r_msg) %s len(r_msg[0]) %s",

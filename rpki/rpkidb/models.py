@@ -5,6 +5,7 @@ Django ORM models for rpkid.
 from __future__ import unicode_literals
 
 import logging
+import base64
 
 from django.db import models
 
@@ -14,7 +15,7 @@ from rpki.fields import (EnumField, SundialField, BlobField,
                          CertificateField, KeyField, CRLField, PKCS10Field,
                          ManifestField, ROAField, GhostbusterField)
 
-from lxml.etree import Element, SubElement, tostring as ElementToString
+from lxml.etree import Element, SubElement
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ class XMLTemplate(object):
         setattr(obj, k, self.element_type[k](Base64 = v))
 
 
-class XMLManager(models.Manager):
+class XMLManager(models.Manager):       # pylint: disable=W0232
   """
   Add a few methods which locate or create an object or objects
   corresponding to the handles in an XML element, as appropriate.
@@ -273,7 +274,7 @@ class Self(models.Model):
         for c in ca_detail.ee_certificates.all():
           reconcile(uri = c.uri,                obj = c.cert,                    repository = repository)
         for u in objects:
-          h, r = objects[h]
+          h, r = objects[u]
           publisher.queue(uri = u, old_hash = h, repository = r)
       publisher.call_pubd(cb, eb)
 
@@ -289,9 +290,11 @@ class Self(models.Model):
 
 
   def schedule_cron_tasks(self, completion):
-    if self.cron_tasks is None:
-      self.cron_tasks = tuple(task(self) for task in rpki.rpkid_tasks.task_classes)
-    for task in self.cron_tasks:
+    try:
+      tasks = self.cron_tasks
+    except AttributeError:
+      tasks = self.cron_tasks = tuple(task(self) for task in rpki.rpkid_tasks.task_classes)
+    for task in tasks:
       self.gctx.task_add(task)
       completion.register(task)
 
@@ -323,7 +326,7 @@ class BSC(models.Model):
   self = models.ForeignKey(Self, related_name = "bscs")
   objects = XMLManager()
 
-  class Meta:
+  class Meta:                           # pylint: disable=C1001,W0232
     unique_together = ("self", "bsc_handle")
 
   xml_template = XMLTemplate(
@@ -351,7 +354,7 @@ class Repository(models.Model):
   self = models.ForeignKey(Self, related_name = "repositories")
   objects = XMLManager()
 
-  class Meta:
+  class Meta:                           # pylint: disable=C1001,W0232
     unique_together = ("self", "repository_handle")
 
   xml_template = XMLTemplate(
@@ -372,7 +375,7 @@ class Repository(models.Model):
     self.save()
 
 
-  def call_pubd(self, callback, errback, q_msg, handlers = {}, length_check = True):
+  def call_pubd(self, callback, errback, q_msg, handlers = {}, length_check = True): # pylint: disable=W0102
     """
     Send a message to publication daemon and return the response.
 
@@ -443,7 +446,7 @@ class Parent(models.Model):
   repository = models.ForeignKey(Repository, related_name = "parents")
   objects = XMLManager()
 
-  class Meta:
+  class Meta:                           # pylint: disable=C1001,W0232
     unique_together = ("self", "parent_handle")
 
   xml_template = XMLTemplate(
@@ -609,7 +612,7 @@ class Parent(models.Model):
       raise rpki.exceptions.BSCNotFound("Could not find BSC")
 
     if self.bsc.signing_cert is None:
-      raise rpki.exceptions.BSCNotReady("BSC %r is not yet usable" % eslf.bsc.bsc_handle)
+      raise rpki.exceptions.BSCNotReady("BSC %r is not yet usable" % self.bsc.bsc_handle)
 
     q_der = rpki.up_down.cms_msg().wrap(q_msg,
                                         self.bsc.private_key_id,
@@ -720,7 +723,7 @@ class CA(models.Model):
         logger.warning("SKI %s in resource class %s is in database but missing from list_response to %s from %s, "
                        "maybe parent certificate went away?",
                        ca_detail.public_key.gSKI(), class_name, parent.self.self_handle, parent.parent_handle)
-        publisher = publication_queue()
+        publisher = rpki.rpkid.publication_queue()
         ca_detail.destroy(ca = ca_detail.ca, publisher = publisher)
         return publisher.call_pubd(iterator, eb)
       if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc_cert_uri:
@@ -808,7 +811,7 @@ class CA(models.Model):
       logger.debug("Deleting %r", self)
       self.delete()
       callback()
-    publisher = publication_queue()
+    publisher = rpki.rpkid.publication_queue()
     for ca_detail in self.ca_details.all():
       ca_detail.destroy(ca = self, publisher = publisher, allow_failure = True)
     publisher.call_pubd(done, lose)
@@ -963,7 +966,7 @@ class CADetail(models.Model):
     Activate this ca_detail.
     """
 
-    publisher = publication_queue()
+    publisher = rpki.rpkid.publication_queue()
     self.latest_ca_cert = cert
     self.ca_cert_uri = uri
     self.generate_manifest_cert()
@@ -1053,7 +1056,7 @@ class CADetail(models.Model):
         nextUpdate = nextUpdate.later(self.latest_manifest.getNextUpdate())
       if self.latest_crl is not None:
         nextUpdate = nextUpdate.later(self.latest_crl.getNextUpdate())
-      publisher = publication_queue()
+      publisher = rpki.rpkid.publication_queue()
       for child_cert in self.child_certs.all():
         nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
         child_cert.revoke(publisher = publisher)
@@ -1091,7 +1094,7 @@ class CADetail(models.Model):
       if self.state == "pending":
         return self.activate(ca = ca, cert = cert, uri = cert_url, callback = callback, errback  = errback)
       validity_changed = self.latest_ca_cert is None or self.latest_ca_cert.getNotAfter() != cert.getNotAfter()
-      publisher = publication_queue()
+      publisher = rpki.rpkid.publication_queue()
       if self.latest_ca_cert != cert:
         self.latest_ca_cert = cert
         self.save()
@@ -1310,7 +1313,7 @@ class CADetail(models.Model):
     Reissue all current certificates issued by this ca_detail.
     """
 
-    publisher = publication_queue()
+    publisher = rpki.rpkid.publication_queue()
     self.check_failed_publication(publisher)
     for roa in self.roas.all():
       roa.regenerate(publisher, fast = True)
@@ -1410,7 +1413,7 @@ class Child(models.Model):
   bsc = models.ForeignKey(BSC, related_name = "children")
   objects = XMLManager()
 
-  class Meta:
+  class Meta:                           # pylint: disable=C1001,W0232
     unique_together = ("self", "child_handle")
 
   xml_template = XMLTemplate(
@@ -1563,7 +1566,10 @@ class Child(models.Model):
     """
 
     def done():
-      callback(rpki.up_down.cms_msg().wrap(r_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl))
+      callback(rpki.up_down.cms_msg().wrap(r_msg,
+                                           self.bsc.private_key_id,
+                                           self.bsc.signing_cert,
+                                           self.bsc.signing_cert_crl))
 
     def lose(e):
       logger.exception("Unhandled exception serving child %r", self)
@@ -1582,7 +1588,7 @@ class Child(models.Model):
     q_type = q_msg.get("type")
     logger.info("Serving %s query from child %s [sender %s, recipient %s]",
                 q_type, self.child_handle, q_msg.get("sender"), q_msg.get("recipient"))
-    if enforce_strict_up_down_xml_sender and q_msg.get("sender") != self.child_handle:
+    if rpki.up_down.enforce_strict_up_down_xml_sender and q_msg.get("sender") != self.child_handle:
       raise rpki.exceptions.BadSender("Unexpected XML sender %s" % q_msg.get("sender"))
 
     r_msg = Element(rpki.up_down.tag_message, nsmap = rpki.up_down.nsmap, version = rpki.up_down.version,
@@ -1763,7 +1769,6 @@ class EECert(models.Model):
     """
 
     cn, sn = subject_name.extract_cn_and_sn()
-    ca = ca_detail.ca
     sia = (None, None, ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer", ca_detail.ca.parent.repository.rrdp_notification_uri)
     cert = ca_detail.issue_ee(
       ca          = ca_detail.ca,
@@ -2131,17 +2136,17 @@ class ROA(models.Model):
     v6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
 
     if self.ca_detail is not None and self.ca_detail.state == "active" and not self.ca_detail.has_expired():
-      logger.debug("Keeping old ca_detail %r for ROA %r", ca_detail, self)
+      logger.debug("Keeping old ca_detail %r for ROA %r", self.ca_detail, self)
     else:
       logger.debug("Searching for new ca_detail for ROA %r", self)
       for ca_detail in CADetail.objects.filter(ca__parent__self = self.self, state = "active"):
         resources = ca_detail.latest_ca_cert.get_3779resources()
         if not ca_detail.has_expired() and v4.issubset(resources.v4) and v6.issubset(resources.v6):
+          logger.debug("Using new ca_detail %r for ROA %r", ca_detail, self)
+          self.ca_detail = ca_detail
           break
       else:
         raise rpki.exceptions.NoCoveringCertForROA("Could not find a certificate covering %r" % self)
-      logger.debug("Using new ca_detail %r for ROA %r", ca_detail, self)
-      self.ca_detail = ca_detail
 
     resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)
     keypair = rpki.x509.RSA.generate()
@@ -2160,7 +2165,7 @@ class ROA(models.Model):
                     repository = self.ca_detail.ca.parent.repository,
                     handler = self.published_callback)
     if not fast:
-      ca_detail.generate_manifest(publisher = publisher)
+      self.ca_detail.generate_manifest(publisher = publisher)
 
 
   def published_callback(self, pdu):

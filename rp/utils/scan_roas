@@ -31,10 +31,10 @@ def check_dir(d):
     raise argparse.ArgumentTypeError("%r is not a directory" % d)
   return d
 
-class ROA(rpki.POW.ROA):
+class ROA(rpki.POW.ROA):                # pylint: disable=W0232
 
   @classmethod
-  def parse(cls, fn):
+  def parse(cls, fn):                   # pylint: disable=W0621
     self = cls.derReadFile(fn)
     self.extractWithoutVerifying()
     return self

@@ -20,7 +20,7 @@ This module contains GUI-specific configuration settings for Django libraries.
 
 # Pull in the irdb configuration, which in turn pulls in the common configuration.
 
-from .irdb import *
+from .irdb import *                     # pylint: disable=W0401
 
 __version__ = "$Id$"
 
@@ -151,6 +151,6 @@ TEMPLATE_CONTEXT_PROCESSORS = (
 # putting that configuration into rpki.conf and just adding code here
 # to read that configuration.
 try:
-    from local_settings import *
-except:
+    from local_settings import *        # pylint: disable=W0401,F0401
+except ImportError:
     pass

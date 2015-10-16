@@ -475,7 +475,7 @@ class Debian(Platform):
     self.run("service", "apache2", "restart")
 
 class Ubuntu(Debian):
-  
+
   # On Ubuntu, the filename must end in .conf on Trusty and must not
   # end in .conf on Precise.
   @property

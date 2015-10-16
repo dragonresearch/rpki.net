@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # $Id$
-# 
+#
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 #
 # Permission to use, copy, modify, and distribute this software for any
@@ -30,11 +30,11 @@ root = "Root"
 
 class Kid(object):
 
-  def __init__(self, n):
-    self.name = "ISP-%03d" % n
-    self.ipv4 = "10.%d.0.0/16" % n
-    self.asn  = n
-    self.router_id = n * 10000
+  def __init__(self, i):
+    self.name = "ISP-%03d" % i
+    self.ipv4 = "10.%d.0.0/16" % i
+    self.asn  = i
+    self.router_id = i * 10000
 
   @property
   def declare(self):
@@ -72,12 +72,12 @@ docs.append([shell_first,
 gym = kids[50:70]
 
 for kid in gym:
-  docs.append([shell_next, 
+  docs.append([shell_next,
                kid.del_routercert,
                sleeper])
 
 for kid in gym:
-  docs.append([shell_next, 
+  docs.append([shell_next,
                kid.add_routercert,
                sleeper])
 

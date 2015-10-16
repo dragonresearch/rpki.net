@@ -67,12 +67,6 @@ tag_signing_cert                 = xmlns + "signing_cert"
 tag_signing_cert_crl             = xmlns + "signing_cert_crl"
 
 
-## @var enforce_strict_up_down_xml_sender
-# Enforce strict checking of XML "sender" field in up-down protocol
-
-enforce_strict_up_down_xml_sender = False
-
-
 class base_elt(rpki.sql.sql_persistent):
   """
   Virtual class for persistent left-right protocol elements.
@@ -453,7 +447,7 @@ class self_elt(base_elt):
                         obj = c.cert,
                         repository = repository)
         for u in objects:
-          h, r = objects[h]
+          h, r = objects[u]
           publisher.queue(uri = u, old_hash = h, repository = r)
       publisher.call_pubd(cb, eb)
 
@@ -630,7 +624,7 @@ class repository_elt(base_elt):
     cb()
 
 
-  def call_pubd(self, callback, errback, q_msg, handlers = {}, length_check = True):
+  def call_pubd(self, callback, errback, q_msg, handlers = {}, length_check = True): # pylint: disable=W0102
     """
     Send a message to publication daemon and return the response.
 
@@ -1130,7 +1124,7 @@ class child_elt(base_elt):
     def done():
       SubElement(r_msg, key.tag, class_name = class_name, ski = key.get("ski"))
       callback()
-    
+
     key = q_msg[0]
     assert key.tag == rpki.up_down.tag_key
     class_name = key.get("class_name")
@@ -1138,9 +1132,9 @@ class child_elt(base_elt):
 
     publisher = rpki.rpkid.publication_queue()
 
-    ca = child.ca_from_class_name(class_name)
+    ca = self.ca_from_class_name(class_name)
     for ca_detail in ca.ca_details:
-      for child_cert in child.fetch_child_certs(ca_detail = ca_detail, ski = ski):
+      for child_cert in self.fetch_child_certs(ca_detail = ca_detail, ski = ski):
         child_cert.revoke(publisher = publisher)
 
     self.gctx.sql.sweep()
@@ -1174,7 +1168,7 @@ class child_elt(base_elt):
     q_type = q_msg.get("type")
     logger.info("Serving %s query from child %s [sender %s, recipient %s]",
                 q_type, self.child_handle, q_msg.get("sender"), q_msg.get("recipient"))
-    if enforce_strict_up_down_xml_sender and q_msg.get("sender") != self.child_handle:
+    if rpki.up_down.enforce_strict_up_down_xml_sender and q_msg.get("sender") != self.child_handle:
       raise rpki.exceptions.BadSender("Unexpected XML sender %s" % q_msg.get("sender"))
     self.gctx.sql.sweep()
 

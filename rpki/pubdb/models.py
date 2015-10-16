@@ -110,7 +110,7 @@ class Session(models.Model):
     """
 
     self.delta_set.filter(expires__lt = rpki.sundial.now()).delete()
-  
+
 
   def generate_snapshot(self):
     """
@@ -240,37 +240,38 @@ class Delta(models.Model):
     self.session.save()
 
 
-  def publish(self, client, der, uri, hash):
+  def publish(self, client, der, uri, obj_hash):
     try:
       obj = client.publishedobject_set.get(session = self.session, uri = uri)
-      if obj.hash == hash:
+      if obj.hash == obj_hash:
         obj.delete()
-      elif hash is None:
+      elif obj_hash is None:
         raise rpki.exceptions.ExistingObjectAtURI("Object already published at %s" % uri)
       else:
-        raise rpki.exceptions.DifferentObjectAtURI("Found different object at %s (old %s, new %s)" % (uri, obj.hash, hash))
+        raise rpki.exceptions.DifferentObjectAtURI("Found different object at %s (old %s, new %s)" % (uri, obj.hash, obj_hash))
     except rpki.pubdb.models.PublishedObject.DoesNotExist:
       pass
     logger.debug("Publishing %s", uri)
     PublishedObject.objects.create(session = self.session, client = client, der = der, uri = uri,
                                    hash = rpki.x509.sha256(der).encode("hex"))
     se = DERSubElement(self.elt, rrdp_tag_publish, der = der, uri = uri)
-    if hash is not None:
-      se.set("hash", hash)
+    if obj_hash is not None:
+      se.set("hash", obj_hash)
     rpki.relaxng.rrdp.assertValid(self.elt)
 
 
-  def withdraw(self, client, uri, hash):
+  def withdraw(self, client, uri, obj_hash):
     obj = client.publishedobject_set.get(session = self.session, uri = uri)
-    if obj.hash != hash:
-      raise rpki.exceptions.DifferentObjectAtURI("Found different object at %s (old %s, new %s)" % (uri, obj.hash, hash))
+    if obj.hash != obj_hash:
+      raise rpki.exceptions.DifferentObjectAtURI("Found different object at %s (old %s, new %s)" % (uri, obj.hash, obj_hash))
     logger.debug("Withdrawing %s", uri)
     obj.delete()
-    SubElement(self.elt, rrdp_tag_withdraw, uri = uri, hash = hash).tail = "\n"
+    SubElement(self.elt, rrdp_tag_withdraw, uri = uri, hash = obj_hash).tail = "\n"
     rpki.relaxng.rrdp.assertValid(self.elt)
 
 
   def update_rsync_files(self, publication_base):
+    from errno import ENOENT
     min_path_len = len(publication_base.rstrip("/"))
     for pdu in self.elt:
       assert pdu.tag in (rrdp_tag_publish, rrdp_tag_withdraw)
@@ -287,7 +288,7 @@ class Delta(models.Model):
         try:
           os.remove(fn)
         except OSError, e:
-          if e.errno != errno.ENOENT:
+          if e.errno != ENOENT:
             raise
         dn = os.path.dirname(fn)
         while len(dn) > min_path_len:
@@ -307,6 +308,6 @@ class PublishedObject(models.Model):
   client = models.ForeignKey(Client)
   session = models.ForeignKey(Session)
 
-  class Meta:
+  class Meta:                           # pylint: disable=C1001,W0232
     unique_together = (("session", "hash"),
                        ("session", "uri"))

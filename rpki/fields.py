@@ -175,7 +175,7 @@ class CRLField(DERField):
 
 class PKCS10Field(DERField):
   description = "PKCS #10 certificate request"
-  rpki_type   = rpki.x509.PKCS10 
+  rpki_type   = rpki.x509.PKCS10
 
 class ManifestField(DERField):
   description = "RPKI Manifest"

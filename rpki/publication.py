@@ -21,18 +21,13 @@
 RPKI publication protocol.
 """
 
-import os
-import errno
 import logging
 
 import rpki.x509
 import rpki.exceptions
 import rpki.relaxng
 
-from lxml.etree import Element, SubElement
-
 logger = logging.getLogger(__name__)
-
 
 nsmap    = rpki.relaxng.publication.nsmap
 version  = rpki.relaxng.publication.version

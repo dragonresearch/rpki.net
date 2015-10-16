@@ -446,9 +446,9 @@ class allocation(object):
       if not args.skip_config and args.store_router_private_keys:
         path = self.path("%s.routercerts.keys" % d.name)
         print "Writing", path
-	with open(path, "w") as f:
-	  for r in self.router_certs:
-	    f.write(r.keypair.get_PEM())
+        with open(path, "w") as f:
+          for r in self.router_certs:
+            f.write(r.keypair.get_PEM())
 
   @property
   def pubd(self):
@@ -996,3 +996,7 @@ try:
 finally:
   if args.pidfile is not None:
     os.unlink(args.pidfile)
+
+# Local Variables:
+# indent-tabs-mode: nil
+# End:

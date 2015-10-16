@@ -98,8 +98,8 @@ class main(object):
     import django
     django.setup()
 
-    global rpki
-    import rpki.pubdb
+    global rpki                         # pylint: disable=W0602
+    import rpki.pubdb                   # pylint: disable=W0621
 
     self.bpki_ta   = rpki.x509.X509(Auto_update = self.cfg.get("bpki-ta"))
     self.irbe_cert = rpki.x509.X509(Auto_update = self.cfg.get("irbe-cert"))

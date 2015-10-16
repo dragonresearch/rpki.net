@@ -39,8 +39,8 @@ for mft in args.manifests:
   print "nextUpdate:      ", mft.getNextUpdate()
   print "fileHashAlg:     ", rpki.oids.oid2name(mft.getAlgorithm())
   for i, fah in enumerate(mft.getFiles()):
-    name, hash = fah
-    print "fileList[%3d]:    %s %s" % (i, ":".join(("%02X" % ord(h) for h in hash)), name)
+    name, obj_hash = fah
+    print "fileList[%3d]:    %s %s" % (i, ":".join(("%02X" % ord(h) for h in obj_hash)), name)
   if args.cms:
     print mft.pprint()
     for cer in mft.certs():

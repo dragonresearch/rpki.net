@@ -24,7 +24,7 @@ Management code for the IRDB.
 
 import os
 import copy
-import types
+
 import rpki.config
 import rpki.sundial
 import rpki.oids
@@ -35,6 +35,7 @@ import rpki.left_right
 import rpki.x509
 import rpki.irdb
 import rpki.publication_control
+
 import django.db.transaction
 
 from lxml.etree import (Element, SubElement, ElementTree,
@@ -898,7 +899,7 @@ class Zookeeper(object):
         raise CouldntFindRepoParent
       turtle = turtles[0]
       if isinstance(turtle, rpki.irdb.models.Rootd):
-        parent_handle = self.handle 
+        parent_handle = self.handle
       else:
         parent_handle = turtle.handle
       self.log("No explicit parent_handle given, guessing parent {}".format(parent_handle))
@@ -1646,7 +1647,7 @@ class Zookeeper(object):
     SubElement(q_msg, rpki.left_right.tag_self, action = "list")
     self.call_rpkid(q_msg)
 
-    self_handles = set(s.get("self_handle") for s in r_msg)
+    self_handles = set(s.get("self_handle") for s in q_msg)
     ca_handles   = set(ca.handle for ca in rpki.irdb.models.ResourceHolderCA.objects.all())
     assert ca_handles <= self_handles
 

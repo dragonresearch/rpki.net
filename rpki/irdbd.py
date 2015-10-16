@@ -25,7 +25,6 @@ import os
 import time
 import logging
 import argparse
-import urlparse
 import rpki.http_simple
 import rpki.config
 import rpki.resource_set

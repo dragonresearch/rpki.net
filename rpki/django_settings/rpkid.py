@@ -19,7 +19,7 @@ This module contains configuration settings for Django libraries for
 the rpkid program.
 """
 
-from .common import *
+from .common import *                   # pylint: disable=W0401
 
 __version__ = "$Id$"
 
@@ -31,7 +31,7 @@ DATABASES = dict(
                    NAME     = cfg.get("sql-database", section = "rpkid"),
                    USER     = cfg.get("sql-username", section = "rpkid"),
                    PASSWORD = cfg.get("sql-password", section = "rpkid")))
-                                
+
 
 # Apps.
 
@@ -43,6 +43,6 @@ INSTALLED_APPS = ["rpki.rpkidb"]
 # putting that configuration into rpki.conf and just adding code here
 # to read that configuration.
 try:
-    from local_settings import *
-except:
+    from local_settings import *        # pylint: disable=W0401,F0401
+except ImportError:
     pass

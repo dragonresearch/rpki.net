@@ -32,7 +32,7 @@ import traceback as tb
 try:
   have_setproctitle = False
   if os.getenv("DISABLE_SETPROCTITLE") is None:
-    import setproctitle
+    import setproctitle                 # pylint: disable=F0401
     have_setproctitle = True
 except ImportError:
   pass

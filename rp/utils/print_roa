@@ -24,14 +24,14 @@ signature.
 import argparse
 import rpki.POW
 
-class ROA(rpki.POW.ROA):
+class ROA(rpki.POW.ROA):                # pylint: disable=W0232
 
   @staticmethod
-  def _format_prefix(prefix):
-    if prefix[2] is None or prefix[1] == prefix[2]:
-      return "%s/%d" % (prefix[0], prefix[1])
+  def _format_prefix(p):
+    if p[2] in (None, p[1]):
+      return "%s/%d" % (p[0], p[1])
     else:
-      return "%s/%d-%d" % (prefix[0], prefix[1], prefix[2])
+      return "%s/%d-%d" % (p[0], p[1], p[2])
 
   def parse(self):
     self.extractWithoutVerifying()
@@ -58,12 +58,12 @@ for roa in args.roas:
     print "asID:          ", roa.getASID()
     if roa.v4_prefixes:
       print " addressFamily:", 1
-      for p in roa.v4_prefixes:
-        print "     IPAddress:", p
+      for prefix in roa.v4_prefixes:
+        print "     IPAddress:", prefix
     if roa.v6_prefixes:
       print " addressFamily:", 2
-      for p in roa.v6_prefixes:
-        print "     IPAddress:", p
+      for prefix in roa.v6_prefixes:
+        print "     IPAddress:", prefix
     if args.cms:
       print roa.pprint()
       for cer in roa.certs():

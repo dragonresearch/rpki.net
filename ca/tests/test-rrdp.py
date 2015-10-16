@@ -26,7 +26,7 @@ import time
 import signal
 import textwrap
 import argparse
-import subprocess 
+import subprocess
 
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("--use-smoketest", action = "store_true")
@@ -88,9 +88,9 @@ else:
   def handle_sigusr1(signum, frame):
     raise GotSIGUSR1
   old_sigusr1 = signal.signal(signal.SIGUSR1, handle_sigusr1)
-  argv = ("python", "yamltest.py", args.yaml_file, "--notify-when-startup-complete", str(os.getpid()))
-  log("Running: " + " ".join(argv))
-  yamltest = subprocess.Popen(argv)
+  cmd = ("python", "yamltest.py", args.yaml_file, "--notify-when-startup-complete", str(os.getpid()))
+  log("Running: " + " ".join(cmd))
+  yamltest = subprocess.Popen(cmd)
   log("Waiting for SIGUSR1 from yamltest")
   try:
     while True:

@@ -25,7 +25,6 @@ protocol itself.
 """
 
 import logging
-import collections
 
 import rpki.x509
 import rpki.exceptions

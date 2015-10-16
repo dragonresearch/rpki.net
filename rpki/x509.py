@@ -1107,6 +1107,8 @@ class PKCS10(DER_object):
     if any(uri.startswith("rsync://") and uri.endswith("/") for uri in rpkiManifest):
       raise rpki.exceptions.BadPKCS10("PKCS #10 CA SIA id-ad-rpkiManifest ends with slash")
 
+    if any(not uri.startswith("http://") and not uri.startswith("https://") for uri in rpkiNotify):
+      raise rpki.exceptions.BadPKCS10("PKCS #10 CA SIA id-ad-rpkiNotify neither HTTP nor HTTPS")
 
   def check_valid_request_ee(self):
     """
@@ -1151,6 +1153,8 @@ class PKCS10(DER_object):
     if signedObject and not any(uri.startswith("rsync://") for uri in signedObject):
       raise rpki.exceptions.BadPKCS10("PKCS #10 EE SIA id-ad-signedObject contains no rsync URIs")
 
+    if rpkiNotify and any(not uri.startswith("http://") and not uri.startswith("https://") for uri in rpkiNotify):
+      raise rpki.exceptions.BadPKCS10("PKCS #10 EE SIA id-ad-rpkiNotify neither HTTP nor HTTPS")
 
   def check_valid_request_router(self):
     """

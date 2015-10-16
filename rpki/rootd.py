@@ -22,12 +22,9 @@ Trivial RPKI up-down protocol root server.
 """
 
 import os
-import sys
 import time
 import logging
-import httplib
 import argparse
-import urlparse
 
 import rpki.resource_set
 import rpki.up_down
@@ -109,7 +106,10 @@ class main(object):
   def issue_subject_cert_maybe(self, new_pkcs10):
     now = rpki.sundial.now()
     subject_cert = self.get_subject_cert()
-    hash = None if subject_cert is None else rpki.x509.sha256(subject_cert.get_DER()).encode("hex")
+    if subject_cert is None:
+      subject_cert_hash = None
+    else:
+      subject_cert_hash = rpki.x509.sha256(subject_cert.get_DER()).encode("hex")
     old_pkcs10 = self.get_subject_pkcs10()
     if new_pkcs10 is not None and new_pkcs10 != old_pkcs10:
       self.set_subject_pkcs10(new_pkcs10)
@@ -153,8 +153,8 @@ class main(object):
                        type = "query", version = rpki.publication.version)
     pdu = SubElement(pubd_msg, rpki.publication.tag_publish, uri = self.rpki_subject_cert_uri)
     pdu.text = subject_cert.get_Base64()
-    if hash is not None:
-      pdu.set("hash", hash)
+    if subject_cert_hash is not None:
+      pdu.set("hash", subject_cert_hash)
     self.generate_crl_and_manifest(now, pubd_msg)
     return subject_cert, pubd_msg
 
@@ -172,14 +172,14 @@ class main(object):
       thisUpdate          = now,
       nextUpdate          = now + self.rpki_subject_regen,
       revokedCertificates = self.revoked)
-    hash = self.read_hash_maybe(self.rpki_root_crl_file)
+    crl_hash = self.read_hash_maybe(self.rpki_root_crl_file)
     logger.debug("Writing CRL %s", self.rpki_root_crl_file)
     with open(self.rpki_root_crl_file, "wb") as f:
       f.write(crl.get_DER())
     pdu = SubElement(pubd_msg, rpki.publication.tag_publish, uri = self.rpki_root_crl_uri)
     pdu.text = crl.get_Base64()
-    if hash is not None:
-      pdu.set("hash", hash)
+    if crl_hash is not None:
+      pdu.set("hash", crl_hash)
     manifest_content = [(os.path.basename(self.rpki_root_crl_uri), crl)]
     if subject_cert is not None:
       manifest_content.append((os.path.basename(self.rpki_subject_cert_uri), subject_cert))
@@ -203,21 +203,21 @@ class main(object):
       names_and_objs = manifest_content,
       keypair        = manifest_keypair,
       certs          = manifest_cert)
-    hash = self.read_hash_maybe(self.rpki_root_manifest_file)
+    mft_hash = self.read_hash_maybe(self.rpki_root_manifest_file)
     logger.debug("Writing manifest %s", self.rpki_root_manifest_file)
     with open(self.rpki_root_manifest_file, "wb") as f:
       f.write(manifest.get_DER())
     pdu = SubElement(pubd_msg, rpki.publication.tag_publish, uri = self.rpki_root_manifest_uri)
     pdu.text = manifest.get_Base64()
-    if hash is not None:
-      pdu.set("hash", hash)
-    hash = rpki.x509.sha256(self.rpki_root_cert.get_DER()).encode("hex")
-    if hash != self.rpki_root_cert_hash:
+    if mft_hash is not None:
+      pdu.set("hash", mft_hash)
+    cer_hash = rpki.x509.sha256(self.rpki_root_cert.get_DER()).encode("hex")
+    if cer_hash != self.rpki_root_cert_hash:
       pdu = SubElement(pubd_msg, rpki.publication.tag_publish, uri = self.rpki_root_cert_uri)
       pdu.text = self.rpki_root_cert.get_Base64()
       if self.rpki_root_cert_hash is not None:
         pdu.set("hash", self.rpki_root_cert_hash)
-      self.rpki_root_cert_hash = hash
+      self.rpki_root_cert_hash = cer_hash
 
 
   @staticmethod

@@ -796,7 +796,7 @@ class ca_obj(rpki.sql.sql_persistent):
                        "maybe parent certificate went away?",
                        ca_detail.public_key.gSKI(), class_name, parent.self.self_handle, parent.parent_handle)
         publisher = publication_queue()
-        ca_detail.delete(ca = ca_detail.ca, publisher = publisher)
+        ca_detail.destroy(ca = ca_detail.ca, publisher = publisher)
         return publisher.call_pubd(iterator, eb)
 
       else:
@@ -897,7 +897,7 @@ class ca_obj(rpki.sql.sql_persistent):
     logger.debug("Sending issue request to %r from %r", parent, self.create)
     parent.up_down_issue_query(self, ca_detail, done, eb)
 
-  def delete(self, parent, callback):
+  def destroy(self, parent, callback):
     """
     The list of current resource classes received from parent does not
     include the class corresponding to this CA, so we need to delete
@@ -920,7 +920,7 @@ class ca_obj(rpki.sql.sql_persistent):
 
     publisher = publication_queue()
     for ca_detail in self.ca_details:
-      ca_detail.delete(ca = self, publisher = publisher, allow_failure = True)
+      ca_detail.destroy(ca = self, publisher = publisher, allow_failure = True)
     publisher.call_pubd(done, lose)
 
   def next_serial_number(self):
@@ -1203,7 +1203,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
     publisher.call_pubd(callback, errback)
 
-  def delete(self, ca, publisher, allow_failure = False):
+  def destroy(self, ca, publisher, allow_failure = False):
     """
     Delete this ca_detail and all of the certs it issued.
 

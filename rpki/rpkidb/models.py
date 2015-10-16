@@ -560,9 +560,6 @@ class Parent(models.Model):
     itself.
     """
 
-    # parent_elt.delete() renamed to .destroy() here to avoid conflict
-    # with built-in ORM .delete() method.
-
     def loop(iterator, ca):
       ca.destroy(self, iterator)
     def revoke():
@@ -792,7 +789,6 @@ class CA(models.Model):
     parent.up_down_issue_query(self, ca_detail, done, eb)
 
 
-  # Was .delete()
   def destroy(self, parent, callback):
     """
     The list of current resource classes received from parent does not

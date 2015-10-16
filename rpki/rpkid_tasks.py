@@ -210,7 +210,7 @@ class PollParentTask(AbstractTask):
 
   def ca_loop(self, iterator, ca):
     self.gctx.checkpoint()
-    ca.delete(self.parent, iterator)
+    ca.destroy(self.parent, iterator)
 
   def ca_done(self):
     self.gctx.checkpoint()
@@ -695,7 +695,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
         try:
           for ca_detail in ca.revoked_ca_details:
             if now > ca_detail.latest_crl.getNextUpdate():
-              ca_detail.delete(ca = ca, publisher = publisher)
+              ca_detail.destroy(ca = ca, publisher = publisher)
           for ca_detail in ca.active_or_deprecated_ca_details:
             if now + regen_margin > ca_detail.latest_crl.getNextUpdate():
               ca_detail.generate_crl(publisher = publisher)

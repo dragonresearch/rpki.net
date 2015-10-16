@@ -518,8 +518,8 @@ then
 	AC_MSG_ERROR([I can't find a Python binary at all, this isn't going to work.  Perhaps you need to set PATH?])
 fi
 
-AC_MSG_CHECKING([for Python version 2.6 or higher])
-have_acceptable_python=`$PYTHON -c 'import sys; print "yes" if sys.version_info[[0]] == 2 and sys.version_info[[1]] >= 6 else "no"'`
+AC_MSG_CHECKING([for Python version 2.7 or higher])
+have_acceptable_python=`$PYTHON -c 'import sys; print "yes" if sys.version_info[[0]] == 2 and sys.version_info[[1]] >= 7 else "no"'`
 AC_MSG_RESULT([$have_acceptable_python])
 
 AC_MSG_CHECKING([distutils to find out where Python.h should be])
@@ -542,8 +542,8 @@ AC_MSG_RESULT([$have_django])
 
 if test $have_django = yes
 then
-	AC_MSG_CHECKING([for Django 1.3.7 or higher])
-	have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3, 7) else 'yes'"`
+	AC_MSG_CHECKING([for Django 1.8 or higher])
+	have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 8) else 'yes'"`
 	AC_MSG_RESULT([$have_acceptable_django])
 else
 	have_acceptable_django=no
@@ -556,19 +556,6 @@ AC_MSG_RESULT([$have_pyyaml])
 AC_MSG_CHECKING([for vobject])
 if $PYTHON -c 'import vobject' 2>/dev/null; then have_vobject=yes; else have_vobject=no; fi
 AC_MSG_RESULT([$have_vobject])
-
-AC_MSG_CHECKING([for Django South])
-if $PYTHON -c 'import south' 2>/dev/null; then have_django_south=yes; else have_django_south=no; fi
-AC_MSG_RESULT([$have_django_south])
-
-if test $have_django_south = yes
-then
-	AC_MSG_CHECKING([for Django South 0.7.5 or later])
-	have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [[0, 7, 5]] else 'yes'"`
-	AC_MSG_RESULT([$have_acceptable_django_south])
-else
-	have_acceptable_django_south=no
-fi
 
 AC_MSG_CHECKING([for argparse])
 if $PYTHON -c 'import argparse' 2>/dev/null; then have_argparse=yes; else have_argparse=no; fi
@@ -587,7 +574,7 @@ runtime_ok=yes
 if test $have_acceptable_python = no
 then
 	runtime_ok=no
-	AC_MSG_WARN([The RPKI code requires Python version 2.x, for x = 6 or higher.])
+	AC_MSG_WARN([The RPKI code requires Python version 2.x, for x = 7 or higher.])
 fi
 
 if test $build_rp_tools = yes
@@ -619,17 +606,12 @@ then
 	if test $have_acceptable_django = no
 	then
 		runtime_ok=no
-		AC_MSG_WARN([The RPKI CA tools require Django 1.3.7 or higher.])
+		AC_MSG_WARN([The RPKI CA tools require Django 1.8 or higher.])
 	fi
 	if test $have_vobject = no
 	then
 		runtime_ok=no
 		AC_MSG_WARN([The RPKI CA GUI requires the Python vobject module.])
-	fi
-	if test $have_acceptable_django_south = no
-	then
-		runtime_ok=no
-		AC_MSG_WARN([The RPKI CA tools require Django South 0.7.5 or higher.])
 	fi
 	if test $have_argparse = no
 	then

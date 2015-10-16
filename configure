@@ -4724,9 +4724,9 @@ then
 	as_fn_error $? "I can't find a Python binary at all, this isn't going to work.  Perhaps you need to set PATH?" "$LINENO" 5
 fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Python version 2.6 or higher" >&5
-$as_echo_n "checking for Python version 2.6 or higher... " >&6; }
-have_acceptable_python=`$PYTHON -c 'import sys; print "yes" if sys.version_info[0] == 2 and sys.version_info[1] >= 6 else "no"'`
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Python version 2.7 or higher" >&5
+$as_echo_n "checking for Python version 2.7 or higher... " >&6; }
+have_acceptable_python=`$PYTHON -c 'import sys; print "yes" if sys.version_info[0] == 2 and sys.version_info[1] >= 7 else "no"'`
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_acceptable_python" >&5
 $as_echo "$have_acceptable_python" >&6; }
 
@@ -4766,9 +4766,9 @@ $as_echo "$have_django" >&6; }
 
 if test $have_django = yes
 then
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django 1.3.7 or higher" >&5
-$as_echo_n "checking for Django 1.3.7 or higher... " >&6; }
-	have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 3, 7) else 'yes'"`
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django 1.8 or higher" >&5
+$as_echo_n "checking for Django 1.8 or higher... " >&6; }
+	have_acceptable_django=`$PYTHON -c "import django; print 'no' if django.VERSION < (1, 8) else 'yes'"`
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_acceptable_django" >&5
 $as_echo "$have_acceptable_django" >&6; }
 else
@@ -4786,23 +4786,6 @@ $as_echo_n "checking for vobject... " >&6; }
 if $PYTHON -c 'import vobject' 2>/dev/null; then have_vobject=yes; else have_vobject=no; fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_vobject" >&5
 $as_echo "$have_vobject" >&6; }
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django South" >&5
-$as_echo_n "checking for Django South... " >&6; }
-if $PYTHON -c 'import south' 2>/dev/null; then have_django_south=yes; else have_django_south=no; fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_django_south" >&5
-$as_echo "$have_django_south" >&6; }
-
-if test $have_django_south = yes
-then
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django South 0.7.5 or later" >&5
-$as_echo_n "checking for Django South 0.7.5 or later... " >&6; }
-	have_acceptable_django_south=`$PYTHON -c "import south; print 'no' if map(int,south.__version__.split('.')) < [0, 7, 5] else 'yes'"`
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_acceptable_django_south" >&5
-$as_echo "$have_acceptable_django_south" >&6; }
-else
-	have_acceptable_django_south=no
-fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for argparse" >&5
 $as_echo_n "checking for argparse... " >&6; }
@@ -4823,8 +4806,8 @@ runtime_ok=yes
 if test $have_acceptable_python = no
 then
 	runtime_ok=no
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI code requires Python version 2.x, for x = 6 or higher." >&5
-$as_echo "$as_me: WARNING: The RPKI code requires Python version 2.x, for x = 6 or higher." >&2;}
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI code requires Python version 2.x, for x = 7 or higher." >&5
+$as_echo "$as_me: WARNING: The RPKI code requires Python version 2.x, for x = 7 or higher." >&2;}
 fi
 
 if test $build_rp_tools = yes
@@ -4860,20 +4843,14 @@ $as_echo "$as_me: WARNING: The RPKI tools require the Python LXML module." >&2;}
 	if test $have_acceptable_django = no
 	then
 		runtime_ok=no
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django 1.3.7 or higher." >&5
-$as_echo "$as_me: WARNING: The RPKI CA tools require Django 1.3.7 or higher." >&2;}
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django 1.8 or higher." >&5
+$as_echo "$as_me: WARNING: The RPKI CA tools require Django 1.8 or higher." >&2;}
 	fi
 	if test $have_vobject = no
 	then
 		runtime_ok=no
 		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA GUI requires the Python vobject module." >&5
 $as_echo "$as_me: WARNING: The RPKI CA GUI requires the Python vobject module." >&2;}
-	fi
-	if test $have_acceptable_django_south = no
-	then
-		runtime_ok=no
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django South 0.7.5 or higher." >&5
-$as_echo "$as_me: WARNING: The RPKI CA tools require Django South 0.7.5 or higher." >&2;}
 	fi
 	if test $have_argparse = no
 	then

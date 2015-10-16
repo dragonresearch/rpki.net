@@ -596,6 +596,7 @@ class repository_elt(base_elt):
     "self_id",
     "bsc_id",
     "peer_contact_uri",
+    "rrdp_notification_uri",
     ("bpki_cert", rpki.x509.X509),
     ("bpki_glue", rpki.x509.X509),
     ("last_cms_timestamp", rpki.sundial.datetime))

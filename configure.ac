@@ -324,7 +324,7 @@ RCYNIC_DIR='${DESTDIR}'"${rcynic_base_dir}"
 # mostly matters on FreeBSD, where most things involving Apache encode
 # the Apache version number into their filenames.
 #
-# If we can't figure out the version number, we assume 2.2 and hope
+# If we can't figure out the version number, we assume 2.4 and hope
 # for the best; at some point we may need to do better than this.
 #
 # apachectl sometimes whines about ulimits, so we discard its stderr.
@@ -347,8 +347,8 @@ fi
 
 if test "X$APACHE_VERSION" = "X"
 then
-	APACHE_VERSION="22"
-	msg='not found, defaulting to 2.2'
+	APACHE_VERSION="24"
+	msg='not found, defaulting to 2.4'
 else
 	msg=`echo $APACHE_VERSION | sed 's=.=&.='`
 fi

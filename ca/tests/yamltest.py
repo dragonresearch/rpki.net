@@ -762,7 +762,9 @@ args = parser.parse_args()
 try:
 
   if args.pidfile is not None:
-    open(args.pidfile, "w").write("%s\n" % os.getpid())
+    with open(args.pidfile, "w") as f:
+      print "Writing pidfile", f.name
+      f.write("%s\n" % os.getpid())
 
   rpki.log.init("yamltest", argparse.Namespace(log_level   = logging.DEBUG,
                                                log_handler = lambda: logging.StreamHandler(sys.stdout)))
@@ -993,8 +995,12 @@ try:
     for p in progs:
       print "Program pid %d %r returned %d" % (p.pid, p, p.wait())
 
+except Exception, e:
+  print "Blowing out on exception", str(e)
+  raise
+
 finally:
-  if args.pidfile is not None:
+  if args.pidfile is not None and os.path.exists(args.pidfile):
     os.unlink(args.pidfile)
 
 # Local Variables:

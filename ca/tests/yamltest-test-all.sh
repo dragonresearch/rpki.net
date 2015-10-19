@@ -24,24 +24,28 @@ test -z "$STY" && exec screen -L sh $0
 screen -X split
 screen -X focus
 
-: ${runtime=900}
+# Timers
+: ${startup=300} ${runtime=900} ${poll=30} ${shutdown=30}
+
+# Once upon a time we had a settitle program.  Noop for now.
+: ${settitle=":"}
 
 for yaml in smoketest.*.yaml
 do
-  settitle "$yaml: Starting"
+  $settitle "$yaml: Starting"
   rm -rf test rcynic-data
   python sql-cleaner.py 
   now=$(date +%s)
   finish=$(($now + $runtime))
   title="$yaml: will finish at $(date -r $finish)"
-  settitle "$title"
-  screen sh -c "settitle '$title'; exec python yamltest.py -p yamltest.pid $yaml"
+  $settitle "$title"
+  screen sh -c "$settitle '$title'; exec python yamltest.py -p yamltest.pid $yaml"
   date
-  sleep 180
+  sleep $startup
   date
   while test $(date +%s) -lt $finish
   do
-    sleep 30
+    sleep $poll
     date
     ../../rp/rcynic/rcynic
     ../../rp/rcynic/rcynic-text rcynic.xml
@@ -49,10 +53,8 @@ do
     date
     echo "$title"
   done
-  if test -r yamltest.pid
-  then
-    kill -INT $(cat yamltest.pid)
-    sleep 30
-  fi
+  if test -r yamltest.pid; then kill -INT  $(cat yamltest.pid); sleep ${shutdown}; fi
+  if test -r yamltest.pid; then kill -INT  $(cat yamltest.pid); sleep ${shutdown}; fi
+  if test -r yamltest.pid; then kill -KILL $(cat yamltest.pid); sleep ${shutdown}; fi
   make backup
 done

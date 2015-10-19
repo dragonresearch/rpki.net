@@ -1067,10 +1067,10 @@ class PKCS10(DER_object):
 
     self.check_valid_request_common()
 
-    alg  = self.get_POW().getSignatureAlgorithm()
-    bc   = self.get_POW().getBasicConstraints()
-    eku  = self.get_POW().getEKU()
-    sias = self.get_POW().getSIA()
+    alg = self.get_POW().getSignatureAlgorithm()
+    bc  = self.get_POW().getBasicConstraints()
+    eku = self.get_POW().getEKU()
+    sia = self.get_POW().getSIA()
 
     if alg != rpki.oids.sha256WithRSAEncryption:
       raise rpki.exceptions.BadPKCS10("PKCS #10 has bad signature algorithm for CA: %s" % alg)
@@ -1081,10 +1081,12 @@ class PKCS10(DER_object):
     if eku is not None:
       raise rpki.exceptions.BadPKCS10("PKCS #10 CA EKU not allowed")
 
-    if sias is None:
+    if sia is None:
       raise rpki.exceptions.BadPKCS10("PKCS #10 CA SIA missing")
 
-    caRepository, rpkiManifest, signedObject, rpkiNotify = sias
+    caRepository, rpkiManifest, signedObject, rpkiNotify = sia
+
+    logger.debug("check_valid_request_ca(): sia: %r", sia)
 
     if signedObject:
       raise rpki.exceptions.BadPKCS10("PKCS #10 CA SIA must not have id-ad-signedObject")
@@ -1135,6 +1137,8 @@ class PKCS10(DER_object):
     alg = self.get_POW().getSignatureAlgorithm()
     bc  = self.get_POW().getBasicConstraints()
     sia = self.get_POW().getSIA()
+
+    logger.debug("check_valid_request_ee(): sia: %r", sia)
 
     caRepository, rpkiManifest, signedObject, rpkiNotify = sia or (None, None, None, None)
 
@@ -1197,22 +1201,8 @@ class PKCS10(DER_object):
     Create a new request for a given keypair.
     """
 
-    assert exts is None, "Old calling sequence to rpki.x509.PKCS10.create()"
-
     if cn is None:
       cn = "".join(("%02X" % ord(i) for i in keypair.get_SKI()))
-
-    if isinstance(caRepository, str):
-      caRepository = (caRepository,)
-
-    if isinstance(rpkiManifest, str):
-      rpkiManifest = (rpkiManifest,)
-
-    if isinstance(signedObject, str):
-      signedObject = (signedObject,)
-
-    if isinstance(rpkiNotify, str):
-      rpkiNotify = (rpkiNotify,)
 
     req = rpki.POW.PKCS10()
     req.setVersion(0)
@@ -1223,8 +1213,9 @@ class PKCS10(DER_object):
       req.setBasicConstraints(True, None)
       req.setKeyUsage(cls.expected_ca_keyUsage)
 
-    if caRepository or rpkiManifest or signedObject or rpkiNotify:
-      req.setSIA(caRepository, rpkiManifest, signedObject, rpkiNotify)
+    sia = (caRepository, rpkiManifest, signedObject, rpkiNotify)
+    if not all(s is None for s in sia):
+      req.setSIA(*tuple([str(s)] if isinstance(s, (str, unicode)) else s for s in sia))
 
     if eku:
       req.setEKU(eku)
@@ -2034,7 +2025,7 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
 
     obj.last_cms_timestamp = self.check_replay(obj.last_cms_timestamp, *context)
-    obj.sql_mark_dirty()
+    obj.save()
 
 class SignedReferral(XML_CMS_object):
   encoding = "us-ascii"

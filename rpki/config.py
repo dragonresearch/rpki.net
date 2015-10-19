@@ -207,7 +207,6 @@ class parser(object):
     # pylint: disable=W0621
     import rpki.http
     import rpki.x509
-    import rpki.sql
     import rpki.async
     import rpki.log
     import rpki.daemonize
@@ -246,11 +245,6 @@ class parser(object):
 
     try:
       rpki.x509.CMS_object.debug_cms_certs = self.getboolean("debug_cms_certs")
-    except ConfigParser.NoOptionError:
-      pass
-
-    try:
-      rpki.sql.sql_persistent.sql_debug = self.getboolean("sql_debug")
     except ConfigParser.NoOptionError:
       pass
 

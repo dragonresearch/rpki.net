@@ -47,6 +47,7 @@ class EnumField(models.PositiveSmallIntegerField):
   def __init__(self, *args, **kwargs):
     if isinstance(kwargs.get("choices"), (tuple, list)) and isinstance(kwargs["choices"][0], (str, unicode)):
       kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
+    # Might need something here to handle string-valued default parameter
     models.PositiveSmallIntegerField.__init__(self, *args, **kwargs)
     self.enum_i2s = dict(self.flatchoices)
     self.enum_s2i = dict((v, k) for k, v in self.flatchoices)
@@ -148,6 +149,9 @@ class DERField(BlobField):
   __metaclass__ = models.SubfieldBase
 
   def to_python(self, value):
+    if value is not None and not isinstance(value, (self.rpki_type, str)):
+      logger.warning("Why am I now seeing a %r instead of str or %r in the %r rpki.fields.DERField.to_python() method?",
+                     type(value), self.rpki_type, type(self))
     assert value is None or isinstance(value, (self.rpki_type, str))
     if isinstance(value, str):
       return self.rpki_type(DER = value)
@@ -165,9 +169,15 @@ class CertificateField(DERField):
   description = "X.509 certificate"
   rpki_type   = rpki.x509.X509
 
-class KeyField(DERField):
+class RSAPrivateKeyField(DERField):
   description = "RSA keypair"
   rpki_type   = rpki.x509.RSA
+
+KeyField = RSAPrivateKeyField           # XXX backwards compatability
+
+class PublicKeyField(DERField):
+  description = "RSA keypair"
+  rpki_type   = rpki.x509.PublicKey
 
 class CRLField(DERField):
   description = "Certificate Revocation List"

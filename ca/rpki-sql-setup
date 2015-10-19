@@ -27,7 +27,11 @@ import datetime
 import rpki.config
 import rpki.version
 import rpki.autoconf
-import rpki.sql_schemas
+
+# This program implements its own schema versioning system as a poor
+# substitute for schema migrations.  Now that we're moving to Django
+# ORM, this is pretty much useless, and should be removed at some point.
+
 
 from rpki.mysql_import import MySQLdb, _mysql_exceptions
 
@@ -142,14 +146,6 @@ class UserDB(object):
       self.db.commit()
       log("Updated %s to %s" % (self.name, v))
 
-  @property
-  def schema(self):
-    lines = []
-    for line in getattr(rpki.sql_schemas, self.name, "").splitlines():
-      line = " ".join(line.split())
-      if line and not line.startswith("--"):
-        lines.append(line)
-    return [statement.strip() for statement in " ".join(lines).rstrip(";").split(";") if statement.strip()]
 
 
 class Version(object):
@@ -215,10 +211,6 @@ def do_create(name):
                    (db.password,))
   root.db.commit()
   db.open()
-  for statement in db.schema:
-    if not statement.upper().startswith("DROP TABLE"):
-      log(statement)
-      db.cur.execute(statement)
   db.version = current_version
   db.close()
 

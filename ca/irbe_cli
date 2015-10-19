@@ -37,6 +37,7 @@ Command line IR back-end control program for rpkid and pubd.
 # Command line processing of this program is too complex and
 # idiosyncratic to be worth trying to reimplement using argparse.
 
+import os
 import sys
 import getopt
 import textwrap
@@ -206,7 +207,7 @@ class left_right_msg(cmd_msg_mixin, rpki.left_right.msg):
               for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt,
                         list_published_objects_elt, list_received_resources_elt, report_error_elt))
 
-class left_right_sax_handler(rpki.left_right.sax_handler):
+class left_right_sax_handler(rpki.left_right.sax_handler): # pylint: disable=W0232
   pdu = left_right_msg
 
 class left_right_cms_msg(rpki.left_right.cms_msg):
@@ -250,7 +251,7 @@ class publication_msg(cmd_msg_mixin, rpki.publication.msg):
                         manifest_elt, roa_elt, report_error_elt,
                         ghostbuster_elt))
 
-class publication_sax_handler(rpki.publication.sax_handler):
+class publication_sax_handler(rpki.publication.sax_handler): # pylint: disable=W0232
   pdu = publication_msg
 
 class publication_cms_msg(rpki.publication.cms_msg):

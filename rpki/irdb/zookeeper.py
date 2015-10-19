@@ -583,6 +583,9 @@ class Zookeeper(object):
 
     x = etree_read(filename)
 
+    if x.tag != tag_oob_child_request:
+      raise BadXMLMessage("Expected %s, got %s", tag_oob_child_request, x.tag)
+
     if child_handle is None:
       child_handle = x.get("child_handle")
 
@@ -674,6 +677,9 @@ class Zookeeper(object):
 
     x = etree_read(filename)
 
+    if x.tag != tag_oob_parent_response:
+      raise BadXMLMessage("Expected %s, got %s", tag_oob_parent_response, x.tag)
+
     if parent_handle is None:
       parent_handle = x.get("parent_handle")
 
@@ -756,6 +762,9 @@ class Zookeeper(object):
     """
 
     x = etree_read(filename)
+
+    if x.tag != tag_oob_publisher_request:
+      raise BadXMLMessage("Expected %s, got %s", tag_oob_publisher_request, x.tag)
 
     client_ta = rpki.x509.X509(Base64 = x.findtext(tag_oob_publisher_bpki_ta))
 
@@ -868,7 +877,10 @@ class Zookeeper(object):
 
     x = etree_read(filename)
 
-    self.log("Repository calls us %r" % (x.get("client_handle")))
+    if x.tag != tag_oob_repository_response:
+      raise BadXMLMessage("Expected %s, got %s", tag_oob_repository_response, x.tag)
+
+    self.log("Repository calls us %r" % (x.get("publisher_handle")))
 
     if parent_handle is not None:
       self.log("Explicit parent_handle given")
@@ -1231,18 +1243,18 @@ class Zookeeper(object):
     throw exceptions as needed.
     """
 
-    if any(r_pdu.tag in (rpki.left_right.tag_report_error,
-                         rpki.publication_control.tag_report_error)
-           for r_pdu in r_msg):
-      for r_pdu in r_msg:
-        if r_pdu.tag == rpki.left_right.tag_report_error:
-          self.log("rpkid reported failure: %s" % r_pdu.get("error_code"))
-        elif r_pdu.tag == rpki.publication_control.tag_report_error:
-          self.log("pubd reported failure: %s" % r_pdu.get("error_code"))
-        else:
-          continue
-        if r_pdu.text:
-          self.log(r_pdu.text)
+    failed = False
+    for r_pdu in r_msg.getiterator(rpki.left_right.tag_report_error):
+      failed = True
+      self.log("rpkid reported failure: %s" % r_pdu.get("error_code"))
+      if r_pdu.text:
+        self.log(r_pdu.text)
+    for r_pdu in r_msg.getiterator(rpki.publication_control.tag_report_error):
+      failed = True
+      self.log("pubd reported failure: %s" % r_pdu.get("error_code"))
+      if r_pdu.text:
+        self.log(r_pdu.text)
+    if failed:
       raise CouldntTalkToDaemon
 
 
@@ -1343,24 +1355,18 @@ class Zookeeper(object):
 
     r_msg = self.call_rpkid(q_msg, suppress_error_check = True)
 
-    if r_msg[0].tag == rpki.left_right.tag_self:
-      self.check_error_report(r_msg)
-      self_pdu = r_msg[0]
-    else:
-      self_pdu = None
+    self.check_error_report(r_msg)
+
+    self_pdu        = r_msg.find(rpki.left_right.tag_self)
 
     bsc_pdus        = dict((r_pdu.get("bsc_handle"), r_pdu)
-                           for r_pdu in r_msg
-                           if r_pdu.tag == rpki.left_right.tag_bsc)
+                           for r_pdu in r_msg.getiterator(rpki.left_right.tag_bsc))
     repository_pdus = dict((r_pdu.get("repository_handle"), r_pdu)
-                           for r_pdu in r_msg
-                           if r_pdu.tag == rpki.left_right.tag_repository)
+                           for r_pdu in r_msg.getiterator(rpki.left_right.tag_repository))
     parent_pdus     = dict((r_pdu.get("parent_handle"), r_pdu)
-                           for r_pdu in r_msg
-                           if r_pdu.tag == rpki.left_right.tag_parent)
+                           for r_pdu in r_msg.getiterator(rpki.left_right.tag_parent))
     child_pdus      = dict((r_pdu.get("child_handle"), r_pdu)
-                           for r_pdu in r_msg
-                           if r_pdu.tag == rpki.left_right.tag_child)
+                           for r_pdu in r_msg.getiterator(rpki.left_right.tag_child))
 
     q_msg = self._compose_left_right_query()
 
@@ -1408,8 +1414,8 @@ class Zookeeper(object):
       SubElement(q_msg, rpki.left_right.tag_bsc, action = "list", tag = "bsc", self_handle = ca.handle)
       r_msg = self.call_rpkid(q_msg)
       bsc_pdus = dict((r_pdu.get("bsc_handle"), r_pdu)
-                      for r_pdu in r_msg
-                      if r_pdu.tag == rpki.left_right.tag_bsc and r_pdu.get("action") == "list")
+                      for r_pdu in r_msg.getiterator(rpki.left_right.tag_bsc)
+                      if r_pdu.get("action") == "list")
       bsc_pdu = bsc_pdus.pop(bsc_handle, None)
 
     q_msg = self._compose_left_right_query()

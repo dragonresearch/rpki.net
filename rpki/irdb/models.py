@@ -33,7 +33,7 @@ import rpki.resource_set
 import socket
 import rpki.POW
 
-from rpki.fields import EnumField, SundialField, CertificateField, DERField, KeyField, CRLField, PKCS10Field
+from rpki.fields import EnumField, SundialField, CertificateField, DERField, RSAPrivateKeyField, CRLField, PKCS10Field
 
 ## @var ip_version_choices
 # Choice argument for fields implementing IP version numbers.
@@ -139,7 +139,7 @@ class ResourceHolderEEManager(CertificateManager):
 
 class CA(django.db.models.Model):
   certificate = CertificateField()
-  private_key = KeyField()
+  private_key = RSAPrivateKeyField()
   latest_crl = CRLField()
 
   # Might want to bring these into line with what rpkid does.  Current
@@ -299,7 +299,7 @@ class ResourceHolderRevocation(Revocation):
   issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "revocations")
 
 class EECertificate(Certificate):
-  private_key = KeyField()
+  private_key = RSAPrivateKeyField()
 
   class Meta:
     abstract = True

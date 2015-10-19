@@ -186,15 +186,20 @@ class http_message(object):
     Format an outgoing HTTP message.
     """
 
-    s = self.format_first_line()
+    s = str(self.format_first_line())
+    assert isinstance(s, str)
     if self.body is not None:
       assert isinstance(self.body, str)
       self.headers["Content-Length"] = len(self.body)
     for kv in self.headers.iteritems():
-      s += "%s: %s\r\n" % kv
+      h = str("%s: %s\r\n" % kv)
+      assert isinstance(h, str)
+      s += h
     s += "\r\n"
+    assert isinstance(s, str)
     if self.body is not None:
       s += self.body
+    assert isinstance(s, str)
     return s
 
   def __str__(self):

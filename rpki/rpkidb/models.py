@@ -12,10 +12,11 @@ from django.db import models
 import rpki.left_right
 
 from rpki.fields import (EnumField, SundialField, BlobField,
-                         CertificateField, KeyField, CRLField, PKCS10Field,
+                         CertificateField, RSAPrivateKeyField,
+                         PublicKeyField, CRLField, PKCS10Field,
                          ManifestField, ROAField, GhostbusterField)
 
-from lxml.etree import Element, SubElement
+from lxml.etree import Element, SubElement, tostring as ElementToString
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +60,17 @@ class XMLTemplate(object):
     self.readonly   = readonly
 
 
-  def encode(self, obj, r_msg):
+  def encode(self, obj, q_pdu, r_msg):
     """
     Encode an ORM object as XML.
     """
 
-    r_pdu = SubElement(r_msg, rpki.left_right.xmlns + self.name, nsmap = rpki.left_right.nsmap)
-    r_pdu.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
+    r_pdu = SubElement(r_msg, rpki.left_right.xmlns + self.name, nsmap = rpki.left_right.nsmap, action = q_pdu.get("action"))
     if self.name != "self":
-      r_pdu.set("self_handle", getattr(obj, "self_handle"))
+      r_pdu.set("self_handle", obj.self.self_handle)
+    r_pdu.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
+    if q_pdu.get("tag"):
+      r_pdu.set("tag", q_pdu.get("tag"))
     for h in self.handles:
       k = h.xml_template.name
       v = getattr(obj, k)
@@ -84,6 +87,7 @@ class XMLTemplate(object):
       v = getattr(obj, k)
       if v is not None and not v.empty():
         SubElement(r_pdu, rpki.left_right.xmlns + k).text = v.get_Base64()
+    logger.debug("XMLTemplate.encode(): %s", ElementToString(r_pdu))
 
 
   def acknowledge(self, obj, q_pdu, r_msg):
@@ -98,13 +102,17 @@ class XMLTemplate(object):
     """
 
     assert q_pdu.tag == rpki.left_right.xmlns + self.name
-    r_pdu = SubElement(r_msg, rpki.left_right.xmlns + self.name, nsmap = rpki.left_right.nsmap)
-    r_pdu.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
+    action = q_pdu.get("action")
+    r_pdu = SubElement(r_msg, rpki.left_right.xmlns + self.name, nsmap = rpki.left_right.nsmap, action = action)
     if self.name != "self":
-      r_pdu.set("self_handle", getattr(obj, "self_handle"))
-    if self.name == "bsc" and q_pdu.get("action") != "destroy" and obj.pkcs11_request is not None:
-      assert not obj.pkcs11_request.empty()
-      SubElement(r_pdu, rpki.left_right.xmlns + "pkcs11_request").text = obj.pkcs11_request.get_Base64()
+      r_pdu.set("self_handle", obj.self.self_handle)
+    r_pdu.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
+    if q_pdu.get("tag"):
+      r_pdu.set("tag", q_pdu.get("tag"))
+    if self.name == "bsc" and action != "destroy" and obj.pkcs10_request is not None:
+      assert not obj.pkcs10_request.empty()
+      SubElement(r_pdu, rpki.left_right.xmlns + "pkcs10_request").text = obj.pkcs10_request.get_Base64()
+    logger.debug("XMLTemplate.acknowledge(): %s", ElementToString(r_pdu))
 
 
   def decode(self, obj, q_pdu):
@@ -112,12 +120,13 @@ class XMLTemplate(object):
     Decode XML into an ORM object.
     """
 
+    logger.debug("XMLTemplate.decode(): %r %s", obj, ElementToString(q_pdu))
     assert q_pdu.tag == rpki.left_right.xmlns + self.name
     for h in self.handles:
       k = h.xml_template.name
       v = q_pdu.get(k + "_handle")
       if v is not None:
-        setattr(obj, k, h.objects.get(**{k + "_handle" : v, "self" : obj.self}))
+        setattr(obj, k, h.objects.get(**{k + "_handle" : v, "self__exact" : obj.self}))
     for k in self.attributes:
       v = q_pdu.get(k)
       if v is not None:
@@ -144,18 +153,22 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
   holding an XMLTemplate object (above).
   """
 
+  # Additional complication: "self" is a bad keyword argument, which
+  # requires a two-step process.
 
   def xml_get_or_create(self, xml):
     name   = self.model.xml_template.name
     action = xml.get("action")
     assert xml.tag == rpki.left_right.xmlns + name and action in ("create", "set")
     d = { name + "_handle" : xml.get(name + "_handle") }
-    if name != "self" and action == "create":
-      d["self"] = Self.objects.get(self_handle = xml.get("self_handle"))
-    elif name != "self":
+    if name != "self" and action != "create":
       d["self__self_handle"] = xml.get("self_handle")
-    return self.model(**d) if action == "create" else self.get(**d)
-
+    logger.debug("XMLManager.xml_get_or_create(): name %s action %s filter %r", name, action, d)
+    result = self.model(**d) if action == "create" else self.get(**d)
+    if name != "self" and action == "create":
+      result.self = Self.objects.get(self_handle = xml.get("self_handle"))
+    logger.debug("XMLManager.xml_get_or_create(): name %s action %s filter %r result %r", name, action, d, result)
+    return result
 
   def xml_list(self, xml):
     name   = self.model.xml_template.name
@@ -166,8 +179,10 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
       d[name + "_handle"] = xml.get(name + "_handle")
     if name != "self":
       d["self__self_handle"] = xml.get("self_handle")
-    return self.filter(**d) if d else self.all()
-
+    logger.debug("XMLManager.xml_list(): name %s action %s filter %r", name, action, d)
+    result = self.filter(**d) if d else self.all()
+    logger.debug("XMLManager.xml_list(): name %s action %s filter %r result %r", name, action, d, result)
+    return result
 
   def xml_get_for_delete(self, xml):
     name   = self.model.xml_template.name
@@ -176,10 +191,43 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
     d = { name + "_handle" : xml.get(name + "_handle") }
     if name != "self":
       d["self__self_handle"] = xml.get("self_handle")
-    return self.get(**d)
+    logger.debug("XMLManager.xml_get_for_delete(): name %s action %s filter %r", name, action, d)
+    result = self.get(**d)
+    logger.debug("XMLManager.xml_get_for_delete(): name %s action %s filter %r result %r", name, action, d, result)
+    return result
+
+
+def xml_hooks(cls):
+  """
+  Class decorator to add default XML hooks.
+  """
+
+  # Maybe inheritance from an abstract model would work here.  Then
+  # again, maybe we could use this decorator to do something prettier
+  # for the XMLTemplate setup.  Whatever.  Clean up once basic stuff
+  # works again after transition from pre-Django SQL.
+
+  def default_xml_post_save_hook(self, rpkid, q_pdu, cb, eb):
+    logger.debug("default_xml_post_save_hook()")
+    cb()
+  def default_xml_pre_delete_hook(self, rpkid, cb, eb):
+    logger.debug("default_xml_pre_delete_hook()")
+    cb()
+  def default_xml_pre_save_hook(self, q_pdu):
+    logger.debug("default_xml_pre_save_hook()")
+    pass                                # pylint: disable=W0107
+  for name, method in (("xml_post_save_hook",  default_xml_post_save_hook),
+                       ("xml_pre_delete_hook", default_xml_pre_delete_hook),
+                       ("xml_pre_save_hook",   default_xml_pre_save_hook)):
+    if not hasattr(cls, name):
+      setattr(cls, name, method)
+
+  return cls
+
 
 # Models
 
+@xml_hooks
 class Self(models.Model):
   self_handle = models.SlugField(max_length = 255)
   use_hsm = models.BooleanField(default = False)
@@ -196,11 +244,13 @@ class Self(models.Model):
     elements   = ("bpki_cert", "bpki_glue"))
 
 
-  def xml_pre_delete_hook(self):
-    raise NotImplementedError
+  def xml_pre_delete_hook(self, rpkid, cb, eb):
+    def loop(iterator, parent):
+      parent.destroy(iterator)
+    rpki.async.iterator(self.parents.all(), loop, cb)
 
 
-  def xml_post_save_hook(self, q_pdu, cb, eb):
+  def xml_post_save_hook(self, rpkid, q_pdu, cb, eb):
     if q_pdu.get("clear_replay_protection"):
       for parent in self.parents.all():
         parent.clear_replay_protection()
@@ -228,12 +278,12 @@ class Self(models.Model):
     if q_pdu.get("run_now"):
       actions.append(self.serve_run_now)
     def loop(iterator, action):
-      action(iterator, eb)
+      action(rpkid, iterator, eb)
     rpki.async.iterator(actions, loop, cb)
 
 
-  def serve_publish_world_now(self, cb, eb):
-    publisher = rpki.rpkid.publication_queue()
+  def serve_publish_world_now(self, rpkid, cb, eb):
+    publisher = rpki.rpkid.publication_queue(rpkid)
     repositories = set()
     objects = dict()
 
@@ -252,7 +302,7 @@ class Self(models.Model):
         assert r_pdu.get("uri") not in objects
         objects[r_pdu.get("uri")] = (r_pdu.get("hash"), repository)
 
-      repository.call_pubd(iterator, eb, q_msg, length_check = False, handlers = dict(list = list_handler))
+      repository.call_pubd(rpkid, iterator, eb, q_msg, length_check = False, handlers = dict(list = list_handler))
 
     def reconcile(uri, obj, repository):
       h, r = objects.pop(uri, (None, None))
@@ -281,21 +331,21 @@ class Self(models.Model):
     rpki.async.iterator(self.parents.all(), loop, done)
 
 
-  def serve_run_now(self, cb, eb):
-    logger.debug("Forced immediate run of periodic actions for self %s[%d]", self.self_handle, self.self_id)
+  def serve_run_now(self, rpkid, cb, eb):
+    logger.debug("Forced immediate run of periodic actions for self %s[%r]", self.self_handle, self)
     completion = rpki.rpkid_tasks.CompletionHandler(cb)
-    self.schedule_cron_tasks(completion)
+    self.schedule_cron_tasks(rpkid, completion)
     assert completion.count > 0
-    self.gctx.task_run()
+    rpkid.task_run()
 
 
-  def schedule_cron_tasks(self, completion):
+  def schedule_cron_tasks(self, rpkid, completion):
     try:
       tasks = self.cron_tasks
     except AttributeError:
-      tasks = self.cron_tasks = tuple(task(self) for task in rpki.rpkid_tasks.task_classes)
+      tasks = self.cron_tasks = tuple(task(rpkid, self) for task in rpki.rpkid_tasks.task_classes)
     for task in tasks:
-      self.gctx.task_add(task)
+      rpkid.task_add(task)
       completion.register(task)
 
 
@@ -316,11 +366,12 @@ class Self(models.Model):
                if ca_detail.covers(resources))
 
 
+@xml_hooks
 class BSC(models.Model):
   bsc_handle = models.SlugField(max_length = 255)
-  private_key_id = KeyField()
+  private_key_id = RSAPrivateKeyField()
   pkcs10_request = PKCS10Field()
-  hash_alg = EnumField(choices = ("sha256",))
+  hash_alg = EnumField(choices = ("sha256",), default = "sha256")
   signing_cert = CertificateField(null = True)
   signing_cert_crl = CRLField(null = True)
   self = models.ForeignKey(Self, related_name = "bscs")
@@ -343,6 +394,7 @@ class BSC(models.Model):
       self.pkcs10_request = rpki.x509.PKCS10.create(keypair = self.private_key_id)
 
 
+@xml_hooks
 class Repository(models.Model):
   repository_handle = models.SlugField(max_length = 255)
   peer_contact_uri = models.TextField(null = True)
@@ -364,7 +416,7 @@ class Repository(models.Model):
     elements   = ("bpki_cert", "bpki_glue"))
 
 
-  def xml_post_save_hook(self, q_pdu, cb, eb):
+  def xml_post_save_hook(self, rpkid, q_pdu, cb, eb):
     if q_pdu.get("clear_replay_protection"):
       self.clear_replay_protection()
     cb()
@@ -375,7 +427,7 @@ class Repository(models.Model):
     self.save()
 
 
-  def call_pubd(self, callback, errback, q_msg, handlers = {}, length_check = True): # pylint: disable=W0102
+  def call_pubd(self, rpkid, callback, errback, q_msg, handlers = {}, length_check = True): # pylint: disable=W0102
     """
     Send a message to publication daemon and return the response.
 
@@ -398,7 +450,7 @@ class Repository(models.Model):
 
       bsc = self.bsc
       q_der = rpki.publication.cms_msg().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
-      bpki_ta_path = (self.gctx.bpki_ta, self.self.bpki_cert, self.self.bpki_glue, self.bpki_cert, self.bpki_glue)
+      bpki_ta_path = (rpkid.bpki_ta, self.self.bpki_cert, self.self.bpki_glue, self.bpki_cert, self.bpki_glue)
 
       def done(r_der):
         try:
@@ -432,6 +484,7 @@ class Repository(models.Model):
       errback(e)
 
 
+@xml_hooks
 class Parent(models.Model):
   parent_handle = models.SlugField(max_length = 255)
   bpki_cert = CertificateField(null = True)
@@ -456,11 +509,11 @@ class Parent(models.Model):
     elements   = ("bpki_cert", "bpki_glue"))
 
 
-  def xml_pre_delete_hook(self, cb, eb):
-    self.destroy(cb, delete_parent = False)
+  def xml_pre_delete_hook(self, rpkid, cb, eb):
+    self.destroy(rpkid, cb, delete_parent = False)
 
 
-  def xml_post_save_hook(self, q_pdu, cb, eb):
+  def xml_post_save_hook(self, rpkid, q_pdu, cb, eb):
     if q_pdu.get("clear_replay_protection"):
       self.clear_replay_protection()
     actions = []
@@ -477,19 +530,19 @@ class Parent(models.Model):
     rpki.async.iterator(actions, loop, cb)
 
 
-  def serve_rekey(self, cb, eb):
+  def serve_rekey(self, rpkid, cb, eb):
     def loop(iterator, ca):
       ca.rekey(iterator, eb)
     rpki.async.iterator(self.cas.all(), loop, cb)
 
 
-  def serve_revoke(self, cb, eb):
+  def serve_revoke(self, rpkid, cb, eb):
     def loop(iterator, ca):
       ca.revoke(cb = iterator, eb = eb)
     rpki.async.iterator(self.cas.all(), loop, cb)
 
 
-  def serve_reissue(self, cb, eb):
+  def serve_reissue(self, rpkid, cb, eb):
     def loop(iterator, ca):
       ca.reissue(cb = iterator, eb = eb)
     rpki.async.iterator(self.cas.all(), loop, cb)
@@ -500,7 +553,7 @@ class Parent(models.Model):
     self.save()
 
 
-  def get_skis(self, cb, eb):
+  def get_skis(self, rpkid, cb, eb):
     """
     Fetch SKIs that this parent thinks we have.  In theory this should
     agree with our own database, but in practice stuff can happen, so
@@ -515,10 +568,10 @@ class Parent(models.Model):
                set(rpki.x509.X509(Base64 = c.text).gSKI()
                    for c in rc.getiterator(rpki.up_down.tag_certificate)))
               for rc in r_msg.getiterator(rpki.up_down.tag_class)))
-    self.up_down_list_query(done, eb)
+    self.up_down_list_query(rpkid = rpkid, cb = done, eb = eb)
 
 
-  def revoke_skis(self, rc_name, skis_to_revoke, cb, eb):
+  def revoke_skis(self, rpkid, rc_name, skis_to_revoke, cb, eb):
     """
     Revoke a set of SKIs within a particular resource class.
     """
@@ -527,11 +580,11 @@ class Parent(models.Model):
       def revoked(r_pdu):
         iterator()
       logger.debug("Asking parent %r to revoke class %r, SKI %s", self, rc_name, ski)
-      self.up_down_revoke_query(rc_name, ski, revoked, eb)
+      self.up_down_revoke_query(rpkid = rpkid, class_name = rc_name, ski = ski, cb = revoked, eb = eb)
     rpki.async.iterator(skis_to_revoke, loop, cb)
 
 
-  def serve_revoke_forgotten(self, cb, eb):
+  def serve_revoke_forgotten(self, rpkid, cb, eb):
     """
     Handle a left-right revoke_forgotten action for this parent.
 
@@ -551,13 +604,13 @@ class Parent(models.Model):
         if rc_name in ca_map:
           for ca_detail in ca_map[rc_name].issue_response_candidate_ca_details:
             skis_to_revoke.discard(ca_detail.latest_ca_cert.gSKI())
-        self.revoke_skis(rc_name, skis_to_revoke, iterator, eb)
+        self.revoke_skis(rpkid, rc_name, skis_to_revoke, iterator, eb)
       ca_map = dict((ca.parent_resource_class, ca) for ca in self.cas.all())
       rpki.async.iterator(skis_from_parent.items(), loop, cb)
-    self.get_skis(got_skis, eb)
+    self.get_skis(rpkid, got_skis, eb)
 
 
-  def destroy(self, cb, delete_parent = True):
+  def destroy(self, rpkid, cb, delete_parent = True):
     """
     Delete all the CA stuff under this parent, and perhaps the parent
     itself.
@@ -566,7 +619,7 @@ class Parent(models.Model):
     def loop(iterator, ca):
       ca.destroy(self, iterator)
     def revoke():
-      self.serve_revoke_forgotten(done, fail)
+      self.serve_revoke_forgotten(rpkid, done, fail)
     def fail(e):
       logger.warning("Trouble getting parent to revoke certificates, blundering onwards: %s", e)
       done()
@@ -582,12 +635,14 @@ class Parent(models.Model):
                    sender  = self.sender_name, recipient = self.recipient_name, type = query_type)
 
 
-  def up_down_list_query(self, cb, eb):
+  def up_down_list_query(self, rpkid, cb, eb):
     q_msg = self._compose_up_down_query("list")
-    self.query_up_down(q_msg, cb, eb)
+    self.query_up_down(rpkid, q_msg, cb, eb)
 
 
-  def up_down_issue_query(self, ca, ca_detail, cb, eb):
+  def up_down_issue_query(self, rpkid, ca, ca_detail, cb, eb):
+    logger.debug("Parent.up_down_issue_query(): caRepository %r rpkiManifest %r rpkiNotify %r",
+                 ca.sia_uri, ca_detail.manifest_uri, ca.parent.repository.rrdp_notification_uri)
     pkcs10 = rpki.x509.PKCS10.create(
       keypair      = ca_detail.private_key_id,
       is_ca        = True,
@@ -597,16 +652,16 @@ class Parent(models.Model):
     q_msg = self._compose_up_down_query("issue")
     q_pdu = SubElement(q_msg, rpki.up_down.tag_request, class_name = ca.parent_resource_class)
     q_pdu.text = pkcs10.get_Base64()
-    self.query_up_down(q_msg, cb, eb)
+    self.query_up_down(rpkid, q_msg, cb, eb)
 
 
-  def up_down_revoke_query(self, class_name, ski, cb, eb):
+  def up_down_revoke_query(self, rpkid, class_name, ski, cb, eb):
     q_msg = self._compose_up_down_query("revoke")
     SubElement(q_msg, rpki.up_down.tag_key, class_name = class_name, ski = ski)
-    self.query_up_down(q_msg, cb, eb)
+    self.query_up_down(rpkid, q_msg, cb, eb)
 
 
-  def query_up_down(self, q_msg, cb, eb):
+  def query_up_down(self, rpkid, q_msg, cb, eb):
 
     if self.bsc is None:
       raise rpki.exceptions.BSCNotFound("Could not find BSC")
@@ -622,7 +677,7 @@ class Parent(models.Model):
     def unwrap(r_der):
       try:
         r_cms = rpki.up_down.cms_msg(DER = r_der)
-        r_msg = r_cms.unwrap((self.gctx.bpki_ta,
+        r_msg = r_cms.unwrap((rpkid.bpki_ta,
                               self.self.bpki_cert,
                               self.self.bpki_glue,
                               self.bpki_cert,
@@ -636,6 +691,8 @@ class Parent(models.Model):
         eb(e)
       else:
         cb(r_msg)
+
+    logger.debug("query_up_down(): type(q_der) %r", type(q_der)) # XXX
 
     rpki.http.client(
       msg          = q_der,
@@ -692,7 +749,7 @@ class CA(models.Model):
   #def issue_response_candidate_ca_details(self): return self.ca_details.exclude(state = "revoked")
 
 
-  def check_for_updates(self, parent, rc, cb, eb):
+  def check_for_updates(self, rpkid, parent, rc, cb, eb):
     """
     Parent has signaled continued existance of a resource class we
     already knew about, so we need to check for an updated
@@ -700,12 +757,12 @@ class CA(models.Model):
     with the same key, etc.
     """
 
+    logger.debug("check_for_updates()")
     sia_uri = parent.construct_sia_uri(rc)
     sia_uri_changed = self.sia_uri != sia_uri
     if sia_uri_changed:
       logger.debug("SIA changed: was %s now %s", self.sia_uri, sia_uri)
       self.sia_uri = sia_uri
-      self.sql_mark_dirty()
     class_name = rc.get("class_name")
     rc_resources = rpki.resource_set.resource_bag(
       rc.get("resource_set_as"),
@@ -723,7 +780,7 @@ class CA(models.Model):
         logger.warning("SKI %s in resource class %s is in database but missing from list_response to %s from %s, "
                        "maybe parent certificate went away?",
                        ca_detail.public_key.gSKI(), class_name, parent.self.self_handle, parent.parent_handle)
-        publisher = rpki.rpkid.publication_queue()
+        publisher = rpki.rpkid.publication_queue(rpkid)
         ca_detail.destroy(ca = ca_detail.ca, publisher = publisher)
         return publisher.call_pubd(iterator, eb)
       if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc_cert_uri:
@@ -743,6 +800,7 @@ class CA(models.Model):
           current_resources.undersized(rc_resources) or
           current_resources.oversized(rc_resources)):
         return ca_detail.update(
+          rpkid            = rpkid,
           parent           = parent,
           ca               = self,
           rc               = rc,
@@ -762,14 +820,14 @@ class CA(models.Model):
     else:
       logger.warning("Existing resource class %s to %s from %s with no certificates, rekeying",
                      class_name, parent.self.self_handle, parent.parent_handle)
-      self.rekey(cb, eb)
+      self.rekey(rpkid, cb, eb)
 
 
   # Called from exactly one place, in rpki.rpkid_tasks.PollParentTask.class_loop().
   # Might want to refactor.
 
   @classmethod
-  def create(cls, parent, rc, cb, eb):
+  def create(cls, rpkid, parent, rc, cb, eb):
     """
     Parent has signaled existance of a new resource class, so we need
     to create and set up a corresponding CA object.
@@ -783,16 +841,17 @@ class CA(models.Model):
       c = r_msg[0][0]
       logger.debug("CA %r received certificate %s", self, c.get("cert_url"))
       ca_detail.activate(
+        rpkid    = rpkid,
         ca       = self,
         cert     = rpki.x509.X509(Base64 = c.text),
         uri      = c.get("cert_url"),
         callback = cb,
         errback  = eb)
     logger.debug("Sending issue request to %r from %r", parent, self.create)
-    parent.up_down_issue_query(self, ca_detail, done, eb)
+    parent.up_down_issue_query(rpkid = rpkid, ca = self, ca_detail = ca_detail, cb = done, eb = eb)
 
 
-  def destroy(self, parent, callback):
+  def destroy(self, rpkid, parent, callback):
     """
     The list of current resource classes received from parent does not
     include the class corresponding to this CA, so we need to delete
@@ -811,7 +870,7 @@ class CA(models.Model):
       logger.debug("Deleting %r", self)
       self.delete()
       callback()
-    publisher = rpki.rpkid.publication_queue()
+    publisher = rpki.rpkid.publication_queue(rpkid)
     for ca_detail in self.ca_details.all():
       ca_detail.destroy(ca = self, publisher = publisher, allow_failure = True)
     publisher.call_pubd(done, lose)
@@ -847,7 +906,7 @@ class CA(models.Model):
     return self.last_crl_sn
 
 
-  def rekey(self, cb, eb):
+  def rekey(self, rpkid, cb, eb):
     """
     Initiate a rekey operation for this CA.  Generate a new keypair.
     Request cert from parent using new keypair.  Mark result as our
@@ -855,20 +914,27 @@ class CA(models.Model):
     the new ca_detail.
     """
 
-    old_detail = self.ca_details.get(state = "active")
-    new_detail = CADetail.create(self)
+    try:
+      old_detail = self.ca_details.get(state = "active")
+    except CADetail.DoesNotExist:
+      old_detail = None
+
+    new_detail = CADetail.create(ca = self)     # sic: class method, not manager function (for now, anyway)
+
     def done(r_msg):
       c = r_msg[0][0]
       logger.debug("CA %r received certificate %s", self, c.get("cert_url"))
       new_detail.activate(
+        rpkid       = rpkid,
         ca          = self,
         cert        = rpki.x509.X509(Base64 = c.text),
         uri         = c.get("cert_url"),
         predecessor = old_detail,
         callback    = cb,
         errback     = eb)
+
     logger.debug("Sending issue request to %r from %r", self.parent, self.rekey)
-    self.parent.up_down_issue_query(self, new_detail, done, eb)
+    self.parent.up_down_issue_query(rpkid = rpkid, ca = self, ca_detail = new_detail, cb = done, eb = eb)
 
 
   def revoke(self, cb, eb, revoke_all = False):
@@ -896,13 +962,13 @@ class CA(models.Model):
 
 
 class CADetail(models.Model):
-  public_key = KeyField(null = True)
-  private_key_id = KeyField(null = True)
+  public_key = PublicKeyField(null = True)
+  private_key_id = RSAPrivateKeyField(null = True)
   latest_crl = CRLField(null = True)
   crl_published = SundialField(null = True)
   latest_ca_cert = CertificateField(null = True)
-  manifest_private_key_id = KeyField(null = True)
-  manifest_public_key = KeyField(null = True)
+  manifest_private_key_id = RSAPrivateKeyField(null = True)
+  manifest_public_key = PublicKeyField(null = True)
   latest_manifest_cert = CertificateField(null = True)
   latest_manifest = ManifestField(null = True)
   manifest_published = SundialField(null = True)
@@ -961,12 +1027,12 @@ class CADetail(models.Model):
     return target.asn <= me.asn and target.v4 <= me.v4 and target.v6  <= me.v6
 
 
-  def activate(self, ca, cert, uri, callback, errback, predecessor = None):
+  def activate(self, rpkid, ca, cert, uri, callback, errback, predecessor = None):
     """
     Activate this ca_detail.
     """
 
-    publisher = rpki.rpkid.publication_queue()
+    publisher = rpki.rpkid.publication_queue(rpkid)
     self.latest_ca_cert = cert
     self.ca_cert_uri = uri
     self.generate_manifest_cert()
@@ -1015,7 +1081,7 @@ class CADetail(models.Model):
     logger.debug("Deleting %r", self)
     self.delete()
 
-  def revoke(self, cb, eb):
+  def revoke(self, rpkid, cb, eb):
     """
     Request revocation of all certificates whose SKI matches the key
     for this ca_detail.
@@ -1056,7 +1122,7 @@ class CADetail(models.Model):
         nextUpdate = nextUpdate.later(self.latest_manifest.getNextUpdate())
       if self.latest_crl is not None:
         nextUpdate = nextUpdate.later(self.latest_crl.getNextUpdate())
-      publisher = rpki.rpkid.publication_queue()
+      publisher = rpki.rpkid.publication_queue(rpkid)
       for child_cert in self.child_certs.all():
         nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
         child_cert.revoke(publisher = publisher)
@@ -1077,10 +1143,10 @@ class CADetail(models.Model):
       self.save()
       publisher.call_pubd(cb, eb)
     logger.debug("Asking parent to revoke CA certificate %s", gski)
-    parent.up_down_revoke_query(class_name, gski, parent_revoked, eb)
+    parent.up_down_revoke_query(rpkid = rpkid, class_name = class_name, ski = gski, cb = parent_revoked, eb = eb)
 
 
-  def update(self, parent, ca, rc, sia_uri_changed, old_resources, callback, errback):
+  def update(self, rpkid, parent, ca, rc, sia_uri_changed, old_resources, callback, errback):
     """
     Need to get a new certificate for this ca_detail and perhaps frob
     children of this ca_detail.
@@ -1092,9 +1158,9 @@ class CADetail(models.Model):
       cert_url = c.get("cert_url")
       logger.debug("CA %r received certificate %s", self, cert_url)
       if self.state == "pending":
-        return self.activate(ca = ca, cert = cert, uri = cert_url, callback = callback, errback  = errback)
+        return self.activate(rpkid = rpkid, ca = ca, cert = cert, uri = cert_url, callback = callback, errback  = errback)
       validity_changed = self.latest_ca_cert is None or self.latest_ca_cert.getNotAfter() != cert.getNotAfter()
-      publisher = rpki.rpkid.publication_queue()
+      publisher = rpki.rpkid.publication_queue(rpkid)
       if self.latest_ca_cert != cert:
         self.latest_ca_cert = cert
         self.save()
@@ -1115,7 +1181,7 @@ class CADetail(models.Model):
           ghostbuster.update(publisher = publisher, fast = True)
       publisher.call_pubd(callback, errback)
     logger.debug("Sending issue request to %r from %r", parent, self.update)
-    parent.up_down_issue_query(ca, self, issued, errback)
+    parent.up_down_issue_query(rpkid = rpkid, ca = ca, ca_detail = self, cb = issued, eb = errback)
 
 
   @classmethod
@@ -1308,12 +1374,12 @@ class CADetail(models.Model):
     self.save()
 
 
-  def reissue(self, cb, eb):
+  def reissue(self, rpkid, cb, eb):
     """
     Reissue all current certificates issued by this ca_detail.
     """
 
-    publisher = rpki.rpkid.publication_queue()
+    publisher = rpki.rpkid.publication_queue(rpkid)
     self.check_failed_publication(publisher)
     for roa in self.roas.all():
       roa.regenerate(publisher, fast = True)
@@ -1395,7 +1461,7 @@ class CADetail(models.Model):
         new_obj = ghostbuster.ghostbuster,
         repository = repository,
         handler = ghostbuster.published_callback)
-    for ee_cert in self.ee_certs.filter(published__isnull = False, published__lt = stale):
+    for ee_cert in self.ee_certificates.filter(published__isnull = False, published__lt = stale):
       logger.debug("Retrying publication for %s", ee_cert)
       publisher.queue(
         uri = ee_cert.uri,
@@ -1404,6 +1470,7 @@ class CADetail(models.Model):
         handler = ee_cert.published_callback)
 
 
+@xml_hooks
 class Child(models.Model):
   child_handle = models.SlugField(max_length = 255)
   bpki_cert = CertificateField(null = True)
@@ -1422,24 +1489,24 @@ class Child(models.Model):
     elements = ("bpki_cert", "bpki_glue"))
 
 
-  def xml_pre_delete_hook(self, cb, eb):
-    publisher = rpki.rpkid.publication_queue()
+  def xml_pre_delete_hook(self, rpkid, cb, eb):
+    publisher = rpki.rpkid.publication_queue(rpkid)
     for child_cert in self.child_certs.all():
       child_cert.revoke(publisher = publisher, generate_crl_and_manifest = True)
     publisher.call_pubd(cb, eb)
 
 
-  def xml_post_save_hook(self, q_pdu, cb, eb):
+  def xml_post_save_hook(self, rpkid, q_pdu, cb, eb):
     if q_pdu.get("clear_replay_protection"):
       self.clear_replay_protection()
     if q_pdu.get("reissue"):
-      self.serve_reissue(cb, eb)
+      self.serve_reissue(rpkid, cb, eb)
     else:
       cb()
 
 
-  def serve_reissue(self, cb, eb):
-    publisher = rpki.rpkid.publication_queue()
+  def serve_reissue(self, rpkid, cb, eb):
+    publisher = rpki.rpkid.publication_queue(rpkid)
     for child_cert in self.child_certs.all():
       child_cert.reissue(child_cert.ca_detail, publisher, force = True)
     publisher.call_pubd(cb, eb)
@@ -1450,7 +1517,7 @@ class Child(models.Model):
     self.save()
 
 
-  def up_down_handle_list(self, q_msg, r_msg, callback, errback):
+  def up_down_handle_list(self, rpkid, q_msg, r_msg, callback, errback):
     def got_resources(irdb_resources):
       if irdb_resources.valid_until < rpki.sundial.now():
         logger.debug("Child %s's resources expired %s", self.child_handle, irdb_resources.valid_until)
@@ -1473,10 +1540,10 @@ class Child(models.Model):
             c.text = child_cert.cert.get_Base64()
           SubElement(rc, rpki.up_down.tag_issuer).text = ca_detail.latest_ca_cert.get_Base64()
       callback()
-    self.gctx.irdb_query_child_resources(self.self.self_handle, self.child_handle, got_resources, errback)
+    rpkid.irdb_query_child_resources(self.self.self_handle, self.child_handle, got_resources, errback)
 
 
-  def up_down_handle_issue(self, q_msg, r_msg, callback, errback):
+  def up_down_handle_issue(self, rpkid, q_msg, r_msg, callback, errback):
 
     def got_resources(irdb_resources):
 
@@ -1504,12 +1571,12 @@ class Child(models.Model):
 
       # Generate new cert or regenerate old one if necessary
 
-      publisher = rpki.rpkid.publication_queue()
+      publisher = rpki.rpkid.publication_queue(rpkid)
 
       try:
         child_cert = self.child_certs.get(ca_detail = ca_detail, ski = req_key.get_SKI())
 
-      except ChildCert.NotFound:
+      except ChildCert.DoesNotExist:
         child_cert = ca_detail.issue(
           ca          = ca_detail.ca,
           child       = self,
@@ -1537,14 +1604,21 @@ class Child(models.Model):
 
     class_name = req.get("class_name")
     pkcs10 = rpki.x509.PKCS10(Base64 = req.text)
+
+    # XXX
+    logger.debug("Child.up_down_handle_issue(): PKCS #10 %s", pkcs10.get_Base64())
+    sia = pkcs10.get_SIA()
+    logger.debug("Child.up_down_handle_issue(): PKCS #10 SIA %r (%r, %r, %r, %r) %r",
+                 type(sia), type(sia[0]), type(sia[1]), type(sia[2]), type(sia[3]), sia)
+    
     pkcs10.check_valid_request_ca()
     ca_detail = CADetail.objects.get(ca__parent__self = self.self,
-                                     ca__parent_class_name = class_name,
+                                     ca__parent_resource_class = class_name,
                                      state = "active")
-    self.gctx.irdb_query_child_resources(self.self.self_handle, self.child_handle, got_resources, errback)
+    rpkid.irdb_query_child_resources(self.self.self_handle, self.child_handle, got_resources, errback)
 
 
-  def up_down_handle_revoke(self, q_msg, r_msg, callback, errback):
+  def up_down_handle_revoke(self, rpkid, q_msg, r_msg, callback, errback):
     def done():
       SubElement(r_msg, key.tag, class_name = class_name, ski = key.get("ski"))
       callback()
@@ -1552,15 +1626,15 @@ class Child(models.Model):
     assert key.tag == rpki.up_down.tag_key
     class_name = key.get("class_name")
     ski = base64.urlsafe_b64decode(key.get("ski") + "=")
-    publisher = rpki.rpkid.publication_queue()
+    publisher = rpki.rpkid.publication_queue(rpkid)
     for child_cert in ChildCert.objects.filter(ca_detail__ca__parent__self = self.self,
-                                               ca_detail__ca__parent_class_name = class_name,
+                                               ca_detail__ca__parent_resource_class = class_name,
                                                ski = ski):
       child_cert.revoke(publisher = publisher)
     publisher.call_pubd(done, errback)
 
 
-  def serve_up_down(self, q_der, callback):
+  def serve_up_down(self, rpkid, q_der, callback):
     """
     Outer layer of server handling for one up-down PDU from this child.
     """
@@ -1579,7 +1653,7 @@ class Child(models.Model):
     if self.bsc is None:
       raise rpki.exceptions.BSCNotFound("Could not find BSC")
     q_cms = rpki.up_down.cms_msg(DER = q_der)
-    q_msg = q_cms.unwrap((self.gctx.bpki_ta,
+    q_msg = q_cms.unwrap((rpkid.bpki_ta,
                           self.self.bpki_cert,
                           self.self.bpki_glue,
                           self.bpki_cert,
@@ -1595,7 +1669,7 @@ class Child(models.Model):
                     sender = q_msg.get("recipient"), recipient = q_msg.get("sender"), type = q_type + "_response")
 
     try:
-      getattr(self, "up_down_handle_" + q_type)(q_msg, r_msg, done, lose)
+      getattr(self, "up_down_handle_" + q_type)(rpkid, q_msg, r_msg, done, lose)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
@@ -1719,12 +1793,12 @@ class ChildCert(models.Model):
     self.save()
 
 
-class EECert(models.Model):
+class EECertificate(models.Model):
   ski = BlobField()
   cert = CertificateField()
   published = SundialField(null = True)
-  self = models.ForeignKey(Self, related_name = "ee_certs")
-  ca_detail = models.ForeignKey(CADetail, related_name = "ee_certs")
+  self = models.ForeignKey(Self, related_name = "ee_certificates")
+  ca_detail = models.ForeignKey(CADetail, related_name = "ee_certificates")
 
 
   @property
@@ -1733,7 +1807,7 @@ class EECert(models.Model):
     Calculate g(SKI), for ease of comparison with XML.
 
     Although, really, one has to ask why we don't just store g(SKI)
-    in rpkid.sql instead of ski....
+    instead of SKI....
     """
 
     return base64.urlsafe_b64encode(self.ski).rstrip("=")
@@ -1779,7 +1853,8 @@ class EECert(models.Model):
       cn          = cn,
       sn          = sn,
       eku         = eku)
-    self = cls(self = ca_detail.ca.parent.self, ca_detail_id = ca_detail.ca_detail_id, cert = cert)
+    self = cls(ca_detail = ca_detail, cert = cert, ski = subject_key.get_SKI())
+    self.self = ca_detail.ca.parent.self
     publisher.queue(
       uri        = self.uri,
       new_obj    = self.cert,
@@ -2135,8 +2210,15 @@ class ROA(models.Model):
     v4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
     v6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
 
-    if self.ca_detail is not None and self.ca_detail.state == "active" and not self.ca_detail.has_expired():
-      logger.debug("Keeping old ca_detail %r for ROA %r", self.ca_detail, self)
+    # http://stackoverflow.com/questions/26270042/how-do-you-catch-this-exception
+    # "Django is amazing when its not terrifying."
+    try:
+      ca_detail = self.ca_detail
+    except CADetail.DoesNotExist:
+      ca_detail = None
+
+    if ca_detail is not None and ca_detail.state == "active" and not ca_detail.has_expired():
+      logger.debug("Keeping old ca_detail %r for ROA %r", ca_detail, self)
     else:
       logger.debug("Searching for new ca_detail for ROA %r", self)
       for ca_detail in CADetail.objects.filter(ca__parent__self = self.self, state = "active"):
@@ -2156,7 +2238,11 @@ class ROA(models.Model):
       resources   = resources,
       subject_key = keypair.get_public(),
       sia         = (None, None, self.uri_from_key(keypair), self.ca_detail.ca.parent.repository.rrdp_notification_uri))
-    self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
+    self.roa = rpki.x509.ROA.build(self.asn,
+                                   rpki.resource_set.roa_prefix_set_ipv4(self.ipv4),
+                                   rpki.resource_set.roa_prefix_set_ipv6(self.ipv6),
+                                   keypair,
+                                   (self.cert,))
     self.published = rpki.sundial.now()
     self.save()
 

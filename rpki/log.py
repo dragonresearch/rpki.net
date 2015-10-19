@@ -92,9 +92,18 @@ class Formatter(object):
     return "".join(self.coformat(record)).rstrip("\n")
 
   def coformat(self, record):
-    if not self.is_syslog:
-      yield time.strftime("%Y-%m-%d %H:%M:%S ", time.gmtime(record.created))
-    yield "%s[%d]: " % (self.ident, record.process)
+
+    try:
+      if not self.is_syslog:
+        yield time.strftime("%Y-%m-%d %H:%M:%S ", time.gmtime(record.created))
+    except:                             # pylint: disable=W0702
+      yield "[$!$Time format failed]"
+
+    try:
+      yield "%s[%d]: " % (self.ident, record.process)
+    except:                             # pylint: disable=W0702
+      yield "[$!$ident format failed]"
+
     try:
       if isinstance(record.context, (str, unicode)):
         yield record.context + " "
@@ -102,16 +111,26 @@ class Formatter(object):
         yield repr(record.context) + " "
     except AttributeError:
       pass
-    yield record.getMessage()
-    if record.exc_info:
-      if self.is_syslog or not enable_tracebacks:
-        lines = tb.format_exception_only(record.exc_info[0], record.exc_info[1])
-        lines.insert(0, ": ")
-      else:
-        lines = tb.format_exception(record.exc_info[0], record.exc_info[1], record.exc_info[2])
-        lines.insert(0, "\n")
-      for line in lines:
-        yield line
+    except:                             # pylint: disable=W0702
+      yield "[$!$context format failed]"
+
+    try:
+      yield record.getMessage()
+    except:                             # pylint: disable=W0702
+      yield "[$!$record.getMessage() failed]"
+
+    try:
+      if record.exc_info:
+        if self.is_syslog or not enable_tracebacks:
+          lines = tb.format_exception_only(record.exc_info[0], record.exc_info[1])
+          lines.insert(0, ": ")
+        else:
+          lines = tb.format_exception(record.exc_info[0], record.exc_info[1], record.exc_info[2])
+          lines.insert(0, "\n")
+        for line in lines:
+          yield line
+    except:                             # pylint: disable=W0702
+      yield "[$!$exception formatting failed]"
 
 
 def argparse_setup(parser, default_thunk = None):

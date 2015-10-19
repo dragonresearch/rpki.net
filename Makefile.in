@@ -54,9 +54,6 @@ RNGS =	schemas/relaxng/left-right.rng			\
 	schemas/relaxng/rrdp.rng			\
 	schemas/relaxng/oob-setup.rng
 
-SQLS =	schemas/sql/rpkid.sql				\
-	schemas/sql/pubd.sql
-
 default: all
 
 all: VERSION rpki/autoconf.py setup_autoconf.py
@@ -106,7 +103,6 @@ rpki-all:					\
 	${abs_top_srcdir}/h/rpki/sk_manifest.h	\
 	${abs_top_srcdir}/h/rpki/sk_roa.h	\
 	${abs_top_srcdir}/rpki/relaxng.py	\
-	${abs_top_srcdir}/rpki/sql_schemas.py	\
 	${POW_SO}				\
 	build/stamp
 
@@ -186,10 +182,6 @@ ${abs_top_srcdir}/rpki/relaxng.py: buildtools/make-relaxng.py ${RNGS}
 	cd schemas/relaxng; ${PYTHON} ${abs_top_srcdir}/buildtools/make-relaxng.py *.rng >$@.tmp
 	mv $@.tmp $@
 
-${abs_top_srcdir}/rpki/sql_schemas.py: buildtools/make-sql-schemas.py ${SQLS}
-	cd schemas/sql; ${PYTHON} ${abs_top_srcdir}/buildtools/make-sql-schemas.py >$@.tmp
-	mv $@.tmp $@
-
 schemas/relaxng/left-right.rng: schemas/relaxng/left-right.rnc
 	${TRANG} schemas/relaxng/left-right.rnc schemas/relaxng/left-right.rng
 
@@ -217,14 +209,10 @@ schemas/relaxng/oob-setup.rng: schemas/relaxng/oob-setup.rnc
 # Eg: PYLINT_FLAGS='--disable=W0311'
 
 lint: .FORCE
-	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc ${PYLINT_FLAGS} \
-		rpki `find rp ca -type f -perm -1 -print | xargs grep -El '^#!.+python'`
+	pylint --rcfile ${abs_top_srcdir}/buildtools/pylint.rc ${PYLINT_FLAGS} rpki `find rp ca -type f -perm -1 ! -name '*~' -print | xargs grep -El '^#!.+python'`
 
 tags: Makefile .FORCE
-	find rpki rp ca schemas -type f \
-		\( -name '*.[ch]' -o -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) \
-		! -name relaxng.py ! -name sql_schemas.py -print | \
-	etags -
+	{ find rpki rp ca schemas -type f \( -name '*.[ch]' -o -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) ! -name relaxng.py -print; find rp ca -type f -perm -1 ! -name '*~' -print | xargs grep -El '^#!.+python'; } | etags -
 
 # This isn't all that useful until SQL has been set up.  Might want to
 # hack up something using ca/rpki-confgen and ca/rpki-sql-setup.

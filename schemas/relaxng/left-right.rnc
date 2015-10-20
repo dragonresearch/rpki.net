@@ -26,8 +26,6 @@ version = "1"
 # Top level PDU
 
 start = element msg {
-  attribute version { xsd:positiveInteger { maxInclusive="1" } },
-  ( (attribute type { "query" }, query_elt*) |
     (attribute type { "reply" }, reply_elt*) )
 }
 
@@ -154,7 +152,7 @@ parent_bool = (attribute rekey { "yes" }?,
                attribute reissue { "yes" }?,
                attribute revoke { "yes" }?,
                attribute revoke_forgotten { "yes" }?,
-             attribute clear_replay_protection { "yes" }?)
+               attribute clear_replay_protection { "yes" }?)
 
 parent_payload = (attribute peer_contact_uri { uri }?,
                   attribute sia_base { uri }?,

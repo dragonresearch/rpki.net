@@ -97,7 +97,7 @@ class AbstractTask(object):
 
   def __init__(self, rpkid, s, description = None):
     self.rpkid = rpkid
-    self.self = s
+    self.tenant = s
     self.description = description
     self.completions = []
     self.continuation = None
@@ -140,7 +140,7 @@ class AbstractTask(object):
     return rpki.sundial.now() > self.due_date
 
   def __getattr__(self, name):
-    return getattr(self.self, name)
+    return getattr(self.tenant, name)
 
   def start(self):
     raise NotImplementedError
@@ -167,13 +167,10 @@ class PollParentTask(AbstractTask):
   def start(self):
     logger.debug("PollParentTask.start()")
     self.rpkid.checkpoint()
-    logger.debug("Self %s[%r] polling parents", self.self_handle, self)
+    logger.debug("Self %s[%r] polling parents", self.tenant_handle, self)
     assert not self.started
     self.started = True
-    #
-    # XXX Apparently "self" is a //really// bad choice for a column name with Django
-    #
-    rpki.async.iterator(rpki.rpkidb.models.Parent.objects.filter(self__exact = self.self), self.parent_loop, self.exit)
+    rpki.async.iterator(self.parents.all(), self.parent_loop, self.exit)
 
   def parent_loop(self, parent_iterator, parent):
     logger.debug("PollParentTask.parent_loop()")
@@ -248,16 +245,13 @@ class UpdateChildrenTask(AbstractTask):
 
   def start(self):
     self.rpkid.checkpoint()
-    logger.debug("Self %s[%r] updating children", self.self_handle, self)
+    logger.debug("Self %s[%r] updating children", self.tenant_handle, self)
     assert not self.started
     self.started = True
     self.now = rpki.sundial.now()
     self.rsn = self.now + rpki.sundial.timedelta(seconds = self.regen_margin)
     self.publisher = rpki.rpkid.publication_queue(self.rpkid)
-    #
-    # XXX Apparently "self" is a //really// bad choice for a column name with Django
-    #
-    rpki.async.iterator(rpki.rpkidb.models.Child.objects.filter(self__exact = self.self), self.loop, self.done)
+    rpki.async.iterator(self.children.all(), self.loop, self.done)
 
   def loop(self, iterator, child):
     self.rpkid.checkpoint()
@@ -271,7 +265,7 @@ class UpdateChildrenTask(AbstractTask):
 
   def do_child(self):
     if self.child_certs:
-      self.rpkid.irdb_query_child_resources(self.child.self.self_handle, self.child.child_handle,
+      self.rpkid.irdb_query_child_resources(self.child.tenant.tenant_handle, self.child.child_handle,
                                            self.got_resources, self.lose)
     else:
       self.iterator()
@@ -344,7 +338,7 @@ class UpdateChildrenTask(AbstractTask):
     self.publisher.call_pubd(self.exit, self.publication_failed)
 
   def publication_failed(self, e):
-    logger.exception("Couldn't publish for %s, skipping", self.self_handle)
+    logger.exception("Couldn't publish for %s, skipping", self.tenant_handle)
     self.rpkid.checkpoint()
     self.exit()
 
@@ -365,11 +359,11 @@ class UpdateROAsTask(AbstractTask):
 
   def start(self):
     self.rpkid.checkpoint()
-    logger.debug("Self %s[%r] updating ROAs", self.self_handle, self)
+    logger.debug("Self %s[%r] updating ROAs", self.tenant_handle, self)
     assert not self.started
     self.started = True
     logger.debug("Issuing query for ROA requests")
-    self.rpkid.irdb_query_roa_requests(self.self_handle, self.got_roa_requests, self.roa_requests_failed)
+    self.rpkid.irdb_query_roa_requests(self.tenant_handle, self.got_roa_requests, self.roa_requests_failed)
 
   def got_roa_requests(self, r_msg):
     self.rpkid.checkpoint()
@@ -385,7 +379,7 @@ class UpdateROAsTask(AbstractTask):
     logger.debug("UpdateROAsTask.got_roa_requests(): setup done, self.orphans %r", self.orphans)
     assert isinstance(self.orphans, list) # XXX
 
-    for roa in rpki.rpkidb.models.ROA.objects.filter(self__exact = self.self): # XXX
+    for roa in self.tenant.roas.all():
       logger.debug("UpdateROAsTask.got_roa_requests(): roa loop, self.orphans %r", self.orphans)
       assert isinstance(self.orphans, list) # XXX
       k = (roa.asn, str(roa.ipv4), str(roa.ipv6))
@@ -418,7 +412,7 @@ class UpdateROAsTask(AbstractTask):
         roa = roas.pop(k, None)
         if roa is None:
           roa = rpki.rpkidb.models.ROA(asn = long(r_pdu.get("asn")), ipv4 = r_pdu.get("ipv4"), ipv6 = r_pdu.get("ipv6"))
-          roa.self = self.self
+          roa.tenant = self.tenant
           logger.debug("Created new %r", roa)
         else:
           logger.debug("Found existing %r", roa)
@@ -467,7 +461,7 @@ class UpdateROAsTask(AbstractTask):
     self.publisher.call_pubd(done, self.publication_failed)
 
   def publication_failed(self, e):
-    logger.exception("Couldn't publish for %s, skipping", self.self_handle)
+    logger.exception("Couldn't publish for %s, skipping", self.tenant_handle)
     self.rpkid.checkpoint()
     self.exit()
 
@@ -484,7 +478,7 @@ class UpdateROAsTask(AbstractTask):
     self.publish(self.exit)
 
   def roa_requests_failed(self, e):
-    logger.exception("Could not fetch ROA requests for %s, skipping", self.self_handle)
+    logger.exception("Could not fetch ROA requests for %s, skipping", self.tenant_handle)
     self.exit()
 
 
@@ -505,11 +499,11 @@ class UpdateGhostbustersTask(AbstractTask):
 
   def start(self):
     self.rpkid.checkpoint()
-    logger.debug("Self %s[%r] updating Ghostbuster records", self.self_handle, self)
+    logger.debug("Self %s[%r] updating Ghostbuster records", self.tenant_handle, self)
     assert not self.started
     self.started = True
-    parent_handles = set(p.parent_handle for p in rpki.rpkidb.models.Parent.objects.filter(self__exact = self.self))
-    self.rpkid.irdb_query_ghostbuster_requests(self.self_handle, parent_handles,
+    parent_handles = set(p.parent_handle for p in self.tenant.parents.all())
+    self.rpkid.irdb_query_ghostbuster_requests(self.tenant_handle, parent_handles,
                                                self.got_ghostbuster_requests,
                                                self.ghostbuster_requests_failed)
 
@@ -524,7 +518,7 @@ class UpdateGhostbustersTask(AbstractTask):
       ca_details = set()
       seen = set()
 
-      for ghostbuster in rpki.rpkidb.models.Ghostbuster.objects.filter(self__exact = self.self):
+      for ghostbuster in self.tenant.ghostbusters.all():
         k = (ghostbuster.ca_detail.pk, ghostbuster.vcard)
         if ghostbuster.ca_detail.state != "active" or k in ghostbusters:
           orphans.append(ghostbuster)
@@ -533,7 +527,7 @@ class UpdateGhostbustersTask(AbstractTask):
 
       for r_pdu in r_msg:
         try:
-          rpki.rpkidb.models.Parent.objects.get(self__exact = self.self, parent_handle = r_pdu.get("parent_handle"))
+          self.tenant.parents.get(parent_handle = r_pdu.get("parent_handle"))
         except rpki.rpkidb.models.Parent.DoesNotExist:
           logger.warning("Unknown parent_handle %r in Ghostbuster request, skipping", r_pdu.get("parent_handle"))
           continue
@@ -543,11 +537,11 @@ class UpdateGhostbustersTask(AbstractTask):
           continue
         seen.add(k)
         for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__parent_handle = r_pdu.get("parent_handle"),
-                                                                    ca__parent__self = self.self, state = "active"):
+                                                                    ca__parent__tenant = self.tenant, state = "active"):
           ghostbuster = ghostbusters.pop((ca_detail.pk, r_pdu.text), None)
           if ghostbuster is None:
             ghostbuster = rpki.rpkidb.models.Ghostbuster(ca_detail = ca_detail, vcard = r_pdu.text)
-            ghostbuster.self = self.self
+            ghostbuster.tenant = self.tenant
             logger.debug("Created new %r for %r", ghostbuster, r_pdu.get("parent_handle"))
           else:
             logger.debug("Found existing %r for %s", ghostbuster, r_pdu.get("parent_handle"))
@@ -569,16 +563,16 @@ class UpdateGhostbustersTask(AbstractTask):
     except (SystemExit, rpki.async.ExitNow):
       raise
     except Exception:
-      logger.exception("Could not update Ghostbuster records for %s, skipping", self.self_handle)
+      logger.exception("Could not update Ghostbuster records for %s, skipping", self.tenant_handle)
       self.exit()
 
   def publication_failed(self, e):
-    logger.exception("Couldn't publish Ghostbuster updates for %s, skipping", self.self_handle)
+    logger.exception("Couldn't publish Ghostbuster updates for %s, skipping", self.tenant_handle)
     self.rpkid.checkpoint()
     self.exit()
 
   def ghostbuster_requests_failed(self, e):
-    logger.exception("Could not fetch Ghostbuster record requests for %s, skipping", self.self_handle)
+    logger.exception("Could not fetch Ghostbuster record requests for %s, skipping", self.tenant_handle)
     self.exit()
 
 
@@ -596,10 +590,10 @@ class UpdateEECertificatesTask(AbstractTask):
 
   def start(self):
     self.rpkid.checkpoint()
-    logger.debug("Self %s[%r] updating EE certificates", self.self_handle, self)
+    logger.debug("Self %s[%r] updating EE certificates", self.tenant_handle, self)
     assert not self.started
     self.started = True
-    self.rpkid.irdb_query_ee_certificate_requests(self.self_handle,
+    self.rpkid.irdb_query_ee_certificate_requests(self.tenant_handle,
                                                  self.got_requests,
                                                  self.get_requests_failed)
 
@@ -611,7 +605,7 @@ class UpdateEECertificatesTask(AbstractTask):
       publisher = rpki.rpkid.publication_queue(self.rpkid)
 
       existing = dict()
-      for ee in rpki.rpkidb.models.EECertificate.objects.filter(self__exact = self.self): # XXX
+      for ee in self.tenant.ee_certificates.all():
         gski = ee.gski
         if gski not in existing:
           existing[gski] = set()
@@ -673,16 +667,16 @@ class UpdateEECertificatesTask(AbstractTask):
     except (SystemExit, rpki.async.ExitNow):
       raise
     except Exception:
-      logger.exception("Could not update EE certificates for %s, skipping", self.self_handle)
+      logger.exception("Could not update EE certificates for %s, skipping", self.tenant_handle)
       self.exit()
 
   def publication_failed(self, e):
-    logger.exception("Couldn't publish EE certificate updates for %s, skipping", self.self_handle)
+    logger.exception("Couldn't publish EE certificate updates for %s, skipping", self.tenant_handle)
     self.rpkid.checkpoint()
     self.exit()
 
   def get_requests_failed(self, e):
-    logger.exception("Could not fetch EE certificate requests for %s, skipping", self.self_handle)
+    logger.exception("Could not fetch EE certificate requests for %s, skipping", self.tenant_handle)
     self.exit()
 
 
@@ -704,7 +698,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
 
   def start(self):
     self.rpkid.checkpoint()
-    logger.debug("Self %s[%r] regenerating CRLs and manifests", self.self_handle, self)
+    logger.debug("Self %s[%r] regenerating CRLs and manifests", self.tenant_handle, self)
     assert not self.started
     self.started = True
     now = rpki.sundial.now()
@@ -714,7 +708,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
 
     logger.debug("RegenerateCRLsAndManifestsTask: setup complete") # XXX
 
-    for ca in rpki.rpkidb.models.CA.objects.filter(parent__self = self.self):
+    for ca in rpki.rpkidb.models.CA.objects.filter(parent__tenant = self.tenant):
       logger.debug("RegenerateCRLsAndManifestsTask: checking CA %r", ca) # XXX
       try:
         for ca_detail in ca.ca_details.filter(state = "revoked"):
@@ -739,7 +733,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
     self.exit()
 
   def lose(self, e):
-    logger.exception("Couldn't publish updated CRLs and manifests for self %r, skipping", self.self_handle)
+    logger.exception("Couldn't publish updated CRLs and manifests for self %r, skipping", self.tenant_handle)
     self.rpkid.checkpoint()
     self.exit()
 
@@ -759,13 +753,13 @@ class CheckFailedPublication(AbstractTask):
     logger.debug("CheckFailedPublication starting")
     self.started = True
     publisher = rpki.rpkid.publication_queue(self.rpkid)
-    for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__self = self.self, state = "active"):
+    for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__tenant = self.tenant, state = "active"):
       ca_detail.check_failed_publication(publisher)
       self.rpkid.checkpoint()
     publisher.call_pubd(self.done, self.publication_failed)
 
   def publication_failed(self, e):
-    logger.exception("Couldn't publish for %s, skipping", self.self_handle)
+    logger.exception("Couldn't publish for %s, skipping", self.tenant_handle)
     self.rpkid.checkpoint()
     self.exit()
 

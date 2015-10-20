@@ -205,14 +205,14 @@ class main(object):
       errback(e)
 
 
-  def irdb_query_child_resources(self, self_handle, child_handle, callback, errback):
+  def irdb_query_child_resources(self, tenant_handle, child_handle, callback, errback):
     """
     Ask IRDB about a child's resources.
     """
 
     q_msg = self._compose_left_right_query()
     SubElement(q_msg, rpki.left_right.tag_list_resources,
-               self_handle = self_handle, child_handle = child_handle)
+               tenant_handle = tenant_handle, child_handle = child_handle)
 
     def done(r_msg):
       if len(r_msg) != 1:
@@ -226,16 +226,16 @@ class main(object):
 
     self.irdb_query(q_msg, done, errback)
 
-  def irdb_query_roa_requests(self, self_handle, callback, errback):
+  def irdb_query_roa_requests(self, tenant_handle, callback, errback):
     """
     Ask IRDB about self's ROA requests.
     """
 
     q_msg = self._compose_left_right_query()
-    SubElement(q_msg, rpki.left_right.tag_list_roa_requests, self_handle = self_handle)
+    SubElement(q_msg, rpki.left_right.tag_list_roa_requests, tenant_handle = tenant_handle)
     self.irdb_query(q_msg, callback, errback)
 
-  def irdb_query_ghostbuster_requests(self, self_handle, parent_handles, callback, errback):
+  def irdb_query_ghostbuster_requests(self, tenant_handle, parent_handles, callback, errback):
     """
     Ask IRDB about self's ghostbuster record requests.
     """
@@ -243,16 +243,16 @@ class main(object):
     q_msg = self._compose_left_right_query()
     for parent_handle in parent_handles:
       SubElement(q_msg, rpki.left_right.tag_list_ghostbuster_requests,
-                 self_handle = self_handle, parent_handle = parent_handle)
+                 tenant_handle = tenant_handle, parent_handle = parent_handle)
     self.irdb_query(q_msg, callback, errback)
 
-  def irdb_query_ee_certificate_requests(self, self_handle, callback, errback):
+  def irdb_query_ee_certificate_requests(self, tenant_handle, callback, errback):
     """
     Ask IRDB about self's EE certificate requests.
     """
 
     q_msg = self._compose_left_right_query()
-    SubElement(q_msg, rpki.left_right.tag_list_ee_certificate_requests, self_handle = self_handle)
+    SubElement(q_msg, rpki.left_right.tag_list_ee_certificate_requests, tenant_handle = tenant_handle)
     self.irdb_query(q_msg, callback, errback)
 
   @property
@@ -266,7 +266,7 @@ class main(object):
     except AttributeError:
       import rpki.rpkidb.models         # pylint: disable=W0621
       self._left_right_models = {
-        rpki.left_right.tag_self        : rpki.rpkidb.models.Self,
+        rpki.left_right.tag_tenant      : rpki.rpkidb.models.Tenant,
         rpki.left_right.tag_bsc         : rpki.rpkidb.models.BSC,
         rpki.left_right.tag_parent      : rpki.rpkidb.models.Parent,
         rpki.left_right.tag_child       : rpki.rpkidb.models.Child,
@@ -292,14 +292,14 @@ class main(object):
     <list_published_objects/> server.
     """
 
-    self_handle = q_pdu.get("self_handle")
-    msg_tag     = q_pdu.get("tag")
+    tenant_handle = q_pdu.get("tenant_handle")
+    msg_tag       = q_pdu.get("tag")
 
-    kw = dict(self_handle = self_handle)
+    kw = dict(tenant_handle = tenant_handle)
     if msg_tag is not None:
       kw.update(tag = msg_tag)
 
-    for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__self__self_handle = self_handle, state = "active"):
+    for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__tenant__tenant_handle = tenant_handle, state = "active"):
       SubElement(r_msg, rpki.left_right.tag_list_published_objects,
                  uri = ca_detail.crl_uri, **kw).text = ca_detail.latest_crl.get_Base64()
       SubElement(r_msg, rpki.left_right.tag_list_published_objects,
@@ -323,14 +323,14 @@ class main(object):
     """
 
     logger.debug(".handle_list_received_resources() %s", ElementToString(q_pdu))
-    self_handle = q_pdu.get("self_handle")
-    msg_tag     = q_pdu.get("tag")
-    for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__self__self_handle = self_handle,
+    tenant_handle = q_pdu.get("tenant_handle")
+    msg_tag       = q_pdu.get("tag")
+    for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__tenant__tenant_handle = tenant_handle,
                                                                 state = "active", latest_ca_cert__isnull = False):
       cert      = ca_detail.latest_ca_cert
       resources = cert.get_3779resources()
       r_pdu = SubElement(r_msg, rpki.left_right.tag_list_received_resources,
-                         self_handle        = self_handle,
+                         tenant_handle      = tenant_handle,
                          parent_handle      = ca_detail.ca.parent.parent_handle,
                          uri                = ca_detail.ca_cert_uri,
                          notBefore          = str(cert.getNotBefore()),
@@ -386,14 +386,14 @@ class main(object):
         def fail(e):
           if not isinstance(e, rpki.exceptions.NotFound):
             logger.exception("Unhandled exception serving left-right PDU %r", q_pdu)
-          error_self_handle = q_pdu.get("self_handle")
-          error_tag         = q_pdu.get("tag")
+          error_tenant_handle = q_pdu.get("tenant_handle")
+          error_tag           = q_pdu.get("tag")
           r_pdu = SubElement(r_msg, rpki.left_right.tag_report_error, error_code = e.__class__.__name__)
           r_pdu.text = str(e)
           if error_tag is not None:
             r_pdu.set("tag", error_tag)
-          if error_self_handle is not None:
-            r_pdu.set("self_handle", error_self_handle)
+          if error_tenant_handle is not None:
+            r_pdu.set("tenant_handle", error_tenant_handle)
           cb(200, body = rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert))
 
         try:
@@ -466,12 +466,12 @@ class main(object):
       match = self.up_down_url_regexp.search(path)
       if match is None:
         raise rpki.exceptions.BadContactURL("Bad URL path received in up_down_handler(): %s" % path)
-      self_handle, child_handle = match.groups()
+      tenant_handle, child_handle = match.groups()
       try:
-        child = rpki.rpkidb.models.Child.objects.get(self__self_handle = self_handle, child_handle = child_handle)
+        child = rpki.rpkidb.models.Child.objects.get(tenant__tenant_handle = tenant_handle, child_handle = child_handle)
       except rpki.rpkidb.models.Child.DoesNotExist:
         raise rpki.exceptions.ChildNotFound("Could not find child %s of self %s in up_down_handler()" % (
-          child_handle, self_handle))
+          child_handle, tenant_handle))
       child.serve_up_down(self, q_der, done)
     except (rpki.async.ExitNow, SystemExit):
       raise
@@ -543,7 +543,7 @@ class main(object):
 
     completion = rpki.rpkid_tasks.CompletionHandler(done)
     try:
-      selves = rpki.rpkidb.models.Self.objects.all()
+      selves = rpki.rpkidb.models.Tenant.objects.all()
     except Exception:
       logger.exception("Error pulling selves from SQL, maybe SQL server is down?")
     else:

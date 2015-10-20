@@ -108,7 +108,7 @@ def check_child_certs(conf, errs):
     z = Zookeeper(handle=conf.handle)
     req = Element(tag_msg, nsmap=nsmap, type="query", version=version)
     SubElement(req, tag_list_published_objects,
-               tag="list_published_objects", self_handle=conf.handle)
+               tag="list_published_objects", tenant_handle=conf.handle)
     pdus = z.call_rpkid(req)
     for pdu in pdus:
         if pdu.get("uri").endswith('.cer'):

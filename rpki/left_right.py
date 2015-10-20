@@ -58,7 +58,7 @@ tag_pkcs10                       = xmlns + "pkcs10"
 tag_pkcs10_request               = xmlns + "pkcs10_request"
 tag_report_error                 = xmlns + "report_error"
 tag_repository                   = xmlns + "repository"
-tag_self                         = xmlns + "self"
+tag_tenant                       = xmlns + "tenant"
 tag_signing_cert                 = xmlns + "signing_cert"
 tag_signing_cert_crl             = xmlns + "signing_cert_crl"
 

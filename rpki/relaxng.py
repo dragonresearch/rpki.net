@@ -61,7 +61,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   </start>
   <!-- PDUs allowed in a query -->
   <define name="query_elt" combine="choice">
-    <ref name="self_query"/>
+    <ref name="tenant_query"/>
   </define>
   <define name="query_elt" combine="choice">
     <ref name="bsc_query"/>
@@ -95,7 +95,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   </define>
   <!-- PDUs allowed in a reply -->
   <define name="reply_elt" combine="choice">
-    <ref name="self_reply"/>
+    <ref name="tenant_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="bsc_reply"/>
@@ -227,8 +227,8 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       <param name="pattern">[\-,0-9/:a-fA-F]*</param>
     </data>
   </define>
-  <!-- <self/> element -->
-  <define name="self_bool">
+  <!-- <tenant/> element -->
+  <define name="tenant_bool">
     <optional>
       <attribute name="rekey">
         <value>yes</value>
@@ -265,7 +265,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       </attribute>
     </optional>
   </define>
-  <define name="self_payload">
+  <define name="tenant_payload">
     <optional>
       <attribute name="use_hsm">
         <choice>
@@ -295,74 +295,74 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       </element>
     </optional>
   </define>
-  <define name="self_handle">
-    <attribute name="self_handle">
+  <define name="tenant_handle">
+    <attribute name="tenant_handle">
       <ref name="object_handle"/>
     </attribute>
   </define>
-  <define name="self_query" combine="choice">
-    <element name="self">
+  <define name="tenant_query" combine="choice">
+    <element name="tenant">
       <ref name="ctl_create"/>
-      <ref name="self_handle"/>
-      <ref name="self_bool"/>
-      <ref name="self_payload"/>
+      <ref name="tenant_handle"/>
+      <ref name="tenant_bool"/>
+      <ref name="tenant_payload"/>
     </element>
   </define>
-  <define name="self_reply" combine="choice">
-    <element name="self">
+  <define name="tenant_reply" combine="choice">
+    <element name="tenant">
       <ref name="ctl_create"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
-  <define name="self_query" combine="choice">
-    <element name="self">
+  <define name="tenant_query" combine="choice">
+    <element name="tenant">
       <ref name="ctl_set"/>
-      <ref name="self_handle"/>
-      <ref name="self_bool"/>
-      <ref name="self_payload"/>
+      <ref name="tenant_handle"/>
+      <ref name="tenant_bool"/>
+      <ref name="tenant_payload"/>
     </element>
   </define>
-  <define name="self_reply" combine="choice">
-    <element name="self">
+  <define name="tenant_reply" combine="choice">
+    <element name="tenant">
       <ref name="ctl_set"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
-  <define name="self_query" combine="choice">
-    <element name="self">
+  <define name="tenant_query" combine="choice">
+    <element name="tenant">
       <ref name="ctl_get"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
-  <define name="self_reply" combine="choice">
-    <element name="self">
+  <define name="tenant_reply" combine="choice">
+    <element name="tenant">
       <ref name="ctl_get"/>
-      <ref name="self_handle"/>
-      <ref name="self_payload"/>
+      <ref name="tenant_handle"/>
+      <ref name="tenant_payload"/>
     </element>
   </define>
-  <define name="self_query" combine="choice">
-    <element name="self">
+  <define name="tenant_query" combine="choice">
+    <element name="tenant">
       <ref name="ctl_list"/>
     </element>
   </define>
-  <define name="self_reply" combine="choice">
-    <element name="self">
+  <define name="tenant_reply" combine="choice">
+    <element name="tenant">
       <ref name="ctl_list"/>
-      <ref name="self_handle"/>
-      <ref name="self_payload"/>
+      <ref name="tenant_handle"/>
+      <ref name="tenant_payload"/>
     </element>
   </define>
-  <define name="self_query" combine="choice">
-    <element name="self">
+  <define name="tenant_query" combine="choice">
+    <element name="tenant">
       <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
-  <define name="self_reply" combine="choice">
-    <element name="self">
+  <define name="tenant_reply" combine="choice">
+    <element name="tenant">
       <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
   <!-- <bsc/> element.  Key parameters hardwired for now. -->
@@ -415,7 +415,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="bsc_query" combine="choice">
     <element name="bsc">
       <ref name="ctl_create"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="bsc_handle"/>
       <ref name="bsc_bool"/>
       <ref name="bsc_payload"/>
@@ -424,7 +424,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="bsc_reply" combine="choice">
     <element name="bsc">
       <ref name="ctl_create"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="bsc_handle"/>
       <ref name="bsc_readonly"/>
     </element>
@@ -432,7 +432,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="bsc_query" combine="choice">
     <element name="bsc">
       <ref name="ctl_set"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="bsc_handle"/>
       <ref name="bsc_bool"/>
       <ref name="bsc_payload"/>
@@ -441,7 +441,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="bsc_reply" combine="choice">
     <element name="bsc">
       <ref name="ctl_set"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="bsc_handle"/>
       <ref name="bsc_readonly"/>
     </element>
@@ -449,14 +449,14 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="bsc_query" combine="choice">
     <element name="bsc">
       <ref name="ctl_get"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="bsc_handle"/>
     </element>
   </define>
   <define name="bsc_reply" combine="choice">
     <element name="bsc">
       <ref name="ctl_get"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="bsc_handle"/>
       <ref name="bsc_payload"/>
       <ref name="bsc_readonly"/>
@@ -465,13 +465,13 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="bsc_query" combine="choice">
     <element name="bsc">
       <ref name="ctl_list"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
   <define name="bsc_reply" combine="choice">
     <element name="bsc">
       <ref name="ctl_list"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="bsc_handle"/>
       <ref name="bsc_payload"/>
       <ref name="bsc_readonly"/>
@@ -480,14 +480,14 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="bsc_query" combine="choice">
     <element name="bsc">
       <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="bsc_handle"/>
     </element>
   </define>
   <define name="bsc_reply" combine="choice">
     <element name="bsc">
       <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="bsc_handle"/>
     </element>
   </define>
@@ -565,7 +565,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_create"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
       <ref name="parent_bool"/>
       <ref name="parent_payload"/>
@@ -574,14 +574,14 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="parent_reply" combine="choice">
     <element name="parent">
       <ref name="ctl_create"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_set"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
       <ref name="parent_bool"/>
       <ref name="parent_payload"/>
@@ -590,21 +590,21 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="parent_reply" combine="choice">
     <element name="parent">
       <ref name="ctl_set"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_get"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
     </element>
   </define>
   <define name="parent_reply" combine="choice">
     <element name="parent">
       <ref name="ctl_get"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
       <ref name="parent_payload"/>
     </element>
@@ -612,13 +612,13 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_list"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
   <define name="parent_reply" combine="choice">
     <element name="parent">
       <ref name="ctl_list"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
       <ref name="parent_payload"/>
     </element>
@@ -626,14 +626,14 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
     </element>
   </define>
   <define name="parent_reply" combine="choice">
     <element name="parent">
       <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
     </element>
   </define>
@@ -673,7 +673,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="child_query" combine="choice">
     <element name="child">
       <ref name="ctl_create"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
       <ref name="child_bool"/>
       <ref name="child_payload"/>
@@ -682,14 +682,14 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="child_reply" combine="choice">
     <element name="child">
       <ref name="ctl_create"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
     </element>
   </define>
   <define name="child_query" combine="choice">
     <element name="child">
       <ref name="ctl_set"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
       <ref name="child_bool"/>
       <ref name="child_payload"/>
@@ -698,21 +698,21 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="child_reply" combine="choice">
     <element name="child">
       <ref name="ctl_set"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
     </element>
   </define>
   <define name="child_query" combine="choice">
     <element name="child">
       <ref name="ctl_get"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
     </element>
   </define>
   <define name="child_reply" combine="choice">
     <element name="child">
       <ref name="ctl_get"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
       <ref name="child_payload"/>
     </element>
@@ -720,13 +720,13 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="child_query" combine="choice">
     <element name="child">
       <ref name="ctl_list"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
   <define name="child_reply" combine="choice">
     <element name="child">
       <ref name="ctl_list"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
       <ref name="child_payload"/>
     </element>
@@ -734,14 +734,14 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="child_query" combine="choice">
     <element name="child">
       <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
     </element>
   </define>
   <define name="child_reply" combine="choice">
     <element name="child">
       <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
     </element>
   </define>
@@ -786,7 +786,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="repository_query" combine="choice">
     <element name="repository">
       <ref name="ctl_create"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="repository_handle"/>
       <ref name="repository_bool"/>
       <ref name="repository_payload"/>
@@ -795,14 +795,14 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="repository_reply" combine="choice">
     <element name="repository">
       <ref name="ctl_create"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="repository_handle"/>
     </element>
   </define>
   <define name="repository_query" combine="choice">
     <element name="repository">
       <ref name="ctl_set"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="repository_handle"/>
       <ref name="repository_bool"/>
       <ref name="repository_payload"/>
@@ -811,21 +811,21 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="repository_reply" combine="choice">
     <element name="repository">
       <ref name="ctl_set"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="repository_handle"/>
     </element>
   </define>
   <define name="repository_query" combine="choice">
     <element name="repository">
       <ref name="ctl_get"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="repository_handle"/>
     </element>
   </define>
   <define name="repository_reply" combine="choice">
     <element name="repository">
       <ref name="ctl_get"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="repository_handle"/>
       <ref name="repository_payload"/>
     </element>
@@ -833,13 +833,13 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="repository_query" combine="choice">
     <element name="repository">
       <ref name="ctl_list"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
   <define name="repository_reply" combine="choice">
     <element name="repository">
       <ref name="ctl_list"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="repository_handle"/>
       <ref name="repository_payload"/>
     </element>
@@ -847,14 +847,14 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="repository_query" combine="choice">
     <element name="repository">
       <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="repository_handle"/>
     </element>
   </define>
   <define name="repository_reply" combine="choice">
     <element name="repository">
       <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="repository_handle"/>
     </element>
   </define>
@@ -862,14 +862,14 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="list_resources_query">
     <element name="list_resources">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
     </element>
   </define>
   <define name="list_resources_reply">
     <element name="list_resources">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="child_handle"/>
       <attribute name="valid_until">
         <data type="dateTime">
@@ -897,13 +897,13 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="list_roa_requests_query">
     <element name="list_roa_requests">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
   <define name="list_roa_requests_reply">
     <element name="list_roa_requests">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <attribute name="asn">
         <data type="nonNegativeInteger"/>
       </attribute>
@@ -923,14 +923,14 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="list_ghostbuster_requests_query">
     <element name="list_ghostbuster_requests">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
     </element>
   </define>
   <define name="list_ghostbuster_requests_reply">
     <element name="list_ghostbuster_requests">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
       <data type="string"/>
     </element>
@@ -939,13 +939,13 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="list_ee_certificate_requests_query">
     <element name="list_ee_certificate_requests">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
   <define name="list_ee_certificate_requests_reply">
     <element name="list_ee_certificate_requests">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <attribute name="gski">
         <data type="token">
           <param name="minLength">27</param>
@@ -1003,13 +1003,13 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="list_published_objects_query">
     <element name="list_published_objects">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
   <define name="list_published_objects_reply">
     <element name="list_published_objects">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <attribute name="uri">
         <ref name="uri"/>
       </attribute>
@@ -1025,13 +1025,13 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <define name="list_received_resources_query">
     <element name="list_received_resources">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
     </element>
   </define>
   <define name="list_received_resources_reply">
     <element name="list_received_resources">
       <ref name="tag"/>
-      <ref name="self_handle"/>
+      <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
       <attribute name="notBefore">
         <data type="dateTime">
@@ -1079,7 +1079,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
     <element name="report_error">
       <ref name="tag"/>
       <optional>
-        <ref name="self_handle"/>
+        <ref name="tenant_handle"/>
       </optional>
       <attribute name="error_code">
         <ref name="error"/>

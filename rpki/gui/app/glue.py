@@ -79,7 +79,7 @@ def list_received_resources(log, conf):
 
     z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
     req = Element(tag_msg, nsmap=nsmap, type="query", version=version)
-    SubElement(req, tag_list_received_resources, self_handle=conf.handle)
+    SubElement(req, tag_list_received_resources, tenant_handle=conf.handle)
     pdus = z.call_rpkid(req)
     # pdus is sometimes None (see https://trac.rpki.net/ticket/681)
     if pdus is None:

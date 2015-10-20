@@ -321,7 +321,7 @@ def fetch_published_objects():
     q_msg = Element(rpki.left_right.tag_msg, nsmap = rpki.left_right.nsmap,
                     type = "query", version = rpki.left_right.version)
     for h in handles:
-        SubElement(q_msg, rpki.left_right.tag_list_published_objects, action="list", self_handle=h, tag=h)
+        SubElement(q_msg, rpki.left_right.tag_list_published_objects, action="list", tenant_handle=h, tag=h)
     z = Zookeeper()
     r_msg = z.call_rpkid(q_msg)
     for r_pdu in r_msg:
@@ -331,7 +331,7 @@ def fetch_published_objects():
             if qs:
                 # get the current validity state
                 valid = qs[0].statuses.filter(status=object_accepted).exists()
-                uris[r_pdu.get("uri")] = (r_pdu.get("self_handle"), valid, False, None)
+                uris[r_pdu.get("uri")] = (r_pdu.get("tenant_handle"), valid, False, None)
                 logger.debug('adding %s', r_pdu.get("uri"))
             else:
                 # this object is not in the cache.  it was either published

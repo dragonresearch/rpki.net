@@ -347,10 +347,10 @@ class Zookeeper(object):
 
 
   @django.db.transaction.atomic
-  def delete_self(self):
+  def delete_tenant(self):
     """
     Delete the ResourceHolderCA object corresponding to the current handle.
-    This corresponds to deleting an rpkid <self/> object.
+    This corresponds to deleting an rpkid <tenant/> object.
 
     This code assumes the normal Django cascade-on-delete behavior,
     that is, we assume that deleting the ResourceHolderCA object
@@ -509,17 +509,17 @@ class Zookeeper(object):
       q_msg = self._compose_left_right_query()
 
       for ca in rpki.irdb.models.ResourceHolderCA.objects.all():
-        q_pdu = SubElement(q_msg, rpki.left_right.tag_self,
+        q_pdu = SubElement(q_msg, rpki.left_right.tag_tenant,
                            action = "set",
-                           tag = "%s__self" % ca.handle,
-                           self_handle = ca.handle)
+                           tag = "%s__tenant" % ca.handle,
+                           tenant_handle = ca.handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = ca.certificate.get_Base64()
 
       for bsc in rpki.irdb.models.BSC.objects.all():
         q_pdu = SubElement(q_msg, rpki.left_right.tag_bsc,
                            action = "set",
                            tag = "%s__bsc__%s" % (bsc.issuer.handle, bsc.handle),
-                           self_handle = bsc.issuer.handle,
+                           tenant_handle = bsc.issuer.handle,
                            bsc_handle = bsc.handle)
         SubElement(q_pdu, rpki.left_right.tag_signing_cert).text = bsc.certificate.get_Base64()
         SubElement(q_pdu, rpki.left_right.tag_signing_cert_crl).text = bsc.issuer.latest_crl.get_Base64()
@@ -528,7 +528,7 @@ class Zookeeper(object):
         q_pdu = SubElement(q_msg, rpki.left_right.tag_repository,
                            action = "set",
                            tag = "%s__repository__%s" % (repository.issuer.handle, repository.handle),
-                           self_handle = repository.issuer.handle,
+                           tenant_handle = repository.issuer.handle,
                            repository_handle = repository.handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = repository.certificate.get_Base64()
 
@@ -536,7 +536,7 @@ class Zookeeper(object):
         q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
                            action = "set",
                            tag = "%s__parent__%s" % (parent.issuer.handle, parent.handle),
-                           self_handle = parent.issuer.handle,
+                           tenant_handle = parent.issuer.handle,
                            parent_handle = parent.handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = parent.certificate.get_Base64()
 
@@ -544,7 +544,7 @@ class Zookeeper(object):
         q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
                            action = "set",
                            tag = "%s__rootd" % rootd.issuer.handle,
-                           self_handle = rootd.issuer.handle,
+                           tenant_handle = rootd.issuer.handle,
                            parent_handle = rootd.issuer.handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = rootd.certificate.get_Base64()
 
@@ -552,7 +552,7 @@ class Zookeeper(object):
         q_pdu = SubElement(q_msg, rpki.left_right.tag_child,
                            action = "set",
                            tag = "%s__child__%s" % (child.issuer.handle, child.handle),
-                           self_handle = child.issuer.handle,
+                           tenant_handle = child.issuer.handle,
                            child_handle = child.handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = child.certificate.get_Base64()
 
@@ -793,7 +793,7 @@ class Zookeeper(object):
     if sia_base is None and referral is None:
       self.log("This might be an offer, checking")
       try:
-        parent = rpki.irdb.models.ResourceHolderCA.objects.get(children__ta__exact = client_ta)
+        parent = rpki.irdb.models.ResourceHolderCA.objects.get(children__ta = client_ta)
         if "/" in parent.repositories.get(ta = self.server_ca.certificate).client_handle:
           self.log("Client's parent is not top-level, this is not a valid offer")
         else:
@@ -804,7 +804,7 @@ class Zookeeper(object):
         self.log("Found client's parent, but repository isn't set, this shouldn't happen!")
       except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
         try:
-          rpki.irdb.models.Rootd.objects.get(issuer__certificate__exact = client_ta)
+          rpki.irdb.models.Rootd.objects.get(issuer__certificate = client_ta)
           self.log("This client's parent is rootd")
           sia_base = default_sia_base
         except rpki.irdb.models.Rootd.DoesNotExist:
@@ -997,7 +997,7 @@ class Zookeeper(object):
             primary_keys.append(obj.pk)
 
     q = rpki.irdb.models.ChildNet.objects
-    q = q.filter(child__issuer__exact = self.resource_ca)
+    q = q.filter(child__issuer = self.resource_ca)
     q = q.exclude(pk__in = primary_keys)
     q.delete()
 
@@ -1032,7 +1032,7 @@ class Zookeeper(object):
           primary_keys.append(obj.pk)
 
     q = rpki.irdb.models.ChildASN.objects
-    q = q.filter(child__issuer__exact = self.resource_ca)
+    q = q.filter(child__issuer = self.resource_ca)
     q = q.exclude(pk__in = primary_keys)
     q.delete()
 
@@ -1126,10 +1126,10 @@ class Zookeeper(object):
     return r_msg
 
 
-  def _rpkid_self_control(self, *bools):
+  def _rpkid_tenant_control(self, *bools):
     assert all(isinstance(b, str) for b in bools)
     q_msg = self._compose_left_right_query()
-    q_pdu = SubElement(q_msg, rpki.left_right.tag_self, action = "set", self_handle = self.handle)
+    q_pdu = SubElement(q_msg, rpki.left_right.tag_tenant, action = "set", tenant_handle = self.handle)
     for b in bools:
       q_pdu.set(b, "yes")
     return self.call_rpkid(q_msg)
@@ -1144,7 +1144,7 @@ class Zookeeper(object):
     to force the object to be immediately issued.
     """
 
-    return self._rpkid_self_control("run_now")
+    return self._rpkid_tenant_control("run_now")
 
 
   def publish_world_now(self):
@@ -1152,7 +1152,7 @@ class Zookeeper(object):
     Poke rpkid to (re)publish everything for the current handle.
     """
 
-    return self._rpkid_self_control("publish_world_now")
+    return self._rpkid_tenant_control("publish_world_now")
 
 
   def reissue(self):
@@ -1160,7 +1160,7 @@ class Zookeeper(object):
     Poke rpkid to reissue everything for the current handle.
     """
 
-    return self._rpkid_self_control("reissue")
+    return self._rpkid_tenant_control("reissue")
 
 
   def rekey(self):
@@ -1169,7 +1169,7 @@ class Zookeeper(object):
     handle.
     """
 
-    return self._rpkid_self_control("rekey")
+    return self._rpkid_tenant_control("rekey")
 
 
   def revoke(self):
@@ -1177,7 +1177,7 @@ class Zookeeper(object):
     Poke rpkid to revoke old RPKI keys for the current handle.
     """
 
-    return self._rpkid_self_control("revoke")
+    return self._rpkid_tenant_control("revoke")
 
 
   def revoke_forgotten(self):
@@ -1185,7 +1185,7 @@ class Zookeeper(object):
     Poke rpkid to revoke old forgotten RPKI keys for the current handle.
     """
 
-    return self._rpkid_self_control("revoke_forgotten")
+    return self._rpkid_tenant_control("revoke_forgotten")
 
 
   def clear_all_sql_cms_replay_protection(self):
@@ -1199,8 +1199,8 @@ class Zookeeper(object):
     if self.run_rpkid:
       q_msg = self._compose_left_right_query()
       for ca in rpki.irdb.models.ResourceHolderCA.objects.all():
-        SubElement(q_msg, rpki.left_right.tag_self, action = "set",
-                   self_handle = ca.handle, clear_replay_protection = "yes")
+        SubElement(q_msg, rpki.left_right.tag_tenant, action = "set",
+                   tenant_handle = ca.handle, clear_replay_protection = "yes")
       self.call_rpkid(q_msg)
 
     if self.run_pubd:
@@ -1267,7 +1267,7 @@ class Zookeeper(object):
     but be warned that this can be slow with a lot of CAs.
 
     Any arguments given are handles of CAs which should be poked with a
-    <self run_now="yes"/> operation.
+    <tenant run_now="yes"/> operation.
     """
 
     for ca in rpki.irdb.models.ResourceHolderCA.objects.all():
@@ -1330,7 +1330,7 @@ class Zookeeper(object):
     # might make a case for a day instead, but we've been running with
     # six hours for a while now and haven't seen a lot of whining.
 
-    self_crl_interval = self.cfg.getint("self_crl_interval", 6 * 60 * 60, section = myrpki_section)
+    tenant_crl_interval = self.cfg.getint("tenant_crl_interval", 6 * 60 * 60, section = myrpki_section)
 
     # regen_margin now just controls how long before RPKI certificate
     # expiration we should regenerate; it used to control the interval
@@ -1342,22 +1342,22 @@ class Zookeeper(object):
     # that this will regenerate certificates just *before* the
     # companion cron job warns of impending doom.
 
-    self_regen_margin = self.cfg.getint("self_regen_margin", 14 * 24 * 60 * 60 + 2 * 60, section = myrpki_section)
+    tenant_regen_margin = self.cfg.getint("tenant_regen_margin", 14 * 24 * 60 * 60 + 2 * 60, section = myrpki_section)
 
     # See what rpkid already has on file for this entity.
 
     q_msg = self._compose_left_right_query()
-    SubElement(q_msg, rpki.left_right.tag_self,       action = "get",  self_handle = ca.handle)
-    SubElement(q_msg, rpki.left_right.tag_bsc,        action = "list", self_handle = ca.handle)
-    SubElement(q_msg, rpki.left_right.tag_repository, action = "list", self_handle = ca.handle)
-    SubElement(q_msg, rpki.left_right.tag_parent,     action = "list", self_handle = ca.handle)
-    SubElement(q_msg, rpki.left_right.tag_child,      action = "list", self_handle = ca.handle)
+    SubElement(q_msg, rpki.left_right.tag_tenant,     action = "get",  tenant_handle = ca.handle)
+    SubElement(q_msg, rpki.left_right.tag_bsc,        action = "list", tenant_handle = ca.handle)
+    SubElement(q_msg, rpki.left_right.tag_repository, action = "list", tenant_handle = ca.handle)
+    SubElement(q_msg, rpki.left_right.tag_parent,     action = "list", tenant_handle = ca.handle)
+    SubElement(q_msg, rpki.left_right.tag_child,      action = "list", tenant_handle = ca.handle)
 
     r_msg = self.call_rpkid(q_msg, suppress_error_check = True)
 
     self.check_error_report(r_msg)
 
-    self_pdu        = r_msg.find(rpki.left_right.tag_self)
+    tenant_pdu      = r_msg.find(rpki.left_right.tag_tenant)
 
     bsc_pdus        = dict((r_pdu.get("bsc_handle"), r_pdu)
                            for r_pdu in r_msg.getiterator(rpki.left_right.tag_bsc))
@@ -1370,25 +1370,25 @@ class Zookeeper(object):
 
     q_msg = self._compose_left_right_query()
 
-    self_cert, created = rpki.irdb.models.HostedCA.objects.get_or_certify(
+    tenant_cert, created = rpki.irdb.models.HostedCA.objects.get_or_certify(
       issuer = self.server_ca,
       hosted = ca)
 
-    # There should be exactly one <self/> object per hosted entity, by definition
+    # There should be exactly one <tenant/> object per hosted entity, by definition
 
-    if (self_pdu is None or
-        self_pdu.get("crl_interval") != str(self_crl_interval) or
-        self_pdu.get("regen_margin") != str(self_regen_margin) or
-        self_pdu.findtext(rpki.left_right.tag_bpki_cert, "").decode("base64") != self_cert.certificate.get_DER()):
-      q_pdu = SubElement(q_msg, rpki.left_right.tag_self,
-                         action = "create" if self_pdu is None else "set",
-                         tag = "self",
-                         self_handle = ca.handle,
-                         crl_interval = str(self_crl_interval),
-                         regen_margin = str(self_regen_margin))
+    if (tenant_pdu is None or
+        tenant_pdu.get("crl_interval") != str(tenant_crl_interval) or
+        tenant_pdu.get("regen_margin") != str(tenant_regen_margin) or
+        tenant_pdu.findtext(rpki.left_right.tag_bpki_cert, "").decode("base64") != tenant_cert.certificate.get_DER()):
+      q_pdu = SubElement(q_msg, rpki.left_right.tag_tenant,
+                         action = "create" if tenant_pdu is None else "set",
+                         tag = "tenant",
+                         tenant_handle = ca.handle,
+                         crl_interval = str(tenant_crl_interval),
+                         regen_margin = str(tenant_regen_margin))
       SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = ca.certificate.get_Base64()
 
-    # In general we only need one <bsc/> per <self/>.  BSC objects
+    # In general we only need one <bsc/> per <tenant/>.  BSC objects
     # are a little unusual in that the keypair and PKCS #10
     # subelement are generated by rpkid, so complete setup requires
     # two round trips.
@@ -1399,19 +1399,19 @@ class Zookeeper(object):
       SubElement(q_msg, rpki.left_right.tag_bsc,
                  action = "create" if bsc_pdu is None else "set",
                  tag = "bsc",
-                 self_handle = ca.handle,
+                 tenant_handle = ca.handle,
                  bsc_handle = bsc_handle,
                  generate_keypair = "yes")
 
     for bsc_handle in bsc_pdus:
       SubElement(q_msg, rpki.left_right.tag_bsc,
-                 action = "destroy", self_handle = ca.handle, bsc_handle = bsc_handle)
+                 action = "destroy", tenant_handle = ca.handle, bsc_handle = bsc_handle)
 
     # If we've already got actions queued up, run them now, so we
     # can finish setting up the BSC before anything tries to use it.
 
     if len(q_msg) > 0:
-      SubElement(q_msg, rpki.left_right.tag_bsc, action = "list", tag = "bsc", self_handle = ca.handle)
+      SubElement(q_msg, rpki.left_right.tag_bsc, action = "list", tag = "bsc", tenant_handle = ca.handle)
       r_msg = self.call_rpkid(q_msg)
       bsc_pdus = dict((r_pdu.get("bsc_handle"), r_pdu)
                       for r_pdu in r_msg.getiterator(rpki.left_right.tag_bsc)
@@ -1433,7 +1433,7 @@ class Zookeeper(object):
       q_pdu = SubElement(q_msg, rpki.left_right.tag_bsc,
                          action = "set",
                          tag = "bsc",
-                         self_handle = ca.handle,
+                         tenant_handle = ca.handle,
                          bsc_handle = bsc_handle)
       SubElement(q_pdu, rpki.left_right.tag_signing_cert).text = bsc.certificate.get_Base64()
       SubElement(q_pdu, rpki.left_right.tag_signing_cert_crl).text = ca.latest_crl.get_Base64()
@@ -1456,7 +1456,7 @@ class Zookeeper(object):
         q_pdu = SubElement(q_msg, rpki.left_right.tag_repository,
                            action = "create" if repository_pdu is None else "set",
                            tag = repository.handle,
-                           self_handle = ca.handle,
+                           tenant_handle = ca.handle,
                            repository_handle = repository.handle,
                            bsc_handle = bsc_handle,
                            peer_contact_uri = repository.service_uri)
@@ -1466,7 +1466,7 @@ class Zookeeper(object):
 
     for repository_handle in repository_pdus:
       SubElement(q_msg, rpki.left_right.tag_repository, action = "destroy",
-                 self_handle = ca.handle, repository_handle = repository_handle)
+                 tenant_handle = ca.handle, repository_handle = repository_handle)
 
     # <parent/> setup code currently assumes 1:1 mapping between
     # <repository/> and <parent/>, and further assumes that the handles
@@ -1492,7 +1492,7 @@ class Zookeeper(object):
           q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
                              action = "create" if parent_pdu is None else "set",
                              tag = parent.handle,
-                             self_handle = ca.handle,
+                             tenant_handle = ca.handle,
                              parent_handle = parent.handle,
                              bsc_handle = bsc_handle,
                              repository_handle = parent.handle,
@@ -1520,7 +1520,7 @@ class Zookeeper(object):
         q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
                            action = "create" if parent_pdu is None else "set",
                            tag = ca.handle,
-                           self_handle = ca.handle,
+                           tenant_handle = ca.handle,
                            parent_handle = ca.handle,
                            bsc_handle = bsc_handle,
                            repository_handle = ca.handle,
@@ -1535,7 +1535,7 @@ class Zookeeper(object):
 
     for parent_handle in parent_pdus:
       SubElement(q_msg, rpki.left_right.tag_parent, action = "destroy",
-                 self_handle = ca.handle, parent_handle = parent_handle)
+                 tenant_handle = ca.handle, parent_handle = parent_handle)
 
     # Children are simpler than parents, because they call us, so no URL
     # to construct and figuring out what certificate to use is their
@@ -1551,19 +1551,19 @@ class Zookeeper(object):
         q_pdu = SubElement(q_msg, rpki.left_right.tag_child,
                            action = "create" if child_pdu is None else "set",
                            tag = child.handle,
-                           self_handle = ca.handle,
+                           tenant_handle = ca.handle,
                            child_handle = child.handle,
                            bsc_handle = bsc_handle)
         SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = child.certificate.get_Base64()
 
     for child_handle in child_pdus:
       SubElement(q_msg, rpki.left_right.tag_child, action = "destroy",
-                 self_handle = ca.handle, child_handle = child_handle)
+                 tenant_handle = ca.handle, child_handle = child_handle)
 
     # If caller wants us to poke rpkid, add that to the very end of the message
 
     if poke:
-      SubElement(q_msg, rpki.left_right.tag_self, action = "set", self_handle = ca.handle, run_now = "yes")
+      SubElement(q_msg, rpki.left_right.tag_tenant, action = "set", tenant_handle = ca.handle, run_now = "yes")
 
     # If we changed anything, ship updates off to rpkid.
 
@@ -1643,23 +1643,23 @@ class Zookeeper(object):
 
   def synchronize_rpkid_deleted_core(self):
     """
-    Remove any <self/> objects present in rpkid's database but not
+    Remove any <tenant/> objects present in rpkid's database but not
     present in the IRDB.  This is the core synchronization code.
     Don't call this directly, instead call a methods that calls this
     inside a Django commit wrapper.
     """
 
     q_msg = self._compose_left_right_query()
-    SubElement(q_msg, rpki.left_right.tag_self, action = "list")
+    SubElement(q_msg, rpki.left_right.tag_tenant, action = "list")
     self.call_rpkid(q_msg)
 
-    self_handles = set(s.get("self_handle") for s in q_msg)
+    tenant_handles = set(s.get("tenant_handle") for s in q_msg)
     ca_handles   = set(ca.handle for ca in rpki.irdb.models.ResourceHolderCA.objects.all())
-    assert ca_handles <= self_handles
+    assert ca_handles <= tenant_handles
 
     q_msg = self._compose_left_right_query()
-    for handle in (self_handles - ca_handles):
-      SubElement(q_msg, rpki.left_right.tag_self, action = "destroy", self_handle = handle)
+    for handle in (tenant_handles - ca_handles):
+      SubElement(q_msg, rpki.left_right.tag_tenant, action = "destroy", tenant_handle = handle)
 
     if len(q_msg) > 0:
       self.call_rpkid(q_msg)

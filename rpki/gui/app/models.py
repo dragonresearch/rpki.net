@@ -122,7 +122,7 @@ class Alert(models.Model):
 
 class Conf(rpki.irdb.models.ResourceHolderCA):
     """This is the center of the universe, also known as a place to
-    have a handle on a resource-holding entity.  It's the <self>
+    have a handle on a resource-holding entity.  It's the <tenant/>
     in the rpkid schema.
 
     """

@@ -259,14 +259,14 @@ def class_logger(module_logger, attribute = "logger"):
 def log_repr(obj, *tokens):
   """
   Constructor for __repr__() strings, handles suppression of Python
-  IDs as needed, includes self_handle when available.
+  IDs as needed, includes tenant_handle when available.
   """
 
   # pylint: disable=W0702
 
   words = ["%s.%s" % (obj.__class__.__module__, obj.__class__.__name__)]
   try:
-    words.append("{%s}" % obj.self.self_handle)
+    words.append("{%s}" % obj.tenant.tenant_handle)
   except:
     pass
 

@@ -663,7 +663,7 @@ class allocation(object):
       cb()
 
     if target is None:
-      logger.info("Rekeying <self/> %s", self.name)
+      logger.info("Rekeying <tenant/> %s", self.name)
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(
         action = "set", self_handle = self.name, rekey = "yes")], cb = done)
     else:
@@ -680,7 +680,7 @@ class allocation(object):
       cb()
 
     if target is None:
-      logger.info("Revoking <self/> %s", self.name)
+      logger.info("Revoking <tenant/> %s", self.name)
       self.call_rpkid([rpki.left_right.self_elt.make_pdu(
         action = "set", self_handle = self.name, revoke = "yes")], cb = done)
     else:

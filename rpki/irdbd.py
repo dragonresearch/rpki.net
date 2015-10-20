@@ -42,13 +42,11 @@ logger = logging.getLogger(__name__)
 class main(object):
 
   def handle_list_resources(self, q_pdu, r_msg):
-    self_handle  = q_pdu.get("self_handle")
-    child_handle = q_pdu.get("child_handle")
-    child  = rpki.irdb.models.Child.objects.get(
-      issuer__handle__exact = self_handle,
-      handle = child_handle)
+    tenant_handle = q_pdu.get("tenant_handle")
+    child_handle  = q_pdu.get("child_handle")
+    child  = rpki.irdb.models.Child.objects.get(issuer__handle = tenant_handle, handle = child_handle)
     resources = child.resource_bag
-    r_pdu = SubElement(r_msg, rpki.left_right.tag_list_resources, self_handle = self_handle, child_handle = child_handle,
+    r_pdu = SubElement(r_msg, rpki.left_right.tag_list_resources, tenant_handle = tenant_handle, child_handle = child_handle,
                        valid_until = child.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ"))
     for k, v in (("asn",  resources.asn),
                  ("ipv4", resources.v4),
@@ -58,15 +56,15 @@ class main(object):
         r_pdu.set(k, str(v))
 
   def handle_list_roa_requests(self, q_pdu, r_msg):
-    self_handle = q_pdu.get("self_handle")
+    tenant_handle = q_pdu.get("tenant_handle")
     for request in rpki.irdb.models.ROARequest.objects.raw("""
         SELECT irdb_roarequest.*
         FROM   irdb_roarequest, irdb_resourceholderca
         WHERE  irdb_roarequest.issuer_id = irdb_resourceholderca.id
         AND    irdb_resourceholderca.handle = %s
-        """, [self_handle]):
+        """, [tenant_handle]):
       prefix_bag = request.roa_prefix_bag
-      r_pdu = SubElement(r_msg, rpki.left_right.tag_list_roa_requests, self_handle = self_handle, asn = str(request.asn))
+      r_pdu = SubElement(r_msg, rpki.left_right.tag_list_roa_requests, tenant_handle = tenant_handle, asn = str(request.asn))
       for k, v in (("ipv4", prefix_bag.v4),
                    ("ipv6", prefix_bag.v6),
                    ("tag",  q_pdu.get("tag"))):
@@ -74,26 +72,22 @@ class main(object):
           r_pdu.set(k, str(v))
 
   def handle_list_ghostbuster_requests(self, q_pdu, r_msg):
-    self_handle   = q_pdu.get("self_handle")
+    tenant_handle = q_pdu.get("tenant_handle")
     parent_handle = q_pdu.get("parent_handle")
-    ghostbusters = rpki.irdb.models.GhostbusterRequest.objects.filter(
-      issuer__handle__exact = self_handle,
-      parent__handle__exact = parent_handle)
+    ghostbusters = rpki.irdb.models.GhostbusterRequest.objects.filter(issuer__handle = tenant_handle, parent__handle = parent_handle)
     if ghostbusters.count() == 0:
-      ghostbusters = rpki.irdb.models.GhostbusterRequest.objects.filter(
-        issuer__handle__exact = self_handle,
-        parent = None)
+      ghostbusters = rpki.irdb.models.GhostbusterRequest.objects.filter(issuer__handle = tenant_handle, parent = None)
     for ghostbuster in ghostbusters:
-      r_pdu = SubElement(r_msg, q_pdu.tag, self_handle = self_handle, parent_handle = parent_handle)
+      r_pdu = SubElement(r_msg, q_pdu.tag, tenant_handle = tenant_handle, parent_handle = parent_handle)
       if q_pdu.get("tag"):
         r_pdu.set("tag", q_pdu.get("tag"))
       r_pdu.text = ghostbuster.vcard
 
   def handle_list_ee_certificate_requests(self, q_pdu, r_msg):
-    self_handle = q_pdu.get("self_handle")
-    for ee_req in rpki.irdb.models.EECertificateRequest.objects.filter(issuer__handle__exact = self_handle):
+    tenant_handle = q_pdu.get("tenant_handle")
+    for ee_req in rpki.irdb.models.EECertificateRequest.objects.filter(issuer__handle = tenant_handle):
       resources = ee_req.resource_bag
-      r_pdu = SubElement(r_msg, q_pdu.tag, self_handle = self_handle, gski = ee_req.gski,
+      r_pdu = SubElement(r_msg, q_pdu.tag, tenant_handle = tenant_handle, gski = ee_req.gski,
                          valid_until = ee_req.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ"),
                          cn = ee_req.cn, sn = ee_req.sn)
       for k, v in (("asn",  resources.asn),

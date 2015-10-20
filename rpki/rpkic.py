@@ -390,7 +390,7 @@ class main(Cmd):
     """
     Delete local RPKI root as parent of the current entity.
 
-    This tells the current rpkid identity (<self/>) to stop talking to
+    This tells the current rpkid identity (<tenant/>) to stop talking to
     rootd.
     """
 
@@ -482,11 +482,11 @@ class main(Cmd):
   @parsecmd(argsubparsers)
   def do_delete_identity(self, args):
     """
-    Delete the current RPKI identity (rpkid <self/> object).
+    Delete the current RPKI identity (rpkid <tenant/> object).
     """
 
     try:
-      self.zoo.delete_self()
+      self.zoo.delete_tenant()
       self.zoo.synchronize_deleted_ca()
     except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
       print "No such resource holder \"%s\"" % self.zoo.handle
@@ -584,7 +584,7 @@ class main(Cmd):
     """
 
     q_msg = self.zoo._compose_left_right_query()
-    SubElement(q_msg, rpki.left_right.tag_list_received_resources, self_handle = self.zoo.handle)
+    SubElement(q_msg, rpki.left_right.tag_list_received_resources, tenant_handle = self.zoo.handle)
 
     for r_pdu in self.zoo.call_rpkid(q_msg):
 
@@ -606,7 +606,7 @@ class main(Cmd):
     """
 
     q_msg = self.zoo._compose_left_right_query()
-    SubElement(q_msg, rpki.left_right.tag_list_published_objects, self_handle = self.zoo.handle)
+    SubElement(q_msg, rpki.left_right.tag_list_published_objects, tenant_handle = self.zoo.handle)
 
     for r_pdu in self.zoo.call_rpkid(q_msg):
       uri = r_pdu.get("uri")
@@ -856,9 +856,9 @@ class main(Cmd):
 
 
   @parsecmd(argsubparsers)
-  def do_list_self_handles(self, args):
+  def do_list_tenant_handles(self, args):
     """
-    List all <self/> handles in this rpkid instance.
+    List all <tenant/> handles in this rpkid instance.
     """
 
     for ca in rpki.irdb.models.ResourceHolderCA.objects.all():

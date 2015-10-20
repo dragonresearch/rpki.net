@@ -32,7 +32,7 @@ start = element msg {
 }
 
 # PDUs allowed in a query
-query_elt |= self_query
+query_elt |= tenant_query
 query_elt |= bsc_query
 query_elt |= parent_query
 query_elt |= child_query
@@ -45,7 +45,7 @@ query_elt |= list_published_objects_query
 query_elt |= list_received_resources_query
 
 # PDUs allowed in a reply
-reply_elt |= self_reply
+reply_elt |= tenant_reply
 reply_elt |= bsc_reply
 reply_elt |= parent_reply
 reply_elt |= child_reply
@@ -92,34 +92,34 @@ asn_list  = xsd:string { maxLength="512000" pattern="[\-,0-9]*" }
 ipv4_list = xsd:string { maxLength="512000" pattern="[\-,0-9/.]*" }
 ipv6_list = xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]*" }
 
-# <self/> element
+# <tenant/> element
 
-self_bool = (attribute rekey { "yes" }?,
-             attribute reissue { "yes" }?,
-             attribute revoke { "yes" }?,
-             attribute run_now { "yes" }?,
-             attribute publish_world_now { "yes" }?,
-             attribute revoke_forgotten { "yes" }?,
-             attribute clear_replay_protection { "yes" }?)
+tenant_bool = (attribute rekey { "yes" }?,
+               attribute reissue { "yes" }?,
+               attribute revoke { "yes" }?,
+               attribute run_now { "yes" }?,
+               attribute publish_world_now { "yes" }?,
+               attribute revoke_forgotten { "yes" }?,
+               attribute clear_replay_protection { "yes" }?)
 
-self_payload = (attribute use_hsm { "yes" | "no" }?,
-                attribute crl_interval { xsd:positiveInteger }?,
-                attribute regen_margin { xsd:positiveInteger }?,
-                element bpki_cert { base64 }?,
-                element bpki_glue { base64 }?)
+tenant_payload = (attribute use_hsm { "yes" | "no" }?,
+                  attribute crl_interval { xsd:positiveInteger }?,
+                  attribute regen_margin { xsd:positiveInteger }?,
+                  element bpki_cert { base64 }?,
+                  element bpki_glue { base64 }?)
 
-self_handle = attribute self_handle { object_handle }
+tenant_handle = attribute tenant_handle { object_handle }
 
-self_query |= element self { ctl_create,  self_handle, self_bool, self_payload }
-self_reply |= element self { ctl_create,  self_handle }
-self_query |= element self { ctl_set,     self_handle, self_bool, self_payload }
-self_reply |= element self { ctl_set,     self_handle }
-self_query |= element self { ctl_get,     self_handle }
-self_reply |= element self { ctl_get,     self_handle, self_payload }
-self_query |= element self { ctl_list }
-self_reply |= element self { ctl_list,    self_handle, self_payload }
-self_query |= element self { ctl_destroy, self_handle }
-self_reply |= element self { ctl_destroy, self_handle }
+tenant_query |= element tenant { ctl_create,  tenant_handle, tenant_bool, tenant_payload }
+tenant_reply |= element tenant { ctl_create,  tenant_handle }
+tenant_query |= element tenant { ctl_set,     tenant_handle, tenant_bool, tenant_payload }
+tenant_reply |= element tenant { ctl_set,     tenant_handle }
+tenant_query |= element tenant { ctl_get,     tenant_handle }
+tenant_reply |= element tenant { ctl_get,     tenant_handle, tenant_payload }
+tenant_query |= element tenant { ctl_list }
+tenant_reply |= element tenant { ctl_list,    tenant_handle, tenant_payload }
+tenant_query |= element tenant { ctl_destroy, tenant_handle }
+tenant_reply |= element tenant { ctl_destroy, tenant_handle }
 
 # <bsc/> element.  Key parameters hardwired for now.
 
@@ -135,16 +135,16 @@ bsc_payload = (element signing_cert { base64 }?,
 
 bsc_readonly = element pkcs10_request { base64 }?
 
-bsc_query |= element bsc { ctl_create,  self_handle, bsc_handle, bsc_bool, bsc_payload }
-bsc_reply |= element bsc { ctl_create,  self_handle, bsc_handle, bsc_readonly }
-bsc_query |= element bsc { ctl_set,     self_handle, bsc_handle, bsc_bool, bsc_payload }
-bsc_reply |= element bsc { ctl_set,     self_handle, bsc_handle, bsc_readonly }
-bsc_query |= element bsc { ctl_get,     self_handle, bsc_handle }
-bsc_reply |= element bsc { ctl_get,     self_handle, bsc_handle, bsc_payload, bsc_readonly }
-bsc_query |= element bsc { ctl_list,    self_handle }
-bsc_reply |= element bsc { ctl_list,    self_handle, bsc_handle, bsc_payload, bsc_readonly }
-bsc_query |= element bsc { ctl_destroy, self_handle, bsc_handle }
-bsc_reply |= element bsc { ctl_destroy, self_handle, bsc_handle }
+bsc_query |= element bsc { ctl_create,  tenant_handle, bsc_handle, bsc_bool, bsc_payload }
+bsc_reply |= element bsc { ctl_create,  tenant_handle, bsc_handle, bsc_readonly }
+bsc_query |= element bsc { ctl_set,     tenant_handle, bsc_handle, bsc_bool, bsc_payload }
+bsc_reply |= element bsc { ctl_set,     tenant_handle, bsc_handle, bsc_readonly }
+bsc_query |= element bsc { ctl_get,     tenant_handle, bsc_handle }
+bsc_reply |= element bsc { ctl_get,     tenant_handle, bsc_handle, bsc_payload, bsc_readonly }
+bsc_query |= element bsc { ctl_list,    tenant_handle }
+bsc_reply |= element bsc { ctl_list,    tenant_handle, bsc_handle, bsc_payload, bsc_readonly }
+bsc_query |= element bsc { ctl_destroy, tenant_handle, bsc_handle }
+bsc_reply |= element bsc { ctl_destroy, tenant_handle, bsc_handle }
 
 # <parent/> element
 
@@ -165,16 +165,16 @@ parent_payload = (attribute peer_contact_uri { uri }?,
                   element bpki_cert { base64 }?,
                   element bpki_glue { base64 }?)
 
-parent_query |= element parent { ctl_create,  self_handle, parent_handle, parent_bool, parent_payload }
-parent_reply |= element parent { ctl_create,  self_handle, parent_handle }
-parent_query |= element parent { ctl_set,     self_handle, parent_handle, parent_bool, parent_payload }
-parent_reply |= element parent { ctl_set,     self_handle, parent_handle }
-parent_query |= element parent { ctl_get,     self_handle, parent_handle }
-parent_reply |= element parent { ctl_get,     self_handle, parent_handle, parent_payload }
-parent_query |= element parent { ctl_list,    self_handle }
-parent_reply |= element parent { ctl_list,    self_handle, parent_handle, parent_payload }
-parent_query |= element parent { ctl_destroy, self_handle, parent_handle }
-parent_reply |= element parent { ctl_destroy, self_handle, parent_handle }
+parent_query |= element parent { ctl_create,  tenant_handle, parent_handle, parent_bool, parent_payload }
+parent_reply |= element parent { ctl_create,  tenant_handle, parent_handle }
+parent_query |= element parent { ctl_set,     tenant_handle, parent_handle, parent_bool, parent_payload }
+parent_reply |= element parent { ctl_set,     tenant_handle, parent_handle }
+parent_query |= element parent { ctl_get,     tenant_handle, parent_handle }
+parent_reply |= element parent { ctl_get,     tenant_handle, parent_handle, parent_payload }
+parent_query |= element parent { ctl_list,    tenant_handle }
+parent_reply |= element parent { ctl_list,    tenant_handle, parent_handle, parent_payload }
+parent_query |= element parent { ctl_destroy, tenant_handle, parent_handle }
+parent_reply |= element parent { ctl_destroy, tenant_handle, parent_handle }
 
 # <child/> element
 
@@ -187,16 +187,16 @@ child_payload = (bsc_handle?,
                  element bpki_cert { base64 }?,
                  element bpki_glue { base64 }?)
 
-child_query |= element child { ctl_create,  self_handle, child_handle, child_bool, child_payload }
-child_reply |= element child { ctl_create,  self_handle, child_handle }
-child_query |= element child { ctl_set,     self_handle, child_handle, child_bool, child_payload }
-child_reply |= element child { ctl_set,     self_handle, child_handle }
-child_query |= element child { ctl_get,     self_handle, child_handle }
-child_reply |= element child { ctl_get,     self_handle, child_handle, child_payload }
-child_query |= element child { ctl_list,    self_handle }
-child_reply |= element child { ctl_list,    self_handle, child_handle, child_payload }
-child_query |= element child { ctl_destroy, self_handle, child_handle }
-child_reply |= element child { ctl_destroy, self_handle, child_handle }
+child_query |= element child { ctl_create,  tenant_handle, child_handle, child_bool, child_payload }
+child_reply |= element child { ctl_create,  tenant_handle, child_handle }
+child_query |= element child { ctl_set,     tenant_handle, child_handle, child_bool, child_payload }
+child_reply |= element child { ctl_set,     tenant_handle, child_handle }
+child_query |= element child { ctl_get,     tenant_handle, child_handle }
+child_reply |= element child { ctl_get,     tenant_handle, child_handle, child_payload }
+child_query |= element child { ctl_list,    tenant_handle }
+child_reply |= element child { ctl_list,    tenant_handle, child_handle, child_payload }
+child_query |= element child { ctl_destroy, tenant_handle, child_handle }
+child_reply |= element child { ctl_destroy, tenant_handle, child_handle }
 
 # <repository/> element
 
@@ -210,25 +210,25 @@ repository_payload = (attribute peer_contact_uri { uri }?,
                       element bpki_cert { base64 }?,
                       element bpki_glue { base64 }?)
 
-repository_query |= element repository { ctl_create,  self_handle, repository_handle, repository_bool, repository_payload }
-repository_reply |= element repository { ctl_create,  self_handle, repository_handle }
-repository_query |= element repository { ctl_set,     self_handle, repository_handle, repository_bool, repository_payload }
-repository_reply |= element repository { ctl_set,     self_handle, repository_handle }
-repository_query |= element repository { ctl_get,     self_handle, repository_handle }
-repository_reply |= element repository { ctl_get,     self_handle, repository_handle, repository_payload }
-repository_query |= element repository { ctl_list,    self_handle }
-repository_reply |= element repository { ctl_list,    self_handle, repository_handle, repository_payload }
-repository_query |= element repository { ctl_destroy, self_handle, repository_handle }
-repository_reply |= element repository { ctl_destroy, self_handle, repository_handle }
+repository_query |= element repository { ctl_create,  tenant_handle, repository_handle, repository_bool, repository_payload }
+repository_reply |= element repository { ctl_create,  tenant_handle, repository_handle }
+repository_query |= element repository { ctl_set,     tenant_handle, repository_handle, repository_bool, repository_payload }
+repository_reply |= element repository { ctl_set,     tenant_handle, repository_handle }
+repository_query |= element repository { ctl_get,     tenant_handle, repository_handle }
+repository_reply |= element repository { ctl_get,     tenant_handle, repository_handle, repository_payload }
+repository_query |= element repository { ctl_list,    tenant_handle }
+repository_reply |= element repository { ctl_list,    tenant_handle, repository_handle, repository_payload }
+repository_query |= element repository { ctl_destroy, tenant_handle, repository_handle }
+repository_reply |= element repository { ctl_destroy, tenant_handle, repository_handle }
 
 # <list_resources/> element
 
 list_resources_query = element list_resources {
-  tag, self_handle, child_handle
+  tag, tenant_handle, child_handle
 }
 
 list_resources_reply = element list_resources {
-  tag, self_handle, child_handle,
+  tag, tenant_handle, child_handle,
   attribute valid_until { xsd:dateTime { pattern=".*Z" } },
   attribute asn { asn_list }?,
   attribute ipv4 { ipv4_list }?,
@@ -238,11 +238,11 @@ list_resources_reply = element list_resources {
 # <list_roa_requests/> element
 
 list_roa_requests_query = element list_roa_requests {
-  tag, self_handle
+  tag, tenant_handle
 }
 
 list_roa_requests_reply = element list_roa_requests {
-  tag, self_handle,
+  tag, tenant_handle,
   attribute asn { xsd:nonNegativeInteger },
   attribute ipv4 { ipv4_list }?,
   attribute ipv6 { ipv6_list }?
@@ -251,22 +251,22 @@ list_roa_requests_reply = element list_roa_requests {
 # <list_ghostbuster_requests/> element
 
 list_ghostbuster_requests_query = element list_ghostbuster_requests {
-  tag, self_handle, parent_handle
+  tag, tenant_handle, parent_handle
 }
 
 list_ghostbuster_requests_reply = element list_ghostbuster_requests {
-  tag, self_handle, parent_handle,
+  tag, tenant_handle, parent_handle,
   xsd:string
 }
 
 # <list_ee_certificate_requests/> element
 
 list_ee_certificate_requests_query = element list_ee_certificate_requests {
-  tag, self_handle
+  tag, tenant_handle
 }
 
 list_ee_certificate_requests_reply = element list_ee_certificate_requests {
-  tag, self_handle,
+  tag, tenant_handle,
   attribute gski { xsd:token { minLength="27" maxLength="27" } },
   attribute valid_until { xsd:dateTime { pattern=".*Z" } },
   attribute asn  { asn_list }?,
@@ -281,11 +281,11 @@ list_ee_certificate_requests_reply = element list_ee_certificate_requests {
 # <list_published_objects/> element
 
 list_published_objects_query = element list_published_objects {
-  tag, self_handle
+  tag, tenant_handle
 }
 
 list_published_objects_reply = element list_published_objects {
-  tag, self_handle,
+  tag, tenant_handle,
   attribute uri { uri },
   attribute child_handle { object_handle }?,
   base64
@@ -294,11 +294,11 @@ list_published_objects_reply = element list_published_objects {
 # <list_received_resources/> element
 
 list_received_resources_query = element list_received_resources {
-  tag, self_handle
+  tag, tenant_handle
 }
 
 list_received_resources_reply = element list_received_resources {
-  tag, self_handle, parent_handle,
+  tag, tenant_handle, parent_handle,
   attribute notBefore { xsd:dateTime { pattern=".*Z" } },
   attribute notAfter { xsd:dateTime { pattern=".*Z" } },
   attribute uri { uri },
@@ -314,7 +314,7 @@ list_received_resources_reply = element list_received_resources {
 error = xsd:token { maxLength="1024" }
 
 report_error_reply = element report_error {
-  tag, self_handle?,
+  tag, tenant_handle?,
   attribute error_code { error },
   xsd:string { maxLength="512000" }?
 }

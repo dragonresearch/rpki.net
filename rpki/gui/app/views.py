@@ -1215,7 +1215,7 @@ def resource_holder_delete(request, pk):
         form = forms.Empty(request.POST)
         if form.is_valid():
             z = Zookeeper(handle=conf.handle, logstream=log)
-            z.delete_self()
+            z.delete_tenant()
             z.synchronize_deleted_ca()
             return redirect(resource_holder_list)
     else:

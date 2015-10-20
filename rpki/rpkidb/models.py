@@ -27,16 +27,6 @@ logger = logging.getLogger(__name__)
 # wait for its shave, particularly since disallowing null should be a
 # very simple change given migrations.
 
-# The <self/> element was really badly named, but we weren't using
-# Python when we named it.  Perhaps <tenant/> would be a better name?
-# Would want to rename it in left-right too.
-#
-# To make things worse, <self/> elements are handled slightly
-# differently in many places, so there are a number of occurances of
-# "self" or "self_handle" as special case magic.  Feh.
-#
-# Cope for now, just be careful.
-
 class XMLTemplate(object):
   """
   Encapsulate all the voodoo for transcoding between lxml and ORM.
@@ -66,8 +56,8 @@ class XMLTemplate(object):
     """
 
     r_pdu = SubElement(r_msg, rpki.left_right.xmlns + self.name, nsmap = rpki.left_right.nsmap, action = q_pdu.get("action"))
-    if self.name != "self":
-      r_pdu.set("self_handle", obj.self.self_handle)
+    if self.name != "tenant":
+      r_pdu.set("tenant_handle", obj.tenant.tenant_handle)
     r_pdu.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
     if q_pdu.get("tag"):
       r_pdu.set("tag", q_pdu.get("tag"))
@@ -104,8 +94,8 @@ class XMLTemplate(object):
     assert q_pdu.tag == rpki.left_right.xmlns + self.name
     action = q_pdu.get("action")
     r_pdu = SubElement(r_msg, rpki.left_right.xmlns + self.name, nsmap = rpki.left_right.nsmap, action = action)
-    if self.name != "self":
-      r_pdu.set("self_handle", obj.self.self_handle)
+    if self.name != "tenant":
+      r_pdu.set("tenant_handle", obj.tenant.tenant_handle)
     r_pdu.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
     if q_pdu.get("tag"):
       r_pdu.set("tag", q_pdu.get("tag"))
@@ -126,7 +116,7 @@ class XMLTemplate(object):
       k = h.xml_template.name
       v = q_pdu.get(k + "_handle")
       if v is not None:
-        setattr(obj, k, h.objects.get(**{k + "_handle" : v, "self__exact" : obj.self}))
+        setattr(obj, k, h.objects.get(**{k + "_handle" : v, "tenant" : obj.tenant}))
     for k in self.attributes:
       v = q_pdu.get(k)
       if v is not None:
@@ -153,20 +143,17 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
   holding an XMLTemplate object (above).
   """
 
-  # Additional complication: "self" is a bad keyword argument, which
-  # requires a two-step process.
-
   def xml_get_or_create(self, xml):
     name   = self.model.xml_template.name
     action = xml.get("action")
     assert xml.tag == rpki.left_right.xmlns + name and action in ("create", "set")
     d = { name + "_handle" : xml.get(name + "_handle") }
-    if name != "self" and action != "create":
-      d["self__self_handle"] = xml.get("self_handle")
+    if name != "tenant" and action != "create":
+      d["tenant__tenant_handle"] = xml.get("tenant_handle")
     logger.debug("XMLManager.xml_get_or_create(): name %s action %s filter %r", name, action, d)
     result = self.model(**d) if action == "create" else self.get(**d)
-    if name != "self" and action == "create":
-      result.self = Self.objects.get(self_handle = xml.get("self_handle"))
+    if name != "tenant" and action == "create":
+      result.tenant = Tenant.objects.get(tenant_handle = xml.get("tenant_handle"))
     logger.debug("XMLManager.xml_get_or_create(): name %s action %s filter %r result %r", name, action, d, result)
     return result
 
@@ -177,8 +164,8 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
     d = {}
     if action == "get":
       d[name + "_handle"] = xml.get(name + "_handle")
-    if name != "self":
-      d["self__self_handle"] = xml.get("self_handle")
+    if name != "tenant":
+      d["tenant__tenant_handle"] = xml.get("tenant_handle")
     logger.debug("XMLManager.xml_list(): name %s action %s filter %r", name, action, d)
     result = self.filter(**d) if d else self.all()
     logger.debug("XMLManager.xml_list(): name %s action %s filter %r result %r", name, action, d, result)
@@ -189,8 +176,8 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
     action = xml.get("action")
     assert xml.tag == rpki.left_right.xmlns + name and action == "destroy"
     d = { name + "_handle" : xml.get(name + "_handle") }
-    if name != "self":
-      d["self__self_handle"] = xml.get("self_handle")
+    if name != "tenant":
+      d["tenant__tenant_handle"] = xml.get("tenant_handle")
     logger.debug("XMLManager.xml_get_for_delete(): name %s action %s filter %r", name, action, d)
     result = self.get(**d)
     logger.debug("XMLManager.xml_get_for_delete(): name %s action %s filter %r result %r", name, action, d, result)
@@ -228,8 +215,8 @@ def xml_hooks(cls):
 # Models
 
 @xml_hooks
-class Self(models.Model):
-  self_handle = models.SlugField(max_length = 255)
+class Tenant(models.Model):
+  tenant_handle = models.SlugField(max_length = 255)
   use_hsm = models.BooleanField(default = False)
   crl_interval = models.BigIntegerField(null = True)
   regen_margin = models.BigIntegerField(null = True)
@@ -238,7 +225,7 @@ class Self(models.Model):
   objects = XMLManager()
 
   xml_template = XMLTemplate(
-    name       = "self",
+    name       = "tenant",
     attributes = ("crl_interval", "regen_margin"),
     booleans   = ("use_hsm",),
     elements   = ("bpki_cert", "bpki_glue"))
@@ -311,7 +298,7 @@ class Self(models.Model):
         publisher.queue(uri = uri, new_obj = obj, old_hash = h, repository = repository)
 
     def done():
-      for ca_detail in CADetail.objects.filter(ca__parent__self = self, state = "active"):
+      for ca_detail in CADetail.objects.filter(ca__parent__tenant = self, state = "active"):
         repository = ca_detail.ca.parent.repository
         reconcile(uri = ca_detail.crl_uri,      obj = ca_detail.latest_crl,      repository = repository)
         reconcile(uri = ca_detail.manifest_uri, obj = ca_detail.latest_manifest, repository = repository)
@@ -332,7 +319,7 @@ class Self(models.Model):
 
 
   def serve_run_now(self, rpkid, cb, eb):
-    logger.debug("Forced immediate run of periodic actions for self %s[%r]", self.self_handle, self)
+    logger.debug("Forced immediate run of periodic actions for tenant %s[%r]", self.tenant_handle, self)
     completion = rpki.rpkid_tasks.CompletionHandler(cb)
     self.schedule_cron_tasks(rpkid, completion)
     assert completion.count > 0
@@ -351,18 +338,18 @@ class Self(models.Model):
 
   def find_covering_ca_details(self, resources):
     """
-    Return all active CADetails for this <self/> which cover a
+    Return all active CADetails for this <tenant/> which cover a
     particular set of resources.
 
     If we expected there to be a large number of CADetails, we
     could add index tables and write fancy SQL query to do this, but
     for the expected common case where there are only one or two
-    active CADetails per <self/>, it's probably not worth it.  In
+    active CADetails per <tenant/>, it's probably not worth it.  In
     any case, this is an optimization we can leave for later.
     """
 
     return set(ca_detail
-               for ca_detail in CADetail.objects.filter(ca__parent__self = self, state = "active")
+               for ca_detail in CADetail.objects.filter(ca__parent__tenant = self, state = "active")
                if ca_detail.covers(resources))
 
 
@@ -374,11 +361,11 @@ class BSC(models.Model):
   hash_alg = EnumField(choices = ("sha256",), default = "sha256")
   signing_cert = CertificateField(null = True)
   signing_cert_crl = CRLField(null = True)
-  self = models.ForeignKey(Self, related_name = "bscs")
+  tenant = models.ForeignKey(Tenant, related_name = "bscs")
   objects = XMLManager()
 
   class Meta:                           # pylint: disable=C1001,W0232
-    unique_together = ("self", "bsc_handle")
+    unique_together = ("tenant", "bsc_handle")
 
   xml_template = XMLTemplate(
     name       = "bsc",
@@ -403,11 +390,11 @@ class Repository(models.Model):
   bpki_glue = CertificateField(null = True)
   last_cms_timestamp = SundialField(null = True)
   bsc = models.ForeignKey(BSC, related_name = "repositories")
-  self = models.ForeignKey(Self, related_name = "repositories")
+  tenant = models.ForeignKey(Tenant, related_name = "repositories")
   objects = XMLManager()
 
   class Meta:                           # pylint: disable=C1001,W0232
-    unique_together = ("self", "repository_handle")
+    unique_together = ("tenant", "repository_handle")
 
   xml_template = XMLTemplate(
     name       = "repository",
@@ -450,7 +437,7 @@ class Repository(models.Model):
 
       bsc = self.bsc
       q_der = rpki.publication.cms_msg().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
-      bpki_ta_path = (rpkid.bpki_ta, self.self.bpki_cert, self.self.bpki_glue, self.bpki_cert, self.bpki_glue)
+      bpki_ta_path = (rpkid.bpki_ta, self.tenant.bpki_cert, self.tenant.bpki_glue, self.bpki_cert, self.bpki_glue)
 
       def done(r_der):
         try:
@@ -494,13 +481,13 @@ class Parent(models.Model):
   sender_name = models.TextField(null = True)
   recipient_name = models.TextField(null = True)
   last_cms_timestamp = SundialField(null = True)
-  self = models.ForeignKey(Self, related_name = "parents")
+  tenant = models.ForeignKey(Tenant, related_name = "parents")
   bsc = models.ForeignKey(BSC, related_name = "parents")
   repository = models.ForeignKey(Repository, related_name = "parents")
   objects = XMLManager()
 
   class Meta:                           # pylint: disable=C1001,W0232
-    unique_together = ("self", "parent_handle")
+    unique_together = ("tenant", "parent_handle")
 
   xml_template = XMLTemplate(
     name       = "parent",
@@ -678,8 +665,8 @@ class Parent(models.Model):
       try:
         r_cms = rpki.up_down.cms_msg(DER = r_der)
         r_msg = r_cms.unwrap((rpkid.bpki_ta,
-                              self.self.bpki_cert,
-                              self.self.bpki_glue,
+                              self.tenant.bpki_cert,
+                              self.tenant.bpki_glue,
                               self.bpki_cert,
                               self.bpki_glue))
         r_cms.check_replay_sql(self, self.peer_contact_uri)
@@ -779,7 +766,7 @@ class CA(models.Model):
       if rc_cert is None:
         logger.warning("SKI %s in resource class %s is in database but missing from list_response to %s from %s, "
                        "maybe parent certificate went away?",
-                       ca_detail.public_key.gSKI(), class_name, parent.self.self_handle, parent.parent_handle)
+                       ca_detail.public_key.gSKI(), class_name, parent.tenant.tenant_handle, parent.parent_handle)
         publisher = rpki.rpkid.publication_queue(rpkid)
         ca_detail.destroy(ca = ca_detail.ca, publisher = publisher)
         return publisher.call_pubd(iterator, eb)
@@ -812,14 +799,14 @@ class CA(models.Model):
     def done():
       if cert_map:
         logger.warning("Unknown certificate SKI%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?",
-                       "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.self.self_handle, parent.parent_handle)
+                       "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.tenant.tenant_handle, parent.parent_handle)
       cb()
     ca_details = self.ca_details.exclude(state = "revoked")
     if ca_details:
       rpki.async.iterator(ca_details, loop, done)
     else:
       logger.warning("Existing resource class %s to %s from %s with no certificates, rekeying",
-                     class_name, parent.self.self_handle, parent.parent_handle)
+                     class_name, parent.tenant.tenant_handle, parent.parent_handle)
       self.rekey(rpkid, cb, eb)
 
 
@@ -1115,7 +1102,7 @@ class CADetail(models.Model):
       if r_msg[0].get("ski") != gski:
         raise rpki.exceptions.SKIMismatch
       logger.debug("Parent revoked %s, starting cleanup", gski)
-      crl_interval = rpki.sundial.timedelta(seconds = parent.self.crl_interval)
+      crl_interval = rpki.sundial.timedelta(seconds = parent.tenant.crl_interval)
       nextUpdate = rpki.sundial.now()
       if self.latest_manifest is not None:
         self.latest_manifest.extract_if_needed()
@@ -1281,7 +1268,7 @@ class CADetail(models.Model):
     """
 
     self.check_failed_publication(publisher)
-    crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.self.crl_interval)
+    crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.tenant.crl_interval)
     now = rpki.sundial.now()
     if nextUpdate is None:
       nextUpdate = now + crl_interval
@@ -1327,7 +1314,7 @@ class CADetail(models.Model):
 
     self.check_failed_publication(publisher)
 
-    crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.self.crl_interval)
+    crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.tenant.crl_interval)
     now = rpki.sundial.now()
     uri = self.manifest_uri
     if nextUpdate is None:
@@ -1476,12 +1463,12 @@ class Child(models.Model):
   bpki_cert = CertificateField(null = True)
   bpki_glue = CertificateField(null = True)
   last_cms_timestamp = SundialField(null = True)
-  self = models.ForeignKey(Self, related_name = "children")
+  tenant = models.ForeignKey(Tenant, related_name = "children")
   bsc = models.ForeignKey(BSC, related_name = "children")
   objects = XMLManager()
 
   class Meta:                           # pylint: disable=C1001,W0232
-    unique_together = ("self", "child_handle")
+    unique_together = ("tenant", "child_handle")
 
   xml_template = XMLTemplate(
     name     = "child",
@@ -1522,7 +1509,7 @@ class Child(models.Model):
       if irdb_resources.valid_until < rpki.sundial.now():
         logger.debug("Child %s's resources expired %s", self.child_handle, irdb_resources.valid_until)
       else:
-        for ca_detail in CADetail.objects.filter(ca__parent__self = self.self, state = "active"):
+        for ca_detail in CADetail.objects.filter(ca__parent__tenant = self.tenant, state = "active"):
           resources = ca_detail.latest_ca_cert.get_3779resources() & irdb_resources
           if resources.empty():
             logger.debug("No overlap between received resources and what child %s should get ([%s], [%s])",
@@ -1540,7 +1527,7 @@ class Child(models.Model):
             c.text = child_cert.cert.get_Base64()
           SubElement(rc, rpki.up_down.tag_issuer).text = ca_detail.latest_ca_cert.get_Base64()
       callback()
-    rpkid.irdb_query_child_resources(self.self.self_handle, self.child_handle, got_resources, errback)
+    rpkid.irdb_query_child_resources(self.tenant.tenant_handle, self.child_handle, got_resources, errback)
 
 
   def up_down_handle_issue(self, rpkid, q_msg, r_msg, callback, errback):
@@ -1610,12 +1597,12 @@ class Child(models.Model):
     sia = pkcs10.get_SIA()
     logger.debug("Child.up_down_handle_issue(): PKCS #10 SIA %r (%r, %r, %r, %r) %r",
                  type(sia), type(sia[0]), type(sia[1]), type(sia[2]), type(sia[3]), sia)
-    
+
     pkcs10.check_valid_request_ca()
-    ca_detail = CADetail.objects.get(ca__parent__self = self.self,
+    ca_detail = CADetail.objects.get(ca__parent__tenant = self.tenant,
                                      ca__parent_resource_class = class_name,
                                      state = "active")
-    rpkid.irdb_query_child_resources(self.self.self_handle, self.child_handle, got_resources, errback)
+    rpkid.irdb_query_child_resources(self.tenant.tenant_handle, self.child_handle, got_resources, errback)
 
 
   def up_down_handle_revoke(self, rpkid, q_msg, r_msg, callback, errback):
@@ -1627,7 +1614,7 @@ class Child(models.Model):
     class_name = key.get("class_name")
     ski = base64.urlsafe_b64decode(key.get("ski") + "=")
     publisher = rpki.rpkid.publication_queue(rpkid)
-    for child_cert in ChildCert.objects.filter(ca_detail__ca__parent__self = self.self,
+    for child_cert in ChildCert.objects.filter(ca_detail__ca__parent__tenant = self.tenant,
                                                ca_detail__ca__parent_resource_class = class_name,
                                                ski = ski):
       child_cert.revoke(publisher = publisher)
@@ -1654,8 +1641,8 @@ class Child(models.Model):
       raise rpki.exceptions.BSCNotFound("Could not find BSC")
     q_cms = rpki.up_down.cms_msg(DER = q_der)
     q_msg = q_cms.unwrap((rpkid.bpki_ta,
-                          self.self.bpki_cert,
-                          self.self.bpki_glue,
+                          self.tenant.bpki_cert,
+                          self.tenant.bpki_glue,
                           self.bpki_cert,
                           self.bpki_glue))
     q_cms.check_replay_sql(self, "child", self.child_handle)
@@ -1797,7 +1784,7 @@ class EECertificate(models.Model):
   ski = BlobField()
   cert = CertificateField()
   published = SundialField(null = True)
-  self = models.ForeignKey(Self, related_name = "ee_certificates")
+  tenant = models.ForeignKey(Tenant, related_name = "ee_certificates")
   ca_detail = models.ForeignKey(CADetail, related_name = "ee_certificates")
 
 
@@ -1854,7 +1841,7 @@ class EECertificate(models.Model):
       sn          = sn,
       eku         = eku)
     self = cls(ca_detail = ca_detail, cert = cert, ski = subject_key.get_SKI())
-    self.self = ca_detail.ca.parent.self
+    self.tenant = ca_detail.ca.parent.tenant
     publisher.queue(
       uri        = self.uri,
       new_obj    = self.cert,
@@ -1962,7 +1949,7 @@ class Ghostbuster(models.Model):
   cert = CertificateField()
   ghostbuster = GhostbusterField()
   published = SundialField(null = True)
-  self = models.ForeignKey(Self, related_name = "ghostbusters")
+  tenant = models.ForeignKey(Tenant, related_name = "ghostbusters")
   ca_detail = models.ForeignKey(CADetail, related_name = "ghostbusters")
 
 
@@ -1976,7 +1963,7 @@ class Ghostbuster(models.Model):
       return self.generate(publisher = publisher, fast = fast)
 
     now = rpki.sundial.now()
-    regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self.regen_margin)
+    regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.tenant.regen_margin)
 
     if now > regen_time and self.cert.getNotAfter() < self.ca_detail.latest_ca_cert.getNotAfter():
       logger.debug("%r past threshold %s, regenerating", self, regen_time)
@@ -2133,7 +2120,7 @@ class ROA(models.Model):
   cert = CertificateField()
   roa = ROAField()
   published = SundialField(null = True)
-  self = models.ForeignKey(Self, related_name = "roas")
+  tenant = models.ForeignKey(Tenant, related_name = "roas")
   ca_detail = models.ForeignKey(CADetail, related_name = "roas")
 
 
@@ -2155,7 +2142,7 @@ class ROA(models.Model):
       return self.regenerate(publisher = publisher, fast = fast)
 
     now = rpki.sundial.now()
-    regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self.regen_margin)
+    regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.tenant.regen_margin)
 
     if now > regen_time and self.cert.getNotAfter() < self.ca_detail.latest_ca_cert.getNotAfter():
       logger.debug("%r past threshold %s, regenerating", self, regen_time)
@@ -2221,7 +2208,7 @@ class ROA(models.Model):
       logger.debug("Keeping old ca_detail %r for ROA %r", ca_detail, self)
     else:
       logger.debug("Searching for new ca_detail for ROA %r", self)
-      for ca_detail in CADetail.objects.filter(ca__parent__self = self.self, state = "active"):
+      for ca_detail in CADetail.objects.filter(ca__parent__tenant = self.tenant, state = "active"):
         resources = ca_detail.latest_ca_cert.get_3779resources()
         if not ca_detail.has_expired() and v4.issubset(resources.v4) and v6.issubset(resources.v6):
           logger.debug("Using new ca_detail %r for ROA %r", ca_detail, self)

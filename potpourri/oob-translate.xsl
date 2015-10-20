@@ -8,9 +8,10 @@
   -->
 
 <xsl:transform xmlns:xsl    = "http://www.w3.org/1999/XSL/Transform"
+	       version      = "1.0"
 	       xmlns:myrpki = "http://www.hactrn.net/uris/rpki/myrpki/"
 	       xmlns:oob    = "http://www.hactrn.net/uris/rpki/rpki-setup/"
-	       version      = "1.0">
+	       exclude-result-prefixes = "myrpki oob">
 
   <xsl:output omit-xml-declaration = "yes"
 	      indent               = "yes"

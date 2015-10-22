@@ -519,7 +519,7 @@ class Parent(models.Model):
 
   @tornado.gen.coroutine
   def xml_pre_delete_hook(self, rpkid):
-    self.destroy(rpkid, delete_parent = False)
+    yield self.destroy(rpkid, delete_parent = False)
 
   @tornado.gen.coroutine
   def xml_post_save_hook(self, rpkid, q_pdu):

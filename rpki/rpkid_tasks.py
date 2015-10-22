@@ -155,7 +155,7 @@ class PollParentTask(AbstractTask):
           ca = ca_map.pop(class_name, None)
           if ca is None:
             logger.debug("%r: Creating new CA for resource class %r", self, class_name)
-            rpki.rpkidb.models.CA.create(rpkid = self.rpkid, parent = parent, rc = rc)
+            yield rpki.rpkidb.models.CA.create(rpkid = self.rpkid, parent = parent, rc = rc)
           else:
             logger.debug("%r: Checking updates for existing CA %r for resource class %r", self, ca, class_name)
             yield ca.check_for_updates(rpkid = self.rpkid, parent = parent, rc = rc)
@@ -427,6 +427,7 @@ class UpdateEECertificatesTask(AbstractTask):
       for r_pdu in r_msg:
         gski = r_pdu.get("gski")
         ees = existing.pop(gski, ())
+
         resources = rpki.resource_set.resource_bag(
           asn         = rpki.resource_set.resource_set_as(r_pdu.get("asn")),
           v4          = rpki.resource_set.resource_set_ipv4(r_pdu.get("ipv4")),

@@ -22,7 +22,6 @@ RPKI CA engine.
 """
 
 import os
-import re
 import time
 import random
 import logging
@@ -153,7 +152,7 @@ class main(object):
 
     class UpDownHandler(tornado.web.RequestHandler):    # pylint: disable=W0223
       @tornado.gen.coroutine
-      def post(self, tenant_handle, child_handle):
+      def post(self, tenant_handle, child_handle):      # pylint: disable=W0221
         yield rpkid.up_down_handler(self, tenant_handle, child_handle)
 
     class CronjobHandler(tornado.web.RequestHandler):   # pylint: disable=W0223

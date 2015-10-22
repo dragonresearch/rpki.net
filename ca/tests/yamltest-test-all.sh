@@ -25,7 +25,7 @@ screen -X split
 screen -X focus
 
 # Timers
-: ${startup=300} ${runtime=900} ${poll=30} ${shutdown=30}
+: ${startup=600} ${runtime=900} ${poll=30} ${shutdown=30}
 
 # Once upon a time we had a settitle program.  Noop for now.
 : ${settitle=":"}
@@ -36,7 +36,7 @@ do
   rm -rf test rcynic-data
   python sql-cleaner.py 
   now=$(date +%s)
-  finish=$(($now + $runtime))
+  finish=$(($now + $startup + $runtime))
   title="$yaml: will finish at $(date -r $finish)"
   $settitle "$title"
   screen sh -c "$settitle '$title'; exec python yamltest.py -p yamltest.pid $yaml"

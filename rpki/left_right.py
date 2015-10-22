@@ -25,18 +25,15 @@ import logging
 
 import rpki.x509
 import rpki.exceptions
-import rpki.http
 import rpki.up_down
 import rpki.relaxng
 import rpki.sundial
 import rpki.log
 import rpki.publication
-import rpki.async
 import rpki.rpkid_tasks
 
 
 logger = logging.getLogger(__name__)
-
 
 xmlns   = rpki.relaxng.left_right.xmlns
 nsmap   = rpki.relaxng.left_right.nsmap
@@ -61,6 +58,16 @@ tag_repository                   = xmlns + "repository"
 tag_tenant                       = xmlns + "tenant"
 tag_signing_cert                 = xmlns + "signing_cert"
 tag_signing_cert_crl             = xmlns + "signing_cert_crl"
+
+## @var content_type
+# Content type to use when sending left-right queries
+content_type = "application/x-rpki"
+
+## @var allowed_content_types
+# Content types we consider acceptable for incoming left-right
+# queries.
+
+allowed_content_types = (content_type,)
 
 
 class cms_msg(rpki.x509.XML_CMS_object):

@@ -47,7 +47,6 @@ import rpki.resource_set
 import rpki.oids
 import rpki.sundial
 import rpki.log
-import rpki.async
 import rpki.relaxng
 
 logger = logging.getLogger(__name__)
@@ -1510,9 +1509,7 @@ class CMS_object(DER_object):
 
     try:
       cms = self.get_POW()
-    except (rpki.async.ExitNow, SystemExit):
-      raise
-    except Exception:
+    except:
       if self.print_on_der_error:
         logger.debug("Problem parsing DER CMS message, might not really be DER: %r",
                      self.get_DER())
@@ -1593,9 +1590,7 @@ class CMS_object(DER_object):
 
     try:
       content = cms.verify(store)
-    except (rpki.async.ExitNow, SystemExit):
-      raise
-    except Exception:
+    except:
       if self.dump_on_verify_failure:
         if self.dump_using_dumpasn1:
           dbg = self.dumpasn1()
@@ -1623,9 +1618,7 @@ class CMS_object(DER_object):
 
     try:
       cms = self.get_POW()
-    except (rpki.async.ExitNow, SystemExit):
-      raise
-    except Exception:
+    except:
       raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:

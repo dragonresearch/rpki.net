@@ -238,3 +238,6 @@ class WrongEKU(RPKI_Exception):
 
 class UnexpectedUpDownResponse(RPKI_Exception):
   "Up-down message is not of the expected type."
+
+class BadContentType(RPKI_Exception):
+  "Bad HTTP Content-Type."

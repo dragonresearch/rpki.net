@@ -43,7 +43,6 @@ import rpki.relaxng
 import rpki.exceptions
 import rpki.left_right
 import rpki.x509
-import rpki.async
 import rpki.version
 
 from lxml.etree import SubElement

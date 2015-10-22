@@ -48,7 +48,6 @@ import rpki.log
 import rpki.left_right
 import rpki.config
 import rpki.publication_control
-import rpki.async
 
 from rpki.mysql_import import MySQLdb
 
@@ -784,7 +783,7 @@ class allocation(object):
     for sql in rpki_sql:
       try:
         cur.execute(sql)
-      except Exception:
+      except:
         if "DROP TABLE IF EXISTS" not in sql.upper():
           raise
     db.close()
@@ -795,7 +794,7 @@ class allocation(object):
     for sql in irdb_sql:
       try:
         cur.execute(sql)
-      except Exception:
+      except:
         if "DROP TABLE IF EXISTS" not in sql.upper():
           raise
     for s in [self] + self.hosts:
@@ -1244,7 +1243,7 @@ def setup_publication(pubd_sql, irdb_db_name):
   for sql in pubd_sql:
     try:
       cur.execute(sql)
-    except Exception:
+    except:
       if "DROP TABLE IF EXISTS" not in sql.upper():
         raise
   db.close()

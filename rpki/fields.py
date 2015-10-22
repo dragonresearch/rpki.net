@@ -173,7 +173,7 @@ class RSAPrivateKeyField(DERField):
   description = "RSA keypair"
   rpki_type   = rpki.x509.RSA
 
-KeyField = RSAPrivateKeyField           # XXX backwards compatability
+KeyField = RSAPrivateKeyField
 
 class PublicKeyField(DERField):
   description = "RSA keypair"

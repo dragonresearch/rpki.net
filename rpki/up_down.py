@@ -38,8 +38,8 @@ version = "1"
 
 ## @var content_type
 # MIME content type to use when sending up-down queries.
-#content_type = "application/rpki-updown"
-content_type = "application/x-rpki"
+content_type = "application/rpki-updown"
+#content_type = "application/x-rpki"
 
 ## @var allowed_content_types
 # MIME content types which we consider acceptable for incoming up-down

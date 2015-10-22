@@ -39,6 +39,17 @@ tag_withdraw      = rpki.relaxng.publication.xmlns + "withdraw"
 tag_report_error  = rpki.relaxng.publication.xmlns + "report_error"
 
 
+## @var content_type
+# Content type to use when sending left-right queries
+content_type = "application/x-rpki"
+
+## @var allowed_content_types
+# Content types we consider acceptable for incoming left-right
+# queries.
+
+allowed_content_types = (content_type,)
+
+
 def raise_if_error(pdu):
   """
   Raise an appropriate error if this is a <report_error/> PDU.

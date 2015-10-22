@@ -77,7 +77,7 @@ class Cmd(cmd.Cmd):
       return False
     except BadCommandSyntax, e:
       print e
-    except Exception:
+    except:
       traceback.print_exc()
     self.last_command_failed = True
     return False

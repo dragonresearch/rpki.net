@@ -205,9 +205,7 @@ class parser(object):
     """
 
     # pylint: disable=W0621
-    import rpki.http
     import rpki.x509
-    import rpki.async
     import rpki.log
     import rpki.daemonize
 
@@ -219,42 +217,7 @@ class parser(object):
         logger.warning("Could not process configure_logger line %r: %s", line, e)
 
     try:
-      rpki.http.want_persistent_client = self.getboolean("want_persistent_client")
-    except ConfigParser.NoOptionError:
-      pass
-
-    try:
-      rpki.http.want_persistent_server = self.getboolean("want_persistent_server")
-    except ConfigParser.NoOptionError:
-      pass
-
-    try:
-      rpki.http.use_adns = self.getboolean("use_adns")
-    except ConfigParser.NoOptionError:
-      pass
-
-    try:
-      rpki.http.enable_ipv6_clients = self.getboolean("enable_ipv6_clients")
-    except ConfigParser.NoOptionError:
-      pass
-
-    try:
-      rpki.http.enable_ipv6_servers = self.getboolean("enable_ipv6_servers")
-    except ConfigParser.NoOptionError:
-      pass
-
-    try:
       rpki.x509.CMS_object.debug_cms_certs = self.getboolean("debug_cms_certs")
-    except ConfigParser.NoOptionError:
-      pass
-
-    try:
-      rpki.async.timer.gc_debug = self.getboolean("gc_debug")
-    except ConfigParser.NoOptionError:
-      pass
-
-    try:
-      rpki.async.timer.run_debug = self.getboolean("timer_debug")
     except ConfigParser.NoOptionError:
       pass
 
@@ -279,11 +242,6 @@ class parser(object):
 
     try:
       rpki.x509.XML_CMS_object.check_outbound_schema = self.getboolean("check_outbound_schema")
-    except ConfigParser.NoOptionError:
-      pass
-
-    try:
-      rpki.async.gc_summary(self.getint("gc_summary"), self.getint("gc_summary_threshold", 0))
     except ConfigParser.NoOptionError:
       pass
 

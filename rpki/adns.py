@@ -27,7 +27,6 @@ import time
 import socket
 import logging
 import asyncore
-import rpki.async
 import rpki.sundial
 import rpki.log
 
@@ -62,12 +61,12 @@ for ns in resolver.nameservers:
   try:
     nameservers.append((socket.AF_INET, dns.ipv4.inet_aton(ns)))
     continue
-  except Exception:
+  except:
     pass
   try:
     nameservers.append((socket.AF_INET6, dns.ipv6.inet_aton(ns)))
     continue
-  except Exception:
+  except:
     pass
   logger.error("Couldn't parse nameserver address %r", ns)
 

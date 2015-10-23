@@ -334,27 +334,19 @@ class Tenant(models.Model):
   @tornado.gen.coroutine
   def serve_run_now(self, rpkid):
     logger.debug("Forced immediate run of periodic actions for tenant %s[%r]", self.tenant_handle, self)
-    futures = [condition.wait() for condition in self.schedule_cron_tasks(rpkid)]
+    tasks = self.cron_tasks(rpkid)
+    rpkid.task_add(tasks)
+    futures = [task.wait() for task in tasks]
     rpkid.task_run()
-    logger.debug("serve_run_now() futures: %r", futures)
-    assert futures
-    try:
-      yield futures
-    except:
-      logger.exception("serve_run_now() failed")
-      raise
-    else:
-      logger.debug("serve_run_now() done")
+    yield futures
 
 
-  def schedule_cron_tasks(self, rpkid):
+  def cron_tasks(self, rpkid):
     try:
-      tasks = self.cron_tasks
+      return self._cron_tasks
     except AttributeError:
-      tasks = self.cron_tasks = tuple(task(rpkid, self) for task in rpki.rpkid_tasks.task_classes)
-    for task in tasks:
-      rpkid.task_add(task)
-      yield task.completed      # Plain old Python generator yield, this is not a coroutine
+      self._cron_tasks = tuple(task(rpkid, self) for task in rpki.rpkid_tasks.task_classes)
+      return self._cron_tasks
 
 
   def find_covering_ca_details(self, resources):
@@ -451,7 +443,7 @@ class Repository(models.Model):
     """
 
     if len(q_msg) == 0:
-      raise tornado.gen.Return
+      return
 
     for q_pdu in q_msg:
       logger.info("Sending %r to pubd", q_pdu)
@@ -781,7 +773,7 @@ class CA(models.Model):
       logger.warning("Existing resource class %s to %s from %s with no certificates, rekeying",
                      class_name, parent.tenant.tenant_handle, parent.parent_handle)
       yield self.rekey(rpkid)
-      raise tornado.gen.Return
+      return
 
     for ca_detail in ca_details:
 
@@ -1199,7 +1191,7 @@ class CADetail(models.Model):
 
     if self.state == "pending":
       yield self.activate(rpkid = rpkid, ca = ca, cert = cert, uri = cert_url)
-      raise tornado.gen.Return
+      return
 
     validity_changed = self.latest_ca_cert is None or self.latest_ca_cert.getNotAfter() != cert.getNotAfter()
 

@@ -29,6 +29,7 @@ import argparse
 
 import tornado.gen
 import tornado.web
+import tornado.locks
 import tornado.ioloop
 import tornado.httputil
 import tornado.httpclient
@@ -65,8 +66,9 @@ class main(object):
 
     self.irdbd_cms_timestamp = None
     self.irbe_cms_timestamp = None
-    self.task_current = None
+
     self.task_queue = []
+    self.task_event = tornado.locks.Event()
 
     parser = argparse.ArgumentParser(description = __doc__)
     parser.add_argument("-c", "--config",
@@ -143,6 +145,9 @@ class main(object):
       logger.debug("Scheduling initial cron pass in %s seconds", self.initial_delay)
       tornado.ioloop.IOLoop.current().spawn_callback(self.cron_loop)
 
+    logger.debug("Scheduling task loop")
+    tornado.ioloop.IOLoop.current().spawn_callback(self.task_loop)
+
     rpkid = self
 
     class LeftRightHandler(tornado.web.RequestHandler): # pylint: disable=W0223
@@ -171,6 +176,125 @@ class main(object):
 
     tornado.ioloop.IOLoop.current().start()
 
+  def task_add(self, tasks):
+    """
+    Add zero or more tasks to the task queue.
+    """
+
+    for task in tasks:
+      if task in self.task_queue:
+        logger.debug("Task %r already queued", task)
+      else:
+        logger.debug("Adding %r to task queue", task)
+        self.task_queue.append(task)
+
+  def task_run(self):
+    """
+    Kick the task loop to notice recently added tasks.
+    """
+
+    self.task_event.set()
+
+  @tornado.gen.coroutine
+  def task_loop(self):
+    """
+    Asynchronous infinite loop to run background tasks.
+
+    This code is a bit finicky, because it's managing a collection of
+    Future objects which are running independently of the control flow
+    here, and the wave function doesn't collapse until we do a yield.
+
+    So we keep this brutally simple and don't try to hide too much of
+    it in the AbstractTask class.  For similar reasons, AbstractTask
+    sets aside a .future instance variable for this method's use.
+    """
+
+    logger.debug("Starting task loop")
+    task_event_future = None
+
+    while True:
+      while None in self.task_queue:
+        self.task_queue.remove(None)
+
+      futures = []
+      for task in self.task_queue:
+        if task.future is None:
+          task.future = task.start()
+        futures.append(task.future)
+      if task_event_future is None:
+        task_event_future = self.task_event.wait()
+      futures.append(task_event_future)
+      iterator = tornado.gen.WaitIterator(*futures)
+
+      while not iterator.done():
+        yield iterator.next()
+        if iterator.current_future is task_event_future:
+          self.task_event.clear()
+          task_event_future = None
+          break
+        else:
+          task = self.task_queue[iterator.current_index]
+          task.future = None
+          waiting = task.waiting()
+          if not waiting:
+            self.task_queue[iterator.current_index] = None
+          for task in self.task_queue:
+            if task is not None and not task.runnable.is_set():
+              logger.debug("Reenabling task %r", task)
+              task.runnable.set()
+          if waiting:
+            break
+
+  @tornado.gen.coroutine
+  def cron_loop(self):
+    """
+    Asynchronous infinite loop to drive cron cycle.
+    """
+
+    logger.debug("cron_loop(): Starting")
+    assert self.use_internal_cron
+    logger.debug("cron_loop(): Startup delay %d seconds", self.initial_delay)
+    yield tornado.gen.sleep(self.initial_delay)
+    while True:
+      logger.debug("cron_loop(): Running")
+      yield self.cron_run()
+      logger.debug("cron_loop(): Sleeping %d seconds", self.cron_period)
+      yield tornado.gen.sleep(self.cron_period)
+
+  @tornado.gen.coroutine
+  def cron_run(self):
+    """
+    Schedule periodic tasks.
+    """
+
+    now = rpki.sundial.now()
+    logger.debug("Starting cron run")
+    try:
+      tenants = rpki.rpkidb.models.Tenant.objects.all()
+    except:
+      logger.exception("Error pulling tenants from SQL, maybe SQL server is down?")
+    else:
+      tasks = tuple(task for tenant in tenants for task in tenant.cron_tasks(self))
+      self.task_add(tasks)
+      futures = [task.wait() for task in tasks]
+      self.task_run()
+      yield futures
+    logger.info("Finished cron run started at %s", now)
+
+  @tornado.gen.coroutine
+  def cronjob_handler(self, handler):
+    """
+    External trigger to schedule periodic tasks.  Obsolete for
+    produciton use, but portions of the test framework still use this.
+    """
+
+    if self.use_internal_cron:
+      handler.set_status(500, "Running cron internally")
+    else:
+      logger.debug("Starting externally triggered cron")
+      yield self.cron()
+      handler.set_status(200)
+    handler.finish()
 
   @staticmethod
   def _compose_left_right_query():
@@ -180,7 +304,6 @@ class main(object):
 
     return Element(rpki.left_right.tag_msg, nsmap = rpki.left_right.nsmap,
                    type = "query", version = rpki.left_right.version)
-
 
   @tornado.gen.coroutine
   def irdb_query(self, q_msg):
@@ -223,7 +346,6 @@ class main(object):
 
     raise tornado.gen.Return(r_msg)
 
-
   @tornado.gen.coroutine
   def irdb_query_child_resources(self, tenant_handle, child_handle):
     """
@@ -246,7 +368,6 @@ class main(object):
 
     raise tornado.gen.Return(bag)
 
-
   @tornado.gen.coroutine
   def irdb_query_roa_requests(self, tenant_handle):
     """
@@ -257,7 +378,6 @@ class main(object):
     SubElement(q_msg, rpki.left_right.tag_list_roa_requests, tenant_handle = tenant_handle)
     r_msg = yield self.irdb_query(q_msg)
     raise tornado.gen.Return(r_msg)
-
 
   @tornado.gen.coroutine
   def irdb_query_ghostbuster_requests(self, tenant_handle, parent_handles):
@@ -283,7 +403,6 @@ class main(object):
     r_msg = yield self.irdb_query(q_msg)
     raise tornado.gen.Return(r_msg)
 
-
   @property
   def left_right_models(self):
     """
@@ -302,7 +421,6 @@ class main(object):
         rpki.left_right.tag_repository  : rpki.rpkidb.models.Repository }
       return self._left_right_models
 
-
   @property
   def left_right_trivial_handlers(self):
     """
@@ -316,7 +434,6 @@ class main(object):
         rpki.left_right.tag_list_published_objects      : self.handle_list_published_objects,
         rpki.left_right.tag_list_received_resources     : self.handle_list_received_resources }
       return self._left_right_trivial_handlers
-
 
   def handle_list_published_objects(self, q_pdu, r_msg):
     """
@@ -348,7 +465,6 @@ class main(object):
         SubElement(r_msg, rpki.left_right.tag_list_published_objects,
                    uri = c.uri, **kw).text = c.cert.get_Base64()
 
-
   def handle_list_received_resources(self, q_pdu, r_msg):
     """
     <list_received_resources/> server.
@@ -375,7 +491,6 @@ class main(object):
       if msg_tag is not None:
         r_pdu.set("tag", msg_tag)
 
-
   @tornado.gen.coroutine
   def left_right_handler(self, handler):
     """
@@ -388,7 +503,7 @@ class main(object):
     if content_type not in rpki.left_right.allowed_content_types:
       handler.set_status(415, "No handler for Content-Type %s" % content_type)
       handler.finish()
-      raise tornado.gen.Return
+      return
 
     handler.set_header("Content-Type", rpki.left_right.content_type)
 
@@ -460,7 +575,6 @@ class main(object):
       handler.set_status(500, "Unhandled exception %s: %s" % (e.__class__.__name__, e))
       handler.finish()
 
-
   @tornado.gen.coroutine
   def up_down_handler(self, handler, tenant_handle, child_handle):
     """
@@ -473,7 +587,7 @@ class main(object):
     if content_type not in rpki.up_down.allowed_content_types:
       handler.set_status(415, "No handler for Content-Type %s" % content_type)
       handler.finish()
-      raise tornado.gen.Return
+      return
 
     try:
       child = rpki.rpkidb.models.Child.objects.get(tenant__tenant_handle = tenant_handle, child_handle = child_handle)
@@ -492,93 +606,6 @@ class main(object):
       logger.exception("Unhandled exception processing up-down request")
       handler.set_status(400, "Could not process PDU: %s" % e)
       handler.finish()
-
-
-  def task_add(self, task):
-    """
-    Add a task to the scheduler task queue, unless it's already queued.
-    """
-
-    if task not in self.task_queue:
-      logger.debug("Adding %r to task queue", task)
-      self.task_queue.append(task)
-      return True
-    else:
-      logger.debug("Task %r was already in the task queue", task)
-      return False
-
-
-  def task_next(self):
-    """
-    Schedule next task in the queue to be run.
-    """
-
-    try:
-      self.task_current = self.task_queue.pop(0)
-    except IndexError:
-      self.task_current = None
-    else:
-      tornado.ioloop.IOLoop.current().add_callback(self.task_current)
-
-
-  def task_run(self):
-    """
-    Schedule first queued task unless a task is running already.
-    """
-
-    if self.task_current is None:
-      self.task_next()
-
-
-  @tornado.gen.coroutine
-  def cron_loop(self):
-    """
-    Asynchronous infinite loop to drive cron cycle.
-    """
-
-    assert self.use_internal_cron
-    yield tornado.gen.sleep(self.initial_delay)
-    while True:
-      yield self.cron_run()
-      yield tornado.gen.sleep(self.cron_period)
-
-
-  @tornado.gen.coroutine
-  def cron_run(self):
-    """
-    Periodic tasks.
-    """
-
-    now = rpki.sundial.now()
-    logger.debug("Starting cron run")
-    futures = []
-    try:
-      tenants = rpki.rpkidb.models.Tenant.objects.all()
-    except:
-      logger.exception("Error pulling tenants from SQL, maybe SQL server is down?")
-    else:
-      for tenant in tenants:
-        futures.extend(condition.wait() for condition in tenant.schedule_cron_tasks(self))
-    if futures:
-      yield futures
-    logger.info("Finished cron run started at %s", now)
-
-
-  @tornado.gen.coroutine
-  def cronjob_handler(self, handler):
-    """
-    External trigger for periodic tasks.  This is somewhat obsolete
-    now that we have internal timers, but the test framework still
-    uses it.
-    """
-
-    if self.use_internal_cron:
-      handler.set_status(500, "Running cron internally")
-    else:
-      logger.debug("Starting externally triggered cron")
-      yield self.cron()
-      handler.set_status(200)
-    handler.finish()
 
 
 class publication_queue(object):

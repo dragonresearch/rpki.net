@@ -450,15 +450,13 @@ class Repository(models.Model):
 
     q_der = rpki.publication.cms_msg().wrap(q_msg, self.bsc.private_key_id, self.bsc.signing_cert, self.bsc.signing_cert_crl)
 
-    http_client = tornado.httpclient.AsyncHTTPClient()
-
     http_request = tornado.httpclient.HTTPRequest(
       url     = self.peer_contact_uri,
       method  = "POST",
       body    = q_der,
       headers = { "Content-Type" : rpki.publication.content_type })
 
-    http_response = yield http_client.fetch(http_request)
+    http_response = yield rpkid.http_fetch(http_request)
 
     # Tornado already checked http_response.code for us
 
@@ -662,15 +660,13 @@ class Parent(models.Model):
 
     q_der = rpki.up_down.cms_msg().wrap(q_msg, self.bsc.private_key_id, self.bsc.signing_cert, self.bsc.signing_cert_crl)
 
-    http_client = tornado.httpclient.AsyncHTTPClient()
-
     http_request = tornado.httpclient.HTTPRequest(
       url     = self.peer_contact_uri,
       method  = "POST",
       body    = q_der,
       headers = { "Content-Type" : rpki.up_down.content_type })
 
-    http_response = yield http_client.fetch(http_request)
+    http_response = yield rpkid.http_fetch(http_request)
 
     # Tornado already checked http_response.code for us
 

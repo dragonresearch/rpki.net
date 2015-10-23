@@ -26,6 +26,7 @@ import time
 import random
 import logging
 import argparse
+import urlparse
 
 import tornado.gen
 import tornado.web
@@ -69,6 +70,8 @@ class main(object):
 
     self.task_queue = []
     self.task_event = tornado.locks.Event()
+
+    self.http_client_serialize = {}
 
     parser = argparse.ArgumentParser(description = __doc__)
     parser.add_argument("-c", "--config",
@@ -296,6 +299,45 @@ class main(object):
       handler.set_status(200)
     handler.finish()
 
+  @tornado.gen.coroutine
+  def http_fetch(self, request, serialize_on_full_url = False):
+    """
+    Wrapper around tornado.httpclient.AsyncHTTPClient() which
+    serializes requests to any particular HTTP server, to avoid
+    spurious CMS replay errors.
+    """
+
+    # The current definition of "particular HTTP server" is based only
+    # on the "netloc" portion of the URL, which could in theory could
+    # cause deadlocks in a loopback scenario; no such deadlocks have
+    # shown up in testing, but if such a thing were to occur, it would
+    # look like an otherwise inexplicable HTTP timeout.  The solution,
+    # should this occur, would be to use the entire URL as the lookup
+    # key, perhaps only for certain protocols.
+    #
+    # The reason for the current scheme is that at least one protocol
+    # (publication) uses RESTful URLs but has a single service-wide
+    # CMS replay detection database, which translates to meaning that
+    # we need to serialize all requests for that service, not just
+    # requests to a particular URL.
+
+    if serialize_on_full_url:
+      netlock = request.url
+    else:
+      netlock = urlparse.urlparse(request.url).netloc
+
+    try:
+      lock = self.http_client_serialize[netlock]
+    except KeyError:
+      lock = self.http_client_serialize[netlock] = tornado.locks.Lock()
+
+    http_client = tornado.httpclient.AsyncHTTPClient()
+
+    with (yield lock.acquire()):
+      response = yield http_client.fetch(request)
+
+    raise tornado.gen.Return(response)
+
   @staticmethod
   def _compose_left_right_query():
     """
@@ -315,15 +357,13 @@ class main(object):
 
     q_der = rpki.left_right.cms_msg().wrap(q_msg, self.rpkid_key, self.rpkid_cert)
 
-    http_client = tornado.httpclient.AsyncHTTPClient()
-
     http_request = tornado.httpclient.HTTPRequest(
       url     = self.irdb_url,
       method  = "POST",
       body    = q_der,
       headers = { "Content-Type" : rpki.left_right.content_type })
 
-    http_response = yield http_client.fetch(http_request)
+    http_response = yield self.http_fetch(http_request)
 
     # Tornado already checked http_response.code for us
 

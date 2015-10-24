@@ -19,9 +19,9 @@
 """
 Common Django ORM field classes.
 
-Many of these are complex ASN.1 DER objects stored as SQL BLOBs, since
-the only sane text representation would just be the Base64 encoding of
-the DER and thus would add no value.
+Many of these are complex ASN.1 DER objects stored as binaray data,
+since the only sane text representation would just be the Base64
+encoding of the DER and thus would add no value.
 """
 
 import logging
@@ -83,27 +83,9 @@ class SundialField(models.DateTimeField):
 
 class BlobField(models.Field):
   """
-  Basic BLOB field, no type conversion, just an opaque byte string.
+  Old BLOB field type, predating Django's BinaryField type.
 
-  "BLOB" = "Binary Large OBject".  Most SQL implementations seem to
-  have such a thing, but support appears to predate standardization,
-  so they all do it slightly differently and we have to cope.
-
-  In PostgreSQL, BLOBs are called "bytea".
-
-  In MySQL, there are different sizes of BLOBs and one must pick the
-  right one to avoid data truncation.  RPKI manifests and CRLs can be
-  longer than 65535 octets, so in MySQL the only safe BLOB type for
-  general use is "LONGBLOB".
-
-  SQLite...is not like the other children: data types are more like
-  guidelines than actual rules.  But "BLOB" works.
-
-  For anything else, we just use "BLOB" and hope for the best.
-
-  NB: This field type predates Django 1.6's BinaryField.  Probably
-  this should be retired in favor of BinaryField, but I'd have to
-  figure out what that does to field types that derive from this one.
+  Do not use, this is only here for backwards compatabilty during migrations.
   """
 
   __metaclass__ = models.SubfieldBase
@@ -137,26 +119,33 @@ class BlobField(models.Field):
 # this if and when it ever becomes an issue.
 
 
-class DERField(BlobField):
+# DERField used to be a subclass of BlobField.  Try changing it to be
+# a subclass of BinaryField instead, leave BlobField (for now) for
+# backwards compatability during migrations,
+
+
+class DERField(models.BinaryField):
   """
-  Field class for DER objects.  These are derived from BLOBs, but with
-  automatic translation between ASN.1 and Python types.
+  Field class for DER objects.  These are derived from BinaryField,
+  but with automatic translation between ASN.1 and Python types.
 
   DERField itself is an abstract class, concrete field classes are
   derived from it.
   """
 
-  __metaclass__ = models.SubfieldBase
+  def __init__(self, *args, **kwargs):
+    kwargs["serialize"] = False
+    kwargs["blank"] = True
+    kwargs["default"] = None
+    super(DERField, self).__init__(*args, **kwargs)
 
-  def to_python(self, value):
-    if value is not None and not isinstance(value, (self.rpki_type, str)):
-      logger.warning("Why am I now seeing a %r instead of str or %r in the %r rpki.fields.DERField.to_python() method?",
-                     type(value), self.rpki_type, type(self))
-    assert value is None or isinstance(value, (self.rpki_type, str))
-    if isinstance(value, str):
-      return self.rpki_type(DER = value)
-    else:
-      return value
+  if False:
+    def to_python(self, value):
+      assert value is None or isinstance(value, (self.rpki_type, str))
+      if isinstance(value, str):
+        return self.rpki_type(DER = value)
+      else:
+        return value
 
   def get_prep_value(self, value):
     assert value is None or isinstance(value, (self.rpki_type, str))
@@ -164,6 +153,14 @@ class DERField(BlobField):
       return value.get_DER()
     else:
       return value
+
+  def from_db_value(self, value, expression, connection, context):
+    assert value is None or isinstance(value, (self.rpki_type, str))
+    if isinstance(value, str):
+      return self.rpki_type(DER = value)
+    else:
+      return value
+
 
 class CertificateField(DERField):
   description = "X.509 certificate"

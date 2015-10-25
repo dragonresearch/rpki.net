@@ -282,11 +282,25 @@
       </doc>
     </option>
 
+    <option name  = "shared_sql_engine"
+	    value = "mysql">
+      <doc>
+	Database engine to use.  Default is MySQL, because that's what
+	we've been using for years.  Now that all runtime database
+	access is via Django ORM, changing to another engine supported
+	by Django is just a configuration issue.
+      </doc>
+      <doc>
+	Current supported values are "mysql" (the default), "sqlite3",
+	and "postgresql".
+      </doc>
+    </option>
+
     <option name  = "shared_sql_username"
             value = "rpki">
       <doc>
         If you're comfortable with having all of the databases use the
-        same MySQL username, set that value here.  The default setting
+        same SQL username, set that value here.  The default setting
         of this variable should be fine.
       </doc>
     </option>
@@ -294,11 +308,19 @@
     <option name  = "shared_sql_password">
       <doc>
         If you're comfortable with having all of the databases use the
-        same MySQL password, set that value here.  You should use a
+        same SQL password, set that value here.  You should use a
         locally generated password either here or in the individual
         settings below.  The installation process generates a random
         value for this option, which satisfies this requirement, so
         ordinarily you should have no need to change this option.
+      </doc>
+    </option>
+
+    <option name  = "rpkid_sql_engine"
+	    value = "${myrpki::shared_sql_engine}">
+      <doc>
+	SQL engine to use for rpkid's database.  The default setting
+	of this variable should be fine.
       </doc>
     </option>
 
@@ -326,6 +348,14 @@
       </doc>
     </option>
 
+    <option name  = "irdbd_sql_engine"
+	    value = "${myrpki::shared_sql_engine}">
+      <doc>
+	SQL engine to use for irdbd's database.  The default setting
+	of this variable should be fine.
+      </doc>
+    </option>
+
     <option name  = "irdbd_sql_database"
             value = "irdbd">
       <doc>
@@ -347,6 +377,14 @@
       <doc>
         If you want to use a separate SQL password for irdbd's database,
         set it here.
+      </doc>
+    </option>
+
+    <option name  = "pubd_sql_engine"
+	    value = "${myrpki::shared_sql_engine}">
+      <doc>
+	SQL engine to use for pubd's database.  The default setting
+	of this variable should be fine.
       </doc>
     </option>
 
@@ -385,24 +423,31 @@
       Certificates and keys may be in either DER or PEM format.
     </doc>
 
+    <option name  = "sql-engine"
+	    value = "${myrpki::rpkid_sql_engine}">
+      <doc>
+	SQL engine for rpkid.
+      </doc>
+    </option>
+
     <option name  = "sql-database"
             value = "${myrpki::rpkid_sql_database}">
       <doc>
-        MySQL database name for rpkid.
+        SQL database name for rpkid.
       </doc>
     </option>
 
     <option name  = "sql-username"
             value = "${myrpki::rpkid_sql_username}">
       <doc>
-        MySQL user name for rpkid.
+        SQL user name for rpkid.
       </doc>
     </option>
 
     <option name  = "sql-password"
             value = "${myrpki::rpkid_sql_password}">
       <doc>
-        MySQL password for rpkid.
+        SQL password for rpkid.
       </doc>
     </option>
 
@@ -490,24 +535,31 @@
       configuration than the other daemons.
     </doc>
 
+    <option name  = "sql-engine"
+	    value = "${myrpki::irdbd_sql_engine}">
+      <doc>
+	SQL engine for irdbd.
+      </doc>
+    </option>
+
     <option name  = "sql-database"
             value = "${myrpki::irdbd_sql_database}">
       <doc>
-        MySQL database name for irdbd.
+        SQL database name for irdbd.
       </doc>
     </option>
 
     <option name  = "sql-username"
             value = "${myrpki::irdbd_sql_username}">
       <doc>
-        MySQL user name for irdbd.
+        SQL user name for irdbd.
       </doc>
     </option>
 
     <option name  = "sql-password"
             value = "${myrpki::irdbd_sql_password}">
       <doc>
-        MySQL password for irdbd.
+        SQL password for irdbd.
       </doc>
     </option>
 
@@ -543,24 +595,31 @@
       BPKI certificates and keys may be either DER or PEM format.
     </doc>
 
+    <option name  = "sql-engine"
+	    value = "${myrpki::pubd_sql_engine}">
+      <doc>
+	SQL engine for pubd.
+      </doc>
+    </option>
+
     <option name  = "sql-database"
             value = "${myrpki::pubd_sql_database}">
       <doc>
-        MySQL database name for pubd.
+        SQL database name for pubd.
       </doc>
     </option>
 
     <option name  = "sql-username"
             value = "${myrpki::pubd_sql_username}">
       <doc>
-        MySQL user name for pubd.
+        SQL user name for pubd.
       </doc>
     </option>
 
     <option name  = "sql-password"
             value = "${myrpki::pubd_sql_password}">
       <doc>
-        MySQL password for pubd.
+        SQL password for pubd.
       </doc>
     </option>
 

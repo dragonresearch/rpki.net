@@ -28,12 +28,9 @@ __version__ = "$Id$"
 
 # Database configuration.
 
-DATABASES = dict(
-    default = dict(ENGINE   = "django.db.backends.mysql",
-                   NAME     = cfg.get("sql-database", section = "irdbd"),
-                   USER     = cfg.get("sql-username", section = "irdbd"),
-                   PASSWORD = cfg.get("sql-password", section = "irdbd"),
-                   OPTIONS  = dict(charset = "latin1")))
+DATABASES = DatabaseConfigurator().configure(cfg, "irdbd")
+del DatabaseConfigurator
+
 
 # Apps.
 

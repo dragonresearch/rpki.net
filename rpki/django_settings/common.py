@@ -50,11 +50,47 @@ if os.getenv("RPKI_DJANGO_DEBUG") == "yes":
     DEBUG = True
 
 
-# Database configuration is handled in the modules that import this
-# one, as it differs from program to program.  We tried using a Django
-# "database router" here, and it sort of worked, but it was a bit
-# fragile, tedious to use, and generally more complex than we need,
-# because any given program is only going to be using one database.
+# Database configuration differs from program to program, but includes
+# a lot of boilerplate.  So we define a class here to handle this,
+# then use it and clean up in the modules that import from this one.
+
+class DatabaseConfigurator(object):
+
+    def configure(self, cfg, section):
+        self.cfg = cfg
+        self.section = section
+        return dict(default = getattr(self, cfg.get("sql-engine", section = section, default = "mysql"))())
+
+    def mysql(self):
+        return dict(
+            ENGINE   = "django.db.backends.mysql",
+            NAME     = cfg.get("sql-database", section = self.section),
+            USER     = cfg.get("sql-username", section = self.section),
+            PASSWORD = cfg.get("sql-password", section = self.section),
+            #
+            # Using "latin1" here is totally evil and wrong, but
+            # without it MySQL 5.6 (and, probably, later versions)
+            # whine incessantly about bad UTF-8 characters when one
+            # stores ASN.1 DER in BLOB columns.  Which makes no
+            # freaking sense at all, but this is MySQL, which has a
+            # character set management interface from hell, so good
+            # luck with that.  If anybody really understands how to
+            # fix this, tell me; for now, we force MySQL to revert to
+            # the default behavior in MySQL 5.5.
+            #
+            OPTIONS  = dict(charset = "latin1"))
+
+    def sqlite3(self):
+        return dict(
+            ENGINE   = "django.db.backends.sqlite3",
+            NAME     = cfg.get("sql-database", section = self.section))
+
+    def postgresql(self):
+        return dict(
+            ENGINE   = "django.db.backends.postgresql_psycopg2",
+            NAME     = cfg.get("sql-database", section = section),
+            USER     = cfg.get("sql-username", section = section),
+            PASSWORD = cfg.get("sql-password", section = section))
 
 
 # Apps are also handled by the modules that import this one, now that

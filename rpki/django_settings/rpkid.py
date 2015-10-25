@@ -30,7 +30,8 @@ DATABASES = dict(
     default = dict(ENGINE   = "django.db.backends.mysql",
                    NAME     = cfg.get("sql-database", section = "rpkid"),
                    USER     = cfg.get("sql-username", section = "rpkid"),
-                   PASSWORD = cfg.get("sql-password", section = "rpkid")))
+                   PASSWORD = cfg.get("sql-password", section = "rpkid"),
+                   OPTIONS  = dict(charset = "latin1")))
 
 
 # Apps.

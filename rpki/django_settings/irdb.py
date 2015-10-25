@@ -32,7 +32,8 @@ DATABASES = dict(
     default = dict(ENGINE   = "django.db.backends.mysql",
                    NAME     = cfg.get("sql-database", section = "irdbd"),
                    USER     = cfg.get("sql-username", section = "irdbd"),
-                   PASSWORD = cfg.get("sql-password", section = "irdbd")))
+                   PASSWORD = cfg.get("sql-password", section = "irdbd"),
+                   OPTIONS  = dict(charset = "latin1")))
 
 # Apps.
 

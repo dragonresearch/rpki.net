@@ -25,6 +25,7 @@ import os
 import time
 import random
 import logging
+import weakref
 import argparse
 import urlparse
 
@@ -71,7 +72,7 @@ class main(object):
     self.task_queue = []
     self.task_event = tornado.locks.Event()
 
-    self.http_client_serialize = {}
+    self.http_client_serialize = weakref.WeakValueDictionary()
 
     parser = argparse.ArgumentParser(description = __doc__)
     parser.add_argument("-c", "--config",

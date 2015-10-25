@@ -225,7 +225,7 @@ class allocation(object):
   @classmethod
   def allocate_engine(cls):
     """
-    Allocate an engine number, mostly used to construct MySQL database
+    Allocate an engine number, mostly used to construct SQL database
     names.
     """
 
@@ -490,17 +490,11 @@ class allocation(object):
       run_rpkid                         = str(not self.is_hosted),
       run_pubd                          = str(self.runs_pubd),
       run_rootd                         = str(self.is_root),
-      irdbd_sql_database                = "irdb%d" % self.engine,
-      irdbd_sql_username                = "irdb",
-      rpkid_sql_database                = "rpki%d" % self.engine,
-      rpkid_sql_username                = "rpki",
       rpkid_server_host                 = "localhost",
       rpkid_server_port                 = str(self.rpkid_port),
       irdbd_server_host                 = "localhost",
       irdbd_server_port                 = str(self.irdbd_port),
       rootd_server_port                 = str(self.rootd_port),
-      pubd_sql_database                 = "pubd%d" % self.engine,
-      pubd_sql_username                 = "pubd",
       pubd_server_host                  = "localhost",
       pubd_server_port                  = str(self.pubd.pubd_port),
       publication_rsync_server          = "localhost:%s" % self.pubd.rsync_port,
@@ -508,7 +502,22 @@ class allocation(object):
       bpki_servers_directory            = self.path(),
       publication_base_directory        = self.path("publication"),
       rrdp_publication_base_directory   = self.path("rrdp-publication"),
-      shared_sql_password               = "fnord")
+      shared_sql_engine                 = args.sql_engine,
+      shared_sql_password               = "fnord",
+      irdbd_sql_username                = "irdb",
+      rpkid_sql_username                = "rpki",
+      pubd_sql_username                 = "pubd")
+
+    if args.sql_engine == "sqlite3":
+      r.update(
+        irdbd_sql_database              = self.path("irdb.sqlite3"),
+        rpkid_sql_database              = self.path("rpkidb.sqlite3"),
+        pubd_sql_database               = self.path("pubdb.sqlite3"))
+    else:
+      r.update(
+        irdbd_sql_database              = "irdb%d" % self.engine,
+        rpkid_sql_database              = "rpki%d" % self.engine,
+        pubd_sql_database               = "pubd%d" % self.engine)
 
     r.update(config_overrides)
 
@@ -755,6 +764,8 @@ parser.add_argument("--notify-when-startup-complete", type = int,
                     help = "send SIGUSR1 to this process when startup is complete")
 parser.add_argument("--store-router-private-keys", action = "store_true",
                     help = "write generate router private keys to disk")
+parser.add_argument("--sql-engine", choices = ("mysql", "sqlite3", "postgresql"), default = "sqlite3",
+                    help = "select SQL engine to use")
 parser.add_argument("yaml_file", type = argparse.FileType("r"),
                     help = "YAML description of test network")
 args = parser.parse_args()

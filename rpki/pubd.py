@@ -184,10 +184,10 @@ class main(object):
                 client.base_uri = q_pdu.get("base_uri")
               bpki_cert = q_pdu.find(rpki.publication_control.tag_bpki_cert)
               if bpki_cert is not None:
-                client.bpki_cert = bpki_cert.text.decode("base64")
+                client.bpki_cert = rpki.x509.X509(Base64 = bpki_cert.text)
               bpki_glue = q_pdu.find(rpki.publication_control.tag_bpki_glue)
               if bpki_glue is not None:
-                client.bpki_glue = bpki_glue.text.decode("base64")
+                client.bpki_glue = rpki.x509.X509(Base64 = bpki_glue.text)
               if q_pdu.get("clear_replay_protection") == "yes":
                 client.last_cms_timestamp = None
               client.save()

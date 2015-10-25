@@ -123,43 +123,39 @@ class BlobField(models.Field):
 # a subclass of BinaryField instead, leave BlobField (for now) for
 # backwards compatability during migrations,
 
-
 class DERField(models.BinaryField):
   """
-  Field class for DER objects.  These are derived from BinaryField,
-  but with automatic translation between ASN.1 and Python types.
-
-  DERField itself is an abstract class, concrete field classes are
-  derived from it.
+  Field class for DER objects, with automatic translation between
+  ASN.1 and Python types.  This is an abstract class, concrete field
+  classes are derived from it.
   """
 
   def __init__(self, *args, **kwargs):
-    kwargs["serialize"] = False
     kwargs["blank"] = True
     kwargs["default"] = None
     super(DERField, self).__init__(*args, **kwargs)
 
-  if False:
-    def to_python(self, value):
-      assert value is None or isinstance(value, (self.rpki_type, str))
-      if isinstance(value, str):
-        return self.rpki_type(DER = value)
-      else:
-        return value
-
-  def get_prep_value(self, value):
-    assert value is None or isinstance(value, (self.rpki_type, str))
-    if isinstance(value, self.rpki_type):
-      return value.get_DER()
-    else:
-      return value
+  def deconstruct(self):
+    name, path, args, kwargs = super(DERField, self).deconstruct()
+    del kwargs["blank"]
+    del kwargs["default"]
+    return name, path, args, kwargs
 
   def from_db_value(self, value, expression, connection, context):
-    assert value is None or isinstance(value, (self.rpki_type, str))
-    if isinstance(value, str):
-      return self.rpki_type(DER = value)
-    else:
-      return value
+    if value is not None:
+      value = self.rpki_type(DER = str(value))
+    return value
+
+  def to_python(self, value):
+    value = super(DERField, self).to_python(value)
+    if value is not None and not isinstance(value, self.rpki_type):
+      value = self.rpki_type(DER = str(value))
+    return value
+
+  def get_prep_value(self, value):
+    if value is not None:
+      value = value.get_DER()
+    return super(DERField, self).get_prep_value(value)
 
 
 class CertificateField(DERField):

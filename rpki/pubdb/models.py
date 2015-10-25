@@ -20,7 +20,7 @@ Django ORM models for pubd.
 
 from __future__ import unicode_literals
 from django.db import models
-from rpki.fields import BlobField, CertificateField, SundialField
+from rpki.fields import CertificateField, SundialField
 from lxml.etree import Element, SubElement, tostring as ElementToString
 
 import os
@@ -303,7 +303,7 @@ class Delta(models.Model):
 
 class PublishedObject(models.Model):
   uri = models.CharField(max_length = 255)
-  der = BlobField()
+  der = models.BinaryField()
   hash = models.CharField(max_length = 64)
   client = models.ForeignKey(Client)
   session = models.ForeignKey(Session)

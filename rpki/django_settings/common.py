@@ -56,11 +56,17 @@ if os.getenv("RPKI_DJANGO_DEBUG") == "yes":
 
 class DatabaseConfigurator(object):
 
+    default_sql_engine = "mysql"
+
     def configure(self, cfg, section):
         self.cfg = cfg
         self.section = section
-        return dict(default = getattr(self, cfg.get("sql-engine", section = section, default = "mysql"))())
+        engine = cfg.get("sql-engine", section = section,
+                         default = self.default_sql_engine)
+        return dict(
+            default = getattr(self, engine))
 
+    @property
     def mysql(self):
         return dict(
             ENGINE   = "django.db.backends.mysql",
@@ -70,21 +76,23 @@ class DatabaseConfigurator(object):
             #
             # Using "latin1" here is totally evil and wrong, but
             # without it MySQL 5.6 (and, probably, later versions)
-            # whine incessantly about bad UTF-8 characters when one
-            # stores ASN.1 DER in BLOB columns.  Which makes no
-            # freaking sense at all, but this is MySQL, which has a
-            # character set management interface from hell, so good
-            # luck with that.  If anybody really understands how to
-            # fix this, tell me; for now, we force MySQL to revert to
-            # the default behavior in MySQL 5.5.
+            # whine incessantly about bad UTF-8 characters in BLOB
+            # columns.  Which makes no freaking sense at all, but this
+            # is MySQL, which has the character set management interface
+            # from hell, so good luck with that.  If anybody really
+            # understands how to fix this, tell me; for now, we force
+            # MySQL to revert to the default behavior in MySQL 5.5.
             #
-            OPTIONS  = dict(charset = "latin1"))
+            #OPTIONS  = dict(charset = "latin1")
+            )
 
+    @property
     def sqlite3(self):
         return dict(
             ENGINE   = "django.db.backends.sqlite3",
             NAME     = cfg.get("sql-database", section = self.section))
 
+    @property
     def postgresql(self):
         return dict(
             ENGINE   = "django.db.backends.postgresql_psycopg2",

@@ -90,7 +90,6 @@ YAMLTEST_CONFIG = smoketest.1.yaml
 
 yamltest:
 	rm -rf yamltest.dir rcynic-data
-	${PYTHON} sql-cleaner.py
 	${PYTHON} yamltest.py ${YAMLTEST_CONFIG}
 
 YAMLCONF_CONFIG = ${YAMLTEST_CONFIG}

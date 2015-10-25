@@ -18,7 +18,7 @@ from django.db import models
 
 import rpki.left_right
 
-from rpki.fields import (EnumField, SundialField, BlobField,
+from rpki.fields import (EnumField, SundialField,
                          CertificateField, RSAPrivateKeyField,
                          PublicKeyField, CRLField, PKCS10Field,
                          ManifestField, ROAField, GhostbusterField)
@@ -1705,7 +1705,7 @@ class Child(models.Model):
 class ChildCert(models.Model):
   cert = CertificateField()
   published = SundialField(null = True)
-  ski = BlobField()
+  ski = models.BinaryField()
   child = models.ForeignKey(Child, related_name = "child_certs")
   ca_detail = models.ForeignKey(CADetail, related_name = "child_certs")
 
@@ -1820,7 +1820,7 @@ class ChildCert(models.Model):
 
 
 class EECertificate(models.Model):
-  ski = BlobField()
+  ski = models.BinaryField()
   cert = CertificateField()
   published = SundialField(null = True)
   tenant = models.ForeignKey(Tenant, related_name = "ee_certificates")

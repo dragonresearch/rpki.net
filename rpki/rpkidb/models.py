@@ -552,6 +552,10 @@ class Parent(models.Model):
 
     Result is a dictionary with the resource class name as key and a
     set of SKIs as value.
+
+    This, like everything else dealing with SKIs in the up-down
+    protocol, is mis-named: we're really dealing with g(SKI) values,
+    not raw SKI values.  Sorry.
     """
 
     r_msg = yield self.up_down_list_query(rpkid = rpkid)
@@ -574,7 +578,7 @@ class Parent(models.Model):
     """
 
     for ski in skis_to_revoke:
-      logger.debug("Asking parent %r to revoke class %r, SKI %s", self, rc_name, ski)
+      logger.debug("Asking parent %r to revoke class %r, g(SKI) %s", self, rc_name, ski)
       yield self.up_down_revoke_query(rpkid = rpkid, class_name = rc_name, ski = ski)
 
 
@@ -776,7 +780,7 @@ class CA(models.Model):
       rc_cert, rc_cert_uri = cert_map.pop(ca_detail.public_key.gSKI(), (None, None))
 
       if rc_cert is None:
-        logger.warning("SKI %s in resource class %s is in database but missing from list_response to %s from %s, "
+        logger.warning("g(SKI) %s in resource class %s is in database but missing from list_response to %s from %s, "
                        "maybe parent certificate went away?",
                        ca_detail.public_key.gSKI(), class_name, parent.tenant.tenant_handle, parent.parent_handle)
         publisher = rpki.rpkid.publication_queue(rpkid)
@@ -813,7 +817,7 @@ class CA(models.Model):
           old_resources    = current_resources)
 
     if cert_map:
-      logger.warning("Unknown certificate SKI%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?",
+      logger.warning("Unknown certificate g(SKI)%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?",
                      "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.tenant.tenant_handle, parent.parent_handle)
 
 
@@ -1093,7 +1097,7 @@ class CADetail(models.Model):
   @tornado.gen.coroutine
   def revoke(self, rpkid):
     """
-    Request revocation of all certificates whose SKI matches the key
+    Request revocation of all certificates whose g(SKI) matches the key
     for this ca_detail.
 
     Tasks:
@@ -1116,7 +1120,7 @@ class CADetail(models.Model):
 
     gski = self.latest_ca_cert.gSKI()
 
-    logger.debug("Asking parent to revoke CA certificate %s", gski)
+    logger.debug("Asking parent to revoke CA certificate matching g(SKI) = %s", gski)
 
     r_msg = yield self.ca.parent.up_down_revoke_query(rpkid = rpkid, class_name = self.ca.parent_resource_class, ski = gski)
 
@@ -1126,7 +1130,7 @@ class CADetail(models.Model):
     if r_msg[0].get("ski") != gski:
       raise rpki.exceptions.SKIMismatch
 
-    logger.debug("Parent revoked %s, starting cleanup", gski)
+    logger.debug("Parent revoked g(SKI) %s, starting cleanup", gski)
 
     crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.tenant.crl_interval)
 
@@ -1299,7 +1303,7 @@ class CADetail(models.Model):
       child_cert.cert = cert
       child_cert.ca_detail = self
       logger.debug("Reusing existing child_cert %r", child_cert)
-    child_cert.ski = cert.get_SKI()
+    child_cert.gski = cert.gSKI()
     child_cert.published = rpki.sundial.now()
     child_cert.save()
     publisher.queue(
@@ -1622,7 +1626,7 @@ class Child(models.Model):
     publisher = rpki.rpkid.publication_queue(rpkid)
 
     try:
-      child_cert = self.child_certs.get(ca_detail = ca_detail, ski = req_key.get_SKI())
+      child_cert = self.child_certs.get(ca_detail = ca_detail, gski = req_key.gSKI())
 
     except ChildCert.DoesNotExist:
       child_cert = ca_detail.issue(
@@ -1659,11 +1663,10 @@ class Child(models.Model):
     key = q_msg[0]
     assert key.tag == rpki.up_down.tag_key
     class_name = key.get("class_name")
-    ski = base64.urlsafe_b64decode(key.get("ski") + "=")
     publisher = rpki.rpkid.publication_queue(rpkid)
     for child_cert in ChildCert.objects.filter(ca_detail__ca__parent__tenant = self.tenant,
                                                ca_detail__ca__parent_resource_class = class_name,
-                                               ski = ski):
+                                               gski = key.get("ski")):
       child_cert.revoke(publisher = publisher)
     yield publisher.call_pubd()
     SubElement(r_msg, key.tag, class_name = class_name, ski = key.get("ski"))
@@ -1705,7 +1708,7 @@ class Child(models.Model):
 class ChildCert(models.Model):
   cert = CertificateField()
   published = SundialField(null = True)
-  ski = models.BinaryField()
+  gski = models.CharField(max_length = 27)      # Assumes SHA-1 -- SHA-256 would be 43, SHA-512 would be 86, etc.
   child = models.ForeignKey(Child, related_name = "child_certs")
   ca_detail = models.ForeignKey(CADetail, related_name = "child_certs")
 
@@ -1716,7 +1719,7 @@ class ChildCert(models.Model):
     Return the tail (filename) portion of the URI for this child_cert.
     """
 
-    return self.cert.gSKI() + ".cer"
+    return self.gski + ".cer"
 
 
   @property
@@ -1792,7 +1795,7 @@ class ChildCert(models.Model):
       logger.debug("No change to %r", self)
       return self
     if must_revoke:
-      for x in child.child_certs.filter(ca_detail = ca_detail, ski = self.ski):
+      for x in child.child_certs.filter(ca_detail = ca_detail, gski = self.gski):
         logger.debug("Revoking child_cert %r", x)
         x.revoke(publisher = publisher)
       ca_detail.generate_crl(publisher = publisher)
@@ -1820,27 +1823,11 @@ class ChildCert(models.Model):
 
 
 class EECertificate(models.Model):
-  ski = models.BinaryField()
+  gski = models.CharField(max_length = 27)      # Assumes SHA-1 -- SHA-256 would be 43, SHA-512 would be 86, etc.
   cert = CertificateField()
   published = SundialField(null = True)
   tenant = models.ForeignKey(Tenant, related_name = "ee_certificates")
   ca_detail = models.ForeignKey(CADetail, related_name = "ee_certificates")
-
-
-  @property
-  def gski(self):
-    """
-    Calculate g(SKI), for ease of comparison with XML.
-
-    Although, really, one has to ask why we don't just store g(SKI)
-    instead of SKI....
-    """
-
-    return base64.urlsafe_b64encode(self.ski).rstrip("=")
-
-  @gski.setter
-  def gski(self, val):
-    self.ski = base64.urlsafe_b64decode(val + ("=" * ((4 - len(val)) % 4)))
 
 
   @property
@@ -1859,7 +1846,7 @@ class EECertificate(models.Model):
     ee_cert_obj.
     """
 
-    return self.cert.gSKI() + ".cer"
+    return self.gski + ".cer"
 
 
   @classmethod
@@ -1868,8 +1855,14 @@ class EECertificate(models.Model):
     Generate a new EE certificate.
     """
 
+    # The low-level X.509 code really ought to supply the singleton
+    # tuple wrapper when handed a string, but that yak will need to
+    # wait until another day for its shave.
+
     cn, sn = subject_name.extract_cn_and_sn()
-    sia = (None, None, ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer", ca_detail.ca.parent.repository.rrdp_notification_uri)
+    sia = (None, None,
+           (ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer",),
+           (ca_detail.ca.parent.repository.rrdp_notification_uri,))
     cert = ca_detail.issue_ee(
       ca          = ca_detail.ca,
       subject_key = subject_key,
@@ -1879,7 +1872,7 @@ class EECertificate(models.Model):
       cn          = cn,
       sn          = sn,
       eku         = eku)
-    self = cls(tenant = ca_detail.ca.parent.tenant, ca_detail = ca_detail, cert = cert, ski = subject_key.get_SKI())
+    self = cls(tenant = ca_detail.ca.parent.tenant, ca_detail = ca_detail, cert = cert, gski = subject_key.gSKI())
     publisher.queue(
       uri        = self.uri,
       new_obj    = self.cert,

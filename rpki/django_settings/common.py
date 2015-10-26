@@ -96,9 +96,9 @@ class DatabaseConfigurator(object):
     def postgresql(self):
         return dict(
             ENGINE   = "django.db.backends.postgresql_psycopg2",
-            NAME     = cfg.get("sql-database", section = section),
-            USER     = cfg.get("sql-username", section = section),
-            PASSWORD = cfg.get("sql-password", section = section))
+            NAME     = cfg.get("sql-database", section = self.section),
+            USER     = cfg.get("sql-username", section = self.section),
+            PASSWORD = cfg.get("sql-password", section = self.section))
 
 
 # Apps are also handled by the modules that import this one, now that

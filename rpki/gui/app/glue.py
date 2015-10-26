@@ -34,7 +34,7 @@ from rpki.left_right import nsmap, version, tag_msg, tag_list_received_resources
 
 from lxml.etree import Element, SubElement
 from django.contrib.auth.models import User
-from django.db.transaction import commit_on_success
+from django.db.transaction import atomic
 
 
 def ghostbuster_to_vcard(gbr):
@@ -67,7 +67,7 @@ def ghostbuster_to_vcard(gbr):
     return vcard.serialize()
 
 
-@commit_on_success
+@atomic
 def list_received_resources(log, conf):
     """
     Query rpkid for this resource handle's received resources.

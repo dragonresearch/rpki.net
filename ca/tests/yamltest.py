@@ -689,6 +689,7 @@ class allocation(object):
         cmd = (prog_rpki_manage, "runserver", str(port))
         env = dict(os.environ,
                    RPKI_CONF = self.path("rpki.conf"),
+                   DJANGO_SETTINGS_MODULE = "rpki.django_settings.gui",
                    RPKI_DJANGO_DEBUG = "yes",
                    ALLOW_PLAIN_HTTP_FOR_TESTING = "I solemnly swear that I am not running this in production")
         p = subprocess.Popen(cmd, cwd = self.path(), env = env,
@@ -756,10 +757,10 @@ parser.add_argument("--synchronize", action = "store_true",
                     help = "synchronize IRDB with daemons")
 parser.add_argument("--profile", action = "store_true",
                     help = "enable profiling")
-parser.add_argument("-g", "--run_gui", action = "store_true",
+parser.add_argument("-g", "--run_gui", "--gui", action = "store_true",
                     help = "enable GUI using django-admin runserver")
-parser.add_argument("--browser", action = "store_true",
-                    help = "create web browser tabs for GUI")
+parser.add_argument("--no-browser", action = "store_true",
+                    help = "don't create web browser tabs for GUI")
 parser.add_argument("--notify-when-startup-complete", type = int,
                     help = "send SIGUSR1 to this process when startup is complete")
 parser.add_argument("--store-router-private-keys", action = "store_true",
@@ -950,7 +951,7 @@ try:
                 if not d.is_hosted:
                     url = "http://127.0.0.1:%d/rpki/" % (8000 + d.engine)
                     print "GUI URL", url, "for", d.name
-                    if args.browser:
+                    if not args.no_browser:
                         if d is db.root:
                             webbrowser.open_new(url)
                         else:

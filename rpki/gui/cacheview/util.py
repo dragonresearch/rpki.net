@@ -249,7 +249,7 @@ def save_status(repo, vs):
         logger.debug('object is unchanged')
 
 
-@transaction.commit_on_success
+@transaction.atomic
 def process_cache(root, xml_file):
 
     last_uri = None
@@ -289,7 +289,7 @@ def process_cache(root, xml_file):
     logger.info('done with garbage collection')
 
 
-@transaction.commit_on_success
+@transaction.atomic
 def process_labels(xml_file):
     logger.info('updating labels...')
 

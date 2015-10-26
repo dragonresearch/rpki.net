@@ -42,7 +42,8 @@ from django.forms.formsets import formset_factory, BaseFormSet
 from django.contrib import messages
 from django.db.models import Q
 
-from rpki.irdb import Zookeeper, ChildASN, ChildNet, ROARequestPrefix
+from rpki.irdb import Zookeeper
+from rpki.irdb.models import ChildASN, ChildNet, ROARequestPrefix
 from rpki.gui.app import models, forms, glue, range_list
 from rpki.resource_set import (resource_range_as, resource_range_ip,
                                roa_prefix_ipv4)

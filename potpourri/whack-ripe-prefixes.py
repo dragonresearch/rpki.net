@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2010  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -49,21 +49,21 @@ sorter = subprocess.Popen(("sort", "-T.", "-n"),
                           stdout = subprocess.PIPE)
 
 for line in sys.stdin:
-  handle, prefix = line.split()
+    handle, prefix = line.split()
 
-  if "-" in prefix:
-    range_min, range_max = prefix.split("-")
-    range_min = rpki.ipaddrs.parse(range_min)
-    range_max = rpki.ipaddrs.parse(range_max)
+    if "-" in prefix:
+        range_min, range_max = prefix.split("-")
+        range_min = rpki.ipaddrs.parse(range_min)
+        range_max = rpki.ipaddrs.parse(range_max)
 
-  else:
-    address, length = prefix.split("/")
-    address = rpki.ipaddrs.parse(address)
-    mask = (1L << (address.bits - int(length))) - 1
-    range_min = address & ~mask
-    range_max = address |  mask
+    else:
+        address, length = prefix.split("/")
+        address = rpki.ipaddrs.parse(address)
+        mask = (1L << (address.bits - int(length))) - 1
+        range_min = address & ~mask
+        range_max = address |  mask
 
-  sorter.stdin.write("%d %d\n" % (long(range_min), long(range_max)))
+    sorter.stdin.write("%d %d\n" % (long(range_min), long(range_max)))
 
 sorter.stdin.close()
 
@@ -71,28 +71,28 @@ prev_min = None
 prev_max = None
 
 def address(number):
-  if number > 0xffffffff:
-    return rpki.ipaddrs.v6addr(number)
-  else:
-    return rpki.ipaddrs.v4addr(number)
+    if number > 0xffffffff:
+        return rpki.ipaddrs.v6addr(number)
+    else:
+        return rpki.ipaddrs.v4addr(number)
 
 def show():
-  if prev_min and prev_max:
-    sys.stdout.write("x\t%s-%s\n" % (address(prev_min), address(prev_max)))
+    if prev_min and prev_max:
+        sys.stdout.write("x\t%s-%s\n" % (address(prev_min), address(prev_max)))
 
 for line in sorter.stdout:
-  this_min, this_max = line.split()
-  this_min = long(this_min)
-  this_max = long(this_max)
+    this_min, this_max = line.split()
+    this_min = long(this_min)
+    this_max = long(this_max)
 
-  if prev_min and prev_max and prev_max + 1 >= this_min:
-    prev_min = min(prev_min, this_min)
-    prev_max = max(prev_max, this_max)
+    if prev_min and prev_max and prev_max + 1 >= this_min:
+        prev_min = min(prev_min, this_min)
+        prev_max = max(prev_max, this_max)
 
-  else:
-    show()
-    prev_min = this_min
-    prev_max = this_max
+    else:
+        show()
+        prev_min = this_min
+        prev_max = this_max
 
 show()
 

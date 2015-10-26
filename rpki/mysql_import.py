@@ -52,11 +52,11 @@ from __future__ import with_statement
 import warnings
 
 if hasattr(warnings, "catch_warnings"):
-  with warnings.catch_warnings():
-    warnings.simplefilter("ignore", DeprecationWarning)
-    import MySQLdb
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        import MySQLdb
 else:
-  import MySQLdb
+    import MySQLdb
 
 import _mysql_exceptions
 

@@ -29,25 +29,25 @@ from urlparse           import urlparse
 from argparse           import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 class BadHash(Exception):
-  "Calculated hash value doesn't match expected hash value."
+    "Calculated hash value doesn't match expected hash value."
 
 def fetch(elt):
-  uri = elt.get("uri")
-  hash = elt.get("hash").lower()
-  print "Fetching", uri
+    uri = elt.get("uri")
+    hash = elt.get("hash").lower()
+    print "Fetching", uri
 
-  text = urlopen(uri).read()
-  h = sha256(text).encode("hex")
-  if h != hash:
-    raise BadHash("Bad hash for %s: expected %s got %s" % (uri, hash, h))
+    text = urlopen(uri).read()
+    h = sha256(text).encode("hex")
+    if h != hash:
+        raise BadHash("Bad hash for %s: expected %s got %s" % (uri, hash, h))
 
-  xml = XML(text)
-  rrdp.schema.assertValid(xml)
+    xml = XML(text)
+    rrdp.schema.assertValid(xml)
 
-  u = urlparse(uri)
-  fn = u.netloc + u.path
+    u = urlparse(uri)
+    fn = u.netloc + u.path
 
-  return elt, xml, fn
+    return elt, xml, fn
 
 parser = ArgumentParser(description = __doc__, formatter_class = ArgumentDefaultsHelpFormatter)
 parser.add_argument("uri", nargs = "?",
@@ -65,4 +65,4 @@ deltas = [fetch(elt) for elt in updates.findall(rrdp.xmlns + "delta")]
 print updates
 print snapshot
 for delta in deltas:
-  print delta
+    print delta

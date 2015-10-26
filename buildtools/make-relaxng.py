@@ -1,5 +1,5 @@
 # $Id$
-# 
+#
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
@@ -40,13 +40,13 @@ del RelaxNGParser
 """
 
 def symbol(s):
-  for suffix in (".rng", "-schema"):
-    if s.endswith(suffix):
-      s = s[:-len(suffix)]
-  return s.replace("-", "_")
+    for suffix in (".rng", "-schema"):
+        if s.endswith(suffix):
+            s = s[:-len(suffix)]
+    return s.replace("-", "_")
 
 sys.stdout.write(header)
 for fn in sys.argv[1:]:
-  with open(fn, "r") as f:
-    sys.stdout.write(format % dict(name = symbol(fn), rng = f.read()))
+    with open(fn, "r") as f:
+        sys.stdout.write(format % dict(name = symbol(fn), rng = f.read()))
 sys.stdout.write(footer)

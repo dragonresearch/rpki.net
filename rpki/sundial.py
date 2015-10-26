@@ -48,257 +48,257 @@ import datetime as pydatetime
 import re
 
 def now():
-  """
-  Get current timestamp.
-  """
+    """
+    Get current timestamp.
+    """
 
-  return datetime.utcnow()
+    return datetime.utcnow()
 
 class ParseFailure(Exception):
-  """
-  Parse failure constructing timedelta.
-  """
+    """
+    Parse failure constructing timedelta.
+    """
 
 class datetime(pydatetime.datetime):
-  """
-  RPKI extensions to standard datetime.datetime class.  All work here
-  is in UTC, so we use naive datetime objects.
-  """
-
-  def totimestamp(self):
     """
-    Convert to seconds from epoch (like time.time()).  Conversion
-    method is a bit silly, but avoids time module timezone whackiness.
+    RPKI extensions to standard datetime.datetime class.  All work here
+    is in UTC, so we use naive datetime objects.
     """
 
-    return int(self.strftime("%s"))
+    def totimestamp(self):
+        """
+        Convert to seconds from epoch (like time.time()).  Conversion
+        method is a bit silly, but avoids time module timezone whackiness.
+        """
 
-  @classmethod
-  def fromXMLtime(cls, x):
-    """
-    Convert from XML time representation.
-    """
+        return int(self.strftime("%s"))
 
-    if x is None:
-      return None
-    else:
-      return cls.strptime(x, "%Y-%m-%dT%H:%M:%SZ")
+    @classmethod
+    def fromXMLtime(cls, x):
+        """
+        Convert from XML time representation.
+        """
 
-  def toXMLtime(self):
-    """
-    Convert to XML time representation.
-    """
+        if x is None:
+            return None
+        else:
+            return cls.strptime(x, "%Y-%m-%dT%H:%M:%SZ")
 
-    return self.strftime("%Y-%m-%dT%H:%M:%SZ")
+    def toXMLtime(self):
+        """
+        Convert to XML time representation.
+        """
 
-  def __str__(self):
-    return self.toXMLtime()
+        return self.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-  @classmethod
-  def from_datetime(cls, x):
-    """
-    Convert a datetime.datetime object into this subclass.  This is
-    whacky due to the weird constructors for datetime.
-    """
+    def __str__(self):
+        return self.toXMLtime()
 
-    return cls.combine(x.date(), x.time())
+    @classmethod
+    def from_datetime(cls, x):
+        """
+        Convert a datetime.datetime object into this subclass.  This is
+        whacky due to the weird constructors for datetime.
+        """
 
-  def to_datetime(self):
-    """
-    Convert to a datetime.datetime object.  In most cases this
-    shouldn't be necessary, but convincing SQL interfaces to use
-    subclasses of datetime can be hard.
-    """
+        return cls.combine(x.date(), x.time())
 
-    return pydatetime.datetime(year = self.year, month = self.month, day = self.day,
-                               hour = self.hour, minute = self.minute, second = self.second,
-                               microsecond = 0, tzinfo = None)
+    def to_datetime(self):
+        """
+        Convert to a datetime.datetime object.  In most cases this
+        shouldn't be necessary, but convincing SQL interfaces to use
+        subclasses of datetime can be hard.
+        """
+
+        return pydatetime.datetime(year = self.year, month = self.month, day = self.day,
+                                   hour = self.hour, minute = self.minute, second = self.second,
+                                   microsecond = 0, tzinfo = None)
 
 
-  @classmethod
-  def fromOpenSSL(cls, x):
-    """
-    Convert from the format OpenSSL's command line tool uses into this
-    subclass.  May require rewriting if we run into locale problems.
-    """
+    @classmethod
+    def fromOpenSSL(cls, x):
+        """
+        Convert from the format OpenSSL's command line tool uses into this
+        subclass.  May require rewriting if we run into locale problems.
+        """
 
-    if x.startswith("notBefore=") or x.startswith("notAfter="):
-      x = x.partition("=")[2]
-    return cls.strptime(x, "%b %d %H:%M:%S %Y GMT")
+        if x.startswith("notBefore=") or x.startswith("notAfter="):
+            x = x.partition("=")[2]
+        return cls.strptime(x, "%b %d %H:%M:%S %Y GMT")
 
-  @classmethod
-  def from_sql(cls, x):
-    """
-    Convert from SQL storage format.
-    """
+    @classmethod
+    def from_sql(cls, x):
+        """
+        Convert from SQL storage format.
+        """
 
-    return cls.from_datetime(x)
+        return cls.from_datetime(x)
 
-  def to_sql(self):
-    """
-    Convert to SQL storage format.
-    """
+    def to_sql(self):
+        """
+        Convert to SQL storage format.
+        """
 
-    return self.to_datetime()
+        return self.to_datetime()
 
-  def later(self, other):
-    """
-    Return the later of two timestamps.
-    """
+    def later(self, other):
+        """
+        Return the later of two timestamps.
+        """
 
-    return other if other > self else self
+        return other if other > self else self
 
-  def earlier(self, other):
-    """
-    Return the earlier of two timestamps.
-    """
+    def earlier(self, other):
+        """
+        Return the earlier of two timestamps.
+        """
 
-    return other if other < self else self
+        return other if other < self else self
 
-  def __add__(self, y):  return _cast(pydatetime.datetime.__add__(self, y))
-  def __radd__(self, y): return _cast(pydatetime.datetime.__radd__(self, y))
-  def __rsub__(self, y): return _cast(pydatetime.datetime.__rsub__(self, y))
-  def __sub__(self, y):  return _cast(pydatetime.datetime.__sub__(self, y))
+    def __add__(self, y):  return _cast(pydatetime.datetime.__add__(self, y))
+    def __radd__(self, y): return _cast(pydatetime.datetime.__radd__(self, y))
+    def __rsub__(self, y): return _cast(pydatetime.datetime.__rsub__(self, y))
+    def __sub__(self, y):  return _cast(pydatetime.datetime.__sub__(self, y))
 
-  @classmethod
-  def DateTime_or_None(cls, s):
-    """
-    MySQLdb converter.  Parse as this class if we can, let the default
-    MySQLdb DateTime_or_None() converter deal with failure cases.
-    """
+    @classmethod
+    def DateTime_or_None(cls, s):
+        """
+        MySQLdb converter.  Parse as this class if we can, let the default
+        MySQLdb DateTime_or_None() converter deal with failure cases.
+        """
 
-    for sep in " T":
-      d, _, t = s.partition(sep)        # pylint: disable=W0612
-      if t:
-        try:
-          return cls(*[int(x) for x in d.split("-") + t.split(":")])
-        except:                         # pylint: disable=W0702
-          break
+        for sep in " T":
+            d, _, t = s.partition(sep)        # pylint: disable=W0612
+            if t:
+                try:
+                    return cls(*[int(x) for x in d.split("-") + t.split(":")])
+                except:                         # pylint: disable=W0702
+                    break
 
-    from rpki.mysql_import import MySQLdb
-    return MySQLdb.times.DateTime_or_None(s)
+        from rpki.mysql_import import MySQLdb
+        return MySQLdb.times.DateTime_or_None(s)
 
 class timedelta(pydatetime.timedelta):
-  """
-  Timedelta with text parsing.  This accepts two input formats:
-
-  - A simple integer, indicating a number of seconds.
-
-  - A string of the form "uY vW wD xH yM zS" where u, v, w, x, y, and z
-    are integers and Y, W, D, H, M, and S indicate years, weeks, days,
-    hours, minutes, and seconds.  All of the fields are optional, but
-    at least one must be specified.  Eg,"3D4H" means "three days plus
-    four hours".
-
-  There is no "months" format, because the definition of a month is too
-  fuzzy to be useful (what day is six months from August 30th?)
-
-  Similarly, the "years" conversion may produce surprising results, as
-  "one year" in conventional English does not refer to a fixed interval
-  but rather a fixed (and in some cases undefined) offset within the
-  Gregorian calendar (what day is one year from February 29th?)  1Y as
-  implemented by this code refers to a specific number of seconds.
-  If you mean 365 days or 52 weeks, say that instead.
-  """
-
-  ## @var regexp
-  # Hideously ugly regular expression to parse the complex text form.
-  # Tags are intended for use with re.MatchObject.groupdict() and map
-  # directly to the keywords expected by the timedelta constructor.
-
-  regexp = re.compile("\\s*".join(("^",
-                                   "(?:(?P<years>\\d+)Y)?",
-                                   "(?:(?P<weeks>\\d+)W)?",
-                                   "(?:(?P<days>\\d+)D)?",
-                                   "(?:(?P<hours>\\d+)H)?",
-                                   "(?:(?P<minutes>\\d+)M)?",
-                                   "(?:(?P<seconds>\\d+)S)?",
-                                   "$")),
-                      re.I)
-
-  ## @var years_to_seconds
-  # Conversion factor from years to seconds (value furnished by the
-  # "units" program).
-
-  years_to_seconds = 31556926
-
-  @classmethod
-  def parse(cls, arg):
     """
-    Parse text into a timedelta object.
+    Timedelta with text parsing.  This accepts two input formats:
+
+    - A simple integer, indicating a number of seconds.
+
+    - A string of the form "uY vW wD xH yM zS" where u, v, w, x, y, and z
+      are integers and Y, W, D, H, M, and S indicate years, weeks, days,
+      hours, minutes, and seconds.  All of the fields are optional, but
+      at least one must be specified.  Eg,"3D4H" means "three days plus
+      four hours".
+
+    There is no "months" format, because the definition of a month is too
+    fuzzy to be useful (what day is six months from August 30th?)
+
+    Similarly, the "years" conversion may produce surprising results, as
+    "one year" in conventional English does not refer to a fixed interval
+    but rather a fixed (and in some cases undefined) offset within the
+    Gregorian calendar (what day is one year from February 29th?)  1Y as
+    implemented by this code refers to a specific number of seconds.
+    If you mean 365 days or 52 weeks, say that instead.
     """
 
-    if not isinstance(arg, str):
-      return cls(seconds = arg)
-    elif arg.isdigit():
-      return cls(seconds = int(arg))
-    else:
-      match = cls.regexp.match(arg)
-      if match:
-        #return cls(**dict((k, int(v)) for (k, v) in match.groupdict().items() if v is not None))
-        d = match.groupdict("0")
-        for k, v in d.iteritems():
-          d[k] = int(v)
-        d["days"]    += d.pop("weeks") * 7
-        d["seconds"] += d.pop("years") * cls.years_to_seconds
-        return cls(**d)
-      else:
-        raise ParseFailure("Couldn't parse timedelta %r" % (arg,))
+    ## @var regexp
+    # Hideously ugly regular expression to parse the complex text form.
+    # Tags are intended for use with re.MatchObject.groupdict() and map
+    # directly to the keywords expected by the timedelta constructor.
 
-  def convert_to_seconds(self):
-    """
-    Convert a timedelta interval to seconds.
-    """
+    regexp = re.compile("\\s*".join(("^",
+                                     "(?:(?P<years>\\d+)Y)?",
+                                     "(?:(?P<weeks>\\d+)W)?",
+                                     "(?:(?P<days>\\d+)D)?",
+                                     "(?:(?P<hours>\\d+)H)?",
+                                     "(?:(?P<minutes>\\d+)M)?",
+                                     "(?:(?P<seconds>\\d+)S)?",
+                                     "$")),
+                        re.I)
 
-    return self.days * 24 * 60 * 60 + self.seconds
+    ## @var years_to_seconds
+    # Conversion factor from years to seconds (value furnished by the
+    # "units" program).
 
-  @classmethod
-  def fromtimedelta(cls, x):
-    """
-    Convert a datetime.timedelta object into this subclass.
-    """
+    years_to_seconds = 31556926
 
-    return cls(days = x.days, seconds = x.seconds, microseconds = x.microseconds)
+    @classmethod
+    def parse(cls, arg):
+        """
+        Parse text into a timedelta object.
+        """
 
-  def __abs__(self):          return _cast(pydatetime.timedelta.__abs__(self))
-  def __add__(self, x):       return _cast(pydatetime.timedelta.__add__(self, x))
-  def __div__(self, x):       return _cast(pydatetime.timedelta.__div__(self, x))
-  def __floordiv__(self, x):  return _cast(pydatetime.timedelta.__floordiv__(self, x))
-  def __mul__(self, x):       return _cast(pydatetime.timedelta.__mul__(self, x))
-  def __neg__(self):          return _cast(pydatetime.timedelta.__neg__(self))
-  def __pos__(self):          return _cast(pydatetime.timedelta.__pos__(self))
-  def __radd__(self, x):      return _cast(pydatetime.timedelta.__radd__(self, x))
-  def __rdiv__(self, x):      return _cast(pydatetime.timedelta.__rdiv__(self, x))
-  def __rfloordiv__(self, x): return _cast(pydatetime.timedelta.__rfloordiv__(self, x))
-  def __rmul__(self, x):      return _cast(pydatetime.timedelta.__rmul__(self, x))
-  def __rsub__(self, x):      return _cast(pydatetime.timedelta.__rsub__(self, x))
-  def __sub__(self, x):       return _cast(pydatetime.timedelta.__sub__(self, x))
+        if not isinstance(arg, str):
+            return cls(seconds = arg)
+        elif arg.isdigit():
+            return cls(seconds = int(arg))
+        else:
+            match = cls.regexp.match(arg)
+            if match:
+                #return cls(**dict((k, int(v)) for (k, v) in match.groupdict().items() if v is not None))
+                d = match.groupdict("0")
+                for k, v in d.iteritems():
+                    d[k] = int(v)
+                d["days"]    += d.pop("weeks") * 7
+                d["seconds"] += d.pop("years") * cls.years_to_seconds
+                return cls(**d)
+            else:
+                raise ParseFailure("Couldn't parse timedelta %r" % (arg,))
+
+    def convert_to_seconds(self):
+        """
+        Convert a timedelta interval to seconds.
+        """
+
+        return self.days * 24 * 60 * 60 + self.seconds
+
+    @classmethod
+    def fromtimedelta(cls, x):
+        """
+        Convert a datetime.timedelta object into this subclass.
+        """
+
+        return cls(days = x.days, seconds = x.seconds, microseconds = x.microseconds)
+
+    def __abs__(self):          return _cast(pydatetime.timedelta.__abs__(self))
+    def __add__(self, x):       return _cast(pydatetime.timedelta.__add__(self, x))
+    def __div__(self, x):       return _cast(pydatetime.timedelta.__div__(self, x))
+    def __floordiv__(self, x):  return _cast(pydatetime.timedelta.__floordiv__(self, x))
+    def __mul__(self, x):       return _cast(pydatetime.timedelta.__mul__(self, x))
+    def __neg__(self):          return _cast(pydatetime.timedelta.__neg__(self))
+    def __pos__(self):          return _cast(pydatetime.timedelta.__pos__(self))
+    def __radd__(self, x):      return _cast(pydatetime.timedelta.__radd__(self, x))
+    def __rdiv__(self, x):      return _cast(pydatetime.timedelta.__rdiv__(self, x))
+    def __rfloordiv__(self, x): return _cast(pydatetime.timedelta.__rfloordiv__(self, x))
+    def __rmul__(self, x):      return _cast(pydatetime.timedelta.__rmul__(self, x))
+    def __rsub__(self, x):      return _cast(pydatetime.timedelta.__rsub__(self, x))
+    def __sub__(self, x):       return _cast(pydatetime.timedelta.__sub__(self, x))
 
 def _cast(x):
-  """
-  Cast result of arithmetic operations back into correct subtype.
-  """
+    """
+    Cast result of arithmetic operations back into correct subtype.
+    """
 
-  if isinstance(x, pydatetime.datetime):
-    return datetime.from_datetime(x)
-  if isinstance(x, pydatetime.timedelta):
-    return timedelta.fromtimedelta(x)
-  return x
+    if isinstance(x, pydatetime.datetime):
+        return datetime.from_datetime(x)
+    if isinstance(x, pydatetime.timedelta):
+        return timedelta.fromtimedelta(x)
+    return x
 
 if __name__ == "__main__":
 
-  def test(t):
-    print
-    print "str:                ", t
-    print "repr:               ", repr(t)
-    print "seconds since epoch:", t.strftime("%s")
-    print "XMLtime:            ", t.toXMLtime()
-    print
+    def test(t):
+        print
+        print "str:                ", t
+        print "repr:               ", repr(t)
+        print "seconds since epoch:", t.strftime("%s")
+        print "XMLtime:            ", t.toXMLtime()
+        print
 
-  print
-  print "Testing time conversion routines"
-  test(now())
-  test(now() + timedelta(days = 30))
-  test(now() + timedelta.parse("3d5s"))
-  test(now() + timedelta.parse(" 3d 5s "))
-  test(now() + timedelta.parse("1y3d5h"))
+    print
+    print "Testing time conversion routines"
+    test(now())
+    test(now() + timedelta(days = 30))
+    test(now() + timedelta.parse("3d5s"))
+    test(now() + timedelta.parse(" 3d 5s "))
+    test(now() + timedelta.parse("1y3d5h"))

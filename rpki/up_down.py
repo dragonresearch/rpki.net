@@ -61,34 +61,34 @@ tag_status      = xmlns + "status"
 
 
 class multi_uri(list):
-  """
-  Container for a set of URIs.  This probably could be simplified.
-  """
-
-  def __init__(self, ini):
-    list.__init__(self)
-    if isinstance(ini, (list, tuple)):
-      self[:] = ini
-    elif isinstance(ini, str):
-      self[:] = ini.split(",")
-      for s in self:
-        if s.strip() != s or "://" not in s:
-          raise rpki.exceptions.BadURISyntax("Bad URI \"%s\"" % s)
-    else:
-      raise TypeError
-
-  def __str__(self):
-    return ",".join(self)
-
-  def rsync(self):
     """
-    Find first rsync://... URI in self.
+    Container for a set of URIs.  This probably could be simplified.
     """
 
-    for s in self:
-      if s.startswith("rsync://"):
-        return s
-    return None
+    def __init__(self, ini):
+        list.__init__(self)
+        if isinstance(ini, (list, tuple)):
+            self[:] = ini
+        elif isinstance(ini, str):
+            self[:] = ini.split(",")
+            for s in self:
+                if s.strip() != s or "://" not in s:
+                    raise rpki.exceptions.BadURISyntax("Bad URI \"%s\"" % s)
+        else:
+            raise TypeError
+
+    def __str__(self):
+        return ",".join(self)
+
+    def rsync(self):
+        """
+        Find first rsync://... URI in self.
+        """
+
+        for s in self:
+            if s.startswith("rsync://"):
+                return s
+        return None
 
 
 error_response_codes = {
@@ -111,62 +111,62 @@ exception_map = {
 
 
 def check_response(r_msg, q_type):
-  """
-  Additional checks beyond the XML schema for whether this looks like
-  a reasonable up-down response message.
-  """
+    """
+    Additional checks beyond the XML schema for whether this looks like
+    a reasonable up-down response message.
+    """
 
-  r_type = r_msg.get("type")
+    r_type = r_msg.get("type")
 
-  if r_type == "error_response":
-    raise rpki.exceptions.UpstreamError(error_response_codes[int(r_msg.findtext(tag_status))])
+    if r_type == "error_response":
+        raise rpki.exceptions.UpstreamError(error_response_codes[int(r_msg.findtext(tag_status))])
 
-  if r_type != q_type + "_response":
-    raise rpki.exceptions.UnexpectedUpDownResponse
+    if r_type != q_type + "_response":
+        raise rpki.exceptions.UnexpectedUpDownResponse
 
-  if r_type == "issue_response" and (len(r_msg) != 1 or len(r_msg[0]) != 2):
-    logger.debug("Weird issue_response %r: len(r_msg) %s len(r_msg[0]) %s",
-                 r_msg, len(r_msg), len(r_msg[0]) if len(r_msg) else None)
-    logger.debug("Offending message\n%s", ElementToString(r_msg))
-    raise rpki.exceptions.BadIssueResponse
+    if r_type == "issue_response" and (len(r_msg) != 1 or len(r_msg[0]) != 2):
+        logger.debug("Weird issue_response %r: len(r_msg) %s len(r_msg[0]) %s",
+                     r_msg, len(r_msg), len(r_msg[0]) if len(r_msg) else None)
+        logger.debug("Offending message\n%s", ElementToString(r_msg))
+        raise rpki.exceptions.BadIssueResponse
 
 
 def generate_error_response(r_msg, status = 2001, description = None):
-  """
-  Generate an error response.  If status is given, it specifies the
-  numeric code to use, otherwise we default to "internal error".
-  If description is specified, we use it as the description, otherwise
-  we just use the default string associated with status.
-  """
+    """
+    Generate an error response.  If status is given, it specifies the
+    numeric code to use, otherwise we default to "internal error".
+    If description is specified, we use it as the description, otherwise
+    we just use the default string associated with status.
+    """
 
-  assert status in error_response_codes
-  del r_msg[:]
-  r_msg.set("type", "error_response")
-  SubElement(r_msg, tag_status).text = str(status)
-  se = SubElement(r_msg, tag_description)
-  se.set("{http://www.w3.org/XML/1998/namespace}lang", "en-US")
-  se.text = str(description or error_response_codes[status])
+    assert status in error_response_codes
+    del r_msg[:]
+    r_msg.set("type", "error_response")
+    SubElement(r_msg, tag_status).text = str(status)
+    se = SubElement(r_msg, tag_description)
+    se.set("{http://www.w3.org/XML/1998/namespace}lang", "en-US")
+    se.text = str(description or error_response_codes[status])
 
 
 def generate_error_response_from_exception(r_msg, e, q_type):
-  """
-  Construct an error response from an exception.  q_type
-  specifies the kind of query to which this is a response, since the
-  same exception can generate different codes in response to different
-  queries.
-  """
+    """
+    Construct an error response from an exception.  q_type
+    specifies the kind of query to which this is a response, since the
+    same exception can generate different codes in response to different
+    queries.
+    """
 
-  t = type(e)
-  code = (exception_map.get((t, q_type)) or exception_map.get(t) or 2001)
-  generate_error_response(r_msg, code, e)
+    t = type(e)
+    code = (exception_map.get((t, q_type)) or exception_map.get(t) or 2001)
+    generate_error_response(r_msg, code, e)
 
 
 class cms_msg(rpki.x509.XML_CMS_object):
-  """
-  CMS-signed up-down PDU.
-  """
+    """
+    CMS-signed up-down PDU.
+    """
 
-  encoding = "UTF-8"
-  schema = rpki.relaxng.up_down
-  allow_extra_certs = True
-  allow_extra_crls = True
+    encoding = "UTF-8"
+    schema = rpki.relaxng.up_down
+    allow_extra_certs = True
+    allow_extra_crls = True

@@ -2,11 +2,11 @@
 # $Id$
 
 # Copyright (C) 2013  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -37,33 +37,33 @@ import sys
 unknown = "Unknown"
 
 try:
-  v = subprocess.Popen(("svnversion", "-c"), stdout = subprocess.PIPE).communicate()[0]
-  err = None
+    v = subprocess.Popen(("svnversion", "-c"), stdout = subprocess.PIPE).communicate()[0]
+    err = None
 except Exception, e:
-  v = unknown
-  err = e
+    v = unknown
+    err = e
 
 if any(s in v for s in ("Unversioned", "Uncommitted", unknown)):
-  v = unknown
+    v = unknown
 else:
-  v = "0." + v.strip().split(":")[-1].translate(None, "SMP")
+    v = "0." + v.strip().split(":")[-1].translate(None, "SMP")
 
 try:
-  old = open("VERSION", "r").read().strip()
+    old = open("VERSION", "r").read().strip()
 except:
-  old = None
+    old = None
 
 if err is not None and (old is None or old == unknown):
-  sys.stderr.write("Warning: No saved version and svnversion failed: %s\n" % err)
+    sys.stderr.write("Warning: No saved version and svnversion failed: %s\n" % err)
 
 if v == unknown:
-  if old is not None and old != unknown:
-    v = old
-  else:
-    sys.stderr.write("Warning: Could not determine software version\n")
+    if old is not None and old != unknown:
+        v = old
+    else:
+        sys.stderr.write("Warning: Could not determine software version\n")
 
 if old is None or v != old:
-  with open("rpki/version.py", "w") as f:
-    f.write("VERSION = \"%s\"\n" % v)
-  with open("VERSION", "w") as f:
-    f.write(v + "\n")
+    with open("rpki/version.py", "w") as f:
+        f.write("VERSION = \"%s\"\n" % v)
+    with open("VERSION", "w") as f:
+        f.write(v + "\n")

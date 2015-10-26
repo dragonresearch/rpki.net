@@ -71,9 +71,9 @@ allowed_content_types = (content_type,)
 
 
 class cms_msg(rpki.x509.XML_CMS_object):
-  """
-  CMS-signed left-right PDU.
-  """
+    """
+    CMS-signed left-right PDU.
+    """
 
-  encoding = "us-ascii"
-  schema = rpki.relaxng.left_right
+    encoding = "us-ascii"
+    schema = rpki.relaxng.left_right

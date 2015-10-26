@@ -26,18 +26,18 @@ cfg = rpki.config.parser(section = "yamltest", allow_missing = True)
 
 for name in ("rpkid", "irdbd", "pubd"):
 
-  username = cfg.get("%s_sql_username" % name, name[:4])
-  password = cfg.get("%s_sql_password" % name, "fnord")
+    username = cfg.get("%s_sql_username" % name, name[:4])
+    password = cfg.get("%s_sql_password" % name, "fnord")
 
-  cmd = ["mysqldump", "-u", username, "-p" + password, "--databases"]
+    cmd = ["mysqldump", "-u", username, "-p" + password, "--databases"]
 
-  db = MySQLdb.connect(user = username, passwd = password)
-  cur = db.cursor()
+    db = MySQLdb.connect(user = username, passwd = password)
+    cur = db.cursor()
 
-  cur.execute("SHOW DATABASES")
-  cmd.extend(r[0] for r in cur.fetchall() if r[0][:4] == name[:4] and r[0][4:].isdigit())
+    cur.execute("SHOW DATABASES")
+    cmd.extend(r[0] for r in cur.fetchall() if r[0][:4] == name[:4] and r[0][4:].isdigit())
 
-  cur.close()
-  db.close()
+    cur.close()
+    db.close()
 
-  subprocess.check_call(cmd, stdout = open("backup.%s.sql" % name, "w"))
+    subprocess.check_call(cmd, stdout = open("backup.%s.sql" % name, "w"))

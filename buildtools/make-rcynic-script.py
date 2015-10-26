@@ -24,8 +24,8 @@ sys.stdout.write('''\
 ''' % os.environ)
 
 for k, v in os.environ.iteritems():
-  if k.startswith("AC_") and k != "AC_PYTHON_INTERPRETER":
-    sys.stdout.write("%s = '''%s'''\n" % (k.lower(), v))
+    if k.startswith("AC_") and k != "AC_PYTHON_INTERPRETER":
+        sys.stdout.write("%s = '''%s'''\n" % (k.lower(), v))
 
 sys.stdout.write('''\
 

@@ -205,7 +205,7 @@ max-line-length=80
 max-module-lines=1000
 
 # String used as indentation unit.
-indent-string='  '
+indent-string='    '
 
 [SIMILARITIES]
 

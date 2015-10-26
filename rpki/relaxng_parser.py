@@ -22,21 +22,21 @@ from an XML-format RelaxNG schema.
 import lxml.etree
 
 class RelaxNGParser(object):
-  """
-  Parse schema, extract XML namespace and protocol version (if any).
-  Method calls are just passed along to the parsed RelaxNG schema.
-  """
+    """
+    Parse schema, extract XML namespace and protocol version (if any).
+    Method calls are just passed along to the parsed RelaxNG schema.
+    """
 
-  def __init__(self, text):
-    xml = lxml.etree.fromstring(text)
-    self.schema = lxml.etree.RelaxNG(xml)
-    ns = xml.get("ns")
-    self.xmlns = "{" + ns + "}"
-    self.nsmap = { None : ns }
-    x = xml.xpath("ns0:define[@name = 'version']/ns0:value",
-                  namespaces = dict(ns0 = "http://relaxng.org/ns/structure/1.0"))
-    if len(x) == 1:
-      self.version = x[0].text
+    def __init__(self, text):
+        xml = lxml.etree.fromstring(text)
+        self.schema = lxml.etree.RelaxNG(xml)
+        ns = xml.get("ns")
+        self.xmlns = "{" + ns + "}"
+        self.nsmap = { None : ns }
+        x = xml.xpath("ns0:define[@name = 'version']/ns0:value",
+                      namespaces = dict(ns0 = "http://relaxng.org/ns/structure/1.0"))
+        if len(x) == 1:
+            self.version = x[0].text
 
-  def __getattr__(self, name):
-    return getattr(self.schema, name)
+    def __getattr__(self, name):
+        return getattr(self.schema, name)

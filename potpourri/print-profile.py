@@ -17,4 +17,4 @@
 import pstats, glob
 
 for f in glob.iglob("*.prof"):
-  pstats.Stats(f).sort_stats("time").print_stats(50)
+    pstats.Stats(f).sort_stats("time").print_stats(50)

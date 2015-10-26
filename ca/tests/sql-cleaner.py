@@ -25,27 +25,27 @@ cfg = rpki.config.parser(section = "yamltest", allow_missing = True)
 
 for name in ("rpkid", "irdbd", "pubd"):
 
-  username = cfg.get("%s_sql_username" % name, name[:4])
-  password = cfg.get("%s_sql_password" % name, "fnord")
+    username = cfg.get("%s_sql_username" % name, name[:4])
+    password = cfg.get("%s_sql_password" % name, "fnord")
 
-  db = MySQLdb.connect(user = username, passwd = password)
-  cur = db.cursor()
+    db = MySQLdb.connect(user = username, passwd = password)
+    cur = db.cursor()
 
-  cur.execute("SHOW DATABASES")
+    cur.execute("SHOW DATABASES")
 
-  databases = [r[0] for r in cur.fetchall() if r[0][:4] == name[:4] and r[0][4:].isdigit()]
+    databases = [r[0] for r in cur.fetchall() if r[0][:4] == name[:4] and r[0][4:].isdigit()]
 
-  for database in databases:
+    for database in databases:
 
-    cur.execute("USE " + database)
+        cur.execute("USE " + database)
 
-    cur.execute("SHOW TABLES")
-    tables = [r[0] for r in cur.fetchall()]
+        cur.execute("SHOW TABLES")
+        tables = [r[0] for r in cur.fetchall()]
 
-    cur.execute("SET foreign_key_checks = 0")
-    for table in tables:
-      cur.execute("DROP TABLE %s" % table)
-    cur.execute("SET foreign_key_checks = 1")
+        cur.execute("SET foreign_key_checks = 0")
+        for table in tables:
+            cur.execute("DROP TABLE %s" % table)
+        cur.execute("SET foreign_key_checks = 1")
 
-  cur.close()
-  db.close()
+    cur.close()
+    db.close()

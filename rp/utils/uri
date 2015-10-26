@@ -29,44 +29,44 @@ import rpki.POW
 
 class Certificate(object):
 
-  @staticmethod
-  def first_whatever(uris, prefix):
-    if uris is not None:
-      for uri in uris:
-        if uri.startswith(prefix):
-          return uri
-    return None
+    @staticmethod
+    def first_whatever(uris, prefix):
+        if uris is not None:
+            for uri in uris:
+                if uri.startswith(prefix):
+                    return uri
+        return None
 
-  def first_rsync(self, uris):
-    return self.first_whatever(uris, "rsync://")
+    def first_rsync(self, uris):
+        return self.first_whatever(uris, "rsync://")
 
-  def first_http(self, uris):
-    return self.first_whatever(uris, "http://")
+    def first_http(self, uris):
+        return self.first_whatever(uris, "http://")
 
-  def __init__(self, fn):
-    try:
-      x = rpki.POW.X509.derReadFile(fn)
-    except:                             # pylint: disable=W0702
-      try:
-        cms = rpki.POW.CMS.derReadFile(fn)
-        cms.extractWithoutVerifying()
-        x = cms.certs()[0]
-      except:
-        raise ValueError
-    sia = x.getSIA() or (None, None, None, None)
-    self.fn = fn
-    self.uris = (
-      ("AIA:caIssuers",    self.first_rsync(x.getAIA())),
-      ("SIA:caRepository", self.first_rsync(sia[0])),
-      ("SIA:rpkiManifest", self.first_rsync(sia[1])),
-      ("SIA:signedObject", self.first_rsync(sia[2])),
-      ("SIA:rpkiNotify",   self.first_http(sia[3])),
-      ("CRLDP",            self.first_rsync(x.getCRLDP())))
+    def __init__(self, fn):
+        try:
+            x = rpki.POW.X509.derReadFile(fn)
+        except:                             # pylint: disable=W0702
+            try:
+                cms = rpki.POW.CMS.derReadFile(fn)
+                cms.extractWithoutVerifying()
+                x = cms.certs()[0]
+            except:
+                raise ValueError
+        sia = x.getSIA() or (None, None, None, None)
+        self.fn = fn
+        self.uris = (
+            ("AIA:caIssuers",    self.first_rsync(x.getAIA())),
+            ("SIA:caRepository", self.first_rsync(sia[0])),
+            ("SIA:rpkiManifest", self.first_rsync(sia[1])),
+            ("SIA:signedObject", self.first_rsync(sia[2])),
+            ("SIA:rpkiNotify",   self.first_http(sia[3])),
+            ("CRLDP",            self.first_rsync(x.getCRLDP())))
 
-  def __str__(self):
-    words = [self.fn] if args.single_line else ["File: " + self.fn]
-    words.extend(" %s: %s" % (tag, uri) for tag, uri in self.uris if uri is not None)
-    return ("" if args.single_line else "\n").join(words)
+    def __str__(self):
+        words = [self.fn] if args.single_line else ["File: " + self.fn]
+        words.extend(" %s: %s" % (tag, uri) for tag, uri in self.uris if uri is not None)
+        return ("" if args.single_line else "\n").join(words)
 
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("-s", "--single-line", action = "store_true", help = "single output line per object")
@@ -74,4 +74,4 @@ parser.add_argument("certs", nargs = "+", type = Certificate, help = "RPKI objec
 args = parser.parse_args()
 
 for cert in args.certs:
-  print cert
+    print cert

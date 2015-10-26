@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -39,11 +39,11 @@ translations = dict((src, dst) for src, dst in csv_reader("translations.csv", co
 
 for filename in sys.argv[1:]:
 
-  f = csv_writer(filename)
+    f = csv_writer(filename)
 
-  for cols in csv_reader(filename):
-    if cols[0] in translations:
-      cols[0] = translations[cols[0]]
-    f.writerow(cols)
+    for cols in csv_reader(filename):
+        if cols[0] in translations:
+            cols[0] = translations[cols[0]]
+        f.writerow(cols)
 
-  f.close()
+    f.close()

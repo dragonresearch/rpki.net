@@ -82,22 +82,22 @@ id_sha256                       = "2.16.840.1.101.3.4.2.1"
 _oid2name = {}
 
 for _sym in dir():
-  if not _sym.startswith("_"):
-    _val = globals()[_sym]
-    if not isinstance(_val, str) or not all(_v.isdigit() for _v in _val.split(".")):
-      raise ValueError("Bad OID definition: %s = %r" % (_sym, _val))
-    _oid2name[_val] = _sym.replace("_", "-")
+    if not _sym.startswith("_"):
+        _val = globals()[_sym]
+        if not isinstance(_val, str) or not all(_v.isdigit() for _v in _val.split(".")):
+            raise ValueError("Bad OID definition: %s = %r" % (_sym, _val))
+        _oid2name[_val] = _sym.replace("_", "-")
 
 # pylint: disable=W0631
 del _sym
 del _val
 
 def oid2name(oid):
-  """
-  Translate an OID into a string suitable for printing.
-  """
+    """
+    Translate an OID into a string suitable for printing.
+    """
 
-  if not isinstance(oid, (str, unicode)) or not all(o.isdigit() for o in oid.split(".")):
-    raise ValueError("Parameter does not look like an OID string: " + repr(oid))
+    if not isinstance(oid, (str, unicode)) or not all(o.isdigit() for o in oid.split(".")):
+        raise ValueError("Parameter does not look like an OID string: " + repr(oid))
 
-  return _oid2name.get(oid, oid)
+    return _oid2name.get(oid, oid)

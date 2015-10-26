@@ -17,5 +17,5 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 if __name__ == "__main__":
-  import rpki.rpkic
-  rpki.rpkic.main()
+    import rpki.rpkic
+    rpki.rpkic.main()

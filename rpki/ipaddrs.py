@@ -48,99 +48,99 @@ once, here, thus avoiding a lot of duplicate code elsewhere.
 import socket, struct
 
 class v4addr(long):
-  """
-  IPv4 address.
-
-  Derived from long, but supports IPv4 print syntax.
-  """
-
-  bits = 32
-  ipversion = 4
-
-  def __new__(cls, x):
     """
-    Construct a v4addr object.
+    IPv4 address.
+
+    Derived from long, but supports IPv4 print syntax.
     """
 
-    if isinstance(x, unicode):
-      x = x.encode("ascii")
-    if isinstance(x, str):
-      return cls.from_bytes(socket.inet_pton(socket.AF_INET, ".".join(str(int(i)) for i in x.split("."))))
-    else:
-      return long.__new__(cls, x)
+    bits = 32
+    ipversion = 4
 
-  def to_bytes(self):
-    """
-    Convert a v4addr object to a raw byte string.
-    """
+    def __new__(cls, x):
+        """
+        Construct a v4addr object.
+        """
 
-    return struct.pack("!I", long(self))
+        if isinstance(x, unicode):
+            x = x.encode("ascii")
+        if isinstance(x, str):
+            return cls.from_bytes(socket.inet_pton(socket.AF_INET, ".".join(str(int(i)) for i in x.split("."))))
+        else:
+            return long.__new__(cls, x)
 
-  @classmethod
-  def from_bytes(cls, x):
-    """
-    Convert from a raw byte string to a v4addr object.
-    """
+    def to_bytes(self):
+        """
+        Convert a v4addr object to a raw byte string.
+        """
 
-    return cls(struct.unpack("!I", x)[0])
+        return struct.pack("!I", long(self))
 
-  def __str__(self):
-    """
-    Convert a v4addr object to string format.
-    """
+    @classmethod
+    def from_bytes(cls, x):
+        """
+        Convert from a raw byte string to a v4addr object.
+        """
 
-    return socket.inet_ntop(socket.AF_INET, self.to_bytes())
+        return cls(struct.unpack("!I", x)[0])
+
+    def __str__(self):
+        """
+        Convert a v4addr object to string format.
+        """
+
+        return socket.inet_ntop(socket.AF_INET, self.to_bytes())
 
 class v6addr(long):
-  """
-  IPv6 address.
-
-  Derived from long, but supports IPv6 print syntax.
-  """
-
-  bits = 128
-  ipversion = 6
-
-  def __new__(cls, x):
     """
-    Construct a v6addr object.
+    IPv6 address.
+
+    Derived from long, but supports IPv6 print syntax.
     """
 
-    if isinstance(x, unicode):
-      x = x.encode("ascii")
-    if isinstance(x, str):
-      return cls.from_bytes(socket.inet_pton(socket.AF_INET6, x))
-    else:
-      return long.__new__(cls, x)
+    bits = 128
+    ipversion = 6
 
-  def to_bytes(self):
-    """
-    Convert a v6addr object to a raw byte string.
-    """
+    def __new__(cls, x):
+        """
+        Construct a v6addr object.
+        """
 
-    return struct.pack("!QQ", long(self) >> 64, long(self) & 0xFFFFFFFFFFFFFFFF)
+        if isinstance(x, unicode):
+            x = x.encode("ascii")
+        if isinstance(x, str):
+            return cls.from_bytes(socket.inet_pton(socket.AF_INET6, x))
+        else:
+            return long.__new__(cls, x)
 
-  @classmethod
-  def from_bytes(cls, x):
-    """
-    Convert from a raw byte string to a v6addr object.
-    """
+    def to_bytes(self):
+        """
+        Convert a v6addr object to a raw byte string.
+        """
 
-    x = struct.unpack("!QQ", x)
-    return cls((x[0] << 64) | x[1])
+        return struct.pack("!QQ", long(self) >> 64, long(self) & 0xFFFFFFFFFFFFFFFF)
 
-  def __str__(self):
-    """
-    Convert a v6addr object to string format.
-    """
+    @classmethod
+    def from_bytes(cls, x):
+        """
+        Convert from a raw byte string to a v6addr object.
+        """
 
-    return socket.inet_ntop(socket.AF_INET6, self.to_bytes())
+        x = struct.unpack("!QQ", x)
+        return cls((x[0] << 64) | x[1])
+
+    def __str__(self):
+        """
+        Convert a v6addr object to string format.
+        """
+
+        return socket.inet_ntop(socket.AF_INET6, self.to_bytes())
 
 def parse(s):
-  """
-  Parse a string as either an IPv4 or IPv6 address, and return object of appropriate class.
-  """
+    """
+    Parse a string as either an IPv4 or IPv6 address, and return object of appropriate class.
+    """
 
-  if isinstance(s, unicode):
-    s = s.encode("ascii")
-  return v6addr(s) if ":" in s else v4addr(s)
+    if isinstance(s, unicode):
+        s = s.encode("ascii")
+    return v6addr(s) if ":" in s else v4addr(s)

@@ -44,10 +44,10 @@ args = parser.parse_args()
 cfg = rpki.config.parser(set_filename = args.config, section = "myrpki")
 
 for name in ("rpkid", "irdbd", "pubd"):
-  if cfg.getboolean("start_" + name, False):
-    subprocess.check_call(
-      ("mysqldump", "--add-drop-database",
-       "-u",  cfg.get("sql-username", section = name),
-       "-p" + cfg.get("sql-password", section = name),
-       "-B",  cfg.get("sql-database", section = name)),
-      stdout = args.output)
+    if cfg.getboolean("start_" + name, False):
+        subprocess.check_call(
+            ("mysqldump", "--add-drop-database",
+             "-u",  cfg.get("sql-username", section = name),
+             "-p" + cfg.get("sql-password", section = name),
+             "-B",  cfg.get("sql-database", section = name)),
+            stdout = args.output)

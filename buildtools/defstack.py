@@ -8,11 +8,11 @@
 # code with code maintained by humans, so "nasty" is a relative term.
 #
 # Copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -68,7 +68,7 @@ template = '''
 '''
 
 if len(sys.argv) < 2:
-  sys.exit("Usage: %s source.c [source.c ...]" % sys.argv[0])
+    sys.exit("Usage: %s source.c [source.c ...]" % sys.argv[0])
 
 splitter = re.compile("[() \t]+").split
 
@@ -76,16 +76,16 @@ token = None
 
 for line in fileinput.input():
 
-  if token is None:
-    path = fileinput.filename().split(os.path.sep)
-    path = os.path.join(path[-2], path[-1]) if len(path) > 1 else path[-1]
-    token = "".join(c if c.isalnum() else "_" for c in path.upper())
-    sys.stdout.write(header.replace("%", token))
+    if token is None:
+        path = fileinput.filename().split(os.path.sep)
+        path = os.path.join(path[-2], path[-1]) if len(path) > 1 else path[-1]
+        token = "".join(c if c.isalnum() else "_" for c in path.upper())
+        sys.stdout.write(header.replace("%", token))
 
-  if "DECLARE_STACK_OF" in line:
-    words = splitter(line)
-    if len(words) > 1 and words[0] == "DECLARE_STACK_OF":
-      sys.stdout.write(template.replace("%", words[1]))
+    if "DECLARE_STACK_OF" in line:
+        words = splitter(line)
+        if len(words) > 1 and words[0] == "DECLARE_STACK_OF":
+            sys.stdout.write(template.replace("%", words[1]))
 
 if token is not None:
-  sys.stdout.write(footer.replace("%", token))
+    sys.stdout.write(footer.replace("%", token))

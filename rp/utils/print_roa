@@ -26,18 +26,18 @@ import rpki.POW
 
 class ROA(rpki.POW.ROA):                # pylint: disable=W0232
 
-  @staticmethod
-  def _format_prefix(p):
-    if p[2] in (None, p[1]):
-      return "%s/%d" % (p[0], p[1])
-    else:
-      return "%s/%d-%d" % (p[0], p[1], p[2])
+    @staticmethod
+    def _format_prefix(p):
+        if p[2] in (None, p[1]):
+            return "%s/%d" % (p[0], p[1])
+        else:
+            return "%s/%d-%d" % (p[0], p[1], p[2])
 
-  def parse(self):
-    self.extractWithoutVerifying()
-    v4, v6 = self.getPrefixes()
-    self.v4_prefixes = [self._format_prefix(p) for p in (v4 or ())]
-    self.v6_prefixes = [self._format_prefix(p) for p in (v6 or ())]
+    def parse(self):
+        self.extractWithoutVerifying()
+        v4, v6 = self.getPrefixes()
+        self.v4_prefixes = [self._format_prefix(p) for p in (v4 or ())]
+        self.v6_prefixes = [self._format_prefix(p) for p in (v6 or ())]
 
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("-b", "--brief", action = "store_true", help = "show only ASN and prefix(es)")
@@ -47,27 +47,27 @@ parser.add_argument("roas", nargs = "+", type = ROA.derReadFile, help = "ROA(s) 
 args = parser.parse_args()
 
 for roa in args.roas:
-  roa.parse()
-  if args.brief:
-    if args.signing_time:
-      print roa.signingTime(),
-    print roa.getASID(), " ".join(roa.v4_prefixes + roa.v6_prefixes)
-  else:
-    print "ROA Version:   ", roa.getVersion()
-    print "SigningTime:   ", roa.signingTime()
-    print "asID:          ", roa.getASID()
-    if roa.v4_prefixes:
-      print " addressFamily:", 1
-      for prefix in roa.v4_prefixes:
-        print "     IPAddress:", prefix
-    if roa.v6_prefixes:
-      print " addressFamily:", 2
-      for prefix in roa.v6_prefixes:
-        print "     IPAddress:", prefix
-    if args.cms:
-      print roa.pprint()
-      for cer in roa.certs():
-        print cer.pprint()
-      for crl in roa.crls():
-        print crl.pprint()
-    print
+    roa.parse()
+    if args.brief:
+        if args.signing_time:
+            print roa.signingTime(),
+        print roa.getASID(), " ".join(roa.v4_prefixes + roa.v6_prefixes)
+    else:
+        print "ROA Version:   ", roa.getVersion()
+        print "SigningTime:   ", roa.signingTime()
+        print "asID:          ", roa.getASID()
+        if roa.v4_prefixes:
+            print " addressFamily:", 1
+            for prefix in roa.v4_prefixes:
+                print "     IPAddress:", prefix
+        if roa.v6_prefixes:
+            print " addressFamily:", 2
+            for prefix in roa.v6_prefixes:
+                print "     IPAddress:", prefix
+        if args.cms:
+            print roa.pprint()
+            for cer in roa.certs():
+                print cer.pprint()
+            for crl in roa.crls():
+                print crl.pprint()
+        print

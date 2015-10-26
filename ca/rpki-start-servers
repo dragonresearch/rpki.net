@@ -38,9 +38,9 @@ os.environ["TZ"] = "UTC"
 time.tzset()
 
 def non_negative_integer(s):
-  if int(s) < 0:
-    raise ValueError
-  return s
+    if int(s) < 0:
+        raise ValueError
+    return s
 
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("-c", "--config",
@@ -67,21 +67,21 @@ args = parser.parse_args()
 cfg = rpki.config.parser(set_filename = args.config, section = "myrpki")
 
 def run(name, old_flag = None):
-  if cfg.getboolean("start_" + name, cfg.getboolean("run_" + name if old_flag is None else old_flag, False)):
-    # pylint: disable=E1103
-    log_file = os.path.join(args.log_directory, name + ".log")
-    cmd = (os.path.join(rpki.autoconf.libexecdir, name), "--log-level", args.log_level)
-    if args.log_file:
-      cmd += ("--log-file", log_file)
-    elif args.log_rotating_file_kbytes:
-      cmd += ("--log-rotating-file", log_file, args.log_rotating_file_kbytes, args.log_backup_count)
-    elif args.log_rotating_file_hours:
-      cmd += ("--log-timed-rotating-file", log_file, args.log_rotating_file_hours, args.log_backup_count)
-    else:
-      cmd += ("--log-syslog", args.log_syslog)
-    proc = subprocess.Popen(cmd)
-    if proc.wait() != 0:
-      sys.exit("Problem starting %s, pid %s" % (name, proc.pid))
+    if cfg.getboolean("start_" + name, cfg.getboolean("run_" + name if old_flag is None else old_flag, False)):
+        # pylint: disable=E1103
+        log_file = os.path.join(args.log_directory, name + ".log")
+        cmd = (os.path.join(rpki.autoconf.libexecdir, name), "--log-level", args.log_level)
+        if args.log_file:
+            cmd += ("--log-file", log_file)
+        elif args.log_rotating_file_kbytes:
+            cmd += ("--log-rotating-file", log_file, args.log_rotating_file_kbytes, args.log_backup_count)
+        elif args.log_rotating_file_hours:
+            cmd += ("--log-timed-rotating-file", log_file, args.log_rotating_file_hours, args.log_backup_count)
+        else:
+            cmd += ("--log-syslog", args.log_syslog)
+        proc = subprocess.Popen(cmd)
+        if proc.wait() != 0:
+            sys.exit("Problem starting %s, pid %s" % (name, proc.pid))
 
 run("irdbd", "run_rpkid")
 run("rpkid")

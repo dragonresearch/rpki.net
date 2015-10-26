@@ -80,56 +80,56 @@ default_pid_directory = "/var/run/rpki"
 pid_filename = None
 
 def daemon(nochdir = False, noclose = False, pidfile = None):
-  """
-  Make this program become a daemon, like 4.4BSD daemon(3), and
-  write its pid out to a file with cleanup on exit.
-  """
+    """
+    Make this program become a daemon, like 4.4BSD daemon(3), and
+    write its pid out to a file with cleanup on exit.
+    """
 
-  if pidfile is None:
-    if pid_filename is None:
-      prog = os.path.splitext(os.path.basename(sys.argv[0]))[0]
-      pidfile = os.path.join(default_pid_directory, "%s.pid" % prog)
-    else:
-      pidfile = pid_filename
+    if pidfile is None:
+        if pid_filename is None:
+            prog = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+            pidfile = os.path.join(default_pid_directory, "%s.pid" % prog)
+        else:
+            pidfile = pid_filename
 
-  old_sighup_action = signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    old_sighup_action = signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
-  try:
-    pid = os.fork()
-  except OSError, e:
-    sys.exit("fork() failed: %d (%s)" % (e.errno, e.strerror))
-  else:
-    if pid > 0:
-      os._exit(0)
-
-  if not nochdir:
-    os.chdir("/")
-
-  os.setsid()
-
-  if not noclose:
-    sys.stdout.flush()
-    sys.stderr.flush()
-    fd = os.open(os.devnull, os.O_RDWR)
-    os.dup2(fd, 0)
-    os.dup2(fd, 1)
-    os.dup2(fd, 2)
-    if fd > 2:
-      os.close(fd)
-
-  signal.signal(signal.SIGHUP, old_sighup_action)
-
-  def delete_pid_file():
     try:
-      os.unlink(pidfile)
-    except OSError:
-      pass
+        pid = os.fork()
+    except OSError, e:
+        sys.exit("fork() failed: %d (%s)" % (e.errno, e.strerror))
+    else:
+        if pid > 0:
+            os._exit(0)
 
-  atexit.register(delete_pid_file)
+    if not nochdir:
+        os.chdir("/")
 
-  try:
-    f = open(pidfile, "w")
-    f.write("%d\n" % os.getpid())
-    f.close()
-  except IOError, e:
-    logger.warning("Couldn't write PID file %s: %s", pidfile, e.strerror)
+    os.setsid()
+
+    if not noclose:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        fd = os.open(os.devnull, os.O_RDWR)
+        os.dup2(fd, 0)
+        os.dup2(fd, 1)
+        os.dup2(fd, 2)
+        if fd > 2:
+            os.close(fd)
+
+    signal.signal(signal.SIGHUP, old_sighup_action)
+
+    def delete_pid_file():
+        try:
+            os.unlink(pidfile)
+        except OSError:
+            pass
+
+    atexit.register(delete_pid_file)
+
+    try:
+        f = open(pidfile, "w")
+        f.write("%d\n" % os.getpid())
+        f.close()
+    except IOError, e:
+        logger.warning("Couldn't write PID file %s: %s", pidfile, e.strerror)

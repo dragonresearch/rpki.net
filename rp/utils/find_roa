@@ -28,109 +28,109 @@ import rpki.oids
 
 
 def check_dir(s):
-  if os.path.isdir(s):
-    return os.path.abspath(s)
-  else:
-    raise argparse.ArgumentTypeError("%r is not a directory" % s)
+    if os.path.isdir(s):
+        return os.path.abspath(s)
+    else:
+        raise argparse.ArgumentTypeError("%r is not a directory" % s)
 
 
 def filename_to_uri(filename):
-  if not filename.startswith(args.rcynic_dir):
-    raise ValueError
-  return "rsync://" + filename[len(args.rcynic_dir):].lstrip("/")
+    if not filename.startswith(args.rcynic_dir):
+        raise ValueError
+    return "rsync://" + filename[len(args.rcynic_dir):].lstrip("/")
 
 def uri_to_filename(uri):
-  if not uri.startswith("rsync://"):
-    raise ValueError
-  return os.path.join(args.rcynic_dir, uri[len("rsync://"):])
+    if not uri.startswith("rsync://"):
+        raise ValueError
+    return os.path.join(args.rcynic_dir, uri[len("rsync://"):])
 
 
 class Prefix(object):
-  """
-  One prefix parsed from the command line.
-  """
+    """
+    One prefix parsed from the command line.
+    """
 
-  def __init__(self, val):
-    addr, length = val.split("/")
-    length, sep, maxlength = length.partition("-") # pylint: disable=W0612
-    self.prefix = rpki.POW.IPAddress(addr)
-    self.length = int(length)
-    self.maxlength = int(maxlength) if maxlength else self.length
-    if self.maxlength < self.length or self.length < 0 or self.length > self.prefix.bits:
-      raise ValueError
-    if self.prefix & ((1 << (self.prefix.bits - self.length)) - 1) != 0:
-      raise ValueError
+    def __init__(self, val):
+        addr, length = val.split("/")
+        length, sep, maxlength = length.partition("-") # pylint: disable=W0612
+        self.prefix = rpki.POW.IPAddress(addr)
+        self.length = int(length)
+        self.maxlength = int(maxlength) if maxlength else self.length
+        if self.maxlength < self.length or self.length < 0 or self.length > self.prefix.bits:
+            raise ValueError
+        if self.prefix & ((1 << (self.prefix.bits - self.length)) - 1) != 0:
+            raise ValueError
 
-  def matches(self, roa):               # pylint: disable=W0621
-    return any(self.prefix == prefix and
-               self.length == length and
-               (not args.match_maxlength or
-                self.maxlength == maxlength or
-                (maxlength is None and
-                 self.length == self.maxlength))
-               for prefix, length, maxlength in roa.prefixes)
+    def matches(self, roa):               # pylint: disable=W0621
+        return any(self.prefix == prefix and
+                   self.length == length and
+                   (not args.match_maxlength or
+                    self.maxlength == maxlength or
+                    (maxlength is None and
+                     self.length == self.maxlength))
+                   for prefix, length, maxlength in roa.prefixes)
 
 
 class ROA(rpki.POW.ROA):                # pylint: disable=W0232
-  """
-  Aspects of a ROA that we care about.
-  """
+    """
+    Aspects of a ROA that we care about.
+    """
 
-  @classmethod
-  def parse(cls, fn):                   # pylint: disable=W0621
-    assert fn.startswith(args.rcynic_dir)
-    self = cls.derReadFile(fn)
-    self.fn = fn
-    self.extractWithoutVerifying()
-    v4, v6 = self.getPrefixes()
-    self.prefixes = (v4 or ()) + (v6 or ())
-    return self
+    @classmethod
+    def parse(cls, fn):                   # pylint: disable=W0621
+        assert fn.startswith(args.rcynic_dir)
+        self = cls.derReadFile(fn)
+        self.fn = fn
+        self.extractWithoutVerifying()
+        v4, v6 = self.getPrefixes()
+        self.prefixes = (v4 or ()) + (v6 or ())
+        return self
 
-  @property
-  def uri(self):
-    return filename_to_uri(self.fn)
+    @property
+    def uri(self):
+        return filename_to_uri(self.fn)
 
-  @property
-  def formatted_prefixes(self):
-    for prefix in self.prefixes:
-      if prefix[2] is None or prefix[1] == prefix[2]:
-        yield "%s/%d" % (prefix[0], prefix[1])
-      else:
-        yield "%s/%d-%d" % (prefix[0], prefix[1], prefix[2])
+    @property
+    def formatted_prefixes(self):
+        for prefix in self.prefixes:
+            if prefix[2] is None or prefix[1] == prefix[2]:
+                yield "%s/%d" % (prefix[0], prefix[1])
+            else:
+                yield "%s/%d-%d" % (prefix[0], prefix[1], prefix[2])
 
-  def __str__(self):
-    prefixes = " ".join(self.formatted_prefixes)
-    plural = "es" if " " in prefixes else ""
-    if args.show_inception:
-      return "signingTime %s ASN %s prefix%s %s" % (self.signingTime(), self.getASID(), plural, prefixes)
-    else:
-      return "ASN %s prefix%s %s" % (self.getASID(), plural, prefixes)
+    def __str__(self):
+        prefixes = " ".join(self.formatted_prefixes)
+        plural = "es" if " " in prefixes else ""
+        if args.show_inception:
+            return "signingTime %s ASN %s prefix%s %s" % (self.signingTime(), self.getASID(), plural, prefixes)
+        else:
+            return "ASN %s prefix%s %s" % (self.getASID(), plural, prefixes)
 
-  def show(self):
-    print "%s %s" % (self, self.fn if args.show_filenames else self.uri)
+    def show(self):
+        print "%s %s" % (self, self.fn if args.show_filenames else self.uri)
 
-  def show_expiration(self):
-    print self
-    x = self.certs()[0]
-    fn = self.fn                        # pylint: disable=W0621
-    uri = self.uri
-    while uri is not None:
-      name = fn if args.show_filenames else uri
-      if args.show_inception:
-        print "notBefore", x.getNotBefore(), "notAfter", x.getNotAfter(), name
-      else:
-        print x.getNotAfter(), name
-      for uri in x.getAIA() or ():
-        if uri.startswith("rsync://"):
-          break
-      else:
-        break
-      fn = uri_to_filename(uri)
-      if not os.path.exists(fn):
-        print "***** MISSING ******", uri
-        break
-      x = rpki.POW.X509.derReadFile(fn)
-    print
+    def show_expiration(self):
+        print self
+        x = self.certs()[0]
+        fn = self.fn                        # pylint: disable=W0621
+        uri = self.uri
+        while uri is not None:
+            name = fn if args.show_filenames else uri
+            if args.show_inception:
+                print "notBefore", x.getNotBefore(), "notAfter", x.getNotAfter(), name
+            else:
+                print x.getNotAfter(), name
+            for uri in x.getAIA() or ():
+                if uri.startswith("rsync://"):
+                    break
+            else:
+                break
+            fn = uri_to_filename(uri)
+            if not os.path.exists(fn):
+                print "***** MISSING ******", uri
+                break
+            x = rpki.POW.X509.derReadFile(fn)
+        print
 
 
 parser = argparse.ArgumentParser(description = __doc__)
@@ -145,14 +145,14 @@ args = parser.parse_args()
 
 # If there's some way to automate this in the parser, I don't know what it is, so just catch it here.
 if args.all != (not args.prefixes):
-  parser.error("--all and prefix list are mutually exclusive")
+    parser.error("--all and prefix list are mutually exclusive")
 
 for root, dirs, files in os.walk(args.rcynic_dir):
-  for fn in files:
-    if fn.endswith(".roa"):
-      roa = ROA.parse(os.path.join(root, fn))
-      if args.all or any(prefix.matches(roa) for prefix in args.prefixes):
-        if args.show_expiration:
-          roa.show_expiration()
-        else:
-          roa.show()
+    for fn in files:
+        if fn.endswith(".roa"):
+            roa = ROA.parse(os.path.join(root, fn))
+            if args.all or any(prefix.matches(roa) for prefix in args.prefixes):
+                if args.show_expiration:
+                    roa.show_expiration()
+                else:
+                    roa.show()

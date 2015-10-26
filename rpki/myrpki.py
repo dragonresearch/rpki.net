@@ -19,5 +19,5 @@ This is a tombstone for a program that no longer exists.
 """
 
 if __name__ != "__main__":       # sic -- don't break regression tests
-  import sys
-  sys.exit('"myrpki" is obsolete.  Please use "rpkic" instead.')
+    import sys
+    sys.exit('"myrpki" is obsolete.  Please use "rpkic" instead.')

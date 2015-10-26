@@ -22,222 +22,222 @@ Exception definitions for RPKI modules.
 """
 
 class RPKI_Exception(Exception):
-  "Base class for RPKI exceptions."
+    "Base class for RPKI exceptions."
 
 class NotInDatabase(RPKI_Exception):
-  "Lookup failed for an object expected to be in the database."
+    "Lookup failed for an object expected to be in the database."
 
 class BadURISyntax(RPKI_Exception):
-  "Illegal syntax for a URI."
+    "Illegal syntax for a URI."
 
 class BadStatusCode(RPKI_Exception):
-  "Unrecognized protocol status code."
+    "Unrecognized protocol status code."
 
 class BadQuery(RPKI_Exception):
-  "Unexpected protocol query."
+    "Unexpected protocol query."
 
 class DBConsistancyError(RPKI_Exception):
-  "Found multiple matches for a database query that shouldn't ever return that."
+    "Found multiple matches for a database query that shouldn't ever return that."
 
 class CMSVerificationFailed(RPKI_Exception):
-  "Verification of a CMS message failed."
+    "Verification of a CMS message failed."
 
 class HTTPRequestFailed(RPKI_Exception):
-  "HTTP request failed."
+    "HTTP request failed."
 
 class DERObjectConversionError(RPKI_Exception):
-  "Error trying to convert a DER-based object from one representation to another."
+    "Error trying to convert a DER-based object from one representation to another."
 
 class NotACertificateChain(RPKI_Exception):
-  "Certificates don't form a proper chain."
+    "Certificates don't form a proper chain."
 
 class BadContactURL(RPKI_Exception):
-  "Error trying to parse contact URL."
+    "Error trying to parse contact URL."
 
 class BadClassNameSyntax(RPKI_Exception):
-  "Illegal syntax for a class_name."
+    "Illegal syntax for a class_name."
 
 class BadIssueResponse(RPKI_Exception):
-  "issue_response PDU with wrong number of classes or certificates."
+    "issue_response PDU with wrong number of classes or certificates."
 
 class NotImplementedYet(RPKI_Exception):
-  "Internal error -- not implemented yet."
+    "Internal error -- not implemented yet."
 
 class BadPKCS10(RPKI_Exception):
-  "Bad PKCS #10 object."
+    "Bad PKCS #10 object."
 
 class UpstreamError(RPKI_Exception):
-  "Received an error from upstream."
+    "Received an error from upstream."
 
 class ChildNotFound(RPKI_Exception):
-  "Could not find specified child in database."
+    "Could not find specified child in database."
 
 class BSCNotFound(RPKI_Exception):
-  "Could not find specified BSC in database."
+    "Could not find specified BSC in database."
 
 class BadSender(RPKI_Exception):
-  "Unexpected XML sender value."
+    "Unexpected XML sender value."
 
 class ClassNameMismatch(RPKI_Exception):
-  "class_name does not match child context."
+    "class_name does not match child context."
 
 class ClassNameUnknown(RPKI_Exception):
-  "Unknown class_name."
+    "Unknown class_name."
 
 class SKIMismatch(RPKI_Exception):
-  "SKI value in response does not match request."
+    "SKI value in response does not match request."
 
 class SubprocessError(RPKI_Exception):
-  "Subprocess returned unexpected error."
+    "Subprocess returned unexpected error."
 
 class BadIRDBReply(RPKI_Exception):
-  "Unexpected reply to IRDB query."
+    "Unexpected reply to IRDB query."
 
 class NotFound(RPKI_Exception):
-  "Object not found in database."
+    "Object not found in database."
 
 class MustBePrefix(RPKI_Exception):
-  "Resource range cannot be expressed as a prefix."
+    "Resource range cannot be expressed as a prefix."
 
 class TLSValidationError(RPKI_Exception):
-  "TLS certificate validation error."
+    "TLS certificate validation error."
 
 class MultipleTLSEECert(TLSValidationError):
-  "Received more than one TLS EE certificate."
+    "Received more than one TLS EE certificate."
 
 class ReceivedTLSCACert(TLSValidationError):
-  "Received CA certificate via TLS."
+    "Received CA certificate via TLS."
 
 class WrongEContentType(RPKI_Exception):
-  "Received wrong CMS eContentType."
+    "Received wrong CMS eContentType."
 
 class EmptyPEM(RPKI_Exception):
-  "Couldn't find PEM block to convert."
+    "Couldn't find PEM block to convert."
 
 class UnexpectedCMSCerts(RPKI_Exception):
-  "Received CMS certs when not expecting any."
+    "Received CMS certs when not expecting any."
 
 class UnexpectedCMSCRLs(RPKI_Exception):
-  "Received CMS CRLs when not expecting any."
+    "Received CMS CRLs when not expecting any."
 
 class MissingCMSEEcert(RPKI_Exception):
-  "Didn't receive CMS EE cert when expecting one."
+    "Didn't receive CMS EE cert when expecting one."
 
 class MissingCMSCRL(RPKI_Exception):
-  "Didn't receive CMS CRL when expecting one."
+    "Didn't receive CMS CRL when expecting one."
 
 class UnparsableCMSDER(RPKI_Exception):
-  "Alleged CMS DER wasn't parsable."
+    "Alleged CMS DER wasn't parsable."
 
 class CMSCRLNotSet(RPKI_Exception):
-  "CMS CRL has not been configured."
+    "CMS CRL has not been configured."
 
 class ServerShuttingDown(RPKI_Exception):
-  "Server is shutting down."
+    "Server is shutting down."
 
 class NoActiveCA(RPKI_Exception):
-  "No active ca_detail for specified class."
+    "No active ca_detail for specified class."
 
 class BadClientURL(RPKI_Exception):
-  "URL given to HTTP client does not match profile."
+    "URL given to HTTP client does not match profile."
 
 class ClientNotFound(RPKI_Exception):
-  "Could not find specified client in database."
+    "Could not find specified client in database."
 
 class BadExtension(RPKI_Exception):
-  "Forbidden X.509 extension."
+    "Forbidden X.509 extension."
 
 class ForbiddenURI(RPKI_Exception):
-  "Forbidden URI, does not start with correct base URI."
+    "Forbidden URI, does not start with correct base URI."
 
 class HTTPClientAborted(RPKI_Exception):
-  "HTTP client connection closed while in request-sent state."
+    "HTTP client connection closed while in request-sent state."
 
 class BadPublicationReply(RPKI_Exception):
-  "Unexpected reply to publication query."
+    "Unexpected reply to publication query."
 
 class DuplicateObject(RPKI_Exception):
-  "Attempt to create an object that already exists."
+    "Attempt to create an object that already exists."
 
 class EmptyROAPrefixList(RPKI_Exception):
-  "Can't create ROA with an empty prefix list."
+    "Can't create ROA with an empty prefix list."
 
 class NoCoveringCertForROA(RPKI_Exception):
-  "Couldn't find a covering certificate to generate ROA."
+    "Couldn't find a covering certificate to generate ROA."
 
 class BSCNotReady(RPKI_Exception):
-  "BSC not yet in a usable state, signing_cert not set."
+    "BSC not yet in a usable state, signing_cert not set."
 
 class HTTPUnexpectedState(RPKI_Exception):
-  "HTTP event occurred in an unexpected state."
+    "HTTP event occurred in an unexpected state."
 
 class HTTPBadVersion(RPKI_Exception):
-  "HTTP couldn't parse HTTP version."
+    "HTTP couldn't parse HTTP version."
 
 class HandleTranslationError(RPKI_Exception):
-  "Internal error translating protocol handle -> SQL id."
+    "Internal error translating protocol handle -> SQL id."
 
 class NoObjectAtURI(RPKI_Exception):
-  "No object published at specified URI."
+    "No object published at specified URI."
 
 class ExistingObjectAtURI(RPKI_Exception):
-  "An object has already been published at specified URI."
+    "An object has already been published at specified URI."
 
 class DifferentObjectAtURI(RPKI_Exception):
-  "An object with a different hash exists at specified URI."
+    "An object with a different hash exists at specified URI."
 
 class CMSContentNotSet(RPKI_Exception):
-  """
-  Inner content of a CMS_object has not been set.  If object is known
-  to be valid, the .extract() method should be able to set the
-  content; otherwise, only the .verify() method (which checks
-  signatures) is safe.
-  """
+    """
+    Inner content of a CMS_object has not been set.  If object is known
+    to be valid, the .extract() method should be able to set the
+    content; otherwise, only the .verify() method (which checks
+    signatures) is safe.
+    """
 
 class HTTPTimeout(RPKI_Exception):
-  "HTTP connection timed out."
+    "HTTP connection timed out."
 
 class BadIPResource(RPKI_Exception):
-  "Parse failure for alleged IP resource string."
+    "Parse failure for alleged IP resource string."
 
 class BadROAPrefix(RPKI_Exception):
-  "Parse failure for alleged ROA prefix string."
+    "Parse failure for alleged ROA prefix string."
 
 class CommandParseFailure(RPKI_Exception):
-  "Failed to parse command line."
+    "Failed to parse command line."
 
 class CMSCertHasExpired(RPKI_Exception):
-  "CMS certificate has expired."
+    "CMS certificate has expired."
 
 class TrustedCMSCertHasExpired(RPKI_Exception):
-  "Trusted CMS certificate has expired."
+    "Trusted CMS certificate has expired."
 
 class MultipleCMSEECert(RPKI_Exception):
-  "Can't have more than one CMS EE certificate in validation chain."
+    "Can't have more than one CMS EE certificate in validation chain."
 
 class ResourceOverlap(RPKI_Exception):
-  "Overlapping resources in resource_set."
+    "Overlapping resources in resource_set."
 
 class CMSReplay(RPKI_Exception):
-  "Possible CMS replay attack detected."
+    "Possible CMS replay attack detected."
 
 class PastNotAfter(RPKI_Exception):
-  "Requested notAfter value is already in the past."
+    "Requested notAfter value is already in the past."
 
 class NullValidityInterval(RPKI_Exception):
-  "Requested validity interval is null."
+    "Requested validity interval is null."
 
 class BadX510DN(RPKI_Exception):
-  "X.510 distinguished name does not match profile."
+    "X.510 distinguished name does not match profile."
 
 class BadAutonomousSystemNumber(RPKI_Exception):
-  "Bad AutonomousSystem number."
+    "Bad AutonomousSystem number."
 
 class WrongEKU(RPKI_Exception):
-  "Extended Key Usage extension does not match profile."
+    "Extended Key Usage extension does not match profile."
 
 class UnexpectedUpDownResponse(RPKI_Exception):
-  "Up-down message is not of the expected type."
+    "Up-down message is not of the expected type."
 
 class BadContentType(RPKI_Exception):
-  "Bad HTTP Content-Type."
+    "Bad HTTP Content-Type."

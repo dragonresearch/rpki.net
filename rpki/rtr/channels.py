@@ -32,215 +32,215 @@ import rpki.rtr.pdus
 
 
 class Timestamp(int):
-  """
-  Wrapper around time module.
-  """
+    """
+    Wrapper around time module.
+    """
 
-  def __new__(cls, t):
-    # __new__() is a static method, not a class method, hence the odd calling sequence.
-    return super(Timestamp, cls).__new__(cls, t)
+    def __new__(cls, t):
+        # __new__() is a static method, not a class method, hence the odd calling sequence.
+        return super(Timestamp, cls).__new__(cls, t)
 
-  @classmethod
-  def now(cls, delta = 0):
-    return cls(time.time() + delta)
+    @classmethod
+    def now(cls, delta = 0):
+        return cls(time.time() + delta)
 
-  def __str__(self):
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self))
+    def __str__(self):
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self))
 
 
 class ReadBuffer(object):
-  """
-  Wrapper around synchronous/asynchronous read state.
-
-  This also handles tracking the current protocol version,
-  because it has to go somewhere and there's no better place.
-  """
-
-  def __init__(self):
-    self.buffer = ""
-    self.version = None
-
-  def update(self, need, callback):
     """
-    Update count of needed bytes and callback, then dispatch to callback.
+    Wrapper around synchronous/asynchronous read state.
+
+    This also handles tracking the current protocol version,
+    because it has to go somewhere and there's no better place.
     """
 
-    self.need = need
-    self.callback = callback
-    return self.retry()
+    def __init__(self):
+        self.buffer = ""
+        self.version = None
 
-  def retry(self):
-    """
-    Try dispatching to the callback again.
-    """
+    def update(self, need, callback):
+        """
+        Update count of needed bytes and callback, then dispatch to callback.
+        """
 
-    return self.callback(self)
+        self.need = need
+        self.callback = callback
+        return self.retry()
 
-  def available(self):
-    """
-    How much data do we have available in this buffer?
-    """
+    def retry(self):
+        """
+        Try dispatching to the callback again.
+        """
 
-    return len(self.buffer)
+        return self.callback(self)
 
-  def needed(self):
-    """
-    How much more data does this buffer need to become ready?
-    """
+    def available(self):
+        """
+        How much data do we have available in this buffer?
+        """
 
-    return self.need - self.available()
+        return len(self.buffer)
 
-  def ready(self):
-    """
-    Is this buffer ready to read yet?
-    """
+    def needed(self):
+        """
+        How much more data does this buffer need to become ready?
+        """
 
-    return self.available() >= self.need
+        return self.need - self.available()
 
-  def get(self, n):
-    """
-    Hand some data to the caller.
-    """
+    def ready(self):
+        """
+        Is this buffer ready to read yet?
+        """
 
-    b = self.buffer[:n]
-    self.buffer = self.buffer[n:]
-    return b
+        return self.available() >= self.need
 
-  def put(self, b):
-    """
-    Accumulate some data.
-    """
+    def get(self, n):
+        """
+        Hand some data to the caller.
+        """
 
-    self.buffer += b
+        b = self.buffer[:n]
+        self.buffer = self.buffer[n:]
+        return b
 
-  def check_version(self, version):
-    """
-    Track version number of PDUs read from this buffer.
-    Once set, the version must not change.
-    """
+    def put(self, b):
+        """
+        Accumulate some data.
+        """
 
-    if self.version is not None and version != self.version:
-      raise rpki.rtr.pdus.CorruptData(
-        "Received PDU version %d, expected %d" % (version, self.version))
-    if self.version is None and version not in rpki.rtr.pdus.PDU.version_map:
-      raise rpki.rtr.pdus.UnsupportedProtocolVersion(
-        "Received PDU version %s, known versions %s" % (
-          version, ", ".join(str(v) for v in rpki.rtr.pdus.PDU.version_map)))
-    self.version = version
+        self.buffer += b
+
+    def check_version(self, version):
+        """
+        Track version number of PDUs read from this buffer.
+        Once set, the version must not change.
+        """
+
+        if self.version is not None and version != self.version:
+            raise rpki.rtr.pdus.CorruptData(
+                "Received PDU version %d, expected %d" % (version, self.version))
+        if self.version is None and version not in rpki.rtr.pdus.PDU.version_map:
+            raise rpki.rtr.pdus.UnsupportedProtocolVersion(
+                "Received PDU version %s, known versions %s" % (
+                version, ", ".join(str(v) for v in rpki.rtr.pdus.PDU.version_map)))
+        self.version = version
 
 
 class PDUChannel(asynchat.async_chat, object):
-  """
-  asynchat subclass that understands our PDUs.  This just handles
-  network I/O.  Specific engines (client, server) should be subclasses
-  of this with methods that do something useful with the resulting
-  PDUs.
-  """
-
-  def __init__(self, root_pdu_class, sock = None):
-    asynchat.async_chat.__init__(self, sock)            # Old-style class, can't use super()
-    self.reader = ReadBuffer()
-    assert issubclass(root_pdu_class, rpki.rtr.pdus.PDU)
-    self.root_pdu_class = root_pdu_class
-
-  @property
-  def version(self):
-    return self.reader.version
-
-  @version.setter
-  def version(self, version):
-    self.reader.check_version(version)
-
-  def start_new_pdu(self):
     """
-    Start read of a new PDU.
+    asynchat subclass that understands our PDUs.  This just handles
+    network I/O.  Specific engines (client, server) should be subclasses
+    of this with methods that do something useful with the resulting
+    PDUs.
     """
 
-    try:
-      p = self.root_pdu_class.read_pdu(self.reader)
-      while p is not None:
-        self.deliver_pdu(p)
-        p = self.root_pdu_class.read_pdu(self.reader)
-    except rpki.rtr.pdus.PDUException, e:
-      self.push_pdu(e.make_error_report(version = self.version))
-      self.close_when_done()
-    else:
-      assert not self.reader.ready()
-      self.set_terminator(self.reader.needed())
+    def __init__(self, root_pdu_class, sock = None):
+        asynchat.async_chat.__init__(self, sock)            # Old-style class, can't use super()
+        self.reader = ReadBuffer()
+        assert issubclass(root_pdu_class, rpki.rtr.pdus.PDU)
+        self.root_pdu_class = root_pdu_class
 
-  def collect_incoming_data(self, data):
-    """
-    Collect data into the read buffer.
-    """
+    @property
+    def version(self):
+        return self.reader.version
 
-    self.reader.put(data)
+    @version.setter
+    def version(self, version):
+        self.reader.check_version(version)
 
-  def found_terminator(self):
-    """
-    Got requested data, see if we now have a PDU.  If so, pass it
-    along, then restart cycle for a new PDU.
-    """
+    def start_new_pdu(self):
+        """
+        Start read of a new PDU.
+        """
 
-    p = self.reader.retry()
-    if p is None:
-      self.set_terminator(self.reader.needed())
-    else:
-      self.deliver_pdu(p)
-      self.start_new_pdu()
+        try:
+            p = self.root_pdu_class.read_pdu(self.reader)
+            while p is not None:
+                self.deliver_pdu(p)
+                p = self.root_pdu_class.read_pdu(self.reader)
+        except rpki.rtr.pdus.PDUException, e:
+            self.push_pdu(e.make_error_report(version = self.version))
+            self.close_when_done()
+        else:
+            assert not self.reader.ready()
+            self.set_terminator(self.reader.needed())
 
-  def push_pdu(self, pdu):
-    """
-    Write PDU to stream.
-    """
+    def collect_incoming_data(self, data):
+        """
+        Collect data into the read buffer.
+        """
 
-    try:
-      self.push(pdu.to_pdu())
-    except OSError, e:
-      if e.errno != errno.EAGAIN:
-        raise
+        self.reader.put(data)
 
-  def log(self, msg):
-    """
-    Intercept asyncore's logging.
-    """
+    def found_terminator(self):
+        """
+        Got requested data, see if we now have a PDU.  If so, pass it
+        along, then restart cycle for a new PDU.
+        """
 
-    logging.info(msg)
+        p = self.reader.retry()
+        if p is None:
+            self.set_terminator(self.reader.needed())
+        else:
+            self.deliver_pdu(p)
+            self.start_new_pdu()
 
-  def log_info(self, msg, tag = "info"):
-    """
-    Intercept asynchat's logging.
-    """
+    def push_pdu(self, pdu):
+        """
+        Write PDU to stream.
+        """
 
-    logging.info("asynchat: %s: %s", tag, msg)
+        try:
+            self.push(pdu.to_pdu())
+        except OSError, e:
+            if e.errno != errno.EAGAIN:
+                raise
 
-  def handle_error(self):
-    """
-    Handle errors caught by asyncore main loop.
-    """
+    def log(self, msg):
+        """
+        Intercept asyncore's logging.
+        """
 
-    logging.exception("[Unhandled exception]")
-    logging.critical("[Exiting after unhandled exception]")
-    sys.exit(1)
+        logging.info(msg)
 
-  def init_file_dispatcher(self, fd):
-    """
-    Kludge to plug asyncore.file_dispatcher into asynchat.  Call from
-    subclass's __init__() method, after calling
-    PDUChannel.__init__(), and don't read this on a full stomach.
-    """
+    def log_info(self, msg, tag = "info"):
+        """
+        Intercept asynchat's logging.
+        """
 
-    self.connected = True
-    self._fileno = fd
-    self.socket = asyncore.file_wrapper(fd)
-    self.add_channel()
-    flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
-    flags = flags | os.O_NONBLOCK
-    fcntl.fcntl(fd, fcntl.F_SETFL, flags)
+        logging.info("asynchat: %s: %s", tag, msg)
 
-  def handle_close(self):
-    """
-    Exit when channel closed.
-    """
+    def handle_error(self):
+        """
+        Handle errors caught by asyncore main loop.
+        """
 
-    asynchat.async_chat.handle_close(self)
-    sys.exit(0)
+        logging.exception("[Unhandled exception]")
+        logging.critical("[Exiting after unhandled exception]")
+        sys.exit(1)
+
+    def init_file_dispatcher(self, fd):
+        """
+        Kludge to plug asyncore.file_dispatcher into asynchat.  Call from
+        subclass's __init__() method, after calling
+        PDUChannel.__init__(), and don't read this on a full stomach.
+        """
+
+        self.connected = True
+        self._fileno = fd
+        self.socket = asyncore.file_wrapper(fd)
+        self.add_channel()
+        flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
+        flags = flags | os.O_NONBLOCK
+        fcntl.fcntl(fd, fcntl.F_SETFL, flags)
+
+    def handle_close(self):
+        """
+        Exit when channel closed.
+        """
+
+        asynchat.async_chat.handle_close(self)
+        sys.exit(0)

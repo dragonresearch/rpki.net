@@ -1,12 +1,12 @@
 # $Id$
-# 
+#
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2011--2013  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -21,30 +21,30 @@ from glob import glob
 import setup_extensions
 
 try:
-  import setup_autoconf as autoconf
+    import setup_autoconf as autoconf
 
 except ImportError:
-  class autoconf:
-    "Fake autoconf object to let --help work without autoconf."
-    sbindir = libexecdir = datarootdir = sysconfdir = ""
-    CFLAGS = LDFLAGS = LIBS = CA_TARGET = RP_TARGET = ""
+    class autoconf:
+        "Fake autoconf object to let --help work without autoconf."
+        sbindir = libexecdir = datarootdir = sysconfdir = ""
+        CFLAGS = LDFLAGS = LIBS = CA_TARGET = RP_TARGET = ""
 
 try:
-  from rpki.version import VERSION
+    from rpki.version import VERSION
 
 except ImportError:
-  VERSION = "0.0"
+    VERSION = "0.0"
 
 # pylint: disable=W0622
 
 setup_args = dict(
-  name          = "rpki",
-  version       = VERSION,
-  description   = "RPKI Toolkit",
-  license       = "BSD",
-  url           = "http://rpki.net/",
-  cmdclass      = {"build_scripts"   : setup_extensions.build_scripts,
-                   "install_scripts" : setup_extensions.install_scripts})
+    name          = "rpki",
+    version       = VERSION,
+    description   = "RPKI Toolkit",
+    license       = "BSD",
+    url           = "http://rpki.net/",
+    cmdclass      = {"build_scripts"   : setup_extensions.build_scripts,
+                     "install_scripts" : setup_extensions.install_scripts})
 
 scripts         = []
 
@@ -53,79 +53,79 @@ scripts         = []
 # Might have to filter out some rpki.gui.app subdirs.
 
 if autoconf.RP_TARGET == "rp":
-  setup_args.update(
-    packages    = ["rpki",
-                   "rpki.POW",
-                   "rpki.rtr",
-                   "rpki.irdb",
-                   "rpki.pubdb",
-                   "rpki.rpkidb",
-                   "rpki.gui",
-                   "rpki.gui.app",
-                   "rpki.gui.cacheview",
-                   "rpki.gui.api",
-                   "rpki.gui.routeview"],
-    ext_modules = [Extension("rpki.POW._POW", ["ext/POW.c"],
-                             include_dirs       = [cflag[2:] for cflag in autoconf.CFLAGS.split() if cflag.startswith("-I")],
-                             extra_compile_args = [cflag for cflag in autoconf.CFLAGS.split() if not cflag.startswith("-I")],
-                             extra_link_args    = autoconf.LDFLAGS.split() + autoconf.LIBS.split())],
-    package_data = {"rpki.gui.app" :
-                    ["migrations/*.py",
-                     "static/*/*",
-                     "templates/*.html",
-                     "templates/*/*.html",
-                     "templatetags/*.py"],
-                    "rpki.gui.cacheview" :
-                    ["templates/*/*.html"]})
+    setup_args.update(
+        packages    = ["rpki",
+                       "rpki.POW",
+                       "rpki.rtr",
+                       "rpki.irdb",
+                       "rpki.pubdb",
+                       "rpki.rpkidb",
+                       "rpki.gui",
+                       "rpki.gui.app",
+                       "rpki.gui.cacheview",
+                       "rpki.gui.api",
+                       "rpki.gui.routeview"],
+        ext_modules = [Extension("rpki.POW._POW", ["ext/POW.c"],
+                                 include_dirs       = [cflag[2:] for cflag in autoconf.CFLAGS.split() if cflag.startswith("-I")],
+                                 extra_compile_args = [cflag for cflag in autoconf.CFLAGS.split() if not cflag.startswith("-I")],
+                                 extra_link_args    = autoconf.LDFLAGS.split() + autoconf.LIBS.split())],
+        package_data = {"rpki.gui.app" :
+                        ["migrations/*.py",
+                         "static/*/*",
+                         "templates/*.html",
+                         "templates/*/*.html",
+                         "templatetags/*.py"],
+                        "rpki.gui.cacheview" :
+                        ["templates/*/*.html"]})
 
-  scripts      += [(autoconf.bindir,
-                    ["rp/rcynic/rcynic-cron",
-                     "rp/rcynic/rcynic-html",
-                     "rp/rcynic/rcynic-svn",
-                     "rp/rcynic/rcynic-text",
-                     "rp/rcynic/validation_status",
-                     "rp/rpki-rtr/rpki-rtr",
-                     "rp/utils/find_roa",
-                     "rp/utils/hashdir",
-                     "rp/utils/print_roa",
-                     "rp/utils/print_rpki_manifest",
-                     "rp/utils/scan_roas",
-                     "rp/utils/scan_routercerts",
-                     "rp/utils/uri"])]
+    scripts      += [(autoconf.bindir,
+                      ["rp/rcynic/rcynic-cron",
+                       "rp/rcynic/rcynic-html",
+                       "rp/rcynic/rcynic-svn",
+                       "rp/rcynic/rcynic-text",
+                       "rp/rcynic/validation_status",
+                       "rp/rpki-rtr/rpki-rtr",
+                       "rp/utils/find_roa",
+                       "rp/utils/hashdir",
+                       "rp/utils/print_roa",
+                       "rp/utils/print_rpki_manifest",
+                       "rp/utils/scan_roas",
+                       "rp/utils/scan_routercerts",
+                       "rp/utils/uri"])]
 
 if autoconf.CA_TARGET == "ca":
-  setup_args.update(
-    data_files  = [(autoconf.sysconfdir  + "/rpki",
-                    ["ca/rpki-confgen.xml"]),
-                   (autoconf.datarootdir + "/rpki/wsgi",
-                    ["ca/rpki.wsgi"]),
-                   (autoconf.datarootdir + "/rpki/media/css",
-                    glob("rpki/gui/app/static/css/*")),
-                   (autoconf.datarootdir + "/rpki/media/js",
-                    glob("rpki/gui/app/static/js/*")),
-                   (autoconf.datarootdir + "/rpki/media/img",
-                    glob("rpki/gui/app/static/img/*")),
-                   (autoconf.datarootdir + "/rpki/upgrade-scripts",
-                    glob("ca/upgrade-scripts/*"))])
+    setup_args.update(
+        data_files  = [(autoconf.sysconfdir  + "/rpki",
+                        ["ca/rpki-confgen.xml"]),
+                       (autoconf.datarootdir + "/rpki/wsgi",
+                        ["ca/rpki.wsgi"]),
+                       (autoconf.datarootdir + "/rpki/media/css",
+                        glob("rpki/gui/app/static/css/*")),
+                       (autoconf.datarootdir + "/rpki/media/js",
+                        glob("rpki/gui/app/static/js/*")),
+                       (autoconf.datarootdir + "/rpki/media/img",
+                        glob("rpki/gui/app/static/img/*")),
+                       (autoconf.datarootdir + "/rpki/upgrade-scripts",
+                        glob("ca/upgrade-scripts/*"))])
 
-  scripts      += [(autoconf.sbindir,
-                    ["ca/rpkic",
-                     "ca/rpki-confgen",
-                     "ca/rpki-start-servers",
-                     "ca/rpki-sql-backup",
-                     "ca/rpki-sql-setup",
-                     "ca/rpki-manage",
-                     "ca/rpkigui-query-routes",
-                     "ca/irbe_cli"]),
-                   (autoconf.libexecdir,
-                    ["ca/irdbd",
-                     "ca/pubd",
-                     "ca/rootd",
-                     "ca/rpkid",
-                     "ca/rpkigui-import-routes",
-                     "ca/rpkigui-check-expired",
-                     "ca/rpkigui-rcynic",
-                     "ca/rpkigui-apache-conf-gen"])]
+    scripts      += [(autoconf.sbindir,
+                      ["ca/rpkic",
+                       "ca/rpki-confgen",
+                       "ca/rpki-start-servers",
+                       "ca/rpki-sql-backup",
+                       "ca/rpki-sql-setup",
+                       "ca/rpki-manage",
+                       "ca/rpkigui-query-routes",
+                       "ca/irbe_cli"]),
+                     (autoconf.libexecdir,
+                      ["ca/irdbd",
+                       "ca/pubd",
+                       "ca/rootd",
+                       "ca/rpkid",
+                       "ca/rpkigui-import-routes",
+                       "ca/rpkigui-check-expired",
+                       "ca/rpkigui-rcynic",
+                       "ca/rpkigui-apache-conf-gen"])]
 
 setup_args.update(scripts = scripts)
 setup(**setup_args)

@@ -27,69 +27,69 @@ accomplishes this.
 """
 
 class DBContextRouter(object):
-  """
-  A Django database router for use with multiple IRDBs.
+    """
+    A Django database router for use with multiple IRDBs.
 
-  This router is designed to work in conjunction with the
-  rpki.irdb.database context handler (q.v.).
-  """
+    This router is designed to work in conjunction with the
+    rpki.irdb.database context handler (q.v.).
+    """
 
-  _app = "irdb"
+    _app = "irdb"
 
-  _database = None
+    _database = None
 
-  def db_for_read(self, model, **hints):
-    if model._meta.app_label == self._app:
-      return self._database
-    else:
-      return None
+    def db_for_read(self, model, **hints):
+        if model._meta.app_label == self._app:
+            return self._database
+        else:
+            return None
 
-  def db_for_write(self, model, **hints):
-    if model._meta.app_label == self._app:
-      return self._database
-    else:
-      return None
+    def db_for_write(self, model, **hints):
+        if model._meta.app_label == self._app:
+            return self._database
+        else:
+            return None
 
-  def allow_relation(self, obj1, obj2, **hints):
-    if self._database is None:
-      return None
-    elif obj1._meta.app_label == self._app and obj2._meta.app_label == self._app:
-      return True
-    else:
-      return None
+    def allow_relation(self, obj1, obj2, **hints):
+        if self._database is None:
+            return None
+        elif obj1._meta.app_label == self._app and obj2._meta.app_label == self._app:
+            return True
+        else:
+            return None
 
-  def allow_migrate(self, db, model):
-    if db == self._database and model._meta.app_label == self._app:
-      return True
-    else:
-      return None
+    def allow_migrate(self, db, model):
+        if db == self._database and model._meta.app_label == self._app:
+            return True
+        else:
+            return None
 
 class database(object):
-  """
-  Context manager for use with DBContextRouter.  Use thusly:
+    """
+    Context manager for use with DBContextRouter.  Use thusly:
 
-    with rpki.irdb.database("blarg"):
-      do_stuff()
+      with rpki.irdb.database("blarg"):
+        do_stuff()
 
-  This binds IRDB operations to database blarg for the duration of
-  the call to do_stuff(), then restores the prior state.
-  """
+    This binds IRDB operations to database blarg for the duration of
+    the call to do_stuff(), then restores the prior state.
+    """
 
-  def __init__(self, name, on_entry = None, on_exit = None):
-    if not isinstance(name, str):
-      raise ValueError("database name must be a string, not %r" % name)
-    self.name = name
-    self.on_entry = on_entry
-    self.on_exit = on_exit
+    def __init__(self, name, on_entry = None, on_exit = None):
+        if not isinstance(name, str):
+            raise ValueError("database name must be a string, not %r" % name)
+        self.name = name
+        self.on_entry = on_entry
+        self.on_exit = on_exit
 
-  def __enter__(self):
-    if self.on_entry is not None:
-      self.on_entry()
-    self.former = DBContextRouter._database
-    DBContextRouter._database = self.name
+    def __enter__(self):
+        if self.on_entry is not None:
+            self.on_entry()
+        self.former = DBContextRouter._database
+        DBContextRouter._database = self.name
 
-  def __exit__(self, _type, value, traceback):
-    assert DBContextRouter._database is self.name
-    DBContextRouter._database = self.former
-    if self.on_exit is not None:
-      self.on_exit()
+    def __exit__(self, _type, value, traceback):
+        assert DBContextRouter._database is self.name
+        DBContextRouter._database = self.former
+        if self.on_exit is not None:
+            self.on_exit()

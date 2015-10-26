@@ -4,11 +4,11 @@
 #
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2013  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -254,10 +254,10 @@ class Release(object):
                         DebOverride: override.%(release)s
                         DscOverride: override.%(release)s
                         """ % dict(
-                            distribution = self.distribution,
-                            Distribution = self.distribution.capitalize(),
-                            architectures = " ".join(self.architectures),
-                            release = self.release)))
+                    distribution  = self.distribution,
+                    Distribution  = self.distribution.capitalize(),
+                    architectures = " ".join(self.architectures),
+                    release       = self.release)))
 
         fn = os.path.join(self.tree, "conf", "options")
         if not os.path.exists(fn):
@@ -275,14 +275,14 @@ class Release(object):
             with open(fn, "w") as f:
                 for pkg in self.backports:
                     f.write(dedent("""\
-                        %-30s	Priority	optional
-                        %-30s	Section		python
+                        %-30s   Priority        optional
+                        %-30s   Section         python
                         """ % (pkg, pkg)))
                 f.write(dedent("""\
-                        rpki-ca			Priority	extra
-                        rpki-ca			Section		net
-                        rpki-rp			Priority	extra
-                        rpki-rp			Section		net
+                        rpki-ca                 Priority        extra
+                        rpki-ca                 Section         net
+                        rpki-rp                 Priority        extra
+                        rpki-rp                 Section         net
                         """))
 
         fn = os.path.join(args.apt_tree, "rpki.%s.list" % self.release)

@@ -23,14 +23,14 @@ Flat text listing of <validation_status/> elements from rcynic.xml.
 import sys
 
 try:
-  from lxml.etree            import ElementTree
+    from lxml.etree            import ElementTree
 except ImportError:
-  from xml.etree.ElementTree import ElementTree
+    from xml.etree.ElementTree import ElementTree
 
 for filename in ([sys.stdin] if len(sys.argv) < 2 else sys.argv[1:]):
-  for elt in ElementTree(file = filename).findall("validation_status"):
-    print "%s %8s %-40s %s" % (
-      elt.get("timestamp"),
-      elt.get("generation"),
-      elt.get("status"),
-      elt.text.strip())
+    for elt in ElementTree(file = filename).findall("validation_status"):
+        print "%s %8s %-40s %s" % (
+            elt.get("timestamp"),
+            elt.get("generation"),
+            elt.get("status"),
+            elt.text.strip())

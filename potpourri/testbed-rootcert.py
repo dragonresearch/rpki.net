@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -26,7 +26,7 @@ import sys
 from rpki.csv_utils import csv_reader
 
 if len(sys.argv) not in (2, 4):
-  sys.exit("Usage: %s holder [asns.csv prefixes.csv]" % sys.argv[0])
+    sys.exit("Usage: %s holder [asns.csv prefixes.csv]" % sys.argv[0])
 
 print '''\
 [req]
@@ -53,7 +53,7 @@ sbgp-ipAddrBlock                = critical,@rfc3997_addrs
         "HOLDER" : sys.argv[1].upper() }
 
 for i, asn in enumerate(asn for handle, asn in csv_reader(sys.argv[2] if len(sys.argv) > 2 else "asns.csv", columns = 2)):
-  print "AS.%d = %s" % (i, asn)
+    print "AS.%d = %s" % (i, asn)
 
 print '''\
 
@@ -62,5 +62,5 @@ print '''\
 '''
 
 for i, prefix in enumerate(prefix for handle, prefix in csv_reader(sys.argv[3] if len(sys.argv) > 2 else "prefixes.csv", columns = 2)):
-  v = 6 if ":" in prefix else 4
-  print "IPv%d.%d = %s" % (v, i, prefix)
+    v = 6 if ":" in prefix else 4
+    print "IPv%d.%d = %s" % (v, i, prefix)

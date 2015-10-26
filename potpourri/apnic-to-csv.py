@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -27,29 +27,29 @@ prefixes = csv_writer("prefixes.csv")
 
 for line in open("delegated-apnic-extended-latest"):
 
-  line = line.rstrip()
+    line = line.rstrip()
 
-  if not line.startswith("apnic|") or line.endswith("|summary"):
-    continue
+    if not line.startswith("apnic|") or line.endswith("|summary"):
+        continue
 
-  try:
-    registry, cc, rectype, start, value, date, status, opaque_id = line.split("|")
-  except ValueError:
-    continue
+    try:
+        registry, cc, rectype, start, value, date, status, opaque_id = line.split("|")
+    except ValueError:
+        continue
 
-  if not opaque_id:
-    continue
+    if not opaque_id:
+        continue
 
-  assert registry == "apnic"
+    assert registry == "apnic"
 
-  if rectype == "asn":
-    asns.writerow((opaque_id, "%s-%s" % (start, int(start) + int(value) - 1)))
+    if rectype == "asn":
+        asns.writerow((opaque_id, "%s-%s" % (start, int(start) + int(value) - 1)))
 
-  elif rectype == "ipv4":
-    prefixes.writerow((opaque_id, "%s-%s" % (start, v4addr(v4addr(start) + long(value) - 1))))
+    elif rectype == "ipv4":
+        prefixes.writerow((opaque_id, "%s-%s" % (start, v4addr(v4addr(start) + long(value) - 1))))
 
-  elif rectype == "ipv6":
-    prefixes.writerow((opaque_id, "%s/%s" % (start, value)))
+    elif rectype == "ipv6":
+        prefixes.writerow((opaque_id, "%s/%s" % (start, value)))
 
 asns.close()
 prefixes.close()

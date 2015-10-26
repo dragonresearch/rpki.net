@@ -30,12 +30,12 @@ import argparse
 import traceback as tb
 
 try:
-  have_setproctitle = False
-  if os.getenv("DISABLE_SETPROCTITLE") is None:
-    import setproctitle                 # pylint: disable=F0401
-    have_setproctitle = True
+    have_setproctitle = False
+    if os.getenv("DISABLE_SETPROCTITLE") is None:
+        import setproctitle                 # pylint: disable=F0401
+        have_setproctitle = True
 except ImportError:
-  pass
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -67,234 +67,234 @@ proctitle_extra = os.path.basename(os.getcwd())
 
 
 class Formatter(object):
-  """
-  Reimplementation (easier than subclassing in this case) of
-  logging.Formatter.
+    """
+    Reimplementation (easier than subclassing in this case) of
+    logging.Formatter.
 
-  It turns out that the logging code only cares about this class's
-  .format(record) method, everything else is internal; so long as
-  .format() converts a record into a properly formatted string, the
-  logging code is happy.
+    It turns out that the logging code only cares about this class's
+    .format(record) method, everything else is internal; so long as
+    .format() converts a record into a properly formatted string, the
+    logging code is happy.
 
-  So, rather than mess around with dynamically constructing and
-  deconstructing and tweaking format strings and ten zillion options
-  we don't use, we just provide our own implementation that supports
-  what we do need.
-  """
+    So, rather than mess around with dynamically constructing and
+    deconstructing and tweaking format strings and ten zillion options
+    we don't use, we just provide our own implementation that supports
+    what we do need.
+    """
 
-  converter = time.gmtime
+    converter = time.gmtime
 
-  def __init__(self, ident, handler):
-    self.ident = ident
-    self.is_syslog = isinstance(handler, logging.handlers.SysLogHandler)
+    def __init__(self, ident, handler):
+        self.ident = ident
+        self.is_syslog = isinstance(handler, logging.handlers.SysLogHandler)
 
-  def format(self, record):
-    return "".join(self.coformat(record)).rstrip("\n")
+    def format(self, record):
+        return "".join(self.coformat(record)).rstrip("\n")
 
-  def coformat(self, record):
+    def coformat(self, record):
 
-    try:
-      if not self.is_syslog:
-        yield time.strftime("%Y-%m-%d %H:%M:%S ", time.gmtime(record.created))
-    except:                             # pylint: disable=W0702
-      yield "[$!$Time format failed]"
+        try:
+            if not self.is_syslog:
+                yield time.strftime("%Y-%m-%d %H:%M:%S ", time.gmtime(record.created))
+        except:                             # pylint: disable=W0702
+            yield "[$!$Time format failed]"
 
-    try:
-      yield "%s[%d]: " % (self.ident, record.process)
-    except:                             # pylint: disable=W0702
-      yield "[$!$ident format failed]"
+        try:
+            yield "%s[%d]: " % (self.ident, record.process)
+        except:                             # pylint: disable=W0702
+            yield "[$!$ident format failed]"
 
-    try:
-      if isinstance(record.context, (str, unicode)):
-        yield record.context + " "
-      else:
-        yield repr(record.context) + " "
-    except AttributeError:
-      pass
-    except:                             # pylint: disable=W0702
-      yield "[$!$context format failed]"
+        try:
+            if isinstance(record.context, (str, unicode)):
+                yield record.context + " "
+            else:
+                yield repr(record.context) + " "
+        except AttributeError:
+            pass
+        except:                             # pylint: disable=W0702
+            yield "[$!$context format failed]"
 
-    try:
-      yield record.getMessage()
-    except:                             # pylint: disable=W0702
-      yield "[$!$record.getMessage() failed]"
+        try:
+            yield record.getMessage()
+        except:                             # pylint: disable=W0702
+            yield "[$!$record.getMessage() failed]"
 
-    try:
-      if record.exc_info:
-        if self.is_syslog or not enable_tracebacks:
-          lines = tb.format_exception_only(record.exc_info[0], record.exc_info[1])
-          lines.insert(0, ": ")
-        else:
-          lines = tb.format_exception(record.exc_info[0], record.exc_info[1], record.exc_info[2])
-          lines.insert(0, "\n")
-        for line in lines:
-          yield line
-    except:                             # pylint: disable=W0702
-      yield "[$!$exception formatting failed]"
+        try:
+            if record.exc_info:
+                if self.is_syslog or not enable_tracebacks:
+                    lines = tb.format_exception_only(record.exc_info[0], record.exc_info[1])
+                    lines.insert(0, ": ")
+                else:
+                    lines = tb.format_exception(record.exc_info[0], record.exc_info[1], record.exc_info[2])
+                    lines.insert(0, "\n")
+                for line in lines:
+                    yield line
+        except:                             # pylint: disable=W0702
+            yield "[$!$exception formatting failed]"
 
 
 def argparse_setup(parser, default_thunk = None):
-  """
-  Set up argparse stuff for functionality in this module.
+    """
+    Set up argparse stuff for functionality in this module.
 
-  Default logging destination is syslog, but you can change this
-  by setting default_thunk to a callable which takes no arguments
-  and which returns a instance of a logging.Handler subclass.
+    Default logging destination is syslog, but you can change this
+    by setting default_thunk to a callable which takes no arguments
+    and which returns a instance of a logging.Handler subclass.
 
-  Also see rpki.log.init().
-  """
+    Also see rpki.log.init().
+    """
 
-  class LogLevelAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string = None):
-      setattr(namespace, self.dest, getattr(logging, values.upper()))
+    class LogLevelAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string = None):
+            setattr(namespace, self.dest, getattr(logging, values.upper()))
 
-  parser.add_argument("--log-level", default = logging.WARNING, action = LogLevelAction,
-                      choices = ("debug", "info", "warning", "error", "critical"),
-                      help = "how verbosely to log")
+    parser.add_argument("--log-level", default = logging.WARNING, action = LogLevelAction,
+                        choices = ("debug", "info", "warning", "error", "critical"),
+                        help = "how verbosely to log")
 
-  group = parser.add_mutually_exclusive_group()
+    group = parser.add_mutually_exclusive_group()
 
-  syslog_address = "/dev/log" if os.path.exists("/dev/log") else ("localhost", logging.handlers.SYSLOG_UDP_PORT)
+    syslog_address = "/dev/log" if os.path.exists("/dev/log") else ("localhost", logging.handlers.SYSLOG_UDP_PORT)
 
-  class SyslogAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string = None):
-      namespace.log_handler = lambda: logging.handlers.SysLogHandler(address = syslog_address, facility = values)
+    class SyslogAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string = None):
+            namespace.log_handler = lambda: logging.handlers.SysLogHandler(address = syslog_address, facility = values)
 
-  group.add_argument("--log-syslog", nargs = "?", const = "daemon", action = SyslogAction,
-                     choices = sorted(logging.handlers.SysLogHandler.facility_names.keys()),
-                     help = "send logging to syslog")
+    group.add_argument("--log-syslog", nargs = "?", const = "daemon", action = SyslogAction,
+                       choices = sorted(logging.handlers.SysLogHandler.facility_names.keys()),
+                       help = "send logging to syslog")
 
-  class StreamAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string = None):
-      namespace.log_handler = lambda: logging.StreamHandler(stream = self.const)
+    class StreamAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string = None):
+            namespace.log_handler = lambda: logging.StreamHandler(stream = self.const)
 
-  group.add_argument("--log-stderr", nargs = 0, action = StreamAction, const = sys.stderr,
-                     help = "send logging to standard error")
+    group.add_argument("--log-stderr", nargs = 0, action = StreamAction, const = sys.stderr,
+                       help = "send logging to standard error")
 
-  group.add_argument("--log-stdout", nargs = 0, action = StreamAction, const = sys.stdout,
-                     help = "send logging to standard output")
+    group.add_argument("--log-stdout", nargs = 0, action = StreamAction, const = sys.stdout,
+                       help = "send logging to standard output")
 
-  class WatchedFileAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string = None):
-      namespace.log_handler = lambda: logging.handlers.WatchedFileHandler(filename = values)
+    class WatchedFileAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string = None):
+            namespace.log_handler = lambda: logging.handlers.WatchedFileHandler(filename = values)
 
-  group.add_argument("--log-file", action = WatchedFileAction,
-                     help = "send logging to a file, reopening if rotated away")
+    group.add_argument("--log-file", action = WatchedFileAction,
+                       help = "send logging to a file, reopening if rotated away")
 
-  class RotatingFileAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string = None):
-      namespace.log_handler = lambda: logging.handlers.RotatingFileHandler(
-        filename    = values[0],
-        maxBytes    = int(values[1]) * 1024,
-        backupCount = int(values[2]))
+    class RotatingFileAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string = None):
+            namespace.log_handler = lambda: logging.handlers.RotatingFileHandler(
+                filename    = values[0],
+                maxBytes    = int(values[1]) * 1024,
+                backupCount = int(values[2]))
 
-  group.add_argument("--log-rotating-file", action = RotatingFileAction,
-                     nargs = 3, metavar = ("FILENAME", "KBYTES", "COUNT"),
-                     help = "send logging to rotating file")
+    group.add_argument("--log-rotating-file", action = RotatingFileAction,
+                       nargs = 3, metavar = ("FILENAME", "KBYTES", "COUNT"),
+                       help = "send logging to rotating file")
 
-  class TimedRotatingFileAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string = None):
-      namespace.log_handler = lambda: logging.handlers.TimedRotatingFileHandler(
-        filename    = values[0],
-        interval    = int(values[1]),
-        backupCount = int(values[2]),
-        when        = "H",
-        utc         = True)
+    class TimedRotatingFileAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string = None):
+            namespace.log_handler = lambda: logging.handlers.TimedRotatingFileHandler(
+                filename    = values[0],
+                interval    = int(values[1]),
+                backupCount = int(values[2]),
+                when        = "H",
+                utc         = True)
 
-  group.add_argument("--log-timed-rotating-file", action = TimedRotatingFileAction,
-                     nargs = 3, metavar = ("FILENAME", "HOURS", "COUNT"),
-                     help = "send logging to timed rotating file")
+    group.add_argument("--log-timed-rotating-file", action = TimedRotatingFileAction,
+                       nargs = 3, metavar = ("FILENAME", "HOURS", "COUNT"),
+                       help = "send logging to timed rotating file")
 
-  if default_thunk is None:
-    default_thunk = lambda: logging.handlers.SysLogHandler(address = syslog_address, facility = "daemon")
+    if default_thunk is None:
+        default_thunk = lambda: logging.handlers.SysLogHandler(address = syslog_address, facility = "daemon")
 
-  parser.set_defaults(log_handler = default_thunk)
+    parser.set_defaults(log_handler = default_thunk)
 
 
 def init(ident = None, args = None):
-  """
-  Initialize logging system.
+    """
+    Initialize logging system.
 
-  Default logging destination is stderr if "args" is not specified.
-  """
+    Default logging destination is stderr if "args" is not specified.
+    """
 
-  # pylint: disable=E1103
+    # pylint: disable=E1103
 
-  if ident is None:
-    ident = os.path.basename(sys.argv[0])
+    if ident is None:
+        ident = os.path.basename(sys.argv[0])
 
-  if args is None:
-    args = argparse.Namespace(log_level   = logging.WARNING,
-                              log_handler = logging.StreamHandler)
+    if args is None:
+        args = argparse.Namespace(log_level   = logging.WARNING,
+                                  log_handler = logging.StreamHandler)
 
-  handler = args.log_handler()
-  handler.setFormatter(Formatter(ident, handler))
+    handler = args.log_handler()
+    handler.setFormatter(Formatter(ident, handler))
 
-  root_logger = logging.getLogger()
-  root_logger.addHandler(handler)
-  root_logger.setLevel(args.log_level)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(args.log_level)
 
-  if ident and have_setproctitle and use_setproctitle:
-    if proctitle_extra:
-      setproctitle.setproctitle("%s (%s)" % (ident, proctitle_extra))
-    else:
-      setproctitle.setproctitle(ident)
+    if ident and have_setproctitle and use_setproctitle:
+        if proctitle_extra:
+            setproctitle.setproctitle("%s (%s)" % (ident, proctitle_extra))
+        else:
+            setproctitle.setproctitle(ident)
 
 
 def class_logger(module_logger, attribute = "logger"):
-  """
-  Class decorator to add a class-level Logger object as a class
-  attribute.  This allows control of debugging messages at the class
-  level rather than just the module level.
+    """
+    Class decorator to add a class-level Logger object as a class
+    attribute.  This allows control of debugging messages at the class
+    level rather than just the module level.
 
-  This decorator takes the module logger as an argument.
-  """
+    This decorator takes the module logger as an argument.
+    """
 
-  def decorator(cls):
-    setattr(cls, attribute, module_logger.getChild(cls.__name__))
-    return cls
-  return decorator
+    def decorator(cls):
+        setattr(cls, attribute, module_logger.getChild(cls.__name__))
+        return cls
+    return decorator
 
 
 def log_repr(obj, *tokens):
-  """
-  Constructor for __repr__() strings, handles suppression of Python
-  IDs as needed, includes tenant_handle when available.
-  """
+    """
+    Constructor for __repr__() strings, handles suppression of Python
+    IDs as needed, includes tenant_handle when available.
+    """
 
-  # pylint: disable=W0702
+    # pylint: disable=W0702
 
-  words = ["%s.%s" % (obj.__class__.__module__, obj.__class__.__name__)]
-  try:
-    words.append("{%s}" % obj.tenant.tenant_handle)
-  except:
-    pass
+    words = ["%s.%s" % (obj.__class__.__module__, obj.__class__.__name__)]
+    try:
+        words.append("{%s}" % obj.tenant.tenant_handle)
+    except:
+        pass
 
-  for token in tokens:
-    if token is not None:
-      try:
-        s = str(token)
-      except:
-        s = "???"
-        logger.exception("Failed to generate repr() string for object of type %r", type(token))
-      if s:
-        words.append(s)
+    for token in tokens:
+        if token is not None:
+            try:
+                s = str(token)
+            except:
+                s = "???"
+                logger.exception("Failed to generate repr() string for object of type %r", type(token))
+            if s:
+                words.append(s)
 
-  if show_python_ids:
-    words.append(" at %#x" % id(obj))
+    if show_python_ids:
+        words.append(" at %#x" % id(obj))
 
-  return "<" + " ".join(words) + ">"
+    return "<" + " ".join(words) + ">"
 
 
 def show_stack(stack_logger = None):
-  """
-  Log a stack trace.
-  """
+    """
+    Log a stack trace.
+    """
 
-  if stack_logger is None:
-    stack_logger = logger
+    if stack_logger is None:
+        stack_logger = logger
 
-  for frame in tb.format_stack():
-    for line in frame.split("\n"):
-      if line:
-        stack_logger.debug("%s", line.rstrip())
+    for frame in tb.format_stack():
+        for line in frame.split("\n"):
+            if line:
+                stack_logger.debug("%s", line.rstrip())

@@ -31,64 +31,64 @@ import argparse
 
 class Formatter(logging.Formatter):
 
-  converter = time.gmtime
+    converter = time.gmtime
 
-  def __init__(self, debug, fmt, datefmt):
-    self.debug = debug
-    super(Formatter, self).__init__(fmt, datefmt)
+    def __init__(self, debug, fmt, datefmt):
+        self.debug = debug
+        super(Formatter, self).__init__(fmt, datefmt)
 
-  def format(self, record):
-    if getattr(record, "connection", None) is None:
-      record.connection = ""
-    return super(Formatter, self).format(record)
+    def format(self, record):
+        if getattr(record, "connection", None) is None:
+            record.connection = ""
+        return super(Formatter, self).format(record)
 
-  def formatException(self, ei):
-    if self.debug:
-      return super(Formatter, self).formatException(ei)
-    else:
-      return str(ei[1])
+    def formatException(self, ei):
+        if self.debug:
+            return super(Formatter, self).formatException(ei)
+        else:
+            return str(ei[1])
 
 def main():
 
-  os.environ["TZ"] = "UTC"
-  time.tzset()
+    os.environ["TZ"] = "UTC"
+    time.tzset()
 
-  from rpki.rtr.server    import argparse_setup as argparse_setup_server
-  from rpki.rtr.client    import argparse_setup as argparse_setup_client
-  from rpki.rtr.generator import argparse_setup as argparse_setup_generator
+    from rpki.rtr.server    import argparse_setup as argparse_setup_server
+    from rpki.rtr.client    import argparse_setup as argparse_setup_client
+    from rpki.rtr.generator import argparse_setup as argparse_setup_generator
 
-  if "rpki.rtr.bgpdump" in sys.modules:
-    from rpki.rtr.bgpdump import argparse_setup as argparse_setup_bgpdump
-  else:
-    def argparse_setup_bgpdump(ignored):
-      pass
+    if "rpki.rtr.bgpdump" in sys.modules:
+        from rpki.rtr.bgpdump import argparse_setup as argparse_setup_bgpdump
+    else:
+        def argparse_setup_bgpdump(ignored):
+            pass
 
-  argparser = argparse.ArgumentParser(description = __doc__)
-  argparser.add_argument("--debug", action = "store_true", help = "debugging mode")
-  argparser.add_argument("--log-level", default = "debug",
-                         choices = ("debug", "info", "warning", "error", "critical"),
-                         type = lambda s: s.lower())
-  argparser.add_argument("--log-to",
-                         choices = ("syslog", "stderr"))
-  subparsers = argparser.add_subparsers(title = "Commands", metavar = "", dest = "mode")
-  argparse_setup_server(subparsers)
-  argparse_setup_client(subparsers)
-  argparse_setup_generator(subparsers)
-  argparse_setup_bgpdump(subparsers)
-  args = argparser.parse_args()
+    argparser = argparse.ArgumentParser(description = __doc__)
+    argparser.add_argument("--debug", action = "store_true", help = "debugging mode")
+    argparser.add_argument("--log-level", default = "debug",
+                           choices = ("debug", "info", "warning", "error", "critical"),
+                           type = lambda s: s.lower())
+    argparser.add_argument("--log-to",
+                           choices = ("syslog", "stderr"))
+    subparsers = argparser.add_subparsers(title = "Commands", metavar = "", dest = "mode")
+    argparse_setup_server(subparsers)
+    argparse_setup_client(subparsers)
+    argparse_setup_generator(subparsers)
+    argparse_setup_bgpdump(subparsers)
+    args = argparser.parse_args()
 
-  fmt = "rpki-rtr/" + args.mode + "%(connection)s[%(process)d] %(message)s"
+    fmt = "rpki-rtr/" + args.mode + "%(connection)s[%(process)d] %(message)s"
 
-  if (args.log_to or args.default_log_to) == "stderr":
-    handler = logging.StreamHandler()
-    fmt = "%(asctime)s " + fmt
-  elif os.path.exists("/dev/log"):
-    handler = logging.handlers.SysLogHandler("/dev/log")
-  else:
-    handler = logging.handlers.SysLogHandler()
+    if (args.log_to or args.default_log_to) == "stderr":
+        handler = logging.StreamHandler()
+        fmt = "%(asctime)s " + fmt
+    elif os.path.exists("/dev/log"):
+        handler = logging.handlers.SysLogHandler("/dev/log")
+    else:
+        handler = logging.handlers.SysLogHandler()
 
-  handler.setFormatter(Formatter(args.debug, fmt, "%Y-%m-%dT%H:%M:%SZ"))
-  logging.root.addHandler(handler)
-  logging.root.setLevel(int(getattr(logging, args.log_level.upper())))
+    handler.setFormatter(Formatter(args.debug, fmt, "%Y-%m-%dT%H:%M:%SZ"))
+    logging.root.addHandler(handler)
+    logging.root.setLevel(int(getattr(logging, args.log_level.upper())))
 
-  return args.func(args)
+    return args.func(args)

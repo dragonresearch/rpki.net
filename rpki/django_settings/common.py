@@ -58,7 +58,7 @@ class DatabaseConfigurator(object):
 
     default_sql_engine = "mysql"
 
-    def configure(self, cfg, section):
+    def configure(self, cfg, section):  # pylint: disable=W0621
         self.cfg = cfg
         self.section = section
         engine = cfg.get("sql-engine", section = section,

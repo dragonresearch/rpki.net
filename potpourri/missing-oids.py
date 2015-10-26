@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -23,16 +23,16 @@ import rpki.POW.pkix, rpki.oids
 need_header = True
 
 for oid, name in rpki.oids.oid2name.items():
-  try:
-    rpki.POW.pkix.oid2obj(oid)
-  except:
-    o = rpki.POW.pkix.Oid()
-    o.set(oid)
-    if need_header:
-      print
-      print "# Local additions"
-      need_header = False
-    print
-    print "OID =", " ".join(("%02X" % ord(c)) for c in o.toString())
-    print "Comment = RPKI project"
-    print "Description =", name, "(" + " ".join((str(i) for i in oid)) + ")"
+    try:
+        rpki.POW.pkix.oid2obj(oid)
+    except:
+        o = rpki.POW.pkix.Oid()
+        o.set(oid)
+        if need_header:
+            print
+            print "# Local additions"
+            need_header = False
+        print
+        print "OID =", " ".join(("%02X" % ord(c)) for c in o.toString())
+        print "Comment = RPKI project"
+        print "Description =", name, "(" + " ".join((str(i) for i in oid)) + ")"

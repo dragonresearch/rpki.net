@@ -31,20 +31,20 @@ parser.add_argument("manifests", nargs = "+", type = rpki.POW.Manifest.derReadFi
 args = parser.parse_args()
 
 for mft in args.manifests:
-  mft.extractWithoutVerifying()
-  print "Manifest Version:", mft.getVersion()
-  print "SigningTime:     ", mft.signingTime()
-  print "Number:          ", mft.getManifestNumber()
-  print "thisUpdate:      ", mft.getThisUpdate()
-  print "nextUpdate:      ", mft.getNextUpdate()
-  print "fileHashAlg:     ", rpki.oids.oid2name(mft.getAlgorithm())
-  for i, fah in enumerate(mft.getFiles()):
-    name, obj_hash = fah
-    print "fileList[%3d]:    %s %s" % (i, ":".join(("%02X" % ord(h) for h in obj_hash)), name)
-  if args.cms:
-    print mft.pprint()
-    for cer in mft.certs():
-      print cer.pprint()
-    for crl in mft.crls():
-      print crl.pprint()
-  print
+    mft.extractWithoutVerifying()
+    print "Manifest Version:", mft.getVersion()
+    print "SigningTime:     ", mft.signingTime()
+    print "Number:          ", mft.getManifestNumber()
+    print "thisUpdate:      ", mft.getThisUpdate()
+    print "nextUpdate:      ", mft.getNextUpdate()
+    print "fileHashAlg:     ", rpki.oids.oid2name(mft.getAlgorithm())
+    for i, fah in enumerate(mft.getFiles()):
+        name, obj_hash = fah
+        print "fileList[%3d]:    %s %s" % (i, ":".join(("%02X" % ord(h) for h in obj_hash)), name)
+    if args.cms:
+        print mft.pprint()
+        for cer in mft.certs():
+            print cer.pprint()
+        for crl in mft.crls():
+            print crl.pprint()
+    print

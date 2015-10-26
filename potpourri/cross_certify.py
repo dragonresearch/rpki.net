@@ -1,13 +1,13 @@
 # $Id$
-# 
+#
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -57,18 +57,18 @@ now = rpki.sundial.now()
 notAfter = now + args.lifetime
 
 try:
-  with open(args.serial, "r") as f:
-    serial = int(f.read().splitlines()[0], 16)
+    with open(args.serial, "r") as f:
+        serial = int(f.read().splitlines()[0], 16)
 except IOError:
-  serial = 1
+    serial = 1
 
 cert = args.ca.cross_certify(args.key, args.input, serial, notAfter, now)
 
 with open(args.serial, "w") as f:
-  f.write("%02x\n" % (serial + 1))
+    f.write("%02x\n" % (serial + 1))
 
 if args.out is None:
-  sys.stdout.write(cert.get_PEM())
+    sys.stdout.write(cert.get_PEM())
 else:
-  with open(args.out, "w") as f:
-    f.write(cert.get_PEM())
+    with open(args.out, "w") as f:
+        f.write(cert.get_PEM())

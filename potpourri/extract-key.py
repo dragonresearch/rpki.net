@@ -2,11 +2,11 @@
 
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2008  American Registry for Internet Numbers ("ARIN")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND AND ARIN DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -49,16 +49,16 @@ args = parser.parse_args()
 cur = MySQLdb.connect(user = args.user, db = args.db, passwd = args.password).cursor()
 
 cur.execute(
-  """
-    SELECT bsc.private_key_id, bsc.signing_cert
-    FROM bsc, self
-    WHERE self.self_handle = %s AND self.self_id = bsc.self_id AND bsc_handle = %s
-  """,
-  (args.self, args.bsc))
+    """
+      SELECT bsc.private_key_id, bsc.signing_cert
+      FROM bsc, self
+      WHERE self.self_handle = %s AND self.self_id = bsc.self_id AND bsc_handle = %s
+    """,
+    (args.self, args.bsc))
 
 key, cer = cur.fetchone()
 
 print rpki.x509.RSA(DER = key).get_PEM()
 
 if cer:
-  print rpki.x509.X509(DER = cer).get_PEM()
+    print rpki.x509.X509(DER = cer).get_PEM()

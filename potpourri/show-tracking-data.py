@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -31,9 +31,9 @@ import rpki.sundial
 rcynic_dir = sys.argv[1]
 
 for root, dirs, files in os.walk(rcynic_dir):
-  for f in files:
-    path = os.path.join(root, f)
-    date = rpki.sundial.datetime.utcfromtimestamp(os.stat(path).st_mtime)
-    uri = "rsync://" + path[len(rcynic_dir):].lstrip("/")
-    obj = rpki.x509.uri_dispatch(uri)(DER_file = path)
-    print date, obj.tracking_data(uri)
+    for f in files:
+        path = os.path.join(root, f)
+        date = rpki.sundial.datetime.utcfromtimestamp(os.stat(path).st_mtime)
+        uri = "rsync://" + path[len(rcynic_dir):].lstrip("/")
+        obj = rpki.x509.uri_dispatch(uri)(DER_file = path)
+        print date, obj.tracking_data(uri)

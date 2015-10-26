@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -24,10 +24,10 @@ import lxml.etree
 from rpki.csv_utils import csv_writer
 
 def iterate_xml(filename, tag):
-  return lxml.etree.parse(filename).getroot().getiterator(tag)
+    return lxml.etree.parse(filename).getroot().getiterator(tag)
 
 def ns(tag):
-  return "{http://www.iana.org/assignments}" + tag
+    return "{http://www.iana.org/assignments}" + tag
 
 tag_description = ns("description")
 tag_designation = ns("designation")
@@ -39,19 +39,19 @@ asns     = csv_writer("asns.csv")
 prefixes = csv_writer("prefixes.csv")
 
 for record in iterate_xml("as-numbers.xml", tag_record):
-  if record.findtext(tag_description) == "Assigned by RIPE NCC":
-    asns.writerow(("RIPE", record.findtext(tag_number)))
-    
+    if record.findtext(tag_description) == "Assigned by RIPE NCC":
+        asns.writerow(("RIPE", record.findtext(tag_number)))
+
 for record in iterate_xml("ipv4-address-space.xml", tag_record):
-  if record.findtext(tag_designation) in ("RIPE NCC", "Administered by RIPE NCC"):
-    prefix = record.findtext(tag_prefix)
-    p, l = prefix.split("/")
-    assert l == "8", "Violated /8 assumption: %r" % prefix
-    prefixes.writerow(("RIPE", "%d.0.0.0/8" % int(p)))
-    
+    if record.findtext(tag_designation) in ("RIPE NCC", "Administered by RIPE NCC"):
+        prefix = record.findtext(tag_prefix)
+        p, l = prefix.split("/")
+        assert l == "8", "Violated /8 assumption: %r" % prefix
+        prefixes.writerow(("RIPE", "%d.0.0.0/8" % int(p)))
+
 for record in iterate_xml("ipv6-unicast-address-assignments.xml", tag_record):
-  if record.findtext(tag_description) == "RIPE NCC":
-    prefixes.writerow(("RIPE", record.findtext(tag_prefix)))
+    if record.findtext(tag_description) == "RIPE NCC":
+        prefixes.writerow(("RIPE", record.findtext(tag_prefix)))
 
 asns.close()
 prefixes.close()

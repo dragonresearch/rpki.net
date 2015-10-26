@@ -51,34 +51,34 @@ allowed_content_types = (content_type,)
 
 
 def raise_if_error(pdu):
-  """
-  Raise an appropriate error if this is a <report_error/> PDU.
+    """
+    Raise an appropriate error if this is a <report_error/> PDU.
 
-  As a convenience, this will also accept a <msg/> PDU and raise an
-  appropriate error if it contains any <report_error/> PDUs or if
-  the <msg/> is not a reply.
-  """
+    As a convenience, this will also accept a <msg/> PDU and raise an
+    appropriate error if it contains any <report_error/> PDUs or if
+    the <msg/> is not a reply.
+    """
 
-  if pdu.tag == tag_report_error:
-    code = pdu.get("error_code")
-    logger.debug("<report_error/> code %r", code)
-    e = getattr(rpki.exceptions, code, None)
-    if e is not None and issubclass(e, rpki.exceptions.RPKI_Exception):
-      raise e(pdu.text)
-    else:
-      raise rpki.exceptions.BadPublicationReply("Unexpected response from pubd: %r, %r" % (code, pdu))
+    if pdu.tag == tag_report_error:
+        code = pdu.get("error_code")
+        logger.debug("<report_error/> code %r", code)
+        e = getattr(rpki.exceptions, code, None)
+        if e is not None and issubclass(e, rpki.exceptions.RPKI_Exception):
+            raise e(pdu.text)
+        else:
+            raise rpki.exceptions.BadPublicationReply("Unexpected response from pubd: %r, %r" % (code, pdu))
 
-  if pdu.tag == tag_msg:
-    if pdu.get("type") != "reply":
-      raise rpki.exceptions.BadPublicationReply("Unexpected response from pubd: expected reply, got %r" % pdu.get("type"))
-    for p in pdu:
-      raise_if_error(p)
+    if pdu.tag == tag_msg:
+        if pdu.get("type") != "reply":
+            raise rpki.exceptions.BadPublicationReply("Unexpected response from pubd: expected reply, got %r" % pdu.get("type"))
+        for p in pdu:
+            raise_if_error(p)
 
 
 class cms_msg(rpki.x509.XML_CMS_object):
-  """
-  CMS-signed publication PDU.
-  """
+    """
+    CMS-signed publication PDU.
+    """
 
-  encoding = "us-ascii"
-  schema = rpki.relaxng.publication
+    encoding = "us-ascii"
+    schema = rpki.relaxng.publication

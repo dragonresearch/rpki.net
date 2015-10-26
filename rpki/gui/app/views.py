@@ -148,27 +148,27 @@ def generic_import(request, queryset, configure, form_class=None,
             if handle == '':
                 handle = None
             try:
-		# configure_repository returns None, so can't use tuple expansion
-		# here.  Unpack the tuple below if post_import_redirect is None.
-		r = configure(z, tmpf.name, handle)
+                # configure_repository returns None, so can't use tuple expansion
+                # here.  Unpack the tuple below if post_import_redirect is None.
+                r = configure(z, tmpf.name, handle)
             except lxml.etree.XMLSyntaxError as e:
-		logger.exception('caught XMLSyntaxError while parsing uploaded file')
+                logger.exception('caught XMLSyntaxError while parsing uploaded file')
                 messages.error(
                     request,
                     'The uploaded file has an invalid XML syntax'
                 )
             else:
-		# force rpkid run now
-		z.synchronize_ca(poke=True)
-		if post_import_redirect:
-		    url = post_import_redirect
-		else:
-		    _, handle = r
-		    url = queryset.get(issuer=conf,
-				       handle=handle).get_absolute_url()
-		return http.HttpResponseRedirect(url)
+                # force rpkid run now
+                z.synchronize_ca(poke=True)
+                if post_import_redirect:
+                    url = post_import_redirect
+                else:
+                    _, handle = r
+                    url = queryset.get(issuer=conf,
+                                       handle=handle).get_absolute_url()
+                return http.HttpResponseRedirect(url)
             finally:
-		os.remove(tmpf.name)
+                os.remove(tmpf.name)
     else:
         form = form_class()
 
@@ -474,10 +474,10 @@ def child_add_prefix(request, pk):
             child.address_ranges.create(start_ip=str(r.min), end_ip=str(r.max),
                                         version=version)
             Zookeeper(
-		handle=conf.handle,
-		logstream=logstream,
-		disable_signal_handlers=True
-	    ).run_rpkid_now()
+                handle=conf.handle,
+                logstream=logstream,
+                disable_signal_handlers=True
+            ).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = forms.AddNetForm(child=child)
@@ -497,10 +497,10 @@ def child_add_asn(request, pk):
             r = resource_range_as.parse_str(asns)
             child.asns.create(start_as=r.min, end_as=r.max)
             Zookeeper(
-		handle=conf.handle,
-		logstream=logstream,
-		disable_signal_handlers=True
-	    ).run_rpkid_now()
+                handle=conf.handle,
+                logstream=logstream,
+                disable_signal_handlers=True
+            ).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = forms.AddASNForm(child=child)
@@ -531,10 +531,10 @@ def child_edit(request, pk):
             models.ChildASN.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('as_ranges')).delete()
             models.ChildNet.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('address_ranges')).delete()
             Zookeeper(
-		handle=conf.handle,
-		logstream=logstream,
-		disable_signal_handlers=True
-	    ).run_rpkid_now()
+                handle=conf.handle,
+                logstream=logstream,
+                disable_signal_handlers=True
+            ).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())
     else:
         form = form_class(initial={
@@ -713,27 +713,27 @@ def roa_create_multi(request):
                 v = []
                 rng.chop_into_prefixes(v)
                 init.extend([{'asn': asn, 'prefix': str(p)} for p in v])
-	extra = 0 if init else 1
+        extra = 0 if init else 1
         formset = formset_factory(forms.ROARequestFormFactory(conf), extra=extra)(initial=init)
     elif request.method == 'POST':
         formset = formset_factory(forms.ROARequestFormFactory(conf), extra=0)(request.POST, request.FILES)
-	# We need to check .has_changed() because .is_valid() will return true
-	# if the user clicks the Preview button without filling in the blanks
-	# in the ROA form, leaving the form invalid from this view's POV.
+        # We need to check .has_changed() because .is_valid() will return true
+        # if the user clicks the Preview button without filling in the blanks
+        # in the ROA form, leaving the form invalid from this view's POV.
         if formset.has_changed() and formset.is_valid():
             routes = []
             v = []
             query = Q()  # for matching routes
             roas = []
             for form in formset:
-		asn = form.cleaned_data['asn']
-		rng = resource_range_ip.parse_str(form.cleaned_data['prefix'])
-		max_prefixlen = int(form.cleaned_data['max_prefixlen'])
+                asn = form.cleaned_data['asn']
+                rng = resource_range_ip.parse_str(form.cleaned_data['prefix'])
+                max_prefixlen = int(form.cleaned_data['max_prefixlen'])
                 protect_children = form.cleaned_data['protect_children']
 
                 roas.append((rng, max_prefixlen, asn, protect_children))
-		v.append({'prefix': str(rng), 'max_prefixlen': max_prefixlen,
-			  'asn': asn})
+                v.append({'prefix': str(rng), 'max_prefixlen': max_prefixlen,
+                          'asn': asn})
 
                 query |= Q(prefix_min__gte=rng.min, prefix_max__lte=rng.max)
 
@@ -1451,10 +1451,10 @@ class RouterImportView(FormView):
 
     def form_valid(self, form):
         conf = get_conf(self.request.user, self.request.session['handle'])
-	tmpf = NamedTemporaryFile(prefix='import', suffix='.xml',
-				  delete=False)
-	tmpf.write(form.cleaned_data['xml'].read())
-	tmpf.close()
+        tmpf = NamedTemporaryFile(prefix='import', suffix='.xml',
+                                  delete=False)
+        tmpf.write(form.cleaned_data['xml'].read())
+        tmpf.close()
         z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
         z.add_router_certificate_request(tmpf.name)
         z.run_rpkid_now()

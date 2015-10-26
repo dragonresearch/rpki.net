@@ -27,50 +27,50 @@ import fcntl
 import os
 
 try:
-  from lxml.etree            import ElementTree
+    from lxml.etree            import ElementTree
 except ImportError:
-  from xml.etree.ElementTree import ElementTree
+    from xml.etree.ElementTree import ElementTree
 
 
 mime_types = (
-  ("html", "application/xhtml+xml"),
-  ("cer",  "application/pkix-cert"),
-  ("crl",  "application/pkix-crl"),
-  ("mft",  "application/rpki-manifest"),
-  ("mnf",  "application/rpki-manifest"),
-  ("roa",  "application/rpki-roa"),
-  ("gbr",  "application/rpki-ghostbusters"))
+    ("html", "application/xhtml+xml"),
+    ("cer",  "application/pkix-cert"),
+    ("crl",  "application/pkix-crl"),
+    ("mft",  "application/rpki-manifest"),
+    ("mnf",  "application/rpki-manifest"),
+    ("roa",  "application/rpki-roa"),
+    ("gbr",  "application/rpki-ghostbusters"))
 
 
 def run(*argv, **kwargs):
-  """
-  Run a program, displaying timing data when appropriate.
-  """
+    """
+    Run a program, displaying timing data when appropriate.
+    """
 
-  _t0 = datetime.datetime.utcnow()
-  subprocess.check_call(argv, **kwargs)
-  if args.show_timing:
-    _t1 = datetime.datetime.utcnow()
-    print _t1, (_t1 - _t0), " ".join(argv)
+    _t0 = datetime.datetime.utcnow()
+    subprocess.check_call(argv, **kwargs)
+    if args.show_timing:
+        _t1 = datetime.datetime.utcnow()
+        print _t1, (_t1 - _t0), " ".join(argv)
 
 
 def runxml(*argv):
-  """
+    """
 
-  Run a program which produces XML output, displaying timing data when
-  appropriate and returning an ElementTree constructed from the
-  program's output.
-  """
-  _t0 = datetime.datetime.utcnow()
-  p = subprocess.Popen(argv, stdout = subprocess.PIPE)
-  x = ElementTree(file = p.stdout)
-  s = p.wait()
-  if s:
-    raise subprocess.CalledProcessError(s, argv[0])
-  if args.show_timing:
-    _t1 = datetime.datetime.utcnow()
-    print _t1, (_t1 - _t0), " ".join(argv)
-  return x
+    Run a program which produces XML output, displaying timing data when
+    appropriate and returning an ElementTree constructed from the
+    program's output.
+    """
+    _t0 = datetime.datetime.utcnow()
+    p = subprocess.Popen(argv, stdout = subprocess.PIPE)
+    x = ElementTree(file = p.stdout)
+    s = p.wait()
+    if s:
+        raise subprocess.CalledProcessError(s, argv[0])
+    if args.show_timing:
+        _t1 = datetime.datetime.utcnow()
+        print _t1, (_t1 - _t0), " ".join(argv)
+    return x
 
 
 # Main program.
@@ -120,8 +120,8 @@ parser.add_argument("working_directory", help = \
 args = parser.parse_args()
 
 if args.show_timing:
-  t0 = datetime.datetime.utcnow()
-  print t0, "Starting"
+    t0 = datetime.datetime.utcnow()
+    print t0, "Starting"
 
 # Lock out other instances of this program.  We may want some more
 # sophsiticated approach when combining this with other programs, but
@@ -141,18 +141,18 @@ run("svn", "update", "--quiet", args.working_directory)
 
 if args.files_to_archive:
 
-  if args.verbatim:
-    cmd = ["rsync", "--archive", "--quiet", "--delete"]
-    cmd.extend(args.files_to_archive)
-    cmd.append(args.working_directory)
-    run(*cmd)
+    if args.verbatim:
+        cmd = ["rsync", "--archive", "--quiet", "--delete"]
+        cmd.extend(args.files_to_archive)
+        cmd.append(args.working_directory)
+        run(*cmd)
 
-  else:
-    for src in args.files_to_archive:
-      cmd = ["rsync", "--archive", "--quiet", "--delete", "--copy-links"]
-      cmd.append(src.rstrip("/"))
-      cmd.append(args.working_directory.rstrip("/") + "/")
-      run(*cmd)
+    else:
+        for src in args.files_to_archive:
+            cmd = ["rsync", "--archive", "--quiet", "--delete", "--copy-links"]
+            cmd.append(src.rstrip("/"))
+            cmd.append(args.working_directory.rstrip("/") + "/")
+            run(*cmd)
 
 # Ask Subversion to add any new files, trying hard to get the MIME
 # types right.
@@ -160,8 +160,8 @@ if args.files_to_archive:
 cmd = ["svn", "add", "--quiet", "--force", "--auto-props"]
 
 for fn2, mime_type in mime_types:
-  cmd.append("--config-option")
-  cmd.append("config:auto-props:*.%s=svn:mime-type=%s" % (fn2, mime_type))
+    cmd.append("--config-option")
+    cmd.append("config:auto-props:*.%s=svn:mime-type=%s" % (fn2, mime_type))
 
 cmd.append(".")
 
@@ -177,9 +177,9 @@ missing = sorted(entry.get("path")
 deleted = []
 
 for path in missing:
-  if not any(path.startswith(r) for r in deleted):
-    run("svn", "delete", "--quiet", path)
-    deleted.append(path + "/")
+    if not any(path.startswith(r) for r in deleted):
+        run("svn", "delete", "--quiet", path)
+        deleted.append(path + "/")
 
 # Commit our changes and update the working tree.
 
@@ -187,5 +187,5 @@ run("svn", "commit", "--quiet", "--message", "Auto update.", args.working_direct
 run("svn", "update", "--quiet", args.working_directory)
 
 if args.show_timing:
-  t1 = datetime.datetime.utcnow()
-  print t1, t1 - t0, "total runtime"
+    t1 = datetime.datetime.utcnow()
+    print t1, t1 - t0, "total runtime"

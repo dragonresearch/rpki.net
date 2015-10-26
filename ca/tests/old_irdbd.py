@@ -15,5 +15,5 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 if __name__ == "__main__":
-  import rpki.old_irdbd
-  rpki.old_irdbd.main()
+    import rpki.old_irdbd
+    rpki.old_irdbd.main()

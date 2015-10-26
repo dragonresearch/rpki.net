@@ -1,12 +1,12 @@
 # $Id$
-# 
+#
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
 # WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
@@ -45,94 +45,94 @@ import tempfile
 
 def main():
 
-  base = "https://trac.rpki.net"
+    base = "https://trac.rpki.net"
 
-  parser = argparse.ArgumentParser(description = __doc__)
-  parser.add_argument("-b", "--base_url",
-                      default = base,
-                      help = "base URL for documentation web site")
-  parser.add_argument("-t", "--toc",
-                      default = base + "/wiki/doc/RPKI/TOC",
-                      help = "table of contents URL")
-  parser.add_argument("-d", "--directory",
-                      default = ".",
-                      help = "output directory")
-  parser.add_argument("-p", "--pdf_file",
-                      default = "manual.pdf",
-                      help = "output PDF file")
-  parser.add_argument("-r", "--html2textrc",
-                      default = os.path.join(os.path.dirname(sys.argv[0]), "html2textrc"),
-                      help = "html2textrc rules file")
-  args = parser.parse_args()
+    parser = argparse.ArgumentParser(description = __doc__)
+    parser.add_argument("-b", "--base_url",
+                        default = base,
+                        help = "base URL for documentation web site")
+    parser.add_argument("-t", "--toc",
+                        default = base + "/wiki/doc/RPKI/TOC",
+                        help = "table of contents URL")
+    parser.add_argument("-d", "--directory",
+                        default = ".",
+                        help = "output directory")
+    parser.add_argument("-p", "--pdf_file",
+                        default = "manual.pdf",
+                        help = "output PDF file")
+    parser.add_argument("-r", "--html2textrc",
+                        default = os.path.join(os.path.dirname(sys.argv[0]), "html2textrc"),
+                        help = "html2textrc rules file")
+    args = parser.parse_args()
 
-  urls = str(xsl_get_toc(lxml.etree.parse(urllib.urlopen(args.toc)).getroot(),
-                         basename = repr(args.base_url))).splitlines()
+    urls = str(xsl_get_toc(lxml.etree.parse(urllib.urlopen(args.toc)).getroot(),
+                           basename = repr(args.base_url))).splitlines()
 
-  assert all(urlparse.urlparse(url).path.startswith("/wiki/") for url in urls)
+    assert all(urlparse.urlparse(url).path.startswith("/wiki/") for url in urls)
 
-  htmldoc = subprocess.Popen(
-    ("htmldoc", "--book", "--title", "--outfile", args.pdf_file, "--format", "pdf",
-     "--firstpage", "p1", "--size", "Universal", "--no-duplex",
-     "--fontsize", "11.0", "--fontspacing", "1.1", "--headfootsize", "11.0",
-     "--headingfont", "Helvetica", "--bodyfont", "Times", "--headfootfont", "Helvetica-Oblique",
-     "-"), stdin = subprocess.PIPE)
+    htmldoc = subprocess.Popen(
+        ("htmldoc", "--book", "--title", "--outfile", args.pdf_file, "--format", "pdf",
+         "--firstpage", "p1", "--size", "Universal", "--no-duplex",
+         "--fontsize", "11.0", "--fontspacing", "1.1", "--headfootsize", "11.0",
+         "--headingfont", "Helvetica", "--bodyfont", "Times", "--headfootfont", "Helvetica-Oblique",
+         "-"), stdin = subprocess.PIPE)
 
-  lxml.etree.ElementTree(xml_title).write(htmldoc.stdin)
+    lxml.etree.ElementTree(xml_title).write(htmldoc.stdin)
 
-  png_fns = []
+    png_fns = []
 
-  for url in urls:
-    path = urlparse.urlparse(url).path
-    page = xsl_get_page(lxml.etree.parse(urllib.urlopen(url)).getroot(),
-                        basename = repr(args.base_url),
-                        path = repr(path))
+    for url in urls:
+        path = urlparse.urlparse(url).path
+        page = xsl_get_page(lxml.etree.parse(urllib.urlopen(url)).getroot(),
+                            basename = repr(args.base_url),
+                            path = repr(path))
 
-    for img in page.xpath("//img | //object | //embed"): 
-      attr = "data" if img.tag == "object" else "src"
-      img_url = img.get(attr)
-      if img_url.endswith(".svg"):
-        #sys.stderr.write("Converting %s to PNG\n" % img_url)
-        png_fd, png_fn = tempfile.mkstemp(suffix = ".png")
-        subprocess.Popen(("svg2png", "-h", "700", "-w", "600", "-", "-"),
-                         stdout = png_fd,
-                         stdin = subprocess.PIPE).communicate(urllib.urlopen(img_url).read())
-        os.close(png_fd)
-        img.set(attr, png_fn)
-        png_fns.append(png_fn)
+        for img in page.xpath("//img | //object | //embed"):
+            attr = "data" if img.tag == "object" else "src"
+            img_url = img.get(attr)
+            if img_url.endswith(".svg"):
+                #sys.stderr.write("Converting %s to PNG\n" % img_url)
+                png_fd, png_fn = tempfile.mkstemp(suffix = ".png")
+                subprocess.Popen(("svg2png", "-h", "700", "-w", "600", "-", "-"),
+                                 stdout = png_fd,
+                                 stdin = subprocess.PIPE).communicate(urllib.urlopen(img_url).read())
+                os.close(png_fd)
+                img.set(attr, png_fn)
+                png_fns.append(png_fn)
 
-    page.write(htmldoc.stdin)
+        page.write(htmldoc.stdin)
 
-    html2text = subprocess.Popen(("html2text", "-rcfile", args.html2textrc, "-nobs", "-ascii"),
-                                 stdin = subprocess.PIPE,
-                                 stdout = subprocess.PIPE)
-    page.write(html2text.stdin)
-    html2text.stdin.close()
-    lines = html2text.stdout.readlines()
-    html2text.stdout.close()
-    html2text.wait()
+        html2text = subprocess.Popen(("html2text", "-rcfile", args.html2textrc, "-nobs", "-ascii"),
+                                     stdin = subprocess.PIPE,
+                                     stdout = subprocess.PIPE)
+        page.write(html2text.stdin)
+        html2text.stdin.close()
+        lines = html2text.stdout.readlines()
+        html2text.stdout.close()
+        html2text.wait()
 
-    while lines and lines[0].isspace():
-      del lines[0]
+        while lines and lines[0].isspace():
+            del lines[0]
 
-    fn = os.path.join(args.directory, path[len("/wiki/"):].replace("/", "."))
-    f = open(fn, "w")
-    want_blank = False
-    for line in lines:
-      blank = line.isspace()
-      if want_blank and not blank:
-        f.write("\n")
-      if not blank:
-        f.write(line)
-      want_blank = blank
-    f.close()
-    sys.stderr.write("Wrote %s\n" % fn)
+        fn = os.path.join(args.directory, path[len("/wiki/"):].replace("/", "."))
+        f = open(fn, "w")
+        want_blank = False
+        for line in lines:
+            blank = line.isspace()
+            if want_blank and not blank:
+                f.write("\n")
+            if not blank:
+                f.write(line)
+            want_blank = blank
+        f.close()
+        sys.stderr.write("Wrote %s\n" % fn)
 
-  htmldoc.stdin.close()
-  htmldoc.wait()
-  sys.stderr.write("Wrote %s\n" % args.pdf_file)
+    htmldoc.stdin.close()
+    htmldoc.wait()
+    sys.stderr.write("Wrote %s\n" % args.pdf_file)
 
-  for png_fn in png_fns:
-    os.unlink(png_fn)
+    for png_fn in png_fns:
+        os.unlink(png_fn)
 
 # HTMLDOC title page.  At some point we might want to generate this
 # dynamically as an ElementTree, but static content will do for the
@@ -188,7 +188,7 @@ xsl_get_toc = lxml.etree.XSLT(lxml.etree.XML('''\
 # we care, and this seems to work.
 #
 # Original author's explanation:
-# 
+#
 # The rather convoluted XPath expression for selecting the following
 # sibling aaa nodes which are merged with the current one:
 #
@@ -321,12 +321,12 @@ xsl_get_page = lxml.etree.XSLT(lxml.etree.XML('''\
         <xsl:otherwise>
           <xsl:value-of select="$s"/>
         </xsl:otherwise>
-      </xsl:choose>       
+      </xsl:choose>
     </xsl:template>
 
     <xsl:template match="ol">
       <xsl:if test="not(preceding-sibling::*[1]/self::ol)">
-        <xsl:variable name="following" 
+        <xsl:variable name="following"
                       select="following-sibling::ol[
                                 not(preceding-sibling::*[
                                   not(self::ol) and

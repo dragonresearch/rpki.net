@@ -1,11 +1,11 @@
 # $Id$
-# 
+#
 # Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 # AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -34,9 +34,9 @@ import lxml.etree
 from rpki.csv_utils import csv_writer
 
 def ns(tag):
-  return "{http://www.arin.net/bulkwhois/core/v1}" + tag
+    return "{http://www.arin.net/bulkwhois/core/v1}" + tag
 
-tag_asn		  = ns("asn")
+tag_asn           = ns("asn")
 tag_net           = ns("net")
 tag_org           = ns("org")
 tag_poc           = ns("poc")
@@ -49,12 +49,12 @@ tag_startAsNumber = ns("startAsNumber")
 tag_endAsNumber   = ns("endAsNumber")
 
 def find(node, tag):
-  return node.findtext(tag).strip()
+    return node.findtext(tag).strip()
 
 def do_asn(node):
-  asns.writerow((find(node, tag_orgHandle),
-                 "%s-%s" % (find(node, tag_startAsNumber),
-                            find(node, tag_endAsNumber))))
+    asns.writerow((find(node, tag_orgHandle),
+                   "%s-%s" % (find(node, tag_startAsNumber),
+                              find(node, tag_endAsNumber))))
 
 erx_table = {
   "AF" : "afrinic",
@@ -71,19 +71,19 @@ erx_table = {
   "RX" : "ripe" }
 
 def do_net(node):
-  handle = find(node, tag_orgHandle)
-  for netblock in node.iter(tag_netBlock):
-    tag = find(netblock, tag_type)
-    startAddress = find(netblock, tag_startAddress)
-    endAddress = find(netblock, tag_endAddress)
-    if not startAddress.endswith(".000") and not startAddress.endswith(":0000"):
-      continue
-    if not endAddress.endswith(".255") and not endAddress.endswith(":FFFF"):
-      continue
-    if tag in ("DS", "DA", "IU"):
-      prefixes.writerow((handle, "%s-%s" % (startAddress, endAddress)))
-    elif tag in erx_table:
-      erx.writerow((erx_table[tag], "%s-%s" % (startAddress, endAddress)))
+    handle = find(node, tag_orgHandle)
+    for netblock in node.iter(tag_netBlock):
+        tag = find(netblock, tag_type)
+        startAddress = find(netblock, tag_startAddress)
+        endAddress = find(netblock, tag_endAddress)
+        if not startAddress.endswith(".000") and not startAddress.endswith(":0000"):
+            continue
+        if not endAddress.endswith(".255") and not endAddress.endswith(":FFFF"):
+            continue
+        if tag in ("DS", "DA", "IU"):
+            prefixes.writerow((handle, "%s-%s" % (startAddress, endAddress)))
+        elif tag in erx_table:
+            erx.writerow((erx_table[tag], "%s-%s" % (startAddress, endAddress)))
 
 dispatch = { tag_asn : do_asn, tag_net : do_net }
 
@@ -95,19 +95,19 @@ root = None
 
 for event, node in lxml.etree.iterparse(sys.stdin):
 
-  if root is None:
-    root = node
-    while root.getparent() is not None:
-      root = root.getparent()
+    if root is None:
+        root = node
+        while root.getparent() is not None:
+            root = root.getparent()
 
-  if node.getparent() is root:
+    if node.getparent() is root:
 
-    if node.tag in dispatch:
-      dispatch[node.tag](node)
+        if node.tag in dispatch:
+            dispatch[node.tag](node)
 
-    node.clear()
-    while node.getprevious() is not None:
-      del node.getparent()[0]
+        node.clear()
+        while node.getprevious() is not None:
+            del node.getparent()[0]
 
 asns.close()
 prefixes.close()

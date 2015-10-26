@@ -35,78 +35,78 @@ logger = logging.getLogger(__name__)
 
 
 class EnumField(models.PositiveSmallIntegerField):
-  """
-  An enumeration type that uses strings in Python and small integers
-  in SQL.
-  """
+    """
+    An enumeration type that uses strings in Python and small integers
+    in SQL.
+    """
 
-  description = "An enumeration type"
+    description = "An enumeration type"
 
-  __metaclass__ = models.SubfieldBase
+    __metaclass__ = models.SubfieldBase
 
-  def __init__(self, *args, **kwargs):
-    if isinstance(kwargs.get("choices"), (tuple, list)) and isinstance(kwargs["choices"][0], (str, unicode)):
-      kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
-    # Might need something here to handle string-valued default parameter
-    models.PositiveSmallIntegerField.__init__(self, *args, **kwargs)
-    self.enum_i2s = dict(self.flatchoices)
-    self.enum_s2i = dict((v, k) for k, v in self.flatchoices)
+    def __init__(self, *args, **kwargs):
+        if isinstance(kwargs.get("choices"), (tuple, list)) and isinstance(kwargs["choices"][0], (str, unicode)):
+            kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
+        # Might need something here to handle string-valued default parameter
+        models.PositiveSmallIntegerField.__init__(self, *args, **kwargs)
+        self.enum_i2s = dict(self.flatchoices)
+        self.enum_s2i = dict((v, k) for k, v in self.flatchoices)
 
-  def to_python(self, value):
-    return self.enum_i2s.get(value, value)
+    def to_python(self, value):
+        return self.enum_i2s.get(value, value)
 
-  def get_prep_value(self, value):
-    return self.enum_s2i.get(value, value)
+    def get_prep_value(self, value):
+        return self.enum_s2i.get(value, value)
 
 
 class SundialField(models.DateTimeField):
-  """
-  A field type for our customized datetime objects.
-  """
-  __metaclass__ = models.SubfieldBase
+    """
+    A field type for our customized datetime objects.
+    """
+    __metaclass__ = models.SubfieldBase
 
-  description = "A datetime type using our customized datetime objects"
+    description = "A datetime type using our customized datetime objects"
 
-  def to_python(self, value):
-    if isinstance(value, rpki.sundial.pydatetime.datetime):
-      return rpki.sundial.datetime.from_datetime(
-        models.DateTimeField.to_python(self, value))
-    else:
-      return value
+    def to_python(self, value):
+        if isinstance(value, rpki.sundial.pydatetime.datetime):
+            return rpki.sundial.datetime.from_datetime(
+                models.DateTimeField.to_python(self, value))
+        else:
+            return value
 
-  def get_prep_value(self, value):
-    if isinstance(value, rpki.sundial.datetime):
-      return value.to_datetime()
-    else:
-      return value
+    def get_prep_value(self, value):
+        if isinstance(value, rpki.sundial.datetime):
+            return value.to_datetime()
+        else:
+            return value
 
 
 class BlobField(models.Field):
-  """
-  Old BLOB field type, predating Django's BinaryField type.
+    """
+    Old BLOB field type, predating Django's BinaryField type.
 
-  Do not use, this is only here for backwards compatabilty during migrations.
-  """
+    Do not use, this is only here for backwards compatabilty during migrations.
+    """
 
-  __metaclass__ = models.SubfieldBase
-  description   = "Raw BLOB type without ASN.1 encoding/decoding"
+    __metaclass__ = models.SubfieldBase
+    description   = "Raw BLOB type without ASN.1 encoding/decoding"
 
-  def __init__(self, *args, **kwargs):
-    self.blob_type = kwargs.pop("blob_type", None)
-    kwargs["serialize"] = False
-    kwargs["blank"] = True
-    kwargs["default"] = None
-    models.Field.__init__(self, *args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        self.blob_type = kwargs.pop("blob_type", None)
+        kwargs["serialize"] = False
+        kwargs["blank"] = True
+        kwargs["default"] = None
+        models.Field.__init__(self, *args, **kwargs)
 
-  def db_type(self, connection):
-    if self.blob_type is not None:
-      return self.blob_type
-    elif connection.settings_dict['ENGINE'] == "django.db.backends.mysql":
-      return "LONGBLOB"
-    elif connection.settings_dict['ENGINE'] == "django.db.backends.posgresql":
-      return "bytea"
-    else:
-      return "BLOB"
+    def db_type(self, connection):
+        if self.blob_type is not None:
+            return self.blob_type
+        elif connection.settings_dict['ENGINE'] == "django.db.backends.mysql":
+            return "LONGBLOB"
+        elif connection.settings_dict['ENGINE'] == "django.db.backends.posgresql":
+            return "bytea"
+        else:
+            return "BLOB"
 
 
 # For reasons which now escape me, I had a few fields in the old
@@ -124,70 +124,70 @@ class BlobField(models.Field):
 # backwards compatability during migrations,
 
 class DERField(models.BinaryField):
-  """
-  Field class for DER objects, with automatic translation between
-  ASN.1 and Python types.  This is an abstract class, concrete field
-  classes are derived from it.
-  """
+    """
+    Field class for DER objects, with automatic translation between
+    ASN.1 and Python types.  This is an abstract class, concrete field
+    classes are derived from it.
+    """
 
-  def __init__(self, *args, **kwargs):
-    kwargs["blank"] = True
-    kwargs["default"] = None
-    super(DERField, self).__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        kwargs["blank"] = True
+        kwargs["default"] = None
+        super(DERField, self).__init__(*args, **kwargs)
 
-  def deconstruct(self):
-    name, path, args, kwargs = super(DERField, self).deconstruct()
-    del kwargs["blank"]
-    del kwargs["default"]
-    return name, path, args, kwargs
+    def deconstruct(self):
+        name, path, args, kwargs = super(DERField, self).deconstruct()
+        del kwargs["blank"]
+        del kwargs["default"]
+        return name, path, args, kwargs
 
-  def from_db_value(self, value, expression, connection, context):
-    if value is not None:
-      value = self.rpki_type(DER = str(value))
-    return value
+    def from_db_value(self, value, expression, connection, context):
+        if value is not None:
+            value = self.rpki_type(DER = str(value))
+        return value
 
-  def to_python(self, value):
-    value = super(DERField, self).to_python(value)
-    if value is not None and not isinstance(value, self.rpki_type):
-      value = self.rpki_type(DER = str(value))
-    return value
+    def to_python(self, value):
+        value = super(DERField, self).to_python(value)
+        if value is not None and not isinstance(value, self.rpki_type):
+            value = self.rpki_type(DER = str(value))
+        return value
 
-  def get_prep_value(self, value):
-    if value is not None:
-      value = value.get_DER()
-    return super(DERField, self).get_prep_value(value)
+    def get_prep_value(self, value):
+        if value is not None:
+            value = value.get_DER()
+        return super(DERField, self).get_prep_value(value)
 
 
 class CertificateField(DERField):
-  description = "X.509 certificate"
-  rpki_type   = rpki.x509.X509
+    description = "X.509 certificate"
+    rpki_type   = rpki.x509.X509
 
 class RSAPrivateKeyField(DERField):
-  description = "RSA keypair"
-  rpki_type   = rpki.x509.RSA
+    description = "RSA keypair"
+    rpki_type   = rpki.x509.RSA
 
 KeyField = RSAPrivateKeyField
 
 class PublicKeyField(DERField):
-  description = "RSA keypair"
-  rpki_type   = rpki.x509.PublicKey
+    description = "RSA keypair"
+    rpki_type   = rpki.x509.PublicKey
 
 class CRLField(DERField):
-  description = "Certificate Revocation List"
-  rpki_type   = rpki.x509.CRL
+    description = "Certificate Revocation List"
+    rpki_type   = rpki.x509.CRL
 
 class PKCS10Field(DERField):
-  description = "PKCS #10 certificate request"
-  rpki_type   = rpki.x509.PKCS10
+    description = "PKCS #10 certificate request"
+    rpki_type   = rpki.x509.PKCS10
 
 class ManifestField(DERField):
-  description = "RPKI Manifest"
-  rpki_type   = rpki.x509.SignedManifest
+    description = "RPKI Manifest"
+    rpki_type   = rpki.x509.SignedManifest
 
 class ROAField(DERField):
-  description = "ROA"
-  rpki_type   = rpki.x509.ROA
+    description = "ROA"
+    rpki_type   = rpki.x509.ROA
 
 class GhostbusterField(DERField):
-  description = "Ghostbuster Record"
-  rpki_type   = rpki.x509.Ghostbuster
+    description = "Ghostbuster Record"
+    rpki_type   = rpki.x509.Ghostbuster

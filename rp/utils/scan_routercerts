@@ -28,9 +28,9 @@ import rpki.POW
 import rpki.oids
 
 def check_dir(s):
-  if not os.path.isdir(s):
-    raise argparse.ArgumentTypeError("%r is not a directory" % s)
-  return s
+    if not os.path.isdir(s):
+        raise argparse.ArgumentTypeError("%r is not a directory" % s)
+    return s
 
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("rcynic_dir", type = check_dir, help = "rcynic authenticated output directory")
@@ -38,20 +38,20 @@ args = parser.parse_args()
 
 for root, dirs, files in os.walk(args.rcynic_dir):
 
-  for fn in files:
+    for fn in files:
 
-    if not fn.endswith(".cer"):
-      continue
+        if not fn.endswith(".cer"):
+            continue
 
-    x = rpki.POW.X509.derReadFile(os.path.join(root, fn))
+        x = rpki.POW.X509.derReadFile(os.path.join(root, fn))
 
-    if rpki.oids.id_kp_bgpsec_router not in (x.getEKU() or ()):
-      continue
+        if rpki.oids.id_kp_bgpsec_router not in (x.getEKU() or ()):
+            continue
 
-    sys.stdout.write(base64.urlsafe_b64encode(x.getSKI()).rstrip("="))
+        sys.stdout.write(base64.urlsafe_b64encode(x.getSKI()).rstrip("="))
 
-    for min_asn, max_asn in x.getRFC3779()[0]:
-      for asn in xrange(min_asn, max_asn + 1):
-        sys.stdout.write(" %s" % asn)
+        for min_asn, max_asn in x.getRFC3779()[0]:
+            for asn in xrange(min_asn, max_asn + 1):
+                sys.stdout.write(" %s" % asn)
 
-    sys.stdout.write(" %s\n" % base64.b64encode(x.getPublicKey().derWritePublic()))
+        sys.stdout.write(" %s\n" % base64.b64encode(x.getPublicKey().derWritePublic()))

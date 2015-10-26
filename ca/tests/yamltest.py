@@ -947,16 +947,20 @@ try:
         if args.run_gui:
             print
             print 'GUI user "root", password "fnord"'
+            gui_count = 0
             for d in db:
                 if not d.is_hosted:
                     url = "http://127.0.0.1:%d/rpki/" % (8000 + d.engine)
                     print "GUI URL", url, "for", d.name
                     if not args.no_browser:
+                        gui_count += 1
                         if d is db.root:
                             webbrowser.open_new(url)
                         else:
                             webbrowser.open_new_tab(url)
                         time.sleep(2)
+            if gui_count > 1:
+                print "Warning: Logging into more than one GUI instance at once will probably fail due to CSRF protection"
 
         # Wait until something terminates.
 

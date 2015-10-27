@@ -83,8 +83,7 @@ class DatabaseConfigurator(object):
             # understands how to fix this, tell me; for now, we force
             # MySQL to revert to the default behavior in MySQL 5.5.
             #
-            #OPTIONS  = dict(charset = "latin1")
-            )
+            OPTIONS  = dict(charset = "latin1"))
 
     @property
     def sqlite3(self):

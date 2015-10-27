@@ -24,43 +24,66 @@ import rpki.resource_set
 import rpki.POW
 
 
-class IPv6AddressField(models.Field):
-    "Field large enough to hold a 128-bit unsigned integer."
+class IPAddressField(models.CharField):
+    """
+    Field class for rpki.POW.IPAddress, stored as zero-padded
+    hexadecimal so lexicographic order is identical to numeric order.
+    """
 
-    __metaclass__ = models.SubfieldBase
+    # Django's CharField type doesn't distinguish between the length
+    # of the human readable form and the length of the storage form,
+    # so we have to leave room for IPv6 punctuation even though we
+    # only store hexadecimal digits and thus will never use the full
+    # width of the database field.  Price we pay for portability.
+    #
+    # Documentation on the distinction between the various conversion
+    # methods is fairly opaque, to put it politely, and we have to
+    # handle database engines which sometimes return buffers or other
+    # classes instead of strings, so the conversions are a bit
+    # finicky.  If this goes haywire, your best bet is probably to
+    # litter the code with logging.debug() calls and debug by printf.
 
-    def db_type(self, connection):
-        return 'binary(16)'
+    def __init__(self, *args, **kwargs):
+        kwargs["max_length"] = 40
+        super(IPAddressField, self).__init__(*args, **kwargs)
+
+    def deconstruct(self):
+        name, path, args, kwargs = super(IPAddressField, self).deconstruct()
+        del kwargs["max_length"]
+        return name, path, args, kwargs
+
+    @staticmethod
+    def _value_to_ipaddress(value):
+        if value is None or isinstance(value, rpki.POW.IPAddress):
+            return value
+        value = str(value)
+        if ":" in value or "." in value:
+            return rpki.POW.IPAddress(value)
+        else:
+            return rpki.POW.IPAddress.fromBytes(value.decode("hex"))
+
+    def from_db_value(self, value, expression, connection, context):
+        # Can't use super() here, see Django documentation.
+        return self._value_to_ipaddress(value)
 
     def to_python(self, value):
+        return self._value_to_ipaddress(
+            super(IPAddressField, self).to_python(value))
+
+    @staticmethod
+    def _hex_from_ipaddress(value):
         if isinstance(value, rpki.POW.IPAddress):
+            return value.toBytes().encode("hex")
+        else:
             return value
-        return rpki.POW.IPAddress.fromBytes(value)
 
-    def get_db_prep_value(self, value, connection, prepared):
-        """
-        Note that we add a custom conversion to encode long values as hex
-        strings in SQL statements.  See settings.get_conv() for details.
-        """
+    def get_prep_value(self, value):
+        return super(IPAddressField, self).get_prep_value(
+            self._hex_from_ipaddress(value))
 
-        return value.toBytes()
-
-
-class IPv4AddressField(models.Field):
-    "Wrapper around rpki.POW.IPAddress."
-
-    __metaclass__ = models.SubfieldBase
-
-    def db_type(self, connection):
-        return 'int UNSIGNED'
-
-    def to_python(self, value):
-        if isinstance(value, rpki.POW.IPAddress):
-            return value
-        return rpki.POW.IPAddress(value, version=4)
-
-    def get_db_prep_value(self, value, connection, prepared):
-        return long(value)
+    def get_db_prep_value(self, value, connection, prepared = False):
+        return self._hex_from_ipaddress(
+            super(IPAddressField, self).get_db_prep_value(value, connection, prepared))
 
 
 class Prefix(models.Model):
@@ -103,8 +126,8 @@ class PrefixV4(Prefix):
 
     range_cls = rpki.resource_set.resource_range_ipv4
 
-    prefix_min = IPv4AddressField(db_index=True, null=False)
-    prefix_max = IPv4AddressField(db_index=True, null=False)
+    prefix_min = IPAddressField(db_index=True, null=False)
+    prefix_max = IPAddressField(db_index=True, null=False)
 
     class Meta(Prefix.Meta):
         abstract = True
@@ -115,8 +138,8 @@ class PrefixV6(Prefix):
 
     range_cls = rpki.resource_set.resource_range_ipv6
 
-    prefix_min = IPv6AddressField(db_index=True, null=False)
-    prefix_max = IPv6AddressField(db_index=True, null=False)
+    prefix_min = IPAddressField(db_index=True, null=False)
+    prefix_max = IPAddressField(db_index=True, null=False)
 
     class Meta(Prefix.Meta):
         abstract = True

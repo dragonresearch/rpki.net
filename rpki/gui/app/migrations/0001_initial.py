@@ -72,8 +72,8 @@ class Migration(migrations.Migration):
             name='ResourceRangeAddressV4',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('prefix_min', rpki.gui.models.IPv4AddressField(db_index=True)),
-                ('prefix_max', rpki.gui.models.IPv4AddressField(db_index=True)),
+                ('prefix_min', rpki.gui.models.IPAddressField(db_index=True)),
+                ('prefix_max', rpki.gui.models.IPAddressField(db_index=True)),
                 ('cert', models.ForeignKey(related_name='address_ranges', to='app.ResourceCert')),
             ],
             options={
@@ -85,8 +85,8 @@ class Migration(migrations.Migration):
             name='ResourceRangeAddressV6',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('prefix_min', rpki.gui.models.IPv6AddressField(db_index=True)),
-                ('prefix_max', rpki.gui.models.IPv6AddressField(db_index=True)),
+                ('prefix_min', rpki.gui.models.IPAddressField(db_index=True)),
+                ('prefix_max', rpki.gui.models.IPAddressField(db_index=True)),
                 ('cert', models.ForeignKey(related_name='address_ranges_v6', to='app.ResourceCert')),
             ],
             options={

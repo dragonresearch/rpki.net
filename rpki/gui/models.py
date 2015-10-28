@@ -19,6 +19,7 @@ Common classes for reuse in apps.
 __version__ = '$Id$'
 
 from django.db import models
+from django.core.exceptions import ValidationError
 
 import rpki.resource_set
 import rpki.POW
@@ -145,13 +146,18 @@ class PrefixV6(Prefix):
         abstract = True
 
 
+def validate_asn(value):
+    if value < 0 or value > 0xFFFFFFFFL:
+        raise ValidationError('%s is not valid autonomous sequence number' % value)
+
+
 class ASN(models.Model):
     """Represents a range of ASNs.
 
     This model is abstract, and is intended to be reused by applications."""
 
-    min = models.PositiveIntegerField(null=False)
-    max = models.PositiveIntegerField(null=False)
+    min = models.BigIntegerField(null=False, validators=[validate_asn])
+    max = models.BigIntegerField(null=False, validators=[validate_asn])
 
     class Meta:
         abstract = True

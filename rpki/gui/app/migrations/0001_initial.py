@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('irdb', '0005_auto_20151023_2151'),
+        ('irdb', '0001_initial'),
         ('routeview', '__first__'),
     ]
 
@@ -98,8 +98,8 @@ class Migration(migrations.Migration):
             name='ResourceRangeAS',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('min', models.PositiveIntegerField()),
-                ('max', models.PositiveIntegerField()),
+                ('min', models.BigIntegerField(validators=[rpki.gui.models.validate_asn])),
+                ('max', models.BigIntegerField(validators=[rpki.gui.models.validate_asn])),
                 ('cert', models.ForeignKey(related_name='asn_ranges', to='app.ResourceCert')),
             ],
             options={

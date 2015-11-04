@@ -252,6 +252,12 @@ static PyObject
 static PyObject *custom_datetime;
 
 /*
+ * Tuple mapping C validation status codes (C enum) to equivalent Python objects.
+ */
+
+static PyObject *status_codes;
+
+/*
  * "ex_data" index for pointer we want to attach to X509_STORE_CTX so
  * we can extract it in callbacks.
  */
@@ -275,7 +281,8 @@ static PyTypeObject
   POW_ROA_Type,
   POW_Manifest_Type,
   POW_ROA_Type,
-  POW_PKCS10_Type;
+  POW_PKCS10_Type,
+  POW_StatusCode_Type;
 
 /*
  * Object internals.
@@ -345,6 +352,14 @@ typedef struct {
   X509_REQ *pkcs10;
   X509_EXTENSIONS *exts;
 } pkcs10_object;
+
+typedef struct {
+  PyObject_HEAD
+  long code;                    /* Really validation_status_t */
+  PyObject *name;               /* Name of symbol */
+  PyObject *text;               /* Human-readable explanation */
+  PyObject *kind;               /* good/bad/warn */
+} status_code_object;
 
 
 
@@ -532,7 +547,7 @@ x509_object_helper_set_name(PyObject *dn_obj)
       goto error;
 
     if (!PySequence_Check(rdn_obj) || PySequence_Size(rdn_obj) == 0)
-      lose_type_error("each RDN must be a sequence with at least one element");
+      lose_type_error("Each RDN must be a sequence with at least one element");
 
     for (j = 0; j < PySequence_Size(rdn_obj); j++) {
 
@@ -540,7 +555,7 @@ x509_object_helper_set_name(PyObject *dn_obj)
         goto error;
 
       if (!PySequence_Check(pair_obj) || PySequence_Size(pair_obj) != 2)
-        lose_type_error("each name entry must be a two-element sequence");
+        lose_type_error("Each name entry must be a two-element sequence");
 
       if ((type_obj  = PySequence_GetItem(pair_obj, 0)) == NULL ||
           (type_str  = PyString_AsString(type_obj))     == NULL ||
@@ -685,7 +700,7 @@ x509_helper_iterable_to_stack(PyObject *iterable)
     while ((item = PyIter_Next(iterator)) != NULL) {
 
       if (!POW_X509_Check(item))
-        lose_type_error("Inapropriate type");
+        lose_type_error("Expected an X509 object");
 
       if (!sk_X509_push(stack, ((x509_object *) item)->x509))
         lose("Couldn't add X509 object to stack");
@@ -1092,6 +1107,456 @@ whack_ec_key_to_namedCurve(EVP_PKEY *pkey)
 
 
 /*
+ * Validation status codes.  Still under construction.  Modeled after
+ * rcynic's validation status database, conceptually anyway.
+ *
+ * Probably need to add an optional (default NULL) slot in
+ * x509_store_ctx_object to hold the status set.  Might also add a
+ * method to that class so that Python handlers can fiddle with the
+ * status from the callback, but am primarily thinking of the extended
+ * validation C code here.
+ *
+ * Assuming we go this way, should we PySet_Clear() the status set
+ * upon entering the _verify function?  Probably.
+ *
+ * How to handle CMS cases: keep common command parser etc, but add an argument
+ * to that helper function which takes a function pointer to do the extended
+ * checking for this particular flavor of CMS object.
+ *
+ * Hmm.  enum is the right type for C code, but is it right for
+ * Python?  Perhaps the Python view of this should be a set of
+ * strings?  Except there are two strings for each code: the name of
+ * the code and the string translation of the code.  Could stuff all
+ * that into a dict(), of course.  There's some kind of proxy dict we
+ * can use to present a read-only dict to the user, that might be the
+ * right approach here.  Python implementation is getting a bit
+ * complicated.
+ *
+ * Or the codes could be read-only first class objects in their own
+ * right, with properties for numeric, name, and human readable
+ * string.  __int__() and __str__() methods.  Python side doesn't
+ * really need the numeric value if we go this way but including it is
+ * harmless.  For that matter, we could define all of this in a Python
+ * module which we just import here, which would be a lot easier to
+ * read...except then where do we get the enums for the C code?  Feh.
+ *
+ * OK, so maybe the plan is to define a new type, which has .name,
+ * .code, and .text attributes, all implemented via getsetters so
+ * they're read-only.  Internal object would contain the enum, a const
+ * C char pointer for .name, and a PyObject for the .text attribute:
+ * we want to allocate the .text once, because some of those values
+ * come from OpenSSL; the others are trivial to convert to Python in
+ * the getter function.  We allocate an object for each code, and
+ * stuff all of these into a sequence, which we don't need to expose,
+ * it's just there to protect these objects from garbage collection
+ * and to let us do a quick lookup from code -> object.  Open question
+ * whether we want to allocate a separate module to hold these,
+ * probably not difficult.  If we expose the sequence rather than
+ * hiding it, we can create the separate module in Python code from
+ * rpki/POW/__init__.py rather than having to do it in C.
+ */
+
+/*
+ * There's some ugly C preprocessor junk here.  Sorry, but it's the
+ * simplest way to keep all the definitions in a single place and expand
+ * them into all the forms we need in both C and Python.
+ */
+
+/*
+ * Status codes derived from OpenSSL.  Long list of validation failure
+ * codes from OpenSSL (crypto/x509/x509_vfy.h).
+ */
+
+#define	VALIDATION_STATUS_CODES_FROM_OPENSSL		\
+  QV( X509_V_ERR_UNABLE_TO_GET_CRL)			\
+  QV( X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE)	\
+  QV( X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE)	\
+  QV( X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY)	\
+  QV( X509_V_ERR_CERT_SIGNATURE_FAILURE)		\
+  QV( X509_V_ERR_CRL_SIGNATURE_FAILURE)			\
+  QV( X509_V_ERR_CERT_NOT_YET_VALID)			\
+  QV( X509_V_ERR_CERT_HAS_EXPIRED)			\
+  QV( X509_V_ERR_CRL_NOT_YET_VALID)			\
+  QV( X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD)	\
+  QV( X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD)		\
+  QV( X509_V_ERR_ERROR_IN_CRL_LAST_UPDATE_FIELD)	\
+  QV( X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD)	\
+  QV( X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)		\
+  QV( X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN)		\
+  QV( X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY)	\
+  QV( X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE)	\
+  QV( X509_V_ERR_CERT_CHAIN_TOO_LONG)			\
+  QV( X509_V_ERR_CERT_REVOKED)				\
+  QV( X509_V_ERR_INVALID_CA)				\
+  QV( X509_V_ERR_PATH_LENGTH_EXCEEDED)			\
+  QV( X509_V_ERR_INVALID_PURPOSE)			\
+  QV( X509_V_ERR_CERT_UNTRUSTED)			\
+  QV( X509_V_ERR_CERT_REJECTED)				\
+  QV( X509_V_ERR_AKID_SKID_MISMATCH)			\
+  QV( X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH)		\
+  QV( X509_V_ERR_KEYUSAGE_NO_CERTSIGN)			\
+  QV( X509_V_ERR_UNABLE_TO_GET_CRL_ISSUER)		\
+  QV( X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION)		\
+  QV( X509_V_ERR_KEYUSAGE_NO_CRL_SIGN)			\
+  QV( X509_V_ERR_UNHANDLED_CRITICAL_CRL_EXTENSION)	\
+  QV( X509_V_ERR_INVALID_NON_CA)			\
+  QV( X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED)		\
+  QV( X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE)		\
+  QV( X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED)	\
+  QV( X509_V_ERR_INVALID_EXTENSION)			\
+  QV( X509_V_ERR_INVALID_POLICY_EXTENSION)		\
+  QV( X509_V_ERR_NO_EXPLICIT_POLICY)			\
+  QV( X509_V_ERR_UNNESTED_RESOURCE)
+
+/*
+ * Status codes specific to our validation code.
+ *
+ * XXX Need to check this later, this is the full list of codes from rcynic.c,
+ *     some of which will almost certainly be handled in Python rather than here.
+ */
+
+#define VALIDATION_STATUS_CODES         				    \
+  VALIDATION_STATUS_CODES_FROM_OPENSSL					    \
+  QB( AIA_EXTENSION_MISSING,		"AIA extension missing")	    \
+  QB( AIA_EXTENSION_FORBIDDEN,		"AIA extension forbidden")	    \
+  QB( AIA_URI_MISSING,			"AIA URI missing")		    \
+  QB( AKI_EXTENSION_ISSUER_MISMATCH,	"AKI extension issuer mismatch")    \
+  QB( AKI_EXTENSION_MISSING,		"AKI extension missing")	    \
+  QB( AKI_EXTENSION_WRONG_FORMAT,	"AKI extension is wrong format")    \
+  QB( BAD_ASIDENTIFIERS,		"Bad ASIdentifiers extension")	    \
+  QB( BAD_CERTIFICATE_POLICY,		"Bad certificate policy")	    \
+  QB( BAD_CMS_ECONTENTTYPE,		"Bad CMS eContentType")		    \
+  QB( BAD_CMS_SI_CONTENTTYPE,		"Bad CMS SI ContentType")	    \
+  QB( BAD_CMS_SIGNER,			"Bad CMS signer")		    \
+  QB( BAD_CMS_SIGNER_INFOS,		"Bad CMS signerInfos")		    \
+  QB( BAD_CRL,				"Bad CRL")			    \
+  QB( BAD_IPADDRBLOCKS,			"Bad IPAddrBlocks extension")	    \
+  QB( BAD_KEY_USAGE,			"Bad keyUsage")			    \
+  QB( BAD_MANIFEST_DIGEST_LENGTH,	"Bad manifest digest length")	    \
+  QB( BAD_PUBLIC_KEY,			"Bad public key")		    \
+  QB( BAD_ROA_ASID,			"Bad ROA asID")			    \
+  QB( BAD_CERTIFICATE_SERIAL_NUMBER,	"Bad certificate serialNumber")	    \
+  QB( BAD_MANIFEST_NUMBER,		"Bad manifestNumber")		    \
+  QB( CERTIFICATE_BAD_SIGNATURE,	"Bad certificate signature")	    \
+  QB( CERTIFICATE_FAILED_VALIDATION,	"Certificate failed validation")    \
+  QB( CMS_ECONTENT_DECODE_ERROR,	"CMS eContent decode error")	    \
+  QB( CMS_INCLUDES_CRLS, 		"CMS includes CRLs")		    \
+  QB( CMS_SIGNER_MISSING,		"CMS signer missing")		    \
+  QB( CMS_SKI_MISMATCH,			"CMS SKI mismatch")		    \
+  QB( CMS_VALIDATION_FAILURE,		"CMS validation failure")	    \
+  QB( CRL_ISSUER_NAME_MISMATCH,		"CRL issuer name mismatch")	    \
+  QB( CRL_NOT_IN_MANIFEST,              "CRL not listed in manifest")	    \
+  QB( CRL_NOT_YET_VALID,		"CRL not yet valid")		    \
+  QB( CRL_NUMBER_EXTENSION_MISSING,	"CRL number extension missing")	    \
+  QB( CRL_NUMBER_IS_NEGATIVE,		"CRL number is negative")	    \
+  QB( CRL_NUMBER_OUT_OF_RANGE,		"CRL number out of range")	    \
+  QB( CRLDP_DOESNT_MATCH_ISSUER_SIA,	"CRLDP doesn't match issuer's SIA") \
+  QB( CRLDP_URI_MISSING,		"CRLDP URI missing")		    \
+  QB( DISALLOWED_X509V3_EXTENSION,	"Disallowed X.509v3 extension")     \
+  QB( DUPLICATE_NAME_IN_MANIFEST,	"Duplicate name in manifest")	    \
+  QB( INAPPROPRIATE_EKU_EXTENSION,	"Inappropriate EKU extension")	    \
+  QB( MALFORMED_AIA_EXTENSION,		"Malformed AIA extension")	    \
+  QB( MALFORMED_SIA_EXTENSION,		"Malformed SIA extension")	    \
+  QB( MALFORMED_BASIC_CONSTRAINTS,	"Malformed basicConstraints")	    \
+  QB( MALFORMED_TRUST_ANCHOR,		"Malformed trust anchor")	    \
+  QB( MALFORMED_CADIRECTORY_URI,	"Malformed caDirectory URI")	    \
+  QB( MALFORMED_CRLDP_EXTENSION,	"Malformed CRDLP extension")	    \
+  QB( MALFORMED_CRLDP_URI,		"Malformed CRDLP URI")		    \
+  QB( MALFORMED_ROA_ADDRESSFAMILY,      "Malformed ROA addressFamily")	    \
+  QB( MALFORMED_TAL_URI,		"Malformed TAL URI")		    \
+  QB( MANIFEST_CAREPOSITORY_MISMATCH,	"Manifest caRepository mismatch")   \
+  QB( MANIFEST_INTERVAL_OVERRUNS_CERT,  "Manifest interval overruns certificate") \
+  QB( MANIFEST_LISTS_MISSING_OBJECT,	"Manifest lists missing object")    \
+  QB( MANIFEST_NOT_YET_VALID,		"Manifest not yet valid")	    \
+  QB( MISSING_RESOURCES,		"Missing resources")		    \
+  QB( NONCONFORMANT_ASN1_TIME_VALUE,	"Nonconformant ASN.1 time value")   \
+  QB( NONCONFORMANT_PUBLIC_KEY_ALGORITHM, "Nonconformant public key algorithm") \
+  QB( NONCONFORMANT_SIGNATURE_ALGORITHM,  "Nonconformant signature algorithm") \
+  QB( NONCONFORMANT_DIGEST_ALGORITHM,	"Nonconformant digest algorithm")   \
+  QB( NONCONFORMANT_CERTIFICATE_UID,	"Nonconformant certificate UID")    \
+  QB( OBJECT_REJECTED,			"Object rejected")		    \
+  QB( RFC3779_INHERITANCE_REQUIRED,	"RFC 3779 inheritance required")    \
+  QB( ROA_CONTAINS_BAD_AFI_VALUE,	"ROA contains bad AFI value")	    \
+  QB( ROA_MAX_PREFIXLEN_TOO_SHORT,	"ROA maxPrefixlen too short")	    \
+  QB( ROA_RESOURCE_NOT_IN_EE,		"ROA resource not in EE")	    \
+  QB( ROA_RESOURCES_MALFORMED,		"ROA resources malformed")	    \
+  QB( RSYNC_TRANSFER_FAILED,		"rsync transfer failed")	    \
+  QB( RSYNC_TRANSFER_TIMED_OUT,		"rsync transfer timed out")	    \
+  QB( SAFI_NOT_ALLOWED,			"SAFI not allowed")		    \
+  QB( SIA_CADIRECTORY_URI_MISSING,	"SIA caDirectory URI missing")	    \
+  QB( SIA_EXTENSION_MISSING,		"SIA extension missing")	    \
+  QB( SIA_MANIFEST_URI_MISSING,		"SIA manifest URI missing")	    \
+  QB( SKI_EXTENSION_MISSING,		"SKI extension missing")	    \
+  QB( SKI_PUBLIC_KEY_MISMATCH,		"SKI public key mismatch")	    \
+  QB( TRUST_ANCHOR_KEY_MISMATCH,	"Trust anchor key mismatch")	    \
+  QB( TRUST_ANCHOR_WITH_CRLDP,		"Trust anchor can't have CRLDP")    \
+  QB( UNKNOWN_AFI,			"Unknown AFI")			    \
+  QB( UNKNOWN_OPENSSL_VERIFY_ERROR,	"Unknown OpenSSL verify error")	    \
+  QB( UNREADABLE_TRUST_ANCHOR,		"Unreadable trust anchor")	    \
+  QB( UNREADABLE_TRUST_ANCHOR_LOCATOR,	"Unreadable trust anchor locator")  \
+  QB( WRONG_OBJECT_VERSION,		"Wrong object version")		    \
+  QW( AIA_DOESNT_MATCH_ISSUER,		"AIA doesn't match issuer")	    \
+  QW( BACKUP_THISUPDATE_NEWER_THAN_CURRENT, "Backup thisUpdate newer than current") \
+  QW( BACKUP_NUMBER_HIGHER_THAN_CURRENT, "Backup number higher than current") \
+  QW( BAD_THISUPDATE,			"Bad CRL thisUpdate")		    \
+  QW( BAD_CMS_SI_SIGNED_ATTRIBUTES, 	"Bad CMS SI signed attributes")	    \
+  QW( BAD_SIGNED_OBJECT_URI,		"Bad signedObject URI")		    \
+  QW( CRLDP_NAMES_NEWER_CRL,		"CRLDP names newer CRL")	    \
+  QW( DIGEST_MISMATCH,			"Digest mismatch")		    \
+  QW( EE_CERTIFICATE_WITH_1024_BIT_KEY, "EE certificate with 1024 bit key") \
+  QW( ISSUER_USES_MULTIPLE_CRLDP_VALUES, "Issuer uses multiple CRLDP values")\
+  QW( MULTIPLE_RSYNC_URIS_IN_EXTENSION,  "Multiple rsync URIs in extension") \
+  QW( NONCONFORMANT_ISSUER_NAME,	"Nonconformant X.509 issuer name")  \
+  QW( NONCONFORMANT_SUBJECT_NAME,	"Nonconformant X.509 subject name") \
+  QW( POLICY_QUALIFIER_CPS,		"Policy Qualifier CPS")             \
+  QW( RSYNC_PARTIAL_TRANSFER,		"rsync partial transfer")	    \
+  QW( RSYNC_TRANSFER_SKIPPED,		"rsync transfer skipped")	    \
+  QW( SIA_EXTENSION_MISSING_FROM_EE,	"SIA extension missing from EE")    \
+  QW( SKIPPED_BECAUSE_NOT_IN_MANIFEST,	"Skipped because not in manifest")  \
+  QW( STALE_CRL_OR_MANIFEST,		"Stale CRL or manifest")	    \
+  QW( TAINTED_BY_STALE_CRL,		"Tainted by stale CRL")		    \
+  QW( TAINTED_BY_STALE_MANIFEST,	"Tainted by stale manifest")	    \
+  QW( TAINTED_BY_NOT_BEING_IN_MANIFEST,	"Tainted by not being in manifest") \
+  QW( TRUST_ANCHOR_NOT_SELF_SIGNED,	"Trust anchor not self-signed")	    \
+  QW( TRUST_ANCHOR_SKIPPED,		"Trust anchor skipped")		    \
+  QW( UNKNOWN_OBJECT_TYPE_SKIPPED,	"Unknown object type skipped")	    \
+  QW( URI_TOO_LONG,			"URI too long")			    \
+  QW( WRONG_CMS_SI_SIGNATURE_ALGORITHM,	"Wrong CMS SI signature algorithm") \
+  QW( WRONG_CMS_SI_DIGEST_ALGORITHM,	"Wrong CMS SI digest algorithm")    \
+  QG( NON_RSYNC_URI_IN_EXTENSION,	"Non-rsync URI in extension")	    \
+  QG( OBJECT_ACCEPTED,			"Object accepted")		    \
+  QG( RECHECKING_OBJECT,		"Rechecking object")		    \
+  QG( RSYNC_TRANSFER_SUCCEEDED,		"rsync transfer succeeded")	    \
+  QG( VALIDATION_OK,			"OK")
+
+/*
+ * Enumerated type for use in C.
+ */
+
+#define QV(x)   QB(STATUS_CODE_##x, 0)
+#define QB(x,y) QQ(x)
+#define QW(x,y) QQ(x)
+#define QG(x,y) QQ(x)
+#define QQ(x)   x,
+
+typedef enum { VALIDATION_STATUS_CODES MAX_VALIDATION_STATUS_CODES } validation_status_t;
+
+/*
+ * Add these enum symbols to the module.
+ */
+
+#undef QV
+#undef QB
+#undef QW
+#undef QG
+#undef QQ
+
+/*
+ * Build Python objects corresponding to these codes.  We define a
+ * trivial read-only type for this, and allocate one instance for each
+ * status code.
+ *
+ * We don't provide .__new__() or .__init__() for the StatusCode type,
+ * and all access is read-only via getter methods, because these are
+ * read-only objects created when this module is initialized and are
+ * not (currently?) intended for any other use.
+ */
+
+static void
+status_code_object_dealloc(status_code_object *self)
+{
+  Py_XDECREF(self->name);
+  Py_XDECREF(self->text);
+  Py_XDECREF(self->kind);
+  self->ob_type->tp_free((PyObject*) self);
+}
+
+static PyObject *
+status_code_object_str(status_code_object *self)
+{
+  Py_XINCREF(self->name);
+  return self->name;
+}
+
+static long
+status_code_object_hash(status_code_object *self)
+{
+  return self->code;
+}
+
+static int
+status_code_object_compare(status_code_object *obj1, status_code_object *obj2)
+{
+  if (obj1->code < obj2->code)
+    return -1;
+  if (obj1->code > obj2->code)
+    return 1;
+  return 0;
+}
+
+static PyObject *
+status_code_object_get_code(status_code_object *self, GCC_UNUSED void *closure)
+{
+  return PyInt_FromLong(self->code);
+}
+
+static PyObject *
+status_code_object_get_name(status_code_object *self, GCC_UNUSED void *closure)
+{
+  Py_XINCREF(self->name);
+  return self->name;
+}
+
+static PyObject *
+status_code_object_get_text(status_code_object *self, GCC_UNUSED void *closure)
+{
+  Py_XINCREF(self->text);
+  return self->text;
+}
+
+static PyObject *
+status_code_object_get_kind(status_code_object *self, GCC_UNUSED void *closure)
+{
+  Py_XINCREF(self->text);
+  return self->kind;
+}
+
+static PyGetSetDef status_code_object_getsetters[] = {
+  {"code", 	(getter) status_code_object_get_code},
+  {"name", 	(getter) status_code_object_get_name},
+  {"text", 	(getter) status_code_object_get_text},
+  {"kind", 	(getter) status_code_object_get_kind},
+  {NULL}
+};
+
+static char POW_StatusCode_Type__doc__[] =
+  "This class represents a validation status code.\n"
+  ;
+
+static PyTypeObject POW_StatusCode_Type = {
+  PyObject_HEAD_INIT(NULL)
+  0,                                        /* ob_size */
+  "rpki.POW.StatusCode",                    /* tp_name */
+  sizeof(status_code_object),               /* tp_basicsize */
+  0,                                        /* tp_itemsize */
+  (destructor) status_code_object_dealloc,  /* tp_dealloc */
+  0,                                        /* tp_print */
+  0,                                        /* tp_getattr */
+  0,                                        /* tp_setattr */
+  (cmpfunc) status_code_object_compare,     /* tp_compare */
+  0,                                        /* tp_repr */
+  0,                                        /* tp_as_number */
+  0,                                        /* tp_as_sequence */
+  0,                                        /* tp_as_mapping */
+  (hashfunc) status_code_object_hash,       /* tp_hash */
+  0,                                        /* tp_call */
+  (reprfunc) status_code_object_str,        /* tp_str */
+  0,                                        /* tp_getattro */
+  0,                                        /* tp_setattro */
+  0,                                        /* tp_as_buffer */
+  Py_TPFLAGS_DEFAULT,                       /* tp_flags */
+  POW_StatusCode_Type__doc__,               /* tp_doc */
+  0,                                        /* tp_traverse */
+  0,                                        /* tp_clear */
+  0,                                        /* tp_richcompare */
+  0,                                        /* tp_weaklistoffset */
+  0,                                        /* tp_iter */
+  0,                                        /* tp_iternext */
+  0,                                        /* tp_methods */
+  0,                                        /* tp_members */
+  status_code_object_getsetters             /* tp_getset */
+};
+
+/*
+ * Build a tuple containing StatusCode instances, indexed by the
+ * numeric codes, so that using the C enum as an index into the
+ * sequence yields the corresponding StatusCode object.
+ *
+ * Return value of this function is the tuple.
+ */
+
+static PyObject *
+build_status_codes(void)
+{
+  PyObject *result = NULL;
+  PyObject *object = NULL;
+  PyObject *good = NULL;
+  PyObject *warn = NULL;
+  PyObject *bad  = NULL;
+
+  if ((good = PyString_FromString("good")) == NULL ||
+      (warn = PyString_FromString("warn")) == NULL ||
+      (bad  = PyString_FromString("bad"))  == NULL)
+    goto error;
+
+  if ((result = PyTuple_New(MAX_VALIDATION_STATUS_CODES)) == NULL)
+    goto error;
+
+#define QV(x)   QQ(STATUS_CODE_##x, #x, X509_verify_cert_error_string(x), bad)
+#define QB(x,y) QQ(x, #x, y, bad)
+#define QW(x,y) QQ(x, #x, y, warn)
+#define QG(x,y) QQ(x, #x, y, good)
+
+#define QQ(_code_, _name_, _text_, _kind_)                                              \
+  {                                                                                     \
+    status_code_object *obj;                                                            \
+    if ((object = POW_StatusCode_Type.tp_alloc(&POW_StatusCode_Type, 0)) == NULL)       \
+      goto error;                                                                       \
+    obj = (status_code_object *) object;                                                \
+    Py_INCREF(_kind_);                                                                  \
+    obj->code = _code_;                                                                 \
+    obj->kind = _kind_;                                                                 \
+    if ((obj->name = PyString_FromString(_name_)) == NULL ||                            \
+        (obj->text = Py_BuildValue("s", _text_)) == NULL ||                             \
+        PyTuple_SetItem(result, _code_, object) != 0)                                   \
+      goto error;                                                                       \
+    object = NULL;                                                                      \
+  }
+
+  VALIDATION_STATUS_CODES;
+
+#undef QV
+#undef QB
+#undef QW
+#undef QG
+#undef QQ
+
+  Py_XDECREF(good);
+  Py_XDECREF(warn);
+  Py_XDECREF(bad);
+  return result;
+
+ error:
+  Py_XDECREF(good);
+  Py_XDECREF(warn);
+  Py_XDECREF(bad);
+  Py_XDECREF(object);
+  Py_XDECREF(result);
+  return NULL;
+}
+
+/*
+ * Add code to status object, return C boolean indicating success.
+ * Do nothing and return success if the status object is None.
+ */
+
+static int
+record_validation_status(PyObject *status, const validation_status_t code)
+{
+  if (status == Py_None)
+    return 1;
+  PyObject *value = PyTuple_GetItem(status_codes, code);
+  if (value == NULL)
+    return 0;
+  Py_XINCREF(value);
+  int result = PySet_Add(status, value);
+  Py_XDECREF(value);
+  return result == 0;
+}
+
+
+
+/*
  * Extension functions.  Calling sequence here is a little weird,
  * because it turns out that the simplest way to avoid massive
  * duplication of code between classes is to work directly with
@@ -1273,7 +1738,7 @@ extension_set_basic_constraints(X509_EXTENSIONS **exts, PyObject *args)
     goto error;
 
   if (pathlen_obj != Py_None && (pathlen = PyInt_AsLong(pathlen_obj)) < 0)
-    lose_type_error("Bad pathLenConstraint value");
+    lose_value_error("Bad pathLenConstraint value");
 
   if ((ext = BASIC_CONSTRAINTS_new()) == NULL)
     lose_no_memory();
@@ -2712,7 +3177,7 @@ x509_object_set_subject(x509_object *self, PyObject *args)
     goto error;
 
   if (!PySequence_Check(name_sequence))
-    lose_type_error("Inapropriate type");
+    lose_type_error("Expected a sequence object");
 
   if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
     goto error;
@@ -2748,7 +3213,7 @@ x509_object_set_issuer(x509_object *self, PyObject *args)
     goto error;
 
   if (!PySequence_Check(name_sequence))
-    lose_type_error("Inapropriate type");
+    lose_type_error("Expected a sequence object");
 
   if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
     goto error;
@@ -3039,12 +3504,12 @@ x509_object_get_rfc3779(x509_object *self)
           break;
 
         default:
-          lose_type_error("Unexpected asIdsOrRanges type");
+          lose_value_error("Unexpected asIdsOrRanges type");
         }
 
         if (ASN1_STRING_type(b) == V_ASN1_NEG_INTEGER ||
             ASN1_STRING_type(e) == V_ASN1_NEG_INTEGER)
-          lose_type_error("I don't believe in negative ASNs");
+          lose_value_error("I don't believe in negative ASNs");
 
         if ((range_b = ASN1_INTEGER_to_PyLong(b)) == NULL ||
             (range_e = ASN1_INTEGER_to_PyLong(e)) == NULL ||
@@ -3058,7 +3523,7 @@ x509_object_get_rfc3779(x509_object *self)
       break;
 
     default:
-      lose_type_error("Unexpected ASIdentifierChoice type");
+      lose_value_error("Unexpected ASIdentifierChoice type");
     }
   }
 
@@ -3073,14 +3538,14 @@ x509_object_get_rfc3779(x509_object *self)
       switch (afi) {
       case IANA_AFI_IPV4: result_obj = &ipv4_result; ip_type = &ipaddress_version_4; break;
       case IANA_AFI_IPV6: result_obj = &ipv6_result; ip_type = &ipaddress_version_6; break;
-      default:            lose_type_error("Unknown AFI");
+      default:            lose_value_error("Unknown AFI");
       }
 
       if (*result_obj != NULL)
-        lose_type_error("Duplicate IPAddressFamily");
+        lose_value_error("Duplicate IPAddressFamily");
 
       if (f->addressFamily->length > 2)
-        lose_type_error("Unsupported SAFI");
+        lose_value_error("Unsupported SAFI");
 
       switch (f->ipAddressChoice->type) {
 
@@ -3093,7 +3558,7 @@ x509_object_get_rfc3779(x509_object *self)
         break;
 
       default:
-        lose_type_error("Unexpected IPAddressChoice type");
+        lose_value_error("Unexpected IPAddressChoice type");
       }
 
       if ((*result_obj = PyTuple_New(sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges))) == NULL)
@@ -3113,7 +3578,7 @@ x509_object_get_rfc3779(x509_object *self)
 
         if ((addr_len = v3_addr_get_range(aor, afi, addr_b->address, addr_e->address,
                                           sizeof(addr_b->address))) == 0)
-          lose_type_error("Couldn't unpack IP addresses from BIT STRINGs");
+          lose_value_error("Couldn't unpack IP addresses from BIT STRINGs");
 
         addr_b->type = addr_e->type = ip_type;
 
@@ -4055,6 +4520,8 @@ x509_store_object_set_context_class (x509_store_object *self, PyObject *args)
   return NULL;
 }
 
+static int x509_store_ctx_object_verify_cb(int ok, X509_STORE_CTX *ctx);
+
 static char x509_store_object_verify__doc__[] =
   "Verify an X509 certificate object using this certificate store.\n"
   "\n"
@@ -4071,9 +4538,10 @@ x509_store_object_verify(x509_store_object *self, PyObject *args)
   STACK_OF(X509) *stack = NULL;
   x509_object *x509 = NULL;
   PyObject *chain = Py_None;
+  PyObject *status = Py_None;
   int ok;
 
-  if (!PyArg_ParseTuple(args, "O!|O", &POW_X509_Type, &x509, &chain))
+  if (!PyArg_ParseTuple(args, "O!|OO!", &POW_X509_Type, &x509, &chain, &PySet_Type, &status))
     goto error;
 
   if ((ctx = (x509_store_ctx_object *) PyObject_CallFunctionObjArgs(self->ctxclass, self, NULL)) == NULL)
@@ -4092,6 +4560,8 @@ x509_store_object_verify(x509_store_object *self, PyObject *args)
   Py_XINCREF(chain);
   X509_STORE_CTX_set_cert(ctx->ctx, x509->x509);
   X509_STORE_CTX_set_chain(ctx->ctx, stack);
+
+  X509_STORE_CTX_set_verify_cb(ctx->ctx, x509_store_ctx_object_verify_cb);
 
   ok = X509_verify_cert(ctx->ctx);
 
@@ -4237,7 +4707,6 @@ x509_store_ctx_object_init(x509_store_ctx_object *self, PyObject *args, GCC_UNUS
   Py_XINCREF(self->store);
 
   X509_VERIFY_PARAM_set_flags(self->ctx->param, X509_V_FLAG_X509_STRICT);
-  X509_STORE_CTX_set_verify_cb(self->ctx, x509_store_ctx_object_verify_cb);
   return 0;
 
  error:
@@ -4690,7 +5159,7 @@ crl_object_set_issuer(crl_object *self, PyObject *args)
     goto error;
 
   if (!PySequence_Check(name_sequence))
-    lose_type_error("Inapropriate type");
+    lose_type_error("Expected a sequence object");
 
   if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
     goto error;
@@ -5007,12 +5476,17 @@ static char crl_object_verify__doc__[] =
 static PyObject *
 crl_object_verify(crl_object *self, PyObject *args)
 {
-  asymmetric_object *asym;
+  asymmetric_object *asym = NULL;
+  PyObject *status = Py_None;
 
   ENTERING(crl_object_verify);
 
-  if (!PyArg_ParseTuple(args, "O!", &POW_Asymmetric_Type, &asym))
+  if (!PyArg_ParseTuple(args, "O!|O!", &POW_Asymmetric_Type, &asym, &PySet_Type, &status))
     goto error;
+
+  /*
+   * Probably should throw an exception rather than returning boolean.
+   */
 
   return PyBool_FromLong(X509_CRL_verify(self->crl, asym->pkey));
 
@@ -6560,7 +7034,7 @@ cms_object_sign_helper(cms_object *self,
     while ((item = PyIter_Next(iterator)) != NULL) {
 
       if (!POW_CRL_Check(item))
-        lose_type_error("Inappropriate type");
+        lose_type_error("Expected a CRL object");
 
       if (!CMS_add1_crl(cms, ((crl_object *) item)->crl))
         lose_openssl_error("Couldn't add CRL to CMS");
@@ -6717,17 +7191,21 @@ cms_object_extract_without_verifying_helper(cms_object *self)
 static BIO *
 cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = {"store", "certs", "flags", NULL};
+  static char *kwlist[] = {"store", "certs", "flags", "status", NULL};
   x509_store_object *store = NULL;
   PyObject *certs_iterable = Py_None;
+  PyObject *status = Py_None;
   STACK_OF(X509) *certs_stack = NULL;
   unsigned flags = 0, ok = 0;
   BIO *bio = NULL;
 
   ENTERING(cms_object_verify_helper);
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OI", kwlist,
-                                   &POW_X509Store_Type, &store, &certs_iterable, &flags))
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OIO!", kwlist,
+                                   &POW_X509Store_Type, &store,
+                                   &certs_iterable,
+                                   &flags,
+                                   &PySet_Type, &status))
     goto error;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
@@ -8023,14 +8501,14 @@ roa_object_get_prefixes(roa_object *self)
     switch (afi) {
     case IANA_AFI_IPV4: resultp = &ipv4_result; ip_type = &ipaddress_version_4; break;
     case IANA_AFI_IPV6: resultp = &ipv6_result; ip_type = &ipaddress_version_6; break;
-    default:            lose_type_error("Unknown AFI");
+    default:            lose_value_error("Unknown AFI");
     }
 
     if (fam->addressFamily->length > 2)
-      lose_type_error("Unsupported SAFI");
+      lose_value_error("Unsupported SAFI");
 
     if (*resultp != NULL)
-      lose_type_error("Duplicate ROAIPAddressFamily");
+      lose_value_error("Duplicate ROAIPAddressFamily");
 
     if ((*resultp = PyTuple_New(sk_ROAIPAddress_num(fam->addresses))) == NULL)
       goto error;
@@ -8176,7 +8654,7 @@ roa_object_set_prefixes(roa_object *self, PyObject *args, PyObject *kwds)
       }
 
       if (addr->type != ip_type)
-        lose_type_error("Bad ROA prefix");
+        lose_value_error("Bad ROA prefix");
 
       if (prefixlen > addr->type->length * 8)
         lose("Bad prefix length");
@@ -8770,7 +9248,7 @@ pkcs10_object_set_subject(pkcs10_object *self, PyObject *args)
     goto error;
 
   if (!PySequence_Check(name_sequence))
-    lose_type_error("Inapropriate type");
+    lose_type_error("Expected a sequence object");
 
   if ((name = x509_object_helper_set_name(name_sequence)) == NULL)
     goto error;
@@ -9303,6 +9781,7 @@ init_POW(void)
   Define_Class(POW_Manifest_Type);
   Define_Class(POW_ROA_Type);
   Define_Class(POW_PKCS10_Type);
+  Define_Class(POW_StatusCode_Type);
 
 #undef Define_Class
 
@@ -9408,6 +9887,12 @@ init_POW(void)
   Define_Integer_Constant(EC_P256_CURVE);
 
 #undef Define_Integer_Constant
+
+  /* Validation status codes */
+
+  status_codes = build_status_codes();
+  Py_XINCREF(status_codes);
+  PyModule_AddObject(m, "_validation_status_codes", status_codes);
 
   /*
    * Initialise library.

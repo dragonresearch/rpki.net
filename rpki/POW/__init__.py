@@ -27,3 +27,13 @@ from rpki.POW._POW import __doc__
 from rpki.sundial import datetime as sundial_datetime
 customDatetime(sundial_datetime)
 del sundial_datetime
+
+# Construct friendlier representation for validation status codes.
+
+from rpki.POW._POW import _validation_status_codes
+class validation_status:
+    "RPKI validation status codes."
+for code in _validation_status_codes:
+    setattr(validation_status, code.name, code)
+del code
+del _validation_status_codes

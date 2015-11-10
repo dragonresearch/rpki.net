@@ -455,11 +455,11 @@ class main(object):
         except AttributeError:
             import rpki.rpkidb.models         # pylint: disable=W0621
             self._left_right_models = {
-              rpki.left_right.tag_tenant      : rpki.rpkidb.models.Tenant,
-              rpki.left_right.tag_bsc         : rpki.rpkidb.models.BSC,
-              rpki.left_right.tag_parent      : rpki.rpkidb.models.Parent,
-              rpki.left_right.tag_child       : rpki.rpkidb.models.Child,
-              rpki.left_right.tag_repository  : rpki.rpkidb.models.Repository }
+                rpki.left_right.tag_tenant      : rpki.rpkidb.models.Tenant,
+                rpki.left_right.tag_bsc         : rpki.rpkidb.models.BSC,
+                rpki.left_right.tag_parent      : rpki.rpkidb.models.Parent,
+                rpki.left_right.tag_child       : rpki.rpkidb.models.Child,
+                rpki.left_right.tag_repository  : rpki.rpkidb.models.Repository }
             return self._left_right_models
 
     @property
@@ -472,8 +472,8 @@ class main(object):
             return self._left_right_trivial_handlers
         except AttributeError:
             self._left_right_trivial_handlers = {
-              rpki.left_right.tag_list_published_objects      : self.handle_list_published_objects,
-              rpki.left_right.tag_list_received_resources     : self.handle_list_received_resources }
+                rpki.left_right.tag_list_published_objects  : self.handle_list_published_objects,
+                rpki.left_right.tag_list_received_resources : self.handle_list_received_resources }
             return self._left_right_trivial_handlers
 
     def handle_list_published_objects(self, q_pdu, r_msg):
@@ -537,8 +537,6 @@ class main(object):
         """
         Process one left-right message.
         """
-
-        logger.debug("Entering left_right_handler()")
 
         content_type = handler.request.headers["Content-Type"]
         if content_type not in rpki.left_right.allowed_content_types:
@@ -609,7 +607,6 @@ class main(object):
 
             handler.set_status(200)
             handler.finish(rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert))
-            logger.debug("Normal exit from left_right_handler()")
 
         except Exception, e:
             logger.exception("Unhandled exception serving left-right request")
@@ -621,8 +618,6 @@ class main(object):
         """
         Process one up-down PDU.
         """
-
-        logger.debug("Entering up_down_handler()")
 
         content_type = handler.request.headers["Content-Type"]
         if content_type not in rpki.up_down.allowed_content_types:
@@ -684,26 +679,29 @@ class publication_queue(object):
         logger.debug("Queuing publication action: uri %s, old %r, new %r, hash %s",
                      uri, old_obj, new_obj, old_hash)
 
-        # id(repository) may need to change to repository.peer_contact_uri
-        # once we convert from our custom SQL cache to Django ORM.
-
-        rid = id(repository)
+        rid = repository.peer_contact_uri
         if rid not in self.repositories:
             self.repositories[rid] = repository
             self.msgs[rid] = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
                                      type = "query", version = rpki.publication.version)
 
         if self.replace and uri in self.uris:
-            logger.debug("Removing publication duplicate %r", self.uris[uri])
+            logger.debug("Removing publication duplicate %r hash %s", self.uris[uri], self.uris[uri].get("hash"))
             old_pdu = self.uris.pop(uri)
             self.msgs[rid].remove(old_pdu)
             pdu_hash = old_pdu.get("hash")
         elif old_hash is not None:
+            logger.debug("Old hash supplied")                   # XXX
             pdu_hash = old_hash
         elif old_obj is None:
+            logger.debug("No old object present")               # XXX
             pdu_hash = None
         else:
+            logger.debug("Calculating hash of old object")      # XXX
             pdu_hash = rpki.x509.sha256(old_obj.get_DER()).encode("hex")
+
+        logger.debug("uri %s old hash %s new hash %s", uri, pdu_hash, # XXX
+                     None if new_obj is None else rpki.x509.sha256(new_obj.get_DER()).encode("hex"))
 
         if new_obj is None:
             pdu = SubElement(self.msgs[rid], rpki.publication.tag_withdraw, uri = uri, hash = pdu_hash)

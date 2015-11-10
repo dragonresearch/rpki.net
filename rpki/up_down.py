@@ -55,6 +55,7 @@ tag_certificate = xmlns + "certificate"
 tag_class       = xmlns + "class"
 tag_description = xmlns + "description"
 tag_issuer      = xmlns + "issuer"
+tag_key         = xmlns + "key"
 tag_message     = xmlns + "message"
 tag_request     = xmlns + "request"
 tag_status      = xmlns + "status"
@@ -92,22 +93,22 @@ class multi_uri(list):
 
 
 error_response_codes = {
-  1101 : "Already processing request",
-  1102 : "Version number error",
-  1103 : "Unrecognised request type",
-  1201 : "Request - no such resource class",
-  1202 : "Request - no resources allocated in resource class",
-  1203 : "Request - badly formed certificate request",
-  1301 : "Revoke - no such resource class",
-  1302 : "Revoke - no such key",
-  2001 : "Internal Server Error - Request not performed" }
+    1101 : "Already processing request",
+    1102 : "Version number error",
+    1103 : "Unrecognised request type",
+    1201 : "Request - no such resource class",
+    1202 : "Request - no resources allocated in resource class",
+    1203 : "Request - badly formed certificate request",
+    1301 : "Revoke - no such resource class",
+    1302 : "Revoke - no such key",
+    2001 : "Internal Server Error - Request not performed" }
 
 
 exception_map = {
-  rpki.exceptions.NoActiveCA                    : 1202,
-  (rpki.exceptions.ClassNameUnknown, "revoke")  : 1301,
-  rpki.exceptions.ClassNameUnknown              : 1201,
-  (rpki.exceptions.NotInDatabase,    "revoke")  : 1302 }
+    rpki.exceptions.NoActiveCA                    : 1202,
+    (rpki.exceptions.ClassNameUnknown, "revoke")  : 1301,
+    rpki.exceptions.ClassNameUnknown              : 1201,
+    (rpki.exceptions.NotInDatabase,    "revoke")  : 1302 }
 
 
 def check_response(r_msg, q_type):

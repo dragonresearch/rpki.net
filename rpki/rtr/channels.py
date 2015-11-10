@@ -125,7 +125,7 @@ class ReadBuffer(object):
         if self.version is None and version not in rpki.rtr.pdus.PDU.version_map:
             raise rpki.rtr.pdus.UnsupportedProtocolVersion(
                 "Received PDU version %s, known versions %s" % (
-                version, ", ".join(str(v) for v in rpki.rtr.pdus.PDU.version_map)))
+                    version, ", ".join(str(v) for v in rpki.rtr.pdus.PDU.version_map)))
         self.version = version
 
 

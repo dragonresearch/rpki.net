@@ -100,7 +100,7 @@ def daemon(nochdir = False, noclose = False, pidfile = None):
         sys.exit("fork() failed: %d (%s)" % (e.errno, e.strerror))
     else:
         if pid > 0:
-            os._exit(0)
+            os._exit(0)                 # pylint: disable=W0212
 
     if not nochdir:
         os.chdir("/")

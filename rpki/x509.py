@@ -2007,7 +2007,7 @@ class XML_CMS_object(Wrapped_CMS_object):
                 context = " (" + " ".join(context) + ")"
             raise rpki.exceptions.CMSReplay(
                 "CMS replay: last message %s, this message %s%s" % (
-                timestamp, new_timestamp, context))
+                    timestamp, new_timestamp, context))
         return new_timestamp
 
     def check_replay_sql(self, obj, *context):
@@ -2148,13 +2148,12 @@ class CRL(DER_object):
 # Map of known URI filename extensions and corresponding classes.
 
 uri_dispatch_map = {
-  ".cer" : X509,
-  ".crl" : CRL,
-  ".gbr" : Ghostbuster,
-  ".mft" : SignedManifest,
-  ".mnf" : SignedManifest,
-  ".roa" : ROA,
-  }
+    ".cer" : X509,
+    ".crl" : CRL,
+    ".gbr" : Ghostbuster,
+    ".mft" : SignedManifest,
+    ".mnf" : SignedManifest,
+    ".roa" : ROA }
 
 def uri_dispatch(uri):
     """

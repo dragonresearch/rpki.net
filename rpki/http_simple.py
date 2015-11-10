@@ -35,6 +35,8 @@ class HTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     HTTP request handler simple RPKI servers.
     """
 
+    rpki_handlers = ()
+
     def do_POST(self):
         try:
             content_type   = self.headers.get("Content-Type")
@@ -97,7 +99,7 @@ class BadContentType(Exception):
 
 
 def client(proto_cms_msg, client_key, client_cert, server_ta, server_cert, url, q_msg,
-           debug = False, replay_track = None, client_crl = None, content_type = default_content_type):
+           debug = None, replay_track = None, client_crl = None, content_type = default_content_type):
     """
     Issue single a query and return the response, handling all the CMS and XML goo.
     """
@@ -110,7 +112,7 @@ def client(proto_cms_msg, client_key, client_cert, server_ta, server_cert, url, 
     q_cms = proto_cms_msg()
     q_der = q_cms.wrap(q_msg, client_key, client_cert, client_crl)
 
-    if debug:
+    if debug is not None:
         debug.write("<!-- Query -->\n" + q_cms.pretty_print_content() + "\n")
 
     http = httplib.HTTPConnection(u.hostname, u.port or httplib.HTTP_PORT)
@@ -130,7 +132,7 @@ def client(proto_cms_msg, client_key, client_cert, server_ta, server_cert, url, 
     if replay_track is not None:
         replay_track.cms_timestamp = r_cms.check_replay(replay_track.cms_timestamp, url)
 
-    if debug:
+    if debug is not None:
         debug.write("<!-- Reply -->\n" + r_cms.pretty_print_content() + "\n")
 
     return r_msg

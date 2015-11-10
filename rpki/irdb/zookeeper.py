@@ -599,10 +599,10 @@ class Zookeeper(object):
         self.log("Child calls itself %r, we call it %r" % (x.get("child_handle"), child_handle))
 
         child, created = rpki.irdb.models.Child.objects.get_or_certify(
-            issuer    = self.resource_ca,
-            handle    = child_handle,
-            ta        = rpki.x509.X509(Base64 = x.findtext(tag_oob_child_bpki_ta)),
-          valid_until = valid_until)
+            issuer      = self.resource_ca,
+            handle      = child_handle,
+            ta          = rpki.x509.X509(Base64 = x.findtext(tag_oob_child_bpki_ta)),
+            valid_until = valid_until)
 
         return self.generate_parental_response(child), child_handle
 
@@ -1210,7 +1210,7 @@ class Zookeeper(object):
             q_msg = self._compose_publication_control_query()
             for client in self.server_ca.clients.all():
                 SubElement(q_msg, rpki.publication_control.tag_client, action = "set",
-                           client_handle = client.handle, clear_reply_protection = "yes")
+                           client_handle = client.handle, clear_replay_protection = "yes")
             self.call_pubd(q_msg)
 
 
@@ -1654,10 +1654,10 @@ class Zookeeper(object):
 
         q_msg = self._compose_left_right_query()
         SubElement(q_msg, rpki.left_right.tag_tenant, action = "list")
-        self.call_rpkid(q_msg)
+        r_msg = self.call_rpkid(q_msg)
 
-        tenant_handles = set(s.get("tenant_handle") for s in q_msg)
-        ca_handles   = set(ca.handle for ca in rpki.irdb.models.ResourceHolderCA.objects.all())
+        tenant_handles = set(s.get("tenant_handle") for s in r_msg)
+        ca_handles = set(ca.handle for ca in rpki.irdb.models.ResourceHolderCA.objects.all())
         assert ca_handles <= tenant_handles
 
         q_msg = self._compose_left_right_query()

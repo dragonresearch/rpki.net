@@ -112,10 +112,10 @@ class rcynic_roa(rcynic_object):
         v4, v6 = self.obj.get_POW().getPrefixes()
         if v4:
             self.prefix_sets.append(rpki.resource_set.roa_prefix_set_ipv4([
-              rpki.resource_set.roa_prefix_ipv4(p[0], p[1], p[2]) for p in v4]))
+                rpki.resource_set.roa_prefix_ipv4(p[0], p[1], p[2]) for p in v4]))
         if v6:
             self.prefix_sets.append(rpki.resource_set.roa_prefix_set_ipv6([
-              rpki.resource_set.roa_prefix_ipv6(p[0], p[1], p[2]) for p in v6]))
+                rpki.resource_set.roa_prefix_ipv6(p[0], p[1], p[2]) for p in v6]))
         self.ee = rpki.x509.X509(POW = self.obj.get_POW().certs()[0])
         self.notBefore = self.ee.getNotBefore()
         self.notAfter = self.ee.getNotAfter()
@@ -163,9 +163,9 @@ class rcynic_ghostbuster(rcynic_object):
         self.show_attrs("notBefore", "notAfter", "vcard")
 
 file_name_classes = {
-  ".cer" : rcynic_certificate,
-  ".gbr" : rcynic_ghostbuster,
-  ".roa" : rcynic_roa }
+    ".cer" : rcynic_certificate,
+    ".gbr" : rcynic_ghostbuster,
+    ".roa" : rcynic_roa }
 
 class rcynic_file_iterator(object):
     """

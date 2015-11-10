@@ -26,6 +26,20 @@ from lxml.etree import Element, SubElement, tostring as ElementToString
 
 logger = logging.getLogger(__name__)
 
+# XXX Temporary hack to help trace call chains so we can clear some of
+# the historical clutter out of this module.
+
+def trace_call_chain():
+    if True:
+        from traceback import extract_stack
+        caller, callee = extract_stack(None, 3)[:2]
+        caller_file, caller_line, caller_name = caller[:3]
+        callee_file, callee_line, callee_name = callee[:3]
+        logger.debug("<Call trace> %s() at %s:%s called by %s() at %s:%s",
+                     callee_name, callee_file, callee_line,
+                     caller_name, caller_file, caller_line)
+
+
 # The objects available via the left-right protocol allow NULL values
 # in places we wouldn't otherwise (eg, bpki_cert fields), to support
 # existing protocol which allows back-end to build up objects
@@ -37,6 +51,10 @@ class XMLTemplate(object):
     """
     Encapsulate all the voodoo for transcoding between lxml and ORM.
     """
+
+    # Whether to drop XMl into the log
+
+    debug = False
 
     # Type map to simplify declaration of Base64 sub-elements.
 
@@ -83,7 +101,8 @@ class XMLTemplate(object):
             v = getattr(obj, k)
             if v is not None and not v.empty():
                 SubElement(r_pdu, rpki.left_right.xmlns + k).text = v.get_Base64()
-        logger.debug("XMLTemplate.encode(): %s", ElementToString(r_pdu))
+        if self.debug:
+            logger.debug("XMLTemplate.encode(): %s", ElementToString(r_pdu))
 
 
     def acknowledge(self, obj, q_pdu, r_msg):
@@ -108,7 +127,8 @@ class XMLTemplate(object):
         if self.name == "bsc" and action != "destroy" and obj.pkcs10_request is not None:
             assert not obj.pkcs10_request.empty()
             SubElement(r_pdu, rpki.left_right.xmlns + "pkcs10_request").text = obj.pkcs10_request.get_Base64()
-        logger.debug("XMLTemplate.acknowledge(): %s", ElementToString(r_pdu))
+        if self.debug:
+            logger.debug("XMLTemplate.acknowledge(): %s", ElementToString(r_pdu))
 
 
     def decode(self, obj, q_pdu):
@@ -116,7 +136,8 @@ class XMLTemplate(object):
         Decode XML into an ORM object.
         """
 
-        logger.debug("XMLTemplate.decode(): %r %s", obj, ElementToString(q_pdu))
+        if self.debug:
+            logger.debug("XMLTemplate.decode(): %r %s", obj, ElementToString(q_pdu))
         assert q_pdu.tag == rpki.left_right.xmlns + self.name
         for h in self.handles:
             k = h.xml_template.name
@@ -149,6 +170,10 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
     class attribute holding an XMLTemplate object (above).
     """
 
+    # Whether to blather about what we're doing
+
+    debug = False
+
     def xml_get_or_create(self, xml):
         name   = self.model.xml_template.name
         action = xml.get("action")
@@ -156,11 +181,13 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
         d = { name + "_handle" : xml.get(name + "_handle") }
         if name != "tenant" and action != "create":
             d["tenant__tenant_handle"] = xml.get("tenant_handle")
-        logger.debug("XMLManager.xml_get_or_create(): name %s action %s filter %r", name, action, d)
+        if self.debug:
+            logger.debug("XMLManager.xml_get_or_create(): name %s action %s filter %r", name, action, d)
         result = self.model(**d) if action == "create" else self.get(**d)
         if name != "tenant" and action == "create":
             result.tenant = Tenant.objects.get(tenant_handle = xml.get("tenant_handle"))
-        logger.debug("XMLManager.xml_get_or_create(): name %s action %s filter %r result %r", name, action, d, result)
+        if self.debug:
+            logger.debug("XMLManager.xml_get_or_create(): name %s action %s filter %r result %r", name, action, d, result)
         return result
 
     def xml_list(self, xml):
@@ -172,9 +199,11 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
             d[name + "_handle"] = xml.get(name + "_handle")
         if name != "tenant":
             d["tenant__tenant_handle"] = xml.get("tenant_handle")
-        logger.debug("XMLManager.xml_list(): name %s action %s filter %r", name, action, d)
+        if self.debug:
+            logger.debug("XMLManager.xml_list(): name %s action %s filter %r", name, action, d)
         result = self.filter(**d) if d else self.all()
-        logger.debug("XMLManager.xml_list(): name %s action %s filter %r result %r", name, action, d, result)
+        if self.debug:
+            logger.debug("XMLManager.xml_list(): name %s action %s filter %r result %r", name, action, d, result)
         return result
 
     def xml_get_for_delete(self, xml):
@@ -184,9 +213,11 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
         d = { name + "_handle" : xml.get(name + "_handle") }
         if name != "tenant":
             d["tenant__tenant_handle"] = xml.get("tenant_handle")
-        logger.debug("XMLManager.xml_get_for_delete(): name %s action %s filter %r", name, action, d)
+        if self.debug:
+            logger.debug("XMLManager.xml_get_for_delete(): name %s action %s filter %r", name, action, d)
         result = self.get(**d)
-        logger.debug("XMLManager.xml_get_for_delete(): name %s action %s filter %r result %r", name, action, d, result)
+        if self.debug:
+            logger.debug("XMLManager.xml_get_for_delete(): name %s action %s filter %r result %r", name, action, d, result)
         return result
 
 
@@ -200,15 +231,18 @@ def xml_hooks(cls):
     # for the XMLTemplate setup.  Whatever.  Gussie up later.
 
     def default_xml_pre_save_hook(self, q_pdu):
-        logger.debug("default_xml_pre_save_hook()")
+        #logger.debug("default_xml_pre_save_hook()")
+        pass
 
     @tornado.gen.coroutine
     def default_xml_post_save_hook(self, rpkid, q_pdu):
-        logger.debug("default_xml_post_save_hook()")
+        #logger.debug("default_xml_post_save_hook()")
+        pass
 
     @tornado.gen.coroutine
     def default_xml_pre_delete_hook(self, rpkid):
-        logger.debug("default_xml_pre_delete_hook()")
+        #logger.debug("default_xml_pre_delete_hook()")
+        pass
 
     for name, method in (("xml_pre_save_hook",   default_xml_pre_save_hook),
                          ("xml_post_save_hook",  default_xml_post_save_hook),
@@ -242,10 +276,13 @@ class Tenant(models.Model):
 
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):
+        trace_call_chain()
         yield [parent.destroy() for parent in self.parents.all()]
 
     @tornado.gen.coroutine
     def xml_post_save_hook(self, rpkid, q_pdu):
+        trace_call_chain()
+
         rekey             = q_pdu.get("rekey")
         revoke            = q_pdu.get("revoke")
         reissue           = q_pdu.get("reissue")
@@ -264,25 +301,27 @@ class Tenant(models.Model):
         if rekey or revoke or reissue or revoke_forgotten:
             for parent in self.parents.all():
                 if rekey:
-                    futures.append(parent.serve_rekey(rpkid))
+                    futures.append(parent.serve_rekey(rpkid = rpkid))
                 if revoke:
-                    futures.append(parent.serve_revoke(rpkid))
+                    futures.append(parent.serve_revoke(rpkid = rpkid))
                 if reissue:
-                    futures.append(parent.serve_reissue(rpkid))
+                    futures.append(parent.serve_reissue(rpkid = rpkid))
                 if revoke_forgotten:
-                    futures.append(parent.serve_revoke_forgotten(rpkid))
+                    futures.append(parent.serve_revoke_forgotten(rpkid = rpkid))
 
         if q_pdu.get("publish_world_now"):
-            futures.append(self.serve_publish_world_now(rpkid))
+            futures.append(self.serve_publish_world_now(rpkid = rpkid))
         if q_pdu.get("run_now"):
-            futures.append(self.serve_run_now(rpkid))
+            futures.append(self.serve_run_now(rpkid = rpkid))
 
         yield futures
 
 
     @tornado.gen.coroutine
     def serve_publish_world_now(self, rpkid):
-        publisher = rpki.rpkid.publication_queue(rpkid)
+        trace_call_chain()
+
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
         repositories = set()
         objects = dict()
 
@@ -332,8 +371,9 @@ class Tenant(models.Model):
 
     @tornado.gen.coroutine
     def serve_run_now(self, rpkid):
+        trace_call_chain()
         logger.debug("Forced immediate run of periodic actions for tenant %s[%r]", self.tenant_handle, self)
-        tasks = self.cron_tasks(rpkid)
+        tasks = self.cron_tasks(rpkid = rpkid)
         rpkid.task_add(tasks)
         futures = [task.wait() for task in tasks]
         rpkid.task_run()
@@ -341,6 +381,7 @@ class Tenant(models.Model):
 
 
     def cron_tasks(self, rpkid):
+        trace_call_chain()
         try:
             return self._cron_tasks
         except AttributeError:
@@ -360,6 +401,7 @@ class Tenant(models.Model):
         any case, this is an optimization we can leave for later.
         """
 
+        trace_call_chain()
         return set(ca_detail
                    for ca_detail in CADetail.objects.filter(ca__parent__tenant = self, state = "active")
                    if ca_detail.covers(resources))
@@ -417,11 +459,13 @@ class Repository(models.Model):
 
     @tornado.gen.coroutine
     def xml_post_save_hook(self, rpkid, q_pdu):
+        trace_call_chain()
         if q_pdu.get("clear_replay_protection"):
             self.clear_replay_protection()
 
 
     def clear_replay_protection(self):
+        trace_call_chain()
         self.last_cms_timestamp = None
         self.save()
 
@@ -440,6 +484,8 @@ class Repository(models.Model):
         matches, a default handler is called to check for errors; a
         handler value of False suppresses calling of the default handler.
         """
+
+        trace_call_chain()
 
         if len(q_msg) == 0:
             return
@@ -508,36 +554,42 @@ class Parent(models.Model):
 
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):
+        trace_call_chain()
         yield self.destroy(rpkid, delete_parent = False)
 
     @tornado.gen.coroutine
     def xml_post_save_hook(self, rpkid, q_pdu):
+        trace_call_chain()
         if q_pdu.get("clear_replay_protection"):
             self.clear_replay_protection()
         futures = []
         if q_pdu.get("rekey"):
-            futures.append(self.serve_rekey(rpkid))
+            futures.append(self.serve_rekey(rpkid = rpkid))
         if q_pdu.get("revoke"):
-            futures.append(self.serve_revoke(rpkid))
+            futures.append(self.serve_revoke(rpkid = rpkid))
         if q_pdu.get("reissue"):
-            futures.append(self.serve_reissue(rpkid))
+            futures.append(self.serve_reissue(rpkid = rpkid))
         if q_pdu.get("revoke_forgotten"):
-            futures.append(self.serve_revoke_forgotten(rpkid))
+            futures.append(self.serve_revoke_forgotten(rpkid = rpkid))
         yield futures
 
     @tornado.gen.coroutine
     def serve_rekey(self, rpkid):
-        yield [ca.rekey() for ca in self.cas.all()]
+        trace_call_chain()
+        yield [ca.rekey(rpkid = rpkid) for ca in self.cas.all()]
 
     @tornado.gen.coroutine
     def serve_revoke(self, rpkid):
-        yield [ca.revoke() for ca in self.cas.all()]
+        trace_call_chain()
+        yield [ca.revoke(rpkid = rpkid) for ca in self.cas.all()]
 
     @tornado.gen.coroutine
     def serve_reissue(self, rpkid):
-        yield [ca.reissue() for ca in self.cas.all()]
+        trace_call_chain()
+        yield [ca.reissue(rpkid = rpkid) for ca in self.cas.all()]
 
     def clear_replay_protection(self):
+        trace_call_chain()
         self.last_cms_timestamp = None
         self.save()
 
@@ -557,6 +609,8 @@ class Parent(models.Model):
         not raw SKI values.  Sorry.
         """
 
+        trace_call_chain()
+
         r_msg = yield self.up_down_list_query(rpkid = rpkid)
 
         ski_map = {}
@@ -575,6 +629,8 @@ class Parent(models.Model):
         """
         Revoke a set of SKIs within a particular resource class.
         """
+
+        trace_call_chain()
 
         for ski in skis_to_revoke:
             logger.debug("Asking parent %r to revoke class %r, g(SKI) %s", self, rc_name, ski)
@@ -596,7 +652,8 @@ class Parent(models.Model):
         require an explicit trigger.
         """
 
-        skis_from_parent = yield self.get_skis(rpkid)
+        trace_call_chain()
+        skis_from_parent = yield self.get_skis(rpkid = rpkid)
         for rc_name, skis_to_revoke in skis_from_parent.iteritems():
             for ca_detail in CADetail.objects.filter(ca__parent = self).exclude(state = "revoked"):
                 skis_to_revoke.discard(ca_detail.latest_ca_cert.gSKI())
@@ -610,8 +667,9 @@ class Parent(models.Model):
         itself.
         """
 
+        trace_call_chain()
         yield [ca.destroy(self) for ca in self.cas()]
-        yield self.serve_revoke_forgotten(rpkid)
+        yield self.serve_revoke_forgotten(rpkid = rpkid)
         if delete_parent:
             self.delete()
 
@@ -623,6 +681,7 @@ class Parent(models.Model):
 
     @tornado.gen.coroutine
     def up_down_list_query(self, rpkid):
+        trace_call_chain()
         q_msg = self._compose_up_down_query("list")
         r_msg = yield self.query_up_down(rpkid, q_msg)
         raise tornado.gen.Return(r_msg)
@@ -630,6 +689,7 @@ class Parent(models.Model):
 
     @tornado.gen.coroutine
     def up_down_issue_query(self, rpkid, ca, ca_detail):
+        trace_call_chain()
         logger.debug("Parent.up_down_issue_query(): caRepository %r rpkiManifest %r rpkiNotify %r",
                      ca.sia_uri, ca_detail.manifest_uri, ca.parent.repository.rrdp_notification_uri)
         pkcs10 = rpki.x509.PKCS10.create(
@@ -646,6 +706,7 @@ class Parent(models.Model):
 
     @tornado.gen.coroutine
     def up_down_revoke_query(self, rpkid, class_name, ski):
+        trace_call_chain()
         q_msg = self._compose_up_down_query("revoke")
         SubElement(q_msg, rpki.up_down.tag_key, class_name = class_name, ski = ski)
         r_msg = yield self.query_up_down(rpkid, q_msg)
@@ -654,6 +715,7 @@ class Parent(models.Model):
 
     @tornado.gen.coroutine
     def query_up_down(self, rpkid, q_msg):
+        trace_call_chain()
 
         if self.bsc is None:
             raise rpki.exceptions.BSCNotFound("Could not find BSC")
@@ -694,6 +756,7 @@ class Parent(models.Model):
         list_response PDU.
         """
 
+        trace_call_chain()
         sia_uri = rc.get("suggested_sia_head", "")
         if not sia_uri.startswith("rsync://") or not sia_uri.startswith(self.sia_base):
             sia_uri = self.sia_base
@@ -743,6 +806,7 @@ class CA(models.Model):
         with the same key, etc.
         """
 
+        trace_call_chain()
         logger.debug("check_for_updates()")
         sia_uri = parent.construct_sia_uri(rc)
         sia_uri_changed = self.sia_uri != sia_uri
@@ -771,7 +835,7 @@ class CA(models.Model):
         if not ca_details:
             logger.warning("Existing resource class %s to %s from %s with no certificates, rekeying",
                            class_name, parent.tenant.tenant_handle, parent.parent_handle)
-            yield self.rekey(rpkid)
+            yield self.rekey(rpkid = rpkid)
             return
 
         for ca_detail in ca_details:
@@ -782,7 +846,7 @@ class CA(models.Model):
                 logger.warning("g(SKI) %s in resource class %s is in database but missing from list_response to %s from %s, "
                                "maybe parent certificate went away?",
                                ca_detail.public_key.gSKI(), class_name, parent.tenant.tenant_handle, parent.parent_handle)
-                publisher = rpki.rpkid.publication_queue(rpkid)
+                publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
                 ca_detail.destroy(ca = ca_detail.ca, publisher = publisher)
                 yield publisher.call_pubd()
                 continue
@@ -831,6 +895,8 @@ class CA(models.Model):
         to create and set up a corresponding CA object.
         """
 
+        trace_call_chain()
+
         self = cls.objects.create(parent = parent,
                                   parent_resource_class = rc.get("class_name"),
                                   sia_uri = parent.construct_sia_uri(rc))
@@ -865,7 +931,9 @@ class CA(models.Model):
         CA, then finally delete this CA itself.
         """
 
-        publisher = rpki.rpkid.publication_queue(rpkid)
+        trace_call_chain()
+
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
 
         for ca_detail in self.ca_details.all():
             ca_detail.destroy(ca = self, publisher = publisher, allow_failure = True)
@@ -886,6 +954,7 @@ class CA(models.Model):
         Allocate a certificate serial number.
         """
 
+        trace_call_chain()
         self.last_issued_sn += 1
         self.save()
         return self.last_issued_sn
@@ -896,6 +965,7 @@ class CA(models.Model):
         Allocate a manifest serial number.
         """
 
+        trace_call_chain()
         self.last_manifest_sn += 1
         self.save()
         return self.last_manifest_sn
@@ -906,6 +976,7 @@ class CA(models.Model):
         Allocate a CRL serial number.
         """
 
+        trace_call_chain()
         self.last_crl_sn += 1
         self.save()
         return self.last_crl_sn
@@ -920,6 +991,7 @@ class CA(models.Model):
         the new ca_detail.
         """
 
+        trace_call_chain()
         try:
             old_detail = self.ca_details.get(state = "active")
         except CADetail.DoesNotExist:
@@ -944,29 +1016,31 @@ class CA(models.Model):
 
 
     @tornado.gen.coroutine
-    def revoke(self, revoke_all = False):
+    def revoke(self, rpkid, revoke_all = False):
         """
         Revoke deprecated ca_detail objects associated with this CA, or
         all ca_details associated with this CA if revoke_all is set.
         """
 
+        trace_call_chain()
         if revoke_all:
             ca_details = self.ca_details.all()
         else:
             ca_details = self.ca_details.filter(state = "deprecated")
 
-        yield [ca_detail.revoke() for ca_detail in ca_details]
+        yield [ca_detail.revoke(rpkid = rpkid) for ca_detail in ca_details]
 
 
     @tornado.gen.coroutine
-    def reissue(self):
+    def reissue(self, rpkid):
         """
         Reissue all current certificates issued by this CA.
         """
 
+        trace_call_chain()
         ca_detail = self.ca_details.get(state = "active")
         if ca_detail:
-            yield ca_detail.reissue()
+            yield ca_detail.reissue(rpkid = rpkid)
 
 
 class CADetail(models.Model):
@@ -1041,7 +1115,8 @@ class CADetail(models.Model):
         Activate this ca_detail.
         """
 
-        publisher = rpki.rpkid.publication_queue(rpkid)
+        trace_call_chain()
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
         self.latest_ca_cert = cert
         self.ca_cert_uri = uri
         self.generate_manifest_cert()
@@ -1073,6 +1148,7 @@ class CADetail(models.Model):
         raise an exception.
         """
 
+        trace_call_chain()
         repository = ca.parent.repository
         handler = False if allow_failure else None
         for child_cert in self.child_certs.all():
@@ -1117,6 +1193,8 @@ class CADetail(models.Model):
           time has passed.
         """
 
+        trace_call_chain()
+
         gski = self.latest_ca_cert.gSKI()
 
         logger.debug("Asking parent to revoke CA certificate matching g(SKI) = %s", gski)
@@ -1142,7 +1220,7 @@ class CADetail(models.Model):
         if self.latest_crl is not None:
             nextUpdate = nextUpdate.later(self.latest_crl.getNextUpdate())
 
-        publisher = rpki.rpkid.publication_queue(rpkid)
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
 
         for child_cert in self.child_certs.all():
             nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
@@ -1177,6 +1255,8 @@ class CADetail(models.Model):
         children of this ca_detail.
         """
 
+        trace_call_chain()
+
         logger.debug("Sending issue request to %r from %r", parent, self.update)
 
         r_msg = yield parent.up_down_issue_query(rpkid = rpkid, ca = ca, ca_detail = self)
@@ -1194,7 +1274,7 @@ class CADetail(models.Model):
 
         validity_changed = self.latest_ca_cert is None or self.latest_ca_cert.getNotAfter() != cert.getNotAfter()
 
-        publisher = rpki.rpkid.publication_queue(rpkid)
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
 
         if self.latest_ca_cert != cert:
             self.latest_ca_cert = cert
@@ -1228,6 +1308,7 @@ class CADetail(models.Model):
         Create a new ca_detail object for a specified CA.
         """
 
+        trace_call_chain()
         cer_keypair = rpki.x509.RSA.generate()
         mft_keypair = rpki.x509.RSA.generate()
         return cls.objects.create(
@@ -1245,6 +1326,7 @@ class CADetail(models.Model):
         Issue a new EE certificate.
         """
 
+        trace_call_chain()
         if notAfter is None:
             notAfter = self.latest_ca_cert.getNotAfter()
         return self.latest_ca_cert.issue(
@@ -1267,6 +1349,7 @@ class CADetail(models.Model):
         Generate a new manifest certificate for this ca_detail.
         """
 
+        trace_call_chain()
         resources = rpki.resource_set.resource_bag.from_inheritance()
         self.latest_manifest_cert = self.issue_ee(
             ca          = self.ca,
@@ -1283,6 +1366,7 @@ class CADetail(models.Model):
         containing the newly issued cert.
         """
 
+        trace_call_chain()
         self.check_failed_publication(publisher)
         cert = self.latest_ca_cert.issue(
             keypair     = self.private_key_id,
@@ -1322,6 +1406,7 @@ class CADetail(models.Model):
         new CRL is needed.
         """
 
+        trace_call_chain()
         self.check_failed_publication(publisher)
         crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.tenant.crl_interval)
         now = rpki.sundial.now()
@@ -1357,6 +1442,7 @@ class CADetail(models.Model):
         Check result of CRL publication.
         """
 
+        trace_call_chain()
         rpki.publication.raise_if_error(pdu)
         self.crl_published = None
         self.save()
@@ -1366,6 +1452,8 @@ class CADetail(models.Model):
         """
         Generate a new manifest for this ca_detail.
         """
+
+        trace_call_chain()
 
         self.check_failed_publication(publisher)
 
@@ -1412,6 +1500,7 @@ class CADetail(models.Model):
         Check result of manifest publication.
         """
 
+        trace_call_chain()
         rpki.publication.raise_if_error(pdu)
         self.manifest_published = None
         self.save()
@@ -1423,7 +1512,8 @@ class CADetail(models.Model):
         Reissue all current certificates issued by this ca_detail.
         """
 
-        publisher = rpki.rpkid.publication_queue(rpkid)
+        trace_call_chain()
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
         self.check_failed_publication(publisher)
         for roa in self.roas.all():
             roa.regenerate(publisher, fast = True)
@@ -1465,6 +1555,8 @@ class CADetail(models.Model):
         For the moment our definition of staleness is hardwired; this
         should become configurable.
         """
+
+        trace_call_chain()
 
         logger.debug("Checking for failed publication for %r", self)
 
@@ -1535,7 +1627,8 @@ class Child(models.Model):
 
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):
-        publisher = rpki.rpkid.publication_queue(rpkid)
+        trace_call_chain()
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
         for child_cert in self.child_certs.all():
             child_cert.revoke(publisher = publisher, generate_crl_and_manifest = True)
         yield publisher.call_pubd()
@@ -1543,26 +1636,31 @@ class Child(models.Model):
 
     @tornado.gen.coroutine
     def xml_post_save_hook(self, rpkid, q_pdu):
+        trace_call_chain()
         if q_pdu.get("clear_replay_protection"):
             self.clear_replay_protection()
         if q_pdu.get("reissue"):
-            yield self.serve_reissue(rpkid)
+            yield self.serve_reissue(rpkid = rpkid)
 
 
     def serve_reissue(self, rpkid):
-        publisher = rpki.rpkid.publication_queue(rpkid)
+        trace_call_chain()
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
         for child_cert in self.child_certs.all():
             child_cert.reissue(child_cert.ca_detail, publisher, force = True)
         yield publisher.call_pubd()
 
 
     def clear_replay_protection(self):
+        trace_call_chain()
         self.last_cms_timestamp = None
         self.save()
 
 
     @tornado.gen.coroutine
     def up_down_handle_list(self, rpkid, q_msg, r_msg):
+
+        trace_call_chain()
 
         irdb_resources = yield rpkid.irdb_query_child_resources(self.tenant.tenant_handle, self.child_handle)
 
@@ -1596,6 +1694,8 @@ class Child(models.Model):
     @tornado.gen.coroutine
     def up_down_handle_issue(self, rpkid, q_msg, r_msg):
 
+        trace_call_chain()
+
         req = q_msg[0]
         assert req.tag == rpki.up_down.tag_request
 
@@ -1623,7 +1723,7 @@ class Child(models.Model):
 
         # Generate new cert or regenerate old one if necessary
 
-        publisher = rpki.rpkid.publication_queue(rpkid)
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
 
         try:
             child_cert = self.child_certs.get(ca_detail = ca_detail, gski = req_key.gSKI())
@@ -1660,10 +1760,11 @@ class Child(models.Model):
 
     @tornado.gen.coroutine
     def up_down_handle_revoke(self, rpkid, q_msg, r_msg):
+        trace_call_chain()
         key = q_msg[0]
         assert key.tag == rpki.up_down.tag_key
         class_name = key.get("class_name")
-        publisher = rpki.rpkid.publication_queue(rpkid)
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
         for child_cert in ChildCert.objects.filter(ca_detail__ca__parent__tenant = self.tenant,
                                                    ca_detail__ca__parent_resource_class = class_name,
                                                    gski = key.get("ski")):
@@ -1677,6 +1778,8 @@ class Child(models.Model):
         """
         Outer layer of server handling for one up-down PDU from this child.
         """
+
+        trace_call_chain()
 
         if self.bsc is None:
             raise rpki.exceptions.BSCNotFound("Could not find BSC")
@@ -1736,6 +1839,7 @@ class ChildCert(models.Model):
         Revoke a child cert.
         """
 
+        trace_call_chain()
         ca_detail = self.ca_detail
         logger.debug("Revoking %r %r", self, self.uri)
         RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
@@ -1756,6 +1860,7 @@ class ChildCert(models.Model):
         updated child_cert_obj must use the return value from this method.
         """
 
+        trace_call_chain()
         ca = ca_detail.ca
         child = self.child
         old_resources = self.cert.get_3779resources()
@@ -1817,6 +1922,7 @@ class ChildCert(models.Model):
         Publication callback: check result and mark published.
         """
 
+        trace_call_chain()
         rpki.publication.raise_if_error(pdu)
         self.published = None
         self.save()
@@ -1855,6 +1961,8 @@ class EECertificate(models.Model):
         Generate a new EE certificate.
         """
 
+        trace_call_chain()
+
         # The low-level X.509 code really ought to supply the singleton
         # tuple wrapper when handed a string, but that yak will need to
         # wait until another day for its shave.
@@ -1889,6 +1997,7 @@ class EECertificate(models.Model):
         Revoke and withdraw an EE certificate.
         """
 
+        trace_call_chain()
         ca_detail = self.ca_detail
         logger.debug("Revoking %r %r", self, self.uri)
         RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
@@ -1908,6 +2017,7 @@ class EECertificate(models.Model):
         changed.
         """
 
+        trace_call_chain()
         needed = False
         old_cert = self.cert
         old_ca_detail = self.ca_detail
@@ -1969,6 +2079,7 @@ class EECertificate(models.Model):
         Publication callback: check result and mark published.
         """
 
+        trace_call_chain()
         rpki.publication.raise_if_error(pdu)
         self.published = None
         self.save()
@@ -1988,6 +2099,8 @@ class Ghostbuster(models.Model):
         """
         Bring this ghostbuster_obj up to date if necesssary.
         """
+
+        trace_call_chain()
 
         if self.ghostbuster is None:
             logger.debug("Ghostbuster record doesn't exist, generating")
@@ -2022,6 +2135,7 @@ class Ghostbuster(models.Model):
         caller to handle, presumably at the end of a bulk operation.
         """
 
+        trace_call_chain()
         resources = rpki.resource_set.resource_bag.from_inheritance()
         keypair = rpki.x509.RSA.generate()
         self.cert = self.ca_detail.issue_ee(
@@ -2047,6 +2161,7 @@ class Ghostbuster(models.Model):
         Check publication result.
         """
 
+        trace_call_chain()
         rpki.publication.raise_if_error(pdu)
         self.published = None
         self.save()
@@ -2068,6 +2183,7 @@ class Ghostbuster(models.Model):
         flushing the SQL cache.
         """
 
+        trace_call_chain()
         ca_detail = self.ca_detail
         logger.debug("%s %r, ca_detail %r state is %s",
                      "Regenerating" if regenerate else "Not regenerating",
@@ -2092,6 +2208,7 @@ class Ghostbuster(models.Model):
         Reissue Ghostbuster associated with this ghostbuster_obj.
         """
 
+        trace_call_chain()
         if self.ghostbuster is None:
             self.generate(publisher = publisher, fast = fast)
         else:
@@ -2103,6 +2220,7 @@ class Ghostbuster(models.Model):
         Return publication URI for a public key.
         """
 
+        trace_call_chain()
         return self.ca_detail.ca.sia_uri + key.gSKI() + ".gbr"
 
 
@@ -2137,6 +2255,7 @@ class RevokedCert(models.Model):
         Revoke a certificate.
         """
 
+        trace_call_chain()
         return cls.objects.create(
             serial    = cert.getSerial(),
             expires   = cert.getNotAfter(),
@@ -2159,6 +2278,8 @@ class ROA(models.Model):
         """
         Bring ROA up to date if necesssary.
         """
+
+        trace_call_chain()
 
         if self.roa is None:
             logger.debug("%r doesn't exist, generating", self)
@@ -2222,6 +2343,8 @@ class ROA(models.Model):
         caller to handle, presumably at the end of a bulk operation.
         """
 
+        trace_call_chain()
+
         if self.ipv4 is None and self.ipv6 is None:
             raise rpki.exceptions.EmptyROAPrefixList
 
@@ -2277,6 +2400,7 @@ class ROA(models.Model):
         Check publication result.
         """
 
+        trace_call_chain()
         rpki.publication.raise_if_error(pdu)
         self.published = None
         self.save()
@@ -2298,6 +2422,7 @@ class ROA(models.Model):
         flushing the SQL cache.
         """
 
+        trace_call_chain()
         ca_detail = self.ca_detail
         logger.debug("%s %r, ca_detail %r state is %s",
                      "Regenerating" if regenerate else "Not regenerating",
@@ -2321,6 +2446,7 @@ class ROA(models.Model):
         Reissue ROA associated with this roa_obj.
         """
 
+        trace_call_chain()
         if self.ca_detail is None:
             self.generate(publisher = publisher, fast = fast)
         else:
@@ -2332,6 +2458,7 @@ class ROA(models.Model):
         Return publication URI for a public key.
         """
 
+        trace_call_chain()
         return self.ca_detail.ca.sia_uri + key.gSKI() + ".roa"
 
 

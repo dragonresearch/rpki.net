@@ -31,9 +31,9 @@ del sundial_datetime
 # Construct friendlier representation for validation status codes.
 
 from rpki.POW._POW import _validation_status_codes
-class validation_status:
+class validation_status(object):
     "RPKI validation status codes."
 for code in _validation_status_codes:
     setattr(validation_status, code.name, code)
-del code
+del code                                # pylint: disable=W0631
 del _validation_status_codes

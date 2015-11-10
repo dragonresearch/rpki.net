@@ -221,10 +221,10 @@ class main(object):
 
 
     handle_dispatch = {
-      rpki.left_right.list_resources_elt               : handle_list_resources,
-      rpki.left_right.list_roa_requests_elt            : handle_list_roa_requests,
-      rpki.left_right.list_ghostbuster_requests_elt    : handle_list_ghostbuster_requests,
-      rpki.left_right.list_ee_certificate_requests_elt : handle_list_ee_certificate_requests }
+        rpki.left_right.list_resources_elt               : handle_list_resources,
+        rpki.left_right.list_roa_requests_elt            : handle_list_roa_requests,
+        rpki.left_right.list_ghostbuster_requests_elt    : handle_list_ghostbuster_requests,
+        rpki.left_right.list_ee_certificate_requests_elt : handle_list_ee_certificate_requests }
 
     def handler(self, request, q_der):
         try:

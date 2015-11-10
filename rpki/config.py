@@ -170,6 +170,7 @@ class parser(object):
         Get a boolean option, perhaps with a default value.
         """
 
+        # pylint: disable=W0212
         v = self.get(option, default, section)
         if isinstance(v, str):
             v = v.lower()
@@ -264,7 +265,7 @@ class parser(object):
             rpki.x509.generate_insecure_debug_only_rsa_key = rpki.x509.insecure_debug_only_rsa_key_generator(*self.get("insecure-debug-only-rsa-key-db").split())
         except ConfigParser.NoOptionError:
             pass
-        except:                             # pylint: disable=W0702
+        except:
             logger.warning("insecure-debug-only-rsa-key-db configured but initialization failed, check for corrupted database file")
 
         try:

@@ -130,6 +130,8 @@ class DERField(models.BinaryField):
     classes are derived from it.
     """
 
+    rpki_type = rpki.x509.DER_object
+
     def __init__(self, *args, **kwargs):
         kwargs["blank"] = True
         kwargs["default"] = None
@@ -141,7 +143,7 @@ class DERField(models.BinaryField):
         del kwargs["default"]
         return name, path, args, kwargs
 
-    def from_db_value(self, value, expression, connection, context):
+    def from_db_value(self, value, expression, connection, context): # pylint: disable=W0613
         if value is not None:
             value = self.rpki_type(DER = str(value))
         return value

@@ -573,16 +573,16 @@ class ErrorReportPDU(PDU):
     string_struct = struct.Struct("!L")
 
     errors = {
-      2 : "No Data Available" }
+        2 : "No Data Available" }
 
     fatal = {
-      0 : "Corrupt Data",
-      1 : "Internal Error",
-      3 : "Invalid Request",
-      4 : "Unsupported Protocol Version",
-      5 : "Unsupported PDU Type",
-      6 : "Withdrawal of Unknown Record",
-      7 : "Duplicate Announcement Received" }
+        0 : "Corrupt Data",
+        1 : "Internal Error",
+        3 : "Invalid Request",
+        4 : "Unsupported Protocol Version",
+        5 : "Unsupported PDU Type",
+        6 : "Withdrawal of Unknown Record",
+        7 : "Duplicate Announcement Received" }
 
     assert set(errors) & set(fatal) == set()
 

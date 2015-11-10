@@ -606,8 +606,8 @@ class resource_set_ip(resource_set):
         for r in self:
             r.chop_into_prefixes(prefix_ranges)
         return self.roa_prefix_set_type([
-          self.roa_prefix_set_type.prefix_type(r.min, r.prefixlen())
-          for r in prefix_ranges])
+            self.roa_prefix_set_type.prefix_type(r.min, r.prefixlen())
+            for r in prefix_ranges])
 
 class resource_set_ipv4(resource_set_ip):
     """

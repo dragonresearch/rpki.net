@@ -54,6 +54,9 @@ kids:
                         roa_request:
                           - asn: 64533
                             ipv6: 2001:db8::80/121
+                        router_cert:
+                          - router_id: 666
+                            asn: 64533
                         ghostbusters:
                           - |
                             BEGIN:VCARD

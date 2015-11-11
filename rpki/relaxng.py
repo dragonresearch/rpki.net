@@ -1,6 +1,5 @@
 # Automatically generated, do not edit.
 
-# pylint: disable=I0013
 # pylint: skip-file
 
 from rpki.relaxng_parser import RelaxNGParser

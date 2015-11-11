@@ -34,14 +34,14 @@ def check_dir(d):
 class ROA(rpki.POW.ROA):                # pylint: disable=W0232
 
     @classmethod
-    def parse(cls, fn):                   # pylint: disable=W0621
-        self = cls.derReadFile(fn)
+    def parse(cls, fn):                 # pylint: disable=W0621
+        self = cls.derReadFile(fn)      # pylint: disable=E1101
         self.extractWithoutVerifying()
         return self
 
     @property
     def prefixes(self):
-        v4, v6 = self.getPrefixes()
+        v4, v6 = self.getPrefixes()     # pylint: disable=E1101
         for prefix, length, maxlength in (v4 or ()) + (v6 or ()):
             if maxlength is None or length == maxlength:
                 yield "%s/%d" % (prefix, length)
@@ -49,6 +49,7 @@ class ROA(rpki.POW.ROA):                # pylint: disable=W0232
                 yield "%s/%d-%d" % (prefix, length, maxlength)
 
     def __str__(self):
+        # pylint: disable=E1101
         return "%s %s %s" % (self.signingTime(), self.getASID(), " ".join(self.prefixes))
 
 parser = argparse.ArgumentParser(description = __doc__)

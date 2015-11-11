@@ -41,7 +41,7 @@ args = None
 
 def parse_options():
 
-    global args
+    global args                         # pylint: disable=W0603
 
     parser = argparse.ArgumentParser(description = __doc__)
     parser.add_argument("--refresh", type = int, default = 1800,
@@ -156,6 +156,8 @@ class Validation_Status(object):
         return not self.label.code.startswith("rsync_transfer_")
 
 class Problem_Mixin(object):
+
+    # pylint: disable=E1101
 
     @property
     def connection_problems(self):
@@ -595,7 +597,7 @@ class HTML(object):
 
 def main():
 
-    global session
+    global session                      # pylint: disable=W0603
 
     os.putenv("TZ", "UTC")
     time.tzset()

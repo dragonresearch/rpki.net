@@ -52,7 +52,7 @@ def run(*cmd, **kwargs):
             os.setuid(pw.pw_uid)
         os.closerange(3, os.sysconf("SC_OPEN_MAX"))
         os.execvp(cmd[0], cmd)
-        os._exit(1)
+        os._exit(1)                     # pylint: disable=W0212
     else:
         status = os.waitpid(pid, 0)[1]
         if status == 0:

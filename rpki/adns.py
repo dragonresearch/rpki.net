@@ -22,6 +22,8 @@ Basic asynchronous DNS code, using asyncore and Bob Halley's excellent
 dnspython package.
 """
 
+# pylint: skip-file
+
 import sys
 import time
 import socket

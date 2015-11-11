@@ -26,6 +26,8 @@ passing database names everywhere.  Using a database router
 accomplishes this.
 """
 
+# pylint: disable=W0212
+
 class DBContextRouter(object):
     """
     A Django database router for use with multiple IRDBs.
@@ -81,6 +83,7 @@ class database(object):
         self.name = name
         self.on_entry = on_entry
         self.on_exit = on_exit
+        self.former = None
 
     def __enter__(self):
         if self.on_entry is not None:

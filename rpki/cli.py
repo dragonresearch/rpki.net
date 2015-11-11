@@ -82,12 +82,12 @@ class Cmd(cmd.Cmd):
         self.last_command_failed = True
         return False
 
-    def do_EOF(self, arg):              # pylint: disable=W0613
+    def do_EOF(self, arg):
         if self.EOF_exits_command_loop and self.prompt:
             print
         return self.EOF_exits_command_loop
 
-    def do_exit(self, arg):             # pylint: disable=W0613,R0201
+    def do_exit(self, arg):
         """
         Exit program.
         """
@@ -106,7 +106,7 @@ class Cmd(cmd.Cmd):
         if self.emptyline_repeats_last_command:
             cmd.Cmd.emptyline(self)
 
-    def filename_complete(self, text, line, begidx, endidx):              # pylint: disable=W0613,R0201
+    def filename_complete(self, text, line, begidx, endidx):
         """
         Filename completion handler, with hack to restore what I consider
         the normal (bash-like) behavior when one hits the completion key

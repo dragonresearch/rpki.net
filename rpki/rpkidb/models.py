@@ -26,6 +26,9 @@ from lxml.etree import Element, SubElement, tostring as ElementToString
 
 logger = logging.getLogger(__name__)
 
+# pylint: disable=W5101
+
+
 # XXX Temporary hack to help trace call chains so we can clear some of
 # the historical clutter out of this module.
 
@@ -161,7 +164,7 @@ class XMLTemplate(object):
                 setattr(obj, k, self.element_type[k](Base64 = v))
 
 
-class XMLManager(models.Manager):       # pylint: disable=W0232
+class XMLManager(models.Manager):
     """
     Add a few methods which locate or create an object or objects
     corresponding to the handles in an XML element, as appropriate.
@@ -173,6 +176,8 @@ class XMLManager(models.Manager):       # pylint: disable=W0232
     # Whether to blather about what we're doing
 
     debug = False
+
+    # pylint: disable=E1101
 
     def xml_get_or_create(self, xml):
         name   = self.model.xml_template.name
@@ -382,6 +387,7 @@ class Tenant(models.Model):
 
     def cron_tasks(self, rpkid):
         trace_call_chain()
+        # pylint: disable=W0201
         try:
             return self._cron_tasks
         except AttributeError:
@@ -418,7 +424,7 @@ class BSC(models.Model):
     tenant = models.ForeignKey(Tenant, related_name = "bscs")
     objects = XMLManager()
 
-    class Meta:                           # pylint: disable=C1001,W0232
+    class Meta:
         unique_together = ("tenant", "bsc_handle")
 
     xml_template = XMLTemplate(
@@ -447,7 +453,7 @@ class Repository(models.Model):
     tenant = models.ForeignKey(Tenant, related_name = "repositories")
     objects = XMLManager()
 
-    class Meta:                           # pylint: disable=C1001,W0232
+    class Meta:
         unique_together = ("tenant", "repository_handle")
 
     xml_template = XMLTemplate(
@@ -542,7 +548,7 @@ class Parent(models.Model):
     repository = models.ForeignKey(Repository, related_name = "parents")
     objects = XMLManager()
 
-    class Meta:                           # pylint: disable=C1001,W0232
+    class Meta:
         unique_together = ("tenant", "parent_handle")
 
     xml_template = XMLTemplate(
@@ -668,7 +674,7 @@ class Parent(models.Model):
         """
 
         trace_call_chain()
-        yield [ca.destroy(self) for ca in self.cas()]
+        yield [ca.destroy(self) for ca in self.cas()]           # pylint: disable=E1101
         yield self.serve_revoke_forgotten(rpkid = rpkid)
         if delete_parent:
             self.delete()
@@ -805,6 +811,8 @@ class CA(models.Model):
         certificate, changes in resource coverage, revocation and reissue
         with the same key, etc.
         """
+
+        # pylint: disable=C0330
 
         trace_call_chain()
         logger.debug("check_for_updates()")
@@ -1056,7 +1064,7 @@ class CADetail(models.Model):
     manifest_published = SundialField(null = True)
     state = EnumField(choices = ("pending", "active", "deprecated", "revoked"))
     ca_cert_uri = models.TextField(null = True)
-    ca = models.ForeignKey(CA, related_name = "ca_details")
+    ca = models.ForeignKey(CA, related_name = "ca_details") # pylint: disable=C0103
 
 
     # Like the old ca_obj class, the old ca_detail_obj class had ten
@@ -1079,6 +1087,7 @@ class CADetail(models.Model):
         Return tail (filename portion) of publication URI for this ca_detail's CRL.
         """
 
+        # pylint: disable=E1101
         return self.public_key.gSKI() + ".crl"
 
 
@@ -1088,6 +1097,7 @@ class CADetail(models.Model):
         Return publication URI for this ca_detail's manifest.
         """
 
+        # pylint: disable=E1101
         return self.ca.sia_uri + self.public_key.gSKI() + ".mft"
 
 
@@ -1179,7 +1189,7 @@ class CADetail(models.Model):
 
         - Request revocation of old keypair by parent.
 
-        - Revoke all child certs issued by the old keypair.
+        - Revoke all certificates issued by the old keypair.
 
         - Generate a final CRL, signed with the old keypair, listing all
           the revoked certs, with a next CRL time after the last cert or
@@ -1233,6 +1243,10 @@ class CADetail(models.Model):
         for ghostbuster in self.ghostbusters.all():
             nextUpdate = nextUpdate.later(ghostbuster.cert.getNotAfter())
             ghostbuster.revoke(publisher = publisher)
+
+        for eecert in self.ee_certificates.all():
+            nextUpdate = nextUpdate.later(eecert.cert.getNotAfter())
+            eecert.revoke(publisher = publisher)
 
         nextUpdate += crl_interval
 
@@ -1463,8 +1477,8 @@ class CADetail(models.Model):
         if nextUpdate is None:
             nextUpdate = now + crl_interval
         if (self.latest_manifest_cert is None or
-            (self.latest_manifest_cert.getNotAfter() < nextUpdate and
-             self.latest_manifest_cert.getNotAfter() < self.latest_ca_cert.getNotAfter())):
+                (self.latest_manifest_cert.getNotAfter() < nextUpdate and
+                 self.latest_manifest_cert.getNotAfter() < self.latest_ca_cert.getNotAfter())):
             logger.debug("Generating EE certificate for %s", uri)
             self.generate_manifest_cert()
             logger.debug("Latest CA cert notAfter %s, new %s EE notAfter %s",
@@ -1616,7 +1630,7 @@ class Child(models.Model):
     bsc = models.ForeignKey(BSC, related_name = "children")
     objects = XMLManager()
 
-    class Meta:                           # pylint: disable=C1001,W0232
+    class Meta:
         unique_together = ("tenant", "child_handle")
 
     xml_template = XMLTemplate(
@@ -1861,6 +1875,7 @@ class ChildCert(models.Model):
         """
 
         trace_call_chain()
+        # pylint: disable=E1101
         ca = ca_detail.ca
         child = self.child
         old_resources = self.cert.get_3779resources()

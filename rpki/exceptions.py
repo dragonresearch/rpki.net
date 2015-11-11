@@ -241,3 +241,9 @@ class UnexpectedUpDownResponse(RPKI_Exception):
 
 class BadContentType(RPKI_Exception):
     "Bad HTTP Content-Type."
+
+class ResourceClassMismatch(RPKI_Exception):
+    "Up-down resource class does not match."
+
+class IRDBExpired(RPKI_Exception):
+    "Back-end database record has expired."

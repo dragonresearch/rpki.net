@@ -26,6 +26,9 @@ import rpki.POW
 
 class ROA(rpki.POW.ROA):                # pylint: disable=W0232
 
+    v4_prefixes = None
+    v6_prefixes = None
+
     @staticmethod
     def _format_prefix(p):
         if p[2] in (None, p[1]):
@@ -34,8 +37,8 @@ class ROA(rpki.POW.ROA):                # pylint: disable=W0232
             return "%s/%d-%d" % (p[0], p[1], p[2])
 
     def parse(self):
-        self.extractWithoutVerifying()
-        v4, v6 = self.getPrefixes()
+        self.extractWithoutVerifying()  # pylint: disable=E1101
+        v4, v6 = self.getPrefixes()     # pylint: disable=E1101
         self.v4_prefixes = [self._format_prefix(p) for p in (v4 or ())]
         self.v6_prefixes = [self._format_prefix(p) for p in (v6 or ())]
 
@@ -43,7 +46,7 @@ parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("-b", "--brief", action = "store_true", help = "show only ASN and prefix(es)")
 parser.add_argument("-c", "--cms", action = "store_true", help = "print text representation of entire CMS blob")
 parser.add_argument("-s", "--signing-time", action = "store_true", help = "show SigningTime in brief mode")
-parser.add_argument("roas", nargs = "+", type = ROA.derReadFile, help = "ROA(s) to print")
+parser.add_argument("roas", nargs = "+", type = ROA.derReadFile, help = "ROA(s) to print") # pylint: disable=E1101
 args = parser.parse_args()
 
 for roa in args.roas:

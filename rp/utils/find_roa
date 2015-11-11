@@ -61,7 +61,7 @@ class Prefix(object):
         if self.prefix & ((1 << (self.prefix.bits - self.length)) - 1) != 0:
             raise ValueError
 
-    def matches(self, roa):               # pylint: disable=W0621
+    def matches(self, roa):             # pylint: disable=W0621
         return any(self.prefix == prefix and
                    self.length == length and
                    (not args.match_maxlength or
@@ -77,9 +77,9 @@ class ROA(rpki.POW.ROA):                # pylint: disable=W0232
     """
 
     @classmethod
-    def parse(cls, fn):                   # pylint: disable=W0621
+    def parse(cls, fn):                 # pylint: disable=W0621
         assert fn.startswith(args.rcynic_dir)
-        self = cls.derReadFile(fn)
+        self = cls.derReadFile(fn)      # pylint: disable=E1101
         self.fn = fn
         self.extractWithoutVerifying()
         v4, v6 = self.getPrefixes()
@@ -88,17 +88,18 @@ class ROA(rpki.POW.ROA):                # pylint: disable=W0232
 
     @property
     def uri(self):
-        return filename_to_uri(self.fn)
+        return filename_to_uri(self.fn) # pylint: disable=E1101
 
     @property
     def formatted_prefixes(self):
-        for prefix in self.prefixes:
+        for prefix in self.prefixes:    # pylint: disable=E1101
             if prefix[2] is None or prefix[1] == prefix[2]:
                 yield "%s/%d" % (prefix[0], prefix[1])
             else:
                 yield "%s/%d-%d" % (prefix[0], prefix[1], prefix[2])
 
     def __str__(self):
+        # pylint: disable=E1101
         prefixes = " ".join(self.formatted_prefixes)
         plural = "es" if " " in prefixes else ""
         if args.show_inception:
@@ -107,12 +108,13 @@ class ROA(rpki.POW.ROA):                # pylint: disable=W0232
             return "ASN %s prefix%s %s" % (self.getASID(), plural, prefixes)
 
     def show(self):
+        # pylint: disable=E1101
         print "%s %s" % (self, self.fn if args.show_filenames else self.uri)
 
     def show_expiration(self):
         print self
-        x = self.certs()[0]
-        fn = self.fn                        # pylint: disable=W0621
+        x = self.certs()[0]             # pylint: disable=E1101
+        fn = self.fn                    # pylint: disable=E1101,W0621
         uri = self.uri
         while uri is not None:
             name = fn if args.show_filenames else uri

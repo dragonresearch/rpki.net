@@ -52,6 +52,11 @@ class resource_range(object):
     directly.
     """
 
+    # Give pylint a little help here
+
+    datum_type = int
+    parse_str = int
+
     def __init__(self, range_min, range_max):
         assert range_min.__class__ is range_max.__class__, \
                "Type mismatch, %r doesn't match %r" % (range_min.__class__, range_max.__class__)
@@ -129,6 +134,9 @@ class resource_range_ip(resource_range):
     # Type of underlying data (min and max).
 
     datum_type = rpki.POW.IPAddress
+
+    # Give pylint a little help here
+    version = None
 
     def prefixlen(self):
         """
@@ -306,6 +314,9 @@ class resource_set(list):
 
     canonical = False
 
+    # Give pylint a little help here
+    range_type = resource_range
+
     def __init__(self, ini = None, allow_overlap = False):
         """
         Initialize a resource_set.
@@ -316,7 +327,7 @@ class resource_set(list):
             ini = str(ini)
         if ini is inherit_token:
             self.inherit = True
-        elif isinstance(ini, str) and len(ini):
+        elif isinstance(ini, (str, unicode)) and len(ini):
             self.extend(self.parse_str(s) for s in ini.split(","))
         elif isinstance(ini, list):
             self.extend(ini)
@@ -542,22 +553,6 @@ class resource_set(list):
         return self.inherit or len(self)
 
     @classmethod
-    def from_sql(cls, sql, query, args = None):
-        """
-        Create resource set from an SQL query.
-
-        sql is an object that supports execute() and fetchall() methods
-        like a DB API 2.0 cursor object.
-
-        query is an SQL query that returns a sequence of (min, max) pairs.
-        """
-
-        sql.execute(query, args)
-        return cls(ini = [cls.range_type(cls.range_type.datum_type(b),
-                                         cls.range_type.datum_type(e))
-                          for (b, e) in sql.fetchall()])
-
-    @classmethod
     def from_django(cls, iterable):
         """
         Create resource set from a Django query.
@@ -602,6 +597,7 @@ class resource_set_ip(resource_set):
         Convert from a resource set to a ROA prefix set.
         """
 
+        # pylint: disable=E1101
         prefix_ranges = []
         for r in self:
             r.chop_into_prefixes(prefix_ranges)
@@ -846,6 +842,9 @@ class roa_prefix(object):
     ## @var max_prefixlen
     # Maxmimum prefix length.
 
+    # Give pylint a little help
+    range_type = resource_range_ip
+
     def __init__(self, prefix, prefixlen, max_prefixlen = None):
         """
         Initialize a ROA prefix.  max_prefixlen is optional and defaults
@@ -949,13 +948,18 @@ class roa_prefix_set(list):
     Set of ROA prefixes, analogous to the resource_set_ip class.
     """
 
+    # Give pylint a little help
+
+    prefix_type = roa_prefix
+    resource_set_type = resource_set_ip
+
     def __init__(self, ini = None):
         """
         Initialize a ROA prefix set.
         """
 
         list.__init__(self)
-        if isinstance(ini, str) and len(ini):
+        if isinstance(ini, (str, unicode)) and len(ini):
             self.extend(self.parse_str(s) for s in ini.split(","))
         elif isinstance(ini, (list, tuple)):
             self.extend(ini)
@@ -1103,21 +1107,21 @@ if __name__ == "__main__":
         return " (%s)" % v.to_roa_prefix_set() if isinstance(v, resource_set_ip) else ""
 
     def test1(t, s1, s2):
-        if isinstance(s1, str) and isinstance(s2, str):
+        if isinstance(s1, (str, unicode)) and isinstance(s2, (str, unicode)):
             print "x:  ", s1
             print "y:  ", s2
         r1 = t(s1)
         r2 = t(s2)
         print "x:  ", r1, testprefix(r1)
         print "y:  ", r2, testprefix(r2)
-        v1 = r1._comm(r2)
-        v2 = r2._comm(r1)
+        v1 = r1._comm(r2)               # pylint: disable=W0212
+        v2 = r2._comm(r1)               # pylint: disable=W0212
         assert v1[0] == v2[1] and v1[1] == v2[0] and v1[2] == v2[2]
-        for i in r1: assert i in r1 and i.min in r1 and i.max in r1
-        for i in r2: assert i in r2 and i.min in r2 and i.max in r2
-        for i in v1[0]: assert i in  r1 and i not in r2
-        for i in v1[1]: assert i not in r1 and i in r2
-        for i in v1[2]: assert i in r1 and i in r2
+        assert all(i in r1 and i.min in r1 and i.max in r1 for i in r1)
+        assert all(i in r2 and i.min in r2 and i.max in r2 for i in r2)
+        assert all(i in  r1 and i not in r2 for i in v1[0])
+        assert all(i not in r1 and i in r2 for i in v1[1])
+        assert all(i in r1 and i in r2 for i in v1[2])
         v1 = r1 | r2
         v2 = r2 | r1
         assert v1 == v2

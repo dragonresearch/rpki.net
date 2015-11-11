@@ -21,7 +21,7 @@ the GUI code also uses this but adds a bunch of other stuff, thus has
 its own settings file.
 """
 
-from .common import *                   # pylint: disable=W0401
+from .common import *                   # pylint: disable=W0401,W0614
 
 __version__ = "$Id$"
 

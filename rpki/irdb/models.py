@@ -24,7 +24,7 @@ to be usable by command line programs and other scripts, not just
 Django GUI code, so be careful.
 """
 
-# pylint: disable=W0232,C1001
+# pylint: disable=W5101,W5103
 
 import django.db.models
 import rpki.x509
@@ -98,6 +98,8 @@ class CertificateManager(django.db.models.Manager):
         anything has changed.
         """
 
+        # pylint: disable=E1101
+
         changed = False
 
         try:
@@ -120,6 +122,7 @@ class CertificateManager(django.db.models.Manager):
         return obj, changed
 
     def _get_or_certify_keys(self, kwargs):
+        # pylint: disable=E1101,W0212
         assert len(self.model._meta.unique_together) == 1
         return dict((k, kwargs[k]) for k in self.model._meta.unique_together[0])
 
@@ -153,6 +156,10 @@ class CA(django.db.models.Model):
 
     class Meta:
         abstract = True
+
+    @property
+    def subject_name(self):
+        raise NotImplementedError
 
     def avow(self):
         if self.private_key is None:
@@ -245,16 +252,17 @@ class Certificate(django.db.models.Model):
         unique_together = ("issuer", "handle")
 
     def revoke(self):
-        self.issuer.revoke(self)
+        self.issuer.revoke(self)        # pylint: disable=E1101
 
 class CrossCertification(Certificate):
     handle = HandleField()
-    ta = CertificateField()
+    ta = CertificateField()             # pylint: disable=C0103
 
     class Meta:
         abstract = True
 
     def avow(self):
+        # pylint: disable=E1101
         self.certificate = self.issuer.certify(
             subject_name      = self.ta.getSubject(),
             subject_key       = self.ta.getPublicKey(),
@@ -305,6 +313,7 @@ class EECertificate(Certificate):
         abstract = True
 
     def avow(self):
+        # pylint: disable=E1101
         if self.private_key is None:
             self.private_key = rpki.x509.RSA.generate(quiet = True)
         self.certificate = self.issuer.certify(
@@ -350,6 +359,7 @@ class BSC(Certificate):
     pkcs10 = PKCS10Field()
 
     def avow(self):
+        # pylint: disable=E1101
         self.certificate = self.issuer.certify(
             subject_name      = self.pkcs10.getSubject(),
             subject_key       = self.pkcs10.getPublicKey(),
@@ -364,6 +374,9 @@ class ResourceSet(django.db.models.Model):
 
     class Meta:
         abstract = True
+
+    def _select_resource_bag(self):
+        return (), ()
 
     @property
     def resource_bag(self):
@@ -491,8 +504,8 @@ class EECertificateRequest(ResourceSet):
     issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "ee_certificate_requests")
     pkcs10 = PKCS10Field()
     gski   = django.db.models.CharField(max_length = 27)
-    cn     = django.db.models.CharField(max_length = 64)
-    sn     = django.db.models.CharField(max_length = 64)
+    cn     = django.db.models.CharField(max_length = 64)        # pylint: disable=C0103
+    sn     = django.db.models.CharField(max_length = 64)        # pylint: disable=C0103
     eku    = django.db.models.TextField(null = True)
 
     def _select_resource_bag(self):

@@ -279,8 +279,8 @@ class UpdateROAsTask(AbstractTask):
         seen = set()
         orphans = []
         updates = []
-        self.publisher = rpki.rpkid.publication_queue(self.rpkid)
-        self.ca_details = set()
+        self.publisher = rpki.rpkid.publication_queue(self.rpkid)       # pylint: disable=W0201
+        self.ca_details = set()                                         # pylint: disable=W0201
 
         for roa in self.tenant.roas.all():
             k = (roa.asn, str(roa.ipv4), str(roa.ipv6))
@@ -458,6 +458,8 @@ class UpdateEECertificatesTask(AbstractTask):
                         ee.reissue(resources = resources, publisher = publisher)
                         covering.remove(ee.ca_detail)
                     else:
+                        # This probably never happens, as the most likely cause would be a CA certificate
+                        # being revoked, which should trigger automatic clean up of issued certificates.
                         logger.debug("%r: Existing EE certificate for %s %s is no longer covered", self, gski, resources)
                         ee.revoke(publisher = publisher)
 

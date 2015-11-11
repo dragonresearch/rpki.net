@@ -36,8 +36,6 @@ and waits for one of them to exit.
 #   running daemons.
 #
 
-# pylint: disable=W0702,W0621
-
 import subprocess
 import re
 import os
@@ -56,6 +54,8 @@ import rpki.log
 import rpki.csv_utils
 import rpki.x509
 import rpki.relaxng
+
+# pylint: disable=W0621
 
 # Nasty regular expressions for parsing config files.  Sadly, while
 # the Python ConfigParser supports writing config files, it does so in
@@ -288,7 +288,7 @@ class allocation(object):
         resources = self.base
         for kid in self.kids:
             resources |= kid.closure()
-        self.resources = resources
+        self.resources = resources      # pylint: disable=W0201
         return resources
 
     def dump(self):
@@ -299,6 +299,7 @@ class allocation(object):
         print str(self)
 
     def __str__(self):
+        # pylint: disable=C0321
         s = self.name + ":\n"
         if self.resources.asn:      s += "  ASNs: %s\n" % self.resources.asn
         if self.resources.v4:       s += "  IPv4: %s\n" % self.resources.v4

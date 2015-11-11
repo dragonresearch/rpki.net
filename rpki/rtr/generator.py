@@ -105,6 +105,11 @@ class RouterKeyPDU(rpki.rtr.pdus.RouterKeyPDU):
     Router Key PDU.
     """
 
+    announce = None
+    ski      = None
+    asn      = None
+    key      = None
+
     @classmethod
     def from_text(cls, version, asn, gski, key):
         """
@@ -140,14 +145,15 @@ class ROA(rpki.POW.ROA):                # pylint: disable=W0232
     """
 
     @classmethod
-    def derReadFile(cls, fn):             # pylint: disable=E1002
+    def derReadFile(cls, fn):
+        # pylint: disable=E1002
         self = super(ROA, cls).derReadFile(fn)
         self.extractWithoutVerifying()
         return self
 
     @property
     def prefixes(self):
-        v4, v6 = self.getPrefixes()
+        v4, v6 = self.getPrefixes()     # pylint: disable=E1101
         if v4 is not None:
             for p in v4:
                 yield p
@@ -162,7 +168,7 @@ class X509(rpki.POW.X509):              # pylint: disable=W0232
 
     @property
     def asns(self):
-        resources = self.getRFC3779()
+        resources = self.getRFC3779()   # pylint: disable=E1101
         if resources is not None and resources[0] is not None:
             for min_asn, max_asn in resources[0]:
                 for asn in xrange(min_asn, max_asn + 1):
@@ -215,6 +221,8 @@ class AXFRSet(PDUSet):
     field set.
     """
 
+    serial = None
+
     @classmethod
     def parse_rcynic(cls, rcynic_dir, version, scan_roas = None, scan_routercerts = None):
         """
@@ -245,7 +253,7 @@ class AXFRSet(PDUSet):
                         self.extend(PrefixPDU.from_roa(version = version, asn = asn, prefix_tuple = prefix_tuple)
                                     for prefix_tuple in roa.prefixes)
                     if include_routercerts and scan_routercerts is None and fn.endswith(".cer"):
-                        x = X509.derReadFile(os.path.join(root, fn))
+                        x = X509.derReadFile(os.path.join(root, fn))   # pylint: disable=E1101
                         eku = x.getEKU()
                         if eku is not None and rpki.oids.id_kp_bgpsec_router in eku:
                             ski = x.getSKI()
@@ -414,6 +422,9 @@ class IXFRSet(PDUSet):
     and another, with the announce fields set or cleared as necessary to
     indicate the changes.
     """
+
+    from_serial = None
+    to_serial   = None
 
     @classmethod
     def load(cls, filename):

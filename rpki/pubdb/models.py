@@ -31,6 +31,8 @@ import rpki.relaxng
 logger = logging.getLogger(__name__)
 
 
+# pylint: disable=W5101
+
 # Some of this probably ought to move into a rpki.rrdp module.
 
 rrdp_xmlns   = rpki.relaxng.rrdp.xmlns
@@ -92,6 +94,8 @@ class Session(models.Model):
         """
         Construct a new delta associated with this session.
         """
+
+        # pylint: disable=W0201
 
         delta = Delta(session = self,
                       serial = self.serial + 1,
@@ -261,7 +265,10 @@ class Delta(models.Model):
 
 
     def withdraw(self, client, uri, obj_hash):
-        obj = client.publishedobject_set.get(session = self.session, uri = uri)
+        try:
+            obj = client.publishedobject_set.get(session = self.session, uri = uri)
+        except rpki.pubdb.models.PublishedObject.DoesNotExist:
+            raise rpki.exceptions.NoObjectAtURI("No published object found at %s" % uri)
         if obj.hash != obj_hash:
             raise rpki.exceptions.DifferentObjectAtURI("Found different object at %s (old %s, new %s)" % (uri, obj.hash, obj_hash))
         logger.debug("Withdrawing %s", uri)
@@ -308,6 +315,6 @@ class PublishedObject(models.Model):
     client = models.ForeignKey(Client)
     session = models.ForeignKey(Session)
 
-    class Meta:                           # pylint: disable=C1001,W0232
+    class Meta:
         unique_together = (("session", "hash"),
                            ("session", "uri"))

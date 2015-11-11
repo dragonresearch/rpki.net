@@ -155,10 +155,17 @@ class datetime(pydatetime.datetime):
 
         return other if other < self else self
 
-    def __add__(self, y):  return _cast(pydatetime.datetime.__add__(self, y))
-    def __radd__(self, y): return _cast(pydatetime.datetime.__radd__(self, y))
-    def __rsub__(self, y): return _cast(pydatetime.datetime.__rsub__(self, y))
-    def __sub__(self, y):  return _cast(pydatetime.datetime.__sub__(self, y))
+    def __add__(self, y):
+        return _cast(pydatetime.datetime.__add__(self, y))
+
+    def __radd__(self, y):
+        return _cast(pydatetime.datetime.__radd__(self, y))
+
+    def __rsub__(self, y):
+        return _cast(pydatetime.datetime.__rsub__(self, y))
+
+    def __sub__(self, y):
+        return _cast(pydatetime.datetime.__sub__(self, y))
 
     @classmethod
     def DateTime_or_None(cls, s):
@@ -172,7 +179,7 @@ class datetime(pydatetime.datetime):
             if t:
                 try:
                     return cls(*[int(x) for x in d.split("-") + t.split(":")])
-                except:                         # pylint: disable=W0702
+                except:
                     break
 
         from rpki.mysql_import import MySQLdb
@@ -260,19 +267,44 @@ class timedelta(pydatetime.timedelta):
 
         return cls(days = x.days, seconds = x.seconds, microseconds = x.microseconds)
 
-    def __abs__(self):          return _cast(pydatetime.timedelta.__abs__(self))
-    def __add__(self, x):       return _cast(pydatetime.timedelta.__add__(self, x))
-    def __div__(self, x):       return _cast(pydatetime.timedelta.__div__(self, x))
-    def __floordiv__(self, x):  return _cast(pydatetime.timedelta.__floordiv__(self, x))
-    def __mul__(self, x):       return _cast(pydatetime.timedelta.__mul__(self, x))
-    def __neg__(self):          return _cast(pydatetime.timedelta.__neg__(self))
-    def __pos__(self):          return _cast(pydatetime.timedelta.__pos__(self))
-    def __radd__(self, x):      return _cast(pydatetime.timedelta.__radd__(self, x))
-    def __rdiv__(self, x):      return _cast(pydatetime.timedelta.__rdiv__(self, x))
-    def __rfloordiv__(self, x): return _cast(pydatetime.timedelta.__rfloordiv__(self, x))
-    def __rmul__(self, x):      return _cast(pydatetime.timedelta.__rmul__(self, x))
-    def __rsub__(self, x):      return _cast(pydatetime.timedelta.__rsub__(self, x))
-    def __sub__(self, x):       return _cast(pydatetime.timedelta.__sub__(self, x))
+    def __abs__(self):
+        return _cast(pydatetime.timedelta.__abs__(self))
+
+    def __add__(self, x):
+        return _cast(pydatetime.timedelta.__add__(self, x))
+
+    def __div__(self, x):
+        return _cast(pydatetime.timedelta.__div__(self, x))
+
+    def __floordiv__(self, x):
+        return _cast(pydatetime.timedelta.__floordiv__(self, x))
+
+    def __mul__(self, x):
+        return _cast(pydatetime.timedelta.__mul__(self, x))
+
+    def __neg__(self):
+        return _cast(pydatetime.timedelta.__neg__(self))
+
+    def __pos__(self):
+        return _cast(pydatetime.timedelta.__pos__(self))
+
+    def __radd__(self, x):
+        return _cast(pydatetime.timedelta.__radd__(self, x))
+
+    def __rdiv__(self, x):
+        return _cast(pydatetime.timedelta.__rdiv__(self, x))
+
+    def __rfloordiv__(self, x):
+        return _cast(pydatetime.timedelta.__rfloordiv__(self, x))
+
+    def __rmul__(self, x):
+        return _cast(pydatetime.timedelta.__rmul__(self, x))
+
+    def __rsub__(self, x):
+        return _cast(pydatetime.timedelta.__rsub__(self, x))
+
+    def __sub__(self, x):
+        return _cast(pydatetime.timedelta.__sub__(self, x))
 
 def _cast(x):
     """

@@ -143,7 +143,7 @@ class DERField(models.BinaryField):
         del kwargs["default"]
         return name, path, args, kwargs
 
-    def from_db_value(self, value, expression, connection, context): # pylint: disable=W0613
+    def from_db_value(self, value, expression, connection, context):
         if value is not None:
             value = self.rpki_type(DER = str(value))
         return value

@@ -25,6 +25,8 @@ and perhaps still useful as a minimal example.  This does NOT work with
 the GUI, rpkic, or any of the other more recent tools.
 """
 
+# pylint: skip-file
+
 import os
 import time
 import logging

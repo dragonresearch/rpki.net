@@ -1111,12 +1111,6 @@ whack_ec_key_to_namedCurve(EVP_PKEY *pkey)
  * Validation status codes.  Still under construction.  Modeled after
  * rcynic's validation status database, conceptually anyway.
  *
- * Probably need to add an optional (default NULL) slot in
- * x509_store_ctx_object to hold the status set.  Might also add a
- * method to that class so that Python handlers can fiddle with the
- * status from the callback, but am primarily thinking of the extended
- * validation C code here.
- *
  * Assuming we go this way, should we PySet_Clear() the status set
  * upon entering the _verify function?  Probably.
  *
@@ -4941,6 +4935,13 @@ x509_store_ctx_object_set_policy (x509_store_ctx_object *self, PyObject *args)
 }
 
 #endif /* IMPLEMENT_X509StoreCTX_POLICY */
+
+/*
+ * Do we need an access method to let Python callbacks fiddle with the
+ * validation status set?  Maybe.  Skip for now, add later if needed.
+ * May need to pay closer attention to initialization and reference
+ * count management of the status field if we exposing it.
+ */
 
 /*
  * See (omnibus) man page for X509_STORE_CTX_get_error() for other

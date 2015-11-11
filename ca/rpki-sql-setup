@@ -51,6 +51,7 @@ class RootDB(object):
         self.mysql_defaults = mysql_defaults
 
     def __getattr__(self, name):
+        # pylint: disable=W0201
         if self.initialized:
             raise AttributeError
         if self.mysql_defaults is None:
@@ -70,7 +71,7 @@ class RootDB(object):
 
     def close(self):
         if self.initialized:
-            self.db.close()
+            self.db.close()             # pylint: disable=E1101
 
 
 class UserDB(object):
@@ -112,15 +113,17 @@ class UserDB(object):
             self.cur.close()
             self.cur = None
         if self.db is not None:
+            # pylint: disable=E1101
             self.db.commit()
             self.db.close()
             self.db = None
 
     @property
     def exists_and_accessible(self):
+        # pylint: disable=E1101
         try:
             MySQLdb.connect(db = self.database, user = self.username, passwd = self.password).close()
-        except:                             # pylint: disable=W0702
+        except:
             return False
         else:
             return True
@@ -143,7 +146,7 @@ class UserDB(object):
         if v > self.version:
             self.cur.execute("DELETE FROM upgrade_version")
             self.cur.execute("INSERT upgrade_version (version, updated) VALUES (%s, %s)", (v, datetime.datetime.now()))
-            self.db.commit()
+            self.db.commit()            # pylint: disable=E1101
             log("Updated %s to %s" % (self.name, v))
 
 
@@ -192,7 +195,7 @@ class Upgrade(object):
         # db is an argument here primarily so the script we exec can get at it
         log("Applying %s to %s" % (self.fn, db.name))
         with open(self.fn, "r") as f:
-            exec f                            # pylint: disable=W0122
+            exec f                      # pylint: disable=W0122
 
 
 def do_drop(name):
@@ -200,7 +203,7 @@ def do_drop(name):
     if db.database in root.databases:
         log("DROP DATABASE %s" %  db.database)
         root.cur.execute("DROP DATABASE %s" %  db.database)
-        root.db.commit()
+        root.db.commit()                # pylint: disable=E1101
 
 def do_create(name):
     db = UserDB(name)
@@ -209,7 +212,7 @@ def do_create(name):
     log("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY ###" % (db.database, db.username))
     root.cur.execute("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY %%s" % (db.database, db.username),
                      (db.password,))
-    root.db.commit()
+    root.db.commit()                    # pylint: disable=E1101
     db.open()
     db.version = current_version
     db.close()
@@ -228,7 +231,7 @@ def do_fix_grants(name):
         log("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY ###" % (db.database, db.username))
         root.cur.execute("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY %%s" % (db.database, db.username),
                          (db.password,))
-        root.db.commit()
+        root.db.commit()                # pylint: disable=E1101
 
 def do_create_if_missing(name):
     db = UserDB(name)

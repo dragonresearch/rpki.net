@@ -91,6 +91,8 @@ class PrefixPDU(rpki.rtr.generator.PrefixPDU):
 
 class AXFRSet(rpki.rtr.generator.AXFRSet):
 
+    serial = None
+
     @staticmethod
     def read_bgpdump(filename):
         assert filename.endswith(".bz2")
@@ -101,6 +103,7 @@ class AXFRSet(rpki.rtr.generator.AXFRSet):
 
     @classmethod
     def parse_bgpdump_rib_dump(cls, filename):
+        # pylint: disable=W0201
         assert os.path.basename(filename).startswith("ribs.")
         self = cls()
         self.serial = None
@@ -212,7 +215,7 @@ def bgpdump_select_main(args):
 
     nonce = rpki.rtr.server.read_current(version)[1]
     if nonce is None:
-        nonce = rpki.rtr.generator.new_nonce()
+        nonce = rpki.rtr.generator.AXFRSet.new_nonce(force_zero_nonce = False)
 
     rpki.rtr.server.write_current(serial, nonce, version)
     rpki.rtr.generator.kick_all(serial)
@@ -238,7 +241,7 @@ class BGPDumpReplayClock(object):
         self.timestamps = [Timestamp(int(f.split(".")[0])) for f in glob.iglob("*.ax.v*")]
         self.timestamps.sort()
         self.offset = self.timestamps[0] - int(time.time())
-        self.nonce = rpki.rtr.generator.new_nonce()
+        self.nonce = rpki.rtr.generator.AXFRSet.new_nonce(force_zero_nonce = False)
 
     def __nonzero__(self):
         return len(self.timestamps) > 0
@@ -278,7 +281,7 @@ def bgpdump_server_main(args):
     You have been warned.
     """
 
-    logger = logging.LoggerAdapter(logging.root, dict(connection = rpki.rtr.server._hostport_tag()))
+    logger = logging.LoggerAdapter(logging.root, dict(connection = rpki.rtr.server.hostport_tag()))
 
     logger.debug("[Starting]")
 

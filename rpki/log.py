@@ -96,12 +96,12 @@ class Formatter(object):
         try:
             if not self.is_syslog:
                 yield time.strftime("%Y-%m-%d %H:%M:%S ", time.gmtime(record.created))
-        except:                             # pylint: disable=W0702
+        except:
             yield "[$!$Time format failed]"
 
         try:
             yield "%s[%d]: " % (self.ident, record.process)
-        except:                             # pylint: disable=W0702
+        except:
             yield "[$!$ident format failed]"
 
         try:
@@ -111,12 +111,12 @@ class Formatter(object):
                 yield repr(record.context) + " "
         except AttributeError:
             pass
-        except:                             # pylint: disable=W0702
+        except:
             yield "[$!$context format failed]"
 
         try:
             yield record.getMessage()
-        except:                             # pylint: disable=W0702
+        except:
             yield "[$!$record.getMessage() failed]"
 
         try:
@@ -129,7 +129,7 @@ class Formatter(object):
                     lines.insert(0, "\n")
                 for line in lines:
                     yield line
-        except:                             # pylint: disable=W0702
+        except:
             yield "[$!$exception formatting failed]"
 
 
@@ -218,8 +218,6 @@ def init(ident = None, args = None):
     Default logging destination is stderr if "args" is not specified.
     """
 
-    # pylint: disable=E1103
-
     if ident is None:
         ident = os.path.basename(sys.argv[0])
 
@@ -227,12 +225,12 @@ def init(ident = None, args = None):
         args = argparse.Namespace(log_level   = logging.WARNING,
                                   log_handler = logging.StreamHandler)
 
-    handler = args.log_handler()
+    handler = args.log_handler()        # pylint: disable=E1101
     handler.setFormatter(Formatter(ident, handler))
 
     root_logger = logging.getLogger()
     root_logger.addHandler(handler)
-    root_logger.setLevel(args.log_level)
+    root_logger.setLevel(args.log_level) # pylint: disable=E1101
 
     if ident and have_setproctitle and use_setproctitle:
         if proctitle_extra:
@@ -261,8 +259,6 @@ def log_repr(obj, *tokens):
     Constructor for __repr__() strings, handles suppression of Python
     IDs as needed, includes tenant_handle when available.
     """
-
-    # pylint: disable=W0702
 
     words = ["%s.%s" % (obj.__class__.__module__, obj.__class__.__name__)]
     try:

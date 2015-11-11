@@ -252,7 +252,7 @@ class main(object):
     @tornado.gen.coroutine
     def cron_loop(self):
         """
-        Asynchronous infinite loop to drive cron cycle.
+        Asynchronous infinite loop to drive internal cron cycle.
         """
 
         logger.debug("cron_loop(): Starting")
@@ -268,7 +268,7 @@ class main(object):
     @tornado.gen.coroutine
     def cron_run(self):
         """
-        Schedule periodic tasks.
+        Schedule periodic tasks and wait for them to finish.
         """
 
         now = rpki.sundial.now()
@@ -296,7 +296,7 @@ class main(object):
             handler.set_status(500, "Running cron internally")
         else:
             logger.debug("Starting externally triggered cron")
-            yield self.cron()
+            yield self.cron_run()
             handler.set_status(200)
         handler.finish()
 
@@ -340,7 +340,7 @@ class main(object):
         raise tornado.gen.Return(response)
 
     @staticmethod
-    def _compose_left_right_query():
+    def compose_left_right_query():
         """
         Compose top level element of a left-right query to irdbd.
         """
@@ -393,7 +393,7 @@ class main(object):
         Ask IRDB about a child's resources.
         """
 
-        q_msg = self._compose_left_right_query()
+        q_msg = self.compose_left_right_query()
         SubElement(q_msg, rpki.left_right.tag_list_resources, tenant_handle = tenant_handle, child_handle = child_handle)
 
         r_msg = yield self.irdb_query(q_msg)
@@ -415,7 +415,7 @@ class main(object):
         Ask IRDB about self's ROA requests.
         """
 
-        q_msg = self._compose_left_right_query()
+        q_msg = self.compose_left_right_query()
         SubElement(q_msg, rpki.left_right.tag_list_roa_requests, tenant_handle = tenant_handle)
         r_msg = yield self.irdb_query(q_msg)
         raise tornado.gen.Return(r_msg)
@@ -426,7 +426,7 @@ class main(object):
         Ask IRDB about self's ghostbuster record requests.
         """
 
-        q_msg = self._compose_left_right_query()
+        q_msg = self.compose_left_right_query()
         for parent_handle in parent_handles:
             SubElement(q_msg, rpki.left_right.tag_list_ghostbuster_requests,
                        tenant_handle = tenant_handle, parent_handle = parent_handle)
@@ -439,7 +439,7 @@ class main(object):
         Ask IRDB about self's EE certificate requests.
         """
 
-        q_msg = self._compose_left_right_query()
+        q_msg = self.compose_left_right_query()
         SubElement(q_msg, rpki.left_right.tag_list_ee_certificate_requests, tenant_handle = tenant_handle)
         r_msg = yield self.irdb_query(q_msg)
         raise tornado.gen.Return(r_msg)
@@ -450,10 +450,12 @@ class main(object):
         Map element tag to rpkidb model.
         """
 
+        # pylint: disable=W0621,W0201
+
         try:
             return self._left_right_models
         except AttributeError:
-            import rpki.rpkidb.models         # pylint: disable=W0621
+            import rpki.rpkidb.models
             self._left_right_models = {
                 rpki.left_right.tag_tenant      : rpki.rpkidb.models.Tenant,
                 rpki.left_right.tag_bsc         : rpki.rpkidb.models.BSC,
@@ -467,6 +469,8 @@ class main(object):
         """
         Map element tag to bound handler methods for trivial PDU types.
         """
+
+        # pylint: disable=W0201
 
         try:
             return self._left_right_trivial_handlers
@@ -690,17 +694,20 @@ class publication_queue(object):
             old_pdu = self.uris.pop(uri)
             self.msgs[rid].remove(old_pdu)
             pdu_hash = old_pdu.get("hash")
+            if pdu_hash is None and new_obj is None:
+                logger.debug("Withdrawing object %r which was never published simplifies to no-op", old_pdu)
+                return
         elif old_hash is not None:
-            logger.debug("Old hash supplied")                   # XXX
+            logger.debug("Old hash supplied")                   # XXX Debug log
             pdu_hash = old_hash
         elif old_obj is None:
-            logger.debug("No old object present")               # XXX
+            logger.debug("No old object present")               # XXX Debug log
             pdu_hash = None
         else:
-            logger.debug("Calculating hash of old object")      # XXX
+            logger.debug("Calculating hash of old object")      # XXX Debug log
             pdu_hash = rpki.x509.sha256(old_obj.get_DER()).encode("hex")
 
-        logger.debug("uri %s old hash %s new hash %s", uri, pdu_hash, # XXX
+        logger.debug("uri %s old hash %s new hash %s", uri, pdu_hash, # XXX Debug log
                      None if new_obj is None else rpki.x509.sha256(new_obj.get_DER()).encode("hex"))
 
         if new_obj is None:

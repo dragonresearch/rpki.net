@@ -50,6 +50,9 @@ import rpki.publication
 
 pem_out = None
 
+# This program needs a complete rewrite.  In the meantime, shut up about lint.
+# pylint: skip-file
+
 class UsageWrapper(textwrap.TextWrapper):
     """
     Call interface around Python textwrap.Textwrapper class.
@@ -207,7 +210,7 @@ class left_right_msg(cmd_msg_mixin, rpki.left_right.msg):
                 for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt,
                           list_published_objects_elt, list_received_resources_elt, report_error_elt))
 
-class left_right_sax_handler(rpki.left_right.sax_handler): # pylint: disable=W0232
+class left_right_sax_handler(rpki.left_right.sax_handler):
     pdu = left_right_msg
 
 class left_right_cms_msg(rpki.left_right.cms_msg):
@@ -251,7 +254,7 @@ class publication_msg(cmd_msg_mixin, rpki.publication.msg):
                           manifest_elt, roa_elt, report_error_elt,
                           ghostbuster_elt))
 
-class publication_sax_handler(rpki.publication.sax_handler): # pylint: disable=W0232
+class publication_sax_handler(rpki.publication.sax_handler):
     pdu = publication_msg
 
 class publication_cms_msg(rpki.publication.cms_msg):

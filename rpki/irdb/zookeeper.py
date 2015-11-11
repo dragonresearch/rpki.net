@@ -20,8 +20,6 @@
 Management code for the IRDB.
 """
 
-# pylint: disable=W0612,C0325
-
 import os
 import copy
 
@@ -135,7 +133,7 @@ class PEM_writer(object):
             try:
                 if compare and pem == open(filename, "r").read():
                     return
-            except:                           # pylint: disable=W0702
+            except:
                 pass
             tempname += ".%s.tmp" % os.getpid()
         mode = 0400 if filename.endswith(".key") else 0444
@@ -295,7 +293,7 @@ class Zookeeper(object):
         """
 
         if self.run_rpkid or self.run_pubd:
-            server_ca, created = rpki.irdb.models.ServerCA.objects.get_or_certify()
+            server_ca = rpki.irdb.models.ServerCA.objects.get_or_certify()[0]
             rpki.irdb.models.ServerEE.objects.get_or_certify(issuer = server_ca, purpose = "irbe")
 
         if self.run_rpkid:
@@ -320,7 +318,7 @@ class Zookeeper(object):
         resource-holding BPKI idenity if needed.
         """
 
-        resource_ca, created = rpki.irdb.models.ResourceHolderCA.objects.get_or_certify(handle = self.handle)
+        rpki.irdb.models.ResourceHolderCA.objects.get_or_certify(handle = self.handle)
         return self.generate_identity()
 
 
@@ -476,7 +474,7 @@ class Zookeeper(object):
 
 
     @staticmethod
-    def _compose_left_right_query():
+    def compose_left_right_query():
         """
         Compose top level element of a left-right query.
         """
@@ -506,7 +504,7 @@ class Zookeeper(object):
         """
 
         if self.run_rpkid:
-            q_msg = self._compose_left_right_query()
+            q_msg = self.compose_left_right_query()
 
             for ca in rpki.irdb.models.ResourceHolderCA.objects.all():
                 q_pdu = SubElement(q_msg, rpki.left_right.tag_tenant,
@@ -598,11 +596,11 @@ class Zookeeper(object):
 
         self.log("Child calls itself %r, we call it %r" % (x.get("child_handle"), child_handle))
 
-        child, created = rpki.irdb.models.Child.objects.get_or_certify(
+        child = rpki.irdb.models.Child.objects.get_or_certify(
             issuer      = self.resource_ca,
             handle      = child_handle,
             ta          = rpki.x509.X509(Base64 = x.findtext(tag_oob_child_bpki_ta)),
-            valid_until = valid_until)
+            valid_until = valid_until)[0]
 
         return self.generate_parental_response(child), child_handle
 
@@ -641,7 +639,7 @@ class Zookeeper(object):
 
         else:
             proposed_sia_base = repo.sia_base + child.handle + "/"
-            referral_cert, created = rpki.irdb.models.Referral.objects.get_or_certify(issuer = self.resource_ca)
+            referral_cert = rpki.irdb.models.Referral.objects.get_or_certify(issuer = self.resource_ca)[0]
             auth = rpki.x509.SignedReferral()
             auth.set_content(B64Element(None, tag_oob_authorization, child.ta,
                                         nsmap = oob_nsmap, version = oob_version,
@@ -704,7 +702,7 @@ class Zookeeper(object):
         self.log("Parent calls itself %r, we call it %r" % (x.get("parent_handle"), parent_handle))
         self.log("Parent calls us %r" % x.get("child_handle"))
 
-        parent, created = rpki.irdb.models.Parent.objects.get_or_certify(
+        parent = rpki.irdb.models.Parent.objects.get_or_certify(
             issuer                 = self.resource_ca,
             handle                 = parent_handle,
             child_handle           = x.get("child_handle"),
@@ -713,7 +711,7 @@ class Zookeeper(object):
             ta                     = rpki.x509.X509(Base64 = x.findtext(tag_oob_parent_bpki_ta)),
             repository_type        = repository_type,
             referrer               = referrer,
-            referral_authorization = referral_authorization)
+            referral_authorization = referral_authorization)[0]
 
         return self.generate_repository_request(parent), parent_handle
 
@@ -760,6 +758,8 @@ class Zookeeper(object):
         generates a response message containing the repository's BPKI data
         and service URI.
         """
+
+        # pylint: disable=E1124
 
         x = etree_read(filename)
 
@@ -825,11 +825,11 @@ class Zookeeper(object):
         self.log("Client calls itself %r, we call it %r" % (
             x.get("publisher_handle"), client_handle))
 
-        client, created = rpki.irdb.models.Client.objects.get_or_certify(
+        client = rpki.irdb.models.Client.objects.get_or_certify(
             issuer   = self.server_ca,
             handle   = client_handle,
             ta       = client_ta,
-            sia_base = sia_base)
+            sia_base = sia_base)[0]
 
         return self.generate_repository_response(client), client_handle
 
@@ -900,11 +900,11 @@ class Zookeeper(object):
             turtles = []
             for parent in self.resource_ca.parents.all():
                 try:
-                    _ = parent.repository
+                    _ = parent.repository               # pylint: disable=W0612
                 except rpki.irdb.models.Repository.DoesNotExist:
                     turtles.append(parent)
             try:
-                _ = self.resource_ca.rootd.repository
+                _ = self.resource_ca.rootd.repository   # pylint: disable=W0612
             except rpki.irdb.models.Repository.DoesNotExist:
                 turtles.append(self.resource_ca.rootd)
             except rpki.irdb.models.Rootd.DoesNotExist:
@@ -992,11 +992,11 @@ class Zookeeper(object):
                         raise
                 else:
                     for prefix in rset(",".join(prefixes)):
-                        obj, created = rpki.irdb.models.ChildNet.objects.get_or_create(
+                        obj = rpki.irdb.models.ChildNet.objects.get_or_create(
                             child    = child,
                             start_ip = str(prefix.min),
                             end_ip   = str(prefix.max),
-                            version  = version)
+                            version  = version)[0]
                         primary_keys.append(obj.pk)
 
         q = rpki.irdb.models.ChildNet.objects
@@ -1028,10 +1028,10 @@ class Zookeeper(object):
                     raise
             else:
                 for asn in rpki.resource_set.resource_set_as(",".join(asns)):
-                    obj, created = rpki.irdb.models.ChildASN.objects.get_or_create(
+                    obj = rpki.irdb.models.ChildASN.objects.get_or_create(
                         child    = child,
                         start_as = str(asn.min),
-                        end_as   = str(asn.max))
+                        end_as   = str(asn.max))[0]
                     primary_keys.append(obj.pk)
 
         q = rpki.irdb.models.ChildASN.objects
@@ -1131,7 +1131,7 @@ class Zookeeper(object):
 
     def _rpkid_tenant_control(self, *bools):
         assert all(isinstance(b, str) for b in bools)
-        q_msg = self._compose_left_right_query()
+        q_msg = self.compose_left_right_query()
         q_pdu = SubElement(q_msg, rpki.left_right.tag_tenant, action = "set", tenant_handle = self.handle)
         for b in bools:
             q_pdu.set(b, "yes")
@@ -1200,7 +1200,7 @@ class Zookeeper(object):
         """
 
         if self.run_rpkid:
-            q_msg = self._compose_left_right_query()
+            q_msg = self.compose_left_right_query()
             for ca in rpki.irdb.models.ResourceHolderCA.objects.all():
                 SubElement(q_msg, rpki.left_right.tag_tenant, action = "set",
                            tenant_handle = ca.handle, clear_replay_protection = "yes")
@@ -1324,6 +1324,8 @@ class Zookeeper(object):
         CA to the end of whatever other commands this method generates.
         """
 
+        # pylint: disable=C0330
+
         # We can use a single BSC for everything -- except BSC key
         # rollovers.  Drive off that bridge when we get to it.
 
@@ -1349,7 +1351,7 @@ class Zookeeper(object):
 
         # See what rpkid already has on file for this entity.
 
-        q_msg = self._compose_left_right_query()
+        q_msg = self.compose_left_right_query()
         SubElement(q_msg, rpki.left_right.tag_tenant,     action = "get",  tenant_handle = ca.handle)
         SubElement(q_msg, rpki.left_right.tag_bsc,        action = "list", tenant_handle = ca.handle)
         SubElement(q_msg, rpki.left_right.tag_repository, action = "list", tenant_handle = ca.handle)
@@ -1371,11 +1373,11 @@ class Zookeeper(object):
         child_pdus      = dict((r_pdu.get("child_handle"), r_pdu)
                                for r_pdu in r_msg.getiterator(rpki.left_right.tag_child))
 
-        q_msg = self._compose_left_right_query()
+        q_msg = self.compose_left_right_query()
 
-        tenant_cert, created = rpki.irdb.models.HostedCA.objects.get_or_certify(
+        tenant_cert = rpki.irdb.models.HostedCA.objects.get_or_certify(
             issuer = self.server_ca,
-            hosted = ca)
+            hosted = ca)[0]
 
         # There should be exactly one <tenant/> object per hosted entity, by definition
 
@@ -1421,15 +1423,15 @@ class Zookeeper(object):
                             if r_pdu.get("action") == "list")
             bsc_pdu = bsc_pdus.pop(bsc_handle, None)
 
-        q_msg = self._compose_left_right_query()
+        q_msg = self.compose_left_right_query()
 
         bsc_pkcs10 = bsc_pdu.find(rpki.left_right.tag_pkcs10_request)
         assert bsc_pkcs10 is not None
 
-        bsc, created = rpki.irdb.models.BSC.objects.get_or_certify(
+        bsc = rpki.irdb.models.BSC.objects.get_or_certify(
             issuer = ca,
             handle = bsc_handle,
-            pkcs10 = rpki.x509.PKCS10(Base64 = bsc_pkcs10.text))
+            pkcs10 = rpki.x509.PKCS10(Base64 = bsc_pkcs10.text))[0]
 
         if (bsc_pdu.findtext(rpki.left_right.tag_signing_cert,     "").decode("base64") != bsc.certificate.get_DER() or
             bsc_pdu.findtext(rpki.left_right.tag_signing_cert_crl, "").decode("base64") != ca.latest_crl.get_DER()):
@@ -1586,6 +1588,8 @@ class Zookeeper(object):
         related to pubd should call this when they're done.
         """
 
+        # pylint: disable=C0330
+
         # If we're not running pubd, the rest of this is a waste of time
 
         if not self.run_pubd:
@@ -1652,7 +1656,7 @@ class Zookeeper(object):
         inside a Django commit wrapper.
         """
 
-        q_msg = self._compose_left_right_query()
+        q_msg = self.compose_left_right_query()
         SubElement(q_msg, rpki.left_right.tag_tenant, action = "list")
         r_msg = self.call_rpkid(q_msg)
 
@@ -1660,7 +1664,7 @@ class Zookeeper(object):
         ca_handles = set(ca.handle for ca in rpki.irdb.models.ResourceHolderCA.objects.all())
         assert ca_handles <= tenant_handles
 
-        q_msg = self._compose_left_right_query()
+        q_msg = self.compose_left_right_query()
         for handle in (tenant_handles - ca_handles):
             SubElement(q_msg, rpki.left_right.tag_tenant, action = "destroy", tenant_handle = handle)
 

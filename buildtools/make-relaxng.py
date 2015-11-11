@@ -26,6 +26,8 @@ import sys
 header = """\
 # Automatically generated, do not edit.
 
+# pylint: skip-file
+
 from rpki.relaxng_parser import RelaxNGParser
 """
 

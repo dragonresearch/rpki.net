@@ -156,6 +156,8 @@ class main(object):
         self.cfg = rpki.config.parser(set_filename = args.config, section = "irdbd")
         self.cfg.set_global_flags()
 
+        self.cms_timestamp = None
+
         if not args.foreground:
             rpki.daemonize.daemon(pidfile = args.pidfile)
 
@@ -187,8 +189,6 @@ class main(object):
 
         self.http_server_host = self.cfg.get("server-host", "")
         self.http_server_port = self.cfg.getint("server-port")
-
-        self.cms_timestamp = None
 
         rpki.http_simple.server(
             host     = self.http_server_host,

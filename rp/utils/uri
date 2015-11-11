@@ -46,7 +46,7 @@ class Certificate(object):
     def __init__(self, fn):
         try:
             x = rpki.POW.X509.derReadFile(fn)
-        except:                             # pylint: disable=W0702
+        except:
             try:
                 cms = rpki.POW.CMS.derReadFile(fn)
                 cms.extractWithoutVerifying()

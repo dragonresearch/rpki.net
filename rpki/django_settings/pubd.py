@@ -19,7 +19,7 @@ This module contains configuration settings for Django libraries for
 the pubd program.
 """
 
-from .common import *                   # pylint: disable=W0401
+from .common import *                   # pylint: disable=W0401,W0614
 
 __version__ = "$Id$"
 

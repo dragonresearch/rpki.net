@@ -1,5 +1,8 @@
 # Automatically generated, do not edit.
 
+# pylint: disable=I0013
+# pylint: skip-file
+
 from rpki.relaxng_parser import RelaxNGParser
 
 ## @var left_right
@@ -7,17 +10,17 @@ from rpki.relaxng_parser import RelaxNGParser
 left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: left-right.rnc 6137 2015-10-20 19:21:37Z sra $
-
+  
   RelaxNG schema for RPKI left-right protocol.
-
+  
   Copyright (C) 2012- -2014  Dragon Research Labs ("DRL")
   Portions copyright (C) 2009- -2011  Internet Systems Consortium ("ISC")
   Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
-
+  
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
   copyright notices and this permission notice appear in all copies.
-
+  
   THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
   WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
   WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -1106,23 +1109,23 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 myrpki = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: myrpki.rnc 5876 2014-06-26 19:00:12Z sra $
-
+  
   RelaxNG schema for MyRPKI XML messages.
-
+  
   This message protocol is on its way out, as we're in the process of
   moving on from the user interface model that produced it, but even
   after we finish replacing it we'll still need the schema for a while
   to validate old messages when upgrading.
-
+  
   libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
   run the compact syntax through trang to get XML syntax.
-
+  
   Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
-
+  
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
   copyright notice and this permission notice appear in all copies.
-
+  
   THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
   REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
   AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -1661,17 +1664,17 @@ oob_setup = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 publication_control = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: publication-control.rnc 5903 2014-07-18 17:08:13Z sra $
-
+  
   RelaxNG schema for RPKI publication protocol.
-
+  
   Copyright (C) 2012- -2014  Dragon Research Labs ("DRL")
   Portions copyright (C) 2009- -2011  Internet Systems Consortium ("ISC")
   Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
-
+  
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
   copyright notices and this permission notice appear in all copies.
-
+  
   THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
   WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
   WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
@@ -1735,7 +1738,7 @@ publication_control = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   <!--
     Base64 encoded DER stuff
     base64 = xsd:base64Binary { maxLength="512000" }
-
+    
     Sadly, it turns out that CRLs can in fact get longer than this for an active CA.
     Remove length limit for now, think about whether to put it back later.
   -->
@@ -1945,29 +1948,29 @@ publication_control = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 publication = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: publication.rnc 5896 2014-07-15 19:34:32Z sra $
-
+  
   RelaxNG schema for RPKI publication protocol, from current I-D.
-
+  
   Copyright (c) 2014 IETF Trust and the persons identified as authors
   of the code.  All rights reserved.
-
+  
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
   are met:
-
+  
   * Redistributions of source code must retain the above copyright
     notice, this list of conditions and the following disclaimer.
-
+  
   * Redistributions in binary form must reproduce the above copyright
     notice, this list of conditions and the following disclaimer in
     the documentation and/or other materials provided with the
     distribution.
-
+  
   * Neither the name of Internet Society, IETF or IETF Trust, nor the
     names of specific contributors, may be used to endorse or promote
     products derived from this software without specific prior written
     permission.
-
+  
   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
@@ -2150,22 +2153,22 @@ publication = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 router_certificate = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: router-certificate.rnc 5881 2014-07-03 16:55:02Z sra $
-
+  
   RelaxNG schema for BGPSEC router certificate interchange format.
-
+  
   At least for now, this is a trivial encapsulation of a PKCS #10
   request, a set (usually containing exactly one member) of autonomous
   system numbers, and a router-id.  Be warned that this could change
   radically by the time we have any real operational understanding of
   how these things will be used, this is just our current best guess
   to let us move forward on initial coding.
-
+  
   Copyright (C) 2014  Dragon Research Labs ("DRL")
-
+  
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
   copyright notice and this permission notice appear in all copies.
-
+  
   THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
   REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
   AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -2252,15 +2255,15 @@ router_certificate = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 rrdp = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: rrdp.rnc 6010 2014-11-08 18:01:58Z sra $
-
+  
   RelaxNG schema for RPKI Repository Delta Protocol (RRDP).
-
+  
   Copyright (C) 2014  Dragon Research Labs ("DRL")
-
+  
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
   copyright notice and this permission notice appear in all copies.
-
+  
   THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
   REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
   AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -2406,29 +2409,29 @@ rrdp = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 up_down = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: up-down.rnc 5881 2014-07-03 16:55:02Z sra $
-
+  
   RelaxNG schema for the up-down protocol, extracted from RFC 6492.
-
+  
   Copyright (c) 2012 IETF Trust and the persons identified as authors
   of the code.  All rights reserved.
-
+  
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
   are met:
-
+  
   * Redistributions of source code must retain the above copyright
     notice, this list of conditions and the following disclaimer.
-
+  
   * Redistributions in binary form must reproduce the above copyright
     notice, this list of conditions and the following disclaimer in
     the documentation and/or other materials provided with the
     distribution.
-
+  
   * Neither the name of Internet Society, IETF or IETF Trust, nor the
     names of specific contributors, may be used to endorse or promote
     products derived from this software without specific prior written
     permission.
-
+  
   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS

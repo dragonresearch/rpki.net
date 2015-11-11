@@ -57,6 +57,8 @@ if os.getenv("RPKI_DJANGO_DEBUG") == "yes":
 class DatabaseConfigurator(object):
 
     default_sql_engine = "mysql"
+    cfg     = None
+    section = None
 
     def configure(self, cfg, section):  # pylint: disable=W0621
         self.cfg = cfg

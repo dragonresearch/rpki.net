@@ -171,6 +171,7 @@ run(*cmd, cwd = args.working_directory)
 # files have been deleted, and tell Subversion that we deleted them
 # intentionally.
 
+# pylint: disable=E1101
 missing = sorted(entry.get("path")
                  for entry in runxml("svn", "status", "--xml", args.working_directory).find("target").findall("entry")
                  if entry.find("wc-status").get("item") == "missing")

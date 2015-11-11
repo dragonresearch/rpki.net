@@ -207,6 +207,7 @@ def Guess(args):
             return Redhat(args)
     raise NotImplementedError("Can't guess what platform this is, sorry")
 
+
 class Platform(object):
     """
     Abstract base class representing an operating system platform.
@@ -317,6 +318,13 @@ class Platform(object):
           # on the details of your particular Apache configuration.
           ''' % (self.apache_conf_sample, self.apache_conf))
 
+    @property
+    def apache_conf_target(self):
+        raise NotImplementedError
+
+    def restart(self):
+        raise NotImplementedError
+
     def install(self):
         with open(self.apache_conf_sample, "w") as f:
             self.log("Writing %s" % f.name)
@@ -353,7 +361,7 @@ class Platform(object):
     def remove(self):
         try:
             same = open(self.apache_conf, "r").read() == open(self.apache_conf_sample, "r").read()
-        except:                             # pylint: disable=W0702
+        except:
             same = False
         self.unlink(self.apache_conf_sample)
         if same:
@@ -393,6 +401,7 @@ class Platform(object):
                 return True
         return False
 
+
 class FreeBSD(Platform):
     """
     FreeBSD.
@@ -428,6 +437,7 @@ class FreeBSD(Platform):
 
     def restart(self):
         self.run("service", self.apache_name, "restart")
+
 
 class Debian(Platform):
     """
@@ -474,6 +484,7 @@ class Debian(Platform):
     def restart(self):
         self.run("service", "apache2", "restart")
 
+
 class Ubuntu(Debian):
 
     # On Ubuntu, the filename must end in .conf on Trusty and must not
@@ -485,20 +496,18 @@ class Ubuntu(Debian):
         else:
             return "/etc/apache2/sites-available/rpki"
 
-class NIY(Platform):
+
+class NIY(Platform):                    # pylint: disable=W0223
     def __init__(self, args):
         super(NIY, self).__init__(args)
         raise NotImplementedError("Platform %s not implemented yet, sorry" % self.__class__.__name__)
 
-class Redhat(NIY):
-    """
-    Redhat family of Linux distributions (Fedora, CentOS).
-    """
+class Redhat(NIY):                      # pylint: disable=W0223
+    "Redhat family of Linux distributions (Fedora, CentOS)."
 
-class Darwin(NIY):
-    """
-    Mac OS X (aka Darwin).
-    """
+class Darwin(NIY):                      # pylint: disable=W0223
+    "Mac OS X (aka Darwin)."
+
 
 def main():
     """

@@ -19,7 +19,5 @@ Django really wants its models packaged up in a "models" module within a
 Python package, so humor it.
 """
 
-# pylint: disable=W0401
-
 from rpki.irdb.zookeeper import Zookeeper
 from rpki.irdb.router import DBContextRouter, database

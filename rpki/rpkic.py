@@ -115,7 +115,10 @@ class main(Cmd):
             args.func(self, args)
 
     def read_config(self):
-        global rpki                         # pylint: disable=W0602
+
+        # pylint: disable=W0201,W0602,W0621
+
+        global rpki
 
         try:
             cfg = rpki.config.parser(set_filename = self.cfg_file, section = "myrpki")
@@ -131,7 +134,7 @@ class main(Cmd):
         import django
         django.setup()
 
-        import rpki.irdb                    # pylint: disable=W0621
+        import rpki.irdb
 
         try:
             rpki.irdb.models.ca_certificate_lifetime = rpki.sundial.timedelta.parse(
@@ -582,7 +585,7 @@ class main(Cmd):
         Show resources received by this entity from its parent(s).
         """
 
-        q_msg = self.zoo._compose_left_right_query()
+        q_msg = self.zoo.compose_left_right_query()
         SubElement(q_msg, rpki.left_right.tag_list_received_resources, tenant_handle = self.zoo.handle)
 
         for r_pdu in self.zoo.call_rpkid(q_msg):
@@ -604,7 +607,7 @@ class main(Cmd):
         Show published objects.
         """
 
-        q_msg = self.zoo._compose_left_right_query()
+        q_msg = self.zoo.compose_left_right_query()
         SubElement(q_msg, rpki.left_right.tag_list_published_objects, tenant_handle = self.zoo.handle)
 
         for r_pdu in self.zoo.call_rpkid(q_msg):

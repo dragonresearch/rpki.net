@@ -393,7 +393,7 @@ class KickmeChannel(asyncore.dispatcher, object):
         self.close()
         try:
             os.unlink(self.sockname)
-        except:                             # pylint: disable=W0702
+        except:
             pass
 
     def log(self, msg):
@@ -420,7 +420,7 @@ class KickmeChannel(asyncore.dispatcher, object):
         sys.exit(1)
 
 
-def _hostport_tag():
+def hostport_tag():
     """
     Construct hostname/address + port when we're running under a
     protocol we understand well enough to do that.  This is all
@@ -433,28 +433,28 @@ def _hostport_tag():
         try:
             host, port = socket.fromfd(0, socket.AF_INET, socket.SOCK_STREAM).getpeername()
             proto = "tcp"
-        except:                             # pylint: disable=W0702
+        except:
             pass
 
     if proto is None:
         try:
             host, port = socket.fromfd(0, socket.AF_INET6, socket.SOCK_STREAM).getpeername()[0:2]
             proto = "tcp"
-        except:                             # pylint: disable=W0702
+        except:
             pass
 
     if proto is None:
         try:
             host, port = os.environ["SSH_CONNECTION"].split()[0:2]
             proto = "ssh"
-        except:                             # pylint: disable=W0702
+        except:
             pass
 
     if proto is None:
         try:
             host, port = os.environ["REMOTE_HOST"], os.getenv("REMOTE_PORT")
             proto = "ssl"
-        except:                             # pylint: disable=W0702
+        except:
             pass
 
     if proto is None:
@@ -476,7 +476,7 @@ def server_main(args):
     pass the results along to a client.
     """
 
-    logger = logging.LoggerAdapter(logging.root, dict(connection = _hostport_tag()))
+    logger = logging.LoggerAdapter(logging.root, dict(connection = hostport_tag()))
 
     logger.debug("[Starting]")
 
@@ -516,7 +516,7 @@ def listener_main(args):
     try:
         listener = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         listener.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-    except:                               # pylint: disable=W0702
+    except:
         if listener is not None:
             listener.close()
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -536,8 +536,8 @@ def listener_main(args):
         logging.debug("[Received connection from %r]", ai)
         pid = os.fork()
         if pid == 0:
-            os.dup2(s.fileno(), 0)            # pylint: disable=E1103
-            os.dup2(s.fileno(), 1)            # pylint: disable=E1103
+            os.dup2(s.fileno(), 0)      # pylint: disable=E1101
+            os.dup2(s.fileno(), 1)      # pylint: disable=E1101
             s.close()
             #os.closerange(3, os.sysconf("SC_OPEN_MAX"))
             server_main(args)
@@ -546,11 +546,11 @@ def listener_main(args):
             logging.debug("[Spawned server %d]", pid)
             while True:
                 try:
-                    pid, status = os.waitpid(0, os.WNOHANG) # pylint: disable=W0612
+                    pid, status = os.waitpid(0, os.WNOHANG)
                     if pid:
-                        logging.debug("[Server %s exited]", pid)
+                        logging.debug("[Server %s exited with status 0x%x]", pid, status)
                         continue
-                except:                           # pylint: disable=W0702
+                except:
                     pass
                 break
 

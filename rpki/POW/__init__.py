@@ -17,7 +17,7 @@
 # NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-# pylint: disable=W0622,W0401
+# pylint: disable=W0401,W0622
 
 from rpki.POW._POW import *
 from rpki.POW._POW import __doc__

@@ -88,8 +88,7 @@ for _sym in dir():
             raise ValueError("Bad OID definition: %s = %r" % (_sym, _val))
         _oid2name[_val] = _sym.replace("_", "-")
 
-# pylint: disable=W0631
-del _sym
+del _sym                                # pylint: disable=W0631
 del _val
 
 def oid2name(oid):

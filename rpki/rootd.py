@@ -369,7 +369,7 @@ class main(object):
             try:
                 crl = rpki.x509.CRL(DER_file = self.rpki_root_crl_file)
                 self.crl_number = crl.getCRLNumber()
-            except:                           # pylint: disable=W0702
+            except:
                 self.crl_number = 0
         self.crl_number += 1
         return self.crl_number

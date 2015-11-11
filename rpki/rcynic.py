@@ -43,9 +43,10 @@ class rcynic_object(object):
         self.filename = filename
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
-        self.obj = self.obj_class(DER_file = filename)
+        self.obj = self.obj_class(DER_file = filename) # pylint: disable=E1101
 
     def __repr__(self):
+        # pylint: disable=E1101
         return "<%s %s %s at 0x%x>" % (self.__class__.__name__, self.uri, self.resources, id(self))
 
     def show_attrs(self, *attrs):
@@ -178,7 +179,8 @@ class rcynic_file_iterator(object):
         self.rcynic_dir = os.path.join(rcynic_root, authenticated_subdir)
 
     def __iter__(self):
-        for root, dirs, files in os.walk(self.rcynic_dir): # pylint: disable=W0612
+        # pylint: disable=W0612
+        for root, dirs, files in os.walk(self.rcynic_dir):
             for filename in files:
                 filename = os.path.join(root, filename)
                 ext = os.path.splitext(filename)[1]
@@ -196,6 +198,7 @@ class validation_status_element(object):
         self._obj = None
 
     def get_obj(self):
+        # pylint: disable=E1101
         if not self._obj:
             self._obj = self.file_class(filename=self.filename, uri=self.uri)
         return self._obj

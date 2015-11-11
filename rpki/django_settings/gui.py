@@ -20,7 +20,7 @@ This module contains GUI-specific configuration settings for Django libraries.
 
 # Pull in the irdb configuration, which in turn pulls in the common configuration.
 
-from .irdb import *                     # pylint: disable=W0401
+from .irdb import *                     # pylint: disable=W0401,W0614
 
 __version__ = "$Id$"
 

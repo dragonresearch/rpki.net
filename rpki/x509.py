@@ -159,6 +159,10 @@ class X501DN(object):
     simple.
     """
 
+    def __init__(self, dn):
+        assert isinstance(dn, tuple)
+        self.dn = dn
+
     def __str__(self):
         return "".join("/" + "+".join("%s=%s" % (rpki.oids.oid2name(a[0]), a[1])
                                       for a in rdn)
@@ -181,19 +185,15 @@ class X501DN(object):
         elif isinstance(sn, (str, unicode)):
             assert all(c in "0123456789abcdefABCDEF" for c in sn)
             sn = str(sn)
-        self = cls()
         if sn is not None:
-            self.dn = (((rpki.oids.commonName, cn),), ((rpki.oids.serialNumber, sn),))
+            dn = (((rpki.oids.commonName, cn),), ((rpki.oids.serialNumber, sn),))
         else:
-            self.dn = (((rpki.oids.commonName, cn),),)
-        return self
+            dn = (((rpki.oids.commonName, cn),),)
+        return cls(dn)
 
     @classmethod
-    def from_POW(cls, t):
-        assert isinstance(t, tuple)
-        self = cls()
-        self.dn = t
-        return self
+    def from_POW(cls, dn):
+        return cls(dn)
 
     def get_POW(self):
         return self.dn
@@ -320,6 +320,8 @@ class DER_object(object):
         Check for updates to a DER object that auto-updates from a file.
         """
 
+        # pylint: disable=W0201
+
         if self.filename is None:
             return
         try:
@@ -368,6 +370,7 @@ class DER_object(object):
         Subclasses may need to override this.
         """
 
+        # pylint: disable=W0201
         assert self.empty()
         self.POW = self.POW_class.pemRead(pem)
 
@@ -391,8 +394,9 @@ class DER_object(object):
         Subclasses may need to override this method.
         """
 
+        # pylint: disable=E0203,W0201
         self.check()
-        if not self.POW:                    # pylint: disable=E0203
+        if not self.POW:
             self.POW = self.POW_class.derRead(self.get_DER())
         return self.POW
 
@@ -566,7 +570,7 @@ class DER_object(object):
 
         resources = rpki.resource_set.resource_bag.from_POW_rfc3779(self.get_POW().getRFC3779())
         try:
-            resources.valid_until = self.getNotAfter()
+            resources.valid_until = self.getNotAfter()          # pylint: disable=E1101
         except AttributeError:
             pass
         return resources
@@ -615,11 +619,11 @@ class DER_object(object):
         this information at the start of the tracking line.
         """
 
+        # pylint: disable=E1101
+
         try:
-            return "%s %s %s" % (uri,
-                                 self.creation_timestamp,
-                                 "".join(("%02X" % ord(b) for b in sha1(self.get_DER()))))
-        except:                             # pylint: disable=W0702
+            return "%s %s %s" % (uri, self.creation_timestamp, "".join(("%02X" % ord(b) for b in sha1(self.get_DER()))))
+        except:
             return uri
 
     def __getstate__(self):
@@ -995,8 +999,9 @@ class PKCS10(DER_object):
         Get the rpki.POW value of this certification request.
         """
 
+        # pylint: disable=E0203,W0201
         self.check()
-        if not self.POW:                    # pylint: disable=E0203
+        if not self.POW:
             self.POW = rpki.POW.PKCS10.derRead(self.get_DER())
         return self.POW
 
@@ -1279,8 +1284,9 @@ class PrivateKey(DER_object):
         Get the rpki.POW value of this keypair.
         """
 
+        # pylint: disable=E0203,W0201
         self.check()
-        if not self.POW:                    # pylint: disable=E0203
+        if not self.POW:
             self.POW = rpki.POW.Asymmetric.derReadPrivate(self.get_DER())
         return self.POW
 
@@ -1296,6 +1302,7 @@ class PrivateKey(DER_object):
         Set the POW value of this keypair from a PEM string.
         """
 
+        # pylint: disable=W0201
         assert self.empty()
         self.POW = self.POW_class.pemReadPrivate(pem)
 
@@ -1345,8 +1352,9 @@ class PublicKey(DER_object):
         Get the rpki.POW value of this public key.
         """
 
+        # pylint: disable=E0203,W0201
         self.check()
-        if not self.POW:                    # pylint: disable=E0203
+        if not self.POW:
             self.POW = rpki.POW.Asymmetric.derReadPublic(self.get_DER())
         return self.POW
 
@@ -1362,6 +1370,7 @@ class PublicKey(DER_object):
         Set the POW value of this public key from a PEM string.
         """
 
+        # pylint: disable=W0201
         assert self.empty()
         self.POW = self.POW_class.pemReadPublic(pem)
 
@@ -1490,8 +1499,9 @@ class CMS_object(DER_object):
         Get the rpki.POW value of this CMS_object.
         """
 
+        # pylint: disable=E0203,W0201
         self.check()
-        if not self.POW:                    # pylint: disable=E0203
+        if not self.POW:
             self.POW = self.POW_class.derRead(self.get_DER())
         return self.POW
 
@@ -1660,6 +1670,9 @@ class CMS_object(DER_object):
                    [c.get_POW() for c in crls],
                    rpki.POW.CMS_NOCERTS if no_certs else 0)
 
+    def _sign(self, cert, keypair, certs, crls, flags):
+        raise NotImplementedError
+
     @property
     def creation_timestamp(self):
         """
@@ -1697,6 +1710,7 @@ class Wrapped_CMS_object(CMS_object):
         Set the (inner) content of this Wrapped_CMS_object, clearing the wrapper.
         """
 
+        # pylint: disable=W0201
         self.clear()
         self.content = content
 
@@ -1740,9 +1754,16 @@ class Wrapped_CMS_object(CMS_object):
         different CMS-based POW classes handle the inner content.
         """
 
+        # pylint: disable=W0201
         cms = self.POW_class()
         cms.sign(cert, keypair, self.encode(), certs, crls, self.econtent_oid, flags)
         self.POW = cms
+
+    def decode(self, whatever):
+        raise NotImplementedError
+
+    def encode(self):
+        raise NotImplementedError
 
 
 class DER_CMS_object(CMS_object):
@@ -1856,7 +1877,7 @@ class ROA(DER_CMS_object):
                             text.append("%s/%s-%s" % (prefix, prefixlen, maxprefixlen))
             text.sort()
             msg = "%s %s %s" % (msg, asn, ",".join(text))
-        except:                             # pylint: disable=W0702
+        except:
             pass
         return msg
 
@@ -1897,6 +1918,8 @@ class XML_CMS_object(Wrapped_CMS_object):
     """
 
     econtent_oid = rpki.oids.id_ct_xml
+    encoding = None
+    schema   = None
 
     ## @var dump_outbound_cms
     # If set, we write all outbound XML-CMS PDUs to disk, for debugging.
@@ -1935,6 +1958,7 @@ class XML_CMS_object(Wrapped_CMS_object):
         Decode XML and set inner content.
         """
 
+        # pylint: disable=W0201
         self.content = lxml.etree.fromstring(xml)
 
     def pretty_print_content(self):
@@ -2047,6 +2071,7 @@ class Ghostbuster(Wrapped_CMS_object):
         the VCard as an opaque byte string, so no encoding needed here.
         """
 
+        # pylint: disable=W0201
         self.content = vcard
 
     @classmethod
@@ -2086,8 +2111,9 @@ class CRL(DER_object):
         Get the rpki.POW value of this CRL.
         """
 
+        # pylint: disable=W0201,E0203
         self.check()
-        if not self.POW:                    # pylint: disable=E0203
+        if not self.POW:
             self.POW = rpki.POW.CRL.derRead(self.get_DER())
         return self.POW
 

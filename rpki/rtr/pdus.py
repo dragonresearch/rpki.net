@@ -116,12 +116,17 @@ class PDU(object):
 
     header_struct = struct.Struct("!BB2xL")
 
+    pdu_type = None
+
     def __init__(self, version):
         assert version in self.version_map
         self.version = version
 
     def __cmp__(self, other):
         return cmp(self.to_pdu(), other.to_pdu())
+
+    def to_pdu(self, announce = None):
+        return NotImplementedError
 
     @property
     def default_version(self):
@@ -170,11 +175,12 @@ class PDUWithSerial(PDU):
     def __str__(self):
         return "[%s, serial #%d nonce %d]" % (self.__class__.__name__, self.serial, self.nonce)
 
-    def to_pdu(self):
+    def to_pdu(self, announce = None):
         """
         Generate the wire format PDU.
         """
 
+        assert announce is None
         if self._pdu is None:
             self._pdu = self.header_struct.pack(self.version, self.pdu_type, self.nonce,
                                                 self.header_struct.size, self.serial)
@@ -208,11 +214,12 @@ class PDUWithNonce(PDU):
     def __str__(self):
         return "[%s, nonce %d]" % (self.__class__.__name__, self.nonce)
 
-    def to_pdu(self):
+    def to_pdu(self, announce = None):
         """
         Generate the wire format PDU.
         """
 
+        assert announce is None
         if self._pdu is None:
             self._pdu = self.header_struct.pack(self.version, self.pdu_type, self.nonce, self.header_struct.size)
         return self._pdu
@@ -239,11 +246,12 @@ class PDUEmpty(PDU):
     def __str__(self):
         return "[%s]" % self.__class__.__name__
 
-    def to_pdu(self):
+    def to_pdu(self, announce = None):
         """
         Generate the wire format PDU for this prefix.
         """
 
+        assert announce is None
         if self._pdu is None:
             self._pdu = self.header_struct.pack(self.version, self.pdu_type, 0, self.header_struct.size)
         return self._pdu
@@ -370,11 +378,12 @@ class EndOfDataPDUv1(EndOfDataPDUv0):
         return "[%s, serial #%d nonce %d refresh %d retry %d expire %d]" % (
             self.__class__.__name__, self.serial, self.nonce, self.refresh, self.retry, self.expire)
 
-    def to_pdu(self):
+    def to_pdu(self, announce = None):
         """
         Generate the wire format PDU.
         """
 
+        assert announce is None
         if self._pdu is None:
             self._pdu = self.header_struct.pack(self.version, self.pdu_type, self.nonce,
                                                 self.header_struct.size, self.serial,
@@ -416,6 +425,15 @@ class PrefixPDU(PDU):
 
     header_struct = struct.Struct("!BB2xLBBBx")
     asnum_struct = struct.Struct("!L")
+    address_byte_count = 0
+
+    def __init__(self, version):
+        super(PrefixPDU, self).__init__(version)
+        self.asn = None
+        self.prefix = None
+        self.prefixlen = None
+        self.max_prefixlen = None
+        self.announce = None
 
     def __str__(self):
         plm = "%s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen)
@@ -511,6 +529,13 @@ class RouterKeyPDU(PDU):
 
     header_struct = struct.Struct("!BBBxL20sL")
 
+    def __init__(self, version):
+        super(RouterKeyPDU, self).__init__(version)
+        self.announce = None
+        self.ski = None
+        self.asn = None
+        self.key = None
+
     def __str__(self):
         return "%s %8s  %-32s %s" % ("+" if self.announce else "-", self.asn,
                                      base64.urlsafe_b64encode(self.ski).rstrip("="),
@@ -596,6 +621,8 @@ class ErrorReportPDU(PDU):
         self.errno = errno
         self.errpdu = errpdu
         self.errmsg = errmsg if errmsg is not None or errno is None else self.errors[errno]
+        self.pdulen = None
+        self.errlen = None
 
     def __str__(self):
         return "[%s, error #%s: %r]" % (self.__class__.__name__, self.errno, self.errmsg)
@@ -609,11 +636,12 @@ class ErrorReportPDU(PDU):
         assert remaining >= self.string_struct.size + n
         return n, reader.get(n), (remaining - self.string_struct.size - n)
 
-    def to_pdu(self):
+    def to_pdu(self, announce = None):
         """
         Generate the wire format PDU for this error report.
         """
 
+        assert announce is None
         if self._pdu is None:
             assert isinstance(self.errno, int)
             assert not isinstance(self.errpdu, ErrorReportPDU)

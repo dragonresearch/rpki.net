@@ -59,6 +59,8 @@ class ReadBuffer(object):
     def __init__(self):
         self.buffer = ""
         self.version = None
+        self.need = None
+        self.callback = None
 
     def update(self, need, callback):
         """

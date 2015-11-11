@@ -802,130 +802,6 @@ class CA(models.Model):
     #def revoked_ca_details(self):                  return self.ca_details.filter(state = "revoked")
     #def issue_response_candidate_ca_details(self): return self.ca_details.exclude(state = "revoked")
 
-
-    @tornado.gen.coroutine
-    def check_for_updates(self, rpkid, parent, rc):
-        """
-        Parent has signaled continued existance of a resource class we
-        already knew about, so we need to check for an updated
-        certificate, changes in resource coverage, revocation and reissue
-        with the same key, etc.
-        """
-
-        # pylint: disable=C0330
-
-        trace_call_chain()
-        logger.debug("check_for_updates()")
-        sia_uri = parent.construct_sia_uri(rc)
-        sia_uri_changed = self.sia_uri != sia_uri
-
-        if sia_uri_changed:
-            logger.debug("SIA changed: was %s now %s", self.sia_uri, sia_uri)
-            self.sia_uri = sia_uri
-
-        class_name = rc.get("class_name")
-
-        rc_resources = rpki.resource_set.resource_bag(
-            rc.get("resource_set_as"),
-            rc.get("resource_set_ipv4"),
-            rc.get("resource_set_ipv6"),
-            rc.get("resource_set_notafter"))
-
-        cert_map = {}
-
-        for c in rc.getiterator(rpki.up_down.tag_certificate):
-            x = rpki.x509.X509(Base64 = c.text)
-            u = rpki.up_down.multi_uri(c.get("cert_url")).rsync()
-            cert_map[x.gSKI()] = (x, u)
-
-        ca_details = self.ca_details.exclude(state = "revoked")
-
-        if not ca_details:
-            logger.warning("Existing resource class %s to %s from %s with no certificates, rekeying",
-                           class_name, parent.tenant.tenant_handle, parent.parent_handle)
-            yield self.rekey(rpkid = rpkid)
-            return
-
-        for ca_detail in ca_details:
-
-            rc_cert, rc_cert_uri = cert_map.pop(ca_detail.public_key.gSKI(), (None, None))
-
-            if rc_cert is None:
-                logger.warning("g(SKI) %s in resource class %s is in database but missing from list_response to %s from %s, "
-                               "maybe parent certificate went away?",
-                               ca_detail.public_key.gSKI(), class_name, parent.tenant.tenant_handle, parent.parent_handle)
-                publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
-                ca_detail.destroy(ca = ca_detail.ca, publisher = publisher)
-                yield publisher.call_pubd()
-                continue
-
-            if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc_cert_uri:
-                logger.debug("AIA changed: was %s now %s", ca_detail.ca_cert_uri, rc_cert_uri)
-                ca_detail.ca_cert_uri = rc_cert_uri
-                ca_detail.save()
-
-            if ca_detail.state not in ("pending", "active"):
-                continue
-
-            if ca_detail.state == "pending":
-                current_resources = rpki.resource_set.resource_bag()
-            else:
-                current_resources = ca_detail.latest_ca_cert.get_3779resources()
-
-            if (ca_detail.state == "pending" or
-                sia_uri_changed or
-                ca_detail.latest_ca_cert != rc_cert or
-                ca_detail.latest_ca_cert.getNotAfter() != rc_resources.valid_until or
-                current_resources.undersized(rc_resources) or
-                current_resources.oversized(rc_resources)):
-
-                yield ca_detail.update(
-                    rpkid            = rpkid,
-                    parent           = parent,
-                    ca               = self,
-                    rc               = rc,
-                    sia_uri_changed  = sia_uri_changed,
-                    old_resources    = current_resources)
-
-        if cert_map:
-            logger.warning("Unknown certificate g(SKI)%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?",
-                           "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.tenant.tenant_handle, parent.parent_handle)
-
-
-    # Called from exactly one place, in rpki.rpkid_tasks.PollParentTask.class_loop().
-    # Might want to refactor.
-
-    @classmethod
-    @tornado.gen.coroutine
-    def create(cls, rpkid, parent, rc):
-        """
-        Parent has signaled existance of a new resource class, so we need
-        to create and set up a corresponding CA object.
-        """
-
-        trace_call_chain()
-
-        self = cls.objects.create(parent = parent,
-                                  parent_resource_class = rc.get("class_name"),
-                                  sia_uri = parent.construct_sia_uri(rc))
-
-        ca_detail = CADetail.create(self)
-
-        logger.debug("Sending issue request to %r from %r", parent, self.create)
-
-        r_msg = yield parent.up_down_issue_query(rpkid = rpkid, ca = self, ca_detail = ca_detail)
-
-        c = r_msg[0][0]
-
-        logger.debug("CA %r received certificate %s", self, c.get("cert_url"))
-
-        yield ca_detail.activate(
-            rpkid = rpkid,
-            ca    = self,
-            cert  = rpki.x509.X509(Base64 = c.text),
-            uri   = c.get("cert_url"))
-
-
     @tornado.gen.coroutine
     def destroy(self, rpkid, parent):
         """
@@ -1028,15 +904,63 @@ class CA(models.Model):
         """
         Revoke deprecated ca_detail objects associated with this CA, or
         all ca_details associated with this CA if revoke_all is set.
+
+        For each CADetail, this involves: requesting revocation of the
+        keypair by parent; revoking all issued certificates;
+        generating final CRL and manifest covering the period one CRL
+        cycle past the time that the last certificate would have
+        expired; and destroying the keypair.  We leave final CRL and
+        manifest in place until their nextupdate time has passed.
         """
 
         trace_call_chain()
+
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
+
         if revoke_all:
             ca_details = self.ca_details.all()
         else:
             ca_details = self.ca_details.filter(state = "deprecated")
 
-        yield [ca_detail.revoke(rpkid = rpkid) for ca_detail in ca_details]
+        for ca_detail in ca_details:
+
+            gski = ca_detail.latest_ca_cert.gSKI()
+            logger.debug("Asking parent to revoke CA certificate matching g(SKI) = %s", gski)
+            r_msg = yield self.parent.up_down_revoke_query(rpkid = rpkid, class_name = self.parent_resource_class, ski = gski)
+            if r_msg[0].get("class_name") != self.parent_resource_class:
+                raise rpki.exceptions.ResourceClassMismatch
+            if r_msg[0].get("ski") != gski:
+                raise rpki.exceptions.SKIMismatch
+            logger.debug("Parent revoked g(SKI) %s, starting cleanup", gski)
+
+            nextUpdate = rpki.sundial.now()
+            if ca_detail.latest_manifest is not None:
+                ca_detail.latest_manifest.extract_if_needed()
+                nextUpdate = nextUpdate.later(ca_detail.latest_manifest.getNextUpdate())
+            if ca_detail.latest_crl is not None:
+                nextUpdate = nextUpdate.later(ca_detail.latest_crl.getNextUpdate())
+            for child_cert in ca_detail.child_certs.all():
+                nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
+                child_cert.revoke(publisher = publisher)
+            for roa in ca_detail.roas.all():
+                nextUpdate = nextUpdate.later(roa.cert.getNotAfter())
+                roa.revoke(publisher = publisher)
+            for ghostbuster in ca_detail.ghostbusters.all():
+                nextUpdate = nextUpdate.later(ghostbuster.cert.getNotAfter())
+                ghostbuster.revoke(publisher = publisher)
+            for eecert in ca_detail.ee_certificates.all():
+                nextUpdate = nextUpdate.later(eecert.cert.getNotAfter())
+                eecert.revoke(publisher = publisher)
+            nextUpdate += rpki.sundial.timedelta(seconds = self.parent.tenant.crl_interval)
+
+            ca_detail.generate_crl_and_manifest(publisher = publisher, nextUpdate = nextUpdate)
+            ca_detail.private_key_id = None
+            ca_detail.manifest_private_key_id = None
+            ca_detail.manifest_public_key = None
+            ca_detail.state = "revoked"
+            ca_detail.save()
+
+        yield publisher.call_pubd()
 
 
     @tornado.gen.coroutine
@@ -1059,7 +983,6 @@ class CADetail(models.Model):
     latest_ca_cert = CertificateField(null = True)
     manifest_private_key_id = RSAPrivateKeyField(null = True)
     manifest_public_key = PublicKeyField(null = True)
-    latest_manifest_cert = CertificateField(null = True)
     latest_manifest = ManifestField(null = True)
     manifest_published = SundialField(null = True)
     state = EnumField(choices = ("pending", "active", "deprecated", "revoked"))
@@ -1129,10 +1052,8 @@ class CADetail(models.Model):
         publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
         self.latest_ca_cert = cert
         self.ca_cert_uri = uri
-        self.generate_manifest_cert()
         self.state = "active"
-        self.generate_crl(publisher = publisher)
-        self.generate_manifest(publisher = publisher)
+        self.generate_crl_and_manifest(publisher = publisher)
         self.save()
 
         if predecessor is not None:
@@ -1144,8 +1065,7 @@ class CADetail(models.Model):
                 roa.regenerate(publisher = publisher)
             for ghostbuster in predecessor.ghostbusters.all():
                 ghostbuster.regenerate(publisher = publisher)
-            predecessor.generate_crl(publisher = publisher)
-            predecessor.generate_manifest(publisher = publisher)
+            predecessor.generate_crl_and_manifest(publisher = publisher)
 
         yield publisher.call_pubd()
 
@@ -1180,89 +1100,6 @@ class CADetail(models.Model):
 
 
     @tornado.gen.coroutine
-    def revoke(self, rpkid):
-        """
-        Request revocation of all certificates whose g(SKI) matches the key
-        for this ca_detail.
-
-        Tasks:
-
-        - Request revocation of old keypair by parent.
-
-        - Revoke all certificates issued by the old keypair.
-
-        - Generate a final CRL, signed with the old keypair, listing all
-          the revoked certs, with a next CRL time after the last cert or
-          CRL signed by the old keypair will have expired.
-
-        - Generate a corresponding final manifest.
-
-        - Destroy old keypairs.
-
-        - Leave final CRL and manifest in place until their nextupdate
-          time has passed.
-        """
-
-        trace_call_chain()
-
-        gski = self.latest_ca_cert.gSKI()
-
-        logger.debug("Asking parent to revoke CA certificate matching g(SKI) = %s", gski)
-
-        r_msg = yield self.ca.parent.up_down_revoke_query(rpkid = rpkid, class_name = self.ca.parent_resource_class, ski = gski)
-
-        if r_msg[0].get("class_name") != self.ca.parent_resource_class:
-            raise rpki.exceptions.ResourceClassMismatch
-
-        if r_msg[0].get("ski") != gski:
-            raise rpki.exceptions.SKIMismatch
-
-        logger.debug("Parent revoked g(SKI) %s, starting cleanup", gski)
-
-        crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.tenant.crl_interval)
-
-        nextUpdate = rpki.sundial.now()
-
-        if self.latest_manifest is not None:
-            self.latest_manifest.extract_if_needed()
-            nextUpdate = nextUpdate.later(self.latest_manifest.getNextUpdate())
-
-        if self.latest_crl is not None:
-            nextUpdate = nextUpdate.later(self.latest_crl.getNextUpdate())
-
-        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
-
-        for child_cert in self.child_certs.all():
-            nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
-            child_cert.revoke(publisher = publisher)
-
-        for roa in self.roas.all():
-            nextUpdate = nextUpdate.later(roa.cert.getNotAfter())
-            roa.revoke(publisher = publisher)
-
-        for ghostbuster in self.ghostbusters.all():
-            nextUpdate = nextUpdate.later(ghostbuster.cert.getNotAfter())
-            ghostbuster.revoke(publisher = publisher)
-
-        for eecert in self.ee_certificates.all():
-            nextUpdate = nextUpdate.later(eecert.cert.getNotAfter())
-            eecert.revoke(publisher = publisher)
-
-        nextUpdate += crl_interval
-
-        self.generate_crl(publisher = publisher, nextUpdate = nextUpdate)
-        self.generate_manifest(publisher = publisher, nextUpdate = nextUpdate)
-        self.private_key_id = None
-        self.manifest_private_key_id = None
-        self.manifest_public_key = None
-        self.latest_manifest_cert = None
-        self.state = "revoked"
-        self.save()
-
-        yield publisher.call_pubd()
-
-
-    @tornado.gen.coroutine
     def update(self, rpkid, parent, ca, rc, sia_uri_changed, old_resources):
         """
         Need to get a new certificate for this ca_detail and perhaps frob
@@ -1293,9 +1130,7 @@ class CADetail(models.Model):
         if self.latest_ca_cert != cert:
             self.latest_ca_cert = cert
             self.save()
-            self.generate_manifest_cert()
-            self.generate_crl(publisher = publisher)
-            self.generate_manifest(publisher = publisher)
+            self.generate_crl_and_manifest(publisher = publisher)
 
         new_resources = self.latest_ca_cert.get_3779resources()
 
@@ -1358,20 +1193,6 @@ class CADetail(models.Model):
             eku         = eku)
 
 
-    def generate_manifest_cert(self):
-        """
-        Generate a new manifest certificate for this ca_detail.
-        """
-
-        trace_call_chain()
-        resources = rpki.resource_set.resource_bag.from_inheritance()
-        self.latest_manifest_cert = self.issue_ee(
-            ca          = self.ca,
-            resources   = resources,
-            subject_key = self.manifest_public_key,
-            sia         = (None, None, self.manifest_uri, self.ca.parent.repository.rrdp_notification_uri))
-
-
     def issue(self, ca, child, subject_key, sia, resources, publisher, child_cert = None):
         """
         Issue a new certificate to a child.  Optional child_cert argument
@@ -1409,23 +1230,41 @@ class CADetail(models.Model):
             new_obj    = child_cert.cert,
             repository = ca.parent.repository,
             handler    = child_cert.published_callback)
-        self.generate_manifest(publisher = publisher)
+        self.generate_crl_and_manifest(publisher = publisher)
         return child_cert
 
 
-    def generate_crl(self, publisher, nextUpdate = None):
+    def generate_crl_and_manifest(self, publisher, nextUpdate = None):
         """
-        Generate a new CRL for this ca_detail.  At the moment this is
-        unconditional, that is, it is up to the caller to decide whether a
-        new CRL is needed.
+        Generate a new CRL and a new manifest for this ca_detail.
+
+        At the moment this is unconditional, that is, it is up to the
+        caller to decide whether a new CRL is needed.
+
+        We used to handle CRL and manifest as two separate operations,
+        but there's no real point, and it's simpler to do them at once.
         """
 
         trace_call_chain()
+
         self.check_failed_publication(publisher)
+
         crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.tenant.crl_interval)
         now = rpki.sundial.now()
         if nextUpdate is None:
             nextUpdate = now + crl_interval
+
+        old_crl      = self.latest_crl
+        old_manifest = self.latest_manifest
+        crl_uri      = self.crl_uri
+        manifest_uri = self.manifest_uri
+
+        manifest_cert = self.issue_ee(
+            ca          = self.ca,
+            resources   = rpki.resource_set.resource_bag.from_inheritance(),
+            subject_key = self.manifest_public_key,
+            sia         = (None, None, manifest_uri, self.ca.parent.repository.rrdp_notification_uri))
+
         certlist = []
         for revoked_cert in self.revoked_certs.all():
             if now > revoked_cert.expires + crl_interval:
@@ -1433,7 +1272,7 @@ class CADetail(models.Model):
             else:
                 certlist.append((revoked_cert.serial, revoked_cert.revoked))
         certlist.sort()
-        old_crl = self.latest_crl
+
         self.latest_crl = rpki.x509.CRL.generate(
             keypair             = self.private_key_id,
             issuer              = self.latest_ca_cert,
@@ -1441,15 +1280,39 @@ class CADetail(models.Model):
             thisUpdate          = now,
             nextUpdate          = nextUpdate,
             revokedCertificates = certlist)
-        self.crl_published = now
+
+        objs = [(self.crl_uri_tail, self.latest_crl)]
+        objs.extend((c.uri_tail, c.cert)        for c in self.child_certs.all())
+        objs.extend((r.uri_tail, r.roa)         for r in self.roas.filter(roa__isnull = False))
+        objs.extend((g.uri_tail, g.ghostbuster) for g in self.ghostbusters.all())
+        objs.extend((e.uri_tail, e.cert)        for e in self.ee_certificates.all())
+
+        self.latest_manifest = rpki.x509.SignedManifest.build(
+            serial         = self.ca.next_manifest_number(),
+            thisUpdate     = now,
+            nextUpdate     = nextUpdate,
+            names_and_objs = objs,
+            keypair        = self.manifest_private_key_id,
+            certs          = manifest_cert)
+
+        self.crl_published      = now
+        self.manifest_published = now
+
         self.save()
+
         publisher.queue(
-            uri        = self.crl_uri,
+            uri        = crl_uri,
             old_obj    = old_crl,
             new_obj    = self.latest_crl,
             repository = self.ca.parent.repository,
             handler    = self.crl_published_callback)
 
+        publisher.queue(
+            uri        = manifest_uri,
+            old_obj    = old_manifest,
+            new_obj    = self.latest_manifest,
+            repository = self.ca.parent.repository,
+            handler    = self.manifest_published_callback)
 
     def crl_published_callback(self, pdu):
         """
@@ -1460,54 +1323,6 @@ class CADetail(models.Model):
         rpki.publication.raise_if_error(pdu)
         self.crl_published = None
         self.save()
-
-
-    def generate_manifest(self, publisher, nextUpdate = None):
-        """
-        Generate a new manifest for this ca_detail.
-        """
-
-        trace_call_chain()
-
-        self.check_failed_publication(publisher)
-
-        crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.tenant.crl_interval)
-        now = rpki.sundial.now()
-        uri = self.manifest_uri
-        if nextUpdate is None:
-            nextUpdate = now + crl_interval
-        if (self.latest_manifest_cert is None or
-                (self.latest_manifest_cert.getNotAfter() < nextUpdate and
-                 self.latest_manifest_cert.getNotAfter() < self.latest_ca_cert.getNotAfter())):
-            logger.debug("Generating EE certificate for %s", uri)
-            self.generate_manifest_cert()
-            logger.debug("Latest CA cert notAfter %s, new %s EE notAfter %s",
-                         self.latest_ca_cert.getNotAfter(), uri, self.latest_manifest_cert.getNotAfter())
-        logger.debug("Constructing manifest object list for %s", uri)
-        objs = [(self.crl_uri_tail, self.latest_crl)]
-        objs.extend((c.uri_tail, c.cert)        for c in self.child_certs.all())
-        objs.extend((r.uri_tail, r.roa)         for r in self.roas.filter(roa__isnull = False))
-        objs.extend((g.uri_tail, g.ghostbuster) for g in self.ghostbusters.all())
-        objs.extend((e.uri_tail, e.cert)        for e in self.ee_certificates.all())
-        logger.debug("Building manifest object %s", uri)
-        old_manifest = self.latest_manifest
-        self.latest_manifest = rpki.x509.SignedManifest.build(
-            serial         = self.ca.next_manifest_number(),
-            thisUpdate     = now,
-            nextUpdate     = nextUpdate,
-            names_and_objs = objs,
-            keypair        = self.manifest_private_key_id,
-            certs          = self.latest_manifest_cert)
-        logger.debug("Manifest generation took %s", rpki.sundial.now() - now)
-        self.manifest_published = now
-        self.save()
-        publisher.queue(
-            uri        = uri,
-            old_obj    = old_manifest,
-            new_obj    = self.latest_manifest,
-            repository = self.ca.parent.repository,
-            handler    = self.manifest_published_callback)
-
 
     def manifest_published_callback(self, pdu):
         """
@@ -1537,10 +1352,7 @@ class CADetail(models.Model):
             ee_certificate.reissue(publisher, force = True)
         for child_cert in self.child_certs.all():
             child_cert.reissue(self, publisher, force = True)
-        self.generate_manifest_cert()
-        self.save()
-        self.generate_crl(publisher = publisher)
-        self.generate_manifest(publisher = publisher)
+        self.generate_crl_and_manifest(publisher = publisher)
         self.save()
         yield publisher.call_pubd()
 
@@ -1860,8 +1672,7 @@ class ChildCert(models.Model):
         publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.parent.repository)
         self.delete()
         if generate_crl_and_manifest:
-            ca_detail.generate_crl(publisher = publisher)
-            ca_detail.generate_manifest(publisher = publisher)
+            ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def reissue(self, ca_detail, publisher, resources = None, sia = None, force = False):
@@ -1915,11 +1726,10 @@ class ChildCert(models.Model):
             logger.debug("No change to %r", self)
             return self
         if must_revoke:
-            for x in child.child_certs.filter(ca_detail = ca_detail, gski = self.gski):
-                logger.debug("Revoking child_cert %r", x)
-                x.revoke(publisher = publisher)
-            ca_detail.generate_crl(publisher = publisher)
-            ca_detail.generate_manifest(publisher = publisher)
+            for child_cert in child.child_certs.filter(ca_detail = ca_detail, gski = self.gski):
+                logger.debug("Revoking child_cert %r", child_cert)
+                child_cert.revoke(publisher = publisher)
+            ca_detail.generate_crl_and_manifest(publisher = publisher)
         child_cert = ca_detail.issue(
             ca          = ca,
             child       = child,
@@ -1970,43 +1780,6 @@ class EECertificate(models.Model):
         return self.gski + ".cer"
 
 
-    @classmethod
-    def create(cls, ca_detail, subject_name, subject_key, resources, publisher, eku = None):
-        """
-        Generate a new EE certificate.
-        """
-
-        trace_call_chain()
-
-        # The low-level X.509 code really ought to supply the singleton
-        # tuple wrapper when handed a string, but that yak will need to
-        # wait until another day for its shave.
-
-        cn, sn = subject_name.extract_cn_and_sn()
-        sia = (None, None,
-               (ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer",),
-               (ca_detail.ca.parent.repository.rrdp_notification_uri,))
-        cert = ca_detail.issue_ee(
-            ca          = ca_detail.ca,
-            subject_key = subject_key,
-            sia         = sia,
-            resources   = resources,
-            notAfter    = resources.valid_until,
-            cn          = cn,
-            sn          = sn,
-            eku         = eku)
-        self = cls(tenant = ca_detail.ca.parent.tenant, ca_detail = ca_detail, cert = cert, gski = subject_key.gSKI())
-        publisher.queue(
-            uri        = self.uri,
-            new_obj    = self.cert,
-            repository = ca_detail.ca.parent.repository,
-            handler    = self.published_callback)
-        self.save()
-        ca_detail.generate_manifest(publisher = publisher)
-        logger.debug("New ee_cert %r", self)
-        return self
-
-
     def revoke(self, publisher, generate_crl_and_manifest = True):
         """
         Revoke and withdraw an EE certificate.
@@ -2019,8 +1792,7 @@ class EECertificate(models.Model):
         publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.parent.repository)
         self.delete()
         if generate_crl_and_manifest:
-            ca_detail.generate_crl(publisher = publisher)
-            ca_detail.generate_manifest(publisher = publisher)
+            ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def reissue(self, publisher, ca_detail = None, resources = None, force = False):
@@ -2085,8 +1857,7 @@ class EECertificate(models.Model):
             handler    = self.published_callback)
         if must_revoke:
             RevokedCert.revoke(cert = old_cert.cert, ca_detail = old_ca_detail)
-            ca_detail.generate_crl(publisher = publisher)
-        ca_detail.generate_manifest(publisher = publisher)
+        ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def published_callback(self, pdu):
@@ -2168,7 +1939,7 @@ class Ghostbuster(models.Model):
             repository = self.ca_detail.ca.parent.repository,
             handler    = self.published_callback)
         if not fast:
-            self.ca_detail.generate_manifest(publisher = publisher)
+            self.ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def published_callback(self, pdu):
@@ -2214,8 +1985,7 @@ class Ghostbuster(models.Model):
         if not regenerate:
             self.delete()
         if not fast:
-            ca_detail.generate_crl(publisher = publisher)
-            ca_detail.generate_manifest(publisher = publisher)
+            ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def regenerate(self, publisher, fast = False):
@@ -2407,7 +2177,7 @@ class ROA(models.Model):
                         repository = self.ca_detail.ca.parent.repository,
                         handler = self.published_callback)
         if not fast:
-            self.ca_detail.generate_manifest(publisher = publisher)
+            self.ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def published_callback(self, pdu):
@@ -2452,8 +2222,7 @@ class ROA(models.Model):
         if not regenerate:
             self.delete()
         if not fast:
-            ca_detail.generate_crl(publisher = publisher)
-            ca_detail.generate_manifest(publisher = publisher)
+            ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def regenerate(self, publisher, fast = False):

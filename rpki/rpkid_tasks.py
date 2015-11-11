@@ -160,7 +160,7 @@ class PollParentTask(AbstractTask):
         for parent in self.tenant.parents.all():
             try:
                 logger.debug("%r: Executing list query", self)
-                r_msg = yield parent.up_down_list_query(rpkid = self.rpkid)
+                list_r_msg = yield parent.up_down_list_query(rpkid = self.rpkid)
             except:
                 logger.exception("%r: Couldn't get resource class list from parent %r, skipping", self, parent)
                 continue
@@ -169,22 +169,115 @@ class PollParentTask(AbstractTask):
 
             ca_map = dict((ca.parent_resource_class, ca) for ca in parent.cas.all())
 
-            for rc in r_msg.getiterator(rpki.up_down.tag_class):
+            for rc in list_r_msg.getiterator(rpki.up_down.tag_class):
                 try:
                     class_name = rc.get("class_name")
                     ca = ca_map.pop(class_name, None)
                     if ca is None:
-                        logger.debug("%r: Creating new CA for resource class %r", self, class_name)
-                        yield rpki.rpkidb.models.CA.create(rpkid = self.rpkid, parent = parent, rc = rc)
+                        yield self.create(parent = parent, rc = rc, class_name = class_name)
                     else:
-                        logger.debug("%r: Checking updates for existing CA %r for resource class %r", self, ca, class_name)
-                        yield ca.check_for_updates(rpkid = self.rpkid, parent = parent, rc = rc)
+                        yield self.update(parent = parent, rc = rc, class_name = class_name, ca = ca)
                 except:
                     logger.exception("Couldn't update resource class %r, skipping", class_name)
 
             for ca, class_name in ca_map.iteritems():
                 logger.debug("%r: Destroying orphaned CA %r for resource class %r", self, ca, class_name)
                 yield ca.destroy(parent)
+
+    @tornado.gen.coroutine
+    def create(self, parent, rc, class_name):
+        logger.debug("%r: Creating new CA for resource class %r", self, class_name)
+        ca = rpki.rpkidb.models.CA.objects.create(
+            parent                = parent,
+            parent_resource_class = class_name,
+            sia_uri               = parent.construct_sia_uri(rc))
+        ca_detail = rpki.rpkidb.models.CADetail.create(ca)
+        r_msg = yield parent.up_down_issue_query(rpkid = self.rpkid, ca = ca, ca_detail = ca_detail)
+        elt  = r_msg.find(rpki.up_down.tag_class).find(rpki.up_down.tag_certificate)
+        uri  = elt.get("cert_url")
+        cert = rpki.x509.X509(Base64 = elt.text)
+        logger.debug("%r: CA %r received certificate %s", self, ca, uri)
+        yield ca_detail.activate(rpkid = self.rpkid, ca = ca, cert = cert, uri = uri)
+
+    @tornado.gen.coroutine
+    def update(self, parent, rc, class_name, ca):
+
+        # pylint: disable=C0330
+
+        logger.debug("%r: Checking updates for existing CA %r for resource class %r", self, ca, class_name)
+
+        sia_uri = parent.construct_sia_uri(rc)
+        sia_uri_changed = ca.sia_uri != sia_uri
+
+        if sia_uri_changed:
+            logger.debug("SIA changed: was %s now %s", ca.sia_uri, sia_uri)
+            ca.sia_uri = sia_uri
+
+        rc_resources = rpki.resource_set.resource_bag(
+            rc.get("resource_set_as"),
+            rc.get("resource_set_ipv4"),
+            rc.get("resource_set_ipv6"),
+            rc.get("resource_set_notafter"))
+
+        cert_map = {}
+
+        for c in rc.getiterator(rpki.up_down.tag_certificate):
+            x = rpki.x509.X509(Base64 = c.text)
+            u = rpki.up_down.multi_uri(c.get("cert_url")).rsync()
+            cert_map[x.gSKI()] = (x, u)
+
+        ca_details = ca.ca_details.exclude(state = "revoked")
+
+        if not ca_details:
+            logger.warning("Existing resource class %s to %s from %s with no certificates, rekeying",
+                           class_name, parent.tenant.tenant_handle, parent.parent_handle)
+            yield ca.rekey(rpkid = self.rpkid)
+            return
+
+        for ca_detail in ca_details:
+
+            rc_cert, rc_cert_uri = cert_map.pop(ca_detail.public_key.gSKI(), (None, None))
+
+            if rc_cert is None:
+                logger.warning("g(SKI) %s in resource class %s is in database but missing from list_response to %s from %s, "
+                               "maybe parent certificate went away?",
+                               ca_detail.public_key.gSKI(), class_name, parent.tenant.tenant_handle, parent.parent_handle)
+                publisher = rpki.rpkid.publication_queue(rpkid = self.rpkid)
+                ca_detail.destroy(ca = ca_detail.ca, publisher = publisher)
+                yield publisher.call_pubd()
+                continue
+
+            if ca_detail.state == "active" and ca_detail.ca_cert_uri != rc_cert_uri:
+                logger.debug("AIA changed: was %s now %s", ca_detail.ca_cert_uri, rc_cert_uri)
+                ca_detail.ca_cert_uri = rc_cert_uri
+                ca_detail.save()
+
+            if ca_detail.state not in ("pending", "active"):
+                continue
+
+            if ca_detail.state == "pending":
+                current_resources = rpki.resource_set.resource_bag()
+            else:
+                current_resources = ca_detail.latest_ca_cert.get_3779resources()
+
+            if (ca_detail.state == "pending" or
+                sia_uri_changed or
+                ca_detail.latest_ca_cert != rc_cert or
+                ca_detail.latest_ca_cert.getNotAfter() != rc_resources.valid_until or
+                current_resources.undersized(rc_resources) or
+                current_resources.oversized(rc_resources)):
+
+                yield ca_detail.update(
+                    rpkid            = self.rpkid,
+                    parent           = parent,
+                    ca               = ca,
+                    rc               = rc,
+                    sia_uri_changed  = sia_uri_changed,
+                    old_resources    = current_resources)
+
+        if cert_map:
+            logger.warning("Unknown certificate g(SKI)%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?",
+                           "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.tenant.tenant_handle, parent.parent_handle)
 
 
 @queue_task
@@ -225,8 +318,7 @@ class UpdateChildrenTask(AbstractTask):
                         if new_resources.empty():
                             logger.debug("Resources shrank to the null set, revoking and withdrawing child %s certificate g(SKI) %s", child.child_handle, child_cert.gski)
                             child_cert.revoke(publisher = publisher)
-                            ca_detail.generate_crl(publisher = publisher)
-                            ca_detail.generate_manifest(publisher = publisher)
+                            ca_detail.generate_crl_and_manifest(publisher = publisher)
 
                         elif old_resources != new_resources or old_aia != new_aia or (old_resources.valid_until < rsn and irdb_resources.valid_until > now and old_resources.valid_until != irdb_resources.valid_until):
                             logger.debug("Need to reissue child %s certificate g(SKI) %s", child.child_handle, child_cert.gski)
@@ -242,7 +334,7 @@ class UpdateChildrenTask(AbstractTask):
                             logger.debug("Child %s certificate g(SKI) %s has expired: cert.valid_until %s, irdb.valid_until %s", child.child_handle, child_cert.gski, old_resources.valid_until, irdb_resources.valid_until)
                             child_cert.delete()
                             publisher.queue(uri = child_cert.uri, old_obj = child_cert.cert, repository = ca_detail.ca.parent.repository)
-                            ca_detail.generate_manifest(publisher = publisher)
+                            ca_detail.generate_crl_and_manifest(publisher = publisher)
 
             except:
                 logger.exception("%r: Couldn't update child %r, skipping", self, child)
@@ -334,10 +426,8 @@ class UpdateROAsTask(AbstractTask):
     def publish(self):
         if not self.publisher.empty():
             for ca_detail in self.ca_details:
-                logger.debug("%r: Generating new CRL for %r", self, ca_detail)
-                ca_detail.generate_crl(publisher = self.publisher)
-                logger.debug("%r: Generating new manifest for %r", self, ca_detail)
-                ca_detail.generate_manifest(publisher = self.publisher)
+                logger.debug("%r: Generating new CRL and manifest for %r", self, ca_detail)
+                ca_detail.generate_crl_and_manifest(publisher = self.publisher)
             yield self.publisher.call_pubd()
         self.ca_details.clear()
 
@@ -402,8 +492,7 @@ class UpdateGhostbustersTask(AbstractTask):
                 ghostbuster.revoke(publisher = publisher, fast = True)
 
             for ca_detail in ca_details:
-                ca_detail.generate_crl(publisher = publisher)
-                ca_detail.generate_manifest(publisher = publisher)
+                ca_detail.generate_crl_and_manifest(publisher = publisher)
 
             yield publisher.call_pubd()
 
@@ -468,13 +557,29 @@ class UpdateEECertificatesTask(AbstractTask):
 
                 for ca_detail in covering:
                     logger.debug("%r: No existing EE certificate for %s %s", self, gski, resources)
-                    rpki.rpkidb.models.EECertificate.create(      # sic: class method, not Django manager method (for now, anyway)
-                        ca_detail    = ca_detail,
-                        subject_name = subject_name,
-                        subject_key  = subject_key,
-                        resources    = resources,
-                        publisher    = publisher,
-                        eku          = r_pdu.get("eku", "").split(",") or None)
+                    cn, sn = subject_name.extract_cn_and_sn()
+                    sia = (None, None,
+                           (ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer",),
+                           (ca_detail.ca.parent.repository.rrdp_notification_uri,))
+                    cert = ca_detail.issue_ee(
+                        ca          = ca_detail.ca,
+                        subject_key = subject_key,
+                        sia         = sia,
+                        resources   = resources,
+                        notAfter    = resources.valid_until,
+                        cn          = cn,
+                        sn          = sn,
+                        eku         = r_pdu.get("eku", "").split(",") or None)
+                    ee = rpki.rpkidb.models.EECertificate.objects.create(
+                        tenant      = ca_detail.ca.parent.tenant,
+                        ca_detail   = ca_detail,
+                        cert        = cert,
+                        gski        = subject_key.gSKI())
+                    publisher.queue(
+                        uri        = ee.uri,
+                        new_obj    = cert,
+                        repository = ca_detail.ca.parent.repository,
+                        handler    = ee.published_callback)
 
             # Anything left is an orphan
             for ees in existing.values():
@@ -483,8 +588,7 @@ class UpdateEECertificatesTask(AbstractTask):
                     ee.revoke(publisher = publisher)
 
             for ca_detail in ca_details:
-                ca_detail.generate_crl(publisher = publisher)
-                ca_detail.generate_manifest(publisher = publisher)
+                ca_detail.generate_crl_and_manifest(publisher = publisher)
 
             yield publisher.call_pubd()
 
@@ -522,8 +626,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
                             ca_detail.destroy(ca = ca, publisher = publisher)
                     for ca_detail in ca.ca_details.filter(state__in = ("active", "deprecated")):
                         if now + regen_margin > ca_detail.latest_crl.getNextUpdate():
-                            ca_detail.generate_crl(publisher = publisher)
-                            ca_detail.generate_manifest(publisher = publisher)
+                            ca_detail.generate_crl_and_manifest(publisher = publisher)
                 except:
                     logger.exception("%r: Couldn't regenerate CRLs and manifests for CA %r, skipping", self, ca)
 

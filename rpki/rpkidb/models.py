@@ -616,17 +616,13 @@ class Parent(models.Model):
         """
 
         trace_call_chain()
-
         r_msg = yield self.up_down_list_query(rpkid = rpkid)
-
         ski_map = {}
-
         for rc in r_msg.getiterator(rpki.up_down.tag_class):
             skis = set()
             for c in rc.getiterator(rpki.up_down.tag_certificate):
                 skis.add(rpki.x509.X509(Base64 = c.text).gSKI())
             ski_map[rc.get("class_name")] = skis
-
         raise tornado.gen.Return(ski_map)
 
 
@@ -637,7 +633,6 @@ class Parent(models.Model):
         """
 
         trace_call_chain()
-
         for ski in skis_to_revoke:
             logger.debug("Asking parent %r to revoke class %r, g(SKI) %s", self, rc_name, ski)
             yield self.up_down_revoke_query(rpkid = rpkid, class_name = rc_name, ski = ski)
@@ -722,36 +717,24 @@ class Parent(models.Model):
     @tornado.gen.coroutine
     def query_up_down(self, rpkid, q_msg):
         trace_call_chain()
-
         if self.bsc is None:
             raise rpki.exceptions.BSCNotFound("Could not find BSC")
-
         if self.bsc.signing_cert is None:
             raise rpki.exceptions.BSCNotReady("BSC %r is not yet usable" % self.bsc.bsc_handle)
-
-        q_der = rpki.up_down.cms_msg().wrap(q_msg, self.bsc.private_key_id, self.bsc.signing_cert, self.bsc.signing_cert_crl)
-
         http_request = tornado.httpclient.HTTPRequest(
             url     = self.peer_contact_uri,
             method  = "POST",
-            body    = q_der,
+            body    = rpki.up_down.cms_msg().wrap(q_msg, self.bsc.private_key_id,
+                                                  self.bsc.signing_cert, self.bsc.signing_cert_crl),
             headers = { "Content-Type" : rpki.up_down.content_type })
-
         http_response = yield rpkid.http_fetch(http_request)
-
-        # Tornado already checked http_response.code for us
-
-        content_type = http_response.headers.get("Content-Type")
-
-        if content_type not in rpki.up_down.allowed_content_types:
-            raise rpki.exceptions.BadContentType("HTTP Content-Type %r, expected %r" % (rpki.up_down.content_type, content_type))
-
-        r_der = http_response.body
-        r_cms = rpki.up_down.cms_msg(DER = r_der)
+        if http_response.headers.get("Content-Type") not in rpki.up_down.allowed_content_types:
+            raise rpki.exceptions.BadContentType("HTTP Content-Type %r, expected %r" % (
+                rpki.up_down.content_type, http_response.headers.get("Content-Type")))
+        r_cms = rpki.up_down.cms_msg(DER = http_response.body)
         r_msg = r_cms.unwrap((rpkid.bpki_ta, self.tenant.bpki_cert, self.tenant.bpki_glue, self.bpki_cert, self.bpki_glue))
         r_cms.check_replay_sql(self, self.peer_contact_uri)
         rpki.up_down.check_response(r_msg, q_msg.get("type"))
-
         raise tornado.gen.Return(r_msg)
 
 
@@ -772,10 +755,7 @@ class Parent(models.Model):
 
 
 class CA(models.Model):
-    last_crl_sn = models.BigIntegerField(default = 1)
-    last_manifest_sn = models.BigIntegerField(default = 1)
-    next_manifest_update = SundialField(null = True)
-    next_crl_update = SundialField(null = True)
+    last_crl_manifest_number = models.BigIntegerField(default = 1)
     last_issued_sn = models.BigIntegerField(default = 1)
     sia_uri = models.TextField(null = True)
     parent_resource_class = models.TextField(null = True)                 # Not sure this should allow NULL
@@ -816,18 +796,13 @@ class CA(models.Model):
         """
 
         trace_call_chain()
-
         publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
-
         for ca_detail in self.ca_details.all():
             ca_detail.destroy(ca = self, publisher = publisher, allow_failure = True)
-
         try:
             yield publisher.call_pubd()
-
         except:
             logger.exception("Could not delete CA %r, skipping", self)
-
         else:
             logger.debug("Deleting %r", self)
             self.delete()
@@ -842,28 +817,6 @@ class CA(models.Model):
         self.last_issued_sn += 1
         self.save()
         return self.last_issued_sn
-
-
-    def next_manifest_number(self):
-        """
-        Allocate a manifest serial number.
-        """
-
-        trace_call_chain()
-        self.last_manifest_sn += 1
-        self.save()
-        return self.last_manifest_sn
-
-
-    def next_crl_number(self):
-        """
-        Allocate a CRL serial number.
-        """
-
-        trace_call_chain()
-        self.last_crl_sn += 1
-        self.save()
-        return self.last_crl_sn
 
 
     @tornado.gen.coroutine
@@ -985,14 +938,10 @@ class CADetail(models.Model):
     manifest_public_key = PublicKeyField(null = True)
     latest_manifest = ManifestField(null = True)
     manifest_published = SundialField(null = True)
+    next_crl_manifest_update = SundialField(null = True)
     state = EnumField(choices = ("pending", "active", "deprecated", "revoked"))
     ca_cert_uri = models.TextField(null = True)
     ca = models.ForeignKey(CA, related_name = "ca_details") # pylint: disable=C0103
-
-
-    # Like the old ca_obj class, the old ca_detail_obj class had ten
-    # zillion properties and methods encapsulating SQL queries.
-    # Translate as we go.
 
 
     @property
@@ -1265,6 +1214,9 @@ class CADetail(models.Model):
             subject_key = self.manifest_public_key,
             sia         = (None, None, manifest_uri, self.ca.parent.repository.rrdp_notification_uri))
 
+        self.ca.last_crl_manifest_number += 1
+        self.ca.save()
+
         certlist = []
         for revoked_cert in self.revoked_certs.all():
             if now > revoked_cert.expires + crl_interval:
@@ -1276,7 +1228,7 @@ class CADetail(models.Model):
         self.latest_crl = rpki.x509.CRL.generate(
             keypair             = self.private_key_id,
             issuer              = self.latest_ca_cert,
-            serial              = self.ca.next_crl_number(),
+            serial              = self.ca.last_crl_manifest_number,
             thisUpdate          = now,
             nextUpdate          = nextUpdate,
             revokedCertificates = certlist)
@@ -1288,7 +1240,7 @@ class CADetail(models.Model):
         objs.extend((e.uri_tail, e.cert)        for e in self.ee_certificates.all())
 
         self.latest_manifest = rpki.x509.SignedManifest.build(
-            serial         = self.ca.next_manifest_number(),
+            serial         = self.ca.last_crl_manifest_number,
             thisUpdate     = now,
             nextUpdate     = nextUpdate,
             names_and_objs = objs,
@@ -1297,7 +1249,7 @@ class CADetail(models.Model):
 
         self.crl_published      = now
         self.manifest_published = now
-
+        self.next_crl_manifest_update = nextUpdate
         self.save()
 
         publisher.queue(
@@ -1313,6 +1265,7 @@ class CADetail(models.Model):
             new_obj    = self.latest_manifest,
             repository = self.ca.parent.repository,
             handler    = self.manifest_published_callback)
+
 
     def crl_published_callback(self, pdu):
         """

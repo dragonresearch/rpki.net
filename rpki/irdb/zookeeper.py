@@ -897,6 +897,7 @@ class Zookeeper(object):
                 raise CouldntFindRepoParent
 
         else:
+            # In theory this could be rewritten using an .exists() filter.
             turtles = []
             for parent in self.resource_ca.parents.all():
                 try:

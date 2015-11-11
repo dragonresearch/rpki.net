@@ -614,21 +614,21 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
         logger.debug("%r: Regenerating CRLs and manifests", self)
 
         try:
-            now = rpki.sundial.now()
-            crl_interval = rpki.sundial.timedelta(seconds = self.tenant.crl_interval)
-            regen_margin = max(rpki.sundial.timedelta(seconds = self.rpkid.cron_period) * 2, crl_interval / 4)
             publisher = rpki.rpkid.publication_queue(self.rpkid)
+            now = rpki.sundial.now()
 
-            for ca in rpki.rpkidb.models.CA.objects.filter(parent__tenant = self.tenant):
-                try:
-                    for ca_detail in ca.ca_details.filter(state = "revoked"):
-                        if now > ca_detail.latest_crl.getNextUpdate():
-                            ca_detail.destroy(ca = ca, publisher = publisher)
-                    for ca_detail in ca.ca_details.filter(state__in = ("active", "deprecated")):
-                        if now + regen_margin > ca_detail.latest_crl.getNextUpdate():
-                            ca_detail.generate_crl_and_manifest(publisher = publisher)
-                except:
-                    logger.exception("%r: Couldn't regenerate CRLs and manifests for CA %r, skipping", self, ca)
+            ca_details = rpki.rpkidb.models.CADetail.objects.filter(ca__parent__tenant = self.tenant,
+                                                                    next_crl_manifest_update__isnull = False)
+
+            for ca_detail in ca_details.filter(next_crl_manifest_update__lt = now,
+                                               state = "revoked"):
+                ca_detail.destroy(ca = ca, publisher = publisher)
+
+            for ca_detail in ca_details.filter(state__in = ("active", "deprecated"),
+                                               next_crl_manifest_update__lt = now + max(
+                                                   rpki.sundial.timedelta(seconds = self.tenant.crl_interval) / 4,
+                                                   rpki.sundial.timedelta(seconds = self.rpkid.cron_period  ) * 2)):
+                ca_detail.generate_crl_and_manifest(publisher = publisher)
 
             yield publisher.call_pubd()
 

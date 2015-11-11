@@ -492,44 +492,30 @@ class Repository(models.Model):
         """
 
         trace_call_chain()
-
         if len(q_msg) == 0:
             return
-
         for q_pdu in q_msg:
             logger.info("Sending %r to pubd", q_pdu)
-
-        q_der = rpki.publication.cms_msg().wrap(q_msg, self.bsc.private_key_id, self.bsc.signing_cert, self.bsc.signing_cert_crl)
-
         http_request = tornado.httpclient.HTTPRequest(
             url     = self.peer_contact_uri,
             method  = "POST",
-            body    = q_der,
+            body    = rpki.publication.cms_msg().wrap(q_msg, self.bsc.private_key_id,
+                                                      self.bsc.signing_cert, self.bsc.signing_cert_crl),
             headers = { "Content-Type" : rpki.publication.content_type })
-
         http_response = yield rpkid.http_fetch(http_request)
-
-        # Tornado already checked http_response.code for us
-
-        content_type = http_response.headers.get("Content-Type")
-
-        if content_type not in rpki.publication.allowed_content_types:
-            raise rpki.exceptions.BadContentType("HTTP Content-Type %r, expected %r" % (rpki.publication.content_type, content_type))
-
-        r_der = http_response.body
-        r_cms = rpki.publication.cms_msg(DER = r_der)
+        if http_response.headers.get("Content-Type") not in rpki.publication.allowed_content_types:
+            raise rpki.exceptions.BadContentType("HTTP Content-Type %r, expected %r" % (
+                rpki.publication.content_type, http_response.headers.get("Content-Type")))
+        r_cms = rpki.publication.cms_msg(DER = http_response.body)
         r_msg = r_cms.unwrap((rpkid.bpki_ta, self.tenant.bpki_cert, self.tenant.bpki_glue, self.bpki_cert, self.bpki_glue))
         r_cms.check_replay_sql(self, self.peer_contact_uri)
-
         for r_pdu in r_msg:
             handler = handlers.get(r_pdu.get("tag"), rpki.publication.raise_if_error)
             if handler:
                 logger.debug("Calling pubd handler %r", handler)
                 handler(r_pdu)
-
         if length_check and len(q_msg) != len(r_msg):
             raise rpki.exceptions.BadPublicationReply("Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg))
-
         raise tornado.gen.Return(r_msg)
 
 
@@ -798,7 +784,7 @@ class CA(models.Model):
         trace_call_chain()
         publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
         for ca_detail in self.ca_details.all():
-            ca_detail.destroy(ca = self, publisher = publisher, allow_failure = True)
+            ca_detail.destroy(publisher = publisher, allow_failure = True)
         try:
             yield publisher.call_pubd()
         except:
@@ -819,6 +805,23 @@ class CA(models.Model):
         return self.last_issued_sn
 
 
+    def create_detail(self):
+        """
+        Create a new CADetail object for this CA.
+        """
+
+        trace_call_chain()
+        cer_keypair = rpki.x509.RSA.generate()
+        mft_keypair = rpki.x509.RSA.generate()
+        return CADetail.objects.create(
+            ca                      = self,
+            state                   = "pending",
+            private_key_id          = cer_keypair,
+            public_key              = cer_keypair.get_public(),
+            manifest_private_key_id = mft_keypair,
+            manifest_public_key     = mft_keypair.get_public())
+
+
     @tornado.gen.coroutine
     def rekey(self, rpkid):
         """
@@ -833,17 +836,11 @@ class CA(models.Model):
             old_detail = self.ca_details.get(state = "active")
         except CADetail.DoesNotExist:
             old_detail = None
-
-        new_detail = CADetail.create(ca = self)     # sic: class method, not manager function (for now, anyway)
-
+        new_detail = self.create_detail()
         logger.debug("Sending issue request to %r from %r", self.parent, self.rekey)
-
         r_msg = yield self.parent.up_down_issue_query(rpkid = rpkid, ca = self, ca_detail = new_detail)
-
         c = r_msg[0][0]
-
         logger.debug("CA %r received certificate %s", self, c.get("cert_url"))
-
         yield new_detail.activate(
             rpkid       = rpkid,
             ca          = self,
@@ -1019,7 +1016,7 @@ class CADetail(models.Model):
         yield publisher.call_pubd()
 
 
-    def destroy(self, ca, publisher, allow_failure = False):
+    def destroy(self, publisher, allow_failure = False):
         """
         Delete this ca_detail and all of the certs it issued.
 
@@ -1028,7 +1025,7 @@ class CADetail(models.Model):
         """
 
         trace_call_chain()
-        repository = ca.parent.repository
+        repository = self.ca.parent.repository
         handler = False if allow_failure else None
         for child_cert in self.child_certs.all():
             publisher.queue(uri = child_cert.uri, old_obj = child_cert.cert, repository = repository, handler = handler)
@@ -1098,24 +1095,6 @@ class CADetail(models.Model):
                 ghostbuster.update(publisher = publisher, fast = True)
 
         yield publisher.call_pubd()
-
-
-    @classmethod
-    def create(cls, ca):
-        """
-        Create a new ca_detail object for a specified CA.
-        """
-
-        trace_call_chain()
-        cer_keypair = rpki.x509.RSA.generate()
-        mft_keypair = rpki.x509.RSA.generate()
-        return cls.objects.create(
-            ca                      = ca,
-            state                   = "pending",
-            private_key_id          = cer_keypair,
-            public_key              = cer_keypair.get_public(),
-            manifest_private_key_id = mft_keypair,
-            manifest_public_key     = mft_keypair.get_public())
 
 
     def issue_ee(self, ca, resources, subject_key, sia,
@@ -1440,22 +1419,16 @@ class Child(models.Model):
     def up_down_handle_list(self, rpkid, q_msg, r_msg):
 
         trace_call_chain()
-
         irdb_resources = yield rpkid.irdb_query_child_resources(self.tenant.tenant_handle, self.child_handle)
-
         if irdb_resources.valid_until < rpki.sundial.now():
             logger.debug("Child %s's resources expired %s", self.child_handle, irdb_resources.valid_until)
-
         else:
-
             for ca_detail in CADetail.objects.filter(ca__parent__tenant = self.tenant, state = "active"):
                 resources = ca_detail.latest_ca_cert.get_3779resources() & irdb_resources
-
                 if resources.empty():
                     logger.debug("No overlap between received resources and what child %s should get ([%s], [%s])",
                                  self.child_handle, ca_detail.latest_ca_cert.get_3779resources(), irdb_resources)
                     continue
-
                 rc = SubElement(r_msg, rpki.up_down.tag_class,
                                 class_name = ca_detail.ca.parent_resource_class,
                                 cert_url = ca_detail.ca_cert_uri,
@@ -1463,7 +1436,6 @@ class Child(models.Model):
                                 resource_set_ipv4 = str(resources.v4),
                                 resource_set_ipv6 = str(resources.v6),
                                 resource_set_notafter = str(resources.valid_until))
-
                 for child_cert in self.child_certs.filter(ca_detail = ca_detail):
                     c = SubElement(rc, rpki.up_down.tag_certificate, cert_url = child_cert.uri)
                     c.text = child_cert.cert.get_Base64()

@@ -191,7 +191,7 @@ class PollParentTask(AbstractTask):
             parent                = parent,
             parent_resource_class = class_name,
             sia_uri               = parent.construct_sia_uri(rc))
-        ca_detail = rpki.rpkidb.models.CADetail.create(ca)
+        ca_detail = ca.create_detail()
         r_msg = yield parent.up_down_issue_query(rpkid = self.rpkid, ca = ca, ca_detail = ca_detail)
         elt  = r_msg.find(rpki.up_down.tag_class).find(rpki.up_down.tag_certificate)
         uri  = elt.get("cert_url")
@@ -243,7 +243,7 @@ class PollParentTask(AbstractTask):
                                "maybe parent certificate went away?",
                                ca_detail.public_key.gSKI(), class_name, parent.tenant.tenant_handle, parent.parent_handle)
                 publisher = rpki.rpkid.publication_queue(rpkid = self.rpkid)
-                ca_detail.destroy(ca = ca_detail.ca, publisher = publisher)
+                ca_detail.destroy(publisher = publisher)
                 yield publisher.call_pubd()
                 continue
 
@@ -622,7 +622,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
 
             for ca_detail in ca_details.filter(next_crl_manifest_update__lt = now,
                                                state = "revoked"):
-                ca_detail.destroy(ca = ca, publisher = publisher)
+                ca_detail.destroy(publisher = publisher)
 
             for ca_detail in ca_details.filter(state__in = ("active", "deprecated"),
                                                next_crl_manifest_update__lt = now + max(

@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # the historical clutter out of this module.
 
 def trace_call_chain():
-    if True:
+    if False:
         from traceback import extract_stack
         caller, callee = extract_stack(None, 3)[:2]
         caller_file, caller_line, caller_name = caller[:3]
@@ -1078,9 +1078,9 @@ class CADetail(models.Model):
             publisher.queue(uri = child_cert.uri, old_obj = child_cert.cert, repository = repository, handler = handler)
             child_cert.delete()
         for roa in self.roas.all():
-            roa.revoke(publisher = publisher, allow_failure = allow_failure, fast = True)
+            roa.revoke(publisher = publisher, allow_failure = allow_failure)
         for ghostbuster in self.ghostbusters.all():
-            ghostbuster.revoke(publisher = publisher, allow_failure = allow_failure, fast = True)
+            ghostbuster.revoke(publisher = publisher, allow_failure = allow_failure)
         if self.latest_manifest is not None:
             publisher.queue(uri = self.manifest_uri, old_obj = self.latest_manifest, repository = repository, handler = handler)
         if self.latest_crl is not None:
@@ -1135,11 +1135,11 @@ class CADetail(models.Model):
 
         if sia_uri_changed or validity_changed or old_resources.oversized(new_resources):
             for roa in self.roas.all():
-                roa.update(publisher = publisher, fast = True)
+                roa.update(publisher = publisher)
 
         if sia_uri_changed or validity_changed:
             for ghostbuster in self.ghostbusters.all():
-                ghostbuster.update(publisher = publisher, fast = True)
+                ghostbuster.update(publisher = publisher)
 
         yield publisher.call_pubd()
 
@@ -1324,9 +1324,9 @@ class CADetail(models.Model):
         publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
         self.check_failed_publication(publisher)
         for roa in self.roas.all():
-            roa.regenerate(publisher, fast = True)
+            roa.regenerate(publisher)
         for ghostbuster in self.ghostbusters.all():
-            ghostbuster.regenerate(publisher, fast = True)
+            ghostbuster.regenerate(publisher)
         for ee_certificate in self.ee_certificates.all():
             ee_certificate.reissue(publisher, force = True)
         for child_cert in self.child_certs.all():
@@ -1885,7 +1885,7 @@ class Ghostbuster(models.Model):
             return "<Ghostbuster: Ghostbuster object>"
 
 
-    def update(self, publisher, fast = False):
+    def update(self, publisher):
         """
         Bring this Ghostbuster up to date if necesssary.
         """
@@ -1894,35 +1894,28 @@ class Ghostbuster(models.Model):
 
         if self.ghostbuster is None:
             logger.debug("Ghostbuster record doesn't exist, generating")
-            return self.generate(publisher = publisher, fast = fast)
+            return self.generate(publisher = publisher)
 
         now = rpki.sundial.now()
         regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.tenant.regen_margin)
 
         if now > regen_time and self.cert.getNotAfter() < self.ca_detail.latest_ca_cert.getNotAfter():
             logger.debug("%r past threshold %s, regenerating", self, regen_time)
-            return self.regenerate(publisher = publisher, fast = fast)
+            return self.regenerate(publisher = publisher)
 
         if now > regen_time:
             logger.warning("%r is past threshold %s but so is issuer %r, can't regenerate", self, regen_time, self.ca_detail)
 
         if self.cert.get_AIA()[0] != self.ca_detail.ca_cert_uri:
             logger.debug("%r AIA changed, regenerating", self)
-            return self.regenerate(publisher = publisher, fast = fast)
+            return self.regenerate(publisher = publisher)
 
 
-    def generate(self, publisher, fast = False):
+    def generate(self, publisher):
         """
         Generate a Ghostbuster record
 
-        Once we have the right covering certificate, we generate the
-        ghostbuster payload, generate a new EE certificate, use the EE
-        certificate to sign the ghostbuster payload, publish the result,
-        then throw away the private key for the EE cert.  This is modeled
-        after the way we handle ROAs.
-
-        If fast is set, we leave generating the new manifest for our
-        caller to handle, presumably at the end of a bulk operation.
+        As with ROAs, we generate a new keypair every time.
         """
 
         trace_call_chain()
@@ -1932,7 +1925,8 @@ class Ghostbuster(models.Model):
             ca          = self.ca_detail.ca,
             resources   = resources,
             subject_key = keypair.get_public(),
-            sia         = (None, None, self.uri_from_key(keypair), self.ca_detail.ca.parent.repository.rrdp_notification_uri))
+            sia         = (None, None, self.uri_from_key(keypair),
+                           self.ca_detail.ca.parent.repository.rrdp_notification_uri))
         self.ghostbuster = rpki.x509.Ghostbuster.build(self.vcard, keypair, (self.cert,))
         self.published = rpki.sundial.now()
         self.save()
@@ -1942,8 +1936,6 @@ class Ghostbuster(models.Model):
             new_obj    = self.ghostbuster,
             repository = self.ca_detail.ca.parent.repository,
             handler    = self.published_callback)
-        if not fast:
-            self.ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def published_callback(self, pdu):
@@ -1957,7 +1949,7 @@ class Ghostbuster(models.Model):
         self.save()
 
 
-    def revoke(self, publisher, regenerate = False, allow_failure = False, fast = False):
+    def revoke(self, publisher, regenerate = False, allow_failure = False):
         """
         Withdraw Ghostbuster associated with this Ghostbuster.
 
@@ -1967,39 +1959,37 @@ class Ghostbuster(models.Model):
 
         If allow_failure is set, failing to withdraw the ghostbuster will not be
         considered an error.
-
-        If fast is set, SQL actions will be deferred, on the assumption
-        that our caller will handle regenerating CRL and manifest and
-        flushing the SQL cache.
         """
 
         trace_call_chain()
         ca_detail = self.ca_detail
         logger.debug("%s %r", "Regenerating" if regenerate else "Not regenerating", self)
+        old_obj = self.ghostbuster
+        old_cer = self.cert
+        old_uri = self.uri
         if regenerate:
-            self.generate(publisher = publisher, fast = fast)
+            self.generate(publisher = publisher)
         logger.debug("Withdrawing %r and revoking its EE cert", self)
-        RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
-        publisher.queue(uri = self.uri,
-                        old_obj = self.ghostbuster,
-                        repository = ca_detail.ca.parent.repository,
-                        handler = False if allow_failure else None)
+        RevokedCert.revoke(cert = old_cer, ca_detail = ca_detail)
+        publisher.queue(
+            uri        = old_uri,
+            old_obj    = old_obj,
+            repository = ca_detail.ca.parent.repository,
+            handler    = False if allow_failure else None)
         if not regenerate:
             self.delete()
-        if not fast:
-            ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
-    def regenerate(self, publisher, fast = False):
+    def regenerate(self, publisher):
         """
         Reissue Ghostbuster associated with this Ghostbuster.
         """
 
         trace_call_chain()
         if self.ghostbuster is None:
-            self.generate(publisher = publisher, fast = fast)
+            self.generate(publisher = publisher)
         else:
-            self.revoke(publisher = publisher, regenerate = True, fast = fast)
+            self.revoke(publisher = publisher, regenerate = True)
 
 
     def uri_from_key(self, key):
@@ -2089,7 +2079,7 @@ class ROA(models.Model):
             return "<ROA: ROA object>"
 
 
-    def update(self, publisher, fast = False):
+    def update(self, publisher):
         """
         Bring ROA up to date if necesssary.
         """
@@ -2098,22 +2088,22 @@ class ROA(models.Model):
 
         if self.roa is None:
             logger.debug("%r doesn't exist, generating", self)
-            return self.generate(publisher = publisher, fast = fast)
+            return self.generate(publisher = publisher)
 
         if self.ca_detail is None:
             logger.debug("%r has no associated ca_detail, generating", self)
-            return self.generate(publisher = publisher, fast = fast)
+            return self.generate(publisher = publisher)
 
         if self.ca_detail.state != "active":
             logger.debug("ca_detail associated with %r not active (state %s), regenerating", self, self.ca_detail.state)
-            return self.regenerate(publisher = publisher, fast = fast)
+            return self.regenerate(publisher = publisher)
 
         now = rpki.sundial.now()
         regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.tenant.regen_margin)
 
         if now > regen_time and self.cert.getNotAfter() < self.ca_detail.latest_ca_cert.getNotAfter():
             logger.debug("%r past threshold %s, regenerating", self, regen_time)
-            return self.regenerate(publisher = publisher, fast = fast)
+            return self.regenerate(publisher = publisher)
 
         if now > regen_time:
             logger.warning("%r is past threshold %s but so is issuer %r, can't regenerate", self, regen_time, self.ca_detail)
@@ -2123,21 +2113,21 @@ class ROA(models.Model):
 
         if ee_resources.oversized(ca_resources):
             logger.debug("%r oversized with respect to CA, regenerating", self)
-            return self.regenerate(publisher = publisher, fast = fast)
+            return self.regenerate(publisher = publisher)
 
         v4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
         v6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
 
         if ee_resources.v4 != v4 or ee_resources.v6 != v6:
             logger.debug("%r resources do not match EE, regenerating", self)
-            return self.regenerate(publisher = publisher, fast = fast)
+            return self.regenerate(publisher = publisher)
 
         if self.cert.get_AIA()[0] != self.ca_detail.ca_cert_uri:
             logger.debug("%r AIA changed, regenerating", self)
-            return self.regenerate(publisher = publisher, fast = fast)
+            return self.regenerate(publisher = publisher)
 
 
-    def generate(self, publisher, fast = False):
+    def generate(self, publisher):
         """
         Generate a ROA.
 
@@ -2153,9 +2143,6 @@ class ROA(models.Model):
         private key for the EE cert, all per the ROA specification.  This
         implies that generating a lot of ROAs will tend to thrash
         /dev/random, but there is not much we can do about that.
-
-        If fast is set, we leave generating the new manifest for our
-        caller to handle, presumably at the end of a bulk operation.
         """
 
         trace_call_chain()
@@ -2193,7 +2180,8 @@ class ROA(models.Model):
             ca          = self.ca_detail.ca,
             resources   = resources,
             subject_key = keypair.get_public(),
-            sia         = (None, None, self.uri_from_key(keypair), self.ca_detail.ca.parent.repository.rrdp_notification_uri))
+            sia         = (None, None, self.uri_from_key(keypair),
+                           self.ca_detail.ca.parent.repository.rrdp_notification_uri))
         self.roa = rpki.x509.ROA.build(self.asn,
                                        rpki.resource_set.roa_prefix_set_ipv4(self.ipv4),
                                        rpki.resource_set.roa_prefix_set_ipv6(self.ipv6),
@@ -2206,8 +2194,6 @@ class ROA(models.Model):
         publisher.queue(uri = self.uri, new_obj = self.roa,
                         repository = self.ca_detail.ca.parent.repository,
                         handler = self.published_callback)
-        if not fast:
-            self.ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def published_callback(self, pdu):
@@ -2221,7 +2207,7 @@ class ROA(models.Model):
         self.save()
 
 
-    def revoke(self, publisher, regenerate = False, allow_failure = False, fast = False):
+    def revoke(self, publisher, regenerate = False, allow_failure = False):
         """
         Withdraw this ROA.
 
@@ -2231,38 +2217,37 @@ class ROA(models.Model):
 
         If allow_failure is set, failing to withdraw the ROA will not be
         considered an error.
-
-        If fast is set, SQL actions will be deferred, on the assumption
-        that our caller will handle regenerating CRL and manifest and
-        flushing the SQL cache.
         """
 
         trace_call_chain()
         ca_detail = self.ca_detail
         logger.debug("%s %r", "Regenerating" if regenerate else "Not regenerating", self)
+        old_obj = self.roa
+        old_cer = self.cert
+        old_uri = self.uri
         if regenerate:
-            self.generate(publisher = publisher, fast = fast)
+            self.generate(publisher = publisher)
         logger.debug("Withdrawing %r and revoking its EE cert", self)
-        RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
-        publisher.queue(uri = self.uri, old_obj = self.roa,
-                        repository = ca_detail.ca.parent.repository,
-                        handler = False if allow_failure else None)
+        RevokedCert.revoke(cert = old_cer, ca_detail = ca_detail)
+        publisher.queue(
+            uri        = old_uri,
+            old_obj    = old_obj,
+            repository = ca_detail.ca.parent.repository,
+            handler    = False if allow_failure else None)
         if not regenerate:
             self.delete()
-        if not fast:
-            ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
-    def regenerate(self, publisher, fast = False):
+    def regenerate(self, publisher):
         """
         Reissue this ROA.
         """
 
         trace_call_chain()
         if self.ca_detail is None:
-            self.generate(publisher = publisher, fast = fast)
+            self.generate(publisher = publisher)
         else:
-            self.revoke(publisher = publisher, regenerate = True, fast = fast)
+            self.revoke(publisher = publisher, regenerate = True)
 
 
     def uri_from_key(self, key):

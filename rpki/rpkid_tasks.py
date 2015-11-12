@@ -406,7 +406,7 @@ class UpdateROAsTask(AbstractTask):
                 yield self.postpone()
             roa = updates.pop(0)
             try:
-                roa.update(publisher = self.publisher, fast = True)
+                roa.update(publisher = self.publisher)
                 self.ca_details.add(roa.ca_detail)
             except rpki.exceptions.NoCoveringCertForROA:
                 logger.warning("%r: No covering certificate for %r, skipping", self, roa)
@@ -416,7 +416,7 @@ class UpdateROAsTask(AbstractTask):
         for roa in orphans:
             try:
                 self.ca_details.add(roa.ca_detail)
-                roa.revoke(publisher = self.publisher, fast = True)
+                roa.revoke(publisher = self.publisher)
             except:
                 logger.exception("%r: Could not revoke %r", self, roa)
 
@@ -483,13 +483,13 @@ class UpdateGhostbustersTask(AbstractTask):
                         logger.debug("%r: Created new %r for %r", self, ghostbuster, r_pdu.get("parent_handle"))
                     else:
                         logger.debug("%r: Found existing %r for %r", self, ghostbuster, r_pdu.get("parent_handle"))
-                    ghostbuster.update(publisher = publisher, fast = True)
+                    ghostbuster.update(publisher = publisher)
                     ca_details.add(ca_detail)
 
             orphans.extend(ghostbusters.itervalues())
             for ghostbuster in orphans:
                 ca_details.add(ghostbuster.ca_detail)
-                ghostbuster.revoke(publisher = publisher, fast = True)
+                ghostbuster.revoke(publisher = publisher)
 
             for ca_detail in ca_details:
                 ca_detail.generate_crl_and_manifest(publisher = publisher)

@@ -659,7 +659,12 @@ class publication_queue(object):
     collection and do repository.call_pubd() for each repository.
     """
 
-    replace = True
+    # At present, ._inplay and .inplay() are debugging tools only.  If
+    # there turns out to be a real race condition here, this might
+    # evolve into the hook for some kind of Condition()-based
+    # mechanism.
+
+    _inplay = weakref.WeakValueDictionary()
 
     def __init__(self, rpkid):
         self.rpkid = rpkid
@@ -669,8 +674,11 @@ class publication_queue(object):
         self.repositories = {}
         self.msgs = {}
         self.handlers = {}
-        if self.replace:
-            self.uris = {}
+        self.uris = {}
+
+    def inplay(self, uri):
+        who = self._inplay.get(uri, self)
+        return who is not self and uri in who.uris
 
     def queue(self, uri, repository, handler = None,
               old_obj = None, new_obj = None, old_hash = None):
@@ -683,14 +691,17 @@ class publication_queue(object):
         logger.debug("Queuing publication action: uri %s, old %r, new %r, hash %s",
                      uri, old_obj, new_obj, old_hash)
 
+        if self.inplay(uri):
+            logger.warning("%s is already in play", uri)
+
         rid = repository.peer_contact_uri
         if rid not in self.repositories:
             self.repositories[rid] = repository
             self.msgs[rid] = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
                                      type = "query", version = rpki.publication.version)
 
-        if self.replace and uri in self.uris:
-            logger.debug("Removing publication duplicate %r hash %s", self.uris[uri], self.uris[uri].get("hash"))
+        if uri in self.uris:
+            logger.debug("Removing publication duplicate %r %s hash %s", self.uris[uri], uri, self.uris[uri].get("hash"))
             old_pdu = self.uris.pop(uri)
             self.msgs[rid].remove(old_pdu)
             pdu_hash = old_pdu.get("hash")
@@ -721,14 +732,17 @@ class publication_queue(object):
         if handler is not None:
             self.handlers[uri] = handler
 
-        if self.replace:
-            self.uris[uri] = pdu
+        self.uris[uri] = pdu
+        self._inplay[uri] = self
 
     @tornado.gen.coroutine
     def call_pubd(self):
         for rid in self.repositories:
             logger.debug("Calling pubd[%r]", self.repositories[rid])
             yield self.repositories[rid].call_pubd(self.rpkid, self.msgs[rid], self.handlers)
+        for k in self.uris.iterkeys():
+            if self._inplay.get(k) is self:
+                del self._inplay[k]
         self.clear()
 
     @property

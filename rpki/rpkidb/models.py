@@ -279,10 +279,16 @@ class Tenant(models.Model):
         booleans   = ("use_hsm",),
         elements   = ("bpki_cert", "bpki_glue"))
 
+    def __repr__(self):
+        try:
+            return "<Tenant: {}>".format(self.tenant_handle)
+        except:
+            return "<Tenant: Tenant object>"
+
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):
         trace_call_chain()
-        yield [parent.destroy() for parent in self.parents.all()]
+        yield [parent.destroy(rpkid = rpkid) for parent in self.parents.all()]
 
     @tornado.gen.coroutine
     def xml_post_save_hook(self, rpkid, q_pdu):
@@ -327,49 +333,42 @@ class Tenant(models.Model):
         trace_call_chain()
 
         publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
-        repositories = set()
         objects = dict()
 
-        for parent in self.parents.all():
-
-            repository = parent.repository
-            if repository.peer_contact_uri in repositories:
-                continue
-            repositories.add(repository.peer_contact_uri)
+        for repository in self.repositories.all():
             q_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
                             type = "query", version = rpki.publication.version)
             SubElement(q_msg, rpki.publication.tag_list, tag = "list")
-
             r_msg = yield repository.call_pubd(rpkid, q_msg, length_check = False)
-
-            for r_pdu in r_msg:
-                assert r_pdu.tag == rpki.publication.tag_list
-                if r_pdu.get("uri") in objects:
-                    logger.warning("pubd reported multiple published copies of URI %r, this makes no sense, blundering onwards", r_pdu.get("uri"))
-                else:
-                    objects[r_pdu.get("uri")] = (r_pdu.get("hash"), repository)
-
-        def reconcile(uri, obj, repository):
-            h, r = objects.pop(uri, (None, None))
-            if h is not None:
-                assert r == repository
-                publisher.queue(uri = uri, new_obj = obj, old_hash = h, repository = repository)
+            if not all(r_pdu.tag == rpki.publication.tag_list for r_pdu in r_msg):
+                raise rpki.exceptions.BadPublicationReply("Unexpected XML tag in publication response")
+            objs = dict((r_pdu.get("uri"), (r_pdu.get("hash"), repository))
+                        for r_pdu in r_msg if r_pdu.tag == rpki.publication.tag_list)
+            if any(uri in objects for uri in objs):
+                for uri in sorted(set(objects) & set(objs)):
+                    logger.warning("Duplicated publication URI %s between %r and %r, this should not happen",
+                                   uri, objects[uri][1], objs[uri][1])
+            objects.update(objs)
 
         for ca_detail in CADetail.objects.filter(ca__parent__tenant = self, state = "active"):
             repository = ca_detail.ca.parent.repository
-            reconcile(uri = ca_detail.crl_uri,      obj = ca_detail.latest_crl,      repository = repository)
-            reconcile(uri = ca_detail.manifest_uri, obj = ca_detail.latest_manifest, repository = repository)
-            for c in ca_detail.child_certs.all():
-                reconcile(uri = c.uri,                obj = c.cert,                    repository = repository)
-            for r in ca_detail.roas.filter(roa__isnull = False):
-                reconcile(uri = r.uri,                obj = r.roa,                     repository = repository)
-            for g in ca_detail.ghostbusters.all():
-                reconcile(uri = g.uri,                obj = g.ghostbuster,             repository = repository)
-            for c in ca_detail.ee_certificates.all():
-                reconcile(uri = c.uri,                obj = c.cert,                    repository = repository)
-            for u in objects:
-                h, r = objects[u]
-                publisher.queue(uri = u, old_hash = h, repository = r)
+            objs = [(ca_detail.crl_uri,      ca_detail.latest_crl),
+                    (ca_detail.manifest_uri, ca_detail.latest_manifest)]
+            objs.extend((c.uri, c.cert)         for c in ca_detail.child_certs.all())
+            objs.extend((r.uri, r.roa)          for r in ca_detail.roas.filter(roa__isnull = False))
+            objs.extend((g.uri, g.ghostbuster)  for g in ca_detail.ghostbusters.all())
+            objs.extend((c.uri, c.cert)         for c in ca_detail.ee_certificates.all())
+            for uri, obj in objs:
+                h, r = objects.get(uri, (None, None))
+                if uri in objects and r == repository:
+                    publisher.queue(uri = uri, new_obj = obj, repository = repository, old_hash = h)
+                    del objects[uri]
+                else:
+                    publisher.queue(uri = uri, new_obj = obj, repository = repository)
+
+        for u in objects:
+            h, r = objects[u]
+            publisher.queue(uri = u, old_hash = h, repository = r)
 
         yield publisher.call_pubd()
 
@@ -377,7 +376,7 @@ class Tenant(models.Model):
     @tornado.gen.coroutine
     def serve_run_now(self, rpkid):
         trace_call_chain()
-        logger.debug("Forced immediate run of periodic actions for tenant %s[%r]", self.tenant_handle, self)
+        logger.debug("Forced immediate run of periodic actions for %r", self)
         tasks = self.cron_tasks(rpkid = rpkid)
         rpkid.task_add(tasks)
         futures = [task.wait() for task in tasks]
@@ -432,6 +431,11 @@ class BSC(models.Model):
         elements = ("signing_cert", "signing_cert_crl"),
         readonly = ("pkcs10_request",))
 
+    def __repr__(self):
+        try:
+            return "<BSC: {}.{}>".format(self.tenant.tenant_handle, self.bsc_handle)
+        except:
+            return "<BSC: BSC object>"
 
     def xml_pre_save_hook(self, q_pdu):
         # Handle key generation, only supports RSA with SHA-256 for now.
@@ -461,6 +465,16 @@ class Repository(models.Model):
         handles    = (BSC,),
         attributes = ("peer_contact_uri", "rrdp_notification_uri"),
         elements   = ("bpki_cert", "bpki_glue"))
+
+    def __repr__(self):
+        try:
+            uri = " " + self.peer_contact_uri
+        except:
+            uri = ""
+        try:
+            return "<Repository: {}.{}{}>".format(self.tenant.tenant_handle, self.repository_handle, uri)
+        except:
+            return "<Repository: Repository object>"
 
 
     @tornado.gen.coroutine
@@ -496,7 +510,7 @@ class Repository(models.Model):
         if len(q_msg) == 0:
             return
         if handlers is None:
-             handlers = {}
+            handlers = {}
         for q_pdu in q_msg:
             logger.info("Sending %r hash = %s uri = %s to pubd", q_pdu, q_pdu.get("hash"), q_pdu.get("uri"))
         http_request = tornado.httpclient.HTTPRequest(
@@ -547,11 +561,21 @@ class Parent(models.Model):
         attributes = ("peer_contact_uri", "sia_base", "sender_name", "recipient_name"),
         elements   = ("bpki_cert", "bpki_glue"))
 
+    def __repr__(self):
+        try:
+            uri = " " + self.peer_contact_uri
+        except:
+            uri = ""
+        try:
+            return "<Parent: {}.{}{}>".format(self.tenant.tenant_handle, self.parent_handle, uri)
+        except:
+            return "<Parent: Parent object>"
+
 
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):
         trace_call_chain()
-        yield self.destroy(rpkid, delete_parent = False)
+        yield self.destroy(rpkid = rpkid, delete_parent = False)
 
     @tornado.gen.coroutine
     def xml_post_save_hook(self, rpkid, q_pdu):
@@ -659,7 +683,7 @@ class Parent(models.Model):
         """
 
         trace_call_chain()
-        yield [ca.destroy(self) for ca in self.cas()]           # pylint: disable=E1101
+        yield [ca.destroy(rpkid = rpkid, parent = self) for ca in self.cas()] # pylint: disable=E1101
         yield self.serve_revoke_forgotten(rpkid = rpkid)
         if delete_parent:
             self.delete()
@@ -710,7 +734,7 @@ class Parent(models.Model):
         if self.bsc is None:
             raise rpki.exceptions.BSCNotFound("Could not find BSC")
         if self.bsc.signing_cert is None:
-            raise rpki.exceptions.BSCNotReady("BSC %r is not yet usable" % self.bsc.bsc_handle)
+            raise rpki.exceptions.BSCNotReady("%r is not yet usable" % self.bsc)
         http_request = tornado.httpclient.HTTPRequest(
             url     = self.peer_contact_uri,
             method  = "POST",
@@ -761,9 +785,9 @@ class CA(models.Model):
     # response; if not present, we'd use parent's class_name as now,
     # otherwise we'd use the supplied class_name.
 
-    # ca_obj has a zillion properties encoding various specialized
-    # ca_detail queries.  ORM query syntax probably renders this OBE,
-    # but need to translate in existing code.
+    # ca_obj had a zillion properties encoding various specialized
+    # ca_detail queries.  ORM query syntax renders this OBE, but need
+    # to translate in existing code.
     #
     #def pending_ca_details(self):                  return self.ca_details.filter(state = "pending")
     #def active_ca_detail(self):                    return self.ca_details.get(state = "active")
@@ -771,6 +795,15 @@ class CA(models.Model):
     #def active_or_deprecated_ca_details(self):     return self.ca_details.filter(state__in = ("active", "deprecated"))
     #def revoked_ca_details(self):                  return self.ca_details.filter(state = "revoked")
     #def issue_response_candidate_ca_details(self): return self.ca_details.exclude(state = "revoked")
+
+    def __repr__(self):
+        try:
+            return "<CA: {}.{} class {}>".format(self.parent.tenant.tenant_handle,
+                                                 self.parent.parent_handle,
+                                                 self.parent_resource_class)
+        except:
+            return "<CA: CA object>"
+
 
     @tornado.gen.coroutine
     def destroy(self, rpkid, parent):
@@ -792,9 +825,9 @@ class CA(models.Model):
         try:
             yield publisher.call_pubd()
         except:
-            logger.exception("Could not delete CA %r, skipping", self)
+            logger.exception("Could not destroy %r, skipping", self)
         else:
-            logger.debug("Deleting %r", self)
+            logger.debug("Destroying %r", self)
             self.delete()
 
 
@@ -844,7 +877,7 @@ class CA(models.Model):
         logger.debug("Sending issue request to %r from %r", self.parent, self.rekey)
         r_msg = yield self.parent.up_down_issue_query(rpkid = rpkid, ca = self, ca_detail = new_detail)
         c = r_msg[0][0]
-        logger.debug("CA %r received certificate %s", self, c.get("cert_url"))
+        logger.debug("%r received certificate %s", self, c.get("cert_url"))
         yield new_detail.activate(
             rpkid       = rpkid,
             ca          = self,
@@ -943,6 +976,16 @@ class CADetail(models.Model):
     state = EnumField(choices = ("pending", "active", "deprecated", "revoked"))
     ca_cert_uri = models.TextField(null = True)
     ca = models.ForeignKey(CA, related_name = "ca_details") # pylint: disable=C0103
+
+    def __repr__(self):
+        try:
+            return "<CADetail: {}.{} class {} {} {}>".format(self.ca.parent.tenant.tenant_handle,
+                                                             self.ca.parent.parent_handle,
+                                                             self.ca.parent_resource_class,
+                                                             self.state,
+                                                             self.ca_cert_uri)
+        except:
+            return "<CADetail: CADetail object>"
 
 
     @property
@@ -1067,7 +1110,7 @@ class CADetail(models.Model):
         cert = rpki.x509.X509(Base64 = c.text)
         cert_url = c.get("cert_url")
 
-        logger.debug("CA %r received certificate %s", self, cert_url)
+        logger.debug("%r received certificate %s", self, cert_url)
 
         if self.state == "pending":
             yield self.activate(rpkid = rpkid, ca = ca, cert = cert, uri = cert_url)
@@ -1386,6 +1429,12 @@ class Child(models.Model):
         handles  = (BSC,),
         elements = ("bpki_cert", "bpki_glue"))
 
+    def __repr__(self):
+        try:
+            return "<Child: {}.{}>".format(self.tenant.tenant_handle, self.child_handle)
+        except:
+            return "<Child: Child object>"
+
 
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):
@@ -1570,6 +1619,14 @@ class ChildCert(models.Model):
     child = models.ForeignKey(Child, related_name = "child_certs")
     ca_detail = models.ForeignKey(CADetail, related_name = "child_certs")
 
+    def __repr__(self):
+        try:
+            return "<ChildCert: {}.{} {}>".format(self.child.tenant.tenant_handle,
+                                                  self.child.child_handle,
+                                                  self.uri)
+        except:
+            return "<ChildCert: ChildCert object>"
+
 
     @property
     def uri_tail(self):
@@ -1596,7 +1653,7 @@ class ChildCert(models.Model):
 
         trace_call_chain()
         ca_detail = self.ca_detail
-        logger.debug("Revoking %r %r", self, self.uri)
+        logger.debug("Revoking %r", self)
         RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
         publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.parent.repository)
         self.delete()
@@ -1606,12 +1663,13 @@ class ChildCert(models.Model):
 
     def reissue(self, ca_detail, publisher, resources = None, sia = None, force = False):
         """
-        Reissue an existing child cert, reusing the public key.  If the
-        child cert we would generate is identical to the one we already
-        have, we just return the one we already have.  If we have to
-        revoke the old child cert when generating the new one, we have to
-        generate a new child_cert_obj, so calling code that needs the
-        updated child_cert_obj must use the return value from this method.
+        Reissue an existing child cert, reusing the public key.  If
+        the child cert we would generate is identical to the one we
+        already have, we just return the one we already have.  If we
+        have to revoke the old child cert when generating the new one,
+        we have to generate a new ChildCert, so calling code that
+        needs the updated ChildCert must use the return value from
+        this method.
         """
 
         trace_call_chain()
@@ -1656,7 +1714,7 @@ class ChildCert(models.Model):
             return self
         if must_revoke:
             for child_cert in child.child_certs.filter(ca_detail = ca_detail, gski = self.gski):
-                logger.debug("Revoking child_cert %r", child_cert)
+                logger.debug("Revoking %r", child_cert)
                 child_cert.revoke(publisher = publisher)
             ca_detail.generate_crl_and_manifest(publisher = publisher)
         child_cert = ca_detail.issue(
@@ -1667,7 +1725,7 @@ class ChildCert(models.Model):
             resources   = resources,
             child_cert  = None if must_revoke else self,
             publisher   = publisher)
-        logger.debug("New child_cert %r uri %s", child_cert, child_cert.uri)
+        logger.debug("New %r", child_cert)
         return child_cert
 
 
@@ -1689,11 +1747,18 @@ class EECertificate(models.Model):
     tenant = models.ForeignKey(Tenant, related_name = "ee_certificates")
     ca_detail = models.ForeignKey(CADetail, related_name = "ee_certificates")
 
+    def __repr__(self):
+        try:
+            return "<EECertificate: {} {}>".format(self.tenant.tenant_handle,
+                                                   self.uri)
+        except:
+            return "<EECertificate: EECertificate object>"
+
 
     @property
     def uri(self):
         """
-        Return the publication URI for this ee_cert_obj.
+        Return the publication URI for this EECertificate.
         """
 
         return self.ca_detail.ca.sia_uri + self.uri_tail
@@ -1703,7 +1768,7 @@ class EECertificate(models.Model):
     def uri_tail(self):
         """
         Return the tail (filename portion) of the publication URI for this
-        ee_cert_obj.
+        EECertificate.
         """
 
         return self.gski + ".cer"
@@ -1716,7 +1781,7 @@ class EECertificate(models.Model):
 
         trace_call_chain()
         ca_detail = self.ca_detail
-        logger.debug("Revoking %r %r", self, self.uri)
+        logger.debug("Revoking %r", self)
         RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
         publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.parent.repository)
         self.delete()
@@ -1728,7 +1793,7 @@ class EECertificate(models.Model):
         """
         Reissue an existing EE cert, reusing the public key.  If the EE
         cert we would generate is identical to the one we already have, we
-        just return; if we need to reissue, we reuse this ee_cert_obj and
+        just return; if we need to reissue, we reuse this EECertificate and
         just update its contents, as the publication URI will not have
         changed.
         """
@@ -1809,10 +1874,20 @@ class Ghostbuster(models.Model):
     tenant = models.ForeignKey(Tenant, related_name = "ghostbusters")
     ca_detail = models.ForeignKey(CADetail, related_name = "ghostbusters")
 
+    def __repr__(self):
+        try:
+            uri = " " + self.uri
+        except:
+            uri = ""
+        try:
+            return "<Ghostbuster: {}{}>".format(self.tenant.tenant_handle, uri)
+        except:
+            return "<Ghostbuster: Ghostbuster object>"
+
 
     def update(self, publisher, fast = False):
         """
-        Bring this ghostbuster_obj up to date if necesssary.
+        Bring this Ghostbuster up to date if necesssary.
         """
 
         trace_call_chain()
@@ -1861,7 +1936,7 @@ class Ghostbuster(models.Model):
         self.ghostbuster = rpki.x509.Ghostbuster.build(self.vcard, keypair, (self.cert,))
         self.published = rpki.sundial.now()
         self.save()
-        logger.debug("Generating Ghostbuster record %r", self.uri)
+        logger.debug("Generating %r", self)
         publisher.queue(
             uri        = self.uri,
             new_obj    = self.ghostbuster,
@@ -1884,7 +1959,7 @@ class Ghostbuster(models.Model):
 
     def revoke(self, publisher, regenerate = False, allow_failure = False, fast = False):
         """
-        Withdraw Ghostbuster associated with this ghostbuster_obj.
+        Withdraw Ghostbuster associated with this Ghostbuster.
 
         In order to preserve make-before-break properties without
         duplicating code, this method also handles generating a
@@ -1900,12 +1975,10 @@ class Ghostbuster(models.Model):
 
         trace_call_chain()
         ca_detail = self.ca_detail
-        logger.debug("%s %r, ca_detail %r state is %s",
-                     "Regenerating" if regenerate else "Not regenerating",
-                     self, ca_detail, ca_detail.state)
+        logger.debug("%s %r", "Regenerating" if regenerate else "Not regenerating", self)
         if regenerate:
             self.generate(publisher = publisher, fast = fast)
-        logger.debug("Withdrawing %r %s and revoking its EE cert", self, self.uri)
+        logger.debug("Withdrawing %r and revoking its EE cert", self)
         RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
         publisher.queue(uri = self.uri,
                         old_obj = self.ghostbuster,
@@ -1919,7 +1992,7 @@ class Ghostbuster(models.Model):
 
     def regenerate(self, publisher, fast = False):
         """
-        Reissue Ghostbuster associated with this ghostbuster_obj.
+        Reissue Ghostbuster associated with this Ghostbuster.
         """
 
         trace_call_chain()
@@ -1941,7 +2014,7 @@ class Ghostbuster(models.Model):
     @property
     def uri(self):
         """
-        Return the publication URI for this ghostbuster_obj's ghostbuster.
+        Return the publication URI for this Ghostbuster.
         """
 
         return self.ca_detail.ca.sia_uri + self.uri_tail
@@ -1951,7 +2024,7 @@ class Ghostbuster(models.Model):
     def uri_tail(self):
         """
         Return the tail (filename portion) of the publication URI for this
-        ghostbuster_obj's ghostbuster.
+        Ghostbuster.
         """
 
         return self.cert.gSKI() + ".gbr"
@@ -1962,6 +2035,20 @@ class RevokedCert(models.Model):
     revoked = SundialField()
     expires = SundialField()
     ca_detail = models.ForeignKey(CADetail, related_name = "revoked_certs")
+
+    def __repr__(self):
+        try:
+            return "<RevokedCert: {}.{} class {} {} serial {} revoked {} expires {}>".format(
+                self.ca_detail.ca.parent.tenant.tenant_handle,
+                self.ca_detail.ca.parent.parent_handle,
+                self.ca_detail.ca.parent_resource_class,
+                self.ca_detail.crl_uri,
+                self.serial,
+                self.revoked,
+                self.expires)
+        except:
+            return "<RevokedCert: RevokedCert object>"
+
 
     @classmethod
     def revoke(cls, cert, ca_detail):
@@ -1986,6 +2073,20 @@ class ROA(models.Model):
     published = SundialField(null = True)
     tenant = models.ForeignKey(Tenant, related_name = "roas")
     ca_detail = models.ForeignKey(CADetail, related_name = "roas")
+
+    def __repr__(self):
+        try:
+            resources = " " + ",".join(str(ip) for ip in (self.ipv4, self.ipv6) if ip is not None)
+        except:
+            resources = ""
+        try:
+            uri = " " + self.uri
+        except:
+            uri = ""
+        try:
+            return "<ROA: {}{}{}>".format(self.tenant.tenant_handle, resources, uri)
+        except:
+            return "<ROA: ROA object>"
 
 
     def update(self, publisher, fast = False):
@@ -2079,7 +2180,7 @@ class ROA(models.Model):
             for ca_detail in CADetail.objects.filter(ca__parent__tenant = self.tenant, state = "active"):
                 resources = ca_detail.latest_ca_cert.get_3779resources()
                 if not ca_detail.has_expired() and v4.issubset(resources.v4) and v6.issubset(resources.v6):
-                    logger.debug("Using new ca_detail %r for ROA %r", ca_detail, self)
+                    logger.debug("Using %r for ROA %r", ca_detail, self)
                     self.ca_detail = ca_detail
                     break
             else:
@@ -2101,7 +2202,7 @@ class ROA(models.Model):
         self.published = rpki.sundial.now()
         self.save()
 
-        logger.debug("Generating %r URI %s", self, self.uri)
+        logger.debug("Generating %r", self)
         publisher.queue(uri = self.uri, new_obj = self.roa,
                         repository = self.ca_detail.ca.parent.repository,
                         handler = self.published_callback)
@@ -2122,7 +2223,7 @@ class ROA(models.Model):
 
     def revoke(self, publisher, regenerate = False, allow_failure = False, fast = False):
         """
-        Withdraw ROA associated with this roa_obj.
+        Withdraw this ROA.
 
         In order to preserve make-before-break properties without
         duplicating code, this method also handles generating a
@@ -2138,12 +2239,10 @@ class ROA(models.Model):
 
         trace_call_chain()
         ca_detail = self.ca_detail
-        logger.debug("%s %r, ca_detail %r state is %s",
-                     "Regenerating" if regenerate else "Not regenerating",
-                     self, ca_detail, ca_detail.state)
+        logger.debug("%s %r", "Regenerating" if regenerate else "Not regenerating", self)
         if regenerate:
             self.generate(publisher = publisher, fast = fast)
-        logger.debug("Withdrawing %r %s and revoking its EE cert", self, self.uri)
+        logger.debug("Withdrawing %r and revoking its EE cert", self)
         RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
         publisher.queue(uri = self.uri, old_obj = self.roa,
                         repository = ca_detail.ca.parent.repository,
@@ -2156,7 +2255,7 @@ class ROA(models.Model):
 
     def regenerate(self, publisher, fast = False):
         """
-        Reissue ROA associated with this roa_obj.
+        Reissue this ROA.
         """
 
         trace_call_chain()
@@ -2178,7 +2277,7 @@ class ROA(models.Model):
     @property
     def uri(self):
         """
-        Return the publication URI for this roa_obj's ROA.
+        Return the publication URI for this ROA.
         """
 
         return self.ca_detail.ca.sia_uri + self.uri_tail
@@ -2188,7 +2287,7 @@ class ROA(models.Model):
     def uri_tail(self):
         """
         Return the tail (filename portion) of the publication URI for this
-        roa_obj's ROA.
+        ROA.
         """
 
         return self.cert.gSKI() + ".roa"

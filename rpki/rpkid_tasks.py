@@ -162,7 +162,7 @@ class PollParentTask(AbstractTask):
                 logger.debug("%r: Executing list query", self)
                 list_r_msg = yield parent.up_down_list_query(rpkid = self.rpkid)
             except:
-                logger.exception("%r: Couldn't get resource class list from parent %r, skipping", self, parent)
+                logger.exception("%r: Couldn't get resource class list from %r, skipping", self, parent)
                 continue
 
             logger.debug("%r: Parsing list response", self)
@@ -181,8 +181,8 @@ class PollParentTask(AbstractTask):
                     logger.exception("Couldn't update resource class %r, skipping", class_name)
 
             for ca, class_name in ca_map.iteritems():
-                logger.debug("%r: Destroying orphaned CA %r for resource class %r", self, ca, class_name)
-                yield ca.destroy(parent)
+                logger.debug("%r: Destroying orphaned %r for resource class %r", self, ca, class_name)
+                yield ca.destroy(rpkid = self.rpkid, parent = parent)
 
     @tornado.gen.coroutine
     def create(self, parent, rc, class_name):
@@ -196,7 +196,7 @@ class PollParentTask(AbstractTask):
         elt  = r_msg.find(rpki.up_down.tag_class).find(rpki.up_down.tag_certificate)
         uri  = elt.get("cert_url")
         cert = rpki.x509.X509(Base64 = elt.text)
-        logger.debug("%r: CA %r received certificate %s", self, ca, uri)
+        logger.debug("%r: %r received certificate %s", self, ca, uri)
         yield ca_detail.activate(rpkid = self.rpkid, ca = ca, cert = cert, uri = uri)
 
     @tornado.gen.coroutine
@@ -204,7 +204,7 @@ class PollParentTask(AbstractTask):
 
         # pylint: disable=C0330
 
-        logger.debug("%r: Checking updates for existing CA %r for resource class %r", self, ca, class_name)
+        logger.debug("%r: Checking updates for %r", self, ca)
 
         sia_uri = parent.construct_sia_uri(rc)
         sia_uri_changed = ca.sia_uri != sia_uri
@@ -337,7 +337,7 @@ class UpdateChildrenTask(AbstractTask):
                             ca_detail.generate_crl_and_manifest(publisher = publisher)
 
             except:
-                logger.exception("%r: Couldn't update child %r, skipping", self, child)
+                logger.exception("%r: Couldn't update %r, skipping", self, child)
 
         try:
             yield publisher.call_pubd()
@@ -482,7 +482,7 @@ class UpdateGhostbustersTask(AbstractTask):
                         ghostbuster = rpki.rpkidb.models.Ghostbuster(tenant = self.tenant, ca_detail = ca_detail, vcard = r_pdu.text)
                         logger.debug("%r: Created new %r for %r", self, ghostbuster, r_pdu.get("parent_handle"))
                     else:
-                        logger.debug("%r: Found existing %r for %s", self, ghostbuster, r_pdu.get("parent_handle"))
+                        logger.debug("%r: Found existing %r for %r", self, ghostbuster, r_pdu.get("parent_handle"))
                     ghostbuster.update(publisher = publisher, fast = True)
                     ca_details.add(ca_detail)
 
@@ -543,13 +543,13 @@ class UpdateEECertificatesTask(AbstractTask):
 
                 for ee in ees:
                     if ee.ca_detail in covering:
-                        logger.debug("%r: Updating existing EE certificate for %s %s", self, gski, resources)
+                        logger.debug("%r: Updating %r for %s %s", self, ee, gski, resources)
                         ee.reissue(resources = resources, publisher = publisher)
                         covering.remove(ee.ca_detail)
                     else:
                         # This probably never happens, as the most likely cause would be a CA certificate
                         # being revoked, which should trigger automatic clean up of issued certificates.
-                        logger.debug("%r: Existing EE certificate for %s %s is no longer covered", self, gski, resources)
+                        logger.debug("%r: %r for %s %s is no longer covered", self, ee, gski, resources)
                         ee.revoke(publisher = publisher)
 
                 subject_name = rpki.x509.X501DN.from_cn(r_pdu.get("cn"), r_pdu.get("sn"))
@@ -559,8 +559,8 @@ class UpdateEECertificatesTask(AbstractTask):
                     logger.debug("%r: No existing EE certificate for %s %s", self, gski, resources)
                     cn, sn = subject_name.extract_cn_and_sn()
                     sia = (None, None,
-                           (ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer",),
-                           (ca_detail.ca.parent.repository.rrdp_notification_uri,))
+                           ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer",
+                           ca_detail.ca.parent.repository.rrdp_notification_uri)
                     cert = ca_detail.issue_ee(
                         ca          = ca_detail.ca,
                         subject_key = subject_key,

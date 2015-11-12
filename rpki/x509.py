@@ -776,9 +776,9 @@ class X509(DER_object):
         Common code to issue an RPKI certificate.
         """
 
-        if not sia or len(sia) != 4 or not sia[3]:
-            logger.debug("Oops! _issue() sia: %r", sia)
-            rpki.log.show_stack(logger)
+        assert sia and len(sia) == 4 and sia[3]
+
+        sia = tuple((str(s),) if isinstance(s, (str, unicode)) else s for s in sia)
 
         now = rpki.sundial.now()
         ski = subject_key.get_SKI()

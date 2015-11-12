@@ -205,7 +205,7 @@ class main(object):
                                 r_pdu.set("tag", q_pdu.get("tag"))
 
             except Exception, e:
-                logger.exception("Exception processing PDU %r", q_pdu)
+                logger.exception("Exception processing PDU %r action = %s client_handle = %s", q_pdu, q_pdu.get("action"), q_pdu.get("client_handle"))
                 r_pdu = SubElement(r_msg, rpki.publication_control.tag_report_error, error_code = e.__class__.__name__)
                 r_pdu.text = str(e)
                 if q_pdu.get("tag") is not None:
@@ -278,7 +278,7 @@ class main(object):
                         self.session.expire_deltas()
 
             except Exception, e:
-                logger.exception("Exception processing PDU %r", q_pdu)
+                logger.exception("Exception processing PDU %r hash = %s uri = %s", q_pdu, q_pdu.get("hash"), q_pdu.get("uri"))
                 r_pdu = SubElement(r_msg, rpki.publication.tag_report_error, error_code = e.__class__.__name__)
                 r_pdu.text = str(e)
                 if q_pdu.get("tag") is not None:

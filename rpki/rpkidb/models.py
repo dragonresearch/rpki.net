@@ -477,25 +477,28 @@ class Repository(models.Model):
 
 
     @tornado.gen.coroutine
-    def call_pubd(self, rpkid, q_msg, handlers = {}, length_check = True): # pylint: disable=W0102
+    def call_pubd(self, rpkid, q_msg, handlers = None, length_check = True):
         """
         Send a message to publication daemon and return the response.
 
         As a convenience, attempting to send an empty message returns
         immediate success without sending anything.
 
-        handlers is a dict of handler functions to process the response
-        PDUs.  If the tag value in the response PDU appears in the dict,
-        the associated handler is called to process the PDU.  If no tag
-        matches, a default handler is called to check for errors; a
-        handler value of False suppresses calling of the default handler.
+        handlers is a dict of handler functions to process the
+        response PDUs.  If the uri value in the response PDU appears
+        in the dict, the associated handler is called to process the
+        PDU; otherwise, a default handler is called to check for
+        errors.  A handler value of False suppresses calling of the
+        default handler.
         """
 
         trace_call_chain()
         if len(q_msg) == 0:
             return
+        if handlers is None:
+             handlers = {}
         for q_pdu in q_msg:
-            logger.info("Sending %r to pubd", q_pdu)
+            logger.info("Sending %r hash = %s uri = %s to pubd", q_pdu, q_pdu.get("hash"), q_pdu.get("uri"))
         http_request = tornado.httpclient.HTTPRequest(
             url     = self.peer_contact_uri,
             method  = "POST",
@@ -510,7 +513,8 @@ class Repository(models.Model):
         r_msg = r_cms.unwrap((rpkid.bpki_ta, self.tenant.bpki_cert, self.tenant.bpki_glue, self.bpki_cert, self.bpki_glue))
         r_cms.check_replay_sql(self, self.peer_contact_uri)
         for r_pdu in r_msg:
-            handler = handlers.get(r_pdu.get("tag"), rpki.publication.raise_if_error)
+            logger.info("Received %r hash = %s uri = %s from pubd", r_pdu, r_pdu.get("hash"), r_pdu.get("uri"))
+            handler = handlers.get(r_pdu.get("uri"), rpki.publication.raise_if_error)
             if handler:
                 logger.debug("Calling pubd handler %r", handler)
                 handler(r_pdu)

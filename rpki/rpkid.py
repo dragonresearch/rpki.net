@@ -719,9 +719,7 @@ class publication_queue(object):
                 pdu.set("hash", pdu_hash)
 
         if handler is not None:
-            tag = str(id(pdu))
-            self.handlers[tag] = handler
-            pdu.set("tag", tag)
+            self.handlers[uri] = handler
 
         if self.replace:
             self.uris[uri] = pdu

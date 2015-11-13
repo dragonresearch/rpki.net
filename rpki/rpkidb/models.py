@@ -1058,6 +1058,8 @@ class CADetail(models.Model):
                 roa.regenerate(publisher = publisher)
             for ghostbuster in predecessor.ghostbusters.all():
                 ghostbuster.regenerate(publisher = publisher)
+            for eecert in predecessor.ee_certificates.all():
+                eecert.reissue(publisher = publisher, ca_detail = self)
             predecessor.generate_crl_and_manifest(publisher = publisher)
 
         yield publisher.call_pubd()
@@ -1081,6 +1083,8 @@ class CADetail(models.Model):
             roa.revoke(publisher = publisher, allow_failure = allow_failure)
         for ghostbuster in self.ghostbusters.all():
             ghostbuster.revoke(publisher = publisher, allow_failure = allow_failure)
+        for eecert in self.ee_certificates.all():
+            eecert.revoke(publisher = publisher)
         if self.latest_manifest is not None:
             publisher.queue(uri = self.manifest_uri, old_obj = self.latest_manifest, repository = repository, handler = handler)
         if self.latest_crl is not None:
@@ -1440,8 +1444,12 @@ class Child(models.Model):
     def xml_pre_delete_hook(self, rpkid):
         trace_call_chain()
         publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
+        ca_details = set()
         for child_cert in self.child_certs.all():
-            child_cert.revoke(publisher = publisher, generate_crl_and_manifest = True)
+            ca_details.add(child_cert.ca_detail)
+            child_cert.revoke(publisher = publisher)
+        for ca_detail in ca_details:
+            ca_detail.generate_crl_and_manifest(publisher = publisher)
         yield publisher.call_pubd()
 
 
@@ -1569,10 +1577,14 @@ class Child(models.Model):
         assert key.tag == rpki.up_down.tag_key
         class_name = key.get("class_name")
         publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
+        ca_details = set()
         for child_cert in ChildCert.objects.filter(ca_detail__ca__parent__tenant = self.tenant,
                                                    ca_detail__ca__parent_resource_class = class_name,
                                                    gski = key.get("ski")):
+            ca_details.add(child_cert.ca_detail)
             child_cert.revoke(publisher = publisher)
+        for ca_detail in ca_details:
+            ca_detail.generate_crl_and_manifest(publisher = publisher)
         yield publisher.call_pubd()
         SubElement(r_msg, key.tag, class_name = class_name, ski = key.get("ski"))
 
@@ -1646,7 +1658,7 @@ class ChildCert(models.Model):
         return self.ca_detail.ca.sia_uri + self.uri_tail
 
 
-    def revoke(self, publisher, generate_crl_and_manifest = True):
+    def revoke(self, publisher):
         """
         Revoke a child cert.
         """
@@ -1657,8 +1669,6 @@ class ChildCert(models.Model):
         RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
         publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.parent.repository)
         self.delete()
-        if generate_crl_and_manifest:
-            ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def reissue(self, ca_detail, publisher, resources = None, sia = None, force = False):
@@ -1774,7 +1784,7 @@ class EECertificate(models.Model):
         return self.gski + ".cer"
 
 
-    def revoke(self, publisher, generate_crl_and_manifest = True):
+    def revoke(self, publisher):
         """
         Revoke and withdraw an EE certificate.
         """
@@ -1785,8 +1795,6 @@ class EECertificate(models.Model):
         RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
         publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.parent.repository)
         self.delete()
-        if generate_crl_and_manifest:
-            ca_detail.generate_crl_and_manifest(publisher = publisher)
 
 
     def reissue(self, publisher, ca_detail = None, resources = None, force = False):
@@ -1962,19 +1970,19 @@ class Ghostbuster(models.Model):
         """
 
         trace_call_chain()
-        ca_detail = self.ca_detail
         logger.debug("%s %r", "Regenerating" if regenerate else "Not regenerating", self)
+        old_ca_detail = self.ca_detail
         old_obj = self.ghostbuster
         old_cer = self.cert
         old_uri = self.uri
         if regenerate:
             self.generate(publisher = publisher)
         logger.debug("Withdrawing %r and revoking its EE cert", self)
-        RevokedCert.revoke(cert = old_cer, ca_detail = ca_detail)
+        RevokedCert.revoke(cert = old_cer, ca_detail = old_ca_detail)
         publisher.queue(
             uri        = old_uri,
             old_obj    = old_obj,
-            repository = ca_detail.ca.parent.repository,
+            repository = old_ca_detail.ca.parent.repository,
             handler    = False if allow_failure else None)
         if not regenerate:
             self.delete()
@@ -2220,19 +2228,19 @@ class ROA(models.Model):
         """
 
         trace_call_chain()
-        ca_detail = self.ca_detail
         logger.debug("%s %r", "Regenerating" if regenerate else "Not regenerating", self)
+        old_ca_detail = self.ca_detail
         old_obj = self.roa
         old_cer = self.cert
         old_uri = self.uri
         if regenerate:
             self.generate(publisher = publisher)
         logger.debug("Withdrawing %r and revoking its EE cert", self)
-        RevokedCert.revoke(cert = old_cer, ca_detail = ca_detail)
+        RevokedCert.revoke(cert = old_cer, ca_detail = old_ca_detail)
         publisher.queue(
             uri        = old_uri,
             old_obj    = old_obj,
-            repository = ca_detail.ca.parent.repository,
+            repository = old_ca_detail.ca.parent.repository,
             handler    = False if allow_failure else None)
         if not regenerate:
             self.delete()

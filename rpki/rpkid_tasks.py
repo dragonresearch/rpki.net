@@ -550,6 +550,7 @@ class UpdateEECertificatesTask(AbstractTask):
                         # This probably never happens, as the most likely cause would be a CA certificate
                         # being revoked, which should trigger automatic clean up of issued certificates.
                         logger.debug("%r: %r for %s %s is no longer covered", self, ee, gski, resources)
+                        ca_details.add(ee.ca_detail)
                         ee.revoke(publisher = publisher)
 
                 subject_name = rpki.x509.X501DN.from_cn(r_pdu.get("cn"), r_pdu.get("sn"))

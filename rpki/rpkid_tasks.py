@@ -295,6 +295,25 @@ class UpdateChildrenTask(AbstractTask):
         rsn = now + rpki.sundial.timedelta(seconds = self.tenant.regen_margin)
         publisher = rpki.rpkid.publication_queue(self.rpkid)
 
+        # XXX This loop could be better written.
+        #
+        # As written, this is just maintenance on existing ChildCert
+        # objects (no attempt to generate new ones for which we did
+        # not previously have the resources, unclear whether that's a
+        # bug).  Assuming for purposes of discussion that this is what
+        # this task should be doing, this loop could be written better:
+        #
+        # We're looking for ChildCert objects issued by active
+        # CADetails, so we should querying for that directly before
+        # starting the loop.  From that result, we can trivially pull
+        # the set of distinct child_handle values, at which point we
+        # can do a single yield on a dict to get all the IRDB results
+        # back, keyed by child_handle, still before starting the loop.
+        #
+        # Once we have all that, we can run the loop without any
+        # interruptions, which should make it easier to avoid
+        # potential races while building up the publication queue.
+
         for child in self.tenant.children.all():
             try:
                 if self.overdue:
@@ -354,6 +373,14 @@ class UpdateROAsTask(AbstractTask):
     def clear(self):
         self.publisher  = None
         self.ca_details = None
+
+    # XXX This might need rewriting to avoid race conditions.
+    #
+    # There's a theoretical race condition here if we're chugging away
+    # and something else needs to update the manifest or CRL, or if
+    # some back-end operation generates or destroys ROAs.  The risk is
+    # fairly low given that we defer CRL and manifest generation until
+    # we're ready to publish, but it's theoretically present.
 
     @tornado.gen.coroutine
     def main(self):
@@ -503,7 +530,7 @@ class UpdateGhostbustersTask(AbstractTask):
 @queue_task
 class UpdateEECertificatesTask(AbstractTask):
     """
-    Generate or update EE certificates for this self.
+    Generate or update EE certificates for this tenant.
 
     Not yet sure what kind of scaling constraints this task might have,
     so keeping it simple for initial version, we can optimize later.

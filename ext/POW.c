@@ -135,7 +135,6 @@ define	GCC_UNUSED
 
 /* Object check functions */
 #define POW_X509_Check(op)              PyObject_TypeCheck(op, &POW_X509_Type)
-#define POW_X509Store_Check(op)         PyObject_TypeCheck(op, &POW_X509Store_Type)
 #define POW_X509StoreCTX_Check(op)      PyObject_TypeCheck(op, &POW_X509StoreCTX_Type)
 #define POW_CRL_Check(op)               PyObject_TypeCheck(op, &POW_CRL_Type)
 #define POW_Asymmetric_Check(op)        PyObject_TypeCheck(op, &POW_Asymmetric_Type)
@@ -345,7 +344,6 @@ static const int
 
 static PyTypeObject
   POW_X509_Type,
-  POW_X509Store_Type,
   POW_X509StoreCTX_Type,
   POW_CRL_Type,
   POW_Asymmetric_Type,
@@ -376,14 +374,8 @@ typedef struct {
 
 typedef struct {
   PyObject_HEAD
-  X509_STORE *store;
-  PyObject *ctxclass;
-} x509_store_object;
-
-typedef struct {
-  PyObject_HEAD
   X509_STORE_CTX *ctx;
-  x509_store_object *store;
+  X509_STORE *store;
   PyObject *status;
 } x509_store_ctx_object;
 
@@ -3926,6 +3918,121 @@ x509_object_sign(x509_object *self, PyObject *args)
   return NULL;
 }
 
+static int x509_store_ctx_object_verify_cb(int ok, X509_STORE_CTX *ctx);
+
+static char x509_object_verify__doc__[] =
+  "Verify a certificate.\n"
+  ;
+
+#warning Write real x509_object_verify__doc__[] once API is stable.
+
+/* Let's try signalling that it's a TA by having (len(trusted) == 1 and trusted[0] is self) */
+
+static PyObject *
+x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"trusted", "untrusted", "crl", "status", "context_class", NULL};
+  PyObject *ctxclass = (PyObject *) &POW_X509StoreCTX_Type;
+  STACK_OF(X509) *trusted_stack   = NULL;
+  STACK_OF(X509) *untrusted_stack = NULL;
+  STACK_OF(X509_CRL) *crl_stack   = NULL;
+  x509_store_ctx_object *ctx = NULL;
+  PyObject *trusted   = Py_None;
+  PyObject *untrusted = Py_None;
+  PyObject *crl       = Py_None;
+  PyObject *status    = Py_None;
+  int ok = 0, is_ta;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOO!O", kwlist,
+                                   &trusted, &untrusted, &crl, &PySet_Type, &status, &ctxclass))
+    goto error;
+
+  if ((trusted_stack = x509_helper_iterable_to_stack(trusted)) == NULL)
+    goto error;
+
+  if ((untrusted_stack = x509_helper_iterable_to_stack(untrusted)) == NULL)
+    goto error;
+
+  if (crl != Py_None && !POW_CRL_Check(crl))
+    lose_type_error("Not a CRL");
+
+  if (crl != Py_None && ((crl_stack = sk_X509_CRL_new_null()) == NULL ||
+                         !sk_X509_CRL_push(crl_stack, ((crl_object *) crl)->crl)))
+    lose_no_memory();
+
+  if (!PyCallable_Check(ctxclass))
+    lose_type_error("Context class must be callable");
+
+  if ((ctx = (x509_store_ctx_object *) PyObject_CallFunctionObjArgs(ctxclass, NULL)) == NULL)
+    goto error;
+
+  if (!POW_X509StoreCTX_Check(ctx))
+    lose_type_error("Returned context is not a X509StoreCTX");
+
+  if (ctx->ctx == NULL)
+    lose("Uninitialized X509StoreCTX");
+
+  if (crl != Py_None)
+    X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_CRL_CHECK);
+
+  is_ta = (sk_X509_num(trusted_stack) == 1 &&
+           sk_X509_num(untrusted_stack) == 0 &&
+           X509_cmp(sk_X509_value(trusted_stack, 0), self->x509) == 0 &&
+           X509_check_issued(self->x509, self->x509));
+
+#warning Need to do something about picking issuer out of trusted_stack
+#warning Need to do something about check_object_type_*
+
+  if (status != Py_None && !check_x509(self->x509, sk_X509_value(trusted_stack, 0), status,
+                                       is_ta, check_object_type_cer, ctx->ctx))
+    goto error;
+
+#warning Not sure about reference counts in this version.  Might be safest to stuff PyObject* for all inputs into ctx so that everything mentioned here is protected until user releases ctx.
+
+  Py_XINCREF(trusted);
+  Py_XINCREF(untrusted);
+  Py_XINCREF(crl);
+  Py_XINCREF(status);
+  X509_STORE_CTX_set_cert(ctx->ctx, self->x509);
+  X509_STORE_CTX_trusted_stack(ctx->ctx, trusted_stack);
+  X509_STORE_CTX_set_chain(ctx->ctx, untrusted_stack);
+  X509_STORE_CTX_set0_crls(ctx->ctx, crl_stack);
+  ctx->status = status;
+
+  X509_STORE_CTX_set_verify_cb(ctx->ctx, x509_store_ctx_object_verify_cb);
+  X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_X509_STRICT);
+
+  ok = X509_verify_cert(ctx->ctx) >= 0;
+
+  ctx->status = NULL;
+  X509_STORE_CTX_set0_crls(ctx->ctx, NULL);
+  X509_STORE_CTX_set_chain(ctx->ctx, NULL);
+  X509_STORE_CTX_trusted_stack(ctx->ctx, NULL);
+  X509_STORE_CTX_set_cert(ctx->ctx, NULL);
+  Py_XDECREF(status);
+  Py_XDECREF(crl);
+  Py_XDECREF(untrusted);
+  Py_XDECREF(trusted);
+
+  if (PyErr_Occurred())
+    goto error;
+
+  if (!ok)
+    lose_validation_error("X509_verify_cert() raised an exception");
+
+ error:
+  sk_X509_free(trusted_stack);
+  sk_X509_free(untrusted_stack);
+  sk_X509_CRL_free(crl_stack);
+
+  if (ok)
+    return (PyObject *) ctx;
+
+  Py_XDECREF(ctx);
+  return NULL;
+}
+
+
 static char x509_object_get_version__doc__[] =
   "Return version number of this certificate.\n"
   ;
@@ -5186,6 +5293,7 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(pemWrite,               x509_object_pem_write,                  METH_NOARGS),
   Define_Method(derWrite,               x509_object_der_write,                  METH_NOARGS),
   Define_Method(sign,                   x509_object_sign,                       METH_VARARGS),
+  Define_Method(verify,                 x509_object_verify,                     METH_KEYWORDS),
   Define_Method(getPublicKey,           x509_object_get_public_key,             METH_NOARGS),
   Define_Method(setPublicKey,           x509_object_set_public_key,             METH_VARARGS),
   Define_Method(getVersion,             x509_object_get_version,                METH_NOARGS),
@@ -5280,324 +5388,6 @@ static PyTypeObject POW_X509_Type = {
 
 
 /*
- * X509Store object.
- */
-
-static PyObject *
-x509_store_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNUSED PyObject *kwds)
-{
-  x509_store_object *self = NULL;
-
-  ENTERING(x509_store_object_new);
-
-  if ((self = (x509_store_object *) type->tp_alloc(type, 0)) == NULL)
-    goto error;
-
-  if ((self->store = X509_STORE_new()) == NULL)
-    lose_no_memory();
-
-  self->ctxclass = (PyObject *) &POW_X509StoreCTX_Type;
-  Py_XINCREF(self->ctxclass);
-  return (PyObject *) self;
-
- error:
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static void
-x509_store_object_dealloc(x509_store_object *self)
-{
-  ENTERING(x509_store_object_dealloc);
-  X509_STORE_free(self->store);
-  Py_XDECREF(self->ctxclass);
-  self->ob_type->tp_free((PyObject*) self);
-}
-
-static char x509_store_object_add_trust__doc__[] =
-  "Add a trusted certificate to this certificate store object.\n"
-  "\n"
-  "The \"certificate\" parameter should be an instance of the X509 class.\n"
-  ;
-
-static PyObject *
-x509_store_object_add_trust(x509_store_object *self, PyObject *args)
-{
-  x509_object *x509 = NULL;
-
-  ENTERING(x509_store_object_add_trust);
-
-  if (!PyArg_ParseTuple(args, "O!", &POW_X509_Type, &x509))
-    goto error;
-
-  X509_STORE_add_cert(self->store, x509->x509);
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char x509_store_object_add_crl__doc__[] =
-  "Add a CRL to this certificate store object.\n"
-  "\n"
-  "The \"crl\" parameter should be an instance of the CRL class.\n"
-  ;
-
-static PyObject *
-x509_store_object_add_crl(x509_store_object *self, PyObject *args)
-{
-  crl_object *crl = NULL;
-
-  ENTERING(x509_store_object_add_crl);
-
-  if (!PyArg_ParseTuple(args, "O!", &POW_CRL_Type, &crl))
-    goto error;
-
-  X509_STORE_add_crl(self->store, crl->crl);
-
-  Py_RETURN_NONE;
-
- error:
-
-  return NULL;
-}
-
-static char x509_store_object_set_flags__doc__[] =
-  "Set validation flags for this X509Store.\n"
-  "\n"
-  "Argument is an integer containing bit flags to set.\n"
-  ;
-
-static PyObject *
-x509_store_object_set_flags (x509_store_object *self, PyObject *args)
-{
-  unsigned long flags;
-
-  if (!PyArg_ParseTuple(args, "k", &flags))
-    goto error;
-
-  if (!X509_VERIFY_PARAM_set_flags(self->store->param, flags))
-    lose_openssl_error("X509_VERIFY_PARAM_set_flags() failed");
-
-  Py_RETURN_NONE;
-
- error:
-  return NULL;
-}
-
-static char x509_store_object_clear_flags__doc__[] =
-  "Clear validation flags for this X509Store.\n"
-  "\n"
-  "Argument is an integer containing bit flags to clear.\n"
-  ;
-
-static PyObject *
-x509_store_object_clear_flags (x509_store_object *self, PyObject *args)
-{
-  unsigned long flags;
-
-  if (!PyArg_ParseTuple(args, "k", &flags))
-    goto error;
-
-  if (!X509_VERIFY_PARAM_clear_flags(self->store->param, flags))
-    lose_openssl_error("X509_VERIFY_PARAM_clear_flags() failed");
-
-  Py_RETURN_NONE;
-
- error:
-  return NULL;
-}
-
-static char x509_store_object_set_context_class__doc__[] =
-  "Set validation context class factory for this X509Store.\n"
-  "\n"
-  "This must be a callable object which takes one argument, an X509Store,\n"
-  "and returns a subclass of X509StoreCTX.  The callable can be a class\n"
-  "object but need not be, so long as calling it returns an instance of an\n"
-  "appropriate class.  The default is X509StoreCTX.\n"
-  ;
-
-static PyObject *
-x509_store_object_set_context_class (x509_store_object *self, PyObject *args)
-{
-  PyObject *ctxclass = (PyObject *) &POW_X509StoreCTX_Type;
-
-  if (!PyArg_ParseTuple(args, "|O", &ctxclass))
-    goto error;
-
-  if (!PyCallable_Check(ctxclass))
-    lose("Context class must be callable");
-
-  Py_XDECREF(self->ctxclass);
-  self->ctxclass = ctxclass;
-  Py_XINCREF(self->ctxclass);
-
-  Py_RETURN_NONE;
-
- error:
-  return NULL;
-}
-
-static int x509_store_ctx_object_verify_cb(int ok, X509_STORE_CTX *ctx);
-
-static char x509_store_object_verify__doc__[] =
-  "Verify an X509 certificate object using this certificate store.\n"
-  "\n"
-  "This method returns an instance of the store's verification context class.\n"
-  ;
-
-#warning Update function doc once we know what extended API looks like
-
-static PyObject *
-x509_store_object_verify(x509_store_object *self, PyObject *args, PyObject *kwds)
-{
-  static char *kwlist[] = {"cert", "trusted", "crl", "status", "ta", NULL};
-  x509_store_ctx_object *ctx = NULL;
-  STACK_OF(X509) *trusted_stack = NULL;
-  STACK_OF(X509_CRL) *crl_stack = NULL;
-  x509_object *x509 = NULL;
-  PyObject *trusted = Py_None;
-  PyObject *status = Py_None;
-  PyObject *ta = Py_None;
-  crl_object *crl = Py_None;
-  int ok;
-
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OOO!O", kwlist,
-                                   &POW_X509_Type, &x509,
-                                   &trusted,
-                                   &crl,
-                                   &PySet_Type, &status,
-                                   &ta))
-    goto error;
-
-  if (crl != Py_None && !POW_CRL_Check(crl))
-    lose_type_error("Not a CRL");
-
-  if ((ctx = (x509_store_ctx_object *) PyObject_CallFunctionObjArgs(self->ctxclass, self, NULL)) == NULL)
-    goto error;
-
-  if (!POW_X509StoreCTX_Check(ctx))
-    lose_type_error("Returned context is not a X509StoreCTX");
-
-  if (ctx->ctx == NULL)
-    lose("Uninitialized X509StoreCTX");
-
-  if (trusted != Py_None && (trusted_stack = x509_helper_iterable_to_stack(trusted)) == NULL)
-    goto error;
-
-  if (crl != NULL && ((crl_stack = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(crl_stack, crl->crl)))
-    lose_no_memory();
-
-  if (crl != NULL)
-    X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_CRL_CHECK);
-
-  if (status != Py_None && !check_x509(x509->x509, sk_X509_value(trusted_stack, 0), status,
-                                       PyObject_IsTrue(ta), check_object_type_cer, ctx->ctx))
-    goto error;
-
-  Py_XINCREF(x509);
-  Py_XINCREF(trusted);
-  Py_XINCREF(crl);
-  Py_XINCREF(status);
-  X509_STORE_CTX_set_cert(ctx->ctx, x509->x509);
-  X509_STORE_CTX_trusted_stack(ctx->ctx, trusted_stack);
-  X509_STORE_CTX_set0_crls(ctx->ctx, crl_stack);
-  ctx->status = status;
-
-  X509_STORE_CTX_set_verify_cb(ctx->ctx, x509_store_ctx_object_verify_cb);
-  X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_X509_STRICT);
-
-  ok = X509_verify_cert(ctx->ctx);
-
-  ctx->status = NULL;
-  X509_STORE_CTX_set0_crls(ctx->ctx, NULL);
-  X509_STORE_CTX_trusted_stack(ctx->ctx, NULL);
-  X509_STORE_CTX_set_cert(ctx->ctx, NULL);
-  Py_XDECREF(status);
-  Py_XDECREF(crl);
-  Py_XDECREF(trusted);
-  Py_XDECREF(x509);
-
-  sk_X509_free(trusted_stack);
-  sk_X509_CRL_free(crl_stack);
-
-  if (PyErr_Occurred())
-    goto error;
-
-  if (ok < 0)
-    lose_validation_error("X509_verify_cert() raised an exception");
-
-  return (PyObject *) ctx;
-
- error:
-  sk_X509_free(trusted_stack);
-  sk_X509_CRL_free(crl_stack);
-  Py_XDECREF(ctx);
-  return NULL;
-}
-
-static struct PyMethodDef x509_store_object_methods[] = {
-  Define_Method(addTrust,       x509_store_object_add_trust,            METH_VARARGS),
-  Define_Method(addCrl,         x509_store_object_add_crl,              METH_VARARGS),
-  Define_Method(setContextClass,x509_store_object_set_context_class,	METH_VARARGS),
-  Define_Method(setFlags,	x509_store_object_set_flags,            METH_VARARGS),
-  Define_Method(clearFlags,	x509_store_object_clear_flags,          METH_VARARGS),
-  Define_Method(verify,		x509_store_object_verify,		METH_KEYWORDS),
-  {NULL}
-};
-
-static char POW_X509Store_Type__doc__[] =
-  "This class holds the OpenSSL certificate store objects used in CMS\n"
-  "and certificate verification.\n"
-  ;
-
-static PyTypeObject POW_X509Store_Type = {
-  PyObject_HEAD_INIT(0)
-  0,                                        /* ob_size */
-  "rpki.POW.X509Store",                     /* tp_name */
-  sizeof(x509_store_object),                /* tp_basicsize */
-  0,                                        /* tp_itemsize */
-  (destructor)x509_store_object_dealloc,    /* tp_dealloc */
-  0,                                        /* tp_print */
-  0,                                        /* tp_getattr */
-  0,                                        /* tp_setattr */
-  0,                                        /* tp_compare */
-  0,                                        /* tp_repr */
-  0,                                        /* tp_as_number */
-  0,                                        /* tp_as_sequence */
-  0,                                        /* tp_as_mapping */
-  0,                                        /* tp_hash */
-  0,                                        /* tp_call */
-  0,                                        /* tp_str */
-  0,                                        /* tp_getattro */
-  0,                                        /* tp_setattro */
-  0,                                        /* tp_as_buffer */
-  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-  POW_X509Store_Type__doc__,                /* tp_doc */
-  0,                                        /* tp_traverse */
-  0,                                        /* tp_clear */
-  0,                                        /* tp_richcompare */
-  0,                                        /* tp_weaklistoffset */
-  0,                                        /* tp_iter */
-  0,                                        /* tp_iternext */
-  x509_store_object_methods,                /* tp_methods */
-  0,                                        /* tp_members */
-  0,                                        /* tp_getset */
-  0,                                        /* tp_base */
-  0,                                        /* tp_dict */
-  0,                                        /* tp_descr_get */
-  0,                                        /* tp_descr_set */
-  0,                                        /* tp_dictoffset */
-  0,                                        /* tp_init */
-  0,                                        /* tp_alloc */
-  x509_store_object_new,                    /* tp_new */
-};
-
-
-
-/*
  * X509StoreCTX object.
  */
 
@@ -5652,23 +5442,17 @@ x509_store_ctx_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNU
 static int
 x509_store_ctx_object_init(x509_store_ctx_object *self, PyObject *args, GCC_UNUSED PyObject *kwds)
 {
-  x509_store_object *store = NULL;
+  ENTERING(x509_store_ctx_object_init);
 
-  if (!PyArg_ParseTuple(args, "|O!", &POW_X509Store_Type, &store))
-    goto error;
-
-  if ((self->ctx = X509_STORE_CTX_new()) == NULL)
+  if ((self->store = X509_STORE_new()) == NULL ||
+      (self->ctx = X509_STORE_CTX_new()) == NULL)
     lose_no_memory();
 
-  if (!X509_STORE_CTX_init(self->ctx, store ? store->store : NULL, NULL, NULL))
+  if (!X509_STORE_CTX_init(self->ctx, self->store, NULL, NULL))
     lose_openssl_error("Couldn't initialize X509_STORE_CTX");
 
   if (!X509_STORE_CTX_set_ex_data(self->ctx, x509_store_ctx_ex_data_idx, self))
     lose_openssl_error("Couldn't set X509_STORE_CTX ex_data");
-
-  Py_XDECREF(self->store);
-  self->store = store;
-  Py_XINCREF(self->store);
 
   X509_VERIFY_PARAM_set_flags(self->ctx->param, X509_V_FLAG_X509_STRICT);
   return 0;
@@ -5682,14 +5466,8 @@ x509_store_ctx_object_dealloc(x509_store_ctx_object *self)
 {
   ENTERING(x509_store_ctx_object_dealloc);
   X509_STORE_CTX_free(self->ctx);
-  Py_XDECREF(self->store);
+  X509_STORE_free(self->store);
   self->ob_type->tp_free((PyObject*) self);
-}
-
-static PyObject *
-x509_store_ctx_object_get_store (x509_store_ctx_object *self, GCC_UNUSED void *closure)
-{
-  return Py_BuildValue("O", self->store == NULL ? Py_None : (PyObject *) self->store);
 }
 
 static char x509_store_ctx_object_get_error__doc__[] =
@@ -5774,52 +5552,6 @@ x509_store_ctx_object_get_chain (x509_store_ctx_object *self)
 }
 
 /*
- * For some reason, there are no methods for the policy mechanism for
- * X509_STORE, only for X509_STORE_CTX.  Presumably we can whack these
- * anyway using the X509_VERIFY_PARAM_*() calls, the question is
- * whether there's a good reason for this omission.
- *
- * For the moment, I'm just going to leave the policy stuff
- * unimplemented, until we figure out whether it belongs in X509Store
- * or X509StoreCTX.
- */
-
-#define IMPLEMENT_X509StoreCTX_POLICY 0
-
-#if IMPLEMENT_X509StoreCTX_POLICY
-
-static char x509_store_ctx_object_set_policy__doc__[] =
-  "Set this X509StoreCTX to require a specified certificate policy.\n"
-  ;
-
-static PyObject*
-x509_store_ctx_object_set_policy (x509_store_ctx_object *self, PyObject *args)
-{
-  ASN1_OBJECT *policy = NULL;
-  char *oid = NULL;
-
-  if (!PyArg_ParseTuple(args, "s", &oid))
-    goto error;
-  
-  if ((policy = OBJ_txt2obj(oid, 1)) == NULL)
-    lose_openssl_error("Couldn't parse OID");
-
-  if (!X509_VERIFY_PARAM_set_flags(self->ctx->param, X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY))
-    lose_openssl_error("Couldn't set policy flags");
-
-  if (!X509_VERIFY_PARAM_add0_policy(self->ctx->param, policy))
-    lose_openssl_error("Couldn't set policy");
-
-  Py_RETURN_NONE;
-
- error:
-  ASN1_OBJECT_free(policy);
-  return NULL;
-}
-
-#endif /* IMPLEMENT_X509StoreCTX_POLICY */
-
-/*
  * Do we need an access method to let Python callbacks fiddle with the
  * validation status set?  Maybe.  Skip for now, add later if needed.
  * May need to pay closer attention to initialization and reference
@@ -5838,29 +5570,20 @@ static struct PyMethodDef x509_store_ctx_object_methods[] = {
   Define_Method(getErrorDepth,          x509_store_ctx_object_get_error_depth,          METH_NOARGS),
   Define_Method(getCurrentCertificate,  x509_store_ctx_object_get_current_certificate,  METH_NOARGS),
   Define_Method(getChain,               x509_store_ctx_object_get_chain,                METH_NOARGS),
-
-#if IMPLEMENT_X509StoreCTX_POLICY
-  Define_Method(setPolicy,              x509_store_ctx_object_set_policy,		METH_VARARGS),
-#endif
  {NULL}
-};
-
-static PyGetSetDef x509_store_ctx_object_getsetters[] = {
-  {"store",     (getter) x509_store_ctx_object_get_store},
-  {NULL}
 };
 
 static char POW_X509StoreCTX_Type__doc__[] =
   "This class holds the state of an OpenSSL certificate verification\n"
   "operation.  Ordinarily, the user will never have cause to instantiate\n"
   "this class directly, instead, an object of this class will be returned\n"
-  "by X509Store.verify().\n"
+  "by X509.verify().\n"
   "\n"
   "If you need to see OpenSSL's verification callbacks, you can do so\n"
-  "by subclassing X509StoreCTX and attaching your subclass to an X509Store\n"
-  "object using X509Store.setContextClass().  Your subclass should provide\n"
-  "a .verify_callback() method, which should expect to receive one argument:\n"
-  "the integer \"ok\" value passed by OpenSSL's verification callbacks.\n"
+  "by subclassing X509StoreCTX and passing your subclass as an argument\n"
+  "to X509.verify.  Your subclass should provide a .verify_callback()\n"
+  "method, which should expect to receive one argument: the integer \"ok\"\n"
+  "value passed by OpenSSL's verification callbacks.\n"
   "\n"
   "The return value from your .verify_callback() method will be is interpreted\n"
   "as a boolean value: anything which evaluates to True will be result in a\n"
@@ -5899,7 +5622,7 @@ static PyTypeObject POW_X509StoreCTX_Type = {
   0,                                        /* tp_iternext */
   x509_store_ctx_object_methods,            /* tp_methods */
   0,                                        /* tp_members */
-  x509_store_ctx_object_getsetters,         /* tp_getset */
+  0,                                        /* tp_getset */
   0,                                        /* tp_base */
   0,                                        /* tp_dict */
   0,                                        /* tp_descr_get */
@@ -10776,7 +10499,6 @@ init_POW(void)
   } while (0)
 
   Define_Class(POW_X509_Type);
-  Define_Class(POW_X509Store_Type);
   Define_Class(POW_X509StoreCTX_Type);
   Define_Class(POW_CRL_Type);
   Define_Class(POW_Asymmetric_Type);

@@ -1539,8 +1539,6 @@ class CMS_object(DER_object):
             for c in crls:
                 logger.debug("Received CMS CRL issuer %r", c.getIssuer())
 
-        store = rpki.POW.X509Store()
-
         now = rpki.sundial.now()
 
         trusted_ee = None
@@ -1562,7 +1560,6 @@ class CMS_object(DER_object):
                 else:
                     raise rpki.exceptions.MultipleCMSEECert("Multiple CMS EE certificates", *("%s (%s)" % (
                         x.getSubject(), x.hSKI()) for x in ta if not x.is_CA()))
-            #store.addTrust(x.get_POW())
 
         if trusted_ee:
             if self.debug_cms_certs:
@@ -1607,9 +1604,10 @@ class CMS_object(DER_object):
         # machinery.  Awful mess due to history, needs cleanup, but
         # get it working again first.
 
-        store.verify(cert    = (trusted_ee or untrusted_ee).get_POW(),
-                     trusted = (x.get_POW() for x in trusted_ca),
-                     crl     = crls[0].get_POW() if untrusted_ee and crls else None)
+        cert = (trusted_ee or untrusted_ee).get_POW()
+
+        cert.verify(trusted = (x.get_POW() for x in trusted_ca),
+                    crl     = crls[0].get_POW() if untrusted_ee and crls else None)
 
         try:
             # XXX This isn't right yet, but let's test before gettting more complicated

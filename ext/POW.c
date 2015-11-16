@@ -112,6 +112,11 @@ define	GCC_UNUSED
  */
 #define MAX_ASN1_INTEGER_LEN    20
 
+/*
+ * How many bytes is a SHA256 digest?
+ */
+#define	HASH_SHA256_LEN		32
+
 /* Digests */
 #define MD5_DIGEST            2
 #define SHA_DIGEST            3
@@ -194,6 +199,10 @@ static int NID_cp_ipAddr_asNumber;
 static int NID_id_kp_bgpsec_router;
 #endif
 
+#ifndef    NID_binary_signing_time
+static int NID_binary_signing_time;
+#endif
+
 static const struct {
   int *nid;
   const char *oid;
@@ -231,6 +240,10 @@ static const struct {
 
 #ifndef NID_id_kp_bgpsec_router
   {&NID_id_kp_bgpsec_router,  "1.3.6.1.5.5.7.3.30", "id-kp-bgpsec-router", "BGPSEC Router Certificate"},
+#endif
+
+#ifndef NID_binary_signing_time
+  {&NID_binary_signing_time, "1.2.840.113549.1.9.16.2.46", "id-aa-binarySigningTime", "CMS Binary Signing Time"},
 #endif
 
 };
@@ -1783,9 +1796,36 @@ static int check_allowed_time_encoding(ASN1_TIME *t)
 }
 
 /*
+ * Compare ASN1_TIME values.
+ */
+
+static int asn1_time_cmp(ASN1_TIME *t1, ASN1_TIME *t2)
+{
+  ASN1_GENERALIZEDTIME *g1 = ASN1_TIME_to_generalizedtime(t1, NULL);
+  ASN1_GENERALIZEDTIME *g2 = ASN1_TIME_to_generalizedtime(t2, NULL);
+
+  int cmp = ASN1_STRING_cmp(g1, g2);
+
+  ASN1_GENERALIZEDTIME_free(g1);
+  ASN1_GENERALIZEDTIME_free(g2);
+
+  return cmp;
+}
+
+/*
+ * Compare filename fields of two FileAndHash structures.
+ */
+
+static int FileAndHash_name_cmp(const FileAndHash * const *a, const FileAndHash * const *b)
+{
+  return strcmp((char *) (*a)->file->data, (char *) (*b)->file->data);
+}
+
+/*
  * Check to see whether an AKI extension is present, is of the right
  * form, and matches the issuer.
  */
+
 static int check_aki(PyObject *status, const X509 *issuer, const AUTHORITY_KEYID *aki)
 {
   if (aki == NULL)
@@ -1812,7 +1852,7 @@ static int check_x509(X509 *x,
                       PyObject *status,
                       const int is_ta,
                       const check_object_type_t object_type,
-                      x509_store_ctx_object *ctx)
+                      X509_STORE_CTX *ctx)
 {
   EVP_PKEY *issuer_pkey = NULL, *subject_pkey = NULL;
   AUTHORITY_INFO_ACCESS *sia = NULL, *aia = NULL;
@@ -2016,8 +2056,10 @@ static int check_x509(X509 *x,
   if (ex_count > 0)
     lose_validation_error_from_code(status, DISALLOWED_X509V3_EXTENSION);
 
-  X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY);
-  X509_VERIFY_PARAM_add0_policy(ctx->ctx->param, OBJ_nid2obj(NID_cp_ipAddr_asNumber));
+  if (ctx != NULL) {
+    X509_VERIFY_PARAM_set_flags(ctx->param, X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY);
+    X509_VERIFY_PARAM_add0_policy(ctx->param, OBJ_nid2obj(NID_cp_ipAddr_asNumber));
+  }
 
   ret = 1;
 
@@ -2034,7 +2076,403 @@ static int check_x509(X509 *x,
   return ret;
 }
 
+/*
+ * Check a lot of pesky low-level things about RPKI CRLs.
+ */
 
+static int check_crl(X509_CRL *crl,
+                     X509 *issuer,
+                     PyObject *status)
+{
+  STACK_OF(X509_REVOKED) *revoked;
+  EVP_PKEY *pkey;
+  int i, ret = 0;
+
+  if (X509_CRL_get_version(crl) != 1)
+    lose_validation_error_from_code(status, WRONG_OBJECT_VERSION);
+
+  if (!crl->crl || !crl->crl->sig_alg || !crl->crl->sig_alg->algorithm ||
+      OBJ_obj2nid(crl->crl->sig_alg->algorithm) != NID_sha256WithRSAEncryption)
+    lose_validation_error_from_code(status, NONCONFORMANT_SIGNATURE_ALGORITHM);
+
+  if (!check_allowed_time_encoding(X509_CRL_get_lastUpdate(crl)) ||
+      !check_allowed_time_encoding(X509_CRL_get_nextUpdate(crl)))
+    lose_validation_error_from_code(status, NONCONFORMANT_ASN1_TIME_VALUE);
+
+  if (X509_cmp_current_time(X509_CRL_get_lastUpdate(crl)) > 0)
+    lose_validation_error_from_code(status, CRL_NOT_YET_VALID);
+
+  if (X509_cmp_current_time(X509_CRL_get_nextUpdate(crl)) < 0)
+    lose_validation_error_from_code_maybe(allow_stale_crl, status, STALE_CRL_OR_MANIFEST);
+
+  if (!check_aki(status, issuer, crl->akid))
+    goto error;
+
+  if (crl->crl_number == NULL)
+    lose_validation_error_from_code(status, CRL_NUMBER_EXTENSION_MISSING);
+
+  if (ASN1_INTEGER_cmp(crl->crl_number, asn1_zero) < 0)
+    lose_validation_error_from_code(status, CRL_NUMBER_IS_NEGATIVE);
+
+  if (ASN1_INTEGER_cmp(crl->crl_number, asn1_twenty_octets) > 0)
+    lose_validation_error_from_code(status, CRL_NUMBER_OUT_OF_RANGE);
+
+  if (X509_CRL_get_ext_count(crl) != 2)
+    lose_validation_error_from_code(status, DISALLOWED_X509V3_EXTENSION);
+
+  if (X509_NAME_cmp(X509_CRL_get_issuer(crl), X509_get_subject_name(issuer)))
+    lose_validation_error_from_code(status, CRL_ISSUER_NAME_MISMATCH);
+
+  if (!check_allowed_dn(X509_CRL_get_issuer(crl)))
+    lose_validation_error_from_code_maybe(allow_nonconformant_name, status, NONCONFORMANT_ISSUER_NAME);
+
+  if ((revoked = X509_CRL_get_REVOKED(crl)) != NULL)
+    for (i = sk_X509_REVOKED_num(revoked) - 1; i >= 0; --i)
+      if (X509_REVOKED_get_ext_count(sk_X509_REVOKED_value(revoked, i)) > 0)
+        lose_validation_error_from_code(status, DISALLOWED_X509V3_EXTENSION);
+
+  if ((pkey = X509_get_pubkey(issuer)) != NULL) {
+    ret = X509_CRL_verify(crl, pkey) > 0;
+    EVP_PKEY_free(pkey);
+  }
+
+ error:
+  return ret;
+}
+
+/*
+ * Extract one datum from a CMS_SignerInfo.
+ */
+static void *extract_si_datum(CMS_SignerInfo *si,
+			      int *n,
+			      const int optional,
+			      const int nid,
+			      const int asn1_type)
+{
+  int i = CMS_signed_get_attr_by_NID(si, nid, -1);
+  void *result = NULL;
+  X509_ATTRIBUTE *a;
+
+  if (i < 0 && optional)
+    return NULL;
+
+  if (i >= 0 &&
+      CMS_signed_get_attr_by_NID(si, nid, i) < 0 &&
+      (a = CMS_signed_get_attr(si, i)) != NULL &&
+      X509_ATTRIBUTE_count(a) == 1 &&
+      (result = X509_ATTRIBUTE_get0_data(a, 0, asn1_type, NULL)) != NULL)
+    --*n;
+  else
+    *n = -1;
+
+  return result;
+}
+
+/*
+ * Check a lot of pesky low-level things about RPKI CMS objects.
+ *
+ * We already have code elsewhere for checking X.509 certificates, so
+ * we assume that the caller has already used use that code to check
+ * the embedded EE certificate.
+ */
+
+static int check_cms(CMS_ContentInfo *cms,
+                     PyObject *status)
+{
+  STACK_OF(CMS_SignerInfo) *signer_infos = NULL;
+  CMS_SignerInfo *si = NULL;
+  ASN1_OCTET_STRING *sid = NULL;
+  X509_NAME *si_issuer = NULL;
+  ASN1_INTEGER *si_serial = NULL;
+  STACK_OF(X509_CRL) *crls = NULL;
+  STACK_OF(X509) *certs = NULL;
+  X509_ALGOR *signature_alg = NULL, *digest_alg = NULL;
+  ASN1_OBJECT *oid = NULL;
+  X509 *x = NULL;
+  int i, ret = 0;
+
+  if ((crls = CMS_get1_crls(cms)) != NULL)
+    lose_validation_error_from_code(status, CMS_INCLUDES_CRLS);
+
+  if ((signer_infos = CMS_get0_SignerInfos(cms)) == NULL ||
+      sk_CMS_SignerInfo_num(signer_infos) != 1 ||
+      (si = sk_CMS_SignerInfo_value(signer_infos, 0)) == NULL ||
+      !CMS_SignerInfo_get0_signer_id(si, &sid, &si_issuer, &si_serial) ||
+      sid == NULL || si_issuer != NULL || si_serial != NULL ||
+      CMS_unsigned_get_attr_count(si) != -1)
+    lose_validation_error_from_code(status, BAD_CMS_SIGNER_INFOS);
+
+  CMS_SignerInfo_get0_algs(si, NULL, &x, &digest_alg, &signature_alg);
+
+  if (x == NULL)
+    lose_validation_error_from_code(status, CMS_SIGNER_MISSING);
+
+  if ((certs = CMS_get1_certs(cms)) == NULL ||
+      sk_X509_num(certs) != 1 ||
+      X509_cmp(x, sk_X509_value(certs, 0)))
+    lose_validation_error_from_code(status, BAD_CMS_SIGNER);
+
+  X509_ALGOR_get0(&oid, NULL, NULL, signature_alg);
+  i = OBJ_obj2nid(oid);
+  if (i != NID_sha256WithRSAEncryption && i != NID_rsaEncryption)
+    lose_validation_error_from_code(status, WRONG_CMS_SI_SIGNATURE_ALGORITHM);
+
+  X509_ALGOR_get0(&oid, NULL, NULL, digest_alg);
+  if (OBJ_obj2nid(oid) != NID_sha256)
+    lose_validation_error_from_code(status, WRONG_CMS_SI_DIGEST_ALGORITHM);
+
+  i = CMS_signed_get_attr_count(si);
+
+  (void) extract_si_datum(si, &i, 1, NID_pkcs9_signingTime,   V_ASN1_UTCTIME);
+  (void) extract_si_datum(si, &i, 1, NID_binary_signing_time, V_ASN1_INTEGER);
+  oid =  extract_si_datum(si, &i, 0, NID_pkcs9_contentType,   V_ASN1_OBJECT);
+  (void) extract_si_datum(si, &i, 0, NID_pkcs9_messageDigest, V_ASN1_OCTET_STRING);
+
+  if (i != 0)
+    lose_validation_error_from_code_maybe(allow_wrong_cms_si_attributes, status, BAD_CMS_SI_SIGNED_ATTRIBUTES);
+
+  if (OBJ_cmp(oid, CMS_get0_eContentType(cms)) != 0)
+    lose_validation_error_from_code(status, BAD_CMS_SI_CONTENTTYPE);
+
+  if (CMS_SignerInfo_cert_cmp(si, x))
+    lose_validation_error_from_code(status, CMS_SKI_MISMATCH);
+
+  ret = 1;
+
+ error:
+  sk_X509_CRL_pop_free(crls, X509_CRL_free);
+  sk_X509_pop_free(certs, X509_free);
+
+  return ret;
+}
+
+/*
+ * Check a lot of pesky low-level things about RPKI manifests.
+ */
+
+static int check_manifest(CMS_ContentInfo *cms,
+                          Manifest *manifest,
+                          PyObject *status)
+{
+  STACK_OF(FileAndHash) *sorted_fileList = NULL;
+  FileAndHash *fah1 = NULL, *fah2 = NULL;
+  STACK_OF(X509) *certs = NULL;
+  int i, ret = 0;
+
+  if (OBJ_obj2nid(CMS_get0_eContentType(cms)) != NID_ct_rpkiManifest)
+    lose_validation_error_from_code(status, BAD_CMS_ECONTENTTYPE);
+
+  if (manifest->version)
+    lose_validation_error_from_code(status, WRONG_OBJECT_VERSION);
+
+  if (X509_cmp_current_time(manifest->thisUpdate) > 0)
+    lose_validation_error_from_code(status, MANIFEST_NOT_YET_VALID);
+
+  if (X509_cmp_current_time(manifest->nextUpdate) < 0)
+    lose_validation_error_from_code_maybe(allow_stale_manifest, status, STALE_CRL_OR_MANIFEST);
+
+  if ((certs = CMS_get1_certs(cms)) == NULL || sk_X509_num(certs) != 1)
+    lose_validation_error_from_code(status, BAD_CMS_SIGNER);
+
+  if (asn1_time_cmp(manifest->thisUpdate, X509_get_notBefore(sk_X509_value(certs, 0))) < 0 ||
+      asn1_time_cmp(manifest->nextUpdate, X509_get_notAfter(sk_X509_value(certs, 0)))  > 0)
+    lose_validation_error_from_code(status, MANIFEST_INTERVAL_OVERRUNS_CERT);
+
+  if (ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_zero) < 0 ||
+      ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_twenty_octets) > 0)
+    lose_validation_error_from_code(status, BAD_MANIFEST_NUMBER);
+
+  if (OBJ_obj2nid(manifest->fileHashAlg) != NID_sha256)
+    lose_validation_error_from_code(status, NONCONFORMANT_DIGEST_ALGORITHM);
+
+  if ((sorted_fileList = sk_FileAndHash_dup(manifest->fileList)) == NULL)
+    lose_no_memory();
+
+  (void) sk_FileAndHash_set_cmp_func(sorted_fileList, FileAndHash_name_cmp);
+  sk_FileAndHash_sort(sorted_fileList);
+
+  for (i = 0; ((fah1 = sk_FileAndHash_value(sorted_fileList, i + 0)) != NULL &&
+               (fah2 = sk_FileAndHash_value(sorted_fileList, i + 1)) != NULL); i++)
+    if (!strcmp((char *) fah1->file->data, (char *) fah2->file->data))
+      lose_validation_error_from_code(status, DUPLICATE_NAME_IN_MANIFEST);
+
+  for (i = 0; (fah1 = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++)
+    if (fah1->hash->length != HASH_SHA256_LEN ||
+	(fah1->hash->flags & (ASN1_STRING_FLAG_BITS_LEFT | 7)) > ASN1_STRING_FLAG_BITS_LEFT)
+      lose_validation_error_from_code(status, BAD_MANIFEST_DIGEST_LENGTH);
+
+  ret = 1;
+
+ error:
+  sk_FileAndHash_free(sorted_fileList);
+  sk_X509_pop_free(certs, X509_free);
+
+  return ret;
+}
+
+/*
+ * Extract a ROA prefix from the ASN.1 bitstring encoding.
+ */
+static int extract_roa_prefix(const ROAIPAddress *ra,
+			      const unsigned afi,
+			      unsigned char *addr,
+			      unsigned *prefixlen,
+			      unsigned *max_prefixlen)
+{
+  unsigned length;
+  long maxlen;
+
+  assert(ra && addr && prefixlen && max_prefixlen);
+
+  maxlen = ASN1_INTEGER_get(ra->maxLength);
+
+  switch (afi) {
+  case IANA_AFI_IPV4: length =  4; break;
+  case IANA_AFI_IPV6: length = 16; break;
+  default: return 0;
+  }
+
+  if (ra->IPAddress->length < 0 || ra->IPAddress->length > length ||
+      maxlen < 0 || maxlen > (long) length * 8)
+    return 0;
+
+  if (ra->IPAddress->length > 0) {
+    memcpy(addr, ra->IPAddress->data, ra->IPAddress->length);
+    if ((ra->IPAddress->flags & 7) != 0) {
+      unsigned char mask = 0xFF >> (8 - (ra->IPAddress->flags & 7));
+      addr[ra->IPAddress->length - 1] &= ~mask;
+    }
+  }
+
+  memset(addr + ra->IPAddress->length, 0, length - ra->IPAddress->length);
+  *prefixlen = (ra->IPAddress->length * 8) - (ra->IPAddress->flags & 7);
+  *max_prefixlen = ra->maxLength ? (unsigned) maxlen : *prefixlen;
+
+  return 1;
+}
+
+/*
+ * Check a lot of pesky low-level things about RPKI ROAs.
+ */
+
+static int check_roa(CMS_ContentInfo *cms,
+                     ROA *roa,
+                     PyObject *status)
+{
+  STACK_OF(IPAddressFamily) *roa_resources = NULL, *ee_resources = NULL;
+  unsigned afi, *safi = NULL, safi_, prefixlen, max_prefixlen;
+  unsigned char addrbuf[RAW_IPADDR_BUFLEN];
+  STACK_OF(X509) *certs = NULL;
+  ROAIPAddressFamily *rf;
+  ROAIPAddress *ra;
+  int i, j, result = 0;
+
+  if (OBJ_obj2nid(CMS_get0_eContentType(cms)) != NID_ct_ROA)
+    lose_validation_error_from_code(status, BAD_CMS_ECONTENTTYPE);
+
+  if (roa->version)
+    lose_validation_error_from_code(status, WRONG_OBJECT_VERSION);
+
+  if (ASN1_INTEGER_cmp(roa->asID, asn1_zero) < 0 ||
+      ASN1_INTEGER_cmp(roa->asID, asn1_four_octets) > 0)
+    lose_validation_error_from_code(status, BAD_ROA_ASID);
+
+  if ((certs = CMS_get1_certs(cms)) == NULL || sk_X509_num(certs) != 1)
+    lose_validation_error_from_code(status, BAD_CMS_SIGNER);
+
+  if ((ee_resources = X509_get_ext_d2i(sk_X509_value(certs, 0), NID_sbgp_ipAddrBlock, NULL, NULL)) == NULL)
+    lose_validation_error_from_code(status, BAD_IPADDRBLOCKS);
+
+  /*
+   * Convert ROA prefixes to resource set.  This goes on a bit.
+   */
+
+  if ((roa_resources = sk_IPAddressFamily_new_null()) == NULL)
+    lose_no_memory();
+
+  for (i = 0; i < sk_ROAIPAddressFamily_num(roa->ipAddrBlocks); i++) {
+    rf = sk_ROAIPAddressFamily_value(roa->ipAddrBlocks, i);
+
+    if (rf == NULL || rf->addressFamily == NULL)
+      lose_no_memory();
+
+    if (rf->addressFamily->length < 2 || rf->addressFamily->length > 3)
+      lose_validation_error_from_code(status, MALFORMED_ROA_ADDRESSFAMILY);
+
+    afi = (rf->addressFamily->data[0] << 8) | (rf->addressFamily->data[1]);
+    if (rf->addressFamily->length == 3)
+      *(safi = &safi_) = rf->addressFamily->data[2];
+
+    for (j = 0; j < sk_ROAIPAddress_num(rf->addresses); j++) {
+      ra = sk_ROAIPAddress_value(rf->addresses, j);
+
+      if (ra == NULL ||
+	  !extract_roa_prefix(ra, afi, addrbuf, &prefixlen, &max_prefixlen) ||
+	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen))
+        lose_validation_error_from_code(status, ROA_RESOURCES_MALFORMED);
+
+      if (max_prefixlen < prefixlen)
+        lose_validation_error_from_code(status, ROA_MAX_PREFIXLEN_TOO_SHORT);
+    }
+  }
+
+  /*
+   * ROAs can include nested prefixes, so direct translation to
+   * resource sets could include overlapping ranges, which is illegal.
+   * So we have to remove nested stuff before whacking into canonical
+   * form.  Fortunately, this is relatively easy, since we know these
+   * are just prefixes, not ranges: in a list of prefixes sorted by
+   * the RFC 3779 rules, the first element of a set of nested prefixes
+   * will always be the least specific.
+   */
+
+  for (i = 0; i < sk_IPAddressFamily_num(roa_resources); i++) {
+    IPAddressFamily *f = sk_IPAddressFamily_value(roa_resources, i);
+
+    if ((afi = v3_addr_get_afi(f)) == 0)
+      lose_validation_error_from_code(status, ROA_CONTAINS_BAD_AFI_VALUE);
+
+    if (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
+      IPAddressOrRanges *aors = f->ipAddressChoice->u.addressesOrRanges;
+
+      sk_IPAddressOrRange_sort(aors);
+
+      for (j = 0; j < sk_IPAddressOrRange_num(aors) - 1; j++) {
+	IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, j);
+	IPAddressOrRange *b = sk_IPAddressOrRange_value(aors, j + 1);
+	unsigned char a_min[RAW_IPADDR_BUFLEN], a_max[RAW_IPADDR_BUFLEN];
+	unsigned char b_min[RAW_IPADDR_BUFLEN], b_max[RAW_IPADDR_BUFLEN];
+	int length;
+
+#warning Handling of length here looks weird, double check
+	if ((length = v3_addr_get_range(a, afi, a_min, a_max, RAW_IPADDR_BUFLEN)) == 0 ||
+	    (length = v3_addr_get_range(b, afi, b_min, b_max, RAW_IPADDR_BUFLEN)) == 0)
+          lose_validation_error_from_code(status, ROA_RESOURCES_MALFORMED);
+
+	if (memcmp(a_max, b_max, length) >= 0) {
+	  (void) sk_IPAddressOrRange_delete(aors, j + 1);
+	  IPAddressOrRange_free(b);
+	  --j;
+	}
+      }
+    }
+  }
+
+  if (!v3_addr_canonize(roa_resources))
+    lose_validation_error_from_code(status, ROA_RESOURCES_MALFORMED);
+
+  if (!v3_addr_subset(roa_resources, ee_resources))
+    lose_validation_error_from_code(status, ROA_RESOURCE_NOT_IN_EE);
+
+  result = 1;
+
+ error:
+  sk_IPAddressFamily_pop_free(roa_resources, IPAddressFamily_free);
+  sk_IPAddressFamily_pop_free(ee_resources, IPAddressFamily_free);
+  sk_X509_pop_free(certs, X509_free);
+
+  return result;
+}
 
 
 
@@ -5023,12 +5461,19 @@ x509_store_object_verify(x509_store_object *self, PyObject *args, PyObject *kwds
   PyObject *trusted = Py_None;
   PyObject *status = Py_None;
   PyObject *ta = Py_None;
-  crl_object *crl = NULL;
+  crl_object *crl = Py_None;
   int ok;
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OO!O", kwlist, &POW_X509_Type, &x509, &trusted,
-                                   &POW_CRL_Type, &crl, &PySet_Type, &status, &ta))
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OOO!O", kwlist,
+                                   &POW_X509_Type, &x509,
+                                   &trusted,
+                                   &crl,
+                                   &PySet_Type, &status,
+                                   &ta))
     goto error;
+
+  if (crl != Py_None && !POW_CRL_Check(crl))
+    lose_type_error("Not a CRL");
 
   if ((ctx = (x509_store_ctx_object *) PyObject_CallFunctionObjArgs(self->ctxclass, self, NULL)) == NULL)
     goto error;
@@ -5049,7 +5494,7 @@ x509_store_object_verify(x509_store_object *self, PyObject *args, PyObject *kwds
     X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_CRL_CHECK);
 
   if (status != Py_None && !check_x509(x509->x509, sk_X509_value(trusted_stack, 0), status,
-                                       PyObject_IsTrue(ta), check_object_type_cer, ctx))
+                                       PyObject_IsTrue(ta), check_object_type_cer, ctx->ctx))
     goto error;
 
   Py_XINCREF(x509);
@@ -7669,15 +8114,12 @@ cms_object_sign(cms_object *self, PyObject *args)
     return NULL;
 }
 
-#define DONT_VERIFY_ANYTHING    \
-  (CMS_NOCRL |                  \
-   CMS_NO_SIGNER_CERT_VERIFY |  \
-   CMS_NO_ATTR_VERIFY |         \
-   CMS_NO_CONTENT_VERIFY)
-
 static BIO *
 cms_object_extract_without_verifying_helper(cms_object *self)
 {
+  const unsigned flags =
+    CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY;
+
   BIO *bio = NULL;
 
   ENTERING(cms_object_extract_without_verifying_helper);
@@ -7685,7 +8127,7 @@ cms_object_extract_without_verifying_helper(cms_object *self)
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
-  if (CMS_verify(self->cms, NULL, NULL, NULL, bio, DONT_VERIFY_ANYTHING) <= 0)
+  if (CMS_verify(self->cms, NULL, NULL, NULL, bio, flags) <= 0)
     lose_openssl_error("Couldn't parse CMS message");
 
   return bio;
@@ -7695,12 +8137,8 @@ cms_object_extract_without_verifying_helper(cms_object *self)
   return NULL;
 }
 
-#undef DONT_VERIFY_ANYTHING
 
 #define CMS_OBJECT_VERIFY_HELPER__DOC__                                         \
-  "\n"                                                                          \
-  "The \"store\" parameter is an X509Store object, the trusted certificate\n"   \
-  "store to use in verification.\n"                                             \
   "\n"                                                                          \
   "The optional \"certs\" parameter is a set of certificates to search\n"       \
   "for the signer's certificate.\n"                                             \
@@ -7712,35 +8150,45 @@ cms_object_extract_without_verifying_helper(cms_object *self)
   "  * CMS_NOCRL\n"                                                             \
   "  * CMS_NO_SIGNER_CERT_VERIFY\n"                                             \
   "  * CMS_NO_ATTR_VERIFY\n"                                                    \
-  "  * CMS_NO_CONTENT_VERIFY\n"
+  "  * CMS_NO_CONTENT_VERIFY\n"                                                 \
+  "\n"                                                                          \
+  "Note that this method does NOT verify X.509 certificates, it just\n"         \
+  "verifies the CMS signature.  Use certificate verification functions\n"       \
+  "to verify certificates."
+
+#warning Should we really allow the full range of flags here, or constrain to just the useful cases?
 
 static BIO *
-cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
+cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds, PyObject **status)
 {
-  static char *kwlist[] = {"store", "certs", "flags", "status", NULL};
-  x509_store_object *store = NULL;
+  static char *kwlist[] = {"certs", "flags", "status", NULL};
   PyObject *certs_iterable = Py_None;
-  PyObject *status = Py_None;
   STACK_OF(X509) *certs_stack = NULL;
   unsigned flags = 0, ok = 0;
   BIO *bio = NULL;
 
+  const unsigned flag_mask =
+    CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY |
+    CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY;
+
   ENTERING(cms_object_verify_helper);
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OIO!", kwlist,
-                                   &POW_X509Store_Type, &store,
+  if (status == NULL || *status != Py_None)
+    lose("cms_object_verify_helper() called with bad status argument (internal error)");
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OIO!", kwlist,
                                    &certs_iterable,
                                    &flags,
-                                   &PySet_Type, &status))
+                                   &PySet_Type, status))
     goto error;
+
+  if ((flags & ~flag_mask) != 0)
+    lose_value_error("Bad CMS_verify() flags");
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();
 
   assert_no_unhandled_openssl_errors();
-
-  flags &= (CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY |
-            CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY);
 
   if (certs_iterable != Py_None &&
       (certs_stack = x509_helper_iterable_to_stack(certs_iterable)) == NULL)
@@ -7748,8 +8196,15 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
 
   assert_no_unhandled_openssl_errors();
 
-  if (CMS_verify(self->cms, certs_stack, store->store, NULL, bio, flags) <= 0)
-    lose_openssl_error("Couldn't verify CMS message");
+  if (CMS_verify(self->cms, certs_stack, NULL, NULL, bio, flags) <= 0) {
+    if (*status == Py_None)
+      lose_openssl_error("Couldn't verify CMS message");
+    else
+      lose_validation_error_from_code(*status, CMS_VALIDATION_FAILURE);
+  }
+
+  if (*status != Py_None && !check_cms(self->cms, *status))
+    goto error;
 
   assert_no_unhandled_openssl_errors();
 
@@ -7776,12 +8231,13 @@ static char cms_object_verify__doc__[] =
 static PyObject *
 cms_object_verify(cms_object *self, PyObject *args, PyObject *kwds)
 {
+  PyObject *status = Py_None;
   PyObject *result = NULL;
   BIO *bio = NULL;
 
   ENTERING(cms_object_verify);
 
-  if ((bio = cms_object_verify_helper(self, args, kwds)) != NULL)
+  if ((bio = cms_object_verify_helper(self, args, kwds, &status)) != NULL)
     result = BIO_to_PyString_helper(bio);
 
   BIO_free(bio);
@@ -7917,6 +8373,10 @@ static char cms_object_certs__doc__[] =
   "contains no certificates.\n"
   ;
 
+/*
+ * Might want to accept an optional subclass argument.
+ */
+
 static PyObject *
 cms_object_certs(cms_object *self)
 {
@@ -7942,6 +8402,10 @@ static char cms_object_crls__doc__[] =
   "Return any CRLs embedded in this CMS message, as a sequence of CRL objects.\n"
   "This sequence will be empty if the message contains no CRLs.\n"
   ;
+
+/*
+ * Might want to accept an optional subclass argument.
+ */
 
 static PyObject *
 cms_object_crls(cms_object *self)
@@ -8067,16 +8531,24 @@ static char manifest_object_verify__doc__[] =
 static PyObject *
 manifest_object_verify(manifest_object *self, PyObject *args, PyObject *kwds)
 {
+  PyObject *status = Py_None;
   BIO *bio = NULL;
   int ok = 0;
 
   ENTERING(manifest_object_verify);
 
-  if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
+  if ((bio = cms_object_verify_helper(&self->cms, args, kwds, &status)) == NULL)
     goto error;
 
-  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest))
-    lose_openssl_error("Couldn't decode manifest");
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest)) {
+    if (status == Py_None)
+      lose_openssl_error("Couldn't decode manifest");
+    else
+      lose_validation_error_from_code(status, CMS_ECONTENT_DECODE_ERROR);
+  }
+
+  if (status != Py_None && !check_manifest(self->cms.cms, self->manifest, status))
+    goto error;
 
   ok = 1;
 
@@ -8742,16 +9214,24 @@ static char roa_object_verify__doc__[] =
 static PyObject *
 roa_object_verify(roa_object *self, PyObject *args, PyObject *kwds)
 {
+  PyObject *status = Py_None;
   BIO *bio = NULL;
   int ok = 0;
 
   ENTERING(roa_object_verify);
 
-  if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
+  if ((bio = cms_object_verify_helper(&self->cms, args, kwds, &status)) == NULL)
     goto error;
   
-  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa))
-    lose_openssl_error("Couldn't decode ROA");
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa)) {
+    if (status == Py_None)
+      lose_openssl_error("Couldn't decode ROA");
+    else
+      lose_validation_error_from_code(status, CMS_ECONTENT_DECODE_ERROR);
+  }
+
+  if (status != Py_None && !check_roa(self->cms.cms, self->roa, status))
+    goto error;
 
   ok = 1;
 

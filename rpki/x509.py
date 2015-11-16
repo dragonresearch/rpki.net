@@ -1544,6 +1544,8 @@ class CMS_object(DER_object):
         now = rpki.sundial.now()
 
         trusted_ee = None
+        trusted_ca = []
+        untrusted_ee = None
 
         for x in X509.normalize_chain(ta):
             if self.debug_cms_certs:
@@ -1552,13 +1554,15 @@ class CMS_object(DER_object):
             if x.getNotAfter() < now:
                 raise rpki.exceptions.TrustedCMSCertHasExpired("Trusted CMS certificate has expired",
                                                                "%s (%s)" % (x.getSubject(), x.hSKI()))
-            if not x.is_CA():
+            if x.is_CA():
+                trusted_ca.append(x)
+            else:
                 if trusted_ee is None:
                     trusted_ee = x
                 else:
                     raise rpki.exceptions.MultipleCMSEECert("Multiple CMS EE certificates", *("%s (%s)" % (
                         x.getSubject(), x.hSKI()) for x in ta if not x.is_CA()))
-            store.addTrust(x.get_POW())
+            #store.addTrust(x.get_POW())
 
         if trusted_ee:
             if self.debug_cms_certs:
@@ -1580,6 +1584,7 @@ class CMS_object(DER_object):
             if len(untrusted_ee) > 1 or (not self.allow_extra_certs and len(certs) > len(untrusted_ee)):
                 raise rpki.exceptions.UnexpectedCMSCerts("Unexpected CMS certificates", *("%s (%s)" % (
                     x.getSubject(), x.hSKI()) for x in certs))
+            untrusted_ee = untrusted_ee[0]
             if len(crls) < 1:
                 if self.require_crls:
                     raise rpki.exceptions.MissingCMSCRL
@@ -1598,8 +1603,26 @@ class CMS_object(DER_object):
             if c.getNextUpdate() < now:
                 logger.warning("Stale BPKI CMS CRL (%s %s %s)", c.getNextUpdate(), c.getIssuer(), c.hAKI())
 
+        # XXX Verify certificate chain via X.509 machinery, not CMS
+        # machinery.  Awful mess due to history, needs cleanup, but
+        # get it working again first.
+
+        store.verify(cert    = (trusted_ee or untrusted_ee).get_POW(),
+                     trusted = (x.get_POW() for x in trusted_ca),
+                     crl     = crls[0].get_POW() if untrusted_ee and crls else None)
+
         try:
-            content = cms.verify(store)
+            # XXX This isn't right yet, but let's test before gettting more complicated
+            #
+            # Aside from all the type and exception abominations, the
+            # main problem here is that we're no longer verifying the
+            # certificate chain, just the CMS signature.  Certificate
+            # verificaiton is a separate step under the new scheme,
+            # and probably comes before this, but let's write down
+            # what the problem is before it gets lost...
+
+            content = cms.verify(certs = (x.get_POW() for x in X509.normalize_chain(ta)),
+                                 flags = rpki.POW.CMS_NO_SIGNER_CERT_VERIFY)
         except:
             if self.dump_on_verify_failure:
                 if self.dump_using_dumpasn1:
@@ -1609,7 +1632,13 @@ class CMS_object(DER_object):
                 logger.warning("CMS verification failed, dumping ASN.1 (%d octets):", len(self.get_DER()))
                 for line in dbg.splitlines():
                     logger.warning(line)
-            raise rpki.exceptions.CMSVerificationFailed("CMS verification failed")
+
+            # XXX Old code replaced rpki.POW exception with this.  For
+            # debugging I'd rather see what POW has to say; decide
+            # later whether to keep this change.
+            #
+            #raise rpki.exceptions.CMSVerificationFailed("CMS verification failed")
+            raise
 
         return content
 
@@ -1635,9 +1664,8 @@ class CMS_object(DER_object):
             raise rpki.exceptions.WrongEContentType("Got CMS eContentType %s, expected %s" % (
                 cms.eContentType(), self.econtent_oid))
 
-        return cms.verify(rpki.POW.X509Store(), None,
-                          (rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY |
-                           rpki.POW.CMS_NO_ATTR_VERIFY | rpki.POW.CMS_NO_CONTENT_VERIFY))
+        return cms.verify(flags = (rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY |
+                                   rpki.POW.CMS_NO_ATTR_VERIFY | rpki.POW.CMS_NO_CONTENT_VERIFY))
 
 
     def sign(self, keypair, certs, crls = None, no_certs = False):

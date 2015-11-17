@@ -336,7 +336,8 @@ static const int
   allow_nonconformant_name = 1,
   allow_ee_without_signedObject = 1,
   allow_1024_bit_ee_key = 1,
-  allow_wrong_cms_si_attributes = 1;
+  allow_wrong_cms_si_attributes = 1,
+  allow_non_self_signed_trust_anchor = 0;
 
 /*
  * Declarations of type objects (definitions come later).
@@ -1649,7 +1650,7 @@ validation_status_x509_verify_cert_cb(int ok, X509_STORE_CTX *ctx, PyObject *sta
      * new CRL".  Whether we treat this as an error or not is
      * configurable, see the allow_stale_crl parameter.
      *
-     * Deciding whether to allow stale CRLs is check_crl_1()'s job,
+     * Deciding whether to allow stale CRLs is check_crl()'s job,
      * not ours.  By the time this callback occurs, we've already
      * accepted the CRL; this callback is just notifying us that the
      * object being checked is tainted by a stale CRL.  So we mark the
@@ -1672,12 +1673,8 @@ validation_status_x509_verify_cert_cb(int ok, X509_STORE_CTX *ctx, PyObject *sta
      * warned that enabling this feature may cause this program's
      * output not to work with other OpenSSL-based applications.
      */
-#if 0
     if (allow_non_self_signed_trust_anchor)
       ok = 1;
-#else
-#warning Need some kind of global function to control configurable validation stuff like this.
-#endif
     record_validation_status(status, TRUST_ANCHOR_NOT_SELF_SIGNED);
     return ok;
 
@@ -6159,30 +6156,27 @@ crl_object_sign(crl_object *self, PyObject *args)
 }
 
 static char crl_object_verify__doc__[] =
-  "Verify this CRL's signature.\n"
-  "\n"
-  "The check is performed using OpenSSL's X509_CRL_verify() function.\n"
-  "\n"
-  "The \"key\" parameter should be an instance of the Asymmetric class\n"
-  "containing the public key of the purported signer.\n"
+  "Verify this CRL's signature against its issuer.\n"
   ;
 
 static PyObject *
 crl_object_verify(crl_object *self, PyObject *args)
 {
-  asymmetric_object *asym = NULL;
+  x509_object *issuer = NULL;
   PyObject *status = Py_None;
 
   ENTERING(crl_object_verify);
 
-  if (!PyArg_ParseTuple(args, "O!|O!", &POW_Asymmetric_Type, &asym, &PySet_Type, &status))
+  if (!PyArg_ParseTuple(args, "O!|O!", &POW_X509_Type, &issuer, &PySet_Type, &status))
     goto error;
 
-  /*
-   * Probably should throw an exception rather than returning boolean.
-   */
+  if (status != Py_None && !check_crl(self->crl, issuer->x509, status))
+    goto error;
 
-  return PyBool_FromLong(X509_CRL_verify(self->crl, asym->pkey));
+  if (!X509_CRL_verify(self->crl, X509_get_pubkey(issuer->x509)))
+    lose_validation_error("X509_CRL_verify() raised an exception");
+
+  Py_RETURN_NONE;
 
  error:
   return NULL;

@@ -3923,8 +3923,6 @@ static char x509_object_verify__doc__[] =
 
 #warning Write real x509_object_verify__doc__[] once API is stable.
 
-/* Let's try signalling that it's a TA by having (len(trusted) == 1 and trusted[0] is self) */
-
 static PyObject *
 x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
 {
@@ -3938,6 +3936,7 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
   PyObject *untrusted = Py_None;
   PyObject *crl       = Py_None;
   PyObject *status    = Py_None;
+  X509 *issuer = NULL;
   int ok = 0, is_ta;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOO!O", kwlist,
@@ -3972,16 +3971,51 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
   if (crl != Py_None)
     X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_CRL_CHECK);
 
+  /*
+   * Tedious search for issuer.  Should we even be doing this?  rcynic
+   * knows which cert it thinks is the issuer, so it's a waste of time
+   * there, and we don't need to do this when we're not doing detailed
+   * RPKI checking, so the answer is probably no, we don't need this.
+   *
+   * Except that it seems to work better.  Which may just mean that I
+   * hnorked the ordering of the trusted chain when passing it in
+   * during testing.
+   *
+   * For the moment, keep options open, clean up later.
+   */
+
+#if 1
+
+  {
+    int i;
+    for (i = 0; issuer == NULL && i < sk_X509_num(trusted_stack); i++)
+      if (X509_check_issued((issuer = sk_X509_value(trusted_stack, i)), self->x509) != 0)
+        issuer = NULL;
+    for (i = 0; issuer == NULL && i < sk_X509_num(untrusted_stack); i++)
+      if (X509_check_issued((issuer = sk_X509_value(untrusted_stack, i)), self->x509) != 0)
+        issuer = NULL;
+  }
+
+  is_ta = (sk_X509_num(trusted_stack) == 1 && 
+           sk_X509_num(untrusted_stack) == 0 &&
+           X509_cmp(issuer, self->x509) == 0);
+
+#else
+#warning Do we need to do something about picking issuer out of trusted_stack?
+
   is_ta = (sk_X509_num(trusted_stack) == 1 &&
            sk_X509_num(untrusted_stack) == 0 &&
            X509_cmp(sk_X509_value(trusted_stack, 0), self->x509) == 0 &&
-           X509_check_issued(self->x509, self->x509));
+           X509_check_issued(self->x509, self->x509) == 0);
 
-#warning Need to do something about picking issuer out of trusted_stack
-#warning Need to do something about check_object_type_*
+#endif
 
-  if (status != Py_None && !check_x509(self->x509, sk_X509_value(trusted_stack, 0), status,
-                                       is_ta, check_object_type_cer, ctx->ctx))
+  if (issuer == NULL)
+    issuer = sk_X509_value(trusted_stack, 0);
+
+#warning Need to do something about check_object_type_* mess
+
+  if (status != Py_None && !check_x509(self->x509, issuer, status, is_ta, check_object_type_cer, ctx->ctx))
     goto error;
 
 #warning Not sure about reference counts in this version.  Might be safest to stuff PyObject* for all inputs into ctx so that everything mentioned here is protected until user releases ctx.
@@ -7901,6 +7935,8 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds, PyObj
 
   if ((flags & ~flag_mask) != 0)
     lose_value_error("Bad CMS_verify() flags");
+
+  flags |= CMS_NO_SIGNER_CERT_VERIFY;
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL)
     lose_no_memory();

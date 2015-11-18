@@ -1210,6 +1210,17 @@ whack_ec_key_to_namedCurve(EVP_PKEY *pkey)
  */
 
 /*
+ * Arguably most of this awful code could be replaced by a tiny
+ * separate module written in Python and imported here using
+ * PyImport_ImportModule(), after which we could grab objects from
+ * that module using PyObject_GetAttrString().  If necessary, that
+ * module could also contain code which, when invoked as a script
+ * rather than imported, dumped out a .h file we could import here,
+ * but it's probably not necessary, plain C strings here as names for
+ * objects in that module would probably be fine for our purposes.
+ */
+
+/*
  * There's some ugly C preprocessor junk here.  Sorry, but it's the
  * simplest way to keep all the definitions in a single place and
  * expand them into all the forms we need in both C and Python.  We
@@ -3937,7 +3948,7 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
   PyObject *crl       = Py_None;
   PyObject *status    = Py_None;
   X509 *issuer = NULL;
-  int ok = 0, is_ta;
+  int ok = 0, is_ta = 0;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOO!O", kwlist,
                                    &trusted, &untrusted, &crl, &PySet_Type, &status, &ctxclass))
@@ -3971,49 +3982,60 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
   if (crl != Py_None)
     X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_CRL_CHECK);
 
-  /*
-   * Tedious search for issuer.  Should we even be doing this?  rcynic
-   * knows which cert it thinks is the issuer, so it's a waste of time
-   * there, and we don't need to do this when we're not doing detailed
-   * RPKI checking, so the answer is probably no, we don't need this.
-   *
-   * Except that it seems to work better.  Which may just mean that I
-   * hnorked the ordering of the trusted chain when passing it in
-   * during testing.
-   *
-   * For the moment, keep options open, clean up later.
-   */
+  if (status != Py_None) {
+
+    /*
+     * Tedious search for issuer.  Should we even be doing this?  rcynic
+     * knows which cert it thinks is the issuer, so it's a waste of time
+     * there, and we don't need to do this when we're not doing detailed
+     * RPKI checking, so the answer is probably no, we don't need this.
+     *
+     * Except that it seems to work better when we do this.  Which may
+     * just mean that I hnorked the ordering of the trusted chain when
+     * passing it in during testing.
+     *
+     * For the moment, keep options open, clean up later.
+     */
 
 #if 1
 
-  {
-    int i;
-    for (i = 0; issuer == NULL && i < sk_X509_num(trusted_stack); i++)
-      if (X509_check_issued((issuer = sk_X509_value(trusted_stack, i)), self->x509) != 0)
-        issuer = NULL;
-    for (i = 0; issuer == NULL && i < sk_X509_num(untrusted_stack); i++)
-      if (X509_check_issued((issuer = sk_X509_value(untrusted_stack, i)), self->x509) != 0)
-        issuer = NULL;
-  }
+      int i;
+      for (i = 0; issuer == NULL && i < sk_X509_num(trusted_stack); i++)
+        if (X509_check_issued((issuer = sk_X509_value(trusted_stack, i)), self->x509) != 0)
+          issuer = NULL;
+      for (i = 0; issuer == NULL && i < sk_X509_num(untrusted_stack); i++)
+        if (X509_check_issued((issuer = sk_X509_value(untrusted_stack, i)), self->x509) != 0)
+          issuer = NULL;
 
-  is_ta = (sk_X509_num(trusted_stack) == 1 && 
-           sk_X509_num(untrusted_stack) == 0 &&
-           X509_cmp(issuer, self->x509) == 0);
+    is_ta = (sk_X509_num(trusted_stack) == 1 && 
+             sk_X509_num(untrusted_stack) == 0 &&
+             X509_cmp(issuer, self->x509) == 0);
 
 #else
 #warning Do we need to do something about picking issuer out of trusted_stack?
 
-  is_ta = (sk_X509_num(trusted_stack) == 1 &&
-           sk_X509_num(untrusted_stack) == 0 &&
-           X509_cmp(sk_X509_value(trusted_stack, 0), self->x509) == 0 &&
-           X509_check_issued(self->x509, self->x509) == 0);
+    is_ta = (sk_X509_num(trusted_stack) == 1 &&
+             sk_X509_num(untrusted_stack) == 0 &&
+             X509_cmp(sk_X509_value(trusted_stack, 0), self->x509) == 0 &&
+             X509_check_issued(self->x509, self->x509) == 0);
 
 #endif
 
-  if (issuer == NULL)
-    issuer = sk_X509_value(trusted_stack, 0);
+    if (issuer == NULL)
+      issuer = sk_X509_value(trusted_stack, 0);
+  }
 
 #warning Need to do something about check_object_type_* mess
+  /*
+   * Original concept was reasonable, but now that we're making the
+   * Python caller responsible for validation of embedded
+   * certificates, we don't have a handle on the CMS object for the
+   * encapsulated cases.  So either we need to do the
+   * signed-object-type-specific checks at the Python level, or we
+   * need the caller to tell us what kind of certificate this is
+   * supposed to be, whether by passing us a filename extension or
+   * some other means.
+   */
 
   if (status != Py_None && !check_x509(self->x509, issuer, status, is_ta, check_object_type_cer, ctx->ctx))
     goto error;

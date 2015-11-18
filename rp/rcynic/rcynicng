@@ -21,39 +21,78 @@ import rpki.POW
 
 from lxml.etree import ElementTree, Element, SubElement, Comment
 
-args = None
+class Status(object):
+    """
+    Validation status database, like validation_status_t in rcynic:tos.
+    """
 
-def check_dir(s):
-    if not os.path.isdir(s):
-        raise argparse.ArgumentTypeError("%r is not a directory" % s)
-    return s
+    db = dict()
 
-def parse_options():
-    global args                         # pylint: disable=W0603
+    def __init__(self, uri, generation = None):
+        assert generation in ("current", "backup", None)
+        self.uri = uri
+        self.generation = generation
+        self.timestamp = None
+        self.status = set()
+
+    def __str__(self):
+        return "{time} {self.uri} {status} {self.generation}".format(
+            self   = self,
+            time   = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.timestamp)),
+            status = ",".join(s.name for s in sorted(self.status)))
+
+    @classmethod
+    def update(cls, uri, generation = None):
+        try:
+            key  = (uri, generation)
+            self = cls.db[key]
+        except KeyError:
+            self = cls.db[key] = cls(uri, generation)
+        self.timestamp = time.time()
+        return self.status
+
+
+def parse_arguments():
+
+    def check_dir(s):
+        if not os.path.isdir(s):
+            raise argparse.ArgumentTypeError("%r is not a directory" % s)
+        return s
+
     parser = argparse.ArgumentParser(description = __doc__)
     parser.add_argument("--unauthenticated",   type = check_dir, default = "rcynic-data/unauthenticated")
     parser.add_argument("--old-authenticated", type = check_dir, default = "rcynic-data/authenticated.old")
     parser.add_argument("--tals",              type = check_dir, default = "sample-trust-anchors")
     parser.add_argument("--output",                              default = "rcynic-data/rcynicng-output")
-    args = parser.parse_args()
+    return parser.parse_args()
 
 
 def read_tals():
     for root, dirs, files in os.walk(args.tals):
         for fn in files:
             if fn.endswith(".tal"):
-                with open(os.path.join(root, fn), "r") as f:
-                    lines = f.readlines()
-                uri = lines.pop(0).strip()
-                b64 = "".join(lines[lines.index("\n"):])
-                key = rpki.POW.Asymmetric.derReadPublic(b64.decode("base64"))
-                yield uri, key
+                furi = "file://" + os.path.abspath(os.path.join(root, fn))
+                try:
+                    with open(os.path.join(root, fn), "r") as f:
+                        lines = f.readlines()
+                    uri = lines.pop(0).strip()
+                    b64 = "".join(lines[lines.index("\n"):])
+                    key = rpki.POW.Asymmetric.derReadPublic(b64.decode("base64"))
+                    if not uri.endswith(".cer"):
+                        Status.update(furi).add(rpki.POW.validation_status.MALFORMED_TAL_URI)
+                    yield uri, key
+                except:
+                    Status.update(furi).add(rpki.POW.validation_status.UNREADABLE_TRUST_ANCHOR_LOCATOR)
 
-def uri_to_fn(uri, base = None):
+
+def uri_to_filename(uri, base = None):
     fn = uri[uri.index("://")+3:]
     if base is not None:
         fn = os.path.join(base, fn)
     return fn
+
+def uri_to_basename(uri):
+    return uri.rpartition("/")[2]
 
 def first_uri(uris, scheme):
     for uri in uris:
@@ -64,89 +103,107 @@ def first_uri(uris, scheme):
 def first_rsync_uri(uris):
     return first_uri(uris, "rsync://")
 
+def sha256(bytes):
+    d = rpki.POW.Digest(rpki.POW.SHA256_DIGEST)
+    d.update(bytes)
+    return d.digest()
 
-def walk_tree(ca, trusted, crl, basedir):
-    ca_status = set()
-    ca.verify(trusted = trusted, crl = crl, status = ca_status)
+
+def walk_tree(cauri, ca, trusted, crl, basedir):
     trusted.insert(0, ca)
-    diruri, mfturi = [first_rsync_uri(uri) for uri in  ca.getSIA()[:2]]
-    mft = rpki.POW.Manifest.derReadFile(uri_to_fn(mfturi, basedir))
-    ee = mft.certs()[0]
-    crldp = first_rsync_uri(ee.getCRLDP())
-    crl = rpki.POW.CRL.derReadFile(uri_to_fn(crldp, basedir))
-    crl_status = set()
-    mft_status = set()
+
+    sia    = ca.getSIA()
+    diruri = first_rsync_uri(sia[0])
+    mfturi = first_rsync_uri(sia[1])
+    try:
+        mft = rpki.POW.Manifest.derReadFile(uri_to_filename(mfturi, basedir))
+    except rpki.POW.Error as e:
+        print mfturi, e
+        return
+    ee     = mft.certs()[0]
+    crldp  = ee.getCRLDP()
+    crluri = first_rsync_uri(crldp)
+    try:
+        crl = rpki.POW.CRL.derReadFile(uri_to_filename(crluri, basedir))
+    except rpki.POW.Error as e:
+        print crluri, e
+        return
+
+    crl_status = Status.update(crluri)
     crl.verify(ca, crl_status)
+
+    mft_status = Status.update(mfturi)
     ee.verify(trusted = trusted, crl = crl, status = mft_status)
     mft.verify(status = mft_status)
 
-    print "CA status: ", ", ".join(str(s) for s in ca_status)
-    print "CRL status:", ", ".join(str(s) for s in crl_status)
-    print "MFT status:", ", ".join(str(s) for s in mft_status)
+    crl_status.add(rpki.POW.validation_status.CRL_NOT_IN_MANIFEST)
 
     for fn, digest in mft.getFiles():
+        uri = diruri + fn
+        status = Status.update(uri)
 
-        with open(os.path.join(uri_to_fn(diruri, basedir), fn), "rb") as f:
-            obj = f.read()
-        dgst = rpki.POW.Digest(rpki.POW.SHA256_DIGEST)
-        dgst.update(obj)
-        print fn, digest.encode("hex"), "OK hash" if dgst.digest() == digest else "Bad hash"
-
-        if fn.endswith(".crl") and obj != crl.derWrite():
-            print "CRL mismatch"
-        if fn.endswith(".crl"):
+        if uri == crluri:
+            if digest != sha256(crl.derWrite()):
+                status.add(rpki.POW.validation_status.DIGEST_MISMATCH)
+            status.remove(rpki.POW.validation_status.CRL_NOT_IN_MANIFEST)
             continue
 
+        with open(os.path.join(uri_to_filename(diruri, basedir), fn), "rb") as f:
+            der = f.read()
+        if sha256(der) != digest:
+            status.add(rpki.POW.validation_status.DIGEST_MISMATCH)
+
         if fn.endswith(".roa"):
-            roa = rpki.POW.ROA.derRead(obj)
-            roa_status = set()
+            roa = rpki.POW.ROA.derRead(der)
             ee = roa.certs()[0]
-            ee.verify(trusted = trusted, crl = crl, status = roa_status)
-            roa.verify(status = roa_status)
+            ee.verify(trusted = trusted, crl = crl, status = status)
+            roa.verify(status = status)
             continue
 
         if fn.endswith(".gbr"):
-            gbr = rpki.POW.CMS.derRead(obj)
-            gbr_status = set()
+            gbr = rpki.POW.CMS.derRead(der)
             ee = gbr.certs()[0]
-            ee.verify(trusted = trusted, crl = crl, status = gbr_status)
-            vcard = gbr.verify(status = gbr_status)
-            print vcard
+            ee.verify(trusted = trusted, crl = crl, status = status)
+            vcard = gbr.verify(status = status)
             continue
 
-        cer = rpki.POW.X509.derRead(obj)
-        bc = cer.getBasicConstraints()
-        if bc and bc[0]:
-            try:
-                walk_tree(cer, trusted, crl, basedir)
-            except rpki.POW.Error as e:
-                print "CA", diruri + fn, "failed:", e
-        else:
-            cer_status = set()
-            cer.verify(trusted = trusted, crl = crl, status = cer_status)
+        if fn.endswith(".cer"):
+            cer = rpki.POW.X509.derRead(der)
+            cer.verify(trusted = trusted, crl = crl, status = status)
+            is_ca = (cer.getBasicConstraints() or (False, None))[0]
+            if is_ca:
+                walk_tree(diruri + fn, cer, trusted, crl, basedir)
+            continue
+
+        status.add(rpki.POW.validation_status.UNKNOWN_OBJECT_TYPE_SKIPPED)
 
 
-def main():
+os.putenv("TZ", "UTC")
+time.tzset()
 
-    os.putenv("TZ", "UTC")
-    time.tzset()
+args = parse_arguments()
 
-    parse_options()
+basedir = args.unauthenticated
 
-    basedir = args.unauthenticated
+for uri, key in read_tals():
+    status = Status.update(uri)
+    status.add(rpki.POW.validation_status.OBJECT_REJECTED)
+    try:
+        cer = rpki.POW.X509.derReadFile(uri_to_filename(uri, basedir))
+    except rpki.POW.OpenSSLError:
+        status.add(rpki.POW.validation_status.UNREADABLE_TRUST_ANCHOR)
+        continue
+    if key.derWritePublic() != cer.getPublicKey().derWritePublic():
+        status.add(rpki.POW.validation_status.TRUST_ANCHOR_KEY_MISMATCH)
+        continue
+    trusted = [cer]
+    try:
+        cer.verify(trusted = trusted, status = status)
+    except:
+        continue
+    else:
+        status.remove(rpki.POW.validation_status.OBJECT_REJECTED)
+    walk_tree(uri, cer, trusted, None, basedir)
 
-    for uri, pk in read_tals():
-        print
-        try:
-            x = rpki.POW.X509.derReadFile(uri_to_fn(uri, basedir))
-        except rpki.POW.OpenSSLError:
-            print "Couldn't open TA {}".format(uri)
-        else:
-            ok = pk.derWritePublic() == x.getPublicKey().derWritePublic()
-            print "OK " if ok else "Bad", uri
-            if ok:
-                walk_tree(x, [x], None, basedir)
-
-
-if __name__ == "__main__":
-    main()
+for uri in sorted(Status.db):
+    print Status.db[uri]

@@ -355,8 +355,7 @@ static PyTypeObject
   POW_ROA_Type,
   POW_Manifest_Type,
   POW_ROA_Type,
-  POW_PKCS10_Type,
-  POW_StatusCode_Type;
+  POW_PKCS10_Type;
 
 /*
  * Object internals.
@@ -421,14 +420,6 @@ typedef struct {
   X509_REQ *pkcs10;
   X509_EXTENSIONS *exts;
 } pkcs10_object;
-
-typedef struct {
-  PyObject_HEAD
-  long code;                    /* Really validation_status_t */
-  PyObject *name;               /* Name of symbol */
-  PyObject *text;               /* Human-readable explanation */
-  PyObject *kind;               /* good/bad/warn */
-} status_code_object;
 
 
 
@@ -501,19 +492,20 @@ typedef struct {
 
 #define lose_validation_error_from_code(_status_, _code_)               \
   do {                                                                  \
-    if (record_validation_status(_status_, _code_))                     \
-      PyErr_SetObject(ValidationErrorObject,                            \
-                      PyTuple_GetItem(status_codes, _code_));           \
+    if (_record_validation_status(_status_, #_code_))                   \
+      PyErr_SetString(ValidationErrorObject, #_code_);                  \
     goto error;                                                         \
   } while (0)
 
 #define lose_validation_error_from_code_maybe(_test_, _status_, _code_) \
   do {                                                                  \
-    if (!(_test_))                                                      \
-      lose_validation_error_from_code(_status_, _code_);                \
-    else if (!record_validation_status(_status_, _code_))               \
+    if (!_record_validation_status(_status_, #_code_))                  \
       goto error;                                                       \
-    } while (0)
+    if (_test_)                                                      	\
+      break;                                                            \
+    PyErr_SetString(ValidationErrorObject, #_code_);                    \
+    goto error;                                                         \
+  } while (0)
 
 #define assert_no_unhandled_openssl_errors()                            \
   do {                                                                  \
@@ -1198,432 +1190,29 @@ whack_ec_key_to_namedCurve(EVP_PKEY *pkey)
 
 
 /*
- * Validation status codes.  Still under construction.  Modeled after
- * rcynic's validation status database, conceptually anyway.
- *
- * Assuming we go this way, should we PySet_Clear() the status set
- * upon entering the _verify function?  Probably.
- *
- * How to handle CMS cases: keep common command parser etc, but add an argument
- * to that helper function which takes a function pointer to do the extended
- * checking for this particular flavor of CMS object.
+ * Validation status codes.  Still under construction.  Conceptually
+ * modeled after rcynic's validation status database, implementation
+ * somewhat different due to language issues and desire to keep the C
+ * side of this as simple as possible.  Depends on suppot from the
+ * Python side (see rpki/POW/__init__.py).
  */
-
-/*
- * Arguably most of this awful code could be replaced by a tiny
- * separate module written in Python and imported here using
- * PyImport_ImportModule(), after which we could grab objects from
- * that module using PyObject_GetAttrString().  If necessary, that
- * module could also contain code which, when invoked as a script
- * rather than imported, dumped out a .h file we could import here,
- * but it's probably not necessary, plain C strings here as names for
- * objects in that module would probably be fine for our purposes.
- */
-
-/*
- * There's some ugly C preprocessor junk here.  Sorry, but it's the
- * simplest way to keep all the definitions in a single place and
- * expand them into all the forms we need in both C and Python.  We
- * undef the macros once we're done with them to localize the mess.
- */
-
-/*
- * Status codes derived from OpenSSL.  Long list of validation failure
- * codes from OpenSSL (crypto/x509/x509_vfy.h).
- */
-
-#define	VALIDATION_STATUS_CODES_FROM_OPENSSL		\
-  QV( X509_V_ERR_UNABLE_TO_GET_CRL)			\
-  QV( X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE)	\
-  QV( X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE)	\
-  QV( X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY)	\
-  QV( X509_V_ERR_CERT_SIGNATURE_FAILURE)		\
-  QV( X509_V_ERR_CRL_SIGNATURE_FAILURE)			\
-  QV( X509_V_ERR_CERT_NOT_YET_VALID)			\
-  QV( X509_V_ERR_CERT_HAS_EXPIRED)			\
-  QV( X509_V_ERR_CRL_NOT_YET_VALID)			\
-  QV( X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD)	\
-  QV( X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD)		\
-  QV( X509_V_ERR_ERROR_IN_CRL_LAST_UPDATE_FIELD)	\
-  QV( X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD)	\
-  QV( X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)		\
-  QV( X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN)		\
-  QV( X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY)	\
-  QV( X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE)	\
-  QV( X509_V_ERR_CERT_CHAIN_TOO_LONG)			\
-  QV( X509_V_ERR_CERT_REVOKED)				\
-  QV( X509_V_ERR_INVALID_CA)				\
-  QV( X509_V_ERR_PATH_LENGTH_EXCEEDED)			\
-  QV( X509_V_ERR_INVALID_PURPOSE)			\
-  QV( X509_V_ERR_CERT_UNTRUSTED)			\
-  QV( X509_V_ERR_CERT_REJECTED)				\
-  QV( X509_V_ERR_AKID_SKID_MISMATCH)			\
-  QV( X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH)		\
-  QV( X509_V_ERR_KEYUSAGE_NO_CERTSIGN)			\
-  QV( X509_V_ERR_UNABLE_TO_GET_CRL_ISSUER)		\
-  QV( X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION)		\
-  QV( X509_V_ERR_KEYUSAGE_NO_CRL_SIGN)			\
-  QV( X509_V_ERR_UNHANDLED_CRITICAL_CRL_EXTENSION)	\
-  QV( X509_V_ERR_INVALID_NON_CA)			\
-  QV( X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED)		\
-  QV( X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE)		\
-  QV( X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED)	\
-  QV( X509_V_ERR_INVALID_EXTENSION)			\
-  QV( X509_V_ERR_INVALID_POLICY_EXTENSION)		\
-  QV( X509_V_ERR_NO_EXPLICIT_POLICY)			\
-  QV( X509_V_ERR_UNNESTED_RESOURCE)
-
-/*
- * Status codes specific to our validation code.
- *
- * XXX Need to check this later, this is the full list of codes from rcynic.c,
- *     some of which will almost certainly be handled in Python rather than here.
- */
-
-#define VALIDATION_STATUS_CODES         				    \
-  VALIDATION_STATUS_CODES_FROM_OPENSSL					    \
-  QB( AIA_EXTENSION_MISSING,		"AIA extension missing")	    \
-  QB( AIA_EXTENSION_FORBIDDEN,		"AIA extension forbidden")	    \
-  QB( AIA_URI_MISSING,			"AIA URI missing")		    \
-  QB( AKI_EXTENSION_ISSUER_MISMATCH,	"AKI extension issuer mismatch")    \
-  QB( AKI_EXTENSION_MISSING,		"AKI extension missing")	    \
-  QB( AKI_EXTENSION_WRONG_FORMAT,	"AKI extension is wrong format")    \
-  QB( BAD_ASIDENTIFIERS,		"Bad ASIdentifiers extension")	    \
-  QB( BAD_CERTIFICATE_POLICY,		"Bad certificate policy")	    \
-  QB( BAD_CMS_ECONTENTTYPE,		"Bad CMS eContentType")		    \
-  QB( BAD_CMS_SI_CONTENTTYPE,		"Bad CMS SI ContentType")	    \
-  QB( BAD_CMS_SIGNER,			"Bad CMS signer")		    \
-  QB( BAD_CMS_SIGNER_INFOS,		"Bad CMS signerInfos")		    \
-  QB( BAD_CRL,				"Bad CRL")			    \
-  QB( BAD_IPADDRBLOCKS,			"Bad IPAddrBlocks extension")	    \
-  QB( BAD_KEY_USAGE,			"Bad keyUsage")			    \
-  QB( BAD_MANIFEST_DIGEST_LENGTH,	"Bad manifest digest length")	    \
-  QB( BAD_PUBLIC_KEY,			"Bad public key")		    \
-  QB( BAD_ROA_ASID,			"Bad ROA asID")			    \
-  QB( BAD_CERTIFICATE_SERIAL_NUMBER,	"Bad certificate serialNumber")	    \
-  QB( BAD_MANIFEST_NUMBER,		"Bad manifestNumber")		    \
-  QB( CERTIFICATE_BAD_SIGNATURE,	"Bad certificate signature")	    \
-  QB( CERTIFICATE_FAILED_VALIDATION,	"Certificate failed validation")    \
-  QB( CMS_ECONTENT_DECODE_ERROR,	"CMS eContent decode error")	    \
-  QB( CMS_INCLUDES_CRLS, 		"CMS includes CRLs")		    \
-  QB( CMS_SIGNER_MISSING,		"CMS signer missing")		    \
-  QB( CMS_SKI_MISMATCH,			"CMS SKI mismatch")		    \
-  QB( CMS_VALIDATION_FAILURE,		"CMS validation failure")	    \
-  QB( CRL_ISSUER_NAME_MISMATCH,		"CRL issuer name mismatch")	    \
-  QB( CRL_NOT_IN_MANIFEST,              "CRL not listed in manifest")	    \
-  QB( CRL_NOT_YET_VALID,		"CRL not yet valid")		    \
-  QB( CRL_NUMBER_EXTENSION_MISSING,	"CRL number extension missing")	    \
-  QB( CRL_NUMBER_IS_NEGATIVE,		"CRL number is negative")	    \
-  QB( CRL_NUMBER_OUT_OF_RANGE,		"CRL number out of range")	    \
-  QB( CRLDP_DOESNT_MATCH_ISSUER_SIA,	"CRLDP doesn't match issuer's SIA") \
-  QB( CRLDP_URI_MISSING,		"CRLDP URI missing")		    \
-  QB( DISALLOWED_X509V3_EXTENSION,	"Disallowed X.509v3 extension")     \
-  QB( DUPLICATE_NAME_IN_MANIFEST,	"Duplicate name in manifest")	    \
-  QB( INAPPROPRIATE_EKU_EXTENSION,	"Inappropriate EKU extension")	    \
-  QB( MALFORMED_AIA_EXTENSION,		"Malformed AIA extension")	    \
-  QB( MALFORMED_SIA_EXTENSION,		"Malformed SIA extension")	    \
-  QB( MALFORMED_BASIC_CONSTRAINTS,	"Malformed basicConstraints")	    \
-  QB( MALFORMED_TRUST_ANCHOR,		"Malformed trust anchor")	    \
-  QB( MALFORMED_CADIRECTORY_URI,	"Malformed caDirectory URI")	    \
-  QB( MALFORMED_CRLDP_EXTENSION,	"Malformed CRDLP extension")	    \
-  QB( MALFORMED_CRLDP_URI,		"Malformed CRDLP URI")		    \
-  QB( MALFORMED_ROA_ADDRESSFAMILY,      "Malformed ROA addressFamily")	    \
-  QB( MALFORMED_TAL_URI,		"Malformed TAL URI")		    \
-  QB( MANIFEST_CAREPOSITORY_MISMATCH,	"Manifest caRepository mismatch")   \
-  QB( MANIFEST_INTERVAL_OVERRUNS_CERT,  "Manifest interval overruns certificate") \
-  QB( MANIFEST_LISTS_MISSING_OBJECT,	"Manifest lists missing object")    \
-  QB( MANIFEST_NOT_YET_VALID,		"Manifest not yet valid")	    \
-  QB( MISSING_RESOURCES,		"Missing resources")		    \
-  QB( NONCONFORMANT_ASN1_TIME_VALUE,	"Nonconformant ASN.1 time value")   \
-  QB( NONCONFORMANT_PUBLIC_KEY_ALGORITHM, "Nonconformant public key algorithm") \
-  QB( NONCONFORMANT_SIGNATURE_ALGORITHM,  "Nonconformant signature algorithm") \
-  QB( NONCONFORMANT_DIGEST_ALGORITHM,	"Nonconformant digest algorithm")   \
-  QB( NONCONFORMANT_CERTIFICATE_UID,	"Nonconformant certificate UID")    \
-  QB( OBJECT_REJECTED,			"Object rejected")		    \
-  QB( RFC3779_INHERITANCE_REQUIRED,	"RFC 3779 inheritance required")    \
-  QB( ROA_CONTAINS_BAD_AFI_VALUE,	"ROA contains bad AFI value")	    \
-  QB( ROA_MAX_PREFIXLEN_TOO_SHORT,	"ROA maxPrefixlen too short")	    \
-  QB( ROA_RESOURCE_NOT_IN_EE,		"ROA resource not in EE")	    \
-  QB( ROA_RESOURCES_MALFORMED,		"ROA resources malformed")	    \
-  QB( RSYNC_TRANSFER_FAILED,		"rsync transfer failed")	    \
-  QB( RSYNC_TRANSFER_TIMED_OUT,		"rsync transfer timed out")	    \
-  QB( SAFI_NOT_ALLOWED,			"SAFI not allowed")		    \
-  QB( SIA_CADIRECTORY_URI_MISSING,	"SIA caDirectory URI missing")	    \
-  QB( SIA_EXTENSION_MISSING,		"SIA extension missing")	    \
-  QB( SIA_MANIFEST_URI_MISSING,		"SIA manifest URI missing")	    \
-  QB( SKI_EXTENSION_MISSING,		"SKI extension missing")	    \
-  QB( SKI_PUBLIC_KEY_MISMATCH,		"SKI public key mismatch")	    \
-  QB( TRUST_ANCHOR_KEY_MISMATCH,	"Trust anchor key mismatch")	    \
-  QB( TRUST_ANCHOR_WITH_CRLDP,		"Trust anchor can't have CRLDP")    \
-  QB( UNKNOWN_AFI,			"Unknown AFI")			    \
-  QB( UNKNOWN_OPENSSL_VERIFY_ERROR,	"Unknown OpenSSL verify error")	    \
-  QB( UNREADABLE_TRUST_ANCHOR,		"Unreadable trust anchor")	    \
-  QB( UNREADABLE_TRUST_ANCHOR_LOCATOR,	"Unreadable trust anchor locator")  \
-  QB( WRONG_OBJECT_VERSION,		"Wrong object version")		    \
-  QW( AIA_DOESNT_MATCH_ISSUER,		"AIA doesn't match issuer")	    \
-  QW( BACKUP_THISUPDATE_NEWER_THAN_CURRENT, "Backup thisUpdate newer than current") \
-  QW( BACKUP_NUMBER_HIGHER_THAN_CURRENT, "Backup number higher than current") \
-  QW( BAD_THISUPDATE,			"Bad CRL thisUpdate")		    \
-  QW( BAD_CMS_SI_SIGNED_ATTRIBUTES, 	"Bad CMS SI signed attributes")	    \
-  QW( BAD_SIGNED_OBJECT_URI,		"Bad signedObject URI")		    \
-  QW( CRLDP_NAMES_NEWER_CRL,		"CRLDP names newer CRL")	    \
-  QW( DIGEST_MISMATCH,			"Digest mismatch")		    \
-  QW( EE_CERTIFICATE_WITH_1024_BIT_KEY, "EE certificate with 1024 bit key") \
-  QW( ISSUER_USES_MULTIPLE_CRLDP_VALUES, "Issuer uses multiple CRLDP values")\
-  QW( MULTIPLE_RSYNC_URIS_IN_EXTENSION,  "Multiple rsync URIs in extension") \
-  QW( NONCONFORMANT_ISSUER_NAME,	"Nonconformant X.509 issuer name")  \
-  QW( NONCONFORMANT_SUBJECT_NAME,	"Nonconformant X.509 subject name") \
-  QW( POLICY_QUALIFIER_CPS,		"Policy Qualifier CPS")             \
-  QW( RSYNC_PARTIAL_TRANSFER,		"rsync partial transfer")	    \
-  QW( RSYNC_TRANSFER_SKIPPED,		"rsync transfer skipped")	    \
-  QW( SIA_EXTENSION_MISSING_FROM_EE,	"SIA extension missing from EE")    \
-  QW( SKIPPED_BECAUSE_NOT_IN_MANIFEST,	"Skipped because not in manifest")  \
-  QW( STALE_CRL_OR_MANIFEST,		"Stale CRL or manifest")	    \
-  QW( TAINTED_BY_STALE_CRL,		"Tainted by stale CRL")		    \
-  QW( TAINTED_BY_STALE_MANIFEST,	"Tainted by stale manifest")	    \
-  QW( TAINTED_BY_NOT_BEING_IN_MANIFEST,	"Tainted by not being in manifest") \
-  QW( TRUST_ANCHOR_NOT_SELF_SIGNED,	"Trust anchor not self-signed")	    \
-  QW( TRUST_ANCHOR_SKIPPED,		"Trust anchor skipped")		    \
-  QW( UNKNOWN_OBJECT_TYPE_SKIPPED,	"Unknown object type skipped")	    \
-  QW( URI_TOO_LONG,			"URI too long")			    \
-  QW( WRONG_CMS_SI_SIGNATURE_ALGORITHM,	"Wrong CMS SI signature algorithm") \
-  QW( WRONG_CMS_SI_DIGEST_ALGORITHM,	"Wrong CMS SI digest algorithm")    \
-  QG( NON_RSYNC_URI_IN_EXTENSION,	"Non-rsync URI in extension")	    \
-  QG( OBJECT_ACCEPTED,			"Object accepted")		    \
-  QG( RECHECKING_OBJECT,		"Rechecking object")		    \
-  QG( RSYNC_TRANSFER_SUCCEEDED,		"rsync transfer succeeded")	    \
-  QG( VALIDATION_OK,			"OK")
-
-/*
- * Enumerated type for use in C.
- */
-
-#define QV(x)   QB(STATUS_CODE_##x, 0)
-#define QB(x,y) QQ(x)
-#define QW(x,y) QQ(x)
-#define QG(x,y) QQ(x)
-#define QQ(x)   x,
-
-typedef enum { VALIDATION_STATUS_CODES MAX_VALIDATION_STATUS_CODES } validation_status_t;
-
-/*
- * Add these enum symbols to the module.
- */
-
-#undef QV
-#undef QB
-#undef QW
-#undef QG
-#undef QQ
-
-/*
- * Build Python objects corresponding to these codes.  We define a
- * trivial read-only type for this, and allocate one instance for each
- * status code.
- *
- * We don't provide .__new__() or .__init__() for the StatusCode type,
- * and all access is read-only via getter methods, because these are
- * read-only objects created when this module is initialized and are
- * not (currently?) intended for any other use.
- */
-
-static void
-status_code_object_dealloc(status_code_object *self)
-{
-  Py_XDECREF(self->name);
-  Py_XDECREF(self->text);
-  Py_XDECREF(self->kind);
-  self->ob_type->tp_free((PyObject*) self);
-}
-
-static PyObject *
-status_code_object_str(status_code_object *self)
-{
-  Py_XINCREF(self->name);
-  return self->name;
-}
-
-static PyObject *
-status_code_object_repr(status_code_object *self)
-{
-  const char *text = PyString_AsString(self->text);
-  if (text == NULL)
-    return NULL;
-  return PyString_FromFormat("<%s object \"%s\" at %p>", self->ob_type->tp_name, text, self);
-}
-
-
-static long
-status_code_object_hash(status_code_object *self)
-{
-  return self->code;
-}
-
-static int
-status_code_object_compare(status_code_object *obj1, status_code_object *obj2)
-{
-  if (obj1->code < obj2->code)
-    return -1;
-  if (obj1->code > obj2->code)
-    return 1;
-  return 0;
-}
-
-static PyObject *
-status_code_object_get_code(status_code_object *self, GCC_UNUSED void *closure)
-{
-  return PyInt_FromLong(self->code);
-}
-
-static PyObject *
-status_code_object_get_name(status_code_object *self, GCC_UNUSED void *closure)
-{
-  Py_XINCREF(self->name);
-  return self->name;
-}
-
-static PyObject *
-status_code_object_get_text(status_code_object *self, GCC_UNUSED void *closure)
-{
-  Py_XINCREF(self->text);
-  return self->text;
-}
-
-static PyObject *
-status_code_object_get_kind(status_code_object *self, GCC_UNUSED void *closure)
-{
-  Py_XINCREF(self->text);
-  return self->kind;
-}
-
-static PyGetSetDef status_code_object_getsetters[] = {
-  {"code", 	(getter) status_code_object_get_code},
-  {"name", 	(getter) status_code_object_get_name},
-  {"text", 	(getter) status_code_object_get_text},
-  {"kind", 	(getter) status_code_object_get_kind},
-  {NULL}
-};
-
-static char POW_StatusCode_Type__doc__[] =
-  "This class represents a validation status code.\n"
-  ;
-
-static PyTypeObject POW_StatusCode_Type = {
-  PyObject_HEAD_INIT(NULL)
-  0,                                        /* ob_size */
-  "rpki.POW.StatusCode",                    /* tp_name */
-  sizeof(status_code_object),               /* tp_basicsize */
-  0,                                        /* tp_itemsize */
-  (destructor) status_code_object_dealloc,  /* tp_dealloc */
-  0,                                        /* tp_print */
-  0,                                        /* tp_getattr */
-  0,                                        /* tp_setattr */
-  (cmpfunc) status_code_object_compare,     /* tp_compare */
-  (reprfunc) status_code_object_repr,       /* tp_repr */
-  0,                                        /* tp_as_number */
-  0,                                        /* tp_as_sequence */
-  0,                                        /* tp_as_mapping */
-  (hashfunc) status_code_object_hash,       /* tp_hash */
-  0,                                        /* tp_call */
-  (reprfunc) status_code_object_str,        /* tp_str */
-  0,                                        /* tp_getattro */
-  0,                                        /* tp_setattro */
-  0,                                        /* tp_as_buffer */
-  Py_TPFLAGS_DEFAULT,                       /* tp_flags */
-  POW_StatusCode_Type__doc__,               /* tp_doc */
-  0,                                        /* tp_traverse */
-  0,                                        /* tp_clear */
-  0,                                        /* tp_richcompare */
-  0,                                        /* tp_weaklistoffset */
-  0,                                        /* tp_iter */
-  0,                                        /* tp_iternext */
-  0,                                        /* tp_methods */
-  0,                                        /* tp_members */
-  status_code_object_getsetters             /* tp_getset */
-};
-
-/*
- * Build a tuple containing StatusCode instances, indexed by the
- * numeric codes, so that using the C enum as an index into the
- * sequence yields the corresponding StatusCode object.
- *
- * Return value of this function is the tuple.
- */
-
-static PyObject *
-build_status_codes(void)
-{
-  PyObject *result = NULL;
-  PyObject *object = NULL;
-  PyObject *good = NULL;
-  PyObject *warn = NULL;
-  PyObject *bad  = NULL;
-
-  if ((good = PyString_FromString("good")) == NULL ||
-      (warn = PyString_FromString("warn")) == NULL ||
-      (bad  = PyString_FromString("bad"))  == NULL)
-    goto error;
-
-  if ((result = PyTuple_New(MAX_VALIDATION_STATUS_CODES)) == NULL)
-    goto error;
-
-#define QV(x)   QQ(STATUS_CODE_##x, #x, X509_verify_cert_error_string(x), bad)
-#define QB(x,y) QQ(x, #x, y, bad)
-#define QW(x,y) QQ(x, #x, y, warn)
-#define QG(x,y) QQ(x, #x, y, good)
-
-#define QQ(_code_, _name_, _text_, _kind_)                                              \
-  {                                                                                     \
-    status_code_object *obj;                                                            \
-    if ((object = POW_StatusCode_Type.tp_alloc(&POW_StatusCode_Type, 0)) == NULL)       \
-      goto error;                                                                       \
-    obj = (status_code_object *) object;                                                \
-    Py_INCREF(_kind_);                                                                  \
-    obj->code = _code_;                                                                 \
-    obj->kind = _kind_;                                                                 \
-    if ((obj->name = PyString_FromString(_name_)) == NULL ||                            \
-        (obj->text = Py_BuildValue("s", _text_)) == NULL ||                             \
-        PyTuple_SetItem(result, _code_, object) != 0)                                   \
-      goto error;                                                                       \
-    object = NULL;                                                                      \
-  }
-
-  VALIDATION_STATUS_CODES;
-
-#undef QV
-#undef QB
-#undef QW
-#undef QG
-#undef QQ
-
-  Py_XDECREF(good);
-  Py_XDECREF(warn);
-  Py_XDECREF(bad);
-  return result;
-
- error:
-  Py_XDECREF(good);
-  Py_XDECREF(warn);
-  Py_XDECREF(bad);
-  Py_XDECREF(object);
-  Py_XDECREF(result);
-  return NULL;
-}
 
 /*
  * Add code to status object, return C boolean indicating success.
  * Do nothing and return success if the status object is None.
  */
 
+#define record_validation_status(_status_, _code_) \
+  _record_validation_status(_status_, #_code_)
+
 static int
-record_validation_status(PyObject *status, const validation_status_t code)
+_record_validation_status(PyObject *status, const char *code)
 {
   if (status == Py_None)
     return 1;
-  PyObject *value = PyTuple_GetItem(status_codes, code);
+  PyObject *value = PyString_FromString(code);
   if (value == NULL)
     return 0;
-  Py_XINCREF(value);
   int result = PySet_Add(status, value);
   Py_XDECREF(value);
   return result == 0;
@@ -1690,33 +1279,18 @@ validation_status_x509_verify_cert_cb(int ok, X509_STORE_CTX *ctx, PyObject *sta
     return ok;
 
   /*
-   * Handle known OpenSSL verify errors except the ones we handle
-   * explicitly above.
+   * Handle all other OpenSSL verify errors by stuffing an integer
+   * into the status set.
    */
-#define QV(x)							\
-  case x:							\
-    record_validation_status(status, STATUS_CODE_##x);          \
-    return ok;
-    VALIDATION_STATUS_CODES_FROM_OPENSSL;
-#undef	QV
-
   default:
-    /*
-     * If you see this, it means that OpenSSL returned a status code
-     * we don't know about, so it's time to check the list of known
-     * OpenSSL verify errors to find out what's missing.
-     */
-    record_validation_status(status, UNKNOWN_OPENSSL_VERIFY_ERROR);
+    if (status != Py_None) {
+      PyObject *value = PyInt_FromLong(ctx->error);
+      PySet_Add(status, value);
+      Py_XDECREF(value);
+    }
     return ok;
   }
 }
-
-/*
- * Done with the sick macros.
- */
-
-#undef VALIDATION_STATUS_CODES
-#undef VALIDATION_STATUS_CODES_FROM_OPENSSL
 
 
 
@@ -10561,7 +10135,6 @@ init_POW(void)
   Define_Class(POW_Manifest_Type);
   Define_Class(POW_ROA_Type);
   Define_Class(POW_PKCS10_Type);
-  Define_Class(POW_StatusCode_Type);
 
 #undef Define_Class
 
@@ -10668,12 +10241,6 @@ init_POW(void)
   Define_Integer_Constant(EC_P256_CURVE);
 
 #undef Define_Integer_Constant
-
-  /* Validation status codes */
-
-  status_codes = build_status_codes();
-  Py_XINCREF(status_codes);
-  PyModule_AddObject(m, "_validation_status_codes", status_codes);
 
   /*
    * Initialise library.

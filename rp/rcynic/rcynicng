@@ -39,7 +39,7 @@ class Status(object):
         return "{time} {self.uri} {status} {self.generation}".format(
             self   = self,
             time   = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.timestamp)),
-            status = ",".join(s.name for s in sorted(self.status)))
+            status = ",".join(str(s) for s in sorted(self.status)))
 
     @classmethod
     def update(cls, uri, generation = None):

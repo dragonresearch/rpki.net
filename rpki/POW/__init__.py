@@ -57,18 +57,19 @@ class StatusCode(object):
 
 class StatusCodeDB(object):
 
-    def __init__(self, bad, warn, good):
-        for k, v in bad.iteritems():
-            setattr(self, k, StatusCode(name = k, text = v, kind = "bad"))
-        for k, v in warn.iteritems():
-            setattr(self, k, StatusCode(name = k, text = v, kind = "warn"))
-        for k, v in good.iteritems():
-            setattr(self, k, StatusCode(name = k, text = v, kind = "good"))
-
-    # Do we want something to let us use the OpenSSL symbolic names
-    # for the X509_V_ERR_* codes, or just skip that entirely?
-    #
-    # Sort that out when we get to the Python-side API for this stuff.
+    def __init__(self, bad, warn, good, verification_errors):
+        self._map = dict((name, StatusCode(code = code, name = name, text = text,
+                                           kind = "bad" if code != 0 else "good"))
+                         for code, name, text in verification_errors)
+        self._map.update((k, StatusCode(name = k, text = v, kind = "bad"))
+                         for k, v in bad.iteritems())
+        self._map.update((k, StatusCode(name = k, text = v, kind = "warn"))
+                         for k, v in warn.iteritems())
+        self._map.update((k, StatusCode(name = k, text = v, kind = "good"))
+                         for k, v in good.iteritems())
+        for k, v in self._map.iteritems():
+            setattr(self, k, v)
+        self._map.update((s.code, s) for s in self._map.values() if s.code is not None)
 
 
 validation_status = StatusCodeDB(
@@ -187,4 +188,6 @@ validation_status = StatusCodeDB(
         OBJECT_ACCEPTED                      = "Object accepted",
         RECHECKING_OBJECT                    = "Rechecking object",
         RSYNC_TRANSFER_SUCCEEDED             = "rsync transfer succeeded",
-        VALIDATION_OK                        = "OK"))
+        VALIDATION_OK                        = "OK"),
+
+    verification_errors = _POW.getVerificationErrors())

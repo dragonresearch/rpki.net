@@ -9933,6 +9933,110 @@ pow_module_clear_error(GCC_UNUSED PyObject *self)
   Py_RETURN_NONE;
 }
 
+static char pow_module_get_verification_errors__doc__[] =
+  "Return strings for known OpenSSL certificate verification errors.\n"
+  "Returns a list of (number, symbol, text) tuples.\n"
+  ;
+
+static PyObject *
+pow_module_get_verification_errors(GCC_UNUSED PyObject *self)
+{
+  PyObject *result = NULL, *item = NULL;
+
+  ENTERING(pow_module_get_verification_errors);
+
+  /*
+   * This function is only called once, and doesn't need to be
+   * particularly efficient, so we use a list to keep the code simple.
+   */
+
+  if ((result = PyList_New(0)) == NULL)
+    goto error;
+
+#define Verification_Error(_v_)                                         \
+  do {                                                                  \
+    const char *msg = X509_verify_cert_error_string(_v_);               \
+    if ((item = Py_BuildValue("(iss)", _v_, #_v_, msg)) == NULL ||      \
+        PyList_Append(result, item) < 0)                                \
+      goto error;                                                       \
+    Py_XDECREF(item);                                                   \
+    item = NULL;                                                        \
+  } while (0)
+
+  Verification_Error( X509_V_OK );
+  Verification_Error( X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT );
+  Verification_Error( X509_V_ERR_UNABLE_TO_GET_CRL );
+  Verification_Error( X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE );
+  Verification_Error( X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE );
+  Verification_Error( X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY );
+  Verification_Error( X509_V_ERR_CERT_SIGNATURE_FAILURE );
+  Verification_Error( X509_V_ERR_CRL_SIGNATURE_FAILURE );
+  Verification_Error( X509_V_ERR_CERT_NOT_YET_VALID );
+  Verification_Error( X509_V_ERR_CERT_HAS_EXPIRED );
+  Verification_Error( X509_V_ERR_CRL_NOT_YET_VALID );
+  Verification_Error( X509_V_ERR_CRL_HAS_EXPIRED );
+  Verification_Error( X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD );
+  Verification_Error( X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD );
+  Verification_Error( X509_V_ERR_ERROR_IN_CRL_LAST_UPDATE_FIELD );
+  Verification_Error( X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD );
+  Verification_Error( X509_V_ERR_OUT_OF_MEM );
+  Verification_Error( X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT );
+  Verification_Error( X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN );
+  Verification_Error( X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY );
+  Verification_Error( X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE );
+  Verification_Error( X509_V_ERR_CERT_CHAIN_TOO_LONG );
+  Verification_Error( X509_V_ERR_CERT_REVOKED );
+  Verification_Error( X509_V_ERR_INVALID_CA );
+  Verification_Error( X509_V_ERR_PATH_LENGTH_EXCEEDED );
+  Verification_Error( X509_V_ERR_INVALID_PURPOSE );
+  Verification_Error( X509_V_ERR_CERT_UNTRUSTED );
+  Verification_Error( X509_V_ERR_CERT_REJECTED );
+  Verification_Error( X509_V_ERR_SUBJECT_ISSUER_MISMATCH );
+  Verification_Error( X509_V_ERR_AKID_SKID_MISMATCH );
+  Verification_Error( X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH );
+  Verification_Error( X509_V_ERR_KEYUSAGE_NO_CERTSIGN );
+  Verification_Error( X509_V_ERR_UNABLE_TO_GET_CRL_ISSUER );
+  Verification_Error( X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION );
+  Verification_Error( X509_V_ERR_KEYUSAGE_NO_CRL_SIGN );
+  Verification_Error( X509_V_ERR_UNHANDLED_CRITICAL_CRL_EXTENSION );
+  Verification_Error( X509_V_ERR_INVALID_NON_CA );
+  Verification_Error( X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED );
+  Verification_Error( X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE );
+  Verification_Error( X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED );
+  Verification_Error( X509_V_ERR_INVALID_EXTENSION );
+  Verification_Error( X509_V_ERR_INVALID_POLICY_EXTENSION );
+  Verification_Error( X509_V_ERR_NO_EXPLICIT_POLICY );
+  Verification_Error( X509_V_ERR_DIFFERENT_CRL_SCOPE );
+  Verification_Error( X509_V_ERR_UNSUPPORTED_EXTENSION_FEATURE );
+  Verification_Error( X509_V_ERR_UNNESTED_RESOURCE );
+  Verification_Error( X509_V_ERR_PERMITTED_VIOLATION );
+  Verification_Error( X509_V_ERR_EXCLUDED_VIOLATION );
+  Verification_Error( X509_V_ERR_SUBTREE_MINMAX );
+  Verification_Error( X509_V_ERR_UNSUPPORTED_CONSTRAINT_TYPE );
+  Verification_Error( X509_V_ERR_UNSUPPORTED_CONSTRAINT_SYNTAX );
+  Verification_Error( X509_V_ERR_UNSUPPORTED_NAME_SYNTAX );
+  Verification_Error( X509_V_ERR_CRL_PATH_VALIDATION_ERROR );
+  Verification_Error( X509_V_ERR_SUITE_B_INVALID_VERSION );
+  Verification_Error( X509_V_ERR_SUITE_B_INVALID_ALGORITHM );
+  Verification_Error( X509_V_ERR_SUITE_B_INVALID_CURVE );
+  Verification_Error( X509_V_ERR_SUITE_B_INVALID_SIGNATURE_ALGORITHM );
+  Verification_Error( X509_V_ERR_SUITE_B_LOS_NOT_ALLOWED );
+  Verification_Error( X509_V_ERR_SUITE_B_CANNOT_SIGN_P_384_WITH_P_256 );
+  Verification_Error( X509_V_ERR_HOSTNAME_MISMATCH );
+  Verification_Error( X509_V_ERR_EMAIL_MISMATCH );
+  Verification_Error( X509_V_ERR_IP_ADDRESS_MISMATCH );
+  Verification_Error( X509_V_ERR_APPLICATION_VERIFICATION );
+
+#undef Verification_Error
+
+  return result;
+
+ error:
+  Py_XDECREF(result);
+  Py_XDECREF(item);
+  return NULL;
+}
+
 static char pow_module_seed__doc__[] =
   "Add data to OpenSSL's pseudo-random number generator state.\n"
   "\n"
@@ -10068,14 +10172,15 @@ pow_module_custom_datetime(GCC_UNUSED PyObject *self, PyObject *args)
 
 
 static struct PyMethodDef pow_module_methods[] = {
-  Define_Method(getError,       pow_module_get_error,           METH_NOARGS),
-  Define_Method(clearError,     pow_module_clear_error,         METH_NOARGS),
-  Define_Method(seed,           pow_module_seed,                METH_VARARGS),
-  Define_Method(add,            pow_module_add,                 METH_VARARGS),
-  Define_Method(readRandomFile, pow_module_read_random_file,    METH_VARARGS),
-  Define_Method(writeRandomFile, pow_module_write_random_file,  METH_VARARGS),
-  Define_Method(addObject,      pow_module_add_object,          METH_VARARGS),
-  Define_Method(customDatetime,	pow_module_custom_datetime,	METH_VARARGS),
+  Define_Method(getError,               pow_module_get_error,                   METH_NOARGS),
+  Define_Method(clearError,             pow_module_clear_error,                 METH_NOARGS),
+  Define_Method(getVerificationErrors,  pow_module_get_verification_errors,     METH_NOARGS),
+  Define_Method(seed,                   pow_module_seed,                        METH_VARARGS),
+  Define_Method(add,                    pow_module_add,                 	METH_VARARGS),
+  Define_Method(readRandomFile,         pow_module_read_random_file,            METH_VARARGS),
+  Define_Method(writeRandomFile,        pow_module_write_random_file,           METH_VARARGS),
+  Define_Method(addObject,              pow_module_add_object,                  METH_VARARGS),
+  Define_Method(customDatetime,         pow_module_custom_datetime,             METH_VARARGS),
   {NULL}
 };
 

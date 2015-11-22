@@ -52,7 +52,7 @@ class StatusCode(object):
         return hash(self.name)
 
     def __cmp__(self, other):
-        return cmp(self.name, other.name)
+        return cmp(self.name, str(other))
 
 
 class StatusCodeDB(object):
@@ -70,6 +70,11 @@ class StatusCodeDB(object):
         for k, v in self._map.iteritems():
             setattr(self, k, v)
         self._map.update((s.code, s) for s in self._map.values() if s.code is not None)
+
+    def normalize(self, status):
+        convert = set(s for s in status if isinstance(s, (int, str)))
+        status |= set(self._map[s] for s in convert)
+        status -= convert
 
 
 validation_status = StatusCodeDB(
@@ -108,6 +113,8 @@ validation_status = StatusCodeDB(
         CRL_NUMBER_IS_NEGATIVE               = "CRL number is negative",
         CRL_NUMBER_OUT_OF_RANGE              = "CRL number out of range",
         CRLDP_DOESNT_MATCH_ISSUER_SIA        = "CRLDP doesn't match issuer's SIA",
+        CRLDP_EXTENSION_FORBIDDEN            = "CRLDP extension forbidden",
+        CRLDP_EXTENSION_MISSING              = "CRLDP extension missing",
         CRLDP_URI_MISSING                    = "CRLDP URI missing",
         DISALLOWED_X509V3_EXTENSION          = "Disallowed X.509v3 extension",
         DUPLICATE_NAME_IN_MANIFEST           = "Duplicate name in manifest",
@@ -141,6 +148,7 @@ validation_status = StatusCodeDB(
         RSYNC_TRANSFER_TIMED_OUT             = "rsync transfer timed out",
         SAFI_NOT_ALLOWED                     = "SAFI not allowed",
         SIA_CADIRECTORY_URI_MISSING          = "SIA caDirectory URI missing",
+        SIA_EXTENSION_FORBIDDEN              = "SIA extension forbidden",
         SIA_EXTENSION_MISSING                = "SIA extension missing",
         SIA_MANIFEST_URI_MISSING             = "SIA manifest URI missing",
         SKI_EXTENSION_MISSING                = "SKI extension missing",
@@ -151,7 +159,8 @@ validation_status = StatusCodeDB(
         UNKNOWN_OPENSSL_VERIFY_ERROR         = "Unknown OpenSSL verify error",
         UNREADABLE_TRUST_ANCHOR              = "Unreadable trust anchor",
         UNREADABLE_TRUST_ANCHOR_LOCATOR      = "Unreadable trust anchor locator",
-        WRONG_OBJECT_VERSION                 = "Wrong object version"),
+        WRONG_OBJECT_VERSION                 = "Wrong object version",
+        OBJECT_NOT_FOUND                     = "Object not found"),
 
     warn = dict(
         AIA_DOESNT_MATCH_ISSUER              = "AIA doesn't match issuer",

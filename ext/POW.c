@@ -1485,6 +1485,7 @@ static int check_x509(X509 *x,
    */
 
 #warning Why are we not checking the critical flag on these extensions?
+#warning We may need to check that these extensions only contain URIs
 
   if ((aia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL)
     ex_count--;
@@ -3581,7 +3582,8 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
         if (X509_check_issued((issuer = sk_X509_value(untrusted_stack, i)), self->x509) != 0)
           issuer = NULL;
 
-    is_ta = (sk_X509_num(trusted_stack) == 1 && 
+    is_ta = (issuer != NULL &&
+             sk_X509_num(trusted_stack) == 1 && 
              sk_X509_num(untrusted_stack) == 0 &&
              X509_cmp(issuer, self->x509) == 0);
 

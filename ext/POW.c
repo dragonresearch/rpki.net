@@ -80,7 +80,6 @@
 #include <openssl/pem.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
-#include <openssl/md5.h>
 #include <openssl/sha.h>
 #include <openssl/cms.h>
 
@@ -118,8 +117,6 @@ define	GCC_UNUSED
 #define	HASH_SHA256_LEN		32
 
 /* Digests */
-#define MD5_DIGEST            2
-#define SHA_DIGEST            3
 #define SHA1_DIGEST           4
 #define SHA256_DIGEST         6
 #define SHA384_DIGEST         7
@@ -303,12 +300,6 @@ static PyObject
  */
 
 static PyObject *custom_datetime;
-
-/*
- * Tuple mapping C validation status codes (C enum) to equivalent Python objects.
- */
-
-static PyObject *status_codes;
 
 /*
  * "ex_data" index for pointer we want to attach to X509_STORE_CTX so
@@ -533,8 +524,6 @@ static const EVP_MD *
 evp_digest_factory(int digest_type)
 {
   switch (digest_type) {
-  case MD5_DIGEST:      return EVP_md5();
-  case SHA_DIGEST:      return EVP_sha();
   case SHA1_DIGEST:     return EVP_sha1();
   case SHA256_DIGEST:   return EVP_sha256();
   case SHA384_DIGEST:   return EVP_sha384();
@@ -1301,14 +1290,6 @@ validation_status_x509_verify_cert_cb(int ok, X509_STORE_CTX *ctx, PyObject *sta
  * status set object.
  */
 
-typedef enum {
-  check_object_type_cer,
-  check_object_type_crl,
-  check_object_type_mft,
-  check_object_type_roa,
-  check_object_type_gbr
-} check_object_type_t;
-
 /*
  * Check whether a Distinguished Name conforms to the rescert profile.
  * The profile is very restrictive: it only allows one mandatory
@@ -1425,7 +1406,6 @@ static int check_x509(X509 *x,
                       X509 *issuer,
                       PyObject *status,
                       const int is_ta,
-                      const check_object_type_t object_type,
                       X509_STORE_CTX *ctx)
 {
   EVP_PKEY *issuer_pkey = NULL, *subject_pkey = NULL;
@@ -1496,9 +1476,21 @@ static int check_x509(X509 *x,
   if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL)) != NULL)
     ex_count--;
 
+#warning Too many things need to know whether we are looking at a router cert, need a signaling mechanism
+  /*
+   * We used to do this using the URI, but that doesn't fly here.
+   * We tried an enumerated type, but that didn't work out.
+   *
+   * May just need an explicit parameter all the way from the Python
+   * level.  Simplest might just be an explicit EKU OID, which, if
+   * provided, must match the certificate and correspond to a set of
+   * rules we know how to apply (currently just router certs).  Python
+   * API default of None, obviously, which again is a good match.
+   */
+
   if ((eku = X509_get_ext_d2i(x, NID_ext_key_usage, &crit, NULL)) != NULL) {
     ex_count--;
-    if (crit || is_ca || object_type != check_object_type_cer || sk_ASN1_OBJECT_num(eku) == 0)
+    if (crit || is_ca || sk_ASN1_OBJECT_num(eku) == 0)
       lose_validation_error_from_code(status, INAPPROPRIATE_EKU_EXTENSION);
     for (i = 0; i < sk_ASN1_OBJECT_num(eku); i++)
       routercert |= OBJ_obj2nid(sk_ASN1_OBJECT_value(eku, i)) == NID_id_kp_bgpsec_router;
@@ -1631,6 +1623,14 @@ static int check_x509(X509 *x,
   if (ex_count > 0)
     lose_validation_error_from_code(status, DISALLOWED_X509V3_EXTENSION);
 
+#warning Move policy stuff to optional OID in base X509.verify()
+  /*
+   * It seems that the only reason we have for needing the
+   * verification context here is to set these flags, which is silly.
+   * Instead, we should add an optional argument to the X509.verify(),
+   * either an explicit OID which enables the policy check for that
+   * policy, or a simple boolean to enable check for the RPKI policy.
+   */
   if (ctx != NULL) {
     X509_VERIFY_PARAM_set_flags(ctx->param, X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY);
     X509_VERIFY_PARAM_add0_policy(ctx->param, OBJ_nid2obj(NID_cp_ipAddr_asNumber));
@@ -3467,8 +3467,6 @@ static char x509_object_sign__doc__[] =
   "The optional \"digest\" parameter indicates which digest to compute and\n"
   "sign, and should be one of the following:\n"
   "\n"
-  "* MD5_DIGEST\n"
-  "* SHA_DIGEST\n"
   "* SHA1_DIGEST\n"
   "* SHA256_DIGEST\n"
   "* SHA384_DIGEST\n"
@@ -3572,7 +3570,8 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
      * For the moment, keep options open, clean up later.
      */
 
-#if 1
+#warning Do we need to do something about picking issuer out of trusted_stack?
+#if 0
 
       int i;
       for (i = 0; issuer == NULL && i < sk_X509_num(trusted_stack); i++)
@@ -3588,7 +3587,6 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
              X509_cmp(issuer, self->x509) == 0);
 
 #else
-#warning Do we need to do something about picking issuer out of trusted_stack?
 
     is_ta = (sk_X509_num(trusted_stack) == 1 &&
              sk_X509_num(untrusted_stack) == 0 &&
@@ -3601,22 +3599,8 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
       issuer = sk_X509_value(trusted_stack, 0);
   }
 
-#warning Need to do something about check_object_type_* mess
-  /*
-   * Original concept was reasonable, but now that we're making the
-   * Python caller responsible for validation of embedded
-   * certificates, we don't have a handle on the CMS object for the
-   * encapsulated cases.  So either we need to do the
-   * signed-object-type-specific checks at the Python level, or we
-   * need the caller to tell us what kind of certificate this is
-   * supposed to be, whether by passing us a filename extension or
-   * some other means.
-   */
-
-  if (status != Py_None && !check_x509(self->x509, issuer, status, is_ta, check_object_type_cer, ctx->ctx))
+  if (status != Py_None && !check_x509(self->x509, issuer, status, is_ta, ctx->ctx))
     goto error;
-
-#warning Not sure about reference counts in this version.  Might be safest to stuff PyObject* for all inputs into ctx so that everything mentioned here is protected until user releases ctx.
 
   Py_XINCREF(trusted);
   Py_XINCREF(untrusted);
@@ -5727,6 +5711,21 @@ crl_object_get_revoked(crl_object *self)
   return NULL;
 }
 
+static char crl_object_is_revoked__doc__[] =
+  "Check whether a particular certificate has been revoked.\n"
+  ;
+
+static PyObject *
+crl_object_is_revoked(crl_object *self, PyObject *args)
+{
+  x509_object *x = NULL;
+
+  if (!PyArg_ParseTuple(args, "O!", &POW_X509_Type, &x))
+    return NULL;
+
+  return PyBool_FromLong(X509_CRL_get0_by_cert(self->crl, NULL, x->x509));
+}
+
 static char crl_object_clear_extensions__doc__[] =
   "Clear all extensions attached to this CRL.\n"
   ;
@@ -5753,8 +5752,6 @@ static char crl_object_sign__doc__[] =
   "The optional \"digest\" parameter indicates which digest to compute and\n"
   "sign, and should be one of the following:\n"
   "\n"
-  "* MD5_DIGEST\n"
-  "* SHA_DIGEST\n"
   "* SHA1_DIGEST\n"
   "* SHA256_DIGEST\n"
   "* SHA384_DIGEST\n"
@@ -5970,6 +5967,7 @@ static struct PyMethodDef crl_object_methods[] = {
   Define_Method(getNextUpdate,          crl_object_get_next_update,     METH_NOARGS),
   Define_Method(setNextUpdate,          crl_object_set_next_update,     METH_VARARGS),
   Define_Method(getRevoked,             crl_object_get_revoked,         METH_NOARGS),
+  Define_Method(isRevoked,              crl_object_is_revoked,          METH_VARARGS),
   Define_Method(addRevocations,         crl_object_add_revocations,     METH_VARARGS),
   Define_Method(clearExtensions,        crl_object_clear_extensions,    METH_NOARGS),
   Define_Method(pemWrite,               crl_object_pem_write,           METH_NOARGS),
@@ -7085,8 +7083,6 @@ static char POW_Digest_Type__doc__[] =
   "The constructor takes one parameter, the kind of Digest object to create.\n"
   "This should be one of the following:\n"
   "\n"
-  "  * MD5_DIGEST\n"
-  "  * SHA_DIGEST\n"
   "  * SHA1_DIGEST\n"
   "  * SHA256_DIGEST\n"
   "  * SHA384_DIGEST\n"
@@ -9450,8 +9446,6 @@ static char pkcs10_object_sign__doc__[] =
   "The optional \"digest\" parameter indicates which digest to compute and\n"
   "sign, and should be one of the following:\n"
   "\n"
-  "* MD5_DIGEST\n"
-  "* SHA_DIGEST\n"
   "* SHA1_DIGEST\n"
   "* SHA256_DIGEST\n"
   "* SHA384_DIGEST\n"
@@ -10266,8 +10260,6 @@ init_POW(void)
   Define_Integer_Constant(OIDNAME_FORMAT);
 
   /* Message digests */
-  Define_Integer_Constant(MD5_DIGEST);
-  Define_Integer_Constant(SHA_DIGEST);
   Define_Integer_Constant(SHA1_DIGEST);
   Define_Integer_Constant(SHA256_DIGEST);
   Define_Integer_Constant(SHA384_DIGEST);

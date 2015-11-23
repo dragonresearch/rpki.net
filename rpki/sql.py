@@ -81,8 +81,15 @@ class session(object):
     self.db.autocommit(True)
     self.timestamp = rpki.sundial.now()
 
-    # Try this as a workaround for MySQL 5.6 UTF8 characterset braindamage
-    self.execute("charset = latin1")
+    # Try this as a workaround for MySQL 5.6 UTF8 characterset
+    # braindamage, in which MySQL starts rejecting ASN.1 DER because
+    # it's not valid UTF-8.  Twits.
+    #
+    # Except that it breaks MySQL 5.5, so wrap it and ignore errors.  Twits ** 2.
+    try:
+      self.execute("charset = latin1")
+    except:
+      logger.info("Whacking charset to Latin1 to save MySQL 5.6 from its own confusion failed, blundering onwards")
 
   def close(self):
     if self.cur:

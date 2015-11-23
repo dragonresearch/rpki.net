@@ -552,6 +552,7 @@ def parse_arguments():
     parser.add_argument("--output",                              default = "rcynic-data/rcynicng-output")
     parser.add_argument("--workers",           type = posint,    default = 10)
     parser.add_argument("--no-fetch",                            action  = "store_true")
+    parser.add_argument("--xml-file", type = argparse.FileType("w"), default = "rcynicng.xml")
     return parser.parse_args()
 
 
@@ -782,7 +783,24 @@ def main():
 def final_report():
     # Should be doing something to generate rcynic.xml here.
 
-    if False:
+    if True:
+        # rcynic-version = "", summary-version="", reporting-hostname=""
+        doc = Element("rcynic-summary")
+        labels = SubElement(doc, "labels")
+        for code in codes.all():
+            SubElement(labels, code.name).text = code.text
+        for uri in Status.db:
+            status = Status.db[uri]
+            ts  = str(status.timestamp)
+            gen = str(status.generation)
+            uri = status.uri
+            for sym in sorted(status.status):
+                SubElement(doc, "validation_status", timestamp = ts, status = str(sym), generation = gen).text = uri
+        #
+        # Should generate <rsync_history/> elements here too, later
+        #
+        ElementTree(doc).write(file = args.xml_file, pretty_print = True)
+    elif False:
         for uri in sorted(Status.db):
             print Status.db[uri]
     else:

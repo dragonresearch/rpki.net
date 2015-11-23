@@ -71,6 +71,9 @@ class StatusCodeDB(object):
             setattr(self, k, v)
         self._map.update((s.code, s) for s in self._map.values() if s.code is not None)
 
+    def all(self):
+        return set(self._map.itervalues())
+
     def normalize(self, status):
         convert = set(s for s in status if isinstance(s, (int, str)))
         status |= set(self._map[s] for s in convert)

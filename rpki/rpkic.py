@@ -144,7 +144,8 @@ class main(Cmd):
         "PASSWORD" : cfg.get("sql-password", section = "irdbd"),
         "HOST"     : "",
         "PORT"     : "",
-        "OPTIONS"  : { "init_command": "SET storage_engine=INNODB" }}},
+        "OPTIONS"  : { "init_command": "SET storage_engine=INNODB",
+                       "charset" : "latin1" }}},
       INSTALLED_APPS = ("rpki.irdb",),
       MIDDLEWARE_CLASSES = (),          # API change, feh
     )

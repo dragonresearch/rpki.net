@@ -81,6 +81,9 @@ class session(object):
     self.db.autocommit(True)
     self.timestamp = rpki.sundial.now()
 
+    # Try this as a workaround for MySQL 5.6 UTF8 characterset braindamage
+    self.execute("charset = latin1")
+
   def close(self):
     if self.cur:
       self.cur.close()

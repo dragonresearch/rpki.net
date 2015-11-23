@@ -132,6 +132,7 @@ validation_status = StatusCodeDB(
         MANIFEST_INTERVAL_OVERRUNS_CERT      = "Manifest interval overruns certificate",
         MANIFEST_LISTS_MISSING_OBJECT        = "Manifest lists missing object",
         MANIFEST_NOT_YET_VALID               = "Manifest not yet valid",
+        MANIFEST_EE_REVOKED                  = "Manifest EE certificate revoked",
         MISSING_RESOURCES                    = "Missing resources",
         NONCONFORMANT_ASN1_TIME_VALUE        = "Nonconformant ASN.1 time value",
         NONCONFORMANT_PUBLIC_KEY_ALGORITHM   = "Nonconformant public key algorithm",

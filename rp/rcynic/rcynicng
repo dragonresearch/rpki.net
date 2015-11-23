@@ -88,7 +88,7 @@ class Status(object):
         return str(self._generation)
 
     @classmethod
-    def update(cls, uri, generation = None):
+    def update(cls, uri, generation):
         try:
             key  = (uri, generation)
             self = cls.db[key]
@@ -97,6 +97,12 @@ class Status(object):
         self._timestamp = time.time()
         return self.status
 
+    @classmethod
+    def add(cls, uri, generation, *codes):
+        status = cls.update(uri, generation)
+        for code in codes:
+            status.add(code)
+
 
 class X509(rpki.POW.X509):
 
@@ -104,7 +110,7 @@ class X509(rpki.POW.X509):
     def derReadURI(cls, uri, generation, cms = None):
         fn = uri_to_filename(uri, generation.tree)
         if not os.path.exists(fn):
-            Status.update(uri, generation).add(codes.OBJECT_NOT_FOUND)
+            Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
             return None
         if cms is None:
             with open(fn, "rb") as f:
@@ -141,7 +147,7 @@ class X509(rpki.POW.X509):
 
     def check(self, trusted = None, crl = None):
         status = Status.update(self.uri, self.generation)
-        is_ta = trusted is None and crl is None
+        is_ta = trusted is None
         is_routercert = (self.eku is not None and id_kp_bgpsec_router in self.eku and
                          not self.is_ca and self.uri.endswith(".cer"))
         if self.eku is not None and (self.is_ca or not self.uri.endswith(".cer")):
@@ -189,10 +195,10 @@ class X509(rpki.POW.X509):
 class CRL(rpki.POW.CRL):
 
     @classmethod
-    def derReadURI(cls, uri, generation = None):
+    def derReadURI(cls, uri, generation):
         fn = uri_to_filename(uri, generation.tree)
         if not os.path.exists(fn):
-            Status.update(uri, generation).add(codes.OBJECT_NOT_FOUND)
+            Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
             return None
         with open(fn, "rb") as f:
             der = f.read()
@@ -223,7 +229,7 @@ class Ghostbuster(rpki.POW.CMS):
     def derReadURI(cls, uri, generation):
         fn = uri_to_filename(uri, generation.tree)
         if not os.path.exists(fn):
-            Status.update(uri, generation).add(codes.OBJECT_NOT_FOUND)
+            Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
             return None
         with open(fn, "rb") as f:
             der = f.read()
@@ -238,7 +244,7 @@ class Ghostbuster(rpki.POW.CMS):
 
     def check(self, trusted = None, crl = None):
         status = Status.update(self.uri, self.generation)
-        self.ee.check(trusted, crl)
+        self.ee.check(trusted = trusted, crl = crl)
         try:
             self.vcard = self.verify()
         except rpki.POW.ValidationError:
@@ -253,7 +259,7 @@ class Manifest(rpki.POW.Manifest):
     def derReadURI(cls, uri, generation):
         fn = uri_to_filename(uri, generation.tree)
         if not os.path.exists(fn):
-            Status.update(uri, generation).add(codes.OBJECT_NOT_FOUND)
+            Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
             return None
         with open(fn, "rb") as f:
             der = f.read()
@@ -270,7 +276,7 @@ class Manifest(rpki.POW.Manifest):
 
     def check(self, trusted = None, crl = None):
         status = Status.update(self.uri, self.generation)
-        self.ee.check(trusted, crl)
+        self.ee.check(trusted = trusted, crl = crl)
         try:
             self.verify()
         except rpki.POW.ValidationError:
@@ -282,6 +288,12 @@ class Manifest(rpki.POW.Manifest):
         codes.normalize(status)
         return not any(s.kind == "bad" for s in status)
 
+    def find_crl_uris(self):
+        diruri = self.uri[:self.uri.rindex("/") + 1]
+        for fn, digest in self.fah:
+            if fn.endswith(".crl"):
+                yield diruri + fn, digest
+
 
 class ROA(rpki.POW.ROA):
 
@@ -289,7 +301,7 @@ class ROA(rpki.POW.ROA):
     def derReadURI(cls, uri, generation):
         fn = uri_to_filename(uri, generation.tree)
         if not os.path.exists(fn):
-            Status.update(uri, generation).add(codes.OBJECT_NOT_FOUND)
+            Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
             return None
         with open(fn, "rb") as f:
             der = f.read()
@@ -305,7 +317,7 @@ class ROA(rpki.POW.ROA):
 
     def check(self, trusted = None, crl = None):
         status = Status.update(self.uri, self.generation)
-        self.ee.check(trusted, crl)
+        self.ee.check(trusted = trusted, crl = crl)
         try:
             vcard = self.verify()
         except rpki.POW.ValidationError:
@@ -352,43 +364,86 @@ class  WalkFrame(object):
     @tornado.gen.coroutine
     def ready(self, wsk):
         self.trusted = wsk.trusted()
-        self.generation = Generation.current # XXX Wrong, but it's what walk_tree() was doing, fix later
 
-        self.mfturi = first_rsync_uri(self.cer.rpkiManifest)
-        self.mft = Manifest.derReadURI(self.mfturi, self.generation)
+        mft_uri = first_rsync_uri(self.cer.rpkiManifest)
 
-        if self.mft is None:
-            wsk.pop()
-            return
+        crl_candidates = []
 
-        self.crluri = first_rsync_uri(self.mft.ee.crldp)
-        self.crl = CRL.derReadURI(self.crluri, self.generation)
+        # NB: CRL checks on manifest EE certificates deferred until we've picked a CRL.
 
-        if self.crl is None or not self.crl.check(self.cer) or self.mft is None or not self.mft.check(self.trusted, self.crl):
-            wsk.pop()
-            return
-
-        # CRL.check() probably ought to check issuer's caDirectory
-        # against CRL's URI in any case.  If we do that, then we know
-        # that crluri.startswith(diruri) and can just simplify the
-        # following loop by setting crlfn = crluri[len(diruri):].
-
-        for name, digest in self.mft.fah:
-            if self.crluri == self.diruri + name:
-                if digest != self.crl.sha256:
-                    status.add(codes.DIGEST_MISMATCH)
-                break
+        self.current_mft = Manifest.derReadURI(mft_uri, Generation.current)
+        if self.current_mft is not None and self.current_mft.check(trusted = self.trusted):
+            crl_candidates.extend(self.current_mft.find_crl_uris())
         else:
-            Status.update(self.crluri, self.generation).add(codes.CRL_NOT_IN_MANIFEST)
+            self.current_mft = None
+
+        self.backup_mft  = Manifest.derReadURI(mft_uri, Generation.backup)
+        if self.backup_mft is not None and self.backup_mft.check(trusted = self.trusted):
+            crl_candidates.extend(self.backup_mft.find_crl_uris())
+        else:
+            self.backup_mft = None
+
+        if self.current_mft is None and self.backup_mft is None:
+            wsk.pop()
+            return
+
+        crls = {}
+        for uri, digest in crl_candidates:
+            for generation in (Generation.current, Generation.backup):
+                key = (uri, generation)
+                if key not in crls:
+                    crls[key] = CRL.derReadURI(uri, generation)
+
+        self.crl = None
+        for uri, digest in crl_candidates:
+            for generation in (Generation.current, Generation.backup):
+                crl = crls[uri, generation]
+                if crl is None or crl == self.crl:
+                    continue
+                if crl.sha256 != digest:
+                    Status.add(uri, generation, codes.DIGEST_MISMATCH)
+                    continue
+                if not crl.check(self.trusted[0]) or (self.crl is not None and crl.number < self.crl.number):
+                    continue
+                if self.crl is None or crl.number > self.crl.number or crl.thisUpdate > self.crl.thisUpdate:
+                    self.crl = crl
+
+        if self.crl is None:
+            wsk.pop()
+            return
+
+        #logger.debug("Picked %s CRL %s", self.crl.generation, self.crl.uri)
+
+        if self.current_mft is not None and self.crl.isRevoked(self.current_mft.ee):
+            Status.add(self.current_mft.uri, self.current_mft.generation, codes.MANIFEST_EE_REVOKED)
+            self.current_mft = None
+
+        if self.backup_mft is not None and self.crl.isRevoked(self.backup_mft.ee):
+            Status.add(self.backup_mft.uri, self.backup_mft.generation, codes.MANIFEST_EE_REVOKED)
+            self.backup_mft = None
+
+        if self.current_mft is None and self.backup_mft is None:
+            wsk.pop()
+            return
 
         # Use an explicit iterator so we can resume it later.
         # Run the loop in a separate method for the same reason.
 
-        self.mft_iterator = iter(self.mft.getFiles())
+        assert self.current_mft is not None or self.backup_mft is not None
+
+        if self.current_mft is not None:
+            self.mft_iterator = iter(self.current_mft.getFiles())
+            self.generation   = Generation.current
+        else:
+            self.mft_iterator = iter(self.backup_mft.getFiles())
+            self.generation   = Generation.backup
+
         self.state = self.loop
 
     @tornado.gen.coroutine
     def loop(self, wsk):
+
+        #logger.debug("Processing %s %s", self.generation.name, (self.current_mft or self.backup_mft).uri)
 
         counter = 0
         counter_max_before_yield = 50
@@ -402,7 +457,7 @@ class  WalkFrame(object):
 
             uri = self.diruri + fn
 
-            if uri == self.crluri:
+            if uri == self.crl.uri:
                 continue
 
             if fn.endswith(".roa"):
@@ -430,9 +485,13 @@ class  WalkFrame(object):
 
                 continue
 
-            Status.update(uri, self.generation).add(codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
+            Status.add(uri, self.generation, codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
 
-        wsk.pop()
+        if self.generation is Generation.current and self.backup_mft is not None:
+            self.mft_iterator = iter(self.backup_mft.getFiles())
+            self.generation   = Generation.backup
+        else:
+            wsk.pop()
 
 
 class WalkTask(object):
@@ -492,6 +551,7 @@ def parse_arguments():
     parser.add_argument("--tals",              type = check_dir, default = "sample-trust-anchors")
     parser.add_argument("--output",                              default = "rcynic-data/rcynicng-output")
     parser.add_argument("--workers",           type = posint,    default = 10)
+    parser.add_argument("--no-fetch",                            action  = "store_true")
     return parser.parse_args()
 
 
@@ -507,10 +567,10 @@ def read_tals():
                     b64 = "".join(lines[lines.index("\n"):])
                     key = rpki.POW.Asymmetric.derReadPublic(b64.decode("base64"))
                     if not uri.endswith(".cer"):
-                        Status.update(furi, None).add(codes.MALFORMED_TAL_URI)
+                        Status.add(furi, None, codes.MALFORMED_TAL_URI)
                     yield uri, key
                 except:
-                    Status.update(furi, None).add(codes.UNREADABLE_TRUST_ANCHOR_LOCATOR)
+                    Status.add(furi, None, codes.UNREADABLE_TRUST_ANCHOR_LOCATOR)
 
 
 def uri_to_filename(uri, base = None):
@@ -561,6 +621,7 @@ class Fetcher(object):
         self.uri = uri
         self.pending = None
         self.status = None
+        self.runtime = None
 
     def _rsync_split_uri(self):
         return tuple(self.uri.rstrip("/").split("/")[2:])
@@ -575,6 +636,8 @@ class Fetcher(object):
         return None
 
     def needed(self):
+        if args.no_fetch:
+            return False
         if self.uri.startswith("rsync://"):
             return self._rsync_needed()
         raise ValueError
@@ -595,13 +658,14 @@ class Fetcher(object):
     def _rsync_fetch(self):
         assert self.uri.startswith("rsync://") and (self.uri.endswith(".cer") or self.uri.endswith("/"))
 
-        path = self._rsync_split_uri()
-        if path[0] in self._rsync_deadhosts:
+        if args.no_fetch:
             return
+        path = self._rsync_split_uri()
+        dead = path[0] in self._rsync_deadhosts
         other = self._rsync_find(path)
-        if other is not None:
-            if other.pending is not None:
-                yield other.pending.wait()
+        if not dead and other is not None and other.pending is not None:
+            yield other.pending.wait()
+        if dead or other is not None:
             return
 
         self.pending = tornado.locks.Condition()
@@ -621,24 +685,25 @@ class Fetcher(object):
 
             # We use the stdout close from rsync to detect when the  subprocess has finished.
             # There's a lovely tornado.process.Subprocess.wait_for_exit() method which does
-            # exactly what one might want -- but Unix signal handling still hasn't caught up
-            # to the software interrupt architecture ITS had forty years ago, so signals still
-            # cause random "system call interrupted" failures in other libraries.  Nothing
-            # Tornado can do about this, so we avoid signals entirely and collect the process
-            # exit status directly from the operating system.  In theory, the WNOHANG isn't
-            # really necessary, we use it anyway to be safe in case theory is wrong this week.
+            # exactly what one would think we'd want -- but Unix signal handling still hasn't
+            # caught up to the software interrupt architecture ITS had forty years ago, so
+            # signals still cause random "system call interrupted" failures in other libraries.
+            # Nothing Tornado can do about this, so we avoid signals entirely and collect the
+            # process exit status directly from the operating system.  In theory, the WNOHANG
+            # isn't necessary here, we use it anyway to be safe in case theory is wrong.
 
             t0 = time.time()
-            proc = tornado.process.Subprocess(cmd, stdout = tornado.process.Subprocess.STREAM, stderr = subprocess.STDOUT)
-            logger.debug("rsync[%s] started \"%s\"", proc.pid, " ".join(cmd))
-            output = yield proc.stdout.read_until_close()
-            pid, self.status = os.waitpid(proc.pid, os.WNOHANG)
-            if (pid, self.status) == (0, 0):
-                logger.warn("rsync[%s] Couldn't get real exit status without blocking, sorry", proc.pid)
+            rsync = tornado.process.Subprocess(cmd, stdout = tornado.process.Subprocess.STREAM, stderr = subprocess.STDOUT)
+            logger.debug("rsync[%s] started \"%s\"", rsync.pid, " ".join(cmd))
+            output = yield rsync.stdout.read_until_close()
+            pid, self.status = os.waitpid(rsync.pid, os.WNOHANG)
             t1 = time.time()
+            self.runtime = t1 - t0
+            if (pid, self.status) == (0, 0):
+                logger.warn("rsync[%s] Couldn't get real exit status without blocking, sorry", rsync.pid)
             for line in output.splitlines():
-                logger.debug("rsync[%s] %s", proc.pid, line)
-            logger.debug("rsync[%s] finished after %s seconds with status 0x%x", proc.pid, t1 - t0, self.status)
+                logger.debug("rsync[%s] %s", rsync.pid, line)
+            logger.debug("rsync[%s] finished after %s seconds with status 0x%x", rsync.pid, self.runtime, self.status)
 
             # Should do something with rsync result and validation status database here.
 
@@ -646,6 +711,7 @@ class Fetcher(object):
             pending = self.pending
             self.pending = None
             pending.notify_all()
+
 
 class CheckTALTask(object):
 
@@ -667,7 +733,7 @@ class CheckTALTask(object):
                 task_queue.put(wsk)
                 return
         else:
-            Status.update(self.uri, None).add(codes.TRUST_ANCHOR_SKIPPED)
+            Status.add(self.uri, None, codes.TRUST_ANCHOR_SKIPPED)
 
     @tornado.gen.coroutine
     def check(self, generation):

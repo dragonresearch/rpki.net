@@ -76,8 +76,14 @@ DATABASES = {
         # removing this after the syncdb is performed as an optimization,
         # but there isn't an easy way to do this automatically.
 
+        # Setting charset to latin1 is a disgusting kludge, but without
+        # this MySQL 5.6 (and, proably, later) gets tetchy about ASN.1
+        # DER stored in BLOB columns not being well-formed UTF8 (sic).
+        # If you know of a better solution, tell us.
+
         'OPTIONS': {
             'init_command': 'SET storage_engine=INNODB',
+            'charset': 'latin1',
         }
     }
 }

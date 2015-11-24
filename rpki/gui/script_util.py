@@ -33,6 +33,11 @@ def setup():
     cfg = config.parser(section='web_portal')
     # INSTALLED_APPS doesn't seem necessary so long as you are only accessing
     # existing tables.
+    #
+    # Setting charset to latin1 is a disgusting kludge, but without
+    # this MySQL 5.6 (and, proably, later) gets tetchy about ASN.1 DER
+    # stored in BLOB columns not being well-formed UTF8 (sic).  If you
+    # know of a better solution, tell us.
     settings.configure(
         DATABASES={
             'default': {
@@ -40,6 +45,9 @@ def setup():
                 'NAME': cfg.get('sql-database'),
                 'USER': cfg.get('sql-username'),
                 'PASSWORD': cfg.get('sql-password'),
+                'OPTIONS': {
+                    'charset': 'latin1',
+                    }
             }
         },
         MIDDLEWARE_CLASSES = (),

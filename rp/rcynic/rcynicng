@@ -15,6 +15,7 @@ RP code.  Gotta start somewhere.
 import os
 import sys
 import time
+import shutil
 import logging
 import argparse
 import subprocess
@@ -103,8 +104,55 @@ class Status(object):
         for code in codes:
             status.add(code)
 
+    @classmethod
+    def test(cls, uri, generation, code):
+        key = (uri, generation)
+        return key in cls.db and code in cls.db[key].status
+
+
+def install_object(obj):
+    fn = uri_to_filename(obj.uri, new_authenticated)
+    dn = os.path.dirname(fn)
+    #logger.debug("Installing %r by linking %s to %s", obj, obj.fn, fn)
+    if not os.path.isdir(dn):
+        os.makedirs(dn)
+    os.link(obj.fn, fn)
+
+
+def final_install():
+
+    real_old = os.path.realpath(old_authenticated).rstrip("/")
+    real_new = os.path.realpath(new_authenticated).rstrip("/")
+
+    fn = args.authenticated.rstrip("/") + ".new"
+    logger.debug("Symlinking %s to %s", os.path.basename(real_new), args.authenticated)
+    if os.path.exists(fn):
+        os.unlink(fn)
+    os.symlink(os.path.basename(real_new), fn)
+    os.rename(fn, args.authenticated)
+
+    if os.path.isdir(real_old):
+        fn = args.authenticated.rstrip("/") + ".old"
+        logger.debug("Symlinking %s to %s", os.path.basename(real_old), fn)
+        if os.path.exists(fn):
+            os.unlink(fn)
+        os.symlink(os.path.basename(real_old), fn)
+
+    dn = os.path.dirname(args.authenticated.rstrip("/"))
+    for fn in os.listdir(dn):
+        fn = os.path.join(dn, fn)
+        if fn.startswith(args.authenticated.rstrip("/") + ".") and os.path.realpath(fn) not in (real_new, real_old):
+            logger.debug("Removing %s", fn)
+            shutil.rmtree(fn)
+
 
 class X509(rpki.POW.X509):
+
+    def __repr__(self):
+        try:
+            return "<X509 \"{}\" {} at 0x{:x}>".format(self.uri, self.generation, id(self))
+        except:
+            return "<X509 at 0x{:x}>".format(id(self))
 
     @classmethod
     def derReadURI(cls, uri, generation, cms = None):
@@ -145,7 +193,7 @@ class X509(rpki.POW.X509):
                     count += 1
         return count
 
-    def check(self, trusted = None, crl = None):
+    def check(self, trusted, crl):
         status = Status.update(self.uri, self.generation)
         is_ta = trusted is None
         is_routercert = (self.eku is not None and id_kp_bgpsec_router in self.eku and
@@ -186,13 +234,20 @@ class X509(rpki.POW.X509):
             status.add(codes.MALFORMED_CRLDP_EXTENSION)
         try:
             self.verify(trusted = [self] if trusted is None else trusted, crl = crl, status = status)
-        except rpki.POW.ValidationError:
+        except rpki.POW.ValidationError as e:
+            logger.debug("%r rejected: %s", self, e)
             status.add(codes.OBJECT_REJECTED)
         codes.normalize(status)
         return not any(s.kind == "bad" for s in status)
 
 
 class CRL(rpki.POW.CRL):
+
+    def __repr__(self):
+        try:
+            return "<CRL \"{}\" {} at 0x{:x}>".format(self.uri, self.generation, id(self))
+        except:
+            return "<CRL at 0x{:x}>".format(id(self))
 
     @classmethod
     def derReadURI(cls, uri, generation):
@@ -217,13 +272,20 @@ class CRL(rpki.POW.CRL):
         status = Status.update(self.uri, self.generation)
         try:
             self.verify(issuer, status)
-        except rpki.POW.ValidationError:
+        except rpki.POW.ValidationError as e:
+            logger.debug("%r rejected: %s", self, e)
             status.add(codes.OBJECT_REJECTED)
         codes.normalize(status)
         return not any(s.kind == "bad" for s in status)
 
 
 class Ghostbuster(rpki.POW.CMS):
+
+    def __repr__(self):
+        try:
+            return "<Ghostbuster \"{}\" {} at 0x{:x}>".format(self.uri, self.generation, id(self))
+        except:
+            return "<Ghostbuster at 0x{:x}>".format(id(self))
 
     @classmethod
     def derReadURI(cls, uri, generation):
@@ -242,18 +304,25 @@ class Ghostbuster(rpki.POW.CMS):
         self.vcard  = None
         return self
 
-    def check(self, trusted = None, crl = None):
+    def check(self, trusted, crl):
         status = Status.update(self.uri, self.generation)
         self.ee.check(trusted = trusted, crl = crl)
         try:
             self.vcard = self.verify()
-        except rpki.POW.ValidationError:
+        except rpki.POW.ValidationError as e:
+            logger.debug("%r rejected: %s", self, e)
             status.add(codes.OBJECT_REJECTED)
         codes.normalize(status)
         return not any(s.kind == "bad" for s in status)
 
 
 class Manifest(rpki.POW.Manifest):
+
+    def __repr__(self):
+        try:
+            return "<Manifest \"{}\" {} at 0x{:x}>".format(self.uri, self.generation, id(self))
+        except:
+            return "<Manifest at 0x{:x}>".format(id(self))
 
     @classmethod
     def derReadURI(cls, uri, generation):
@@ -274,12 +343,13 @@ class Manifest(rpki.POW.Manifest):
         self.number     = None
         return self
 
-    def check(self, trusted = None, crl = None):
+    def check(self, trusted, crl):
         status = Status.update(self.uri, self.generation)
         self.ee.check(trusted = trusted, crl = crl)
         try:
             self.verify()
-        except rpki.POW.ValidationError:
+        except rpki.POW.ValidationError as e:
+            logger.debug("%r rejected: %s", self, e)
             status.add(codes.OBJECT_REJECTED)
         self.thisUpdate = self.getThisUpdate()
         self.nextUpdate = self.getNextUpdate()
@@ -296,6 +366,12 @@ class Manifest(rpki.POW.Manifest):
 
 
 class ROA(rpki.POW.ROA):
+
+    def __repr__(self):
+        try:
+            return "<ROA \"{}\" {} at 0x{:x}>".format(self.uri, self.generation, id(self))
+        except:
+            return "<ROA at 0x{:x}>".format(id(self))
 
     @classmethod
     def derReadURI(cls, uri, generation):
@@ -315,7 +391,7 @@ class ROA(rpki.POW.ROA):
         self.prefixes   = None
         return self
 
-    def check(self, trusted = None, crl = None):
+    def check(self, trusted, crl):
         status = Status.update(self.uri, self.generation)
         self.ee.check(trusted = trusted, crl = crl)
         try:
@@ -374,7 +450,7 @@ class  WalkFrame(object):
     def ready(self, wsk):
         self.trusted = wsk.trusted()
 
-        logger.debug("%r scanning products", self)
+        #logger.debug("%r scanning products", self)
 
         mft_uri = first_rsync_uri(self.cer.rpkiManifest)
 
@@ -383,13 +459,13 @@ class  WalkFrame(object):
         # NB: CRL checks on manifest EE certificates deferred until we've picked a CRL.
 
         self.current_mft = Manifest.derReadURI(mft_uri, Generation.current)
-        if self.current_mft is not None and self.current_mft.check(trusted = self.trusted):
+        if self.current_mft is not None and self.current_mft.check(trusted = self.trusted, crl = None):
             crl_candidates.extend(self.current_mft.find_crl_uris())
         else:
             self.current_mft = None
 
         self.backup_mft  = Manifest.derReadURI(mft_uri, Generation.backup)
-        if self.backup_mft is not None and self.backup_mft.check(trusted = self.trusted):
+        if self.backup_mft is not None and self.backup_mft.check(trusted = self.trusted, crl = None):
             crl_candidates.extend(self.backup_mft.find_crl_uris())
         else:
             self.backup_mft = None
@@ -412,7 +488,7 @@ class  WalkFrame(object):
                 if crl is None or crl == self.crl:
                     continue
                 if crl.sha256 != digest:
-                    Status.add(uri, generation, codes.DIGEST_MISMATCH)
+                    #Status.add(uri, generation, codes.DIGEST_MISMATCH)
                     continue
                 if not crl.check(self.trusted[0]) or (self.crl is not None and crl.number < self.crl.number):
                     continue
@@ -422,6 +498,9 @@ class  WalkFrame(object):
         if self.crl is None:
             wsk.pop()
             return
+
+        install_object(self.crl)
+        Status.add(self.crl.uri, self.crl.generation, codes.OBJECT_ACCEPTED)
 
         #logger.debug("Picked %s CRL %s", self.crl.generation, self.crl.uri)
 
@@ -451,6 +530,8 @@ class  WalkFrame(object):
 
         self.state = self.loop
 
+    fns2 = dict(cer = X509, gbr = Ghostbuster, roa = ROA)
+
     @tornado.gen.coroutine
     def loop(self, wsk):
 
@@ -467,36 +548,38 @@ class  WalkFrame(object):
                 counter = 0
 
             uri = self.diruri + fn
+            cls = self.fns2.get(uri[-3:])
+
+            # Need general URI validator here?
 
             if uri == self.crl.uri:
                 continue
 
-            if fn.endswith(".roa"):
-                roa = ROA.derReadURI(uri, self.generation)
-                roa.check()             # XXX Do something with result
+            if self.generation is Generation.backup and Status.test(uri, Generation.current, codes.OBJECT_ACCEPTED):
+                logger.debug("Current version of %s already accepted, skipping", uri)
                 continue
 
-            if fn.endswith(".gbr"):
-                gbr = Ghostbuster.derReadURI(uri, self.generation)
-                gbr.check()             # XXX Do something with result
+            if uri[-4] != "." or cls is None:
+                Status.add(uri, self.generation, codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
                 continue
 
-            if fn.endswith(".cer"):
-                cer = X509.derReadURI(uri, self.generation)
-                cer.check()             # XXX Do something with result
-                if cer.is_ca:
-                    wsk.push(cer)
+            obj = cls.derReadURI(uri, self.generation)
 
-                    # XXX Temporary: Need to integrate with FSM
-                    # looping, rsync fetching, etc -- this is just a
-                    # hack to preserve old walk_tree() behavior
-                    # temporarily for testing.
+            ok  = obj.check(trusted = self.trusted, crl = self.crl)
 
-                    return
+            if obj.sha256 != digest:
+                Status.add(uri, generation, codes.DIGEST_MISMATCH)
+                ok = False
 
-                continue
+            if ok:
+                install_object(obj)
+                Status.add(uri, self.generation, codes.OBJECT_ACCEPTED)
+            else:
+                Status.add(uri, self.generation, codes.OBJECT_REJECTED)
 
-            Status.add(uri, self.generation, codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
+            if ok and cls is X509 and obj.is_ca:
+                wsk.push(obj)
+                return
 
         if self.generation is Generation.current and self.backup_mft is not None:
             self.mft_iterator = iter(self.backup_mft.getFiles())
@@ -538,31 +621,6 @@ class WalkTask(object):
         stack = [w.cer for w in self.wsk]
         stack.reverse()
         return stack
-
-
-def parse_arguments():
-
-    def check_dir(s):
-        if not os.path.isdir(s):
-            raise argparse.ArgumentTypeError("%r is not a directory" % s)
-        return s
-
-    def posint(s):
-        i = int(s)
-        if i <= 0:
-            raise argparse.ArgumentTypeError("%r is not a positive integer " % s)
-        return i
-
-    parser = argparse.ArgumentParser(description = __doc__)
-    parser.add_argument("--unauthenticated",   type = check_dir, default = "rcynic-data/unauthenticated")
-    parser.add_argument("--old-authenticated", type = check_dir, default = "rcynic-data/authenticated.old")
-    parser.add_argument("--tals",              type = check_dir, default = "sample-trust-anchors")
-    parser.add_argument("--output",                              default = "rcynic-data/rcynicng-output")
-    parser.add_argument("--workers",           type = posint,    default = 10)
-    parser.add_argument("--no-fetch",                            action  = "store_true")
-    parser.add_argument("--xml-file", type = argparse.FileType("w"), default = "rcynicng.xml")
-    parser.add_argument("--spawn-on-fetch",                      action = "store_true")
-    return parser.parse_args()
 
 
 def read_tals():
@@ -747,19 +805,19 @@ class CheckTALTask(object):
 
     @tornado.gen.coroutine
     def check(self, generation):
-        status = Status.update(self.uri, generation)
         self.cer = X509.derReadURI(self.uri, generation)
         ok = False
         if self.cer is None:
-            status.add(codes.UNREADABLE_TRUST_ANCHOR)
-            status.add(codes.OBJECT_REJECTED)
+            Status.add(self.uri, generation, codes.UNREADABLE_TRUST_ANCHOR)
         elif self.key.derWritePublic() != self.cer.getPublicKey().derWritePublic():
-            status.add(codes.TRUST_ANCHOR_KEY_MISMATCH)
-            status.add(codes.OBJECT_REJECTED)
-        elif not self.cer.check():
-            status.add(codes.OBJECT_REJECTED)
+            Status.add(self.uri, generation, codes.TRUST_ANCHOR_KEY_MISMATCH)
         else:
-            ok = True
+            ok = self.cer.check(trusted = None, crl = None)
+        if ok:
+            install_object(self.cer)
+            Status.add(self.uri, generation, codes.OBJECT_ACCEPTED)
+        else:
+            Status.add(self.uri, generation, codes.OBJECT_REJECTED)
         raise tornado.gen.Return(ok)
 
 
@@ -782,6 +840,14 @@ def worker(meself):
 
 
 def final_report():
+    # Clean up a bit to avoid confusing the user unnecessarily.
+    for s in Status.db.itervalues():
+        if codes.OBJECT_ACCEPTED in s.status:
+            s.status.discard(codes.OBJECT_REJECTED)
+        if s.generation is Generation.backup:
+            if Status.test(s.uri, Generation.current, codes.OBJECT_ACCEPTED):
+                s.status.discard(codes.OBJECT_REJECTED)
+            s.status.discard(codes.OBJECT_NOT_FOUND)
     doc = Element("rcynic-summary") # rcynic-version = "", summary-version = "", reporting-hostname = ""
     labels = SubElement(doc, "labels")
     for code in codes.all():
@@ -800,20 +866,56 @@ def final_report():
 
 
 @tornado.gen.coroutine
-def main():
+def launcher():
     for i in xrange(args.workers):
         tornado.ioloop.IOLoop.current().spawn_callback(worker, i)
+
     yield [task_queue.put(CheckTALTask(uri, key)) for uri, key in read_tals()]
     yield task_queue.join()
+
+
+class posint(int):
+    def __init__(self, value):
+        if self <= 0:
+            raise ValueError
+
+
+def main():
+    os.putenv("TZ", "UTC")
+    time.tzset()
+
+    parser = argparse.ArgumentParser(description = __doc__)
+
+    parser.add_argument("--authenticated",      default = "rcynic-data/authenticated")
+    parser.add_argument("--unauthenticated",    default = "rcynic-data/unauthenticated")
+    parser.add_argument("--xml-file",           default = "rcynicng.xml",       type = argparse.FileType("w"))
+
+    parser.add_argument("--tals",               default = "sample-trust-anchors")
+
+    parser.add_argument("--workers", type = posint, default = 10)
+    parser.add_argument("--no-fetch", action  = "store_true")
+    parser.add_argument("--spawn-on-fetch",     action = "store_true")
+
+    global args
+    args = parser.parse_args()
+
+    global new_authenticated, old_authenticated
+    new_authenticated = args.authenticated.rstrip("/") + time.strftime(".%Y-%m-%dT%H:%M:%SZ")
+    old_authenticated = args.authenticated
+
+    Generation("current", args.unauthenticated)
+    Generation("backup",  old_authenticated)
+
+    logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s  %(message)s", datefmt = "%Y-%m-%d %H:%M:%S")
+
+    global task_queue
+    task_queue = tornado.queues.Queue()
+    tornado.ioloop.IOLoop.current().run_sync(launcher)
+
     final_report()
+
+    final_install()
 
 
 if __name__ == "__main__":
-    os.putenv("TZ", "UTC")
-    time.tzset()
-    task_queue = tornado.queues.Queue()
-    args = parse_arguments()
-    logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s  %(message)s", datefmt = "%Y-%m-%d %H:%M:%S")
-    Generation("current", args.unauthenticated)
-    Generation("backup",  args.old_authenticated)
-    tornado.ioloop.IOLoop.current().run_sync(main)
+    main()

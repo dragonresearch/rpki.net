@@ -1389,6 +1389,13 @@ static int check_aki(PyObject *status, const X509 *issuer, const AUTHORITY_KEYID
   if (!aki->keyid || aki->serial || aki->issuer)
     lose_validation_error_from_code(status, AKI_EXTENSION_WRONG_FORMAT);
 
+  if (issuer != NULL && issuer->skid == NULL)
+    /* Called for side effect of running x509v3_cache_extensions() */
+    (void) X509_check_ca(issuer);
+
+  if (issuer == NULL || issuer->skid == NULL)
+    lose("Could not find issuer SKI");
+
   if (ASN1_OCTET_STRING_cmp(aki->keyid, issuer->skid))
     lose_validation_error_from_code(status, AKI_EXTENSION_ISSUER_MISMATCH);
 
@@ -3557,50 +3564,17 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
 
   if (status != Py_None) {
 
-    /*
-     * Tedious search for issuer.  Should we even be doing this?  rcynic
-     * knows which cert it thinks is the issuer, so it's a waste of time
-     * there, and we don't need to do this when we're not doing detailed
-     * RPKI checking, so the answer is probably no, we don't need this.
-     *
-     * Except that it seems to work better when we do this.  Which may
-     * just mean that I hnorked the ordering of the trusted chain when
-     * passing it in during testing.
-     *
-     * For the moment, keep options open, clean up later.
-     */
-
-#warning Do we need to do something about picking issuer out of trusted_stack?
-#if 0
-
-      int i;
-      for (i = 0; issuer == NULL && i < sk_X509_num(trusted_stack); i++)
-        if (X509_check_issued((issuer = sk_X509_value(trusted_stack, i)), self->x509) != 0)
-          issuer = NULL;
-      for (i = 0; issuer == NULL && i < sk_X509_num(untrusted_stack); i++)
-        if (X509_check_issued((issuer = sk_X509_value(untrusted_stack, i)), self->x509) != 0)
-          issuer = NULL;
-
-    is_ta = (issuer != NULL &&
-             sk_X509_num(trusted_stack) == 1 && 
-             sk_X509_num(untrusted_stack) == 0 &&
-             X509_cmp(issuer, self->x509) == 0);
-
-#else
-
     is_ta = (sk_X509_num(trusted_stack) == 1 &&
              sk_X509_num(untrusted_stack) == 0 &&
              X509_cmp(sk_X509_value(trusted_stack, 0), self->x509) == 0 &&
              X509_check_issued(self->x509, self->x509) == 0);
 
-#endif
+    if ((issuer = sk_X509_value(trusted_stack, 0)) == NULL)
+      lose("Couldn't find issuer for RPKI detail checks");
 
-    if (issuer == NULL)
-      issuer = sk_X509_value(trusted_stack, 0);
+    if (!check_x509(self->x509, issuer, status, is_ta, ctx->ctx))
+      goto error;
   }
-
-  if (status != Py_None && !check_x509(self->x509, issuer, status, is_ta, ctx->ctx))
-    goto error;
 
   Py_XINCREF(trusted);
   Py_XINCREF(untrusted);

@@ -105,6 +105,13 @@ class Status(object):
             status.add(code)
 
     @classmethod
+    def remove(cls, uri, generation, *codes):
+        key = (uri, generation)
+        if key in cls.db:
+            for code in codes:
+                cls.db[key].status.discard(code)
+
+    @classmethod
     def test(cls, uri, generation, code):
         key = (uri, generation)
         return key in cls.db and code in cls.db[key].status
@@ -434,12 +441,12 @@ class  WalkFrame(object):
 
         if not self.fetcher.needed():
             self.state = self.ready
-        elif args.spawn_on_fetch:
+        elif args.no_spawn_on_fetch:
+            self.state = self.fetch
+        else:
             self.state = self.fetch
             task_queue.put(wsk.clone())
             wsk.pop()
-        else:
-            self.state = self.fetch
 
     @tornado.gen.coroutine
     def fetch(self, wsk):
@@ -469,10 +476,18 @@ class  WalkFrame(object):
             crl_candidates.extend(self.backup_mft.find_crl_uris())
         else:
             self.backup_mft = None
+            Status.remove(mft_uri, Generation.backup, codes.OBJECT_NOT_FOUND)
 
         if self.current_mft is None and self.backup_mft is None:
             wsk.pop()
             return
+
+        if self.current_mft is not None:
+            install_object(self.current_mft)
+            Status.add(mft_uri, Generation.current, codes.OBJECT_ACCEPTED)
+        else:
+            install_object(self.backup_mft)
+            Status.add(mft_uri, Generation.backup, codes.OBJECT_ACCEPTED)
 
         crls = {}
         for uri, digest in crl_candidates:
@@ -485,7 +500,11 @@ class  WalkFrame(object):
         for uri, digest in crl_candidates:
             for generation in (Generation.current, Generation.backup):
                 crl = crls[uri, generation]
-                if crl is None or crl == self.crl:
+                if crl == self.crl:
+                    continue
+                if crl is None and generation == Generation.backup:
+                    Status.remove(uri, generation, codes.OBJECT_NOT_FOUND)
+                if crl is None:
                     continue
                 if crl.sha256 != digest:
                     #Status.add(uri, generation, codes.DIGEST_MISMATCH)
@@ -894,7 +913,7 @@ def main():
 
     parser.add_argument("--workers", type = posint, default = 10)
     parser.add_argument("--no-fetch", action  = "store_true")
-    parser.add_argument("--spawn-on-fetch",     action = "store_true")
+    parser.add_argument("--no-spawn-on-fetch", action = "store_true")
 
     global args
     args = parser.parse_args()

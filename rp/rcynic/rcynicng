@@ -4,12 +4,6 @@
 
 """
 Reimplementation of rcynic in Python.  Work in progress.
-
-Well, OK, at the moment this doesn't even come close to being a
-replacement for the C version of rcynic, must less adding the new
-features that were the reason for bothering with all this.  Right now,
-this is just a test framework for the new POW.c code to support Python
-RP code.  Gotta start somewhere.
 """
 
 import os
@@ -465,29 +459,22 @@ class  WalkFrame(object):
 
         # NB: CRL checks on manifest EE certificates deferred until we've picked a CRL.
 
-        self.current_mft = Manifest.derReadURI(mft_uri, Generation.current)
-        if self.current_mft is not None and self.current_mft.check(trusted = self.trusted, crl = None):
-            crl_candidates.extend(self.current_mft.find_crl_uris())
+        current_mft = Manifest.derReadURI(mft_uri, Generation.current)
+        if current_mft is not None and current_mft.check(trusted = self.trusted, crl = None):
+            crl_candidates.extend(current_mft.find_crl_uris())
         else:
-            self.current_mft = None
+            current_mft = None
 
-        self.backup_mft  = Manifest.derReadURI(mft_uri, Generation.backup)
-        if self.backup_mft is not None and self.backup_mft.check(trusted = self.trusted, crl = None):
-            crl_candidates.extend(self.backup_mft.find_crl_uris())
+        backup_mft  = Manifest.derReadURI(mft_uri, Generation.backup)
+        if backup_mft is not None and backup_mft.check(trusted = self.trusted, crl = None):
+            crl_candidates.extend(backup_mft.find_crl_uris())
         else:
-            self.backup_mft = None
+            backup_mft = None
             Status.remove(mft_uri, Generation.backup, codes.OBJECT_NOT_FOUND)
 
-        if self.current_mft is None and self.backup_mft is None:
+        if current_mft is None and backup_mft is None:
             wsk.pop()
             return
-
-        if self.current_mft is not None:
-            install_object(self.current_mft)
-            Status.add(mft_uri, Generation.current, codes.OBJECT_ACCEPTED)
-        else:
-            install_object(self.backup_mft)
-            Status.add(mft_uri, Generation.backup, codes.OBJECT_ACCEPTED)
 
         crls = {}
         for uri, digest in crl_candidates:
@@ -523,38 +510,38 @@ class  WalkFrame(object):
 
         #logger.debug("Picked %s CRL %s", self.crl.generation, self.crl.uri)
 
-        if self.current_mft is not None and self.crl.isRevoked(self.current_mft.ee):
-            Status.add(self.current_mft.uri, self.current_mft.generation, codes.MANIFEST_EE_REVOKED)
-            self.current_mft = None
+        if current_mft is not None and self.crl.isRevoked(current_mft.ee):
+            Status.add(current_mft.uri, current_mft.generation, codes.MANIFEST_EE_REVOKED)
+            current_mft = None
 
-        if self.backup_mft is not None and self.crl.isRevoked(self.backup_mft.ee):
-            Status.add(self.backup_mft.uri, self.backup_mft.generation, codes.MANIFEST_EE_REVOKED)
-            self.backup_mft = None
+        if backup_mft is not None and self.crl.isRevoked(backup_mft.ee):
+            Status.add(backup_mft.uri, backup_mft.generation, codes.MANIFEST_EE_REVOKED)
+            backup_mft = None
 
-        if self.current_mft is None and self.backup_mft is None:
+        if current_mft is not None:
+            self.mft = current_mft
+        elif backup_mft is not None:
+            self.mft = backup_mft
+        else:
             wsk.pop()
             return
+
+        install_object(self.mft)
+        Status.add(mft_uri, self.mft.generation, codes.OBJECT_ACCEPTED)
 
         # Use an explicit iterator so we can resume it later.
         # Run the loop in a separate method for the same reason.
 
-        assert self.current_mft is not None or self.backup_mft is not None
-
-        if self.current_mft is not None:
-            self.mft_iterator = iter(self.current_mft.getFiles())
-            self.generation   = Generation.current
-        else:
-            self.mft_iterator = iter(self.backup_mft.getFiles())
-            self.generation   = Generation.backup
-
-        self.state = self.loop
+        self.mft_iterator = iter(self.mft.getFiles())
+        self.generation   = Generation.current
+        self.state        = self.loop
 
     fns2 = dict(cer = X509, gbr = Ghostbuster, roa = ROA)
 
     @tornado.gen.coroutine
     def loop(self, wsk):
 
-        #logger.debug("Processing %s %s", self.generation.name, (self.current_mft or self.backup_mft).uri)
+        #logger.debug("Processing %s %s", self.generation.name, self.mft.uri)
 
         counter = 0
         counter_max_before_yield = 50
@@ -575,7 +562,7 @@ class  WalkFrame(object):
                 continue
 
             if self.generation is Generation.backup and Status.test(uri, Generation.current, codes.OBJECT_ACCEPTED):
-                logger.debug("Current version of %s already accepted, skipping", uri)
+                #logger.debug("Current version of %s already accepted, skipping", uri)
                 continue
 
             if uri[-4] != "." or cls is None:
@@ -583,6 +570,10 @@ class  WalkFrame(object):
                 continue
 
             obj = cls.derReadURI(uri, self.generation)
+
+            if obj is None:
+                Status.add(uri, self.generation, codes.OBJECT_NOT_FOUND)
+                continue
 
             ok  = obj.check(trusted = self.trusted, crl = self.crl)
 
@@ -600,8 +591,8 @@ class  WalkFrame(object):
                 wsk.push(obj)
                 return
 
-        if self.generation is Generation.current and self.backup_mft is not None:
-            self.mft_iterator = iter(self.backup_mft.getFiles())
+        if self.generation is Generation.current:
+            self.mft_iterator = iter(self.mft.getFiles())
             self.generation   = Generation.backup
         else:
             wsk.pop()

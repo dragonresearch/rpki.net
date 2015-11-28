@@ -625,8 +625,10 @@ class WalkTask(object):
     STACK_OF(walk_ctx_t) in rcynic:tos.
     """
 
-    def __init__(self, wsk = None):
+    def __init__(self, wsk = None, cer = None):
         self.wsk = [] if wsk is None else wsk
+        if cer is not None:
+            self.push(cer)
 
     def __repr__(self):
         try:
@@ -824,17 +826,13 @@ class CheckTALTask(object):
     @tornado.gen.coroutine
     def __call__(self):
         yield Fetcher(self.uri).fetch()
-        for generation in (Generation.current, Generation.backup):
-            if (yield self.check(generation)):
-                logger.debug("Starting walk of %s", self.uri)
-                wsk = WalkTask()
-                wsk.push(self.cer)
-                task_queue.put(wsk)
-                return
+        if self.check(Generation.current):
+            yield task_queue.put(WalkTask(cer = self.cer))
+        elif self.check(Generation.backup):
+            yield task_queue.put(WalkTask(cer = self.cer))
         else:
             Status.add(self.uri, None, codes.TRUST_ANCHOR_SKIPPED)
 
-    @tornado.gen.coroutine
     def check(self, generation):
         self.cer = X509.derReadURI(self.uri, generation)
         ok = False
@@ -849,7 +847,7 @@ class CheckTALTask(object):
             Status.add(self.uri, generation, codes.OBJECT_ACCEPTED)
         else:
             Status.add(self.uri, generation, codes.OBJECT_REJECTED)
-        raise tornado.gen.Return(ok)
+        return ok
 
 
 @tornado.gen.coroutine

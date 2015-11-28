@@ -75,9 +75,9 @@ class StatusCodeDB(object):
         return set(self._map.itervalues())
 
     def normalize(self, status):
-        convert = set(s for s in status if isinstance(s, (int, str)))
-        status |= set(self._map[s] for s in convert)
-        status -= convert
+        for s in [s for s in status if isinstance(s, (int, str)) and s in self._map]:
+            status.remove(s)
+            status.add(self._map[s])
 
 
 validation_status = StatusCodeDB(

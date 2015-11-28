@@ -440,7 +440,7 @@ class  WalkFrame(object):
             self.state = self.fetch
         else:
             self.state = self.fetch
-            task_queue.put(wsk.clone())
+            yield task_queue.put(wsk.clone())
             wsk.pop()
 
     @tornado.gen.coroutine
@@ -556,15 +556,9 @@ class  WalkFrame(object):
 
         #logger.debug("Processing %s %s", self.generation.name, self.mft.uri)
 
-        counter = 0
-        counter_max_before_yield = 50
-
         for fn, digest in self.mft_iterator:
 
-            counter += 1
-            if counter > counter_max_before_yield:
-                yield tornado.gen.moment
-                counter = 0
+            yield tornado.gen.moment
 
             uri = self.diruri + fn
             cls = self.fns2.get(uri[-3:])

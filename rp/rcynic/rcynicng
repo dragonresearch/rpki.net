@@ -21,6 +21,7 @@ import tornado.queues
 import tornado.process
 
 import rpki.POW
+import rpki.sundial
 
 from rpki.oids import id_kp_bgpsec_router
 
@@ -529,8 +530,17 @@ class  WalkFrame(object):
         install_object(self.mft)
         Status.add(mft_uri, self.mft.generation, codes.OBJECT_ACCEPTED)
 
-        self.stale_crl = Status.test(self.crl.uri, self.crl.generation, codes.STALE_CRL_OR_MANIFEST)
-        self.stale_mft = Status.test(self.mft.uri, self.mft.generation, codes.STALE_CRL_OR_MANIFEST)
+        now = rpki.sundial.now()
+
+        self.stale_crl = now > self.crl.nextUpdate
+        if self.stale_crl:
+            logger.debug("Stale CRL %s %s", self.crl.nextUpdate, self.crl.uri)
+            Status.add(self.crl.uri, self.crl.generation, codes.STALE_CRL_OR_MANIFEST)            
+
+        self.stale_mft = now > self.mft.nextUpdate
+        if self.stale_mft:
+            logger.debug("Stale Manifest %s %s", self.mft.nextUpdate, self.mft.uri)
+            Status.add(self.mft.uri, self.mft.generation, codes.STALE_CRL_OR_MANIFEST)
 
         # Use an explicit iterator so we can resume it later.
         # Run the loop in a separate method for the same reason.
@@ -573,10 +583,12 @@ class  WalkFrame(object):
                 continue
 
             if self.stale_crl:
+                logger.debug("%s tainted by stale CRL", uri)
                 Status.add(uri, self.generation, codes.TAINTED_BY_STALE_CRL)
 
             if self.stale_mft:
-                Status.add(uri, self.generation, codes.TAINTED_BY_STALE_MFT)
+                logger.debug("%s tainted by stale manifest", uri)
+                Status.add(uri, self.generation, codes.TAINTED_BY_STALE_MANIFEST)
 
             obj = cls.derReadURI(uri, self.generation)
 

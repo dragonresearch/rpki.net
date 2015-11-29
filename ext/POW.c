@@ -320,12 +320,7 @@ static const ASN1_INTEGER *asn1_zero, *asn1_four_octets, *asn1_twenty_octets;
  */
 
 static const int
-  allow_stale_crl = 1,
-  allow_stale_manifest = 1,
-  allow_digest_mismatch = 1,
-  allow_crl_digest_mismatch = 1,
   allow_nonconformant_name = 1,
-  allow_ee_without_signedObject = 1,
   allow_1024_bit_ee_key = 1,
   allow_wrong_cms_si_attributes = 1,
   allow_non_self_signed_trust_anchor = 0;
@@ -1234,21 +1229,9 @@ validation_status_x509_verify_cert_cb(int ok, X509_STORE_CTX *ctx, PyObject *sta
 
   case X509_V_ERR_CRL_HAS_EXPIRED:
     /*
-     * This isn't really an error, exactly.  CRLs don't really
-     * "expire".  What OpenSSL really means by this error is just
-     * "it's now later than the issuer said it intended to publish a
-     * new CRL".  Whether we treat this as an error or not is
-     * configurable, see the allow_stale_crl parameter.
-     *
-     * Deciding whether to allow stale CRLs is check_crl()'s job,
-     * not ours.  By the time this callback occurs, we've already
-     * accepted the CRL; this callback is just notifying us that the
-     * object being checked is tainted by a stale CRL.  So we mark the
-     * object as tainted and carry on.
+     * This isn't really an error, because CRLs don't really
+     * "expire".
      */
-
-#warning Could be done in Python
-    record_validation_status(status, TAINTED_BY_STALE_CRL);
 
 #warning Should be kept in C
     return 1;
@@ -1838,14 +1821,6 @@ static int check_manifest(CMS_ContentInfo *cms,
 #warning Should be kept in C
   if (manifest->version)
     lose_validation_error_from_code(status, WRONG_OBJECT_VERSION);
-
-#warning Could be done in Python
-  if (X509_cmp_current_time(manifest->thisUpdate) > 0)
-    lose_validation_error_from_code(status, MANIFEST_NOT_YET_VALID);
-
-#warning Could be done in Python
-  if (X509_cmp_current_time(manifest->nextUpdate) < 0)
-    lose_validation_error_from_code_maybe(allow_stale_manifest, status, STALE_CRL_OR_MANIFEST);
 
 #warning Could be done in Python
   if ((certs = CMS_get1_certs(cms)) == NULL || sk_X509_num(certs) != 1)

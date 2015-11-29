@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import shutil
+import errno
 import logging
 import argparse
 import subprocess
@@ -115,10 +116,16 @@ class Status(object):
 def install_object(obj):
     fn = uri_to_filename(obj.uri, new_authenticated)
     dn = os.path.dirname(fn)
-    #logger.debug("Installing %r by linking %s to %s", obj, obj.fn, fn)
+    logger.debug("Installing %r by linking %s to %s", obj, obj.fn, fn)
     if not os.path.isdir(dn):
         os.makedirs(dn)
-    os.link(obj.fn, fn)
+    try:
+        os.link(obj.fn, fn)
+    except OSError as e:
+        if e.errno == errno.EEXIST and os.path.samefile(obj.fn, fn):
+            logger.exception("Installing same file again is harmless but silly")
+        else:
+            raise
 
 
 def final_install():
@@ -216,6 +223,11 @@ class X509(rpki.POW.X509):
             status.add(codes.CRLDP_EXTENSION_FORBIDDEN)
         if not is_ta and self.crldp is None:
             status.add(codes.CRLDP_EXTENSION_MISSING)
+        serial = self.getSerial()
+        if serial <= 0 or serial > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:
+            status.add(codes.BAD_CERTIFICATE_SERIAL_NUMBER)
+        if self.getVersion() != 2:
+            status.add(codes.WRONG_OBJECT_VERSION)
         n_rsync_caIssuers              = self.count_uris(self.aia)
         n_rsync_caDirectory            = self.count_uris(self.caDirectory)
         n_rsync_rpkiManifest           = self.count_uris(self.rpkiManifest)
@@ -278,6 +290,22 @@ class CRL(rpki.POW.CRL):
             logger.debug("%r rejected: %s", self, e)
             status.add(codes.OBJECT_REJECTED)
         codes.normalize(status)
+        if self.getVersion() != 1:
+            status.add(codes.WRONG_OBJECT_VERSION)
+        now = rpki.sundial.now()
+        if self.thisUpdate > now:
+            status.add(codes.CRL_NOT_YET_VALID)
+        if self.nextUpdate < now:
+            status.add(codes.STALE_CRL_OR_MANIFEST)
+        if self.number is None:
+            status.add(codes.CRL_NUMBER_EXTENSION_MISSING)
+        if self.number < 0:
+            status.add(codes.CRL_NUMBER_IS_NEGATIVE)
+        if self.number > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:
+            status.add(codes.CRL_NUMBER_OUT_OF_RANGE)
+        if self.getIssuer() != issuer.getSubject():
+            status.add(codes.CRL_ISSUER_NAME_MISMATCH)
+
         return not any(s.kind == "bad" for s in status)
 
 

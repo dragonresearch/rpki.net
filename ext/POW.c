@@ -1419,11 +1419,6 @@ static int check_x509(X509 *x,
   unsigned ski_hashlen, afi;
   int i, ok, crit, loc, ex_count, is_ca, routercert = 0, ret = 0;
 
-#warning Could be done in Python
-  if (ASN1_INTEGER_cmp(X509_get_serialNumber(x), asn1_zero) <= 0 ||
-      ASN1_INTEGER_cmp(X509_get_serialNumber(x), asn1_twenty_octets) > 0)
-    lose_validation_error_from_code(status, BAD_CERTIFICATE_SERIAL_NUMBER);
-
 #warning Should remain in C
   if (!check_allowed_time_encoding(X509_get_notBefore(x)) ||
       !check_allowed_time_encoding(X509_get_notAfter(x)))
@@ -1499,10 +1494,6 @@ static int check_x509(X509 *x,
       routercert |= OBJ_obj2nid(sk_ASN1_OBJECT_value(eku, i)) == NID_id_kp_bgpsec_router;
   }
 
-#warning Could be done in Python
-  if (X509_get_version(x) != 2)
-    lose_validation_error_from_code(status, WRONG_OBJECT_VERSION);
-
 #warning Should remain in C
   if (x->cert_info == NULL ||
       x->cert_info->signature == NULL ||
@@ -1510,7 +1501,7 @@ static int check_x509(X509 *x,
       OBJ_obj2nid(x->cert_info->signature->algorithm) != NID_sha256WithRSAEncryption)
     lose_validation_error_from_code(status, NONCONFORMANT_SIGNATURE_ALGORITHM);
 
-#warning Could be done in Python
+#warning Part of this needs to remain in C
   if (x->skid)
     ex_count--;
   else
@@ -1680,10 +1671,6 @@ static int check_crl(X509_CRL *crl,
   EVP_PKEY *pkey;
   int i, ret = 0;
 
-#warning Could be done in Python
-  if (X509_CRL_get_version(crl) != 1)
-    lose_validation_error_from_code(status, WRONG_OBJECT_VERSION);
-
 #warning Should be kept in C
   if (!crl->crl || !crl->crl->sig_alg || !crl->crl->sig_alg->algorithm ||
       OBJ_obj2nid(crl->crl->sig_alg->algorithm) != NID_sha256WithRSAEncryption)
@@ -1695,36 +1682,12 @@ static int check_crl(X509_CRL *crl,
     lose_validation_error_from_code(status, NONCONFORMANT_ASN1_TIME_VALUE);
 
 #warning Could be done in Python
-  if (X509_cmp_current_time(X509_CRL_get_lastUpdate(crl)) > 0)
-    lose_validation_error_from_code(status, CRL_NOT_YET_VALID);
-
-#warning Could be done in Python
-  if (X509_cmp_current_time(X509_CRL_get_nextUpdate(crl)) < 0)
-    lose_validation_error_from_code_maybe(allow_stale_crl, status, STALE_CRL_OR_MANIFEST);
-
-#warning Could be done in Python
   if (!check_aki(status, issuer, crl->akid))
     goto error;
-
-#warning Could be done in Python
-  if (crl->crl_number == NULL)
-    lose_validation_error_from_code(status, CRL_NUMBER_EXTENSION_MISSING);
-
-#warning Could be done in Python
-  if (ASN1_INTEGER_cmp(crl->crl_number, asn1_zero) < 0)
-    lose_validation_error_from_code(status, CRL_NUMBER_IS_NEGATIVE);
-
-#warning Could be done in Python
-  if (ASN1_INTEGER_cmp(crl->crl_number, asn1_twenty_octets) > 0)
-    lose_validation_error_from_code(status, CRL_NUMBER_OUT_OF_RANGE);
 
 #warning Should be kept in C
   if (X509_CRL_get_ext_count(crl) != 2)
     lose_validation_error_from_code(status, DISALLOWED_X509V3_EXTENSION);
-
-#warning Could be done in Python
-  if (X509_NAME_cmp(X509_CRL_get_issuer(crl), X509_get_subject_name(issuer)))
-    lose_validation_error_from_code(status, CRL_ISSUER_NAME_MISMATCH);
 
 #warning Should be kept in C
   if (!check_allowed_dn(X509_CRL_get_issuer(crl)))

@@ -85,6 +85,13 @@ class Status(object):
         return str(self._generation)
 
     @classmethod
+    def get(cls, uri, generation):
+        try:
+            return cls.db[uri, generation].status
+        except KeyError:
+            return None
+
+    @classmethod
     def update(cls, uri, generation):
         try:
             key  = (uri, generation)
@@ -116,16 +123,10 @@ class Status(object):
 def install_object(obj):
     fn = uri_to_filename(obj.uri, new_authenticated)
     dn = os.path.dirname(fn)
-    logger.debug("Installing %r by linking %s to %s", obj, obj.fn, fn)
+    #logger.debug("Installing %r by linking %s to %s", obj, obj.fn, fn)
     if not os.path.isdir(dn):
         os.makedirs(dn)
-    try:
-        os.link(obj.fn, fn)
-    except OSError as e:
-        if e.errno == errno.EEXIST and os.path.samefile(obj.fn, fn):
-            logger.exception("Installing same file again is harmless but silly")
-        else:
-            raise
+    os.link(obj.fn, fn)
 
 
 def final_install():
@@ -203,6 +204,7 @@ class X509(rpki.POW.X509):
         return count
 
     def check(self, trusted, crl):
+        #logger.debug("Starting checks for %r", self)
         status = Status.update(self.uri, self.generation)
         is_ta = trusted is None
         is_routercert = (self.eku is not None and id_kp_bgpsec_router in self.eku and
@@ -252,6 +254,7 @@ class X509(rpki.POW.X509):
             logger.debug("%r rejected: %s", self, e)
             status.add(codes.OBJECT_REJECTED)
         codes.normalize(status)
+        #logger.debug("Finished checks for %r", self)
         return not any(s.kind == "bad" for s in status)
 
 
@@ -447,6 +450,10 @@ class  WalkFrame(object):
     after an rsync or RRDP fetch completes).
     """
 
+    fns2 = dict(cer = X509,
+                gbr = Ghostbuster,
+                roa = ROA)
+
     def __init__(self, cer):
         self.cer = cer
         self.state = self.initial
@@ -509,17 +516,14 @@ class  WalkFrame(object):
             wsk.pop()
             return
 
+        self.crl = None
         crls = {}
         for uri, digest in crl_candidates:
             for generation in (Generation.current, Generation.backup):
-                key = (uri, generation)
-                if key not in crls:
-                    crls[key] = CRL.derReadURI(uri, generation)
-
-        self.crl = None
-        for uri, digest in crl_candidates:
-            for generation in (Generation.current, Generation.backup):
-                crl = crls[uri, generation]
+                try:
+                    crl = crls[uri, generation]
+                except KeyError:
+                    crl = crls[uri, generation] = CRL.derReadURI(uri, generation)
                 if crl == self.crl:
                     continue
                 if crl is None and generation == Generation.backup:
@@ -578,15 +582,12 @@ class  WalkFrame(object):
         # Run the loop in a separate method for the same reason.
 
         self.mft_iterator = iter(self.mft.getFiles())
-        self.generation   = Generation.current
         self.state        = self.loop
-
-    fns2 = dict(cer = X509, gbr = Ghostbuster, roa = ROA)
 
     @tornado.gen.coroutine
     def loop(self, wsk):
 
-        #logger.debug("Processing %s %s", self.generation.name, self.mft.uri)
+        #logger.debug("Processing %s", self.mft.uri)
 
         for fn, digest in self.mft_iterator:
 
@@ -600,49 +601,39 @@ class  WalkFrame(object):
             if uri == self.crl.uri:
                 continue
 
-            if self.generation is Generation.backup and Status.test(uri, Generation.current, codes.OBJECT_ACCEPTED):
-                #logger.debug("Current version of %s already accepted, skipping", uri)
-                continue
-
             if uri[-4] != "." or cls is None:
-                Status.add(uri, self.generation, codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
+                Status.add(uri, None, codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
                 continue
 
-            if self.stale_crl:
-                logger.debug("%s tainted by stale CRL", uri)
-                Status.add(uri, self.generation, codes.TAINTED_BY_STALE_CRL)
+            for generation in (Generation.current, Generation.backup):
+                obj = cls.derReadURI(uri, generation)
+                if obj is None and generation is Generation.current:
+                    Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
+                if obj is None:
+                    continue
+                if self.stale_crl:
+                    Status.add(uri, generation, codes.TAINTED_BY_STALE_CRL)
+                if self.stale_mft:
+                    Status.add(uri, generation, codes.TAINTED_BY_STALE_MANIFEST)
+                ok  = obj.check(trusted = self.trusted, crl = self.crl)
+                if obj.sha256 != digest:
+                    Status.add(uri, generation, codes.DIGEST_MISMATCH)
+                    ok = False
+                if ok:
+                    install_object(obj)
+                    Status.add(uri, generation, codes.OBJECT_ACCEPTED)
+                    break
+                else:
+                    Status.add(uri, generation, codes.OBJECT_REJECTED)
 
-            if self.stale_mft:
-                logger.debug("%s tainted by stale manifest", uri)
-                Status.add(uri, self.generation, codes.TAINTED_BY_STALE_MANIFEST)
-
-            obj = cls.derReadURI(uri, self.generation)
-
-            if obj is None:
-                Status.add(uri, self.generation, codes.OBJECT_NOT_FOUND)
-                continue
-
-            ok  = obj.check(trusted = self.trusted, crl = self.crl)
-
-            if obj.sha256 != digest:
-                Status.add(uri, generation, codes.DIGEST_MISMATCH)
-                ok = False
-
-            if ok:
-                install_object(obj)
-                Status.add(uri, self.generation, codes.OBJECT_ACCEPTED)
             else:
-                Status.add(uri, self.generation, codes.OBJECT_REJECTED)
+                continue
 
             if ok and cls is X509 and obj.is_ca:
                 wsk.push(obj)
                 return
 
-        if self.generation is Generation.current:
-            self.mft_iterator = iter(self.mft.getFiles())
-            self.generation   = Generation.backup
-        else:
-            wsk.pop()
+        wsk.pop()
 
 
 class WalkTask(object):

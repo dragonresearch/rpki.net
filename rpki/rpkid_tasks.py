@@ -586,13 +586,10 @@ class UpdateEECertificatesTask(AbstractTask):
                 for ca_detail in covering:
                     logger.debug("%r: No existing EE certificate for %s %s", self, gski, resources)
                     cn, sn = subject_name.extract_cn_and_sn()
-                    sia = (None, None,
-                           ca_detail.ca.sia_uri + subject_key.gSKI() + ".cer",
-                           ca_detail.ca.parent.repository.rrdp_notification_uri)
                     cert = ca_detail.issue_ee(
                         ca          = ca_detail.ca,
                         subject_key = subject_key,
-                        sia         = sia,
+                        sia         = None,
                         resources   = resources,
                         notAfter    = resources.valid_until,
                         cn          = cn,

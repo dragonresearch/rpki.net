@@ -1229,6 +1229,7 @@ validation_status_x509_verify_cert_cb(int ok, X509_STORE_CTX *ctx, PyObject *sta
      * is called in many places where failure to find an issuer is not
      * a failure for the calling function.  Just leave these alone.
      */
+#warning Could be done in Python
     return ok;
 
   case X509_V_ERR_CRL_HAS_EXPIRED:
@@ -1245,7 +1246,11 @@ validation_status_x509_verify_cert_cb(int ok, X509_STORE_CTX *ctx, PyObject *sta
      * object being checked is tainted by a stale CRL.  So we mark the
      * object as tainted and carry on.
      */
+
+#warning Could be done in Python
     record_validation_status(status, TAINTED_BY_STALE_CRL);
+
+#warning Should be kept in C
     return 1;
 
   case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
@@ -1262,6 +1267,7 @@ validation_status_x509_verify_cert_cb(int ok, X509_STORE_CTX *ctx, PyObject *sta
      * warned that enabling this feature may cause this program's
      * output not to work with other OpenSSL-based applications.
      */
+#warning Could be done in Python
     if (allow_non_self_signed_trust_anchor)
       ok = 1;
     record_validation_status(status, TRUST_ANCHOR_NOT_SELF_SIGNED);
@@ -1271,6 +1277,7 @@ validation_status_x509_verify_cert_cb(int ok, X509_STORE_CTX *ctx, PyObject *sta
    * Handle all other OpenSSL verify errors by stuffing an integer
    * into the status set.
    */
+#warning Could be done in Python
   default:
     if (status != Py_None) {
       PyObject *value = PyInt_FromLong(ctx->error);
@@ -1297,6 +1304,7 @@ validation_status_x509_verify_cert_cb(int ok, X509_STORE_CTX *ctx, PyObject *sta
  * must be of type PrintableString.
  */
 
+#warning Should be kept in C
 static int check_allowed_dn(X509_NAME *dn)
 {
   X509_NAME_ENTRY *ne;
@@ -1335,6 +1343,7 @@ static int check_allowed_dn(X509_NAME *dn)
  * Check whether an ASN.1 TIME value conforms to RFC 5280 4.1.2.5.
  */
 
+#warning Should be kept in C
 static int check_allowed_time_encoding(ASN1_TIME *t)
 {
   switch (t->type) {
@@ -1351,23 +1360,6 @@ static int check_allowed_time_encoding(ASN1_TIME *t)
 }
 
 /*
- * Compare ASN1_TIME values.
- */
-
-static int asn1_time_cmp(ASN1_TIME *t1, ASN1_TIME *t2)
-{
-  ASN1_GENERALIZEDTIME *g1 = ASN1_TIME_to_generalizedtime(t1, NULL);
-  ASN1_GENERALIZEDTIME *g2 = ASN1_TIME_to_generalizedtime(t2, NULL);
-
-  int cmp = ASN1_STRING_cmp(g1, g2);
-
-  ASN1_GENERALIZEDTIME_free(g1);
-  ASN1_GENERALIZEDTIME_free(g2);
-
-  return cmp;
-}
-
-/*
  * Compare filename fields of two FileAndHash structures.
  */
 
@@ -1381,6 +1373,7 @@ static int FileAndHash_name_cmp(const FileAndHash * const *a, const FileAndHash 
  * form, and matches the issuer.
  */
 
+#warning Probably could be done in Python
 static int check_aki(PyObject *status, const X509 *issuer, const AUTHORITY_KEYID *aki)
 {
   if (aki == NULL)
@@ -1426,10 +1419,12 @@ static int check_x509(X509 *x,
   unsigned ski_hashlen, afi;
   int i, ok, crit, loc, ex_count, is_ca, routercert = 0, ret = 0;
 
+#warning Could be done in Python
   if (ASN1_INTEGER_cmp(X509_get_serialNumber(x), asn1_zero) <= 0 ||
       ASN1_INTEGER_cmp(X509_get_serialNumber(x), asn1_twenty_octets) > 0)
     lose_validation_error_from_code(status, BAD_CERTIFICATE_SERIAL_NUMBER);
 
+#warning Should remain in C
   if (!check_allowed_time_encoding(X509_get_notBefore(x)) ||
       !check_allowed_time_encoding(X509_get_notAfter(x)))
     lose_validation_error_from_code(status, NONCONFORMANT_ASN1_TIME_VALUE);
@@ -1439,6 +1434,7 @@ static int check_x509(X509 *x,
    * API functions for them.  We wouldn't bother either if they
    * weren't forbidden by the RPKI certificate profile.
    */
+#warning Should remain in C
   if (!x->cert_info || x->cert_info->issuerUID || x->cert_info->subjectUID)
     lose_validation_error_from_code(status, NONCONFORMANT_CERTIFICATE_UID);
 
@@ -1503,26 +1499,32 @@ static int check_x509(X509 *x,
       routercert |= OBJ_obj2nid(sk_ASN1_OBJECT_value(eku, i)) == NID_id_kp_bgpsec_router;
   }
 
+#warning Could be done in Python
   if (X509_get_version(x) != 2)
     lose_validation_error_from_code(status, WRONG_OBJECT_VERSION);
 
+#warning Should remain in C
   if (x->cert_info == NULL ||
       x->cert_info->signature == NULL ||
       x->cert_info->signature->algorithm == NULL ||
       OBJ_obj2nid(x->cert_info->signature->algorithm) != NID_sha256WithRSAEncryption)
     lose_validation_error_from_code(status, NONCONFORMANT_SIGNATURE_ALGORITHM);
 
+#warning Could be done in Python
   if (x->skid)
     ex_count--;
   else
     lose_validation_error_from_code(status, SKI_EXTENSION_MISSING);
 
+#warning Should remain in C
   if (!check_allowed_dn(X509_get_subject_name(x)))
     lose_validation_error_from_code_maybe(allow_nonconformant_name, status, NONCONFORMANT_SUBJECT_NAME);
 
+#warning Should remain in C
   if (!check_allowed_dn(X509_get_issuer_name(x)))
     lose_validation_error_from_code_maybe(allow_nonconformant_name, status, NONCONFORMANT_ISSUER_NAME);
 
+#warning Should remain in C
   if ((policies = X509_get_ext_d2i(x, NID_certificate_policies, &crit, NULL)) != NULL) {
     POLICYQUALINFO *qualifier = NULL;
     POLICYINFO *policy = NULL;
@@ -1539,12 +1541,14 @@ static int check_x509(X509 *x,
       goto error;
   }
 
+#warning Should remain in C
   if (!X509_EXTENSION_get_critical(X509_get_ext(x, X509_get_ext_by_NID(x, NID_key_usage, -1))) ||
       (x->ex_flags & EXFLAG_KUSAGE) == 0 ||
       x->ex_kusage != (is_ca ? KU_KEY_CERT_SIGN | KU_CRL_SIGN : KU_DIGITAL_SIGNATURE))
     lose_validation_error_from_code(status, BAD_KEY_USAGE);
   ex_count--;
 
+#warning Should remain in C
   if (x->rfc3779_addr) {
     ex_count--;
     if (routercert ||
@@ -1563,6 +1567,7 @@ static int check_x509(X509 *x,
     }
   }
 
+#warning Should remain in C
   if (x->rfc3779_asid) {
     ex_count--;
     if ((loc = X509_get_ext_by_NID(x, NID_sbgp_autonomousSysNum, -1)) < 0 ||
@@ -1574,9 +1579,11 @@ static int check_x509(X509 *x,
       lose_validation_error_from_code(status, BAD_ASIDENTIFIERS);
   }
 
+#warning Should remain in C
   if (!x->rfc3779_addr && !x->rfc3779_asid)
     lose_validation_error_from_code(status, MISSING_RESOURCES);
 
+#warning Should remain in C
   subject_pkey = X509_get_pubkey(x);
   ok = subject_pkey != NULL;
   if (ok) {
@@ -1606,6 +1613,7 @@ static int check_x509(X509 *x,
   if (!ok)
     lose_validation_error_from_code(status, BAD_PUBLIC_KEY);
 
+#warning Should remain in C
   if (x->skid == NULL ||
       (ski_pubkey = X509_get0_pubkey_bitstr(x)) == NULL ||
       !EVP_Digest(ski_pubkey->data, ski_pubkey->length,
@@ -1615,12 +1623,14 @@ static int check_x509(X509 *x,
       memcmp(ski_hashbuf, x->skid->data, ski_hashlen))
     lose_validation_error_from_code(status, SKI_PUBLIC_KEY_MISMATCH);
 
+#warning Should remain in C (at least partially)
   if (x->akid) {
     ex_count--;
     if (!check_aki(status, issuer, x->akid))
       goto error;
   }
 
+#warning Could be done in Python
   if (!x->akid && !is_ta)
     lose_validation_error_from_code(status, AKI_EXTENSION_MISSING);
 
@@ -1670,49 +1680,63 @@ static int check_crl(X509_CRL *crl,
   EVP_PKEY *pkey;
   int i, ret = 0;
 
+#warning Could be done in Python
   if (X509_CRL_get_version(crl) != 1)
     lose_validation_error_from_code(status, WRONG_OBJECT_VERSION);
 
+#warning Should be kept in C
   if (!crl->crl || !crl->crl->sig_alg || !crl->crl->sig_alg->algorithm ||
       OBJ_obj2nid(crl->crl->sig_alg->algorithm) != NID_sha256WithRSAEncryption)
     lose_validation_error_from_code(status, NONCONFORMANT_SIGNATURE_ALGORITHM);
 
+#warning Should be kept in C
   if (!check_allowed_time_encoding(X509_CRL_get_lastUpdate(crl)) ||
       !check_allowed_time_encoding(X509_CRL_get_nextUpdate(crl)))
     lose_validation_error_from_code(status, NONCONFORMANT_ASN1_TIME_VALUE);
 
+#warning Could be done in Python
   if (X509_cmp_current_time(X509_CRL_get_lastUpdate(crl)) > 0)
     lose_validation_error_from_code(status, CRL_NOT_YET_VALID);
 
+#warning Could be done in Python
   if (X509_cmp_current_time(X509_CRL_get_nextUpdate(crl)) < 0)
     lose_validation_error_from_code_maybe(allow_stale_crl, status, STALE_CRL_OR_MANIFEST);
 
+#warning Could be done in Python
   if (!check_aki(status, issuer, crl->akid))
     goto error;
 
+#warning Could be done in Python
   if (crl->crl_number == NULL)
     lose_validation_error_from_code(status, CRL_NUMBER_EXTENSION_MISSING);
 
+#warning Could be done in Python
   if (ASN1_INTEGER_cmp(crl->crl_number, asn1_zero) < 0)
     lose_validation_error_from_code(status, CRL_NUMBER_IS_NEGATIVE);
 
+#warning Could be done in Python
   if (ASN1_INTEGER_cmp(crl->crl_number, asn1_twenty_octets) > 0)
     lose_validation_error_from_code(status, CRL_NUMBER_OUT_OF_RANGE);
 
+#warning Should be kept in C
   if (X509_CRL_get_ext_count(crl) != 2)
     lose_validation_error_from_code(status, DISALLOWED_X509V3_EXTENSION);
 
+#warning Could be done in Python
   if (X509_NAME_cmp(X509_CRL_get_issuer(crl), X509_get_subject_name(issuer)))
     lose_validation_error_from_code(status, CRL_ISSUER_NAME_MISMATCH);
 
+#warning Should be kept in C
   if (!check_allowed_dn(X509_CRL_get_issuer(crl)))
     lose_validation_error_from_code_maybe(allow_nonconformant_name, status, NONCONFORMANT_ISSUER_NAME);
 
+#warning Should be kept in C
   if ((revoked = X509_CRL_get_REVOKED(crl)) != NULL)
     for (i = sk_X509_REVOKED_num(revoked) - 1; i >= 0; --i)
       if (X509_REVOKED_get_ext_count(sk_X509_REVOKED_value(revoked, i)) > 0)
         lose_validation_error_from_code(status, DISALLOWED_X509V3_EXTENSION);
 
+#warning Should be kept in C
   if ((pkey = X509_get_pubkey(issuer)) != NULL) {
     ret = X509_CRL_verify(crl, pkey) > 0;
     EVP_PKEY_free(pkey);
@@ -1725,6 +1749,7 @@ static int check_crl(X509_CRL *crl,
 /*
  * Extract one datum from a CMS_SignerInfo.
  */
+#warning Should be kept in C
 static void *extract_si_datum(CMS_SignerInfo *si,
 			      int *n,
 			      const int optional,
@@ -1773,9 +1798,11 @@ static int check_cms(CMS_ContentInfo *cms,
   X509 *x = NULL;
   int i, ret = 0;
 
+#warning Could be done in Python
   if ((crls = CMS_get1_crls(cms)) != NULL)
     lose_validation_error_from_code(status, CMS_INCLUDES_CRLS);
 
+#warning Should be kept in C
   if ((signer_infos = CMS_get0_SignerInfos(cms)) == NULL ||
       sk_CMS_SignerInfo_num(signer_infos) != 1 ||
       (si = sk_CMS_SignerInfo_value(signer_infos, 0)) == NULL ||
@@ -1841,29 +1868,32 @@ static int check_manifest(CMS_ContentInfo *cms,
   STACK_OF(X509) *certs = NULL;
   int i, ret = 0;
 
+#warning Could be done in Python
   if (OBJ_obj2nid(CMS_get0_eContentType(cms)) != NID_ct_rpkiManifest)
     lose_validation_error_from_code(status, BAD_CMS_ECONTENTTYPE);
 
+#warning Should be kept in C
   if (manifest->version)
     lose_validation_error_from_code(status, WRONG_OBJECT_VERSION);
 
+#warning Could be done in Python
   if (X509_cmp_current_time(manifest->thisUpdate) > 0)
     lose_validation_error_from_code(status, MANIFEST_NOT_YET_VALID);
 
+#warning Could be done in Python
   if (X509_cmp_current_time(manifest->nextUpdate) < 0)
     lose_validation_error_from_code_maybe(allow_stale_manifest, status, STALE_CRL_OR_MANIFEST);
 
+#warning Could be done in Python
   if ((certs = CMS_get1_certs(cms)) == NULL || sk_X509_num(certs) != 1)
     lose_validation_error_from_code(status, BAD_CMS_SIGNER);
 
-  if (asn1_time_cmp(manifest->thisUpdate, X509_get_notBefore(sk_X509_value(certs, 0))) < 0 ||
-      asn1_time_cmp(manifest->nextUpdate, X509_get_notAfter(sk_X509_value(certs, 0)))  > 0)
-    lose_validation_error_from_code(status, MANIFEST_INTERVAL_OVERRUNS_CERT);
-
+#warning Could be done in Python
   if (ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_zero) < 0 ||
       ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_twenty_octets) > 0)
     lose_validation_error_from_code(status, BAD_MANIFEST_NUMBER);
 
+#warning Could be done in Python
   if (OBJ_obj2nid(manifest->fileHashAlg) != NID_sha256)
     lose_validation_error_from_code(status, NONCONFORMANT_DIGEST_ALGORITHM);
 
@@ -1949,16 +1979,20 @@ static int check_roa(CMS_ContentInfo *cms,
   ROAIPAddress *ra;
   int i, j, result = 0;
 
+#warning Could be done in Python
   if (OBJ_obj2nid(CMS_get0_eContentType(cms)) != NID_ct_ROA)
     lose_validation_error_from_code(status, BAD_CMS_ECONTENTTYPE);
 
+#warning Should be kept in C
   if (roa->version)
     lose_validation_error_from_code(status, WRONG_OBJECT_VERSION);
 
+#warning Could be done in Python
   if (ASN1_INTEGER_cmp(roa->asID, asn1_zero) < 0 ||
       ASN1_INTEGER_cmp(roa->asID, asn1_four_octets) > 0)
     lose_validation_error_from_code(status, BAD_ROA_ASID);
 
+#warning Could be done in Python
   if ((certs = CMS_get1_certs(cms)) == NULL || sk_X509_num(certs) != 1)
     lose_validation_error_from_code(status, BAD_CMS_SIGNER);
 

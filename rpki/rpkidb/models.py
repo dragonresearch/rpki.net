@@ -1845,7 +1845,7 @@ class EECertificate(models.Model):
             ca          = ca_detail.ca,
             subject_key = self.cert.getPublicKey(),
             eku         = self.cert.get_EKU(),
-            sia         = (None, None, self.uri, ca_detail.ca.parent.repository.rrdp_notification_uri),
+            sia         = None,
             resources   = resources,
             notAfter    = resources.valid_until,
             cn          = cn,

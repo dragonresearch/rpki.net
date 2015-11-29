@@ -357,6 +357,10 @@ class Manifest(rpki.POW.Manifest):
         self.nextUpdate = self.getNextUpdate()
         self.number     = self.getManifestNumber()
         self.fah        = self.getFiles()
+        self.notBefore  = self.ee.getNotBefore()
+        self.notAfter   = self.ee.getNotAfter()
+        if self.thisUpdate < self.notBefore or self.nextUpdate > self.notAfter:
+            status.add(codes.MANIFEST_INTERVAL_OVERRUNS_CERT)
         codes.normalize(status)
         return not any(s.kind == "bad" for s in status)
 

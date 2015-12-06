@@ -1350,7 +1350,16 @@ static int check_x509(X509 *x,
   BASIC_CONSTRAINTS *bc = NULL;
   unsigned char ski_hashbuf[EVP_MAX_MD_SIZE];
   unsigned ski_hashlen, afi;
-  int i, ok, crit, loc, ex_count, is_ca, routercert = 0, ret = 0;
+  int i, ok, crit, loc, ex_count, is_ca = 0, routercert = 0, ret = 0;
+
+  /*
+   * We don't use X509_check_ca() to check whether the certificate is
+   * a CA, because it's not paranoid enough to enforce the RPKI
+   * certificate profile, but we still call it because we need it (or
+   * something) to invoke x509v3_cache_extensions() for us.
+   */
+
+  (void) X509_check_ca(x);
 
   if (!check_allowed_time_encoding(X509_get_notBefore(x)) ||
       !check_allowed_time_encoding(X509_get_notAfter(x)))
@@ -1373,23 +1382,24 @@ static int check_x509(X509 *x,
    * API functions for them.  We wouldn't bother either if they
    * weren't forbidden by the RPKI certificate profile.
    */
+
   if (!x->cert_info || x->cert_info->issuerUID || x->cert_info->subjectUID)
     record_validation_status(status, NONCONFORMANT_CERTIFICATE_UID);
+
+  /*
+   * Public key checks postponed until we've checked extensions (in
+   * particular, until we've checked Basic Constraints and know
+   * whether to apply the CA or EE rules).
+   */
 
   /*
    * Keep track of allowed extensions we've seen.  Once we've
    * processed all the ones we expect, anything left is an error.
    */
+
   ex_count = X509_get_ext_count(x);
 
-  /*
-   * We don't use X509_check_ca() to check whether the certificate is
-   * a CA, because it's not paranoid enough to enforce the RPKI
-   * certificate profile, but we still call it because we need it (or
-   * something) to invoke x509v3_cache_extensions() for us.
-   */
-  (void) X509_check_ca(x);
-
+  /* Critical */
   if ((bc = X509_get_ext_d2i(x, NID_basic_constraints, &crit, NULL)) != NULL) {
     ex_count--;
     if (!crit || bc->ca <= 0 || bc->pathlen != NULL)
@@ -1403,21 +1413,58 @@ static int check_x509(X509 *x,
 
   /*
    * Check for presence of AIA, SIA, and CRLDP, and make sure that
-   * they're in the correct format, but leave checking of the URIs for
-   * Python code.
+   * they're in the correct format, but leave checking of the URIs
+   * themselves for Python code to handle.
    */
 
-#warning Why are we not checking the critical flag on these extensions?
-#warning We may need to check that these extensions only contain URIs (see extract_crldp_uri() and extract_access_uri())
-
-  if ((aia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL)
+  /* Non-criticial */
+  if ((aia = X509_get_ext_d2i(x, NID_info_access, &crit, NULL)) != NULL) {
     ex_count--;
+    if (crit)
+      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
+    ok = sk_ACCESS_DESCRIPTION_num(aia) > 0;
+    for (i = 0; ok && i < sk_ACCESS_DESCRIPTION_num(aia); i++) {
+      ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(aia, i);
+      ok = (a != NULL && a->location->type == GEN_URI ||
+            OBJ_obj2nid(a->method) == NID_ad_ca_issuers);
+    }
+    if (!ok)
+      record_validation_status(status, MALFORMED_AIA_EXTENSION);
+  }
 
-  if ((sia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL)
+  /* Non-criticial */
+  if ((sia = X509_get_ext_d2i(x, NID_sinfo_access, &crit, NULL)) != NULL) {
     ex_count--;
+    if (crit)
+      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
+    ok = sk_ACCESS_DESCRIPTION_num(sia) > 0;
+    for (i = 0; ok && i < sk_ACCESS_DESCRIPTION_num(sia); i++) {
+      ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(sia, i);
+      int nid = a == NULL ? NID_undef : OBJ_obj2nid(a->method);
+      ok = (a != NULL && a->location->type == GEN_URI &&
+            (nid == NID_caRepository    || nid == NID_ad_rpkiManifest ||
+             nid == NID_ad_signedObject || nid == NID_ad_rpkiNotify));
+    }
+    if (!ok)
+      record_validation_status(status, MALFORMED_SIA_EXTENSION);
+  }
 
-  if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL)) != NULL)
+  /* Non-critical */
+  if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, &crit, NULL)) != NULL) {
+    DIST_POINT *dp = sk_DIST_POINT_value(crldp, 0);
     ex_count--;
+    if (crit)
+      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
+    ok = (sk_DIST_POINT_num(crldp) == 1 &&
+          dp->reasons == NULL   && dp->CRLissuer == NULL &&
+          dp->distpoint != NULL && dp->distpoint->type == 0);
+    for (i = 0; ok && i < sk_GENERAL_NAME_num(dp->distpoint->name.fullname); i++) {
+      GENERAL_NAME *gn = sk_GENERAL_NAME_value(dp->distpoint->name.fullname, i);
+      ok = gn != NULL && gn->type == GEN_URI;
+    }
+    if (!ok)
+      record_validation_status(status, MALFORMED_CRLDP_EXTENSION);
+  }
 
 #warning Too many things need to know whether we are looking at a router cert, need a signaling mechanism
   /*
@@ -1431,6 +1478,7 @@ static int check_x509(X509 *x,
    * API default of None, obviously, which again is a good match.
    */
 
+  /* Non-critical */
   if ((eku = X509_get_ext_d2i(x, NID_ext_key_usage, &crit, NULL)) != NULL) {
     ex_count--;
     if (crit || is_ca || sk_ASN1_OBJECT_num(eku) == 0)
@@ -1440,6 +1488,7 @@ static int check_x509(X509 *x,
         routercert |= OBJ_obj2nid(sk_ASN1_OBJECT_value(eku, i)) == NID_id_kp_bgpsec_router;
   }
 
+  /* Critical */
   if ((policies = X509_get_ext_d2i(x, NID_certificate_policies, &crit, NULL)) != NULL) {
     POLICYQUALINFO *qualifier = NULL;
     POLICYINFO *policy = NULL;
@@ -1456,6 +1505,7 @@ static int check_x509(X509 *x,
       record_validation_status(status, POLICY_QUALIFIER_CPS);
   }
 
+  /* Critical */
   if ((x->ex_flags & EXFLAG_KUSAGE) == 0) 
     record_validation_status(status, KEY_USAGE_MISSING);
   else {
@@ -1465,6 +1515,7 @@ static int check_x509(X509 *x,
       record_validation_status(status, BAD_KEY_USAGE);
   }
 
+  /* Critical */
   if (x->rfc3779_addr) {
     ex_count--;
     if (routercert ||
@@ -1484,6 +1535,7 @@ static int check_x509(X509 *x,
       }
   }
 
+  /* Critical */
   if (x->rfc3779_asid) {
     ex_count--;
     if ((loc = X509_get_ext_by_NID(x, NID_sbgp_autonomousSysNum, -1)) < 0 ||
@@ -1497,6 +1549,38 @@ static int check_x509(X509 *x,
 
   if (!x->rfc3779_addr && !x->rfc3779_asid)
     record_validation_status(status, MISSING_RESOURCES);
+
+  /* Non-critical */
+  if (!x->skid)
+    record_validation_status(status, SKI_EXTENSION_MISSING);
+  else {
+    ex_count--;
+    if (X509_EXTENSION_get_critical(X509_get_ext(x, X509_get_ext_by_NID(x, NID_subject_key_identifier, -1))))
+      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
+    if ((ski_pubkey = X509_get0_pubkey_bitstr(x)) == NULL ||
+        !EVP_Digest(ski_pubkey->data, ski_pubkey->length,
+                    ski_hashbuf, &ski_hashlen, EVP_sha1(), NULL) ||
+        ski_hashlen != 20 ||
+        ski_hashlen != x->skid->length ||
+        memcmp(ski_hashbuf, x->skid->data, ski_hashlen))
+      record_validation_status(status, SKI_PUBLIC_KEY_MISMATCH);
+  }
+
+  /* Non-critical */
+  if (x->akid) {
+    ex_count--;
+    if (X509_EXTENSION_get_critical(X509_get_ext(x, X509_get_ext_by_NID(x, NID_authority_key_identifier, -1))))
+      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
+    if (!x->akid->keyid || x->akid->serial || x->akid->issuer)
+      record_validation_status(status, AKI_EXTENSION_WRONG_FORMAT);
+  }
+
+  if (ex_count > 0)
+    record_validation_status(status, DISALLOWED_X509V3_EXTENSION);
+
+  /*
+   * Public key checks.
+   */
 
   subject_pkey = X509_get_pubkey(x);
   ok = subject_pkey != NULL;
@@ -1514,13 +1598,11 @@ static int check_x509(X509 *x,
       break;
 
     case NID_X9_62_id_ecPublicKey:
-      ok = !is_ca && routercert;
-      /*
-       * Perhaps this should also be testing:
-       *
-       * && EVP_PKEY_type(subject_pkey->type) == EVP_PKEY_EC)
-       * && EC_GROUP_get_curve_name(EC_KEY_get0_group(subject_pkey->pkey.ec)) == NID_X9_62_prime_field
-       */
+      if (routercert)
+        ok = (EVP_PKEY_type(subject_pkey->type) == EVP_PKEY_EC &&
+              EC_GROUP_get_curve_name(EC_KEY_get0_group(subject_pkey->pkey.ec)) == NID_X9_62_prime256v1);
+      else
+        ok = 0;
       break;
 
     default:
@@ -1530,30 +1612,8 @@ static int check_x509(X509 *x,
   if (!ok)
     record_validation_status(status, BAD_PUBLIC_KEY);
 
-  if (!x->skid)
-    record_validation_status(status, SKI_EXTENSION_MISSING);
-  else {
-    ex_count--;
-    if ((ski_pubkey = X509_get0_pubkey_bitstr(x)) == NULL ||
-        !EVP_Digest(ski_pubkey->data, ski_pubkey->length,
-                    ski_hashbuf, &ski_hashlen, EVP_sha1(), NULL) ||
-        ski_hashlen != 20 ||
-        ski_hashlen != x->skid->length ||
-        memcmp(ski_hashbuf, x->skid->data, ski_hashlen))
-      record_validation_status(status, SKI_PUBLIC_KEY_MISMATCH);
-  }
-
-  if (x->akid) {
-    ex_count--;
-    if (!x->akid->keyid || x->akid->serial || x->akid->issuer)
-      record_validation_status(status, AKI_EXTENSION_WRONG_FORMAT);
-  }
-
   if ((issuer_pkey = X509_get_pubkey(issuer)) == NULL || X509_verify(x, issuer_pkey) <= 0)
     record_validation_status(status, CERTIFICATE_BAD_SIGNATURE);
-
-  if (ex_count > 0)
-    record_validation_status(status, DISALLOWED_X509V3_EXTENSION);
 
 #warning Move policy stuff to optional OID in base X509.verify()
   /*

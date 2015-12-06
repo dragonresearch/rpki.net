@@ -177,6 +177,7 @@ validation_status = StatusCodeDB(
         CRLDP_NAMES_NEWER_CRL                = "CRLDP names newer CRL",
         DIGEST_MISMATCH                      = "Digest mismatch",
         EE_CERTIFICATE_WITH_1024_BIT_KEY     = "EE certificate with 1024 bit key",
+        GRATUITOUSLY_CRITICAL_EXTENSION      = "Gratuitously critical extension",
         ISSUER_USES_MULTIPLE_CRLDP_VALUES    = "Issuer uses multiple CRLDP values",\
         MULTIPLE_RSYNC_URIS_IN_EXTENSION     = "Multiple rsync URIs in extension",
         NONCONFORMANT_ISSUER_NAME            = "Nonconformant X.509 issuer name",

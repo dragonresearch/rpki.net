@@ -131,29 +131,30 @@ def install_object(obj):
 
 def final_install():
 
-    real_old = os.path.realpath(old_authenticated).rstrip("/")
-    real_new = os.path.realpath(new_authenticated).rstrip("/")
+    cur_link = old_authenticated
+    new_link = cur_link + ".new"
+    old_link = cur_link + ".old"
+    dir_base = os.path.realpath(cur_link + ".")
+    new_real = os.path.realpath(new_authenticated)
+    old_real = os.path.realpath(old_authenticated)
 
-    fn = args.authenticated.rstrip("/") + ".new"
-    logger.debug("Symlinking %s to %s", os.path.basename(real_new), args.authenticated)
-    if os.path.exists(fn):
-        os.unlink(fn)
-    os.symlink(os.path.basename(real_new), fn)
-    os.rename(fn, args.authenticated)
+    if os.path.islink(old_link):
+        logger.debug("Unlinking %s", old_link)
+        os.unlink(old_link)
 
-    if os.path.isdir(real_old):
-        fn = args.authenticated.rstrip("/") + ".old"
-        logger.debug("Symlinking %s to %s", os.path.basename(real_old), fn)
-        if os.path.exists(fn):
-            os.unlink(fn)
-        os.symlink(os.path.basename(real_old), fn)
+    if os.path.isdir(old_real):
+        logger.debug("Symlinking %s to %s", os.path.basename(old_real), old_link)
+        os.symlink(os.path.basename(old_real), old_link)
 
-    dn = os.path.dirname(args.authenticated.rstrip("/"))
-    for fn in os.listdir(dn):
-        fn = os.path.join(dn, fn)
-        if fn.startswith(args.authenticated.rstrip("/") + ".") and os.path.realpath(fn) not in (real_new, real_old):
-            logger.debug("Removing %s", fn)
-            shutil.rmtree(fn)
+    logger.debug("Symlinking %s to %s", os.path.basename(new_real), cur_link)
+    os.symlink(os.path.basename(new_real), new_link)
+    os.rename(new_link, cur_link)
+
+    for path in os.listdir(os.path.dirname(dir_base)):
+        path = os.path.realpath(os.path.join(os.path.dirname(dir_base), path))
+        if path.startswith(dir_base) and path not in (new_real, old_real) and os.path.isdir(path):
+            logger.debug("Removing %s", path)
+            shutil.rmtree(path)
 
 
 class X509(rpki.POW.X509):
@@ -225,6 +226,10 @@ class X509(rpki.POW.X509):
             status.add(codes.CRLDP_EXTENSION_FORBIDDEN)
         if not is_ta and self.crldp is None:
             status.add(codes.CRLDP_EXTENSION_MISSING)
+        if not is_ta and self.aki is None:
+            status.add(codes.AKI_EXTENSION_MISSING)
+        elif not is_ta and self.aki != trusted[0].ski:
+            status.add(codes.AKI_EXTENSION_ISSUER_MISMATCH)
         serial = self.getSerial()
         if serial <= 0 or serial > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:
             status.add(codes.BAD_CERTIFICATE_SERIAL_NUMBER)
@@ -308,6 +313,10 @@ class CRL(rpki.POW.CRL):
             status.add(codes.CRL_NUMBER_OUT_OF_RANGE)
         if self.getIssuer() != issuer.getSubject():
             status.add(codes.CRL_ISSUER_NAME_MISMATCH)
+        if self.aki is None:
+            status.add(codes.AKI_EXTENSION_MISSING)
+        elif self.aki != issuer.ski:
+            status.add(codes.AKI_EXTENSION_ISSUER_MISMATCH)
 
         return not any(s.kind == "bad" for s in status)
 
@@ -947,7 +956,7 @@ def main():
 
     global new_authenticated, old_authenticated
     new_authenticated = args.authenticated.rstrip("/") + time.strftime(".%Y-%m-%dT%H:%M:%SZ")
-    old_authenticated = args.authenticated
+    old_authenticated = args.authenticated.rstrip("/")
 
     Generation("current", args.unauthenticated)
     Generation("backup",  old_authenticated)

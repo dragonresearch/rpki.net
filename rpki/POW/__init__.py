@@ -164,7 +164,8 @@ validation_status = StatusCodeDB(
         UNREADABLE_TRUST_ANCHOR              = "Unreadable trust anchor",
         UNREADABLE_TRUST_ANCHOR_LOCATOR      = "Unreadable trust anchor locator",
         WRONG_OBJECT_VERSION                 = "Wrong object version",
-        OBJECT_NOT_FOUND                     = "Object not found"),
+        OBJECT_NOT_FOUND                     = "Object not found",
+        KEY_USAGE_MISSING                    = "Key usage missing"),
 
     warn = dict(
         AIA_DOESNT_MATCH_ISSUER              = "AIA doesn't match issuer",

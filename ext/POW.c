@@ -351,7 +351,6 @@ typedef struct {
   PyObject_HEAD
   X509_STORE_CTX *ctx;
   X509_STORE *store;
-  PyObject *status;
 } x509_store_ctx_object;
 
 typedef struct {
@@ -1253,318 +1252,6 @@ static int check_allowed_time_encoding(ASN1_TIME *t)
 static int check_manifest_FileAndHash_name_cmp(const FileAndHash * const *a, const FileAndHash * const *b)
 {
   return strcmp((char *) (*a)->file->data, (char *) (*b)->file->data);
-}
-
-/*
- * Check a lot of pesky low-level things about RPKI certificates.
- */
-
-static int check_x509(X509 *x,
-                      X509 *issuer,
-                      PyObject *status,
-                      const int is_ta,
-                      X509_STORE_CTX *ctx)
-{
-  EVP_PKEY *issuer_pkey = NULL, *subject_pkey = NULL;
-  AUTHORITY_INFO_ACCESS *sia = NULL, *aia = NULL;
-  STACK_OF(POLICYINFO) *policies = NULL;
-  ASN1_BIT_STRING *ski_pubkey = NULL;
-  STACK_OF(DIST_POINT) *crldp = NULL;
-  EXTENDED_KEY_USAGE *eku = NULL;
-  BASIC_CONSTRAINTS *bc = NULL;
-  unsigned char ski_hashbuf[EVP_MAX_MD_SIZE];
-  unsigned ski_hashlen, afi;
-  int i, ok, crit, loc, ex_count, is_ca = 0, routercert = 0, ret = 0;
-
-  /*
-   * We don't use X509_check_ca() to check whether the certificate is
-   * a CA, because it's not paranoid enough to enforce the RPKI
-   * certificate profile, but we still call it because we need it (or
-   * something) to invoke x509v3_cache_extensions() for us.
-   */
-
-  (void) X509_check_ca(x);
-
-  if (!check_allowed_time_encoding(X509_get_notBefore(x)) ||
-      !check_allowed_time_encoding(X509_get_notAfter(x)))
-    record_validation_status(status, NONCONFORMANT_ASN1_TIME_VALUE);
-
-  if (x->cert_info == NULL ||
-      x->cert_info->signature == NULL ||
-      x->cert_info->signature->algorithm == NULL ||
-      OBJ_obj2nid(x->cert_info->signature->algorithm) != NID_sha256WithRSAEncryption)
-    record_validation_status(status, NONCONFORMANT_SIGNATURE_ALGORITHM);
-
-  if (!check_allowed_dn(X509_get_subject_name(x)))
-    record_validation_status(status, NONCONFORMANT_SUBJECT_NAME);
-
-  if (!check_allowed_dn(X509_get_issuer_name(x)))
-    record_validation_status(status, NONCONFORMANT_ISSUER_NAME);
-
-  /*
-   * Apparently nothing ever looks at these fields, so there are no
-   * API functions for them.  We wouldn't bother either if they
-   * weren't forbidden by the RPKI certificate profile.
-   */
-
-  if (!x->cert_info || x->cert_info->issuerUID || x->cert_info->subjectUID)
-    record_validation_status(status, NONCONFORMANT_CERTIFICATE_UID);
-
-  /*
-   * Public key checks postponed until we've checked extensions (in
-   * particular, until we've checked Basic Constraints and know
-   * whether to apply the CA or EE rules).
-   */
-
-  /*
-   * Keep track of allowed extensions we've seen.  Once we've
-   * processed all the ones we expect, anything left is an error.
-   */
-
-  ex_count = X509_get_ext_count(x);
-
-  /* Critical */
-  if ((bc = X509_get_ext_d2i(x, NID_basic_constraints, &crit, NULL)) != NULL) {
-    ex_count--;
-    if (!crit || bc->ca <= 0 || bc->pathlen != NULL)
-      record_validation_status(status, MALFORMED_BASIC_CONSTRAINTS);
-  }
-
-  is_ca = bc != NULL;
-
-  if (is_ta && !is_ca)
-    record_validation_status(status, MALFORMED_TRUST_ANCHOR);
-
-  /*
-   * Check for presence of AIA, SIA, and CRLDP, and make sure that
-   * they're in the correct format, but leave checking of the URIs
-   * themselves for Python code to handle.
-   */
-
-  /* Non-criticial */
-  if ((aia = X509_get_ext_d2i(x, NID_info_access, &crit, NULL)) != NULL) {
-    ex_count--;
-    if (crit)
-      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
-    ok = sk_ACCESS_DESCRIPTION_num(aia) > 0;
-    for (i = 0; ok && i < sk_ACCESS_DESCRIPTION_num(aia); i++) {
-      ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(aia, i);
-      ok = (a != NULL && a->location->type == GEN_URI &&
-            OBJ_obj2nid(a->method) == NID_ad_ca_issuers);
-    }
-    if (!ok)
-      record_validation_status(status, MALFORMED_AIA_EXTENSION);
-  }
-
-  /* Non-criticial */
-  if ((sia = X509_get_ext_d2i(x, NID_sinfo_access, &crit, NULL)) != NULL) {
-    ex_count--;
-    if (crit)
-      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
-    ok = sk_ACCESS_DESCRIPTION_num(sia) > 0;
-    for (i = 0; ok && i < sk_ACCESS_DESCRIPTION_num(sia); i++) {
-      ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(sia, i);
-      int nid = a == NULL ? NID_undef : OBJ_obj2nid(a->method);
-      ok = (a != NULL && a->location->type == GEN_URI &&
-            (nid == NID_caRepository    || nid == NID_ad_rpkiManifest ||
-             nid == NID_ad_signedObject || nid == NID_ad_rpkiNotify));
-    }
-    if (!ok)
-      record_validation_status(status, MALFORMED_SIA_EXTENSION);
-  }
-
-  /* Non-critical */
-  if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, &crit, NULL)) != NULL) {
-    DIST_POINT *dp = sk_DIST_POINT_value(crldp, 0);
-    ex_count--;
-    if (crit)
-      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
-    ok = (sk_DIST_POINT_num(crldp) == 1 &&
-          dp->reasons == NULL   && dp->CRLissuer == NULL &&
-          dp->distpoint != NULL && dp->distpoint->type == 0);
-    for (i = 0; ok && i < sk_GENERAL_NAME_num(dp->distpoint->name.fullname); i++) {
-      GENERAL_NAME *gn = sk_GENERAL_NAME_value(dp->distpoint->name.fullname, i);
-      ok = gn != NULL && gn->type == GEN_URI;
-    }
-    if (!ok)
-      record_validation_status(status, MALFORMED_CRLDP_EXTENSION);
-  }
-
-#warning Too many things need to know whether we are looking at a router cert, need a signaling mechanism
-  /*
-   * We used to do this using the URI, but that doesn't fly here.
-   * We tried an enumerated type, but that didn't work out.
-   *
-   * May just need an explicit parameter all the way from the Python
-   * level.  Simplest might just be an explicit EKU OID, which, if
-   * provided, must match the certificate and correspond to a set of
-   * rules we know how to apply (currently just router certs).  Python
-   * API default of None, obviously, which again is a good match.
-   */
-
-  /* Non-critical */
-  if ((eku = X509_get_ext_d2i(x, NID_ext_key_usage, &crit, NULL)) != NULL) {
-    ex_count--;
-    if (crit || is_ca || sk_ASN1_OBJECT_num(eku) == 0)
-      record_validation_status(status, INAPPROPRIATE_EKU_EXTENSION);
-    else
-      for (i = 0; i < sk_ASN1_OBJECT_num(eku); i++)
-        routercert |= OBJ_obj2nid(sk_ASN1_OBJECT_value(eku, i)) == NID_id_kp_bgpsec_router;
-  }
-
-  /* Critical */
-  if ((policies = X509_get_ext_d2i(x, NID_certificate_policies, &crit, NULL)) != NULL) {
-    POLICYQUALINFO *qualifier = NULL;
-    POLICYINFO *policy = NULL;
-    ex_count--;
-    if (!crit || sk_POLICYINFO_num(policies) != 1 ||
-	(policy = sk_POLICYINFO_value(policies, 0)) == NULL ||
-	OBJ_obj2nid(policy->policyid) != NID_cp_ipAddr_asNumber ||
-	sk_POLICYQUALINFO_num(policy->qualifiers) > 1 ||
-	(sk_POLICYQUALINFO_num(policy->qualifiers) == 1 &&
-	 ((qualifier = sk_POLICYQUALINFO_value(policy->qualifiers, 0)) == NULL ||
-	  OBJ_obj2nid(qualifier->pqualid) != NID_id_qt_cps)))
-      record_validation_status(status, BAD_CERTIFICATE_POLICY);
-    else if (qualifier != NULL)
-      record_validation_status(status, POLICY_QUALIFIER_CPS);
-  }
-
-  /* Critical */
-  if ((x->ex_flags & EXFLAG_KUSAGE) == 0) 
-    record_validation_status(status, KEY_USAGE_MISSING);
-  else {
-    ex_count--;    
-    if (!X509_EXTENSION_get_critical(X509_get_ext(x, X509_get_ext_by_NID(x, NID_key_usage, -1))) ||
-        x->ex_kusage != (is_ca ? KU_KEY_CERT_SIGN | KU_CRL_SIGN : KU_DIGITAL_SIGNATURE))
-      record_validation_status(status, BAD_KEY_USAGE);
-  }
-
-  /* Critical */
-  if (x->rfc3779_addr) {
-    ex_count--;
-    if (routercert ||
-	(loc = X509_get_ext_by_NID(x, NID_sbgp_ipAddrBlock, -1)) < 0 ||
-	!X509_EXTENSION_get_critical(X509_get_ext(x, loc)) ||
-	!v3_addr_is_canonical(x->rfc3779_addr) ||
-	sk_IPAddressFamily_num(x->rfc3779_addr) == 0)
-      record_validation_status(status, BAD_IPADDRBLOCKS);
-    else
-      for (i = 0; i < sk_IPAddressFamily_num(x->rfc3779_addr); i++) {
-        IPAddressFamily *f = sk_IPAddressFamily_value(x->rfc3779_addr, i);
-        afi = v3_addr_get_afi(f);
-        if (afi != IANA_AFI_IPV4 && afi != IANA_AFI_IPV6)
-          record_validation_status(status, UNKNOWN_AFI);
-        else if (f->addressFamily->length != 2)
-          record_validation_status(status, SAFI_NOT_ALLOWED);
-      }
-  }
-
-  /* Critical */
-  if (x->rfc3779_asid) {
-    ex_count--;
-    if ((loc = X509_get_ext_by_NID(x, NID_sbgp_autonomousSysNum, -1)) < 0 ||
-	!X509_EXTENSION_get_critical(X509_get_ext(x, loc)) ||
-	!v3_asid_is_canonical(x->rfc3779_asid) ||
-	x->rfc3779_asid->asnum == NULL ||
-	x->rfc3779_asid->rdi != NULL ||
-	(routercert && x->rfc3779_asid->asnum->type == ASIdentifierChoice_inherit))
-      record_validation_status(status, BAD_ASIDENTIFIERS);
-  }
-
-  if (!x->rfc3779_addr && !x->rfc3779_asid)
-    record_validation_status(status, MISSING_RESOURCES);
-
-  /* Non-critical */
-  if (!x->skid)
-    record_validation_status(status, SKI_EXTENSION_MISSING);
-  else {
-    ex_count--;
-    if (X509_EXTENSION_get_critical(X509_get_ext(x, X509_get_ext_by_NID(x, NID_subject_key_identifier, -1))))
-      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
-    if ((ski_pubkey = X509_get0_pubkey_bitstr(x)) == NULL ||
-        !EVP_Digest(ski_pubkey->data, ski_pubkey->length,
-                    ski_hashbuf, &ski_hashlen, EVP_sha1(), NULL) ||
-        ski_hashlen != 20 ||
-        ski_hashlen != x->skid->length ||
-        memcmp(ski_hashbuf, x->skid->data, ski_hashlen))
-      record_validation_status(status, SKI_PUBLIC_KEY_MISMATCH);
-  }
-
-  /* Non-critical */
-  if (x->akid) {
-    ex_count--;
-    if (X509_EXTENSION_get_critical(X509_get_ext(x, X509_get_ext_by_NID(x, NID_authority_key_identifier, -1))))
-      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
-    if (!x->akid->keyid || x->akid->serial || x->akid->issuer)
-      record_validation_status(status, AKI_EXTENSION_WRONG_FORMAT);
-  }
-
-  if (ex_count > 0)
-    record_validation_status(status, DISALLOWED_X509V3_EXTENSION);
-
-  /*
-   * Public key checks.
-   */
-
-  subject_pkey = X509_get_pubkey(x);
-  ok = subject_pkey != NULL;
-  if (ok) {
-    ASN1_OBJECT *algorithm;
-
-    (void) X509_PUBKEY_get0_param(&algorithm, NULL, NULL, NULL, X509_get_X509_PUBKEY(x));
-
-    switch (OBJ_obj2nid(algorithm)) {
-
-    case NID_rsaEncryption:
-      ok = (EVP_PKEY_type(subject_pkey->type) == EVP_PKEY_RSA &&
-            BN_get_word(subject_pkey->pkey.rsa->e) == 65537 &&
-            BN_num_bits(subject_pkey->pkey.rsa->n) == 2048);
-      break;
-
-    case NID_X9_62_id_ecPublicKey:
-      if (routercert)
-        ok = (EVP_PKEY_type(subject_pkey->type) == EVP_PKEY_EC &&
-              EC_GROUP_get_curve_name(EC_KEY_get0_group(subject_pkey->pkey.ec)) == NID_X9_62_prime256v1);
-      else
-        ok = 0;
-      break;
-
-    default:
-      ok = 0;
-    }
-  }
-  if (!ok)
-    record_validation_status(status, BAD_PUBLIC_KEY);
-
-  if ((issuer_pkey = X509_get_pubkey(issuer)) == NULL || X509_verify(x, issuer_pkey) <= 0)
-    record_validation_status(status, CERTIFICATE_BAD_SIGNATURE);
-
-#warning Move policy stuff to optional OID in base X509.verify()
-  /*
-   * It seems that the only reason we have for needing the
-   * verification context here is to set these flags, which is silly.
-   * Instead, we should add an optional argument to the X509.verify(),
-   * either an explicit OID which enables the policy check for that
-   * policy, or a simple boolean to enable check for the RPKI policy.
-   */
-  if (ctx != NULL) {
-    X509_VERIFY_PARAM_set_flags(ctx->param, X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY);
-    X509_VERIFY_PARAM_add0_policy(ctx->param, OBJ_nid2obj(NID_cp_ipAddr_asNumber));
-  }
-
-  ret = 1;
-
- error:
-  EVP_PKEY_free(issuer_pkey);
-  EVP_PKEY_free(subject_pkey);
-  BASIC_CONSTRAINTS_free(bc);
-  sk_ACCESS_DESCRIPTION_pop_free(sia, ACCESS_DESCRIPTION_free);
-  sk_ACCESS_DESCRIPTION_pop_free(aia, ACCESS_DESCRIPTION_free);
-  sk_DIST_POINT_pop_free(crldp, DIST_POINT_free);
-  sk_POLICYINFO_pop_free(policies, POLICYINFO_free);
-  sk_ASN1_OBJECT_pop_free(eku, ASN1_OBJECT_free);
-
-  return ret;
 }
 
 /*
@@ -3411,21 +3098,19 @@ static char x509_object_verify__doc__[] =
 static PyObject *
 x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = {"trusted", "untrusted", "crl", "status", "context_class", NULL};
+  static char *kwlist[] = {"trusted", "untrusted", "crl", "policy", "context_class", NULL};
   PyObject *ctxclass = (PyObject *) &POW_X509StoreCTX_Type;
-  STACK_OF(X509) *trusted_stack   = NULL;
+  STACK_OF(X509)   *trusted_stack = NULL;
   STACK_OF(X509) *untrusted_stack = NULL;
-  STACK_OF(X509_CRL) *crl_stack   = NULL;
+  STACK_OF(X509_CRL)   *crl_stack = NULL;
   x509_store_ctx_object *ctx = NULL;
   PyObject *trusted   = Py_None;
   PyObject *untrusted = Py_None;
   PyObject *crl       = Py_None;
-  PyObject *status    = Py_None;
-  X509 *issuer = NULL;
-  int ok = 0, is_ta = 0;
+  PyObject *policy    = Py_None;
+  int ok = 0;
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOO!O", kwlist,
-                                   &trusted, &untrusted, &crl, &PySet_Type, &status, &ctxclass))
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOO", kwlist, &trusted, &untrusted, &crl, &policy, &ctxclass))
     goto error;
 
   if ((trusted_stack = x509_helper_iterable_to_stack(trusted)) == NULL)
@@ -3456,41 +3141,37 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
   if (crl != Py_None)
     X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_CRL_CHECK);
 
-  if (status != Py_None) {
+  if (policy != Py_None) {
+    const char  *oid_txt = NULL;
+    ASN1_OBJECT *oid_obj = NULL;
 
-    is_ta = (sk_X509_num(trusted_stack) == 1 &&
-             sk_X509_num(untrusted_stack) == 0 &&
-             X509_cmp(sk_X509_value(trusted_stack, 0), self->x509) == 0 &&
-             X509_check_issued(self->x509, self->x509) == 0);
-
-    if ((issuer = sk_X509_value(trusted_stack, 0)) == NULL)
-      lose("Couldn't find issuer for RPKI detail checks");
-
-    if (!check_x509(self->x509, issuer, status, is_ta, ctx->ctx))
+    if ((oid_txt = PyString_AsString(policy)) == NULL)
       goto error;
+
+    if ((oid_obj = OBJ_txt2obj(oid_txt, 1)) == NULL)
+      lose("Couldn't parse policy OID");
+
+    X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY);
+    X509_VERIFY_PARAM_add0_policy(ctx->ctx->param, oid_obj);
   }
 
   Py_XINCREF(trusted);
   Py_XINCREF(untrusted);
   Py_XINCREF(crl);
-  Py_XINCREF(status);
   X509_STORE_CTX_set_cert(ctx->ctx, self->x509);
   X509_STORE_CTX_trusted_stack(ctx->ctx, trusted_stack);
   X509_STORE_CTX_set_chain(ctx->ctx, untrusted_stack);
   X509_STORE_CTX_set0_crls(ctx->ctx, crl_stack);
-  ctx->status = status;
 
   X509_STORE_CTX_set_verify_cb(ctx->ctx, x509_store_ctx_object_verify_cb);
   X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_X509_STRICT);
 
   ok = X509_verify_cert(ctx->ctx) >= 0;
 
-  ctx->status = NULL;
   X509_STORE_CTX_set0_crls(ctx->ctx, NULL);
   X509_STORE_CTX_set_chain(ctx->ctx, NULL);
   X509_STORE_CTX_trusted_stack(ctx->ctx, NULL);
   X509_STORE_CTX_set_cert(ctx->ctx, NULL);
-  Py_XDECREF(status);
   Py_XDECREF(crl);
   Py_XDECREF(untrusted);
   Py_XDECREF(trusted);
@@ -3513,6 +3194,303 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
   return NULL;
 }
 
+
+static char x509_object_check_rpki_conformance__doc__[] =
+  "Check a certificate for conformance to the RPKI profile.\n"
+  ;
+
+#warning Write real x509_object_check_rpki_conformance__doc__[] once API is stable.
+
+static PyObject *
+x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"status", "eku", NULL};
+  PyObject *status = Py_None;
+  PyObject *ekuarg = Py_None;
+  EVP_PKEY *issuer_pkey = NULL, *subject_pkey = NULL;
+  AUTHORITY_INFO_ACCESS *sia = NULL, *aia = NULL;
+  STACK_OF(POLICYINFO) *policies = NULL;
+  ASN1_BIT_STRING *ski_pubkey = NULL;
+  STACK_OF(DIST_POINT) *crldp = NULL;
+  EXTENDED_KEY_USAGE *eku = NULL;
+  BASIC_CONSTRAINTS *bc = NULL;
+  unsigned char ski_hashbuf[EVP_MAX_MD_SIZE];
+  unsigned ski_hashlen, afi;
+  int i, ok, crit, loc, ex_count, is_ca = 0, ekunid = NID_undef, ret = 0;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!O", kwlist, &PySet_Type, &status, &ekuarg))
+    goto error;
+
+  if (ekuarg != Py_None) {
+    const char *ekutxt = PyString_AsString(ekuarg);
+    if (ekutxt == NULL)
+      goto error;
+    ekunid = OBJ_txt2nid(ekutxt);
+  }
+
+  /*
+   * We don't use X509_check_ca() to check whether the certificate is
+   * a CA, because it's not paranoid enough to enforce the RPKI
+   * certificate profile, but we still call it because we need it (or
+   * something) to invoke x509v3_cache_extensions() for us.
+   */
+
+  (void) X509_check_ca(self->x509);
+
+  if (!check_allowed_time_encoding(X509_get_notBefore(self->x509)) ||
+      !check_allowed_time_encoding(X509_get_notAfter(self->x509)))
+    record_validation_status(status, NONCONFORMANT_ASN1_TIME_VALUE);
+
+  if (self->x509->cert_info == NULL ||
+      self->x509->cert_info->signature == NULL ||
+      self->x509->cert_info->signature->algorithm == NULL ||
+      OBJ_obj2nid(self->x509->cert_info->signature->algorithm) != NID_sha256WithRSAEncryption)
+    record_validation_status(status, NONCONFORMANT_SIGNATURE_ALGORITHM);
+
+  if (!check_allowed_dn(X509_get_subject_name(self->x509)))
+    record_validation_status(status, NONCONFORMANT_SUBJECT_NAME);
+
+  if (!check_allowed_dn(X509_get_issuer_name(self->x509)))
+    record_validation_status(status, NONCONFORMANT_ISSUER_NAME);
+
+  /*
+   * Apparently nothing ever looks at these fields, so there are no
+   * API functions for them.  We wouldn't bother either if they
+   * weren't forbidden by the RPKI certificate profile.
+   */
+
+  if (!self->x509->cert_info || self->x509->cert_info->issuerUID || self->x509->cert_info->subjectUID)
+    record_validation_status(status, NONCONFORMANT_CERTIFICATE_UID);
+
+  /*
+   * Public key checks postponed until we've checked extensions (in
+   * particular, until we've checked Basic Constraints and know
+   * whether to apply the CA or EE rules).
+   */
+
+  /*
+   * Keep track of allowed extensions we've seen.  Once we've
+   * processed all the ones we expect, anything left is an error.
+   */
+
+  ex_count = X509_get_ext_count(self->x509);
+
+  /* Critical */
+  if ((bc = X509_get_ext_d2i(self->x509, NID_basic_constraints, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (!crit || bc->ca <= 0 || bc->pathlen != NULL)
+      record_validation_status(status, MALFORMED_BASIC_CONSTRAINTS);
+  }
+
+  is_ca = bc != NULL;
+
+  /*
+   * Check for presence of AIA, SIA, and CRLDP, and make sure that
+   * they're in the correct format, but leave checking of the URIs
+   * themselves for Python code to handle.
+   */
+
+  /* Non-criticial */
+  if ((aia = X509_get_ext_d2i(self->x509, NID_info_access, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (crit)
+      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
+    ok = sk_ACCESS_DESCRIPTION_num(aia) > 0;
+    for (i = 0; ok && i < sk_ACCESS_DESCRIPTION_num(aia); i++) {
+      ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(aia, i);
+      ok = (a != NULL && a->location->type == GEN_URI &&
+            OBJ_obj2nid(a->method) == NID_ad_ca_issuers);
+    }
+    if (!ok)
+      record_validation_status(status, MALFORMED_AIA_EXTENSION);
+  }
+
+  /* Non-criticial */
+  if ((sia = X509_get_ext_d2i(self->x509, NID_sinfo_access, &crit, NULL)) != NULL) {
+    ex_count--;
+    if (crit)
+      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
+    ok = sk_ACCESS_DESCRIPTION_num(sia) > 0;
+    for (i = 0; ok && i < sk_ACCESS_DESCRIPTION_num(sia); i++) {
+      ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(sia, i);
+      int nid = a == NULL ? NID_undef : OBJ_obj2nid(a->method);
+      ok = (a != NULL && a->location->type == GEN_URI &&
+            (nid == NID_caRepository    || nid == NID_ad_rpkiManifest ||
+             nid == NID_ad_signedObject || nid == NID_ad_rpkiNotify));
+    }
+    if (!ok)
+      record_validation_status(status, MALFORMED_SIA_EXTENSION);
+  }
+
+  /* Non-critical */
+  if ((crldp = X509_get_ext_d2i(self->x509, NID_crl_distribution_points, &crit, NULL)) != NULL) {
+    DIST_POINT *dp = sk_DIST_POINT_value(crldp, 0);
+    ex_count--;
+    if (crit)
+      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
+    ok = (sk_DIST_POINT_num(crldp) == 1 &&
+          dp->reasons == NULL   && dp->CRLissuer == NULL &&
+          dp->distpoint != NULL && dp->distpoint->type == 0);
+    for (i = 0; ok && i < sk_GENERAL_NAME_num(dp->distpoint->name.fullname); i++) {
+      GENERAL_NAME *gn = sk_GENERAL_NAME_value(dp->distpoint->name.fullname, i);
+      ok = gn != NULL && gn->type == GEN_URI;
+    }
+    if (!ok)
+      record_validation_status(status, MALFORMED_CRLDP_EXTENSION);
+  }
+
+  /* Non-critical */
+  if ((eku = X509_get_ext_d2i(self->x509, NID_ext_key_usage, &crit, NULL)) != NULL) {
+    ex_count--;
+    ok = 0;
+    if (!crit && !is_ca && sk_ASN1_OBJECT_num(eku) > 0 && ekunid != NID_undef)
+      for (i = 0; !ok && i < sk_ASN1_OBJECT_num(eku); i++)
+        ok = OBJ_obj2nid(sk_ASN1_OBJECT_value(eku, i)) == ekunid;
+    if (!ok)
+      record_validation_status(status, INAPPROPRIATE_EKU_EXTENSION);
+  }
+
+  /* Critical */
+  if ((policies = X509_get_ext_d2i(self->x509, NID_certificate_policies, &crit, NULL)) != NULL) {
+    POLICYQUALINFO *qualifier = NULL;
+    POLICYINFO *policy = NULL;
+    ex_count--;
+    if (!crit || sk_POLICYINFO_num(policies) != 1 ||
+	(policy = sk_POLICYINFO_value(policies, 0)) == NULL ||
+	OBJ_obj2nid(policy->policyid) != NID_cp_ipAddr_asNumber ||
+	sk_POLICYQUALINFO_num(policy->qualifiers) > 1 ||
+	(sk_POLICYQUALINFO_num(policy->qualifiers) == 1 &&
+	 ((qualifier = sk_POLICYQUALINFO_value(policy->qualifiers, 0)) == NULL ||
+	  OBJ_obj2nid(qualifier->pqualid) != NID_id_qt_cps)))
+      record_validation_status(status, BAD_CERTIFICATE_POLICY);
+    else if (qualifier != NULL)
+      record_validation_status(status, POLICY_QUALIFIER_CPS);
+  }
+
+  /* Critical */
+  if ((self->x509->ex_flags & EXFLAG_KUSAGE) == 0) 
+    record_validation_status(status, KEY_USAGE_MISSING);
+  else {
+    ex_count--;    
+    if (!X509_EXTENSION_get_critical(X509_get_ext(self->x509, X509_get_ext_by_NID(self->x509, NID_key_usage, -1))) ||
+        self->x509->ex_kusage != (is_ca ? KU_KEY_CERT_SIGN | KU_CRL_SIGN : KU_DIGITAL_SIGNATURE))
+      record_validation_status(status, BAD_KEY_USAGE);
+  }
+
+  /* Critical */
+  if (self->x509->rfc3779_addr) {
+    ex_count--;
+    if (ekunid == NID_id_kp_bgpsec_router ||
+	(loc = X509_get_ext_by_NID(self->x509, NID_sbgp_ipAddrBlock, -1)) < 0 ||
+	!X509_EXTENSION_get_critical(X509_get_ext(self->x509, loc)) ||
+	!v3_addr_is_canonical(self->x509->rfc3779_addr) ||
+	sk_IPAddressFamily_num(self->x509->rfc3779_addr) == 0)
+      record_validation_status(status, BAD_IPADDRBLOCKS);
+    else
+      for (i = 0; i < sk_IPAddressFamily_num(self->x509->rfc3779_addr); i++) {
+        IPAddressFamily *f = sk_IPAddressFamily_value(self->x509->rfc3779_addr, i);
+        afi = v3_addr_get_afi(f);
+        if (afi != IANA_AFI_IPV4 && afi != IANA_AFI_IPV6)
+          record_validation_status(status, UNKNOWN_AFI);
+        else if (f->addressFamily->length != 2)
+          record_validation_status(status, SAFI_NOT_ALLOWED);
+      }
+  }
+
+  /* Critical */
+  if (self->x509->rfc3779_asid) {
+    ex_count--;
+    if ((loc = X509_get_ext_by_NID(self->x509, NID_sbgp_autonomousSysNum, -1)) < 0 ||
+	!X509_EXTENSION_get_critical(X509_get_ext(self->x509, loc)) ||
+	!v3_asid_is_canonical(self->x509->rfc3779_asid) ||
+	self->x509->rfc3779_asid->asnum == NULL ||
+	self->x509->rfc3779_asid->rdi != NULL ||
+	(ekunid == NID_id_kp_bgpsec_router && self->x509->rfc3779_asid->asnum->type == ASIdentifierChoice_inherit))
+      record_validation_status(status, BAD_ASIDENTIFIERS);
+  }
+
+  if (!self->x509->rfc3779_addr && !self->x509->rfc3779_asid)
+    record_validation_status(status, MISSING_RESOURCES);
+
+  /* Non-critical */
+  if (!self->x509->skid)
+    record_validation_status(status, SKI_EXTENSION_MISSING);
+  else {
+    ex_count--;
+    if (X509_EXTENSION_get_critical(X509_get_ext(self->x509, X509_get_ext_by_NID(self->x509, NID_subject_key_identifier, -1))))
+      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
+    if ((ski_pubkey = X509_get0_pubkey_bitstr(self->x509)) == NULL ||
+        !EVP_Digest(ski_pubkey->data, ski_pubkey->length,
+                    ski_hashbuf, &ski_hashlen, EVP_sha1(), NULL) ||
+        ski_hashlen != 20 ||
+        ski_hashlen != self->x509->skid->length ||
+        memcmp(ski_hashbuf, self->x509->skid->data, ski_hashlen))
+      record_validation_status(status, SKI_PUBLIC_KEY_MISMATCH);
+  }
+
+  /* Non-critical */
+  if (self->x509->akid) {
+    ex_count--;
+    if (X509_EXTENSION_get_critical(X509_get_ext(self->x509, X509_get_ext_by_NID(self->x509, NID_authority_key_identifier, -1))))
+      record_validation_status(status, GRATUITOUSLY_CRITICAL_EXTENSION);
+    if (!self->x509->akid->keyid || self->x509->akid->serial || self->x509->akid->issuer)
+      record_validation_status(status, AKI_EXTENSION_WRONG_FORMAT);
+  }
+
+  if (ex_count > 0)
+    record_validation_status(status, DISALLOWED_X509V3_EXTENSION);
+
+  /*
+   * Public key checks.
+   */
+
+  subject_pkey = X509_get_pubkey(self->x509);
+  ok = subject_pkey != NULL;
+  if (ok) {
+    ASN1_OBJECT *algorithm;
+
+    (void) X509_PUBKEY_get0_param(&algorithm, NULL, NULL, NULL, X509_get_X509_PUBKEY(self->x509));
+
+    switch (OBJ_obj2nid(algorithm)) {
+
+    case NID_rsaEncryption:
+      ok = (EVP_PKEY_type(subject_pkey->type) == EVP_PKEY_RSA &&
+            BN_get_word(subject_pkey->pkey.rsa->e) == 65537 &&
+            BN_num_bits(subject_pkey->pkey.rsa->n) == 2048);
+      break;
+
+    case NID_X9_62_id_ecPublicKey:
+      if (ekunid == NID_id_kp_bgpsec_router)
+        ok = (EVP_PKEY_type(subject_pkey->type) == EVP_PKEY_EC &&
+              EC_GROUP_get_curve_name(EC_KEY_get0_group(subject_pkey->pkey.ec)) == NID_X9_62_prime256v1);
+      else
+        ok = 0;
+      break;
+
+    default:
+      ok = 0;
+    }
+  }
+  if (!ok)
+    record_validation_status(status, BAD_PUBLIC_KEY);
+
+  ret = 1;
+
+ error:
+  EVP_PKEY_free(issuer_pkey);
+  EVP_PKEY_free(subject_pkey);
+  BASIC_CONSTRAINTS_free(bc);
+  sk_ACCESS_DESCRIPTION_pop_free(sia, ACCESS_DESCRIPTION_free);
+  sk_ACCESS_DESCRIPTION_pop_free(aia, ACCESS_DESCRIPTION_free);
+  sk_DIST_POINT_pop_free(crldp, DIST_POINT_free);
+  sk_POLICYINFO_pop_free(policies, POLICYINFO_free);
+  sk_ASN1_OBJECT_pop_free(eku, ASN1_OBJECT_free);
+
+  if (ret)
+    Py_RETURN_NONE;
+  else
+    return NULL;
+}
 
 static char x509_object_get_version__doc__[] =
   "Return version number of this certificate.\n"
@@ -4775,6 +4753,7 @@ static struct PyMethodDef x509_object_methods[] = {
   Define_Method(derWrite,               x509_object_der_write,                  METH_NOARGS),
   Define_Method(sign,                   x509_object_sign,                       METH_VARARGS),
   Define_Method(verify,                 x509_object_verify,                     METH_KEYWORDS),
+  Define_Method(checkRPKIConformance,   x509_object_check_rpki_conformance,     METH_KEYWORDS),
   Define_Method(getPublicKey,           x509_object_get_public_key,             METH_NOARGS),
   Define_Method(setPublicKey,           x509_object_set_public_key,             METH_VARARGS),
   Define_Method(getVersion,             x509_object_get_version,                METH_NOARGS),
@@ -4905,7 +4884,6 @@ x509_store_ctx_object_new(PyTypeObject *type, GCC_UNUSED PyObject *args, GCC_UNU
 
   self->ctx = NULL;
   self->store = NULL;
-  self->status = NULL;
   return (PyObject *) self;    
 
  error:
@@ -5024,13 +5002,6 @@ x509_store_ctx_object_get_chain (x509_store_ctx_object *self)
   sk_X509_pop_free(chain, X509_free);
   return result;
 }
-
-/*
- * Do we need an access method to let Python callbacks fiddle with the
- * validation status set?  Maybe.  Skip for now, add later if needed.
- * May need to pay closer attention to initialization and reference
- * count management of the status field if we exposing it.
- */
 
 /*
  * See (omnibus) man page for X509_STORE_CTX_get_error() for other

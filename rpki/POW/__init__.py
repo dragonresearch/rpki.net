@@ -79,6 +79,9 @@ class StatusCodeDB(object):
             status.remove(s)
             status.add(self._map[s])
 
+    def find(self, code):
+        return self._map[code]
+
 
 validation_status = StatusCodeDB(
     bad = dict(

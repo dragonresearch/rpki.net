@@ -157,6 +157,28 @@ def final_install():
             shutil.rmtree(path)
 
 
+class X509StoreCTX(rpki.POW.X509StoreCTX):
+
+    @classmethod
+    def subclass(cls, **kwargs):
+        return type(cls.__name__, (cls,), kwargs)
+
+    status = None
+
+    def verify_callback(self, ok):
+        err = self.getError()
+        if err in (codes.X509_V_OK.code, codes.X509_V_ERR_SUBJECT_ISSUER_MISMATCH.code):
+            return ok
+        elif err == codes.X509_V_ERR_CRL_HAS_EXPIRED.code:
+            return True
+        elif err == codes.X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT.code:
+            self.status.add(codes.TRUST_ANCHOR_NOT_SELF_SIGNED)
+            return ok
+        else:
+            self.status.add(codes.find(err))
+            return ok
+
+
 class X509(rpki.POW.X509):
 
     def __repr__(self):
@@ -254,7 +276,8 @@ class X509(rpki.POW.X509):
         if not is_ta and self.count_uris(self.crldp) == 0:
             status.add(codes.MALFORMED_CRLDP_EXTENSION)
         try:
-            self.verify(trusted = [self] if trusted is None else trusted, crl = crl, status = status)
+            self.verify(trusted = [self] if trusted is None else trusted, crl = crl, status = status,
+                        context_class = X509StoreCTX.subclass(status = status))
         except rpki.POW.ValidationError as e:
             logger.debug("%r rejected: %s", self, e)
             status.add(codes.OBJECT_REJECTED)

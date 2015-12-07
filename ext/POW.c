@@ -1394,7 +1394,7 @@ static int check_cms(CMS_ContentInfo *cms,
   if (OBJ_cmp(oid, CMS_get0_eContentType(cms)) != 0)
     record_validation_status(status, BAD_CMS_SI_CONTENTTYPE);
 
-  if (CMS_SignerInfo_cert_cmp(si, x))
+  if (si != NULL && x != NULL && CMS_SignerInfo_cert_cmp(si, x))
     record_validation_status(status, CMS_SKI_MISMATCH);
 
   ret = 1;
@@ -1421,7 +1421,9 @@ static int check_manifest(CMS_ContentInfo *cms,
   STACK_OF(X509) *certs = NULL;
   int i, ret = 0;
 
-#warning Could be done in Python
+  if (manifest == NULL)
+    lose_not_verified("Can't check an unverified manifest");
+
   if (OBJ_obj2nid(CMS_get0_eContentType(cms)) != NID_ct_rpkiManifest)
     record_validation_status(status, BAD_CMS_ECONTENTTYPE);
 
@@ -1429,33 +1431,27 @@ static int check_manifest(CMS_ContentInfo *cms,
   if (manifest->version)
     record_validation_status(status, WRONG_OBJECT_VERSION);
 
-#warning Could be done in Python
   if ((certs = CMS_get1_certs(cms)) == NULL || sk_X509_num(certs) != 1)
     record_validation_status(status, BAD_CMS_SIGNER);
 
-#warning Could be done in Python
   if (ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_zero) < 0 ||
       ASN1_INTEGER_cmp(manifest->manifestNumber, asn1_twenty_octets) > 0)
     record_validation_status(status, BAD_MANIFEST_NUMBER);
 
-#warning Could be done in Python
   if (OBJ_obj2nid(manifest->fileHashAlg) != NID_sha256)
     record_validation_status(status, NONCONFORMANT_DIGEST_ALGORITHM);
 
   if ((sorted_fileList = sk_FileAndHash_dup(manifest->fileList)) == NULL)
     lose_no_memory();
 
-#warning Could be done in Python
   (void) sk_FileAndHash_set_cmp_func(sorted_fileList, check_manifest_FileAndHash_name_cmp);
   sk_FileAndHash_sort(sorted_fileList);
 
-#warning Could be done in Python
   for (i = 0; ((fah1 = sk_FileAndHash_value(sorted_fileList, i + 0)) != NULL &&
                (fah2 = sk_FileAndHash_value(sorted_fileList, i + 1)) != NULL); i++)
     if (!strcmp((char *) fah1->file->data, (char *) fah2->file->data))
       record_validation_status(status, DUPLICATE_NAME_IN_MANIFEST);
 
-#warning Could be done in Python
   for (i = 0; (fah1 = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++)
     if (fah1->hash->length != HASH_SHA256_LEN ||
 	(fah1->hash->flags & (ASN1_STRING_FLAG_BITS_LEFT | 7)) > ASN1_STRING_FLAG_BITS_LEFT)
@@ -1526,6 +1522,9 @@ static int check_roa(CMS_ContentInfo *cms,
   ROAIPAddressFamily *rf;
   ROAIPAddress *ra;
   int i, j, result = 0;
+
+  if (roa == NULL)
+    lose_not_verified("Can't check an unverified ROA");
 
 #warning Could be done in Python
   if (OBJ_obj2nid(CMS_get0_eContentType(cms)) != NID_ct_ROA)
@@ -5623,19 +5622,40 @@ static char crl_object_verify__doc__[] =
 static PyObject *
 crl_object_verify(crl_object *self, PyObject *args)
 {
-  x509_object *issuer = NULL;
-  PyObject *status = Py_None;
+  x509_object *issuer;
 
   ENTERING(crl_object_verify);
 
-  if (!PyArg_ParseTuple(args, "O!|O!", &POW_X509_Type, &issuer, &PySet_Type, &status))
-    goto error;
-
-  if (status != Py_None && !check_crl(self->crl, issuer->x509, status))
+  if (!PyArg_ParseTuple(args, "O!", &POW_X509_Type, &issuer))
     goto error;
 
   if (!X509_CRL_verify(self->crl, X509_get_pubkey(issuer->x509)))
     lose_validation_error("X509_CRL_verify() raised an exception");
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
+static char crl_object_check_rpki_conformance__doc__[] =
+  "Check this CRL for conformance to the RPKI profile.\n"
+  ;
+
+static PyObject *
+crl_object_check_rpki_conformance(crl_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"issuer", "status", NULL};
+  x509_object *issuer = NULL;
+  PyObject *status = Py_None;
+
+  ENTERING(crl_object_check_rpki_conformance);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!", kwlist, &POW_X509_Type, &issuer, &PySet_Type, &status))
+    goto error;
+
+  if (!check_crl(self->crl, issuer->x509, status))
+    goto error;
 
   Py_RETURN_NONE;
 
@@ -5788,32 +5808,33 @@ crl_object_pprint(crl_object *self)
 }
 
 static struct PyMethodDef crl_object_methods[] = {
-  Define_Method(sign,                   crl_object_sign,                METH_VARARGS),
-  Define_Method(verify,                 crl_object_verify,              METH_VARARGS),
-  Define_Method(getVersion,             crl_object_get_version,         METH_NOARGS),
-  Define_Method(setVersion,             crl_object_set_version,         METH_VARARGS),
-  Define_Method(getIssuer,              crl_object_get_issuer,          METH_VARARGS),
-  Define_Method(setIssuer,              crl_object_set_issuer,          METH_VARARGS),
-  Define_Method(getThisUpdate,          crl_object_get_this_update,     METH_NOARGS),
-  Define_Method(setThisUpdate,          crl_object_set_this_update,     METH_VARARGS),
-  Define_Method(getNextUpdate,          crl_object_get_next_update,     METH_NOARGS),
-  Define_Method(setNextUpdate,          crl_object_set_next_update,     METH_VARARGS),
-  Define_Method(getRevoked,             crl_object_get_revoked,         METH_NOARGS),
-  Define_Method(isRevoked,              crl_object_is_revoked,          METH_VARARGS),
-  Define_Method(addRevocations,         crl_object_add_revocations,     METH_VARARGS),
-  Define_Method(clearExtensions,        crl_object_clear_extensions,    METH_NOARGS),
-  Define_Method(pemWrite,               crl_object_pem_write,           METH_NOARGS),
-  Define_Method(derWrite,               crl_object_der_write,           METH_NOARGS),
-  Define_Method(pprint,                 crl_object_pprint,              METH_NOARGS),
-  Define_Method(getAKI,                 crl_object_get_aki,             METH_NOARGS),
-  Define_Method(setAKI,                 crl_object_set_aki,             METH_VARARGS),
-  Define_Method(getCRLNumber,           crl_object_get_crl_number,      METH_NOARGS),
-  Define_Method(setCRLNumber,           crl_object_set_crl_number,      METH_VARARGS),
-  Define_Method(getIssuerHash,          crl_object_get_issuer_hash,     METH_NOARGS),
-  Define_Class_Method(pemRead,          crl_object_pem_read,            METH_VARARGS),
-  Define_Class_Method(pemReadFile,      crl_object_pem_read_file,       METH_VARARGS),
-  Define_Class_Method(derRead,          crl_object_der_read,            METH_VARARGS),
-  Define_Class_Method(derReadFile,      crl_object_der_read_file,       METH_VARARGS),
+  Define_Method(sign,                   crl_object_sign,                        METH_VARARGS),
+  Define_Method(verify,                 crl_object_verify,                      METH_VARARGS),
+  Define_Method(checkRPKIConformance,   crl_object_check_rpki_conformance,      METH_KEYWORDS),
+  Define_Method(getVersion,             crl_object_get_version,                 METH_NOARGS),
+  Define_Method(setVersion,             crl_object_set_version,                 METH_VARARGS),
+  Define_Method(getIssuer,              crl_object_get_issuer,                  METH_VARARGS),
+  Define_Method(setIssuer,              crl_object_set_issuer,                  METH_VARARGS),
+  Define_Method(getThisUpdate,          crl_object_get_this_update,     	METH_NOARGS),
+  Define_Method(setThisUpdate,          crl_object_set_this_update,             METH_VARARGS),
+  Define_Method(getNextUpdate,          crl_object_get_next_update,             METH_NOARGS),
+  Define_Method(setNextUpdate,          crl_object_set_next_update,             METH_VARARGS),
+  Define_Method(getRevoked,             crl_object_get_revoked,                 METH_NOARGS),
+  Define_Method(isRevoked,              crl_object_is_revoked,                  METH_VARARGS),
+  Define_Method(addRevocations,         crl_object_add_revocations,             METH_VARARGS),
+  Define_Method(clearExtensions,        crl_object_clear_extensions,            METH_NOARGS),
+  Define_Method(pemWrite,               crl_object_pem_write,                   METH_NOARGS),
+  Define_Method(derWrite,               crl_object_der_write,                   METH_NOARGS),
+  Define_Method(pprint,                 crl_object_pprint,                      METH_NOARGS),
+  Define_Method(getAKI,                 crl_object_get_aki,                     METH_NOARGS),
+  Define_Method(setAKI,                 crl_object_set_aki,                     METH_VARARGS),
+  Define_Method(getCRLNumber,           crl_object_get_crl_number,              METH_NOARGS),
+  Define_Method(setCRLNumber,           crl_object_set_crl_number,              METH_VARARGS),
+  Define_Method(getIssuerHash,          crl_object_get_issuer_hash,             METH_NOARGS),
+  Define_Class_Method(pemRead,          crl_object_pem_read,                    METH_VARARGS),
+  Define_Class_Method(pemReadFile,      crl_object_pem_read_file,               METH_VARARGS),
+  Define_Class_Method(derRead,          crl_object_der_read,                    METH_VARARGS),
+  Define_Class_Method(derReadFile,      crl_object_der_read_file,               METH_VARARGS),
   {NULL}
 };
 
@@ -7336,9 +7357,9 @@ cms_object_extract_without_verifying_helper(cms_object *self)
 #warning Should we really allow the full range of flags here, or constrain to just the useful cases?
 
 static BIO *
-cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds, PyObject **status)
+cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = {"certs", "flags", "status", NULL};
+  static char *kwlist[] = {"certs", "flags", NULL};
   PyObject *certs_iterable = Py_None;
   STACK_OF(X509) *certs_stack = NULL;
   unsigned flags = 0, ok = 0;
@@ -7350,13 +7371,7 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds, PyObj
 
   ENTERING(cms_object_verify_helper);
 
-  if (status == NULL || *status != Py_None)
-    lose("cms_object_verify_helper() called with bad status argument (internal error)");
-
-  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OIO!", kwlist,
-                                   &certs_iterable,
-                                   &flags,
-                                   &PySet_Type, status))
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OI", kwlist, &certs_iterable, &flags))
     goto error;
 
   if ((flags & ~flag_mask) != 0)
@@ -7375,13 +7390,8 @@ cms_object_verify_helper(cms_object *self, PyObject *args, PyObject *kwds, PyObj
 
   assert_no_unhandled_openssl_errors();
 
-  if (CMS_verify(self->cms, certs_stack, NULL, NULL, bio, flags) <= 0) {
-    record_validation_status(*status, CMS_VALIDATION_FAILURE);
+  if (CMS_verify(self->cms, certs_stack, NULL, NULL, bio, flags) <= 0)
     lose_openssl_error("Couldn't verify CMS message");
-  }
-
-  if (*status != Py_None && !check_cms(self->cms, *status))
-    goto error;
 
   assert_no_unhandled_openssl_errors();
 
@@ -7408,13 +7418,12 @@ static char cms_object_verify__doc__[] =
 static PyObject *
 cms_object_verify(cms_object *self, PyObject *args, PyObject *kwds)
 {
-  PyObject *status = Py_None;
   PyObject *result = NULL;
   BIO *bio = NULL;
 
   ENTERING(cms_object_verify);
 
-  if ((bio = cms_object_verify_helper(self, args, kwds, &status)) != NULL)
+  if ((bio = cms_object_verify_helper(self, args, kwds)) != NULL)
     result = BIO_to_PyString_helper(bio);
 
   BIO_free(bio);
@@ -7440,6 +7449,30 @@ cms_object_extract_without_verifying(cms_object *self)
 
   BIO_free(bio);
   return result;
+}
+
+static char cms_object_check_rpki_conformance__doc__[] =
+  "Check this CMS message for conformance to the RPKI profile.\n"
+  ;
+
+static PyObject *
+cms_object_check_rpki_conformance(cms_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"status", NULL};
+  PyObject *status = Py_None;
+
+  ENTERING(cms_object_check_rpki_conformance);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!", kwlist, &PySet_Type, &status))
+    goto error;
+
+  if (!check_cms(self->cms, status))
+    goto error;
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
 }
 
 static char cms_object_eContentType__doc__[] =
@@ -7611,6 +7644,7 @@ static struct PyMethodDef cms_object_methods[] = {
   Define_Method(sign,                           cms_object_sign,                        METH_VARARGS),
   Define_Method(verify,                         cms_object_verify,                      METH_KEYWORDS),
   Define_Method(extractWithoutVerifying,        cms_object_extract_without_verifying,   METH_NOARGS),
+  Define_Method(checkRPKIConformance,           cms_object_check_rpki_conformance,      METH_KEYWORDS),
   Define_Method(eContentType,                   cms_object_eContentType,                METH_NOARGS),
   Define_Method(signingTime,                    cms_object_signingTime,                 METH_NOARGS),
   Define_Method(pprint,                         cms_object_pprint,                      METH_NOARGS),
@@ -7708,25 +7742,16 @@ static char manifest_object_verify__doc__[] =
 static PyObject *
 manifest_object_verify(manifest_object *self, PyObject *args, PyObject *kwds)
 {
-  PyObject *status = Py_None;
   BIO *bio = NULL;
   int ok = 0;
 
   ENTERING(manifest_object_verify);
 
-  if ((bio = cms_object_verify_helper(&self->cms, args, kwds, &status)) == NULL)
+  if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
     goto error;
 
-  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest)) {
-    record_validation_status(status, CMS_ECONTENT_DECODE_ERROR);
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, &self->manifest))
     lose_openssl_error("Couldn't decode manifest");
-  }
-
-  if (status != Py_None && !check_cms(self->cms.cms, status))
-    goto error;
-
-  if (status != Py_None && !check_manifest(self->cms.cms, self->manifest, status))
-    goto error;
 
   ok = 1;
 
@@ -7770,6 +7795,31 @@ manifest_object_extract_without_verifying(manifest_object *self)
   else
     return NULL;
 }
+
+static char manifest_object_check_rpki_conformance__doc__[] =
+  "Check this manifest for conformance to the RPKI profile.\n"
+  ;
+
+static PyObject *
+manifest_object_check_rpki_conformance(manifest_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"status", NULL};
+  PyObject *status = Py_None;
+
+  ENTERING(manifest_object_check_rpki_conformance);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!", kwlist, &PySet_Type, &status))
+    goto error;
+
+  if (!check_cms(self->cms.cms, status) || !check_manifest(self->cms.cms, self->manifest, status))
+    goto error;
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
+}
+
 
 static PyObject *
 manifest_object_der_read_helper(PyTypeObject *type, BIO *bio)
@@ -8299,6 +8349,7 @@ static struct PyMethodDef manifest_object_methods[] = {
   Define_Method(addFiles,			manifest_object_add_files,                      METH_VARARGS),
   Define_Method(sign,				manifest_object_sign,                           METH_VARARGS),
   Define_Method(verify,				manifest_object_verify,                         METH_KEYWORDS),
+  Define_Method(checkRPKIConformance,		manifest_object_check_rpki_conformance,         METH_KEYWORDS),
   Define_Method(extractWithoutVerifying,	manifest_object_extract_without_verifying,      METH_NOARGS),
   Define_Class_Method(pemRead,			manifest_object_pem_read,                       METH_VARARGS),
   Define_Class_Method(pemReadFile,		manifest_object_pem_read_file,                  METH_VARARGS),
@@ -8392,25 +8443,16 @@ static char roa_object_verify__doc__[] =
 static PyObject *
 roa_object_verify(roa_object *self, PyObject *args, PyObject *kwds)
 {
-  PyObject *status = Py_None;
   BIO *bio = NULL;
   int ok = 0;
 
   ENTERING(roa_object_verify);
 
-  if ((bio = cms_object_verify_helper(&self->cms, args, kwds, &status)) == NULL)
+  if ((bio = cms_object_verify_helper(&self->cms, args, kwds)) == NULL)
     goto error;
   
-  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa)) {
-    record_validation_status(status, CMS_ECONTENT_DECODE_ERROR);
+  if (!ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, &self->roa))
     lose_openssl_error("Couldn't decode ROA");
-  }
-
-  if (status != Py_None && !check_cms(self->cms.cms, status))
-    goto error;
-
-  if (status != Py_None && !check_roa(self->cms.cms, self->roa, status))
-    goto error;
 
   ok = 1;
 
@@ -8454,6 +8496,30 @@ roa_object_extract_without_verifying(roa_object *self)
     Py_RETURN_NONE;
   else
     return NULL;
+}
+
+static char roa_object_check_rpki_conformance__doc__[] =
+  "Check this ROA for conformance to the RPKI profile.\n"
+  ;
+
+static PyObject *
+roa_object_check_rpki_conformance(roa_object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = {"status", NULL};
+  PyObject *status = Py_None;
+
+  ENTERING(roa_object_check_rpki_conformance);
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!", kwlist, &PySet_Type, &status))
+    goto error;
+
+  if (!check_cms(self->cms.cms, status) || !check_roa(self->cms.cms, self->roa, status))
+    goto error;
+
+  Py_RETURN_NONE;
+
+ error:
+  return NULL;
 }
 
 static PyObject *
@@ -8971,6 +9037,7 @@ static struct PyMethodDef roa_object_methods[] = {
   Define_Method(sign,                           roa_object_sign,                        METH_VARARGS),
   Define_Method(verify,                         roa_object_verify,                      METH_KEYWORDS),
   Define_Method(extractWithoutVerifying,        roa_object_extract_without_verifying,   METH_NOARGS),
+  Define_Method(checkRPKIConformance,           roa_object_check_rpki_conformance,      METH_KEYWORDS),
   Define_Class_Method(pemRead,                  roa_object_pem_read,                    METH_VARARGS),
   Define_Class_Method(pemReadFile,              roa_object_pem_read_file,               METH_VARARGS),
   Define_Class_Method(derRead,                  roa_object_der_read,                    METH_VARARGS),

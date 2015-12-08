@@ -1604,14 +1604,14 @@ static int check_roa(CMS_ContentInfo *cms,
 	IPAddressOrRange *b = sk_IPAddressOrRange_value(aors, j + 1);
 	unsigned char a_min[RAW_IPADDR_BUFLEN], a_max[RAW_IPADDR_BUFLEN];
 	unsigned char b_min[RAW_IPADDR_BUFLEN], b_max[RAW_IPADDR_BUFLEN];
-	int length;
+	int a_len, b_len;
 
-#warning Handling of length here looks weird, double check
-	if ((length = v3_addr_get_range(a, afi, a_min, a_max, RAW_IPADDR_BUFLEN)) == 0 ||
-	    (length = v3_addr_get_range(b, afi, b_min, b_max, RAW_IPADDR_BUFLEN)) == 0)
+	if ((a_len = v3_addr_get_range(a, afi, a_min, a_max, RAW_IPADDR_BUFLEN)) == 0 ||
+	    (b_len = v3_addr_get_range(b, afi, b_min, b_max, RAW_IPADDR_BUFLEN)) == 0 ||
+            a_len != b_len)
           record_validation_status(status, ROA_RESOURCES_MALFORMED);
 
-	if (memcmp(a_max, b_max, length) >= 0) {
+	if (memcmp(a_max, b_max, a_len) >= 0) {
 	  (void) sk_IPAddressOrRange_delete(aors, j + 1);
 	  IPAddressOrRange_free(b);
 	  --j;

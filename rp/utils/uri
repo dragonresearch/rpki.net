@@ -43,6 +43,9 @@ class Certificate(object):
     def first_https(self, uris):
         return self.first_whatever(uris, "https://")
 
+    def first_http(self, uris):
+        return self.first_whatever(uris, "http://")
+
     def __init__(self, fn):
         try:
             x = rpki.POW.X509.derReadFile(fn)
@@ -60,7 +63,7 @@ class Certificate(object):
             ("SIA:caRepository", self.first_rsync(sia[0])),
             ("SIA:rpkiManifest", self.first_rsync(sia[1])),
             ("SIA:signedObject", self.first_rsync(sia[2])),
-            ("SIA:rpkiNotify",   self.first_https(sia[3])),
+            ("SIA:rpkiNotify",   self.first_https(sia[3]) or self.first_http(sia[3])),
             ("CRLDP",            self.first_rsync(x.getCRLDP())))
 
     def __str__(self):

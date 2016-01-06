@@ -46,6 +46,7 @@ import sys
 import yaml
 import signal
 import time
+import textwrap
 import lxml.etree
 import rpki.resource_set
 import rpki.sundial
@@ -501,8 +502,8 @@ class allocation(object):
             publication_rsync_server          = "localhost:%s" % self.pubd.rsync_port,
             publication_rrdp_notification_uri = "http://localhost:%s/rrdp/notify.xml" % self.pubd.rrdp_port,
             bpki_servers_directory            = self.path(),
-            publication_base_directory        = self.path("publication"),
-            rrdp_publication_base_directory   = self.path("rrdp-publication"),
+            publication_base_directory        = self.path("publication.rsync"),
+            rrdp_publication_base_directory   = self.path("publication.rrdp"),
             shared_sql_engine                 = args.sql_engine,
             shared_sql_password               = "fnord",
             irdbd_sql_username                = "irdb",
@@ -553,7 +554,7 @@ class allocation(object):
                               "log file     = rsyncd.log",
                               "read only    = yes",
                               "use chroot   = no",
-                              "path         = %s"           % self.path("publication"),
+                              "path         = %s"           % self.path("publication.rsync"),
                               "comment      = RPKI test",
                               "[root]",
                               "log file     = rsyncd_root.log",
@@ -561,6 +562,58 @@ class allocation(object):
                               "use chroot   = no",
                               "path         = %s"           % self.path("publication.root"),
                               "comment      = RPKI test root"))
+
+    def dump_httpsd(self):
+        """
+        Write certificates for internal RRDP httpsd.
+        """
+
+        # For the moment we create a new TA for each httpsd server
+        # instance, which will be a mess if the RRDP client wants to
+        # verify them.  At the moment, running RRDP over HTTPS is more
+        # of a political statement than a technical requirement
+        # derived from the underlying security model, so we defer
+        # shaving that yak for another day.  Likewise, we defer
+        # deciding whether we really only wanted one TA/EE pair for an
+        # entire yamltest run, or perhaps a single TA and multiple EEs
+        # (all with the same name!), or ....
+        #
+        # If and when we ever deal with this, we might also see about
+        # getting the Django test GUI server to run over TLS.  Then
+        # again, since we have no sane way of telling the user's web
+        # browser about our TA, this pretty much guarantees a lot of
+        # tedious browser exception pop-ups every time.  Feh.
+
+        if self.runs_pubd:
+            print "Creating certificates for %s RRDP HTTPS server" % self.name
+
+            ca_key = rpki.x509.RSA.generate(quiet = True)
+            ee_key = rpki.x509.RSA.generate(quiet = True)
+            ca_dn  = rpki.x509.X501DN.from_cn("%s RRDP HTTPS trust anchor" % self.name)
+            ee_dn  = rpki.x509.X501DN.from_cn("localhost")
+            notAfter  = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
+
+            ca_cer = rpki.x509.X509.bpki_self_certify(
+                keypair      = ca_key,
+                subject_name = ca_dn,
+                serial       = 1,
+                notAfter     = notAfter)
+
+            ee_cer = ca_cer.bpki_certify(
+                keypair      = ca_key,
+                subject_name = ee_dn,
+                subject_key  = ee_key.get_public(),
+                serial       = 2,
+                notAfter     = notAfter,
+                is_ca        = False)
+
+            with open(self.path("httpsd.client.pem"), "w") as f:
+                f.write(ca_cer.get_PEM())
+
+            with open(self.path("httpsd.server.pem"), "w") as f:
+                f.write(ee_key.get_PEM())
+                f.write(ee_cer.get_PEM())
+                f.write(ca_cer.get_PEM())
 
     @classmethod
     def next_rpkic_counter(cls):
@@ -679,6 +732,29 @@ class allocation(object):
                              cwd = self.path())
         print "Running rsyncd for %s: pid %d process %r" % (self.name, p.pid, p)
         return p
+
+    def run_httpsd(self):
+        """
+        Run httpsd (minimal HTTPS server, for RRDP).
+        """
+
+        # Minimal HTTPS server hack from:
+        # https://www.piware.de/2011/01/creating-an-https-server-in-python/
+        # coded as a script so that we can run this using the
+        # subprocess API used by all our other daemon processes.
+
+        if self.runs_pubd:
+            script = textwrap.dedent('''\
+                import BaseHTTPServer, SimpleHTTPServer, ssl
+                httpd = BaseHTTPServer.HTTPServer(("localhost", {port}), SimpleHTTPServer.SimpleHTTPRequestHandler)
+                httpd.socket = ssl.wrap_socket(httpd.socket, server_side = True, certfile = "{pem}")
+                httpd.serve_forever()
+                '''.format(port = self.rrdp_port, pem = self.path("httpsd.server.pem")))
+            p = subprocess.Popen((sys.executable, "-c", script),
+                                 stdout = open(self.path("httpsd.log"), "w"), stderr = subprocess.STDOUT,
+                                 cwd = self.path("publication.rrdp"))
+            print "Running httpsd for %s: pid %d process %r" % (self.name, p.pid, p)
+            return p
 
     def run_gui(self):
         """
@@ -831,8 +907,10 @@ try:
                 os.makedirs(d.path())
                 d.dump_conf()
                 if d.runs_pubd:
-                    os.makedirs(d.path("publication"))
+                    os.makedirs(d.path("publication.rsync"))
+                    os.makedirs(d.path("publication.rrdp"))
                     d.dump_rsyncd()
+                    d.dump_httpsd()
                 if d.is_root:
                     os.makedirs(d.path("publication.root"))
                 d.syncdb()
@@ -875,6 +953,7 @@ try:
                 if d.runs_pubd:
                     progs.append(d.run_pubd())
                     progs.append(d.run_rsyncd())
+                    progs.append(d.run_httpsd())
                 if args.run_gui:
                     progs.append(d.run_gui())
 

@@ -13,6 +13,7 @@ import shutil
 import errno
 import logging
 import argparse
+import datetime
 import subprocess
 
 import tornado.gen
@@ -188,6 +189,20 @@ class X509(rpki.POW.X509):
             return "<X509 at 0x{:x}>".format(id(self))
 
     @classmethod
+    def store_if_new(cls, der, uri, retrieval):
+        self = cls.derRead(der)
+        aki  = self.getAKI()
+        ski  = self.getSKI()
+        return rpki.rcynicdb.models.RPKIObject.objects.get_or_create(
+            der  = der,
+            defaults = dict(
+                uri  = uri,
+                aki  = "" if aki is None else aki.encode("hex"),
+                ski  = "" if ski is None else ski.encode("hex"),
+                hash = sha256(der).encode("hex"),
+                retrieved = retrieval))
+
+    @classmethod
     def derReadURI(cls, uri, generation, cms = None):
         fn = uri_to_filename(uri, generation.tree)
         if not os.path.exists(fn):
@@ -296,6 +311,19 @@ class CRL(rpki.POW.CRL):
             return "<CRL at 0x{:x}>".format(id(self))
 
     @classmethod
+    def store_if_new(cls, der, uri, retrieval):
+        self = cls.derRead(der)
+        aki  = self.getAKI()
+        return rpki.rcynicdb.models.RPKIObject.objects.get_or_create(
+            der  = der,
+            defaults = dict(
+                uri  = uri,
+                aki  = "" if aki is None else aki.encode("hex"),
+                ski  = "",
+                hash = sha256(der).encode("hex"),
+                retrieved = retrieval))
+
+    @classmethod
     def derReadURI(cls, uri, generation):
         fn = uri_to_filename(uri, generation.tree)
         if not os.path.exists(fn):
@@ -346,7 +374,25 @@ class CRL(rpki.POW.CRL):
         return not any(s.kind == "bad" for s in status)
 
 
-class Ghostbuster(rpki.POW.CMS):
+class CMS_Mixin(object):
+
+    @classmethod
+    def store_if_new(cls, der, uri, retrieval):
+        self = cls.derRead(der)
+        cert = self.certs()[0]
+        aki  = cert.getAKI()
+        ski  = cert.getSKI()
+        return rpki.rcynicdb.models.RPKIObject.objects.get_or_create(
+            der  = der,
+            defaults = dict(
+                uri  = uri,
+                aki  = "" if aki is None else aki.encode("hex"),
+                ski  = "" if ski is None else ski.encode("hex"),
+                hash = sha256(der).encode("hex"),
+                retrieved = retrieval))
+
+
+class Ghostbuster(rpki.POW.CMS, CMS_Mixin):
 
     def __repr__(self):
         try:
@@ -384,7 +430,7 @@ class Ghostbuster(rpki.POW.CMS):
         return not any(s.kind == "bad" for s in status)
 
 
-class Manifest(rpki.POW.Manifest):
+class Manifest(rpki.POW.Manifest, CMS_Mixin):
 
     def __repr__(self):
         try:
@@ -406,6 +452,7 @@ class Manifest(rpki.POW.Manifest):
         self.ee  = X509.derReadURI(uri, generation, self)
         self.fah = None
         self.generation = generation
+        self.sha256     = sha256(der)
         self.thisUpdate = None
         self.nextUpdate = None
         self.number     = None
@@ -443,7 +490,7 @@ class Manifest(rpki.POW.Manifest):
                 yield diruri + fn, digest
 
 
-class ROA(rpki.POW.ROA):
+class ROA(rpki.POW.ROA, CMS_Mixin):
 
     def __repr__(self):
         try:
@@ -483,6 +530,19 @@ class ROA(rpki.POW.ROA):
         return not any(s.kind == "bad" for s in status)
 
 
+class_dispatch = dict(cer = X509,
+                      crl = CRL,
+                      gbr = Ghostbuster,
+                      mft = Manifest,
+                      roa = ROA)
+
+def uri_to_class(uri):
+    cls = class_dispatch.get(uri[-3:]) if len(uri) > 4 and uri[-4] == "." else None
+    if cls is None:
+        Status.add(uri, None, codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
+    return cls
+
+
 class  WalkFrame(object):
     """
     Certificate tree walk stack frame.  This is basically just a
@@ -491,10 +551,6 @@ class  WalkFrame(object):
     the current state machine (ie, this frame) when appropriate (eg,
     after an rsync or RRDP fetch completes).
     """
-
-    fns2 = dict(cer = X509,
-                gbr = Ghostbuster,
-                roa = ROA)
 
     def __init__(self, cer):
         self.cer = cer
@@ -626,15 +682,19 @@ class  WalkFrame(object):
             yield tornado.gen.moment
 
             uri = self.diruri + fn
-            cls = self.fns2.get(uri[-3:])
 
             # Need general URI validator here?
 
             if uri == self.crl.uri:
                 continue
 
-            if uri[-4] != "." or cls is None:
-                Status.add(uri, None, codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
+            cls = uri_to_class(uri)
+
+            if cls is None:
+                continue
+
+            if cls in (Manifest, CRL):
+                Status.add(uri, None, codes.INAPPROPRIATE_OBJECT_TYPE_SKIPPED)
                 continue
 
             for generation in (Generation.current, Generation.backup):
@@ -706,12 +766,12 @@ class WalkTask(object):
 
 
 def read_tals():
-    for root, dirs, files in os.walk(args.tals):
+    for head, dirs, files in os.walk(args.tals):
         for fn in files:
             if fn.endswith(".tal"):
-                furi = "file://" + os.path.abspath(os.path.join(root, fn))
+                furi = "file://" + os.path.abspath(os.path.join(head, fn))
                 try:
-                    with open(os.path.join(root, fn), "r") as f:
+                    with open(os.path.join(head, fn), "r") as f:
                         lines = f.readlines()
                     uri = lines.pop(0).strip()
                     b64 = "".join(lines[lines.index("\n"):])
@@ -822,14 +882,15 @@ class Fetcher(object):
         self._rsync_history[path] = self
 
         try:
+            path = uri_to_filename(self.uri, args.unauthenticated)
             cmd = ["rsync", "--update", "--times", "--copy-links", "--itemize-changes"]
             if self.uri.endswith("/"):
                 cmd.append("--recursive")
                 cmd.append("--delete")
             cmd.append(self.uri)
-            cmd.append(uri_to_filename(self.uri, args.unauthenticated))
+            cmd.append(path)
 
-            dn = os.path.dirname(cmd[-1])
+            dn = os.path.dirname(path)
             if not os.path.exists(dn):
                 os.makedirs(dn)
 
@@ -862,10 +923,43 @@ class Fetcher(object):
 
             # Should do something with rsync result and validation status database here.
 
+            # We probably don't want to yield in the middle of a
+            # transaction, and this doesn't really need to be wrapped
+            # in a transaction in any case, so leave well enough alone.
+            #
+            #from django.db import IntegrityError, transaction
+            #with transaction.atomic():
+
+            retrieval = rpki.rcynicdb.models.Retrieval.objects.create(
+                uri        = self.uri,
+                started    = datetime.datetime.fromtimestamp(t0),
+                finished   = datetime.datetime.fromtimestamp(t1),
+                successful = self.status == 0)
+
+            for fn in self._rsync_walk(path):
+                yield tornado.gen.moment
+                uri = "rsync://" + fn[len(args.unauthenticated):].lstrip("/")
+                cls = uri_to_class(uri)
+                if cls is not None:
+                    try:
+                        with open(fn, "rb") as f:
+                            cls.store_if_new(f.read(), uri, retrieval)
+                    except:
+                        Status.add(uri, Generation.current, codes.UNREADABLE_OBJECT)
+                        logger.exception("Couldn't read %s from rsync tree", uri)
+
         finally:
             pending = self.pending
             self.pending = None
             pending.notify_all()
+
+    def _rsync_walk(self, path):
+        if self.uri.endswith("/"):
+            for head, dirs, files in os.walk(path):
+                for fn in files:
+                    yield os.path.join(head, fn)
+        elif os.path.exists(path):
+            yield path
 
 
 class CheckTALTask(object):
@@ -964,7 +1058,8 @@ class posint(int):
 
 
 def main():
-    os.putenv("TZ", "UTC")
+    os.environ.update(TZ = "UTC",
+                      DJANGO_SETTINGS_MODULE = "rpki.django_settings.rcynic")
     time.tzset()
 
     parser = argparse.ArgumentParser(description = __doc__)
@@ -975,12 +1070,25 @@ def main():
 
     parser.add_argument("--tals",               default = "sample-trust-anchors")
 
-    parser.add_argument("--workers", type = posint, default = 10)
-    parser.add_argument("--no-fetch", action  = "store_true")
-    parser.add_argument("--no-spawn-on-fetch", action = "store_true")
+    parser.add_argument("--workers",            type = posint, default = 10)
+
+    parser.add_argument("--no-fetch",           action = "store_true")
+    parser.add_argument("--no-spawn-on-fetch",  action = "store_true")
+    parser.add_argument("--no-migrate",         action = "store_true")
 
     global args
     args = parser.parse_args()
+
+    import django
+    django.setup()
+
+    if not args.no_migrate:
+        # Not sure we should be doing this on every run, but sure simplifies things.
+        import django.core.management
+        django.core.management.call_command("migrate", verbosity = 0, interactive = False)
+
+    global rpki
+    import rpki.rcynicdb
 
     global new_authenticated, old_authenticated
     new_authenticated = args.authenticated.rstrip("/") + time.strftime(".%Y-%m-%dT%H:%M:%SZ")

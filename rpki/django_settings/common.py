@@ -118,3 +118,8 @@ if cfg.has_option("secret-key", section = "web_portal"):
     SECRET_KEY = cfg.get("secret-key", section = "web_portal")
 else:
     SECRET_KEY = os.urandom(66).encode("hex")
+
+
+# Django defaults to thinking everybody lives in Chicago.
+
+TIME_ZONE = "UTC"

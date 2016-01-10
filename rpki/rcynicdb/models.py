@@ -32,16 +32,17 @@ from django.db import models
 # be specific to the original poster's desired semantics.
 
 class Retrieval(models.Model):
-    uri = models.TextField()
-    started = models.DateTimeField()
-    finished = models.DateTimeField()
+    uri        = models.TextField()
+    started    = models.DateTimeField()
+    finished   = models.DateTimeField()
     successful = models.BooleanField()
 
 # Collection of validated objects (like current
 # rsync-data/authenticated.yyyy-mm-ddTHH:MM:SS/ tree)
 
 class Authenticated(models.Model):
-    timestamp = models.DateTimeField()
+    started  = models.DateTimeField()
+    finished = models.DateTimeField(null = True)
 
 # One instance of an RRDP snapshot.
 #
@@ -55,24 +56,18 @@ class Authenticated(models.Model):
 
 class RRDPSnapshot(models.Model):
     timestamp = models.DateTimeField()
-    uuid = models.UUIDField()
-    serial = models.BigIntegerField()
+    uuid      = models.UUIDField()
+    serial    = models.BigIntegerField()
     retrieved = models.OneToOneField(Retrieval)
 
 # RPKI objects.
 
 class RPKIObject(models.Model):
-    der = models.BinaryField(unique = True)
-    uri = models.TextField()
-    aki = models.SlugField(max_length = 40)  # hex SHA-1
-    ski = models.SlugField(max_length = 40)  # hex SHA-1
-    hash = models.SlugField(max_length = 64) # hex SHA-256
-    retrieved = models.ForeignKey(Retrieval)
+    der           = models.BinaryField(unique = True)
+    uri           = models.TextField()
+    aki           = models.SlugField(max_length = 40)  # hex SHA-1
+    ski           = models.SlugField(max_length = 40)  # hex SHA-1
+    sha256        = models.SlugField(max_length = 64) # hex SHA-256
+    retrieved     = models.ForeignKey(Retrieval)
     authenticated = models.ManyToManyField(Authenticated)
-    snapshot = models.ManyToManyField(RRDPSnapshot)
-
-# No exact analogue to current unauthenticated tree.  Generally, when
-# we would have looked in the unauthenticated tree we want the most
-# recently retrieved copy of a particular object, but particular
-# object gets a little weird in RRDP universe.  See Tim's draft, not
-# gospel but best worked example available to date.
+    snapshot      = models.ManyToManyField(RRDPSnapshot)

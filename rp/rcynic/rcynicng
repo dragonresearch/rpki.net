@@ -33,26 +33,6 @@ logger = logging.getLogger("rcynicng")
 
 codes = rpki.POW.validation_status
 
-class Generation(object):
-
-    all = []
-
-    def __init__(self, name, tree):
-        self.name = name
-        self.tree = tree
-        self.all.append(self)
-        self.pos = len(self.all)
-        setattr(self.__class__, name, self)
-
-    def __hash__(self):
-        return hash(self.name)
-
-    def __cmp__(self, other):
-        return cmp(self.pos, 0 if other is None else other.pos)
-
-    def __str__(self):
-        return self.name
-
 
 class Status(object):
     """
@@ -66,96 +46,55 @@ class Status(object):
 
     db = dict()
 
-    def __init__(self, uri, generation):
-        assert generation is None or isinstance(generation, Generation)
+    def __init__(self, uri):
         self.uri = uri
-        self._generation = generation
         self._timestamp = None
         self.status = set()
 
     def __str__(self):
-        return "{my.timestamp} {my.uri} {status} {my.generation}".format(
+        return "{my.timestamp} {my.uri} {status}".format(
             my = self, status = ",".join(str(s) for s in sorted(self.status)))
 
     @property
     def timestamp(self):
         return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self._timestamp))
 
-    @property
-    def generation(self):
-        return str(self._generation)
-
     @classmethod
-    def get(cls, uri, generation):
+    def get(cls, uri):
         try:
-            return cls.db[uri, generation].status
+            return cls.db[uri].status
         except KeyError:
             return None
 
     @classmethod
-    def update(cls, uri, generation):
+    def update(cls, uri):
         try:
-            key  = (uri, generation)
-            self = cls.db[key]
+            self = cls.db[uri]
         except KeyError:
-            self = cls.db[key] = cls(uri, generation)
+            self = cls.db[uri] = cls(uri)
         self._timestamp = time.time()
         return self.status
 
     @classmethod
-    def add(cls, uri, generation, *codes):
-        status = cls.update(uri, generation)
+    def add(cls, uri, *codes):
+        status = cls.update(uri)
         for code in codes:
             status.add(code)
 
     @classmethod
-    def remove(cls, uri, generation, *codes):
-        key = (uri, generation)
-        if key in cls.db:
+    def remove(cls, uri, *codes):
+        if uri in cls.db:
             for code in codes:
-                cls.db[key].status.discard(code)
+                cls.db[uri].status.discard(code)
 
     @classmethod
-    def test(cls, uri, generation, code):
-        key = (uri, generation)
-        return key in cls.db and code in cls.db[key].status
+    def test(cls, uri, code):
+        return uri in cls.db and code in cls.db[uri].status
 
 
 def install_object(obj):
-    fn = uri_to_filename(obj.uri, new_authenticated)
-    dn = os.path.dirname(fn)
-    #logger.debug("Installing %r by linking %s to %s", obj, obj.fn, fn)
-    if not os.path.isdir(dn):
-        os.makedirs(dn)
-    os.link(obj.fn, fn)
-
-
-def final_install():
-
-    cur_link = old_authenticated
-    new_link = cur_link + ".new"
-    old_link = cur_link + ".old"
-    dir_base = os.path.realpath(cur_link + ".")
-    new_real = os.path.realpath(new_authenticated)
-    old_real = os.path.realpath(old_authenticated)
-
-    if os.path.islink(old_link):
-        logger.debug("Unlinking %s", old_link)
-        os.unlink(old_link)
-
-    if os.path.isdir(old_real):
-        logger.debug("Symlinking %s to %s", os.path.basename(old_real), old_link)
-        os.symlink(os.path.basename(old_real), old_link)
-
-    logger.debug("Symlinking %s to %s", os.path.basename(new_real), cur_link)
-    os.symlink(os.path.basename(new_real), new_link)
-    os.rename(new_link, cur_link)
-
-    for path in os.listdir(os.path.dirname(dir_base)):
-        path = os.path.realpath(os.path.join(os.path.dirname(dir_base), path))
-        if path.startswith(dir_base) and path not in (new_real, old_real) and os.path.isdir(path):
-            logger.debug("Removing %s", path)
-            shutil.rmtree(path)
+    obj.obj.authenticated.add(authenticated)
+    obj.obj.save()
 
 
 class X509StoreCTX(rpki.POW.X509StoreCTX):
@@ -184,7 +123,7 @@ class X509(rpki.POW.X509):
 
     def __repr__(self):
         try:
-            return "<X509 \"{}\" {} at 0x{:x}>".format(self.uri, self.generation, id(self))
+            return "<X509 \"{}\" at 0x{:x}>".format(self.uri, id(self))
         except:
             return "<X509 at 0x{:x}>".format(id(self))
 
@@ -199,30 +138,31 @@ class X509(rpki.POW.X509):
                 uri  = uri,
                 aki  = "" if aki is None else aki.encode("hex"),
                 ski  = "" if ski is None else ski.encode("hex"),
-                hash = sha256(der).encode("hex"),
+                sha256 = sha256(der).encode("hex"),
                 retrieved = retrieval))
 
+    @property
+    def uri(self):
+        return self.obj.uri
+
+    @property
+    def aki(self):
+        return self.obj.aki
+
+    @property
+    def ski(self):
+        return self.obj.ski
+
     @classmethod
-    def derReadURI(cls, uri, generation, cms = None):
-        fn = uri_to_filename(uri, generation.tree)
-        if not os.path.exists(fn):
-            Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
-            return None
-        if cms is None:
-            with open(fn, "rb") as f:
-                der = f.read()
-        else:
-            # XXX awful kludge to work around current lack of subclass
-            # support in rpki.POW.CMS.certs().
+    def load(cls, obj, cms = None):
+        if cms is not None:
+            # XXX Kludge to work around lack of subclass support in rpki.POW.CMS.certs().
             der = cms.certs()[0].derWrite()
+        else:
+            der = obj.der
         self = cls.derRead(der)
-        self.uri = uri
-        self.fn  = fn
-        self.generation = generation
-        self.sha256 = sha256(der) if cms is None else None
+        self.obj = obj
         self.bc    = self.getBasicConstraints()
-        self.aki   = self.getAKI()
-        self.ski   = self.getSKI()
         self.eku   = self.getEKU()
         self.aia   = self.getAIA()
         self.sia   = self.getSIA()
@@ -243,7 +183,7 @@ class X509(rpki.POW.X509):
 
     def check(self, trusted, crl):
         #logger.debug("Starting checks for %r", self)
-        status = Status.update(self.uri, self.generation)
+        status = Status.update(self.uri)
         is_ta = trusted is None
         is_routercert = (self.eku is not None and id_kp_bgpsec_router in self.eku and
                          not self.is_ca and self.uri.endswith(".cer"))
@@ -263,7 +203,7 @@ class X509(rpki.POW.X509):
             status.add(codes.CRLDP_EXTENSION_FORBIDDEN)
         if not is_ta and self.crldp is None:
             status.add(codes.CRLDP_EXTENSION_MISSING)
-        if not is_ta and self.aki is None:
+        if not is_ta and not self.aki:
             status.add(codes.AKI_EXTENSION_MISSING)
         elif not is_ta and self.aki != trusted[0].ski:
             status.add(codes.AKI_EXTENSION_ISSUER_MISMATCH)
@@ -306,7 +246,7 @@ class CRL(rpki.POW.CRL):
 
     def __repr__(self):
         try:
-            return "<CRL \"{}\" {} at 0x{:x}>".format(self.uri, self.generation, id(self))
+            return "<CRL \"{}\" at 0x{:x}>".format(self.uri, id(self))
         except:
             return "<CRL at 0x{:x}>".format(id(self))
 
@@ -320,30 +260,32 @@ class CRL(rpki.POW.CRL):
                 uri  = uri,
                 aki  = "" if aki is None else aki.encode("hex"),
                 ski  = "",
-                hash = sha256(der).encode("hex"),
+                sha256 = sha256(der).encode("hex"),
                 retrieved = retrieval))
 
+    @property
+    def uri(self):
+        return self.obj.uri
+
+    @property
+    def aki(self):
+        return self.obj.aki
+
+    @property
+    def ski(self):
+        return ""
+
     @classmethod
-    def derReadURI(cls, uri, generation):
-        fn = uri_to_filename(uri, generation.tree)
-        if not os.path.exists(fn):
-            Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
-            return None
-        with open(fn, "rb") as f:
-            der = f.read()
-        self = cls.derRead(der)
-        self.uri = uri
-        self.fn  = fn
-        self.generation = generation
-        self.sha256     = sha256(der)
-        self.aki        = self.getAKI()
+    def load(cls, obj):
+        self = cls.derRead(obj.der)
+        self.obj = obj
         self.thisUpdate = self.getThisUpdate()
         self.nextUpdate = self.getNextUpdate()
         self.number     = self.getCRLNumber()
         return self
 
     def check(self, issuer):
-        status = Status.update(self.uri, self.generation)
+        status = Status.update(self.uri)
         self.checkRPKIConformance(status = status, issuer = issuer)
         try:
             self.verify(issuer)
@@ -366,7 +308,7 @@ class CRL(rpki.POW.CRL):
             status.add(codes.CRL_NUMBER_OUT_OF_RANGE)
         if self.getIssuer() != issuer.getSubject():
             status.add(codes.CRL_ISSUER_NAME_MISMATCH)
-        if self.aki is None:
+        if not self.aki:
             status.add(codes.AKI_EXTENSION_MISSING)
         elif self.aki != issuer.ski:
             status.add(codes.AKI_EXTENSION_ISSUER_MISMATCH)
@@ -388,37 +330,40 @@ class CMS_Mixin(object):
                 uri  = uri,
                 aki  = "" if aki is None else aki.encode("hex"),
                 ski  = "" if ski is None else ski.encode("hex"),
-                hash = sha256(der).encode("hex"),
+                sha256 = sha256(der).encode("hex"),
                 retrieved = retrieval))
+
+    @property
+    def uri(self):
+        return self.obj.uri
+
+    @property
+    def aki(self):
+        return self.obj.aki
+
+    @property
+    def ski(self):
+        return self.obj.ski
 
 
 class Ghostbuster(rpki.POW.CMS, CMS_Mixin):
 
     def __repr__(self):
         try:
-            return "<Ghostbuster \"{}\" {} at 0x{:x}>".format(self.uri, self.generation, id(self))
+            return "<Ghostbuster \"{}\" at 0x{:x}>".format(self.uri, id(self))
         except:
             return "<Ghostbuster at 0x{:x}>".format(id(self))
 
     @classmethod
-    def derReadURI(cls, uri, generation):
-        fn = uri_to_filename(uri, generation.tree)
-        if not os.path.exists(fn):
-            Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
-            return None
-        with open(fn, "rb") as f:
-            der = f.read()
-        self = cls.derRead(der)
-        self.uri = uri
-        self.fn  = fn
-        self.generation = generation
-        self.sha256 = sha256(der)
-        self.ee     = X509.derReadURI(uri, generation, self)
+    def load(cls, obj):
+        self        = cls.derRead(obj.der)
+        self.obj    = obj
+        self.ee     = X509.load(obj, self)
         self.vcard  = None
         return self
 
     def check(self, trusted, crl):
-        status = Status.update(self.uri, self.generation)
+        status = Status.update(self.uri)
         self.ee.check(trusted = trusted, crl = crl)
         try:
             self.vcard = self.verify()
@@ -434,32 +379,23 @@ class Manifest(rpki.POW.Manifest, CMS_Mixin):
 
     def __repr__(self):
         try:
-            return "<Manifest \"{}\" {} at 0x{:x}>".format(self.uri, self.generation, id(self))
+            return "<Manifest \"{}\" at 0x{:x}>".format(self.uri, id(self))
         except:
             return "<Manifest at 0x{:x}>".format(id(self))
 
     @classmethod
-    def derReadURI(cls, uri, generation):
-        fn = uri_to_filename(uri, generation.tree)
-        if not os.path.exists(fn):
-            Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
-            return None
-        with open(fn, "rb") as f:
-            der = f.read()
-        self = cls.derRead(der)
-        self.uri = uri
-        self.fn  = fn
-        self.ee  = X509.derReadURI(uri, generation, self)
+    def load(cls, obj):
+        self = cls.derRead(obj.der)
+        self.obj = obj
+        self.ee  = X509.load(obj, self)
         self.fah = None
-        self.generation = generation
-        self.sha256     = sha256(der)
         self.thisUpdate = None
         self.nextUpdate = None
         self.number     = None
         return self
 
     def check(self, trusted, crl):
-        status = Status.update(self.uri, self.generation)
+        status = Status.update(self.uri)
         self.ee.check(trusted = trusted, crl = crl)
         try:
             self.verify()
@@ -483,41 +419,32 @@ class Manifest(rpki.POW.Manifest, CMS_Mixin):
         codes.normalize(status)
         return not any(s.kind == "bad" for s in status)
 
-    def find_crl_uris(self):
+    def find_crl_candidate_hashes(self):
         diruri = self.uri[:self.uri.rindex("/") + 1]
         for fn, digest in self.fah:
             if fn.endswith(".crl"):
-                yield diruri + fn, digest
+                yield digest.encode("hex")
 
 
 class ROA(rpki.POW.ROA, CMS_Mixin):
 
     def __repr__(self):
         try:
-            return "<ROA \"{}\" {} at 0x{:x}>".format(self.uri, self.generation, id(self))
+            return "<ROA \"{}\" at 0x{:x}>".format(self.uri, id(self))
         except:
             return "<ROA at 0x{:x}>".format(id(self))
 
     @classmethod
-    def derReadURI(cls, uri, generation):
-        fn = uri_to_filename(uri, generation.tree)
-        if not os.path.exists(fn):
-            Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
-            return None
-        with open(fn, "rb") as f:
-            der = f.read()
-        self = cls.derRead(der)
-        self.uri = uri
-        self.fn  = fn
-        self.generation = generation
-        self.sha256     = sha256(der)
-        self.ee         = X509.derReadURI(uri, generation, self)
+    def load(cls, obj):
+        self = cls.derRead(obj.der)
+        self.obj = obj
+        self.ee         = X509.load(obj, self)
         self.asn        = None
         self.prefixes   = None
         return self
 
     def check(self, trusted, crl):
-        status = Status.update(self.uri, self.generation)
+        status = Status.update(self.uri)
         self.ee.check(trusted = trusted, crl = crl)
         try:
             vcard = self.verify()
@@ -541,6 +468,24 @@ def uri_to_class(uri):
     if cls is None:
         Status.add(uri, None, codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
     return cls
+
+
+# If we find ourselves using this same ordering for every retrieval from the RPKIObjects model, we
+# can add it as a Meta option for the model and omit it in the query expressions, like this:
+#
+#    class RPKIObjects(models.Model):
+#        ...
+#        class Meta:
+#            ordering = ["-retrieved__started"]
+#
+# https://docs.djangoproject.com/en/1.8/ref/models/querysets/#order-by
+# https://docs.djangoproject.com/en/1.8/ref/models/options/#django.db.models.Options.ordering
+
+def fetch_objects(**kwargs):
+    for obj in rpki.rcynicdb.models.RPKIObject.objects.filter(**kwargs).order_by("-retrieved__started"):
+        cls = uri_to_class(obj.uri)
+        if cls is not None:
+            yield cls.load(obj)
 
 
 class  WalkFrame(object):
@@ -591,81 +536,56 @@ class  WalkFrame(object):
 
         #logger.debug("%r scanning products", self)
 
-        mft_uri = first_rsync_uri(self.cer.rpkiManifest)
-
-        crl_candidates = []
-
         # NB: CRL checks on manifest EE certificates deferred until we've picked a CRL.
 
-        current_mft = Manifest.derReadURI(mft_uri, Generation.current)
-        if current_mft is not None and current_mft.check(trusted = self.trusted, crl = None):
-            crl_candidates.extend(current_mft.find_crl_uris())
-        else:
-            current_mft = None
+        mft_candidates = []
+        crl_candidates = []
+        crl_candidate_hashes = set()
 
-        backup_mft  = Manifest.derReadURI(mft_uri, Generation.backup)
-        if backup_mft is not None and backup_mft.check(trusted = self.trusted, crl = None):
-            crl_candidates.extend(backup_mft.find_crl_uris())
-        else:
-            backup_mft = None
-            Status.remove(mft_uri, Generation.backup, codes.OBJECT_NOT_FOUND)
+        for mft in fetch_objects(aki = self.cer.ski, uri__endswith = ".mft"):
+            if mft.check(trusted = self.trusted, crl = None):
+                mft_candidates.append(mft)
+                crl_candidate_hashes.update(mft.find_crl_candidate_hashes())
 
-        if current_mft is None and backup_mft is None:
+        if not mft_candidates:
             wsk.pop()
             return
 
-        self.crl = None
-        crls = {}
-        for uri, digest in crl_candidates:
-            for generation in (Generation.current, Generation.backup):
-                try:
-                    crl = crls[uri, generation]
-                except KeyError:
-                    crl = crls[uri, generation] = CRL.derReadURI(uri, generation)
-                if crl == self.crl:
-                    continue
-                if crl is None and generation == Generation.backup:
-                    Status.remove(uri, generation, codes.OBJECT_NOT_FOUND)
-                if crl is None:
-                    continue
-                if crl.sha256 != digest:
-                    #Status.add(uri, generation, codes.DIGEST_MISMATCH)
-                    continue
-                if not crl.check(self.trusted[0]) or (self.crl is not None and crl.number < self.crl.number):
-                    continue
-                if self.crl is None or crl.number > self.crl.number or crl.thisUpdate > self.crl.thisUpdate:
-                    self.crl = crl
+        for crl in fetch_objects(aki = self.cer.ski, uri__endswith = ".crl", sha256__in = crl_candidate_hashes):
+            if crl.check(self.trusted[0]):
+                crl_candidates.append(crl)
 
-        if self.crl is None:
+        mft_candidates.sort(reverse = True, key = lambda x: (x.number, x.thisUpdate, x.obj.retrieved.started))
+        crl_candidates.sort(reverse = True, key = lambda x: (x.number, x.thisUpdate, x.obj.retrieved.started))
+
+        if not crl_candidates:
             wsk.pop()
             return
+
+        self.crl = crl_candidates[0]
 
         install_object(self.crl)
-        Status.add(self.crl.uri, self.crl.generation, codes.OBJECT_ACCEPTED)
+        Status.add(self.crl.uri, codes.OBJECT_ACCEPTED)
 
-        #logger.debug("Picked %s CRL %s", self.crl.generation, self.crl.uri)
+        #logger.debug("Picked CRL %s", self.crl.uri)
 
-        if current_mft is not None and self.crl.isRevoked(current_mft.ee):
-            Status.add(current_mft.uri, current_mft.generation, codes.MANIFEST_EE_REVOKED)
-            current_mft = None
-
-        if backup_mft is not None and self.crl.isRevoked(backup_mft.ee):
-            Status.add(backup_mft.uri, backup_mft.generation, codes.MANIFEST_EE_REVOKED)
-            backup_mft = None
-
-        if current_mft is not None:
-            self.mft = current_mft
-        elif backup_mft is not None:
-            self.mft = backup_mft
+        for mft in mft_candidates:
+            if self.crl.isRevoked(mft.ee):
+                Status.add(mft.obj.uri, codes.MANIFEST_EE_REVOKED)
+                continue
+            self.mft = mft
+            break
         else:
             wsk.pop()
             return
 
         install_object(self.mft)
-        Status.add(mft_uri, self.mft.generation, codes.OBJECT_ACCEPTED)
+        Status.add(self.mft.obj.uri, codes.OBJECT_ACCEPTED)
 
-        self.stale_crl = Status.test(self.crl.uri, self.crl.generation, codes.STALE_CRL_OR_MANIFEST)
-        self.stale_mft = Status.test(self.mft.uri, self.mft.generation, codes.STALE_CRL_OR_MANIFEST)
+        self.stale_crl = Status.test(self.crl.uri, codes.STALE_CRL_OR_MANIFEST)
+        self.stale_mft = Status.test(self.mft.uri, codes.STALE_CRL_OR_MANIFEST)
+
+        # Issue warnings on mft and crl URI mismatches?
 
         # Use an explicit iterator so we can resume it; run loop in separate method, same reason.
 
@@ -697,33 +617,29 @@ class  WalkFrame(object):
                 Status.add(uri, None, codes.INAPPROPRIATE_OBJECT_TYPE_SKIPPED)
                 continue
 
-            for generation in (Generation.current, Generation.backup):
-                obj = cls.derReadURI(uri, generation)
-                if obj is None and generation is Generation.current:
-                    Status.add(uri, generation, codes.OBJECT_NOT_FOUND)
+            for obj in fetch_objects(sha256 = digest.encode("hex")):
+                
+                # This can't happen as currently written, but we need to handle OBJECT_NOT_FOUND somehow,
+                # this will do as a placeholder until we figure out how this should work.
+
                 if obj is None:
+                    Status.add(uri, codes.OBJECT_NOT_FOUND)
                     continue
+
                 if self.stale_crl:
-                    Status.add(uri, generation, codes.TAINTED_BY_STALE_CRL)
+                    Status.add(uri, codes.TAINTED_BY_STALE_CRL)
                 if self.stale_mft:
-                    Status.add(uri, generation, codes.TAINTED_BY_STALE_MANIFEST)
-                ok  = obj.check(trusted = self.trusted, crl = self.crl)
-                if obj.sha256 != digest:
-                    Status.add(uri, generation, codes.DIGEST_MISMATCH)
-                    ok = False
-                if ok:
+                    Status.add(uri, codes.TAINTED_BY_STALE_MANIFEST)
+
+                if obj.check(trusted = self.trusted, crl = self.crl):
                     install_object(obj)
-                    Status.add(uri, generation, codes.OBJECT_ACCEPTED)
+                    Status.add(uri, codes.OBJECT_ACCEPTED)
+                    if cls is X509 and obj.is_ca:
+                        wsk.push(obj)
+                        return
                     break
                 else:
-                    Status.add(uri, generation, codes.OBJECT_REJECTED)
-
-            else:
-                continue
-
-            if ok and cls is X509 and obj.is_ca:
-                wsk.push(obj)
-                return
+                    Status.add(uri, codes.OBJECT_REJECTED)
 
         wsk.pop()
 
@@ -945,7 +861,7 @@ class Fetcher(object):
                         with open(fn, "rb") as f:
                             cls.store_if_new(f.read(), uri, retrieval)
                     except:
-                        Status.add(uri, Generation.current, codes.UNREADABLE_OBJECT)
+                        Status.add(uri, codes.UNREADABLE_OBJECT)
                         logger.exception("Couldn't read %s from rsync tree", uri)
 
         finally:
@@ -974,27 +890,24 @@ class CheckTALTask(object):
     @tornado.gen.coroutine
     def __call__(self):
         yield Fetcher(self.uri).fetch()
-        if self.check(Generation.current):
-            yield task_queue.put(WalkTask(cer = self.cer))
-        elif self.check(Generation.backup):
-            yield task_queue.put(WalkTask(cer = self.cer))
+        for cer in fetch_objects(uri = self.uri):
+            if self.check(cer):
+                yield task_queue.put(WalkTask(cer = cer))
+                break
         else:
-            Status.add(self.uri, None, codes.TRUST_ANCHOR_SKIPPED)
+            Status.add(self.uri, codes.TRUST_ANCHOR_SKIPPED)
 
-    def check(self, generation):
-        self.cer = X509.derReadURI(self.uri, generation)
-        ok = False
-        if self.cer is None:
-            Status.add(self.uri, generation, codes.UNREADABLE_TRUST_ANCHOR)
-        elif self.key.derWritePublic() != self.cer.getPublicKey().derWritePublic():
-            Status.add(self.uri, generation, codes.TRUST_ANCHOR_KEY_MISMATCH)
+    def check(self, cer):
+        if self.key.derWritePublic() != cer.getPublicKey().derWritePublic():
+            Status.add(self.uri, codes.TRUST_ANCHOR_KEY_MISMATCH)
+            ok = False
         else:
-            ok = self.cer.check(trusted = None, crl = None)
+            ok = cer.check(trusted = None, crl = None)
         if ok:
-            install_object(self.cer)
-            Status.add(self.uri, generation, codes.OBJECT_ACCEPTED)
+            install_object(cer)
+            Status.add(self.uri, codes.OBJECT_ACCEPTED)
         else:
-            Status.add(self.uri, generation, codes.OBJECT_REJECTED)
+            Status.add(self.uri, codes.OBJECT_REJECTED)
         return ok
 
 
@@ -1021,20 +934,16 @@ def final_report():
     for s in Status.db.itervalues():
         if codes.OBJECT_ACCEPTED in s.status:
             s.status.discard(codes.OBJECT_REJECTED)
-        if s.generation is Generation.backup:
-            if Status.test(s.uri, Generation.current, codes.OBJECT_ACCEPTED):
-                s.status.discard(codes.OBJECT_REJECTED)
-            s.status.discard(codes.OBJECT_NOT_FOUND)
     doc = Element("rcynic-summary") # rcynic-version = "", summary-version = "", reporting-hostname = ""
     labels = SubElement(doc, "labels")
     for code in codes.all():
         SubElement(labels, code.name).text = code.text
-    for uri, generation in Status.db:
-        for sym in sorted(Status.db[uri, generation].status):
+    for uri in Status.db:
+        for sym in sorted(Status.db[uri].status):
             SubElement(doc, "validation_status",
-                       timestamp  = str(Status.db[uri, generation].timestamp),
+                       timestamp  = str(Status.db[uri].timestamp),
                        status     = str(sym),
-                       generation = str(generation)
+                       generation = "None"              # Historical relic, remove eventually
                        ).text     = uri
     #
     # Should generate <rsync_history/> elements here too, later
@@ -1090,14 +999,10 @@ def main():
     global rpki
     import rpki.rcynicdb
 
-    global new_authenticated, old_authenticated
-    new_authenticated = args.authenticated.rstrip("/") + time.strftime(".%Y-%m-%dT%H:%M:%SZ")
-    old_authenticated = args.authenticated.rstrip("/")
-
-    Generation("current", args.unauthenticated)
-    Generation("backup",  old_authenticated)
-
     logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s  %(message)s", datefmt = "%Y-%m-%d %H:%M:%S")
+
+    global authenticated
+    authenticated = rpki.rcynicdb.models.Authenticated.objects.create(started  = datetime.datetime.now())
 
     global task_queue
     task_queue = tornado.queues.Queue()
@@ -1105,7 +1010,8 @@ def main():
 
     final_report()
 
-    final_install()
+    authenticated.finished = datetime.datetime.now()
+    authenticated.save()
 
 
 if __name__ == "__main__":

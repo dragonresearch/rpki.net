@@ -48,8 +48,7 @@ def uri_to_filename(obj, base):
     return os.path.join(args.output_tree, base, obj.uri[obj.uri.index("://") + 3:])
 
 def sha256_to_filename(obj):
-    return os.path.join(args.output_tree, "sha256",
-                        obj.sha256[0:8], obj.sha256[8:16], obj.sha256[16:24], obj.sha256[24:])
+    return os.path.join(args.output_tree, "sha256", obj.sha256[:2], obj.sha256 + obj.uri[-4:])
 
 def authenticated_to_dirname(authenticated):
     return "authenticated-{}".format(authenticated.started.strftime("%Y-%m-%dT%H:%M:%SZ"))

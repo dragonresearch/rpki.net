@@ -62,6 +62,12 @@ class RRDPSnapshot(models.Model):
     retrieved = models.OneToOneField(Retrieval)
 
 # RPKI objects.
+#
+# Might need to add an on_delete argument to the ForeignKey for the
+# retrieved field: the default behavior is CASCADE, which is may not
+# what we want in this case.
+#
+# https://docs.djangoproject.com/en/1.9/ref/models/fields/#django.db.models.ForeignKey.on_delete
 
 class RPKIObject(models.Model):
     der           = models.BinaryField(unique = True)

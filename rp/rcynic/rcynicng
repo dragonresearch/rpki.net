@@ -421,7 +421,6 @@ class Manifest(rpki.POW.Manifest, CMS_Mixin):
         return not any(s.kind == "bad" for s in status)
 
     def find_crl_candidate_hashes(self):
-        diruri = self.uri[:self.uri.rindex("/") + 1]
         for fn, digest in self.fah:
             if fn.endswith(".crl"):
                 yield digest.encode("hex")
@@ -514,8 +513,11 @@ class  WalkFrame(object):
 
     @tornado.gen.coroutine
     def initial(self, wsk):
-        self.diruri  = first_rsync_uri(self.cer.caDirectory)
-        self.fetcher = Fetcher(self.diruri)
+
+        # Will need some logic to decide whether to prefer RRDP or rsync.
+        # For the moment, we've only implemented rsync, so this is easy.
+
+        self.fetcher = Fetcher(first_rsync_uri(self.cer.caDirectory))
 
         if not self.fetcher.needed():
             self.state = self.ready
@@ -602,7 +604,7 @@ class  WalkFrame(object):
 
             yield tornado.gen.moment
 
-            uri = self.diruri + fn
+            uri = self.mft.uri[:self.mft.uri.rindex("/") + 1] + fn
 
             # Need general URI validator here?
 
@@ -952,6 +954,29 @@ def final_report():
     ElementTree(doc).write(file = args.xml_file, pretty_print = True)
 
 
+def final_cleanup():
+
+    # This will almost certainly become more complex once we add RRDP.
+
+    # http://stackoverflow.com/questions/7635838/django-queryset-excluding-many-to-many-objects
+    # http://blog.roseman.org.uk/2010/01/11/django-patterns-part-2-efficient-reverse-lookups/
+    # http://stackoverflow.com/questions/5437335/django-queryset-with-filtering-on-reverse-foreign-key
+    # https://docs.djangoproject.com/en/1.8/ref/models/querysets/#in
+
+    # https://docs.djangoproject.com/en/1.8/faq/models/#how-can-i-see-the-raw-sql-queries-django-is-running
+
+    # All RPKI objects other than the most recent authenticated set.
+    # This will definitely need work once we support RRDP.
+    rpki.rcynicdb.models.RPKIObject.objects.exclude(authenticated = authenticated.id).delete()
+
+    # Flush all but the most recent authenticated set.
+    rpki.rcynicdb.models.Authenticated.objects.exclude(id = authenticated.id).delete()
+
+    # Flush retrieval objects which have no related RPKI objects.
+    rpki.rcynicdb.models.Retrieval.objects.exclude(
+        id__in = rpki.rcynicdb.models.RPKIObject.objects.values_list("retrieved__id", flat = True)).delete()
+
+
 @tornado.gen.coroutine
 def launcher():
     for i in xrange(args.workers):
@@ -1020,10 +1045,12 @@ def main():
     task_queue = tornado.queues.Queue()
     tornado.ioloop.IOLoop.current().run_sync(launcher)
 
-    final_report()
-
     authenticated.finished = rpki.sundial.datetime.now()
     authenticated.save()
+
+    final_report()
+
+    final_cleanup()
 
 
 if __name__ == "__main__":

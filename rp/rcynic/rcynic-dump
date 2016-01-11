@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+
+# $Id$
+
+"""
+Dump rcynicng database to old-style disk files.
+
+This is a slow operation due to blocking operations in the underlying
+filesystem, so in the long run we will almost certainly want to
+rewrite the RP toolkit to use the database directly, but it's (much)
+easier to compare results between the old and new validation engines
+when they use the same data representation.
+"""
+
+import os
+import sys
+import time
+import shutil
+import logging
+import argparse
+
+import rpki.config
+import rpki.autoconf
+
+logger = logging.getLogger("rcynic-dump")
+
+os.environ.update(TZ = "UTC",
+                  DJANGO_SETTINGS_MODULE = "rpki.django_settings.rcynic")
+time.tzset()
+
+logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s  %(message)s", datefmt = "%Y-%m-%d %H:%M:%S")
+
+parser = argparse.ArgumentParser(description = __doc__)
+parser.add_argument("-c", "--config")
+parser.add_argument("output_tree", nargs = "?", default = "rcynic-data")
+args = parser.parse_args()
+
+rpki.config.rpki_conf_envname = "RCYNIC_CONF"
+rpki.config.default_filename = os.path.join(rpki.autoconf.sysconfdir, "rcynic.conf")
+rpki.config.parser(set_filename = args.config, section = "rcynic")
+
+import django
+django.setup()
+
+import rpki.rcynicdb
+
+def uri_to_filename(obj, base):
+    return os.path.join(args.output_tree, base, obj.uri[obj.uri.index("://") + 3:])
+
+def sha256_to_filename(obj):
+    return os.path.join(args.output_tree, "sha256",
+                        obj.sha256[0:8], obj.sha256[8:16], obj.sha256[16:24], obj.sha256[24:])
+
+def authenticated_to_dirname(authenticated):
+    return "authenticated-{}".format(authenticated.started.strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+seen = set()
+
+def check_der(fn, der):
+    with open(fn, "rb") as f:
+        return der == f.read()
+
+def mkdir_maybe(fn):
+    dn = os.path.dirname(fn)
+    if not os.path.exists(dn):
+        os.makedirs(dn)
+
+for obj in rpki.rcynicdb.models.RPKIObject.objects.all():
+
+    hfn = sha256_to_filename(obj)
+    ufn = uri_to_filename(obj, "unauthenticated")
+
+    if not os.path.exists(hfn) or not check_der(hfn, obj.der):
+        mkdir_maybe(hfn)
+        with open(hfn, "wb") as f:
+            f.write(obj.der)
+
+    seen.add(hfn)
+    seen.add(ufn)
+
+    for auth in obj.authenticated.all():
+        afn = uri_to_filename(obj, authenticated_to_dirname(auth))
+        mkdir_maybe(afn)
+        if not os.path.exists(afn):
+            os.link(hfn, afn)
+        elif not check_der(afn, obj.der):
+            os.unlink(afn)
+            os.link(hfn, afn)
+        seen.add(afn)
+
+auth = rpki.rcynicdb.models.Authenticated.objects.order_by("-started").first()
+
+if auth is not None:
+    src = authenticated_to_dirname(auth)
+    dst = os.path.join(args.output_tree, "authenticated")
+    if os.path.exists(dst):
+        os.unlink(dst)
+    os.symlink(src, dst)

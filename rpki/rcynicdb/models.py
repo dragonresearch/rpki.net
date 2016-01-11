@@ -53,6 +53,7 @@ class Authenticated(models.Model):
 # anything created during the process) until and unless it all works.
 #
 # Not sure we want uuid field, drop if not useful.
+# Not sure we want timestamp, 1:1 relationship with retrieval may suffice.
 
 class RRDPSnapshot(models.Model):
     timestamp = models.DateTimeField()

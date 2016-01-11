@@ -13,7 +13,6 @@ import shutil
 import errno
 import logging
 import argparse
-import datetime
 import subprocess
 
 import tornado.gen
@@ -24,6 +23,8 @@ import tornado.process
 
 import rpki.POW
 import rpki.sundial
+import rpki.config
+import rpki.autoconf
 
 from rpki.oids import id_kp_bgpsec_router
 
@@ -848,8 +849,8 @@ class Fetcher(object):
 
             retrieval = rpki.rcynicdb.models.Retrieval.objects.create(
                 uri        = self.uri,
-                started    = datetime.datetime.fromtimestamp(t0),
-                finished   = datetime.datetime.fromtimestamp(t1),
+                started    = rpki.sundial.datetime.fromtimestamp(t0),
+                finished   = rpki.sundial.datetime.fromtimestamp(t1),
                 successful = self.status == 0)
 
             for fn in self._rsync_walk(path):
@@ -967,11 +968,15 @@ class posint(int):
 
 
 def main():
+    global rpki
+
     os.environ.update(TZ = "UTC",
                       DJANGO_SETTINGS_MODULE = "rpki.django_settings.rcynic")
     time.tzset()
 
     parser = argparse.ArgumentParser(description = __doc__)
+
+    parser.add_argument("-c", "--config", help = "override default location of configuration file")
 
     parser.add_argument("--authenticated",      default = "rcynic-data/authenticated")
     parser.add_argument("--unauthenticated",    default = "rcynic-data/unauthenticated")
@@ -988,6 +993,14 @@ def main():
     global args
     args = parser.parse_args()
 
+    rpki.config.rpki_conf_envname = "RCYNIC_CONF"
+    rpki.config.default_filename = os.path.join(rpki.autoconf.sysconfdir, "rcynic.conf")
+    rpki.config.parser(set_filename = args.config, section = "rcynic")
+
+    # If we're going to allow some options to be controlled from both
+    # config file and command line, this is where we sort that out.
+    # Doesn't play well with action=store_true.
+
     import django
     django.setup()
 
@@ -996,13 +1009,12 @@ def main():
         import django.core.management
         django.core.management.call_command("migrate", verbosity = 0, interactive = False)
 
-    global rpki
     import rpki.rcynicdb
 
     logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s  %(message)s", datefmt = "%Y-%m-%d %H:%M:%S")
 
     global authenticated
-    authenticated = rpki.rcynicdb.models.Authenticated.objects.create(started  = datetime.datetime.now())
+    authenticated = rpki.rcynicdb.models.Authenticated.objects.create(started  = rpki.sundial.datetime.now())
 
     global task_queue
     task_queue = tornado.queues.Queue()
@@ -1010,7 +1022,7 @@ def main():
 
     final_report()
 
-    authenticated.finished = datetime.datetime.now()
+    authenticated.finished = rpki.sundial.datetime.now()
     authenticated.save()
 
 

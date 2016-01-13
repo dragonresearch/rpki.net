@@ -51,12 +51,8 @@ class Authenticated(models.Model):
 # applying all necessary deltas (with consistency checks all along the
 # way) to get from one to the other; we don't commit the endpoint (or
 # anything created during the process) until and unless it all works.
-#
-# Not sure we want uuid field, drop if not useful.
-# Not sure we want timestamp, 1:1 relationship with retrieval may suffice.
 
 class RRDPSnapshot(models.Model):
-    timestamp = models.DateTimeField()
     uuid      = models.UUIDField()
     serial    = models.BigIntegerField()
     retrieved = models.OneToOneField(Retrieval)

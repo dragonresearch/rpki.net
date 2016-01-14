@@ -864,13 +864,6 @@ class Fetcher(object):
 
             # Should do something with rsync result and validation status database here.
 
-            # We probably don't want to yield in the middle of a
-            # transaction, and this doesn't really need to be wrapped
-            # in a transaction in any case, so leave well enough alone.
-            #
-            #from django.db import IntegrityError, transaction
-            #with transaction.atomic():
-
             retrieval = rpki.rcynicdb.models.Retrieval.objects.create(
                 uri        = self.uri,
                 started    = rpki.sundial.datetime.fromtimestamp(t0),
@@ -1150,33 +1143,34 @@ def final_report():
 
 
 def final_cleanup():
+    from django.db import transaction
 
-    # This will almost certainly become more complex once we add RRDP.
+    with transaction.atomic():
 
-    # http://stackoverflow.com/questions/7635838/django-queryset-excluding-many-to-many-objects
-    # http://blog.roseman.org.uk/2010/01/11/django-patterns-part-2-efficient-reverse-lookups/
-    # http://stackoverflow.com/questions/5437335/django-queryset-with-filtering-on-reverse-foreign-key
-    # https://docs.djangoproject.com/en/1.8/ref/models/querysets/#in
+        # Flush old authenticated sets.
 
-    # https://docs.djangoproject.com/en/1.8/faq/models/#how-can-i-see-the-raw-sql-queries-django-is-running
+        q = rpki.rcynicdb.models.Authenticated.objects.exclude(id = authenticated.id)
+        q.delete()
 
-    # All RPKI objects other than the most recent authenticated set.
-    q = rpki.rcynicdb.models.RPKIObject.objects
-    q = q.exclude(authenticated = authenticated.id)
+        # Flush RRDP snapshots which don't contribute anything to the current authenticated set.
 
-    # OK, I think what we want to express here is: "Keep any
-    # RPKIObject which is part of any most recent RRDP snapshot
-    # which has one RPKIObjects in the current authenticated set"
-    # Whee!
+        q = authenticated.rpkiobject_set.order_by("snapshot__id").values_list("snapshot__id", flat = True)
+        q = rpki.rcynicdb.models.RRDPSnapshot.objects.exclude(id__in = q.distinct())
+        q.delete()
 
-    q.delete()
+        # Flush RPKI objects which are neither part of the current authenticated set nor part of
+        # a current RRDP snapshot.
 
-    # Flush all but the most recent authenticated set.
-    rpki.rcynicdb.models.Authenticated.objects.exclude(id = authenticated.id).delete()
+        q = rpki.rcynicdb.models.RPKIObject.objects
+        q = q.exclude(authenticated = authenticated.id)
+        q = q.filter(snapshot = None)
+        q.delete()
 
-    # Flush retrieval objects which have no related RPKI objects.
-    rpki.rcynicdb.models.Retrieval.objects.exclude(
-        id__in = rpki.rcynicdb.models.RPKIObject.objects.values_list("retrieved__id", flat = True)).delete()
+        # Flush retrieval objects which are no longer related to any RPKI objects.
+
+        q = rpki.rcynicdb.models.RPKIObject.objects.order_by("retrieved__id").values_list("retrieved__id", flat = True)
+        q = rpki.rcynicdb.models.Retrieval.objects.exclude(id__in = q.distinct())
+        q.delete()
 
 
 @tornado.gen.coroutine

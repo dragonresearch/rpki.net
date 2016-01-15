@@ -1,35 +1,8 @@
-# First cut at ORM models for rcynicng, assuming for now that we're
-# going to go with Django rather than raw SQL.
+# First cut at ORM models for rcynicng.
 
 from django.db import models
 
 # HTTP/HTTPS/RSYNC fetch event.
-#
-# Open issue: for RRDP, are we just recording the notification fetch,
-# or the snapshot/delta fetches as well?  If the latter, to which
-# retrieval event does the RRDPSnapshot 1:1 relationship refer?  For
-# that matter, should we somehow be recording the relationship between
-# the notification and snapshot/delta fetches?  Given that, at least
-# in the current protocol, we will only do either one snapshot fetch
-# or one delta fetch after the notify fetch, we could just use two
-# URIs in the retrieval record, if we allow the second to be empty
-# (which we would have to do anyway for rsync).
-#
-# Or we could add some kind of fun SQL self-reference, which, in
-# Django, looks like:
-#
-#   models.ForeignKey('self', on_delete = models.CASCADE)
-#
-# except that it's more like a 1:1 recursive relationship, which isn't
-# mentioned in the Django docs, but which supposedly
-# (http://stackoverflow.com/questions/18271001/django-recursive-relationship)
-# works the same way:
-#
-#   models.OneToOneField('self', null = True)
-#
-# Unclear whether we still need "on_delete = models.CASCADE", probably.
-# Example on StackOverflow has a complex .save() method, but that may
-# be specific to the original poster's desired semantics.
 
 class Retrieval(models.Model):
     uri        = models.TextField()
@@ -37,25 +10,18 @@ class Retrieval(models.Model):
     finished   = models.DateTimeField()
     successful = models.BooleanField()
 
-# Collection of validated objects (like current
-# rsync-data/authenticated.yyyy-mm-ddTHH:MM:SS/ tree)
+# Collection of validated objects.
 
 class Authenticated(models.Model):
     started  = models.DateTimeField()
     finished = models.DateTimeField(null = True)
 
 # One instance of an RRDP snapshot.
-#
-# Deltas are processed by finding the RRDPSnapshot holding the
-# starting point, creating a new RRDPSnapshot for the endpoint, and
-# applying all necessary deltas (with consistency checks all along the
-# way) to get from one to the other; we don't commit the endpoint (or
-# anything created during the process) until and unless it all works.
 
 class RRDPSnapshot(models.Model):
-    uuid      = models.UUIDField()
-    serial    = models.BigIntegerField()
-    retrieved = models.OneToOneField(Retrieval)
+    session_id = models.UUIDField()
+    serial     = models.BigIntegerField()
+    retrieved  = models.OneToOneField(Retrieval)
 
 # RPKI objects.
 #
@@ -64,6 +30,8 @@ class RRDPSnapshot(models.Model):
 # what we want in this case.
 #
 # https://docs.djangoproject.com/en/1.9/ref/models/fields/#django.db.models.ForeignKey.on_delete
+#
+# Might also want to provide names for the reverse relationships, code uses blah_set for now.
 
 class RPKIObject(models.Model):
     der           = models.BinaryField(unique = True)

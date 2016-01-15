@@ -51,6 +51,13 @@ del DatabaseConfigurator
 INSTALLED_APPS = ["rpki.rcynicdb"]
 
 
+# Debugging
+#
+# DO NOT ENABLE DJANGO DEBUGGING IN PRODUCTION!
+#
+#DEBUG = True
+
+
 # Allow local site to override any setting above -- but if there's
 # anything that local sites routinely need to modify, please consider
 # putting that configuration into rpki.conf and just adding code here

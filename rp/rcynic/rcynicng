@@ -11,6 +11,7 @@ import sys
 import time
 import errno
 import shutil
+import socket
 import logging
 import argparse
 import urlparse
@@ -928,13 +929,17 @@ class Fetcher(object):
             ok = True
 
         except tornado.httpclient.HTTPError as e:
+            # Might want to check e.response here to figure out whether to add to _https_deadhosts.
             logger.info("HTTP error for %s: %s", url, e)
-            # Might want to check response code here to figure out
-            # whether to list this host in _https_deadhosts.
             raise
 
-        except:
-            logger.exception("Error for %s", url)
+        except (socket.error, IOError) as e:
+            # Might want to check e.errno here to figure out whether to add to _https_deadhosts.
+            logger.info("Network I/O error for %s: %s", url, e)
+            raise
+
+        except Exception as e:
+            logger.exception("Error (%r) for %s", type(e), url)
             raise
 
         finally:
@@ -1104,8 +1109,8 @@ class Fetcher(object):
                             obj.snapshot.add(new_snapshot)
                             obj.save()
 
-        except tornado.httpclient.HTTPError as e:
-            pass
+        except (tornado.httpclient.HTTPError, socket.error, IOError):
+            pass                        # Already logged
 
         except RRDP_ParseFailure as e:
             logger.info("RRDP parse failure: %s", e)

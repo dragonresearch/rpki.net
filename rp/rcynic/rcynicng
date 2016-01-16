@@ -920,17 +920,23 @@ class Fetcher(object):
         #   tornado.httpclient.HTTPError
 
         try:
+            ok = False
             t0 = time.time()
             client = tornado.httpclient.AsyncHTTPClient()
             response = yield client.fetch(url, validate_cert = False)
             # Might want to check response Content-Type here
-        except:
+            ok = True
+
+        except tornado.httpclient.HTTPError as e:
+            logger.info("HTTP error for %s: %s", url, e)
             # Might want to check response code here to figure out
             # whether to list this host in _https_deadhosts.
-            ok = False
             raise
-        else:
-            ok = True
+
+        except:
+            logger.exception("Error for %s", url)
+            raise
+
         finally:
             t1 = time.time()
             logger.debug("Fetch of %s finished after %s seconds", url, t1 - t0)
@@ -1060,7 +1066,22 @@ class Fetcher(object):
                           for serial in xrange(old_snapshot.serial + 1, new_snapshot.serial + 1)]
 
                 with transaction.atomic():
-                    new_snapshot.rpkiobject_set = old_snapshot.rpkiobject_set.all()
+                    new_snapshot.save()
+
+                    if False:
+                        # What we'd like to do here is:
+
+                        new_snapshot.rpkiobject_set = old_snapshot.rpkiobject_set.all()
+
+                        # but, at least with the SQLite3 driver, this explodes when there are too many objects,
+                        # because of the silly way the driver tries to implement this.
+
+                    else:
+                        # So do this the slow way for now,  do better later if it turns out to matter.
+
+                        for obj in old_snapshot.rpkiobject_set.all():
+                            new_snapshot.rpkiobject_set.add(obj)
+
                     new_snapshot.save()
 
                     for retrieval, delta in deltas:
@@ -1082,6 +1103,12 @@ class Fetcher(object):
                             obj, created = cls.store_if_new(x.text.decode("base64"), uri, retrieval)
                             obj.snapshot.add(new_snapshot)
                             obj.save()
+
+        except tornado.httpclient.HTTPError as e:
+            pass
+
+        except RRDP_ParseFailure as e:
+            logger.info("RRDP parse failure: %s", e)
 
         except:
             logger.exception("Couldn't load %s", self.uri)

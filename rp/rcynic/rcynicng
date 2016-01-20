@@ -8,6 +8,7 @@ Reimplementation of rcynic in Python.  Work in progress.
 
 import os
 import sys
+import ssl
 import time
 import errno
 import shutil
@@ -933,7 +934,7 @@ class Fetcher(object):
             logger.info("HTTP error for %s: %s", url, e)
             raise
 
-        except (socket.error, IOError) as e:
+        except (socket.error, IOError, ssl.SSLError) as e:
             # Might want to check e.errno here to figure out whether to add to _https_deadhosts.
             logger.info("Network I/O error for %s: %s", url, e)
             raise
@@ -1061,7 +1062,8 @@ class Fetcher(object):
                         obj.save()
 
             else:
-                logger.debug("RRDP %s loading %s deltas", self.uri, (new_snapshot.serial - old_snapshot.serial))
+                logger.debug("RRDP %s fetching %s deltas (%s -- %s)", self.uri, 
+                             (new_snapshot.serial - old_snapshot.serial), old_snapshot.serial, new_snapshot.serial)
 
                 deltas = [(yield self._rrdp_fetch_url(url        = delta_serials[serial][0],
                                                       hash       = delta_serials[serial][1],
@@ -1070,8 +1072,12 @@ class Fetcher(object):
                                                       serial     = serial))
                           for serial in xrange(old_snapshot.serial + 1, new_snapshot.serial + 1)]
 
+                logger.debug("RRDP %s loading deltas", self.uri)
+
                 with transaction.atomic():
                     new_snapshot.save()
+
+                    logger.debug("RRDP %s copying snapshot %s", self.uri, old_snapshot.serial)
 
                     if False:
                         # What we'd like to do here is:
@@ -1084,16 +1090,18 @@ class Fetcher(object):
                     else:
                         # So do this the slow way for now,  do better later if it turns out to matter.
 
-                        logger.debug("Starting potentially really slow copy operation")
+                        logger.debug("RRDP %s starting potentially really slow copy operation", self.uri)
 
                         for obj in old_snapshot.rpkiobject_set.all():
                             new_snapshot.rpkiobject_set.add(obj)
 
-                        logger.debug("Finished potentially really slow copy operation")
+                        logger.debug("RRDP %s finished potentially really slow copy operation", self.uri)
 
                     new_snapshot.save()
 
                     for retrieval, delta in deltas:
+
+                        logger.debug("RRDP %s applying delta %s", self.uri, delta.get("serial"))
 
                         for x in delta.iterchildren(rpki.relaxng.rrdp.xmlns + "withdraw"):
                             new_snapshot.rpkiobject_set.remove(
@@ -1113,7 +1121,11 @@ class Fetcher(object):
                             obj.snapshot.add(new_snapshot)
                             obj.save()
 
-        except (tornado.httpclient.HTTPError, socket.error, IOError):
+                    logger.debug("RRDP %s committing", self.uri)
+
+                logger.debug("RRDP %s done loading deltas", self.uri)
+
+        except (tornado.httpclient.HTTPError, socket.error, IOError, ssl.SSLError):
             pass                        # Already logged
 
         except RRDP_ParseFailure as e:

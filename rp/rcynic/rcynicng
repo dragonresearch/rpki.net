@@ -1075,7 +1075,8 @@ class Fetcher(object):
                           for serial in xrange(snapshot.serial + 1, serial + 1)]
                 futures = []
 
-                def start_fetches():
+                while deltas or futures:
+
                     while deltas and len(futures) < args.fetch_ahead_goal:
                         serial, url, hash = deltas.pop(0)
                         logger.debug("RRDP %s serial %s fetching %s", self.uri, serial, url)
@@ -1086,12 +1087,7 @@ class Fetcher(object):
                             session_id = session_id,
                             serial     = serial))
 
-                start_fetches()
-
-                while futures:
                     retrieval, delta = yield futures.pop(0)
-
-                    start_fetches()
 
                     serial = long(delta.get("serial"))
                     assert serial == snapshot.serial + 1

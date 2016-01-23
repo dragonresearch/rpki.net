@@ -1223,16 +1223,13 @@ def final_cleanup():
 
     with transaction.atomic():
 
-        logger.debug("Flushing old authenticated sets")
+        #logger.debug("Flushing old authenticated sets")
 
         q = Authenticated.objects
         q = q.exclude(id = authenticated.id)
         q.delete()
 
-        logger.debug("Flushing RRDP snapshots which don't contain anything in the (remaining) authenticated set")
-
-        # We clean the RRDPSnapshot table in two steps.  First step is to remove snapshots which aren't related
-        # to any RPKI object in the current authenticated set.
+        #logger.debug("Flushing RRDP snapshots which don't contain anything in the (remaining) authenticated set")
 
         q = RPKIObject.objects
         q = q.filter(authenticated = authenticated.id)
@@ -1243,54 +1240,14 @@ def final_cleanup():
         q = RRDPSnapshot.objects.exclude(id__in = q)
         q.delete()
 
-        # This is still too many snapshots, because an RPKI object can be (and usually are) present in more than
-        # one snapshot for a given session.  So we still have to do something to prune out old snapshots from
-        # sessions we're keeping.  I don't know a sane way to do this via the ORM as a single SQL query, so
-        # we do it as a query followed by a loop.  If this is too slow, we can try doing it as raw SQL,
-        # but that has portability issues.
-
-        # well, maybe we want the raw sql interface after all, as the query is fairly simple:
-        #
-        # DELETE FROM rcynicdb_rrdpsnapshot
-        # WHERE id IN
-        #   (SELECT t2.id
-        #    FROM (SELECT session_id, max(serial) AS max_serial FROM rcynicdb_rrdpsnapshot GROUP BY session_id) AS t1
-        #    JOIN rcynicdb_rrdpsnapshot AS t2
-        #    ON t1.session_id = t2.session_id
-        #    WHERE serial < max_serial);
-        #
-        # Or, equivalently but slightly easier to read:
-        #
-        # DELETE FROM rcynicdb_rrdpsnapshot
-        # WHERE id IN
-        #   (SELECT id
-        #    FROM (SELECT session_id, max(serial) AS max_serial FROM rcynicdb_rrdpsnapshot GROUP BY session_id) AS filter
-        #    NATURAL JOIN rcynicdb_rrdpsnapshot
-        #    WHERE serial < max_serial);
-        #
-        # See
-        #  http://stackoverflow.com/questions/2317686/joining-2-sql-select-result-sets-into-one
-        #  https://docs.djangoproject.com/en/1.8/topics/db/sql/#executing-custom-sql-directly
-
-        # Except that this shouldn't be necessary after all, now that we reuse snapshot objects in place.
-
-        if False:
-            q = RRDPSnapshot.objects
-            q = q.values("session_id")
-            q = q.annotate(max_serial = models.Max("serial"))
-            q = q.values_list("session_id", "max_serial")
-            logger.debug("Annotation query for RRDPSnapshots gave us %r", list(q))
-            for u, s in q:
-                RRDPSnapshot.objects.filter(session_id = u, serial__lt = s).delete()
-
-        logger.debug("Flushing RPKI objects which are in neither current authenticated set nor current RRDP snapshot")
+        #logger.debug("Flushing RPKI objects which are in neither current authenticated set nor current RRDP snapshot")
 
         q = RPKIObject.objects
         q = q.exclude(authenticated = authenticated.id)
         q = q.filter(snapshot = None)
         q.delete()
 
-        logger.debug("Flushing retrieval objects which are no longer related to any RPKI objects or RRDP snapshot")
+        #logger.debug("Flushing retrieval objects which are no longer related to any RPKI objects or RRDP snapshot")
 
         q = RPKIObject.objects
         q = q.order_by("retrieved__id")

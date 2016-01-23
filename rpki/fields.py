@@ -42,8 +42,6 @@ class EnumField(models.PositiveSmallIntegerField):
 
     description = "An enumeration type"
 
-    __metaclass__ = models.SubfieldBase
-
     def __init__(self, *args, **kwargs):
         if isinstance(kwargs.get("choices"), (tuple, list)) and isinstance(kwargs["choices"][0], (str, unicode)):
             kwargs["choices"] = tuple(enumerate(kwargs["choices"], 1))
@@ -52,7 +50,11 @@ class EnumField(models.PositiveSmallIntegerField):
         self.enum_i2s = dict(self.flatchoices)
         self.enum_s2i = dict((v, k) for k, v in self.flatchoices)
 
+    def from_db_value(self, value, expression, connection, context):
+        return self.enum_i2s.get(value, value)
+
     def to_python(self, value):
+        value = super(EnumField, self).to_python(value)
         return self.enum_i2s.get(value, value)
 
     def get_prep_value(self, value):
@@ -63,9 +65,11 @@ class SundialField(models.DateTimeField):
     """
     A field type for our customized datetime objects.
     """
-    __metaclass__ = models.SubfieldBase
 
     description = "A datetime type using our customized datetime objects"
+
+    def from_db_value(self, value, expression, connection, context):
+        return self.to_python(value)
 
     def to_python(self, value):
         if isinstance(value, rpki.sundial.pydatetime.datetime):
@@ -88,7 +92,6 @@ class BlobField(models.Field):
     Do not use, this is only here for backwards compatabilty during migrations.
     """
 
-    __metaclass__ = models.SubfieldBase
     description   = "Raw BLOB type without ASN.1 encoding/decoding"
 
     def __init__(self, *args, **kwargs):
@@ -97,6 +100,13 @@ class BlobField(models.Field):
         kwargs["blank"] = True
         kwargs["default"] = None
         models.Field.__init__(self, *args, **kwargs)
+
+    def deconstruct(self):
+        name, path, args, kwargs = super(BlobField, self).deconstruct()
+        del kwargs["serialize"]
+        del kwargs["blank"]
+        del kwargs["default"]
+        return name, path, args, kwargs
 
     def db_type(self, connection):
         if self.blob_type is not None:

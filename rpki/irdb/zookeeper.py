@@ -414,6 +414,7 @@ class Zookeeper(object):
         if self.run_pubd:
             pubd = self.server_ca.ee_certificates.get(purpose = "pubd")
             writer(self.cfg.get("bpki-ta",   section = pubd_section), self.server_ca.certificate)
+            writer(self.cfg.get("pubd-crl",  section = pubd_section), self.server_ca.latest_crl)
             writer(self.cfg.get("pubd-key",  section = pubd_section), pubd.private_key)
             writer(self.cfg.get("pubd-cert", section = pubd_section), pubd.certificate)
             writer(self.cfg.get("irbe-cert", section = pubd_section),
@@ -423,10 +424,10 @@ class Zookeeper(object):
             try:
                 rootd = rpki.irdb.models.ResourceHolderCA.objects.get(handle = self.handle).rootd
                 writer(self.cfg.get("bpki-ta",         section = rootd_section), self.server_ca.certificate)
-                writer(self.cfg.get("rootd-bpki-crl",  section = rootd_section), self.server_ca.latest_crl)
                 writer(self.cfg.get("rootd-bpki-key",  section = rootd_section), rootd.private_key)
                 writer(self.cfg.get("rootd-bpki-cert", section = rootd_section), rootd.certificate)
                 writer(self.cfg.get("child-bpki-cert", section = rootd_section), rootd.issuer.certificate)
+                # rootd-bpki-crl is the same as pubd-crl, already written
             except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
                 self.log("rootd enabled but resource holding entity not yet configured, skipping rootd setup")
             except rpki.irdb.models.Rootd.DoesNotExist:
@@ -844,15 +845,14 @@ class Zookeeper(object):
             port   = self.cfg.get("pubd_server_port", section = myrpki_section),
             handle = client.handle)
 
-        rrdp_uri = self.cfg.get("publication_rrdp_notification_uri", section = myrpki_section,
-                                default = "") or None
+        rrdp_uri = self.cfg.get("publication_rrdp_notification_uri", section = myrpki_section, default = "")
 
         e = Element(tag_oob_repository_response, nsmap = oob_nsmap, version = oob_version,
                     service_uri = service_uri,
                     publisher_handle = client.handle,
                     sia_base = client.sia_base)
 
-        if rrdp_uri is not None:
+        if rrdp_uri:
             e.set("rrdp_notification_uri", rrdp_uri)
 
         B64Element(e, tag_oob_repository_bpki_ta, self.server_ca.certificate)

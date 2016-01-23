@@ -112,11 +112,9 @@ class main(object):
 
         self.publication_base = self.cfg.get("publication-base", "publication/")
 
-        self.rrdp_uri_base = self.cfg.get("rrdp-uri-base",
-                                          "http://%s/rrdp/" % socket.getfqdn())
+        self.rrdp_base_uri = self.cfg.get("rrdp-base-uri", "https://%s/rrdp/" % socket.getfqdn())
         self.rrdp_expiration_interval = rpki.sundial.timedelta.parse(self.cfg.get("rrdp-expiration-interval", "6h"))
-        self.rrdp_publication_base = self.cfg.get("rrdp-publication-base",
-                                                  "rrdp-publication/")
+        self.rrdp_publication_base = self.cfg.get("rrdp-publication-base", "rrdp-publication/")
 
         try:
             self.session = rpki.pubdb.models.Session.objects.get()
@@ -286,7 +284,7 @@ class main(object):
 
             else:
                 if delta is not None:
-                    self.session.synchronize_rrdp_files(self.rrdp_publication_base, self.rrdp_uri_base)
+                    self.session.synchronize_rrdp_files(self.rrdp_publication_base, self.rrdp_base_uri)
                     delta.update_rsync_files(self.publication_base)
 
             request.send_cms_response(rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, self.pubd_crl))

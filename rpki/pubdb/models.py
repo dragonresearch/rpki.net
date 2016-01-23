@@ -88,7 +88,15 @@ class Session(models.Model):
     # Debugging flag to prevent expiration of old RRDP files.
     # This simplifies debugging delta code.  Need for this
     # may go away once RRDP is fully integrated into rcynic.
+
     keep_all_rrdp_files = False
+
+    ## @var keep_these_files
+    # Filenames which should not be deleted during cleanup.
+    # Expected use is to allow us to store a root certificate
+    # in in the RRDP base directory.
+
+    keep_these_files = set(["root.cer"])
 
     def new_delta(self, expires):
         """
@@ -158,28 +166,28 @@ class Session(models.Model):
 
 
     @staticmethod
-    def _rrdp_filename_to_uri(fn, rrdp_uri_base):
-        return "%s/%s" % (rrdp_uri_base.rstrip("/"), fn)
+    def _rrdp_filename_to_uri(fn, rrdp_base_uri):
+        return "%s/%s" % (rrdp_base_uri.rstrip("/"), fn)
 
 
-    def _generate_update_xml(self, rrdp_uri_base):
+    def _generate_update_xml(self, rrdp_base_uri):
         xml = Element(rrdp_tag_notification, nsmap = rrdp_nsmap,
                       version = rrdp_version,
                       session_id = self.uuid,
                       serial = str(self.serial))
         SubElement(xml, rrdp_tag_snapshot,
-                   uri = self._rrdp_filename_to_uri(self.snapshot_fn, rrdp_uri_base),
+                   uri = self._rrdp_filename_to_uri(self.snapshot_fn, rrdp_base_uri),
                    hash = self.hash)
         for delta in self.delta_set.all():
             SubElement(xml, rrdp_tag_delta,
-                       uri = self._rrdp_filename_to_uri(delta.fn, rrdp_uri_base),
+                       uri = self._rrdp_filename_to_uri(delta.fn, rrdp_base_uri),
                        hash =  delta.hash,
                        serial = str(delta.serial))
         rpki.relaxng.rrdp.assertValid(xml)
         return ElementToString(xml, pretty_print = True)
 
 
-    def synchronize_rrdp_files(self, rrdp_publication_base, rrdp_uri_base):
+    def synchronize_rrdp_files(self, rrdp_publication_base, rrdp_base_uri):
         """
         Write current RRDP files to disk, clean up old files and directories.
         """
@@ -193,11 +201,12 @@ class Session(models.Model):
         self._write_rrdp_file(self.snapshot_fn, self.snapshot, rrdp_publication_base)
         current_filenames.add(self.snapshot_fn)
 
-        self._write_rrdp_file(self.notification_fn, self._generate_update_xml(rrdp_uri_base),
+        self._write_rrdp_file(self.notification_fn, self._generate_update_xml(rrdp_base_uri),
                               rrdp_publication_base, overwrite = True)
         current_filenames.add(self.notification_fn)
 
         if not self.keep_all_rrdp_files:
+            current_filenames |= self.keep_these_files
             for root, dirs, files in os.walk(rrdp_publication_base, topdown = False):
                 for fn in files:
                     fn = os.path.join(root, fn)

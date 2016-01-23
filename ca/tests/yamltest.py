@@ -50,7 +50,6 @@ import textwrap
 import lxml.etree
 import rpki.resource_set
 import rpki.sundial
-import rpki.config
 import rpki.log
 import rpki.csv_utils
 import rpki.x509
@@ -339,7 +338,7 @@ class allocation(object):
         Does this entity run a pubd?
         """
 
-        return self.is_root or not (self.is_hosted or only_one_pubd)
+        return self.is_root or (args.one_pubd_per_rpkid and not self.is_hosted)
 
     def path(self, *names):
         """
@@ -500,7 +499,7 @@ class allocation(object):
             pubd_server_host                  = "localhost",
             pubd_server_port                  = str(self.pubd.pubd_port),
             publication_rsync_server          = "localhost:%s" % self.pubd.rsync_port,
-            publication_rrdp_notification_uri = "http://localhost:%s/rrdp/notify.xml" % self.pubd.rrdp_port,
+            publication_rrdp_base_uri         = "https://localhost:%s/" % self.pubd.rrdp_port,
             bpki_servers_directory            = self.path(),
             publication_base_directory        = self.path("publication.rsync"),
             rrdp_publication_base_directory   = self.path("publication.rrdp"),
@@ -520,8 +519,6 @@ class allocation(object):
                 irdbd_sql_database            = "irdb%d" % self.engine,
                 rpkid_sql_database            = "rpki%d" % self.engine,
                 pubd_sql_database             = "pubd%d" % self.engine)
-
-        r.update(config_overrides)
 
         with open(self.path("rpki.conf"), "w") as f:
             f.write("# Automatically generated, do not edit\n")
@@ -786,11 +783,11 @@ def create_root_certificate(db_root):
 
     root_key = rpki.x509.RSA.generate(quiet = True)
 
-    root_uri = "rsync://localhost:%d/rpki/%s-root/root" % (db_root.pubd.rsync_port, db_root.name)
+    rsync_uri = "rsync://localhost:%d/rpki/%s-root/root" % (db_root.pubd.rsync_port, db_root.name)
 
-    rrdp_uri = "http://localhost:%s/rrdp/notify.xml" % db.root.pubd.rrdp_port
+    https_uri = "https://localhost:%s/" % db.root.pubd.rrdp_port
 
-    root_sia = (root_uri + "/", root_uri + "/root.mft", None, rrdp_uri)
+    root_sia = (rsync_uri + "/", rsync_uri + "/root.mft", None, https_uri + "notify.xml")
 
     root_cert = rpki.x509.X509.self_certify(
         keypair     = root_key,
@@ -806,8 +803,12 @@ def create_root_certificate(db_root):
     with open(db_root.path("root.key"), "wb") as f:
         f.write(root_key.get_DER())
 
+    os.link(db_root.path("root.cer"),
+            db_root.path("publication.rrdp", "root.cer"))
+
     with open(os.path.join(test_dir, "root.tal"), "w") as f:
-        f.write(root_uri + ".cer\n\n")
+        f.write(rsync_uri + ".cer\n")
+        f.write(https_uri + "root.cer\n")
         f.write(root_key.get_public().get_Base64())
 
 
@@ -818,23 +819,21 @@ os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.irdb",
 time.tzset()
 
 parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("-c", "--config",
-                    help = "configuration file")
-parser.add_argument("-f", "--flat_publication", action = "store_true",
+parser.add_argument("-f", "--flat-publication", action = "store_true",
                     help = "disable hierarchical publication")
-parser.add_argument("-k", "--keep_going", action = "store_true",
+parser.add_argument("-k", "--keep-going", action = "store_true",
                     help = "keep going until all subprocesses exit")
 parser.add_argument("-p", "--pidfile",
                     help = "save pid to this file")
-parser.add_argument("--skip_config", action = "store_true",
+parser.add_argument("--skip-config", action = "store_true",
                     help = "skip over configuration phase")
-parser.add_argument("--stop_after_config", action = "store_true",
+parser.add_argument("--stop-after-config", action = "store_true",
                     help = "stop after configuration phase")
 parser.add_argument("--synchronize", action = "store_true",
                     help = "synchronize IRDB with daemons")
 parser.add_argument("--profile", action = "store_true",
                     help = "enable profiling")
-parser.add_argument("-g", "--run_gui", "--gui", action = "store_true",
+parser.add_argument("-g", "--run-gui", "--gui", action = "store_true",
                     help = "enable GUI using django-admin runserver")
 parser.add_argument("--no-browser", action = "store_true",
                     help = "don't create web browser tabs for GUI")
@@ -844,6 +843,10 @@ parser.add_argument("--store-router-private-keys", action = "store_true",
                     help = "write generate router private keys to disk")
 parser.add_argument("--sql-engine", choices = ("mysql", "sqlite3", "postgresql"), default = "sqlite3",
                     help = "select SQL engine to use")
+parser.add_argument("--one-pubd-per-rpkid", action = "store_true",
+                    help = "enable separate a pubd process for each rpkid process")
+parser.add_argument("--base-port", type = int, default = 4400,
+                    help = "base port number for allocated TCP ports")
 parser.add_argument("yaml_file", type = argparse.FileType("r"),
                     help = "YAML description of test network")
 args = parser.parse_args()
@@ -858,20 +861,7 @@ try:
     rpki.log.init("yamltest", argparse.Namespace(log_level   = logging.DEBUG,
                                                  log_handler = lambda: logging.StreamHandler(sys.stdout)))
 
-    # Allow optional config file for this tool to override default
-    # passwords: this is mostly so that I can show a complete working
-    # example without publishing my own server's passwords.
-
-    cfg = rpki.config.parser(set_filename = args.config, section = "yamltest", allow_missing = True)
-
-    only_one_pubd = cfg.getboolean("only_one_pubd", True)
-    allocation.base_port = cfg.getint("base_port", 4400)
-
-    config_overrides = dict(
-        (k, cfg.get(k))
-        for k in ("rpkid_sql_password", "irdbd_sql_password", "pubd_sql_password",
-                  "rpkid_sql_username", "irdbd_sql_username", "pubd_sql_username")
-        if cfg.has_option(k))
+    allocation.base_port = args.base_port
 
     # Start clean, maybe
 
@@ -911,8 +901,6 @@ try:
                     os.makedirs(d.path("publication.rrdp"))
                     d.dump_rsyncd()
                     d.dump_httpsd()
-                if d.is_root:
-                    os.makedirs(d.path("publication.root"))
                 d.syncdb()
                 d.run_rpkic("initialize_server_bpki")
                 print

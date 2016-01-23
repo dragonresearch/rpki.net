@@ -214,9 +214,11 @@ lint: .FORCE
 tags: Makefile .FORCE
 	{ find rpki rp ca schemas -type f \( -name '*.[ch]' -o -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) ! -name relaxng.py -print; find rp ca -type f -perm -1 ! -name '*~' -print | xargs grep -El '^#!.+python'; } | etags -
 
-# This isn't all that useful until SQL has been set up.  Might want to
-# hack up something using ca/rpki-confgen and ca/rpki-sql-setup.
 makemigrations:
-	for i in rpkid pubd irdb; do RPKI_CONF=ca/examples/rpki.conf ca/rpki-manage makemigrations --settings rpki.django_settings.$$i; done
+	RPKI_CONF=makemigrations.conf.$$$$ TEMP_DB=makemigrations.db.$$$$; export RPKI_CONF TEMP_DB; trap "rm -f $$RPKI_CONF $$TEMP_DB" 0; \
+	${PYTHON} ca/rpki-confgen --read-xml ca/rpki-confgen.xml --autoconf --set myrpki::shared_sql_engine=sqlite3 \
+		--set myrpki::rpkid_sql_database=$$TEMP_DB --set myrpki::irdbd_sql_database=$$TEMP_DB --set myrpki::pubd_sql_database=$$TEMP_DB \
+		--pwgen myrpki::shared_sql_password --pwgen web_portal::secret-key --write-conf $$RPKI_CONF; \
+	for i in rpkid pubd irdb; do ca/rpki-manage makemigrations --settings rpki.django_settings.$$i; done
 
 .FORCE:

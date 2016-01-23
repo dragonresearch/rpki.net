@@ -217,13 +217,20 @@
       </doc>
     </option>
 
-    <option name  = "publication_rrdp_notification_uri"
-	    value = "https://${myrpki::pubd_server_host}/rrdp/notify.xml">
-
+    <option name  = "publication_rrdp_base_uri"
+	    value = "https://${myrpki::pubd_server_host}/rrdp/">
       <doc>
-	URI for RRDP notification file.  In most cases this should be
-	a HTTPS URL for the notify.xml file on the publication server.
+	Base URI for RRDP notification, snapshot, and delta files.
+	In most cases this should be a HTTPS URL for the directory
+	on the publication server where the notify.xml lives.
       </doc>
+    </option>
+
+    <option name  = "publication_rrdp_notification_uri"
+	    value = "${myrpki::publication_rrdp_base_uri}notify.xml">
+       <doc>
+	 URI for RRDP notification file.  You shouldn't need to change this.
+       </doc>
     </option>
 
     <option name  = "start_rpkid"
@@ -706,6 +713,13 @@
         Where pubd should look for the back-end control client's BPKI EE
         certificate.  Don't change this unless you really know what you
         are doing.
+      </doc>
+    </option>
+
+    <option name  = "rrdp-base-uri"
+	    value = "${myrpki::publication_rrdp_base_uri}">
+      <doc>
+	RRDP base URI for naming snapshots and deltas.
       </doc>
     </option>
 

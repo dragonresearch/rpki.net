@@ -701,13 +701,13 @@ def read_tals():
                 furi = "file://" + os.path.abspath(os.path.join(head, fn))
                 try:
                     with open(os.path.join(head, fn), "r") as f:
-                        lines = f.readlines()
-                    uri = lines.pop(0).strip()
-                    b64 = "".join(lines[lines.index("\n"):])
-                    key = rpki.POW.Asymmetric.derReadPublic(b64.decode("base64"))
-                    if not uri.endswith(".cer"):
+                        lines = [line.strip() for line in f]
+                    blank = lines.index("")
+                    uris = lines[:blank]
+                    key  = rpki.POW.Asymmetric.derReadPublic("".join(lines[blank:]).decode("base64"))
+                    if not uris or not all(uri.endswith(".cer") for uri in uris):
                         Status.add(furi, None, codes.MALFORMED_TAL_URI)
-                    yield uri, key
+                    yield uris, key
                 except:
                     Status.add(furi, None, codes.UNREADABLE_TRUST_ANCHOR_LOCATOR)
 
@@ -1072,7 +1072,7 @@ class Fetcher(object):
                     logger.debug("RRDP %s committing snapshot %s serial %s", self.uri, url, serial)
 
             else:
-                logger.debug("RRDP %s %s deltas (%s -- %s)", self.uri, 
+                logger.debug("RRDP %s %s deltas (%s--%s)", self.uri, 
                              (serial - snapshot.serial), snapshot.serial, serial)
 
                 for serial in xrange(snapshot.serial + 1, serial + 1):
@@ -1133,8 +1133,15 @@ class Fetcher(object):
 
 class CheckTALTask(object):
 
-    def __init__(self, uri, key):
-        self.uri = uri
+    def __init__(self, uris, key):
+        rsync_uri = first_rsync_uri(uris)
+        https_uri = first_https_uri(uris)
+
+        if args.prefer_rsync:
+            self.uri = rsync_uri or https_uri
+        else:
+            self.uri = https_uri or rsync_uri 
+
         self.key = key
 
     def __repr__(self):
@@ -1301,7 +1308,7 @@ def launcher():
     for i in xrange(args.workers):
         tornado.ioloop.IOLoop.current().spawn_callback(worker, i)
 
-    yield [task_queue.put(CheckTALTask(uri, key)) for uri, key in read_tals()]
+    yield [task_queue.put(CheckTALTask(uris, key)) for uris, key in read_tals()]
     yield task_queue.join()
 
 

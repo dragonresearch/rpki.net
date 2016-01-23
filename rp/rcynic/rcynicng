@@ -508,7 +508,7 @@ class  WalkFrame(object):
 
     def __repr__(self):
         try:
-            return "<WalkFrame \"{}\" at 0x{:x}".format(self.cer.uri, id(self))
+            return "<WalkFrame \"{}\" at 0x{:x}>".format(self.cer.uri, id(self))
         except:
             return "<WalkFrame at 0x{:x}>".format(id(self))
 
@@ -547,7 +547,7 @@ class  WalkFrame(object):
     def ready(self, wsk):
         self.trusted = wsk.trusted()
 
-        #logger.debug("%r scanning products", self)
+        logger.debug("%r scanning products", self)
 
         # NB: CRL checks on manifest EE certificates deferred until we've picked a CRL.
 
@@ -631,28 +631,24 @@ class  WalkFrame(object):
                 continue
 
             for obj in fetch_objects(sha256 = digest.encode("hex")):
-                
-                # This can't happen as currently written, but we need to handle OBJECT_NOT_FOUND somehow,
-                # this will do as a placeholder until we figure out how this should work.
-
-                if obj is None:
-                    Status.add(uri, codes.OBJECT_NOT_FOUND)
-                    continue
 
                 if self.stale_crl:
                     Status.add(uri, codes.TAINTED_BY_STALE_CRL)
                 if self.stale_mft:
                     Status.add(uri, codes.TAINTED_BY_STALE_MANIFEST)
 
-                if obj.check(trusted = self.trusted, crl = self.crl):
-                    install_object(obj)
-                    Status.add(uri, codes.OBJECT_ACCEPTED)
-                    if cls is X509 and obj.is_ca:
-                        wsk.push(obj)
-                        return
-                    break
-                else:
+                if not obj.check(trusted = self.trusted, crl = self.crl):
                     Status.add(uri, codes.OBJECT_REJECTED)
+                    continue
+
+                install_object(obj)
+                Status.add(uri, codes.OBJECT_ACCEPTED)
+
+                if cls is not X509 or not obj.is_ca:
+                    break
+
+                wsk.push(obj)
+                return
 
         wsk.pop()
 
@@ -670,7 +666,7 @@ class WalkTask(object):
 
     def __repr__(self):
         try:
-            return "<WalkTask \"{}\" at 0x{:x}".format(self.wsk[-1].cer.uri, id(self))
+            return "<WalkTask \"{}\" at 0x{:x}>".format(self.wsk[-1].cer.uri, id(self))
         except:
             return "<WalkTask at 0x{:x}>".format(id(self))
 
@@ -1179,14 +1175,15 @@ def worker(meself):
     #
     while True:
         task = yield task_queue.get()
+        name = repr(task)
         try:
-            logger.debug("Worker %s starting %s, queue length %s", meself, task, task_queue.qsize())
+            logger.debug("Worker %s starting %s, queue length %s", meself, name, task_queue.qsize())
             yield task()
         except:
-            logger.exception("Worker %s caught unhandled exception from %s", meself, task)
+            logger.exception("Worker %s caught unhandled exception from %s", meself, name)
         finally:
             task_queue.task_done()
-            logger.debug("Worker %s finished %s, queue length %s", meself, task, task_queue.qsize())
+            logger.debug("Worker %s finished %s, queue length %s", meself, name, task_queue.qsize())
 
 
 def final_report():

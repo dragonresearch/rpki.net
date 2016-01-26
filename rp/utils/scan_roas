@@ -26,18 +26,14 @@ import os
 import argparse
 import rpki.POW
 
+from rpki.rcynicdb.iterator import authenticated_objects
+
 def check_dir(d):
     if not os.path.isdir(d):
         raise argparse.ArgumentTypeError("%r is not a directory" % d)
     return d
 
 class ROA(rpki.POW.ROA):                # pylint: disable=W0232
-
-    @classmethod
-    def parse(cls, fn):                 # pylint: disable=W0621
-        self = cls.derReadFile(fn)      # pylint: disable=E1101
-        self.extractWithoutVerifying()
-        return self
 
     @property
     def prefixes(self):
@@ -53,12 +49,12 @@ class ROA(rpki.POW.ROA):                # pylint: disable=W0232
         return "%s %s %s" % (self.signingTime(), self.getASID(), " ".join(self.prefixes))
 
 parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("rcynic_dir", nargs = "+", type = check_dir,
+parser.add_argument("rcynic_dir", nargs = "?", type = check_dir,
                     help = "rcynic authenticated output directory")
 args = parser.parse_args()
 
-for rcynic_dir in args.rcynic_dir:
-    for root, dirs, files in os.walk(rcynic_dir):
-        for fn in files:
-            if fn.endswith(".roa"):
-                print ROA.parse(os.path.join(root, fn))
+for uri, roa in authenticated_objects(args.rcynic_dir,
+                                      uri_suffix = ".roa",
+                                      class_map = dict(roa = ROA)):
+    roa.extractWithoutVerifying()
+    print roa

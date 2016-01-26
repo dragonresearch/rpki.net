@@ -36,6 +36,8 @@ import rpki.rtr.server
 
 from rpki.rtr.channels import Timestamp
 
+from rpki.rcynicdb.iterator import authenticated_objects
+
 class PrefixPDU(rpki.rtr.pdus.PrefixPDU):
     """
     Object representing one prefix.  This corresponds closely to one PDU
@@ -221,6 +223,8 @@ class AXFRSet(PDUSet):
     field set.
     """
 
+    class_map = dict(cer = X509, roa = ROA)
+
     serial = None
 
     @classmethod
@@ -229,10 +233,9 @@ class AXFRSet(PDUSet):
         Parse ROAS and router certificates fetched (and validated!) by
         rcynic to create a new AXFRSet.
 
-        In normal operation, we use os.walk() and the rpki.POW library to
-        parse these data directly, but we can, if so instructed, use
-        external programs instead, for testing, simulation, or to provide
-        a way to inject local data.
+        In normal operation, we parse these data directly from whatever rcynic is using
+        as a validator this week, but we can, if so instructed, use external programs
+        instead, for testing, simulation, or to provide a way to inject local data.
 
         At some point the ability to parse these data from external
         programs may move to a separate constructor function, so that we
@@ -244,22 +247,21 @@ class AXFRSet(PDUSet):
 
         include_routercerts = RouterKeyPDU.pdu_type in rpki.rtr.pdus.PDU.version_map[version]
 
-        if scan_roas is None or (scan_routercerts is None and include_routercerts):
-            for root, dirs, files in os.walk(rcynic_dir):     # pylint: disable=W0612
-                for fn in files:
-                    if scan_roas is None and fn.endswith(".roa"):
-                        roa = ROA.derReadFile(os.path.join(root, fn))
-                        asn = roa.getASID()
-                        self.extend(PrefixPDU.from_roa(version = version, asn = asn, prefix_tuple = prefix_tuple)
-                                    for prefix_tuple in roa.prefixes)
-                    if include_routercerts and scan_routercerts is None and fn.endswith(".cer"):
-                        x = X509.derReadFile(os.path.join(root, fn))   # pylint: disable=E1101
-                        eku = x.getEKU()
-                        if eku is not None and rpki.oids.id_kp_bgpsec_router in eku:
-                            ski = x.getSKI()
-                            key = x.getPublicKey().derWritePublic()
-                            self.extend(RouterKeyPDU.from_certificate(version = version, asn = asn, ski = ski, key = key)
-                                        for asn in x.asns)
+        if scan_roas is None:
+            for uri, roa in authenticated_objects(rcynic_dir, uri_suffix = ".roa", class_map = self.class_map):
+                roa.extractWithoutVerifying()
+                asn = roa.getASID()
+                self.extend(PrefixPDU.from_roa(version = version, asn = asn, prefix_tuple = prefix_tuple)
+                            for prefix_tuple in roa.prefixes)
+
+        if scan_routercerts is None and include_routercerts:
+            for uri, cer in authenticated_objects(rcynic_dir, uri_suffix = ".cer", class_map = self.class_map):
+                eku = cer.getEKU()
+                if eku is not None and rpki.oids.id_kp_bgpsec_router in eku:
+                    ski = cer.getSKI()
+                    key = cer.getPublicKey().derWritePublic()
+                    self.extend(RouterKeyPDU.from_certificate(version = version, asn = asn, ski = ski, key = key)
+                                for asn in cer.asns)
 
         if scan_roas is not None:
             try:
@@ -577,7 +579,7 @@ def argparse_setup(subparsers):
     subparser.add_argument("--scan-roas", help = "specify an external scan_roas program")
     subparser.add_argument("--scan-routercerts", help = "specify an external scan_routercerts program")
     subparser.add_argument("--force_zero_nonce", action = "store_true", help = "force nonce value of zero")
-    subparser.add_argument("rcynic_dir", help = "directory containing validated rcynic output tree")
+    subparser.add_argument("rcynic_dir", nargs = "?", help = "directory containing validated rcynic output tree")
     subparser.add_argument("rpki_rtr_dir", nargs = "?", help = "directory containing RPKI-RTR database")
 
     subparser = subparsers.add_parser("show", description = show_main.__doc__,

@@ -921,7 +921,7 @@ class Fetcher(object):
             ok = False
             t0 = time.time()
             client = tornado.httpclient.AsyncHTTPClient()
-            response = yield client.fetch(url, validate_cert = False)
+            response = yield client.fetch(url, validate_cert = False, request_timeout = args.https_timeout)
             # Might want to check response Content-Type here
             ok = True
 
@@ -1291,7 +1291,7 @@ def main():
 
     parser.add_argument("--authenticated",      default = "rcynic-data/authenticated")
     parser.add_argument("--unauthenticated",    default = "rcynic-data/unauthenticated")
-    parser.add_argument("--xml-file",           default = "rcynicng.xml",       type = argparse.FileType("w"))
+    parser.add_argument("--xml-file",           default = "rcynicng.xml", type = argparse.FileType("w"))
 
     parser.add_argument("--tals",               default = "sample-trust-anchors")
 
@@ -1305,16 +1305,22 @@ def main():
 
     parser.add_argument("--fetch-ahead-goal",   default = 5, type = posint)
 
+    parser.add_argument("--https-timeout",      default = 300,  type = posint)
+
+    # We already have a whole bunch of logging control code in
+    # rpki.log, just need to figure out / remember how to use it
+    # properly.  See rpki.log.init() & rpki.log.argparse_setup().
+
     global args
     args = parser.parse_args()
 
-    rpki.config.rpki_conf_envname = "RCYNIC_CONF"
-    rpki.config.default_filename = os.path.join(rpki.autoconf.sysconfdir, "rcynic.conf")
     rpki.config.parser(set_filename = args.config, section = "rcynic")
 
     # If we're going to allow some options to be controlled from both
     # config file and command line, this is where we sort that out.
-    # Doesn't play well with action=store_true.
+    # Doesn't play well with action=store_true.  Might want a more
+    # generalized mechanism letting us do command-line overrides of
+    # interesting parameters for other programs as well.
 
     import django
     django.setup()

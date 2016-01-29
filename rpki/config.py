@@ -23,6 +23,7 @@ ConfigParser module.
 """
 
 import ConfigParser
+import argparse
 import logging
 import os
 import re
@@ -272,3 +273,60 @@ class parser(object):
             rpki.up_down.content_type = self.get("up_down_content_type")
         except ConfigParser.NoOptionError:
             pass
+
+
+def argparser(section = None, doc = None, cfg_optional = False):
+    """
+    First cut at a combined configuration mechanism based on ConfigParser and argparse.
+
+    General idea here is to do an initial pass on the arguments to handle the config file,
+    then return the config file and a parser to use for the rest of the arguments.
+    """
+
+    # Basic approach here is a variation on:
+    # http://blog.vwelch.com/2011/04/combining-configparser-and-argparse.html
+
+    # For most of our uses of argparse, this should be a trivial
+    # drop-in, and should reduce the amount of repetitive code.  There
+    # are a couple of special cases which will require attention:
+    #
+    # - rpki.rtr: These modules have their own handling of all the
+    #   logging setup, and use an argparse subparser.  I -think- that
+    #   the way they're already handling the logging setup should work
+    #   fine, but there may be a few tricky bits reconciling this code
+    #   with the more generalized version in rpki.log.
+    #
+    # - rpki.rpkic: Use of argparse here is very complicated due to
+    #   support for both the external command line and the internal
+    #   command loop.  Overall it works quite well, but the setup is
+    #   tricky.  rpki.rpkic.main.top_argparse may need to move outside
+    #   the main class, but that may raise its own issues.  Maybe we
+    #   can get away with just replacing the current setup of
+    #   top_argparser with a call to this function and otherwise
+    #   leaving the whole structure alone?  Try and see, I guess.
+
+    # Setting cfg_optional here doesn't really work, because the cfg
+    # object returned here is separate from the one that the Django
+    # ORM gets when it tries to look for databases.  Given that just
+    # about everything which uses this module also uses Django,
+    # perhaps we should just resign ourselves to the config being a
+    # global thing we read exactly once, so we can stop playing this
+    # game.
+
+    topparser = argparse.ArgumentParser(add_help = False)
+    topparser.add_argument("-c", "--config",
+                           default = os.getenv(rpki_conf_envname, default_filename),
+                           help = "override default location of configuration file")
+
+    cfgparser = argparse.ArgumentParser(parents = [topparser], add_help = False)
+    cfgparser.add_argument("-h", "--help", action = "store_true")
+
+    args, remaining_argv = cfgparser.parse_known_args()
+
+    cfg = parser(section       = section,
+                 set_filename  = args.config,
+                 allow_missing = cfg_optional or args.help)
+
+    argparser = argparse.ArgumentParser(parents = [topparser], description = doc)
+
+    return cfg, argparser

@@ -917,6 +917,18 @@ class Fetcher(object):
         #   tornado.httpclient.AsyncHTTPClient.fetch()
         #   tornado.httpclient.HTTPError
 
+        # Might need to do something with If-Modified-Since support
+        # See if_modified_since argument to
+        # http://www.tornadoweb.org/en/stable/httpclient.html#request-objects
+        # (which we can pass to client.fetch(), below).  Not sure how
+        # "you don't need to retrieve this" result comes back,
+        # probably a benign exception we need to catch.  Supporting
+        # this means adding another null-able timestamp field to the
+        # RRDPSnapshot model (which probably should be named the
+        # RRDPZone model instead), and storing a datetime there.
+        # Would also need to pull timestamp from the Last-Modified
+        # header in the response object.
+
         try:
             ok = False
             t0 = time.time()
@@ -1197,10 +1209,13 @@ def final_report():
     for s in Status.db.itervalues():
         if codes.OBJECT_ACCEPTED in s.status:
             s.status.discard(codes.OBJECT_REJECTED)
-    doc = Element("rcynic-summary") # rcynic-version = "", summary-version = "", reporting-hostname = ""
+    doc = Element("rcynic-summary", date = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    doc.set("reporting-hostname", socket.getfqdn())
+    doc.set("rcynic-version", "rcynicng")
+    doc.set("summary-version", "1")
     labels = SubElement(doc, "labels")
     for code in codes.all():
-        SubElement(labels, code.name).text = code.text
+        SubElement(labels, code.name, kind = code.kind).text = code.text
     for uri in Status.db:
         for sym in sorted(Status.db[uri].status):
             SubElement(doc, "validation_status",
@@ -1285,9 +1300,7 @@ def main():
                       DJANGO_SETTINGS_MODULE = "rpki.django_settings.rcynic")
     time.tzset()
 
-    parser = argparse.ArgumentParser(description = __doc__)
-
-    parser.add_argument("-c", "--config",       default = "/dev/null")
+    cfg, parser = rpki.config.argparser(section = "rcynic", doc = __doc__, cfg_optional = True)
 
     parser.add_argument("--authenticated",      default = "rcynic-data/authenticated")
     parser.add_argument("--unauthenticated",    default = "rcynic-data/unauthenticated")
@@ -1313,14 +1326,6 @@ def main():
 
     global args
     args = parser.parse_args()
-
-    rpki.config.parser(set_filename = args.config, section = "rcynic")
-
-    # If we're going to allow some options to be controlled from both
-    # config file and command line, this is where we sort that out.
-    # Doesn't play well with action=store_true.  Might want a more
-    # generalized mechanism letting us do command-line overrides of
-    # interesting parameters for other programs as well.
 
     import django
     django.setup()

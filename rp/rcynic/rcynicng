@@ -933,7 +933,10 @@ class Fetcher(object):
             ok = False
             t0 = time.time()
             client = tornado.httpclient.AsyncHTTPClient()
-            response = yield client.fetch(url, validate_cert = False, request_timeout = args.https_timeout)
+            response = yield client.fetch(url,
+                                          validate_cert = False,
+                                          connect_timeout = args.https_timeout,
+                                          request_timeout = args.https_timeout)
             # Might want to check response Content-Type here
             ok = True
 
@@ -1316,7 +1319,7 @@ def main():
 
     parser.add_argument("--prefer-rsync",       action = "store_true")
 
-    parser.add_argument("--fetch-ahead-goal",   default = 5, type = posint)
+    parser.add_argument("--fetch-ahead-goal",   default = 2, type = posint)
 
     parser.add_argument("--https-timeout",      default = 300,  type = posint)
 

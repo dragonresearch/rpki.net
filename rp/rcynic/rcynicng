@@ -929,6 +929,23 @@ class Fetcher(object):
         # Would also need to pull timestamp from the Last-Modified
         # header in the response object.
 
+        # One might reasonably ask why we set validate_cert = False
+        # here, given that doing so is generally a horrible idea which
+        # leaves TLS open to MitM attacks.  The answer is simple: we
+        # really don't care, because the underlying data are both
+        # public and signed, and because we have no usable trust
+        # relationship with the server.  In other words, this is all
+        # object security, not channel security.  For all practical
+        # purposes, we might as well be using plain HTTP, but that's
+        # politically unpopular in the IETF these days.  So we
+        # encrypt, apparently just to give the NSA something to do.
+        #
+        # Perhaps some day we'll enable TLS certificate validation
+        # here so that we can whine about failures, but at this point
+        # it's not worth the hassle of figuring out which TLS trust
+        # anchors to configure, requiring the bucket of trust anchors
+        # that the open source web browsers use, or any of that mess.
+
         try:
             ok = False
             t0 = time.time()

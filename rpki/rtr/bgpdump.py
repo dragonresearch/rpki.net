@@ -52,7 +52,7 @@ class PrefixPDU(rpki.rtr.generator.PrefixPDU):
 
             # Parse prefix, including figuring out IP protocol version
             cls = rpki.rtr.generator.IPv6PrefixPDU if ":" in fields[5] else rpki.rtr.generator.IPv4PrefixPDU
-            self = cls()
+            self = cls(version = min(rpki.rtr.pdus.PDU.version_map))
             self.timestamp = Timestamp(fields[1])
             p, l = fields[5].split("/")
             self.prefix = rpki.POW.IPAddress(p)
@@ -105,7 +105,7 @@ class AXFRSet(rpki.rtr.generator.AXFRSet):
     def parse_bgpdump_rib_dump(cls, filename):
         # pylint: disable=W0201
         assert os.path.basename(filename).startswith("ribs.")
-        self = cls()
+        self = cls(version = min(rpki.rtr.pdus.PDU.version_map))
         self.serial = None
         for line in cls.read_bgpdump(filename):
             try:

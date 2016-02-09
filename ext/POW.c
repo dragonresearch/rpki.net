@@ -9911,15 +9911,33 @@ pow_module_get_verification_errors(GCC_UNUSED PyObject *self)
   Verification_Error( X509_V_ERR_UNSUPPORTED_CONSTRAINT_SYNTAX );
   Verification_Error( X509_V_ERR_UNSUPPORTED_NAME_SYNTAX );
   Verification_Error( X509_V_ERR_CRL_PATH_VALIDATION_ERROR );
+#ifdef X509_V_ERR_SUITE_B_INVALID_VERSION
   Verification_Error( X509_V_ERR_SUITE_B_INVALID_VERSION );
+#endif
+#ifdef X509_V_ERR_SUITE_B_INVALID_ALGORITHM
   Verification_Error( X509_V_ERR_SUITE_B_INVALID_ALGORITHM );
+#endif
+#ifdef X509_V_ERR_SUITE_B_INVALID_CURVE
   Verification_Error( X509_V_ERR_SUITE_B_INVALID_CURVE );
+#endif
+#ifdef X509_V_ERR_SUITE_B_INVALID_SIGNATURE_ALGORITHM
   Verification_Error( X509_V_ERR_SUITE_B_INVALID_SIGNATURE_ALGORITHM );
+#endif
+#ifdef X509_V_ERR_SUITE_B_LOS_NOT_ALLOWED
   Verification_Error( X509_V_ERR_SUITE_B_LOS_NOT_ALLOWED );
+#endif
+#ifdef X509_V_ERR_SUITE_B_CANNOT_SIGN_P_384_WITH_P_256
   Verification_Error( X509_V_ERR_SUITE_B_CANNOT_SIGN_P_384_WITH_P_256 );
+#endif
+#ifdef X509_V_ERR_HOSTNAME_MISMATCH
   Verification_Error( X509_V_ERR_HOSTNAME_MISMATCH );
+#endif
+#ifdef X509_V_ERR_EMAIL_MISMATCH
   Verification_Error( X509_V_ERR_EMAIL_MISMATCH );
+#endif
+#ifdef X509_V_ERR_IP_ADDRESS_MISMATCH
   Verification_Error( X509_V_ERR_IP_ADDRESS_MISMATCH );
+#endif
   Verification_Error( X509_V_ERR_APPLICATION_VERIFICATION );
 
 #undef Verification_Error

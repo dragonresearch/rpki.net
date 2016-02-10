@@ -1,8 +1,19 @@
+# Source package requires lxml because it builds an initial rpki.conf.
+
+# rp package requires xinetd for historical reasons, could use "rpki-rtr server" instead.
+
+# Division between rp and ca packages is somewhat arbitrary, and becomes less relevant as we move more and
+# more of the code from C into Python.  Some day we may just collapse down to a single binary package again.
+
+# Old required database was MySQL, because we used it directly.  These days we use Django ORM for everything,
+# and can run over SQLite3, MySQL, PostgreSQL, or, really, anything with a Django driver.  We're in the process
+# of moving towards using PostgreSQL as the default but there are still some MySQL vestiges to be cleaned up.
+
 Source: rpki
 Section: net
 Priority: extra
 Maintainer: Rob Austein <sra@hactrn.net>
-Build-Depends: debhelper (>= 8.0.0), autotools-dev, python (>= 2.7), python-all-dev, python-setuptools
+Build-Depends: debhelper (>= 8.0.0), autotools-dev, python (>= 2.7), python-all-dev, python-setuptools, python-lxml
 Standards-Version: 3.9.3
 Homepage: http://trac.rpki.net/
 Vcs-Svn: http://subvert-rpki.hactrn.net/

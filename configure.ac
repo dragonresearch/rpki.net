@@ -532,9 +532,9 @@ AC_MSG_CHECKING([for lxml.etree])
 if $PYTHON -c 'import lxml.etree' 2>/dev/null; then have_lxml=yes; else have_lxml=no; fi
 AC_MSG_RESULT([$have_lxml])
 
-AC_MSG_CHECKING([for MySQLdb])
-if $PYTHON -c 'import MySQLdb' 2>/dev/null; then have_mysqldb=yes; else have_mysqldb=no; fi
-AC_MSG_RESULT([$have_mysqldb])
+AC_MSG_CHECKING([for Tornado])
+if $PYTHON -c 'import tornado' 2>/dev/null; then have_tornado=yes; else have_tornado=no; fi
+AC_MSG_RESULT([$have_tornado])
 
 AC_MSG_CHECKING([for Django])
 if $PYTHON -c 'import django' 2>/dev/null; then have_django=yes; else have_django=no; fi
@@ -582,7 +582,7 @@ then
 	if test $have_python_h = no
 	then
 		build_ok=no
-		AC_MSG_WARN([I can't find Python.h.  Python sources are required to build the RP tools.])
+		AC_MSG_WARN([I can't find Python.h.  Python sources are required to build the rpki.POW module.])
 	fi
 	if test "x$RRDTOOL" = "x"
 	then
@@ -596,27 +596,36 @@ then
 	fi
 fi
 
+if test $have_lxml = no
+then
+	runtime_ok=no
+	AC_MSG_WARN([The RPKI tools require the Python LXML package.])
+fi
+
+if test $have_acceptable_django = no
+then
+	runtime_ok=no
+	AC_MSG_WARN([The RPKI tools require Django 1.8 or higher.])
+fi
+
+if test $have_argparse = no
+then
+	runtime_ok=no
+	AC_MSG_WARN([The RPKI tools require the Python argparse module.])
+fi
+
+if test $have_tornado = no
+then
+	runtime_ok=no
+	AC_MSG_WARN([The RPKI tools require the Python Tornado package.])
+fi
+
 if test $build_ca_tools = yes
 then
-	if test $have_lxml = no
-	then
-		runtime_ok=no
-		AC_MSG_WARN([The RPKI tools require the Python LXML module.])
-	fi
-	if test $have_acceptable_django = no
-	then
-		runtime_ok=no
-		AC_MSG_WARN([The RPKI CA tools require Django 1.8 or higher.])
-	fi
 	if test $have_vobject = no
 	then
 		runtime_ok=no
 		AC_MSG_WARN([The RPKI CA GUI requires the Python vobject module.])
-	fi
-	if test $have_argparse = no
-	then
-		runtime_ok=no
-		AC_MSG_WARN([The RPKI CA tools require the Python argparse module.])
 	fi
 	if test $have_pyyaml = no
 	then

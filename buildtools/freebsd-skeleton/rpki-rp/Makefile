@@ -26,6 +26,7 @@ BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
 
 RCYNIC_DEPENDS= rsync>0:${PORTSDIR}/net/rsync                                           \
                 rrdtool>0:${PORTSDIR}/databases/rrdtool                                 \
+                ${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \
                 ${PYTHON_PKGNAMEPREFIX}django18>=1.8:${PORTSDIR}/www/py-django18        \
                 ${PYTHON_PKGNAMEPREFIX}tornado>0:${PORTSDIR}/www/py-tornado
 

@@ -4752,11 +4752,11 @@ if $PYTHON -c 'import lxml.etree' 2>/dev/null; then have_lxml=yes; else have_lxm
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_lxml" >&5
 $as_echo "$have_lxml" >&6; }
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for MySQLdb" >&5
-$as_echo_n "checking for MySQLdb... " >&6; }
-if $PYTHON -c 'import MySQLdb' 2>/dev/null; then have_mysqldb=yes; else have_mysqldb=no; fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_mysqldb" >&5
-$as_echo "$have_mysqldb" >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Tornado" >&5
+$as_echo_n "checking for Tornado... " >&6; }
+if $PYTHON -c 'import tornado' 2>/dev/null; then have_tornado=yes; else have_tornado=no; fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_tornado" >&5
+$as_echo "$have_tornado" >&6; }
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django" >&5
 $as_echo_n "checking for Django... " >&6; }
@@ -4815,8 +4815,8 @@ then
 	if test $have_python_h = no
 	then
 		build_ok=no
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: I can't find Python.h.  Python sources are required to build the RP tools." >&5
-$as_echo "$as_me: WARNING: I can't find Python.h.  Python sources are required to build the RP tools." >&2;}
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: I can't find Python.h.  Python sources are required to build the rpki.POW module." >&5
+$as_echo "$as_me: WARNING: I can't find Python.h.  Python sources are required to build the rpki.POW module." >&2;}
 	fi
 	if test "x$RRDTOOL" = "x"
 	then
@@ -4832,31 +4832,41 @@ $as_echo "$as_me: WARNING: The RPKI relying party tools require rsync." >&2;}
 	fi
 fi
 
+if test $have_lxml = no
+then
+	runtime_ok=no
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI tools require the Python LXML package." >&5
+$as_echo "$as_me: WARNING: The RPKI tools require the Python LXML package." >&2;}
+fi
+
+if test $have_acceptable_django = no
+then
+	runtime_ok=no
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI tools require Django 1.8 or higher." >&5
+$as_echo "$as_me: WARNING: The RPKI tools require Django 1.8 or higher." >&2;}
+fi
+
+if test $have_argparse = no
+then
+	runtime_ok=no
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI tools require the Python argparse module." >&5
+$as_echo "$as_me: WARNING: The RPKI tools require the Python argparse module." >&2;}
+fi
+
+if test $have_tornado = no
+then
+	runtime_ok=no
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI tools require the Python Tornado package." >&5
+$as_echo "$as_me: WARNING: The RPKI tools require the Python Tornado package." >&2;}
+fi
+
 if test $build_ca_tools = yes
 then
-	if test $have_lxml = no
-	then
-		runtime_ok=no
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI tools require the Python LXML module." >&5
-$as_echo "$as_me: WARNING: The RPKI tools require the Python LXML module." >&2;}
-	fi
-	if test $have_acceptable_django = no
-	then
-		runtime_ok=no
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require Django 1.8 or higher." >&5
-$as_echo "$as_me: WARNING: The RPKI CA tools require Django 1.8 or higher." >&2;}
-	fi
 	if test $have_vobject = no
 	then
 		runtime_ok=no
 		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA GUI requires the Python vobject module." >&5
 $as_echo "$as_me: WARNING: The RPKI CA GUI requires the Python vobject module." >&2;}
-	fi
-	if test $have_argparse = no
-	then
-		runtime_ok=no
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: The RPKI CA tools require the Python argparse module." >&5
-$as_echo "$as_me: WARNING: The RPKI CA tools require the Python argparse module." >&2;}
 	fi
 	if test $have_pyyaml = no
 	then

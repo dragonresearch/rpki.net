@@ -30,13 +30,12 @@ USE_PERL5_BUILD=yes
 # For building OpenSSL, not needed otherwise
 BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
 
-RPKID_DEPENDS=	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \
-                ${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb       \
-                ${PYTHON_PKGNAMEPREFIX}django14>=1.4:${PORTSDIR}/www/py-django14          \
+RPKID_DEPENDS=  ${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml                 \
+                ${PYTHON_PKGNAMEPREFIX}django18>=1.8:${PORTSDIR}/www/py-django18        \
                 ${PYTHON_PKGNAMEPREFIX}vobject>0:${PORTSDIR}/deskutils/py-vobject       \
                 ${PYTHON_PKGNAMEPREFIX}yaml>0:${PORTSDIR}/devel/py-yaml                 \
                 ${PYTHON_PKGNAMEPREFIX}netifaces>0:${PORTSDIR}/net/py-netifaces         \
-                ${PYTHON_PKGNAMEPREFIX}south>=0.7.6:${PORTSDIR}/databases/py-south
+                ${PYTHON_PKGNAMEPREFIX}tornado>0:${PORTSDIR}/www/py-tornado
 
 BUILD_DEPENDS+=	${RPKID_DEPENDS}
 RUN_DEPENDS+=	${RPKID_DEPENDS}

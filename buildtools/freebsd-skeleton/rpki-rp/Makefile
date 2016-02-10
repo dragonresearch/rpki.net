@@ -24,15 +24,13 @@ USE_PERL5_BUILD=yes
 # For building OpenSSL, not needed otherwise
 BUILD_DEPENDS+= makedepend>0:${PORTSDIR}/devel/makedepend
 
-# Needed at build to keep ./configure from complaining;
-# needed at runtime for rcynic to do anything useful.
-BUILD_DEPENDS+= rsync>0:${PORTSDIR}/net/rsync
-RUN_DEPENDS+=   rsync>0:${PORTSDIR}/net/rsync
+RCYNIC_DEPENDS= rsync>0:${PORTSDIR}/net/rsync                                           \
+                rrdtool>0:${PORTSDIR}/databases/rrdtool                                 \
+                ${PYTHON_PKGNAMEPREFIX}django18>=1.8:${PORTSDIR}/www/py-django18        \
+                ${PYTHON_PKGNAMEPREFIX}tornado>0:${PORTSDIR}/www/py-tornado
 
-# Needed at build to keep ./configure from complaining;
-# used at runtime by rcynic-html.
-BUILD_DEPENDS+=	rrdtool>0:${PORTSDIR}/databases/rrdtool
-RUN_DEPENDS+=   rrdtool>0:${PORTSDIR}/databases/rrdtool
+BUILD_DEPENDS+= ${RCYNIC_DEPENDS}
+RUN_DEPENDS+=   ${RCYNIC_DEPENDS}
 
 # Just want relying party tools, try to use system OpenSSL if we can.
 

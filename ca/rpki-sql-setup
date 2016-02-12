@@ -143,7 +143,7 @@ class PostgreSQL_Driver(Abstract_Driver):
         else:
             self._pw = None
 
-    def _execute(*sql_commands):
+    def _execute(self, *sql_commands):
         pid = None if self._pw is None else os.fork()
         if pid == 0:
             os.setgid(pw.pw_gid)

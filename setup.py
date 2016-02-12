@@ -50,16 +50,19 @@ scripts         = []
 
 # I keep forgetting to update the packages list here.  Could we
 # automate this by looking for __init__.py files in the rpki/ tree?
-# Might have to filter out some rpki.gui.app subdirs.
+# Might have to filter out some rpki.gui.app subdirs, or, rather,
+# list those as package_data instead.
 
 if autoconf.RP_TARGET == "rp":
     setup_args.update(
         packages    = ["rpki",
                        "rpki.POW",
+		       "rpki.django_settings",
                        "rpki.rtr",
                        "rpki.irdb",
                        "rpki.pubdb",
                        "rpki.rpkidb",
+		       "rpki.rcynicdb",
                        "rpki.gui",
                        "rpki.gui.app",
                        "rpki.gui.cacheview",
@@ -69,14 +72,16 @@ if autoconf.RP_TARGET == "rp":
                                  include_dirs       = [cflag[2:] for cflag in autoconf.CFLAGS.split() if cflag.startswith("-I")],
                                  extra_compile_args = [cflag for cflag in autoconf.CFLAGS.split() if not cflag.startswith("-I")],
                                  extra_link_args    = autoconf.LDFLAGS.split() + autoconf.LIBS.split())],
-        package_data = {"rpki.gui.app" :
-                        ["migrations/*.py",
-                         "static/*/*",
-                         "templates/*.html",
-                         "templates/*/*.html",
-                         "templatetags/*.py"],
-                        "rpki.gui.cacheview" :
-                        ["templates/*/*.html"]})
+        package_data = {"rpki.gui.app" :        ["migrations/*.py",
+                                                 "static/*/*",
+                                                 "templates/*.html",
+                                                 "templates/*/*.html",
+                                                 "templatetags/*.py"],
+                        "rpki.gui.cacheview" :  ["templates/*/*.html"],
+                        "rpki.irdb":            ["migrations/*.py"],
+                        "rpki.pubdb":           ["migrations/*.py"],
+                        "rpki.rpkidb":          ["migrations/*.py"],
+                        "rpki.rcynicdb":        ["migrations/*.py"]})
 
     scripts      += [(autoconf.bindir,
                       ["rp/rcynic/rcynic-cron",

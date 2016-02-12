@@ -146,8 +146,8 @@ class PostgreSQL_Driver(Abstract_Driver):
     def _execute(self, *sql_commands):
         pid = None if self._pw is None else os.fork()
         if pid == 0:
-            os.setgid(pw.pw_gid)
-            os.setuid(pw.pw_uid)
+            os.setgid(self._pw.pw_gid)
+            os.setuid(self._pw.pw_uid)
         if not pid:
             with self.driver.connect(database = self.args.postgresql_root_database) as db:
                 with db.cursor() as cur:
@@ -276,14 +276,25 @@ subparsers.add_parser("fix-grants",
 args = parser.parse_args()
 
 try:
+
     cfg  = rpki.config.parser(set_filename = args.config, section = "myrpki")
+
     names = [name for name in ("irdbd", "rpkid", "pubd")
              if cfg.getboolean("start_" + name, False)]
-    names.append("rcynic")
+
+    # In the long run this should probably become mandatory, but for
+    # the moment I'm getting installation errors because we don't yet
+    # have an [rcynic] section in rpki.conf, and I don't want to shave
+    # that yak today.
+
+    if cfg.has_section("rcynic"):
+        names.append("rcynic")
+
     for name in names:
         udb = UserDB(args = args, name = name)
         method = args.dispatch.replace("-", "_")
         getattr(udb, method)()
+
 except Exception, e:
     if args.debug:
         raise

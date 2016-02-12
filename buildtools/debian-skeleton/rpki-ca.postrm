@@ -25,7 +25,8 @@ case "$1" in
 	sql=/etc/rpki/drop_databases.sql
 	if test -f $sql
 	then
-	    mysql --defaults-file=/etc/mysql/debian.cnf --execute "source $sql"
+	    #mysql --defaults-file=/etc/mysql/debian.cnf --execute "source $sql"
+	    sudo -u postgres psql -f $sql
 	fi
 	rm -f /etc/rpki.conf /etc/rpki.conf.sample $sql
 	rm -f /etc/rpki/apache.conf /etc/rpki/apache.cer /etc/rpki/apache.key

@@ -48,7 +48,7 @@ setup_rpki_conf() {
     fi
 }
 
-setup_mysql() {
+setup_sql() {
     #rpki-sql-setup --mysql-defaults /etc/mysql/debian.cnf create
     rpki-sql-setup --postgresql-root-username postgres create
 }
@@ -94,7 +94,7 @@ case "$1" in
 	setup_rpkid_user
 	setup_apache
 	setup_rpki_conf
-	setup_mysql
+	setup_sql
 	setup_bpki
 	setup_django
 	setup_cron

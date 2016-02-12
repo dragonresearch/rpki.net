@@ -45,6 +45,13 @@ class Abstract_Driver(object):
             cls.__instance = object.__new__(cls, *args, **kwargs)
         return cls.__instance
 
+    def accessible(self, udb):
+        try:
+            self._accessible_test(udb)
+        except:
+            return False
+        else:
+            return True
 
 class MySQL_Driver(Abstract_Driver):
 
@@ -69,38 +76,30 @@ class MySQL_Driver(Abstract_Driver):
             self._cur = self._db.cursor()
             self._initialized = True
 
-    def _accessible(self, udb):
-        try:
-            self.driver.connect(db = udb.database, user = udb.username, passwd = udb.password).close()
-        except:
-            return False
-        else:
-            return True
+    def _accessible_test(self, udb):
+        self.driver.connect(db = udb.database, user = udb.username, passwd = udb.password).close()
 
     def _grant(self, udb):
         self._cur.execute("GRANT ALL ON {0.database}.* TO {0.username}@localhost IDENTIFIED BY %s".format(udb),
                           (udb.password,))
 
     def create(self, udb):
-        if args.force or not self._accessible(udb):
-            self._initialize()
-            self._cur.execute("CREATE DATABASE IF NOT EXISTS {0.database}".format(udb))
-            self._grant(udb)
-            self._db.commit()
+        self._initialize()
+        self._cur.execute("CREATE DATABASE IF NOT EXISTS {0.database}".format(udb))
+        self._grant(udb)
+        self._db.commit()
 
     def drop(self, udb):
-        if args.force or self._accessible(udb):
-            self._initialize()
-            self._cur.execute("DROP DATABASE IF EXISTS {0.database}".format(udb))
-            self._db.commit()
+        self._initialize()
+        self._cur.execute("DROP DATABASE IF EXISTS {0.database}".format(udb))
+        self._db.commit()
 
     def script_drop(self, udb):
         self.args.script_output.write("DROP DATABASE IF EXISTS {};\n".format(udb.database))
 
     def fix_grants(self, udb):
-        if args.force or not self._accessible(udb):
-            self._grant(udb)
-            self._db.commit()
+        self._grant(udb)
+        self._db.commit()
 
 
 class SQLite3_Driver(Abstract_Driver):
@@ -111,13 +110,8 @@ class SQLite3_Driver(Abstract_Driver):
         self.args = args
         self.can_chown = os.getuid() == 0 or os.geteuid() == 0
 
-    def _accessible(self, udb):
-        try:
-            self.driver.connect(udb.database).close()
-        except:
-            return False
-        else:
-            return True
+    def _accessible_test(self, udb):
+        self.driver.connect(udb.database).close()
 
     def _grant(self, udb):
         if self.can_chown and udb.username:
@@ -125,20 +119,17 @@ class SQLite3_Driver(Abstract_Driver):
             os.chown(udb.database, pw.pw_uid, pw.pw_gid)
 
     def create(self, udb):
-        if args.force or not self._accessible(udb):
-            self.driver.connect(udb.database).close()
-            self._grant(udb)
+        self.driver.connect(udb.database).close()
+        self._grant(udb)
 
     def drop(self, udb):
-        if args.force or self._accessible(udb):
-            os.unlink(udb.database)
+        os.unlink(udb.database)
 
     def script_drop(self, udb):
         pass
 
     def fix_grants(self, udb):
-        if args.force or not self._accessible(udb):
-            self._grant(udb)
+        self._grant(udb)
 
 
 class PostgreSQL_Driver(Abstract_Driver):
@@ -167,40 +158,42 @@ class PostgreSQL_Driver(Abstract_Driver):
         if pid:
             os.waitpid(pid, 0)
 
-    def _accessible(self, udb):
-        try:
-            self.driver.connect(database = udb.database, user = udb.username , password = usb.password).close()
-        except:
-            return False
-        else:
-            return True
+    def _accessible_test(self, udb):
+        self.driver.connect(database = udb.database, user = udb.username , password = usb.password).close()
+
+    # At some point we'll have to do something about DROP ROLE [IF EXISTS],
+    # but it's a bit complicated because we need to defer dropping the role until
+    # after we've dropped all associated databases, which gets messy when
+    # interleaved with all the other things we're doing, and may require
+    # restructuring all of the drivers to maintain a queue of actions to be taken
+    # so that we can make sure that all DROP ROLEs go after all DROP DATABASEs.
+    #
+    # Punt on this for now, but will need to come back to it, particularly if we're
+    # serious about using PostgreSQL on Debian and cleaning up after ourselves.
 
     def create(self, udb):
-        if args.force or not self._accessible(udb):
-            #
-            # CREATE ROLE doesn't take a IF NOT EXISTS modifier, but we can fake it using plpgsql.
-            # http://stackoverflow.com/questions/8092086/create-postgresql-role-user-if-it-doesnt-exist
-            #
-            self._execute('''
-                            DO $$ BEGIN
-                              IF NOT EXISTS (SELECT * FROM pg_catalog.pg_user WHERE usename = '{0.username}') THEN
-                                CREATE ROLE {0.username} LOGIN PASSWORD '{0.password}';
-                              END IF;
-                            END $$
-                          '''.format(udb),
-                          "CREATE DATABASE IF NOT EXISTS {0.database} OWNER {0.username}".format(udb))
+        #
+        # CREATE ROLE doesn't take a IF NOT EXISTS modifier, but we can fake it using plpgsql.
+        # http://stackoverflow.com/questions/8092086/create-postgresql-role-user-if-it-doesnt-exist
+        #
+        self._execute('''
+                        DO $$ BEGIN
+                          IF NOT EXISTS (SELECT * FROM pg_catalog.pg_user WHERE usename = '{0.username}') THEN
+                            CREATE ROLE {0.username} LOGIN PASSWORD '{0.password}';
+                          END IF;
+                        END $$
+                      '''.format(udb),
+                      "CREATE DATABASE IF NOT EXISTS {0.database} OWNER {0.username}".format(udb))
 
     def drop(self, udb):
-        if args.force or self._accessible(udb):
-            self._execute("DROP DATABASE IF EXISTS {0.database}".format(udb))
+        self._execute("DROP DATABASE IF EXISTS {0.database}".format(udb))
 
     def script_drop(self, udb):
         self.args.script_output.write("DROP DATABASE IF EXISTS {};\n".format(udb.database))
 
     def fix_grants(self, udb):
-        if args.force or not self._accessible(udb):
-            self._execute("ALTER DATABASE {0.database} OWNER TO {0.username}".format(udb),
-                          "ALTER ROLE {0.username} WITH PASSWORD '{0.password}".format(udb))
+        self._execute("ALTER DATABASE {0.database} OWNER TO {0.username}".format(udb),
+                      "ALTER ROLE {0.username} WITH PASSWORD '{0.password}".format(udb))
 
 
 class UserDB(object):
@@ -218,22 +211,27 @@ class UserDB(object):
         self.password = cfg.get("sql-password", section = name)
         self.engine   = cfg.get("sql-engine",   section = name)
         self.driver   = self.drivers[self.engine](args)
+        self.args     = args
 
     def drop(self):
-        self.driver.drop(self)
+        if self.args.force or self.driver.accessible(self):
+            self.driver.drop(self)
 
     def create(self):
-        self.driver.create(self)
+        if self.args.force or not self.driver.accessible(self):
+            self.driver.create(self)
 
     def script_drop(self):
         self.driver.script_drop(self)
 
     def drop_and_create(self):
-        self.driver.drop(self)
+        if self.args.force or self.driver.accessible(self):
+            self.driver.drop(self)
         self.driver.create(self)
 
     def fix_grants(self):
-        self.driver.fix_grants(self)
+        if self.args.force or not self.driver.accessible(self):
+            self.driver.fix_grants(self)
 
 
 parser = argparse.ArgumentParser(description = __doc__)
@@ -279,10 +277,13 @@ args = parser.parse_args()
 
 try:
     cfg  = rpki.config.parser(set_filename = args.config, section = "myrpki")
-    names = [name for name in ("irdbd", "rpkid", "pubd") if cfg.getboolean("start_" + name, False)]
+    names = [name for name in ("irdbd", "rpkid", "pubd")
+             if cfg.getboolean("start_" + name, False)]
     names.append("rcynic")
     for name in names:
-        getattr(UserDB(args = args, name = name), args.dispatch.replace("-", "_"))()
+        udb = UserDB(args = args, name = name)
+        method = args.dispatch.replace("-", "_")
+        getattr(udb, method)()
 except Exception, e:
     if args.debug:
         raise

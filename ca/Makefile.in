@@ -124,8 +124,7 @@ install-apache:
 	${libexecdir}/rpkigui-apache-conf-gen --install --verbose
 
 install-mysql:
-	${sbindir}/rpki-sql-setup --create-if-missing
-	${sbindir}/rpki-sql-setup --apply-upgrades --verbose
+	${sbindir}/rpki-sql-setup create
 
 install-django:
 	${sbindir}/rpki-manage syncdb --noinput

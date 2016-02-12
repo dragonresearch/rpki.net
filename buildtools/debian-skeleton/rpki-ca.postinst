@@ -37,6 +37,7 @@ setup_rpki_conf() {
 	--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'`		\
 	--set myrpki::rpkid_server_host=`hostname -f`			\
 	--set myrpki::pubd_server_host=`hostname -f`			\
+	--set myrpki::shared_sql_engine=postgresql			\
 	--pwgen myrpki::shared_sql_password				\
 	--pwgen web_portal::secret-key					\
 	--write-conf /etc/rpki.conf.sample
@@ -48,8 +49,8 @@ setup_rpki_conf() {
 }
 
 setup_mysql() {
-    rpki-sql-setup --create-if-missing --mysql-defaults /etc/mysql/debian.cnf
-    rpki-sql-setup --apply-upgrades --verbose
+    #rpki-sql-setup --mysql-defaults /etc/mysql/debian.cnf create
+    rpki-sql-setup --postgresql-root-username postgres create
 }
 
 setup_bpki() {

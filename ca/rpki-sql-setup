@@ -64,6 +64,8 @@ class MySQL_Driver(Abstract_Driver):
 
     def _initialize(self):
         if not self._initialized:
+            if self.args.verbose:
+                print "Initializing MySQL driver"
             if self.args.mysql_defaults:
                 mysql_cfg = rpki.config.parser(set_filename = self.args.mysql_defaults, section = "client")
                 self._db = self.driver.connect(db     = "mysql",
@@ -142,21 +144,33 @@ class PostgreSQL_Driver(Abstract_Driver):
             self._pw = pwd.getpwnam(args.postgresql_root_username)
         else:
             self._pw = None
+        if self.args.verbose:
+            print "Initialized PostgreSQL driver, pw {!r}".format(pw)
 
     def _execute(self, *sql_commands):
-        pid = None if self._pw is None else os.fork()
-        if pid == 0:
-            os.setgid(self._pw.pw_gid)
-            os.setuid(self._pw.pw_uid)
-        if not pid:
-            with self.driver.connect(database = self.args.postgresql_root_database) as db:
-                with db.cursor() as cur:
-                    for sql_command in sql_commands:
-                        cur.execute(command)
-        if pid == 0:
-            os._exit(0)
-        if pid:
-            os.waitpid(pid, 0)
+        try:
+            pid = None if self._pw is None else os.fork()
+            if self.args.verbose:
+                print "PostgreSQL driver fork {}".format(pid)
+            if pid == 0:
+                os.setgid(self._pw.pw_gid)
+                os.setuid(self._pw.pw_uid)
+            if not pid:
+                with self.driver.connect(database = self.args.postgresql_root_database) as db:
+                    with db.cursor() as cur:
+                        for sql_command in sql_commands:
+                            if self.args.verbose:
+                                print "PostgreSQL driver executing {!r}".format(sql_command)
+                            cur.execute(command)
+            if pid == 0:
+                os._exit(0)
+            elif pid:
+                os.waitpid(pid, 0)
+        except Exception as e:
+            if self.args.verbose:
+                print "PostgreSQL driver exception {!s}".format(e)
+            if pid == 0:
+                os._exit(1)
 
     def _accessible_test(self, udb):
         self.driver.connect(database = udb.database, user = udb.username , password = usb.password).close()

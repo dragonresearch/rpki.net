@@ -50,7 +50,7 @@ setup_rpki_conf() {
 
 setup_sql() {
     #rpki-sql-setup --mysql-defaults /etc/mysql/debian.cnf create
-    rpki-sql-setup --postgresql-root-username postgres create
+    rpki-sql-setup --debug --verbose --postgresql-root-username postgres create
 }
 
 setup_bpki() {

@@ -37,7 +37,7 @@ case "$1" in
 	# since that's where we find out whether this is a purge.
 
 	#rpki-sql-setup --mysql-defaults /etc/mysql/debian.cnf script-drop /etc/rpki/drop_databases.sql
-	rpki-sql-setup --postgresql-root-username postgres script-drop /etc/rpki/drop_databases.sql
+	rpki-sql-setup --debug --verbose --postgresql-root-username postgres script-drop /etc/rpki/drop_databases.sql
 
 	# Clean up our cron jobs.
 

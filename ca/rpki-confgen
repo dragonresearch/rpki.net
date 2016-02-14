@@ -24,7 +24,7 @@ import argparse
 import base64
 import textwrap
 
-from lxml.etree import Element, SubElement, ElementTree
+from lxml.etree import Element, SubElement, ElementTree, Comment
 
 space4 = " " * 4
 space6 = " " * 6
@@ -56,21 +56,22 @@ class Option(object):
         return x
 
     def to_wiki(self, f):
-        f.write("\n== %s == #%s\n" % (self.name, self.name))
+        f.write("\n== {0.name} == #{0.name}\n".format(self))
         for d in self.doc:
-            f.write("\n%s\n" % wiki_wrapper.fill(d))
+            f.write("\n{0}\n".format(wiki_wrapper.fill(d)))
         if self.value is None:
-            f.write("\n%s\n" % wiki_wrapper.fill("No default value."))
+            f.write("\n{0}\n".format(wiki_wrapper.fill("No default value.")))
         else:
-            f.write("\n{{{\n#!ini\n%s = %s\n}}}\n" % (self.name, self.value))
+            f.write("\n{{{{{{\n#!ini\n{0.name} = {0.value}\n}}}}}}\n".format(self))
 
     def to_conf(self, f, width):
         for i, d in enumerate(self.doc):
-            f.write("%s\n%s\n" % ("" if i == 0 else "#", conf_wrapper.fill(d)))
+            f.write("{}\n{}\n".format("" if i == 0 else "#",
+                                      conf_wrapper.fill(d)))
         if self.value is None:
-            f.write("\n#%-*s = ???\n" % (width - 1, self.name))
+            f.write("\n#{1.name:{0}} = ???\n".format(width - 1, self))
         else:
-            f.write("\n%-*s = %s\n" % (width, self.name, self.value))
+            f.write("\n{1.name:{0}} = {1.value}\n".format(width, self))
 
 class Section(object):
 
@@ -102,9 +103,9 @@ class Section(object):
         return x
 
     def to_wiki(self, f):
-        f.write("\n= [%s] section = #%s\n" % (self.name, self.name))
+        f.write("\n= [{0}] section = #{0}\n".format(self.name))
         for d in self.doc:
-            f.write("\n%s\n" % wiki_wrapper.fill(d))
+            f.write("\n{0}\n".format(wiki_wrapper.fill(d)))
         for o in self.options:
             o.to_wiki(f)
 
@@ -113,47 +114,52 @@ class Section(object):
         if self.doc:
             f.write("\n##")
             for i, d in enumerate(self.doc):
-                f.write("%s\n%s\n" % ("" if i == 0 else "#", conf_wrapper.fill(d)))
+                f.write("{}\n{}\n".format("" if i == 0 else "#",
+                                          conf_wrapper.fill(d)))
             f.write("##\n")
         for o in self.options:
             o.to_conf(f, width)
 
 def wiki_header(f, ident, toc):
-    f.write("\n".join((
-        "{{{",
-        "#!comment",
-        "",
-        star78,
-        "THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.",
-        "",
-        "Generated from " + ident,
-        "            by $Id$",
-        star78,
-        "",
-        "}}}",
-        "")))
+    f.write(textwrap.dedent('''\
+        {{{{{{
+        #!comment
+        
+        {star78}
+        THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.
+        
+        Generated from {ident}
+                    by $Id$
+        {star78}
+        
+        }}}}}}
+        '''.format(star78 = star78,
+                   ident  = ident)))
     if toc is not None:
-        f.write("[[TracNav(%s)]]\n" % toc)
+        f.write("[[TracNav({})]]\n".format(toc))
     f.write("[[PageOutline]]\n")
 
 def conf_header(f, ident):
-    f.write("\n".join((
-        "# Automatically generated.  Edit as needed, but be careful of overwriting.",
-        "#",
-        "# Generated from " + ident,
-        "#             by $Id$",
-        "")))
+    f.write(textproc.dedent('''\
+        # Automatically generated.  Edit as needed, but be careful of overwriting.
+        #
+        # Generated from {ident}
+        #             by $Id$
+        
+        '''.format(ident = ident)))
 
 
 # http://stackoverflow.com/questions/9027028/argparse-argument-order
 
 class CustomAction(argparse.Action):
+
     def __call__(self, parser, namespace, values, option_string = None):
         if not "ordered_args" in namespace:
             namespace.ordered_args = []
         namespace.ordered_args.append((self.dest, values))
 
-class CustomFlagAction(argparse.Action):
+class CustomFlagAction(CustomAction):
+
     def __init__(self, option_strings, dest, default = None,
                  required = False, help = None): # pylint: disable=W0622
         super(CustomFlagAction, self).__init__(
@@ -164,10 +170,6 @@ class CustomFlagAction(argparse.Action):
             default        = default,
             required       = required,
             help           = help)
-    def __call__(self, parser, namespace, values, option_string = None):
-        if not "ordered_args" in namespace:
-            namespace.ordered_args = []
-        namespace.ordered_args.append((self.dest, None))
 
 
 class main(object):
@@ -180,28 +182,19 @@ class main(object):
         self.toc = None
 
         parser = argparse.ArgumentParser(description = __doc__)
-        parser.add_argument("--read-xml",   metavar = "FILE",  action = CustomAction,
-                            required = True, type = argparse.FileType("r"),
-                            help = "XML input file defining sections and options")
-        parser.add_argument("--write-xml",  metavar = "FILE",  action = CustomAction,
-                            help = "XML file to write")
-        parser.add_argument("--write-wiki", metavar = "FILE", action = CustomAction,
-                            help = "TracWiki file to write")
-        parser.add_argument("--write-conf", metavar = "FILE", action = CustomAction,
-                            help = "rpki.conf configuration file to write")
-        parser.add_argument("--set",        metavar = "VARVAL",    action = CustomAction,
-                            help = "variable setting in form \"VAR=VAL\"")
-        parser.add_argument("--pwgen",      metavar = "VAR",       action = CustomAction,
-                            help = "set variable to generated password")
-        parser.add_argument("--toc",        metavar = "TRACNAV",   action = CustomAction,
-                            help = "set TOC value to use with TracNav plugin")
-        parser.add_argument("--autoconf",   action = CustomFlagAction,
-                            help = "configure [autoconf] section")
+        parser.add_argument("--read-xml",   type = argparse.FileType("r"), metavar = "FILE",    action = CustomAction, help = "XML input file defining sections and options", required = True)
+        parser.add_argument("--write-xml",  type = argparse.FileType("w"), metavar = "FILE",    action = CustomAction, help = "XML output file to snapshot configuration")
+        parser.add_argument("--write-conf", type = argparse.FileType("w"), metavar = "FILE",    action = CustomAction, help = "rpki.conf configuration file to write")
+        parser.add_argument("--write-wiki", type = argparse.FileType("w"), metavar = "FILE",    action = CustomAction, help = "TracWiki file to write (monolithic)")
+        parser.add_argument("--write-wiki-pages",                          metavar = "PATTERN", action = CustomAction, help = "TracWiki filenames (pattern) to write (one section per page)")
+        parser.add_argument("--set",                                       metavar = "VARVAL",  action = CustomAction, help = "variable setting in form \"VAR=VAL\"")
+        parser.add_argument("--pwgen",                                     metavar = "VAR",     action = CustomAction, help = "set variable to generated password")
+        parser.add_argument("--toc",                                       metavar = "TOCVAL",  action = CustomAction, help = "set TOC value to use with TracNav plugin")
+        parser.add_argument("--autoconf",                                                       action = CustomFlagAction, help = "configure [autoconf] section")
         args = parser.parse_args()
 
         for cmd, arg in args.ordered_args:
             getattr(self, "do_" + cmd)(arg)
-
 
     def do_read_xml(self, arg):
         self.option_map = None
@@ -212,37 +205,34 @@ class main(object):
         self.section_map = {}
         for section in self.sections:
             if section.name in self.section_map:
-                sys.exit("Duplicate section %s" % section.name)
+                sys.exit("Duplicate section {}".format(section.name))
             self.section_map[section.name] = section
             for option in section.options:
                 name = (section.name, option.name)
                 if name in self.option_map:
-                    sys.exit("Duplicate option %s::%s" % name)
+                    sys.exit("Duplicate option {}::{}".format(*name))
                 self.option_map[name] = option
-
 
     def do_set(self, arg):
         try:
             name, value = arg.split("=", 1)
             section, option = name.split("::")
         except ValueError:
-            sys.exit("Couldn't parse --set specification \"%s\"" % arg)
+            sys.exit("Couldn't parse --set specification \"{}\"".format(arg))
         name = (section, option)
         if name not in self.option_map:
-            sys.exit("Couldn't find option %s::%s" % name)
+            sys.exit("Couldn't find option {}::{}".format(*name))
         self.option_map[name].value = value
-
 
     def do_pwgen(self, arg):
         try:
             section, option = arg.split("::")
         except ValueError:
-            sys.exit("Couldn't parse --pwgen specification \"%s\"" % arg)
+            sys.exit("Couldn't parse --pwgen specification \"{}\"".format(arg))
         name = (section, option)
         if name not in self.option_map:
-            sys.exit("Couldn't find option %s::%s" % name)
+            sys.exit("Couldn't find option {}::{}".format(name))
         self.option_map[name].value = base64.urlsafe_b64encode(os.urandom(66))
-
 
     def do_autoconf(self, ignored):
         try:
@@ -257,28 +247,25 @@ class main(object):
         except KeyError:
             sys.exit("Couldn't find autoconf section")
 
-
     def do_write_xml(self, arg):
         x = Element("configuration", ident = self.ident)
+        x.append(Comment(" Machine-editable configuration snapshot, generated automatically, do not touch "))
         x.extend(s.to_xml() for s in self.sections)
         ElementTree(x).write(arg, pretty_print = True, encoding = "us-ascii")
 
-
     def do_write_wiki(self, arg):
-        if "%" in arg:
-            for section in self.sections:
-                with open(arg % section.name, "w") as f:
-                    wiki_header(f, self.ident, self.toc)
-                    section.to_wiki(f)
-        else:
-            with open(arg, "w") as f:
-                for i, section in enumerate(self.sections):
-                    if i == 0:
-                        wiki_header(f, self.ident, self.toc)
-                    else:
-                        f.write("\f\n")
-                    section.to_wiki(f)
+        for i, section in enumerate(self.sections):
+            if i == 0:
+                wiki_header(arg, self.ident, self.toc)
+            else:
+                arg.write("\f\n")
+                section.to_wiki(arg)
 
+    def do_write_wiki_pages(self, arg):
+        for section in self.sections:
+            with open(arg % section.name, "w") as f:
+                wiki_header(f, self.ident, self.toc)
+                section.to_wiki(f)
 
     def do_write_conf(self, arg):
         with open(arg, "w") as f:
@@ -286,7 +273,6 @@ class main(object):
             width = max(s.width for s in self.sections)
             for section in self.sections:
                 section.to_conf(f, width)
-
 
     def do_toc(self, arg):
         self.toc = arg

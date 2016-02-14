@@ -27,6 +27,7 @@ import os
 import pwd
 import sys
 import getpass
+import textwrap
 import argparse
 import rpki.config
 
@@ -45,27 +46,53 @@ class Abstract_Driver(object):
             cls.__instance = object.__new__(cls, *args, **kwargs)
         return cls.__instance
 
-    def accessible(self, udb):
+    def db_accessible(self, udb):
         try:
-            self._accessible_test(udb)
+            self._db_accessible_test(udb)
         except:
             return False
         else:
             return True
+
+    def db_exists(self, udb):
+        self.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s", (udb.database,))
+        return bool(self.fetchone()[0])
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    def close(self):
+        self._cur.close()
+        self._db.close()
+
+    def log(self, msg):
+        if self.args.verbose:
+            sys.stderr.write(msg + "\n")
+
 
 class MySQL_Driver(Abstract_Driver):
 
     _initialized = False
 
     def __init__(self, args):
-        from rpki.mysql_import import MySQLdb
-        self.driver = MySQLdb
-        self.args = args
+        try:
+            self.driver
+        except AttributeError:
+            from rpki.mysql_import import MySQLdb
+            self.driver = MySQLdb
+            self.args = args
 
-    def _initialize(self):
-        if not self._initialized:
-            if self.args.verbose:
-                print "Initializing MySQL driver"
+    def _db_accessible_test(self, udb):
+        self.driver.connect(db = udb.database, user = udb.username, passwd = udb.password).close()
+
+    def execute(*args):
+        try:
+            self._cur
+        except AttributeError:
+            self.log("MySQL driver initializing root connection")
             if self.args.mysql_defaults:
                 mysql_cfg = rpki.config.parser(set_filename = self.args.mysql_defaults, section = "client")
                 self._db = self.driver.connect(db     = "mysql",
@@ -75,60 +102,55 @@ class MySQL_Driver(Abstract_Driver):
                 self._db = self.driver.connect(db     = "mysql",
                                                user   = "root",
                                                passwd = getpass.getpass("Please enter your MySQL root password: "))
+            self._db.autocommit(True)
             self._cur = self._db.cursor()
-            self._initialized = True
-
-    def _accessible_test(self, udb):
-        self.driver.connect(db = udb.database, user = udb.username, passwd = udb.password).close()
-
-    def _grant(self, udb):
-        self._cur.execute("GRANT ALL ON {0.database}.* TO {0.username}@localhost IDENTIFIED BY %s".format(udb),
-                          (udb.password,))
+        self.log("MySQL driver executing {}".format(", ".join(args)))
+        return self._cur.execute(*args)
 
     def create(self, udb):
-        self._initialize()
-        self._cur.execute("CREATE DATABASE IF NOT EXISTS {0.database}".format(udb))
-        self._grant(udb)
-        self._db.commit()
+        self.execute("CREATE DATABASE IF NOT EXISTS {0.database}".format(udb))
+        self.fix_grants(udb)
 
     def drop(self, udb):
-        self._initialize()
-        self._cur.execute("DROP DATABASE IF EXISTS {0.database}".format(udb))
-        self._db.commit()
+        self.execute("DROP DATABASE IF EXISTS {0.database}".format(udb))
 
     def script_drop(self, udb):
         self.args.script_output.write("DROP DATABASE IF EXISTS {};\n".format(udb.database))
 
     def fix_grants(self, udb):
-        self._grant(udb)
-        self._db.commit()
-
+        self.execute("GRANT ALL ON {0.database}.* TO {0.username}@localhost IDENTIFIED BY %s".format(udb),
+                     (udb.password,))
 
 class SQLite3_Driver(Abstract_Driver):
 
     def __init__(self, args):
-        import sqlite3
-        self.driver = sqlite3
-        self.args = args
-        self.can_chown = os.getuid() == 0 or os.geteuid() == 0
+        try:
+            self.driver
+        except AttributeError:
+            import sqlite3
+            self.driver = sqlite3
+            self.args = args
 
-    def _accessible_test(self, udb):
+    def _db_accessible_test(self, udb):
         self.driver.connect(udb.database).close()
 
+    def db_exists(self, udb):
+        return os.path.exists(udb.database)
+
     def _grant(self, udb):
-        if self.can_chown and udb.username:
+        if udb.username and os.geteuid() == 0:
             pw = pwd.getpwnam(udb.username)
             os.chown(udb.database, pw.pw_uid, pw.pw_gid)
 
     def create(self, udb):
-        self.driver.connect(udb.database).close()
+        self._db_accessible_test(udb.database)
         self._grant(udb)
 
     def drop(self, udb):
         os.unlink(udb.database)
 
     def script_drop(self, udb):
-        pass
+        self.args.script_output.write("rm {}\n".format(udb.database))
 
     def fix_grants(self, udb):
         self._grant(udb)
@@ -137,106 +159,89 @@ class SQLite3_Driver(Abstract_Driver):
 class PostgreSQL_Driver(Abstract_Driver):
 
     def __init__(self, args):
-        import psycopg2
-        self.driver = psycopg2
-        self.args = args
-        if args.postgresql_root_username and (os.getuid() == 0 or os.geteuid() == 0):
-            self._pw = pwd.getpwnam(args.postgresql_root_username)
-        else:
-            self._pw = None
-        if self.args.verbose:
-            print "Initialized PostgreSQL driver, pw {!r}".format(self._pw)
+        try:
+            self.driver
+        except AttributeError:
+            import psycopg2
+            self.driver = psycopg2
+            self.args = args
+            if args.postgresql_root_username and (os.getuid() == 0 or os.geteuid() == 0):
+                self._pw = pwd.getpwnam(args.postgresql_root_username)
+            else:
+                self._pw = None
+            self.log("Initialized PostgreSQL driver, pw {!r}".format(self._pw))
 
-    def _execute(self, *sql_commands):
-        if self.args.verbose:
-            print "PostgreSQL driver commands:"
-            for sql_command in sql_commands:
-                print " ", sql_command
-        pid = None if self._pw is None else os.fork()
-        if self.args.verbose:
-            print "PostgreSQL driver fork {}".format(pid)
-        if pid == 0:
-            if self.args.verbose:
-                print "PostgreSQL driver setuid({0.pw_gid})/setgid({0.pw_uid})".format(self._pw)
-                sys.stdout.flush()
-            os.setgid(self._pw.pw_gid)
-            os.setuid(self._pw.pw_uid)
-        if pid == 0 or pid is None:
-            if self.args.verbose:
-                print "PostgreSQL driver opening connection to database {}".format(self.args.postgresql_root_database)
-                sys.stdout.flush()
+    def _seteuid(self, new_uid):
+        old_uid = os.geteuid()
+        if new_uid != old_uid:
+            self.log("PostgreSQL driver changing EUID from {} to {}".format(old_uid, new_uid))
+            os.seteuid(new_uid)
+        return old_uid
 
-            # Trusty supplies psychopg2 2.4.x, which is too old for
-            # with-based transactions, so do it the old fashioned way.
-
+    def execute(self, *args):
+        try:
+            self._cur
+        except AttributeError:
+            self.log("PostgreSQL driver opening connection to database {}".format(self.args.postgresql_root_database))
+            if self._pw is not None:
+                euid = self._seteuid(self._pw.pw_uid)
             try:
-                db = cur = None
-                db = self.driver.connect(database = self.args.postgresql_root_database)
-                db.autocommit = True
-                cur = db.cursor()
-                for sql_command in sql_commands:
-                    if self.args.verbose:
-                        print "PostgreSQL driver executing command {!r}".format(sql_command)
-                        sys.stdout.flush()
-                    cur.execute(sql_command)
+                self._db = self.driver.connect(database = self.args.postgresql_root_database)
+                self._db.autocommit = True
+                self._cur = self._db.cursor()
             finally:
-                if cur is not None:
-                    cur.close()
-                if db is not None:
-                    db.close()
+                if self._pw is not None:
+                    self._seteuid(euid)
+        self.log("PostgreSQL driver executing {}".format(", ".join(args)))
+        return self._cur.execute(*args)
 
-        if pid == 0:
-            if self.args.verbose:
-                print "PostgreSQL driver done with command group"
-                sys.stdout.flush()
-            sys.exit(0)
-        elif pid:
-            if self.args.verbose:
-                print "PostgreSQL driver waiting for pid {}".format(pid)
-                sys.stdout.flush()
-            pid, status = os.waitpid(pid, 0)
-            if self.args.verbose:
-                print "PostgreSQL driver pid {} returned status {:x}".format(pid, status)
-                sys.stdout.flush()
+    def _db_accessible_test(self, udb):
+        pw = pwd.getpwnam(udb.username)
+        uid = self._seteuid(pw.pw_uid)
+        try:
+            self.driver.connect(database = udb.database, user = udb.username , password = usb.password).close()
+        finally:
+            self._seteuid(uid)
 
-    def _accessible_test(self, udb):
-        self.driver.connect(database = udb.database, user = udb.username , password = usb.password).close()
-
-    # At some point we'll have to do something about DROP ROLE [IF EXISTS],
-    # but it's a bit complicated because we need to defer dropping the role until
-    # after we've dropped all associated databases, which gets messy when
-    # interleaved with all the other things we're doing, and may require
-    # restructuring all of the drivers to maintain a queue of actions to be taken
-    # so that we can make sure that all DROP ROLEs go after all DROP DATABASEs.
-    #
-    # Punt on this for now, but will need to come back to it, particularly if we're
-    # serious about using PostgreSQL on Debian and cleaning up after ourselves.
+    def _role_in_use(self, udb):
+        self.execute('''\
+            SELECT COUNT(*) FROM pg_database
+            JOIN pg_roles ON pg_database.datdba = pg_roles.oid
+            WHERE pg_roles.rolname = %s''', (udb.username,))
+        return bool(self.fetchone()[0])
 
     def create(self, udb):
-
-        # CREATE ROLE doesn't take a IF NOT EXISTS modifier, but we can fake it using plpgsql.
-        # http://stackoverflow.com/questions/8092086/create-postgresql-role-user-if-it-doesnt-exist
-
-        create_role = '''\
+        self.execute('''\
             DO $$ BEGIN
-                IF NOT EXISTS (SELECT * FROM pg_catalog.pg_user WHERE usename = '{0.username}') THEN
+                IF NOT EXISTS (SELECT * FROM pg_catalog.pg_roles
+                               WHERE rolname = '{0.username}')
+                THEN
                     CREATE ROLE {0.username} LOGIN PASSWORD '{0.password}';
                 END IF;
-            END $$'''
-
-        create_database = "CREATE DATABASE {0.database} OWNER {0.username}"
-
-        self._execute(create_role.format(udb), create_database.format(udb))
+            END $$'''.format(udb))
+        self.execute("CREATE DATABASE {0.database} OWNER {0.username}".format(udb))
 
     def drop(self, udb):
-        self._execute("DROP DATABASE IF EXISTS {0.database}".format(udb))
+        self.execute("DROP DATABASE IF EXISTS {0.database}".format(udb))
+        if not self._role_in_use(udb):
+            self.execute("DROP ROLE IF EXISTS {0.username}".format(udb))
 
     def script_drop(self, udb):
-        self.args.script_output.write("DROP DATABASE IF EXISTS {};\n".format(udb.database))
+        self.args.script_output.write(textwrap.dedent('''\
+            DROP DATABASE IF EXISTS {0.database};
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT * FROM pg_database JOIN pg_roles
+                               ON pg_database.datdba = pg_roles.oid
+                               WHERE pg_roles.rolname = '{0.username}')
+                THEN
+                    DROP ROLE IF EXISTS {0.username};
+                END IF;
+            END $$;
+            '''.format(udb)))
 
     def fix_grants(self, udb):
-        self._execute("ALTER DATABASE {0.database} OWNER TO {0.username}".format(udb),
-                      "ALTER ROLE {0.username} WITH PASSWORD '{0.password}".format(udb))
+        self.execute("ALTER DATABASE {0.database} OWNER TO {0.username}".format(udb))
+        self.execute("ALTER ROLE {0.username} WITH PASSWORD '{0.password}".format(udb))
 
 
 class UserDB(object):
@@ -257,23 +262,23 @@ class UserDB(object):
         self.args     = args
 
     def drop(self):
-        if self.args.force or self.driver.accessible(self):
+        if self.args.force or self.driver.db_accessible(self):
             self.driver.drop(self)
 
     def create(self):
-        if self.args.force or not self.driver.accessible(self):
+        if self.args.force or not self.driver.db_accessible(self):
             self.driver.create(self)
 
     def script_drop(self):
         self.driver.script_drop(self)
 
     def drop_and_create(self):
-        if self.args.force or self.driver.accessible(self):
+        if self.args.force or self.driver.db_accessible(self):
             self.driver.drop(self)
         self.driver.create(self)
 
     def fix_grants(self):
-        if self.args.force or not self.driver.accessible(self):
+        if self.args.force or not self.driver.db_accessible(self):
             self.driver.fix_grants(self)
 
 
@@ -324,19 +329,17 @@ try:
 
     names = [name for name in ("irdbd", "rpkid", "pubd")
              if cfg.getboolean("start_" + name, False)]
+    names.append("rcynic")
 
-    # In the long run this should probably become mandatory, but for
-    # the moment I'm getting installation errors because we don't yet
-    # have an [rcynic] section in rpki.conf, and I don't want to shave
-    # that yak today.
-
-    if cfg.has_section("rcynic"):
-        names.append("rcynic")
+    # For now, we quietly ignore missing sections rather than throwing an exception.
+    # I could make a case either way for this, but ignoring missing sections is a
+    # lot easier to clean up while debugging the installation scripts.
 
     for name in names:
-        udb = UserDB(args = args, name = name)
-        method = args.dispatch.replace("-", "_")
-        getattr(udb, method)()
+        if cfg.has_section(name):
+            udb = UserDB(args = args, name = name)
+            method = args.dispatch.replace("-", "_")
+            getattr(udb, method)()
 
 except Exception, e:
     if args.debug:

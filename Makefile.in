@@ -221,6 +221,6 @@ makemigrations:
 	${PYTHON} rp/config/rpki-confgen --read-xml rp/config/rpki-confgen.xml --autoconf --set myrpki::shared_sql_engine=sqlite3 \
 		--set myrpki::rpkid_sql_database=$$TEMP_DB --set myrpki::irdbd_sql_database=$$TEMP_DB --set myrpki::pubd_sql_database=$$TEMP_DB \
 		--pwgen myrpki::shared_sql_password --pwgen web_portal::secret-key --write-conf $$RPKI_CONF; \
-	for i in rpkid pubd irdb rcynicdb; do rp/config/rpki-manage makemigrations --settings rpki.django_settings.$$i; done
+	for i in rpkid pubd irdb rcynic; do rp/config/rpki-manage makemigrations --settings rpki.django_settings.$$i; done
 
 .FORCE:

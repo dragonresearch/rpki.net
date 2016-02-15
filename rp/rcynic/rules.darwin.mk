@@ -1,77 +1,41 @@
 # $Id$
 
 install-user-and-group: .FORCE
-	@if /usr/bin/dscl . -read "/Groups/${RCYNIC_GROUP}" >/dev/null 2>&1; \
+	@if /usr/bin/dscl . -read "/Groups/${RPKI_GROUP}" >/dev/null 2>&1; \
 	then \
-	    echo "You already have a group \"${RCYNIC_GROUP}\", so I will use it."; \
+	    echo "You already have a group \"${RPKI_GROUP}\", so I will use it."; \
 	elif gid="$$(/usr/bin/dscl . -list /Groups PrimaryGroupID | /usr/bin/awk 'BEGIN {gid = 501} $$2 >= gid {gid = 1 + $$2} END {print gid}')" && \
-	    /usr/bin/dscl . -create "/Groups/${RCYNIC_GROUP}" && \
-	    /usr/bin/dscl . -create "/Groups/${RCYNIC_GROUP}" RealName "${RCYNIC_GECOS}" && \
-	    /usr/bin/dscl . -create "/Groups/${RCYNIC_GROUP}" PrimaryGroupID "$$gid" && \
-	    /usr/bin/dscl . -create "/Groups/${RCYNIC_GROUP}" GeneratedUID "$$(/usr/bin/uuidgen)" && \
-	    /usr/bin/dscl . -create "/Groups/${RCYNIC_GROUP}" Password "*"; \
+	    /usr/bin/dscl . -create "/Groups/${RPKI_GROUP}" && \
+	    /usr/bin/dscl . -create "/Groups/${RPKI_GROUP}" RealName "${RPKI_GECOS}" && \
+	    /usr/bin/dscl . -create "/Groups/${RPKI_GROUP}" PrimaryGroupID "$$gid" && \
+	    /usr/bin/dscl . -create "/Groups/${RPKI_GROUP}" GeneratedUID "$$(/usr/bin/uuidgen)" && \
+	    /usr/bin/dscl . -create "/Groups/${RPKI_GROUP}" Password "*"; \
 	then \
-	    echo "Added group \"${RCYNIC_GROUP}\"."; \
+	    echo "Added group \"${RPKI_GROUP}\"."; \
 	else \
-	    echo "Adding group \"${RCYNIC_GROUP}\" failed..."; \
+	    echo "Adding group \"${RPKI_GROUP}\" failed..."; \
 	    echo "Please create it, then try again."; \
 	    exit 1; \
 	fi; \
-	if /usr/bin/dscl . -read "/Users/${RCYNIC_USER}" >/dev/null 2>&1; \
+	if /usr/bin/dscl . -read "/Users/${RPKI_USER}" >/dev/null 2>&1; \
 	then \
-	    echo "You already have a user \"${RCYNIC_USER}\", so I will use it."; \
+	    echo "You already have a user \"${RPKI_USER}\", so I will use it."; \
 	elif uid="$$(/usr/bin/dscl . -list /Users UniqueID | /usr/bin/awk 'BEGIN {uid = 501} $$2 >= uid {uid = 1 + $$2} END {print uid}')" && \
-	    /usr/bin/dscl . -create "/Users/${RCYNIC_USER}" && \
-	    /usr/bin/dscl . -create "/Users/${RCYNIC_USER}" UserShell "/usr/bin/false" && \
-	    /usr/bin/dscl . -create "/Users/${RCYNIC_USER}" RealName "${RCYNIC_GECOS}" && \
-	    /usr/bin/dscl . -create "/Users/${RCYNIC_USER}" UniqueID "$$uid" && \
-	    /usr/bin/dscl . -create "/Users/${RCYNIC_USER}" PrimaryGroupID "$$gid" && \
-	    /usr/bin/dscl . -create "/Users/${RCYNIC_USER}" NFSHomeDirectory "/var/empty" && \
-	    /usr/bin/dscl . -create "/Users/${RCYNIC_USER}" GeneratedUID "$$(/usr/bin/uuidgen)" && \
-	    /usr/bin/dscl . -create "/Users/${RCYNIC_USER}" Password "*"; \
+	    /usr/bin/dscl . -create "/Users/${RPKI_USER}" && \
+	    /usr/bin/dscl . -create "/Users/${RPKI_USER}" UserShell "/usr/bin/false" && \
+	    /usr/bin/dscl . -create "/Users/${RPKI_USER}" RealName "${RPKI_GECOS}" && \
+	    /usr/bin/dscl . -create "/Users/${RPKI_USER}" UniqueID "$$uid" && \
+	    /usr/bin/dscl . -create "/Users/${RPKI_USER}" PrimaryGroupID "$$gid" && \
+	    /usr/bin/dscl . -create "/Users/${RPKI_USER}" NFSHomeDirectory "/var/empty" && \
+	    /usr/bin/dscl . -create "/Users/${RPKI_USER}" GeneratedUID "$$(/usr/bin/uuidgen)" && \
+	    /usr/bin/dscl . -create "/Users/${RPKI_USER}" Password "*"; \
 	then \
-	    echo "Added user \"${RCYNIC_USER}\"."; \
+	    echo "Added user \"${RPKI_USER}\"."; \
 	else \
-	    echo "Adding user \"${RCYNIC_USER}\" failed..."; \
+	    echo "Adding user \"${RPKI_USER}\" failed..."; \
 	    echo "Please create it, then try again."; \
 	    exit 1; \
 	fi
-	@if /usr/bin/dscl . -read "/Groups/${RPKIRTR_GROUP}" >/dev/null 2>&1; \
-	then \
-	    echo "You already have a group \"${RPKIRTR_GROUP}\", so I will use it."; \
-	elif gid="$$(/usr/bin/dscl . -list /Groups PrimaryGroupID | /usr/bin/awk 'BEGIN {gid = 501} $$2 >= gid {gid = 1 + $$2} END {print gid}')" && \
-	    /usr/bin/dscl . -create "/Groups/${RPKIRTR_GROUP}" && \
-	    /usr/bin/dscl . -create "/Groups/${RPKIRTR_GROUP}" RealName "${RPKIRTR_GECOS}" && \
-	    /usr/bin/dscl . -create "/Groups/${RPKIRTR_GROUP}" PrimaryGroupID "$$gid" && \
-	    /usr/bin/dscl . -create "/Groups/${RPKIRTR_GROUP}" GeneratedUID "$$(/usr/bin/uuidgen)" && \
-	    /usr/bin/dscl . -create "/Groups/${RPKIRTR_GROUP}" Password "*"; \
-	then \
-	    echo "Added group \"${RPKIRTR_GROUP}\"."; \
-	else \
-	    echo "Adding group \"${RPKIRTR_GROUP}\" failed..."; \
-	    echo "Please create it, then try again."; \
-	    exit 1; \
-	fi; \
-	if /usr/bin/dscl . -read "/Users/${RPKIRTR_USER}" >/dev/null 2>&1; \
-	then \
-	    echo "You already have a user \"${RPKIRTR_USER}\", so I will use it."; \
-	elif uid="$$(/usr/bin/dscl . -list /Users UniqueID | /usr/bin/awk 'BEGIN {uid = 501} $$2 >= uid {uid = 1 + $$2} END {print uid}')" && \
-	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" && \
-	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" UserShell "/usr/bin/false" && \
-	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" RealName "${RPKIRTR_GECOS}" && \
-	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" UniqueID "$$uid" && \
-	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" PrimaryGroupID "$$gid" && \
-	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" NFSHomeDirectory "/var/empty" && \
-	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" GeneratedUID "$$(/usr/bin/uuidgen)" && \
-	    /usr/bin/dscl . -create "/Users/${RPKIRTR_USER}" Password "*"; \
-	then \
-	    echo "Added user \"${RPKIRTR_USER}\"."; \
-	else \
-	    echo "Adding user \"${RPKIRTR_USER}\" failed..."; \
-	    echo "Please create it, then try again."; \
-	    exit 1; \
-	fi
-
 
 install-shared-libraries: .FORCE
 	@echo "Copying required shared libraries" 

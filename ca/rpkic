@@ -1,21 +1,25 @@
 #!/usr/bin/env python
 
-# $Id$
+# Using a Python script to run sudo to run a Python script is a bit
+# silly, but it lets us use rpki.autoconf to locate sudo, lets us
+# avoid needing a custom setuid wrapper, lets us avoid another pass
+# through the adventures of shell quoting and tokenization, and
+# generally is just a lot simpler to implement correctly.
 #
-# Copyright (C) 2010-2011  Internet Systems Consortium ("ISC")
-#
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# OK, it's probably a few milliseconds slower.  Big deal.
 
 if __name__ == "__main__":
-    import rpki.rpkic
-    rpki.rpkic.main()
+
+    try:
+        import os
+        import sys
+        import rpki.autoconf
+
+        argv = [rpki.autoconf.SUDO, "-u", rpki.autoconf.RPKI_USER,
+                sys.executable, "-c", "import rpki.rpkic; rpki.rpkic.main()"]
+
+        os.execv(rpki.autoconf.SUDO, argv + sys.argv[1:])
+        sys.exit("rpkic startup failure, no exception so don't know why, sorry")
+
+    except Exception as e:
+        sys.exit("Couldn't exec sudo python rpkic: {!s}".format(e))

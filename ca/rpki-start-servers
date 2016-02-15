@@ -69,7 +69,8 @@ cfg = rpki.config.parser(set_filename = args.config, section = "myrpki")
 def run(name, old_flag = None):
     if cfg.getboolean("start_" + name, cfg.getboolean("run_" + name if old_flag is None else old_flag, False)):
         log_file = os.path.join(args.log_directory, name + ".log")
-        cmd = (os.path.join(rpki.autoconf.libexecdir, name), "--log-level", args.log_level)
+        cmd = (rpki.autoconf.SUDO, "-u", rpki.autoconf.RPKI_USER,
+               os.path.join(rpki.autoconf.libexecdir, name), "--log-level", args.log_level)
         if args.log_file:
             cmd += ("--log-file", log_file)
         elif args.log_rotating_file_kbytes:

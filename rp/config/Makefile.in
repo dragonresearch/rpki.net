@@ -1,0 +1,88 @@
+# $Id$
+
+PYTHON		= @PYTHON@
+
+INSTALL		= @INSTALL@ -m 555 
+
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+datarootdir	= @datarootdir@
+datadir		= @datadir@
+localstatedir	= @localstatedir@
+sharedstatedir	= @sharedstatedir@
+sysconfdir	= @sysconfdir@
+bindir		= @bindir@
+sbindir		= @sbindir@
+libexecdir	= @libexecdir@
+sysconfdir	= @sysconfdir@
+
+abs_builddir	= @abs_builddir@
+abs_top_srcdir	= @abs_top_srcdir@
+abs_top_builddir= @abs_top_builddir@
+srcdir          = @srcdir@
+
+CFG_INSTALL_TARGETS = @CFG_INSTALL_TARGETS@
+
+all:: rpki.rp.xml rpki.rp.sample.conf
+
+clean::
+	cd tests; $(MAKE) $@
+
+install:: ${CFG_INSTALL_TARGETS}
+
+install-always:: all
+	@echo
+	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
+	@echo
+	${INSTALL} -d ${DESTDIR}${sysconfdir}/rpki
+	${INSTALL} rpki.rp.xml rpki.rp.sample.conf ${DESTDIR}${sysconfdir}/rpki
+
+test uninstall deinstall::
+	@true
+
+distclean:: clean
+	rm -f Makefile
+
+rpki.rp.xml: ${abs_top_srcdir}/rpki/autoconf.py rpki-confgen rpki-confgen.xml
+	${PYTHON} rpki-confgen \
+		--read-xml rpki-confgen.xml \
+		--autoconf \
+		--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'` \
+		--set myrpki::rpkid_server_host=`hostname -f` \
+		--set myrpki::pubd_server_host=`hostname -f` \
+		--pwgen myrpki::shared_sql_password \
+		--pwgen web_portal::secret-key \
+		--set myrpki::run_rpkid=no \
+		--set myrpki::run_pubd=no \
+		--write-xml $@
+
+rpki.rp.sample.conf: rpki.rp.xml
+	${PYTHON} rpki-confgen \
+		--read-xml rpki.rp.xml \
+		--write-conf $@
+
+clean::
+	rm -f rpki.rp.xml rpki.rp.sample.conf
+
+install-postconf: \
+	install-user install-conf install-sql install-django
+
+# This should create user "rpki" and group "rpki", but rcynic already
+# does that...but we probably need to do it here instead, bother.
+
+install-user:
+	@true
+
+install-conf:
+	test -f ${DESTDIR}${sysconfdir}/rpki.conf ||\
+	cp -p ${DESTDIR}${sysconfdir}/rpki/rpki.rp.sample.conf ${DESTDIR}${sysconfdir}/rpki.conf
+
+#uninstall deinstall::
+#	rm -f ${DESTDIR}${sysconfdir}/rpki/rpki.rp.xml ${DESTDIR}${sysconfdir}/rpki/rpki.rp.sample.conf
+
+install-sql:
+	${sbindir}/rpki-sql-setup create
+
+install-django:
+	${sbindir}/rpki-manage syncdb --noinput
+	${sbindir}/rpki-manage migrate app

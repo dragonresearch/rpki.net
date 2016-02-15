@@ -5,51 +5,25 @@
 
 set -e
 
-setup_rpkid_user() {
-    if ! getent passwd rpkid >/dev/null
-    then
-	useradd -g rpkid -M -N -d /nonexistent -s /sbin/nologin -c "RPKI certification authority engine(s)" rpkid
-    fi
-}
-
-setup_rpkid_group() {
-    if ! getent group rpkid >/dev/null
-    then
-	groupadd rpkid
-    fi
-}
-
 setup_apache() {
     /usr/lib/rpki/rpkigui-apache-conf-gen --install --verbose
 }
 
-setup_rpki_conf() {
-    # Update /etc/rpki.conf.sample for this system, and copy it to
-    # /etc/rpki.conf if no configuration file exists yet.
+setup_config() {
 
-    # We don't (yet) have the ability to merge in settings from an
-    # existing rpki.conf, so we generate a new secret_key and a new
-    # SQL password every time, but that's harmless so long as we're
-    # careful not to overwrite an existing configuration.
+    rpki-confgen --read-xml /etc/rpki/rpki.rp.xml			\
+	--set myrpki::run_rpkid=yes					\
+	--set myrpki::run_pubd=yes					\
+	--write-xml  /etc/rpki/rpki.ca.xml				\
+	--write-conf /etc/rpki/rpki.ca.sample.conf
 
-    rpki-confgen --read-xml /etc/rpki/rpki-confgen.xml			\
-	--autoconf							\
-	--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'`		\
-	--set myrpki::rpkid_server_host=`hostname -f`			\
-	--set myrpki::pubd_server_host=`hostname -f`			\
-	--set myrpki::shared_sql_engine=postgresql			\
-	--pwgen myrpki::shared_sql_password				\
-	--pwgen web_portal::secret-key					\
-	--write-conf /etc/rpki.conf.sample
-
-    if test ! -f /etc/rpki.conf
+    if test ! -f /etc/rpki.conf || cmp -s /etc/rpki.conf /etc/rpki/rpki.rp.sample.conf
     then
-	cp -p /etc/rpki.conf.sample /etc/rpki.conf
+	cp -p /etc/rpki/rpki.ca.conf.sample /etc/rpki.conf
     fi
 }
 
 setup_sql() {
-    #rpki-sql-setup --mysql-defaults /etc/mysql/debian.cnf create
     rpki-sql-setup --debug --verbose --postgresql-root-username postgres create
 }
 
@@ -66,12 +40,7 @@ setup_cron() {
     t=$(hexdump -n 1 -e '"%u"' /dev/urandom) && echo "$(($t % 60)) */2 * * * nobody /usr/lib/rpki/rpkigui-import-routes" > /etc/cron.d/rpkigui-routeviews
     chmod 644 /etc/cron.d/rpkigui-routeviews
     ln -sf /usr/lib/rpki/rpkigui-check-expired /etc/cron.daily/rpkigui-check-expired
-
-    # This should be user rpkid, but I don't have permissions set up
-    # properly for that yet.  Arguably this should be integrated with
-    # rpkigui-check-expired anyway, not there yet either.
-
-    echo "30 3 * * * root /usr/sbin/rpkic update_bpki" >/etc/cron.d/rpki-update-bpki
+    echo "30 3 * * * rpki /usr/sbin/rpkic update_bpki" >/etc/cron.d/rpki-update-bpki
     chmod 644 /etc/cron.d/rpki-update-bpki
 }
 
@@ -90,10 +59,8 @@ setup_cron() {
 
 case "$1" in
     configure)
-	setup_rpkid_group
-	setup_rpkid_user
 	setup_apache
-	setup_rpki_conf
+	setup_config
 	setup_sql
 	setup_bpki
 	setup_django

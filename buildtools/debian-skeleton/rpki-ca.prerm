@@ -31,53 +31,13 @@ case "$1" in
 	rm -f /usr/share/rpki/rpkid.cer
 	rm -f /usr/share/rpki/rpkid.key
 
-	# Record what will be needed to drop the databases completely,
-	# while we still have the necessary configuration data, but
-	# postpone dropping the databases until the postrm script,
-	# since that's where we find out whether this is a purge.
-
-	#rpki-sql-setup --mysql-defaults /etc/mysql/debian.cnf script-drop /etc/rpki/drop_databases.sql
-	rpki-sql-setup --debug --verbose --postgresql-root-username postgres script-drop /etc/rpki/drop_databases.sql
-
 	# Clean up our cron jobs.
 
 	rm -f /etc/cron.d/rpkigui-routeviews
 	rm -f /etc/cron.daily/rpkigui-check-expired
 	rm -f /etc/cron.d/rpki-update-bpki
 
-	# Clean up what we did to Apache.  Modern version of this is
-	# just invocation of a Python script, but for now we also
-	# retain code needed to clean up nasty mess we created in the
-	# past, to avoid breaking old installations on upgrade.
-
-	# Remove the old stuff first, if the containing file even exists.
-
-	f=/etc/apache2/sites-available/default-ssl
-	if test -r $f
-	then
-	    awk < $f > ${f}.tmp '
-		BEGIN {
-		    conf_file = "/etc/rpki/apache.conf";
-		    conf_regexp = "^[ \t]*Include[ \t]+" conf_file "[ \t]*$";
-		}
-		$0 !~ conf_regexp {
-		    print;
-		}'
-
-	    if cmp -s ${f}.tmp ${f}.orig
-	    then
-		mv -f ${f}.orig $f
-		rm -f ${f}.tmp
-	    else
-		mv -f ${f}.tmp $f
-	    fi
-	fi
-
-	# At this point we've cleaned up our Apache config mess.
-	# Not sure whether we should do "service apache2 reload"
-	# here, one could make a case either way.  Skip for now.
-
-	# Now remove the new stuff.
+	# Clean up what we did to Apache.
 
 	/usr/lib/rpki/rpkigui-apache-conf-gen --remove --verbose
 

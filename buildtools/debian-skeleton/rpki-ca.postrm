@@ -22,13 +22,11 @@ set -e
 case "$1" in
 
     purge)
-	sql=/etc/rpki/drop_databases.sql
-	if test -f $sql
+	if cmp -s /etc/rpki.conf /etc/rpki/rpki.ca.sample.conf
 	then
-	    #mysql --defaults-file=/etc/mysql/debian.cnf --execute "source $sql"
-	    sudo -u postgres psql -f $sql
+	    cp -p /etc/rpki/rpki.rp.sample.conf /etc/rpki.conf
 	fi
-	rm -f /etc/rpki.conf /etc/rpki.conf.sample $sql
+	rm -f /etc/rpki/rpki.ca.sample.conf /etc/rpki/rpki.ca.xml
 	rm -f /etc/rpki/apache.conf /etc/rpki/apache.cer /etc/rpki/apache.key
     ;;
 

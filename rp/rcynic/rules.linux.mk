@@ -1,55 +1,36 @@
 # $Id$
 
 install-user-and-group: .FORCE
-	@if getent group ${RCYNIC_GROUP} >/dev/null; \
+	@if getent group ${RPKI_GROUP} >/dev/null; \
 	then \
-	    echo "You already have a group \"${RCYNIC_GROUP}\", so I will use it."; \
-	elif /usr/sbin/groupadd ${RCYNIC_GROUP}; \
+	    echo "You already have a group \"${RPKI_GROUP}\", so I will use it."; \
+	elif /usr/sbin/groupadd ${RPKI_GROUP}; \
 	then \
-	    echo "Added group \"${RCYNIC_GROUP}\"."; \
+	    echo "Added group \"${RPKI_GROUP}\"."; \
 	else \
-	    echo "Adding group \"${RCYNIC_GROUP}\" failed..."; \
+	    echo "Adding group \"${RPKI_GROUP}\" failed..."; \
 	    echo "Please create it, then try again."; \
 	    exit 1; \
 	fi
 	@nogroup='-N'; \
 	if test -f /etc/redhat-release; then read vendor release version < /etc/redhat-release; if test $$vendor = CentOS; then nogroup='-n'; fi; fi; \
-	if getent passwd ${RCYNIC_USER} >/dev/null; \
+	if getent passwd ${RPKI_USER} >/dev/null; \
 	then \
-	    echo "You already have a user \"${RCYNIC_USER}\", so I will use it."; \
-	elif /usr/sbin/useradd -g ${RCYNIC_GROUP} -M $$nogroup -d "${RCYNIC_DIR}" -s /sbin/nologin -c "${RCYNIC_GECOS}" ${RCYNIC_USER}; \
+	    echo "You already have a user \"${RPKI_USER}\", so I will use it."; \
+	elif /usr/sbin/useradd -g ${RPKI_GROUP} -M $$nogroup -d "${RCYNIC_DIR}" -s /sbin/nologin -c "${RPKI_GECOS}" ${RPKI_USER}; \
 	then \
-	    echo "Added user \"${RCYNIC_USER}\"."; \
+	    echo "Added user \"${RPKI_USER}\"."; \
 	else \
-	    echo "Adding user \"${RCYNIC_USER}\" failed..."; \
+	    echo "Adding user \"${RPKI_USER}\" failed..."; \
 	    echo "Please create it, then try again."; \
 	    exit 1; \
 	fi
-	@if getent group ${RPKIRTR_GROUP} >/dev/null; \
-	then \
-	    echo "You already have a group \"${RPKIRTR_GROUP}\", so I will use it."; \
-	elif /usr/sbin/groupadd ${RPKIRTR_GROUP}; \
-	then \
-	    echo "Added group \"${RPKIRTR_GROUP}\"."; \
-	else \
-	    echo "Adding group \"${RPKIRTR_GROUP}\" failed..."; \
-	    echo "Please create it, then try again."; \
-	    exit 1; \
-	fi
-	@nogroup='-N'; \
-	if test -f /etc/redhat-release; then read vendor release version < /etc/redhat-release; if test $$vendor = CentOS; then nogroup='-n'; fi; fi; \
-	if getent passwd ${RPKIRTR_USER} >/dev/null; \
-	then \
-	    echo "You already have a user \"${RPKIRTR_USER}\", so I will use it."; \
-	elif /usr/sbin/useradd -g ${RPKIRTR_GROUP} -M $$nogroup -d "${RPKIRTR_DIR}" -s /sbin/nologin -c "${RPKIRTR_GECOS}" ${RPKIRTR_USER}; \
-	then \
-	    echo "Added user \"${RPKIRTR_USER}\"."; \
-	else \
-	    echo "Adding user \"${RPKIRTR_USER}\" failed..."; \
-	    echo "Please create it, then try again."; \
-	    exit 1; \
-	fi
-	usermod -a -G ${RPKIRTR_GROUP} ${RCYNIC_USER}
+
+# This all looks like a relic of the days when we still tried to support rcynic running in a chroot jail, which
+# never really worked properly except on FreeBSD, and has since been overtaken by many other events.  Do we
+# still need this, even assuming anybody uses this installation instead of Debian packaging?
+#
+# Cleanup left for another day, but this looks pretty iffy.
 
 install-shared-libraries: .FORCE
 	@echo "Copying required shared libraries" 

@@ -7,6 +7,7 @@ LIBS		= @LIBS@
 PYTHON		= @PYTHON@
 INSTALL		= @INSTALL@ -m 555 
 TRANG		= @TRANG@
+SUDO		= @SUDO@
 
 prefix		= @prefix@
 exec_prefix	= @exec_prefix@
@@ -32,8 +33,8 @@ CA_TARGET	= @CA_TARGET@
 WSGI_DAEMON_PROCESS		= @WSGI_DAEMON_PROCESS@
 WSGI_PROCESS_GROUP		= @WSGI_PROCESS_GROUP@
 RCYNIC_DIR			= @RCYNIC_DIR@
-RCYNIC_USER			= @RCYNIC_USER@
-RCYNIC_GROUP			= @RCYNIC_GROUP@
+RPKI_USER			= @RPKI_USER@
+RPKI_GROUP			= @RPKI_GROUP@
 RCYNIC_HTML_DIR			= @RCYNIC_HTML_DIR@
 RRDTOOL				= @RRDTOOL@
 APACHE_VERSION			= @APACHE_VERSION@
@@ -127,38 +128,39 @@ VERSION: .FORCE
 	${PYTHON} buildtools/make-version.py
 
 rpki/autoconf.py: Makefile
-	@echo 'Generating $@';							\
-	(echo '# Automatically generated.  DO NOT EDIT.';			\
-	 echo ;									\
-	 echo 'bindir	      = "${bindir}"';					\
-	 echo 'datarootdir    = "${datarootdir}"';				\
-	 echo 'localstatedir  = "${localstatedir}"';				\
-	 echo 'sbindir	      = "${sbindir}"';					\
-	 echo 'sharedstatedir = "${sharedstatedir}"';				\
-	 echo 'sysconfdir     = "${sysconfdir}"';				\
-	 echo 'libexecdir     = "${libexecdir}"';				\
-	 echo ;									\
-	 echo 'WSGI_DAEMON_PROCESS	    = "${WSGI_DAEMON_PROCESS}"';	\
-	 echo 'WSGI_PROCESS_GROUP	    = "${WSGI_PROCESS_GROUP}"';		\
-	 echo 'RCYNIC_DIR		    = "${RCYNIC_DIR}"';			\
-	 echo 'RCYNIC_USER		    = "${RCYNIC_USER}"';		\
-	 echo 'RCYNIC_GROUP		    = "${RCYNIC_GROUP}"';		\
-	 echo 'RCYNIC_HTML_DIR		    = "${RCYNIC_HTML_DIR}"';		\
-	 echo 'RRDTOOL			    = "${RRDTOOL}"';			\
-	 echo 'APACHE_VERSION		    = "${APACHE_VERSION}"';		\
-	 echo 'WSGI_PYTHON_EGG_CACHE_DIR    = "${WSGI_PYTHON_EGG_CACHE_DIR}"';	\
-	 echo 'WSGI_PYTHON_EGG_CACHE_USER   = "${WSGI_PYTHON_EGG_CACHE_USER}"';	\
+	@echo 'Generating $@';                                                  \
+	(echo '# Automatically generated.  DO NOT EDIT.';                       \
+	 echo ;                                                                 \
+	 echo 'bindir         = "${bindir}"';                                   \
+	 echo 'datarootdir    = "${datarootdir}"';                              \
+	 echo 'localstatedir  = "${localstatedir}"';                            \
+	 echo 'sbindir        = "${sbindir}"';                                  \
+	 echo 'sharedstatedir = "${sharedstatedir}"';                           \
+	 echo 'sysconfdir     = "${sysconfdir}"';                               \
+	 echo 'libexecdir     = "${libexecdir}"';                               \
+	 echo ;                                                                 \
+	 echo 'WSGI_DAEMON_PROCESS          = "${WSGI_DAEMON_PROCESS}"';        \
+	 echo 'WSGI_PROCESS_GROUP           = "${WSGI_PROCESS_GROUP}"';         \
+	 echo 'RCYNIC_DIR                   = "${RCYNIC_DIR}"';                 \
+	 echo 'RPKI_USER                    = "${RPKI_USER}"';                  \
+	 echo 'RPKI_GROUP                   = "${RPKI_GROUP}"';                 \
+	 echo 'RCYNIC_HTML_DIR              = "${RCYNIC_HTML_DIR}"';            \
+	 echo 'RRDTOOL                      = "${RRDTOOL}"';                    \
+	 echo 'APACHE_VERSION               = "${APACHE_VERSION}"';             \
+	 echo 'WSGI_PYTHON_EGG_CACHE_DIR    = "${WSGI_PYTHON_EGG_CACHE_DIR}"';  \
+	 echo 'WSGI_PYTHON_EGG_CACHE_USER   = "${WSGI_PYTHON_EGG_CACHE_USER}"'; \
+	 echo 'SUDO                         = "${SUDO}"';                       \
 	) > $@
 
 setup_autoconf.py: rpki/autoconf.py
-	@echo 'Generating $@';					\
-	(cat rpki/autoconf.py;					\
-	 echo ;							\
+	@echo 'Generating $@';                                  \
+	(cat rpki/autoconf.py;                                  \
+	 echo ;                                                 \
 	 echo 'CFLAGS         = """${CFLAGS}"""';               \
 	 echo 'LDFLAGS        = """${LDFLAGS}"""';              \
 	 echo 'LIBS           = """${LIBS}"""';                 \
-	 echo 'RP_TARGET      = """${RP_TARGET}"""';		\
-	 echo 'CA_TARGET      = """${CA_TARGET}"""';		\
+	 echo 'RP_TARGET      = """${RP_TARGET}"""';            \
+	 echo 'CA_TARGET      = """${CA_TARGET}"""';            \
 	) > $@
 
 .FORCE:

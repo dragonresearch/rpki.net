@@ -96,7 +96,12 @@ if autoconf.RP_TARGET == "rp":
                        "rp/utils/print_rpki_manifest",
                        "rp/utils/scan_roas",
                        "rp/utils/scan_routercerts",
-                       "rp/utils/uri"])]
+                       "rp/utils/uri"]),
+                     (autoconf.sbindir,
+                      ["rp/config/rpki-confgen",
+                       "rp/config/rpki-sql-backup",
+                       "rp/config/rpki-sql-setup",
+                       "rp/config/rpki-manage"])]
 
 if autoconf.CA_TARGET == "ca":
     setup_args.update(
@@ -109,17 +114,11 @@ if autoconf.CA_TARGET == "ca":
                        (autoconf.datarootdir + "/rpki/media/js",
                         glob("rpki/gui/app/static/js/*")),
                        (autoconf.datarootdir + "/rpki/media/img",
-                        glob("rpki/gui/app/static/img/*")),
-                       (autoconf.datarootdir + "/rpki/upgrade-scripts",
-                        glob("ca/upgrade-scripts/*"))])
+                        glob("rpki/gui/app/static/img/*"))])
 
     scripts      += [(autoconf.sbindir,
                       ["ca/rpkic",
-                       "ca/rpki-confgen",
                        "ca/rpki-start-servers",
-                       "ca/rpki-sql-backup",
-                       "ca/rpki-sql-setup",
-                       "ca/rpki-manage",
                        "ca/rpkigui-query-routes",
                        "ca/irbe_cli"]),
                      (autoconf.libexecdir,

@@ -299,7 +299,8 @@
       </doc>
       <doc>
 	Current supported values are "mysql" (the default), "sqlite3",
-	and "postgresql".
+	and "postgresql".  In theory it should be straightforward to
+	add support for any SQL engine Django supports.
       </doc>
     </option>
 
@@ -320,6 +321,38 @@
         settings below.  The installation process generates a random
         value for this option, which satisfies this requirement, so
         ordinarily you should have no need to change this option.
+      </doc>
+    </option>
+
+    <option name  = "rcynic_sql_engine"
+	    value = "${myrpki::shared_sql_engine}">
+      <doc>
+	SQL engine to use for rcynic's database.  The default setting
+	of this variable should be fine.
+      </doc>
+    </option>
+
+    <option name  = "rcynic_sql_database"
+            value = "rcynic">
+      <doc>
+        SQL database name for rcynic's database.  The default setting of
+        this variable should be fine.
+      </doc>
+    </option>
+
+    <option name  = "rcynic_sql_username"
+            value = "${myrpki::shared_sql_username}">
+      <doc>
+        If you want to use a separate SQL username for rcynic's database,
+        set it here.
+      </doc>
+    </option>
+
+    <option name  = "rcynic_sql_password"
+            value = "${myrpki::shared_sql_password}">
+      <doc>
+        If you want to use a separate SQL password for rcynic's database,
+        set it here.
       </doc>
     </option>
 
@@ -416,6 +449,53 @@
       <doc>
         If you want to use a separate SQL password for pubd's database,
         set it here.
+      </doc>
+    </option>
+
+  </section>
+
+  <section name = "rcynic">
+
+    <doc>
+      rcynicng, unlike it's predecessor, uses the same `rpki.conf`
+      file as all the other programs in the RPKI toolkit.  Start
+      rcynicng with "`-c filename`" to choose a different
+      configuration file.  All options are in the "`[rcynic]`"
+      section.
+    </doc>
+
+    <doc>
+      This section isn't really fleshed out yet, and just contains the
+      settings needed for the new SQL code to work.  This will change
+      as the stuff that's currently only configurable on rcynicng's
+      command line becomes integrated with the configuration file.
+    </doc>
+
+    <option name  = "sql-engine"
+	    value = "${myrpki::rcynic_sql_engine}">
+      <doc>
+	SQL engine for rcynic.
+      </doc>
+    </option>
+
+    <option name  = "sql-database"
+            value = "${myrpki::rcynic_sql_database}">
+      <doc>
+        SQL database name for rcynic.
+      </doc>
+    </option>
+
+    <option name  = "sql-username"
+            value = "${myrpki::rcynic_sql_username}">
+      <doc>
+        SQL user name for rcynic.
+      </doc>
+    </option>
+
+    <option name  = "sql-password"
+            value = "${myrpki::rcynic_sql_password}">
+      <doc>
+        SQL password for rcynic.
       </doc>
     </option>
 

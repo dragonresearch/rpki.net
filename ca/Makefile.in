@@ -35,7 +35,11 @@ WSGI_PYTHON_EGG_CACHE_USER	= @WSGI_PYTHON_EGG_CACHE_USER@
 
 CA_INSTALL_TARGETS	= @CA_INSTALL_TARGETS@
 
-all:: examples/rpki.conf
+# Apache configuration may end up moving to common runtime config, but
+# that yak will have to wait for another day to get its shave.
+
+all::
+	@true
 
 clean::
 	cd tests; $(MAKE) $@
@@ -43,11 +47,8 @@ clean::
 install:: ${CA_INSTALL_TARGETS}
 
 install-always:: all
-	@echo
-	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
-	@echo
-	${INSTALL} examples/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample
 	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/publication
+	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/rrdp-publication
 
 uninstall deinstall::
 	-${libexecdir}/rpkigui-apache-conf-gen --remove --verbose
@@ -62,30 +63,8 @@ distclean:: clean
 	cd tests; ${MAKE} $@
 	rm -f Makefile
 
-examples/rpki.conf: ${abs_top_srcdir}/rpki/autoconf.py rpki-confgen rpki-confgen.xml
-	${PYTHON} rpki-confgen \
-		--read-xml rpki-confgen.xml \
-		--autoconf \
-		--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'` \
-		--set myrpki::rpkid_server_host=`hostname -f` \
-		--set myrpki::pubd_server_host=`hostname -f` \
-		--pwgen myrpki::shared_sql_password \
-		--pwgen web_portal::secret-key \
-		--write-conf $@
-
-clean::
-	rm -f examples/rpki.conf
-
 install-postconf: \
-	install-user install-egg-cache install-conf install-apache install-mysql install-django install-bpki install-cron
-
-# This should create user "rpkid" and group "rpkid", but as we have
-# not yet tested our ability to run in such a configuration, this
-# would be a little premature.  Can steal Makefile code for this from
-# rcynic when we're ready to do something with it.
-
-install-user:
-	@true
+	install-egg-cache install-conf install-apache install-bpki install-cron
 
 # This is only necessary on some platforms (currently FreeBSD,
 # due to shortcomings in the way that Python eggs are installed
@@ -99,36 +78,24 @@ install-egg-cache:
 		fi; \
 	fi
 
-# We used to play the FreeBSD game of copying rpki.conf.sample to
-# rpki.conf on install and removing rpki.conf if it's identical to
-# rpki.conf.sample in uninstall, but that turns out to work poorly
-# with generated passwords.  So now we copy rpki.conf.sample if and
-# only if rpki.conf does not exist, and we leave removal of rpki.conf
-# for the user to deal with.  This in turn leaves us with a different
-# problem of how to upgrade rpki.conf, but at least in the FreeBSD
-# universe we're supposed to leave that problem for the user.
-
 install-conf:
-	if test -f ${DESTDIR}${sysconfdir}/rpki.conf; \
+	${sbindir}/rpki-confgen \
+		--read-xml ${DESTDIR}${sysconfdir}/rpki/rpki.rp.xml \
+		--set myrpki::run_rpkid=yes \
+		--set myrpki::run_pubd=yes \
+		--write-xml ${DESTDIR}${sysconfdir}/rpki/rpki.ca.xml \
+		--write-conf ${DESTDIR}${sysconfdir}/rpki/rpki.ca.sample.conf
+	if test ! -f ${DESTDIR}${sysconfdir}/rpki.conf ||\
+		cmp -s ${DESTDIR}${sysconfdir}/rpki.conf ${DESTDIR}${sysconfdir}/rpki/rpki.rp.sample.conf;\
 	then \
-	    true; \
-	else \
-	    cp -p ${DESTDIR}${sysconfdir}/rpki.conf.sample ${DESTDIR}${sysconfdir}/rpki.conf; \
+		cp -p ${DESTDIR}${sysconfdir}/rpki/rpki.ca.sample.conf ${DESTDIR}${sysconfdir}/rpki.conf
 	fi
 
-uninstall deinstall::
-#	if cmp -s ${DESTDIR}${sysconfdir}/rpki.conf ${DESTDIR}${sysconfdir}/rpki.conf.sample; then rm -f ${DESTDIR}${sysconfdir}/rpki.conf; else true; fi
-	rm -f ${DESTDIR}${sysconfdir}/rpki.conf.sample
+#uninstall deinstall::
+#	rm -f ${DESTDIR}${sysconfdir}/rpki/rpki.ca.xml ${DESTDIR}${sysconfdir}/rpki/rpki.ca.sample.conf
 
 install-apache:
 	${libexecdir}/rpkigui-apache-conf-gen --install --verbose
-
-install-mysql:
-	${sbindir}/rpki-sql-setup create
-
-install-django:
-	${sbindir}/rpki-manage syncdb --noinput
-	${sbindir}/rpki-manage migrate app
 
 install-bpki:
 	${sbindir}/rpkic initialize_server_bpki
@@ -150,11 +117,8 @@ uninstall deinstall:: uninstall-cron-using-crontab
 # Code for setting up and tearing down cron jobs using the crontab(1)
 # program.  We don't use this on all platforms, but we do use it on
 # more than one, so it's broken out here as common code.
-#
-# CRONTAB_USER really should be rpkid, but we don't have the rest of
-# the package set up for that yet, so run it as root for now.
 
-CRONTAB_USER = root
+CRONTAB_USER = rpki
 
 install-cron-using-crontab:
 	@crontab -l -u ${CRONTAB_USER} 2>/dev/null |						\

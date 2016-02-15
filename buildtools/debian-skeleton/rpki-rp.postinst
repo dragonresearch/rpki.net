@@ -5,54 +5,63 @@
 
 set -e
 
-setup_groups() {
-    if ! getent group rcynic >/dev/null
+setup_user() {
+    if ! getent group rpki >/dev/null
     then
-	groupadd rcynic
+	groupadd rpki
     fi
-    if ! getent group rpkirtr >/dev/null
+    if ! getent passwd rpki >/dev/null
     then
-	groupadd rpkirtr
+	useradd -g rpki -M -N -d /var/rcynic -s /sbin/nologin -c "RPKI system software" rpki
     fi
-}
-
-setup_users() {
-    if ! getent passwd rcynic >/dev/null
-    then
-	useradd -g rcynic -M -N -d /var/rcynic -s /sbin/nologin -c "RPKI validation system" rcynic
-    fi
-    if ! getent passwd rpkirtr >/dev/null
-    then
-	useradd -g rpkirtr -M -N -d /var/rcynic/rpki-rtr -s /sbin/nologin -c "RPKI router server" rpkirtr
-    fi
-    usermod -a -G rpkirtr rcynic
 }
 
 setup_directories() {
-    install -o rcynic -g rcynic -d /var/rcynic/data /var/rcynic/rpki-rtr
-    if test -d /var/www/html && test -d /var/www/rcynic && test ! -d /var/www/html/rcynic
+    install -o rpki -g rpki -d /var/rcynic/data /var/rcynic/rpki-rtr /var/rcynic/rpki-rtr/sockets /var/www/html/rcynic
+}
+
+setup_config() {
+
+    rpki-confgen --read-xml /etc/rpki/rpki-confgen.xml		\
+	--autoconf						\
+	--set myrpki::handle=`hostname -f | sed 's/[.]/_/g'`	\
+	--set myrpki::rpkid_server_host=`hostname -f`		\
+	--set myrpki::pubd_server_host=`hostname -f`		\
+	--set myrpki::shared_sql_engine=postgresql		\
+	--set myrpki::rcynic_sql_database=rpki			\
+	--set myrpki::rpkid_sql_database=rpki			\
+	--set myrpki::irdbd_sql_database=rpki			\
+	--set myrpki::pubd_sql_database=rpki			\
+	--pwgen myrpki::shared_sql_password			\
+	--pwgen web_portal::secret-key				\
+	--set myrpki::run_rpkid=no				\
+	--set myrpki::run_pubd=no				\
+	--write-xml  /etc/rpki/rpki.rp.xml			\
+	--write-conf /etc/rpki/rpki.rp.sample.conf
+
+    if test ! -f /etc/rpki.conf
     then
-	mv /var/www/rcynic /var/www/html/rcynic
-    elif test -d /var/www/html
-    then
-	install -o rcynic -g rcynic -d /var/www/html/rcynic
+	cp -p /etc/rpki/rpki.rp.sample.conf /etc/rpki.conf
     fi
-    install -o rpkirtr -g rcynic -m 775 -d /var/rcynic/rpki-rtr/sockets
+}
+
+setup_sql() {
+    rpki-sql-setup --debug --verbose --postgresql-root-username postgres create
 }
 
 # We want to pick a *random* minute for rcynic to run, to spread load
 # on repositories, which is why we don't just use a package crontab.
 
-setup_rcynic_cron() {
-    if test "X`crontab -l -u rcynic 2>/dev/null`" = "X"
+setup_cron() {
+    if test "X`crontab -l -u rpki 2>/dev/null`" = "X"
     then
 	awk -v t=`hexdump -n 2 -e '"%u\n"' /dev/urandom` '
             BEGIN {printf "MAILTO=root\n%u * * * *\texec /usr/bin/rcynic-cron\n", t % 60}' |
-	crontab -u rcynic -
+	crontab -u rpki -
     fi
 }
 
-setup_rpkirtr_listener() {
+setup_xinetd() {
     if test -f /var/run/xinetd.pid
     then
 	kill -HUP `cat /var/run/xinetd.pid`
@@ -74,11 +83,12 @@ setup_rpkirtr_listener() {
 
 case "$1" in
     configure)
-	setup_groups
-	setup_users
+	setup_user
 	setup_directories
-	setup_rcynic_cron
-	setup_rpkirtr_listener
+	setup_config
+	setup_sql
+	setup_cron
+	setup_xinetd
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

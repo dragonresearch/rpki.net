@@ -1,6 +1,6 @@
 # $Id$
 
-SUBDIRS = rcynic rpki-rtr utils
+SUBDIRS = config rcynic rpki-rtr utils
 
 all clean test distclean install deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done

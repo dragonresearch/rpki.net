@@ -1,4 +1,4 @@
-etc/rcynic.conf
+etc/rpki/rpki-confgen.xml
 etc/rpki/trust-anchors
 etc/xinetd.d/rpki-rtr
 usr/bin

@@ -3,47 +3,25 @@
 case $2 in
 
 PRE-INSTALL)
-    if /usr/sbin/pw groupshow "rcynic" 2>/dev/null
+    if /usr/sbin/pw groupshow "rpki" 2>/dev/null
     then
-        echo "You already have a group \"rcynic\", so I will use it."
-    elif /usr/sbin/pw groupadd rcynic
+        echo "You already have a group \"rpki\", so I will use it."
+    elif /usr/sbin/pw groupadd rpki
     then
-        echo "Added group \"rcynic\"."
+        echo "Added group \"rpki\"."
     else
-        echo "Adding group \"rcynic\" failed..."
+        echo "Adding group \"rpki\" failed..."
         echo "Please create it, then try again."
         exit 1
     fi
-    if /usr/sbin/pw usershow "rcynic" 2>/dev/null
+    if /usr/sbin/pw usershow "rpki" 2>/dev/null
     then
-        echo "You already have a user \"rcynic\", so I will use it."
-    elif /usr/sbin/pw useradd rcynic -g rcynic -h - -d /nonexistant -s /usr/sbin/nologin -c "RPKI validation system"
+        echo "You already have a user \"rpki\", so I will use it."
+    elif /usr/sbin/pw useradd rpki -g rpki -h - -d /nonexistant -s /usr/sbin/nologin -c "RPKI system daemons"
     then
-        echo "Added user \"rcynic\"."
+        echo "Added user \"rpki\"."
     else
-        echo "Adding user \"rcynic\" failed..."
-        echo "Please create it, then try again."
-        exit 1
-    fi
-    if /usr/sbin/pw groupshow "rpkirtr" 2>/dev/null
-    then
-        echo "You already have a group \"rpkirtr\", so I will use it."
-    elif /usr/sbin/pw groupadd rpkirtr
-    then
-        echo "Added group \"rpkirtr\"."
-    else
-        echo "Adding group \"rpkirtr\" failed..."
-        echo "Please create it, then try again."
-        exit 1
-    fi
-    if /usr/sbin/pw usershow "rpkirtr" 2>/dev/null
-    then
-        echo "You already have a user \"rpkirtr\", so I will use it."
-    elif /usr/sbin/pw useradd rpkirtr -g rpkirtr -h - -d /nonexistant -s /usr/sbin/nologin -c "RPKI router server"
-    then
-        echo "Added user \"rpkirtr\"."
-    else
-        echo "Adding user \"rpkirtr\" failed..."
+        echo "Adding user \"rpki\" failed..."
         echo "Please create it, then try again."
         exit 1
     fi
@@ -55,25 +33,24 @@ POST-INSTALL)
 	echo "Creating /var/rcynic"
 	/usr/bin/install -o root -g wheel -d /var/rcynic
     fi
-    for dir in /var/rcynic/data /var/rcynic/rpki-rtr
+    for dir in /var/rcynic/data /var/rcynic/rpki-rtr /var/rcynic/rpki-rtr/sockets
     do
-	/usr/bin/install -o rcynic -g rcynic -d $dir
+	/usr/bin/install -o rpki -g rpki -d $dir
     done
-    /usr/bin/install -o rpkirtr -g rcynic -m 775 -d /var/rcynic/rpki-rtr/sockets
-    if test ! -f /usr/local/etc/rcynic.conf
+    if test ! -f /usr/local/etc/rpki.conf
     then
-	/bin/cp -p /usr/local/etc/rcynic.conf.sample /usr/local/etc/rcynic.conf
+	/bin/cp -p /usr/local/etc/rpki.conf.sample /usr/local/etc/rpki.conf
     fi
     htmldir=/usr/local/www/apache%%APACHE_VERSION%%/data/rcynic
-    /usr/bin/install -o rcynic -g rcynic -d $htmldir
-    if test "X`/usr/bin/crontab -l -u rcynic 2>/dev/null`" != "X"
+    /usr/bin/install -o rpki -g rpki -d $htmldir
+    if test "X`/usr/bin/crontab -l -u rpki 2>/dev/null`" != "X"
     then
-	echo "rcynic user already has a crontab, leaving it alone"
+	echo "rpki user already has a crontab, leaving it alone"
     else
-	echo "Setting up rcynic's crontab to run rcynic-cron script"
+	echo "Setting up rpki's crontab to run rcynic-cron script"
 	/usr/bin/awk -v t=`/usr/bin/hexdump -n 2 -e '"%u\n"' /dev/random` '
             BEGIN {printf "MAILTO=root\n%u * * * *\texec  /usr/local/bin/rcynic-cron\n", t % 60}' |
-	/usr/bin/crontab -u rcynic -
+	/usr/bin/crontab -u rpki -
     fi
     echo "Setting up rpki-rtr listener under inetd"
     if /usr/bin/egrep -q '^rpki-rtr' /etc/services
@@ -101,7 +78,7 @@ POST-INSTALL)
     if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp[ 	]" /etc/inetd.conf
     then
         echo "You already have an /etc/inetd.conf entry for rpki-rtr on TCPv4, so I will use it."
-    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp	nowait	rpkirtr	/usr/local/bin/rpki-rtr	rpki-rtr server /var/rcynic/rpki-rtr"
+    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp	nowait	rpki	/usr/local/bin/rpki-rtr	rpki-rtr server /var/rcynic/rpki-rtr"
     then
         echo "Added rpki-rtr for TCPv4 to /etc/inetd.conf."
     else
@@ -111,7 +88,7 @@ POST-INSTALL)
     if /usr/bin/egrep -q "rpki-rtr[ 	]+stream[ 	]+tcp6[ 	]" /etc/inetd.conf
     then
         echo "You already have an /etc/inetd.conf entry for rpki-rtr on TCPv6, so I will use it."
-    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp6	nowait	rpkirtr	/usr/local/bin/rpki-rtr	rpki-rtr server /var/rcynic/rpki-rtr"
+    elif echo >>/etc/inetd.conf "rpki-rtr	stream	tcp6	nowait	rpki	/usr/local/bin/rpki-rtr	rpki-rtr server /var/rcynic/rpki-rtr"
     then
         echo "Added rpki-rtr for TCPv6 to /etc/inetd.conf."
     else

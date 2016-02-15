@@ -138,6 +138,7 @@ AC_PATH_PROG([SORT], [sort])
 AC_PATH_PROG([RRDTOOL], [rrdtool])
 AC_PATH_PROG([TRANG], [trang], [\${abs_top_srcdir}/buildtools/trang-not-found])
 AC_PATH_PROG([RSYNC], [rsync])
+AC_PATH_PROG([SUDO], [sudo])
 
 # See whether we need to check for dependencies that we only need at
 # runtime.  We do this by default when compiling from source to avoid
@@ -384,7 +385,7 @@ case $enable_rcynic_jail in
 		RCYNIC_CONF_RSYNC="${RSYNC}"
 		RCYNIC_CONF_DATA="${rcynic_base_dir}/data"
 		RCYNIC_CONF_TA_DIR='${sysconfdir}/rpki/trust-anchors'
-		RCYNIC_CRON_USER='${RCYNIC_USER}'
+		RCYNIC_CRON_USER='${RPKI_USER}'
 		RCYNIC_JAIL_DIRS=''
 		;;
 	*)
@@ -406,8 +407,8 @@ AC_MSG_RESULT([$use_rcynic_jail])
 # Perhaps there should be a way to set these, but for now just
 # wire them in here so at least they're consistent in all Makefiles.
 
-AC_SUBST(RCYNIC_USER,  [rcynic])
-AC_SUBST(RCYNIC_GROUP, [rcynic])
+AC_SUBST(RPKI_USER,    [rpki])
+AC_SUBST(RPKI_GROUP,   [rpki])
 
 if test $use_rcynic_jail = yes && test "X$LD_STATIC_FLAG" != "X"
 then
@@ -487,10 +488,13 @@ AC_SUBST(RCYNIC_HTML_DIR)
 
 # Sort out which things to install, depending on rcynic jail status and whether
 # we're doing final target installation.
+#
+# As things have evolved, this a bit repetitive.  Simplify someday, maybe.
 
 RCYNIC_INSTALL_TARGETS='install-always'
 RTR_ORIGIN_INSTALL_TARGETS='install-always'
 CA_INSTALL_TARGETS='install-always'
+CFG_INSTALL_TARGETS='install-always'
 
 if test $use_rcynic_jail = yes
 then
@@ -502,11 +506,13 @@ then
 	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-postconf"
 	RTR_ORIGIN_INSTALL_TARGETS="$RTR_ORIGIN_INSTALL_TARGETS install-postconf"
 	CA_INSTALL_TARGETS="$CA_INSTALL_TARGETS install-postconf"
+	CFG_INSTALL_TARGETS="$CFG_INSTALL_TARGETS install-postconf"
 fi
 
 AC_SUBST(RCYNIC_INSTALL_TARGETS)
 AC_SUBST(RTR_ORIGIN_INSTALL_TARGETS)
 AC_SUBST(CA_INSTALL_TARGETS)
+AC_SUBST(CFG_INSTALL_TARGETS)
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If

@@ -23,6 +23,13 @@ case "$1" in
 
     purge)
 	rm -rf /var/rcynic
+	sql=/etc/rpki/drop_databases.sql
+	if test -f $sql
+	then
+	    sudo -u postgres psql -f $sql
+	    rm -f $sql
+	fi
+	rm -f /etc/rpki/rpki.rp.sample.conf /etc/rpki/rpki.rp.xml /etc/rpki.conf
     ;;
 
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

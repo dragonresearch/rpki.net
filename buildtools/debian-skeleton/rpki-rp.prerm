@@ -20,16 +20,25 @@ set -e
 case "$1" in
     remove)
 
-	crontab -l -u rcynic 2>/dev/null | awk '
+	# Record what will be needed to drop the databases completely,
+	# while we still have the necessary configuration data, but
+	# postpone dropping the databases until the postrm script,
+	# since that's where we find out whether this is a purge.
+
+	rpki-sql-setup --debug --verbose --postgresql-root-username postgres script-drop /etc/rpki/drop_databases.sql
+
+	# Clean up our cron job.
+
+	crontab -l -u rpki 2>/dev/null | awk '
 	    $0 !~ "exec /usr/bin/rcynic-cron" {
 		line[++n] = $0;
 	    }
 	    END {
 		if (n)
 		    for (i = 1; i <= n; i++)
-			print line[i] | "crontab -u rcynic -";
+			print line[i] | "crontab -u rpki -";
 		else
-		    system("crontab -u rcynic -r");
+		    system("crontab -u rpki -r");
 	    }'
 	;;
 

@@ -74,9 +74,9 @@ if args.chroot and not we_are_root:
     sys.exit("Only root can --chroot")
 
 try:
-    pw = pwd.getpwnam(rpki.autoconf.RCYNIC_USER)
+    pw = pwd.getpwnam(rpki.autoconf.RPKI_USER)
 except KeyError:
-    sys.exit("Could not find passwd entry for user %s" % rpki.autoconf.RCYNIC_USER)
+    sys.exit("Could not find passwd entry for user %s" % rpki.autoconf.RPKI_USER)
 
 try:
     lock = os.open(os.path.join(rpki.autoconf.RCYNIC_DIR, "data/lock"),

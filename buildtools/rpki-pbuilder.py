@@ -201,7 +201,7 @@ class Release(object):
                     os.unlink(os.path.join(dsc_dir, fn))
             run("rm", "-rf", "debian", cwd = args.svn_tree)
             run(sys.executable, "buildtools/make-version.py", cwd = args.svn_tree)
-            run(sys.executable, "buildtools/build-ubuntu-ports.py", "--version-suffix", self.release, cwd = args.svn_tree)
+            run(sys.executable, "buildtools/build-debian-packages.py", "--version-suffix", self.release, cwd = args.svn_tree)
             run("dpkg-buildpackage", "-S", "-us", "-uc", "-rfakeroot", cwd = args.svn_tree)
 
         if not os.path.exists(self.basefile):

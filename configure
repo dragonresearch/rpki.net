@@ -631,13 +631,14 @@ OPENSSL_TARGET
 WSGI_PYTHON_EGG_CACHE_USER
 WSGI_PYTHON_EGG_CACHE_DIR
 SETUP_PY_INSTALL_LAYOUT
+CFG_INSTALL_TARGETS
 CA_INSTALL_TARGETS
 RTR_ORIGIN_INSTALL_TARGETS
 RCYNIC_INSTALL_TARGETS
 RCYNIC_HTML_DIR
 RCYNIC_STATIC_RSYNC
-RCYNIC_GROUP
-RCYNIC_USER
+RPKI_GROUP
+RPKI_USER
 RCYNIC_CRON_USER
 RCYNIC_CONF_TA_DIR
 RCYNIC_CONF_DATA
@@ -646,6 +647,7 @@ RCYNIC_BIN_RCYNIC
 RCYNIC_TA_DIR
 RCYNIC_CONF_FILE
 RCYNIC_JAIL_DIRS
+SUDO
 RSYNC
 TRANG
 RRDTOOL
@@ -4246,6 +4248,46 @@ $as_echo "no" >&6; }
 fi
 
 
+# Extract the first word of "sudo", so it can be a program name with args.
+set dummy sudo; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_path_SUDO+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  case $SUDO in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_SUDO="$SUDO" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_path_SUDO="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+  ;;
+esac
+fi
+SUDO=$ac_cv_path_SUDO
+if test -n "$SUDO"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $SUDO" >&5
+$as_echo "$SUDO" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
 
 # See whether we need to check for dependencies that we only need at
 # runtime.  We do this by default when compiling from source to avoid
@@ -4583,7 +4625,7 @@ case $enable_rcynic_jail in
 		RCYNIC_CONF_RSYNC="${RSYNC}"
 		RCYNIC_CONF_DATA="${rcynic_base_dir}/data"
 		RCYNIC_CONF_TA_DIR='${sysconfdir}/rpki/trust-anchors'
-		RCYNIC_CRON_USER='${RCYNIC_USER}'
+		RCYNIC_CRON_USER='${RPKI_USER}'
 		RCYNIC_JAIL_DIRS=''
 		;;
 	*)
@@ -4606,9 +4648,9 @@ $as_echo "$use_rcynic_jail" >&6; }
 # Perhaps there should be a way to set these, but for now just
 # wire them in here so at least they're consistent in all Makefiles.
 
-RCYNIC_USER=rcynic
+RPKI_USER=rpki
 
-RCYNIC_GROUP=rcynic
+RPKI_GROUP=rpki
 
 
 if test $use_rcynic_jail = yes && test "X$LD_STATIC_FLAG" != "X"
@@ -4693,10 +4735,13 @@ $as_echo "$RCYNIC_HTML_DIR" >&6; }
 
 # Sort out which things to install, depending on rcynic jail status and whether
 # we're doing final target installation.
+#
+# As things have evolved, this a bit repetitive.  Simplify someday, maybe.
 
 RCYNIC_INSTALL_TARGETS='install-always'
 RTR_ORIGIN_INSTALL_TARGETS='install-always'
 CA_INSTALL_TARGETS='install-always'
+CFG_INSTALL_TARGETS='install-always'
 
 if test $use_rcynic_jail = yes
 then
@@ -4708,7 +4753,9 @@ then
 	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-postconf"
 	RTR_ORIGIN_INSTALL_TARGETS="$RTR_ORIGIN_INSTALL_TARGETS install-postconf"
 	CA_INSTALL_TARGETS="$CA_INSTALL_TARGETS install-postconf"
+	CFG_INSTALL_TARGETS="$CFG_INSTALL_TARGETS install-postconf"
 fi
+
 
 
 
@@ -5071,7 +5118,7 @@ fi
 
 if test $build_rp_tools = yes
 then
-	ac_config_files="$ac_config_files rp/Makefile rp/rcynic/Makefile rp/rcynic/static-rsync/Makefile rp/utils/Makefile rp/rpki-rtr/Makefile"
+	ac_config_files="$ac_config_files rp/Makefile rp/config/Makefile rp/rcynic/Makefile rp/rcynic/static-rsync/Makefile rp/utils/Makefile rp/rpki-rtr/Makefile"
 
 fi
 
@@ -5825,6 +5872,7 @@ do
     "openssl/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/Makefile" ;;
     "openssl/tests/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/tests/Makefile" ;;
     "rp/Makefile") CONFIG_FILES="$CONFIG_FILES rp/Makefile" ;;
+    "rp/config/Makefile") CONFIG_FILES="$CONFIG_FILES rp/config/Makefile" ;;
     "rp/rcynic/Makefile") CONFIG_FILES="$CONFIG_FILES rp/rcynic/Makefile" ;;
     "rp/rcynic/static-rsync/Makefile") CONFIG_FILES="$CONFIG_FILES rp/rcynic/static-rsync/Makefile" ;;
     "rp/utils/Makefile") CONFIG_FILES="$CONFIG_FILES rp/utils/Makefile" ;;

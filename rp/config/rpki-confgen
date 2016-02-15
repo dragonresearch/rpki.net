@@ -140,7 +140,7 @@ def wiki_header(f, ident, toc):
     f.write("[[PageOutline]]\n")
 
 def conf_header(f, ident):
-    f.write(textproc.dedent('''\
+    f.write(textwrap.dedent('''\
         # Automatically generated.  Edit as needed, but be careful of overwriting.
         #
         # Generated from {ident}
@@ -200,7 +200,7 @@ class main(object):
         self.option_map = None
         root = ElementTree(file = arg).getroot()
         self.ident = root.get("ident")
-        self.sections.extend(Section.from_xml(x) for x in root)
+        self.sections.extend(Section.from_xml(x) for x in root.iterchildren("section"))
         self.option_map = {}
         self.section_map = {}
         for section in self.sections:
@@ -268,11 +268,10 @@ class main(object):
                 section.to_wiki(f)
 
     def do_write_conf(self, arg):
-        with open(arg, "w") as f:
-            conf_header(f, self.ident)
-            width = max(s.width for s in self.sections)
-            for section in self.sections:
-                section.to_conf(f, width)
+        conf_header(arg, self.ident)
+        width = max(s.width for s in self.sections)
+        for section in self.sections:
+            section.to_conf(arg, width)
 
     def do_toc(self, arg):
         self.toc = arg

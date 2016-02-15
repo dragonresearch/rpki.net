@@ -26,7 +26,7 @@ CFG_INSTALL_TARGETS = @CFG_INSTALL_TARGETS@
 all:: rpki.rp.xml rpki.rp.sample.conf
 
 clean::
-	cd tests; $(MAKE) $@
+	@true
 
 install:: ${CFG_INSTALL_TARGETS}
 

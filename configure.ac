@@ -821,6 +821,7 @@ fi
 if test $build_rp_tools = yes
 then
 	AC_CONFIG_FILES([rp/Makefile
+			 rp/config/Makefile
 			 rp/rcynic/Makefile
 			 rp/rcynic/static-rsync/Makefile
 			 rp/utils/Makefile

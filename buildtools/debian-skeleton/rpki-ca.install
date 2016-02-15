@@ -1,3 +1,6 @@
 usr/lib/rpki
-usr/sbin
+usr/sbin/irbe_cli
+usr/sbin/rpki-start-servers
+usr/sbin/rpkic
+usr/sbin/rpkigui-query-routes
 usr/share/rpki

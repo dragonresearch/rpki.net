@@ -54,10 +54,6 @@ class Abstract_Driver(object):
         else:
             return True
 
-    def db_exists(self, udb):
-        self.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s", (udb.database,))
-        return bool(self.fetchone()[0])
-
     def fetchone(self):
         return self._cur.fetchone()
 
@@ -87,6 +83,10 @@ class MySQL_Driver(Abstract_Driver):
 
     def _db_accessible_test(self, udb):
         self.driver.connect(db = udb.database, user = udb.username, passwd = udb.password).close()
+
+    def db_exists(self, udb):
+        self.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{0.database}'".format(udb))
+        return bool(self.fetchone()[0])
 
     def execute(*args):
         try:
@@ -203,27 +203,27 @@ class PostgreSQL_Driver(Abstract_Driver):
         finally:
             self._seteuid(uid)
 
-    def _role_in_use(self, udb):
-        self.execute('''\
+    def db_exists(self, udb):
+        self.execute("SELECT COUNT(*) FROM pg_database WHERE datname = '{0.database}'".format(udb))
+        return bool(self.fetchone()[0])
+
+    def role_in_use(self, udb):
+        self.execute(textwrap.dedent('''\
             SELECT COUNT(*) FROM pg_database
             JOIN pg_roles ON pg_database.datdba = pg_roles.oid
-            WHERE pg_roles.rolname = %s''', (udb.username,))
+            WHERE pg_roles.rolname = '{0.username}'
+            '''.format(udb)))
         return bool(self.fetchone()[0])
 
     def create(self, udb):
-        self.execute('''\
-            DO $$ BEGIN
-                IF NOT EXISTS (SELECT * FROM pg_catalog.pg_roles
-                               WHERE rolname = '{0.username}')
-                THEN
-                    CREATE ROLE {0.username} LOGIN PASSWORD '{0.password}';
-                END IF;
-            END $$'''.format(udb))
-        self.execute("CREATE DATABASE {0.database} OWNER {0.username}".format(udb))
+        if not self.role_in_use(udb):
+            self.execute("CREATE ROLE {0.username} LOGIN PASSWORD '{0.password}'".format(udb))
+        if not self.db_exists(udb):
+            self.execute("CREATE DATABASE {0.database} OWNER {0.username}".format(udb))
 
     def drop(self, udb):
         self.execute("DROP DATABASE IF EXISTS {0.database}".format(udb))
-        if not self._role_in_use(udb):
+        if not self.role_in_use(udb):
             self.execute("DROP ROLE IF EXISTS {0.username}".format(udb))
 
     def script_drop(self, udb):

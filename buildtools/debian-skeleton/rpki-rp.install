@@ -3,4 +3,8 @@ etc/rpki/trust-anchors
 etc/xinetd.d/rpki-rtr
 usr/bin
 usr/lib/python2.7
+usr/sbin/rpki-confgen
+usr/sbin/rpki-manage
+usr/sbin/rpki-sql-backup
+usr/sbin/rpki-sql-setup
 var/rcynic

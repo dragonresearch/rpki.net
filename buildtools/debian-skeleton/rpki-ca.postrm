@@ -22,11 +22,11 @@ set -e
 case "$1" in
 
     purge)
-	if cmp -s /etc/rpki.conf /etc/rpki/rpki.ca.sample.conf
+	if cmp -s /etc/rpki.conf /etc/rpki/rpki.ca.conf.sample
 	then
-	    cp -p /etc/rpki/rpki.rp.sample.conf /etc/rpki.conf
+	    cp -p /etc/rpki/rpki.rp.conf.sample /etc/rpki.conf
 	fi
-	rm -f /etc/rpki/rpki.ca.sample.conf /etc/rpki/rpki.ca.xml
+	rm -f /etc/rpki/rpki.ca.conf.sample /etc/rpki/rpki.ca.xml
 	rm -f /etc/rpki/apache.conf /etc/rpki/apache.cer /etc/rpki/apache.key
     ;;
 

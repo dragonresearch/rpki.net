@@ -84,15 +84,15 @@ install-conf:
 		--set myrpki::run_rpkid=yes \
 		--set myrpki::run_pubd=yes \
 		--write-xml ${DESTDIR}${sysconfdir}/rpki/rpki.ca.xml \
-		--write-conf ${DESTDIR}${sysconfdir}/rpki/rpki.ca.sample.conf
+		--write-conf ${DESTDIR}${sysconfdir}/rpki/rpki.ca.conf.sample
 	if test ! -f ${DESTDIR}${sysconfdir}/rpki.conf ||\
-		cmp -s ${DESTDIR}${sysconfdir}/rpki.conf ${DESTDIR}${sysconfdir}/rpki/rpki.rp.sample.conf;\
+		cmp -s ${DESTDIR}${sysconfdir}/rpki.conf ${DESTDIR}${sysconfdir}/rpki/rpki.rp.conf.sample;\
 	then \
-		cp -p ${DESTDIR}${sysconfdir}/rpki/rpki.ca.sample.conf ${DESTDIR}${sysconfdir}/rpki.conf
+		cp -p ${DESTDIR}${sysconfdir}/rpki/rpki.ca.conf.sample ${DESTDIR}${sysconfdir}/rpki.conf
 	fi
 
 #uninstall deinstall::
-#	rm -f ${DESTDIR}${sysconfdir}/rpki/rpki.ca.xml ${DESTDIR}${sysconfdir}/rpki/rpki.ca.sample.conf
+#	rm -f ${DESTDIR}${sysconfdir}/rpki/rpki.ca.xml ${DESTDIR}${sysconfdir}/rpki/rpki.ca.conf.sample
 
 install-apache:
 	${libexecdir}/rpkigui-apache-conf-gen --install --verbose

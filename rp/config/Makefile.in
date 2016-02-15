@@ -23,7 +23,7 @@ srcdir          = @srcdir@
 
 CFG_INSTALL_TARGETS = @CFG_INSTALL_TARGETS@
 
-all:: rpki.rp.xml rpki.rp.sample.conf
+all:: rpki.rp.xml rpki.rp.conf.sample
 
 clean::
 	@true
@@ -35,7 +35,7 @@ install-always:: all
 	@echo "== Default configuration file location is ${sysconfdir}/rpki.conf =="
 	@echo
 	${INSTALL} -d ${DESTDIR}${sysconfdir}/rpki
-	${INSTALL} rpki.rp.xml rpki.rp.sample.conf ${DESTDIR}${sysconfdir}/rpki
+	${INSTALL} rpki.rp.xml rpki.rp.conf.sample ${DESTDIR}${sysconfdir}/rpki
 
 test uninstall deinstall::
 	@true
@@ -56,13 +56,13 @@ rpki.rp.xml: ${abs_top_srcdir}/rpki/autoconf.py rpki-confgen rpki-confgen.xml
 		--set myrpki::run_pubd=no \
 		--write-xml $@
 
-rpki.rp.sample.conf: rpki.rp.xml
+rpki.rp.conf.sample: rpki.rp.xml
 	${PYTHON} rpki-confgen \
 		--read-xml rpki.rp.xml \
 		--write-conf $@
 
 clean::
-	rm -f rpki.rp.xml rpki.rp.sample.conf
+	rm -f rpki.rp.xml rpki.rp.conf.sample
 
 install-postconf: \
 	install-user install-conf install-sql install-django
@@ -75,10 +75,10 @@ install-user:
 
 install-conf:
 	test -f ${DESTDIR}${sysconfdir}/rpki.conf ||\
-	cp -p ${DESTDIR}${sysconfdir}/rpki/rpki.rp.sample.conf ${DESTDIR}${sysconfdir}/rpki.conf
+	cp -p ${DESTDIR}${sysconfdir}/rpki/rpki.rp.conf.sample ${DESTDIR}${sysconfdir}/rpki.conf
 
 #uninstall deinstall::
-#	rm -f ${DESTDIR}${sysconfdir}/rpki/rpki.rp.xml ${DESTDIR}${sysconfdir}/rpki/rpki.rp.sample.conf
+#	rm -f ${DESTDIR}${sysconfdir}/rpki/rpki.rp.xml ${DESTDIR}${sysconfdir}/rpki/rpki.rp.conf.sample
 
 install-sql:
 	${sbindir}/rpki-sql-setup create

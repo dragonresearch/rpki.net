@@ -15,9 +15,9 @@ setup_config() {
 	--set myrpki::run_rpkid=yes					\
 	--set myrpki::run_pubd=yes					\
 	--write-xml  /etc/rpki/rpki.ca.xml				\
-	--write-conf /etc/rpki/rpki.ca.sample.conf
+	--write-conf /etc/rpki/rpki.ca.conf.sample
 
-    if test ! -f /etc/rpki.conf || cmp -s /etc/rpki.conf /etc/rpki/rpki.rp.sample.conf
+    if test ! -f /etc/rpki.conf || cmp -s /etc/rpki.conf /etc/rpki/rpki.rp.conf.sample
     then
 	cp -p /etc/rpki/rpki.ca.conf.sample /etc/rpki.conf
     fi
@@ -25,15 +25,14 @@ setup_config() {
 
 setup_sql() {
     rpki-sql-setup --debug --verbose --postgresql-root-username postgres create
+    sudo -u rpki rpki-manage migrate rpkidb --settings rpki.django_settings.rpkid 
+    sudo -u rpki rpki-manage migrate pubdb  --settings rpki.django_settings.pubd  
+    sudo -u rpki rpki-manage migrate irdb   --settings rpki.django_settings.irdb  
+    sudo -u rpki rpki-manage migrate app    --settings rpki.django_settings.gui   
 }
 
 setup_bpki() {
     rpkic initialize_server_bpki
-}
-
-setup_django() {
-    rpki-manage syncdb --noinput
-    rpki-manage migrate app
 }
 
 setup_cron() {
@@ -63,7 +62,6 @@ case "$1" in
 	setup_config
 	setup_sql
 	setup_bpki
-	setup_django
 	setup_cron
     ;;
 

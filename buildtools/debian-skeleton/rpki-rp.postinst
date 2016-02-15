@@ -37,16 +37,17 @@ setup_config() {
 	--set myrpki::run_rpkid=no				\
 	--set myrpki::run_pubd=no				\
 	--write-xml  /etc/rpki/rpki.rp.xml			\
-	--write-conf /etc/rpki/rpki.rp.sample.conf
+	--write-conf /etc/rpki/rpki.rp.conf.sample
 
     if test ! -f /etc/rpki.conf
     then
-	cp -p /etc/rpki/rpki.rp.sample.conf /etc/rpki.conf
+	cp -p /etc/rpki/rpki.rp.conf.sample /etc/rpki.conf
     fi
 }
 
 setup_sql() {
     rpki-sql-setup --debug --verbose --postgresql-root-username postgres create
+    sudo -u rpki rpki-manage migrate rcynicdb --settings rpki.django_settings.rcynic 
 }
 
 # We want to pick a *random* minute for rcynic to run, to spread load

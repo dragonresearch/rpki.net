@@ -29,7 +29,7 @@ case "$1" in
 	    sudo -u postgres psql -f $sql
 	    rm -f $sql
 	fi
-	rm -f /etc/rpki/rpki.rp.sample.conf /etc/rpki/rpki.rp.xml /etc/rpki.conf
+	rm -f /etc/rpki/rpki.rp.conf.sample /etc/rpki/rpki.rp.xml /etc/rpki.conf
     ;;
 
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

@@ -49,6 +49,7 @@ install:: ${CA_INSTALL_TARGETS}
 install-always:: all
 	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/publication
 	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/rrdp-publication
+	${INSTALL} -d ${DESTDIR}${datarootdir}/rpki/bpki
 
 uninstall deinstall::
 	-${libexecdir}/rpkigui-apache-conf-gen --remove --verbose

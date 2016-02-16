@@ -21,15 +21,9 @@ case "$1" in
     remove)
 
 	# Clean up BPKI files.  These all come from SQL, so we can
-	# regenerate them easily if appropriate.
+	# regenerate them easily, if appropriate.
 
-	rm -f /usr/share/rpki/ca.cer
-	rm -f /usr/share/rpki/irbe.cer
-	rm -f /usr/share/rpki/irdbd.cer
-	rm -f /usr/share/rpki/pubd.cer
-	rm -f /usr/share/rpki/pubd.key
-	rm -f /usr/share/rpki/rpkid.cer
-	rm -f /usr/share/rpki/rpkid.key
+	rm -rf /usr/share/rpki/bpki
 
 	# Clean up our cron jobs.
 

@@ -5,6 +5,10 @@
 
 set -e
 
+setup_directories() {
+    install -o rpki -g rpki -d /usr/share/rpki/bpki
+}
+
 setup_apache() {
     /usr/lib/rpki/rpkigui-apache-conf-gen --install --verbose
 }
@@ -28,7 +32,7 @@ setup_sql() {
     sudo -u rpki rpki-manage migrate rpkidb --settings rpki.django_settings.rpkid 
     sudo -u rpki rpki-manage migrate pubdb  --settings rpki.django_settings.pubd  
     sudo -u rpki rpki-manage migrate irdb   --settings rpki.django_settings.irdb  
-    sudo -u rpki rpki-manage migrate app    --settings rpki.django_settings.gui   
+    sudo -u rpki rpki-manage migrate        --settings rpki.django_settings.gui   
 }
 
 setup_bpki() {
@@ -58,6 +62,7 @@ setup_cron() {
 
 case "$1" in
     configure)
+	setup_directories
 	setup_apache
 	setup_config
 	setup_sql

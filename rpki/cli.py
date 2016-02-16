@@ -173,7 +173,10 @@ class Cmd(cmd.Cmd):
                 self.cmdloop()
             finally:
                 if self.histfile is not None and readline.get_current_history_length():
-                    readline.write_history_file(self.histfile)
+                    try:
+                        readline.write_history_file(self.histfile)
+                    except IOError:
+                        pass
                 readline.set_completer_delims(old_completer_delims)
 
     else:

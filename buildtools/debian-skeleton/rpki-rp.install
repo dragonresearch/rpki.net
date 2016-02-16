@@ -4,6 +4,7 @@ etc/xinetd.d/rpki-rtr
 usr/bin
 usr/lib/python2.7
 usr/sbin/rpki-confgen
+usr/sbin/rpki-generate-root-certificate
 usr/sbin/rpki-manage
 usr/sbin/rpki-sql-backup
 usr/sbin/rpki-sql-setup

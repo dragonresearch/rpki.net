@@ -93,7 +93,8 @@ if autoconf.RP_TARGET == "rp":
                  ["rp/config/rpki-confgen",
                   "rp/config/rpki-sql-backup",
                   "rp/config/rpki-sql-setup",
-                  "rp/config/rpki-manage"])]
+                  "rp/config/rpki-manage",
+                  "rp/config/rpki-generate-root-certificate"])]
 
 if autoconf.CA_TARGET == "ca":
 

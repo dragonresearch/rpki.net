@@ -1,0 +1,71 @@
+#!/usr/bin/env python
+
+"""
+Generate an RPKI root certificate for rootd.  In most cases you should
+not need to do this; see caveats in the manual about running rootd if
+you think you need this.  This script does nothing that can't also be
+done with the OpenSSL command line tool, but on some platforms the
+installed copy of openssl doesn't understand the RFC 3779 extensions.
+"""
+
+import os
+import sys
+import pwd
+import time
+import rpki.x509
+import rpki.config
+import rpki.sundial
+import rpki.autoconf
+import rpki.resource_set
+
+os.environ["TZ"] = "UTC"
+time.tzset()
+
+cfg, parser = rpki.config.argparser(section = "rootd", doc = __doc__)
+parser.add_argument("-a", "--asns",  help = "ASN resources",    default = "0-4294967295")
+parser.add_argument("-4", "--ipv4",  help = "IPv4 resources",   default = "0.0.0.0/0")
+parser.add_argument("-6", "--ipv6",  help = "IPv6 resources",   default = "::/0")
+parser.add_argument("--certificate", help = "certificate file", default = cfg.get("rpki-root-cert-file", "root.cer"))
+parser.add_argument("--key",         help = "key file",         default = cfg.get("rpki-root-key-file",  "root.key"))
+parser.add_argument("--tal",         help = "TAL file",         default = "root.tal")
+args = parser.parse_args()
+
+resources = rpki.resource_set.resource_bag(
+  asn = rpki.resource_set.resource_set_as(args.asns),
+  v4  = rpki.resource_set.resource_set_ipv4(args.ipv4),
+  v6  = rpki.resource_set.resource_set_ipv6(args.ipv6))
+
+keypair = rpki.x509.RSA.generate(quiet = True)
+
+sia = (cfg.get("rpki_base_uri") + "/",
+       cfg.get("rpki-root-manifest-uri"),
+       None,
+       cfg.get("publication_rrdp_notification_uri", section = "myrpki"))
+
+uris = (cfg.get("rpki-root-cert-uri"),
+        cfg.get("publication_rrdp_base_uri", section = "myrpki") + "root.cer")
+
+cert = rpki.x509.X509.self_certify(
+  keypair     = keypair,
+  subject_key = keypair.get_public(),
+  serial      = 1,
+  sia         = sia,
+  notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
+  resources   = resources)
+
+with open(args.certificate, "wb") as f:
+  f.write(cert.get_DER())
+
+with open(args.tal, "w") as f:
+  for uri in uris:
+    f.write(uri + "\n")
+  f.write(keypair.get_public().get_Base64())
+
+with os.fdopen(os.open(args.key, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0400), "w") as f:
+  f.write(keypair.get_DER())
+
+try:
+  pw = pwd.getpwnam(rpki.autoconf.RPKI_USER)
+  os.chown(args.key, pw.pw_uid, pw.pw_gid)
+except:
+  pass

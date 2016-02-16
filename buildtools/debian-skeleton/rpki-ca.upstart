@@ -26,28 +26,14 @@ stop on runlevel [!2345]
 
 pre-start script
     if  test -f /etc/rpki.conf &&
-	test -f /usr/share/rpki/ca.cer &&
-	test -f /usr/share/rpki/irbe.cer &&
-	test -f /usr/share/rpki/irdbd.cer &&
-	test -f /usr/share/rpki/rpkid.cer &&
-	test -f /usr/share/rpki/rpkid.key
+	test -f /usr/share/rpki/bpki/ca.cer &&
+	test -f /usr/share/rpki/bpki/irbe.cer &&
+	test -f /usr/share/rpki/bpki/irdbd.cer &&
+	test -f /usr/share/rpki/bpki/rpkid.cer &&
+	test -f /usr/share/rpki/bpki/rpkid.key
     then
-        install -m 755 -o rpkid -g rpkid -d /var/run/rpki /usr/share/rpki/publication
-
-	# This should be running as user rpkid, but I haven't got all
-	# the pesky details worked out yet.  Most testing to date has
-	# either been all under a single non-root user or everything
-	# as root, so, eg, running "rpkic initialize" as root will not
-	# leave things in a sane state for rpkid running as user
-	# rpkid.
-	#
-	# In the interest of debugging the rest of this before trying
-	# to break new ground, run daemons as root for the moment,
-	# with the intention of coming back to fix this later.
-	#
-	#sudo -u rpkid /usr/sbin/rpki-start-servers
-	/usr/sbin/rpki-start-servers
-
+	install -m 755 -o rpki -g rpki -d /var/run/rpki /usr/share/rpki/publication /usr/share/rpki/rrdp-publication
+	rpki-start-servers
     else
 	stop
 	exit 0

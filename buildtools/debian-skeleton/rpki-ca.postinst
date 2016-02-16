@@ -6,7 +6,7 @@
 set -e
 
 setup_directories() {
-    install -o rpki -g rpki -d /usr/share/rpki/bpki
+    install -o rpki -g rpki -d /usr/share/rpki/bpki /usr/share/rpki/publication /usr/share/rpki/rrdp-publication
 }
 
 setup_apache() {

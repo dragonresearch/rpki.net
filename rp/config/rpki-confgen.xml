@@ -934,14 +934,14 @@
     </option>
 
     <option name  = "rpki-root-cert-file"
-            value = "${rootd::rpki_data_dir}/root.cer">
+            value = "${autoconf::datarootdir}/rpki/root.cer">
       <doc>
         Filename of rootd's root RPKI certificate.
       </doc>
     </option>
 
     <option name  = "rpki-root-key-file"
-            value = "${rootd::rpki_data_dir}/root.key">
+            value = "${autoconf::datarootdir}/rpki/root.key">
       <doc>
         Private key corresponding to rootd's root RPKI certificate.
       </doc>

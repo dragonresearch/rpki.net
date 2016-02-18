@@ -20,13 +20,16 @@
 
 """
 Back up data from SQL databases, looking at config file to figure out
-which databases and what credentials to use with them.
+which databases and what credentials to use with them, and eliminating
+duplicates in cases where we've configured multiple applications to
+share a single database.
 """
 
-import subprocess
 import os
 import sys
 import time
+import argparse
+import subprocess
 import rpki.config
 
 os.environ["TZ"] = "UTC"
@@ -43,12 +46,18 @@ templates = dict(mysql      = "mysqldump --add-drop-database -u{username} -p{pas
                  sqlite3    = "sqlite3 {database} .dump",
                  postgresql = "sudo -u {username} pg_dump {database}")
 
+cmds = []
+
 for name in ("rpkid", "irdbd", "pubd"):
     if cfg.getboolean("start_" + name, False):
         cmd = templates[cfg.get("sql-engine", section = name)]
         cmd = cmd.format(database = cfg.get("sql-database", section = name),
                          username = cfg.get("sql-username", section = name),
                          password = cfg.get("sql-password", section = name))
-        if args.verbose:
-            sys.stderr.write("[Running \"{}\"]\n".format(cmd))
-        subprocess.check_call(cmd.split(), stdout = args.output)
+        if cmd not in cmds:
+            cmds.append(cmd)
+
+for cmd in cmds:
+    if args.verbose:
+        sys.stderr.write("[Running \"{}\"]\n".format(cmd))
+    subprocess.check_call(cmd.split(), stdout = args.output)

@@ -73,16 +73,18 @@ def cleanpath(*names):
 
 # Pathnames for various things we need
 
-this_dir  = os.getcwd()
-test_dir  = cleanpath(this_dir, "yamltest.dir")
-ca_dir    = cleanpath(this_dir, "..")
+this_dir    = os.getcwd()
+test_dir    = cleanpath(this_dir, "yamltest.dir")
+ca_dir      = cleanpath(this_dir, "..")
+rp_conf_dir = cleanpath(this_dir, "..", "..", "rp", "config")
+rpki_dir    = cleanpath(this_dir, "..", "..")
 
-prog_rpkic = cleanpath(ca_dir, "rpkic")
 prog_rpkid = cleanpath(ca_dir, "rpkid")
 prog_irdbd = cleanpath(ca_dir, "irdbd")
 prog_pubd  = cleanpath(ca_dir, "pubd")
 prog_rootd = cleanpath(ca_dir, "rootd")
-prog_rpki_manage  = cleanpath(ca_dir, "rpki-manage")
+prog_rpki_manage  = cleanpath(rp_conf_dir, "rpki-manage")
+prog_rpki_confgen = cleanpath(rp_conf_dir, "rpki-confgen")
 
 class roa_request(object):
     """
@@ -520,20 +522,18 @@ class allocation(object):
                 rpkid_sql_database            = "rpki%d" % self.engine,
                 pubd_sql_database             = "pubd%d" % self.engine)
 
-        with open(self.path("rpki.conf"), "w") as f:
-            f.write("# Automatically generated, do not edit\n")
-            print "Writing", f.name
+        fn = self.path("rpki.conf")
 
-            section = None
-            for line in open(cleanpath(ca_dir, "examples/rpki.conf")):
-                m = section_regexp.match(line)
-                if m:
-                    section = m.group(1)
-                m = variable_regexp.match(line)
-                option = m.group(1) if m and section == "myrpki" else None
-                if option and option in r:
-                    line = "%s = %s\n" % (option, r[option])
-                f.write(line)
+        cmd = [sys.executable, prog_rpki_confgen,
+               "--read-xml", prog_rpki_confgen + ".xml",
+               "--autoconf",
+               "--set", "rootd::rpki_key_dir=${myrpki::bpki_servers_directory}"]
+        for k, v in r.iteritems():
+            cmd.extend(("--set", "myrpki::{}={}".format(k, v)))
+        cmd.extend(("--write-conf", fn))
+
+        print "Writing", fn
+        subprocess.check_call(cmd)
 
     def dump_rsyncd(self):
         """
@@ -622,15 +622,16 @@ class allocation(object):
         Run rpkic for this entity.
         """
 
-        cmd = [prog_rpkic, "-i", self.name]
+        cmd = [sys.executable, "-c", "import rpki.rpkic; rpki.rpkic.main()", "-i", self.name]
         if args.profile:
             cmd.append("--profile")
-            cmd.append(self.path("rpkic.%s.prof" % rpki.sundial.now()))
+            cmd.append(self.path("rpkic.{!s}.prof".format(rpki.sundial.now())))
         cmd.extend(str(a) for a in argv if a is not None)
-        print 'Running "%s"' % " ".join(cmd)
+        print 'Running "rpkic {}"'.format(" ".join(cmd[3:]))
         env = dict(os.environ,
                    YAMLTEST_RPKIC_COUNTER = self.next_rpkic_counter(),
-                   RPKI_CONF = self.path("rpki.conf"))
+                   RPKI_CONF = self.path("rpki.conf"),
+                   PYTHONPATH = rpki_dir)
         subprocess.check_call(cmd, cwd = self.host.path(), env = env)
 
     def syncdb(self):

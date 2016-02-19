@@ -22,6 +22,7 @@ because interactions with rpkid scheduler were getting too complicated.
 """
 
 import logging
+import random
 
 import tornado.gen
 import tornado.web
@@ -126,6 +127,12 @@ class AbstractTask(object):
         logger.debug("%r: Postponing", self)
         self.due_date = None
         self.runnable.clear()
+        tasks = tuple(task for task in self.rpkid.task_queue if task is not None)
+        if any(task.runnable.is_set() for task in tasks):
+            logger.debug("%r: Runable tasks exist, leaving well enough alone", self)
+        else:
+            logger.debug("%r: All tasks were postponed, reenabling one picked at random", self)
+            random.choice(tasks).runnable.set()
         try:
             self.serialize.release()
             yield self.runnable.wait()

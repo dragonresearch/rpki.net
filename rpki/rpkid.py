@@ -291,7 +291,7 @@ class main(object):
     def cronjob_handler(self, handler):
         """
         External trigger to schedule periodic tasks.  Obsolete for
-        produciton use, but portions of the test framework still use this.
+        production use, but portions of the test framework still use this.
         """
 
         if self.use_internal_cron:

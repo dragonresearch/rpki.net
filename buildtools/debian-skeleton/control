@@ -30,7 +30,7 @@ Replaces: rpki-ca (<= 0.5767)
 
 Package: rpki-ca
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python (>= 2.7), apache2, ssl-cert, python-lxml, postgresql, postgresql-client, python-psycopg2, python-django (>= 1.8.0), python-tornado, libapache2-mod-wsgi, python-vobject, python-yaml, python-netifaces, rpki-rp (= ${binary:Version})
+Depends: ${shlibs:Depends}, ${misc:Depends}, python (>= 2.7), apache2, ssl-cert, python-lxml, postgresql, postgresql-client, python-psycopg2, python-django (>= 1.8.0), python-tornado, libapache2-mod-wsgi, python-vobject, python-yaml, python-netifaces, rpki-rp (= ${binary:Version}), lsb-base (>= 3.2-14)
 Description: rpki.net certification authority tools
  "Certification authority" tools for issuing RPKI certificates and
  related objects using the rpki.net toolkit.

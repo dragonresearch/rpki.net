@@ -137,6 +137,8 @@ class main(object):
         self.http_server_host = self.cfg.get("server-host", "")
         self.http_server_port = self.cfg.getint("server-port")
 
+	self.http_client_timeout = self.cfg.getint("http-client-timeout", 300)
+
         self.use_internal_cron = self.cfg.getboolean("use-internal-cron", True)
 
         self.initial_delay = random.randint(self.cfg.getint("initial-delay-min", 10),
@@ -335,7 +337,9 @@ class main(object):
         http_client = tornado.httpclient.AsyncHTTPClient()
 
         with (yield lock.acquire()):
-            response = yield http_client.fetch(request)
+            response = yield http_client.fetch(request, 
+                                               connect_timeout = self.http_client_timeout, 
+                                               request_timeout = self.http_client_timeout)
 
         raise tornado.gen.Return(response)
 

@@ -917,6 +917,16 @@
       </doc>
     </option>
 
+    <option name  = "rpki_key_dir"
+            value = "${autoconf::datarootdir}/rpki">
+      <doc>
+        Directory where rootd's root rpki key and certificate are
+	stored.  rootd only reads these files, doesn't write them.
+	This variable is only used to construct other variables, rootd
+	itself doesn't read it.
+      </doc>
+    </option>
+
     <option name  = "rpki_base_uri"
             value = "rsync://${myrpki::publication_rsync_server}/${myrpki::publication_rsync_module}/${myrpki::handle}-root/root">
       <doc>
@@ -934,14 +944,14 @@
     </option>
 
     <option name  = "rpki-root-cert-file"
-            value = "${autoconf::datarootdir}/rpki/root.cer">
+            value = "${rootd::rpki_key_dir}/root.cer">
       <doc>
         Filename of rootd's root RPKI certificate.
       </doc>
     </option>
 
     <option name  = "rpki-root-key-file"
-            value = "${autoconf::datarootdir}/rpki/root.key">
+            value = "${rootd::rpki_key_dir}/root.key">
       <doc>
         Private key corresponding to rootd's root RPKI certificate.
       </doc>

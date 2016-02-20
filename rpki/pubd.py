@@ -202,7 +202,7 @@ class main(object):
                             if q_pdu.get("tag"):
                                 r_pdu.set("tag", q_pdu.get("tag"))
 
-            except Exception, e:
+            except Exception as e:
                 logger.exception("Exception processing PDU %r action = %s client_handle = %s", q_pdu, q_pdu.get("action"), q_pdu.get("client_handle"))
                 r_pdu = SubElement(r_msg, rpki.publication_control.tag_report_error, error_code = e.__class__.__name__)
                 r_pdu.text = str(e)
@@ -211,7 +211,7 @@ class main(object):
 
             request.send_cms_response(rpki.publication_control.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert))
 
-        except Exception, e:
+        except Exception as e:
             logger.exception("Unhandled exception processing control query, path %r", request.path)
             request.send_error(500, "Unhandled exception %s: %s" % (e.__class__.__name__, e))
 
@@ -275,8 +275,15 @@ class main(object):
                         self.session.generate_snapshot()
                         self.session.expire_deltas()
 
-            except Exception, e:
-                logger.exception("Exception processing PDU %r hash = %s uri = %s", q_pdu, q_pdu.get("hash"), q_pdu.get("uri"))
+            except Exception as e:
+                if isinstance(e, (rpki.exceptions.ExistingObjectAtURI,
+                                  rpki.exceptions.DifferentObjectAtURI,
+                                  rpki.exceptions.NoObjectAtURI)):
+                    logger.warn("Database synchronization error processing PDU %r hash %s uri %s: %s",
+                                q_pdu, q_pdu.get("hash"), q_pdu.get("uri"), e)
+                else:
+                    logger.exception("Exception processing PDU %r hash = %s uri = %s",
+                                     q_pdu, q_pdu.get("hash"), q_pdu.get("uri"))
                 r_pdu = SubElement(r_msg, rpki.publication.tag_report_error, error_code = e.__class__.__name__)
                 r_pdu.text = str(e)
                 if q_pdu.get("tag") is not None:
@@ -289,6 +296,6 @@ class main(object):
 
             request.send_cms_response(rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, self.pubd_crl))
 
-        except Exception, e:
+        except Exception as e:
             logger.exception("Unhandled exception processing client query, path %r", request.path)
             request.send_error(500, "Could not process PDU: %s" % e)

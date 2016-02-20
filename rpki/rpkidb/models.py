@@ -514,11 +514,13 @@ class Repository(models.Model):
         for q_pdu in q_msg:
             logger.info("Sending %r hash = %s uri = %s to pubd", q_pdu, q_pdu.get("hash"), q_pdu.get("uri"))
         http_request = tornado.httpclient.HTTPRequest(
-            url     = self.peer_contact_uri,
-            method  = "POST",
-            body    = rpki.publication.cms_msg().wrap(q_msg, self.bsc.private_key_id,
-                                                      self.bsc.signing_cert, self.bsc.signing_cert_crl),
-            headers = { "Content-Type" : rpki.publication.content_type })
+            url             = self.peer_contact_uri,
+            method          = "POST",
+            body            = rpki.publication.cms_msg().wrap(q_msg, self.bsc.private_key_id,
+                                                              self.bsc.signing_cert, self.bsc.signing_cert_crl),
+            headers         = { "Content-Type" : rpki.publication.content_type },
+            connect_timeout = rpkid.http_client_timeout, 
+            request_timeout = rpkid.http_client_timeout)
         http_response = yield rpkid.http_fetch(http_request)
         if http_response.headers.get("Content-Type") not in rpki.publication.allowed_content_types:
             raise rpki.exceptions.BadContentType("HTTP Content-Type %r, expected %r" % (
@@ -736,11 +738,13 @@ class Parent(models.Model):
         if self.bsc.signing_cert is None:
             raise rpki.exceptions.BSCNotReady("%r is not yet usable" % self.bsc)
         http_request = tornado.httpclient.HTTPRequest(
-            url     = self.peer_contact_uri,
-            method  = "POST",
-            body    = rpki.up_down.cms_msg().wrap(q_msg, self.bsc.private_key_id,
-                                                  self.bsc.signing_cert, self.bsc.signing_cert_crl),
-            headers = { "Content-Type" : rpki.up_down.content_type })
+            url             = self.peer_contact_uri,
+            method          = "POST",
+            body            = rpki.up_down.cms_msg().wrap(q_msg, self.bsc.private_key_id,
+                                                          self.bsc.signing_cert, self.bsc.signing_cert_crl),
+            headers         = { "Content-Type" : rpki.up_down.content_type },
+            connect_timeout = rpkid.http_client_timeout, 
+            request_timeout = rpkid.http_client_timeout)
         http_response = yield rpkid.http_fetch(http_request)
         if http_response.headers.get("Content-Type") not in rpki.up_down.allowed_content_types:
             raise rpki.exceptions.BadContentType("HTTP Content-Type %r, expected %r" % (

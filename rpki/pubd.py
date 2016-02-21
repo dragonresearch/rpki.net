@@ -271,7 +271,7 @@ class main(object):
                                 r_pdu.set("tag", q_pdu.get("tag"))
 
                     if delta is not None:
-                        delta.activate()
+                        delta.activate(self.rrdp_publication_base)
                         self.session.expire_deltas()
 
             except Exception as e:
@@ -290,7 +290,7 @@ class main(object):
 
             else:
                 if delta is not None:
-                    self.session.synchronize_rrdp_files(self.rrdp_publication_base, self.rrdp_base_uri, delta)
+                    self.session.synchronize_rrdp_files(self.rrdp_publication_base, self.rrdp_base_uri)
                     delta.update_rsync_files(self.publication_base)
 
             request.send_cms_response(rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, self.pubd_crl))

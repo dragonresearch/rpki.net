@@ -145,7 +145,7 @@ class main(object):
                                             self.cfg.getint("initial-delay-max", 120))
 
         # Should be much longer in production
-        self.cron_period = self.cfg.getint("cron-period", 120)
+        self.cron_period = self.cfg.getint("cron-period", 900)
 
         if self.use_internal_cron:
             logger.debug("Scheduling initial cron pass in %s seconds", self.initial_delay)
@@ -263,12 +263,12 @@ class main(object):
         yield tornado.gen.sleep(self.initial_delay)
         while True:
             logger.debug("cron_loop(): Running")
-            yield self.cron_run()
+            yield self.cron_run(wait = False)
             logger.debug("cron_loop(): Sleeping %d seconds", self.cron_period)
             yield tornado.gen.sleep(self.cron_period)
 
     @tornado.gen.coroutine
-    def cron_run(self):
+    def cron_run(self, wait):
         """
         Schedule periodic tasks and wait for them to finish.
         """
@@ -282,9 +282,11 @@ class main(object):
         else:
             tasks = tuple(task for tenant in tenants for task in tenant.cron_tasks(self))
             self.task_add(tasks)
-            futures = [task.wait() for task in tasks]
+            if wait:
+                futures = [task.wait() for task in tasks]
             self.task_run()
-            yield futures
+            if wait:
+                yield futures
         logger.info("Finished cron run started at %s", now)
 
     @tornado.gen.coroutine

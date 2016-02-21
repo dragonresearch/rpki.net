@@ -59,10 +59,12 @@ class AbstractTask(object):
     """
 
     ## @var timeslice
-    # How long before a task really should consider yielding the CPU to
-    # let something else run.
+    # How long before a task really should consider yielding the CPU
+    # to let something else run.  Should this be something we can
+    # configure from rpki.conf?
 
-    timeslice = rpki.sundial.timedelta(seconds = 15)
+    #timeslice = rpki.sundial.timedelta(seconds = 15)
+    timeslice = rpki.sundial.timedelta(seconds = 60)
 
     ## @var serialize
     # Lock to force prevent more than one task from running at a time.
@@ -365,6 +367,9 @@ class UpdateChildrenTask(AbstractTask):
             except:
                 logger.exception("%r: Couldn't update %r, skipping", self, child)
 
+            finally:
+                child_certs = irdb_resources = ca_detail = old_resources = new_resources = old_aia = new_aia = None
+
         try:
             yield publisher.call_pubd()
         except:
@@ -432,7 +437,11 @@ class UpdateROAsTask(AbstractTask):
                     logger.debug("%r: Found existing %r", self, roa)
                 updates.append(roa)
 
+        r_msg = seen = None
+
         orphans.extend(roas.itervalues())
+
+        roas = None
 
         while updates:
             if self.overdue:

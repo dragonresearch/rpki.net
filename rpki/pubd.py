@@ -290,7 +290,7 @@ class main(object):
 
             else:
                 if delta is not None:
-                    self.session.synchronize_rrdp_files(self.rrdp_publication_base, self.rrdp_base_uri)
+                    self.session.synchronize_rrdp_files(self.rrdp_publication_base, self.rrdp_base_uri, delta)
                     delta.update_rsync_files(self.publication_base)
 
             request.send_cms_response(rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, self.pubd_crl))

@@ -173,20 +173,22 @@ class Session(models.Model):
         return ElementToString(xml, pretty_print = True)
 
 
-    def synchronize_rrdp_files(self, rrdp_publication_base, rrdp_base_uri):
+    def synchronize_rrdp_files(self, rrdp_publication_base, rrdp_base_uri, delta):
         """
         Write current RRDP files to disk, clean up old files and directories.
         """
 
         current_filenames = self.keep_these_files.copy()
 
-        for delta in self.delta_set.all():
-            self._write_rrdp_file(delta.fn, delta.xml, rrdp_publication_base)
-            current_filenames.add(delta.fn)
-
         snapshot_xml, snapshot_hash = self._generate_snapshot()
         self._write_rrdp_file(self.snapshot_fn, snapshot_xml, rrdp_publication_base)
         current_filenames.add(self.snapshot_fn)
+
+        self._write_rrdp_file(delta.fn, delta.xml, rrdp_publication_base)
+        current_filenames.add(delta.fn)
+
+        for delta in self.delta_set.all():
+            current_filenames.add(delta.fn)
 
         self._write_rrdp_file(self.notification_fn,
                               self._generate_update_xml(rrdp_base_uri, snapshot_hash),
@@ -207,7 +209,6 @@ class Session(models.Model):
 
 class Delta(models.Model):
     serial = models.BigIntegerField()
-    xml = models.TextField()
     hash = models.CharField(max_length = 64)
     expires = SundialField()
     session = models.ForeignKey(Session)

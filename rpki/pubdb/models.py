@@ -81,22 +81,13 @@ class Client(models.Model):
 class Session(models.Model):
     uuid = models.CharField(unique = True, max_length=36)
     serial = models.BigIntegerField()
-    snapshot = models.TextField(blank = True)
-    hash = models.CharField(max_length = 64, blank = True)
-
-    ## @var keep_all_rrdp_files
-    # Debugging flag to prevent expiration of old RRDP files.
-    # This simplifies debugging delta code.  Need for this
-    # may go away once RRDP is fully integrated into rcynic.
-
-    keep_all_rrdp_files = False
 
     ## @var keep_these_files
     # Filenames which should not be deleted during cleanup.
     # Expected use is to allow us to store a root certificate
     # in in the RRDP base directory.
 
-    keep_these_files = set(["root.cer"])
+    keep_these_files = set(["root.cer", "root.tal"])
 
     def new_delta(self, expires):
         """
@@ -122,26 +113,6 @@ class Session(models.Model):
         """
 
         self.delta_set.filter(expires__lt = rpki.sundial.now()).delete()
-
-
-    def generate_snapshot(self):
-        """
-        Generate an XML snapshot of this session.
-        """
-
-        xml = Element(rrdp_tag_snapshot, nsmap = rrdp_nsmap,
-                      version = rrdp_version,
-                      session_id = self.uuid,
-                      serial = str(self.serial))
-        xml.text = "\n"
-        for obj in self.publishedobject_set.all():
-            DERSubElement(xml, rrdp_tag_publish,
-                          der = obj.der,
-                          uri = obj.uri)
-        rpki.relaxng.rrdp.assertValid(xml)
-        self.snapshot = ElementToString(xml, pretty_print = True)
-        self.hash = rpki.x509.sha256(self.snapshot).encode("hex")
-        self.save()
 
 
     @property
@@ -170,14 +141,29 @@ class Session(models.Model):
         return "%s/%s" % (rrdp_base_uri.rstrip("/"), fn)
 
 
-    def _generate_update_xml(self, rrdp_base_uri):
+    def _generate_snapshot(self):
+        xml = Element(rrdp_tag_snapshot, nsmap = rrdp_nsmap,
+                      version = rrdp_version,
+                      session_id = self.uuid,
+                      serial = str(self.serial))
+        xml.text = "\n"
+        for obj in self.publishedobject_set.all():
+            DERSubElement(xml, rrdp_tag_publish,
+                          der = obj.der,
+                          uri = obj.uri)
+        rpki.relaxng.rrdp.assertValid(xml)
+        snapshot = ElementToString(xml, pretty_print = True)
+        return snapshot, rpki.x509.sha256(snapshot).encode("hex")
+
+
+    def _generate_update_xml(self, rrdp_base_uri, snapshot_hash):
         xml = Element(rrdp_tag_notification, nsmap = rrdp_nsmap,
                       version = rrdp_version,
                       session_id = self.uuid,
                       serial = str(self.serial))
         SubElement(xml, rrdp_tag_snapshot,
                    uri = self._rrdp_filename_to_uri(self.snapshot_fn, rrdp_base_uri),
-                   hash = self.hash)
+                   hash = snapshot_hash)
         for delta in self.delta_set.all():
             SubElement(xml, rrdp_tag_delta,
                        uri = self._rrdp_filename_to_uri(delta.fn, rrdp_base_uri),
@@ -192,31 +178,31 @@ class Session(models.Model):
         Write current RRDP files to disk, clean up old files and directories.
         """
 
-        current_filenames = set()
+        current_filenames = self.keep_these_files.copy()
 
         for delta in self.delta_set.all():
             self._write_rrdp_file(delta.fn, delta.xml, rrdp_publication_base)
             current_filenames.add(delta.fn)
 
-        self._write_rrdp_file(self.snapshot_fn, self.snapshot, rrdp_publication_base)
+        snapshot_xml, snapshot_hash = self._generate_snapshot()
+        self._write_rrdp_file(self.snapshot_fn, snapshot_xml, rrdp_publication_base)
         current_filenames.add(self.snapshot_fn)
 
-        self._write_rrdp_file(self.notification_fn, self._generate_update_xml(rrdp_base_uri),
+        self._write_rrdp_file(self.notification_fn,
+                              self._generate_update_xml(rrdp_base_uri, snapshot_hash),
                               rrdp_publication_base, overwrite = True)
         current_filenames.add(self.notification_fn)
 
-        if not self.keep_all_rrdp_files:
-            current_filenames |= self.keep_these_files
-            for root, dirs, files in os.walk(rrdp_publication_base, topdown = False):
-                for fn in files:
-                    fn = os.path.join(root, fn)
-                    if fn[len(rrdp_publication_base):].lstrip("/") not in current_filenames:
-                        os.remove(fn)
-                for dn in dirs:
-                    try:
-                        os.rmdir(os.path.join(root, dn))
-                    except OSError:
-                        pass
+        for root, dirs, files in os.walk(rrdp_publication_base, topdown = False):
+            for fn in files:
+                fn = os.path.join(root, fn)
+                if fn[len(rrdp_publication_base):].lstrip("/") not in current_filenames:
+                    os.remove(fn)
+            for dn in dirs:
+                try:
+                    os.rmdir(os.path.join(root, dn))
+                except OSError:
+                    pass
 
 
 class Delta(models.Model):

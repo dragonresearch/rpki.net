@@ -272,7 +272,6 @@ class main(object):
 
                     if delta is not None:
                         delta.activate()
-                        self.session.generate_snapshot()
                         self.session.expire_deltas()
 
             except Exception as e:

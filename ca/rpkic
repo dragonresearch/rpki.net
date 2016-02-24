@@ -10,16 +10,26 @@
 
 if __name__ == "__main__":
 
+    import os
+    import pwd
+    import sys
+    import rpki.autoconf
+
     try:
-        import os
-        import sys
-        import rpki.autoconf
+        uid = pwd.getpwnam(rpki.autoconf.RPKI_USER).pw_uid
+    except:
+        uid = None
 
-        argv = [rpki.autoconf.SUDO, "-u", rpki.autoconf.RPKI_USER,
-                sys.executable, "-c", "import rpki.rpkic; rpki.rpkic.main()"]
+    if uid is None or uid == os.geteuid():
+        import rpki.rpkic
+        rpki.rpkic.main()
 
-        os.execv(rpki.autoconf.SUDO, argv + sys.argv[1:])
-        sys.exit("rpkic startup failure, no exception so don't know why, sorry")
+    else:
+        try:
+            argv = [rpki.autoconf.SUDO, "-u", rpki.autoconf.RPKI_USER,
+                    os.path.abspath(sys.argv[0])] + sys.argv[1:]
+            os.execv(argv[0], argv)
+            sys.exit("rpkic startup failure, no exception so don't know why, sorry")
 
-    except Exception as e:
-        sys.exit("Couldn't exec sudo python rpkic: {!s}".format(e))
+        except Exception as e:
+            sys.exit("Couldn't exec sudo python rpkic: {!s}".format(e))

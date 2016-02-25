@@ -83,7 +83,7 @@ do_start()
     test "X$enabled" = "X" && return 0
     test "X$enabled" = "X$running" && return 1
 
-    test -d $PIDDIR || install -d -u rpki -g rpki $PIDDIR || return 2
+    test -d $PIDDIR || install -d -o rpki -g rpki $PIDDIR || return 2
 
     test -f /usr/share/rpki/bpki/ca.cer   || return 2
     test -f /usr/share/rpki/bpki/irbe.cer || return 2
@@ -102,7 +102,7 @@ do_start()
 
 	    for dir in /usr/share/rpki/publication /usr/share/rpki/rrdp-publication
 	    do
-		test -d $dir || install -d -u rpki -g rpki $dir || return 2
+		test -d $dir || install -d -o rpki -g rpki $dir || return 2
 	    done
     esac
 

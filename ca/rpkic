@@ -26,8 +26,8 @@ if __name__ == "__main__":
 
     else:
         try:
-            argv = [rpki.autoconf.SUDO, "-u", rpki.autoconf.RPKI_USER,
-                    os.path.abspath(sys.argv[0])] + sys.argv[1:]
+            argv = [rpki.autoconf.SUDO, "-u", rpki.autoconf.RPKI_USER, sys.executable]
+            argv.extend(os.path.abspath(a) if i == 0 else a for i, a in enumerate(sys.argv))
             os.execv(argv[0], argv)
             sys.exit("rpkic startup failure, no exception so don't know why, sorry")
 

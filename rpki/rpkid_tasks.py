@@ -82,32 +82,30 @@ class AbstractTask(object):
         self.done_next   = None
         self.due_date    = None
         self.started     = False
+        self.postponed   = False
         self.clear()
 
     def __repr__(self):
         return rpki.log.log_repr(self, self.description)
 
-    def reset_due_date(self):
-        self.due_date = rpki.sundial.now() + self.timeslice
-
     @tornado.gen.coroutine
     def start(self):
         try:
             logger.debug("%r: Starting", self)
-            self.reset_due_date()
+            self.due_date = rpki.sundial.now() + self.timeslice
             self.clear()
             self.started = True
-            postponing = False
+            self.postponed = False
             yield self.main()
         except PostponeTask:
-            postponing = True
+            self.postponed = True
         except:
             logger.exception("%r: Unhandled exception", self)
         finally:
             self.due_date = None
             self.started  = False
             self.clear()
-            if postponing:
+            if self.postponed:
                 logger.debug("%r: Postponing", self)
             else:
                 logger.debug("%r: Exiting", self)
@@ -131,7 +129,8 @@ class AbstractTask(object):
     @tornado.gen.coroutine
     def overdue(self):
         yield tornado.gen.moment
-        raise tornado.gen.Return(len(self.rpkid.task_ready) > 0 and rpki.sundial.now() > self.due_date)
+        raise tornado.gen.Return(rpki.sundial.now() > self.due_date and
+                                 any(not task.postponed for task in self.rpkid.task_ready))
 
     @tornado.gen.coroutine
     def main(self):

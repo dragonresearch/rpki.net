@@ -425,7 +425,7 @@ class UpdateROAsTask(AbstractTask):
             self.ca_details = set()                                         # pylint: disable=W0201
 
             for roa in self.tenant.roas.all():
-                k = (roa.asn, str(roa.ipv4), str(roa.ipv6))
+                k = "{!s} {!s} {!s}".format(roa.asn, roa.ipv4, roa.ipv6)
                 if k not in roas:
                     roas[k] = roa
                 elif roa.roa is not None and roa.cert is not None and roa.ca_detail is not None and roa.ca_detail.state == "active" and (roas[k].roa is None or roas[k].cert is None or roas[k].ca_detail is None or roas[k].ca_detail.state != "active"):
@@ -435,7 +435,7 @@ class UpdateROAsTask(AbstractTask):
                     orphans.append(roa)
 
             for r_pdu in r_msg:
-                k = (r_pdu.get("asn"), r_pdu.get("ipv4"), r_pdu.get("ipv6"))
+                k = "{!s} {!s} {!s}".format(r_pdu.get("asn"), r_pdu.get("ipv4"), r_pdu.get("ipv6"))
                 if k in seen:
                     logger.warning("%r: Skipping duplicate ROA request %r", self, r_pdu)
                 else:

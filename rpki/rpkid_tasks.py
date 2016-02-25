@@ -351,6 +351,9 @@ class UpdateChildrenTask(AbstractTask):
                             publisher.queue(uri = child_cert.uri, old_obj = child_cert.cert, repository = ca_detail.ca.parent.repository)
                             ca_detail.generate_crl_and_manifest(publisher = publisher)
 
+            except PostponeTask:
+                raise
+
             except:
                 logger.exception("%r: Couldn't update %r, skipping", self, child)
 

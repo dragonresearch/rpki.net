@@ -189,7 +189,7 @@ class PollParentTask(AbstractTask):
                 except:
                     logger.exception("Couldn't update resource class %r, skipping", class_name)
 
-            for ca, class_name in ca_map.iteritems():
+            for class_name, ca in ca_map.iteritems():
                 logger.debug("%r: Destroying orphaned %r for resource class %r", self, ca, class_name)
                 yield ca.destroy(rpkid = self.rpkid, parent = parent)
 

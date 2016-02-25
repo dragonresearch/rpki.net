@@ -29,7 +29,7 @@ extract_flags = (rpki.POW.CMS_NOCRL |
 
 def get_mft(fn):
     cms = rpki.POW.Manifest.derReadFile(fn)
-    cms.verify(rpki.POW.X509Store(), None, extract_flags)
+    cms.extractWithoutVerifying()
     return cms, cms.certs()[0]
 
 def get_roa(fn):

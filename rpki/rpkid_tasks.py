@@ -107,6 +107,7 @@ class AbstractTask(object):
             self.clear()
             if self.postponed:
                 logger.debug("%r: Postponing", self)
+                self.rpkid.task_add(self)
             else:
                 logger.debug("%r: Exiting", self)
                 if self.done_this is not None:
@@ -312,7 +313,6 @@ class UpdateChildrenTask(AbstractTask):
             try:
                 if (yield self.overdue()):
                     yield publisher.call_pubd()
-                    self.rpkid.task_add(self)
                     raise PostponeTask
 
                 child_certs = list(child.child_certs.filter(ca_detail__state = "active"))

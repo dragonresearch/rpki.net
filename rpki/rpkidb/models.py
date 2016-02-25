@@ -846,6 +846,17 @@ class CA(models.Model):
         return self.last_issued_sn
 
 
+    def next_crl_manifest_number(self):
+        """
+        Allocate a CRL/Manifest number.
+        """
+
+        trace_call_chain()
+        self.last_crl_manifest_number += 1
+        self.save()
+        return self.last_crl_manifest_number
+
+
     def create_detail(self):
         """
         Create a new CADetail object for this CA.
@@ -1243,15 +1254,14 @@ class CADetail(models.Model):
         crl_uri      = self.crl_uri
         manifest_uri = self.manifest_uri
 
+        crl_manifest_number = self.ca.next_crl_manifest_number()
+
         manifest_cert = self.issue_ee(
             ca          = self.ca,
             resources   = rpki.resource_set.resource_bag.from_inheritance(),
             subject_key = self.manifest_public_key,
             sia         = (None, None, manifest_uri, self.ca.parent.repository.rrdp_notification_uri),
             notBefore   = now)
-
-        self.ca.last_crl_manifest_number += 1
-        self.ca.save()
 
         certlist = []
         for revoked_cert in self.revoked_certs.all():
@@ -1264,7 +1274,7 @@ class CADetail(models.Model):
         self.latest_crl = rpki.x509.CRL.generate(
             keypair             = self.private_key_id,
             issuer              = self.latest_ca_cert,
-            serial              = self.ca.last_crl_manifest_number,
+            serial              = crl_manifest_number,
             thisUpdate          = now,
             nextUpdate          = nextUpdate,
             revokedCertificates = certlist)
@@ -1276,7 +1286,7 @@ class CADetail(models.Model):
         objs.extend((e.uri_tail, e.cert)        for e in self.ee_certificates.all())
 
         self.latest_manifest = rpki.x509.SignedManifest.build(
-            serial         = self.ca.last_crl_manifest_number,
+            serial         = crl_manifest_number,
             thisUpdate     = now,
             nextUpdate     = nextUpdate,
             names_and_objs = objs,

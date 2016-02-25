@@ -1153,7 +1153,7 @@ class CADetail(models.Model):
 
 
     def issue_ee(self, ca, resources, subject_key, sia,
-                 cn = None, sn = None, notAfter = None, eku = None):
+                 cn = None, sn = None, notAfter = None, eku = None, notBefore = None):
         """
         Issue a new EE certificate.
         """
@@ -1169,6 +1169,7 @@ class CADetail(models.Model):
             aia         = self.ca_cert_uri,
             crldp       = self.crl_uri,
             resources   = resources,
+            notBefore   = notBefore,
             notAfter    = notAfter,
             is_ca       = False,
             cn          = cn,
@@ -1246,7 +1247,8 @@ class CADetail(models.Model):
             ca          = self.ca,
             resources   = rpki.resource_set.resource_bag.from_inheritance(),
             subject_key = self.manifest_public_key,
-            sia         = (None, None, manifest_uri, self.ca.parent.repository.rrdp_notification_uri))
+            sia         = (None, None, manifest_uri, self.ca.parent.repository.rrdp_notification_uri),
+            notBefore   = now)
 
         self.ca.last_crl_manifest_number += 1
         self.ca.save()

@@ -378,10 +378,8 @@ class Tenant(models.Model):
         trace_call_chain()
         logger.debug("Forced immediate run of periodic actions for %r", self)
         tasks = self.cron_tasks(rpkid = rpkid)
-        rpkid.task_add(tasks)
-        futures = [task.wait() for task in tasks]
-        rpkid.task_run()
-        yield futures
+        rpkid.task_add(*tasks)
+        yield [task.wait() for task in tasks]
 
 
     def cron_tasks(self, rpkid):

@@ -2088,7 +2088,7 @@ class ROA(models.Model):
 
     def __repr__(self):
         try:
-            resources = " " + ",".join(str(ip) for ip in (self.ipv4, self.ipv6) if ip is not None)
+            resources = " {} {}".format(self.asn, ",".join(str(ip) for ip in (self.ipv4, self.ipv6) if ip is not None))
         except:
             resources = ""
         try:

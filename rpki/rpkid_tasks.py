@@ -373,6 +373,7 @@ class UpdateROAsTask(AbstractTask):
         roas = {}
         seen = set()
         orphans = []
+        creates = []
         updates = []
         publisher = rpki.rpkid.publication_queue(self.rpkid)
         ca_details = set()
@@ -391,29 +392,30 @@ class UpdateROAsTask(AbstractTask):
             k = "{!s} {!s} {!s}".format(r_pdu.get("asn"), r_pdu.get("ipv4"), r_pdu.get("ipv6"))
             if k in seen:
                 logger.warning("%r: Skipping duplicate ROA request %r", self, r_pdu)
+                continue
+            seen.add(k)
+            roa = roas.pop(k, None)
+            if roa is None:
+                roa = rpki.rpkidb.models.ROA(tenant = self.tenant, asn = long(r_pdu.get("asn")), ipv4 = r_pdu.get("ipv4"), ipv6 = r_pdu.get("ipv6"))
+                logger.debug("%r: Try to create %r", self, roa)
+                creates.append(roa)
             else:
-                seen.add(k)
-                roa = roas.pop(k, None)
-                if roa is None:
-                    roa = rpki.rpkidb.models.ROA(tenant = self.tenant, asn = long(r_pdu.get("asn")), ipv4 = r_pdu.get("ipv4"), ipv6 = r_pdu.get("ipv6"))
-                    logger.debug("%r: Created new %r", self, roa)
-                else:
-                    logger.debug("%r: Found existing %r", self, roa)
+                logger.debug("%r: Found existing %r", self, roa)
                 updates.append(roa)
-
-        r_msg = seen = None
 
         orphans.extend(roas.itervalues())
 
-        roas = None
+        roas = creates + updates
+
+        r_msg = seen = creates = updates = None
 
         postponing = False
 
-        while updates and not postponing:
+        while roas and not postponing:
             if (yield self.overdue()):
                 postponing = True
                 break
-            roa = updates.pop(0)
+            roa = roas.pop(0)
             try:
                 roa.update(publisher = publisher)
                 ca_details.add(roa.ca_detail)
@@ -421,8 +423,6 @@ class UpdateROAsTask(AbstractTask):
                 logger.warning("%r: No covering certificate for %r, skipping", self, roa)
             except:
                 logger.exception("%r: Could not update %r, skipping", self, roa)
-
-        updates = None
 
         if not postponing:
             for roa in orphans:

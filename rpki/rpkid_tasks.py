@@ -72,7 +72,7 @@ class AbstractTask(object):
     # configure from rpki.conf?
 
     #timeslice = rpki.sundial.timedelta(seconds = 15)
-    timeslice = rpki.sundial.timedelta(seconds = 60)
+    timeslice = rpki.sundial.timedelta(seconds = 120)
 
     def __init__(self, rpkid, tenant, description = None):
         self.rpkid       = rpkid

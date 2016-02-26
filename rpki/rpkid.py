@@ -145,8 +145,7 @@ class main(object):
         self.initial_delay = random.randint(self.cfg.getint("initial-delay-min", 10),
                                             self.cfg.getint("initial-delay-max", 120))
 
-        # Should be much longer in production
-        self.cron_period = self.cfg.getint("cron-period", 900)
+        self.cron_period = self.cfg.getint("cron-period", 1800)
 
         if self.use_internal_cron:
             logger.debug("Scheduling initial cron pass in %s seconds", self.initial_delay)

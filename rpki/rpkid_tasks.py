@@ -289,80 +289,61 @@ class UpdateChildrenTask(AbstractTask):
         now = rpki.sundial.now()
         rsn = now + rpki.sundial.timedelta(seconds = self.tenant.regen_margin)
         publisher = rpki.rpkid.publication_queue(self.rpkid)
+        postponing = False
 
-        # XXX This loop could be better written.
-        #
-        # As written, this is just maintenance on existing ChildCert
-        # objects (no attempt to generate new ones for which we did
-        # not previously have the resources, unclear whether that's a
-        # bug).  Assuming for purposes of discussion that this is what
-        # this task should be doing, this loop could be written better:
-        #
-        # We're looking for ChildCert objects issued by active
-        # CADetails, so we should querying for that directly before
-        # starting the loop.  From that result, we can trivially pull
-        # the set of distinct child_handle values, at which point we
-        # can do a single yield on a dict to get all the IRDB results
-        # back, keyed by child_handle, still before starting the loop.
-        #
-        # Once we have all that, we can run the loop without any
-        # interruptions, which should make it easier to avoid
-        # potential races while building up the publication queue.
+        child_certs    = rpki.rpkidb.models.ChildCert.objects.filter(child__tenant = self.tenant, ca_detail__state = "active")
+        child_handles  = set(child_cert.child.child_handle for child_cert in child_certs)
+        irdb_resources = yield dict((child_handle,
+                                     self.rpkid.irdb_query_child_resources(self.tenant.tenant_handle, child_handle))
+                                    for child_handle in child_handles)
 
-        for child in self.tenant.children.all():
+        for child_cert in child_certs:
             try:
-                if (yield self.overdue()):
-                    yield publisher.call_pubd()
-                    raise PostponeTask
+                ca_detail = child_cert.ca_detail
+                child_handle = child_cert.child.handle
+                old_resources = child_cert.cert.get_3779resources()
+                new_resources = old_resources & irdb_resources[child_handle] & ca_detail.latest_ca_cert.get_3779resources()
+                old_aia = child_cert.cert.get_AIA()[0]
+                new_aia = ca_detail.ca_cert_uri
 
-                child_certs = list(child.child_certs.filter(ca_detail__state = "active"))
+                assert child_cert.gski == child_cert.cert.gSKI()
 
-                if child_certs:
-                    irdb_resources = yield self.rpkid.irdb_query_child_resources(child.tenant.tenant_handle, child.child_handle)
+                if new_resources.empty():
+                    logger.debug("Resources shrank to the null set, revoking and withdrawing child %s certificate g(SKI) %s", child_handle, child_cert.gski)
+                    child_cert.revoke(publisher = publisher)
+                    ca_detail.generate_crl_and_manifest(publisher = publisher)
 
-                    for child_cert in child_certs:
-                        ca_detail = child_cert.ca_detail
-                        old_resources = child_cert.cert.get_3779resources()
-                        new_resources = old_resources & irdb_resources & ca_detail.latest_ca_cert.get_3779resources()
-                        old_aia = child_cert.cert.get_AIA()[0]
-                        new_aia = ca_detail.ca_cert_uri
+                elif old_resources != new_resources or old_aia != new_aia or (old_resources.valid_until < rsn and irdb_resources.valid_until > now and old_resources.valid_until != irdb_resources.valid_until):
+                    logger.debug("Need to reissue child %s certificate g(SKI) %s", child_handle, child_cert.gski)
+                    if old_resources != new_resources:
+                        logger.debug("Child %s g(SKI) %s resources changed: old %s new %s", child_handle, child_cert.gski, old_resources, new_resources)
+                    if old_resources.valid_until != irdb_resources.valid_until:
+                        logger.debug("Child %s g(SKI) %s validity changed: old %s new %s", child_handle, child_cert.gski, old_resources.valid_until, irdb_resources.valid_until)
 
-                        assert child_cert.gski == child_cert.cert.gSKI()
+                    new_resources.valid_until = irdb_resources.valid_until
+                    child_cert.reissue(ca_detail = ca_detail, resources = new_resources, publisher = publisher)
 
-                        if new_resources.empty():
-                            logger.debug("Resources shrank to the null set, revoking and withdrawing child %s certificate g(SKI) %s", child.child_handle, child_cert.gski)
-                            child_cert.revoke(publisher = publisher)
-                            ca_detail.generate_crl_and_manifest(publisher = publisher)
-
-                        elif old_resources != new_resources or old_aia != new_aia or (old_resources.valid_until < rsn and irdb_resources.valid_until > now and old_resources.valid_until != irdb_resources.valid_until):
-                            logger.debug("Need to reissue child %s certificate g(SKI) %s", child.child_handle, child_cert.gski)
-                            if old_resources != new_resources:
-                                logger.debug("Child %s g(SKI) %s resources changed: old %s new %s", child.child_handle, child_cert.gski, old_resources, new_resources)
-                            if old_resources.valid_until != irdb_resources.valid_until:
-                                logger.debug("Child %s g(SKI) %s validity changed: old %s new %s", child.child_handle, child_cert.gski, old_resources.valid_until, irdb_resources.valid_until)
-
-                            new_resources.valid_until = irdb_resources.valid_until
-                            child_cert.reissue(ca_detail = ca_detail, resources = new_resources, publisher = publisher)
-
-                        elif old_resources.valid_until < now:
-                            logger.debug("Child %s certificate g(SKI) %s has expired: cert.valid_until %s, irdb.valid_until %s", child.child_handle, child_cert.gski, old_resources.valid_until, irdb_resources.valid_until)
-                            child_cert.delete()
-                            publisher.queue(uri = child_cert.uri, old_obj = child_cert.cert, repository = ca_detail.ca.parent.repository)
-                            ca_detail.generate_crl_and_manifest(publisher = publisher)
-
-            except PostponeTask:
-                raise
+                elif old_resources.valid_until < now:
+                    logger.debug("Child %s certificate g(SKI) %s has expired: cert.valid_until %s, irdb.valid_until %s", child_handle, child_cert.gski, old_resources.valid_until, irdb_resources.valid_until)
+                    child_cert.delete()
+                    publisher.queue(uri = child_cert.uri, old_obj = child_cert.cert, repository = ca_detail.ca.parent.repository)
+                    ca_detail.generate_crl_and_manifest(publisher = publisher)
 
             except:
                 logger.exception("%r: Couldn't update %r, skipping", self, child)
 
             finally:
-                child_certs = irdb_resources = ca_detail = old_resources = new_resources = old_aia = new_aia = None
+                if (yield self.overdue()):
+                    postponing = True
+                    break
 
         try:
             yield publisher.call_pubd()
         except:
             logger.exception("%r: Couldn't publish, skipping", self)
+
+        if postponing:
+            raise PostponeTask
 
 
 @queue_task

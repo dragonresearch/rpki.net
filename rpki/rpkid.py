@@ -356,26 +356,36 @@ class main(object):
         raise tornado.gen.Return(r_msg)
 
     @tornado.gen.coroutine
-    def irdb_query_child_resources(self, tenant_handle, child_handle):
+    def irdb_query_children_resources(self, tenant_handle, child_handles):
         """
-        Ask IRDB about a child's resources.
+        Ask IRDB about resources for one or more children.
         """
 
         q_msg = self.compose_left_right_query()
-        SubElement(q_msg, rpki.left_right.tag_list_resources, tenant_handle = tenant_handle, child_handle = child_handle)
+        for child_handle in child_handles:
+            SubElement(q_msg, rpki.left_right.tag_list_resources, tenant_handle = tenant_handle, child_handle = child_handle)
 
         r_msg = yield self.irdb_query(q_msg)
 
-        if len(r_msg) != 1:
-            raise rpki.exceptions.BadIRDBReply("Expected exactly one PDU from IRDB: %s" % r_msg.pretty_print_content())
+        if len(r_msg) != len(q_msg):
+            raise rpki.exceptions.BadIRDBReply("Expected IRDB response to be same length as query: %s" % r_msg.pretty_print_content())
 
-        bag = rpki.resource_set.resource_bag(
-            asn         = rpki.resource_set.resource_set_as(r_msg[0].get("asn")),
-            v4          = rpki.resource_set.resource_set_ipv4(r_msg[0].get("ipv4")),
-            v6          = rpki.resource_set.resource_set_ipv6(r_msg[0].get("ipv6")),
-            valid_until = rpki.sundial.datetime.fromXMLtime(r_msg[0].get("valid_until")))
+        bags = [rpki.resource_set.resource_bag(asn         = rpki.resource_set.resource_set_as(r_pdu.get("asn")),
+                                               v4          = rpki.resource_set.resource_set_ipv4(r_pdu.get("ipv4")),
+                                               v6          = rpki.resource_set.resource_set_ipv6(r_pdu.get("ipv6")),
+                                               valid_until = rpki.sundial.datetime.fromXMLtime(r_pdu.get("valid_until")))
+                for r_pdu in r_msg]
 
-        raise tornado.gen.Return(bag)
+        raise tornado.gen.Return(bags)
+
+    @tornado.gen.coroutine
+    def irdb_query_child_resources(self, tenant_handle, child_handle):
+        """
+        Ask IRDB about a single child's resources.
+        """
+
+        bags = yield self.irdb_query_children_resources(tenant_handle, (child_handle,))
+        raise tornado.gen.Return(bags[0])
 
     @tornado.gen.coroutine
     def irdb_query_roa_requests(self, tenant_handle):

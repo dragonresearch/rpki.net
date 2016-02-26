@@ -292,15 +292,13 @@ class UpdateChildrenTask(AbstractTask):
         postponing = False
 
         child_certs    = rpki.rpkidb.models.ChildCert.objects.filter(child__tenant = self.tenant, ca_detail__state = "active")
-        child_handles  = set(child_cert.child.child_handle for child_cert in child_certs)
-        irdb_resources = yield dict((child_handle,
-                                     self.rpkid.irdb_query_child_resources(self.tenant.tenant_handle, child_handle))
-                                    for child_handle in child_handles)
+        child_handles  = sorted(set(child_cert.child.child_handle for child_cert in child_certs))
+        irdb_resources = dict(zip(child_handles, (yield self.rpkid.irdb_query_children_resources(self.tenant.tenant_handle, child_handles))))
 
         for child_cert in child_certs:
             try:
                 ca_detail = child_cert.ca_detail
-                child_handle = child_cert.child.handle
+                child_handle = child_cert.child.child_handle
                 old_resources = child_cert.cert.get_3779resources()
                 new_resources = old_resources & irdb_resources[child_handle] & ca_detail.latest_ca_cert.get_3779resources()
                 old_aia = child_cert.cert.get_AIA()[0]
@@ -313,11 +311,11 @@ class UpdateChildrenTask(AbstractTask):
                     child_cert.revoke(publisher = publisher)
                     ca_detail.generate_crl_and_manifest(publisher = publisher)
 
-                elif old_resources != new_resources or old_aia != new_aia or (old_resources.valid_until < rsn and irdb_resources.valid_until > now and old_resources.valid_until != irdb_resources.valid_until):
+                elif old_resources != new_resources or old_aia != new_aia or (old_resources.valid_until < rsn and irdb_resources[child_handle].valid_until > now and old_resources.valid_until != irdb_resources[child_handle].valid_until):
                     logger.debug("Need to reissue child %s certificate g(SKI) %s", child_handle, child_cert.gski)
                     if old_resources != new_resources:
                         logger.debug("Child %s g(SKI) %s resources changed: old %s new %s", child_handle, child_cert.gski, old_resources, new_resources)
-                    if old_resources.valid_until != irdb_resources.valid_until:
+                    if old_resources.valid_until != irdb_resources[child_handle].valid_until:
                         logger.debug("Child %s g(SKI) %s validity changed: old %s new %s", child_handle, child_cert.gski, old_resources.valid_until, irdb_resources.valid_until)
 
                     new_resources.valid_until = irdb_resources.valid_until
@@ -330,7 +328,7 @@ class UpdateChildrenTask(AbstractTask):
                     ca_detail.generate_crl_and_manifest(publisher = publisher)
 
             except:
-                logger.exception("%r: Couldn't update %r, skipping", self, child)
+                logger.exception("%r: Couldn't update %r, skipping", self, child_cert)
 
             finally:
                 if (yield self.overdue()):

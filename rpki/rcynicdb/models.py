@@ -7,8 +7,8 @@ from django.db import models
 class Retrieval(models.Model):
     uri        = models.TextField()
     started    = models.DateTimeField()
-    finished   = models.DateTimeField()
-    successful = models.BooleanField()
+    finished   = models.DateTimeField(null = True)
+    successful = models.BooleanField(default = False)
 
 # Collection of validated objects.
 
@@ -21,7 +21,7 @@ class Authenticated(models.Model):
 class RRDPSnapshot(models.Model):
     session_id = models.UUIDField()
     serial     = models.BigIntegerField()
-    retrieved  = models.OneToOneField(Retrieval)
+    retrieved  = models.OneToOneField(Retrieval, null = True)
 
 # RPKI objects.
 #

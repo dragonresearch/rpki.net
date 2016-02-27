@@ -1351,12 +1351,12 @@ def final_cleanup():
 
         #logger.debug("Flushing incomplete RRDP snapshots and retrieval objects")
 
-        q = RRDPSnapshot.objects
+        q = Retrieval.objects
         q = q.filter(finished__isnull = True)
         q.delete()
 
-        q = Retrieval.objects
-        q = q.filter(successful__isnull = True)
+        q = RRDPSnapshot.objects
+        q = q.filter(retrieved__isnull = True)
         q.delete()
 
         #logger.debug("Flushing old authenticated sets")

@@ -1091,7 +1091,7 @@ class Fetcher(object):
                         root = node.getparent()
                         if root is None or root.tag != tag_snapshot \
                                         or root.get("version") != "1" \
-                                        or any(a not in ("version", "uuid", "serial") for a in root.attrib):
+                                        or any(a not in ("version", "session_id", "serial") for a in root.attrib):
                             raise RRDP_ParseFailure("{} doesn't look like an RRDP snapshot file".format(url))
                         if root.get("session_id") != session_id:
                             raise RRDP_ParseFailure("Expected RRDP session_id {} for {}, got {}".format(
@@ -1175,7 +1175,7 @@ class Fetcher(object):
                                 root = node.getparent()
                                 if root is None or root.tag != tag_delta \
                                                 or root.get("version") != "1" \
-                                                or any(a not in ("version", "uuid", "serial") for a in root.attrib):
+                                                or any(a not in ("version", "session_id", "serial") for a in root.attrib):
                                     raise RRDP_ParseFailure("{} doesn't look like an RRDP delta file".format(url))
                                 if root.get("session_id") != session_id:
                                     raise RRDP_ParseFailure("Expected RRDP session_id {} for {}, got {}".format(

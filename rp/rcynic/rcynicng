@@ -1016,7 +1016,7 @@ class Fetcher(object):
         raise tornado.gen.Return((retrieval, notification))
 
     @tornado.gen.coroutine
-    def _rrdp_fetch_file(self, url, expected_hash):
+    def _rrdp_fetch_data_file(self, url, expected_hash):
 
         sha256 = rpki.POW.Digest(rpki.POW.SHA256_DIGEST)
         xml_file = tempfile.SpooledTemporaryFile()
@@ -1076,7 +1076,7 @@ class Fetcher(object):
 
                 logger.debug("RRDP %s loading from snapshot %s serial %s", self.uri, url, serial)
 
-                retrieval, response, xml_file = yield self._rrdp_fetch_file(url, hash)
+                retrieval, response, xml_file = yield self._rrdp_fetch_data_file(url, hash)
 
                 snapshot = RRDPSnapshot.objects.create(session_id = session_id, serial = serial)
 
@@ -1089,7 +1089,9 @@ class Fetcher(object):
 
                     if root is None:
                         root = node.getparent()
-                        if root is None or root.tag != tag_snapshot:
+                        if root is None or root.tag != tag_snapshot \
+                                        or root.get("version") != "1" \
+                                        or any(a not in ("version", "uuid", "serial") for a in root.attrib):
                             raise RRDP_ParseFailure("{} doesn't look like an RRDP snapshot file".format(url))
                         if root.get("session_id") != session_id:
                             raise RRDP_ParseFailure("Expected RRDP session_id {} for {}, got {}".format(
@@ -1098,7 +1100,8 @@ class Fetcher(object):
                             raise RRDP_ParseFailure("Expected RRDP serial {} for {}, got {}".format(
                                 serial, url, root.get("serial")))
 
-                    if node.tag != tag_publish or node.getparent() is not root:
+                    if node.tag != tag_publish or node.getparent() is not root \
+                                               or any(a != "uri" for a  in node.attrib):
                         raise RRDP_ParseFailure("{} doesn't look like an RRDP snapshot file".format(url))
 
                     count += 1
@@ -1153,12 +1156,11 @@ class Fetcher(object):
                     while deltas and len(futures) < args.fetch_ahead_goal:
                         serial, url, hash = deltas.pop(0)
                         logger.debug("RRDP %s serial %s fetching %s", self.uri, serial, url)
-                        futures.append(self._rrdp_fetch_file(url, hash))
+                        futures.append(self._rrdp_fetch_data_file(url, hash))
 
                     retrieval, response, xml_file = yield futures.pop(0)
 
                     root = None
-                    count = 0
 
                     with transaction.atomic():
                         snapshot.serial += 1
@@ -1171,7 +1173,9 @@ class Fetcher(object):
 
                             if root is None:
                                 root = node.getparent()
-                                if root is None or root.tag != tag_delta:
+                                if root is None or root.tag != tag_delta \
+                                                or root.get("version") != "1" \
+                                                or any(a not in ("version", "uuid", "serial") for a in root.attrib):
                                     raise RRDP_ParseFailure("{} doesn't look like an RRDP delta file".format(url))
                                 if root.get("session_id") != session_id:
                                     raise RRDP_ParseFailure("Expected RRDP session_id {} for {}, got {}".format(
@@ -1180,7 +1184,11 @@ class Fetcher(object):
                                     raise RRDP_ParseFailure("Expected RRDP serial {} for {}, got {}".format(
                                         snapshot.serial, url, root.get("serial")))
 
-                            if node.tag not in (tag_publish, tag_withdraw) or node.getparent() is not root:
+                            hash = node.get("hash")
+
+                            if node.getparent() is not root or node.tag not in (tag_publish, tag_withdraw) \
+                                                            or (node.tag == tag_withdraw and hash is None) \
+                                                            or any(a not in ("uri", "hash") for a in node.attrib):
                                 raise RRDP_ParseFailure("{} doesn't look like an RRDP delta file".format(url))
 
                             if node.tag == tag_withdraw or node.get("hash") is not None:

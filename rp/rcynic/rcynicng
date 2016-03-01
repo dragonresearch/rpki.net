@@ -995,9 +995,12 @@ class Fetcher(object):
     @tornado.gen.coroutine
     def _rrdp_bulk_create(self, new_objs, existing_objs):
         from django.db import IntegrityError
+
         #logger.debug("Bulk creation of new RPKIObjects")
+
         try:
             RPKIObject.objects.bulk_create(new_objs)
+
         except IntegrityError:
             #logger.debug("Some objects already existed, weeding and retrying")
             i = 0
@@ -1010,7 +1013,8 @@ class Fetcher(object):
                 else:
                     del new_objs[i]
             RPKIObject.objects.bulk_create(new_objs)
-            del new_objs[:]
+
+        del new_objs[:]
 
     @tornado.gen.coroutine
     def _rrdp_fetch(self):

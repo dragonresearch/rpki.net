@@ -7,8 +7,8 @@ from django.db import models
 class Retrieval(models.Model):
     uri        = models.TextField()
     started    = models.DateTimeField()
-    finished   = models.DateTimeField(null = True)
-    successful = models.BooleanField(default = False)
+    finished   = models.DateTimeField()
+    successful = models.BooleanField()
 
 # Collection of validated objects.
 

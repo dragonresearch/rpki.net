@@ -10,11 +10,23 @@ class Retrieval(models.Model):
     finished   = models.DateTimeField()
     successful = models.BooleanField()
 
+    def __repr__(self):
+        try:
+            return "<Retrieval: {0.uri} started {0.started} finished {0.finished} successful {0.successful}>".format(self)
+        except:
+            return "<Retrieval: {}>".format(id(self))
+
 # Collection of validated objects.
 
 class Authenticated(models.Model):
     started  = models.DateTimeField()
     finished = models.DateTimeField(null = True)
+
+    def __repr__(self):
+        try:
+            return "<Authenticated: started {0.started} finished {0.finished}>".format(self)
+        except:
+            return "<Authenticated: {}>".format(id(self))
 
 # One instance of an RRDP snapshot.
 
@@ -22,6 +34,13 @@ class RRDPSnapshot(models.Model):
     session_id = models.UUIDField()
     serial     = models.BigIntegerField()
     retrieved  = models.OneToOneField(Retrieval, null = True)
+
+    def __repr__(self):
+        try:
+            return "<RRDPSnapshot: serial {0.serial} session_id {0.session_id} retrieved {0.retrieved!r}>".format(self)
+        except:
+            return "<RRDPSnapshot: {}>".format(id(self))
+
 
 # RPKI objects.
 #
@@ -54,3 +73,9 @@ class RPKIObject(models.Model):
     retrieved     = models.ForeignKey(Retrieval)
     authenticated = models.ManyToManyField(Authenticated)
     snapshot      = models.ManyToManyField(RRDPSnapshot)
+
+    def __repr__(self):
+        try:
+            return "<RPKIObject: uri {0.uri} sha256 {0.sha256} ski {0.ski} aki {0.aki} retrieved {0.retrieved!r}>".format(self)
+        except:
+            return "<RPKIObject: {}>".format(id(self))

@@ -67,10 +67,12 @@ Alias   /rrdp           %(datarootdir)s/rpki/rrdp-publication/
 #
 # RRDP "notification" file needs a short expiration: this is
 # a critical part of how RRDP interacts with HTTP caching.
+# Timeout is per current RRDP I-D, this will need to track
+# any changes as the specification evolves.
 #
-<LocationMatch          ^/rrdp/updates[.]xml$>
+<LocationMatch          ^/rrdp/notify[.]xml$>
   ExpiresActive         on
-  ExpiresDefault        "access plus 5 minutes"
+  ExpiresDefault        "access plus 1 minute"
 </LocationMatch>
 
 #

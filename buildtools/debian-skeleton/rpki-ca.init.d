@@ -14,9 +14,10 @@
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="rpki-ca"
 NAME=rpki-ca
-STARTER=/usr/sbin/rpki-start-servers
-STARTER_OPTS="--log-level warning --log-directory /var/log/rpki --log-rotating-file-hours 3 --log-backup-count 56"
 PIDDIR=/var/run/rpki
+LOGDIR=/var/log/rpki
+STARTER=/usr/sbin/rpki-start-servers
+STARTER_OPTS="--log-level warning --log-directory $LOGDIR --log-rotating-file-hours 3 --log-backup-count 56"
 SCRIPTNAME=/etc/init.d/$NAME
 
 # Exit if the package is not installed
@@ -84,6 +85,7 @@ do_start()
     test "X$enabled" = "X$running" && return 1
 
     test -d $PIDDIR || install -d -o rpki -g rpki $PIDDIR || return 2
+    test -d $LOGDIR || install -d -o rpki -g rpki $LOGDIR || return 2
 
     test -f /usr/share/rpki/bpki/ca.cer   || return 2
     test -f /usr/share/rpki/bpki/irbe.cer || return 2

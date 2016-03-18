@@ -311,26 +311,28 @@ for r in args.releases:
 
 Release.do_all_releases()
 
-# Upload results, maybe.
+# Upload results, maybe.  We do this in two stages, to minimize the window
+# during which the uploaded repository might be in an inconsistent state.
 
-# This should change to use the rsync:// over ssh hack so server can provide an rsyncd.conf
-# tuning access.  See {bob,bikeshed}.cryptech.is configuration.
+def rsync(*flags):
+    cmd = ["rsync", "--archive", "--itemize-changes",
+           "--rsh", "ssh -l {}".format(args.apt_user)]
+    cmd.extend(flags)
+    cmd.append(args.apt_tree)
+    cmd.append("rsync://{host}/{path}/".format(host = args.url_host,
+                                               path = args.url_path.strip("/")))
+    if upload:
+        logging.info("Synching repository to %s with flags %s",
+                     cmd[-1], " ".join(flags))
+        run(*cmd)
+    else:
+        logging.info("Would have synched repository to %s with flags %",
+                     cmd[-1], " ".join(flags))
 
-srv_path = "{user}@{host}:/usr/local/www/data/{host}/{path}/".format(user = args.apt_user,
-                                                                     host = args.url_host,
-                                                                     path = args.url_path.strip("/"))
+rsync("--ignore-existing")
 
-if upload:
-    logging.info("Synching repository to %s", srv_path)
-    run("rsync", "-ai4",
-        "--ignore-existing",
-        args.apt_tree, srv_path)
-    run("rsync", "-ai4",
-        "--exclude", "HEADER.html",
-        "--exclude", "HEADER.css",
-        "--delete", "--delete-delay",
-        args.apt_tree, srv_path)
-else:
-    logging.info("Would have synched repository to %s", srv_path)
+rsync("--exclude", "HEADER.html",
+      "--exclude", "HEADER.css",
+      "--delete", "--delete-delay")
 
 logging.info("Done")

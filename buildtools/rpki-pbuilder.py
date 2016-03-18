@@ -51,13 +51,19 @@ parser.add_argument("--svn-tree", default = os.path.expanduser("~/source/trunk/"
                     help = "subversion tree")
 parser.add_argument("--apt-tree", default = os.path.expanduser("~/repository/"),
                     help = "reprepro repository")
-parser.add_argument("--srv-path", default = "aptbot@download.rpki.net:/usr/local/www/data/download.rpki.net/APT/",
-                    help = "upload destination")
-parser.add_argument("--source-format", default = "http://download.rpki.net/APT/%(distribution)s %(release)s main",
-                    help = "source.list format string")
+parser.add_argument("--apt-user", default = "aptbot",
+                    help = "username for uploading apt repository to public web server")
+parser.add_argument("--url-host", default = "download.rpki.net",
+                    help = "hostname of public web server")
+parser.add_argument("--url-path", default = "/APT",
+                    help = "path of apt repository on public web server")
+parser.add_argument("--backports", nargs = "+", default = ["python-django", "python-tornado"],
+                    help = "backports needed for this build")
+parser.add_argument("--releases", nargs = "+", default = ["ubuntu/trusty", "debian/wheezy", "ubuntu/precise"],
+                    help = "releases for which to build")
 args = parser.parse_args()
 
-# Maybe logging should be conigurable too.  Later.
+# Maybe logging should be configurable too.  Later.
 
 logging.basicConfig(level = logging.INFO, timefmt = "%Y-%m-%dT%H:%M:%S",
                     format = "%(asctime)s [%(process)d] %(levelname)s %(message)s")
@@ -92,14 +98,14 @@ try:
     lock = os.open(args.lockfile, os.O_RDONLY | os.O_CREAT | os.O_NONBLOCK, 0666)
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
 except (IOError, OSError), e:
-    sys.exit(0 if e.errno == errno.EAGAIN else "Error %r opening lock %r" % args.lockfile)
+    sys.exit(0 if e.errno == errno.EAGAIN else "Error {!r} opening lock {!r}".format(e, args.lockfile))
 
 run("svn", "--quiet", "update", cwd = args.svn_tree)
 
 source_version = subprocess.check_output(("svnversion", "-c"), cwd = args.svn_tree).strip().split(":")[-1]
 
 if not source_version.isdigit() and not args.debug:
-    sys.exit("Sources don't look pristine, not building (%r)" % source_version)
+    sys.exit("Sources don't look pristine, not building ({!r})".format(source_version))
 
 source_version = "0." + source_version
 search_version = "_" + source_version + "~"
@@ -122,15 +128,17 @@ class Release(object):
     releases = []
     packages = {}
 
-    def __init__(self, release, distribution, *backports):
-        self.release = release
-        self.distribution = distribution
+    def __init__(self, distribution_release, backports):
+        self.distribution, self.release = distribution_release.split("/")
         self.backports = backports
+        self.apt_source = "http://{host}/{path}/{distribution} {release} main".format(
+            host = args.url_host,
+            path = args.url_path.strip("/"),
+            distribution = self.distribution,
+            release = self.release)
+        self.env = dict(os.environ)
         if backports:
-            self.env = dict(os.environ,
-                            OTHERMIRROR = "deb " + args.source_format  % dict(distribution = distribution, release = release))
-        else:
-            self.env = os.environ
+            self.env.update(OTHERMIRROR = "deb " + self.apt_source)
         self.releases.append(self)
 
     @classmethod
@@ -173,7 +181,7 @@ class Release(object):
 
     @property
     def dsc(self):
-        return os.path.join(dsc_dir, "rpki_%s.dsc" % self.version)
+        return os.path.join(dsc_dir, "rpki_{}.dsc".format(self.version))
 
     @property
     def tree(self):
@@ -181,15 +189,15 @@ class Release(object):
 
     @property
     def basefile(self):
-        return os.path.expanduser("~/pbuilder/%s%s-base.tgz" % (self.release, self.tag))
+        return os.path.expanduser("~/pbuilder/{0.release}{0.tag}-base.tgz".format(self))
 
     @property
     def result(self):
-        return os.path.expanduser("~/pbuilder/%s%s_result" % (self.release, self.tag))
+        return os.path.expanduser("~/pbuilder/{0.release}{0.tag}_result".format(self))
 
     @property
     def changes(self):
-        return os.path.join(self.result, "rpki_%s_%s.changes" % (self.version, self.arch))
+        return os.path.join(self.result, "rpki_{0.version}_{0.arch}.changes".format(self))
 
     def do_one_architecture(self):
         logging.info("Running build for %s %s %s", self.distribution, self.release, self.arch)
@@ -197,8 +205,9 @@ class Release(object):
         if not os.path.exists(self.dsc):
             logging.info("Building source package %s", self.version)
             for fn in os.listdir(dsc_dir):
-                if fn != "trunk" and search_version not in fn:
-                    os.unlink(os.path.join(dsc_dir, fn))
+                fn = os.path.join(dsc_dir, fn)
+                if not os.path.isdir(fn) and search_version not in fn:
+                    os.unlink(fn)
             run("rm", "-rf", "debian", cwd = args.svn_tree)
             run(sys.executable, "buildtools/make-version.py", cwd = args.svn_tree)
             run(sys.executable, "buildtools/build-debian-packages.py", "--version-suffix", self.release, cwd = args.svn_tree)
@@ -237,37 +246,36 @@ class Release(object):
 
         fn = os.path.join(self.tree, "conf", "distributions")
         distributions = open(fn, "r").read() if os.path.exists(fn) else ""
-        if ("Codename: %s\n" % self.release) not in distributions:
+        if "Codename: {0.release}\n".format(self) not in distributions:
             logging.info("%s %s", "Editing" if distributions else "Creating", fn)
             with open(fn, "w") as f:
                 if distributions:
                     f.write(distributions)
                     f.write("\n")
                 f.write(dedent("""\
-                        Origin: rpki.net
-                        Label: rpki.net %(distribution)s repository
-                        Codename: %(release)s
-                        Architectures: %(architectures)s source
-                        Components: main
-                        Description: rpki.net %(Distribution)s APT Repository
-                        SignWith: yes
-                        DebOverride: override.%(release)s
-                        DscOverride: override.%(release)s
-                        """ % dict(
-                    distribution  = self.distribution,
-                    Distribution  = self.distribution.capitalize(),
-                    architectures = " ".join(self.architectures),
-                    release       = self.release)))
+                               Origin: rpki.net
+                               Label: rpki.net {self.distribution} repository
+                               Codename: {self.release}
+                               Architectures: {architectures} source
+                               Components: main
+                               Description: rpki.net {Distribution} APT Repository
+                               SignWith: yes
+                               DebOverride: override.{self.release}
+                               DscOverride: override.{self.release}
+                               """.format(
+                            self = self,
+                            Distribution  = self.distribution.capitalize(),
+                            architectures = " ".join(self.architectures))))
 
         fn = os.path.join(self.tree, "conf", "options")
         if not os.path.exists(fn):
             logging.info("Creating %s", fn)
             with open(fn, "w") as f:
                 f.write(dedent("""\
-                        verbose
-                        ask-passphrase
-                        basedir .
-                        """))
+                               verbose
+                               ask-passphrase
+                               basedir .
+                               """))
 
         fn = os.path.join(self.tree, "conf", "override." + self.release)
         if not os.path.exists(fn):
@@ -275,29 +283,29 @@ class Release(object):
             with open(fn, "w") as f:
                 for pkg in self.backports:
                     f.write(dedent("""\
-                        %-30s   Priority        optional
-                        %-30s   Section         python
-                        """ % (pkg, pkg)))
+                                   {pkg:<30}   Priority        optional
+                                   {pkg:<30}   Section         python
+                                   """.format(pkg = pkg)))
                 f.write(dedent("""\
-                        rpki-ca                 Priority        extra
-                        rpki-ca                 Section         net
-                        rpki-rp                 Priority        extra
-                        rpki-rp                 Section         net
-                        """))
+                               rpki-ca                 Priority        extra
+                               rpki-ca                 Section         net
+                               rpki-rp                 Priority        extra
+                               rpki-rp                 Section         net
+                               """))
 
-        fn = os.path.join(args.apt_tree, "rpki.%s.list" % self.release)
+        fn = os.path.join(args.apt_tree, "rpki.{}.list".format(self.release))
         if not os.path.exists(fn):
             logging.info("Creating %s", fn)
-            source = args.source_format % dict(distribution = self.distribution, release = self.release)
             with open(fn, "w") as f:
-                f.write("deb %s\n" % source)
-                f.write("deb-src %s\n" % source)
+                f.write(dedent("""\
+                               deb {self.apt_source}
+                               deb-src {self.apt_source}
+                               """.format(self = self)))
 
-# Finally, here's where we specify the distributions for which we're building.
+# Load whatever releases the user specified
 
-Release("trusty", "ubuntu", "python-django-south")
-Release("wheezy", "debian", "python-django", "python-django-south")
-Release("precise", "ubuntu", "python-django", "python-django-south")
+for r in args.releases:
+    Release(r, args.backports)
 
 # Do all the real work.
 
@@ -305,15 +313,24 @@ Release.do_all_releases()
 
 # Upload results, maybe.
 
+# This should change to use the rsync:// over ssh hack so server can provide an rsyncd.conf
+# tuning access.  See {bob,bikeshed}.cryptech.is configuration.
+
+srv_path = "{user}@{host}:/usr/local/www/data/{host}/{path}/".format(user = args.apt_user,
+                                                                     host = args.url_host,
+                                                                     path = args.url_path.strip("/"))
+
 if upload:
-    logging.info("Synching repository to server")
+    logging.info("Synching repository to %s", srv_path)
     run("rsync", "-ai4",
         "--ignore-existing",
-        args.apt_tree, args.srv_path)
+        args.apt_tree, srv_path)
     run("rsync", "-ai4",
         "--exclude", "HEADER.html",
         "--exclude", "HEADER.css",
         "--delete", "--delete-delay",
-        args.apt_tree, args.srv_path)
+        args.apt_tree, srv_path)
+else:
+    logging.info("Would have synched repository to %s", srv_path)
 
 logging.info("Done")

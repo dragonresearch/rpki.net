@@ -23,7 +23,7 @@ abs_top_builddir = @abs_top_builddir@
 
 RTR_ORIGIN_INSTALL_TARGETS = @RCYNIC_INSTALL_TARGETS@
 
-RPKI_RTR_PORT	= 43779
+RPKI_RTR_PORT	= 323
 
 all clean test deinstall uninstall::
 	@true

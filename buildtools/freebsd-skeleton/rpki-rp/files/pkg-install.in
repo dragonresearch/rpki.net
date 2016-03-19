@@ -56,7 +56,7 @@ POST-INSTALL)
     if /usr/bin/egrep -q '^rpki-rtr' /etc/services
     then
         echo "You already have a /etc/services entry for rpki-rtr, so I will use it."
-    elif echo >>/etc/services "rpki-rtr	43779/tcp  #RFC 6810"
+    elif echo >>/etc/services "rpki-rtr	323/tcp
     then
         echo "Added rpki-rtr to /etc/services."
     else

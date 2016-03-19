@@ -1,15 +1,46 @@
 #!/usr/bin/env python
 
-import os
+# Using a Python script to run sudo to run a Python script is a bit
+# silly, but it lets us use rpki.autoconf to locate sudo, lets us
+# avoid needing a custom setuid wrapper, lets us avoid another pass
+# through the adventures of shell quoting and tokenization, and
+# generally is just a lot simpler to implement correctly.
+#
+# OK, it's probably a few milliseconds slower.  Big deal.
 
-# django-admin seems to have problems creating the superuser account when
-# $LANG is unset or is set to something totally incompatible with UTF-8.
+if __name__ == "__main__":
 
-if os.environ.get("LANG") in (None, "", "C"):
-    os.environ["LANG"] = "en_US.UTF-8"
+    import os
+    import pwd
+    import sys
+    import rpki.autoconf
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "rpki.django_settings.gui")
+    try:
+        uid = pwd.getpwnam(rpki.autoconf.RPKI_USER).pw_uid
+    except:
+        uid = None
 
-from django.core.management import execute_from_command_line
+    if uid is None or uid == os.geteuid():
 
-execute_from_command_line()
+        # django-admin seems to have problems creating the superuser account when
+        # $LANG is unset or is set to something totally incompatible with UTF-8.
+
+        if os.environ.get("LANG") in (None, "", "C"):
+            os.environ["LANG"] = "en_US.UTF-8"
+
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "rpki.django_settings.gui")
+
+        from django.core.management import execute_from_command_line
+
+        execute_from_command_line()
+
+    else:
+
+        try:
+            argv = [rpki.autoconf.SUDO, "-u", rpki.autoconf.RPKI_USER, sys.executable]
+            argv.extend(os.path.abspath(a) if i == 0 else a for i, a in enumerate(sys.argv))
+            os.execv(argv[0], argv)
+            sys.exit("rpki-manage startup failure, no exception so don't know why, sorry")
+
+        except Exception as e:
+            sys.exit("Couldn't exec sudo python rpki-manage: {!s}".format(e))

@@ -5,15 +5,15 @@
 # Division between rp and ca packages is somewhat arbitrary, and becomes less relevant as we move more and
 # more of the code from C into Python.  Some day we may just collapse down to a single binary package again.
 
-# Old required database was MySQL, because we used it directly.  These days we use Django ORM for everything,
-# and can run over SQLite3, MySQL, PostgreSQL, or, really, anything with a Django driver.  We're in the process
-# of moving towards using PostgreSQL as the default but there are still some MySQL vestiges to be cleaned up.
+# Build doesn't really require sudo or rrdtool, but rpki.autoconf gets the wrong values if they're not present.
+# Better fix for this would be to specify values for this on the command line for ./configure, but specifying
+# them as build dependencies should work around the problem for now.
 
 Source: rpki
 Section: net
 Priority: extra
 Maintainer: Rob Austein <sra@hactrn.net>
-Build-Depends: debhelper (>= 8.0.0), autotools-dev, python (>= 2.7), python-all-dev, python-setuptools, python-lxml
+Build-Depends: debhelper (>= 8.0.0), autotools-dev, python (>= 2.7), python-all-dev, python-setuptools, python-lxml, sudo, rrdtool
 Standards-Version: 3.9.3
 Homepage: http://trac.rpki.net/
 Vcs-Svn: http://subvert-rpki.hactrn.net/

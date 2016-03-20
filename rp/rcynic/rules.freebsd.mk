@@ -23,11 +23,3 @@ install-user-and-group: .FORCE
 	    echo "Please create it, then try again."; \
 	    exit 1; \
 	fi
-
-# We use static compilation on FreeBSD, so no need for shared libraries
-
-install-shared-libraries: 
-	@true
-
-install-rc-scripts:
-	${INSTALL} -m 555 -o root -g wheel -p rc-scripts/freebsd/rc.d.rcynic ${DESTDIR}/usr/local/etc/rc.d/rcynic

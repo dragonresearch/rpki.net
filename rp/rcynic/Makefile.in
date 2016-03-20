@@ -1,17 +1,7 @@
 # $Id$
 
-NAME = rcynic
-
-BIN = ${NAME}
-SRC = ${NAME}.c
-OBJ = ${NAME}.o
-
-GEN = defstack.h
-
-OBJS = ${OBJ} bio_f_linebreak.o
-
 CFLAGS = @CFLAGS@ -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations -Werror-implicit-function-declaration
-LDFLAGS = @LDFLAGS@ @LD_STATIC_FLAG@
+LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
 
 AWK			= @AWK@
@@ -40,49 +30,48 @@ abs_top_srcdir		= @abs_top_srcdir@
 abs_top_builddir	= @abs_top_builddir@
 srcdir			= @srcdir@
 
-RCYNIC_BIN_RCYNIC	= @RCYNIC_BIN_RCYNIC@
+RCYNIC_BIN_RCYNIC	= ${DESTDIR}${bindir}/rcynic
 RCYNIC_CONF_DATA	= @RCYNIC_CONF_DATA@
-RCYNIC_CONF_FILE	= @RCYNIC_CONF_FILE@
-RCYNIC_CONF_RSYNC	= @RCYNIC_CONF_RSYNC@
-RCYNIC_CONF_TA_DIR	= @RCYNIC_CONF_TA_DIR@
-RCYNIC_CRON_USER	= @RCYNIC_CRON_USER@
-RCYNIC_DATA_DIR		= ${RCYNIC_DIR}/data
+RCYNIC_CONF_FILE	= ${DESTDIR}${sysconfdir}/rcynic.conf
+RCYNIC_CONF_RSYNC	= @RSYNC@
+RCYNIC_CONF_TA_DIR	= ${sysconfdir}/rpki/trust-anchors
+RCYNIC_CRON_USER	= ${RPKI_USER}
+RCYNIC_DATA_DIR		= ${DESTDIR}${RCYNIC_DIR}/data
 RCYNIC_DIR		= @RCYNIC_DIR@
-RCYNIC_DIRS		= ${RCYNIC_TA_DIR} ${RCYNIC_JAIL_DIRS} ${RCYNIC_DATA_DIR} ${RPKIRTR_DIR} ${RPKIRTR_DIR}/sockets
+RCYNIC_DIRS		= ${RCYNIC_TA_DIR} ${RCYNIC_DATA_DIR} ${RPKIRTR_DIR} ${RPKIRTR_DIR}/sockets
 RPKI_GECOS		= RPKI System Software
 RPKI_GROUP		= @RPKI_GROUP@
 RCYNIC_HTML_DIR		= @RCYNIC_HTML_DIR@
 RCYNIC_INSTALL_TARGETS	= @RCYNIC_INSTALL_TARGETS@
-RCYNIC_JAIL_DIRS	= @RCYNIC_JAIL_DIRS@
-RCYNIC_STATIC_RSYNC	= @RCYNIC_STATIC_RSYNC@
-RCYNIC_TA_DIR		= @RCYNIC_TA_DIR@
+RCYNIC_TA_DIR		= ${DESTDIR}${sysconfdir}/rpki/trust-anchors
 RPKI_USER		= @RPKI_USER@
-RPKIRTR_DIR		= ${RCYNIC_DIR}/rpki-rtr
+RPKIRTR_DIR		= ${DESTDIR}${RCYNIC_DIR}/rpki-rtr
 
-all: ${BIN} ${RCYNIC_STATIC_RSYNC}
+OBJS			= rcynic.o bio_f_linebreak.o
+
+all: rcynicng
 
 clean:
-	if test -r static-rsync/Makefile; then cd static-rsync; ${MAKE} $@; fi
-	rm -f ${BIN} ${OBJS}
+	rm -f rcynic ${OBJS}
 
-${OBJ}: ${SRC} ${GEN}
+rcynic.o: rcynic.c defstack.h
 
-${BIN}: ${OBJS}
+rcynic: ${OBJS}
 	${CC} ${CFLAGS} -o $@ ${OBJS} ${LDFLAGS} ${LIBS}
 
-${GEN}: ${SRC}
-	${PYTHON} ${abs_top_srcdir}/buildtools/defstack.py ${SRC} >$@.tmp
+defstack.h: rcynic.c
+	${PYTHON} ${abs_top_srcdir}/buildtools/defstack.py rcynic.c >$@.tmp
 	mv $@.tmp $@
 
 tags: TAGS
 
-TAGS: ${SRC} ${GEN}
-	etags ${SRC} ${GEN}
+TAGS: rcynic.c defstack.h
+	etags rcynic.c defstack.h
 
-test: ${BIN}
+test: rcynic
 	if test -r rcynic.conf; \
 	then \
-		./${BIN} -j 0 && \
+		./rcynic -j 0 && \
 		test -r rcynic.xml && \
 		echo && \
 		./rcynic-text rcynic.xml; \
@@ -104,13 +93,10 @@ static-rsync/rsync:
 install: all ${RCYNIC_INSTALL_TARGETS}
 
 install-always: \
-	install-directories install-rcynic install-rcynic-conf
+	install-directories install-rcynic install-tals
 
 install-postconf: \
 	install-user-and-group install-directory-ownership install-crontab
-
-install-jailed: \
-	install-static-rsync install-shared-libraries install-rc-scripts
 
 install-directories: ${RCYNIC_DIRS}
 
@@ -120,15 +106,18 @@ ${RCYNIC_DIRS} ${DESTDIR}${bindir} ${DESTDIR}${sysconfdir}:
 install-directory-ownership: ${RCYNIC_DATA_DIR} ${RPKIRTR_DIR} ${RPKIRTR_DIR}/sockets
 	chown ${RPKI_USER}:${RPKI_GROUP} ${RCYNIC_DATA_DIR} ${RPKIRTR_DIR} ${RPKIRTR_DIR}/sockets
 
-install-rcynic-conf: ${RCYNIC_CONF_FILE}
+install-tals:
+	${INSTALL} -v -d ${RCYNIC_TA_DIR}
+	${INSTALL} -v -p -m 444 sample-trust-anchors/*.tal ${RCYNIC_TA_DIR}
+
+# We don't install rcynic.conf anymore.  Keep this for now as internal documentation,
+# clean up later.
 
 ${RCYNIC_CONF_FILE}:
 	@echo
-	@echo Found no ${RCYNIC_CONF_FILE}, creating basic config and installing default trust anchor locators.
+	@echo Found no ${RCYNIC_CONF_FILE}, creating basic configuration.
 	@echo You might want to edit this.
 	@echo
-	${INSTALL} -v -d ${RCYNIC_TA_DIR}
-	${INSTALL} -v -p -m 444 sample-trust-anchors/*.tal ${RCYNIC_TA_DIR}
 	@echo > $@.tmp '# Basic rcynic configuration file with default trust anchors.'
 	@echo >>$@.tmp '# See documentation for details.'
 	@echo >>$@.tmp ''
@@ -147,13 +136,8 @@ ${RCYNIC_CONF_FILE}:
 
 install-rcynic: ${RCYNIC_BIN_RCYNIC}
 
-${RCYNIC_BIN_RCYNIC}: ${BIN}
-	${INSTALL} -p -m 555 ${BIN} $@
-
-install-static-rsync: ${RCYNIC_DIR}/bin/rsync
-
-${RCYNIC_DIR}/bin/rsync: static-rsync/rsync
-	${INSTALL} -p -m 555 static-rsync/rsync $@
+${RCYNIC_BIN_RCYNIC}: rcynicng
+	${INSTALL} -p -m 555 rcynicng $@
 
 .FORCE:
 

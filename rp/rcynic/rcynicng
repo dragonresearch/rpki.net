@@ -1387,11 +1387,12 @@ def main():
 
     cfg, parser = rpki.config.argparser(section = "rcynic", doc = __doc__, cfg_optional = True)
 
-    parser.add_argument("--authenticated",      default = "rcynic-data/authenticated")
-    parser.add_argument("--unauthenticated",    default = "rcynic-data/unauthenticated")
-    parser.add_argument("--xml-file",           default = "rcynicng.xml", type = argparse.FileType("w"))
+    parser.add_argument("--unauthenticated",    default = os.path.join(rpki.autoconf.RCYNIC_DIR, "data", "unauthenticated"))
 
-    parser.add_argument("--tals",               default = "sample-trust-anchors")
+    parser.add_argument("--xml-file",           default = os.path.join(rpki.autoconf.RCYNIC_DIR, "data", "rcynic.xml"),
+                                                type = argparse.FileType("w"))
+
+    parser.add_argument("--tals",               default = os.path.join(rpki.autoconf.sysconfdir, "rpki", "trust-anchors"))
 
     parser.add_argument("--workers",            default = 10, type = posint)
 

@@ -424,7 +424,7 @@ def import_rcynic_xml(root=default_root, logfile=default_logfile):
 
     start = time.time()
     process_labels(logfile)
-    object_accepted = LABEL_CACHE['object_accepted']
+    object_accepted = LABEL_CACHE['OBJECT_ACCEPTED']
     fetch_published_objects()
     process_cache(root, logfile)
     notify_invalid()

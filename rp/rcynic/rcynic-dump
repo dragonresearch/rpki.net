@@ -35,8 +35,6 @@ parser.add_argument("-c", "--config")
 parser.add_argument("output_tree", nargs = "?", default = "rcynic-data")
 args = parser.parse_args()
 
-rpki.config.rpki_conf_envname = "RCYNIC_CONF"
-rpki.config.default_filename = os.path.join(rpki.autoconf.sysconfdir, "rcynic.conf")
 rpki.config.parser(set_filename = args.config, section = "rcynic")
 
 import django

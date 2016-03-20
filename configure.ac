@@ -33,7 +33,6 @@ fi
 # Put the user option stuff up front.
 
 AC_ARG_WITH([system_openssl],		[AS_HELP_STRING([--with-system-openssl],			[Link against system copy of OpenSSL])],        [], [with_system_openssl=auto])
-AC_ARG_ENABLE([rcynic_jail],		[AS_HELP_STRING([--enable-rcynic-jail],				[Run rcynic in chroot jail])],                  [], [enable_rcynic_jail=no])
 AC_ARG_ENABLE([openssl_asm],		[AS_HELP_STRING([--disable-openssl-asm],			[Don't let OpenSSL build assembler code])],     [], [enable_openssl_asm=auto])
 AC_ARG_ENABLE([ca_tools],		[AS_HELP_STRING([--disable-ca-tools],				[Don't build any of the CA tools])],            [], [enable_ca_tools=yes])
 AC_ARG_ENABLE([rp_tools],		[AS_HELP_STRING([--disable-rp-tools],				[Don't build any of the relying party tools])], [], [enable_rp_tools=yes])
@@ -43,62 +42,20 @@ AC_ARG_ENABLE([python_install_layout],	[AS_HELP_STRING([--enable-python-install-
 AC_ARG_ENABLE([wsgi_python_egg_cache],  [AS_HELP_STRING([--enable-wsgi-python-egg-cache=dir[[:user]]],	[Set up PYTHON_EGG_CACHE in wsgi wrapper])],	[], [enable_wsgi_python_egg_cache=auto])
 AC_ARG_ENABLE([runtime_dependencies],	[AS_HELP_STRING([--disable-runtime-dependencies],		[Don't enforce runtime dependencies])],         [], [enable_runtime_dependencies=yes])
 
-AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rpki-rtr; also controls jail location for --enable-rcynic-jail])
+AC_ARG_VAR([RCYNIC_DIR],		[Where to put output files from rcynic and rpki-rtr])
 AC_ARG_VAR([APACHE_VERSION],		[Version of Apache httpd, mostly used on FreeBSD where it determines some of the directory names])
 
 # Obsolete options.  If you know of a better way to handle this, tell me.
 
-AC_ARG_ENABLE([python],   [AS_HELP_STRING([--disable-python],	[(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-python is obsolete.  Please see the --disable-ca-tools option])], [])
-AC_ARG_ENABLE([django],   [AS_HELP_STRING([--disable-django],	[(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-django is obsolete.  Please see the --disable-ca-tools option])], [])
-AC_ARG_ENABLE([rpki_rtr], [AS_HELP_STRING([--disable-rpki-rtr],	[(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-rpki-rtr is obsolete.  Please see the --disable-rp-tools option])], [])
+AC_ARG_ENABLE([python],		[AS_HELP_STRING([--disable-python],	[(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-python is obsolete.  Please see the --disable-ca-tools option])], [])
+AC_ARG_ENABLE([django],		[AS_HELP_STRING([--disable-django],	[(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-django is obsolete.  Please see the --disable-ca-tools option])], [])
+AC_ARG_ENABLE([rpki_rtr],	[AS_HELP_STRING([--disable-rpki-rtr],	[(Obsolete, do not use)])], [AC_MSG_ERROR([--disable-rpki-rtr is obsolete.  Please see the --disable-rp-tools option])], [])
+AC_ARG_ENABLE([rcynic_jail],	[AS_HELP_STRING([--enable-rcynic-jail],	[(Obsolete, do not use)])], [AC_MSG_ERROR([--enable-rcynic-jail is obsolete.])], [])
 
 AC_PROG_CC
 AC_PROG_INSTALL
 
 AC_CHECK_SIZEOF([long])
-
-# We'd like to build rcynic as a static binary if we can, because that
-# makes it much simpler to run rcynic in a chroot jail, but we don't
-# know how to do it on all platforms, so we try the hack we know, and
-# if that doesn't work, oh well.
-#
-# Sadly, it's even worse than this, because there are platforms like
-# Fedora where the compiler and linker support -static just fine, but
-# the default libraries do not, and if you start down the primrose
-# path of installing the necessary libraries, you eventually hit a
-# wall where one of the static libraries you downloaded depends on
-# something that's not available as a static library, ie, you lose.
-#
-# So for now I'm just going to make this a FreeBSD-only option.
-# Feh. Those of you who choose to use other platforms are welcome to
-# fix this and send me the patch, if you care.
-
-dnl  AC_MSG_CHECKING([whether linker supports -static])
-dnl  old_LDFLAGS="$LDFLAGS"
-dnl  LDFLAGS="$LDFLAGS -static"
-dnl  AC_LINK_IFELSE(
-dnl  	[AC_LANG_SOURCE([[int main (int argc, char *argv[]) { return 0; }]])],
-dnl  	[
-dnl  		AC_MSG_RESULT(yes)
-dnl  		LD_STATIC_FLAG='-static'
-dnl  	],
-dnl  	[
-dnl  		AC_MSG_RESULT(no)
-dnl  		LD_STATIC_FLAG=''
-dnl  	]
-dnl  )
-dnl  LDFLAGS="$old_LDFLAGS"
-dnl  unset old_LDFLAGS
-
-case $host_os in
-	freebsd*)
-		LD_STATIC_FLAG='-static'
-		;;
-	*)
-		LD_STATIC_FLAG=''
-		;;
-esac
-AC_SUBST(LD_STATIC_FLAG)
 
 AC_MSG_CHECKING([whether compiler and linker support -Wl,-Bsymbolic])
 old_LDFLAGS="$LDFLAGS"
@@ -314,12 +271,8 @@ fi
 
 if test "X$RCYNIC_DIR" = "X"
 then
-	rcynic_base_dir='/var/rcynic'
-else
-	rcynic_base_dir="${RCYNIC_DIR}"
+	RCYNIC_DIR='/var/rcynic'
 fi
-
-RCYNIC_DIR='${DESTDIR}'"${rcynic_base_dir}"
 
 # APACHE_VERSION is another "precious" argument to this script.  It
 # mostly matters on FreeBSD, where most things involving Apache encode
@@ -356,68 +309,15 @@ fi
 
 AC_MSG_RESULT([$msg])
 
-# Figure out whether to run rcynic in a chroot jail, which determines
-# a bunch of other settings.
-
-AC_MSG_CHECKING([whether to build chroot jail for rcynic])
-
-case $enable_rcynic_jail in
-	yes)
-		use_rcynic_jail=yes
-		RCYNIC_CONF_FILE='${RCYNIC_DIR}/etc/rcynic.conf'
-		RCYNIC_TA_DIR='${RCYNIC_DIR}/etc/trust-anchors'
-		RCYNIC_BIN_RCYNIC='${RCYNIC_DIR}/bin/rcynic'
-		RCYNIC_CONF_RSYNC='/bin/rsync'
-		RCYNIC_CONF_DATA='/data'
-		RCYNIC_CONF_TA_DIR='/etc/trust-anchors'
-		RCYNIC_CRON_USER='root'
-		RCYNIC_JAIL_DIRS='${RCYNIC_DIR}/bin ${RCYNIC_DIR}/dev ${RCYNIC_DIR}/etc'
-		if test "X$host_os" = "Xlinux"
-		then
-			RCYNIC_JAIL_DIRS="$RCYNIC_JAIL_DIRS "'${RCYNIC_DIR}/lib ${RCYNIC_DIR}/lib64 ${RCYNIC_DIR}/usr/lib'
-		fi
-		;;
-	no)
-		use_rcynic_jail=no
-		RCYNIC_CONF_FILE='${DESTDIR}${sysconfdir}/rcynic.conf'
-		RCYNIC_TA_DIR='${DESTDIR}${sysconfdir}/rpki/trust-anchors'
-		RCYNIC_BIN_RCYNIC='${DESTDIR}${bindir}/rcynic'
-		RCYNIC_CONF_RSYNC="${RSYNC}"
-		RCYNIC_CONF_DATA="${rcynic_base_dir}/data"
-		RCYNIC_CONF_TA_DIR='${sysconfdir}/rpki/trust-anchors'
-		RCYNIC_CRON_USER='${RPKI_USER}'
-		RCYNIC_JAIL_DIRS=''
-		;;
-	*)
-		AC_MSG_ERROR([Unrecognized value for --enable-rcynic-jail: $enable_rcynic_jail])
-		;;
-esac
-
-AC_SUBST(RCYNIC_JAIL_DIRS)
-AC_SUBST(RCYNIC_CONF_FILE)
-AC_SUBST(RCYNIC_TA_DIR)
-AC_SUBST(RCYNIC_BIN_RCYNIC)
-AC_SUBST(RCYNIC_CONF_RSYNC)
-AC_SUBST(RCYNIC_CONF_DATA)
-AC_SUBST(RCYNIC_CONF_TA_DIR)
-AC_SUBST(RCYNIC_CRON_USER)
-
-AC_MSG_RESULT([$use_rcynic_jail])
-
 # Perhaps there should be a way to set these, but for now just
 # wire them in here so at least they're consistent in all Makefiles.
 
 AC_SUBST(RPKI_USER,    [rpki])
 AC_SUBST(RPKI_GROUP,   [rpki])
 
-if test $use_rcynic_jail = yes && test "X$LD_STATIC_FLAG" != "X"
-then
-	RCYNIC_STATIC_RSYNC='static-rsync/rsync'
-else
-	RCYNIC_STATIC_RSYNC=''
-fi
+RCYNIC_CONF_DATA="${RCYNIC_DIR}/data"
 
-AC_SUBST(RCYNIC_STATIC_RSYNC)
+AC_SUBST(RCYNIC_CONF_DATA)
 
 # Check whether to do "final target installation".  This means actions
 # that can only be done when installing a package, as opposed to when
@@ -435,10 +335,8 @@ esac
 
 AC_MSG_RESULT([$enable_target_installation])
 
-# rcynic jail setup is complicated enough that it's simplest to have
-# different rule sets for different platforms.  Icky, but....
-# rpki-rtr isn't as complicated, but has similar issues, same hack.
-# ca isn't as complicated either, but same hack.
+# Some bits of post-installation setup are complicated enough that
+# it's simplest to have different rule sets for different platforms.
 
 case $host_os in
 	darwin*)
@@ -486,7 +384,7 @@ AC_MSG_RESULT([$RCYNIC_HTML_DIR])
 
 AC_SUBST(RCYNIC_HTML_DIR)
 
-# Sort out which things to install, depending on rcynic jail status and whether
+# Sort out which things to install, depending on whether
 # we're doing final target installation.
 #
 # As things have evolved, this a bit repetitive.  Simplify someday, maybe.
@@ -495,11 +393,6 @@ RCYNIC_INSTALL_TARGETS='install-always'
 RTR_ORIGIN_INSTALL_TARGETS='install-always'
 CA_INSTALL_TARGETS='install-always'
 CFG_INSTALL_TARGETS='install-always'
-
-if test $use_rcynic_jail = yes
-then
-	RCYNIC_INSTALL_TARGETS="$RCYNIC_INSTALL_TARGETS install-jailed"
-fi
 
 if test $enable_target_installation = yes
 then
@@ -595,7 +488,7 @@ then
 		runtime_ok=no
 		AC_MSG_WARN([rcynic-html requires rrdtool.])
 	fi
-	if test $use_rcynic_jail = no && test "X$RSYNC" = "X"
+	if test "X$RSYNC" = "X"
 	then
 		runtime_ok=no
 		AC_MSG_WARN([The RPKI relying party tools require rsync.])
@@ -823,7 +716,6 @@ then
 	AC_CONFIG_FILES([rp/Makefile
 			 rp/config/Makefile
 			 rp/rcynic/Makefile
-			 rp/rcynic/static-rsync/Makefile
 			 rp/utils/Makefile
 			 rp/rpki-rtr/Makefile])
 fi

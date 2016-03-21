@@ -382,15 +382,10 @@ class Zookeeper(object):
         configure_rootd() because that's easier for the GUI.
         """
 
-        try:
-            self.resource_ca.repositories.get(handle = self.handle)
-            return None
-
-        except rpki.irdb.models.Repository.DoesNotExist:
-            e = Element(tag_oob_publisher_request, nsmap = oob_nsmap, version = oob_version,
-                        publisher_handle = self.handle)
-            B64Element(e, tag_oob_publisher_bpki_ta, self.resource_ca.certificate)
-            return etree_wrapper(e, msg = 'This is the "repository offer" file for you to use if you want to publish in your own repository')
+        e = Element(tag_oob_publisher_request, nsmap = oob_nsmap, version = oob_version,
+                    publisher_handle = self.handle)
+        B64Element(e, tag_oob_publisher_bpki_ta, self.resource_ca.certificate)
+        return etree_wrapper(e, msg = 'This is the "repository offer" file for you to use if you want to publish in your own repository')
 
 
     def write_bpki_files(self):

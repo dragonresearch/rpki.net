@@ -165,7 +165,7 @@ class Cmd(cmd.Cmd):
             old_completer_delims = readline.get_completer_delims()
             if self.histfile is not None:
                 try:
-                    readline.read_history_file(self.histfile)
+                    self.read_history()
                 except IOError:
                     pass
             try:
@@ -174,10 +174,28 @@ class Cmd(cmd.Cmd):
             finally:
                 if self.histfile is not None and readline.get_current_history_length():
                     try:
-                        readline.write_history_file(self.histfile)
+                        self.save_history()
                     except IOError:
                         pass
                 readline.set_completer_delims(old_completer_delims)
+
+        def read_history(self):
+            """
+            Read readline history from file.
+
+            This is a separate method so that subclasses can wrap it when necessary.            
+            """
+
+            readline.read_history_file(self.histfile)
+
+        def save_history(self):
+            """
+            Save readline history to file.
+
+            This is a separate method so that subclasses can wrap it when necessary.            
+            """
+
+            readline.write_history_file(self.histfile)
 
     else:
 

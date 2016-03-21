@@ -24,17 +24,11 @@ an overview of the available commands; type "help foo" for (more) detailed help
 on the "foo" command.
 """
 
-# NB: As of this writing, I'm trying really hard to avoid having this
-# program depend on a Django settings.py file.  This may prove to be a
-# waste of time in the long run, but for for now, this means that one
-# has to be careful about exactly how and when one imports Django
-# modules, or anything that imports Django modules.  Bottom line is
-# that we don't import such modules until we need them.
-
 import os
-import argparse
 import sys
+import pwd
 import time
+import argparse
 import rpki.config
 import rpki.sundial
 import rpki.log
@@ -50,6 +44,25 @@ from lxml.etree import SubElement
 from rpki.cli import Cmd, parsecmd, cmdarg
 
 module_doc = __doc__
+
+
+class swap_uids(object):
+    """
+    Context manager to wrap os.setreuid() calls safely.
+    """
+
+    def __init__(self):
+        self.uid = os.getuid()
+        self.euid = os.geteuid()
+
+    def __enter__(self):
+        os.setreuid(self.euid, self.uid)
+        return self
+
+    def __exit__(self, _type, value, traceback):
+        os.setreuid(self.uid, self.euid)
+        return False
+
 
 class main(Cmd):
 
@@ -76,6 +89,8 @@ class main(Cmd):
     argsubparsers = full_argparser.add_subparsers(title = "Commands", metavar = "")
 
     def __init__(self):
+
+        self.drop_privs()
 
         Cmd.__init__(self)
         os.environ["TZ"] = "UTC"
@@ -113,6 +128,50 @@ class main(Cmd):
             self.cmdloop_with_history()
         else:
             args.func(self, args)
+
+
+    def drop_privs(self):
+        """
+        Initialize UID swapping and drop unneeded privs.
+
+        Any error here we don't understand is dangerous and therefore fatal.
+        """
+
+        try:
+
+            try:
+                os.setgid(int(os.environ["SUDO_GID"]))
+            except KeyError:
+                pass
+
+            try:
+                uid = int(os.environ["SUDO_UID"])
+            except KeyError:
+                uid = os.getuid()
+
+            try:
+                os.setreuid(uid, pwd.getpwnam(rpki.autoconf.RPKI_USER).pw_uid)
+            except (KeyError, OSError) as e:
+                sys.exit("Couldn't drop privs to user {}: {!s}".format(rpki.autoconf.RPKI_USER, e))
+
+        except Exception as e:
+            sys.exit("Fatal error trying to drop privs: {!s}".format(e))
+
+    def read_history(self):
+        """
+        UID-swapping wrapper for parent .read_history() method.
+        """
+
+        with swap_uids():
+            Cmd.read_history(self)
+
+    def save_history(self):
+        """
+        UID-swapping wrapper for parent .save_history() method.
+        """
+
+        with swap_uids():
+            Cmd.save_history(self)
 
     def read_config(self):
 
@@ -224,13 +283,15 @@ class main(Cmd):
         rootd_case = self.zoo.run_rootd and self.zoo.handle == self.zoo.cfg.get("handle")
 
         r = self.zoo.initialize()
-        r.save("%s.identity.xml" % self.zoo.handle,
-               None if rootd_case else sys.stdout)
+        with swap_uids():
+            r.save("%s.identity.xml" % self.zoo.handle,
+                   None if rootd_case else sys.stdout)
 
         if rootd_case:
             r = self.zoo.configure_rootd()
             if r is not None:
-                r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
+                with swap_uids():
+                    r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
 
         self.zoo.write_bpki_files()
 
@@ -250,7 +311,8 @@ class main(Cmd):
         self.zoo.reset_identity(args.handle)
 
         r = self.zoo.initialize_resource_bpki()
-        r.save("%s.identity.xml" % self.zoo.handle, sys.stdout)
+        with swap_uids():
+            r.save("%s.identity.xml" % self.zoo.handle, sys.stdout)
 
 
     @parsecmd(argsubparsers)
@@ -304,7 +366,8 @@ class main(Cmd):
         """
 
         r, child_handle = self.zoo.configure_child(args.child_xml, args.child_handle, args.valid_until)
-        r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), sys.stdout)
+        with swap_uids():
+            r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), sys.stdout)
         self.zoo.synchronize_ca()
 
 
@@ -350,7 +413,8 @@ class main(Cmd):
         """
 
         r, parent_handle = self.zoo.configure_parent(args.parent_xml, args.parent_handle)
-        r.save("%s.%s.repository-request.xml" % (self.zoo.handle, parent_handle), sys.stdout)
+        with swap_uids():
+            r.save("%s.%s.repository-request.xml" % (self.zoo.handle, parent_handle), sys.stdout)
 
 
     @parsecmd(argsubparsers,
@@ -383,7 +447,8 @@ class main(Cmd):
 
         r = self.zoo.configure_rootd()
         if r is not None:
-            r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
+            with swap_uids():
+                r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
         self.zoo.write_bpki_files()
 
 
@@ -419,7 +484,8 @@ class main(Cmd):
         """
 
         r, client_handle = self.zoo.configure_publication_client(args.client_xml, args.sia_base, args.flat)
-        r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
+        with swap_uids():
+            r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
         try:
             self.zoo.synchronize_pubd()
         except rpki.irdb.models.Repository.DoesNotExist:

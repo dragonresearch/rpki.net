@@ -15,19 +15,32 @@ if __name__ == "__main__":
     import sys
     import rpki.autoconf
 
+    argv = [sys.executable, os.path.abspath(sys.argv[0])]
+    argv.extend(sys.argv[1:])
+
+    already_ran_sudo = os.getenv("SUDO_COMMAND") == " ".join(argv)
+
     try:
         uid = pwd.getpwnam(rpki.autoconf.RPKI_USER).pw_uid
     except:
         uid = None
 
-    if uid is None or uid == os.geteuid():
+    euid = os.geteuid()
+
+    if already_ran_sudo or uid is None or uid == euid or euid == 0:
+
+        if not already_ran_sudo:
+            for name in ("SUDO_COMMAND", "SUDO_GID", "SUDO_UID", "SUDO_USER"):
+                if name in os.environ:
+                    del os.environ[name]
+
         import rpki.rpkic
         rpki.rpkic.main()
 
     else:
+
         try:
-            argv = [rpki.autoconf.SUDO, "-u", rpki.autoconf.RPKI_USER, sys.executable]
-            argv.extend(os.path.abspath(a) if i == 0 else a for i, a in enumerate(sys.argv))
+            argv.insert(0, rpki.autoconf.SUDO)
             os.execv(argv[0], argv)
             sys.exit("rpkic startup failure, no exception so don't know why, sorry")
 

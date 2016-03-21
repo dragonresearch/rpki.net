@@ -299,10 +299,10 @@ def serve_xml(content, basename, ext='xml'):
 
     `basename` is the prefix to specify for the XML filename.
 
-    `csv` is the type (default: xml)
+    `ext` is the type (default: xml)
 
     """
-    resp = http.HttpResponse(content, mimetype='application/%s' % ext)
+    resp = http.HttpResponse(content, content_type='application/%s' % ext)
     resp['Content-Disposition'] = 'attachment; filename=%s.%s' % (basename, ext)
     return resp
 
@@ -940,7 +940,7 @@ def roa_export(request):
     # each roa prefix gets a unique group so rpkid will issue separate roas
     for group, roapfx in enumerate(ROARequestPrefix.objects.filter(roa_request__issuer=conf)):
         csv_writer.writerow([str(roapfx.as_roa_prefix()), roapfx.roa_request.asn, '%s-%d' % (conf.handle, group)])
-    resp = http.HttpResponse(f.getvalue(), mimetype='application/csv')
+    resp = http.HttpResponse(f.getvalue(), content_type='application/csv')
     resp['Content-Disposition'] = 'attachment; filename=roas.csv'
     return resp
 

@@ -151,7 +151,10 @@ class main(Cmd):
 
             try:
                 os.setreuid(uid, pwd.getpwnam(rpki.autoconf.RPKI_USER).pw_uid)
-            except (KeyError, OSError) as e:
+            except KeyError:
+                # This is normal when testing uninstalled code, but warn user just in case
+                print "Warning: User \"{}\" not found, not dropping privileges".format(rpki.autoconf.RPKI_USER)
+            except OSError as e:
                 sys.exit("Couldn't drop privs to user {}: {!s}".format(rpki.autoconf.RPKI_USER, e))
 
         except Exception as e:

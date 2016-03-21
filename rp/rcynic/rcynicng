@@ -1386,30 +1386,21 @@ def main():
     time.tzset()
 
     cfg, parser = rpki.config.argparser(section = "rcynic", doc = __doc__, cfg_optional = True)
-
-    parser.add_argument("--unauthenticated",    default = os.path.join(rpki.autoconf.RCYNIC_DIR, "data", "unauthenticated"))
-
-    parser.add_argument("--xml-file",           default = os.path.join(rpki.autoconf.RCYNIC_DIR, "data", "rcynic.xml"),
-                                                type = argparse.FileType("w"))
-
-    parser.add_argument("--tals",               default = os.path.join(rpki.autoconf.sysconfdir, "rpki", "trust-anchors"))
-
-    parser.add_argument("--workers",            default = 10, type = posint)
-
+    parser.add_argument("-u", "--unauthenticated", 
+                        default = os.path.join(rpki.autoconf.RCYNIC_DIR, "data", "unauthenticated"))
+    parser.add_argument("-x", "--xml-file",     type = argparse.FileType("w"),
+                        default = os.path.join(rpki.autoconf.RCYNIC_DIR, "data", "rcynic.xml"))
+    parser.add_argument("-t", "--tals",         
+                        default = os.path.join(rpki.autoconf.sysconfdir, "rpki", "trust-anchors"))
+    parser.add_argument("-w", "--workers",      default = 10, type = posint)
     parser.add_argument("--no-fetch",           action = "store_true")
     parser.add_argument("--no-spawn-on-fetch",  action = "store_true")
     parser.add_argument("--no-migrate",         action = "store_true")
-
     parser.add_argument("--prefer-rsync",       action = "store_true")
-
     parser.add_argument("--fetch-ahead-goal",   default = 2, type = posint)
-
     parser.add_argument("--https-timeout",      default = 300,  type = posint)
-
     parser.add_argument("--validate-https",     action = "store_true")
-
     parser.add_argument("--max-https-body-size", type = posint, default = 512 * 1024 * 1024)
-
 
     # We already have a whole bunch of logging control code in
     # rpki.log, just need to figure out / remember how to use it

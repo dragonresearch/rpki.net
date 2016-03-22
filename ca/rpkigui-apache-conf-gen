@@ -446,17 +446,25 @@ class Debian(Platform):
     Debian and related platforms like Ubuntu.
     """
 
+    # Pull the current version number for released code.  Use
+    # something very large when there is no version (eg, "sid").
     @property
     def distribution_version(self):
-        return tuple(int(v) for v in platform.linux_distribution()[1].split("."))
+        v = platform.linux_distribution()[1].split(".")
+        if all(d.isdigit() for d in v):
+            return tuple(int(d) for d in v)
+        else:
+            return (99999999, 0)
 
-    # As of Wheezy, Debian still wants the configuration filename
-    # without the .conf suffix.  Keep an eye on this, as it may change
-    # in future releases.
-    #
+    # On Debian, the filename must end in .conf on Stretch and must not
+    # end in .conf on Wheezy.  Haven't checked Jessie yet, will need to
+    # update this if we ever sort out the version skew mess on Jessie.
     @property
     def apache_conf_target(self):
-        return "/etc/apache2/sites-available/rpki"
+        if self.distribution_version < (8, 0):
+            return "/etc/apache2/sites-available/rpki"
+        else:
+            return "/etc/apache2/sites-available/rpki.conf"
 
     snake_oil_cer = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
     snake_oil_key = "/etc/ssl/private/ssl-cert-snakeoil.key"
@@ -493,10 +501,10 @@ class Ubuntu(Debian):
     # end in .conf on Precise.
     @property
     def apache_conf_target(self):
-        if self.distribution_version >= (14, 0):
-            return "/etc/apache2/sites-available/rpki.conf"
-        else:
+        if self.distribution_version < (14, 0):
             return "/etc/apache2/sites-available/rpki"
+        else:
+            return "/etc/apache2/sites-available/rpki.conf"
 
 
 class NIY(Platform):                    # pylint: disable=W0223

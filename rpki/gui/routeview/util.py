@@ -16,7 +16,6 @@ __version__ = '$Id$'
 __all__ = ('import_routeviews_dump')
 
 import itertools
-import _mysql_exceptions
 import os.path
 import subprocess
 import time
@@ -31,6 +30,14 @@ from django.conf import settings
 from rpki.resource_set import resource_range_ipv4, resource_range_ipv6
 from rpki.exceptions import BadIPResource
 import rpki.gui.app.timestamp
+
+try:
+    import _mysql_exceptions
+except ImportError:
+    class MySQLWarning(Exception):
+        "Dummy, nothing will ever raise this."
+else:
+    MySQLWarning = _mysql_exceptions.Warning
 
 # globals
 logger = logging.getLogger(__name__)
@@ -57,7 +64,7 @@ class RouteDumpParser(object):
         try:
             logger.info('Dropping existing staging table...')
             self.cursor.execute('DROP TABLE IF EXISTS %s_new' % self.table)
-        except _mysql_exceptions.Warning:
+        except MySQLWarning:
             pass
 
         logger.info('Creating staging table...')
@@ -94,7 +101,7 @@ class RouteDumpParser(object):
         try:
             logger.info('Dropping old table...')
             self.cursor.execute('DROP TABLE IF EXISTS %s_old' % self.table)
-        except _mysql_exceptions.Warning:
+        except MySQLWarning:
             pass
 
         logger.info('Swapping staging table with live table...')

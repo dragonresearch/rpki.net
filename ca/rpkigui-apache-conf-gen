@@ -486,7 +486,7 @@ class Debian(Platform):
         #
         # In light of BREACH and CRIME attacks, mod_deflate is looking
         # like a bad idea, so make sure it's off.
-        self.run("a2dismod", "deflate")
+        self.run("a2dismod", "-f", "deflate")
 
     def disable(self):
         self.run("a2dissite", "rpki")

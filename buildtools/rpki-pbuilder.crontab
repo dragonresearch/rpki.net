@@ -1,1 +1,0 @@
-*/10 * * * *	/usr/sbin/logrotate -s /home/sra/logrotate.state /home/sra/logrotate.conf; /usr/bin/python $HOME/builder.py >> $HOME/builder.log 2>&1

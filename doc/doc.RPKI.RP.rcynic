@@ -447,7 +447,7 @@ except when building complex topologies where rcynic running on one set of
 machines acts as aggregators for another set of validators. A large ISP might
 want to build such a topology so that they could have a local validation cache
 in each POP while minimizing load on the global repository system and
-maintaining some degree of internal consistancy between POPs. In such cases,
+maintaining some degree of internal consistency between POPs. In such cases,
 one might want the rcynic instances in the POPs to validate data fetched from
 the aggregators via an external process, without the POP rcynic instances
 attempting to fetch anything themselves.

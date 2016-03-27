@@ -7,7 +7,17 @@ platform on which you're trying to install.
   Debian 7 ("Wheezy"), you can use Debian binary packages.
 
      At present we only generate binary packages for Precise Pangolin and
-     Wheezy. This may change in the future.
+     Wheezy. This may change in the future. They work on Trusty Tahir as
+     well.
+
+* if you want to install a simple RPKI cache to feed routers from a Ubuntu
+  14.04 system, here is a one page ten minute recipe.
+
+* If you want to install a CA and a cache on a Ubuntu 14.04 with a rootd CA,
+  here is a one page hack. It will take less than an hour.
+
+* If you are feeling dangerous and want to try the rrdp testbed CA and RP, here
+  is a one page hack. It does not support rootd.
 
 * On FreeBSD, you can use FreeBSD ports.
 

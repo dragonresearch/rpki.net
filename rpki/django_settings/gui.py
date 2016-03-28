@@ -107,6 +107,8 @@ def get_allowed_hosts():
 
 ALLOWED_HOSTS = get_allowed_hosts()
 
+DOWNLOAD_DIRECTORY = cfg.get("download-directory", "/var/tmp", section = "web_portal")
+
 # List of callables that know how to import templates from various sources.
 TEMPLATE_LOADERS = (
     "django.template.loaders.filesystem.Loader",

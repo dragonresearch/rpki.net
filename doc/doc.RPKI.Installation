@@ -6,10 +6,6 @@ platform on which you're trying to install.
 * On Ubuntu 12.04 LTS ("Precise Pangolin"), Ubuntu 14.04 ("Trusty Tahir"), or
   Debian 7 ("Wheezy"), you can use Debian binary packages.
 
-     At present we only generate binary packages for Precise Pangolin and
-     Wheezy. This may change in the future. They work on Trusty Tahir as
-     well.
-
 * if you want to install a simple RPKI cache to feed routers from a Ubuntu
   14.04 system, here is a one page ten minute recipe.
 

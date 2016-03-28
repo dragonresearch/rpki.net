@@ -40,11 +40,11 @@ setup_bpki() {
 }
 
 setup_cron() {
-    t=$(hexdump -n 1 -e '"%u"' /dev/urandom) && echo "$(($t % 60)) */2 * * * nobody /usr/lib/rpki/rpkigui-import-routes" > /etc/cron.d/rpkigui-routeviews
-    chmod 644 /etc/cron.d/rpkigui-routeviews
-    ln -sf /usr/lib/rpki/rpkigui-check-expired /etc/cron.daily/rpkigui-check-expired
-    echo "30 3 * * * rpki /usr/sbin/rpkic update_bpki" >/etc/cron.d/rpki-update-bpki
-    chmod 644 /etc/cron.d/rpki-update-bpki
+    t=$(( $(hexdump -n 1 -e '"%u"' /dev/urandom) % 60 )) || exit
+    echo "$t */2 * * *	nobody	/usr/lib/rpki/rpkigui-import-routes"	> /etc/cron.d/rpkigui-routeviews
+    echo "@daily	rpki	/usr/lib/rpki/rpkigui-check-expired"	> /etc/cron.d/rpkigui-check-expired
+    echo "30 3 * * *	rpki	/usr/sbin/rpkic update_bpki"		> /etc/cron.d/rpki-update-bpki
+    chmod 644 /etc/cron.d/rpkigui-routeviews /etc/cron.d/rpkigui-check-expired /etc/cron.d/rpki-update-bpki
 }
 
 # summary of how this script can be called:

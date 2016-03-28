@@ -28,8 +28,10 @@ case "$1" in
 	# Clean up our cron jobs.
 
 	rm -f /etc/cron.d/rpkigui-routeviews
-	rm -f /etc/cron.daily/rpkigui-check-expired
+	rm -f /etc/cron.d/rpkigui-check-expired
 	rm -f /etc/cron.d/rpki-update-bpki
+
+	rm -f /etc/cron.daily/rpkigui-check-expired
 
 	# Clean up what we did to Apache.
 

@@ -28,3 +28,8 @@ def setup():
 
     # If this doesn't work, try changing it to "rpki.django_settings.gui".
     os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.irdb")
+    #os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.gui")
+
+    # Initialize Django.
+    import django
+    django.setup()

@@ -154,7 +154,7 @@ model_class = {
 def save_status(repo, vs):
     timestamp = datetime.fromXMLtime(vs.timestamp).to_sql()
     status = LABEL_CACHE[vs.status]
-    g = models.generations_dict[vs.generation] if vs.generation else None
+    g = models.generations_dict.get(vs.generation)
     repo.statuses.create(generation=g, timestamp=timestamp, status=status)
 
     # if this object is in our interest set, update with the current validation

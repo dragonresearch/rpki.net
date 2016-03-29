@@ -150,15 +150,27 @@ class PEM_writer(object):
 def etree_read(filename_or_etree_wrapper, schema = rpki.relaxng.oob_setup):
     """
     Read an etree from a file, verifying then stripping XML namespace
-    cruft.  As a convenience, we also accept an etree_wrapper object in
-    place of a filename, in which case we deepcopy the etree directly
-    from the etree_wrapper and there's no need for a file.
+    cruft.
+
+    As a convenience, we also accept an etree_wrapper object in place
+    of a filename, in which case we deepcopy the etree directly from
+    the etree_wrapper and there's no need for a file.
+
+    As a further convenience, we also accept an Element object,
+    in which case we just validate and return it.
+
+    This function's behavior has changed over time, and the code which
+    calls it is overdue for refactoring, but the relevant code in
+    rpki.gui.app.views is a bit complex, so that yak will have to take
+    a number and wait for its shave, today we have a bug to fix.
     """
 
     if isinstance(filename_or_etree_wrapper, etree_wrapper):
         e = copy.deepcopy(filename_or_etree_wrapper.etree)
-    else:
+    elif isinstance(filename_or_etree_wrapper, (str, unicode)):
         e = ElementTree(file = filename_or_etree_wrapper).getroot()
+    else:
+        e = filename_or_etree_wrapper
     schema.assertValid(e)
     return e
 

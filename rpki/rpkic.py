@@ -64,6 +64,16 @@ class swap_uids(object):
         return False
 
 
+def read_xml_swapped_uids(filename):
+    """
+    Read an XML file with UIDs swapped.
+    """
+
+    from lxml.etree import ElementTree
+
+    with swap_uids():
+        return ElementTree(file = filename).getroot()
+
 class main(Cmd):
 
     prompt = "rpkic> "
@@ -368,7 +378,7 @@ class main(Cmd):
         up-down protocol service URI.
         """
 
-        r, child_handle = self.zoo.configure_child(args.child_xml, args.child_handle, args.valid_until)
+        r, child_handle = self.zoo.configure_child(read_xml_swapped_uids(args.child_xml), args.child_handle, args.valid_until)
         with swap_uids():
             r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), sys.stdout)
         self.zoo.synchronize_ca()
@@ -415,7 +425,7 @@ class main(Cmd):
         synchronize here, run the synchronize command yourself.
         """
 
-        r, parent_handle = self.zoo.configure_parent(args.parent_xml, args.parent_handle)
+        r, parent_handle = self.zoo.configure_parent(read_xml_swapped_uids(args.parent_xml), args.parent_handle)
         with swap_uids():
             r.save("%s.%s.repository-request.xml" % (self.zoo.handle, parent_handle), sys.stdout)
 
@@ -486,7 +496,7 @@ class main(Cmd):
         message containing the repository's BPKI data and service URI.
         """
 
-        r, client_handle = self.zoo.configure_publication_client(args.client_xml, args.sia_base, args.flat)
+        r, client_handle = self.zoo.configure_publication_client(read_xml_swapped_uids(args.client_xml), args.sia_base, args.flat)
         with swap_uids():
             r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
         try:
@@ -527,7 +537,7 @@ class main(Cmd):
         corresponding parent data in our local database.
         """
 
-        self.zoo.configure_repository(args.repository_xml, args.parent_handle)
+        self.zoo.configure_repository(read_xml_swapped_uids(args.repository_xml), args.parent_handle)
         self.zoo.synchronize_ca()
 
 
@@ -773,7 +783,7 @@ class main(Cmd):
         Load router certificate request(s) into IRDB from XML file.
         """
 
-        self.zoo.add_router_certificate_request(args.router_certificate_request_xml, args.valid_until)
+        self.zoo.add_router_certificate_request(read_xml_swapped_uids(args.router_certificate_request_xml), args.valid_until)
         if self.autosync:
             self.zoo.run_rpkid_now()
 

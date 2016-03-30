@@ -20,29 +20,29 @@ if __name__ == "__main__":
 
     already_ran_sudo = os.getenv("SUDO_COMMAND") == " ".join(argv)
 
-    try:
-        uid = pwd.getpwnam(rpki.autoconf.RPKI_USER).pw_uid
-    except:
-        uid = None
-
     euid = os.geteuid()
 
-    if already_ran_sudo or uid is None or uid == euid or euid == 0:
+    try:
+        puid = pwd.getpwnam(rpki.autoconf.RPKI_USER).pw_uid
+    except KeyError:
+        puid = None
+        print "Warning: User \"{}\" not found, not dropping privileges".format(rpki.autoconf.RPKI_USER)
 
-        if not already_ran_sudo:
-            for name in ("SUDO_COMMAND", "SUDO_GID", "SUDO_UID", "SUDO_USER"):
-                if name in os.environ:
-                    del os.environ[name]
+    if puid is not None and already_ran_sudo:
+        try:
+            os.setgid(  int(os.environ["SUDO_GID"]))
+            os.setreuid(int(os.environ["SUDO_UID"]), puid)
+        except OSError as e:
+            sys.exit("Couldn't drop privs to user {}: {!s}".format(rpki.autoconf.RPKI_USER, e))
 
+    if already_ran_sudo or puid in (None, euid):
         import rpki.rpkic
         rpki.rpkic.main()
 
     else:
-
         try:
             argv.insert(0, rpki.autoconf.SUDO)
             os.execv(argv[0], argv)
             sys.exit("rpkic startup failure, no exception so don't know why, sorry")
-
         except Exception as e:
             sys.exit("Couldn't exec sudo python rpkic: {!s}".format(e))

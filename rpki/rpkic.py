@@ -98,9 +98,6 @@ class main(Cmd):
     argsubparsers = full_argparser.add_subparsers(title = "Commands", metavar = "")
 
     def __init__(self):
-
-        self.drop_privs()
-
         Cmd.__init__(self)
         os.environ["TZ"] = "UTC"
         time.tzset()
@@ -137,37 +134,6 @@ class main(Cmd):
             self.cmdloop_with_history()
         else:
             args.func(self, args)
-
-
-    def drop_privs(self):
-        """
-        Initialize UID swapping and drop unneeded privs.
-
-        Any error here we don't understand is dangerous and therefore fatal.
-        """
-
-        try:
-
-            try:
-                os.setgid(int(os.environ["SUDO_GID"]))
-            except KeyError:
-                pass
-
-            try:
-                uid = int(os.environ["SUDO_UID"])
-            except KeyError:
-                uid = os.getuid()
-
-            try:
-                os.setreuid(uid, pwd.getpwnam(rpki.autoconf.RPKI_USER).pw_uid)
-            except KeyError:
-                # This is normal when testing uninstalled code, but warn user just in case
-                print "Warning: User \"{}\" not found, not dropping privileges".format(rpki.autoconf.RPKI_USER)
-            except OSError as e:
-                sys.exit("Couldn't drop privs to user {}: {!s}".format(rpki.autoconf.RPKI_USER, e))
-
-        except Exception as e:
-            sys.exit("Fatal error trying to drop privs: {!s}".format(e))
 
     def read_history(self):
         """

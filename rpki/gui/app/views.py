@@ -23,7 +23,6 @@ __version__ = '$Id$'
 
 import os
 import os.path
-from tempfile import NamedTemporaryFile
 import cStringIO
 import csv
 import logging
@@ -137,10 +136,6 @@ def generic_import(request, queryset, configure, form_class=None,
     if request.method == 'POST':
         form = form_class(request.POST, request.FILES)
         if form.is_valid():
-            tmpf = NamedTemporaryFile(prefix='import', suffix='.xml',
-                                      delete=False)
-            tmpf.write(form.cleaned_data['xml'].read())
-            tmpf.close()
             z = Zookeeper(handle=conf.handle)
             handle = form.cleaned_data.get('handle')
             # CharField uses an empty string for the empty value, rather than
@@ -151,7 +146,7 @@ def generic_import(request, queryset, configure, form_class=None,
             try:
                 # configure_repository returns None, so can't use tuple expansion
                 # here.  Unpack the tuple below if post_import_redirect is None.
-                r = configure(z, tmpf.name, handle)
+                r = configure(z, form.cleaned_data['xml'], handle)
             except lxml.etree.XMLSyntaxError as e:
                 logger.exception('caught XMLSyntaxError while parsing uploaded file')
                 messages.error(
@@ -168,8 +163,6 @@ def generic_import(request, queryset, configure, form_class=None,
                     url = queryset.get(issuer=conf,
                                        handle=handle).get_absolute_url()
                 return http.HttpResponseRedirect(url)
-            finally:
-                os.remove(tmpf.name)
     else:
         form = form_class()
 
@@ -333,13 +326,10 @@ def import_asns(request):
     if request.method == 'POST':
         form = forms.ImportCSVForm(request.POST, request.FILES)
         if form.is_valid():
-            f = NamedTemporaryFile(prefix='asns', suffix='.csv', delete=False)
-            f.write(request.FILES['csv'].read())
-            f.close()
             z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
             try:
                 z.load_asns(
-                    f.name,
+                    request.FILES['csv'],
                     ignore_missing_children=form.cleaned_data['ignore_missing_children']
                 )
             except rpki.irdb.models.Child.DoesNotExist:
@@ -354,8 +344,6 @@ def import_asns(request):
                 z.run_rpkid_now()
                 messages.success(request, 'Successfully imported AS delgations from CSV file.')
                 return redirect(dashboard)
-            finally:
-                os.unlink(f.name)
     else:
         form = forms.ImportCSVForm()
     return render(request, 'app/import_resource_form.html', {
@@ -382,13 +370,10 @@ def import_prefixes(request):
     if request.method == 'POST':
         form = forms.ImportCSVForm(request.POST, request.FILES)
         if form.is_valid():
-            f = NamedTemporaryFile(prefix='prefixes', suffix='.csv', delete=False)
-            f.write(request.FILES['csv'].read())
-            f.close()
             z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
             try:
                 z.load_prefixes(
-                    f.name,
+                    request.FILES['csv'],
                     ignore_missing_children=form.cleaned_data['ignore_missing_children']
                 )
             except rpki.irdb.models.Child.DoesNotExist:
@@ -400,8 +385,6 @@ def import_prefixes(request):
                 z.run_rpkid_now()
                 messages.success(request, 'Successfully imported AS delgations from CSV file.')
                 return redirect(dashboard)
-            finally:
-                os.unlink(f.name)
     else:
         form = forms.ImportCSVForm()
     return render(request, 'app/import_resource_form.html', {
@@ -904,14 +887,10 @@ def roa_import(request):
     if request.method == 'POST':
         form = forms.ImportCSVForm(request.POST, request.FILES)
         if form.is_valid():
-            import tempfile
-            tmp = tempfile.NamedTemporaryFile(suffix='.csv', prefix='roas', delete=False)
-            tmp.write(request.FILES['csv'].read())
-            tmp.close()
             z = Zookeeper(handle=request.session['handle'],
                           disable_signal_handlers=True)
             try:
-                z.load_roa_requests(tmp.name)
+                z.load_roa_requests(request.FILES['csv'])
             except rpki.csv_utils.BadCSVSyntax as e:
                 messages.error(request,
                                'CSV has bad syntax: %s' % (e,))
@@ -919,8 +898,6 @@ def roa_import(request):
                 z.run_rpkid_now()
                 messages.success(request, 'Successfully imported ROAs.')
                 return redirect(dashboard)
-            finally:
-                os.unlink(tmp.name)
     else:
         form = forms.ImportCSVForm()
     return render(request, 'app/import_resource_form.html', {
@@ -1452,14 +1429,9 @@ class RouterImportView(FormView):
 
     def form_valid(self, form):
         conf = get_conf(self.request.user, self.request.session['handle'])
-        tmpf = NamedTemporaryFile(prefix='import', suffix='.xml',
-                                  delete=False)
-        tmpf.write(form.cleaned_data['xml'].read())
-        tmpf.close()
         z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
-        z.add_router_certificate_request(tmpf.name)
+        z.add_router_certificate_request(form.cleaned_data['xml'])
         z.run_rpkid_now()
-        os.remove(tmpf.name)
         return super(RouterImportView, self).form_valid(form)
 
     def get_context_data(self, **kwargs):

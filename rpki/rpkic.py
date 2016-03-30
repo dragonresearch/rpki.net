@@ -64,15 +64,14 @@ class swap_uids(object):
         return False
 
 
-def read_xml_swapped_uids(filename):
+def open_swapped_uids(*open_args):
     """
-    Read an XML file with UIDs swapped.
+    Open a file with UIDs swapped for the duration of the open() call.
     """
-
-    from lxml.etree import ElementTree
 
     with swap_uids():
-        return ElementTree(file = filename).getroot()
+        return open(*open_args)
+
 
 class main(Cmd):
 
@@ -378,7 +377,8 @@ class main(Cmd):
         up-down protocol service URI.
         """
 
-        r, child_handle = self.zoo.configure_child(read_xml_swapped_uids(args.child_xml), args.child_handle, args.valid_until)
+        with open_swapped_uids(args.child_xml) as f:
+            r, child_handle = self.zoo.configure_child(f, args.child_handle, args.valid_until)
         with swap_uids():
             r.save("%s.%s.parent-response.xml" % (self.zoo.handle, child_handle), sys.stdout)
         self.zoo.synchronize_ca()
@@ -425,7 +425,8 @@ class main(Cmd):
         synchronize here, run the synchronize command yourself.
         """
 
-        r, parent_handle = self.zoo.configure_parent(read_xml_swapped_uids(args.parent_xml), args.parent_handle)
+        with open_swapped_uids(args.parent_xml) as f:
+            r, parent_handle = self.zoo.configure_parent(f, args.parent_handle)
         with swap_uids():
             r.save("%s.%s.repository-request.xml" % (self.zoo.handle, parent_handle), sys.stdout)
 
@@ -496,7 +497,8 @@ class main(Cmd):
         message containing the repository's BPKI data and service URI.
         """
 
-        r, client_handle = self.zoo.configure_publication_client(read_xml_swapped_uids(args.client_xml), args.sia_base, args.flat)
+        with open_swapped_uids(args.client_xml) as f:
+            r, client_handle = self.zoo.configure_publication_client(f, args.sia_base, args.flat)
         with swap_uids():
             r.save("%s.repository-response.xml" % client_handle.replace("/", "."), sys.stdout)
         try:
@@ -537,7 +539,8 @@ class main(Cmd):
         corresponding parent data in our local database.
         """
 
-        self.zoo.configure_repository(read_xml_swapped_uids(args.repository_xml), args.parent_handle)
+        with open_swapped_uids(args.repository_xml) as f:
+            self.zoo.configure_repository(f, args.parent_handle)
         self.zoo.synchronize_ca()
 
 
@@ -610,7 +613,8 @@ class main(Cmd):
         Load prefixes into IRDB from CSV file.
         """
 
-        self.zoo.load_prefixes(args.prefixes_csv, True)
+        with open_swapped_uids(args.prefixes_csv) as f:
+            self.zoo.load_prefixes(f, True)
         if self.autosync:
             self.zoo.run_rpkid_now()
 
@@ -746,7 +750,8 @@ class main(Cmd):
         Load ASNs into IRDB from CSV file.
         """
 
-        self.zoo.load_asns(args.asns_csv, True)
+        with open_swapped_uids(args.asns_csv) as f:
+            self.zoo.load_asns(f, True)
         if self.autosync:
             self.zoo.run_rpkid_now()
 
@@ -758,7 +763,8 @@ class main(Cmd):
         Load ROA requests into IRDB from CSV file.
         """
 
-        self.zoo.load_roa_requests(args.roa_requests_csv)
+        with open_swapped_uids(args.roa_requests_csv) as f:
+            self.zoo.load_roa_requests(f)
         if self.autosync:
             self.zoo.run_rpkid_now()
 
@@ -770,7 +776,8 @@ class main(Cmd):
         Load Ghostbuster requests into IRDB from file.
         """
 
-        self.zoo.load_ghostbuster_requests(args.ghostbuster_requests)
+        with open_swapped_uids(args.ghostbuster_requests) as f:
+            self.zoo.load_ghostbuster_requests(f)
         if self.autosync:
             self.zoo.run_rpkid_now()
 
@@ -783,7 +790,8 @@ class main(Cmd):
         Load router certificate request(s) into IRDB from XML file.
         """
 
-        self.zoo.add_router_certificate_request(read_xml_swapped_uids(args.router_certificate_request_xml), args.valid_until)
+        with open_swapped_uids(args.router_certificate_request_xml) as f:
+            self.zoo.add_router_certificate_request(f, args.valid_until)
         if self.autosync:
             self.zoo.run_rpkid_now()
 

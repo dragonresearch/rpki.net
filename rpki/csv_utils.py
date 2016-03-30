@@ -46,12 +46,18 @@ class csv_reader(object):
         assert min_columns is None or isinstance(min_columns, int)
         if columns is not None and min_columns is None:
             min_columns = columns
-        self.filename = filename
         self.columns = columns
         self.min_columns = min_columns
         self.comment_characters = comment_characters
-        self.file = open(filename, "r")
-
+        if isinstance(filename, (str, unicode)):
+            # Name of a file to open
+            self.filename = filename
+            self.file = open(filename, "r")
+        else:
+            # File-like object, already opened
+            self.filename = None
+            self.file = filename
+            
     def __iter__(self):
         line_number = 0
         for line in self.file:

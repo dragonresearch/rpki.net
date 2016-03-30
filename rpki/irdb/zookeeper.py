@@ -147,30 +147,19 @@ class PEM_writer(object):
         self.wrote.add(filename)
 
 
-def etree_read(filename_or_etree_wrapper, schema = rpki.relaxng.oob_setup):
+def etree_read(xml_file, schema = rpki.relaxng.oob_setup):
     """
-    Read an etree from a file, verifying then stripping XML namespace
-    cruft.
+    Read an etree from a file-like object, verifying it against a schema.
 
     As a convenience, we also accept an etree_wrapper object in place
     of a filename, in which case we deepcopy the etree directly from
     the etree_wrapper and there's no need for a file.
-
-    As a further convenience, we also accept an Element object,
-    in which case we just validate and return it.
-
-    This function's behavior has changed over time, and the code which
-    calls it is overdue for refactoring, but the relevant code in
-    rpki.gui.app.views is a bit complex, so that yak will have to take
-    a number and wait for its shave, today we have a bug to fix.
     """
 
-    if isinstance(filename_or_etree_wrapper, etree_wrapper):
-        e = copy.deepcopy(filename_or_etree_wrapper.etree)
-    elif isinstance(filename_or_etree_wrapper, (str, unicode)):
-        e = ElementTree(file = filename_or_etree_wrapper).getroot()
+    if isinstance(xml_file, etree_wrapper):
+        e = copy.deepcopy(xml_file.etree)
     else:
-        e = filename_or_etree_wrapper
+        e = ElementTree(file = xml_file).getroot()
     schema.assertValid(e)
     return e
 
@@ -577,7 +566,7 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def configure_child(self, filename, child_handle = None, valid_until = None):
+    def configure_child(self, xml_file, child_handle = None, valid_until = None):
         """
         Configure a new child of this RPKI entity, given the child's XML
         identity file as an input.  Extracts the child's data from the
@@ -587,7 +576,7 @@ class Zookeeper(object):
         data and up-down protocol service URI.
         """
 
-        x = etree_read(filename)
+        x = etree_read(xml_file)
 
         if x.tag != tag_oob_child_request:
             raise BadXMLMessage("Expected %s, got %s", tag_oob_child_request, x.tag)
@@ -669,7 +658,7 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def configure_parent(self, filename, parent_handle = None):
+    def configure_parent(self, xml_file, parent_handle = None):
         """
         Configure a new parent of this RPKI entity, given the output of
         the parent's configure_child command as input.  Reads the parent's
@@ -681,7 +670,7 @@ class Zookeeper(object):
         the user wants to avail herself of the referral or offer.
         """
 
-        x = etree_read(filename)
+        x = etree_read(xml_file)
 
         if x.tag != tag_oob_parent_response:
             raise BadXMLMessage("Expected %s, got %s", tag_oob_parent_response, x.tag)
@@ -758,7 +747,7 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def configure_publication_client(self, filename, sia_base = None, flat = False):
+    def configure_publication_client(self, xml_file, sia_base = None, flat = False):
         """
         Configure publication server to know about a new client, given the
         client's request-for-service message as input.  Reads the client's
@@ -769,7 +758,7 @@ class Zookeeper(object):
 
         # pylint: disable=E1124
 
-        x = etree_read(filename)
+        x = etree_read(xml_file)
 
         if x.tag != tag_oob_publisher_request:
             raise BadXMLMessage("Expected %s, got %s", tag_oob_publisher_request, x.tag)
@@ -876,7 +865,7 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def configure_repository(self, filename, parent_handle = None):
+    def configure_repository(self, xml_file, parent_handle = None):
         """
         Configure a publication repository for this RPKI entity, given the
         repository's response to our request-for-service message as input.
@@ -885,7 +874,7 @@ class Zookeeper(object):
         corresponding parent data in our local database.
         """
 
-        x = etree_read(filename)
+        x = etree_read(xml_file)
 
         if x.tag != tag_oob_repository_response:
             raise BadXMLMessage("Expected %s, got %s", tag_oob_repository_response, x.tag)
@@ -974,7 +963,7 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def load_prefixes(self, filename, ignore_missing_children = False):
+    def load_prefixes(self, csv_file, ignore_missing_children = False):
         """
         Whack IRDB to match prefixes.csv.
         """
@@ -982,7 +971,7 @@ class Zookeeper(object):
         grouped4 = {}
         grouped6 = {}
 
-        for handle, prefix in csv_reader(filename, columns = 2):
+        for handle, prefix in csv_reader(csv_file, columns = 2):
             grouped = grouped6 if ":" in prefix else grouped4
             if handle not in grouped:
                 grouped[handle] = []
@@ -1014,14 +1003,14 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def load_asns(self, filename, ignore_missing_children = False):
+    def load_asns(self, csv_file, ignore_missing_children = False):
         """
         Whack IRDB to match asns.csv.
         """
 
         grouped = {}
 
-        for handle, asn in csv_reader(filename, columns = 2):
+        for handle, asn in csv_reader(csv_file, columns = 2):
             if handle not in grouped:
                 grouped[handle] = []
             grouped[handle].append(asn)
@@ -1049,7 +1038,7 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def load_roa_requests(self, filename):
+    def load_roa_requests(self, csv_file):
         """
         Whack IRDB to match roa.csv.
         """
@@ -1057,7 +1046,7 @@ class Zookeeper(object):
         grouped = {}
 
         # format:  p/n-m asn group
-        for pnm, asn, group in csv_reader(filename, columns = 3):
+        for pnm, asn, group in csv_reader(csv_file, columns = 3):
             key = (asn, group)
             if key not in grouped:
                 grouped[key] = []
@@ -1090,7 +1079,7 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def load_ghostbuster_requests(self, filename, parent = None):
+    def load_ghostbuster_requests(self, vcard_file, parent = None):
         """
         Whack IRDB to match ghostbusters.vcard.
 
@@ -1101,7 +1090,7 @@ class Zookeeper(object):
 
         vcard = []
 
-        for line in open(filename, "r"):
+        for line in vcard_file.read().splitlines(True):
             if not vcard and not line.upper().startswith("BEGIN:VCARD"):
                 continue
             vcard.append(line)
@@ -1706,7 +1695,7 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def add_router_certificate_request(self, router_certificate_request_xml, valid_until = None):
+    def add_router_certificate_request(self, xml_file, valid_until = None):
         """
         Read XML file containing one or more router certificate requests,
         attempt to add request(s) to IRDB.
@@ -1717,7 +1706,7 @@ class Zookeeper(object):
         router-ID supplied in the XML.
         """
 
-        x = etree_read(router_certificate_request_xml, schema = rpki.relaxng.router_certificate)
+        x = etree_read(xml_file, schema = rpki.relaxng.router_certificate)
 
         for x in x.getiterator(tag_router_certificate_request):
 

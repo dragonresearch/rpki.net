@@ -42,7 +42,14 @@ from rpki.irdb.zookeeper import Zookeeper
 logger = logging.getLogger(__name__)
 
 
+class SomeoneShowMeAWayToGetOuttaHere(Exception):
+    "'Cause I constantly pray I'll get outta here."
+
+
 def rcynic_cert(cert, obj):
+    if not cert.sia_directory_uri:
+        raise SomeoneShowMeAWayToGetOuttaHere
+
     obj.sia = cert.sia_directory_uri
 
     # object must be saved for the related manager methods below to work
@@ -234,6 +241,10 @@ def save_status(repo, vs):
         try:
             # do object-specific tasks
             dispatch[vs.file_class.__name__](obj, inst)
+        except SomeoneShowMeAWayToGetOuttaHere:
+            logger.error("something wrong with %s, skipping", vs.filename)
+            inst_qs.delete()
+            return
         except:
             logger.error('caught exception while processing rcynic_object:\n'
                             'vs=' + repr(vs) + '\nobj=' + repr(obj))

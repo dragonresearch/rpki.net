@@ -38,3 +38,10 @@ If you get an error like "Invalid HTTP_HOST header (you may need to set
 ALLOWED_HOSTS)", you will need to set this option.
 
 No default value.
+
+***** download-directory *****
+
+A directory large enough to hold the RouteViews?.org routing table dump fetched
+by the rpkigui-import-routes script.
+
+  download-directory = /var/tmp

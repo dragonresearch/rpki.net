@@ -90,9 +90,10 @@ def main():
     for img in page.xpath("//img | //object | //embed"): 
       attr = "data" if img.tag == "object" else "src"
       img_url = img.get(attr)
+      sys.stderr.write("Image URL: {}\n".format(img_url))
       if img_url.endswith(".svg"):
-        #sys.stderr.write("Converting %s to PNG\n" % img_url)
         png_fd, png_fn = tempfile.mkstemp(suffix = ".png")
+        sys.stderr.write("Converting {} to {}\n".format(img_url, png_fn))
         subprocess.Popen(("svg2png", "-h", "700", "-w", "600", "-", "-"),
                          stdout = png_fd,
                          stdin = subprocess.PIPE).communicate(urllib.urlopen(img_url).read())

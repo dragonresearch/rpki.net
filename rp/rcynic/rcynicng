@@ -28,14 +28,16 @@ import tornado.process
 import tornado.httpclient
 
 import rpki.POW
-import rpki.sundial
+import rpki.log
 import rpki.config
-import rpki.autoconf
+import rpki.sundial
 import rpki.relaxng
+import rpki.autoconf
 
 from rpki.oids import id_kp_bgpsec_router
 
-from lxml.etree import ElementTree, Element, SubElement, Comment, XML, DocumentInvalid, XMLSyntaxError, iterparse
+from lxml.etree import (ElementTree, Element, SubElement, Comment,
+                        XML, DocumentInvalid, XMLSyntaxError, iterparse)
 
 logger = logging.getLogger("rcynicng")
 
@@ -502,7 +504,7 @@ class  WalkFrame(object):
 
         if not self.fetcher.needed():
             self.state = self.ready
-        elif args.no_spawn_on_fetch:
+        elif not args.spawn_on_fetch:
             self.state = self.fetch
         else:
             self.state = self.fetch
@@ -662,7 +664,7 @@ class WalkTask(object):
 
 
 def read_tals():
-    for head, dirs, files in os.walk(args.tals):
+    for head, dirs, files in os.walk(args.trust_anchor_locators):
         for fn in files:
             if fn.endswith(".tal"):
                 furi = "file://" + os.path.abspath(os.path.join(head, fn))
@@ -755,7 +757,7 @@ class Fetcher(object):
         return None
 
     def needed(self):
-        if args.no_fetch:
+        if not args.fetch:
             return False
         if self.uri.startswith("rsync://"):
             return self._rsync_needed()
@@ -788,7 +790,7 @@ class Fetcher(object):
     def _rsync_fetch(self):
         assert self.uri.startswith("rsync://") and (self.uri.endswith(".cer") if self.ta else self.uri.endswith("/"))
 
-        if args.no_fetch:
+        if not args.fetch:
             return
         path = self._rsync_split_uri()
         dead = path[0] in self._rsync_deadhosts
@@ -940,7 +942,7 @@ class Fetcher(object):
     @tornado.gen.coroutine
     def _https_fetch_ta(self):
 
-        if args.no_fetch:
+        if not args.fetch:
             return
 
         other = self._https_history.get(self.uri)
@@ -1022,7 +1024,7 @@ class Fetcher(object):
     def _rrdp_fetch(self):
         from django.db import transaction
 
-        if args.no_fetch:
+        if not args.fetch:
             return
 
         other = self._https_history.get(self.uri)
@@ -1305,7 +1307,8 @@ def final_report():
     #
     # Should generate <rsync_history/> elements here too, later
     #
-    ElementTree(doc).write(file = args.xml_file, pretty_print = True)
+    ElementTree(doc).write(file = argparse.FileType("w")(args.xml_file),
+                           pretty_print = True)
 
 
 def final_cleanup():
@@ -1386,33 +1389,60 @@ def main():
     time.tzset()
 
     cfg, parser = rpki.config.argparser(section = "rcynic", doc = __doc__, cfg_optional = True)
-    parser.add_argument("-u", "--unauthenticated", 
-                        default = os.path.join(rpki.autoconf.RCYNIC_DIR, "data", "unauthenticated"))
-    parser.add_argument("-x", "--xml-file",     type = argparse.FileType("w"),
-                        default = os.path.join(rpki.autoconf.RCYNIC_DIR, "data", "rcynic.xml"))
-    parser.add_argument("-t", "--tals",         
-                        default = os.path.join(rpki.autoconf.sysconfdir, "rpki", "trust-anchors"))
-    parser.add_argument("-w", "--workers",      default = 10, type = posint)
-    parser.add_argument("--no-fetch",           action = "store_true")
-    parser.add_argument("--no-spawn-on-fetch",  action = "store_true")
-    parser.add_argument("--no-migrate",         action = "store_true")
-    parser.add_argument("--prefer-rsync",       action = "store_true")
-    parser.add_argument("--fetch-ahead-goal",   default = 2, type = posint)
-    parser.add_argument("--https-timeout",      default = 300,  type = posint)
-    parser.add_argument("--validate-https",     action = "store_true")
-    parser.add_argument("--max-https-body-size", type = posint, default = 512 * 1024 * 1024)
+    rpki.log.argparse_setup(parser)
 
-    # We already have a whole bunch of logging control code in
-    # rpki.log, just need to figure out / remember how to use it
-    # properly.  See rpki.log.init() & rpki.log.argparse_setup().
+    cfg.add_argument("-u", "--unauthenticated",
+                     help = "where to store unauthenticated data retrieved via rsycnc",
+                     default = os.path.join(rpki.autoconf.RCYNIC_DIR, "data", "unauthenticated"))
+
+    cfg.add_argument("-x", "--xml-file",
+                     help = "where to write XML log of validation results",
+                     default = os.path.join(rpki.autoconf.RCYNIC_DIR, "data", "rcynic.xml"))
+
+    cfg.add_argument("-t", "--trust-anchor-locators", "--tals", 
+                     help = "where to find trust anchor locators",
+                     default = os.path.join(rpki.autoconf.sysconfdir, "rpki", "trust-anchors"))
+
+    cfg.add_argument("-w", "--workers",      type = posint,
+                     help = "number of worker pseudo-threads to allow",
+                     default = 10)
+
+    cfg.add_argument("--fetch-ahead-goal",   type = posint,
+                     help = "how many deltas we want in the fetch-ahead pipe",
+                     default = 2)
+
+    cfg.add_argument("--https-timeout",      type = posint,
+                     help = "HTTPS connection timeout, in seconds",
+                     default = 300)
+
+    cfg.add_argument("--max-https-body-size", type = posint,
+                     help = "upper limit on byte length of HTTPS message body",
+                     default = 512 * 1024 * 1024)
+
+    cfg.add_boolean_argument("--fetch",             default = True,
+                             help = "whether to fetch data at all")
+
+    cfg.add_boolean_argument("--spawn-on-fetch",    default = True,
+                             help = "whether to spawn new pseudo-threads on fetch")
+
+    cfg.add_boolean_argument("--migrate",           default = True,
+                             help = "whether to migrate the ORM database on startup")
+
+    cfg.add_boolean_argument("--prefer-rsync",      default = False,
+                             help = "whether to prefer rsync over RRDP")
+
+    cfg.add_boolean_argument("--validate-https",    default = False,
+                             help = "whether to validate HTTPS server certificates")
 
     global args
     args = parser.parse_args()
 
+    rpki.log.init("rcynic", args)
+
     import django
     django.setup()
 
-    if not args.no_migrate:
+    if args.migrate:
         # Not sure we should be doing this on every run, but sure simplifies things.
         import django.core.management
         django.core.management.call_command("migrate", verbosity = 0, interactive = False)
@@ -1427,7 +1457,6 @@ def main():
     RRDPSnapshot  = rpki.rcynicdb.models.RRDPSnapshot
     RPKIObject    = rpki.rcynicdb.models.RPKIObject
 
-    logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s  %(message)s", datefmt = "%Y-%m-%d %H:%M:%S")
 
     global authenticated
     authenticated = Authenticated.objects.create(started  = rpki.sundial.datetime.now())

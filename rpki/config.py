@@ -77,8 +77,10 @@ class parser(object):
         allow_missing = kwargs.pop("allow_missing", False)
         set_filename  = kwargs.pop("set_filename",  None)
         filename      = kwargs.pop("filename",      set_filename)
+        argparser     = kwargs.pop("argparser",     None)
 
-        assert not kwargs, "Unexpected keyword arguments: " + ", ".join("%s = %r" % kv for kv in kwargs.iteritems())
+        assert not kwargs, "Unexpected keyword arguments: {}".format(
+            ", ".join("{} = {!r}".format(k, v) for k, v in kwargs.iteritems()))
 
         if set_filename is not None:
             os.environ[rpki_conf_envname] = set_filename
@@ -87,6 +89,7 @@ class parser(object):
         self.default_section = section
 
         self.filename = filename or os.getenv(rpki_conf_envname) or default_filename
+        self.argparser = argparser
 
         try:
             with open(self.filename, "r") as f:
@@ -129,7 +132,8 @@ class parser(object):
         if self.cfg.has_option(section, option):
             yield self.cfg.get(section, option)
         option += "."
-        matches = [o for o in self.cfg.options(section) if o.startswith(option) and o[len(option):].isdigit()]
+        matches = [o for o in self.cfg.options(section) 
+                   if o.startswith(option) and o[len(option):].isdigit()]
         matches.sort()
         for option in matches:
             yield self.cfg.get(section, option)
@@ -176,7 +180,7 @@ class parser(object):
         if isinstance(v, str):
             v = v.lower()
             if v not in self.cfg._boolean_states:
-                raise ValueError("Not a boolean: %s" % v)
+                raise ValueError("Not boolean: {}".format(v))
             v = self.cfg._boolean_states[v]
         return v
 
@@ -196,6 +200,80 @@ class parser(object):
 
         return long(self.get(option, default, section))
 
+
+    def add_argument(self, *names, **kwargs):
+        """
+        Combined command line and config file argument.  Takes
+        arguments mostly like ArgumentParser.add_argument(), but also
+        looks in config file for option of the same name.
+
+        The "section" and "default" arguments are used for the config file
+        lookup; the resulting value is used as the "default" parameter for 
+        the argument parser.
+
+        If a "type" argument is specified, it applies to both the value
+        parsed from the config file and the argument parser.
+        """
+
+        section = kwargs.pop("section", None)
+        default = kwargs.pop("default", None)
+
+        for name in names:
+            if name.startswith("--"):
+                name = name[2:]
+                break
+        else:
+            raise ValueError
+
+        default = self.get(name, default = default, section = section)
+
+        if "type" in kwargs:
+            default = kwargs["type"](default)
+
+        kwargs["default"] = default
+
+        return self.argparser.add_argument(*names, **kwargs)
+
+    def add_boolean_argument(self, name, **kwargs):
+        """
+        Combined command line and config file boolean argument.  Takes
+        arguments mostly like ArgumentParser.add_argument(), but also
+        looks in config file for option of the same name.
+
+        The "section" and "default" arguments are used for the config file
+        lookup; the resulting value is used as the default value for 
+        the argument parser.
+
+        Usage is a bit different from the normal ArgumentParser boolean
+        handling: because the command line default is controlled by the
+        config file, the "store_true" / "store_false" semantics don't
+        really work for us.  So, instead, we use the --foo / --no-foo
+        convention, and generate a pair of command line arguments with
+        those names controlling a single "foo" value in the result.
+        """
+
+        section = kwargs.pop("section", None)
+        default = kwargs.pop("default", None)
+
+        if not name.startswith("--"):
+            raise ValueError
+        name = name[2:]
+
+        default = self.getboolean(name, default = default, section = section)
+
+        kwargs["action"] = "store_const"
+        kwargs["dest"] = name.replace("-", "_")
+
+        group = self.argparser.add_mutually_exclusive_group()
+
+        kwargs["const"] = True
+        group.add_argument("--" + name, **kwargs)
+
+        kwargs["const"] = False
+        #kwargs["help"] = argparse.SUPPRESS
+        group.add_argument("--no-" + name, **kwargs)
+
+        self.argparser.set_defaults(**{ kwargs["dest"] : default })
 
     def set_global_flags(self):
         """
@@ -224,14 +302,16 @@ class parser(object):
             pass
 
         try:
-            rpki.x509.XML_CMS_object.dump_outbound_cms = rpki.x509.DeadDrop(self.get("dump_outbound_cms"))
+            rpki.x509.XML_CMS_object.dump_outbound_cms = rpki.x509.DeadDrop(
+                self.get("dump_outbound_cms"))
         except OSError, e:
             logger.warning("Couldn't initialize mailbox %s: %s", self.get("dump_outbound_cms"), e)
         except ConfigParser.NoOptionError:
             pass
 
         try:
-            rpki.x509.XML_CMS_object.dump_inbound_cms = rpki.x509.DeadDrop(self.get("dump_inbound_cms"))
+            rpki.x509.XML_CMS_object.dump_inbound_cms = rpki.x509.DeadDrop(
+                self.get("dump_inbound_cms"))
         except OSError, e:
             logger.warning("Couldn't initialize mailbox %s: %s", self.get("dump_inbound_cms"), e)
         except ConfigParser.NoOptionError:
@@ -323,10 +403,11 @@ def argparser(section = None, doc = None, cfg_optional = False):
 
     args, remaining_argv = cfgparser.parse_known_args()
 
+    argparser = argparse.ArgumentParser(parents = [topparser], description = doc)
+
     cfg = parser(section       = section,
                  set_filename  = args.config,
+                 argparser     = argparser,
                  allow_missing = cfg_optional or args.help)
-
-    argparser = argparse.ArgumentParser(parents = [topparser], description = doc)
 
     return cfg, argparser

@@ -44,9 +44,11 @@ class main(object):
     def handle_list_resources(self, q_pdu, r_msg):
         tenant_handle = q_pdu.get("tenant_handle")
         child_handle  = q_pdu.get("child_handle")
-        child  = rpki.irdb.models.Child.objects.get(issuer__handle = tenant_handle, handle = child_handle)
+        child  = rpki.irdb.models.Child.objects.get(issuer__handle = tenant_handle,
+                                                    handle = child_handle)
         resources = child.resource_bag
-        r_pdu = SubElement(r_msg, rpki.left_right.tag_list_resources, tenant_handle = tenant_handle, child_handle = child_handle,
+        r_pdu = SubElement(r_msg, rpki.left_right.tag_list_resources, 
+                           tenant_handle = tenant_handle, child_handle = child_handle,
                            valid_until = child.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ"))
         for k, v in (("asn",  resources.asn),
                      ("ipv4", resources.v4),
@@ -64,7 +66,8 @@ class main(object):
             AND    irdb_resourceholderca.handle = %s
             """, [tenant_handle]):
             prefix_bag = request.roa_prefix_bag
-            r_pdu = SubElement(r_msg, rpki.left_right.tag_list_roa_requests, tenant_handle = tenant_handle, asn = str(request.asn))
+            r_pdu = SubElement(r_msg, rpki.left_right.tag_list_roa_requests, 
+                               tenant_handle = tenant_handle, asn = str(request.asn))
             for k, v in (("ipv4", prefix_bag.v4),
                          ("ipv6", prefix_bag.v6),
                          ("tag",  q_pdu.get("tag"))):
@@ -74,18 +77,22 @@ class main(object):
     def handle_list_ghostbuster_requests(self, q_pdu, r_msg):
         tenant_handle = q_pdu.get("tenant_handle")
         parent_handle = q_pdu.get("parent_handle")
-        ghostbusters = rpki.irdb.models.GhostbusterRequest.objects.filter(issuer__handle = tenant_handle, parent__handle = parent_handle)
+        ghostbusters = rpki.irdb.models.GhostbusterRequest.objects.filter(
+            issuer__handle = tenant_handle, parent__handle = parent_handle)
         if ghostbusters.count() == 0:
-            ghostbusters = rpki.irdb.models.GhostbusterRequest.objects.filter(issuer__handle = tenant_handle, parent = None)
+            ghostbusters = rpki.irdb.models.GhostbusterRequest.objects.filter(
+                issuer__handle = tenant_handle, parent = None)
         for ghostbuster in ghostbusters:
-            r_pdu = SubElement(r_msg, q_pdu.tag, tenant_handle = tenant_handle, parent_handle = parent_handle)
+            r_pdu = SubElement(r_msg, q_pdu.tag, 
+                               tenant_handle = tenant_handle, parent_handle = parent_handle)
             if q_pdu.get("tag"):
                 r_pdu.set("tag", q_pdu.get("tag"))
             r_pdu.text = ghostbuster.vcard
 
     def handle_list_ee_certificate_requests(self, q_pdu, r_msg):
         tenant_handle = q_pdu.get("tenant_handle")
-        for ee_req in rpki.irdb.models.EECertificateRequest.objects.filter(issuer__handle = tenant_handle):
+        for ee_req in rpki.irdb.models.EECertificateRequest.objects.filter(
+                issuer__handle = tenant_handle):
             resources = ee_req.resource_bag
             r_pdu = SubElement(r_msg, q_pdu.tag, tenant_handle = tenant_handle, gski = ee_req.gski,
                                valid_until = ee_req.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -111,7 +118,8 @@ class main(object):
             q_msg = q_cms.unwrap((serverCA.certificate, rpkid.certificate))
             self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, request.path)
             if q_msg.get("type") != "query":
-                raise rpki.exceptions.BadQuery("Message type is %s, expected query" % q_msg.get("type"))
+                raise rpki.exceptions.BadQuery("Message type is {}, expected query".format(
+                    q_msg.get("type")))
             r_msg = Element(rpki.left_right.tag_msg, nsmap = rpki.left_right.nsmap,
                             type = "reply", version = rpki.left_right.version)
             try:
@@ -120,12 +128,14 @@ class main(object):
 
             except Exception, e:
                 logger.exception("Exception processing PDU %r", q_pdu)
-                r_pdu = SubElement(r_msg, rpki.left_right.tag_report_error, error_code = e.__class__.__name__)
+                r_pdu = SubElement(r_msg, rpki.left_right.tag_report_error, 
+                                   error_code = e.__class__.__name__)
                 r_pdu.text = str(e)
                 if q_pdu.get("tag") is not None:
                     r_pdu.set("tag", q_pdu.get("tag"))
 
-            request.send_cms_response(rpki.left_right.cms_msg().wrap(r_msg, irdbd.private_key, irdbd.certificate))
+            request.send_cms_response(rpki.left_right.cms_msg().wrap(
+                r_msg, irdbd.private_key, irdbd.certificate))
 
         except Exception, e:
             logger.exception("Unhandled exception while processing HTTP request")
@@ -139,21 +149,22 @@ class main(object):
                           DJANGO_SETTINGS_MODULE = "rpki.django_settings.irdb")
         time.tzset()
 
-        parser = argparse.ArgumentParser(description = __doc__)
-        parser.add_argument("-c", "--config",
-                            help = "override default location of configuration file")
-        parser.add_argument("-f", "--foreground", action = "store_true",
-                            help = "do not daemonize")
-        parser.add_argument("--pidfile",
-                            help = "override default location of pid file")
-        parser.add_argument("--profile",
-                            help = "enable profiling, saving data to PROFILE")
-        rpki.log.argparse_setup(parser)
-        args = parser.parse_args()
+        self.cfg = rpki.config.argparser(section = "irdbd", doc = __doc__)
+        self.cfg.add_boolean_argument("--foreground", 
+                                      default = False,
+                                      help = "whether to daemonize")
+        self.cfg.add_argument("--pidfile",   
+                              default = os.path.join(rpki.daemonize.default_pid_directory, 
+                                                     "irdbd.pid"),
+                              help = "override default location of pid file")
+        self.cfg.add_argument("--profile",
+                              default = "",
+                              help = "enable profiling, saving data to PROFILE")
+        rpki.log.argparse_setup(self.cfg.argparser)
+        args = self.cfg.argparser.parse_args()
 
         rpki.log.init("irdbd", args)
 
-        self.cfg = rpki.config.parser(set_filename = args.config, section = "irdbd")
         self.cfg.set_global_flags()
 
         self.cms_timestamp = None

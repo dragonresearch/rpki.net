@@ -75,23 +75,24 @@ class main(object):
 
         self.http_client_serialize = weakref.WeakValueDictionary()
 
-        parser = argparse.ArgumentParser(description = __doc__)
-        parser.add_argument("-c", "--config",
-                            help = "override default location of configuration file")
-        parser.add_argument("-f", "--foreground", action = "store_true",
-                            help = "do not daemonize")
-        parser.add_argument("--pidfile",
-                            help = "override default location of pid file")
-        parser.add_argument("--profile",
-                            help = "enable profiling, saving data to PROFILE")
-        rpki.log.argparse_setup(parser)
-        args = parser.parse_args()
+        self.cfg = rpki.config.argparser(section = "rpkid", doc = __doc__)
+        self.cfg.add_boolean_argument("--foreground", 
+                                      default = False,
+                                      help = "whether to daemonize")
+        self.cfg.add_argument("--pidfile",   
+                              default = os.path.join(rpki.daemonize.default_pid_directory, 
+                                                     "rpkid.pid"),
+                              help = "override default location of pid file")
+        self.cfg.add_argument("--profile",
+                              default = "",
+                              help = "enable profiling, saving data to PROFILE")
+        rpki.log.argparse_setup(self.cfg.argparser)
+        args = self.cfg.argparser.parse_args()
 
         self.profile = args.profile
 
         rpki.log.init("rpkid", args)
 
-        self.cfg = rpki.config.parser(set_filename = args.config, section = "rpkid")
         self.cfg.set_global_flags()
 
         if not args.foreground:
@@ -679,12 +680,14 @@ class publication_queue(object):
                                      type = "query", version = rpki.publication.version)
 
         if uri in self.uris:
-            logger.debug("Removing publication duplicate %r %s hash %s", self.uris[uri], uri, self.uris[uri].get("hash"))
+            logger.debug("Removing publication duplicate %r %s hash %s", 
+                         self.uris[uri], uri, self.uris[uri].get("hash"))
             old_pdu = self.uris.pop(uri)
             self.msgs[rid].remove(old_pdu)
             pdu_hash = old_pdu.get("hash")
             if pdu_hash is None and new_obj is None:
-                logger.debug("Withdrawing object %r which was never published simplifies to no-op", old_pdu)
+                logger.debug("Withdrawing object %r which was never published simplifies to no-op", 
+                             old_pdu)
                 return
         elif old_hash is not None:
             logger.debug("Old hash supplied")                   # XXX Debug log
@@ -719,7 +722,9 @@ class publication_queue(object):
             logger.debug("Calling pubd[%r]", self.repositories[rid])
             try:
                 yield self.repositories[rid].call_pubd(self.rpkid, self.msgs[rid], self.handlers)
-            except (rpki.exceptions.ExistingObjectAtURI, rpki.exceptions.DifferentObjectAtURI, rpki.exceptions.NoObjectAtURI) as e:
+            except (rpki.exceptions.ExistingObjectAtURI, 
+                    rpki.exceptions.DifferentObjectAtURI, 
+                    rpki.exceptions.NoObjectAtURI) as e:
                 logger.warn("Lost synchronization with %r: %s", self.repositories[rid], e)
                 yield self.resync(self.repositories[rid])
         for k in self.uris.iterkeys():
@@ -745,13 +750,14 @@ class publication_queue(object):
         pubd_objs = dict((r_pdu.get("uri"), r_pdu.get("hash")) for r_pdu in r_msg)
 
         our_objs = []
-        for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__tenant = repository.tenant, state = "active"):
+        for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(
+                ca__parent__tenant = repository.tenant, state = "active"):
             our_objs = [(ca_detail.crl_uri,      ca_detail.latest_crl),
                         (ca_detail.manifest_uri, ca_detail.latest_manifest)]
-            our_objs.extend((c.uri, c.cert)         for c in ca_detail.child_certs.all())
-            our_objs.extend((r.uri, r.roa)          for r in ca_detail.roas.filter(roa__isnull = False))
-            our_objs.extend((g.uri, g.ghostbuster)  for g in ca_detail.ghostbusters.all())
-            our_objs.extend((c.uri, c.cert)         for c in ca_detail.ee_certificates.all())
+            our_objs.extend((c.uri, c.cert)      for c in ca_detail.child_certs.all())
+            our_objs.extend((r.uri, r.roa)       for r in ca_detail.roas.filter(roa__isnull = False))
+            our_objs.extend((g.uri, g.ghostbuster) for g in ca_detail.ghostbusters.all())
+            our_objs.extend((c.uri, c.cert)      for c in ca_detail.ee_certificates.all())
 
         q_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
                         type = "query", version = rpki.publication.version)
@@ -762,7 +768,8 @@ class publication_queue(object):
             else:
                 h = pubd_objs.pop(uri)
                 if h != rpki.x509.sha256(obj.get_DER()).encode("hex"):
-                    SubElement(q_msg, rpki.publication.tag_publish, uri = uri, hash = h).text = obj.get_Base64()
+                    SubElement(q_msg, rpki.publication.tag_publish, 
+                               uri = uri, hash = h).text = obj.get_Base64()
 
         for uri, h in pubd_objs.iteritems():
             SubElement(q_msg, rpki.publication.tag_withdraw, uri = uri, hash = h)

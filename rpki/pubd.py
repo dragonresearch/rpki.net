@@ -57,23 +57,24 @@ class main(object):
 
         self.irbe_cms_timestamp = None
 
-        parser = argparse.ArgumentParser(description = __doc__)
-        parser.add_argument("-c", "--config",
-                            help = "override default location of configuration file")
-        parser.add_argument("-f", "--foreground", action = "store_true",
-                            help = "do not daemonize")
-        parser.add_argument("--pidfile",
-                            help = "override default location of pid file")
-        parser.add_argument("--profile",
-                            help = "enable profiling, saving data to PROFILE")
-        rpki.log.argparse_setup(parser)
-        args = parser.parse_args()
+        self.cfg = rpki.config.argparser(section = "pubd", doc = __doc__)
+        self.cfg.add_boolean_argument("--foreground", 
+                                      default = False,
+                                      help = "whether to daemonize")
+        self.cfg.add_argument("--pidfile",   
+                              default = os.path.join(rpki.daemonize.default_pid_directory, 
+                                                     "pubd.pid"),
+                              help = "override default location of pid file")
+        self.cfg.add_argument("--profile",
+                              default = "",
+                              help = "enable profiling, saving data to PROFILE")
+        rpki.log.argparse_setup(self.cfg.argparser)
+        args = self.cfg.argparser.parse_args()
 
         self.profile = args.profile
 
         rpki.log.init("pubd", args)
 
-        self.cfg = rpki.config.parser(set_filename = args.config, section = "pubd")
         self.cfg.set_global_flags()
 
         if not args.foreground:

@@ -21,20 +21,20 @@ import rpki.resource_set
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg, parser = rpki.config.argparser(section = "rootd", doc = __doc__)
+cfg = rpki.config.argparser(section = "rootd", doc = __doc__)
 
 default_certfile = cfg.get("rpki-root-cert-file", "root.cer")
 default_keyfile  = cfg.get("rpki-root-key-file",  "root.key")
 default_talfile  = os.path.splitext(default_certfile)[0] + ".tal"
 
-parser.add_argument("-a", "--asns",  help = "ASN resources",    default = "0-4294967295")
-parser.add_argument("-4", "--ipv4",  help = "IPv4 resources",   default = "0.0.0.0/0")
-parser.add_argument("-6", "--ipv6",  help = "IPv6 resources",   default = "::/0")
-parser.add_argument("--certificate", help = "certificate file", default = default_certfile)
-parser.add_argument("--key",         help = "key file",         default = default_keyfile)
-parser.add_argument("--tal",         help = "TAL file",         default = default_talfile)
+cfg.argparser.add_argument("-a", "--asns",  help = "ASN resources",    default = "0-4294967295")
+cfg.argparser.add_argument("-4", "--ipv4",  help = "IPv4 resources",   default = "0.0.0.0/0")
+cfg.argparser.add_argument("-6", "--ipv6",  help = "IPv6 resources",   default = "::/0")
+cfg.argparser.add_argument("--certificate", help = "certificate file", default = default_certfile)
+cfg.argparser.add_argument("--key",         help = "key file",         default = default_keyfile)
+cfg.argparser.add_argument("--tal",         help = "TAL file",         default = default_talfile)
 
-args = parser.parse_args()
+args = cfg.argparser.parse_args()
 
 resources = rpki.resource_set.resource_bag(
   asn = rpki.resource_set.resource_set_as(args.asns),

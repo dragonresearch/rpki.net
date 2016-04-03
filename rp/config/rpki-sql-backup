@@ -35,12 +35,12 @@ import rpki.config
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg, parser = rpki.config.argparser(doc = __doc__, section = "myrpki")
-parser.add_argument("-o", "--output", type = argparse.FileType("wb"), default = sys.stdout,
-                    help = "destination for SQL dump (default: stdout)")
-parser.add_argument("-v", "--verbose", action = "store_true",
-                    help = "whistle while you work")
-args = parser.parse_args()
+cfg = rpki.config.argparser(doc = __doc__, section = "myrpki")
+cfg.argparser.add_argument("-o", "--output", type = argparse.FileType("wb"), default = sys.stdout,
+                           help = "destination for SQL dump (default: stdout)")
+cfg.argparser.add_argument("-v", "--verbose", action = "store_true",
+                           help = "whistle while you work")
+args = cfg.argparser.parse_args()
 
 templates = dict(mysql      = "mysqldump --add-drop-database -u{username} -p{password} -B{database}",
                  sqlite3    = "sqlite3 {database} .dump",

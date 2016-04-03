@@ -1388,8 +1388,8 @@ def main():
                       DJANGO_SETTINGS_MODULE = "rpki.django_settings.rcynic")
     time.tzset()
 
-    cfg, parser = rpki.config.argparser(section = "rcynic", doc = __doc__, cfg_optional = True)
-    rpki.log.argparse_setup(parser)
+    cfg = rpki.config.argparser(section = "rcynic", doc = __doc__, cfg_optional = True)
+    rpki.log.argparse_setup(cfg.argparser)
 
     cfg.add_argument("-u", "--unauthenticated",
                      help = "where to store unauthenticated data retrieved via rsycnc",
@@ -1435,7 +1435,7 @@ def main():
                              help = "whether to validate HTTPS server certificates")
 
     global args
-    args = parser.parse_args()
+    args = cfg.argparser.parse_args()
 
     rpki.log.init("rcynic", args)
 

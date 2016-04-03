@@ -254,6 +254,7 @@ class parser(object):
 
         section = kwargs.pop("section", None)
         default = kwargs.pop("default", None)
+        help    = kwargs.pop("help",    None)
 
         if not name.startswith("--"):
             raise ValueError
@@ -270,7 +271,7 @@ class parser(object):
         group.add_argument("--" + name, **kwargs)
 
         kwargs["const"] = False
-        #kwargs["help"] = argparse.SUPPRESS
+        kwargs["help"] = help
         group.add_argument("--no-" + name, **kwargs)
 
         self.argparser.set_defaults(**{ kwargs["dest"] : default })
@@ -370,13 +371,13 @@ def argparser(section = None, doc = None, cfg_optional = False):
     # drop-in, and should reduce the amount of repetitive code.  There
     # are a couple of special cases which will require attention:
     #
-    # - rpki.rtr: These modules have their own handling of all the
-    #   logging setup, and use an argparse subparser.  I -think- that
-    #   the way they're already handling the logging setup should work
-    #   fine, but there may be a few tricky bits reconciling this code
-    #   with the more generalized version in rpki.log.
+    # - rpki.rtr: The rpki-rtr modules have their own handling of all
+    #   the logging setup, and use an argparse subparser.  I -think-
+    #   that the way they're already handling the logging setup should
+    #   work fine, but there may be a few tricky bits reconciling the
+    #   rpki-rtr logging setup with the generalized version in rpki.log.
     #
-    # - rpki.rpkic: Use of argparse here is very complicated due to
+    # - rpki.rpkic: Use of argparse in rpkic is very complicated due to
     #   support for both the external command line and the internal
     #   command loop.  Overall it works quite well, but the setup is
     #   tricky.  rpki.rpkic.main.top_argparse may need to move outside
@@ -410,4 +411,4 @@ def argparser(section = None, doc = None, cfg_optional = False):
                  argparser     = argparser,
                  allow_missing = cfg_optional or args.help)
 
-    return cfg, argparser
+    return cfg

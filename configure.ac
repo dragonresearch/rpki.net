@@ -435,6 +435,15 @@ AC_MSG_CHECKING([for Tornado])
 if $PYTHON -c 'import tornado' 2>/dev/null; then have_tornado=yes; else have_tornado=no; fi
 AC_MSG_RESULT([$have_tornado])
 
+if test $have_tornado = yes
+then
+	AC_MSG_CHECKING([for Tornado 4.2 or higher])
+	have_acceptable_tornado=`$PYTHON -c "import tornado; print 'no' if tornado.version_info < (4, 2) else 'yes'"`
+	AC_MSG_RESULT([$have_acceptable_tornado])
+else
+	have_acceptable_tornado=no
+fi
+
 AC_MSG_CHECKING([for Django])
 if $PYTHON -c 'import django' 2>/dev/null; then have_django=yes; else have_django=no; fi
 AC_MSG_RESULT([$have_django])
@@ -513,10 +522,10 @@ then
 	AC_MSG_WARN([The RPKI tools require the Python argparse module.])
 fi
 
-if test $have_tornado = no
+if test $have_acceptable_tornado = no
 then
 	runtime_ok=no
-	AC_MSG_WARN([The RPKI tools require the Python Tornado package.])
+	AC_MSG_WARN([The RPKI tools require Tornado 4.2 or higher.])
 fi
 
 if test $build_ca_tools = yes

@@ -66,7 +66,9 @@ typedef struct ROAIPAddress_st {
   ASN1_INTEGER *maxLength;
 } ROAIPAddress;
 
+#ifdef DECLARE_STACK_OF
 DECLARE_STACK_OF(ROAIPAddress)
+#endif
 
 ASN1_SEQUENCE(ROAIPAddress) = {
   ASN1_SIMPLE(ROAIPAddress, IPAddress, ASN1_BIT_STRING),
@@ -78,7 +80,9 @@ typedef struct ROAIPAddressFamily_st {
   STACK_OF(ROAIPAddress) *addresses;
 } ROAIPAddressFamily;
 
+#ifdef DECLARE_STACK_OF
 DECLARE_STACK_OF(ROAIPAddressFamily)
+#endif
 
 ASN1_SEQUENCE(ROAIPAddressFamily) = {
   ASN1_SIMPLE(ROAIPAddressFamily, addressFamily, ASN1_OCTET_STRING),

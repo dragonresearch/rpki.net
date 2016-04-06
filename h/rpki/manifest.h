@@ -66,7 +66,9 @@ typedef struct FileAndHash_st {
   ASN1_BIT_STRING *hash;
 } FileAndHash;
 
+#ifdef DECLARE_STACK_OF
 DECLARE_STACK_OF(FileAndHash)
+#endif
 
 ASN1_SEQUENCE(FileAndHash) = {
   ASN1_SIMPLE(FileAndHash, file, ASN1_IA5STRING),

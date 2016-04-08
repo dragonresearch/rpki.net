@@ -1,6 +1,6 @@
 /*
  * Automatically generated, do not edit.
- * Generator $Id: defstack.py 4878 2012-11-15 22:13:53Z sra $
+ * Generator $Id: defstack.py 6152 2015-10-26 06:29:00Z sra $
  */
 
 #ifndef __RPKI_MANIFEST_H__DEFSTACK_H__

@@ -44,8 +44,6 @@
 #include <openssl/asn1t.h>
 #include <openssl/cms.h>
 
-#include <rpki/sk_manifest.h>
-
 /*
  * ASN.1 templates.  Not sure that ASN1_EXP_OPT() is the right macro
  * for these defaulted "version" fields, but it's what the examples
@@ -66,8 +64,11 @@ typedef struct FileAndHash_st {
   ASN1_BIT_STRING *hash;
 } FileAndHash;
 
-#ifdef DECLARE_STACK_OF
+#ifdef DEFINE_STACK_OF
+DEFINE_STACK_OF(FileAndHash)
+#else
 DECLARE_STACK_OF(FileAndHash)
+#include <rpki/sk_manifest.h>
 #endif
 
 ASN1_SEQUENCE(FileAndHash) = {

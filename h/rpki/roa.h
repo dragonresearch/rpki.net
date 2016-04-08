@@ -44,8 +44,6 @@
 #include <openssl/asn1t.h>
 #include <openssl/cms.h>
 
-#include <rpki/sk_roa.h>
-
 /*
  * ASN.1 templates.  Not sure that ASN1_EXP_OPT() is the right macro
  * for these defaulted "version" fields, but it's what the examples
@@ -66,7 +64,9 @@ typedef struct ROAIPAddress_st {
   ASN1_INTEGER *maxLength;
 } ROAIPAddress;
 
-#ifdef DECLARE_STACK_OF
+#ifdef DEFINE_STACK_OF
+DEFINE_STACK_OF(ROAIPAddress)
+#else
 DECLARE_STACK_OF(ROAIPAddress)
 #endif
 
@@ -80,7 +80,9 @@ typedef struct ROAIPAddressFamily_st {
   STACK_OF(ROAIPAddress) *addresses;
 } ROAIPAddressFamily;
 
-#ifdef DECLARE_STACK_OF
+#ifdef DEFINE_STACK_OF
+DEFINE_STACK_OF(ROAIPAddressFamily)
+#else
 DECLARE_STACK_OF(ROAIPAddressFamily)
 #endif
 
@@ -107,6 +109,10 @@ DECLARE_ASN1_FUNCTIONS(ROA)
 IMPLEMENT_ASN1_FUNCTIONS(ROAIPAddress)
 IMPLEMENT_ASN1_FUNCTIONS(ROAIPAddressFamily)
 IMPLEMENT_ASN1_FUNCTIONS(ROA)
+
+#ifndef DEFINE_STACK_OF
+#include <rpki/sk_roa.h>
+#endif
 
 #endif /* DOXYGEN_GETS_HOPELESSLY_CONFUSED_BY_THIS_SECTION */
 

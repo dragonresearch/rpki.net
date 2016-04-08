@@ -6,7 +6,7 @@
 
 #version="1.0.0-stable-SNAP-$(date +%Y%m%d)"
 
-version="1.0.2e"
+version="1.0.2g"
 
 tarball="openssl-${version}.tar.gz"
 

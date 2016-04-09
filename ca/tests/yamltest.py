@@ -83,7 +83,6 @@ prog_rpkid = cleanpath(ca_dir, "rpkid")
 prog_irdbd = cleanpath(ca_dir, "irdbd")
 prog_pubd  = cleanpath(ca_dir, "pubd")
 prog_rootd = cleanpath(ca_dir, "rootd")
-prog_rpki_manage  = cleanpath(rp_conf_dir, "rpki-manage")
 prog_rpki_confgen = cleanpath(rp_conf_dir, "rpki-confgen")
 
 class roa_request(object):
@@ -760,16 +759,27 @@ class allocation(object):
         return a subprocess.Popen object representing the running daemon.
         """
 
-        port = 8000 + self.engine
-        cmd = (prog_rpki_manage, "runserver", str(port))
         env = dict(os.environ,
                    RPKI_CONF = self.path("rpki.conf"),
                    DJANGO_SETTINGS_MODULE = "rpki.django_settings.gui",
                    RPKI_DJANGO_DEBUG = "yes",
+                   LANG = "en_US.UTF-8",
                    ALLOW_PLAIN_HTTP_FOR_TESTING = "I solemnly swear that I am not running this in production")
+
+        if False:
+            # This ought to work, doesn't.  Looks like some kind of Django argv hairball.
+            cmd = (sys.executable, "-c", textwrap.dedent('''\
+                import django
+                django.setup()
+                import django.core.management
+                django.core.management.call_command("runserver", "{port}")
+                '''.format(port = 8000 + self.engine)))
+        else:
+            cmd = ("django-admin", "runserver", str(8000 + self.engine))
+
         p = subprocess.Popen(cmd, cwd = self.path(), env = env,
                              stdout = open(self.path("gui.log"), "w"), stderr = subprocess.STDOUT)
-        print "Running %s for %s: pid %d process %r" % (" ".join(cmd), self.name, p.pid, p)
+        print "Running GUI for %s: pid %d process %r" % (self.name, p.pid, p)
         return p
 
 

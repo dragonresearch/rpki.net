@@ -370,7 +370,7 @@ typedef struct {
 
 typedef struct {
   PyObject_HEAD
-  EVP_MD_CTX digest_ctx;
+  EVP_MD_CTX *digest_ctx;
   int digest_type;
 } digest_object;
 
@@ -668,7 +668,9 @@ x509_object_helper_get_name(X509_NAME *name, int format)
     if ((ne = X509_NAME_get_entry(name, i)) == NULL)
       lose("Couldn't get certificate name");
 
-    if (ne->set < 0 || ne->set < set || ne->set > set + 1)
+    if (X509_NAME_ENTRY_set(ne) < 0 || 
+        X509_NAME_ENTRY_set(ne) < set || 
+        X509_NAME_ENTRY_set(ne) > set + 1)
       lose("X509_NAME->set value out of expected range");
 
     switch (format) {
@@ -691,7 +693,7 @@ x509_object_helper_get_name(X509_NAME *name, int format)
       oid = oidbuf;
     }
 
-    if (ne->set > set) {
+    if (X509_NAME_ENTRY_set(ne) > set) {
 
       set++;
       if ((item = Py_BuildValue("((ss#))", oid, ASN1_STRING_data(X509_NAME_ENTRY_get_data(ne)),
@@ -1278,9 +1280,7 @@ static int check_crl(X509_CRL *crl,
   EVP_PKEY *pkey;
   int i, ret = 0;
 
-  if (crl->crl == NULL ||
-      crl->crl->sig_alg == NULL || crl->crl->sig_alg->algorithm == NULL ||
-      OBJ_obj2nid(crl->crl->sig_alg->algorithm) != NID_sha256WithRSAEncryption)
+  if (!crl || X509_CRL_get_signature_nid(crl) != NID_sha256WithRSAEncryption)
     record_validation_status(status, NONCONFORMANT_SIGNATURE_ALGORITHM);
 
   if (!check_allowed_time_encoding(X509_CRL_get_lastUpdate(crl)) ||
@@ -3237,6 +3237,7 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
   PyObject *ekuarg = Py_None;
   EVP_PKEY *issuer_pkey = NULL, *subject_pkey = NULL;
   AUTHORITY_INFO_ACCESS *sia = NULL, *aia = NULL;
+  ASN1_BIT_STRING *iuid = NULL, *suid = NULL;
   STACK_OF(POLICYINFO) *policies = NULL;
   ASN1_BIT_STRING *ski_pubkey = NULL;
   STACK_OF(DIST_POINT) *crldp = NULL;
@@ -3288,7 +3289,8 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
    * profile.
    */
 
-  if (!self->x509->cert_info || self->x509->cert_info->issuerUID || self->x509->cert_info->subjectUID)
+  X509_get0_uids(&iuid, &suid, self->x509);
+  if (iuid != NULL || suid != NULL)
     record_validation_status(status, NONCONFORMANT_CERTIFICATE_UID);
 
   /*
@@ -3397,12 +3399,12 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
   }
 
   /* Critical */
-  if ((self->x509->ex_flags & EXFLAG_KUSAGE) == 0) 
+  if ((X509_get_extension_flags(self->x509) & EXFLAG_KUSAGE) == 0) 
     record_validation_status(status, KEY_USAGE_MISSING);
   else {
     ex_count--;    
     if (!X509_EXTENSION_get_critical(X509_get_ext(self->x509, X509_get_ext_by_NID(self->x509, NID_key_usage, -1))) ||
-        self->x509->ex_kusage != (is_ca ? KU_KEY_CERT_SIGN | KU_CRL_SIGN : KU_DIGITAL_SIGNATURE))
+        X509_get_key_usage(self->x509) != (is_ca ? KU_KEY_CERT_SIGN | KU_CRL_SIGN : KU_DIGITAL_SIGNATURE))
       record_validation_status(status, BAD_KEY_USAGE);
   }
 
@@ -3478,13 +3480,13 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
     case NID_rsaEncryption:
       ok = (EVP_PKEY_base_id(subject_pkey) == EVP_PKEY_RSA &&
             EVP_PKEY_bits(subject_pkey) == 2048 &&
-            BN_get_word(subject_pkey->pkey.rsa->e) == 65537);
+            BN_get_word(EVP_PKEY_get0_RSA(subject_pkey)->e) == 65537);
       break;
 
     case NID_X9_62_id_ecPublicKey:
       ok = (EVP_PKEY_base_id(subject_pkey) == EVP_PKEY_EC &&
             ekunid == NID_id_kp_bgpsec_router &&
-            EC_GROUP_get_curve_name(EC_KEY_get0_group(subject_pkey->pkey.ec)) == NID_X9_62_prime256v1);
+            EC_GROUP_get_curve_name(EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(subject_pkey))) == NID_X9_62_prime256v1);
       break;
 
     default:
@@ -5571,8 +5573,8 @@ crl_object_get_revoked(crl_object *self)
   for (i = 0; i < sk_X509_REVOKED_num(revoked); i++) {
     r = sk_X509_REVOKED_value(revoked, i);
 
-    if ((serial = ASN1_INTEGER_to_PyLong(r->serialNumber)) == NULL ||
-        (date = ASN1_TIME_to_Python(r->revocationDate)) == NULL ||
+    if ((serial = ASN1_INTEGER_to_PyLong(X509_REVOKED_get0_serialNumber(r))) == NULL ||
+        (date = ASN1_TIME_to_Python(X509_REVOKED_get0_revocationDate(r))) == NULL ||
         (item = Py_BuildValue("(NN)", serial, date)) == NULL)
       goto error;
 
@@ -6868,7 +6870,9 @@ digest_object_init(digest_object *self, PyObject *args, PyObject *kwds)
     lose("Unsupported digest algorithm");
 
   self->digest_type = digest_type;
-  if (!EVP_DigestInit(&self->digest_ctx, digest_method))
+  if ((self->digest_ctx = EVP_MD_CTX_new()) == NULL)
+    lose_no_memory();
+  if (!EVP_DigestInit(self->digest_ctx, digest_method))
     lose_openssl_error("Couldn't initialize digest");
 
   return 0;
@@ -6881,7 +6885,7 @@ static void
 digest_object_dealloc(digest_object *self)
 {
   ENTERING(digest_object_dealloc);
-  EVP_MD_CTX_cleanup(&self->digest_ctx);
+  EVP_MD_CTX_free(self->digest_ctx);
   self->ob_type->tp_free((PyObject*) self);
 }
 
@@ -6902,7 +6906,7 @@ digest_object_update(digest_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s#", &data, &len))
     goto error;
 
-  if (!EVP_DigestUpdate(&self->digest_ctx, data, len))
+  if (!EVP_DigestUpdate(self->digest_ctx, data, len))
     lose_openssl_error("EVP_DigestUpdate() failed");
 
   Py_RETURN_NONE;
@@ -6925,8 +6929,12 @@ digest_object_copy(digest_object *self)
   if ((new = (digest_object *) digest_object_new(&POW_Digest_Type, NULL, NULL)) == NULL)
     goto error;
 
+  if (new->digest_ctx == NULL && (new->digest_ctx = EVP_MD_CTX_new()) == NULL)
+    lose_no_memory();
+
   new->digest_type = self->digest_type;
-  if (!EVP_MD_CTX_copy(&new->digest_ctx, &self->digest_ctx))
+
+  if (!EVP_MD_CTX_copy(new->digest_ctx, self->digest_ctx))
     lose_openssl_error("Couldn't copy digest");
 
   return (PyObject*) new;
@@ -6955,19 +6963,22 @@ digest_object_digest(digest_object *self)
   unsigned char digest_text[EVP_MAX_MD_SIZE];
   unsigned digest_len = 0;
   PyObject *result = NULL;
-  EVP_MD_CTX ctx;
+  EVP_MD_CTX *ctx = NULL;
 
   ENTERING(digest_object_digest);
 
-  if (!EVP_MD_CTX_copy(&ctx, &self->digest_ctx))
+  if ((ctx = EVP_MD_CTX_new()) == NULL)
+    lose_no_memory();
+
+  if (!EVP_MD_CTX_copy(ctx, self->digest_ctx))
     lose_openssl_error("Couldn't copy digest");
 
-  EVP_DigestFinal(&ctx, digest_text, &digest_len);
+  EVP_DigestFinal(ctx, digest_text, &digest_len);
 
   result = Py_BuildValue("s#", digest_text, (Py_ssize_t) digest_len);
 
  error:
-  EVP_MD_CTX_cleanup(&ctx);
+  EVP_MD_CTX_free(ctx);
   return result;
 }
 
@@ -7577,9 +7588,6 @@ cms_object_signingTime(cms_object *self)
 
   if ((xa = CMS_signed_get_attr(si, i)) == NULL)
     lose_openssl_error("Couldn't extract signerInfos from CMS message[4]");
-
-  if (xa->single)
-    lose("Couldn't extract signerInfos from CMS message[5]");
 
   if (X509_ATTRIBUTE_count(xa) != 1)
     lose("Couldn't extract signerInfos from CMS message[6]");
@@ -9687,10 +9695,13 @@ static PyObject *
 pkcs10_object_get_signature_algorithm(pkcs10_object *self)
 {
   ASN1_OBJECT *oid = NULL;
+  X509_ALGOR *alg = NULL;
 
   ENTERING(pkcs10_object_get_signature_algorithm);
 
-  X509_ALGOR_get0(&oid, NULL, NULL, self->pkcs10->sig_alg);
+  X509_REQ_get0_signature(NULL, &alg, self->pkcs10);
+
+  X509_ALGOR_get0(&oid, NULL, NULL, alg);
 
   return ASN1_OBJECT_to_PyString(oid);
 }
@@ -10169,6 +10180,32 @@ static struct PyMethodDef pow_module_methods[] = {
   {NULL}
 };
 
+/*
+ * Replacements for OpenSSL memory allocation functions, using the
+ * Python allocator, per the Python manual.  The OpenSSL functions
+ * used to have the same prototype as the libc functions they
+ * replaced, but the OpenSSL 1.1 API simplifications got rid of the
+ * extra layer of indirection between the libc-compatible API and the
+ * extended API that OpenSSL really uses.  Bottom line: we have to
+ * accept extra arguments indicating the filename and line number of
+ * reach allocation call.  For now, we just ignore the extra arguments.
+ */
+
+static void *pow_openssl_malloc(size_t size, const char *file, int line)
+{
+  return PyMem_Malloc(size);
+}
+
+static void *pow_openssl_realloc(void *mem, size_t size, const char *file, int line)
+{
+  return PyMem_Realloc(mem, size);
+}
+
+static void pow_openssl_free(void *mem, const char *file, int line)
+{
+  PyMem_Free(mem);
+}
+
 
 
 /*
@@ -10197,7 +10234,7 @@ init_POW(void)
    * if you tinker with the build script and start seeing nasty
    * memory-related issues, this might be the cause.
    */
-  CRYPTO_set_mem_functions(PyMem_Malloc, PyMem_Realloc, PyMem_Free);
+  CRYPTO_set_mem_functions(pow_openssl_malloc, pow_openssl_realloc, pow_openssl_free);
 
   /*
    * Import the DateTime API

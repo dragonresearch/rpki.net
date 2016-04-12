@@ -380,9 +380,9 @@ class allocation(object):
     fn = "%s.roas.csv" % d.name
     if not args.skip_config:
       f = self.csvout(fn)
-      for g1, r in enumerate(self.roa_requests):
-        f.writerows((p, r.asn, "G%08d%08d" % (g1, g2))
-                    for g2, p in enumerate((r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ())))
+      for r in self.roa_requests:
+        f.writerows((p, r.asn)
+                    for p in (r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ()))
       f.close()
     if not args.stop_after_config:
       self.run_rpkic("load_roa_requests", fn)

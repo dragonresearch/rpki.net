@@ -1046,8 +1046,8 @@ class Zookeeper(object):
         grouped = {}
 
         # format:  p/n-m asn group
-        for pnm, asn, group in csv_reader(csv_file, columns = 3):
-            key = (asn, group)
+        for pnm, asn, group in csv_reader(filename, columns = 3, min_columns = 2):
+            key = (asn, group or pnm)
             if key not in grouped:
                 grouped[key] = []
             grouped[key].append(pnm)

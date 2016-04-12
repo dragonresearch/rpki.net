@@ -49,6 +49,10 @@ kids:
     roa_request:
       - asn: 666
         ipv4: 10.3.0.44/32
+      - asn: 666
+        ipv4: 10.3.0.6/32
+      - asn: 666
+        ipv4: 10.3.0.77/32
 
 ---
 - shell set -x;

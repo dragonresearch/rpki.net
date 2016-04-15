@@ -484,7 +484,8 @@ def server_main(args):
         try:
             os.chdir(args.rpki_rtr_dir)
         except OSError, e:
-            sys.exit(e)
+            logger.error("[Couldn't chdir(%r), exiting: %s]", args.rpki_rtr_dir, e)
+            sys.exit(1)
 
     kickme = None
     try:

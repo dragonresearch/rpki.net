@@ -307,24 +307,36 @@ class UpdateChildrenTask(AbstractTask):
                 assert child_cert.gski == child_cert.cert.gSKI()
 
                 if new_resources.empty():
-                    logger.debug("Resources shrank to the null set, revoking and withdrawing child %s certificate g(SKI) %s", child_handle, child_cert.gski)
+                    logger.debug("Resources shrank to null set, revoking and withdrawing child %s g(SKI) %s",
+                                 child_handle, child_cert.gski)
                     child_cert.revoke(publisher = publisher)
                     ca_detail.generate_crl_and_manifest(publisher = publisher)
 
-                elif old_resources != new_resources or old_aia != new_aia or (old_resources.valid_until < rsn and irdb_resources[child_handle].valid_until > now and old_resources.valid_until != irdb_resources[child_handle].valid_until):
-                    logger.debug("Need to reissue child %s certificate g(SKI) %s", child_handle, child_cert.gski)
+                elif (old_resources != new_resources or old_aia != new_aia or
+                      (old_resources.valid_until < rsn and
+                       irdb_resources[child_handle].valid_until > now and
+                       old_resources.valid_until != irdb_resources[child_handle].valid_until)):
+                    logger.debug("Need to reissue child %s certificate g(SKI) %s", child_handle,
+                                 child_cert.gski)
                     if old_resources != new_resources:
-                        logger.debug("Child %s g(SKI) %s resources changed: old %s new %s", child_handle, child_cert.gski, old_resources, new_resources)
+                        logger.debug("Child %s g(SKI) %s resources changed: old %s new %s",
+                                     child_handle, child_cert.gski, old_resources, new_resources)
                     if old_resources.valid_until != irdb_resources[child_handle].valid_until:
-                        logger.debug("Child %s g(SKI) %s validity changed: old %s new %s", child_handle, child_cert.gski, old_resources.valid_until, irdb_resources.valid_until)
+                        logger.debug("Child %s g(SKI) %s validity changed: old %s new %s",
+                                     child_handle, child_cert.gski, old_resources.valid_until,
+                                     irdb_resources[child_handle].valid_until)
 
-                    new_resources.valid_until = irdb_resources.valid_until
+                    new_resources.valid_until = irdb_resources[child_handle].valid_until
                     child_cert.reissue(ca_detail = ca_detail, resources = new_resources, publisher = publisher)
 
                 elif old_resources.valid_until < now:
-                    logger.debug("Child %s certificate g(SKI) %s has expired: cert.valid_until %s, irdb.valid_until %s", child_handle, child_cert.gski, old_resources.valid_until, irdb_resources.valid_until)
+                    logger.debug("Child %s certificate g(SKI) %s has expired: cert.valid_until %s, irdb.valid_until %s",
+                                 child_handle, child_cert.gski, old_resources.valid_until,
+                                 irdb_resources[child_handle].valid_until)
                     child_cert.delete()
-                    publisher.queue(uri = child_cert.uri, old_obj = child_cert.cert, repository = ca_detail.ca.parent.repository)
+                    publisher.queue(uri = child_cert.uri,
+                                    old_obj = child_cert.cert,
+                                    repository = ca_detail.ca.parent.repository)
                     ca_detail.generate_crl_and_manifest(publisher = publisher)
 
             except:

@@ -60,7 +60,7 @@ if autoconf.RP_TARGET == "rp":
                  "rpki.rcynicdb",
                  "rpki.gui",
                  "rpki.gui.app",
-                 "rpki.gui.cacheview",
+                 "rpki.gui.gui_rpki_cache",
                  "rpki.gui.api",
                  "rpki.gui.routeview"]
     
@@ -104,7 +104,7 @@ if autoconf.CA_TARGET == "ca":
                                            "templates/*/*.html",
                                            "templatetags/*.py"]
 
-    package_data["rpki.gui.cacheview"]  = ["templates/*/*.html"]
+    package_data["rpki.gui.gui_rpki_cache"]  = ["migrations/*.py"]
 
 
     data_files += [(autoconf.datarootdir + "/rpki/wsgi",

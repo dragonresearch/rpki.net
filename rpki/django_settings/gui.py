@@ -134,8 +134,9 @@ INSTALLED_APPS.extend((
     "django.contrib.sessions",
     "django.contrib.staticfiles",
     "rpki.gui.app",
-    "rpki.gui.cacheview",
+    "rpki.gui.gui_rpki_cache",
     "rpki.gui.routeview",
+    "rpki.rcynicdb"
 ))
 
 TEMPLATE_CONTEXT_PROCESSORS = (

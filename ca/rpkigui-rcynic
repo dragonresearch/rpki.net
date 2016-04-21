@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # Copyright (C) 2011  SPARTA, Inc. dba Cobham
-# Copyright (C) 2012, 2013  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2013, 2016  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -17,17 +17,13 @@
 
 __version__ = '$Id$'
 
-# probably should be exported from rpki.gui.cacheview.util
-default_logfile = '/var/rcynic/data/rcynic.xml'
-default_root = '/var/rcynic/data'
-
 import logging
 import sys
 
 from rpki.gui.script_util import setup
 setup()
 
-from rpki.gui.cacheview.util import import_rcynic_xml
+from rpki.gui.gui_rpki_cache.util import update_cache
 
 if __name__ == '__main__':
     import optparse
@@ -35,20 +31,12 @@ if __name__ == '__main__':
     parser = optparse.OptionParser()
     parser.add_option("-l", "--level", dest="log_level", default='ERROR',
                       help="specify the logging level [default: %default]")
-    parser.add_option(
-        "-f", "--file", dest="logfile",
-        help="specify the rcynic XML file to parse [default: %default]",
-        default=default_logfile)
-    parser.add_option(
-        "-r", "--root",
-        help="specify the chroot directory for the rcynic jail [default: %default]",
-        metavar="DIR", default=default_root)
     options, args = parser.parse_args(sys.argv)
 
     v = getattr(logging, options.log_level.upper())
     logging.basicConfig(level=v)
     logging.info('log level set to %s', logging.getLevelName(v))
 
-    import_rcynic_xml(options.root, options.logfile)
+    update_cache()
 
     logging.shutdown()

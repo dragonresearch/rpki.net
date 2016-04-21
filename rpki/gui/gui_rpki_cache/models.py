@@ -1,5 +1,5 @@
 # Copyright (C) 2011  SPARTA, Inc. dba Cobham Analytic Solutions
-# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2016  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -13,16 +13,13 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-__version__ = '$Id$'
-
-from datetime import datetime
-import time
+__version__ = '$Id: $'
 
 from django.db import models
-from django.core.urlresolvers import reverse
 
 import rpki.resource_set
 import rpki.gui.models
+import rpki.rcynicdb.models
 
 
 class TelephoneField(models.CharField):
@@ -31,58 +28,13 @@ class TelephoneField(models.CharField):
         models.CharField.__init__(self, *args, **kwargs)
 
 
-class AddressRange(rpki.gui.models.PrefixV4):
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.cacheview.views.addressrange_detail', [str(self.pk)])
+class AddressRange(rpki.gui.models.PrefixV4): pass
 
 
-class AddressRangeV6(rpki.gui.models.PrefixV6):
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.cacheview.views.addressrange_detail_v6',
-                [str(self.pk)])
+class AddressRangeV6(rpki.gui.models.PrefixV6): pass
 
 
-class ASRange(rpki.gui.models.ASN):
-    @models.permalink
-    def get_absolute_url(self):
-        return ('rpki.gui.cacheview.views.asrange_detail', [str(self.pk)])
-
-kinds = list(enumerate(('good', 'warn', 'bad')))
-kinds_dict = dict((v, k) for k, v in kinds)
-
-
-class ValidationLabel(models.Model):
-    """
-    Represents a specific error condition defined in the rcynic XML
-    output file.
-    """
-
-    label = models.CharField(max_length=79, db_index=True, unique=True)
-    status = models.CharField(max_length=255)
-    kind = models.PositiveSmallIntegerField(choices=kinds)
-
-    def __unicode__(self):
-        return self.label
-
-
-class RepositoryObject(models.Model):
-    """
-    Represents a globally unique RPKI repository object, specified by its URI.
-    """
-
-    uri = models.URLField(unique=True, db_index=True)
-
-generations = list(enumerate(('current', 'backup')))
-generations_dict = dict((val, key) for (key, val) in generations)
-
-
-class ValidationStatus(models.Model):
-    timestamp = models.DateTimeField()
-    generation = models.PositiveSmallIntegerField(choices=generations, null=True)
-    status = models.ForeignKey(ValidationLabel)
-    repo = models.ForeignKey(RepositoryObject, related_name='statuses')
+class ASRange(rpki.gui.models.ASN): pass
 
 
 class SignedObject(models.Model):
@@ -92,57 +44,41 @@ class SignedObject(models.Model):
     value for the 'related_name' attribute.
     """
 
-    repo = models.ForeignKey(RepositoryObject, related_name='cert', unique=True)
+    class Meta:
+        abstract = True
 
-    # on-disk file modification time
-    mtime = models.PositiveIntegerField(default=0)
-
-    # SubjectName
-    name = models.CharField(max_length=255)
-
-    # value from the SKI extension
-    keyid = models.CharField(max_length=60, db_index=True)
+    # Duplicate of rpki.rcynicdb.models.RPKIObject
+    uri = models.TextField()
 
     # validity period from EE cert which signed object
     not_before = models.DateTimeField()
     not_after = models.DateTimeField()
 
-    def mtime_as_datetime(self):
-        """
-        convert the local timestamp to UTC and convert to a datetime object
-        """
-
-        return datetime.utcfromtimestamp(self.mtime + time.timezone)
-
-    def status_id(self):
-        """
-        Returns a HTML class selector for the current object based on its validation status.
-        The selector is chosen based on the current generation only.  If there is any bad status,
-        return bad, else if there are any warn status, return warn, else return good.
-        """
-
-        for x in reversed(kinds):
-            if self.repo.statuses.filter(generation=generations_dict['current'], status__kind=x[0]):
-                return x[1]
-        return None  # should not happen
-
     def __unicode__(self):
-        return u'%s' % self.name
+        return u'%s' % self.uri
+
+    def __repr__(self):
+        return u'<%s name=%s uri=%s>' % (self.__class__.__name__, self.uri)
 
 
 class Cert(SignedObject):
     """
-    Object representing a resource certificate.
+    Object representing a resource CA certificate.
     """
+    # Duplicate of rpki.rcynicdb.models.RPKIObject
+    ski = models.SlugField(max_length=40) # hex SHA-1
 
     addresses = models.ManyToManyField(AddressRange, related_name='certs')
     addresses_v6 = models.ManyToManyField(AddressRangeV6, related_name='certs')
     asns = models.ManyToManyField(ASRange, related_name='certs')
-    issuer = models.ForeignKey('self', related_name='children', null=True)
-    sia = models.CharField(max_length=255)
 
-    def get_absolute_url(self):
-        return reverse('cert-detail', args=[str(self.pk)])
+    issuer = models.ForeignKey('self', on_delete=models.CASCADE, null=True)
+
+    def __repr__(self):
+        return u'<Cert uri=%s ski=%s not_before=%s not_after=%s>' % (self.uri, self.ski, self.not_before, self.not_after)
+
+    def __unicode__(self):
+        return u'RPKI CA Cert %s' % (self.uri,)
 
     def get_cert_chain(self):
         """Return a list containing the complete certificate chain for this
@@ -209,10 +145,7 @@ class ROA(SignedObject):
     asid = models.PositiveIntegerField()
     prefixes = models.ManyToManyField(ROAPrefixV4, related_name='roas')
     prefixes_v6 = models.ManyToManyField(ROAPrefixV6, related_name='roas')
-    issuer = models.ForeignKey('Cert', related_name='roas')
-
-    def get_absolute_url(self):
-        return reverse('roa-detail', args=[str(self.pk)])
+    issuer = models.ForeignKey(Cert, on_delete=models.CASCADE, null=True, related_name='roas')
 
     class Meta:
         ordering = ('asid',)
@@ -226,11 +159,7 @@ class Ghostbuster(SignedObject):
     email_address = models.EmailField(blank=True, null=True)
     organization = models.CharField(blank=True, null=True, max_length=255)
     telephone = TelephoneField(blank=True, null=True)
-    issuer = models.ForeignKey('Cert', related_name='ghostbusters')
-
-    def get_absolute_url(self):
-        # note that ghostbuster-detail is different from gbr-detail! sigh
-        return reverse('ghostbuster-detail', args=[str(self.pk)])
+    issuer = models.ForeignKey(Cert, on_delete=models.CASCADE, null=True, related_name='ghostbusters')
 
     def __unicode__(self):
         if self.full_name:

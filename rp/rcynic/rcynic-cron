@@ -68,11 +68,9 @@ run(os.path.join(rpki.autoconf.bindir, "rpki-rtr"),
     "cronjob",
     cwd = os.path.join(rpki.autoconf.RCYNIC_DIR, "rpki-rtr"))
 
-# rpkigui-rcynic isn't working with rcynicng yet, sorry.
-if False:
-    prog = os.path.join(rpki.autoconf.libexecdir, "rpkigui-rcynic")
-    if os.path.exists(prog):
-        run(prog)
+prog = os.path.join(rpki.autoconf.libexecdir, "rpkigui-rcynic")
+if os.path.exists(prog):
+    run(prog)
 
 if rpki.autoconf.RCYNIC_HTML_DIR and os.path.exists(os.path.dirname(rpki.autoconf.RCYNIC_HTML_DIR)):
     run(os.path.join(rpki.autoconf.bindir, "rcynic-html"),

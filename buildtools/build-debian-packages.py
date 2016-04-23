@@ -39,7 +39,18 @@ parser.add_argument("-s", "--version-suffix", nargs = "?", const = platform.linu
                     help = "suffix to add to version string")
 args = parser.parse_args()
 
-version = "0." + subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1]
+if os.path.exists(".svn"):
+    version = "0.{rev}".format(
+        rev    = subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1])
+elif os.path.exists(".git/svn"):
+    git_svn_log = subprocess.check_output(("git", "svn", "log", "--show-commit", "--oneline", "--limit=1")).split()
+    version = "0.{rev}.{count}.{commit}".format(
+        rev    = git_svn_log[0][1:],
+        count  = subprocess.check_output(("git", "rev-list", "--count", git_svn_log[2] + "..HEAD")).strip(),
+        commit = git_svn_log[2])
+    del git_svn_log
+else:
+    sys.exit("Sorry, don't know how to extract version number from this source tree")
 
 if os.path.exists("debian"):
     shutil.rmtree("debian")

@@ -575,7 +575,8 @@ class Parent(Turtle):
         name       = "parent",
         handles    = (BSC, Repository),
         attributes = ("peer_contact_uri", "sia_base", "sender_name", "recipient_name"),
-        elements   = ("bpki_cert", "bpki_glue"))
+        elements   = ("bpki_cert", "bpki_glue"),
+        readonly   = ("rpki_root_cert",))
 
 
     def __repr__(self):
@@ -588,6 +589,14 @@ class Parent(Turtle):
         except:
             return "<Parent: Parent object>"
 
+    @property
+    def rpki_root_cert(self):
+        try:
+            ca_detail = self.root.cas.ca_details.get(state = "active")
+        except (Root.DoesNotExist, CA.DoesNotExist, CADetail.DoesNotExist):
+            return None
+        else:
+            return ca_detail.latest_ca_cert
 
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):
@@ -791,7 +800,7 @@ class Root(Turtle):
     asn_resources = models.TextField()
     ipv4_resources = models.TextField()
     ipv6_resources = models.TextField()
-    worker = models.OneToOneField(Parent, related_name = "rooter")
+    parent = models.OneToOneField(Parent)
 
 
 class CA(models.Model):

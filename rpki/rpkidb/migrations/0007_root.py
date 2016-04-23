@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
                 ('asn_resources', models.TextField()),
                 ('ipv4_resources', models.TextField()),
                 ('ipv6_resources', models.TextField()),
-                ('worker', models.OneToOneField(related_name='rooter', to='rpkidb.Parent')),
+                ('parent', models.OneToOneField(to='rpkidb.Parent')),
             ],
             bases=('rpkidb.turtle',),
         ),

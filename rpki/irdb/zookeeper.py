@@ -365,8 +365,9 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def configure_rootd(self):
+    def configure_root(self, handle, resources):
 
+        # XXX This should be some other exception, not an assertion
         assert self.run_rpkid and self.run_pubd and self.run_rootd
 
         rpki.irdb.models.Rootd.objects.get_or_certify(
@@ -374,10 +375,18 @@ class Zookeeper(object):
             service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port",
                                                                 section = myrpki_section))
 
-        return self.generate_rootd_repository_offer()
+        rpki.irdb.models.Root.objects.get_or_certify(
+            handle         = handle or self.handle,
+            issuer         = self.resource_ca,
+            ta             = self.resource_ca.certificate,
+            asn_resources  = str(resources.asn),
+            ipv4_resources = str(resources.v4),
+            ipv6_resources = str(resources.v6))
+
+        return self.generate_root_repository_offer()
 
 
-    def generate_rootd_repository_offer(self):
+    def generate_root_repository_offer(self):
         """
         Generate repository offer for rootd.  Split out of
         configure_rootd() because that's easier for the GUI.

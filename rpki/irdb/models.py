@@ -457,6 +457,22 @@ class Parent(CrossCertification, Turtle):
     class Meta:
         unique_together = ("issuer", "handle")
 
+class Root(CrossCertification, Turtle):
+    #
+    # This is sort of a cross between a Rootd and a Parent with extra
+    # fields for the root resources.  As with Parent, the private key
+    # comes from a BSC rather than from a server EE cert as with
+    # Rootd, so this looks looks to us like a cross certification (of
+    # ourself).  We may want to revisit this.
+    #
+    issuer = django.db.models.OneToOneField(ResourceHolderCA, related_name = "root")
+    asn_resources = django.db.models.TextField()
+    ipv4_resources = django.db.models.TextField()
+    ipv6_resources = django.db.models.TextField()
+
+    class Meta:
+        unique_together = ("issuer", "handle")
+
 class ROARequest(django.db.models.Model):
     issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "roa_requests")
     asn = django.db.models.BigIntegerField()
@@ -485,9 +501,11 @@ class ROARequestPrefix(django.db.models.Model):
 
     def as_roa_prefix(self):
         if self.version == 'IPv4':
-            return rpki.resource_set.roa_prefix_ipv4(rpki.POW.IPAddress(self.prefix), self.prefixlen, self.max_prefixlen)
+            return rpki.resource_set.roa_prefix_ipv4(rpki.POW.IPAddress(self.prefix), 
+                                                     self.prefixlen, self.max_prefixlen)
         else:
-            return rpki.resource_set.roa_prefix_ipv6(rpki.POW.IPAddress(self.prefix), self.prefixlen, self.max_prefixlen)
+            return rpki.resource_set.roa_prefix_ipv6(rpki.POW.IPAddress(self.prefix), 
+                                                     self.prefixlen, self.max_prefixlen)
 
     def as_resource_range(self):
         return self.as_roa_prefix().to_resource_range()

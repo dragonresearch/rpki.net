@@ -416,7 +416,11 @@ class main(Cmd):
         return self.irdb_handle_complete(self.zoo.resource_ca.parents, *args)
 
 
-    @parsecmd(argsubparsers)
+    @parsecmd(argsubparsers,
+              cmdarg("--resources", help = "restrict root to specified resources",
+                                    type = rpki.resource_set.resource_bag.from_str,
+                                    default = "0.0.0.0/0,::/0,0-4294967295"),
+              cmdarg("--root_handle", help = "override default handle for new root"))
     def do_configure_root(self, args):
         """
         Configure the current resource holding identity as a root.
@@ -425,7 +429,9 @@ class main(Cmd):
         Returns repository request XML file like configure_parent does.
         """
 
-        r = self.zoo.configure_rootd()
+        print "Generating root for resources {!s}".format(args.resources) # XXX
+
+        r = self.zoo.configure_root(args.root_handle, args.resources)
         if r is not None:
             with swap_uids():
                 r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)

@@ -63,6 +63,7 @@ class XMLTemplate(object):
 
     element_type = dict(bpki_cert        = rpki.x509.X509,
                         bpki_glue        = rpki.x509.X509,
+                        rpki_root_cert   = rpki.x509.X509,
                         pkcs10_request   = rpki.x509.PKCS10,
                         signing_cert     = rpki.x509.X509,
                         signing_cert_crl = rpki.x509.CRL)
@@ -112,11 +113,6 @@ class XMLTemplate(object):
         """
         Add an acknowledgement PDU in response to a create, set, or
         destroy action.
-
-        This includes a bit of special-case code for BSC objects which has
-        to go somewhere; we could handle it via some kind method of
-        call-out to the BSC model, but it's not worth building a general
-        mechanism for one case, so we do it inline and have done.
         """
 
         assert q_pdu.tag == rpki.left_right.xmlns + self.name
@@ -127,9 +123,11 @@ class XMLTemplate(object):
         r_pdu.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
         if q_pdu.get("tag"):
             r_pdu.set("tag", q_pdu.get("tag"))
-        if self.name == "bsc" and action != "destroy" and obj.pkcs10_request is not None:
-            assert not obj.pkcs10_request.empty()
-            SubElement(r_pdu, rpki.left_right.xmlns + "pkcs10_request").text = obj.pkcs10_request.get_Base64()
+        if action != "destroy":
+            for k in self.readonly:
+                v = getattr(obj, k)
+                if v is not None and not v.empty():
+                    SubElement(r_pdu, rpki.left_right.xmlns + k).text = v.get_Base64()
         if self.debug:
             logger.debug("XMLTemplate.acknowledge(): %s", ElementToString(r_pdu))
 

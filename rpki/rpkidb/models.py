@@ -574,7 +574,8 @@ class Parent(Turtle):
     xml_template = XMLTemplate(
         name       = "parent",
         handles    = (BSC, Repository),
-        attributes = ("peer_contact_uri", "sia_base", "sender_name", "recipient_name"),
+        attributes = ("peer_contact_uri", "sia_base", "sender_name", "recipient_name",
+                      "root_asn_resources", "root_ipv4_resources", "root_ipv6_resources"),
         elements   = ("bpki_cert", "bpki_glue"),
         readonly   = ("rpki_root_cert",))
 
@@ -597,6 +598,54 @@ class Parent(Turtle):
             return None
         else:
             return ca_detail.latest_ca_cert
+
+    @property
+    def root_asn_resources(self):
+        try:
+            return self.root.asn_resources
+        except Root.DoesNotExist:
+            return None
+
+    @root_asn_resources.setter
+    def root_asn_resources(self, value):
+        try:
+            self.root.asn_resources = value
+            self.root.save()
+        except Root.DoesNotExist:
+            if value:
+                Root.objects.create(parent = self, asn_resources = value)
+
+    @property
+    def root_ipv4_resources(self):
+        try:
+            return self.root.ipv4_resources
+        except Root.DoesNotExist:
+            return None
+
+    @root_ipv4_resources.setter
+    def root_ipv4_resources(self, value):
+        try:
+            self.root.ipv4_resources = value
+            self.root.save()
+        except Root.DoesNotExist:
+            if value:
+                Root.objects.create(parent = self, ipv4_resources = value)
+
+    @property
+    def root_ipv6_resources(self):
+        try:
+            return self.root.ipv6_resources
+        except Root.DoesNotExist:
+            return None
+
+    @root_ipv6_resources.setter
+    def root_ipv6_resources(self, value):
+        try:
+            self.root.ipv6_resources = value
+            self.root.save()
+        except Root.DoesNotExist:
+            if value:
+                Root.objects.create(parent = self, ipv6_resources = value)
 
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):

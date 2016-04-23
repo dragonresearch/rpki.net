@@ -389,7 +389,7 @@ class UpdateROAsTask(AbstractTask):
         updates = []
         publisher = rpki.rpkid.publication_queue(self.rpkid)
         ca_details = set()
-        
+
         for roa in self.tenant.roas.all():
             k = "{!s} {!s} {!s}".format(roa.asn, roa.ipv4, roa.ipv6)
             if k not in roas:

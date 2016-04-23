@@ -183,7 +183,7 @@ class PollParentTask(AbstractTask):
     def create(self, parent, rc, class_name):
         logger.debug("%r: Creating new CA for resource class %r", self, class_name)
         ca = rpki.rpkidb.models.CA.objects.create(
-            parent                = parent,
+            turtle                = parent,
             parent_resource_class = class_name,
             sia_uri               = parent.construct_sia_uri(rc))
         ca_detail = ca.create_detail()
@@ -225,7 +225,7 @@ class PollParentTask(AbstractTask):
 
         if not ca_details:
             logger.warning("Existing resource class %s to %s from %s with no certificates, rekeying",
-                           class_name, parent.tenant.tenant_handle, parent.parent_handle)
+                           class_name, parent.tenant.tenant_handle, parent.turtle_handle)
             yield ca.rekey(rpkid = self.rpkid)
             return
 
@@ -236,7 +236,7 @@ class PollParentTask(AbstractTask):
             if rc_cert is None:
                 logger.warning("g(SKI) %s in resource class %s is in database but missing from list_response to %s from %s, "
                                "maybe parent certificate went away?",
-                               ca_detail.public_key.gSKI(), class_name, parent.tenant.tenant_handle, parent.parent_handle)
+                               ca_detail.public_key.gSKI(), class_name, parent.tenant.tenant_handle, parent.turtle_handle)
                 publisher = rpki.rpkid.publication_queue(rpkid = self.rpkid)
                 ca_detail.destroy(publisher = publisher)
                 yield publisher.call_pubd()
@@ -272,7 +272,7 @@ class PollParentTask(AbstractTask):
 
         if cert_map:
             logger.warning("Unknown certificate g(SKI)%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?",
-                           "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.tenant.tenant_handle, parent.parent_handle)
+                           "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.tenant.tenant_handle, parent.turtle_handle)
 
 
 @queue_task
@@ -336,7 +336,7 @@ class UpdateChildrenTask(AbstractTask):
                     child_cert.delete()
                     publisher.queue(uri = child_cert.uri,
                                     old_obj = child_cert.cert,
-                                    repository = ca_detail.ca.parent.repository)
+                                    repository = ca_detail.ca.turtle.repository)
                     ca_detail.generate_crl_and_manifest(publisher = publisher)
 
             except:
@@ -469,7 +469,7 @@ class UpdateGhostbustersTask(AbstractTask):
     @tornado.gen.coroutine
     def main(self):
         logger.debug("%r: Updating Ghostbuster records", self)
-        parent_handles = set(p.parent_handle for p in self.tenant.parents.all())
+        parent_handles = set(t.turtle_handle for t in self.tenant.turtles.all())
 
         try:
             r_msg = yield self.rpkid.irdb_query_ghostbuster_requests(self.tenant.tenant_handle, parent_handles)
@@ -489,7 +489,7 @@ class UpdateGhostbustersTask(AbstractTask):
 
             for r_pdu in r_msg:
                 try:
-                    self.tenant.parents.get(parent_handle = r_pdu.get("parent_handle"))
+                    self.tenant.turtles.get(turtle_handle = r_pdu.get("parent_handle"))
                 except rpki.rpkidb.models.Parent.DoesNotExist:
                     logger.warning("%r: Unknown parent_handle %r in Ghostbuster request, skipping", self, r_pdu.get("parent_handle"))
                     continue
@@ -498,7 +498,7 @@ class UpdateGhostbustersTask(AbstractTask):
                     logger.warning("%r: Skipping duplicate Ghostbuster request %r", self, r_pdu)
                     continue
                 seen.add(k)
-                for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__parent_handle = r_pdu.get("parent_handle"), ca__parent__tenant = self.tenant, state = "active"):
+                for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__turtle__turtle_handle = r_pdu.get("parent_handle"), ca__turtle__tenant = self.tenant, state = "active"):
                     ghostbuster = ghostbusters.pop((ca_detail.pk, r_pdu.text), None)
                     if ghostbuster is None:
                         ghostbuster = rpki.rpkidb.models.Ghostbuster(tenant = self.tenant, ca_detail = ca_detail, vcard = r_pdu.text)
@@ -591,14 +591,14 @@ class UpdateEECertificatesTask(AbstractTask):
                         sn          = sn,
                         eku         = r_pdu.get("eku", "").split(",") or None)
                     ee = rpki.rpkidb.models.EECertificate.objects.create(
-                        tenant      = ca_detail.ca.parent.tenant,
+                        tenant      = ca_detail.ca.turtle.tenant,
                         ca_detail   = ca_detail,
                         cert        = cert,
                         gski        = subject_key.gSKI())
                     publisher.queue(
                         uri        = ee.uri,
                         new_obj    = cert,
-                        repository = ca_detail.ca.parent.repository,
+                        repository = ca_detail.ca.turtle.repository,
                         handler    = ee.published_callback)
 
             # Anything left is an orphan
@@ -637,7 +637,7 @@ class RegenerateCRLsAndManifestsTask(AbstractTask):
             publisher = rpki.rpkid.publication_queue(self.rpkid)
             now = rpki.sundial.now()
 
-            ca_details = rpki.rpkidb.models.CADetail.objects.filter(ca__parent__tenant = self.tenant,
+            ca_details = rpki.rpkidb.models.CADetail.objects.filter(ca__turtle__tenant = self.tenant,
                                                                     next_crl_manifest_update__isnull = False)
 
             for ca_detail in ca_details.filter(next_crl_manifest_update__lt = now,
@@ -669,7 +669,7 @@ class CheckFailedPublication(AbstractTask):
 
         try:
             publisher = rpki.rpkid.publication_queue(self.rpkid)
-            for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__tenant = self.tenant, state = "active"):
+            for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__turtle__tenant = self.tenant, state = "active"):
                 ca_detail.check_failed_publication(publisher)
             yield publisher.call_pubd()
 

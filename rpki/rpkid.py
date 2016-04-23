@@ -503,7 +503,7 @@ class main(object):
             resources = cert.get_3779resources()
             r_pdu = SubElement(r_msg, rpki.left_right.tag_list_received_resources,
                                tenant_handle      = tenant_handle,
-                               parent_handle      = ca_detail.ca.parent.parent_handle,
+                               parent_handle      = ca_detail.ca.turtle.turtle_handle,
                                uri                = ca_detail.ca_cert_uri,
                                notBefore          = str(cert.getNotBefore()),
                                notAfter           = str(cert.getNotAfter()),

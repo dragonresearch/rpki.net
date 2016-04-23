@@ -82,7 +82,6 @@ rpki_dir    = cleanpath(this_dir, "..", "..")
 prog_rpkid = cleanpath(ca_dir, "rpkid")
 prog_irdbd = cleanpath(ca_dir, "irdbd")
 prog_pubd  = cleanpath(ca_dir, "pubd")
-prog_rootd = cleanpath(ca_dir, "rootd")
 prog_rpki_confgen = cleanpath(rp_conf_dir, "rpki-confgen")
 
 class roa_request(object):
@@ -202,13 +201,11 @@ class allocation(object):
     parent        = None
     crl_interval  = None
     regen_margin  = None
-    rootd_port    = None
     engine        = -1
     rpkid_port    = -1
     irdbd_port    = -1
     pubd_port     = -1
     rsync_port    = -1
-    rootd_port    = -1
     rrdp_port     = -1
     rpkic_counter = 0L
 
@@ -277,8 +274,6 @@ class allocation(object):
             self.pubd_port  = self.allocate_port()
             self.rsync_port = self.allocate_port()
             self.rrdp_port  = self.allocate_port()
-        if self.is_root:
-            self.rootd_port = self.allocate_port()
 
     def closure(self):
         """
@@ -314,7 +309,6 @@ class allocation(object):
         if self.runs_pubd:          s += " PPort: %s\n" % self.pubd_port
         if not self.is_hosted:      s += " RPort: %s\n" % self.rpkid_port
         if self.runs_pubd:          s += " SPort: %s\n" % self.rsync_port
-        if self.is_root:            s += " TPort: %s\n" % self.rootd_port
         return s + " Until: %s\n" % self.resources.valid_until
 
     @property
@@ -491,12 +485,10 @@ class allocation(object):
             handle                            = self.name,
             run_rpkid                         = str(not self.is_hosted),
             run_pubd                          = str(self.runs_pubd),
-            run_rootd                         = str(self.is_root),
             rpkid_server_host                 = "localhost",
             rpkid_server_port                 = str(self.rpkid_port),
             irdbd_server_host                 = "localhost",
             irdbd_server_port                 = str(self.irdbd_port),
-            rootd_server_port                 = str(self.rootd_port),
             pubd_server_host                  = "localhost",
             pubd_server_port                  = str(self.pubd.pubd_port),
             publication_rsync_server          = "localhost:%s" % self.pubd.rsync_port,
@@ -525,8 +517,7 @@ class allocation(object):
 
         cmd = [sys.executable, prog_rpki_confgen,
                "--read-xml", prog_rpki_confgen + ".xml",
-               "--autoconf",
-               "--set", "rootd::rpki_key_dir=${myrpki::bpki_servers_directory}"]
+               "--autoconf"]
         for k, v in r.iteritems():
             cmd.extend(("--set", "myrpki::{}={}".format(k, v)))
         cmd.extend(("--write-conf", fn))
@@ -684,7 +675,7 @@ class allocation(object):
         basename = os.path.splitext(os.path.basename(prog))[0]
         cmd = [prog, "--foreground", "--log-level", "debug",
                "--log-file", self.path(basename + ".log")]
-        if args.profile and basename != "rootd":
+        if args.profile:
             cmd.extend((
                 "--profile",  self.path(basename + ".prof")))
         env = dict(os.environ, RPKI_CONF = self.path("rpki.conf"))
@@ -712,13 +703,6 @@ class allocation(object):
         """
 
         return self.run_python_daemon(prog_pubd)
-
-    def run_rootd(self):
-        """
-        Run rootd.
-        """
-
-        return self.run_python_daemon(prog_rootd)
 
     def run_rsyncd(self):
         """
@@ -782,45 +766,6 @@ class allocation(object):
         print "Running GUI for %s: pid %d process %r" % (self.name, p.pid, p)
         return p
 
-
-def create_root_certificate(db_root):
-
-    print "Creating rootd RPKI root certificate"
-
-    root_resources = rpki.resource_set.resource_bag(
-        asn = "0-4294967295",
-        v4  = "0.0.0.0/0",
-        v6  = "::/0")
-
-    root_key = rpki.x509.RSA.generate(quiet = True)
-
-    rsync_uri = "rsync://localhost:%d/rpki/%s-root/root" % (db_root.pubd.rsync_port, db_root.name)
-
-    https_uri = "https://localhost:%s/" % db.root.pubd.rrdp_port
-
-    root_sia = (rsync_uri + "/", rsync_uri + "/root.mft", None, https_uri + "notify.xml")
-
-    root_cert = rpki.x509.X509.self_certify(
-        keypair     = root_key,
-        subject_key = root_key.get_public(),
-        serial      = 1,
-        sia         = root_sia,
-        notAfter    = rpki.sundial.now() + rpki.sundial.timedelta(days = 365),
-        resources   = root_resources)
-
-    with open(db_root.path("root.cer"), "wb") as f:
-        f.write(root_cert.get_DER())
-
-    with open(db_root.path("root.key"), "wb") as f:
-        f.write(root_key.get_DER())
-
-    os.link(db_root.path("root.cer"),
-            db_root.path("publication.rrdp", "root.cer"))
-
-    with open(os.path.join(test_dir, "root.tal"), "w") as f:
-        f.write(rsync_uri + ".cer\n")
-        f.write(https_uri + "root.cer\n")
-        f.write(root_key.get_public().get_Base64())
 
 
 logger = logging.getLogger(__name__)
@@ -922,11 +867,7 @@ try:
         for d in db:
             d.run_rpkic("create_identity", d.name)
 
-        # Create RPKI root certificate.
-
-        create_root_certificate(db.root)
-
-        # Set up rootd.
+        # Set up root
 
         db.root.run_rpkic("configure_root")
 
@@ -945,8 +886,6 @@ try:
             if not d.is_hosted:
                 print
                 print "Running daemons for", d.name
-                if d.is_root:
-                    progs.append(d.run_rootd())
                 progs.append(d.run_irdbd())
                 progs.append(d.run_rpkid())
                 if d.runs_pubd:

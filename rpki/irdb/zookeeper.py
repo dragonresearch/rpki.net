@@ -80,7 +80,6 @@ myrpki_section = "myrpki"
 irdbd_section  = "irdbd"
 rpkid_section  = "rpkid"
 pubd_section   = "pubd"
-rootd_section  = "rootd"
 
 # A whole lot of exceptions
 
@@ -89,7 +88,6 @@ class MissingHandle(Exception):         "Missing handle."
 class CouldntTalkToDaemon(Exception):   "Couldn't talk to daemon."
 class BadXMLMessage(Exception):         "Bad XML message."
 class PastExpiration(Exception):        "Expiration date has already passed."
-class CantRunRootd(Exception):          "Can't run rootd."
 class CouldntFindRepoParent(Exception): "Couldn't find repository's parent."
 
 
@@ -222,10 +220,6 @@ class Zookeeper(object):
 
         self.run_rpkid = cfg.getboolean("run_rpkid", section = myrpki_section)
         self.run_pubd  = cfg.getboolean("run_pubd", section = myrpki_section)
-        self.run_rootd = cfg.getboolean("run_rootd", section = myrpki_section)
-
-        if self.run_rootd and (not self.run_pubd or not self.run_rpkid):
-            raise CantRunRootd("Can't run rootd unless also running rpkid and pubd")
 
         self.default_repository = cfg.get("default_repository", "", section = myrpki_section)
         self.pubd_contact_info = cfg.get("pubd_contact_info", "", section = myrpki_section)
@@ -414,19 +408,6 @@ class Zookeeper(object):
             writer(self.cfg.get("irbe-cert", section = pubd_section),
                    self.server_ca.ee_certificates.get(purpose = "irbe").certificate)
 
-        if self.run_rootd:
-            try:
-                rootd = rpki.irdb.models.ResourceHolderCA.objects.get(handle = self.handle).rootd
-                writer(self.cfg.get("bpki-ta",         section = rootd_section), self.server_ca.certificate)
-                writer(self.cfg.get("rootd-bpki-key",  section = rootd_section), rootd.private_key)
-                writer(self.cfg.get("rootd-bpki-cert", section = rootd_section), rootd.certificate)
-                writer(self.cfg.get("child-bpki-cert", section = rootd_section), rootd.issuer.certificate)
-                # rootd-bpki-crl is the same as pubd-crl, already written
-            except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
-                self.log("rootd enabled but resource holding entity not yet configured, skipping rootd setup")
-            except rpki.irdb.models.Rootd.DoesNotExist:
-                self.log("rootd enabled but not yet configured, skipping rootd setup")
-
 
     @django.db.transaction.atomic
     def update_bpki(self):
@@ -446,7 +427,6 @@ class Zookeeper(object):
                       rpki.irdb.models.ResourceHolderCA,
                       rpki.irdb.models.ServerEE,
                       rpki.irdb.models.Referral,
-                      rpki.irdb.models.Rootd,
                       rpki.irdb.models.HostedCA,
                       rpki.irdb.models.BSC,
                       rpki.irdb.models.Child,
@@ -532,14 +512,6 @@ class Zookeeper(object):
                                    tenant_handle = parent.issuer.handle,
                                    parent_handle = parent.handle)
                 SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = parent.certificate.get_Base64()
-
-            for rootd in rpki.irdb.models.Rootd.objects.all():
-                q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
-                                   action = "set",
-                                   tag = "%s__rootd" % rootd.issuer.handle,
-                                   tenant_handle = rootd.issuer.handle,
-                                   parent_handle = rootd.issuer.handle)
-                SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = rootd.certificate.get_Base64()
 
             for child in rpki.irdb.models.Child.objects.all():
                 q_pdu = SubElement(q_msg, rpki.left_right.tag_child,
@@ -736,15 +708,6 @@ class Zookeeper(object):
 
 
     @django.db.transaction.atomic
-    def delete_rootd(self):
-        """
-        Delete rootd associated with this RPKI entity.
-        """
-
-        self.resource_ca.rootd.delete()
-
-
-    @django.db.transaction.atomic
     def configure_publication_client(self, xml_file, sia_base = None, flat = False):
         """
         Configure publication server to know about a new client, given the
@@ -801,12 +764,7 @@ class Zookeeper(object):
             except rpki.irdb.models.Repository.DoesNotExist:
                 self.log("Found client's parent, but repository isn't set, this shouldn't happen!")
             except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
-                try:
-                    rpki.irdb.models.Rootd.objects.get(issuer__certificate = client_ta)
-                    self.log("This client's parent is rootd")
-                    sia_base = default_sia_base
-                except rpki.irdb.models.Rootd.DoesNotExist:
-                    self.log("We don't host this client's parent, so we didn't make an offer")
+                self.log("We don't host this client's parent, so we didn't make an offer")
 
         if sia_base is None:
             self.log("Don't know where else to nest this client, so defaulting to top-level")
@@ -882,11 +840,8 @@ class Zookeeper(object):
         if parent_handle is not None:
             self.log("Explicit parent_handle given")
             try:
-                if parent_handle == self.handle:
-                    turtle = self.resource_ca.rootd
-                else:
-                    turtle = self.resource_ca.parents.get(handle = parent_handle)
-            except (rpki.irdb.models.Parent.DoesNotExist, rpki.irdb.models.Rootd.DoesNotExist):
+                turtle = self.resource_ca.parents.get(handle = parent_handle)
+            except rpki.irdb.models.Parent.DoesNotExist:
                 self.log("Could not find parent %r in our database" % parent_handle)
                 raise CouldntFindRepoParent
 
@@ -898,20 +853,11 @@ class Zookeeper(object):
                     _ = parent.repository               # pylint: disable=W0612
                 except rpki.irdb.models.Repository.DoesNotExist:
                     turtles.append(parent)
-            try:
-                _ = self.resource_ca.rootd.repository   # pylint: disable=W0612
-            except rpki.irdb.models.Repository.DoesNotExist:
-                turtles.append(self.resource_ca.rootd)
-            except rpki.irdb.models.Rootd.DoesNotExist:
-                pass
             if len(turtles) != 1:
                 self.log("No explicit parent_handle given and unable to guess")
                 raise CouldntFindRepoParent
             turtle = turtles[0]
-            if isinstance(turtle, rpki.irdb.models.Rootd):
-                parent_handle = self.handle
-            else:
-                parent_handle = turtle.handle
+            parent_handle = turtle.handle
             self.log("No explicit parent_handle given, guessing parent {}".format(parent_handle))
 
         rpki.irdb.models.Repository.objects.get_or_certify(
@@ -1523,33 +1469,6 @@ class Zookeeper(object):
             except rpki.irdb.models.Repository.DoesNotExist:
                 pass
 
-        try:
-            parent_pdu = parent_pdus.pop(ca.handle, None)
-
-            if (parent_pdu is None or
-                parent_pdu.get("bsc_handle") != bsc_handle or
-                parent_pdu.get("repository_handle") != ca.handle or
-                parent_pdu.get("peer_contact_uri") != ca.rootd.service_uri or
-                parent_pdu.get("sia_base") != ca.rootd.repository.sia_base or
-                parent_pdu.get("sender_name") != ca.handle or
-                parent_pdu.get("recipient_name") != ca.handle or
-                parent_pdu.findtext(rpki.left_right.tag_bpki_cert).decode("base64") != ca.rootd.certificate.get_DER()):
-                q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
-                                   action = "create" if parent_pdu is None else "set",
-                                   tag = ca.handle,
-                                   tenant_handle = ca.handle,
-                                   parent_handle = ca.handle,
-                                   bsc_handle = bsc_handle,
-                                   repository_handle = ca.handle,
-                                   peer_contact_uri = ca.rootd.service_uri,
-                                   sia_base = ca.rootd.repository.sia_base,
-                                   sender_name = ca.handle,
-                                   recipient_name = ca.handle)
-                SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = ca.rootd.certificate.get_Base64()
-
-        except rpki.irdb.models.Rootd.DoesNotExist:
-            pass
-
         for parent_handle in parent_pdus:
             SubElement(q_msg, rpki.left_right.tag_parent, action = "destroy",
                        tenant_handle = ca.handle, parent_handle = parent_handle)
@@ -1631,23 +1550,6 @@ class Zookeeper(object):
                                    client_handle = client.handle,
                                    base_uri = client.sia_base)
                 SubElement(q_pdu, rpki.publication_control.tag_bpki_cert).text = client.certificate.get_Base64()
-
-        # rootd instances are also a weird sort of client
-
-        for rootd in rpki.irdb.models.Rootd.objects.all():
-
-            client_handle = rootd.issuer.handle + "-root"
-            client_pdu = client_pdus.pop(client_handle, None)
-            sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client_handle)
-
-            if (client_pdu is None or
-                client_pdu.get("base_uri") != sia_base or
-                client_pdu.findtext(rpki.publication_control.tag_bpki_cert, "").decode("base64") != rootd.issuer.certificate.get_DER()):
-                q_pdu = SubElement(q_msg, rpki.publication_control.tag_client,
-                                   action = "create" if client_pdu is None else "set",
-                                   client_handle = client_handle,
-                                   base_uri = sia_base)
-                SubElement(q_pdu, rpki.publication_control.tag_bpki_cert).text = rootd.issuer.certificate.get_Base64()
 
         # Delete any unknown clients
 

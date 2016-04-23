@@ -345,14 +345,6 @@ class Referral(EECertificate):
 class Turtle(django.db.models.Model):
     service_uri = django.db.models.CharField(max_length = 255)
 
-class Rootd(EECertificate, Turtle):
-    issuer = django.db.models.OneToOneField(ResourceHolderCA, related_name = "rootd")
-    objects = ResourceHolderEEManager()
-
-    @property
-    def subject_name(self):
-        return rpki.x509.X501DN.from_cn("%s BPKI rootd EE" % self.issuer.handle)
-
 class BSC(Certificate):
     issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "bscs")
     handle = HandleField()

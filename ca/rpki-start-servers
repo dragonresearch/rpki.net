@@ -86,4 +86,3 @@ def run(name, old_flag = None):
 run("irdbd", "run_rpkid")
 run("rpkid")
 run("pubd")
-run("rootd")

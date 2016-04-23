@@ -194,7 +194,6 @@ class allocation(object):
     rpkid_port    = 4404
     irdbd_port    = 4403
     pubd_port     = 4402
-    rootd_port    = 4401
     rsync_port    = 873
 
     @classmethod
@@ -251,8 +250,6 @@ class allocation(object):
         if loopback and self.runs_pubd:
             self.pubd_port  = self.allocate_port()
             self.rsync_port = self.allocate_port()
-        if loopback and self.is_root:
-            self.rootd_port = self.allocate_port()
 
     def closure(self):
         resources = self.base
@@ -295,7 +292,6 @@ class allocation(object):
         if self.runs_pubd:          s += " PPort: %s\n" % self.pubd_port
         if not self.is_hosted:      s += " RPort: %s\n" % self.rpkid_port
         if self.runs_pubd:          s += " SPort: %s\n" % self.rsync_port
-        if self.is_root:            s += " TPort: %s\n" % self.rootd_port
         return s + " Until: %s\n" % self.resources.valid_until
 
     @property
@@ -412,14 +408,12 @@ class allocation(object):
             handle                    = self.name,
             run_rpkid                 = str(not self.is_hosted),
             run_pubd                  = str(self.runs_pubd),
-            run_rootd                 = str(self.is_root),
             irdbd_sql_username        = "irdb",
             rpkid_sql_username        = "rpki",
             rpkid_server_host         = self.hostname,
             rpkid_server_port         = str(self.rpkid_port),
             irdbd_server_host         = "localhost",
             irdbd_server_port         = str(self.irdbd_port),
-            rootd_server_port         = str(self.rootd_port),
             pubd_sql_username         = "pubd",
             pubd_server_host          = self.pubd.hostname,
             pubd_server_port          = str(self.pubd.pubd_port),
@@ -834,7 +828,7 @@ def body():
                 if not quiet:
                     print "Creating RPKI root certificate and TAL"
                 d.dump_root()
-                x = d.zoo.configure_rootd()
+                x = d.zoo.configure_root()
 
             else:
                 with d.parent.irdb:

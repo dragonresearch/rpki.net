@@ -258,18 +258,9 @@ class main(Cmd):
         RPKI installation.
         """
 
-        rootd_case = self.zoo.run_rootd and self.zoo.handle == self.zoo.cfg.get("handle")
-
         r = self.zoo.initialize()
         with swap_uids():
-            r.save("%s.identity.xml" % self.zoo.handle,
-                   None if rootd_case else sys.stdout)
-
-        if rootd_case:
-            r = self.zoo.configure_rootd()
-            if r is not None:
-                with swap_uids():
-                    r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
+            r.save("%s.identity.xml" % self.zoo.handle, sys.stdout)
 
         self.zoo.write_bpki_files()
 
@@ -425,7 +416,6 @@ class main(Cmd):
         """
         Configure the current resource holding identity as a root.
 
-        This configures rpkid to talk to rootd as (one of) its parent(s).
         Returns repository request XML file like configure_parent does.
         """
 
@@ -442,18 +432,9 @@ class main(Cmd):
     def do_delete_root(self, args):
         """
         Delete local RPKI root as parent of the current entity.
-
-        This tells the current rpkid identity (<tenant/>) to stop talking to
-        rootd.
         """
 
-        try:
-            self.zoo.delete_rootd()
-            self.zoo.synchronize_ca()
-        except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
-            print "No such resource holder \"%s\"" % self.zoo.handle
-        except rpki.irdb.models.Rootd.DoesNotExist:
-            print "No associated rootd"
+        raise NotImplementedError
 
 
     @parsecmd(argsubparsers,

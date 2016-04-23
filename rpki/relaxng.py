@@ -8,7 +8,7 @@ from rpki.relaxng_parser import RelaxNGParser
 ## Parsed RelaxNG left_right schema
 left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right.rnc 6137 2015-10-20 19:21:37Z sra $
+  $Id$
   
   RelaxNG schema for RPKI left-right protocol.
   
@@ -554,6 +554,21 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       </attribute>
     </optional>
     <optional>
+      <attribute name="root_asn_resources">
+        <ref name="asn_list"/>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="root_ipv4_resources">
+        <ref name="ipv4_list"/>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="root_ipv6_resources">
+        <ref name="ipv6_list"/>
+      </attribute>
+    </optional>
+    <optional>
       <element name="bpki_cert">
         <ref name="base64"/>
       </element>
@@ -564,6 +579,13 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       </element>
     </optional>
   </define>
+  <define name="parent_readonly">
+    <optional>
+      <element name="rpki_root_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+  </define>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_create"/>
@@ -578,6 +600,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       <ref name="ctl_create"/>
       <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
+      <ref name="parent_readonly"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
@@ -594,6 +617,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       <ref name="ctl_set"/>
       <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
+      <ref name="parent_readonly"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
@@ -609,6 +633,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
       <ref name="parent_payload"/>
+      <ref name="parent_readonly"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
@@ -623,6 +648,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
       <ref name="parent_payload"/>
+      <ref name="parent_readonly"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">

@@ -162,17 +162,22 @@ parent_payload = (attribute peer_contact_uri { uri }?,
                   repository_handle?,
                   attribute sender_name { up_down_name }?,
                   attribute recipient_name { up_down_name }?,
+                  attribute root_asn_resources  { asn_list }?,
+                  attribute root_ipv4_resources { ipv4_list }?,
+                  attribute root_ipv6_resources { ipv6_list }?,
                   element bpki_cert { base64 }?,
                   element bpki_glue { base64 }?)
 
+parent_readonly = element rpki_root_cert { base64 }?
+
 parent_query |= element parent { ctl_create,  tenant_handle, parent_handle, parent_bool, parent_payload }
-parent_reply |= element parent { ctl_create,  tenant_handle, parent_handle }
+parent_reply |= element parent { ctl_create,  tenant_handle, parent_handle, parent_readonly }
 parent_query |= element parent { ctl_set,     tenant_handle, parent_handle, parent_bool, parent_payload }
-parent_reply |= element parent { ctl_set,     tenant_handle, parent_handle }
+parent_reply |= element parent { ctl_set,     tenant_handle, parent_handle, parent_readonly }
 parent_query |= element parent { ctl_get,     tenant_handle, parent_handle }
-parent_reply |= element parent { ctl_get,     tenant_handle, parent_handle, parent_payload }
+parent_reply |= element parent { ctl_get,     tenant_handle, parent_handle, parent_payload, parent_readonly }
 parent_query |= element parent { ctl_list,    tenant_handle }
-parent_reply |= element parent { ctl_list,    tenant_handle, parent_handle, parent_payload }
+parent_reply |= element parent { ctl_list,    tenant_handle, parent_handle, parent_payload, parent_readonly }
 parent_query |= element parent { ctl_destroy, tenant_handle, parent_handle }
 parent_reply |= element parent { ctl_destroy, tenant_handle, parent_handle }
 

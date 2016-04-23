@@ -789,6 +789,13 @@ class Parent(Turtle):
         return sia_uri
 
 
+class Root(Turtle):
+    asn_resources = models.TextField()
+    ipv4_resources = models.TextField()
+    ipv6_resources = models.TextField()
+    worker = models.OneToOneField(Parent, related_name = "rooter")
+
+
 class CA(models.Model):
     last_crl_manifest_number = models.BigIntegerField(default = 1)
     last_issued_sn = models.BigIntegerField(default = 1)

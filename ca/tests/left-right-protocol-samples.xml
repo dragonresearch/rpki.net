@@ -2,11 +2,11 @@
   -  $Id$
   -
   - Copyright (C) 2010  Internet Systems Consortium ("ISC")
-  - 
+  -
   - Permission to use, copy, modify, and distribute this software for any
   - purpose with or without fee is hereby granted, provided that the above
   - copyright notice and this permission notice appear in all copies.
-  - 
+  -
   - THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
   - REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
   - AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -14,7 +14,7 @@
   - LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
   - OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
   - PERFORMANCE OF THIS SOFTWARE.
-  - 
+  -
   - Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
   -
   - Permission to use, copy, modify, and distribute this software for any
@@ -35,15 +35,15 @@
   -->
 
 <completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<tenant action="create" tag="a000" tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<tenant action="create" tag="a000" tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<tenant action="set" tenant_handle="42"
 		rekey="yes"
@@ -94,15 +94,15 @@
 	    </bpki_glue>
 	</tenant>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<tenant action="set" tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<tenant action="get" tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<tenant action="get" tenant_handle="42">
 	    <bpki_cert>
@@ -145,11 +145,11 @@
 	    </bpki_glue>
 	</tenant>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<tenant action="list"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<tenant action="list" tenant_handle="42">
 	    <bpki_cert>
@@ -193,17 +193,17 @@
 	</tenant>
 	<tenant action="list" tenant_handle="99"/>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<tenant action="destroy" tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<tenant action="destroy" tenant_handle="42"/>
     </msg>
-    
+
     <!-- ==== -->
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<bsc action="create" tenant_handle="42" bsc_handle="17"
 		generate_keypair="yes"
@@ -231,13 +231,13 @@
 	    </signing_cert>
 	</bsc>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<bsc action="create" tenant_handle="42" bsc_handle="17">
 	    <pkcs10_request>cmVxdWVzdAo=</pkcs10_request>
 	</bsc>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<bsc action="set" tenant_handle="42" bsc_handle="17">
 	    <signing_cert>
@@ -272,15 +272,15 @@
 	    </signing_cert_crl>
 	</bsc>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<bsc action="set" tenant_handle="42" bsc_handle="17"/>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<bsc action="get" tenant_handle="42" bsc_handle="17"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<bsc action="get" tenant_handle="42" bsc_handle="17">
 	    <signing_cert>
@@ -304,11 +304,11 @@
 	    </signing_cert>
 	</bsc>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<bsc action="list" tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<bsc action="get" tenant_handle="42" bsc_handle="17">
 	    <signing_cert>
@@ -332,17 +332,17 @@
 	    </signing_cert>
 	</bsc>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<bsc action="destroy" tenant_handle="42" bsc_handle="17"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<bsc action="destroy" tenant_handle="42" bsc_handle="17"/>
     </msg>
-    
+
     <!-- ==== -->
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<parent action="create" tenant_handle="42" parent_handle="666"
 		peer_contact_uri="https://re.bar.example/bandicoot/"
@@ -391,11 +391,56 @@
 	    </bpki_glue>
 	</parent>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<parent action="create" tenant_handle="42" parent_handle="666"/>
     </msg>
-    
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="create" tenant_handle="42" parent_handle="666"
+		peer_contact_uri="https://re.bar.example/bandicoot/"
+		sia_base="rsync://repo.foo.example/wombat/"
+		bsc_handle="17"
+		repository_handle="120"
+		sender_name="tweedledee"
+		recipient_name="tweedledum"
+		root_asn_resources="17,42,666"
+		root_ipv4_resources="10.0.0.0/8,192.168.0.0/16"
+		root_ipv6_resources="">
+	</parent>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="create" tenant_handle="42" parent_handle="666">
+	    <rpki_root_cert>
+		MIIEaDCCA1CgAwIBAgIBATANBgkqhkiG9w0BAQsFADAzMTEwLwYDVQQDEyhFRjE5
+		QTdDQUE3MDg0NUZCNkYzRjlEOUFBOEE4OTBDRTg5QTgxMUQzMB4XDTE2MDQxNDIy
+		NTE0N1oXDTE3MDQxNDIyNTE0N1owMzExMC8GA1UEAxMoRUYxOUE3Q0FBNzA4NDVG
+		QjZGM0Y5RDlBQThBODkwQ0U4OUE4MTFEMzCCASIwDQYJKoZIhvcNAQEBBQADggEP
+		ADCCAQoCggEBAKLVZcQPCPyKX21GYGuB5OPNh224HY9ndD1TU5r4yzJWCDN7Rfku
+		ftDPOG9qVOp8EMEgr+xsH7tm5LcyuJt1+KHhQD0JT44J6LCUtn2xJPINIDQCbaXm
+		L+RGAX+GlWesC9yxjnGBjLFSQJ9qN2QeR1MBeaL8iP/vyXq9hgEbuHTQliUqg/6n
+		bZ7+JShIQHrgNvv4wTLtrD7JoL+hDvnIhpt3OSwwzb1QvTfUEZ9mv8IE/Zpe2Kk6
+		MXcbFjhWgmGS1ZpQjfWQYkbHnSrkZd7IhGKyPj/x/mV3P7tmHBKXo1TnRbKd/ij5
+		ZjNDSnW144CvAiTcpj9xnKgtQLqfbsEt4ccCAwEAAaOCAYUwggGBMB0GA1UdDgQW
+		BBTvGafKpwhF+28/nZqoqJDOiagR0zAfBgNVHSMEGDAWgBTvGafKpwhF+28/nZqo
+		qJDOiagR0zAYBgNVHSABAf8EDjAMMAoGCCsGAQUFBw4CMA8GA1UdEwEB/wQFMAMB
+		Af8wDgYDVR0PAQH/BAQDAgEGMIG3BggrBgEFBQcBCwSBqjCBpzA2BggrBgEFBQcw
+		BYYqcnN5bmM6Ly9sb2NhbGhvc3Q6NDQxMC9ycGtpL1JJUi1yb290L3Jvb3QvMD4G
+		CCsGAQUFBzAKhjJyc3luYzovL2xvY2FsaG9zdDo0NDEwL3Jwa2kvUklSLXJvb3Qv
+		cm9vdC9yb290Lm1mdDAtBggrBgEFBQcwDYYhaHR0cHM6Ly9sb2NhbGhvc3Q6NDQx
+		MS9ub3RpZnkueG1sMCEGCCsGAQUFBwEIAQH/BBIwEKAOMAwwCgIBAAIFAP////8w
+		JwYIKwYBBQUHAQcBAf8EGDAWMAkEAgABMAMDAQAwCQQCAAIwAwMBADANBgkqhkiG
+		9w0BAQsFAAOCAQEAADpTJlaW/YBhvM4d8+VJwGMNgRy1gIbNfikXbDJunIsfVvQH
+		6Cvu+G9LHwzr41S31gLDPiI5xqlYIcOLNmD4kFF+FkI5pmdZaYyE7cmUrV9LfJSp
+		6AjwNGhOlFDQJbfvndxAmTpAimvC/eKdB4nsbun3ewddIBbz7meq8FD/anrsU9F7
+		ezLgQuChwzshV29wqyM97RQ1J8xeBdadWv8DKxrYj2OkHAZCzQNoYp33i6B/qHf2
+		+350IE4Shix6fGfOuhq3BKSMEzBFUUK6RDmUrBfJlyCwD9+DWkgXb6gdw4MHLEEK
+		34fI46rg3JkTm9LK4glhTSSdXNuSgQNiNt1sYA==
+	    </rpki_root_cert>
+	</parent>
+    </msg>
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<parent action="set" tenant_handle="42" parent_handle="666"
 		peer_contact_uri="https://re.bar.example/bandicoot/"
@@ -445,15 +490,58 @@
 	    </bpki_glue>
 	</parent>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<parent action="set" tenant_handle="42" parent_handle="666"/>
     </msg>
-    
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="set" tenant_handle="42" parent_handle="666"
+		peer_contact_uri="https://re.bar.example/bandicoot/"
+		sia_base="rsync://repo.foo.example/wombat/"
+		bsc_handle="17"
+		repository_handle="120"
+		root_asn_resources="17,42,666"
+		root_ipv4_resources="10.0.0.0/8,192.168.0.0/16"
+		root_ipv6_resources="">
+	</parent>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="set" tenant_handle="42" parent_handle="666">
+	    <rpki_root_cert>
+		MIIEaDCCA1CgAwIBAgIBATANBgkqhkiG9w0BAQsFADAzMTEwLwYDVQQDEyhFRjE5
+		QTdDQUE3MDg0NUZCNkYzRjlEOUFBOEE4OTBDRTg5QTgxMUQzMB4XDTE2MDQxNDIy
+		NTE0N1oXDTE3MDQxNDIyNTE0N1owMzExMC8GA1UEAxMoRUYxOUE3Q0FBNzA4NDVG
+		QjZGM0Y5RDlBQThBODkwQ0U4OUE4MTFEMzCCASIwDQYJKoZIhvcNAQEBBQADggEP
+		ADCCAQoCggEBAKLVZcQPCPyKX21GYGuB5OPNh224HY9ndD1TU5r4yzJWCDN7Rfku
+		ftDPOG9qVOp8EMEgr+xsH7tm5LcyuJt1+KHhQD0JT44J6LCUtn2xJPINIDQCbaXm
+		L+RGAX+GlWesC9yxjnGBjLFSQJ9qN2QeR1MBeaL8iP/vyXq9hgEbuHTQliUqg/6n
+		bZ7+JShIQHrgNvv4wTLtrD7JoL+hDvnIhpt3OSwwzb1QvTfUEZ9mv8IE/Zpe2Kk6
+		MXcbFjhWgmGS1ZpQjfWQYkbHnSrkZd7IhGKyPj/x/mV3P7tmHBKXo1TnRbKd/ij5
+		ZjNDSnW144CvAiTcpj9xnKgtQLqfbsEt4ccCAwEAAaOCAYUwggGBMB0GA1UdDgQW
+		BBTvGafKpwhF+28/nZqoqJDOiagR0zAfBgNVHSMEGDAWgBTvGafKpwhF+28/nZqo
+		qJDOiagR0zAYBgNVHSABAf8EDjAMMAoGCCsGAQUFBw4CMA8GA1UdEwEB/wQFMAMB
+		Af8wDgYDVR0PAQH/BAQDAgEGMIG3BggrBgEFBQcBCwSBqjCBpzA2BggrBgEFBQcw
+		BYYqcnN5bmM6Ly9sb2NhbGhvc3Q6NDQxMC9ycGtpL1JJUi1yb290L3Jvb3QvMD4G
+		CCsGAQUFBzAKhjJyc3luYzovL2xvY2FsaG9zdDo0NDEwL3Jwa2kvUklSLXJvb3Qv
+		cm9vdC9yb290Lm1mdDAtBggrBgEFBQcwDYYhaHR0cHM6Ly9sb2NhbGhvc3Q6NDQx
+		MS9ub3RpZnkueG1sMCEGCCsGAQUFBwEIAQH/BBIwEKAOMAwwCgIBAAIFAP////8w
+		JwYIKwYBBQUHAQcBAf8EGDAWMAkEAgABMAMDAQAwCQQCAAIwAwMBADANBgkqhkiG
+		9w0BAQsFAAOCAQEAADpTJlaW/YBhvM4d8+VJwGMNgRy1gIbNfikXbDJunIsfVvQH
+		6Cvu+G9LHwzr41S31gLDPiI5xqlYIcOLNmD4kFF+FkI5pmdZaYyE7cmUrV9LfJSp
+		6AjwNGhOlFDQJbfvndxAmTpAimvC/eKdB4nsbun3ewddIBbz7meq8FD/anrsU9F7
+		ezLgQuChwzshV29wqyM97RQ1J8xeBdadWv8DKxrYj2OkHAZCzQNoYp33i6B/qHf2
+		+350IE4Shix6fGfOuhq3BKSMEzBFUUK6RDmUrBfJlyCwD9+DWkgXb6gdw4MHLEEK
+		34fI46rg3JkTm9LK4glhTSSdXNuSgQNiNt1sYA==
+	    </rpki_root_cert>
+	</parent>
+    </msg>
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<parent action="get" tenant_handle="42" parent_handle="666"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<parent action="get" tenant_handle="42" parent_handle="666"
 		peer_contact_uri="https://re.bar.example/bandicoot/"
@@ -498,13 +586,39 @@
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
 	    </bpki_glue>
+	    <rpki_root_cert>
+	        MIIEaDCCA1CgAwIBAgIBATANBgkqhkiG9w0BAQsFADAzMTEwLwYDVQQDEyhFRjE5
+		QTdDQUE3MDg0NUZCNkYzRjlEOUFBOEE4OTBDRTg5QTgxMUQzMB4XDTE2MDQxNDIy
+		NTE0N1oXDTE3MDQxNDIyNTE0N1owMzExMC8GA1UEAxMoRUYxOUE3Q0FBNzA4NDVG
+		QjZGM0Y5RDlBQThBODkwQ0U4OUE4MTFEMzCCASIwDQYJKoZIhvcNAQEBBQADggEP
+		ADCCAQoCggEBAKLVZcQPCPyKX21GYGuB5OPNh224HY9ndD1TU5r4yzJWCDN7Rfku
+		ftDPOG9qVOp8EMEgr+xsH7tm5LcyuJt1+KHhQD0JT44J6LCUtn2xJPINIDQCbaXm
+		L+RGAX+GlWesC9yxjnGBjLFSQJ9qN2QeR1MBeaL8iP/vyXq9hgEbuHTQliUqg/6n
+		bZ7+JShIQHrgNvv4wTLtrD7JoL+hDvnIhpt3OSwwzb1QvTfUEZ9mv8IE/Zpe2Kk6
+		MXcbFjhWgmGS1ZpQjfWQYkbHnSrkZd7IhGKyPj/x/mV3P7tmHBKXo1TnRbKd/ij5
+		ZjNDSnW144CvAiTcpj9xnKgtQLqfbsEt4ccCAwEAAaOCAYUwggGBMB0GA1UdDgQW
+		BBTvGafKpwhF+28/nZqoqJDOiagR0zAfBgNVHSMEGDAWgBTvGafKpwhF+28/nZqo
+		qJDOiagR0zAYBgNVHSABAf8EDjAMMAoGCCsGAQUFBw4CMA8GA1UdEwEB/wQFMAMB
+		Af8wDgYDVR0PAQH/BAQDAgEGMIG3BggrBgEFBQcBCwSBqjCBpzA2BggrBgEFBQcw
+		BYYqcnN5bmM6Ly9sb2NhbGhvc3Q6NDQxMC9ycGtpL1JJUi1yb290L3Jvb3QvMD4G
+		CCsGAQUFBzAKhjJyc3luYzovL2xvY2FsaG9zdDo0NDEwL3Jwa2kvUklSLXJvb3Qv
+		cm9vdC9yb290Lm1mdDAtBggrBgEFBQcwDYYhaHR0cHM6Ly9sb2NhbGhvc3Q6NDQx
+		MS9ub3RpZnkueG1sMCEGCCsGAQUFBwEIAQH/BBIwEKAOMAwwCgIBAAIFAP////8w
+		JwYIKwYBBQUHAQcBAf8EGDAWMAkEAgABMAMDAQAwCQQCAAIwAwMBADANBgkqhkiG
+		9w0BAQsFAAOCAQEAADpTJlaW/YBhvM4d8+VJwGMNgRy1gIbNfikXbDJunIsfVvQH
+		6Cvu+G9LHwzr41S31gLDPiI5xqlYIcOLNmD4kFF+FkI5pmdZaYyE7cmUrV9LfJSp
+		6AjwNGhOlFDQJbfvndxAmTpAimvC/eKdB4nsbun3ewddIBbz7meq8FD/anrsU9F7
+		ezLgQuChwzshV29wqyM97RQ1J8xeBdadWv8DKxrYj2OkHAZCzQNoYp33i6B/qHf2
+		+350IE4Shix6fGfOuhq3BKSMEzBFUUK6RDmUrBfJlyCwD9+DWkgXb6gdw4MHLEEK
+		34fI46rg3JkTm9LK4glhTSSdXNuSgQNiNt1sYA==
+	    </rpki_root_cert>
 	</parent>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<parent action="list" tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<parent action="list" tenant_handle="42" parent_handle="666"
 		peer_contact_uri="https://re.bar.example/bandicoot/"
@@ -549,19 +663,45 @@
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
 	    </bpki_glue>
+	    <rpki_root_cert>
+	        MIIEaDCCA1CgAwIBAgIBATANBgkqhkiG9w0BAQsFADAzMTEwLwYDVQQDEyhFRjE5
+		QTdDQUE3MDg0NUZCNkYzRjlEOUFBOEE4OTBDRTg5QTgxMUQzMB4XDTE2MDQxNDIy
+		NTE0N1oXDTE3MDQxNDIyNTE0N1owMzExMC8GA1UEAxMoRUYxOUE3Q0FBNzA4NDVG
+		QjZGM0Y5RDlBQThBODkwQ0U4OUE4MTFEMzCCASIwDQYJKoZIhvcNAQEBBQADggEP
+		ADCCAQoCggEBAKLVZcQPCPyKX21GYGuB5OPNh224HY9ndD1TU5r4yzJWCDN7Rfku
+		ftDPOG9qVOp8EMEgr+xsH7tm5LcyuJt1+KHhQD0JT44J6LCUtn2xJPINIDQCbaXm
+		L+RGAX+GlWesC9yxjnGBjLFSQJ9qN2QeR1MBeaL8iP/vyXq9hgEbuHTQliUqg/6n
+		bZ7+JShIQHrgNvv4wTLtrD7JoL+hDvnIhpt3OSwwzb1QvTfUEZ9mv8IE/Zpe2Kk6
+		MXcbFjhWgmGS1ZpQjfWQYkbHnSrkZd7IhGKyPj/x/mV3P7tmHBKXo1TnRbKd/ij5
+		ZjNDSnW144CvAiTcpj9xnKgtQLqfbsEt4ccCAwEAAaOCAYUwggGBMB0GA1UdDgQW
+		BBTvGafKpwhF+28/nZqoqJDOiagR0zAfBgNVHSMEGDAWgBTvGafKpwhF+28/nZqo
+		qJDOiagR0zAYBgNVHSABAf8EDjAMMAoGCCsGAQUFBw4CMA8GA1UdEwEB/wQFMAMB
+		Af8wDgYDVR0PAQH/BAQDAgEGMIG3BggrBgEFBQcBCwSBqjCBpzA2BggrBgEFBQcw
+		BYYqcnN5bmM6Ly9sb2NhbGhvc3Q6NDQxMC9ycGtpL1JJUi1yb290L3Jvb3QvMD4G
+		CCsGAQUFBzAKhjJyc3luYzovL2xvY2FsaG9zdDo0NDEwL3Jwa2kvUklSLXJvb3Qv
+		cm9vdC9yb290Lm1mdDAtBggrBgEFBQcwDYYhaHR0cHM6Ly9sb2NhbGhvc3Q6NDQx
+		MS9ub3RpZnkueG1sMCEGCCsGAQUFBwEIAQH/BBIwEKAOMAwwCgIBAAIFAP////8w
+		JwYIKwYBBQUHAQcBAf8EGDAWMAkEAgABMAMDAQAwCQQCAAIwAwMBADANBgkqhkiG
+		9w0BAQsFAAOCAQEAADpTJlaW/YBhvM4d8+VJwGMNgRy1gIbNfikXbDJunIsfVvQH
+		6Cvu+G9LHwzr41S31gLDPiI5xqlYIcOLNmD4kFF+FkI5pmdZaYyE7cmUrV9LfJSp
+		6AjwNGhOlFDQJbfvndxAmTpAimvC/eKdB4nsbun3ewddIBbz7meq8FD/anrsU9F7
+		ezLgQuChwzshV29wqyM97RQ1J8xeBdadWv8DKxrYj2OkHAZCzQNoYp33i6B/qHf2
+		+350IE4Shix6fGfOuhq3BKSMEzBFUUK6RDmUrBfJlyCwD9+DWkgXb6gdw4MHLEEK
+		34fI46rg3JkTm9LK4glhTSSdXNuSgQNiNt1sYA==
+	    </rpki_root_cert>
 	</parent>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<parent action="destroy" tenant_handle="42"
     parent_handle="666"/> </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<parent action="destroy" tenant_handle="42" parent_handle="666"/>
     </msg>
-    
+
     <!-- ==== -->
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<child action="create" tenant_handle="42" child_handle="3"
 		bsc_handle="17">
@@ -586,11 +726,11 @@
 	    </bpki_cert>
 	</child>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<child action="create" tenant_handle="42" child_handle="3"/>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<child action="set" tenant_handle="42" child_handle="3"
 		bsc_handle="17"
@@ -616,15 +756,15 @@
 	    </bpki_cert>
 	</child>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<child action="set" tenant_handle="42" child_handle="3"/>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<child action="get" tenant_handle="42" child_handle="3"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<child action="get" tenant_handle="42" child_handle="3"
 		bsc_handle="17">
@@ -649,11 +789,11 @@
 	    </bpki_cert>
 	</child>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<child action="list" tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<child action="list" tenant_handle="42" child_handle="3"
 		bsc_handle="17">
@@ -678,15 +818,15 @@
 	    </bpki_cert>
 	</child>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<child action="destroy" tenant_handle="42" child_handle="3"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<child action="destroy" tenant_handle="42" child_handle="3"/>
     </msg>
-    
+
     <!-- ==== -->
 
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
@@ -733,11 +873,11 @@
 	    </bpki_glue>
 	</repository>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<repository action="create" tenant_handle="42" repository_handle="120"/>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<repository action="set" tenant_handle="42" repository_handle="120"
 		peer_contact_uri="https://re.bar.example/bandicoot/"
@@ -782,15 +922,15 @@
 	    </bpki_glue>
 	</repository>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<repository action="set" tenant_handle="42" repository_handle="120"/>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<repository action="get" tenant_handle="42" repository_handle="120"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<repository action="get" tenant_handle="42" repository_handle="120"
 		peer_contact_uri="https://re.bar.example/bandicoot/"
@@ -835,11 +975,11 @@
 	    </bpki_glue>
 	</repository>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<repository action="list" tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<repository action="list" tenant_handle="42" repository_handle="120"
 		peer_contact_uri="https://re.bar.example/bandicoot/"
@@ -884,21 +1024,21 @@
 	    </bpki_glue>
 	</repository>
     </msg>
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<repository action="destroy" tenant_handle="42" repository_handle="120"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<repository action="destroy" tenant_handle="42" repository_handle="120"/>
     </msg>
 
     <!-- ==== -->
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_resources tenant_handle="42" child_handle="289"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_resources tenant_handle="42" child_handle="289"
 			valid_until="2008-04-01T00:00:00Z"
@@ -906,13 +1046,13 @@
 			ipv6="fe80:deed:f00d::/48,fe80:dead:beef:2::-fe80:dead:beef:2::49"
 			asn="666"/>
     </msg>
-    
+
     <!-- === -->
-    
+
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_roa_requests tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_roa_requests tenant_handle="42"
 			asn="666"
@@ -925,13 +1065,13 @@
 			ipv6="2002:a00::/48-56"
 			/>
     </msg>
-    
+
     <!-- === -->
 
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_received_resources tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_received_resources tenant_handle="42"
 				 parent_handle="Alice"
@@ -954,13 +1094,13 @@
 				 ipv6="2001:4f8::/32,2001:500::/48,2001:500:2e::/47,2001:500:60::-2001:500:7c:ffff:ffff:ffff:ffff:ffff,2001:500:85::/48"/>
     </msg>
 
-    
+
     <!-- === -->
 
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_published_objects tenant_handle="42"/>
     </msg>
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_published_objects tenant_handle="42" uri="rsync://rpki.example.org/rpki/DEMEtlxZrZes7TNGbe7XwVSMgW0.crl">
 		MIIBrjCBlwIBATANBgkqhkiG9w0BAQsFADAzMTEwLwYDVQQDEygwQzQzMDRCNjVDNTlBRDk3
@@ -1081,7 +1221,7 @@
     </msg>
 
     <!-- === -->
-    
+
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<report_error tenant_handle="42" error_code="your_hair_is_on_fire">text string</report_error>
     </msg>

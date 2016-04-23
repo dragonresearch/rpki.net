@@ -44,10 +44,11 @@ if os.path.exists(".svn"):
         rev    = subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1])
 elif os.path.exists(".git/svn"):
     git_svn_log = subprocess.check_output(("git", "svn", "log", "--show-commit", "--oneline", "--limit=1")).split()
-    version = "0.{rev}.{count}.{commit}".format(
+    version = "0.{rev}.{count}.{time}.{commit}".format(
         rev    = git_svn_log[0][1:],
         count  = subprocess.check_output(("git", "rev-list", "--count", git_svn_log[2] + "..HEAD")).strip(),
-        commit = git_svn_log[2])
+        time   = subprocess.check_output(("git", "show", "--no-patch", "--format=%ct", "HEAD")).strip(),
+        commit = subprocess.check_output(("git", "rev-parse", "HEAD")).strip())
     del git_svn_log
 else:
     sys.exit("Sorry, don't know how to extract version number from this source tree")

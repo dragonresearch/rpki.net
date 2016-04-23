@@ -381,6 +381,28 @@ class Zookeeper(object):
         return self.generate_repository_request(parent)
 
 
+    def extract_root_certificate_and_uris(self, handle):
+
+        if not handle:
+            handle = self.handle
+
+        q_msg = self.compose_left_right_query()
+        SubElement(q_msg, rpki.left_right.tag_parent, action = "get",
+                   tenant_handle = self.handle, parent_handle = handle)
+        r_msg = self.call_rpkid(q_msg)
+        assert len(r_msg) == 1 and r_msg[0].tag == rpki.left_right.tag_parent
+
+        cert = rpki.x509.X509(Base64 = r_msg[0].findtext(rpki.left_right.tag_rpki_root_cert))
+        caDirectory, rpkiManifest, signedObjectRepository, rpkiNotify = cert.get_SIA()
+        sia_base = r_msg[0].get("sia_base")
+        fn = cert.gSKI() + ".cer"
+
+        https_uri = os.path.join(os.path.dirname(rpkiNotify[0]), fn)
+        rsync_uri = sia_base + fn
+
+        return cert, (https_uri, rsync_uri)
+
+
     def write_bpki_files(self):
         """
         Write out BPKI certificate, key, and CRL files for daemons that

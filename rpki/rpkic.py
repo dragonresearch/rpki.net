@@ -438,6 +438,39 @@ class main(Cmd):
 
 
     @parsecmd(argsubparsers,
+              cmdarg("--root_handle", help = "override default handle"),
+              cmdarg("--output_file", help = "override default output filename"))
+    def do_extract_root_certificate(self, args):
+        """
+        Extract self-signed RPKI certificate from a root object.
+        """
+
+        cert, uris = self.zoo.extract_root_certificate_and_uris(args.root_handle)
+        fn = args.output_file or (cert.gSKI() + ".cer")
+        with open_swapped_uids(fn, "wb") as f:
+            print "Writing", f.name
+            f.write(cert.get_DER())
+
+
+    @parsecmd(argsubparsers,
+              cmdarg("--root_handle", help = "override default handle"),
+              cmdarg("--output_file", help = "override default output filename"))
+    def do_extract_root_tal(self, args):
+        """
+        Extract self-signed RPKI certificate from a root object.
+        """
+
+        cert, uris = self.zoo.extract_root_certificate_and_uris(args.root_handle)
+        fn = args.output_file or (cert.gSKI() + ".tal")
+        with open_swapped_uids(fn, "w") as f:
+            print "Writing", f.name
+            for uri in uris:
+                f.write(uri + "\n")
+            f.write("\n")
+            f.write(cert.getPublicKey().get_Base64())
+
+
+    @parsecmd(argsubparsers,
               cmdarg("--flat",     help = "use flat publication scheme", action = "store_true"),
               cmdarg("--sia_base", help = "override SIA base value"),
               cmdarg("client_xml", help = "XML file containing client request"))

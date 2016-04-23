@@ -96,12 +96,6 @@ class Session(models.Model):
     uuid = models.CharField(unique = True, max_length=36)
     serial = models.BigIntegerField()
 
-    ## @var keep_these_files
-    # Filenames which should not be deleted during cleanup.
-    # Expected use is to allow us to store a root certificate
-    # in in the RRDP base directory.
-
-    keep_these_files = set(["root.cer", "root.tal"])
 
     def new_delta(self, expires):
         """
@@ -190,7 +184,11 @@ class Session(models.Model):
         Write current RRDP files to disk, clean up old files and directories.
         """
 
-        current_filenames = self.keep_these_files.copy()
+        if os.path.isdir(rrdp_publication_base):
+            current_filenames = set(fn for fn in os.listdir(rrdp_publication_base)
+                                    if fn.endswith(".cer") or fn.endswith(".tal"))
+        else:
+            current_filenames = set()
 
         snapshot_hash = self.write_snapshot_file(rrdp_publication_base)
         current_filenames.add(self.snapshot_fn)

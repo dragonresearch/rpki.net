@@ -766,6 +766,23 @@ class allocation(object):
         print "Running GUI for %s: pid %d process %r" % (self.name, p.pid, p)
         return p
 
+    def extract_root_cert_and_tal(self):
+        """
+        Use rpkic to extract the root certficate and TAL and place them
+        where we can use them to check the published result using rcynic.
+        """
+
+        print
+        self.run_rpkic("extract_root_tal", "--output", 
+                       os.path.join(test_dir, "root.tal"))
+
+        root_cer = self.path("root.cer")
+        self.run_rpkic("extract_root_certificate", "--output", root_cer)
+        gski = rpki.x509.X509(DER_file = root_cer).gSKI()
+        fn = self.path("publication.rrdp", gski + ".cer")
+        print "Linking", root_cer
+        print "to     ", fn
+        os.link(root_cer, fn)
 
 
 logger = logging.getLogger(__name__)
@@ -910,7 +927,6 @@ try:
         else:
 
             for d in db:
-
                 print
                 print "Configuring", d.name
                 print
@@ -961,6 +977,8 @@ try:
                 d.dump_roas()
                 d.dump_ghostbusters()
                 d.dump_router_certificates()
+
+        db.root.extract_root_cert_and_tal()
 
         if args.run_gui:
             print

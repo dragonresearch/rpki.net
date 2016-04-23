@@ -15,7 +15,6 @@ class Migration(migrations.Migration):
             name='Turtle',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('parent_handle', models.SlugField(max_length=255)),
                 ('repository', models.ForeignKey(related_name='parents', to='rpkidb.Repository')),
                 ('tenant', models.ForeignKey(related_name='parents', to='rpkidb.Tenant')),
             ],
@@ -27,11 +26,6 @@ class Migration(migrations.Migration):
         migrations.RemoveField(
             model_name='parent',
             name='id',
-        ),
-        migrations.RenameField(
-            model_name='parent',
-            old_name='parent_handle',
-            new_name='old_parent_handle',
         ),
         migrations.RenameField(
             model_name='parent',
@@ -48,9 +42,5 @@ class Migration(migrations.Migration):
             name='turtle_ptr',
             field=models.OneToOneField(parent_link=True, auto_created=True, primary_key=True, default=0, serialize=False, to='rpkidb.Turtle'),
             preserve_default=False,
-        ),
-        migrations.AlterUniqueTogether(
-            name='turtle',
-            unique_together=set([('tenant', 'parent_handle')]),
         ),
     ]

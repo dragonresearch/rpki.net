@@ -13,14 +13,14 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RemoveField(
             model_name='parent',
-            name='old_parent_handle',
-        ),
-        migrations.RemoveField(
-            model_name='parent',
             name='old_repository',
         ),
         migrations.RemoveField(
             model_name='parent',
             name='old_tenant',
+        ),
+        migrations.AlterUniqueTogether(
+            name='parent',
+            unique_together=set([('turtle_ptr', 'parent_handle')]),
         ),
     ]

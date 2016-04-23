@@ -544,16 +544,22 @@ class Repository(models.Model):
 # single place to hang a relationship with the CA model.
 
 class Turtle(models.Model):
-    turtle_handle = models.SlugField(max_length = 255)
     tenant = models.ForeignKey(Tenant, related_name = "turtles")
     repository = models.ForeignKey(Repository, related_name = "turtles")
 
-    class Meta:
-        unique_together = ("tenant", "turtle_handle")
+    @property
+    def turtle_handle(self):
+        try:
+            return self.parent.parent_handle
+        except Parent.DoesNotExist:
+            return "<Root>"
+        except:
+            return "<???>"
 
 
 @xml_hooks
 class Parent(Turtle):
+    parent_handle = models.SlugField(max_length = 255)
     bpki_cert = CertificateField(null = True)
     bpki_glue = CertificateField(null = True)
     peer_contact_uri = models.TextField(null = True)
@@ -564,6 +570,8 @@ class Parent(Turtle):
     bsc = models.ForeignKey(BSC, related_name = "parents")
     objects = XMLManager()
 
+    class Meta:
+        unique_together = ("turtle_ptr", "parent_handle")
 
     xml_template = XMLTemplate(
         name       = "parent",
@@ -578,21 +586,9 @@ class Parent(Turtle):
         except:
             uri = ""
         try:
-            return "<Parent: {}.{}{}>".format(self.tenant.tenant_handle, self.turtle_handle, uri)
+            return "<Parent: {}.{}{}>".format(self.tenant.tenant_handle, self.parent_handle, uri)
         except:
             return "<Parent: Parent object>"
-
-
-    # We need to preserve the name "parent_handle" to keep the XML
-    # code simple, so just pass it through to turtle_handle.
-
-    @property
-    def parent_handle(self):
-        return self.turtle_handle
-
-    @parent_handle.setter
-    def parent_handle(self, value):
-        self.turtle_handle = value
 
 
     @tornado.gen.coroutine
@@ -693,7 +689,7 @@ class Parent(Turtle):
         trace_call_chain()
         skis_from_parent = yield self.get_skis(rpkid = rpkid)
         for rc_name, skis_to_revoke in skis_from_parent.iteritems():
-            for ca_detail in CADetail.objects.filter(ca__parent = self).exclude(state = "revoked"):
+            for ca_detail in CADetail.objects.filter(ca__turtle = self).exclude(state = "revoked"):
                 skis_to_revoke.discard(ca_detail.latest_ca_cert.gSKI())
             yield self.revoke_skis(rpkid, rc_name, skis_to_revoke)
 

@@ -225,7 +225,7 @@ class PollParentTask(AbstractTask):
 
         if not ca_details:
             logger.warning("Existing resource class %s to %s from %s with no certificates, rekeying",
-                           class_name, parent.tenant.tenant_handle, parent.turtle_handle)
+                           class_name, parent.tenant.tenant_handle, parent.parent_handle)
             yield ca.rekey(rpkid = self.rpkid)
             return
 
@@ -236,7 +236,7 @@ class PollParentTask(AbstractTask):
             if rc_cert is None:
                 logger.warning("g(SKI) %s in resource class %s is in database but missing from list_response to %s from %s, "
                                "maybe parent certificate went away?",
-                               ca_detail.public_key.gSKI(), class_name, parent.tenant.tenant_handle, parent.turtle_handle)
+                               ca_detail.public_key.gSKI(), class_name, parent.tenant.tenant_handle, parent.parent_handle)
                 publisher = rpki.rpkid.publication_queue(rpkid = self.rpkid)
                 ca_detail.destroy(publisher = publisher)
                 yield publisher.call_pubd()
@@ -272,7 +272,7 @@ class PollParentTask(AbstractTask):
 
         if cert_map:
             logger.warning("Unknown certificate g(SKI)%s %s in resource class %s in list_response to %s from %s, maybe you want to \"revoke_forgotten\"?",
-                           "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.tenant.tenant_handle, parent.turtle_handle)
+                           "" if len(cert_map) == 1 else "s", ", ".join(cert_map), class_name, parent.tenant.tenant_handle, parent.parent_handle)
 
 
 @queue_task
@@ -469,7 +469,7 @@ class UpdateGhostbustersTask(AbstractTask):
     @tornado.gen.coroutine
     def main(self):
         logger.debug("%r: Updating Ghostbuster records", self)
-        parent_handles = set(t.turtle_handle for t in self.tenant.turtles.all())
+        parent_handles = set(p.parent_handle for p in rpki.rpkidb.models.Parent.objects.filter(tenant = self.tenant))
 
         try:
             r_msg = yield self.rpkid.irdb_query_ghostbuster_requests(self.tenant.tenant_handle, parent_handles)
@@ -488,9 +488,7 @@ class UpdateGhostbustersTask(AbstractTask):
                     ghostbusters[k] = ghostbuster
 
             for r_pdu in r_msg:
-                try:
-                    self.tenant.turtles.get(turtle_handle = r_pdu.get("parent_handle"))
-                except rpki.rpkidb.models.Parent.DoesNotExist:
+                if not rpki.rpkidb.models.Parent.objects.filter(tenant = self.tenant, parent_handle  = r_pdu.get("parent_handle")).exists():
                     logger.warning("%r: Unknown parent_handle %r in Ghostbuster request, skipping", self, r_pdu.get("parent_handle"))
                     continue
                 k = (r_pdu.get("parent_handle"), r_pdu.text)
@@ -498,7 +496,7 @@ class UpdateGhostbustersTask(AbstractTask):
                     logger.warning("%r: Skipping duplicate Ghostbuster request %r", self, r_pdu)
                     continue
                 seen.add(k)
-                for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__turtle__turtle_handle = r_pdu.get("parent_handle"), ca__turtle__tenant = self.tenant, state = "active"):
+                for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__turtle__parent__parent_handle = r_pdu.get("parent_handle"), ca__turtle__tenant = self.tenant, state = "active"):
                     ghostbuster = ghostbusters.pop((ca_detail.pk, r_pdu.text), None)
                     if ghostbuster is None:
                         ghostbuster = rpki.rpkidb.models.Ghostbuster(tenant = self.tenant, ca_detail = ca_detail, vcard = r_pdu.text)

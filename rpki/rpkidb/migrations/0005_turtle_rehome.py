@@ -11,11 +11,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameField(
-            model_name='turtle',
-            old_name='parent_handle',
-            new_name='turtle_handle',
-        ),
         migrations.AlterField(
             model_name='ca',
             name='parent',
@@ -30,9 +25,5 @@ class Migration(migrations.Migration):
             model_name='turtle',
             name='tenant',
             field=models.ForeignKey(related_name='turtles', to='rpkidb.Tenant'),
-        ),
-        migrations.AlterUniqueTogether(
-            name='turtle',
-            unique_together=set([('tenant', 'turtle_handle')]),
         ),
     ]

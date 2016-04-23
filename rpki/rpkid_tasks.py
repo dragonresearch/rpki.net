@@ -152,7 +152,7 @@ class PollParentTask(AbstractTask):
     def main(self):
         logger.debug("%r: Polling parents", self)
 
-        for parent in self.tenant.parents.all():
+        for parent in rpki.rpkidb.models.Parent.objects.filter(tenant = self.tenant):
             try:
                 logger.debug("%r: Executing list query", self)
                 list_r_msg = yield parent.up_down_list_query(rpkid = self.rpkid)

@@ -537,9 +537,24 @@ class Repository(models.Model):
         raise tornado.gen.Return(r_msg)
 
 
-@xml_hooks
-class Parent(models.Model):
+# https://docs.djangoproject.com/en/1.9/topics/db/models/#multi-table-inheritance
+
+class Turtle(models.Model):
+
+    # The parent-specific names here will need to change, but first
+    # step is testing whether the magic of multi-table inheritance
+    # causes all of this to Just Work until we change the field names.
+
     parent_handle = models.SlugField(max_length = 255)
+    tenant = models.ForeignKey(Tenant, related_name = "parents")
+    repository = models.ForeignKey(Repository, related_name = "parents")
+
+    class Meta:
+        unique_together = ("tenant", "parent_handle")
+
+
+@xml_hooks
+class Parent(Turtle):
     bpki_cert = CertificateField(null = True)
     bpki_glue = CertificateField(null = True)
     peer_contact_uri = models.TextField(null = True)
@@ -547,13 +562,8 @@ class Parent(models.Model):
     sender_name = models.TextField(null = True)
     recipient_name = models.TextField(null = True)
     last_cms_timestamp = SundialField(null = True)
-    tenant = models.ForeignKey(Tenant, related_name = "parents")
     bsc = models.ForeignKey(BSC, related_name = "parents")
-    repository = models.ForeignKey(Repository, related_name = "parents")
     objects = XMLManager()
-
-    class Meta:
-        unique_together = ("tenant", "parent_handle")
 
     xml_template = XMLTemplate(
         name       = "parent",

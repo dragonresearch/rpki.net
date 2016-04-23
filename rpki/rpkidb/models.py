@@ -750,29 +750,29 @@ class Parent(models.Model):
         trace_call_chain()
         if self.root_asn_resources or self.root_ipv4_resources or self.root_ipv6_resources:
             r_msg = yield self.query_up_down_root(rpkid, q_msg)
-            raise tornado.gen.Return(r_msg)
-        if self.bsc is None:
+        elif self.bsc is None:
             raise rpki.exceptions.BSCNotFound("Could not find BSC")
-        if self.bsc.signing_cert is None:
+        elif self.bsc.signing_cert is None:
             raise rpki.exceptions.BSCNotReady("%r is not yet usable" % self.bsc)
-        http_request = tornado.httpclient.HTTPRequest(
-            url             = self.peer_contact_uri,
-            method          = "POST",
-            body            = rpki.up_down.cms_msg().wrap(q_msg, self.bsc.private_key_id,
-                                                          self.bsc.signing_cert,
-                                                          self.bsc.signing_cert_crl),
-            headers         = { "Content-Type" : rpki.up_down.content_type },
-            connect_timeout = rpkid.http_client_timeout,
-            request_timeout = rpkid.http_client_timeout)
-        http_response = yield rpkid.http_fetch(http_request)
-        if http_response.headers.get("Content-Type") not in rpki.up_down.allowed_content_types:
-            raise rpki.exceptions.BadContentType("HTTP Content-Type %r, expected %r" % (
-                rpki.up_down.content_type, http_response.headers.get("Content-Type")))
-        r_cms = rpki.up_down.cms_msg(DER = http_response.body)
-        r_msg = r_cms.unwrap((rpkid.bpki_ta,
-                              self.tenant.bpki_cert, self.tenant.bpki_glue,
-                              self.bpki_cert, self.bpki_glue))
-        r_cms.check_replay_sql(self, self.peer_contact_uri)
+        else:
+            http_request = tornado.httpclient.HTTPRequest(
+                url             = self.peer_contact_uri,
+                method          = "POST",
+                body            = rpki.up_down.cms_msg().wrap(q_msg, self.bsc.private_key_id,
+                                                              self.bsc.signing_cert,
+                                                              self.bsc.signing_cert_crl),
+                headers         = { "Content-Type" : rpki.up_down.content_type },
+                connect_timeout = rpkid.http_client_timeout,
+                request_timeout = rpkid.http_client_timeout)
+            http_response = yield rpkid.http_fetch(http_request)
+            if http_response.headers.get("Content-Type") not in rpki.up_down.allowed_content_types:
+                raise rpki.exceptions.BadContentType("HTTP Content-Type %r, expected %r" % (
+                    rpki.up_down.content_type, http_response.headers.get("Content-Type")))
+            r_cms = rpki.up_down.cms_msg(DER = http_response.body)
+            r_msg = r_cms.unwrap((rpkid.bpki_ta,
+                                  self.tenant.bpki_cert, self.tenant.bpki_glue,
+                                  self.bpki_cert, self.bpki_glue))
+            r_cms.check_replay_sql(self, self.peer_contact_uri)
         rpki.up_down.check_response(r_msg, q_msg.get("type"))
         raise tornado.gen.Return(r_msg)
 
@@ -858,15 +858,20 @@ class Parent(models.Model):
                     assert q_msg.get("type") == "issue"
                     r_msg.set("type", "issue_response")
                     pkcs10 = rpki.x509.PKCS10(Base64 = q_msg[0].text)
-                    pkcs10_key = pkcs10.getPublicKey()
-                    pkcs10_sia = pkcs10.get_SIA()
+                    pkcs10_key  = pkcs10.getPublicKey()
+                    pkcs10_sia  = pkcs10.get_SIA()
+                    pkcs10_gski = pkcs10_key.gSKI()
 
-                    uri = self.sia_base + pkcs10_key.gSKI() + ".cer"
+                    uri = self.sia_base + pkcs10_gski + ".cer"
 
-                    ca_detail = CADetail.objects.get(
-                        ca__parent                = self,
-                        ca__parent_resource_class = q_msg[0].get("class_name"),
-                        state__in                 = ("pending", "active"))
+                    ca_details = dict(
+                        (ca_detail.public_key.gSKI(), ca_detail)
+                        for ca_detail in CADetail.objects.filter(
+                                ca__parent                = self,
+                                ca__parent_resource_class = q_msg[0].get("class_name"),
+                                state__in                 = ("pending", "active")))
+
+                    ca_detail = ca_details[pkcs10_gski]
 
                     threshold = rpki.sundial.now() + rpki.sundial.timedelta(
                         seconds = self.tenant.regen_margin)

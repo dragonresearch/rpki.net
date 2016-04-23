@@ -697,8 +697,9 @@ class Parent(models.Model):
         """
 
         trace_call_chain()
-        yield [ca.destroy(rpkid = rpkid, parent = self) for ca in self.cas()] # pylint: disable=E1101
         yield self.serve_revoke_forgotten(rpkid = rpkid)
+        yield [ca.destroy(rpkid = rpkid, parent = self)
+               for ca in self.cas().all()]
         if delete_parent:
             self.delete()
 

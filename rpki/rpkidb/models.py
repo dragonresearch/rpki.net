@@ -287,7 +287,7 @@ class Tenant(models.Model):
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):
         trace_call_chain()
-        yield [parent.destroy(rpkid = rpkid) for parent in self.turtles.all()]
+        yield [parent.destroy(rpkid = rpkid) for parent in self.parents.all()]
 
     @tornado.gen.coroutine
     def xml_post_save_hook(self, rpkid, q_pdu):
@@ -299,7 +299,7 @@ class Tenant(models.Model):
         revoke_forgotten  = q_pdu.get("revoke_forgotten")
 
         if q_pdu.get("clear_replay_protection"):
-            for parent in self.turtles.all():
+            for parent in self.parents.all():
                 parent.clear_replay_protection()
             for child in self.children.all():
                 child.clear_replay_protection()
@@ -309,7 +309,7 @@ class Tenant(models.Model):
         futures = []
 
         if rekey or revoke or reissue or revoke_forgotten:
-            for parent in self.turtles.all():
+            for parent in self.parents.all():
                 if rekey:
                     futures.append(parent.serve_rekey(rpkid = rpkid))
                 if revoke:
@@ -349,8 +349,8 @@ class Tenant(models.Model):
                                    uri, objects[uri][1], objs[uri][1])
             objects.update(objs)
 
-        for ca_detail in CADetail.objects.filter(ca__turtle__tenant = self, state = "active"):
-            repository = ca_detail.ca.turtle.repository
+        for ca_detail in CADetail.objects.filter(ca__parent__tenant = self, state = "active"):
+            repository = ca_detail.ca.parent.repository
             objs = [(ca_detail.crl_uri,      ca_detail.latest_crl),
                     (ca_detail.manifest_uri, ca_detail.latest_manifest)]
             objs.extend((c.uri, c.cert)         for c in ca_detail.child_certs.all())
@@ -405,7 +405,7 @@ class Tenant(models.Model):
 
         trace_call_chain()
         return set(ca_detail
-                   for ca_detail in CADetail.objects.filter(ca__turtle__tenant = self, state = "active")
+                   for ca_detail in CADetail.objects.filter(ca__parent__tenant = self, state = "active")
                    if ca_detail.covers(resources))
 
 
@@ -536,29 +536,11 @@ class Repository(models.Model):
         raise tornado.gen.Return(r_msg)
 
 
-# https://docs.djangoproject.com/en/1.9/topics/db/models/#multi-table-inheritance
-#
-# This is a bit more expensive than an abstract base class would be,
-# but for present purposes it has one huge advantage: it gives us a
-# single place to hang a relationship with the CA model.
-
-class Turtle(models.Model):
-    tenant = models.ForeignKey(Tenant, related_name = "turtles")
-    repository = models.ForeignKey(Repository, related_name = "turtles")
-
-    @property
-    def turtle_handle(self):
-        try:
-            return self.parent.parent_handle
-        except Parent.DoesNotExist:
-            return "<Root>"
-        except:
-            return "<???>"
-
-
 @xml_hooks
-class Parent(Turtle):
+class Parent(models.Model):
     parent_handle = models.SlugField(max_length = 255)
+    tenant = models.ForeignKey(Tenant, related_name = "parents")
+    repository = models.ForeignKey(Repository, related_name = "parents")
     bpki_cert = CertificateField(null = True)
     bpki_glue = CertificateField(null = True)
     peer_contact_uri = models.TextField(null = True)
@@ -567,10 +549,13 @@ class Parent(Turtle):
     recipient_name = models.TextField(null = True)
     last_cms_timestamp = SundialField(null = True)
     bsc = models.ForeignKey(BSC, related_name = "parents")
+    root_asn_resources = models.TextField(default = "")
+    root_ipv4_resources = models.TextField(default = "")
+    root_ipv6_resources = models.TextField(default = "")
     objects = XMLManager()
 
     class Meta:
-        unique_together = ("turtle_ptr", "parent_handle")
+        unique_together = ("tenant", "parent_handle")
 
     xml_template = XMLTemplate(
         name       = "parent",
@@ -593,57 +578,13 @@ class Parent(Turtle):
 
     @property
     def rpki_root_cert(self):
-        try:
-            ca_detail = CADetail.objects.get(ca__turtle__root__parent = self, state = "active")
-        except (Root.DoesNotExist, CADetail.DoesNotExist):
-            return None
-        else:
-            return ca_detail.latest_ca_cert
-
-    @property
-    def root_asn_resources(self):
-        try:
-            return self.root.asn_resources
-        except Root.DoesNotExist:
-            return None
-
-    @root_asn_resources.setter
-    def root_asn_resources(self, value):
-        try:
-            self.root.asn_resources = value
-        except Root.DoesNotExist:
-            if value:
-                self.root = Root(asn_resources = value)
-
-    @property
-    def root_ipv4_resources(self):
-        try:
-            return self.root.ipv4_resources
-        except Root.DoesNotExist:
-            return None
-
-    @root_ipv4_resources.setter
-    def root_ipv4_resources(self, value):
-        try:
-            self.root.ipv4_resources = value
-        except Root.DoesNotExist:
-            if value:
-                self.root = Root(ipv4_resources = value)
-
-    @property
-    def root_ipv6_resources(self):
-        try:
-            return self.root.ipv6_resources
-        except Root.DoesNotExist:
-            return None
-
-    @root_ipv6_resources.setter
-    def root_ipv6_resources(self, value):
-        try:
-            self.root.ipv6_resources = value
-        except Root.DoesNotExist:
-            if value:
-                self.root = Root(ipv6_resources = value)
+        if self.root_asn_resources or self.root_ipv4_resources or self.root_ipv6_resources:
+            logger.debug("%r checking for rpki_root_cert", self)
+            try:
+                return CADetail.objects.get(ca__parent = self, state = "active").latest_ca_cert
+            except CADetail.DoesNotExist:
+                pass
+        return None
 
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):
@@ -653,13 +594,6 @@ class Parent(Turtle):
     @tornado.gen.coroutine
     def xml_post_save_hook(self, rpkid, q_pdu):
         trace_call_chain()
-        try:
-            self.root.tenant     = self.tenant
-            self.root.parent     = self
-            self.root.repository = self.repository
-            self.root.save()
-        except Root.DoesNotExist:
-            pass
         if q_pdu.get("clear_replay_protection"):
             self.clear_replay_protection()
         futures = []
@@ -750,7 +684,7 @@ class Parent(Turtle):
         trace_call_chain()
         skis_from_parent = yield self.get_skis(rpkid = rpkid)
         for rc_name, skis_to_revoke in skis_from_parent.iteritems():
-            for ca_detail in CADetail.objects.filter(ca__turtle = self).exclude(state = "revoked"):
+            for ca_detail in CADetail.objects.filter(ca__parent = self).exclude(state = "revoked"):
                 skis_to_revoke.discard(ca_detail.latest_ca_cert.gSKI())
             yield self.revoke_skis(rpkid, rc_name, skis_to_revoke)
 
@@ -787,18 +721,19 @@ class Parent(Turtle):
     def up_down_issue_query(self, rpkid, ca, ca_detail):
         trace_call_chain()
         logger.debug("Parent.up_down_issue_query(): caRepository %r rpkiManifest %r rpkiNotify %r",
-                     ca.sia_uri, ca_detail.manifest_uri, ca.turtle.repository.rrdp_notification_uri)
+                     ca.sia_uri, ca_detail.manifest_uri, ca.parent.repository.rrdp_notification_uri)
         pkcs10 = rpki.x509.PKCS10.create(
             keypair      = ca_detail.private_key_id,
             is_ca        = True,
             caRepository = ca.sia_uri,
             rpkiManifest = ca_detail.manifest_uri,
-            rpkiNotify   = ca.turtle.repository.rrdp_notification_uri)
+            rpkiNotify   = ca.parent.repository.rrdp_notification_uri)
         q_msg = self._compose_up_down_query("issue")
         q_pdu = SubElement(q_msg, rpki.up_down.tag_request, class_name = ca.parent_resource_class)
         q_pdu.text = pkcs10.get_Base64()
         r_msg = yield self.query_up_down(rpkid, q_msg)
         raise tornado.gen.Return(r_msg)
+
 
     @tornado.gen.coroutine
     def up_down_revoke_query(self, rpkid, class_name, ski):
@@ -812,7 +747,7 @@ class Parent(Turtle):
     @tornado.gen.coroutine
     def query_up_down(self, rpkid, q_msg):
         trace_call_chain()
-        if Root.objects.filter(parent = self).exists():
+        if self.root_asn_resources or self.root_ipv4_resources or self.root_ipv6_resources:
             r_msg = yield self.query_up_down_root(rpkid, q_msg)
             raise tornado.gen.Return(r_msg)
         if self.bsc is None:
@@ -840,15 +775,6 @@ class Parent(Turtle):
         rpki.up_down.check_response(r_msg, q_msg.get("type"))
         raise tornado.gen.Return(r_msg)
 
-    # Extracting TALs from a root is a little tricky.  If we're
-    # willing to have rpkic know how rpkid constructs things,
-    # rpkic can piece it together from the sia_base value it got
-    # back in the OOB protocol (which, hmm, is probably
-    # rsync-only, may need to revisit that) and knowing that the
-    # root certificate will be in the top-directory of that tree
-    # with a g(SKI).cer filename which it can calculate from the
-    # certificate.  rpkic probably needs to know some of this
-    # anyway if it's going to supply a https:// URI in the TAL.
 
     @tornado.gen.coroutine
     def query_up_down_root(self, rpkid, q_msg):
@@ -871,183 +797,122 @@ class Parent(Turtle):
         trace_call_chain()
         publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
 
+        #logger.debug("%r query_up_down_root(): %s", self, ElementToString(q_msg))
+
         r_msg = Element(rpki.up_down.tag_message,
                         nsmap     = rpki.up_down.nsmap,
                         version   = rpki.up_down.version,
                         sender    = self.recipient_name,
                         recipient = self.sender_name)
 
-        # CA.parent_resource_class, CA.sia_uri
-        # CADetail.private_key_id, CADetail.public_key,
-        # CADetail.latest_ca_cert, CADetail.state, CADetail.ca_cert_uri
-        #
-        # CA.sia_uri + gski + ".cer" == CADetail.ca_cert_uri
+        try:
 
-        if q_msg.get("type") == "revoke":
-            r_msg.set("type", "revoke_response")
-            try:
-                parent_ca_detail = CADetail.objects.get(
-                    ca__turtle                = self,
+            if q_msg.get("type") == "revoke":
+                ca_detail = CADetail.objects.get(
+                    ca__parent                = self,
                     state__in                 = ("active", "deprecated"),
                     ca__parent_resource_class = q_msg[0].get("class_name"),
                     ca_cert_uri__endswith     = q_msg[0].get("ski") + ".cer")
-                old_cert = parent_ca_detail.latest_ca_cert.certificate
-                old_uri  = parent_ca_detail.ca_cert_uri
-                root_ca_detail = CADetail.objects.get(
-                    ca__turtle = self.root,
-                    state      = "active")
-                RevokedCert.revoke(cert = old_cert, ca_detail = root_ca_detail)
-                publisher.queue(uri = old_uri, old_obj = old_cert, repository = self.repository)
-                root_ca_detail.generate_crl_and_manifest(publisher = publisher)
+                publisher.queue(
+                    uri        = ca_detail.ca_cert_uri,
+                    old_obj    = ca_detail.latest_ca_cert.certificate,
+                    repository = self.repository)
                 yield publisher.call_pubd()
+                r_msg.set("type", "revoke_response")
                 SubElement(r_msg, rpki.up_down.tag_key,
                            class_name = q_msg[0].get("class_name"),
                            ski        = q_msg[0].get("ski"))
-            except CA.DoesNotExist:
-                r_msg.set("type", "error_response")
-                SubElement(r_msg, rpki.up_down.tag_status).text = "1301"
-            except CADetail.DoesNotExist:
-                r_msg.set("type", "error_response")
-                SubElement(r_msg, rpki.up_down.tag_status).text = "1302"
-            except:
-                r_msg.set("type", "error_response")
-                SubElement(r_msg, rpki.up_down.tag_status).text = "2001"
-            raise tornado.gen.Return(r_msg)
 
-        # I can think of no sane reason why we would ever have more
-        # than one root CA here, so code for one.
+            else:               # Not revocation
 
-        try:
-            root_ca = self.root.cas.get()
+                notAfter = rpki.sundial.now() + rpki.sundial.timedelta.parse(
+                    rpkid.cfg.get("rpki-root-certificate-lifetime", "1y"))
 
-        except CA.DoesNotExist:
-            root_ca = CA.objects.create(
-                turtle                = self.root,
-                parent_resource_class = "root",
-                sia_uri               = self.sia_base + "root/")
-            logger.debug("%r query_up_down_root() created new  internal root CA %r", self, root_ca)
+                bag = rpki.resource_set.resource_bag(
+                    asn         = self.root_asn_resources,
+                    v4          = self.root_ipv4_resources,
+                    v6          = self.root_ipv6_resources,
+                    valid_until = notAfter)
 
-        try:
-            root_ca_detail = root_ca.ca_details.get(state = "active")
+                rc = SubElement(
+                    r_msg, rpki.up_down.tag_class,
+                    class_name            = self.parent_handle,
+                    cert_url              = self.sia_base + "root.cer",
+                    resource_set_as       = str(bag.asn),
+                    resource_set_ipv4     = str(bag.v4),
+                    resource_set_ipv6     = str(bag.v6),
+                    resource_set_notafter = str(bag.valid_until))
 
-        except CADetail.DoesNotExist:
-            root_ca_detail = root_ca.create_detail()
-            logger.debug("%r query_up_down_root() created internal root CADetail %r",
-                         self, root_ca_detail)
-            sia = (root_ca.sia_uri, root_ca_detail.manifest_uri,
-                   None, self.repository.rrdp_notification_uri)
-            notAfter = rpki.sundial.now() + rpki.sundial.timedelta.parse(
-                rpkid.cfg.get("rpki-root-certificate-lifetime", "1y"))
-            bag = rpki.resource_set.resource_bag(
-                asn         = self.root.asn_resources,
-                v4          = self.root.ipv4_resources,
-                v6          = self.root.ipv6_resources,
-                valid_until = notAfter)
-            root_cert = rpki.x509.X509.self_certify(
-                keypair     = root_ca_detail.private_key_id,
-                subject_key = root_ca_detail.public_key,
-                serial      = root_ca.next_serial_number(),
-                sia         = sia,
-                notAfter    = notAfter,
-                resources   = bag)
-            root_uri = self.sia_base + root_cert.gSKI() + ".cer"
-            publisher.queue(
-                uri        = root_uri,
-                new_obj    = root_cert,
-                repository = self.repository)
-            yield publisher.call_pubd()
-            yield root_ca_detail.activate(
-                rpkid = rpkid,
-                ca    = root_ca,
-                cert  = root_cert,
-                uri   = root_uri)
-            logger.debug("%r query_up_down_root() activated internal root CADetail %r",
-                         self, root_ca_detail)
+                if q_msg.get("type") == "list":
+                    r_msg.set("type", "list_response")
+                    for ca_detail in CADetail.objects.filter(
+                            ca__parent = self,
+                            state__in  = ("active", "deprecated"),
+                            ca__parent_resource_class = self.parent_handle):
+                        uri = self.sia_base + ca_detail.latest_ca_cert.gSKI() + ".cer"
+                        SubElement(rc, rpki.up_down.tag_certificate,
+                                   cert_url = uri).text = ca_detail.latest_ca_cert.get_Base64()
 
-        try:
-            bag = root_ca_detail.latest_ca_cert.get_3779resources()
-            rc = SubElement(
-                r_msg, rpki.up_down.tag_class,
-                class_name            = root_ca.parent_resource_class,
-                cert_url              = root_ca.ca_cert_uri,
-                resource_set_as       = str(bag.asn),
-                resource_set_ipv4     = str(bag.v4),
-                resource_set_ipv6     = str(bag.v6),
-                resource_set_notafter = str(bag.valid_until))
+                else:
+                    assert q_msg.get("type") == "issue"
+                    r_msg.set("type", "issue_response")
+                    pkcs10 = rpki.x509.PKCS10(Base64 = q_msg[0].text)
+                    pkcs10_key = pkcs10.getPublicKey()
+                    pkcs10_sia = pkcs10.get_SIA()
 
-            if q_msg.get("type") == rpki.up_down.tag_list:
-                r_msg.set("type", "list_response")
-                for parent_ca_detail in CADetail.objects.filter(
-                        ca__turtle = self,
-                        state__in  = ("active", "deprecated"),
-                        ca__parent_resource_class = root_ca.parent_resource_class):
-                    c = SubElement(rc, rpki.up_down.tag_certificate,
-                                   cert_url = parent_ca_detail.ca.ca_cert_uri)
-                    c.text = parent_ca_detail.latest_ca_cert.get_Base64()
+                    uri = self.sia_base + pkcs10_key.gSKI() + ".cer"
 
-            else:
-                assert q_msg.get("type") == "issue"
-                assert q_msg[0].get("class_name") == root_ca.parent_resource_class
-                r_msg.set("type", "issue_response")
-                pkcs10 = rpki.x509.PKCS10(Base64 = q_msg[0].text)
-                pkcs10_key = pkcs10.getPublicKey()
-                pkcs10_sia = pkcs10.get_SIA()
+                    ca_detail = CADetail.objects.get(
+                        ca__parent                = self,
+                        ca__parent_resource_class = q_msg[0].get("class_name"),
+                        state__in                 = ("pending", "active"))
 
-                # There are other reasons why we might want to regenerate, but
-                # for the moment just focus on changed PKCS #10 (key, SIA), assume
-                # something in rpkid_tasks will handle the rest.
-                try:
-                    parent_ca_detail = CADetail.objects.get(
-                        ca__turtle                = self,
-                        ca__parent_resource_class = root_ca.parent_resource_class,
-                        state                     = "active")
-                    parent_cert = parent_ca_detail.latest_ca_cert
-                    need_to_issue = (parent_ca_detail.public_key != pkcs10_key or
-                                     parent_cert.get_SIA() != pkcs10_sia)
-                except CADetail.DoesNotExist:
-                    parent_ca_detail = None
-                    need_to_issue = True
+                    threshold = rpki.sundial.now() + rpki.sundial.timedelta(
+                        seconds = self.tenant.regen_margin)
 
-                parent_uri = self.sia_base + "root"/ + pkcs10_key.gSKI() + ".cer"
+                    need_to_issue = (
+                        ca_detail.state                       == "pending"  or
+                        ca_detail.public_key                  != pkcs10_key or
+                        ca_detail.latest_ca_cert.get_SIA()    != pkcs10_sia or
+                        ca_detail.latest_ca_cert.getNotAfter() < threshold)
 
-                if need_to_issue:
-                    logger.debug("%r query_up_down_root() issuing new worker CADetail, old %r",
-                                 self, parent_ca_detail)
-                    parent_cert = root_ca_detail.latest_ca_cert.certificate.issue(
-                        keypair     = root_ca_detail.private_key_id,
-                        subject_key = pkcs10.key,
-                        serial      = root_ca.next_serial_number(),
-                        sia         = pkcs10_sia,
-                        notAfter    = bag.valid_until,
-                        resources   = bag)
-                    publisher.queue(
-                        uri        = parent_uri,
-                        new_obj    = parent_cert,
-                        repository = self.repository)
-                    nextUpdate = rpki.sundial.now() + rpki.sundial.timedelta(
-                        seconds = self.tenant.crl_interval)
-                    root_ca_detail.generate_crl_and_manifest(
-                        publisher  = publisher,
-                        nextUpdate = nextUpdate)
-                    yield publisher.call_pubd()
-                    logger.debug("%r query_up_down_root() issued new worker cert %r",
-                                 self, parent_cert)
+                    if need_to_issue:
+                        cert = rpki.x509.X509.self_certify(
+                            keypair     = ca_detail.private_key_id,
+                            subject_key = pkcs10_key,
+                            serial      = ca_detail.ca.next_serial_number(),
+                            sia         = pkcs10_sia,
+                            notAfter    = bag.valid_until,
+                            resources   = bag)
+                        publisher.queue(
+                            uri        = uri,
+                            new_obj    = cert,
+                            repository = self.repository)
+                        yield publisher.call_pubd()
+                        logger.debug("%r Internal root issued, old CADetail %r, new cert %r",
+                                     self, ca_detail, cert)
+                    else:
+                        cert = ca_detail.latest_ca_cert
 
-                SubElement(rc, rpki.up_down.tag_certificate,
-                           cert_url = parent_uri).text = parent_cert.get_Base64()
+                    SubElement(rc, rpki.up_down.tag_certificate,
+                               cert_url = uri).text = cert.get_Base64()
 
-            SubElement(rc, rpki.up_down.tag_issuer).text = root_ca_detail.latest_ca_cert.get_Base64()
-            raise tornado.gen.Return(r_msg)
+                SubElement(rc, rpki.up_down.tag_issuer)
 
         except tornado.gen.Return:
             raise
 
         except:
+            logger.exception("%r Up-down %s query to internal root failed:",
+                             self, q_msg.get("type"))
             del r_msg[:]
             r_msg.set("type", "error_response")
             SubElement(r_msg, rpki.up_down.tag_status).text = "2001"
 
+        #logger.debug("%r query_up_down_root(): %s", self, ElementToString(r_msg))
+
         raise tornado.gen.Return(r_msg)
+
 
     def construct_sia_uri(self, rc):
         """
@@ -1065,25 +930,12 @@ class Parent(Turtle):
         return sia_uri
 
 
-class Root(Turtle):
-    asn_resources = models.TextField()
-    ipv4_resources = models.TextField()
-    ipv6_resources = models.TextField()
-    parent = models.OneToOneField(Parent)
-
-    def __repr__(self):
-        try:
-            return "<Root: {!r}>".format(self.parent)
-        except:
-            return "<Root: Root object>"
-
-
 class CA(models.Model):
     last_crl_manifest_number = models.BigIntegerField(default = 1)
     last_issued_sn = models.BigIntegerField(default = 1)
     sia_uri = models.TextField(null = True)
     parent_resource_class = models.TextField(null = True) # Not sure this should allow NULL
-    turtle = models.ForeignKey(Turtle, related_name = "cas")
+    parent = models.ForeignKey(Parent, related_name = "cas")
 
     # So it turns out that there's always a 1:1 mapping between the
     # class_name we receive from our parent and the class_name we issue
@@ -1098,8 +950,8 @@ class CA(models.Model):
 
     def __repr__(self):
         try:
-            return "<CA: {}.{} class {}>".format(self.turtle.tenant.tenant_handle,
-                                                 self.turtle.turtle_handle,
+            return "<CA: {}.{} class {}>".format(self.parent.tenant.tenant_handle,
+                                                 self.parent.parent_handle,
                                                  self.parent_resource_class)
         except:
             return "<CA: CA object>"
@@ -1185,8 +1037,8 @@ class CA(models.Model):
         except CADetail.DoesNotExist:
             old_detail = None
         new_detail = self.create_detail()
-        logger.debug("Sending issue request to %r from %r", self.turtle.parent, self.rekey)
-        r_msg = yield self.turtle.parent.up_down_issue_query(rpkid = rpkid, ca = self, ca_detail = new_detail)
+        logger.debug("Sending issue request to %r from %r", self.parent, self.rekey)
+        r_msg = yield self.parent.up_down_issue_query(rpkid = rpkid, ca = self, ca_detail = new_detail)
         c = r_msg[0][0]
         logger.debug("%r received certificate %s", self, c.get("cert_url"))
         yield new_detail.activate(
@@ -1224,7 +1076,7 @@ class CA(models.Model):
 
             gski = ca_detail.latest_ca_cert.gSKI()
             logger.debug("Asking parent to revoke CA certificate matching g(SKI) = %s", gski)
-            r_msg = yield self.turtle.parent.up_down_revoke_query(rpkid = rpkid, class_name = self.parent_resource_class, ski = gski)
+            r_msg = yield self.parent.up_down_revoke_query(rpkid = rpkid, class_name = self.parent_resource_class, ski = gski)
             if r_msg[0].get("class_name") != self.parent_resource_class:
                 raise rpki.exceptions.ResourceClassMismatch
             if r_msg[0].get("ski") != gski:
@@ -1249,7 +1101,7 @@ class CA(models.Model):
             for eecert in ca_detail.ee_certificates.all():
                 nextUpdate = nextUpdate.later(eecert.cert.getNotAfter())
                 eecert.revoke(publisher = publisher)
-            nextUpdate += rpki.sundial.timedelta(seconds = self.turtle.tenant.crl_interval)
+            nextUpdate += rpki.sundial.timedelta(seconds = self.parent.tenant.crl_interval)
 
             ca_detail.generate_crl_and_manifest(publisher = publisher, nextUpdate = nextUpdate)
             ca_detail.private_key_id = None
@@ -1290,8 +1142,8 @@ class CADetail(models.Model):
 
     def __repr__(self):
         try:
-            return "<CADetail: {}.{} class {} {} {}>".format(self.ca.turtle.tenant.tenant_handle,
-                                                             self.ca.turtle.turtle_handle,
+            return "<CADetail: {}.{} class {} {} {}>".format(self.ca.parent.tenant.tenant_handle,
+                                                             self.ca.parent.parent_handle,
                                                              self.ca.parent_resource_class,
                                                              self.state,
                                                              self.ca_cert_uri)
@@ -1385,7 +1237,7 @@ class CADetail(models.Model):
         """
 
         trace_call_chain()
-        repository = self.ca.turtle.repository
+        repository = self.ca.parent.repository
         handler = False if allow_failure else None
         for child_cert in self.child_certs.all():
             publisher.queue(uri = child_cert.uri, old_obj = child_cert.cert, repository = repository, handler = handler)
@@ -1519,7 +1371,7 @@ class CADetail(models.Model):
             uri        = child_cert.uri,
             old_obj    = old_cert,
             new_obj    = child_cert.cert,
-            repository = ca.turtle.repository,
+            repository = ca.parent.repository,
             handler    = child_cert.published_callback)
         self.generate_crl_and_manifest(publisher = publisher)
         return child_cert
@@ -1540,7 +1392,7 @@ class CADetail(models.Model):
 
         self.check_failed_publication(publisher)
 
-        crl_interval = rpki.sundial.timedelta(seconds = self.ca.turtle.tenant.crl_interval)
+        crl_interval = rpki.sundial.timedelta(seconds = self.ca.parent.tenant.crl_interval)
         now = rpki.sundial.now()
         if nextUpdate is None:
             nextUpdate = now + crl_interval
@@ -1556,7 +1408,7 @@ class CADetail(models.Model):
             ca          = self.ca,
             resources   = rpki.resource_set.resource_bag.from_inheritance(),
             subject_key = self.manifest_public_key,
-            sia         = (None, None, manifest_uri, self.ca.turtle.repository.rrdp_notification_uri),
+            sia         = (None, None, manifest_uri, self.ca.parent.repository.rrdp_notification_uri),
             notBefore   = now)
 
         certlist = []
@@ -1604,14 +1456,14 @@ class CADetail(models.Model):
             uri        = crl_uri,
             old_obj    = old_crl,
             new_obj    = self.latest_crl,
-            repository = self.ca.turtle.repository,
+            repository = self.ca.parent.repository,
             handler    = self.crl_published_callback)
 
         publisher.queue(
             uri        = manifest_uri,
             old_obj    = old_manifest,
             new_obj    = self.latest_manifest,
-            repository = self.ca.turtle.repository,
+            repository = self.ca.parent.repository,
             handler    = self.manifest_published_callback)
 
 
@@ -1688,7 +1540,7 @@ class CADetail(models.Model):
         logger.debug("Checking for failed publication for %r", self)
 
         stale = rpki.sundial.now() - rpki.sundial.timedelta(seconds = 60)
-        repository = self.ca.turtle.repository
+        repository = self.ca.parent.repository
         if self.latest_crl is not None and self.crl_published is not None and self.crl_published < stale:
             logger.debug("Retrying publication for %s", self.crl_uri)
             publisher.queue(uri = self.crl_uri,
@@ -1802,7 +1654,7 @@ class Child(models.Model):
         if irdb_resources.valid_until < rpki.sundial.now():
             logger.debug("Child %s's resources expired %s", self.child_handle, irdb_resources.valid_until)
         else:
-            for ca_detail in CADetail.objects.filter(ca__turtle__tenant = self.tenant, state = "active"):
+            for ca_detail in CADetail.objects.filter(ca__parent__tenant = self.tenant, state = "active"):
                 resources = ca_detail.latest_ca_cert.get_3779resources() & irdb_resources
                 if resources.empty():
                     logger.debug("No overlap between received resources and what child %s should get ([%s], [%s])",
@@ -1839,7 +1691,7 @@ class Child(models.Model):
         class_name = req.get("class_name")
         pkcs10 = rpki.x509.PKCS10(Base64 = req.text)
         pkcs10.check_valid_request_ca()
-        ca_detail = CADetail.objects.get(ca__turtle__tenant = self.tenant,
+        ca_detail = CADetail.objects.get(ca__parent__tenant = self.tenant,
                                          ca__parent_resource_class = class_name,
                                          state = "active")
 
@@ -1900,7 +1752,7 @@ class Child(models.Model):
         class_name = key.get("class_name")
         publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
         ca_details = set()
-        for child_cert in ChildCert.objects.filter(ca_detail__ca__turtle__tenant = self.tenant,
+        for child_cert in ChildCert.objects.filter(ca_detail__ca__parent__tenant = self.tenant,
                                                    ca_detail__ca__parent_resource_class = class_name,
                                                    gski = key.get("ski")):
             ca_details.add(child_cert.ca_detail)
@@ -1989,7 +1841,7 @@ class ChildCert(models.Model):
         ca_detail = self.ca_detail
         logger.debug("Revoking %r", self)
         RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
-        publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.turtle.repository)
+        publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.parent.repository)
         self.delete()
 
 
@@ -2115,7 +1967,7 @@ class EECertificate(models.Model):
         ca_detail = self.ca_detail
         logger.debug("Revoking %r", self)
         RevokedCert.revoke(cert = self.cert, ca_detail = ca_detail)
-        publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.turtle.repository)
+        publisher.queue(uri = self.uri, old_obj = self.cert, repository = ca_detail.ca.parent.repository)
         self.delete()
 
 
@@ -2177,7 +2029,7 @@ class EECertificate(models.Model):
             uri        = self.uri,
             old_obj    = old_cert,
             new_obj    = self.cert,
-            repository = ca_detail.ca.turtle.repository,
+            repository = ca_detail.ca.parent.repository,
             handler    = self.published_callback)
         if must_revoke:
             RevokedCert.revoke(cert = old_cert.cert, ca_detail = old_ca_detail)
@@ -2256,7 +2108,7 @@ class Ghostbuster(models.Model):
             resources   = resources,
             subject_key = keypair.get_public(),
             sia         = (None, None, self.uri_from_key(keypair),
-                           self.ca_detail.ca.turtle.repository.rrdp_notification_uri))
+                           self.ca_detail.ca.parent.repository.rrdp_notification_uri))
         self.ghostbuster = rpki.x509.Ghostbuster.build(self.vcard, keypair, (self.cert,))
         self.published = rpki.sundial.now()
         self.save()
@@ -2264,7 +2116,7 @@ class Ghostbuster(models.Model):
         publisher.queue(
             uri        = self.uri,
             new_obj    = self.ghostbuster,
-            repository = self.ca_detail.ca.turtle.repository,
+            repository = self.ca_detail.ca.parent.repository,
             handler    = self.published_callback)
 
 
@@ -2304,7 +2156,7 @@ class Ghostbuster(models.Model):
         publisher.queue(
             uri        = old_uri,
             old_obj    = old_obj,
-            repository = old_ca_detail.ca.turtle.repository,
+            repository = old_ca_detail.ca.parent.repository,
             handler    = False if allow_failure else None)
         if not regenerate:
             self.delete()
@@ -2359,8 +2211,8 @@ class RevokedCert(models.Model):
     def __repr__(self):
         try:
             return "<RevokedCert: {}.{} class {} {} serial {} revoked {} expires {}>".format(
-                self.ca_detail.ca.turtle.tenant.tenant_handle,
-                self.ca_detail.ca.turtle.turtle_handle,
+                self.ca_detail.ca.parent.tenant.tenant_handle,
+                self.ca_detail.ca.parent.parent_handle,
                 self.ca_detail.ca.parent_resource_class,
                 self.ca_detail.crl_uri,
                 self.serial,
@@ -2494,7 +2346,7 @@ class ROA(models.Model):
             logger.debug("Keeping old ca_detail %r for ROA %r", ca_detail, self)
         else:
             logger.debug("Searching for new ca_detail for ROA %r", self)
-            for ca_detail in CADetail.objects.filter(ca__turtle__tenant = self.tenant, state = "active"):
+            for ca_detail in CADetail.objects.filter(ca__parent__tenant = self.tenant, state = "active"):
                 resources = ca_detail.latest_ca_cert.get_3779resources()
                 if not ca_detail.has_expired() and v4.issubset(resources.v4) and v6.issubset(resources.v6):
                     logger.debug("Using %r for ROA %r", ca_detail, self)
@@ -2511,7 +2363,7 @@ class ROA(models.Model):
             resources   = resources,
             subject_key = keypair.get_public(),
             sia         = (None, None, self.uri_from_key(keypair),
-                           self.ca_detail.ca.turtle.repository.rrdp_notification_uri))
+                           self.ca_detail.ca.parent.repository.rrdp_notification_uri))
         self.roa = rpki.x509.ROA.build(self.asn,
                                        rpki.resource_set.roa_prefix_set_ipv4(self.ipv4),
                                        rpki.resource_set.roa_prefix_set_ipv6(self.ipv6),
@@ -2522,7 +2374,7 @@ class ROA(models.Model):
 
         logger.debug("Generating %r", self)
         publisher.queue(uri = self.uri, new_obj = self.roa,
-                        repository = self.ca_detail.ca.turtle.repository,
+                        repository = self.ca_detail.ca.parent.repository,
                         handler = self.published_callback)
 
 
@@ -2562,7 +2414,7 @@ class ROA(models.Model):
         publisher.queue(
             uri        = old_uri,
             old_obj    = old_obj,
-            repository = old_ca_detail.ca.turtle.repository,
+            repository = old_ca_detail.ca.parent.repository,
             handler    = False if allow_failure else None)
         if not regenerate:
             self.delete()

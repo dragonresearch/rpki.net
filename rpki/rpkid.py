@@ -471,7 +471,7 @@ class main(object):
         if msg_tag is not None:
             kw.update(tag = msg_tag)
 
-        for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__turtle__tenant__tenant_handle = tenant_handle, state = "active"):
+        for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__tenant__tenant_handle = tenant_handle, state = "active"):
             SubElement(r_msg, rpki.left_right.tag_list_published_objects,
                        uri = ca_detail.crl_uri, **kw).text = ca_detail.latest_crl.get_Base64()
             SubElement(r_msg, rpki.left_right.tag_list_published_objects,
@@ -497,13 +497,13 @@ class main(object):
         logger.debug(".handle_list_received_resources() %s", ElementToString(q_pdu))
         tenant_handle = q_pdu.get("tenant_handle")
         msg_tag       = q_pdu.get("tag")
-        for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__turtle__tenant__tenant_handle = tenant_handle,
+        for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__tenant__tenant_handle = tenant_handle,
                                                                     state = "active", latest_ca_cert__isnull = False):
             cert      = ca_detail.latest_ca_cert
             resources = cert.get_3779resources()
             r_pdu = SubElement(r_msg, rpki.left_right.tag_list_received_resources,
                                tenant_handle      = tenant_handle,
-                               parent_handle      = ca_detail.ca.turtle.parent.parent_handle,
+                               parent_handle      = ca_detail.ca.parent.parent_handle,
                                uri                = ca_detail.ca_cert_uri,
                                notBefore          = str(cert.getNotBefore()),
                                notAfter           = str(cert.getNotAfter()),
@@ -751,7 +751,7 @@ class publication_queue(object):
 
         our_objs = []
         for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(
-                ca__turtle__tenant = repository.tenant, state = "active"):
+                ca__parent__tenant = repository.tenant, state = "active"):
             our_objs = [(ca_detail.crl_uri,      ca_detail.latest_crl),
                         (ca_detail.manifest_uri, ca_detail.latest_manifest)]
             our_objs.extend((c.uri, c.cert)      for c in ca_detail.child_certs.all())

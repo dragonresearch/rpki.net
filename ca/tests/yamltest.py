@@ -244,9 +244,9 @@ class allocation(object):
         if valid_until is None and "valid_for" in yaml:
             valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(yaml["valid_for"])
         self.base = rpki.resource_set.resource_bag(
-            asn = rpki.resource_set.resource_set_as(yaml.get("asn")),
-            v4 = rpki.resource_set.resource_set_ipv4(yaml.get("ipv4")),
-            v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")),
+            asn         = str(yaml.get("asn", "")),
+            v4          = yaml.get("ipv4"),
+            v6          = yaml.get("ipv6"),
             valid_until = valid_until)
         if "crl_interval" in yaml:
             self.crl_interval = rpki.sundial.timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
@@ -788,9 +788,9 @@ def create_root_certificate(db_root):
     print "Creating rootd RPKI root certificate"
 
     root_resources = rpki.resource_set.resource_bag(
-        asn = rpki.resource_set.resource_set_as("0-4294967295"),
-        v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
-        v6  = rpki.resource_set.resource_set_ipv6("::/0"))
+        asn = "0-4294967295",
+        v4  = "0.0.0.0/0",
+        v6  = "::/0")
 
     root_key = rpki.x509.RSA.generate(quiet = True)
 

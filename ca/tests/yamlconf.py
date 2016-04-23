@@ -218,9 +218,9 @@ class allocation(object):
         if valid_until is None and "valid_for" in y:
             valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(y["valid_for"])
         self.base = rpki.resource_set.resource_bag(
-            asn = rpki.resource_set.resource_set_as(y.get("asn")),
-            v4 = rpki.resource_set.resource_set_ipv4(y.get("ipv4")),
-            v6 = rpki.resource_set.resource_set_ipv6(y.get("ipv6")),
+            asn = str(y.get("asn", "")),
+            v4 =  y.get("ipv4"),
+            v6 =  y.get("ipv6"),
           valid_until = valid_until)
         if "crl_interval" in y:
             self.crl_interval = rpki.sundial.timedelta.parse(y["crl_interval"]).convert_to_seconds()
@@ -514,9 +514,9 @@ class allocation(object):
         assert self.is_root and not self.is_hosted
 
         root_resources = rpki.resource_set.resource_bag(
-            asn = rpki.resource_set.resource_set_as("0-4294967295"),
-            v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
-            v6  = rpki.resource_set.resource_set_ipv6("::/0"))
+            asn = "0-4294967295",
+            v4  = "0.0.0.0/0",
+            v6  = "::/0")
 
         root_key = rpki.x509.RSA.generate(quiet = True)
 

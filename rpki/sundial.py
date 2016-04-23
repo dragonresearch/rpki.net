@@ -235,7 +235,7 @@ class timedelta(pydatetime.timedelta):
         Parse text into a timedelta object.
         """
 
-        if not isinstance(arg, str):
+        if not isinstance(arg, (str, unicode)):
             return cls(seconds = arg)
         elif arg.isdigit():
             return cls(seconds = int(arg))

@@ -349,16 +349,19 @@ class main(object):
             q_msg = q_cms.unwrap((self.bpki_ta, self.child_bpki_cert))
             q_type = q_msg.get("type")
             logger.info("Serving %s query", q_type)
-            r_msg = Element(rpki.up_down.tag_message, nsmap = rpki.up_down.nsmap, version = rpki.up_down.version,
-                            sender  = q_msg.get("recipient"), recipient = q_msg.get("sender"), type = q_type + "_response")
+            r_msg = Element(rpki.up_down.tag_message, nsmap = rpki.up_down.nsmap,
+                            version = rpki.up_down.version,
+                            sender  = q_msg.get("recipient"), recipient = q_msg.get("sender"),
+                            type = q_type + "_response")
             try:
                 self.rpkid_cms_timestamp = q_cms.check_replay(self.rpkid_cms_timestamp, request.path)
                 getattr(self, "handle_" + q_type)(q_msg, r_msg)
             except Exception, e:
                 logger.exception("Exception processing up-down %s message", q_type)
                 rpki.up_down.generate_error_response_from_exception(r_msg, e, q_type)
-            request.send_cms_response(rpki.up_down.cms_msg().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert,
-                                                                  self.rootd_bpki_crl if self.include_bpki_crl else None))
+            request.send_cms_response(rpki.up_down.cms_msg().wrap(
+                r_msg, self.rootd_bpki_key, self.rootd_bpki_cert,
+                self.rootd_bpki_crl if self.include_bpki_crl else None))
         except Exception, e:
             logger.exception("Unhandled exception processing up-down message")
             request.send_error(500, "Unhandled exception %s: %s" % (e.__class__.__name__, e))

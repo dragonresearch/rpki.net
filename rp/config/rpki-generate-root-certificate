@@ -37,9 +37,9 @@ cfg.argparser.add_argument("--tal",         help = "TAL file",         default =
 args = cfg.argparser.parse_args()
 
 resources = rpki.resource_set.resource_bag(
-  asn = rpki.resource_set.resource_set_as(args.asns),
-  v4  = rpki.resource_set.resource_set_ipv4(args.ipv4),
-  v6  = rpki.resource_set.resource_set_ipv6(args.ipv6))
+  asn = args.asns,
+  v4  = args.ipv4,
+  v6  = args.ipv6)
 
 keypair = rpki.x509.RSA.generate(quiet = True)
 

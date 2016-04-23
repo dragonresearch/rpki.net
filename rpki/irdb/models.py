@@ -452,24 +452,11 @@ class Parent(CrossCertification, Turtle):
     repository_type = EnumField(choices = ("none", "offer", "referral"))
     referrer = HandleField(null = True, blank = True)
     referral_authorization = SignedReferralField(null = True, blank = True)
+    asn_resources = django.db.models.TextField(blank = True)  # root only
+    ipv4_resources = django.db.models.TextField(blank = True) # root only
+    ipv6_resources = django.db.models.TextField(blank = True) # root only
 
     # This shouldn't be necessary
-    class Meta:
-        unique_together = ("issuer", "handle")
-
-class Root(CrossCertification, Turtle):
-    #
-    # This is sort of a cross between a Rootd and a Parent with extra
-    # fields for the root resources.  As with Parent, the private key
-    # comes from a BSC rather than from a server EE cert as with
-    # Rootd, so this looks looks to us like a cross certification (of
-    # ourself).  We may want to revisit this.
-    #
-    issuer = django.db.models.OneToOneField(ResourceHolderCA, related_name = "root")
-    asn_resources = django.db.models.TextField()
-    ipv4_resources = django.db.models.TextField()
-    ipv6_resources = django.db.models.TextField()
-
     class Meta:
         unique_together = ("issuer", "handle")
 

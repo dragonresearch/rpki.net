@@ -368,34 +368,23 @@ class Zookeeper(object):
     def configure_root(self, handle, resources):
 
         # XXX This should be some other exception, not an assertion
-        assert self.run_rpkid and self.run_pubd and self.run_rootd
+        assert self.run_rpkid and self.run_pubd
 
-        rpki.irdb.models.Rootd.objects.get_or_certify(
-            issuer      = self.resource_ca,
-            service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port",
-                                                                section = myrpki_section))
+        if not handle:
+            handle = self.handle
 
-        rpki.irdb.models.Root.objects.get_or_certify(
-            handle         = handle or self.handle,
-            issuer         = self.resource_ca,
-            ta             = self.resource_ca.certificate,
-            asn_resources  = str(resources.asn),
-            ipv4_resources = str(resources.v4),
-            ipv6_resources = str(resources.v6))
+        parent = rpki.irdb.models.Parent.objects.get_or_certify(
+            issuer          = self.resource_ca,
+            handle          = handle,
+            parent_handle   = handle,
+            child_handle    = handle,
+            ta              = self.resource_ca.certificate,
+            repository_type = "none",
+            asn_resources   = str(resources.asn),
+            ipv4_resources  = str(resources.v4),
+            ipv6_resources  = str(resources.v6))[0]
 
-        return self.generate_root_repository_offer()
-
-
-    def generate_root_repository_offer(self):
-        """
-        Generate repository offer for rootd.  Split out of
-        configure_rootd() because that's easier for the GUI.
-        """
-
-        e = Element(tag_oob_publisher_request, nsmap = oob_nsmap, version = oob_version,
-                    publisher_handle = self.handle)
-        B64Element(e, tag_oob_publisher_bpki_ta, self.resource_ca.certificate)
-        return etree_wrapper(e, msg = 'This is the "repository offer" file for you to use if you want to publish in your own repository')
+        return self.generate_repository_request(parent)
 
 
     def write_bpki_files(self):
@@ -1341,7 +1330,9 @@ class Zookeeper(object):
         # might make a case for a day instead, but we've been running with
         # six hours for a while now and haven't seen a lot of whining.
 
-        tenant_crl_interval = self.cfg.getint("tenant_crl_interval", 6 * 60 * 60, section = myrpki_section)
+        tenant_crl_interval = self.cfg.getint("tenant_crl_interval",
+                                              6 * 60 * 60,
+                                              section = myrpki_section)
 
         # regen_margin now just controls how long before RPKI certificate
         # expiration we should regenerate; it used to control the interval
@@ -1353,7 +1344,9 @@ class Zookeeper(object):
         # that this will regenerate certificates just *before* the
         # companion cron job warns of impending doom.
 
-        tenant_regen_margin = self.cfg.getint("tenant_regen_margin", 14 * 24 * 60 * 60 + 2 * 60, section = myrpki_section)
+        tenant_regen_margin = self.cfg.getint("tenant_regen_margin",
+                                              14 * 24 * 60 * 60 + 2 * 60,
+                                              section = myrpki_section)
 
         # See what rpkid already has on file for this entity.
 
@@ -1390,7 +1383,8 @@ class Zookeeper(object):
         if (tenant_pdu is None or
             tenant_pdu.get("crl_interval") != str(tenant_crl_interval) or
             tenant_pdu.get("regen_margin") != str(tenant_regen_margin) or
-            tenant_pdu.findtext(rpki.left_right.tag_bpki_cert, "").decode("base64") != tenant_cert.certificate.get_DER()):
+            tenant_pdu.findtext(rpki.left_right.tag_bpki_cert,
+                                "").decode("base64") != tenant_cert.certificate.get_DER()):
             q_pdu = SubElement(q_msg, rpki.left_right.tag_tenant,
                                action = "create" if tenant_pdu is None else "set",
                                tag = "tenant",
@@ -1422,7 +1416,8 @@ class Zookeeper(object):
         # can finish setting up the BSC before anything tries to use it.
 
         if len(q_msg) > 0:
-            SubElement(q_msg, rpki.left_right.tag_bsc, action = "list", tag = "bsc", tenant_handle = ca.handle)
+            SubElement(q_msg, rpki.left_right.tag_bsc,
+                       action = "list", tag = "bsc", tenant_handle = ca.handle)
             r_msg = self.call_rpkid(q_msg)
             bsc_pdus = dict((r_pdu.get("bsc_handle"), r_pdu)
                             for r_pdu in r_msg.getiterator(rpki.left_right.tag_bsc)
@@ -1439,8 +1434,10 @@ class Zookeeper(object):
             handle = bsc_handle,
             pkcs10 = rpki.x509.PKCS10(Base64 = bsc_pkcs10.text))[0]
 
-        if (bsc_pdu.findtext(rpki.left_right.tag_signing_cert,     "").decode("base64") != bsc.certificate.get_DER() or
-            bsc_pdu.findtext(rpki.left_right.tag_signing_cert_crl, "").decode("base64") != ca.latest_crl.get_DER()):
+        if (bsc_pdu.findtext(rpki.left_right.tag_signing_cert,
+                             "").decode("base64") != bsc.certificate.get_DER() or
+            bsc_pdu.findtext(rpki.left_right.tag_signing_cert_crl,
+                             "").decode("base64") != ca.latest_crl.get_DER()):
             q_pdu = SubElement(q_msg, rpki.left_right.tag_bsc,
                                action = "set",
                                tag = "bsc",
@@ -1463,7 +1460,8 @@ class Zookeeper(object):
                 repository_pdu.get("bsc_handle") != bsc_handle or
                 repository_pdu.get("peer_contact_uri") != repository.service_uri or
                 repository_pdu.get("rrdp_notification_uri") != repository.rrdp_notification_uri or
-                repository_pdu.findtext(rpki.left_right.tag_bpki_cert, "").decode("base64") != repository.certificate.get_DER()):
+                repository_pdu.findtext(rpki.left_right.tag_bpki_cert,
+                                        "").decode("base64") != repository.certificate.get_DER()):
                 q_pdu = SubElement(q_msg, rpki.left_right.tag_repository,
                                    action = "create" if repository_pdu is None else "set",
                                    tag = repository.handle,
@@ -1473,7 +1471,8 @@ class Zookeeper(object):
                                    peer_contact_uri = repository.service_uri)
                 if repository.rrdp_notification_uri:
                     q_pdu.set("rrdp_notification_uri", repository.rrdp_notification_uri)
-                SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = repository.certificate.get_Base64()
+                SubElement(q_pdu,
+                           rpki.left_right.tag_bpki_cert).text = repository.certificate.get_Base64()
 
         for repository_handle in repository_pdus:
             SubElement(q_msg, rpki.left_right.tag_repository, action = "destroy",
@@ -1499,7 +1498,11 @@ class Zookeeper(object):
                     parent_pdu.get("sia_base") != parent.repository.sia_base or
                     parent_pdu.get("sender_name") != parent.child_handle or
                     parent_pdu.get("recipient_name") != parent.parent_handle or
-                    parent_pdu.findtext(rpki.left_right.tag_bpki_cert, "").decode("base64") != parent.certificate.get_DER()):
+                    parent_pdu.get("root_asn_resources", "") != parent.asn_resources or
+                    parent_pdu.get("root_ipv4_resources", "") != parent.ipv4_resources or
+                    parent_pdu.get("root_ipv6_resources", "") != parent.ipv6_resources or
+                    parent_pdu.findtext(rpki.left_right.tag_bpki_cert,
+                                        "").decode("base64") != parent.certificate.get_DER()):
                     q_pdu = SubElement(q_msg, rpki.left_right.tag_parent,
                                        action = "create" if parent_pdu is None else "set",
                                        tag = parent.handle,
@@ -1510,14 +1513,17 @@ class Zookeeper(object):
                                        peer_contact_uri = parent.service_uri,
                                        sia_base = parent.repository.sia_base,
                                        sender_name = parent.child_handle,
-                                       recipient_name = parent.parent_handle)
-                    SubElement(q_pdu, rpki.left_right.tag_bpki_cert).text = parent.certificate.get_Base64()
+                                       recipient_name = parent.parent_handle,
+                                       root_asn_resources = parent.asn_resources,
+                                       root_ipv4_resources = parent.ipv4_resources,
+                                       root_ipv6_resources = parent.ipv6_resources)
+                    SubElement(q_pdu,
+                               rpki.left_right.tag_bpki_cert).text = parent.certificate.get_Base64()
 
             except rpki.irdb.models.Repository.DoesNotExist:
                 pass
 
         try:
-
             parent_pdu = parent_pdus.pop(ca.handle, None)
 
             if (parent_pdu is None or

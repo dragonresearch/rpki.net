@@ -644,6 +644,14 @@ class resource_bag(object):
     # Expiration date of resources, for setting certificate notAfter field.
 
     def __init__(self, asn = None, v4 = None, v6 = None, valid_until = None):
+        if isinstance(asn, (str, unicode)):
+            asn = resource_set_as(asn)
+        if isinstance(v4, (str, unicode)):
+            v4  = resource_set_ipv4(v4)
+        if isinstance(v6, (str, unicode)):
+            v6  = resource_set_ipv6(v6)
+        if isinstance(valid_until, (str, unicode)):
+            valid_until = rpki.sundial.datetime.fromXMLtime(valid_until)
         self.asn = asn or resource_set_as()
         self.v4 = v4 or resource_set_ipv4()
         self.v6 = v6 or resource_set_ipv6()

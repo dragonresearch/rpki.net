@@ -2,8 +2,6 @@
 from __future__ import unicode_literals
 
 from django.db import migrations, models
-import rpki.irdb.models
-import rpki.fields
 
 
 class Migration(migrations.Migration):
@@ -13,22 +11,19 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='Root',
-            fields=[
-                ('turtle_ptr', models.OneToOneField(parent_link=True, auto_created=True, primary_key=True, serialize=False, to='irdb.Turtle')),
-                ('certificate', rpki.fields.CertificateField()),
-                ('handle', rpki.irdb.models.HandleField(max_length=120)),
-                ('ta', rpki.fields.CertificateField()),
-                ('asn_resources', models.TextField()),
-                ('ipv4_resources', models.TextField()),
-                ('ipv6_resources', models.TextField()),
-                ('issuer', models.OneToOneField(related_name='root', to='irdb.ResourceHolderCA')),
-            ],
-            bases=('irdb.turtle', models.Model),
+        migrations.AddField(
+            model_name='parent',
+            name='asn_resources',
+            field=models.TextField(blank=True),
         ),
-        migrations.AlterUniqueTogether(
-            name='root',
-            unique_together=set([('issuer', 'handle')]),
+        migrations.AddField(
+            model_name='parent',
+            name='ipv4_resources',
+            field=models.TextField(blank=True),
+        ),
+        migrations.AddField(
+            model_name='parent',
+            name='ipv6_resources',
+            field=models.TextField(blank=True),
         ),
     ]

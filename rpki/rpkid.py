@@ -371,10 +371,10 @@ class main(object):
         if len(r_msg) != len(q_msg):
             raise rpki.exceptions.BadIRDBReply("Expected IRDB response to be same length as query: %s" % r_msg.pretty_print_content())
 
-        bags = [rpki.resource_set.resource_bag(asn         = rpki.resource_set.resource_set_as(r_pdu.get("asn")),
-                                               v4          = rpki.resource_set.resource_set_ipv4(r_pdu.get("ipv4")),
-                                               v6          = rpki.resource_set.resource_set_ipv6(r_pdu.get("ipv6")),
-                                               valid_until = rpki.sundial.datetime.fromXMLtime(r_pdu.get("valid_until")))
+        bags = [rpki.resource_set.resource_bag(asn         = r_pdu.get("asn"),
+                                               v4          = r_pdu.get("ipv4"),
+                                               v6          = r_pdu.get("ipv6"),
+                                               valid_until = r_pdu.get("valid_until"))
                 for r_pdu in r_msg]
 
         raise tornado.gen.Return(bags)

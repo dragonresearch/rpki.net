@@ -209,10 +209,10 @@ class PollParentTask(AbstractTask):
             ca.sia_uri = sia_uri
 
         rc_resources = rpki.resource_set.resource_bag(
-            rc.get("resource_set_as"),
-            rc.get("resource_set_ipv4"),
-            rc.get("resource_set_ipv6"),
-            rc.get("resource_set_notafter"))
+            asn         = rc.get("resource_set_as"),
+            v4          = rc.get("resource_set_ipv4"),
+            v6          = rc.get("resource_set_ipv6"),
+            valid_until = rc.get("resource_set_notafter"))
 
         cert_map = {}
 
@@ -554,10 +554,10 @@ class UpdateEECertificatesTask(AbstractTask):
                 ees = existing.pop(gski, ())
 
                 resources = rpki.resource_set.resource_bag(
-                    asn         = rpki.resource_set.resource_set_as(r_pdu.get("asn")),
-                    v4          = rpki.resource_set.resource_set_ipv4(r_pdu.get("ipv4")),
-                    v6          = rpki.resource_set.resource_set_ipv6(r_pdu.get("ipv6")),
-                    valid_until = rpki.sundial.datetime.fromXMLtime(r_pdu.get("valid_until")))
+                    asn         = r_pdu.get("asn"),
+                    v4          = r_pdu.get("ipv4"),
+                    v6          = r_pdu.get("ipv6"),
+                    valid_until = r_pdu.get("valid_until"))
                 covering = self.tenant.find_covering_ca_details(resources)
                 ca_details.update(covering)
 

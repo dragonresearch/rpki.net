@@ -537,9 +537,9 @@ class allocation(object):
         if valid_until is None and "valid_for" in yaml:
             valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(yaml["valid_for"])
         self.base = rpki.resource_set.resource_bag(
-            asn = rpki.resource_set.resource_set_as(yaml.get("asn")),
-            v4 = rpki.resource_set.resource_set_ipv4(yaml.get("ipv4")),
-            v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")),
+            asn = str(yaml.get("asn", "")),
+            v4 =  yaml.get("ipv4"),
+            v6 =  yaml.get("ipv6"),
             valid_until = valid_until)
         self.sia_base = yaml.get("sia_base")
         if "crl_interval" in yaml:

@@ -118,7 +118,6 @@ if autoconf.CA_TARGET == "ca":
 
     scripts += [(autoconf.sbindir,
                  ["ca/rpkic",
-                  "ca/rpki-start-servers",
                   "ca/rpkigui-query-routes",
                   "ca/irbe_cli"]),
                 (autoconf.libexecdir,
@@ -126,6 +125,7 @@ if autoconf.CA_TARGET == "ca":
                   "ca/pubd",
                   "ca/rootd",
                   "ca/rpkid",
+                  "ca/rpki-nanny",
                   "ca/rpkigui-import-routes",
                   "ca/rpkigui-check-expired",
                   "ca/rpkigui-rcynic",

@@ -97,7 +97,8 @@ def daemon(nochdir = False, noclose = False, pidfile = None):
     try:
         pid = os.fork()
     except OSError, e:
-        sys.exit("fork() failed: %d (%s)" % (e.errno, e.strerror))
+        logging.fatal("fork() failed: %d (%s)", e.errno, e.strerror)
+        sys.exit(1)
     else:
         if pid > 0:
             os._exit(0)                 # pylint: disable=W0212

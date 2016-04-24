@@ -75,21 +75,27 @@ class main(object):
 
         rpki.log.init("pubd", args)
 
-        self.cfg.set_global_flags()
+        try:
+            self.cfg.set_global_flags()
 
-        if not args.foreground:
-            rpki.daemonize.daemon(pidfile = args.pidfile)
+            if not args.foreground:
+                rpki.daemonize.daemon(pidfile = args.pidfile)
 
-        if self.profile:
-            import cProfile
-            prof = cProfile.Profile()
-            try:
-                prof.runcall(self.main)
-            finally:
-                prof.dump_stats(self.profile)
-                logger.info("Dumped profile data to %s", self.profile)
-        else:
-            self.main()
+            if self.profile:
+                import cProfile
+                prof = cProfile.Profile()
+                try:
+                    prof.runcall(self.main)
+                finally:
+                    prof.dump_stats(self.profile)
+                    logger.info("Dumped profile data to %s", self.profile)
+            else:
+                self.main()
+
+        except:
+            logger.exception("Unandled exception in rpki.pubd.main()")
+            sys.exit(1)
+
 
     def main(self):
 

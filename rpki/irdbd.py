@@ -165,23 +165,29 @@ class main(object):
 
         rpki.log.init("irdbd", args)
 
-        self.cfg.set_global_flags()
+        try:
+            self.cfg.set_global_flags()
 
-        self.cms_timestamp = None
+            self.cms_timestamp = None
 
-        if not args.foreground:
-            rpki.daemonize.daemon(pidfile = args.pidfile)
+            if not args.foreground:
+                rpki.daemonize.daemon(pidfile = args.pidfile)
 
-        if args.profile:
-            import cProfile
-            prof = cProfile.Profile()
-            try:
-                prof.runcall(self.main)
-            finally:
-                prof.dump_stats(args.profile)
-                logger.info("Dumped profile data to %s", args.profile)
-        else:
-            self.main()
+            if args.profile:
+                import cProfile
+                prof = cProfile.Profile()
+                try:
+                    prof.runcall(self.main)
+                finally:
+                    prof.dump_stats(args.profile)
+                    logger.info("Dumped profile data to %s", args.profile)
+            else:
+                self.main()
+
+        except:
+            logger.exception("Unandled exception in rpki.irdbd.main()")
+            sys.exit(1)
+
 
     def main(self):
 

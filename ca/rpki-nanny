@@ -241,7 +241,10 @@ if __name__ == "__main__":
                 os.close(logger_pipe[1])
                 with os.fdopen(logger_pipe[0]) as f:
                     for line in f:
-                        logger.warn("%s", line.rstrip())
+                        logger.warn("Captured: %s", line.rstrip())
+                # Should never get here, but just in case
+                logger.error("[Unexpected EOF in stdout/stderr capture logger]")
+                sys.exit(1)
             else:
                 os.close(logger_pipe[0])
         except:

@@ -88,10 +88,10 @@ class Daemon(object):
         else:
             self.cmd = ()
 
-    def start_maybe(self):
+    def start_maybe(self, output):
         if self.cmd and self.proc is None and time.time() > self.next_restart:
             try:
-                self.proc = subprocess.Popen(self.cmd)
+                self.proc = subprocess.Popen(self.cmd, stdout = output, stderr = output)
                 self.next_restart = int(time.time() + args.restart_delay)
                 logger.debug("Started  %s[%s]", self.name, self.proc.pid)
             except:
@@ -176,6 +176,8 @@ if __name__ == "__main__":
                      help = "override default location of pid file")
     cfg.add_boolean_argument("--daemonize", default = True,
                              help = "whether to daemonize")
+    cfg.add_boolean_argument("--capture-stdout-stderr", default = True,
+                             help = "whether to capture daemon output incorrectly sent to stdout or stderr")
 
     # This stuff is a mess.  Daemons should control their own logging
     # via rpki.conf settings, but we haven't written that yet, and
@@ -231,6 +233,23 @@ if __name__ == "__main__":
     if args.daemonize:
         rpki.daemonize.daemon(pidfile = args.pidfile)
 
+    if args.capture_stdout_stderr:
+        try:
+            logger_pipe = os.pipe()
+            logger_pid  = os.fork()
+            if logger_pid == 0:
+                os.close(logger_pipe[1])
+                with os.fdopen(logger_pipe[0]) as f:
+                    for line in f:
+                        logger.warn("%s", line.rstrip())
+            else:
+                os.close(logger_pipe[0])
+        except:
+            logger.exception("Trouble setting up stdout/stderr capture process")
+            sys.exit(1)
+
+    daemon_output = logger_pipe[1] if args.capture_stdout_stderr else None
+
     signals = Signals(signal.SIGALRM, signal.SIGCHLD, signal.SIGTERM, signal.SIGINT)
     daemons = [Daemon(name) for name in ("irdbd", "rpkid", "pubd", "rootd")]
     exiting = False
@@ -244,13 +263,15 @@ if __name__ == "__main__":
                     daemon.terminate()
             if not exiting:
                 for daemon in daemons:
-                    daemon.start_maybe()
+                    daemon.start_maybe(daemon_output)
                 alarms = tuple(daemon.delay() for daemon in daemons)
                 signal.alarm(min(a for a in alarms if a > 0) + 1 if any(alarms) else 0)
             if not signals(signal.SIGCHLD, signal.SIGALRM):
                 signal.pause()
             for daemon in daemons:
                 daemon.reap()
+        if args.capture_stdout_stderr:
+            os.kill(logger_pid, signal.SIGTERM)
     except:
         logger.exception("Unhandled exception in main loop")
         for daemon in daemons:

@@ -26,7 +26,7 @@ distributed as part of the repository system.
 
 import os
 import sys
-import argparse
+import rpki.config
 
 from rpki.rcynicdb.iterator import authenticated_objects
 
@@ -36,11 +36,11 @@ def check_dir(s):
     else:
         raise argparse.ArgumentTypeError("{!r} is not a directory".format(s))
 
-parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("-v", "--verbose", action = "store_true", help = "whistle while you work")
-parser.add_argument("rcynic_dir", nargs = "?", type = check_dir, help = "rcynic authenticated output directory")
-parser.add_argument("output_dir", help = "name of output directory to create")
-args = parser.parse_args()
+cfg = rpki.config.argparser(doc = __doc__)
+cfg.argparser.add_argument("-v", "--verbose", action = "store_true", help = "whistle while you work")
+cfg.argparser.add_argument("rcynic_dir", nargs = "?", type = check_dir, help = "rcynic authenticated output directory")
+cfg.argparser.add_argument("output_dir", help = "name of output directory to create")
+args = cfg.argparser.parse_args()
 
 if not os.path.isdir(args.output_dir):
     os.makedirs(args.output_dir)

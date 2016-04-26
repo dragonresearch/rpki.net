@@ -24,7 +24,7 @@ Input files must be in DER format and may be either X.509v3 certificates
 or CMS objects which contain X.509v3 certificates in the CMS wrapper.
 """
 
-import argparse
+import rpki.config
 import rpki.POW
 
 class Certificate(object):
@@ -71,10 +71,10 @@ class Certificate(object):
         words.extend(" %s: %s" % (tag, uri) for tag, uri in self.uris if uri is not None)
         return ("" if args.single_line else "\n").join(words)
 
-parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("-s", "--single-line", action = "store_true", help = "single output line per object")
-parser.add_argument("certs", nargs = "+", type = Certificate, help = "RPKI objects to examine")
-args = parser.parse_args()
+cfg = rpki.config.argparser(doc = __doc__)
+cfg.argparser.add_argument("-s", "--single-line", action = "store_true", help = "single output line per object")
+cfg.argparser.add_argument("certs", nargs = "+", type = Certificate, help = "RPKI objects to examine")
+args = cfg.argparser.parse_args()
 
 for cert in args.certs:
     print cert

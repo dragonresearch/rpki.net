@@ -21,14 +21,14 @@ Pretty-print the content of a manifest.  Does NOT attempt to verify the
 signature.
 """
 
-import argparse
+import rpki.config
 import rpki.POW
 import rpki.oids
 
-parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("-c", "--cms", action = "store_true", help = "print text representation of entire CMS blob")
-parser.add_argument("manifests", nargs = "+", type = rpki.POW.Manifest.derReadFile, help = "manifest(s) to print")
-args = parser.parse_args()
+cfg = rpki.config.argparser(doc = __doc__)
+cfg.argparser.add_argument("--cms", action = "store_true", help = "print text representation of entire CMS blob")
+cfg.argparser.add_argument("manifests", nargs = "+", type = rpki.POW.Manifest.derReadFile, help = "manifest(s) to print")
+args = cfg.argparser.parse_args()
 
 for mft in args.manifests:
     mft.extractWithoutVerifying()

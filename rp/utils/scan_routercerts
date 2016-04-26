@@ -26,6 +26,7 @@ import base64
 import argparse
 import rpki.POW
 import rpki.oids
+import rpki.config
 
 from rpki.rcynicdb.iterator import authenticated_objects
 
@@ -34,10 +35,10 @@ def check_dir(s):
         raise argparse.ArgumentTypeError("{!r} is not a directory".format(s))
     return s
 
-parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("rcynic_dir", nargs = "?", type = check_dir,
-                    help = "rcynic authenticated output directory")
-args = parser.parse_args()
+cfg = rpki.config.argparser(doc = __doc__)
+cfg.argparser.add_argument("rcynic_dir", nargs = "?", type = check_dir,
+                           help = "rcynic authenticated output directory")
+args = cfg.argparser.parse_args()
 
 for uri, cer in authenticated_objects(args.rcynic_dir, uri_suffix = ".cer"):
 

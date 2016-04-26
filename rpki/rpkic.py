@@ -450,10 +450,13 @@ class main(Cmd):
         """
 
         cert, uris = self.zoo.extract_root_certificate_and_uris(args.root_handle)
-        fn = args.output_file or (cert.gSKI() + ".cer")
-        with open_swapped_uids(fn, "wb") as f:
-            print "Writing", f.name
-            f.write(cert.get_DER())
+        if cert is None:
+            print "No certificate currently available"
+        else:
+            fn = args.output_file or (cert.gSKI() + ".cer")
+            with open_swapped_uids(fn, "wb") as f:
+                print "Writing", f.name
+                f.write(cert.get_DER())
 
 
     @parsecmd(argsubparsers,
@@ -465,13 +468,16 @@ class main(Cmd):
         """
 
         cert, uris = self.zoo.extract_root_certificate_and_uris(args.root_handle)
-        fn = args.output_file or (cert.gSKI() + ".tal")
-        with open_swapped_uids(fn, "w") as f:
-            print "Writing", f.name
-            for uri in uris:
-                f.write(uri + "\n")
-            f.write("\n")
-            f.write(cert.getPublicKey().get_Base64())
+        if cert is None:
+            print "No certificate currently available"
+        else:
+            fn = args.output_file or (cert.gSKI() + ".tal")
+            with open_swapped_uids(fn, "w") as f:
+                print "Writing", f.name
+                for uri in uris:
+                    f.write(uri + "\n")
+                f.write("\n")
+                f.write(cert.getPublicKey().get_Base64())
 
 
     @parsecmd(argsubparsers,

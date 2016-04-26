@@ -392,7 +392,11 @@ class Zookeeper(object):
         r_msg = self.call_rpkid(q_msg)
         assert len(r_msg) == 1 and r_msg[0].tag == rpki.left_right.tag_parent
 
-        cert = rpki.x509.X509(Base64 = r_msg[0].findtext(rpki.left_right.tag_rpki_root_cert))
+        b64 = r_msg[0].findtext(rpki.left_right.tag_rpki_root_cert)
+        if not b64:
+            return None, ()
+
+        cert = rpki.x509.X509(Base64 = b64)
         caDirectory, rpkiManifest, signedObjectRepository, rpkiNotify = cert.get_SIA()
         sia_base = r_msg[0].get("sia_base")
         fn = cert.gSKI() + ".cer"

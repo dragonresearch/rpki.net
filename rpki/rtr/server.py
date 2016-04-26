@@ -578,7 +578,7 @@ def argparse_setup(subparsers):
 
     subparser = subparsers.add_parser("server", description = server_main.__doc__,
                                       help = "RPKI-RTR protocol server")
-    subparser.set_defaults(func = server_main, default_log_to = "syslog")
+    subparser.set_defaults(func = server_main, default_log_destination = "syslog")
     subparser.add_argument("--refresh", type = refresh, help = "override default refresh timer")
     subparser.add_argument("--retry",   type = retry,   help = "override default retry timer")
     subparser.add_argument("--expire",  type = expire,  help = "override default expire timer")
@@ -586,7 +586,7 @@ def argparse_setup(subparsers):
 
     subparser = subparsers.add_parser("listener", description = listener_main.__doc__,
                                       help = "TCP listener for RPKI-RTR protocol server")
-    subparser.set_defaults(func = listener_main, default_log_to = "syslog")
+    subparser.set_defaults(func = listener_main, default_log_destination = "syslog")
     subparser.add_argument("--refresh", type = refresh, help = "override default refresh timer")
     subparser.add_argument("--retry",   type = retry,   help = "override default retry timer")
     subparser.add_argument("--expire",  type = expire,  help = "override default expire timer")

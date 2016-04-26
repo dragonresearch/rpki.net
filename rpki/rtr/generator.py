@@ -575,7 +575,7 @@ def argparse_setup(subparsers):
 
     subparser = subparsers.add_parser("cronjob", description = cronjob_main.__doc__,
                                       help = "Generate RPKI-RTR database from rcynic output")
-    subparser.set_defaults(func = cronjob_main, default_log_to = "syslog")
+    subparser.set_defaults(func = cronjob_main, default_log_destination = "syslog")
     subparser.add_argument("--scan-roas", help = "specify an external scan_roas program")
     subparser.add_argument("--scan-routercerts", help = "specify an external scan_routercerts program")
     subparser.add_argument("--force_zero_nonce", action = "store_true", help = "force nonce value of zero")
@@ -584,5 +584,5 @@ def argparse_setup(subparsers):
 
     subparser = subparsers.add_parser("show", description = show_main.__doc__,
                                       help = "Display content of RPKI-RTR database")
-    subparser.set_defaults(func = show_main, default_log_to = "stderr")
+    subparser.set_defaults(func = show_main, default_log_destination = "stderr")
     subparser.add_argument("rpki_rtr_dir", nargs = "?", help = "directory containing RPKI-RTR database")

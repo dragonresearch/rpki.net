@@ -221,11 +221,11 @@ class parser(object):
         if self.has_option(option = name, section = section):
             default = self.get(option = name, section = section, default = default)
 
-        if "type" in kwargs:
-            default = kwargs["type"](default)
+            if "type" in kwargs:
+                default = kwargs["type"](default)
 
-        if "choices" in kwargs and default not in kwargs["choices"]:
-            raise ValueError
+            if "choices" in kwargs and default not in kwargs["choices"]:
+                raise ValueError
 
         kwargs["default"] = default
 
@@ -310,7 +310,12 @@ class parser(object):
         the format that the logging setup code expects to see.
         """
 
-        self.logging_defaults = argparse.Namespace()
+        self.logging_defaults = argparse.Namespace(
+            default_log_destination = None)
+
+        if self.argparser is not None:
+            self.argparser.set_defaults(
+                default_log_destination = None)
 
         class non_negative_integer(int):
             def __init__(self, value):
@@ -335,7 +340,6 @@ class parser(object):
 
         self._add_logging_argument(
             "--log-destination",
-            default = "stderr",
             choices = ("syslog", "stdout", "stderr", "file"),
             help    = "logging mechanism to use")
 
@@ -386,32 +390,34 @@ class parser(object):
 
         log_level = getattr(logging, args.log_level.upper())
 
-        if args.log_destination == "stderr":
+        log_destination = args.log_destination or args.default_log_destination or "stderr"
+
+        if log_destination == "stderr":
             log_handler = logging.StreamHandler(
                 stream = sys.stderr)
 
-        elif args.log_destination == "stdout":
+        elif log_destination == "stdout":
             log_handler = logging.StreamHandler(
                 stream = sys.stdout)
 
-        elif args.log_destination == "syslog":
+        elif log_destination == "syslog":
             log_handler = logging.handlers.SysLogHandler(
                 address = ("/dev/log" if os.path.exists("/dev/log")
                            else ("localhost", logging.handlers.SYSLOG_UDP_PORT)),
                 facility = logging.handlers.SysLogHandler.facility_names[args.log_facility])
 
-        elif args.log_destination == "file" and (args.log_size_limit == 0 and 
-                                                 args.log_time_limit == 0):
+        elif log_destination == "file" and (args.log_size_limit == 0 and 
+                                            args.log_time_limit == 0):
             log_handler = logging.handlers.WatchedFileHandler(
                 filename = args.log_filename)
 
-        elif args.log_destination == "file" and args.log_time_limit == 0:
+        elif log_destination == "file" and args.log_time_limit == 0:
             log_handler = logging.handlers.RotatingFileHandler(
                 filename    = args.log_filename,
                 maxBytes    = args.log_size_limit * 1024,
                 backupCount = args.log_count)
 
-        elif args.log_destination == "file" and args.log_size_limit == 0:
+        elif log_destination == "file" and args.log_size_limit == 0:
             log_handler = logging.handlers.TimedRotatingFileHandler(
                 filename    = args.log_filename,
                 interval    = args.log_time_limit,

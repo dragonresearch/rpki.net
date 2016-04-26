@@ -49,17 +49,6 @@ signames = dict((getattr(signal, sig), sig)
                 and sig.isupper()
                 and isinstance(getattr(signal, sig), int))
 
-# TODO:
-#
-# * Logging configuration is a mess.  Daemons should be handling this
-#   for themselves, from rpki.conf, and there should be a way to configure
-#   logging for rpki-nanny itself.
-#
-# * Perhaps we should re-read the config file so we can turn individual
-#   daemons on and off?  Or is that unnecessary complexity?
-#
-# * rpki-nanny should probably daemonize itself before forking.
-
 
 class Daemon(object):
     """
@@ -70,21 +59,8 @@ class Daemon(object):
         self.name = name
         self.proc = None
         self.next_restart = 0
-        if cfg.getboolean("start_" + name, False):
-            log_file = os.path.join(args.log_directory, name + ".log")
-            self.cmd = (os.path.join(rpki.autoconf.libexecdir, name), 
-                        "--foreground",
-                        "--log-level", args.log_level)
-            if args.log_file:
-                self.cmd += ("--log-file", log_file)
-            elif args.log_rotating_file_kbytes:
-                self.cmd += ("--log-rotating-file", log_file, 
-                             args.log_rotating_file_kbytes, args.log_backup_count)
-            elif args.log_rotating_file_hours:
-                self.cmd += ("--log-timed-rotating-file", log_file, 
-                             args.log_rotating_file_hours, args.log_backup_count)
-            else:
-                self.cmd += ("--log-syslog", args.log_syslog)
+        if cfg.getboolean(option = "start_" + name, section = "myrpki", default = False):
+            self.cmd = (os.path.join(rpki.autoconf.libexecdir, name), "--foreground")
         else:
             self.cmd = ()
 
@@ -167,70 +143,29 @@ if __name__ == "__main__":
     os.environ.update(TZ = "UTC")
     time.tzset()
 
-    cfg = rpki.config.argparser(section = "myrpki", doc = __doc__)
+    cfg = rpki.config.argparser(section = "rpki-nanny", doc = __doc__)
 
     cfg.add_argument("--restart-delay", type = positive_integer, default = 60,
                      help = "how long to wait before restarting a crashed daemon")
     cfg.add_argument("--pidfile",   
                      default = os.path.join(rpki.daemonize.default_pid_directory, "rpki-nanny.pid"),
                      help = "override default location of pid file")
-    cfg.add_boolean_argument("--daemonize", default = True,
-                             help = "whether to daemonize")
+    cfg.add_boolean_argument("--foreground", default = False,
+                             help = "whether to stay in foreground rather than daemonizing")
     cfg.add_boolean_argument("--capture-stdout-stderr", default = True,
-                             help = "whether to capture daemon output incorrectly sent to stdout or stderr")
-
-    # This stuff is a mess.  Daemons should control their own logging
-    # via rpki.conf settings, but we haven't written that yet, and
-    # this script is meant to be a replacement for rpki-start-servers,
-    # so leave the mess in place for the moment and clean up later.
-
-    cfg.argparser.add_argument("--log-directory", default = ".",
-                               help = "where to write write log files when not using syslog")
-    cfg.argparser.add_argument("--log-backup-count", default = "7", type = non_negative_integer,
-                               help = "keep this many old log files when rotating")
-    cfg.argparser.add_argument("--log-level", default = "warning",
-                               choices = ("debug", "info", "warning", "error", "critical"),
-                               help = "how verbosely to log")
-    group = cfg.argparser.add_mutually_exclusive_group()
-    group.add_argument("--log-file", action = "store_true",
-                       help = "log to files, reopening if rotated away")
-    group.add_argument("--log-rotating-file-kbytes",type = non_negative_integer,
-                       help = "log to files, rotating after this many kbytes")
-    group.add_argument("--log-rotating-file-hours", type = non_negative_integer,
-                       help = "log to files, rotating after this many hours")
-    group.add_argument("--log-syslog", default = "daemon", nargs = "?",
-                       choices = sorted(SysLogHandler.facility_names.keys()),
-                       help = "log syslog")
+                             help = "whether to capture output incorrectly sent to stdout/stderr")
+    cfg.add_logging_arguments()
 
     args = cfg.argparser.parse_args()
 
     # Drop privs before daemonizing or opening log file
-
     pw = pwd.getpwnam(rpki.autoconf.RPKI_USER)
     os.setgid(pw.pw_gid)
     os.setuid(pw.pw_uid)
 
-    # Log control mess here is continuation of log control mess above:
-    # all the good names are taken by the pass-through kludge, we'd
-    # have to reimplement all the common logic to use it ourselves
-    # too.  Just wire to stderr or rotating log file for now, using
-    # same log file scheme as set in /etc/defaults/ on Debian/Ubuntu
-    # and the log level wired to DEBUG, fix the whole logging mess later.
+    cfg.configure_logging(ident = "rpki-nanny", args = args)
 
-    if args.daemonize:
-        log_handler = lambda: logging.handlers.TimedRotatingFileHandler(
-                filename    = os.path.join(args.log_directory, "rpki-nanny.log"),
-                interval    = 3,
-                backupCount = 56,
-                when        = "H",
-                utc         = True)
-    else:
-        log_handler = logging.StreamHandler
-
-    rpki.log.init(ident = "rpki-nanny", 
-                  args  = argparse.Namespace(log_level   = logging.DEBUG,
-                                             log_handler = log_handler))
-    if args.daemonize:
+    if not args.foreground:
         rpki.daemonize.daemon(pidfile = args.pidfile)
 
     if args.capture_stdout_stderr:

@@ -25,6 +25,10 @@ ConfigParser module.
 import ConfigParser
 import argparse
 import logging
+import logging.handlers
+import traceback
+import time
+import sys
 import os
 import re
 
@@ -43,6 +47,7 @@ except ImportError:
 # Name of environment variable containing config file name.
 
 rpki_conf_envname = "RPKI_CONF"
+
 
 class parser(object):
     """
@@ -90,6 +95,7 @@ class parser(object):
 
         self.filename = filename or os.getenv(rpki_conf_envname) or default_filename
         self.argparser = argparser
+        self.logging_defaults = None
 
         try:
             with open(self.filename, "r") as f:
@@ -132,7 +138,7 @@ class parser(object):
         if self.cfg.has_option(section, option):
             yield self.cfg.get(section, option)
         option += "."
-        matches = [o for o in self.cfg.options(section) 
+        matches = [o for o in self.cfg.options(section)
                    if o.startswith(option) and o[len(option):].isdigit()]
         matches.sort()
         for option in matches:
@@ -201,20 +207,7 @@ class parser(object):
         return long(self.get(option, default, section))
 
 
-    def add_argument(self, *names, **kwargs):
-        """
-        Combined command line and config file argument.  Takes
-        arguments mostly like ArgumentParser.add_argument(), but also
-        looks in config file for option of the same name.
-
-        The "section" and "default" arguments are used for the config file
-        lookup; the resulting value is used as the "default" parameter for 
-        the argument parser.
-
-        If a "type" argument is specified, it applies to both the value
-        parsed from the config file and the argument parser.
-        """
-
+    def _get_argument_default(self, names, kwargs):
         section = kwargs.pop("section", None)
         default = kwargs.pop("default", None)
 
@@ -225,14 +218,37 @@ class parser(object):
         else:
             raise ValueError
 
-        default = self.get(name, default = default, section = section)
+        if self.has_option(option = name, section = section):
+            default = self.get(option = name, section = section, default = default)
 
         if "type" in kwargs:
             default = kwargs["type"](default)
 
+        if "choices" in kwargs and default not in kwargs["choices"]:
+            raise ValueError
+
         kwargs["default"] = default
 
+        return name, default, kwargs
+
+
+    def add_argument(self, *names, **kwargs):
+        """
+        Combined command line and config file argument.  Takes
+        arguments mostly like ArgumentParser.add_argument(), but also
+        looks in config file for option of the same name.
+
+        The "section" and "default" arguments are used for the config file
+        lookup; the resulting value is used as the "default" parameter for
+        the argument parser.
+
+        If a "type" argument is specified, it applies to both the value
+        parsed from the config file and the argument parser.
+        """
+
+        name, default, kwargs = self._get_argument_default(names, kwargs)
         return self.argparser.add_argument(*names, **kwargs)
+
 
     def add_boolean_argument(self, name, **kwargs):
         """
@@ -241,7 +257,7 @@ class parser(object):
         looks in config file for option of the same name.
 
         The "section" and "default" arguments are used for the config file
-        lookup; the resulting value is used as the default value for 
+        lookup; the resulting value is used as the default value for
         the argument parser.
 
         Usage is a bit different from the normal ArgumentParser boolean
@@ -276,6 +292,146 @@ class parser(object):
 
         self.argparser.set_defaults(**{ kwargs["dest"] : default })
 
+
+    def _add_logging_argument(self, *names, **kwargs):
+        group = kwargs.pop("group", self.argparser)
+        name, default, kwargs = self._get_argument_default(names, kwargs)
+        setattr(self.logging_defaults, name.replace("-", "_"), default)
+        if group is not None:
+            group.add_argument(*names, **kwargs)
+
+
+    def add_logging_arguments(self, section = None):
+        """
+        Set up standard logging-related arguments.  This can be called
+        even when we're not going to parse the command line (eg,
+        because we're a WSGI app and therefore don't have a command
+        line), to handle whacking arguments from the config file into
+        the format that the logging setup code expects to see.
+        """
+
+        self.logging_defaults = argparse.Namespace()
+
+        class non_negative_integer(int):
+            def __init__(self, value):
+                if self < 0:
+                    raise ValueError
+
+        class positive_integer(int):
+            def __init__(self, value):
+                if self <= 0:
+                    raise ValueError
+
+        if self.argparser is None:
+            limit_group = None
+        else:
+            limit_group = self.argparser.add_mutually_exclusive_group()
+
+        self._add_logging_argument(
+            "--log-level",
+            default = "warning",
+            choices = ("debug", "info", "warning", "error", "critical"),
+            help    = "how verbosely to log")
+
+        self._add_logging_argument(
+            "--log-destination",
+            default = "stderr",
+            choices = ("syslog", "stdout", "stderr", "file"),
+            help    = "logging mechanism to use")
+
+        self._add_logging_argument(
+            "--log-filename",
+            help    = "where to log when log destination is \"file\"")
+
+        self._add_logging_argument(
+            "--log-facility",
+            default = "daemon",
+            choices = sorted(logging.handlers.SysLogHandler.facility_names.keys()),
+            help    = "syslog facility to use when log destination is \"syslog\"")
+
+        self._add_logging_argument(
+            "--log-count",
+            default = "7",
+            type    = positive_integer,
+            help    = "how many logs to keep when rotating for log destination \"file\""),
+
+        self._add_logging_argument(
+            "--log-size-limit",
+            group   = limit_group,
+            default = 0,
+            type    = non_negative_integer,
+            help    = "size in kbytes after which to rotate log for destination \"file\"")
+
+        self._add_logging_argument(
+            "--log-time-limit",
+            group   = limit_group,
+            default = 0,
+            type    = non_negative_integer,
+            help    = "hours after which to rotate log for destination \"file\"")
+
+
+    def configure_logging(self, args = None, ident = None):
+        """
+        Configure the logging system, using information from both the
+        config file and the command line; if this particular program
+        doesn't use the command line (eg, a WSGI app), we just use the
+        config file.
+        """
+
+        if self.logging_defaults is None:
+            self.add_logging_arguments()
+
+        if args is None:
+            args = self.logging_defaults
+
+        log_level = getattr(logging, args.log_level.upper())
+
+        if args.log_destination == "stderr":
+            log_handler = logging.StreamHandler(
+                stream = sys.stderr)
+
+        elif args.log_destination == "stdout":
+            log_handler = logging.StreamHandler(
+                stream = sys.stdout)
+
+        elif args.log_destination == "syslog":
+            log_handler = logging.handlers.SysLogHandler(
+                address = ("/dev/log" if os.path.exists("/dev/log")
+                           else ("localhost", logging.handlers.SYSLOG_UDP_PORT)),
+                facility = logging.handlers.SysLogHandler.facility_names[args.log_facility])
+
+        elif args.log_destination == "file" and (args.log_size_limit == 0 and 
+                                                 args.log_time_limit == 0):
+            log_handler = logging.handlers.WatchedFileHandler(
+                filename = args.log_filename)
+
+        elif args.log_destination == "file" and args.log_time_limit == 0:
+            log_handler = logging.handlers.RotatingFileHandler(
+                filename    = args.log_filename,
+                maxBytes    = args.log_size_limit * 1024,
+                backupCount = args.log_count)
+
+        elif args.log_destination == "file" and args.log_size_limit == 0:
+            log_handler = logging.handlers.TimedRotatingFileHandler(
+                filename    = args.log_filename,
+                interval    = args.log_time_limit,
+                backupCount = args.log_count,
+                when        = "H",
+                utc         = True)
+            
+        else:
+            raise ValueError
+
+        if ident is None:
+            ident = os.path.basename(sys.argv[0])
+
+        log_handler.setFormatter(Formatter(ident, log_handler, log_level))
+
+        root_logger = logging.getLogger()
+        root_logger.addHandler(log_handler)
+        root_logger.setLevel(log_level)
+
+
     def set_global_flags(self):
         """
         Consolidated control for all the little global control flags
@@ -287,7 +443,6 @@ class parser(object):
 
         # pylint: disable=W0621
         import rpki.x509
-        import rpki.log
         import rpki.daemonize
 
         for line in self.multiget("configure_logger"):
@@ -325,11 +480,6 @@ class parser(object):
 
         try:
             rpki.x509.XML_CMS_object.check_outbound_schema = self.getboolean("check_outbound_schema")
-        except ConfigParser.NoOptionError:
-            pass
-
-        try:
-            rpki.log.enable_tracebacks = self.getboolean("enable_tracebacks")
         except ConfigParser.NoOptionError:
             pass
 
@@ -412,3 +562,73 @@ def argparser(section = None, doc = None, cfg_optional = False):
                  allow_missing = cfg_optional or args.help)
 
     return cfg
+
+
+class Formatter(object):
+    """
+    Reimplementation (easier than subclassing in this case) of
+    logging.Formatter.
+
+    It turns out that the logging code only cares about this class's
+    .format(record) method, everything else is internal; so long as
+    .format() converts a record into a properly formatted string, the
+    logging code is happy.
+
+    So, rather than mess around with dynamically constructing and
+    deconstructing and tweaking format strings and ten zillion options
+    we don't use, we just provide our own implementation that supports
+    what we do need.
+    """
+
+    converter = time.gmtime
+
+    def __init__(self, ident, handler, level):
+        self.ident = ident
+        self.is_syslog = isinstance(handler, logging.handlers.SysLogHandler)
+        self.debugging = level == logging.DEBUG
+
+    def format(self, record):
+        return "".join(self.coformat(record)).rstrip("\n")
+
+    def coformat(self, record):
+
+        try:
+            if not self.is_syslog:
+                yield time.strftime("%Y-%m-%d %H:%M:%S ", time.gmtime(record.created))
+        except:
+            yield "[$!$Time format failed]"
+
+        try:
+            yield "{}[{:d}]: ".format(self.ident, record.process)
+        except:
+            yield "[$!$ident format failed]"
+
+        try:
+            if isinstance(record.context, (str, unicode)):
+                yield record.context + " "
+            else:
+                yield repr(record.context) + " "
+        except AttributeError:
+            pass
+        except:
+            yield "[$!$context format failed]"
+
+        try:
+            yield record.getMessage()
+        except:
+            yield "[$!$record.getMessage() failed]"
+
+        try:
+            if record.exc_info:
+                if self.is_syslog or not self.debugging:
+                    lines = traceback.format_exception_only(
+                        record.exc_info[0], record.exc_info[1])
+                    lines.insert(0, ": ")
+                else:
+                    lines = traceback.format_exception(
+                        record.exc_info[0], record.exc_info[1], record.exc_info[2])
+                    lines.insert(0, "\n")
+                for line in lines:
+                    yield line
+        except:
+            yield "[$!$exception formatting failed]"

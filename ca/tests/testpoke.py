@@ -51,8 +51,6 @@ parser.add_argument("-d", "--debug",
                     help = "enable debugging")
 args = parser.parse_args()
 
-rpki.log.init("testpoke")
-
 yaml_data = yaml.load(args.yaml)
 
 yaml_cmd = args.request

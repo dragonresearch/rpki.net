@@ -128,7 +128,6 @@ class main(Cmd):
             self.main(args)
 
     def main(self, args):
-        rpki.log.init("rpkic")
         self.read_config()
         if self.interactive:
             self.cmdloop_with_history()
@@ -159,6 +158,11 @@ class main(Cmd):
 
         try:
             cfg = rpki.config.parser(set_filename = self.cfg_file, section = "myrpki")
+            cfg.configure_logging(
+                args  = argparse.Namespace(
+                    log_destination = "stderr", 
+                    log_level       = "warning"),
+                ident = "rpkic")
             cfg.set_global_flags()
         except IOError, e:
             sys.exit("%s: %s" % (e.strerror, e.filename))

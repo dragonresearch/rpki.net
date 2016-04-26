@@ -54,6 +54,7 @@ import rpki.log
 import rpki.csv_utils
 import rpki.x509
 import rpki.relaxng
+import rpki.config
 
 # pylint: disable=W0621
 
@@ -673,8 +674,10 @@ class allocation(object):
         """
 
         basename = os.path.splitext(os.path.basename(prog))[0]
-        cmd = [prog, "--foreground", "--log-level", "debug",
-               "--log-file", self.path(basename + ".log")]
+        cmd = [prog, "--foreground", 
+               "--log-level", "debug", 
+               "--log-destination", "file",
+               "--log-filename", self.path(basename + ".log")]
         if args.profile:
             cmd.extend((
                 "--profile",  self.path(basename + ".prof")))
@@ -831,8 +834,10 @@ try:
             print "Writing pidfile", f.name
             f.write("%s\n" % os.getpid())
 
-    rpki.log.init("yamltest", argparse.Namespace(log_level   = logging.DEBUG,
-                                                 log_handler = lambda: logging.StreamHandler(sys.stdout)))
+    log_handler = logging.StreamHandler(sys.stdout)
+    log_handler.setFormatter(rpki.config.Formatter("yamltest", log_handler, logging.DEBUG))
+    logging.getLogger().addHandler(log_handler)
+    logging.getLogger().setLevel(logging.DEBUG)
 
     allocation.base_port = args.base_port
 

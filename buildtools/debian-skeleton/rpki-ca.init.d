@@ -16,7 +16,6 @@ NAME=rpki-nanny
 PIDDIR=/var/run/rpki
 LOGDIR=/var/log/rpki
 DAEMON=/usr/lib/rpki/$NAME
-DAEMON_ARGS="--log-level warning --log-directory $LOGDIR --log-rotating-file-hours 3 --log-backup-count 56"
 SCRIPTNAME=/etc/init.d/rpki-ca
 PIDFILE=$PIDDIR/$NAME.pid
 

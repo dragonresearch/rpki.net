@@ -1389,7 +1389,8 @@ def main():
     time.tzset()
 
     cfg = rpki.config.argparser(section = "rcynic", doc = __doc__, cfg_optional = True)
-    rpki.log.argparse_setup(cfg.argparser)
+
+    cfg.add_logging_arguments()
 
     cfg.add_argument("-u", "--unauthenticated",
                      help = "where to store unauthenticated data retrieved via rsycnc",
@@ -1437,7 +1438,7 @@ def main():
     global args
     args = cfg.argparser.parse_args()
 
-    rpki.log.init("rcynic", args)
+    cfg.configure_logging(args = args, ident = "rcynic")
 
     import django
     django.setup()

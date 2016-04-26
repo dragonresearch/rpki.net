@@ -7,4 +7,4 @@
 #
 
 # Additional arguments that are passed to rpki-nanny.
-DAEMON_ARGS="--log-level warning --log-directory /var/log/rpki --log-rotating-file-hours 3 --log-backup-count 56"
+DAEMON_ARGS=""

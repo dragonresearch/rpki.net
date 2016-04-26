@@ -86,12 +86,12 @@ class main(object):
         self.cfg.add_argument("--profile",
                               default = "",
                               help = "enable profiling, saving data to PROFILE")
-        rpki.log.argparse_setup(self.cfg.argparser)
+        self.cfg.add_logging_arguments()
         args = self.cfg.argparser.parse_args()
 
-        self.profile = args.profile
+        self.cfg.configure_logging(args = args, ident = "rpkid")
 
-        rpki.log.init("rpkid", args)
+        self.profile = args.profile
 
         try:
             self.cfg.set_global_flags()

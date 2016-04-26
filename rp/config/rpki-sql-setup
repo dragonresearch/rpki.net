@@ -199,7 +199,7 @@ class PostgreSQL_Driver(Abstract_Driver):
         pw = pwd.getpwnam(udb.username)
         uid = self._seteuid(pw.pw_uid)
         try:
-            self.driver.connect(database = udb.database, user = udb.username , password = usb.password).close()
+            self.driver.connect(database = udb.database, user = udb.username , password = udb.password).close()
         finally:
             self._seteuid(uid)
 

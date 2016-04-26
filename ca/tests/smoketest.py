@@ -158,8 +158,11 @@ def main():
     Main program.
     """
 
-    rpki.log.init(smoketest_name, argparse.Namespace(log_level   = logging.DEBUG,
-                                                     log_handler = lambda: logging.StreamHandler(sys.stdout)))
+    log_handler = logging.StreamHandler(sys.stdout)
+    log_handler.setFormatter(rpki.config.Formatter("smoketest", log_handler, logging.DEBUG))
+    logging.getLogger().addHandler(log_handler)
+    logging.getLogger().setLevel(logging.DEBUG)
+
     logger.info("Starting")
 
     rpki.http.http_client.timeout = rpki.sundial.timedelta(hours = 1)

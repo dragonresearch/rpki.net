@@ -68,12 +68,12 @@ class main(object):
         self.cfg.add_argument("--profile",
                               default = "",
                               help = "enable profiling, saving data to PROFILE")
-        rpki.log.argparse_setup(self.cfg.argparser)
+        self.cfg.add_logging_arguments()
         args = self.cfg.argparser.parse_args()
 
         self.profile = args.profile
 
-        rpki.log.init("pubd", args)
+        self.cfg.configure_logging(args = args, ident = "pubd")
 
         try:
             self.cfg.set_global_flags()

@@ -413,6 +413,42 @@
       </doc>
     </option>
 
+    <option name  = "log-destination"
+	    value = "file">
+      <doc>
+	Default logging mechanism, can be "file", "syslog", "stderr", or "stdout".
+      </doc>
+    </option>
+
+    <option name  = "log-directory"
+	    value = "/var/log/rpki">
+      <doc>
+	Where to write log files when logging to files.
+      </doc>
+    </option>
+
+    <option name  = "log-level"
+	    value = "info">
+      <doc>
+	Default logging level.
+      </doc>
+    </option>
+
+    <option name  = "log-time-limit"
+	    value = "3">
+      <doc>
+	Interval between log file rotations, in hours.
+	Set to zero to disable automatic rotations.
+      </doc>
+    </option>
+
+    <option name  = "log-count"
+	    value = "56">
+      <doc>
+	How many old logs to keep before deleting.
+      </doc>
+    </option>
+
   </section>
 
   <section name = "rcynic">
@@ -423,13 +459,6 @@
       rcynicng with "`-c filename`" to choose a different
       configuration file.  All options are in the "`[rcynic]`"
       section.
-    </doc>
-
-    <doc>
-      This section isn't really fleshed out yet, and just contains the
-      settings needed for the new SQL code to work.  This will change
-      as the stuff that's currently only configurable on rcynicng's
-      command line becomes integrated with the configuration file.
     </doc>
 
     <option name  = "sql-engine"
@@ -457,6 +486,42 @@
             value = "${myrpki::rcynic_sql_password}">
       <doc>
         SQL password for rcynic.
+      </doc>
+    </option>
+
+    <option name  = "log-destination"
+	    value = "${myrpki::log-destination}">
+      <doc>
+	Logging mechanism, can be "file", "syslog", "stderr", or "stdout".
+      </doc>
+    </option>
+
+    <option name  = "log-filename"
+	    value = "${myrpki::log-directory}/rcynic.log">
+      <doc>
+	Where to write log file when logging to a file.
+      </doc>
+    </option>
+
+    <option name  = "log-level"
+	    value = "${myrpki::log-level}">
+      <doc>
+	Default logging level.
+      </doc>
+    </option>
+
+    <option name  = "log-time-limit"
+	    value = "${myrpki::log-time-limit}">
+      <doc>
+	Interval between log file rotations, in hours.
+	Set to zero to disable automatic rotations.
+      </doc>
+    </option>
+
+    <option name  = "log-count"
+	    value = "${myrpki::log-count}">
+      <doc>
+	How many old logs to keep before deleting.
       </doc>
     </option>
 
@@ -566,6 +631,42 @@
       </doc>
     </option>
 
+    <option name  = "log-destination"
+	    value = "${myrpki::log-destination}">
+      <doc>
+	Logging mechanism, can be "file", "syslog", "stderr", or "stdout".
+      </doc>
+    </option>
+
+    <option name  = "log-filename"
+	    value = "${myrpki::log-directory}/rpkid.log">
+      <doc>
+	Where to write log file when logging to a file.
+      </doc>
+    </option>
+
+    <option name  = "log-level"
+	    value = "${myrpki::log-level}">
+      <doc>
+	Default logging level.
+      </doc>
+    </option>
+
+    <option name  = "log-time-limit"
+	    value = "${myrpki::log-time-limit}">
+      <doc>
+	Interval between log file rotations, in hours.
+	Set to zero to disable automatic rotations.
+      </doc>
+    </option>
+
+    <option name  = "log-count"
+	    value = "${myrpki::log-count}">
+      <doc>
+	How many old logs to keep before deleting.
+      </doc>
+    </option>
+
   </section>
 
   <section name = "irdbd">
@@ -629,6 +730,42 @@
       <doc>
 	String to log on startup, useful when debugging a collection
 	of irdbd instances at once.
+      </doc>
+    </option>
+
+    <option name  = "log-destination"
+	    value = "${myrpki::log-destination}">
+      <doc>
+	Logging mechanism, can be "file", "syslog", "stderr", or "stdout".
+      </doc>
+    </option>
+
+    <option name  = "log-filename"
+	    value = "${myrpki::log-directory}/irdbd.log">
+      <doc>
+	Where to write log file when logging to a file.
+      </doc>
+    </option>
+
+    <option name  = "log-level"
+	    value = "${myrpki::log-level}">
+      <doc>
+	Default logging level.
+      </doc>
+    </option>
+
+    <option name  = "log-time-limit"
+	    value = "${myrpki::log-time-limit}">
+      <doc>
+	Interval between log file rotations, in hours.
+	Set to zero to disable automatic rotations.
+      </doc>
+    </option>
+
+    <option name  = "log-count"
+	    value = "${myrpki::log-count}">
+      <doc>
+	How many old logs to keep before deleting.
       </doc>
     </option>
 
@@ -761,6 +898,82 @@
 	    value = "${myrpki::publication_rrdp_base_uri}">
       <doc>
 	RRDP base URI for naming snapshots and deltas.
+      </doc>
+    </option>
+
+    <option name  = "log-destination"
+	    value = "${myrpki::log-destination}">
+      <doc>
+	Logging mechanism, can be "file", "syslog", "stderr", or "stdout".
+      </doc>
+    </option>
+
+    <option name  = "log-filename"
+	    value = "${myrpki::log-directory}/pubd.log">
+      <doc>
+	Where to write log file when logging to a file.
+      </doc>
+    </option>
+
+    <option name  = "log-level"
+	    value = "${myrpki::log-level}">
+      <doc>
+	Default logging level.
+      </doc>
+    </option>
+
+    <option name  = "log-time-limit"
+	    value = "${myrpki::log-time-limit}">
+      <doc>
+	Interval between log file rotations, in hours.
+	Set to zero to disable automatic rotations.
+      </doc>
+    </option>
+
+    <option name  = "log-count"
+	    value = "${myrpki::log-count}">
+      <doc>
+	How many old logs to keep before deleting.
+      </doc>
+    </option>
+
+  </section>
+
+  <section name = "rpki-nanny">
+
+    <option name  = "log-destination"
+	    value = "${myrpki::log-destination}">
+      <doc>
+	Logging mechanism, can be "file", "syslog", "stderr", or "stdout".
+      </doc>
+    </option>
+
+    <option name  = "log-filename"
+	    value = "${myrpki::log-directory}/rpki-nanny.log">
+      <doc>
+	Where to write log file when logging to a file.
+      </doc>
+    </option>
+
+    <option name  = "log-level"
+	    value = "${myrpki::log-level}">
+      <doc>
+	Default logging level.
+      </doc>
+    </option>
+
+    <option name  = "log-time-limit"
+	    value = "${myrpki::log-time-limit}">
+      <doc>
+	Interval between log file rotations, in hours.
+	Set to zero to disable automatic rotations.
+      </doc>
+    </option>
+
+    <option name  = "log-count"
+	    value = "${myrpki::log-count}">
+      <doc>
+	How many old logs to keep before deleting.
       </doc>
     </option>
 

@@ -215,8 +215,15 @@ def fetch_published_objects():
                     type = "query", version = rpki.left_right.version)
     for h in handles:
         SubElement(q_msg, rpki.left_right.tag_list_published_objects, tenant_handle=h, tag=h)
-    z = Zookeeper()
-    r_msg = z.call_rpkid(q_msg)
+    try:
+        z = Zookeeper()
+        r_msg = z.call_rpkid(q_msg)
+    except Exception as err:
+        logger.error('Unable to connect to rpkid to fetch list of published objects')
+        logger.exception(err)
+        # Should be safe to continue processing the rcynic cache, we just don't do any notifications
+        return
+
     for r_pdu in r_msg:
         if r_pdu.tag == rpki.left_right.tag_list_published_objects:
             # Look up the object in the rcynic cache

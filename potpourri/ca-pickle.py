@@ -65,6 +65,13 @@ for section in cfg.cfg.sections():
         if os.path.isfile(   cooked_config[section][option]):
             filenames.append(cooked_config[section][option])
 
+# Sigh, even here we need special hacks for rootd, which handles filenames a bit differently.
+rootd_dir = cfg.get(section = "rootd", option = "rpki-root-dir", default = "")
+for option in ("rpki-root-crl", "rpki-root-manifest", "rpki-subject-cert"):
+    fn = os.path.join(rootd_dir, cfg.get(section = "rootd", option = option, default = ""))
+    if os.path.isfile(fn):
+        filenames.append(fn)
+
 for i, fn in enumerate(filenames):
     filenames[i] = os.path.abspath(fn)
 

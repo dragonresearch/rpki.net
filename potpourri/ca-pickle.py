@@ -82,17 +82,17 @@ for filename in filenames:
         files[filename] = f.read()
 
 world = dict(
-    version       = rpki.version.VERSION,
-    rpki_conf     = filenames[0],
-    databases     = databases,
-    files         = files,
-    raw_config    = raw_config,
-    cooked_config = cooked_config)
+    VERSION   = rpki.version.VERSION,
+    RPKI_CONF = filenames[0],
+    db        = databases,
+    file      = files,
+    raw       = raw_config,
+    cfg       = cooked_config)
 
 xz = subprocess.Popen(
     ("xz", "-C", "sha256"),
     stdin = subprocess.PIPE,
-    stdout = os.open(args.output, os.O_WRONLY | os.O_CREAT, 0600))
+    stdout = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0600))
 
 cPickle.dump(world, xz.stdin, args.protocol)
 

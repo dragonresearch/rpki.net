@@ -20,7 +20,7 @@ args = parser.parse_args()
 xzcat = subprocess.Popen(("xzcat", args.input), stdout = subprocess.PIPE)
 world = cPickle.load(xzcat.stdout)
 if xzcat.wait() != 0:
-    sys.exit("XZ unpickling failed with code {}".format(xz.returncode))
+    sys.exit("XZ unpickling failed with code {}".format(xzcat.returncode))
 
 print "import datetime"
 print "world =", repr(world)

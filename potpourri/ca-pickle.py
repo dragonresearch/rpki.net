@@ -55,15 +55,15 @@ for section in ("rpkid", "irdbd", "pubd"):
     databases[section] = tables
 
 filenames     = [cfg.filename]
-raw_config    = {}
-cooked_config = {}
+raw_config    = dict((section, {}) for section in cfg.cfg.sections())
+cooked_config = dict((section, {}) for section in cfg.cfg.sections())
 
 for section in cfg.cfg.sections():
     for option in cfg.cfg.options(section):
-        raw_config[section, option] = cfg.cfg.get(section = section, option = option)
-        cooked_config[section, option] = cfg.get(section = section, option = option)
-        if os.path.isfile(cooked_config[section, option]):
-            filenames.append(cooked_config[section, option])
+        raw_config   [section][option] = cfg.cfg.get(section = section, option = option)
+        cooked_config[section][option] =     cfg.get(section = section, option = option)
+        if os.path.isfile(   cooked_config[section][option]):
+            filenames.append(cooked_config[section][option])
 
 for i, fn in enumerate(filenames):
     filenames[i] = os.path.abspath(fn)
@@ -89,6 +89,7 @@ xz = subprocess.Popen(
 
 cPickle.dump(world, xz.stdin, args.protocol)
 
+xz.stdin.flush()
 xz.stdin.close()
 
 if xz.wait() != 0:

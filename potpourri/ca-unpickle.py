@@ -19,16 +19,32 @@ import rpki.config
 import rpki.x509
 
 
-class LazyDict(dict):
+class LazyDict(object):
     """
     Convenience wrapper to allow attribute notation for brevity
     when diving into deeply nested mappings created by ca-pickle.
     """
 
-    def __getattr__(self, name):
-        if name in self:
-            return self[name]
+    def __init__(self, *args, **kwargs):
+        self._d = dict(*args, **kwargs)
+
+    def __getitem__(self, name):
+        if name in self._d:
+            return self._d[name]
         raise AttributeError
+
+    __getattr__ = __getitem__
+
+    def __missing__(self, name):
+        raise AttributeError
+
+    def __iter__(self):
+        return self._d.iterkeys()
+
+    iterkeys = __iter__
+
+    def __len__(self):
+        return len(self._d)
 
     @classmethod
     def insinuate(cls, thing):
@@ -77,8 +93,8 @@ django.setup()
 import rpki.rpkidb
 
 print "rpkid self"
-
 for row in world.databases.rpkid.self:
+    print " ", row.self_handle
     rpki.rpkidb.models.Tenant.objects.create(
         pk                      = row.self_id,
         tenant_handle           = row.self_handle,
@@ -89,8 +105,8 @@ for row in world.databases.rpkid.self:
         bpki_glue               = maybe_X509(row.bpki_glue))
 
 print "rpkid bsc"
-
 for row in world.databases.rpkid.bsc:
+    print " ", row.bsc_handle
     tenant = rpki.rpkidb.models.Tenant.objects.get(pk = row.self_id)
     rpki.rpkidb.models.BSC.objects.create(
         pk                      = row.bsc_id,
@@ -103,8 +119,8 @@ for row in world.databases.rpkid.bsc:
         tenant                  = tenant)
 
 print "rpkid repository"
-
 for row in world.databases.rpkid.repository:
+    print " ", row.repository_handle
     tenant = rpki.rpkidb.models.Tenant.objects.get(pk = row.self_id                )
     bsc    = rpki.rpkidb.models.BSC.objects.get   (pk = row.bsc_id, tenant = tenant)
     rpki.rpkidb.models.Repository.objects.create(
@@ -118,8 +134,8 @@ for row in world.databases.rpkid.repository:
         tenant                  = tenant)
 
 print "rpkid parent"
-
 for row in world.databases.rpkid.parent:
+    print " ", row.parent_handle
     tenant     = rpki.rpkidb.models.Tenant.objects.get    (pk = row.self_id                       )
     bsc        = rpki.rpkidb.models.BSC.objects.get       (pk = row.bsc_id,        tenant = tenant)
     repository = rpki.rpkidb.models.Repository.objects.get(pk = row.repository_id, tenant = tenant)

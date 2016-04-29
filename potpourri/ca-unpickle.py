@@ -28,15 +28,18 @@ class LazyDict(object):
     def __init__(self, *args, **kwargs):
         self._d = dict(*args, **kwargs)
 
-    def __getitem__(self, name):
+    def __getattr__(self, name):
         if name in self._d:
             return self._d[name]
         raise AttributeError
 
-    __getattr__ = __getitem__
+    def __getitem__(self, name):
+        if name in self._d:
+            return self._d[name]
+        raise KeyError
 
     def __missing__(self, name):
-        raise AttributeError
+        raise KeyError
 
     def __iter__(self):
         return self._d.iterkeys()

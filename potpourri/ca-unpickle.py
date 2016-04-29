@@ -56,6 +56,9 @@ class LazyDict(object):
     def __len__(self):
         return len(self._d)
 
+    def __repr__(self):
+        return repr(self._d)
+
     @classmethod
     def _insinuate(cls, thing):
         if isinstance(thing, dict):
@@ -90,24 +93,38 @@ def cfg_to_Bool(v):
     states = RawConfigParser._boolean_states
     return states[v.lower()]
 
+# Silly formatting
+
+def show_model(db, model):
+    print db, model
+
+def show_handle(handle):
+    print " ", handle
+
+# Smoke 'em if you got 'em
 
 def main():
 
     os.environ.update(TZ = "UTC")
     time.tzset()
 
-    global cfg
     cfg = rpki.config.argparser(doc = __doc__)
     cfg.argparser.add_argument("input_file", help = "input file")
     cfg.add_logging_arguments()
     args = cfg.argparser.parse_args()
     cfg.configure_logging(args = args)
 
-    global world
     xzcat = subprocess.Popen(("xzcat", args.input_file), stdout = subprocess.PIPE)
     world = LazyDict(cPickle.load(xzcat.stdout))
     if xzcat.wait() != 0:
         sys.exit("XZ unpickling failed with code {}".format(xzcat.returncode))
+
+    root = Root(cfg, world)
+
+    if root.enabled:
+        print "Pickled configuration included rootd"
+    else:
+        print "Pickled configuration did not include rootd"
 
     for enabled, handler in ((world.cfg.myrpki.run_rpkid, rpkid_handler),
                              (world.cfg.myrpki.run_rpkid, irdb_handler),
@@ -115,7 +132,7 @@ def main():
         if not cfg_to_Bool(enabled):
             continue
         if os.fork() == 0:
-            handler()
+            handler(cfg, world, root)
             sys.exit()
         else:
             pid, status = os.wait()
@@ -125,15 +142,81 @@ def main():
                 sys.exit("Internal process exited on signal {}".format(os.WTERMSIG(status)))
 
 
-def rpkid_handler():
+class Root(object):
+
+    def __init__(self, cfg, world):
+
+        self.enabled = cfg_to_Bool(world.cfg.myrpki.run_rootd)
+
+        if not self.enabled:
+            return
+
+        rootd = world.cfg.rootd
+
+        self.root_dir = rootd["rpki-root-dir"]
+        self.root_cer = X509(world.file[                            rootd["rpki-root-cert"    ] ])
+        self.root_key = RSA( world.file[                            rootd["rpki-root-key"     ] ])
+        self.root_crl = CRL( world.file[os.path.join(self.root_dir, rootd["rpki-root-crl"     ])])
+        self.root_mft = MFT( world.file[os.path.join(self.root_dir, rootd["rpki-root-manifest"])])
+        self.work_cer = X509(world.file[os.path.join(self.root_dir, rootd["rpki-subject-cert" ])])
+
+        self.next_serial = 1 + max(
+            self.root_cer.getSerial(),
+            self.work_cer.getSerial(),
+            self.root_mft.get_POW().certs()[0].getSerial())
+
+        self.root_mft.extract()
+
+        self.next_crl_manifest_number = 1 + max(
+            self.root_mft.get_POW().getManifestNumber(),
+            self.root_crl.getCRLNumber())
+
+        turtles = tuple(row for row in world.db.irdbd.irdb_turtle
+                        if row.id not in (r.turtle_ptr_id
+                                          for r in world.db.irdbd.irdb_parent))
+        if len(turtles) != 1:
+            raise RuntimeError("Expected to find exactly one Parentless Turtle")
+        self.rootd_turtle_id = turtles[0].id
+        self.rootd_turtle_service_uri = turtles[0].service_uri
+
+        print "Root key: {0.root_key!r}".format(self)
+        print "Root cerificate: {0.root_cer!r}".format(self)
+        print "Working certificate: {0.work_cer!r}".format(self)
+        print "Next certificate serial: {0.next_serial}".format(self)
+        print "Next CRL/manifest number: {0.next_crl_manifest_number}".format(self)
+        print "Rootd turtle ID {0.rootd_turtle_id}".format(self)
+        print "Rootd service URI:{0.rootd_turtle_service_uri}".format(self)
+
+        # We need to build up the arguments that the forked functions should use
+        # to create all of the missing objects needed to replace rootd.  We can't
+        # (or, rather, shouldn't) attempt to generate SQL id values ourselves,
+        # let Django handle that, but everything else we should be able to do.
+        #
+        # Relatively readable way of doing this would probably be to have one
+        # dict per model creation call, containing all the keyword argument stuff
+        # needed to create that model except for ID values Django will create
+        # (and the forked functions will have to fill in, but they can do that,
+        # because such ID values will never cross databases).  So we end up
+        # setting a bunch of attributes in this template object, one per
+        # model, each containing a dict for that model.
+
+        # XXX
+        self.irdb_Parent = dict()
+        self.rpkid_Tenant = dict()
+        self.rpkid_Parent = dict()
+        self.rpkid_CA = dict()
+        self.rpkid_CADetail = dict()
+
+
+def rpkid_handler(cfg, world, root):
     os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.rpkid")
     import django
     django.setup()
     import rpki.rpkidb
 
-    print "rpkid self"
+    show_model("rpkid", "self")
     for row in world.db.rpkid.self:
-        print " ", row.self_handle
+        show_handle(row.self_handle)
         rpki.rpkidb.models.Tenant.objects.create(
             pk                      = row.self_id,
             tenant_handle           = row.self_handle,
@@ -143,10 +226,10 @@ def rpkid_handler():
             bpki_cert               = X509(row.bpki_cert),
             bpki_glue               = X509(row.bpki_glue))
 
-    print "rpkid bsc"
+    show_model("rpkid", "bsc")
     for row in world.db.rpkid.bsc:
-        print " ", row.bsc_handle
-        tenant = rpki.rpkidb.models.Tenant.objects.get(pk = row.self_id )
+        show_handle(row.bsc_handle)
+        tenant = rpki.rpkidb.models.Tenant.objects.get(pk = row.self_id)
         rpki.rpkidb.models.BSC.objects.create(
             pk                      = row.bsc_id,
             bsc_handle              = row.bsc_handle,
@@ -157,11 +240,12 @@ def rpkid_handler():
             signing_cert_crl        = CRL(row.signing_cert_crl),
             tenant                  = tenant)
 
-    print "rpkid repository"
+    show_model("rpkid", "repository")
     for row in world.db.rpkid.repository:
-        print " ", row.repository_handle
-        tenant = rpki.rpkidb.models.Tenant.objects.get(pk = row.self_id )
-        bsc    = rpki.rpkidb.models.BSC.objects.get(   pk = row.bsc_id, tenant = tenant )
+        show_handle(row.repository_handle)
+        tenant = rpki.rpkidb.models.Tenant.objects.get(pk     = row.self_id)
+        bsc    = rpki.rpkidb.models.BSC.objects.get(   pk     = row.bsc_id,
+                                                       tenant = row.self_id)
         rpki.rpkidb.models.Repository.objects.create(
             pk                      = row.repository_id,
             repository_handle       = row.repository_handle,
@@ -172,12 +256,14 @@ def rpkid_handler():
             bsc                     = bsc,
             tenant                  = tenant)
 
-    print "rpkid parent"
+    show_model("rpkid", "parent")
     for row in world.db.rpkid.parent:
-        print " ", row.parent_handle
-        tenant     = rpki.rpkidb.models.Tenant.objects.get(    pk = row.self_id )
-        bsc        = rpki.rpkidb.models.BSC.objects.get(       pk = row.bsc_id,        tenant = tenant )
-        repository = rpki.rpkidb.models.Repository.objects.get(pk = row.repository_id, tenant = tenant )
+        show_handle(row.parent_handle)
+        tenant     = rpki.rpkidb.models.Tenant.objects.get(    pk     = row.self_id)
+        bsc        = rpki.rpkidb.models.BSC.objects.get(       pk     = row.bsc_id,
+                                                               tenant = row.self_id)
+        repository = rpki.rpkidb.models.Repository.objects.get(pk     = row.repository_id,
+                                                               tenant = row.self_id)
         rpki.rpkidb.models.Parent.objects.create(
             pk                      = row.parent_id,
             parent_handle           = row.parent_handle,
@@ -192,18 +278,20 @@ def rpkid_handler():
             repository              = repository,
             tenant                  = tenant)
 
-    print "rpkid ca"
+    show_model("rpkid", "ca")
     for row in world.db.rpkid.ca:
         parent = rpki.rpkidb.models.Parent.objects.get(pk = row.parent_id)
+        last_crl_mft_number = max(row.last_crl_sn,
+                                  row.last_manifest_sn)
         rpki.rpkidb.models.CA.objects.create(
             pk                      = row.ca_id,
-            last_crl_manifest_number= max(row.last_crl_sn, row.last_manifest_sn),
+            last_crl_manifest_number= last_crl_mft_number,
             last_issued_sn          = row.last_issued_sn,
             sia_uri                 = row.sia_uri,
             parent_resource_class   = row.parent_resource_class,
             parent                  = parent)
 
-    print "rpkid ca_detail"
+    show_model("rpkid", "ca_detail")
     for row in world.db.rpkid.ca_detail:
         ca = rpki.rpkidb.models.CA.objects.get(pk = row.ca_id)
         rpki.rpkidb.models.CADetail.objects.create(
@@ -221,11 +309,12 @@ def rpkid_handler():
             ca_cert_uri             = row.ca_cert_uri,
             ca                      = ca)
 
-    print "rpkid child"
+    show_model("rpkid", "child")
     for row in world.db.rpkid.child:
-        print " ", row.child_handle
-        tenant     = rpki.rpkidb.models.Tenant.objects.get(pk = row.self_id)
-        bsc        = rpki.rpkidb.models.BSC.objects.get(   pk = row.bsc_id, tenant = tenant)
+        show_handle(row.child_handle)
+        tenant     = rpki.rpkidb.models.Tenant.objects.get(pk     = row.self_id)
+        bsc        = rpki.rpkidb.models.BSC.objects.get(   pk     = row.bsc_id,
+                                                           tenant = row.self_id)
         rpki.rpkidb.models.Child.objects.create(
             pk                      = row.child_id,
             child_handle            = row.child_handle,
@@ -235,7 +324,7 @@ def rpkid_handler():
             tenant                  = tenant,
             bsc                     = bsc)
 
-    print "rpkid child_cert"
+    show_model("rpkid", "child_cert")
     for row in world.db.rpkid.child_cert:
         child     = rpki.rpkidb.models.Child.objects.get(   pk = row.child_id)
         ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
@@ -247,7 +336,7 @@ def rpkid_handler():
             child                   = child,
             ca_detail               = ca_detail)
 
-    print "rpkid revoked_cert"
+    show_model("rpkid", "revoked_cert")
     for row in world.db.rpkid.revoked_cert:
         ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
         rpki.rpkidb.models.RevokedCert.objects.create(
@@ -257,13 +346,14 @@ def rpkid_handler():
             expires                 = row.expires,
             ca_detail               = ca_detail)
 
-    print "rpkid roa"
+    show_model("rpkid", "roa")
     for row in world.db.rpkid.roa:
         tenant    = rpki.rpkidb.models.Tenant.objects.get(  pk = row.self_id)
         ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
-        prefixes = tuple((p.version, "%s/%s-%s".format(p.prefix, p.prefixlen, p.max_prefixlen))
-                         for p in world.db.rpkid.roa_prefix
-                         if p.roa_id == row.roa_id)
+        prefixes = tuple(
+            (p.version, "{0.prefix}/{0.prefixlen}-{0.max_prefixlen}".format(p))
+            for p in world.db.rpkid.roa_prefix
+            if p.roa_id == row.roa_id)
         ipv4 = ",".join(p for v, p in prefixes if v == 4) or None
         ipv6 = ",".join(p for v, p in prefixes if v == 6) or None
         rpki.rpkidb.models.ROA.objects.create(
@@ -277,7 +367,7 @@ def rpkid_handler():
             tenant                  = tenant,
             ca_detail               = ca_detail)
 
-    print "rpkid ghostbuster"
+    show_model("rpkid", "ghostbuster")
     for row in world.db.rpkid.ghostbuster:
         tenant    = rpki.rpkidb.models.Tenant.objects.get(  pk = row.self_id)
         ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
@@ -290,7 +380,7 @@ def rpkid_handler():
             tenant                  = tenant,
             ca_detail               = ca_detail)
 
-    print "rpkid ee_cert"
+    show_model("rpkid", "ee_cert")
     for row in world.db.rpkid.ee_cert:
         tenant    = rpki.rpkidb.models.Tenant.objects.get(  pk = row.self_id)
         ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
@@ -302,43 +392,16 @@ def rpkid_handler():
             tenant                  = tenant,
             ca_detail               = ca_detail)
 
-    if cfg_to_Bool(world.cfg.myrpki.run_rootd):
-        print "rootd enabled"
-        root_dir = world.cfg.rootd["rpki-root-dir"]
-        root_cer = X509(world.file[                       world.cfg.rootd["rpki-root-cert"    ] ])
-        root_key = RSA( world.file[                       world.cfg.rootd["rpki-root-key"     ] ])
-        root_crl = CRL( world.file[os.path.join(root_dir, world.cfg.rootd["rpki-root-crl"     ])])
-        root_mft = MFT( world.file[os.path.join(root_dir, world.cfg.rootd["rpki-root-manifest"])])
-        work_cer = X509(world.file[os.path.join(root_dir, world.cfg.rootd["rpki-subject-cert" ])])
-        print "root cer: {!r}".format(root_cer)
-        print "root key: {!r}".format(root_key)
-        print "root crl: {!r}".format(root_crl)
-        print "root.mft: {!r}".format(root_mft)
-        print "work.cer: {!r}".format(work_cer)
 
-        root_serial = root_cer.getSerial()
-        work_serial = work_cer.getSerial()
-        mft_serial  = root_mft.get_POW().certs()[0].getSerial()
-        print "Serials: root {} worker {} manifest {} next {}".format(
-            root_serial, work_serial, mft_serial,
-            max(root_serial, work_serial, mft_serial) + 1)
-
-        root_mft.extract()
-        mft_number = root_mft.get_POW().getManifestNumber()
-        crl_number = root_crl.getCRLNumber()
-        print "Numbers: CRL {} manifest {} next {}".format(
-            crl_number, mft_number, max(crl_number, mft_number) + 1)
-
-
-def pubd_handler():
+def pubd_handler(cfg, world, root):
     os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.pubd")
     import django
     django.setup()
     import rpki.pubdb
 
-    print "pubd client"
+    show_model("pubd", "client")
     for row in world.db.pubd.client:
-        print " ", row.client_handle
+        show_handle(row.client_handle)
         rpki.pubdb.models.Client.objects.create(
             pk                  = row.client_id,
             client_handle       = row.client_handle,
@@ -348,25 +411,16 @@ def pubd_handler():
             last_cms_timestamp  = row.last_cms_timestamp)
 
 
-def irdb_handler():
+def irdb_handler(cfg, world, root):
     os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.irdb")
     import django
     django.setup()
     import rpki.irdb
 
-    # Changes from  old to new rpki.irdb.models:
-    #
-    # * rpki.irdb.models.Rootd went away.
-    #
-    # * rpki.irdb.models.Repository acquired rrdp_notification_uri;
-    #   initialize from current (not pickled) rpki.conf?
-    #
-    # * rpki.irdb.models.Client dropped parent_handle.
-    #
     # Most pk fields are just id.  The one exception is Parent, whose pk
-    # is turtle_ptr_id because it's also a foreign key pointing at Turtle.
+    # is turtle_ptr_id because it's (also) a foreign key pointing at Turtle.id.
 
-    print "irdb ServerCA"
+    show_model("irdb", "ServerCA")
     for row in world.db.irdbd.irdb_serverca:
         rpki.irdb.models.ServerCA.objects.create(
             pk                  = row.id,
@@ -378,9 +432,9 @@ def irdb_handler():
             last_crl_update     = row.last_crl_update,
             next_crl_update     = row.next_crl_update)
 
-    print "irdb ResourceHolderCA"
+    show_model("irdb", "ResourceHolderCA")
     for row in world.db.irdbd.irdb_resourceholderca:
-        print " ", row.handle
+        show_handle(row.handle)
         rpki.irdb.models.ResourceHolderCA.objects.create(
             pk                  = row.id,
             certificate         = X509(row.certificate),
@@ -392,7 +446,7 @@ def irdb_handler():
             next_crl_update     = row.next_crl_update,
             handle              = row.handle)
 
-    print "irdb HostedCA"
+    show_model("irdb", "HostedCA")
     for row in world.db.irdbd.irdb_hostedca:
         issuer = rpki.irdb.models.ServerCA.objects.get(        pk = row.issuer_id)
         hosted = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.hosted_id)
@@ -402,7 +456,7 @@ def irdb_handler():
             issuer              = issuer,
             hosted              = hosted)
 
-    print "irdb ServerRevocation"
+    show_model("irdb", "ServerRevocation")
     for row in world.db.irdbd.irdb_serverrevocation:
         issuer = rpki.irdb.models.ServerCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.ServerRevocation.objects.create(
@@ -412,7 +466,7 @@ def irdb_handler():
             expires             = row.expires,
             issuer              = issuer)
 
-    print "irdb ResourceHolderRevocation"
+    show_model("irdb", "ResourceHolderRevocation")
     for row in world.db.irdbd.irdb_resourceholderrevocation:
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.ResourceHolderRevocation.objects.create(
@@ -422,7 +476,7 @@ def irdb_handler():
             expires             = row.expires,
             issuer              = issuer)
 
-    print "irdb ServerEE"
+    show_model("irdb", "ServerEE")
     for row in world.db.irdbd.irdb_serveree:
         issuer = rpki.irdb.models.ServerCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.ServerEE.objects.create(
@@ -432,7 +486,7 @@ def irdb_handler():
             purpose             = row.purpose,
             issuer              = issuer)
 
-    print "irdb Referral"
+    show_model("irdb", "Referral")
     for row in world.db.irdbd.irdb_referral:
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.Referral.objects.create(
@@ -441,8 +495,9 @@ def irdb_handler():
             private_key         = RSA(row.private_key),
             issuer              = issuer)
 
-    print "irdb BSC"
+    show_model("irdb", "BSC")
     for row in world.db.irdbd.irdb_bsc:
+        show_handle(row.handle)
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.BSC.objects.create(
             pk                  = row.id,
@@ -451,8 +506,9 @@ def irdb_handler():
             pkcs10              = PKCS10(row.pkcs10),
             issuer              = issuer)
 
-    print "irdb Child"
+    show_model("irdb", "Child")
     for row in world.db.irdbd.irdb_child:
+        show_handle(row.handle)
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.Child.objects.create(
             pk                  = row.id,
@@ -463,7 +519,7 @@ def irdb_handler():
             name                = row.name,
             issuer              = issuer)
 
-    print "irdb ChildASN"
+    show_model("irdb", "ChildASN")
     for row in world.db.irdbd.irdb_childasn:
         child = rpki.irdb.models.Child.objects.get(pk = row.child_id)
         rpki.irdb.models.ChildASN.objects.create(
@@ -472,7 +528,7 @@ def irdb_handler():
             end_as              = row.end_as,
             child               = child)
 
-    print "irdb ChildNet"
+    show_model("irdb", "ChildNet")
     for row in world.db.irdbd.irdb_childnet:
         child = rpki.irdb.models.Child.objects.get(pk = row.child_id)
         rpki.irdb.models.ChildNet.objects.create(
@@ -482,16 +538,18 @@ def irdb_handler():
             version             = row.version,
             child               = child)
 
-    # We'd like to consolidate Turtle into Parent now that Rootd is
-    # gone.  Well, guess what, we can write this as if it already had
-    # been and it should work either way.
+    # We'd like to consolidate Turtle into Parent now that Rootd is gone.
+    # Well, guess what, due to the magic of multi-table inheritance,
+    # we can write this code as if we had already performed that merge,
+    # and the code should work either way.
     #
     # "Django is amazing when it's not terrifying."
 
     turtle_map = dict((row.id, row) for row in world.db.irdbd.irdb_turtle)
 
-    print "irdb Parent"
+    show_model("irdb", "Parent")
     for row in world.db.irdbd.irdb_parent:
+        show_handle(row.handle)
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.Parent.objects.create(
             pk                  = row.turtle_ptr_id,
@@ -506,7 +564,7 @@ def irdb_handler():
             referral_authorization = REF(row.referral_authorization),
             issuer              = issuer)
 
-    print "irdb ROARequest"
+    show_model("irdb", "ROARequest")
     for row in world.db.irdbd.irdb_roarequest:
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.ROARequest.objects.create(
@@ -514,7 +572,7 @@ def irdb_handler():
             asn                 = row.asn,
             issuer              = issuer)
 
-    print "irdb ROARequestPrefix"
+    show_model("irdb", "ROARequestPrefix")
     for row in world.db.irdbd.irdb_roarequestprefix:
         roa_request = rpki.irdb.models.ROARequest.objects.get(pk = row.roa_request_id)
         rpki.irdb.models.ROARequestPrefix.objects.create(
@@ -525,7 +583,7 @@ def irdb_handler():
             max_prefixlen       = row.max_prefixlen,
             roa_request         = roa_request)
 
-    print "irdb Ghostbuster"
+    show_model("irdb", "Ghostbuster")
     for row in world.db.irdbd.irdb_ghostbusterrequest:
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         try:
@@ -538,7 +596,7 @@ def irdb_handler():
             parent              = parent,
             issuer              = issuer)
 
-    print "irdb EECertificateRequest"
+    show_model("irdb", "EECertificateRequest")
     for row in world.db.irdbd.irdb_eecertificaterequest:
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.EECertificateRequest.objects.create(
@@ -551,7 +609,7 @@ def irdb_handler():
             eku                 = row.eku,
             issuer              = issuer)
 
-    print "irdb EECertificateRequestASN"
+    show_model("irdb", "EECertificateRequestASN")
     for row in world.db.irdbd.irdb_eecertificaterequestasn:
         ee_certificate_request = rpki.irdb.models.EECertificateRequest.objects.get(
             pk = row.ee_certificate_request_id)
@@ -561,7 +619,7 @@ def irdb_handler():
             end_as              = row.end_as,
             ee_certificate_request = ee_certificate_request)
 
-    print "irdb EECertificateRequestNet"
+    show_model("irdb", "EECertificateRequestNet")
     for row in world.db.irdbd.irdb_eecertificaterequestnet:
         ee_certificate_request = rpki.irdb.models.EECertificateRequest.objects.get(
             pk = row.ee_certificate_request_id)
@@ -573,22 +631,30 @@ def irdb_handler():
             ee_certificate_request = ee_certificate_request)
 
     # Turtle without a Parent can happen where the old database had a Rootd.
-    # We probably need to do something that coordinates with whatever we do
-    # about rootd in rpkid_handler(), but we haven't written that yet.
+    # We can create an irdb parent, but only handle_rpkid() (or rpkid itself)
+    # can create an rpkidb Parent object, so we need to coordinate with handle_rpkid().
+    #
+    # Probably the best plan is to continue along the path of collecting all the data
+    # needed to create all rootd-related objects in this script's Root class, and
+    # figure all that out before ever forking any of the handlers.  Then rpkid_handler()
+    # and this function can both just create what we already decided to create.
 
-    print "irdb Repository"
+    rrdp_notification_uri = cfg.get(section = "myrpki", option = "publication_rrdp_notification_uri")
+
+    show_model("irdb", "Repository")
     for row in world.db.irdbd.irdb_repository:
+        show_handle(row.handle)
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         try:
-            turtle = rpki.irdb.models.Turtle.objects.get(pk = row.turtle_id)
-        except rpki.irdb.models.Turtle.DoesNotExist:
-            if not cfg_to_Bool(world.cfg.myrpki.run_rootd):
+            parent = rpki.irdb.models.Parent.objects.get(pk = row.turtle_id)
+        except rpki.irdb.models.Parent.DoesNotExist:
+            if not root.enabled or row.turtle_id != root.rootd_turtle_id:
                 raise
-            turtle = rpki.irdb.models.Turtle.objects.create(
+            print "++ Need to create Parent to replace Rootd"
+            continue # XXX
+            parent = rpki.irdb.models.Parent.objects.create(
                 pk              = row.turtle_id,
-                service_uri     =  "http://{rootd_host}:{rootd_port}/".format(
-                    rootd_host = world.cfg.rootd.server_host,
-                    rootd_port = world.cfg.rootd.server_port))
+                service_uri     = root.rootd_turtle_service_uri)
         rpki.irdb.models.Repository.objects.create(
             pk                  = row.id,
             certificate         = X509(row.certificate),
@@ -597,13 +663,13 @@ def irdb_handler():
             client_handle       = row.client_handle,
             service_uri         = row.service_uri,
             sia_base            = row.sia_base,
-            rrdp_notification_uri = cfg.get(section = "myrpki",
-                                            option = "publication_rrdp_notification_uri"),
-            turtle              = turtle,
+            rrdp_notification_uri = rrdp_notification_uri,
+            turtle              = parent,
             issuer              = issuer)
 
-    print "irdb Client"
+    show_model("irdb", "Client")
     for row in world.db.irdbd.irdb_client:
+        show_handle(row.handle)
         issuer = rpki.irdb.models.ServerCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.Client.objects.create(
             pk                  = row.id,

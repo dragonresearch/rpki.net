@@ -36,6 +36,8 @@ class LazyDict(object):
 
     def __init__(self, *args, **kwargs):
         self._d = dict(*args, **kwargs)
+        for k, v in self._d.iteritems():
+            self._d[k] = self._insinuate(v)
 
     def __getattr__(self, name):
         if name in self._d:
@@ -55,33 +57,35 @@ class LazyDict(object):
         return len(self._d)
 
     @classmethod
-    def insinuate(cls, thing):
+    def _insinuate(cls, thing):
         if isinstance(thing, dict):
-            return cls((k, cls.insinuate(v)) for k, v in thing.iteritems())
+            return cls(thing)
         if isinstance(thing, list):
-            return list(cls.insinuate(v) for v in thing)
+            return list(cls._insinuate(v) for v in thing)
         if isinstance(thing, tuple):
-            return tuple(cls.insinuate(v) for v in thing)
+            return tuple(cls._insinuate(v) for v in thing)
         return thing
 
 
 # None-safe wrappers for DER constructors.
-def X509(obj):   return None if obj is None else rpki.x509.X509(          DER = obj)
-def CRL(obj):    return None if obj is None else rpki.x509.CRL(           DER = obj)
-def RSA(obj):    return None if obj is None else rpki.x509.RSA(           DER = obj)
-def PKCS10(obj): return None if obj is None else rpki.x509.PKCS10(        DER = obj)
-def MFT(obj):    return None if obj is None else rpki.x509.SignedManifest(DER = obj)
-def ROA(obj):    return None if obj is None else rpki.x509.ROA(           DER = obj)
-def GBR(obj):    return None if obj is None else rpki.x509.Ghostbuster(   DER = obj)
-def REF(obj):    return None if obj is None else rpki.x509.SignedReferral(DER = obj)
+def NoneSafe(obj, cls):
+    return None if obj is None else cls(DER = obj)
 
+def X509(obj):   return NoneSafe(obj, rpki.x509.X509)
+def CRL(obj):    return NoneSafe(obj, rpki.x509.CRL)
+def RSA(obj):    return NoneSafe(obj, rpki.x509.RSA)
+def PKCS10(obj): return NoneSafe(obj, rpki.x509.PKCS10)
+def MFT(obj):    return NoneSafe(obj, rpki.x509.SignedManifest)
+def ROA(obj):    return NoneSafe(obj, rpki.x509.ROA)
+def GBR(obj):    return NoneSafe(obj, rpki.x509.Ghostbuster)
+def REF(obj):    return NoneSafe(obj, rpki.x509.SignedReferral)
 
 # Other conversions
 
-def ski_to_gski(ski):
+def SKI_to_gSKI(ski):
     return None if ski is None else urlsafe_b64encode(ski).rstrip("=")
 
-def cfg_to_bool(v):
+def cfg_to_Bool(v):
     from ConfigParser import RawConfigParser
     states = RawConfigParser._boolean_states
     return states[v.lower()]
@@ -101,14 +105,14 @@ def main():
 
     global world
     xzcat = subprocess.Popen(("xzcat", args.input_file), stdout = subprocess.PIPE)
-    world = LazyDict.insinuate(cPickle.load(xzcat.stdout))
+    world = LazyDict(cPickle.load(xzcat.stdout))
     if xzcat.wait() != 0:
         sys.exit("XZ unpickling failed with code {}".format(xzcat.returncode))
 
     for enabled, handler in ((world.cfg.myrpki.run_rpkid, rpkid_handler),
                              (world.cfg.myrpki.run_rpkid, irdb_handler),
                              (world.cfg.myrpki.run_pubd,  pubd_handler)):
-        if not cfg_to_bool(enabled):
+        if not cfg_to_Bool(enabled):
             continue
         if os.fork() == 0:
             handler()
@@ -239,7 +243,7 @@ def rpkid_handler():
             pk                      = row.child_cert_id,
             cert                    = X509(row.cert),
             published               = row.published,
-            gski                    = ski_to_gski(row.ski),
+            gski                    = SKI_to_gSKI(row.ski),
             child                   = child,
             ca_detail               = ca_detail)
 
@@ -292,13 +296,13 @@ def rpkid_handler():
         ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
         rpki.rpkidb.models.EECertificate.objects.create(
             pk                      = row.ee_cert_id,
-            gski                    = ski_to_gski(row.ski),
+            gski                    = SKI_to_gSKI(row.ski),
             cert                    = X509(row.cert),
             published               = row.published,
             tenant                  = tenant,
             ca_detail               = ca_detail)
 
-    if cfg_to_bool(world.cfg.myrpki.run_rootd):
+    if cfg_to_Bool(world.cfg.myrpki.run_rootd):
         print "rootd enabled"
         root_dir = world.cfg.rootd["rpki-root-dir"]
         root_cer = X509(world.file[                       world.cfg.rootd["rpki-root-cert"    ] ])
@@ -578,7 +582,7 @@ def irdb_handler():
         try:
             turtle = rpki.irdb.models.Turtle.objects.get(pk = row.turtle_id)
         except rpki.irdb.models.Turtle.DoesNotExist:
-            if not cfg_to_bool(world.cfg.myrpki.run_rootd):
+            if not cfg_to_Bool(world.cfg.myrpki.run_rootd):
                 raise
             turtle = rpki.irdb.models.Turtle.objects.create(
                 pk              = row.turtle_id,

@@ -76,7 +76,7 @@ if xzcat.wait() != 0:
 
 if False:
     # Trivial test for the LazyDict code
-    print "Engine handle is", world.cooked_config.myrpki.handle
+    print "Engine handle is", world.cfg.myrpki.handle
 
 # None-safe wrappers for DER constructors.
 def X509(obj):   return None if obj is None else rpki.x509.X509(          DER = obj)
@@ -111,7 +111,7 @@ django.setup()
 import rpki.rpkidb
 
 print "rpkid self"
-for row in world.databases.rpkid.self:
+for row in world.db.rpkid.self:
     print " ", row.self_handle
     rpki.rpkidb.models.Tenant.objects.create(
         pk                      = row.self_id,
@@ -123,7 +123,7 @@ for row in world.databases.rpkid.self:
         bpki_glue               = X509(row.bpki_glue))
 
 print "rpkid bsc"
-for row in world.databases.rpkid.bsc:
+for row in world.db.rpkid.bsc:
     print " ", row.bsc_handle
     tenant = rpki.rpkidb.models.Tenant.objects.get(pk = row.self_id )
     rpki.rpkidb.models.BSC.objects.create(
@@ -137,7 +137,7 @@ for row in world.databases.rpkid.bsc:
         tenant                  = tenant)
 
 print "rpkid repository"
-for row in world.databases.rpkid.repository:
+for row in world.db.rpkid.repository:
     print " ", row.repository_handle
     tenant = rpki.rpkidb.models.Tenant.objects.get(pk = row.self_id )
     bsc    = rpki.rpkidb.models.BSC.objects.get(   pk = row.bsc_id, tenant = tenant )
@@ -152,7 +152,7 @@ for row in world.databases.rpkid.repository:
         tenant                  = tenant)
 
 print "rpkid parent"
-for row in world.databases.rpkid.parent:
+for row in world.db.rpkid.parent:
     print " ", row.parent_handle
     tenant     = rpki.rpkidb.models.Tenant.objects.get(    pk = row.self_id )
     bsc        = rpki.rpkidb.models.BSC.objects.get(       pk = row.bsc_id,        tenant = tenant )
@@ -172,7 +172,7 @@ for row in world.databases.rpkid.parent:
         tenant                  = tenant)
 
 print "rpkid ca"
-for row in world.databases.rpkid.ca:
+for row in world.db.rpkid.ca:
     parent = rpki.rpkidb.models.Parent.objects.get(pk = row.parent_id)
     rpki.rpkidb.models.CA.objects.create(
         pk                      = row.ca_id,
@@ -183,7 +183,7 @@ for row in world.databases.rpkid.ca:
         parent                  = parent)
 
 print "rpkid ca_detail"
-for row in world.databases.rpkid.ca_detail:
+for row in world.db.rpkid.ca_detail:
     ca = rpki.rpkidb.models.CA.objects.get(pk = row.ca_id)
     rpki.rpkidb.models.CADetail.objects.create(
         pk                      = row.ca_detail_id,
@@ -201,7 +201,7 @@ for row in world.databases.rpkid.ca_detail:
         ca                      = ca)
 
 print "rpkid child"
-for row in world.databases.rpkid.child:
+for row in world.db.rpkid.child:
     print " ", row.child_handle
     tenant     = rpki.rpkidb.models.Tenant.objects.get(pk = row.self_id)
     bsc        = rpki.rpkidb.models.BSC.objects.get(   pk = row.bsc_id, tenant = tenant)
@@ -215,7 +215,7 @@ for row in world.databases.rpkid.child:
         bsc                     = bsc)
 
 print "rpkid child_cert"
-for row in world.databases.rpkid.child_cert:
+for row in world.db.rpkid.child_cert:
     child     = rpki.rpkidb.models.Child.objects.get(   pk = row.child_id)
     ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
     rpki.rpkidb.models.ChildCert.objects.create(
@@ -227,7 +227,7 @@ for row in world.databases.rpkid.child_cert:
         ca_detail               = ca_detail)
 
 print "rpkid revoked_cert"
-for row in world.databases.rpkid.revoked_cert:
+for row in world.db.rpkid.revoked_cert:
     ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
     rpki.rpkidb.models.RevokedCert.objects.create(
         pk                      = row.revoked_cert_id,
@@ -237,11 +237,11 @@ for row in world.databases.rpkid.revoked_cert:
         ca_detail               = ca_detail)
 
 print "rpkid roa"
-for row in world.databases.rpkid.roa:
+for row in world.db.rpkid.roa:
     tenant    = rpki.rpkidb.models.Tenant.objects.get(  pk = row.self_id)
     ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
     prefixes = tuple((p.version, "%s/%s-%s".format(p.prefix, p.prefixlen, p.max_prefixlen))
-                     for p in world.databases.rpkid.roa_prefix
+                     for p in world.db.rpkid.roa_prefix
                      if p.roa_id == row.roa_id)
     ipv4 = ",".join(p for v, p in prefixes if v == 4) or None
     ipv6 = ",".join(p for v, p in prefixes if v == 6) or None
@@ -257,7 +257,7 @@ for row in world.databases.rpkid.roa:
         ca_detail               = ca_detail)
 
 print "rpkid ghostbuster"
-for row in world.databases.rpkid.ghostbuster:
+for row in world.db.rpkid.ghostbuster:
     tenant    = rpki.rpkidb.models.Tenant.objects.get(  pk = row.self_id)
     ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
     rpki.rpkidb.models.Ghostbuster.objects.create(
@@ -270,7 +270,7 @@ for row in world.databases.rpkid.ghostbuster:
         ca_detail               = ca_detail)
 
 print "rpkid ee_cert"
-for row in world.databases.rpkid.ee_cert:
+for row in world.db.rpkid.ee_cert:
     tenant    = rpki.rpkidb.models.Tenant.objects.get(  pk = row.self_id)
     ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
     rpki.rpkidb.models.EECertificate.objects.create(
@@ -281,14 +281,14 @@ for row in world.databases.rpkid.ee_cert:
         tenant                  = tenant,
         ca_detail               = ca_detail)
 
-if cfg_to_bool(world.cooked_config.myrpki.run_rootd):
+if cfg_to_bool(world.cfg.myrpki.run_rootd):
     print "rootd enabled"
-    root_cer = X509(world.files[world.cooked_config.rootd["rpki-root-cert"]])
-    root_key = RSA(world.files[world.cooked_config.rootd["rpki-root-key"]])
-    root_dir = world.cooked_config.rootd["rpki-root-dir"]
-    root_crl = CRL(world.files[os.path.join(root_dir, world.cooked_config.rootd["rpki-root-crl"])])
-    root_mft = MFT(world.files[os.path.join(root_dir,world.cooked_config.rootd["rpki-root-manifest"])])
-    work_cer = X509(world.files[os.path.join(root_dir,world.cooked_config.rootd["rpki-subject-cert"])])
+    root_dir = world.cfg.rootd["rpki-root-dir"]
+    root_cer = X509(world.file[                       world.cfg.rootd["rpki-root-cert"    ] ])
+    root_key = RSA( world.file[                       world.cfg.rootd["rpki-root-key"     ] ])
+    root_crl = CRL( world.file[os.path.join(root_dir, world.cfg.rootd["rpki-root-crl"     ])])
+    root_mft = MFT( world.file[os.path.join(root_dir, world.cfg.rootd["rpki-root-manifest"])])
+    work_cer = X509(world.file[os.path.join(root_dir, world.cfg.rootd["rpki-subject-cert" ])])
     print "root cer: {!r}".format(root_cer)
     print "root key: {!r}".format(root_key)
     print "root crl: {!r}".format(root_crl)

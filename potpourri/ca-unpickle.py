@@ -73,6 +73,7 @@ def PKCS10(obj): return None if obj is None else rpki.x509.PKCS10(        DER = 
 def MFT(obj):    return None if obj is None else rpki.x509.SignedManifest(DER = obj)
 def ROA(obj):    return None if obj is None else rpki.x509.ROA(           DER = obj)
 def GBR(obj):    return None if obj is None else rpki.x509.Ghostbuster(   DER = obj)
+def REF(obj):    return None if obj is None else rpki.x509.SignedReferral(DER = obj)
 
 
 # Other conversions
@@ -348,6 +349,265 @@ def irdb_handler():
     import django
     django.setup()
     import rpki.irdb
+
+    # Changes from  old to new rpki.irdb.models:
+    #
+    # * rpki.irdb.models.Rootd went away.
+    #
+    # * rpki.irdb.models.Repository acquired rrdp_notification_uri;
+    #   initialize from current (not pickled) rpki.conf?
+    #
+    # * rpki.irdb.models.Client dropped parent_handle.
+    #
+    # Most pk fields are just id.  The one exception is Parent, whose pk
+    # is turtle_ptr_id because it's also a foreign key pointing at Turtle.
+
+    print "irdb ServerCA"
+    for row in world.db.irdbd.irdb_serverca:
+        rpki.irdb.models.ServerCA.objects.create(
+            pk                  = row.id,
+            certificate         = X509(row.certificate),
+            private_key         = RSA(row.private_key),
+            latest_crl          = CRL(row.latest_crl),
+            next_serial         = row.next_serial,
+            next_crl_number     = row.next_crl_number,
+            last_crl_update     = row.last_crl_update,
+            next_crl_update     = row.next_crl_update)
+
+    print "irdb ResourceHolderCA"
+    for row in world.db.irdbd.irdb_resourceholderca:
+        print " ", row.handle
+        rpki.irdb.models.ResourceHolderCA.objects.create(
+            pk                  = row.id,
+            certificate         = X509(row.certificate),
+            private_key         = RSA(row.private_key),
+            latest_crl          = CRL(row.latest_crl),
+            next_serial         = row.next_serial,
+            next_crl_number     = row.next_crl_number,
+            last_crl_update     = row.last_crl_update,
+            next_crl_update     = row.next_crl_update,
+            handle              = row.handle)
+
+    print "irdb HostedCA"
+    for row in world.db.irdbd.irdb_hostedca:
+        issuer = rpki.irdb.models.ServerCA.objects.get(        pk = row.issuer_id)
+        hosted = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.hosted_id)
+        rpki.irdb.models.HostedCA.objects.create(
+            pk                  = row.id,
+            certificate         = X509(row.certificate),
+            issuer              = issuer,
+            hosted              = hosted)
+
+    print "irdb ServerRevocation"
+    for row in world.db.irdbd.irdb_serverrevocation:
+        issuer = rpki.irdb.models.ServerCA.objects.get(pk = row.issuer_id)
+        rpki.irdb.models.ServerRevocation.objects.create(
+            pk                  = row.id,
+            serial              = row.serial,
+            revoked             = row.revoked,
+            expires             = row.expires,
+            issuer              = issuer)
+
+    print "irdb ResourceHolderRevocation"
+    for row in world.db.irdbd.irdb_resourceholderrevocation:
+        issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
+        rpki.irdb.models.ResourceHolderRevocation.objects.create(
+            pk                  = row.id,
+            serial              = row.serial,
+            revoked             = row.revoked,
+            expires             = row.expires,
+            issuer              = issuer)
+
+    print "irdb ServerEE"
+    for row in world.db.irdbd.irdb_serveree:
+        issuer = rpki.irdb.models.ServerCA.objects.get(pk = row.issuer_id)
+        rpki.irdb.models.ServerEE.objects.create(
+            pk                  = row.id,
+            certificate         = X509(row.certificate),
+            private_key         = RSA(row.private_key),
+            purpose             = row.purpose,
+            issuer              = issuer)
+
+    print "irdb Referral"
+    for row in world.db.irdbd.irdb_referral:
+        issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
+        rpki.irdb.models.Referral.objects.create(
+            pk                  = row.id,
+            certificate         = X509(row.certificate),
+            private_key         = RSA(row.private_key),
+            issuer              = issuer)
+
+    print "irdb BSC"
+    for row in world.db.irdbd.irdb_bsc:
+        issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
+        rpki.irdb.models.BSC.objects.create(
+            pk                  = row.id,
+            certificate         = X509(row.certificate),
+            handle              = row.handle,
+            pkcs10              = PKCS10(row.pkcs10),
+            issuer              = issuer)
+
+    print "irdb Child"
+    for row in world.db.irdbd.irdb_child:
+        issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
+        rpki.irdb.models.Child.objects.create(
+            pk                  = row.id,
+            certificate         = X509(row.certificate),
+            handle              = row.handle,
+            ta                  = X509(row.ta),
+            valid_until         = row.valid_until,
+            name                = row.name,
+            issuer              = issuer)
+
+    print "irdb ChildASN"
+    for row in world.db.irdbd.irdb_childasn:
+        child = rpki.irdb.models.Child.objects.get(pk = row.child_id)
+        rpki.irdb.models.ChildASN.objects.create(
+            pk                  = row.id,
+            start_as            = row.start_as,
+            end_as              = row.end_as,
+            child               = child)
+
+    print "irdb ChildNet"
+    for row in world.db.irdbd.irdb_childnet:
+        child = rpki.irdb.models.Child.objects.get(pk = row.child_id)
+        rpki.irdb.models.ChildNet.objects.create(
+            pk                  = row.id,
+            start_ip            = row.start_ip,
+            end_ip              = row.end_ip,
+            version             = row.version,
+            child               = child)
+
+    # We'd like to consolidate Turtle into Parent now that Rootd is
+    # gone.  Well, guess what, we can write this as if it already had
+    # been and it should work either way.
+    #
+    # "Django is amazing when it's not terrifying."
+
+    turtle_map = dict((row.id, row) for row in world.db.irdbd.irdb_turtle)
+
+    print "irdb Parent"
+    for row in world.db.irdbd.irdb_parent:
+        issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
+        rpki.irdb.models.Parent.objects.create(
+            pk                  = row.turtle_ptr_id,
+            service_uri         = turtle_map[row.turtle_ptr_id].service_uri,
+            certificate         = X509(row.certificate),
+            handle              = row.handle,
+            ta                  = X509(row.ta),
+            parent_handle       = row.parent_handle,
+            child_handle        = row.child_handle,
+            repository_type     = row.repository_type,
+            referrer            = row.referrer,
+            referral_authorization = REF(row.referral_authorization),
+            issuer              = issuer)
+
+    print "irdb ROARequest"
+    for row in world.db.irdbd.irdb_roarequest:
+        issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
+        rpki.irdb.models.ROARequest.objects.create(
+            pk                  = row.id,
+            asn                 = row.asn,
+            issuer              = issuer)
+
+    print "irdb ROARequestPrefix"
+    for row in world.db.irdbd.irdb_roarequestprefix:
+        roa_request = rpki.irdb.models.ROARequest.objects.get(pk = row.roa_request_id)
+        rpki.irdb.models.ROARequestPrefix.objects.create(
+            pk                  = row.id,
+            version             = row.version,
+            prefix              = row.prefix,
+            prefixlen           = row.prefixlen,
+            max_prefixlen       = row.max_prefixlen,
+            roa_request         = roa_request)
+
+    print "irdb Ghostbuster"
+    for row in world.db.irdbd.irdb_ghostbusterrequest:
+        issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
+        try:
+            parent = rpki.irdb.models.Parent.objects.get(pk = row.parent_id)
+        except rpki.irdb.models.Parent.DoesNotExist:
+            parent = None
+        rpki.irdb.models.GhostbusterRequest.objects.create(
+            pk                  = row.id,
+            vcard               = row.vcard,
+            parent              = parent,
+            issuer              = issuer)
+
+    print "irdb EECertificateRequest"
+    for row in world.db.irdbd.irdb_eecertificaterequest:
+        issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
+        rpki.irdb.models.EECertificateRequest.objects.create(
+            pk                  = row.id,
+            valid_until         = row.valid_until,
+            pkcs10              = PKCS10(row.pkcs10),
+            gski                = row.gski,
+            cn                  = row.cn,
+            sn                  = row.sn,
+            eku                 = row.eku,
+            issuer              = issuer)
+
+    print "irdb EECertificateRequestASN"
+    for row in world.db.irdbd.irdb_eecertificaterequestasn:
+        ee_certificate_request = rpki.irdb.models.EECertificateRequest.objects.get(
+            pk = row.ee_certificate_request_id)
+        rpki.irdb.models.EECertificateRequestASN.objects.create(
+            pk                  = row.id,
+            start_as            = row.start_as,
+            end_as              = row.end_as,
+            ee_certificate_request = ee_certificate_request)
+
+    print "irdb EECertificateRequestNet"
+    for row in world.db.irdbd.irdb_eecertificaterequestnet:
+        ee_certificate_request = rpki.irdb.models.EECertificateRequest.objects.get(
+            pk = row.ee_certificate_request_id)
+        rpki.irdb.models.EECertificateRequestNet.objects.create(
+            pk                  = row.id,
+            start_ip            = row.start_ip,
+            end_ip              = row.end_ip,
+            version             = row.version,
+            ee_certificate_request = ee_certificate_request)
+
+    # Turtle without a Parent can happen where the old database had a Rootd.
+    # We probably need to do something that coordinates with whatever we do
+    # about rootd in rpkid_handler(), but we haven't written that yet.
+
+    print "irdb Repository"
+    for row in world.db.irdbd.irdb_repository:
+        issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
+        try:
+            turtle = rpki.irdb.models.Turtle.objects.get(pk = row.turtle_id)
+        except rpki.irdb.models.Turtle.DoesNotExist:
+            if not cfg_to_bool(world.cfg.myrpki.run_rootd):
+                raise
+            turtle = rpki.irdb.models.Turtle.objects.create(
+                pk              = row.turtle_id,
+                service_uri     =  "http://{rootd_host}:{rootd_port}/".format(
+                    rootd_host = world.cfg.rootd.server_host,
+                    rootd_port = world.cfg.rootd.server_port))
+        rpki.irdb.models.Repository.objects.create(
+            pk                  = row.id,
+            certificate         = X509(row.certificate),
+            handle              = row.handle,
+            ta                  = X509(row.ta),
+            client_handle       = row.client_handle,
+            service_uri         = row.service_uri,
+            sia_base            = row.sia_base,
+            rrdp_notification_uri = cfg.get(section = "myrpki",
+                                            option = "publication_rrdp_notification_uri"),
+            turtle              = turtle,
+            issuer              = issuer)
+
+    print "irdb Client"
+    for row in world.db.irdbd.irdb_client:
+        issuer = rpki.irdb.models.ServerCA.objects.get(pk = row.issuer_id)
+        rpki.irdb.models.Client.objects.create(
+            pk                  = row.id,
+            certificate         = X509(row.certificate),
+            handle              = row.handle,
+            ta                  = X509(row.ta),
+            sia_base            = row.sia_base,
+            issuer              = issuer)
 
 
 if __name__ == "__main__":

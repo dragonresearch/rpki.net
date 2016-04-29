@@ -513,7 +513,7 @@ class main(object):
                                notBefore          = str(cert.getNotBefore()),
                                notAfter           = str(cert.getNotAfter()),
                                sia_uri            = cert.get_sia_directory_uri(),
-                               aia_uri            = cert.get_aia_uri(),
+                               aia_uri            = cert.get_aia_uri() or "",
                                asn                = str(resources.asn),
                                ipv4               = str(resources.v4),
                                ipv6               = str(resources.v6))
